@@ -269,6 +269,23 @@
       Object.assign(s, patch);
       save(); render();
     }
+    // Like updateSelected, but does NOT call render(). Used for input events so
+    // the keyboard doesn't get dismissed by DOM rebuilds mid-typing. Only the
+    // canvas and any hint text visible under the panel get refreshed.
+    function updateSelectedSilent(patch) {
+      const s = state.shapes.find(s => s.id === state.selectedId);
+      if (!s) return;
+      Object.assign(s, patch);
+      save();
+      // Redraw just the canvas so shape updates show live
+      const svg = document.getElementById('canvas-svg');
+      if (svg) {
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+        renderGrid(svg);
+        renderShapes(svg);
+      }
+      // Update the top-bar shape counter if it exists (not strictly needed here)
+    }
     function deleteSelected() {
       state.shapes = state.shapes.filter(s => s.id !== state.selectedId);
       state.selectedId = null;
@@ -670,7 +687,7 @@
         el('label', {}, 'Label'),
         (() => {
           const input = el('input', { type:'text', value:s.label || '', placeholder:'e.g. Dwarf Alberta Spruce' });
-          input.addEventListener('input', e => updateSelected({ label: e.target.value }));
+          input.addEventListener('input', e => updateSelectedSilent({ label: e.target.value }));
           return input;
         })()
       );
@@ -678,17 +695,22 @@
       // Dimensions
       if (s.type === 'circle') {
         const radInput = el('input', { type:'number', step:'0.5', min:'0.1', value:s.radius });
-        radInput.addEventListener('input', e => updateSelected({ radius: Math.max(0.1, parseFloat(e.target.value) || 0) }));
+        const diameterHint = el('div', { className:'hint' }, 'Diameter: ' + (s.radius*2).toFixed(1) + ' ft');
+        radInput.addEventListener('input', e => {
+          const newR = Math.max(0.1, parseFloat(e.target.value) || 0);
+          updateSelectedSilent({ radius: newR });
+          diameterHint.textContent = 'Diameter: ' + (newR*2).toFixed(1) + ' ft';
+        });
         body.appendChild(el('div', { className:'field' },
           el('label', {}, 'Radius (ft)'),
           radInput,
-          el('div', { className:'hint' }, 'Diameter: ' + (s.radius*2).toFixed(1) + ' ft')
+          diameterHint
         ));
       } else {
         const wInput = el('input', { type:'number', step:'0.5', min:'0.1', value:s.width });
-        wInput.addEventListener('input', e => updateSelected({ width: Math.max(0.1, parseFloat(e.target.value) || 0) }));
+        wInput.addEventListener('input', e => updateSelectedSilent({ width: Math.max(0.1, parseFloat(e.target.value) || 0) }));
         const hInput = el('input', { type:'number', step:'0.5', min:'0.1', value:s.height });
-        hInput.addEventListener('input', e => updateSelected({ height: Math.max(0.1, parseFloat(e.target.value) || 0) }));
+        hInput.addEventListener('input', e => updateSelectedSilent({ height: Math.max(0.1, parseFloat(e.target.value) || 0) }));
         body.appendChild(el('div', { className:'row-2' },
           el('div', { className:'field' }, el('label', {}, 'Width (ft)'), wInput),
           el('div', { className:'field' }, el('label', {}, 'Height (ft)'), hInput)
@@ -696,9 +718,9 @@
       }
       // Position
       const xInput = el('input', { type:'number', step:'0.5', value:s.x });
-      xInput.addEventListener('input', e => updateSelected({ x: parseFloat(e.target.value) || 0 }));
+      xInput.addEventListener('input', e => updateSelectedSilent({ x: parseFloat(e.target.value) || 0 }));
       const yInput = el('input', { type:'number', step:'0.5', value:s.y });
-      yInput.addEventListener('input', e => updateSelected({ y: parseFloat(e.target.value) || 0 }));
+      yInput.addEventListener('input', e => updateSelectedSilent({ y: parseFloat(e.target.value) || 0 }));
       body.appendChild(el('div', { className:'row-2' },
         el('div', { className:'field' }, el('label', {}, 'X position (ft)'), xInput),
         el('div', { className:'field' }, el('label', {}, 'Y position (ft)'), yInput)
@@ -711,7 +733,7 @@
         swatches.appendChild(btn);
       }
       const colorInput = el('input', { type:'color', value:s.color });
-      colorInput.addEventListener('input', e => updateSelected({ color: e.target.value }));
+      colorInput.addEventListener('input', e => updateSelectedSilent({ color: e.target.value }));
       body.appendChild(el('div', { className:'field' },
         el('label', {}, 'Color'),
         swatches,
@@ -723,11 +745,16 @@
       // Opacity
       const opacityVal = s.opacity !== undefined ? s.opacity : 0.65;
       const rangeInput = el('input', { type:'range', min:'0.05', max:'1', step:'0.05', value:opacityVal });
-      rangeInput.addEventListener('input', e => updateSelected({ opacity: parseFloat(e.target.value) }));
+      const opacityPct = el('span', { style:{fontSize:'12px', color:'#78716c'} }, Math.round(opacityVal*100) + '%');
+      rangeInput.addEventListener('input', e => {
+        const v = parseFloat(e.target.value);
+        updateSelectedSilent({ opacity: v });
+        opacityPct.textContent = Math.round(v*100) + '%';
+      });
       body.appendChild(el('div', { className:'field' },
         el('div', { style:{display:'flex', justifyContent:'space-between', marginBottom:'4px'} },
           el('label', {}, 'Opacity'),
-          el('span', { style:{fontSize:'12px', color:'#78716c'} }, Math.round(opacityVal*100) + '%')
+          opacityPct
         ),
         rangeInput,
         el('div', { className:'hint' }, 'Lower opacity is useful for background features like tree shade.')
