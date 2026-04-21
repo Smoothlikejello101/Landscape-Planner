@@ -1008,35 +1008,33 @@
       if (overlay) root.appendChild(overlay);
 
       // After DOM is in place, update canvas size from actual layout
+      resizeCanvas();
+    }
+
+    // Update canvas size from current layout without rebuilding the rest of
+    // the DOM. This is critical on Android because the viewport resizes when
+    // the soft keyboard opens — if we called full render() on that resize, we'd
+    // destroy the input the user just tapped, dismissing the keyboard.
+    function resizeCanvas() {
       const wrap = document.getElementById('canvas-wrap');
-      if (wrap) {
-        const rect = wrap.getBoundingClientRect();
-        const newW = Math.round(rect.width);
-        const newH = Math.round(rect.height);
-        if (newW !== state.canvasW || newH !== state.canvasH) {
-          state.canvasW = newW;
-          state.canvasH = newH;
-          const s = document.getElementById('canvas-svg');
-          if (s) { s.setAttribute('width', newW); s.setAttribute('height', newH); }
-          // redraw grid with new size
-          while (s.firstChild) s.removeChild(s.firstChild);
-          renderGrid(s);
-          renderShapes(s);
-          // reattach listeners (they're on the svg element which still exists)
-        }
-      }
+      if (!wrap) return;
+      const rect = wrap.getBoundingClientRect();
+      const newW = Math.round(rect.width);
+      const newH = Math.round(rect.height);
+      if (newW === state.canvasW && newH === state.canvasH) return;
+      state.canvasW = newW;
+      state.canvasH = newH;
+      const s = document.getElementById('canvas-svg');
+      if (!s) return;
+      s.setAttribute('width', newW);
+      s.setAttribute('height', newH);
+      while (s.firstChild) s.removeChild(s.firstChild);
+      renderGrid(s);
+      renderShapes(s);
     }
 
     // ---- Resize observer ----
-    window.addEventListener('resize', () => {
-      const wrap = document.getElementById('canvas-wrap');
-      if (wrap) {
-        const rect = wrap.getBoundingClientRect();
-        state.canvasW = Math.round(rect.width);
-        state.canvasH = Math.round(rect.height);
-        render();
-      }
-    });
+    window.addEventListener('resize', resizeCanvas);
 
     // ---- Service Worker ----
     if ('serviceWorker' in navigator) {
