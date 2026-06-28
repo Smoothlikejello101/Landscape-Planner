@@ -453,6 +453,9 @@ function updateSelected(patch) {
   Object.assign(s, patch);
   save();
   pushHistoryDebounced();
+  // Re-render so panel UI (selected swatch, lock state, triangle corner,
+  // arrange-button enabled state, etc.) reflects the new value.
+  render();
 }
 // Silent: update the shape AND redraw the canvas, but do not rebuild any panel
 // DOM (so input focus / keyboard stays put on Android).
@@ -630,8 +633,9 @@ function zoomBy(factor, anchorScreenX, anchorScreenY) {
   const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, state.zoom * factor));
   if (newZoom === state.zoom) return;
   const rect = document.getElementById('canvas-svg').getBoundingClientRect();
-  const ax = anchorScreenX !== undefined ? anchorScreenX - rect.left : state.canvasW / 2;
-  const ay = anchorScreenY !== undefined ? anchorScreenY - rect.top : state.canvasH / 2;
+  // Use the live rect, not state.canvasW/H (which can lag behind layout)
+  const ax = anchorScreenX !== undefined ? anchorScreenX - rect.left : rect.width / 2;
+  const ay = anchorScreenY !== undefined ? anchorScreenY - rect.top : rect.height / 2;
   const feetAtAnchor = { x: state.offsetX + ax / pxPerFoot(), y: state.offsetY + ay / pxPerFoot() };
   const newPxPerFoot = PX_PER_FOOT_BASE * newZoom;
   state.offsetX = feetAtAnchor.x - ax / newPxPerFoot;
@@ -654,33 +658,53 @@ function resetCurrentProject() {
 // ============================================================
 // GESTURES
 // ============================================================
-function getTouches(e) { return e.touches ? Array.from(e.touches) : null; }
-function clientXY(e) {
-  const t = getTouches(e);
+// Track every active pointer (finger / mouse) by pointerId. Required for
+// pinch — pointer events don't have an e.touches list like touch events do;
+// each finger fires its own pointerdown/move/up with a unique pointerId, so
+// we have to assemble multi-touch state ourselves.
+const activePointers = new Map();
+
+function getPinchInfo() {
+  if (activePointers.size !== 2) return null;
+  const pts = Array.from(activePointers.values());
   return {
-    x: e.clientX !== undefined ? e.clientX : (t && t[0].clientX),
-    y: e.clientY !== undefined ? e.clientY : (t && t[0].clientY)
+    cx: (pts[0].clientX + pts[1].clientX) / 2,
+    cy: (pts[0].clientY + pts[1].clientY) / 2,
+    dist: Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY)
   };
+}
+function startPinchGesture() {
+  const info = getPinchInfo();
+  if (!info) return;
+  // Clear any in-flight single-finger gesture (pan/marquee/drag-shape) so
+  // it doesn't keep applying a delta as the second finger arrives.
+  gesture.current = {
+    type: 'pinch',
+    startDist: info.dist,
+    startZoom: state.zoom,
+    centerScreen: { x: info.cx, y: info.cy },
+    centerFeetAtStart: screenToFeet(info.cx, info.cy)
+  };
+  state.marquee = null;
 }
 
 function onCanvasPointerDown(e) {
-  const touches = getTouches(e);
-  if (touches && touches.length === 2) {
-    const [a, b] = touches;
-    const cx = (a.clientX + b.clientX) / 2;
-    const cy = (a.clientY + b.clientY) / 2;
-    const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-    gesture.current = {
-      type: 'pinch', startDist: dist, startZoom: state.zoom,
-      centerScreen: { x: cx, y: cy }, centerFeetAtStart: screenToFeet(cx, cy)
-    };
+  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+
+  // Second finger lands → pinch, regardless of where the first one is
+  if (activePointers.size === 2) {
+    startPinchGesture();
     return;
   }
-  // Only handle taps on the SVG root or the grid background
+  // Ignore 3+ pointers (palm rejection)
+  if (activePointers.size > 2) return;
+
+  // Only the SVG root and the grid backdrop start canvas gestures.
+  // (Shape taps go through onShapePointerDown, buttons handle their own events.)
   if (e.target.id !== 'canvas-svg' && e.target.dataset.role !== 'grid') return;
-  const { x: clientX, y: clientY } = clientXY(e);
+
+  const clientX = e.clientX, clientY = e.clientY;
   if (state.selectMode) {
-    // Start marquee
     const feet = screenToFeet(clientX, clientY);
     gesture.current = {
       type: 'marquee',
@@ -701,13 +725,16 @@ function onCanvasPointerDown(e) {
 }
 
 function onCanvasPointerMove(e) {
+  if (activePointers.has(e.pointerId)) {
+    activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+  }
   const g = gesture.current;
   if (!g) return;
-  const touches = getTouches(e);
-  if (g.type === 'pinch' && touches && touches.length === 2) {
-    const [a, b] = touches;
-    const dist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-    const ratio = dist / g.startDist;
+
+  if (g.type === 'pinch') {
+    const info = getPinchInfo();
+    if (!info) return; // one finger lifted; we'll deal with that on pointerup
+    const ratio = info.dist / g.startDist;
     const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, g.startZoom * ratio));
     const newPxPerFoot = PX_PER_FOOT_BASE * newZoom;
     const rect = document.getElementById('canvas-svg').getBoundingClientRect();
@@ -718,7 +745,8 @@ function onCanvasPointerMove(e) {
     render();
     return;
   }
-  const { x: clientX, y: clientY } = clientXY(e);
+
+  const clientX = e.clientX, clientY = e.clientY;
   if (g.type === 'pan') {
     const dxPx = clientX - g.startX;
     const dyPx = clientY - g.startY;
@@ -744,10 +772,8 @@ function onCanvasPointerMove(e) {
     if (Math.hypot(dxPx, dyPx) > DRAG_THRESHOLD_PX) g.moved = true;
     if (g.moved) {
       const cur = screenToFeet(clientX, clientY);
-      // For multi-drag, compute delta from grabOffset of primary shape
       const dxFt = snap(cur.x - g.grabOffset.x) - g.primaryStart.x;
       const dyFt = snap(cur.y - g.grabOffset.y) - g.primaryStart.y;
-      // Apply to all dragged shapes (skipping locked)
       for (const item of g.shapeStarts) {
         const shape = state.shapes.find(s => s.id === item.id);
         if (!shape || shape.locked) continue;
@@ -777,17 +803,43 @@ function handleShapeTap(shape) {
   }
 }
 
-function onCanvasPointerUp() {
+function onCanvasPointerUp(e) {
+  if (e && e.pointerId !== undefined) {
+    activePointers.delete(e.pointerId);
+  }
   const g = gesture.current;
-  gesture.current = null;
   if (!g) return;
+
+  if (g.type === 'pinch') {
+    // Pinch is only "live" while two fingers are down. When one lifts, end
+    // pinch. If a finger remains, smoothly transition into a pan from that
+    // finger's position (otherwise the still-down finger would do nothing
+    // until lifted-and-re-tapped, which feels broken).
+    if (activePointers.size < 2) {
+      gesture.current = null;
+      if (activePointers.size === 1) {
+        const p = Array.from(activePointers.values())[0];
+        gesture.current = {
+          type: 'pan',
+          startX: p.clientX, startY: p.clientY,
+          startOffset: { x: state.offsetX, y: state.offsetY },
+          moved: true  // skip "tap on empty" path on release
+        };
+      } else {
+        save();
+      }
+    }
+    return;
+  }
+
+  gesture.current = null;
+
   if (g.type === 'drag-shape') {
     if (g.moved) {
       flushHistoryDebounce();
       pushHistory();
       save();
     } else {
-      // Tap on shape (no movement)
       const shape = state.shapes.find(s => s.id === g.id);
       if (shape) handleShapeTap(shape);
     }
@@ -795,14 +847,12 @@ function onCanvasPointerUp() {
   } else if (g.type === 'pan') {
     if (g.moved) save();
     else {
-      // Tap on empty: clear selection (and exit select mode? No, keep mode)
       clearSelection();
       state.panel = null;
       tapTracker.id = null; tapTracker.time = 0;
     }
     render();
   } else if (g.type === 'marquee') {
-    // Finalize marquee selection
     if (g.moved && state.marquee) {
       const m = state.marquee;
       const rect = {
@@ -816,7 +866,6 @@ function onCanvasPointerUp() {
       }
       state.selectedIds = hits;
     } else {
-      // Tap in select mode on empty = clear selection
       clearSelection();
     }
     state.marquee = null;
@@ -826,26 +875,24 @@ function onCanvasPointerUp() {
 
 function onShapePointerDown(e, shape) {
   e.stopPropagation();
-  const touches = getTouches(e);
-  if (touches && touches.length === 2) {
-    onCanvasPointerDown(e);
+  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+
+  // If this is the second finger landing (first one might be elsewhere on
+  // the canvas, or even on another shape), switch to pinch.
+  if (activePointers.size === 2) {
+    startPinchGesture();
     return;
   }
-  const { x: clientX, y: clientY } = clientXY(e);
+  if (activePointers.size > 2) return;
+
+  const clientX = e.clientX, clientY = e.clientY;
   const cur = screenToFeet(clientX, clientY);
 
-  // Determine which shapes to drag together: if shape is in current
-  // selection (and multiple selected), drag all; otherwise just this one.
   let dragIds;
   if (isSelected(shape.id) && state.selectedIds.length > 1) {
     dragIds = state.selectedIds.slice();
   } else {
     dragIds = [shape.id];
-    // In pan mode, ensure this shape is the sole selection. In select mode
-    // leave existing selection intact (gesture might be tap-to-toggle).
-    if (!state.selectMode && !isSelected(shape.id)) {
-      // Don't change selection yet — wait for tap vs drag to be determined
-    }
   }
   const shapeStarts = dragIds.map(id => {
     const s = state.shapes.find(sh => sh.id === id);
