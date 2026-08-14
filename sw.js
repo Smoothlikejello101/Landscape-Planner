@@ -1,14 +1,15 @@
 // Service worker for Landscape Planner PWA
 // Caches the app shell so it works fully offline after first load.
 
-const CACHE_NAME = 'landscape-planner-v5';
+const CACHE_NAME = 'landscape-planner-v6';
 const ASSETS = [
   './',
   './index.html',
   './app.js',
   './manifest.webmanifest',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './plants.json'
 ];
 
 self.addEventListener('install', (event) => {
