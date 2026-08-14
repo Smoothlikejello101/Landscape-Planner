@@ -157,11 +157,27 @@ let PLANTS = [];
 let PLANT_META = null;
 const plantsById = {};
 // Picker filter state lives outside `state` so it isn't saved with projects.
-const plantFilter = {
-  q: '', form: '', water: '', bloomMonth: '',
-  dogSafeOnly: true, dryShade: false, wetFeet: false,
-  showArchived: false // rejected rows, zone-fails, hard-no dog plants
+const PLANT_FILTER_DEFAULTS = {
+  q: '', form: '', water: '', bloomMonth: '', sun: '',
+  native: '', deer: '', nectar: '', bird: '', maintenance: '',
+  selfSeed: '', status: '', source: '', maxHeight: '',
+  dogSafeOnly: true, dryShade: false, wetFeet: false, clayOk: false,
+  hostOnly: false, fallColor: false, winterInterest: false,
+  edible: false, arProven: false, noTaproot: false, inPlan: false,
+  showArchived: false, // rejected rows, zone-fails, hard-no dog plants
+  advanced: false      // UI: is the "More filters" section expanded
 };
+const plantFilter = Object.assign({}, PLANT_FILTER_DEFAULTS);
+// Sun tolerance is stored as a range: sun_most = most sun tolerated,
+// sun_least = least. A plant suits a level if the level falls in that span.
+const SUN_RANK = { 'Full': 0, 'Part': 1, 'Shade': 2 };
+function plantTakesSun(p, level) {
+  if (!level) return true;
+  const want = SUN_RANK[level];
+  const most = SUN_RANK[p.sun_most], least = SUN_RANK[p.sun_least];
+  if (most == null || least == null) return false;
+  return most <= want && want <= least;
+}
 
 fetch('plants.json')
   .then(r => r.json())
@@ -1549,8 +1565,36 @@ function plantMatches(p, f) {
   }
   if (f.form && p.form !== f.form) return false;
   if (f.water && p.water !== f.water) return false;
+  if (f.sun && !plantTakesSun(p, f.sun)) return false;
+  if (f.native && p.native !== f.native) return false;
+  if (f.deer && p.deer !== f.deer) return false;
+  if (f.maintenance && p.maintenance !== f.maintenance) return false;
+  if (f.selfSeed && p.self_seed !== f.selfSeed) return false;
+  if (f.status && p.status !== f.status) return false;
+  if (f.source && (!p.source || p.source.indexOf(f.source) === -1)) return false;
+  if (f.nectar) {
+    // 'High' = high only; 'Med' = med or better
+    if (f.nectar === 'High' && p.nectar !== 'High') return false;
+    if (f.nectar === 'Med' && !(p.nectar === 'High' || p.nectar === 'Med')) return false;
+  }
+  if (f.bird) {
+    if (f.bird === 'High' && p.bird !== 'High') return false;
+    if (f.bird === 'Med' && !(p.bird === 'High' || p.bird === 'Med')) return false;
+  }
+  if (f.maxHeight) {
+    const h = p.height && p.height.med;
+    if (h == null || h > Number(f.maxHeight)) return false;
+  }
   if (f.dryShade && !p.dry_shade) return false;
   if (f.wetFeet && !p.wet_feet) return false;
+  if (f.clayOk && !p.clay_ok) return false;
+  if (f.hostOnly && !p.host) return false;
+  if (f.fallColor && !p.fall_color) return false;
+  if (f.winterInterest && !p.winter_interest) return false;
+  if (f.edible && !p.edible) return false;
+  if (f.arProven && !p.ar_proven) return false;
+  if (f.noTaproot && p.taproot) return false;
+  if (f.inPlan && p.status === 'Compendium') return false;
   if (f.bloomMonth) {
     const m = Number(f.bloomMonth);
     if (!p.bloom || p.bloom.start == null || p.bloom.end == null) return false;
@@ -1606,9 +1650,12 @@ function plantMetaLine(p) {
     bits.push('blooms ' + MONTH_NAMES[p.bloom.start] + (p.bloom.end && p.bloom.end !== p.bloom.start ? '-' + MONTH_NAMES[p.bloom.end] : ''));
   }
   if (p.dog && p.dog !== 'Safe') bits.push('dog: ' + p.dog);
+  if (p.sun_most) bits.push(p.sun_most === p.sun_least ? p.sun_most + ' sun' : p.sun_most + '-' + p.sun_least);
   const tags = [];
   if (p.dry_shade) tags.push('dry shade');
   if (p.wet_feet) tags.push('wet ok');
+  if (p.nectar === 'High') tags.push('high nectar');
+  if (p.host) tags.push('host plant');
   if (tags.length) bits.push(tags.join(', '));
   return bits.join(' \u00b7 ');
 }
@@ -1679,31 +1726,91 @@ function renderPlantsPanel() {
     sel.addEventListener('change', () => { plantFilter[key] = sel.value; rebuildList(); });
     return el('div', { className: 'field', style: { flex: '1', minWidth: '0' } }, sel);
   }
-  const selRow = el('div', { style: { display: 'flex', gap: '8px', marginTop: '8px' } },
-    mkSelect('Any form', 'form', enums.form || []),
-    mkSelect('Any water', 'water', enums.water || [])
-  );
-  const selRow2 = el('div', { style: { display: 'flex', gap: '8px', marginTop: '8px' } },
-    mkSelect('Blooming in\u2026', 'bloomMonth', [1,2,3,4,5,6,7,8,9,10,11,12], m => MONTH_NAMES[m])
-  );
-
   function mkCheck(label, key) {
     const cb = el('input', { type: 'checkbox' });
     cb.checked = !!plantFilter[key];
     cb.addEventListener('change', () => { plantFilter[key] = cb.checked; rebuildList(); });
     return el('label', { style: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '4px 0' } }, cb, label);
   }
-  const checks = el('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px 16px', margin: '8px 0 10px' } },
+  function row(...kids) {
+    return el('div', { style: { display: 'flex', gap: '8px', marginTop: '8px' } }, ...kids);
+  }
+
+  // ---- PRIMARY FILTERS (always visible) ----
+  const primary = el('div', {},
+    row(mkSelect('Any form', 'form', enums.form || []),
+        mkSelect('Any sun', 'sun', ['Full', 'Part', 'Shade'])),
+    row(mkSelect('Any water', 'water', enums.water || []),
+        mkSelect('Blooming in\u2026', 'bloomMonth', [1,2,3,4,5,6,7,8,9,10,11,12], m => MONTH_NAMES[m]))
+  );
+  const primaryChecks = el('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px 16px', margin: '8px 0 4px' } },
     mkCheck('Dog-safe only', 'dogSafeOnly'),
     mkCheck('Dry shade', 'dryShade'),
     mkCheck('Wet feet', 'wetFeet'),
-    mkCheck('Show archived', 'showArchived')
+    mkCheck('Host plant', 'hostOnly')
   );
 
+  // ---- ADVANCED FILTERS (collapsible) ----
+  const adv = el('div', { style: { display: plantFilter.advanced ? 'block' : 'none',
+    borderTop: '1px solid #e7e5e4', marginTop: '8px', paddingTop: '4px' } });
+  adv.appendChild(el('div', { className: 'hint', style: { padding: '4px 0 0' } }, 'Ecology'));
+  adv.appendChild(row(
+    mkSelect('Any nectar', 'nectar', ['Med', 'High'], v => v === 'High' ? 'Nectar: High' : 'Nectar: Med+'),
+    mkSelect('Any bird value', 'bird', ['Med', 'High'], v => v === 'High' ? 'Birds: High' : 'Birds: Med+')
+  ));
+  adv.appendChild(row(
+    mkSelect('Any native status', 'native', enums.native || []),
+    mkSelect('Any deer rating', 'deer', enums.deer || [])
+  ));
+  adv.appendChild(el('div', { className: 'hint', style: { padding: '10px 0 0' } }, 'Size & care'));
+  adv.appendChild(row(
+    mkSelect('Any height', 'maxHeight', [1, 2, 3, 4, 6, 10, 20, 40], v => 'Under ' + v + " ft"),
+    mkSelect('Any maintenance', 'maintenance', enums.maintenance || [])
+  ));
+  adv.appendChild(row(
+    mkSelect('Any self-seeding', 'selfSeed', enums.self_seed || []),
+    mkSelect('Any status', 'status', enums.status || [])
+  ));
+  adv.appendChild(row(
+    mkSelect('Any nursery', 'source', ['Prairie Moon', 'Izel', 'Prairie Nursery', 'Pine Ridge', 'Local'])
+  ));
+  adv.appendChild(el('div', { className: 'hint', style: { padding: '10px 0 0' } }, 'Traits'));
+  adv.appendChild(el('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px 16px', margin: '4px 0 8px' } },
+    mkCheck('Fall color', 'fallColor'),
+    mkCheck('Winter interest', 'winterInterest'),
+    mkCheck('Clay OK', 'clayOk'),
+    mkCheck('Edible', 'edible'),
+    mkCheck('AR-proven', 'arProven'),
+    mkCheck('Transplantable', 'noTaproot'),
+    mkCheck('In my plan only', 'inPlan'),
+    mkCheck('Show archived', 'showArchived')
+  ));
+
+  // ---- Toggle + reset ----
+  const toggle = el('button', { className: 'btn ghost', style: { flex: '1', fontSize: '13px', padding: '6px' } });
+  function syncToggleLabel() {
+    toggle.textContent = (plantFilter.advanced ? '\u2212 Fewer filters' : '+ More filters');
+  }
+  syncToggleLabel();
+  toggle.addEventListener('click', () => {
+    plantFilter.advanced = !plantFilter.advanced;
+    adv.style.display = plantFilter.advanced ? 'block' : 'none';
+    syncToggleLabel();
+  });
+  const resetBtn = el('button', { className: 'btn ghost', style: { flex: '1', fontSize: '13px', padding: '6px' } }, 'Reset filters');
+  resetBtn.addEventListener('click', () => {
+    const wasAdvanced = plantFilter.advanced;
+    Object.assign(plantFilter, PLANT_FILTER_DEFAULTS);
+    plantFilter.advanced = wasAdvanced;
+    render(); // full rebuild so every control shows its cleared value
+  });
+  const btnRow = el('div', { style: { display: 'flex', gap: '8px', margin: '8px 0 4px' } }, toggle, resetBtn);
+
   body.appendChild(el('div', { className: 'field' }, search));
-  body.appendChild(selRow);
-  body.appendChild(selRow2);
-  body.appendChild(checks);
+  body.appendChild(primary);
+  body.appendChild(primaryChecks);
+  body.appendChild(btnRow);
+  body.appendChild(adv);
   body.appendChild(countLine);
   body.appendChild(listWrap);
   rebuildList();

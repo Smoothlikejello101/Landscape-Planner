@@ -1,7 +1,7 @@
 // Service worker for Landscape Planner PWA
 // Caches the app shell so it works fully offline after first load.
 
-const CACHE_NAME = 'landscape-planner-v7';
+const CACHE_NAME = 'landscape-planner-v8';
 const ASSETS = [
   './',
   './index.html',
