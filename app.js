@@ -60,6 +60,7 @@ const I = {
   chevronDown: '<svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>',
   plus: '<svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
   rotate: '<svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 1 1 18 6"/></svg>',
+  leaf: '<svg class="icon" viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>',
   folder: '<svg class="icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
   arrangeFront: '<svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="10" height="10" rx="1" fill="#d6d3d1" stroke="#d6d3d1"/><rect x="9" y="9" width="12" height="12" rx="1" fill="#fff"/></svg>',
   arrangeBack: '<svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="1" fill="#d6d3d1" stroke="#d6d3d1"/><rect x="3" y="3" width="10" height="10" rx="1" fill="#fff"/></svg>',
@@ -148,6 +149,29 @@ const state = {
 const gesture = { current: null };
 const tapTracker = { id: null, time: 0 };
 let historyTimer = null;
+
+// ============================================================
+// PLANT INDEX DATA (Caddo Valley Plant Index -> plants.json)
+// ============================================================
+let PLANTS = [];
+let PLANT_META = null;
+const plantsById = {};
+// Picker filter state lives outside `state` so it isn't saved with projects.
+const plantFilter = {
+  q: '', form: '', water: '', bloomMonth: '',
+  dogSafeOnly: true, dryShade: false, wetFeet: false,
+  showArchived: false // rejected rows, zone-fails, hard-no dog plants
+};
+
+fetch('plants.json')
+  .then(r => r.json())
+  .then(d => {
+    PLANTS = d.plants || [];
+    PLANT_META = d.meta || null;
+    for (const p of PLANTS) plantsById[p.id] = p;
+    if (state.panel === 'plants') render(); // refresh picker if already open
+  })
+  .catch(err => console.error('plants.json load failed', err));
 
 // ============================================================
 // STORAGE
@@ -1513,6 +1537,183 @@ function renderLayersPanel() {
   return overlay;
 }
 
+// ============================================================
+// PLANT PICKER
+// ============================================================
+function plantMatches(p, f) {
+  if (f.dogSafeOnly && p.dog !== 'Safe') return false;
+  if (!f.showArchived) {
+    if (p.status === 'Rejected') return false;
+    if (p.dog === 'HARD NO') return false;
+    if (p.notes && p.notes.indexOf('FAILS ZONE FILTER') !== -1) return false;
+  }
+  if (f.form && p.form !== f.form) return false;
+  if (f.water && p.water !== f.water) return false;
+  if (f.dryShade && !p.dry_shade) return false;
+  if (f.wetFeet && !p.wet_feet) return false;
+  if (f.bloomMonth) {
+    const m = Number(f.bloomMonth);
+    if (!p.bloom || p.bloom.start == null || p.bloom.end == null) return false;
+    if (!(p.bloom.start <= m && m <= p.bloom.end)) return false;
+  }
+  if (f.q) {
+    const q = f.q.toLowerCase();
+    const hay = (p.common + ' ' + (p.botanical || '') + ' ' + (p.host || '') + ' ' + (p.bed || '') + ' ' + (p.notes || '')).toLowerCase();
+    if (hay.indexOf(q) === -1) return false;
+  }
+  return true;
+}
+function filteredPlants() {
+  const out = PLANTS.filter(p => plantMatches(p, plantFilter));
+  out.sort((a, b) => a.common.localeCompare(b.common));
+  return out;
+}
+// Canvas color by growth form, drawn from the existing swatch palette
+const FORM_COLORS = {
+  'Tree (canopy)': '#78350f', 'Tree (understory)': '#57534e', 'Shrub': '#16a34a',
+  'Perennial': '#a855f7', 'Grass/Sedge': '#f59e0b', 'Vine': '#14b8a6',
+  'Bulb': '#ec4899', 'Fern': '#65a30d', 'Annual': '#fbbf24',
+  'Aquatic/Emergent': '#0ea5e9', 'Cactus': '#84cc16'
+};
+function addPlantShape(p) {
+  flushHistoryDebounce();
+  const c = viewCenterFeet();
+  const id = uid();
+  const spread = (p.width && p.width.med) || (p.height && p.height.med) || 2;
+  const radius = Math.max(0.5, snap(spread / 2));
+  const shape = {
+    id, type: 'circle',
+    x: snap(c.x), y: snap(c.y),
+    radius,
+    color: FORM_COLORS[p.form] || '#16a34a',
+    label: p.common,
+    opacity: 0.65, locked: false,
+    plantId: p.id // permanent link back to the plant index row
+  };
+  state.shapes.push(shape);
+  state.selectedIds = [id];
+  pushHistory();
+  save();
+}
+const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function plantMetaLine(p) {
+  const bits = [];
+  if (p.form) bits.push(p.form);
+  const spread = p.width && p.width.med;
+  const ht = p.height && p.height.med;
+  if (ht || spread) bits.push((ht ? ht + "'" : '?') + ' x ' + (spread ? spread + "'" : '?'));
+  if (p.bloom && p.bloom.start) {
+    bits.push('blooms ' + MONTH_NAMES[p.bloom.start] + (p.bloom.end && p.bloom.end !== p.bloom.start ? '-' + MONTH_NAMES[p.bloom.end] : ''));
+  }
+  if (p.dog && p.dog !== 'Safe') bits.push('dog: ' + p.dog);
+  const tags = [];
+  if (p.dry_shade) tags.push('dry shade');
+  if (p.wet_feet) tags.push('wet ok');
+  if (tags.length) bits.push(tags.join(', '));
+  return bits.join(' \u00b7 ');
+}
+function renderPlantsPanel() {
+  const header = el('div', { className: 'sheet-header' },
+    el('div', { className: 'title' }, 'Plant Picker' + (PLANTS.length ? ' (' + PLANTS.length + ')' : '')),
+    (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
+  );
+
+  const body = el('div', { className: 'sheet-body' });
+
+  if (!PLANTS.length) {
+    body.appendChild(el('div', { className: 'hint' }, 'Plant index not loaded yet. If this persists, check that plants.json is deployed and the service worker cache version was bumped.'));
+    const sheet0 = el('div', { className: 'sheet' }, header, body);
+    const overlay0 = el('div', { className: 'overlay' }, sheet0);
+    overlay0.addEventListener('click', e => { if (e.target === overlay0) { state.panel = null; render(); } });
+    return overlay0;
+  }
+
+  // --- Results list (rebuilt in place so typing never destroys input focus) ---
+  const countLine = el('div', { className: 'hint', style: { padding: '0 0 6px' } });
+  const listWrap = el('div', {});
+  function buildRow(p) {
+    const info = el('div', { className: 'pinfo' },
+      el('div', { className: 'pname' }, p.common),
+      el('div', { className: 'pmeta' }, (p.botanical ? p.botanical + ' \u2014 ' : '') + plantMetaLine(p))
+    );
+    const dot = el('div', { style: {
+      width: '14px', height: '14px', borderRadius: '50%', flex: 'none',
+      background: FORM_COLORS[p.form] || '#16a34a', marginRight: '10px'
+    } });
+    const row = el('div', { className: 'proj-row', style: { alignItems: 'center' } }, dot, info);
+    row.addEventListener('click', () => {
+      addPlantShape(p);
+      state.panel = null;
+      render();
+    });
+    return row;
+  }
+  function rebuildList() {
+    while (listWrap.firstChild) listWrap.removeChild(listWrap.firstChild);
+    const hits = filteredPlants();
+    countLine.textContent = hits.length + ' match' + (hits.length === 1 ? '' : 'es') + ' \u00b7 tap a plant to place it';
+    for (const p of hits.slice(0, 60)) listWrap.appendChild(buildRow(p));
+    if (hits.length > 60) {
+      listWrap.appendChild(el('div', { className: 'hint', style: { padding: '8px 0' } },
+        '+ ' + (hits.length - 60) + ' more \u2014 narrow the filters to see them'));
+    }
+    if (hits.length === 0) {
+      listWrap.appendChild(el('div', { className: 'hint', style: { padding: '8px 0' } },
+        'No matches. Loosen a filter \u2014 or check \u201cShow archived\u201d if you are hunting a rejected/zone-fail plant.'));
+    }
+  }
+
+  // --- Filter controls (all update the list in place; no full render) ---
+  const search = el('input', { type: 'text', value: plantFilter.q, placeholder: 'Search name, host, notes\u2026' });
+  search.addEventListener('input', () => { plantFilter.q = search.value; rebuildList(); });
+
+  const enums = (PLANT_META && PLANT_META.enums) || {};
+  function mkSelect(label, key, options, display) {
+    const sel = el('select', {});
+    sel.appendChild(el('option', { value: '' }, label));
+    for (const o of options) {
+      const opt = el('option', { value: String(o) }, display ? display(o) : String(o));
+      if (String(plantFilter[key]) === String(o)) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    sel.addEventListener('change', () => { plantFilter[key] = sel.value; rebuildList(); });
+    return el('div', { className: 'field', style: { flex: '1', minWidth: '0' } }, sel);
+  }
+  const selRow = el('div', { style: { display: 'flex', gap: '8px', marginTop: '8px' } },
+    mkSelect('Any form', 'form', enums.form || []),
+    mkSelect('Any water', 'water', enums.water || [])
+  );
+  const selRow2 = el('div', { style: { display: 'flex', gap: '8px', marginTop: '8px' } },
+    mkSelect('Blooming in\u2026', 'bloomMonth', [1,2,3,4,5,6,7,8,9,10,11,12], m => MONTH_NAMES[m])
+  );
+
+  function mkCheck(label, key) {
+    const cb = el('input', { type: 'checkbox' });
+    cb.checked = !!plantFilter[key];
+    cb.addEventListener('change', () => { plantFilter[key] = cb.checked; rebuildList(); });
+    return el('label', { style: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '4px 0' } }, cb, label);
+  }
+  const checks = el('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px 16px', margin: '8px 0 10px' } },
+    mkCheck('Dog-safe only', 'dogSafeOnly'),
+    mkCheck('Dry shade', 'dryShade'),
+    mkCheck('Wet feet', 'wetFeet'),
+    mkCheck('Show archived', 'showArchived')
+  );
+
+  body.appendChild(el('div', { className: 'field' }, search));
+  body.appendChild(selRow);
+  body.appendChild(selRow2);
+  body.appendChild(checks);
+  body.appendChild(countLine);
+  body.appendChild(listWrap);
+  rebuildList();
+
+  const sheet = el('div', { className: 'sheet' }, header, body);
+  const overlay = el('div', { className: 'overlay' }, sheet);
+  overlay.addEventListener('click', e => { if (e.target === overlay) { state.panel = null; render(); } });
+  return overlay;
+}
+
 function renderProjectsPanel() {
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, 'Projects (' + state.projects.length + ')'),
@@ -1910,6 +2111,10 @@ function render() {
   bottomBar.appendChild(mkShapeBtn('rect', 'rect', 'Rect', I.square));
   bottomBar.appendChild(mkShapeBtn('oval', 'oval', 'Oval', I.oval));
   bottomBar.appendChild(mkShapeBtn('triangle', 'tri', 'Triangle', I.triangle));
+  const plantsBtn = el('button', { className: 'tool-btn plants' });
+  plantsBtn.innerHTML = I.leaf + '<div class="lbl">Plants</div>';
+  plantsBtn.addEventListener('click', () => { state.panel = 'plants'; render(); });
+  bottomBar.appendChild(plantsBtn);
   app.appendChild(bottomBar);
 
   root.appendChild(app);
@@ -1924,6 +2129,7 @@ function render() {
   else if (state.panel === 'export') panelNode = renderExportModal();
   else if (state.panel === 'preview') panelNode = renderPreviewModal();
   else if (state.panel === 'reset') panelNode = renderResetModal();
+  else if (state.panel === 'plants') panelNode = renderPlantsPanel();
   if (panelNode) root.appendChild(panelNode);
   if (state.menu === 'more') root.appendChild(renderMoreMenu());
 
