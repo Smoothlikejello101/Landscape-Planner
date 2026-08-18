@@ -24,6 +24,11 @@ const SWATCHES = [
   '#78350f','#57534e','#94a3b8','#ffffff'
 ];
 const SHAPE_TYPES = ['circle', 'rect', 'oval', 'triangle'];
+// Background image constraints
+const BG_MAX_IMAGE_DIM = 2000;   // downscale so longer edge is <= this
+const BG_JPEG_QUALITY = 0.85;    // re-encode as JPEG at this quality
+const BG_ROT_HANDLE_OFFSET_PX = 32;  // rotation handle sits this far above image top
+const BG_HANDLE_RADIUS_PX = 14;      // touch-friendly hit target for handles
 const STORAGE = {
   PROJECTS: 'lp-projects',
   CURRENT: 'lp-current',
@@ -62,6 +67,9 @@ const I = {
   rotate: '<svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 1 1 18 6"/></svg>',
   leaf: '<svg class="icon" viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z"/><path d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>',
   folder: '<svg class="icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
+  image: '<svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
+  move: '<svg class="icon" viewBox="0 0 24 24"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>',
+  target: '<svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" class="icon-fill"/></svg>',
   arrangeFront: '<svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="10" height="10" rx="1" fill="#d6d3d1" stroke="#d6d3d1"/><rect x="9" y="9" width="12" height="12" rx="1" fill="#fff"/></svg>',
   arrangeBack: '<svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="1" fill="#d6d3d1" stroke="#d6d3d1"/><rect x="3" y="3" width="10" height="10" rx="1" fill="#fff"/></svg>',
   arrangeForward: '<svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="10" height="10" rx="1" fill="#d6d3d1"/><rect x="9" y="9" width="12" height="12" rx="1" fill="#fff"/><polyline points="14 6 17 3 20 6" stroke="#16a34a"/></svg>',
@@ -145,6 +153,17 @@ const state = {
   panelArgs: null,
   exportPreview: null,
   menu: null, // { x, y, items } floating menu
+  // Background image (satellite / survey to trace over) — per-project.
+  // Shape: { dataUrl, naturalWidth, naturalHeight, ftPerPx, cx, cy,
+  //          rotation, opacity, visible }
+  // Position is CENTER of image in world feet; rotation degrees around center.
+  bgImage: null,
+  // Ephemeral: are we in bg edit mode (drag/rotate handles active, shapes locked)?
+  bgEditMode: false,
+  // Ephemeral: calibration flow state, null or { step, p1, p2 }.
+  // Steps: 'point1' -> tap first known point, 'point2' -> tap second,
+  // 'distance' -> distance-entry modal is open. p1/p2 are image-pixel coords.
+  bgCalibrate: null,
 };
 const gesture = { current: null };
 const tapTracker = { id: null, time: 0 };
@@ -217,14 +236,20 @@ function saveCurrentProject() {
       shapes: state.shapes,
       zoom: state.zoom,
       offsetX: state.offsetX,
-      offsetY: state.offsetY
+      offsetY: state.offsetY,
+      bgImage: state.bgImage
     }));
     const proj = state.projects.find(p => p.id === state.currentProjectId);
     if (proj) {
       proj.lastModified = now();
       saveProjectList();
     }
-  } catch (e) { console.error('saveCurrentProject', e); }
+  } catch (e) {
+    if (e && (e.name === 'QuotaExceededError' || /quota/i.test(String(e)))) {
+      alert('Storage full. This usually means the satellite image is too large. Try removing it from Background image, or delete unused projects.');
+    }
+    console.error('saveCurrentProject', e);
+  }
 }
 let saveTimer = null;
 function save() {
@@ -242,15 +267,19 @@ function loadProject(id) {
     state.zoom = 1;
     state.offsetX = -10;
     state.offsetY = -10;
+    state.bgImage = null;
   } else {
     state.shapes = (data.shapes || []).map(migrateShape);
     state.zoom = typeof data.zoom === 'number' ? data.zoom : 1;
     state.offsetX = typeof data.offsetX === 'number' ? data.offsetX : -10;
     state.offsetY = typeof data.offsetY === 'number' ? data.offsetY : -10;
+    state.bgImage = data.bgImage ? migrateBgImage(data.bgImage) : null;
   }
   state.selectedIds = [];
   state.history = [];
   state.historyIndex = -1;
+  state.bgEditMode = false;
+  state.bgCalibrate = null;
   setCurrentProjectId(id);
 }
 function migrateShape(s) {
@@ -263,6 +292,20 @@ function migrateShape(s) {
   // Ensure type-specific fields exist with defaults
   if (base.type === 'triangle' && !base.rightAngle) base.rightAngle = 'bl';
   return base;
+}
+function migrateBgImage(b) {
+  // Fill in any missing defaults on old / partial data
+  return Object.assign({
+    dataUrl: '',
+    naturalWidth: 1000,
+    naturalHeight: 1000,
+    ftPerPx: 0.1,
+    cx: 0,
+    cy: 0,
+    rotation: 0,
+    opacity: 0.6,
+    visible: true
+  }, b);
 }
 function createProject(name, initialData) {
   const id = uid();
@@ -339,8 +382,14 @@ function setClipboard(data) {
 function pushHistory() {
   // Truncate any redo branch
   state.history = state.history.slice(0, state.historyIndex + 1);
-  // Push deep snapshot of shapes
-  state.history.push(deepClone(state.shapes));
+  // Push snapshot. Shapes: deep clone (mutable objects). bgImage: shallow
+  // spread — its dataUrl is a big string but strings are immutable/shared in
+  // JS, so 50 snapshots referencing the same image cost ~50 * (small object)
+  // in memory, not 50 * (image size).
+  state.history.push({
+    shapes: deepClone(state.shapes),
+    bgImage: state.bgImage ? Object.assign({}, state.bgImage) : null
+  });
   // Cap
   if (state.history.length > MAX_HISTORY) {
     state.history.shift();
@@ -359,21 +408,29 @@ function flushHistoryDebounce() {
     pushHistory();
   }
 }
+function applyHistorySnapshot(snap) {
+  // Snapshots created before this change may be bare arrays (old shape-only
+  // format). Handle both.
+  if (Array.isArray(snap)) {
+    state.shapes = deepClone(snap);
+  } else {
+    state.shapes = deepClone(snap.shapes);
+    state.bgImage = snap.bgImage ? Object.assign({}, snap.bgImage) : null;
+  }
+  state.selectedIds = state.selectedIds.filter(id => state.shapes.find(s => s.id === id));
+}
 function undo() {
   flushHistoryDebounce();
   if (state.historyIndex <= 0) return;
   state.historyIndex--;
-  state.shapes = deepClone(state.history[state.historyIndex]);
-  // Clean selection (any ids that no longer exist)
-  state.selectedIds = state.selectedIds.filter(id => state.shapes.find(s => s.id === id));
+  applyHistorySnapshot(state.history[state.historyIndex]);
   save();
 }
 function redo() {
   flushHistoryDebounce();
   if (state.historyIndex >= state.history.length - 1) return;
   state.historyIndex++;
-  state.shapes = deepClone(state.history[state.historyIndex]);
-  state.selectedIds = state.selectedIds.filter(id => state.shapes.find(s => s.id === id));
+  applyHistorySnapshot(state.history[state.historyIndex]);
   save();
 }
 function canUndo() { return state.historyIndex > 0; }
@@ -510,6 +567,7 @@ function updateSelectedSilent(patch) {
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     renderGrid(svg);
     renderShapes(svg);
+    renderBgHandles(svg);
   }
 }
 function deleteShapesByIds(ids) {
@@ -691,8 +749,363 @@ function resetCurrentProject() {
   state.offsetX = -10;
   state.offsetY = -10;
   state.panel = null;
+  state.bgImage = null;
+  state.bgEditMode = false;
+  state.bgCalibrate = null;
   pushHistory();
   save();
+}
+
+// ============================================================
+// BACKGROUND IMAGE (satellite / survey to trace over)
+// ============================================================
+//
+// A bg image is stored per-project as a JPEG data URL (downscaled on upload
+// to <= BG_MAX_IMAGE_DIM px on the longer edge to stay within localStorage
+// budget). The image has:
+//   - naturalWidth/Height: pixel dimensions of the stored image
+//   - ftPerPx: world feet per image pixel (set via calibration)
+//   - cx/cy:   center position in world feet
+//   - rotation: degrees around the center
+//   - opacity: 0..1 (tracing translucency)
+//   - visible: bool
+// Position is CENTER (not top-left) so that rotation-around-center is a
+// straightforward transform.
+
+function bgImageBBoxWorld(bg) {
+  // Axis-aligned bbox of the (unrotated) image in world feet.
+  const w = bg.naturalWidth * bg.ftPerPx;
+  const h = bg.naturalHeight * bg.ftPerPx;
+  return {
+    x: bg.cx - w / 2, y: bg.cy - h / 2,
+    w, h
+  };
+}
+// Convert a screen tap to image-pixel coords, undoing the image's current
+// position and rotation. Used by calibration taps: we need where on the image
+// the user touched, in the image's own pixel space, so subsequent
+// position/rotation changes don't invalidate the calibration.
+function screenToImagePx(clientX, clientY, bg) {
+  const world = screenToFeet(clientX, clientY);
+  // Translate so image center is origin
+  const dx = world.x - bg.cx;
+  const dy = world.y - bg.cy;
+  // Un-rotate (rotate by -rotation)
+  const rad = -bg.rotation * Math.PI / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const localXft = dx * cos - dy * sin;
+  const localYft = dx * sin + dy * cos;
+  // Convert feet-from-center to pixel-from-top-left
+  const halfWft = bg.naturalWidth * bg.ftPerPx / 2;
+  const halfHft = bg.naturalHeight * bg.ftPerPx / 2;
+  return {
+    x: (localXft + halfWft) / bg.ftPerPx,
+    y: (localYft + halfHft) / bg.ftPerPx
+  };
+}
+// Position of the rotation handle in screen coords. Sits above the (rotated)
+// image, along the rotated Y axis.
+function bgRotHandleScreen(bg) {
+  const ppf = pxPerFoot();
+  // In image-local space, the rotation handle is directly above the top edge
+  // (local (0, -halfH - handleOffset))
+  const halfHft = bg.naturalHeight * bg.ftPerPx / 2;
+  const offsetFt = BG_ROT_HANDLE_OFFSET_PX / ppf;
+  const localX = 0;
+  const localY = -(halfHft + offsetFt);
+  // Rotate by bg.rotation
+  const rad = bg.rotation * Math.PI / 180;
+  const cos = Math.cos(rad), sin = Math.sin(rad);
+  const worldX = bg.cx + localX * cos - localY * sin;
+  const worldY = bg.cy + localX * sin + localY * cos;
+  // World feet → screen px (relative to canvas top-left)
+  return {
+    x: (worldX - state.offsetX) * ppf,
+    y: (worldY - state.offsetY) * ppf
+  };
+}
+// Screen point of image center (used for the rotation-handle connector line
+// and for computing the rotation delta during a rotate gesture).
+function bgCenterScreen(bg) {
+  const ppf = pxPerFoot();
+  return {
+    x: (bg.cx - state.offsetX) * ppf,
+    y: (bg.cy - state.offsetY) * ppf
+  };
+}
+
+// ---------- File upload + downscale ----------
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(new Error('File read failed'));
+    r.readAsDataURL(file);
+  });
+}
+function loadImageEl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Image decode failed — try a different file'));
+    img.src = dataUrl;
+  });
+}
+function downscaleImage(img, maxDim, quality) {
+  const w = img.naturalWidth, h = img.naturalHeight;
+  const scale = Math.min(1, maxDim / Math.max(w, h));
+  const outW = Math.max(1, Math.round(w * scale));
+  const outH = Math.max(1, Math.round(h * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = outW; canvas.height = outH;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, outW, outH);
+  return { dataUrl: canvas.toDataURL('image/jpeg', quality), w: outW, h: outH };
+}
+async function handleBgImageFile(file) {
+  const name = (file.name || '').toLowerCase();
+  const t = (file.type || '').toLowerCase();
+  if (t === 'image/heic' || t === 'image/heif' || name.endsWith('.heic') || name.endsWith('.heif')) {
+    alert("iPhone HEIC/HEIF photos aren't supported by browsers. On iPhone: Settings → Camera → Formats → Most Compatible, then re-take the photo. Or convert this image to JPEG first.");
+    return false;
+  }
+  if (!t.startsWith('image/')) {
+    alert('Please pick an image file (JPEG or PNG).');
+    return false;
+  }
+  try {
+    const origUrl = await fileToDataUrl(file);
+    const img = await loadImageEl(origUrl);
+    const { dataUrl, w, h } = downscaleImage(img, BG_MAX_IMAGE_DIM, BG_JPEG_QUALITY);
+    // Estimate size: base64 is ~4/3 of raw bytes
+    const estBytes = Math.round(dataUrl.length * 0.75);
+    if (estBytes > 4_000_000) {
+      // 4MB is a soft warning — localStorage limits vary
+      const ok = confirm(`Image is ~${(estBytes/1024/1024).toFixed(1)}MB after compression. This might not fit in browser storage alongside your other projects. Continue?`);
+      if (!ok) return false;
+    }
+    // Place image centered on current view, at an arbitrary initial scale —
+    // the user will calibrate right after.
+    const c = viewCenterFeet();
+    const initialFtPerPx = 0.1; // 1 pixel = 0.1 ft ≈ 1.2 in — arbitrary, gets overridden
+    flushHistoryDebounce();
+    state.bgImage = {
+      dataUrl, naturalWidth: w, naturalHeight: h,
+      ftPerPx: initialFtPerPx,
+      cx: c.x, cy: c.y,
+      rotation: 0, opacity: 0.6, visible: true
+    };
+    pushHistory();
+    save();
+    return true;
+  } catch (e) {
+    alert('Could not load image: ' + (e.message || e));
+    return false;
+  }
+}
+function removeBgImage() {
+  if (!state.bgImage) return;
+  flushHistoryDebounce();
+  state.bgImage = null;
+  state.bgEditMode = false;
+  state.bgCalibrate = null;
+  pushHistory();
+  save();
+}
+// Patch fields on the bg image with history (used by numeric inputs, opacity slider, etc.)
+function updateBgImage(patch) {
+  if (!state.bgImage) return;
+  Object.assign(state.bgImage, patch);
+  save();
+  pushHistoryDebounced();
+  render();
+}
+// Silent variant for range/text inputs so the panel DOM (and thus the
+// on-screen keyboard) isn't torn down mid-edit.
+function updateBgImageSilent(patch) {
+  if (!state.bgImage) return;
+  Object.assign(state.bgImage, patch);
+  save();
+  pushHistoryDebounced();
+  const svg = document.getElementById('canvas-svg');
+  if (svg) {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    renderGrid(svg);
+    renderShapes(svg);
+    renderBgHandles(svg);
+  }
+}
+
+// ---------- Calibration flow ----------
+function startBgCalibration() {
+  if (!state.bgImage) return;
+  state.bgCalibrate = { step: 'point1', p1: null, p2: null };
+  state.panel = null;
+  // Force edit mode off — calibration taps must not be confused with drag
+  state.bgEditMode = false;
+  render();
+}
+function cancelBgCalibration() {
+  state.bgCalibrate = null;
+  render();
+}
+function bgCalibrationTap(clientX, clientY) {
+  if (!state.bgImage || !state.bgCalibrate) return;
+  const pt = screenToImagePx(clientX, clientY, state.bgImage);
+  if (state.bgCalibrate.step === 'point1') {
+    state.bgCalibrate.p1 = pt;
+    state.bgCalibrate.step = 'point2';
+  } else if (state.bgCalibrate.step === 'point2') {
+    state.bgCalibrate.p2 = pt;
+    state.bgCalibrate.step = 'distance';
+    state.panel = 'bgDistance';
+  }
+  render();
+}
+function finishBgCalibration(distanceFt) {
+  if (!state.bgImage || !state.bgCalibrate || !state.bgCalibrate.p1 || !state.bgCalibrate.p2) return;
+  const p1 = state.bgCalibrate.p1, p2 = state.bgCalibrate.p2;
+  const dPx = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+  if (dPx < 2) {
+    alert('The two points are too close together. Try again with points further apart.');
+    return;
+  }
+  if (!(distanceFt > 0) || !isFinite(distanceFt)) {
+    alert('Please enter a positive distance in feet.');
+    return;
+  }
+  const newFtPerPx = distanceFt / dPx;
+  flushHistoryDebounce();
+  state.bgImage.ftPerPx = newFtPerPx;
+  pushHistory();
+  save();
+  state.bgCalibrate = null;
+  state.panel = 'bg'; // back to bg panel
+  render();
+}
+
+// ---------- Rendering ----------
+// Called from renderGrid, between the base tan rect and the grid lines, so
+// grid lines stay visible on top of the image (subtle scale reference).
+function renderBgImageInto(svg) {
+  const bg = state.bgImage;
+  if (!bg || !bg.visible) return;
+  const ppf = pxPerFoot();
+  const wFt = bg.naturalWidth * bg.ftPerPx;
+  const hFt = bg.naturalHeight * bg.ftPerPx;
+  const xPx = (bg.cx - wFt / 2 - state.offsetX) * ppf;
+  const yPx = (bg.cy - hFt / 2 - state.offsetY) * ppf;
+  const wPx = wFt * ppf;
+  const hPx = hFt * ppf;
+  const cxPx = (bg.cx - state.offsetX) * ppf;
+  const cyPx = (bg.cy - state.offsetY) * ppf;
+  const transform = bg.rotation ? `rotate(${bg.rotation} ${cxPx} ${cyPx})` : '';
+  const imageAttrs = {
+    href: bg.dataUrl,
+    x: xPx, y: yPx, width: wPx, height: hPx,
+    opacity: bg.opacity,
+    // preserveAspectRatio "none" would let the image squash to the box; we
+    // want strict aspect (which it already has since wFt/hFt come from
+    // naturalWidth/Height * same ftPerPx).
+    preserveAspectRatio: 'none',
+    'pointer-events': state.bgEditMode ? 'auto' : 'none',
+    style: state.bgEditMode ? 'cursor:move;touch-action:none;' : ''
+  };
+  if (transform) imageAttrs.transform = transform;
+  if (state.bgEditMode) imageAttrs['data-role'] = 'bg-body';
+  const img = svgEl('image', imageAttrs);
+  // xlink:href for older SVG stacks (belt and suspenders)
+  img.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', bg.dataUrl);
+  svg.appendChild(img);
+}
+// Called from render() after shapes, only when bg edit mode is on OR
+// calibration is running. Draws the bg's bounding-box outline plus rotation
+// handle (edit mode) or calibration markers (calibration mode).
+function renderBgHandles(svg) {
+  const bg = state.bgImage;
+  if (!bg) return;
+  const ppf = pxPerFoot();
+  const wFt = bg.naturalWidth * bg.ftPerPx;
+  const hFt = bg.naturalHeight * bg.ftPerPx;
+  const xPx = (bg.cx - wFt / 2 - state.offsetX) * ppf;
+  const yPx = (bg.cy - hFt / 2 - state.offsetY) * ppf;
+  const wPx = wFt * ppf;
+  const hPx = hFt * ppf;
+  const cxPx = (bg.cx - state.offsetX) * ppf;
+  const cyPx = (bg.cy - state.offsetY) * ppf;
+  const transform = bg.rotation ? `rotate(${bg.rotation} ${cxPx} ${cyPx})` : '';
+
+  if (state.bgEditMode) {
+    // Bounding box outline (rotates with image)
+    const bboxAttrs = {
+      x: xPx, y: yPx, width: wPx, height: hPx,
+      fill: 'none', stroke: '#7c3aed', 'stroke-width': 2,
+      'stroke-dasharray': '6 4', 'pointer-events': 'none'
+    };
+    if (transform) bboxAttrs.transform = transform;
+    svg.appendChild(svgEl('rect', bboxAttrs));
+    // Rotation handle
+    const rot = bgRotHandleScreen(bg);
+    const ctr = bgCenterScreen(bg);
+    // Connector line from image top edge (via rotated frame) to handle
+    // Simplest: draw a straight line from ctr to rot; approximates the "arm"
+    svg.appendChild(svgEl('line', {
+      x1: ctr.x, y1: ctr.y, x2: rot.x, y2: rot.y,
+      stroke: '#7c3aed', 'stroke-width': 1.5, 'stroke-dasharray': '3 3',
+      'pointer-events': 'none'
+    }));
+    const handle = svgEl('circle', {
+      cx: rot.x, cy: rot.y, r: BG_HANDLE_RADIUS_PX,
+      fill: '#fff', stroke: '#7c3aed', 'stroke-width': 2,
+      'data-role': 'bg-rot',
+      style: 'cursor:grab;touch-action:none;'
+    });
+    svg.appendChild(handle);
+    // Small rotate glyph inside the handle
+    svg.appendChild(svgEl('text', {
+      x: rot.x, y: rot.y + 4,
+      'text-anchor': 'middle', 'font-size': 14,
+      fill: '#7c3aed', 'pointer-events': 'none',
+      style: 'user-select:none;font-family:sans-serif;'
+    }, '⟳'));
+  }
+
+  // Calibration markers
+  if (state.bgCalibrate) {
+    const { p1, p2 } = state.bgCalibrate;
+    const markerAt = (px, color) => {
+      // Convert image-pixel coords to screen coords
+      const halfWft = bg.naturalWidth * bg.ftPerPx / 2;
+      const halfHft = bg.naturalHeight * bg.ftPerPx / 2;
+      const localXft = px.x * bg.ftPerPx - halfWft;
+      const localYft = px.y * bg.ftPerPx - halfHft;
+      const rad = bg.rotation * Math.PI / 180;
+      const cos = Math.cos(rad), sin = Math.sin(rad);
+      const worldX = bg.cx + localXft * cos - localYft * sin;
+      const worldY = bg.cy + localXft * sin + localYft * cos;
+      return {
+        x: (worldX - state.offsetX) * ppf,
+        y: (worldY - state.offsetY) * ppf
+      };
+    };
+    if (p1) {
+      const s1 = markerAt(p1, '#dc2626');
+      svg.appendChild(svgEl('circle', { cx: s1.x, cy: s1.y, r: 10, fill: 'rgba(220,38,38,0.2)', stroke: '#dc2626', 'stroke-width': 2, 'pointer-events': 'none' }));
+      svg.appendChild(svgEl('circle', { cx: s1.x, cy: s1.y, r: 3, fill: '#dc2626', 'pointer-events': 'none' }));
+      svg.appendChild(svgEl('text', { x: s1.x + 12, y: s1.y - 8, 'font-size': 12, fill: '#dc2626', 'font-weight': 700, 'pointer-events': 'none', style: 'user-select:none;' }, 'A'));
+    }
+    if (p2) {
+      const s2 = markerAt(p2, '#dc2626');
+      svg.appendChild(svgEl('circle', { cx: s2.x, cy: s2.y, r: 10, fill: 'rgba(220,38,38,0.2)', stroke: '#dc2626', 'stroke-width': 2, 'pointer-events': 'none' }));
+      svg.appendChild(svgEl('circle', { cx: s2.x, cy: s2.y, r: 3, fill: '#dc2626', 'pointer-events': 'none' }));
+      svg.appendChild(svgEl('text', { x: s2.x + 12, y: s2.y - 8, 'font-size': 12, fill: '#dc2626', 'font-weight': 700, 'pointer-events': 'none', style: 'user-select:none;' }, 'B'));
+      if (p1) {
+        const s1 = markerAt(p1, '#dc2626');
+        svg.appendChild(svgEl('line', { x1: s1.x, y1: s1.y, x2: s2.x, y2: s2.y, stroke: '#dc2626', 'stroke-width': 2, 'stroke-dasharray': '4 2', 'pointer-events': 'none' }));
+      }
+    }
+  }
 }
 
 // ============================================================
@@ -741,9 +1154,58 @@ function onCanvasPointerDown(e) {
 
   // Only the SVG root and the grid backdrop start canvas gestures.
   // (Shape taps go through onShapePointerDown, buttons handle their own events.)
-  if (e.target.id !== 'canvas-svg' && e.target.dataset.role !== 'grid') return;
+  // In bg edit mode: taps on the bg image body ('bg-body') or rotation handle
+  // ('bg-rot') start bg gestures; other elements route as normal.
+  const role = e.target.dataset ? e.target.dataset.role : null;
+  const isCanvas = e.target.id === 'canvas-svg' || role === 'grid';
+  const isBgBody = role === 'bg-body';
+  const isBgRot = role === 'bg-rot';
+  if (!isCanvas && !isBgBody && !isBgRot) return;
 
   const clientX = e.clientX, clientY = e.clientY;
+
+  // Background rotation handle drag
+  if (isBgRot && state.bgImage && state.bgEditMode) {
+    const ctr = bgCenterScreen(state.bgImage);
+    // Angle from center to pointer, in degrees, 0° = up
+    const angleAt = (x, y) => Math.atan2(y - ctr.y, x - ctr.x) * 180 / Math.PI + 90;
+    gesture.current = {
+      type: 'bg-rot',
+      startAngle: angleAt(clientX, clientY),
+      startRotation: state.bgImage.rotation || 0,
+      angleAt
+    };
+    return;
+  }
+  // Background image body drag (move)
+  if (isBgBody && state.bgImage && state.bgEditMode) {
+    const cur = screenToFeet(clientX, clientY);
+    gesture.current = {
+      type: 'bg-drag',
+      startX: clientX, startY: clientY,
+      grabOffset: { x: cur.x - state.bgImage.cx, y: cur.y - state.bgImage.cy },
+      startCenter: { x: state.bgImage.cx, y: state.bgImage.cy },
+      moved: false
+    };
+    return;
+  }
+
+  // Calibration tap on canvas — record the point, don't start a normal
+  // gesture. Handled on pointerup so accidental tiny drags still count.
+  // During calibration ANY tap in the canvas area counts (whether it lands
+  // on grid, shape, or bg image body), so a landmark obscured by a shape or
+  // sitting on the image can still be picked.
+  if (state.bgCalibrate && (state.bgCalibrate.step === 'point1' || state.bgCalibrate.step === 'point2')) {
+    gesture.current = {
+      type: 'bg-calibrate-tap',
+      startX: clientX, startY: clientY,
+      moved: false
+    };
+    return;
+  }
+
+  if (!isCanvas) return;
+
   if (state.selectMode) {
     const feet = screenToFeet(clientX, clientY);
     gesture.current = {
@@ -787,6 +1249,39 @@ function onCanvasPointerMove(e) {
   }
 
   const clientX = e.clientX, clientY = e.clientY;
+  if (g.type === 'bg-drag') {
+    if (!state.bgImage) { gesture.current = null; return; }
+    const dxPx = clientX - g.startX;
+    const dyPx = clientY - g.startY;
+    if (Math.hypot(dxPx, dyPx) > DRAG_THRESHOLD_PX) g.moved = true;
+    if (g.moved) {
+      const cur = screenToFeet(clientX, clientY);
+      state.bgImage.cx = cur.x - g.grabOffset.x;
+      state.bgImage.cy = cur.y - g.grabOffset.y;
+      render();
+    }
+    e.preventDefault();
+    return;
+  }
+  if (g.type === 'bg-rot') {
+    if (!state.bgImage) { gesture.current = null; return; }
+    const a = g.angleAt(clientX, clientY);
+    let newRot = g.startRotation + (a - g.startAngle);
+    // Normalize to [-180, 180)
+    while (newRot >= 180) newRot -= 360;
+    while (newRot < -180) newRot += 360;
+    state.bgImage.rotation = newRot;
+    render();
+    e.preventDefault();
+    return;
+  }
+  if (g.type === 'bg-calibrate-tap') {
+    const dxPx = clientX - g.startX;
+    const dyPx = clientY - g.startY;
+    if (Math.hypot(dxPx, dyPx) > DRAG_THRESHOLD_PX) g.moved = true;
+    // No visual change during move — the tap is finalized on pointerup
+    return;
+  }
   if (g.type === 'pan') {
     const dxPx = clientX - g.startX;
     const dyPx = clientY - g.startY;
@@ -874,6 +1369,35 @@ function onCanvasPointerUp(e) {
 
   gesture.current = null;
 
+  if (g.type === 'bg-drag') {
+    if (g.moved) {
+      flushHistoryDebounce();
+      pushHistory();
+      save();
+    }
+    // Non-move tap on the bg body in edit mode: do nothing (no accidental
+    // action). If we wanted a "tap to open panel" affordance we'd add it here.
+    render();
+    return;
+  }
+  if (g.type === 'bg-rot') {
+    flushHistoryDebounce();
+    pushHistory();
+    save();
+    render();
+    return;
+  }
+  if (g.type === 'bg-calibrate-tap') {
+    if (!g.moved) {
+      // Genuine tap — record the calibration point
+      bgCalibrationTap(g.startX, g.startY);
+    } else {
+      // Drifted too much; ignore. render() to be safe.
+      render();
+    }
+    return;
+  }
+
   if (g.type === 'drag-shape') {
     if (g.moved) {
       flushHistoryDebounce();
@@ -914,6 +1438,13 @@ function onCanvasPointerUp(e) {
 }
 
 function onShapePointerDown(e, shape) {
+  // In bg edit mode or during calibration, shapes are inert — the tap should
+  // pass through to canvas gestures (bg drag/rotate handles, calibration
+  // point placement, or pan).
+  if (state.bgEditMode || state.bgCalibrate) {
+    onCanvasPointerDown(e);
+    return;
+  }
   e.stopPropagation();
   activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
 
@@ -962,12 +1493,28 @@ function onWheel(e) {
 // EXPORT
 // ============================================================
 function computeAllBBox() {
-  if (state.shapes.length === 0) return null;
+  const hasShapes = state.shapes.length > 0;
+  const bg = state.bgImage;
+  if (!hasShapes && !(bg && bg.visible)) return null;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   for (const s of state.shapes) {
     const b = shapeBBox(s);
     minX = Math.min(minX, b.minX); minY = Math.min(minY, b.minY);
     maxX = Math.max(maxX, b.maxX); maxY = Math.max(maxY, b.maxY);
+  }
+  // Include bg image bbox (rotated) so export contains it fully
+  if (bg && bg.visible) {
+    const wFt = bg.naturalWidth * bg.ftPerPx;
+    const hFt = bg.naturalHeight * bg.ftPerPx;
+    const rad = (bg.rotation || 0) * Math.PI / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    const hw = wFt / 2, hh = hFt / 2;
+    for (const c of [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]]) {
+      const wx = bg.cx + c[0] * cos - c[1] * sin;
+      const wy = bg.cy + c[0] * sin + c[1] * cos;
+      minX = Math.min(minX, wx); maxX = Math.max(maxX, wx);
+      minY = Math.min(minY, wy); maxY = Math.max(maxY, wy);
+    }
   }
   return { minX, minY, maxX, maxY };
 }
@@ -1044,10 +1591,23 @@ function buildExportSVG() {
   const sorted = [...state.shapes].sort((a, b) => (a.locked ? 0 : 1) - (b.locked ? 0 : 1));
   let shapesSvg = '';
   for (const s of sorted) shapesSvg += shapeToSvgString(s, minX, minY, scale);
+  // Optional bg image, sits above grid, below shapes (matches on-screen order)
+  let bgSvg = '';
+  const bg = state.bgImage;
+  if (bg && bg.visible) {
+    const wFt = bg.naturalWidth * bg.ftPerPx;
+    const hFt = bg.naturalHeight * bg.ftPerPx;
+    const xPx = (bg.cx - wFt / 2 - minX) * scale;
+    const yPx = (bg.cy - hFt / 2 - minY) * scale;
+    const cxPx = (bg.cx - minX) * scale;
+    const cyPx = (bg.cy - minY) * scale;
+    const rot = bg.rotation ? ` transform="rotate(${bg.rotation} ${cxPx} ${cyPx})"` : '';
+    bgSvg = `<image x="${xPx}" y="${yPx}" width="${wFt*scale}" height="${hFt*scale}" opacity="${bg.opacity}" preserveAspectRatio="none" href="${bg.dataUrl}" xlink:href="${bg.dataUrl}"${rot}/>`;
+  }
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${widthPx}" height="${heightPx}" viewBox="0 0 ${widthPx} ${heightPx}">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${widthPx}" height="${heightPx}" viewBox="0 0 ${widthPx} ${heightPx}">
 <rect x="0" y="0" width="${widthPx}" height="${heightPx}" fill="${BG_COLOR}"/>
-${grid}${labels}${shapesSvg}
+${grid}${bgSvg}${labels}${shapesSvg}
 </svg>`;
   return { svg, widthPx, heightPx };
 }
@@ -1121,6 +1681,9 @@ function renderGrid(svg) {
   const minorEvery = ppf < 10 ? 5 : 1;
   const majorEvery = 10;
   svg.appendChild(svgEl('rect', { 'data-role': 'grid', x: 0, y: 0, width: w, height: h, fill: BG_COLOR }));
+  // Background image sits above the tan base but below grid lines, so the
+  // grid stays visible as a scale reference while the user traces.
+  renderBgImageInto(svg);
   for (let fx = startFx; fx <= endFx; fx++) {
     if (fx % minorEvery !== 0 && fx % majorEvery !== 0) continue;
     const px = (fx - state.offsetX) * ppf;
@@ -2015,6 +2578,199 @@ function renderResetModal() {
   return overlay;
 }
 
+function renderBgPanel() {
+  const bg = state.bgImage;
+  const header = el('div', { className: 'sheet-header' },
+    el('div', { className: 'title' }, 'Background image'),
+    (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
+  );
+  const body = el('div', { className: 'sheet-body' });
+
+  // Upload / replace section
+  const fileInput = el('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp', style: { display: 'none' } });
+  fileInput.addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const ok = await handleBgImageFile(f);
+    if (ok) {
+      // After a fresh upload, auto-start calibration. Otherwise the image
+      // will be at whatever arbitrary scale it defaulted to.
+      startBgCalibration();
+      // Show a hint via alert since we just closed the panel
+      alert('Image loaded. Tap the first known point on the image, then the second, then enter the real-world distance between them.');
+    }
+    fileInput.value = ''; // allow re-picking the same file
+  });
+  const uploadBtn = el('button', { className: bg ? 'btn ghost' : 'btn primary', html: (bg ? I.image : I.plus) + '<span style="margin-left:6px">' + (bg ? 'Replace image' : 'Choose image (JPEG/PNG)') + '</span>' });
+  uploadBtn.addEventListener('click', () => fileInput.click());
+  body.appendChild(fileInput);
+  body.appendChild(uploadBtn);
+
+  if (!bg) {
+    body.appendChild(el('div', { style: { fontSize: '13px', color: '#57534e', lineHeight: '1.5' } },
+      'Pick a satellite screenshot (Google Maps, Apple Maps, county GIS, survey scan). ',
+      'The image will be downscaled to ~2000px on the long edge to fit browser storage.',
+      el('br'), el('br'),
+      el('b', {}, 'iPhone note:'), ' if your photos are HEIC format, switch to JPEG at Settings → Camera → Formats → Most Compatible, or convert the file first.'
+    ));
+    const sheet = el('div', { className: 'sheet' }, header, body);
+    const overlay = el('div', { className: 'overlay' }, sheet);
+    overlay.addEventListener('click', e => { if (e.target === overlay) { state.panel = null; render(); } });
+    return overlay;
+  }
+
+  // Thumbnail preview
+  const thumb = el('img', { src: bg.dataUrl, style: { maxWidth: '100%', maxHeight: '160px', display: 'block', margin: '0 auto', border: '1px solid #d6d3d1', borderRadius: '4px' } });
+  body.appendChild(thumb);
+
+  // Scale readout
+  const wFt = bg.naturalWidth * bg.ftPerPx;
+  const hFt = bg.naturalHeight * bg.ftPerPx;
+  body.appendChild(el('div', { style: { fontSize: '12px', color: '#57534e' } },
+    'Current scale: ' + (1 / bg.ftPerPx).toFixed(1) + ' pixels per foot',
+    el('br'),
+    'Image covers ~' + wFt.toFixed(1) + ' × ' + hFt.toFixed(1) + ' ft'
+  ));
+
+  // Calibrate button
+  const calBtn = el('button', { className: 'btn primary', html: I.target + '<span style="margin-left:6px">Calibrate scale (tap 2 known points)</span>' });
+  calBtn.addEventListener('click', () => startBgCalibration());
+  body.appendChild(calBtn);
+
+  // Edit mode toggle
+  const editBtn = el('button', {
+    className: 'btn ' + (state.bgEditMode ? 'secondary' : 'ghost'),
+    html: I.move + '<span style="margin-left:6px">' + (state.bgEditMode ? 'Editing position — tap to finish' : 'Edit position & rotation') + '</span>'
+  });
+  editBtn.addEventListener('click', () => {
+    state.bgEditMode = !state.bgEditMode;
+    state.panel = null; // close panel so user can interact with canvas
+    render();
+  });
+  body.appendChild(editBtn);
+
+  // Visible toggle
+  const visBtn = el('button', {
+    className: 'btn ghost',
+    html: (bg.visible ? I.unlock : I.lock) + '<span style="margin-left:6px">' + (bg.visible ? 'Hide image' : 'Show image') + '</span>'
+  });
+  visBtn.addEventListener('click', () => updateBgImage({ visible: !bg.visible }));
+  body.appendChild(visBtn);
+
+  // Opacity slider (silent update — keeps slider focus smooth)
+  const opInput = el('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: bg.opacity });
+  const opPct = el('span', { style: { fontSize: '12px', color: '#78716c' } }, Math.round(bg.opacity * 100) + '%');
+  opInput.addEventListener('input', e => {
+    const v = parseFloat(e.target.value);
+    updateBgImageSilent({ opacity: v });
+    opPct.textContent = Math.round(v * 100) + '%';
+  });
+  body.appendChild(el('div', { className: 'field' },
+    el('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' } },
+      el('label', {}, 'Opacity'), opPct),
+    opInput,
+    el('div', { className: 'hint' }, 'Lower opacity makes the grid and plants easier to see.')
+  ));
+
+  // Rotation input + quick buttons (mirrors shape rotation UI)
+  const rotVal = bg.rotation || 0;
+  const rotInput = el('input', { type: 'number', step: '5', value: rotVal });
+  const rotPct = el('span', { style: { fontSize: '12px', color: '#78716c' } }, rotVal.toFixed(1) + '°');
+  rotInput.addEventListener('input', e => {
+    const v = parseFloat(e.target.value) || 0;
+    updateBgImageSilent({ rotation: v });
+    rotPct.textContent = v.toFixed(1) + '°';
+  });
+  const quickRow = el('div', { className: 'rot-quick' });
+  [-90, -15, -5, 5, 15, 90].forEach(delta => {
+    const b = el('button', {}, (delta > 0 ? '+' : '') + delta + '°');
+    b.addEventListener('click', () => {
+      const cur = state.bgImage.rotation || 0;
+      let newRot = snapRot(cur + delta);
+      if (newRot >= 180) newRot -= 360;
+      if (newRot < -180) newRot += 360;
+      rotInput.value = newRot;
+      rotPct.textContent = newRot.toFixed(1) + '°';
+      updateBgImageSilent({ rotation: newRot });
+    });
+    quickRow.appendChild(b);
+  });
+  const resetRotBtn = el('button', {}, 'Reset to 0°');
+  resetRotBtn.addEventListener('click', () => {
+    rotInput.value = 0;
+    rotPct.textContent = '0.0°';
+    updateBgImageSilent({ rotation: 0 });
+  });
+  body.appendChild(el('div', { className: 'field' },
+    el('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' } },
+      el('label', {}, 'Rotation (around image center)'), rotPct),
+    rotInput,
+    quickRow,
+    el('div', { style: { marginTop: '6px' } }, resetRotBtn)
+  ));
+
+  // Position (X, Y of image center in world feet)
+  const xInput = el('input', { type: 'number', step: '0.5', value: bg.cx.toFixed(1) });
+  xInput.addEventListener('input', e => updateBgImageSilent({ cx: parseFloat(e.target.value) || 0 }));
+  const yInput = el('input', { type: 'number', step: '0.5', value: bg.cy.toFixed(1) });
+  yInput.addEventListener('input', e => updateBgImageSilent({ cy: parseFloat(e.target.value) || 0 }));
+  body.appendChild(el('div', { className: 'row-2' },
+    el('div', { className: 'field' }, el('label', {}, 'Center X (ft)'), xInput),
+    el('div', { className: 'field' }, el('label', {}, 'Center Y (ft)'), yInput)
+  ));
+
+  // Remove button
+  const rmBtn = el('button', { className: 'btn danger', html: I.trash + '<span style="margin-left:6px">Remove background image</span>' });
+  rmBtn.addEventListener('click', () => {
+    if (confirm('Remove the background image? This will free up storage but you\'ll need to re-upload and re-calibrate to add it back.')) {
+      removeBgImage();
+      state.panel = null;
+      render();
+    }
+  });
+  body.appendChild(rmBtn);
+
+  const sheet = el('div', { className: 'sheet' }, header, body);
+  const overlay = el('div', { className: 'overlay' }, sheet);
+  overlay.addEventListener('click', e => { if (e.target === overlay) { state.panel = null; render(); } });
+  return overlay;
+}
+
+function renderBgDistanceModal() {
+  const input = el('input', { type: 'number', step: 'any', min: '0.1', placeholder: 'e.g. 32' });
+  setTimeout(() => { input.focus(); input.select(); }, 60);
+  const doIt = () => {
+    const v = parseFloat(input.value);
+    finishBgCalibration(v);
+  };
+  const okBtn = el('button', { className: 'btn primary' }, 'Set scale');
+  okBtn.addEventListener('click', doIt);
+  input.addEventListener('keydown', e => { if (e.key === 'Enter') doIt(); });
+  const cancelBtn = el('button', { className: 'btn ghost' }, 'Cancel');
+  cancelBtn.addEventListener('click', () => {
+    state.bgCalibrate = null;
+    state.panel = 'bg';
+    render();
+  });
+  const modal = el('div', { className: 'modal' },
+    el('div', { className: 'sheet-header' },
+      el('div', { className: 'title' }, 'Real-world distance'),
+      (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', () => { state.bgCalibrate = null; state.panel = 'bg'; render(); }); return b; })()
+    ),
+    el('div', { className: 'sheet-body' },
+      el('div', { style: { fontSize: '13px', color: '#57534e' } },
+        'How far apart are the two points you just tapped, in feet? Enter the real distance between them.'),
+      el('div', { className: 'field' },
+        el('label', {}, 'Distance (ft)'),
+        input
+      ),
+      el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } }, cancelBtn, okBtn)
+    )
+  );
+  const overlay = el('div', { className: 'overlay center', style: { zIndex: 40 } }, modal);
+  return overlay;
+}
+
 function renderMoreMenu() {
   const items = [];
   // Select mode toggle
@@ -2037,6 +2793,12 @@ function renderMoreMenu() {
       onClick: () => { paste(); state.menu = null; render(); }
     });
   }
+  items.push({ divider: true });
+  items.push({
+    icon: I.image,
+    label: state.bgImage ? 'Background image…' : 'Add background image…',
+    onClick: () => { state.panel = 'bg'; state.menu = null; render(); }
+  });
   items.push({ divider: true });
   items.push({
     icon: I.edit,
@@ -2144,6 +2906,33 @@ function render() {
     canvasWrap.appendChild(banner);
   }
 
+  // Background edit-mode banner
+  if (state.bgEditMode && !state.bgCalibrate) {
+    const banner = el('div', { className: 'mode-banner' });
+    banner.innerHTML = I.move + '<span>Editing background — drag image to move, use ⟳ handle to rotate</span>';
+    const doneBtn = el('button', { className: 'iconbtn', style: { width: '20px', height: '20px', padding: 0 }, html: I.x });
+    doneBtn.addEventListener('click', () => { state.bgEditMode = false; render(); });
+    banner.appendChild(doneBtn);
+    canvasWrap.appendChild(banner);
+  }
+
+  // Calibration banner
+  if (state.bgCalibrate) {
+    const banner = el('div', { className: 'mode-banner' });
+    const msg = state.bgCalibrate.step === 'point1' ? 'Tap the first known point on the image (A)'
+      : state.bgCalibrate.step === 'point2' ? 'Tap the second known point (B)'
+      : 'Enter the real distance between A and B';
+    banner.innerHTML = I.target + '<span>Calibrating — ' + msg + '</span>';
+    const cancelBtn = el('button', { className: 'iconbtn', style: { width: '20px', height: '20px', padding: 0 }, html: I.x });
+    cancelBtn.addEventListener('click', () => {
+      state.bgCalibrate = null;
+      if (state.panel === 'bgDistance') state.panel = 'bg';
+      render();
+    });
+    banner.appendChild(cancelBtn);
+    canvasWrap.appendChild(banner);
+  }
+
   // Zoom buttons
   const zoomBtns = el('div', { className: 'zoombtns' });
   const zIn = el('button', { className: 'zoombtn', html: I.zoomIn });
@@ -2237,6 +3026,8 @@ function render() {
   else if (state.panel === 'preview') panelNode = renderPreviewModal();
   else if (state.panel === 'reset') panelNode = renderResetModal();
   else if (state.panel === 'plants') panelNode = renderPlantsPanel();
+  else if (state.panel === 'bg') panelNode = renderBgPanel();
+  else if (state.panel === 'bgDistance') panelNode = renderBgDistanceModal();
   if (panelNode) root.appendChild(panelNode);
   if (state.menu === 'more') root.appendChild(renderMoreMenu());
 
@@ -2256,10 +3047,11 @@ function resizeCanvas() {
   state.canvasH = Math.max(100, Math.round(rect.height));
   svg.setAttribute('width', state.canvasW);
   svg.setAttribute('height', state.canvasH);
-  // Clear and redraw only the SVG contents (grid + shapes) — do not touch panel DOM
+  // Clear and redraw only the SVG contents (grid + shapes + bg handles) — do not touch panel DOM
   while (svg.firstChild) svg.removeChild(svg.firstChild);
   renderGrid(svg);
   renderShapes(svg);
+  renderBgHandles(svg);
 }
 
 // ============================================================
