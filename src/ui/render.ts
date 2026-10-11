@@ -1,6 +1,6 @@
 import { resizeCanvas } from '../canvas';
 import { el, svgEl } from '../dom';
-import { onCanvasPointerDown, onCanvasPointerMove, onCanvasPointerUp, onWheel } from '../gestures';
+import { onCanvasPointerDown, onWheel } from '../gestures';
 import { canRedo, canUndo, redo, undo } from '../history';
 import { I } from '../icons';
 import { addShape, copySelected, deleteSelected, zoomBy } from '../mutations';
@@ -18,6 +18,15 @@ import { renderArrangePanel, renderPropsPanel } from './props-panel';
 
 // MAIN RENDER
 // ============================================================
+function statusText() {
+  return state.shapes.length + ' shapes · ' + Math.round(state.zoom * 100) + '%';
+}
+/** Refresh the shape count / zoom readout without rebuilding the page. */
+export function updateStatusReadout() {
+  const node = document.querySelector('.project-btn .pinfo');
+  if (node) node.textContent = statusText();
+}
+
 export function render() {
   const root = document.getElementById('root')!;
   // Clear root
@@ -36,7 +45,7 @@ export function render() {
   const projBtn = el('button', { className: 'project-btn' },
     el('div', { className: 'pname' }, projName),
     el('div', { html: I.chevronDown, style: { display: 'flex', color: '#78716c' } }),
-    el('div', { className: 'pinfo' }, state.shapes.length + ' shapes · ' + Math.round(state.zoom * 100) + '%')
+    el('div', { className: 'pinfo' }, statusText())
   );
   projBtn.addEventListener('click', () => { state.panel = 'projects'; render(); });
   topbar.appendChild(projBtn);
@@ -75,9 +84,6 @@ export function render() {
   const canvasWrap = el('div', { className: 'canvas-wrap', id: 'canvas-wrap' });
   const svg = svgEl('svg', { id: 'canvas-svg', width: state.canvasW, height: state.canvasH });
   svg.addEventListener('pointerdown', onCanvasPointerDown);
-  svg.addEventListener('pointermove', onCanvasPointerMove);
-  svg.addEventListener('pointerup', onCanvasPointerUp);
-  svg.addEventListener('pointercancel', onCanvasPointerUp);
   svg.addEventListener('touchstart', e => { if (e.touches && e.touches.length === 2) e.preventDefault(); }, { passive: false });
   svg.addEventListener('touchmove', e => { if (e.touches && e.touches.length === 2) e.preventDefault(); }, { passive: false });
   svg.addEventListener('wheel', onWheel, { passive: false });

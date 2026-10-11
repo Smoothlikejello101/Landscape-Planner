@@ -202,7 +202,7 @@ function imageFrame(bg: BgImage) {
   };
 }
 /** Drawn by renderGrid between the tan base and the grid lines. */
-export function renderBgImageInto(svg: SVGSVGElement) {
+export function renderBgImageInto(svg: SVGElement) {
   const bg = state.bgImage;
   if (!bg || !bg.visible) return;
   const f = imageFrame(bg);
@@ -219,7 +219,7 @@ export function renderBgImageInto(svg: SVGSVGElement) {
   img.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', bg.dataUrl); // older SVG stacks
   svg.appendChild(img);
 }
-function calibrationMarker(svg: SVGSVGElement, bg: BgImage, p: Point, letter: string) {
+function calibrationMarker(svg: SVGElement, bg: BgImage, p: Point, letter: string) {
   const s = worldToCanvas(imagePxToWorld(bg, p));
   svg.appendChild(svgEl('circle', { cx: s.x, cy: s.y, r: 10, fill: 'rgba(220,38,38,0.2)', stroke: '#dc2626', 'stroke-width': 2, 'pointer-events': 'none' }));
   svg.appendChild(svgEl('circle', { cx: s.x, cy: s.y, r: 3, fill: '#dc2626', 'pointer-events': 'none' }));
@@ -227,7 +227,7 @@ function calibrationMarker(svg: SVGSVGElement, bg: BgImage, p: Point, letter: st
   return s;
 }
 /** Edit-mode outline + rotation handle, and calibration markers. Drawn above shapes. */
-export function renderBgHandles(svg: SVGSVGElement) {
+export function renderBgHandles(svg: SVGElement) {
   const bg = state.bgImage;
   if (!bg) return;
   if (state.bgEditMode) {

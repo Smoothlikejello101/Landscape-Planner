@@ -7,7 +7,8 @@ import { clearSelection, isSelected, selectOnly, toggleSelect } from './selectio
 import { gesture, state, tapTracker } from './state';
 import { save } from './storage';
 import type { Point, Shape } from './types';
-import { render } from './ui/render';
+import { previewView, redrawBackground, redrawMarquee, redrawShapes } from './canvas';
+import { render, updateStatusReadout } from './ui/render';
 import { now, snap } from './util';
 
 // Pointer gestures on the canvas: pan, pinch-zoom, marquee selection, shape
@@ -126,7 +127,8 @@ export function onCanvasPointerMove(e: PointerEvent) {
       state.offsetY = g.centerFeetAtStart.y - (g.centerScreen.y - rect.top) / newPxPerFoot;
       state.zoom = newZoom;
       e.preventDefault();
-      render();
+      previewView();
+      updateStatusReadout();
       return;
     }
     case 'bg-drag': {
@@ -136,7 +138,7 @@ export function onCanvasPointerMove(e: PointerEvent) {
         const cur = screenToFeet(clientX, clientY);
         state.bgImage.cx = cur.x - g.grabOffset.x;
         state.bgImage.cy = cur.y - g.grabOffset.y;
-        render();
+        redrawBackground();
       }
       e.preventDefault();
       return;
@@ -144,7 +146,7 @@ export function onCanvasPointerMove(e: PointerEvent) {
     case 'bg-rot': {
       if (!state.bgImage) { gesture.current = null; return; }
       state.bgImage.rotation = normalizeDeg(g.startRotation + (g.angleAt(clientX, clientY) - g.startAngle));
-      render();
+      redrawBackground();
       e.preventDefault();
       return;
     }
@@ -155,14 +157,14 @@ export function onCanvasPointerMove(e: PointerEvent) {
       movedPastThreshold(g, e);
       state.offsetX = g.startOffset.x - (clientX - g.startX) / pxPerFoot();
       state.offsetY = g.startOffset.y - (clientY - g.startY) / pxPerFoot();
-      render();
+      previewView();
       return;
     case 'marquee': {
       movedPastThreshold(g, e);
       const feet = screenToFeet(clientX, clientY);
       g.currentFeet = feet;
       state.marquee = { x1: g.startFeet.x, y1: g.startFeet.y, x2: feet.x, y2: feet.y };
-      render();
+      redrawMarquee();
       e.preventDefault();
       return;
     }
@@ -178,7 +180,7 @@ export function onCanvasPointerMove(e: PointerEvent) {
           shape.x = snap(item.startX + dxFt);
           shape.y = snap(item.startY + dyFt);
         }
-        render();
+        redrawShapes(g.ids);
       }
       e.preventDefault();
       return;
@@ -300,6 +302,16 @@ export function onShapePointerDown(e: PointerEvent, shape: Shape) {
     startX: e.clientX, startY: e.clientY,
     moved: false
   };
+}
+
+/** Forget all pointers (window lost focus or page hidden mid-gesture). */
+export function cancelGestures() {
+  activePointers.clear();
+  if (gesture.current) {
+    gesture.current = null;
+    state.marquee = null;
+    render();
+  }
 }
 
 export function onWheel(e: WheelEvent) {

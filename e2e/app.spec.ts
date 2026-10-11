@@ -134,6 +134,32 @@ test.describe('navigation', () => {
   });
 });
 
+test('a finger lifted over the toolbar does not turn the next drag into a pinch', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.circle').click();
+  await closeSheet(page);
+  const before = await page.locator('#canvas-svg circle').first().boundingBox();
+  const box = await canvasBox(page);
+  await page.evaluate(({ x, y }) => {
+    const svg = () => document.getElementById('canvas-svg')!;
+    const ev = (type: string, id: number, cx: number, cy: number) =>
+      new PointerEvent(type, { pointerId: id, clientX: cx, clientY: cy, bubbles: true, pointerType: 'touch' });
+    const grid = document.elementFromPoint(x, y)!;
+    // First touch pans, then lifts while over the bottom toolbar.
+    grid.dispatchEvent(ev('pointerdown', 11, x, y));
+    svg().dispatchEvent(ev('pointermove', 11, x, y + 10));
+    document.querySelector('.bottom-toolbar')!.dispatchEvent(ev('pointerup', 11, x, y + 10));
+    // Second touch: an ordinary one-finger pan of 100 px to the right.
+    document.elementFromPoint(x, y)!.dispatchEvent(ev('pointerdown', 12, x, y));
+    for (let i = 1; i <= 10; i++) svg().dispatchEvent(ev('pointermove', 12, x + i * 10, y));
+    svg().dispatchEvent(ev('pointerup', 12, x + 100, y));
+  }, { x: box.x + 30, y: box.y + 60 });
+  expect(await zoomPct(page)).toBe(100);
+  const after = await page.locator('#canvas-svg circle').first().boundingBox();
+  expect(Math.round(after!.x - before!.x)).toBe(100);
+  expect(Math.round(after!.y - before!.y)).toBe(10);
+});
+
 test.describe('projects and selection', () => {
   test('projects are isolated and the clipboard crosses projects', async ({ page }) => {
     autoDialogs(page, 'Front Yard');

@@ -1,10 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// BASELINE=1 serves the legacy single-file app from the repo root (used to pin
-// down behavior before the refactor). Otherwise tests run against the
-// production build served by `vite preview`.
-const baseline = !!process.env.BASELINE;
-const port = baseline ? 4180 : 4173;
+// Tests run against the production build served by `vite preview`.
+const port = 4173;
 
 export default defineConfig({
   testDir: 'e2e',
@@ -22,9 +19,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: baseline
-        ? `python3 -m http.server ${port} --bind 127.0.0.1`
-        : `npm run build && npx vite preview --port ${port} --strictPort`,
+      command: `npm run build && npx vite preview --port ${port} --strictPort`,
       url: `http://localhost:${port}/`,
       reuseExistingServer: !!process.env.REUSE_SERVER,
       timeout: 120_000,

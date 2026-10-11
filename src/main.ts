@@ -1,5 +1,6 @@
 import './styles.css';
 import { resizeCanvas } from './canvas';
+import { cancelGestures, onCanvasPointerMove, onCanvasPointerUp } from './gestures';
 import { pushHistory, redo, undo } from './history';
 import { copySelected, deleteSelected, duplicateSelected, paste } from './mutations';
 import { clearSelection } from './selection';
@@ -19,6 +20,14 @@ window.addEventListener('resize', () => { resizeCanvas(); });
 if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', () => { resizeCanvas(); });
 }
+
+// Pointer moves and releases are watched on the whole window, not just the
+// canvas: a finger lifted over the toolbar must still end the gesture, or a
+// stale pointer makes the next touch look like a second finger (pinch).
+window.addEventListener('pointermove', onCanvasPointerMove, { passive: false });
+window.addEventListener('pointerup', onCanvasPointerUp);
+window.addEventListener('pointercancel', onCanvasPointerUp);
+window.addEventListener('blur', cancelGestures);
 
 // Keyboard shortcuts (helpful on desktop, harmless on phone)
 window.addEventListener('keydown', (e) => {
@@ -62,7 +71,7 @@ if ('serviceWorker' in navigator) {
 // pending edits as soon as the page is hidden instead of waiting for the
 // save debounce.
 document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'hidden') { writeJournalIfDirty(); void flushSave(); }
+  if (document.visibilityState === 'hidden') { cancelGestures(); writeJournalIfDirty(); void flushSave(); }
   else void refreshClipboard().then(() => { if (state.menu || state.panel === 'projects') render(); });
 });
 window.addEventListener('pagehide', () => { writeJournalIfDirty(); void flushSave(); });
