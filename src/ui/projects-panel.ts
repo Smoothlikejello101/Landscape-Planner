@@ -86,15 +86,15 @@ export function renderProjectsPanel() {
 }
 
 export function renderRenamePanel() {
-  const args = state.panelArgs || {};
-  const original = args.originalName || '';
-  const renamingId = args.renamingId || state.currentProjectId;
+  const args = state.panelArgs;
+  const original = args?.originalName || '';
+  const renamingId = args?.renamingId || state.currentProjectId;
   const input = el('input', { type: 'text', value: original });
   setTimeout(() => { input.focus(); input.select(); }, 50);
   const doRename = () => {
     const v = input.value.trim() || 'Untitled';
-    renameProject(renamingId, v);
-    state.panel = state.panelArgs.returnTo || 'projects';
+    if (renamingId) renameProject(renamingId, v);
+    state.panel = state.panelArgs?.returnTo || 'projects';
     state.panelArgs = null;
     render();
   };

@@ -52,7 +52,7 @@ export function renderMoreMenu() {
   });
   const menu = el('div', { className: 'menu' });
   for (const it of items) {
-    if (it.divider) { menu.appendChild(el('div', { className: 'menu-divider' })); continue; }
+    if (!it.onClick) { menu.appendChild(el('div', { className: 'menu-divider' })); continue; }
     const btn = el('button', { className: 'menu-item' });
     btn.innerHTML = it.icon + '<span>' + it.label + '</span>';
     btn.addEventListener('click', it.onClick);

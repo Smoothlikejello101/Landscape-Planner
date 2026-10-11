@@ -1,59 +1,71 @@
 import { PX_PER_FOOT_BASE } from './constants';
 import { state } from './state';
+import type { Bounds, Point, Shape, TriangleShape } from './types';
 
-// ============================================================
-// GEOMETRY HELPERS
-// ============================================================
-export function pxPerFoot() { return PX_PER_FOOT_BASE * state.zoom; }
-export function screenToFeet(clientX, clientY) {
-  const rect = document.getElementById('canvas-svg').getBoundingClientRect();
+// ---- View transforms (depend on current zoom/offset) ----
+export function pxPerFoot(): number { return PX_PER_FOOT_BASE * state.zoom; }
+
+export function canvasRect(): DOMRect {
+  const svg = document.getElementById('canvas-svg');
+  if (!svg) throw new Error('canvas not mounted');
+  return svg.getBoundingClientRect();
+}
+export function screenToFeet(clientX: number, clientY: number): Point {
+  const rect = canvasRect();
   return {
     x: (clientX - rect.left) / pxPerFoot() + state.offsetX,
     y: (clientY - rect.top) / pxPerFoot() + state.offsetY
   };
 }
-export function viewCenterFeet() {
+export function viewCenterFeet(): Point {
   return {
     x: state.offsetX + state.canvasW / pxPerFoot() / 2,
     y: state.offsetY + state.canvasH / pxPerFoot() / 2
   };
 }
-export function shapeCenter(s) {
+
+// ---- Pure shape geometry (feet) ----
+export function shapeCenter(s: Shape): Point {
   if (s.type === 'circle') return { x: s.x, y: s.y };
   return { x: s.x + s.width / 2, y: s.y + s.height / 2 };
 }
-export function shapeBBox(s) {
-  // Axis-aligned bounding box in feet, accounting for rotation
-  if (s.type === 'circle') {
-    return { minX: s.x - s.radius, maxX: s.x + s.radius, minY: s.y - s.radius, maxY: s.y + s.radius };
-  }
-  const w = s.width, h = s.height;
-  if (!s.rotation) {
-    return { minX: s.x, maxX: s.x + w, minY: s.y, maxY: s.y + h };
-  }
-  const cx = s.x + w / 2, cy = s.y + h / 2;
-  const rad = s.rotation * Math.PI / 180;
+/** Rotate point (x, y) by `deg` degrees around the origin. */
+export function rotate(x: number, y: number, deg: number): Point {
+  const rad = deg * Math.PI / 180;
   const cos = Math.cos(rad), sin = Math.sin(rad);
+  return { x: x * cos - y * sin, y: x * sin + y * cos };
+}
+/** Axis-aligned bounds of a w×h box centered at (cx, cy) rotated by `deg`. */
+export function rotatedBoxBounds(cx: number, cy: number, w: number, h: number, deg: number): Bounds {
   const hw = w / 2, hh = h / 2;
-  const corners = [
-    { x: -hw, y: -hh }, { x: hw, y: -hh }, { x: hw, y: hh }, { x: -hw, y: hh }
-  ];
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const c of corners) {
-    const rx = c.x * cos - c.y * sin;
-    const ry = c.x * sin + c.y * cos;
-    minX = Math.min(minX, cx + rx);
-    maxX = Math.max(maxX, cx + rx);
-    minY = Math.min(minY, cy + ry);
-    maxY = Math.max(maxY, cy + ry);
+  for (const [x, y] of [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]]) {
+    const r = rotate(x, y, deg);
+    minX = Math.min(minX, cx + r.x); maxX = Math.max(maxX, cx + r.x);
+    minY = Math.min(minY, cy + r.y); maxY = Math.max(maxY, cy + r.y);
   }
   return { minX, maxX, minY, maxY };
 }
-export function rectsIntersect(a, b) {
+/** Axis-aligned bounding box in feet, accounting for rotation. */
+export function shapeBBox(s: Shape): Bounds {
+  if (s.type === 'circle') {
+    return { minX: s.x - s.radius, maxX: s.x + s.radius, minY: s.y - s.radius, maxY: s.y + s.radius };
+  }
+  if (!s.rotation) return { minX: s.x, maxX: s.x + s.width, minY: s.y, maxY: s.y + s.height };
+  return rotatedBoxBounds(s.x + s.width / 2, s.y + s.height / 2, s.width, s.height, s.rotation);
+}
+export function unionBounds(list: Bounds[]): Bounds | null {
+  if (!list.length) return null;
+  return list.reduce((a, b) => ({
+    minX: Math.min(a.minX, b.minX), maxX: Math.max(a.maxX, b.maxX),
+    minY: Math.min(a.minY, b.minY), maxY: Math.max(a.maxY, b.maxY)
+  }));
+}
+export function rectsIntersect(a: Bounds, b: Bounds): boolean {
   return !(a.maxX < b.minX || b.maxX < a.minX || a.maxY < b.minY || b.maxY < a.minY);
 }
-// Triangle vertex generator for rendering and export
-export function trianglePoints(s) {
+/** Triangle vertices (unrotated), right angle at the chosen corner. */
+export function trianglePoints(s: Pick<TriangleShape, 'x' | 'y' | 'width' | 'height' | 'rightAngle'>): [number, number][] {
   const x = s.x, y = s.y, w = s.width, h = s.height;
   switch (s.rightAngle) {
     case 'br': return [[x + w, y + h], [x, y + h], [x + w, y]];

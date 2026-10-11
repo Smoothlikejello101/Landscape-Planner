@@ -1,33 +1,28 @@
 import { HISTORY_DEBOUNCE_MS, MAX_HISTORY } from './constants';
 import { state } from './state';
 import { save } from './storage';
+import type { HistorySnapshot } from './types';
 import { deepClone } from './util';
 
-export let historyTimer = null;
-// ============================================================
-// HISTORY (undo/redo)
-// ============================================================
+// Undo/redo: in-memory snapshots of shapes + background image, per project.
+// The background's dataUrl string is shared between snapshots (strings are
+// immutable), so 50 snapshots cost little extra memory.
+
+let historyTimer: ReturnType<typeof setTimeout> | null = null;
+
 export function pushHistory() {
-  // Truncate any redo branch
-  state.history = state.history.slice(0, state.historyIndex + 1);
-  // Push snapshot. Shapes: deep clone (mutable objects). bgImage: shallow
-  // spread — its dataUrl is a big string but strings are immutable/shared in
-  // JS, so 50 snapshots referencing the same image cost ~50 * (small object)
-  // in memory, not 50 * (image size).
+  state.history = state.history.slice(0, state.historyIndex + 1); // drop redo branch
   state.history.push({
     shapes: deepClone(state.shapes),
-    bgImage: state.bgImage ? Object.assign({}, state.bgImage) : null
+    bgImage: state.bgImage ? { ...state.bgImage } : null
   });
-  // Cap
-  if (state.history.length > MAX_HISTORY) {
-    state.history.shift();
-  } else {
-    state.historyIndex++;
-  }
+  if (state.history.length > MAX_HISTORY) state.history.shift();
+  else state.historyIndex++;
 }
+/** Coalesce rapid edits (typing, sliders) into one undo step. */
 export function pushHistoryDebounced() {
   if (historyTimer) clearTimeout(historyTimer);
-  historyTimer = setTimeout(() => { pushHistory(); historyTimer = null; }, HISTORY_DEBOUNCE_MS);
+  historyTimer = setTimeout(() => { historyTimer = null; pushHistory(); }, HISTORY_DEBOUNCE_MS);
 }
 export function flushHistoryDebounce() {
   if (historyTimer) {
@@ -36,30 +31,29 @@ export function flushHistoryDebounce() {
     pushHistory();
   }
 }
-export function applyHistorySnapshot(snap) {
-  // Snapshots created before this change may be bare arrays (old shape-only
-  // format). Handle both.
-  if (Array.isArray(snap)) {
-    state.shapes = deepClone(snap);
-  } else {
-    state.shapes = deepClone(snap.shapes);
-    state.bgImage = snap.bgImage ? Object.assign({}, snap.bgImage) : null;
-  }
-  state.selectedIds = state.selectedIds.filter(id => state.shapes.find(s => s.id === id));
+/** Forget pending debounced history (used when switching projects). */
+export function cancelHistoryDebounce() {
+  if (historyTimer) clearTimeout(historyTimer);
+  historyTimer = null;
+}
+function applySnapshot(snap: HistorySnapshot) {
+  state.shapes = deepClone(snap.shapes);
+  state.bgImage = snap.bgImage ? { ...snap.bgImage } : null;
+  state.selectedIds = state.selectedIds.filter((id) => state.shapes.some((s) => s.id === id));
 }
 export function undo() {
   flushHistoryDebounce();
   if (state.historyIndex <= 0) return;
   state.historyIndex--;
-  applyHistorySnapshot(state.history[state.historyIndex]);
+  applySnapshot(state.history[state.historyIndex]);
   save();
 }
 export function redo() {
   flushHistoryDebounce();
   if (state.historyIndex >= state.history.length - 1) return;
   state.historyIndex++;
-  applyHistorySnapshot(state.history[state.historyIndex]);
+  applySnapshot(state.history[state.historyIndex]);
   save();
 }
-export function canUndo() { return state.historyIndex > 0; }
-export function canRedo() { return state.historyIndex < state.history.length - 1; }
+export function canUndo(): boolean { return state.historyIndex > 0; }
+export function canRedo(): boolean { return state.historyIndex < state.history.length - 1; }

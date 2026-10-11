@@ -25,7 +25,7 @@ export default defineConfig({
       ? `python3 -m http.server ${port} --bind 127.0.0.1`
       : `npm run build && npx vite preview --port ${port} --strictPort`,
     url: `http://localhost:${port}/`,
-    reuseExistingServer: false,
+    reuseExistingServer: !!process.env.REUSE_SERVER,
     timeout: 120_000,
   },
 });

@@ -20,7 +20,7 @@ export const SWATCHES = [
   '#ef4444','#f97316','#f59e0b','#fbbf24',
   '#78350f','#57534e','#94a3b8','#ffffff'
 ];
-export const SHAPE_TYPES = ['circle', 'rect', 'oval', 'triangle'];
+export const SHAPE_TYPES = ['circle', 'rect', 'oval', 'triangle'] as const;
 // Background image constraints
 export const BG_MAX_IMAGE_DIM = 2000;   // downscale so longer edge is <= this
 export const BG_JPEG_QUALITY = 0.85;    // re-encode as JPEG at this quality
@@ -31,5 +31,5 @@ export const STORAGE = {
   CURRENT: 'lp-current',
   CLIPBOARD: 'lp-clipboard',
   LEGACY: 'landscape-planner-v1',
-  project: (id) => 'lp-project-' + id
+  project: (id: string) => 'lp-project-' + id
 };

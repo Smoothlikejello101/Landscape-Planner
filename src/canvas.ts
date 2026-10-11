@@ -1,15 +1,16 @@
 import { renderBgHandles, renderBgImageInto } from './background';
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR } from './constants';
-import { svgEl } from './dom';
+import { svgEl, type Attrs } from './dom';
 import { pxPerFoot, trianglePoints } from './geometry';
 import { onShapePointerDown } from './gestures';
 import { isSelected } from './selection';
 import { state } from './state';
+import type { Shape } from './types';
 
-// ============================================================
-// CANVAS RENDERING
-// ============================================================
-export function renderGrid(svg) {
+// Canvas drawing. Everything here writes only into the <svg>, never into
+// panel DOM, so it is safe to call while an input has keyboard focus.
+
+export function renderGrid(svg: SVGSVGElement) {
   const w = state.canvasW, h = state.canvasH;
   const ppf = pxPerFoot();
   const startFx = Math.floor(state.offsetX);
@@ -20,7 +21,7 @@ export function renderGrid(svg) {
   const majorEvery = 10;
   svg.appendChild(svgEl('rect', { 'data-role': 'grid', x: 0, y: 0, width: w, height: h, fill: BG_COLOR }));
   // Background image sits above the tan base but below grid lines, so the
-  // grid stays visible as a scale reference while the user traces.
+  // grid stays visible as a scale reference while tracing.
   renderBgImageInto(svg);
   for (let fx = startFx; fx <= endFx; fx++) {
     if (fx % minorEvery !== 0 && fx % majorEvery !== 0) continue;
@@ -48,25 +49,26 @@ export function renderGrid(svg) {
   }
 }
 
-export function renderOneShape(svg, s) {
+export function renderOneShape(svg: SVGSVGElement, s: Shape) {
   const ppf = pxPerFoot();
   const sel = isSelected(s.id);
-  const stroke = sel ? '#0f172a' : 'rgba(0,0,0,0.3)';
-  const strokeWidth = sel ? 2 : 1;
-  const opacity = s.opacity !== undefined ? s.opacity : 0.65;
-  const cursor = s.locked ? 'pointer' : 'move';
-  const dashAttrs = s.locked ? { 'stroke-dasharray': '4 2' } : {};
-  let shapeEl, labelX, labelY, fs, rotTransform = '';
+  const common: Attrs = {
+    'data-shape-id': s.id,
+    fill: s.color,
+    'fill-opacity': s.opacity ?? 0.65,
+    stroke: sel ? '#0f172a' : 'rgba(0,0,0,0.3)',
+    'stroke-width': sel ? 2 : 1,
+    style: `cursor:${s.locked ? 'pointer' : 'move'};touch-action:none;`,
+    'stroke-dasharray': s.locked ? '4 2' : null,
+  };
+  let shapeEl: SVGElement;
+  let labelX: number, labelY: number, fs: number, rotTransform = '';
 
   if (s.type === 'circle') {
     const cx = (s.x - state.offsetX) * ppf;
     const cy = (s.y - state.offsetY) * ppf;
     const r = s.radius * ppf;
-    shapeEl = svgEl('circle', Object.assign({
-      cx, cy, r, fill: s.color, 'fill-opacity': opacity,
-      stroke, 'stroke-width': strokeWidth,
-      style: `cursor:${cursor};touch-action:none;`
-    }, dashAttrs));
+    shapeEl = svgEl('circle', { ...common, cx, cy, r });
     labelX = cx; labelY = cy;
     fs = Math.max(10, Math.min(14, r * 0.4));
   } else {
@@ -75,74 +77,77 @@ export function renderOneShape(svg, s) {
     const w = s.width * ppf, h = s.height * ppf;
     const cx = px + w / 2, cy = py + h / 2;
     rotTransform = s.rotation ? `rotate(${s.rotation} ${cx} ${cy})` : '';
-    const common = Object.assign({
-      fill: s.color, 'fill-opacity': opacity,
-      stroke, 'stroke-width': strokeWidth,
-      style: `cursor:${cursor};touch-action:none;`
-    }, dashAttrs);
     if (rotTransform) common.transform = rotTransform;
     if (s.type === 'rect') {
-      shapeEl = svgEl('rect', Object.assign({ x: px, y: py, width: w, height: h }, common));
+      shapeEl = svgEl('rect', { ...common, x: px, y: py, width: w, height: h });
     } else if (s.type === 'oval') {
-      shapeEl = svgEl('ellipse', Object.assign({ cx, cy, rx: w / 2, ry: h / 2 }, common));
-    } else if (s.type === 'triangle') {
-      const pts = trianglePoints(s).map(p => `${(p[0] - state.offsetX) * ppf},${(p[1] - state.offsetY) * ppf}`).join(' ');
-      shapeEl = svgEl('polygon', Object.assign({ points: pts }, common));
+      shapeEl = svgEl('ellipse', { ...common, cx, cy, rx: w / 2, ry: h / 2 });
+    } else {
+      const pts = trianglePoints(s).map((p) => `${(p[0] - state.offsetX) * ppf},${(p[1] - state.offsetY) * ppf}`).join(' ');
+      shapeEl = svgEl('polygon', { ...common, points: pts });
     }
     labelX = cx; labelY = cy;
     fs = Math.max(10, Math.min(14, Math.min(w, h) * 0.2));
   }
-  if (shapeEl) {
-    shapeEl.addEventListener('pointerdown', (e) => onShapePointerDown(e, s));
-    svg.appendChild(shapeEl);
-  }
+  shapeEl.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
+  svg.appendChild(shapeEl);
   if (s.label) {
-    const textAttrs = {
+    svg.appendChild(svgEl('text', {
       x: labelX, y: labelY, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
       'font-size': fs, fill: '#0f172a', 'pointer-events': 'none',
-      style: 'user-select:none;font-weight:500;'
-    };
-    if (rotTransform) textAttrs.transform = rotTransform;
-    svg.appendChild(svgEl('text', textAttrs, s.label));
+      style: 'user-select:none;font-weight:500;',
+      transform: rotTransform || null,
+    }, s.label));
   }
 }
 
-export function renderShapes(svg) {
-  const sorted = [...state.shapes].sort((a, b) => (a.locked ? 0 : 1) - (b.locked ? 0 : 1));
-  for (const s of sorted) renderOneShape(svg, s);
-  // Marquee overlay
+/** Shapes in paint order: locked (background) tier first, then unlocked. */
+export function paintOrder(shapes: Shape[]): Shape[] {
+  return [...shapes].sort((a, b) => (a.locked ? 0 : 1) - (b.locked ? 0 : 1));
+}
+
+export function renderShapes(svg: SVGSVGElement) {
+  for (const s of paintOrder(state.shapes)) renderOneShape(svg, s);
   if (state.marquee) {
     const m = state.marquee;
     const ppf = pxPerFoot();
-    const x = Math.min(m.x1, m.x2);
-    const y = Math.min(m.y1, m.y2);
-    const w = Math.abs(m.x2 - m.x1);
-    const h = Math.abs(m.y2 - m.y1);
     svg.appendChild(svgEl('rect', {
-      x: (x - state.offsetX) * ppf,
-      y: (y - state.offsetY) * ppf,
-      width: w * ppf, height: h * ppf,
+      x: (Math.min(m.x1, m.x2) - state.offsetX) * ppf,
+      y: (Math.min(m.y1, m.y2) - state.offsetY) * ppf,
+      width: Math.abs(m.x2 - m.x1) * ppf, height: Math.abs(m.y2 - m.y1) * ppf,
       fill: 'rgba(5,150,105,0.1)', stroke: '#059669', 'stroke-width': 1.5,
       'stroke-dasharray': '5 3', 'pointer-events': 'none'
     }));
   }
 }
 
-// ============================================================
-// RESIZE (CANVAS-ONLY — preserves Android keyboard fix)
-// ============================================================
+function canvasSvg(): SVGSVGElement | null {
+  return document.getElementById('canvas-svg') as SVGSVGElement | null;
+}
+
+/** Clear and redraw the canvas contents only. Never touches panel DOM. */
+export function redrawCanvas() {
+  const svg = canvasSvg();
+  if (!svg) return;
+  svg.replaceChildren();
+  renderGrid(svg);
+  renderShapes(svg);
+  renderBgHandles(svg);
+}
+
+/**
+ * Size the canvas to its container and redraw. Window resizes call this, never
+ * the full render(): Android fires a resize when the keyboard opens, and a
+ * full render would destroy the input being typed into.
+ */
 export function resizeCanvas() {
   const wrap = document.getElementById('canvas-wrap');
-  const svg = document.getElementById('canvas-svg');
+  const svg = canvasSvg();
   if (!wrap || !svg) return;
   const rect = wrap.getBoundingClientRect();
   state.canvasW = Math.max(100, Math.round(rect.width));
   state.canvasH = Math.max(100, Math.round(rect.height));
-  svg.setAttribute('width', state.canvasW);
-  svg.setAttribute('height', state.canvasH);
-  // Clear and redraw only the SVG contents (grid + shapes + bg handles) — do not touch panel DOM
-  while (svg.firstChild) svg.removeChild(svg.firstChild);
-  renderGrid(svg);
-  renderShapes(svg);
-  renderBgHandles(svg);
+  svg.setAttribute('width', String(state.canvasW));
+  svg.setAttribute('height', String(state.canvasH));
+  redrawCanvas();
 }

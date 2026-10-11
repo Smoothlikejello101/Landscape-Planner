@@ -1,41 +1,27 @@
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from './constants';
 import { escapeHtml } from './dom';
-import { shapeBBox, trianglePoints } from './geometry';
+import { errMsg } from './util';
+import { rotatedBoxBounds, shapeBBox, trianglePoints, unionBounds } from './geometry';
 import { state } from './state';
 import { currentProject } from './storage';
+import type { Bounds, Shape } from './types';
 import { render } from './ui/render';
+import { paintOrder } from './canvas';
 
 // ============================================================
 // EXPORT
 // ============================================================
-export function computeAllBBox() {
-  const hasShapes = state.shapes.length > 0;
+/** Bounds of everything exported: all shapes plus the visible background image. */
+export function computeAllBBox(): Bounds | null {
+  const parts = state.shapes.map(shapeBBox);
   const bg = state.bgImage;
-  if (!hasShapes && !(bg && bg.visible)) return null;
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const s of state.shapes) {
-    const b = shapeBBox(s);
-    minX = Math.min(minX, b.minX); minY = Math.min(minY, b.minY);
-    maxX = Math.max(maxX, b.maxX); maxY = Math.max(maxY, b.maxY);
-  }
-  // Include bg image bbox (rotated) so export contains it fully
   if (bg && bg.visible) {
-    const wFt = bg.naturalWidth * bg.ftPerPx;
-    const hFt = bg.naturalHeight * bg.ftPerPx;
-    const rad = (bg.rotation || 0) * Math.PI / 180;
-    const cos = Math.cos(rad), sin = Math.sin(rad);
-    const hw = wFt / 2, hh = hFt / 2;
-    for (const c of [[-hw,-hh],[hw,-hh],[hw,hh],[-hw,hh]]) {
-      const wx = bg.cx + c[0] * cos - c[1] * sin;
-      const wy = bg.cy + c[0] * sin + c[1] * cos;
-      minX = Math.min(minX, wx); maxX = Math.max(maxX, wx);
-      minY = Math.min(minY, wy); maxY = Math.max(maxY, wy);
-    }
+    parts.push(rotatedBoxBounds(bg.cx, bg.cy, bg.naturalWidth * bg.ftPerPx, bg.naturalHeight * bg.ftPerPx, bg.rotation || 0));
   }
-  return { minX, minY, maxX, maxY };
+  return unionBounds(parts);
 }
-export function shapeToSvgString(s, originX, originY, scale) {
-  const opacity = s.opacity !== undefined ? s.opacity : 0.65;
+export function shapeToSvgString(s: Shape, originX: number, originY: number, scale: number): string {
+  const opacity = s.opacity ?? 0.65;
   const dash = s.locked ? ' stroke-dasharray="4 2"' : '';
   const stroke = 'rgba(0,0,0,0.3)';
   const strokeWidth = 1;
@@ -69,7 +55,7 @@ export function shapeToSvgString(s, originX, originY, scale) {
   }
   return out;
 }
-export function buildExportSVG() {
+export function buildExportSVG(): { svg: string; widthPx: number; heightPx: number } | null {
   const bbox = computeAllBBox();
   if (!bbox) return null;
   const pad = 2;
@@ -104,7 +90,7 @@ export function buildExportSVG() {
     const py = (fy - minY) * scale;
     labels += `<text x="3" y="${py+12}" font-size="10" fill="${AXIS_LABEL}" font-family="sans-serif">${fy}ft</text>`;
   }
-  const sorted = [...state.shapes].sort((a, b) => (a.locked ? 0 : 1) - (b.locked ? 0 : 1));
+  const sorted = paintOrder(state.shapes);
   let shapesSvg = '';
   for (const s of sorted) shapesSvg += shapeToSvgString(s, minX, minY, scale);
   // Optional bg image, sits above grid, below shapes (matches on-screen order)
@@ -127,13 +113,13 @@ ${grid}${bgSvg}${labels}${shapesSvg}
 </svg>`;
   return { svg, widthPx, heightPx };
 }
-export async function svgToPngDataUrl(svgString, widthPx, heightPx, scale) {
+export async function svgToPngDataUrl(svgString: string, widthPx: number, heightPx: number, scale: number): Promise<string> {
   return new Promise((resolve, reject) => {
-    let svgDataUrl;
+    let svgDataUrl: string;
     try {
       const utf8 = unescape(encodeURIComponent(svgString));
       svgDataUrl = 'data:image/svg+xml;base64,' + btoa(utf8);
-    } catch (e) { reject(new Error('SVG encode failed: ' + e.message)); return; }
+    } catch (e) { reject(new Error('SVG encode failed: ' + errMsg(e))); return; }
     const img = new Image();
     const timeout = setTimeout(() => reject(new Error('SVG load timeout')), 10000);
     img.onload = () => {
@@ -143,17 +129,18 @@ export async function svgToPngDataUrl(svgString, widthPx, heightPx, scale) {
         canvas.width = Math.max(1, Math.round(widthPx * scale));
         canvas.height = Math.max(1, Math.round(heightPx * scale));
         const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Canvas not available');
         ctx.fillStyle = BG_COLOR;
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         resolve(canvas.toDataURL('image/png'));
-      } catch (e) { reject(new Error('Canvas render failed: ' + e.message)); }
+      } catch (e) { reject(new Error('Canvas render failed: ' + errMsg(e))); }
     };
     img.onerror = () => { clearTimeout(timeout); reject(new Error('Image load blocked')); };
     img.src = svgDataUrl;
   });
 }
-export async function doExport(format) {
+export async function doExport(format: 'png' | 'svg') {
   const result = buildExportSVG();
   if (!result) return;
   const { svg, widthPx, heightPx } = result;
@@ -161,7 +148,7 @@ export async function doExport(format) {
   const safeName = (proj && proj.name ? proj.name : 'landscape').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
   const stamp = new Date().toISOString().slice(0, 10);
   try {
-    let dataUrl;
+    let dataUrl: string;
     if (format === 'svg') {
       dataUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
     } else {
@@ -171,7 +158,7 @@ export async function doExport(format) {
     state.panel = 'preview';
     render();
   } catch (e) {
-    alert('Export failed: ' + e.message);
+    alert('Export failed: ' + errMsg(e));
   }
 }
 export async function copySvg() {

@@ -1,100 +1,70 @@
-import { renderGrid, renderShapes } from './canvas';
+import { redrawCanvas } from './canvas';
 import { BG_HANDLE_RADIUS_PX, BG_JPEG_QUALITY, BG_MAX_IMAGE_DIM, BG_ROT_HANDLE_OFFSET_PX } from './constants';
-import { svgEl } from './dom';
-import { pxPerFoot, screenToFeet, viewCenterFeet } from './geometry';
+import { svgEl, type Attrs } from './dom';
+import { canvasRect, pxPerFoot, rotate, screenToFeet, viewCenterFeet } from './geometry';
 import { flushHistoryDebounce, pushHistory, pushHistoryDebounced } from './history';
 import { state } from './state';
 import { save } from './storage';
+import type { BgImage, Point } from './types';
 import { render } from './ui/render';
 
-// ============================================================
-// BACKGROUND IMAGE (satellite / survey to trace over)
-// ============================================================
-//
-// A bg image is stored per-project as a JPEG data URL (downscaled on upload
-// to <= BG_MAX_IMAGE_DIM px on the longer edge to stay within localStorage
-// budget). The image has:
-//   - naturalWidth/Height: pixel dimensions of the stored image
-//   - ftPerPx: world feet per image pixel (set via calibration)
-//   - cx/cy:   center position in world feet
-//   - rotation: degrees around the center
-//   - opacity: 0..1 (tracing translucency)
-//   - visible: bool
-// Position is CENTER (not top-left) so that rotation-around-center is a
-// straightforward transform.
+// Background image (satellite photo or survey) to trace over.
+// Stored per project as a downscaled JPEG data URL. Position is the image
+// CENTER in world feet so rotation about the center is a simple transform.
+// ftPerPx (world feet per image pixel) is set by two-point calibration.
 
-export function bgImageBBoxWorld(bg) {
-  // Axis-aligned bbox of the (unrotated) image in world feet.
-  const w = bg.naturalWidth * bg.ftPerPx;
-  const h = bg.naturalHeight * bg.ftPerPx;
-  return {
-    x: bg.cx - w / 2, y: bg.cy - h / 2,
-    w, h
-  };
+export function bgSizeFt(bg: BgImage) {
+  return { w: bg.naturalWidth * bg.ftPerPx, h: bg.naturalHeight * bg.ftPerPx };
 }
-// Convert a screen tap to image-pixel coords, undoing the image's current
-// position and rotation. Used by calibration taps: we need where on the image
-// the user touched, in the image's own pixel space, so subsequent
-// position/rotation changes don't invalidate the calibration.
-export function screenToImagePx(clientX, clientY, bg) {
-  const world = screenToFeet(clientX, clientY);
-  // Translate so image center is origin
-  const dx = world.x - bg.cx;
-  const dy = world.y - bg.cy;
-  // Un-rotate (rotate by -rotation)
-  const rad = -bg.rotation * Math.PI / 180;
-  const cos = Math.cos(rad), sin = Math.sin(rad);
-  const localXft = dx * cos - dy * sin;
-  const localYft = dx * sin + dy * cos;
-  // Convert feet-from-center to pixel-from-top-left
-  const halfWft = bg.naturalWidth * bg.ftPerPx / 2;
-  const halfHft = bg.naturalHeight * bg.ftPerPx / 2;
-  return {
-    x: (localXft + halfWft) / bg.ftPerPx,
-    y: (localYft + halfHft) / bg.ftPerPx
-  };
+/** Image-pixel coords → world feet (applies position and rotation). */
+export function imagePxToWorld(bg: BgImage, p: Point): Point {
+  const { w, h } = bgSizeFt(bg);
+  const r = rotate(p.x * bg.ftPerPx - w / 2, p.y * bg.ftPerPx - h / 2, bg.rotation);
+  return { x: bg.cx + r.x, y: bg.cy + r.y };
 }
-// Position of the rotation handle in screen coords. Sits above the (rotated)
-// image, along the rotated Y axis.
-export function bgRotHandleScreen(bg) {
+/** World feet → image-pixel coords (undoes position and rotation). */
+export function worldToImagePx(bg: BgImage, world: Point): Point {
+  const { w, h } = bgSizeFt(bg);
+  const r = rotate(world.x - bg.cx, world.y - bg.cy, -bg.rotation);
+  return { x: (r.x + w / 2) / bg.ftPerPx, y: (r.y + h / 2) / bg.ftPerPx };
+}
+/**
+ * Where on the image (in its own pixels) a screen point falls. Calibration
+ * points are kept in image pixels so later moves/rotations don't invalidate them.
+ */
+export function screenToImagePx(clientX: number, clientY: number, bg: BgImage): Point {
+  return worldToImagePx(bg, screenToFeet(clientX, clientY));
+}
+function worldToCanvas(p: Point): Point {
   const ppf = pxPerFoot();
-  // In image-local space, the rotation handle is directly above the top edge
-  // (local (0, -halfH - handleOffset))
-  const halfHft = bg.naturalHeight * bg.ftPerPx / 2;
-  const offsetFt = BG_ROT_HANDLE_OFFSET_PX / ppf;
-  const localX = 0;
-  const localY = -(halfHft + offsetFt);
-  // Rotate by bg.rotation
-  const rad = bg.rotation * Math.PI / 180;
-  const cos = Math.cos(rad), sin = Math.sin(rad);
-  const worldX = bg.cx + localX * cos - localY * sin;
-  const worldY = bg.cy + localX * sin + localY * cos;
-  // World feet → screen px (relative to canvas top-left)
-  return {
-    x: (worldX - state.offsetX) * ppf,
-    y: (worldY - state.offsetY) * ppf
-  };
+  return { x: (p.x - state.offsetX) * ppf, y: (p.y - state.offsetY) * ppf };
 }
-// Screen point of image center (used for the rotation-handle connector line
-// and for computing the rotation delta during a rotate gesture).
-export function bgCenterScreen(bg) {
-  const ppf = pxPerFoot();
-  return {
-    x: (bg.cx - state.offsetX) * ppf,
-    y: (bg.cy - state.offsetY) * ppf
-  };
+/** Rotation handle position (canvas px): above the image's top edge, along its rotated axis. */
+export function bgRotHandleCanvas(bg: BgImage): Point {
+  const { h } = bgSizeFt(bg);
+  const r = rotate(0, -(h / 2 + BG_ROT_HANDLE_OFFSET_PX / pxPerFoot()), bg.rotation);
+  return worldToCanvas({ x: bg.cx + r.x, y: bg.cy + r.y });
+}
+/** Image center in canvas px. */
+export function bgCenterCanvas(bg: BgImage): Point {
+  return worldToCanvas({ x: bg.cx, y: bg.cy });
+}
+/** Image center in client (page) px — what pointer events report. */
+export function bgCenterClient(bg: BgImage): Point {
+  const c = bgCenterCanvas(bg), rect = canvasRect();
+  return { x: c.x + rect.left, y: c.y + rect.top };
 }
 
 // ---------- File upload + downscale ----------
-export function fileToDataUrl(file) {
+export function fileToDataUrl(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader();
-    r.onload = () => resolve(r.result);
+    r.onload = () => resolve(String(r.result));
     r.onerror = () => reject(new Error('File read failed'));
     r.readAsDataURL(file);
   });
 }
-export function loadImageEl(dataUrl) {
+export function loadImageEl(dataUrl: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
@@ -102,7 +72,7 @@ export function loadImageEl(dataUrl) {
     img.src = dataUrl;
   });
 }
-export function downscaleImage(img, maxDim, quality) {
+export function downscaleImage(img: HTMLImageElement, maxDim: number, quality: number) {
   const w = img.naturalWidth, h = img.naturalHeight;
   const scale = Math.min(1, maxDim / Math.max(w, h));
   const outW = Math.max(1, Math.round(w * scale));
@@ -110,11 +80,12 @@ export function downscaleImage(img, maxDim, quality) {
   const canvas = document.createElement('canvas');
   canvas.width = outW; canvas.height = outH;
   const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Canvas not available');
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(img, 0, 0, outW, outH);
   return { dataUrl: canvas.toDataURL('image/jpeg', quality), w: outW, h: outH };
 }
-export async function handleBgImageFile(file) {
+export async function handleBgImageFile(file: File): Promise<boolean> {
   const name = (file.name || '').toLowerCase();
   const t = (file.type || '').toLowerCase();
   if (t === 'image/heic' || t === 'image/heif' || name.endsWith('.heic') || name.endsWith('.heif')) {
@@ -126,32 +97,25 @@ export async function handleBgImageFile(file) {
     return false;
   }
   try {
-    const origUrl = await fileToDataUrl(file);
-    const img = await loadImageEl(origUrl);
+    const img = await loadImageEl(await fileToDataUrl(file));
     const { dataUrl, w, h } = downscaleImage(img, BG_MAX_IMAGE_DIM, BG_JPEG_QUALITY);
-    // Estimate size: base64 is ~4/3 of raw bytes
-    const estBytes = Math.round(dataUrl.length * 0.75);
+    const estBytes = Math.round(dataUrl.length * 0.75); // base64 is ~4/3 of raw
     if (estBytes > 4_000_000) {
-      // 4MB is a soft warning — localStorage limits vary
-      const ok = confirm(`Image is ~${(estBytes/1024/1024).toFixed(1)}MB after compression. This might not fit in browser storage alongside your other projects. Continue?`);
+      const ok = confirm(`Image is ~${(estBytes / 1024 / 1024).toFixed(1)}MB after compression. This might not fit in browser storage alongside your other projects. Continue?`);
       if (!ok) return false;
     }
-    // Place image centered on current view, at an arbitrary initial scale —
-    // the user will calibrate right after.
+    // Arbitrary initial scale (1 px = 0.1 ft); calibration follows immediately.
     const c = viewCenterFeet();
-    const initialFtPerPx = 0.1; // 1 pixel = 0.1 ft ≈ 1.2 in — arbitrary, gets overridden
     flushHistoryDebounce();
     state.bgImage = {
-      dataUrl, naturalWidth: w, naturalHeight: h,
-      ftPerPx: initialFtPerPx,
-      cx: c.x, cy: c.y,
-      rotation: 0, opacity: 0.6, visible: true
+      dataUrl, naturalWidth: w, naturalHeight: h, ftPerPx: 0.1,
+      cx: c.x, cy: c.y, rotation: 0, opacity: 0.6, visible: true
     };
     pushHistory();
     save();
     return true;
   } catch (e) {
-    alert('Could not load image: ' + (e.message || e));
+    alert('Could not load image: ' + (e instanceof Error ? e.message : String(e)));
     return false;
   }
 }
@@ -164,28 +128,21 @@ export function removeBgImage() {
   pushHistory();
   save();
 }
-// Patch fields on the bg image with history (used by numeric inputs, opacity slider, etc.)
-export function updateBgImage(patch) {
+/** Patch the image and re-render everything (buttons, toggles). */
+export function updateBgImage(patch: Partial<BgImage>) {
   if (!state.bgImage) return;
   Object.assign(state.bgImage, patch);
   save();
   pushHistoryDebounced();
   render();
 }
-// Silent variant for range/text inputs so the panel DOM (and thus the
-// on-screen keyboard) isn't torn down mid-edit.
-export function updateBgImageSilent(patch) {
+/** Patch the image and redraw only the canvas (inputs keep keyboard focus). */
+export function updateBgImageSilent(patch: Partial<BgImage>) {
   if (!state.bgImage) return;
   Object.assign(state.bgImage, patch);
   save();
   pushHistoryDebounced();
-  const svg = document.getElementById('canvas-svg');
-  if (svg) {
-    while (svg.firstChild) svg.removeChild(svg.firstChild);
-    renderGrid(svg);
-    renderShapes(svg);
-    renderBgHandles(svg);
-  }
+  redrawCanvas();
 }
 
 // ---------- Calibration flow ----------
@@ -193,15 +150,14 @@ export function startBgCalibration() {
   if (!state.bgImage) return;
   state.bgCalibrate = { step: 'point1', p1: null, p2: null };
   state.panel = null;
-  // Force edit mode off — calibration taps must not be confused with drag
-  state.bgEditMode = false;
+  state.bgEditMode = false; // calibration taps must not be read as drags
   render();
 }
 export function cancelBgCalibration() {
   state.bgCalibrate = null;
   render();
 }
-export function bgCalibrationTap(clientX, clientY) {
+export function bgCalibrationTap(clientX: number, clientY: number) {
   if (!state.bgImage || !state.bgCalibrate) return;
   const pt = screenToImagePx(clientX, clientY, state.bgImage);
   if (state.bgCalibrate.step === 'point1') {
@@ -214,147 +170,96 @@ export function bgCalibrationTap(clientX, clientY) {
   }
   render();
 }
-export function finishBgCalibration(distanceFt) {
-  if (!state.bgImage || !state.bgCalibrate || !state.bgCalibrate.p1 || !state.bgCalibrate.p2) return;
-  const p1 = state.bgCalibrate.p1, p2 = state.bgCalibrate.p2;
+/** Feet per image pixel from two image-pixel points a known distance apart. */
+export function calibrationScale(p1: Point, p2: Point, distanceFt: number): number | string {
   const dPx = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-  if (dPx < 2) {
-    alert('The two points are too close together. Try again with points further apart.');
-    return;
-  }
-  if (!(distanceFt > 0) || !isFinite(distanceFt)) {
-    alert('Please enter a positive distance in feet.');
-    return;
-  }
-  const newFtPerPx = distanceFt / dPx;
+  if (dPx < 2) return 'The two points are too close together. Try again with points further apart.';
+  if (!(distanceFt > 0) || !isFinite(distanceFt)) return 'Please enter a positive distance in feet.';
+  return distanceFt / dPx;
+}
+export function finishBgCalibration(distanceFt: number) {
+  const cal = state.bgCalibrate;
+  if (!state.bgImage || !cal || !cal.p1 || !cal.p2) return;
+  const result = calibrationScale(cal.p1, cal.p2, distanceFt);
+  if (typeof result === 'string') { alert(result); return; }
   flushHistoryDebounce();
-  state.bgImage.ftPerPx = newFtPerPx;
+  state.bgImage.ftPerPx = result;
   pushHistory();
   save();
   state.bgCalibrate = null;
-  state.panel = 'bg'; // back to bg panel
+  state.panel = 'bg';
   render();
 }
 
 // ---------- Rendering ----------
-// Called from renderGrid, between the base tan rect and the grid lines, so
-// grid lines stay visible on top of the image (subtle scale reference).
-export function renderBgImageInto(svg) {
+function imageFrame(bg: BgImage) {
+  const ppf = pxPerFoot();
+  const { w, h } = bgSizeFt(bg);
+  const c = bgCenterCanvas(bg);
+  return {
+    x: c.x - (w * ppf) / 2, y: c.y - (h * ppf) / 2, w: w * ppf, h: h * ppf,
+    transform: bg.rotation ? `rotate(${bg.rotation} ${c.x} ${c.y})` : null
+  };
+}
+/** Drawn by renderGrid between the tan base and the grid lines. */
+export function renderBgImageInto(svg: SVGSVGElement) {
   const bg = state.bgImage;
   if (!bg || !bg.visible) return;
-  const ppf = pxPerFoot();
-  const wFt = bg.naturalWidth * bg.ftPerPx;
-  const hFt = bg.naturalHeight * bg.ftPerPx;
-  const xPx = (bg.cx - wFt / 2 - state.offsetX) * ppf;
-  const yPx = (bg.cy - hFt / 2 - state.offsetY) * ppf;
-  const wPx = wFt * ppf;
-  const hPx = hFt * ppf;
-  const cxPx = (bg.cx - state.offsetX) * ppf;
-  const cyPx = (bg.cy - state.offsetY) * ppf;
-  const transform = bg.rotation ? `rotate(${bg.rotation} ${cxPx} ${cyPx})` : '';
-  const imageAttrs = {
+  const f = imageFrame(bg);
+  const img = svgEl('image', {
     href: bg.dataUrl,
-    x: xPx, y: yPx, width: wPx, height: hPx,
+    x: f.x, y: f.y, width: f.w, height: f.h,
     opacity: bg.opacity,
-    // preserveAspectRatio "none" would let the image squash to the box; we
-    // want strict aspect (which it already has since wFt/hFt come from
-    // naturalWidth/Height * same ftPerPx).
-    preserveAspectRatio: 'none',
+    preserveAspectRatio: 'none', // aspect is already exact (same ftPerPx both axes)
     'pointer-events': state.bgEditMode ? 'auto' : 'none',
-    style: state.bgEditMode ? 'cursor:move;touch-action:none;' : ''
-  };
-  if (transform) imageAttrs.transform = transform;
-  if (state.bgEditMode) imageAttrs['data-role'] = 'bg-body';
-  const img = svgEl('image', imageAttrs);
-  // xlink:href for older SVG stacks (belt and suspenders)
-  img.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', bg.dataUrl);
+    style: state.bgEditMode ? 'cursor:move;touch-action:none;' : '',
+    transform: f.transform,
+    'data-role': state.bgEditMode ? 'bg-body' : null,
+  });
+  img.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', bg.dataUrl); // older SVG stacks
   svg.appendChild(img);
 }
-// Called from render() after shapes, only when bg edit mode is on OR
-// calibration is running. Draws the bg's bounding-box outline plus rotation
-// handle (edit mode) or calibration markers (calibration mode).
-export function renderBgHandles(svg) {
+function calibrationMarker(svg: SVGSVGElement, bg: BgImage, p: Point, letter: string) {
+  const s = worldToCanvas(imagePxToWorld(bg, p));
+  svg.appendChild(svgEl('circle', { cx: s.x, cy: s.y, r: 10, fill: 'rgba(220,38,38,0.2)', stroke: '#dc2626', 'stroke-width': 2, 'pointer-events': 'none' }));
+  svg.appendChild(svgEl('circle', { cx: s.x, cy: s.y, r: 3, fill: '#dc2626', 'pointer-events': 'none' }));
+  svg.appendChild(svgEl('text', { x: s.x + 12, y: s.y - 8, 'font-size': 12, fill: '#dc2626', 'font-weight': 700, 'pointer-events': 'none', style: 'user-select:none;' }, letter));
+  return s;
+}
+/** Edit-mode outline + rotation handle, and calibration markers. Drawn above shapes. */
+export function renderBgHandles(svg: SVGSVGElement) {
   const bg = state.bgImage;
   if (!bg) return;
-  const ppf = pxPerFoot();
-  const wFt = bg.naturalWidth * bg.ftPerPx;
-  const hFt = bg.naturalHeight * bg.ftPerPx;
-  const xPx = (bg.cx - wFt / 2 - state.offsetX) * ppf;
-  const yPx = (bg.cy - hFt / 2 - state.offsetY) * ppf;
-  const wPx = wFt * ppf;
-  const hPx = hFt * ppf;
-  const cxPx = (bg.cx - state.offsetX) * ppf;
-  const cyPx = (bg.cy - state.offsetY) * ppf;
-  const transform = bg.rotation ? `rotate(${bg.rotation} ${cxPx} ${cyPx})` : '';
-
   if (state.bgEditMode) {
-    // Bounding box outline (rotates with image)
-    const bboxAttrs = {
-      x: xPx, y: yPx, width: wPx, height: hPx,
+    const f = imageFrame(bg);
+    const outline: Attrs = {
+      x: f.x, y: f.y, width: f.w, height: f.h,
       fill: 'none', stroke: '#7c3aed', 'stroke-width': 2,
-      'stroke-dasharray': '6 4', 'pointer-events': 'none'
+      'stroke-dasharray': '6 4', 'pointer-events': 'none', transform: f.transform
     };
-    if (transform) bboxAttrs.transform = transform;
-    svg.appendChild(svgEl('rect', bboxAttrs));
-    // Rotation handle
-    const rot = bgRotHandleScreen(bg);
-    const ctr = bgCenterScreen(bg);
-    // Connector line from image top edge (via rotated frame) to handle
-    // Simplest: draw a straight line from ctr to rot; approximates the "arm"
+    svg.appendChild(svgEl('rect', outline));
+    const rot = bgRotHandleCanvas(bg);
+    const ctr = bgCenterCanvas(bg);
     svg.appendChild(svgEl('line', {
       x1: ctr.x, y1: ctr.y, x2: rot.x, y2: rot.y,
-      stroke: '#7c3aed', 'stroke-width': 1.5, 'stroke-dasharray': '3 3',
-      'pointer-events': 'none'
+      stroke: '#7c3aed', 'stroke-width': 1.5, 'stroke-dasharray': '3 3', 'pointer-events': 'none'
     }));
-    const handle = svgEl('circle', {
+    svg.appendChild(svgEl('circle', {
       cx: rot.x, cy: rot.y, r: BG_HANDLE_RADIUS_PX,
       fill: '#fff', stroke: '#7c3aed', 'stroke-width': 2,
-      'data-role': 'bg-rot',
-      style: 'cursor:grab;touch-action:none;'
-    });
-    svg.appendChild(handle);
-    // Small rotate glyph inside the handle
+      'data-role': 'bg-rot', style: 'cursor:grab;touch-action:none;'
+    }));
     svg.appendChild(svgEl('text', {
-      x: rot.x, y: rot.y + 4,
-      'text-anchor': 'middle', 'font-size': 14,
-      fill: '#7c3aed', 'pointer-events': 'none',
-      style: 'user-select:none;font-family:sans-serif;'
+      x: rot.x, y: rot.y + 4, 'text-anchor': 'middle', 'font-size': 14,
+      fill: '#7c3aed', 'pointer-events': 'none', style: 'user-select:none;font-family:sans-serif;'
     }, '⟳'));
   }
-
-  // Calibration markers
   if (state.bgCalibrate) {
     const { p1, p2 } = state.bgCalibrate;
-    const markerAt = (px, color) => {
-      // Convert image-pixel coords to screen coords
-      const halfWft = bg.naturalWidth * bg.ftPerPx / 2;
-      const halfHft = bg.naturalHeight * bg.ftPerPx / 2;
-      const localXft = px.x * bg.ftPerPx - halfWft;
-      const localYft = px.y * bg.ftPerPx - halfHft;
-      const rad = bg.rotation * Math.PI / 180;
-      const cos = Math.cos(rad), sin = Math.sin(rad);
-      const worldX = bg.cx + localXft * cos - localYft * sin;
-      const worldY = bg.cy + localXft * sin + localYft * cos;
-      return {
-        x: (worldX - state.offsetX) * ppf,
-        y: (worldY - state.offsetY) * ppf
-      };
-    };
-    if (p1) {
-      const s1 = markerAt(p1, '#dc2626');
-      svg.appendChild(svgEl('circle', { cx: s1.x, cy: s1.y, r: 10, fill: 'rgba(220,38,38,0.2)', stroke: '#dc2626', 'stroke-width': 2, 'pointer-events': 'none' }));
-      svg.appendChild(svgEl('circle', { cx: s1.x, cy: s1.y, r: 3, fill: '#dc2626', 'pointer-events': 'none' }));
-      svg.appendChild(svgEl('text', { x: s1.x + 12, y: s1.y - 8, 'font-size': 12, fill: '#dc2626', 'font-weight': 700, 'pointer-events': 'none', style: 'user-select:none;' }, 'A'));
-    }
-    if (p2) {
-      const s2 = markerAt(p2, '#dc2626');
-      svg.appendChild(svgEl('circle', { cx: s2.x, cy: s2.y, r: 10, fill: 'rgba(220,38,38,0.2)', stroke: '#dc2626', 'stroke-width': 2, 'pointer-events': 'none' }));
-      svg.appendChild(svgEl('circle', { cx: s2.x, cy: s2.y, r: 3, fill: '#dc2626', 'pointer-events': 'none' }));
-      svg.appendChild(svgEl('text', { x: s2.x + 12, y: s2.y - 8, 'font-size': 12, fill: '#dc2626', 'font-weight': 700, 'pointer-events': 'none', style: 'user-select:none;' }, 'B'));
-      if (p1) {
-        const s1 = markerAt(p1, '#dc2626');
-        svg.appendChild(svgEl('line', { x1: s1.x, y1: s1.y, x2: s2.x, y2: s2.y, stroke: '#dc2626', 'stroke-width': 2, 'stroke-dasharray': '4 2', 'pointer-events': 'none' }));
-      }
+    const a = p1 ? calibrationMarker(svg, bg, p1, 'A') : null;
+    const b = p2 ? calibrationMarker(svg, bg, p2, 'B') : null;
+    if (a && b) {
+      svg.appendChild(svgEl('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: '#dc2626', 'stroke-width': 2, 'stroke-dasharray': '4 2', 'pointer-events': 'none' }));
     }
   }
 }

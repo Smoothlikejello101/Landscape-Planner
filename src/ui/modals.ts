@@ -53,7 +53,7 @@ export function renderPreviewModal() {
   );
   if (p.format === 'svg') {
     const ta = el('textarea', { readonly: true }, p.svgText);
-    ta.addEventListener('click', e => e.target.select());
+    ta.addEventListener('click', e => (e.target as HTMLTextAreaElement).select());
     body.appendChild(el('details', {},
       el('summary', {}, 'Backup: show SVG text (select all, copy)'),
       ta

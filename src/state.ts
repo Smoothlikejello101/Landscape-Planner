@@ -1,7 +1,9 @@
 // ============================================================
 // STATE
 // ============================================================
-export const state = {
+import type { AppState, Gesture } from './types';
+
+export const state: AppState = {
   // Project list
   projects: [], // { id, name, lastModified }
   currentProjectId: null,
@@ -38,5 +40,5 @@ export const state = {
   // 'distance' -> distance-entry modal is open. p1/p2 are image-pixel coords.
   bgCalibrate: null,
 };
-export const gesture = { current: null };
-export const tapTracker = { id: null, time: 0 };
+export const gesture: { current: Gesture | null } = { current: null };
+export const tapTracker: { id: string | null; time: number } = { id: null, time: 0 };

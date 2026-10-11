@@ -3,14 +3,59 @@ import { flushHistoryDebounce, pushHistory } from './history';
 import { state } from './state';
 import { save } from './storage';
 import { render } from './ui/render';
+import type { CircleShape } from './types';
 import { snap, uid } from './util';
+
+/** One row of plants.json (Caddo Valley Plant Index). */
+export interface Plant {
+  id: string;
+  common: string;
+  botanical?: string;
+  form?: string;
+  habit?: string;
+  dog?: string;
+  native?: string;
+  water?: string;
+  sun_most?: SunLevel;
+  sun_least?: SunLevel;
+  height?: { min?: number; max?: number; med?: number };
+  width?: { min?: number; max?: number; med?: number };
+  bloom?: { start?: number; end?: number; color?: string };
+  nectar?: string;
+  bird?: string;
+  deer?: string;
+  maintenance?: string;
+  self_seed?: string;
+  status?: string;
+  source?: string;
+  bed?: string;
+  host?: string;
+  notes?: string;
+  edible?: boolean;
+  fall_color?: boolean;
+  winter_interest?: boolean;
+  clay_ok?: boolean;
+  wet_feet?: boolean;
+  dry_shade?: boolean;
+  ar_proven?: boolean;
+  taproot?: boolean;
+  [key: string]: unknown;
+}
+export interface PlantMeta {
+  title?: string;
+  version?: string;
+  count?: number;
+  zone?: string;
+  enums?: Record<string, string[]>;
+}
+type SunLevel = 'Full' | 'Part' | 'Shade';
 
 // ============================================================
 // PLANT INDEX DATA (Caddo Valley Plant Index -> plants.json)
 // ============================================================
-export let PLANTS = [];
-export let PLANT_META = null;
-export const plantsById = {};
+export let PLANTS: Plant[] = [];
+export let PLANT_META: PlantMeta | null = null;
+export const plantsById: Record<string, Plant> = {};
 // Picker filter state lives outside `state` so it isn't saved with projects.
 export const PLANT_FILTER_DEFAULTS = {
   q: '', form: '', water: '', bloomMonth: '', sun: '',
@@ -22,31 +67,35 @@ export const PLANT_FILTER_DEFAULTS = {
   showArchived: false, // rejected rows, zone-fails, hard-no dog plants
   advanced: false      // UI: is the "More filters" section expanded
 };
-export const plantFilter = Object.assign({}, PLANT_FILTER_DEFAULTS);
+export type PlantFilter = typeof PLANT_FILTER_DEFAULTS;
+export const plantFilter: PlantFilter = { ...PLANT_FILTER_DEFAULTS };
 // Sun tolerance is stored as a range: sun_most = most sun tolerated,
 // sun_least = least. A plant suits a level if the level falls in that span.
-export const SUN_RANK = { 'Full': 0, 'Part': 1, 'Shade': 2 };
-export function plantTakesSun(p, level) {
+export const SUN_RANK: Record<SunLevel, number> = { Full: 0, Part: 1, Shade: 2 };
+export function plantTakesSun(p: Plant, level: string): boolean {
   if (!level) return true;
-  const want = SUN_RANK[level];
-  const most = SUN_RANK[p.sun_most], least = SUN_RANK[p.sun_least];
+  const want = SUN_RANK[level as SunLevel];
+  const most = p.sun_most ? SUN_RANK[p.sun_most] : null, least = p.sun_least ? SUN_RANK[p.sun_least] : null;
   if (most == null || least == null) return false;
   return most <= want && want <= least;
 }
 
-fetch('plants.json')
-  .then(r => r.json())
-  .then(d => {
+/** Load the plant index (served next to index.html). */
+export function loadPlants(): Promise<void> {
+  return fetch('plants.json')
+  .then((r) => r.json())
+  .then((d: { plants?: Plant[]; meta?: PlantMeta }) => {
     PLANTS = d.plants || [];
     PLANT_META = d.meta || null;
     for (const p of PLANTS) plantsById[p.id] = p;
     if (state.panel === 'plants') render(); // refresh picker if already open
   })
-  .catch(err => console.error('plants.json load failed', err));
+  .catch((err) => console.error('plants.json load failed', err));
+}
 // ============================================================
 // PLANT PICKER
 // ============================================================
-export function plantMatches(p, f) {
+export function plantMatches(p: Plant, f: PlantFilter): boolean {
   if (f.dogSafeOnly && p.dog !== 'Safe') return false;
   if (!f.showArchived) {
     if (p.status === 'Rejected') return false;
@@ -97,29 +146,29 @@ export function plantMatches(p, f) {
   }
   return true;
 }
-export function filteredPlants() {
+export function filteredPlants(): Plant[] {
   const out = PLANTS.filter(p => plantMatches(p, plantFilter));
   out.sort((a, b) => a.common.localeCompare(b.common));
   return out;
 }
 // Canvas color by growth form, drawn from the existing swatch palette
-export const FORM_COLORS = {
+export const FORM_COLORS: Record<string, string> = {
   'Tree (canopy)': '#78350f', 'Tree (understory)': '#57534e', 'Shrub': '#16a34a',
   'Perennial': '#a855f7', 'Grass/Sedge': '#f59e0b', 'Vine': '#14b8a6',
   'Bulb': '#ec4899', 'Fern': '#65a30d', 'Annual': '#fbbf24',
   'Aquatic/Emergent': '#0ea5e9', 'Cactus': '#84cc16'
 };
-export function addPlantShape(p) {
+export function addPlantShape(p: Plant) {
   flushHistoryDebounce();
   const c = viewCenterFeet();
   const id = uid();
   const spread = (p.width && p.width.med) || (p.height && p.height.med) || 2;
   const radius = Math.max(0.5, snap(spread / 2));
-  const shape = {
+  const shape: CircleShape = {
     id, type: 'circle',
     x: snap(c.x), y: snap(c.y),
     radius,
-    color: FORM_COLORS[p.form] || '#16a34a',
+    color: (p.form && FORM_COLORS[p.form]) || '#16a34a',
     label: p.common,
     opacity: 0.65, locked: false,
     plantId: p.id // permanent link back to the plant index row
@@ -130,8 +179,8 @@ export function addPlantShape(p) {
   save();
 }
 export const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-export function plantMetaLine(p) {
-  const bits = [];
+export function plantMetaLine(p: Plant): string {
+  const bits: string[] = [];
   if (p.form) bits.push(p.form);
   const spread = p.width && p.width.med;
   const ht = p.height && p.height.med;
@@ -141,7 +190,7 @@ export function plantMetaLine(p) {
   }
   if (p.dog && p.dog !== 'Safe') bits.push('dog: ' + p.dog);
   if (p.sun_most) bits.push(p.sun_most === p.sun_least ? p.sun_most + ' sun' : p.sun_most + '-' + p.sun_least);
-  const tags = [];
+  const tags: string[] = [];
   if (p.dry_shade) tags.push('dry shade');
   if (p.wet_feet) tags.push('wet ok');
   if (p.nectar === 'High') tags.push('high nectar');

@@ -5,13 +5,14 @@ import { bringForward, bringToFront, copySelected, deleteSelected, duplicateSele
 import { getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { render } from './render';
+import type { Corner, Shape } from '../types';
 import { snapRot } from '../util';
 
 // ============================================================
 // PANELS
 // ============================================================
 
-export function renderPropsPanelSingle(s) {
+export function renderPropsPanelSingle(s: Shape) {
   const body = el('div', { className: 'sheet-body' });
   if (s.locked) {
     body.appendChild(el('div', { className: 'banner' },
@@ -19,7 +20,7 @@ export function renderPropsPanelSingle(s) {
   }
   // Label
   const labelInput = el('input', { type: 'text', value: s.label || '', placeholder: 'e.g. Dwarf Alberta Spruce' });
-  labelInput.addEventListener('input', e => updateSelectedSilent({ label: e.target.value }));
+  labelInput.addEventListener('input', e => updateSelectedSilent({ label: (e.target as HTMLInputElement).value }));
   body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Label'), labelInput));
 
   // Dimensions
@@ -27,16 +28,16 @@ export function renderPropsPanelSingle(s) {
     const radInput = el('input', { type: 'number', step: '0.5', min: '0.1', value: s.radius });
     const diameterHint = el('div', { className: 'hint' }, 'Diameter: ' + (s.radius * 2).toFixed(1) + ' ft');
     radInput.addEventListener('input', e => {
-      const newR = Math.max(0.1, parseFloat(e.target.value) || 0);
+      const newR = Math.max(0.1, parseFloat((e.target as HTMLInputElement).value) || 0);
       updateSelectedSilent({ radius: newR });
       diameterHint.textContent = 'Diameter: ' + (newR * 2).toFixed(1) + ' ft';
     });
     body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Radius (ft)'), radInput, diameterHint));
   } else {
     const wInput = el('input', { type: 'number', step: '0.5', min: '0.1', value: s.width });
-    wInput.addEventListener('input', e => updateSelectedSilent({ width: Math.max(0.1, parseFloat(e.target.value) || 0) }));
+    wInput.addEventListener('input', e => updateSelectedSilent({ width: Math.max(0.1, parseFloat((e.target as HTMLInputElement).value) || 0) }));
     const hInput = el('input', { type: 'number', step: '0.5', min: '0.1', value: s.height });
-    hInput.addEventListener('input', e => updateSelectedSilent({ height: Math.max(0.1, parseFloat(e.target.value) || 0) }));
+    hInput.addEventListener('input', e => updateSelectedSilent({ height: Math.max(0.1, parseFloat((e.target as HTMLInputElement).value) || 0) }));
     body.appendChild(el('div', { className: 'row-2' },
       el('div', { className: 'field' }, el('label', {}, 'Width (ft)'), wInput),
       el('div', { className: 'field' }, el('label', {}, 'Height (ft)'), hInput)
@@ -45,9 +46,9 @@ export function renderPropsPanelSingle(s) {
 
   // Position
   const xInput = el('input', { type: 'number', step: '0.5', value: s.x });
-  xInput.addEventListener('input', e => updateSelectedSilent({ x: parseFloat(e.target.value) || 0 }));
+  xInput.addEventListener('input', e => updateSelectedSilent({ x: parseFloat((e.target as HTMLInputElement).value) || 0 }));
   const yInput = el('input', { type: 'number', step: '0.5', value: s.y });
-  yInput.addEventListener('input', e => updateSelectedSilent({ y: parseFloat(e.target.value) || 0 }));
+  yInput.addEventListener('input', e => updateSelectedSilent({ y: parseFloat((e.target as HTMLInputElement).value) || 0 }));
   body.appendChild(el('div', { className: 'row-2' },
     el('div', { className: 'field' }, el('label', {}, 'X position (ft)'), xInput),
     el('div', { className: 'field' }, el('label', {}, 'Y position (ft)'), yInput)
@@ -59,7 +60,7 @@ export function renderPropsPanelSingle(s) {
     const rotInput = el('input', { type: 'number', step: '5', value: rotVal });
     const rotPct = el('span', { style: { fontSize: '12px', color: '#78716c' } }, rotVal + '°');
     rotInput.addEventListener('input', e => {
-      const v = parseFloat(e.target.value) || 0;
+      const v = parseFloat((e.target as HTMLInputElement).value) || 0;
       updateSelectedSilent({ rotation: v });
       rotPct.textContent = v + '°';
     });
@@ -71,7 +72,7 @@ export function renderPropsPanelSingle(s) {
         let newRot = snapRot(cur + delta);
         if (newRot >= 360) newRot -= 360;
         if (newRot < 0) newRot += 360;
-        rotInput.value = newRot;
+        rotInput.value = String(newRot);
         rotPct.textContent = newRot + '°';
         updateSelectedSilent({ rotation: newRot });
       });
@@ -79,7 +80,7 @@ export function renderPropsPanelSingle(s) {
     });
     const resetBtn = el('button', {}, 'Reset');
     resetBtn.addEventListener('click', () => {
-      rotInput.value = 0;
+      rotInput.value = '0';
       rotPct.textContent = '0°';
       updateSelectedSilent({ rotation: 0 });
     });
@@ -94,7 +95,7 @@ export function renderPropsPanelSingle(s) {
 
   // Triangle: right-angle corner
   if (s.type === 'triangle') {
-    const corners = [
+    const corners: { v: Corner; label: string }[] = [
       { v: 'bl', label: 'Bottom-left' },
       { v: 'br', label: 'Bottom-right' },
       { v: 'tl', label: 'Top-left' },
@@ -121,7 +122,7 @@ export function renderPropsPanelSingle(s) {
     swatches.appendChild(btn);
   }
   const colorInput = el('input', { type: 'color', value: s.color });
-  colorInput.addEventListener('input', e => updateSelectedSilent({ color: e.target.value }));
+  colorInput.addEventListener('input', e => updateSelectedSilent({ color: (e.target as HTMLInputElement).value }));
   body.appendChild(el('div', { className: 'field' },
     el('label', {}, 'Color'),
     swatches,
@@ -135,7 +136,7 @@ export function renderPropsPanelSingle(s) {
   const rangeInput = el('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: opacityVal });
   const opacityPct = el('span', { style: { fontSize: '12px', color: '#78716c' } }, Math.round(opacityVal * 100) + '%');
   rangeInput.addEventListener('input', e => {
-    const v = parseFloat(e.target.value);
+    const v = parseFloat((e.target as HTMLInputElement).value);
     updateSelectedSilent({ opacity: v });
     opacityPct.textContent = Math.round(v * 100) + '%';
   });
@@ -161,14 +162,13 @@ export function renderPropsPanelSingle(s) {
   return body;
 }
 
-export function renderPropsPanelMulti(selected) {
+export function renderPropsPanelMulti(selected: Shape[]) {
   const body = el('div', { className: 'sheet-body' });
   body.appendChild(el('div', { className: 'banner' },
     selected.length + ' shapes selected. Use the buttons below to act on all of them. Edit individual properties one at a time.'));
 
   // Common locked state
   const allLocked = selected.every(s => s.locked);
-  const anyLocked = selected.some(s => s.locked);
   const lockBtn = el('button', { className: 'btn ghost',
     html: (allLocked ? I.unlock : I.lock) + '<span style="margin-left:6px">' + (allLocked ? 'Unlock all' : 'Lock all') + '</span>' });
   lockBtn.addEventListener('click', () => {

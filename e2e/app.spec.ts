@@ -227,6 +227,39 @@ test.describe('plants, background, export', () => {
     await expect(page.locator('.sheet')).toContainText('Image covers ~122.9 × 122.9 ft');
   });
 
+  test('dragging the rotation handle a quarter turn rotates the background 90°', async ({ page }) => {
+    autoDialogs(page);
+    await openFresh(page);
+    await page.locator('button[title=More]').click();
+    await page.locator('.menu-item', { hasText: 'background image' }).click();
+    await page.locator('.sheet input[type=file]').setInputFiles('public/icon-512.png');
+    await page.locator('.mode-banner button').click(); // skip calibration
+    await page.locator('button[title=More]').click();
+    await page.locator('.menu-item', { hasText: 'Background image' }).click();
+    await page.locator('.sheet button', { hasText: 'Edit position & rotation' }).click();
+    for (let i = 0; i < 6; i++) await page.locator('.zoombtn').nth(1).click(); // keep the handle's arc on screen
+    const box = await canvasBox(page);
+    const center = await page.locator('#canvas-svg line[stroke="#7c3aed"]').evaluate((l) => ({
+      x: Number(l.getAttribute('x1')), y: Number(l.getAttribute('y1')),
+    }));
+    const handle = await page.locator('[data-role=bg-rot]').evaluate((c) => ({
+      x: Number(c.getAttribute('cx')), y: Number(c.getAttribute('cy')),
+    }));
+    const r = center.y - handle.y; // handle sits straight above the center
+    // Drag the handle from "12 o'clock" to "3 o'clock" around the center.
+    const cx = box.x + center.x, cy = box.y + center.y;
+    await page.mouse.move(box.x + handle.x, box.y + handle.y);
+    await page.mouse.down();
+    for (let i = 1; i <= 12; i++) {
+      const a = (i / 12) * Math.PI / 2;
+      await page.mouse.move(cx + r * Math.sin(a), cy - r * Math.cos(a));
+    }
+    await page.mouse.up();
+    const t = await page.locator('#canvas-svg image').getAttribute('transform');
+    const deg = Number(t!.match(/rotate\(([-\d.e]+)/)![1]);
+    expect(Math.abs(deg - 90)).toBeLessThan(1);
+  });
+
   test('PNG export shows a preview', async ({ page }) => {
     await openFresh(page);
     await addShape(page, 'circle');

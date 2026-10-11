@@ -1,5 +1,6 @@
-import { el } from '../dom';
+import { el, type Child } from '../dom';
 import { I } from '../icons';
+import type { Plant, PlantFilter } from '../plants';
 import { FORM_COLORS, MONTH_NAMES, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, addPlantShape, filteredPlants, plantFilter, plantMetaLine } from '../plants';
 import { state } from '../state';
 import { render } from './render';
@@ -23,14 +24,14 @@ export function renderPlantsPanel() {
   // --- Results list (rebuilt in place so typing never destroys input focus) ---
   const countLine = el('div', { className: 'hint', style: { padding: '0 0 6px' } });
   const listWrap = el('div', {});
-  function buildRow(p) {
+  function buildRow(p: Plant) {
     const info = el('div', { className: 'pinfo' },
       el('div', { className: 'pname' }, p.common),
       el('div', { className: 'pmeta' }, (p.botanical ? p.botanical + ' \u2014 ' : '') + plantMetaLine(p))
     );
     const dot = el('div', { style: {
       width: '14px', height: '14px', borderRadius: '50%', flex: 'none',
-      background: FORM_COLORS[p.form] || '#16a34a', marginRight: '10px'
+      background: (p.form && FORM_COLORS[p.form]) || '#16a34a', marginRight: '10px'
     } });
     const row = el('div', { className: 'proj-row', style: { alignItems: 'center' } }, dot, info);
     row.addEventListener('click', () => {
@@ -60,7 +61,9 @@ export function renderPlantsPanel() {
   search.addEventListener('input', () => { plantFilter.q = search.value; rebuildList(); });
 
   const enums = (PLANT_META && PLANT_META.enums) || {};
-  function mkSelect(label, key, options, display) {
+  type StringKey = { [K in keyof PlantFilter]: PlantFilter[K] extends string ? K : never }[keyof PlantFilter];
+  type BoolKey = { [K in keyof PlantFilter]: PlantFilter[K] extends boolean ? K : never }[keyof PlantFilter];
+  function mkSelect<T extends string | number>(label: string, key: StringKey, options: readonly T[], display?: (o: T) => string) {
     const sel = el('select', {});
     sel.appendChild(el('option', { value: '' }, label));
     for (const o of options) {
@@ -71,13 +74,13 @@ export function renderPlantsPanel() {
     sel.addEventListener('change', () => { plantFilter[key] = sel.value; rebuildList(); });
     return el('div', { className: 'field', style: { flex: '1', minWidth: '0' } }, sel);
   }
-  function mkCheck(label, key) {
+  function mkCheck(label: string, key: BoolKey) {
     const cb = el('input', { type: 'checkbox' });
     cb.checked = !!plantFilter[key];
     cb.addEventListener('change', () => { plantFilter[key] = cb.checked; rebuildList(); });
     return el('label', { style: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '4px 0' } }, cb, label);
   }
-  function row(...kids) {
+  function row(...kids: Child[]) {
     return el('div', { style: { display: 'flex', gap: '8px', marginTop: '8px' } }, ...kids);
   }
 

@@ -6,6 +6,7 @@ import { I } from '../icons';
 import { addShape, copySelected, deleteSelected, zoomBy } from '../mutations';
 import { clearSelection, singleSelected } from '../selection';
 import { state } from '../state';
+import type { ShapeType } from '../types';
 import { currentProject } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
@@ -18,7 +19,7 @@ import { renderArrangePanel, renderPropsPanel } from './props-panel';
 // MAIN RENDER
 // ============================================================
 export function render() {
-  const root = document.getElementById('root');
+  const root = document.getElementById('root')!;
   // Clear root
   while (root.firstChild) root.removeChild(root.firstChild);
 
@@ -183,7 +184,7 @@ export function render() {
 
   // ===== BOTTOM TOOLBAR =====
   const bottomBar = el('div', { className: 'bottom-toolbar' });
-  const mkShapeBtn = (type, cls, label, icon) => {
+  const mkShapeBtn = (type: ShapeType, cls: string, label: string, icon: string) => {
     const b = el('button', { className: 'tool-btn ' + cls });
     b.innerHTML = icon + '<div class="lbl">' + label + '</div>';
     b.addEventListener('click', () => { addShape(type); render(); });

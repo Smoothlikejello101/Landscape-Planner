@@ -15,8 +15,8 @@ export function renderBgPanel() {
 
   // Upload / replace section
   const fileInput = el('input', { type: 'file', accept: 'image/jpeg,image/png,image/webp', style: { display: 'none' } });
-  fileInput.addEventListener('change', async (e) => {
-    const f = e.target.files && e.target.files[0];
+  fileInput.addEventListener('change', async () => {
+    const f = fileInput.files?.[0];
     if (!f) return;
     const ok = await handleBgImageFile(f);
     if (ok) {
@@ -88,7 +88,7 @@ export function renderBgPanel() {
   const opInput = el('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: bg.opacity });
   const opPct = el('span', { style: { fontSize: '12px', color: '#78716c' } }, Math.round(bg.opacity * 100) + '%');
   opInput.addEventListener('input', e => {
-    const v = parseFloat(e.target.value);
+    const v = parseFloat((e.target as HTMLInputElement).value);
     updateBgImageSilent({ opacity: v });
     opPct.textContent = Math.round(v * 100) + '%';
   });
@@ -104,7 +104,7 @@ export function renderBgPanel() {
   const rotInput = el('input', { type: 'number', step: '5', value: rotVal });
   const rotPct = el('span', { style: { fontSize: '12px', color: '#78716c' } }, rotVal.toFixed(1) + '°');
   rotInput.addEventListener('input', e => {
-    const v = parseFloat(e.target.value) || 0;
+    const v = parseFloat((e.target as HTMLInputElement).value) || 0;
     updateBgImageSilent({ rotation: v });
     rotPct.textContent = v.toFixed(1) + '°';
   });
@@ -112,11 +112,11 @@ export function renderBgPanel() {
   [-90, -15, -5, 5, 15, 90].forEach(delta => {
     const b = el('button', {}, (delta > 0 ? '+' : '') + delta + '°');
     b.addEventListener('click', () => {
-      const cur = state.bgImage.rotation || 0;
+      const cur = state.bgImage?.rotation || 0;
       let newRot = snapRot(cur + delta);
       if (newRot >= 180) newRot -= 360;
       if (newRot < -180) newRot += 360;
-      rotInput.value = newRot;
+      rotInput.value = String(newRot);
       rotPct.textContent = newRot.toFixed(1) + '°';
       updateBgImageSilent({ rotation: newRot });
     });
@@ -124,7 +124,7 @@ export function renderBgPanel() {
   });
   const resetRotBtn = el('button', {}, 'Reset to 0°');
   resetRotBtn.addEventListener('click', () => {
-    rotInput.value = 0;
+    rotInput.value = '0';
     rotPct.textContent = '0.0°';
     updateBgImageSilent({ rotation: 0 });
   });
@@ -138,9 +138,9 @@ export function renderBgPanel() {
 
   // Position (X, Y of image center in world feet)
   const xInput = el('input', { type: 'number', step: '0.5', value: bg.cx.toFixed(1) });
-  xInput.addEventListener('input', e => updateBgImageSilent({ cx: parseFloat(e.target.value) || 0 }));
+  xInput.addEventListener('input', e => updateBgImageSilent({ cx: parseFloat((e.target as HTMLInputElement).value) || 0 }));
   const yInput = el('input', { type: 'number', step: '0.5', value: bg.cy.toFixed(1) });
-  yInput.addEventListener('input', e => updateBgImageSilent({ cy: parseFloat(e.target.value) || 0 }));
+  yInput.addEventListener('input', e => updateBgImageSilent({ cy: parseFloat((e.target as HTMLInputElement).value) || 0 }));
   body.appendChild(el('div', { className: 'row-2' },
     el('div', { className: 'field' }, el('label', {}, 'Center X (ft)'), xInput),
     el('div', { className: 'field' }, el('label', {}, 'Center Y (ft)'), yInput)

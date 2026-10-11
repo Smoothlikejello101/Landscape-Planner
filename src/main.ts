@@ -4,6 +4,7 @@ import { pushHistory, redo, undo } from './history';
 import { copySelected, deleteSelected, duplicateSelected, paste } from './mutations';
 import { clearSelection } from './selection';
 import { state } from './state';
+import { loadPlants } from './plants';
 import { init } from './storage';
 import { render } from './ui/render';
 
@@ -22,7 +23,7 @@ if (window.visualViewport) {
 // Keyboard shortcuts (helpful on desktop, harmless on phone)
 window.addEventListener('keydown', (e) => {
   // Don't capture while typing in inputs
-  const tag = (e.target.tagName || '').toLowerCase();
+  const tag = ((e.target as Element | null)?.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'textarea') return;
   if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
     e.preventDefault(); undo(); render();
@@ -58,7 +59,7 @@ if ('serviceWorker' in navigator) {
 // INIT
 // ============================================================
 init();
-// Seed history with the initial state
-pushHistory();
+pushHistory(); // seed undo history with the loaded state
 render();
+void loadPlants();
 
