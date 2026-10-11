@@ -44,7 +44,10 @@ export type Shape = CircleShape | RectShape | OvalShape | TriangleShape;
 export type ShapePatch = Partial<Omit<CircleShape, 'type'> & Omit<BoxShape, 'type'> & Omit<TriangleShape, 'type'>>;
 
 export interface BgImage {
+  /** Image bytes as a data URL. Kept in memory; stored separately on disk. */
   dataUrl: string;
+  /** Key of the stored image record; assigned when the image is first saved. */
+  imageId?: string;
   naturalWidth: number;
   naturalHeight: number;
   /** World feet per image pixel, set by calibration. */
@@ -61,6 +64,7 @@ export interface ProjectMeta {
   id: string;
   name: string;
   lastModified: number;
+  shapeCount?: number;
 }
 /** Everything stored for one project. */
 export interface ProjectData {

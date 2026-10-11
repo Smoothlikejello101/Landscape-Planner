@@ -7,7 +7,7 @@ import { addShape, copySelected, deleteSelected, zoomBy } from '../mutations';
 import { clearSelection, singleSelected } from '../selection';
 import { state } from '../state';
 import type { ShapeType } from '../types';
-import { currentProject } from '../storage';
+import { currentProject, storageIsDurable } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
 import { renderMoreMenu } from './menu';
@@ -24,6 +24,10 @@ export function render() {
   while (root.firstChild) root.removeChild(root.firstChild);
 
   const app = el('div', { className: 'app' });
+  if (!storageIsDurable()) {
+    app.appendChild(el('div', { className: 'storage-warning', role: 'alert' },
+      "This browser isn't saving your work. Use Projects → Back up to keep it."));
+  }
 
   // ===== TOP BAR =====
   const topbar = el('div', { className: 'topbar' });

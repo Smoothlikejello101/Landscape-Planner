@@ -5,7 +5,7 @@ import { copySelected, deleteSelected, duplicateSelected, paste } from './mutati
 import { clearSelection } from './selection';
 import { state } from './state';
 import { loadPlants } from './plants';
-import { init } from './storage';
+import { flushSave, initStorage, refreshClipboard, requestPersistence, writeJournalIfDirty } from './storage';
 import { render } from './ui/render';
 
 // ============================================================
@@ -56,10 +56,25 @@ if ('serviceWorker' in navigator) {
 }
 
 // ============================================================
+// SAVE ON EXIT
+// ============================================================
+// Mobile browsers may kill a backgrounded app without warning, so write
+// pending edits as soon as the page is hidden instead of waiting for the
+// save debounce.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') { writeJournalIfDirty(); void flushSave(); }
+  else void refreshClipboard().then(() => { if (state.menu || state.panel === 'projects') render(); });
+});
+window.addEventListener('pagehide', () => { writeJournalIfDirty(); void flushSave(); });
+
+// ============================================================
 // INIT
 // ============================================================
-init();
-pushHistory(); // seed undo history with the loaded state
-render();
-void loadPlants();
-
+async function start() {
+  await initStorage();
+  pushHistory(); // seed undo history with the loaded state
+  render();
+  void loadPlants();
+  void requestPersistence();
+}
+void start();
