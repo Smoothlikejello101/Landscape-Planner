@@ -19,7 +19,8 @@ import { renderArrangePanel, renderPropsPanel } from './props-panel';
 // MAIN RENDER
 // ============================================================
 function statusText() {
-  return state.shapes.length + ' shapes · ' + Math.round(state.zoom * 100) + '%';
+  const n = state.shapes.length;
+  return n + (n === 1 ? ' shape · ' : ' shapes · ') + Math.round(state.zoom * 100) + '%';
 }
 /** Refresh the shape count / zoom readout without rebuilding the page. */
 export function updateStatusReadout() {
