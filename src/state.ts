@@ -33,6 +33,7 @@ export const state: AppState = {
   //          rotation, opacity, visible }
   // Position is CENTER of image in world feet; rotation degrees around center.
   bgImage: null,
+  roleViews: {},
   // Ephemeral: are we in bg edit mode (drag/rotate handles active, shapes locked)?
   bgEditMode: false,
   // Ephemeral: calibration flow state, null or { step, p1, p2 }.

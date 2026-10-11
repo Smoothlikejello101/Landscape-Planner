@@ -7,13 +7,14 @@ import { currentProject } from './storage';
 import type { Bounds, Shape } from './types';
 import { render } from './ui/render';
 import { paintOrder } from './canvas';
+import { roleDef } from './roles';
 
 // ============================================================
 // EXPORT
 // ============================================================
 /** Bounds of everything exported: all shapes plus the visible background image. */
 export function computeAllBBox(): Bounds | null {
-  const parts = state.shapes.map(shapeBBox);
+  const parts = paintOrder(state.shapes).map(shapeBBox); // hidden roles aren't exported
   const bg = state.bgImage;
   if (bg && bg.visible) {
     parts.push(rotatedBoxBounds(bg.cx, bg.cy, bg.naturalWidth * bg.ftPerPx, bg.naturalHeight * bg.ftPerPx, bg.rotation || 0));
@@ -21,10 +22,11 @@ export function computeAllBBox(): Bounds | null {
   return unionBounds(parts);
 }
 export function shapeToSvgString(s: Shape, originX: number, originY: number, scale: number): string {
-  const opacity = s.opacity ?? 0.65;
-  const dash = s.locked ? ' stroke-dasharray="4 2"' : '';
-  const stroke = 'rgba(0,0,0,0.3)';
-  const strokeWidth = 1;
+  const outline = s.role ? !!roleDef(s.role).outline : false;
+  const opacity = outline ? 0 : s.opacity ?? 0.65;
+  const dash = outline ? ' stroke-dasharray="8 4"' : s.locked ? ' stroke-dasharray="4 2"' : '';
+  const stroke = outline ? s.color : 'rgba(0,0,0,0.3)';
+  const strokeWidth = outline ? 2.5 : 1;
   if (s.type === 'circle') {
     const cx = (s.x - originX) * scale, cy = (s.y - originY) * scale, r = s.radius * scale;
     let out = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}/>`;

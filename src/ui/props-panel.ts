@@ -1,7 +1,9 @@
 import { SWATCHES } from '../constants';
 import { el } from '../dom';
 import { I } from '../icons';
-import { bringForward, bringToFront, copySelected, deleteSelected, duplicateSelected, findNextSameTier, sendBackward, sendToBack, setLockedForIds, updateSelected, updateSelectedSilent } from '../mutations';
+import { roleKey, roleLabel, roleLocked } from '../roles';
+import { roleChips } from './role-picker';
+import { setRoleForIds, bringForward, bringToFront, copySelected, deleteSelected, duplicateSelected, findNextSameTier, sendBackward, sendToBack, setLockedForIds, updateSelected, updateSelectedSilent } from '../mutations';
 import { getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { render } from './render';
@@ -16,8 +18,13 @@ export function renderPropsPanelSingle(s: Shape) {
   const body = el('div', { className: 'sheet-body' });
   if (s.locked) {
     body.appendChild(el('div', { className: 'banner' },
-      "This shape is locked. It stays in the background and can't be dragged. Tap Unlock above to edit freely."));
+      "This shape is locked: it can't be dragged, and dragging on it pans the plan. Tap Unlock above to move it."));
+  } else if (roleLocked(s)) {
+    body.appendChild(el('div', { className: 'banner' },
+      `All ${roleLabel(roleKey(s)).toLowerCase()} shapes are locked. Unlock them in the Layers panel to move this one.`));
   }
+  body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Role'),
+    roleChips(roleKey(s), (role) => { setRoleForIds([s.id], role); render(); })));
   // Label
   const labelInput = el('input', { type: 'text', value: s.label || '', placeholder: 'e.g. Dwarf Alberta Spruce' });
   labelInput.addEventListener('input', e => updateSelectedSilent({ label: (e.target as HTMLInputElement).value }));
@@ -166,6 +173,10 @@ export function renderPropsPanelMulti(selected: Shape[]) {
   const body = el('div', { className: 'sheet-body' });
   body.appendChild(el('div', { className: 'banner' },
     selected.length + ' shapes selected. Use the buttons below to act on all of them. Edit individual properties one at a time.'));
+
+  const roles = new Set(selected.map(roleKey));
+  body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Role (applies to all selected)'),
+    roleChips(roles.size === 1 ? [...roles][0] : null, (role) => { setRoleForIds(state.selectedIds, role); render(); })));
 
   // Common locked state
   const allLocked = selected.every(s => s.locked);

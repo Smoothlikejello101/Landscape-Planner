@@ -161,3 +161,16 @@ a { color: inherit; }
 #save-warning { position: fixed; left: 0; right: 0; top: env(safe-area-inset-top); z-index: 95; background: #fef2f2; border-bottom: 1px solid #fecaca; color: #991b1b; font-size: 12px; padding: 6px 12px; text-align: center; }
 #save-warning button { color: inherit; text-decoration: underline; font-weight: 600; font-size: inherit; }
 .fatal button.secondary { display: block; margin: 12px auto 0; background: #f5f5f4; color: #292524; border: 1px solid #d6d3d1; }
+/* Roles */
+.role-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.role-chip { padding: 6px 10px; border-radius: 999px; background: #f5f5f4; border: 1px solid #d6d3d1; font-size: 13px; color: #44403c; }
+.role-chip.sel { background: #1c1917; border-color: #1c1917; color: #fff; }
+.role-rows { border-bottom: 1px solid #e7e5e4; padding: 4px 0 8px; }
+.role-row { display: flex; align-items: center; gap: 8px; padding: 6px 16px; font-size: 14px; color: #292524; }
+.role-row .name { flex: 1; }
+.role-row .count { color: #78716c; font-size: 12px; }
+.role-row button { padding: 6px; border-radius: 4px; color: #a8a29e; }
+.role-row button.on { color: #b45309; }
+.role-row.hidden .name { color: #a8a29e; text-decoration: line-through; }
+.section-label { font-size: 11px; font-weight: 600; color: #78716c; text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 16px 4px; }
+.layer-role { display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 999px; background: #f5f5f4; color: #57534e; margin-right: 4px; }
