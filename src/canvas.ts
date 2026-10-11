@@ -3,6 +3,7 @@ import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from '
 import { svgEl, type Attrs } from './dom';
 import { pxPerFoot, trianglePoints } from './geometry';
 import { onShapePointerDown } from './gestures';
+import { isLocked, roleDef, roleHidden, roleRank } from './roles';
 import { isSelected } from './selection';
 import { state } from './state';
 import type { Shape } from './types';
@@ -87,14 +88,15 @@ export function shapeGroup(s: Shape): SVGGElement {
   const ppf = pxPerFoot();
   const sel = isSelected(s.id);
   const inert = state.bgEditMode || !!state.bgCalibrate; // taps fall through to the background tools
+  const outline = s.role ? !!roleDef(s.role).outline : false; // boundaries: a line, no fill
   const common: Attrs = {
     'data-shape-id': s.id,
-    fill: s.color,
-    'fill-opacity': s.opacity ?? 0.65,
-    stroke: sel ? '#0f172a' : 'rgba(0,0,0,0.3)',
-    'stroke-width': sel ? 2 : 1,
-    style: `cursor:${s.locked ? 'pointer' : 'move'};touch-action:none;`,
-    'stroke-dasharray': s.locked ? '4 2' : null,
+    fill: outline ? 'none' : s.color,
+    'fill-opacity': outline ? null : s.opacity ?? 0.65,
+    stroke: outline ? s.color : sel ? '#0f172a' : 'rgba(0,0,0,0.3)',
+    'stroke-width': outline ? (sel ? 3.5 : 2.5) : sel ? 2 : 1,
+    style: `cursor:${isLocked(s) ? 'grab' : 'move'};touch-action:none;`,
+    'stroke-dasharray': outline ? '8 4' : s.locked ? '4 2' : null,
     'pointer-events': inert ? 'none' : null,
   };
   let shapeEl: SVGElement;
@@ -138,9 +140,13 @@ export function shapeGroup(s: Shape): SVGGElement {
   return g;
 }
 
-/** Shapes in paint order: locked (background) tier first, then unlocked. */
+/** Drawing tier: by role (ground first, plants on top), then locked before unlocked. */
+export function tierOf(s: Shape): number {
+  return roleRank(s) * 2 + (s.locked ? 0 : 1);
+}
+/** Visible shapes in paint order (stable within a tier: list order). */
 export function paintOrder(shapes: Shape[]): Shape[] {
-  return [...shapes].sort((a, b) => (a.locked ? 0 : 1) - (b.locked ? 0 : 1));
+  return shapes.filter((s) => !roleHidden(s)).sort((a, b) => tierOf(a) - tierOf(b));
 }
 
 function marqueeRect(): SVGRectElement | null {

@@ -171,6 +171,7 @@ export function addPlantShape(p: Plant) {
     color: (p.form && FORM_COLORS[p.form]) || '#16a34a',
     label: p.common,
     opacity: 0.65, locked: false,
+    role: 'plant',
     plantId: p.id // permanent link back to the plant index row
   };
   state.shapes.push(shape);

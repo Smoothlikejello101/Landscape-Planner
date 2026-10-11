@@ -3,6 +3,7 @@ import { DOUBLE_TAP_MS, DRAG_THRESHOLD_PX, MAX_ZOOM, MIN_ZOOM, PX_PER_FOOT_BASE 
 import { canvasRect, pxPerFoot, rectsIntersect, screenToFeet, shapeBBox } from './geometry';
 import { flushHistoryDebounce, pushHistory } from './history';
 import { zoomBy } from './mutations';
+import { isLocked, roleHidden } from './roles';
 import { clearSelection, isSelected, selectOnly, toggleSelect } from './selection';
 import { gesture, state, tapTracker } from './state';
 import { save } from './storage';
@@ -177,7 +178,7 @@ export function onCanvasPointerMove(e: PointerEvent) {
         const dyFt = snap(cur.y - g.grabOffset.y) - g.primaryStart.y;
         for (const item of g.shapeStarts) {
           const shape = state.shapes.find((s) => s.id === item.id);
-          if (!shape || shape.locked) continue;
+          if (!shape || isLocked(shape)) continue;
           shape.x = snap(item.startX + dxFt);
           shape.y = snap(item.startY + dyFt);
         }
@@ -252,7 +253,10 @@ export function onCanvasPointerUp(e: PointerEvent) {
       return;
     case 'pan':
       if (g.moved) save();
-      else { // tap on empty canvas
+      else if (g.tapShapeId) { // tap on a locked shape: select it
+        const shape = state.shapes.find((s) => s.id === g.tapShapeId);
+        if (shape) handleShapeTap(shape);
+      } else { // tap on empty canvas
         clearSelection();
         state.panel = null;
         tapTracker.id = null; tapTracker.time = 0;
@@ -263,7 +267,9 @@ export function onCanvasPointerUp(e: PointerEvent) {
       if (g.moved && state.marquee) {
         const m = state.marquee;
         const box = { minX: Math.min(m.x1, m.x2), maxX: Math.max(m.x1, m.x2), minY: Math.min(m.y1, m.y2), maxY: Math.max(m.y1, m.y2) };
-        state.selectedIds = state.shapes.filter((s) => rectsIntersect(shapeBBox(s), box)).map((s) => s.id);
+        state.selectedIds = state.shapes.filter((s) => !roleHidden(s) && rectsIntersect(shapeBBox(s), box)).map((s) => s.id);
+      } else if (g.tapShapeId) {
+        toggleSelect(g.tapShapeId);
       } else {
         clearSelection();
       }
@@ -285,6 +291,22 @@ export function onShapePointerDown(e: PointerEvent, shape: Shape) {
   activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
   if (activePointers.size === 2) { startPinchGesture(); return; }
   if (activePointers.size > 2) return;
+
+  // Locked shapes are part of the ground: dragging on one pans (or lassos in
+  // select mode), a tap still selects it.
+  if (isLocked(shape) && !(isSelected(shape.id) && state.selectedIds.length > 1)) {
+    if (state.selectMode) {
+      const feet = screenToFeet(e.clientX, e.clientY);
+      gesture.current = { type: 'marquee', startX: e.clientX, startY: e.clientY, startFeet: feet, currentFeet: feet, moved: false, tapShapeId: shape.id };
+      state.marquee = { x1: feet.x, y1: feet.y, x2: feet.x, y2: feet.y };
+    } else {
+      gesture.current = {
+        type: 'pan', startX: e.clientX, startY: e.clientY,
+        startOffset: { x: state.offsetX, y: state.offsetY }, moved: false, tapShapeId: shape.id,
+      };
+    }
+    return;
+  }
 
   const cur = screenToFeet(e.clientX, e.clientY);
   // Dragging a member of a multi-selection drags the whole selection.

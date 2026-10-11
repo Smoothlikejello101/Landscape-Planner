@@ -2,7 +2,8 @@ import { STORAGE } from './constants';
 import { del, openKV, put, type KV, type WriteOp } from './db';
 import { cancelHistoryDebounce } from './history';
 import { state } from './state';
-import type { BgImage, Clipboard, ProjectData, ProjectMeta, Shape } from './types';
+import { isRole } from './roles';
+import type { BgImage, Clipboard, ProjectData, ProjectMeta, RoleViews, Shape } from './types';
 import { now, uid } from './util';
 
 // Persistence. Projects live in IndexedDB:
@@ -87,6 +88,8 @@ export function migrateShape(raw: unknown): Shape | null {
     opacity: num(s.opacity, 0.65),
     locked: s.locked === true,
     ...(typeof s.plantId === 'string' ? { plantId: s.plantId } : {}),
+    // Shapes placed from the plant picker are plants; others stay unassigned until tagged.
+    ...(isRole(s.role) ? { role: s.role } : typeof s.plantId === 'string' ? { role: 'plant' as const } : {}),
   };
   const size = (v: unknown, d: number) => Math.max(0.1, num(v, d));
   switch (s.type) {
@@ -119,6 +122,17 @@ export function migrateBgImage(raw: Partial<BgImage>): BgImage {
     visible: raw.visible !== false,
   };
 }
+function sanitizeRoleViews(raw: unknown): RoleViews {
+  const out: RoleViews = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+    if ((isRole(k) || k === 'unassigned') && v && typeof v === 'object') {
+      const o = v as Record<string, unknown>;
+      out[k] = { ...(o.hidden === true ? { hidden: true } : {}), ...(o.locked === true ? { locked: true } : {}) };
+    }
+  }
+  return out;
+}
 /** Normalize project data from storage, an old version, or an imported file. */
 export function sanitizeProjectData(raw: unknown): ProjectData {
   const d = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
@@ -129,6 +143,7 @@ export function sanitizeProjectData(raw: unknown): ProjectData {
     zoom: Math.min(4, Math.max(0.25, num(d.zoom, 1))),
     offsetX: num(d.offsetX, -10),
     offsetY: num(d.offsetY, -10),
+    roleViews: sanitizeRoleViews(d.roleViews),
     bgImage: bg && bg.dataUrl ? bg : null,
   };
 }
@@ -149,7 +164,7 @@ function projectWriteOps(id: string, data: ProjectData, knownImageKeys?: Set<str
     }
     storedBg = { ...rest, imageId };
   }
-  const stored: StoredProject = { shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, bgImage: storedBg };
+  const stored: StoredProject = { shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {}, bgImage: storedBg };
   ops.push(put('projects', id, stored));
   return ops;
 }
@@ -163,7 +178,7 @@ async function writeCurrent(): Promise<boolean> {
   const seq = editSeq;
   // Snapshot synchronously so later edits don't race with this write.
   const data: ProjectData = {
-    shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY, bgImage: state.bgImage,
+    shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY, roleViews: state.roleViews, bgImage: state.bgImage,
   };
   const ops = projectWriteOps(id, data, storedImageKeys);
   const meta = metaFor(id);
@@ -224,7 +239,7 @@ export function writeJournalIfDirty() {
   const journal = (withImage: boolean): Journal => ({
     projectId: id, at: now(),
     data: {
-      shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY,
+      shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY, roleViews: state.roleViews,
       bgImage: bg ? { ...bg, dataUrl: withImage ? bg.dataUrl : '' } : null,
     },
   });
@@ -324,6 +339,7 @@ export async function switchProject(id: string): Promise<boolean> {
   state.zoom = data.zoom;
   state.offsetX = data.offsetX;
   state.offsetY = data.offsetY;
+  state.roleViews = data.roleViews ?? {};
   state.bgImage = data.bgImage ?? null;
   state.selectedIds = [];
   state.history = [];

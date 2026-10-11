@@ -1,11 +1,12 @@
-import { redrawCanvas } from './canvas';
+import { redrawCanvas, tierOf } from './canvas';
 import { MAX_ZOOM, MIN_ZOOM, PX_PER_FOOT_BASE } from './constants';
 import { canvasRect, pxPerFoot, shapeBBox, shapeCenter, unionBounds, viewCenterFeet } from './geometry';
 import { flushHistoryDebounce, pushHistory, pushHistoryDebounced } from './history';
 import { getSelected, singleSelected } from './selection';
 import { state } from './state';
 import { getClipboard, save, setClipboard } from './storage';
-import type { Clipboard, Point, Shape, ShapePatch, ShapeType } from './types';
+import { defaultLook, roleKey } from './roles';
+import type { Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapePatch, ShapeType } from './types';
 import { render } from './ui/render';
 import { deepClone, now, snap, uid } from './util';
 
@@ -139,12 +140,12 @@ export function setLockedForIds(ids: string[], locked: boolean) {
   save();
 }
 
-// ---- Layer order. Locked shapes always draw behind unlocked ones, so
-// reordering only moves a shape within its own tier. ----
+// ---- Layer order. Shapes draw in tiers (by role, then locked behind
+// unlocked), so reordering only moves a shape within its own tier. ----
 export function findNextSameTier(arr: Shape[], fromIndex: number, direction: 1 | -1): number {
-  const tier = arr[fromIndex].locked;
+  const tier = tierOf(arr[fromIndex]);
   for (let i = fromIndex + direction; i >= 0 && i < arr.length; i += direction) {
-    if (arr[i].locked === tier) return i;
+    if (tierOf(arr[i]) === tier) return i;
   }
   return -1;
 }
@@ -165,7 +166,7 @@ function moveToTierEnd(id: string, toFront: boolean) {
   if (i === -1) return;
   flushHistoryDebounce();
   const [shape] = state.shapes.splice(i, 1);
-  const sameTier = state.shapes.map((s, k) => (s.locked === shape.locked ? k : -1)).filter((k) => k !== -1);
+  const sameTier = state.shapes.map((s, k) => (tierOf(s) === tierOf(shape) ? k : -1)).filter((k) => k !== -1);
   const at = toFront
     ? (sameTier.length ? sameTier[sameTier.length - 1] + 1 : 0)
     : (sameTier.length ? sameTier[0] : state.shapes.length);
@@ -211,5 +212,39 @@ export function resetCurrentProject() {
   state.bgEditMode = false;
   state.bgCalibrate = null;
   pushHistory();
+  save();
+}
+
+// ---- Roles ----
+/**
+ * Give shapes a role. A shape still wearing its old role's default look gets
+ * the new role's look; colors the user chose are kept.
+ */
+export function setRoleForIds(ids: string[], role: Role | undefined) {
+  flushHistoryDebounce();
+  for (const id of ids) {
+    const s = state.shapes.find((sh) => sh.id === id);
+    if (!s) continue;
+    const before = defaultLook(roleKey(s), s.type);
+    const wasDefault = s.color.toLowerCase() === before.color && Math.abs(s.opacity - before.opacity) < 0.001;
+    if (role) s.role = role; else delete s.role;
+    if (wasDefault) Object.assign(s, defaultLook(roleKey(s), s.type));
+  }
+  pushHistory();
+  save();
+}
+/** Hide/lock every shape of a role (view state, not an undo step). */
+export function setRoleView(k: RoleKey, patch: RoleView) {
+  const next = { ...state.roleViews[k], ...patch };
+  if (!next.hidden) delete next.hidden;
+  if (!next.locked) delete next.locked;
+  state.roleViews = { ...state.roleViews, [k]: next };
+  if (next.hidden) {
+    // Hidden shapes can't stay selected.
+    state.selectedIds = state.selectedIds.filter((id) => {
+      const s = state.shapes.find((sh) => sh.id === id);
+      return s && roleKey(s) !== k;
+    });
+  }
   save();
 }

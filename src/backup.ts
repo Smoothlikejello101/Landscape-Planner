@@ -17,14 +17,14 @@ export interface BackupFile { format: typeof BACKUP_FORMAT; version: number; exp
 function forExport(data: ProjectData): ProjectData {
   const bgImage = data.bgImage ? { ...data.bgImage } : null;
   if (bgImage) delete bgImage.imageId; // storage detail; a new id is assigned on import
-  return { shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, bgImage };
+  return { shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {}, bgImage };
 }
 async function exportedProject(id: string): Promise<ExportedProject | null> {
   const meta = state.projects.find((p) => p.id === id);
   if (!meta) return null;
   // The open project is exported from memory: always the latest edits, even if a save is failing.
   const data = id === state.currentProjectId
-    ? { shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY, bgImage: state.bgImage }
+    ? { shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY, roleViews: state.roleViews, bgImage: state.bgImage }
     : await readProject(id);
   if (!data) return null;
   return { name: meta.name, lastModified: meta.lastModified, data: forExport(data) };

@@ -1,6 +1,12 @@
 // Core data types shared across the app.
 
 export type ShapeType = 'circle' | 'rect' | 'oval' | 'triangle';
+/** What a shape represents. Undefined = not yet assigned (shapes from older versions). */
+export type Role = 'plant' | 'bed' | 'boundary' | 'building' | 'shade' | 'path' | 'lawn' | 'water' | 'other';
+/** Per-project display state for a role (or 'unassigned'). */
+export interface RoleView { hidden?: boolean; locked?: boolean }
+export type RoleKey = Role | 'unassigned';
+export type RoleViews = Partial<Record<RoleKey, RoleView>>;
 /** Which corner of a right triangle holds the right angle. */
 export type Corner = 'bl' | 'br' | 'tl' | 'tr';
 
@@ -16,6 +22,7 @@ interface ShapeBase {
   locked: boolean;
   /** Link back to a plant index row when placed from the plant picker. */
   plantId?: string;
+  role?: Role;
 }
 export interface CircleShape extends ShapeBase {
   type: 'circle';
@@ -69,6 +76,8 @@ export interface ProjectMeta {
 /** Everything stored for one project. */
 export interface ProjectData {
   shapes: Shape[];
+  /** Hidden/locked state per role. */
+  roleViews?: RoleViews;
   zoom: number;
   offsetX: number;
   offsetY: number;
@@ -117,8 +126,8 @@ export interface Marquee { x1: number; y1: number; x2: number; y2: number }
 
 export type Gesture =
   | { type: 'pinch'; startDist: number; startZoom: number; centerScreen: Point; centerFeetAtStart: Point }
-  | { type: 'pan'; startX: number; startY: number; startOffset: Point; moved: boolean }
-  | { type: 'marquee'; startX: number; startY: number; startFeet: Point; currentFeet: Point; moved: boolean }
+  | { type: 'pan'; startX: number; startY: number; startOffset: Point; moved: boolean; tapShapeId?: string }
+  | { type: 'marquee'; startX: number; startY: number; startFeet: Point; currentFeet: Point; moved: boolean; tapShapeId?: string }
   | {
       type: 'drag-shape'; id: string; ids: string[]; grabOffset: Point; primaryStart: Point;
       shapeStarts: { id: string; startX: number; startY: number }[];
@@ -147,6 +156,7 @@ export interface AppState {
   exportPreview: ExportPreview | null;
   menu: 'more' | null;
   bgImage: BgImage | null;
+  roleViews: RoleViews;
   bgEditMode: boolean;
   bgCalibrate: Calibration | null;
 }
