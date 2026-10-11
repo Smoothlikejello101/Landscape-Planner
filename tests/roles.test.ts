@@ -79,3 +79,17 @@ describe('loading roles', () => {
     expect(d.roleViews).toEqual({ shade: { hidden: true } });
   });
 });
+
+describe('loading bed and sun fields', () => {
+  it('keeps "plants move with bed: off" and recorded sun, and repairs bad sun data', () => {
+    const d = sanitizeProjectData({ shapes: [
+      { ...sh('bed', { role: 'bed' }), carryPlants: false },
+      { ...sh('shade', { role: 'shade' }), sun: { mode: 'times', periods: [[780, 540], ['x', 1]], hours: 3, dappled: true, observedOn: '2026-06-14', note: 'oak' } },
+      { ...sh('junk', { role: 'shade' }), sun: { mode: 'weird', hours: 99, observedOn: 'June' } },
+    ] });
+    expect(d.shapes[0].carryPlants).toBe(false);
+    expect(d.shapes[1].sun).toEqual({ mode: 'times', periods: [[540, 780]], hours: 3, dappled: true, observedOn: '2026-06-14', note: 'oak' });
+    expect(d.shapes[2].sun).toMatchObject({ mode: 'times', hours: 16 });
+    expect(d.shapes[2].sun?.observedOn).toBeUndefined();
+  });
+});

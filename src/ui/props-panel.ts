@@ -3,6 +3,7 @@ import { el } from '../dom';
 import { I } from '../icons';
 import { roleKey, roleLabel, roleLocked } from '../roles';
 import { roleChips } from './role-picker';
+import { bedSection, measureText, plantSunBanner, shadeSunSection } from './role-sections';
 import { setRoleForIds, bringForward, bringToFront, copySelected, deleteSelected, duplicateSelected, findNextSameTier, sendBackward, sendToBack, setLockedForIds, updateSelected, updateSelectedSilent } from '../mutations';
 import { getSelected, singleSelected } from '../selection';
 import { state } from '../state';
@@ -25,12 +26,16 @@ export function renderPropsPanelSingle(s: Shape) {
   }
   body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Role'),
     roleChips(roleKey(s), (role) => { setRoleForIds([s.id], role); render(); })));
+  const sunCheck = plantSunBanner(s);
+  if (sunCheck) body.appendChild(sunCheck);
   // Label
   const labelInput = el('input', { type: 'text', value: s.label || '', placeholder: 'e.g. Dwarf Alberta Spruce' });
   labelInput.addEventListener('input', e => updateSelectedSilent({ label: (e.target as HTMLInputElement).value }));
   body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Label'), labelInput));
 
-  // Dimensions
+  // Dimensions (with area/length, refreshed as you type)
+  const measure = el('div', { className: 'measure', 'data-testid': 'measure' }, measureText(s));
+  const refreshMeasure = () => { measure.textContent = measureText(s); };
   if (s.type === 'circle') {
     const radInput = el('input', { type: 'number', step: '0.5', min: '0.1', value: s.radius });
     const diameterHint = el('div', { className: 'hint' }, 'Diameter: ' + (s.radius * 2).toFixed(1) + ' ft');
@@ -38,17 +43,19 @@ export function renderPropsPanelSingle(s: Shape) {
       const newR = Math.max(0.1, parseFloat((e.target as HTMLInputElement).value) || 0);
       updateSelectedSilent({ radius: newR });
       diameterHint.textContent = 'Diameter: ' + (newR * 2).toFixed(1) + ' ft';
+      refreshMeasure();
     });
-    body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Radius (ft)'), radInput, diameterHint));
+    body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Radius (ft)'), radInput, diameterHint, measure));
   } else {
     const wInput = el('input', { type: 'number', step: '0.5', min: '0.1', value: s.width });
-    wInput.addEventListener('input', e => updateSelectedSilent({ width: Math.max(0.1, parseFloat((e.target as HTMLInputElement).value) || 0) }));
+    wInput.addEventListener('input', e => { updateSelectedSilent({ width: Math.max(0.1, parseFloat((e.target as HTMLInputElement).value) || 0) }); refreshMeasure(); });
     const hInput = el('input', { type: 'number', step: '0.5', min: '0.1', value: s.height });
-    hInput.addEventListener('input', e => updateSelectedSilent({ height: Math.max(0.1, parseFloat((e.target as HTMLInputElement).value) || 0) }));
+    hInput.addEventListener('input', e => { updateSelectedSilent({ height: Math.max(0.1, parseFloat((e.target as HTMLInputElement).value) || 0) }); refreshMeasure(); });
     body.appendChild(el('div', { className: 'row-2' },
       el('div', { className: 'field' }, el('label', {}, 'Width (ft)'), wInput),
       el('div', { className: 'field' }, el('label', {}, 'Height (ft)'), hInput)
     ));
+    body.appendChild(measure);
   }
 
   // Position
@@ -85,7 +92,7 @@ export function renderPropsPanelSingle(s: Shape) {
       });
       quickBtns.appendChild(b);
     });
-    const resetBtn = el('button', {}, 'Reset');
+    const resetBtn = el('button', { className: 'link-reset' }, 'Reset rotation');
     resetBtn.addEventListener('click', () => {
       rotInput.value = '0';
       rotPct.textContent = '0°';
@@ -121,6 +128,9 @@ export function renderPropsPanelSingle(s: Shape) {
     ));
   }
 
+  if (s.role === 'bed') body.appendChild(bedSection(s));
+  if (s.role === 'shade') body.appendChild(shadeSunSection(s));
+
   // Color
   const swatches = el('div', { className: 'swatches' });
   for (const c of SWATCHES) {
@@ -138,7 +148,8 @@ export function renderPropsPanelSingle(s: Shape) {
       colorInput)
   ));
 
-  // Opacity
+  // Opacity (not for outlines; shade with recorded sun is shaded by its sun hours)
+  if (s.role === 'boundary' || (s.role === 'shade' && s.sun)) return finish();
   const opacityVal = s.opacity !== undefined ? s.opacity : 0.65;
   const rangeInput = el('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: opacityVal });
   const opacityPct = el('span', { style: { fontSize: '12px', color: '#78716c' } }, Math.round(opacityVal * 100) + '%');
@@ -154,6 +165,9 @@ export function renderPropsPanelSingle(s: Shape) {
     el('div', { className: 'hint' }, 'Lower opacity is useful for background features like tree shade.')
   ));
 
+  return finish();
+
+  function finish() {
   // Arrange button
   const arrangeBtn = el('button', { className: 'btn ghost' }, 'Arrange layer order…');
   arrangeBtn.addEventListener('click', () => { state.panel = 'arrange'; render(); });
@@ -161,12 +175,13 @@ export function renderPropsPanelSingle(s: Shape) {
 
   // Duplicate / Delete
   const dupBtn = el('button', { className: 'btn ghost', html: I.copy + '<span style="margin-left:6px">Duplicate</span>' });
-  dupBtn.addEventListener('click', duplicateSelected);
+  dupBtn.addEventListener('click', () => { duplicateSelected(); render(); });
   const delBtn = el('button', { className: 'btn danger', html: I.trash + '<span style="margin-left:6px">Delete</span>' });
-  delBtn.addEventListener('click', deleteSelected);
+  delBtn.addEventListener('click', () => { deleteSelected(); render(); });
   body.appendChild(el('div', { className: 'btn-row' }, dupBtn, delBtn));
 
   return body;
+  }
 }
 
 export function renderPropsPanelMulti(selected: Shape[]) {

@@ -1,3 +1,4 @@
+import { carriesPlants, patchBedCarryingPlants } from './beds';
 import { redrawCanvas, tierOf } from './canvas';
 import { MAX_ZOOM, MIN_ZOOM, PX_PER_FOOT_BASE } from './constants';
 import { canvasRect, pxPerFoot, shapeBBox, shapeCenter, unionBounds, viewCenterFeet } from './geometry';
@@ -37,10 +38,15 @@ export function addShape(type: ShapeType) {
   save();
 }
 /** Patch the selected shape and re-render everything (for buttons/swatches). */
+/** Apply a patch to a shape; a bed brings its plants along. */
+function applyPatch(s: Shape, patch: ShapePatch) {
+  if (carriesPlants(s)) patchBedCarryingPlants(s, patch, state.shapes);
+  else Object.assign(s, patch);
+}
 export function updateSelected(patch: ShapePatch) {
   const s = singleSelected();
   if (!s) return;
-  Object.assign(s, patch);
+  applyPatch(s, patch);
   save();
   pushHistoryDebounced();
   render();
@@ -53,7 +59,7 @@ export function updateSelected(patch: ShapePatch) {
 export function updateSelectedSilent(patch: ShapePatch) {
   const s = singleSelected();
   if (!s) return;
-  Object.assign(s, patch);
+  applyPatch(s, patch);
   save();
   pushHistoryDebounced();
   redrawCanvas();

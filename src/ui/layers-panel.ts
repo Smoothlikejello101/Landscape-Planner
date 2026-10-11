@@ -8,6 +8,8 @@ import { isSelected, selectOnly } from '../selection';
 import { state } from '../state';
 import { save } from '../storage';
 import { render } from './render';
+import { plantsInBed } from '../beds';
+import { sunListText } from './role-sections';
 
 export function renderLayersPanel() {
   const lockedCount = state.shapes.filter(s => s.locked).length;
@@ -28,7 +30,9 @@ export function renderLayersPanel() {
       if (s.type === 'circle') dims = s.radius + ' ft radius';
       else dims = s.width + ' × ' + s.height + ' ft';
       const opacity = s.opacity !== undefined ? s.opacity : 0.65;
-      const meta = dims + ' · at (' + s.x + ', ' + s.y + ') ft' +
+      const extra = s.role === 'shade' && s.sun ? sunListText(s.sun) + ' · '
+        : s.role === 'bed' ? plantsInBed(s, state.shapes).length + ' plants · ' : '';
+      const meta = extra + dims + ' · at (' + s.x + ', ' + s.y + ') ft' +
         (opacity < 1 ? ' · ' + Math.round(opacity * 100) + '% opacity' : '') +
         (s.rotation ? ' · ' + s.rotation + '°' : '');
       // Visual swatch matches shape type

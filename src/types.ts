@@ -23,6 +23,22 @@ interface ShapeBase {
   /** Link back to a plant index row when placed from the plant picker. */
   plantId?: string;
   role?: Role;
+  /** Beds: plants inside move with the bed (default true). */
+  carryPlants?: boolean;
+  /** Shade areas: observed direct sun. */
+  sun?: SunInfo;
+}
+/** Direct sun observed on a shade area. Times are minutes after midnight. */
+export interface SunInfo {
+  /** 'times': sunny periods; 'hours': just a total. */
+  mode: 'times' | 'hours';
+  periods: [number, number][];
+  hours: number;
+  /** Filtered light through foliage. */
+  dappled: boolean;
+  /** YYYY-MM-DD */
+  observedOn?: string;
+  note?: string;
 }
 export interface CircleShape extends ShapeBase {
   type: 'circle';
