@@ -214,7 +214,7 @@ test.describe('plants, background, export', () => {
     await openFresh(page);
     await page.locator('button[title=More]').click();
     await page.locator('.menu-item', { hasText: 'background image' }).click();
-    await page.locator('.sheet input[type=file]').setInputFiles('icon-512.png');
+    await page.locator('.sheet input[type=file]').setInputFiles('public/icon-512.png');
     await expect(page.locator('.mode-banner')).toContainText('Calibrating');
     const box = await canvasBox(page);
     const cx = box.x + box.width / 2, cy = box.y + box.height / 2;

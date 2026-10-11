@@ -5,7 +5,6 @@ const CACHE_NAME = 'landscape-planner-v9';
 const ASSETS = [
   './',
   './index.html',
-  './app.js',
   './manifest.webmanifest',
   './icon-192.png',
   './icon-512.png',
