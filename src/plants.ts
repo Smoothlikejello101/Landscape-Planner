@@ -1,3 +1,4 @@
+import { redrawCanvas } from './canvas';
 import { viewCenterFeet } from './geometry';
 import { flushHistoryDebounce, pushHistory } from './history';
 import { state } from './state';
@@ -89,6 +90,7 @@ export function loadPlants(): Promise<void> {
     PLANT_META = d.meta || null;
     for (const p of PLANTS) plantsById[p.id] = p;
     if (state.panel === 'plants') render(); // refresh picker if already open
+    else redrawCanvas(); // sun-check badges need plant data (canvas only: keyboard safe)
   })
   .catch((err) => console.error('plants.json load failed', err));
 }

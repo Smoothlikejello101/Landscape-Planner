@@ -75,3 +75,47 @@ export function trianglePoints(s: Pick<TriangleShape, 'x' | 'y' | 'width' | 'hei
     default:   return [[x, y + h], [x + w, y + h], [x, y]];
   }
 }
+
+// ---- Containment, area, perimeter (feet) ----
+/** Point in the shape's own unrotated frame (relative to its box/circle). */
+function toLocal(s: Shape, p: Point): Point {
+  if (s.type === 'circle' || !s.rotation) return p;
+  const c = shapeCenter(s);
+  const r = rotate(p.x - c.x, p.y - c.y, -s.rotation);
+  return { x: c.x + r.x, y: c.y + r.y };
+}
+export function pointInShape(s: Shape, p: Point): boolean {
+  if (s.type === 'circle') return Math.hypot(p.x - s.x, p.y - s.y) <= s.radius;
+  const q = toLocal(s, p);
+  if (s.type === 'rect') return q.x >= s.x && q.x <= s.x + s.width && q.y >= s.y && q.y <= s.y + s.height;
+  if (s.type === 'oval') {
+    const rx = s.width / 2, ry = s.height / 2, cx = s.x + rx, cy = s.y + ry;
+    return ((q.x - cx) / rx) ** 2 + ((q.y - cy) / ry) ** 2 <= 1;
+  }
+  const [a, b, c] = trianglePoints(s);
+  const side = (p1: number[], p2: number[]) => (q.x - p2[0]) * (p1[1] - p2[1]) - (p1[0] - p2[0]) * (q.y - p2[1]);
+  const d1 = side(a, b), d2 = side(b, c), d3 = side(c, a);
+  const neg = d1 < 0 || d2 < 0 || d3 < 0, pos = d1 > 0 || d2 > 0 || d3 > 0;
+  return !(neg && pos);
+}
+export function shapeArea(s: Shape): number {
+  if (s.type === 'circle') return Math.PI * s.radius ** 2;
+  if (s.type === 'rect') return s.width * s.height;
+  if (s.type === 'oval') return Math.PI * (s.width / 2) * (s.height / 2);
+  return (s.width * s.height) / 2;
+}
+export function shapePerimeter(s: Shape): number {
+  if (s.type === 'circle') return 2 * Math.PI * s.radius;
+  if (s.type === 'rect') return 2 * (s.width + s.height);
+  if (s.type === 'oval') { // Ramanujan's approximation
+    const a = s.width / 2, b = s.height / 2;
+    return Math.PI * (3 * (a + b) - Math.sqrt((3 * a + b) * (a + 3 * b)));
+  }
+  return s.width + s.height + Math.hypot(s.width, s.height);
+}
+/** Move a shape so its center lands at `c`. */
+export function setCenter(s: Shape, c: Point) {
+  if (s.type === 'circle') { s.x = c.x; s.y = c.y; return; }
+  s.x = c.x - s.width / 2;
+  s.y = c.y - s.height / 2;
+}

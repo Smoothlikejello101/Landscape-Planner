@@ -3,7 +3,7 @@ import { del, openKV, put, type KV, type WriteOp } from './db';
 import { cancelHistoryDebounce } from './history';
 import { state } from './state';
 import { isRole } from './roles';
-import type { BgImage, Clipboard, ProjectData, ProjectMeta, RoleViews, Shape } from './types';
+import type { BgImage, Clipboard, ProjectData, ProjectMeta, RoleViews, Shape, SunInfo } from './types';
 import { now, uid } from './util';
 
 // Persistence. Projects live in IndexedDB:
@@ -90,6 +90,8 @@ export function migrateShape(raw: unknown): Shape | null {
     ...(typeof s.plantId === 'string' ? { plantId: s.plantId } : {}),
     // Shapes placed from the plant picker are plants; others stay unassigned until tagged.
     ...(isRole(s.role) ? { role: s.role } : typeof s.plantId === 'string' ? { role: 'plant' as const } : {}),
+    ...(s.carryPlants === false ? { carryPlants: false } : {}),
+    ...(sanitizeSun(s.sun) ? { sun: sanitizeSun(s.sun)! } : {}),
   };
   const size = (v: unknown, d: number) => Math.max(0.1, num(v, d));
   switch (s.type) {
@@ -120,6 +122,30 @@ export function migrateBgImage(raw: Partial<BgImage>): BgImage {
     rotation: num(raw.rotation, 0),
     opacity: Math.min(1, Math.max(0.05, num(raw.opacity, 0.6))),
     visible: raw.visible !== false,
+  };
+}
+const MINUTES_PER_DAY = 24 * 60;
+/** Validate observed-sun data; null if unusable. */
+export function sanitizeSun(raw: unknown): SunInfo | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const periods: [number, number][] = [];
+  if (Array.isArray(o.periods)) {
+    for (const p of o.periods.slice(0, 6)) {
+      if (!Array.isArray(p)) continue;
+      const a = Math.max(0, Math.min(MINUTES_PER_DAY, num(p[0], NaN)));
+      const b = Math.max(0, Math.min(MINUTES_PER_DAY, num(p[1], NaN)));
+      if (Number.isFinite(a) && Number.isFinite(b)) periods.push(a <= b ? [a, b] : [b, a]);
+    }
+  }
+  const date = typeof o.observedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.observedOn) ? o.observedOn : undefined;
+  return {
+    mode: o.mode === 'hours' ? 'hours' : 'times',
+    periods: periods.length ? periods : [[540, 780]],
+    hours: Math.max(0, Math.min(16, num(o.hours, 4))),
+    dappled: o.dappled === true,
+    ...(date ? { observedOn: date } : {}),
+    ...(typeof o.note === 'string' && o.note ? { note: o.note.slice(0, 500) } : {}),
   };
 }
 function sanitizeRoleViews(raw: unknown): RoleViews {

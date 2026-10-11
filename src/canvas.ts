@@ -3,7 +3,9 @@ import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from '
 import { svgEl, type Attrs } from './dom';
 import { pxPerFoot, trianglePoints } from './geometry';
 import { onShapePointerDown } from './gestures';
+import { plantsById } from './plants';
 import { isLocked, roleDef, roleHidden, roleRank } from './roles';
+import { checkPlantSun, formatHours, shadeOpacity, sunHours } from './sun';
 import { isSelected } from './selection';
 import { state } from './state';
 import type { Shape } from './types';
@@ -92,7 +94,8 @@ export function shapeGroup(s: Shape): SVGGElement {
   const common: Attrs = {
     'data-shape-id': s.id,
     fill: outline ? 'none' : s.color,
-    'fill-opacity': outline ? null : s.opacity ?? 0.65,
+    // Shade with recorded sun: darker for less sun.
+    'fill-opacity': outline ? null : s.role === 'shade' && s.sun ? shadeOpacity(s.sun) : s.opacity ?? 0.65,
     stroke: outline ? s.color : sel ? '#0f172a' : 'rgba(0,0,0,0.3)',
     'stroke-width': outline ? (sel ? 3.5 : 2.5) : sel ? 2 : 1,
     style: `cursor:${isLocked(s) ? 'grab' : 'move'};touch-action:none;`,
@@ -129,13 +132,32 @@ export function shapeGroup(s: Shape): SVGGElement {
   }
   shapeEl.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
   const g = svgEl('g', { 'data-shape-group': s.id }, shapeEl);
+  const sunText = s.role === 'shade' && s.sun ? '☀ ' + formatHours(sunHours(s.sun)) : '';
   if (s.label) {
     g.appendChild(svgEl('text', {
-      x: labelX, y: labelY, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
+      x: labelX, y: sunText ? labelY - fs * 0.6 : labelY, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
       'font-size': fs, fill: '#0f172a', 'pointer-events': 'none',
       style: 'user-select:none;font-weight:500;',
       transform: rotTransform || null,
     }, s.label));
+  }
+  if (sunText) {
+    g.appendChild(svgEl('text', {
+      x: labelX, y: s.label ? labelY + fs * 0.7 : labelY, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
+      'font-size': Math.max(10, fs * 0.85), fill: '#1e293b', 'pointer-events': 'none', 'data-role': 'sun-label',
+      style: 'user-select:none;', transform: rotTransform || null,
+    }, sunText));
+  }
+  // Plants whose spot doesn't match their sun needs get a small warning badge.
+  if (s.role === 'plant' && s.plantId) {
+    const check = checkPlantSun(s, plantsById[s.plantId], state.shapes);
+    if (check && !check.ok) {
+      const r = s.type === 'circle' ? s.radius * ppf : Math.min(s.width, s.height) * ppf / 2;
+      const bx = labelX + r * 0.7, by = labelY - r * 0.7;
+      g.appendChild(svgEl('g', { 'data-role': 'sun-warning', 'pointer-events': 'none' },
+        svgEl('circle', { cx: bx, cy: by, r: 8, fill: '#f59e0b', stroke: '#fff', 'stroke-width': 1.5 }),
+        svgEl('text', { x: bx, y: by + 0.5, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#fff' }, '!')));
+    }
   }
   return g;
 }

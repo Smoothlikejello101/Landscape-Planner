@@ -1,0 +1,98 @@
+import { pointInShape, shapeCenter } from './geometry';
+import type { Plant } from './plants';
+import type { Shape, SunInfo } from './types';
+
+// Observed sun on shade areas, and the check of plants against it.
+// Thresholds follow common nursery usage: full sun = 6+ hours of direct
+// sun, part sun/shade = 3–6, shade = under 3. Observations are the user's
+// (normally summer); the app does not model the sun's path.
+
+export type SunLevel = 'Full' | 'Part' | 'Shade';
+const RANK: Record<SunLevel, number> = { Full: 0, Part: 1, Shade: 2 };
+/** Hot afternoon sun window used for the afternoon check. */
+export const AFTERNOON: [number, number] = [13 * 60, 18 * 60];
+export const DAY_START = 5 * 60;
+export const DAY_END = 21 * 60;
+
+export function newSunInfo(today = new Date()): SunInfo {
+  const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  return { mode: 'times', periods: [[9 * 60, 13 * 60]], hours: 4, dappled: false, observedOn: iso };
+}
+
+/** Total direct sun in hours (overlapping periods count once). */
+export function sunHours(info: SunInfo): number {
+  if (info.mode === 'hours') return info.hours;
+  return mergedMinutes(info.periods) / 60;
+}
+function mergedMinutes(periods: [number, number][], clip?: [number, number]): number {
+  const ps = periods
+    .map(([a, b]) => (clip ? [Math.max(a, clip[0]), Math.min(b, clip[1])] : [a, b]))
+    .filter(([a, b]) => b > a)
+    .sort((p, q) => p[0] - q[0]);
+  let total = 0, end = -Infinity;
+  for (const [a, b] of ps) {
+    if (b <= end) continue;
+    total += b - Math.max(a, end);
+    end = b;
+  }
+  return total;
+}
+/** Hours of sun between 1 and 6 pm; null when only a total is known. */
+export function afternoonHours(info: SunInfo): number | null {
+  return info.mode === 'times' ? mergedMinutes(info.periods, AFTERNOON) / 60 : null;
+}
+export function sunLevel(info: SunInfo): SunLevel {
+  const h = sunHours(info);
+  const level: SunLevel = h >= 6 ? 'Full' : h >= 3 ? 'Part' : 'Shade';
+  // Filtered light all day reads as part shade at best.
+  return info.dappled && level === 'Full' ? 'Part' : level;
+}
+/** Overlay strength: darker for less sun. */
+export function shadeOpacity(info: SunInfo): number {
+  const h = Math.min(8, sunHours(info));
+  return Math.round((0.12 + 0.43 * (1 - h / 8)) * 100) / 100;
+}
+export function formatTime(min: number): string {
+  const h = Math.floor(min / 60), m = min % 60;
+  const h12 = ((h + 11) % 12) + 1;
+  return `${h12}${m ? ':' + String(m).padStart(2, '0') : ''} ${h < 12 || h === 24 ? 'am' : 'pm'}`;
+}
+export function formatHours(h: number): string {
+  return (Math.round(h * 2) / 2).toString().replace(/\.0$/, '') + ' h';
+}
+
+/** The shade area governing a point: the one with the least sun. */
+export function sunAt(point: { x: number; y: number }, shapes: Shape[]): { area: Shape; info: SunInfo } | null {
+  let best: { area: Shape; info: SunInfo } | null = null;
+  for (const s of shapes) {
+    if (s.role !== 'shade' || !s.sun || !pointInShape(s, point)) continue;
+    if (!best || sunHours(s.sun) < sunHours(best.info)) best = { area: s, info: s.sun };
+  }
+  return best;
+}
+
+export interface SunCheck { ok: boolean; message: string }
+/**
+ * Compare a plant's sun needs with the observed sun where it sits. Only
+ * plants inside a shade area with sun recorded are checked: elsewhere the
+ * app doesn't know the conditions.
+ */
+export function checkPlantSun(plantShape: Shape, plant: Plant | undefined, shapes: Shape[]): SunCheck | null {
+  if (!plant || !plant.sun_most || !plant.sun_least) return null;
+  const at = sunAt(shapeCenter(plantShape), shapes);
+  if (!at) return null;
+  const h = sunHours(at.info), level = sunLevel(at.info);
+  const most = RANK[plant.sun_most as SunLevel], least = RANK[plant.sun_least as SunLevel];
+  const name = plant.common;
+  const where = `about ${formatHours(h)} of ${at.info.dappled ? 'filtered ' : ''}sun here`;
+  const wants = plant.sun_most === plant.sun_least
+    ? `${plant.sun_most.toLowerCase()} ${plant.sun_most === 'Shade' ? '' : 'sun'}`.trim()
+    : `${plant.sun_most.toLowerCase()} sun to ${plant.sun_least.toLowerCase()}${plant.sun_least === 'Shade' ? '' : ' sun'}`;
+  if (RANK[level] < most) return { ok: false, message: `${name} gets ${where}; it prefers ${wants}.` };
+  if (RANK[level] > least) return { ok: false, message: `${name} gets only ${where}; it wants ${wants}.` };
+  const pm = afternoonHours(at.info);
+  if (plant.sun_most !== 'Full' && pm !== null && pm >= 2) {
+    return { ok: false, message: `${name} gets ${formatHours(pm)} of hot afternoon sun here; it does best with afternoon shade.` };
+  }
+  return { ok: true, message: `${name} gets ${where}, which suits it (${wants}).` };
+}
