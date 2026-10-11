@@ -6,6 +6,7 @@ import { copySelected, deleteSelected, duplicateSelected, paste } from './mutati
 import { clearSelection } from './selection';
 import { state } from './state';
 import { loadPlants } from './plants';
+import { setupServiceWorker } from './pwa';
 import { flushSave, initStorage, refreshClipboard, requestPersistence, writeJournalIfDirty } from './storage';
 import { render } from './ui/render';
 
@@ -54,17 +55,6 @@ window.addEventListener('keydown', (e) => {
 });
 
 // ============================================================
-// SERVICE WORKER
-// ============================================================
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(err => {
-      console.warn('Service worker registration failed:', err);
-    });
-  });
-}
-
-// ============================================================
 // SAVE ON EXIT
 // ============================================================
 // Mobile browsers may kill a backgrounded app without warning, so write
@@ -85,5 +75,6 @@ async function start() {
   render();
   void loadPlants();
   void requestPersistence();
+  setupServiceWorker();
 }
 void start();

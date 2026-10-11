@@ -58,6 +58,7 @@ export function renderMoreMenu() {
     btn.addEventListener('click', it.onClick);
     menu.appendChild(btn);
   }
+  menu.appendChild(el('div', { className: 'menu-version' }, `Version ${__APP_VERSION__} · ${__BUILD_TIME__}`));
   const overlay = el('div', { className: 'overlay top' }, el('div', { style: { paddingRight: '8px', paddingTop: '4px' } }, menu));
   overlay.addEventListener('click', e => { if (e.target === overlay) { state.menu = null; render(); } });
   return overlay;

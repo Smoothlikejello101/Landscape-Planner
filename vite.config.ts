@@ -1,9 +1,31 @@
 import { defineConfig } from 'vite';
+import { VitePWA } from 'vite-plugin-pwa';
+import { readFileSync } from 'node:fs';
+
+const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 
 export default defineConfig({
   // Relative base so the build works under a GitHub Pages subpath.
   base: './',
   build: { target: 'es2020', sourcemap: true },
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version + (process.env.VERSION_SUFFIX ?? '')),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString().slice(0, 10)),
+  },
+  plugins: [
+    VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
+      injectRegister: false, // registered in src/pwa.ts so we control updates
+      manifest: false,       // public/manifest.webmanifest is used as-is
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,png,svg,json,webmanifest}'],
+        maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // plants.json is ~650 KB
+      },
+      devOptions: { enabled: false },
+    }),
+  ],
   // e2e only: serve the old app under /legacy/ on the same origin so the
   // migration test can hand its localStorage data to the new version.
   preview: {
