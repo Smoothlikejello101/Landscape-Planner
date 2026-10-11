@@ -181,3 +181,33 @@ describe('edits from an older version after migration', () => {
     expect(state.projects.map((p) => p.name)).toEqual(['Yard']);
   });
 });
+
+describe('when storage will not open', () => {
+  it('can still save older copies and unsaved changes to a file', async () => {
+    const { buildEmergencyBackup } = await import('../src/backup');
+    expect(buildEmergencyBackup()).toBeNull();
+    localStorage.setItem('lp-projects', JSON.stringify([{ id: 'p1', name: 'Yard', lastModified: 5 }]));
+    localStorage.setItem('lp-project-p1', JSON.stringify({ shapes: [circle('old')] }));
+    localStorage.setItem('lp-journal:p1', JSON.stringify({ projectId: 'p1', at: 10, data: { shapes: [circle('pending')] } }));
+    const file = buildEmergencyBackup()!;
+    const restored = parseImportFile(file.text);
+    expect(restored.map((p) => p.data.shapes[0].label)).toEqual(['old', 'pending']);
+    expect(restored[0].name).toBe('Yard (older copy)');
+  });
+});
+
+describe('a journal that could not be applied', () => {
+  it('survives the next successful save and is applied on a later start', async () => {
+    const kv = await fresh();
+    const id = state.currentProjectId!;
+    localStorage.setItem('lp-journal:' + id, JSON.stringify({ projectId: id, at: Date.now() + 1000, data: { shapes: [circle('pending')] } }));
+    kv.failWrites = true;
+    _resetStorageForTests();
+    await initStorage(kv).catch(() => {}); // replay (and more) fails
+    kv.failWrites = false;
+    state.currentProjectId = id; save(); await flushSave(); // storage recovers mid-session
+    expect(localStorage.getItem('lp-journal:' + id)).not.toBeNull();
+    await restart(kv);
+    expect(state.shapes.map((s) => s.label)).toEqual(['pending']);
+  });
+});

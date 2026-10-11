@@ -1,5 +1,5 @@
 import { state } from './state';
-import { createProject, flushSave, readProject, sanitizeProjectData, setLastBackupAt } from './storage';
+import { createProject, readProject, sanitizeProjectData, setLastBackupAt } from './storage';
 import type { ProjectData } from './types';
 import { now } from './util';
 
@@ -22,8 +22,10 @@ function forExport(data: ProjectData): ProjectData {
 async function exportedProject(id: string): Promise<ExportedProject | null> {
   const meta = state.projects.find((p) => p.id === id);
   if (!meta) return null;
-  if (id === state.currentProjectId) await flushSave();
-  const data = await readProject(id);
+  // The open project is exported from memory: always the latest edits, even if a save is failing.
+  const data = id === state.currentProjectId
+    ? { shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY, bgImage: state.bgImage }
+    : await readProject(id);
   if (!data) return null;
   return { name: meta.name, lastModified: meta.lastModified, data: forExport(data) };
 }
@@ -46,6 +48,34 @@ export async function buildBackupFile(): Promise<{ filename: string; text: strin
   }
   const file: BackupFile = { format: BACKUP_FORMAT, version: FILE_VERSION, exportedAt: new Date().toISOString(), projects };
   return { filename: `landscape-backup-${stamp()}.landscape.json`, text: JSON.stringify(file), count: projects.length };
+}
+
+/**
+ * Everything readable without IndexedDB: projects saved by the previous
+ * version (localStorage) and unsaved-change journals. Used when the main
+ * storage won't open. Returns null if there is nothing.
+ */
+export function buildEmergencyBackup(): { filename: string; text: string; count: number } | null {
+  const projects: ExportedProject[] = [];
+  const read = (k: string): unknown => { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } };
+  const list = read('lp-projects');
+  if (Array.isArray(list)) {
+    for (const m of list as { id?: string; name?: string; lastModified?: number }[]) {
+      if (!m?.id) continue;
+      projects.push({ name: `${m.name || 'Untitled'} (older copy)`, lastModified: m.lastModified ?? 0, data: sanitizeProjectData(read('lp-project-' + m.id)) });
+    }
+  }
+  const legacy = read('landscape-planner-v1');
+  if (legacy) projects.push({ name: 'My Garden (oldest copy)', lastModified: 0, data: sanitizeProjectData(legacy) });
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (!k?.startsWith('lp-journal:')) continue;
+    const j = read(k) as { at?: number; data?: unknown } | null;
+    if (j) projects.push({ name: 'Unsaved changes ' + new Date(j.at ?? 0).toLocaleString(), lastModified: j.at ?? 0, data: sanitizeProjectData(j.data) });
+  }
+  if (!projects.length) return null;
+  const file: BackupFile = { format: BACKUP_FORMAT, version: FILE_VERSION, exportedAt: new Date().toISOString(), projects };
+  return { filename: `landscape-recovery-${stamp()}.landscape.json`, text: JSON.stringify(file), count: projects.length };
 }
 
 /** Parse a project or backup file. Throws an Error with a user-facing message. */

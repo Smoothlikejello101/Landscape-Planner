@@ -117,3 +117,19 @@ test('undo and redo after adding a background image keep a single stored copy', 
   }));
   expect(imageRecords).toBe(1);
 });
+
+test('a failing save shows a warning without closing the keyboard', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.circle').click();
+  const label = field(page, 'Label');
+  await label.click();
+  const handle = await label.elementHandle();
+  await page.evaluate(() => {
+    IDBObjectStore.prototype.put = function () { throw new DOMException('disk full', 'QuotaExceededError'); };
+    window.alert = () => {};
+  });
+  await page.keyboard.type('abc', { delay: 30 });
+  await expect(page.locator('#save-warning')).toBeVisible();
+  expect(await handle!.evaluate((n) => n.isConnected && document.activeElement === n)).toBe(true);
+  await expect(label).toHaveValue('abc');
+});

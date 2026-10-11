@@ -33,6 +33,9 @@ let quotaWarned = false;
 /** True after a save failed and nothing has saved successfully since. */
 let saveFailing = false;
 let onSaveStatus: (() => void) | null = null;
+let lastFailureJournalAt = 0;
+/** Projects whose journal couldn't be replayed this session; don't clear those. */
+const unreplayed = new Set<string>();
 /** Called whenever saving starts or stops failing (to show/hide a warning). */
 export function setSaveStatusListener(fn: () => void) { onSaveStatus = fn; }
 export function saveIsFailing(): boolean { return saveFailing; }
@@ -184,7 +187,9 @@ async function writeCurrent(): Promise<boolean> {
       quotaWarned = true;
       alert('Your device is out of storage space for this app, so recent changes could not be saved. Free some space, remove a large background image, or export your projects.');
     }
-    writeJournalIfDirty(); // keep a copy of the edits in case the app is closed now
+    // Keep a copy of the edits in case the app is closed now (at most every few
+    // seconds: with a large unsaved image this is expensive). Page hide always writes one.
+    if (now() - lastFailureJournalAt > 5000) { lastFailureJournalAt = now(); writeJournalIfDirty(); }
     setSaveFailing(true);
     return false;
   }
@@ -204,6 +209,7 @@ export function flushSave(): Promise<boolean> {
 
 export function hasUnsavedChanges(): boolean { return editSeq !== savedSeq; }
 function clearJournal(projectId: string) {
+  if (unreplayed.has(projectId)) return; // still holds edits not yet in IndexedDB
   try { localStorage.removeItem(journalKey(projectId)); } catch { /* unavailable */ }
 }
 /**
@@ -270,7 +276,13 @@ async function replayJournals(k: KV) {
         }
       }
       ops.push(put('meta', j.projectId, { ...meta, lastModified: num(j.at, now()), shapeCount: data.shapes.length }));
-      await k.write(ops);
+      try {
+        await k.write(ops);
+      } catch (e) {
+        console.error('could not apply unsaved edits; will retry next start', e);
+        unreplayed.add(j.projectId);
+        continue; // keep this journal
+      }
     }
     try { localStorage.removeItem(key); } catch { /* ignore */ }
   }
@@ -509,6 +521,7 @@ export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: s
 export function _resetStorageForTests() {
   kv = null; clipboardCache = null; storedImageKeys = new Set(); committedImageKeys = new Set();
   quotaWarned = false; lastBackupAt = null; editSeq = 0; savedSeq = 0; saveFailing = false;
+  lastFailureJournalAt = 0; unreplayed.clear();
   saveChain = Promise.resolve(true);
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;

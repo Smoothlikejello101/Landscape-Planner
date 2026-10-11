@@ -7,6 +7,8 @@ import { clearSelection } from './selection';
 import { state } from './state';
 import { loadPlants } from './plants';
 import { setupServiceWorker } from './pwa';
+import { buildEmergencyBackup, downloadText } from './backup';
+import { updateSaveWarning } from './ui/save-warning';
 import { flushSave, initStorage, refreshClipboard, requestPersistence, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
 import { render } from './ui/render';
 
@@ -82,6 +84,14 @@ function showStorageError() {
   retry.textContent = 'Try again';
   retry.addEventListener('click', () => location.reload());
   box.append(h, p, retry);
+  const rescue = buildEmergencyBackup();
+  if (rescue) {
+    const save = document.createElement('button');
+    save.className = 'secondary';
+    save.textContent = 'Save older copies and unsaved changes as a file';
+    save.addEventListener('click', () => downloadText(rescue.filename, rescue.text));
+    box.appendChild(save);
+  }
   root.appendChild(box);
 }
 
@@ -93,7 +103,7 @@ async function start() {
     if (e instanceof StorageUnavailableError) { showStorageError(); return; }
     throw e;
   }
-  setSaveStatusListener(render);
+  setSaveStatusListener(updateSaveWarning);
   pushHistory(); // seed undo history with the loaded state
   render();
   if (migrationError) {

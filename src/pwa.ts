@@ -20,7 +20,7 @@ function showUpdateBanner() {
     btn.textContent = 'Updating…';
     await flushSave();
     // If no new worker is actually waiting, nothing would happen: reload anyway.
-    setTimeout(() => location.reload(), 5000);
+    setTimeout(() => location.reload(), 10_000);
     await applyUpdate?.(true);
   });
   const later = document.createElement('button');
