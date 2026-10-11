@@ -13,12 +13,17 @@ const TYPES: Record<string, string> = {
 };
 let mode: 'old' | 'new' | 'next' = 'old';
 let server: Server;
-const PORT = 4190;
-const ROOTS = { old: ['e2e/fixtures/legacy-app', 'public'], new: ['dist'], next: ['test-results/dist-next'] };
+let PORT = 0;
+// Per worker, so parallel runs never serve a half-written build.
+const NEXT_DIR = `test-results/dist-next-${process.env.TEST_WORKER_INDEX ?? 0}`;
+const ROOTS = { old: ['e2e/fixtures/legacy-app', 'public'], new: ['dist'], next: [NEXT_DIR] };
+
+// Shared server and mode: run these tests one at a time in one worker.
+test.describe.configure({ mode: 'serial' });
 
 test.beforeAll(async () => {
   // A second build standing in for the next release.
-  execSync('npx vite build --outDir test-results/dist-next --emptyOutDir', { env: { ...process.env, VERSION_SUFFIX: '-next' }, stdio: 'ignore' });
+  execSync(`npx vite build --outDir ${NEXT_DIR} --emptyOutDir`, { env: { ...process.env, VERSION_SUFFIX: '-next' }, stdio: 'ignore' });
   server = createServer((req, res) => {
     let path = decodeURIComponent((req.url || '/').split('?')[0]);
     if (path.endsWith('/')) path += 'index.html';
@@ -32,15 +37,14 @@ test.beforeAll(async () => {
     }
     res.writeHead(404); res.end('not found');
   });
-  await new Promise<void>((r) => server.listen(PORT, '127.0.0.1', r));
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  PORT = (server.address() as { port: number }).port;
 });
-test.afterAll(() => new Promise<void>((r) => server.close(() => r())));
+test.afterAll(() => new Promise<void>((r) => (server ? server.close(() => r()) : r())));
 
 test.use({ serviceWorkers: 'allow' });
 
-test('upgrading from the previous installed version keeps data and works offline', async ({ page, context, browserName }, info) => {
-  test.skip(info.project.name !== 'desktop', 'one browser profile is enough');
-  test.skip(browserName !== 'chromium');
+test('upgrading from the previous installed version keeps data and works offline', async ({ page, context }) => {
   page.on('dialog', (d) => void d.accept());
   const url = `http://localhost:${PORT}/`;
 
@@ -79,8 +83,7 @@ test('upgrading from the previous installed version keeps data and works offline
   await context.setOffline(false);
 });
 
-test('a later release offers an Update button and switches only when tapped', async ({ page }, info) => {
-  test.skip(info.project.name !== 'desktop', 'one browser profile is enough');
+test('a later release offers an Update button and switches only when tapped', async ({ page }) => {
   const url = `http://localhost:${PORT}/`;
   mode = 'new';
   await page.goto(url);
@@ -98,8 +101,10 @@ test('a later release offers an Update button and switches only when tapped', as
   await expect(page.locator('.menu-version')).not.toContainText('-next');
   await page.keyboard.press('Escape');
 
-  await page.locator('#update-banner button', { hasText: 'Update' }).click();
-  await page.waitForLoadState('load');
+  await Promise.all([
+    page.waitForEvent('load'), // the app reloads into the new version
+    page.locator('#update-banner button', { hasText: 'Update' }).click(),
+  ]);
   await page.locator('button[title=More]').click();
   await expect(page.locator('.menu-version')).toContainText('-next', { timeout: 15_000 });
 });

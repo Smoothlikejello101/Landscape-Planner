@@ -71,6 +71,37 @@ describe('migration from localStorage', () => {
     expect(state.projects).toHaveLength(1);
   });
 
+  it('picks up edits an older version made after the migration', async () => {
+    localStorage.setItem('lp-projects', JSON.stringify([{ id: 'p1', name: 'Yard', lastModified: 1000 }]));
+    localStorage.setItem('lp-project-p1', JSON.stringify({ shapes: [circle('before')] }));
+    const kv = await freshStorage();
+    expect(state.shapes.map((s) => s.label)).toEqual(['before']);
+    // The old app runs once more (stale cache) and saves an edit.
+    const later = Date.now() + 60_000;
+    localStorage.setItem('lp-projects', JSON.stringify([
+      { id: 'p1', name: 'Yard', lastModified: later },
+      { id: 'p9', name: 'Made in old app', lastModified: later },
+    ]));
+    localStorage.setItem('lp-project-p1', JSON.stringify({ shapes: [circle('before'), circle('after')] }));
+    localStorage.setItem('lp-project-p9', JSON.stringify({ shapes: [circle('new')] }));
+    _resetStorageForTests();
+    await initStorage(kv);
+    expect(state.shapes.map((s) => s.label)).toEqual(['before', 'after']);
+    expect(state.projects.map((p) => p.name).sort()).toEqual(['Made in old app', 'Yard']);
+  });
+
+  it('does not overwrite newer work with an older localStorage copy', async () => {
+    localStorage.setItem('lp-projects', JSON.stringify([{ id: 'p1', name: 'Yard', lastModified: 1000 }]));
+    localStorage.setItem('lp-project-p1', JSON.stringify({ shapes: [circle('old')] }));
+    const kv = await freshStorage();
+    state.shapes = sanitizeProjectData({ shapes: [circle('new work')] }).shapes;
+    save();
+    await flushSave();
+    _resetStorageForTests();
+    await initStorage(kv);
+    expect(state.shapes.map((s) => s.label)).toEqual(['new work']);
+  });
+
   it('creates an empty "My Garden" on first run', async () => {
     await freshStorage();
     expect(state.projects.map((p) => p.name)).toEqual(['My Garden']);

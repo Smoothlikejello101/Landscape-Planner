@@ -14,7 +14,8 @@ export default defineConfig({
     serviceWorkers: 'block',
   },
   projects: [
-    { name: 'phone', use: { ...devices['Pixel 7'] } },
+    // The upgrade tests run their own server; one browser profile is enough.
+    { name: 'phone', use: { ...devices['Pixel 7'] }, testIgnore: /upgrade\.spec/ },
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
   ],
   webServer: [

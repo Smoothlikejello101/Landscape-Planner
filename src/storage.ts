@@ -350,28 +350,44 @@ function readLocal(key: string): unknown {
 /**
  * Copy projects saved by earlier versions (localStorage) into IndexedDB.
  * localStorage is left untouched as a fallback copy.
+ *
+ * Runs on every start, not just once: if an older version of the app runs
+ * again after migration (a stale cached copy, another tab), its newer edits
+ * are picked up. A project is copied when it's missing from IndexedDB or the
+ * localStorage copy was modified later.
  */
 async function migrateFromLocalStorage(k: KV) {
-  if (await k.get('kv', 'migratedFromLocalStorage')) return;
+  const migratedAt = await k.get<number>('kv', 'migratedFromLocalStorage');
   const ops: WriteOp[] = [];
-  const metas: ProjectMeta[] = [];
-  const add = (meta: { id?: unknown; name?: unknown; lastModified?: unknown }, raw: unknown) => {
+  const copied: string[] = [];
+  const consider = async (meta: { id?: unknown; name?: unknown; lastModified?: unknown }, raw: unknown) => {
     const id = str(meta.id) || uid();
+    const localModified = num(meta.lastModified, 0);
+    if (migratedAt !== undefined) {
+      if (localModified <= migratedAt) return; // nothing new since the last check
+      const existing = await k.get<ProjectMeta>('meta', id);
+      if (existing && existing.lastModified >= localModified) return; // newer in IndexedDB
+    }
     const data = sanitizeProjectData(raw);
-    metas.push({ id, name: str(meta.name, 'Untitled'), lastModified: num(meta.lastModified, now()), shapeCount: data.shapes.length });
-    ops.push(...projectWriteOps(id, data), put('meta', id, metas[metas.length - 1]));
+    const m: ProjectMeta = { id, name: str(meta.name, 'Untitled'), lastModified: localModified || now(), shapeCount: data.shapes.length };
+    ops.push(...projectWriteOps(id, data), put('meta', id, m));
+    copied.push(id);
   };
   const list = readLocal(STORAGE.PROJECTS);
   if (Array.isArray(list)) {
-    for (const m of list) if (m && typeof m === 'object') add(m, readLocal(STORAGE.project(str((m as ProjectMeta).id))));
+    for (const m of list) if (m && typeof m === 'object') await consider(m, readLocal(STORAGE.project(str((m as ProjectMeta).id))));
   }
-  const legacy = readLocal(STORAGE.LEGACY); // single-project format, before multiple projects
-  if (legacy) add({ name: 'My Garden' }, legacy);
-  const current = (() => { try { return localStorage.getItem(STORAGE.CURRENT); } catch { return null; } })();
-  if (current && metas.some((m) => m.id === current)) ops.push(put('kv', 'current', current));
-  else if (legacy && metas.length) ops.push(put('kv', 'current', metas[metas.length - 1].id));
-  const clip = readLocal(STORAGE.CLIPBOARD);
-  if (clip) ops.push(put('kv', 'clipboard', clip));
+  // The single-project format from before multiple projects existed.
+  const legacy = readLocal(STORAGE.LEGACY);
+  if (legacy && migratedAt === undefined) await consider({ name: 'My Garden' }, legacy);
+  if (migratedAt === undefined) {
+    const current = (() => { try { return localStorage.getItem(STORAGE.CURRENT); } catch { return null; } })();
+    if (current && copied.includes(current)) ops.push(put('kv', 'current', current));
+    else if (legacy && copied.length) ops.push(put('kv', 'current', copied[copied.length - 1]));
+    const clip = readLocal(STORAGE.CLIPBOARD);
+    if (clip) ops.push(put('kv', 'clipboard', clip));
+  }
+  if (migratedAt !== undefined && !copied.length) return;
   ops.push(put('kv', 'migratedFromLocalStorage', now()));
   await k.write(ops);
 }
@@ -379,6 +395,7 @@ async function migrateFromLocalStorage(k: KV) {
 /** Open storage, migrate old data, and load the last-open project into `state`. */
 export async function initStorage(kvOverride?: KV) {
   kv = kvOverride ?? (await openKV());
+  state.currentProjectId = null; // nothing is open yet; nothing to save
   try {
     await migrateFromLocalStorage(kv);
   } catch (e) {
