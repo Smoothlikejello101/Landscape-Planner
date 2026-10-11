@@ -112,8 +112,15 @@ export async function shareText(filename: string, text: string): Promise<boolean
 /** Save a full backup and record when it happened. */
 export async function backupAll(via: 'download' | 'share'): Promise<number> {
   const { filename, text, count } = await buildBackupFile();
-  if (via === 'share') { if (!(await shareText(filename, text))) return 0; }
-  else downloadText(filename, text);
+  if (via === 'share') {
+    try {
+      if (!(await shareText(filename, text))) return 0;
+    } catch (e) {
+      // e.g. the share sheet refused because preparing the file took too long
+      if (!(e instanceof DOMException && e.name === 'NotAllowedError')) throw e;
+      downloadText(filename, text);
+    }
+  } else downloadText(filename, text);
   await setLastBackupAt(now());
   return count;
 }

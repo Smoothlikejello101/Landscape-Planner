@@ -7,6 +7,7 @@ import { state } from './state';
 import { save } from './storage';
 import type { BgImage, Point } from './types';
 import { render } from './ui/render';
+import { uid } from './util';
 
 // Background image (satellite photo or survey) to trace over.
 // Stored per project as a downscaled JPEG data URL. Position is the image
@@ -108,7 +109,8 @@ export async function handleBgImageFile(file: File): Promise<boolean> {
     const c = viewCenterFeet();
     flushHistoryDebounce();
     state.bgImage = {
-      dataUrl, naturalWidth: w, naturalHeight: h, ftPerPx: 0.1,
+      dataUrl, imageId: uid(), // id now, so undo snapshots share one stored image
+      naturalWidth: w, naturalHeight: h, ftPerPx: 0.1,
       cx: c.x, cy: c.y, rotation: 0, opacity: 0.6, visible: true
     };
     pushHistory();

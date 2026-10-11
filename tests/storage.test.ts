@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { openKV } from '../src/db';
 import { state } from '../src/state';
 import {
@@ -26,6 +26,10 @@ beforeEach(() => {
   globalThis.indexedDB = new IDBFactory();
   localStorage.clear();
 });
+afterEach(() => { vi.useRealTimers(); });
+/** All journal entries currently in localStorage, as one string. */
+const journals = () => Object.keys(localStorage).filter((k) => k.startsWith('lp-journal')).map((k) => localStorage.getItem(k)).join('');
+const laterBy = (ms: number) => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(Date.now() + ms); };
 
 describe('migration from localStorage', () => {
   it('copies projects, the open project, images and the clipboard', async () => {
@@ -138,6 +142,10 @@ describe('saving and loading', () => {
     expect(await kv.keys('images', id + '/')).toHaveLength(2); // old one kept until reopen (undo may need it)
     await switchProject(id);
     await new Promise((r) => setTimeout(r, 20));
+    expect(await kv.keys('images', id + '/')).toHaveLength(2); // too recent: another tab might use it
+    laterBy(2 * 60 * 60 * 1000);
+    await switchProject(id);
+    await new Promise((r) => setTimeout(r, 20));
     expect(await kv.keys('images', id + '/')).toHaveLength(1);
     expect(state.bgImage?.dataUrl).toBe(IMG + 'B');
   });
@@ -182,7 +190,7 @@ describe('unsaved-edit journal', () => {
     expect(state.currentProjectId).toBe(id);
     expect(state.shapes.map((s) => s.label)).toEqual(['late']);
     expect(state.bgImage?.dataUrl).toBe(IMG);
-    expect(localStorage.getItem('lp-journal')).toBeNull();
+    expect(journals()).toBe('');
   });
 
   it('keeps a stored image reference without copying its bytes into the journal', async () => {
@@ -193,7 +201,8 @@ describe('unsaved-edit journal', () => {
     state.bgImage = { ...state.bgImage!, rotation: 45 };
     save();
     writeJournalIfDirty();
-    expect(localStorage.getItem('lp-journal')).not.toContain(IMG);
+    expect(journals()).toContain('"rotation":45');
+    expect(journals()).not.toContain(IMG);
     _resetStorageForTests();
     await initStorage(kv);
     expect(state.bgImage?.rotation).toBe(45);
@@ -203,17 +212,17 @@ describe('unsaved-edit journal', () => {
   it('writes nothing when there are no unsaved changes', async () => {
     await freshStorage();
     writeJournalIfDirty();
-    expect(localStorage.getItem('lp-journal')).toBeNull();
+    expect(journals()).toBe('');
   });
 
   it('ignores a journal older than the saved project', async () => {
     const kv = await freshStorage();
     const id = state.currentProjectId!;
-    localStorage.setItem('lp-journal', JSON.stringify({ projectId: id, at: 1, data: { shapes: [circle('stale')] } }));
+    localStorage.setItem('lp-journal:' + id, JSON.stringify({ projectId: id, at: 1, data: { shapes: [circle('stale')] } }));
     _resetStorageForTests();
     await initStorage(kv);
     expect(state.shapes).toEqual([]);
-    expect(localStorage.getItem('lp-journal')).toBeNull();
+    expect(journals()).toBe('');
   });
 });
 

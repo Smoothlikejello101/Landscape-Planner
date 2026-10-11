@@ -80,9 +80,8 @@ export class MemoryKV implements KV {
   }
 }
 
-export async function openKV(name = DB_NAME): Promise<KV> {
-  if (typeof indexedDB === 'undefined') return new MemoryKV();
-  try {
+function openOnce(name: string): Promise<KV> {
+  return (async () => {
     const open = indexedDB.open(name, DB_VERSION);
     open.onupgradeneeded = () => {
       const db = open.result;
@@ -90,10 +89,26 @@ export async function openKV(name = DB_NAME): Promise<KV> {
     };
     const db = await req(open);
     // Another tab upgraded the schema: close so it isn't blocked.
-    db.onversionchange = () => db.close();
-    return new IdbKV(db);
-  } catch (e) {
-    console.warn('IndexedDB unavailable; using memory only', e);
-    return new MemoryKV();
+    db.onversionchange = () => {
+      // A newer version of the app (another tab) needs to upgrade the database.
+      db.close();
+      alert('The app was updated in another tab. This page will reload.');
+      location.reload();
+    };
+    return new IdbKV(db) as KV;
+  })();
+}
+
+/** Open the database, retrying once (Android occasionally fails a first open). */
+export async function openKV(name = DB_NAME): Promise<KV> {
+  if (typeof indexedDB === 'undefined') return new MemoryKV();
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await openOnce(name);
+    } catch (e) {
+      console.warn('IndexedDB open failed', e);
+      await new Promise((r) => setTimeout(r, 300));
+    }
   }
+  return new MemoryKV();
 }

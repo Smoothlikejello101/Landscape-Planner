@@ -109,9 +109,10 @@ export function onCanvasPointerDown(e: PointerEvent) {
 }
 
 export function onCanvasPointerMove(e: PointerEvent) {
-  if (activePointers.has(e.pointerId)) {
-    activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
-  }
+  // Only fingers that went down on the canvas drive gestures (not, say, a
+  // second finger resting on the toolbar).
+  if (!activePointers.has(e.pointerId)) return;
+  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
   const g = gesture.current;
   if (!g) return;
   const clientX = e.clientX, clientY = e.clientY;
@@ -203,7 +204,7 @@ function handleShapeTap(shape: Shape) {
 }
 
 export function onCanvasPointerUp(e: PointerEvent) {
-  activePointers.delete(e.pointerId);
+  if (!activePointers.delete(e.pointerId)) return; // not a canvas pointer
   const g = gesture.current;
   if (!g) return;
 
@@ -221,6 +222,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
         };
       } else {
         save();
+        render(); // full redraw replaces the gesture preview
       }
     }
     return;

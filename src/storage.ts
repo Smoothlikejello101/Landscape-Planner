@@ -15,9 +15,10 @@ import { now, uid } from './util';
 
 interface StoredBg extends Omit<BgImage, 'dataUrl'> { imageId: string }
 interface StoredProject extends Omit<ProjectData, 'bgImage'> { bgImage: StoredBg | null }
-interface ImageRecord { dataUrl: string }
+interface ImageRecord { dataUrl: string; createdAt?: number }
 
 const SAVE_DEBOUNCE_MS = 250;
+const IMAGE_GC_AGE_MS = 60 * 60 * 1000;
 const imageKey = (projectId: string, imageId: string) => `${projectId}/${imageId}`;
 
 let kv: KV | null = null;
@@ -27,8 +28,19 @@ let storedImageKeys = new Set<string>();
 /** Image keys known to be committed to disk for the current project. */
 let committedImageKeys = new Set<string>();
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
-let saveChain: Promise<void> = Promise.resolve();
+let saveChain: Promise<boolean> = Promise.resolve(true);
 let quotaWarned = false;
+/** True after a save failed and nothing has saved successfully since. */
+let saveFailing = false;
+let onSaveStatus: (() => void) | null = null;
+/** Called whenever saving starts or stops failing (to show/hide a warning). */
+export function setSaveStatusListener(fn: () => void) { onSaveStatus = fn; }
+export function saveIsFailing(): boolean { return saveFailing; }
+function setSaveFailing(v: boolean) {
+  if (saveFailing === v) return;
+  saveFailing = v;
+  onSaveStatus?.();
+}
 /** Edit counter vs. last edit known to be on disk; unequal means unsaved changes. */
 let editSeq = 0;
 let savedSeq = 0;
@@ -37,7 +49,8 @@ let savedSeq = 0;
  * page hides. IndexedDB writes are asynchronous and browsers may abandon them
  * when a page unloads; this journal is replayed on the next start.
  */
-const JOURNAL_KEY = 'lp-journal';
+const JOURNAL_PREFIX = 'lp-journal:';
+const journalKey = (projectId: string) => JOURNAL_PREFIX + projectId;
 interface Journal { projectId: string; at: number; data: ProjectData }
 
 function db(): KV {
@@ -50,6 +63,14 @@ export function storageIsDurable(): boolean { return !!kv?.durable; }
 // ---------- Validation of loaded/imported data ----------
 const num = (v: unknown, fallback: number) => (typeof v === 'number' && Number.isFinite(v) ? v : fallback);
 const str = (v: unknown, fallback = '') => (typeof v === 'string' ? v : fallback);
+/** Only plain hex colors: anything else could inject markup when rendered. */
+export function safeColor(v: unknown, fallback = '#16a34a'): string {
+  return typeof v === 'string' && /^#[0-9a-f]{3,8}$/i.test(v) ? v : fallback;
+}
+/** Only embedded images (no remote URLs). */
+function safeImageUrl(v: unknown): string {
+  return typeof v === 'string' && /^data:image\/[a-z+.-]+;base64,/i.test(v) ? v : '';
+}
 
 /** Fill defaults and drop anything that would break rendering. Returns null for unusable input. */
 export function migrateShape(raw: unknown): Shape | null {
@@ -58,7 +79,7 @@ export function migrateShape(raw: unknown): Shape | null {
   const base = {
     id: str(s.id) || uid(),
     x: num(s.x, 0), y: num(s.y, 0),
-    color: str(s.color, '#16a34a'),
+    color: safeColor(s.color),
     label: str(s.label),
     opacity: num(s.opacity, 0.65),
     locked: s.locked === true,
@@ -84,7 +105,7 @@ export function migrateShape(raw: unknown): Shape | null {
 }
 export function migrateBgImage(raw: Partial<BgImage>): BgImage {
   return {
-    dataUrl: str(raw.dataUrl),
+    dataUrl: safeImageUrl(raw.dataUrl),
     ...(raw.imageId ? { imageId: raw.imageId } : {}),
     naturalWidth: Math.max(1, num(raw.naturalWidth, 1000)),
     naturalHeight: Math.max(1, num(raw.naturalHeight, 1000)),
@@ -120,7 +141,7 @@ function projectWriteOps(id: string, data: ProjectData, knownImageKeys?: Set<str
     data.bgImage.imageId = imageId;
     const key = imageKey(id, imageId);
     if (!knownImageKeys?.has(key)) {
-      ops.push(put('images', key, { dataUrl } satisfies ImageRecord));
+      ops.push(put('images', key, { dataUrl, createdAt: now() } satisfies ImageRecord));
       knownImageKeys?.add(key);
     }
     storedBg = { ...rest, imageId };
@@ -133,9 +154,9 @@ function metaFor(id: string): ProjectMeta | undefined {
   return state.projects.find((p) => p.id === id);
 }
 
-async function writeCurrent() {
+async function writeCurrent(): Promise<boolean> {
   const id = state.currentProjectId;
-  if (!id || !kv) return;
+  if (!id || !kv) return true;
   const seq = editSeq;
   // Snapshot synchronously so later edits don't race with this write.
   const data: ProjectData = {
@@ -152,7 +173,9 @@ async function writeCurrent() {
     await kv.write(ops);
     for (const op of ops) if (op.store === 'images') committedImageKeys.add(op.key);
     savedSeq = Math.max(savedSeq, seq);
-    if (savedSeq === editSeq) clearJournal();
+    if (savedSeq === editSeq && state.currentProjectId === id) clearJournal(id);
+    setSaveFailing(false);
+    return true;
   } catch (e) {
     // The write didn't happen; forget image keys from this batch so they're retried.
     for (const op of ops) if (op.store === 'images') storedImageKeys.delete(op.key);
@@ -161,6 +184,9 @@ async function writeCurrent() {
       quotaWarned = true;
       alert('Your device is out of storage space for this app, so recent changes could not be saved. Free some space, remove a large background image, or export your projects.');
     }
+    writeJournalIfDirty(); // keep a copy of the edits in case the app is closed now
+    setSaveFailing(true);
+    return false;
   }
 }
 /** Schedule a save of the current project. */
@@ -169,16 +195,16 @@ export function save() {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => { saveTimer = null; void flushSave(); }, SAVE_DEBOUNCE_MS);
 }
-/** Write any pending changes now. Resolves when they're on disk. */
-export function flushSave(): Promise<void> {
+/** Write any pending changes now. Resolves true once they're on disk, false if the write failed. */
+export function flushSave(): Promise<boolean> {
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
   saveChain = saveChain.then(writeCurrent, writeCurrent);
   return saveChain;
 }
 
 export function hasUnsavedChanges(): boolean { return editSeq !== savedSeq; }
-function clearJournal() {
-  try { localStorage.removeItem(JOURNAL_KEY); } catch { /* unavailable */ }
+function clearJournal(projectId: string) {
+  try { localStorage.removeItem(journalKey(projectId)); } catch { /* unavailable */ }
 }
 /**
  * Call when the page is being hidden or unloaded: synchronously records
@@ -186,7 +212,7 @@ function clearJournal() {
  */
 export function writeJournalIfDirty() {
   const id = state.currentProjectId;
-  if (!id || !hasUnsavedChanges()) return;
+  if (!id || !hasUnsavedChanges() || !kv?.durable) return;
   const bg = state.bgImage;
   const imageOnDisk = !!(bg?.imageId && committedImageKeys.has(imageKey(id, bg.imageId)));
   const journal = (withImage: boolean): Journal => ({
@@ -197,39 +223,57 @@ export function writeJournalIfDirty() {
     },
   });
   try {
-    localStorage.setItem(JOURNAL_KEY, JSON.stringify(journal(!imageOnDisk)));
+    localStorage.setItem(journalKey(id), JSON.stringify(journal(!imageOnDisk)));
   } catch {
     // Too big with the image bytes (localStorage holds ~5 MB): keep the shapes at least.
-    try { localStorage.setItem(JOURNAL_KEY, JSON.stringify(journal(false))); } catch { /* give up */ }
+    try { localStorage.setItem(journalKey(id), JSON.stringify(journal(false))); } catch { /* give up */ }
   }
 }
-/** Apply a journal left by a page that closed before its save finished. */
-async function replayJournal(k: KV) {
-  let j: Journal | null = null;
-  try { j = JSON.parse(localStorage.getItem(JOURNAL_KEY) || 'null'); } catch { j = null; }
-  if (!j || typeof j.projectId !== 'string') return;
-  const meta = await k.get<ProjectMeta>('meta', j.projectId);
-  // Skip if the project is gone, or was saved after this journal (e.g. by another tab).
-  if (meta && num(j.at, 0) >= meta.lastModified) {
-    const rawBg = (j.data?.bgImage ?? null) as Partial<BgImage> | null;
-    const data = sanitizeProjectData({ ...j.data, bgImage: null });
-    const ops: WriteOp[] = [];
-    if (rawBg && rawBg.dataUrl) {
-      data.bgImage = migrateBgImage(rawBg);
-      ops.push(...projectWriteOps(j.projectId, data));
-    } else {
-      ops.push(...projectWriteOps(j.projectId, data));
-      if (rawBg && rawBg.imageId) {
-        // Image bytes are already stored; re-attach the reference.
-        const { dataUrl: _d, ...rest } = migrateBgImage(rawBg);
-        const stored = ops.find((o) => o.store === 'projects')!.value as StoredProject;
-        stored.bgImage = { ...rest, imageId: rawBg.imageId };
-      }
+function journalKeys(): string[] {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith(JOURNAL_PREFIX)) keys.push(k);
     }
-    ops.push(put('meta', j.projectId, { ...meta, lastModified: num(j.at, now()), shapeCount: data.shapes.length }));
-    await k.write(ops);
+    return keys;
+  } catch { return []; }
+}
+/** Apply journals left by pages that closed before their saves finished. */
+async function replayJournals(k: KV) {
+  if (!k.durable) return; // can't apply them now; keep them for a session that can
+  for (const key of journalKeys()) {
+    let j: Journal | null = null;
+    try { j = JSON.parse(localStorage.getItem(key) || 'null'); } catch { j = null; }
+    if (!j || typeof j.projectId !== 'string' || key !== journalKey(j.projectId)) {
+      try { localStorage.removeItem(key); } catch { /* ignore */ }
+      continue;
+    }
+    const meta = await k.get<ProjectMeta>('meta', j.projectId);
+    // Skip if the project is gone, or was saved after this journal (e.g. by another tab).
+    if (meta && num(j.at, 0) >= meta.lastModified) {
+      const raw = (j.data && typeof j.data === 'object' ? j.data : {}) as Record<string, unknown>;
+      const rawBg = (raw.bgImage ?? null) as Partial<BgImage> | null;
+      const data = sanitizeProjectData({ ...raw, bgImage: null });
+      if (rawBg && safeImageUrl(rawBg.dataUrl)) data.bgImage = migrateBgImage(rawBg);
+      const ops = projectWriteOps(j.projectId, data);
+      const stored = ops.find((o) => o.store === 'projects')!.value as StoredProject;
+      if (rawBg && !data.bgImage) {
+        // The journal has no image bytes. Point at the stored image if it exists;
+        // otherwise keep whatever background the saved project already had.
+        const ref = rawBg.imageId && (await k.get<ImageRecord>('images', imageKey(j.projectId, rawBg.imageId)));
+        if (ref && rawBg.imageId) {
+          const { dataUrl: _d, ...rest } = migrateBgImage({ ...rawBg, dataUrl: 'data:image/png;base64,' });
+          stored.bgImage = { ...rest, imageId: rawBg.imageId };
+        } else {
+          stored.bgImage = (await k.get<StoredProject>('projects', j.projectId))?.bgImage ?? null;
+        }
+      }
+      ops.push(put('meta', j.projectId, { ...meta, lastModified: num(j.at, now()), shapeCount: data.shapes.length }));
+      await k.write(ops);
+    }
+    try { localStorage.removeItem(key); } catch { /* ignore */ }
   }
-  clearJournal();
 }
 
 // ---------- Projects ----------
@@ -248,10 +292,20 @@ export async function readProject(id: string): Promise<ProjectData | null> {
   }
   return sanitizeProjectData({ ...stored, bgImage });
 }
-/** Make `id` the open project. Saves the previous one first. */
-export async function switchProject(id: string) {
-  await flushSave();
-  const data = (await readProject(id)) ?? sanitizeProjectData({});
+/**
+ * Make `id` the open project. Saves the previous one first; if that save
+ * fails, stays on the current project and returns false.
+ */
+export async function switchProject(id: string): Promise<boolean> {
+  let data: ProjectData | null;
+  // Edits can land while we read; keep saving until a read finishes with nothing pending.
+  for (;;) {
+    const seq = editSeq;
+    if (!(await flushSave())) return false;
+    data = await readProject(id);
+    if (seq === editSeq) break;
+  }
+  data ??= sanitizeProjectData({});
   cancelHistoryDebounce();
   state.currentProjectId = id;
   state.shapes = data.shapes;
@@ -267,14 +321,20 @@ export async function switchProject(id: string) {
   storedImageKeys = new Set(data.bgImage?.imageId ? [imageKey(id, data.bgImage.imageId)] : []);
   committedImageKeys = new Set(storedImageKeys);
   savedSeq = editSeq;
-  await db().write([put('kv', 'current', id)]);
+  try { await db().write([put('kv', 'current', id)]); } catch (e) { console.warn('could not remember open project', e); }
   void collectImageGarbage(id, storedImageKeys);
+  return true;
 }
 /** Delete stored images of a project that its saved state no longer uses. */
 async function collectImageGarbage(projectId: string, keep: Set<string>) {
   try {
-    const keys = await db().keys('images', projectId + '/');
-    const stale = keys.filter((k) => !keep.has(k));
+    const keys = (await db().keys('images', projectId + '/')).filter((k) => !keep.has(k));
+    const stale: string[] = [];
+    for (const k of keys) {
+      const rec = await db().get<ImageRecord>('images', k);
+      // Leave recent records alone: another open tab may be using one it just saved.
+      if (!rec || now() - (rec.createdAt ?? 0) > IMAGE_GC_AGE_MS) stale.push(k);
+    }
     if (stale.length) await db().write(stale.map((k) => del('images', k)));
   } catch (e) { console.warn('image cleanup failed', e); }
 }
@@ -360,27 +420,37 @@ async function migrateFromLocalStorage(k: KV) {
   const migratedAt = await k.get<number>('kv', 'migratedFromLocalStorage');
   const ops: WriteOp[] = [];
   const copied: string[] = [];
-  const consider = async (meta: { id?: unknown; name?: unknown; lastModified?: unknown }, raw: unknown) => {
-    const id = str(meta.id) || uid();
+  let newest = 0;
+  const consider = async (meta: { id?: unknown; name?: unknown; lastModified?: unknown }, readData: () => unknown) => {
+    let id = str(meta.id) || uid();
+    let name = str(meta.name, 'Untitled');
     const localModified = num(meta.lastModified, 0);
     if (migratedAt !== undefined) {
       if (localModified <= migratedAt) return; // nothing new since the last check
       const existing = await k.get<ProjectMeta>('meta', id);
       if (existing && existing.lastModified >= localModified) return; // newer in IndexedDB
+      if (existing && existing.lastModified > migratedAt) {
+        // Changed in both versions since the last sync: keep both.
+        id = uid();
+        name = `${name} (from older version)`;
+      }
     }
-    const data = sanitizeProjectData(raw);
-    const m: ProjectMeta = { id, name: str(meta.name, 'Untitled'), lastModified: localModified || now(), shapeCount: data.shapes.length };
+    const data = sanitizeProjectData(readData());
+    newest = Math.max(newest, localModified);
+    const m: ProjectMeta = { id, name, lastModified: localModified || now(), shapeCount: data.shapes.length };
     ops.push(...projectWriteOps(id, data), put('meta', id, m));
     copied.push(id);
   };
   const list = readLocal(STORAGE.PROJECTS);
   if (Array.isArray(list)) {
-    for (const m of list) if (m && typeof m === 'object') await consider(m, readLocal(STORAGE.project(str((m as ProjectMeta).id))));
+    for (const m of list) {
+      if (m && typeof m === 'object') await consider(m, () => readLocal(STORAGE.project(str((m as ProjectMeta).id))));
+    }
   }
   // The single-project format from before multiple projects existed.
-  const legacy = readLocal(STORAGE.LEGACY);
-  if (legacy && migratedAt === undefined) await consider({ name: 'My Garden' }, legacy);
   if (migratedAt === undefined) {
+    const legacy = readLocal(STORAGE.LEGACY);
+    if (legacy) await consider({ name: 'My Garden' }, () => legacy);
     const current = (() => { try { return localStorage.getItem(STORAGE.CURRENT); } catch { return null; } })();
     if (current && copied.includes(current)) ops.push(put('kv', 'current', current));
     else if (legacy && copied.length) ops.push(put('kv', 'current', copied[copied.length - 1]));
@@ -388,21 +458,40 @@ async function migrateFromLocalStorage(k: KV) {
     if (clip) ops.push(put('kv', 'clipboard', clip));
   }
   if (migratedAt !== undefined && !copied.length) return;
-  ops.push(put('kv', 'migratedFromLocalStorage', now()));
+  // max(): a clock skewed into the future mustn't make every start re-copy.
+  ops.push(put('kv', 'migratedFromLocalStorage', Math.max(now(), newest)));
   await k.write(ops);
 }
 
-/** Open storage, migrate old data, and load the last-open project into `state`. */
-export async function initStorage(kvOverride?: KV) {
+/** Thrown when IndexedDB that previously held this user's projects can't be opened. */
+export class StorageUnavailableError extends Error {}
+const IDB_MARKER = 'lp-idb-in-use';
+
+/**
+ * Open storage, migrate old data, and load the last-open project into
+ * `state`. Returns a message if old data couldn't be migrated.
+ */
+export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: string }> {
   kv = kvOverride ?? (await openKV());
   state.currentProjectId = null; // nothing is open yet; nothing to save
+  if (!kv.durable) {
+    let usedBefore = false;
+    try { usedBefore = !!localStorage.getItem(IDB_MARKER); } catch { /* ignore */ }
+    // The projects live in IndexedDB but it won't open right now. Don't show
+    // stale data as if it were current.
+    if (usedBefore) throw new StorageUnavailableError('Storage could not be opened');
+  } else {
+    try { localStorage.setItem(IDB_MARKER, '1'); } catch { /* ignore */ }
+  }
+  let migrationError: string | undefined;
   try {
     await migrateFromLocalStorage(kv);
   } catch (e) {
     console.error('migration from localStorage failed', e);
+    migrationError = e instanceof Error ? e.message : String(e);
   }
   try {
-    await replayJournal(kv);
+    await replayJournals(kv);
   } catch (e) {
     console.error('replaying unsaved edits failed', e);
   }
@@ -413,12 +502,14 @@ export async function initStorage(kvOverride?: KV) {
   let currentId = await kv.get<string>('kv', 'current');
   if (!currentId || !metaFor(currentId)) currentId = state.projects[0].id;
   await switchProject(currentId);
+  return { migrationError };
 }
 
 /** Test hook: forget module state between tests. */
 export function _resetStorageForTests() {
   kv = null; clipboardCache = null; storedImageKeys = new Set(); committedImageKeys = new Set();
-  quotaWarned = false; lastBackupAt = null; editSeq = 0; savedSeq = 0;
+  quotaWarned = false; lastBackupAt = null; editSeq = 0; savedSeq = 0; saveFailing = false;
+  saveChain = Promise.resolve(true);
   if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = null; saveChain = Promise.resolve();
+  saveTimer = null;
 }

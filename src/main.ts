@@ -7,7 +7,7 @@ import { clearSelection } from './selection';
 import { state } from './state';
 import { loadPlants } from './plants';
 import { setupServiceWorker } from './pwa';
-import { flushSave, initStorage, refreshClipboard, requestPersistence, writeJournalIfDirty } from './storage';
+import { flushSave, initStorage, refreshClipboard, requestPersistence, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
 import { render } from './ui/render';
 
 // ============================================================
@@ -69,10 +69,36 @@ window.addEventListener('pagehide', () => { writeJournalIfDirty(); void flushSav
 // ============================================================
 // INIT
 // ============================================================
+function showStorageError() {
+  const root = document.getElementById('root')!;
+  root.replaceChildren();
+  const box = document.createElement('div');
+  box.className = 'fatal';
+  const h = document.createElement('h1');
+  h.textContent = "Your projects couldn't be opened";
+  const p = document.createElement('p');
+  p.textContent = "The browser's storage didn't respond. Your projects are still on this device. Close the app completely (swipe it away from recent apps), then open it again.";
+  const retry = document.createElement('button');
+  retry.textContent = 'Try again';
+  retry.addEventListener('click', () => location.reload());
+  box.append(h, p, retry);
+  root.appendChild(box);
+}
+
 async function start() {
-  await initStorage();
+  let migrationError: string | undefined;
+  try {
+    ({ migrationError } = await initStorage());
+  } catch (e) {
+    if (e instanceof StorageUnavailableError) { showStorageError(); return; }
+    throw e;
+  }
+  setSaveStatusListener(render);
   pushHistory(); // seed undo history with the loaded state
   render();
+  if (migrationError) {
+    alert("Some projects from the previous version couldn't be copied (" + migrationError + "). They are still stored on this device; the app will try again next time it opens.");
+  }
   void loadPlants();
   void requestPersistence();
   setupServiceWorker();

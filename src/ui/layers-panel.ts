@@ -1,4 +1,4 @@
-import { el } from '../dom';
+import { el, svgEl } from '../dom';
 import { flushHistoryDebounce, pushHistory } from '../history';
 import { I } from '../icons';
 import { centerOnShape } from '../mutations';
@@ -38,9 +38,9 @@ export function renderLayersPanel() {
         swatch = el('div', { className: 'layer-sw', style: { background: s.color, opacity: opacity, borderRadius: '50%/30%' } });
       } else if (s.type === 'triangle') {
         // Render an inline SVG triangle as the swatch
-        const sw = el('div', { className: 'layer-sw', style: { background: 'transparent', border: 'none' } });
-        sw.innerHTML = `<svg width="32" height="32" viewBox="0 0 32 32"><polygon points="2,30 30,30 2,2" fill="${s.color}" fill-opacity="${opacity}" stroke="#d6d3d1" stroke-width="1"/></svg>`;
-        swatch = sw;
+        swatch = el('div', { className: 'layer-sw', style: { background: 'transparent', border: 'none' } },
+          svgEl('svg', { width: 32, height: 32, viewBox: '0 0 32 32' },
+            svgEl('polygon', { points: '2,30 30,30 2,2', fill: s.color, 'fill-opacity': opacity, stroke: '#d6d3d1', 'stroke-width': 1 })));
       }
       const info = el('div', { className: 'layer-info' },
         s.label

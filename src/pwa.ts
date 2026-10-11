@@ -19,6 +19,8 @@ function showUpdateBanner() {
     btn.disabled = true;
     btn.textContent = 'Updating…';
     await flushSave();
+    // If no new worker is actually waiting, nothing would happen: reload anyway.
+    setTimeout(() => location.reload(), 5000);
     await applyUpdate?.(true);
   });
   const later = document.createElement('button');

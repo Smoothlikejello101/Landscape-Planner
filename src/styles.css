@@ -153,3 +153,8 @@ a { color: inherit; }
 #update-banner button { background: #059669; color: #fff; border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: 13px; }
 #update-banner button.later { background: transparent; color: #d6d3d1; font-weight: 500; }
 .menu-version { font-size: 11px; color: #a8a29e; padding: 8px 14px 10px; border-top: 1px solid #e7e5e4; }
+.storage-warning .link-btn { color: inherit; text-decoration: underline; font-weight: 600; font-size: inherit; }
+.fatal { max-width: 420px; margin: 15vh auto 0; padding: 24px; text-align: center; color: #292524; }
+.fatal h1 { font-size: 18px; margin: 0 0 12px; }
+.fatal p { font-size: 14px; color: #57534e; line-height: 1.5; }
+.fatal button { margin-top: 12px; background: #059669; color: #fff; padding: 10px 20px; border-radius: 6px; font-weight: 600; }

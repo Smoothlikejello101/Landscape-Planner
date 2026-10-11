@@ -16,7 +16,11 @@ function closeButton(onClick: () => void) {
   return b;
 }
 async function openProject(id: string) {
-  await switchProject(id);
+  if (!(await switchProject(id))) {
+    alert("Your latest changes couldn't be saved, so the project wasn't switched. Check that your device has free space, then try again.");
+    render();
+    return;
+  }
   pushHistory(); // seed undo with the loaded state
   state.panel = null;
   render();

@@ -91,3 +91,29 @@ test('importing a file that is not a project shows an error', async ({ page }) =
   await page.locator('[data-testid=import-file]').setInputFiles({ name: 'x.json', mimeType: 'application/json', buffer: Buffer.from('{"nope":true}') });
   await expect.poll(() => messages.join(' ')).toContain("isn't a Landscape Planner");
 });
+
+test('undo and redo after adding a background image keep a single stored copy', async ({ page }) => {
+  autoDialogs(page);
+  await openFresh(page);
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'background image' }).click();
+  await page.locator('.sheet input[type=file]').setInputFiles('public/icon-512.png');
+  await page.locator('.mode-banner button').click();
+  await page.locator('.tool-btn.circle').click();
+  await closeSheet(page);
+  for (let i = 0; i < 3; i++) {
+    await page.locator('button[title=Undo]').click();
+    await page.locator('button[title=Undo]').click();
+    await page.locator('button[title=Redo]').click();
+    await page.locator('button[title=Redo]').click();
+  }
+  await page.waitForTimeout(600);
+  const imageRecords = await page.evaluate(() => new Promise<number>((resolve) => {
+    const open = indexedDB.open('landscape-planner');
+    open.onsuccess = () => {
+      const req = open.result.transaction('images').objectStore('images').count();
+      req.onsuccess = () => resolve(req.result);
+    };
+  }));
+  expect(imageRecords).toBe(1);
+});
