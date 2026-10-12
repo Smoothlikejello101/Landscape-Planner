@@ -45,6 +45,17 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .tool-btn.oval:active { background: #0e7490; }
 .tool-btn.tri { background: #7c3aed; }
 .tool-btn.tri:active { background: #6d28d9; }
+.tool-btn.draw { background: #0f766e; }
+.tool-btn.draw:active { background: #115e59; }
+.draw-bar { padding: 8px; gap: 6px; }
+.draw-bar .draw-btn { flex: 1; min-height: 44px; border-radius: 6px; border: 1px solid #d6d3d1; background: #fff; color: #292524; font-size: 13px; font-weight: 500; }
+.draw-bar .draw-btn.primary { background: #0f766e; border-color: #0f766e; color: #fff; }
+.draw-bar .draw-btn.danger { color: #b91c1c; border-color: #fecaca; }
+.draw-bar .draw-btn:disabled { opacity: 0.4; }
+.draw-bar .seg { display: flex; border: 1px solid #d6d3d1; border-radius: 6px; overflow: hidden; flex-shrink: 0; }
+.draw-bar .seg button { padding: 0 10px; min-height: 44px; font-size: 13px; color: #44403c; background: #fff; }
+.draw-bar .seg button.on { background: #ccfbf1; color: #115e59; font-weight: 600; }
+.draw-banner { background: #f0fdfa; border-color: #99f6e4; color: #115e59; }
 .tool-btn.plants { background: #365314; }
 .tool-btn.plants:active { background: #1a2e05; }
 /* Modal/sheet common */

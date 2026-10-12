@@ -1,7 +1,8 @@
 import { renderBgHandles, renderBgImageInto } from './background';
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from './constants';
 import { svgEl, type Attrs } from './dom';
-import { pxPerFoot, trianglePoints } from './geometry';
+import { boxSize, pathLabelPoint, pxPerFoot, trianglePoints, worldPoints } from './geometry';
+import { renderPathOverlay } from './draw';
 import { onShapePointerDown } from './gestures';
 import { plantsById } from './plants';
 import { isLocked, roleDef, roleHidden, roleRank } from './roles';
@@ -89,8 +90,11 @@ export function renderGrid(g: SVGElement) {
 export function shapeGroup(s: Shape): SVGGElement {
   const ppf = pxPerFoot();
   const sel = isSelected(s.id);
-  const inert = state.bgEditMode || !!state.bgCalibrate; // taps fall through to the background tools
-  const outline = s.role ? !!roleDef(s.role).outline : false; // boundaries: a line, no fill
+  // Taps fall through to the background tools / drawing / point editing.
+  const inert = state.bgEditMode || !!state.bgCalibrate || !!state.draw || !!state.editPoints;
+  // Boundaries and open lines: a stroke, no fill.
+  const outline = s.type === 'line' || (s.role ? !!roleDef(s.role).outline : false);
+  const dashed = s.role ? !!roleDef(s.role).outline : false;
   const common: Attrs = {
     'data-shape-id': s.id,
     fill: outline ? 'none' : s.color,
@@ -99,10 +103,11 @@ export function shapeGroup(s: Shape): SVGGElement {
     stroke: outline ? s.color : sel ? '#0f172a' : 'rgba(0,0,0,0.3)',
     'stroke-width': outline ? (sel ? 3.5 : 2.5) : sel ? 2 : 1,
     style: `cursor:${isLocked(s) ? 'grab' : 'move'};touch-action:none;`,
-    'stroke-dasharray': outline ? '8 4' : s.locked ? '4 2' : null,
+    'stroke-dasharray': dashed ? '8 4' : s.locked ? '4 2' : null,
     'pointer-events': inert ? 'none' : null,
   };
   let shapeEl: SVGElement;
+  let hitEl: SVGElement | null = null;
   let labelX: number, labelY: number, fs: number, rotTransform = '';
 
   if (s.type === 'circle') {
@@ -112,6 +117,23 @@ export function shapeGroup(s: Shape): SVGGElement {
     shapeEl = svgEl('circle', { ...common, cx, cy, r });
     labelX = cx; labelY = cy;
     fs = Math.max(10, Math.min(14, r * 0.4));
+  } else if (s.type === 'poly' || s.type === 'line') {
+    const pts = worldPoints(s).map((p) => `${(p.x - state.offsetX) * ppf},${(p.y - state.offsetY) * ppf}`).join(' ');
+    if (s.type === 'poly') {
+      shapeEl = svgEl('polygon', { ...common, points: pts, 'stroke-linejoin': 'round' });
+    } else {
+      // A thin line is hard to hit with a finger: a wide invisible stroke takes the taps.
+      shapeEl = svgEl('polyline', { ...common, points: pts, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'pointer-events': 'none' });
+      hitEl = svgEl('polyline', {
+        'data-shape-id': s.id, 'data-role': 'line-hit', points: pts, fill: 'none', stroke: 'transparent', 'stroke-width': 18,
+        'stroke-linecap': 'round', style: common.style, 'pointer-events': inert ? 'none' : 'stroke',
+      });
+    }
+    const lp = pathLabelPoint(s);
+    labelX = (lp.x - state.offsetX) * ppf; labelY = (lp.y - state.offsetY) * ppf;
+    const { w, h } = boxSize(s);
+    fs = s.type === 'line' ? 12 : Math.max(10, Math.min(14, Math.min(w, h) * ppf * 0.2));
+    if (s.type === 'line') labelY -= 10; // above the line, not on it
   } else {
     const px = (s.x - state.offsetX) * ppf;
     const py = (s.y - state.offsetY) * ppf;
@@ -130,8 +152,10 @@ export function shapeGroup(s: Shape): SVGGElement {
     labelX = cx; labelY = cy;
     fs = Math.max(10, Math.min(14, Math.min(w, h) * 0.2));
   }
-  shapeEl.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
+  const target = hitEl ?? shapeEl;
+  target.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
   const g = svgEl('g', { 'data-shape-group': s.id }, shapeEl);
+  if (hitEl) g.appendChild(hitEl);
   const sunText = s.role === 'shade' && s.sun ? '☀ ' + formatHours(sunHours(s.sun)) : '';
   if (s.label) {
     g.appendChild(svgEl('text', {
@@ -152,7 +176,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   if (s.role === 'plant' && s.plantId) {
     const check = checkPlantSun(s, plantsById[s.plantId], state.shapes);
     if (check && !check.ok) {
-      const r = s.type === 'circle' ? s.radius * ppf : Math.min(s.width, s.height) * ppf / 2;
+      const r = s.type === 'circle' ? s.radius * ppf : Math.min(boxSize(s).w, boxSize(s).h) * ppf / 2;
       const bx = labelX + r * 0.7, by = labelY - r * 0.7;
       g.appendChild(svgEl('g', { 'data-role': 'sun-warning', 'pointer-events': 'none' },
         svgEl('circle', { cx: bx, cy: by, r: 8, fill: '#f59e0b', stroke: '#fff', 'stroke-width': 1.5 }),
@@ -205,7 +229,7 @@ export function redrawCanvas() {
   for (const s of paintOrder(state.shapes)) shapes.appendChild(shapeGroup(s));
   const mq = marqueeRect();
   if (mq) shapes.appendChild(mq);
-  renderBgHandles(layer(svg, 'handles'));
+  renderHandles(layer(svg, 'handles'));
   drawnView = { offsetX: state.offsetX, offsetY: state.offsetY, zoom: state.zoom };
 }
 
@@ -257,7 +281,20 @@ export function redrawBackground() {
   const bg = layer(svg, 'bg'), handles = layer(svg, 'handles');
   bg.replaceChildren(); handles.replaceChildren();
   renderBgImageInto(bg);
-  renderBgHandles(handles);
+  renderHandles(handles);
+}
+function renderHandles(g: SVGGElement) {
+  renderBgHandles(g);
+  renderPathOverlay(g);
+}
+/** Redraw only the handles layer (drawing in progress, point handles). */
+export function redrawHandles() {
+  const svg = canvasSvg();
+  if (!svg || svg.children.length !== LAYERS.length || drawnView.zoom !== state.zoom ||
+      drawnView.offsetX !== state.offsetX || drawnView.offsetY !== state.offsetY) { redrawCanvas(); return; }
+  const handles = layer(svg, 'handles');
+  handles.replaceChildren();
+  renderHandles(handles);
 }
 
 /**

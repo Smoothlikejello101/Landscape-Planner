@@ -1,6 +1,6 @@
 // Core data types shared across the app.
 
-export type ShapeType = 'circle' | 'rect' | 'oval' | 'triangle';
+export type ShapeType = 'circle' | 'rect' | 'oval' | 'triangle' | 'poly' | 'line';
 /** What a shape represents. Undefined = not yet assigned (shapes from older versions). */
 export type Role = 'plant' | 'bed' | 'boundary' | 'building' | 'shade' | 'path' | 'lawn' | 'water' | 'other';
 /** Per-project display state for a role (or 'unassigned'). */
@@ -60,11 +60,25 @@ export interface TriangleShape extends ShapeBase {
   rotation: number;
   rightAngle: Corner;
 }
+/**
+ * Freeform outline (closed) or line (open). Points are in feet, relative to
+ * (x, y), and kept normalized so the smallest x and y are 0: (x, y) is the
+ * top-left of the unrotated bounding box. Rotation (degrees, clockwise)
+ * turns the points around that box's center, like the other shapes; editing
+ * points first bakes the rotation into them.
+ */
+export interface PathShape<T extends 'poly' | 'line' = 'poly' | 'line'> extends ShapeBase {
+  type: T;
+  points: [number, number][];
+  rotation: number;
+}
+export type PolyShape = PathShape<'poly'>;
+export type LineShape = PathShape<'line'>;
 export type RectShape = BoxShape<'rect'>;
 export type OvalShape = BoxShape<'oval'>;
-export type Shape = CircleShape | RectShape | OvalShape | TriangleShape;
+export type Shape = CircleShape | RectShape | OvalShape | TriangleShape | PolyShape | LineShape;
 /** Any subset of fields from any shape kind (used by property editors). */
-export type ShapePatch = Partial<Omit<CircleShape, 'type'> & Omit<BoxShape, 'type'> & Omit<TriangleShape, 'type'>>;
+export type ShapePatch = Partial<Omit<CircleShape, 'type'> & Omit<BoxShape, 'type'> & Omit<TriangleShape, 'type'> & Omit<PathShape, 'type'>>;
 
 export interface BgImage {
   /** Image bytes as a data URL. Kept in memory; stored separately on disk. */
@@ -151,7 +165,13 @@ export type Gesture =
     }
   | { type: 'bg-drag'; startX: number; startY: number; grabOffset: Point; startCenter: Point; moved: boolean }
   | { type: 'bg-rot'; startAngle: number; startRotation: number; angleAt: (x: number, y: number) => number }
-  | { type: 'bg-calibrate-tap'; startX: number; startY: number; moved: boolean };
+  | { type: 'bg-calibrate-tap'; startX: number; startY: number; moved: boolean }
+  | { type: 'drag-vertex'; id: string; index: number; startX: number; startY: number; moved: boolean; inserted: boolean };
+
+/** Drawing a freeform outline or line: the points tapped so far (world feet). */
+export interface DrawState { kind: 'poly' | 'line'; points: Point[] }
+/** Editing the points of one outline/line; `vertex` is the selected point. */
+export interface EditPoints { id: string; vertex: number | null }
 
 export interface AppState {
   projects: ProjectMeta[];
@@ -175,4 +195,6 @@ export interface AppState {
   roleViews: RoleViews;
   bgEditMode: boolean;
   bgCalibrate: Calibration | null;
+  draw: DrawState | null;
+  editPoints: EditPoints | null;
 }

@@ -54,7 +54,7 @@ export function isLocked(s: Shape): boolean { return s.locked || roleLocked(s); 
 /** Default fill for a new shape (plants keep the per-shape-type colors). */
 export function defaultLook(role: RoleKey, type: ShapeType): { color: string; opacity: number } {
   if (role === 'unassigned' || role === 'plant') {
-    const byType: Record<ShapeType, string> = { circle: '#16a34a', rect: '#78350f', oval: '#0891b2', triangle: '#7c3aed' };
+    const byType: Record<ShapeType, string> = { circle: '#16a34a', rect: '#78350f', oval: '#0891b2', triangle: '#7c3aed', poly: '#0d9488', line: '#44403c' };
     return { color: byType[type], opacity: 0.65 };
   }
   return { color: BY_KEY[role].color, opacity: BY_KEY[role].opacity };
