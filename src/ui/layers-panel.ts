@@ -10,6 +10,10 @@ import { save } from '../storage';
 import { render } from './render';
 import { plantsInBed } from '../beds';
 import { sunListText } from './role-sections';
+import { boxSize, shapePerimeter } from '../geometry';
+import { typeName } from '../util';
+
+const fmtFt = (v: number) => String(Math.round(v * 10) / 10);
 
 export function renderLayersPanel() {
   const lockedCount = state.shapes.filter(s => s.locked).length;
@@ -28,6 +32,8 @@ export function renderLayersPanel() {
       const sel = isSelected(s.id);
       let dims;
       if (s.type === 'circle') dims = s.radius + ' ft radius';
+      else if (s.type === 'line') dims = fmtFt(shapePerimeter(s)) + ' ft long';
+      else if (s.type === 'poly') dims = s.points.length + ' points · ' + fmtFt(boxSize(s).w) + ' × ' + fmtFt(boxSize(s).h) + ' ft';
       else dims = s.width + ' × ' + s.height + ' ft';
       const opacity = s.opacity !== undefined ? s.opacity : 0.65;
       const extra = s.role === 'shade' && s.sun ? sunListText(s.sun) + ' · '
@@ -48,11 +54,19 @@ export function renderLayersPanel() {
         swatch = el('div', { className: 'layer-sw', style: { background: 'transparent', border: 'none' } },
           svgEl('svg', { width: 32, height: 32, viewBox: '0 0 32 32' },
             svgEl('polygon', { points: '2,30 30,30 2,2', fill: s.color, 'fill-opacity': opacity, stroke: '#d6d3d1', 'stroke-width': 1 })));
+      } else if (s.type === 'poly') {
+        swatch = el('div', { className: 'layer-sw', style: { background: 'transparent', border: 'none' } },
+          svgEl('svg', { width: 32, height: 32, viewBox: '0 0 32 32' },
+            svgEl('polygon', { points: '4,10 16,2 30,12 24,30 6,26', fill: s.color, 'fill-opacity': opacity, stroke: '#d6d3d1', 'stroke-width': 1 })));
+      } else {
+        swatch = el('div', { className: 'layer-sw', style: { background: 'transparent', border: 'none' } },
+          svgEl('svg', { width: 32, height: 32, viewBox: '0 0 32 32' },
+            svgEl('polyline', { points: '2,26 12,8 22,22 30,4', fill: 'none', stroke: s.color, 'stroke-width': 3, 'stroke-linejoin': 'round' })));
       }
       const info = el('div', { className: 'layer-info' },
         s.label
           ? el('div', { className: 'layer-label' }, s.label)
-          : el('div', { className: 'layer-label empty' }, 'Unlabeled ' + s.type),
+          : el('div', { className: 'layer-label empty' }, 'Unlabeled ' + typeName(s.type)),
         el('div', { className: 'layer-meta' },
           el('span', { className: 'layer-role' }, roleLabel(roleKey(s)) + (roleHidden(s) ? ' · hidden' : '')), meta)
       );

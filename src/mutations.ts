@@ -25,6 +25,10 @@ export function makeShape(type: ShapeType, c: Point, id = uid()): Shape {
       return { ...BASE, id, type, x: snap(c.x - 2.5), y: snap(c.y - 1.5), width: 5, height: 3, color: '#0891b2', rotation: 0 };
     case 'triangle':
       return { ...BASE, id, type, x: snap(c.x - 2), y: snap(c.y - 1.5), width: 4, height: 3, color: '#7c3aed', rotation: 0, rightAngle: 'bl' };
+    case 'poly': // a square outline; normally these are drawn point by point
+      return { ...BASE, id, type, x: snap(c.x - 2), y: snap(c.y - 2), points: [[0, 0], [4, 0], [4, 4], [0, 4]], color: '#0d9488', rotation: 0 };
+    case 'line':
+      return { ...BASE, id, type, x: snap(c.x - 2), y: snap(c.y), points: [[0, 0], [4, 0]], color: '#44403c', rotation: 0 };
   }
 }
 
@@ -217,6 +221,8 @@ export function resetCurrentProject() {
   state.bgImage = null;
   state.bgEditMode = false;
   state.bgCalibrate = null;
+  state.draw = null;
+  state.editPoints = null;
   pushHistory();
   save();
 }

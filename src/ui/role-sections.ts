@@ -14,6 +14,7 @@ const fmt = (n: number) => (Math.round(n * 10) / 10).toLocaleString();
 
 /** "Area: 48 sq ft" for areas, "Length: 32 ft" for boundaries, '' for plants. */
 export function measureText(s: Shape): string {
+  if (s.type === 'line') return `Length: ${fmt(shapePerimeter(s))} ft`;
   if (s.role === 'plant') return '';
   if (s.role === 'boundary') return `Length around: ${fmt(shapePerimeter(s))} ft`;
   return `Area: ${fmt(shapeArea(s))} sq ft`;

@@ -1,9 +1,10 @@
-import { STORAGE } from './constants';
+import { MAX_POINTS, MIN_POINTS, STORAGE } from './constants';
 import { del, openKV, put, type KV, type WriteOp } from './db';
 import { cancelHistoryDebounce } from './history';
 import { state } from './state';
 import { isRole } from './roles';
-import type { BgImage, Clipboard, ProjectData, ProjectMeta, RoleViews, Shape, SunInfo } from './types';
+import type { BgImage, Clipboard, PathShape, ProjectData, ProjectMeta, RoleViews, Shape, SunInfo } from './types';
+import { setWorldPoints } from './geometry';
 import { now, uid } from './util';
 
 // Persistence. Projects live in IndexedDB:
@@ -106,6 +107,20 @@ export function migrateShape(raw: unknown): Shape | null {
         ...base, type: 'triangle', width: size(s.width, 4), height: size(s.height, 3), rotation: num(s.rotation, 0),
         rightAngle: ra === 'br' || ra === 'tl' || ra === 'tr' ? ra : 'bl',
       };
+    }
+    case 'poly':
+    case 'line': {
+      // Points must be finite pairs; too few to make the shape means it's unusable.
+      const pts: { x: number; y: number }[] = [];
+      if (Array.isArray(s.points)) {
+        for (const p of s.points.slice(0, MAX_POINTS)) {
+          if (Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1])) pts.push({ x: num(base.x, 0) + p[0], y: num(base.y, 0) + p[1] });
+        }
+      }
+      if (pts.length < MIN_POINTS[s.type]) return null;
+      const shape = { ...base, type: s.type, points: [], rotation: num(s.rotation, 0) } as PathShape;
+      setWorldPoints(shape, pts); // re-normalize, whatever the file said
+      return shape;
     }
     default:
       return null;
@@ -372,6 +387,8 @@ export async function switchProject(id: string): Promise<boolean> {
   state.historyIndex = -1;
   state.bgEditMode = false;
   state.bgCalibrate = null;
+  state.draw = null;
+  state.editPoints = null;
   storedImageKeys = new Set(data.bgImage?.imageId ? [imageKey(id, data.bgImage.imageId)] : []);
   committedImageKeys = new Set(storedImageKeys);
   savedSeq = editSeq;

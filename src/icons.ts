@@ -7,6 +7,7 @@ export const I = {
   square: '<svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>',
   oval: '<svg class="icon" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="10" ry="6"/></svg>',
   triangle: '<svg class="icon" viewBox="0 0 24 24"><polygon points="3,21 21,21 3,3"/></svg>',
+  draw: '<svg class="icon" viewBox="0 0 24 24"><polygon points="4,8 12,3 20,9 17,20 6,18" stroke-dasharray="3 2"/><circle cx="4" cy="8" r="1.5"/><circle cx="12" cy="3" r="1.5"/><circle cx="20" cy="9" r="1.5"/><circle cx="17" cy="20" r="1.5"/><circle cx="6" cy="18" r="1.5"/></svg>',
   zoomIn: '<svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>',
   zoomOut: '<svg class="icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="8" y1="11" x2="14" y2="11"/></svg>',
   download: '<svg class="icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',

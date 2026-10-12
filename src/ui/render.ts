@@ -7,6 +7,8 @@ import { addShape, copySelected, deleteSelected, zoomBy } from '../mutations';
 import { clearSelection, singleSelected } from '../selection';
 import { state } from '../state';
 import type { ShapeType } from '../types';
+import { typeName } from '../util';
+import { canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, editedShape, finishDraw, finishEditPoints, setDrawKind, startDraw, undoDrawPoint } from '../draw';
 import { currentProject, storageIsDurable } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
@@ -53,13 +55,13 @@ export function render() {
 
   // Undo
   const undoBtn = el('button', { className: 'iconbtn', html: I.undo, title: 'Undo' });
-  undoBtn.disabled = !canUndo();
+  undoBtn.disabled = !canUndo() || !!state.draw; // while drawing, the bar's Undo point applies
   undoBtn.addEventListener('click', () => { undo(); render(); });
   topbar.appendChild(undoBtn);
 
   // Redo
   const redoBtn = el('button', { className: 'iconbtn', html: I.redo, title: 'Redo' });
-  redoBtn.disabled = !canRedo();
+  redoBtn.disabled = !canRedo() || !!state.draw;
   redoBtn.addEventListener('click', () => { redo(); render(); });
   topbar.appendChild(redoBtn);
 
@@ -131,6 +133,23 @@ export function render() {
     canvasWrap.appendChild(banner);
   }
 
+  // Drawing / point-editing banner
+  if (state.editPoints && !editedShape()) state.editPoints = null; // e.g. undone past its creation
+  if (state.draw || state.editPoints) {
+    const d = state.draw;
+    const msg = d
+      ? (d.kind === 'poly'
+        ? (d.points.length === 0 ? 'Drawing an outline — tap to place the first corner'
+          : d.points.length < 3 ? 'Tap to add corners · drag to move around'
+          : 'Tap the first point (or Done) to close the outline')
+        : (d.points.length < 2 ? 'Drawing a line — tap to add points · drag to move around' : 'Tap to add points · Done when finished'))
+      : state.editPoints!.vertex != null ? 'Point selected — drag it, or Delete point below' : 'Drag a point to move it · tap + to add one';
+    const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'draw-banner' });
+    banner.innerHTML = I.draw + '<span></span>';
+    banner.querySelector('span')!.textContent = msg;
+    canvasWrap.appendChild(banner);
+  }
+
   // Zoom buttons
   const zoomBtns = el('div', { className: 'zoombtns' });
   const zIn = el('button', { className: 'zoombtn', html: I.zoomIn });
@@ -141,7 +160,7 @@ export function render() {
   canvasWrap.appendChild(zoomBtns);
 
   // Empty hint
-  if (state.shapes.length === 0) {
+  if (state.shapes.length === 0 && !state.draw) {
     canvasWrap.appendChild(el('div', { className: 'empty-hint' },
       'Tap a shape button below to add it.', el('br'),
       'Grid lines are ', el('b', {}, '1 ft'), '. Bold lines every ', el('b', {}, '10 ft'), '.'
@@ -149,7 +168,8 @@ export function render() {
   }
 
   // Multi-select action bar (floating, only when 2+ selected and no panel open)
-  if (state.selectedIds.length >= 2 && !state.panel) {
+  const drawing = !!state.draw || !!state.editPoints;
+  if (state.selectedIds.length >= 2 && !state.panel && !drawing) {
     const bar = el('div', { className: 'multi-bar' });
     bar.appendChild(el('div', { className: 'count' }, state.selectedIds.length + ' selected'));
     const editAllBtn = el('button', { title: 'Edit' });
@@ -177,12 +197,12 @@ export function render() {
   }
 
   // Single-select pill (only when exactly 1 selected, no panel open, no multi-bar)
-  if (state.selectedIds.length === 1 && !state.panel) {
+  if (state.selectedIds.length === 1 && !state.panel && !drawing) {
     const s = singleSelected();
     if (s) {
       const pill = el('div', { className: 'sel-pill' });
       pill.appendChild(el('div', { className: 'sw', style: { background: s.color } }));
-      pill.appendChild(el('div', { className: 'name' }, s.label || ('Unlabeled ' + s.type)));
+      pill.appendChild(el('div', { className: 'name' }, s.label || ('Unlabeled ' + typeName(s.type))));
       const editBtn = el('button', { className: 'edit' });
       editBtn.innerHTML = I.edit + '<span>Edit</span>';
       editBtn.addEventListener('click', () => { state.panel = 'props'; render(); });
@@ -205,11 +225,15 @@ export function render() {
   bottomBar.appendChild(mkShapeBtn('rect', 'rect', 'Rect', I.square));
   bottomBar.appendChild(mkShapeBtn('oval', 'oval', 'Oval', I.oval));
   bottomBar.appendChild(mkShapeBtn('triangle', 'tri', 'Triangle', I.triangle));
+  const drawBtn = el('button', { className: 'tool-btn draw', 'data-testid': 'draw-btn' });
+  drawBtn.innerHTML = I.draw + '<div class="lbl">Draw</div>';
+  drawBtn.addEventListener('click', () => { startDraw('poly'); render(); });
+  bottomBar.appendChild(drawBtn);
   const plantsBtn = el('button', { className: 'tool-btn plants' });
   plantsBtn.innerHTML = I.leaf + '<div class="lbl">Plants</div>';
   plantsBtn.addEventListener('click', () => { state.panel = 'plants'; render(); });
   bottomBar.appendChild(plantsBtn);
-  app.appendChild(bottomBar);
+  app.appendChild(drawing ? renderDrawBar() : bottomBar);
 
   root.appendChild(app);
 
@@ -231,4 +255,36 @@ export function render() {
 
   // Now that the SVG is in the DOM, size it and draw grid/shapes
   resizeCanvas();
+}
+
+/** Bottom bar while drawing an outline/line or editing its points. */
+function renderDrawBar(): HTMLElement {
+  const bar = el('div', { className: 'bottom-toolbar draw-bar', 'data-testid': 'draw-bar' });
+  const btn = (label: string, cls: string, onClick: () => void, disabled = false) => {
+    const b = el('button', { className: 'draw-btn ' + cls }, label);
+    b.disabled = disabled;
+    b.addEventListener('click', () => { onClick(); render(); });
+    return b;
+  };
+  const d = state.draw;
+  if (d) {
+    const seg = el('div', { className: 'seg', role: 'group', 'aria-label': 'Kind' });
+    for (const [kind, label] of [['poly', 'Outline'], ['line', 'Line']] as const) {
+      const b = el('button', { className: d.kind === kind ? 'on' : '', 'aria-pressed': String(d.kind === kind) }, label);
+      b.addEventListener('click', () => { setDrawKind(kind); render(); });
+      seg.appendChild(b);
+    }
+    bar.appendChild(seg);
+    bar.appendChild(btn('Undo point', '', undoDrawPoint, d.points.length === 0));
+    bar.appendChild(btn('Cancel', '', cancelDraw));
+    bar.appendChild(btn('Done', 'primary', () => { finishDraw(); }, !canFinishDraw()));
+  } else {
+    bar.appendChild(btn('Delete point', 'danger', deleteSelectedVertex, !canDeleteVertex()));
+    bar.appendChild(btn('Done', 'primary', () => {
+      const id = state.editPoints?.id;
+      finishEditPoints();
+      if (id) { state.selectedIds = [id]; state.panel = 'props'; }
+    }));
+  }
+  return bar;
 }

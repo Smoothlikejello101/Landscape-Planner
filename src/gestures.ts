@@ -9,7 +9,8 @@ import { clearSelection, isSelected, selectOnly, toggleSelect } from './selectio
 import { gesture, state, tapTracker } from './state';
 import { save } from './storage';
 import type { Point, Shape } from './types';
-import { previewView, redrawBackground, redrawMarquee, redrawShapes } from './canvas';
+import { previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes } from './canvas';
+import { drawTap, editedShape, insertVertex, moveVertex } from './draw';
 import { render, updateStatusReadout } from './ui/render';
 import { now, snap } from './util';
 
@@ -33,6 +34,8 @@ function pinchInfo() {
 function startPinchGesture() {
   const info = pinchInfo();
   if (!info) return;
+  const g = gesture.current;
+  if (g?.type === 'drag-vertex' && (g.moved || g.inserted)) { pushHistory(); save(); } // keep the edit undoable
   gesture.current = {
     type: 'pinch',
     startDist: info.dist,
@@ -66,8 +69,28 @@ export function onCanvasPointerDown(e: PointerEvent) {
   const isCanvas = target.id === 'canvas-svg' || role === 'grid';
   const isBgBody = role === 'bg-body';
   const isBgRot = role === 'bg-rot';
-  if (!isCanvas && !isBgBody && !isBgRot) return;
+  const handle = target.closest?.('[data-role="vertex"],[data-role="midpoint"]') as SVGElement | null;
+  if (!isCanvas && !isBgBody && !isBgRot && !handle) return;
   const clientX = e.clientX, clientY = e.clientY;
+
+  // Editing an outline's points: drag a point, or press a + to add one there.
+  const edited = editedShape();
+  if (handle && edited && state.editPoints) {
+    let index = Number(handle.dataset.index);
+    let inserted = false;
+    if (handle.dataset.role === 'midpoint') {
+      flushHistoryDebounce();
+      index = insertVertex(edited, index, screenToFeet(clientX, clientY));
+      if (index < 0) return;
+      inserted = true;
+      state.editPoints.vertex = index;
+      redrawShapes([edited.id]);
+      redrawHandles();
+    }
+    gesture.current = { type: 'drag-vertex', id: edited.id, index, startX: clientX, startY: clientY, moved: false, inserted };
+    return;
+  }
+  if (handle) return;
 
   if (isBgRot && state.bgImage && state.bgEditMode) {
     const center = bgCenterClient(state.bgImage); // client coords, same as the pointer
@@ -98,7 +121,7 @@ export function onCanvasPointerDown(e: PointerEvent) {
   }
   if (!isCanvas) return;
 
-  if (state.selectMode) {
+  if (state.selectMode && !state.draw && !state.editPoints) {
     const feet = screenToFeet(clientX, clientY);
     gesture.current = { type: 'marquee', startX: clientX, startY: clientY, startFeet: feet, currentFeet: feet, moved: false };
     state.marquee = { x1: feet.x, y1: feet.y, x2: feet.x, y2: feet.y };
@@ -168,6 +191,18 @@ export function onCanvasPointerMove(e: PointerEvent) {
       g.currentFeet = feet;
       state.marquee = { x1: g.startFeet.x, y1: g.startFeet.y, x2: feet.x, y2: feet.y };
       redrawMarquee();
+      e.preventDefault();
+      return;
+    }
+    case 'drag-vertex': {
+      movedPastThreshold(g, e);
+      const s = editedShape();
+      if (!s) { gesture.current = null; return; }
+      if (g.moved || g.inserted) {
+        moveVertex(s, g.index, screenToFeet(clientX, clientY));
+        redrawShapes([s.id]);
+        redrawHandles();
+      }
       e.preventDefault();
       return;
     }
@@ -252,8 +287,15 @@ export function onCanvasPointerUp(e: PointerEvent) {
       }
       render();
       return;
+    case 'drag-vertex':
+      if (g.moved || g.inserted) { flushHistoryDebounce(); pushHistory(); save(); }
+      if (state.editPoints) state.editPoints.vertex = g.index;
+      render();
+      return;
     case 'pan':
       if (g.moved) save();
+      else if (state.draw) drawTap(g.startX, g.startY);
+      else if (state.editPoints) state.editPoints.vertex = null;
       else if (g.tapShapeId) { // tap on a locked shape: select it
         const shape = state.shapes.find((s) => s.id === g.tapShapeId);
         if (shape) handleShapeTap(shape);

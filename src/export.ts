@@ -1,7 +1,7 @@
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from './constants';
 import { escapeHtml } from './dom';
 import { errMsg } from './util';
-import { rotatedBoxBounds, shapeBBox, trianglePoints, unionBounds } from './geometry';
+import { boxSize, pathLabelPoint, rotatedBoxBounds, shapeBBox, trianglePoints, unionBounds, worldPoints } from './geometry';
 import { state } from './state';
 import { currentProject } from './storage';
 import type { Bounds, Shape } from './types';
@@ -22,9 +22,10 @@ export function computeAllBBox(): Bounds | null {
   return unionBounds(parts);
 }
 export function shapeToSvgString(s: Shape, originX: number, originY: number, scale: number): string {
-  const outline = s.role ? !!roleDef(s.role).outline : false;
+  const dashed = s.role ? !!roleDef(s.role).outline : false;
+  const outline = dashed || s.type === 'line';
   const opacity = outline ? 0 : s.opacity ?? 0.65;
-  const dash = outline ? ' stroke-dasharray="8 4"' : s.locked ? ' stroke-dasharray="4 2"' : '';
+  const dash = dashed ? ' stroke-dasharray="8 4"' : s.locked ? ' stroke-dasharray="4 2"' : '';
   const stroke = outline ? s.color : 'rgba(0,0,0,0.3)';
   const strokeWidth = outline ? 2.5 : 1;
   if (s.type === 'circle') {
@@ -33,6 +34,20 @@ export function shapeToSvgString(s: Shape, originX: number, originY: number, sca
     if (s.label) {
       const fs = Math.max(10, Math.min(14, r * 0.4));
       out += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" fill="#0f172a" font-family="sans-serif">${escapeHtml(s.label)}</text>`;
+    }
+    return out;
+  }
+  if (s.type === 'poly' || s.type === 'line') {
+    const pts = worldPoints(s).map((p) => `${(p.x - originX) * scale},${(p.y - originY) * scale}`).join(' ');
+    let out = s.type === 'poly'
+      ? `<polygon points="${pts}" fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linejoin="round"${dash}/>`
+      : `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"${dash}/>`;
+    if (s.label) {
+      const lp = pathLabelPoint(s);
+      const { w, h } = boxSize(s);
+      const fs = s.type === 'line' ? 12 : Math.max(10, Math.min(14, Math.min(w, h) * scale * 0.2));
+      const ly = (lp.y - originY) * scale - (s.type === 'line' ? 10 : 0);
+      out += `<text x="${(lp.x - originX) * scale}" y="${ly}" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" fill="#0f172a" font-family="sans-serif">${escapeHtml(s.label)}</text>`;
     }
     return out;
   }

@@ -16,7 +16,7 @@ test.describe('core editing', () => {
 
   test('adds each shape type', async ({ page }) => {
     await openFresh(page);
-    for (const [cls, title] of [['circle', 'Circle'], ['rect', 'Rect'], ['oval', 'Oval'], ['tri', 'Triangle']]) {
+    for (const [cls, title] of [['circle', 'Circle'], ['rect', 'Rectangle'], ['oval', 'Oval'], ['tri', 'Triangle']]) {
       await addShape(page, cls);
       await expect(page.locator('.sheet-header .title')).toHaveText(`${title} properties`);
       await closeSheet(page);

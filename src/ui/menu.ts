@@ -14,6 +14,7 @@ export function renderMoreMenu() {
     label: state.selectMode ? 'Switch to pan mode' : 'Switch to select mode',
     onClick: () => {
       state.selectMode = !state.selectMode;
+      state.draw = null; state.editPoints = null;
       if (!state.selectMode) clearSelection();
       state.menu = null;
       render();

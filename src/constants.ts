@@ -20,6 +20,10 @@ export const SWATCHES = [
   '#ef4444','#f97316','#f59e0b','#fbbf24',
   '#78350f','#57534e','#94a3b8','#ffffff'
 ];
+/** Fewest points an outline / line can have. */
+export const MIN_POINTS = { poly: 3, line: 2 } as const;
+/** Most points in one outline or line (also enforced on load). */
+export const MAX_POINTS = 500;
 export const SHAPE_TYPES = ['circle', 'rect', 'oval', 'triangle'] as const;
 // Background image constraints
 export const BG_MAX_IMAGE_DIM = 2000;   // downscale so longer edge is <= this

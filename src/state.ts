@@ -40,6 +40,9 @@ export const state: AppState = {
   // Steps: 'point1' -> tap first known point, 'point2' -> tap second,
   // 'distance' -> distance-entry modal is open. p1/p2 are image-pixel coords.
   bgCalibrate: null,
+  // Ephemeral: drawing a freeform outline/line, or editing one's points.
+  draw: null,
+  editPoints: null,
 };
 export const gesture: { current: Gesture | null } = { current: null };
 export const tapTracker: { id: string | null; time: number } = { id: null, time: 0 };

@@ -1,7 +1,11 @@
 import { SWATCHES } from '../constants';
 import { el } from '../dom';
 import { I } from '../icons';
-import { roleKey, roleLabel, roleLocked } from '../roles';
+import { isLocked, roleKey, roleLabel, roleLocked } from '../roles';
+import { convertToOutline, startEditPoints } from '../draw';
+import { boxSize, resizedPoints } from '../geometry';
+
+const round1 = (v: number) => Math.round(v * 10) / 10;
 import { roleChips } from './role-picker';
 import { bedSection, measureText, plantSunBanner, shadeSunSection } from './role-sections';
 import { setRoleForIds, bringForward, bringToFront, copySelected, deleteSelected, duplicateSelected, findNextSameTier, sendBackward, sendToBack, setLockedForIds, updateSelected, updateSelectedSilent } from '../mutations';
@@ -9,7 +13,7 @@ import { getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { render } from './render';
 import type { Corner, Shape } from '../types';
-import { snapRot } from '../util';
+import { snapRot, typeName } from '../util';
 
 // ============================================================
 // PANELS
@@ -47,15 +51,38 @@ export function renderPropsPanelSingle(s: Shape) {
     });
     body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Radius (ft)'), radInput, diameterHint, measure));
   } else {
-    const wInput = el('input', { type: 'number', step: '0.5', min: '0.1', value: s.width });
-    wInput.addEventListener('input', e => { updateSelectedSilent({ width: Math.max(0.1, parseFloat((e.target as HTMLInputElement).value) || 0) }); refreshMeasure(); });
-    const hInput = el('input', { type: 'number', step: '0.5', min: '0.1', value: s.height });
-    hInput.addEventListener('input', e => { updateSelectedSilent({ height: Math.max(0.1, parseFloat((e.target as HTMLInputElement).value) || 0) }); refreshMeasure(); });
+    const isPath = s.type === 'poly' || s.type === 'line';
+    const size = boxSize(s);
+    // Outlines and lines stretch their points to the new size.
+    const resize = (w: number, h: number) => {
+      if (s.type === 'poly' || s.type === 'line') updateSelectedSilent({ points: resizedPoints(s.points, w, h) });
+      else updateSelectedSilent({ width: w, height: h });
+    };
+    const wInput = el('input', { type: 'number', step: '0.5', min: '0.1', value: round1(size.w) });
+    wInput.addEventListener('input', e => { resize(Math.max(0.1, parseFloat((e.target as HTMLInputElement).value) || 0), boxSize(s).h); refreshMeasure(); });
+    const hInput = el('input', { type: 'number', step: '0.5', min: '0.1', value: round1(size.h) });
+    hInput.addEventListener('input', e => { resize(boxSize(s).w, Math.max(0.1, parseFloat((e.target as HTMLInputElement).value) || 0)); refreshMeasure(); });
+    // A perfectly straight line has no height (or width) to stretch.
+    if (isPath && size.w === 0) wInput.disabled = true;
+    if (isPath && size.h === 0) hInput.disabled = true;
     body.appendChild(el('div', { className: 'row-2' },
       el('div', { className: 'field' }, el('label', {}, 'Width (ft)'), wInput),
       el('div', { className: 'field' }, el('label', {}, 'Height (ft)'), hInput)
     ));
     body.appendChild(measure);
+    if (isPath) {
+      const editBtn = el('button', { className: 'btn ghost', 'data-testid': 'edit-points' }, 'Edit points…');
+      editBtn.disabled = isLocked(s);
+      editBtn.addEventListener('click', () => { startEditPoints(s.id); render(); });
+      body.appendChild(el('div', { className: 'field' }, editBtn,
+        el('div', { className: 'hint' }, isLocked(s) ? 'Unlock this shape to edit its points.' : 'Drag points to reshape, add or remove corners.')));
+    } else {
+      const convBtn = el('button', { className: 'btn ghost', 'data-testid': 'convert-outline' }, 'Convert to outline');
+      convBtn.disabled = isLocked(s);
+      convBtn.addEventListener('click', () => { convertToOutline(s.id); render(); });
+      body.appendChild(el('div', { className: 'field' }, convBtn,
+        el('div', { className: 'hint' }, 'Turns this into a freeform outline you can reshape point by point.')));
+    }
   }
 
   // Position
@@ -222,7 +249,7 @@ export function renderPropsPanel() {
   if (selected.length === 0) return null;
   const single = selected.length === 1 ? selected[0] : null;
   const title = single ?
-    (single.type.charAt(0).toUpperCase() + single.type.slice(1)) + ' properties' :
+    (typeName(single.type).charAt(0).toUpperCase() + typeName(single.type).slice(1)) + ' properties' :
     selected.length + ' shapes selected';
 
   // Header

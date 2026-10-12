@@ -177,6 +177,40 @@ describe('saving and loading', () => {
   });
 });
 
+describe('freeform outlines and lines', () => {
+  const poly = (extra: Record<string, unknown> = {}) => ({ id: 'p', type: 'poly', x: 10, y: 20, points: [[0, 0], [4, 0], [2, 3]], rotation: 15, color: '#0d9488', label: 'Bed', opacity: 0.3, locked: false, role: 'bed', ...extra });
+  it('round-trips through saving and backup files', async () => {
+    await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [poly(), { ...poly(), id: 'l', type: 'line', points: [[0, 0], [10, 5]], role: 'boundary' }] }).shapes;
+    await flushSave();
+    const loaded = await readProject(id);
+    expect(loaded?.shapes).toEqual(state.shapes);
+    expect(loaded?.shapes[0]).toMatchObject({ type: 'poly', x: 10, y: 20, points: [[0, 0], [4, 0], [2, 3]], rotation: 15, role: 'bed' });
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
+  });
+  it('drops bad points and shapes with too few to draw', () => {
+    const shapes = sanitizeProjectData({ shapes: [
+      poly({ id: 'ok', points: [[0, 0], ['x', 1], [4, 0], [null], [2, 3], [NaN, 1]] }),
+      poly({ id: 'two', points: [[0, 0], [4, 0]] }),
+      poly({ id: 'none', points: 'nope' }),
+      { ...poly(), id: 'line1', type: 'line', points: [[0, 0]] },
+    ] }).shapes;
+    expect(shapes.map((s) => s.id)).toEqual(['ok']);
+    expect(shapes[0]).toMatchObject({ points: [[0, 0], [4, 0], [2, 3]] });
+  });
+  it('re-normalizes points so the box starts at (x, y)', () => {
+    const [s] = sanitizeProjectData({ shapes: [poly({ x: 0, y: 0, points: [[5, 7], [9, 7], [7, 10]] })] }).shapes;
+    expect(s).toMatchObject({ x: 5, y: 7, points: [[0, 0], [4, 0], [2, 3]] });
+  });
+  it('caps the number of points', () => {
+    const many = Array.from({ length: 2000 }, (_, i) => [i, i % 2]);
+    const [s] = sanitizeProjectData({ shapes: [poly({ points: many })] }).shapes;
+    expect(s.type === 'poly' && s.points.length).toBe(500);
+  });
+});
+
 describe('unsaved-edit journal', () => {
   it('recovers edits whose async save never finished', async () => {
     const kv = await freshStorage();
