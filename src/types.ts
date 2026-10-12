@@ -115,11 +115,27 @@ export interface ProjectMeta {
   lastModified: number;
   shapeCount?: number;
 }
+export type PaperSize = 'letter' | 'tabloid' | 'a4' | 'a3';
+/** Printable-plan options, remembered per project. */
+export interface PrintSettings {
+  paper: PaperSize;
+  orientation: 'auto' | 'portrait' | 'landscape';
+  /** Title on the sheet; empty = the project name. */
+  title: string;
+  /** A line under the title (address, designer, notes). */
+  subtitle: string;
+  includeBackground: boolean;
+  includeGrid: boolean;
+  includePlantList: boolean;
+  /** Direction of north on the plan, degrees clockwise from straight up. */
+  northDeg: number;
+}
 /** Everything stored for one project. */
 export interface ProjectData {
   shapes: Shape[];
   /** Hidden/locked state per role. */
   roleViews?: RoleViews;
+  print?: PrintSettings;
   zoom: number;
   offsetX: number;
   offsetY: number;
@@ -142,7 +158,7 @@ export interface Bounds { minX: number; maxX: number; minY: number; maxY: number
 
 export type PanelName =
   | 'props' | 'arrange' | 'layers' | 'projects' | 'rename' | 'export'
-  | 'preview' | 'reset' | 'plants' | 'bg' | 'bgDistance';
+  | 'preview' | 'reset' | 'plants' | 'bg' | 'bgDistance' | 'print';
 
 export interface RenameArgs {
   renamingId: string | null;
@@ -205,6 +221,7 @@ export interface AppState {
   menu: 'more' | null;
   bgImage: BgImage | null;
   roleViews: RoleViews;
+  print: PrintSettings;
   bgEditMode: boolean;
   bgCalibrate: Calibration | null;
   draw: DrawState | null;

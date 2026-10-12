@@ -8,6 +8,7 @@ import type { Bounds, Shape } from './types';
 import { render } from './ui/render';
 import { paintOrder } from './canvas';
 import { roleDef } from './roles';
+import { shadeOpacity } from './sun';
 
 // ============================================================
 // EXPORT
@@ -21,34 +22,46 @@ export function computeAllBBox(): Bounds | null {
   }
   return unionBounds(parts);
 }
-export function shapeToSvgString(s: Shape, originX: number, originY: number, scale: number): string {
+/**
+ * One shape as SVG markup. `scale` is pixels per foot; `k` scales strokes and
+ * label text (labels and lines are sized for the screen, so a high-resolution
+ * print needs them bigger to read at the same physical size).
+ */
+export function shapeToSvgString(s: Shape, originX: number, originY: number, scale: number, k = 1): string {
   const dashed = s.role ? !!roleDef(s.role).outline : false;
   const outline = dashed || s.type === 'line';
-  const opacity = outline ? 0 : s.opacity ?? 0.65;
-  const dash = dashed ? ' stroke-dasharray="8 4"' : s.locked ? ' stroke-dasharray="4 2"' : '';
+  const opacity = outline ? 0 : s.role === 'shade' && s.sun ? shadeOpacity(s.sun) : s.opacity ?? 0.65;
+  const dash = dashed ? ` stroke-dasharray="${8 * k} ${4 * k}"` : s.locked ? ` stroke-dasharray="${4 * k} ${2 * k}"` : '';
   const stroke = outline ? s.color : 'rgba(0,0,0,0.3)';
-  const strokeWidth = outline ? 2.5 : 1;
+  const strokeWidth = (outline ? 2.5 : 1) * k;
+  const text = (x: number, y: number, fs: number, label: string, extra = '') =>
+    `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="${fs * k}" fill="#0f172a" font-family="sans-serif" stroke="rgba(255,255,255,0.7)" stroke-width="${2 * k}" paint-order="stroke" stroke-linejoin="round"${extra}>${escapeHtml(label)}</text>`;
   if (s.type === 'circle') {
     const cx = (s.x - originX) * scale, cy = (s.y - originY) * scale, r = s.radius * scale;
     let out = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}/>`;
-    if (s.label) {
-      const fs = Math.max(10, Math.min(14, r * 0.4));
-      out += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" fill="#0f172a" font-family="sans-serif">${escapeHtml(s.label)}</text>`;
-    }
+    if (s.label) out += text(cx, cy, Math.max(10, Math.min(14, (r / k) * 0.4)), s.label);
     return out;
   }
   if (s.type === 'poly' || s.type === 'line') {
-    const pts = worldPoints(s).map((p) => `${(p.x - originX) * scale},${(p.y - originY) * scale}`).join(' ');
+    const wp = worldPoints(s).map((p) => ({ x: (p.x - originX) * scale, y: (p.y - originY) * scale }));
+    const pts = wp.map((p) => `${p.x},${p.y}`).join(' ');
     let out = s.type === 'poly'
       ? `<polygon points="${pts}" fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linejoin="round"${dash}/>`
-      : `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"${dash}/>`;
+      : `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="${2.5 * k}" stroke-linejoin="round" stroke-linecap="round"${dash}/>`;
+    if (s.type === 'line' && s.showLength) {
+      for (const [a, b] of [[wp[0], wp[1]], [wp.at(-1)!, wp.at(-2)!]]) {
+        const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+        const nx = (-(b.y - a.y) / len) * 7 * k, ny = ((b.x - a.x) / len) * 7 * k;
+        out += `<line x1="${a.x - nx}" y1="${a.y - ny}" x2="${a.x + nx}" y2="${a.y + ny}" stroke="${s.color}" stroke-width="${2 * k}"/>`;
+      }
+    }
     const label = displayLabel(s);
     if (label) {
       const lp = pathLabelPoint(s);
       const { w, h } = boxSize(s);
-      const fs = s.type === 'line' ? 12 : Math.max(10, Math.min(14, Math.min(w, h) * scale * 0.2));
-      const ly = (lp.y - originY) * scale - (s.type === 'line' ? 10 : 0);
-      out += `<text x="${(lp.x - originX) * scale}" y="${ly}" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" fill="#0f172a" font-family="sans-serif">${escapeHtml(label)}</text>`;
+      const fs = s.type === 'line' ? 12 : Math.max(10, Math.min(14, (Math.min(w, h) * scale * 0.2) / k));
+      const ly = (lp.y - originY) * scale - (s.type === 'line' ? 10 * k : 0);
+      out += text((lp.x - originX) * scale, ly, fs, label);
     }
     return out;
   }
@@ -63,21 +76,16 @@ export function shapeToSvgString(s: Shape, originX: number, originY: number, sca
   const w = s.width * scale, h = s.height * scale;
   const cx = px + w / 2, cy = py + h / 2;
   const rotAttr = s.rotation ? ` transform="rotate(${s.rotation} ${cx} ${cy})"` : '';
-  let shapeStr = '';
+  let out = '';
   if (s.type === 'rect') {
-    shapeStr = `<rect x="${px}" y="${py}" width="${w}" height="${h}" fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}${rotAttr}/>`;
+    out = `<rect x="${px}" y="${py}" width="${w}" height="${h}" fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}${rotAttr}/>`;
   } else if (s.type === 'oval') {
-    shapeStr = `<ellipse cx="${cx}" cy="${cy}" rx="${w/2}" ry="${h/2}" fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}${rotAttr}/>`;
-  } else if (s.type === 'triangle') {
+    out = `<ellipse cx="${cx}" cy="${cy}" rx="${w/2}" ry="${h/2}" fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}${rotAttr}/>`;
+  } else {
     const pts = trianglePoints(s).map(p => `${(p[0] - originX) * scale},${(p[1] - originY) * scale}`).join(' ');
-    shapeStr = `<polygon points="${pts}" fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}${rotAttr}/>`;
+    out = `<polygon points="${pts}" fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}${rotAttr}/>`;
   }
-  let out = shapeStr;
-  if (s.label) {
-    const fs = Math.max(10, Math.min(14, Math.min(w, h) * 0.2));
-    const labelRot = s.rotation ? ` transform="rotate(${s.rotation} ${cx} ${cy})"` : '';
-    out += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" fill="#0f172a" font-family="sans-serif"${labelRot}>${escapeHtml(s.label)}</text>`;
-  }
+  if (s.label) out += text(cx, cy, Math.max(10, Math.min(14, (Math.min(w, h) / k) * 0.2)), s.label, rotAttr);
   return out;
 }
 export function buildExportSVG(): { svg: string; widthPx: number; heightPx: number } | null {

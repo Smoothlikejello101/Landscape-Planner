@@ -1,0 +1,218 @@
+import { bedOf, isBed, isPlant } from './beds';
+import { paintOrder } from './canvas';
+import { escapeHtml } from './dom';
+import { shapeToSvgString } from './export';
+import { rotatedBoxBounds, shapeBBox, unionBounds } from './geometry';
+import type { Plant } from './plants';
+import { ROLES, roleKey, roleLabel } from './roles';
+import type { BgImage, Bounds, PaperSize, PrintSettings, RoleKey, Shape } from './types';
+
+// The printable plan: a to-scale drawing on a standard sheet, with a title
+// block, scale bar, north arrow, legend and a plant list grouped by bed.
+//
+// Everything here except buildPlanPdf is pure (no DOM), so layout, scale and
+// the plant list are unit-tested; buildPlanPdf rasterizes the drawing and
+// writes the sheet with jsPDF (loaded only when a PDF is made).
+
+/** Sheet sizes in inches, portrait. */
+export const PAPER: Record<PaperSize, { w: number; h: number; label: string }> = {
+  letter: { w: 8.5, h: 11, label: 'Letter (8.5 × 11 in)' },
+  tabloid: { w: 11, h: 17, label: 'Tabloid (11 × 17 in)' },
+  a4: { w: 8.27, h: 11.69, label: 'A4' },
+  a3: { w: 11.69, h: 16.54, label: 'A3' },
+};
+const MARGIN = 0.4;
+const GAP = 0.25;
+/**
+ * Scales a ruler can check: feet per inch. Includes the architect's
+ * 1/4" = 1' (4), 1/8" = 1' (8), 1/16" = 1' (16) and the engineer's 10, 20, 30...
+ */
+export const NICE_SCALES = [1, 2, 4, 5, 8, 10, 16, 20, 30, 40, 50, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500];
+
+export interface Box { x: number; y: number; w: number; h: number }
+export interface PrintLayout {
+  pageW: number; pageH: number;
+  orientation: 'portrait' | 'landscape';
+  /** Where the drawing goes on the sheet (inches). */
+  plan: Box;
+  /** The part of the yard it shows (feet). */
+  window: Bounds;
+  /** Feet per inch on paper. */
+  ftPerIn: number;
+  /** Title, scale, legend and plant list: a column on the right (landscape) or a band along the bottom (portrait). */
+  side: Box;
+  sideAt: 'right' | 'bottom';
+}
+
+function layoutFor(paper: PaperSize, orientation: 'portrait' | 'landscape', content: Bounds): PrintLayout {
+  const p = PAPER[paper];
+  const pageW = orientation === 'portrait' ? p.w : p.h;
+  const pageH = orientation === 'portrait' ? p.h : p.w;
+  let plan: Box, side: Box;
+  if (orientation === 'landscape') {
+    const sideW = Math.min(3.6, Math.max(2.9, pageW * 0.27));
+    side = { x: pageW - MARGIN - sideW, y: MARGIN, w: sideW, h: pageH - 2 * MARGIN };
+    plan = { x: MARGIN, y: MARGIN, w: pageW - 2 * MARGIN - sideW - GAP, h: pageH - 2 * MARGIN };
+  } else {
+    const sideH = Math.min(3.6, Math.max(2.6, pageH * 0.24));
+    side = { x: MARGIN, y: pageH - MARGIN - sideH, w: pageW - 2 * MARGIN, h: sideH };
+    plan = { x: MARGIN, y: MARGIN, w: pageW - 2 * MARGIN, h: pageH - 2 * MARGIN - sideH - GAP };
+  }
+  const cw = Math.max(1, content.maxX - content.minX), ch = Math.max(1, content.maxY - content.minY);
+  const needed = Math.max(cw / plan.w, ch / plan.h);
+  const ftPerIn = NICE_SCALES.find((s) => s >= needed - 1e-9) ?? Math.ceil(needed / 100) * 100;
+  const cx = (content.minX + content.maxX) / 2, cy = (content.minY + content.maxY) / 2;
+  const ww = plan.w * ftPerIn, wh = plan.h * ftPerIn;
+  return {
+    pageW, pageH, orientation, plan, ftPerIn, side, sideAt: orientation === 'landscape' ? 'right' : 'bottom',
+    window: { minX: cx - ww / 2, maxX: cx + ww / 2, minY: cy - wh / 2, maxY: cy + wh / 2 },
+  };
+}
+/** Fit `content` (feet) on the sheet at the largest standard scale. Auto picks the orientation that draws it bigger. */
+export function planLayout(paper: PaperSize, orientation: PrintSettings['orientation'], content: Bounds): PrintLayout {
+  if (orientation !== 'auto') return layoutFor(paper, orientation, content);
+  const land = layoutFor(paper, 'landscape', content), port = layoutFor(paper, 'portrait', content);
+  return port.ftPerIn < land.ftPerIn ? port : land;
+}
+
+/** A round scale-bar length (feet) about `targetIn` inches long at this scale. */
+export function scaleBarFeet(ftPerIn: number, targetIn = 2): number {
+  const want = ftPerIn * targetIn;
+  const nice = [1, 2, 4, 5, 10, 20, 25, 40, 50, 100, 200, 250, 500, 1000, 2000];
+  let best = nice[0];
+  for (const n of nice) if (n <= want) best = n;
+  return best;
+}
+export function scaleText(ftPerIn: number): string {
+  const arch: Record<number, string> = { 2: '1/2 in = 1 ft', 4: '1/4 in = 1 ft', 8: '1/8 in = 1 ft', 16: '1/16 in = 1 ft' };
+  return `1 in = ${ftPerIn} ft` + (arch[ftPerIn] ? ` (${arch[ftPerIn]})` : '');
+}
+
+/** What the sheet shows: visible shapes, plus the background image if wanted. */
+export function printContent(shapes: Shape[], bg: BgImage | null, includeBackground: boolean): { shapes: Shape[]; bounds: Bounds | null } {
+  const visible = paintOrder(shapes);
+  const parts = visible.map(shapeBBox);
+  if (includeBackground && bg && bg.visible) {
+    parts.push(rotatedBoxBounds(bg.cx, bg.cy, bg.naturalWidth * bg.ftPerPx, bg.naturalHeight * bg.ftPerPx, bg.rotation || 0));
+  }
+  const b = unionBounds(parts);
+  const pad = 2;
+  return { shapes: visible, bounds: b && { minX: b.minX - pad, maxX: b.maxX + pad, minY: b.minY - pad, maxY: b.maxY + pad } };
+}
+
+// ---------- Plant list ----------
+export interface ScheduleRow { label: string; botanical: string; count: number; key: number }
+export interface ScheduleGroup { bed: string; rows: ScheduleRow[]; total: number }
+/** Plants counted by name, grouped by the bed they sit in (beds by name, then plants in no bed). */
+export function plantSchedule(shapes: Shape[], plantsById: Record<string, Plant | undefined>): ScheduleGroup[] {
+  const plants = shapes.filter(isPlant);
+  if (!plants.length) return [];
+  const beds = shapes.filter(isBed);
+  const bedName = new Map<Shape, string>();
+  let unnamed = 0;
+  for (const b of beds) bedName.set(b, b.label.trim() || `Unnamed bed ${++unnamed}`);
+  const groups = new Map<string, Map<string, ScheduleRow>>();
+  const NONE = 'Not in a bed';
+  for (const p of plants) {
+    const bed = bedOf(p, shapes);
+    const g = bed ? bedName.get(bed)! : NONE;
+    if (!groups.has(g)) groups.set(g, new Map());
+    const label = p.label.trim() || 'Unlabeled plant';
+    const rows = groups.get(g)!;
+    const row = rows.get(label) ?? { label, botanical: (p.plantId && plantsById[p.plantId]?.botanical) || '', count: 0, key: 0 };
+    row.count++;
+    rows.set(label, row);
+  }
+  const names = [...groups.keys()].filter((n) => n !== NONE).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  if (groups.has(NONE)) names.push(NONE);
+  const keys = plantKeys(plants);
+  return names.map((bed) => {
+    const rows = [...groups.get(bed)!.values()].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
+    for (const r of rows) r.key = keys.get(r.label)!;
+    return { bed, rows, total: rows.reduce((n, r) => n + r.count, 0) };
+  });
+}
+/**
+ * Key numbers for the plan: one per plant name, alphabetical, so the same
+ * plant has the same number in every bed. Printed in each circle instead of
+ * the full name, which doesn't fit in small circles.
+ */
+export function plantKeys(plants: Shape[]): Map<string, number> {
+  const names = [...new Set(plants.filter(isPlant).map((p) => p.label.trim() || 'Unlabeled plant'))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  return new Map(names.map((n, i) => [n, i + 1]));
+}
+
+// ---------- Legend ----------
+export interface LegendEntry { key: RoleKey; label: string; color: string; outline: boolean }
+/** One entry per role on the plan, in the usual role order, colored like most of its shapes. */
+export function legendEntries(shapes: Shape[]): LegendEntry[] {
+  const out: LegendEntry[] = [];
+  const keys: RoleKey[] = [...ROLES.map((r) => r.key), 'unassigned'];
+  for (const k of keys) {
+    const of = shapes.filter((s) => roleKey(s) === k && s.type !== 'text');
+    if (!of.length) continue;
+    const counts = new Map<string, number>();
+    for (const s of of) counts.set(s.color.toLowerCase(), (counts.get(s.color.toLowerCase()) ?? 0) + 1);
+    const color = [...counts].sort((a, b) => b[1] - a[1])[0][0];
+    const label = k === 'plant' ? 'Plants (circles show mature spread)' : k === 'unassigned' ? 'Other shapes' : roleLabel(k);
+    out.push({ key: k, label, color, outline: k === 'boundary' || of.every((s) => s.type === 'line') });
+  }
+  return out;
+}
+
+// ---------- The drawing ----------
+/** Grid spacing (feet) so lines are at least ~0.1 in apart on paper. */
+export function gridStep(ftPerIn: number): number {
+  return [1, 2, 5, 10, 20, 50, 100, 200, 500].find((s) => s / ftPerIn >= 0.1) ?? 1000;
+}
+/** SVG of the yard window at `pxPerIn` (shapes, optional grid and background). */
+export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage | null, opts: Pick<PrintSettings, 'includeBackground' | 'includeGrid' | 'includePlantList'>, pxPerIn: number): { svg: string; w: number; h: number } {
+  const { window: win, ftPerIn } = layout;
+  const pxPerFt = pxPerIn / ftPerIn;
+  const w = Math.round(layout.plan.w * pxPerIn), h = Math.round(layout.plan.h * pxPerIn);
+  const k = pxPerIn / 110; // screen labels are ~12 px at ~96-110 px/in; keep that physical size on paper
+  let grid = '';
+  if (opts.includeGrid) {
+    const step = gridStep(ftPerIn);
+    for (let fx = Math.ceil(win.minX / step) * step; fx <= win.maxX; fx += step) {
+      const major = fx % (step * 10) === 0;
+      const x = (fx - win.minX) * pxPerFt;
+      grid += `<line x1="${x}" y1="0" x2="${x}" y2="${h}" stroke="${major ? '#cbd5e1' : '#e2e8f0'}" stroke-width="${(major ? 1.2 : 0.6) * k}"/>`;
+    }
+    for (let fy = Math.ceil(win.minY / step) * step; fy <= win.maxY; fy += step) {
+      const major = fy % (step * 10) === 0;
+      const y = (fy - win.minY) * pxPerFt;
+      grid += `<line x1="0" y1="${y}" x2="${w}" y2="${y}" stroke="${major ? '#cbd5e1' : '#e2e8f0'}" stroke-width="${(major ? 1.2 : 0.6) * k}"/>`;
+    }
+  }
+  let bgSvg = '';
+  if (opts.includeBackground && bg && bg.visible && bg.dataUrl) {
+    const wFt = bg.naturalWidth * bg.ftPerPx, hFt = bg.naturalHeight * bg.ftPerPx;
+    const cx = (bg.cx - win.minX) * pxPerFt, cy = (bg.cy - win.minY) * pxPerFt;
+    const rot = bg.rotation ? ` transform="rotate(${bg.rotation} ${cx} ${cy})"` : '';
+    bgSvg = `<image x="${cx - (wFt * pxPerFt) / 2}" y="${cy - (hFt * pxPerFt) / 2}" width="${wFt * pxPerFt}" height="${hFt * pxPerFt}" opacity="${bg.opacity}" preserveAspectRatio="none" href="${escapeHtml(bg.dataUrl)}"${rot}/>`;
+  }
+  // Plants show their key number (see the plant list) rather than their name.
+  const keys = opts.includePlantList ? plantKeys(shapes) : null;
+  const body = shapes.map((s) => {
+    if (!keys || !isPlant(s)) return shapeToSvgString(s, win.minX, win.minY, pxPerFt, k);
+    const key = keys.get(s.label.trim() || 'Unlabeled plant');
+    let out = shapeToSvgString({ ...s, label: '' }, win.minX, win.minY, pxPerFt, k);
+    const b = shapeBBox(s);
+    const cx = ((b.minX + b.maxX) / 2 - win.minX) * pxPerFt, cy = ((b.minY + b.maxY) / 2 - win.minY) * pxPerFt;
+    const fs = 11 * k;
+    out += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${fs}" font-weight="700" fill="#0f172a" font-family="sans-serif" stroke="#ffffff" stroke-width="${2.5 * k}" paint-order="stroke" stroke-linejoin="round">${key}</text>`;
+    return out;
+  }).join('');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" fill="#ffffff"/>${grid}${bgSvg}${body}</svg>`;
+  return { svg, w, h };
+}
+
+/** Only characters the PDF's built-in fonts can show (Latin-1), with smart punctuation made plain. */
+export function pdfSafe(text: string): string {
+  return text
+    .replace(/[‘’‚′]/g, "'").replace(/[“”„″]/g, '"')
+    .replace(/[–—−]/g, '-').replace(/…/g, '...').replace(/•/g, '·')
+    // eslint-disable-next-line no-control-regex
+    .replace(/[^\x20-\x7E -ÿ\n]/g, '');
+}

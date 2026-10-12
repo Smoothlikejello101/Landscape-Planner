@@ -1,5 +1,5 @@
 import { state } from './state';
-import { createProject, readProject, sanitizeProjectData, setLastBackupAt } from './storage';
+import { createProject, currentProjectData, readProject, sanitizeProjectData, setLastBackupAt } from './storage';
 import type { ProjectData } from './types';
 import { now } from './util';
 
@@ -17,14 +17,14 @@ export interface BackupFile { format: typeof BACKUP_FORMAT; version: number; exp
 function forExport(data: ProjectData): ProjectData {
   const bgImage = data.bgImage ? { ...data.bgImage } : null;
   if (bgImage) delete bgImage.imageId; // storage detail; a new id is assigned on import
-  return { shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {}, bgImage };
+  return { shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {}, print: data.print, bgImage };
 }
 async function exportedProject(id: string): Promise<ExportedProject | null> {
   const meta = state.projects.find((p) => p.id === id);
   if (!meta) return null;
   // The open project is exported from memory: always the latest edits, even if a save is failing.
   const data = id === state.currentProjectId
-    ? { shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY, roleViews: state.roleViews, bgImage: state.bgImage }
+    ? currentProjectData()
     : await readProject(id);
   if (!data) return null;
   return { name: meta.name, lastModified: meta.lastModified, data: forExport(data) };
@@ -115,7 +115,10 @@ export async function importProjects(list: ExportedProject[]): Promise<string[]>
 
 // ---------- Getting a file to the user ----------
 export function downloadText(filename: string, text: string, type = 'application/json') {
-  const url = URL.createObjectURL(new Blob([text], { type }));
+  downloadBlob(filename, new Blob([text], { type }));
+}
+export function downloadBlob(filename: string, blob: Blob) {
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = filename; a.rel = 'noopener';
   document.body.appendChild(a);
@@ -124,11 +127,21 @@ export function downloadText(filename: string, text: string, type = 'application
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 /** Whether the system share sheet can take a file (Android/iOS). */
-export function canShareFiles(): boolean {
+export function canShareFiles(type = 'application/json', name = 'x.json'): boolean {
   try {
     return typeof navigator.canShare === 'function' &&
-      navigator.canShare({ files: [new File(['{}'], 'x.json', { type: 'application/json' })] });
+      navigator.canShare({ files: [new File(['{}'], name, { type })] });
   } catch { return false; }
+}
+/** Hand a file to the system share sheet. False if the user cancelled. */
+export async function shareBlob(filename: string, blob: Blob): Promise<boolean> {
+  try {
+    await navigator.share({ files: [new File([blob], filename, { type: blob.type })], title: filename });
+    return true;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return false;
+    throw e;
+  }
 }
 export async function shareText(filename: string, text: string): Promise<boolean> {
   try {

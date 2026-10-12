@@ -1,9 +1,9 @@
 import { MAX_POINTS, MIN_POINTS, STORAGE } from './constants';
 import { del, openKV, put, type KV, type WriteOp } from './db';
 import { cancelHistoryDebounce } from './history';
-import { state } from './state';
+import { DEFAULT_PRINT, state } from './state';
 import { isRole } from './roles';
-import type { BgImage, Clipboard, PathShape, ProjectData, ProjectMeta, RoleViews, Shape, SunInfo } from './types';
+import type { BgImage, Clipboard, PathShape, PrintSettings, ProjectData, ProjectMeta, RoleViews, Shape, SunInfo } from './types';
 import { setWorldPoints } from './geometry';
 import { now, uid } from './util';
 
@@ -179,6 +179,29 @@ function sanitizeRoleViews(raw: unknown): RoleViews {
   }
   return out;
 }
+/** Validate printable-plan options; anything missing or odd gets the default. */
+export function sanitizePrint(raw: unknown): PrintSettings {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const d = DEFAULT_PRINT;
+  const bool = (v: unknown, def: boolean) => (typeof v === 'boolean' ? v : def);
+  return {
+    paper: o.paper === 'tabloid' || o.paper === 'a4' || o.paper === 'a3' ? o.paper : 'letter',
+    orientation: o.orientation === 'portrait' || o.orientation === 'landscape' ? o.orientation : 'auto',
+    title: str(o.title).slice(0, 120),
+    subtitle: str(o.subtitle).slice(0, 200),
+    includeBackground: bool(o.includeBackground, d.includeBackground),
+    includeGrid: bool(o.includeGrid, d.includeGrid),
+    includePlantList: bool(o.includePlantList, d.includePlantList),
+    northDeg: ((num(o.northDeg, 0) % 360) + 360) % 360,
+  };
+}
+/** The open project's data, as stored. */
+export function currentProjectData(): ProjectData {
+  return {
+    shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY,
+    roleViews: state.roleViews, print: state.print, bgImage: state.bgImage,
+  };
+}
 /** Normalize project data from storage, an old version, or an imported file. */
 export function sanitizeProjectData(raw: unknown): ProjectData {
   const d = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
@@ -190,6 +213,7 @@ export function sanitizeProjectData(raw: unknown): ProjectData {
     offsetX: num(d.offsetX, -10),
     offsetY: num(d.offsetY, -10),
     roleViews: sanitizeRoleViews(d.roleViews),
+    print: sanitizePrint(d.print),
     bgImage: bg && bg.dataUrl ? bg : null,
   };
 }
@@ -210,7 +234,10 @@ function projectWriteOps(id: string, data: ProjectData, knownImageKeys?: Set<str
     }
     storedBg = { ...rest, imageId };
   }
-  const stored: StoredProject = { shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {}, bgImage: storedBg };
+  const stored: StoredProject = {
+    shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {},
+    print: data.print ?? { ...DEFAULT_PRINT }, bgImage: storedBg,
+  };
   ops.push(put('projects', id, stored));
   return ops;
 }
@@ -223,9 +250,7 @@ async function writeCurrent(): Promise<boolean> {
   if (!id || !kv) return true;
   const seq = editSeq;
   // Snapshot synchronously so later edits don't race with this write.
-  const data: ProjectData = {
-    shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY, roleViews: state.roleViews, bgImage: state.bgImage,
-  };
+  const data = currentProjectData();
   const ops = projectWriteOps(id, data, storedImageKeys);
   const meta = metaFor(id);
   if (meta) {
@@ -284,10 +309,7 @@ export function writeJournalIfDirty() {
   const imageOnDisk = !!(bg?.imageId && committedImageKeys.has(imageKey(id, bg.imageId)));
   const journal = (withImage: boolean): Journal => ({
     projectId: id, at: now(),
-    data: {
-      shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY, roleViews: state.roleViews,
-      bgImage: bg ? { ...bg, dataUrl: withImage ? bg.dataUrl : '' } : null,
-    },
+    data: { ...currentProjectData(), bgImage: bg ? { ...bg, dataUrl: withImage ? bg.dataUrl : '' } : null },
   });
   try {
     localStorage.setItem(journalKey(id), JSON.stringify(journal(!imageOnDisk)));
@@ -386,6 +408,7 @@ export async function switchProject(id: string): Promise<boolean> {
   state.offsetX = data.offsetX;
   state.offsetY = data.offsetY;
   state.roleViews = data.roleViews ?? {};
+  state.print = data.print ?? { ...DEFAULT_PRINT };
   state.bgImage = data.bgImage ?? null;
   state.selectedIds = [];
   state.history = [];
