@@ -53,7 +53,7 @@ test('drawing: drags pan instead of adding points; undo point; cancel', async ({
   const after = await drawPoints(page).first().boundingBox();
   expect(Math.round(after!.x - before!.x)).toBe(48); // the drawing moved with the plan
   await expect(bar(page).getByRole('button', { name: 'Done' })).toBeDisabled(); // an outline needs 3 corners
-  await bar(page).getByRole('button', { name: 'Undo point' }).click();
+  await bar(page).getByRole('button', { name: 'Undo', exact: true }).click();
   await expect(drawPoints(page)).toHaveCount(1);
   await bar(page).getByRole('button', { name: 'Cancel' }).click();
   await expect(bar(page)).toHaveCount(0);
@@ -132,4 +132,52 @@ test('convert a rectangle to an outline and reshape it', async ({ page }) => {
   await expect(page.locator('[data-testid=measure]')).toHaveText('Area: 24 sq ft');
   await page.getByTestId('edit-points').click();
   await expect(page.locator('#canvas-svg [data-role=vertex]')).toHaveCount(4);
+});
+
+test('measure two points, keep it as a dimension line', async ({ page }) => {
+  await openFresh(page);
+  await page.getByTestId('draw-btn').click();
+  await bar(page).getByRole('button', { name: 'Measure' }).click();
+  await tapFt(page, 2, 4);
+  await expect(page.getByTestId('draw-banner')).toContainText('other end');
+  await tapFt(page, 5, 8); // a 3-4-5 triangle
+  await expect(page.locator('#canvas-svg [data-role=measure-label]')).toHaveText('5 ft');
+  await expect(page.getByTestId('draw-banner')).toContainText('5 ft');
+  await bar(page).getByRole('button', { name: 'Keep' }).click();
+  await expect(page.locator('#canvas-svg [data-role=measure-label]')).toHaveCount(0);
+  await tapFt(page, 2, 10); // measuring again doesn't touch the kept line
+  await tapFt(page, 8, 10);
+  await expect(page.locator('#canvas-svg [data-role=measure-label]')).toHaveText('6 ft');
+  await bar(page).getByRole('button', { name: 'Done' }).click();
+  expect(await shapeCount(page)).toBe(1);
+  await expect(page.locator('#canvas-svg text', { hasText: /^5 ft$/ })).toHaveCount(1);
+  await expect(page.locator('#canvas-svg [data-role=dim-tick]')).toHaveCount(2);
+
+  // Labelling it keeps the length; turning the length off leaves just the label.
+  await page.locator('button[title=Layers]').click();
+  await page.locator('.layer-row').first().click();
+  await page.locator('.sel-pill button.edit').click();
+  await field(page, 'Label').fill('Gate');
+  await expect(page.locator('#canvas-svg text', { hasText: 'Gate · 5 ft' })).toHaveCount(1);
+  await page.getByTestId('show-length').locator('input').uncheck();
+  await expect(page.locator('#canvas-svg text', { hasText: /^Gate$/ })).toHaveCount(1);
+});
+
+test('text notes: multi-line, sized in feet, scale with zoom', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.text').click();
+  await expect(page.locator('.sheet-header .title')).toHaveText('Text properties');
+  const ta = page.locator('.sheet textarea');
+  await ta.fill('Rain barrel\ngoes here');
+  await expect(ta).toBeFocused(); // typing never rebuilds the panel (Android keyboard)
+  await field(page, 'Text height (ft)').fill('2');
+  await closeSheet(page);
+  const note = page.locator('#canvas-svg [data-role=text-note]');
+  await expect(note.locator('tspan')).toHaveText(['Rain barrel', 'goes here']);
+  await expect(note).toHaveAttribute('font-size', '48');
+  await page.locator('.zoombtn').first().click(); // zoom in 125%
+  await expect(note).toHaveAttribute('font-size', '60');
+  await page.waitForTimeout(600);
+  await page.reload();
+  await expect(page.locator('#canvas-svg [data-role=text-note] tspan')).toHaveText(['Rain barrel', 'goes here']);
 });

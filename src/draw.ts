@@ -1,6 +1,6 @@
 import { MAX_POINTS, MIN_POINTS } from './constants';
 import { svgEl } from './dom';
-import { bakeRotation, outlineOf, pathPoints, pxPerFoot, screenToFeet, setWorldPoints } from './geometry';
+import { bakeRotation, fmtFeet, outlineOf, pathPoints, pxPerFoot, screenToFeet, setWorldPoints } from './geometry';
 import { flushHistoryDebounce, pushHistory } from './history';
 import { defaultLook } from './roles';
 import { state } from './state';
@@ -23,7 +23,10 @@ const CLOSE_RADIUS_PX = 18;
 const isPath = (s: Shape | undefined): s is PathShape => !!s && (s.type === 'poly' || s.type === 'line');
 
 // ---------- Drawing ----------
-export function startDraw(kind: 'poly' | 'line') {
+type DrawKind = 'poly' | 'line' | 'measure';
+const minPoints = (k: DrawKind) => (k === 'measure' ? 2 : MIN_POINTS[k]);
+
+export function startDraw(kind: DrawKind) {
   flushHistoryDebounce();
   state.draw = { kind, points: [] };
   state.editPoints = null;
@@ -32,13 +35,23 @@ export function startDraw(kind: 'poly' | 'line') {
   state.panel = null;
   state.menu = null;
 }
-export function setDrawKind(kind: 'poly' | 'line') {
-  if (state.draw) state.draw.kind = kind;
+export function setDrawKind(kind: DrawKind) {
+  const d = state.draw;
+  if (!d) return;
+  if ((d.kind === 'measure') !== (kind === 'measure')) d.points = []; // a measurement isn't the start of a shape
+  d.kind = kind;
+}
+/** Length of the current measurement, in feet (null until both ends are placed). */
+export function measuredFeet(): number | null {
+  const d = state.draw;
+  if (!d || d.kind !== 'measure' || d.points.length < 2) return null;
+  const [a, b] = d.points;
+  return Math.hypot(b.x - a.x, b.y - a.y);
 }
 export function cancelDraw() { state.draw = null; }
 export function undoDrawPoint() { state.draw?.points.pop(); }
 export function canFinishDraw(): boolean {
-  return !!state.draw && state.draw.points.length >= MIN_POINTS[state.draw.kind];
+  return !!state.draw && state.draw.points.length >= minPoints(state.draw.kind);
 }
 /**
  * A tap on the canvas while drawing. Returns true if the drawing finished
@@ -48,6 +61,7 @@ export function drawTap(clientX: number, clientY: number): boolean {
   const d = state.draw;
   if (!d) return false;
   const first = d.points[0];
+  if (d.kind === 'measure' && d.points.length >= 2) d.points = []; // a third tap starts a new measurement
   if (d.kind === 'poly' && d.points.length >= MIN_POINTS.poly && first) {
     const f = screenToFeet(clientX, clientY);
     if (Math.hypot(f.x - first.x, f.y - first.y) * pxPerFoot() <= CLOSE_RADIUS_PX) { finishDraw(); return true; }
@@ -64,6 +78,7 @@ export function drawTap(clientX: number, clientY: number): boolean {
 export function finishDraw(): Shape | null {
   const d = state.draw;
   if (!d || !canFinishDraw()) return null;
+  if (d.kind === 'measure') return keepMeasurement();
   state.draw = null;
   // An outline's closing point may duplicate the first one; drop it.
   const pts = d.points.slice();
@@ -76,6 +91,22 @@ export function finishDraw(): Shape | null {
   state.shapes.push(shape);
   state.selectedIds = [shape.id];
   state.panel = 'props';
+  pushHistory();
+  save();
+  return shape;
+}
+
+/** Save the current measurement as a dimension line (stays in measure mode). */
+function keepMeasurement(): Shape | null {
+  const d = state.draw;
+  if (!d || d.kind !== 'measure' || d.points.length < 2) return null;
+  const shape = {
+    id: uid(), type: 'line', x: 0, y: 0, points: [], rotation: 0, label: '', locked: false, showLength: true,
+    role: 'other', color: '#1c1917', opacity: 1,
+  } as PathShape;
+  setWorldPoints(shape, d.points.slice(0, 2));
+  state.shapes.push(shape);
+  d.points = [];
   pushHistory();
   save();
   return shape;
@@ -147,7 +178,7 @@ export function edgeMidpoints(s: PathShape): { after: number; at: Point }[] {
 export function convertToOutline(id: string): PathShape | null {
   const i = state.shapes.findIndex((sh) => sh.id === id);
   const s = state.shapes[i];
-  if (!s || s.type === 'circle' || isPath(s)) return null;
+  if (!s || s.type === 'circle' || s.type === 'text' || isPath(s)) return null;
   flushHistoryDebounce();
   const { width: _w, height: _h, ...rest } = s;
   const keep = { ...rest } as Record<string, unknown>;
@@ -165,6 +196,20 @@ const toScreen = (p: Point) => ({ x: (p.x - state.offsetX) * pxPerFoot(), y: (p.
 
 export function renderPathOverlay(g: SVGElement) {
   const d = state.draw;
+  if (d && d.kind === 'measure') {
+    const pts = d.points.map(toScreen);
+    if (pts.length === 2) {
+      g.appendChild(svgEl('line', { 'data-role': 'measure-line', x1: pts[0].x, y1: pts[0].y, x2: pts[1].x, y2: pts[1].y, stroke: '#b45309', 'stroke-width': 2.5, 'stroke-dasharray': '6 4', 'pointer-events': 'none' }));
+      const mx = (pts[0].x + pts[1].x) / 2, my = (pts[0].y + pts[1].y) / 2;
+      const text = fmtFeet(measuredFeet()!) + ' ft';
+      const w = text.length * 8 + 16;
+      g.appendChild(svgEl('g', { 'data-role': 'measure-label', 'pointer-events': 'none' },
+        svgEl('rect', { x: mx - w / 2, y: my - 26, width: w, height: 22, rx: 11, fill: '#b45309' }),
+        svgEl('text', { x: mx, y: my - 15, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 13, 'font-weight': 700, fill: '#fff' }, text)));
+    }
+    for (const p of pts) g.appendChild(svgEl('circle', { 'data-role': 'draw-point', cx: p.x, cy: p.y, r: 5, fill: '#b45309', stroke: '#fff', 'stroke-width': 2, 'pointer-events': 'none' }));
+    return;
+  }
   if (d) {
     const pts = d.points.map(toScreen);
     if (pts.length > 1) {

@@ -211,6 +211,26 @@ describe('freeform outlines and lines', () => {
   });
 });
 
+describe('text notes and dimension lines', () => {
+  it('round-trip, with sizes clamped', async () => {
+    await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [
+      { id: 't', type: 'text', x: 1, y: 2, label: 'Rain barrel\nhere', fontSize: 1.5, rotation: 10, color: '#1c1917', opacity: 1, locked: false, role: 'other' },
+      { id: 'd', type: 'line', x: 0, y: 0, points: [[0, 0], [12, 0]], rotation: 0, showLength: true, color: '#1c1917', label: '', opacity: 1, locked: false },
+      { id: 'big', type: 'text', x: 0, y: 0, label: 'x', fontSize: 9999 },
+      { id: 'bad', type: 'text', x: 0, y: 0, label: 'x', fontSize: 'huge' },
+    ] }).shapes;
+    await flushSave();
+    const loaded = (await readProject(id))!.shapes;
+    expect(loaded).toEqual(state.shapes);
+    expect(loaded[0]).toMatchObject({ type: 'text', label: 'Rain barrel\nhere', fontSize: 1.5, rotation: 10 });
+    expect(loaded[1]).toMatchObject({ type: 'line', showLength: true });
+    expect(loaded[2]).toMatchObject({ fontSize: 50 });
+    expect(loaded[3]).toMatchObject({ fontSize: 1 });
+  });
+});
+
 describe('unsaved-edit journal', () => {
   it('recovers edits whose async save never finished', async () => {
     const kv = await freshStorage();

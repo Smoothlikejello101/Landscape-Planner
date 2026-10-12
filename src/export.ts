@@ -1,7 +1,7 @@
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from './constants';
 import { escapeHtml } from './dom';
 import { errMsg } from './util';
-import { boxSize, pathLabelPoint, rotatedBoxBounds, shapeBBox, trianglePoints, unionBounds, worldPoints } from './geometry';
+import { boxSize, displayLabel, LINE_HEIGHT, pathLabelPoint, textLines, textSize, rotatedBoxBounds, shapeBBox, trianglePoints, unionBounds, worldPoints } from './geometry';
 import { state } from './state';
 import { currentProject } from './storage';
 import type { Bounds, Shape } from './types';
@@ -42,14 +42,22 @@ export function shapeToSvgString(s: Shape, originX: number, originY: number, sca
     let out = s.type === 'poly'
       ? `<polygon points="${pts}" fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linejoin="round"${dash}/>`
       : `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"${dash}/>`;
-    if (s.label) {
+    const label = displayLabel(s);
+    if (label) {
       const lp = pathLabelPoint(s);
       const { w, h } = boxSize(s);
       const fs = s.type === 'line' ? 12 : Math.max(10, Math.min(14, Math.min(w, h) * scale * 0.2));
       const ly = (lp.y - originY) * scale - (s.type === 'line' ? 10 : 0);
-      out += `<text x="${(lp.x - originX) * scale}" y="${ly}" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" fill="#0f172a" font-family="sans-serif">${escapeHtml(s.label)}</text>`;
+      out += `<text x="${(lp.x - originX) * scale}" y="${ly}" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" fill="#0f172a" font-family="sans-serif">${escapeHtml(label)}</text>`;
     }
     return out;
+  }
+  if (s.type === 'text') {
+    const { w, h } = textSize(s);
+    const px = (s.x - originX) * scale, py = (s.y - originY) * scale, fs = s.fontSize * scale;
+    const rot = s.rotation ? ` transform="rotate(${s.rotation} ${px + (w * scale) / 2} ${py + (h * scale) / 2})"` : '';
+    const spans = textLines(s.label).map((line, i) => `<tspan x="${px}" y="${py + (i * LINE_HEIGHT + 1) * fs}">${escapeHtml(line) || ' '}</tspan>`).join('');
+    return `<text font-size="${fs}" fill="${s.color}" font-family="sans-serif" font-weight="500" stroke="rgba(255,255,255,0.85)" stroke-width="${Math.max(1.5, fs * 0.12)}" paint-order="stroke" stroke-linejoin="round"${rot}>${spans}</text>`;
   }
   const px = (s.x - originX) * scale, py = (s.y - originY) * scale;
   const w = s.width * scale, h = s.height * scale;

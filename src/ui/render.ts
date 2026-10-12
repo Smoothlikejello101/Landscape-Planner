@@ -8,7 +8,8 @@ import { clearSelection, singleSelected } from '../selection';
 import { state } from '../state';
 import type { ShapeType } from '../types';
 import { typeName } from '../util';
-import { canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, editedShape, finishDraw, finishEditPoints, setDrawKind, startDraw, undoDrawPoint } from '../draw';
+import { fmtFeet } from '../geometry';
+import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, editedShape, finishDraw, finishEditPoints, setDrawKind, startDraw, undoDrawPoint } from '../draw';
 import { currentProject, storageIsDurable } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
@@ -55,7 +56,7 @@ export function render() {
 
   // Undo
   const undoBtn = el('button', { className: 'iconbtn', html: I.undo, title: 'Undo' });
-  undoBtn.disabled = !canUndo() || !!state.draw; // while drawing, the bar's Undo point applies
+  undoBtn.disabled = !canUndo() || !!state.draw; // while drawing, the bar's Undo removes the last point
   undoBtn.addEventListener('click', () => { undo(); render(); });
   topbar.appendChild(undoBtn);
 
@@ -137,8 +138,12 @@ export function render() {
   if (state.editPoints && !editedShape()) state.editPoints = null; // e.g. undone past its creation
   if (state.draw || state.editPoints) {
     const d = state.draw;
+    const feet = measuredFeet();
     const msg = d
-      ? (d.kind === 'poly'
+      ? d.kind === 'measure'
+        ? (feet != null ? `${fmtFeet(feet)} ft — Keep adds it to the plan; tap again to measure again`
+          : d.points.length ? 'Tap the other end' : 'Measuring — tap two points')
+        : (d.kind === 'poly'
         ? (d.points.length === 0 ? 'Drawing an outline — tap to place the first corner'
           : d.points.length < 3 ? 'Tap to add corners · drag to move around'
           : 'Tap the first point (or Done) to close the outline')
@@ -229,6 +234,7 @@ export function render() {
   drawBtn.innerHTML = I.draw + '<div class="lbl">Draw</div>';
   drawBtn.addEventListener('click', () => { startDraw('poly'); render(); });
   bottomBar.appendChild(drawBtn);
+  bottomBar.appendChild(mkShapeBtn('text', 'text', 'Text', I.text));
   const plantsBtn = el('button', { className: 'tool-btn plants' });
   plantsBtn.innerHTML = I.leaf + '<div class="lbl">Plants</div>';
   plantsBtn.addEventListener('click', () => { state.panel = 'plants'; render(); });
@@ -269,15 +275,20 @@ function renderDrawBar(): HTMLElement {
   const d = state.draw;
   if (d) {
     const seg = el('div', { className: 'seg', role: 'group', 'aria-label': 'Kind' });
-    for (const [kind, label] of [['poly', 'Outline'], ['line', 'Line']] as const) {
+    for (const [kind, label] of [['poly', 'Outline'], ['line', 'Line'], ['measure', 'Measure']] as const) {
       const b = el('button', { className: d.kind === kind ? 'on' : '', 'aria-pressed': String(d.kind === kind) }, label);
       b.addEventListener('click', () => { setDrawKind(kind); render(); });
       seg.appendChild(b);
     }
     bar.appendChild(seg);
-    bar.appendChild(btn('Undo point', '', undoDrawPoint, d.points.length === 0));
-    bar.appendChild(btn('Cancel', '', cancelDraw));
-    bar.appendChild(btn('Done', 'primary', () => { finishDraw(); }, !canFinishDraw()));
+    if (d.kind === 'measure') {
+      bar.appendChild(btn('Keep', '', () => { finishDraw(); }, !canFinishDraw()));
+      bar.appendChild(btn('Done', 'primary', cancelDraw));
+    } else {
+      bar.appendChild(btn('Undo', '', undoDrawPoint, d.points.length === 0));
+      bar.appendChild(btn('Cancel', '', cancelDraw));
+      bar.appendChild(btn('Done', 'primary', () => { finishDraw(); }, !canFinishDraw()));
+    }
   } else {
     bar.appendChild(btn('Delete point', 'danger', deleteSelectedVertex, !canDeleteVertex()));
     bar.appendChild(btn('Done', 'primary', () => {

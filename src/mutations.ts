@@ -29,6 +29,8 @@ export function makeShape(type: ShapeType, c: Point, id = uid()): Shape {
       return { ...BASE, id, type, x: snap(c.x - 2), y: snap(c.y - 2), points: [[0, 0], [4, 0], [4, 4], [0, 4]], color: '#0d9488', rotation: 0 };
     case 'line':
       return { ...BASE, id, type, x: snap(c.x - 2), y: snap(c.y), points: [[0, 0], [4, 0]], color: '#44403c', rotation: 0 };
+    case 'text':
+      return { ...BASE, id, type, x: snap(c.x - 2), y: snap(c.y - 0.5), label: '', fontSize: 1, color: '#1c1917', opacity: 1, rotation: 0, role: 'other' };
   }
 }
 

@@ -32,15 +32,27 @@ export function renderPropsPanelSingle(s: Shape) {
     roleChips(roleKey(s), (role) => { setRoleForIds([s.id], role); render(); })));
   const sunCheck = plantSunBanner(s);
   if (sunCheck) body.appendChild(sunCheck);
-  // Label
-  const labelInput = el('input', { type: 'text', value: s.label || '', placeholder: 'e.g. Dwarf Alberta Spruce' });
-  labelInput.addEventListener('input', e => updateSelectedSilent({ label: (e.target as HTMLInputElement).value }));
-  body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Label'), labelInput));
+  // Label (for a text note, the text itself; it can run to several lines)
+  if (s.type === 'text') {
+    const ta = el('textarea', { rows: 3, placeholder: 'e.g. Rain barrel goes here' }) as HTMLTextAreaElement;
+    ta.value = s.label || '';
+    ta.addEventListener('input', () => updateSelectedSilent({ label: ta.value }));
+    body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Text'), ta));
+  } else {
+    const labelInput = el('input', { type: 'text', value: s.label || '', placeholder: 'e.g. Dwarf Alberta Spruce' });
+    labelInput.addEventListener('input', e => updateSelectedSilent({ label: (e.target as HTMLInputElement).value }));
+    body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Label'), labelInput));
+  }
 
   // Dimensions (with area/length, refreshed as you type)
   const measure = el('div', { className: 'measure', 'data-testid': 'measure' }, measureText(s));
   const refreshMeasure = () => { measure.textContent = measureText(s); };
-  if (s.type === 'circle') {
+  if (s.type === 'text') {
+    const sizeInput = el('input', { type: 'number', step: '0.25', min: '0.25', value: s.fontSize });
+    sizeInput.addEventListener('input', e => updateSelectedSilent({ fontSize: Math.min(50, Math.max(0.25, parseFloat((e.target as HTMLInputElement).value) || 0)) }));
+    body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Text height (ft)'), sizeInput,
+      el('div', { className: 'hint' }, 'Sized in feet so it stays in proportion to the plan when zoomed or printed.')));
+  } else if (s.type === 'circle') {
     const radInput = el('input', { type: 'number', step: '0.5', min: '0.1', value: s.radius });
     const diameterHint = el('div', { className: 'hint' }, 'Diameter: ' + (s.radius * 2).toFixed(1) + ' ft');
     radInput.addEventListener('input', e => {
@@ -176,7 +188,13 @@ export function renderPropsPanelSingle(s: Shape) {
   ));
 
   // Opacity (not for outlines; shade with recorded sun is shaded by its sun hours)
-  if (s.role === 'boundary' || (s.role === 'shade' && s.sun)) return finish();
+  if (s.type === 'line') {
+    const cb = el('input', { type: 'checkbox' }) as HTMLInputElement;
+    cb.checked = !!s.showLength;
+    cb.addEventListener('change', () => updateSelected({ showLength: cb.checked }));
+    body.appendChild(el('label', { className: 'check-row', 'data-testid': 'show-length' }, cb, el('span', {}, 'Show length on the plan')));
+  }
+  if (s.role === 'boundary' || s.type === 'line' || s.type === 'text' || (s.role === 'shade' && s.sun)) return finish();
   const opacityVal = s.opacity !== undefined ? s.opacity : 0.65;
   const rangeInput = el('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: opacityVal });
   const opacityPct = el('span', { style: { fontSize: '12px', color: '#78716c' } }, Math.round(opacityVal * 100) + '%');

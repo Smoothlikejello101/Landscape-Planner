@@ -118,10 +118,15 @@ export function migrateShape(raw: unknown): Shape | null {
         }
       }
       if (pts.length < MIN_POINTS[s.type]) return null;
-      const shape = { ...base, type: s.type, points: [], rotation: num(s.rotation, 0) } as PathShape;
+      const shape = {
+        ...base, type: s.type, points: [], rotation: num(s.rotation, 0),
+        ...(s.type === 'line' && s.showLength === true ? { showLength: true } : {}),
+      } as PathShape;
       setWorldPoints(shape, pts); // re-normalize, whatever the file said
       return shape;
     }
+    case 'text':
+      return { ...base, type: 'text', fontSize: Math.min(50, Math.max(0.25, num(s.fontSize, 1))), rotation: num(s.rotation, 0) };
     default:
       return null;
   }

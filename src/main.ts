@@ -52,6 +52,7 @@ window.addEventListener('keydown', (e) => {
   } else if (e.key === 'Escape') {
     if (state.panel) { state.panel = null; render(); }
     else if (state.menu) { state.menu = null; render(); }
+    else if (state.draw || state.editPoints) { state.draw = null; state.editPoints = null; render(); }
     else if (state.selectedIds.length) { clearSelection(); render(); }
   }
 });

@@ -11,6 +11,8 @@ import {
 } from '../src/draw';
 import { state } from '../src/state';
 import { shapeToSvgString } from '../src/export';
+import { displayLabel, textSize } from '../src/geometry';
+import { measuredFeet, setDrawKind } from '../src/draw';
 import type { PathShape, Shape } from '../src/types';
 
 const base = { color: '#000000', label: '', opacity: 1, locked: false };
@@ -160,5 +162,42 @@ describe('export', () => {
     expect(svg).toContain('Bed &lt;1&gt;');
     const line = poly('l', 1, 1, [[0, 0], [5, 0]], { type: 'line', role: 'boundary' } as Partial<PathShape>);
     expect(shapeToSvgString(line, 0, 0, 10)).toMatch(/^<polyline points="10,10 60,10" fill="none".*stroke-dasharray="8 4"/);
+  });
+});
+
+describe('measuring', () => {
+  it('measures between two taps and keeps a dimension line', () => {
+    startDraw('measure');
+    state.draw!.points.push({ x: 0, y: 0 }, { x: 3, y: 4 });
+    expect(measuredFeet()).toBe(5);
+    const s = finishDraw() as PathShape;
+    expect(s).toMatchObject({ type: 'line', showLength: true, points: [[0, 0], [3, 4]] });
+    expect(displayLabel(s)).toBe('5 ft');
+    expect(displayLabel({ ...s, label: 'Fence' })).toBe('Fence · 5 ft');
+    expect(state.draw).toMatchObject({ kind: 'measure', points: [] }); // still measuring
+    expect(state.shapes).toHaveLength(1);
+  });
+  it('switching between measuring and drawing starts fresh', () => {
+    startDraw('poly');
+    state.draw!.points.push({ x: 0, y: 0 });
+    setDrawKind('line');
+    expect(state.draw!.points).toHaveLength(1);
+    setDrawKind('measure');
+    expect(state.draw!.points).toHaveLength(0);
+  });
+});
+
+describe('text notes', () => {
+  const note = (label: string, fontSize = 1) => ({ ...base, id: 'n', type: 'text', x: 0, y: 0, label, fontSize, rotation: 0 } as Shape);
+  it('size by their longest line and line count', () => {
+    expect(textSize({ label: 'abcd\nab', fontSize: 2 })).toEqual({ w: 4 * 0.55 * 2, h: 2 * 2 * 1.25 });
+    expect(boxSize(note('Hi') as never).h).toBe(1.25);
+    expect(pointInShape(note('Hello'), { x: 1, y: 0.5 })).toBe(true);
+    expect(shapeArea(note('Hello'))).toBe(0);
+  });
+  it('export as text with one tspan per line, escaped', () => {
+    const svg = shapeToSvgString(note('A & B\nC', 1), 0, 0, 10);
+    expect(svg).toContain('<tspan x="0" y="10">A &amp; B</tspan><tspan x="0" y="22.5">C</tspan>');
+    expect(svg).toContain('font-size="10"');
   });
 });
