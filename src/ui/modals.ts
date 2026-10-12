@@ -7,7 +7,9 @@ import { currentProject } from '../storage';
 import { render } from './render';
 
 export function renderExportModal() {
-  const pngBtn = el('button', { className: 'btn primary' }, 'Download PNG');
+  const printBtn = el('button', { className: 'btn primary', 'data-testid': 'printable-plan' }, 'Printable plan (PDF)…');
+  printBtn.addEventListener('click', () => { state.panel = 'print'; render(); });
+  const pngBtn = el('button', { className: 'btn secondary' }, 'Download PNG');
   pngBtn.addEventListener('click', () => doExport('png'));
   const svgBtn = el('button', { className: 'btn secondary' }, 'Download SVG');
   svgBtn.addEventListener('click', () => doExport('svg'));
@@ -19,8 +21,8 @@ export function renderExportModal() {
       (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
     ),
     el('div', { className: 'sheet-body' },
-      el('div', { style: { fontSize: '14px', color: '#57534e' } }, 'Choose a format. PNG is good for sharing; SVG keeps vector quality for printing.'),
-      el('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } }, pngBtn, svgBtn, cancelBtn)
+      el('div', { style: { fontSize: '14px', color: '#57534e' } }, 'The printable plan is a to-scale sheet with a title, scale bar, north arrow, legend and plant list. PNG and SVG are just the drawing.'),
+      el('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } }, printBtn, pngBtn, svgBtn, cancelBtn)
     )
   );
   const overlay = el('div', { className: 'overlay center' }, modal);

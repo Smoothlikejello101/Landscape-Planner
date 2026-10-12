@@ -231,6 +231,24 @@ describe('text notes and dimension lines', () => {
   });
 });
 
+describe('printable-plan settings', () => {
+  it('default for older projects, validate odd values, and round-trip', async () => {
+    expect(sanitizeProjectData({ shapes: [] }).print).toEqual({
+      paper: 'letter', orientation: 'auto', title: '', subtitle: '',
+      includeBackground: false, includeGrid: true, includePlantList: true, northDeg: 0,
+    });
+    expect(sanitizeProjectData({ print: { paper: 'poster', orientation: 'sideways', northDeg: -90, includeGrid: 'no', title: 7 } }).print)
+      .toMatchObject({ paper: 'letter', orientation: 'auto', northDeg: 270, includeGrid: true, title: '' });
+    await freshStorage();
+    const id = state.currentProjectId!;
+    state.print = { ...state.print, paper: 'tabloid', title: 'Back yard', northDeg: 15, includePlantList: false };
+    await flushSave();
+    expect((await readProject(id))!.print).toMatchObject({ paper: 'tabloid', title: 'Back yard', northDeg: 15, includePlantList: false });
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.print).toMatchObject({ paper: 'tabloid', title: 'Back yard' });
+  });
+});
+
 describe('unsaved-edit journal', () => {
   it('recovers edits whose async save never finished', async () => {
     const kv = await freshStorage();

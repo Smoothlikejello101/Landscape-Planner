@@ -16,6 +16,7 @@ import { renderLayersPanel } from './layers-panel';
 import { renderMoreMenu } from './menu';
 import { renderExportModal, renderPreviewModal, renderResetModal } from './modals';
 import { renderPlantsPanel } from './plants-panel';
+import { renderPrintPanel } from './print-panel';
 import { renderProjectsPanel, renderRenamePanel } from './projects-panel';
 import { renderArrangePanel, renderPropsPanel } from './props-panel';
 
@@ -256,6 +257,7 @@ export function render() {
   else if (state.panel === 'plants') panelNode = renderPlantsPanel();
   else if (state.panel === 'bg') panelNode = renderBgPanel();
   else if (state.panel === 'bgDistance') panelNode = renderBgDistanceModal();
+  else if (state.panel === 'print') panelNode = renderPrintPanel();
   if (panelNode) root.appendChild(panelNode);
   if (state.menu === 'more') root.appendChild(renderMoreMenu());
 

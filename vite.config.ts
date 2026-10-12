@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 
@@ -8,6 +9,9 @@ export default defineConfig({
   // Relative base so the build works under a GitHub Pages subpath.
   base: './',
   build: { target: 'es2020', sourcemap: true },
+  resolve: {
+    alias: Object.fromEntries(['html2canvas', 'dompurify', 'canvg'].map((m) => [m, fileURLToPath(new URL('./src/stubs/unused.ts', import.meta.url))])),
+  },
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version + (process.env.VERSION_SUFFIX ?? '')),
     __BUILD_TIME__: JSON.stringify(new Date().toISOString().slice(0, 10)),
