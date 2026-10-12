@@ -35,8 +35,10 @@ export function renderBgPanel() {
 
   if (!bg) {
     body.appendChild(el('div', { style: { fontSize: '13px', color: '#57534e', lineHeight: '1.5' } },
-      'Pick a satellite screenshot (Google Maps, Apple Maps, county GIS, survey scan). ',
-      'The image will be downscaled to ~2000px on the long edge to fit browser storage.',
+      'Use a straight-down view of your property: a drone photo taken looking directly down from well above the roof, ',
+      'a survey or plat scan, or aerial imagery you have the right to use (many county GIS sites publish aerials). ',
+      'Photos taken at an angle stretch distances, so measurements traced from them will be off. ',
+      'Large images are downscaled to about 2000 px on the long edge to fit browser storage.',
       el('br'), el('br'),
       el('b', {}, 'iPhone note:'), ' if your photos are HEIC format, switch to JPEG at Settings → Camera → Formats → Most Compatible, or convert the file first.'
     ));
