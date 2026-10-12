@@ -45,6 +45,8 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .tool-btn.oval:active { background: #0e7490; }
 .tool-btn.tri { background: #7c3aed; }
 .tool-btn.tri:active { background: #6d28d9; }
+.tool-btn.text { background: #44403c; }
+.tool-btn.text:active { background: #292524; }
 .tool-btn.draw { background: #0f766e; }
 .tool-btn.draw:active { background: #115e59; }
 .draw-bar { padding: 8px; gap: 6px; }
@@ -74,6 +76,8 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .sheet-header .title { font-weight: 600; color: #292524; }
 .sheet-body { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
 .field label { display: block; font-size: 12px; font-weight: 500; color: #57534e; margin-bottom: 4px; }
+.field textarea { width: 100%; padding: 8px 12px; border: 1px solid #d6d3d1; border-radius: 6px; font-size: 14px; font-family: inherit; outline: none; background: #fff; resize: vertical; }
+.field textarea:focus { border-color: #059669; box-shadow: 0 0 0 2px rgba(5,150,105,0.2); }
 .field input[type="text"], .field input[type="number"], .field select { width: 100%; padding: 8px 12px; border: 1px solid #d6d3d1; border-radius: 6px; font-size: 14px; outline: none; background: #fff; }
 .field input:focus, .field select:focus { border-color: #059669; box-shadow: 0 0 0 2px rgba(5,150,105,0.2); }
 .field .hint { font-size: 12px; color: #78716c; margin-top: 4px; }

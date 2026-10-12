@@ -33,6 +33,7 @@ export function renderLayersPanel() {
       let dims;
       if (s.type === 'circle') dims = s.radius + ' ft radius';
       else if (s.type === 'line') dims = fmtFt(shapePerimeter(s)) + ' ft long';
+      else if (s.type === 'text') dims = 'text · ' + fmtFt(s.fontSize) + ' ft tall';
       else if (s.type === 'poly') dims = s.points.length + ' points · ' + fmtFt(boxSize(s).w) + ' × ' + fmtFt(boxSize(s).h) + ' ft';
       else dims = s.width + ' × ' + s.height + ' ft';
       const opacity = s.opacity !== undefined ? s.opacity : 0.65;
@@ -58,6 +59,8 @@ export function renderLayersPanel() {
         swatch = el('div', { className: 'layer-sw', style: { background: 'transparent', border: 'none' } },
           svgEl('svg', { width: 32, height: 32, viewBox: '0 0 32 32' },
             svgEl('polygon', { points: '4,10 16,2 30,12 24,30 6,26', fill: s.color, 'fill-opacity': opacity, stroke: '#d6d3d1', 'stroke-width': 1 })));
+      } else if (s.type === 'text') {
+        swatch = el('div', { className: 'layer-sw', style: { background: 'transparent', border: 'none', color: s.color, fontWeight: '700', fontSize: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' } }, 'T');
       } else {
         swatch = el('div', { className: 'layer-sw', style: { background: 'transparent', border: 'none' } },
           svgEl('svg', { width: 32, height: 32, viewBox: '0 0 32 32' },

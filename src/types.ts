@@ -1,6 +1,6 @@
 // Core data types shared across the app.
 
-export type ShapeType = 'circle' | 'rect' | 'oval' | 'triangle' | 'poly' | 'line';
+export type ShapeType = 'circle' | 'rect' | 'oval' | 'triangle' | 'poly' | 'line' | 'text';
 /** What a shape represents. Undefined = not yet assigned (shapes from older versions). */
 export type Role = 'plant' | 'bed' | 'boundary' | 'building' | 'shade' | 'path' | 'lawn' | 'water' | 'other';
 /** Per-project display state for a role (or 'unassigned'). */
@@ -71,14 +71,26 @@ export interface PathShape<T extends 'poly' | 'line' = 'poly' | 'line'> extends 
   type: T;
   points: [number, number][];
   rotation: number;
+  /** Lines: show the length on the plan (dimension lines). */
+  showLength?: boolean;
+}
+/**
+ * A text note on the plan. The text is `label`; (x, y) is the top-left of its
+ * box, whose size follows from the text and `fontSize` (feet, so it scales
+ * with the plan and prints at the right size).
+ */
+export interface TextShape extends ShapeBase {
+  type: 'text';
+  fontSize: number;
+  rotation: number;
 }
 export type PolyShape = PathShape<'poly'>;
 export type LineShape = PathShape<'line'>;
 export type RectShape = BoxShape<'rect'>;
 export type OvalShape = BoxShape<'oval'>;
-export type Shape = CircleShape | RectShape | OvalShape | TriangleShape | PolyShape | LineShape;
+export type Shape = CircleShape | RectShape | OvalShape | TriangleShape | PolyShape | LineShape | TextShape;
 /** Any subset of fields from any shape kind (used by property editors). */
-export type ShapePatch = Partial<Omit<CircleShape, 'type'> & Omit<BoxShape, 'type'> & Omit<TriangleShape, 'type'> & Omit<PathShape, 'type'>>;
+export type ShapePatch = Partial<Omit<CircleShape, 'type'> & Omit<BoxShape, 'type'> & Omit<TriangleShape, 'type'> & Omit<PathShape, 'type'> & Omit<TextShape, 'type'>>;
 
 export interface BgImage {
   /** Image bytes as a data URL. Kept in memory; stored separately on disk. */
@@ -169,7 +181,7 @@ export type Gesture =
   | { type: 'drag-vertex'; id: string; index: number; startX: number; startY: number; moved: boolean; inserted: boolean };
 
 /** Drawing a freeform outline or line: the points tapped so far (world feet). */
-export interface DrawState { kind: 'poly' | 'line'; points: Point[] }
+export interface DrawState { kind: 'poly' | 'line' | 'measure'; points: Point[] }
 /** Editing the points of one outline/line; `vertex` is the selected point. */
 export interface EditPoints { id: string; vertex: number | null }
 

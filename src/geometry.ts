@@ -1,6 +1,6 @@
 import { PX_PER_FOOT_BASE } from './constants';
 import { state } from './state';
-import type { Bounds, CircleShape, PathShape, Point, Shape, TriangleShape } from './types';
+import type { Bounds, CircleShape, PathShape, Point, Shape, TextShape, TriangleShape } from './types';
 
 // ---- View transforms (depend on current zoom/offset) ----
 export function pxPerFoot(): number { return PX_PER_FOOT_BASE * state.zoom; }
@@ -28,7 +28,21 @@ export function viewCenterFeet(): Point {
 /** Width and height of any non-circle shape's box (for paths: of its points). */
 export function boxSize(s: Exclude<Shape, CircleShape>): { w: number; h: number } {
   if (s.type === 'poly' || s.type === 'line') return pathSize(s.points);
+  if (s.type === 'text') return textSize(s);
   return { w: s.width, h: s.height };
+}
+/** Average glyph width as a share of the font size (sans-serif); text boxes are estimates. */
+const CHAR_WIDTH = 0.55;
+/** Box of a text note, in feet: one line per line of text. */
+export function textSize(s: Pick<TextShape, 'label' | 'fontSize'>): { w: number; h: number } {
+  const lines = textLines(s.label);
+  const longest = Math.max(...lines.map((l) => l.length));
+  return { w: Math.max(s.fontSize, longest * CHAR_WIDTH * s.fontSize), h: lines.length * s.fontSize * LINE_HEIGHT };
+}
+export const LINE_HEIGHT = 1.25;
+export function textLines(text: string): string[] {
+  const lines = (text || 'Text').split('\n');
+  return lines.length ? lines : ['Text'];
 }
 export function shapeCenter(s: Shape): Point {
   if (s.type === 'circle') return { x: s.x, y: s.y };
@@ -101,6 +115,7 @@ export function pointInShape(s: Shape, p: Point): boolean {
     return ((q.x - cx) / rx) ** 2 + ((q.y - cy) / ry) ** 2 <= 1;
   }
   if (s.type === 'line') return false; // a line has no inside
+  if (s.type === 'text') { const { w, h } = textSize(s); return q.x >= s.x && q.x <= s.x + w && q.y >= s.y && q.y <= s.y + h; }
   if (s.type === 'poly') return pointInPolygon(pathPoints(s), q);
   const [a, b, c] = trianglePoints(s);
   const side = (p1: number[], p2: number[]) => (q.x - p2[0]) * (p1[1] - p2[1]) - (p1[0] - p2[0]) * (q.y - p2[1]);
@@ -113,7 +128,7 @@ export function shapeArea(s: Shape): number {
   if (s.type === 'rect') return s.width * s.height;
   if (s.type === 'oval') return Math.PI * (s.width / 2) * (s.height / 2);
   if (s.type === 'poly') return polygonArea(s.points);
-  if (s.type === 'line') return 0;
+  if (s.type === 'line' || s.type === 'text') return 0;
   return (s.width * s.height) / 2;
 }
 export function shapePerimeter(s: Shape): number {
@@ -125,6 +140,7 @@ export function shapePerimeter(s: Shape): number {
   }
   if (s.type === 'poly') return pathLength(s.points, true);
   if (s.type === 'line') return pathLength(s.points, false);
+  if (s.type === 'text') return 0;
   return s.width + s.height + Math.hypot(s.width, s.height);
 }
 /** Move a shape so its center lands at `c`. */
@@ -251,7 +267,7 @@ function edgeDistance(poly: Point[], p: Point): number {
  * Outline of a rectangle, oval (24 sides) or triangle, in world feet, before
  * rotation. Its box matches the shape's box, so the same rotation applies.
  */
-export function outlineOf(s: Exclude<Shape, CircleShape | PathShape>): Point[] {
+export function outlineOf(s: Exclude<Shape, CircleShape | PathShape | TextShape>): Point[] {
   let pts: [number, number][];
   if (s.type === 'rect') pts = [[s.x, s.y], [s.x + s.width, s.y], [s.x + s.width, s.y + s.height], [s.x, s.y + s.height]];
   else if (s.type === 'triangle') pts = trianglePoints(s);
@@ -263,4 +279,15 @@ export function outlineOf(s: Exclude<Shape, CircleShape | PathShape>): Point[] {
     });
   }
   return pts.map(([x, y]) => ({ x, y }));
+}
+
+/** Feet for display: 12, 12.5 (one decimal, no trailing .0). */
+export function fmtFeet(v: number): string { return String(Math.round(v * 10) / 10); }
+/** The label as shown on the plan: dimension lines add their length. */
+export function displayLabel(s: Shape): string {
+  if (s.type === 'line' && s.showLength) {
+    const len = fmtFeet(pathLength(s.points, false)) + ' ft';
+    return s.label ? `${s.label} · ${len}` : len;
+  }
+  return s.label;
 }

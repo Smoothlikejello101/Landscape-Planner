@@ -1,7 +1,7 @@
 import { renderBgHandles, renderBgImageInto } from './background';
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from './constants';
 import { svgEl, type Attrs } from './dom';
-import { boxSize, pathLabelPoint, pxPerFoot, trianglePoints, worldPoints } from './geometry';
+import { boxSize, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, worldPoints } from './geometry';
 import { renderPathOverlay } from './draw';
 import { onShapePointerDown } from './gestures';
 import { plantsById } from './plants';
@@ -9,7 +9,7 @@ import { isLocked, roleDef, roleHidden, roleRank } from './roles';
 import { checkPlantSun, formatHours, shadeOpacity, sunHours } from './sun';
 import { isSelected } from './selection';
 import { state } from './state';
-import type { Shape } from './types';
+import type { Shape, TextShape } from './types';
 
 // Canvas drawing. Everything here writes only into the <svg>, never into
 // panel DOM, so it is safe to call while an input has keyboard focus.
@@ -106,6 +106,7 @@ export function shapeGroup(s: Shape): SVGGElement {
     'stroke-dasharray': dashed ? '8 4' : s.locked ? '4 2' : null,
     'pointer-events': inert ? 'none' : null,
   };
+  if (s.type === 'text') return textGroup(s, sel, inert, common);
   let shapeEl: SVGElement;
   let hitEl: SVGElement | null = null;
   let labelX: number, labelY: number, fs: number, rotTransform = '';
@@ -156,18 +157,28 @@ export function shapeGroup(s: Shape): SVGGElement {
   target.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
   const g = svgEl('g', { 'data-shape-group': s.id }, shapeEl);
   if (hitEl) g.appendChild(hitEl);
+  // Dimension lines get end ticks, like a drawing's dimension.
+  if (s.type === 'line' && s.showLength) {
+    const pts = worldPoints(s).map((p) => ({ x: (p.x - state.offsetX) * ppf, y: (p.y - state.offsetY) * ppf }));
+    for (const [a, b] of [[pts[0], pts[1]], [pts.at(-1)!, pts.at(-2)!]]) {
+      const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const nx = (-(b.y - a.y) / len) * 7, ny = ((b.x - a.x) / len) * 7;
+      g.appendChild(svgEl('line', { 'data-role': 'dim-tick', x1: a.x - nx, y1: a.y - ny, x2: a.x + nx, y2: a.y + ny, stroke: s.color, 'stroke-width': 2, 'pointer-events': 'none' }));
+    }
+  }
   const sunText = s.role === 'shade' && s.sun ? '☀ ' + formatHours(sunHours(s.sun)) : '';
-  if (s.label) {
+  const label = displayLabel(s);
+  if (label) {
     g.appendChild(svgEl('text', {
       x: labelX, y: sunText ? labelY - fs * 0.6 : labelY, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
       'font-size': fs, fill: '#0f172a', 'pointer-events': 'none',
       style: 'user-select:none;font-weight:500;',
       transform: rotTransform || null,
-    }, s.label));
+    }, label));
   }
   if (sunText) {
     g.appendChild(svgEl('text', {
-      x: labelX, y: s.label ? labelY + fs * 0.7 : labelY, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
+      x: labelX, y: label ? labelY + fs * 0.7 : labelY, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
       'font-size': Math.max(10, fs * 0.85), fill: '#1e293b', 'pointer-events': 'none', 'data-role': 'sun-label',
       style: 'user-select:none;', transform: rotTransform || null,
     }, sunText));
@@ -184,6 +195,31 @@ export function shapeGroup(s: Shape): SVGGElement {
     }
   }
   return g;
+}
+
+/** A text note: the text itself (with a light halo so it reads over anything) and an invisible box to tap. */
+function textGroup(s: TextShape, sel: boolean, inert: boolean, common: Attrs): SVGGElement {
+  const ppf = pxPerFoot();
+  const { w, h } = textSize(s);
+  const px = (s.x - state.offsetX) * ppf, py = (s.y - state.offsetY) * ppf;
+  const fs = s.fontSize * ppf;
+  const rot = s.rotation ? `rotate(${s.rotation} ${px + (w * ppf) / 2} ${py + (h * ppf) / 2})` : null;
+  const box = svgEl('rect', {
+    'data-shape-id': s.id, x: px, y: py, width: w * ppf, height: h * ppf, fill: 'transparent',
+    stroke: sel ? '#0f172a' : 'none', 'stroke-width': 1, 'stroke-dasharray': '4 3',
+    style: common.style, 'pointer-events': inert ? 'none' : 'all', transform: rot,
+  });
+  box.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
+  const text = svgEl('text', {
+    'data-role': 'text-note', x: px, y: py, 'font-size': fs, fill: s.color, 'font-family': 'sans-serif', 'font-weight': 500,
+    stroke: 'rgba(255,255,255,0.85)', 'stroke-width': Math.max(1.5, fs * 0.12), 'paint-order': 'stroke', 'stroke-linejoin': 'round',
+    'pointer-events': 'none', style: 'user-select:none;', transform: rot,
+  });
+  textLines(s.label).forEach((line, i) => {
+    text.appendChild(svgEl('tspan', { x: px, y: py + (i * LINE_HEIGHT + 1) * fs }, line || ' '));
+  });
+  if (!s.label) text.setAttribute('fill-opacity', '0.4'); // placeholder until text is typed
+  return svgEl('g', { 'data-shape-group': s.id }, text, box);
 }
 
 /** Drawing tier: by role (ground first, plants on top), then locked before unlocked. */
