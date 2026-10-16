@@ -43,24 +43,41 @@ export function renderPlantForm() {
   const name = text('Name', editing?.common ?? (args.copyFromId && source ? source.common : args.name ?? ''), "e.g. Hydrangea 'Limelight'", 'pf-name');
   const botanical = text('Botanical or cultivar name (optional)', source?.botanical ?? '', 'e.g. Hydrangea paniculata', 'pf-botanical');
 
-  // Sizes: as written on the tag. The hint shows how it was read, so "36" vs "36 in" mix-ups show up at once.
-  const sizeText = (r: unknown) => {
-    const x = r as Range | undefined;
-    return x ? (x.min === x.max ? `${x.min} ft` : `${x.min}-${x.max} ft`) : '';
+  // Sizes: typed on the number pad, in feet or inches (most tags give feet for
+  // shrubs, inches for perennials). Writing a unit ("36 in") also works. The
+  // hint shows how it was read, so a feet/inches mix-up shows at once.
+  type SizeField = { input: HTMLInputElement; hint: HTMLElement; unit: 'ft' | 'in' };
+  const sizeField = (label: string, r: Range | undefined, placeholder: string, testid: string, required: boolean): SizeField => {
+    const value = r ? (r.min === r.max ? `${r.min}` : `${r.min}-${r.max}`) : '';
+    const input = el('input', { type: 'text', inputMode: 'decimal', value, placeholder, 'data-testid': testid, autocomplete: 'off' }) as HTMLInputElement;
+    const hint = el('div', { className: 'hint' });
+    const f: SizeField = { input, hint, unit: 'ft' };
+    const seg = el('div', { className: 'seg unit-seg', role: 'group', 'aria-label': label + ' unit' });
+    const btns = (['ft', 'in'] as const).map((u) => {
+      const b = el('button', { className: u === 'ft' ? 'sel' : '', 'aria-pressed': String(u === 'ft'), 'data-testid': `${testid}-${u}` }, u);
+      b.addEventListener('click', () => {
+        f.unit = u;
+        btns.forEach((x, i) => { const on = (i === 0) === (u === 'ft'); x.classList.toggle('sel', on); x.setAttribute('aria-pressed', String(on)); });
+        show();
+      });
+      seg.appendChild(b);
+      return b;
+    });
+    const show = () => {
+      const v = input.value.trim();
+      const rr = parseSize(v, f.unit);
+      hint.textContent = !v ? (required ? 'From the tag: one number or a range like 6-8.' : '')
+        : rr ? `Read as ${formatSize(rr)}${required && rr.min !== rr.max ? `; drawn at ${formatSize({ min: rr.med, max: rr.med, med: rr.med })} (typical) or ${formatSize({ min: rr.max, max: rr.max, med: rr.max })} (full size)` : ''}.`
+        : "Couldn't read that. Try 6-8, or 36 with inches selected.";
+      hint.classList.toggle('error', !!v && !rr);
+    };
+    input.addEventListener('input', show);
+    body.appendChild(el('div', { className: 'field' }, el('label', {}, label), el('div', { className: 'size-row' }, input, seg), hint));
+    show();
+    return f;
   };
-  const spread = text('Spread (width)', sizeText(source?.width), 'e.g. 6-8 ft or 36 in', 'pf-spread');
-  const height = text('Height (optional)', sizeText(source?.height), 'e.g. 3-4 ft', 'pf-height');
-  const showSize = (f: { input: HTMLInputElement; hint: HTMLElement }, required: boolean) => {
-    const v = f.input.value.trim();
-    const r = parseSize(v);
-    f.hint.textContent = !v ? (required ? 'Copy it from the tag: a range like 6-8 ft is fine.' : '')
-      : r ? `Read as ${formatSize(r)}${r.min !== r.max ? `; drawn at ${formatSize({ min: r.med, max: r.med, med: r.med })} (typical) or ${formatSize({ min: r.max, max: r.max, med: r.max })} (full size)` : ''}.`
-      : "Couldn't read that. Try 6-8 ft, 36 in, or 3.";
-    f.hint.classList.toggle('error', !!v && !r);
-  };
-  spread.input.addEventListener('input', () => showSize(spread, true));
-  height.input.addEventListener('input', () => showSize(height, false));
-  showSize(spread, true); showSize(height, false);
+  const spread = sizeField('Spread (width)', source?.width as Range | undefined, 'e.g. 6-8', 'pf-spread', true);
+  const height = sizeField('Height (optional)', source?.height as Range | undefined, 'e.g. 3-4', 'pf-height', false);
 
   // Sun: tags show sun as icons; tap every one that applies.
   const sun = new Set<SunLevel>(source ? sunLevels(source) : []);
@@ -114,10 +131,10 @@ export function renderPlantForm() {
 
   const collect = (): Plant | null => {
     const common = name.input.value.trim();
-    const width = parseSize(spread.input.value);
+    const width = parseSize(spread.input.value, spread.unit);
     if (!common) { error.textContent = 'Give the plant a name.'; name.input.focus(); return null; }
-    if (!width) { error.textContent = 'Enter its spread, e.g. 6-8 ft.'; spread.input.focus(); return null; }
-    const h = parseSize(height.input.value);
+    if (!width) { error.textContent = 'Enter its spread, e.g. 6-8.'; spread.input.focus(); return null; }
+    const h = parseSize(height.input.value, height.unit);
     const start = Number(bloomStart.value) || undefined, end = Number(bloomEnd.value) || start;
     return {
       id: editing?.id ?? newMyPlantId(),

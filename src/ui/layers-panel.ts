@@ -106,7 +106,7 @@ export function renderLayersPanel() {
 /** Show/hide and lock every shape of a role. Lists only roles in use. */
 /** Plan-wide plant size: typical or full, and full-size rings for every plant. */
 function plantSizeSection(): HTMLElement {
-  const wrap = el('div', { className: 'role-rows', 'data-testid': 'plant-size' }, el('div', { className: 'section-label' }, 'Plant size'));
+  const wrap = el('div', { className: 'role-rows', 'data-testid': 'plant-size' }, el('div', { className: 'section-label' }, 'Plants'));
   const seg = el('div', { className: 'seg', role: 'group', 'aria-label': 'Draw plants at' });
   for (const [mode, label] of [['typical', 'Typical size'], ['full', 'Full size']] as const) {
     const b = el('button', { className: state.sizeMode === mode ? 'sel' : '', 'aria-pressed': String(state.sizeMode === mode) }, label);
@@ -128,6 +128,11 @@ function plantSizeSection(): HTMLElement {
   wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, cb,
     el('span', {}, 'Show full-size rings on every plant (check for crowding)')));
   wrap.appendChild(el('div', { className: 'hint' }, 'Typical is the middle of a plant\'s size range; full is the top. Selected plants always show their full-size ring.'));
+  const sun = el('input', { type: 'checkbox', 'data-testid': 'sun-warnings' }) as HTMLInputElement;
+  sun.checked = state.sunWarnings;
+  sun.addEventListener('change', () => { state.sunWarnings = sun.checked; save(); render(); });
+  wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '8px' } }, sun,
+    el('span', {}, 'Sun warnings on plants (\u26a0 badges)')));
   return wrap;
 }
 

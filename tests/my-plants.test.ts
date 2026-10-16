@@ -30,6 +30,11 @@ describe('reading sizes off a tag', () => {
   ])('%s', (text, min, max) => {
     expect(parseSize(text)).toEqual({ min, max, med: (min + max) / 2 });
   });
+  it('uses the chosen unit for bare numbers, but a written unit wins', () => {
+    expect(parseSize('18-24', 'in')).toEqual({ min: 1.5, max: 2, med: 1.75 });
+    expect(parseSize('3 ft', 'in')).toEqual({ min: 3, max: 3, med: 3 });
+    expect(parseSize('2,5')).toEqual({ min: 2.5, max: 2.5, med: 2.5 }); // decimal comma
+  });
   it.each(['', 'big', '0', '-3', '6 meters', '500 ft'])('rejects %j', (text) => {
     expect(parseSize(text)).toBeNull();
   });

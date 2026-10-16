@@ -249,6 +249,20 @@ describe('printable-plan settings', () => {
   });
 });
 
+describe('sun warning settings', () => {
+  it('keep dismissals and the plan switch, and default to warnings on', () => {
+    const d = sanitizeProjectData({ shapes: [
+      { type: 'circle', radius: 1, role: 'plant', sunDismissed: 'Heuchera gets about 8 h of sun here; it prefers part sun to shade.' },
+      { type: 'circle', radius: 1, sunDismissed: 42 },
+    ] });
+    expect(d.sunWarnings).toBe(true);
+    expect(d.shapes[0].sunDismissed).toContain('prefers part sun');
+    expect(d.shapes[1]).not.toHaveProperty('sunDismissed');
+    expect(sanitizeProjectData({ sunWarnings: false }).sunWarnings).toBe(false);
+    expect(sanitizeProjectData({ sunWarnings: 'no' }).sunWarnings).toBe(true);
+  });
+});
+
 describe('unsaved-edit journal', () => {
   it('recovers edits whose async save never finished', async () => {
     const kv = await freshStorage();

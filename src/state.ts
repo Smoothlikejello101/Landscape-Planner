@@ -41,6 +41,7 @@ export const state: AppState = {
   roleViews: {},
   print: { ...DEFAULT_PRINT },
   sizeMode: 'typical',
+  sunWarnings: true,
   showFullSize: false,
   plantForm: null,
   pickerLinkId: null,

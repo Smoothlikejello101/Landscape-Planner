@@ -7,7 +7,7 @@ import { fullRingRadius } from './my-plants';
 import { onShapePointerDown } from './gestures';
 import { plantsById } from './plants';
 import { isLocked, roleDef, roleHidden, roleRank } from './roles';
-import { checkPlantSun, formatHours, shadeOpacity, sunHours } from './sun';
+import { checkPlantSun, formatHours, shadeOpacity, sunHours, sunWarningShown } from './sun';
 import { isSelected } from './selection';
 import { state } from './state';
 import type { Shape, TextShape } from './types';
@@ -192,7 +192,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   // Plants whose spot doesn't match their sun needs get a small warning badge.
   if (s.role === 'plant' && s.plantId) {
     const check = checkPlantSun(s, plantsById[s.plantId], state.shapes);
-    if (check && !check.ok) {
+    if (sunWarningShown(check, s, state.sunWarnings)) {
       const r = s.type === 'circle' ? s.radius * ppf : Math.min(boxSize(s).w, boxSize(s).h) * ppf / 2;
       const bx = labelX + r * 0.7, by = labelY - r * 0.7;
       g.appendChild(svgEl('g', { 'data-role': 'sun-warning', 'pointer-events': 'none' },

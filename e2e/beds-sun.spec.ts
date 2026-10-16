@@ -96,6 +96,29 @@ test('a plant in the wrong light gets a warning', async ({ page }) => {
   await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(1);
   await page.locator('.sel-pill button.edit').click();
   await expect(page.locator('[data-testid=sun-check]')).toContainText('prefers part sun to shade');
+
+  // Dismiss it for this plant: the badge goes, the note stays in properties.
+  await page.getByTestId('sun-dismiss').click();
+  await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(0);
+  await expect(page.locator('[data-testid=sun-check]')).toContainText('dismissed');
+  await page.getByTestId('sun-dismiss').click(); // and back
+  await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(1);
+  await page.getByTestId('sun-dismiss').click();
+  await closeSheet(page);
+
+  // It comes back when the light changes.
+  await page.locator('button[title=Layers]').click();
+  await page.locator('.layer-row', { hasText: 'Sunny strip' }).click();
+  await page.locator('.sel-pill button.edit').click();
+  await page.locator('[data-testid=sun-section] input[type=range]').fill('7'); // still too sunny, but the warning now reads differently
+  await closeSheet(page);
+  await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(1);
+
+  // Or turn badges off for the whole plan.
+  await page.locator('button[title=Layers]').click();
+  await page.getByTestId('sun-warnings').uncheck();
+  await closeSheet(page);
+  await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(0);
 });
 
 test('boundaries show their length; deleting from properties closes the panel', async ({ page }) => {
