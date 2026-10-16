@@ -231,6 +231,31 @@ describe('text notes and dimension lines', () => {
   });
 });
 
+describe('paths with a width', () => {
+  const line = (extra: Record<string, unknown> = {}) => ({ id: 'w', type: 'line', x: 0, y: 0, points: [[0, 0], [10, 0], [10, 8]], rotation: 0, color: '#a8a29e', label: 'Path', opacity: 0.7, locked: false, role: 'path', ...extra });
+  it('round-trip their width, and older lines stay thin', async () => {
+    await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [line({ pathWidth: 3 }), line({ id: 'fence', role: 'boundary' })] }).shapes;
+    await flushSave();
+    const loaded = (await readProject(id))!.shapes;
+    expect(loaded).toEqual(state.shapes);
+    expect(loaded[0]).toMatchObject({ type: 'line', pathWidth: 3 });
+    expect('pathWidth' in loaded[1]).toBe(false);
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
+  });
+  it('drop widths that are not a sensible number of feet', () => {
+    const shapes = sanitizeProjectData({ shapes: [
+      line({ id: 'zero', pathWidth: 0 }), line({ id: 'huge', pathWidth: 500 }), line({ id: 'text', pathWidth: '3' }),
+      line({ id: 'nan', pathWidth: NaN }), line({ id: 'ok', pathWidth: 0.25 }),
+      { ...line({ id: 'poly', pathWidth: 3 }), type: 'poly' },
+    ] }).shapes;
+    expect(shapes.map((s) => (s.type === 'line' ? s.pathWidth : 'poly'))).toEqual([undefined, undefined, undefined, undefined, 0.25, 'poly']);
+    expect(shapes.filter((s) => s.id !== 'ok').some((s) => 'pathWidth' in s)).toBe(false); // dropped, not stored as undefined
+  });
+});
+
 describe('printable-plan settings', () => {
   it('default for older projects, validate odd values, and round-trip', async () => {
     expect(sanitizeProjectData({ shapes: [] }).print).toEqual({

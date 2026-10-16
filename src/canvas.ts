@@ -146,6 +146,17 @@ export function shapeGroup(s: Shape): SVGGElement {
     const pts = worldPoints(s).map((p) => `${(p.x - state.offsetX) * ppf},${(p.y - state.offsetY) * ppf}`).join(' ');
     if (s.type === 'poly') {
       shapeEl = svgEl('polygon', { ...common, points: pts, 'stroke-linejoin': 'round' });
+    } else if (s.pathWidth) {
+      // A path: a band at its real width, with a thin center line while selected.
+      shapeEl = svgEl('polyline', {
+        ...common, points: pts, fill: 'none', stroke: s.status === 'remove' ? '#dc2626' : s.color, 'stroke-opacity': s.status === 'planned' ? 0.5 * (s.opacity ?? 0.65) : s.opacity ?? 0.65,
+        'stroke-width': Math.max(2, s.pathWidth * ppf), 'stroke-linejoin': 'round', 'stroke-linecap': 'butt', 'stroke-dasharray': null, 'pointer-events': 'none',
+      });
+      if (sel) g0.push(svgEl('polyline', { 'data-role': 'path-center', points: pts, fill: 'none', stroke: '#0f172a', 'stroke-width': 1.5, 'stroke-dasharray': '6 4', 'pointer-events': 'none' }));
+      hitEl = svgEl('polyline', {
+        'data-shape-id': s.id, 'data-role': 'line-hit', points: pts, fill: 'none', stroke: 'transparent', 'stroke-width': Math.max(18, s.pathWidth * ppf),
+        'stroke-linejoin': 'round', style: common.style, 'pointer-events': inert ? 'none' : 'stroke',
+      });
     } else {
       // A thin line is hard to hit with a finger: a wide invisible stroke takes the taps.
       shapeEl = svgEl('polyline', { ...common, points: pts, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'pointer-events': 'none' });
@@ -158,7 +169,7 @@ export function shapeGroup(s: Shape): SVGGElement {
     labelX = (lp.x - state.offsetX) * ppf; labelY = (lp.y - state.offsetY) * ppf;
     const { w, h } = boxSize(s);
     fs = s.type === 'line' ? 12 : Math.max(10, Math.min(14, Math.min(w, h) * ppf * 0.2));
-    if (s.type === 'line') labelY -= 10; // above the line, not on it
+    if (s.type === 'line' && !s.pathWidth) labelY -= 10; // above a thin line, not on it (a path's label sits on it)
   } else {
     const px = (s.x - state.offsetX) * ppf;
     const py = (s.y - state.offsetY) * ppf;

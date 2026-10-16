@@ -106,14 +106,18 @@ describe('drawing', () => {
     expect(s).toMatchObject({ type: 'poly', x: 0, y: 0, points: [[0, 0], [4, 0], [2, 3]] });
     expect(state.draw).toBe(null);
     expect(state.selectedIds).toEqual([s.id]);
-    expect(state.panel).toBe('props');
+    expect(state.panel).toBe(null); // the plan stays in view; Edit opens properties
     expect(state.historyIndex).toBe(0);
   });
-  it('makes lines boundaries by default', () => {
+  it('makes a plain line a plain shape, and a fence a boundary', () => {
     startDraw('line');
     tap(10, 10); tap(20, 10); tap(20, 30);
-    const s = finishDraw()!;
-    expect(s).toMatchObject({ type: 'line', role: 'boundary', x: 10, y: 10 });
+    const plain = finishDraw()!;
+    expect(plain).toMatchObject({ type: 'line', x: 10, y: 10 });
+    expect(plain.role).toBeUndefined();
+    startDraw('line', 'fence');
+    tap(0, 0); tap(10, 0);
+    expect(finishDraw()).toMatchObject({ type: 'line', role: 'boundary', label: 'Fence' });
   });
 });
 

@@ -12,7 +12,7 @@ import { setRoleForIds, bringForward, bringToFront, copySelected, deleteSelected
 import { getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { render } from './render';
-import type { CircleShape, Corner, Shape } from '../types';
+import type { CircleShape, Corner, RoleKey, Shape } from '../types';
 import { formatSize, isMine, plantRadius, type Range } from '../my-plants';
 import { plantsById } from '../plants';
 import { statusSection } from './status-section';
@@ -23,6 +23,28 @@ import { snapRot, typeName } from '../util';
 // PANELS
 // ============================================================
 
+/** Selection whose kind list is open ("Change" was tapped), as a key of its ids. */
+let changingKindOf: string | null = null;
+/** Close the kind list (whenever properties aren't showing). */
+export function resetKindChange() { changingKindOf = null; }
+/**
+ * What a shape is ("Bed"), with a Change button that opens the full list.
+ * The list is rarely needed, so it stays out of the way until asked for.
+ */
+function whatItIs(ids: string[], current: RoleKey | null, multi: boolean): HTMLElement {
+  const key = ids.join(',');
+  const wrap = el('div', { className: 'field', 'data-testid': 'what-it-is' });
+  wrap.appendChild(el('label', {}, multi ? 'What they are (applies to all selected)' : 'What it is'));
+  if (changingKindOf === key) {
+    wrap.appendChild(roleChips(current, (role) => { changingKindOf = null; setRoleForIds(ids, role); render(); }));
+    return wrap;
+  }
+  const change = el('button', { className: 'link-btn', 'data-testid': 'change-kind', 'aria-label': multi ? 'Change what they are' : 'Change what it is' }, 'Change');
+  change.addEventListener('click', () => { changingKindOf = key; render(); });
+  wrap.appendChild(el('div', { className: 'kind-row' }, el('span', { className: 'kind-name' }, current ? roleLabel(current) : 'Mixed'), change));
+  return wrap;
+}
+
 export function renderPropsPanelSingle(s: Shape) {
   const body = el('div', { className: 'sheet-body' });
   if (s.locked) {
@@ -32,8 +54,7 @@ export function renderPropsPanelSingle(s: Shape) {
     body.appendChild(el('div', { className: 'banner' },
       `All ${roleLabel(roleKey(s)).toLowerCase()} shapes are locked. Unlock them in the Layers panel to move this one.`));
   }
-  body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Role'),
-    roleChips(roleKey(s), (role) => { setRoleForIds([s.id], role); render(); })));
+  body.appendChild(whatItIs([s.id], roleKey(s), false));
   const sunCheck = plantSunBanner(s);
   if (sunCheck) body.appendChild(sunCheck);
   // Crowding: refreshed in place as the position is typed (no re-render).
@@ -89,10 +110,13 @@ export function renderPropsPanelSingle(s: Shape) {
     // A perfectly straight line has no height (or width) to stretch.
     if (isPath && size.w === 0) wInput.disabled = true;
     if (isPath && size.h === 0) hInput.disabled = true;
-    body.appendChild(el('div', { className: 'row-2' },
-      el('div', { className: 'field' }, el('label', {}, 'Width (ft)'), wInput),
-      el('div', { className: 'field' }, el('label', {}, 'Height (ft)'), hInput)
-    ));
+    // A path's box isn't its size (that's its width and length), so it has no box fields.
+    if (!(s.type === 'line' && s.pathWidth)) {
+      body.appendChild(el('div', { className: 'row-2' },
+        el('div', { className: 'field' }, el('label', {}, 'Width (ft)'), wInput),
+        el('div', { className: 'field' }, el('label', {}, 'Height (ft)'), hInput)
+      ));
+    }
     body.appendChild(measure);
     if (isPath) {
       const editBtn = el('button', { className: 'btn ghost', 'data-testid': 'edit-points' }, 'Edit points…');
@@ -205,8 +229,20 @@ export function renderPropsPanelSingle(s: Shape) {
     cb.checked = !!s.showLength;
     cb.addEventListener('change', () => updateSelected({ showLength: cb.checked }));
     body.appendChild(el('label', { className: 'check-row', 'data-testid': 'show-length' }, cb, el('span', {}, 'Show length on the plan')));
+    // A path's width; empty = a thin line (fences). Typed without re-rendering (keyboard safety).
+    const w = el('input', { type: 'number', min: '0.25', max: '50', step: '0.5', inputMode: 'decimal', placeholder: 'Thin line', value: s.pathWidth ?? '', 'data-testid': 'path-width' }) as HTMLInputElement;
+    const widthValue = () => { const v = parseFloat(w.value.replace(',', '.')); return Number.isFinite(v) && v >= 0.25 && v <= 50 ? v : null; };
+    // While typing, only a usable width applies (a passing "0" mustn't turn the path into a line).
+    w.addEventListener('input', () => { const v = widthValue(); if (v != null) { updateSelectedSilent({ pathWidth: v }); refreshMeasure(); } });
+    // On leaving the field: empty means a thin line; anything else unusable goes back to the width in use.
+    w.addEventListener('change', () => {
+      if (!w.value.trim()) { updateSelectedSilent({ pathWidth: undefined }); refreshMeasure(); }
+      else if (widthValue() == null) w.value = String(s.type === 'line' ? s.pathWidth ?? '' : '');
+    });
+    body.appendChild(el('div', { className: 'field', style: { marginTop: '8px' } }, el('label', {}, 'Path width (ft)'), w,
+      el('div', { className: 'hint' }, 'Paths draw at their real width. Leave it empty for a thin line, like a fence.')));
   }
-  if (s.role === 'boundary' || s.type === 'line' || s.type === 'text' || (s.role === 'shade' && s.sun)) return finish();
+  if (s.role === 'boundary' || (s.type === 'line' && !s.pathWidth) || s.type === 'text' || (s.role === 'shade' && s.sun)) return finish();
   const opacityVal = s.opacity !== undefined ? s.opacity : 0.65;
   const rangeInput = el('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: opacityVal });
   const opacityPct = el('span', { style: { fontSize: '12px', color: '#78716c' } }, Math.round(opacityVal * 100) + '%');
@@ -279,8 +315,7 @@ export function renderPropsPanelMulti(selected: Shape[]) {
     selected.length + ' shapes selected. Use the buttons below to act on all of them. Edit individual properties one at a time.'));
 
   const roles = new Set(selected.map(roleKey));
-  body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Role (applies to all selected)'),
-    roleChips(roles.size === 1 ? [...roles][0] : null, (role) => { setRoleForIds(state.selectedIds, role); render(); })));
+  body.appendChild(whatItIs(state.selectedIds.slice(), roles.size === 1 ? [...roles][0] : null, true));
   body.appendChild(statusSection(selected));
 
   // Common locked state
@@ -312,7 +347,7 @@ export function renderPropsPanel() {
   if (selected.length === 0) return null;
   const single = selected.length === 1 ? selected[0] : null;
   const title = single ?
-    (typeName(single.type).charAt(0).toUpperCase() + typeName(single.type).slice(1)) + ' properties' :
+    (single.type === 'line' && single.pathWidth ? 'Path' : typeName(single.type).charAt(0).toUpperCase() + typeName(single.type).slice(1)) + ' properties' :
     selected.length + ' shapes selected';
 
   // Header

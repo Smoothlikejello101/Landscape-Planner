@@ -62,9 +62,12 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
   if (s.type === 'poly' || s.type === 'line') {
     const wp = worldPoints(s).map((p) => ({ x: (p.x - originX) * scale, y: (p.y - originY) * scale }));
     const pts = wp.map((p) => `${p.x},${p.y}`).join(' ');
+    const band = s.type === 'line' && s.pathWidth ? s.pathWidth : 0;
     let out = s.type === 'poly'
       ? `<polygon points="${pts}" fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linejoin="round"${dash}/>`
-      : `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="${2.5 * k}" stroke-linejoin="round" stroke-linecap="round"${dash}/>`;
+      : band // a path: a band at its real width
+        ? `<polyline points="${pts}" fill="none" stroke="${s.status === 'remove' ? '#dc2626' : s.color}" stroke-opacity="${(s.status === 'planned' ? 0.5 : 1) * (s.opacity ?? 0.65)}" stroke-width="${band * scale}" stroke-linejoin="round" stroke-linecap="butt"/>`
+        : `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="${2.5 * k}" stroke-linejoin="round" stroke-linecap="round"${dash}/>`;
     if (s.type === 'line' && s.showLength) {
       for (const [a, b] of [[wp[0], wp[1]], [wp.at(-1)!, wp.at(-2)!]]) {
         const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
@@ -77,7 +80,7 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
       const lp = pathLabelPoint(s);
       const { w, h } = boxSize(s);
       const fs = s.type === 'line' ? 12 : Math.max(10, Math.min(14, (Math.min(w, h) * scale * 0.2) / k));
-      const ly = (lp.y - originY) * scale - (s.type === 'line' ? 10 * k : 0);
+      const ly = (lp.y - originY) * scale - (s.type === 'line' && !band ? 10 * k : 0);
       out += text((lp.x - originX) * scale, ly, fs, label);
     }
     return out;

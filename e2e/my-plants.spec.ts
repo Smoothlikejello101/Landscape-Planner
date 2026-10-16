@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { autoDialogs, closeSheet, field, openFresh } from './helpers';
+import { autoDialogs, closeSheet, field, openFresh, addPlainShape } from './helpers';
 
 const circleR = async (page: Page, label: string) =>
   Number(await page.locator('[data-shape-group]', { has: page.locator('text', { hasText: label }) }).locator('circle[data-shape-id]').getAttribute('r'));
@@ -79,7 +79,7 @@ test('copy a catalog plant as your own cultivar', async ({ page }) => {
 test('turn a labeled circle into a plant, then edit the plant', async ({ page }) => {
   autoDialogs(page);
   await openFresh(page);
-  await page.locator('.tool-btn.circle').click();
+  await addPlainShape(page, 'circle');
   await field(page, 'Label').fill('Mystery shrub');
   await page.getByTestId('plant-link').getByRole('button', { name: 'Link to a plant…' }).click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Link to a plant');

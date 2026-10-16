@@ -1,11 +1,11 @@
 import { MAX_POINTS, MIN_POINTS } from './constants';
 import { svgEl } from './dom';
-import { bakeRotation, fmtFeet, outlineOf, pathPoints, pxPerFoot, screenToFeet, setWorldPoints } from './geometry';
+import { bakeRotation, fmtFeet, outlineOf, pathPoints, pxPerFoot, rotate, screenToFeet, setWorldPoints } from './geometry';
 import { flushHistoryDebounce, pushHistory } from './history';
-import { defaultLook } from './roles';
 import { state } from './state';
 import { save } from './storage';
-import type { PathShape, Point, Shape } from './types';
+import { buildShape, isKindKey, kindDef, tapAccepted, TAPS_TO_FINISH, type KindKey, type Method } from './kinds';
+import type { DrawState, PathShape, Point, Shape } from './types';
 import { snap, uid } from './util';
 
 // Freeform outlines (closed) and lines (open).
@@ -23,23 +23,39 @@ const CLOSE_RADIUS_PX = 18;
 const isPath = (s: Shape | undefined): s is PathShape => !!s && (s.type === 'poly' || s.type === 'line');
 
 // ---------- Drawing ----------
-type DrawKind = 'poly' | 'line' | 'measure';
-const minPoints = (k: DrawKind) => (k === 'measure' ? 2 : MIN_POINTS[k]);
+type DrawKind = DrawState['kind'];
+const minPoints = (k: DrawKind) => (k === 'measure' || k === 'line' || k === 'path' ? 2 : TAPS_TO_FINISH[k] ?? MIN_POINTS.poly);
 
-export function startDraw(kind: DrawKind) {
+/** Start drawing with `method`, adding a thing of kind `target` (none = a measurement). */
+export function startDraw(method: DrawKind, target?: KindKey) {
   flushHistoryDebounce();
-  state.draw = { kind, points: [] };
+  state.draw = { kind: method, points: [], ...(target ? { target } : {}) };
   state.editPoints = null;
   state.selectMode = false;
   state.selectedIds = [];
   state.panel = null;
   state.menu = null;
+  hover = null;
 }
+/**
+ * Start adding a thing of this kind: plants open the picker, Measure starts
+ * measuring, everything else starts drawing in its remembered method.
+ */
+export function startKind(key: KindKey) {
+  if (key === 'plant') { state.draw = null; state.editPoints = null; state.pickerLinkId = null; state.panel = 'plants'; state.menu = null; return; }
+  if (key === 'measure') { startDraw('measure'); return; }
+  const def = kindDef(key);
+  const remembered = loadPrefs().methods[key];
+  startDraw(remembered && def.methods.includes(remembered) ? remembered : def.methods[0], key);
+}
+/** Switch the drawing method (Outline, Rectangle...). Taps so far are kept only between outline and line. */
 export function setDrawKind(kind: DrawKind) {
   const d = state.draw;
-  if (!d) return;
-  if ((d.kind === 'measure') !== (kind === 'measure')) d.points = []; // a measurement isn't the start of a shape
+  if (!d || d.kind === kind) return;
+  const keep = (a: DrawKind) => a === 'poly' || a === 'line' || a === 'path';
+  if (!(keep(d.kind) && keep(kind))) d.points = [];
   d.kind = kind;
+  if (d.target && kind !== 'measure') rememberMethod(d.target, kind);
 }
 /** Length of the current measurement, in feet (null until both ends are placed). */
 export function measuredFeet(): number | null {
@@ -48,14 +64,16 @@ export function measuredFeet(): number | null {
   const [a, b] = d.points;
   return Math.hypot(b.x - a.x, b.y - a.y);
 }
-export function cancelDraw() { state.draw = null; }
+export function cancelDraw() { state.draw = null; hover = null; }
 export function undoDrawPoint() { state.draw?.points.pop(); }
 export function canFinishDraw(): boolean {
   return !!state.draw && state.draw.points.length >= minPoints(state.draw.kind);
 }
+/** Methods that finish by themselves once enough points are tapped (no Done button). */
+export function finishesItself(kind: DrawKind): boolean { return kind !== 'measure' && TAPS_TO_FINISH[kind] != null; }
 /**
  * A tap on the canvas while drawing. Returns true if the drawing finished
- * (tapped the first point of an outline).
+ * (tapped the first point of an outline, or the last tap a shape needs).
  */
 export function drawTap(clientX: number, clientY: number): boolean {
   const d = state.draw;
@@ -71,30 +89,65 @@ export function drawTap(clientX: number, clientY: number): boolean {
   const p = { x: snap(f.x), y: snap(f.y) };
   const last = d.points.at(-1);
   if (last && last.x === p.x && last.y === p.y) return false; // double tap on the same spot
+  if (d.kind !== 'measure' && !tapAccepted(d.kind, d.points, p)) return false; // too small to make a shape
   d.points.push(p);
+  if (finishesItself(d.kind) && d.points.length >= (TAPS_TO_FINISH[d.kind as Method] ?? Infinity)) { finishDraw(); return true; }
   return false;
 }
-/** Turn the drawing into a shape (selected, with its properties open). */
+/** Turn the drawing into a shape of its kind, selected. */
 export function finishDraw(): Shape | null {
   const d = state.draw;
   if (!d || !canFinishDraw()) return null;
   if (d.kind === 'measure') return keepMeasurement();
+  const kind = kindDef(d.target ?? 'plain');
+  const shape = buildShape(d.kind, d.points, drawKindDef(d), state.shapes);
+  if (!shape) return null;
   state.draw = null;
-  // An outline's closing point may duplicate the first one; drop it.
-  const pts = d.points.slice();
-  if (d.kind === 'poly' && pts.length > 3 && pts[0].x === pts.at(-1)!.x && pts[0].y === pts.at(-1)!.y) pts.pop();
-  const shape = {
-    id: uid(), type: d.kind, x: 0, y: 0, points: [], rotation: 0, label: '', locked: false,
-    ...(d.kind === 'line' ? { role: 'boundary' as const, ...defaultLook('boundary', 'line') } : defaultLook('unassigned', 'poly')),
-  } as PathShape;
-  setWorldPoints(shape, pts);
+  hover = null;
   state.shapes.push(shape);
   state.selectedIds = [shape.id];
-  state.panel = 'props';
+  // Most things stay closed so the plan stays in view; a note needs its text, sun exposure its sun record.
+  state.panel = kind.openProps ? 'props' : null;
+  noteRecentKind(kind.key);
   pushHistory();
   save();
   return shape;
 }
+
+/** The kind being drawn, with the width set while drawing a path. */
+export function drawKindDef(d: DrawState) {
+  const kind = kindDef(d.target ?? 'plain');
+  return d.pathWidth ? { ...kind, pathWidth: d.pathWidth } : kind;
+}
+/** Width of the path being drawn (feet). */
+export function drawPathWidth(): number { const d = state.draw; return d ? drawKindDef(d).pathWidth ?? 3 : 3; }
+export function setDrawPathWidth(w: number) { if (state.draw && w >= 0.25 && w <= 50) state.draw.pathWidth = w; }
+
+// ---------- Remembered per device: method per kind, recently added kinds ----------
+interface KindPrefs { methods: Partial<Record<KindKey, Method>>; recent: KindKey[] }
+const PREFS_KEY = 'lp-kind-prefs';
+function loadPrefs(): KindPrefs {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') as Partial<KindPrefs>;
+    const methods: KindPrefs['methods'] = {};
+    for (const [k, m] of Object.entries(raw.methods ?? {})) if (isKindKey(k) && kindDef(k).methods.includes(m as Method)) methods[k] = m as Method;
+    const recent = Array.isArray(raw.recent) ? raw.recent.filter(isKindKey) : [];
+    return { methods, recent };
+  } catch { return { methods: {}, recent: [] }; } // no storage: nothing remembered, which is fine
+}
+function savePrefs(p: KindPrefs) { try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch { /* not remembered */ } }
+function rememberMethod(key: KindKey, m: Method) { const p = loadPrefs(); p.methods[key] = m; savePrefs(p); }
+/** Kinds added most recently from the Add sheet (newest first; plants and measuring aren't listed). */
+export function recentKinds(): KindKey[] { return loadPrefs().recent.slice(0, 2); }
+function noteRecentKind(key: KindKey) {
+  const p = loadPrefs();
+  p.recent = [key, ...p.recent.filter((k) => k !== key)].slice(0, 4);
+  savePrefs(p);
+}
+
+// ---------- Where the pointer is (mouse only), for a preview of the next tap ----------
+let hover: Point | null = null;
+export function setDrawHover(p: Point | null) { hover = p ? { x: snap(p.x), y: snap(p.y) } : null; }
 
 /** Save the current measurement as a dimension line (stays in measure mode). */
 function keepMeasurement(): Shape | null {
@@ -211,21 +264,7 @@ export function renderPathOverlay(g: SVGElement) {
     return;
   }
   if (d) {
-    const pts = d.points.map(toScreen);
-    if (pts.length > 1) {
-      g.appendChild(svgEl(d.kind === 'poly' ? 'polygon' : 'polyline', {
-        'data-role': 'draw-path', points: pts.map((p) => `${p.x},${p.y}`).join(' '),
-        fill: d.kind === 'poly' && pts.length > 2 ? 'rgba(13,148,136,0.15)' : 'none',
-        stroke: '#0f766e', 'stroke-width': 2.5, 'stroke-dasharray': d.kind === 'poly' ? null : '8 4', 'pointer-events': 'none',
-      }));
-    }
-    pts.forEach((p, i) => {
-      const closer = i === 0 && d.kind === 'poly' && pts.length >= MIN_POINTS.poly;
-      g.appendChild(svgEl('circle', {
-        'data-role': closer ? 'draw-close' : 'draw-point', cx: p.x, cy: p.y, r: closer ? 10 : 5,
-        fill: closer ? 'rgba(15,118,110,0.25)' : '#0f766e', stroke: closer ? '#0f766e' : '#fff', 'stroke-width': 2, 'pointer-events': 'none',
-      }));
-    });
+    renderDrawPreview(g, d);
     return;
   }
   const s = editedShape();
@@ -248,3 +287,55 @@ export function renderPathOverlay(g: SVGElement) {
       svgEl('circle', { cx: c.x, cy: c.y, r: i === sel ? 8 : 6, fill: i === sel ? '#0f766e' : '#fff', stroke: '#0f766e', 'stroke-width': 2, 'pointer-events': 'none' })));
   });
 }
+
+const INK = '#0f766e';
+/** The shape being drawn: what's tapped so far, plus (with a mouse) where the next tap would go. */
+function renderDrawPreview(g: SVGElement, d: DrawState) {
+  if (d.kind === 'measure') return;
+  const method = d.kind;
+  const ppf = pxPerFoot();
+  const taps = d.points;
+  const withHover = hover && (taps.length === 0 || !samePoint(hover, taps.at(-1)!)) ? [...taps, hover] : taps;
+  const need = TAPS_TO_FINISH[method];
+  const kind = drawKindDef(d);
+  const shown = need != null ? withHover.slice(0, need) : withHover;
+  const preview = need != null && shown.length >= need ? buildShape(method, shown, kind, state.shapes, 'preview') : null;
+  const ghost = { 'pointer-events': 'none', 'data-role': 'draw-path' };
+  if (preview && preview.type === 'circle') {
+    const c = toScreen(preview);
+    g.appendChild(svgEl('circle', { ...ghost, cx: c.x, cy: c.y, r: preview.radius * ppf, fill: 'rgba(13,148,136,0.15)', stroke: INK, 'stroke-width': 2.5 }));
+  } else if (preview && (preview.type === 'rect' || preview.type === 'oval')) {
+    const cx = preview.x + preview.width / 2, cy = preview.y + preview.height / 2;
+    const pts = outlineOf(preview).map((p) => { const r = rotate(p.x - cx, p.y - cy, preview.rotation); return toScreen({ x: cx + r.x, y: cy + r.y }); });
+    g.appendChild(svgEl('polygon', { ...ghost, points: pts.map((p) => `${p.x},${p.y}`).join(' '), fill: 'rgba(13,148,136,0.15)', stroke: INK, 'stroke-width': 2.5 }));
+  } else if (method === 'circle' && shown.length === 2) {
+    // too small to be a circle yet: just the radius
+    const [a, b] = shown.map(toScreen);
+    g.appendChild(svgEl('line', { ...ghost, x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: INK, 'stroke-width': 2, 'stroke-dasharray': '6 4' }));
+  } else if (shown.length > 1) {
+    const pts = shown.map(toScreen);
+    const closed = (method === 'poly' || method === 'triangle') && pts.length > 2;
+    if (method === 'path') {
+      const width = (kind.pathWidth ?? 3) * ppf;
+      g.appendChild(svgEl('polyline', { ...ghost, 'data-role': 'draw-band', points: pts.map((p) => `${p.x},${p.y}`).join(' '), fill: 'none', stroke: 'rgba(120,113,108,0.35)', 'stroke-width': width, 'stroke-linejoin': 'round', 'stroke-linecap': 'butt' }));
+    }
+    g.appendChild(svgEl(closed ? 'polygon' : 'polyline', {
+      ...ghost, points: pts.map((p) => `${p.x},${p.y}`).join(' '),
+      fill: closed ? 'rgba(13,148,136,0.15)' : 'none',
+      stroke: INK, 'stroke-width': 2.5, 'stroke-dasharray': closed || method === 'rect' || method === 'oval' ? null : '8 4',
+    }));
+  }
+  taps.forEach((p, i) => {
+    const c = toScreen(p);
+    const closer = i === 0 && method === 'poly' && taps.length >= MIN_POINTS.poly;
+    g.appendChild(svgEl('circle', {
+      'data-role': closer ? 'draw-close' : 'draw-point', cx: c.x, cy: c.y, r: closer ? 10 : 5,
+      fill: closer ? 'rgba(15,118,110,0.25)' : INK, stroke: closer ? INK : '#fff', 'stroke-width': 2, 'pointer-events': 'none',
+    }));
+  });
+  if (hover && withHover.length > taps.length) {
+    const c = toScreen(hover);
+    g.appendChild(svgEl('circle', { 'data-role': 'draw-hover', cx: c.x, cy: c.y, r: 4, fill: 'none', stroke: INK, 'stroke-width': 1.5, 'pointer-events': 'none' }));
+  }
+}
+const samePoint = (a: Point, b: Point) => a.x === b.x && a.y === b.y;

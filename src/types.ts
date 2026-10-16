@@ -1,4 +1,5 @@
 // Core data types shared across the app.
+import type { KindKey } from './kinds';
 
 export type ShapeType = 'circle' | 'rect' | 'oval' | 'triangle' | 'poly' | 'line' | 'text';
 /** What a shape represents. Undefined = not yet assigned (shapes from older versions). */
@@ -96,6 +97,11 @@ export interface PathShape<T extends 'poly' | 'line' = 'poly' | 'line'> extends 
   rotation: number;
   /** Lines: show the length on the plan (dimension lines). */
   showLength?: boolean;
+  /**
+   * Lines: drawn as a band this many feet wide (paths, driveways). Unset =
+   * a thin line, as fences and measurements have always been drawn.
+   */
+  pathWidth?: number;
 }
 /**
  * A text note on the plan. The text is `label`; (x, y) is the top-left of its
@@ -194,7 +200,7 @@ export interface Bounds { minX: number; maxX: number; minY: number; maxY: number
 
 export type PanelName =
   | 'props' | 'arrange' | 'layers' | 'projects' | 'rename' | 'export'
-  | 'preview' | 'reset' | 'plants' | 'bg' | 'bgDistance' | 'print' | 'plantForm' | 'bloom';
+  | 'preview' | 'reset' | 'plants' | 'bg' | 'bgDistance' | 'print' | 'plantForm' | 'bloom' | 'add' | 'shortcuts';
 /** What the plant form is doing: a new plant (maybe from a search or a copy), or editing one of yours. */
 export interface PlantFormArgs { editId?: string; name?: string; copyFromId?: string; place: boolean }
 
@@ -234,8 +240,17 @@ export type Gesture =
   | { type: 'bg-calibrate-tap'; startX: number; startY: number; moved: boolean }
   | { type: 'drag-vertex'; id: string; index: number; startX: number; startY: number; moved: boolean; inserted: boolean };
 
-/** Drawing a freeform outline or line: the points tapped so far (world feet). */
-export interface DrawState { kind: 'poly' | 'line' | 'measure'; points: Point[] }
+/**
+ * Adding something by tapping on the plan: the drawing method, the points
+ * tapped so far (world feet), and the kind being added (absent for a measurement).
+ */
+export interface DrawState {
+  kind: 'poly' | 'line' | 'path' | 'rect' | 'circle' | 'oval' | 'triangle' | 'note' | 'measure';
+  points: Point[];
+  target?: KindKey;
+  /** Center-line method: the path's width in feet (else the kind's default). */
+  pathWidth?: number;
+}
 /** Editing the points of one outline/line; `vertex` is the selected point. */
 export interface EditPoints { id: string; vertex: number | null }
 

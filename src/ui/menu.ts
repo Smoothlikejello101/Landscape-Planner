@@ -51,6 +51,10 @@ export function renderMoreMenu() {
       render();
     }
   });
+  // Only where there's a keyboard (a laptop or desktop).
+  if (window.matchMedia?.('(hover: hover) and (pointer: fine)').matches) {
+    items.push({ icon: I.text, label: 'Keyboard shortcuts (?)', onClick: () => { state.panel = 'shortcuts'; state.menu = null; render(); } });
+  }
   items.push({
     icon: I.reset,
     label: 'Clear all shapes in project',

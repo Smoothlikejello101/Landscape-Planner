@@ -27,7 +27,7 @@ test('track planted and planned plants by phase, view and print one phase', asyn
   await page.getByTestId('phase-select').selectOption('__new');
   await page.getByTestId('new-phase').fill('Fall 2026');
   await expect(page.getByTestId('new-phase')).toBeFocused();
-  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await page.getByTestId('status-section').getByRole('button', { name: 'Add', exact: true }).click();
   await expect(page.getByTestId('phase-select')).toHaveValue('Fall 2026');
   await closeSheet(page);
   // Planned plants draw with a dashed edge.

@@ -3,13 +3,15 @@ import { el, svgEl } from '../dom';
 import { onCanvasPointerDown, onWheel } from '../gestures';
 import { canRedo, canUndo, redo, undo } from '../history';
 import { I } from '../icons';
-import { addShape, copySelected, deleteSelected, setViewFilter, zoomBy } from '../mutations';
+import { copySelected, deleteSelected, setViewFilter, zoomBy } from '../mutations';
 import { clearSelection, singleSelected } from '../selection';
 import { state } from '../state';
-import type { ShapeType } from '../types';
 import { typeName } from '../util';
-import { fmtFeet } from '../geometry';
-import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, editedShape, finishDraw, finishEditPoints, setDrawKind, startDraw, undoDrawPoint } from '../draw';
+import { fmtFeet, screenToFeet } from '../geometry';
+import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishesItself, setDrawHover, setDrawKind, setDrawPathWidth, startKind, undoDrawPoint } from '../draw';
+import { redrawHandles } from '../canvas';
+import { kindDef, METHOD_LABELS, nextTapPrompt, type KindKey } from '../kinds';
+import { methodIcon, renderAddSheet, renderShortcutsPanel, withKey } from './add-sheet';
 import { currentProject, storageIsDurable } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
@@ -23,7 +25,7 @@ import { fullRingRadius } from '../my-plants';
 import { filterActive, filterText } from '../status';
 import { toast } from './toast';
 import { renderProjectsPanel, renderRenamePanel } from './projects-panel';
-import { renderArrangePanel, renderPropsPanel } from './props-panel';
+import { renderArrangePanel, renderPropsPanel, resetKindChange } from './props-panel';
 
 // MAIN RENDER
 // ============================================================
@@ -97,6 +99,13 @@ export function render() {
   svg.addEventListener('touchstart', e => { if (e.touches && e.touches.length === 2) e.preventDefault(); }, { passive: false });
   svg.addEventListener('touchmove', e => { if (e.touches && e.touches.length === 2) e.preventDefault(); }, { passive: false });
   svg.addEventListener('wheel', onWheel, { passive: false });
+  // With a mouse, the shape being drawn follows the pointer to the next click.
+  svg.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse' || e.buttons || !state.draw || state.draw.kind === 'measure') return;
+    setDrawHover(screenToFeet(e.clientX, e.clientY));
+    redrawHandles();
+  });
+  svg.addEventListener('pointerleave', () => { if (state.draw) { setDrawHover(null); redrawHandles(); } });
   canvasWrap.appendChild(svg);
 
   // Mode banner (when select mode is on)
@@ -149,11 +158,7 @@ export function render() {
       ? d.kind === 'measure'
         ? (feet != null ? `${fmtFeet(feet)} ft — Keep adds it to the plan; tap again to measure again`
           : d.points.length ? 'Tap the other end' : 'Measuring — tap two points')
-        : (d.kind === 'poly'
-        ? (d.points.length === 0 ? 'Drawing an outline — tap to place the first corner'
-          : d.points.length < 3 ? 'Tap to add corners · drag to move around'
-          : 'Tap the first point (or Done) to close the outline')
-        : (d.points.length < 2 ? 'Drawing a line — tap to add points · drag to move around' : 'Tap to add points · Done when finished'))
+        : `${kindDef(d.target ?? 'plain').label}: ${nextTapPrompt(d.kind, d.points.length)}`
       : state.editPoints!.vertex != null ? 'Point selected — drag it, or Delete point below' : 'Drag a point to move it · tap + to add one';
     const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'draw-banner' });
     banner.innerHTML = I.draw + '<span></span>';
@@ -237,31 +242,28 @@ export function render() {
   app.appendChild(canvasWrap);
 
   // ===== BOTTOM TOOLBAR =====
+  // Named by what gets added, not by shape: the three most common things, and Add for the rest.
   const bottomBar = el('div', { className: 'bottom-toolbar' });
-  const mkShapeBtn = (type: ShapeType, cls: string, label: string, icon: string) => {
-    const b = el('button', { className: 'tool-btn ' + cls });
-    b.innerHTML = icon + '<div class="lbl">' + label + '</div>';
-    b.addEventListener('click', () => { addShape(type); render(); });
+  const kindBtn = (key: KindKey, cls: string, icon: string) => {
+    const k = kindDef(key);
+    const b = el('button', { className: 'tool-btn ' + cls, title: withKey(k), 'data-kind': key });
+    b.innerHTML = icon + '<div class="lbl">' + k.label + '</div>';
+    b.addEventListener('click', () => { startKind(key); render(); });
     return b;
   };
-  bottomBar.appendChild(mkShapeBtn('circle', 'circle', 'Circle', I.circle));
-  bottomBar.appendChild(mkShapeBtn('rect', 'rect', 'Rect', I.square));
-  bottomBar.appendChild(mkShapeBtn('oval', 'oval', 'Oval', I.oval));
-  bottomBar.appendChild(mkShapeBtn('triangle', 'tri', 'Triangle', I.triangle));
-  const drawBtn = el('button', { className: 'tool-btn draw', 'data-testid': 'draw-btn' });
-  drawBtn.innerHTML = I.draw + '<div class="lbl">Draw</div>';
-  drawBtn.addEventListener('click', () => { startDraw('poly'); render(); });
-  bottomBar.appendChild(drawBtn);
-  bottomBar.appendChild(mkShapeBtn('text', 'text', 'Text', I.text));
-  const plantsBtn = el('button', { className: 'tool-btn plants' });
-  plantsBtn.innerHTML = I.leaf + '<div class="lbl">Plants</div>';
-  plantsBtn.addEventListener('click', () => { state.panel = 'plants'; render(); });
-  bottomBar.appendChild(plantsBtn);
+  bottomBar.appendChild(kindBtn('plant', 'plants', I.leaf));
+  bottomBar.appendChild(kindBtn('bed', 'bed', I.bed));
+  bottomBar.appendChild(kindBtn('path', 'path', I.path));
+  const addBtn = el('button', { className: 'tool-btn add', title: 'Add something else (A)', 'data-testid': 'add-btn' });
+  addBtn.innerHTML = I.plus + '<div class="lbl">Add</div>';
+  addBtn.addEventListener('click', () => { state.panel = 'add'; render(); });
+  bottomBar.appendChild(addBtn);
   app.appendChild(drawing ? renderDrawBar() : bottomBar);
 
   root.appendChild(app);
 
   // ===== PANELS / MODALS / MENU =====
+  if (state.panel !== 'props') resetKindChange(); // the kind list opens fresh each time
   let panelNode = null;
   if (state.panel === 'props') panelNode = renderPropsPanel();
   else if (state.panel === 'arrange') panelNode = renderArrangePanel();
@@ -277,6 +279,8 @@ export function render() {
   else if (state.panel === 'print') panelNode = renderPrintPanel();
   else if (state.panel === 'plantForm') panelNode = renderPlantForm();
   else if (state.panel === 'bloom') panelNode = renderBloomPanel();
+  else if (state.panel === 'add') panelNode = renderAddSheet();
+  else if (state.panel === 'shortcuts') panelNode = renderShortcutsPanel();
   if (panelNode) root.appendChild(panelNode);
   if (state.menu === 'more') root.appendChild(renderMoreMenu());
 
@@ -285,7 +289,7 @@ export function render() {
   maybeExplainFullSize();
 }
 
-/** Bottom bar while drawing an outline/line or editing its points. */
+/** Bottom bar while drawing or editing an outline's points. */
 function renderDrawBar(): HTMLElement {
   const bar = el('div', { className: 'bottom-toolbar draw-bar', 'data-testid': 'draw-bar' });
   const btn = (label: string, cls: string, onClick: () => void, disabled = false) => {
@@ -295,30 +299,47 @@ function renderDrawBar(): HTMLElement {
     return b;
   };
   const d = state.draw;
-  if (d) {
-    const seg = el('div', { className: 'seg', role: 'group', 'aria-label': 'Kind' });
-    for (const [kind, label] of [['poly', 'Outline'], ['line', 'Line'], ['measure', 'Measure']] as const) {
-      const b = el('button', { className: d.kind === kind ? 'on' : '', 'aria-pressed': String(d.kind === kind) }, label);
-      b.addEventListener('click', () => { setDrawKind(kind); render(); });
-      seg.appendChild(b);
-    }
-    bar.appendChild(seg);
-    if (d.kind === 'measure') {
-      bar.appendChild(btn('Keep', '', () => { finishDraw(); }, !canFinishDraw()));
-      bar.appendChild(btn('Done', 'primary', cancelDraw));
-    } else {
-      bar.appendChild(btn('Undo', '', undoDrawPoint, d.points.length === 0));
-      bar.appendChild(btn('Cancel', '', cancelDraw));
-      bar.appendChild(btn('Done', 'primary', () => { finishDraw(); }, !canFinishDraw()));
-    }
-  } else {
-    bar.appendChild(btn('Delete point', 'danger', deleteSelectedVertex, !canDeleteVertex()));
-    bar.appendChild(btn('Done', 'primary', () => {
-      const id = state.editPoints?.id;
-      finishEditPoints();
-      if (id) { state.selectedIds = [id]; state.panel = 'props'; }
-    }));
+  if (d && d.kind === 'measure') {
+    bar.appendChild(btn('Keep', '', () => { finishDraw(); }, !canFinishDraw()));
+    bar.appendChild(btn('Done', 'primary', cancelDraw));
+    return bar;
   }
+  if (d) {
+    const kind = kindDef(d.target ?? 'plain');
+    const col = el('div', { className: 'draw-bar-rows' });
+    // How to draw it: each choice pictures its taps.
+    if (kind.methods.length > 1) {
+      const seg = el('div', { className: 'method-seg', role: 'group', 'aria-label': 'Draw it as' });
+      for (const m of kind.methods) {
+        const on = d.kind === m;
+        const b = el('button', { className: on ? 'on' : '', 'aria-pressed': String(on), 'data-method': m });
+        b.innerHTML = methodIcon(m) + '<span></span>';
+        b.querySelector('span')!.textContent = METHOD_LABELS[m];
+        b.addEventListener('click', () => { setDrawKind(m); render(); });
+        seg.appendChild(b);
+      }
+      col.appendChild(seg);
+    }
+    const row = el('div', { className: 'draw-bar-row' });
+    if (d.kind === 'path') {
+      // The path's width, typed without re-rendering (keyboard safety): only the preview redraws.
+      const w = el('input', { type: 'number', min: '0.25', max: '50', step: '0.5', inputMode: 'decimal', value: drawPathWidth(), 'aria-label': 'Path width in feet', 'data-testid': 'draw-path-width' }) as HTMLInputElement;
+      w.addEventListener('input', () => { setDrawPathWidth(parseFloat(w.value.replace(',', '.'))); redrawHandles(); });
+      row.appendChild(el('label', { className: 'draw-width' }, w, el('span', {}, 'ft wide')));
+    }
+    row.appendChild(btn('Undo', '', undoDrawPoint, d.points.length === 0));
+    row.appendChild(btn('Cancel', '', cancelDraw));
+    if (!finishesItself(d.kind)) row.appendChild(btn('Done', 'primary', () => { finishDraw(); }, !canFinishDraw()));
+    col.appendChild(row);
+    bar.appendChild(col);
+    return bar;
+  }
+  bar.appendChild(btn('Delete point', 'danger', deleteSelectedVertex, !canDeleteVertex()));
+  bar.appendChild(btn('Done', 'primary', () => {
+    const id = state.editPoints?.id;
+    finishEditPoints();
+    if (id) { state.selectedIds = [id]; state.panel = 'props'; }
+  }));
   return bar;
 }
 

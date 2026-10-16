@@ -159,7 +159,7 @@ export function legendEntries(shapes: Shape[], sizeMode: SizeMode = 'typical', r
     for (const s of of) counts.set(s.color.toLowerCase(), (counts.get(s.color.toLowerCase()) ?? 0) + 1);
     const color = [...counts].sort((a, b) => b[1] - a[1])[0][0];
     const label = k === 'plant' ? plantLabel : k === 'unassigned' ? 'Other shapes' : roleLabel(k);
-    out.push({ key: k, label, color, outline: k === 'boundary' || of.every((s) => s.type === 'line') });
+    out.push({ key: k, label, color, outline: k === 'boundary' || of.every((s) => s.type === 'line' && !s.pathWidth) });
   }
   return out;
 }

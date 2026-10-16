@@ -21,7 +21,7 @@ export const ROLES: RoleDef[] = [
   { key: 'lawn', label: 'Lawn', color: '#84cc16', opacity: 0.3 },
   { key: 'path', label: 'Path / hardscape', color: '#a8a29e', opacity: 0.7 },
   { key: 'water', label: 'Water', color: '#0ea5e9', opacity: 0.5 },
-  { key: 'shade', label: 'Shade', color: '#334155', opacity: 0.3 },
+  { key: 'shade', label: 'Sun exposure', color: '#334155', opacity: 0.3 },
   { key: 'building', label: 'Building', color: '#57534e', opacity: 0.8 },
   { key: 'boundary', label: 'Boundary', color: '#44403c', opacity: 1, outline: true },
   { key: 'other', label: 'Note / other', color: '#94a3b8', opacity: 0.6 },
@@ -31,7 +31,7 @@ export const ROLE_KEYS = ROLES.map((r) => r.key);
 
 export function roleDef(role: Role): RoleDef { return BY_KEY[role]; }
 export function roleKey(s: Shape): RoleKey { return s.role ?? 'unassigned'; }
-export function roleLabel(k: RoleKey): string { return k === 'unassigned' ? 'Unassigned' : BY_KEY[k].label; }
+export function roleLabel(k: RoleKey): string { return k === 'unassigned' ? 'Plain shape' : BY_KEY[k].label; }
 export function isRole(v: unknown): v is Role { return typeof v === 'string' && v in BY_KEY; }
 
 /**
