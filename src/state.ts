@@ -5,7 +5,7 @@ import type { AppState, Gesture, PrintSettings } from './types';
 
 export const DEFAULT_PRINT: PrintSettings = {
   paper: 'letter', orientation: 'auto', title: '', subtitle: '',
-  includeBackground: false, includeGrid: true, includePlantList: true, northDeg: 0,
+  includeBackground: false, includeGrid: true, includePlantList: true, includeFullRings: false, northDeg: 0,
 };
 
 export const state: AppState = {
@@ -40,6 +40,10 @@ export const state: AppState = {
   bgImage: null,
   roleViews: {},
   print: { ...DEFAULT_PRINT },
+  sizeMode: 'typical',
+  showFullSize: false,
+  plantForm: null,
+  pickerLinkId: null,
   // Ephemeral: are we in bg edit mode (drag/rotate handles active, shapes locked)?
   bgEditMode: false,
   // Ephemeral: calibration flow state, null or { step, p1, p2 }.

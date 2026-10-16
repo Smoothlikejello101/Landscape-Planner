@@ -12,7 +12,9 @@ import { setRoleForIds, bringForward, bringToFront, copySelected, deleteSelected
 import { getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { render } from './render';
-import type { Corner, Shape } from '../types';
+import type { CircleShape, Corner, Shape } from '../types';
+import { formatSize, isMine, plantRadius, type Range } from '../my-plants';
+import { plantsById } from '../plants';
 import { snapRot, typeName } from '../util';
 
 // ============================================================
@@ -57,11 +59,13 @@ export function renderPropsPanelSingle(s: Shape) {
     const diameterHint = el('div', { className: 'hint' }, 'Diameter: ' + (s.radius * 2).toFixed(1) + ' ft');
     radInput.addEventListener('input', e => {
       const newR = Math.max(0.1, parseFloat((e.target as HTMLInputElement).value) || 0);
-      updateSelectedSilent({ radius: newR });
+      // A plant resized by hand keeps its size when the plan's size mode changes.
+      updateSelectedSilent(s.plantId ? { radius: newR, sizeFrom: 'manual' } : { radius: newR });
       diameterHint.textContent = 'Diameter: ' + (newR * 2).toFixed(1) + ' ft';
       refreshMeasure();
     });
     body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Radius (ft)'), radInput, diameterHint, measure));
+    body.appendChild(plantLinkSection(s));
   } else {
     const isPath = s.type === 'poly' || s.type === 'line';
     const size = boxSize(s);
@@ -227,6 +231,38 @@ export function renderPropsPanelSingle(s: Shape) {
 
   return body;
   }
+}
+
+/** For circles: which plant this is (size range, reset, edit), or a way to make it one. */
+function plantLinkSection(s: CircleShape): HTMLElement {
+  const wrap = el('div', { className: 'field', 'data-testid': 'plant-link' });
+  const p = s.plantId ? plantsById[s.plantId] : undefined;
+  if (!p && s.role && s.role !== 'plant' && s.role !== 'other') return wrap; // a pond or a tree trunk isn't a plant to link
+  if (!p) {
+    const link = el('button', { className: 'btn ghost' }, s.plantId ? 'Link to a plant again…' : 'Link to a plant…');
+    link.addEventListener('click', () => { state.pickerLinkId = s.id; state.panel = 'plants'; render(); });
+    wrap.appendChild(link);
+    wrap.appendChild(el('div', { className: 'hint' }, s.plantId
+      ? "This plant's details aren't on this device (removed from My plants, or the plan came from someone else). Its size and name are kept."
+      : 'Pick the plant this circle stands for: it takes the plant\'s size and sun needs, and shows in the plant list.'));
+    return wrap;
+  }
+  const sizes = `Spread ${formatSize(p.width as Range | undefined) || 'unknown'}. Drawn at ${state.sizeMode === 'full' ? 'full' : 'typical'} size (change in Layers).`;
+  wrap.appendChild(el('div', { className: 'hint' }, sizes));
+  const row = el('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' } });
+  const target = plantRadius(p, state.sizeMode);
+  if (s.radius !== target) {
+    const reset = el('button', { className: 'btn ghost', style: { flex: '1' } }, `Reset to plant size (${target} ft radius)`);
+    reset.addEventListener('click', () => updateSelected({ radius: target, sizeFrom: 'plant' }));
+    row.appendChild(reset);
+  }
+  if (isMine(p)) {
+    const edit = el('button', { className: 'btn ghost', style: { flex: '1' } }, `Edit "${p.common}" in My plants`);
+    edit.addEventListener('click', () => { state.plantForm = { editId: p.id, place: false }; state.panel = 'plantForm'; render(); });
+    row.appendChild(edit);
+  }
+  if (row.childNodes.length) wrap.appendChild(row);
+  return wrap;
 }
 
 export function renderPropsPanelMulti(selected: Shape[]) {

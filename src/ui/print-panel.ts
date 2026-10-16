@@ -71,6 +71,8 @@ export function renderPrintPanel() {
   body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Include'),
     check('Plant list, grouped by bed', p.includePlantList, (v) => set({ includePlantList: v }, true)),
     check('Grid', p.includeGrid, (v) => set({ includeGrid: v }, true)),
+    ...(state.sizeMode === 'typical' && state.shapes.some((s) => s.plantId)
+      ? [check('Full-size rings around plants', p.includeFullRings, (v) => set({ includeFullRings: v }, true))] : []),
     check(hasBg ? 'Background photo (uses more ink)' : 'Background photo (none shown)', p.includeBackground && hasBg, (v) => set({ includeBackground: v }, true), !hasBg)));
 
   // North arrow
@@ -92,7 +94,7 @@ export function renderPrintPanel() {
     busy = true; result = null; render();
     try {
       const { buildPlanPdf } = await import('../print-pdf');
-      const r = await buildPlanPdf(state.print, projectName, state.shapes, state.bgImage);
+      const r = await buildPlanPdf(state.print, projectName, state.shapes, state.bgImage, state.sizeMode);
       result = { blob: r.blob, pages: r.pages, filename: `${safeFileName(state.print.title.trim() || projectName)}-plan-${localDate()}.pdf` };
     } catch (e) {
       alert("Couldn't make the PDF: " + errMsg(e));

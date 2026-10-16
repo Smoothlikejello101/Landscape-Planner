@@ -17,6 +17,9 @@ import { renderMoreMenu } from './menu';
 import { renderExportModal, renderPreviewModal, renderResetModal } from './modals';
 import { renderPlantsPanel } from './plants-panel';
 import { renderPrintPanel } from './print-panel';
+import { renderPlantForm } from './plant-form';
+import { fullRingRadius } from '../my-plants';
+import { toast } from './toast';
 import { renderProjectsPanel, renderRenamePanel } from './projects-panel';
 import { renderArrangePanel, renderPropsPanel } from './props-panel';
 
@@ -258,11 +261,13 @@ export function render() {
   else if (state.panel === 'bg') panelNode = renderBgPanel();
   else if (state.panel === 'bgDistance') panelNode = renderBgDistanceModal();
   else if (state.panel === 'print') panelNode = renderPrintPanel();
+  else if (state.panel === 'plantForm') panelNode = renderPlantForm();
   if (panelNode) root.appendChild(panelNode);
   if (state.menu === 'more') root.appendChild(renderMoreMenu());
 
   // Now that the SVG is in the DOM, size it and draw grid/shapes
   resizeCanvas();
+  maybeExplainFullSize();
 }
 
 /** Bottom bar while drawing an outline/line or editing its points. */
@@ -300,4 +305,16 @@ function renderDrawBar(): HTMLElement {
     }));
   }
   return bar;
+}
+
+/** The first time a plant with a full-size ring is selected, say what the ring is (once per device). */
+function maybeExplainFullSize() {
+  const s = singleSelected();
+  if (!s || state.panel || !fullRingRadius(s)) return;
+  const KEY = 'lp-hint-full-size';
+  try {
+    if (localStorage.getItem(KEY)) return;
+    localStorage.setItem(KEY, '1');
+  } catch { return; } // no storage: skip the hint rather than repeat it every time
+  toast('Circles show typical size; the dashed ring is full size. Change it in Layers.', 7000);
 }

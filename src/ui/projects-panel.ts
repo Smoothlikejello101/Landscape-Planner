@@ -1,4 +1,5 @@
-import { backupAll, buildProjectFile, canShareFiles, downloadText, importProjects, parseImportFile } from '../backup';
+import { backupAll, buildProjectFile, canShareFiles, downloadText, importProjects, parseImportFile, parseImportPlants } from '../backup';
+import { mergeMyPlants } from '../my-plants';
 import { el } from '../dom';
 import { I } from '../icons';
 import { paste } from '../mutations';
@@ -65,9 +66,11 @@ function backupSection(): HTMLElement {
     fileInput.value = '';
     if (!f) return;
     try {
-      const list = parseImportFile(await f.text());
+      const text = await f.text();
+      const list = parseImportFile(text);
+      const added = await mergeMyPlants(parseImportPlants(text)); // before opening, so sun checks have the plant data
       const ids = await importProjects(list);
-      toast(`Imported ${ids.length} project${ids.length === 1 ? '' : 's'}`);
+      toast(`Imported ${ids.length} project${ids.length === 1 ? '' : 's'}` + (added ? ` and ${added} of your plants` : ''));
       if (ids.length === 1) await openProject(ids[0]);
       else render();
     } catch (e) { alert(errMsg(e)); }

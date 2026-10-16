@@ -4,7 +4,7 @@ import {
   buildPlanSvg, legendEntries, pdfSafe, planLayout, plantSchedule, printContent, scaleBarFeet, scaleText,
   type Box, type LegendEntry, type PrintLayout, type ScheduleGroup,
 } from './print';
-import type { BgImage, PrintSettings, Shape } from './types';
+import type { BgImage, PrintSettings, Shape, SizeMode } from './types';
 
 // Writes the printable plan as a PDF (browser only). Layout and content come
 // from print.ts; this file only draws them.
@@ -48,7 +48,7 @@ function onPaper(hex: string, alpha: number): string {
 }
 
 export async function buildPlanPdf(
-  settings: PrintSettings, projectName: string, shapes: Shape[], bg: BgImage | null,
+  settings: PrintSettings, projectName: string, shapes: Shape[], bg: BgImage | null, sizeMode: SizeMode = 'typical',
 ): Promise<PdfResult> {
   const content = printContent(shapes, bg, settings.includeBackground);
   if (!content.bounds) throw new Error('There is nothing on the plan to print yet.');
@@ -72,7 +72,7 @@ export async function buildPlanPdf(
     ? [side]
     : [{ x: side.x, y: side.y, w: side.w * 0.42, h: side.h }, { x: side.x + side.w * 0.42 + 0.25, y: side.y, w: side.w * 0.58 - 0.25, h: side.h }];
   let cy = titleBlock(doc, cols[0], settings, projectName, layout);
-  cy = legend(doc, cols[0], cy, legendEntries(content.shapes));
+  cy = legend(doc, cols[0], cy, legendEntries(content.shapes, sizeMode, settings.includeFullRings && sizeMode === 'typical'));
   const schedule = settings.includePlantList ? plantSchedule(content.shapes, plantsById) : [];
   let pages = 1;
   if (schedule.length) {
