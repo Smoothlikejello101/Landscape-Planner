@@ -46,6 +46,7 @@ export const state: AppState = {
   phases: [],
   viewFilter: { status: '', phase: '', showGone: false },
   showFullSize: false,
+  showCrowding: false,
   plantForm: null,
   pickerLinkId: null,
   // Ephemeral: are we in bg edit mode (drag/rotate handles active, shapes locked)?

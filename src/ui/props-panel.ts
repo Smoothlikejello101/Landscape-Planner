@@ -7,7 +7,7 @@ import { boxSize, resizedPoints } from '../geometry';
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
 import { roleChips } from './role-picker';
-import { bedSection, measureText, plantSunBanner, shadeSunSection } from './role-sections';
+import { bedSection, crowdingNote, measureText, plantSunBanner, shadeSunSection } from './role-sections';
 import { setRoleForIds, bringForward, bringToFront, copySelected, deleteSelected, duplicateSelected, findNextSameTier, sendBackward, sendToBack, setLockedForIds, updateSelected, updateSelectedSilent } from '../mutations';
 import { getSelected, singleSelected } from '../selection';
 import { state } from '../state';
@@ -36,6 +36,11 @@ export function renderPropsPanelSingle(s: Shape) {
     roleChips(roleKey(s), (role) => { setRoleForIds([s.id], role); render(); })));
   const sunCheck = plantSunBanner(s);
   if (sunCheck) body.appendChild(sunCheck);
+  // Crowding: refreshed in place as the position is typed (no re-render).
+  const crowdBox = el('div', {});
+  const refreshCrowd = () => { crowdBox.replaceChildren(...[crowdingNote(s)].filter((x): x is HTMLElement => !!x)); };
+  refreshCrowd();
+  body.appendChild(crowdBox);
   if (s.type !== 'text') body.appendChild(statusSection([s]));
   // Label (for a text note, the text itself; it can run to several lines)
   if (s.type === 'text') {
@@ -106,9 +111,9 @@ export function renderPropsPanelSingle(s: Shape) {
 
   // Position
   const xInput = el('input', { type: 'number', step: '0.5', value: s.x });
-  xInput.addEventListener('input', e => updateSelectedSilent({ x: parseFloat((e.target as HTMLInputElement).value) || 0 }));
+  xInput.addEventListener('input', e => { updateSelectedSilent({ x: parseFloat((e.target as HTMLInputElement).value) || 0 }); refreshCrowd(); });
   const yInput = el('input', { type: 'number', step: '0.5', value: s.y });
-  yInput.addEventListener('input', e => updateSelectedSilent({ y: parseFloat((e.target as HTMLInputElement).value) || 0 }));
+  yInput.addEventListener('input', e => { updateSelectedSilent({ y: parseFloat((e.target as HTMLInputElement).value) || 0 }); refreshCrowd(); });
   body.appendChild(el('div', { className: 'row-2' },
     el('div', { className: 'field' }, el('label', {}, 'X position (ft)'), xInput),
     el('div', { className: 'field' }, el('label', {}, 'Y position (ft)'), yInput)

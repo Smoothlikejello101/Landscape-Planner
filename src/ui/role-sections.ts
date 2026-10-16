@@ -6,6 +6,8 @@ import { plantsById } from '../plants';
 import { state } from '../state';
 import { checkPlantSun, formatHours, formatTime, newSunInfo, sunHours, sunLevel } from '../sun';
 import type { Shape, SunInfo } from '../types';
+import { crowdingOf } from '../crowding';
+import { shownWith } from '../status';
 import { timeRange } from './time-range';
 
 // Parts of the properties panel that depend on a shape's role.
@@ -139,4 +141,17 @@ export function sunListText(info: SunInfo): string {
     : '';
   const when = info.mode === 'times' ? ' (' + info.periods.map(([a, b]) => `${formatTime(a)}–${formatTime(b)}`).join(', ') + ')' : '';
   return `${formatHours(sunHours(info))} sun${when}${seen}`;
+}
+
+/** A plant closer than usual to its neighbors: who, how far apart, and the usual spacing. */
+export function crowdingNote(s: Shape): HTMLElement | null {
+  if (s.role !== 'plant' || s.type !== 'circle') return null;
+  const crowds = crowdingOf(s, state.shapes.filter((x) => shownWith(x, state.viewFilter)), plantsById);
+  if (!crowds.length) return null;
+  const f = (v: number) => (Math.round(v * 10) / 10).toString();
+  const lines = crowds.slice(0, 3).map((c) => `${c.other.label || 'a plant'}: ${f(c.distance)} ft apart, about ${f(c.recommended)} ft is usual`);
+  return el('div', { className: 'check-banner warn', 'data-testid': 'crowding' },
+    el('div', {}, '⚠ Planted closer than usual to ' + (crowds.length === 1 ? 'one neighbor' : `${crowds.length} neighbors`) + ':'),
+    ...lines.map((l) => el('div', { style: { marginLeft: '12px' } }, '• ' + l)),
+    el('div', { className: 'hint', style: { marginTop: '4px' } }, 'Usual spacing is half of each plant\'s typical spread added together. Closer can be fine for a quick, full look.'));
 }
