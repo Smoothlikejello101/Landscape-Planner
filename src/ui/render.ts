@@ -3,7 +3,7 @@ import { el, svgEl } from '../dom';
 import { onCanvasPointerDown, onWheel } from '../gestures';
 import { canRedo, canUndo, redo, undo } from '../history';
 import { I } from '../icons';
-import { addShape, copySelected, deleteSelected, zoomBy } from '../mutations';
+import { addShape, copySelected, deleteSelected, setViewFilter, zoomBy } from '../mutations';
 import { clearSelection, singleSelected } from '../selection';
 import { state } from '../state';
 import type { ShapeType } from '../types';
@@ -19,6 +19,7 @@ import { renderPlantsPanel } from './plants-panel';
 import { renderPrintPanel } from './print-panel';
 import { renderPlantForm } from './plant-form';
 import { fullRingRadius } from '../my-plants';
+import { filterActive, filterText } from '../status';
 import { toast } from './toast';
 import { renderProjectsPanel, renderRenamePanel } from './projects-panel';
 import { renderArrangePanel, renderPropsPanel } from './props-panel';
@@ -156,6 +157,18 @@ export function render() {
     const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'draw-banner' });
     banner.innerHTML = I.draw + '<span></span>';
     banner.querySelector('span')!.textContent = msg;
+    canvasWrap.appendChild(banner);
+  }
+
+  // Showing only some plants: say so, with a way back to everything.
+  if (filterActive(state.viewFilter) && !state.draw && !state.editPoints && !state.bgCalibrate) {
+    const f = state.viewFilter;
+    const what = filterText(f) || 'All plants';
+    const banner = el('div', { className: 'mode-banner filter-banner', 'data-testid': 'filter-banner' });
+    banner.appendChild(el('span', {}, 'Showing: ' + what + (f.showGone ? ' (gone included)' : '')));
+    const clear = el('button', { className: 'iconbtn', style: { width: '20px', height: '20px', padding: 0 }, html: I.x, title: 'Show all', 'aria-label': 'Show all plants' });
+    clear.addEventListener('click', () => { setViewFilter({ status: '', phase: '', showGone: false }); render(); });
+    banner.appendChild(clear);
     canvasWrap.appendChild(banner);
   }
 

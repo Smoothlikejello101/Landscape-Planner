@@ -1,9 +1,10 @@
 import { el, svgEl } from '../dom';
 import { flushHistoryDebounce, pushHistory } from '../history';
 import { I } from '../icons';
-import { centerOnShape, setRoleView } from '../mutations';
+import { centerOnShape, deletePhase, setRoleView, setViewFilter } from '../mutations';
+import { passesFilter, STATUSES, statusLabel } from '../status';
 import { ROLES, roleHidden, roleKey, roleLabel } from '../roles';
-import type { RoleKey } from '../types';
+import type { RoleKey, ShapeFilter } from '../types';
 import { isSelected, selectOnly } from '../selection';
 import { state } from '../state';
 import { save } from '../storage';
@@ -26,6 +27,7 @@ export function renderLayersPanel() {
   const list = el('div', {});
   if (state.shapes.length) list.appendChild(roleSection());
   if (state.shapes.some((s) => s.plantId)) list.appendChild(plantSizeSection());
+  if (state.shapes.some((s) => s.role === 'plant' || s.status || s.phase) || state.phases.length) list.appendChild(showSection());
   if (state.shapes.length === 0) {
     list.appendChild(el('div', { style: { padding: '32px', textAlign: 'center', color: '#78716c', fontSize: '14px' } }, 'No shapes yet.'));
   } else {
@@ -39,8 +41,10 @@ export function renderLayersPanel() {
       else if (s.type === 'poly') dims = s.points.length + ' points · ' + fmtFt(boxSize(s).w) + ' × ' + fmtFt(boxSize(s).h) + ' ft';
       else dims = s.width + ' × ' + s.height + ' ft';
       const opacity = s.opacity !== undefined ? s.opacity : 0.65;
-      const extra = s.role === 'shade' && s.sun ? sunListText(s.sun) + ' · '
-        : s.role === 'bed' ? plantsInBed(s, state.shapes).length + ' plants · ' : '';
+      const extra = (s.status ? statusLabel(s.status) + (s.status === 'planted' && s.plantedOn ? ' ' + s.plantedOn : '') + ' · ' : '') +
+        (s.phase ? s.phase + ' · ' : '') +
+        (s.role === 'shade' && s.sun ? sunListText(s.sun) + ' · '
+        : s.role === 'bed' ? plantsInBed(s, state.shapes).filter((p) => p.status !== 'gone').length + ' plants · ' : '');
       const meta = extra + dims + ' · at (' + s.x + ', ' + s.y + ') ft' +
         (opacity < 1 ? ' · ' + Math.round(opacity * 100) + '% opacity' : '') +
         (s.rotation ? ' · ' + s.rotation + '°' : '');
@@ -89,6 +93,7 @@ export function renderLayersPanel() {
       const row = el('div', { className: 'layer-row' + (sel ? ' sel' : '') }, swatch, info, lockBtn);
       row.addEventListener('click', () => {
         if (roleHidden(s)) setRoleView(roleKey(s), { hidden: false }); // show what was asked for
+        if (!passesFilter(s, state.viewFilter)) setViewFilter({ status: '', phase: '', showGone: s.status === 'gone' });
         selectOnly(s.id);
         centerOnShape(s.id);
         state.panel = null;
@@ -104,6 +109,47 @@ export function renderLayersPanel() {
 }
 
 /** Show/hide and lock every shape of a role. Lists only roles in use. */
+/** Which plants show: by status and phase; phases can be removed here. */
+function showSection(): HTMLElement {
+  const f = state.viewFilter;
+  const wrap = el('div', { className: 'role-rows', 'data-testid': 'show-filter' }, el('div', { className: 'section-label' }, 'Show plants'));
+  const status = el('select', { 'data-testid': 'filter-status' }) as HTMLSelectElement;
+  status.appendChild(el('option', { value: '' }, 'Any status'));
+  for (const st of STATUSES) status.appendChild(el('option', { value: st.key }, st.label));
+  status.value = f.status;
+  status.addEventListener('change', () => { setViewFilter({ status: status.value as ShapeFilter['status'] }); render(); });
+  const phase = el('select', { 'data-testid': 'filter-phase' }) as HTMLSelectElement;
+  phase.appendChild(el('option', { value: '' }, 'Any phase'));
+  for (const p of state.phases) phase.appendChild(el('option', { value: p }, p));
+  phase.value = f.phase;
+  phase.addEventListener('change', () => { setViewFilter({ phase: phase.value }); render(); });
+  wrap.appendChild(el('div', { style: { display: 'flex', gap: '8px' } },
+    el('div', { className: 'field', style: { flex: '1', margin: 0 } }, status),
+    el('div', { className: 'field', style: { flex: '1', margin: 0 } }, phase)));
+  const gone = state.shapes.filter((s) => s.status === 'gone').length;
+  if (gone) {
+    const cb = el('input', { type: 'checkbox', 'data-testid': 'show-gone' }) as HTMLInputElement;
+    cb.checked = f.showGone;
+    cb.addEventListener('change', () => { setViewFilter({ showGone: cb.checked }); render(); });
+    wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, cb, el('span', {}, `Show gone plants and shapes (${gone})`)));
+  }
+  if (state.phases.length) {
+    const list = el('div', { className: 'phase-list' });
+    for (const p of state.phases) {
+      const n = state.shapes.filter((s) => s.phase === p).length;
+      const del = el('button', { className: 'iconbtn', html: I.x, title: 'Remove phase', 'aria-label': 'Remove phase ' + p });
+      del.addEventListener('click', () => {
+        if (n && !confirm(`Remove the phase "${p}"? ${n} shape${n === 1 ? '' : 's'} in it will have no phase.`)) return;
+        deletePhase(p); render();
+      });
+      list.appendChild(el('div', { className: 'phase-row' }, el('span', {}, p), el('span', { className: 'count' }, String(n)), del));
+    }
+    wrap.appendChild(el('div', { className: 'hint', style: { marginTop: '8px' } }, 'Phases'));
+    wrap.appendChild(list);
+  }
+  return wrap;
+}
+
 /** Plan-wide plant size: typical or full, and full-size rings for every plant. */
 function plantSizeSection(): HTMLElement {
   const wrap = el('div', { className: 'role-rows', 'data-testid': 'plant-size' }, el('div', { className: 'section-label' }, 'Plants'));

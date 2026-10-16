@@ -33,7 +33,17 @@ interface ShapeBase {
    * recorded sun changes.
    */
   sunDismissed?: string;
+  /** Where it stands in the real garden (unset = not tracked). */
+  status?: Status;
+  /** YYYY-MM-DD it went in the ground (status 'planted'). */
+  plantedOn?: string;
+  /** A phase of the project this belongs to, e.g. "Fall 2026" (one of the project's phases). */
+  phase?: string;
 }
+/** Planned = not in the ground yet; gone = removed or died (kept as a record, hidden by default). */
+export type Status = 'planned' | 'planted' | 'move' | 'remove' | 'gone';
+/** Which plants to show (view or print). Other shapes always show, except gone ones. */
+export interface ShapeFilter { status: '' | Status; phase: string; showGone: boolean }
 /** Direct sun observed on a shade area. Times are minutes after midnight. */
 export interface SunInfo {
   /** 'times': sunny periods; 'hours': just a total. */
@@ -146,6 +156,10 @@ export interface PrintSettings {
   includeFullRings: boolean;
   /** Direction of north on the plan, degrees clockwise from straight up. */
   northDeg: number;
+  /** Only plants with this status ('' = all but gone). */
+  statusFilter: '' | Status;
+  /** Only plants in this phase ('' = all). */
+  phaseFilter: string;
 }
 /** Everything stored for one project. */
 export interface ProjectData {
@@ -156,6 +170,8 @@ export interface ProjectData {
   sizeMode?: SizeMode;
   /** Sun warning badges on plants (default on). */
   sunWarnings?: boolean;
+  /** Phases of the project, in order ("Fall 2026", "Spring 2027"). */
+  phases?: string[];
   zoom: number;
   offsetX: number;
   offsetY: number;
@@ -246,6 +262,9 @@ export interface AppState {
   print: PrintSettings;
   sizeMode: SizeMode;
   sunWarnings: boolean;
+  phases: string[];
+  /** View: which plants show (not saved). */
+  viewFilter: ShapeFilter;
   /** View: full-size rings on every plant (not saved). */
   showFullSize: boolean;
   /** The add/edit-a-plant form, when open. */

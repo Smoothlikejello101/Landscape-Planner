@@ -1,16 +1,17 @@
 import { renderBgHandles, renderBgImageInto } from './background';
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from './constants';
 import { svgEl, type Attrs } from './dom';
-import { boxSize, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, worldPoints } from './geometry';
+import { boxSize, shapeBBox, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, worldPoints } from './geometry';
 import { renderPathOverlay } from './draw';
 import { fullRingRadius } from './my-plants';
 import { onShapePointerDown } from './gestures';
 import { plantsById } from './plants';
-import { isLocked, roleDef, roleHidden, roleRank } from './roles';
+import { isLocked, roleDef, roleRank } from './roles';
+import { shownWith } from './status';
 import { checkPlantSun, formatHours, shadeOpacity, sunHours, sunWarningShown } from './sun';
 import { isSelected } from './selection';
 import { state } from './state';
-import type { Shape, TextShape } from './types';
+import type { Shape, ShapeFilter, TextShape } from './types';
 
 // Canvas drawing. Everything here writes only into the <svg>, never into
 // panel DOM, so it is safe to call while an input has keyboard focus.
@@ -107,6 +108,19 @@ export function shapeGroup(s: Shape): SVGGElement {
     'stroke-dasharray': dashed ? '8 4' : s.locked ? '4 2' : null,
     'pointer-events': inert ? 'none' : null,
   };
+  // Status: planned = lighter with a dashed edge; to remove = red edge; gone (when shown) = faint ghost.
+  if (s.status === 'planned' && !outline) {
+    common['fill-opacity'] = Number(common['fill-opacity'] ?? 0.65) * 0.5;
+    common['stroke-dasharray'] = '6 4';
+    common.stroke = sel ? '#0f172a' : s.color;
+    common['stroke-width'] = sel ? 2.5 : 2;
+  } else if (s.status === 'remove') {
+    common.stroke = '#dc2626';
+    common['stroke-width'] = sel ? 3 : 2;
+  } else if (s.status === 'gone') {
+    common.opacity = 0.35;
+    common['stroke-dasharray'] = '2 3';
+  }
   if (s.type === 'text') return textGroup(s, sel, inert, common);
   let shapeEl: SVGElement;
   let hitEl: SVGElement | null = null;
@@ -189,6 +203,25 @@ export function shapeGroup(s: Shape): SVGGElement {
       style: 'user-select:none;', transform: rotTransform || null,
     }, sunText));
   }
+  // To remove: a red cross over the shape. To move: a blue arrow badge.
+  if (s.status === 'remove' || s.status === 'move') {
+    const b = shapeBBox(s);
+    const x1 = (b.minX - state.offsetX) * ppf, x2 = (b.maxX - state.offsetX) * ppf;
+    const y1 = (b.minY - state.offsetY) * ppf, y2 = (b.maxY - state.offsetY) * ppf;
+    if (s.status === 'remove') {
+      const k = s.type === 'circle' ? 0.146 : 0; // keep the cross inside a circle
+      const ix = (x2 - x1) * k, iy = (y2 - y1) * k;
+      g.appendChild(svgEl('path', {
+        'data-role': 'status-remove', d: `M${x1 + ix},${y1 + iy}L${x2 - ix},${y2 - iy}M${x2 - ix},${y1 + iy}L${x1 + ix},${y2 - iy}`,
+        stroke: '#dc2626', 'stroke-width': 2, 'stroke-linecap': 'round', 'pointer-events': 'none', opacity: 0.85,
+      }));
+    } else {
+      const bx = x1 + 2, by = y1 + 2;
+      g.appendChild(svgEl('g', { 'data-role': 'status-move', 'pointer-events': 'none' },
+        svgEl('circle', { cx: bx, cy: by, r: 9, fill: '#2563eb', stroke: '#fff', 'stroke-width': 1.5 }),
+        svgEl('path', { d: `M${bx - 4.5},${by}h9M${bx + 1.5},${by - 3}l3,3l-3,3M${bx - 1.5},${by - 3}l-3,3l3,3`, stroke: '#fff', 'stroke-width': 1.4, fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })));
+    }
+  }
   // Plants whose spot doesn't match their sun needs get a small warning badge.
   if (s.role === 'plant' && s.plantId) {
     const check = checkPlantSun(s, plantsById[s.plantId], state.shapes);
@@ -233,8 +266,8 @@ export function tierOf(s: Shape): number {
   return roleRank(s) * 2 + (s.locked ? 0 : 1);
 }
 /** Visible shapes in paint order (stable within a tier: list order). */
-export function paintOrder(shapes: Shape[]): Shape[] {
-  return shapes.filter((s) => !roleHidden(s)).sort((a, b) => tierOf(a) - tierOf(b));
+export function paintOrder(shapes: Shape[], filter: ShapeFilter = state.viewFilter): Shape[] {
+  return shapes.filter((s) => shownWith(s, filter)).sort((a, b) => tierOf(a) - tierOf(b));
 }
 
 function marqueeRect(): SVGRectElement | null {

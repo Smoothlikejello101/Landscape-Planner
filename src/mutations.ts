@@ -7,7 +7,8 @@ import { getSelected, singleSelected } from './selection';
 import { state } from './state';
 import { getClipboard, save, setClipboard } from './storage';
 import { defaultLook, roleKey } from './roles';
-import type { Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapePatch, ShapeType } from './types';
+import type { Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapeFilter, ShapePatch, ShapeType, Status } from './types';
+import { cleanPhaseName, MAX_PHASES, shownWith, statusPatch } from './status';
 import { render } from './ui/render';
 import { deepClone, now, snap, uid } from './util';
 
@@ -261,4 +262,59 @@ export function setRoleView(k: RoleKey, patch: RoleView) {
     });
   }
   save();
+}
+
+// ---- Status and phases ----
+/** Set (or clear) the status of shapes; planting stamps today's date. One undo step. */
+export function setStatusForIds(ids: string[], status: Status | undefined) {
+  flushHistoryDebounce();
+  for (const id of ids) {
+    const s = state.shapes.find((sh) => sh.id === id);
+    if (!s) continue;
+    const patch = statusPatch(s, status);
+    if (patch.status === undefined) delete s.status; else Object.assign(s, patch);
+  }
+  // Gone shapes leave the view (unless gone ones are shown): don't keep them selected.
+  if (status === 'gone' && !state.viewFilter.showGone) state.selectedIds = state.selectedIds.filter((id) => !ids.includes(id));
+  pushHistory();
+  save();
+}
+export function setPhaseForIds(ids: string[], phase: string) {
+  flushHistoryDebounce();
+  for (const id of ids) {
+    const s = state.shapes.find((sh) => sh.id === id);
+    if (!s) continue;
+    if (phase) s.phase = phase; else delete s.phase;
+  }
+  pushHistory();
+  save();
+}
+/** Add a phase to the project's list. Returns the cleaned name ('' if empty or the list is full). */
+export function addPhase(name: string): string {
+  const n = cleanPhaseName(name);
+  if (!n) return '';
+  if (!state.phases.includes(n)) {
+    if (state.phases.length >= MAX_PHASES) return '';
+    state.phases = [...state.phases, n];
+    save();
+  }
+  return n;
+}
+/** Remove a phase; shapes in it keep everything else. One undo step for the shapes. */
+export function deletePhase(name: string) {
+  flushHistoryDebounce();
+  state.phases = state.phases.filter((p) => p !== name);
+  for (const s of state.shapes) if (s.phase === name) delete s.phase;
+  if (state.viewFilter.phase === name) state.viewFilter = { ...state.viewFilter, phase: '' };
+  if (state.print.phaseFilter === name) state.print = { ...state.print, phaseFilter: '' };
+  pushHistory();
+  save();
+}
+/** Change which plants show; selected shapes that drop out of view are deselected. */
+export function setViewFilter(patch: Partial<ShapeFilter>) {
+  state.viewFilter = { ...state.viewFilter, ...patch };
+  state.selectedIds = state.selectedIds.filter((id) => {
+    const s = state.shapes.find((sh) => sh.id === id);
+    return s && shownWith(s, state.viewFilter);
+  });
 }

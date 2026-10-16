@@ -4,7 +4,8 @@ import {
   buildPlanSvg, legendEntries, pdfSafe, planLayout, plantSchedule, printContent, scaleBarFeet, scaleText,
   type Box, type LegendEntry, type PrintLayout, type ScheduleGroup,
 } from './print';
-import type { BgImage, PrintSettings, Shape, SizeMode } from './types';
+import type { BgImage, PrintSettings, Shape, SizeMode, Status } from './types';
+import { filterText } from './status';
 
 // Writes the printable plan as a PDF (browser only). Layout and content come
 // from print.ts; this file only draws them.
@@ -50,7 +51,8 @@ function onPaper(hex: string, alpha: number): string {
 export async function buildPlanPdf(
   settings: PrintSettings, projectName: string, shapes: Shape[], bg: BgImage | null, sizeMode: SizeMode = 'typical',
 ): Promise<PdfResult> {
-  const content = printContent(shapes, bg, settings.includeBackground);
+  const filter = { status: settings.statusFilter, phase: settings.phaseFilter, showGone: false };
+  const content = printContent(shapes, bg, settings.includeBackground, filter);
   if (!content.bounds) throw new Error('There is nothing on the plan to print yet.');
   const layout = planLayout(settings.paper, settings.orientation, content.bounds);
   const { jsPDF } = await import('jspdf');
@@ -73,13 +75,14 @@ export async function buildPlanPdf(
     : [{ x: side.x, y: side.y, w: side.w * 0.42, h: side.h }, { x: side.x + side.w * 0.42 + 0.25, y: side.y, w: side.w * 0.58 - 0.25, h: side.h }];
   let cy = titleBlock(doc, cols[0], settings, projectName, layout);
   cy = legend(doc, cols[0], cy, legendEntries(content.shapes, sizeMode, settings.includeFullRings && sizeMode === 'typical'));
+  cy = statusLegend(doc, cols[0], cy, new Set(content.shapes.map((s) => s.status).filter((x): x is Status => !!x)));
   const schedule = settings.includePlantList ? plantSchedule(content.shapes, plantsById) : [];
   let pages = 1;
   if (schedule.length) {
     const first: Box[] = layout.sideAt === 'right'
       ? [{ x: side.x, y: cy + 0.15, w: side.w, h: side.y + side.h - cy - 0.15 }]
       : [cols[1]];
-    pages = plantList(doc, schedule, first, layout);
+    pages = plantList(doc, schedule, first, layout, filterText(filter));
   }
   footer(doc, layout, 1, pages);
   return { blob: doc.output('blob'), pages, layout };
@@ -168,11 +171,33 @@ function legend(doc: JsPDF, box: Box, y: number, entries: LegendEntry[]): number
   return y;
 }
 
+/** Legend lines for statuses on the sheet (planned, to move, to remove). */
+function statusLegend(doc: JsPDF, box: Box, y: number, present: Set<Status>): number {
+  const rows: [Status, string][] = [['planned', 'Planned (dashed, lighter)'], ['move', 'To move (blue arrow)'], ['remove', 'To remove (red cross)']];
+  for (const [k, label] of rows) {
+    if (!present.has(k) || y + pt(12) > box.y + box.h) continue;
+    doc.setLineWidth(pt(1.2));
+    if (k === 'planned') {
+      doc.setDrawColor('#57534e'); doc.setFillColor('#f5f5f4'); doc.setLineDashPattern([0.04, 0.03], 0);
+      doc.rect(box.x, y, 0.28, 0.12, 'FD'); doc.setLineDashPattern([], 0);
+    } else if (k === 'remove') {
+      doc.setDrawColor('#dc2626'); doc.rect(box.x, y, 0.28, 0.12, 'S');
+      doc.line(box.x, y, box.x + 0.28, y + 0.12); doc.line(box.x + 0.28, y, box.x, y + 0.12);
+    } else {
+      doc.setFillColor('#2563eb'); doc.circle(box.x + 0.14, y + 0.06, 0.06, 'F');
+    }
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor('#1c1917');
+    doc.text(label, box.x + 0.38, y + 0.06, { baseline: 'middle' });
+    y += pt(12);
+  }
+  return y;
+}
+
 /** Fill boxes with the plant list, adding continuation pages as needed. Returns the page count. */
-function plantList(doc: JsPDF, groups: ScheduleGroup[], firstBoxes: Box[], layout: PrintLayout): number {
+function plantList(doc: JsPDF, groups: ScheduleGroup[], firstBoxes: Box[], layout: PrintLayout, which = ''): number {
   type Item = { kind: 'head'; text: string } | { kind: 'group'; text: string; total: number } | { kind: 'row'; key: number; count: number; label: string; botanical: string };
   const total = groups.reduce((n, g) => n + g.total, 0);
-  const items: Item[] = [{ kind: 'head', text: `Plant list (${total} plant${total === 1 ? '' : 's'}) - number = key on the plan` }];
+  const items: Item[] = [{ kind: 'head', text: `Plant list${which ? ': ' + which : ''} (${total}) - number = key on the plan` }];
   for (const g of groups) {
     items.push({ kind: 'group', text: g.bed, total: g.total });
     for (const r of g.rows) items.push({ kind: 'row', key: r.key, count: r.count, label: r.label, botanical: r.botanical });

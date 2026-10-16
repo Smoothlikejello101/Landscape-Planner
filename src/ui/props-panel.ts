@@ -15,6 +15,7 @@ import { render } from './render';
 import type { CircleShape, Corner, Shape } from '../types';
 import { formatSize, isMine, plantRadius, type Range } from '../my-plants';
 import { plantsById } from '../plants';
+import { statusSection } from './status-section';
 import { snapRot, typeName } from '../util';
 
 // ============================================================
@@ -34,6 +35,7 @@ export function renderPropsPanelSingle(s: Shape) {
     roleChips(roleKey(s), (role) => { setRoleForIds([s.id], role); render(); })));
   const sunCheck = plantSunBanner(s);
   if (sunCheck) body.appendChild(sunCheck);
+  if (s.type !== 'text') body.appendChild(statusSection([s]));
   // Label (for a text note, the text itself; it can run to several lines)
   if (s.type === 'text') {
     const ta = el('textarea', { rows: 3, placeholder: 'e.g. Rain barrel goes here' }) as HTMLTextAreaElement;
@@ -273,6 +275,7 @@ export function renderPropsPanelMulti(selected: Shape[]) {
   const roles = new Set(selected.map(roleKey));
   body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Role (applies to all selected)'),
     roleChips(roles.size === 1 ? [...roles][0] : null, (role) => { setRoleForIds(state.selectedIds, role); render(); })));
+  body.appendChild(statusSection(selected));
 
   // Common locked state
   const allLocked = selected.every(s => s.locked);
