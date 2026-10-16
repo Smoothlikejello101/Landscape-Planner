@@ -31,6 +31,11 @@ export function renderMoreMenu() {
   }
   items.push({ divider: true });
   items.push({
+    icon: I.leaf,
+    label: 'Bloom calendar',
+    onClick: () => { state.panel = 'bloom'; state.menu = null; render(); }
+  });
+  items.push({
     icon: I.image,
     label: state.bgImage ? 'Background image…' : 'Add background image…',
     onClick: () => { state.panel = 'bg'; state.menu = null; render(); }
