@@ -6,6 +6,7 @@ import { copySelected, deleteSelected, duplicateSelected, paste } from './mutati
 import { clearSelection } from './selection';
 import { state } from './state';
 import { loadPlants } from './plants';
+import { loadMyPlants } from './my-plants';
 import { setupServiceWorker } from './pwa';
 import { buildEmergencyBackup, downloadText } from './backup';
 import { updateSaveWarning } from './ui/save-warning';
@@ -104,6 +105,7 @@ async function start() {
     if (e instanceof StorageUnavailableError) { showStorageError(); return; }
     throw e;
   }
+  loadMyPlants();
   setSaveStatusListener(updateSaveWarning);
   pushHistory(); // seed undo history with the loaded state
   render();

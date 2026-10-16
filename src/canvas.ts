@@ -3,6 +3,7 @@ import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from '
 import { svgEl, type Attrs } from './dom';
 import { boxSize, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, worldPoints } from './geometry';
 import { renderPathOverlay } from './draw';
+import { fullRingRadius } from './my-plants';
 import { onShapePointerDown } from './gestures';
 import { plantsById } from './plants';
 import { isLocked, roleDef, roleHidden, roleRank } from './roles';
@@ -109,6 +110,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   if (s.type === 'text') return textGroup(s, sel, inert, common);
   let shapeEl: SVGElement;
   let hitEl: SVGElement | null = null;
+  let ring: SVGElement | null = null;
   let labelX: number, labelY: number, fs: number, rotTransform = '';
 
   if (s.type === 'circle') {
@@ -116,6 +118,9 @@ export function shapeGroup(s: Shape): SVGGElement {
     const cy = (s.y - state.offsetY) * ppf;
     const r = s.radius * ppf;
     shapeEl = svgEl('circle', { ...common, cx, cy, r });
+    // Plants drawn below full size: a dashed ring at full size when selected (or for all, from Layers).
+    const full = (sel && state.selectedIds.length === 1) || state.showFullSize ? fullRingRadius(s) : null;
+    if (full) ring = svgEl('circle', { 'data-role': 'full-ring', cx, cy, r: full * ppf, fill: 'none', stroke: s.color, 'stroke-width': 1.5, 'stroke-dasharray': '5 4', 'pointer-events': 'none' });
     labelX = cx; labelY = cy;
     fs = Math.max(10, Math.min(14, r * 0.4));
   } else if (s.type === 'poly' || s.type === 'line') {
@@ -157,6 +162,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   target.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
   const g = svgEl('g', { 'data-shape-group': s.id }, shapeEl);
   if (hitEl) g.appendChild(hitEl);
+  if (ring) g.appendChild(ring);
   // Dimension lines get end ticks, like a drawing's dimension.
   if (s.type === 'line' && s.showLength) {
     const pts = worldPoints(s).map((p) => ({ x: (p.x - state.offsetX) * ppf, y: (p.y - state.offsetY) * ppf }));

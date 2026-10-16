@@ -1,24 +1,40 @@
 import { el, type Child } from '../dom';
 import { I } from '../icons';
 import type { Plant, PlantFilter } from '../plants';
-import { FORM_COLORS, MONTH_NAMES, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, addPlantShape, filteredPlants, plantFilter, plantMetaLine } from '../plants';
+import { FORM_COLORS, MONTH_NAMES, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, addPlantShape, filteredPlants, linkShapeToPlant, plantFilter, plantMetaLine, plantTakesSun } from '../plants';
+import { isMine, myPlants } from '../my-plants';
+import type { PlantFormArgs } from '../types';
 import { state } from '../state';
 import { render } from './render';
 
+function closePicker() { state.panel = null; state.pickerLinkId = null; render(); }
+/** Tap on a plant: place it, or (opened from a circle's properties) make that circle this plant. */
+function pick(p: Plant) {
+  if (state.pickerLinkId) {
+    const id = state.pickerLinkId;
+    linkShapeToPlant(id, p);
+    state.pickerLinkId = null;
+    state.selectedIds = [id];
+    state.panel = 'props';
+  } else {
+    addPlantShape(p);
+    state.panel = null;
+  }
+  render();
+}
+function openForm(args: PlantFormArgs) { state.plantForm = args; state.panel = 'plantForm'; render(); }
+
 export function renderPlantsPanel() {
+  const linking = !!state.pickerLinkId;
   const header = el('div', { className: 'sheet-header' },
-    el('div', { className: 'title' }, 'Plant Picker' + (PLANTS.length ? ' (' + PLANTS.length + ')' : '')),
-    (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
+    el('div', { className: 'title' }, linking ? 'Link to a plant' : 'Plant Picker' + (PLANTS.length ? ' (' + (PLANTS.length + myPlants.length) + ')' : '')),
+    (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', closePicker); return b; })()
   );
 
   const body = el('div', { className: 'sheet-body' });
-
+  if (linking) body.appendChild(el('div', { className: 'banner' }, 'Pick the plant this circle stands for. It keeps its place and takes the plant\'s name and size.'));
   if (!PLANTS.length) {
-    body.appendChild(el('div', { className: 'hint' }, 'Plant index not loaded yet. If this persists, check that plants.json is deployed and the service worker cache version was bumped.'));
-    const sheet0 = el('div', { className: 'sheet' }, header, body);
-    const overlay0 = el('div', { className: 'overlay' }, sheet0);
-    overlay0.addEventListener('click', e => { if (e.target === overlay0) { state.panel = null; render(); } });
-    return overlay0;
+    body.appendChild(el('div', { className: 'hint' }, 'The plant catalog is still loading (or could not load). Your own plants work either way.'));
   }
 
   // --- Results list (rebuilt in place so typing never destroys input focus) ---
@@ -34,30 +50,63 @@ export function renderPlantsPanel() {
       background: (p.form && FORM_COLORS[p.form]) || '#16a34a', marginRight: '10px'
     } });
     const row = el('div', { className: 'proj-row', style: { alignItems: 'center' } }, dot, info);
-    row.addEventListener('click', () => {
-      addPlantShape(p);
-      state.panel = null;
-      render();
+    row.addEventListener('click', () => pick(p));
+    // Mine: edit. Catalog: copy as my own (a cultivar of it, say).
+    const mine = isMine(p);
+    const side = el('button', {
+      className: 'iconbtn', html: mine ? I.edit : I.copy,
+      title: mine ? 'Edit my plant' : 'Copy as my plant',
+      'aria-label': (mine ? 'Edit ' : 'Copy as my plant: ') + p.common,
     });
+    side.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openForm(mine ? { editId: p.id, place: false } : { copyFromId: p.id, place: false });
+    });
+    row.appendChild(side);
+    if (mine) info.firstChild!.appendChild(el('span', { className: 'mine-badge' }, 'Mine'));
     return row;
+  }
+  /** "My plants" matching the search and sun filter (their other fields are whatever the user entered). */
+  function myHits(): Plant[] {
+    const q = plantFilter.q.trim().toLowerCase();
+    return myPlants.filter((p) =>
+      (!q || (p.common + ' ' + (p.botanical || '') + ' ' + (p.notes || '')).toLowerCase().includes(q)) &&
+      (!plantFilter.sun || !p.sun_most || plantTakesSun(p, plantFilter.sun)));
+  }
+  function addButton(): HTMLElement {
+    const q = plantFilter.q.trim();
+    const b = el('button', { className: 'btn secondary add-own', 'data-testid': 'add-own-plant' },
+      q ? `+ Add \u201c${q}\u201d as my plant` : '+ Add your own plant');
+    b.addEventListener('click', () => openForm({ name: q, place: true }));
+    return b;
   }
   function rebuildList() {
     while (listWrap.firstChild) listWrap.removeChild(listWrap.firstChild);
+    const mine = myHits();
     const hits = filteredPlants();
-    countLine.textContent = hits.length + ' match' + (hits.length === 1 ? '' : 'es') + ' \u00b7 tap a plant to place it';
+    countLine.textContent = (hits.length + mine.length) + ' match' + (hits.length + mine.length === 1 ? '' : 'es') +
+      (linking ? ' \u00b7 tap the plant this circle stands for' : ' \u00b7 tap a plant to place it');
+    if (mine.length) {
+      listWrap.appendChild(el('div', { className: 'list-heading' }, 'My plants'));
+      for (const p of mine) listWrap.appendChild(buildRow(p));
+      if (hits.length) listWrap.appendChild(el('div', { className: 'list-heading' }, 'Catalog'));
+    }
     for (const p of hits.slice(0, 60)) listWrap.appendChild(buildRow(p));
     if (hits.length > 60) {
       listWrap.appendChild(el('div', { className: 'hint', style: { padding: '8px 0' } },
         '+ ' + (hits.length - 60) + ' more \u2014 narrow the filters to see them'));
     }
-    if (hits.length === 0) {
+    if (hits.length === 0 && mine.length === 0) {
       listWrap.appendChild(el('div', { className: 'hint', style: { padding: '8px 0' } },
-        'No matches. Loosen a filter \u2014 or check \u201cShow archived\u201d if you are hunting a rejected/zone-fail plant.'));
+        'No matches. Add it as your own plant, or loosen a filter.'));
     }
+    // Always offer to add a plant; right under the search when nothing matched.
+    if (hits.length === 0 && mine.length === 0) listWrap.insertBefore(addButton(), listWrap.firstChild);
+    else listWrap.appendChild(addButton());
   }
 
   // --- Filter controls (all update the list in place; no full render) ---
-  const search = el('input', { type: 'text', value: plantFilter.q, placeholder: 'Search name, host, notes\u2026' });
+  const search = el('input', { type: 'text', value: plantFilter.q, placeholder: 'Search name, host, notes\u2026', 'data-testid': 'plant-search' });
   search.addEventListener('input', () => { plantFilter.q = search.value; rebuildList(); });
 
   const enums = (PLANT_META && PLANT_META.enums) || {};
@@ -165,6 +214,6 @@ export function renderPlantsPanel() {
 
   const sheet = el('div', { className: 'sheet' }, header, body);
   const overlay = el('div', { className: 'overlay' }, sheet);
-  overlay.addEventListener('click', e => { if (e.target === overlay) { state.panel = null; render(); } });
+  overlay.addEventListener('click', e => { if (e.target === overlay) closePicker(); });
   return overlay;
 }

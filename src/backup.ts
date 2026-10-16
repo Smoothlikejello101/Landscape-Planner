@@ -1,6 +1,7 @@
 import { state } from './state';
 import { createProject, currentProjectData, readProject, sanitizeProjectData, setLastBackupAt } from './storage';
 import type { ProjectData } from './types';
+import { myPlants, myPlantsUsedBy } from './my-plants';
 import { now } from './util';
 
 // Project files: a single project, or a backup of every project, as JSON.
@@ -11,13 +12,14 @@ export const BACKUP_FORMAT = 'landscape-planner-backup';
 const FILE_VERSION = 1;
 
 export interface ExportedProject { name: string; lastModified: number; data: ProjectData }
-export interface ProjectFile { format: typeof PROJECT_FORMAT; version: number; exportedAt: string; project: ExportedProject }
-export interface BackupFile { format: typeof BACKUP_FORMAT; version: number; exportedAt: string; projects: ExportedProject[] }
+/** Files also carry "My plants": every one in a backup, the ones the project uses in a project file. */
+export interface ProjectFile { format: typeof PROJECT_FORMAT; version: number; exportedAt: string; project: ExportedProject; myPlants?: unknown[] }
+export interface BackupFile { format: typeof BACKUP_FORMAT; version: number; exportedAt: string; projects: ExportedProject[]; myPlants?: unknown[] }
 
 function forExport(data: ProjectData): ProjectData {
   const bgImage = data.bgImage ? { ...data.bgImage } : null;
   if (bgImage) delete bgImage.imageId; // storage detail; a new id is assigned on import
-  return { shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {}, print: data.print, bgImage };
+  return { shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {}, print: data.print, sizeMode: data.sizeMode, bgImage };
 }
 async function exportedProject(id: string): Promise<ExportedProject | null> {
   const meta = state.projects.find((p) => p.id === id);
@@ -37,7 +39,7 @@ function stamp() { return new Date().toISOString().slice(0, 10); }
 export async function buildProjectFile(id: string): Promise<{ filename: string; text: string } | null> {
   const project = await exportedProject(id);
   if (!project) return null;
-  const file: ProjectFile = { format: PROJECT_FORMAT, version: FILE_VERSION, exportedAt: new Date().toISOString(), project };
+  const file: ProjectFile = { format: PROJECT_FORMAT, version: FILE_VERSION, exportedAt: new Date().toISOString(), project, myPlants: myPlantsUsedBy(project.data.shapes) };
   return { filename: `${safeFileName(project.name)}-${stamp()}.landscape.json`, text: JSON.stringify(file) };
 }
 export async function buildBackupFile(): Promise<{ filename: string; text: string; count: number }> {
@@ -46,7 +48,7 @@ export async function buildBackupFile(): Promise<{ filename: string; text: strin
     const e = await exportedProject(p.id);
     if (e) projects.push(e);
   }
-  const file: BackupFile = { format: BACKUP_FORMAT, version: FILE_VERSION, exportedAt: new Date().toISOString(), projects };
+  const file: BackupFile = { format: BACKUP_FORMAT, version: FILE_VERSION, exportedAt: new Date().toISOString(), projects, myPlants };
   return { filename: `landscape-backup-${stamp()}.landscape.json`, text: JSON.stringify(file), count: projects.length };
 }
 
@@ -97,6 +99,13 @@ export function parseImportFile(text: string): ExportedProject[] {
   if (f.format === PROJECT_FORMAT) return [one(f.project)];
   if (f.format === BACKUP_FORMAT && Array.isArray(f.projects)) return f.projects.map(one);
   throw new Error("This file isn't a Landscape Planner project or backup.");
+}
+/** "My plants" carried in a project or backup file (validated when merged). */
+export function parseImportPlants(text: string): unknown[] {
+  try {
+    const f = JSON.parse(text) as { myPlants?: unknown };
+    return Array.isArray(f?.myPlants) ? f.myPlants : [];
+  } catch { return []; }
 }
 /** Name that doesn't collide with existing projects: "Front Yard (2)". */
 export function uniqueName(name: string, taken: string[]): string {

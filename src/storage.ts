@@ -3,7 +3,7 @@ import { del, openKV, put, type KV, type WriteOp } from './db';
 import { cancelHistoryDebounce } from './history';
 import { DEFAULT_PRINT, state } from './state';
 import { isRole } from './roles';
-import type { BgImage, Clipboard, PathShape, PrintSettings, ProjectData, ProjectMeta, RoleViews, Shape, SunInfo } from './types';
+import type { BgImage, Clipboard, PathShape, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, SunInfo } from './types';
 import { setWorldPoints } from './geometry';
 import { now, uid } from './util';
 
@@ -11,7 +11,8 @@ import { now, uid } from './util';
 //   meta/<projectId>          ProjectMeta (name, dates, shape count)
 //   projects/<projectId>      ProjectData without the background image bytes
 //   images/<projectId>/<id>   { dataUrl } for the background image
-//   kv/current, kv/clipboard, kv/lastBackupAt, kv/migratedFromLocalStorage
+//   kv/current, kv/clipboard, kv/lastBackupAt, kv/migratedFromLocalStorage,
+//   kv/myPlants (the user's plant library), kv/lastSizeMode
 // The current project is held in `state`; saves are debounced and also
 // flushed when the page is hidden so a quick app switch can't lose an edit.
 
@@ -97,7 +98,10 @@ export function migrateShape(raw: unknown): Shape | null {
   const size = (v: unknown, d: number) => Math.max(0.1, num(v, d));
   switch (s.type) {
     case 'circle':
-      return { ...base, type: 'circle', radius: size(s.radius, 2) };
+      return {
+        ...base, type: 'circle', radius: size(s.radius, 2),
+        ...(s.sizeFrom === 'plant' || s.sizeFrom === 'manual' ? { sizeFrom: s.sizeFrom } : {}),
+      };
     case 'rect':
     case 'oval':
       return { ...base, type: s.type, width: size(s.width, 4), height: size(s.height, 3), rotation: num(s.rotation, 0) };
@@ -192,6 +196,7 @@ export function sanitizePrint(raw: unknown): PrintSettings {
     includeBackground: bool(o.includeBackground, d.includeBackground),
     includeGrid: bool(o.includeGrid, d.includeGrid),
     includePlantList: bool(o.includePlantList, d.includePlantList),
+    includeFullRings: bool(o.includeFullRings, d.includeFullRings),
     northDeg: ((num(o.northDeg, 0) % 360) + 360) % 360,
   };
 }
@@ -199,7 +204,7 @@ export function sanitizePrint(raw: unknown): PrintSettings {
 export function currentProjectData(): ProjectData {
   return {
     shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY,
-    roleViews: state.roleViews, print: state.print, bgImage: state.bgImage,
+    roleViews: state.roleViews, print: state.print, sizeMode: state.sizeMode, bgImage: state.bgImage,
   };
 }
 /** Normalize project data from storage, an old version, or an imported file. */
@@ -214,6 +219,7 @@ export function sanitizeProjectData(raw: unknown): ProjectData {
     offsetY: num(d.offsetY, -10),
     roleViews: sanitizeRoleViews(d.roleViews),
     print: sanitizePrint(d.print),
+    sizeMode: d.sizeMode === 'full' ? 'full' : 'typical',
     bgImage: bg && bg.dataUrl ? bg : null,
   };
 }
@@ -236,7 +242,7 @@ function projectWriteOps(id: string, data: ProjectData, knownImageKeys?: Set<str
   }
   const stored: StoredProject = {
     shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {},
-    print: data.print ?? { ...DEFAULT_PRINT }, bgImage: storedBg,
+    print: data.print ?? { ...DEFAULT_PRINT }, sizeMode: data.sizeMode ?? 'typical', bgImage: storedBg,
   };
   ops.push(put('projects', id, stored));
   return ops;
@@ -409,6 +415,7 @@ export async function switchProject(id: string): Promise<boolean> {
   state.offsetY = data.offsetY;
   state.roleViews = data.roleViews ?? {};
   state.print = data.print ?? { ...DEFAULT_PRINT };
+  state.sizeMode = data.sizeMode ?? 'typical';
   state.bgImage = data.bgImage ?? null;
   state.selectedIds = [];
   state.history = [];
@@ -440,7 +447,7 @@ async function collectImageGarbage(projectId: string, keep: Set<string>) {
 /** Create a project (empty, or from given data). Does not open it. */
 export async function createProject(name: string, data?: ProjectData): Promise<string> {
   const id = uid();
-  const projectData = data ?? sanitizeProjectData({});
+  const projectData = data ?? { ...sanitizeProjectData({}), sizeMode: lastSizeMode };
   const meta: ProjectMeta = { id, name: name.trim() || 'Untitled', lastModified: now(), shapeCount: projectData.shapes.length };
   await db().write([...projectWriteOps(id, projectData), put('meta', id, meta)]);
   state.projects.unshift(meta);
@@ -468,6 +475,23 @@ export function setClipboard(data: Clipboard) {
 /** Pick up a clipboard written by another tab. */
 export async function refreshClipboard() {
   if (kv) clipboardCache = (await kv.get<Clipboard>('kv', 'clipboard')) ?? clipboardCache;
+}
+
+// ---------- My plants (the user's own plant library, shared by all projects) ----------
+let myPlantsRaw: unknown[] = [];
+/** The stored library, unvalidated (my-plants.ts validates it). */
+export function storedMyPlants(): unknown[] { return myPlantsRaw; }
+/** Replace the stored library. Throws if the write fails, so the caller can say so. */
+export async function writeMyPlants(list: unknown[]) {
+  await db().write([put('kv', 'myPlants', list)]);
+  myPlantsRaw = list;
+}
+
+// ---------- Size mode for new projects ----------
+let lastSizeMode: SizeMode = 'typical';
+export function rememberSizeMode(mode: SizeMode) {
+  lastSizeMode = mode;
+  kv?.write([put('kv', 'lastSizeMode', mode)]).catch((e) => console.warn('could not remember size mode', e));
 }
 
 // ---------- Backup bookkeeping ----------
@@ -597,6 +621,9 @@ export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: s
   state.projects = (await kv.getAll<ProjectMeta>('meta')).sort((a, b) => b.lastModified - a.lastModified);
   clipboardCache = (await kv.get<Clipboard>('kv', 'clipboard')) ?? null;
   lastBackupAt = (await kv.get<number>('kv', 'lastBackupAt')) ?? null;
+  const mp = await kv.get<unknown>('kv', 'myPlants');
+  myPlantsRaw = Array.isArray(mp) ? mp : [];
+  lastSizeMode = (await kv.get<unknown>('kv', 'lastSizeMode')) === 'full' ? 'full' : 'typical';
   if (state.projects.length === 0) await createProject('My Garden');
   let currentId = await kv.get<string>('kv', 'current');
   if (!currentId || !metaFor(currentId)) currentId = state.projects[0].id;
@@ -607,7 +634,7 @@ export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: s
 /** Test hook: forget module state between tests. */
 export function _resetStorageForTests() {
   kv = null; clipboardCache = null; storedImageKeys = new Set(); committedImageKeys = new Set();
-  quotaWarned = false; lastBackupAt = null; editSeq = 0; savedSeq = 0; saveFailing = false;
+  quotaWarned = false; lastBackupAt = null; myPlantsRaw = []; lastSizeMode = 'typical'; editSeq = 0; savedSeq = 0; saveFailing = false;
   lastFailureJournalAt = 0; unreplayed.clear();
   saveChain = Promise.resolve(true);
   if (saveTimer) clearTimeout(saveTimer);

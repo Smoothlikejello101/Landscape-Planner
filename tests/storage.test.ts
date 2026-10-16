@@ -235,7 +235,7 @@ describe('printable-plan settings', () => {
   it('default for older projects, validate odd values, and round-trip', async () => {
     expect(sanitizeProjectData({ shapes: [] }).print).toEqual({
       paper: 'letter', orientation: 'auto', title: '', subtitle: '',
-      includeBackground: false, includeGrid: true, includePlantList: true, northDeg: 0,
+      includeBackground: false, includeGrid: true, includePlantList: true, includeFullRings: false, northDeg: 0,
     });
     expect(sanitizeProjectData({ print: { paper: 'poster', orientation: 'sideways', northDeg: -90, includeGrid: 'no', title: 7 } }).print)
       .toMatchObject({ paper: 'letter', orientation: 'auto', northDeg: 270, includeGrid: true, title: '' });

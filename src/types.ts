@@ -43,6 +43,13 @@ export interface SunInfo {
 export interface CircleShape extends ShapeBase {
   type: 'circle';
   radius: number;
+  /**
+   * Plants: 'plant' = the size came from plant data (redrawn when the plan's
+   * size mode changes); 'manual' = set by hand (left alone). Missing on
+   * plants placed before this existed: treated as 'plant' when the radius
+   * still matches the plant data.
+   */
+  sizeFrom?: 'plant' | 'manual';
   /** Ignored for circles; tolerated so old data and patches stay valid. */
   rotation?: number;
 }
@@ -115,6 +122,8 @@ export interface ProjectMeta {
   lastModified: number;
   shapeCount?: number;
 }
+/** Plants drawn at the middle of their size range, or at full (maximum) size. */
+export type SizeMode = 'typical' | 'full';
 export type PaperSize = 'letter' | 'tabloid' | 'a4' | 'a3';
 /** Printable-plan options, remembered per project. */
 export interface PrintSettings {
@@ -127,6 +136,8 @@ export interface PrintSettings {
   includeBackground: boolean;
   includeGrid: boolean;
   includePlantList: boolean;
+  /** Dashed rings at full size around plants drawn smaller. */
+  includeFullRings: boolean;
   /** Direction of north on the plan, degrees clockwise from straight up. */
   northDeg: number;
 }
@@ -136,6 +147,7 @@ export interface ProjectData {
   /** Hidden/locked state per role. */
   roleViews?: RoleViews;
   print?: PrintSettings;
+  sizeMode?: SizeMode;
   zoom: number;
   offsetX: number;
   offsetY: number;
@@ -158,7 +170,9 @@ export interface Bounds { minX: number; maxX: number; minY: number; maxY: number
 
 export type PanelName =
   | 'props' | 'arrange' | 'layers' | 'projects' | 'rename' | 'export'
-  | 'preview' | 'reset' | 'plants' | 'bg' | 'bgDistance' | 'print';
+  | 'preview' | 'reset' | 'plants' | 'bg' | 'bgDistance' | 'print' | 'plantForm';
+/** What the plant form is doing: a new plant (maybe from a search or a copy), or editing one of yours. */
+export interface PlantFormArgs { editId?: string; name?: string; copyFromId?: string; place: boolean }
 
 export interface RenameArgs {
   renamingId: string | null;
@@ -222,6 +236,13 @@ export interface AppState {
   bgImage: BgImage | null;
   roleViews: RoleViews;
   print: PrintSettings;
+  sizeMode: SizeMode;
+  /** View: full-size rings on every plant (not saved). */
+  showFullSize: boolean;
+  /** The add/edit-a-plant form, when open. */
+  plantForm: PlantFormArgs | null;
+  /** Picker opened to link this shape to a plant. */
+  pickerLinkId: string | null;
   bgEditMode: boolean;
   bgCalibrate: Calibration | null;
   draw: DrawState | null;

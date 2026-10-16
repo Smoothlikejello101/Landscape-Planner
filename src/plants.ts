@@ -6,6 +6,7 @@ import { save } from './storage';
 import { render } from './ui/render';
 import type { CircleShape } from './types';
 import { snap, uid } from './util';
+import { plantRadius } from './my-plants';
 
 /** One row of plants.json (Caddo Valley Plant Index). */
 export interface Plant {
@@ -164,12 +165,11 @@ export function addPlantShape(p: Plant) {
   flushHistoryDebounce();
   const c = viewCenterFeet();
   const id = uid();
-  const spread = (p.width && p.width.med) || (p.height && p.height.med) || 2;
-  const radius = Math.max(0.5, snap(spread / 2));
   const shape: CircleShape = {
     id, type: 'circle',
     x: snap(c.x), y: snap(c.y),
-    radius,
+    radius: plantRadius(p, state.sizeMode),
+    sizeFrom: 'plant',
     color: (p.form && FORM_COLORS[p.form]) || '#16a34a',
     label: p.common,
     opacity: 0.65, locked: false,
@@ -178,6 +178,22 @@ export function addPlantShape(p: Plant) {
   };
   state.shapes.push(shape);
   state.selectedIds = [id];
+  pushHistory();
+  save();
+}
+/**
+ * Make an existing circle (say, a labeled circle standing in for a plant) a
+ * placed plant: it takes the plant's name, data link and size; its center stays.
+ */
+export function linkShapeToPlant(shapeId: string, p: Plant) {
+  const s = state.shapes.find((sh) => sh.id === shapeId);
+  if (!s || s.type !== 'circle') return;
+  flushHistoryDebounce();
+  s.plantId = p.id;
+  s.label = p.common;
+  s.role = 'plant';
+  s.radius = plantRadius(p, state.sizeMode);
+  s.sizeFrom = 'plant';
   pushHistory();
   save();
 }
