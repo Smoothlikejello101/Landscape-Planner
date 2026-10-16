@@ -84,7 +84,8 @@ export function renderPlantsPanel() {
     while (listWrap.firstChild) listWrap.removeChild(listWrap.firstChild);
     const mine = myHits();
     const hits = filteredPlants();
-    countLine.textContent = (hits.length + mine.length) + ' match' + (hits.length + mine.length === 1 ? '' : 'es') +
+    const n = hits.length + mine.length, all = PLANTS.length + myPlants.length;
+    countLine.textContent = (n === all ? `All ${all} plants` : `${n} of ${all} plants match`) +
       (linking ? ' \u00b7 tap the plant this circle stands for' : ' \u00b7 tap a plant to place it');
     if (mine.length) {
       listWrap.appendChild(el('div', { className: 'list-heading' }, 'My plants'));

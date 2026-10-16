@@ -49,7 +49,7 @@ export function renderPropsPanelSingle(s: Shape) {
     ta.addEventListener('input', () => updateSelectedSilent({ label: ta.value }));
     body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Text'), ta));
   } else {
-    const labelInput = el('input', { type: 'text', value: s.label || '', placeholder: 'e.g. Dwarf Alberta Spruce' });
+    const labelInput = el('input', { type: 'text', value: s.label || '', placeholder: s.role === 'plant' ? "e.g. Hydrangea 'Limelight'" : s.role === 'bed' ? 'e.g. Front bed' : s.role === 'path' ? 'e.g. Stepping-stone path' : 'Name it' });
     labelInput.addEventListener('input', e => updateSelectedSilent({ label: (e.target as HTMLInputElement).value }));
     body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Label'), labelInput));
   }

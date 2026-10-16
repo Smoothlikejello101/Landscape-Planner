@@ -52,7 +52,12 @@ export function plantSpread(p: Plant, mode: SizeMode): number {
   if (mode === 'full') return w?.max || w?.med || h?.max || h?.med || 2;
   return w?.med || (w?.min && w?.max ? (w.min + w.max) / 2 : 0) || w?.max || h?.med || 2;
 }
+/** Radius drawn for a plant: half its spread, to the nearest quarter foot (so the diameter is to the half foot). */
 export function plantRadius(p: Plant, mode: SizeMode): number {
+  return Math.max(0.25, Math.round(plantSpread(p, mode) * 2) / 4);
+}
+/** Radius as earlier versions drew it (half foot steps); plants placed then still count as sized from data. */
+function legacyRadius(p: Plant, mode: SizeMode): number {
   return Math.max(0.5, snap(plantSpread(p, mode) / 2));
 }
 /** Full-size radius when it is bigger than what is drawn (for the dashed ring), else null. */
@@ -68,7 +73,7 @@ export function isDataSized(s: Shape): s is CircleShape {
   if (s.type !== 'circle' || !s.plantId || s.sizeFrom === 'manual') return false;
   if (s.sizeFrom === 'plant') return true;
   const p = plantsById[s.plantId];
-  return !!p && (s.radius === plantRadius(p, 'typical') || s.radius === plantRadius(p, 'full'));
+  return !!p && [plantRadius(p, 'typical'), plantRadius(p, 'full'), legacyRadius(p, 'typical'), legacyRadius(p, 'full')].includes(s.radius);
 }
 /** Plants that would change size if the plan switched to `mode`. */
 export function plantsToResize(shapes: Shape[], mode: SizeMode): CircleShape[] {

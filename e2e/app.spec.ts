@@ -232,7 +232,7 @@ test.describe('plants, background, export', () => {
     expect(await shapeCount(page)).toBe(1);
     await expect(page.locator('.sel-pill .name')).toContainText('Autumn Bride');
     await page.locator('.sel-pill button.edit').click();
-    await expect(field(page, 'Radius')).toHaveValue('1.5');
+    await expect(field(page, 'Radius')).toHaveValue('1.25'); // 2.5 ft spread, drawn 2.5 ft across
   });
 
   test('background image two-point calibration sets the scale', async ({ page }) => {
@@ -295,3 +295,13 @@ test.describe('plants, background, export', () => {
     await expect(page.locator('.preview-img')).toHaveAttribute('src', /^data:image\/png;base64,/);
   });
 });
+
+test('Backspace in a panel never deletes the selected shape', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.circle').click();
+  await page.locator('.sheet .role-chip', { hasText: 'Bed' }).focus();
+  await page.keyboard.press('Backspace');
+  await expect(page.locator('.sheet')).toHaveCount(1);
+  expect(await shapeCount(page)).toBe(1);
+});
+

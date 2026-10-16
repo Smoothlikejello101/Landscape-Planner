@@ -19,9 +19,9 @@ describe('plant filters', () => {
     expect(plantMatches(heuchera, f({ bloomMonth: '9' }))).toBe(true);
     expect(plantMatches(heuchera, f({ bloomMonth: '5' }))).toBe(false);
   });
-  it('hides dog-unsafe and rejected plants by default', () => {
-    expect(plantMatches({ ...heuchera, dog: 'Mild GI' }, f())).toBe(false);
-    expect(plantMatches({ ...heuchera, dog: 'Mild GI' }, f({ dogSafeOnly: false }))).toBe(true);
+  it('shows dog-unsafe plants unless asked; hides rejected plants by default', () => {
+    expect(plantMatches({ ...heuchera, dog: 'Mild GI' }, f())).toBe(true);
+    expect(plantMatches({ ...heuchera, dog: 'Mild GI' }, f({ dogSafeOnly: true }))).toBe(false);
     expect(plantMatches({ ...heuchera, status: 'Rejected' }, f())).toBe(false);
     expect(plantMatches({ ...heuchera, status: 'Rejected' }, f({ showArchived: true }))).toBe(true);
   });

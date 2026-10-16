@@ -81,7 +81,7 @@ export function renderBgPanel() {
   // Visible toggle
   const visBtn = el('button', {
     className: 'btn ghost',
-    html: (bg.visible ? I.unlock : I.lock) + '<span style="margin-left:6px">' + (bg.visible ? 'Hide image' : 'Show image') + '</span>'
+    html: (bg.visible ? I.eyeOff : I.eye) + '<span style="margin-left:6px">' + (bg.visible ? 'Hide image' : 'Show image') + '</span>'
   });
   visBtn.addEventListener('click', () => updateBgImage({ visible: !bg.visible }));
   body.appendChild(visBtn);
