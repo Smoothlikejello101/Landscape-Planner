@@ -4,6 +4,7 @@ import { svgEl, type Attrs } from './dom';
 import { boxSize, shapeBBox, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, worldPoints } from './geometry';
 import { renderPathOverlay } from './draw';
 import { fullRingRadius } from './my-plants';
+import { crowdedIds } from './crowding';
 import { onShapePointerDown } from './gestures';
 import { plantsById } from './plants';
 import { isLocked, roleDef, roleRank } from './roles';
@@ -125,6 +126,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   let shapeEl: SVGElement;
   let hitEl: SVGElement | null = null;
   let ring: SVGElement | null = null;
+  const g0: SVGElement[] = [];
   let labelX: number, labelY: number, fs: number, rotTransform = '';
 
   if (s.type === 'circle') {
@@ -134,6 +136,9 @@ export function shapeGroup(s: Shape): SVGGElement {
     shapeEl = svgEl('circle', { ...common, cx, cy, r });
     // Plants drawn below full size: a dashed ring at full size when selected (or for all, from Layers).
     const full = (sel && state.selectedIds.length === 1) || state.showFullSize ? fullRingRadius(s) : null;
+    if (crowded.has(s.id)) {
+      g0.push(svgEl('circle', { 'data-role': 'crowded', cx, cy, r: r + 4, fill: 'none', stroke: '#dc2626', 'stroke-width': 2.5, 'pointer-events': 'none' }));
+    }
     if (full) ring = svgEl('circle', { 'data-role': 'full-ring', cx, cy, r: full * ppf, fill: 'none', stroke: s.color, 'stroke-width': 1.5, 'stroke-dasharray': '5 4', 'pointer-events': 'none' });
     labelX = cx; labelY = cy;
     fs = Math.max(10, Math.min(14, r * 0.4));
@@ -177,6 +182,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   const g = svgEl('g', { 'data-shape-group': s.id }, shapeEl);
   if (hitEl) g.appendChild(hitEl);
   if (ring) g.appendChild(ring);
+  for (const x of g0) g.appendChild(x);
   // Dimension lines get end ticks, like a drawing's dimension.
   if (s.type === 'line' && s.showLength) {
     const pts = worldPoints(s).map((p) => ({ x: (p.x - state.offsetX) * ppf, y: (p.y - state.offsetY) * ppf }));
@@ -284,8 +290,15 @@ function marqueeRect(): SVGRectElement | null {
   });
 }
 
+/** Plants outlined as crowded (Layers switch); refreshed on each redraw. */
+let crowded = new Set<string>();
+function refreshCrowding() {
+  crowded = state.showCrowding ? crowdedIds(state.shapes.filter((s) => shownWith(s, state.viewFilter)), plantsById) : new Set();
+}
+
 /** Clear and redraw the whole canvas. Never touches panel DOM. */
 export function redrawCanvas() {
+  refreshCrowding();
   const svg = canvasSvg();
   if (!svg) return;
   ensureLayers(svg);
@@ -332,6 +345,12 @@ export function redrawShapes(ids: string[]) {
   if (!svg || svg.children.length !== LAYERS.length || drawnView.zoom !== state.zoom ||
       drawnView.offsetX !== state.offsetX || drawnView.offsetY !== state.offsetY) { redrawCanvas(); return; }
   const shapes = layer(svg, 'shapes');
+  if (state.showCrowding) {
+    // Moving one plant can change which others are crowded: redraw all plants whose state flips.
+    const before = crowded;
+    refreshCrowding();
+    ids = [...new Set([...ids, ...[...before].filter((id) => !crowded.has(id)), ...[...crowded].filter((id) => !before.has(id))])];
+  }
   for (const id of ids) {
     const s = state.shapes.find((sh) => sh.id === id);
     const old = shapes.querySelector(`:scope > g[data-shape-group="${CSS.escape(id)}"]`);

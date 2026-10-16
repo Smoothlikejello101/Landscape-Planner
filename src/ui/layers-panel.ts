@@ -2,7 +2,9 @@ import { el, svgEl } from '../dom';
 import { flushHistoryDebounce, pushHistory } from '../history';
 import { I } from '../icons';
 import { centerOnShape, deletePhase, setRoleView, setViewFilter } from '../mutations';
-import { passesFilter, STATUSES, statusLabel } from '../status';
+import { passesFilter, shownWith, STATUSES, statusLabel } from '../status';
+import { crowdedIds } from '../crowding';
+import { plantsById } from '../plants';
 import { ROLES, roleHidden, roleKey, roleLabel } from '../roles';
 import type { RoleKey, ShapeFilter } from '../types';
 import { isSelected, selectOnly } from '../selection';
@@ -174,6 +176,12 @@ function plantSizeSection(): HTMLElement {
   wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, cb,
     el('span', {}, 'Show full-size rings on every plant (check for crowding)')));
   wrap.appendChild(el('div', { className: 'hint' }, 'Typical is the middle of a plant\'s size range; full is the top. Selected plants always show their full-size ring.'));
+  const crowd = el('input', { type: 'checkbox', 'data-testid': 'show-crowding' }) as HTMLInputElement;
+  crowd.checked = state.showCrowding;
+  crowd.addEventListener('change', () => { state.showCrowding = crowd.checked; render(); });
+  const nCrowded = crowdedIds(state.shapes.filter((x) => shownWith(x, state.viewFilter)), plantsById).size;
+  wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, crowd,
+    el('span', {}, `Outline crowded plants in red (${nCrowded} now)`)));
   const sun = el('input', { type: 'checkbox', 'data-testid': 'sun-warnings' }) as HTMLInputElement;
   sun.checked = state.sunWarnings;
   sun.addEventListener('change', () => { state.sunWarnings = sun.checked; save(); render(); });

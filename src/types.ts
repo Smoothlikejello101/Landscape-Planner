@@ -267,6 +267,8 @@ export interface AppState {
   viewFilter: ShapeFilter;
   /** View: full-size rings on every plant (not saved). */
   showFullSize: boolean;
+  /** View: outline plants planted closer than usual (not saved). */
+  showCrowding: boolean;
   /** The add/edit-a-plant form, when open. */
   plantForm: PlantFormArgs | null;
   /** Picker opened to link this shape to a plant. */
