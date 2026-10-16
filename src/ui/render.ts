@@ -185,8 +185,8 @@ export function render() {
   // Empty hint
   if (state.shapes.length === 0 && !state.draw) {
     canvasWrap.appendChild(el('div', { className: 'empty-hint' },
-      'Tap a shape button below to add it.', el('br'),
-      'Grid lines are ', el('b', {}, '1 ft'), '. Bold lines every ', el('b', {}, '10 ft'), '.'
+      el('div', {}, 'Tap a button below to add something.'),
+      el('div', {}, 'Grid lines are ', el('b', {}, '1 ft'), ' apart; bold lines every ', el('b', {}, '10 ft'), '.')
     ));
   }
 

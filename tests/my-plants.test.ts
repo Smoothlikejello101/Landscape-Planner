@@ -52,6 +52,12 @@ describe('plant sizes and modes', () => {
     expect(fullRingRadius(placed(3))).toBe(4);
     expect(fullRingRadius(placed(4))).toBeNull();
   });
+  it('draws to the quarter foot of radius, and still recognizes plants placed at the older half-foot steps', () => {
+    plantsById.odd = { id: 'odd', common: 'Odd', width: { min: 2, max: 3, med: 2.5 } } as Plant;
+    expect(plantRadius(plantsById.odd, 'typical')).toBe(1.25); // drawn 2.5 ft across, as listed
+    const older = { ...placed(1.5), plantId: 'odd' };          // earlier versions drew it at 1.5
+    expect(isDataSized(older)).toBe(true);
+  });
   it('tells plants sized from data from plants sized by hand', () => {
     expect(isDataSized(placed(3))).toBe(true);           // older plant still at its data size
     expect(isDataSized(placed(2.5))).toBe(false);        // older plant someone resized

@@ -195,14 +195,17 @@ function statusLegend(doc: JsPDF, box: Box, y: number, present: Set<Status>): nu
 
 /** Fill boxes with the plant list, adding continuation pages as needed. Returns the page count. */
 function plantList(doc: JsPDF, groups: ScheduleGroup[], firstBoxes: Box[], layout: PrintLayout, which = ''): number {
-  type Item = { kind: 'head'; text: string } | { kind: 'group'; text: string; total: number } | { kind: 'row'; key: number; count: number; label: string; botanical: string };
+  type Item = { kind: 'head'; text: string } | { kind: 'note'; text: string } | { kind: 'group'; text: string; total: number } | { kind: 'row'; key: number; count: number; label: string; botanical: string };
   const total = groups.reduce((n, g) => n + g.total, 0);
-  const items: Item[] = [{ kind: 'head', text: `Plant list${which ? ': ' + which : ''} (${total}) - number = key on the plan` }];
+  const items: Item[] = [
+    { kind: 'head', text: `Plant list${which ? ': ' + which : ''} (${total})` },
+    { kind: 'note', text: 'Numbers match the numbers in the circles on the plan.' },
+  ];
   for (const g of groups) {
     items.push({ kind: 'group', text: g.bed, total: g.total });
     for (const r of g.rows) items.push({ kind: 'row', key: r.key, count: r.count, label: r.label, botanical: r.botanical });
   }
-  const lineH = (it: Item) => (it.kind === 'head' ? pt(14) : it.kind === 'group' ? pt(14) : pt(11));
+  const lineH = (it: Item) => (it.kind === 'head' ? pt(12) : it.kind === 'note' ? pt(11) : it.kind === 'group' ? pt(14) : pt(11));
   let boxes = firstBoxes.slice();
   let box = boxes.shift()!;
   let y = box.y;
@@ -228,7 +231,10 @@ function plantList(doc: JsPDF, groups: ScheduleGroup[], firstBoxes: Box[], layou
     doc.setTextColor('#1c1917');
     if (it.kind === 'head') {
       doc.setFont('helvetica', 'bold'); doc.setFontSize(9);
-      doc.text(pdfSafe(it.text), box.x, y, { baseline: 'top' });
+      doc.text(fit(doc, it.text, box.w), box.x, y, { baseline: 'top' });
+    } else if (it.kind === 'note') {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor('#78716c');
+      doc.text(fit(doc, it.text, box.w), box.x, y, { baseline: 'top' });
     } else if (it.kind === 'group') {
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
       doc.text(fit(doc, it.text, box.w - 0.4), box.x, y + pt(3), { baseline: 'top' });

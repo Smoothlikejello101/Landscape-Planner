@@ -63,7 +63,7 @@ export const PLANT_FILTER_DEFAULTS = {
   q: '', form: '', water: '', bloomMonth: '', sun: '',
   native: '', deer: '', nectar: '', bird: '', maintenance: '',
   selfSeed: '', status: '', source: '', maxHeight: '',
-  dogSafeOnly: true, dryShade: false, wetFeet: false, clayOk: false,
+  dogSafeOnly: false, dryShade: false, wetFeet: false, clayOk: false,
   hostOnly: false, fallColor: false, winterInterest: false,
   edible: false, arProven: false, noTaproot: false, inPlan: false,
   showArchived: false, // rejected rows, zone-fails, hard-no dog plants
