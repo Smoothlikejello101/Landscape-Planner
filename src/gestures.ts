@@ -4,7 +4,8 @@ import { canvasRect, pxPerFoot, rectsIntersect, screenToFeet, shapeBBox } from '
 import { flushHistoryDebounce, pushHistory } from './history';
 import { zoomBy } from './mutations';
 import { attachedPlants } from './beds';
-import { isLocked, roleHidden } from './roles';
+import { isLocked } from './roles';
+import { shownWith } from './status';
 import { clearSelection, isSelected, selectOnly, toggleSelect } from './selection';
 import { gesture, state, tapTracker } from './state';
 import { save } from './storage';
@@ -310,7 +311,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
       if (g.moved && state.marquee) {
         const m = state.marquee;
         const box = { minX: Math.min(m.x1, m.x2), maxX: Math.max(m.x1, m.x2), minY: Math.min(m.y1, m.y2), maxY: Math.max(m.y1, m.y2) };
-        state.selectedIds = state.shapes.filter((s) => !roleHidden(s) && rectsIntersect(shapeBBox(s), box)).map((s) => s.id);
+        state.selectedIds = state.shapes.filter((s) => shownWith(s, state.viewFilter) && rectsIntersect(shapeBBox(s), box)).map((s) => s.id);
       } else if (g.tapShapeId) {
         toggleSelect(g.tapShapeId);
       } else {

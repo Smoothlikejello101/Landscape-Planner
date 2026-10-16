@@ -5,7 +5,8 @@ import { shapeToSvgString } from './export';
 import { rotatedBoxBounds, shapeBBox, unionBounds } from './geometry';
 import type { Plant } from './plants';
 import { ROLES, roleKey, roleLabel } from './roles';
-import type { BgImage, Bounds, PaperSize, PrintSettings, RoleKey, Shape, SizeMode } from './types';
+import type { BgImage, Bounds, PaperSize, PrintSettings, RoleKey, Shape, ShapeFilter, SizeMode } from './types';
+import { NO_FILTER } from './status';
 import { fullRingRadius } from './my-plants';
 
 // The printable plan: a to-scale drawing on a standard sheet, with a title
@@ -90,8 +91,8 @@ export function scaleText(ftPerIn: number): string {
 }
 
 /** What the sheet shows: visible shapes, plus the background image if wanted. */
-export function printContent(shapes: Shape[], bg: BgImage | null, includeBackground: boolean): { shapes: Shape[]; bounds: Bounds | null } {
-  const visible = paintOrder(shapes);
+export function printContent(shapes: Shape[], bg: BgImage | null, includeBackground: boolean, filter: ShapeFilter = NO_FILTER): { shapes: Shape[]; bounds: Bounds | null } {
+  const visible = paintOrder(shapes, filter);
   const parts = visible.map(shapeBBox);
   if (includeBackground && bg && bg.visible) {
     parts.push(rotatedBoxBounds(bg.cx, bg.cy, bg.naturalWidth * bg.ftPerPx, bg.naturalHeight * bg.ftPerPx, bg.rotation || 0));

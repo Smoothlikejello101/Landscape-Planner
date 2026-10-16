@@ -2,6 +2,7 @@ import { canShareFiles, downloadBlob, safeFileName, shareBlob } from '../backup'
 import { el } from '../dom';
 import { I } from '../icons';
 import { PAPER, planLayout, printContent, scaleText } from '../print';
+import { STATUSES } from '../status';
 import { state } from '../state';
 import { currentProject, save } from '../storage';
 import type { PaperSize, PrintSettings } from '../types';
@@ -42,7 +43,7 @@ const check = (label: string, checked: boolean, onChange: (v: boolean) => void, 
 
 /** "Landscape · 1 in = 10 ft · shows 95 × 72 ft of the yard" */
 export function printSummary(p: PrintSettings): string {
-  const content = printContent(state.shapes, state.bgImage, p.includeBackground);
+  const content = printContent(state.shapes, state.bgImage, p.includeBackground, { status: p.statusFilter, phase: p.phaseFilter, showGone: false });
   if (!content.bounds) return 'Add something to the plan first.';
   const l = planLayout(p.paper, p.orientation, content.bounds);
   const ww = Math.round(l.window.maxX - l.window.minX), wh = Math.round(l.window.maxY - l.window.minY);
@@ -66,6 +67,23 @@ export function renderPrintPanel() {
   const subtitle = el('input', { type: 'text', value: p.subtitle, placeholder: 'e.g. 123 Main St · Fall 2026 planting', maxLength: 200 }) as HTMLInputElement;
   subtitle.addEventListener('input', () => set({ subtitle: subtitle.value }, false));
   body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Subtitle (optional)'), subtitle));
+
+  // Which plants: everything, or one status and/or phase (beds, paths and the house always print).
+  if (state.shapes.some((s) => s.status || s.phase)) {
+    const st = el('select', { 'data-testid': 'print-status' }) as HTMLSelectElement;
+    st.appendChild(el('option', { value: '' }, 'Any status'));
+    for (const x of STATUSES.filter((x) => x.key !== 'gone')) st.appendChild(el('option', { value: x.key }, x.label));
+    st.value = p.statusFilter === 'gone' ? '' : p.statusFilter;
+    st.addEventListener('change', () => set({ statusFilter: st.value as PrintSettings['statusFilter'] }, true));
+    const ph = el('select', { 'data-testid': 'print-phase' }) as HTMLSelectElement;
+    ph.appendChild(el('option', { value: '' }, 'Any phase'));
+    for (const x of state.phases) ph.appendChild(el('option', { value: x }, x));
+    ph.value = p.phaseFilter;
+    ph.addEventListener('change', () => set({ phaseFilter: ph.value }, true));
+    body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Plants to show'),
+      el('div', { style: { display: 'flex', gap: '8px' } }, st, ph),
+      el('div', { className: 'hint' }, 'Beds, paths and buildings always print. Gone plants never do.')));
+  }
 
   const hasBg = !!state.bgImage?.visible;
   body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Include'),

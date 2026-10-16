@@ -6,6 +6,7 @@ import type { AppState, Gesture, PrintSettings } from './types';
 export const DEFAULT_PRINT: PrintSettings = {
   paper: 'letter', orientation: 'auto', title: '', subtitle: '',
   includeBackground: false, includeGrid: true, includePlantList: true, includeFullRings: false, northDeg: 0,
+  statusFilter: '', phaseFilter: '',
 };
 
 export const state: AppState = {
@@ -42,6 +43,8 @@ export const state: AppState = {
   print: { ...DEFAULT_PRINT },
   sizeMode: 'typical',
   sunWarnings: true,
+  phases: [],
+  viewFilter: { status: '', phase: '', showGone: false },
   showFullSize: false,
   plantForm: null,
   pickerLinkId: null,

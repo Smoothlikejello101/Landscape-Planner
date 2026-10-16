@@ -21,7 +21,7 @@ export function measureText(s: Shape): string {
 }
 
 export function bedSection(s: Shape): HTMLElement {
-  const plants = plantsInBed(s, state.shapes);
+  const plants = plantsInBed(s, state.shapes).filter((p) => p.status !== 'gone');
   const cb = el('input', { type: 'checkbox' });
   cb.checked = s.carryPlants !== false;
   cb.addEventListener('change', () => updateSelected({ carryPlants: cb.checked }));

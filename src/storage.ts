@@ -3,6 +3,7 @@ import { del, openKV, put, type KV, type WriteOp } from './db';
 import { cancelHistoryDebounce } from './history';
 import { DEFAULT_PRINT, state } from './state';
 import { isRole } from './roles';
+import { cleanPhaseName, isStatus, MAX_PHASES } from './status';
 import type { BgImage, Clipboard, PathShape, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, SunInfo } from './types';
 import { setWorldPoints } from './geometry';
 import { now, uid } from './util';
@@ -95,6 +96,9 @@ export function migrateShape(raw: unknown): Shape | null {
     ...(s.carryPlants === false ? { carryPlants: false } : {}),
     ...(sanitizeSun(s.sun) ? { sun: sanitizeSun(s.sun)! } : {}),
     ...(typeof s.sunDismissed === 'string' && s.sunDismissed ? { sunDismissed: s.sunDismissed.slice(0, 300) } : {}),
+    ...(isStatus(s.status) ? { status: s.status } : {}),
+    ...(typeof s.plantedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.plantedOn) ? { plantedOn: s.plantedOn } : {}),
+    ...(typeof s.phase === 'string' && cleanPhaseName(s.phase) ? { phase: cleanPhaseName(s.phase) } : {}),
   };
   const size = (v: unknown, d: number) => Math.max(0.1, num(v, d));
   switch (s.type) {
@@ -199,13 +203,26 @@ export function sanitizePrint(raw: unknown): PrintSettings {
     includePlantList: bool(o.includePlantList, d.includePlantList),
     includeFullRings: bool(o.includeFullRings, d.includeFullRings),
     northDeg: ((num(o.northDeg, 0) % 360) + 360) % 360,
+    statusFilter: isStatus(o.statusFilter) ? o.statusFilter : '',
+    phaseFilter: str(o.phaseFilter).slice(0, 40),
   };
+}
+/** Phase names: unique, trimmed, capped; any phase a shape uses is kept in the list. */
+export function sanitizePhases(raw: unknown, shapes: Shape[]): string[] {
+  const out: string[] = [];
+  const add = (v: unknown) => {
+    const n = typeof v === 'string' ? cleanPhaseName(v) : '';
+    if (n && !out.includes(n) && out.length < MAX_PHASES) out.push(n);
+  };
+  if (Array.isArray(raw)) raw.forEach(add);
+  shapes.forEach((s) => add(s.phase));
+  return out;
 }
 /** The open project's data, as stored. */
 export function currentProjectData(): ProjectData {
   return {
     shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY,
-    roleViews: state.roleViews, print: state.print, sizeMode: state.sizeMode, sunWarnings: state.sunWarnings, bgImage: state.bgImage,
+    roleViews: state.roleViews, print: state.print, sizeMode: state.sizeMode, sunWarnings: state.sunWarnings, phases: state.phases, bgImage: state.bgImage,
   };
 }
 /** Normalize project data from storage, an old version, or an imported file. */
@@ -222,6 +239,7 @@ export function sanitizeProjectData(raw: unknown): ProjectData {
     print: sanitizePrint(d.print),
     sizeMode: d.sizeMode === 'full' ? 'full' : 'typical',
     sunWarnings: d.sunWarnings !== false,
+    phases: sanitizePhases(d.phases, shapes),
     bgImage: bg && bg.dataUrl ? bg : null,
   };
 }
@@ -244,7 +262,7 @@ function projectWriteOps(id: string, data: ProjectData, knownImageKeys?: Set<str
   }
   const stored: StoredProject = {
     shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {},
-    print: data.print ?? { ...DEFAULT_PRINT }, sizeMode: data.sizeMode ?? 'typical', sunWarnings: data.sunWarnings !== false, bgImage: storedBg,
+    print: data.print ?? { ...DEFAULT_PRINT }, sizeMode: data.sizeMode ?? 'typical', sunWarnings: data.sunWarnings !== false, phases: data.phases ?? [], bgImage: storedBg,
   };
   ops.push(put('projects', id, stored));
   return ops;
@@ -419,6 +437,8 @@ export async function switchProject(id: string): Promise<boolean> {
   state.print = data.print ?? { ...DEFAULT_PRINT };
   state.sizeMode = data.sizeMode ?? 'typical';
   state.sunWarnings = data.sunWarnings !== false;
+  state.phases = data.phases ?? [];
+  state.viewFilter = { status: '', phase: '', showGone: false };
   state.bgImage = data.bgImage ?? null;
   state.selectedIds = [];
   state.history = [];

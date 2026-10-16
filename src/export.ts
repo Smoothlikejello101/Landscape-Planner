@@ -28,12 +28,29 @@ export function computeAllBBox(): Bounds | null {
  * print needs them bigger to read at the same physical size).
  */
 export function shapeToSvgString(s: Shape, originX: number, originY: number, scale: number, k = 1): string {
+  const body = shapeBodySvg(s, originX, originY, scale, k);
+  if (!s.status || s.status === 'planted' || s.status === 'planned') return body;
+  if (s.status === 'gone') return `<g opacity="0.35">${body}</g>`;
+  // To remove: a red cross; to move: a blue arrow badge (as on screen).
+  const b = shapeBBox(s);
+  const x1 = (b.minX - originX) * scale, x2 = (b.maxX - originX) * scale, y1 = (b.minY - originY) * scale, y2 = (b.maxY - originY) * scale;
+  if (s.status === 'remove') {
+    const f = s.type === 'circle' ? 0.146 : 0, ix = (x2 - x1) * f, iy = (y2 - y1) * f;
+    return body + `<path d="M${x1 + ix},${y1 + iy}L${x2 - ix},${y2 - iy}M${x2 - ix},${y1 + iy}L${x1 + ix},${y2 - iy}" stroke="#dc2626" stroke-width="${2 * k}" stroke-linecap="round" opacity="0.85"/>`;
+  }
+  const bx = x1 + 2 * k, by = y1 + 2 * k, u = k;
+  return body + `<circle cx="${bx}" cy="${by}" r="${9 * u}" fill="#2563eb" stroke="#fff" stroke-width="${1.5 * u}"/>` +
+    `<path d="M${bx - 4.5 * u},${by}h${9 * u}M${bx + 1.5 * u},${by - 3 * u}l${3 * u},${3 * u}l${-3 * u},${3 * u}M${bx - 1.5 * u},${by - 3 * u}l${-3 * u},${3 * u}l${3 * u},${3 * u}" stroke="#fff" stroke-width="${1.4 * u}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+}
+function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number, k: number): string {
   const dashed = s.role ? !!roleDef(s.role).outline : false;
   const outline = dashed || s.type === 'line';
-  const opacity = outline ? 0 : s.role === 'shade' && s.sun ? shadeOpacity(s.sun) : s.opacity ?? 0.65;
-  const dash = dashed ? ` stroke-dasharray="${8 * k} ${4 * k}"` : s.locked ? ` stroke-dasharray="${4 * k} ${2 * k}"` : '';
-  const stroke = outline ? s.color : 'rgba(0,0,0,0.3)';
-  const strokeWidth = (outline ? 2.5 : 1) * k;
+  const planned = s.status === 'planned' && !outline;
+  const baseOpacity = outline ? 0 : s.role === 'shade' && s.sun ? shadeOpacity(s.sun) : s.opacity ?? 0.65;
+  const opacity = planned ? baseOpacity * 0.5 : baseOpacity;
+  const dash = dashed ? ` stroke-dasharray="${8 * k} ${4 * k}"` : planned ? ` stroke-dasharray="${6 * k} ${4 * k}"` : s.locked ? ` stroke-dasharray="${4 * k} ${2 * k}"` : '';
+  const stroke = outline || planned ? s.color : s.status === 'remove' ? '#dc2626' : 'rgba(0,0,0,0.3)';
+  const strokeWidth = (outline ? 2.5 : planned || s.status === 'remove' ? 2 : 1) * k;
   const text = (x: number, y: number, fs: number, label: string, extra = '') =>
     `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="${fs * k}" fill="#0f172a" font-family="sans-serif" stroke="rgba(255,255,255,0.7)" stroke-width="${2 * k}" paint-order="stroke" stroke-linejoin="round"${extra}>${escapeHtml(label)}</text>`;
   if (s.type === 'circle') {
