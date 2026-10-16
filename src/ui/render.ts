@@ -18,6 +18,7 @@ import { renderExportModal, renderPreviewModal, renderResetModal } from './modal
 import { renderPlantsPanel } from './plants-panel';
 import { renderPrintPanel } from './print-panel';
 import { renderPlantForm } from './plant-form';
+import { renderBloomPanel } from './bloom-view';
 import { fullRingRadius } from '../my-plants';
 import { filterActive, filterText } from '../status';
 import { toast } from './toast';
@@ -275,6 +276,7 @@ export function render() {
   else if (state.panel === 'bgDistance') panelNode = renderBgDistanceModal();
   else if (state.panel === 'print') panelNode = renderPrintPanel();
   else if (state.panel === 'plantForm') panelNode = renderPlantForm();
+  else if (state.panel === 'bloom') panelNode = renderBloomPanel();
   if (panelNode) root.appendChild(panelNode);
   if (state.menu === 'more') root.appendChild(renderMoreMenu());
 

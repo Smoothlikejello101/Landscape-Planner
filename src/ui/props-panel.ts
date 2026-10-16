@@ -16,6 +16,7 @@ import type { CircleShape, Corner, Shape } from '../types';
 import { formatSize, isMine, plantRadius, type Range } from '../my-plants';
 import { plantsById } from '../plants';
 import { statusSection } from './status-section';
+import { bedBloomSection } from './bloom-view';
 import { snapRot, typeName } from '../util';
 
 // ============================================================
@@ -173,7 +174,7 @@ export function renderPropsPanelSingle(s: Shape) {
     ));
   }
 
-  if (s.role === 'bed') body.appendChild(bedSection(s));
+  if (s.role === 'bed') { body.appendChild(bedSection(s)); body.appendChild(bedBloomSection(s)); }
   if (s.role === 'shade') body.appendChild(shadeSunSection(s));
 
   // Color
