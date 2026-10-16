@@ -16,9 +16,15 @@ test('add a plant from its tag, place it, and switch to full size', async ({ pag
   await expect(page.getByTestId('pf-name')).toHaveValue('Limelight');
   await page.getByTestId('pf-name').fill("Hydrangea 'Limelight'");
   await page.getByTestId('pf-save').click();
-  await expect(page.getByTestId('pf-error')).toHaveText('Enter its spread, e.g. 6-8 ft.');
+  await expect(page.getByTestId('pf-error')).toHaveText('Enter its spread, e.g. 6-8.');
   const spread = page.getByTestId('pf-spread');
-  await spread.fill('6-8 ft');
+  await expect(spread).toHaveAttribute('inputmode', 'decimal'); // number pad on phones
+  // Inches: the number, then "in".
+  await spread.fill('36');
+  await page.getByTestId('pf-spread-in').click();
+  await expect(page.locator('.field', { has: spread }).locator('.hint')).toContainText('Read as 3 ft');
+  await page.getByTestId('pf-spread-ft').click();
+  await spread.fill('6-8');
   await expect(spread).toBeFocused(); // typing never rebuilds the form (Android keyboard)
   await expect(page.locator('.field', { has: spread }).locator('.hint')).toContainText('Read as 6 ft to 8 ft');
   await page.locator('.role-chip', { hasText: 'Full sun' }).click();

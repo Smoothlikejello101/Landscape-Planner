@@ -39,8 +39,16 @@ export function plantSunBanner(s: Shape): HTMLElement | null {
   if (s.role !== 'plant' || !s.plantId) return null;
   const check = checkPlantSun(s, plantsById[s.plantId], state.shapes);
   if (!check) return null;
-  return el('div', { className: 'check-banner ' + (check.ok ? 'ok' : 'warn'), 'data-testid': 'sun-check' },
-    (check.ok ? '☀ ' : '⚠ ') + check.message);
+  if (check.ok) return el('div', { className: 'check-banner ok', 'data-testid': 'sun-check' }, '☀ ' + check.message);
+  // A warning can be dismissed for this plant; it comes back if the plant moves or the sun changes.
+  const dismissed = s.sunDismissed === check.message;
+  const btn = el('button', { className: 'link-reset', 'data-testid': 'sun-dismiss' }, dismissed ? 'Show the warning again' : 'Dismiss for this plant');
+  btn.addEventListener('click', () => {
+    if (dismissed) updateSelected({ sunDismissed: undefined }); else updateSelected({ sunDismissed: check.message });
+  });
+  const note = dismissed ? ' (dismissed: no badge on the plan)' : !state.sunWarnings ? ' (badges are off in Layers)' : '';
+  return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'sun-check' },
+    el('div', {}, '⚠ ' + check.message + note), el('div', { style: { marginTop: '4px' } }, btn));
 }
 
 function summaryText(info: SunInfo): string {

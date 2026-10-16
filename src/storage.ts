@@ -94,6 +94,7 @@ export function migrateShape(raw: unknown): Shape | null {
     ...(isRole(s.role) ? { role: s.role } : typeof s.plantId === 'string' ? { role: 'plant' as const } : {}),
     ...(s.carryPlants === false ? { carryPlants: false } : {}),
     ...(sanitizeSun(s.sun) ? { sun: sanitizeSun(s.sun)! } : {}),
+    ...(typeof s.sunDismissed === 'string' && s.sunDismissed ? { sunDismissed: s.sunDismissed.slice(0, 300) } : {}),
   };
   const size = (v: unknown, d: number) => Math.max(0.1, num(v, d));
   switch (s.type) {
@@ -204,7 +205,7 @@ export function sanitizePrint(raw: unknown): PrintSettings {
 export function currentProjectData(): ProjectData {
   return {
     shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY,
-    roleViews: state.roleViews, print: state.print, sizeMode: state.sizeMode, bgImage: state.bgImage,
+    roleViews: state.roleViews, print: state.print, sizeMode: state.sizeMode, sunWarnings: state.sunWarnings, bgImage: state.bgImage,
   };
 }
 /** Normalize project data from storage, an old version, or an imported file. */
@@ -220,6 +221,7 @@ export function sanitizeProjectData(raw: unknown): ProjectData {
     roleViews: sanitizeRoleViews(d.roleViews),
     print: sanitizePrint(d.print),
     sizeMode: d.sizeMode === 'full' ? 'full' : 'typical',
+    sunWarnings: d.sunWarnings !== false,
     bgImage: bg && bg.dataUrl ? bg : null,
   };
 }
@@ -242,7 +244,7 @@ function projectWriteOps(id: string, data: ProjectData, knownImageKeys?: Set<str
   }
   const stored: StoredProject = {
     shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {},
-    print: data.print ?? { ...DEFAULT_PRINT }, sizeMode: data.sizeMode ?? 'typical', bgImage: storedBg,
+    print: data.print ?? { ...DEFAULT_PRINT }, sizeMode: data.sizeMode ?? 'typical', sunWarnings: data.sunWarnings !== false, bgImage: storedBg,
   };
   ops.push(put('projects', id, stored));
   return ops;
@@ -416,6 +418,7 @@ export async function switchProject(id: string): Promise<boolean> {
   state.roleViews = data.roleViews ?? {};
   state.print = data.print ?? { ...DEFAULT_PRINT };
   state.sizeMode = data.sizeMode ?? 'typical';
+  state.sunWarnings = data.sunWarnings !== false;
   state.bgImage = data.bgImage ?? null;
   state.selectedIds = [];
   state.history = [];

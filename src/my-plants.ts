@@ -24,16 +24,16 @@ export interface Range { min: number; max: number; med: number }
 // ---------- Sizes ----------
 /**
  * Read a size the way nursery tags write it: "6-8 ft", "6 to 8'", "36 in",
- * "18-24\"", "3", "2.5 ft". A bare number is feet. Returns null if unreadable.
+ * "18-24\"", "3", "2.5 ft". A bare number is in `defaultUnit`. Returns null if unreadable.
  */
-export function parseSize(text: string): Range | null {
-  const t = text.trim().toLowerCase().replace(/[–—]/g, '-').replace(/\s+to\s+/g, '-');
+export function parseSize(text: string, defaultUnit: 'ft' | 'in' = 'ft'): Range | null {
+  const t = text.trim().toLowerCase().replace(/[–—]/g, '-').replace(/\s+to\s+/g, '-').replace(/,/g, '.');
   if (!t) return null;
   const m = t.match(/^(\d+(?:\.\d+)?)\s*(ft|feet|foot|'|in|inch|inches|")?\s*(?:-\s*(\d+(?:\.\d+)?)\s*(ft|feet|foot|'|in|inch|inches|")?)?$/);
   if (!m) return null;
   const inches = (u?: string) => !!u && (u.startsWith('in') || u === '"');
   // "18-24 in": the unit after the second number applies to both.
-  const unitA = m[2] ?? m[4], unitB = m[4] ?? m[2];
+  const unitA = m[2] ?? m[4] ?? defaultUnit, unitB = m[4] ?? m[2] ?? defaultUnit;
   const a = parseFloat(m[1]) / (inches(unitA) ? 12 : 1);
   const b = m[3] != null ? parseFloat(m[3]) / (inches(unitB) ? 12 : 1) : a;
   const min = Math.min(a, b), max = Math.max(a, b);

@@ -96,3 +96,8 @@ export function checkPlantSun(plantShape: Shape, plant: Plant | undefined, shape
   }
   return { ok: true, message: `${name} gets ${where}, which suits it (${wants}).` };
 }
+
+/** A warning to show: not ok, not dismissed in its current wording, and warnings switched on. */
+export function sunWarningShown(check: SunCheck | null, s: Shape, warningsOn: boolean): boolean {
+  return !!check && !check.ok && warningsOn && s.sunDismissed !== check.message;
+}

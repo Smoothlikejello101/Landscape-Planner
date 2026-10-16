@@ -27,6 +27,12 @@ interface ShapeBase {
   carryPlants?: boolean;
   /** Shade areas: observed direct sun. */
   sun?: SunInfo;
+  /**
+   * Plants: a sun warning the user dismissed, as its message. Hidden while
+   * the warning reads the same; it comes back if the plant moves or the
+   * recorded sun changes.
+   */
+  sunDismissed?: string;
 }
 /** Direct sun observed on a shade area. Times are minutes after midnight. */
 export interface SunInfo {
@@ -148,6 +154,8 @@ export interface ProjectData {
   roleViews?: RoleViews;
   print?: PrintSettings;
   sizeMode?: SizeMode;
+  /** Sun warning badges on plants (default on). */
+  sunWarnings?: boolean;
   zoom: number;
   offsetX: number;
   offsetY: number;
@@ -237,6 +245,7 @@ export interface AppState {
   roleViews: RoleViews;
   print: PrintSettings;
   sizeMode: SizeMode;
+  sunWarnings: boolean;
   /** View: full-size rings on every plant (not saved). */
   showFullSize: boolean;
   /** The add/edit-a-plant form, when open. */
