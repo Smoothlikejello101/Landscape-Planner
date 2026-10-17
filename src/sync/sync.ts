@@ -3,7 +3,7 @@ import { flushSave, getSyncRecords, getSyncUser, installId, resetSyncState, setS
 import { syncOnce, type SyncReport, type ServerProject } from './engine';
 import { storageLocal, storagePlants } from './local';
 import { cleanUpPhotos, supabasePlants, supabaseRemote } from './remote';
-import { syncPlants } from './plants';
+import { syncPlants, type PlantReport } from './plants';
 import { setPlantEditHook } from '../my-plants';
 
 // When sync runs, and what it says. Sync is on for a signed-in account whose
@@ -142,7 +142,9 @@ async function onePass() {
     if (!userId) throw new Error('Not signed in.');
     const remote = supabaseRemote(c, deviceName(), userId);
     // My plants first, so a plan that arrives finds the plants it uses.
-    const plants = await syncPlants(storagePlants(), supabasePlants(c, deviceName()));
+    // (Trouble with plants doesn't hold up the plans.)
+    const plants = await syncPlants(storagePlants(), supabasePlants(c, deviceName()))
+      .catch((e): PlantReport => ({ uploaded: 0, downloaded: 0, removed: 0, failed: [{ name: 'My plants', message: e instanceof Error ? e.message : String(e) }], paused: false, full: false }));
     const report = plants.paused ? emptyReport(true) : await syncOnce(storageLocal(screenBusy, showOpen), remote, deviceName());
     report.downloaded += plants.downloaded + plants.removed;
     report.uploaded += plants.uploaded;
@@ -157,7 +159,7 @@ async function onePass() {
     } else setStatus({ phase: 'synced', lastAt: Date.now(), message: syncedNote(report), trash });
     if (!report.paused && Date.now() - lastCleanUp > CLEAN_UP_EVERY_MS) {
       lastCleanUp = Date.now();
-      // Photos no plan uses any more leave the server (a day after they stopped being used).
+      // Photos no plan has used for a day leave the server.
       cleanUpPhotos(c, userId).catch((e) => console.warn('photo clean-up failed', e));
     }
     if (report.uploaded || report.downloaded || report.conflicts.length || report.removed.length || report.restored.length || report.undeleted.length) onChanged(report);

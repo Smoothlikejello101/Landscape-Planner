@@ -174,8 +174,8 @@ export function applyPlantChanges(changes: PlantChange[], bySync = false): Promi
       }
       if (c.plant) cur.set(c.id, c.plant);
       else if (c.plant === null) cur.delete(c.id);
-      if (!bySync && c.plant !== undefined) sync.edited[c.id] = Date.now();
-      else if (c.edited !== undefined) sync.edited[c.id] = c.edited;
+      if (c.edited !== undefined) sync.edited[c.id] = c.edited;
+      else if (!bySync && c.plant !== undefined) sync.edited[c.id] = Date.now();
       if (c.record) sync.records[c.id] = c.record;
       else if (c.record === null) delete sync.records[c.id];
       done.push(c.id);
@@ -214,8 +214,8 @@ export async function mergeMyPlants(incoming: unknown[]): Promise<number> {
   const have = new Set(myPlants.map((p) => p.id));
   const add = incoming.map(sanitizeMyPlant).filter((p): p is Plant => !!p && !have.has(p.id));
   if (!add.length) return 0;
-  // (Only if still absent when written.)
-  return (await applyPlantChanges(add.map((p) => ({ id: p.id, plant: p, expect: null })))).length;
+  // Only if still absent when written. Not timed as an edit now: an old file mustn't win over newer edits elsewhere.
+  return (await applyPlantChanges(add.map((p) => ({ id: p.id, plant: p, expect: null, edited: 0 })))).length;
 }
 /** Library plants a set of shapes uses (to carry them in a project file). */
 export function myPlantsUsedBy(shapes: Shape[]): Plant[] {

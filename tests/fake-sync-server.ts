@@ -32,6 +32,8 @@ export class FakeServer {
         const r = this.rows.get(id);
         let out: PushResult;
         name = Array.from(name.trim() || 'Untitled').slice(0, 200).join(''); // as the server keeps names
+        // A plan from a version before photos synced keeps the server's photo (as push_project in 03).
+        if (r && !('photo' in content) && 'photo' in r.content) content = { ...content, photo: r.content.photo };
         if (!r) { this.rows.set(id, { name, content: structuredClone(content), revision: 1, updated_by: device, deleted: false }); out = { status: 'ok', revision: 1 }; }
         else if (r.deleted) out = { status: 'deleted', revision: r.revision };
         else if (base !== r.revision) out = { status: 'conflict', revision: r.revision, name: r.name, content: structuredClone(r.content), updated_by: r.updated_by, updated_at: '' };

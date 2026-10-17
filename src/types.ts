@@ -216,6 +216,8 @@ export interface ProjectData {
 export interface HistorySnapshot {
   shapes: Shape[];
   bgImage: BgImage | null;
+  /** The synced photo not on this device at that step (so undo never makes it look removed). */
+  photoElsewhere?: PhotoRef | null;
 }
 
 export interface Clipboard {

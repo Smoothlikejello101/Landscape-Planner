@@ -4,11 +4,13 @@ import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { openKV } from '../src/db';
 import { state } from '../src/state';
+import { undo } from '../src/history';
+import { pushHistory } from '../src/history';
 import { _resetStorageForTests, createProject, deleteProject, flushSave, getSyncRecords, getSyncTombstones, getSyncUser, initStorage, readProject, renameProject, resetSyncState, save, switchProject } from '../src/storage';
 import { syncOnce, type Remote } from '../src/sync/engine';
 import { storageLocal, storagePlants } from '../src/sync/local';
 import { syncPlants } from '../src/sync/plants';
-import { loadMyPlants, myPlants, saveMyPlant, deleteMyPlant } from '../src/my-plants';
+import { loadMyPlants, mergeMyPlants, myPlants, saveMyPlant, deleteMyPlant } from '../src/my-plants';
 import { FakePlantServer, FakeServer } from './fake-sync-server';
 import type { Shape } from '../src/types';
 
@@ -376,6 +378,78 @@ describe('My plants (real storage)', () => {
     await deleteMyPlant('u-lime');
     await syncPlants(storagePlants(), server.remote());
     expect(server.rows.get('u-lime')!.deleted_at).not.toBeNull();
+  });
+});
+
+describe('My plants from an old file', () => {
+  it('importing an old backup on a new device doesn’t put the old version back everywhere', async () => {
+    const server = new FakePlantServer();
+    await device(); loadMyPlants();
+    await saveMyPlant({ id: 'u-lime', common: 'Limelight, old', width: { min: 6, max: 8, med: 7 } });
+    await syncPlants(storagePlants(), server.remote());
+    await saveMyPlant({ id: 'u-lime', common: 'Limelight, current', width: { min: 6, max: 8, med: 7 } });
+    await syncPlants(storagePlants(), server.remote());
+    await device(); loadMyPlants();
+    await mergeMyPlants([{ id: 'u-lime', common: 'Limelight, old', width: { min: 6, max: 8, med: 7 } }]);
+    await syncPlants(storagePlants(), server.remote());
+    expect((server.rows.get('u-lime')!.plant).common).toBe('Limelight, current');
+    expect(myPlants.find((p) => p.id === 'u-lime')!.common).toBe('Limelight, current');
+  });
+});
+
+describe('photos: what the review found', () => {
+  const IMG2 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==';
+  const bg = (dataUrl: string) => ({ dataUrl, naturalWidth: 40, naturalHeight: 30, ftPerPx: 0.25, cx: 3, cy: 4, rotation: 10, opacity: 0.5, visible: true });
+
+  it('a photo the server had no room for is never lost to another device’s photo, nor marked “this device only”', async () => {
+    const server = new FakeServer(); await device();
+    server.maxPhoto = 1;
+    const id = state.currentProjectId!;
+    state.bgImage = bg(IMG); state.shapes = [bed('a', 'bed')]; save(); await flushSave();
+    expect((await syncOnce(local(), server.remoteFor('phone'), 'phone')).photosKept).toEqual(['My Garden']);
+    // Another device edits the plan only: the photo here stays as it was.
+    let row = server.rows.get(id)!; row.content = { ...row.content, shapes: [bed('a', 'bed'), bed('l', 'laptop')] }; row.revision++;
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    expect(state.shapes.map((s) => s.label)).toEqual(['bed', 'laptop']);
+    expect(state.bgImage).toMatchObject({ dataUrl: IMG });
+    expect(state.bgImage!.deviceOnly).toBeUndefined();
+    // Another device puts its own photo on the plan: this one is kept as a copy first.
+    row = server.rows.get(id)!;
+    server.photos.set('f'.repeat(64), IMG2);
+    row.content = { ...row.content, photo: { fingerprint: 'f'.repeat(64), ...bg(IMG2), dataUrl: undefined } }; row.revision++;
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    expect(state.bgImage?.dataUrl).toBe(IMG2);
+    const copy = state.projects.find((p) => p.name.includes('with this device’s photo'))!;
+    expect((await readProject(copy.id))!.bgImage?.dataUrl).toBe(IMG);
+  });
+
+  it('undo after a photo arrives doesn’t remove it (here or anywhere)', async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.bgImage = bg(IMG); save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    const [fp, bytes] = [...server.photos][0]; server.photos.delete(fp);
+    await device();
+    await syncOnce(local(), server.remoteFor('laptop'), 'laptop');
+    await switchProject(id); pushHistory(); // opened: undo starts here, the photo still on its way
+    server.photos.set(fp, bytes);
+    await syncOnce(local(), server.remoteFor('laptop'), 'laptop');
+    expect(state.bgImage?.dataUrl).toBe(IMG);
+    state.shapes = [bed('x', 'new bed')]; pushHistory(); save();
+    undo(); await flushSave();
+    expect(state.shapes).toEqual([]);
+    expect(state.bgImage?.dataUrl).toBe(IMG);
+    await syncOnce(local(), server.remoteFor('laptop'), 'laptop');
+    expect(server.rows.get(id)!.content.photo).toMatchObject({ fingerprint: fp });
+  });
+
+  it('undo doesn’t flip “keep this photo on this device only”', async () => {
+    await device();
+    state.bgImage = bg(IMG); pushHistory();
+    state.shapes = [bed('x', 'bed')]; pushHistory();
+    state.bgImage = { ...state.bgImage!, deviceOnly: true }; pushHistory();
+    undo(); undo();
+    expect(state.bgImage?.deviceOnly).toBe(true);
   });
 });
 

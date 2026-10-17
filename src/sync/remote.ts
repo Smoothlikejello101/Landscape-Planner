@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ProjectContent, PushResult, Remote, ServerProject } from './engine';
-import { blobToDataUrl, dataUrlBytes, dataUrlType } from './photo';
+import { blobToDataUrl, dataUrlBytes, dataUrlType, photoFingerprint } from './photo';
 import type { PlantPushResult, RemotePlants, ServerPlant } from './plants';
 
 // The server's side of sync: the functions in supabase/02-sync.sql.
@@ -64,7 +64,9 @@ export function supabaseRemote(c: SupabaseClient, device: string, userId: string
         if (/not.?found|404|400/i.test(`${error.message} ${(error as { statusCode?: string }).statusCode ?? ''}`)) return null;
         fail(error);
       }
-      return data ? blobToDataUrl(data) : null;
+      if (!data) return null;
+      const url = await blobToDataUrl(data);
+      return (await photoFingerprint(url)) === fingerprint ? url : null; // damaged or not the photo it says: as if missing
     },
   };
 }

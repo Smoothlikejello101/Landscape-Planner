@@ -7,7 +7,7 @@ import {
 import type { BgImage, PhotoRef, ProjectData } from '../types';
 import type { Local, LocalProject, ProjectContent } from './engine';
 import { photoFingerprint } from './photo';
-import { applyPlantChanges, myPlants, plantHash, sanitizeMyPlant } from '../my-plants';
+import { applyPlantChanges, myPlants, newMyPlantId, plantHash, sanitizeMyPlant } from '../my-plants';
 import type { LocalPlants } from './plants';
 
 // This device's side of sync: the projects in its storage.
@@ -84,11 +84,13 @@ export function storageLocal(screenBusy: () => boolean, openChanged: () => Promi
       let copyId: string | null = null;
       try {
         const photo = 'photo' in content ? { ref: sanitizePhotoRef(content.photo), bytes } : undefined;
-        // A photo kept on this device only, about to be replaced by another: it's on no server,
-        // so this device's version is kept as a copy first.
+        // A photo that's on no server (kept on this device only, or one the server had no room
+        // for), about to be replaced or removed: this device's version is kept as a copy first.
         const here = photo ? await bgOf(id) : null;
+        const notOnServer = !!here && (here.deviceOnly || !!getSyncRecords()[id]?.held);
         const same = here && photo?.ref && 'fingerprint' in photo.ref && (await photoFingerprint(here.dataUrl)) === photo.ref.fingerprint;
-        if (here?.deviceOnly && !same && !(photo?.ref && 'deviceOnly' in photo.ref)) {
+        const stays = here?.deviceOnly && photo?.ref && 'deviceOnly' in photo.ref;
+        if (notOnServer && !same && !stays) {
           const d = state.currentProjectId === id ? currentProjectData() : await readProject(id);
           const meta = state.projects.find((p) => p.id === id);
           if (d && meta) copyId = await createProject(syncName(`${meta.name} — with this device’s photo`), { ...d, bgImage: { ...here } });
@@ -105,9 +107,10 @@ export function storageLocal(screenBusy: () => boolean, openChanged: () => Promi
       Object.assign(data, placePhoto({ ...data, bgImage: null }, null, sanitizePhotoRef(content.photo), bytes));
       await createProject(syncName(name), data, id);
     },
-    async photoData(id) {
+    async photoData(id, fingerprint) {
       const bg = await bgOf(id);
-      return bg && !bg.deviceOnly ? bg.dataUrl : null;
+      if (!bg || bg.deviceOnly) return null;
+      return (await photoFingerprint(bg.dataUrl)) === fingerprint ? bg.dataUrl : false;
     },
     async hasPhoto(id, fingerprint) {
       const bg = await bgOf(id);
@@ -161,5 +164,6 @@ export function storagePlants(): LocalPlants {
     edited: (id) => getPlantSync().edited[id] ?? 0,
     apply: (changes) => applyPlantChanges(changes, true),
     normalize: (raw) => { const plant = sanitizeMyPlant(raw); return plant ? { plant, hash: plantHash(plant) } : null; },
+    newId: newMyPlantId,
   };
 }

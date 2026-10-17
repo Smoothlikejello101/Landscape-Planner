@@ -8,6 +8,7 @@ import { FakePlantServer } from './fake-sync-server';
 // My plants sync against a stand-in server (the same rules as push_plant in
 // supabase/03-photos-plants.sql) and stand-in devices with their own clocks.
 
+let copies = 0;
 const hash = (p: Plant) => fingerprint('', p as unknown as Record<string, unknown>);
 const plant = (id: string, common: string): Plant => ({ id, common, width: { min: 2, max: 3, med: 2.5 } });
 class Device implements LocalPlants {
@@ -37,6 +38,7 @@ class Device implements LocalPlants {
     return done;
   }
   normalize(raw: unknown) { const p = raw as Plant; return p && typeof p.id === 'string' ? { plant: p, hash: hash(p) } : null; }
+  newId() { return `u-copy${++copies}`; }
 }
 const sync = (d: Device, s: FakePlantServer, remote: RemotePlants = s.remote()) => syncPlants(d, remote);
 
@@ -141,4 +143,15 @@ describe('My plants sync', () => {
     expect(await sync(phone, server)).toMatchObject({ paused: true, uploaded: 0 });
     expect(phone.names()).toEqual(['Aster']);
   });
+
+  it('the same plant, different on a device syncing for the first time: both kept', async () => {
+    const server = new FakePlantServer(), phone = new Device(), laptop = new Device();
+    // (Both had it from the same backup file, then changed it; edit times unknown.)
+    phone.lib.set('u-a', plant('u-a', 'Aster, phone')); laptop.lib.set('u-a', plant('u-a', 'Aster, laptop'));
+    await sync(phone, server); await sync(laptop, server);
+    expect(laptop.names()).toEqual(['Aster, laptop (this device’s)', 'Aster, phone']);
+    await sync(laptop, server); await sync(phone, server);
+    expect(phone.names()).toEqual(laptop.names());
+  });
 });
+

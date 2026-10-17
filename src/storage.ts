@@ -576,7 +576,7 @@ export async function renameProject(id: string, name: string) {
  * ('none', 'kept' on one device, or the photo's fingerprint; absent if unknown,
  * as for projects synced before photos did).
  */
-export interface SyncRecord { revision: number; hash: string; photo?: string }
+export interface SyncRecord { revision: number; hash: string; photo?: string; held?: boolean }
 let syncRecords: Record<string, SyncRecord> = {};
 /** Synced projects deleted here, still to be moved to the server's trash: id → revision. */
 let syncTombstones: Record<string, number> = {};
@@ -674,7 +674,8 @@ export async function replaceProjectContent(
   const metaNext = { ...meta, name: name.trim() || 'Untitled', lastModified: now(), shapeCount: data.shapes.length };
   bumpChange(id);
   // The write is queued before any later save's (and any read by a switch to this project), so they see it.
-  const written = db().write([...projectWriteOps(id, data, isOpen ? storedImageKeys : undefined), put('meta', id, metaNext)]);
+  const ops = [...projectWriteOps(id, data, isOpen ? storedImageKeys : undefined), put('meta', id, metaNext)];
+  const written = db().write(ops);
   Object.assign(meta, metaNext);
   if (isOpen) {
     state.shapes = data.shapes;
@@ -693,8 +694,8 @@ export async function replaceProjectContent(
     await written;
   } catch (e) {
     // The plan on screen already shows the server's version (so later edits land on top of it);
-    // keep it as unsaved so the next save writes it.
-    if (isOpen) save();
+    // keep it as unsaved so the next save writes it (image bytes included).
+    if (isOpen) { for (const op of ops) if (op.store === 'images') storedImageKeys.delete(op.key); save(); }
     throw e;
   }
   return true;
@@ -727,7 +728,8 @@ export interface IncomingPhoto { ref: PhotoRef | null; bytes?: string }
  */
 export function placePhoto(base: ProjectData, baseFp: string | null, ref: PhotoRef | null, bytes?: string): { bgImage: BgImage | null; photoElsewhere: PhotoRef | null } {
   if (!ref) return { bgImage: null, photoElsewhere: null };
-  if ('deviceOnly' in ref) return base.bgImage ? { bgImage: { ...base.bgImage, deviceOnly: true }, photoElsewhere: null } : { bgImage: null, photoElsewhere: ref };
+  // Kept on another device only: this device lets go of its copy (unless it's this device's own kept photo).
+  if ('deviceOnly' in ref) return base.bgImage?.deviceOnly ? { bgImage: base.bgImage, photoElsewhere: null } : { bgImage: null, photoElsewhere: ref };
   const { fingerprint, ...placed } = ref;
   if (base.bgImage && baseFp === fingerprint) {
     const { deviceOnly: _o, ...bg } = base.bgImage;
@@ -754,12 +756,23 @@ export async function fillProjectPhoto(id: string, token: number, fingerprint: s
   const placed = placePhoto(base, null, ref, bytes);
   const data: ProjectData = { ...base, ...placed };
   bumpChange(id);
-  const written = db().write([...projectWriteOps(id, data, isOpen ? storedImageKeys : undefined), put('meta', id, { ...meta })]);
-  if (isOpen) { state.bgImage = data.bgImage ?? null; state.photoElsewhere = null; }
+  const ops = projectWriteOps(id, data, isOpen ? storedImageKeys : undefined);
+  const written = db().write(ops);
+  if (isOpen) {
+    state.bgImage = data.bgImage ?? null;
+    state.photoElsewhere = null;
+    // Undo steps taken while the photo was on its way show it too (else undoing would remove it everywhere).
+    for (const snap of state.history) {
+      if (!snap.bgImage && snap.photoElsewhere && 'fingerprint' in snap.photoElsewhere && snap.photoElsewhere.fingerprint === fingerprint) {
+        snap.bgImage = data.bgImage ? { ...data.bgImage } : null;
+        snap.photoElsewhere = null;
+      }
+    }
+  }
   try {
     await written;
   } catch (e) {
-    if (isOpen) save();
+    if (isOpen) { for (const op of ops) if (op.store === 'images') storedImageKeys.delete(op.key); save(); }
     throw e;
   }
   return true;
@@ -969,6 +982,7 @@ function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
       if (r && typeof r.revision === 'number' && Number.isFinite(r.revision) && typeof r.hash === 'string') {
         out[k] = { revision: r.revision, hash: r.hash };
         if (typeof r.photo === 'string' && /^(none|kept|[0-9a-f]{64}@[0-9a-z]+:[0-9a-z]+)$/.test(r.photo)) out[k].photo = r.photo;
+        if (r.held === true) out[k].held = true;
       }
     }
   }

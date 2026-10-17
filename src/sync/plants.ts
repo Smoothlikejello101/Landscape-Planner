@@ -19,6 +19,8 @@ export interface LocalPlants {
   apply(changes: PlantChange[]): Promise<string[]>;
   /** A downloaded plant, checked as any import is; null if unusable. */
   normalize(raw: unknown): { plant: Plant; hash: string } | null;
+  /** A new plant id (for this device's version, kept beside the server's). */
+  newId(): string;
 }
 export interface ServerPlant { id: string; revision: number; edited_at: string | null; deleted_at: string | null }
 export type PlantPushResult =
@@ -92,8 +94,18 @@ export async function syncPlants(local: LocalPlants, remote: RemotePlants): Prom
       if (!n) continue; // damaged on the server: leave it
       const record = { revision: g.revision, hash: n.hash };
       if (why.compare) {
-        if (n.hash === why.compare.hash) { changes.push({ id, record }); continue; }
-        if (why.compare.edited > time(g.edited_at)) { toPush.push({ id, base: g.revision, p: why.compare }); continue; }
+        const p = why.compare;
+        if (n.hash === p.hash) { changes.push({ id, record }); continue; }
+        if (!(id in records)) {
+          // Never synced from here, and different: neither replaces the other. The server's keeps
+          // the id; this device's becomes a plant of its own (it uploads next time).
+          const copyId = local.newId();
+          changes.push({ id, plant: n.plant, expect: p.hash, record, edited: time(g.edited_at) });
+          changes.push({ id: copyId, plant: { ...p.plant, id: copyId, common: `${p.plant.common} (this device’s)`.slice(0, 80) }, expect: null, edited: p.edited });
+          report.downloaded++;
+          continue;
+        }
+        if (p.edited > time(g.edited_at)) { toPush.push({ id, base: g.revision, p }); continue; }
       }
       changes.push({ id, plant: n.plant, expect: why.expect, record, edited: time(g.edited_at) });
       report.downloaded++;
