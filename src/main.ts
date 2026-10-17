@@ -10,6 +10,8 @@ import { kindForShortcut } from './kinds';
 import { finishPlacing, undoPlace } from './place';
 import { state } from './state';
 import { loadPlants } from './plants';
+import { initAccount, setAccountListener } from './account';
+import { refreshAccountSection } from './ui/account-section';
 import { loadMyPlants } from './my-plants';
 import { setupServiceWorker } from './pwa';
 import { buildEmergencyBackup, downloadText } from './backup';
@@ -150,6 +152,9 @@ async function start() {
     alert("Some projects from the previous version couldn't be copied (" + migrationError + "). They are still stored on this device; the app will try again next time it opens.");
   }
   void loadPlants();
+  // Signed in (or just back from signing in): check the session. Changes refresh only the Account section.
+  setAccountListener(refreshAccountSection);
+  void initAccount();
   void requestPersistence();
   setupServiceWorker();
 }
