@@ -6,8 +6,10 @@ import { openKV } from '../src/db';
 import { state } from '../src/state';
 import { _resetStorageForTests, createProject, deleteProject, flushSave, getSyncRecords, getSyncTombstones, getSyncUser, initStorage, readProject, renameProject, resetSyncState, save, switchProject } from '../src/storage';
 import { syncOnce, type Remote } from '../src/sync/engine';
-import { storageLocal } from '../src/sync/local';
-import { FakeServer } from './fake-sync-server';
+import { storageLocal, storagePlants } from '../src/sync/local';
+import { syncPlants } from '../src/sync/plants';
+import { loadMyPlants, myPlants, saveMyPlant, deleteMyPlant } from '../src/my-plants';
+import { FakePlantServer, FakeServer } from './fake-sync-server';
 import type { Shape } from '../src/types';
 
 // Sync against this device's real storage (in a stand-in IndexedDB) and a stand-in server.
@@ -356,6 +358,24 @@ describe('background photos (real storage)', () => {
     expect((await readProject(id))!.photoElsewhere).toMatchObject({ fingerprint: [...server.photos.keys()][0] });
     await syncOnce(local(), server.remoteFor('phone'), 'phone');
     expect((await readProject(id))!.bgImage?.dataUrl).toBe(IMG);
+  });
+});
+
+describe('My plants (real storage)', () => {
+  const lime = { id: 'u-lime', common: 'Limelight hydrangea', width: { min: 6, max: 8, med: 7 } };
+  it('come down to another device, stay across a restart, and deletions travel', async () => {
+    const server = new FakePlantServer();
+    await device(); loadMyPlants();
+    await saveMyPlant(lime);
+    expect(await syncPlants(storagePlants(), server.remote())).toMatchObject({ uploaded: 1 });
+    await device(); loadMyPlants();
+    expect(await syncPlants(storagePlants(), server.remote())).toMatchObject({ downloaded: 1 });
+    await restart(); loadMyPlants();
+    expect(myPlants.map((p) => p.common)).toEqual(['Limelight hydrangea']);
+    expect(await syncPlants(storagePlants(), server.remote())).toMatchObject({ uploaded: 0, downloaded: 0 });
+    await deleteMyPlant('u-lime');
+    await syncPlants(storagePlants(), server.remote());
+    expect(server.rows.get('u-lime')!.deleted_at).not.toBeNull();
   });
 });
 

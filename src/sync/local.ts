@@ -1,12 +1,14 @@
 import { state } from '../state';
 import {
-  clearSyncTombstone, createProject, currentProjectData, deleteProject, fillProjectPhoto, getSyncRecords, getSyncTombstones, notePhotoFingerprint, photoRefOf,
+  clearSyncTombstone, createProject, currentProjectData, deleteProject, fillProjectPhoto, getPlantSync, getSyncRecords, getSyncTombstones, notePhotoFingerprint, photoRefOf,
   placePhoto, projectChangeToken, projectNow, readProject, renameProject, replaceProjectContent, sanitizePhotoRef, sanitizeProjectData,
   setSyncRecord, switchProject, syncedContent,
 } from '../storage';
 import type { BgImage, PhotoRef, ProjectData } from '../types';
 import type { Local, LocalProject, ProjectContent } from './engine';
 import { photoFingerprint } from './photo';
+import { applyPlantChanges, myPlants, plantHash, sanitizeMyPlant } from '../my-plants';
+import type { LocalPlants } from './plants';
 
 // This device's side of sync: the projects in its storage.
 
@@ -148,5 +150,16 @@ export function storageLocal(screenBusy: () => boolean, openChanged: () => Promi
       return next;
     },
     normalize(name, content) { return { name: syncName(name), content: tidyDownload(content) }; },
+  };
+}
+
+/** This device's My plants library, for sync. */
+export function storagePlants(): LocalPlants {
+  return {
+    plants: () => { const { edited } = getPlantSync(); return myPlants.map((p) => ({ id: p.id, plant: p, hash: plantHash(p), edited: edited[p.id] ?? 0 })); },
+    records: () => getPlantSync().records,
+    edited: (id) => getPlantSync().edited[id] ?? 0,
+    apply: (changes) => applyPlantChanges(changes, true),
+    normalize: (raw) => { const plant = sanitizeMyPlant(raw); return plant ? { plant, hash: plantHash(plant) } : null; },
   };
 }

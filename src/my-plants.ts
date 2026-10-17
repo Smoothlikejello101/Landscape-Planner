@@ -1,7 +1,8 @@
 import { flushHistoryDebounce, pushHistory } from './history';
 import { FORM_COLORS, plantsById, type Plant } from './plants';
 import { state } from './state';
-import { rememberSizeMode, save, storedMyPlants, writeMyPlants } from './storage';
+import { getPlantSync, rememberSizeMode, save, storedMyPlants, writeMyPlants, type SyncRecord } from './storage';
+import { fingerprint } from './sync/engine';
 import type { CircleShape, Shape, SizeMode } from './types';
 import { snap, uid } from './util';
 import { setRadius } from './geometry';
@@ -143,20 +144,62 @@ export function loadMyPlants() {
   myPlants = storedMyPlants().map(sanitizeMyPlant).filter((p): p is Plant => !!p);
   for (const p of myPlants) plantsById[p.id] = p;
 }
-async function persist(next: Plant[]) {
-  await writeMyPlants(next); // throws on failure: nothing changes in memory
-  for (const p of myPlants) delete plantsById[p.id];
-  myPlants = next;
-  for (const p of myPlants) plantsById[p.id] = p;
+/** A plant's fingerprint (sync tells by it whether a plant changed). */
+export const plantHash = (p: Plant) => fingerprint('', p as unknown as Record<string, unknown>);
+/**
+ * A change to the library. `plant`: the new version, null to delete, or
+ * undefined to leave it (only its sync record changes). From sync: `expect`
+ * is the fingerprint the plant had when sync read it (null: absent); the
+ * change is skipped if it has changed since. `edited`: the edit time to
+ * keep; `record`: its sync record (null: none).
+ */
+export interface PlantChange { id: string; plant?: Plant | null; expect?: string | null; edited?: number; record?: SyncRecord | null }
+let writing: Promise<unknown> = Promise.resolve();
+/**
+ * Apply changes to the library, one batch at a time (each sees the one
+ * before), and store it with its sync state in one write. Returns the ids
+ * changed. Throws if it couldn't be saved: nothing changes in memory.
+ * `bySync`: from sync (keeps the given edit times); otherwise the user's own
+ * edits, timed now.
+ */
+export function applyPlantChanges(changes: PlantChange[], bySync = false): Promise<string[]> {
+  const run = writing.then(async () => {
+    const cur = new Map(myPlants.map((p) => [p.id, p]));
+    const sync = getPlantSync();
+    const done: string[] = [];
+    for (const c of changes) {
+      if (c.expect !== undefined) {
+        const have = cur.get(c.id);
+        if ((have ? plantHash(have) : null) !== c.expect) continue; // changed meanwhile: next time
+      }
+      if (c.plant) cur.set(c.id, c.plant);
+      else if (c.plant === null) cur.delete(c.id);
+      if (!bySync && c.plant !== undefined) sync.edited[c.id] = Date.now();
+      else if (c.edited !== undefined) sync.edited[c.id] = c.edited;
+      if (c.record) sync.records[c.id] = c.record;
+      else if (c.record === null) delete sync.records[c.id];
+      done.push(c.id);
+    }
+    const next = [...cur.values()].sort((a, b) => a.common.localeCompare(b.common));
+    await writeMyPlants(next, sync); // throws on failure: nothing changes in memory
+    for (const p of myPlants) delete plantsById[p.id];
+    myPlants = next;
+    for (const p of myPlants) plantsById[p.id] = p;
+    if (done.length && !bySync) afterPlantEdit();
+    return done;
+  });
+  writing = run.catch(() => undefined);
+  return run;
 }
+let afterPlantEdit: () => void = () => {};
+/** Sync hears of every edit to the library. */
+export function setPlantEditHook(fn: () => void) { afterPlantEdit = fn; }
 export function newMyPlantId(): string { return MY_PREFIX + uid(); }
 /** Add or replace a plant in the library. Throws if it couldn't be saved. */
 export async function saveMyPlant(p: Plant): Promise<Plant> {
   const clean = sanitizeMyPlant(p);
   if (!clean) throw new Error('A plant needs a name and a spread.');
-  const next = myPlants.some((x) => x.id === clean.id) ? myPlants.map((x) => (x.id === clean.id ? clean : x)) : [...myPlants, clean];
-  next.sort((a, b) => a.common.localeCompare(b.common));
-  await persist(next);
+  await applyPlantChanges([{ id: clean.id, plant: clean }]);
   return clean;
 }
 /**
@@ -164,15 +207,15 @@ export async function saveMyPlant(p: Plant): Promise<Plant> {
  * size (they're stored on the plan), so no plan breaks.
  */
 export async function deleteMyPlant(id: string) {
-  await persist(myPlants.filter((p) => p.id !== id));
+  await applyPlantChanges([{ id, plant: null }]);
 }
 /** Library plants that `incoming` adds (by id; existing entries are kept as they are). */
 export async function mergeMyPlants(incoming: unknown[]): Promise<number> {
   const have = new Set(myPlants.map((p) => p.id));
   const add = incoming.map(sanitizeMyPlant).filter((p): p is Plant => !!p && !have.has(p.id));
   if (!add.length) return 0;
-  await persist([...myPlants, ...add].sort((a, b) => a.common.localeCompare(b.common)));
-  return add.length;
+  // (Only if still absent when written.)
+  return (await applyPlantChanges(add.map((p) => ({ id: p.id, plant: p, expect: null })))).length;
 }
 /** Library plants a set of shapes uses (to carry them in a project file). */
 export function myPlantsUsedBy(shapes: Shape[]): Plant[] {

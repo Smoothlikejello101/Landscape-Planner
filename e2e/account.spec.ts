@@ -12,6 +12,7 @@ const token = (exp: number) => `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub
 type Row = { id: string; name: string; content: unknown; revision: number; updated_by: string; updated_at: string; deleted_at: string | null };
 async function fakeServer(page: Page, plan: Record<string, unknown> | null = { plan: 'trial', trial_started: '2026-10-17T00:00:00Z', trial_ends: new Date(Date.now() + 30 * 86_400_000 - 60_000).toISOString(), paid_until: null }, rows = new Map<string, Row>()) {
   const seen: string[] = [];
+  const photos = new Map<string, Buffer>();
   const json = (route: Route, body: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
   await page.route(`${SUPABASE}/**`, async (route: Route) => {
     const req = route.request(), url = new URL(req.url());
@@ -62,6 +63,19 @@ async function fakeServer(page: Page, plan: Record<string, unknown> | null = { p
       const ids = (url.searchParams.get('id') ?? '').replace(/^in\.\(|\)$/g, '').split(',').map((s) => s.replace(/^"|"$/g, ''));
       return json(route, ids.map((id) => rows.get(id)).filter((r): r is Row => !!r && !r.deleted_at).map(({ id, name, revision, content }) => ({ id, name, revision, content })));
     }
+    // Photos and My plants: supabase/03-photos-plants.sql.
+    if (url.pathname === '/rest/v1/rpc/reserve_photo') { const fp = args().p_fp as string; seen.push('reserve_photo'); return json(route, photos.has(fp) ? 'stored' : 'send'); }
+    if (url.pathname === '/rest/v1/rpc/photo_stored') return json(route, null);
+    if (url.pathname === '/rest/v1/rpc/unused_photos') return json(route, []);
+    if (url.pathname.startsWith('/storage/v1/object/photos/')) {
+      const path = decodeURIComponent(url.pathname.slice('/storage/v1/object/photos/'.length));
+      if (req.method() === 'POST' || req.method() === 'PUT') { seen.push('photo upload'); photos.set(path.split('/')[1].replace(/\.jpg$/, ''), req.postDataBuffer() ?? Buffer.alloc(0)); return json(route, { Key: `photos/${path}` }); }
+      const b = photos.get(path.split('/')[1].replace(/\.jpg$/, ''));
+      return b ? route.fulfill({ status: 200, contentType: 'image/jpeg', body: b }) : route.fulfill({ status: 400, contentType: 'application/json', body: '{"statusCode":"404","error":"not_found","message":"Object not found"}' });
+    }
+    if (url.pathname === '/rest/v1/rpc/plant_list') return json(route, []);
+    if (url.pathname === '/rest/v1/rpc/push_plant') { seen.push('push_plant'); return json(route, { status: 'ok', revision: 1 }); }
+    if (url.pathname === '/rest/v1/my_plants') return json(route, []);
     return route.fulfill({ status: 404, contentType: 'application/json', body: '{"message":"not in the stand-in"}' });
   });
   return seen;
@@ -198,6 +212,31 @@ test('beta: sync runs by itself, uploads this device’s plans, and brings anoth
   await account.getByTestId('sync-device').locator('input').uncheck();
   await expect(account.getByTestId('sync-status')).toHaveText('Sync is off on this device');
   await expect(account.getByTestId('sync-now')).toBeDisabled();
+});
+
+test('beta: a background photo goes up with its plan; one kept on this device doesn’t', async ({ page }) => {
+  const rows = new Map<string, Row>();
+  const seen = await fakeServer(page, { plan: 'beta', trial_started: null, trial_ends: null, paid_until: null }, rows);
+  await signedIn(page);
+  page.on('dialog', (d) => void d.accept());
+  await openFresh(page);
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'background image' }).click();
+  await page.locator('.sheet input[type=file]').setInputFiles('public/icon-512.png');
+  await page.locator('.mode-banner button').click(); // skip calibration
+  const account = await openAccount(page);
+  await account.getByTestId('sync-now').click();
+  await expect(account.getByTestId('sync-status')).toHaveText('Synced just now');
+  await expect.poll(() => seen.filter((s) => s === 'photo upload').length).toBe(1);
+  const content = () => ([...rows.values()][0].content as { photo?: { fingerprint?: string; deviceOnly?: boolean } }).photo;
+  expect(content()?.fingerprint).toMatch(/^[0-9a-f]{64}$/);
+  // Kept on this device: the plan says so, and nothing more is sent.
+  await page.keyboard.press('Escape');
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'background image' }).click();
+  await page.getByTestId('photo-device-only').locator('input').check();
+  await expect.poll(content, { timeout: 15_000 }).toEqual({ deviceOnly: true });
+  expect(seen.filter((s) => s === 'photo upload')).toHaveLength(1);
 });
 
 test('a trial that hasn’t started: sync waits to be turned on, which starts it', async ({ page }) => {

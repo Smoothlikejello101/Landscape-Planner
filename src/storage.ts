@@ -14,7 +14,7 @@ import { photoFingerprint } from './sync/photo';
 //   projects/<projectId>      ProjectData without the background image bytes
 //   images/<projectId>/<id>   { dataUrl } for the background image
 //   kv/current, kv/clipboard, kv/lastBackupAt, kv/migratedFromLocalStorage,
-//   kv/myPlants (the user's plant library), kv/lastSizeMode
+//   kv/myPlants (the user's plant library), kv/myPlantSync (its sync state), kv/lastSizeMode
 // The current project is held in `state`; saves are debounced and also
 // flushed when the page is hidden so a quick app switch can't lose an edit.
 
@@ -625,10 +625,11 @@ export async function clearSyncTombstone(id: string) {
 }
 /** The account this device last synced with (null: none). */
 export function getSyncUser(): string | null { return syncUserId; }
-/** Forget all sync state and note whose it is now (a different account signed in on this device). */
+/** Forget all sync state and note whose it is now (a different account signed in on this device). Edit times stay. */
 export async function resetSyncState(userId: string | null) {
   syncRecords = {}; syncTombstones = {}; syncUserId = userId;
-  await db().write([put('kv', 'syncRecords', {}), put('kv', 'syncTombstones', {}), put('kv', 'syncUser', userId)]);
+  plantSync = { records: {}, edited: plantSync.edited };
+  await db().write([put('kv', 'syncRecords', {}), put('kv', 'syncTombstones', {}), put('kv', 'syncUser', userId), put('kv', 'myPlantSync', plantSync)]);
 }
 /** This app install's random id, made on first use and kept with the plans (trials count once per install). */
 export async function installId(): Promise<string> {
@@ -784,10 +785,28 @@ export async function refreshClipboard() {
 let myPlantsRaw: unknown[] = [];
 /** The stored library, unvalidated (my-plants.ts validates it). */
 export function storedMyPlants(): unknown[] { return myPlantsRaw; }
-/** Replace the stored library. Throws if the write fails, so the caller can say so. */
-export async function writeMyPlants(list: unknown[]) {
-  await db().write([put('kv', 'myPlants', list)]);
+/**
+ * The library's sync state: per plant, the server revision and fingerprint
+ * at its last sync, and when it was last edited (or deleted) here, in ms.
+ */
+export interface PlantSyncState { records: Record<string, SyncRecord>; edited: Record<string, number> }
+let plantSync: PlantSyncState = { records: {}, edited: {} };
+export function getPlantSync(): PlantSyncState { return { records: { ...plantSync.records }, edited: { ...plantSync.edited } }; }
+/** Replace the stored library (and its sync state) in one write. Throws if the write fails, so the caller can say so. */
+export async function writeMyPlants(list: unknown[], sync?: PlantSyncState) {
+  const ops = [put('kv', 'myPlants', list)];
+  if (sync) ops.push(put('kv', 'myPlantSync', sync));
+  await db().write(ops);
   myPlantsRaw = list;
+  if (sync) plantSync = { records: { ...sync.records }, edited: { ...sync.edited } };
+}
+function sanitizePlantSync(raw: unknown): PlantSyncState {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const edited: Record<string, number> = {};
+  if (o.edited && typeof o.edited === 'object') {
+    for (const [k, v] of Object.entries(o.edited as Record<string, unknown>)) if (typeof v === 'number' && Number.isFinite(v) && v >= 0) edited[k] = v;
+  }
+  return { records: sanitizeSyncRecords(o.records), edited };
 }
 
 // ---------- Size mode for new projects ----------
@@ -926,6 +945,7 @@ export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: s
   lastBackupAt = (await kv.get<number>('kv', 'lastBackupAt')) ?? null;
   const mp = await kv.get<unknown>('kv', 'myPlants');
   myPlantsRaw = Array.isArray(mp) ? mp : [];
+  plantSync = sanitizePlantSync(await kv.get<unknown>('kv', 'myPlantSync'));
   lastSizeMode = (await kv.get<unknown>('kv', 'lastSizeMode')) === 'full' ? 'full' : 'typical';
   const recs = await kv.get<unknown>('kv', 'syncRecords');
   syncRecords = sanitizeSyncRecords(recs);
@@ -958,7 +978,7 @@ function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
 export function _resetStorageForTests() {
   kv = null; clipboardCache = null; storedImageKeys = new Set(); committedImageKeys = new Set();
   quotaWarned = false; lastBackupAt = null; myPlantsRaw = []; lastSizeMode = 'typical'; editSeq = 0; savedSeq = 0; saveFailing = false;
-  lastFailureJournalAt = 0; unreplayed.clear(); syncRecords = {}; syncTombstones = {}; syncUserId = null; changeCounts.clear();
+  lastFailureJournalAt = 0; unreplayed.clear(); syncRecords = {}; syncTombstones = {}; syncUserId = null; changeCounts.clear(); plantSync = { records: {}, edited: {} };
   saveChain = Promise.resolve(true);
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;

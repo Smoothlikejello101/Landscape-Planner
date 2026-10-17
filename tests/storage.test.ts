@@ -450,6 +450,23 @@ describe('synced background photos', () => {
   });
 });
 
+describe('My plants sync state', () => {
+  it('is kept with the library; a different account clears its records but keeps edit times; malformed parts are dropped', async () => {
+    const { writeMyPlants, getPlantSync, resetSyncState } = await import('../src/storage');
+    const kv = await freshStorage();
+    expect(getPlantSync()).toEqual({ records: {}, edited: {} }); // as on devices from before plants synced
+    await writeMyPlants([{ id: 'u-a', common: 'A' }], { records: { 'u-a': { revision: 2, hash: 'h' } }, edited: { 'u-a': 5 } });
+    _resetStorageForTests(); await initStorage(kv);
+    expect(getPlantSync()).toEqual({ records: { 'u-a': { revision: 2, hash: 'h' } }, edited: { 'u-a': 5 } });
+    await resetSyncState('someone-else');
+    _resetStorageForTests(); await initStorage(kv);
+    expect(getPlantSync()).toEqual({ records: {}, edited: { 'u-a': 5 } });
+    await kv.write([put('kv', 'myPlantSync', { records: { x: { revision: 'no' } }, edited: { y: -1, z: 'later', ok: 7 } })]);
+    _resetStorageForTests(); await initStorage(kv);
+    expect(getPlantSync()).toEqual({ records: {}, edited: { ok: 7 } });
+  });
+});
+
 describe('sync state on the device', () => {
   it('keeps what was synced, and deletions still to send, across a restart; drops anything malformed', async () => {
     const { setSyncRecord, getSyncRecords, getSyncTombstones, deleteProject, createProject, installId } = await import('../src/storage');

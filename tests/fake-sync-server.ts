@@ -61,3 +61,35 @@ export class FakeServer {
   }
 }
 
+
+// ---------- My plants (push_plant / plant_list in 03-photos-plants.sql) ----------
+import type { PlantPushResult, RemotePlants, ServerPlant } from '../src/sync/plants';
+import type { Plant } from '../src/plants';
+export class FakePlantServer {
+  rows = new Map<string, { plant: Plant; revision: number; edited_at: string | null; deleted_at: string | null }>();
+  allowed = true;
+  dropNextAnswer = false;
+  remote(): RemotePlants {
+    return {
+      plantList: async () => [...this.rows].map(([id, r]): ServerPlant => ({ id, revision: r.revision, edited_at: r.edited_at, deleted_at: r.deleted_at })),
+      fetchPlants: async (ids) => Object.fromEntries(ids.filter((id) => this.rows.get(id) && !this.rows.get(id)!.deleted_at)
+        .map((id) => { const r = this.rows.get(id)!; return [id, { revision: r.revision, plant: structuredClone(r.plant), edited_at: r.edited_at }]; })),
+      pushPlant: async (id, base, plant, edited): Promise<PlantPushResult> => {
+        if (!this.allowed) return { status: 'paused' };
+        const at = edited ? new Date(edited).toISOString() : null;
+        const r = this.rows.get(id);
+        let out: PlantPushResult;
+        if (!r) {
+          if (!plant) out = { status: 'ok', revision: null };
+          else { this.rows.set(id, { plant: structuredClone(plant), revision: 1, edited_at: at, deleted_at: null }); out = { status: 'ok', revision: 1 }; }
+        } else if (base !== r.revision) out = { status: 'conflict', revision: r.revision, plant: structuredClone(r.plant), edited_at: r.edited_at, deleted_at: r.deleted_at };
+        else {
+          Object.assign(r, { plant: plant ? structuredClone(plant) : r.plant, deleted_at: plant ? null : new Date().toISOString(), revision: r.revision + 1, edited_at: at });
+          out = { status: 'ok', revision: r.revision };
+        }
+        if (this.dropNextAnswer) { this.dropNextAnswer = false; throw new TypeError('Failed to fetch'); }
+        return out;
+      },
+    };
+  }
+}

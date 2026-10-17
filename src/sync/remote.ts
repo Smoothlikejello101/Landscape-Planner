@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ProjectContent, PushResult, Remote, ServerProject } from './engine';
 import { blobToDataUrl, dataUrlBytes, dataUrlType } from './photo';
+import type { PlantPushResult, RemotePlants, ServerPlant } from './plants';
 
 // The server's side of sync: the functions in supabase/02-sync.sql.
 
@@ -64,6 +65,33 @@ export function supabaseRemote(c: SupabaseClient, device: string, userId: string
         fail(error);
       }
       return data ? blobToDataUrl(data) : null;
+    },
+  };
+}
+
+/** The server's side of My plants sync (push_plant and plant_list in 03-photos-plants.sql). */
+export function supabasePlants(c: SupabaseClient, device: string): RemotePlants {
+  return {
+    async plantList() {
+      const { data, error } = await c.rpc('plant_list');
+      fail(error);
+      return ((data ?? []) as ServerPlant[]).map((r) => ({ ...r, revision: Number(r.revision) }));
+    },
+    async fetchPlants(ids) {
+      const out: Record<string, { revision: number; plant: unknown; edited_at: string | null }> = {};
+      for (let i = 0; i < ids.length; i += 100) {
+        const { data, error } = await c.from('my_plants').select('id, revision, plant, edited_at').in('id', ids.slice(i, i + 100)).is('deleted_at', null);
+        fail(error);
+        for (const r of (data ?? []) as { id: string; revision: number; plant: unknown; edited_at: string | null }[]) out[r.id] = { revision: Number(r.revision), plant: r.plant, edited_at: r.edited_at };
+      }
+      return out;
+    },
+    async pushPlant(id, base, plant, edited) {
+      const { data, error } = await c.rpc('push_plant', { p_id: id, p_base: base, p_plant: plant, p_edited: edited ? new Date(edited).toISOString() : null, p_device: device });
+      fail(error);
+      const r = data as PlantPushResult;
+      if ('revision' in r && r.revision != null) (r as { revision: number }).revision = Number(r.revision);
+      return r;
     },
   };
 }

@@ -1,8 +1,10 @@
 import { account, loadPlan, supabaseClient, type PlanInfo } from '../account';
 import { flushSave, getSyncRecords, getSyncUser, installId, resetSyncState, setSyncHooks } from '../storage';
 import { syncOnce, type SyncReport, type ServerProject } from './engine';
-import { storageLocal } from './local';
-import { cleanUpPhotos, supabaseRemote } from './remote';
+import { storageLocal, storagePlants } from './local';
+import { cleanUpPhotos, supabasePlants, supabaseRemote } from './remote';
+import { syncPlants } from './plants';
+import { setPlantEditHook } from '../my-plants';
 
 // When sync runs, and what it says. Sync is on for a signed-in account whose
 // plan includes it (a started trial, a subscription, the beta), unless it's
@@ -121,8 +123,11 @@ export function runSync(): Promise<void> {
 const CLEAN_UP_EVERY_MS = 6 * 60 * 60 * 1000;
 let lastCleanUp = 0;
 /** Anything worth saying after a pass that worked. */
+let plantsFull = false;
+const emptyReport = (paused: boolean): SyncReport => ({ uploaded: 0, downloaded: 0, conflicts: [], removed: [], restored: [], undeleted: [], photosKept: [], failed: [], trash: [], paused, full: false });
 function syncedNote(r: SyncReport): string | undefined {
   if (r.full) return 'Your account has reached its limit of 500 projects; new ones stay on this device.';
+  if (plantsFull) return 'Your account has reached its limit of 2,000 plants in My plants; new ones stay on this device.';
   if (r.photosKept.length) return `The background photo of “${r.photosKept[0]}” is too large to sync, or your account’s photo space is full; it stays on this device.`;
   return undefined;
 }
@@ -136,7 +141,13 @@ async function onePass() {
     const userId = account.userId;
     if (!userId) throw new Error('Not signed in.');
     const remote = supabaseRemote(c, deviceName(), userId);
-    const report = await syncOnce(storageLocal(screenBusy, showOpen), remote, deviceName());
+    // My plants first, so a plan that arrives finds the plants it uses.
+    const plants = await syncPlants(storagePlants(), supabasePlants(c, deviceName()));
+    const report = plants.paused ? emptyReport(true) : await syncOnce(storageLocal(screenBusy, showOpen), remote, deviceName());
+    report.downloaded += plants.downloaded + plants.removed;
+    report.uploaded += plants.uploaded;
+    report.failed.push(...plants.failed);
+    plantsFull = plants.full;
     const trash = report.trash;
     if (report.paused) { await loadPlan(); setStatus({ phase: 'paused', message: pausedWhy(account.plan), trash: report.trash.length ? trash : sync.trash }); }
     else if (report.failed.length) {
@@ -198,6 +209,7 @@ export function startSyncTriggers() {
   if (started) return;
   started = true;
   setSyncHooks(() => scheduleSync(), () => scheduleSync(2000));
+  setPlantEditHook(() => scheduleSync(2000));
   document.addEventListener('visibilitychange', () => {
     // Put away: send what's waiting now (phones close apps in the background). Back: fetch.
     void runSync();
