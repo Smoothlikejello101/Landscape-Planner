@@ -163,10 +163,10 @@ a { color: inherit; }
 #toast { position: fixed; left: 50%; bottom: calc(80px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(8px); background: #1c1917; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 100; max-width: calc(100vw - 32px); text-align: center; }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 /* Projects panel: backup section */
-.backup-section { border-top: 1px solid #e7e5e4; padding: 12px 16px 20px; display: flex; flex-direction: column; gap: 8px; }
-.backup-section .section-title { font-size: 12px; font-weight: 600; color: #57534e; text-transform: uppercase; letter-spacing: 0.04em; }
-.backup-section .status { font-size: 12px; color: #57534e; line-height: 1.5; }
-.backup-section .status.warn { color: #92400e; }
+.account-section, .backup-section { border-top: 1px solid #e7e5e4; padding: 12px 16px 20px; display: flex; flex-direction: column; gap: 8px; }
+.account-section .section-title, .backup-section .section-title { font-size: 12px; font-weight: 600; color: #57534e; text-transform: uppercase; letter-spacing: 0.04em; }
+.account-section .status, .backup-section .status { font-size: 12px; color: #57534e; line-height: 1.5; }
+.account-section .status.warn, .backup-section .status.warn { color: #92400e; }
 .storage-warning { background: #fef2f2; border-bottom: 1px solid #fecaca; color: #991b1b; font-size: 12px; padding: 6px 12px; text-align: center; flex-shrink: 0; }
 /* Update available */
 #update-banner { position: fixed; left: 8px; right: 8px; top: calc(52px + env(safe-area-inset-top)); z-index: 90; display: flex; align-items: center; gap: 8px; background: #1c1917; color: #fff; padding: 8px 8px 8px 14px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); font-size: 13px; max-width: 480px; margin: 0 auto; }
@@ -343,3 +343,11 @@ a { color: inherit; }
 .form-color-row { display: flex; gap: 8px; align-items: center; }
 .form-color-row select { flex: 1; min-width: 0; }
 .form-color-row input[type=color] { width: 48px; height: 40px; padding: 2px; border: 1px solid #d6d3d1; border-radius: 6px; background: #fff; flex-shrink: 0; }
+/* Account */
+.account-section .google-btn { background: #fff; border: 1px solid #d6d3d1; color: #1c1917; font-weight: 600; }
+.account-section .or-line { text-align: center; font-size: 12px; color: #a8a29e; }
+.account-section .email-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.account-section .email-row input { flex: 1 1 180px; min-width: 0; min-height: 44px; padding: 0 10px; border: 1px solid #d6d3d1; border-radius: 6px; font-size: 16px; }
+.account-section .account-actions { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.account-section .danger-link { color: #b91c1c; }
+.account-section .confirm-box { border: 1px solid #fecaca; background: #fef2f2; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }

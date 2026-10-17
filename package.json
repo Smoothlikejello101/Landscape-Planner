@@ -26,6 +26,7 @@
     "workbox-routing": "^7.4.1"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
     "jspdf": "^4.2.1"
   }
 }

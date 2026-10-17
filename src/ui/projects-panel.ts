@@ -9,6 +9,7 @@ import { createProject, deleteProject, getClipboard, getLastBackupAt, isPersiste
 import type { PanelName } from '../types';
 import { errMsg } from '../util';
 import { render } from './render';
+import { accountSection } from './account-section';
 import { toast } from './toast';
 
 function closeButton(onClick: () => void) {
@@ -151,6 +152,7 @@ export function renderProjectsPanel() {
     pasteBtn.addEventListener('click', () => { paste(); state.panel = null; render(); });
     sheet.appendChild(pasteBtn);
   }
+  sheet.appendChild(accountSection());
   sheet.appendChild(backupSection());
   const overlay = el('div', { className: 'overlay' }, sheet);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
