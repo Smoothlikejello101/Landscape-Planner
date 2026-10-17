@@ -7,7 +7,7 @@ import {
   applySizeMode, deleteMyPlant, fullRingRadius, isDataSized, loadMyPlants, mergeMyPlants, myPlants, parseSize,
   plantRadius, plantsToResize, sanitizeMyPlant, saveMyPlant, sunRange,
 } from '../src/my-plants';
-import { addPlantShape, plantsById, type Plant } from '../src/plants';
+import { plantShapeAt, plantsById, type Plant } from '../src/plants';
 import { state } from '../src/state';
 import { _resetStorageForTests, createProject, flushSave, initStorage, readProject, sanitizeProjectData, switchProject } from '../src/storage';
 import { buildBackupFile, buildProjectFile, parseImportPlants } from '../src/backup';
@@ -94,7 +94,7 @@ describe('My plants library', () => {
     await fresh('lib');
     await saveMyPlant(limelight);
     expect(plantsById['u-lime'].common).toBe("Hydrangea 'Limelight'");
-    addPlantShape(plantsById['u-lime']);
+    state.shapes.push(plantShapeAt(plantsById['u-lime'], { x: 0, y: 0 }));
     const s = state.shapes.at(-1) as CircleShape;
     expect(s).toMatchObject({ plantId: 'u-lime', radius: 3.5, sizeFrom: 'plant', role: 'plant' });
     await flushSave();
@@ -108,7 +108,7 @@ describe('My plants library', () => {
   it('deleting a library plant leaves placed plants as they are', async () => {
     await fresh();
     await saveMyPlant(limelight);
-    addPlantShape(plantsById['u-lime']);
+    state.shapes.push(plantShapeAt(plantsById['u-lime'], { x: 0, y: 0 }));
     await deleteMyPlant('u-lime');
     expect(plantsById['u-lime']).toBeUndefined();
     expect(state.shapes.at(-1)).toMatchObject({ plantId: 'u-lime', label: "Hydrangea 'Limelight'", radius: 3.5 });
@@ -118,7 +118,7 @@ describe('My plants library', () => {
     await fresh();
     await saveMyPlant(limelight);
     await saveMyPlant({ id: 'u-other', common: 'Other', width: parseSize('2 ft')! } as Plant);
-    addPlantShape(plantsById['u-lime']);
+    state.shapes.push(plantShapeAt(plantsById['u-lime'], { x: 0, y: 0 }));
     await flushSave();
     const backup = await buildBackupFile();
     expect(parseImportPlants(backup.text).map((p) => (p as Plant).id).sort()).toEqual(['u-lime', 'u-other']);

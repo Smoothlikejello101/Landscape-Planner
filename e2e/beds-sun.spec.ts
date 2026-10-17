@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openFresh, closeSheet, drag, field, shapeCount, addPlainShape, setRole, openSections } from './helpers';
+import { openFresh, closeSheet, drag, field, shapeCount, addPlainShape, setRole, openSections, placeOnceAtCenter } from './helpers';
 
 async function addRect(page: Page, label: string, role: string, size?: [number, number]) {
   await addPlainShape(page, 'rect');
@@ -15,6 +15,7 @@ async function addPlant(page: Page, name: string) {
   await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker (820)');
   await page.locator('.sheet input[type=text]').fill(name);
   await page.locator('.sheet .proj-row', { hasText: name }).first().click();
+  await placeOnceAtCenter(page);
 }
 const shapeEl = (page: Page, label: string) =>
   page.locator('[data-shape-group]', { has: page.locator('text', { hasText: label }) }).locator('[data-shape-id]');

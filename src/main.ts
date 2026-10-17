@@ -6,6 +6,7 @@ import { copySelected, deleteSelected, duplicateSelected, paste } from './mutati
 import { clearSelection } from './selection';
 import { canFinishDraw, finishDraw, startKind } from './draw';
 import { kindForShortcut } from './kinds';
+import { finishPlacing, undoPlace } from './place';
 import { state } from './state';
 import { loadPlants } from './plants';
 import { loadMyPlants } from './my-plants';
@@ -43,6 +44,12 @@ window.addEventListener('keydown', (e) => {
   if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
   // Keys pressed while a panel has focus (a chip, a menu) belong to the panel, never the plan.
   if (target?.closest?.('.overlay, .menu')) return;
+  if (state.placing && (e.ctrlKey || e.metaKey)) {
+    // While placing, undo takes back the last plant; other edits wait until Done.
+    if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undoPlace(); render(); }
+    else if (['y', 'Z', 'v', 'd'].includes(e.key)) e.preventDefault();
+    return;
+  }
   if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
     e.preventDefault(); undo(); render();
   } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) {
@@ -57,16 +64,19 @@ window.addEventListener('keydown', (e) => {
     if (state.selectedIds.length) { e.preventDefault(); deleteSelected(); render(); }
   } else if (e.key === 'Escape') {
     if (state.panel) { state.panel = null; render(); }
+    else if (state.placing) { finishPlacing(); render(); }
     else if (state.menu) { state.menu = null; render(); }
     else if (state.draw || state.editPoints) { state.draw = null; state.editPoints = null; render(); }
     else if (state.selectedIds.length) { clearSelection(); render(); }
+  } else if (e.key === 'Enter' && state.placing && !state.panel && target?.tagName !== 'BUTTON') {
+    e.preventDefault(); finishPlacing(); render();
   } else if (e.key === 'Enter' && state.draw) {
     // A focused button (Undo, Cancel) gets its own Enter.
     if (canFinishDraw() && target?.tagName !== 'BUTTON') { e.preventDefault(); finishDraw(); render(); }
   } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
     // Letter shortcuts for adding things (shown in tooltips and the ? list). Never over an open
     // panel (it may hold unsaved typing) or a drawing with taps in it (that would be thrown away).
-    if (state.panel || state.menu || state.bgCalibrate || state.bgEditMode || state.editPoints) return;
+    if (state.panel || state.menu || state.bgCalibrate || state.bgEditMode || state.editPoints || state.placing) return;
     if (state.draw && state.draw.points.length) return;
     if (e.key === '?') { e.preventDefault(); state.draw = null; state.panel = 'shortcuts'; render(); return; }
     if (e.key.toLowerCase() === 'a') { e.preventDefault(); state.draw = null; state.panel = 'add'; render(); return; }

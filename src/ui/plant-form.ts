@@ -3,8 +3,10 @@ import { I } from '../icons';
 import {
   deleteMyPlant, formatSize, newMyPlantId, parseSize, placedUsing, resizePlaced, saveMyPlant, sunLevels, sunRange, type Range,
 } from '../my-plants';
-import { addPlantShape, FORM_COLORS, linkShapeToPlant, MONTH_NAMES, plantsById, type Plant } from '../plants';
+import { FORM_COLORS, linkShapeToPlant, MONTH_NAMES, plantsById, type Plant } from '../plants';
 import { state } from '../state';
+import { finishPlacing, startPlacing, switchPlacingPlant } from '../place';
+import { startDraw } from '../draw';
 import { errMsg } from '../util';
 import { render } from './render';
 import { toast } from './toast';
@@ -166,10 +168,15 @@ export function renderPlantForm() {
         return;
       }
       if (args.place) {
-        if (state.pickerLinkId) { linkShapeToPlant(state.pickerLinkId, saved); state.pickerLinkId = null; }
-        else addPlantShape(saved);
         toast(`Added ${saved.common} to My plants`);
-        close(null);
+        if (state.pickerLinkId) { linkShapeToPlant(state.pickerLinkId, saved); state.pickerLinkId = null; close(null); }
+        else {
+          state.plantForm = null;
+          if (state.pickerForTree) { startDraw('circle', 'tree'); state.draw!.plantId = saved.id; } // then draw its canopy
+          else if (state.placing) switchPlacingPlant(saved); // keep the batch placed so far
+          else startPlacing(saved); // tap the plan where it goes
+          render();
+        }
       } else {
         toast(`Added ${saved.common} to My plants`);
         close('plants');
@@ -184,7 +191,12 @@ export function renderPlantForm() {
     const del = el('button', { className: 'btn danger' }, 'Delete from My plants');
     del.addEventListener('click', async () => {
       if (!confirm(`Delete ${editing.common} from My plants? Plants already on your plans keep their name and size.`)) return;
-      try { await deleteMyPlant(editing.id); toast(`Deleted ${editing.common}`); close('plants'); }
+      try {
+        await deleteMyPlant(editing.id);
+        const wasInHand = state.placing?.plantId === editing.id;
+        if (wasInHand) finishPlacing(); // it can't be placed any more; what was placed stays, selected
+        toast(`Deleted ${editing.common}`); close(wasInHand ? null : 'plants');
+      }
       catch (e) { error.textContent = "Couldn't delete: " + errMsg(e); }
     });
     actions.appendChild(del);

@@ -18,6 +18,7 @@ import { plantsById } from '../plants';
 import { statusSection, statusSummary } from './status-section';
 import { hasStatus } from '../status';
 import { plantsInBed } from '../beds';
+import { startPlacing } from '../place';
 import { bedBloomSection } from './bloom-view';
 import { snapRot, typeName } from '../util';
 
@@ -329,6 +330,10 @@ function plantLinkSection(s: CircleShape): HTMLElement {
       : 'Pick the plant this circle stands for: it takes the plant\'s size and sun needs, and shows in the plant list.'));
     return wrap;
   }
+  // More of the same, tap by tap (instead of copying and dragging).
+  const more = el('button', { className: 'btn secondary', 'data-testid': 'place-more', style: { width: '100%', marginBottom: '8px' } }, `Place more ${p.common}`);
+  more.addEventListener('click', () => { startPlacing(p); render(); });
+  wrap.appendChild(more);
   const sizes = `Spread ${formatSize(p.width as Range | undefined) || 'unknown'}. Drawn at ${state.sizeMode === 'full' ? 'full' : 'typical'} size (change in Layers).`;
   wrap.appendChild(el('div', { className: 'hint' }, sizes));
   const row = el('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' } });

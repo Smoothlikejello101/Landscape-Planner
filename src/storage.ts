@@ -448,6 +448,8 @@ export async function switchProject(id: string): Promise<boolean> {
   state.bgEditMode = false;
   state.bgCalibrate = null;
   state.draw = null;
+  state.placing = null;
+  state.pickerForTree = false;
   state.editPoints = null;
   storedImageKeys = new Set(data.bgImage?.imageId ? [imageKey(id, data.bgImage.imageId)] : []);
   committedImageKeys = new Set(storedImageKeys);

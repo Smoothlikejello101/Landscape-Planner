@@ -1,10 +1,9 @@
 import { redrawCanvas } from './canvas';
-import { viewCenterFeet } from './geometry';
 import { flushHistoryDebounce, pushHistory } from './history';
 import { state } from './state';
 import { save } from './storage';
 import { render } from './ui/render';
-import type { CircleShape } from './types';
+import type { CircleShape, Point } from './types';
 import { snap, uid } from './util';
 import { plantRadius } from './my-plants';
 
@@ -173,13 +172,11 @@ export function newPlantStatus(): Pick<CircleShape, 'status' | 'phase'> {
     ...(f.phase ? { phase: f.phase } : {}),
   };
 }
-export function addPlantShape(p: Plant) {
-  flushHistoryDebounce();
-  const c = viewCenterFeet();
-  const id = uid();
-  const shape: CircleShape = {
-    id, type: 'circle',
-    x: snap(c.x), y: snap(c.y),
+/** A new placed plant centered on `at` (feet, snapped), sized and colored from its data. */
+export function plantShapeAt(p: Plant, at: Point): CircleShape {
+  return {
+    id: uid(), type: 'circle',
+    x: snap(at.x), y: snap(at.y),
     radius: plantRadius(p, state.sizeMode),
     sizeFrom: 'plant',
     color: (p.form && FORM_COLORS[p.form]) || '#16a34a',
@@ -189,10 +186,6 @@ export function addPlantShape(p: Plant) {
     plantId: p.id, // permanent link back to the plant index row
     ...newPlantStatus(),
   };
-  state.shapes.push(shape);
-  state.selectedIds = [id];
-  pushHistory();
-  save();
 }
 /**
  * Make an existing circle (say, a labeled circle standing in for a plant) a

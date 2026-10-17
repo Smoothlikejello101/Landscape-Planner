@@ -105,6 +105,7 @@ test('a path is a band at its real width, set while drawing', async ({ page }) =
 test('an existing tree is a circle from trunk to canopy edge, sized by hand', async ({ page }) => {
   await openFresh(page);
   await addKind(page, 'tree');
+  await page.getByTestId('unknown-tree').click();
   await tapFt(page, 10, 10);
   await tapFt(page, 10, 18);
   await expect(page.locator('.sel-pill .name')).toHaveText('Tree');

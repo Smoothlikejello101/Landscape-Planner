@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   buildShape, isKindKey, kindDef, kindForShortcut, KINDS, nextTapPrompt, ovalFromTaps, radiusFromTaps, rectFromTaps, tapAccepted,
 } from '../src/kinds';
-import { canFinishDraw, drawTap, finishDraw, recentKinds, setDrawKind, setDrawPathWidth, startKind } from '../src/draw';
+import { canFinishDraw, drawTap, finishDraw, recentKinds, setDrawKind, setDrawPathWidth, startDraw, startKind } from '../src/draw';
 import { shapeBBox, shapeCenter } from '../src/geometry';
 import { state } from '../src/state';
 import { shapeToSvgString } from '../src/export';
@@ -115,9 +115,11 @@ describe('kinds', () => {
 });
 
 describe('adding by kind', () => {
-  it('opens the picker for plants and measures for Measure', () => {
+  it('opens the picker for plants (and for trees, to name it first) and measures for Measure', () => {
     startKind('plant');
-    expect(state.panel).toBe('plants'); expect(state.draw).toBe(null);
+    expect(state.panel).toBe('plants'); expect(state.draw).toBe(null); expect(state.pickerForTree).toBe(false);
+    startKind('tree');
+    expect(state.panel).toBe('plants'); expect(state.pickerForTree).toBe(true);
     startKind('measure');
     expect(state.draw).toMatchObject({ kind: 'measure' }); expect(state.draw!.target).toBeUndefined();
   });
@@ -158,7 +160,7 @@ describe('adding by kind', () => {
     const svg = document.getElementById('canvas-svg')!;
     svg.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600, x: 0, y: 0, toJSON: () => ({}) });
     state.zoom = 1; state.offsetX = 0; state.offsetY = 0;
-    startKind('tree');
+    startDraw('circle', 'tree');
     const ppf = 24; // PX_PER_FOOT_BASE at zoom 1
     expect(drawTap(10 * ppf, 10 * ppf)).toBe(false);
     expect(drawTap(13 * ppf, 14 * ppf)).toBe(true);
@@ -205,7 +207,7 @@ describe('statuses that fit the thing', () => {
     expect(newPlantStatus()).toEqual({ status: 'planned' });
     state.viewFilter = { status: 'planted', phase: 'Fall 2026', showGone: false };
     expect(newPlantStatus()).toEqual({ status: 'planted', phase: 'Fall 2026' });
-    startKind('tree'); tap(0, 0); tap(5, 0);
+    startDraw('circle', 'tree'); tap(0, 0); tap(5, 0);
     expect(finishDraw()).toMatchObject({ status: 'planted', phase: 'Fall 2026' });
     state.viewFilter = { status: '', phase: '', showGone: false };
   });

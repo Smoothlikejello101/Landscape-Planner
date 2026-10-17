@@ -12,6 +12,8 @@ import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelecte
 import { redrawHandles } from '../canvas';
 import { kindDef, METHOD_LABELS, nextTapPrompt, type KindKey } from '../kinds';
 import { methodIcon, renderAddSheet, renderShortcutsPanel, withKey } from './add-sheet';
+import { finishPlacing, placingPlant, setPlaceHover, undoPlace } from '../place';
+import { FORM_COLORS } from '../plants';
 import { currentProject, storageIsDurable } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
@@ -64,13 +66,13 @@ export function render() {
 
   // Undo
   const undoBtn = el('button', { className: 'iconbtn', html: I.undo, title: 'Undo' });
-  undoBtn.disabled = !canUndo() || !!state.draw; // while drawing, the bar's Undo removes the last point
+  undoBtn.disabled = !canUndo() || !!state.draw || !!state.placing; // while drawing or placing, the bar's Undo
   undoBtn.addEventListener('click', () => { undo(); render(); });
   topbar.appendChild(undoBtn);
 
   // Redo
   const redoBtn = el('button', { className: 'iconbtn', html: I.redo, title: 'Redo' });
-  redoBtn.disabled = !canRedo() || !!state.draw;
+  redoBtn.disabled = !canRedo() || !!state.draw || !!state.placing;
   redoBtn.addEventListener('click', () => { redo(); render(); });
   topbar.appendChild(redoBtn);
 
@@ -101,11 +103,16 @@ export function render() {
   svg.addEventListener('wheel', onWheel, { passive: false });
   // With a mouse, the shape being drawn follows the pointer to the next click.
   svg.addEventListener('pointermove', (e) => {
-    if (e.pointerType !== 'mouse' || e.buttons || !state.draw || state.draw.kind === 'measure') return;
+    if (e.pointerType !== 'mouse' || e.buttons) return;
+    if (state.placing) { setPlaceHover(screenToFeet(e.clientX, e.clientY)); redrawHandles(); return; }
+    if (!state.draw || state.draw.kind === 'measure') return;
     setDrawHover(screenToFeet(e.clientX, e.clientY));
     redrawHandles();
   });
-  svg.addEventListener('pointerleave', () => { if (state.draw) { setDrawHover(null); redrawHandles(); } });
+  svg.addEventListener('pointerleave', () => {
+    if (state.draw) { setDrawHover(null); redrawHandles(); }
+    if (state.placing) { setPlaceHover(null); redrawHandles(); }
+  });
   canvasWrap.appendChild(svg);
 
   // Mode banner (when select mode is on)
@@ -166,8 +173,19 @@ export function render() {
     canvasWrap.appendChild(banner);
   }
 
+  // Placing plants: which one, and how many so far.
+  const placing = placingPlant();
+  if (state.placing && !placing) finishPlacing(); // the plant in hand is gone (removed from My plants)
+  if (placing && state.placing) {
+    const n = state.placing.placed.length;
+    const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'place-banner' });
+    banner.innerHTML = I.leaf + '<span></span>';
+    banner.querySelector('span')!.textContent = `Tap to place ${placing.common} · ${n} placed`;
+    canvasWrap.appendChild(banner);
+  }
+
   // Showing only some plants: say so, with a way back to everything.
-  if (filterActive(state.viewFilter) && !state.draw && !state.editPoints && !state.bgCalibrate) {
+  if (filterActive(state.viewFilter) && !state.draw && !state.editPoints && !state.bgCalibrate && !state.placing) {
     const f = state.viewFilter;
     const what = filterText(f) || 'All plants';
     const banner = el('div', { className: 'mode-banner filter-banner', 'data-testid': 'filter-banner' });
@@ -188,7 +206,7 @@ export function render() {
   canvasWrap.appendChild(zoomBtns);
 
   // Empty hint
-  if (state.shapes.length === 0 && !state.draw && !state.bgCalibrate && !state.bgEditMode) {
+  if (state.shapes.length === 0 && !state.draw && !state.placing && !state.bgCalibrate && !state.bgEditMode) {
     const hint = el('div', { className: 'empty-hint' });
     // The easiest start is tracing over a photo of the yard from above, so offer it first.
     if (!state.bgImage) {
@@ -203,7 +221,7 @@ export function render() {
   }
 
   // Multi-select action bar (floating, only when 2+ selected and no panel open)
-  const drawing = !!state.draw || !!state.editPoints;
+  const drawing = !!state.draw || !!state.editPoints || !!state.placing;
   if (state.selectedIds.length >= 2 && !state.panel && !drawing) {
     const bar = el('div', { className: 'multi-bar' });
     bar.appendChild(el('div', { className: 'count' }, state.selectedIds.length + ' selected'));
@@ -265,7 +283,7 @@ export function render() {
   addBtn.innerHTML = I.plus + '<div class="lbl">Add</div>';
   addBtn.addEventListener('click', () => { state.panel = 'add'; render(); });
   bottomBar.appendChild(addBtn);
-  app.appendChild(drawing ? renderDrawBar() : bottomBar);
+  app.appendChild(state.placing ? renderPlaceBar() : drawing ? renderDrawBar() : bottomBar);
 
   root.appendChild(app);
 
@@ -294,6 +312,23 @@ export function render() {
   // Now that the SVG is in the DOM, size it and draw grid/shapes
   resizeCanvas();
   maybeExplainFullSize();
+}
+
+/** Bottom bar while placing plants: the plant in hand (tap to switch), Undo, Done. */
+function renderPlaceBar(): HTMLElement {
+  const bar = el('div', { className: 'bottom-toolbar draw-bar place-bar', 'data-testid': 'place-bar' });
+  const p = placingPlant();
+  const pick = el('button', { className: 'draw-btn place-plant', 'data-testid': 'place-switch', title: 'Switch plant' },
+    el('span', { className: 'sw-dot', style: { background: (p?.form && FORM_COLORS[p.form]) || '#16a34a' } }),
+    el('span', { className: 'place-name' }, p?.common ?? ''), el('span', { html: I.chevronDown, style: { display: 'flex' } }));
+  pick.addEventListener('click', () => { state.panel = 'plants'; render(); });
+  const undoB = el('button', { className: 'draw-btn' }, 'Undo');
+  undoB.disabled = !state.placing?.placed.length;
+  undoB.addEventListener('click', () => { undoPlace(); render(); });
+  const done = el('button', { className: 'draw-btn primary' }, 'Done');
+  done.addEventListener('click', () => { finishPlacing(); render(); });
+  bar.append(pick, undoB, done);
+  return bar;
 }
 
 /** Bottom bar while drawing or editing an outline's points. */

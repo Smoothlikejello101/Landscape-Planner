@@ -250,6 +250,8 @@ export interface DrawState {
   target?: KindKey;
   /** Center-line method: the path's width in feet (else the kind's default). */
   pathWidth?: number;
+  /** Existing tree: the plant it is, when picked from the catalog. */
+  plantId?: string;
 }
 /** Editing the points of one outline/line; `vertex` is the selected point. */
 export interface EditPoints { id: string; vertex: number | null }
@@ -288,6 +290,10 @@ export interface AppState {
   plantForm: PlantFormArgs | null;
   /** Picker opened to link this shape to a plant. */
   pickerLinkId: string | null;
+  /** Picker opened from Add, Existing tree: pick the tree (or an unknown one), then draw its canopy. */
+  pickerForTree: boolean;
+  /** Placing a plant by tapping: the plant in hand and what's been placed so far (not saved). */
+  placing: { plantId: string; placed: { id: string; at: number }[] } | null;
   bgEditMode: boolean;
   bgCalibrate: Calibration | null;
   draw: DrawState | null;

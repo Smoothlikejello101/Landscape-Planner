@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openFresh, autoDialogs, shapeCount, zoomPct, closeSheet, canvasBox, field, drag, addPlainShape } from './helpers';
+import { openFresh, autoDialogs, shapeCount, zoomPct, closeSheet, canvasBox, field, drag, addPlainShape, placeOnceAtCenter } from './helpers';
 
 async function addShape(page: Page, cls: string) {
   await addPlainShape(page, ({ circle: 'circle', rect: 'rect', oval: 'oval', tri: 'triangle' } as const)[cls as 'circle']);
@@ -226,6 +226,7 @@ test.describe('plants, background, export', () => {
     await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker (820)');
     await page.locator('.sheet input[type=text]').fill('Autumn Bride');
     await page.locator('.sheet .proj-row', { hasText: "Heuchera 'Autumn Bride'" }).click();
+    await placeOnceAtCenter(page);
     expect(await shapeCount(page)).toBe(1);
     await expect(page.locator('.sel-pill .name')).toContainText('Autumn Bride');
     await page.locator('.sel-pill button.edit').click();
