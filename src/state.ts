@@ -39,6 +39,7 @@ export const state: AppState = {
   //          rotation, opacity, visible }
   // Position is CENTER of image in world feet; rotation degrees around center.
   bgImage: null,
+  photoElsewhere: null,
   roleViews: {},
   print: { ...DEFAULT_PRINT },
   sizeMode: 'typical',

@@ -113,6 +113,7 @@ export async function handleBgImageFile(file: File): Promise<boolean> {
       naturalWidth: w, naturalHeight: h, ftPerPx: 0.1,
       cx: c.x, cy: c.y, rotation: 0, opacity: 0.6, visible: true
     };
+    state.photoElsewhere = null; // this photo replaces one kept on another device
     pushHistory();
     save();
     return true;
@@ -125,6 +126,7 @@ export function removeBgImage() {
   if (!state.bgImage) return;
   flushHistoryDebounce();
   state.bgImage = null;
+  state.photoElsewhere = null;
   state.bgEditMode = false;
   state.bgCalibrate = null;
   pushHistory();
@@ -137,6 +139,20 @@ export function updateBgImage(patch: Partial<BgImage>) {
   save();
   pushHistoryDebounced();
   render();
+}
+/**
+ * "Keep this photo on this device only": a setting of the photo, not an
+ * undoable edit, so it's set on every undo step showing the same photo too
+ * (undo or redo can't turn it off and send the photo).
+ */
+export function setPhotoDeviceOnly(on: boolean) {
+  const bg = state.bgImage;
+  if (!bg) return;
+  for (const b of [bg, ...state.history.map((s) => s.bgImage)]) {
+    if (!b || b.dataUrl !== bg.dataUrl) continue;
+    if (on) b.deviceOnly = true; else delete b.deviceOnly;
+  }
+  save();
 }
 /** Patch the image and redraw only the canvas (inputs keep keyboard focus). */
 export function updateBgImageSilent(patch: Partial<BgImage>) {

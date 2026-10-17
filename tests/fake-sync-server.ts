@@ -15,6 +15,14 @@ export class FakeServer {
   /** Store the next upload, then fail as if the connection dropped before the answer came back. */
   dropNextAnswer = false;
   offline = false;
+  /** Photo files by fingerprint (data URLs), and how many uploads arrived. */
+  photos = new Map<string, string>();
+  photoUploads = 0;
+  /** Photos bigger than this are refused (the server's 5 MB). */
+  maxPhoto = 5 * 1024 * 1024;
+  /** False: the account's photo space is full. */
+  photoRoom = true;
+  reservations = 0;
   remoteFor(device: string): Remote {
     const check = () => { if (this.offline) throw new TypeError('Failed to fetch'); };
     return {
@@ -27,6 +35,8 @@ export class FakeServer {
         const r = this.rows.get(id);
         let out: PushResult;
         name = Array.from(name.trim() || 'Untitled').slice(0, 200).join(''); // as the server keeps names
+        // A plan from a version before photos synced keeps the server's photo (as push_project in 03).
+        if (r && !('photo' in content) && 'photo' in r.content) content = { ...content, photo: r.content.photo };
         if (!r) { this.rows.set(id, { name, content: structuredClone(content), revision: 1, updated_by: device, deleted: false }); out = { status: 'ok', revision: 1 }; }
         else if (r.deleted) out = { status: 'deleted', revision: r.revision };
         else if (base !== r.revision) out = { status: 'conflict', revision: r.revision, name: r.name, content: structuredClone(r.content), updated_by: r.updated_by, updated_at: '' };
@@ -44,7 +54,49 @@ export class FakeServer {
         return 'ok';
       },
       restore: async (id) => { check(); const r = this.rows.get(id); if (!this.allowed || !r?.deleted) return null; r.deleted = false; r.revision++; return r.revision; },
+      reservePhoto: async (fp, size) => {
+        check();
+        if (!this.allowed) return 'paused';
+        this.reservations++;
+        if (size > this.maxPhoto) return 'too_big';
+        if (!this.photoRoom && !this.photos.has(fp)) return 'full';
+        return this.photos.has(fp) ? 'stored' : 'send';
+      },
+      putPhoto: async (fp, dataUrl) => { check(); this.photoUploads++; this.photos.set(fp, dataUrl); },
+      getPhoto: async (fp) => { check(); return this.photos.get(fp) ?? null; },
     };
   }
 }
 
+
+// ---------- My plants (push_plant / plant_list in 03-photos-plants.sql) ----------
+import type { PlantPushResult, RemotePlants, ServerPlant } from '../src/sync/plants';
+import type { Plant } from '../src/plants';
+export class FakePlantServer {
+  rows = new Map<string, { plant: Plant; revision: number; edited_at: string | null; deleted_at: string | null }>();
+  allowed = true;
+  dropNextAnswer = false;
+  remote(): RemotePlants {
+    return {
+      plantList: async () => [...this.rows].map(([id, r]): ServerPlant => ({ id, revision: r.revision, edited_at: r.edited_at, deleted_at: r.deleted_at })),
+      fetchPlants: async (ids) => Object.fromEntries(ids.filter((id) => this.rows.get(id) && !this.rows.get(id)!.deleted_at)
+        .map((id) => { const r = this.rows.get(id)!; return [id, { revision: r.revision, plant: structuredClone(r.plant), edited_at: r.edited_at }]; })),
+      pushPlant: async (id, base, plant, edited): Promise<PlantPushResult> => {
+        if (!this.allowed) return { status: 'paused' };
+        const at = edited ? new Date(edited).toISOString() : null;
+        const r = this.rows.get(id);
+        let out: PlantPushResult;
+        if (!r) {
+          if (!plant) out = { status: 'ok', revision: null };
+          else { this.rows.set(id, { plant: structuredClone(plant), revision: 1, edited_at: at, deleted_at: null }); out = { status: 'ok', revision: 1 }; }
+        } else if (base !== r.revision) out = { status: 'conflict', revision: r.revision, plant: structuredClone(r.plant), edited_at: r.edited_at, deleted_at: r.deleted_at };
+        else {
+          Object.assign(r, { plant: plant ? structuredClone(plant) : r.plant, deleted_at: plant ? null : new Date().toISOString(), revision: r.revision + 1, edited_at: at });
+          out = { status: 'ok', revision: r.revision };
+        }
+        if (this.dropNextAnswer) { this.dropNextAnswer = false; throw new TypeError('Failed to fetch'); }
+        return out;
+      },
+    };
+  }
+}

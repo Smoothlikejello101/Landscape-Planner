@@ -408,6 +408,65 @@ describe('My plants with their own color', () => {
   });
 });
 
+describe('synced background photos', () => {
+  const FP = 'a'.repeat(64);
+  const ref = { fingerprint: FP, naturalWidth: 40, naturalHeight: 30, ftPerPx: 0.25, cx: 1, cy: 2, rotation: 0, opacity: 0.6, visible: true };
+  it('a photo’s fingerprint and keep-here switch are kept; a plan waiting for its photo keeps waiting across a restart', async () => {
+    const { createProject, readProject, switchProject } = await import('../src/storage');
+    const kv = await freshStorage();
+    state.bgImage = { dataUrl: IMG, naturalWidth: 4, naturalHeight: 4, ftPerPx: 1, cx: 0, cy: 0, rotation: 0, opacity: 0.6, visible: true, fingerprint: FP, deviceOnly: true };
+    save(); await flushSave();
+    const id = state.currentProjectId!;
+    const waiting = await createProject('Waiting', { ...sanitizeProjectData({}), photoElsewhere: ref });
+    _resetStorageForTests(); await initStorage(kv);
+    expect((await readProject(id))!.bgImage).toMatchObject({ fingerprint: FP, deviceOnly: true });
+    expect((await readProject(waiting))!.photoElsewhere).toEqual(ref);
+    await switchProject(waiting);
+    expect(state.photoElsewhere).toEqual(ref);
+  });
+
+  it('anything malformed about them reads as nothing (older versions stored none of it)', async () => {
+    const { readProject } = await import('../src/storage');
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    const stored = await kv.get<Record<string, unknown>>('projects', id);
+    await kv.write([put('projects', id, { ...stored, photoElsewhere: { fingerprint: 'not-hex' } })]);
+    expect((await readProject(id))!.photoElsewhere).toBeNull();
+    await kv.write([put('projects', id, { ...stored, photoElsewhere: { deviceOnly: 'yes' } })]);
+    expect((await readProject(id))!.photoElsewhere).toBeNull();
+    expect(sanitizeProjectData({ bgImage: { dataUrl: IMG, fingerprint: 'x', deviceOnly: 1 } }).bgImage).not.toHaveProperty('fingerprint');
+    expect(sanitizeProjectData({ bgImage: { dataUrl: IMG, deviceOnly: 1 } }).bgImage).not.toHaveProperty('deviceOnly');
+    // A photo here wins over a stale "elsewhere".
+    expect(sanitizeProjectData({ bgImage: { dataUrl: IMG }, photoElsewhere: ref }).photoElsewhere).toBeNull();
+  });
+
+  it('sync records keep which photo was synced; anything malformed is dropped', async () => {
+    const { getSyncRecords, createProject } = await import('../src/storage');
+    const kv = await freshStorage();
+    const a = await createProject('A'), b = await createProject('B');
+    await kv.write([put('kv', 'syncRecords', { [a]: { revision: 2, hash: 'h', photo: `${FP}@abc:1x` }, [b]: { revision: 1, hash: 'h', photo: '../../x' }, old: { revision: 1, hash: 'h' } })]);
+    _resetStorageForTests(); await initStorage(kv);
+    expect(getSyncRecords()).toEqual({ [a]: { revision: 2, hash: 'h', photo: `${FP}@abc:1x` }, [b]: { revision: 1, hash: 'h' }, old: { revision: 1, hash: 'h' } });
+  });
+});
+
+describe('My plants sync state', () => {
+  it('is kept with the library; a different account clears its records but keeps edit times; malformed parts are dropped', async () => {
+    const { writeMyPlants, getPlantSync, resetSyncState } = await import('../src/storage');
+    const kv = await freshStorage();
+    expect(getPlantSync()).toEqual({ records: {}, edited: {} }); // as on devices from before plants synced
+    await writeMyPlants([{ id: 'u-a', common: 'A' }], { records: { 'u-a': { revision: 2, hash: 'h' } }, edited: { 'u-a': 5 } });
+    _resetStorageForTests(); await initStorage(kv);
+    expect(getPlantSync()).toEqual({ records: { 'u-a': { revision: 2, hash: 'h' } }, edited: { 'u-a': 5 } });
+    await resetSyncState('someone-else');
+    _resetStorageForTests(); await initStorage(kv);
+    expect(getPlantSync()).toEqual({ records: {}, edited: { 'u-a': 5 } });
+    await kv.write([put('kv', 'myPlantSync', { records: { x: { revision: 'no' } }, edited: { y: -1, z: 'later', ok: 7 } })]);
+    _resetStorageForTests(); await initStorage(kv);
+    expect(getPlantSync()).toEqual({ records: {}, edited: { ok: 7 } });
+  });
+});
+
 describe('sync state on the device', () => {
   it('keeps what was synced, and deletions still to send, across a restart; drops anything malformed', async () => {
     const { setSyncRecord, getSyncRecords, getSyncTombstones, deleteProject, createProject, installId } = await import('../src/storage');

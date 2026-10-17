@@ -14,7 +14,8 @@ export function pushHistory() {
   state.history = state.history.slice(0, state.historyIndex + 1); // drop redo branch
   state.history.push({
     shapes: deepClone(state.shapes),
-    bgImage: state.bgImage ? { ...state.bgImage } : null
+    bgImage: state.bgImage ? { ...state.bgImage } : null,
+    photoElsewhere: state.photoElsewhere,
   });
   if (state.history.length > MAX_HISTORY) state.history.shift();
   else state.historyIndex++;
@@ -38,7 +39,11 @@ export function cancelHistoryDebounce() {
 }
 function applySnapshot(snap: HistorySnapshot) {
   state.shapes = deepClone(snap.shapes);
+  // "Keep this photo on this device only" isn't an undoable edit: the same photo keeps its setting.
+  const keep = state.bgImage && snap.bgImage && state.bgImage.dataUrl === snap.bgImage.dataUrl ? state.bgImage.deviceOnly : snap.bgImage?.deviceOnly;
   state.bgImage = snap.bgImage ? { ...snap.bgImage } : null;
+  if (state.bgImage) { if (keep) state.bgImage.deviceOnly = true; else delete state.bgImage.deviceOnly; }
+  state.photoElsewhere = snap.photoElsewhere ?? null;
   state.selectedIds = state.selectedIds.filter((id) => state.shapes.some((s) => s.id === id));
 }
 export function undo() {

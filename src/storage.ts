@@ -4,16 +4,17 @@ import { cancelHistoryDebounce } from './history';
 import { DEFAULT_PRINT, state } from './state';
 import { isRole } from './roles';
 import { cleanPhaseName, isStatus, MAX_PHASES } from './status';
-import type { BgImage, Clipboard, PathShape, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, SunInfo } from './types';
+import type { BgImage, Clipboard, PathShape, PhotoRef, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, SunInfo } from './types';
 import { setWorldPoints } from './geometry';
 import { now, uid } from './util';
+import { photoFingerprint } from './sync/photo';
 
 // Persistence. Projects live in IndexedDB:
 //   meta/<projectId>          ProjectMeta (name, dates, shape count)
 //   projects/<projectId>      ProjectData without the background image bytes
 //   images/<projectId>/<id>   { dataUrl } for the background image
 //   kv/current, kv/clipboard, kv/lastBackupAt, kv/migratedFromLocalStorage,
-//   kv/myPlants (the user's plant library), kv/lastSizeMode
+//   kv/myPlants (the user's plant library), kv/myPlantSync (its sync state), kv/lastSizeMode
 // The current project is held in `state`; saves are debounced and also
 // flushed when the page is hidden so a quick app switch can't lose an edit.
 
@@ -168,7 +169,25 @@ export function migrateBgImage(raw: Partial<BgImage>): BgImage {
     rotation: num(raw.rotation, 0),
     opacity: Math.min(1, Math.max(0.05, num(raw.opacity, 0.6))),
     visible: raw.visible !== false,
+    ...(isFingerprint(raw.fingerprint) ? { fingerprint: raw.fingerprint } : {}),
+    ...(raw.deviceOnly === true ? { deviceOnly: true } : {}),
   };
+}
+const isFingerprint = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v);
+/** Validate a synced photo reference; null if absent or unusable. */
+export function sanitizePhotoRef(raw: unknown): PhotoRef | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  if (o.deviceOnly === true) return { deviceOnly: true };
+  if (!isFingerprint(o.fingerprint)) return null;
+  const { dataUrl: _d, fingerprint: _f, deviceOnly: _o, ...placed } = migrateBgImage({ ...(o as Partial<BgImage>), dataUrl: '' });
+  return { fingerprint: o.fingerprint, ...placed };
+}
+/** How a background photo is synced: its fingerprint and placement (`fingerprint` known), or kept here. */
+export function photoRefOf(bg: BgImage, fingerprint: string): PhotoRef {
+  if (bg.deviceOnly) return { deviceOnly: true };
+  const { naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible } = migrateBgImage(bg);
+  return { fingerprint, naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible };
 }
 const MINUTES_PER_DAY = 24 * 60;
 /** Validate observed-sun data; null if unusable. */
@@ -240,6 +259,7 @@ export function currentProjectData(): ProjectData {
   return {
     shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY,
     roleViews: state.roleViews, print: state.print, sizeMode: state.sizeMode, sunWarnings: state.sunWarnings, phases: state.phases, bgImage: state.bgImage,
+    photoElsewhere: state.photoElsewhere,
   };
 }
 /** Normalize project data from storage, an old version, or an imported file. */
@@ -258,6 +278,7 @@ export function sanitizeProjectData(raw: unknown): ProjectData {
     sunWarnings: d.sunWarnings !== false,
     phases: sanitizePhases(d.phases, shapes),
     bgImage: bg && bg.dataUrl ? bg : null,
+    photoElsewhere: bg && bg.dataUrl ? null : sanitizePhotoRef(d.photoElsewhere),
   };
 }
 
@@ -280,6 +301,7 @@ function projectWriteOps(id: string, data: ProjectData, knownImageKeys?: Set<str
   const stored: StoredProject = {
     shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {},
     print: data.print ?? { ...DEFAULT_PRINT }, sizeMode: data.sizeMode ?? 'typical', sunWarnings: data.sunWarnings !== false, phases: data.phases ?? [], bgImage: storedBg,
+    photoElsewhere: storedBg ? null : data.photoElsewhere ?? null,
   };
   ops.push(put('projects', id, stored));
   return ops;
@@ -431,7 +453,13 @@ export async function readProject(id: string): Promise<ProjectData | null> {
     if (img) bgImage = migrateBgImage({ ...stored.bgImage, dataUrl: img.dataUrl });
     else console.warn('background image missing for project', id);
   }
-  return sanitizeProjectData({ ...stored, bgImage });
+  const data = sanitizeProjectData({ ...stored, bgImage });
+  // The image bytes are missing, but sync knows the photo: it can bring it back.
+  if (!bgImage && stored.bgImage && !data.photoElsewhere) {
+    const bg = migrateBgImage({ ...stored.bgImage, dataUrl: '' });
+    if (bg.fingerprint) data.photoElsewhere = photoRefOf(bg, bg.fingerprint);
+  }
+  return data;
 }
 /**
  * Make `id` the open project. Saves the previous one first; if that save
@@ -463,6 +491,7 @@ export async function switchProject(id: string): Promise<boolean> {
   state.phases = data.phases ?? [];
   state.viewFilter = { status: '', phase: '', showGone: false };
   state.bgImage = data.bgImage ?? null;
+  state.photoElsewhere = data.photoElsewhere ?? null;
   state.selectedIds = [];
   state.history = [];
   state.historyIndex = -1;
@@ -541,8 +570,13 @@ export async function renameProject(id: string, name: string) {
 }
 
 // ---------- Sync support (see src/sync) ----------
-/** What a synced project was at its last sync: the server's revision, and a fingerprint of its content then. */
-export interface SyncRecord { revision: number; hash: string }
+/**
+ * What a synced project was at its last sync: the server's revision, a
+ * fingerprint of its content then (without the photo), and which photo it had
+ * ('none', 'kept' on one device, or the photo's fingerprint; absent if unknown,
+ * as for projects synced before photos did).
+ */
+export interface SyncRecord { revision: number; hash: string; photo?: string; held?: 'room' | 'refused' }
 let syncRecords: Record<string, SyncRecord> = {};
 /** Synced projects deleted here, still to be moved to the server's trash: id → revision. */
 let syncTombstones: Record<string, number> = {};
@@ -591,10 +625,11 @@ export async function clearSyncTombstone(id: string) {
 }
 /** The account this device last synced with (null: none). */
 export function getSyncUser(): string | null { return syncUserId; }
-/** Forget all sync state and note whose it is now (a different account signed in on this device). */
+/** Forget all sync state and note whose it is now (a different account signed in on this device). Edit times stay. */
 export async function resetSyncState(userId: string | null) {
   syncRecords = {}; syncTombstones = {}; syncUserId = userId;
-  await db().write([put('kv', 'syncRecords', {}), put('kv', 'syncTombstones', {}), put('kv', 'syncUser', userId)]);
+  plantSync = { records: {}, edited: plantSync.edited };
+  await db().write([put('kv', 'syncRecords', {}), put('kv', 'syncTombstones', {}), put('kv', 'syncUser', userId), put('kv', 'myPlantSync', plantSync)]);
 }
 /** This app install's random id, made on first use and kept with the plans (trials count once per install). */
 export async function installId(): Promise<string> {
@@ -617,22 +652,30 @@ export function syncedContent(d: ProjectData): SyncedContent {
  * one, `mayReplaceOpen()` agrees (nothing in progress on screen); else false,
  * and the next sync sorts it out. The plan on screen is updated.
  */
-export async function replaceProjectContent(id: string, name: string, content: unknown, token: number, mayReplaceOpen: () => boolean = () => true): Promise<boolean> {
+export async function replaceProjectContent(
+  id: string, name: string, content: unknown, token: number, mayReplaceOpen: () => boolean = () => true, photo?: IncomingPhoto,
+): Promise<boolean> {
   if (!metaFor(id) || changeToken(id) !== token) return false;
   let saved: ProjectData | null = null;
   if (state.currentProjectId !== id) saved = await readProject(id);
+  // Which photo is here now (to tell whether the incoming one is the same).
+  const peek = state.currentProjectId === id ? state.bgImage : saved?.bgImage ?? null;
+  const peekFp = peek ? await photoFingerprint(peek.dataUrl) : null;
   // From here to the write, nothing waits: no edit can slip in between the check and the write.
   const meta = metaFor(id);
   if (!meta || changeToken(id) !== token) return false;
   const isOpen = state.currentProjectId === id;
   if (isOpen && (hasUnsavedChanges() || !mayReplaceOpen())) return false;
   const base = isOpen ? currentProjectData() : saved ?? sanitizeProjectData({});
+  if ((base.bgImage?.dataUrl ?? null) !== (peek?.dataUrl ?? null)) return false; // the photo changed meanwhile
   const incoming = sanitizeProjectData({ ...(content && typeof content === 'object' ? content : {}), zoom: base.zoom, offsetX: base.offsetX, offsetY: base.offsetY });
-  const data: ProjectData = { ...base, ...syncedContent(incoming) };
+  const placed = photo ? placePhoto(base, peekFp, photo.ref, photo.bytes) : { bgImage: base.bgImage ?? null, photoElsewhere: base.photoElsewhere ?? null };
+  const data: ProjectData = { ...base, ...syncedContent(incoming), ...placed };
   const metaNext = { ...meta, name: name.trim() || 'Untitled', lastModified: now(), shapeCount: data.shapes.length };
   bumpChange(id);
   // The write is queued before any later save's (and any read by a switch to this project), so they see it.
-  const written = db().write([...projectWriteOps(id, data, isOpen ? storedImageKeys : undefined), put('meta', id, metaNext)]);
+  const ops = [...projectWriteOps(id, data, isOpen ? storedImageKeys : undefined), put('meta', id, metaNext)];
+  const written = db().write(ops);
   Object.assign(meta, metaNext);
   if (isOpen) {
     state.shapes = data.shapes;
@@ -641,6 +684,8 @@ export async function replaceProjectContent(id: string, name: string, content: u
     state.sizeMode = data.sizeMode ?? 'typical';
     state.sunWarnings = data.sunWarnings !== false;
     state.phases = data.phases ?? [];
+    if (state.bgImage !== data.bgImage) { state.bgImage = data.bgImage ?? null; if (!state.bgImage) state.bgEditMode = false; }
+    state.photoElsewhere = data.photoElsewhere ?? null;
     state.selectedIds = state.selectedIds.filter((sid) => data.shapes.some((s) => s.id === sid));
     state.history = [];
     state.historyIndex = -1;
@@ -649,8 +694,85 @@ export async function replaceProjectContent(id: string, name: string, content: u
     await written;
   } catch (e) {
     // The plan on screen already shows the server's version (so later edits land on top of it);
-    // keep it as unsaved so the next save writes it.
-    if (isOpen) save();
+    // keep it as unsaved so the next save writes it (image bytes included).
+    if (isOpen) { for (const op of ops) if (op.store === 'images') storedImageKeys.delete(op.key); save(); }
+    throw e;
+  }
+  return true;
+}
+/**
+ * Note a background photo's fingerprint with its project (not an edit), so a
+ * photo whose stored bytes go missing can be fetched again. The open project
+ * keeps it in memory until its next save.
+ */
+export async function notePhotoFingerprint(id: string, dataUrl: string, fingerprint: string) {
+  if (state.currentProjectId === id) {
+    if (state.bgImage?.dataUrl === dataUrl) state.bgImage.fingerprint = fingerprint;
+    return;
+  }
+  const token = changeToken(id);
+  const stored = await db().get<StoredProject>('projects', id);
+  if (!stored?.bgImage || stored.bgImage.fingerprint) return;
+  const img = await db().get<ImageRecord>('images', imageKey(id, stored.bgImage.imageId));
+  // Only if nothing has touched the project meanwhile (the write is queued before any later save).
+  if (img?.dataUrl !== dataUrl || changeToken(id) !== token || state.currentProjectId === id) return;
+  await db().write([put('projects', id, { ...stored, bgImage: { ...stored.bgImage, fingerprint } })]);
+}
+/** A synced photo arriving with a project: how it sits, and its bytes if they were fetched. */
+export interface IncomingPhoto { ref: PhotoRef | null; bytes?: string }
+/**
+ * Where a project's photo stands once a synced one arrives. `baseFp`: the
+ * fingerprint of the photo here (if any). The same photo here keeps its bytes
+ * and takes the new placement; a different one needs the fetched `bytes`, or
+ * waits (photoElsewhere) for a later sync to bring them.
+ */
+export function placePhoto(base: ProjectData, baseFp: string | null, ref: PhotoRef | null, bytes?: string): { bgImage: BgImage | null; photoElsewhere: PhotoRef | null } {
+  if (!ref) return { bgImage: null, photoElsewhere: null };
+  // Kept on another device only: this device lets go of its copy (unless it's this device's own kept photo).
+  if ('deviceOnly' in ref) return base.bgImage?.deviceOnly ? { bgImage: base.bgImage, photoElsewhere: null } : { bgImage: null, photoElsewhere: ref };
+  const { fingerprint, ...placed } = ref;
+  if (base.bgImage && baseFp === fingerprint) {
+    const { deviceOnly: _o, ...bg } = base.bgImage;
+    return { bgImage: { ...bg, ...placed, fingerprint }, photoElsewhere: null };
+  }
+  if (bytes) return { bgImage: migrateBgImage({ ...placed, dataUrl: bytes, imageId: uid(), fingerprint }), photoElsewhere: null };
+  return { bgImage: null, photoElsewhere: ref };
+}
+/**
+ * Put a downloaded photo in place of the one a project is waiting for
+ * (photoElsewhere), if the project hasn't changed since `token`.
+ */
+export async function fillProjectPhoto(id: string, token: number, fingerprint: string, bytes: string, mayReplaceOpen: () => boolean = () => true): Promise<boolean> {
+  if (!metaFor(id) || changeToken(id) !== token) return false;
+  let saved: ProjectData | null = null;
+  if (state.currentProjectId !== id) saved = await readProject(id);
+  const meta = metaFor(id);
+  if (!meta || changeToken(id) !== token) return false;
+  const isOpen = state.currentProjectId === id;
+  if (isOpen && (hasUnsavedChanges() || !mayReplaceOpen())) return false;
+  const base = isOpen ? currentProjectData() : saved;
+  const ref = base?.photoElsewhere;
+  if (!base || base.bgImage || !ref || !('fingerprint' in ref) || ref.fingerprint !== fingerprint) return false;
+  const placed = placePhoto(base, null, ref, bytes);
+  const data: ProjectData = { ...base, ...placed };
+  bumpChange(id);
+  const ops = projectWriteOps(id, data, isOpen ? storedImageKeys : undefined);
+  const written = db().write(ops);
+  if (isOpen) {
+    state.bgImage = data.bgImage ?? null;
+    state.photoElsewhere = null;
+    // Undo steps taken while the photo was on its way show it too (else undoing would remove it everywhere).
+    for (const snap of state.history) {
+      if (!snap.bgImage && snap.photoElsewhere && 'fingerprint' in snap.photoElsewhere && snap.photoElsewhere.fingerprint === fingerprint) {
+        snap.bgImage = data.bgImage ? { ...data.bgImage } : null;
+        snap.photoElsewhere = null;
+      }
+    }
+  }
+  try {
+    await written;
+  } catch (e) {
+    if (isOpen) { for (const op of ops) if (op.store === 'images') storedImageKeys.delete(op.key); save(); }
     throw e;
   }
   return true;
@@ -676,10 +798,28 @@ export async function refreshClipboard() {
 let myPlantsRaw: unknown[] = [];
 /** The stored library, unvalidated (my-plants.ts validates it). */
 export function storedMyPlants(): unknown[] { return myPlantsRaw; }
-/** Replace the stored library. Throws if the write fails, so the caller can say so. */
-export async function writeMyPlants(list: unknown[]) {
-  await db().write([put('kv', 'myPlants', list)]);
+/**
+ * The library's sync state: per plant, the server revision and fingerprint
+ * at its last sync, and when it was last edited (or deleted) here, in ms.
+ */
+export interface PlantSyncState { records: Record<string, SyncRecord>; edited: Record<string, number> }
+let plantSync: PlantSyncState = { records: {}, edited: {} };
+export function getPlantSync(): PlantSyncState { return { records: { ...plantSync.records }, edited: { ...plantSync.edited } }; }
+/** Replace the stored library (and its sync state) in one write. Throws if the write fails, so the caller can say so. */
+export async function writeMyPlants(list: unknown[], sync?: PlantSyncState) {
+  const ops = [put('kv', 'myPlants', list)];
+  if (sync) ops.push(put('kv', 'myPlantSync', sync));
+  await db().write(ops);
   myPlantsRaw = list;
+  if (sync) plantSync = { records: { ...sync.records }, edited: { ...sync.edited } };
+}
+function sanitizePlantSync(raw: unknown): PlantSyncState {
+  const o = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
+  const edited: Record<string, number> = {};
+  if (o.edited && typeof o.edited === 'object') {
+    for (const [k, v] of Object.entries(o.edited as Record<string, unknown>)) if (typeof v === 'number' && Number.isFinite(v) && v >= 0) edited[k] = v;
+  }
+  return { records: sanitizeSyncRecords(o.records), edited };
 }
 
 // ---------- Size mode for new projects ----------
@@ -818,6 +958,7 @@ export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: s
   lastBackupAt = (await kv.get<number>('kv', 'lastBackupAt')) ?? null;
   const mp = await kv.get<unknown>('kv', 'myPlants');
   myPlantsRaw = Array.isArray(mp) ? mp : [];
+  plantSync = sanitizePlantSync(await kv.get<unknown>('kv', 'myPlantSync'));
   lastSizeMode = (await kv.get<unknown>('kv', 'lastSizeMode')) === 'full' ? 'full' : 'typical';
   const recs = await kv.get<unknown>('kv', 'syncRecords');
   syncRecords = sanitizeSyncRecords(recs);
@@ -838,7 +979,12 @@ function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
   if (raw && typeof raw === 'object') {
     for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
       const r = v as Partial<SyncRecord> | null;
-      if (r && typeof r.revision === 'number' && Number.isFinite(r.revision) && typeof r.hash === 'string') out[k] = { revision: r.revision, hash: r.hash };
+      if (r && typeof r.revision === 'number' && Number.isFinite(r.revision) && typeof r.hash === 'string') {
+        out[k] = { revision: r.revision, hash: r.hash };
+        if (typeof r.photo === 'string' && /^(none|kept|[0-9a-f]{64}@[0-9a-z]+:[0-9a-z]+)$/.test(r.photo)) out[k].photo = r.photo;
+        if (r.held === 'room' || r.held === 'refused') out[k].held = r.held;
+        else if ((r.held as unknown) === true) out[k].held = 'room'; // (an early test build stored true)
+      }
     }
   }
   return out;
@@ -847,7 +993,7 @@ function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
 export function _resetStorageForTests() {
   kv = null; clipboardCache = null; storedImageKeys = new Set(); committedImageKeys = new Set();
   quotaWarned = false; lastBackupAt = null; myPlantsRaw = []; lastSizeMode = 'typical'; editSeq = 0; savedSeq = 0; saveFailing = false;
-  lastFailureJournalAt = 0; unreplayed.clear(); syncRecords = {}; syncTombstones = {}; syncUserId = null; changeCounts.clear();
+  lastFailureJournalAt = 0; unreplayed.clear(); syncRecords = {}; syncTombstones = {}; syncUserId = null; changeCounts.clear(); plantSync = { records: {}, edited: {} };
   saveChain = Promise.resolve(true);
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;

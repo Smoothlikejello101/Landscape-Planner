@@ -199,6 +199,7 @@ export function resetCurrentProject() {
   state.offsetY = -10;
   state.panel = null;
   state.bgImage = null;
+  state.photoElsewhere = null;
   state.bgEditMode = false;
   state.bgCalibrate = null;
   state.draw = null;

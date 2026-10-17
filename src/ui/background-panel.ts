@@ -1,6 +1,7 @@
-import { finishBgCalibration, handleBgImageFile, removeBgImage, startBgCalibration, updateBgImage, updateBgImageSilent } from '../background';
+import { finishBgCalibration, handleBgImageFile, removeBgImage, setPhotoDeviceOnly, startBgCalibration, updateBgImage, updateBgImageSilent } from '../background';
 import { el } from '../dom';
 import { I } from '../icons';
+import { account } from '../account';
 import { state } from '../state';
 import { render } from './render';
 import { snapRot } from '../util';
@@ -34,6 +35,12 @@ export function renderBgPanel() {
   body.appendChild(uploadBtn);
 
   if (!bg) {
+    const away = state.photoElsewhere;
+    if (away) {
+      body.insertBefore(el('div', { className: 'hint', 'data-testid': 'photo-elsewhere' }, 'deviceOnly' in away
+        ? 'This plan’s background photo is kept on another device only.'
+        : 'This plan’s background photo hasn’t come down to this device yet. It will at the next sync.'), uploadBtn);
+    }
     body.appendChild(el('div', { style: { fontSize: '13px', color: '#57534e', lineHeight: '1.5' } },
       'Use a straight-down view of your property: a drone photo taken looking directly down from well above the roof, ',
       'a survey or plat scan, or aerial imagery you have the right to use (many county GIS sites publish aerials). ',
@@ -147,6 +154,18 @@ export function renderBgPanel() {
     el('div', { className: 'field' }, el('label', {}, 'Center X (ft)'), xInput),
     el('div', { className: 'field' }, el('label', {}, 'Center Y (ft)'), yInput)
   ));
+
+  // Sync: the photo goes with the plan unless it's kept here.
+  if (account.status === 'signedIn') {
+    const keep = el('input', { type: 'checkbox' }) as HTMLInputElement;
+    keep.checked = !!bg.deviceOnly;
+    keep.addEventListener('change', () => { setPhotoDeviceOnly(keep.checked); render(); });
+    body.appendChild(el('div', { className: 'field' },
+      el('label', { className: 'check-row', 'data-testid': 'photo-device-only' }, keep, el('span', {}, 'Keep this photo on this device only')),
+      el('div', { className: 'hint' }, keep.checked
+        ? 'The plan syncs without it; your other devices show the plan alone.'
+        : 'It syncs with the plan to your other devices, in storage only your account can read.')));
+  }
 
   // Remove button
   const rmBtn = el('button', { className: 'btn danger', html: I.trash + '<span style="margin-left:6px">Remove background image</span>' });
