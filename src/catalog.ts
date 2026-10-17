@@ -46,10 +46,20 @@ export interface Provenance {
   check?: Check;
   /** Taken from the species (the plant is a cultivar that doesn't say). */
   inherited?: boolean;
+  /** Looked up, and none of the sources say (the value is left out). */
+  unknown?: boolean;
 }
 
-/** Facts a cultivar takes from its species when it doesn't state them: all but size. */
-const NOT_INHERITED = new Set(['height', 'width']);
+/**
+ * Facts a cultivar takes from its species when it doesn't state them: what
+ * comes with the species (where it's native, what it tolerates, what it
+ * feeds, how toxic it is). Not size, trunk, flower color or habit, which
+ * cultivars are bred to change.
+ */
+export const INHERITED = new Set([
+  'form', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'humidity', 'tox', 'dog', 'thorns',
+  'native', 'host', 'nectar', 'bird', 'deer', 'edible', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'invasive',
+]);
 
 const isSourced = (f: unknown): f is SourcedFact =>
   !!f && typeof f === 'object' && !Array.isArray(f) && 'v' in (f as object);
@@ -75,13 +85,16 @@ export function resolveCatalog(file: CatalogFile): Plant[] {
     if (rec.short) p.short = rec.short;
     if (rec.parent) p.parent = rec.parent;
     const prov: Record<string, Provenance> = {};
-    const keys = new Set([...Object.keys(rec.facts), ...(parent ? Object.keys(parent.facts).filter((k) => !NOT_INHERITED.has(k)) : [])]);
+    const keys = new Set([...Object.keys(rec.facts), ...(parent ? Object.keys(parent.facts).filter((k) => INHERITED.has(k)) : [])]);
     for (const key of keys) {
       const own = factOf(rec, key);
       const got = own ?? (parent ? factOf(parent, key) : undefined);
-      if (!got || got.v == null) continue; // unknown: left out
+      if (!got) continue;
+      const pv = own ? got.prov : { ...got.prov, inherited: true };
+      // Known unknown: no value, but the record says the sources were checked.
+      if (got.v == null) { prov[key] = { ...pv, unknown: true }; continue; }
       (p as unknown as Record<string, unknown>)[key] = got.v;
-      prov[key] = own ? got.prov : { ...got.prov, inherited: true };
+      prov[key] = pv;
     }
     p.prov = prov;
     // Not yet audited, or (a cultivar) leaning on a species that isn't.
@@ -100,9 +113,11 @@ export function isCatalogV2(d: unknown): d is CatalogFile {
 const SUN = ['Full', 'Part', 'Shade'];
 const TOX_ANIMAL = ['nontoxic', 'toxic', 'unlisted'];
 const TOX_PEOPLE = ['major', 'minor', 'oxalates', 'dermatitis', 'unlisted'];
+const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const isRange = (v: unknown) => {
-  const r = v as { min?: unknown; max?: unknown; med?: unknown };
-  return !!r && typeof r === 'object' && ['min', 'max', 'med'].every((k) => r[k as 'min'] == null || (typeof r[k as 'min'] === 'number' && (r[k as 'min'] as number) > 0));
+  if (!isObj(v)) return false;
+  const keys = Object.keys(v);
+  return keys.length > 0 && keys.every((k) => ['min', 'max', 'med'].includes(k) && typeof v[k] === 'number' && (v[k] as number) > 0);
 };
 const isMonth = (v: unknown) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 12;
 /** Fact types: what a value must look like. Unknown fact names are errors (typos). */
@@ -114,16 +129,11 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
   zone_max: (v) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 13,
   sun_most: (v) => SUN.includes(v as string), sun_least: (v) => SUN.includes(v as string),
   water: (v, e) => typeof v === 'string' && (!e.water || e.water.includes(v)),
-  bloom: (v) => {
-    const b = v as { start?: unknown; end?: unknown; color?: unknown };
-    return !!b && typeof b === 'object' && (b.start == null || isMonth(b.start)) && (b.end == null || isMonth(b.end)) && (b.color == null || typeof b.color === 'string');
-  },
+  bloom: (v) => isObj(v) && Object.keys(v).every((k) => ['start', 'end', 'color'].includes(k))
+    && (v.start == null || isMonth(v.start)) && (v.end == null || isMonth(v.end)) && (v.color == null || typeof v.color === 'string'),
   humidity: (v) => v === 'humid' || v === 'dry' || v === 'either',
-  tox: (v) => {
-    const t = v as Record<string, unknown>;
-    if (!t || typeof t !== 'object') return false;
-    return Object.entries(t).every(([k, x]) => (k === 'people' ? TOX_PEOPLE : ['dog', 'cat', 'horse'].includes(k) ? TOX_ANIMAL : []).includes(x as string));
-  },
+  tox: (v) => isObj(v) && Object.keys(v).length > 0
+    && Object.entries(v).every(([k, x]) => (k === 'people' ? TOX_PEOPLE : ['dog', 'cat', 'horse'].includes(k) ? TOX_ANIMAL : []).includes(x as string)),
   thorns: (v) => typeof v === 'boolean',
   trunk: (v) => typeof v === 'number' && v > 0 && v <= 20,
   native: (v, e) => typeof v === 'string' && (!e.native || e.native.includes(v)),
@@ -140,6 +150,7 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
   taproot: (v) => typeof v === 'boolean', invasive: (v) => typeof v === 'boolean',
 };
 export const FACT_NAMES = Object.keys(FACT_TYPES);
+const RECORD_KEYS = new Set(['id', 'common', 'botanical', 'short', 'synonyms', 'usda', 'parent', 'src', 'audited', 'facts']);
 const STATE = /^[A-Z]{2}$/;
 
 /** Structural problems (the file mustn't ship with any). */
@@ -147,6 +158,9 @@ export function catalogErrors(file: CatalogFile): string[] {
   const errs: string[] = [];
   const enums = file.meta.enums ?? {};
   const sources = file.meta.sources ?? {};
+  for (const [id, s] of Object.entries(sources)) {
+    if (!s || typeof s.title !== 'string' || !['reference', 'observation', 'unverified'].includes(s.trust)) errs.push(`source ${id}: needs a title and a trust of reference, observation or unverified`);
+  }
   const ids = new Map<string, number>();
   for (const r of file.plants) ids.set(r.id, (ids.get(r.id) ?? 0) + 1);
   for (const [id, n] of ids) if (n > 1) errs.push(`${id}: id used ${n} times`);
@@ -155,6 +169,11 @@ export function catalogErrors(file: CatalogFile): string[] {
     const at = r.id || '(no id)';
     if (!/^[a-z0-9-]+$/.test(r.id ?? '')) errs.push(`${at}: id must be lowercase letters, digits and dashes`);
     if (typeof r.common !== 'string' || !r.common.trim()) errs.push(`${at}: no common name`);
+    // Typos at the top level (a "parnet") would otherwise vanish silently.
+    for (const k of Object.keys(r)) if (!RECORD_KEYS.has(k)) errs.push(`${at}: unknown key ${k}`);
+    for (const k of ['botanical', 'short', 'usda', 'parent'] as const) if (r[k] != null && typeof r[k] !== 'string') errs.push(`${at}: ${k} must be text`);
+    if (r.synonyms != null && !(Array.isArray(r.synonyms) && r.synonyms.every((x) => typeof x === 'string'))) errs.push(`${at}: synonyms must be a list of names`);
+    if (r.src != null && !(Array.isArray(r.src) && r.src.every((x) => typeof x === 'string'))) errs.push(`${at}: src must be a list of source ids`);
     if (r.parent) {
       const p = byId.get(r.parent);
       if (!p) errs.push(`${at}: parent ${r.parent} isn't in the catalog`);
@@ -171,6 +190,7 @@ export function catalogErrors(file: CatalogFile): string[] {
       if (!f.prov.src.length) errs.push(`${at}.${key}: no source`);
       for (const s of f.prov.src) if (!sources[s]) errs.push(`${at}.${key}: unknown source ${s}`);
       if (isSourced(raw)) {
+        for (const k of Object.keys(raw)) if (!['v', 'src', 'at', 'check'].includes(k)) errs.push(`${at}.${key}: unknown key ${k}`);
         if (raw.at != null && !STATE.test(raw.at)) errs.push(`${at}.${key}: "at" must be a state code`);
         if (raw.check != null && !['agree', 'disputed', 'single'].includes(raw.check)) errs.push(`${at}.${key}: unknown check ${raw.check}`);
       }

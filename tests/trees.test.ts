@@ -63,6 +63,7 @@ describe('trees with a catalog trunk size', () => {
     expect(trunkDiameter(t(40))).toBe(4);
     expect(trunkDiameter(t(50))).toBe(4); // never bigger than mature
     expect(fullTrunkDiameter(t(20))).toBe(4);
+    expect(fullTrunkDiameter(t(1))).toBe(4); // the catalog's size, not a tiny trunk's rounding scaled up
     expect(trunkDiameter(t(20, { trunk: 1 }))).toBe(1); // by hand wins
   });
 });

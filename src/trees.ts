@@ -41,7 +41,9 @@ export function trunkDiameter(s: CircleShape): number {
 export function fullTrunkDiameter(s: CircleShape): number | null {
   const full = fullRingRadius(s);
   if (!full) return null;
-  const d = quarter(trunkDiameter(s) * full / s.radius);
+  // The catalog's mature trunk, when it has one (scaling the drawn trunk back up would magnify its rounding).
+  const p = s.plantId ? plantsById[s.plantId] : undefined;
+  const d = p?.trunk && s.trunk == null ? p.trunk : quarter(trunkDiameter(s) * full / s.radius);
   return d > trunkDiameter(s) ? d : null;
 }
 

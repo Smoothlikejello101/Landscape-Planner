@@ -167,11 +167,18 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (f.q.trim() && searchRank(p, f.q) < 0) return false;
   return true;
 }
+/** The older list's dog rating, when it's a warning (anything but "Safe" or "Unverified"). */
+export function oldDogWarning(p: Plant): string | null {
+  return p.dog && p.dog !== 'Safe' && p.dog !== 'Unverified' ? p.dog : null;
+}
 /**
- * Listed non-toxic to dogs by the ASPCA; until a plant has been checked
- * against the ASPCA list, the older list's "Safe" (shown as unverified).
+ * Non-toxic to dogs: listed non-toxic by the ASPCA (not merely unlisted:
+ * unlisted isn't safe); until a plant has been checked against the ASPCA,
+ * the older list's "Safe". Any warning from the older list still holds
+ * until the audit removes it, so the two can only agree to call a plant safe.
  */
 export function nonToxicToDogs(p: Plant): boolean {
+  if (oldDogWarning(p)) return false;
   return p.tox?.dog ? p.tox.dog === 'nontoxic' : p.dog === 'Safe';
 }
 /** Why a plant matched a search: by its name, its botanical name, or what it hosts. */
@@ -278,7 +285,9 @@ export function plantMetaLine(p: Plant): string {
   }
   if (p.invasive) bits.push('INVASIVE: not for planting');
   if (p.tox?.dog === 'toxic') bits.push('toxic to dogs (ASPCA)');
-  else if (!p.tox?.dog && p.dog && p.dog !== 'Safe') bits.push('dog: ' + p.dog);
+  const oldDog = oldDogWarning(p);
+  if (oldDog) bits.push('dog: ' + oldDog);
+  else if (!p.tox?.dog && p.dog === 'Unverified') bits.push('dog: Unverified');
   if (p.sun_most) bits.push(p.sun_most === p.sun_least ? p.sun_most + ' sun' : p.sun_most + '-' + p.sun_least);
   const tags: string[] = [];
   if (p.dry_shade) tags.push('dry shade');

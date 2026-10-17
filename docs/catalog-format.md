@@ -55,8 +55,10 @@ compendium: claims with no source behind them).
   plan, optional `synonyms` and `usda` symbol) sit at the top level. They
   identify the record rather than describe the plant.
 - **`parent`**: a cultivar points to its species. Facts it doesn't state come
-  from the species (native status, toxicity, zones, wildlife value and so on),
-  except size: a dwarf cultivar is not the size of its species.
+  from the species when they come with the species: where it's native, what
+  it tolerates (zones, sun, water, soil, humidity), what it feeds, how toxic
+  it is (`INHERITED` in src/catalog.ts). Not size, trunk, flower color or
+  habit, which cultivars are bred to change.
 - **`src`**: the sources for every fact that doesn't name its own.
 - **`audited`**: the date the audit re-derived this record from sources, or
   `null`. Until then the app labels the record's values as unverified.
@@ -70,7 +72,8 @@ compendium: claims with no source behind them).
     source only).
 
 A fact that is `null` is known to be unknown: the sources were checked and
-none say. A missing fact simply hasn't been looked up.
+none say (the app keeps that, without a value). A missing fact simply
+hasn't been looked up.
 
 ## Facts
 
@@ -96,8 +99,11 @@ none say. A missing fact simply hasn't been looked up.
 ## Checks
 
 `npm test` runs `tests/catalog.test.ts` over the shipped file. It fails on
-anything structural: duplicate ids, a missing parent, a cultivar whose parent
-is itself a cultivar, a fact citing an unknown source, a value of the wrong
-type or outside its enum. `node scripts/catalog/check.mjs` lists the softer
-problems for the audit to look at: sizes that are implausible for the form,
-zones backwards, a cultivar with no species in the catalog.
+anything structural: duplicate ids, unknown keys (typos), a missing parent, a
+cultivar whose parent is itself a cultivar, a fact citing an unknown source,
+a value of the wrong type or outside its enum.
+
+`npm run catalog:check` (scripts/catalog/check.ts) lists the softer problems
+for the audit to look at: sizes implausible for the form, zones backwards, a
+cultivar with no species in the catalog, a cultivar whose botanical name
+doesn't name it.

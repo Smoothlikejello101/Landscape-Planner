@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+// @ts-expect-error: a plain JS script
+import { convertV1 } from '../scripts/catalog/convert-v1.mjs';
 import { catalogErrors, catalogWarnings, isCatalogV2, resolveCatalog, type CatalogFile, type CatalogRecord } from '../src/catalog';
 
 const shipped = JSON.parse(readFileSync(new URL('../public/plants.json', import.meta.url), 'utf8'));
@@ -33,21 +35,24 @@ describe('records', () => {
   });
   const cultivar = rec({ id: 'haas-halo', common: "Smooth hydrangea 'Haas' Halo'", short: "'Haas' Halo' hydrangea", parent: 'hydrangea-arborescens', audited: '2026-11-02', src: ['ncsu'], facts: { width: { min: 4, max: 6 } } });
 
-  it('fill a cultivar from its species, except its size, and say so', () => {
+  it('fill a cultivar from its species with what comes with the species, and say so', () => {
     const [, c] = resolveCatalog({ meta, plants: [species, cultivar] });
     expect(c).toMatchObject({ short: "'Haas' Halo' hydrangea", parent: 'hydrangea-arborescens', form: 'Shrub', tox: { dog: 'toxic' }, width: { min: 4, max: 6 } });
     expect(c.prov!.tox).toEqual({ src: ['mobot'], inherited: true });
-    expect(c.prov!.bloom).toEqual({ src: ['mobot', 'ncsu'], at: 'MO', check: 'agree', inherited: true });
     expect(c.prov!.width).toEqual({ src: ['ncsu'] });
+    expect(c.bloom).toBeUndefined(); // flower color is what cultivars are bred to change
     expect(c.unverified).toBeUndefined();
     // A species not yet audited makes what the cultivar takes from it unverified too.
     const [, c2] = resolveCatalog({ meta, plants: [{ ...species, audited: null }, cultivar] });
     expect(c2.unverified).toBe(true);
   });
-  it('treat a null fact as known unknown (left out), and a cultivar never inherits size', () => {
-    const [, c] = resolveCatalog({ meta, plants: [species, rec({ id: 'c', common: 'C', parent: 'hydrangea-arborescens', facts: { tox: null } })] });
+  it('treat a null fact as known unknown (left out, but recorded), and a cultivar never inherits size or trunk', () => {
+    const sp = { ...species, facts: { ...species.facts, trunk: 2 } };
+    const [, c] = resolveCatalog({ meta, plants: [sp, rec({ id: 'c', common: 'C', parent: 'hydrangea-arborescens', facts: { tox: null } })] });
     expect(c.tox).toBeUndefined(); // the cultivar's own "unknown" wins over the species
+    expect(c.prov!.tox).toEqual({ src: ['compendium'], unknown: true });
     expect(c.width).toBeUndefined();
+    expect(c.trunk).toBeUndefined();
   });
   it('are checked for anything that would break the app', () => {
     const bad: CatalogFile = { meta, plants: [
@@ -55,6 +60,7 @@ describe('records', () => {
       rec({ id: 'a', parent: 'b' }),
       rec({ id: 'b', parent: 'a', facts: { bloom: { v: { start: 13 }, src: ['nowhere'] } } }),
       rec({ id: 'Bad Id', facts: { tox: { dog: 'safe' }, width: { v: { min: 2 }, at: 'Arkansas' } } }),
+      { ...rec({ id: 'typos', short: 3 as unknown as string, facts: { height: [], tox: {}, bloom: { v: { start: 5 }, sources: ['mobot'] } } }), parnet: 'a' } as CatalogRecord,
     ] };
     expect(catalogErrors(bad)).toEqual([
       'a: id used 2 times',
@@ -67,7 +73,13 @@ describe('records', () => {
       'Bad Id: id must be lowercase letters, digits and dashes',
       'Bad Id.tox: unexpected value {"dog":"safe"}',
       'Bad Id.width: "at" must be a state code',
+      'typos: unknown key parnet',
+      'typos: short must be text',
+      'typos.height: unexpected value []',
+      'typos.tox: unexpected value {}',
+      'typos.bloom: unknown key sources',
     ]);
+    expect(catalogErrors({ meta: { ...meta, sources: { x: { title: 'X', trust: 'maybe' as 'reference' } } }, plants: [] })).toEqual(['source x: needs a title and a trust of reference, observation or unverified']);
     expect(catalogErrors({ meta, plants: [species, cultivar] })).toEqual([]);
   });
   it('list implausible values for the audit', () => {
@@ -78,5 +90,24 @@ describe('records', () => {
       "p: named as a cultivar, but its botanical name doesn't say which",
       'p: no spread',
     ]);
+  });
+});
+
+describe('converting the first catalog', () => {
+  const v1 = { meta: { enums: { nectar: ['Low', 'High'] } }, plants: [
+    { id: 'monarda-didyma', common: "Beebalm 'Jacob Cline'", botanical: 'Monarda didyma', host: 'Hermit sphinx' },
+    { id: 'monarda-didyma-rw', common: "Beebalm 'Raspberry Wine'", botanical: "Monarda didyma 'Raspberry Wine'" },
+    { id: 'panicum-n', common: "Switchgrass 'Northwind'", botanical: 'Panicum virgatum' },
+    { id: 'panicum', common: 'Switchgrass (species)', botanical: 'Panicum virgatum', host: 'Skippers', width: null },
+    { id: 'panicum-s', common: "Switchgrass 'Shenandoah'", botanical: "Panicum virgatum 'Shenandoah'" },
+  ] };
+  const out = convertV1(v1, '2026-10-17') as CatalogFile;
+  it('keeps every value, sourced to the first compendium and unaudited', () => {
+    expect(out.plants[3]).toEqual({ id: 'panicum', common: 'Switchgrass (species)', botanical: 'Panicum virgatum', src: ['compendium'], audited: null, facts: { host: 'Skippers' } });
+    expect(catalogErrors(out)).toEqual([]);
+  });
+  it('links a cultivar only to a record that is clearly its species', () => {
+    expect(out.plants.map((p) => p.parent ?? '-')).toEqual(['-', '-', '-', '-', 'panicum']);
+    // Jacob Cline is a cultivar filed under the species name: Raspberry Wine doesn't inherit from it.
   });
 });
