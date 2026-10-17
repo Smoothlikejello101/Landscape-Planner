@@ -11,14 +11,18 @@ import { render } from './render';
 
 function closePicker() { state.panel = null; state.pickerLinkId = null; state.pickerForTree = false; render(); }
 const isTree = (p: Plant) => !!p.form && p.form.startsWith('Tree');
+// My plants folded away in the picker: kept here, and remembered on this device when storage allows.
+const FOLD_KEY = 'lp-my-plants-folded';
+let myPlantsFolded = (() => { try { return localStorage.getItem(FOLD_KEY) === '1'; } catch { return false; } })();
+function setMyPlantsFolded(v: boolean) {
+  myPlantsFolded = v;
+  try { localStorage.setItem(FOLD_KEY, v ? '1' : '0'); } catch { /* folded for now, not remembered */ }
+}
 /**
  * Tap on a plant. Usually: pick it up to place by tapping (or switch to it, if
  * already placing). Opened from a circle's properties: make that circle this
  * plant. Opened from Add, Existing tree: draw that tree's canopy.
  */
-const FOLD_KEY = 'lp-my-plants-folded';
-function myPlantsFolded(): boolean { try { return localStorage.getItem(FOLD_KEY) === '1'; } catch { return false; } }
-function setMyPlantsFolded(v: boolean) { try { localStorage.setItem(FOLD_KEY, v ? '1' : '0'); } catch { /* not remembered */ } }
 function pick(p: Plant) {
   if (state.pickerLinkId) {
     const id = state.pickerLinkId;
@@ -130,11 +134,15 @@ export function renderPlantsPanel() {
     if (mine.length) {
       // My plants fold away (remembered on this device); a search always shows its matches.
       const searching = !!plantFilter.q.trim();
-      const open = searching || !myPlantsFolded();
+      const open = searching || !myPlantsFolded;
       const head = el('button', { className: 'list-heading fold', 'aria-expanded': String(open), 'data-testid': 'my-plants-fold' },
         el('span', {}, `My plants (${mine.length})`), el('span', { className: 'fold-chev', html: I.chevronDown }));
       head.disabled = searching;
-      head.addEventListener('click', () => { setMyPlantsFolded(open); rebuildList(); });
+      head.addEventListener('click', () => {
+        setMyPlantsFolded(open);
+        rebuildList();
+        listWrap.querySelector<HTMLElement>('[data-testid=my-plants-fold]')?.focus(); // keep the place (keyboards, screen readers)
+      });
       listWrap.appendChild(head);
       if (open) for (const p of mine) listWrap.appendChild(buildRow(p));
       if (hits.length) listWrap.appendChild(el('div', { className: 'list-heading' }, 'Catalog'));
