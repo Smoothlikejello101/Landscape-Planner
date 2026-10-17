@@ -4,7 +4,7 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family:
 input, textarea, button, select { font-family: inherit; font-size: inherit; }
 input[type="text"], input[type="number"] { font-size: 16px; }
 button { cursor: pointer; border: none; background: none; padding: 0; color: inherit; }
-.app { height: 100vh; height: 100dvh; width: 100vw; display: flex; flex-direction: column; background: #f5f5f4; overflow: hidden; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+.app { height: 100vh; height: calc(100dvh - var(--kb, 0px)); width: 100vw; display: flex; flex-direction: column; background: #f5f5f4; overflow: hidden; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
 /* Top bar */
 .topbar { display: flex; align-items: center; padding: 6px 8px; background: #fff; border-bottom: 1px solid #e7e5e4; flex-shrink: 0; gap: 4px; min-height: 44px; }
 .project-btn { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-radius: 6px; }
@@ -62,11 +62,11 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .tool-btn.plants { background: #365314; }
 .tool-btn.plants:active { background: #1a2e05; }
 /* Modal/sheet common */
-.overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
+.overlay { position: absolute; inset: 0 0 var(--kb, 0px) 0; background: rgba(0,0,0,0.4); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
 .overlay.center { align-items: center; padding: 12px; }
 .overlay.top { align-items: flex-start; padding-top: 60px; }
-.sheet { background: #fff; width: 100%; max-height: 85vh; border-radius: 16px 16px 0 0; overflow-y: auto; box-shadow: 0 -4px 16px rgba(0,0,0,0.1); }
-.modal { background: #fff; border-radius: 8px; max-width: 400px; width: 100%; box-shadow: 0 4px 16px rgba(0,0,0,0.2); max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
+.sheet { background: #fff; width: 100%; max-height: 85vh; max-height: calc(85dvh - var(--kb, 0px)); border-radius: 16px 16px 0 0; overflow-y: auto; box-shadow: 0 -4px 16px rgba(0,0,0,0.1); }
+.modal { background: #fff; border-radius: 8px; max-width: 400px; width: 100%; box-shadow: 0 4px 16px rgba(0,0,0,0.2); max-height: 90vh; max-height: 90dvh; display: flex; flex-direction: column; overflow: hidden; }
 .menu { background: #fff; border-radius: 8px; max-width: 240px; width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.18); max-height: 80vh; overflow-y: auto; }
 .menu-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; font-size: 14px; color: #292524; cursor: pointer; width: 100%; text-align: left; }
 .menu-item:hover { background: #f5f5f4; }

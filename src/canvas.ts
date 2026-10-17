@@ -1,7 +1,7 @@
 import { renderBgHandles, renderBgImageInto } from './background';
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from './constants';
 import { svgEl, type Attrs } from './dom';
-import { boxSize, shapeBBox, shapeCenter, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, worldPoints } from './geometry';
+import { alongLabel, boxSize, shapeBBox, shapeCenter, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, worldPoints } from './geometry';
 import { renderPathOverlay } from './draw';
 import { fullRingRadius } from './my-plants';
 import { crowdedIds } from './crowding';
@@ -186,7 +186,14 @@ export function shapeGroup(s: Shape): SVGGElement {
     labelX = (lp.x - state.offsetX) * ppf; labelY = (lp.y - state.offsetY) * ppf;
     const { w, h } = boxSize(s);
     fs = s.type === 'line' ? 12 : Math.max(10, Math.min(14, Math.min(w, h) * ppf * 0.2));
-    if (s.type === 'line' && !s.pathWidth) labelY -= 10; // above a thin line, not on it (a path's label sits on it)
+    if (s.role === 'boundary') {
+      // A property line or fence is named along itself, just beside the line, not in the middle of the yard.
+      const al = alongLabel(s);
+      labelX = (al.x - state.offsetX) * ppf; labelY = (al.y - state.offsetY) * ppf;
+      if (al.angle) rotTransform = `rotate(${al.angle} ${labelX} ${labelY})`;
+      labelY -= 9;
+      fs = 12;
+    } else if (s.type === 'line' && !s.pathWidth) labelY -= 10; // above a thin line, not on it (a path's label sits on it)
   } else {
     const px = (s.x - state.offsetX) * ppf;
     const py = (s.y - state.offsetY) * ppf;
@@ -357,7 +364,8 @@ function refreshLabelLayout() {
       // Other shapes' names (a bed's, a path's) are there first: plant names stay off them.
       const label = s.type === 'text' ? '' : displayLabel(s);
       if (!label) continue;
-      const at = s.type === 'poly' || s.type === 'line' ? pathLabelPoint(s) : shapeCenter(s);
+      const at = s.role === 'boundary' && (s.type === 'poly' || s.type === 'line') ? alongLabel(s)
+        : s.type === 'poly' || s.type === 'line' ? pathLabelPoint(s) : shapeCenter(s);
       const w = textWidth1(label) * 12, h = 14;
       placed.push({ x0: at.x * ppf - w / 2, x1: at.x * ppf + w / 2, y0: at.y * ppf - h / 2, y1: at.y * ppf + h / 2 });
       continue;

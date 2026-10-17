@@ -57,7 +57,8 @@ export const KINDS: KindDef[] = [
     startLabel: (shapes) => (shapes.some((s) => s.role === 'building') ? 'Building' : 'House'),
   },
   { key: 'fence', label: 'Fence', group: 'Buildings and boundaries', role: 'boundary', methods: ['line'], shortcut: 'f', startLabel: named('Fence'), startStatus: 'planted' },
-  { key: 'property', label: 'Property line', group: 'Buildings and boundaries', role: 'boundary', methods: ['poly'], startLabel: named('Property line'), startStatus: 'planted' },
+  // Open by default: a stretch along one neighbor is often all that matters (who draws the far edge of acreage?).
+  { key: 'property', label: 'Property line', group: 'Buildings and boundaries', role: 'boundary', methods: ['line', 'poly'], startLabel: named('Property line'), startStatus: 'planted' },
   { key: 'sun', label: 'Sun exposure', group: 'Site conditions', role: 'shade', methods: ['poly', 'circle'], shortcut: 's', startLabel: named(''), openProps: true },
   { key: 'water', label: 'Pond, water', group: 'Site conditions', role: 'water', methods: ['poly', 'circle', 'oval'], startLabel: named('Pond'), startStatus: 'planned' },
   { key: 'note', label: 'Note', group: 'Notes and tools', role: 'other', methods: ['note'], shortcut: 'n', startLabel: named(''), openProps: true },
@@ -71,6 +72,30 @@ export const KIND_GROUPS = [...new Set(KINDS.map((k) => k.group))];
 export function kindForShortcut(key: string): KindDef | undefined {
   const k = key.toLowerCase();
   return KINDS.find((d) => d.shortcut === k);
+}
+
+/**
+ * The kind a shape was most likely added as (kinds aren't stored: a patio is
+ * a path-role shape labeled Patio), for adding another of the same. Plants
+ * have their own way (placing), so they're null here.
+ */
+export function kindOfShape(s: Shape): KindKey | null {
+  const label = s.label.toLowerCase();
+  switch (s.role) {
+    case 'plant': return null;
+    case 'bed': return 'bed';
+    case 'lawn': return 'lawn';
+    case 'water': return 'water';
+    case 'shade': return 'sun';
+    case 'building': return 'building';
+    case 'boundary': return label.includes('property') ? 'property' : 'fence';
+    case 'path':
+      if (label.includes('drive')) return 'driveway';
+      if (label.includes('patio') || label.includes('deck')) return 'patio';
+      return s.type === 'line' ? 'path' : 'patio';
+    case 'other': return s.type === 'text' ? 'note' : s.type === 'line' && s.showLength ? 'measure' : 'plain';
+    default: return 'plain';
+  }
 }
 
 export const METHOD_LABELS: Record<Method, string> = {

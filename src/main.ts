@@ -1,5 +1,6 @@
 import './styles.css';
 import { resizeCanvas } from './canvas';
+import { fitAboveKeyboard } from './keyboard';
 import { cancelGestures, onCanvasPointerMove, onCanvasPointerUp } from './gestures';
 import { pushHistory, redo, undo } from './history';
 import { copySelected, deleteSelected, duplicateSelected, paste } from './mutations';
@@ -22,11 +23,18 @@ import { render } from './ui/render';
 // IMPORTANT: window resize calls resizeCanvas ONLY, never render().
 // Android keyboard appearing fires a viewport resize; a full render()
 // destroys focused inputs.
-window.addEventListener('resize', () => { resizeCanvas(); });
+window.addEventListener('resize', () => { fitAboveKeyboard(); resizeCanvas(); });
 // Same goes for visualViewport resize (covers iOS keyboard + zoom)
 if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', () => { resizeCanvas(); });
+  window.visualViewport.addEventListener('resize', () => { fitAboveKeyboard(); resizeCanvas(); });
 }
+// With the keyboard open, the field being typed in is scrolled into view
+// (its sheet has just become shorter). Scrolling only: nothing re-renders.
+document.addEventListener('focusin', (e) => {
+  const t = e.target as HTMLElement | null;
+  if (!t || !t.matches('input, textarea, select') || !t.closest('.sheet, .modal')) return;
+  setTimeout(() => { if (document.activeElement === t) t.scrollIntoView({ block: 'nearest' }); }, 350);
+});
 
 // Pointer moves and releases are watched on the whole window, not just the
 // canvas: a finger lifted over the toolbar must still end the gesture, or a

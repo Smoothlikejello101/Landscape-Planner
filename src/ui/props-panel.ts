@@ -2,7 +2,8 @@ import { SWATCHES } from '../constants';
 import { el, escapeHtml } from '../dom';
 import { I } from '../icons';
 import { isLocked, roleKey, roleLabel, roleLocked } from '../roles';
-import { convertToOutline, startEditPoints } from '../draw';
+import { convertToOutline, startEditPoints, startKind, startTreeDraw } from '../draw';
+import { kindDef, kindOfShape } from '../kinds';
 import { boxSize, resizedPoints, shapeArea, shapePerimeter } from '../geometry';
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
@@ -14,7 +15,7 @@ import { state } from '../state';
 import { render } from './render';
 import type { CircleShape, Corner, RoleKey, Shape } from '../types';
 import { formatSize, isMine, plantRadius, type Range } from '../my-plants';
-import { plantsById, type Plant } from '../plants';
+import { plantFilter, plantsById, type Plant } from '../plants';
 import { isTree, trunkFor } from '../trees';
 import { MAX_TRUNK, MIN_TRUNK } from '../constants';
 import { statusSection, statusSummary } from './status-section';
@@ -326,12 +327,12 @@ function actionRow(single: boolean): HTMLElement {
     arrangeBtn.addEventListener('click', () => { state.panel = 'arrange'; render(); });
     row.appendChild(arrangeBtn);
   }
-  // More of the same plant is placed tap by tap, which beats copying and dragging.
-  const p = placeMorePlant(getSelected());
-  if (p) {
-    const more = el('button', { className: 'btn secondary', 'data-testid': 'place-more', html: I.plus + '<span>Place more</span>', title: `Place more ${p.common}` });
-    more.addEventListener('click', () => { startPlacing(p); render(); });
-    row.appendChild(more);
+  // More of the same plant is placed tap by tap (a tree drawn), which beats copying and dragging.
+  const more = moreOfSame(getSelected(), false);
+  if (more) {
+    const b = el('button', { className: 'btn secondary', 'data-testid': 'place-more', html: I.plus + `<span>${more.tree ? 'Draw another' : 'Place more'}</span>`, title: more.title });
+    b.addEventListener('click', () => { more.start(); render(); });
+    row.appendChild(b);
   } else {
     const dupBtn = el('button', { className: 'btn ghost', html: I.copy + '<span>Duplicate</span>' });
     dupBtn.addEventListener('click', () => { duplicateSelected(); render(); });
@@ -348,6 +349,30 @@ export function placeMorePlant(selected: Shape[]): Plant | null {
   if (ids.size !== 1) return null;
   const id = [...ids][0];
   return (id && plantsById[id]) || null;
+}
+export interface MoreOfSame { title: string; start: () => void; tree: boolean }
+/**
+ * Adding more of what's selected, the way it was added: a plant is placed
+ * tap by tap; a tree already in the yard is drawn (trunk, then canopy) as the
+ * same tree; with `drawn`, anything else drawn (a bed, a fence) starts
+ * drawing another of its kind. Null when there's no one thing to add more of.
+ */
+export function moreOfSame(selected: Shape[], drawn: boolean): MoreOfSame | null {
+  if (!selected.length) return null;
+  // Existing trees: all the same tree (or all unknown trees).
+  if (selected.every((s) => s.type === 'circle' && s.role === 'plant' && s.tree && s.sizeFrom === 'manual')) {
+    const ids = new Set(selected.map((s) => s.plantId ?? ''));
+    if (ids.size !== 1) return null;
+    const id = [...ids][0];
+    const p = id ? plantsById[id] : undefined;
+    if (id && !p) return null; // its details aren't on this device
+    return { title: `Draw another ${p ? p.common : 'tree'}`, start: () => startTreeDraw(p?.id), tree: true };
+  }
+  const p = placeMorePlant(selected);
+  if (p) return { title: `Place more ${p.common}`, start: () => startPlacing(p), tree: false };
+  if (!drawn || selected.length !== 1) return null;
+  const kind = kindOfShape(selected[0]);
+  return kind ? { title: `Add another: ${kindDef(kind).label}`, start: () => startKind(kind), tree: false } : null;
 }
 /** A tree's trunk: in proportion to the canopy unless set by hand; a shaped canopy can be made round again. */
 function trunkFields(s: CircleShape): Node[] {
@@ -377,7 +402,7 @@ function plantLinkSection(s: CircleShape): HTMLElement {
   if (!p && s.role && s.role !== 'plant' && s.role !== 'other') return wrap; // a pond or a tree trunk isn't a plant to link
   if (!p) {
     const link = el('button', { className: 'btn ghost' }, s.plantId ? 'Link to a plant again…' : 'Link to a plant…');
-    link.addEventListener('click', () => { state.pickerLinkId = s.id; state.panel = 'plants'; render(); });
+    link.addEventListener('click', () => { state.pickerLinkId = s.id; plantFilter.q = ''; state.panel = 'plants'; render(); });
     wrap.appendChild(link);
     wrap.appendChild(el('div', { className: 'hint' }, s.plantId
       ? "This plant's details aren't on this device (removed from My plants, or the plan came from someone else). Its size and name are kept."
@@ -423,11 +448,11 @@ export function renderPropsPanelMulti(selected: Shape[]) {
   body.appendChild(lockBtn);
 
   // More of the same plant, then duplicate, copy, delete
-  const morePlant = placeMorePlant(selected);
-  if (morePlant) {
-    const more = el('button', { className: 'btn secondary', 'data-testid': 'place-more', html: I.plus + `<span style="margin-left:6px">Place more ${escapeHtml(morePlant.common)}</span>` });
-    more.addEventListener('click', () => { startPlacing(morePlant); render(); });
-    body.appendChild(more);
+  const more = moreOfSame(selected, false);
+  if (more) {
+    const b = el('button', { className: 'btn secondary', 'data-testid': 'place-more', html: I.plus + `<span style="margin-left:6px">${escapeHtml(more.title)}</span>` });
+    b.addEventListener('click', () => { more.start(); render(); });
+    body.appendChild(b);
   }
   const dupBtn = el('button', { className: 'btn ghost', html: I.copy + '<span style="margin-left:6px">Duplicate</span>' });
   dupBtn.addEventListener('click', () => { duplicateSelected(); render(); });

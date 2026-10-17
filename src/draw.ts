@@ -6,7 +6,7 @@ import { state } from './state';
 import { save } from './storage';
 import { buildShape, CANOPY_MIN_TAPS, isKindKey, kindDef, tapAccepted, TAPS_TO_FINISH, type KindKey, type Method } from './kinds';
 import type { DrawState, PathShape, Point, Shape } from './types';
-import { plantColor, plantsById } from './plants';
+import { plantColor, plantFilter, plantsById } from './plants';
 import { snap, uid } from './util';
 
 // Freeform outlines (closed) and lines (open).
@@ -55,6 +55,9 @@ export function startKind(key: KindKey) {
     // Plants are picked first. An existing tree is picked (or "unknown"), then its canopy drawn.
     state.draw = null; state.editPoints = null; state.placing = null; state.pickerLinkId = null; state.menu = null;
     state.pickerForTree = key === 'tree';
+    // A fresh pick starts with an empty search. (Switching plants while placing keeps it:
+    // the next of several plants for the same purpose, say monarch hosts, is likely another match.)
+    plantFilter.q = '';
     state.panel = 'plants';
     return;
   }
