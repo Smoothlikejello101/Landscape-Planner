@@ -54,10 +54,18 @@ export function renderLocationPanel(): HTMLElement {
       el('div', { className: 'hint' }, `ZIP ${loc.zip}`));
     if (loc.frost) {
       const f = loc.frost;
-      card.append(
-        el('div', {}, el('b', {}, 'Last spring frost: '), `about ${formatMonthDay(f.spring)}`, el('span', { className: 'hint' }, ` (1 year in 10, after ${formatMonthDay(f.springLate)})`)),
-        el('div', {}, el('b', {}, 'First fall frost: '), `about ${formatMonthDay(f.fall)}`, el('span', { className: 'hint' }, ` (1 year in 10, before ${formatMonthDay(f.fallEarly)})`)),
-        el('div', { className: 'hint' }, `Frost dates are from the weather station at ${f.station}, ${f.miles} ${f.miles === 1 ? 'mile' : 'miles'} away. Low spots and hilltops can differ by a week or more.`));
+      const where = `the weather station at ${f.station}, ${f.miles} ${f.miles === 1 ? 'mile' : 'miles'} away`;
+      const tenths = Math.round(f.chance / 10);
+      if (f.spring && f.springLate && f.fall && f.fallEarly) {
+        card.append(
+          el('div', {}, el('b', {}, 'Last spring frost: '), `about ${formatMonthDay(f.spring)}`, el('span', { className: 'hint' }, ` (1 year in 10, after ${formatMonthDay(f.springLate)})`)),
+          el('div', {}, el('b', {}, 'First fall frost: '), `about ${formatMonthDay(f.fall)}`, el('span', { className: 'hint' }, ` (1 year in 10, before ${formatMonthDay(f.fallEarly)})`)));
+        if (f.chance < 90) card.append(el('div', {}, `Not every winter brings a freeze here: about ${tenths} in 10 do.`));
+        card.append(el('div', { className: 'hint' }, `Frost dates are from ${where}. Low spots and hilltops can differ by a week or more.`));
+      } else {
+        card.append(el('div', {}, f.chance < 5 ? 'Frost almost never comes here.' : `Frost is rare here: about ${Math.max(1, tenths)} winter${tenths > 1 ? 's' : ''} in 10 see${tenths > 1 ? '' : 's'} a freeze.`),
+          el('div', { className: 'hint' }, `From ${where}.`));
+      }
     } else {
       card.append(el('div', { className: 'hint' }, 'No weather station with frost records is near enough to give frost dates here.'));
     }

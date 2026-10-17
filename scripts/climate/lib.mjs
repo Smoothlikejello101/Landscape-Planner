@@ -57,13 +57,14 @@ export function centersByZip(text) {
 
 const DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 /**
- * A normals date as "MM-DD". NOAA gives these as day of year or MMDD; codes
- * below zero (missing, too few years, freezes every year or never) are none.
+ * A normals date as "MM-DD". NOAA's 1991-2020 files give "MM/DD" (padded with
+ * spaces); day of year and MMDD are read too. -9999 (missing, or too few
+ * years: also where it never freezes) and anything else is none.
  */
 export function monthDay(v) {
   const s = String(v ?? '').trim();
   let m, d;
-  if (/^\d{1,2}-\d{1,2}$/.test(s)) [m, d] = s.split('-').map(Number);
+  if (/^\d{1,2}[-/]\d{1,2}$/.test(s)) [m, d] = s.split(/[-/]/).map(Number);
   else if (/^\d{4}$/.test(s) && Number(s.slice(0, 2)) <= 12) { m = Number(s.slice(0, 2)); d = Number(s.slice(2)); }
   else if (/^\d{1,3}$/.test(s) && Number(s) >= 1 && Number(s) <= 366) {
     let n = Number(s); m = 1;
@@ -76,8 +77,8 @@ export function monthDay(v) {
 /**
  * The NOAA columns used: last spring and first fall 32 °F freeze. P50: half
  * of years either side. P10: 1 year in 10 is riskier (a last spring freeze
- * later than the date; a first fall freeze earlier). (To confirm against the
- * normals documentation when the data is in hand.)
+ * later than the date; a first fall freeze earlier), as NOAA's sample file
+ * shows (spring P10 04/04, P50 03/16, P90 02/26; fall P10 11/04, P50 11/19).
  */
 export const FROST_COLUMNS = {
   spring: 'ANN-TMIN-PRBLST-T32FP50',
@@ -85,22 +86,41 @@ export const FROST_COLUMNS = {
   fall: 'ANN-TMIN-PRBFST-T32FP50',
   fallEarly: 'ANN-TMIN-PRBFST-T32FP10',
 };
-/** Stations with all four frost dates, from NOAA normals rows (STATION, NAME, LATITUDE, LONGITUDE, and the columns above). */
+/** How often a year has a freeze at all (percent), NOAA's ANN-TMIN-PRBOCC-LSTH032. */
+export const CHANCE_COLUMN = 'ANN-TMIN-PRBOCC-LSTH032';
+/** Below this, freezes are too rare for dates to mean much (they're shown as rare instead). */
+export const DATES_FROM = 50;
+/**
+ * Stations with frost records, from NOAA normals rows (STATION, NAME,
+ * LATITUDE, LONGITUDE, and the columns above). `chance`: percent of years
+ * with a freeze. Dates where freezes come at least half of years; else none.
+ */
 export function frostStations(rows) {
   const out = [];
   for (const r of rows) {
     const lat = Number(r.LATITUDE), lon = Number(r.LONGITUDE);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
     const dates = Object.fromEntries(Object.entries(FROST_COLUMNS).map(([k, col]) => [k, monthDay(r[col])]));
-    if (!Number.isFinite(lat) || !Number.isFinite(lon) || Object.values(dates).some((d) => !d)) continue;
-    out.push({ id: r.STATION, name: stationName(r.NAME ?? r.STATION), lat, lon, ...dates });
+    const complete = Object.values(dates).every(Boolean);
+    const chanceText = String(r[CHANCE_COLUMN] ?? '').trim();
+    const rawChance = chanceText ? Number(chanceText) : NaN; // (blank: the station has no temperature records)
+    const chance = Number.isFinite(rawChance) && rawChance >= 0 && rawChance <= 100 ? Math.round(rawChance) : complete ? 100 : null;
+    if (chance == null) continue; // no frost records
+    const base = { id: r.STATION, name: stationName(r.NAME ?? r.STATION), lat, lon, chance };
+    if (chance >= DATES_FROM) {
+      if (!complete) continue; // freezes most years, but no dates: not useful
+      out.push({ ...base, ...dates });
+    } else out.push(base);
   }
   return out;
 }
 /** "ARKADELPHIA 2 N, AR US" → "Arkadelphia 2 N, AR" */
 export function stationName(raw) {
-  const s = String(raw).replace(/\s+US$/, '').trim();
+  // (The country code after the state goes: US, RQ for Puerto Rico, VQ, GQ…)
+  const s = String(raw).trim().replace(/(,\s*[A-Z]{2})\s+[A-Z]{2}$/, '$1').replace(/\s+US$/, '');
   const [place, state] = s.split(/,\s*/);
-  const nice = place.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase()).replace(/\b(N|S|E|W|NE|NW|SE|SW|Ne|Nw|Se|Sw)\b/g, (x) => x.toUpperCase());
+  const nice = place.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase())
+    .replace(/\b(\d*(?:\.\d+)?)(n|s|e|w|ne|nw|se|sw|nne|nnw|sse|ssw|ene|ese|wnw|wsw)\b/gi, (_, d, x) => d + x.toUpperCase());
   return state ? `${nice}, ${state}` : nice;
 }
 
@@ -118,7 +138,9 @@ export function nearestFinder(stations) {
   return (p) => {
     let best = null, bestMi = Infinity;
     const [la, lo] = [Math.floor(p[0]), Math.floor(p[1])];
-    for (let dy = -1; dy <= 1; dy++) for (let dx = -2; dx <= 2; dx++) {
+    // (A degree of longitude shrinks toward the poles: look as many cells across as 50 miles needs.)
+    const span = Math.ceil(MAX_MILES / (69 * Math.max(0.2, Math.cos((Math.abs(p[0]) + 1) * Math.PI / 180))));
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -span; dx <= span; dx++) {
       for (const s of grid.get(`${la + dy},${lo + dx}`) ?? []) {
         const d = miles(p, [s.lat, s.lon]);
         if (d < bestMi) { bestMi = d; best = s; }
@@ -141,7 +163,11 @@ export function buildFiles(zones, centers, stations, accessed) {
     let si = -1;
     if (near) {
       const s = near.station;
-      if (!f.index.has(s.id)) { f.index.set(s.id, f.stations.length); f.stations.push({ name: s.name, spring: s.spring, springLate: s.springLate, fall: s.fall, fallEarly: s.fallEarly }); }
+      if (!f.index.has(s.id)) {
+        f.index.set(s.id, f.stations.length);
+        const { id: _i, lat: _a, lon: _o, ...shown } = s;
+        f.stations.push(shown);
+      }
       si = f.index.get(s.id);
     }
     f.zips[zip] = [zone, si, near ? near.miles : 0];

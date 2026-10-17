@@ -15,10 +15,12 @@ import { _resetStorageForTests, createProject, flushSave, initStorage, readProje
 const PRISM = 'zipcode,zone,trange,zonetitle\n71923,8a,10 to 15,8a: 10 to 15\n71998,8a,10 to 15,8a: 10 to 15\n72201,8a,10 to 15,8a: 10 to 15\n99999,zz,,\n';
 const GAZ = 'GEOID\tALAND\tAWATER\tALAND_SQMI\tAWATER_SQMI\tINTPTLAT\tINTPTLONG\n71923\t1\t0\t1\t0\t34.0812\t-93.0771\n72201\t1\t0\t1\t0\t34.7476\t-92.2797\n';
 const NORMALS = [
-  'STATION,DATE,LATITUDE,LONGITUDE,ELEVATION,NAME,ANN-TMIN-PRBLST-T32FP50,ANN-TMIN-PRBLST-T32FP10,ANN-TMIN-PRBFST-T32FP50,ANN-TMIN-PRBFST-T32FP10',
-  'USC00030220,1991-2020,34.1167,-93.0500,64,"ARKADELPHIA 2 N, AR US",0324,0408,1106,1024',
-  'USW00013963,1991-2020,34.7275,-92.2389,78,"LITTLE ROCK ADAMS FLD, AR US",3/10,0325,1116,1101',
-  'USC00999999,1991-2020,34.0,-93.0,10,"NO FROST DATA, AR US",-7777,-7777,-7777,-7777',
+  'STATION,DATE,LATITUDE,LONGITUDE,ELEVATION,NAME,ANN-TMIN-PRBLST-T32FP50,ANN-TMIN-PRBLST-T32FP10,ANN-TMIN-PRBFST-T32FP50,ANN-TMIN-PRBFST-T32FP10,ANN-TMIN-PRBOCC-LSTH032',
+  'USC00030220,1991-2020,34.1167,-93.0500,64,"ARKADELPHIA 2 N, AR US",   03/24,   04/08,   11/06,   10/24,  100.0',
+  'USW00013963,1991-2020,34.7275,-92.2389,78,"LITTLE ROCK ADAMS FLD, AR US",   03/10,   03/25,-9999.0,   11/01,  100.0',
+  'USC00999999,1991-2020,34.0,-93.0,10,"NO FROST DATA, AR US",-9999.0,-9999.0,-9999.0,-9999.0,-9999.0',
+  'USC00888888,1991-2020,25.58,-80.43,10,"PERRINE 4W, FL US",   01/18,   02/01,   01/13,   12/31,   11.4',
+  'US1FLMD0001,1991-2020,25.6,-80.4,10,"RAIN GAUGE ONLY, FL US",,,,,',
 ].join('\n');
 
 describe('building the tables', () => {
@@ -26,10 +28,14 @@ describe('building the tables', () => {
     expect([...zonesByZip(PRISM)]).toEqual([['71923', '8a'], ['71998', '8a'], ['72201', '8a']]);
     expect(centersByZip(GAZ).get('71923')).toEqual([34.0812, -93.0771]);
     const st = frostStations(table(NORMALS));
-    expect(st.map((s: { name: string }) => s.name)).toEqual(['Arkadelphia 2 N, AR']); // bad dates and missing values leave a station out
+    // Missing dates (where freezes come most years) or no records leave a station out; a rare-frost station keeps only its chance.
+    expect(st.map((s: { name: string }) => s.name)).toEqual(['Arkadelphia 2 N, AR', 'Perrine 4W, FL']);
+    expect(st[1]).toEqual({ id: 'USC00888888', name: 'Perrine 4W, FL', lat: 25.58, lon: -80.43, chance: 11 });
   });
   it('dates come as month-day, MMDD or day of year; codes for "none" are none', () => {
+    expect(monthDay('   03/24')).toBe('03-24'); // as NOAA's files have it
     expect(monthDay('0324')).toBe('03-24');
+    expect(monthDay('-9999.0')).toBeNull();
     expect(monthDay('3-24')).toBe('03-24');
     expect(monthDay('83')).toBe('03-24');
     expect(monthDay('-7777')).toBeNull();
@@ -41,12 +47,15 @@ describe('building the tables', () => {
     const f = files.get('719')!;
     expect(f.zips['71923']).toEqual(['8a', 0, 3]);
     expect(f.zips['71998']).toEqual(['8a', -1, 0]); // no location: zone only
-    expect(f.stations[0]).toEqual({ name: 'Arkadelphia 2 N, AR', spring: '03-24', springLate: '04-08', fall: '11-06', fallEarly: '10-24' });
+    expect(f.stations[0]).toEqual({ name: 'Arkadelphia 2 N, AR', chance: 100, spring: '03-24', springLate: '04-08', fall: '11-06', fallEarly: '10-24' });
     expect(f.accessed).toBe('2026-10-17');
-    // Little Rock's own station is left out (a bad date), and Arkadelphia is over 50 miles away.
+    // Little Rock's own station is left out (a missing date), and Arkadelphia is over 50 miles away.
     expect(files.get('722')!.zips['72201']).toEqual(['8a', -1, 0]);
     expect(Math.round(miles([34.0812, -93.0771], [34.7476, -92.2797]))).toBeGreaterThan(50);
     expect(stationName('ST. LOUIS LAMBERT INTL AP, MO US')).toBe('St. Louis Lambert Intl Ap, MO');
+    expect(stationName('TOA BAJA LEVITTOWN, PR RQ')).toBe('Toa Baja Levittown, PR');
+    expect(stationName('FAIRBANKS 11 NE, AK US')).toBe('Fairbanks 11 NE, AK');
+    expect(stationName('SAN FRANCISCO 1.1 SW, CA US')).toBe('San Francisco 1.1 SW, CA');
   });
 });
 
@@ -59,7 +68,7 @@ describe('looking up a ZIP', () => {
   it('gives the zone and frost dates', async () => {
     expect(await lookUpZip(' 71923 ', fetcher)).toEqual({ ok: true, location: {
       zip: '71923', zone: '8a', accessed: '2026-10-17',
-      frost: { station: 'Arkadelphia 2 N, AR', miles: 3, spring: '03-24', springLate: '04-08', fall: '11-06', fallEarly: '10-24' } } });
+      frost: { station: 'Arkadelphia 2 N, AR', miles: 3, chance: 100, spring: '03-24', springLate: '04-08', fall: '11-06', fallEarly: '10-24' } } });
     expect(await lookUpZip('71998', fetcher)).toEqual({ ok: true, location: { zip: '71998', zone: '8a', accessed: '2026-10-17' } });
   });
   it('says why it can’t', async () => {
@@ -85,11 +94,13 @@ describe('plants and zones', () => {
     expect(sanitizeLocation({ zip: '7192', zone: '8a' })).toBeNull();
     expect(sanitizeLocation({ zip: '71923', zone: '14a' })).toBeNull();
     expect(sanitizeLocation({ zip: '71923', zone: '8a', frost: { station: 'X', miles: 2, spring: '13-01', springLate: '04-08', fall: '11-06', fallEarly: '10-24' } })).toEqual({ zip: '71923', zone: '8a' });
+    expect(sanitizeLocation({ zip: '71923', zone: '8a', frost: { station: 'X', miles: 2, chance: 100, spring: '13-01', springLate: '04-08', fall: '11-06', fallEarly: '10-24' } }))
+      .toEqual({ zip: '71923', zone: '8a', frost: { station: 'X', miles: 2, chance: 100 } }); // dates all or none
   });
 });
 
 describe('a plan keeps its location', () => {
-  const loc = { zip: '71923', zone: '8a', frost: { station: 'Arkadelphia 2 N, AR', miles: 3, spring: '03-24', springLate: '04-08', fall: '11-06', fallEarly: '10-24' } };
+  const loc = { zip: '71923', zone: '8a', frost: { station: 'Arkadelphia 2 N, AR', miles: 3, chance: 100, spring: '03-24', springLate: '04-08', fall: '11-06', fallEarly: '10-24' } };
   async function fresh() { _resetStorageForTests(); globalThis.indexedDB = new IDBFactory(); const kv = await openKV('climate'); await initStorage(kv); return kv; }
   it('across a restart; plans that never had one sync exactly as before', async () => {
     const kv = await fresh();

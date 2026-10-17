@@ -9,12 +9,14 @@ export interface FrostDates {
   /** Weather station the dates come from, and how far it is from the ZIP's center. */
   station: string;
   miles: number;
-  /** Last spring frost (32 °F): half of years later than this date; 1 year in 10 later than `springLate`. */
-  spring: MonthDay;
-  springLate: MonthDay;
-  /** First fall frost (32 °F): half of years earlier than this date; 1 year in 10 earlier than `fallEarly`. */
-  fall: MonthDay;
-  fallEarly: MonthDay;
+  /** Percent of years with a freeze (32 °F) at all. Under 50: no dates (frost is rare there). */
+  chance: number;
+  /** Last spring frost: half of years later than this date; 1 year in 10 later than `springLate`. */
+  spring?: MonthDay;
+  springLate?: MonthDay;
+  /** First fall frost: half of years earlier than this date; 1 year in 10 earlier than `fallEarly`. */
+  fall?: MonthDay;
+  fallEarly?: MonthDay;
 }
 export interface GardenLocation {
   zip: string;
@@ -42,9 +44,14 @@ export function sanitizeLocation(raw: unknown): GardenLocation | null {
   const out: GardenLocation = { zip: o.zip, zone: o.zone };
   if (typeof o.accessed === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(o.accessed)) out.accessed = o.accessed;
   const f = o.frost as Record<string, unknown> | null | undefined;
-  if (f && typeof f === 'object' && isMonthDay(f.spring) && isMonthDay(f.springLate) && isMonthDay(f.fall) && isMonthDay(f.fallEarly)
-      && typeof f.station === 'string' && typeof f.miles === 'number' && Number.isFinite(f.miles) && f.miles >= 0) {
-    out.frost = { station: f.station.slice(0, 80), miles: Math.round(f.miles), spring: f.spring, springLate: f.springLate, fall: f.fall, fallEarly: f.fallEarly };
+  const ok = (n: unknown, max: number): n is number => typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= max;
+  if (f && typeof f === 'object' && typeof f.station === 'string' && ok(f.miles, 500) && ok(f.chance, 100)) {
+    const frost: FrostDates = { station: f.station.slice(0, 80), miles: Math.round(f.miles), chance: Math.round(f.chance) };
+    // Dates all together, or none.
+    if (isMonthDay(f.spring) && isMonthDay(f.springLate) && isMonthDay(f.fall) && isMonthDay(f.fallEarly)) {
+      Object.assign(frost, { spring: f.spring, springLate: f.springLate, fall: f.fall, fallEarly: f.fallEarly });
+    }
+    out.frost = frost;
   }
   return out;
 }
@@ -57,7 +64,7 @@ export interface ClimateFile {
   accessed?: string;
   /** zip → [zone, station index or -1, miles to the station] */
   zips: Record<string, [string, number, number]>;
-  stations: { name: string; spring: MonthDay; springLate: MonthDay; fall: MonthDay; fallEarly: MonthDay }[];
+  stations: { name: string; chance: number; spring?: MonthDay; springLate?: MonthDay; fall?: MonthDay; fallEarly?: MonthDay }[];
 }
 export type LookupResult = { ok: true; location: GardenLocation } | { ok: false; why: 'format' | 'unknown' | 'offline' };
 /** Look a ZIP up in the tables (fetched on demand: they aren't part of the offline copy). */
@@ -77,7 +84,7 @@ export async function lookUpZip(zip: string, fetcher: typeof fetch = fetch): Pro
   if (!row) return { ok: false, why: 'unknown' };
   const [zone, si, miles] = row;
   const st = si >= 0 ? file.stations?.[si] : undefined;
-  const location = sanitizeLocation({ zip: z, zone, accessed: file.accessed, frost: st ? { station: st.name, miles, spring: st.spring, springLate: st.springLate, fall: st.fall, fallEarly: st.fallEarly } : undefined });
+  const location = sanitizeLocation({ zip: z, zone, accessed: file.accessed, frost: st ? { ...st, station: st.name, miles } : undefined });
   return location ? { ok: true, location } : { ok: false, why: 'unknown' };
 }
 

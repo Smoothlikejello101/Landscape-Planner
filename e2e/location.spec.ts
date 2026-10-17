@@ -7,7 +7,7 @@ import { openFresh } from './helpers';
 const TABLE = {
   v: 1, accessed: '2026-10-17',
   zips: { '71923': ['8a', 0, 3] },
-  stations: [{ name: 'Arkadelphia 2 N, AR', spring: '03-24', springLate: '04-08', fall: '11-06', fallEarly: '10-24' }],
+  stations: [{ name: 'Arkadelphia 2 N, AR', chance: 100, spring: '03-24', springLate: '04-08', fall: '11-06', fallEarly: '10-24' }],
 };
 
 test('a ZIP gives the zone and frost dates; the plant picker can show only plants hardy there', async ({ page }) => {
