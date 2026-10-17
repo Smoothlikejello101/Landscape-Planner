@@ -356,6 +356,7 @@ a { color: inherit; }
 .account-section .trash-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
 .account-section .trash-row .link-btn { min-height: 36px; padding: 4px; }
 /* Garden location */
+.location-sources { font-size: 12px; color: #44403c; line-height: 1.5; border-top: 1px solid #e7e5e4; padding-top: 8px; }
 .location-card { border: 1px solid #d6d3d1; border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; font-size: 14px; line-height: 1.45; background: #fafaf9; }
 .location-zone { font-size: 20px; }
 .sheet-body .status.warn { font-size: 13px; color: #92400e; line-height: 1.45; }

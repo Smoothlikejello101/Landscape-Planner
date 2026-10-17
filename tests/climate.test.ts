@@ -14,6 +14,7 @@ import { _resetStorageForTests, createProject, flushSave, initStorage, readProje
 
 const PRISM = 'zipcode,zone,trange,zonetitle\n71923,8a,10 to 15,8a: 10 to 15\n71998,8a,10 to 15,8a: 10 to 15\n72201,8a,10 to 15,8a: 10 to 15\n99999,zz,,\n';
 const GAZ = 'GEOID\tALAND\tAWATER\tALAND_SQMI\tAWATER_SQMI\tINTPTLAT\tINTPTLONG\n71923\t1\t0\t1\t0\t34.0812\t-93.0771\n72201\t1\t0\t1\t0\t34.7476\t-92.2797\n';
+const FLAGGED = (rows: Record<string, string>[]) => rows.map((r) => (r.NAME.startsWith('KETCHUM') ? { ...r, 'meas_flag_ANN-TMIN-PRBLST-T32FP50': 'V' } : r));
 const NORMALS = [
   'STATION,DATE,LATITUDE,LONGITUDE,ELEVATION,NAME,ANN-TMIN-PRBLST-T32FP50,ANN-TMIN-PRBLST-T32FP10,ANN-TMIN-PRBFST-T32FP50,ANN-TMIN-PRBFST-T32FP10,ANN-TMIN-PRBOCC-LSTH032',
   'USC00030220,1991-2020,34.1167,-93.0500,64,"ARKADELPHIA 2 N, AR US",   03/24,   04/08,   11/06,   10/24,  100.0',
@@ -21,16 +22,20 @@ const NORMALS = [
   'USC00999999,1991-2020,34.0,-93.0,10,"NO FROST DATA, AR US",-9999.0,-9999.0,-9999.0,-9999.0,-9999.0',
   'USC00888888,1991-2020,25.58,-80.43,10,"PERRINE 4W, FL US",   01/18,   02/01,   01/13,   12/31,   11.4',
   'US1FLMD0001,1991-2020,25.6,-80.4,10,"RAIN GAUGE ONLY, FL US",,,,,',
+  'USC00104845,1991-2020,43.68,-114.36,1800,"KETCHUM RS, ID US",-9999.0,-9999.0,-9999.0,-9999.0,  100.0',
 ].join('\n');
 
 describe('building the tables', () => {
   it('reads the official files', () => {
     expect([...zonesByZip(PRISM)]).toEqual([['71923', '8a'], ['71998', '8a'], ['72201', '8a']]);
     expect(centersByZip(GAZ).get('71923')).toEqual([34.0812, -93.0771]);
-    const st = frostStations(table(NORMALS));
-    // Missing dates (where freezes come most years) or no records leave a station out; a rare-frost station keeps only its chance.
-    expect(st.map((s: { name: string }) => s.name)).toEqual(['Arkadelphia 2 N, AR', 'Perrine 4W, FL']);
+    const st = frostStations(FLAGGED(table(NORMALS)));
+    // Missing dates (where freezes come most years, with no reason given) or no records leave a station out;
+    // a rare-frost station keeps only its chance; NOAA's flag V means frost in any month.
+    expect(st.map((s: { name: string }) => s.name)).toEqual(['Arkadelphia 2 N, AR', 'Perrine 4W, FL', 'Ketchum RS, ID']);
     expect(st[1]).toEqual({ id: 'USC00888888', name: 'Perrine 4W, FL', lat: 25.58, lon: -80.43, chance: 11 });
+    expect(st[2]).toMatchObject({ name: 'Ketchum RS, ID', chance: 100, yearRound: true });
+    expect(frostStations(table(NORMALS)).map((s: { name: string }) => s.name)).not.toContain('Ketchum RS, ID'); // (no flag: no reason, left out)
   });
   it('dates come as month-day, MMDD or day of year; codes for "none" are none', () => {
     expect(monthDay('   03/24')).toBe('03-24'); // as NOAA's files have it
@@ -46,14 +51,16 @@ describe('building the tables', () => {
     const files = buildFiles(zonesByZip(PRISM), centersByZip(GAZ), frostStations(table(NORMALS)), '2026-10-17');
     const f = files.get('719')!;
     expect(f.zips['71923']).toEqual(['8a', 0, 3]);
-    expect(f.zips['71998']).toEqual(['8a', -1, 0]); // no location: zone only
+    expect(f.zips['71998']).toEqual(['8a', -2, 0]); // no mapped area (a PO box): zone only
     expect(f.stations[0]).toEqual({ name: 'Arkadelphia 2 N, AR', chance: 100, spring: '03-24', springLate: '04-08', fall: '11-06', fallEarly: '10-24' });
     expect(f.accessed).toBe('2026-10-17');
     // Little Rock's own station is left out (a missing date), and Arkadelphia is over 50 miles away.
     expect(files.get('722')!.zips['72201']).toEqual(['8a', -1, 0]);
     expect(Math.round(miles([34.0812, -93.0771], [34.7476, -92.2797]))).toBeGreaterThan(50);
-    expect(stationName('ST. LOUIS LAMBERT INTL AP, MO US')).toBe('St. Louis Lambert Intl Ap, MO');
+    expect(stationName('ST. LOUIS LAMBERT INTL AP, MO US')).toBe('St. Louis Lambert Intl AP, MO');
     expect(stationName('TOA BAJA LEVITTOWN, PR RQ')).toBe('Toa Baja Levittown, PR');
+    expect(stationName("MUND'S PARK, AZ US")).toBe("Mund's Park, AZ");
+    expect(stationName('JACKSON INTL AP, MS US')).toBe('Jackson Intl AP, MS');
     expect(stationName('FAIRBANKS 11 NE, AK US')).toBe('Fairbanks 11 NE, AK');
     expect(stationName('SAN FRANCISCO 1.1 SW, CA US')).toBe('San Francisco 1.1 SW, CA');
   });
@@ -69,7 +76,7 @@ describe('looking up a ZIP', () => {
     expect(await lookUpZip(' 71923 ', fetcher)).toEqual({ ok: true, location: {
       zip: '71923', zone: '8a', accessed: '2026-10-17',
       frost: { station: 'Arkadelphia 2 N, AR', miles: 3, chance: 100, spring: '03-24', springLate: '04-08', fall: '11-06', fallEarly: '10-24' } } });
-    expect(await lookUpZip('71998', fetcher)).toEqual({ ok: true, location: { zip: '71998', zone: '8a', accessed: '2026-10-17' } });
+    expect(await lookUpZip('71998', fetcher)).toEqual({ ok: true, location: { zip: '71998', zone: '8a', accessed: '2026-10-17', noArea: true } });
   });
   it('says why it can’t', async () => {
     expect(await lookUpZip('7192', fetcher)).toEqual({ ok: false, why: 'format' });
@@ -124,5 +131,15 @@ describe('a plan keeps its location', () => {
     expect((await readProject(other))!.location).toBeNull();
     await switchProject(other);
     expect(state.location).toBeNull();
+  });
+});
+
+describe('project files and backups', () => {
+  it('carry the location', async () => {
+    const { buildProjectFile, parseImportFile } = await import('../src/backup');
+    _resetStorageForTests(); globalThis.indexedDB = new IDBFactory(); await initStorage(await openKV('climate-backup'));
+    state.location = { zip: '71923', zone: '8a' }; save(); await flushSave();
+    const file = await buildProjectFile(state.currentProjectId!);
+    expect(parseImportFile(file!.text)[0].data.location).toEqual({ zip: '71923', zone: '8a' });
   });
 });

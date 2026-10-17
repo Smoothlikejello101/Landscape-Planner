@@ -453,3 +453,24 @@ describe('photos: what the review found', () => {
   });
 });
 
+describe('a garden location and an older app version', () => {
+  const loc = { zip: '71923', zone: '8a' };
+  const strip = (c: Record<string, unknown>) => { const { location: _l, ...rest } = c; return rest; };
+  it('edits from a device that doesn’t know locations never cause a conflict copy here, and the location stays', async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.shapes = [bed('b1', 'A')]; state.location = loc; save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    // The old laptop edits twice before this device syncs again (and a server before 04 lets it drop the location).
+    for (const label of ['B', 'C']) {
+      const row = server.rows.get(id)!;
+      row.content = strip({ ...row.content, shapes: [bed('b1', label)] }); row.revision++; row.updated_by = 'laptop';
+      if (label === 'B') expect((await syncOnce(local(), server.remoteFor('phone'), 'phone')).conflicts).toEqual([]);
+    }
+    expect((await syncOnce(local(), server.remoteFor('phone'), 'phone')).conflicts).toEqual([]);
+    expect(state.shapes.map((x) => x.label)).toEqual(['C']);
+    expect(state.location).toEqual(loc);
+    expect(state.projects).toHaveLength(1);
+  });
+});
+

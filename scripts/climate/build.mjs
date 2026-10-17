@@ -33,4 +33,4 @@ for (const [prefix, f] of out) {
   writeFileSync(join(target, `${prefix}.json`), JSON.stringify(f));
   withFrost += Object.values(f.zips).filter((r) => r[1] >= 0).length;
 }
-console.log(`${zones.size} ZIP codes (${centers.size} with a location), ${stations.length} stations with frost dates, ${withFrost} ZIPs with frost dates, ${out.size} files.`);
+console.log(`${zones.size} ZIP codes (${centers.size} with a location), ${stations.length} stations with frost records, ${withFrost} ZIPs with one, ${out.size} files.`);

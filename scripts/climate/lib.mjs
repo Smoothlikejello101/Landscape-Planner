@@ -104,11 +104,14 @@ export function frostStations(rows) {
     const complete = Object.values(dates).every(Boolean);
     const chanceText = String(r[CHANCE_COLUMN] ?? '').trim();
     const rawChance = chanceText ? Number(chanceText) : NaN; // (blank: the station has no temperature records)
-    const chance = Number.isFinite(rawChance) && rawChance >= 0 && rawChance <= 100 ? Math.round(rawChance) : complete ? 100 : null;
-    if (chance == null) continue; // no frost records
-    const base = { id: r.STATION, name: stationName(r.NAME ?? r.STATION), lat, lon, chance };
-    if (chance >= DATES_FROM) {
-      if (!complete) continue; // freezes most years, but no dates: not useful
+    const known = Number.isFinite(rawChance) && rawChance >= 0 && rawChance <= 100;
+    if (!known && !complete) continue; // no frost records
+    const base = { id: r.STATION, name: stationName(r.NAME ?? r.STATION), lat, lon, chance: known ? Math.round(rawChance) : 100 };
+    // NOAA's flag V: "year-round risk of frost-freeze; too cold to compute" (the dates).
+    const yearRound = String(r[`meas_flag_${FROST_COLUMNS.spring}`] ?? '').trim() === 'V';
+    if (yearRound) out.push({ ...base, chance: 100, yearRound: true });
+    else if (!known || rawChance >= DATES_FROM) {
+      if (!complete) continue; // freezes most years, but no dates and no reason given: not useful
       out.push({ ...base, ...dates });
     } else out.push(base);
   }
@@ -120,7 +123,9 @@ export function stationName(raw) {
   const s = String(raw).trim().replace(/(,\s*[A-Z]{2})\s+[A-Z]{2}$/, '$1').replace(/\s+US$/, '');
   const [place, state] = s.split(/,\s*/);
   const nice = place.toLowerCase().replace(/\b[a-z]/g, (c) => c.toUpperCase())
-    .replace(/\b(\d*(?:\.\d+)?)(n|s|e|w|ne|nw|se|sw|nne|nnw|sse|ssw|ene|ese|wnw|wsw)\b/gi, (_, d, x) => d + x.toUpperCase());
+    .replace(/\b(Ap|Wso|Wsmo|Faa|Rs|Sp)\b/g, (x) => x.toUpperCase())
+    .replace(/\b(\d*(?:\.\d+)?)(n|s|e|w|ne|nw|se|sw|nne|nnw|sse|ssw|ene|ese|wnw|wsw)\b/gi, (_, d, x) => d + x.toUpperCase())
+    .replace(/'([A-Z])\b/g, (_, c) => `'${c.toLowerCase()}`); // Mund's Park, not Mund'S
   return state ? `${nice}, ${state}` : nice;
 }
 
@@ -170,7 +175,8 @@ export function buildFiles(zones, centers, stations, accessed) {
       }
       si = f.index.get(s.id);
     }
-    f.zips[zip] = [zone, si, near ? near.miles : 0];
+    // (-2: the ZIP has no mapped area, a PO box or one building; -1: no station near enough.)
+    f.zips[zip] = [zone, c ? si : -2, near ? near.miles : 0];
   }
   for (const f of files.values()) delete f.index;
   return files;

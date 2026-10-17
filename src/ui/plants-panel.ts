@@ -7,6 +7,7 @@ import { startTreeDraw } from '../draw';
 import { isMine, myPlants } from '../my-plants';
 import type { PlantFormArgs } from '../types';
 import { state } from '../state';
+import { ZONE_SOURCE_SHORT } from '../climate';
 import { render } from './render';
 
 function closePicker() { state.panel = null; state.pickerLinkId = null; state.pickerForTree = false; render(); }
@@ -210,6 +211,7 @@ export function renderPlantsPanel() {
     mkCheck('Wet feet', 'wetFeet'),
     mkCheck('Host plant', 'hostOnly')
   );
+  if (state.location) primaryChecks.appendChild(el('div', { className: 'hint', style: { flexBasis: '100%', fontSize: '11px' } }, `Zones: ${ZONE_SOURCE_SHORT}.`));
 
   // ---- ADVANCED FILTERS (collapsible) ----
   const adv = el('div', { style: { display: plantFilter.advanced ? 'block' : 'none',
