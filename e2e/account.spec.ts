@@ -50,8 +50,14 @@ async function fakeServer(page: Page, plan: Record<string, unknown> | null = { p
       Object.assign(r, { name: a.p_name, content: a.p_content, revision: r.revision + 1, updated_by: a.p_device });
       return json(route, { status: 'ok', revision: r.revision });
     }
-    if (url.pathname === '/rest/v1/rpc/trash_project') { const r = rows.get(args().p_id); if (r) { r.deleted_at = new Date().toISOString(); r.revision++; } return json(route, r?.revision ?? null); }
-    if (url.pathname === '/rest/v1/rpc/restore_project') { const r = rows.get(args().p_id); if (r) { r.deleted_at = null; r.revision++; } seen.push('restore'); return json(route, r?.revision ?? null); }
+    if (url.pathname === '/rest/v1/rpc/trash_project') {
+      const a = args(); const r = rows.get(a.p_id);
+      if (!r || r.deleted_at) return json(route, 'ok');
+      if (a.p_base !== r.revision) return json(route, 'changed');
+      r.deleted_at = new Date().toISOString(); r.revision++;
+      return json(route, 'ok');
+    }
+    if (url.pathname === '/rest/v1/rpc/restore_project') { const r = rows.get(args().p_id); seen.push('restore'); if (!r?.deleted_at) return json(route, null); r.deleted_at = null; r.revision++; return json(route, r.revision); }
     if (url.pathname === '/rest/v1/projects') {
       const ids = (url.searchParams.get('id') ?? '').replace(/^in\.\(|\)$/g, '').split(',').map((s) => s.replace(/^"|"$/g, ''));
       return json(route, ids.map((id) => rows.get(id)).filter((r): r is Row => !!r && !r.deleted_at).map(({ id, name, revision, content }) => ({ id, name, revision, content })));

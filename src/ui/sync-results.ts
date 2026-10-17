@@ -29,9 +29,10 @@ export function showSyncResults(r: SyncReport) {
   }
   for (const n of r.removed) notes.push(`“${n}” was deleted on another device. It’s in Recently deleted (Projects → Account) for 30 days.`);
   for (const n of r.restored) notes.push(`“${n}” was deleted on another device, but this one had changes, so it was kept.`);
+  for (const n of r.undeleted) notes.push(`“${n}” was changed on another device after you deleted it here, so it’s back.`);
   if (notes.length) toast(notes.join(' '), 9000);
   // New or renamed projects: the list and the project name in the top bar.
-  if (r.downloaded || r.conflicts.length || r.removed.length || r.restored.length) {
+  if (r.downloaded || r.conflicts.length || r.removed.length || r.restored.length || r.undeleted.length) {
     if (state.panel === 'projects' || state.panel === null) refreshAfterSync();
   }
 }

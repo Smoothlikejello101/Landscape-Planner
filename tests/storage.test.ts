@@ -414,8 +414,10 @@ describe('sync state on the device', () => {
     const kv = await freshStorage();
     const id = await createProject('Synced one');
     await setSyncRecord(id, { revision: 4, hash: 'abc' });
-    await setSyncRecord('gone', { revision: 1, hash: 'x' });
-    await setSyncRecord('gone', null);
+    const other = await createProject('Other');
+    await setSyncRecord(other, { revision: 1, hash: 'x' });
+    await setSyncRecord(other, null);
+    expect(getSyncRecords()).toEqual({ [id]: { revision: 4, hash: 'abc' } });
     const install = await installId();
     expect(install).toMatch(/^[A-Za-z0-9-]{16,64}$/);
     await deleteProject(id);
@@ -427,6 +429,28 @@ describe('sync state on the device', () => {
     expect(getSyncRecords()).toEqual({ ok: { revision: 2, hash: 'h' } });
     expect(getSyncTombstones()).toEqual({ [id]: 4 });
     expect(await installId()).toBe(install); // the same install, after a restart
+  });
+
+  it('a project deleted while sync uploaded it gets a tombstone for the uploaded revision, not a record', async () => {
+    const { setSyncRecord, getSyncRecords, getSyncTombstones } = await import('../src/storage');
+    await freshStorage();
+    await setSyncRecord('deleted-meanwhile', { revision: 3, hash: 'x' });
+    expect(getSyncRecords()).toEqual({});
+    expect(getSyncTombstones()).toEqual({ 'deleted-meanwhile': 3 });
+  });
+
+  it('remembers which account its sync state belongs to; anything malformed reads as none', async () => {
+    const { resetSyncState, getSyncUser, setSyncRecord, createProject, getSyncRecords } = await import('../src/storage');
+    const kv = await freshStorage();
+    expect(getSyncUser()).toBeNull(); // before any sync (and on devices from before this existed)
+    await setSyncRecord(await createProject('X'), { revision: 1, hash: 'h' });
+    await resetSyncState('user-b');
+    expect(getSyncRecords()).toEqual({});
+    _resetStorageForTests(); await initStorage(kv);
+    expect(getSyncUser()).toBe('user-b');
+    await kv.write([put('kv', 'syncUser', { not: 'a string' })]);
+    _resetStorageForTests(); await initStorage(kv);
+    expect(getSyncUser()).toBeNull();
   });
 });
 

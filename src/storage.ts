@@ -328,6 +328,7 @@ async function writeCurrent(): Promise<boolean> {
 /** Schedule a save of the current project. */
 export function save() {
   editSeq++;
+  if (state.currentProjectId) bumpChange(state.currentProjectId);
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => { saveTimer = null; void flushSave(); }, SAVE_DEBOUNCE_MS);
 }
@@ -500,27 +501,38 @@ export async function createProject(name: string, data?: ProjectData, id = uid()
 /**
  * Delete a project from this device. One that was synced is remembered (a
  * tombstone) so the next sync moves it to the server's trash too, unless
- * `bySync`: it was deleted elsewhere, and the server already knows.
+ * `bySync`: it was deleted elsewhere, and the server already knows. With a
+ * `token` (sync), only if the project hasn't changed since and isn't open;
+ * returns whether it was deleted.
  */
-export async function deleteProject(id: string, bySync = false) {
+export async function deleteProject(id: string, bySync = false, token?: number): Promise<boolean> {
   const imageKeys = await db().keys('images', id + '/');
+  if (token !== undefined && (changeToken(id) !== token || state.currentProjectId === id)) return false;
+  if (!metaFor(id)) return false;
   const ops = [del('meta', id), del('projects', id), ...imageKeys.map((k) => del('images', k))];
+  // Sync state changes in memory first, then on disk in the same write, so
+  // overlapping writes can't put back an older copy.
   const rec = syncRecords[id];
-  const records = { ...syncRecords };
-  delete records[id];
-  const tombs = { ...syncTombstones };
-  if (rec && !bySync) tombs[id] = rec.revision;
-  if (rec) ops.push(put('kv', 'syncRecords', records), put('kv', 'syncTombstones', tombs));
-  await db().write(ops);
-  syncRecords = records; syncTombstones = tombs;
+  if (rec) {
+    const records = { ...syncRecords };
+    delete records[id];
+    syncRecords = records;
+    if (!bySync) syncTombstones = { ...syncTombstones, [id]: rec.revision };
+    ops.push(put('kv', 'syncRecords', syncRecords), put('kv', 'syncTombstones', syncTombstones));
+  }
+  bumpChange(id);
   state.projects = state.projects.filter((p) => p.id !== id);
+  const written = db().write(ops);
   afterProjectsChange?.();
+  await written;
+  return true;
 }
 export async function renameProject(id: string, name: string) {
   const meta = metaFor(id);
   if (!meta) return;
   meta.name = name.trim() || 'Untitled';
   meta.lastModified = now();
+  bumpChange(id);
   await db().write([put('meta', id, { ...meta })]);
   afterProjectsChange?.();
 }
@@ -531,31 +543,56 @@ export interface SyncRecord { revision: number; hash: string }
 let syncRecords: Record<string, SyncRecord> = {};
 /** Synced projects deleted here, still to be moved to the server's trash: id → revision. */
 let syncTombstones: Record<string, number> = {};
+/** The account this device's sync state belongs to. */
+let syncUserId: string | null = null;
+/**
+ * Counts changes to each project in this session (edits, renames, sync's own
+ * writes). Sync notes it when it reads a project and acts on that project
+ * only if it hasn't moved since, so an edit made while a sync works is never
+ * overwritten or deleted.
+ */
+const changeCounts = new Map<string, number>();
+function bumpChange(id: string) { changeCounts.set(id, (changeCounts.get(id) ?? 0) + 1); }
+function changeToken(id: string): number { return changeCounts.get(id) ?? 0; }
+export { changeToken as projectChangeToken };
 let afterProjectsChange: (() => void) | null = null;
 let afterSave: (() => void) | null = null;
 /** Sync hears about every saved edit, and every project made, renamed or deleted. */
 export function setSyncHooks(onSave: () => void, onProjects: () => void) { afterSave = onSave; afterProjectsChange = onProjects; }
 export function getSyncRecords(): Record<string, SyncRecord> { return { ...syncRecords }; }
 export function getSyncTombstones(): Record<string, number> { return { ...syncTombstones }; }
+/**
+ * Note a project's sync state. A project deleted here while sync uploaded it
+ * gets a tombstone for that revision instead, so the next sync trashes it on
+ * the server too (rather than bringing it back).
+ */
 export async function setSyncRecord(id: string, rec: SyncRecord | null) {
+  if (rec && !metaFor(id)) {
+    const next = { ...syncRecords };
+    delete next[id];
+    syncRecords = next;
+    syncTombstones = { ...syncTombstones, [id]: rec.revision };
+    await db().write([put('kv', 'syncRecords', syncRecords), put('kv', 'syncTombstones', syncTombstones)]);
+    return;
+  }
   const next = { ...syncRecords };
   if (rec) next[id] = rec; else delete next[id];
-  await db().write([put('kv', 'syncRecords', next)]);
   syncRecords = next;
+  await db().write([put('kv', 'syncRecords', next)]);
 }
 export async function clearSyncTombstone(id: string) {
   const next = { ...syncTombstones };
   delete next[id];
-  await db().write([put('kv', 'syncTombstones', next)]);
   syncTombstones = next;
+  await db().write([put('kv', 'syncTombstones', next)]);
 }
-/** Forget all sync state (signing out, or a different account signing in on this device). */
-export async function resetSyncState() {
-  await db().write([put('kv', 'syncRecords', {}), put('kv', 'syncTombstones', {})]);
-  syncRecords = {}; syncTombstones = {};
+/** The account this device last synced with (null: none). */
+export function getSyncUser(): string | null { return syncUserId; }
+/** Forget all sync state and note whose it is now (a different account signed in on this device). */
+export async function resetSyncState(userId: string | null) {
+  syncRecords = {}; syncTombstones = {}; syncUserId = userId;
+  await db().write([put('kv', 'syncRecords', {}), put('kv', 'syncTombstones', {}), put('kv', 'syncUser', userId)]);
 }
-/** Counts every edit to the open project (so a sync can tell whether one landed while it worked). */
-export function editSequence(): number { return editSeq; }
 /** This app install's random id, made on first use and kept with the plans (trials count once per install). */
 export async function installId(): Promise<string> {
   let id = await db().get<string>('kv', 'installId');
@@ -572,23 +609,29 @@ export function syncedContent(d: ProjectData): SyncedContent {
 }
 /**
  * Put a project's synced content in place (from the server), keeping this
- * device's view and background photo. For the open project, only when no
- * edit has landed since `seq` (else false: the next sync sorts it out), and
- * the plan on screen is updated.
+ * device's view and background photo. Only if the project hasn't changed
+ * since sync read it (`token`, from projectChangeToken), and, if it's the open
+ * one, `mayReplaceOpen()` agrees (nothing in progress on screen); else false,
+ * and the next sync sorts it out. The plan on screen is updated.
  */
-export async function replaceProjectContent(id: string, name: string, content: unknown, seq: number): Promise<boolean> {
+export async function replaceProjectContent(id: string, name: string, content: unknown, token: number, mayReplaceOpen: () => boolean = () => true): Promise<boolean> {
+  if (!metaFor(id) || changeToken(id) !== token) return false;
+  let saved: ProjectData | null = null;
+  if (state.currentProjectId !== id) saved = await readProject(id);
+  // From here to the write, nothing waits: no edit can slip in between the check and the write.
   const meta = metaFor(id);
-  if (!meta) return false;
+  if (!meta || changeToken(id) !== token) return false;
   const isOpen = state.currentProjectId === id;
-  if (isOpen && (seq !== editSeq || hasUnsavedChanges())) return false;
-  const base = isOpen ? currentProjectData() : (await readProject(id)) ?? sanitizeProjectData({});
+  if (isOpen && (hasUnsavedChanges() || !mayReplaceOpen())) return false;
+  const base = isOpen ? currentProjectData() : saved ?? sanitizeProjectData({});
   const incoming = sanitizeProjectData({ ...(content && typeof content === 'object' ? content : {}), zoom: base.zoom, offsetX: base.offsetX, offsetY: base.offsetY });
   const data: ProjectData = { ...base, ...syncedContent(incoming) };
   const metaNext = { ...meta, name: name.trim() || 'Untitled', lastModified: now(), shapeCount: data.shapes.length };
-  if (isOpen && seq !== editSeq) return false;
-  await db().write([...projectWriteOps(id, data, isOpen ? storedImageKeys : undefined), put('meta', id, metaNext)]);
+  bumpChange(id);
+  // The write is queued before any later save's, so a later edit lands on top of it.
+  const written = db().write([...projectWriteOps(id, data, isOpen ? storedImageKeys : undefined), put('meta', id, metaNext)]);
   Object.assign(meta, metaNext);
-  if (isOpen && seq === editSeq) {
+  if (isOpen) {
     state.shapes = data.shapes;
     state.roleViews = data.roleViews ?? {};
     state.print = data.print ?? { ...DEFAULT_PRINT };
@@ -599,6 +642,7 @@ export async function replaceProjectContent(id: string, name: string, content: u
     state.history = [];
     state.historyIndex = -1;
   }
+  await written;
   return true;
 }
 /** Read a project as it is now (the open one from memory, saved first). */
@@ -770,6 +814,8 @@ export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: s
   const tombs = await kv.get<unknown>('kv', 'syncTombstones');
   syncTombstones = {};
   if (tombs && typeof tombs === 'object') for (const [k, v] of Object.entries(tombs)) if (typeof v === 'number' && Number.isFinite(v)) syncTombstones[k] = v;
+  const su = await kv.get<unknown>('kv', 'syncUser');
+  syncUserId = typeof su === 'string' ? su : null;
   if (state.projects.length === 0) await createProject('My Garden');
   let currentId = await kv.get<string>('kv', 'current');
   if (!currentId || !metaFor(currentId)) currentId = state.projects[0].id;
@@ -791,7 +837,7 @@ function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
 export function _resetStorageForTests() {
   kv = null; clipboardCache = null; storedImageKeys = new Set(); committedImageKeys = new Set();
   quotaWarned = false; lastBackupAt = null; myPlantsRaw = []; lastSizeMode = 'typical'; editSeq = 0; savedSeq = 0; saveFailing = false;
-  lastFailureJournalAt = 0; unreplayed.clear(); syncRecords = {}; syncTombstones = {};
+  lastFailureJournalAt = 0; unreplayed.clear(); syncRecords = {}; syncTombstones = {}; syncUserId = null; changeCounts.clear();
   saveChain = Promise.resolve(true);
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;

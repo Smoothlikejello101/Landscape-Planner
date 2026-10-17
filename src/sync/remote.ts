@@ -30,9 +30,10 @@ export function supabaseRemote(c: SupabaseClient, device: string): Remote {
       if ('revision' in r) (r as { revision: number }).revision = Number(r.revision);
       return r;
     },
-    async trash(id) {
-      const { error } = await c.rpc('trash_project', { p_id: id, p_device: device });
+    async trash(id, base) {
+      const { data, error } = await c.rpc('trash_project', { p_id: id, p_base: base, p_device: device });
       fail(error);
+      return data === 'changed' || data === 'paused' ? data : 'ok';
     },
     async restore(id) {
       const { data, error } = await c.rpc('restore_project', { p_id: id, p_device: device });

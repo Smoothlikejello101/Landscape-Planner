@@ -42,10 +42,17 @@ do $$ begin perform public.push_project('../x', null, 'X', '{}', ''); raise exce
 do $$ begin perform public.push_project('p2', null, 'X', '[1]', ''); raise exception 'FAILED: non-object content accepted'; exception when others then if sqlerrm like 'FAILED%' then raise; end if; end $$;
 
 -- The trash: listed with its date, refused for uploads until restored.
-select pg_temp.check(public.trash_project('p1', 'Laptop') = 3, 'trash bumps the revision');
+-- A device that deleted an older revision doesn't trash newer changes.
+select pg_temp.check(public.trash_project('p1', 1, 'Laptop') = 'changed', 'trash refused: changed since');
+select pg_temp.check((select deleted_at is null and revision = 2 from public.projects where id = 'p1'), 'refused trash writes nothing');
+select pg_temp.check(public.trash_project('p1', 2, 'Laptop') = 'ok', 'trash');
+select pg_temp.check((select revision = 3 from public.projects where id = 'p1'), 'trash bumps the revision');
+select pg_temp.check(public.trash_project('p1', 2, 'Laptop') = 'ok', 'trashing again is fine');
+select pg_temp.check(public.trash_project('nope', 1, 'Laptop') = 'ok', 'trashing what the server never had is fine');
 select pg_temp.check((select deleted_at is not null from public.sync_list() where id = 'p1'), 'trash is listed');
 select pg_temp.check(public.push_project('p1', 3, 'Back Yard', '{}', 'Pixel 7') ->> 'status' = 'deleted', 'upload to a trashed project');
 select pg_temp.check(public.restore_project('p1', 'Pixel 7') = 4, 'restore');
+select pg_temp.check(public.restore_project('p1', 'Pixel 7') is null, 'restoring what isn''t in the trash does nothing');
 select pg_temp.check(public.push_project('p1', 4, 'Back Yard', '{"shapes":[3]}', 'Pixel 7') ->> 'status' = 'ok', 'upload after restore');
 -- Over 30 days in the trash: gone for good at the next list.
 reset role;
@@ -58,7 +65,8 @@ select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
 select pg_temp.check(public.push_project('q1', null, 'Hers', '{}', '') ->> 'status' = 'paused', 'b: paused before trial');
 select pg_temp.check(not exists (select 1 from public.sync_list()), 'b sees no projects');
 select pg_temp.check(not exists (select 1 from public.projects), 'b reads no project rows');
-select pg_temp.check(public.trash_project('p1', '') is null, 'b cannot trash a project');
+select pg_temp.check(public.trash_project('p1', 5, '') = 'paused', 'b (no trial) cannot trash');
+select pg_temp.check(public.restore_project('p1', '') is null, 'b cannot restore');
 -- Nobody upgrades themselves: plans can't be written by the app.
 update public.plans set plan = 'beta';
 select pg_temp.check((select plan from public.plans) = 'trial', 'plan not writable');
@@ -93,5 +101,6 @@ update public.plans set plan = 'beta' where owner = '00000000-0000-0000-0000-000
 set role authenticated;
 select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
 select pg_temp.check(public.push_project('q1', null, 'Hers', '{}', '') ->> 'status' = 'ok', 'beta syncs');
+select pg_temp.check(public.trash_project('p1', 5, '') = 'ok' and public.restore_project('p1', '') is null, 'b cannot touch a''s project');
 reset role;
 select 'all SQL checks passed' as result;

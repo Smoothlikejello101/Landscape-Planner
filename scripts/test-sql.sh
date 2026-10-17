@@ -10,3 +10,4 @@ $P -d lp_sql_test -f supabase/test/supabase-stub.sql
 for f in supabase/0*.sql; do $P -d lp_sql_test -f "$f"; done
 for f in supabase/0*.sql; do $P -d lp_sql_test -f "$f"; done # all again, in order: safe to run again
 $P -d lp_sql_test -f supabase/test/sync-test.sql
+sh supabase/test/race-test.sh

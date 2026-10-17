@@ -16,7 +16,12 @@
 //   it comes back out of the trash with this device's version.
 
 export interface ProjectContent { [key: string]: unknown }
-export interface LocalProject { id: string; name: string; content: ProjectContent }
+/**
+ * A project as sync read it. `token` marks the moment: sync changes or
+ * removes a project only if it hasn't changed since (an edit made while a
+ * sync works always wins; the next sync takes it from there).
+ */
+export interface LocalProject { id: string; name: string; content: ProjectContent; token: number }
 export interface SyncRecord { revision: number; hash: string }
 export interface ServerProject { id: string; name: string; revision: number; updated_by: string | null; updated_at: string; deleted_at: string | null }
 export type PushResult =
@@ -32,18 +37,19 @@ export interface Local {
   projects(): Promise<LocalProject[]>;
   records(): Record<string, SyncRecord>;
   setRecord(id: string, rec: SyncRecord | null): Promise<void>;
-  /** Synced projects deleted here, to move to the server's trash: id → revision. */
+  /** Synced projects deleted here, to move to the server's trash: id → the revision deleted. */
   tombstones(): Record<string, number>;
   clearTombstone(id: string): Promise<void>;
-  /** Replace a project's content and name (false if it was edited meanwhile: try again next time). */
-  replace(id: string, name: string, content: ProjectContent): Promise<boolean>;
+  /** Replace a project's content and name, if unchanged since `token` (else false: try again next time). */
+  replace(id: string, name: string, content: ProjectContent, token: number): Promise<boolean>;
   /** A project new to this device, under the server's id. */
   create(id: string, name: string, content: ProjectContent): Promise<void>;
-  /** Remove a project deleted elsewhere (it's in the server's trash). */
-  remove(id: string): Promise<void>;
-  /** Keep this device's version of a project as a new project; returns its id. */
-  keepCopy(name: string, content: ProjectContent): Promise<string>;
-  rename(id: string, name: string): Promise<void>;
+  /** Remove a project deleted elsewhere (it's in the server's trash), if unchanged since `token`. */
+  remove(id: string, token: number): Promise<boolean>;
+  /** Keep this device's version of a project (`from`) as a new project. */
+  keepCopy(from: string, name: string, content: ProjectContent): Promise<{ id: string; token: number }>;
+  /** Rename; returns the project's new token. */
+  rename(id: string, name: string): Promise<number>;
   /**
    * A name and content as this device will store and read them back (checked
    * and tidied, as any download is), so its fingerprint matches what the next
@@ -56,7 +62,9 @@ export interface Remote {
   list(): Promise<ServerProject[]>;
   fetch(ids: string[]): Promise<Record<string, { name: string; revision: number; content: ProjectContent }>>;
   push(id: string, base: number | null, name: string, content: ProjectContent): Promise<PushResult>;
-  trash(id: string): Promise<void>;
+  /** To the trash, unless changed since revision `base` ('changed'). */
+  trash(id: string, base: number): Promise<'ok' | 'changed' | 'paused'>;
+  /** Out of the trash: the new revision (null if it isn't there, or sync is paused). */
   restore(id: string): Promise<number | null>;
 }
 
@@ -69,6 +77,12 @@ export interface SyncReport {
   removed: string[];
   /** Deleted elsewhere while changed here: brought back. */
   restored: string[];
+  /** Deleted here, but changed on another device since: back on this device. */
+  undeleted: string[];
+  /** Projects that couldn't sync this time (tried again next time). */
+  failed: { name: string; message: string }[];
+  /** The server's trash after this pass. */
+  trash: ServerProject[];
   /** The plan doesn't include sync now (trial ended, subscription lapsed). */
   paused: boolean;
   /** The account's project limit was reached. */
@@ -105,21 +119,42 @@ export function copyName(name: string, device: string, at = new Date()): string 
   return `${name} — copy from ${device || 'this device'}, ${when}`;
 }
 
-/** One sync pass. Never throws for a single project's trouble; a server failure ends the pass (try again later). */
-export async function syncOnce(local: Local, remote: Remote, device: string): Promise<SyncReport> {
-  const report: SyncReport = { uploaded: 0, downloaded: 0, conflicts: [], removed: [], restored: [], paused: false, full: false };
+const isEmpty = (c: ProjectContent) => Array.isArray(c.shapes) && c.shapes.length === 0;
+/** After this many failures in a row, the trouble is likely the connection: end the pass. */
+const FAILS_IN_A_ROW = 3;
 
-  // 1. Deletions made here go to the server's trash.
-  for (const id of Object.keys(local.tombstones())) {
-    await remote.trash(id);
-    await local.clearTombstone(id);
+/** One sync pass. One project's trouble doesn't stop the others; a server that can't be reached ends the pass (try again later). */
+export async function syncOnce(local: Local, remote: Remote, device: string): Promise<SyncReport> {
+  const report: SyncReport = { uploaded: 0, downloaded: 0, conflicts: [], removed: [], restored: [], undeleted: [], failed: [], trash: [], paused: false, full: false };
+  let failsInARow = 0;
+  const attempt = async (name: string, step: () => Promise<void>) => {
+    try {
+      await step();
+      failsInARow = 0;
+    } catch (e) {
+      report.failed.push({ name, message: e instanceof Error ? e.message : String(e) });
+      if (++failsInARow >= FAILS_IN_A_ROW) throw e;
+    }
+  };
+
+  // 1. Deletions made here go to the server's trash (unless changed elsewhere since: then they come back).
+  const undeleted = new Set<string>();
+  for (const [id, rev] of Object.entries(local.tombstones())) {
+    await attempt('a deleted project', async () => {
+      const answer = await remote.trash(id, rev);
+      if (answer === 'paused') { report.paused = true; return; }
+      if (answer === 'changed') undeleted.add(id);
+      await local.clearTombstone(id);
+    });
+    if (report.paused) return report;
   }
 
   const server = new Map((await remote.list()).map((s) => [s.id, s]));
   const projects = await local.projects();
   const records = local.records();
-  const here = new Set(projects.map((p) => p.id));
+  const here = new Map(projects.map((p) => [p.id, p]));
   const liveNames = new Set([...server.values()].filter((s) => !s.deleted_at).map((s) => s.name));
+  const restoredIds = new Set<string>();
 
   /** Upload; true if stored. Handles every answer. */
   const upload = async (p: LocalProject, base: number | null, hash: string): Promise<boolean> => {
@@ -127,7 +162,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     if (res.status === 'deleted') {
       // Trashed while we worked: this device has changes, so it comes back.
       const rev = await remote.restore(p.id);
-      report.restored.push(p.name);
+      if (rev != null) { report.restored.push(p.name); restoredIds.add(p.id); }
       res = await remote.push(p.id, rev, p.name, p.content);
     }
     switch (res.status) {
@@ -145,77 +180,85 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
   };
   /** Changed on two devices: the server's version takes this place; ours becomes a copy beside it. */
   const conflict = async (p: LocalProject, serverName: string, serverRev: number, serverContent: ProjectContent, by: string | null) => {
-    const copy = copyName(p.name, device);
+    const copyLabel = copyName(p.name, device);
     // The copy is saved first, so this device's version is never only in the project being replaced.
-    const copyId = await local.keepCopy(copy, p.content);
-    if (!(await local.replace(p.id, serverName, serverContent))) {
+    const copy = await local.keepCopy(p.id, copyLabel, p.content);
+    if (!(await local.replace(p.id, serverName, serverContent, p.token))) {
       // Edited again meanwhile: the original still holds this device's version (and more);
       // drop the copy, and the next pass meets the same conflict with the newer edits.
-      await local.remove(copyId);
+      await local.remove(copy.id, copy.token);
       return;
     }
     const n = local.normalize(serverName, serverContent);
     await local.setRecord(p.id, { revision: serverRev, hash: fingerprint(n.name, n.content) });
-    report.conflicts.push({ name: serverName, copyName: copy, otherDevice: by });
-    const copied: LocalProject = { id: copyId, name: copy, content: p.content };
-    if (!report.paused && !report.full) await upload(copied, null, fingerprint(copy, p.content));
+    report.conflicts.push({ name: serverName, copyName: copyLabel, otherDevice: by });
+    const copied: LocalProject = { id: copy.id, name: copyLabel, content: p.content, token: copy.token };
+    if (!report.paused && !report.full) await upload(copied, null, fingerprint(copyLabel, p.content));
   };
 
   const toDownload: string[] = [];
   for (const p of projects) {
     if (report.paused) break;
-    const hash = fingerprint(p.name, p.content);
-    const rec = records[p.id];
-    const s = server.get(p.id);
-    const changed = !rec || rec.hash !== hash;
-    if (!s) {
-      // New to the server (or gone from its trash after 30 days): upload. A first upload
-      // whose name another synced project already has is marked as this device's.
-      if (!rec && liveNames.has(p.name)) {
-        const name = `${p.name} (from ${device || 'this device'})`;
-        await local.rename(p.id, name);
-        p.name = name;
-      }
-      if (!report.full) await upload(p, null, fingerprint(p.name, p.content));
-    } else if (s.deleted_at) {
-      if (changed) {
-        const rev = await remote.restore(p.id);
-        report.restored.push(p.name);
-        await upload(p, rev, hash);
+    await attempt(p.name, async () => {
+      const hash = fingerprint(p.name, p.content);
+      const rec = records[p.id];
+      const s = server.get(p.id);
+      const changed = !rec || rec.hash !== hash;
+      if (!s) {
+        // New to the server (or gone from its trash after 30 days: it comes back rather than
+        // risk losing it). A first upload whose name another synced project already has is
+        // marked as this device's, unless it's empty (a new device's starter plan): that stays here.
+        if (!rec && liveNames.has(p.name)) {
+          if (isEmpty(p.content)) return;
+          const name = `${p.name} (from ${device || 'this device'})`;
+          p.token = await local.rename(p.id, name);
+          p.name = name;
+        }
+        if (!report.full) await upload(p, null, fingerprint(p.name, p.content));
+      } else if (s.deleted_at) {
+        if (changed) {
+          const rev = await remote.restore(p.id);
+          if (rev != null) { report.restored.push(p.name); restoredIds.add(p.id); }
+          await upload(p, rev, hash);
+        } else if (await local.remove(p.id, p.token)) {
+          report.removed.push(p.name);
+        }
+      } else if (rec && rec.revision === s.revision) {
+        if (changed) await upload(p, rec.revision, hash);
+      } else if (rec && !changed) {
+        toDownload.push(p.id); // changed elsewhere only
       } else {
-        await local.remove(p.id);
-        report.removed.push(p.name);
+        // Changed here and elsewhere (or never synced from here, under a server id: compare first).
+        const got = (await remote.fetch([p.id]))[p.id];
+        if (!got) return;
+        const n = local.normalize(got.name, got.content);
+        if (fingerprint(n.name, n.content) === hash) await local.setRecord(p.id, { revision: got.revision, hash });
+        else await conflict(p, got.name, got.revision, got.content, s.updated_by);
       }
-    } else if (rec && rec.revision === s.revision) {
-      if (changed) await upload(p, rec.revision, hash);
-    } else if (rec && !changed) {
-      toDownload.push(p.id); // changed elsewhere only
-    } else {
-      // Changed here and elsewhere (or never synced from here, under a server id: compare first).
-      const got = (await remote.fetch([p.id]))[p.id];
-      if (!got) continue;
-      const n = local.normalize(got.name, got.content);
-      if (fingerprint(n.name, n.content) === hash) await local.setRecord(p.id, { revision: got.revision, hash });
-      else await conflict(p, got.name, got.revision, got.content, s.updated_by);
-    }
+    });
   }
 
   // 2. Projects changed or made elsewhere come down.
   if (!report.paused) {
-    for (const s of server.values()) if (!s.deleted_at && !here.has(s.id) && !(s.id in local.tombstones())) toDownload.push(s.id);
+    const tombstones = local.tombstones();
+    for (const s of server.values()) if (!s.deleted_at && !here.has(s.id) && !(s.id in tombstones)) toDownload.push(s.id);
     if (toDownload.length) {
       const got = await remote.fetch(toDownload);
       for (const id of toDownload) {
         const g = got[id];
         if (!g) continue;
-        const ok = here.has(id) ? await local.replace(id, g.name, g.content) : (await local.create(id, g.name, g.content), true);
-        if (ok) {
+        await attempt(g.name, async () => {
+          const mine = here.get(id);
+          const ok = mine ? await local.replace(id, g.name, g.content, mine.token) : (await local.create(id, g.name, g.content), true);
+          if (!ok) return;
           const n = local.normalize(g.name, g.content);
           await local.setRecord(id, { revision: g.revision, hash: fingerprint(n.name, n.content) });
           report.downloaded++;
-        }
+          if (undeleted.has(id)) report.undeleted.push(n.name);
+        });
       }
     }
   }
+  report.trash = [...server.values()].filter((s) => s.deleted_at && !restoredIds.has(s.id));
   return report;
 }

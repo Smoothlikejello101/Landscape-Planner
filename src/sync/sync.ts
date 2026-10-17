@@ -1,5 +1,5 @@
 import { account, loadPlan, supabaseClient, type PlanInfo } from '../account';
-import { flushSave, installId, resetSyncState, setSyncHooks } from '../storage';
+import { flushSave, getSyncUser, installId, resetSyncState, setSyncHooks } from '../storage';
 import { syncOnce, type SyncReport, type ServerProject } from './engine';
 import { storageLocal } from './local';
 import { supabaseRemote } from './remote';
@@ -17,7 +17,6 @@ export interface SyncStatus { phase: SyncPhase; lastAt?: number; message?: strin
 export const sync: SyncStatus = { phase: 'signedOut', trash: [] };
 
 const DEVICE_SWITCH_KEY = 'lp-sync-device';
-const LAST_USER_KEY = 'lp-sync-user';
 const UP_DELAY_MS = 5000;
 const DOWN_EVERY_MS = 2 * 60 * 1000;
 
@@ -114,38 +113,36 @@ async function onePass() {
     await forgetOtherAccount();
     const remote = supabaseRemote(c, deviceName());
     const report = await syncOnce(storageLocal(screenBusy, showOpen), remote, deviceName());
-    const listed = await remote.list();
-    const trash = listed.filter((s) => s.deleted_at);
-    if (report.paused) { await loadPlan(); setStatus({ phase: 'paused', message: pausedWhy(account.plan), trash }); }
-    else setStatus({ phase: 'synced', lastAt: Date.now(), message: report.full ? 'Your account has reached its limit of 500 projects; new ones stay on this device.' : undefined, trash });
-    if (report.uploaded || report.downloaded || report.conflicts.length || report.removed.length || report.restored.length) onChanged(report);
+    const trash = report.trash;
+    if (report.paused) { await loadPlan(); setStatus({ phase: 'paused', message: pausedWhy(account.plan), trash: report.trash.length ? trash : sync.trash }); }
+    else if (report.failed.length) {
+      const f = report.failed[0];
+      const more = report.failed.length > 1 ? ` (and ${report.failed.length - 1} more)` : '';
+      setStatus({ phase: 'error', message: `“${f.name}”${more} didn’t sync: ${messageFor(new Error(f.message))} It will try again.`, trash });
+    } else setStatus({ phase: 'synced', lastAt: Date.now(), message: report.full ? 'Your account has reached its limit of 500 projects; new ones stay on this device.' : undefined, trash });
+    if (report.uploaded || report.downloaded || report.conflicts.length || report.removed.length || report.restored.length || report.undeleted.length) onChanged(report);
   } catch (e) {
-    setStatus({ phase: navigator.onLine ? 'error' : 'offline', message: messageFor(e) });
+    setStatus({ phase: navigator.onLine ? 'error' : 'offline', message: messageFor(e) + ' It will try again.' });
   }
 }
 /** What this device last synced was another account's: start fresh (nothing on the device changes). */
 async function forgetOtherAccount() {
   const me = account.userId;
-  if (!me) return;
-  let last: string | null = null;
-  try { last = localStorage.getItem(LAST_USER_KEY); } catch { /* unknown */ }
-  if (last !== me) {
-    await resetSyncState();
-    try { localStorage.setItem(LAST_USER_KEY, me); } catch { /* not remembered */ }
-  }
+  if (me && getSyncUser() !== me) await resetSyncState(me);
 }
 function messageFor(e: unknown): string {
   const m = e instanceof Error ? e.message : String(e);
-  if (/fetch|network|load failed/i.test(m)) return 'Couldn’t reach the server. It will try again.';
-  return m;
+  if (/fetch|network|load failed/i.test(m)) return 'Couldn’t reach the server.';
+  return /[.!?]$/.test(m) ? m : m + '.';
 }
 
 /** Bring a project back from the server's trash (it comes down at once). */
 export async function restoreFromTrash(id: string) {
   try {
     const c = await supabaseClient();
-    const { error } = await c.rpc('restore_project', { p_id: id, p_device: deviceName() });
+    const { data, error } = await c.rpc('restore_project', { p_id: id, p_device: deviceName() });
     if (error) throw new Error(error.message);
+    if (data == null) throw new Error(planAllowsSync(account.plan) ? 'It’s no longer in Recently deleted.' : 'Restoring needs sync, which your plan doesn’t include right now.');
     sync.trash = sync.trash.filter((t) => t.id !== id);
     await runSync();
   } catch (e) {

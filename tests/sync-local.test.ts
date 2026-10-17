@@ -4,8 +4,8 @@ import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { openKV } from '../src/db';
 import { state } from '../src/state';
-import { _resetStorageForTests, createProject, deleteProject, flushSave, getSyncRecords, getSyncTombstones, initStorage, readProject, save, switchProject } from '../src/storage';
-import { syncOnce } from '../src/sync/engine';
+import { _resetStorageForTests, createProject, deleteProject, flushSave, getSyncRecords, getSyncTombstones, getSyncUser, initStorage, readProject, renameProject, resetSyncState, save, switchProject } from '../src/storage';
+import { syncOnce, type Remote } from '../src/sync/engine';
 import { storageLocal } from '../src/sync/local';
 import { FakeServer } from './fake-sync-server';
 import type { Shape } from '../src/types';
@@ -18,6 +18,19 @@ async function device() {
   globalThis.indexedDB = new IDBFactory();
   await initStorage(await openKV('sync-' + ++n));
 }
+/** Restart the app on the same device (same storage). */
+async function restart() {
+  _resetStorageForTests();
+  await initStorage(await openKV('sync-' + n));
+}
+const IMG = 'data:image/png;base64,iVBORw0KGgo=';
+/** A server whose answer arrives after the user does something (the network is slow). */
+function slow(r: Remote, step: 'fetch' | 'push', during: () => Promise<unknown>): Remote {
+  let done = false;
+  const once = async () => { if (!done) { done = true; await during(); } };
+  return { ...r, fetch: async (ids) => { if (step === 'fetch') await once(); return r.fetch(ids); }, push: async (...a) => { if (step === 'push') await once(); return r.push(...a); } };
+}
+const labels = async (id: string) => (await readProject(id))!.shapes.map((s) => s.label);
 const bed = (id: string, label: string): Shape => ({ id, type: 'rect', x: 0, y: 0, width: 4, height: 3, rotation: 0, color: '#92400e', label, opacity: 0.3, locked: false, role: 'bed' });
 let opened = 0;
 const local = (busy = false) => storageLocal(() => busy, () => { opened++; });
@@ -93,3 +106,133 @@ describe('sync with this device’s storage', () => {
     expect(await syncOnce(local(), server.remoteFor('phone'), 'phone')).toMatchObject({ uploaded: 0, downloaded: 0 });
   });
 });
+
+describe('edits made while a sync works (real storage)', () => {
+  /** This device and the server in step, with another device's change waiting on the server. */
+  async function changedElsewhere(server: FakeServer, id: string, label: string) {
+    const row = server.rows.get(id)!;
+    row.content = { ...row.content, shapes: [bed('l', label)] }; row.revision++; row.updated_by = 'laptop';
+  }
+
+  it('the open plan: an edit made while a download is fetched is kept', async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.shapes = [bed('a', 'v1')]; save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    await changedElsewhere(server, id, 'laptop');
+    const r = await syncOnce(local(), slow(server.remoteFor('phone'), 'fetch', async () => { state.shapes = [...state.shapes, bed('p', 'phone, mid-sync')]; save(); }), 'phone');
+    expect(r.downloaded).toBe(0);
+    expect(state.shapes.map((s) => s.label)).toEqual(['v1', 'phone, mid-sync']);
+    await flushSave();
+    expect(await labels(id)).toEqual(['v1', 'phone, mid-sync']);
+    // The next pass: a conflict, both kept.
+    const r2 = await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    const copy = state.projects.find((p) => p.name === r2.conflicts[0].copyName)!;
+    expect(await labels(copy.id)).toEqual(['v1', 'phone, mid-sync']);
+    expect(state.shapes.map((s) => s.label)).toEqual(['laptop']);
+  });
+
+  it('a plan edited and then switched away from during a download is kept', async () => {
+    const server = new FakeServer(); await device();
+    const a = state.currentProjectId!;
+    state.shapes = [bed('a', 'v1')]; save();
+    const b = await createProject('Other');
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    await changedElsewhere(server, a, 'laptop');
+    await syncOnce(local(), slow(server.remoteFor('phone'), 'fetch', async () => { state.shapes = [bed('p', 'phone edit')]; save(); await switchProject(b); }), 'phone');
+    expect(await labels(a)).toEqual(['phone edit']);
+  });
+
+  it('a conflict’s copy holds everything, even an edit made while it was settled', async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.shapes = [bed('a', 'v1')]; save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    await changedElsewhere(server, id, 'laptop');
+    state.shapes = [bed('p1', 'phone 1')]; save(); await flushSave();
+    const r = await syncOnce(local(), slow(server.remoteFor('phone'), 'fetch', async () => { state.shapes = [...state.shapes, bed('p2', 'phone 2')]; save(); await flushSave(); }), 'phone');
+    expect(r.conflicts).toEqual([]); // waits: the plan moved on
+    expect(state.projects).toHaveLength(1); // no stray copy
+    const r2 = await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    const copy = state.projects.find((p) => p.name === r2.conflicts[0].copyName)!;
+    expect(await labels(copy.id)).toEqual(['phone 1', 'phone 2']);
+  });
+
+  it('the open plan deleted elsewhere stays if it’s edited while the sync works', async () => {
+    const server = new FakeServer(); await device();
+    const a = state.currentProjectId!;
+    state.shapes = [bed('a', 'v1')]; save();
+    const b = await createProject('Other'); // listed first
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    server.rows.get(a)!.deleted = true;
+    await renameProject(b, 'Other, renamed'); // so the pass uploads it first; the edit lands during that upload
+    const r = await syncOnce(local(), slow(server.remoteFor('phone'), 'push', async () => { state.shapes = [bed('p', 'PHONE EDIT')]; save(); }), 'phone');
+    expect(r.removed).toEqual([]);
+    expect(state.currentProjectId).toBe(a);
+    expect(state.shapes.map((s) => s.label)).toEqual(['PHONE EDIT']);
+  });
+
+  it('the open plan deleted elsewhere waits while it’s in use on screen', async () => {
+    const server = new FakeServer(); await device();
+    const a = state.currentProjectId!;
+    state.shapes = [bed('a', 'v1')]; save();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    server.rows.get(a)!.deleted = true;
+    expect((await syncOnce(local(true), server.remoteFor('phone'), 'phone')).removed).toEqual([]);
+    expect(state.currentProjectId).toBe(a);
+  });
+
+  it('a project deleted while its first upload was under way goes to the trash, even after a restart', async () => {
+    const server = new FakeServer(); await device();
+    const side = await createProject('Side yard');
+    await syncOnce(local(), slow(server.remoteFor('phone'), 'push', () => deleteProject(side)), 'phone');
+    expect(getSyncTombstones()).toEqual({ [side]: 1 });
+    await restart();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    expect(server.rows.get(side)!.deleted).toBe(true);
+    expect(state.projects.map((p) => p.name)).toEqual(['My Garden']);
+  });
+});
+
+describe('what the server can store', () => {
+  it('text the server can’t hold is left out, and nothing looks changed afterwards', async () => {
+    const server = new FakeServer(); await device();
+    state.shapes = [bed('a', 'Rose\u0000 bed 🌹'.slice(0, 11))]; save(); // NUL, and a cut that splits the emoji
+    const r = await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    expect(r).toMatchObject({ uploaded: 1, failed: [] });
+    expect(await syncOnce(local(), server.remoteFor('phone'), 'phone')).toMatchObject({ uploaded: 0, downloaded: 0, conflicts: [] });
+  });
+
+  it('a very long name doesn’t look like a conflict', async () => {
+    const server = new FakeServer(); await device();
+    await renameProject(state.currentProjectId!, 'Back yard '.repeat(30));
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    expect([...server.rows.values()][0].name).toHaveLength(199); // 200, less the trailing space
+    expect(await syncOnce(local(), server.remoteFor('phone'), 'phone')).toMatchObject({ uploaded: 0, downloaded: 0, conflicts: [] });
+  });
+});
+
+describe('sync state on the device', () => {
+  it('whose it is is kept with the plans', async () => {
+    await device();
+    expect(getSyncUser()).toBeNull();
+    await resetSyncState('user-a');
+    await restart();
+    expect(getSyncUser()).toBe('user-a');
+  });
+
+  it('a conflict copy keeps the background photo', async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.bgImage = { dataUrl: IMG, naturalWidth: 4, naturalHeight: 4, ftPerPx: 1, cx: 0, cy: 0, rotation: 0, opacity: 0.6, visible: true };
+    state.shapes = [bed('a', 'v1')]; save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    const row = server.rows.get(id)!; row.content = { ...row.content, shapes: [bed('l', 'laptop')] }; row.revision++;
+    state.shapes = [bed('p', 'phone')]; save(); await flushSave();
+    const r = await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    const copy = state.projects.find((p) => p.name === r.conflicts[0].copyName)!;
+    expect((await readProject(copy.id))!.bgImage?.dataUrl).toBe(IMG);
+    expect(state.bgImage?.dataUrl).toBe(IMG); // and the original keeps its own
+  });
+});
+

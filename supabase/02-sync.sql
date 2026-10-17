@@ -13,6 +13,7 @@ alter table public.plans add column if not exists trial_started timestamptz;
 alter table public.plans alter column trial_ends drop default;
 alter table public.plans alter column trial_ends drop not null;
 -- Trials "started" by signing in before this script: not started yet after all.
+-- (Before this script nothing synced, so no trial was in use; beta and paid plans aren't touched.)
 update public.plans set trial_ends = null where plan = 'trial' and trial_started is null;
 
 -- Who has had a trial: by email (Gmail's dots and anything after a "+" don't
@@ -133,8 +134,13 @@ begin
   select * into cur from public.projects where owner = me and id = p_id for update;
   if not found then
     if (select count(*) from public.projects where owner = me) >= 500 then return jsonb_build_object('status', 'full'); end if;
-    insert into public.projects (owner, id, name, content, revision, updated_by) values (me, p_id, nm, p_content, 1, dev);
-    return jsonb_build_object('status', 'ok', 'revision', 1);
+    begin
+      insert into public.projects (owner, id, name, content, revision, updated_by) values (me, p_id, nm, p_content, 1, dev);
+      return jsonb_build_object('status', 'ok', 'revision', 1);
+    exception when unique_violation then
+      -- Another device uploaded it a moment ago: answer as if we'd seen that first.
+      select * into cur from public.projects where owner = me and id = p_id;
+    end;
   end if;
   if cur.deleted_at is not null then return jsonb_build_object('status', 'deleted', 'revision', cur.revision); end if;
   if p_base is distinct from cur.revision then
@@ -146,25 +152,37 @@ begin
   return jsonb_build_object('status', 'ok', 'revision', cur.revision + 1);
 end $$;
 
--- Move a project to the trash (kept 30 days), or back out of it.
-create or replace function public.trash_project(p_id text, p_device text) returns bigint
+-- Move a project to the trash (kept 30 days). `p_base` is the revision this
+-- device deleted; if another device has changed the project since, it isn't
+-- trashed ('changed': it comes back to this device with those changes).
+-- Returns 'ok' (in the trash, or not on the server), 'changed' or 'paused'.
+drop function if exists public.trash_project(text, text);
+create or replace function public.trash_project(p_id text, p_base bigint, p_device text) returns text
 language plpgsql security definer set search_path = '' as $$
 declare
-  rev bigint;
+  me uuid := auth.uid();
+  cur public.projects;
 begin
-  if auth.uid() is null then raise exception 'not signed in'; end if;
-  update public.projects set deleted_at = coalesce(deleted_at, now()), revision = revision + 1, updated_at = now(), updated_by = left(coalesce(p_device, ''), 80)
-    where owner = auth.uid() and id = p_id returning revision into rev;
-  return rev;
+  if me is null then raise exception 'not signed in'; end if;
+  if not public.sync_allowed(me) then return 'paused'; end if;
+  select * into cur from public.projects where owner = me and id = p_id for update;
+  if not found or cur.deleted_at is not null then return 'ok'; end if;
+  if p_base is distinct from cur.revision then return 'changed'; end if;
+  update public.projects set deleted_at = now(), revision = revision + 1, updated_at = now(), updated_by = left(coalesce(p_device, ''), 80)
+    where owner = me and id = p_id;
+  return 'ok';
 end $$;
+-- Bring a project back out of the trash; returns its new revision (null if
+-- it isn't there, or the plan doesn't include sync right now).
 create or replace function public.restore_project(p_id text, p_device text) returns bigint
 language plpgsql security definer set search_path = '' as $$
 declare
   rev bigint;
 begin
   if auth.uid() is null then raise exception 'not signed in'; end if;
+  if not public.sync_allowed(auth.uid()) then return null; end if;
   update public.projects set deleted_at = null, revision = revision + 1, updated_at = now(), updated_by = left(coalesce(p_device, ''), 80)
-    where owner = auth.uid() and id = p_id returning revision into rev;
+    where owner = auth.uid() and id = p_id and deleted_at is not null returning revision into rev;
   return rev;
 end $$;
 
@@ -172,12 +190,12 @@ end $$;
 revoke all on function public.start_trial(text) from public, anon;
 revoke all on function public.sync_list() from public, anon;
 revoke all on function public.push_project(text, bigint, text, jsonb, text) from public, anon;
-revoke all on function public.trash_project(text, text) from public, anon;
+revoke all on function public.trash_project(text, bigint, text) from public, anon;
 revoke all on function public.restore_project(text, text) from public, anon;
 revoke all on function public.delete_my_account() from public, anon;
 grant execute on function public.start_trial(text) to authenticated;
 grant execute on function public.sync_list() to authenticated;
 grant execute on function public.push_project(text, bigint, text, jsonb, text) to authenticated;
-grant execute on function public.trash_project(text, text) to authenticated;
+grant execute on function public.trash_project(text, bigint, text) to authenticated;
 grant execute on function public.restore_project(text, text) to authenticated;
 grant execute on function public.delete_my_account() to authenticated;
