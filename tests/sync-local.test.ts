@@ -275,3 +275,87 @@ describe('sync state on the device', () => {
   });
 });
 
+describe('background photos (real storage)', () => {
+  const IMG2 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==';
+  const bg = (dataUrl: string) => ({ dataUrl, naturalWidth: 40, naturalHeight: 30, ftPerPx: 0.25, cx: 3, cy: 4, rotation: 10, opacity: 0.5, visible: true });
+
+  it('go up with their plan and arrive on another device, placed the same', async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.bgImage = bg(IMG); state.shapes = [bed('a', 'bed')]; save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    expect(server.photoUploads).toBe(1);
+    const fp = [...server.photos.keys()][0];
+    expect(fp).toMatch(/^[0-9a-f]{64}$/);
+    expect(server.rows.get(id)!.content.photo).toMatchObject({ fingerprint: fp, ftPerPx: 0.25, rotation: 10 });
+    // A second device (its own storage).
+    await device();
+    await syncOnce(local(), server.remoteFor('laptop'), 'laptop');
+    const got = await readProject(id);
+    expect(got!.bgImage).toMatchObject({ dataUrl: IMG, ftPerPx: 0.25, cx: 3, cy: 4, rotation: 10, opacity: 0.5 });
+    expect(await syncOnce(local(), server.remoteFor('laptop'), 'laptop')).toMatchObject({ uploaded: 0, downloaded: 0 });
+    // Recalibrated on this device: only the placement travels, not the photo again.
+    await switchProject(id);
+    state.bgImage = { ...state.bgImage!, ftPerPx: 0.3 }; save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('laptop'), 'laptop');
+    expect(server.photoUploads).toBe(1);
+    expect(server.rows.get(id)!.content.photo).toMatchObject({ ftPerPx: 0.3 });
+  });
+
+  it('a photo that isn’t on the server yet: the plan arrives without it and it fills in later', async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.bgImage = bg(IMG); save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    const [fp, bytes] = [...server.photos][0]; server.photos.delete(fp);
+    await device();
+    await syncOnce(local(), server.remoteFor('laptop'), 'laptop');
+    await switchProject(id);
+    expect(state.bgImage).toBeNull();
+    expect(state.photoElsewhere).toMatchObject({ fingerprint: fp });
+    expect(await syncOnce(local(), server.remoteFor('laptop'), 'laptop')).toMatchObject({ uploaded: 0 }); // waiting isn't an edit
+    server.photos.set(fp, bytes);
+    await syncOnce(local(), server.remoteFor('laptop'), 'laptop');
+    expect(state.bgImage?.dataUrl).toBe(IMG);
+    expect(state.photoElsewhere).toBeNull();
+    await restart();
+    expect((await readProject(id))!.bgImage?.dataUrl).toBe(IMG);
+  });
+
+  it('kept on this device: never uploaded; another device’s new photo doesn’t lose it', async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.bgImage = { ...bg(IMG), deviceOnly: true }; state.shapes = [bed('a', 'bed')]; save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    expect(server.photoUploads).toBe(0);
+    expect(server.rows.get(id)!.content.photo).toEqual({ deviceOnly: true });
+    // Another device puts a different photo on the plan.
+    const row = server.rows.get(id)!;
+    server.photos.set('f'.repeat(64), IMG2);
+    row.content = { ...row.content, photo: { fingerprint: 'f'.repeat(64), ...bg(IMG2), dataUrl: undefined } }; row.revision++;
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    expect(state.bgImage?.dataUrl).toBe(IMG2);
+    const copy = state.projects.find((p) => p.name.includes('with this device’s photo'))!;
+    expect((await readProject(copy.id))!.bgImage).toMatchObject({ dataUrl: IMG, deviceOnly: true });
+  });
+
+  it('a photo whose stored bytes went missing comes back from the server', async () => {
+    const server = new FakeServer(); await device();
+    const home = state.currentProjectId!;
+    const id = await createProject('Side');
+    await switchProject(id);
+    state.bgImage = bg(IMG); save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    await switchProject(home);
+    await restart();
+    const { openKV: open } = await import('../src/db');
+    const kv = await open('sync-' + n);
+    const keys = await kv.keys('images', id + '/');
+    await kv.write(keys.map((k) => ({ store: 'images' as const, key: k, value: undefined })));
+    await restart();
+    expect((await readProject(id))!.photoElsewhere).toMatchObject({ fingerprint: [...server.photos.keys()][0] });
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    expect((await readProject(id))!.bgImage?.dataUrl).toBe(IMG);
+  });
+});
+

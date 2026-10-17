@@ -2,7 +2,7 @@ import { account, loadPlan, supabaseClient, type PlanInfo } from '../account';
 import { flushSave, getSyncRecords, getSyncUser, installId, resetSyncState, setSyncHooks } from '../storage';
 import { syncOnce, type SyncReport, type ServerProject } from './engine';
 import { storageLocal } from './local';
-import { supabaseRemote } from './remote';
+import { cleanUpPhotos, supabaseRemote } from './remote';
 
 // When sync runs, and what it says. Sync is on for a signed-in account whose
 // plan includes it (a started trial, a subscription, the beta), unless it's
@@ -118,6 +118,14 @@ export function runSync(): Promise<void> {
   })().finally(() => { running = null; });
   return running;
 }
+const CLEAN_UP_EVERY_MS = 6 * 60 * 60 * 1000;
+let lastCleanUp = 0;
+/** Anything worth saying after a pass that worked. */
+function syncedNote(r: SyncReport): string | undefined {
+  if (r.full) return 'Your account has reached its limit of 500 projects; new ones stay on this device.';
+  if (r.photosKept.length) return `The background photo of “${r.photosKept[0]}” is too large to sync, or your account’s photo space is full; it stays on this device.`;
+  return undefined;
+}
 async function onePass() {
   if (!navigator.onLine) { setStatus({ phase: 'offline', message: undefined }); return; }
   setStatus({ phase: 'syncing', message: undefined });
@@ -125,7 +133,9 @@ async function onePass() {
     if (!(await flushSave())) throw new Error('This device couldn’t save the latest changes, so they weren’t synced');
     const c = await supabaseClient();
     await forgetOtherAccount();
-    const remote = supabaseRemote(c, deviceName());
+    const userId = account.userId;
+    if (!userId) throw new Error('Not signed in.');
+    const remote = supabaseRemote(c, deviceName(), userId);
     const report = await syncOnce(storageLocal(screenBusy, showOpen), remote, deviceName());
     const trash = report.trash;
     if (report.paused) { await loadPlan(); setStatus({ phase: 'paused', message: pausedWhy(account.plan), trash: report.trash.length ? trash : sync.trash }); }
@@ -133,7 +143,12 @@ async function onePass() {
       const f = report.failed[0];
       const more = report.failed.length > 1 ? ` (and ${report.failed.length - 1} more)` : '';
       setStatus({ phase: 'error', message: `“${f.name}”${more} didn’t sync: ${messageFor(new Error(f.message))} It will try again.`, trash });
-    } else setStatus({ phase: 'synced', lastAt: Date.now(), message: report.full ? 'Your account has reached its limit of 500 projects; new ones stay on this device.' : undefined, trash });
+    } else setStatus({ phase: 'synced', lastAt: Date.now(), message: syncedNote(report), trash });
+    if (!report.paused && Date.now() - lastCleanUp > CLEAN_UP_EVERY_MS) {
+      lastCleanUp = Date.now();
+      // Photos no plan uses any more leave the server (a day after they stopped being used).
+      cleanUpPhotos(c, userId).catch((e) => console.warn('photo clean-up failed', e));
+    }
     if (report.uploaded || report.downloaded || report.conflicts.length || report.removed.length || report.restored.length || report.undeleted.length) onChanged(report);
   } catch (e) {
     setStatus({ phase: navigator.onLine ? 'error' : 'offline', message: messageFor(e) + ' It will try again.' });

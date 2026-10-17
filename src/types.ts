@@ -149,7 +149,18 @@ export interface BgImage {
   rotation: number;
   opacity: number;
   visible: boolean;
+  /** SHA-256 of the image bytes (hex), once known. Sync names the photo by it. */
+  fingerprint?: string;
+  /** Keep this photo on this device: the project syncs without it. */
+  deviceOnly?: boolean;
 }
+/**
+ * A project's background photo as sync carries it: the photo's fingerprint and
+ * how it sits on the plan, or a note that it's kept on one device only.
+ */
+export type PhotoRef =
+  | { fingerprint: string; naturalWidth: number; naturalHeight: number; ftPerPx: number; cx: number; cy: number; rotation: number; opacity: number; visible: boolean }
+  | { deviceOnly: true };
 
 export interface ProjectMeta {
   id: string;
@@ -195,6 +206,11 @@ export interface ProjectData {
   offsetX: number;
   offsetY: number;
   bgImage?: BgImage | null;
+  /**
+   * The synced plan's photo when it isn't on this device: kept on another
+   * device, or not downloaded yet. Null when there's no photo, or it's here.
+   */
+  photoElsewhere?: PhotoRef | null;
 }
 
 export interface HistorySnapshot {
@@ -288,6 +304,8 @@ export interface AppState {
   exportPreview: ExportPreview | null;
   menu: 'more' | null;
   bgImage: BgImage | null;
+  /** The open plan's synced photo that isn't on this device (see ProjectData). */
+  photoElsewhere: PhotoRef | null;
   roleViews: RoleViews;
   print: PrintSettings;
   sizeMode: SizeMode;

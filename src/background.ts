@@ -113,6 +113,7 @@ export async function handleBgImageFile(file: File): Promise<boolean> {
       naturalWidth: w, naturalHeight: h, ftPerPx: 0.1,
       cx: c.x, cy: c.y, rotation: 0, opacity: 0.6, visible: true
     };
+    state.photoElsewhere = null; // this photo replaces one kept on another device
     pushHistory();
     save();
     return true;
@@ -125,6 +126,7 @@ export function removeBgImage() {
   if (!state.bgImage) return;
   flushHistoryDebounce();
   state.bgImage = null;
+  state.photoElsewhere = null;
   state.bgEditMode = false;
   state.bgCalibrate = null;
   pushHistory();

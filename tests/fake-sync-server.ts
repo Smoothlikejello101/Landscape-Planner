@@ -15,6 +15,11 @@ export class FakeServer {
   /** Store the next upload, then fail as if the connection dropped before the answer came back. */
   dropNextAnswer = false;
   offline = false;
+  /** Photo files by fingerprint (data URLs), and how many uploads arrived. */
+  photos = new Map<string, string>();
+  photoUploads = 0;
+  /** Photos bigger than this are refused (the server's 5 MB). */
+  maxPhoto = 5 * 1024 * 1024;
   remoteFor(device: string): Remote {
     const check = () => { if (this.offline) throw new TypeError('Failed to fetch'); };
     return {
@@ -44,6 +49,14 @@ export class FakeServer {
         return 'ok';
       },
       restore: async (id) => { check(); const r = this.rows.get(id); if (!this.allowed || !r?.deleted) return null; r.deleted = false; r.revision++; return r.revision; },
+      reservePhoto: async (fp, size) => {
+        check();
+        if (!this.allowed) return 'paused';
+        if (size > this.maxPhoto) return 'too_big';
+        return this.photos.has(fp) ? 'stored' : 'send';
+      },
+      putPhoto: async (fp, dataUrl) => { check(); this.photoUploads++; this.photos.set(fp, dataUrl); },
+      getPhoto: async (fp) => { check(); return this.photos.get(fp) ?? null; },
     };
   }
 }

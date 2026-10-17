@@ -1,11 +1,16 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ProjectContent, PushResult, Remote, ServerProject } from './engine';
+import { blobToDataUrl, dataUrlBytes, dataUrlType } from './photo';
 
 // The server's side of sync: the functions in supabase/02-sync.sql.
 
 const fail = (error: { message?: string } | null) => { if (error) throw new Error(error.message || 'Sync failed'); };
 
-export function supabaseRemote(c: SupabaseClient, device: string): Remote {
+/** Where a photo's file lives: <account>/<fingerprint>.jpg (whatever its type). */
+const photoPath = (userId: string, fingerprint: string) => `${userId}/${fingerprint}.jpg`;
+
+export function supabaseRemote(c: SupabaseClient, device: string, userId: string): Remote {
+  const bucket = () => c.storage.from('photos');
   return {
     async list() {
       const { data, error } = await c.rpc('sync_list');
@@ -40,5 +45,41 @@ export function supabaseRemote(c: SupabaseClient, device: string): Remote {
       fail(error);
       return data == null ? null : Number(data);
     },
+    async reservePhoto(fingerprint, size) {
+      const { data, error } = await c.rpc('reserve_photo', { p_fp: fingerprint, p_size: size });
+      fail(error);
+      return data === 'stored' || data === 'send' || data === 'paused' || data === 'too_big' || data === 'full' ? data : 'paused';
+    },
+    async putPhoto(fingerprint, dataUrl) {
+      const bytes = dataUrlBytes(dataUrl);
+      const { error } = await bucket().upload(photoPath(userId, fingerprint), new Blob([bytes as BlobPart], { type: dataUrlType(dataUrl) }), { contentType: dataUrlType(dataUrl), upsert: false });
+      // Already there (sent before, the answer lost): the same bytes, by its name.
+      if (error && !/exists|duplicate|409/i.test(`${error.message} ${(error as { statusCode?: string }).statusCode ?? ''}`)) fail(error);
+      fail((await c.rpc('photo_stored', { p_fp: fingerprint })).error);
+    },
+    async getPhoto(fingerprint) {
+      const { data, error } = await bucket().download(photoPath(userId, fingerprint));
+      if (error) {
+        if (/not.?found|404|400/i.test(`${error.message} ${(error as { statusCode?: string }).statusCode ?? ''}`)) return null;
+        fail(error);
+      }
+      return data ? blobToDataUrl(data) : null;
+    },
   };
+}
+
+/** Remove photo files no project uses any more (see unused_photos in 03-photos-plants.sql). */
+export async function cleanUpPhotos(c: SupabaseClient, userId: string): Promise<number> {
+  const { data, error } = await c.rpc('unused_photos');
+  fail(error);
+  let n = 0;
+  for (const fp of (data ?? []) as string[]) {
+    const forgot = await c.rpc('forget_photo', { p_fp: fp });
+    fail(forgot.error);
+    if (!forgot.data) continue; // in use again
+    const { error: rmErr } = await c.storage.from('photos').remove([photoPath(userId, fp)]);
+    fail(rmErr);
+    n++;
+  }
+  return n;
 }

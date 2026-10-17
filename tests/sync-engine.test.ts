@@ -8,21 +8,47 @@ import { FakeServer } from './fake-sync-server';
 // unsynced edits.
 
 let nextId = 0;
+/** A stand-in photo's bytes, by its (stand-in) fingerprint. */
+const photoBytes = (fp: string) => `data:image/jpeg;base64,${btoa(fp)}`;
+const placed = { naturalWidth: 100, naturalHeight: 80, ftPerPx: 0.5, cx: 0, cy: 0, rotation: 0, opacity: 0.6, visible: true };
 class FakeDevice implements Local {
   projectsById = new Map<string, LocalProject>();
   recs: Record<string, SyncRecord> = {};
   tombs: Record<string, number> = {};
+  /** The photo each project has on this device (by fingerprint). */
+  photos = new Map<string, string>();
   /** The open plan is in use on screen (replace and remove wait). */
   busy = new Set<string>();
-  constructor(public name: string) {}
+  /** `withPhotos`: this device's app version syncs photos (its content always says which photo it has). */
+  constructor(public name: string, public withPhotos = false) {}
   private bump(id: string) { const p = this.projectsById.get(id); if (p) p.token++; }
-  add(name: string, shapes: unknown[] = []) { const id = `${this.name}-${++nextId}`; this.projectsById.set(id, { id, name, content: { shapes }, token: 0 }); return id; }
-  edit(id: string, shapes: unknown[]) { this.projectsById.get(id)!.content = { shapes }; this.bump(id); }
+  add(name: string, shapes: unknown[] = []) {
+    const id = `${this.name}-${++nextId}`;
+    this.projectsById.set(id, { id, name, content: this.withPhotos ? { shapes, photo: null } : { shapes }, token: 0 });
+    return id;
+  }
+  edit(id: string, shapes: unknown[]) { const p = this.projectsById.get(id)!; p.content = { ...p.content, shapes }; this.bump(id); }
+  /** Give a project a photo (null: remove it; 'kept': keep it on this device only). */
+  setPhoto(id: string, fp: string | null | 'kept') {
+    const p = this.projectsById.get(id)!;
+    if (fp === 'kept') p.content = { ...p.content, photo: { deviceOnly: true } };
+    else if (fp) { p.content = { ...p.content, photo: { fingerprint: fp, ...placed } }; this.photos.set(id, fp); }
+    else { p.content = { ...p.content, photo: null }; this.photos.delete(id); }
+    this.bump(id);
+  }
   /** Deleted here (as the app does: a synced one leaves a tombstone; one sync is still uploading gets it when the upload lands). */
   del(id: string) { if (this.recs[id]) this.tombs[id] = this.recs[id].revision; delete this.recs[id]; this.projectsById.delete(id); }
   names() { return [...this.projectsById.values()].map((p) => p.name).sort(); }
   byName(n: string) { return [...this.projectsById.values()].find((p) => p.name === n)!; }
-  async projects() { return [...this.projectsById.values()].map((p) => structuredClone(p)); }
+  shapes(id: string) { return this.projectsById.get(id)!.content.shapes; }
+  async projects() {
+    return [...this.projectsById.values()].map((p) => {
+      const c = structuredClone(p);
+      const fp = (p.content.photo as { fingerprint?: string } | null | undefined)?.fingerprint;
+      if (fp && this.photos.get(p.id) !== fp) c.pendingPhoto = fp;
+      return c;
+    });
+  }
   records() { return { ...this.recs }; }
   async setRecord(id: string, rec: SyncRecord | null) {
     if (rec && !this.projectsById.has(id)) { this.tombs[id] = rec.revision; delete this.recs[id]; return; }
@@ -30,18 +56,42 @@ class FakeDevice implements Local {
   }
   tombstones() { return { ...this.tombs }; }
   async clearTombstone(id: string) { delete this.tombs[id]; }
-  async replace(id: string, name: string, content: ProjectContent, token: number) {
+  /** As the app does: a photo arrives with its bytes, or waits; content saying nothing about a photo keeps this one. */
+  private place(id: string, prev: ProjectContent | undefined, content: ProjectContent, bytes?: string): ProjectContent {
+    const n = this.normalize('x', content).content;
+    if (!('photo' in content)) return prev && 'photo' in prev ? { ...n, photo: prev.photo } : n;
+    const ph = content.photo as { fingerprint?: string; deviceOnly?: boolean } | null;
+    if (!ph) this.photos.delete(id);
+    else if (ph.fingerprint && (bytes || this.photos.get(id) === ph.fingerprint)) this.photos.set(id, ph.fingerprint);
+    else if (ph.fingerprint) this.photos.delete(id);
+    return n;
+  }
+  async replace(id: string, name: string, content: ProjectContent, token: number, bytes?: string) {
     const p = this.projectsById.get(id);
     if (!p || p.token !== token || this.busy.has(id)) return false;
-    this.projectsById.set(id, { id, ...this.normalize(name, content), token: token + 1 }); return true;
+    this.projectsById.set(id, { id, name: this.normalize(name, content).name, content: this.place(id, p.content, content, bytes), token: token + 1 }); return true;
   }
-  async create(id: string, name: string, content: ProjectContent) { this.projectsById.set(id, { id, ...this.normalize(name, content), token: 0 }); }
+  async create(id: string, name: string, content: ProjectContent, bytes?: string) {
+    this.projectsById.set(id, { id, name: this.normalize(name, content).name, content: this.place(id, undefined, content, bytes), token: 0 });
+  }
+  async photoData(id: string) { const fp = this.photos.get(id); return fp ? photoBytes(fp) : null; }
+  async hasPhoto(id: string, fp: string) { return this.photos.get(id) === fp; }
+  async fillPhoto(id: string, token: number, fp: string, _bytes: string) {
+    const p = this.projectsById.get(id);
+    if (!p || p.token !== token) return false;
+    this.photos.set(id, fp); p.token++; return true;
+  }
   async remove(id: string, token: number) {
     const p = this.projectsById.get(id);
     if (!p || p.token !== token || this.busy.has(id)) return false;
     this.projectsById.delete(id); delete this.recs[id]; return true;
   }
-  async keepCopy(_from: string, name: string, content: ProjectContent) { const id = `${this.name}-${++nextId}`; this.projectsById.set(id, { id, name, content: structuredClone(content), token: 0 }); return { id, token: 0 }; }
+  async keepCopy(from: string, name: string, content: ProjectContent) {
+    const id = `${this.name}-${++nextId}`;
+    this.projectsById.set(id, { id, name, content: structuredClone(content), token: 0 });
+    const fp = this.photos.get(from); if (fp) this.photos.set(id, fp);
+    return { id, token: 0 };
+  }
   async rename(id: string, name: string, token: number) { const p = this.projectsById.get(id)!; const ok = p.token === token; p.name = name; p.token++; return ok ? p.token : -1; }
   /** As the app does: downloads are checked and tidied (here: names trimmed). */
   normalize(name: string, content: ProjectContent) { return { name: name.trim() || 'Untitled', content: structuredClone(content) }; }
@@ -306,6 +356,144 @@ describe('a second device’s first sign-in', () => {
     laptop.edit([...laptop.projectsById.values()].find((p) => !server.rows.has(p.id))!.id, ['drawn']);
     await sync(laptop, server);
     expect([...server.rows.values()].map((x) => x.name).sort()).toEqual(['My Garden', 'My Garden (from laptop)']);
+  });
+});
+
+describe('background photos', () => {
+  const pair = () => ({ server: new FakeServer(), phone: new FakeDevice('phone', true), laptop: new FakeDevice('laptop', true) });
+  const serverPhoto = (server: FakeServer, id: string) => (server.rows.get(id)!.content as { photo?: unknown }).photo;
+
+  it('go up once, before their plan, and come down with it', async () => {
+    const { server, phone, laptop } = pair();
+    const id = phone.add('Back Yard', [1]);
+    phone.setPhoto(id, 'f1');
+    await sync(phone, server);
+    expect(server.photos.has('f1')).toBe(true);
+    expect(server.photoUploads).toBe(1);
+    await sync(laptop, server);
+    expect(laptop.photos.get(id)).toBe('f1');
+    // Edits to the plan don't send the photo again.
+    phone.edit(id, [1, 2]);
+    await sync(phone, server); await sync(laptop, server);
+    expect(server.photoUploads).toBe(1);
+    expect(laptop.shapes(id)).toEqual([1, 2]);
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 0, downloaded: 0 });
+    // The same photo in another plan isn't sent again either.
+    const other = phone.add('Front', [3]); phone.setPhoto(other, 'f1');
+    await sync(phone, server);
+    expect(server.photoUploads).toBe(1);
+  });
+
+  it('a photo changed on one device and the plan on another: both kept, no conflict', async () => {
+    const { server, phone, laptop } = pair();
+    const id = phone.add('Back Yard', [1]); phone.setPhoto(id, 'f1');
+    await sync(phone, server); await sync(laptop, server);
+    phone.setPhoto(id, 'f2');
+    laptop.edit(id, [1, 'laptop']);
+    await sync(laptop, server);
+    const r = await sync(phone, server);
+    expect(r.conflicts).toEqual([]);
+    expect(phone.shapes(id)).toEqual([1, 'laptop']);
+    expect(phone.photos.get(id)).toBe('f2');
+    await sync(laptop, server);
+    expect(laptop.photos.get(id)).toBe('f2');
+    expect(serverPhoto(server, id)).toMatchObject({ fingerprint: 'f2' });
+  });
+
+  it('different photos chosen on two devices: a conflict, both kept', async () => {
+    const { server, phone, laptop } = pair();
+    const id = phone.add('Back Yard', [1]);
+    await sync(phone, server); await sync(laptop, server);
+    phone.setPhoto(id, 'f1'); laptop.setPhoto(id, 'f2');
+    await sync(phone, server);
+    const r = await sync(laptop, server);
+    expect(r.conflicts).toHaveLength(1);
+    expect(laptop.photos.get(laptop.byName(r.conflicts[0].copyName).id)).toBe('f2');
+    expect(laptop.photos.get(id)).toBe('f1');
+  });
+
+  it('a photo removed on one device leaves the others', async () => {
+    const { server, phone, laptop } = pair();
+    const id = phone.add('Back Yard', [1]); phone.setPhoto(id, 'f1');
+    await sync(phone, server); await sync(laptop, server);
+    laptop.setPhoto(id, null);
+    await sync(laptop, server); await sync(phone, server);
+    expect(phone.photos.has(id)).toBe(false);
+    expect(phone.projectsById.get(id)!.content.photo).toBeNull();
+  });
+
+  it('one kept on this device never goes up; the others hear it’s kept elsewhere', async () => {
+    const { server, phone, laptop } = pair();
+    const id = phone.add('Back Yard', [1]); phone.setPhoto(id, 'f1'); phone.setPhoto(id, 'kept');
+    await sync(phone, server); await sync(laptop, server);
+    expect(server.photoUploads).toBe(0);
+    expect(serverPhoto(server, id)).toEqual({ deviceOnly: true });
+    expect(laptop.projectsById.get(id)!.content.photo).toEqual({ deviceOnly: true });
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 0 });
+  });
+
+  it('one too large for the server stays here; the plan still syncs, once', async () => {
+    const { server, phone, laptop } = pair();
+    server.maxPhoto = 1;
+    const id = phone.add('Back Yard', [1]); phone.setPhoto(id, 'f1');
+    const r = await sync(phone, server);
+    expect(r.photosKept).toEqual(['Back Yard']);
+    expect(serverPhoto(server, id)).toEqual({ deviceOnly: true });
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 0, photosKept: [] });
+    expect(phone.photos.get(id)).toBe('f1'); // still here
+    await sync(laptop, server);
+    expect(laptop.shapes(id)).toEqual([1]);
+  });
+
+  it('a photo the server can’t give yet: the plan arrives, the photo follows later', async () => {
+    const { server, phone, laptop } = pair();
+    const id = phone.add('Back Yard', [1]); phone.setPhoto(id, 'f1');
+    await sync(phone, server);
+    const bytes = server.photos.get('f1')!; server.photos.delete('f1');
+    await sync(laptop, server);
+    expect(laptop.shapes(id)).toEqual([1]);
+    expect(laptop.photos.has(id)).toBe(false);
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 0 }); // waiting isn't a change
+    server.photos.set('f1', bytes);
+    await sync(laptop, server);
+    expect(laptop.photos.get(id)).toBe('f1');
+  });
+
+  it('upgrading from before photos synced: no conflicts, and the photo reaches the other device', async () => {
+    // Synced by the earlier version: records hold the plan's fingerprint only; the server's content has no photo.
+    for (const order of ['phone first', 'laptop first'] as const) {
+      const server = new FakeServer(), oldPhone = new FakeDevice('phone'), oldLaptop = new FakeDevice('laptop');
+      const id = oldPhone.add('Back Yard', [1]);
+      await sync(oldPhone, server); await sync(oldLaptop, server);
+      // Both update. The phone had a photo all along; the laptop also edited the plan.
+      const phone = new FakeDevice('phone', true), laptop = new FakeDevice('laptop', true);
+      for (const [d, old] of [[phone, oldPhone], [laptop, oldLaptop]] as const) {
+        d.recs = structuredClone(old.recs);
+        for (const [pid, p] of old.projectsById) d.projectsById.set(pid, { ...structuredClone(p), content: { ...p.content, photo: null } });
+      }
+      phone.setPhoto(id, 'f1'); phone.recs = structuredClone(oldPhone.recs);
+      laptop.edit(id, [1, 'laptop']);
+      const first = order === 'phone first' ? [phone, laptop] : [laptop, phone];
+      for (const d of [...first, ...first]) expect((await sync(d, server)).conflicts).toEqual([]);
+      for (const d of [phone, laptop]) {
+        expect(d.shapes(id)).toEqual([1, 'laptop']);
+        expect(d.photos.get(id)).toBe('f1');
+      }
+    }
+  });
+
+  it('a plan from a device on the earlier version keeps the photo here, and it goes back up', async () => {
+    const server = new FakeServer(), phone = new FakeDevice('phone', true), oldLaptop = new FakeDevice('laptop');
+    const id = phone.add('Back Yard', [1]); phone.setPhoto(id, 'f1');
+    await sync(phone, server); await sync(oldLaptop, server);
+    oldLaptop.projectsById.get(id)!.content = { shapes: [1, 'old laptop'] }; // its content knows nothing of photos
+    await sync(oldLaptop, server);
+    expect(serverPhoto(server, id)).toBeUndefined();
+    await sync(phone, server);
+    expect(phone.shapes(id)).toEqual([1, 'old laptop']);
+    expect(phone.photos.get(id)).toBe('f1');
+    await sync(phone, server);
+    expect(serverPhoto(server, id)).toMatchObject({ fingerprint: 'f1' });
   });
 });
 
