@@ -435,17 +435,20 @@ export async function readProject(id: string): Promise<ProjectData | null> {
 }
 /**
  * Make `id` the open project. Saves the previous one first; if that save
- * fails, stays on the current project and returns false.
+ * fails, or the project was deleted meanwhile (by sync), stays on the
+ * current project and returns false.
  */
 export async function switchProject(id: string): Promise<boolean> {
   let data: ProjectData | null;
-  // Edits can land while we read; keep saving until a read finishes with nothing pending.
+  // Edits can land while we read, and sync can replace or delete the project; read again until nothing moved.
   for (;;) {
     const seq = editSeq;
+    const token = changeToken(id);
     if (!(await flushSave())) return false;
     data = await readProject(id);
-    if (seq === editSeq) break;
+    if (seq === editSeq && token === changeToken(id)) break;
   }
+  if (!metaFor(id)) return false;
   data ??= sanitizeProjectData({});
   cancelHistoryDebounce();
   state.currentProjectId = id;
@@ -628,7 +631,7 @@ export async function replaceProjectContent(id: string, name: string, content: u
   const data: ProjectData = { ...base, ...syncedContent(incoming) };
   const metaNext = { ...meta, name: name.trim() || 'Untitled', lastModified: now(), shapeCount: data.shapes.length };
   bumpChange(id);
-  // The write is queued before any later save's, so a later edit lands on top of it.
+  // The write is queued before any later save's (and any read by a switch to this project), so they see it.
   const written = db().write([...projectWriteOps(id, data, isOpen ? storedImageKeys : undefined), put('meta', id, metaNext)]);
   Object.assign(meta, metaNext);
   if (isOpen) {
@@ -642,7 +645,14 @@ export async function replaceProjectContent(id: string, name: string, content: u
     state.history = [];
     state.historyIndex = -1;
   }
-  await written;
+  try {
+    await written;
+  } catch (e) {
+    // The plan on screen already shows the server's version (so later edits land on top of it);
+    // keep it as unsaved so the next save writes it.
+    if (isOpen) save();
+    throw e;
+  }
   return true;
 }
 /** Read a project as it is now (the open one from memory, saved first). */

@@ -48,8 +48,8 @@ export interface Local {
   remove(id: string, token: number): Promise<boolean>;
   /** Keep this device's version of a project (`from`) as a new project. */
   keepCopy(from: string, name: string, content: ProjectContent): Promise<{ id: string; token: number }>;
-  /** Rename; returns the project's new token. */
-  rename(id: string, name: string): Promise<number>;
+  /** Rename; returns the project's new token (or a stale one if it had changed since `token`). */
+  rename(id: string, name: string, token: number): Promise<number>;
   /**
    * A name and content as this device will store and read them back (checked
    * and tidied, as any download is), so its fingerprint matches what the next
@@ -180,7 +180,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
   };
   /** Changed on two devices: the server's version takes this place; ours becomes a copy beside it. */
   const conflict = async (p: LocalProject, serverName: string, serverRev: number, serverContent: ProjectContent, by: string | null) => {
-    const copyLabel = copyName(p.name, device);
+    const copyLabel = local.normalize(copyName(p.name, device), {}).name;
     // The copy is saved first, so this device's version is never only in the project being replaced.
     const copy = await local.keepCopy(p.id, copyLabel, p.content);
     if (!(await local.replace(p.id, serverName, serverContent, p.token))) {
@@ -210,8 +210,8 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
         // marked as this device's, unless it's empty (a new device's starter plan): that stays here.
         if (!rec && liveNames.has(p.name)) {
           if (isEmpty(p.content)) return;
-          const name = `${p.name} (from ${device || 'this device'})`;
-          p.token = await local.rename(p.id, name);
+          const name = local.normalize(`${p.name} (from ${device || 'this device'})`, {}).name;
+          p.token = await local.rename(p.id, name, p.token);
           p.name = name;
         }
         if (!report.full) await upload(p, null, fingerprint(p.name, p.content));

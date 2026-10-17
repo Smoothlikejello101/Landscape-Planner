@@ -139,7 +139,7 @@ begin
       return jsonb_build_object('status', 'ok', 'revision', 1);
     exception when unique_violation then
       -- Another device uploaded it a moment ago: answer as if we'd seen that first.
-      select * into cur from public.projects where owner = me and id = p_id;
+      select * into cur from public.projects where owner = me and id = p_id for update;
     end;
   end if;
   if cur.deleted_at is not null then return jsonb_build_object('status', 'deleted', 'revision', cur.revision); end if;

@@ -42,7 +42,7 @@ class FakeDevice implements Local {
     this.projectsById.delete(id); delete this.recs[id]; return true;
   }
   async keepCopy(_from: string, name: string, content: ProjectContent) { const id = `${this.name}-${++nextId}`; this.projectsById.set(id, { id, name, content: structuredClone(content), token: 0 }); return { id, token: 0 }; }
-  async rename(id: string, name: string) { const p = this.projectsById.get(id)!; p.name = name; p.token++; return p.token; }
+  async rename(id: string, name: string, token: number) { const p = this.projectsById.get(id)!; const ok = p.token === token; p.name = name; p.token++; return ok ? p.token : -1; }
   /** As the app does: downloads are checked and tidied (here: names trimmed). */
   normalize(name: string, content: ProjectContent) { return { name: name.trim() || 'Untitled', content: structuredClone(content) }; }
 }
@@ -224,6 +224,27 @@ describe('edits made while a sync works', () => {
     await sync(phone, server);
     expect(server.rows.get(id)!.deleted).toBe(true);
     expect(phone.names()).toEqual([]);
+  });
+});
+
+describe('renaming on a first upload', () => {
+  it('doesn’t hide an edit made after the plan was read', async () => {
+    const server = new FakeServer(), phone = new FakeDevice('phone');
+    const first = phone.add('First', [0]);
+    const id = phone.add('My Garden', ['a']);
+    server.rows.set('elsewhere', { name: 'My Garden', content: { shapes: [] }, revision: 1, updated_by: 'tablet', deleted: false });
+    const base = server.remoteFor('phone');
+    const remote: Remote = {
+      ...base,
+      push: async (pid, ...a) => {
+        if (pid === first) phone.edit(id, ['a', 'b (mid-sync)']);
+        // Another device uploads this very project a moment before us: a conflict.
+        if (pid === id) server.rows.set(id, { name: 'Other', content: { shapes: ['tablet'] }, revision: 1, updated_by: 'tablet', deleted: false });
+        return base.push(pid, ...a);
+      },
+    };
+    await syncOnce(phone, remote, 'phone');
+    expect(JSON.stringify([...phone.projectsById.values()].map((p) => p.content))).toContain('b (mid-sync)');
   });
 });
 

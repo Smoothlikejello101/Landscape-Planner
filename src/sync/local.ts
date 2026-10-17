@@ -54,8 +54,12 @@ export function storageLocal(screenBusy: () => boolean, openChanged: () => Promi
     tombstones: getSyncTombstones,
     clearTombstone: clearSyncTombstone,
     async replace(id, name, content, token) {
-      const ok = await replaceProjectContent(id, syncName(name), content, token, () => !screenBusy());
-      if (ok && state.currentProjectId === id) await openChanged();
+      let ok = false;
+      try {
+        ok = await replaceProjectContent(id, syncName(name), content, token, () => !screenBusy());
+      } finally {
+        if (ok || state.currentProjectId === id) await openChanged(); // (a failed write may still have changed the screen)
+      }
       return ok;
     },
     async create(id, name, content) {
@@ -68,7 +72,7 @@ export function storageLocal(screenBusy: () => boolean, openChanged: () => Promi
         if (screenBusy()) return false;
         const other = state.projects.find((p) => p.id !== id);
         const next = other ? other.id : await createProject('My Garden');
-        if (projectChangeToken(id) !== token || state.currentProjectId !== id) return false;
+        if (projectChangeToken(id) !== token || state.currentProjectId !== id || screenBusy()) return false;
         if (!(await switchProject(next))) return false;
         const gone = await deleteProject(id, true, token);
         await openChanged();
@@ -84,9 +88,13 @@ export function storageLocal(screenBusy: () => boolean, openChanged: () => Promi
       const id = await createProject(name, data);
       return { id, token: projectChangeToken(id) };
     },
-    async rename(id, name) {
-      await renameProject(id, name);
-      return projectChangeToken(id);
+    async rename(id, name, token) {
+      // The project moves on to a token sync knows only if nothing else changed it first.
+      const unchanged = projectChangeToken(id) === token;
+      const done = renameProject(id, syncName(name)); // (counts the change at once)
+      const next = unchanged ? projectChangeToken(id) : -1;
+      await done;
+      return next;
     },
     normalize(name, content) { return { name: syncName(name), content: tidy(content) }; },
   };

@@ -194,6 +194,45 @@ describe('edits made while a sync works (real storage)', () => {
   });
 });
 
+describe('opening a project while sync changes it', () => {
+  it('sync replaces it: the opened plan shows the new version, and nothing goes back up', async () => {
+    for (const delay of [0, 3, 8]) {
+      const server = new FakeServer(); await device();
+      const home = state.currentProjectId!;
+      const z = await createProject('Z');
+      await switchProject(z); state.shapes = [bed('z1', 'mine')]; save(); await flushSave(); await switchProject(home);
+      await syncOnce(local(), server.remoteFor('phone'), 'phone');
+      const row = server.rows.get(z)!;
+      row.content = { ...row.content, shapes: [bed('z1', 'mine'), bed('z2', 'laptop')] }; row.revision++;
+      let opening: Promise<boolean> | null = null;
+      const base = server.remoteFor('phone');
+      const remote: Remote = { ...base, fetch: async (ids) => { const got = await base.fetch(ids); opening = switchProject(z); for (let i = 0; i < delay; i++) await Promise.resolve(); return got; } };
+      await syncOnce(local(), remote, 'phone');
+      expect(await opening).toBe(true);
+      expect(state.shapes.map((s) => s.label)).toEqual(['mine', 'laptop']);
+      expect(await syncOnce(local(), server.remoteFor('phone'), 'phone')).toMatchObject({ uploaded: 0, conflicts: [] });
+    }
+  });
+
+  it('sync removes it: it doesn’t open (no edits go into a project that’s gone)', async () => {
+    for (const delay of [0, 3, 8]) {
+      const server = new FakeServer(); await device();
+      const home = state.currentProjectId!;
+      const z = await createProject('Z');
+      await syncOnce(local(), server.remoteFor('phone'), 'phone');
+      server.rows.get(z)!.deleted = true;
+      const loc = local();
+      const remove = loc.remove;
+      let opening: Promise<boolean> | null = null;
+      loc.remove = async (id, token) => { if (id === z) { opening = switchProject(z); for (let i = 0; i < delay; i++) await Promise.resolve(); } return remove(id, token); };
+      await syncOnce(loc, server.remoteFor('phone'), 'phone');
+      expect(await opening).toBe(false);
+      expect(state.currentProjectId).toBe(home);
+      expect(state.projects.map((p) => p.id)).toEqual([home]);
+    }
+  });
+});
+
 describe('what the server can store', () => {
   it('text the server can’t hold is left out, and nothing looks changed afterwards', async () => {
     const server = new FakeServer(); await device();
