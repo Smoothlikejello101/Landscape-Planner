@@ -460,7 +460,7 @@ describe('background photos', () => {
 
   it('one the server had no room for stays here, and goes up once there is room', async () => {
     const { server, phone, laptop } = pair();
-    server.maxPhoto = 1;
+    server.photoRoom = false;
     const id = phone.add('Back Yard', [1]); phone.setPhoto(id, 'f1');
     await sync(phone, server);
     // Another device edits the plan: this device's photo isn't taken as "kept elsewhere".
@@ -470,7 +470,7 @@ describe('background photos', () => {
     expect(phone.photos.get(id)).toBe('f1');
     expect(phone.projectsById.get(id)!.content.photo).toMatchObject({ fingerprint: 'f1' });
     expect(await sync(phone, server)).toMatchObject({ uploaded: 0 }); // no churn while there's no room
-    server.maxPhoto = 5e6;
+    server.photoRoom = true;
     await sync(phone, server);
     expect(serverPhoto(server, id)).toMatchObject({ fingerprint: 'f1' });
     await sync(laptop, server);
@@ -497,7 +497,9 @@ describe('background photos', () => {
     const r = await sync(phone, server);
     expect(r.photosKept).toEqual(['Back Yard']);
     expect(serverPhoto(server, id)).toEqual({ deviceOnly: true });
+    const asked = server.reservations;
     expect(await sync(phone, server)).toMatchObject({ uploaded: 0, photosKept: [] });
+    expect(server.reservations).toBe(asked); // too large: not asked again every pass
     expect(phone.photos.get(id)).toBe('f1'); // still here
     await sync(laptop, server);
     expect(laptop.shapes(id)).toEqual([1]);

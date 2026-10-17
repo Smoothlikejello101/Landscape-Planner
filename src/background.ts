@@ -140,6 +140,20 @@ export function updateBgImage(patch: Partial<BgImage>) {
   pushHistoryDebounced();
   render();
 }
+/**
+ * "Keep this photo on this device only": a setting of the photo, not an
+ * undoable edit, so it's set on every undo step showing the same photo too
+ * (undo or redo can't turn it off and send the photo).
+ */
+export function setPhotoDeviceOnly(on: boolean) {
+  const bg = state.bgImage;
+  if (!bg) return;
+  for (const b of [bg, ...state.history.map((s) => s.bgImage)]) {
+    if (!b || b.dataUrl !== bg.dataUrl) continue;
+    if (on) b.deviceOnly = true; else delete b.deviceOnly;
+  }
+  save();
+}
 /** Patch the image and redraw only the canvas (inputs keep keyboard focus). */
 export function updateBgImageSilent(patch: Partial<BgImage>) {
   if (!state.bgImage) return;

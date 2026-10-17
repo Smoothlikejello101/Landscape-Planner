@@ -1,6 +1,6 @@
 import { state } from '../state';
 import {
-  clearSyncTombstone, createProject, currentProjectData, deleteProject, fillProjectPhoto, getPlantSync, getSyncRecords, getSyncTombstones, notePhotoFingerprint, photoRefOf,
+  clearSyncTombstone, createProject, currentProjectData, deleteProject, fillProjectPhoto, getPlantSync, getSyncRecords, hasUnsavedChanges, getSyncTombstones, notePhotoFingerprint, photoRefOf,
   placePhoto, projectChangeToken, projectNow, readProject, renameProject, replaceProjectContent, sanitizePhotoRef, sanitizeProjectData,
   setSyncRecord, switchProject, syncedContent,
 } from '../storage';
@@ -79,10 +79,13 @@ export function storageLocal(screenBusy: () => boolean, openChanged: () => Promi
     setRecord: setSyncRecord,
     tombstones: getSyncTombstones,
     clearTombstone: clearSyncTombstone,
-    async replace(id, name, content, token, bytes) {
+    async replace(id, name, content, token, bytes, copied) {
       let ok = false;
       let copyId: string | null = null;
       try {
+        // Not now (edited since, or in use on screen): no copy made for nothing.
+        if (projectChangeToken(id) !== token) return false;
+        if (state.currentProjectId === id && (screenBusy() || hasUnsavedChanges())) return false;
         const photo = 'photo' in content ? { ref: sanitizePhotoRef(content.photo), bytes } : undefined;
         // A photo that's on no server (kept on this device only, or one the server had no room
         // for), about to be replaced or removed: this device's version is kept as a copy first.
@@ -90,13 +93,16 @@ export function storageLocal(screenBusy: () => boolean, openChanged: () => Promi
         const notOnServer = !!here && (here.deviceOnly || !!getSyncRecords()[id]?.held);
         const same = here && photo?.ref && 'fingerprint' in photo.ref && (await photoFingerprint(here.dataUrl)) === photo.ref.fingerprint;
         const stays = here?.deviceOnly && photo?.ref && 'deviceOnly' in photo.ref;
-        if (notOnServer && !same && !stays) {
+        if (notOnServer && !same && !stays && !copied) {
           const d = state.currentProjectId === id ? currentProjectData() : await readProject(id);
           const meta = state.projects.find((p) => p.id === id);
           if (d && meta) copyId = await createProject(syncName(`${meta.name} — with this device’s photo`), { ...d, bgImage: { ...here } });
         }
-        ok = await replaceProjectContent(id, syncName(name), content, token, () => !screenBusy(), photo);
-        if (!ok && copyId) await deleteProject(copyId, true);
+        try {
+          ok = await replaceProjectContent(id, syncName(name), content, token, () => !screenBusy(), photo);
+        } finally {
+          if (!ok && copyId) await deleteProject(copyId, true);
+        }
       } finally {
         if (ok || state.currentProjectId === id) await openChanged(); // (a failed write may still have changed the screen)
       }

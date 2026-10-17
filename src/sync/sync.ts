@@ -143,7 +143,7 @@ async function onePass() {
     const remote = supabaseRemote(c, deviceName(), userId);
     // My plants first, so a plan that arrives finds the plants it uses.
     // (Trouble with plants doesn't hold up the plans.)
-    const plants = await syncPlants(storagePlants(), supabasePlants(c, deviceName()))
+    const plants = await syncPlants(storagePlants(), supabasePlants(c, deviceName()), deviceName())
       .catch((e): PlantReport => ({ uploaded: 0, downloaded: 0, removed: 0, failed: [{ name: 'My plants', message: e instanceof Error ? e.message : String(e) }], paused: false, full: false }));
     const report = plants.paused ? emptyReport(true) : await syncOnce(storageLocal(screenBusy, showOpen), remote, deviceName());
     report.downloaded += plants.downloaded + plants.removed;

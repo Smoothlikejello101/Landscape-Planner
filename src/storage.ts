@@ -576,7 +576,7 @@ export async function renameProject(id: string, name: string) {
  * ('none', 'kept' on one device, or the photo's fingerprint; absent if unknown,
  * as for projects synced before photos did).
  */
-export interface SyncRecord { revision: number; hash: string; photo?: string; held?: boolean }
+export interface SyncRecord { revision: number; hash: string; photo?: string; held?: 'room' | 'refused' }
 let syncRecords: Record<string, SyncRecord> = {};
 /** Synced projects deleted here, still to be moved to the server's trash: id → revision. */
 let syncTombstones: Record<string, number> = {};
@@ -982,7 +982,7 @@ function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
       if (r && typeof r.revision === 'number' && Number.isFinite(r.revision) && typeof r.hash === 'string') {
         out[k] = { revision: r.revision, hash: r.hash };
         if (typeof r.photo === 'string' && /^(none|kept|[0-9a-f]{64}@[0-9a-z]+:[0-9a-z]+)$/.test(r.photo)) out[k].photo = r.photo;
-        if (r.held === true) out[k].held = true;
+        if (r.held === 'room' || r.held === 'refused') out[k].held = r.held;
       }
     }
   }

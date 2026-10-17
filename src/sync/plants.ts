@@ -40,7 +40,8 @@ export interface PlantReport { uploaded: number; downloaded: number; removed: nu
 const time = (iso: string | null | undefined) => (iso ? Date.parse(iso) || 0 : 0);
 const FAILS_IN_A_ROW = 3;
 
-export async function syncPlants(local: LocalPlants, remote: RemotePlants): Promise<PlantReport> {
+/** `device`: this device's name, for the plant kept beside another device's version. */
+export async function syncPlants(local: LocalPlants, remote: RemotePlants, device = 'this device'): Promise<PlantReport> {
   const report: PlantReport = { uploaded: 0, downloaded: 0, removed: 0, failed: [], paused: false, full: false };
   const server = new Map((await remote.plantList()).map((s) => [s.id, s]));
   const mine = new Map(local.plants().map((p) => [p.id, p]));
@@ -101,7 +102,7 @@ export async function syncPlants(local: LocalPlants, remote: RemotePlants): Prom
           // the id; this device's becomes a plant of its own (it uploads next time).
           const copyId = local.newId();
           changes.push({ id, plant: n.plant, expect: p.hash, record, edited: time(g.edited_at) });
-          changes.push({ id: copyId, plant: { ...p.plant, id: copyId, common: `${p.plant.common} (this device’s)`.slice(0, 80) }, expect: null, edited: p.edited });
+          changes.push({ id: copyId, plant: { ...p.plant, id: copyId, common: `${p.plant.common} (from ${device})`.slice(0, 80) }, expect: null, edited: p.edited, requires: id });
           report.downloaded++;
           continue;
         }

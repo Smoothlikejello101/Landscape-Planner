@@ -1,4 +1,4 @@
-import { finishBgCalibration, handleBgImageFile, removeBgImage, startBgCalibration, updateBgImage, updateBgImageSilent } from '../background';
+import { finishBgCalibration, handleBgImageFile, removeBgImage, setPhotoDeviceOnly, startBgCalibration, updateBgImage, updateBgImageSilent } from '../background';
 import { el } from '../dom';
 import { I } from '../icons';
 import { account } from '../account';
@@ -159,7 +159,7 @@ export function renderBgPanel() {
   if (account.status === 'signedIn') {
     const keep = el('input', { type: 'checkbox' }) as HTMLInputElement;
     keep.checked = !!bg.deviceOnly;
-    keep.addEventListener('change', () => updateBgImage({ deviceOnly: keep.checked || undefined }));
+    keep.addEventListener('change', () => { setPhotoDeviceOnly(keep.checked); render(); });
     body.appendChild(el('div', { className: 'field' },
       el('label', { className: 'check-row', 'data-testid': 'photo-device-only' }, keep, el('span', {}, 'Keep this photo on this device only')),
       el('div', { className: 'hint' }, keep.checked

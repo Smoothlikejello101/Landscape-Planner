@@ -29,6 +29,7 @@ class Device implements LocalPlants {
     this.during?.(); this.during = null;
     const done: string[] = [];
     for (const c of changes) {
+      if (c.requires && !done.includes(c.requires)) continue;
       if (c.expect !== undefined) { const h = this.lib.has(c.id) ? hash(this.lib.get(c.id)!) : null; if (h !== c.expect) continue; }
       if (c.plant) this.lib.set(c.id, c.plant); else if (c.plant === null) this.lib.delete(c.id);
       if (c.edited !== undefined) this.times[c.id] = c.edited;
@@ -149,7 +150,7 @@ describe('My plants sync', () => {
     // (Both had it from the same backup file, then changed it; edit times unknown.)
     phone.lib.set('u-a', plant('u-a', 'Aster, phone')); laptop.lib.set('u-a', plant('u-a', 'Aster, laptop'));
     await sync(phone, server); await sync(laptop, server);
-    expect(laptop.names()).toEqual(['Aster, laptop (this device’s)', 'Aster, phone']);
+    expect(laptop.names()).toEqual(['Aster, laptop (from this device)', 'Aster, phone']);
     await sync(laptop, server); await sync(phone, server);
     expect(phone.names()).toEqual(laptop.names());
   });

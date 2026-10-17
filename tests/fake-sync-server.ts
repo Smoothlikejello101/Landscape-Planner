@@ -20,6 +20,9 @@ export class FakeServer {
   photoUploads = 0;
   /** Photos bigger than this are refused (the server's 5 MB). */
   maxPhoto = 5 * 1024 * 1024;
+  /** False: the account's photo space is full. */
+  photoRoom = true;
+  reservations = 0;
   remoteFor(device: string): Remote {
     const check = () => { if (this.offline) throw new TypeError('Failed to fetch'); };
     return {
@@ -54,7 +57,9 @@ export class FakeServer {
       reservePhoto: async (fp, size) => {
         check();
         if (!this.allowed) return 'paused';
+        this.reservations++;
         if (size > this.maxPhoto) return 'too_big';
+        if (!this.photoRoom && !this.photos.has(fp)) return 'full';
         return this.photos.has(fp) ? 'stored' : 'send';
       },
       putPhoto: async (fp, dataUrl) => { check(); this.photoUploads++; this.photos.set(fp, dataUrl); },

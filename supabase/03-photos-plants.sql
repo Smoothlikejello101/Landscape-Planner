@@ -167,7 +167,8 @@ declare
   me uuid := auth.uid();
   cur public.my_plants;
   dev text := left(coalesce(p_device, ''), 80);
-  edited timestamptz := least(p_edited, now()); -- a device whose clock runs ahead doesn't always win
+  -- A device whose clock runs ahead doesn't always win (an unknown time stays unknown).
+  edited timestamptz := case when p_edited is null then null else least(p_edited, now()) end;
 begin
   if me is null then raise exception 'not signed in'; end if;
   if p_id is null or p_id !~ '^u-.{1,38}$' then raise exception 'bad plant id'; end if;

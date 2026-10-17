@@ -151,9 +151,10 @@ export const plantHash = (p: Plant) => fingerprint('', p as unknown as Record<st
  * undefined to leave it (only its sync record changes). From sync: `expect`
  * is the fingerprint the plant had when sync read it (null: absent); the
  * change is skipped if it has changed since. `edited`: the edit time to
- * keep; `record`: its sync record (null: none).
+ * keep; `record`: its sync record (null: none); `requires`: made only if
+ * the change to that plant id (earlier in the batch) was.
  */
-export interface PlantChange { id: string; plant?: Plant | null; expect?: string | null; edited?: number; record?: SyncRecord | null }
+export interface PlantChange { id: string; plant?: Plant | null; expect?: string | null; edited?: number; record?: SyncRecord | null; requires?: string }
 let writing: Promise<unknown> = Promise.resolve();
 /**
  * Apply changes to the library, one batch at a time (each sees the one
@@ -168,6 +169,7 @@ export function applyPlantChanges(changes: PlantChange[], bySync = false): Promi
     const sync = getPlantSync();
     const done: string[] = [];
     for (const c of changes) {
+      if (c.requires && !done.includes(c.requires)) continue; // goes only with a change that was made
       if (c.expect !== undefined) {
         const have = cur.get(c.id);
         if ((have ? plantHash(have) : null) !== c.expect) continue; // changed meanwhile: next time

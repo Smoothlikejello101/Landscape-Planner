@@ -115,6 +115,8 @@ select pg_temp.check((select deleted_at is null from public.plant_list() where i
 select pg_temp.check(public.push_plant('u-none', null, null, now(), 'Pixel') ->> 'status' = 'ok', 'deleting what the server never had');
 select public.push_plant('u-future', null, '{"id":"u-future","common":"F"}', now() + interval '10 years', 'Fast clock');
 select pg_temp.check((select edited_at <= now() from public.plant_list() where id = 'u-future'), 'an edit time from the future is capped at now');
+select public.push_plant('u-unknown', null, '{"id":"u-unknown","common":"U"}', null, 'Pixel');
+select pg_temp.check((select edited_at is null from public.plant_list() where id = 'u-unknown'), 'an unknown edit time stays unknown');
 do $$ begin perform public.push_plant('x-bad', null, '{}', now(), ''); raise exception 'FAILED: bad plant id accepted'; exception when others then if sqlerrm like 'FAILED%' then raise; end if; end $$;
 do $$ begin perform public.push_plant('u-' || repeat('x', 39), null, '{}', now(), ''); raise exception 'FAILED: long plant id accepted'; exception when others then if sqlerrm like 'FAILED%' then raise; end if; end $$;
 do $$ begin perform public.push_plant('u-arr', null, '[1]', now(), ''); raise exception 'FAILED: non-object plant accepted'; exception when others then if sqlerrm like 'FAILED%' then raise; end if; end $$;

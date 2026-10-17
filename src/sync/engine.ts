@@ -30,8 +30,12 @@ export interface LocalProject {
   /** The fingerprint of its synced photo, when the photo isn't on this device yet. */
   pendingPhoto?: string;
 }
-/** `held`: this device's photo couldn't be stored on the server (too large, or no room); the server's plan says it's kept here. */
-export interface SyncRecord { revision: number; hash: string; photo?: string; held?: boolean }
+/**
+ * `held`: this device's photo couldn't be stored on the server, so the
+ * server's plan says it's kept here: 'room' (the account's photo space was
+ * full: tried again later) or 'refused' (too large, or a kind of image storage won't take).
+ */
+export interface SyncRecord { revision: number; hash: string; photo?: string; held?: 'room' | 'refused' }
 export interface ServerProject { id: string; name: string; revision: number; updated_by: string | null; updated_at: string; deleted_at: string | null }
 export type PushResult =
   | { status: 'ok'; revision: number }
@@ -53,8 +57,9 @@ export interface Local {
    * Replace a project's content and name, if unchanged since `token` (else
    * false: try again next time). Content without a `photo` keeps the photo
    * here; `photo` is the fetched bytes of a photo this device didn't have.
+   * `copied`: this device's version was just kept as a copy (no need for another).
    */
-  replace(id: string, name: string, content: ProjectContent, token: number, photo?: string): Promise<boolean>;
+  replace(id: string, name: string, content: ProjectContent, token: number, photo?: string, copied?: boolean): Promise<boolean>;
   /** A project new to this device, under the server's id. */
   create(id: string, name: string, content: ProjectContent, photo?: string): Promise<void>;
   /**
@@ -186,6 +191,8 @@ const recordFor = (name: string, c: ProjectContent, revision: number): SyncRecor
 const byteSize = (dataUrl: string) => { const b64 = dataUrl.slice(dataUrl.indexOf(',') + 1); return Math.floor((b64.length * 3) / 4) - (b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0); };
 
 /** A connection that dropped (as opposed to the server refusing something). */
+/** A refusal that will happen every time (a kind of image storage won't take, or too large). */
+const isRefusal = (e: unknown) => /mime|content.?type|not supported|too large|payload|413|415/i.test(`${e instanceof Error ? e.message : String(e)} ${(e as { statusCode?: unknown })?.statusCode ?? ''}`);
 const isConnectionTrouble = (e: unknown) => e instanceof TypeError || /fetch|network|load failed|timed? ?out/i.test(e instanceof Error ? e.message : String(e));
 const isEmpty = (c: ProjectContent) => Array.isArray(c.shapes) && c.shapes.length === 0 && (photoKey(c) ?? 'none') === 'none';
 /** After this many failures in a row, the trouble is likely the connection: end the pass. */
@@ -231,7 +238,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
    * stored: the plan goes up saying it's kept here); 'changed' (the photo
    * changed since this pass read the plan: next time); or 'paused'.
    */
-  const sendPhoto = async (p: LocalProject): Promise<'ok' | 'kept' | 'changed' | 'paused'> => {
+  const sendPhoto = async (p: LocalProject): Promise<'ok' | 'room' | 'refused' | 'changed' | 'paused'> => {
     const fp = photoFp(p.content);
     if (!fp || photosUp.has(fp)) return 'ok';
     const data = await local.photoData(p.id, fp);
@@ -239,13 +246,16 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     if (!data) return 'ok'; // not on this device: it came from the server, which has it
     const answer = await remote.reservePhoto(fp, byteSize(data));
     if (answer === 'paused') return 'paused';
-    if (answer === 'too_big' || answer === 'full') return 'kept';
+    if (answer === 'full') return 'room';
+    if (answer === 'too_big') return 'refused';
     if (answer === 'send') {
       try {
         await remote.putPhoto(fp, data);
       } catch (e) {
         if (isConnectionTrouble(e)) throw e;
-        return 'kept'; // refused (a kind of image storage won't take): it stays here
+        if (isRefusal(e)) return 'refused'; // a kind of image storage won't take: it stays here
+        // Anything else (another device sent it a moment ago, the server busy): look again, else next time.
+        return (await remote.reservePhoto(fp, byteSize(data))) === 'stored' ? (photosUp.add(fp), 'ok') : 'changed';
       }
     }
     photosUp.add(fp);
@@ -259,6 +269,11 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
   };
   /** The server's content as this device should take it: a "kept here" that is this device's own held photo isn't a change. */
   const asSeenHere = (c: ProjectContent, rec: SyncRecord | undefined): ProjectContent => (rec?.held && photoKey(c) === 'kept' ? planOf(c) : c);
+  /** The record for content the server has, keeping "held" when the photo here is the held one. */
+  const recordAfter = (name: string, onServer: ProjectContent, revision: number, rec: SyncRecord | undefined, photoHere: string | undefined): SyncRecord => {
+    const r = recordFor(name, onServer, revision);
+    return rec?.held && photoKey(onServer) === 'kept' && photoHere === rec.photo ? { ...r, photo: rec.photo, held: rec.held } : r;
+  };
 
   /** Upload; true if stored. Handles every answer. */
   const upload = async (p: LocalProject, base: number | null): Promise<boolean> => {
@@ -266,8 +281,9 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     if (ph === 'paused') { report.paused = true; return false; }
     if (ph === 'changed') return false;
     // A photo the server can't take stays here; the plan goes up saying so.
-    const content = ph === 'kept' ? { ...p.content, photo: { deviceOnly: true } } : p.content;
-    if (ph === 'kept') report.photosKept.push(p.name);
+    const held = ph === 'room' || ph === 'refused' ? ph : undefined;
+    const content = held ? { ...p.content, photo: { deviceOnly: true } } : p.content;
+    if (held && records[p.id]?.held !== held) report.photosKept.push(p.name);
     let res = await remote.push(p.id, base, p.name, content);
     if (res.status === 'deleted') {
       // Trashed while we worked: this device has changes, so it comes back.
@@ -278,7 +294,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     switch (res.status) {
       case 'ok':
         // (Recorded as this device has it, so a photo kept here isn't sent again until there's room.)
-        await local.setRecord(p.id, ph === 'kept' ? { ...recordFor(p.name, p.content, res.revision), held: true } : recordFor(p.name, p.content, res.revision));
+        await local.setRecord(p.id, held ? { ...recordFor(p.name, p.content, res.revision), held } : recordFor(p.name, p.content, res.revision));
         report.uploaded++;
         return true;
       case 'conflict':
@@ -294,14 +310,15 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     const copyLabel = local.normalize(copyName(p.name, device), {}).name;
     // The copy is saved first, so this device's version is never only in the project being replaced.
     const copy = await local.keepCopy(p.id, copyLabel, p.content);
-    if (!(await local.replace(p.id, serverName, serverContent, p.token, await photoFor(p.id, serverContent)))) {
+    if (!(await local.replace(p.id, serverName, serverContent, p.token, await photoFor(p.id, serverContent), true))) {
       // Edited again meanwhile: the original still holds this device's version (and more);
       // drop the copy, and the next pass meets the same conflict with the newer edits.
       await local.remove(copy.id, copy.token);
       return;
     }
     const n = local.normalize(serverName, asOnServer);
-    await local.setRecord(p.id, recordFor(n.name, n.content, serverRev)); // (what the server has: anything else here goes up next time)
+    // What the server has (anything else here goes up next time), still holding this device's photo if the original kept it.
+    await local.setRecord(p.id, recordAfter(n.name, n.content, serverRev, records[p.id], photoKey(serverContent)));
     report.conflicts.push({ name: serverName, copyName: copyLabel, otherDevice: by });
     const copied: LocalProject = { id: copy.id, name: copyLabel, content: p.content, token: copy.token };
     if (!report.paused && !report.full) await upload(copied, null);
@@ -324,7 +341,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
       // The original takes the server's plan; its photo follows the usual rule unless the photos clash too.
       const photoSource = !photoClash && (photoHere || !photoThere) ? p.content : serverContent;
       const original = { ...planOf(serverContent), ...('photo' in photoSource ? { photo: photoSource.photo } : {}) };
-      return conflict(p, serverName, serverRev, original, by, serverContent);
+      return conflict(p, serverName, serverRev, original, by, rawContent);
     }
     const planFromServer = !planHere && localPlan !== serverPlan;
     const photoFromServer = !photoHere && photoThere && localPhoto !== serverPhoto;
@@ -341,10 +358,11 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
       merged.token = -1; // (it moved on: nothing more is replaced this pass)
       report.downloaded++;
     }
-    const serverHasIt = merged.name === n.name && planHash(merged.name, merged.content) === serverPlan && (photoKey(merged.content) ?? 'none') === (serverPhoto ?? 'none');
-    if (serverHasIt) await local.setRecord(p.id, recordFor(n.name, n.content, serverRev));
-    else if (rec?.held && !planFromServer && merged.name === n.name && planHash(merged.name, merged.content) === serverPlan) {
-      await local.setRecord(p.id, { ...rec, revision: serverRev }); // only the held photo differs: as before
+    const raw = local.normalize(serverName, rawContent);
+    const samePlan = merged.name === n.name && planHash(merged.name, merged.content) === serverPlan;
+    const mergedPhoto = photoKey(merged.content) ?? 'none', rawPhoto = photoKey(raw.content) ?? 'none';
+    if (samePlan && (mergedPhoto === rawPhoto || (rawPhoto === 'kept' && rec?.held && mergedPhoto === rec.photo))) {
+      await local.setRecord(p.id, recordAfter(raw.name, raw.content, serverRev, rec, mergedPhoto)); // the server has it (or the held photo stands)
     } else await upload(merged, serverRev);
   };
 
@@ -376,7 +394,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
         }
       } else if (rec && rec.revision === s.revision) {
         if (changed) await upload(p, rec.revision);
-        else if (rec.held && (await sendPhoto(p)) === 'ok') await upload(p, rec.revision); // room for it now
+        else if (rec.held === 'room' && (await sendPhoto(p)) === 'ok') await upload(p, rec.revision); // room for it now
       } else if (rec && !changed) {
         toDownload.push(p.id); // changed elsewhere only
       } else {
@@ -405,7 +423,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
           if (!ok) return;
           filled.add(id);
           const n = local.normalize(g.name, content);
-          await local.setRecord(id, content !== g.content && rec ? { ...rec, revision: g.revision, hash: planHash(n.name, n.content) } : recordFor(n.name, n.content, g.revision));
+          await local.setRecord(id, recordAfter(n.name, local.normalize(g.name, g.content).content, g.revision, rec, rec?.photo));
           report.downloaded++;
           if (undeleted.has(id)) report.undeleted.push(n.name);
         });
