@@ -81,6 +81,7 @@ describe('accounts', () => {
     const f = fakeClient();
     _setClientFactoryForTests(async () => f.client);
     await signInWithGoogle();
+    account.busy = false; // the page would have left for Google; here it stays
     await sendSignInLink(' jason@example.com ');
     expect(f.calls).toEqual([`oauth google ${location.origin}/Landscape-Planner/`, `otp jason@example.com ${location.origin}/Landscape-Planner/`]);
     expect(account.linkSentTo).toBe('jason@example.com');
@@ -110,7 +111,7 @@ describe('accounts', () => {
     history.replaceState(null, '', '/Landscape-Planner/?code=used');
     _setClientFactoryForTests(async () => fakeClient({ initError: 'invalid flow state, no valid flow state found' }).client);
     await initAccount();
-    expect(account.error).toMatch(/^Signing in didn.t finish: invalid flow state.*works only once/);
+    expect(account.error).toBe('Signing in didn’t finish: invalid flow state, no valid flow state found. Please try again.');
   });
   it("don't leave for Google with an unsaved plan", async () => {
     const f = fakeClient();

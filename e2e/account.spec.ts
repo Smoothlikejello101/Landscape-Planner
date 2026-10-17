@@ -16,7 +16,9 @@ async function fakeServer(page: Page, plan: object | null = { plan: 'trial', tri
     seen.push(`${req.method()} ${url.pathname}${url.pathname.endsWith('/authorize') ? url.search : ''}`);
     if (url.pathname === '/auth/v1/otp') return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
     if (url.pathname === '/auth/v1/verify') {
-      const { token: code } = JSON.parse(req.postData() ?? '{}');
+      const body = JSON.parse(req.postData() ?? '{}');
+      seen.push(`verify ${body.email} ${body.type}`);
+      const code = body.token;
       if (code !== '123456') return route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ code: 403, error_code: 'otp_expired', msg: 'Token has expired or is invalid' }) });
       const exp = Math.floor(Date.now() / 1000) + 3600;
       return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
@@ -33,6 +35,8 @@ async function fakeServer(page: Page, plan: object | null = { plan: 'trial', tri
   });
   return seen;
 }
+/** Email sign-in waits for the app's own email service; tests turn it on. */
+async function emailOn(page: Page) { await page.addInitScript(() => localStorage.setItem('lp-email-signin', '1')); }
 async function signedIn(page: Page) {
   const exp = Math.floor(Date.now() / 1000) + 3600;
   await page.addInitScript(([key, value]) => { if (!localStorage.getItem('lp-auth-seeded')) { localStorage.setItem(key, value); localStorage.setItem('lp-auth-seeded', '1'); } }, ['lp-auth', JSON.stringify({
@@ -49,6 +53,7 @@ const openAccount = async (page: Page) => {
 
 test('signed out: Google goes to Google and back here; an emailed link is sent', async ({ page }) => {
   const seen = await fakeServer(page);
+  await emailOn(page);
   await openFresh(page);
   const account = await openAccount(page);
   await expect(account.getByTestId('signin-google')).toBeVisible();
@@ -70,13 +75,28 @@ test('signed out: Google goes to Google and back here; an emailed link is sent',
   expect(decodeURIComponent(authorize)).toMatch(/redirect_to=http:\/\/localhost:\d+\/(&|$)/);
 });
 
+test('email sign-in waits for the app’s own email service', async ({ page }) => {
+  await fakeServer(page);
+  await openFresh(page);
+  const account = await openAccount(page);
+  await expect(account.getByTestId('signin-google')).toBeVisible();
+  await expect(account.getByTestId('signin-email')).toHaveCount(0);
+  await expect(account.getByTestId('email-later')).toBeVisible();
+});
+
 test('an emailed code, typed into the app, signs in here', async ({ page }) => {
   const seen = await fakeServer(page);
+  await emailOn(page);
   await openFresh(page);
   const account = await openAccount(page);
   await account.getByTestId('signin-email').fill('new@example.com');
-  await account.getByTestId('signin-send').click();
+  await account.getByTestId('signin-email').press('Enter');
   await expect(account.getByTestId('link-sent')).toContainText('Enter it here');
+  await expect(account.getByTestId('signin-code')).toBeFocused(); // straight on, keyboard up
+  // The app closed while reading the email (Android does that): the code is still awaited.
+  await page.reload();
+  const back = await openAccount(page);
+  await expect(back.getByTestId('link-sent')).toContainText('new@example.com');
   // A wrong (or replaced) code says so, and keeps what was typed.
   await account.getByTestId('signin-code').fill('111111');
   await account.getByTestId('signin-verify').click();
@@ -86,7 +106,7 @@ test('an emailed code, typed into the app, signs in here', async ({ page }) => {
   await account.getByTestId('signin-verify').click();
   await expect(account.getByTestId('signed-in')).toHaveText('Signed in as new@example.com');
   await expect(account.getByTestId('plan')).toHaveText('Free trial: 30 days left');
-  expect(seen).toContain('POST /auth/v1/verify');
+  expect(seen).toContain('verify new@example.com email');
   expect(await page.evaluate(() => !!localStorage.getItem('lp-auth'))).toBe(true); // kept: signed in after a restart too
 });
 

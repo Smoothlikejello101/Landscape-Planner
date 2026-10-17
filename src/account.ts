@@ -13,6 +13,17 @@ import { toast } from './ui/toast';
 /** The project's address and public key. Public by design: they can do nothing beyond the database's access rules. */
 export const SUPABASE_URL = 'https://erepgvypesysctxezwkm.supabase.co';
 export const SUPABASE_KEY = 'sb_publishable_R6aLme10zqxx2yceOFQGEA__ayLzqPV';
+/**
+ * Email sign-in needs the app's own email service: Supabase's built-in sender
+ * reaches only the project's team, two emails an hour, and its emails can't
+ * be changed to carry the code. Off until that service is set up; tests (and
+ * a trial run) turn it on with localStorage 'lp-email-signin' = '1'.
+ */
+export const EMAIL_SIGNIN_READY = false;
+export function emailSignInOn(): boolean {
+  if (EMAIL_SIGNIN_READY) return true;
+  try { return localStorage.getItem('lp-email-signin') === '1'; } catch { return false; }
+}
 /** Where the sign-in session is kept on this device. */
 export const AUTH_STORAGE_KEY = 'lp-auth';
 
@@ -41,8 +52,9 @@ let factory: ClientFactory = async () => {
 };
 let clientPromise: Promise<SupabaseClient> | null = null;
 export function _setClientFactoryForTests(f: ClientFactory) { factory = f; clientPromise = null; listening = false; }
+/** The client, listening for sign-in changes from the moment it exists, however signing in happens. */
 function client(): Promise<SupabaseClient> {
-  clientPromise ??= factory();
+  clientPromise ??= factory().then((c) => { listen(c); return c; });
   return clientPromise;
 }
 
@@ -82,6 +94,23 @@ function cleanAddress() {
 }
 
 let listening = false;
+/** Follow the session: a refresh, a sign-out elsewhere, an account deleted on another device. */
+function listen(c: SupabaseClient) {
+  if (listening) return;
+  listening = true;
+  c.auth.onAuthStateChange((event, session) => {
+    // Supabase asks that no other Supabase call be awaited inside this callback.
+    setTimeout(() => {
+      if (session?.user) {
+        if (account.status !== 'signedIn' || account.email !== session.user.email) {
+          set({ status: 'signedIn', email: session.user.email ?? '', userId: session.user.id, linkSentTo: undefined, error: undefined });
+          rememberCodeSent(null);
+          void loadPlan();
+        }
+      } else if (event === 'SIGNED_OUT') set({ status: 'signedOut', email: undefined, userId: undefined, plan: undefined });
+    }, 0);
+  });
+}
 /**
  * Check the session: at startup when there may be one (a stored session, or
  * the return from signing in); `force` checks anyway (Try again).
@@ -91,20 +120,6 @@ export async function initAccount(force = false) {
   set({ status: account.status === 'signedIn' ? 'signedIn' : 'unknown' });
   try {
     const c = await client();
-    if (!listening) {
-      listening = true;
-      c.auth.onAuthStateChange((event, session) => {
-        // Supabase asks that no other Supabase call be awaited inside this callback.
-        setTimeout(() => {
-          if (session?.user) {
-            if (account.status !== 'signedIn' || account.email !== session.user.email) {
-              set({ status: 'signedIn', email: session.user.email ?? '', userId: session.user.id, linkSentTo: undefined, error: undefined });
-              void loadPlan();
-            }
-          } else if (event === 'SIGNED_OUT') set({ status: 'signedOut', email: undefined, userId: undefined, plan: undefined });
-        }, 0);
-      });
-    }
     // Finishing a sign-in (the code in the address) reports its failure only here:
     // an expired or reused link, or a link opened on a different device.
     const wasReturn = returningFromSignIn();
@@ -123,7 +138,7 @@ export async function initAccount(force = false) {
       await loadPlan();
     } else {
       const why = failed ? 'Signing in didn’t finish: ' + failed
-        : wasReturn && init.error ? 'Signing in didn’t finish: ' + init.error.message + '. Try again; an emailed link works only once, on the device that asked for it.'
+        : wasReturn && init.error ? 'Signing in didn’t finish: ' + init.error.message + '. Please try again.'
         : null;
       set({ status: 'signedOut', ...(why ? { error: why } : {}) });
       if (why) toast(why, 10000); // shown wherever the page opened, not only in the Account section
@@ -162,6 +177,7 @@ export async function signInWithGoogle() {
 }
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export async function sendSignInLink(email: string) {
+  if (account.busy) return; // one request at a time (Enter in the field, then the button)
   const address = email.trim();
   if (!EMAIL_PATTERN.test(address)) { set({ error: 'That doesn’t look like an email address.' }); return; }
   set({ busy: true, error: undefined });
@@ -170,6 +186,7 @@ export async function sendSignInLink(email: string) {
     const { error } = await c.auth.signInWithOtp({ email: address, options: { emailRedirectTo: appUrl(), shouldCreateUser: true } });
     if (error) throw error;
     set({ busy: false, linkSentTo: address });
+    rememberCodeSent(address);
   } catch (e) {
     set({ busy: false, error: friendly(e) });
   }
@@ -180,6 +197,7 @@ export async function sendSignInLink(email: string) {
  * browser tab (or a mail app's own browser) that isn't the installed app.
  */
 export async function verifyEmailCode(code: string) {
+  if (account.busy) return; // one check at a time: a used code fails the second
   const email = account.linkSentTo;
   const token = code.replace(/\s+/g, '');
   if (!email) return;
@@ -191,11 +209,13 @@ export async function verifyEmailCode(code: string) {
     if (error) throw error;
     const user = data.session?.user ?? data.user;
     set({ busy: false, status: 'signedIn', email: user?.email ?? email, userId: user?.id, linkSentTo: undefined });
+    rememberCodeSent(null);
     toast('You’re signed in.');
     void loadPlan();
   } catch (e) {
     const msg = friendly(e);
-    set({ busy: false, error: /expired|invalid/i.test(msg) ? 'That code didn’t work: it may have expired, or a newer email replaced it. Check the latest email, or send a new one.' : msg });
+    set({ busy: false, error: /expired|invalid/i.test(msg) ? 'That code didn’t work: it may have expired, or a newer email replaced it. Check the latest email, or send a new one.'
+      : /too many|rate limit/i.test(String((e as { message?: unknown })?.message ?? '')) ? 'Too many tries for now. Wait a few minutes, then try again.' : msg });
   }
 }
 export async function signOut() {
@@ -242,6 +262,25 @@ async function removeAllPhotos(c: SupabaseClient, uid: string) {
     const { error: rmErr } = await bucket.remove(data.map((f) => `${uid}/${f.name}`));
     if (rmErr) throw rmErr;
   }
+}
+
+// ---------- A code on its way (survives the app being closed while reading the email) ----------
+const CODE_SENT_KEY = 'lp-code-sent';
+const CODE_SENT_FOR_MS = 60 * 60 * 1000;
+function rememberCodeSent(email: string | null) {
+  try {
+    if (email) localStorage.setItem(CODE_SENT_KEY, JSON.stringify({ email, at: Date.now() }));
+    else localStorage.removeItem(CODE_SENT_KEY);
+  } catch { /* not remembered */ }
+}
+export function forgetCodeSent() { rememberCodeSent(null); }
+/** At startup: a code sent within the hour is still waiting to be typed in. */
+export function restoreCodeSent() {
+  try {
+    const v = JSON.parse(localStorage.getItem(CODE_SENT_KEY) || 'null') as { email?: unknown; at?: unknown } | null;
+    if (v && typeof v.email === 'string' && typeof v.at === 'number' && Date.now() - v.at < CODE_SENT_FOR_MS) account.linkSentTo = v.email;
+    else localStorage.removeItem(CODE_SENT_KEY);
+  } catch { /* nothing waiting */ }
 }
 
 // ---------- Words ----------

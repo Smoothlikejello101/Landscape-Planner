@@ -1,4 +1,4 @@
-import { account, deleteAccount, initAccount, planText, sendSignInLink, signInWithGoogle, signOut, verifyEmailCode } from '../account';
+import { account, deleteAccount, emailSignInOn, forgetCodeSent, initAccount, planText, sendSignInLink, signInWithGoogle, signOut, verifyEmailCode } from '../account';
 import { backupAll } from '../backup';
 import { el } from '../dom';
 import { I } from '../icons';
@@ -17,6 +17,8 @@ export function accountSection(): HTMLElement {
   fill(section);
   return section;
 }
+/** Move to the code field once it appears (after asking for a code from this section). */
+let focusCodeNext = false;
 /** The email typed so far (kept when the section is rebuilt, e.g. to show an error). */
 let typedEmail = '';
 
@@ -74,6 +76,10 @@ function fill(section: HTMLElement) {
   google.disabled = !!account.busy;
   google.addEventListener('click', () => { void signInWithGoogle(); });
   section.appendChild(google);
+  if (!emailSignInOn()) {
+    section.appendChild(el('div', { className: 'hint', 'data-testid': 'email-later' }, 'Signing in by email arrives with the app’s own email address.'));
+    return;
+  }
   if (account.linkSentTo) {
     // The code is typed here, so signing in finishes in this copy of the app whatever opens the email.
     section.appendChild(el('div', { className: 'status', 'data-testid': 'link-sent' },
@@ -85,8 +91,10 @@ function fill(section: HTMLElement) {
     verify.addEventListener('click', go);
     code.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
     section.appendChild(el('div', { className: 'email-row' }, code, verify));
+    // Straight on to the code (the keyboard stays up), when the code was just asked for here.
+    if (focusCodeNext) { focusCodeNext = false; setTimeout(() => code.focus(), 0); }
     const again = el('button', { className: 'link-btn' }, 'Use a different email, or send a new code');
-    again.addEventListener('click', () => { account.linkSentTo = undefined; account.error = undefined; refreshAccountSection(); });
+    again.addEventListener('click', () => { account.linkSentTo = undefined; account.error = undefined; forgetCodeSent(); refreshAccountSection(); });
     section.appendChild(again);
     return;
   }
@@ -95,7 +103,7 @@ function fill(section: HTMLElement) {
   email.addEventListener('input', () => { typedEmail = email.value; });
   const send = el('button', { className: 'btn ghost', 'data-testid': 'signin-send' }, 'Email me a sign-in code');
   send.disabled = !!account.busy;
-  const go = () => { void sendSignInLink(email.value); };
+  const go = () => { focusCodeNext = true; void sendSignInLink(email.value); };
   send.addEventListener('click', go);
   email.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
   section.append(el('div', { className: 'or-line' }, 'or'), el('div', { className: 'email-row' }, email, send));

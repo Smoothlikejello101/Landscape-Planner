@@ -10,7 +10,7 @@ import { kindForShortcut } from './kinds';
 import { finishPlacing, undoPlace } from './place';
 import { state } from './state';
 import { loadPlants } from './plants';
-import { initAccount, setAccountListener } from './account';
+import { initAccount, restoreCodeSent, setAccountListener } from './account';
 import { refreshAccountSection } from './ui/account-section';
 import { loadMyPlants } from './my-plants';
 import { setupServiceWorker } from './pwa';
@@ -154,6 +154,7 @@ async function start() {
   void loadPlants();
   // Signed in (or just back from signing in): check the session. Changes refresh only the Account section.
   setAccountListener(refreshAccountSection);
+  restoreCodeSent();
   void initAccount();
   void requestPersistence();
   setupServiceWorker();
