@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { flushSave } from './storage';
+import { toast } from './ui/toast';
 
 // Accounts (sync step 1): sign in with Google or an emailed link, sign out,
 // delete the account. No account is needed to use the app; an account
@@ -21,6 +22,7 @@ export interface AccountState {
   /** 'unknown' until the session has been checked (only when there might be one). */
   status: 'unknown' | 'signedOut' | 'signedIn';
   email?: string;
+  userId?: string;
   plan?: PlanInfo | null;
   /** An emailed link was sent to this address (and not yet used). */
   linkSentTo?: string;
@@ -64,6 +66,16 @@ function returningFromSignIn(): boolean {
 function storedSession(): boolean {
   try { return !!localStorage.getItem(AUTH_STORAGE_KEY); } catch { return false; }
 }
+/** Forget the session on this device, whatever the server says (signing out offline must still sign out). */
+function clearLocalSession() {
+  for (const k of [AUTH_STORAGE_KEY, AUTH_STORAGE_KEY + '-code-verifier', AUTH_STORAGE_KEY + '-user']) {
+    try { localStorage.removeItem(k); } catch { /* nothing stored */ }
+  }
+}
+// Signed in or out in another copy of the app (the browser tab an emailed link opened): catch up.
+if (typeof window !== 'undefined') window.addEventListener('storage', (e) => { if (e.key === AUTH_STORAGE_KEY) void initAccount(true); });
+// Back from the Google screen with the Back button: the page may be restored as it was, mid-"busy".
+if (typeof window !== 'undefined') window.addEventListener('pageshow', (e) => { if (e.persisted && account.busy) set({ busy: false }); });
 /** Take sign-in details out of the address bar, so a reload or a bookmark doesn't replay them. */
 function cleanAddress() {
   if (location.search || location.hash) history.replaceState(history.state, '', appUrl());
@@ -72,7 +84,7 @@ function cleanAddress() {
 let listening = false;
 /**
  * Check the session: at startup when there may be one (a stored session, or
- * the return from signing in), and when the Account section is opened.
+ * the return from signing in); `force` checks anyway (Try again).
  */
 export async function initAccount(force = false) {
   if (!force && !returningFromSignIn() && !storedSession()) { set({ status: 'signedOut' }); return; }
@@ -86,23 +98,34 @@ export async function initAccount(force = false) {
         setTimeout(() => {
           if (session?.user) {
             if (account.status !== 'signedIn' || account.email !== session.user.email) {
-              set({ status: 'signedIn', email: session.user.email ?? '', linkSentTo: undefined, error: undefined });
+              set({ status: 'signedIn', email: session.user.email ?? '', userId: session.user.id, linkSentTo: undefined, error: undefined });
               void loadPlan();
             }
-          } else if (event === 'SIGNED_OUT') set({ status: 'signedOut', email: undefined, plan: undefined });
+          } else if (event === 'SIGNED_OUT') set({ status: 'signedOut', email: undefined, userId: undefined, plan: undefined });
         }, 0);
       });
     }
-    const { data, error } = await c.auth.getSession();
+    // Finishing a sign-in (the code in the address) reports its failure only here:
+    // an expired or reused link, or a link opened on a different device.
     const wasReturn = returningFromSignIn();
     const failed = new URLSearchParams(location.search).get('error_description');
+    const init = await c.auth.initialize();
+    const { data, error } = await c.auth.getSession();
     if (wasReturn) cleanAddress();
     if (error) throw error;
     if (data.session?.user) {
-      set({ status: 'signedIn', email: data.session.user.email ?? '', error: undefined });
+      set({ status: 'signedIn', email: data.session.user.email ?? '', userId: data.session.user.id, error: undefined });
+      // An emailed link opens in the browser, not the installed app: a second copy of the app,
+      // and editing in both at once could lose changes. The installed app is signed in too.
+      if (wasReturn && !window.matchMedia?.('(display-mode: standalone)').matches) {
+        toast('You’re signed in. If you use the installed app, go back to it and close this tab.', 10000);
+      }
       await loadPlan();
     } else {
-      set({ status: 'signedOut', ...(failed ? { error: 'Signing in didn’t finish: ' + failed } : {}) });
+      const why = failed ? 'Signing in didn’t finish: ' + failed
+        : wasReturn && init.error ? 'Signing in didn’t finish: ' + init.error.message + '. Try again; an emailed link works only once, on the device that asked for it.'
+        : null;
+      set({ status: 'signedOut', ...(why ? { error: why } : {}) });
     }
   } catch (e) {
     set({ status: storedSession() ? 'unknown' : 'signedOut', error: friendly(e) });
@@ -123,7 +146,11 @@ async function loadPlan() {
 export async function signInWithGoogle() {
   set({ busy: true, error: undefined });
   try {
-    await flushSave(); // the page leaves for Google: nothing typed may be left unsaved
+    // The page leaves for Google: nothing may be left unsaved.
+    if (!(await flushSave())) {
+      set({ busy: false, error: 'Couldn’t save your plan first, so signing in waited. Check your device has free space, then try again.' });
+      return;
+    }
     const c = await client();
     const { error } = await c.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: appUrl() } });
     if (error) throw error;
@@ -150,9 +177,10 @@ export async function signOut() {
   set({ busy: true, error: undefined });
   try {
     const c = await client();
-    // Signs out here even if the server can't be reached; the plans on this device stay.
-    await c.auth.signOut({ scope: 'local' });
-    set({ busy: false, status: 'signedOut', email: undefined, plan: undefined });
+    // Signs out on this device even if the server can't be reached; the plans on this device stay.
+    const { error } = await c.auth.signOut({ scope: 'local' });
+    if (error) clearLocalSession();
+    set({ busy: false, status: 'signedOut', email: undefined, userId: undefined, plan: undefined });
   } catch (e) {
     set({ busy: false, error: friendly(e) });
   }
@@ -165,14 +193,29 @@ export async function deleteAccount(): Promise<boolean> {
   set({ busy: true, error: undefined });
   try {
     const c = await client();
+    // Photo files first: the storage service, not the database, removes them.
+    if (account.userId) await removeAllPhotos(c, account.userId);
     const { error } = await c.rpc('delete_my_account');
     if (error) throw error;
-    await c.auth.signOut({ scope: 'local' });
-    set({ busy: false, status: 'signedOut', email: undefined, plan: undefined });
+    const out = await c.auth.signOut({ scope: 'local' });
+    if (out.error) clearLocalSession();
+    set({ busy: false, status: 'signedOut', email: undefined, userId: undefined, plan: undefined });
     return true;
   } catch (e) {
     set({ busy: false, error: friendly(e) });
     return false;
+  }
+}
+
+/** Every background photo file the account has stored. */
+async function removeAllPhotos(c: SupabaseClient, uid: string) {
+  const bucket = c.storage.from('photos');
+  for (let round = 0; round < 50; round++) {
+    const { data, error } = await bucket.list(uid, { limit: 1000 });
+    if (error) throw error;
+    if (!data?.length) return;
+    const { error: rmErr } = await bucket.remove(data.map((f) => `${uid}/${f.name}`));
+    if (rmErr) throw rmErr;
   }
 }
 

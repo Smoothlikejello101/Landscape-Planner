@@ -1,7 +1,8 @@
 -- Landscape Planner: accounts (sync step 1).
 --
 -- Paste into Supabase: SQL Editor → New query → paste → Run.
--- Safe to run again: it only creates what isn't there and replaces the rules.
+-- Safe to run again: it only creates what isn't there and replaces the rules
+-- and functions. (Changes to an existing table's columns come as a new script.)
 --
 -- Every table is locked with row-level security: a signed-in account can
 -- only ever see its own rows. The app uses the public key, which can do
@@ -21,11 +22,29 @@ drop policy if exists "plans: read own" on public.plans;
 create policy "plans: read own" on public.plans for select to authenticated using (owner = auth.uid());
 -- No insert/update/delete rules: only the server (sign-up below, payments later) changes a plan.
 
--- Every new account starts a 30-day trial.
+-- Emails that have had a trial, kept (as a one-way fingerprint, not the
+-- address) after an account is deleted, so deleting and signing up again
+-- doesn't start a new trial. No access rules: the app can't read it.
+create table if not exists public.trial_used (
+  email_hash text primary key,
+  at timestamptz not null default now()
+);
+alter table public.trial_used enable row level security;
+create or replace function public.email_hash(email text) returns text
+language sql immutable set search_path = '' as $$
+  select encode(pg_catalog.sha256(convert_to(lower(trim(coalesce(email, ''))), 'UTF8')), 'hex')
+$$;
+revoke all on function public.email_hash(text) from public, anon, authenticated;
+
+-- Every new account starts a 30-day trial (unless that email has had one).
 create or replace function public.handle_new_user() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
-  insert into public.plans (owner) values (new.id) on conflict (owner) do nothing;
+  if new.email is not null and exists (select 1 from public.trial_used where email_hash = public.email_hash(new.email)) then
+    insert into public.plans (owner, trial_ends) values (new.id, now()) on conflict (owner) do nothing;
+  else
+    insert into public.plans (owner) values (new.id) on conflict (owner) do nothing;
+  end if;
   return new;
 end $$;
 drop trigger if exists on_auth_user_created on auth.users;
@@ -93,8 +112,14 @@ create policy "photos bucket: own folder" on storage.objects for all to authenti
 -- through the storage service first.
 create or replace function public.delete_my_account() returns void
 language plpgsql security definer set search_path = '' as $$
+declare
+  addr text;
 begin
   if auth.uid() is null then raise exception 'not signed in'; end if;
+  select email into addr from auth.users where id = auth.uid();
+  if addr is not null then
+    insert into public.trial_used (email_hash) values (public.email_hash(addr)) on conflict do nothing;
+  end if;
   delete from auth.users where id = auth.uid();
 end $$;
 revoke all on function public.delete_my_account() from public, anon;

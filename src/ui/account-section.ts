@@ -1,4 +1,4 @@
-import { account, deleteAccount, planText, sendSignInLink, signInWithGoogle, signOut } from '../account';
+import { account, deleteAccount, initAccount, planText, sendSignInLink, signInWithGoogle, signOut } from '../account';
 import { backupAll } from '../backup';
 import { el } from '../dom';
 import { I } from '../icons';
@@ -38,7 +38,13 @@ export function refreshAccountSection() {
 function fill(section: HTMLElement) {
   if (account.error) section.appendChild(el('div', { className: 'status warn', role: 'alert', 'data-testid': 'account-error' }, account.error));
   if (account.status === 'unknown') {
-    section.appendChild(el('div', { className: 'status' }, 'Checking your account…'));
+    if (!account.error) { section.appendChild(el('div', { className: 'status' }, 'Checking your account…')); return; }
+    // Couldn't check (offline, say): a way to retry, and a way out.
+    const retry = el('button', { className: 'btn ghost', 'data-testid': 'account-retry' }, 'Try again');
+    retry.addEventListener('click', () => { void initAccount(true); });
+    const out = el('button', { className: 'link-btn', 'data-testid': 'sign-out' }, 'Sign out on this device');
+    out.addEventListener('click', () => { void signOut(); });
+    section.append(el('div', { className: 'account-actions' }, retry, out));
     return;
   }
   if (account.status === 'signedIn') {

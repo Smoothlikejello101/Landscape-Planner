@@ -19,6 +19,7 @@ async function fakeServer(page: Page, plan: object | null = { plan: 'trial', tri
     if (url.pathname === '/auth/v1/logout') return route.fulfill({ status: 204, body: '' });
     if (url.pathname === '/rest/v1/plans') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(plan ? [plan] : []) });
     if (url.pathname === '/rest/v1/rpc/delete_my_account') return route.fulfill({ status: 204, body: '' });
+    if (url.pathname.startsWith('/storage/v1/object/list/photos')) return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
     return route.fulfill({ status: 404, contentType: 'application/json', body: '{"message":"not in the stand-in"}' });
   });
   return seen;
@@ -70,6 +71,11 @@ test('signed in: the trial shows; signing out keeps the plans on this device', a
   await account.getByTestId('sign-out').click();
   await expect(account.getByTestId('signin-google')).toBeVisible();
   await expect(page.locator('.proj-row')).toHaveCount(1); // the plans are still here
+  // Signed out for real: nothing stored, and a reload stays signed out.
+  expect(await page.evaluate(() => localStorage.getItem('lp-auth'))).toBe(null);
+  await page.reload();
+  const again = await openAccount(page);
+  await expect(again.getByTestId('signin-google')).toBeVisible();
 });
 
 test('deleting the account says what goes, offers a backup, and can be cancelled', async ({ page }) => {
@@ -86,4 +92,5 @@ test('deleting the account says what goes, offers a backup, and can be cancelled
   await expect(account.getByTestId('signin-google')).toBeVisible();
   expect(seen).toContain('POST /rest/v1/rpc/delete_my_account');
   await expect(page.locator('.proj-row')).toHaveCount(1);
+  expect(await page.evaluate(() => localStorage.getItem('lp-auth'))).toBe(null);
 });
