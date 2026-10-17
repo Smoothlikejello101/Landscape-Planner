@@ -1,10 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
-import { closeSheet, field, openFresh, addPlainShape, setRole, openSections } from './helpers';
+import { closeSheet, field, openFresh, addPlainShape, setRole, openSections, placeOnceAtCenter } from './helpers';
 
 async function addPlant(page: Page, name: string, x: number) {
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill(name);
   await page.locator('.sheet .proj-row', { hasText: name }).first().click();
+  await placeOnceAtCenter(page);
   await page.locator('.sel-pill button.edit').click(); await openSections(page);
   await field(page, 'X position').fill(String(x));
   await field(page, 'Y position').fill('1');

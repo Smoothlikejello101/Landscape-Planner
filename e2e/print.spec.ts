@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { closeSheet, field, openFresh, addPlainShape, setRole } from './helpers';
+import { closeSheet, field, openFresh, addPlainShape, setRole, placeOnceAtCenter } from './helpers';
 
 test('printable plan: options persist and a PDF downloads', async ({ page }) => {
   await openFresh(page);
@@ -11,6 +11,7 @@ test('printable plan: options persist and a PDF downloads', async ({ page }) => 
   await page.locator('.tool-btn.plants').click();
   await page.locator('.sheet input[type=text]').fill("Heuchera 'Autumn Bride'");
   await page.locator('.sheet .proj-row', { hasText: "Heuchera 'Autumn Bride'" }).first().click();
+  await placeOnceAtCenter(page);
 
   await page.locator('button[title=Export]').click();
   await page.getByTestId('printable-plan').click();

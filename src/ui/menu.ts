@@ -3,6 +3,7 @@ import { I } from '../icons';
 import { paste } from '../mutations';
 import { clearSelection } from '../selection';
 import { state } from '../state';
+import { finishPlacing } from '../place';
 import { currentProject, getClipboard } from '../storage';
 import { render } from './render';
 
@@ -14,6 +15,7 @@ export function renderMoreMenu() {
     label: state.selectMode ? 'Switch to pan mode' : 'Switch to select mode',
     onClick: () => {
       state.selectMode = !state.selectMode;
+      if (state.placing) finishPlacing();
       state.draw = null; state.editPoints = null;
       if (!state.selectMode) clearSelection();
       state.menu = null;

@@ -49,6 +49,8 @@ export const state: AppState = {
   showCrowding: false,
   plantForm: null,
   pickerLinkId: null,
+  pickerForTree: false,
+  placing: null,
   // Ephemeral: are we in bg edit mode (drag/rotate handles active, shapes locked)?
   bgEditMode: false,
   // Ephemeral: calibration flow state, null or { step, p1, p2 }.

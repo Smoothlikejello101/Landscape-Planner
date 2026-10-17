@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { autoDialogs, closeSheet, field, openFresh, addPlainShape } from './helpers';
+import { autoDialogs, closeSheet, field, openFresh, addPlainShape, placeOnceAtCenter } from './helpers';
 
 const circleR = async (page: Page, label: string) =>
   Number(await page.locator('[data-shape-group]', { has: page.locator('text', { hasText: label }) }).locator('circle[data-shape-id]').getAttribute('r'));
@@ -30,6 +30,7 @@ test('add a plant from its tag, place it, and switch to full size', async ({ pag
   await page.locator('.role-chip', { hasText: 'Full sun' }).click();
   await page.locator('.role-chip', { hasText: 'Part sun' }).click();
   await page.getByTestId('pf-save').click();
+  await placeOnceAtCenter(page);
 
   // Placed at typical size (7 ft spread = 3.5 ft radius = 84 px at 100%), selected, with its full-size ring.
   await expect(page.locator('.sel-pill .name')).toHaveText("Hydrangea 'Limelight'");
@@ -73,6 +74,7 @@ test('copy a catalog plant as your own cultivar', async ({ page }) => {
   await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker');
   await page.getByTestId('plant-search').fill('Caramel');
   await page.locator('.proj-row', { hasText: 'Caramel' }).click();
+  await placeOnceAtCenter(page);
   await expect(page.locator('.sel-pill .name')).toHaveText("Heuchera 'Caramel'");
 });
 

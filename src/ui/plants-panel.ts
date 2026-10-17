@@ -1,14 +1,21 @@
 import { el, type Child } from '../dom';
 import { I } from '../icons';
 import type { Plant, PlantFilter } from '../plants';
-import { FORM_COLORS, MONTH_NAMES, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, addPlantShape, filteredPlants, linkShapeToPlant, plantFilter, plantMetaLine, plantTakesSun } from '../plants';
+import { FORM_COLORS, MONTH_NAMES, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkShapeToPlant, plantFilter, plantMetaLine, plantTakesSun } from '../plants';
+import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
+import { startDraw } from '../draw';
 import { isMine, myPlants } from '../my-plants';
 import type { PlantFormArgs } from '../types';
 import { state } from '../state';
 import { render } from './render';
 
-function closePicker() { state.panel = null; state.pickerLinkId = null; render(); }
-/** Tap on a plant: place it, or (opened from a circle's properties) make that circle this plant. */
+function closePicker() { state.panel = null; state.pickerLinkId = null; state.pickerForTree = false; render(); }
+const isTree = (p: Plant) => !!p.form && p.form.startsWith('Tree');
+/**
+ * Tap on a plant. Usually: pick it up to place by tapping (or switch to it, if
+ * already placing). Opened from a circle's properties: make that circle this
+ * plant. Opened from Add, Existing tree: draw that tree's canopy.
+ */
 function pick(p: Plant) {
   if (state.pickerLinkId) {
     const id = state.pickerLinkId;
@@ -16,9 +23,13 @@ function pick(p: Plant) {
     state.pickerLinkId = null;
     state.selectedIds = [id];
     state.panel = 'props';
+  } else if (state.pickerForTree) {
+    startDraw('circle', 'tree');
+    state.draw!.plantId = p.id;
+  } else if (state.placing) {
+    switchPlacingPlant(p);
   } else {
-    addPlantShape(p);
-    state.panel = null;
+    startPlacing(p);
   }
   render();
 }
@@ -26,13 +37,34 @@ function openForm(args: PlantFormArgs) { state.plantForm = args; state.panel = '
 
 export function renderPlantsPanel() {
   const linking = !!state.pickerLinkId;
+  const forTree = !linking && state.pickerForTree;
+  const title = linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker' + (PLANTS.length ? ' (' + (PLANTS.length + myPlants.length) + ')' : '');
   const header = el('div', { className: 'sheet-header' },
-    el('div', { className: 'title' }, linking ? 'Link to a plant' : 'Plant Picker' + (PLANTS.length ? ' (' + (PLANTS.length + myPlants.length) + ')' : '')),
+    el('div', { className: 'title' }, title),
     (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', closePicker); return b; })()
   );
 
   const body = el('div', { className: 'sheet-body' });
   if (linking) body.appendChild(el('div', { className: 'banner' }, 'Pick the plant this circle stands for. It keeps its place and takes the plant\'s name and size.'));
+  if (forTree) {
+    // A tree already in the yard: name it if it's in the list, then draw its canopy as it is.
+    body.appendChild(el('div', { className: 'banner' }, 'Pick the tree, then tap its trunk and the edge of its canopy.'));
+    const unknown = el('button', { className: 'btn secondary', 'data-testid': 'unknown-tree', style: { width: '100%', marginBottom: '10px' } }, "Unknown tree (I'll just draw it)");
+    unknown.addEventListener('click', () => { startDraw('circle', 'tree'); render(); });
+    body.appendChild(unknown);
+  }
+  // The plants placed most recently, one tap each.
+  const recent = linking || forTree ? [] : recentPlants();
+  if (recent.length) {
+    const row = el('div', { className: 'recent-plants', 'data-testid': 'recent-plants' });
+    for (const p of recent) {
+      const chip = el('button', { className: 'recent-plant' },
+        el('span', { className: 'sw-dot', style: { background: (p.form && FORM_COLORS[p.form]) || '#16a34a' } }), el('span', {}, p.common));
+      chip.addEventListener('click', () => pick(p));
+      row.appendChild(chip);
+    }
+    body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Recent'), row));
+  }
   if (!PLANTS.length) {
     body.appendChild(el('div', { className: 'hint' }, 'The plant catalog is still loading (or could not load). Your own plants work either way.'));
   }
@@ -82,11 +114,11 @@ export function renderPlantsPanel() {
   }
   function rebuildList() {
     while (listWrap.firstChild) listWrap.removeChild(listWrap.firstChild);
-    const mine = myHits();
-    const hits = filteredPlants();
+    const mine = myHits().filter((p) => !forTree || isTree(p) || !p.form);
+    const hits = filteredPlants().filter((p) => !forTree || isTree(p));
     const n = hits.length + mine.length, all = PLANTS.length + myPlants.length;
     countLine.textContent = (n === all ? `All ${all} plants` : `${n} of ${all} plants match`) +
-      (linking ? ' \u00b7 tap the plant this circle stands for' : ' \u00b7 tap a plant to place it');
+      (linking ? ' \u00b7 tap the plant this circle stands for' : forTree ? ' \u00b7 trees only' : ' \u00b7 tap a plant, then tap the plan where it goes');
     if (mine.length) {
       listWrap.appendChild(el('div', { className: 'list-heading' }, 'My plants'));
       for (const p of mine) listWrap.appendChild(buildRow(p));

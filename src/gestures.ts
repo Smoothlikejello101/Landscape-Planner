@@ -12,6 +12,7 @@ import { save } from './storage';
 import type { Point, Shape } from './types';
 import { previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes } from './canvas';
 import { drawTap, editedShape, insertVertex, moveVertex } from './draw';
+import { placeTap } from './place';
 import { render, updateStatusReadout } from './ui/render';
 import { now, snap } from './util';
 
@@ -122,7 +123,7 @@ export function onCanvasPointerDown(e: PointerEvent) {
   }
   if (!isCanvas) return;
 
-  if (state.selectMode && !state.draw && !state.editPoints) {
+  if (state.selectMode && !state.draw && !state.editPoints && !state.placing) {
     const feet = screenToFeet(clientX, clientY);
     gesture.current = { type: 'marquee', startX: clientX, startY: clientY, startFeet: feet, currentFeet: feet, moved: false };
     state.marquee = { x1: feet.x, y1: feet.y, x2: feet.x, y2: feet.y };
@@ -301,6 +302,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
     case 'pan':
       if (g.moved) save();
       else if (state.draw) drawTap(g.startX, g.startY);
+      else if (state.placing) placeTap(g.startX, g.startY);
       else if (state.editPoints) state.editPoints.vertex = null;
       else if (g.tapShapeId) { // tap on a locked shape: select it
         const shape = state.shapes.find((s) => s.id === g.tapShapeId);

@@ -103,3 +103,10 @@ export async function setRole(page: Page, role: string) {
   await page.locator('.sheet .role-chip', { hasText: role }).first().click();
   await openSections(page); // a new role can bring new groups (a bed's plants, a sun record)
 }
+
+/** After picking a plant: tap the middle of the plan once, then Done (what one tap used to do). */
+export async function placeOnceAtCenter(page: Page) {
+  await expect(page.getByTestId('place-bar')).toBeVisible();
+  await tapFromCenter(page, 0, 0);
+  await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
+}

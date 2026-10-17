@@ -6,6 +6,7 @@ import { state } from './state';
 import { save } from './storage';
 import { buildShape, isKindKey, kindDef, tapAccepted, TAPS_TO_FINISH, type KindKey, type Method } from './kinds';
 import type { DrawState, PathShape, Point, Shape } from './types';
+import { FORM_COLORS, plantsById } from './plants';
 import { snap, uid } from './util';
 
 // Freeform outlines (closed) and lines (open).
@@ -30,6 +31,8 @@ const minPoints = (k: DrawKind) => (k === 'measure' || k === 'line' || k === 'pa
 export function startDraw(method: DrawKind, target?: KindKey) {
   flushHistoryDebounce();
   state.draw = { kind: method, points: [], ...(target ? { target } : {}) };
+  state.placing = null;
+  state.pickerForTree = false;
   state.editPoints = null;
   state.selectMode = false;
   state.selectedIds = [];
@@ -42,7 +45,13 @@ export function startDraw(method: DrawKind, target?: KindKey) {
  * measuring, everything else starts drawing in its remembered method.
  */
 export function startKind(key: KindKey) {
-  if (key === 'plant') { state.draw = null; state.editPoints = null; state.pickerLinkId = null; state.panel = 'plants'; state.menu = null; return; }
+  if (key === 'plant' || key === 'tree') {
+    // Plants are picked first. An existing tree is picked (or "unknown"), then its canopy drawn.
+    state.draw = null; state.editPoints = null; state.placing = null; state.pickerLinkId = null; state.menu = null;
+    state.pickerForTree = key === 'tree';
+    state.panel = 'plants';
+    return;
+  }
   if (key === 'measure') { startDraw('measure'); return; }
   const def = kindDef(key);
   const remembered = loadPrefs().methods[key];
@@ -104,6 +113,13 @@ export function finishDraw(): Shape | null {
   if (!shape) return null;
   state.draw = null;
   hover = null;
+  // An existing tree picked from the list: it's that plant (still sized as drawn).
+  const tree = d.plantId ? plantsById[d.plantId] : undefined;
+  if (tree && shape.type === 'circle') {
+    shape.plantId = tree.id;
+    shape.label = tree.common;
+    if (tree.form && FORM_COLORS[tree.form]) shape.color = FORM_COLORS[tree.form];
+  }
   // A plant added while the plan shows one status or phase joins it (else it would vanish from view).
   const f = state.viewFilter;
   if (shape.role === 'plant') {

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, canvasBox, closeSheet, openFresh, shapeCount, zoomPct } from './helpers';
+import { addKind, canvasBox, closeSheet, openFresh, shapeCount, zoomPct, placeOnceAtCenter } from './helpers';
 
 // The compact properties panel, statuses that fit the thing, and getting
 // started from an aerial photo.
@@ -73,6 +73,7 @@ test('new plants start as Planned, or join the status the plan is showing', asyn
     await page.locator('.tool-btn.plants').click();
     await page.locator('.sheet input[type=text]').fill(name);
     await page.locator('.sheet .proj-row', { hasText: name }).first().click();
+    await placeOnceAtCenter(page);
   };
   await place('Purple Coneflower');
   await page.locator('.sel-pill .edit').click();

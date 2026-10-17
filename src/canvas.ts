@@ -5,6 +5,7 @@ import { boxSize, shapeBBox, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoo
 import { renderPathOverlay } from './draw';
 import { fullRingRadius } from './my-plants';
 import { crowdedIds } from './crowding';
+import { renderPlaceOverlay } from './place';
 import { onShapePointerDown } from './gestures';
 import { plantsById } from './plants';
 import { isLocked, roleDef, roleRank } from './roles';
@@ -94,7 +95,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   const ppf = pxPerFoot();
   const sel = isSelected(s.id);
   // Taps fall through to the background tools / drawing / point editing.
-  const inert = state.bgEditMode || !!state.bgCalibrate || !!state.draw || !!state.editPoints;
+  const inert = state.bgEditMode || !!state.bgCalibrate || !!state.draw || !!state.editPoints || !!state.placing;
   // Boundaries and open lines: a stroke, no fill.
   const outline = s.type === 'line' || (s.role ? !!roleDef(s.role).outline : false);
   const dashed = s.role ? !!roleDef(s.role).outline : false;
@@ -135,7 +136,8 @@ export function shapeGroup(s: Shape): SVGGElement {
     const r = s.radius * ppf;
     shapeEl = svgEl('circle', { ...common, cx, cy, r });
     // Plants drawn below full size: a dashed ring at full size when selected (or for all, from Layers).
-    const full = (sel && state.selectedIds.length === 1) || state.showFullSize ? fullRingRadius(s) : null;
+    // While placing more of a plant, its full spread shows so the next one can be spaced by eye.
+    const full = (sel && state.selectedIds.length === 1) || state.showFullSize || (state.placing && s.plantId === state.placing.plantId) ? fullRingRadius(s) : null;
     if (crowded.has(s.id)) {
       g0.push(svgEl('circle', { 'data-role': 'crowded', cx, cy, r: r + 4, fill: 'none', stroke: '#dc2626', 'stroke-width': 2.5, 'pointer-events': 'none' }));
     }
@@ -204,7 +206,7 @@ export function shapeGroup(s: Shape): SVGGElement {
     }
   }
   const sunText = s.role === 'shade' && s.sun ? '☀ ' + formatHours(sunHours(s.sun)) : '';
-  const label = displayLabel(s);
+  const label = repeatLabels.has(s.id) && !(sel && state.selectedIds.length === 1) ? '' : displayLabel(s);
   if (label) {
     g.appendChild(svgEl('text', {
       x: labelX, y: sunText ? labelY - fs * 0.6 : labelY, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
@@ -301,15 +303,36 @@ function marqueeRect(): SVGRectElement | null {
   });
 }
 
+/**
+ * Plants whose name would sit on top of the same name next to it (a row of
+ * five coneflowers): only the first of each overlapping run is labeled, so the
+ * names stay readable. A selected plant always shows its name.
+ */
+let repeatLabels = new Set<string>();
+function refreshRepeatLabels() {
+  const ppf = pxPerFoot();
+  const kept: { text: string; x0: number; x1: number; y0: number; y1: number }[] = [];
+  repeatLabels = new Set();
+  for (const s of paintOrder(state.shapes)) {
+    if (s.type !== 'circle' || s.role !== 'plant' || !s.label) continue;
+    const r = s.radius * ppf, fs = Math.max(10, Math.min(14, r * 0.4));
+    const w = s.label.length * fs * 0.55, cx = s.x * ppf, cy = s.y * ppf;
+    const box = { text: s.label, x0: cx - w / 2, x1: cx + w / 2, y0: cy - fs / 2, y1: cy + fs / 2 };
+    if (kept.some((k) => k.text === box.text && k.x0 < box.x1 && box.x0 < k.x1 && k.y0 < box.y1 && box.y0 < k.y1)) repeatLabels.add(s.id);
+    else kept.push(box);
+  }
+}
+
 /** Plants outlined as crowded (Layers switch); refreshed on each redraw. */
 let crowded = new Set<string>();
 function refreshCrowding() {
-  crowded = state.showCrowding ? crowdedIds(state.shapes.filter((s) => shownWith(s, state.viewFilter)), plantsById) : new Set();
+  crowded = state.showCrowding || state.placing ? crowdedIds(state.shapes.filter((s) => shownWith(s, state.viewFilter)), plantsById) : new Set();
 }
 
 /** Clear and redraw the whole canvas. Never touches panel DOM. */
 export function redrawCanvas() {
   refreshCrowding();
+  refreshRepeatLabels();
   const svg = canvasSvg();
   if (!svg) return;
   ensureLayers(svg);
@@ -391,6 +414,7 @@ export function redrawBackground() {
 function renderHandles(g: SVGGElement) {
   renderBgHandles(g);
   renderPathOverlay(g);
+  renderPlaceOverlay(g);
 }
 /** Redraw only the handles layer (drawing in progress, point handles). */
 export function redrawHandles() {
