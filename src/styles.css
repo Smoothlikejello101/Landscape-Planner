@@ -298,3 +298,31 @@ a { color: inherit; }
 .field .hint + .measure { margin-top: 2px; } /* under the diameter, not on top of it */
 .method-seg button { flex: 1 1 0; min-width: 0; padding: 4px 2px; }
 .overlay.center > .sheet { max-width: 520px; border-radius: 16px; }
+
+.empty-photo-btn { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px; min-height: 48px; border-radius: 999px; background: #0f766e; color: #fff; font-size: 15px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+.empty-photo-btn .icon { stroke: #fff; }
+.empty-sub { margin-top: 6px; font-size: 12px; }
+.empty-or { margin: 10px 0 2px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+.add-photo-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 10px 12px; margin-bottom: 14px; border-radius: 8px; border: 1px solid #99f6e4; background: #f0fdfa; color: #134e4a; font-size: 13px; line-height: 1.4; min-height: 52px; }
+.add-photo-row b { font-size: 14px; }
+/* Compact properties: one row per group, open on tap */
+.props-compact .field { margin-bottom: 12px; }
+.prop-section { border-top: 1px solid #e7e5e4; }
+.prop-section:last-of-type { border-bottom: 1px solid #e7e5e4; }
+.prop-head { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 48px; padding: 8px 2px; text-align: left; background: none; color: #292524; }
+.prop-title { font-size: 14px; font-weight: 600; flex-shrink: 0; }
+.prop-summary { flex: 1; min-width: 0; text-align: right; font-size: 13px; color: #57534e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prop-chev { display: flex; color: #a8a29e; transition: transform 0.15s; }
+.prop-section.open .prop-chev { transform: rotate(180deg); }
+.prop-body { display: none; padding: 4px 0 12px; }
+.prop-section.open .prop-body { display: block; }
+.look-sum { display: inline-flex; align-items: center; gap: 4px; }
+.sw-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 1px solid #d6d3d1; }
+.action-row { display: flex; gap: 8px; margin-top: 16px; }
+.action-row .btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 6px; }
+
+.what-it-is { border-top: 1px solid #e7e5e4; }
+.what-it-is .kind-row { min-height: 48px; gap: 8px; }
+.what-it-is .kind-name { flex: 1; text-align: right; font-size: 13px; font-weight: 400; color: #57534e; }
+.what-it-is .role-chips { padding-bottom: 12px; }
+.props-compact > .field:last-of-type { margin-bottom: 8px; }

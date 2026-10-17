@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openFresh, closeSheet, drag, field, shapeCount, addPlainShape, setRole } from './helpers';
+import { openFresh, closeSheet, drag, field, shapeCount, addPlainShape, setRole, openSections } from './helpers';
 
 async function addRect(page: Page, label: string, role: string, size?: [number, number]) {
   await addPlainShape(page, 'rect');
@@ -21,7 +21,7 @@ const shapeEl = (page: Page, label: string) =>
 async function openProps(page: Page, label: string) {
   await page.locator('button[title=Layers]').click();
   await page.locator('.layer-row', { hasText: label }).click();
-  await page.locator('.sel-pill button.edit').click();
+  await page.locator('.sel-pill button.edit').click(); await openSections(page);
 }
 
 test('a bed carries the plants inside it, unless that is turned off', async ({ page }) => {
@@ -79,7 +79,7 @@ test('shade sun can be recorded as times or hours, and is saved', async ({ page 
   await page.locator('button[title=Layers]').click();
   await expect(page.locator('.layer-row', { hasText: 'Oak shade' })).toContainText(/sun · seen \w+ \d+, \d{4}/);
   await page.locator('.layer-row', { hasText: 'Oak shade' }).click();
-  await page.locator('.sel-pill button.edit').click();
+  await page.locator('.sel-pill button.edit').click(); await openSections(page);
   await expect(page.locator('.seg button.sel')).toHaveText('Just hours');
   await expect(page.locator('[data-testid=sun-section] input[type=text]')).toHaveValue('after leaf-out');
 });
@@ -94,7 +94,7 @@ test('a plant in the wrong light gets a warning', async ({ page }) => {
   await closeSheet(page);
   await addPlant(page, "Heuchera 'Autumn Bride'"); // part sun to shade
   await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(1);
-  await page.locator('.sel-pill button.edit').click();
+  await page.locator('.sel-pill button.edit').click(); await openSections(page);
   await expect(page.locator('[data-testid=sun-check]')).toContainText('prefers part sun to shade');
 
   // Dismiss it for this plant: the badge goes, the note stays in properties.
@@ -109,7 +109,7 @@ test('a plant in the wrong light gets a warning', async ({ page }) => {
   // It comes back when the light changes.
   await page.locator('button[title=Layers]').click();
   await page.locator('.layer-row', { hasText: 'Sunny strip' }).click();
-  await page.locator('.sel-pill button.edit').click();
+  await page.locator('.sel-pill button.edit').click(); await openSections(page);
   await page.locator('[data-testid=sun-section] input[type=range]').fill('7'); // still too sunny, but the warning now reads differently
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(1);

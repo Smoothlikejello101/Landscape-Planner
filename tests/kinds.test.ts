@@ -177,3 +177,36 @@ describe('paths on the plan', () => {
     expect(svg).toContain('stroke-linecap="butt"');
   });
 });
+
+describe('statuses that fit the thing', () => {
+  it('say Existing for things that are not plants, and leave out To move', async () => {
+    const { statusesFor, statusLabelFor, hasStatus } = await import('../src/status');
+    expect(statusesFor([{ role: 'plant' }]).map((s) => s.label)).toEqual(['Planned', 'Planted', 'To move', 'To remove', 'Gone']);
+    expect(statusesFor([{ role: 'building' }]).map((s) => s.label)).toEqual(['Planned', 'Existing', 'To remove', 'Gone']);
+    expect(statusesFor([{ role: 'plant' }, { role: 'bed' }]).map((s) => s.label)).toContain('Planted / existing');
+    expect(statusLabelFor({ role: 'building', status: 'planted' })).toBe('Existing');
+    expect(statusLabelFor({ role: 'plant', status: 'planted' })).toBe('Planted');
+    expect(hasStatus({ role: 'shade', type: 'poly' })).toBe(false);
+    expect(hasStatus({ role: 'other', type: 'text' })).toBe(false);
+    expect(hasStatus({ role: 'bed', type: 'rect' })).toBe(true);
+  });
+  it('start existing things as Existing and designed things as Planned', () => {
+    const pts = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 6 }];
+    expect(buildShape('rect', pts, kindDef('building'), [])!.status).toBe('planted');
+    expect(buildShape('rect', pts, kindDef('bed'), [])!.status).toBe('planned');
+    expect(buildShape('rect', pts, kindDef('patio'), [])!.status).toBe('planned');
+    expect(buildShape('line', pts, kindDef('fence'), [])!.status).toBe('planted');
+    expect(buildShape('circle', pts, kindDef('sun'), [])!.status).toBeUndefined();
+    expect(buildShape('rect', pts, kindDef('plain'), [])!.status).toBeUndefined();
+  });
+  it('put a new plant in the status and phase the plan is filtered to', async () => {
+    const { newPlantStatus } = await import('../src/plants');
+    state.viewFilter = { status: '', phase: '', showGone: false };
+    expect(newPlantStatus()).toEqual({ status: 'planned' });
+    state.viewFilter = { status: 'planted', phase: 'Fall 2026', showGone: false };
+    expect(newPlantStatus()).toEqual({ status: 'planted', phase: 'Fall 2026' });
+    startKind('tree'); tap(0, 0); tap(5, 0);
+    expect(finishDraw()).toMatchObject({ status: 'planted', phase: 'Fall 2026' });
+    state.viewFilter = { status: '', phase: '', showGone: false };
+  });
+});

@@ -188,11 +188,18 @@ export function render() {
   canvasWrap.appendChild(zoomBtns);
 
   // Empty hint
-  if (state.shapes.length === 0 && !state.draw) {
-    canvasWrap.appendChild(el('div', { className: 'empty-hint' },
+  if (state.shapes.length === 0 && !state.draw && !state.bgCalibrate && !state.bgEditMode) {
+    const hint = el('div', { className: 'empty-hint' });
+    // The easiest start is tracing over a photo of the yard from above, so offer it first.
+    if (!state.bgImage) {
+      const photo = el('button', { className: 'empty-photo-btn', 'data-testid': 'start-photo', html: I.image + '<span>Start from an aerial photo</span>' });
+      photo.addEventListener('click', () => { state.panel = 'bg'; render(); });
+      hint.append(photo, el('div', { className: 'empty-sub' }, 'A satellite or drone photo of your yard to trace over.'), el('div', { className: 'empty-or' }, 'or'));
+    }
+    hint.append(
       el('div', {}, 'Tap a button below to add something.'),
-      el('div', {}, 'Grid lines are ', el('b', {}, '1 ft'), ' apart; bold lines every ', el('b', {}, '10 ft'), '.')
-    ));
+      el('div', {}, 'Grid lines are ', el('b', {}, '1 ft'), ' apart; bold lines every ', el('b', {}, '10 ft'), '.'));
+    canvasWrap.appendChild(hint);
   }
 
   // Multi-select action bar (floating, only when 2+ selected and no panel open)

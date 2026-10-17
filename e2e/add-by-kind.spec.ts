@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, closeSheet, field, openFresh, shapeCount } from './helpers';
+import { addKind, closeSheet, field, openFresh, shapeCount, openSections } from './helpers';
 
 // Adding things by what they are: the bottom bar, the Add sheet, and drawing
 // each kind by tapping.
@@ -40,7 +40,7 @@ test('a building from three taps: tilted to follow the first side, labeled House
   await expect(bar(page)).toHaveCount(0); // finished by itself
   await expect(page.locator('.sheet')).toHaveCount(0); // properties stay closed
   await expect(page.locator('.sel-pill .name')).toHaveText('House');
-  await page.locator('.sel-pill .edit').click();
+  await page.locator('.sel-pill .edit').click(); await openSections(page);
   await expect(page.locator('.sheet-header .title')).toHaveText('Rectangle properties');
   await expect(page.getByTestId('what-it-is')).toContainText('Building');
   await expect(field(page, 'Width (ft)')).toHaveValue('10');
@@ -68,7 +68,7 @@ test('the drawing method is a choice with pictures, remembered per kind', async 
   await expect(banner(page)).toHaveText('Bed: Tap the center');
   await tapFt(page, 10, 10);
   await tapFt(page, 13, 14); // 5 ft out
-  await page.locator('.sel-pill .edit').click();
+  await page.locator('.sel-pill .edit').click(); await openSections(page);
   await expect(field(page, 'Radius (ft)')).toHaveValue('5');
   await expect(page.getByTestId('what-it-is')).toContainText('Bed');
   await closeSheet(page);
@@ -91,7 +91,7 @@ test('a path is a band at its real width, set while drawing', async ({ page }) =
   await bar(page).getByRole('button', { name: 'Done' }).click();
   const band = page.locator('#canvas-svg polyline[data-shape-id]').first();
   await expect(band).toHaveAttribute('stroke-width', String(4 * FT));
-  await page.locator('.sel-pill .edit').click();
+  await page.locator('.sel-pill .edit').click(); await openSections(page);
   await expect(page.locator('.sheet-header .title')).toHaveText('Path properties');
   await expect(page.locator('[data-testid=measure]')).toHaveText('Length: 16 ft · about 64 sq ft');
   await page.getByTestId('path-width').fill('2');
@@ -108,7 +108,7 @@ test('an existing tree is a circle from trunk to canopy edge, sized by hand', as
   await tapFt(page, 10, 10);
   await tapFt(page, 10, 18);
   await expect(page.locator('.sel-pill .name')).toHaveText('Tree');
-  await page.locator('.sel-pill .edit').click();
+  await page.locator('.sel-pill .edit').click(); await openSections(page);
   await expect(field(page, 'Radius (ft)')).toHaveValue('8');
 });
 
@@ -129,7 +129,7 @@ test('what something is can be changed behind Change', async ({ page }) => {
   await page.locator('.tool-btn.bed').click();
   await bar(page).locator('[data-method=rect]').click();
   await tapFt(page, 2, 2); await tapFt(page, 10, 2); await tapFt(page, 10, 6);
-  await page.locator('.sel-pill .edit').click();
+  await page.locator('.sel-pill .edit').click(); await openSections(page);
   const what = page.getByTestId('what-it-is');
   await expect(what.locator('.role-chip')).toHaveCount(0); // the list stays out of the way
   await page.getByTestId('change-kind').click();
@@ -172,7 +172,7 @@ test.describe('with a keyboard', () => {
     await page.keyboard.press('Escape');
     // Typing a label never adds things.
     await tapFt(page, 5, 4); // the bed drawn above
-    await page.locator('.sel-pill .edit').click();
+    await page.locator('.sel-pill .edit').click(); await openSections(page);
     await field(page, 'Label').fill('');
     await page.keyboard.type('bwh');
     await expect(field(page, 'Label')).toHaveValue('bwh');
@@ -194,7 +194,7 @@ test('triangles from older plans keep their right-angle corner control', async (
   await page.locator('[data-testid=import-file]').setInputFiles({ name: 'old.landscape.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(file)) });
   await expect(page.locator('.project-btn .pname')).toHaveText('Old plan');
   await page.locator('#canvas-svg polygon[data-shape-id=t]').click();
-  await page.locator('.sel-pill .edit').click();
+  await page.locator('.sel-pill .edit').click(); await openSections(page);
   await expect(page.locator('.sheet-header .title')).toHaveText('Triangle properties');
   await page.locator('.tri-corner-btn', { hasText: 'Top-right' }).click();
   await expect(page.locator('.tri-corner-btn', { hasText: 'Top-right' })).toHaveClass(/sel/);

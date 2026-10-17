@@ -18,6 +18,25 @@ export const STATUSES: { key: Status; label: string }[] = [
 const KEYS = new Set<string>(STATUSES.map((s) => s.key));
 export const isStatus = (v: unknown): v is Status => typeof v === 'string' && KEYS.has(v);
 export const statusLabel = (k: Status | undefined) => STATUSES.find((s) => s.key === k)?.label ?? 'Not set';
+/**
+ * Statuses that make sense for these shapes. A house isn't "planted": for
+ * anything that isn't a plant, 'planted' reads "Existing" (it's there), and
+ * "To move" is left out. A mix of plants and other things gets both words.
+ */
+export function statusesFor(shapes: Pick<Shape, 'role'>[]): { key: Status; label: string }[] {
+  const plants = shapes.filter((s) => s.role === 'plant').length;
+  if (plants === shapes.length) return STATUSES;
+  const planted = plants ? 'Planted / existing' : 'Existing';
+  return STATUSES.filter((s) => plants || s.key !== 'move').map((s) => (s.key === 'planted' ? { ...s, label: planted } : s));
+}
+/** A shape's status in words that fit it ("Existing" for a house). */
+export function statusLabelFor(s: Pick<Shape, 'role' | 'status'>): string {
+  return statusesFor([s]).find((x) => x.key === s.status)?.label ?? statusLabel(s.status);
+}
+/** Things a status means something for (not sun records, notes or measurements). */
+export function hasStatus(s: Pick<Shape, 'role' | 'type'>): boolean {
+  return s.type !== 'text' && s.role !== 'shade' && s.role !== 'other';
+}
 
 export const NO_FILTER: ShapeFilter = { status: '', phase: '', showGone: false };
 

@@ -31,6 +31,12 @@ function kindChip(kind: KindDef): HTMLElement {
 export function renderAddSheet(): HTMLElement {
   const close = () => { state.panel = null; render(); };
   const body = el('div', { className: 'sheet-body add-sheet' });
+  // Until the plan has one: tracing over a photo is the easiest way to get the yard right.
+  if (!state.bgImage) {
+    const photo = el('button', { className: 'add-photo-row', 'data-testid': 'add-photo', html: I.image + '<span><b>Aerial photo</b><br>A satellite or drone photo of your yard to trace over</span>' });
+    photo.addEventListener('click', () => { state.panel = 'bg'; render(); });
+    body.appendChild(photo);
+  }
   const recent = recentKinds();
   if (recent.length) {
     body.appendChild(el('div', { className: 'kind-group' },

@@ -1,13 +1,22 @@
 import { el } from '../dom';
 import { addPhase, setPhaseForIds, setStatusForIds, updateSelectedSilent } from '../mutations';
 import { state } from '../state';
-import { STATUSES } from '../status';
+import { statusesFor, statusLabelFor } from '../status';
 import type { Shape } from '../types';
 import { render } from './render';
 
 // Status and phase controls in the properties panel, for one shape or a
 // multi-selection. Chips and the phase menu re-render; the date and the new
 // phase name are typed without re-rendering (Android keyboard safety).
+
+/** "Planned · Fall 2026", "Existing", "Not set"; "Mixed" across a selection. */
+export function statusSummary(shapes: Shape[]): string {
+  const statuses = new Set(shapes.map((s) => s.status ?? ''));
+  const phases = new Set(shapes.map((s) => s.phase ?? ''));
+  const status = statuses.size > 1 ? 'Mixed' : statusLabelFor(shapes[0]);
+  const phase = phases.size > 1 ? 'mixed phases' : [...phases][0];
+  return phase ? `${status} · ${phase}` : status;
+}
 
 export function statusSection(shapes: Shape[]): HTMLElement {
   const ids = shapes.map((s) => s.id);
@@ -16,7 +25,7 @@ export function statusSection(shapes: Shape[]): HTMLElement {
   const wrap = el('div', { className: 'field', 'data-testid': 'status-section' });
   wrap.appendChild(el('label', {}, shapes.length > 1 ? 'Status (applies to all selected)' : 'Status'));
   const chips = el('div', { className: 'role-chips', role: 'radiogroup', 'aria-label': 'Status' });
-  for (const [key, label] of [['', 'Not set'], ...STATUSES.map((s) => [s.key, s.label])] as [string, string][]) {
+  for (const [key, label] of [['', 'Not set'], ...statusesFor(shapes).map((s) => [s.key, s.label])] as [string, string][]) {
     const on = current === key;
     const b = el('button', { className: 'status-chip status-' + (key || 'none') + (on ? ' sel' : ''), role: 'radio', 'aria-checked': String(on) }, label);
     b.addEventListener('click', () => { setStatusForIds(ids, (key || undefined) as Shape['status']); render(); });
@@ -24,8 +33,8 @@ export function statusSection(shapes: Shape[]): HTMLElement {
   }
   wrap.appendChild(chips);
 
-  // When it went in the ground (one shape, planted).
-  if (shapes.length === 1 && shapes[0].status === 'planted') {
+  // When it went in the ground (one plant, planted).
+  if (shapes.length === 1 && shapes[0].status === 'planted' && shapes[0].role === 'plant') {
     const s = shapes[0];
     const date = el('input', { type: 'date', value: s.plantedOn ?? '', 'data-testid': 'planted-on' }) as HTMLInputElement;
     date.addEventListener('change', () => updateSelectedSilent({ plantedOn: date.value || undefined }));

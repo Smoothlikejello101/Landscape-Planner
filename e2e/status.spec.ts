@@ -1,11 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
-import { autoDialogs, closeSheet, field, openFresh, shapeCount } from './helpers';
+import { autoDialogs, closeSheet, field, openFresh, shapeCount, openSections } from './helpers';
 
 async function addPlant(page: Page, name: string, x: number) {
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill(name);
   await page.locator('.sheet .proj-row', { hasText: name }).first().click();
-  await page.locator('.sel-pill button.edit').click();
+  await page.locator('.sel-pill button.edit').click(); await openSections(page);
   await field(page, 'X position').fill(String(x));
 }
 const plantShapes = (page: Page) => page.locator('#canvas-svg circle[data-shape-id]');
