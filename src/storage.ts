@@ -983,6 +983,7 @@ function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
         out[k] = { revision: r.revision, hash: r.hash };
         if (typeof r.photo === 'string' && /^(none|kept|[0-9a-f]{64}@[0-9a-z]+:[0-9a-z]+)$/.test(r.photo)) out[k].photo = r.photo;
         if (r.held === 'room' || r.held === 'refused') out[k].held = r.held;
+        else if ((r.held as unknown) === true) out[k].held = 'room'; // (an early test build stored true)
       }
     }
   }

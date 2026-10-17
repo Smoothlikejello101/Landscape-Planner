@@ -98,11 +98,10 @@ export function storageLocal(screenBusy: () => boolean, openChanged: () => Promi
           const meta = state.projects.find((p) => p.id === id);
           if (d && meta) copyId = await createProject(syncName(`${meta.name} — with this device’s photo`), { ...d, bgImage: { ...here } });
         }
-        try {
-          ok = await replaceProjectContent(id, syncName(name), content, token, () => !screenBusy(), photo);
-        } finally {
-          if (!ok && copyId) await deleteProject(copyId, true);
-        }
+        ok = await replaceProjectContent(id, syncName(name), content, token, () => !screenBusy(), photo);
+        // Not replaced: the copy isn't needed. (If the write failed instead, the screen may already show
+        // the incoming version, to be saved over the original: the copy stays, holding this device's photo.)
+        if (!ok && copyId) await deleteProject(copyId, true);
       } finally {
         if (ok || state.currentProjectId === id) await openChanged(); // (a failed write may still have changed the screen)
       }

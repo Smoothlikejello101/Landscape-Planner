@@ -192,7 +192,7 @@ const byteSize = (dataUrl: string) => { const b64 = dataUrl.slice(dataUrl.indexO
 
 /** A connection that dropped (as opposed to the server refusing something). */
 /** A refusal that will happen every time (a kind of image storage won't take, or too large). */
-const isRefusal = (e: unknown) => /mime|content.?type|not supported|too large|payload|413|415/i.test(`${e instanceof Error ? e.message : String(e)} ${(e as { statusCode?: unknown })?.statusCode ?? ''}`);
+const isRefusal = (e: unknown) => /mime|content.?type|not supported|too large|maximum allowed size|payload|413|415/i.test(`${e instanceof Error ? e.message : String(e)} ${(e as { statusCode?: unknown })?.statusCode ?? ''}`);
 const isConnectionTrouble = (e: unknown) => e instanceof TypeError || /fetch|network|load failed|timed? ?out/i.test(e instanceof Error ? e.message : String(e));
 const isEmpty = (c: ProjectContent) => Array.isArray(c.shapes) && c.shapes.length === 0 && (photoKey(c) ?? 'none') === 'none';
 /** After this many failures in a row, the trouble is likely the connection: end the pass. */
@@ -254,8 +254,13 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
       } catch (e) {
         if (isConnectionTrouble(e)) throw e;
         if (isRefusal(e)) return 'refused'; // a kind of image storage won't take: it stays here
-        // Anything else (another device sent it a moment ago, the server busy): look again, else next time.
-        return (await remote.reservePhoto(fp, byteSize(data))) === 'stored' ? (photosUp.add(fp), 'ok') : 'changed';
+        // Anything else: perhaps another device sent it a moment ago. Look again; otherwise it's a
+        // failure this project reports (and tries again next time).
+        const again = await remote.reservePhoto(fp, byteSize(data));
+        if (again === 'paused') return 'paused';
+        if (again !== 'stored') throw e;
+        photosUp.add(fp);
+        return 'ok';
       }
     }
     photosUp.add(fp);

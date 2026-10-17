@@ -5,7 +5,11 @@ import type { PlantPushResult, RemotePlants, ServerPlant } from './plants';
 
 // The server's side of sync: the functions in supabase/02-sync.sql.
 
-const fail = (error: { message?: string } | null) => { if (error) throw new Error(error.message || 'Sync failed'); };
+/** Throw the server's error (keeping its status code, which tells a refusal from a hiccup). */
+const fail = (error: { message?: string; statusCode?: unknown; status?: unknown } | null) => {
+  if (!error) return;
+  throw Object.assign(new Error(error.message || 'Sync failed'), { statusCode: error.statusCode ?? error.status });
+};
 
 /** Where a photo's file lives: <account>/<fingerprint>.jpg (whatever its type). */
 const photoPath = (userId: string, fingerprint: string) => `${userId}/${fingerprint}.jpg`;
