@@ -34,13 +34,17 @@ export function renderLocationPanel(): HTMLElement {
   const go = el('button', { className: 'btn primary', 'data-testid': 'zip-lookup' }, busy ? 'Looking up…' : 'Look up') as HTMLButtonElement;
   go.disabled = busy;
   const lookUp = async () => {
+    if (busy) return;
     const zip = input.value.trim();
     const plan = state.currentProjectId;
     busy = true; problem = ''; render();
     const r = await lookUpZip(zip);
     busy = false;
     // Answered for the plan it was asked for, while its sheet is still open.
-    if (state.currentProjectId !== plan || state.panel !== 'location') { render(); return; }
+    if (state.currentProjectId !== plan || state.panel !== 'location') {
+      if (state.panel === 'location') render(); // (else leave the screen alone: something else may have the keyboard)
+      return;
+    }
     if (r.ok) { typed = ''; setLocation(r.location); }
     else problem = r.why === 'format' ? 'A ZIP code is five digits.'
       : r.why === 'unknown' ? 'That ZIP isn’t in the zone tables (they cover the 50 states and Puerto Rico).'

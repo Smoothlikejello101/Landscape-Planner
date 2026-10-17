@@ -343,7 +343,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
    * taken from the side that changed it; both changing the same part is a conflict.
    */
   const merge = async (p: LocalProject, rec: SyncRecord | undefined, serverRev: number, serverName: string, sent: ProjectContent, by: string | null) => {
-    const rawContent = withLocalParts(sent, p.content);
+    const rawContent = withLocalParts(sent, p.content); // (for telling what changed where)
     const serverContent = asSeenHere(rawContent, rec);
     const n = local.normalize(serverName, serverContent);
     const basePhoto = rec?.photo ?? 'none';
@@ -356,7 +356,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
       // The original takes the server's plan; its photo follows the usual rule unless the photos clash too.
       const photoSource = !photoClash && (photoHere || !photoThere) ? p.content : serverContent;
       const original = { ...planOf(serverContent), ...('photo' in photoSource ? { photo: photoSource.photo } : {}) };
-      return conflict(p, serverName, serverRev, original, by, rawContent);
+      return conflict(p, serverName, serverRev, original, by, sent); // (recorded as the server really has it)
     }
     const planFromServer = !planHere && localPlan !== serverPlan;
     const photoFromServer = !photoHere && photoThere && localPhoto !== serverPhoto;
@@ -373,8 +373,9 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
       merged.token = -1; // (it moved on: nothing more is replaced this pass)
       report.downloaded++;
     }
-    const raw = local.normalize(serverName, rawContent);
-    const samePlan = merged.name === n.name && planHash(merged.name, merged.content) === serverPlan;
+    // Whether the server already has the result: judged by what it sent, not with this device's parts filled in.
+    const raw = local.normalize(serverName, sent);
+    const samePlan = merged.name === raw.name && planHash(merged.name, merged.content) === planHash(raw.name, raw.content);
     const mergedPhoto = photoKey(merged.content) ?? 'none', rawPhoto = photoKey(raw.content) ?? 'none';
     if (samePlan && (mergedPhoto === rawPhoto || (rawPhoto === 'kept' && rec?.held && mergedPhoto === rec.photo))) {
       await local.setRecord(p.id, recordAfter(raw.name, raw.content, serverRev, rec, mergedPhoto)); // the server has it (or the held photo stands)
