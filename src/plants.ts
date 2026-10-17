@@ -7,7 +7,10 @@ import type { CircleShape, Point } from './types';
 import { snap, uid } from './util';
 import { plantRadius } from './my-plants';
 
-/** One row of plants.json (Caddo Valley Plant Index). */
+/**
+ * One plant: a row of the catalog (plants.json), or one of the user's own
+ * plants (which may also carry their own notes).
+ */
 export interface Plant {
   id: string;
   common: string;
@@ -27,32 +30,30 @@ export interface Plant {
   deer?: string;
   maintenance?: string;
   self_seed?: string;
-  status?: string;
-  source?: string;
-  bed?: string;
   host?: string;
-  notes?: string;
   edible?: boolean;
   fall_color?: boolean;
   winter_interest?: boolean;
   clay_ok?: boolean;
   wet_feet?: boolean;
   dry_shade?: boolean;
-  ar_proven?: boolean;
   taproot?: boolean;
+  /** Widely invasive in the US: kept so existing ones can be mapped (and removed), never suggested. */
+  invasive?: boolean;
+  /** The user's own notes (My plants only; the catalog holds no notes). */
+  notes?: string;
   [key: string]: unknown;
 }
 export interface PlantMeta {
   title?: string;
   version?: string;
   count?: number;
-  zone?: string;
   enums?: Record<string, string[]>;
 }
 type SunLevel = 'Full' | 'Part' | 'Shade';
 
 // ============================================================
-// PLANT INDEX DATA (Caddo Valley Plant Index -> plants.json)
+// PLANT CATALOG DATA (plants.json)
 // ============================================================
 export let PLANTS: Plant[] = [];
 export let PLANT_META: PlantMeta | null = null;
@@ -61,11 +62,10 @@ export const plantsById: Record<string, Plant> = {};
 export const PLANT_FILTER_DEFAULTS = {
   q: '', form: '', water: '', bloomMonth: '', sun: '',
   native: '', deer: '', nectar: '', bird: '', maintenance: '',
-  selfSeed: '', status: '', source: '', maxHeight: '',
+  selfSeed: '', maxHeight: '',
   dogSafeOnly: false, dryShade: false, wetFeet: false, clayOk: false,
   hostOnly: false, fallColor: false, winterInterest: false,
-  edible: false, arProven: false, noTaproot: false, inPlan: false,
-  showArchived: false, // rejected rows, zone-fails, hard-no dog plants
+  edible: false, noTaproot: false, inPlan: false,
   advanced: false      // UI: is the "More filters" section expanded
 };
 export type PlantFilter = typeof PLANT_FILTER_DEFAULTS;
@@ -97,13 +97,11 @@ export function loadPlants(): Promise<void> {
 // ============================================================
 // PLANT PICKER
 // ============================================================
-export function plantMatches(p: Plant, f: PlantFilter): boolean {
+/** Whether a plant passes the picker's filters. `inPlan`: ids of plants placed in the open plan. */
+export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): boolean {
+  // Invasives are never suggested; they turn up when searched by name (to map one already in the yard).
+  if (p.invasive && !f.q.trim() && !f.inPlan) return false;
   if (f.dogSafeOnly && p.dog !== 'Safe') return false;
-  if (!f.showArchived) {
-    if (p.status === 'Rejected') return false;
-    if (p.dog === 'HARD NO') return false;
-    if (p.notes && p.notes.indexOf('FAILS ZONE FILTER') !== -1) return false;
-  }
   if (f.form && p.form !== f.form) return false;
   if (f.water && p.water !== f.water) return false;
   if (f.sun && !plantTakesSun(p, f.sun)) return false;
@@ -111,8 +109,6 @@ export function plantMatches(p: Plant, f: PlantFilter): boolean {
   if (f.deer && p.deer !== f.deer) return false;
   if (f.maintenance && p.maintenance !== f.maintenance) return false;
   if (f.selfSeed && p.self_seed !== f.selfSeed) return false;
-  if (f.status && p.status !== f.status) return false;
-  if (f.source && (!p.source || p.source.indexOf(f.source) === -1)) return false;
   if (f.nectar) {
     // 'High' = high only; 'Med' = med or better
     if (f.nectar === 'High' && p.nectar !== 'High') return false;
@@ -133,9 +129,8 @@ export function plantMatches(p: Plant, f: PlantFilter): boolean {
   if (f.fallColor && !p.fall_color) return false;
   if (f.winterInterest && !p.winter_interest) return false;
   if (f.edible && !p.edible) return false;
-  if (f.arProven && !p.ar_proven) return false;
   if (f.noTaproot && p.taproot) return false;
-  if (f.inPlan && p.status === 'Compendium') return false;
+  if (f.inPlan && !inPlan?.has(p.id)) return false;
   if (f.bloomMonth) {
     const m = Number(f.bloomMonth);
     if (!p.bloom || p.bloom.start == null || p.bloom.end == null) return false;
@@ -143,13 +138,18 @@ export function plantMatches(p: Plant, f: PlantFilter): boolean {
   }
   if (f.q) {
     const q = f.q.toLowerCase();
-    const hay = (p.common + ' ' + (p.botanical || '') + ' ' + (p.host || '') + ' ' + (p.bed || '') + ' ' + (p.notes || '')).toLowerCase();
+    const hay = (p.common + ' ' + (p.botanical || '') + ' ' + (p.host || '')).toLowerCase();
     if (hay.indexOf(q) === -1) return false;
   }
   return true;
 }
+/** Plants placed in the open plan (not counting ones marked gone). */
+export function plantIdsInPlan(): Set<string> {
+  return new Set(state.shapes.filter((s) => s.status !== 'gone').map((s) => s.plantId).filter((id): id is string => !!id));
+}
 export function filteredPlants(): Plant[] {
-  const out = PLANTS.filter(p => plantMatches(p, plantFilter));
+  const inPlan = plantIdsInPlan();
+  const out = PLANTS.filter(p => plantMatches(p, plantFilter, inPlan));
   out.sort((a, b) => a.common.localeCompare(b.common));
   return out;
 }
@@ -213,6 +213,7 @@ export function plantMetaLine(p: Plant): string {
   if (p.bloom && p.bloom.start) {
     bits.push('blooms ' + MONTH_NAMES[p.bloom.start] + (p.bloom.end && p.bloom.end !== p.bloom.start ? '-' + MONTH_NAMES[p.bloom.end] : ''));
   }
+  if (p.invasive) bits.push('INVASIVE: not for planting');
   if (p.dog && p.dog !== 'Safe') bits.push('dog: ' + p.dog);
   if (p.sun_most) bits.push(p.sun_most === p.sun_least ? p.sun_most + ' sun' : p.sun_most + '-' + p.sun_least);
   const tags: string[] = [];

@@ -1,7 +1,7 @@
 import { el, type Child } from '../dom';
 import { I } from '../icons';
 import type { Plant, PlantFilter } from '../plants';
-import { FORM_COLORS, MONTH_NAMES, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkShapeToPlant, plantFilter, plantMetaLine, plantTakesSun } from '../plants';
+import { FORM_COLORS, MONTH_NAMES, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkShapeToPlant, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startDraw } from '../draw';
 import { isMine, myPlants } from '../my-plants';
@@ -101,7 +101,9 @@ export function renderPlantsPanel() {
   /** "My plants" matching the search and sun filter (their other fields are whatever the user entered). */
   function myHits(): Plant[] {
     const q = plantFilter.q.trim().toLowerCase();
+    const inPlan = plantFilter.inPlan ? plantIdsInPlan() : null;
     return myPlants.filter((p) =>
+      (!inPlan || inPlan.has(p.id)) &&
       (!q || (p.common + ' ' + (p.botanical || '') + ' ' + (p.notes || '')).toLowerCase().includes(q)) &&
       (!plantFilter.sun || !p.sun_most || plantTakesSun(p, plantFilter.sun)));
   }
@@ -198,11 +200,7 @@ export function renderPlantsPanel() {
     mkSelect('Any maintenance', 'maintenance', enums.maintenance || [])
   ));
   adv.appendChild(row(
-    mkSelect('Any self-seeding', 'selfSeed', enums.self_seed || []),
-    mkSelect('Any status', 'status', enums.status || [])
-  ));
-  adv.appendChild(row(
-    mkSelect('Any nursery', 'source', ['Prairie Moon', 'Izel', 'Prairie Nursery', 'Pine Ridge', 'Local'])
+    mkSelect('Any self-seeding', 'selfSeed', enums.self_seed || [])
   ));
   adv.appendChild(el('div', { className: 'hint', style: { padding: '10px 0 0' } }, 'Traits'));
   adv.appendChild(el('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px 16px', margin: '4px 0 8px' } },
@@ -210,10 +208,8 @@ export function renderPlantsPanel() {
     mkCheck('Winter interest', 'winterInterest'),
     mkCheck('Clay OK', 'clayOk'),
     mkCheck('Edible', 'edible'),
-    mkCheck('AR-proven', 'arProven'),
     mkCheck('Transplantable', 'noTaproot'),
-    mkCheck('In my plan only', 'inPlan'),
-    mkCheck('Show archived', 'showArchived')
+    mkCheck('Already in this plan', 'inPlan')
   ));
 
   // ---- Toggle + reset ----
