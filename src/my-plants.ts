@@ -62,7 +62,7 @@ function legacyRadius(p: Plant, mode: SizeMode): number {
 }
 /** Full-size radius when it is bigger than what is drawn (for the dashed ring), else null. */
 export function fullRingRadius(s: Shape): number | null {
-  if (s.type !== 'circle' || !s.plantId) return null;
+  if (s.type !== 'circle' || !s.plantId || s.canopy) return null; // a shaped canopy is kept pruned to its shape
   const p = plantsById[s.plantId];
   if (!p) return null;
   const full = Math.max(0.5, plantSpread(p, 'full') / 2);
@@ -133,6 +133,7 @@ export function sanitizeMyPlant(raw: unknown): Plant | null {
   if (form) p.form = form;
   if (bs != null) p.bloom = { start: bs, end: be ?? bs, ...(bloomColor ? { color: bloomColor } : {}) };
   if (notes) p.notes = notes;
+  if (typeof o.color === 'string' && /^#[0-9a-f]{6}$/i.test(o.color)) p.color = o.color.toLowerCase();
   return p;
 }
 /** Load the library from storage into memory and the plant lookup. */
@@ -192,6 +193,15 @@ export function sunLevels(p: Plant): SunLevel[] {
 /** Resize placed plants (in the open plan) that use this plant and were sized from its data. */
 export function placedUsing(id: string): CircleShape[] {
   return state.shapes.filter((s): s is CircleShape => s.type === 'circle' && s.plantId === id && isDataSized(s));
+}
+/** Recolored in the library: placed plants still in the old color take the new one (one undo step). */
+export function recolorPlaced(id: string, oldColor: string, newColor: string) {
+  const hit = state.shapes.filter((s) => s.plantId === id && s.color.toLowerCase() === oldColor.toLowerCase());
+  if (!hit.length || oldColor === newColor) return;
+  flushHistoryDebounce();
+  for (const s of hit) s.color = newColor;
+  pushHistory();
+  save();
 }
 export function resizePlaced(p: Plant, oldName: string) {
   flushHistoryDebounce();

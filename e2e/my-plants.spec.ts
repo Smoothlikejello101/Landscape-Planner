@@ -94,19 +94,19 @@ test('turn a labeled circle into a plant, then edit the plant', async ({ page })
   await page.locator('.sel-pill button.edit').click();
   await expect(page.getByTestId('plant-link')).toContainText('Spread 5 ft');
   await expect(field(page, 'Label')).toHaveValue('Ninebark');
-  await expect(field(page, 'Radius (ft)')).toHaveValue('2.5');
+  await expect(field(page, 'Spread (ft)')).toHaveValue('5');
 
   // Editing the library plant offers to resize it on the plan.
   await page.getByRole('button', { name: 'Edit "Ninebark" in My plants' }).click();
   await page.getByTestId('pf-spread').fill('8 ft');
   await page.getByTestId('pf-save').click();
   await page.locator('.sel-pill button.edit').click();
-  await expect(field(page, 'Radius (ft)')).toHaveValue('4');
+  await expect(field(page, 'Spread (ft)')).toHaveValue('8');
 
   // Sized by hand: a reset button appears.
-  await field(page, 'Radius (ft)').fill('3');
+  await field(page, 'Spread (ft)').fill('6');
   await closeSheet(page);
   await page.locator('.sel-pill button.edit').click();
   await page.getByTestId('plant-link').getByRole('button', { name: /Reset to plant size/ }).click();
-  await expect(field(page, 'Radius (ft)')).toHaveValue('4');
+  await expect(field(page, 'Spread (ft)')).toHaveValue('8');
 });

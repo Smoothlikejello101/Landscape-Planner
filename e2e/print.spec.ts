@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { closeSheet, field, openFresh, addPlainShape, setRole, placeOnceAtCenter } from './helpers';
+import { closeSheet, field, openFresh, addPlainShape, setRole, placeOnceAtCenter, openExport } from './helpers';
 
 test('printable plan: options persist and a PDF downloads', async ({ page }) => {
   await openFresh(page);
@@ -13,7 +13,7 @@ test('printable plan: options persist and a PDF downloads', async ({ page }) => 
   await page.locator('.sheet .proj-row', { hasText: "Heuchera 'Autumn Bride'" }).first().click();
   await placeOnceAtCenter(page);
 
-  await page.locator('button[title=Export]').click();
+  await openExport(page);
   await page.getByTestId('printable-plan').click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Printable plan');
   await expect(page.getByTestId('print-summary')).toContainText('scale 1 in =');
@@ -38,7 +38,7 @@ test('printable plan: options persist and a PDF downloads', async ({ page }) => 
   await expect(page.getByTestId('download-pdf')).toHaveCount(0);
   await page.waitForTimeout(600);
   await page.reload();
-  await page.locator('button[title=Export]').click();
+  await openExport(page);
   await page.getByTestId('printable-plan').click();
   await expect(page.getByTestId('paper').getByRole('button', { name: '11 × 17' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.locator('.sheet .field').filter({ hasText: 'Title' }).locator('input').first()).toHaveValue('Front yard plan');

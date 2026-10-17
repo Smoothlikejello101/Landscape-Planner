@@ -9,6 +9,9 @@ import { render } from './ui/render';
 import { paintOrder } from './canvas';
 import { roleDef } from './roles';
 import { shadeOpacity } from './sun';
+import { plantsById } from './plants';
+import { LABEL_LINE_HEIGHT, plantLabelFit } from './labels';
+import { canopyInnerRadius, canopyPoints, isTree, partsToSvg, trunkParts, trunkReachPx } from './trees';
 
 // ============================================================
 // EXPORT
@@ -55,8 +58,21 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
     `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="${fs * k}" fill="#0f172a" font-family="sans-serif" stroke="rgba(255,255,255,0.7)" stroke-width="${2 * k}" paint-order="stroke" stroke-linejoin="round"${extra}>${escapeHtml(label)}</text>`;
   if (s.type === 'circle') {
     const cx = (s.x - originX) * scale, cy = (s.y - originY) * scale, r = s.radius * scale;
-    let out = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}/>`;
-    if (s.label) out += text(cx, cy, Math.max(10, Math.min(14, (r / k) * 0.4)), s.label);
+    const paint = `fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}`;
+    let out = s.canopy
+      ? `<polygon points="${canopyPoints(s, (x, y) => [(x - originX) * scale, (y - originY) * scale])}" ${paint} stroke-linejoin="round"/>`
+      : `<circle cx="${cx}" cy="${cy}" r="${r}" ${paint}/>`;
+    const tree = isTree(s);
+    if (tree) out += partsToSvg(trunkParts(s, cx, cy, scale, false, k));
+    if (s.label) {
+      // Plants: the name fitted inside, as on screen (sizes in screen px, scaled by k for print).
+      const plant = s.role === 'plant' && s.plantId ? plantsById[s.plantId] : undefined;
+      const fit = plantLabelFit(s.label, (canopyInnerRadius(s) * scale) / k, tree ? { below: trunkReachPx(s, scale / k) + 1 } : {}, plant);
+      if (fit) {
+        const lh = fit.fontSize * LABEL_LINE_HEIGHT * k;
+        out += fit.lines.map((line, i) => text(cx, cy + fit.dy * k + (i - (fit.lines.length - 1) / 2) * lh, fit.fontSize, line)).join('');
+      } else out += text(cx, cy, Math.max(10, Math.min(14, (r / k) * 0.4)), s.label); // over the edge, as before
+    }
     return out;
   }
   if (s.type === 'poly' || s.type === 'line') {

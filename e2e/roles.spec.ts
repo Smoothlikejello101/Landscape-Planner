@@ -86,8 +86,7 @@ test('several shapes can be given a role at once', async ({ page }) => {
   await openFresh(page);
   await addRect(page, 'One');
   await addRect(page, 'Two');
-  await page.locator('button[title=More]').click();
-  await page.locator('.menu-item', { hasText: 'Switch to select mode' }).click();
+  await page.getByTestId('select-mode').click();
   const box = await canvasBox(page);
   await drag(page, { x: box.x + 10, y: box.y + 70 }, { x: box.x + box.width - 50, y: box.y + box.height - 70 });
   await page.locator('.multi-bar button', { hasText: 'Edit' }).click();

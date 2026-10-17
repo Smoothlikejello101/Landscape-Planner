@@ -370,3 +370,22 @@ describe('backup files', () => {
     expect(uniqueName('A', ['A', 'A (2)'])).toBe('A (3)');
   });
 });
+
+describe('trees with a trunk and a shaped canopy', () => {
+  const tree = (extra: Record<string, unknown> = {}) => ({ id: 't', type: 'circle', x: 5, y: 5, radius: 6, color: '#78350f', label: 'Tree', opacity: 0.5, locked: false, role: 'plant', sizeFrom: 'manual', ...extra });
+  it('round-trip, and circles from older versions stay plain circles', async () => {
+    await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [
+      tree({ tree: true, trunk: 1.5, canopy: [[-4, -2], [4, -2], [4, 3], [-4, 3]] }),
+      tree({ id: 'old' }),
+    ] }).shapes;
+    await flushSave();
+    const loaded = (await readProject(id))!.shapes;
+    expect(loaded).toEqual(state.shapes);
+    expect(loaded[0]).toMatchObject({ tree: true, trunk: 1.5, canopy: [[-4, -2], [4, -2], [4, 3], [-4, 3]], radius: 6 });
+    expect(['tree', 'trunk', 'canopy'].some((k) => k in loaded[1])).toBe(false);
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
+  });
+});

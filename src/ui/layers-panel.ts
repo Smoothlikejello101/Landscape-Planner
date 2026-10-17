@@ -37,7 +37,7 @@ export function renderLayersPanel() {
     for (const s of reversed) {
       const sel = isSelected(s.id);
       let dims;
-      if (s.type === 'circle') dims = s.radius + ' ft radius';
+      if (s.type === 'circle') dims = fmtFt(s.radius * 2) + (s.role === 'plant' ? ' ft spread' : ' ft across');
       else if (s.type === 'line') dims = fmtFt(shapePerimeter(s)) + ' ft long';
       else if (s.type === 'text') dims = 'text · ' + fmtFt(s.fontSize) + ' ft tall';
       else if (s.type === 'poly') dims = s.points.length + ' points · ' + fmtFt(boxSize(s).w) + ' × ' + fmtFt(boxSize(s).h) + ' ft';

@@ -4,9 +4,9 @@ import { bakeRotation, fmtFeet, outlineOf, pathPoints, pxPerFoot, rotate, screen
 import { flushHistoryDebounce, pushHistory } from './history';
 import { state } from './state';
 import { save } from './storage';
-import { buildShape, isKindKey, kindDef, tapAccepted, TAPS_TO_FINISH, type KindKey, type Method } from './kinds';
+import { buildShape, CANOPY_MIN_TAPS, isKindKey, kindDef, tapAccepted, TAPS_TO_FINISH, type KindKey, type Method } from './kinds';
 import type { DrawState, PathShape, Point, Shape } from './types';
-import { FORM_COLORS, plantsById } from './plants';
+import { plantColor, plantsById } from './plants';
 import { snap, uid } from './util';
 
 // Freeform outlines (closed) and lines (open).
@@ -25,7 +25,13 @@ const isPath = (s: Shape | undefined): s is PathShape => !!s && (s.type === 'pol
 
 // ---------- Drawing ----------
 type DrawKind = DrawState['kind'];
-const minPoints = (k: DrawKind) => (k === 'measure' || k === 'line' || k === 'path' ? 2 : TAPS_TO_FINISH[k] ?? MIN_POINTS.poly);
+const minPoints = (k: DrawKind) => (k === 'measure' || k === 'line' || k === 'path' ? 2 : k === 'canopy' ? CANOPY_MIN_TAPS : TAPS_TO_FINISH[k] ?? MIN_POINTS.poly);
+/** The tap that closes an outline (its first point), once there are enough to close: index into the taps, or -1. */
+function closingIndex(d: DrawState): number {
+  if (d.kind === 'poly') return d.points.length >= MIN_POINTS.poly ? 0 : -1;
+  if (d.kind === 'canopy') return d.points.length >= CANOPY_MIN_TAPS ? 1 : -1; // the first point after the trunk
+  return -1;
+}
 
 /** Start drawing with `method`, adding a thing of kind `target` (none = a measurement). */
 export function startDraw(method: DrawKind, target?: KindKey) {
@@ -53,9 +59,18 @@ export function startKind(key: KindKey) {
     return;
   }
   if (key === 'measure') { startDraw('measure'); return; }
+  startDraw(methodFor(key), key);
+}
+/** The method a kind starts in: the one last used for it, else its default. */
+function methodFor(key: KindKey): Method {
   const def = kindDef(key);
   const remembered = loadPrefs().methods[key];
-  startDraw(remembered && def.methods.includes(remembered) ? remembered : def.methods[0], key);
+  return remembered && def.methods.includes(remembered) ? remembered : def.methods[0];
+}
+/** Draw an existing tree (once picked, or as an unknown tree): its trunk, then its canopy. */
+export function startTreeDraw(plantId?: string) {
+  startDraw(methodFor('tree'), 'tree');
+  if (plantId) state.draw!.plantId = plantId;
 }
 /** Switch the drawing method (Outline, Rectangle...). Taps so far are kept only between outline and line. */
 export function setDrawKind(kind: DrawKind) {
@@ -87,9 +102,10 @@ export function finishesItself(kind: DrawKind): boolean { return kind !== 'measu
 export function drawTap(clientX: number, clientY: number): boolean {
   const d = state.draw;
   if (!d) return false;
-  const first = d.points[0];
   if (d.kind === 'measure' && d.points.length >= 2) d.points = []; // a third tap starts a new measurement
-  if (d.kind === 'poly' && d.points.length >= MIN_POINTS.poly && first) {
+  const ci = closingIndex(d);
+  if (ci >= 0) {
+    const first = d.points[ci];
     const f = screenToFeet(clientX, clientY);
     if (Math.hypot(f.x - first.x, f.y - first.y) * pxPerFoot() <= CLOSE_RADIUS_PX) { finishDraw(); return true; }
   }
@@ -118,7 +134,7 @@ export function finishDraw(): Shape | null {
   if (tree && shape.type === 'circle') {
     shape.plantId = tree.id;
     shape.label = tree.common;
-    if (tree.form && FORM_COLORS[tree.form]) shape.color = FORM_COLORS[tree.form];
+    if (tree.color || tree.form) shape.color = plantColor(tree);
   }
   // A plant added while the plan shows one status or phase joins it (else it would vanish from view).
   const f = state.viewFilter;
@@ -330,7 +346,16 @@ function renderDrawPreview(g: SVGElement, d: DrawState) {
     const cx = preview.x + preview.width / 2, cy = preview.y + preview.height / 2;
     const pts = outlineOf(preview).map((p) => { const r = rotate(p.x - cx, p.y - cy, preview.rotation); return toScreen({ x: cx + r.x, y: cy + r.y }); });
     g.appendChild(svgEl('polygon', { ...ghost, points: pts.map((p) => `${p.x},${p.y}`).join(' '), fill: 'rgba(13,148,136,0.15)', stroke: INK, 'stroke-width': 2.5 }));
-  } else if (method === 'circle' && shown.length === 2) {
+  } else if (method === 'canopy') {
+    // The trunk, and the canopy outline around it.
+    const edge = shown.slice(1).map(toScreen);
+    if (edge.length > 1) {
+      g.appendChild(svgEl(edge.length > 2 ? 'polygon' : 'polyline', {
+        ...ghost, points: edge.map((p) => `${p.x},${p.y}`).join(' '),
+        fill: edge.length > 2 ? 'rgba(13,148,136,0.15)' : 'none', stroke: INK, 'stroke-width': 2.5,
+      }));
+    }
+  } else if ((method === 'circle' || method === 'trunk') && shown.length === 2) {
     // too small to be a circle yet: just the radius
     const [a, b] = shown.map(toScreen);
     g.appendChild(svgEl('line', { ...ghost, x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: INK, 'stroke-width': 2, 'stroke-dasharray': '6 4' }));
@@ -349,10 +374,11 @@ function renderDrawPreview(g: SVGElement, d: DrawState) {
   }
   taps.forEach((p, i) => {
     const c = toScreen(p);
-    const closer = i === 0 && method === 'poly' && taps.length >= MIN_POINTS.poly;
+    const closer = i === closingIndex(d);
+    const trunk = i === 0 && (method === 'canopy' || method === 'trunk');
     g.appendChild(svgEl('circle', {
-      'data-role': closer ? 'draw-close' : 'draw-point', cx: c.x, cy: c.y, r: closer ? 10 : 5,
-      fill: closer ? 'rgba(15,118,110,0.25)' : INK, stroke: closer ? INK : '#fff', 'stroke-width': 2, 'pointer-events': 'none',
+      'data-role': closer ? 'draw-close' : trunk ? 'draw-trunk' : 'draw-point', cx: c.x, cy: c.y, r: closer ? 10 : trunk ? 7 : 5,
+      fill: closer ? 'rgba(15,118,110,0.25)' : trunk ? '#78350f' : INK, stroke: closer ? INK : '#fff', 'stroke-width': 2, 'pointer-events': 'none',
     }));
   });
   if (hover && withHover.length > taps.length) {

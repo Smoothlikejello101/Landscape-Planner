@@ -7,21 +7,16 @@ import { finishPlacing } from '../place';
 import { currentProject, getClipboard } from '../storage';
 import { render } from './render';
 
+/** Select mode on or off (the lasso button on the top bar). */
+export function toggleSelectMode() {
+  state.selectMode = !state.selectMode;
+  if (state.placing) finishPlacing();
+  state.draw = null; state.editPoints = null;
+  if (!state.selectMode) clearSelection();
+  state.menu = null;
+}
 export function renderMoreMenu() {
   const items = [];
-  // Select mode toggle
-  items.push({
-    icon: state.selectMode ? I.hand : I.lasso,
-    label: state.selectMode ? 'Switch to pan mode' : 'Switch to select mode',
-    onClick: () => {
-      state.selectMode = !state.selectMode;
-      if (state.placing) finishPlacing();
-      state.draw = null; state.editPoints = null;
-      if (!state.selectMode) clearSelection();
-      state.menu = null;
-      render();
-    }
-  });
   // Paste (if clipboard has data)
   const clip = getClipboard();
   if (clip && clip.shapes && clip.shapes.length) {
@@ -42,6 +37,9 @@ export function renderMoreMenu() {
     label: state.bgImage ? 'Background image…' : 'Add background image…',
     onClick: () => { state.panel = 'bg'; state.menu = null; render(); }
   });
+  if (state.shapes.length) {
+    items.push({ icon: I.download, label: 'Export image…', onClick: () => { state.panel = 'export'; state.menu = null; render(); } });
+  }
   items.push({ divider: true });
   items.push({
     icon: I.edit,

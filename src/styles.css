@@ -29,6 +29,7 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .sel-pill .sw { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #d6d3d1; flex-shrink: 0; }
 .sel-pill .name { color: #44403c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .sel-pill button.edit { background: #1c1917; color: #fff; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 500; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.sel-pill button.pill-more { background: #ccfbf1; color: #115e59; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .multi-bar { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); background: #1c1917; color: #fff; border-radius: 999px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); padding: 4px; display: flex; align-items: center; gap: 2px; font-size: 12px; z-index: 6; }
 .multi-bar .count { padding: 6px 12px; font-weight: 600; }
 .multi-bar button { padding: 8px 10px; border-radius: 999px; color: #fff; display: flex; align-items: center; gap: 4px; font-size: 12px; }
@@ -127,6 +128,7 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .proj-row .pinfo { flex: 1; min-width: 0; }
 .proj-row .pname { font-size: 14px; font-weight: 500; color: #292524; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .proj-row .pmeta { font-size: 11px; color: #78716c; }
+.proj-row .pmatch { font-size: 11px; color: #115e59; font-weight: 500; margin-top: 2px; }
 .proj-row .pactions { display: flex; gap: 2px; flex-shrink: 0; }
 /* Triangle preview shape */
 .tri-prev { width: 0; height: 0; border-style: solid; border-color: transparent transparent #7c3aed; border-width: 0 12px 16px 0; }
@@ -286,6 +288,7 @@ a { color: inherit; }
 .method-icon .m-stroke { fill: none; stroke: #0f766e; stroke-width: 1.6; stroke-linejoin: round; }
 .method-icon .m-band { fill: none; stroke: rgba(120,113,108,0.35); stroke-width: 7; stroke-linejoin: round; }
 .method-icon .m-dot { fill: #0f766e; }
+.method-icon .m-trunk { fill: #78350f; stroke: #fff; stroke-width: 1; }
 .method-icon .m-text { font-size: 11px; font-weight: 700; fill: #44403c; }
 .draw-width { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #57534e; flex-shrink: 0; }
 .draw-width input { width: 56px; min-height: 44px; padding: 0 6px; border: 1px solid #d6d3d1; border-radius: 6px; font-size: 15px; }
@@ -332,3 +335,6 @@ a { color: inherit; }
 
 .recent-plants { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
 .recent-plant { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 12px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; font-size: 13px; color: #292524; white-space: nowrap; }
+.form-color-row { display: flex; gap: 8px; align-items: center; }
+.form-color-row select { flex: 1; min-width: 0; }
+.form-color-row input[type=color] { width: 48px; height: 40px; padding: 2px; border: 1px solid #d6d3d1; border-radius: 6px; background: #fff; flex-shrink: 0; }

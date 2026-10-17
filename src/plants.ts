@@ -40,6 +40,10 @@ export interface Plant {
   taproot?: boolean;
   /** Widely invasive in the US: kept so existing ones can be mapped (and removed), never suggested. */
   invasive?: boolean;
+  /** A shorter name for small circles on the plan ("'Haas' Halo' hydrangea"). */
+  short?: string;
+  /** Color it's drawn in (My plants; catalog plants are colored by form). */
+  color?: string;
   /** The user's own notes (My plants only; the catalog holds no notes). */
   notes?: string;
   [key: string]: unknown;
@@ -136,12 +140,29 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
     if (!p.bloom || p.bloom.start == null || p.bloom.end == null) return false;
     if (!(p.bloom.start <= m && m <= p.bloom.end)) return false;
   }
-  if (f.q) {
-    const q = f.q.toLowerCase();
-    const hay = (p.common + ' ' + (p.botanical || '') + ' ' + (p.host || '')).toLowerCase();
-    if (hay.indexOf(q) === -1) return false;
-  }
+  if (f.q.trim() && searchRank(p, f.q) < 0) return false;
   return true;
+}
+/** Why a plant matched a search: by its name, its botanical name, or what it hosts. */
+export type MatchedBy = 'name' | 'botanical' | 'host';
+/**
+ * How well a plant matches a search, best first: 0 its name starts with it
+ * (or a word in its name does), 1 its name contains it, 2 its botanical name,
+ * 3 only what it hosts ("monarch" finds milkweed); -1 no match.
+ */
+export function searchRank(p: Plant, query: string): number {
+  const q = query.trim().toLowerCase();
+  if (!q) return 0;
+  const name = p.common.toLowerCase();
+  if (name.startsWith(q) || name.split(/[\s'‘’(-]+/).some((w) => w.startsWith(q))) return 0;
+  if (name.includes(q)) return 1;
+  if ((p.botanical || '').toLowerCase().includes(q)) return 2;
+  if ((p.host || '').toLowerCase().includes(q)) return 3;
+  return -1;
+}
+export function matchedBy(p: Plant, query: string): MatchedBy | null {
+  const r = searchRank(p, query);
+  return r < 0 ? null : r <= 1 ? 'name' : r === 2 ? 'botanical' : 'host';
 }
 /** Plants placed in the open plan (not counting ones marked gone). */
 export function plantIdsInPlan(): Set<string> {
@@ -150,7 +171,10 @@ export function plantIdsInPlan(): Set<string> {
 export function filteredPlants(): Plant[] {
   const inPlan = plantIdsInPlan();
   const out = PLANTS.filter(p => plantMatches(p, plantFilter, inPlan));
-  out.sort((a, b) => a.common.localeCompare(b.common));
+  // Name matches first, then botanical, then host plants; alphabetical within each.
+  const q = plantFilter.q;
+  const rank = new Map(out.map((p) => [p.id, searchRank(p, q)]));
+  out.sort((a, b) => rank.get(a.id)! - rank.get(b.id)! || a.common.localeCompare(b.common));
   return out;
 }
 // Canvas color by growth form, drawn from the existing swatch palette
@@ -172,6 +196,10 @@ export function newPlantStatus(): Pick<CircleShape, 'status' | 'phase'> {
     ...(f.phase ? { phase: f.phase } : {}),
   };
 }
+/** The color a plant is drawn in: its own (My plants), else by form, else green. */
+export function plantColor(p: Plant | undefined): string {
+  return p?.color || (p?.form && FORM_COLORS[p.form]) || '#16a34a';
+}
 /** A new placed plant centered on `at` (feet, snapped), sized and colored from its data. */
 export function plantShapeAt(p: Plant, at: Point): CircleShape {
   return {
@@ -179,7 +207,7 @@ export function plantShapeAt(p: Plant, at: Point): CircleShape {
     x: snap(at.x), y: snap(at.y),
     radius: plantRadius(p, state.sizeMode),
     sizeFrom: 'plant',
-    color: (p.form && FORM_COLORS[p.form]) || '#16a34a',
+    color: plantColor(p),
     label: p.common,
     opacity: 0.65, locked: false,
     role: 'plant',
@@ -198,8 +226,11 @@ export function linkShapeToPlant(shapeId: string, p: Plant) {
   s.plantId = p.id;
   s.label = p.common;
   s.role = 'plant';
-  s.radius = plantRadius(p, state.sizeMode);
-  s.sizeFrom = 'plant';
+  // A tree already in the yard keeps the size it was drawn at; other circles take the plant's size.
+  if (!(s.tree && s.sizeFrom === 'manual')) {
+    s.radius = plantRadius(p, state.sizeMode);
+    s.sizeFrom = 'plant';
+  }
   pushHistory();
   save();
 }

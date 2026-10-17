@@ -1,4 +1,4 @@
-import { MAX_POINTS, MIN_POINTS, STORAGE } from './constants';
+import { MAX_POINTS, MAX_TRUNK, MIN_POINTS, MIN_TRUNK, STORAGE } from './constants';
 import { del, openKV, put, type KV, type WriteOp } from './db';
 import { cancelHistoryDebounce } from './history';
 import { DEFAULT_PRINT, state } from './state';
@@ -102,11 +102,25 @@ export function migrateShape(raw: unknown): Shape | null {
   };
   const size = (v: unknown, d: number) => Math.max(0.1, num(v, d));
   switch (s.type) {
-    case 'circle':
+    case 'circle': {
+      // Trees: a trunk size set by hand, and an outline for a canopy pruned into a shape.
+      const canopy: [number, number][] = [];
+      if (Array.isArray(s.canopy)) {
+        for (const p of s.canopy.slice(0, MAX_POINTS)) {
+          if (Array.isArray(p) && Number.isFinite(p[0]) && Number.isFinite(p[1]) && Math.abs(p[0]) <= 1000 && Math.abs(p[1]) <= 1000) canopy.push([p[0], p[1]]);
+        }
+      }
+      const shaped = canopy.length >= 3;
+      // The outline must fit inside the radius used for sizes and spacing.
+      const reach = shaped ? Math.ceil(Math.max(...canopy.map(([x, y]) => Math.hypot(x, y))) * 4 - 1e-9) / 4 : 0;
       return {
-        ...base, type: 'circle', radius: size(s.radius, 2),
+        ...base, type: 'circle', radius: Math.max(size(s.radius, 2), reach),
         ...(s.sizeFrom === 'plant' || s.sizeFrom === 'manual' ? { sizeFrom: s.sizeFrom } : {}),
+        ...(s.tree === true ? { tree: true } : {}),
+        ...(typeof s.trunk === 'number' && s.trunk >= MIN_TRUNK && s.trunk <= MAX_TRUNK ? { trunk: s.trunk } : {}),
+        ...(shaped ? { canopy } : {}),
       };
+    }
     case 'rect':
     case 'oval':
       return { ...base, type: s.type, width: size(s.width, 4), height: size(s.height, 3), rotation: num(s.rotation, 0) };

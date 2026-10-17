@@ -111,7 +111,10 @@ function toLocal(s: Shape, p: Point): Point {
   return { x: c.x + r.x, y: c.y + r.y };
 }
 export function pointInShape(s: Shape, p: Point): boolean {
-  if (s.type === 'circle') return Math.hypot(p.x - s.x, p.y - s.y) <= s.radius;
+  if (s.type === 'circle') {
+    if (s.canopy) return pointInPolygon(s.canopy.map(([x, y]) => ({ x: s.x + x, y: s.y + y })), p);
+    return Math.hypot(p.x - s.x, p.y - s.y) <= s.radius;
+  }
   const q = toLocal(s, p);
   if (s.type === 'rect') return q.x >= s.x && q.x <= s.x + s.width && q.y >= s.y && q.y <= s.y + s.height;
   if (s.type === 'oval') {
@@ -128,7 +131,7 @@ export function pointInShape(s: Shape, p: Point): boolean {
   return !(neg && pos);
 }
 export function shapeArea(s: Shape): number {
-  if (s.type === 'circle') return Math.PI * s.radius ** 2;
+  if (s.type === 'circle') return s.canopy ? polygonArea(s.canopy) : Math.PI * s.radius ** 2;
   if (s.type === 'rect') return s.width * s.height;
   if (s.type === 'oval') return Math.PI * (s.width / 2) * (s.height / 2);
   if (s.type === 'poly') return polygonArea(s.points);
@@ -136,7 +139,7 @@ export function shapeArea(s: Shape): number {
   return (s.width * s.height) / 2;
 }
 export function shapePerimeter(s: Shape): number {
-  if (s.type === 'circle') return 2 * Math.PI * s.radius;
+  if (s.type === 'circle') return s.canopy ? pathLength(s.canopy, true) : 2 * Math.PI * s.radius;
   if (s.type === 'rect') return 2 * (s.width + s.height);
   if (s.type === 'oval') { // Ramanujan's approximation
     const a = s.width / 2, b = s.height / 2;

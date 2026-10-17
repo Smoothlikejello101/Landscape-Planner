@@ -72,16 +72,46 @@ export function bloomByBed(shapes: Shape[], plantsById: Record<string, Plant | u
 
 export const MONTH_LETTERS = ['J', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const next = (m: number) => (m % 12) + 1;
 /**
- * Months in the growing season (April to October by default) with nothing
- * in bloom, as runs: "Jul-Aug, Oct". '' when there are none.
+ * The plan's blooming season, as months in order (1-12, possibly running
+ * through the new year): from its first bloom to its last. Found as everything
+ * outside the longest stretch with nothing in bloom (that's the off-season,
+ * wherever the garden is), so it fits March-October gardens and winter
+ * bloomers alike, without assuming a climate. Empty when nothing blooms.
  */
-export function bloomGaps(perMonth: number[], season: [number, number] = [4, 10]): string {
-  const runs: [number, number][] = [];
-  for (let m = season[0]; m <= season[1]; m++) {
-    if (perMonth[m - 1] > 0) continue;
-    const last = runs.at(-1);
-    if (last && last[1] === m - 1) last[1] = m; else runs.push([m, m]);
+export function bloomSeason(perMonth: number[]): number[] {
+  const blooming = (m: number) => perMonth[m - 1] > 0;
+  if (![...Array(12).keys()].some((i) => blooming(i + 1))) return [];
+  if ([...Array(12).keys()].every((i) => blooming(i + 1))) return [...Array(12).keys()].map((i) => i + 1);
+  // The longest run of empty months (wrapping around the year); ties go to the one nearer midwinter.
+  let best: { start: number; len: number; winter: number } | null = null;
+  for (let start = 1; start <= 12; start++) {
+    if (blooming(start) || !blooming(start === 1 ? 12 : start - 1)) continue; // runs start after a blooming month
+    let len = 0, winter = 0;
+    for (let m = start; !blooming(m) && len < 12; m = next(m)) { len++; if (m === 12 || m === 1 || m === 2) winter++; }
+    if (!best || len > best.len || (len === best.len && winter > best.winter)) best = { start, len, winter };
   }
-  return runs.map(([a, b]) => (a === b ? MONTHS[a - 1] : `${MONTHS[a - 1]}-${MONTHS[b - 1]}`)).join(', ');
+  // The season starts the month after the off-season ends.
+  const out: number[] = [];
+  let m = ((best!.start - 1 + best!.len) % 12) + 1;
+  for (let i = 0; i < 12 - best!.len; i++, m = next(m)) out.push(m);
+  return out;
+}
+/** "Mar", "Mar-Oct", "Dec-Feb". */
+export function monthRun(a: number, b: number): string { return a === b ? MONTHS[a - 1] : `${MONTHS[a - 1]}-${MONTHS[b - 1]}`; }
+/**
+ * Months of `season` (in its order) with nothing in bloom, as runs:
+ * "Jul-Aug, Oct". '' when there are none.
+ */
+export function bloomGaps(perMonth: number[], season: number[]): string {
+  const runs: [number, number][] = [];
+  let prev = -1;
+  for (const m of season) {
+    if (perMonth[m - 1] > 0) { prev = -1; continue; }
+    const last = runs.at(-1);
+    if (last && prev !== -1) last[1] = m; else runs.push([m, m]);
+    prev = m;
+  }
+  return runs.map(([a, b]) => monthRun(a, b)).join(', ');
 }

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { autoDialogs, closeSheet, field, openFresh, shapeCount, openSections, placeOnceAtCenter } from './helpers';
+import { autoDialogs, closeSheet, field, openFresh, shapeCount, openSections, placeOnceAtCenter, openExport } from './helpers';
 
 async function addPlant(page: Page, name: string, x: number) {
   await page.locator('.tool-btn.plants').click();
@@ -68,7 +68,7 @@ test('track planted and planned plants by phase, view and print one phase', asyn
   await closeSheet(page);
 
   // Print just fall's work.
-  await page.locator('button[title=Export]').click();
+  await openExport(page);
   await page.getByTestId('printable-plan').click();
   await page.getByTestId('print-phase').selectOption('Fall 2026');
   await page.getByTestId('create-pdf').click();
@@ -81,8 +81,7 @@ test('set status for several plants at once', async ({ page }) => {
   await closeSheet(page);
   await addPlant(page, 'Coneflower', 5);
   await closeSheet(page);
-  await page.locator('.iconbtn[title=More]').click();
-  await page.locator('.menu-item', { hasText: 'Switch to select mode' }).click();
+  await page.getByTestId('select-mode').click();
   const box = (await page.locator('#canvas-svg').boundingBox())!;
   await page.mouse.move(box.x + 5, box.y + 5);
   await page.mouse.down();

@@ -11,12 +11,19 @@ import type { Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapeFilter, Sha
 import { cleanPhaseName, MAX_PHASES, shownWith, statusPatch } from './status';
 import { render } from './ui/render';
 import { deepClone, now, snap, uid } from './util';
+import { setRadius } from './trees';
 
 // Every mutation records an undo step (pushHistory) and schedules a save.
 
 /** Patch the selected shape and re-render everything (for buttons/swatches). */
 /** Apply a patch to a shape; a bed brings its plants along. */
 function applyPatch(s: Shape, patch: ShapePatch) {
+  // A shaped canopy grows and shrinks with its radius.
+  if (s.type === 'circle' && s.canopy && patch.radius != null && !patch.canopy) {
+    setRadius(s, patch.radius);
+    patch = { ...patch };
+    delete patch.radius;
+  }
   if (carriesPlants(s)) patchBedCarryingPlants(s, patch, state.shapes);
   else Object.assign(s, patch);
 }

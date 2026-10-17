@@ -37,3 +37,6 @@ export const STORAGE = {
   LEGACY: 'landscape-planner-v1',
   project: (id: string) => 'lp-project-' + id
 };
+/** Tree trunk diameters set by hand, feet. */
+export const MIN_TRUNK = 0.25;
+export const MAX_TRUNK = 20;
