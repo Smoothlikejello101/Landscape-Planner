@@ -40,7 +40,7 @@ export async function buildProjectFile(id: string): Promise<{ filename: string; 
   const project = await exportedProject(id);
   if (!project) return null;
   const file: ProjectFile = { format: PROJECT_FORMAT, version: FILE_VERSION, exportedAt: new Date().toISOString(), project, myPlants: myPlantsUsedBy(project.data.shapes) };
-  return { filename: `${safeFileName(project.name)}-${stamp()}.landscape.json`, text: JSON.stringify(file) };
+  return { filename: `${safeFileName(project.name)}-${stamp()}.fullgrown.json`, text: JSON.stringify(file) };
 }
 export async function buildBackupFile(): Promise<{ filename: string; text: string; count: number }> {
   const projects: ExportedProject[] = [];
@@ -49,7 +49,7 @@ export async function buildBackupFile(): Promise<{ filename: string; text: strin
     if (e) projects.push(e);
   }
   const file: BackupFile = { format: BACKUP_FORMAT, version: FILE_VERSION, exportedAt: new Date().toISOString(), projects, myPlants };
-  return { filename: `landscape-backup-${stamp()}.landscape.json`, text: JSON.stringify(file), count: projects.length };
+  return { filename: `fullgrown-backup-${stamp()}.fullgrown.json`, text: JSON.stringify(file), count: projects.length };
 }
 
 /**
@@ -77,14 +77,14 @@ export function buildEmergencyBackup(): { filename: string; text: string; count:
   }
   if (!projects.length) return null;
   const file: BackupFile = { format: BACKUP_FORMAT, version: FILE_VERSION, exportedAt: new Date().toISOString(), projects };
-  return { filename: `landscape-recovery-${stamp()}.landscape.json`, text: JSON.stringify(file), count: projects.length };
+  return { filename: `fullgrown-recovery-${stamp()}.fullgrown.json`, text: JSON.stringify(file), count: projects.length };
 }
 
 /** Parse a project or backup file. Throws an Error with a user-facing message. */
 export function parseImportFile(text: string): ExportedProject[] {
   let raw: unknown;
-  try { raw = JSON.parse(text); } catch { throw new Error("This file isn't a Landscape Planner project (it isn't valid JSON)."); }
-  if (!raw || typeof raw !== 'object') throw new Error("This file isn't a Landscape Planner project.");
+  try { raw = JSON.parse(text); } catch { throw new Error("This file isn't a FullGrown project (it isn't valid JSON)."); }
+  if (!raw || typeof raw !== 'object') throw new Error("This file isn't a FullGrown project.");
   const f = raw as Record<string, unknown>;
   const version = typeof f.version === 'number' ? f.version : 0;
   if (version > FILE_VERSION) throw new Error('This file was made by a newer version of the app. Update the app and try again.');
@@ -98,7 +98,7 @@ export function parseImportFile(text: string): ExportedProject[] {
   };
   if (f.format === PROJECT_FORMAT) return [one(f.project)];
   if (f.format === BACKUP_FORMAT && Array.isArray(f.projects)) return f.projects.map(one);
-  throw new Error("This file isn't a Landscape Planner project or backup.");
+  throw new Error("This file isn't a FullGrown project or backup.");
 }
 /** "My plants" carried in a project or backup file (validated when merged). */
 export function parseImportPlants(text: string): unknown[] {

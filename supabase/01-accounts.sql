@@ -1,4 +1,4 @@
--- Landscape Planner: accounts (sync step 1).
+-- FullGrown: accounts (sync step 1).
 --
 -- Paste into Supabase: SQL Editor → New query → paste → Run.
 -- Safe to run again: it only creates what isn't there and replaces the rules

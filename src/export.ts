@@ -220,7 +220,7 @@ export async function doExport(format: 'png' | 'svg') {
   if (!result) return;
   const { svg, widthPx, heightPx } = result;
   const proj = currentProject();
-  const safeName = (proj && proj.name ? proj.name : 'landscape').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
+  const safeName = (proj && proj.name ? proj.name : 'fullgrown').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
   const stamp = new Date().toISOString().slice(0, 10);
   try {
     let dataUrl: string;

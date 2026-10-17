@@ -1,4 +1,4 @@
--- Landscape Planner: syncing projects (sync step 2).
+-- FullGrown: syncing projects (sync step 2).
 --
 -- Run after 01-accounts.sql: Supabase → SQL Editor → New query → paste → Run.
 -- Safe to run again.
