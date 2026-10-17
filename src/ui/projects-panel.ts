@@ -19,6 +19,7 @@ function closeButton(onClick: () => void) {
 }
 async function openProject(id: string) {
   if (!(await switchProject(id))) {
+    if (!state.projects.some((p) => p.id === id)) { render(); return; } // deleted on another device just now (sync says so)
     alert("Your latest changes couldn't be saved, so the project wasn't switched. Check that your device has free space, then try again.");
     render();
     return;

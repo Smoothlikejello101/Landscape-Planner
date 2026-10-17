@@ -352,3 +352,6 @@ a { color: inherit; }
 .account-section .account-actions { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .account-section .danger-link { color: #b91c1c; }
 .account-section .confirm-box { border: 1px solid #fecaca; background: #fef2f2; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.account-section .sync-block { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-top: 1px dashed #e7e5e4; border-bottom: 1px dashed #e7e5e4; }
+.account-section .trash-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
+.account-section .trash-row .link-btn { min-height: 36px; padding: 4px; }

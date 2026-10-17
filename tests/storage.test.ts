@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { openKV } from '../src/db';
+import { openKV, put } from '../src/db';
 import { state } from '../src/state';
 import {
   _resetStorageForTests, createProject, deleteProject, flushSave, getClipboard, initStorage,
@@ -405,5 +405,70 @@ describe('My plants with their own color', () => {
     expect(mp.myPlants.find((p) => p.id === 'u-red')?.color).toBe('#dc2626');
     const base = { id: 'u-x', common: 'X', width: { min: 1, max: 1, med: 1 } };
     for (const bad of ['red', '#12', 'url(x)', '#1234567', 7]) expect(sanitizeMyPlant({ ...base, color: bad })).not.toHaveProperty('color');
+  });
+});
+
+describe('sync state on the device', () => {
+  it('keeps what was synced, and deletions still to send, across a restart; drops anything malformed', async () => {
+    const { setSyncRecord, getSyncRecords, getSyncTombstones, deleteProject, createProject, installId } = await import('../src/storage');
+    const kv = await freshStorage();
+    const id = await createProject('Synced one');
+    await setSyncRecord(id, { revision: 4, hash: 'abc' });
+    const other = await createProject('Other');
+    await setSyncRecord(other, { revision: 1, hash: 'x' });
+    await setSyncRecord(other, null);
+    expect(getSyncRecords()).toEqual({ [id]: { revision: 4, hash: 'abc' } });
+    const install = await installId();
+    expect(install).toMatch(/^[A-Za-z0-9-]{16,64}$/);
+    await deleteProject(id);
+    expect(getSyncTombstones()).toEqual({ [id]: 4 }); // to move to the server's trash
+    expect(getSyncRecords()).toEqual({});
+    await kv.write([put('kv', 'syncRecords', { ok: { revision: 2, hash: 'h' }, bad: { revision: 'x' }, worse: null })]);
+    _resetStorageForTests();
+    await initStorage(kv);
+    expect(getSyncRecords()).toEqual({ ok: { revision: 2, hash: 'h' } });
+    expect(getSyncTombstones()).toEqual({ [id]: 4 });
+    expect(await installId()).toBe(install); // the same install, after a restart
+  });
+
+  it('a project deleted while sync uploaded it gets a tombstone for the uploaded revision, not a record', async () => {
+    const { setSyncRecord, getSyncRecords, getSyncTombstones } = await import('../src/storage');
+    await freshStorage();
+    await setSyncRecord('deleted-meanwhile', { revision: 3, hash: 'x' });
+    expect(getSyncRecords()).toEqual({});
+    expect(getSyncTombstones()).toEqual({ 'deleted-meanwhile': 3 });
+  });
+
+  it('remembers which account its sync state belongs to; anything malformed reads as none', async () => {
+    const { resetSyncState, getSyncUser, setSyncRecord, createProject, getSyncRecords } = await import('../src/storage');
+    const kv = await freshStorage();
+    expect(getSyncUser()).toBeNull(); // before any sync (and on devices from before this existed)
+    await setSyncRecord(await createProject('X'), { revision: 1, hash: 'h' });
+    await resetSyncState('user-b');
+    expect(getSyncRecords()).toEqual({});
+    _resetStorageForTests(); await initStorage(kv);
+    expect(getSyncUser()).toBe('user-b');
+    await kv.write([put('kv', 'syncUser', { not: 'a string' })]);
+    _resetStorageForTests(); await initStorage(kv);
+    expect(getSyncUser()).toBeNull();
+  });
+});
+
+describe('telling sync about edits', () => {
+  it('only real edits and project changes count (a save with nothing new doesn’t start a sync)', async () => {
+    const { setSyncHooks, createProject, renameProject } = await import('../src/storage');
+    await freshStorage();
+    let saves = 0, projects = 0;
+    setSyncHooks(() => { saves++; }, () => { projects++; });
+    await flushSave();
+    expect(saves).toBe(0);
+    state.shapes = []; save(); await flushSave();
+    expect(saves).toBe(1);
+    await flushSave(); await flushSave();
+    expect(saves).toBe(1);
+    const id = await createProject('Another');
+    await renameProject(id, 'Renamed');
+    expect(projects).toBe(2);
+    setSyncHooks(() => {}, () => {});
   });
 });

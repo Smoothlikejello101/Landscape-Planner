@@ -1,5 +1,6 @@
 import { account, deleteAccount, emailSignInOn, forgetCodeSent, initAccount, planText, sendSignInLink, signInWithGoogle, signOut, verifyEmailCode } from '../account';
 import { backupAll } from '../backup';
+import { restoreFromTrash, runSync, setSyncOnThisDevice, startSyncing, sync, syncOnThisDevice } from '../sync/sync';
 import { el } from '../dom';
 import { I } from '../icons';
 import { errMsg } from '../util';
@@ -59,7 +60,7 @@ function fill(section: HTMLElement) {
     section.appendChild(el('div', { className: 'status', 'data-testid': 'signed-in' }, 'Signed in as ', el('b', {}, account.email ?? '')));
     const plan = planText(account.plan);
     if (plan) section.appendChild(el('div', { className: 'status', 'data-testid': 'plan' }, plan));
-    section.appendChild(el('div', { className: 'hint' }, 'Syncing your plans between devices comes in the next update. Your plans stay on this device as always.'));
+    section.appendChild(syncBlock());
     if (confirmingDelete) { section.appendChild(deleteConfirmation()); return; }
     const out = el('button', { className: 'btn ghost', 'data-testid': 'sign-out' }, 'Sign out');
     out.disabled = !!account.busy;
@@ -70,7 +71,7 @@ function fill(section: HTMLElement) {
     return;
   }
   // Signed out.
-  section.appendChild(el('div', { className: 'hint' }, 'An account will keep your plans on all your devices: syncing comes in the next update. Everything works without one, too.'));
+  section.appendChild(el('div', { className: 'hint' }, 'Sign in to keep your plans the same on all your devices. Everything works without an account, too.'));
   // Plain text for now; Google's official button artwork goes in before launch (their branding rules ask for it).
   const google = el('button', { className: 'btn google-btn', 'data-testid': 'signin-google' }, 'Continue with Google');
   google.disabled = !!account.busy;
@@ -92,7 +93,8 @@ function fill(section: HTMLElement) {
     code.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
     section.appendChild(el('div', { className: 'email-row' }, code, verify));
     // Straight on to the code (the keyboard stays up), when the code was just asked for here.
-    if (focusCodeNext) { focusCodeNext = false; setTimeout(() => code.focus(), 0); }
+    // (Looked up when it runs: the section may have been rebuilt meanwhile.)
+    if (focusCodeNext) { focusCodeNext = false; setTimeout(() => document.querySelector<HTMLInputElement>('[data-testid=signin-code]')?.focus(), 0); }
     const again = el('button', { className: 'link-btn' }, 'Use a different email, or send a new code');
     again.addEventListener('click', () => { account.linkSentTo = undefined; account.error = undefined; forgetCodeSent(); refreshAccountSection(); });
     section.appendChild(again);
@@ -107,6 +109,50 @@ function fill(section: HTMLElement) {
   send.addEventListener('click', go);
   email.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
   section.append(el('div', { className: 'or-line' }, 'or'), el('div', { className: 'email-row' }, email, send));
+}
+
+/** "Synced 2 minutes ago" */
+function ago(t: number, now = Date.now()): string {
+  const s = Math.round((now - t) / 1000);
+  if (s < 45) return 'just now';
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} minute${m === 1 ? '' : 's'} ago`;
+  return new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+}
+/** Sync: where it stands in plain words, Sync now, the switch for this device, and the trash. */
+function syncBlock(): HTMLElement {
+  const box = el('div', { className: 'sync-block', 'data-testid': 'sync' });
+  if (sync.phase === 'needsStart') {
+    const start = el('button', { className: 'btn primary', 'data-testid': 'sync-start' }, 'Turn on sync');
+    start.addEventListener('click', () => { void startSyncing(); });
+    box.append(start, el('div', { className: 'hint' }, 'Keeps your plans the same on every device you sign in on, and starts your free 30-day trial. The plans on this device are uploaded and plans from your other devices come down; nothing is deleted.'));
+    return box;
+  }
+  const words: Record<string, string> = {
+    signedOut: '', syncing: 'Syncing…', offline: 'Will sync when online', off: 'Sync is off on this device',
+    paused: `Sync paused: ${sync.message ?? 'your plan doesn’t include it'}`,
+    synced: sync.lastAt ? `Synced ${ago(sync.lastAt)}` : 'Synced', error: `Couldn’t sync: ${sync.message ?? 'it will try again'}`,
+  };
+  const line = el('div', { className: 'status' + (sync.phase === 'error' ? ' warn' : ''), 'data-testid': 'sync-status' }, words[sync.phase] ?? '');
+  const now = el('button', { className: 'btn ghost', 'data-testid': 'sync-now' }, 'Sync now');
+  now.disabled = sync.phase === 'syncing' || sync.phase === 'off' || sync.phase === 'paused';
+  now.addEventListener('click', () => { void runSync(); });
+  box.append(el('div', { className: 'account-actions' }, line, now));
+  if (sync.phase === 'synced' && sync.message) box.appendChild(el('div', { className: 'status warn' }, sync.message));
+  const cb = el('input', { type: 'checkbox' }) as HTMLInputElement;
+  cb.checked = syncOnThisDevice();
+  cb.addEventListener('change', () => setSyncOnThisDevice(cb.checked));
+  box.appendChild(el('label', { className: 'check-row', 'data-testid': 'sync-device' }, cb, el('span', {}, 'Sync on this device')));
+  if (sync.trash.length) {
+    const list = el('div', { className: 'trash-list', 'data-testid': 'trash' }, el('div', { className: 'hint' }, 'Recently deleted (kept 30 days):'));
+    for (const t of sync.trash) {
+      const restore = el('button', { className: 'link-btn' }, 'Restore');
+      restore.addEventListener('click', () => { void restoreFromTrash(t.id); });
+      list.appendChild(el('div', { className: 'trash-row' }, el('span', {}, t.name), restore));
+    }
+    box.appendChild(list);
+  }
+  return box;
 }
 
 /** Delete the account: say exactly what goes and what stays, offer a backup, then ask once more. */
