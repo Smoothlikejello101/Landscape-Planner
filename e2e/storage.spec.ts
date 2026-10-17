@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { openFresh, autoDialogs, shapeCount, closeSheet, field } from './helpers';
+import { openFresh, autoDialogs, shapeCount, closeSheet, field, addPlainShape } from './helpers';
 
 test('an edit survives an immediate reload (saved when the page hides)', async ({ page }) => {
   await openFresh(page);
-  await page.locator('.tool-btn.circle').click();
+  await addPlainShape(page, 'circle');
   await field(page, 'Label').fill('Saved fast');
   await closeSheet(page);
   await page.reload(); // no waiting for the save debounce
@@ -26,12 +26,12 @@ test('the background image survives a reload', async ({ page }) => {
 test('backup all projects, then restore them on a fresh device', async ({ page, browser }) => {
   autoDialogs(page, 'Front Yard');
   await openFresh(page);
-  await page.locator('.tool-btn.circle').click();
+  await addPlainShape(page, 'circle');
   await field(page, 'Label').fill('Garden oak');
   await closeSheet(page);
   await page.locator('.project-btn').click();
   await page.locator('button', { hasText: 'New project' }).click();
-  await page.locator('.tool-btn.rect').click();
+  await addPlainShape(page, 'rect');
   await field(page, 'Label').fill('Front bed');
   await closeSheet(page);
 
@@ -64,7 +64,7 @@ test('backup all projects, then restore them on a fresh device', async ({ page, 
 
 test('a single project file imports and opens', async ({ page, browser }) => {
   await openFresh(page);
-  await page.locator('.tool-btn.oval').click();
+  await addPlainShape(page, 'oval');
   await field(page, 'Label').fill('Pond');
   await closeSheet(page);
   await page.locator('.project-btn').click();
@@ -99,7 +99,7 @@ test('undo and redo after adding a background image keep a single stored copy', 
   await page.locator('.menu-item', { hasText: 'background image' }).click();
   await page.locator('.sheet input[type=file]').setInputFiles('public/icon-512.png');
   await page.locator('.mode-banner button').click();
-  await page.locator('.tool-btn.circle').click();
+  await addPlainShape(page, 'circle');
   await closeSheet(page);
   for (let i = 0; i < 3; i++) {
     await page.locator('button[title=Undo]').click();
@@ -120,7 +120,7 @@ test('undo and redo after adding a background image keep a single stored copy', 
 
 test('a failing save shows a warning without closing the keyboard', async ({ page }) => {
   await openFresh(page);
-  await page.locator('.tool-btn.circle').click();
+  await addPlainShape(page, 'circle');
   const label = field(page, 'Label');
   await label.click();
   const handle = await label.elementHandle();

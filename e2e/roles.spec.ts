@@ -1,10 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openFresh, closeSheet, canvasBox, drag, field } from './helpers';
+import { openFresh, closeSheet, canvasBox, drag, field, addPlainShape, setRole } from './helpers';
 
 async function addRect(page: Page, label: string, role?: string) {
-  await page.locator('.tool-btn.rect').click();
+  await addPlainShape(page, 'rect');
   await field(page, 'Label').fill(label);
-  if (role) await page.locator('.role-chip', { hasText: role }).click();
+  if (role) await setRole(page, role);
   await closeSheet(page);
 }
 const centerOf = async (page: Page, label: string) => {
@@ -37,7 +37,7 @@ test('dragging on a locked shape pans the plan; tapping it selects it', async ({
 test('a role sets the default look and the drawing order', async ({ page }) => {
   await openFresh(page);
   await addRect(page, 'Plant spot', 'Plant');
-  await addRect(page, 'Afternoon shade', 'Shade');
+  await addRect(page, 'Afternoon shade', 'Sun exposure');
   // Shade is drawn under plants even though it was added later.
   const order = await page.locator('[data-shape-group] text').evaluateAll((ns) => ns.map((n) => n.textContent));
   expect(order).toEqual(['Afternoon shade', 'Plant spot']);
@@ -57,7 +57,7 @@ test('boundaries draw as dashed lines with no fill', async ({ page }) => {
 test('a whole role can be hidden and locked from Layers, and that is saved', async ({ page }) => {
   await openFresh(page);
   await addRect(page, 'Bed one', 'Bed');
-  await addRect(page, 'Shade one', 'Shade');
+  await addRect(page, 'Shade one', 'Sun exposure');
   await page.locator('button[title=Layers]').click();
   const shadeRow = page.locator('.role-row[data-role-key=shade]');
   await shadeRow.locator('[data-action=toggle-hidden]').click();
@@ -91,7 +91,7 @@ test('several shapes can be given a role at once', async ({ page }) => {
   const box = await canvasBox(page);
   await drag(page, { x: box.x + 10, y: box.y + 70 }, { x: box.x + box.width - 50, y: box.y + box.height - 70 });
   await page.locator('.multi-bar button', { hasText: 'Edit' }).click();
-  await page.locator('.role-chip', { hasText: 'Lawn' }).click();
+  await setRole(page, 'Lawn');
   await closeSheet(page);
   await page.locator('button[title=Layers]').click();
   await expect(page.locator('.role-row[data-role-key=lawn] .count')).toHaveText('2');

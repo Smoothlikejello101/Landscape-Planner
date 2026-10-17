@@ -1,9 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openFresh, autoDialogs, shapeCount, zoomPct, closeSheet, canvasBox, field, drag } from './helpers';
+import { openFresh, autoDialogs, shapeCount, zoomPct, closeSheet, canvasBox, field, drag, addPlainShape } from './helpers';
 
 async function addShape(page: Page, cls: string) {
-  await page.locator(`.tool-btn.${cls}`).click();
-  await expect(page.locator('.sheet-header .title')).toContainText('properties');
+  await addPlainShape(page, ({ circle: 'circle', rect: 'rect', oval: 'oval', tri: 'triangle' } as const)[cls as 'circle']);
 }
 
 test.describe('core editing', () => {
@@ -16,7 +15,7 @@ test.describe('core editing', () => {
 
   test('adds each shape type', async ({ page }) => {
     await openFresh(page);
-    for (const [cls, title] of [['circle', 'Circle'], ['rect', 'Rectangle'], ['oval', 'Oval'], ['tri', 'Triangle']]) {
+    for (const [cls, title] of [['circle', 'Circle'], ['rect', 'Rectangle'], ['oval', 'Oval'], ['tri', 'Outline']]) {
       await addShape(page, cls);
       await expect(page.locator('.sheet-header .title')).toHaveText(`${title} properties`);
       await closeSheet(page);
@@ -49,13 +48,11 @@ test.describe('core editing', () => {
     await expect(page.locator('#canvas-svg circle').first()).toHaveAttribute('fill', '#ef4444');
   });
 
-  test('rotation and triangle corner controls apply', async ({ page }) => {
+  test('the rotation control applies', async ({ page }) => {
     await openFresh(page);
-    await addShape(page, 'tri');
+    await addShape(page, 'rect');
     await page.locator('.rot-quick button', { hasText: '+15°' }).click();
-    await expect(page.locator('#canvas-svg polygon')).toHaveAttribute('transform', /rotate\(15 /);
-    await page.locator('.tri-corner-btn', { hasText: 'Top-right' }).click();
-    await expect(page.locator('.tri-corner-btn', { hasText: 'Top-right' })).toHaveClass(/sel/);
+    await expect(page.locator('#canvas-svg rect[data-shape-id]')).toHaveAttribute('transform', /rotate\(15 /);
   });
 
   test('undo and redo', async ({ page }) => {
@@ -136,7 +133,7 @@ test.describe('navigation', () => {
 
 test('a finger lifted over the toolbar does not turn the next drag into a pinch', async ({ page }) => {
   await openFresh(page);
-  await page.locator('.tool-btn.circle').click();
+  await addPlainShape(page, 'circle');
   await closeSheet(page);
   const before = await page.locator('#canvas-svg circle').first().boundingBox();
   const box = await canvasBox(page);
@@ -298,7 +295,8 @@ test.describe('plants, background, export', () => {
 
 test('Backspace in a panel never deletes the selected shape', async ({ page }) => {
   await openFresh(page);
-  await page.locator('.tool-btn.circle').click();
+  await addPlainShape(page, 'circle');
+  await page.getByTestId('change-kind').click();
   await page.locator('.sheet .role-chip', { hasText: 'Bed' }).focus();
   await page.keyboard.press('Backspace');
   await expect(page.locator('.sheet')).toHaveCount(1);

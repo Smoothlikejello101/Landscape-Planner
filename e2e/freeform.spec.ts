@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { canvasBox, closeSheet, drag, field, openFresh, shapeCount } from './helpers';
+import { addKind, canvasBox, closeSheet, drag, field, openFresh, shapeCount, addPlainShape, setRole } from './helpers';
 
 // At the starting view (zoom 100%, 24 px per foot, view starting at -10 ft),
 // canvas pixel 24*k is k-10 ft: tapping at multiples of 24 px lands on the grid.
@@ -13,8 +13,8 @@ const bar = (page: Page) => page.getByTestId('draw-bar');
 const shapePath = (page: Page) => page.locator('#canvas-svg polygon[data-shape-id], #canvas-svg polyline[data-shape-id]');
 
 async function drawL(page: Page) {
-  await page.getByTestId('draw-btn').click();
-  await expect(page.getByTestId('draw-banner')).toContainText('first corner');
+  await addKind(page, 'plain', 'poly');
+  await expect(page.getByTestId('draw-banner')).toContainText('Plain shape: Tap each corner');
   for (const [x, y] of [[2, 2], [12, 2], [12, 6], [6, 6], [6, 12], [2, 12]]) await tapFt(page, x, y);
   await expect(drawPoints(page)).toHaveCount(6);
   await expect(page.getByTestId('draw-banner')).toContainText('first point');
@@ -24,8 +24,9 @@ async function drawL(page: Page) {
 test('draw an L-shaped bed by tapping corners', async ({ page }) => {
   await openFresh(page);
   await drawL(page);
+  await page.locator('.sel-pill .edit').click(); // properties stay closed after adding
   await expect(page.locator('.sheet-header .title')).toHaveText('Outline properties');
-  await page.locator('.role-chip', { hasText: 'Bed' }).click();
+  await setRole(page, 'Bed');
   await expect(page.locator('[data-testid=measure]')).toHaveText('Area: 64 sq ft');
   await expect(field(page, 'Width (ft)')).toHaveValue('10');
   await field(page, 'Label').fill('L bed');
@@ -42,8 +43,8 @@ test('draw an L-shaped bed by tapping corners', async ({ page }) => {
 
 test('drawing: drags pan instead of adding points; undo point; cancel', async ({ page }) => {
   await openFresh(page);
-  await page.getByTestId('draw-btn').click();
-  await expect(page.locator('.bottom-toolbar .tool-btn')).toHaveCount(0); // shape buttons give way to the draw bar
+  await addKind(page, 'bed', 'poly');
+  await expect(page.locator('.bottom-toolbar .tool-btn')).toHaveCount(0); // the add buttons give way to the draw bar
   await tapFt(page, 2, 2);
   await tapFt(page, 6, 2);
   const box = await canvasBox(page);
@@ -62,15 +63,17 @@ test('drawing: drags pan instead of adding points; undo point; cancel', async ({
 
 test('draw a fence line: a boundary with a length, easy to tap', async ({ page }) => {
   await openFresh(page);
-  await page.getByTestId('draw-btn').click();
-  await bar(page).getByRole('button', { name: 'Line', exact: true }).click();
+  await addKind(page, 'fence');
+  await expect(bar(page).locator('[data-method]')).toHaveCount(0); // a fence is only ever a line
   await tapFt(page, 2, 14);
   await tapFt(page, 14, 14);
   await tapFt(page, 14, 9);
   await bar(page).getByRole('button', { name: 'Done' }).click();
+  await page.locator('.sel-pill .edit').click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Line properties');
-  await expect(page.locator('.role-chip.sel')).toContainText('Boundary');
+  await expect(page.getByTestId('what-it-is')).toContainText('Boundary');
   await expect(page.locator('[data-testid=measure]')).toHaveText('Length: 17 ft');
+  await expect(field(page, 'Label')).toHaveValue('Fence');
   await field(page, 'Label').fill('Back fence');
   await closeSheet(page);
   // Deselect, then tap a few pixels off the line: the wide hit area still selects it.
@@ -83,9 +86,10 @@ test('draw a fence line: a boundary with a length, easy to tap', async ({ page }
 
 test('edit points: drag, add with +, delete, undo', async ({ page }) => {
   await openFresh(page);
-  await page.getByTestId('draw-btn').click();
+  await addKind(page, 'plain', 'poly');
   for (const [x, y] of [[2, 2], [10, 2], [10, 8], [2, 8]]) await tapFt(page, x, y);
   await bar(page).getByRole('button', { name: 'Done' }).click();
+  await page.locator('.sel-pill .edit').click();
   await expect(page.locator('[data-testid=measure]')).toHaveText('Area: 48 sq ft');
   await page.getByTestId('edit-points').click();
   await expect(page.locator('.sheet')).toHaveCount(0);
@@ -122,7 +126,7 @@ test('edit points: drag, add with +, delete, undo', async ({ page }) => {
 
 test('convert a rectangle to an outline and reshape it', async ({ page }) => {
   await openFresh(page);
-  await page.locator('.tool-btn.rect').click();
+  await addPlainShape(page, 'rect');
   await field(page, 'Label').fill('Patio');
   await page.getByTestId('convert-outline').click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Outline properties');
@@ -136,8 +140,7 @@ test('convert a rectangle to an outline and reshape it', async ({ page }) => {
 
 test('measure two points, keep it as a dimension line', async ({ page }) => {
   await openFresh(page);
-  await page.getByTestId('draw-btn').click();
-  await bar(page).getByRole('button', { name: 'Measure' }).click();
+  await addKind(page, 'measure');
   await tapFt(page, 2, 4);
   await expect(page.getByTestId('draw-banner')).toContainText('other end');
   await tapFt(page, 5, 8); // a 3-4-5 triangle
@@ -165,8 +168,10 @@ test('measure two points, keep it as a dimension line', async ({ page }) => {
 
 test('text notes: multi-line, sized in feet, scale with zoom', async ({ page }) => {
   await openFresh(page);
-  await page.locator('.tool-btn.text').click();
-  await expect(page.locator('.sheet-header .title')).toHaveText('Text properties');
+  await addKind(page, 'note');
+  await expect(page.getByTestId('draw-banner')).toContainText('Tap where the note goes');
+  await tapFt(page, 4, 4);
+  await expect(page.locator('.sheet-header .title')).toHaveText('Text properties'); // a note opens on its text
   const ta = page.locator('.sheet textarea');
   await ta.fill('Rain barrel\ngoes here');
   await expect(ta).toBeFocused(); // typing never rebuilds the panel (Android keyboard)

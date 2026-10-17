@@ -68,6 +68,10 @@ export function rotatedBoxBounds(cx: number, cy: number, w: number, h: number, d
 }
 /** Axis-aligned bounding box in feet, accounting for rotation. */
 export function shapeBBox(s: Shape): Bounds {
+  if (s.type === 'line' && s.pathWidth) { // a path's band reaches half its width past the center line
+    const b = pointsBounds(worldPoints(s)), h = s.pathWidth / 2;
+    return { minX: b.minX - h, maxX: b.maxX + h, minY: b.minY - h, maxY: b.maxY + h };
+  }
   if (s.type === 'circle') {
     return { minX: s.x - s.radius, maxX: s.x + s.radius, minY: s.y - s.radius, maxY: s.y + s.radius };
   }

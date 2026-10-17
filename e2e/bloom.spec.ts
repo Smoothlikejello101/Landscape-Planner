@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { closeSheet, field, openFresh } from './helpers';
+import { closeSheet, field, openFresh, addPlainShape, setRole } from './helpers';
 
 async function addPlant(page: Page, name: string, x: number) {
   await page.locator('.tool-btn.plants').click();
@@ -13,9 +13,9 @@ async function addPlant(page: Page, name: string, x: number) {
 
 test('bloom calendar for a bed and for the whole plan', async ({ page }) => {
   await openFresh(page);
-  await page.locator('.tool-btn.rect').click();
+  await addPlainShape(page, 'rect');
   await field(page, 'Label').fill('Front bed');
-  await page.locator('.role-chip', { hasText: 'Bed' }).click();
+  await setRole(page, 'Bed');
   await field(page, 'X position').fill('0');
   await field(page, 'Y position').fill('0');
   await field(page, 'Width (ft)').fill('12');

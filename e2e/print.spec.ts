@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { closeSheet, field, openFresh } from './helpers';
+import { closeSheet, field, openFresh, addPlainShape, setRole } from './helpers';
 
 test('printable plan: options persist and a PDF downloads', async ({ page }) => {
   await openFresh(page);
-  await page.locator('.tool-btn.rect').click();
-  await page.locator('.role-chip', { hasText: 'Bed' }).click();
+  await addPlainShape(page, 'rect');
+  await setRole(page, 'Bed');
   await field(page, 'Label').fill('Front bed');
   await field(page, 'Width (ft)').fill('12');
   await closeSheet(page);

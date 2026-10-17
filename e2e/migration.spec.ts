@@ -9,10 +9,10 @@ test('projects made in the previous version migrate intact', async ({ page }) =>
   await expect(page.locator('.project-btn .pname')).toHaveText('My Garden');
 
   // Project 1: labelled circle and a rotated rectangle, plus a background image.
-  await page.locator('.tool-btn.circle').click();
+  await page.locator('.tool-btn.circle').click(); // the previous version's toolbar
   await field(page, 'Label').fill('Old oak');
   await closeSheet(page);
-  await page.locator('.tool-btn.rect').click();
+  await page.locator('.tool-btn.rect').click(); // the previous version's toolbar
   await field(page, 'Label').fill('Old bed');
   await page.locator('.rot-quick button', { hasText: '+15°' }).click();
   await closeSheet(page);
@@ -24,7 +24,7 @@ test('projects made in the previous version migrate intact', async ({ page }) =>
   // Project 2.
   await page.locator('.project-btn').click();
   await page.locator('button', { hasText: 'New project' }).click();
-  await page.locator('.tool-btn.oval').click();
+  await page.locator('.tool-btn.oval').click(); // the previous version's toolbar
   await field(page, 'Label').fill('Old pond');
   await closeSheet(page);
   await page.waitForTimeout(600); // old version saves on a 250 ms debounce

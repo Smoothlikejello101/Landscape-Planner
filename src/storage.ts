@@ -130,6 +130,8 @@ export function migrateShape(raw: unknown): Shape | null {
       const shape = {
         ...base, type: s.type, points: [], rotation: num(s.rotation, 0),
         ...(s.type === 'line' && s.showLength === true ? { showLength: true } : {}),
+        // Paths: a width in feet (a quarter foot to 50 ft); anything else draws as a thin line.
+        ...(s.type === 'line' && typeof s.pathWidth === 'number' && s.pathWidth >= 0.25 && s.pathWidth <= 50 ? { pathWidth: s.pathWidth } : {}),
       } as PathShape;
       setWorldPoints(shape, pts); // re-normalize, whatever the file said
       return shape;

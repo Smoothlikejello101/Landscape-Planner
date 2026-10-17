@@ -1,10 +1,10 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openFresh, closeSheet, drag, field, shapeCount } from './helpers';
+import { openFresh, closeSheet, drag, field, shapeCount, addPlainShape, setRole } from './helpers';
 
 async function addRect(page: Page, label: string, role: string, size?: [number, number]) {
-  await page.locator('.tool-btn.rect').click();
+  await addPlainShape(page, 'rect');
   await field(page, 'Label').fill(label);
-  await page.locator('.role-chip', { hasText: role }).click();
+  await setRole(page, role);
   if (size) {
     await field(page, 'Width (ft)').fill(String(size[0]));
     await field(page, 'Height (ft)').fill(String(size[1]));
@@ -54,7 +54,7 @@ test('a bed carries the plants inside it, unless that is turned off', async ({ p
 
 test('shade sun can be recorded as times or hours, and is saved', async ({ page }) => {
   await openFresh(page);
-  await addRect(page, 'Oak shade', 'Shade', [8, 8]);
+  await addRect(page, 'Oak shade', 'Sun exposure', [8, 8]);
   await page.locator('[data-testid=sun-section] button', { hasText: 'Record sun' }).click();
   await expect(page.locator('[data-testid=sun-summary]')).toHaveText('☀ 4 h of direct sun · part sun / part shade');
   // Move the end handle 2 hours later with the keyboard (30-minute steps).
@@ -86,7 +86,7 @@ test('shade sun can be recorded as times or hours, and is saved', async ({ page 
 
 test('a plant in the wrong light gets a warning', async ({ page }) => {
   await openFresh(page);
-  await addRect(page, 'Sunny strip', 'Shade', [8, 8]);
+  await addRect(page, 'Sunny strip', 'Sun exposure', [8, 8]);
   await page.locator('[data-testid=sun-section] button', { hasText: 'Record sun' }).click();
   await page.locator('.seg button', { hasText: 'Just hours' }).click();
   const hours = page.locator('[data-testid=sun-section] input[type=range]');

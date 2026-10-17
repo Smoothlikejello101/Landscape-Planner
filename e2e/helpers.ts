@@ -51,3 +51,44 @@ export async function drag(page: Page, from: { x: number; y: number }, to: { x: 
   await page.mouse.move(to.x, to.y, { steps: 8 });
   await page.mouse.up();
 }
+
+/** Open the Add sheet and pick a kind; optionally switch its drawing method (Outline, Rectangle...). */
+export async function addKind(page: Page, kind: string, method?: string) {
+  await page.getByTestId('add-btn').click();
+  await page.locator(`[data-testid=add-sheet] .kind-chip[data-kind=${kind}]`).first().click();
+  await expect(page.getByTestId('add-sheet')).toHaveCount(0);
+  if (method) await page.locator(`[data-testid=draw-bar] [data-method=${method}]`).click();
+}
+
+/** Tap the plan `dx`, `dy` feet from the center of the view (at the current zoom). */
+export async function tapFromCenter(page: Page, dx: number, dy: number) {
+  const box = await canvasBox(page);
+  const ppf = 24 * (await zoomPct(page)) / 100;
+  await page.mouse.click(box.x + box.width / 2 + dx * ppf, box.y + box.height / 2 + dy * ppf);
+}
+
+/**
+ * A plain shape the size the old one-tap buttons made, at the center of the
+ * view, with its properties open: circle r 2, rectangle 4 × 3, oval 5 × 3,
+ * triangle 4 × 3 (now an outline).
+ */
+export async function addPlainShape(page: Page, type: 'circle' | 'rect' | 'oval' | 'triangle') {
+  await addKind(page, 'plain', type);
+  const taps: Record<typeof type, [number, number][]> = {
+    circle: [[0, 0], [2, 0]],
+    rect: [[-2, -1.5], [2, -1.5], [0, 1.5]],
+    oval: [[-2.5, 0], [2.5, 0], [0, -1.5]],
+    triangle: [[-2, 1.5], [2, 1.5], [-2, -1.5]],
+  };
+  for (const [x, y] of taps[type]) await tapFromCenter(page, x, y);
+  await expect(page.getByTestId('draw-bar')).toHaveCount(0);
+  await page.locator('.sel-pill .edit').click();
+  await expect(page.locator('.sheet-header .title')).toContainText('properties');
+}
+
+/** In the open properties sheet: say what the selection is (opens the list behind Change). */
+export async function setRole(page: Page, role: string) {
+  const change = page.locator('.sheet [data-testid=change-kind]');
+  if (await change.count()) await change.click();
+  await page.locator('.sheet .role-chip', { hasText: role }).first().click();
+}

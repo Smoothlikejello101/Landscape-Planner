@@ -4,6 +4,8 @@ import { cancelGestures, onCanvasPointerMove, onCanvasPointerUp } from './gestur
 import { pushHistory, redo, undo } from './history';
 import { copySelected, deleteSelected, duplicateSelected, paste } from './mutations';
 import { clearSelection } from './selection';
+import { canFinishDraw, finishDraw, startKind } from './draw';
+import { kindForShortcut } from './kinds';
 import { state } from './state';
 import { loadPlants } from './plants';
 import { loadMyPlants } from './my-plants';
@@ -58,6 +60,18 @@ window.addEventListener('keydown', (e) => {
     else if (state.menu) { state.menu = null; render(); }
     else if (state.draw || state.editPoints) { state.draw = null; state.editPoints = null; render(); }
     else if (state.selectedIds.length) { clearSelection(); render(); }
+  } else if (e.key === 'Enter' && state.draw) {
+    // A focused button (Undo, Cancel) gets its own Enter.
+    if (canFinishDraw() && target?.tagName !== 'BUTTON') { e.preventDefault(); finishDraw(); render(); }
+  } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
+    // Letter shortcuts for adding things (shown in tooltips and the ? list). Never over an open
+    // panel (it may hold unsaved typing) or a drawing with taps in it (that would be thrown away).
+    if (state.panel || state.menu || state.bgCalibrate || state.bgEditMode || state.editPoints) return;
+    if (state.draw && state.draw.points.length) return;
+    if (e.key === '?') { e.preventDefault(); state.draw = null; state.panel = 'shortcuts'; render(); return; }
+    if (e.key.toLowerCase() === 'a') { e.preventDefault(); state.draw = null; state.panel = 'add'; render(); return; }
+    const kind = kindForShortcut(e.key);
+    if (kind) { e.preventDefault(); startKind(kind.key); render(); }
   }
 });
 

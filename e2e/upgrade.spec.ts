@@ -54,7 +54,7 @@ test('upgrading from the previous installed version keeps data and works offline
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.reload();
   expect(await page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
-  await page.locator('.tool-btn.circle').click();
+  await page.locator('.tool-btn.circle').click(); // the previous version's toolbar
   await page.locator('.sheet .field input').first().fill('Planted before upgrade');
   await page.waitForTimeout(600);
 

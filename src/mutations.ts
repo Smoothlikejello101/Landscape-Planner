@@ -7,43 +7,13 @@ import { getSelected, singleSelected } from './selection';
 import { state } from './state';
 import { getClipboard, save, setClipboard } from './storage';
 import { defaultLook, roleKey } from './roles';
-import type { Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapeFilter, ShapePatch, ShapeType, Status } from './types';
+import type { Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapeFilter, ShapePatch, Status } from './types';
 import { cleanPhaseName, MAX_PHASES, shownWith, statusPatch } from './status';
 import { render } from './ui/render';
 import { deepClone, now, snap, uid } from './util';
 
 // Every mutation records an undo step (pushHistory) and schedules a save.
 
-const BASE = { label: '', opacity: 0.65, locked: false } as const;
-
-export function makeShape(type: ShapeType, c: Point, id = uid()): Shape {
-  switch (type) {
-    case 'circle':
-      return { ...BASE, id, type, x: snap(c.x), y: snap(c.y), radius: 2, color: '#16a34a' };
-    case 'rect':
-      return { ...BASE, id, type, x: snap(c.x - 2), y: snap(c.y - 1.5), width: 4, height: 3, color: '#78350f', rotation: 0 };
-    case 'oval':
-      return { ...BASE, id, type, x: snap(c.x - 2.5), y: snap(c.y - 1.5), width: 5, height: 3, color: '#0891b2', rotation: 0 };
-    case 'triangle':
-      return { ...BASE, id, type, x: snap(c.x - 2), y: snap(c.y - 1.5), width: 4, height: 3, color: '#7c3aed', rotation: 0, rightAngle: 'bl' };
-    case 'poly': // a square outline; normally these are drawn point by point
-      return { ...BASE, id, type, x: snap(c.x - 2), y: snap(c.y - 2), points: [[0, 0], [4, 0], [4, 4], [0, 4]], color: '#0d9488', rotation: 0 };
-    case 'line':
-      return { ...BASE, id, type, x: snap(c.x - 2), y: snap(c.y), points: [[0, 0], [4, 0]], color: '#44403c', rotation: 0 };
-    case 'text':
-      return { ...BASE, id, type, x: snap(c.x - 2), y: snap(c.y - 0.5), label: '', fontSize: 1, color: '#1c1917', opacity: 1, rotation: 0, role: 'other' };
-  }
-}
-
-export function addShape(type: ShapeType) {
-  flushHistoryDebounce();
-  const shape = makeShape(type, viewCenterFeet());
-  state.shapes.push(shape);
-  state.selectedIds = [shape.id];
-  state.panel = 'props';
-  pushHistory();
-  save();
-}
 /** Patch the selected shape and re-render everything (for buttons/swatches). */
 /** Apply a patch to a shape; a bed brings its plants along. */
 function applyPatch(s: Shape, patch: ShapePatch) {

@@ -14,6 +14,6 @@ export function roleChips(current: RoleKey | null, onPick: (role: Role | undefin
     return b;
   };
   for (const r of ROLES) wrap.appendChild(chip(r.key, r.label));
-  wrap.appendChild(chip('unassigned', 'Unassigned'));
+  wrap.appendChild(chip('unassigned', 'Plain shape'));
   return wrap;
 }
