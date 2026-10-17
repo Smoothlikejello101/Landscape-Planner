@@ -361,3 +361,6 @@ a { color: inherit; }
 .location-zone { font-size: 20px; }
 .sheet-body .status.warn { font-size: 13px; color: #92400e; line-height: 1.45; }
 .zone-warn { color: #b45309; }
+.zip-prompt { display: flex; align-items: center; gap: 4px; margin: 4px 0 2px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; }
+.zip-prompt-go { flex: 1; display: flex; align-items: center; gap: 6px; text-align: left; background: none; border: 0; padding: 8px 10px; font-size: 13px; color: #166534; cursor: pointer; }
+.zip-prompt-go .icon { width: 16px; height: 16px; flex: none; }
