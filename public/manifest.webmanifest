@@ -1,7 +1,7 @@
 {
-  "name": "Landscape Planner",
-  "short_name": "Landscape",
-  "description": "A simple top-down landscape planner with scaled shapes.",
+  "name": "FullGrown Garden Planner",
+  "short_name": "FullGrown",
+  "description": "Plan a garden that actually works: see every plant at its full-grown size, drawn to scale on your own yard.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

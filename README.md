@@ -1,4 +1,4 @@
-# Landscape Planner
+# FullGrown
 
 A phone-first, top-down garden planner: a 1-ft grid, shapes at real scale,
 plants placed at their mature spread, and a calibrated satellite photo to

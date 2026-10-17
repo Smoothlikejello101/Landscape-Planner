@@ -41,7 +41,7 @@ test('backup all projects, then restore them on a fresh device', async ({ page, 
     page.waitForEvent('download'),
     page.locator('.backup-section button', { hasText: 'Back up all projects' }).click(),
   ]);
-  expect(download.suggestedFilename()).toMatch(/^landscape-backup-\d{4}-\d{2}-\d{2}\.landscape\.json$/);
+  expect(download.suggestedFilename()).toMatch(/^fullgrown-backup-\d{4}-\d{2}-\d{2}\.fullgrown\.json$/);
   const file = await download.path();
   await expect(page.locator('#toast')).toContainText('Backed up 2 projects');
   await expect(page.locator('.backup-section')).not.toContainText('never');
@@ -72,7 +72,7 @@ test('a single project file imports and opens', async ({ page, browser }) => {
     page.waitForEvent('download'),
     page.locator('.proj-row .iconbtn[title="Save project file"]').click(),
   ]);
-  expect(download.suggestedFilename()).toMatch(/^my-garden-.*\.landscape\.json$/);
+  expect(download.suggestedFilename()).toMatch(/^my-garden-.*\.fullgrown\.json$/);
   const ctx = await browser.newContext();
   const fresh = await ctx.newPage();
   await openFresh(fresh);
@@ -89,7 +89,7 @@ test('importing a file that is not a project shows an error', async ({ page }) =
   await openFresh(page);
   await page.locator('.project-btn').click();
   await page.locator('[data-testid=import-file]').setInputFiles({ name: 'x.json', mimeType: 'application/json', buffer: Buffer.from('{"nope":true}') });
-  await expect.poll(() => messages.join(' ')).toContain("isn't a Landscape Planner");
+  await expect.poll(() => messages.join(' ')).toContain("isn't a FullGrown");
 });
 
 test('undo and redo after adding a background image keep a single stored copy', async ({ page }) => {

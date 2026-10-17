@@ -57,7 +57,7 @@ export async function buildPlanPdf(
   const layout = planLayout(settings.paper, settings.orientation, content.bounds);
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ unit: 'in', format: [layout.pageW, layout.pageH], orientation: layout.orientation, compress: true });
-  doc.setProperties({ title: pdfSafe(settings.title || projectName), creator: 'Landscape Planner' });
+  doc.setProperties({ title: pdfSafe(settings.title || projectName), creator: 'FullGrown' });
 
   // The drawing.
   const pxPerIn = Math.min(200, Math.sqrt(MAX_PIXELS / (layout.plan.w * layout.plan.h)));
@@ -273,7 +273,7 @@ function footer(doc: JsPDF, layout: PrintLayout, _page: number, pages: number) {
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor('#a8a29e');
-    const label = pages > 1 ? `Page ${i} of ${pages} · Landscape Planner` : 'Landscape Planner';
+    const label = pages > 1 ? `Page ${i} of ${pages} · FullGrown` : 'FullGrown';
     doc.text(pdfSafe(label), layout.pageW - 0.4, layout.pageH - 0.18, { align: 'right', baseline: 'bottom' });
   }
 }

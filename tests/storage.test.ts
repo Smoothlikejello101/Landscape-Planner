@@ -361,7 +361,7 @@ describe('backup files', () => {
 
   it('rejects files that are not project files, or are from a newer version', () => {
     expect(() => parseImportFile('not json')).toThrow(/valid JSON/);
-    expect(() => parseImportFile('{"hello":1}')).toThrow(/isn't a Landscape Planner/);
+    expect(() => parseImportFile('{"hello":1}')).toThrow(/isn't a FullGrown/);
     expect(() => parseImportFile(JSON.stringify({ format: 'landscape-planner-project', version: 99, project: {} }))).toThrow(/newer version/);
   });
 
