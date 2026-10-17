@@ -9,8 +9,10 @@ const SUPABASE = 'https://erepgvypesysctxezwkm.supabase.co';
 const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const token = (exp: number) => `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: 'u-1', email: 'jason@example.com', role: 'authenticated', aud: 'authenticated', exp })}.sig`;
 
-async function fakeServer(page: Page, plan: object | null = { plan: 'trial', trial_ends: new Date(Date.now() + 30 * 86_400_000 - 60_000).toISOString(), paid_until: null }) {
+type Row = { id: string; name: string; content: unknown; revision: number; updated_by: string; updated_at: string; deleted_at: string | null };
+async function fakeServer(page: Page, plan: Record<string, unknown> | null = { plan: 'trial', trial_started: '2026-10-17T00:00:00Z', trial_ends: new Date(Date.now() + 30 * 86_400_000 - 60_000).toISOString(), paid_until: null }, rows = new Map<string, Row>()) {
   const seen: string[] = [];
+  const json = (route: Route, body: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
   await page.route(`${SUPABASE}/**`, async (route: Route) => {
     const req = route.request(), url = new URL(req.url());
     seen.push(`${req.method()} ${url.pathname}${url.pathname.endsWith('/authorize') ? url.search : ''}`);
@@ -31,6 +33,29 @@ async function fakeServer(page: Page, plan: object | null = { plan: 'trial', tri
     if (url.pathname === '/rest/v1/plans') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(plan ? [plan] : []) });
     if (url.pathname === '/rest/v1/rpc/delete_my_account') return route.fulfill({ status: 204, body: '' });
     if (url.pathname.startsWith('/storage/v1/object/list/photos')) return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
+    // Sync: the rules of supabase/02-sync.sql, in memory.
+    const args = () => JSON.parse(req.postData() ?? '{}');
+    if (url.pathname === '/rest/v1/rpc/start_trial') {
+      const a = args(); seen.push(`start_trial ${String(a.p_install).length >= 16 ? 'with install id' : 'without install id'}`);
+      if (plan && !plan.trial_ends) Object.assign(plan, { trial_started: new Date().toISOString(), trial_ends: new Date(Date.now() + 30 * 86_400_000 - 60_000).toISOString() });
+      return json(route, plan);
+    }
+    if (url.pathname === '/rest/v1/rpc/sync_list') return json(route, [...rows.values()].map(({ content: _c, ...meta }) => meta));
+    if (url.pathname === '/rest/v1/rpc/push_project') {
+      const a = args(); const r = rows.get(a.p_id);
+      seen.push(`push ${a.p_name}`);
+      if (!r) { rows.set(a.p_id, { id: a.p_id, name: a.p_name, content: a.p_content, revision: 1, updated_by: a.p_device, updated_at: new Date().toISOString(), deleted_at: null }); return json(route, { status: 'ok', revision: 1 }); }
+      if (r.deleted_at) return json(route, { status: 'deleted', revision: r.revision });
+      if (a.p_base !== r.revision) return json(route, { status: 'conflict', revision: r.revision, name: r.name, content: r.content, updated_by: r.updated_by, updated_at: r.updated_at });
+      Object.assign(r, { name: a.p_name, content: a.p_content, revision: r.revision + 1, updated_by: a.p_device });
+      return json(route, { status: 'ok', revision: r.revision });
+    }
+    if (url.pathname === '/rest/v1/rpc/trash_project') { const r = rows.get(args().p_id); if (r) { r.deleted_at = new Date().toISOString(); r.revision++; } return json(route, r?.revision ?? null); }
+    if (url.pathname === '/rest/v1/rpc/restore_project') { const r = rows.get(args().p_id); if (r) { r.deleted_at = null; r.revision++; } seen.push('restore'); return json(route, r?.revision ?? null); }
+    if (url.pathname === '/rest/v1/projects') {
+      const ids = (url.searchParams.get('id') ?? '').replace(/^in\.\(|\)$/g, '').split(',').map((s) => s.replace(/^"|"$/g, ''));
+      return json(route, ids.map((id) => rows.get(id)).filter((r): r is Row => !!r && !r.deleted_at).map(({ id, name, revision, content }) => ({ id, name, revision, content })));
+    }
     return route.fulfill({ status: 404, contentType: 'application/json', body: '{"message":"not in the stand-in"}' });
   });
   return seen;
@@ -142,4 +167,36 @@ test('deleting the account says what goes, offers a backup, and can be cancelled
   expect(seen).toContain('POST /rest/v1/rpc/delete_my_account');
   await expect(page.locator('.proj-row')).toHaveCount(1);
   expect(await page.evaluate(() => localStorage.getItem('lp-auth'))).toBe(null);
+});
+
+test('beta: sync runs by itself, uploads this device’s plans, and brings another device’s down', async ({ page }) => {
+  const rows = new Map<string, Row>();
+  rows.set('from-laptop', { id: 'from-laptop', name: 'Cabin', revision: 2, updated_by: 'Windows PC', updated_at: '2026-10-17T00:00:00Z', deleted_at: null,
+    content: { shapes: [{ id: 'c1', type: 'rect', x: 0, y: 0, width: 6, height: 4, rotation: 0, color: '#92400e', label: 'Cabin bed', opacity: 0.3, locked: false, role: 'bed' }] } });
+  const seen = await fakeServer(page, { plan: 'beta', trial_started: null, trial_ends: null, paid_until: null }, rows);
+  await signedIn(page);
+  await openFresh(page);
+  const account = await openAccount(page);
+  await expect(account.getByTestId('sync-status')).toHaveText('Synced just now');
+  expect(seen).toContain('push My Garden'); // this device's plan went up
+  await expect(page.locator('.proj-row', { hasText: 'Cabin' })).toHaveCount(1); // the laptop's came down
+  // Switched off on this device: nothing more is sent.
+  await account.getByTestId('sync-device').locator('input').uncheck();
+  await expect(account.getByTestId('sync-status')).toHaveText('Sync is off on this device');
+  await expect(account.getByTestId('sync-now')).toBeDisabled();
+});
+
+test('a trial that hasn’t started: sync waits to be turned on, which starts it', async ({ page }) => {
+  const seen = await fakeServer(page, { plan: 'trial', trial_started: null, trial_ends: null, paid_until: null });
+  await signedIn(page);
+  await openFresh(page);
+  const account = await openAccount(page);
+  await expect(account.getByTestId('plan')).toHaveText('Free trial: 30 days, starting when you turn on sync');
+  await expect(account.getByTestId('sync-start')).toBeVisible();
+  expect(seen.filter((s) => s.startsWith('push'))).toEqual([]); // nothing synced yet
+  await account.getByTestId('sync-start').click();
+  await expect(account.getByTestId('plan')).toHaveText('Free trial: 30 days left');
+  await expect(account.getByTestId('sync-status')).toHaveText('Synced just now');
+  expect(seen).toContain('start_trial with install id');
+  expect(seen).toContain('push My Garden');
 });

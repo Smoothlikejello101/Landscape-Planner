@@ -11,6 +11,8 @@ import { finishPlacing, undoPlace } from './place';
 import { state } from './state';
 import { loadPlants } from './plants';
 import { initAccount, restoreCodeSent, setAccountListener } from './account';
+import { onAccountChange, setSyncUi, startSyncTriggers } from './sync/sync';
+import { refreshAfterSync, screenBusy, showSyncResults } from './ui/sync-results';
 import { refreshAccountSection } from './ui/account-section';
 import { loadMyPlants } from './my-plants';
 import { setupServiceWorker } from './pwa';
@@ -153,7 +155,15 @@ async function start() {
   }
   void loadPlants();
   // Signed in (or just back from signing in): check the session. Changes refresh only the Account section.
-  setAccountListener(refreshAccountSection);
+  setAccountListener(() => { refreshAccountSection(); onAccountChange(); });
+  setSyncUi({
+    status: refreshAccountSection,
+    changed: showSyncResults,
+    // The open plan is in use: a download waits rather than replace it mid-gesture or mid-typing.
+    busy: screenBusy,
+    showOpen: () => { pushHistory(); refreshAfterSync(); },
+  });
+  startSyncTriggers();
   restoreCodeSent();
   void initAccount();
   void requestPersistence();

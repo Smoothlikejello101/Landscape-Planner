@@ -3,6 +3,8 @@
 -- Paste into Supabase: SQL Editor → New query → paste → Run.
 -- Safe to run again: it only creates what isn't there and replaces the rules
 -- and functions. (Changes to an existing table's columns come as a new script.)
+-- Later scripts (02-sync.sql, ...) replace some of these functions: if you
+-- run this one again, run the later ones again after it.
 --
 -- Every table is locked with row-level security: a signed-in account can
 -- only ever see its own rows. The app uses the public key, which can do

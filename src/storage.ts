@@ -292,6 +292,7 @@ async function writeCurrent(): Promise<boolean> {
   const id = state.currentProjectId;
   if (!id || !kv) return true;
   const seq = editSeq;
+  const hadEdits = seq !== savedSeq; // (a flush with nothing new still writes; sync only hears of real edits)
   // Snapshot synchronously so later edits don't race with this write.
   const data = currentProjectData();
   const ops = projectWriteOps(id, data, storedImageKeys);
@@ -307,6 +308,7 @@ async function writeCurrent(): Promise<boolean> {
     savedSeq = Math.max(savedSeq, seq);
     if (savedSeq === editSeq && state.currentProjectId === id) clearJournal(id);
     setSaveFailing(false);
+    if (hadEdits) afterSave?.();
     return true;
   } catch (e) {
     // The write didn't happen; forget image keys from this batch so they're retried.
@@ -486,19 +488,33 @@ async function collectImageGarbage(projectId: string, keep: Set<string>) {
     if (stale.length) await db().write(stale.map((k) => del('images', k)));
   } catch (e) { console.warn('image cleanup failed', e); }
 }
-/** Create a project (empty, or from given data). Does not open it. */
-export async function createProject(name: string, data?: ProjectData): Promise<string> {
-  const id = uid();
+/** Create a project (empty, or from given data). Does not open it. `id`: one the server already knows (sync). */
+export async function createProject(name: string, data?: ProjectData, id = uid()): Promise<string> {
   const projectData = data ?? { ...sanitizeProjectData({}), sizeMode: lastSizeMode };
   const meta: ProjectMeta = { id, name: name.trim() || 'Untitled', lastModified: now(), shapeCount: projectData.shapes.length };
   await db().write([...projectWriteOps(id, projectData), put('meta', id, meta)]);
   state.projects.unshift(meta);
+  afterProjectsChange?.();
   return id;
 }
-export async function deleteProject(id: string) {
+/**
+ * Delete a project from this device. One that was synced is remembered (a
+ * tombstone) so the next sync moves it to the server's trash too, unless
+ * `bySync`: it was deleted elsewhere, and the server already knows.
+ */
+export async function deleteProject(id: string, bySync = false) {
   const imageKeys = await db().keys('images', id + '/');
-  await db().write([del('meta', id), del('projects', id), ...imageKeys.map((k) => del('images', k))]);
+  const ops = [del('meta', id), del('projects', id), ...imageKeys.map((k) => del('images', k))];
+  const rec = syncRecords[id];
+  const records = { ...syncRecords };
+  delete records[id];
+  const tombs = { ...syncTombstones };
+  if (rec && !bySync) tombs[id] = rec.revision;
+  if (rec) ops.push(put('kv', 'syncRecords', records), put('kv', 'syncTombstones', tombs));
+  await db().write(ops);
+  syncRecords = records; syncTombstones = tombs;
   state.projects = state.projects.filter((p) => p.id !== id);
+  afterProjectsChange?.();
 }
 export async function renameProject(id: string, name: string) {
   const meta = metaFor(id);
@@ -506,6 +522,89 @@ export async function renameProject(id: string, name: string) {
   meta.name = name.trim() || 'Untitled';
   meta.lastModified = now();
   await db().write([put('meta', id, { ...meta })]);
+  afterProjectsChange?.();
+}
+
+// ---------- Sync support (see src/sync) ----------
+/** What a synced project was at its last sync: the server's revision, and a fingerprint of its content then. */
+export interface SyncRecord { revision: number; hash: string }
+let syncRecords: Record<string, SyncRecord> = {};
+/** Synced projects deleted here, still to be moved to the server's trash: id → revision. */
+let syncTombstones: Record<string, number> = {};
+let afterProjectsChange: (() => void) | null = null;
+let afterSave: (() => void) | null = null;
+/** Sync hears about every saved edit, and every project made, renamed or deleted. */
+export function setSyncHooks(onSave: () => void, onProjects: () => void) { afterSave = onSave; afterProjectsChange = onProjects; }
+export function getSyncRecords(): Record<string, SyncRecord> { return { ...syncRecords }; }
+export function getSyncTombstones(): Record<string, number> { return { ...syncTombstones }; }
+export async function setSyncRecord(id: string, rec: SyncRecord | null) {
+  const next = { ...syncRecords };
+  if (rec) next[id] = rec; else delete next[id];
+  await db().write([put('kv', 'syncRecords', next)]);
+  syncRecords = next;
+}
+export async function clearSyncTombstone(id: string) {
+  const next = { ...syncTombstones };
+  delete next[id];
+  await db().write([put('kv', 'syncTombstones', next)]);
+  syncTombstones = next;
+}
+/** Forget all sync state (signing out, or a different account signing in on this device). */
+export async function resetSyncState() {
+  await db().write([put('kv', 'syncRecords', {}), put('kv', 'syncTombstones', {})]);
+  syncRecords = {}; syncTombstones = {};
+}
+/** Counts every edit to the open project (so a sync can tell whether one landed while it worked). */
+export function editSequence(): number { return editSeq; }
+/** This app install's random id, made on first use and kept with the plans (trials count once per install). */
+export async function installId(): Promise<string> {
+  let id = await db().get<string>('kv', 'installId');
+  if (typeof id !== 'string' || !/^[A-Za-z0-9-]{16,64}$/.test(id)) {
+    id = (globalThis.crypto?.randomUUID?.() ?? uid() + uid() + uid()).replace(/[^A-Za-z0-9-]/g, '');
+    await db().write([put('kv', 'installId', id)]);
+  }
+  return id;
+}
+/** The parts of a project that sync: everything but the view (zoom, scroll) and the background photo (synced on its own). */
+export type SyncedContent = Pick<ProjectData, 'shapes' | 'roleViews' | 'print' | 'sizeMode' | 'sunWarnings' | 'phases'>;
+export function syncedContent(d: ProjectData): SyncedContent {
+  return { shapes: d.shapes, roleViews: d.roleViews ?? {}, print: d.print ?? { ...DEFAULT_PRINT }, sizeMode: d.sizeMode ?? 'typical', sunWarnings: d.sunWarnings !== false, phases: d.phases ?? [] };
+}
+/**
+ * Put a project's synced content in place (from the server), keeping this
+ * device's view and background photo. For the open project, only when no
+ * edit has landed since `seq` (else false: the next sync sorts it out), and
+ * the plan on screen is updated.
+ */
+export async function replaceProjectContent(id: string, name: string, content: unknown, seq: number): Promise<boolean> {
+  const meta = metaFor(id);
+  if (!meta) return false;
+  const isOpen = state.currentProjectId === id;
+  if (isOpen && (seq !== editSeq || hasUnsavedChanges())) return false;
+  const base = isOpen ? currentProjectData() : (await readProject(id)) ?? sanitizeProjectData({});
+  const incoming = sanitizeProjectData({ ...(content && typeof content === 'object' ? content : {}), zoom: base.zoom, offsetX: base.offsetX, offsetY: base.offsetY });
+  const data: ProjectData = { ...base, ...syncedContent(incoming) };
+  const metaNext = { ...meta, name: name.trim() || 'Untitled', lastModified: now(), shapeCount: data.shapes.length };
+  if (isOpen && seq !== editSeq) return false;
+  await db().write([...projectWriteOps(id, data, isOpen ? storedImageKeys : undefined), put('meta', id, metaNext)]);
+  Object.assign(meta, metaNext);
+  if (isOpen && seq === editSeq) {
+    state.shapes = data.shapes;
+    state.roleViews = data.roleViews ?? {};
+    state.print = data.print ?? { ...DEFAULT_PRINT };
+    state.sizeMode = data.sizeMode ?? 'typical';
+    state.sunWarnings = data.sunWarnings !== false;
+    state.phases = data.phases ?? [];
+    state.selectedIds = state.selectedIds.filter((sid) => data.shapes.some((s) => s.id === sid));
+    state.history = [];
+    state.historyIndex = -1;
+  }
+  return true;
+}
+/** Read a project as it is now (the open one from memory, saved first). */
+export async function projectNow(id: string): Promise<ProjectData | null> {
+  if (state.currentProjectId === id) { await flushSave(); return currentProjectData(); }
+  return readProject(id);
 }
 
 // ---------- Clipboard (shared across projects and tabs) ----------
@@ -666,6 +765,11 @@ export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: s
   const mp = await kv.get<unknown>('kv', 'myPlants');
   myPlantsRaw = Array.isArray(mp) ? mp : [];
   lastSizeMode = (await kv.get<unknown>('kv', 'lastSizeMode')) === 'full' ? 'full' : 'typical';
+  const recs = await kv.get<unknown>('kv', 'syncRecords');
+  syncRecords = sanitizeSyncRecords(recs);
+  const tombs = await kv.get<unknown>('kv', 'syncTombstones');
+  syncTombstones = {};
+  if (tombs && typeof tombs === 'object') for (const [k, v] of Object.entries(tombs)) if (typeof v === 'number' && Number.isFinite(v)) syncTombstones[k] = v;
   if (state.projects.length === 0) await createProject('My Garden');
   let currentId = await kv.get<string>('kv', 'current');
   if (!currentId || !metaFor(currentId)) currentId = state.projects[0].id;
@@ -673,11 +777,21 @@ export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: s
   return { migrationError };
 }
 
+function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
+  const out: Record<string, SyncRecord> = {};
+  if (raw && typeof raw === 'object') {
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      const r = v as Partial<SyncRecord> | null;
+      if (r && typeof r.revision === 'number' && Number.isFinite(r.revision) && typeof r.hash === 'string') out[k] = { revision: r.revision, hash: r.hash };
+    }
+  }
+  return out;
+}
 /** Test hook: forget module state between tests. */
 export function _resetStorageForTests() {
   kv = null; clipboardCache = null; storedImageKeys = new Set(); committedImageKeys = new Set();
   quotaWarned = false; lastBackupAt = null; myPlantsRaw = []; lastSizeMode = 'typical'; editSeq = 0; savedSeq = 0; saveFailing = false;
-  lastFailureJournalAt = 0; unreplayed.clear();
+  lastFailureJournalAt = 0; unreplayed.clear(); syncRecords = {}; syncTombstones = {};
   saveChain = Promise.resolve(true);
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;

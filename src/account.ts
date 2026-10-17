@@ -28,7 +28,7 @@ export function emailSignInOn(): boolean {
 export const AUTH_STORAGE_KEY = 'lp-auth';
 
 export type PlanName = 'trial' | 'active' | 'lapsed' | 'beta';
-export interface PlanInfo { plan: PlanName; trialEnds: string | null; paidUntil: string | null }
+export interface PlanInfo { plan: PlanName; trialEnds: string | null; paidUntil: string | null; trialStarted?: string | null }
 export interface AccountState {
   /** 'unknown' until the session has been checked (only when there might be one). */
   status: 'unknown' | 'signedOut' | 'signedIn';
@@ -53,6 +53,8 @@ let factory: ClientFactory = async () => {
 let clientPromise: Promise<SupabaseClient> | null = null;
 export function _setClientFactoryForTests(f: ClientFactory) { factory = f; clientPromise = null; listening = false; }
 /** The client, listening for sign-in changes from the moment it exists, however signing in happens. */
+/** The Supabase client (sync uses the same one, and so the same sign-in). */
+export function supabaseClient(): Promise<SupabaseClient> { return client(); }
 function client(): Promise<SupabaseClient> {
   clientPromise ??= factory().then((c) => { listen(c); return c; });
   return clientPromise;
@@ -147,12 +149,13 @@ export async function initAccount(force = false) {
     set({ status: storedSession() ? 'unknown' : 'signedOut', error: friendly(e) });
   }
 }
-async function loadPlan() {
+/** Read the account's plan again (after the trial starts, say). */
+export async function loadPlan() {
   try {
     const c = await client();
-    const { data, error } = await c.from('plans').select('plan, trial_ends, paid_until').maybeSingle();
+    const { data, error } = await c.from('plans').select('plan, trial_ends, paid_until, trial_started').maybeSingle();
     if (error) throw error;
-    set({ plan: data ? { plan: data.plan as PlanName, trialEnds: data.trial_ends ?? null, paidUntil: data.paid_until ?? null } : null });
+    set({ plan: data ? { plan: data.plan as PlanName, trialEnds: data.trial_ends ?? null, paidUntil: data.paid_until ?? null, trialStarted: data.trial_started ?? null } : null });
   } catch {
     set({ plan: undefined }); // shown as unknown; the account still works
   }
@@ -293,7 +296,8 @@ export function planText(p: PlanInfo | null | undefined, now = Date.now()): stri
   if (!p) return '';
   switch (p.plan) {
     case 'trial': {
-      const d = p.trialEnds ? trialDaysLeft(p.trialEnds, now) : 0;
+      if (!p.trialEnds) return 'Free trial: 30 days, starting when you turn on sync';
+      const d = trialDaysLeft(p.trialEnds, now);
       return d ? `Free trial: ${d} day${d === 1 ? '' : 's'} left` : 'Free trial ended';
     }
     case 'beta': return 'Beta tester: everything free during the beta';
