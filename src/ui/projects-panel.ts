@@ -10,6 +10,7 @@ import type { PanelName } from '../types';
 import { errMsg } from '../util';
 import { render } from './render';
 import { accountSection } from './account-section';
+import { deleteNote } from '../sync/sync';
 import { toast } from './toast';
 
 function closeButton(onClick: () => void) {
@@ -122,7 +123,7 @@ export function renderProjectsPanel() {
       const delBtn = el('button', { className: 'iconbtn', html: I.trash, title: 'Delete', 'aria-label': 'Delete ' + p.name });
       delBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        if (confirm('Delete project "' + p.name + '"? This cannot be undone.')) {
+        if (confirm('Delete project "' + p.name + '"? ' + deleteNote(p.id))) {
           await deleteProject(p.id);
           render();
         }

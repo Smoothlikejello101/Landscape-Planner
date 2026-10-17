@@ -1,5 +1,5 @@
 import { account, loadPlan, supabaseClient, type PlanInfo } from '../account';
-import { flushSave, getSyncUser, installId, resetSyncState, setSyncHooks } from '../storage';
+import { flushSave, getSyncRecords, getSyncUser, installId, resetSyncState, setSyncHooks } from '../storage';
 import { syncOnce, type SyncReport, type ServerProject } from './engine';
 import { storageLocal } from './local';
 import { supabaseRemote } from './remote';
@@ -74,6 +74,20 @@ export async function startSyncing() {
   } catch (e) {
     setStatus({ phase: 'error', message: messageFor(e) });
   }
+}
+
+// ---------- Deleting, as the delete dialog tells it ----------
+/**
+ * What happens to a project deleted here. A synced one goes to the account's
+ * Recently deleted at the next sync, as it was at its last sync; that needs
+ * this account signed in, its plan allowing sync, and sync on here.
+ */
+export function deleteNote(id: string): string {
+  const mine = account.status === 'signedIn' && !!account.userId && getSyncUser() === account.userId;
+  if (!mine || !(id in getSyncRecords())) return 'This cannot be undone.';
+  if (account.plan && !planAllowsSync(account.plan)) return 'Your account keeps its synced copy; it moves to Recently deleted when sync resumes.';
+  if (!syncOnThisDevice()) return 'Your account keeps its synced copy until sync is turned back on here; then it moves to Recently deleted.';
+  return 'You can restore it from Recently deleted (Projects → Account) for 30 days, as it was when it last synced.';
 }
 
 // ---------- Running ----------
