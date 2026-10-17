@@ -205,6 +205,7 @@ export function renderPlantsPanel() {
   const primaryChecks = el('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px 16px', margin: '8px 0 4px' } },
     // Says unverified while it goes by the older list for any plant (until each is checked against the ASPCA).
     mkCheck(PLANTS.some((p) => !p.tox?.dog) ? 'Non-toxic to dogs (unverified)' : 'Non-toxic to dogs', 'dogSafeOnly'),
+    state.location ? mkCheck(`Hardy in zone ${state.location.zone}`, 'hardyHere') : null,
     mkCheck('Dry shade', 'dryShade'),
     mkCheck('Wet feet', 'wetFeet'),
     mkCheck('Host plant', 'hostOnly')

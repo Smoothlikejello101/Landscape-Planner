@@ -39,6 +39,7 @@ export const I = {
   folder: '<svg class="icon" viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>',
   image: '<svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
   move: '<svg class="icon" viewBox="0 0 24 24"><polyline points="5 9 2 12 5 15"/><polyline points="9 5 12 2 15 5"/><polyline points="15 19 12 22 9 19"/><polyline points="19 9 22 12 19 15"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="12" y1="2" x2="12" y2="22"/></svg>',
+  pin: '<svg class="icon" viewBox="0 0 24 24"><path d="M12 22s7-6.2 7-12a7 7 0 0 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>',
   target: '<svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2" class="icon-fill"/></svg>',
   arrangeFront: '<svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="10" height="10" rx="1" fill="#d6d3d1" stroke="#d6d3d1"/><rect x="9" y="9" width="12" height="12" rx="1" fill="#fff"/></svg>',
   arrangeBack: '<svg class="icon" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="1" fill="#d6d3d1" stroke="#d6d3d1"/><rect x="3" y="3" width="10" height="10" rx="1" fill="#fff"/></svg>',

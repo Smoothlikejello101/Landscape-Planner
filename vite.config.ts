@@ -25,6 +25,8 @@ export default defineConfig({
       manifest: false,       // public/manifest.webmanifest is used as-is
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,png,svg,json,webmanifest}'],
+        // The ZIP code tables are fetched one at a time when a ZIP is looked up (the plan keeps the answer).
+        globIgnores: ['climate/**'],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024, // plants.json is ~650 KB
       },
       devOptions: { enabled: false },

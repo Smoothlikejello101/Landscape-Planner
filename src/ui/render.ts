@@ -23,6 +23,7 @@ import { renderPlantsPanel } from './plants-panel';
 import { renderPrintPanel } from './print-panel';
 import { renderPlantForm } from './plant-form';
 import { renderBloomPanel } from './bloom-view';
+import { renderLocationPanel } from './location-panel';
 import { fullRingRadius } from '../my-plants';
 import { filterActive, filterText } from '../status';
 import { toast } from './toast';
@@ -321,6 +322,7 @@ export function render() {
   else if (state.panel === 'bloom') panelNode = renderBloomPanel();
   else if (state.panel === 'add') panelNode = renderAddSheet();
   else if (state.panel === 'shortcuts') panelNode = renderShortcutsPanel();
+  else if (state.panel === 'location') panelNode = renderLocationPanel();
   if (panelNode) root.appendChild(panelNode);
   if (state.menu === 'more') root.appendChild(renderMoreMenu());
 
