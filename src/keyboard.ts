@@ -11,6 +11,8 @@
 export function keyboardInset(): number {
   const vv = window.visualViewport;
   if (!vv) return 0;
+  // Zoomed in, the visual viewport is smaller for that reason alone: no keyboard to measure.
+  if (Math.abs((vv.scale ?? 1) - 1) > 0.01) return 0;
   const covered = window.innerHeight - vv.height - vv.offsetTop;
   // Pinch zoom and browser toolbars move the visual viewport a little: only a keyboard-sized gap counts.
   return covered > 80 ? Math.round(covered) : 0;

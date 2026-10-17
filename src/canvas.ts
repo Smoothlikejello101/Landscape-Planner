@@ -364,9 +364,16 @@ function refreshLabelLayout() {
       // Other shapes' names (a bed's, a path's) are there first: plant names stay off them.
       const label = s.type === 'text' ? '' : displayLabel(s);
       if (!label) continue;
-      const at = s.role === 'boundary' && (s.type === 'poly' || s.type === 'line') ? alongLabel(s)
-        : s.type === 'poly' || s.type === 'line' ? pathLabelPoint(s) : shapeCenter(s);
       const w = textWidth1(label) * 12, h = 14;
+      if (s.role === 'boundary' && (s.type === 'poly' || s.type === 'line')) {
+        // Along the line: 9 px off it, turned with it (the box that holds the turned label).
+        const al = alongLabel(s), rad = (al.angle * Math.PI) / 180;
+        const cx = al.x * ppf + 9 * Math.sin(rad), cy = al.y * ppf - 9 * Math.cos(rad);
+        const bw = Math.abs(w * Math.cos(rad)) + Math.abs(h * Math.sin(rad)), bh = Math.abs(w * Math.sin(rad)) + Math.abs(h * Math.cos(rad));
+        placed.push({ x0: cx - bw / 2, x1: cx + bw / 2, y0: cy - bh / 2, y1: cy + bh / 2 });
+        continue;
+      }
+      const at = s.type === 'poly' || s.type === 'line' ? pathLabelPoint(s) : shapeCenter(s);
       placed.push({ x0: at.x * ppf - w / 2, x1: at.x * ppf + w / 2, y0: at.y * ppf - h / 2, y1: at.y * ppf + h / 2 });
       continue;
     }

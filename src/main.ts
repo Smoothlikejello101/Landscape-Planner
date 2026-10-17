@@ -27,6 +27,8 @@ window.addEventListener('resize', () => { fitAboveKeyboard(); resizeCanvas(); })
 // Same goes for visualViewport resize (covers iOS keyboard + zoom)
 if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', () => { fitAboveKeyboard(); resizeCanvas(); });
+  // iOS pans the visual viewport (scroll, not resize) after its keyboard opens: re-measure (CSS only).
+  window.visualViewport.addEventListener('scroll', () => { fitAboveKeyboard(); });
 }
 // With the keyboard open, the field being typed in is scrolled into view
 // (its sheet has just become shorter). Scrolling only: nothing re-renders.

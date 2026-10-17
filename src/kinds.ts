@@ -81,6 +81,7 @@ export function kindForShortcut(key: string): KindDef | undefined {
  */
 export function kindOfShape(s: Shape): KindKey | null {
   const label = s.label.toLowerCase();
+  if (s.type === 'text') return 'note';
   switch (s.role) {
     case 'plant': return null;
     case 'bed': return 'bed';
@@ -92,8 +93,9 @@ export function kindOfShape(s: Shape): KindKey | null {
     case 'path':
       if (label.includes('drive')) return 'driveway';
       if (label.includes('patio') || label.includes('deck')) return 'patio';
+      if (label.includes('path') || label.includes('walk')) return 'path'; // a path drawn as an outline
       return s.type === 'line' ? 'path' : 'patio';
-    case 'other': return s.type === 'text' ? 'note' : s.type === 'line' && s.showLength ? 'measure' : 'plain';
+    case 'other': return s.type === 'line' && s.showLength ? 'measure' : 'plain';
     default: return 'plain';
   }
 }

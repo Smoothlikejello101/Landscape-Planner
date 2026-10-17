@@ -14,6 +14,8 @@ describe('the on-screen keyboard', () => {
     vv(800); expect(keyboardInset()).toBe(0);
     vv(480); expect(keyboardInset()).toBe(320); // the page didn't shrink, the keyboard covers it
     vv(760); expect(keyboardInset()).toBe(0); // a toolbar, not a keyboard
+    Object.defineProperty(window, 'visualViewport', { configurable: true, value: { height: 400, offsetTop: 0, scale: 2 } });
+    expect(keyboardInset()).toBe(0); // pinch-zoomed to 2x, not a keyboard
   });
 });
 
@@ -24,6 +26,8 @@ describe('adding another of the same', () => {
     expect(kindOfShape(shape({ role: 'boundary', label: 'Back fence' }))).toBe('fence');
     expect(kindOfShape(shape({ role: 'path', label: 'Driveway' }))).toBe('driveway');
     expect(kindOfShape(shape({ role: 'path', label: 'Deck' }))).toBe('patio');
+    expect(kindOfShape(shape({ role: 'path', type: 'poly', label: 'Path' } as Partial<Shape>))).toBe('path'); // drawn as an outline
+    expect(kindOfShape(shape({ type: 'text' } as Partial<Shape>))).toBe('note'); // a note from before roles
     expect(kindOfShape(shape({ role: 'path', type: 'line', label: 'Stepping stones' } as Partial<Shape>))).toBe('path');
     expect(kindOfShape(shape({ role: 'shade' }))).toBe('sun');
     expect(kindOfShape(shape({ role: 'other', type: 'text' } as Partial<Shape>))).toBe('note');

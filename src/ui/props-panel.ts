@@ -360,7 +360,7 @@ export interface MoreOfSame { title: string; start: () => void; tree: boolean }
 export function moreOfSame(selected: Shape[], drawn: boolean): MoreOfSame | null {
   if (!selected.length) return null;
   // Existing trees: all the same tree (or all unknown trees).
-  if (selected.every((s) => s.type === 'circle' && s.role === 'plant' && s.tree && s.sizeFrom === 'manual')) {
+  if (selected.every((s) => s.type === 'circle' && s.role === 'plant' && s.tree)) {
     const ids = new Set(selected.map((s) => s.plantId ?? ''));
     if (ids.size !== 1) return null;
     const id = [...ids][0];
