@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { _setClientFactoryForTests, account, AUTH_STORAGE_KEY, deleteAccount, friendly, initAccount, planText, sendSignInLink, signInWithGoogle, signOut, trialDaysLeft } from '../src/account';
+import { _setClientFactoryForTests, account, AUTH_STORAGE_KEY, deleteAccount, friendly, initAccount, planText, sendSignInLink, signInWithGoogle, signOut, trialDaysLeft, verifyEmailCode } from '../src/account';
 
 const saved = { ok: true };
 vi.mock('../src/storage', () => ({ flushSave: vi.fn(async () => saved.ok) }));
@@ -19,6 +19,10 @@ function fakeClient(opts: { session?: { user: { email: string; id?: string } } |
       signInWithOtp: async (o: { email: string; options: { emailRedirectTo: string } }) => {
         calls.push(`otp ${o.email} ${o.options.emailRedirectTo}`);
         return { error: opts.fail ? { message: opts.fail } : null };
+      },
+      verifyOtp: async (o: { email: string; token: string; type: string }) => {
+        calls.push(`verify ${o.email} ${o.token} ${o.type}`);
+        return o.token === '12345678' ? { data: { session: { user: { email: o.email, id: 'u-9' } }, user: null }, error: null } : { data: {}, error: { message: 'Token has expired or is invalid' } };
       },
       signOut: async (o: { scope: string }) => {
         calls.push(`signOut ${o.scope}`);
@@ -77,23 +81,37 @@ describe('accounts', () => {
     const f = fakeClient();
     _setClientFactoryForTests(async () => f.client);
     await signInWithGoogle();
+    account.busy = false; // the page would have left for Google; here it stays
     await sendSignInLink(' jason@example.com ');
     expect(f.calls).toEqual([`oauth google ${location.origin}/Landscape-Planner/`, `otp jason@example.com ${location.origin}/Landscape-Planner/`]);
     expect(account.linkSentTo).toBe('jason@example.com');
     await sendSignInLink('not an email');
     expect(account.error).toMatch(/doesn.t look like an email/);
   });
+  it('sign in with the code from the email, typed into the app', async () => {
+    const f = fakeClient();
+    _setClientFactoryForTests(async () => f.client);
+    await sendSignInLink('jason@example.com');
+    await verifyEmailCode('abc');
+    expect(account.error).toMatch(/just the digits/);
+    await verifyEmailCode('000000');
+    expect(account.error).toMatch(/That code didn.t work/);
+    expect(account.linkSentTo).toBe('jason@example.com'); // can try again
+    await verifyEmailCode(' 1234 5678 ');
+    expect(account).toMatchObject({ status: 'signedIn', email: 'jason@example.com', userId: 'u-9', linkSentTo: undefined });
+    expect(f.calls).toContain('verify jason@example.com 12345678 email');
+  });
   it('explain failures plainly', async () => {
     _setClientFactoryForTests(async () => fakeClient({ fail: 'Email rate limit exceeded' }).client);
     await sendSignInLink('jason@example.com');
-    expect(account.error).toBe('Too many sign-in emails for now. Wait a few minutes, then try again.');
+    expect(account.error).toBe('Too many sign-in emails for now. Wait a while (up to an hour), then try again, or use Google.');
     expect(friendly(new TypeError('Failed to fetch'))).toMatch(/Couldn.t reach the server/);
   });
   it('say why when finishing a sign-in failed (a used or expired link)', async () => {
     history.replaceState(null, '', '/Landscape-Planner/?code=used');
     _setClientFactoryForTests(async () => fakeClient({ initError: 'invalid flow state, no valid flow state found' }).client);
     await initAccount();
-    expect(account.error).toMatch(/^Signing in didn.t finish: invalid flow state.*works only once/);
+    expect(account.error).toBe('Signing in didn’t finish: invalid flow state, no valid flow state found. Please try again.');
   });
   it("don't leave for Google with an unsaved plan", async () => {
     const f = fakeClient();
