@@ -41,8 +41,20 @@ test('add a plant from its tag, place it, and switch to full size', async ({ pag
   // It's in the picker under My plants.
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('lime');
-  await expect(page.locator('.list-heading').first()).toHaveText('My plants');
+  await expect(page.locator('.list-heading').first()).toHaveText('My plants (1)');
   await expect(page.locator('.proj-row', { hasText: 'Limelight' }).locator('.mine-badge')).toHaveText('Mine');
+  // Without a search, My plants can be folded away (and stays folded); a search shows its matches anyway.
+  await page.getByTestId('plant-search').fill('');
+  await page.getByTestId('my-plants-fold').click();
+  await expect(page.locator('.proj-row .mine-badge')).toHaveCount(0);
+  await closeSheet(page);
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.getByTestId('my-plants-fold')).toHaveAttribute('aria-expanded', 'false');
+  await page.getByTestId('plant-search').fill('lime');
+  await expect(page.locator('.proj-row', { hasText: 'Limelight' })).toBeVisible();
+  await page.getByTestId('plant-search').fill('');
+  await page.getByTestId('my-plants-fold').click();
+  await expect(page.locator('.proj-row', { hasText: 'Limelight' })).toBeVisible();
   await closeSheet(page);
 
   // Layers: draw plants at full size.
