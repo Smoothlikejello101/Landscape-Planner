@@ -126,6 +126,7 @@ export async function initAccount(force = false) {
         : wasReturn && init.error ? 'Signing in didn’t finish: ' + init.error.message + '. Try again; an emailed link works only once, on the device that asked for it.'
         : null;
       set({ status: 'signedOut', ...(why ? { error: why } : {}) });
+      if (why) toast(why, 10000); // shown wherever the page opened, not only in the Account section
     }
   } catch (e) {
     set({ status: storedSession() ? 'unknown' : 'signedOut', error: friendly(e) });
@@ -171,6 +172,30 @@ export async function sendSignInLink(email: string) {
     set({ busy: false, linkSentTo: address });
   } catch (e) {
     set({ busy: false, error: friendly(e) });
+  }
+}
+/**
+ * Finish signing in with the code from the email, typed into the app. Unlike
+ * the link, this works whatever opens the email: the link can land in a
+ * browser tab (or a mail app's own browser) that isn't the installed app.
+ */
+export async function verifyEmailCode(code: string) {
+  const email = account.linkSentTo;
+  const token = code.replace(/\s+/g, '');
+  if (!email) return;
+  if (!/^\d{6,10}$/.test(token)) { set({ error: 'Enter the code from the email: just the digits.' }); return; }
+  set({ busy: true, error: undefined });
+  try {
+    const c = await client();
+    const { data, error } = await c.auth.verifyOtp({ email, token, type: 'email' });
+    if (error) throw error;
+    const user = data.session?.user ?? data.user;
+    set({ busy: false, status: 'signedIn', email: user?.email ?? email, userId: user?.id, linkSentTo: undefined });
+    toast('You’re signed in.');
+    void loadPlan();
+  } catch (e) {
+    const msg = friendly(e);
+    set({ busy: false, error: /expired|invalid/i.test(msg) ? 'That code didn’t work: it may have expired, or a newer email replaced it. Check the latest email, or send a new one.' : msg });
   }
 }
 export async function signOut() {
@@ -241,6 +266,6 @@ export function planText(p: PlanInfo | null | undefined, now = Date.now()): stri
 export function friendly(e: unknown): string {
   const msg = e instanceof Error ? e.message : typeof e === 'object' && e && 'message' in e ? String((e as { message: unknown }).message) : String(e);
   if (!navigator.onLine || /fetch|network|load failed|failed to fetch/i.test(msg)) return 'Couldn’t reach the server. Check your connection and try again.';
-  if (/rate limit|too many/i.test(msg)) return 'Too many sign-in emails for now. Wait a few minutes, then try again.';
+  if (/rate limit|too many/i.test(msg)) return 'Too many sign-in emails for now. Wait a while (up to an hour), then try again, or use Google.';
   return 'Something went wrong: ' + msg;
 }

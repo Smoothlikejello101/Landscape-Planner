@@ -15,6 +15,15 @@ async function fakeServer(page: Page, plan: object | null = { plan: 'trial', tri
     const req = route.request(), url = new URL(req.url());
     seen.push(`${req.method()} ${url.pathname}${url.pathname.endsWith('/authorize') ? url.search : ''}`);
     if (url.pathname === '/auth/v1/otp') return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    if (url.pathname === '/auth/v1/verify') {
+      const { token: code } = JSON.parse(req.postData() ?? '{}');
+      if (code !== '123456') return route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ code: 403, error_code: 'otp_expired', msg: 'Token has expired or is invalid' }) });
+      const exp = Math.floor(Date.now() / 1000) + 3600;
+      return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+        access_token: token(exp), refresh_token: 'refresh', token_type: 'bearer', expires_in: 3600, expires_at: exp,
+        user: { id: 'u-2', aud: 'authenticated', role: 'authenticated', email: 'new@example.com', app_metadata: {}, user_metadata: {}, created_at: '2026-10-17T00:00:00Z' },
+      }) });
+    }
     if (url.pathname === '/auth/v1/authorize') return route.fulfill({ status: 200, contentType: 'text/html', body: '<p>Google would ask here</p>' });
     if (url.pathname === '/auth/v1/logout') return route.fulfill({ status: 204, body: '' });
     if (url.pathname === '/rest/v1/plans') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(plan ? [plan] : []) });
@@ -53,12 +62,32 @@ test('signed out: Google goes to Google and back here; an emailed link is sent',
   await expect(account.getByTestId('link-sent')).toContainText('jason@example.com');
   expect(seen).toContain('POST /auth/v1/otp');
   // Google: the page leaves for the sign-in screen, set to come back to the app.
-  await account.getByText('Use a different email').click();
+  await account.getByText('Use a different email, or send a new code').click();
   await account.getByTestId('signin-google').click();
   await expect(page.getByText('Google would ask here')).toBeVisible();
   const authorize = seen.find((s) => s.includes('/authorize'))!;
   expect(authorize).toContain('provider=google');
   expect(decodeURIComponent(authorize)).toMatch(/redirect_to=http:\/\/localhost:\d+\/(&|$)/);
+});
+
+test('an emailed code, typed into the app, signs in here', async ({ page }) => {
+  const seen = await fakeServer(page);
+  await openFresh(page);
+  const account = await openAccount(page);
+  await account.getByTestId('signin-email').fill('new@example.com');
+  await account.getByTestId('signin-send').click();
+  await expect(account.getByTestId('link-sent')).toContainText('Enter it here');
+  // A wrong (or replaced) code says so, and keeps what was typed.
+  await account.getByTestId('signin-code').fill('111111');
+  await account.getByTestId('signin-verify').click();
+  await expect(account.getByTestId('account-error')).toContainText('That code didn’t work');
+  await expect(account.getByTestId('signin-code')).toHaveValue('111111');
+  await account.getByTestId('signin-code').fill('123 456');
+  await account.getByTestId('signin-verify').click();
+  await expect(account.getByTestId('signed-in')).toHaveText('Signed in as new@example.com');
+  await expect(account.getByTestId('plan')).toHaveText('Free trial: 30 days left');
+  expect(seen).toContain('POST /auth/v1/verify');
+  expect(await page.evaluate(() => !!localStorage.getItem('lp-auth'))).toBe(true); // kept: signed in after a restart too
 });
 
 test('signed in: the trial shows; signing out keeps the plans on this device', async ({ page }) => {
