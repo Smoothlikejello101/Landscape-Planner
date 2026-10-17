@@ -186,6 +186,14 @@ test('beta: sync runs by itself, uploads this device’s plans, and brings anoth
   await expect(account.getByTestId('sync-status')).toHaveText('Synced just now');
   expect(seen).toContain('push My Garden'); // this device's plan went up
   await expect(page.locator('.proj-row', { hasText: 'Cabin' })).toHaveCount(1); // the laptop's came down
+  // Deleting a synced plan says where it goes, and it shows up there.
+  let asked = '';
+  page.once('dialog', (d) => { asked = d.message(); void d.accept(); });
+  await page.getByRole('button', { name: 'Delete Cabin' }).click();
+  expect(asked).toContain('Recently deleted');
+  expect(asked).not.toContain('cannot be undone');
+  await account.getByTestId('sync-now').click();
+  await expect(account.getByTestId('trash')).toContainText('Cabin');
   // Switched off on this device: nothing more is sent.
   await account.getByTestId('sync-device').locator('input').uncheck();
   await expect(account.getByTestId('sync-status')).toHaveText('Sync is off on this device');
