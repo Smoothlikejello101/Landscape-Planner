@@ -34,26 +34,32 @@ export interface KindDef {
   openProps?: boolean;
   /** Path width in feet for the center-line method. */
   pathWidth?: number;
+  /**
+   * Status a new one starts with: things almost always already there are
+   * Existing ('planted'); things being designed are Planned. None for sun
+   * records, notes and plain shapes.
+   */
+  startStatus?: 'planned' | 'planted';
 }
 
 const named = (s: string) => () => s;
 export const KINDS: KindDef[] = [
-  { key: 'plant', label: 'Plant', group: 'Garden', role: 'plant', methods: [], shortcut: 'p', startLabel: named('') },
-  { key: 'bed', label: 'Bed', group: 'Garden', role: 'bed', methods: ['poly', 'rect', 'circle', 'oval'], shortcut: 'b', startLabel: named('Bed') },
-  { key: 'tree', label: 'Existing tree', group: 'Garden', role: 'plant', methods: ['circle'], shortcut: 't', startLabel: named('Tree') },
-  { key: 'lawn', label: 'Lawn', group: 'Garden', role: 'lawn', methods: ['poly', 'rect'], shortcut: 'l', startLabel: named('Lawn') },
-  { key: 'path', label: 'Path', group: 'Paths and paving', role: 'path', methods: ['path', 'poly'], shortcut: 'w', startLabel: named('Path'), pathWidth: 3 },
-  { key: 'patio', label: 'Patio or deck', group: 'Paths and paving', role: 'path', methods: ['rect', 'poly'], startLabel: named('Patio') },
-  { key: 'driveway', label: 'Driveway', group: 'Paths and paving', role: 'path', methods: ['rect', 'poly', 'path'], startLabel: named('Driveway'), pathWidth: 10 },
+  { key: 'plant', label: 'Plant', group: 'Garden', role: 'plant', methods: [], shortcut: 'p', startLabel: named(''), startStatus: 'planned' },
+  { key: 'bed', label: 'Bed', group: 'Garden', role: 'bed', methods: ['poly', 'rect', 'circle', 'oval'], shortcut: 'b', startLabel: named('Bed'), startStatus: 'planned' },
+  { key: 'tree', label: 'Existing tree', group: 'Garden', role: 'plant', methods: ['circle'], shortcut: 't', startLabel: named('Tree'), startStatus: 'planted' },
+  { key: 'lawn', label: 'Lawn', group: 'Garden', role: 'lawn', methods: ['poly', 'rect'], shortcut: 'l', startLabel: named('Lawn'), startStatus: 'planted' },
+  { key: 'path', label: 'Path', group: 'Paths and paving', role: 'path', methods: ['path', 'poly'], shortcut: 'w', startLabel: named('Path'), pathWidth: 3, startStatus: 'planned' },
+  { key: 'patio', label: 'Patio or deck', group: 'Paths and paving', role: 'path', methods: ['rect', 'poly'], startLabel: named('Patio'), startStatus: 'planned' },
+  { key: 'driveway', label: 'Driveway', group: 'Paths and paving', role: 'path', methods: ['rect', 'poly', 'path'], startLabel: named('Driveway'), pathWidth: 10, startStatus: 'planted' },
   {
-    key: 'building', label: 'Building', group: 'Buildings and boundaries', role: 'building', methods: ['rect', 'poly'], shortcut: 'h',
+    key: 'building', label: 'Building', group: 'Buildings and boundaries', role: 'building', methods: ['rect', 'poly'], shortcut: 'h', startStatus: 'planted',
     // The first building in a plan is almost always the house.
     startLabel: (shapes) => (shapes.some((s) => s.role === 'building') ? 'Building' : 'House'),
   },
-  { key: 'fence', label: 'Fence', group: 'Buildings and boundaries', role: 'boundary', methods: ['line'], shortcut: 'f', startLabel: named('Fence') },
-  { key: 'property', label: 'Property line', group: 'Buildings and boundaries', role: 'boundary', methods: ['poly'], startLabel: named('Property line') },
+  { key: 'fence', label: 'Fence', group: 'Buildings and boundaries', role: 'boundary', methods: ['line'], shortcut: 'f', startLabel: named('Fence'), startStatus: 'planted' },
+  { key: 'property', label: 'Property line', group: 'Buildings and boundaries', role: 'boundary', methods: ['poly'], startLabel: named('Property line'), startStatus: 'planted' },
   { key: 'sun', label: 'Sun exposure', group: 'Site conditions', role: 'shade', methods: ['poly', 'circle'], shortcut: 's', startLabel: named(''), openProps: true },
-  { key: 'water', label: 'Pond, water', group: 'Site conditions', role: 'water', methods: ['poly', 'circle', 'oval'], startLabel: named('Pond') },
+  { key: 'water', label: 'Pond, water', group: 'Site conditions', role: 'water', methods: ['poly', 'circle', 'oval'], startLabel: named('Pond'), startStatus: 'planned' },
   { key: 'note', label: 'Note', group: 'Notes and tools', role: 'other', methods: ['note'], shortcut: 'n', startLabel: named(''), openProps: true },
   { key: 'measure', label: 'Measure', group: 'Notes and tools', methods: [], shortcut: 'm', startLabel: named('') },
   { key: 'plain', label: 'Plain shape', group: 'Notes and tools', methods: ['circle', 'rect', 'oval', 'triangle', 'poly', 'line'], startLabel: named('') },
@@ -157,7 +163,7 @@ export function kindLook(kind: KindDef, type: Shape['type']): { color: string; o
  */
 export function buildShape(m: Method, pts: Point[], kind: KindDef, shapes: Shape[], id = uid()): Shape | null {
   const role = kind.key === 'plain' ? undefined : kind.role;
-  const base = { id, label: kind.startLabel(shapes), locked: false, ...(role ? { role } : {}) };
+  const base = { id, label: kind.startLabel(shapes), locked: false, ...(role ? { role } : {}), ...(kind.startStatus ? { status: kind.startStatus } : {}) };
   switch (m) {
     case 'rect': case 'oval': {
       if (pts.length < 3) return null;

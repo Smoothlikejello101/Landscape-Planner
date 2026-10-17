@@ -1,11 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
-import { closeSheet, field, openFresh } from './helpers';
+import { closeSheet, field, openFresh, openSections } from './helpers';
 
 async function addPlant(page: Page, name: string, x: number) {
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill(name);
   await page.locator('.sheet .proj-row', { hasText: name }).first().click();
-  await page.locator('.sel-pill button.edit').click();
+  await page.locator('.sel-pill button.edit').click(); await openSections(page);
   await field(page, 'X position').fill(String(x));
 }
 
@@ -27,7 +27,7 @@ test('plants planted too close are flagged, and can be outlined', async ({ page 
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);
 
   // Spread them out: the outlines go.
-  await page.locator('.sel-pill button.edit').click();
+  await page.locator('.sel-pill button.edit').click(); await openSections(page);
   await field(page, 'X position').fill('12');
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(0);

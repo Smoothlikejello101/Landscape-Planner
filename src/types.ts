@@ -237,7 +237,7 @@ export type Gesture =
     }
   | { type: 'bg-drag'; startX: number; startY: number; grabOffset: Point; startCenter: Point; moved: boolean }
   | { type: 'bg-rot'; startAngle: number; startRotation: number; angleAt: (x: number, y: number) => number }
-  | { type: 'bg-calibrate-tap'; startX: number; startY: number; moved: boolean }
+  | { type: 'bg-calibrate-tap'; startX: number; startY: number; startOffset: Point; moved: boolean }
   | { type: 'drag-vertex'; id: string; index: number; startX: number; startY: number; moved: boolean; inserted: boolean };
 
 /**

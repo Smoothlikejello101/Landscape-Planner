@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, canvasBox, closeSheet, drag, field, openFresh, shapeCount, addPlainShape, setRole } from './helpers';
+import { addKind, canvasBox, closeSheet, drag, field, openFresh, shapeCount, addPlainShape, setRole, openSections } from './helpers';
 
 // At the starting view (zoom 100%, 24 px per foot, view starting at -10 ft),
 // canvas pixel 24*k is k-10 ft: tapping at multiples of 24 px lands on the grid.
@@ -24,7 +24,7 @@ async function drawL(page: Page) {
 test('draw an L-shaped bed by tapping corners', async ({ page }) => {
   await openFresh(page);
   await drawL(page);
-  await page.locator('.sel-pill .edit').click(); // properties stay closed after adding
+  await page.locator('.sel-pill .edit').click(); await openSections(page); // properties stay closed after adding
   await expect(page.locator('.sheet-header .title')).toHaveText('Outline properties');
   await setRole(page, 'Bed');
   await expect(page.locator('[data-testid=measure]')).toHaveText('Area: 64 sq ft');
@@ -69,7 +69,7 @@ test('draw a fence line: a boundary with a length, easy to tap', async ({ page }
   await tapFt(page, 14, 14);
   await tapFt(page, 14, 9);
   await bar(page).getByRole('button', { name: 'Done' }).click();
-  await page.locator('.sel-pill .edit').click();
+  await page.locator('.sel-pill .edit').click(); await openSections(page);
   await expect(page.locator('.sheet-header .title')).toHaveText('Line properties');
   await expect(page.getByTestId('what-it-is')).toContainText('Boundary');
   await expect(page.locator('[data-testid=measure]')).toHaveText('Length: 17 ft');
@@ -89,7 +89,7 @@ test('edit points: drag, add with +, delete, undo', async ({ page }) => {
   await addKind(page, 'plain', 'poly');
   for (const [x, y] of [[2, 2], [10, 2], [10, 8], [2, 8]]) await tapFt(page, x, y);
   await bar(page).getByRole('button', { name: 'Done' }).click();
-  await page.locator('.sel-pill .edit').click();
+  await page.locator('.sel-pill .edit').click(); await openSections(page);
   await expect(page.locator('[data-testid=measure]')).toHaveText('Area: 48 sq ft');
   await page.getByTestId('edit-points').click();
   await expect(page.locator('.sheet')).toHaveCount(0);
@@ -109,7 +109,7 @@ test('edit points: drag, add with +, delete, undo', async ({ page }) => {
   await closeSheet(page);
 
   // Delete the peak again.
-  await page.locator('.sel-pill button.edit').click();
+  await page.locator('.sel-pill button.edit').click(); await openSections(page);
   await page.getByTestId('edit-points').click();
   await page.mouse.click(box.x + 6 * FT, box.y + 0 * FT);
   await bar(page).getByRole('button', { name: 'Delete point' }).click();
@@ -120,7 +120,7 @@ test('edit points: drag, add with +, delete, undo', async ({ page }) => {
 
   // Undo brings the peak back.
   await page.locator('button[title=Undo]').click();
-  await page.locator('.sel-pill button.edit').click();
+  await page.locator('.sel-pill button.edit').click(); await openSections(page);
   await expect(page.locator('[data-testid=measure]')).toHaveText('Area: 62 sq ft');
 });
 
@@ -159,7 +159,7 @@ test('measure two points, keep it as a dimension line', async ({ page }) => {
   // Labelling it keeps the length; turning the length off leaves just the label.
   await page.locator('button[title=Layers]').click();
   await page.locator('.layer-row').first().click();
-  await page.locator('.sel-pill button.edit').click();
+  await page.locator('.sel-pill button.edit').click(); await openSections(page);
   await field(page, 'Label').fill('Gate');
   await expect(page.locator('#canvas-svg text', { hasText: 'Gate · 5 ft' })).toHaveCount(1);
   await page.getByTestId('show-length').locator('input').uncheck();
@@ -172,6 +172,7 @@ test('text notes: multi-line, sized in feet, scale with zoom', async ({ page }) 
   await expect(page.getByTestId('draw-banner')).toContainText('Tap where the note goes');
   await tapFt(page, 4, 4);
   await expect(page.locator('.sheet-header .title')).toHaveText('Text properties'); // a note opens on its text
+  await openSections(page);
   const ta = page.locator('.sheet textarea');
   await ta.fill('Rain barrel\ngoes here');
   await expect(ta).toBeFocused(); // typing never rebuilds the panel (Android keyboard)

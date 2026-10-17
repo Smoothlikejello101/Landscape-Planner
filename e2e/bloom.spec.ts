@@ -1,11 +1,11 @@
 import { test, expect, type Page } from '@playwright/test';
-import { closeSheet, field, openFresh, addPlainShape, setRole } from './helpers';
+import { closeSheet, field, openFresh, addPlainShape, setRole, openSections } from './helpers';
 
 async function addPlant(page: Page, name: string, x: number) {
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill(name);
   await page.locator('.sheet .proj-row', { hasText: name }).first().click();
-  await page.locator('.sel-pill button.edit').click();
+  await page.locator('.sel-pill button.edit').click(); await openSections(page);
   await field(page, 'X position').fill(String(x));
   await field(page, 'Y position').fill('1');
   await closeSheet(page);
@@ -27,7 +27,7 @@ test('bloom calendar for a bed and for the whole plan', async ({ page }) => {
   // The bed's properties show its own plants by month.
   await page.locator('button[title=Layers]').click();
   await page.locator('.layer-row', { hasText: 'Front bed' }).click();
-  await page.locator('.sel-pill button.edit').click();
+  await page.locator('.sel-pill button.edit').click(); await openSections(page);
   const chart = page.getByTestId('bloom-chart');
   await expect(chart.locator('.bloom-name').nth(1)).toHaveText("Heuchera 'Autumn Bride' ×2");
   await expect(chart.locator('.bloom-cell.on').first()).toBeVisible();

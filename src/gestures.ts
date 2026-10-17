@@ -114,10 +114,10 @@ export function onCanvasPointerDown(e: PointerEvent) {
     };
     return;
   }
-  // During calibration any tap in the canvas records a point (finalized on
-  // pointerup so a slight finger wobble still counts).
+  // During calibration a tap records a point (finalized on pointerup so a
+  // slight finger wobble still counts); a drag pans, to find the next point.
   if (state.bgCalibrate && (state.bgCalibrate.step === 'point1' || state.bgCalibrate.step === 'point2')) {
-    gesture.current = { type: 'bg-calibrate-tap', startX: clientX, startY: clientY, moved: false };
+    gesture.current = { type: 'bg-calibrate-tap', startX: clientX, startY: clientY, startOffset: { x: state.offsetX, y: state.offsetY }, moved: false };
     return;
   }
   if (!isCanvas) return;
@@ -179,6 +179,11 @@ export function onCanvasPointerMove(e: PointerEvent) {
     }
     case 'bg-calibrate-tap':
       movedPastThreshold(g, e);
+      if (g.moved) {
+        state.offsetX = g.startOffset.x - (clientX - g.startX) / pxPerFoot();
+        state.offsetY = g.startOffset.y - (clientY - g.startY) / pxPerFoot();
+        previewView();
+      }
       return;
     case 'pan':
       movedPastThreshold(g, e);
@@ -278,7 +283,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
       return;
     case 'bg-calibrate-tap':
       if (!g.moved) bgCalibrationTap(g.startX, g.startY);
-      else render();
+      else { save(); render(); }
       return;
     case 'drag-shape':
       if (g.moved) { flushHistoryDebounce(); pushHistory(); save(); }

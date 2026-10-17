@@ -104,6 +104,12 @@ export function finishDraw(): Shape | null {
   if (!shape) return null;
   state.draw = null;
   hover = null;
+  // A plant added while the plan shows one status or phase joins it (else it would vanish from view).
+  const f = state.viewFilter;
+  if (shape.role === 'plant') {
+    if (f.status && f.status !== 'gone') shape.status = f.status;
+    if (f.phase) shape.phase = f.phase;
+  }
   state.shapes.push(shape);
   state.selectedIds = [shape.id];
   // Most things stay closed so the plan stays in view; a note needs its text, sun exposure its sun record.

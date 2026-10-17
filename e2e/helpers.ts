@@ -84,6 +84,16 @@ export async function addPlainShape(page: Page, type: 'circle' | 'rect' | 'oval'
   await expect(page.getByTestId('draw-bar')).toHaveCount(0);
   await page.locator('.sel-pill .edit').click();
   await expect(page.locator('.sheet-header .title')).toContainText('properties');
+  await openSections(page);
+}
+
+/**
+ * Open every collapsed group in the properties sheet. Opened groups stay open
+ * for the rest of the page's life, so later sheets show them too.
+ */
+export async function openSections(page: Page) {
+  const closed = page.locator('.sheet .prop-head[aria-expanded=false]');
+  while (await closed.count()) await closed.first().click();
 }
 
 /** In the open properties sheet: say what the selection is (opens the list behind Change). */
@@ -91,4 +101,5 @@ export async function setRole(page: Page, role: string) {
   const change = page.locator('.sheet [data-testid=change-kind]');
   if (await change.count()) await change.click();
   await page.locator('.sheet .role-chip', { hasText: role }).first().click();
+  await openSections(page); // a new role can bring new groups (a bed's plants, a sun record)
 }

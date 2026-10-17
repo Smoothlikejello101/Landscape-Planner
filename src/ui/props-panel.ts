@@ -3,11 +3,11 @@ import { el } from '../dom';
 import { I } from '../icons';
 import { isLocked, roleKey, roleLabel, roleLocked } from '../roles';
 import { convertToOutline, startEditPoints } from '../draw';
-import { boxSize, resizedPoints } from '../geometry';
+import { boxSize, resizedPoints, shapeArea, shapePerimeter } from '../geometry';
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
 import { roleChips } from './role-picker';
-import { bedSection, crowdingNote, measureText, plantSunBanner, shadeSunSection } from './role-sections';
+import { bedSection, crowdingNote, measureText, plantSunBanner, shadeSunSection, sunListText } from './role-sections';
 import { setRoleForIds, bringForward, bringToFront, copySelected, deleteSelected, duplicateSelected, findNextSameTier, sendBackward, sendToBack, setLockedForIds, updateSelected, updateSelectedSilent } from '../mutations';
 import { getSelected, singleSelected } from '../selection';
 import { state } from '../state';
@@ -15,7 +15,9 @@ import { render } from './render';
 import type { CircleShape, Corner, RoleKey, Shape } from '../types';
 import { formatSize, isMine, plantRadius, type Range } from '../my-plants';
 import { plantsById } from '../plants';
-import { statusSection } from './status-section';
+import { statusSection, statusSummary } from './status-section';
+import { hasStatus } from '../status';
+import { plantsInBed } from '../beds';
 import { bedBloomSection } from './bloom-view';
 import { snapRot, typeName } from '../util';
 
@@ -33,20 +35,61 @@ export function resetKindChange() { changingKindOf = null; }
  */
 function whatItIs(ids: string[], current: RoleKey | null, multi: boolean): HTMLElement {
   const key = ids.join(',');
-  const wrap = el('div', { className: 'field', 'data-testid': 'what-it-is' });
-  wrap.appendChild(el('label', {}, multi ? 'What they are (applies to all selected)' : 'What it is'));
+  const wrap = el('div', { className: 'what-it-is', 'data-testid': 'what-it-is' });
+  const title = el('span', { className: 'prop-title' }, multi ? 'What they are' : 'What it is');
   if (changingKindOf === key) {
-    wrap.appendChild(roleChips(current, (role) => { changingKindOf = null; setRoleForIds(ids, role); render(); }));
+    wrap.append(el('div', { className: 'kind-row' }, title),
+      roleChips(current, (role) => { changingKindOf = null; setRoleForIds(ids, role); render(); }));
     return wrap;
   }
   const change = el('button', { className: 'link-btn', 'data-testid': 'change-kind', 'aria-label': multi ? 'Change what they are' : 'Change what it is' }, 'Change');
   change.addEventListener('click', () => { changingKindOf = key; render(); });
-  wrap.appendChild(el('div', { className: 'kind-row' }, el('span', { className: 'kind-name' }, current ? roleLabel(current) : 'Mixed'), change));
+  wrap.appendChild(el('div', { className: 'kind-row' }, title, el('span', { className: 'kind-name' }, current ? roleLabel(current) : 'Mixed'), change));
   return wrap;
 }
 
+// ---------- Sections: one row each, showing where things stand; tap to open ----------
+/** Sections opened or closed by hand (kept while moving between shapes). */
+const sectionOpen = new Map<string, boolean>();
+/**
+ * A collapsible group of properties. The header shows the current state
+ * (`summary`, which callers may update in place while typing); the content is
+ * always built, only hidden, so in-place updates never need a re-render.
+ */
+function section(key: string, title: string, summary: Node, content: Node[], openByDefault = false): HTMLElement {
+  // A group that opens by default stays open from then on (recording the sun mustn't fold it away).
+  if (openByDefault && !sectionOpen.has(key)) sectionOpen.set(key, true);
+  const open = sectionOpen.get(key) ?? false;
+  const head = el('button', { className: 'prop-head', 'aria-expanded': String(open), 'data-section': key },
+    el('span', { className: 'prop-title' }, title), el('span', { className: 'prop-summary' }, summary),
+    el('span', { className: 'prop-chev', html: I.chevronDown }));
+  head.addEventListener('click', () => { sectionOpen.set(key, !open); render(); });
+  const body = el('div', { className: 'prop-body' }, ...content);
+  return el('div', { className: 'prop-section' + (open ? ' open' : ''), 'data-testid': 'section-' + key }, head, body);
+}
+const fmt1 = (n: number) => String(Math.round(n * 10) / 10);
+/** "10 × 4 ft · 40 sq ft", "r 2 ft · 12.6 sq ft", "16 ft long · 3 ft wide". */
+function sizeSummary(s: Shape): string {
+  if (s.type === 'text') return `${fmt1(s.fontSize)} ft text`;
+  if (s.type === 'circle') return `r ${fmt1(s.radius)} ft` + (s.role === 'plant' ? '' : ` · ${Math.round(shapeArea(s)).toLocaleString()} sq ft`);
+  if (s.type === 'line') return `${fmt1(shapePerimeter(s))} ft long` + (s.pathWidth ? ` · ${fmt1(s.pathWidth)} ft wide` : '');
+  const { w, h } = boxSize(s);
+  const area = s.role === 'boundary' ? '' : ` · ${Math.round(shapeArea(s)).toLocaleString()} sq ft`;
+  return (s.type === 'poly' ? `${s.points.length} points · ` : '') + `${fmt1(w)} × ${fmt1(h)} ft` + area;
+}
+function positionSummary(s: Shape): string {
+  const rot = s.type !== 'circle' && s.rotation ? ` · ${fmt1(s.rotation)}°` : '';
+  return `x ${fmt1(s.x)}, y ${fmt1(s.y)}` + rot;
+}
+function lookSummary(s: Shape): HTMLElement {
+  const outline = s.role === 'boundary' || (s.type === 'line' && !s.pathWidth) || s.type === 'text';
+  return el('span', { className: 'look-sum' }, el('span', { className: 'sw-dot', style: { background: s.color } }),
+    outline ? '' : ` ${Math.round((s.opacity ?? 0.65) * 100)}%`);
+}
+
 export function renderPropsPanelSingle(s: Shape) {
-  const body = el('div', { className: 'sheet-body' });
+  const body = el('div', { className: 'sheet-body props-compact' });
+  // Always in view: warnings, the name, and what it is.
   if (s.locked) {
     body.appendChild(el('div', { className: 'banner' },
       "This shape is locked: it can't be dragged, and dragging on it pans the plan. Tap Unlock above to move it."));
@@ -54,7 +97,6 @@ export function renderPropsPanelSingle(s: Shape) {
     body.appendChild(el('div', { className: 'banner' },
       `All ${roleLabel(roleKey(s)).toLowerCase()} shapes are locked. Unlock them in the Layers panel to move this one.`));
   }
-  body.appendChild(whatItIs([s.id], roleKey(s), false));
   const sunCheck = plantSunBanner(s);
   if (sunCheck) body.appendChild(sunCheck);
   // Crowding: refreshed in place as the position is typed (no re-render).
@@ -62,8 +104,7 @@ export function renderPropsPanelSingle(s: Shape) {
   const refreshCrowd = () => { crowdBox.replaceChildren(...[crowdingNote(s)].filter((x): x is HTMLElement => !!x)); };
   refreshCrowd();
   body.appendChild(crowdBox);
-  if (s.type !== 'text') body.appendChild(statusSection([s]));
-  // Label (for a text note, the text itself; it can run to several lines)
+  // The label (for a text note, the text itself; it can run to several lines)
   if (s.type === 'text') {
     const ta = el('textarea', { rows: 3, placeholder: 'e.g. Rain barrel goes here' }) as HTMLTextAreaElement;
     ta.value = s.label || '';
@@ -74,14 +115,32 @@ export function renderPropsPanelSingle(s: Shape) {
     labelInput.addEventListener('input', e => updateSelectedSilent({ label: (e.target as HTMLInputElement).value }));
     body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Label'), labelInput));
   }
+  if (s.type !== 'text') body.appendChild(whatItIs([s.id], roleKey(s), false));
 
-  // Dimensions (with area/length, refreshed as you type)
+  // ----- What the role adds: sun record, bed contents, the plant, status -----
+  if (s.role === 'shade') {
+    // Recording the sun is the point of a sun exposure area: open until there's a record.
+    body.appendChild(section('sun', 'Sun record', document.createTextNode(s.sun ? sunListText(s.sun) : 'Not recorded'), [shadeSunSection(s)], !s.sun));
+  }
+  if (s.role === 'bed') {
+    const n = plantsInBed(s, state.shapes).filter((p) => p.status !== 'gone').length;
+    body.appendChild(section('bed', 'Plants in this bed', document.createTextNode(n ? `${n} plant${n === 1 ? '' : 's'}` : 'None yet'), [bedSection(s), bedBloomSection(s)]));
+  }
+  if (s.type === 'circle' && (s.plantId || !s.role || s.role === 'plant' || s.role === 'other')) {
+    const p = s.plantId ? plantsById[s.plantId] : undefined;
+    body.appendChild(section('plant', 'Plant', document.createTextNode(p ? p.common + (isMine(p) ? ' (mine)' : '') : s.plantId ? 'Details not on this device' : 'Not linked'), [plantLinkSection(s)]));
+  }
+  if (hasStatus(s)) body.appendChild(section('status', 'Status', document.createTextNode(statusSummary([s])), [statusSection([s])]));
+
+  // ----- Size (with area or length, refreshed as you type) -----
+  const sizeSum = document.createTextNode(sizeSummary(s));
   const measure = el('div', { className: 'measure', 'data-testid': 'measure' }, measureText(s));
-  const refreshMeasure = () => { measure.textContent = measureText(s); };
+  const refreshMeasure = () => { measure.textContent = measureText(s); sizeSum.textContent = sizeSummary(s); };
+  const sizeParts: Node[] = [];
   if (s.type === 'text') {
     const sizeInput = el('input', { type: 'number', step: '0.25', min: '0.25', value: s.fontSize });
-    sizeInput.addEventListener('input', e => updateSelectedSilent({ fontSize: Math.min(50, Math.max(0.25, parseFloat((e.target as HTMLInputElement).value) || 0)) }));
-    body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Text height (ft)'), sizeInput,
+    sizeInput.addEventListener('input', e => { updateSelectedSilent({ fontSize: Math.min(50, Math.max(0.25, parseFloat((e.target as HTMLInputElement).value) || 0)) }); refreshMeasure(); });
+    sizeParts.push(el('div', { className: 'field' }, el('label', {}, 'Text height (ft)'), sizeInput,
       el('div', { className: 'hint' }, 'Sized in feet so it stays in proportion to the plan when zoomed or printed.')));
   } else if (s.type === 'circle') {
     const radInput = el('input', { type: 'number', step: '0.5', min: '0.1', value: s.radius });
@@ -93,10 +152,17 @@ export function renderPropsPanelSingle(s: Shape) {
       diameterHint.textContent = 'Diameter: ' + (newR * 2).toFixed(1) + ' ft';
       refreshMeasure();
     });
-    body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Radius (ft)'), radInput, diameterHint, measure));
-    body.appendChild(plantLinkSection(s));
+    sizeParts.push(el('div', { className: 'field' }, el('label', {}, 'Radius (ft)'), radInput, diameterHint, measure));
   } else {
     const isPath = s.type === 'poly' || s.type === 'line';
+    // Reshaping point by point is the likelier edit for an outline or path, so it comes first.
+    if (isPath) {
+      const editBtn = el('button', { className: 'btn ghost', 'data-testid': 'edit-points' }, 'Edit points…');
+      editBtn.disabled = isLocked(s);
+      editBtn.addEventListener('click', () => { startEditPoints(s.id); render(); });
+      sizeParts.push(el('div', { className: 'field' }, editBtn,
+        el('div', { className: 'hint' }, isLocked(s) ? 'Unlock this shape to edit its points.' : 'Drag points to reshape, add or remove corners.')));
+    }
     const size = boxSize(s);
     // Outlines and lines stretch their points to the new size.
     const resize = (w: number, h: number) => {
@@ -112,101 +178,91 @@ export function renderPropsPanelSingle(s: Shape) {
     if (isPath && size.h === 0) hInput.disabled = true;
     // A path's box isn't its size (that's its width and length), so it has no box fields.
     if (!(s.type === 'line' && s.pathWidth)) {
-      body.appendChild(el('div', { className: 'row-2' },
+      sizeParts.push(el('div', { className: 'row-2' },
         el('div', { className: 'field' }, el('label', {}, 'Width (ft)'), wInput),
-        el('div', { className: 'field' }, el('label', {}, 'Height (ft)'), hInput)
-      ));
+        el('div', { className: 'field' }, el('label', {}, 'Height (ft)'), hInput)));
     }
-    body.appendChild(measure);
-    if (isPath) {
-      const editBtn = el('button', { className: 'btn ghost', 'data-testid': 'edit-points' }, 'Edit points…');
-      editBtn.disabled = isLocked(s);
-      editBtn.addEventListener('click', () => { startEditPoints(s.id); render(); });
-      body.appendChild(el('div', { className: 'field' }, editBtn,
-        el('div', { className: 'hint' }, isLocked(s) ? 'Unlock this shape to edit its points.' : 'Drag points to reshape, add or remove corners.')));
-    } else {
+    sizeParts.push(measure);
+    if (s.type === 'line') {
+      // A path's width; empty = a thin line (fences). Typed without re-rendering (keyboard safety).
+      const w = el('input', { type: 'number', min: '0.25', max: '50', step: '0.5', inputMode: 'decimal', placeholder: 'Thin line', value: s.pathWidth ?? '', 'data-testid': 'path-width' }) as HTMLInputElement;
+      const widthValue = () => { const v = parseFloat(w.value.replace(',', '.')); return Number.isFinite(v) && v >= 0.25 && v <= 50 ? v : null; };
+      // While typing, only a usable width applies (a passing "0" mustn't turn the path into a line).
+      w.addEventListener('input', () => { const v = widthValue(); if (v != null) { updateSelectedSilent({ pathWidth: v }); refreshMeasure(); } });
+      // On leaving the field: empty means a thin line; anything else unusable goes back to the width in use.
+      w.addEventListener('change', () => {
+        if (!w.value.trim()) { updateSelectedSilent({ pathWidth: undefined }); refreshMeasure(); }
+        else if (widthValue() == null) w.value = String(s.type === 'line' ? s.pathWidth ?? '' : '');
+      });
+      sizeParts.push(el('div', { className: 'field', style: { marginTop: '8px' } }, el('label', {}, 'Path width (ft)'), w,
+        el('div', { className: 'hint' }, 'Paths draw at their real width. Leave it empty for a thin line, like a fence.')));
+      const cb = el('input', { type: 'checkbox' }) as HTMLInputElement;
+      cb.checked = !!s.showLength;
+      cb.addEventListener('change', () => updateSelected({ showLength: cb.checked }));
+      sizeParts.push(el('label', { className: 'check-row', 'data-testid': 'show-length' }, cb, el('span', {}, 'Show length on the plan')));
+    }
+    if (!isPath) {
       const convBtn = el('button', { className: 'btn ghost', 'data-testid': 'convert-outline' }, 'Convert to outline');
       convBtn.disabled = isLocked(s);
       convBtn.addEventListener('click', () => { convertToOutline(s.id); render(); });
-      body.appendChild(el('div', { className: 'field' }, convBtn,
+      sizeParts.push(el('div', { className: 'field' }, convBtn,
         el('div', { className: 'hint' }, 'Turns this into a freeform outline you can reshape point by point.')));
     }
+    // Triangle (older plans): which corner holds the right angle
+    if (s.type === 'triangle') {
+      const corners: { v: Corner; label: string }[] = [
+        { v: 'bl', label: 'Bottom-left' }, { v: 'br', label: 'Bottom-right' }, { v: 'tl', label: 'Top-left' }, { v: 'tr', label: 'Top-right' },
+      ];
+      const grid = el('div', { className: 'tri-corners' });
+      for (const c of corners) {
+        const btn = el('button', { className: 'tri-corner-btn' + ((s.rightAngle || 'bl') === c.v ? ' sel' : '') }, c.label);
+        btn.addEventListener('click', () => updateSelected({ rightAngle: c.v }));
+        grid.appendChild(btn);
+      }
+      sizeParts.push(el('div', { className: 'field' }, el('label', {}, 'Right angle corner'), grid));
+    }
   }
+  body.appendChild(section('size', 'Size', sizeSum, sizeParts));
 
-  // Position
+  // ----- Position and rotation -----
+  const posSum = document.createTextNode(positionSummary(s));
+  const refreshPos = () => { posSum.textContent = positionSummary(s); };
   const xInput = el('input', { type: 'number', step: '0.5', value: s.x });
-  xInput.addEventListener('input', e => { updateSelectedSilent({ x: parseFloat((e.target as HTMLInputElement).value) || 0 }); refreshCrowd(); });
+  xInput.addEventListener('input', e => { updateSelectedSilent({ x: parseFloat((e.target as HTMLInputElement).value) || 0 }); refreshCrowd(); refreshPos(); });
   const yInput = el('input', { type: 'number', step: '0.5', value: s.y });
-  yInput.addEventListener('input', e => { updateSelectedSilent({ y: parseFloat((e.target as HTMLInputElement).value) || 0 }); refreshCrowd(); });
-  body.appendChild(el('div', { className: 'row-2' },
+  yInput.addEventListener('input', e => { updateSelectedSilent({ y: parseFloat((e.target as HTMLInputElement).value) || 0 }); refreshCrowd(); refreshPos(); });
+  const posParts: Node[] = [el('div', { className: 'row-2' },
     el('div', { className: 'field' }, el('label', {}, 'X position (ft)'), xInput),
-    el('div', { className: 'field' }, el('label', {}, 'Y position (ft)'), yInput)
-  ));
-
-  // Rotation (rect, oval, triangle)
+    el('div', { className: 'field' }, el('label', {}, 'Y position (ft)'), yInput))];
   if (s.type !== 'circle') {
     const rotVal = s.rotation || 0;
     const rotInput = el('input', { type: 'number', step: '5', value: rotVal });
     const rotPct = el('span', { style: { fontSize: '12px', color: '#78716c' } }, rotVal + '°');
-    rotInput.addEventListener('input', e => {
-      const v = parseFloat((e.target as HTMLInputElement).value) || 0;
-      updateSelectedSilent({ rotation: v });
-      rotPct.textContent = v + '°';
-    });
+    const setRot = (v: number) => { updateSelectedSilent({ rotation: v }); rotPct.textContent = v + '°'; refreshPos(); };
+    rotInput.addEventListener('input', e => setRot(parseFloat((e.target as HTMLInputElement).value) || 0));
     const quickBtns = el('div', { className: 'rot-quick' });
     [-90, -15, 15, 90].forEach(delta => {
       const b = el('button', {}, (delta > 0 ? '+' : '') + delta + '°');
       b.addEventListener('click', () => {
-        const cur = s.rotation || 0;
-        let newRot = snapRot(cur + delta);
+        let newRot = snapRot((s.rotation || 0) + delta);
         if (newRot >= 360) newRot -= 360;
         if (newRot < 0) newRot += 360;
         rotInput.value = String(newRot);
-        rotPct.textContent = newRot + '°';
-        updateSelectedSilent({ rotation: newRot });
+        setRot(newRot);
       });
       quickBtns.appendChild(b);
     });
     const resetBtn = el('button', { className: 'link-reset' }, 'Reset rotation');
-    resetBtn.addEventListener('click', () => {
-      rotInput.value = '0';
-      rotPct.textContent = '0°';
-      updateSelectedSilent({ rotation: 0 });
-    });
-    body.appendChild(el('div', { className: 'field' },
+    resetBtn.addEventListener('click', () => { rotInput.value = '0'; setRot(0); });
+    posParts.push(el('div', { className: 'field' },
       el('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' } },
         el('label', {}, 'Rotation (degrees, around center)'), rotPct),
-      rotInput,
-      quickBtns,
-      el('div', { style: { marginTop: '6px' } }, resetBtn)
-    ));
+      rotInput, quickBtns, el('div', { style: { marginTop: '6px' } }, resetBtn)));
   }
+  body.appendChild(section('position', 'Position', posSum, posParts));
 
-  // Triangle: right-angle corner
-  if (s.type === 'triangle') {
-    const corners: { v: Corner; label: string }[] = [
-      { v: 'bl', label: 'Bottom-left' },
-      { v: 'br', label: 'Bottom-right' },
-      { v: 'tl', label: 'Top-left' },
-      { v: 'tr', label: 'Top-right' }
-    ];
-    const grid = el('div', { className: 'tri-corners' });
-    for (const c of corners) {
-      const isSel = (s.rightAngle || 'bl') === c.v;
-      const btn = el('button', { className: 'tri-corner-btn' + (isSel ? ' sel' : '') }, c.label);
-      btn.addEventListener('click', () => updateSelected({ rightAngle: c.v }));
-      grid.appendChild(btn);
-    }
-    body.appendChild(el('div', { className: 'field' },
-      el('label', {}, 'Right angle corner'),
-      grid
-    ));
-  }
-
-  if (s.role === 'bed') { body.appendChild(bedSection(s)); body.appendChild(bedBloomSection(s)); }
-  if (s.role === 'shade') body.appendChild(shadeSunSection(s));
-
-  // Color
+  // ----- Look: color, and opacity for filled shapes -----
+  const lookSum = lookSummary(s);
   const swatches = el('div', { className: 'swatches' });
   for (const c of SWATCHES) {
     const btn = el('button', { className: 'swatch' + (s.color === c ? ' sel' : ''), style: { background: c } });
@@ -214,67 +270,49 @@ export function renderPropsPanelSingle(s: Shape) {
     swatches.appendChild(btn);
   }
   const colorInput = el('input', { type: 'color', value: s.color });
-  colorInput.addEventListener('input', e => updateSelectedSilent({ color: (e.target as HTMLInputElement).value }));
-  body.appendChild(el('div', { className: 'field' },
-    el('label', {}, 'Color'),
-    swatches,
-    el('div', { style: { marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' } },
-      el('label', { style: { fontSize: '12px', color: '#57534e' } }, 'Custom:'),
-      colorInput)
-  ));
-
-  // Opacity (not for outlines; shade with recorded sun is shaded by its sun hours)
-  if (s.type === 'line') {
-    const cb = el('input', { type: 'checkbox' }) as HTMLInputElement;
-    cb.checked = !!s.showLength;
-    cb.addEventListener('change', () => updateSelected({ showLength: cb.checked }));
-    body.appendChild(el('label', { className: 'check-row', 'data-testid': 'show-length' }, cb, el('span', {}, 'Show length on the plan')));
-    // A path's width; empty = a thin line (fences). Typed without re-rendering (keyboard safety).
-    const w = el('input', { type: 'number', min: '0.25', max: '50', step: '0.5', inputMode: 'decimal', placeholder: 'Thin line', value: s.pathWidth ?? '', 'data-testid': 'path-width' }) as HTMLInputElement;
-    const widthValue = () => { const v = parseFloat(w.value.replace(',', '.')); return Number.isFinite(v) && v >= 0.25 && v <= 50 ? v : null; };
-    // While typing, only a usable width applies (a passing "0" mustn't turn the path into a line).
-    w.addEventListener('input', () => { const v = widthValue(); if (v != null) { updateSelectedSilent({ pathWidth: v }); refreshMeasure(); } });
-    // On leaving the field: empty means a thin line; anything else unusable goes back to the width in use.
-    w.addEventListener('change', () => {
-      if (!w.value.trim()) { updateSelectedSilent({ pathWidth: undefined }); refreshMeasure(); }
-      else if (widthValue() == null) w.value = String(s.type === 'line' ? s.pathWidth ?? '' : '');
-    });
-    body.appendChild(el('div', { className: 'field', style: { marginTop: '8px' } }, el('label', {}, 'Path width (ft)'), w,
-      el('div', { className: 'hint' }, 'Paths draw at their real width. Leave it empty for a thin line, like a fence.')));
-  }
-  if (s.role === 'boundary' || (s.type === 'line' && !s.pathWidth) || s.type === 'text' || (s.role === 'shade' && s.sun)) return finish();
-  const opacityVal = s.opacity !== undefined ? s.opacity : 0.65;
-  const rangeInput = el('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: opacityVal });
-  const opacityPct = el('span', { style: { fontSize: '12px', color: '#78716c' } }, Math.round(opacityVal * 100) + '%');
-  rangeInput.addEventListener('input', e => {
-    const v = parseFloat((e.target as HTMLInputElement).value);
-    updateSelectedSilent({ opacity: v });
-    opacityPct.textContent = Math.round(v * 100) + '%';
+  colorInput.addEventListener('input', e => {
+    updateSelectedSilent({ color: (e.target as HTMLInputElement).value });
+    (lookSum.firstChild as HTMLElement).style.background = s.color;
   });
-  body.appendChild(el('div', { className: 'field' },
-    el('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' } },
-      el('label', {}, 'Opacity'), opacityPct),
-    rangeInput,
-    el('div', { className: 'hint' }, 'Lower opacity is useful for background features like tree shade.')
-  ));
-
-  return finish();
-
-  function finish() {
-  // Arrange button
-  const arrangeBtn = el('button', { className: 'btn ghost' }, 'Arrange layer order…');
-  arrangeBtn.addEventListener('click', () => { state.panel = 'arrange'; render(); });
-  body.appendChild(arrangeBtn);
-
-  // Duplicate / Delete
-  const dupBtn = el('button', { className: 'btn ghost', html: I.copy + '<span style="margin-left:6px">Duplicate</span>' });
-  dupBtn.addEventListener('click', () => { duplicateSelected(); render(); });
-  const delBtn = el('button', { className: 'btn danger', html: I.trash + '<span style="margin-left:6px">Delete</span>' });
-  delBtn.addEventListener('click', () => { deleteSelected(); render(); });
-  body.appendChild(el('div', { className: 'btn-row' }, dupBtn, delBtn));
-
-  return body;
+  const lookParts: Node[] = [el('div', { className: 'field' }, el('label', {}, 'Color'), swatches,
+    el('div', { style: { marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' } },
+      el('label', { style: { fontSize: '12px', color: '#57534e' } }, 'Custom:'), colorInput))];
+  // Opacity (not for outlines; sun exposure with a record is shaded by its sun hours)
+  if (!(s.role === 'boundary' || (s.type === 'line' && !s.pathWidth) || s.type === 'text' || (s.role === 'shade' && s.sun))) {
+    const opacityVal = s.opacity !== undefined ? s.opacity : 0.65;
+    const rangeInput = el('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: opacityVal });
+    const opacityPct = el('span', { style: { fontSize: '12px', color: '#78716c' } }, Math.round(opacityVal * 100) + '%');
+    rangeInput.addEventListener('input', e => {
+      const v = parseFloat((e.target as HTMLInputElement).value);
+      updateSelectedSilent({ opacity: v });
+      opacityPct.textContent = Math.round(v * 100) + '%';
+      lookSum.lastChild!.textContent = ` ${Math.round(v * 100)}%`;
+    });
+    lookParts.push(el('div', { className: 'field' },
+      el('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' } }, el('label', {}, 'Opacity'), opacityPct),
+      rangeInput,
+      el('div', { className: 'hint' }, 'Lower opacity is useful for background features like tree shade.')));
   }
+  body.appendChild(section('look', 'Look', lookSum, lookParts));
+
+  body.appendChild(actionRow(true));
+  return body;
+}
+
+/** Arrange · Duplicate · Delete, in one row. */
+function actionRow(single: boolean): HTMLElement {
+  const row = el('div', { className: 'action-row' });
+  if (single) {
+    const arrangeBtn = el('button', { className: 'btn ghost', html: I.layers + '<span>Arrange</span>', title: 'Arrange layer order' });
+    arrangeBtn.addEventListener('click', () => { state.panel = 'arrange'; render(); });
+    row.appendChild(arrangeBtn);
+  }
+  const dupBtn = el('button', { className: 'btn ghost', html: I.copy + '<span>Duplicate</span>' });
+  dupBtn.addEventListener('click', () => { duplicateSelected(); render(); });
+  const delBtn = el('button', { className: 'btn danger', html: I.trash + '<span>Delete</span>' });
+  delBtn.addEventListener('click', () => { deleteSelected(); render(); });
+  row.append(dupBtn, delBtn);
+  return row;
 }
 
 /** For circles: which plant this is (size range, reset, edit), or a way to make it one. */
@@ -316,7 +354,8 @@ export function renderPropsPanelMulti(selected: Shape[]) {
 
   const roles = new Set(selected.map(roleKey));
   body.appendChild(whatItIs(state.selectedIds.slice(), roles.size === 1 ? [...roles][0] : null, true));
-  body.appendChild(statusSection(selected));
+  const withStatus = selected.filter(hasStatus);
+  if (withStatus.length) body.appendChild(section('status', 'Status', document.createTextNode(statusSummary(withStatus)), [statusSection(withStatus)]));
 
   // Common locked state
   const allLocked = selected.every(s => s.locked);

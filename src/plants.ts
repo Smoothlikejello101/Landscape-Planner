@@ -161,6 +161,18 @@ export const FORM_COLORS: Record<string, string> = {
   'Bulb': '#ec4899', 'Fern': '#65a30d', 'Annual': '#fbbf24',
   'Aquatic/Emergent': '#0ea5e9', 'Cactus': '#84cc16'
 };
+/**
+ * Status and phase a newly placed plant starts with: Planned, unless the plan
+ * is filtered to a status or phase, in which case it joins what's in view
+ * (so it doesn't vanish from the filtered view the moment it's placed).
+ */
+export function newPlantStatus(): Pick<CircleShape, 'status' | 'phase'> {
+  const f = state.viewFilter;
+  return {
+    status: f.status && f.status !== 'gone' ? f.status : 'planned',
+    ...(f.phase ? { phase: f.phase } : {}),
+  };
+}
 export function addPlantShape(p: Plant) {
   flushHistoryDebounce();
   const c = viewCenterFeet();
@@ -174,7 +186,8 @@ export function addPlantShape(p: Plant) {
     label: p.common,
     opacity: 0.65, locked: false,
     role: 'plant',
-    plantId: p.id // permanent link back to the plant index row
+    plantId: p.id, // permanent link back to the plant index row
+    ...newPlantStatus(),
   };
   state.shapes.push(shape);
   state.selectedIds = [id];
