@@ -61,11 +61,17 @@ test('recent plants are one tap; the plant in hand can be switched; Place more f
   await expect(banner(page)).toContainText('Tennessee coneflower');
   await bar(page).getByRole('button', { name: 'Done' }).click();
 
-  // From a placed plant's properties: more of the same.
-  await page.locator('#canvas-svg text', { hasText: 'Black-eyed Susan' }).click({ force: true });
+  // A placed plant offers more of the same, from its pill and from its properties (instead of Duplicate).
+  await tapFromCenter(page, 4, 0); // the Black-eyed Susan
+  await expect(page.locator('.sel-pill .name')).toContainText('Black-eyed Susan');
   await page.locator('.sel-pill .edit').click();
-  await page.locator('.sheet [data-section=plant]').click();
-  await page.getByTestId('place-more').click();
+  const actions = page.locator('.sheet .action-row');
+  await expect(actions.getByRole('button', { name: 'Duplicate' })).toHaveCount(0);
+  await actions.getByTestId('place-more').click();
+  await expect(banner(page)).toContainText('Black-eyed Susan');
+  await tapFromCenter(page, 4, 4);
+  await bar(page).getByRole('button', { name: 'Done' }).click(); // the new one stays selected
+  await page.getByTestId('pill-place-more').click();
   await expect(banner(page)).toContainText('Black-eyed Susan');
 });
 
@@ -92,12 +98,12 @@ test('an existing tree: pick which, or draw an unknown one, by trunk and canopy 
   const first = page.locator('.sheet .proj-row').first();
   const name = (await first.locator('.pname').innerText()).replace(/Mine$/, '').trim();
   await first.click();
-  await expect(page.getByTestId('draw-banner')).toContainText('Tap the center');
+  await expect(page.getByTestId('draw-banner')).toContainText('Tap the trunk');
   await tapFromCenter(page, 0, 0);
   await tapFromCenter(page, 5, 0);
   await expect(page.locator('.sel-pill .name')).toHaveText(name);
   await page.locator('.sel-pill .edit').click();
-  await expect(page.locator('.sheet [data-section=size]')).toContainText('r 5 ft');
+  await expect(page.locator('.sheet [data-section=size]')).toContainText('10 ft spread');
   await expect(page.locator('.sheet [data-section=status]')).toContainText('Planted'); // it's already there
   await page.locator('.sheet-header button.iconbtn').last().click();
 

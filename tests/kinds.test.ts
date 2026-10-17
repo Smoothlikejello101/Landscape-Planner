@@ -84,8 +84,8 @@ describe('kinds', () => {
     expect(buildShape('rect', pts, kindDef('building'), [house])!.label).toBe('Building');
   });
   it('make an existing tree a plant sized by hand', () => {
-    const t = buildShape('circle', [{ x: 5, y: 5 }, { x: 15, y: 5 }], kindDef('tree'), []) as CircleShape;
-    expect(t).toMatchObject({ type: 'circle', role: 'plant', label: 'Tree', radius: 10, sizeFrom: 'manual' });
+    const t = buildShape('trunk', [{ x: 5, y: 5 }, { x: 15, y: 5 }], kindDef('tree'), []) as CircleShape;
+    expect(t).toMatchObject({ type: 'circle', role: 'plant', label: 'Tree', x: 5, y: 5, radius: 10, sizeFrom: 'manual', tree: true });
     expect(t.plantId).toBeUndefined();
   });
   it('make paths and driveways bands of their width, fences thin lines', () => {
@@ -109,7 +109,10 @@ describe('kinds', () => {
   });
   it('prompt for each tap', () => {
     expect(nextTapPrompt('rect', 1)).toBe('Tap the next corner along the same side');
-    expect(nextTapPrompt('circle', 1)).toBe('Tap the edge');
+    expect(nextTapPrompt('circle', 0)).toBe('Tap one edge');
+    expect(nextTapPrompt('circle', 1)).toBe('Tap the opposite edge');
+    expect(nextTapPrompt('trunk', 0)).toBe('Tap the trunk');
+    expect(nextTapPrompt('canopy', 4)).toMatch(/first edge point/);
     expect(nextTapPrompt('poly', 3)).toMatch(/first point/);
   });
 });
@@ -160,11 +163,16 @@ describe('adding by kind', () => {
     const svg = document.getElementById('canvas-svg')!;
     svg.getBoundingClientRect = () => ({ left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600, x: 0, y: 0, toJSON: () => ({}) });
     state.zoom = 1; state.offsetX = 0; state.offsetY = 0;
-    startDraw('circle', 'tree');
+    startDraw('trunk', 'tree');
     const ppf = 24; // PX_PER_FOOT_BASE at zoom 1
     expect(drawTap(10 * ppf, 10 * ppf)).toBe(false);
     expect(drawTap(13 * ppf, 14 * ppf)).toBe(true);
     expect(state.shapes.at(-1)).toMatchObject({ type: 'circle', x: 10, y: 10, radius: 5, label: 'Tree' });
+    // A shaped canopy: the trunk, then around the edge until the first edge point is tapped again.
+    startDraw('canopy', 'tree');
+    for (const [x, y] of [[30, 30], [26, 28], [34, 28], [34, 33], [26, 33]]) expect(drawTap(x * ppf, y * ppf)).toBe(false);
+    expect(drawTap(26 * ppf, 28 * ppf)).toBe(true);
+    expect(state.shapes.at(-1)).toMatchObject({ x: 30, y: 30, radius: 5, canopy: [[-4, -2], [4, -2], [4, 3], [-4, 3]], tree: true });
   });
 });
 

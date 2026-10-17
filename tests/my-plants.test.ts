@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { openKV } from '../src/db';
 import {
   applySizeMode, deleteMyPlant, fullRingRadius, isDataSized, loadMyPlants, mergeMyPlants, myPlants, parseSize,
-  plantRadius, plantsToResize, sanitizeMyPlant, saveMyPlant, sunRange,
+  plantRadius, plantsToResize, recolorPlaced, sanitizeMyPlant, saveMyPlant, sunRange,
 } from '../src/my-plants';
 import { plantShapeAt, plantsById, type Plant } from '../src/plants';
 import { state } from '../src/state';
@@ -131,6 +131,19 @@ describe('My plants library', () => {
     expect(plantsById['u-lime'].common).toBe('My Limelight');
     expect(plantsById['u-other']).toBeTruthy();
     expect(await mergeMyPlants([{ id: 'bad' }, 'junk'])).toBe(0);
+  });
+});
+
+describe('recoloring a library plant', () => {
+  it('recolors placed plants still in the old color, as one undo step; ones colored by hand stay', () => {
+    const c = (id: string, color: string, plantId = 'u-a') => ({ id, type: 'circle', x: 0, y: 0, radius: 1, color, label: '', opacity: 1, locked: false, role: 'plant', plantId }) as CircleShape;
+    state.shapes = [c('a', '#16A34A'), c('b', '#ff0000'), c('o', '#16a34a', 'u-other')];
+    state.history = []; state.historyIndex = -1;
+    recolorPlaced('u-a', '#16a34a', '#a855f7');
+    expect(state.shapes.map((s) => s.color)).toEqual(['#a855f7', '#ff0000', '#16a34a']);
+    expect(state.historyIndex).toBe(0);
+    recolorPlaced('u-a', '#16a34a', '#000000'); // nothing left in the old color: no step
+    expect(state.historyIndex).toBe(0);
   });
 });
 

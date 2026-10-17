@@ -75,9 +75,17 @@ export function methodIcon(m: Method): string {
       body = SHAPE(`<polygon points="${[a, b, c, d].map((q) => q.join(',')).join(' ')}"/>`) + STROKE([a, b, c]) + DOT(...a) + DOT(...b) + DOT(...c);
       break;
     }
-    case 'circle':
-      body = SHAPE('<circle cx="18" cy="12" r="10"/>') + STROKE([[18, 12], [28, 12]]) + DOT(18, 12) + DOT(28, 12);
+    case 'circle': // one edge, then the opposite edge
+      body = SHAPE('<circle cx="18" cy="12" r="10"/>') + STROKE([[8, 12], [28, 12]]) + DOT(8, 12) + DOT(28, 12);
       break;
+    case 'trunk': // the trunk, then the canopy's edge
+      body = SHAPE('<circle cx="18" cy="12" r="10"/>') + STROKE([[18, 12], [28, 12]]) + '<circle cx="18" cy="12" r="3" class="m-trunk"/>' + DOT(28, 12);
+      break;
+    case 'canopy': { // the trunk, then around the edge
+      const p: [number, number][] = [[9, 6], [22, 3], [30, 12], [25, 21], [10, 19]];
+      body = SHAPE(`<polygon points="${p.map((q) => q.join(',')).join(' ')}"/>`) + STROKE(p) + '<circle cx="18" cy="12" r="3" class="m-trunk"/>' + p.map(([x, y]) => DOT(x, y)).join('');
+      break;
+    }
     case 'oval':
       body = SHAPE('<ellipse cx="18" cy="12" rx="14" ry="8"/>') + STROKE([[4, 12], [32, 12]]) + STROKE([[18, 12], [18, 4]]) + DOT(4, 12) + DOT(32, 12) + DOT(18, 4);
       break;

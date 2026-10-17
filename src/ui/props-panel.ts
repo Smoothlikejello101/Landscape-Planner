@@ -1,5 +1,5 @@
 import { SWATCHES } from '../constants';
-import { el } from '../dom';
+import { el, escapeHtml } from '../dom';
 import { I } from '../icons';
 import { isLocked, roleKey, roleLabel, roleLocked } from '../roles';
 import { convertToOutline, startEditPoints } from '../draw';
@@ -14,7 +14,9 @@ import { state } from '../state';
 import { render } from './render';
 import type { CircleShape, Corner, RoleKey, Shape } from '../types';
 import { formatSize, isMine, plantRadius, type Range } from '../my-plants';
-import { plantsById } from '../plants';
+import { plantsById, type Plant } from '../plants';
+import { isTree, trunkFor } from '../trees';
+import { MAX_TRUNK, MIN_TRUNK } from '../constants';
 import { statusSection, statusSummary } from './status-section';
 import { hasStatus } from '../status';
 import { plantsInBed } from '../beds';
@@ -69,10 +71,12 @@ function section(key: string, title: string, summary: Node, content: Node[], ope
   return el('div', { className: 'prop-section' + (open ? ' open' : ''), 'data-testid': 'section-' + key }, head, body);
 }
 const fmt1 = (n: number) => String(Math.round(n * 10) / 10);
-/** "10 × 4 ft · 40 sq ft", "r 2 ft · 12.6 sq ft", "16 ft long · 3 ft wide". */
+/** Plants and trees are sized by spread (what a nursery tag says); other circles by diameter. */
+const bySpread = (s: CircleShape) => s.role === 'plant';
+/** "10 × 4 ft · 40 sq ft", "4 ft spread", "8 ft across · 50 sq ft", "16 ft long · 3 ft wide". */
 function sizeSummary(s: Shape): string {
   if (s.type === 'text') return `${fmt1(s.fontSize)} ft text`;
-  if (s.type === 'circle') return `r ${fmt1(s.radius)} ft` + (s.role === 'plant' ? '' : ` · ${Math.round(shapeArea(s)).toLocaleString()} sq ft`);
+  if (s.type === 'circle') return bySpread(s) ? `${fmt1(s.radius * 2)} ft spread` : `${fmt1(s.radius * 2)} ft across · ${Math.round(shapeArea(s)).toLocaleString()} sq ft`;
   if (s.type === 'line') return `${fmt1(shapePerimeter(s))} ft long` + (s.pathWidth ? ` · ${fmt1(s.pathWidth)} ft wide` : '');
   const { w, h } = boxSize(s);
   const area = s.role === 'boundary' ? '' : ` · ${Math.round(shapeArea(s)).toLocaleString()} sq ft`;
@@ -144,16 +148,29 @@ export function renderPropsPanelSingle(s: Shape) {
     sizeParts.push(el('div', { className: 'field' }, el('label', {}, 'Text height (ft)'), sizeInput,
       el('div', { className: 'hint' }, 'Sized in feet so it stays in proportion to the plan when zoomed or printed.')));
   } else if (s.type === 'circle') {
-    const radInput = el('input', { type: 'number', step: '0.5', min: '0.1', value: s.radius });
-    const diameterHint = el('div', { className: 'hint' }, 'Diameter: ' + (s.radius * 2).toFixed(1) + ' ft');
-    radInput.addEventListener('input', e => {
-      const newR = Math.max(0.1, parseFloat((e.target as HTMLInputElement).value) || 0);
+    // Sized by width across, as tags and tape measures give it; the radius is only stored.
+    const dInput = el('input', { type: 'number', step: '0.5', min: '0.2', inputMode: 'decimal', value: round1(s.radius * 2), 'data-testid': 'circle-size' }) as HTMLInputElement;
+    dInput.addEventListener('input', () => {
+      const d = parseFloat(dInput.value.replace(',', '.'));
+      if (!(d >= 0.2)) return; // a passing "0" or empty field mustn't shrink it to nothing
       // A plant resized by hand keeps its size when the plan's size mode changes.
-      updateSelectedSilent(s.plantId ? { radius: newR, sizeFrom: 'manual' } : { radius: newR });
-      diameterHint.textContent = 'Diameter: ' + (newR * 2).toFixed(1) + ' ft';
+      updateSelectedSilent(s.plantId ? { radius: d / 2, sizeFrom: 'manual' } : { radius: d / 2 });
       refreshMeasure();
     });
-    sizeParts.push(el('div', { className: 'field' }, el('label', {}, 'Radius (ft)'), radInput, diameterHint, measure));
+    dInput.addEventListener('change', () => { if (!(parseFloat(dInput.value.replace(',', '.')) >= 0.2)) dInput.value = String(round1(s.radius * 2)); });
+    const what = bySpread(s) ? (s.canopy ? 'Spread, widest (ft)' : 'Spread (ft)') : 'Diameter (ft)';
+    sizeParts.push(el('div', { className: 'field' }, el('label', {}, what), dInput,
+      bySpread(s) ? el('div', { className: 'hint' }, 'How wide it\'s drawn, across. Plant tags call this its spread.') : '', bySpread(s) ? '' : measure));
+    // Trees drawn before trunks existed (or a plant of my own that's a tree): say so here.
+    const formTree = !!s.plantId && !!plantsById[s.plantId]?.form?.startsWith('Tree');
+    if (s.role === 'plant' && !formTree) {
+      const cb = el('input', { type: 'checkbox' }) as HTMLInputElement;
+      cb.checked = !!s.tree;
+      cb.addEventListener('change', () => updateSelected({ tree: cb.checked || undefined }));
+      sizeParts.push(el('label', { className: 'check-row', 'data-testid': 'is-tree' }, cb, el('span', {}, 'A tree (show its trunk)')));
+    }
+    if (isTree(s)) sizeParts.push(...trunkFields(s));
+    if (s.canopy) sizeParts.push(makeRoundField(s));
   } else {
     const isPath = s.type === 'poly' || s.type === 'line';
     // Reshaping point by point is the likelier edit for an outline or path, so it comes first.
@@ -301,6 +318,7 @@ export function renderPropsPanelSingle(s: Shape) {
 }
 
 /** Arrange · Duplicate · Delete, in one row. */
+/** Arrange · Duplicate (Place more, for a plant) · Delete, in one row. */
 function actionRow(single: boolean): HTMLElement {
   const row = el('div', { className: 'action-row' });
   if (single) {
@@ -308,12 +326,48 @@ function actionRow(single: boolean): HTMLElement {
     arrangeBtn.addEventListener('click', () => { state.panel = 'arrange'; render(); });
     row.appendChild(arrangeBtn);
   }
-  const dupBtn = el('button', { className: 'btn ghost', html: I.copy + '<span>Duplicate</span>' });
-  dupBtn.addEventListener('click', () => { duplicateSelected(); render(); });
+  // More of the same plant is placed tap by tap, which beats copying and dragging.
+  const p = placeMorePlant(getSelected());
+  if (p) {
+    const more = el('button', { className: 'btn secondary', 'data-testid': 'place-more', html: I.plus + '<span>Place more</span>', title: `Place more ${p.common}` });
+    more.addEventListener('click', () => { startPlacing(p); render(); });
+    row.appendChild(more);
+  } else {
+    const dupBtn = el('button', { className: 'btn ghost', html: I.copy + '<span>Duplicate</span>' });
+    dupBtn.addEventListener('click', () => { duplicateSelected(); render(); });
+    row.appendChild(dupBtn);
+  }
   const delBtn = el('button', { className: 'btn danger', html: I.trash + '<span>Delete</span>' });
   delBtn.addEventListener('click', () => { deleteSelected(); render(); });
-  row.append(dupBtn, delBtn);
+  row.appendChild(delBtn);
   return row;
+}
+/** The plant to place more of: when everything selected is the same known plant (else null). */
+export function placeMorePlant(selected: Shape[]): Plant | null {
+  const ids = new Set(selected.map((s) => (s.type === 'circle' && s.role === 'plant' ? s.plantId ?? '' : '')));
+  if (ids.size !== 1) return null;
+  const id = [...ids][0];
+  return (id && plantsById[id]) || null;
+}
+/** A tree's trunk: in proportion to the canopy unless set by hand; a shaped canopy can be made round again. */
+function trunkFields(s: CircleShape): Node[] {
+  const t = el('input', { type: 'number', step: '0.25', min: String(MIN_TRUNK), max: String(MAX_TRUNK), inputMode: 'decimal', placeholder: String(trunkFor(s.radius * 2)), value: s.trunk ?? '', 'data-testid': 'trunk-size' }) as HTMLInputElement;
+  const value = () => { const v = parseFloat(t.value.replace(',', '.')); return v >= MIN_TRUNK && v <= MAX_TRUNK ? v : null; };
+  t.addEventListener('input', () => { const v = value(); if (v != null) updateSelectedSilent({ trunk: v }); });
+  t.addEventListener('change', () => {
+    if (!t.value.trim()) updateSelectedSilent({ trunk: undefined }); // back to in proportion
+    else if (value() == null) t.value = String(s.trunk ?? '');
+  });
+  const out: Node[] = [el('div', { className: 'field', style: { marginTop: '8px' } }, el('label', {}, 'Trunk (ft across)'), t,
+    el('div', { className: 'hint' }, 'Leave empty to keep it in proportion to the canopy.'))];
+  return out;
+}
+/** A shaped canopy back to a circle (also offered if it stopped being a tree). */
+function makeRoundField(s: CircleShape): HTMLElement {
+  const round = el('button', { className: 'btn ghost', 'data-testid': 'make-round' }, 'Make the canopy round');
+  round.disabled = isLocked(s);
+  round.addEventListener('click', () => updateSelected({ canopy: undefined }));
+  return el('div', { className: 'field' }, round, el('div', { className: 'hint' }, 'Drops the drawn outline, keeping the widest spread.'));
 }
 
 /** For circles: which plant this is (size range, reset, edit), or a way to make it one. */
@@ -330,16 +384,12 @@ function plantLinkSection(s: CircleShape): HTMLElement {
       : 'Pick the plant this circle stands for: it takes the plant\'s size and sun needs, and shows in the plant list.'));
     return wrap;
   }
-  // More of the same, tap by tap (instead of copying and dragging).
-  const more = el('button', { className: 'btn secondary', 'data-testid': 'place-more', style: { width: '100%', marginBottom: '8px' } }, `Place more ${p.common}`);
-  more.addEventListener('click', () => { startPlacing(p); render(); });
-  wrap.appendChild(more);
   const sizes = `Spread ${formatSize(p.width as Range | undefined) || 'unknown'}. Drawn at ${state.sizeMode === 'full' ? 'full' : 'typical'} size (change in Layers).`;
   wrap.appendChild(el('div', { className: 'hint' }, sizes));
   const row = el('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' } });
   const target = plantRadius(p, state.sizeMode);
   if (s.radius !== target) {
-    const reset = el('button', { className: 'btn ghost', style: { flex: '1' } }, `Reset to plant size (${target} ft radius)`);
+    const reset = el('button', { className: 'btn ghost', style: { flex: '1' } }, `Reset to plant size (${fmt1(target * 2)} ft spread)`);
     reset.addEventListener('click', () => updateSelected({ radius: target, sizeFrom: 'plant' }));
     row.appendChild(reset);
   }
@@ -372,7 +422,13 @@ export function renderPropsPanelMulti(selected: Shape[]) {
   });
   body.appendChild(lockBtn);
 
-  // Duplicate, copy, delete
+  // More of the same plant, then duplicate, copy, delete
+  const morePlant = placeMorePlant(selected);
+  if (morePlant) {
+    const more = el('button', { className: 'btn secondary', 'data-testid': 'place-more', html: I.plus + `<span style="margin-left:6px">Place more ${escapeHtml(morePlant.common)}</span>` });
+    more.addEventListener('click', () => { startPlacing(morePlant); render(); });
+    body.appendChild(more);
+  }
   const dupBtn = el('button', { className: 'btn ghost', html: I.copy + '<span style="margin-left:6px">Duplicate</span>' });
   dupBtn.addEventListener('click', () => { duplicateSelected(); render(); });
   const copyBtn = el('button', { className: 'btn ghost', html: I.copy + '<span style="margin-left:6px">Copy to clipboard</span>' });

@@ -4,7 +4,7 @@ import { onCanvasPointerDown, onWheel } from '../gestures';
 import { canRedo, canUndo, redo, undo } from '../history';
 import { I } from '../icons';
 import { copySelected, deleteSelected, setViewFilter, zoomBy } from '../mutations';
-import { clearSelection, singleSelected } from '../selection';
+import { clearSelection, getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { typeName } from '../util';
 import { fmtFeet, screenToFeet } from '../geometry';
@@ -12,12 +12,12 @@ import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelecte
 import { redrawHandles } from '../canvas';
 import { kindDef, METHOD_LABELS, nextTapPrompt, type KindKey } from '../kinds';
 import { methodIcon, renderAddSheet, renderShortcutsPanel, withKey } from './add-sheet';
-import { finishPlacing, placingPlant, setPlaceHover, undoPlace } from '../place';
-import { FORM_COLORS } from '../plants';
+import { finishPlacing, placingPlant, setPlaceHover, startPlacing, undoPlace } from '../place';
+import { plantColor } from '../plants';
 import { currentProject, storageIsDurable } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
-import { renderMoreMenu } from './menu';
+import { renderMoreMenu, toggleSelectMode } from './menu';
 import { renderExportModal, renderPreviewModal, renderResetModal } from './modals';
 import { renderPlantsPanel } from './plants-panel';
 import { renderPrintPanel } from './print-panel';
@@ -27,7 +27,7 @@ import { fullRingRadius } from '../my-plants';
 import { filterActive, filterText } from '../status';
 import { toast } from './toast';
 import { renderProjectsPanel, renderRenamePanel } from './projects-panel';
-import { renderArrangePanel, renderPropsPanel, resetKindChange } from './props-panel';
+import { placeMorePlant, renderArrangePanel, renderPropsPanel, resetKindChange } from './props-panel';
 
 // MAIN RENDER
 // ============================================================
@@ -81,14 +81,13 @@ export function render() {
   layersBtn.addEventListener('click', () => { state.panel = 'layers'; render(); });
   topbar.appendChild(layersBtn);
 
-  // Export
-  const exportBtn = el('button', { className: 'iconbtn', html: I.download, title: 'Export' });
-  exportBtn.disabled = state.shapes.length === 0;
-  exportBtn.addEventListener('click', () => { state.panel = 'export'; render(); });
-  topbar.appendChild(exportBtn);
+  // Select: lasso several things, tap to add or remove (export lives in the menu).
+  const selectBtn = el('button', { className: 'iconbtn' + (state.selectMode ? ' active' : ''), html: I.lasso, title: state.selectMode ? 'Stop selecting' : 'Select several', 'aria-pressed': String(state.selectMode), 'data-testid': 'select-mode' });
+  selectBtn.addEventListener('click', () => { toggleSelectMode(); render(); });
+  topbar.appendChild(selectBtn);
 
   // More menu
-  const moreBtn = el('button', { className: 'iconbtn' + (state.selectMode ? ' active' : ''), html: I.more, title: 'More' });
+  const moreBtn = el('button', { className: 'iconbtn', html: I.more, title: 'More' });
   moreBtn.addEventListener('click', () => { state.menu = state.menu ? null : 'more'; render(); });
   topbar.appendChild(moreBtn);
 
@@ -243,6 +242,14 @@ export function render() {
     closeBtn.innerHTML = I.x;
     closeBtn.addEventListener('click', () => { clearSelection(); render(); });
     bar.appendChild(editAllBtn);
+    // All the same plant: place more of it.
+    const more = placeMorePlant(getSelected());
+    if (more) {
+      const b = el('button', { title: `Place more ${more.common}`, 'data-testid': 'bar-place-more' });
+      b.innerHTML = I.plus + '<span>More</span>';
+      b.addEventListener('click', () => { startPlacing(more); render(); });
+      bar.appendChild(b);
+    }
     bar.appendChild(copyBtn);
     bar.appendChild(delBtn);
     bar.appendChild(closeBtn);
@@ -260,6 +267,14 @@ export function render() {
       editBtn.innerHTML = I.edit + '<span>Edit</span>';
       editBtn.addEventListener('click', () => { state.panel = 'props'; render(); });
       pill.appendChild(editBtn);
+      // A plant: more of it, tap by tap.
+      const more = placeMorePlant([s]);
+      if (more) {
+        const b = el('button', { className: 'pill-more', 'data-testid': 'pill-place-more', title: `Place more ${more.common}` });
+        b.innerHTML = I.plus + '<span>More</span>';
+        b.addEventListener('click', () => { startPlacing(more); render(); });
+        pill.appendChild(b);
+      }
       canvasWrap.appendChild(pill);
     }
   }
@@ -319,7 +334,7 @@ function renderPlaceBar(): HTMLElement {
   const bar = el('div', { className: 'bottom-toolbar draw-bar place-bar', 'data-testid': 'place-bar' });
   const p = placingPlant();
   const pick = el('button', { className: 'draw-btn place-plant', 'data-testid': 'place-switch', title: 'Switch plant' },
-    el('span', { className: 'sw-dot', style: { background: (p?.form && FORM_COLORS[p.form]) || '#16a34a' } }),
+    el('span', { className: 'sw-dot', style: { background: plantColor(p ?? undefined) } }),
     el('span', { className: 'place-name' }, p?.common ?? ''), el('span', { html: I.chevronDown, style: { display: 'flex' } }));
   pick.addEventListener('click', () => { state.panel = 'plants'; render(); });
   const undoB = el('button', { className: 'draw-btn' }, 'Undo');

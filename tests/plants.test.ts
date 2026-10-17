@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PLANT_FILTER_DEFAULTS, plantMatches, plantTakesSun, type Plant } from '../src/plants';
+import { matchedBy, PLANT_FILTER_DEFAULTS, plantMatches, plantTakesSun, searchRank, type Plant } from '../src/plants';
 
 const heuchera: Plant = {
   id: 'h', common: "Heuchera 'Autumn Bride'", botanical: 'Heuchera villosa', form: 'Perennial',
@@ -41,5 +41,17 @@ describe('plant filters', () => {
   it('applies the max height filter to the median height', () => {
     expect(plantMatches(heuchera, f({ maxHeight: '2' }))).toBe(true);
     expect(plantMatches(heuchera, f({ maxHeight: '1' }))).toBe(false);
+  });
+  it('ranks name matches first, and says when a plant matched only by what it hosts', () => {
+    const smooth: Plant = { id: 's', common: "Smooth hydrangea 'Haas' Halo'", botanical: 'Hydrangea arborescens' };
+    const goldenseal: Plant = { id: 'g', common: 'Goldenseal', botanical: 'Hydrastis canadensis' };
+    const buttonbush: Plant = { id: 'b', common: 'Buttonbush', botanical: 'Cephalanthus occidentalis', host: 'Hydrangea sphinx, titan sphinx moths' };
+    expect(searchRank(smooth, 'hydra')).toBe(0); // a word in its name
+    expect(searchRank(goldenseal, 'Hydra')).toBe(2); // botanical name
+    expect(searchRank(buttonbush, 'hydra')).toBe(3); // only its host
+    expect(matchedBy(buttonbush, 'hydra')).toBe('host');
+    expect(matchedBy(buttonbush, 'button')).toBe('name');
+    expect(searchRank(buttonbush, 'oak')).toBe(-1);
+    expect(searchRank({ id: 'x', common: 'Purple coneflower' }, 'flower')).toBe(1); // inside a word
   });
 });

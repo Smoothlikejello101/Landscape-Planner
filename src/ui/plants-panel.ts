@@ -1,9 +1,9 @@
 import { el, type Child } from '../dom';
 import { I } from '../icons';
 import type { Plant, PlantFilter } from '../plants';
-import { FORM_COLORS, MONTH_NAMES, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkShapeToPlant, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun } from '../plants';
+import { MONTH_NAMES, matchedBy, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkShapeToPlant, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
-import { startDraw } from '../draw';
+import { startTreeDraw } from '../draw';
 import { isMine, myPlants } from '../my-plants';
 import type { PlantFormArgs } from '../types';
 import { state } from '../state';
@@ -24,8 +24,7 @@ function pick(p: Plant) {
     state.selectedIds = [id];
     state.panel = 'props';
   } else if (state.pickerForTree) {
-    startDraw('circle', 'tree');
-    state.draw!.plantId = p.id;
+    startTreeDraw(p.id);
   } else if (state.placing) {
     switchPlacingPlant(p);
   } else {
@@ -50,7 +49,7 @@ export function renderPlantsPanel() {
     // A tree already in the yard: name it if it's in the list, then draw its canopy as it is.
     body.appendChild(el('div', { className: 'banner' }, 'Pick the tree, then tap its trunk and the edge of its canopy.'));
     const unknown = el('button', { className: 'btn secondary', 'data-testid': 'unknown-tree', style: { width: '100%', marginBottom: '10px' } }, "Unknown tree (I'll just draw it)");
-    unknown.addEventListener('click', () => { startDraw('circle', 'tree'); render(); });
+    unknown.addEventListener('click', () => { startTreeDraw(); render(); });
     body.appendChild(unknown);
   }
   // The plants placed most recently, one tap each.
@@ -59,7 +58,7 @@ export function renderPlantsPanel() {
     const row = el('div', { className: 'recent-plants', 'data-testid': 'recent-plants' });
     for (const p of recent) {
       const chip = el('button', { className: 'recent-plant' },
-        el('span', { className: 'sw-dot', style: { background: (p.form && FORM_COLORS[p.form]) || '#16a34a' } }), el('span', {}, p.common));
+        el('span', { className: 'sw-dot', style: { background: plantColor(p) } }), el('span', {}, p.common));
       chip.addEventListener('click', () => pick(p));
       row.appendChild(chip);
     }
@@ -77,9 +76,13 @@ export function renderPlantsPanel() {
       el('div', { className: 'pname' }, p.common),
       el('div', { className: 'pmeta' }, (p.botanical ? p.botanical + ' \u2014 ' : '') + plantMetaLine(p))
     );
+    // Found by what it hosts, not its name: say so, or the match looks like a mistake.
+    if (!isMine(p) && matchedBy(p, plantFilter.q) === 'host') {
+      info.appendChild(el('div', { className: 'pmatch', 'data-testid': 'host-match' }, 'Host for: ' + p.host));
+    }
     const dot = el('div', { style: {
       width: '14px', height: '14px', borderRadius: '50%', flex: 'none',
-      background: (p.form && FORM_COLORS[p.form]) || '#16a34a', marginRight: '10px'
+      background: plantColor(p), marginRight: '10px'
     } });
     const row = el('div', { className: 'proj-row', style: { alignItems: 'center' } }, dot, info);
     row.addEventListener('click', () => pick(p));

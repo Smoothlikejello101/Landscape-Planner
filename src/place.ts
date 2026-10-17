@@ -1,8 +1,8 @@
 import { svgEl } from './dom';
 import { pxPerFoot, screenToFeet } from './geometry';
-import { flushHistoryDebounce, pushHistory, undo } from './history';
+import { flushHistoryDebounce, pushHistory } from './history';
 import { plantRadius } from './my-plants';
-import { FORM_COLORS, plantShapeAt, plantsById, type Plant } from './plants';
+import { plantColor, plantShapeAt, plantsById, type Plant } from './plants';
 import { state } from './state';
 import { save } from './storage';
 import type { Point } from './types';
@@ -43,23 +43,29 @@ export function placeTap(clientX: number, clientY: number) {
   const shape = plantShapeAt(p, screenToFeet(clientX, clientY));
   state.shapes.push(shape);
   pushHistory();
-  state.placing.placed.push({ id: shape.id, at: state.historyIndex });
+  state.placing.placed.push({ id: shape.id, snap: state.history[state.historyIndex] });
   noteRecentPlant(p.id); // what's actually placed, not just picked
   save();
 }
 /**
- * Take back the last one placed. If it's still the newest undo step, undo it;
- * if something else happened since (a setting changed, Ctrl+Z), remove just
- * that plant, so nothing done before placing is ever rolled back.
+ * Take back the last one placed. Placing is a sandbox: a plant taken back is
+ * erased from the undo history too, so after Done the first undo removes the
+ * last plant kept, not one already taken back. Anything else done meanwhile
+ * (a setting changed) stays, minus that plant.
  */
 export function undoPlace() {
   const last = state.placing?.placed.pop();
   if (!last) return;
-  if (state.historyIndex === last.at && state.history.length - 1 === last.at) { undo(); return; }
-  const i = state.shapes.findIndex((s) => s.id === last.id);
-  if (i < 0) return; // already gone (undone some other way)
-  state.shapes.splice(i, 1);
-  pushHistory();
+  flushHistoryDebounce();
+  state.shapes = state.shapes.filter((s) => s.id !== last.id);
+  state.selectedIds = state.selectedIds.filter((id) => id !== last.id);
+  for (const snap of state.history) snap.shapes = snap.shapes.filter((s) => s.id !== last.id);
+  // The step that placed it is now the same as the one before it: drop it.
+  const i = state.history.indexOf(last.snap);
+  if (i > 0) {
+    state.history.splice(i, 1);
+    if (i <= state.historyIndex) state.historyIndex--;
+  }
   save();
 }
 /** Stop placing, with what was placed selected. */
@@ -97,6 +103,6 @@ export function renderPlaceOverlay(g: SVGElement) {
   const ppf = pxPerFoot();
   g.appendChild(svgEl('circle', {
     'data-role': 'place-ghost', cx: (hover.x - state.offsetX) * ppf, cy: (hover.y - state.offsetY) * ppf, r: plantRadius(p, state.sizeMode) * ppf,
-    fill: (p.form && FORM_COLORS[p.form]) || '#16a34a', 'fill-opacity': 0.25, stroke: '#0f766e', 'stroke-width': 1.5, 'stroke-dasharray': '4 3', 'pointer-events': 'none',
+    fill: plantColor(p), 'fill-opacity': 0.25, stroke: '#0f766e', 'stroke-width': 1.5, 'stroke-dasharray': '4 3', 'pointer-events': 'none',
   }));
 }

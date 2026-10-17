@@ -65,11 +65,15 @@ test('the drawing method is a choice with pictures, remembered per kind', async 
   await expect(methods.first().locator('svg.method-icon .m-dot')).toHaveCount(5); // the taps it takes
   await expect(bar(page).locator('[data-method=rect] .m-dot')).toHaveCount(3);
   await bar(page).locator('[data-method=circle]').click();
-  await expect(banner(page)).toHaveText('Bed: Tap the center');
-  await tapFt(page, 10, 10);
-  await tapFt(page, 13, 14); // 5 ft out
+  await expect(banner(page)).toHaveText('Bed: Tap one edge');
+  await tapFt(page, 6, 10);
+  await expect(banner(page)).toHaveText('Bed: Tap the opposite edge');
+  await tapFt(page, 14, 16); // 10 ft across, centered between the taps
   await page.locator('.sel-pill .edit').click(); await openSections(page);
-  await expect(field(page, 'Radius (ft)')).toHaveValue('5');
+  await expect(field(page, 'Diameter (ft)')).toHaveValue('10');
+  await expect(page.getByTestId('section-size').locator('.prop-summary')).toHaveText('10 ft across · 79 sq ft');
+  await expect(field(page, 'X position (ft)')).toHaveValue('0'); // canvas 10 ft = 0 ft
+  await expect(field(page, 'Y position (ft)')).toHaveValue('3');
   await expect(page.getByTestId('what-it-is')).toContainText('Bed');
   await closeSheet(page);
   await page.locator('.tool-btn.bed').click();
@@ -102,15 +106,61 @@ test('a path is a band at its real width, set while drawing', async ({ page }) =
   await expect(page.locator('#canvas-svg polyline[data-shape-id]').first()).toHaveAttribute('stroke-width', String(2 * FT));
 });
 
-test('an existing tree is a circle from trunk to canopy edge, sized by hand', async ({ page }) => {
+test('an existing tree: the trunk, then the canopy edge; spread by hand, trunk in proportion', async ({ page }) => {
   await openFresh(page);
   await addKind(page, 'tree');
   await page.getByTestId('unknown-tree').click();
+  await expect(bar(page).locator('[data-method]')).toHaveText(['Round canopy', 'Shaped canopy']);
+  await expect(banner(page)).toHaveText('Existing tree: Tap the trunk');
   await tapFt(page, 10, 10);
+  await expect(banner(page)).toHaveText('Existing tree: Tap the edge of the canopy');
   await tapFt(page, 10, 18);
   await expect(page.locator('.sel-pill .name')).toHaveText('Tree');
+  // Drawn with its trunk: 16 ft spread → 0.75 ft trunk (a twentieth, to the quarter foot).
+  const trunk = page.locator('#canvas-svg [data-role=trunk]');
+  await expect(trunk).toHaveAttribute('r', String(0.375 * FT));
+  await expect(page.locator('#canvas-svg [data-role=trunk-spokes]')).toHaveCount(1);
   await page.locator('.sel-pill .edit').click(); await openSections(page);
-  await expect(field(page, 'Radius (ft)')).toHaveValue('8');
+  await expect(field(page, 'Spread (ft)')).toHaveValue('16');
+  await expect(page.getByTestId('trunk-size')).toHaveAttribute('placeholder', '0.75');
+  await page.getByTestId('trunk-size').fill('2');
+  await expect(page.getByTestId('trunk-size')).toBeFocused(); // typing never rebuilds the sheet
+  await expect(trunk).toHaveAttribute('r', String(1 * FT));
+  await field(page, 'Spread (ft)').fill('20');
+  await expect(trunk).toHaveAttribute('r', String(1 * FT)); // set by hand: stays
+  // Not a tree after all (or a tree drawn before trunks): one switch.
+  await page.getByTestId('is-tree').locator('input').uncheck();
+  await expect(trunk).toHaveCount(0);
+  await page.getByTestId('is-tree').locator('input').check();
+  await expect(trunk).toHaveCount(1);
+});
+
+test('a tree pruned into a shape: the trunk, then its outline', async ({ page }) => {
+  await openFresh(page);
+  await addKind(page, 'tree');
+  await page.getByTestId('unknown-tree').click();
+  await bar(page).locator('[data-method=canopy]').click();
+  await tapFt(page, 10, 10); // trunk
+  await expect(banner(page)).toHaveText('Existing tree: Tap around the edge of the canopy');
+  await tapFt(page, 6, 8); await tapFt(page, 14, 8); await tapFt(page, 14, 13); await tapFt(page, 6, 13);
+  await tapFt(page, 6, 8); // back on the first edge point: done
+  await expect(bar(page)).toHaveCount(0);
+  const outline = page.locator('#canvas-svg polygon[data-shape-id]');
+  await expect(outline).toHaveCount(1);
+  await expect(page.locator('#canvas-svg [data-role=trunk]')).toHaveCount(1);
+  await page.locator('.sel-pill .edit').click(); await openSections(page);
+  // Its widest reach from the trunk: 5 ft (to the far corners) → 10 ft.
+  await expect(field(page, 'Spread, widest (ft)')).toHaveValue('10');
+  await field(page, 'Spread, widest (ft)').fill('20'); // grows about the trunk
+  await expect(outline).toHaveAttribute('points', `${2 * FT},${6 * FT} ${18 * FT},${6 * FT} ${18 * FT},${16 * FT} ${2 * FT},${16 * FT}`);
+  await closeSheet(page);
+  await page.locator('.sel-pill .edit').click();
+  await page.getByTestId('make-round').click();
+  await expect(outline).toHaveCount(0);
+  await expect(page.locator('#canvas-svg circle[data-shape-id]')).toHaveAttribute('r', String(10 * FT));
+  await page.waitForTimeout(600);
+  await page.reload();
+  await expect(page.locator('#canvas-svg [data-role=trunk]')).toHaveCount(1); // still a tree
 });
 
 test('sun exposure and notes open their properties; others stay closed', async ({ page }) => {

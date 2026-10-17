@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openFresh, autoDialogs, shapeCount, zoomPct, closeSheet, canvasBox, field, drag, addPlainShape, placeOnceAtCenter } from './helpers';
+import { openFresh, autoDialogs, shapeCount, zoomPct, closeSheet, canvasBox, field, drag, addPlainShape, placeOnceAtCenter, openExport } from './helpers';
 
 async function addShape(page: Page, cls: string) {
   await addPlainShape(page, ({ circle: 'circle', rect: 'rect', oval: 'oval', tri: 'triangle' } as const)[cls as 'circle']);
@@ -191,8 +191,7 @@ test.describe('projects and selection', () => {
     // second circle sits on top of the first; move it off with a drag
     let c = await page.locator('#canvas-svg circle').last().boundingBox();
     await drag(page, { x: c!.x + c!.width / 2, y: c!.y + c!.height / 2 }, { x: c!.x + c!.width / 2 + 120, y: c!.y + c!.height / 2 });
-    await page.locator('button[title=More]').click();
-    await page.locator('.menu-item', { hasText: 'Switch to select mode' }).click();
+    await page.getByTestId('select-mode').click();
     await expect(page.locator('.mode-banner')).toContainText('Select mode');
     const box = await canvasBox(page);
     await drag(page, { x: box.x + 10, y: box.y + 70 }, { x: box.x + box.width - 50, y: box.y + box.height - 70 });
@@ -230,7 +229,7 @@ test.describe('plants, background, export', () => {
     expect(await shapeCount(page)).toBe(1);
     await expect(page.locator('.sel-pill .name')).toContainText('Autumn Bride');
     await page.locator('.sel-pill button.edit').click();
-    await expect(field(page, 'Radius')).toHaveValue('1.25'); // 2.5 ft spread, drawn 2.5 ft across
+    await expect(field(page, 'Spread')).toHaveValue('2.5'); // 2.5 ft spread, drawn 2.5 ft across
   });
 
   test('background image two-point calibration sets the scale', async ({ page }) => {
@@ -288,7 +287,7 @@ test.describe('plants, background, export', () => {
     await openFresh(page);
     await addShape(page, 'circle');
     await closeSheet(page);
-    await page.locator('button[title=Export]').click();
+    await openExport(page);
     await page.locator('button', { hasText: 'Download PNG' }).click();
     await expect(page.locator('.preview-img')).toHaveAttribute('src', /^data:image\/png;base64,/);
   });

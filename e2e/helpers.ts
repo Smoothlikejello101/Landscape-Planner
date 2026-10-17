@@ -75,7 +75,7 @@ export async function tapFromCenter(page: Page, dx: number, dy: number) {
 export async function addPlainShape(page: Page, type: 'circle' | 'rect' | 'oval' | 'triangle') {
   await addKind(page, 'plain', type);
   const taps: Record<typeof type, [number, number][]> = {
-    circle: [[0, 0], [2, 0]],
+    circle: [[-2, 0], [2, 0]], // edge to opposite edge
     rect: [[-2, -1.5], [2, -1.5], [0, 1.5]],
     oval: [[-2.5, 0], [2.5, 0], [0, -1.5]],
     triangle: [[-2, 1.5], [2, 1.5], [-2, -1.5]],
@@ -102,6 +102,12 @@ export async function setRole(page: Page, role: string) {
   if (await change.count()) await change.click();
   await page.locator('.sheet .role-chip', { hasText: role }).first().click();
   await openSections(page); // a new role can bring new groups (a bed's plants, a sun record)
+}
+
+/** Open the Export sheet (in the ⋮ menu). */
+export async function openExport(page: Page) {
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Export image' }).click();
 }
 
 /** After picking a plant: tap the middle of the plan once, then Done (what one tap used to do). */

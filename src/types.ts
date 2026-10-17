@@ -67,6 +67,19 @@ export interface CircleShape extends ShapeBase {
    * still matches the plant data.
    */
   sizeFrom?: 'plant' | 'manual';
+  /**
+   * Drawn as a tree: a trunk at the center under the canopy. Set for trees
+   * added as trees; plants whose catalog form is a tree show one too.
+   */
+  tree?: boolean;
+  /** Trees: trunk diameter in feet, set by hand (unset = in proportion to the canopy). */
+  trunk?: number;
+  /**
+   * Trees pruned into a shape: the canopy outline, in feet relative to the
+   * trunk (x, y). `radius` is then the farthest the outline reaches, so the
+   * outline always fits inside the circle used for sizes and spacing.
+   */
+  canopy?: [number, number][];
   /** Ignored for circles; tolerated so old data and patches stay valid. */
   rotation?: number;
 }
@@ -245,7 +258,7 @@ export type Gesture =
  * tapped so far (world feet), and the kind being added (absent for a measurement).
  */
 export interface DrawState {
-  kind: 'poly' | 'line' | 'path' | 'rect' | 'circle' | 'oval' | 'triangle' | 'note' | 'measure';
+  kind: 'poly' | 'line' | 'path' | 'rect' | 'circle' | 'oval' | 'triangle' | 'note' | 'trunk' | 'canopy' | 'measure';
   points: Point[];
   target?: KindKey;
   /** Center-line method: the path's width in feet (else the kind's default). */
@@ -293,7 +306,7 @@ export interface AppState {
   /** Picker opened from Add, Existing tree: pick the tree (or an unknown one), then draw its canopy. */
   pickerForTree: boolean;
   /** Placing a plant by tapping: the plant in hand and what's been placed so far (not saved). */
-  placing: { plantId: string; placed: { id: string; at: number }[] } | null;
+  placing: { plantId: string; placed: { id: string; snap: HistorySnapshot }[] } | null;
   bgEditMode: boolean;
   bgCalibrate: Calibration | null;
   draw: DrawState | null;

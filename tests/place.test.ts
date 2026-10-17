@@ -2,9 +2,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { finishPlacing, placeTap, recentPlants, startPlacing, switchPlacingPlant, undoPlace } from '../src/place';
 import { plantsById, type Plant } from '../src/plants';
-import { canFinishDraw, finishDraw, startDraw } from '../src/draw';
+import { canFinishDraw, finishDraw, startTreeDraw } from '../src/draw';
 import { state } from '../src/state';
-import { pushHistory, undo } from '../src/history';
+import { pushHistory, redo, undo } from '../src/history';
 import type { CircleShape } from '../src/types';
 
 const cone: Plant = { id: 'u-cone', common: 'Coneflower', width: { min: 1.5, max: 2, med: 1.75 }, form: 'Perennial' };
@@ -58,9 +58,26 @@ describe('placing plants by tapping', () => {
     undoPlace(); // ...so this removes just the last plant
     expect(state.shapes.map((s) => s.label)).toEqual(['Front bed', 'Coneflower']);
     // Two plain undos from elsewhere, then the bar's Undo with nothing of its own left to take back.
-    undo(); undo(); undo();
+    undo(); undo();
     undoPlace(); undoPlace();
     expect(state.shapes.find((s) => s.id === 'bed')).toBeTruthy(); // the earlier bed is never undone
+    // ...and the rename made while placing is still there to redo, without the plants taken back.
+    redo(); redo();
+    expect(state.shapes.map((s) => s.label)).toEqual(['Front bed']);
+  });
+  it('is a sandbox: plants taken back never return through undo after Done', () => {
+    startPlacing(cone);
+    tapFt(1, 1); tapFt(2, 1); tapFt(3, 1); tapFt(4, 1);
+    const xs = () => state.shapes.map((s) => s.x);
+    undoPlace(); undoPlace(); // take back 4, then 3
+    expect(xs()).toEqual([1, 2]);
+    finishPlacing();
+    undo(); expect(xs()).toEqual([1]); // the first undo removes plant 2
+    undo(); expect(xs()).toEqual([]);
+    undo(); expect(xs()).toEqual([]); // nothing from before
+    // Redo brings back only the kept ones.
+    for (let i = 0; i < 5; i++) redo();
+    expect(xs()).toEqual([1, 2]);
   });
   it('switches plants without losing the ones placed', () => {
     startPlacing(cone);
@@ -85,8 +102,7 @@ describe('placing plants by tapping', () => {
     expect(recentPlants().map((p) => p.id)).toEqual(['u-cone', 'u-oak']);
   });
   it('draws a picked existing tree at the size tapped, named for the plant', () => {
-    startDraw('circle', 'tree');
-    state.draw!.plantId = 'u-oak';
+    startTreeDraw('u-oak');
     state.draw!.points.push({ x: 10, y: 10 }, { x: 10, y: 22 });
     expect(canFinishDraw()).toBe(true);
     expect(finishDraw()).toMatchObject({ label: 'White Oak', plantId: 'u-oak', radius: 12, sizeFrom: 'manual', status: 'planted' });

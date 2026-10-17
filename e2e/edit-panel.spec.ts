@@ -87,7 +87,7 @@ test('new plants start as Planned, or join the status the plan is showing', asyn
   await closeSheet(page);
   await place('Black-eyed Susan');
   expect(await shapeCount(page)).toBe(2);
-  await expect(page.locator('#canvas-svg text', { hasText: 'Black-eyed Susan' })).toHaveCount(1);
+  await expect(page.locator('#canvas-svg [data-role=plant-label]', { hasText: 'American Gold Rush' })).toHaveCount(1); // in view, named
 });
 
 test('an empty plan offers to start from an aerial photo', async ({ page }) => {

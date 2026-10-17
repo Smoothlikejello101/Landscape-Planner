@@ -1,12 +1,12 @@
 import { el } from '../dom';
 import { I } from '../icons';
 import {
-  deleteMyPlant, formatSize, newMyPlantId, parseSize, placedUsing, resizePlaced, saveMyPlant, sunLevels, sunRange, type Range,
+  deleteMyPlant, formatSize, newMyPlantId, parseSize, placedUsing, recolorPlaced, resizePlaced, saveMyPlant, sunLevels, sunRange, type Range,
 } from '../my-plants';
-import { FORM_COLORS, linkShapeToPlant, MONTH_NAMES, plantsById, type Plant } from '../plants';
+import { FORM_COLORS, linkShapeToPlant, MONTH_NAMES, plantColor, plantsById, type Plant } from '../plants';
 import { state } from '../state';
 import { finishPlacing, startPlacing, switchPlacingPlant } from '../place';
-import { startDraw } from '../draw';
+import { startTreeDraw } from '../draw';
 import { errMsg } from '../util';
 import { render } from './render';
 import { toast } from './toast';
@@ -95,7 +95,7 @@ export function renderPlantForm() {
   }
   body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Sun (tap all that apply)'), sunRow));
 
-  // Plant type: sets its color on the plan.
+  // Plant type, and its color on the plan: the type's color (green with none) until a color is picked.
   const form = el('select', { 'data-testid': 'pf-form' }) as HTMLSelectElement;
   form.appendChild(el('option', { value: '' }, 'Choose a type (optional)'));
   for (const f of Object.keys(FORM_COLORS)) {
@@ -103,7 +103,12 @@ export function renderPlantForm() {
     if (source?.form === f) o.selected = true;
     form.appendChild(o);
   }
-  body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Type'), form));
+  const color = el('input', { type: 'color', value: plantColor(source), 'data-testid': 'pf-color', 'aria-label': 'Color on the plan', title: 'Color on the plan' }) as HTMLInputElement;
+  let colorPicked = !!source?.color;
+  color.addEventListener('input', () => { colorPicked = true; });
+  form.addEventListener('change', () => { if (!colorPicked) color.value = plantColor({ id: '', common: '', form: form.value || undefined }); });
+  body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Type and color on the plan'),
+    el('div', { className: 'form-color-row' }, form, color)));
 
   // Bloom and notes: optional, folded away.
   const monthSel = (value?: number) => {
@@ -145,6 +150,8 @@ export function renderPlantForm() {
       ...(h ? { height: h } : {}),
       ...sunRange([...sun]),
       ...(form.value ? { form: form.value } : {}),
+      // Stored only when it differs from the type's color, so changing the type later still recolors it.
+      ...(color.value.toLowerCase() !== plantColor({ id: '', common: '', form: form.value || undefined }) ? { color: color.value.toLowerCase() } : {}),
       ...(start ? { bloom: { start, end, ...(bloomColor.value.trim() ? { color: bloomColor.value.trim() } : {}) } } : {}),
       ...(notes.value.trim() ? { notes: notes.value.trim() } : {}),
     };
@@ -159,8 +166,10 @@ export function renderPlantForm() {
     saveBtn.disabled = true;
     try {
       const oldName = editing?.common ?? '';
+      const oldColor = editing ? plantColor(editing) : '';
       const saved = await saveMyPlant(p);
       if (editing) {
+        recolorPlaced(saved.id, oldColor, plantColor(saved));
         const n = placedUsing(saved.id).length;
         if (n && confirm(`Update ${n} placed plant${n === 1 ? '' : 's'} in this plan to the new size?`)) resizePlaced(saved, oldName);
         toast(`Saved ${saved.common}`);
@@ -172,7 +181,7 @@ export function renderPlantForm() {
         if (state.pickerLinkId) { linkShapeToPlant(state.pickerLinkId, saved); state.pickerLinkId = null; close(null); }
         else {
           state.plantForm = null;
-          if (state.pickerForTree) { startDraw('circle', 'tree'); state.draw!.plantId = saved.id; } // then draw its canopy
+          if (state.pickerForTree) startTreeDraw(saved.id); // then draw its canopy
           else if (state.placing) switchPlacingPlant(saved); // keep the batch placed so far
           else startPlacing(saved); // tap the plan where it goes
           render();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bloomByBed, bloomColor, bloomGaps, bloomMonths, bloomSummary } from '../src/bloom';
+import { bloomByBed, bloomColor, bloomGaps, bloomMonths, bloomSeason, bloomSummary } from '../src/bloom';
 import type { Plant } from '../src/plants';
 import type { Shape } from '../src/types';
 
@@ -27,10 +27,23 @@ describe('bloom months', () => {
     expect(bloomColor('White-pink', '#000')).toBe('#e7e5e4');
     expect(bloomColor('Every color', '#123456')).toBe('#123456');
   });
-  it('finds growing-season gaps', () => {
+  it("takes the season from the plan's own first and last blooms", () => {
+    expect(bloomSeason([0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0])).toEqual([3, 4, 5, 6, 7, 8, 9, 10]); // March-October
+    expect(bloomSeason([0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0])).toEqual([4, 5, 6, 7, 8, 9, 10]);
+    // Winter bloomers: the season runs through the new year; the off-season is the longest empty stretch.
+    expect(bloomSeason([1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1])).toEqual([9, 10, 11, 12, 1]);
+    // Two equally long empty stretches: the one nearer midwinter is the off-season.
+    expect(bloomSeason([0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1])).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]); // July stays a gap
+    expect(bloomSeason([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])).toEqual([]);
+    expect(bloomSeason(Array(12).fill(1))).toHaveLength(12);
+  });
+  it('finds gaps inside the season', () => {
     const per = [0, 0, 0, 1, 1, 0, 0, 1, 0, 1, 0, 0];
-    expect(bloomGaps(per)).toBe('Jun-Jul, Sep');
-    expect(bloomGaps([0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0])).toBe('');
+    expect(bloomGaps(per, bloomSeason(per))).toBe('Jun-Jul, Sep');
+    expect(bloomGaps([0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0], [3, 4, 5, 6, 7, 8, 9, 10])).toBe('');
+    // A bed measured against the plan's season: its empty March counts.
+    expect(bloomGaps([0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0], [3, 4, 5, 6, 7, 8, 9, 10])).toBe('Mar');
+    expect(bloomGaps([1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1], [9, 10, 11, 12, 1])).toBe('Oct-Nov');
   });
 });
 

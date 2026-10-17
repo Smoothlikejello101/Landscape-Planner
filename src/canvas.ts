@@ -1,19 +1,21 @@
 import { renderBgHandles, renderBgImageInto } from './background';
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from './constants';
 import { svgEl, type Attrs } from './dom';
-import { boxSize, shapeBBox, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, worldPoints } from './geometry';
+import { boxSize, shapeBBox, shapeCenter, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, worldPoints } from './geometry';
 import { renderPathOverlay } from './draw';
 import { fullRingRadius } from './my-plants';
 import { crowdedIds } from './crowding';
 import { renderPlaceOverlay } from './place';
 import { onShapePointerDown } from './gestures';
 import { plantsById } from './plants';
+import { plantLabelFit, LABEL_LINE_HEIGHT, textWidth1, type FittedLabel } from './labels';
+import { canopyInnerRadius, canopyPoints, isTree, trunkParts, trunkReachPx } from './trees';
 import { isLocked, roleDef, roleRank } from './roles';
 import { shownWith } from './status';
 import { checkPlantSun, formatHours, shadeOpacity, sunHours, sunWarningShown } from './sun';
 import { isSelected } from './selection';
 import { state } from './state';
-import type { Shape, ShapeFilter, TextShape } from './types';
+import type { CircleShape, Shape, ShapeFilter, TextShape } from './types';
 
 // Canvas drawing. Everything here writes only into the <svg>, never into
 // panel DOM, so it is safe to call while an input has keyboard focus.
@@ -129,21 +131,34 @@ export function shapeGroup(s: Shape): SVGGElement {
   let ring: SVGElement | null = null;
   const g0: SVGElement[] = [];
   let labelX: number, labelY: number, fs: number, rotTransform = '';
+  let fitted: FittedLabel | null | undefined; // circles: the name fitted inside (null = doesn't fit)
+  let overflow = false; // a plant's name written over its edge
 
   if (s.type === 'circle') {
     const cx = (s.x - state.offsetX) * ppf;
     const cy = (s.y - state.offsetY) * ppf;
     const r = s.radius * ppf;
-    shapeEl = svgEl('circle', { ...common, cx, cy, r });
+    // A tree pruned into a shape: its outline instead of a circle.
+    shapeEl = s.canopy
+      ? svgEl('polygon', { ...common, points: canopyPoints(s, (x, y) => [(x - state.offsetX) * ppf, (y - state.offsetY) * ppf]), 'stroke-linejoin': 'round' })
+      : svgEl('circle', { ...common, cx, cy, r });
     // Plants drawn below full size: a dashed ring at full size when selected (or for all, from Layers).
     // While placing more of a plant, its full spread shows so the next one can be spaced by eye.
-    const full = (sel && state.selectedIds.length === 1) || state.showFullSize || (state.placing && s.plantId === state.placing.plantId) ? fullRingRadius(s) : null;
+    const showFull = (sel && state.selectedIds.length === 1) || state.showFullSize || (!!state.placing && s.plantId === state.placing.plantId);
+    const full = showFull ? fullRingRadius(s) : null;
     if (crowded.has(s.id)) {
       g0.push(svgEl('circle', { 'data-role': 'crowded', cx, cy, r: r + 4, fill: 'none', stroke: '#dc2626', 'stroke-width': 2.5, 'pointer-events': 'none' }));
     }
     if (full) ring = svgEl('circle', { 'data-role': 'full-ring', cx, cy, r: full * ppf, fill: 'none', stroke: s.color, 'stroke-width': 1.5, 'stroke-dasharray': '5 4', 'pointer-events': 'none' });
+    if (isTree(s)) {
+      const trunk = trunkParts(s, cx, cy, ppf, showFull).map((p) => svgEl(p.tag, { ...p.attrs, 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : null }));
+      g0.unshift(...trunk);
+    }
     labelX = cx; labelY = cy;
     fs = Math.max(10, Math.min(14, r * 0.4));
+    fitted = circleLabel(s, ppf);
+    // A plant name that won't fit inside still shows, over the edge, where it has the room.
+    if (fitted === null && overflowLabels.has(s.id)) { fitted = undefined; overflow = true; }
   } else if (s.type === 'poly' || s.type === 'line') {
     const pts = worldPoints(s).map((p) => `${(p.x - state.offsetX) * ppf},${(p.y - state.offsetY) * ppf}`).join(' ');
     if (s.type === 'poly') {
@@ -206,13 +221,30 @@ export function shapeGroup(s: Shape): SVGGElement {
     }
   }
   const sunText = s.role === 'shade' && s.sun ? '☀ ' + formatHours(sunHours(s.sun)) : '';
-  const label = repeatLabels.has(s.id) && !(sel && state.selectedIds.length === 1) ? '' : displayLabel(s);
-  if (label) {
+  const label = displayLabel(s);
+  if (fitted) {
+    // Wrapped and sized to fit inside the circle (or below a tree's trunk).
+    const lh = fitted.fontSize * LABEL_LINE_HEIGHT;
+    const text = svgEl('text', {
+      'data-role': 'plant-label', x: labelX, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': fitted.fontSize, fill: '#0f172a',
+      stroke: 'rgba(255,255,255,0.55)', 'stroke-width': 2.5, 'paint-order': 'stroke', 'stroke-linejoin': 'round',
+      'pointer-events': 'none', style: 'user-select:none;font-weight:500;',
+    });
+    fitted.lines.forEach((line, i) => {
+      // A trailing space keeps the words apart in the text's content (screen readers, search); it isn't drawn.
+      text.appendChild(svgEl('tspan', { x: labelX, y: labelY + fitted!.dy + (i - (fitted!.lines.length - 1) / 2) * lh }, line + (i < fitted!.lines.length - 1 ? ' ' : '')));
+    });
+    g.appendChild(text);
+  } else if (label && (fitted === undefined || !isPlantCircle(s) || (sel && state.selectedIds.length === 1))) {
+    // Not fitted (other shapes), or a plant's name over its edge (room for it, or selected): one line, with a halo.
+    const halo = fitted === null || overflow;
+    if (halo) fs = OVERFLOW_PX;
     g.appendChild(svgEl('text', {
       x: labelX, y: sunText ? labelY - fs * 0.6 : labelY, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
       'font-size': fs, fill: '#0f172a', 'pointer-events': 'none',
       style: 'user-select:none;font-weight:500;',
       transform: rotTransform || null,
+      ...(halo ? { 'data-role': 'plant-label', stroke: 'rgba(255,255,255,0.85)', 'stroke-width': 3, 'paint-order': 'stroke', 'stroke-linejoin': 'round' } : {}),
     }, label));
   }
   if (sunText) {
@@ -303,24 +335,62 @@ function marqueeRect(): SVGRectElement | null {
   });
 }
 
+const isPlantCircle = (s: Shape): s is CircleShape => s.type === 'circle' && s.role === 'plant';
+/** One-line names drawn over a plant's edge: the size used, for placing them. */
+const OVERFLOW_PX = 11;
 /**
- * Plants whose name would sit on top of the same name next to it (a row of
- * five coneflowers): only the first of each overlapping run is labeled, so the
- * names stay readable. A selected plant always shows its name.
+ * Plants whose name doesn't fit inside their circle but can be written over
+ * its edge without landing on another plant's name. Names that fit inside
+ * claim their room first; then the rest, biggest plants first, each where it
+ * doesn't collide with one already placed. A row of small plants named alike
+ * gets every other name, rather than a pile of overlapping text.
  */
-let repeatLabels = new Set<string>();
-function refreshRepeatLabels() {
+let overflowLabels = new Set<string>();
+function refreshLabelLayout() {
   const ppf = pxPerFoot();
-  const kept: { text: string; x0: number; x1: number; y0: number; y1: number }[] = [];
-  repeatLabels = new Set();
+  overflowLabels = new Set();
+  type Box = { x0: number; x1: number; y0: number; y1: number };
+  const placed: Box[] = [];
+  const waiting: { s: CircleShape; box: Box }[] = [];
   for (const s of paintOrder(state.shapes)) {
-    if (s.type !== 'circle' || s.role !== 'plant' || !s.label) continue;
-    const r = s.radius * ppf, fs = Math.max(10, Math.min(14, r * 0.4));
-    const w = s.label.length * fs * 0.55, cx = s.x * ppf, cy = s.y * ppf;
-    const box = { text: s.label, x0: cx - w / 2, x1: cx + w / 2, y0: cy - fs / 2, y1: cy + fs / 2 };
-    if (kept.some((k) => k.text === box.text && k.x0 < box.x1 && box.x0 < k.x1 && k.y0 < box.y1 && box.y0 < k.y1)) repeatLabels.add(s.id);
-    else kept.push(box);
+    if (!isPlantCircle(s)) {
+      // Other shapes' names (a bed's, a path's) are there first: plant names stay off them.
+      const label = s.type === 'text' ? '' : displayLabel(s);
+      if (!label) continue;
+      const at = s.type === 'poly' || s.type === 'line' ? pathLabelPoint(s) : shapeCenter(s);
+      const w = textWidth1(label) * 12, h = 14;
+      placed.push({ x0: at.x * ppf - w / 2, x1: at.x * ppf + w / 2, y0: at.y * ppf - h / 2, y1: at.y * ppf + h / 2 });
+      continue;
+    }
+    const fit = circleLabel(s, ppf);
+    const cx = s.x * ppf, cy = s.y * ppf;
+    if (fit) {
+      const w = Math.max(...fit.lines.map((l) => textWidth1(l))) * fit.fontSize;
+      const h = fit.lines.length * fit.fontSize * LABEL_LINE_HEIGHT;
+      placed.push({ x0: cx - w / 2, x1: cx + w / 2, y0: cy + fit.dy - h / 2, y1: cy + fit.dy + h / 2 });
+    } else if (fit === null) {
+      const w = textWidth1(displayLabel(s)) * OVERFLOW_PX, h = OVERFLOW_PX * LABEL_LINE_HEIGHT;
+      waiting.push({ s, box: { x0: cx - w / 2, x1: cx + w / 2, y0: cy - h / 2, y1: cy + h / 2 } });
+    }
   }
+  waiting.sort((a, b) => b.s.radius - a.s.radius);
+  for (const { s, box } of waiting) {
+    if (placed.some((p) => p.x0 < box.x1 && box.x0 < p.x1 && p.y0 < box.y1 && box.y0 < p.y1)) continue;
+    placed.push(box);
+    overflowLabels.add(s.id);
+  }
+}
+/**
+ * A circle's name, fitted inside it: wrapped, shrunk, or shortened. For a
+ * plant, null when no form of the name fits (it shows when selected); other
+ * circles fall back to a plain one-line label (undefined).
+ */
+function circleLabel(s: CircleShape, ppf: number): FittedLabel | null | undefined {
+  const label = displayLabel(s);
+  if (!label || (s.role === 'shade' && s.sun)) return undefined; // sun hours share the space; keep the plain label
+  const plant = s.plantId ? plantsById[s.plantId] : undefined;
+  const fit = plantLabelFit(label, canopyInnerRadius(s) * ppf, isTree(s) ? { below: trunkReachPx(s, ppf) + 1 } : {}, isPlantCircle(s) ? plant : undefined);
+  return fit ?? (isPlantCircle(s) ? null : undefined);
 }
 
 /** Plants outlined as crowded (Layers switch); refreshed on each redraw. */
@@ -332,7 +402,7 @@ function refreshCrowding() {
 /** Clear and redraw the whole canvas. Never touches panel DOM. */
 export function redrawCanvas() {
   refreshCrowding();
-  refreshRepeatLabels();
+  refreshLabelLayout();
   const svg = canvasSvg();
   if (!svg) return;
   ensureLayers(svg);
