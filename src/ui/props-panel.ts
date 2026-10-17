@@ -16,6 +16,7 @@ import { render } from './render';
 import type { CircleShape, Corner, RoleKey, Shape } from '../types';
 import { formatSize, isMine, plantRadius, type Range } from '../my-plants';
 import { plantFilter, plantsById, type Plant } from '../plants';
+import { zoneFit, zoneRange } from '../climate';
 import { isTree, trunkDiameter } from '../trees';
 import { MAX_TRUNK, MIN_TRUNK } from '../constants';
 import { statusSection, statusSummary } from './status-section';
@@ -411,6 +412,15 @@ function plantLinkSection(s: CircleShape): HTMLElement {
   }
   const sizes = `Spread ${formatSize(p.width as Range | undefined) || 'unknown'}. Drawn at ${state.sizeMode === 'full' ? 'full' : 'typical'} size (change in Layers).`;
   wrap.appendChild(el('div', { className: 'hint' }, sizes));
+  const zones = zoneRange(p);
+  if (zones) {
+    const fit = zoneFit(p, state.location);
+    wrap.appendChild(el('div', { className: 'hint' + (fit && fit !== 'fits' ? ' zone-warn' : ''), 'data-testid': 'plant-zones' },
+      `Hardy in ${zones}.` + (!state.location ? ' (Set the garden’s ZIP in ⋮ → Garden location to check.)'
+        : fit === 'fits' ? ` Fine for zone ${state.location.zone}.`
+        : fit === 'cold' ? ` Zone ${state.location.zone} winters are colder than it’s rated for.`
+        : ` Zone ${state.location.zone} is warmer than it’s rated for: it may lack the winter chill or cool summers it needs.`)));
+  }
   if (p.unverified) wrap.appendChild(el('div', { className: 'hint', 'data-testid': 'plant-unverified' }, "Unverified: this plant's details come from an older list with no sources, and haven't been checked yet."));
   const row = el('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' } });
   const target = plantRadius(p, state.sizeMode);

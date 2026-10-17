@@ -75,14 +75,19 @@ select pg_temp.check(not exists (select 1 from public.unused_photos()), 'a used 
 -- A plan from an app version before photos synced (no "photo" in it) keeps the server's photo.
 select pg_temp.check(public.push_project('ph1', 1, 'With photo', '{"shapes":[1]}', 'Old laptop') ->> 'revision' = '2', 'old-version upload');
 select pg_temp.check((select content -> 'photo' ->> 'fingerprint' = :FP1 and content -> 'shapes' = '[1]' from public.projects where id = 'ph1'), 'photo kept with the old-version plan');
+select pg_temp.check(public.push_project('ph1', 2, 'With photo', '{"shapes":[1],"location":{"zip":"71923","zone":"8a"}}', 'Pixel') ->> 'revision' = '3', 'new-version upload with a location');
+select pg_temp.check(public.push_project('ph1', 3, 'With photo', '{"shapes":[2]}', 'Old laptop') ->> 'revision' = '4', 'old-version upload');
+select pg_temp.check((select content -> 'location' ->> 'zone' = '8a' and content -> 'photo' ->> 'fingerprint' = :FP1 and content -> 'shapes' = '[2]' from public.projects where id = 'ph1'), 'location and photo kept with the old-version plan (04)');
+select pg_temp.check(public.push_project('ph1', 4, 'With photo', '{"shapes":[2],"location":null}', 'Pixel') ->> 'revision' = '5', 'location cleared');
+select pg_temp.check((select content -> 'location' = 'null'::jsonb from public.projects where id = 'ph1'), 'a cleared location stays cleared');
 select pg_temp.check((select last_used > now() - interval '1 minute' from public.photos where fingerprint = :FP1), 'uploading a plan marks its photo in use');
 reset role;
 update public.photos set last_used = now() - interval '2 days';
 set role authenticated;
-select pg_temp.check(public.trash_project('ph1', 2, 'Pixel') = 'ok', 'trash the project');
+select pg_temp.check(public.trash_project('ph1', 5, 'Pixel') = 'ok', 'trash the project');
 select pg_temp.check(not exists (select 1 from public.unused_photos()), 'a photo of a trashed project is kept');
-select pg_temp.check(public.restore_project('ph1', 'Pixel') = 4, 'restore');
-select pg_temp.check(public.push_project('ph1', 4, 'With photo', '{"shapes":[],"photo":null}', 'Pixel') ->> 'status' = 'ok', 'photo removed from the plan');
+select pg_temp.check(public.restore_project('ph1', 'Pixel') = 7, 'restore');
+select pg_temp.check(public.push_project('ph1', 7, 'With photo', '{"shapes":[],"photo":null}', 'Pixel') ->> 'status' = 'ok', 'photo removed from the plan');
 select pg_temp.check(not exists (select 1 from public.unused_photos()), 'just stopped being used: kept a day');
 reset role;
 update public.photos set last_used = now() - interval '2 days';

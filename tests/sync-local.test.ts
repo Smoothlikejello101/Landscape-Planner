@@ -10,6 +10,7 @@ import { _resetStorageForTests, createProject, deleteProject, flushSave, getSync
 import { syncOnce, type Remote } from '../src/sync/engine';
 import { storageLocal, storagePlants } from '../src/sync/local';
 import { syncPlants } from '../src/sync/plants';
+import { photoFingerprint } from '../src/sync/photo';
 import { loadMyPlants, mergeMyPlants, myPlants, saveMyPlant, deleteMyPlant } from '../src/my-plants';
 import { FakePlantServer, FakeServer } from './fake-sync-server';
 import type { Shape } from '../src/types';
@@ -450,6 +451,52 @@ describe('photos: what the review found', () => {
     state.bgImage = { ...state.bgImage!, deviceOnly: true }; pushHistory();
     undo(); undo();
     expect(state.bgImage?.deviceOnly).toBe(true);
+  });
+});
+
+describe('a garden location and an older app version', () => {
+  const loc = { zip: '71923', zone: '8a' };
+  const strip = (c: Record<string, unknown>) => { const { location: _l, ...rest } = c; return rest; };
+  it('edits from a device that doesn’t know locations never cause a conflict copy here, and the location stays', async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.shapes = [bed('b1', 'A')]; state.location = loc; save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    // The old laptop edits twice before this device syncs again (and a server before 04 lets it drop the location).
+    for (const label of ['B', 'C']) {
+      const row = server.rows.get(id)!;
+      row.content = strip({ ...row.content, shapes: [bed('b1', label)] }); row.revision++; row.updated_by = 'laptop';
+      if (label === 'B') expect((await syncOnce(local(), server.remoteFor('phone'), 'phone')).conflicts).toEqual([]);
+    }
+    expect((await syncOnce(local(), server.remoteFor('phone'), 'phone')).conflicts).toEqual([]);
+    expect(state.shapes.map((x) => x.label)).toEqual(['C']);
+    expect(state.location).toEqual(loc);
+    expect(state.projects).toHaveLength(1);
+  });
+});
+
+describe('a location set here while another device edits the plan', () => {
+  const loc = { zip: '71923', zone: '8a' };
+  it('reaches the server, through a conflict or a merge', async () => {
+    for (const elsewhere of ['shapes', 'photo'] as const) {
+      const server = new FakeServer(); await device();
+      const id = state.currentProjectId!;
+      state.shapes = [bed('b1', 'A')]; save(); await flushSave();
+      await syncOnce(local(), server.remoteFor('phone'), 'phone');
+      state.location = loc; if (elsewhere === 'shapes') state.shapes = [bed('b1', 'phone')]; save(); await flushSave();
+      // Another device (which never had a location) changes the plan meanwhile.
+      const row = server.rows.get(id)!;
+      if (elsewhere === 'shapes') row.content = { ...row.content, shapes: [bed('b1', 'laptop')] };
+      else {
+        const fp = await photoFingerprint(IMG);
+        server.photos.set(fp, IMG);
+        row.content = { ...row.content, photo: { fingerprint: fp, naturalWidth: 4, naturalHeight: 4, ftPerPx: 1, cx: 0, cy: 0, rotation: 0, opacity: 0.6, visible: true } };
+      }
+      row.revision++;
+      await syncOnce(local(), server.remoteFor('phone'), 'phone');
+      await syncOnce(local(), server.remoteFor('phone'), 'phone');
+      expect({ elsewhere, onServer: server.rows.get(id)!.content.location }).toEqual({ elsewhere, onServer: loc });
+    }
   });
 });
 

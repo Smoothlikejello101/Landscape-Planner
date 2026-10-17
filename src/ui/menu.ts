@@ -33,6 +33,11 @@ export function renderMoreMenu() {
     onClick: () => { state.panel = 'bloom'; state.menu = null; render(); }
   });
   items.push({
+    icon: I.pin,
+    label: state.location ? `Garden location (zone ${state.location.zone})…` : 'Garden location…',
+    onClick: () => { state.panel = 'location'; state.menu = null; render(); }
+  });
+  items.push({
     icon: I.image,
     label: state.bgImage ? 'Background image…' : 'Add background image…',
     onClick: () => { state.panel = 'bg'; state.menu = null; render(); }

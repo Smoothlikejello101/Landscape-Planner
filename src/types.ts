@@ -1,3 +1,4 @@
+import type { GardenLocation } from './climate';
 // Core data types shared across the app.
 import type { KindKey } from './kinds';
 
@@ -202,6 +203,8 @@ export interface ProjectData {
   sunWarnings?: boolean;
   /** Phases of the project, in order ("Fall 2026", "Spring 2027"). */
   phases?: string[];
+  /** Where the garden is (from its ZIP): hardiness zone and frost dates. Null: cleared; absent: never set. */
+  location?: GardenLocation | null;
   zoom: number;
   offsetX: number;
   offsetY: number;
@@ -231,7 +234,7 @@ export interface Bounds { minX: number; maxX: number; minY: number; maxY: number
 
 export type PanelName =
   | 'props' | 'arrange' | 'layers' | 'projects' | 'rename' | 'export'
-  | 'preview' | 'reset' | 'plants' | 'bg' | 'bgDistance' | 'print' | 'plantForm' | 'bloom' | 'add' | 'shortcuts';
+  | 'preview' | 'reset' | 'plants' | 'bg' | 'bgDistance' | 'print' | 'plantForm' | 'bloom' | 'add' | 'shortcuts' | 'location';
 /** What the plant form is doing: a new plant (maybe from a search or a copy), or editing one of yours. */
 export interface PlantFormArgs { editId?: string; name?: string; copyFromId?: string; place: boolean }
 
@@ -308,6 +311,8 @@ export interface AppState {
   bgImage: BgImage | null;
   /** The open plan's synced photo that isn't on this device (see ProjectData). */
   photoElsewhere: PhotoRef | null;
+  /** The open plan's garden location (null: cleared; undefined: never set). */
+  location?: GardenLocation | null;
   roleViews: RoleViews;
   print: PrintSettings;
   sizeMode: SizeMode;

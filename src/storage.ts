@@ -8,6 +8,7 @@ import type { BgImage, Clipboard, PathShape, PhotoRef, PrintSettings, SizeMode, 
 import { setWorldPoints } from './geometry';
 import { now, uid } from './util';
 import { photoFingerprint } from './sync/photo';
+import { sanitizeLocation } from './climate';
 
 // Persistence. Projects live in IndexedDB:
 //   meta/<projectId>          ProjectMeta (name, dates, shape count)
@@ -259,7 +260,7 @@ export function currentProjectData(): ProjectData {
   return {
     shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY,
     roleViews: state.roleViews, print: state.print, sizeMode: state.sizeMode, sunWarnings: state.sunWarnings, phases: state.phases, bgImage: state.bgImage,
-    photoElsewhere: state.photoElsewhere,
+    photoElsewhere: state.photoElsewhere, location: state.location,
   };
 }
 /** Normalize project data from storage, an old version, or an imported file. */
@@ -279,6 +280,7 @@ export function sanitizeProjectData(raw: unknown): ProjectData {
     phases: sanitizePhases(d.phases, shapes),
     bgImage: bg && bg.dataUrl ? bg : null,
     photoElsewhere: bg && bg.dataUrl ? null : sanitizePhotoRef(d.photoElsewhere),
+    location: d.location === null ? null : sanitizeLocation(d.location) ?? undefined,
   };
 }
 
@@ -302,6 +304,7 @@ function projectWriteOps(id: string, data: ProjectData, knownImageKeys?: Set<str
     shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {},
     print: data.print ?? { ...DEFAULT_PRINT }, sizeMode: data.sizeMode ?? 'typical', sunWarnings: data.sunWarnings !== false, phases: data.phases ?? [], bgImage: storedBg,
     photoElsewhere: storedBg ? null : data.photoElsewhere ?? null,
+    location: data.location,
   };
   ops.push(put('projects', id, stored));
   return ops;
@@ -492,6 +495,7 @@ export async function switchProject(id: string): Promise<boolean> {
   state.viewFilter = { status: '', phase: '', showGone: false };
   state.bgImage = data.bgImage ?? null;
   state.photoElsewhere = data.photoElsewhere ?? null;
+  state.location = data.location;
   state.selectedIds = [];
   state.history = [];
   state.historyIndex = -1;
@@ -641,9 +645,12 @@ export async function installId(): Promise<string> {
   return id;
 }
 /** The parts of a project that sync: everything but the view (zoom, scroll) and the background photo (synced on its own). */
-export type SyncedContent = Pick<ProjectData, 'shapes' | 'roleViews' | 'print' | 'sizeMode' | 'sunWarnings' | 'phases'>;
+export type SyncedContent = Pick<ProjectData, 'shapes' | 'roleViews' | 'print' | 'sizeMode' | 'sunWarnings' | 'phases' | 'location'>;
 export function syncedContent(d: ProjectData): SyncedContent {
-  return { shapes: d.shapes, roleViews: d.roleViews ?? {}, print: d.print ?? { ...DEFAULT_PRINT }, sizeMode: d.sizeMode ?? 'typical', sunWarnings: d.sunWarnings !== false, phases: d.phases ?? [] };
+  const out: SyncedContent = { shapes: d.shapes, roleViews: d.roleViews ?? {}, print: d.print ?? { ...DEFAULT_PRINT }, sizeMode: d.sizeMode ?? 'typical', sunWarnings: d.sunWarnings !== false, phases: d.phases ?? [] };
+  // (Only once set or cleared: plans that never had one read exactly as before this existed, so nothing looks changed.)
+  if (d.location !== undefined) out.location = d.location;
+  return out;
 }
 /**
  * Put a project's synced content in place (from the server), keeping this
@@ -671,6 +678,8 @@ export async function replaceProjectContent(
   const incoming = sanitizeProjectData({ ...(content && typeof content === 'object' ? content : {}), zoom: base.zoom, offsetX: base.offsetX, offsetY: base.offsetY });
   const placed = photo ? placePhoto(base, peekFp, photo.ref, photo.bytes) : { bgImage: base.bgImage ?? null, photoElsewhere: base.photoElsewhere ?? null };
   const data: ProjectData = { ...base, ...syncedContent(incoming), ...placed };
+  // A plan from a version before locations synced says nothing about one: the location here stays.
+  if (!(content && typeof content === 'object' && 'location' in content)) data.location = base.location;
   const metaNext = { ...meta, name: name.trim() || 'Untitled', lastModified: now(), shapeCount: data.shapes.length };
   bumpChange(id);
   // The write is queued before any later save's (and any read by a switch to this project), so they see it.
@@ -684,6 +693,7 @@ export async function replaceProjectContent(
     state.sizeMode = data.sizeMode ?? 'typical';
     state.sunWarnings = data.sunWarnings !== false;
     state.phases = data.phases ?? [];
+    state.location = data.location;
     if (state.bgImage !== data.bgImage) { state.bgImage = data.bgImage ?? null; if (!state.bgImage) state.bgEditMode = false; }
     state.photoElsewhere = data.photoElsewhere ?? null;
     state.selectedIds = state.selectedIds.filter((sid) => data.shapes.some((s) => s.id === sid));

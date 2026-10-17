@@ -8,6 +8,7 @@ import { snap, uid } from './util';
 import { plantRadius } from './my-plants';
 import { isCatalogV2, resolveCatalog, type Provenance } from './catalog';
 import { setRadius } from './geometry';
+import { zoneFit, zoneRange } from './climate';
 
 /**
  * One plant: a row of the catalog (plants.json), or one of the user's own
@@ -19,6 +20,9 @@ export interface Plant {
   botanical?: string;
   form?: string;
   habit?: string;
+  /** USDA hardiness zones it's rated for. */
+  zone_min?: number;
+  zone_max?: number;
   dog?: string;
   native?: string;
   water?: string;
@@ -87,6 +91,8 @@ export const PLANT_FILTER_DEFAULTS = {
   dogSafeOnly: false, dryShade: false, wetFeet: false, clayOk: false,
   hostOnly: false, fallColor: false, winterInterest: false,
   edible: false, noTaproot: false, inPlan: false,
+  /** Rated for the plan's zone (when the plan has a location). */
+  hardyHere: false,
   advanced: false      // UI: is the "More filters" section expanded
 };
 export type PlantFilter = typeof PLANT_FILTER_DEFAULTS;
@@ -130,6 +136,7 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   // Invasives are never suggested; they turn up when searched by name (to map one already in the yard).
   if (p.invasive && !f.q.trim() && !f.inPlan) return false;
   if (f.dogSafeOnly && !nonToxicToDogs(p)) return false;
+  if (f.hardyHere && state.location && zoneFit(p, state.location) !== 'fits') return false;
   if (f.form && p.form !== f.form) return false;
   if (f.water && p.water !== f.water) return false;
   if (f.sun && !plantTakesSun(p, f.sun)) return false;
@@ -274,6 +281,12 @@ export function linkShapeToPlant(shapeId: string, p: Plant) {
   save();
 }
 export const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** After a plant's zones: whether they suit the plan's location (if it has one). */
+export function zoneNote(p: Plant): string {
+  const fit = zoneFit(p, state.location);
+  if (!fit || fit === 'fits' || !state.location) return '';
+  return fit === 'cold' ? ` (zone ${state.location.zone} winters are too cold)` : ` (zone ${state.location.zone} may be too warm)`;
+}
 export function plantMetaLine(p: Plant): string {
   const bits: string[] = [];
   if (p.form) bits.push(p.form);
@@ -289,6 +302,8 @@ export function plantMetaLine(p: Plant): string {
   if (oldDog) bits.push('dog: ' + oldDog);
   else if (!p.tox?.dog && p.dog === 'Unverified') bits.push('dog: Unverified');
   if (p.sun_most) bits.push(p.sun_most === p.sun_least ? p.sun_most + ' sun' : p.sun_most + '-' + p.sun_least);
+  const zones = zoneRange(p);
+  if (zones) bits.push(zones + zoneNote(p));
   const tags: string[] = [];
   if (p.dry_shade) tags.push('dry shade');
   if (p.wet_feet) tags.push('wet ok');

@@ -450,6 +450,23 @@ describe('synced background photos', () => {
   });
 });
 
+describe('a plan’s garden location', () => {
+  it('is kept; anything malformed reads as never set (older versions stored none)', async () => {
+    const { readProject } = await import('../src/storage');
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    expect((await readProject(id))!.location).toBeUndefined();
+    state.location = { zip: '71923', zone: '8a' }; save(); await flushSave();
+    _resetStorageForTests(); await initStorage(kv);
+    expect((await readProject(id))!.location).toEqual({ zip: '71923', zone: '8a' });
+    const stored = await kv.get<Record<string, unknown>>('projects', id);
+    await kv.write([put('projects', id, { ...stored, location: { zip: 'nope', zone: '8a' } })]);
+    expect((await readProject(id))!.location).toBeUndefined();
+    await kv.write([put('projects', id, { ...stored, location: null })]);
+    expect((await readProject(id))!.location).toBeNull();
+  });
+});
+
 describe('My plants sync state', () => {
   it('is kept with the library; a different account clears its records but keeps edit times; malformed parts are dropped', async () => {
     const { writeMyPlants, getPlantSync, resetSyncState } = await import('../src/storage');
