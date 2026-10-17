@@ -53,3 +53,17 @@ describe('trees', () => {
     expect(bad.tree).toBeUndefined(); expect(bad.trunk).toBeUndefined(); expect(bad.canopy).toBeUndefined();
   });
 });
+
+describe('trees with a catalog trunk size', () => {
+  it('draw the mature trunk scaled to the canopy drawn', () => {
+    const bur: Plant = { id: 't-bur', common: 'Bur oak', form: 'Tree (canopy)', width: { min: 60, max: 80, med: 70 }, trunk: 4 };
+    plantsById[bur.id] = bur;
+    const t = (radius: number, over: Partial<CircleShape> = {}) => ({ id: 'b', type: 'circle', x: 0, y: 0, radius, color: '#000', label: '', opacity: 1, locked: false, role: 'plant', plantId: 't-bur', ...over }) as CircleShape;
+    expect(trunkDiameter(t(20))).toBe(2); // drawn at half its 80 ft full spread: half its 4 ft trunk
+    expect(trunkDiameter(t(40))).toBe(4);
+    expect(trunkDiameter(t(50))).toBe(4); // never bigger than mature
+    expect(fullTrunkDiameter(t(20))).toBe(4);
+    expect(fullTrunkDiameter(t(1))).toBe(4); // the catalog's size, not a tiny trunk's rounding scaled up
+    expect(trunkDiameter(t(20, { trunk: 1 }))).toBe(1); // by hand wins
+  });
+});

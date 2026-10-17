@@ -71,6 +71,10 @@ export function renderPlantsPanel() {
     }
     body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Recent'), row));
   }
+  if (PLANTS.some((p) => p.unverified)) {
+    body.appendChild(el('div', { className: 'hint', 'data-testid': 'unverified-note' },
+      'Unverified: from an older list with no sources. Each plant is being checked against published references; until then, treat its details as a rough guide.'));
+  }
   if (!PLANTS.length) {
     body.appendChild(el('div', { className: 'hint' }, 'The plant catalog is still loading (or could not load). Your own plants work either way.'));
   }
@@ -106,6 +110,8 @@ export function renderPlantsPanel() {
     });
     row.appendChild(side);
     if (mine) info.firstChild!.appendChild(el('span', { className: 'mine-badge' }, 'Mine'));
+    // Details not yet checked against sources say so, plainly, on every row (first in the details, where it can't be cut off).
+    else if (p.unverified) (info.childNodes[1] as HTMLElement).prepend(el('span', { className: 'unverified-badge', title: "From an older list with no sources; it's being checked" }, 'Unverified'), ' ');
     return row;
   }
   /** "My plants" matching the search and sun filter (their other fields are whatever the user entered). */
@@ -197,7 +203,8 @@ export function renderPlantsPanel() {
         mkSelect('Blooming in\u2026', 'bloomMonth', [1,2,3,4,5,6,7,8,9,10,11,12], m => MONTH_NAMES[m]))
   );
   const primaryChecks = el('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px 16px', margin: '8px 0 4px' } },
-    mkCheck('Dog-safe only', 'dogSafeOnly'),
+    // Says unverified while it goes by the older list for any plant (until each is checked against the ASPCA).
+    mkCheck(PLANTS.some((p) => !p.tox?.dog) ? 'Non-toxic to dogs (unverified)' : 'Non-toxic to dogs', 'dogSafeOnly'),
     mkCheck('Dry shade', 'dryShade'),
     mkCheck('Wet feet', 'wetFeet'),
     mkCheck('Host plant', 'hostOnly')

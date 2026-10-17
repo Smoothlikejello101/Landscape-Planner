@@ -6,6 +6,7 @@ import { render } from './ui/render';
 import type { CircleShape, Point } from './types';
 import { snap, uid } from './util';
 import { plantRadius } from './my-plants';
+import { isCatalogV2, resolveCatalog, type Provenance } from './catalog';
 import { setRadius } from './geometry';
 
 /**
@@ -43,12 +44,27 @@ export interface Plant {
   invasive?: boolean;
   /** A shorter name for small circles on the plan ("'Haas' Halo' hydrangea"). */
   short?: string;
+  /** A cultivar's species (catalog id). */
+  parent?: string;
+  /** Mature trunk diameter, feet (trees). */
+  trunk?: number;
+  /** Summers it handles: humid, needs dry, or either. */
+  humidity?: 'humid' | 'dry' | 'either';
+  /** Toxicity: ASPCA listings for animals; UC ANR class for people. */
+  tox?: { dog?: ToxAnimal; cat?: ToxAnimal; horse?: ToxAnimal; people?: 'major' | 'minor' | 'oxalates' | 'dermatitis' | 'unlisted' };
+  /** Thorns, spines or prickles. */
+  thorns?: boolean;
+  /** Catalog plants: where each value came from (see src/catalog.ts). */
+  prov?: Record<string, Provenance>;
+  /** Catalog plants the audit hasn't re-derived from sources yet. */
+  unverified?: boolean;
   /** Color it's drawn in (My plants; catalog plants are colored by form). */
   color?: string;
   /** The user's own notes (My plants only; the catalog holds no notes). */
   notes?: string;
   [key: string]: unknown;
 }
+export type ToxAnimal = 'nontoxic' | 'toxic' | 'unlisted';
 export interface PlantMeta {
   title?: string;
   version?: string;
@@ -90,9 +106,16 @@ export function plantTakesSun(p: Plant, level: string): boolean {
 export function loadPlants(): Promise<void> {
   return fetch('plants.json')
   .then((r) => r.json())
-  .then((d: { plants?: Plant[]; meta?: PlantMeta }) => {
-    PLANTS = d.plants || [];
-    PLANT_META = d.meta || null;
+  .then((d: unknown) => {
+    // Version 2 (sourced facts) is resolved into plants; the old flat list still loads.
+    if (isCatalogV2(d)) {
+      PLANTS = resolveCatalog(d);
+      PLANT_META = { title: d.meta.title, version: d.meta.updated, count: d.plants.length, enums: d.meta.enums };
+    } else {
+      const old = d as { plants?: Plant[]; meta?: PlantMeta };
+      PLANTS = old.plants || [];
+      PLANT_META = old.meta || null;
+    }
     for (const p of PLANTS) plantsById[p.id] = p;
     if (state.panel === 'plants') render(); // refresh picker if already open
     else redrawCanvas(); // sun-check badges need plant data (canvas only: keyboard safe)
@@ -106,7 +129,7 @@ export function loadPlants(): Promise<void> {
 export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): boolean {
   // Invasives are never suggested; they turn up when searched by name (to map one already in the yard).
   if (p.invasive && !f.q.trim() && !f.inPlan) return false;
-  if (f.dogSafeOnly && p.dog !== 'Safe') return false;
+  if (f.dogSafeOnly && !nonToxicToDogs(p)) return false;
   if (f.form && p.form !== f.form) return false;
   if (f.water && p.water !== f.water) return false;
   if (f.sun && !plantTakesSun(p, f.sun)) return false;
@@ -143,6 +166,20 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   }
   if (f.q.trim() && searchRank(p, f.q) < 0) return false;
   return true;
+}
+/** The older list's dog rating, when it's a warning (anything but "Safe" or "Unverified"). */
+export function oldDogWarning(p: Plant): string | null {
+  return p.dog && p.dog !== 'Safe' && p.dog !== 'Unverified' ? p.dog : null;
+}
+/**
+ * Non-toxic to dogs: listed non-toxic by the ASPCA (not merely unlisted:
+ * unlisted isn't safe); until a plant has been checked against the ASPCA,
+ * the older list's "Safe". Any warning from the older list still holds
+ * until the audit removes it, so the two can only agree to call a plant safe.
+ */
+export function nonToxicToDogs(p: Plant): boolean {
+  if (oldDogWarning(p)) return false;
+  return p.tox?.dog ? p.tox.dog === 'nontoxic' : p.dog === 'Safe';
 }
 /** Why a plant matched a search: by its name, its botanical name, or what it hosts. */
 export type MatchedBy = 'name' | 'botanical' | 'host';
@@ -247,7 +284,10 @@ export function plantMetaLine(p: Plant): string {
     bits.push('blooms ' + MONTH_NAMES[p.bloom.start] + (p.bloom.end && p.bloom.end !== p.bloom.start ? '-' + MONTH_NAMES[p.bloom.end] : ''));
   }
   if (p.invasive) bits.push('INVASIVE: not for planting');
-  if (p.dog && p.dog !== 'Safe') bits.push('dog: ' + p.dog);
+  if (p.tox?.dog === 'toxic') bits.push('toxic to dogs (ASPCA)');
+  const oldDog = oldDogWarning(p);
+  if (oldDog) bits.push('dog: ' + oldDog);
+  else if (!p.tox?.dog && p.dog === 'Unverified') bits.push('dog: Unverified');
   if (p.sun_most) bits.push(p.sun_most === p.sun_least ? p.sun_most + ' sun' : p.sun_most + '-' + p.sun_least);
   const tags: string[] = [];
   if (p.dry_shade) tags.push('dry shade');

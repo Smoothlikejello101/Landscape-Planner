@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchedBy, PLANT_FILTER_DEFAULTS, plantMatches, plantTakesSun, searchRank, type Plant } from '../src/plants';
+import { matchedBy, nonToxicToDogs, PLANT_FILTER_DEFAULTS, plantMatches, plantTakesSun, searchRank, type Plant } from '../src/plants';
 
 const heuchera: Plant = {
   id: 'h', common: "Heuchera 'Autumn Bride'", botanical: 'Heuchera villosa', form: 'Perennial',
@@ -53,5 +53,12 @@ describe('plant filters', () => {
     expect(matchedBy(buttonbush, 'button')).toBe('name');
     expect(searchRank(buttonbush, 'oak')).toBe(-1);
     expect(searchRank({ id: 'x', common: 'Purple coneflower' }, 'flower')).toBe(1); // inside a word
+  });
+  it('calls a plant non-toxic to dogs only when nothing says otherwise', () => {
+    expect(nonToxicToDogs({ id: 'a', common: 'A', dog: 'Safe' })).toBe(true); // the older list, until checked
+    expect(nonToxicToDogs({ id: 'a', common: 'A', dog: 'Unverified' })).toBe(false);
+    expect(nonToxicToDogs({ id: 'a', common: 'A', dog: 'Unverified', tox: { dog: 'nontoxic' } })).toBe(true);
+    expect(nonToxicToDogs({ id: 'a', common: 'A', tox: { dog: 'unlisted' } })).toBe(false); // not listed isn't safe
+    expect(nonToxicToDogs({ id: 'a', common: 'A', dog: 'HARD NO', tox: { dog: 'nontoxic' } })).toBe(false); // the warning holds until the audit settles it
   });
 });
