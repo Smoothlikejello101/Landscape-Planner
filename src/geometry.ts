@@ -241,6 +241,26 @@ export function resizedPoints(points: [number, number][], w: number, h: number):
   return points.map(([x, y]) => [round3(x * kx), round3(y * ky)]);
 }
 /** Where to put a label: deep inside an outline, or a line's midpoint. */
+/**
+ * Where a label runs along a line (property lines, fences): the middle of the
+ * longest straight run, turned to follow it and kept readable (never upside
+ * down). `angle` is in degrees, clockwise.
+ */
+export function alongLabel(s: PathShape): { x: number; y: number; angle: number } {
+  const pts = worldPoints(s);
+  const n = s.type === 'poly' ? pts.length : pts.length - 1;
+  let best = 0, bestLen = -1;
+  for (let i = 0; i < n; i++) {
+    const a = pts[i], b = pts[(i + 1) % pts.length];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (len > bestLen) { bestLen = len; best = i; }
+  }
+  const a = pts[best], b = pts[(best + 1) % pts.length];
+  let angle = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+  if (angle > 90) angle -= 180;
+  else if (angle <= -90) angle += 180;
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, angle: Math.round(angle * 10) / 10 + 0 };
+}
 export function pathLabelPoint(s: PathShape): Point {
   const pts = worldPoints(s);
   if (s.type === 'line') {

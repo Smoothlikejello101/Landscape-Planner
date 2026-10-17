@@ -1,7 +1,7 @@
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from './constants';
 import { escapeHtml } from './dom';
 import { errMsg } from './util';
-import { boxSize, displayLabel, LINE_HEIGHT, pathLabelPoint, textLines, textSize, rotatedBoxBounds, shapeBBox, trianglePoints, unionBounds, worldPoints } from './geometry';
+import { alongLabel, boxSize, displayLabel, LINE_HEIGHT, pathLabelPoint, textLines, textSize, rotatedBoxBounds, shapeBBox, trianglePoints, unionBounds, worldPoints } from './geometry';
 import { state } from './state';
 import { currentProject } from './storage';
 import type { Bounds, Shape } from './types';
@@ -93,7 +93,12 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
       }
     }
     const label = displayLabel(s);
-    if (label) {
+    if (label && s.role === 'boundary') {
+      // Along the line, as on screen.
+      const al = alongLabel(s);
+      const lx = (al.x - originX) * scale, ly = (al.y - originY) * scale;
+      out += text(lx, ly - 9 * k, 12, label, al.angle ? ` transform="rotate(${al.angle} ${lx} ${ly})"` : '');
+    } else if (label) {
       const lp = pathLabelPoint(s);
       const { w, h } = boxSize(s);
       const fs = s.type === 'line' ? 12 : Math.max(10, Math.min(14, (Math.min(w, h) * scale * 0.2) / k));

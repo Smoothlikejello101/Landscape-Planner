@@ -183,7 +183,8 @@ export const FORM_COLORS: Record<string, string> = {
   'Tree (canopy)': '#78350f', 'Tree (understory)': '#57534e', 'Shrub': '#16a34a',
   'Perennial': '#a855f7', 'Grass/Sedge': '#f59e0b', 'Vine': '#14b8a6',
   'Bulb': '#ec4899', 'Fern': '#65a30d', 'Annual': '#fbbf24',
-  'Aquatic/Emergent': '#0ea5e9', 'Cactus': '#84cc16'
+  // Water plants: deep green, not blue, since they sit in or beside a pond.
+  'Aquatic/Emergent': '#047857', 'Cactus': '#84cc16'
 };
 /**
  * Status and phase a newly placed plant starts with: Planned, unless the plan

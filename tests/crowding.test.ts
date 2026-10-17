@@ -3,7 +3,11 @@ import { crowdedIds, crowdingOf } from '../src/crowding';
 import type { Plant } from '../src/plants';
 import type { Shape } from '../src/types';
 
-const byId: Record<string, Plant> = { shrub: { id: 'shrub', common: 'Shrub', width: { min: 3, max: 5, med: 4 } } as Plant };
+const byId: Record<string, Plant> = {
+  shrub: { id: 'shrub', common: 'Shrub', width: { min: 3, max: 5, med: 4 } } as Plant,
+  oak: { id: 'oak', common: 'Bur oak', form: 'Tree (canopy)', width: { min: 60, max: 80, med: 70 } } as Plant,
+  redbud: { id: 'redbud', common: 'Redbud', form: 'Tree (understory)', width: { min: 25, max: 35, med: 30 } } as Plant,
+};
 const base = { color: '#16a34a', opacity: 0.65, locked: false };
 const p = (id: string, x: number, extra: Partial<Shape> = {}): Shape =>
   ({ ...base, id, type: 'circle', x, y: 0, radius: 2, role: 'plant', label: id, plantId: 'shrub', ...extra } as Shape);
@@ -25,5 +29,17 @@ describe('crowding', () => {
     const shapes = Array.from({ length: 200 }, (_, i) => p('s' + i, ((i * 7919) % 97) * 0.9, { y: ((i * 104729) % 89) * 0.9 } as Partial<Shape>));
     const brute = new Set(shapes.filter((s) => crowdingOf(s, shapes, byId).length).map((s) => s.id));
     expect(crowdedIds(shapes, byId)).toEqual(brute);
+  });
+  it('only compares plants in the same layer: canopy trees, understory trees, everything else', () => {
+    const shapes = [
+      p('oak', 0, { plantId: 'oak', radius: 10, tree: true, sizeFrom: 'manual' } as Partial<Shape>),
+      p('shrub', 19), p('redbud', 20, { plantId: 'redbud' }),
+      p('oak2', 40, { plantId: 'oak' }), p('mystery', 5, { plantId: undefined, tree: true } as Partial<Shape>),
+    ];
+    const near = (id: string) => crowdingOf(shapes.find((s) => s.id === id)!, shapes, byId).map((x) => x.other.id);
+    expect(near('shrub')).toEqual([]); // under the oak's eventual canopy: fine
+    expect(near('redbud')).toEqual([]);
+    expect(near('oak')).toEqual(['mystery', 'oak2']); // trees still space against trees (unknown ones count as canopy)
+    expect([...crowdedIds(shapes, byId)].sort()).toEqual(['mystery', 'oak', 'oak2']);
   });
 });

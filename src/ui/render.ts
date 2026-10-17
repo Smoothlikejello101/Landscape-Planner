@@ -12,7 +12,7 @@ import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelecte
 import { redrawHandles } from '../canvas';
 import { kindDef, METHOD_LABELS, nextTapPrompt, type KindKey } from '../kinds';
 import { methodIcon, renderAddSheet, renderShortcutsPanel, withKey } from './add-sheet';
-import { finishPlacing, placingPlant, setPlaceHover, startPlacing, undoPlace } from '../place';
+import { finishPlacing, placingPlant, setPlaceHover, undoPlace } from '../place';
 import { plantColor } from '../plants';
 import { currentProject, storageIsDurable } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
@@ -27,7 +27,7 @@ import { fullRingRadius } from '../my-plants';
 import { filterActive, filterText } from '../status';
 import { toast } from './toast';
 import { renderProjectsPanel, renderRenamePanel } from './projects-panel';
-import { placeMorePlant, renderArrangePanel, renderPropsPanel, resetKindChange } from './props-panel';
+import { moreOfSame, renderArrangePanel, renderPropsPanel, resetKindChange } from './props-panel';
 
 // MAIN RENDER
 // ============================================================
@@ -242,12 +242,12 @@ export function render() {
     closeBtn.innerHTML = I.x;
     closeBtn.addEventListener('click', () => { clearSelection(); render(); });
     bar.appendChild(editAllBtn);
-    // All the same plant: place more of it.
-    const more = placeMorePlant(getSelected());
+    // All the same plant (or the same tree): more of it.
+    const more = moreOfSame(getSelected(), false);
     if (more) {
-      const b = el('button', { title: `Place more ${more.common}`, 'data-testid': 'bar-place-more' });
+      const b = el('button', { title: more.title, 'data-testid': 'bar-place-more' });
       b.innerHTML = I.plus + '<span>More</span>';
-      b.addEventListener('click', () => { startPlacing(more); render(); });
+      b.addEventListener('click', () => { more.start(); render(); });
       bar.appendChild(b);
     }
     bar.appendChild(copyBtn);
@@ -267,12 +267,12 @@ export function render() {
       editBtn.innerHTML = I.edit + '<span>Edit</span>';
       editBtn.addEventListener('click', () => { state.panel = 'props'; render(); });
       pill.appendChild(editBtn);
-      // A plant: more of it, tap by tap.
-      const more = placeMorePlant([s]);
+      // Another of the same: a plant placed, a tree or anything else drawn.
+      const more = moreOfSame([s], true);
       if (more) {
-        const b = el('button', { className: 'pill-more', 'data-testid': 'pill-place-more', title: `Place more ${more.common}` });
+        const b = el('button', { className: 'pill-more', 'data-testid': 'pill-place-more', title: more.title, 'aria-label': more.title });
         b.innerHTML = I.plus + '<span>More</span>';
-        b.addEventListener('click', () => { startPlacing(more); render(); });
+        b.addEventListener('click', () => { more.start(); render(); });
         pill.appendChild(b);
       }
       canvasWrap.appendChild(pill);
