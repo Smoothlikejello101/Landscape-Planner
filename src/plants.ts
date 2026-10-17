@@ -6,6 +6,7 @@ import { render } from './ui/render';
 import type { CircleShape, Point } from './types';
 import { snap, uid } from './util';
 import { plantRadius } from './my-plants';
+import { setRadius } from './geometry';
 
 /**
  * One plant: a row of the catalog (plants.json), or one of the user's own
@@ -228,7 +229,7 @@ export function linkShapeToPlant(shapeId: string, p: Plant) {
   s.role = 'plant';
   // A tree already in the yard keeps the size it was drawn at; other circles take the plant's size.
   if (!(s.tree && s.sizeFrom === 'manual')) {
-    s.radius = plantRadius(p, state.sizeMode);
+    setRadius(s, plantRadius(p, state.sizeMode));
     s.sizeFrom = 'plant';
   }
   pushHistory();

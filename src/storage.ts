@@ -112,9 +112,10 @@ export function migrateShape(raw: unknown): Shape | null {
       }
       const shaped = canopy.length >= 3;
       // The outline must fit inside the radius used for sizes and spacing.
-      const reach = shaped ? Math.ceil(Math.max(...canopy.map(([x, y]) => Math.hypot(x, y))) * 4 - 1e-9) / 4 : 0;
+      const reach = shaped ? Math.max(...canopy.map(([x, y]) => Math.hypot(x, y))) : 0;
+      const radius = size(s.radius, 2);
       return {
-        ...base, type: 'circle', radius: Math.max(size(s.radius, 2), reach),
+        ...base, type: 'circle', radius: reach > radius + 0.01 ? Math.ceil(reach * 4) / 4 : radius,
         ...(s.sizeFrom === 'plant' || s.sizeFrom === 'manual' ? { sizeFrom: s.sizeFrom } : {}),
         ...(s.tree === true ? { tree: true } : {}),
         ...(typeof s.trunk === 'number' && s.trunk >= MIN_TRUNK && s.trunk <= MAX_TRUNK ? { trunk: s.trunk } : {}),

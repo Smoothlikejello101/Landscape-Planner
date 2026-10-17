@@ -389,3 +389,21 @@ describe('trees with a trunk and a shaped canopy', () => {
     expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
   });
 });
+
+describe('My plants with their own color', () => {
+  it('keep a plain hex color across a restart, and drop anything else', async () => {
+    const mp = await import('../src/my-plants'); // a namespace, so myPlants stays a live binding
+    const { loadMyPlants, saveMyPlant, sanitizeMyPlant } = mp;
+    const name = 'colors-' + ++dbCount;
+    _resetStorageForTests();
+    await initStorage(await openKV(name));
+    loadMyPlants();
+    await saveMyPlant({ id: 'u-red', common: 'Red one', width: { min: 2, max: 2, med: 2 }, color: '#DC2626' });
+    _resetStorageForTests();
+    await initStorage(await openKV(name));
+    loadMyPlants();
+    expect(mp.myPlants.find((p) => p.id === 'u-red')?.color).toBe('#dc2626');
+    const base = { id: 'u-x', common: 'X', width: { min: 1, max: 1, med: 1 } };
+    for (const bad of ['red', '#12', 'url(x)', '#1234567', 7]) expect(sanitizeMyPlant({ ...base, color: bad })).not.toHaveProperty('color');
+  });
+});

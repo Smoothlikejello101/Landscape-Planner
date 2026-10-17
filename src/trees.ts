@@ -40,13 +40,7 @@ export function fullTrunkDiameter(s: CircleShape): number | null {
  * Change a circle's radius. A shaped canopy grows or shrinks with it, about
  * the trunk, so its outline keeps reaching exactly the new radius.
  */
-export function setRadius(s: CircleShape, radius: number) {
-  if (s.canopy && s.radius > 0) {
-    const k = radius / s.radius;
-    s.canopy = s.canopy.map(([x, y]) => [Math.round(x * k * 100) / 100, Math.round(y * k * 100) / 100]);
-  }
-  s.radius = radius;
-}
+export { setRadius } from './geometry';
 
 /** SVG pieces of a tree's trunk, as element name and attributes (shared by the screen and exports). */
 export interface Part { tag: 'circle'; attrs: Record<string, string | number> }

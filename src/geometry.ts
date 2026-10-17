@@ -150,6 +150,18 @@ export function shapePerimeter(s: Shape): number {
   if (s.type === 'text') return 0;
   return s.width + s.height + Math.hypot(s.width, s.height);
 }
+/**
+ * Change a circle's radius. A shaped canopy grows or shrinks with it, about
+ * the trunk, so its outline keeps reaching exactly the new radius. (Not
+ * rounded: repeated resizes mustn't wear the shape down.)
+ */
+export function setRadius(s: CircleShape, radius: number) {
+  if (s.canopy && s.radius > 0) {
+    const k = radius / s.radius;
+    s.canopy = s.canopy.map(([x, y]) => [x * k, y * k]);
+  }
+  s.radius = radius;
+}
 /** Move a shape so its center lands at `c`. */
 export function setCenter(s: Shape, c: Point) {
   if (s.type === 'circle') { s.x = c.x; s.y = c.y; return; }

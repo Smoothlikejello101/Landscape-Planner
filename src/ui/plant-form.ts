@@ -104,7 +104,7 @@ export function renderPlantForm() {
     form.appendChild(o);
   }
   const color = el('input', { type: 'color', value: plantColor(source), 'data-testid': 'pf-color', 'aria-label': 'Color on the plan', title: 'Color on the plan' }) as HTMLInputElement;
-  let colorPicked = !!source?.color && editing != null;
+  let colorPicked = !!source?.color;
   color.addEventListener('input', () => { colorPicked = true; });
   form.addEventListener('change', () => { if (!colorPicked) color.value = plantColor({ id: '', common: '', form: form.value || undefined }); });
   body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Type and color on the plan'),
@@ -150,7 +150,8 @@ export function renderPlantForm() {
       ...(h ? { height: h } : {}),
       ...sunRange([...sun]),
       ...(form.value ? { form: form.value } : {}),
-      color: color.value.toLowerCase(),
+      // Stored only when it differs from the type's color, so changing the type later still recolors it.
+      ...(color.value.toLowerCase() !== plantColor({ id: '', common: '', form: form.value || undefined }) ? { color: color.value.toLowerCase() } : {}),
       ...(start ? { bloom: { start, end, ...(bloomColor.value.trim() ? { color: bloomColor.value.trim() } : {}) } } : {}),
       ...(notes.value.trim() ? { notes: notes.value.trim() } : {}),
     };

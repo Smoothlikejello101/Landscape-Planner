@@ -161,7 +161,16 @@ export function renderPropsPanelSingle(s: Shape) {
     const what = bySpread(s) ? (s.canopy ? 'Spread, widest (ft)' : 'Spread (ft)') : 'Diameter (ft)';
     sizeParts.push(el('div', { className: 'field' }, el('label', {}, what), dInput,
       bySpread(s) ? el('div', { className: 'hint' }, 'How wide it\'s drawn, across. Plant tags call this its spread.') : '', bySpread(s) ? '' : measure));
+    // Trees drawn before trunks existed (or a plant of my own that's a tree): say so here.
+    const formTree = !!s.plantId && !!plantsById[s.plantId]?.form?.startsWith('Tree');
+    if (s.role === 'plant' && !formTree) {
+      const cb = el('input', { type: 'checkbox' }) as HTMLInputElement;
+      cb.checked = !!s.tree;
+      cb.addEventListener('change', () => updateSelected({ tree: cb.checked || undefined }));
+      sizeParts.push(el('label', { className: 'check-row', 'data-testid': 'is-tree' }, cb, el('span', {}, 'A tree (show its trunk)')));
+    }
     if (isTree(s)) sizeParts.push(...trunkFields(s));
+    if (s.canopy) sizeParts.push(makeRoundField(s));
   } else {
     const isPath = s.type === 'poly' || s.type === 'line';
     // Reshaping point by point is the likelier edit for an outline or path, so it comes first.
@@ -351,13 +360,14 @@ function trunkFields(s: CircleShape): Node[] {
   });
   const out: Node[] = [el('div', { className: 'field', style: { marginTop: '8px' } }, el('label', {}, 'Trunk (ft across)'), t,
     el('div', { className: 'hint' }, 'Leave empty to keep it in proportion to the canopy.'))];
-  if (s.canopy) {
-    const round = el('button', { className: 'btn ghost', 'data-testid': 'make-round' }, 'Make the canopy round');
-    round.disabled = isLocked(s);
-    round.addEventListener('click', () => updateSelected({ canopy: undefined }));
-    out.push(el('div', { className: 'field' }, round, el('div', { className: 'hint' }, 'Drops the drawn outline; the tree keeps its trunk and widest spread.')));
-  }
   return out;
+}
+/** A shaped canopy back to a circle (also offered if it stopped being a tree). */
+function makeRoundField(s: CircleShape): HTMLElement {
+  const round = el('button', { className: 'btn ghost', 'data-testid': 'make-round' }, 'Make the canopy round');
+  round.disabled = isLocked(s);
+  round.addEventListener('click', () => updateSelected({ canopy: undefined }));
+  return el('div', { className: 'field' }, round, el('div', { className: 'hint' }, 'Drops the drawn outline, keeping the widest spread.'));
 }
 
 /** For circles: which plant this is (size range, reset, edit), or a way to make it one. */

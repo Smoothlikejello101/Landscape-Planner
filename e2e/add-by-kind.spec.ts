@@ -128,6 +128,11 @@ test('an existing tree: the trunk, then the canopy edge; spread by hand, trunk i
   await expect(trunk).toHaveAttribute('r', String(1 * FT));
   await field(page, 'Spread (ft)').fill('20');
   await expect(trunk).toHaveAttribute('r', String(1 * FT)); // set by hand: stays
+  // Not a tree after all (or a tree drawn before trunks): one switch.
+  await page.getByTestId('is-tree').locator('input').uncheck();
+  await expect(trunk).toHaveCount(0);
+  await page.getByTestId('is-tree').locator('input').check();
+  await expect(trunk).toHaveCount(1);
 });
 
 test('a tree pruned into a shape: the trunk, then its outline', async ({ page }) => {

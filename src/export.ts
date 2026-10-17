@@ -64,14 +64,15 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
       : `<circle cx="${cx}" cy="${cy}" r="${r}" ${paint}/>`;
     const tree = isTree(s);
     if (tree) out += partsToSvg(trunkParts(s, cx, cy, scale, false, k));
-    if (s.label) {
+    const name = displayLabel(s);
+    if (name) {
       // Plants: the name fitted inside, as on screen (sizes in screen px, scaled by k for print).
       const plant = s.role === 'plant' && s.plantId ? plantsById[s.plantId] : undefined;
-      const fit = plantLabelFit(s.label, (canopyInnerRadius(s) * scale) / k, tree ? { below: trunkReachPx(s, scale / k) + 1 } : {}, plant);
+      const fit = plantLabelFit(name, (canopyInnerRadius(s) * scale) / k, tree ? { below: trunkReachPx(s, scale / k) + 1 } : {}, plant);
       if (fit) {
         const lh = fit.fontSize * LABEL_LINE_HEIGHT * k;
         out += fit.lines.map((line, i) => text(cx, cy + fit.dy * k + (i - (fit.lines.length - 1) / 2) * lh, fit.fontSize, line)).join('');
-      } else out += text(cx, cy, Math.max(10, Math.min(14, (r / k) * 0.4)), s.label); // over the edge, as before
+      } else out += text(cx, cy, Math.max(10, Math.min(14, (r / k) * 0.4)), name); // over the edge, as before
     }
     return out;
   }

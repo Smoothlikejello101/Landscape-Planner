@@ -4,6 +4,7 @@ import { state } from './state';
 import { rememberSizeMode, save, storedMyPlants, writeMyPlants } from './storage';
 import type { CircleShape, Shape, SizeMode } from './types';
 import { snap, uid } from './util';
+import { setRadius } from './geometry';
 
 // The user's own plants ("My plants"): a library shared by every project,
 // for plants the catalog doesn't have (a cultivar off a nursery tag, a local
@@ -87,7 +88,7 @@ export function plantsToResize(shapes: Shape[], mode: SizeMode): CircleShape[] {
 export function applySizeMode(mode: SizeMode) {
   flushHistoryDebounce();
   for (const s of plantsToResize(state.shapes, mode)) {
-    s.radius = plantRadius(plantsById[s.plantId!]!, mode);
+    setRadius(s, plantRadius(plantsById[s.plantId!]!, mode));
     s.sizeFrom = 'plant';
   }
   state.sizeMode = mode;
@@ -206,7 +207,7 @@ export function recolorPlaced(id: string, oldColor: string, newColor: string) {
 export function resizePlaced(p: Plant, oldName: string) {
   flushHistoryDebounce();
   for (const s of placedUsing(p.id)) {
-    s.radius = plantRadius(p, state.sizeMode);
+    setRadius(s, plantRadius(p, state.sizeMode));
     s.sizeFrom = 'plant';
   }
   // Renamed in the library: rename placed plants still showing the old name.

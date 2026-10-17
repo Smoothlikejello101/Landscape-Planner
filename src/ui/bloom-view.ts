@@ -43,9 +43,11 @@ export function bloomChart(sum: BloomSummary): HTMLElement {
   }, n ? String(n) : '–')));
   wrap.appendChild(grid);
   const gaps = bloomGaps(sum.perMonth, season);
-  wrap.appendChild(el('div', { className: 'hint', 'data-testid': 'bloom-gaps' }, gaps
-    ? `Nothing in bloom in ${gaps} (${seasonText(season)}).`
-    : `Something is in bloom every month ${seasonSpan(season)}.`));
+  if (season.length) {
+    wrap.appendChild(el('div', { className: 'hint', 'data-testid': 'bloom-gaps' }, gaps
+      ? `Nothing in bloom in ${gaps} (${seasonText(season)}).`
+      : `Something is in bloom every month ${seasonSpan(season)}.`));
+  }
   if (sum.noData) wrap.appendChild(el('div', { className: 'hint' }, `${sum.noData} plant${sum.noData === 1 ? ' has' : 's have'} no bloom months recorded.`));
   return wrap;
 }
@@ -83,9 +85,11 @@ export function renderBloomPanel() {
     const all = bloomSummary(state.shapes, plantsById);
     const season = bloomSeason(all.perMonth);
     const gaps = bloomGaps(all.perMonth, season);
-    body.appendChild(el('div', { className: 'banner', 'data-testid': 'plan-bloom-gaps' }, gaps
-      ? `Across the whole plan, nothing is in bloom in ${gaps} (${seasonText(season)}).`
-      : `Across the whole plan, something is in bloom every month ${seasonSpan(season)}.`));
+    body.appendChild(el('div', { className: 'banner', 'data-testid': 'plan-bloom-gaps' }, !season.length
+      ? 'No bloom months are known for the plants in this plan yet.'
+      : gaps
+        ? `Across the whole plan, nothing is in bloom in ${gaps} (${seasonText(season)}).`
+        : `Across the whole plan, something is in bloom every month ${seasonSpan(season)}.`));
   }
   for (const g of groups) {
     body.appendChild(el('div', { className: 'bloom-group' }, el('div', { className: 'section-label' }, g.bed), bloomChart(g)));

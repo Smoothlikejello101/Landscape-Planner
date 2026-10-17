@@ -61,6 +61,9 @@ describe('placing plants by tapping', () => {
     undo(); undo();
     undoPlace(); undoPlace();
     expect(state.shapes.find((s) => s.id === 'bed')).toBeTruthy(); // the earlier bed is never undone
+    // ...and the rename made while placing is still there to redo, without the plants taken back.
+    redo(); redo();
+    expect(state.shapes.map((s) => s.label)).toEqual(['Front bed']);
   });
   it('is a sandbox: plants taken back never return through undo after Done', () => {
     startPlacing(cone);
