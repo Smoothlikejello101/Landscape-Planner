@@ -1,5 +1,5 @@
 import { MIN_TRUNK } from './constants';
-import { fullRingRadius } from './my-plants';
+import { fullRingRadius, plantSpread } from './my-plants';
 import { plantsById } from './plants';
 import type { CircleShape, Shape } from './types';
 
@@ -24,9 +24,18 @@ export function isTree(s: Shape): s is CircleShape {
 const quarter = (v: number) => Math.max(MIN_TRUNK, Math.round(v * 4) / 4);
 /** Trunk diameter (feet) in proportion to a canopy this wide. */
 export function trunkFor(spread: number): number { return quarter(spread * TRUNK_SHARE); }
-/** The trunk drawn: set by hand, else in proportion to the canopy as drawn. */
+/**
+ * The trunk drawn: set by hand; else the catalog's mature trunk, scaled to
+ * how much of its full spread the canopy is drawn at; else the rule of thumb.
+ */
 export function trunkDiameter(s: CircleShape): number {
-  return s.trunk ?? trunkFor(s.radius * 2);
+  if (s.trunk != null) return s.trunk;
+  const p = s.plantId ? plantsById[s.plantId] : undefined;
+  if (p?.trunk) {
+    const full = plantSpread(p, 'full');
+    return quarter(p.trunk * Math.min(1, full > 0 ? (s.radius * 2) / full : 1));
+  }
+  return trunkFor(s.radius * 2);
 }
 /** The full-grown trunk, when the tree is drawn smaller than full size (else null). */
 export function fullTrunkDiameter(s: CircleShape): number | null {

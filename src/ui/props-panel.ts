@@ -16,7 +16,7 @@ import { render } from './render';
 import type { CircleShape, Corner, RoleKey, Shape } from '../types';
 import { formatSize, isMine, plantRadius, type Range } from '../my-plants';
 import { plantFilter, plantsById, type Plant } from '../plants';
-import { isTree, trunkFor } from '../trees';
+import { isTree, trunkDiameter } from '../trees';
 import { MAX_TRUNK, MIN_TRUNK } from '../constants';
 import { statusSection, statusSummary } from './status-section';
 import { hasStatus } from '../status';
@@ -376,7 +376,7 @@ export function moreOfSame(selected: Shape[], drawn: boolean): MoreOfSame | null
 }
 /** A tree's trunk: in proportion to the canopy unless set by hand; a shaped canopy can be made round again. */
 function trunkFields(s: CircleShape): Node[] {
-  const t = el('input', { type: 'number', step: '0.25', min: String(MIN_TRUNK), max: String(MAX_TRUNK), inputMode: 'decimal', placeholder: String(trunkFor(s.radius * 2)), value: s.trunk ?? '', 'data-testid': 'trunk-size' }) as HTMLInputElement;
+  const t = el('input', { type: 'number', step: '0.25', min: String(MIN_TRUNK), max: String(MAX_TRUNK), inputMode: 'decimal', placeholder: String(trunkDiameter({ ...s, trunk: undefined })), value: s.trunk ?? '', 'data-testid': 'trunk-size' }) as HTMLInputElement;
   const value = () => { const v = parseFloat(t.value.replace(',', '.')); return v >= MIN_TRUNK && v <= MAX_TRUNK ? v : null; };
   t.addEventListener('input', () => { const v = value(); if (v != null) updateSelectedSilent({ trunk: v }); });
   t.addEventListener('change', () => {
@@ -411,6 +411,7 @@ function plantLinkSection(s: CircleShape): HTMLElement {
   }
   const sizes = `Spread ${formatSize(p.width as Range | undefined) || 'unknown'}. Drawn at ${state.sizeMode === 'full' ? 'full' : 'typical'} size (change in Layers).`;
   wrap.appendChild(el('div', { className: 'hint' }, sizes));
+  if (p.unverified) wrap.appendChild(el('div', { className: 'hint', 'data-testid': 'plant-unverified' }, "Unverified: this plant's details come from an older list with no sources, and haven't been checked yet."));
   const row = el('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' } });
   const target = plantRadius(p, state.sizeMode);
   if (s.radius !== target) {

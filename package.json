@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "check": "npm run typecheck && npm test && npm run build && npm run test:e2e"
+    "check": "npm run typecheck && npm test && npm run build && npm run test:e2e",
+    "catalog:check": "vite-node scripts/catalog/check.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",
