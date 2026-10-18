@@ -5,7 +5,7 @@ import { arkatlasStatus, feetRange, mnwildFields, monthRange, ncsuFields, usdaFi
 // @ts-expect-error (plain JavaScript build script)
 import { mnLight, ncsuSun } from '../scripts/catalog/map.mjs';
 // @ts-expect-error (plain JavaScript build script)
-import { agrees, arkatlasClaims, combine, halfZoneOfTemp, halfZones, hostNames, mnwildClaims, ncsuClaims, tallamyClaims, usdaClaims, waterNeed, zoneSpan } from '../scripts/catalog/claims.mjs';
+import { agrees, arkatlasClaims, combine, halfZoneOfTemp, halfZones, hostNames, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims, waterNeed, zoneSpan } from '../scripts/catalog/claims.mjs';
 
 const fixture = (f: string) => readFileSync(`tests/fixtures/catalog/${f}`, 'utf8');
 
@@ -17,7 +17,7 @@ describe('reading sources', () => {
     expect(f.Height).toEqual(['20 ft. 0 in. - 30 ft. 0 in.']);
     expect(f.Width).toEqual(['25 ft. 0 in. - 35 ft. 0 in.']);
     expect(f['USDA Plant Hardiness Zone']).toEqual(['4a, 4b, 5a, 5b, 6a, 6b, 7a, 7b, 8a, 8b, 9a, 9b']);
-    expect(f['Larval hosts']).toEqual(["Henry's Elfin"]);
+    expect(f['Larval hosts']).toEqual(["Henry's Elfin (Callophrys henrici)"]);
     expect(f['Wildlife Value']).toBeUndefined();
     expect(f['Design Feature']).toContain('Understory Tree');
     const o = ncsuFields(fixture('ncsu-nerium.html'));
@@ -123,11 +123,32 @@ describe('claims and how they combine', () => {
     expect(waterNeed({})).toBeNull();
   });
   it('pulls caterpillar host names from sentences, never the sentence', () => {
-    expect(hostNames('This is a larval host plant to Eastern Tiger Swallowtail (Papilio glaucus). You may see three flights.')).toEqual(['Eastern Tiger Swallowtail']);
+    expect(hostNames('This is a larval host plant to Eastern Tiger Swallowtail (Papilio glaucus). You may see three flights.')).toEqual(['Eastern Tiger Swallowtail (Papilio glaucus)']);
     expect(hostNames('Host plant for the Pearl Crescent butterfly. Flowers are attractive to bees.')).toEqual(['Pearl Crescent']);
-    expect(hostNames("Food plant to larvae of the Dogface Sulphur (Colias cesonia) and Reakirt's Blue (Hemiargus isola) butterflies.")).toEqual(['Dogface Sulphur', "Reakirt's Blue"]);
+    expect(hostNames("Food plant to larvae of the Dogface Sulphur (Colias cesonia) and Reakirt's Blue (Hemiargus isola) butterflies.")).toEqual(['Dogface Sulphur (Colias cesonia)', "Reakirt's Blue (Hemiargus isola)"]);
+    // A bird in a sentence about larvae isn't a caterpillar: the Tallamy genera say which are.
+    const names = hostNames('Like Spicebush Swallowtail (Papilio troilus), its larvae feed here; Cedar Waxwing (Bombycilla cedrorum) eats the berries.');
+    expect(names).toEqual(['Spicebush Swallowtail (Papilio troilus)', 'Cedar Waxwing (Bombycilla cedrorum)']);
+    expect(onlyCaterpillars(names, new Set(['Papilio']))).toEqual(['Spicebush Swallowtail (Papilio troilus)']);
+    expect(onlyCaterpillars(['Pearl Crescent'], new Set(['Papilio']))).toEqual(['Pearl Crescent']);
     expect(hostNames('Members of the genus Viola support the following specialized bees: Andrena (Gonandrena) fragilis.')).toEqual([]);
     expect(hostNames('Various moths use this plant as a host.')).toEqual([]);
+  });
+  it('keeps the highest kind of a copied text, keeps blogs out of survival facts, and never sets places against each other', () => {
+    const copy = [{ fact: 'zone_min', v: 5, src: 'shop.com', kind: 'nursery', group: 'p:1' }, { fact: 'zone_min', v: 5, src: 'ext.edu', kind: 'authority', group: 'p:1' }];
+    expect(combine(copy).zone_min).toMatchObject({ src: ['ext.edu'], kind: 'authority', check: 'single' });
+    expect(combine([{ fact: 'zone_min', v: 5, src: 'a-blog.com', kind: 'blog' }]).zone_min).toBeNull();
+    expect(combine([{ fact: 'bloom_season', v: ['spring'], src: 'a-blog.com', kind: 'blog' }]).bloom_season).toMatchObject({ check: 'reported' });
+    const months = [{ fact: 'bloom_months', v: { start: 7, end: 9 }, src: 'mnwild', kind: 'authority', at: 'MN' }, { fact: 'bloom_months', v: { start: 5, end: 7 }, src: 'x.edu', kind: 'authority', at: 'AR' }, { fact: 'bloom_months', v: { start: 7, end: 9 }, src: 'y.edu', kind: 'authority', at: 'MN' }];
+    expect(combine(months).bloom_months).toMatchObject({ check: 'confirmed', src: ['mnwild', 'y.edu'] });
+    // Toxicity agrees only exactly.
+    expect(agrees('tox_people', ['major', 'dermatitis'], ['minor', 'dermatitis'])).toBe(false);
+    expect(agrees('tox_people', ['dermatitis', 'major'], ['major', 'dermatitis'])).toBe(true);
+  });
+  it('confirms a caterpillar host only where two sources name the same one', () => {
+    const h = (src: string, v: string[]) => ({ fact: 'host', v, src, kind: 'authority' });
+    expect(combine([h('ncsu', ['A']), h('x.edu', ['B'])]).host).toMatchObject({ v: ['A', 'B'], check: 'single' });
+    expect(combine([h('ncsu', ['A']), h('x.edu', ['A'])]).host).toMatchObject({ check: 'confirmed' });
   });
   it('lets an authority decide, and confirms it with another independent source', () => {
     const f = combine([nc('sun_least', 'Part'), nc('sun_least', 'Part', 'authority', 'mnwild')]);
@@ -167,7 +188,7 @@ describe('claims and how they combine', () => {
     const f = combine([nc('zone_min', 5), ...u]);
     expect(f.zone_min).toMatchObject({ v: 5, src: ['ncsu'], check: 'single', flags: ['USDA: lowest 7 °F'] });
     expect(combine([nc('zone_min', 4), ...usdaClaims({ 'Temperature, Minimum (°F)': ['-28'] })]).zone_min.flags).toBeUndefined();
-    expect(combine(u).zone_min).toBeNull(); // (a flag alone decides nothing)
+    expect(combine(u).zone_min).toMatchObject({ v: null, flags: ['USDA: lowest 7 °F'] }); // (a flag alone decides nothing)
     expect(combine(u).native_us).toMatchObject({ v: 'native' });
   });
   it('reads NC State and Minnesota pages into claims', () => {
@@ -175,7 +196,7 @@ describe('claims and how they combine', () => {
     expect(f.zone_min.v).toBe(4);
     expect(f.zone_max.v).toBe(9.5);
     expect(f.height.v).toEqual({ min: 20, max: 30 });
-    expect(f.host.v).toEqual(["Henry's Elfin"]);
+    expect(f.host.v).toEqual(["Henry's Elfin (Callophrys henrici)"]);
     expect(f.form).toBeNull(); // (NC State says Shrub and Tree)
     expect(f.bloom_months).toMatchObject({ v: 'July - September', at: 'MN' });
     const o = combine(ncsuClaims(ncsuFields(fixture('ncsu-nerium.html'))));

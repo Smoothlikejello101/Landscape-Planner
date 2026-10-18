@@ -7,7 +7,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { savedPage } from './pages.mjs';
 import { arkatlasStatus, mnwildFields, ncsuFields, usdaFields } from './extract.mjs';
-import { arkatlasClaims, combine, mnwildClaims, ncsuClaims, tallamyClaims, usdaClaims } from './claims.mjs';
+import { arkatlasClaims, combine, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims } from './claims.mjs';
 
 const [samplePath, atlasPath, outPath, extraPath] = process.argv.slice(2);
 /** Claims gathered elsewhere (the web search, the Tallamy data), by plant id. */
@@ -17,6 +17,7 @@ const atlas = readFileSync(atlasPath, 'utf8');
 // Shropshire & Tallamy by host genus (scripts/catalog/tallamy.py builds it from their spreadsheet).
 const TALLAMY = 'catalog-src/tallamy/genera.json';
 const tallamy = existsSync(TALLAMY) ? JSON.parse(readFileSync(TALLAMY, 'utf8')) : null;
+const lepGenera = tallamy?.lep_genera ? new Set(tallamy.lep_genera) : null;
 const catalog = JSON.parse(readFileSync('public/plants.json', 'utf8'));
 const byId = new Map(catalog.plants.map((p) => [p.id, p]));
 
@@ -70,13 +71,14 @@ for (const s of sample) {
   const slugOf = (t) => t.toLowerCase().replace(/×/g, 'x').replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const speciesPage = seen.ncsu && (s.ncsuName || s.genusOnly || s.ncsu === slugOf(s.species));
   const claims = [
-    ...ncsuClaims(ncsu).map((c) => ({ ...c, cultivarPage: !!seen.ncsu && !speciesPage })),
+    ...ncsuClaims(ncsu).map((c) => ({ ...c, cultivarPage: !!seen.ncsu && !speciesPage }))
+      .map((c) => (c.fact === 'host' ? { ...c, v: onlyCaterpillars(c.v, lepGenera) } : c)).filter((c) => !(c.fact === 'host' && !c.v.length)),
     ...mnwildClaims(mnwild), ...arkatlasClaims(ar), ...usdaClaims(usda), ...tallamyClaims(tallamy, s.species),
     ...(extraClaims[s.id] ?? []),
   ];
   const mapped = combine(claims, { cultivar });
   if (cultivar && (speciesPage || !seen.ncsu)) notes.push('A cultivar read from species pages: its size, form and flower color come only from a page for the cultivar');
-  out.push({ id: s.id, common: rec?.common, botanical: rec?.botanical, species: s.species, compendium: rec?.facts ?? {}, sources: seen, raw: { ncsu, usda, mnwild, arkatlas: ar }, facts: mapped, notes });
+  out.push({ id: s.id, common: rec?.common, botanical: rec?.botanical, species: s.species, compendium: rec?.facts ?? {}, sources: seen, raw: { ncsu, usda, mnwild, arkatlas: ar }, claims, facts: mapped, notes });
 }
 writeFileSync(outPath, JSON.stringify(out, null, 1));
 console.log(`${out.length} plants → ${outPath}`);

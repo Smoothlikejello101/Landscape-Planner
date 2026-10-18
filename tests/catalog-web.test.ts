@@ -1,22 +1,28 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error (plain JavaScript build script)
-import { aboutPlant, copyKey, pageText, siteKind, sizeIn, termsLinks, termsVerdict, webClaims, webFields } from '../scripts/catalog/web.mjs';
+import { aboutPlant, copyKey, looksLikeTerms, pageText, siteKind, siteTerms, sizeIn, sourceOf, termsLinks, termsVerdict, webClaims, webFields } from '../scripts/catalog/web.mjs';
 // @ts-expect-error (plain JavaScript build script)
 import { combine } from '../scripts/catalog/claims.mjs';
 
 // Pages here are made up, in our own words: spec lines laid out the ways shops and gardens lay them out.
-const shop = (body: string) => `<html><body><h1>Sweetspire</h1><p>Itea virginica 'Little Henry'</p>${body}<button>Add to cart</button><span>$24.99</span></body></html>`;
+const shop = (body: string, title = "Itea virginica 'Little Henry'") => `<html><head><title>${title} | A Shop</title></head><body><h1>${title}</h1>${body}<button>Add to cart</button><span>$24.99</span></body></html>`;
 
 describe('which sites the audit reads from search results', () => {
-  it('sorts sites into authorities, breeders, nurseries and blogs, and skips the closed ones', () => {
+  it('sorts sites into authorities, nurseries and blogs, and skips the closed ones', () => {
     expect(siteKind('https://extension.umn.edu/plants/x')).toBe('authority');
     expect(siteKind('https://www.mtcubacenter.org/plants/x')).toBe('authority');
-    expect(siteKind('https://www.provenwinners.com/plants/x')).toBe('breeder');
     expect(siteKind('https://shop.example.com/p/x', shop(''))).toBe('nursery');
+    expect(siteKind('https://www.provenwinners.com/plants/x', shop(''))).toBe('nursery'); // (breeders read as nurseries, for now)
     expect(siteKind('https://blog.example.com/x', '<p>My garden this spring</p>')).toBe('blog');
-    for (const closed of ['https://www.missouribotanicalgarden.org/x', 'https://plantfinder.mobot.org/x', 'https://www.wildflower.org/x', 'https://en.wikipedia.org/wiki/X', 'https://garden.org/plants/x', 'not a url']) {
-      expect(siteKind(closed)).toBe('skip');
-    }
+    for (const closed of [
+      'https://www.missouribotanicalgarden.org/x', 'https://plantfinder.mobot.org/x', 'https://www.wildflower.org/x', 'https://en.wikipedia.org/wiki/X',
+      'https://garden.org/plants/x', 'https://web.archive.org/web/2024/https://calscape.org/x', 'https://trefle.io/x', 'https://archive.ph/abc',
+      'https://plants.usda.gov/x', 'https://www.nrcs.usda.gov/x', 'https://content.ces.ncsu.edu/x', 'not a url',
+    ]) expect(siteKind(closed), closed).toBe('skip');
+  });
+  it("counts one company's sites as one source", () => {
+    expect(sourceOf('www.provenwinners.com')).toBe(sourceOf('provenwinnersdirect.com'));
+    expect(sourceOf('shop.example.com')).toBe('example.com');
   });
 });
 
@@ -37,39 +43,47 @@ describe('reading spec lines', () => {
     expect(webFields(pageText('<p>It does well for us here in zone 7, and grows about 3 feet tall.</p>'))).toEqual({});
   });
   it('leaves out lists of choices, conflicting repeats, empty labels and prose', () => {
-    // A row of exposure icons, one lit by styling we can't see.
-    expect(webFields('Exposure\nFull Shade\nPart Shade to Shade\nPart Sun to Sun')).toEqual({});
-    // Related products, each with its own spec line.
-    expect(webFields('Light: Part Sun\nSoil: Loamy\nLight: Full Sun')).toEqual({});
+    expect(webFields('Exposure\nFull Shade\nPart Shade to Shade\nPart Sun to Sun')).toEqual({}); // (icons, one lit)
+    expect(webFields('Light: Part Sun\nSoil: Loamy\nLight: Full Sun')).toEqual({}); // (related products)
     expect(webFields('Light: Part Sun\nLight: Part Sun')).toEqual({ sun: { most: 'Part', least: 'Part' } });
-    // A label with nothing filled in, followed by the next label.
     expect(webFields('Sun or Shade:\nCompanion Plants:\nSun to part sun.')).toEqual({});
-    // A label whose "value" is a paragraph.
     expect(webFields('Mature Height: This species typically grows to a height of about 25-35 feet with a crown that is wider than tall.')).toEqual({});
-    // A sentence that starts with a label's word isn't a label.
+    expect(webFields('Light\nFull sun is best for good flowering.')).toEqual({}); // (a sentence under a bare label)
     expect(webFields('Sun to part shade. Does well in many soils.')).toEqual({});
-    // "sun" alone is a value; a half-zone list is a range.
     expect(webFields('Sun Exposure\nsun\nSoil Needs\nwell-drained')).toEqual({ sun: { most: 'Full', least: 'Full' } });
     expect(webFields('Hardiness Zones:\n5a , 5b , 6a , 9b\nWater Category:')).toEqual({ zones: { zone_min: 5, zone_max: 9.5 } });
     expect(webFields('sun - mostly shade')).toEqual({});
-    // Hardiness written with words around it.
     expect(webFields('USDA Hardiness Zone: 4 to 9')).toEqual({ zones: { zone_min: 4, zone_max: 9.5 } });
   });
-  it('treats a page that draws on a source closed to us as that source', () => {
-    const p = { species: 'Cercis canadensis', cultivar: null };
-    expect(webClaims('https://shop.example.com/x', '<p>Cercis canadensis</p><p>Zones: 4-9</p><p>(Missouri Botanical Garden)</p>', p)).toEqual([]);
-    expect(webClaims('https://shop.example.com/x', '<p>Cercis canadensis</p><p>Zones: 4-9</p>', p)).toHaveLength(2);
+  it("doesn't mistake temperatures, negations, pot sizes or two sizes for values", () => {
+    expect(webFields('Hardiness: 5 to 10 °F')).toEqual({});
+    expect(webFields('Hardiness: -20 to -10 F')).toEqual({});
+    expect(webFields('Light: Full sun (does not tolerate shade)')).toEqual({ sun: { most: 'Full', least: 'Full' } });
+    expect(webFields('Light: Morning sun, afternoon shade')).toEqual({ sun: { most: 'Part', least: 'Part' } });
+    expect(webFields('Light: Sun, part shade, shade')).toEqual({ sun: { most: 'Full', least: 'Shade' } });
+    expect(webFields('Bloom Time: Summer; may rebloom')).toEqual({ bloomSeasons: ['summer'] });
+    expect(webFields('Height: 10 years: 6 ft; mature 20 ft')).toEqual({});
+    expect(webFields('Height: 24 in. pot')).toEqual({});
   });
   it('turns sizes into feet', () => {
     expect(sizeIn('36-48 in')).toEqual({ min: 3, max: 4 });
     expect(sizeIn("3' to 5'")).toEqual({ min: 3, max: 5 });
+    expect(sizeIn('6 in to 2 ft')).toEqual({ min: 0.5, max: 2 });
     expect(sizeIn('1 1/2 ft')).toEqual({ min: 1.5, max: 1.5 });
     expect(sizeIn('tall')).toBeNull();
   });
-  it('checks a page is about the plant', () => {
-    expect(aboutPlant('Itea virginica ‘Little Henry’', { species: 'Itea virginica', cultivar: 'Little Henry' })).toBe(true);
-    expect(aboutPlant('Itea virginica', { species: 'Itea virginica', cultivar: 'Little Henry' })).toBe(false);
-    expect(aboutPlant('Cercis canadensis, eastern redbud', { species: 'Cercis canadensis', cultivar: null })).toBe(true);
+  it('checks a page is about the plant, not one beside it', () => {
+    const henry = { species: 'Itea virginica', cultivar: 'Little Henry' };
+    const page = (title: string, body: string): [string, string] => { const h = `<title>${title}</title><h1>${title}</h1><p>${body}</p>`; return [h, pageText(h)]; };
+    expect(aboutPlant(...page('Itea virginica ‘Little Henry’', 'Itea virginica'), henry)).toBe(true);
+    expect(aboutPlant(...page('Virginia sweetspire', 'Itea virginica; see also Little Henry.'), henry)).toBe(false); // (named only in passing)
+    const redbud = { species: 'Cercis canadensis', cultivar: null };
+    expect(aboutPlant(...page('Eastern redbud', 'Cercis canadensis, eastern redbud'), redbud)).toBe(true);
+    expect(aboutPlant(...page("Cercis canadensis 'Forest Pansy'", "Cercis canadensis 'Forest Pansy'"), redbud)).toBe(false); // (a cultivar's page)
+    expect(aboutPlant(...page('Eastern redbud', "Cercis canadensis 'Forest Pansy' only"), redbud)).toBe(false);
+    // A cultivar name that is also part of another name.
+    expect(aboutPlant(...page('Quercus alba, white oak', 'Quercus alba'), { species: 'Echinacea purpurea', cultivar: 'Alba' })).toBe(false);
+    expect(aboutPlant(...page("Coneflower 'Henry's Choice'", "Echinacea purpurea, a host for Henry's Elfin"), { species: 'Echinacea purpurea', cultivar: 'Henry' })).toBe(false);
   });
 });
 
@@ -78,38 +92,65 @@ describe('web claims', () => {
   const para = '<p>' + 'A compact sweetspire with arching white flower spikes in late spring and red fall color, made up for this test only. '.repeat(2) + '</p>';
   it('cite the page and its site, and mark copies of one text', () => {
     const a = webClaims('https://shop-a.example.com/itea', shop(`${para}<p>Zones: 5-9</p>`), plant);
-    const b = webClaims('https://shop-b.example.com/itea', shop(`${para}<p>Zones: 5-9</p>`), plant);
+    const b = webClaims('https://shop-b.example.net/itea', shop(`${para}<p>Zones: 5-9</p>`), plant);
     expect(a.map((c: { fact: string }) => c.fact)).toEqual(['zone_min', 'zone_max']);
     expect(a[0]).toMatchObject({ src: 'example.com', kind: 'nursery', url: 'https://shop-a.example.com/itea', cultivarPage: true });
     expect(a[0].group).toBe(b[0].group);
     expect(copyKey('<p>short</p>')).toBeNull();
     expect(webClaims('https://www.wildflower.org/x', shop('<p>Zones: 5-9</p>'), plant)).toEqual([]);
-    expect(webClaims('https://shop.example.com/x', '<p>Zones: 5-9</p>', plant)).toEqual([]); // (not about this plant)
+    expect(webClaims('https://shop.example.com/x', shop('<p>Zones: 5-9</p>', 'Something else'), plant)).toEqual([]); // (not about this plant)
+  });
+  it('treat a page that draws on a source closed to us as that source, credited in text or by a link', () => {
+    const p = { species: 'Cercis canadensis', cultivar: null };
+    const page = (extra: string) => `<title>Eastern redbud</title><p>Cercis canadensis</p><p>Zones: 4-9</p>${extra}`;
+    expect(webClaims('https://shop.example.com/x', page('<p>(Missouri Botanical Garden)</p>'), p)).toEqual([]);
+    expect(webClaims('https://shop.example.com/x', page('<a href="https://www.missouribotanicalgarden.org/x">Source</a>'), p)).toEqual([]);
+    expect(webClaims('https://shop.example.com/x', page('<p>Data: NPIN</p>'), p)).toEqual([]);
+    expect(webClaims('https://shop.example.com/x', page(''), p)).toHaveLength(2);
   });
   it('combine: nurseries alone are "likely" when most agree, a copy counts once, one site counts once', () => {
-    const n = (src: string, v: number, group?: string) => ({ fact: 'zone_min', v, src, kind: 'nursery', group: group ?? src });
+    const n = (src: string, v: number, group?: string) => ({ fact: 'zone_min', v, src, kind: 'nursery', ...(group ? { group } : {}) });
     expect(combine([n('a.com', 5), n('b.com', 5), n('c.com', 6.5)]).zone_min).toMatchObject({ v: 5, check: 'likely', src: ['a.com', 'b.com'] });
     expect(combine([n('a.com', 5), n('b.com', 7.5)]).zone_min).toMatchObject({ check: 'disputed' });
     expect(combine([n('a.com', 5, 'p:1'), n('b.com', 5, 'p:1')]).zone_min).toMatchObject({ check: 'reported', src: ['a.com'] });
     expect(combine([n('a.com', 5), n('a.com', 5, 'p:2')]).zone_min).toMatchObject({ check: 'reported' });
-    // A breeder speaks first for its own cultivar; on a species it's one more nursery.
-    const br = { fact: 'height', v: { min: 2, max: 3 }, src: 'breeder.com', kind: 'breeder', cultivarPage: true };
-    const ns = { fact: 'height', v: { min: 5, max: 6 }, src: 'a.com', kind: 'nursery', cultivarPage: true };
-    expect(combine([br, ns], { cultivar: true }).height).toMatchObject({ v: { min: 2, max: 3 }, check: 'reported', kind: 'breeder' });
-    expect(combine([br, ns]).height).toMatchObject({ check: 'disputed', kind: 'nursery' });
     // Safety facts never come from the web.
     expect(combine([{ fact: 'tox_pets', v: ['nontoxic'], src: 'a.com', kind: 'nursery' }]).tox_pets).toBeNull();
   });
 });
 
-describe('reading a site\'s terms', () => {
-  it('finds the terms page it links to, not glossaries or garden-conditions pages', () => {
-    const home = '<a href="/glossary">Glossary of terms</a><a href="/collections/garden-conditions">Garden Conditions</a><a href="/pages/terms-of-service">Terms of Service</a><a href="/policies/privacy-policy">Privacy</a><a href="https://elsewhere.com/terms">Terms</a>';
-    expect(termsLinks(home, 'https://www.shop.com/')).toEqual(['https://www.shop.com/pages/terms-of-service']);
+describe("reading a site's terms", () => {
+  it('finds the terms pages it links to, not glossaries or garden-conditions pages', () => {
+    const home = '<a href="/glossary">Glossary of terms</a><a href="/collections/garden-conditions">Garden Conditions</a><a href="/pages/terms-of-service">Terms of Service</a>'
+      + '<a href="/policies/privacy-policy">Privacy</a><a href="http://www.shop.com/legal#use">Privacy &amp; Terms</a><a href="https://parent-co.com/terms">Terms of Use</a><a href="https://elsewhere.com/x">Shop</a>';
+    expect(termsLinks(home, 'https://www.shop.com/')).toEqual(['https://www.shop.com/pages/terms-of-service', 'https://parent-co.com/terms', 'https://www.shop.com/legal']); // (terms pages first)
   });
-  it('reads a ban on bots, a ban on using the information, or neither', () => {
-    expect(termsVerdict('Welcome to our store. You agree not to use any robot, spider or scraper to access the site.').verdict).toBe('bots');
-    expect(termsVerdict('Content may not be used for commercial purposes without our prior written consent.').verdict).toBe('use');
+  it('tells a terms page from a home page or a "not found" served at a guessed address', () => {
+    expect(looksLikeTerms('<title>Terms of Service</title><p>These terms…</p>')).toBe(true);
+    expect(looksLikeTerms('<title>A Shop</title><p>Shop our plants</p>')).toBe(false);
+  });
+  it('reads a site: linked terms it couldn\'t fetch are unread (tried again), a guess must be a terms page, and the worst page decides', () => {
+    const ok = '<title>Terms of Use</title><p>Orders ship in two days.</p>', bots = '<title>Terms of Use</title><p>You may not use robots.</p>';
+    expect(siteTerms({ homeRead: false, linked: [], guessed: [] }).verdict).toBe('unread');
+    expect(siteTerms({ homeRead: true, linked: [{ url: 'a', html: null }], guessed: [] }).verdict).toBe('unread');
+    expect(siteTerms({ homeRead: true, linked: [], guessed: [{ url: 'g', html: '<title>Shop</title><p>Welcome</p>' }] }).verdict).toBe('none found');
+    expect(siteTerms({ homeRead: true, linked: [], guessed: [{ url: 'g', html: ok }] })).toMatchObject({ verdict: 'open', terms: ['g'] });
+    expect(siteTerms({ homeRead: true, linked: [{ url: 'a', html: ok }, { url: 'b', html: bots }], guessed: [] }).verdict).toBe('bots');
+  });
+  it("reads a ban on bots, a ban on using the information, or neither, however it's worded", () => {
+    for (const bots of [
+      'Welcome to our store. You agree not to use any robot, spider or scraper to access the site.',
+      'You agree not to:\n• Use any robot or other automatic device to access the Site.',
+      'Do not use any robot to access this site.',
+      'You may not use bots on this site.',
+      'No part may be accessed by any automated, electronic or other means without our permission.',
+      'You can&rsquo;t use scrapers.',
+    ]) expect(termsVerdict(bots).verdict, bots).toBe('bots');
+    for (const use of [
+      'Content may not be used for commercial purposes without our prior written consent.',
+      'This site is for personal, non-commercial use only.',
+      'You may not use this site for commercial purposes.',
+    ]) expect(termsVerdict(use).verdict, use).toBe('use');
     expect(termsVerdict('Orders ship within two days. Prices may change.').verdict).toBe('open');
   });
 });

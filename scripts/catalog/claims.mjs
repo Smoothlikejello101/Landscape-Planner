@@ -70,20 +70,31 @@ export function waterNeed(f) {
  * the sentence). "Members of the genus …" statements count: the plant is in
  * that genus.
  */
-export function hostNames(text) {
+export function hostNames(text) { // (with the binomial where the source gives one, so the caller can check it's a caterpillar)
   const names = new Set();
   for (const sentence of String(text ?? '').split(/(?<=[.!?])\s+/)) {
     if (!/larva|caterpillar|host plant|food plant/i.test(sentence)) continue;
     // "Eastern Tiger Swallowtail (Papilio glaucus)"
     for (const m of sentence.matchAll(/((?:[A-Z][\w'’-]+\s){0,3}[A-Z][\w'’-]+)\s+\(([A-Z][a-z]+ [a-z]+)\)/g)) {
-      const name = m[1].replace(/^(?:This|The|It|Members|Host|You|Larval|Adult)\s+/, '').trim();
-      if (name && !/^(Andrena|Members)\b/.test(name)) names.add(name);
+      const name = m[1].replace(/^(?:(?:This|The|It|Members|Host|You|Larval|Adult|Like|Such|As|Including|And|Or|Both|Also|Many|Several)\s+)+/, '').trim();
+      if (name && !/^(Andrena|Members)\b/.test(name)) names.add(`${name} (${m[2]})`);
     }
     // "host plant for the Pearl Crescent butterfly", "host plant for fritillary butterflies"
     // "Host plant for the Pearl Crescent butterfly", "a host plant for the Baltimore checkerspot butterfly", "supports Fritillary butterfly larvae"
     for (const m of sentence.matchAll(/(?:[Hh]ost plant (?:for|to)|supports) (?:the )?([A-Z][\w'’-]+(?:\s[\w'’-]+){0,3}?)\s(?:butterfl\w*|moths?|skippers?)\b/g)) names.add(m[1].trim());
   }
   return [...names];
+}
+
+/**
+ * Only names that are butterflies or moths: where a name carries its
+ * binomial, its genus must be one the Tallamy dataset lists as Lepidoptera
+ * (so "Cedar Waxwing (Bombycilla cedrorum)" in a sentence about larvae is
+ * dropped). Without the list, names with a binomial are kept.
+ */
+export function onlyCaterpillars(names, lepGenera) {
+  if (!lepGenera) return names;
+  return names.filter((n) => { const g = /\(([A-Z][a-z]+) [a-z]+\)$/.exec(n)?.[1]; return !g || lepGenera.has(g); });
 }
 
 // ---------- Claims from each source ----------
@@ -173,6 +184,8 @@ export function usdaClaims(u) {
 /** Whether two values for a fact agree. */
 export function agrees(fact, a, b) {
   if (fact === 'zone_min' || fact === 'zone_max') return Math.abs(a - b) <= 1; // (within one whole zone, 10 °F)
+  if (TIER[fact] === 'safety') return JSON.stringify([a].flat().map(String).sort()) === JSON.stringify([b].flat().map(String).sort()); // (exactly: major is not minor)
+  if (a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b) && !('min' in a)) return JSON.stringify(a) === JSON.stringify(b);
   if (fact === 'height' || fact === 'width') return a.min <= b.max * 1.25 && b.min <= a.max * 1.25; // (ranges overlap, with a little give)
   if (Array.isArray(a) && Array.isArray(b)) {
     // (Words, not phrasings: "Purple/Lavender" and "Purple" share a color; "early spring" and "spring" a season.)
@@ -199,8 +212,11 @@ export function combine(claims, { cultivar = false } = {}) {
     const flagClaims = all.filter((c) => c.flag);
     let usable = all.filter((c) => !c.flag && c.v != null);
     if (TIER[fact] === 'safety') usable = usable.filter((c) => c.kind === 'authority');
+    if (TIER[fact] === 'survival') usable = usable.filter((c) => c.kind !== 'blog'); // (authority, breeder, nursery: no blogs)
     if (cultivar && CULTIVAR_OWN.has(fact)) usable = usable.filter((c) => c.cultivarPage || c.kind === 'breeder');
-    // Copies count once: the same text on two sites, or two pages of one site.
+    // Copies count once: the same text on two sites, or two pages of one site. The highest kind keeps it
+    // (a shop that copies an extension's sheet doesn't stand in for the extension).
+    usable = usable.map((c, i) => ({ c, i })).sort((x, y) => (RANK[y.c.kind] ?? 0) - (RANK[x.c.kind] ?? 0) || x.i - y.i).map((x) => x.c);
     const seenGroups = new Set(), seenSites = new Set();
     usable = usable.filter((c) => {
       if (seenSites.has(c.src) || (c.group && seenGroups.has(c.group))) return false;
@@ -211,18 +227,30 @@ export function combine(claims, { cultivar = false } = {}) {
     if (!cultivar) usable = usable.map((c) => (c.kind === 'breeder' ? { ...c, kind: 'nursery' } : c));
     if (fact === 'host') { // (a list: every source's names, together)
       const names = [...new Set(usable.flatMap((c) => c.v))];
-      out[fact] = names.length ? { v: names, src: [...new Set(usable.map((c) => c.src))], check: usable.length > 1 ? 'confirmed' : 'single', kind: 'authority' } : null;
+      const top = Math.max(-1, ...usable.map((c) => RANK[c.kind] ?? 0));
+      const kind = Object.keys(RANK).find((k) => RANK[k] === top);
+      // Confirmed only where two sources name the same caterpillar.
+      const named = (n) => usable.filter((c) => c.v.includes(n)).length;
+      const check = names.some((n) => named(n) > 1) ? 'confirmed' : kind === 'authority' ? 'single' : 'reported';
+      out[fact] = names.length ? { v: names, src: [...new Set(usable.map((c) => c.src))], check, kind } : null;
       continue;
     }
-    if (!usable.length) { out[fact] = null; continue; }
+    if (!usable.length) {
+      // Nothing decides, but USDA's figures still go to the review.
+      const flags = flagClaims.map((c) => c.flag.text);
+      out[fact] = flags.length ? { v: null, src: [], check: null, flags } : null;
+      continue;
+    }
     const top = Math.max(...usable.map((c) => RANK[c.kind] ?? 0));
     const deciders = usable.filter((c) => (RANK[c.kind] ?? 0) === top);
     // The value most deciders share (the first, on a tie).
     const best = deciders.map((d) => ({ d, n: deciders.filter((o) => agrees(fact, d.v, o.v)).length })).sort((x, y) => y.n - x.n)[0].d;
     const others = usable.filter((c) => c !== best);
     const agreeing = others.filter((c) => agrees(fact, best.v, c.v));
-    const peersAgainst = deciders.filter((c) => c !== best && !agrees(fact, best.v, c.v));
-    const lowerAgainst = others.filter((c) => (RANK[c.kind] ?? 0) < top && !agrees(fact, best.v, c.v));
+    // (Facts that depend on place, with `at`, differ by region without anyone being wrong: never against each other.)
+    const samePlace = (c) => (c.at ?? null) === (best.at ?? null);
+    const peersAgainst = deciders.filter((c) => c !== best && samePlace(c) && !agrees(fact, best.v, c.v));
+    const lowerAgainst = others.filter((c) => (RANK[c.kind] ?? 0) < top && samePlace(c) && !agrees(fact, best.v, c.v));
     const peersFor = deciders.filter((c) => c !== best && agrees(fact, best.v, c.v));
     let check;
     // Authorities that disagree are a dispute. Below them, the majority is the likely answer.
@@ -240,4 +268,4 @@ export function combine(claims, { cultivar = false } = {}) {
   }
   return out;
 }
-const fmtV = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? `${v.min}–${v.max}` : Array.isArray(v) ? v.join(', ') : String(v));
+const fmtV = (v) => (Array.isArray(v) ? v.join(', ') : v && typeof v === 'object' ? ('min' in v ? `${v.min}–${v.max}` : 'start' in v ? `months ${v.start}–${v.end}` : JSON.stringify(v)) : String(v));

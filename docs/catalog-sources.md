@@ -203,27 +203,41 @@ the same rules as every other source (scripts/catalog/search.mjs).
    logged.
 2. **Pick.** Up to 10 pages a plant, one a site. Left out: the sites in
    this document's closed, ask-first and not-used lists; crowd-sourced and
-   AI-written sites (Wikipedia, Dave's Garden, iNaturalist…); marketplaces
-   and social media; and pages read another way already (NC State's
-   toolbox, Minnesota Wildflowers, USDA).
+   AI-written sites (Wikipedia, Dave's Garden, iNaturalist…); archives,
+   caches and aggregators (the Wayback Machine, archive.today, Trefle,
+   GBIF…); marketplaces and social media; and sources read another way
+   already (all of usda.gov and ncsu.edu, Minnesota Wildflowers). The script
+   prints counts, never the results.
 3. **Terms.** Each new site's terms are read by pattern, the same reading as
    "How terms are read", cautiously: its home page's links to terms, legal
    or copyright pages, else the usual places (`/terms`,
-   `/terms-of-use`, `/policies/terms-of-service`…). A sentence banning
-   robots, scrapers, crawlers or automated access closes it (**not by
-   bot**); one banning commercial use or a database of its content makes it
-   **ask first**. Either way its pages aren't read. A site with no terms to
-   find is read, as "No terms found" sources are above. The reading and the
+   `/terms-of-use`, `/policies/terms-of-service`…), where the page that
+   answers must read as terms (not the home page or a "not found"). A ban
+   word ("may not", "agree not to", "prohibited", "without our permission"…)
+   within a few lines of robots, bots, scrapers, crawlers or automated
+   access closes it (**not by bot**); near commercial use, a database, or
+   "personal use only", it's **ask first**. Either way its pages aren't
+   read. When a site links terms we couldn't fetch, it's left out this run
+   and tried again next time. A site with no terms to find is read, as "No
+   terms found" sources are above. The reading and the
    sentence that decided it are kept in `catalog-src/site-terms.json`, and a
    site we lean on has its terms read by a person before launch.
 4. **Fetch.** Through the fetcher: robots.txt, pace (`web`: 5 s a site),
    refusals and the honest user agent, as for every source. Redirects
    within a site are followed, each one fetched by the same rules.
 5. **Read.** Only labeled spec lines ("Hardiness Zones: 5–9", "Mature
-   Height: 3–4 ft", "Light: Full sun to part shade"), never prose, and only
-   from a page that names the plant (for a cultivar, the cultivar's name).
-   A cultivar's size, form and flower color come only from a page for the
-   cultivar.
+   Height: 3–4 ft", "Light: Full sun to part shade"), never prose; a
+   false value is worse than a missing one, so a line that could mean two
+   things is left out (a row of choices with one lit, a label repeated with
+   different values for related products, a temperature under "Hardiness",
+   a pot size under "Height"). Only from a page about the plant: for a
+   cultivar, its name in the page's title or heading; for a species, its
+   botanical name standing alone and no cultivar in the title. A page that
+   credits a source closed to us, in its text or by a link (MOBOT, the
+   Wildflower Center, NPIN), is that source second-hand and isn't read. Bloom
+   months aren't taken from the web: they differ by place.
+6. **One run at a time.** `catalog-src/.lock` keeps a second run out, so
+   paces don't add up and files don't cross.
 
 ## Paid licenses
 
@@ -259,8 +273,12 @@ fact belongs to one of three tiers, and each source is one of four kinds.
 - **Authority:** extension services (.edu, .gov), botanical gardens and
   arboreta, state floras and atlases.
 - **Breeder:** the company that bred or introduced a cultivar (Proven
-  Winners, Monrovia, First Editions…). Its primary source for that cultivar's
-  own traits. On a species it counts as a nursery.
+  Winners, Monrovia, First Editions…), the primary source for that
+  cultivar's own traits. Not used yet: a breeder's site also sells other
+  breeders' plants, so knowing which cultivars are its own needs a list of
+  its introductions first. Until then its pages count as a nursery's, and
+  one company's sites (Proven Winners, Proven Winners Direct, Spring
+  Meadow…) count as one source.
 - **Nursery:** a retail grower or shop.
 - **Blog:** anything else that is open to us: garden writers, societies'
   articles, magazines.
@@ -271,7 +289,7 @@ fact belongs to one of three tiers, and each source is one of four kinds.
   a shop or blog never stands in.
 - **Survival** (zones, sun, water, size, soil, deer): an authority decides.
   Where none has it: a breeder for its own cultivar; then retail nurseries,
-  where most agree (`likely`) or one says it (`reported`).
+  where most agree (`likely`) or one says it (`reported`). Never a blog.
 - **Description** (form, bloom, flower color, fall color, wildlife,
   edibility): any source, highest kind first.
 
@@ -287,8 +305,9 @@ review. (`likely` and `reported` wait on the format change that adds them:
 see "Waiting on format changes".)
 
 **Independent.** Copies count once. Two pages with the same longest
-paragraph are one source, wherever they're published, and so are two
-pages on one site. A source compiled from another (many extension sheets
+paragraph are one source, wherever they're published, and the highest kind
+among them keeps it (a shop copying an extension sheet doesn't stand in for
+the extension). Two pages on one site are one source too. A source compiled from another (many extension sheets
 cite USDA or NC State) isn't independent of it.
 
 **USDA PLANTS** describes species as they grow wild, and its own notes call
@@ -320,7 +339,8 @@ scripts/catalog/tallamy.py builds the index from the spreadsheet on Zenodo
 (record 17747343, CC0). The `host` fact is the list of names, never a
 source's sentence.
 
-The table below names the national sources' fields and how they map.
+The table below names NC State's and USDA's fields and how they map
+(USDA: what it decides, and what it only flags).
 Regional sources from the "Use now" list are authorities like them, with
 `at` set to their state for facts that depend on place (bloom months,
 water).
@@ -337,28 +357,26 @@ Facts entered **by hand** from a source that allows it (MOBOT, for now) count
 as an independent authority, with `at` set to the source's state for bloom
 months ("MO" for MOBOT).
 
-| Fact | Decides | Checks | USDA stands in? | Rule |
-| --- | --- | --- | --- | --- |
-| Names, `usda` symbol, synonyms | USDA | NC State | — | USDA's accepted name. A cultivar keeps its name and points to its species. |
-| `form` | NC State "Plant Type" | USDA growth habit and duration | Yes | NC State's Tree, Shrub, Vine, Fern, Bulb and Cactus/Succulent tags map to the enum of the same name; Ornamental Grasses and Sedges → Grass/Sedge; Annual → Annual; Herbaceous Perennial → Perennial; Aquatic → Aquatic/Emergent. Other tags (Edible, Native Plant…) are ignored. If NC State gives more than one form, USDA decides when its growth habit names exactly one of them; otherwise `disputed` (redbud: Shrub and Tree at both). The kind of tree comes from NC State's "Design Feature": Understory Tree → "Tree (understory)", Shade Tree → "Tree (canopy)"; both or neither → `null`. |
-| `height`, `width` | NC State | — | No | `med` is the midpoint of `min` and `max`. Most sizes stay `single` until a second garden source agrees. |
-| `zone_min` | NC State | USDA minimum temperature | Yes | See "Zones". |
-| `zone_max` | NC State | — | No | |
-| `sun_least` | NC State light | USDA shade tolerance | Yes | Map USDA's distinct shade-tolerance values only after listing them from the 20-plant sample. They often differ from NC State: redbud is "Low" at USDA, and NC State lists part shade. |
-| `sun_most` | NC State light | — | No | |
-| `water` | NC State soil drainage and drought tolerance | USDA moisture use (a flag) | No | The water rule above. `Wetland` where USDA's National Wetland Plant List indicator is OBL or FACW in every region it lists for the plant. |
-| `bloom` | NC State | USDA | Yes | Seasons only: see "Waiting on format changes". |
-| `native` | USDA native status and state distribution | — | — | `single`. NC State's region of origin often comes from USDA, so it isn't independent. Waiting on a format change. |
-| `invasive` | USDA invasive and noxious lists | — | — | Waiting on a format change and a sourced rule for "widely invasive". |
-| Toxicity to people | NC State poison severity and contact dermatitis | UC ANR, if it says yes | No | High or Medium → `major`, Low → `minor`, contact dermatitis → `dermatitis`. Oxalates only from UC ANR, if it says yes. (Medium goes to `major` because erring toward harmless is the dangerous mistake.) |
-| Toxicity to dogs, cats, horses | — | — | — | No usable source yet. NC State's poison facts are about people, and toxicity to people doesn't stand in for pets. |
-| `deer` | NC State resistance list | — | No | Listed for deer → `Resistant`. Otherwise `null`. |
-| `nectar`, `bird` | — | — | — | `null`: neither source gives a level. |
-| `host` | Every source that names one; Shropshire & Tallamy by genus | — | No | Only where a source says the plant is a larval host. Stored as the butterflies or moths it names, never its sentence. |
-| `edible` | NC State "Plant Type" tag Edible | USDA "Palatable Human" | No | The tag, not the free-text "Edibility" note. |
-| `fall_color` | NC State "Deciduous Leaf Fall Color" | — | No | USDA's "Fall Conspicuous" is about the plant overall in fall, not leaf color (redbud: No at USDA, gold at NC State). |
-| `clay_ok` | NC State soil texture | USDA fine-textured soils | Yes | |
-| `wet_feet` | NC State soil drainage | USDA anaerobic tolerance | Yes | |
+| Fact | From NC State | USDA | Rule |
+| --- | --- | --- | --- |
+| Names, `usda` symbol, synonyms | checks | decides | USDA's accepted name. A cultivar keeps its name and points to its species. |
+| `form` | "Plant Type" | flag (growth habit) | NC State's Tree, Shrub, Vine, Fern, Bulb and Cactus/Succulent tags map to the enum of the same name; Ornamental Grasses and Sedges → Grass/Sedge; Annual → Annual; Herbaceous Perennial → Perennial; Aquatic → Aquatic/Emergent. Other tags (Edible, Native Plant…) are ignored. More than one form at NC State → `null` for the review (redbud: Shrub and Tree). The kind of tree comes from NC State's "Design Feature": Understory Tree → "Tree (understory)", Shade Tree → "Tree (canopy)"; both or neither → `null`. |
+| `height`, `width` | yes | — | `med` is the midpoint of `min` and `max`. A cultivar's size only from a page for the cultivar. |
+| `zone_min`, `zone_max` | "USDA Plant Hardiness Zone" list | flag (minimum temperature) | See "Zones". |
+| `sun_most`, `sun_least` | light | flag (shade tolerance) | |
+| `water` | soil drainage and drought tolerance | flag (moisture use) | The water rule above. `Wetland` where USDA's National Wetland Plant List indicator is OBL or FACW in every region it lists for the plant. |
+| `bloom` | seasons | — | Seasons only: see "Waiting on format changes". |
+| `native` | — | decides (native status) | NC State's region of origin often comes from USDA, so it isn't independent. The Arkansas atlas decides for Arkansas. Waiting on a format change. |
+| `invasive` | — | invasive and noxious lists | Waiting on a format change and a sourced rule for "widely invasive". |
+| Toxicity to people | poison severity and contact dermatitis | — | High or Medium → `major`, Low → `minor`, contact dermatitis → `dermatitis`. (Medium goes to `major` because erring toward harmless is the dangerous mistake.) Authorities agree only on exactly the same values. |
+| Toxicity to dogs, cats, horses | — | — | No usable source yet. NC State's poison facts are about people, and toxicity to people doesn't stand in for pets. |
+| `deer` | resistance list | — | Listed for deer → `Resistant`. Otherwise `null`. |
+| `nectar`, `bird` | — | — | `null`: no source gives a level. |
+| `host` | "Wildlife Value" and its sentences | — | Only where a source says the plant is a larval host. Stored as the names it gives, never its sentence, and only names whose genus the Tallamy data lists as a butterfly or moth. Confirmed only where two sources name the same one. |
+| `edible` | "Plant Type" tag Edible | — | The tag, not the free-text "Edibility" note. |
+| `fall_color` | "Deciduous Leaf Fall Color" | — | USDA's "Fall Conspicuous" is about the plant overall in fall, not leaf color. |
+| `clay_ok` | soil texture | — | |
+| `wet_feet` | soil drainage | — | |
 | `maintenance` | — | — | — | `null`: NC State gives a level, not a task, and the catalog's values are tasks. |
 | `thorns`, `winter_interest`, `self_seed`, `dry_shade`, `taproot`, `humidity`, `trunk`, `habit` | Settled on the 20-plant sample | — | — | `null` unless a source states it. |
 

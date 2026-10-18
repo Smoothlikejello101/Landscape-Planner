@@ -12,12 +12,14 @@
 import { readFileSync } from 'node:fs';
 import { fileStore, runFetch } from './fetch-lib.mjs';
 import { get } from './net.mjs';
+import { lockCatalogSrc } from './pages.mjs';
 
 const ROOT = 'catalog-src';
 const today = new Date().toISOString().slice(0, 10);
 const [listPath, ...flags] = process.argv.slice(2);
 if (!listPath) { console.error('usage: node scripts/catalog/fetch.mjs <list.json> [--refresh]'); process.exit(1); }
 const list = JSON.parse(readFileSync(listPath, 'utf8'));
+lockCatalogSrc(ROOT); // (one run at a time)
 
 const store = fileStore(ROOT, today);
 

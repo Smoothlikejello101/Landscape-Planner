@@ -24,9 +24,13 @@ if missing:
     sys.exit(f'columns not found: {missing}')
 
 genera = {}
+lep_genera = set()
 for r in rows:
     get = lambda h: (r[col[h]] if col[h] < len(r) else None) or ''
     hosts = str(get('HOST_GENERA')).strip()
+    m0 = re.match(r'\s*([A-Z][a-z]+) [a-z]', str(get('SPECIES_COMPLETE_BINOMIAL_NOMENCLATURE')))
+    if m0:
+        lep_genera.add(m0.group(1))
     if not hosts or hosts == 'NULL' or str(get('EXOTIC_STATUS')).strip().lower() != 'native':
         continue
     # The binomial without its authority ("Papilio glaucus Linnaeus, 1758"); the common name's first spelling.
@@ -34,10 +38,10 @@ for r in rows:
     name = m.group(1) if m else ''
     common = str(get('LEP_COMMON_NAME')).split(',')[0].strip()
     common = '' if common in ('X', 'x') else common
-    states = set(str(get('RANGE _STATE_&_PROVINCE')).split())
+    states = set(re.split(r'[\s,;]+', str(get('RANGE _STATE_&_PROVINCE'))))
     butterfly = str(get('HIGHER_CATEGORY')).strip() == 'Butterfly'
     gs = {tok.split('[')[0] for tok in re.findall(r'[A-Z][a-z]+(?:\[[^\]]*\])?', hosts)
-          if not any(x in tok for x in ('[unresolved', '[Algae', '[Lichen', '[Fung'))}
+          if not any(x in tok for x in ('[unresolved', '[Algae', '[Lichen', '[Fung')) and not tok.split('[')[0].endswith('aceae')}
     for g in sorted(gs):
         e = genera.setdefault(g, {'species': 0, 'ar': 0, 'ar_butterflies': []})
         e['species'] += 1
@@ -49,5 +53,9 @@ for r in rows:
 for e in genera.values():
     e['ar_butterflies'].sort()
 with open(out, 'w') as f:
-    json.dump({'source': 'Shropshire & Tallamy 2025, ZooKeys 1261, CC0', 'genera': genera}, f, indent=0, sort_keys=True)
-print(f'{len(genera)} host genera -> {out}')
+    json.dump({'source': 'Shropshire & Tallamy 2025, ZooKeys 1261, CC0', 'genera': genera, 'lep_genera': sorted(lep_genera)}, f, indent=0, sort_keys=True)
+# Sanity: a misread state column would leave Arkansas empty everywhere.
+in_ar = sum(1 for e in genera.values() if e['ar'])
+if not in_ar or len(lep_genera) < 500:
+    sys.exit(f'looks misread: {in_ar} host genera with Arkansas records, {len(lep_genera)} caterpillar genera')
+print(f'{len(genera)} host genera ({in_ar} with Arkansas records), {len(lep_genera)} caterpillar genera -> {out}')

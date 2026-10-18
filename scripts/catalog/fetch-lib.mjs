@@ -238,9 +238,11 @@ export function fileStore(root, today) {
       const dir = join(root, source, today);
       mkdirSync(dir, { recursive: true });
       const name = cacheName(url);
-      if (page != null) writeFileSync(join(dir, name), page);
+      // Each file written whole, then moved into place: a run cut off leaves no half-written page or meta.
+      const put = (f, data) => { const tmp = `${f}.${process.pid}.tmp`; writeFileSync(tmp, data); renameSync(tmp, f); };
+      if (page != null) put(join(dir, name), page);
       else rmSync(join(dir, name), { force: true }); // (no page: drop one saved earlier today)
-      writeFileSync(join(dir, name + '.meta.json'), JSON.stringify(meta, null, 1));
+      put(join(dir, name + '.meta.json'), JSON.stringify(meta, null, 1));
     },
     saveRobots(host, status, type, body) {
       mkdirSync(join(root, 'robots'), { recursive: true });
