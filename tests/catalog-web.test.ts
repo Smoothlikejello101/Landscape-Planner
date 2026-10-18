@@ -175,6 +175,11 @@ describe("reading a site's terms", () => {
     const page = '<p>' + 'Shipping is free over fifty dollars. '.repeat(40) + '</p><p>12. Prohibited uses. You are prohibited from using the site (a) for any unlawful purpose; … (i) to spam, phish, spider, crawl, or scrape.</p>';
     const ps = termsPassages(page);
     expect(ps.some((p: string) => /prohibited/.test(p) && /scrape/.test(p))).toBe(true);
+    // Scripts and AI are named too ("AI" only in capitals, not the letters inside a word).
+    const filler = '<p>' + 'Shipping is free over fifty dollars. '.repeat(40) + '</p>';
+    expect(termsPassages(filler + '<p>You may not run scripts against the site.</p>').some((p: string) => /scripts/.test(p))).toBe(true);
+    expect(termsPassages(filler + '<p>Our content may not be used to build AI tools.</p>').some((p: string) => /AI tools/.test(p))).toBe(true);
+    expect(termsPassages(filler + '<p>Le jardin ai été planté.</p>')).toEqual([]);
   });
   it("reads a ban on bots, a ban on using the information, or neither, however it's worded", () => {
     for (const bots of [

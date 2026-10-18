@@ -384,9 +384,11 @@ export function termsVerdict(text) {
  */
 export function termsPassages(html, max = 12) {
   const t = plainText(html).replace(/[‘’]/g, "'");
-  const re = /\b(?:robots?|bots?|spiders?|scrap\w*|crawl\w*|data[- ]mining|text and data mining|harvest\w*|automat\w+|extract\w*|commercial\w*|non-?commercial|database|compil\w+|personal use|reproduc\w+|copy\w*|derivative|resell|exploit|artificial intelligence|machine learning|train\w*|means not intentionally)\b/gi;
+  const re = /\b(?:robots?|bots?|spiders?|scrap\w*|crawl\w*|data[- ]mining|text and data mining|harvest\w*|automat\w+|scripts?|extract\w*|commercial\w*|non-?commercial|database|compil\w+|personal use|reproduc\w+|copy\w*|derivative|resell|exploit|artificial intelligence|machine learning|train\w*|means not intentionally)\b/gi;
+  // "AI" only in capitals (not the "ai" in other words or languages); with the rest, in page order.
+  const hits = [...t.matchAll(re), ...t.matchAll(/\bAI\b/g)].sort((x, y) => x.index - y.index);
   const spans = [];
-  for (const m of t.matchAll(re)) {
+  for (const m of hits) {
     const a = Math.max(0, m.index - 350), b = Math.min(t.length, m.index + 250);
     const last = spans[spans.length - 1];
     if (last && a <= last[1]) last[1] = b; else spans.push([a, b]);
