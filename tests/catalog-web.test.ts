@@ -153,6 +153,9 @@ describe("reading a site's terms", () => {
     expect(isUseTerms('<title>Terms of Service</title><p>These terms…</p>')).toBe(true);
     expect(isUseTerms('<title>Shipping policy</title><p>We ship Monday to Wednesday.</p>')).toBe(false);
     expect(isUseTerms('<title>Terms of Sale</title><p>All plants are guaranteed…</p>')).toBe(false);
+    // Judged by its title: sale terms that mention "our Terms of Use" aren't them.
+    expect(isUseTerms('<title>Terms of Sale</title><p>These terms, together with our Terms of Use, govern your order.</p>')).toBe(false);
+    expect(isUseTerms('<title>Shipping</title><p>We ship weekly.</p><footer><a href="/tos">Terms of Service</a></footer>')).toBe(false);
   });
   it('keeps the terms pages that matter: the owner\'s terms of use first, never a platform\'s, at most six', () => {
     const home = '<a href="https://policies.google.com/terms">Terms</a><a href="/pages/shipping-terms">Shipping Terms</a><a href="/pages/terms-of-sale">Terms of Sale</a>'
@@ -164,6 +167,8 @@ describe("reading a site's terms", () => {
     // Policies, licence and image-use pages are read too; a privacy policy alone isn't.
     const more = termsLinks('<a href="/policies">Policies</a><a href="/licence">Licence</a><a href="/privacy-policy">Privacy Policy</a><a href="/image-use">Image use policy</a>', 'https://www.site.org/');
     expect(more.sort()).toEqual(['https://www.site.org/image-use', 'https://www.site.org/licence', 'https://www.site.org/policies']);
+    // A contractor's licence isn't a licence for the content.
+    expect(termsLinks('<a href="/about">Licensed &amp; Insured</a><a href="/contractor-license">Contractor License #123</a><a href="/terms">Terms of Use</a>', 'https://www.site.org/')).toEqual(['https://www.site.org/terms']);
   });
   it('reads each owner on a shared host as its own site', () => {
     expect(termsKey('foo.wordpress.com')).toBe('foo.wordpress.com');

@@ -111,7 +111,8 @@ async function fetchAll(urls) {
       if (!m || m.status < 300 || m.status >= 400 || !m.location) { if (!savedPage('web', at)) final.set(from, null); continue; }
       let to;
       try { to = new URL(m.location, at); } catch { final.set(from, null); continue; }
-      if (to.protocol !== 'https:' || siteOf(to.hostname) !== siteOf(new URL(at).hostname) || hop === 3) { final.set(from, null); continue; }
+      // (Only to the same owner: on a shared host, foo.wordpress.com and bar.wordpress.com are different sites with their own terms.)
+      if (to.protocol !== 'https:' || keyOf(to.href) !== keyOf(at) || hop === 3) { final.set(from, null); continue; }
       to.hash = '';
       final.set(from, to.href); next.push(to.href);
     }
@@ -163,7 +164,9 @@ for (const [k, r] of linked) {
     if (!html) { lines.push('(could not be fetched, or not a web page)', ''); continue; }
     const text = plainText(html);
     lines.push(`title: ${headline(html)}`, `length: ${text.length} characters`, `pattern hint: ${termsVerdict(html).verdict}`, 'opening:', text.slice(0, 1200), 'passages:');
-    for (const ps of termsPassages(html)) lines.push(`  … ${ps} …`);
+    const all = termsPassages(html, 1000), shown = all.slice(0, 12);
+    for (const ps of shown) lines.push(`  … ${ps} …`);
+    if (all.length > shown.length) lines.push(`  (${all.length - shown.length} more passages not shown: don't treat the page as read in full)`);
     lines.push('');
   }
   if (!pages.length && r.html) lines.push('No terms page linked from the home page, and none at the usual addresses.');

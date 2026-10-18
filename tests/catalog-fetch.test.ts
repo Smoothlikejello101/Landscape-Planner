@@ -200,6 +200,11 @@ describe('the fetch loop', () => {
       expect(hits).toHaveLength(2);
       expect(hits[1].at - hits[0].at).toBeGreaterThanOrEqual(5000);
     }
+    // A bad setting fetches one site at a time, never nothing.
+    for (const bad of [NaN, 'x', 0]) {
+      const w2 = fakeWorld({ 'https://plants.ces.ncsu.edu/robots.txt': { status: 404 }, [plant(1)]: { status: 200, type: 'text/html', body: 'a' } });
+      expect(await runFetch([{ source: 'ncsu', url: plant(1) }], { ...w2.deps, concurrency: bad as unknown as number })).toEqual({ saved: 1, cached: 0, skipped: 0 });
+    }
   });
   it('keeps to the crawl delay', async () => {
     const w = fakeWorld({

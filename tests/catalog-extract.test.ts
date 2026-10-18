@@ -152,12 +152,31 @@ describe('claims and how they combine', () => {
     expect(combine([nc(['Shrub', 'Tree (understory)']), ...usda(['Shrub', 'Tree'])], { prefer: 'Tree (understory)' }).form).toMatchObject({ v: ['Tree (understory)', 'Shrub'], check: 'confirmed' });
     // USDA alone: a forb that lives for years is a perennial; a fern's "Forb/herb" never overrides a garden source.
     expect(combine(usda(['Forb/herb'])).form).toMatchObject({ v: ['Perennial'] });
+    expect(combine(usda(['Forb/herb']), { prefer: 'Fern' }).form).toMatchObject({ v: ['Fern'], check: 'single', note: expect.stringMatching(/from the catalog/) });
     expect(combine([nc(['Fern']), ...usda(['Forb/herb'])]).form).toMatchObject({ v: ['Fern'] });
     // One source with two forms: the catalog's, noted; else unsettled.
     expect(combine([nc(['Shrub', 'Vine'])], { prefer: 'Vine' }).form).toMatchObject({ v: ['Vine'], note: 'ncsu also lists Shrub' });
     // A cultivar keeps its species' perennial form, but not a tree form (a dwarf can be a shrub).
     expect(combine([nc(['Perennial'])], { cultivar: true }).form).toMatchObject({ v: ['Perennial'] });
     expect(combine([nc(['Tree (canopy)'])], { cultivar: true }).form).toBeNull();
+    // A cultivar of a shrub-or-tree species: the shrub where the catalog says shrub, else unsettled.
+    expect(combine([nc(['Shrub', 'Tree'])], { cultivar: true, prefer: 'Shrub' }).form).toMatchObject({ v: ['Shrub'] });
+    expect(combine([nc(['Shrub', 'Tree'])], { cultivar: true, prefer: 'Tree (understory)' }).form).toMatchObject({ v: null, check: 'disputed' });
+    // A tree NC State doesn't place (pawpaw): the catalog's kind, noted; never just "a shrub".
+    expect(combine([nc(['Shrub', 'Tree']), ...usda(['Shrub', 'Tree'])], { prefer: 'Tree (understory)' }).form).toMatchObject({ v: ['Tree (understory)', 'Shrub'], check: 'confirmed', note: expect.stringMatching(/from the catalog/) });
+    expect(combine([nc(['Shrub', 'Tree']), ...usda(['Shrub', 'Tree'])], { prefer: 'Perennial' }).form).toMatchObject({ v: null, check: 'disputed' });
+    expect(combine(usda(['Shrub', 'Tree'])).form).toMatchObject({ v: null, check: 'disputed' });
+    expect(combine(usda(['Shrub', 'Tree']), { prefer: 'Shrub' }).form).toMatchObject({ v: ['Shrub'], note: expect.stringMatching(/tree/) });
+    // A fern (or bulb) NC State also tags "Herbaceous Perennial" stays a fern; USDA's forb doesn't remove it.
+    const fern = ncsuClaims({ 'Plant Type': ['Fern', 'Herbaceous Perennial'] }).filter((c: { fact: string }) => c.fact === 'form');
+    expect(fern[0].v).toEqual(['Fern']);
+    expect(combine([...fern, ...usda(['Forb/herb'])], { prefer: 'Fern' }).form).toMatchObject({ v: ['Fern'], check: 'single' });
+    // Where a second source backs some forms, those are kept and the rest noted.
+    expect(combine([nc(['Shrub', 'Vine']), ...usda(['Shrub'])]).form).toMatchObject({ v: ['Shrub'], check: 'confirmed', src: ['ncsu', 'usda'], note: 'ncsu also lists Vine' });
+    // Without an authority, nurseries' forms are likely or reported, never confirmed.
+    const ns = (src: string, v: string[]) => ({ fact: 'form', v, src, kind: 'nursery' });
+    expect(combine([ns('a.com', ['Shrub']), ns('b.com', ['Shrub'])]).form).toMatchObject({ v: ['Shrub'], check: 'likely' });
+    expect(combine([ns('a.com', ['Shrub'])]).form).toMatchObject({ v: ['Shrub'], check: 'reported' });
   });
   it('confirms a caterpillar host only where two sources name the same one', () => {
     const h = (src: string, v: string[]) => ({ fact: 'host', v, src, kind: 'authority' });
@@ -211,7 +230,7 @@ describe('claims and how they combine', () => {
     expect(f.zone_max.v).toBe(9.5);
     expect(f.height.v).toEqual({ min: 20, max: 30 });
     expect(f.host.v).toEqual(["Henry's Elfin (Callophrys henrici)"]);
-    // NC State's fixture says Shrub and Tree without placing the tree: one source with two forms is unsettled…
+    // NC State's fixture says Shrub and understory tree, and nothing else gives a form: one source with two forms is unsettled…
     expect(f.form).toMatchObject({ v: null, check: 'disputed' });
     expect(f.bloom_months).toMatchObject({ v: 'July - September', at: 'MN' });
     const o = combine(ncsuClaims(ncsuFields(fixture('ncsu-nerium.html'))));

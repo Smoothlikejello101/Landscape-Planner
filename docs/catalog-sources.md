@@ -220,12 +220,14 @@ the same rules as every other source (scripts/catalog/search.mjs).
    privacy policy alone isn't read as terms; never a platform's own such as reCAPTCHA's or a
    payment provider's), or the usual addresses (`/terms`,
    `/terms-of-use`, `/policies/terms-of-service`…) when none of the pages
-   it links is the terms of use (none linked, or only terms of sale,
-   shipping or returns: a shop that links only its shipping policy), and
-   writes a review packet: each page's opening and the passages about
-   robots, scraping, automated access, commercial use, databases and
-   copying, with a pattern's guess marked as a hint only. Each owner on a
-   shared host (wordpress.com, blogspot.com, Wix…) is its own site.
+   it links is titled as the terms of use (none linked, or only terms of
+   sale, shipping or returns: a shop that links only its shipping policy),
+   and writes a review packet: each page's opening and the passages about
+   robots, scraping, scripts, AI, automated access, commercial use,
+   databases and copying (up to twelve, saying how many more there are),
+   with a pattern's guess marked as a hint only. Each owner on a shared
+   host (wordpress.com, blogspot.com, Wix…) is its own site, and a page is
+   followed through a redirect only to the same owner.
    How a reviewer reads them, by "How terms are read":
    - **bots** (not by bot): anything against robots, spiders, scrapers,
      crawlers, data mining or extraction tools, automated access, or "any
@@ -391,7 +393,7 @@ months ("MO" for MOBOT).
 | Fact | From NC State | USDA | Rule |
 | --- | --- | --- | --- |
 | Names, `usda` symbol, synonyms | checks | decides | USDA's accepted name. A cultivar keeps its name and points to its species. |
-| `form` | "Plant Type" | fallback (growth habit and lifespan) | A list, primary first: the forms two independent sources share (redbud: understory tree and shrub, from NC State and USDA), the catalog's current form first. NC State's Tree, Shrub, Vine, Fern, Bulb and Cactus/Succulent tags map to the enum of the same name; Ornamental Grasses and Sedges → Grass/Sedge; Annual → Annual; Herbaceous Perennial → Perennial; Aquatic → Aquatic/Emergent; its "Perennial" (any plant that isn't annual), Herb, Wildflower and other tags are ignored. A tree is understory or canopy by NC State's "Design Feature"; USDA's plain Tree backs either kind but isn't a form on its own. USDA gives a form only where no garden source does: Forb/herb that lives more than a year → Perennial (a fern is Forb/herb to USDA, so it never overrides one), Graminoid → Grass/Sedge, Vine → Vine, Shrub → Shrub. One source with several forms: the catalog's current one if it's among them, else unsettled. A cultivar keeps its species' form unless that form is a tree (a dwarf can be a shrub). |
+| `form` | "Plant Type" | fallback (growth habit and lifespan) | A list, primary first (the catalog's current form first). NC State decides which forms; without it, USDA's habit; without either, nurseries. Another independent source listing a form backs it: the backed forms are kept, confirmed (redbud: understory tree and shrub, from NC State and USDA), and any NC State lists alone are noted; with none backed, NC State's own stand (one form; of several, see below). NC State's Tree, Shrub, Vine, Fern, Bulb and Cactus/Succulent tags map to the enum of the same name; Ornamental Grasses and Sedges → Grass/Sedge; Annual → Annual; Herbaceous Perennial → Perennial, except beside Fern, Bulb, Grass/Sedge, Aquatic or Cactus (there it's the life cycle, not a second form); Aquatic → Aquatic/Emergent; its "Perennial" (any plant that isn't annual), Herb, Wildflower and other tags are ignored. A tree is understory or canopy by NC State's "Design Feature"; a plain Tree (NC State placing it neither or both ways, or USDA's Tree) backs either kind another source names, else takes the catalog's kind (noted); with no kind anywhere the tree is left out, and the rest stands only if the catalog agrees (a small tree never becomes just a shrub), else unsettled. USDA's habit: Forb/herb that lives more than a year → Perennial (a fern is Forb/herb to USDA, so it never overrides one, and where the catalog says fern, bulb, grass or aquatic, that kind of perennial is kept, noted), Graminoid → Grass/Sedge, Vine → Vine, Shrub → Shrub. One source with several forms and none backed: the catalog's current one if it's among them, else unsettled. Nurseries' forms are likely or reported, never confirmed. A cultivar keeps its species' form unless that form is a tree (a dwarf can be a shrub). |
 | `height`, `width` | yes | — | `med` is the midpoint of `min` and `max`. A cultivar's size only from a page for the cultivar. |
 | `zone_min`, `zone_max` | "USDA Plant Hardiness Zone" list | flag (minimum temperature) | See "Zones". |
 | `sun_most`, `sun_least` | light | flag (shade tolerance) | |

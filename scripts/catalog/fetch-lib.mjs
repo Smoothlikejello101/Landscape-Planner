@@ -336,7 +336,8 @@ export async function runFetch(list, deps) {
     bySite.get(site).push(item);
   }
   const queue = [...bySite.values()];
-  const workers = Array.from({ length: Math.max(1, Math.min(concurrency, queue.length)) }, async () => {
+  const width = Number.isFinite(Number(concurrency)) && Number(concurrency) >= 1 ? Math.floor(Number(concurrency)) : 1; // (a bad setting: one at a time, never none)
+  const workers = Array.from({ length: Math.max(1, Math.min(width, queue.length)) }, async () => {
     for (let items = queue.shift(); items; items = queue.shift()) for (const item of items) await one(item);
   });
   await Promise.all(workers);

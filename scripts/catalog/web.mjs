@@ -326,8 +326,8 @@ export function termsLinks(html, pageUrl) {
     const path = u.pathname.toLowerCase();
     const sameSite = siteOf(u.hostname) === siteOf(base.hostname);
     if (!sameSite && PLATFORMS.test(u.hostname)) continue;
-    const saysTerms = TERMS_TEXT.test(text) && !/glossary/.test(text) && text.length <= 60;
-    const pathTerms = TERMS_PATH.test(path) && !/glossary/.test(path);
+    const saysTerms = TERMS_TEXT.test(text) && !/glossary|licensed|contractor/.test(text) && text.length <= 60;
+    const pathTerms = TERMS_PATH.test(path) && !/glossary|licensed|contractor/.test(path);
     if (!(saysTerms || (sameSite && pathTerms))) continue;
     // A privacy or cookie policy alone isn't terms of use (a "Privacy & Terms" page is read).
     if (/privacy|cookie/.test(text + ' ' + path) && !/terms|legal|licen[cs]e|copyright|conditions/.test(text + ' ' + path)) continue;
@@ -345,7 +345,7 @@ export const mentionsTerms = (html) => /\bterms (?:of (?:use|service)|(?:&|and) 
  * addresses are tried too (a shop that links only its shipping policy still
  * has its terms of service at /policies/terms-of-service).
  */
-export const isUseTerms = (html) => /terms of (?:use|service)|conditions of use|website terms|site terms|user agreement|legal notice|acceptable use/i.test(headline(html) + ' ' + plainText(html).slice(0, 3000));
+export const isUseTerms = (html) => /terms of (?:use|service)|conditions of use|website terms|site terms|user agreement|legal notice|acceptable use/i.test(headline(html)); // (by its title: a body that merely mentions "our Terms of Use" isn't them)
 export const looksLikeTerms = (html) => /terms (?:of (?:use|service|sale)|and conditions|& conditions)|conditions of (?:use|sale)|terms of service|user agreement|legal notice/i.test(headline(html) + ' ' + plainText(html).slice(0, 3000));
 
 const BAN = /\b(?:may not|shall not|must not|will not|cannot|can't|do not|don't|agree not|agrees not|not to|not (?:be )?(?:permitted|allowed|authori[sz]ed)|prohibit\w*|forbid\w*|restrict\w*|unauthori[sz]ed|refrain|strictly|without (?:the |our )?(?:prior |express |explicit )?(?:written )?(?:consent|permission|authori[sz]ation)|only for|solely for|limited to)\b/i;
