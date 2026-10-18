@@ -28,7 +28,7 @@ export function mnLight(habitat) {
 
 // ---------- Form ----------
 
-const NCSU_FORM = { Tree: 'Tree', Shrub: 'Shrub', Vine: 'Vine', Fern: 'Fern', Bulb: 'Bulb', 'Cactus/Succulent': 'Cactus', 'Ornamental Grasses and Sedges': 'Grass/Sedge', Annual: 'Annual', 'Herbaceous Perennial': 'Perennial', Aquatic: 'Aquatic/Emergent' };
+const NCSU_FORM = { Tree: 'Tree', Shrub: 'Shrub', Vine: 'Vine', Fern: 'Fern', Bulb: 'Bulb', 'Cactus/Succulent': 'Cactus', 'Ornamental Grasses and Sedges': 'Grass/Sedge', Annual: 'Annual', 'Herbaceous Perennial': 'Perennial', Aquatic: 'Aquatic/Emergent', 'Water Plant': 'Aquatic/Emergent' };
 /** Forms from NC State's Plant Type tags (Tree not yet split into canopy or understory). */
 export function ncsuForms(types) {
   return [...new Set((types ?? []).map((t) => NCSU_FORM[t]).filter(Boolean))];
