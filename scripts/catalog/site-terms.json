@@ -756,6 +756,15 @@
   ],
   "note": "Terms of Use permit free use of documents and information for non-commercial, scientific and educational purposes, and say program content is restricted to noncommercial, educational or editorial use."
  },
+ "chicagobotanic.org": {
+  "verdict": "open",
+  "read": "2026-10-18",
+  "by": "manual review",
+  "pages": [
+   "https://www.chicagobotanic.org/terms-and-conditions"
+  ],
+  "note": "Its Terms and Conditions page is visitor information (parking, programs), read in full; the footer links refund, privacy and photo credits, and a copyright notice. Nothing on bots or use."
+ },
  "choosenatives.org": {
   "verdict": "none found",
   "read": "2026-10-18",
@@ -785,6 +794,15 @@
   "by": "agent review",
   "pages": [],
   "note": "Blogger-hosted blog; no terms page found, and the home page footer (a blogroll plus theme credit) names no Terms, Legal or Policies."
+ },
+ "clemson.edu": {
+  "verdict": "open",
+  "read": "2026-10-18",
+  "by": "manual review",
+  "pages": [
+   "https://www.clemson.edu/administration/compliance/policies/"
+  ],
+  "note": "No terms of use: the HGIC footer has only a copyright notice, and the main site's only policy links are its university policy library and non-discrimination policy, neither about use of the site."
  },
  "cloudwaterfarm.com": {
   "verdict": "none found",
@@ -4637,6 +4655,18 @@
    "https://www.ua.edu/disclaimer/"
   ],
   "note": "UA's copyright page requires written approval for any commercial use of its copyrighted materials; the disclaimer has no bot clause, and the main-site Policies library (policystat) could not be fetched."
+ },
+ "uada.edu": {
+  "verdict": "open",
+  "read": "2026-10-18",
+  "by": "manual review",
+  "pages": [
+   "https://uaex.uada.edu/disclaimer.aspx",
+   "https://uada.edu/disclaimer.aspx",
+   "https://uaex.uada.edu/extension-policies/default.aspx",
+   "https://uada.edu/about/policies.aspx"
+  ],
+  "note": "No terms of use: the footers link only disclaimers about outside links and endorsements, and internal staff policy indexes; a copyright notice (not a link) is all that protects the material."
  },
  "ufl.edu": {
   "verdict": "open",
