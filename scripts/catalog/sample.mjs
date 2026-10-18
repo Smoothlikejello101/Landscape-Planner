@@ -79,7 +79,8 @@ for (const s of sample) {
   const mapped = mapPlant({ ncsu, usda, mnwild, arkatlas: ar });
   // A cultivar record read from a species page: size and flower color are the cultivar's own, so they stay unknown.
   const cultivar = /'[^']+'/.test(`${rec?.common ?? ''} ${rec?.botanical ?? ''}`);
-  const speciesPage = seen.ncsu && !/'/.test(s.ncsu) && s.ncsu.split('-').length <= 2;
+  const slugOf = (t) => t.toLowerCase().replace(/×/g, 'x').replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const speciesPage = seen.ncsu && (s.ncsuName || s.genusOnly || s.ncsu === slugOf(s.species));
   if (cultivar && (speciesPage || !seen.ncsu)) {
     for (const k of ['height', 'width', 'flower_color']) mapped[k] = null;
     notes.push('A cultivar read from species pages: its size and flower color stay unknown until a page for the cultivar is found');

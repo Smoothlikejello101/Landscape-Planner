@@ -67,12 +67,19 @@ describe('reading sources', () => {
   });
   it('gives a species mapped only as a variety the variety\'s introduced-or-not status, not its other codes', () => {
     const r = arkatlasStatus(fixture('arkatlas-pages.txt'), 'Heuchera villosa');
-    expect(r).toMatchObject({ infraOnly: true, codes: [] });
+    expect(r).toMatchObject({ infraOnly: true, codes: [2, 4] });
     expect(r.rows[0]).toMatchObject({ infra: 'var. arkansana (Rydb.) E.B.Sm.', codes: [2, 4] });
-    expect(mapPlant({ arkatlas: r }).native_ar).toMatchObject({ v: 'native', note: 'in Arkansas only as var. arkansana (Rydb.) E.B.Sm.' });
+    expect(mapPlant({ arkatlas: r }).native_ar).toMatchObject({ v: 'native', note: 'in Arkansas only as var. arkansana (Rydb.) E.B.Sm., which is endemic to Arkansas and of special conservation concern in Arkansas' });
   });
   it('reads only the map pages: a name in an appendix isn\'t a listing', () => {
     expect(arkatlasStatus(fixture('arkatlas-pages.txt'), 'Coreopsis verticillata')).toBeNull();
+  });
+  it('keeps the codes every variety shares, and leaves a combined map to Appendix I', () => {
+    const two = ['                         1, 3                        1, 3', '', '      ASTERACEAE                  ASTERACEAE', '   Aster foo L.               Aster foo L.', '   var. bar Smith             var. baz Jones'].join('\n');
+    expect(arkatlasStatus(two, 'Aster foo')).toMatchObject({ infraOnly: true, codes: [1, 3] });
+    const combined = ['', '      POACEAE                     POACEAE', '   Lolium perenne L.          Poa annua L.', '   perennial rye              annual bluegrass', 'See Appendix I for infraspecific taxa and species status.'].join('\n');
+    expect(arkatlasStatus(combined, 'Lolium perenne')).toMatchObject({ uncertain: true });
+    expect(arkatlasStatus(combined, 'Poa annua')).toMatchObject({ codes: [] });
   });
   it('leaves Arkansas status unknown when the atlas\'s maps disagree', () => {
     const t = ['                         1', '', '      ASTERACEAE                  ASTERACEAE', '   Aster foo L.               Aster foo L.', '   var. bar Smith             var. baz Jones'].join('\n');
@@ -146,6 +153,7 @@ describe('mapping to catalog facts', () => {
     expect(mapPlant({ ncsu: { 'Soil Texture': ['Clay'] }, usda: { 'Adapted to Fine Textured Soils': ['No'] } }).clay_ok).toMatchObject({ v: true, check: 'disputed' });
     expect(mapPlant({ usda: { 'Anaerobic Tolerance': ['None'] } }).wet_feet).toMatchObject({ v: false, src: ['usda'] });
     expect(mapPlant({ ncsu: { 'Soil Drainage': ['Occasional Flooding'] }, usda: { 'Anaerobic Tolerance': ['High'] } }).wet_feet).toMatchObject({ v: true, check: 'agree' });
+    expect(mapPlant({ usda: { 'Anaerobic Tolerance': ['Low'] } }).wet_feet).toBeNull(); // (weak evidence either way)
     expect(mapPlant({}).clay_ok).toBeNull();
   });
   it('reads toxicity with dermatitis alone, and never makes standing water a wetland plant', () => {

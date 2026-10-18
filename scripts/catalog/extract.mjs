@@ -127,9 +127,10 @@ const INFRA = /^(var\.|subsp\.|ssp\.|f\.)\s/;
  * under its family name; its status codes (1 introduced, 2 endemic,
  * 3 non-native invasive, 4 special concern) sit on the line above the row's
  * family names, to the right of their column. A species mapped only as
- * varieties or subspecies gets their shared introduced-or-not status, never a
- * variety's other codes. Returns null if the map pages don't list it, else
- * { name, codes, rows: [{ name, infra, codes }], infraOnly?, uncertain? }.
+ * varieties or subspecies gets the codes they all share (the note names the
+ * varieties). A combined map, whose status is only in Appendix I, is left
+ * uncertain. Returns null if the map pages don't list it, else
+ * { name, codes, rows: [{ name, infra, codes, combined }], infraOnly?, uncertain? }.
  */
 export function arkatlasStatus(text, binomial) {
   const lines = String(text).split(/\r?\n/);
@@ -165,17 +166,29 @@ export function arkatlasStatus(text, binomial) {
           if (owner === col) codes.push(...c.text.split(/\s*,\s*/).map(Number));
         }
       }
-      rows.push({ name: hit.text, infra, codes });
+      // A combined map says "See Appendix I for infraspecific taxa and species status": its status is only there.
+      let combined = false;
+      for (let m = i + 1; m < Math.min(end, i + 6); m++) {
+        for (const sg of segments(lines[m])) {
+          if (!/See Appendix I\b/.test(sg.text)) continue;
+          const owner = starts.reduce((best, a) => (Math.abs(a - sg.at) < Math.abs(best - sg.at) ? a : best), starts[0]);
+          if (owner === col) combined = true;
+        }
+      }
+      rows.push({ name: hit.text, infra, codes, combined });
     }
   }
   if (!rows.length) return null;
+  if (rows.some((r) => r.combined)) return { name: binomial, codes: [], rows, uncertain: true, why: 'combined map: status in Appendix I' };
   const species = rows.filter((r) => !r.infra);
   const sameCodes = (rs) => new Set(rs.map((r) => r.codes.join(','))).size === 1;
   if (species.length) {
     if (!sameCodes(species)) return { name: binomial, codes: [], rows, uncertain: true };
     return { name: species[0].name, codes: species[0].codes, rows };
   }
+  // Mapped only as varieties: the codes every variety shares (introduced-or-not must agree).
   const introduced = new Set(rows.map((r) => r.codes.includes(1)));
   if (introduced.size > 1) return { name: binomial, codes: [], rows, uncertain: true };
-  return { name: binomial, codes: rows[0].codes.includes(1) ? [1] : [], rows, infraOnly: true };
+  const shared = rows[0].codes.filter((c) => rows.every((r) => r.codes.includes(c)));
+  return { name: binomial, codes: shared, rows, infraOnly: true };
 }

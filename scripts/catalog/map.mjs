@@ -175,9 +175,11 @@ export function mapPlant({ ncsu = {}, usda = {}, mnwild = null, arkatlas = null 
   out.flower_color = ncsu['Flower Color'] ? { v: ncsu['Flower Color'], src: ['ncsu'], check: 'single' } : null;
 
   if (arkatlas && !arkatlas.uncertain) {
+    const c = arkatlas.codes;
+    const labels = [c.includes(2) && 'endemic to Arkansas', c.includes(3) && 'non-native invasive in Arkansas', c.includes(4) && 'of special conservation concern in Arkansas'].filter(Boolean);
     const infra = arkatlas.infraOnly ? `in Arkansas only as ${arkatlas.rows.map((r) => r.infra).join(', ')}` : '';
-    out.native_ar = { v: arkatlas.codes.includes(1) ? 'introduced' : 'native', src: ['arkatlas'], check: 'single', at: 'AR',
-      note: [arkatlas.codes.includes(3) ? 'non-native invasive in Arkansas' : arkatlas.codes.includes(4) ? 'of special conservation concern in Arkansas' : '', infra].filter(Boolean).join('; ') };
+    out.native_ar = { v: c.includes(1) ? 'introduced' : 'native', src: ['arkatlas'], check: 'single', at: 'AR',
+      note: infra && labels.length ? `${infra}, which is ${labels.join(' and ')}` : [...labels, infra].filter(Boolean).join('; ') };
   } else out.native_ar = null; // (not listed, or its maps disagree: left for the review)
   const l48 = (usda['Native status'] ?? []).find((s) => s.startsWith('L48'));
   out.native_us = l48 ? { v: l48.replace('L48: ', '').toLowerCase(), src: ['usda'], check: 'single' } : null;
@@ -200,6 +202,7 @@ export function mapPlant({ ncsu = {}, usda = {}, mnwild = null, arkatlas = null 
   const nd = new Set(ncsu['Soil Drainage'] ?? []);
   const wet = ['Occasionally Wet', 'Frequent Standing Water', 'Occasional Flooding'].some((d) => nd.has(d)) || (ncsu['Resistance To Challenges'] ?? []).includes('Wet Soil');
   const anaer = usda['Anaerobic Tolerance']?.[0];
-  out.wet_feet = decide([['ncsu', wet ? true : null], ['usda', anaer ? anaer !== 'None' : null]], { proposed: true });
+  // (USDA's Low is weak evidence either way: unknown until the sample settles it.)
+  out.wet_feet = decide([['ncsu', wet ? true : null], ['usda', anaer === 'None' ? false : anaer === 'Medium' || anaer === 'High' ? true : null]], { proposed: true });
   return out;
 }
