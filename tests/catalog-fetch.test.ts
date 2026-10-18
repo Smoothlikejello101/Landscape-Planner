@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error (plain JavaScript build script)
-import { allowedBy, blocksWholeHost, cacheName, crawlDelay, fileStore, isChallenge, noAnswer, normalizePath, paceFor, parseRobots, patternMatches, relatedHosts, robotsFromResponse, runFetch, siteOf } from '../scripts/catalog/fetch-lib.mjs';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { allowedBy, blocksWholeHost, cacheName, crawlDelay, dnsVerdict, fileStore, isChallenge, noAnswer, normalizePath, paceFor, parseRobots, patternMatches, relatedHosts, robotsFromResponse, runFetch, siteOf } from '../scripts/catalog/fetch-lib.mjs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -73,28 +73,34 @@ describe('robots.txt', () => {
     expect(robotsFromResponse(200, 'text/plain', '  <script>challenge()</script>').kind).toBe('closed');
     for (const s of [301, 400, 403, 429, 500, 0]) expect(robotsFromResponse(s, 'text/plain', '').kind).toBe('closed');
   });
-  it('tells a host that isn\'t there from one that couldn\'t be checked', () => {
-    expect(noAnswer(6, 'curl: (6) Could not resolve host: x')).toBe('none');
-    expect(noAnswer(7, 'curl: (7) Failed to connect')).toBe('none');
-    expect(noAnswer(56, 'curl: (56) CONNECT tunnel failed, response 502')).toBe('none');
-    expect(noAnswer(56, 'curl: (56) CONNECT tunnel failed, response 403')).toBe('failed'); // (this machine's proxy wouldn't let us check)
-    expect(noAnswer(60, 'curl: (60) SSL certificate problem')).toBe('failed');
-    expect(noAnswer(28, 'curl: (28) Operation timed out')).toBe('failed');
+  it('counts a host as not there only on a DNS answer that says so', () => {
+    expect(noAnswer('nxdomain')).toBe('none');
+    expect(noAnswer('noaddress')).toBe('none');
+    expect(noAnswer('exists')).toBe('failed'); // (there, but slow, refused or broken: couldn't be checked)
+    expect(noAnswer('unknown')).toBe('failed');
+    expect(dnsVerdict([{ Status: 3 }, { Status: 3 }])).toBe('nxdomain');
+    expect(dnsVerdict([{ Status: 0 }, { Status: 0, Answer: [] }])).toBe('noaddress');
+    expect(dnsVerdict([{ Status: 0, Answer: [{ type: 1, data: '1.2.3.4' }] }, { Status: 0 }])).toBe('exists');
+    expect(dnsVerdict([{ Status: 2 }, { Status: 0 }])).toBe('unknown'); // (SERVFAIL)
+    expect(dnsVerdict([null, { Status: 3 }])).toBe('unknown'); // (a lookup failed)
   });
   it('spots bot checks, but not an ordinary page with a form', () => {
     expect(isChallenge(200, '<html><title>Just a moment...</title>')).toBe(true);
     expect(isChallenge(200, '<script src="/_Incapsula_Resource?x"></script>')).toBe(true);
     expect(isChallenge(200, '<html><form><div class="g-recaptcha"></div></form>Plant facts</html>')).toBe(false);
     expect(isChallenge(403, '<div class="g-recaptcha">')).toBe(true);
+    expect(isChallenge(404, '<html>Not found<div class="g-recaptcha"></div></html>')).toBe(false);
   });
 });
 
 describe('hosts and pace', () => {
   it('lists the related hosts whose whole-host block closes this one', () => {
-    expect(relatedHosts('yardandgarden.extension.iastate.edu')).toEqual(['www.yardandgarden.extension.iastate.edu', 'extension.iastate.edu', 'www.extension.iastate.edu', 'iastate.edu', 'www.iastate.edu']);
+    expect(relatedHosts('yardandgarden.extension.iastate.edu')).toEqual(['extension.iastate.edu', 'www.extension.iastate.edu', 'iastate.edu', 'www.iastate.edu']);
+    expect(relatedHosts('plants.ces.ncsu.edu')).toEqual(['ces.ncsu.edu', 'www.ces.ncsu.edu', 'ncsu.edu', 'www.ncsu.edu']);
     expect(relatedHosts('extension.iastate.edu')).toEqual(['www.extension.iastate.edu', 'iastate.edu', 'www.iastate.edu']);
     expect(relatedHosts('www.aspca.org')).toEqual(['aspca.org']);
     expect(relatedHosts('plants.ces.ncsu.edu.')).toContain('ncsu.edu');
+    expect(relatedHosts('www.extension.iastate.edu')).toEqual(['extension.iastate.edu', 'iastate.edu', 'www.iastate.edu']);
     expect(siteOf('www.bbc.co.uk')).toBe('bbc.co.uk');
   });
   it('never goes faster than 2 seconds, the source, or the crawl delay', () => {
@@ -282,5 +288,21 @@ describe('the fetcher\'s files', () => {
     expect(Object.keys(fileStore(root, '2026-10-18').refused())).toEqual(['a.org', 'b.org']);
     writeFileSync(join(root, 'refused.json'), '{ "a.org": { "why": "x", },');
     expect(() => store.refused()).toThrow(/fix it by hand/);
+  });
+  it('treats a robots.txt redirect to a host that doesn\'t answer as unchecked', async () => {
+    const w = fakeWorld({
+      'https://plants.ces.ncsu.edu/robots.txt': { status: 404 },
+      'https://ncsu.edu/robots.txt': { status: 301, location: 'https://www.ncsu.edu/robots.txt' },
+      [plant(1)]: { status: 200, body: 'a' },
+    });
+    expect(await runFetch([{ source: 'ncsu', url: plant(1) }], w.deps)).toEqual({ saved: 0, cached: 0, skipped: 1 });
+  });
+  it('drops a page saved earlier the same day when a refresh finds it moved', () => {
+    const root = mkdtempSync(join(tmpdir(), 'fetch-'));
+    const store = fileStore(root, '2026-10-17');
+    const url = 'https://plants.ces.ncsu.edu/x';
+    store.save('ncsu', url, Buffer.from('old'), { url, status: 200 });
+    store.save('ncsu', url, null, { url, status: 301 });
+    expect(existsSync(join(root, 'ncsu', '2026-10-17', cacheName(url)))).toBe(false);
   });
 });

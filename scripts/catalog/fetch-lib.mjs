@@ -4,7 +4,7 @@
 // site; and the fetch loop itself, with the network, clock and files passed
 // in so it can be tested.
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { getDomain } from 'tldts';
 
@@ -21,9 +21,9 @@ const REFUSALS = new Set([401, 403, 429, 451, 503]);
 /** Signs of a bot check in place of the page asked for. On an ordinary 200 page only the unmistakable ones count. */
 const CHALLENGE_STRICT = /cf-chl|_Incapsula_Resource|px-captcha|captcha-delivery\.com|<title>\s*(just a moment|attention required|access denied|are you (a )?human)/i;
 const CHALLENGE_ANY = /cf-chl|just a moment\.\.\.|are you human|incapsula|px-captcha|perimeterx|datadome|captcha|<title>\s*access denied/i;
-/** Whether an answer is a bot check or block page. */
+/** Whether an answer is a bot check or block page (the broad signs only where the status already refuses). */
 export function isChallenge(status, text) {
-  return (status >= 200 && status < 300 ? CHALLENGE_STRICT : CHALLENGE_ANY).test(text.slice(0, 20000));
+  return (REFUSALS.has(status) ? CHALLENGE_ANY : CHALLENGE_STRICT).test(text.slice(0, 20000));
 }
 
 // ---------- robots.txt ----------
@@ -159,13 +159,17 @@ export function siteOf(host) {
 /**
  * The other hosts whose whole-host block also closes this one ("closed to
  * bots, and so are its subdomains"): every parent down to the registrable
- * domain, each with its www. form, and this host's own www. or bare twin.
+ * domain, each with its www. form. A host one label below its site (or the
+ * site itself) also gets its www. or bare twin: extension.iastate.edu and
+ * www.extension.iastate.edu are one site in practice, while a guessed
+ * www.plants.ces.ncsu.edu isn't anything.
  */
 export function relatedHosts(host) {
   const h = bare(host);
   const site = siteOf(h);
   const out = new Set();
-  out.add(h.startsWith('www.') ? h.slice(4) : `www.${h}`);
+  const core = h.startsWith('www.') ? h.slice(4) : h;
+  if (core.split('.').length <= site.split('.').length + 1) out.add(h.startsWith('www.') ? core : `www.${h}`);
   const labels = h.split('.');
   for (let i = 1; i < labels.length; i++) {
     const p = labels.slice(i).join('.');
@@ -181,15 +185,21 @@ export function paceFor(source, delay, itemPace) {
   return Math.max(MIN_PACE, SOURCE_PACE[source] ?? 0, itemPace ?? 0, delay ?? 0);
 }
 /**
- * What a request that got no HTTP answer means. `none`: nothing to connect to
- * (no such host, or nothing listening). `failed`: the host was there but the
- * exchange broke (TLS, timeout, reset), or this machine's proxy refused to
- * connect, so it couldn't be checked.
+ * What a request that got no HTTP answer means. Behind a proxy, curl's own
+ * errors can't tell a missing host from a slow or refused one, so only a DNS
+ * answer can: `none` when the name doesn't exist or has no address (nothing
+ * there to block anything), `failed` otherwise (it couldn't be checked).
+ * dns: 'nxdomain' | 'noaddress' | 'exists' | 'unknown' (the lookup itself failed).
  */
-export function noAnswer(exitCode, message) {
-  const m = /CONNECT tunnel failed, response (\d+)/.exec(message ?? '');
-  if (m) return m[1] === '403' || m[1] === '407' ? 'failed' : 'none';
-  return exitCode === 6 || exitCode === 7 ? 'none' : 'failed';
+export function noAnswer(dns) {
+  return dns === 'nxdomain' || dns === 'noaddress' ? 'none' : 'failed';
+}
+/** A DNS-over-HTTPS JSON answer (RFC 8484 JSON form) as noAnswer() reads it. */
+export function dnsVerdict(answers) {
+  if (!answers.length || answers.some((a) => !a || typeof a.Status !== 'number')) return 'unknown';
+  if (answers.some((a) => a.Status === 3)) return 'nxdomain';
+  if (answers.some((a) => a.Status !== 0)) return 'unknown';
+  return answers.some((a) => (a.Answer ?? []).some((r) => r.type === 1 || r.type === 28 || r.type === 5)) ? 'exists' : 'noaddress';
 }
 
 /** A file name for a fetched URL: readable, and unique to the URL. */
@@ -221,6 +231,7 @@ export function fileStore(root, today) {
       mkdirSync(dir, { recursive: true });
       const name = cacheName(url);
       if (page != null) writeFileSync(join(dir, name), page);
+      else rmSync(join(dir, name), { force: true }); // (no page: drop one saved earlier today)
       writeFileSync(join(dir, name + '.meta.json'), JSON.stringify(meta, null, 1));
     },
     saveRobots(host, status, type, body) {
@@ -281,8 +292,9 @@ export async function runFetch(list, deps) {
     }
     const body = text(r.body);
     store.saveRobots(host, r.status, r.type, body);
+    // (After a redirect the host did answer, so a missing redirect target means it couldn't be checked.)
     const parsed = r.status !== 0 ? robotsFromResponse(r.status, r.type, body)
-      : r.reach === 'none' ? { kind: 'absent', groups: [], why: 'no such host' }
+      : r.reach === 'none' && url === `https://${host}/robots.txt` ? { kind: 'absent', groups: [], why: 'no such host' }
       : { kind: 'closed', groups: [], why: `robots.txt couldn't be read (${r.error ?? 'no answer'})` };
     robots.set(host, parsed);
     return parsed;
@@ -306,7 +318,7 @@ export async function runFetch(list, deps) {
     if (rb.kind !== 'none' && rb.kind !== 'rules') { refuse(host, rb.why, false); out.skipped++; continue; }
     let why = '';
     for (const other of relatedHosts(u.hostname)) {
-      const pr = await robotsFor(other, MIN_PACE);
+      const pr = await robotsFor(bare(other), MIN_PACE);
       // (A host that isn't there blocks nothing; one that can't be checked, or answers with an error or a bot check, closes this one.)
       if (pr.kind === 'closed') { why = `${other}: ${pr.why}`; break; }
       if (pr.kind === 'rules' && blocksWholeHost(pr.groups)) { why = `${other} blocks bots from the whole host`; break; }

@@ -12,7 +12,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { USER_AGENT, fileStore, noAnswer, runFetch } from './fetch-lib.mjs';
+import { USER_AGENT, dnsVerdict, fileStore, noAnswer, runFetch } from './fetch-lib.mjs';
 
 const ROOT = 'catalog-src';
 const today = new Date().toISOString().slice(0, 10);
@@ -32,7 +32,7 @@ function get(url) {
       '-D', head, '-o', body, '-w', '%{http_code}', '--', url], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }));
   } catch (e) {
     const error = String(e.stderr ?? e.message).trim().split('\n')[0];
-    return { status: 0, type: '', location: '', body: Buffer.alloc(0), error, reach: noAnswer(e.status, error) };
+    return { status: 0, type: '', location: '', body: Buffer.alloc(0), error, reach: noAnswer(lookUp(new URL(url).hostname)) };
   }
   // (The header file can hold a proxy's CONNECT answer or early hints first: only the last block is the page's.)
   const blocks = (existsSync(head) ? readFileSync(head, 'latin1') : '').split(/\r?\n\r?\n/).filter((b) => b.trim());
@@ -43,6 +43,22 @@ function get(url) {
     location: /^location:\s*(.+)$/im.exec(headers)?.[1].trim() ?? '',
     body: existsSync(body) ? readFileSync(body) : Buffer.alloc(0), // (bytes, as sent: PDFs too)
   };
+}
+
+/**
+ * Whether a host exists, asked of a DNS-over-HTTPS resolver: behind this
+ * machine's proxy, curl's own errors can't tell a missing host from a slow
+ * one, and local DNS isn't available.
+ */
+function lookUp(host) {
+  const answers = [];
+  for (const type of ['A', 'AAAA']) {
+    try {
+      answers.push(JSON.parse(execFileSync('curl', ['-q', '-sS', '--proto', '=https', '--max-time', '20', '-H', 'accept: application/dns-json',
+        '--', `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&type=${type}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })));
+    } catch { answers.push(null); }
+  }
+  return dnsVerdict(answers);
 }
 
 const store = fileStore(ROOT, today);

@@ -53,8 +53,11 @@ network failure, or a challenge page in its place ("are you human",
 Cloudflare, Incapsula) counts as disallowing everything. So does a
 request that reaches the host but breaks (a TLS failure, a timeout), or that
 this machine's proxy refuses, since it couldn't be checked. Only a host that
-isn't there at all counts as having none: run with all domains allowed, or a
-related host outside the allowed list closes the one we want. The groups that
+isn't there at all counts as having none, and only DNS can say so: the
+fetcher asks a DNS-over-HTTPS resolver (cloudflare-dns.com), since behind
+this machine's proxy curl can't tell a missing host from a slow one. Run
+with all domains allowed, or a related host outside the allowed list closes
+the one we want. The groups that
 apply are `*`, `FullGrownCatalog`, `ClaudeBot`, `Claude-User`,
 `Claude-SearchBot`, `Claude-Web` and `anthropic-ai`. A host that disallows
 the pages we'd read is **closed to bots** for those pages (its own rules
