@@ -39,6 +39,28 @@ not Claude in Chrome, computer use, or a headless browser.
 Every value names its source in `src`. So if a source later asks us to
 stop, one pass removes everything taken from it.
 
+### How terms are read
+
+The same reading for every source:
+
+- **Open:** public domain, an open data license, or explicit permission to
+  reuse with credit. Use.
+- **Copyright notice only** ("© … All rights reserved", or a Creative
+  Commons license on the documents, NonCommercial included). These protect
+  the wording, tables and photos, not the facts in them. Use for facts in
+  our own words, with a courtesy note before launch for any source we lean
+  on.
+- **Terms that forbid it:** terms of use that bar commercial use of the
+  site's content, copying into a database, or automated access, whatever
+  they call it. Ask first; until a yes, not used, not even by hand.
+- **Closed to bots:** robots.txt disallows the pages for `*` or for a Claude
+  agent, or the site challenges or blocks non-browsers (Cloudflare, Incapsula,
+  "are you human" pages), or robots.txt itself can't be read (an error counts
+  as "disallow all"). Not read by bot.
+
+We're not lawyers. This is a cautious reading, to be checked with one
+before launch.
+
 ## Sources
 
 | Source | Status | What was checked (2026-10-17 unless noted) |
@@ -48,15 +70,104 @@ stop, one pass removes everything taken from it.
 | **Missouri Botanical Garden Plant Finder** | Not by bot. By hand is allowed. Permission asked. | **robots.txt:** `*` disallows `/PlantFinder/`, `/plant-finder/` and `/gardens-gardening/your-garden/plant-finder/*`, with a 30 s crawl delay ("For ai bots") for the rest. `ClaudeBot` is disallowed everywhere. **Terms:** forbid getting information "through any means not intentionally made available", and grant no reuse rights. A person reading the public pages is the intended use. So by-hand facts are allowed, cited per value, without waiting for the reply. If MOBOT says no, they come out. **TLS:** the server's certificate chain is incomplete (no intermediate), so strict clients fail. |
 | **Lady Bird Johnson Wildflower Center** | Not by bot. By hand only after its terms are read. Permission asked. | **Access:** turns away clients that aren't browsers (403), and we don't pretend to be one. **robots.txt and terms:** not yet read. |
 | **ASPCA toxic and non-toxic plants** | Not used, not even by hand. Permission to ask. | **robots.txt:** allows the plant pages (crawl delay 10). **Terms:** forbid "any robot, spider or other automatic device" and any "manual process to monitor or copy" the material, and allow only "personal, non-commercial use", unless they give written permission. **Reprints:** granted "case by case" through their reprint request form. |
-| **UC ANR toxic plant classes** (people) | Read the terms first | Published as PDF lists (classes Major, Minor, Oxalates, Dermatitis). Terms for those lists not yet found. |
-| **Pet Poison Helpline** | Read the terms first | **robots.txt:** allows all but `/wp-admin/` (crawl delay 10). Terms not yet read. |
+| **UC ANR toxic plant classes** (people) | Ask first | **Terms** (ucanr.edu/copyright): reproduction allowed "for educational purposes"; "Distribution for commercial purposes is prohibited"; nothing may be "copied, downloaded, stored in a retrieval system" without permission. |
+| **Pet Poison Helpline** (SafetyCall International) | Ask first | **robots.txt:** allows all but `/wp-admin/` (crawl delay 10). **Terms:** no terms page linked, and /terms-of-use/ didn't load. Contact info@petpoisonhelpline.com. |
 | **Trefle** | Not a source | Its own data is CC BY 4.0, but each record keeps its upstream source's license, and its code hasn't changed since 2023. It can point to sources; it isn't one. |
 | **Kaggle and similar dataset sites** | Never | The uploader picks the license, and plant data rich enough to use is usually scraped from the sources above. |
+
+## Regional sources
+
+Checked 2026-10-17, by the reading above. "Matches" is how many catalog
+plants have a page there, by name: a rough count, since some sites name
+pages by common name.
+
+### Use now
+
+| Source | Gives | Matches | Notes |
+| --- | --- | --- | --- |
+| **UMN Extension Plant Elements of Design** (plantsearch.extension.umn.edu) | Zones, height, spread, soil, flower color, seasons of interest, invasive flag. Structured, 2,314 records with cultivars | not measured (no list) | No robots.txt. © notice only. |
+| **Mt. Cuba Center** plants and trials | Zones, sun, moisture, pH, bloom season; trials give **peak bloom month**, weeks in bloom, 3-year size, disease ratings for cultivars | about 205 | Crawl delay 10. No terms found. |
+| **Minnesota Wildflowers** | Native status, habitat (sun, moisture), **bloom months**, height, wetland status. Wild Minnesota species | about 307 | Its terms say facts can't be copyrighted, only the wording. |
+| **Illinois Wildflowers** (John Hilty) | Height, bloom season and length, sun, moisture, soil, range, and detailed wildlife: bees, caterpillar hosts, birds, browsing | not measured | © notice only. |
+| **Chicago Botanic Garden plant evaluation notes** | Ratings, **bloom months**, height, disease, winter injury for trialed cultivars (PDFs) | not measured | Image terms only. |
+| **Rutgers deer-resistance ratings** (E271) | A–D deer damage rating, 527 plants | not measured | © notice only. Cite the rating, never copy the list. |
+| **Illinois Extension HortAnswers** | Height, zone, **bloom months**, soil, light | small | © notice only. |
+| **UF/IFAS EDIS tree and shrub sheets** (Gilman and Watson) | Zones, origin, UF invasive status, height, spread, light, soil (clay, wet, drought, salt), maintenance. Structured, 634 woody plants | about 26 | Documents CC BY-NC-ND: facts only. |
+| **Cornell Woody Plants Database** | Height, shape, light, zone, pH, salt and moisture tolerance, invasiveness, native origin. Structured, about 500 woody plants | not measured | CC BY-NC-SA: facts only. Robots allows all. |
+| **Virginia Cooperative Extension publications** | Narrative and lists | — | Explicit: "available for public use, reprint, or citation without further permission", with credit. |
+| **University of Arkansas Plant of the Week** | Native range, Arkansas nativity, size, bloom in prose, wildlife notes. Narrative, 1,016 articles | about 109 | No terms found. |
+| **Atlas of the Vascular Plants of Arkansas** (2013) | Arkansas county distribution, introduced / native / invasive status, 2,892 taxa | about 552 | "Free download edition. Not for commercial sale": we cite its facts and never ship the PDF. |
+| **UGA "Native Plants for Georgia"** bulletins | Zones, size, native range, habitat, wildlife and host notes, in fixed headings | about 94 (one part) | No terms found. |
+| **Tennessee Smart Yards native plants** (UT) | Light, moisture, soil, height, bloom season, Tennessee region, wildlife | about 242 | No terms found. |
+| **Clemson HGIC**, **LSU AgCenter**, **Alabama Extension**, **Wisconsin Horticulture**, **Penn State**, **Purdue**, **UMD**, **UNH**, **UVM**, **Iowa State Yard and Garden** (the yardandgarden subdomain only) | Narrative fact sheets | small each | © notices only. Iowa State's articles "may be republished … if credit is given". |
+| **SelecTree** (Cal Poly) | Trees: USDA zones, size, water, soil, pH, shade, deer palatability, a poisonous flag (not pet-specific), wildlife, native range, California invasive status. Structured, about 1,500 | not measured | Robots allows all; reads its own public JSON API. No terms found. |
+| **WUCOLS** (UC Davis) | Water use by six California regions, for about 3,500 species | not measured | One JSON file; robots allows all. © notice only. Its water classes are Californian: a check for `water`, not a decider elsewhere. |
+| **Oregon State Landscape Plants**, **Colorado State Extension**, **Plant Select**, **Conservation Garden Park** (Utah), **AMWUA** (Arizona), **Texas SmartScape** | Zones, size, sun, water, soil; Plant Select and Conservation Garden Park add deer, pollinators and (CGP) **bloom months** | small to medium | © notices only. Plant Select asks permission for stories and photos, which we don't use. OSU crawl delay 10. |
+| **Shropshire & Tallamy 2025** caterpillar host-plant dataset (University of Delaware) | Which caterpillars use which plant genera, 7,423 species | genus level | CC0 at the university repository. |
+| **Kew World Checklist of Vascular Plants** | Accepted names and native range worldwide | all species | CC BY. Confirm the range table is in the download. |
+
+### Ask first
+
+Facts from these wait for a written yes.
+
+| Source | Why it's worth asking | What stops us |
+| --- | --- | --- |
+| **UF/IFAS Florida-Friendly Landscaping plant app** | The only regional source with structured **pet toxicity** and **flowering months** | "No part … can be copied and reproduced for any purpose without prior written consent". Its data API's robots.txt returns an error. |
+| **Go Botany** (Native Plant Trust) | About 533 catalog matches: native status by state, height, wetland indicator | Terms bar commercial use of content without written authorization (gobotany@nativeplanttrust.org). |
+| **Kansas Wildflowers & Grasses** | About 332 matches, with **bloom months** | "may not be used commercially". One owner to ask. |
+| **Morton Arboretum** | 774 well-structured plants, about 144 matches | Terms bar commercial use and automated downloading. |
+| **Florida Native Plant Society** | About 121 matches, structured | Non-commercial use only without written permission. |
+| **Virginia DCR Native Plant Finder** | About 1,600 natives with sun, moisture, pollinator flags (CSV) | Grants "fair use"; asks for a request when in doubt (web@dcr.virginia.gov). |
+| **UConn Plant Database**, **Missouri, Ohio State and Maine Extension**, **Utah State**, **NMSU**, **UC ANR**, **Xerces**, **NWF Native Plant Finder** | Assorted | Terms bar use for profit, commercial distribution or copying. |
+
+### Not used
+
+- **Closed to bots:** Atlas of Florida Plants (ClaudeBot disallowed), Iowa
+  State's main extension site (ClaudeBot disallowed), SEINet and OregonFlora
+  (`*` disallowed), Washington Native Plant Society, Calscape, Jepson eFlora,
+  Michigan State, Prairie Moon, Grow Native!, Oklahoma State, WSU and PNW
+  Plants (blocked or unreadable robots.txt).
+- **Second-hand:** Native Plant Society of Texas. Its facts are compiled
+  largely from MOBOT and the Wildflower Center, which are closed to us.
+- **Terms forbid it:** Sunset Western Garden (its zones are proprietary),
+  Garden.org.
+
+## Paid licenses
+
+Checked 2026-10-17. No paid source both covers our facts well and plainly
+lets a paid app ship its data.
+
+- **Horticopia:** the one worth contacting. It licenses plant data to other
+  software (DynaScape's design software runs on its 9,357 plants), as SQL
+  Server or Access files. Price, field list, who compiles it, and whether a
+  consumer app may ship it are all unpublished (sales@horticopia.com).
+- **Plants For A Future:** 7,400 plants as a spreadsheet, $150 for the
+  commercial edition, but nothing on redistribution, and its bloom months
+  are British.
+- **Merck Veterinary Manual:** licenses content to app developers, but its
+  plant toxicity is prose, not a per-plant table.
+- **Not usable:** Perenual (its terms forbid commercial use and display of
+  its content, though its price list says "commercial"); Garden.org ("not
+  available for licensing"); Permapeople and Growstuff (crowd-sourced,
+  share-alike); Plant.id and PlantNet (identification, not traits);
+  OpenFarm (shut down in 2025); nursery feeds and data resellers with
+  AI-written text.
+- **Pet toxicity** has no licensable source found. ASPCA offers consulting,
+  not data licenses; its poison database is internal. Pet Poison Helpline
+  and the FFL app are the requests worth making.
 
 ## Deciding each fact
 
 For each fact, one source **decides**: its value is what the catalog
-stores. Another, independent source **checks** it.
+stores. Another, independent source **checks** it. Two sources aren't
+independent when one is compiled from the other (many extension sheets cite
+USDA or NC State).
+
+The table below names the national sources. Regional sources from the
+lists above check any fact they give, and decide where the national sources
+are silent, with `at` set to their state for facts that depend on place
+(bloom months, water). The 20-plant sample settles how each one's fields
+map.
 
 - **Both agree:** `check: "agree"`, both in `src`.
 - **They differ:** the deciding source's value, `check: "disputed"`, both
