@@ -291,7 +291,9 @@ a whole zone covers both halves (a coldest zone "7" is 7, a warmest zone
 
 In the app, a garden in the end half-zone of a plant's range (a 7a garden,
 a plant rated from zone 7) is at the edge of its range: still hardy there,
-with a line of advice. Outside the range it isn't counted as hardy.
+with a line of advice. Outside the range it isn't counted as hardy. Zones
+1a and 13b are the ends of the map, so a range reaching them has no edge
+there.
 
 ## Waiting on format changes
 
