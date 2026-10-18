@@ -276,12 +276,13 @@ export function fileStore(root, today) {
  *   Only HTTP refusals and bot checks are remembered across runs; robots.txt is read afresh each run.
  *   today: 'YYYY-MM-DD', refresh: bool, log(line)
  *   session: fetchSession(), to share robots.txt and pacing across runFetch calls in one process
+ *   concurrency: how many sites are fetched from at once (default 1); each site still one request at a time, at its pace
  * Returns { saved, cached, skipped }.
  */
 /** What runs within one process share: robots.txt read this run, and when each site was last asked (so pace holds across runs). */
 export const fetchSession = () => ({ robots: new Map(), lastHit: new Map() });
 export async function runFetch(list, deps) {
-  const { get, sleep, now, store, today, refresh = false, log = () => {}, session = fetchSession() } = deps;
+  const { get, sleep, now, store, today, refresh = false, log = () => {}, session = fetchSession(), concurrency = 1 } = deps;
   const robots = session.robots; // host → parsed
   const text = (b, n) => (Buffer.isBuffer(b) ? b.subarray(0, n ?? b.length).toString(n ? 'latin1' : 'utf8') : String(b ?? '').slice(0, n));
   const lastHit = session.lastHit; // site → ms
@@ -293,8 +294,13 @@ export async function runFetch(list, deps) {
     if (ms > 0) await sleep(ms / 1000);
     lastHit.set(site, now());
   }
-  async function robotsFor(host, pace) {
-    if (robots.has(host)) return robots.get(host);
+  const robotsPending = new Map(); // host → the read in flight (two sites' workers never read one host twice)
+  function robotsFor(host, pace) {
+    if (robots.has(host)) return Promise.resolve(robots.get(host));
+    if (!robotsPending.has(host)) robotsPending.set(host, readRobots(host, pace).finally(() => robotsPending.delete(host)));
+    return robotsPending.get(host);
+  }
+  async function readRobots(host, pace) {
     // Redirects are followed for robots.txt only (RFC 9309: up to five), and only within the same site.
     let url = `https://${host}/robots.txt`, r;
     for (let hops = 0; ; hops++) {
@@ -320,17 +326,33 @@ export async function runFetch(list, deps) {
     log(`stop ${host}: ${why}`);
   }
 
+  // Sites take turns in parallel, up to `concurrency` at once; within a site, one request at a time at its
+  // pace (its related hosts are on the same site, so its robots.txt reads are in the same line).
+  const bySite = new Map();
   for (const item of list) {
-    if (!Object.hasOwn(SOURCE_PACE, item.source ?? '')) { log(`skip: unknown source ${JSON.stringify(item.source)} (add it to SOURCE_PACE)`); out.skipped++; continue; }
+    let site = '';
+    try { site = siteOf(new URL(item.url).hostname); } catch { /* bad URL: skipped in its turn */ }
+    if (!bySite.has(site)) bySite.set(site, []);
+    bySite.get(site).push(item);
+  }
+  const queue = [...bySite.values()];
+  const workers = Array.from({ length: Math.max(1, Math.min(concurrency, queue.length)) }, async () => {
+    for (let items = queue.shift(); items; items = queue.shift()) for (const item of items) await one(item);
+  });
+  await Promise.all(workers);
+  return out;
+
+  async function one(item) {
+    if (!Object.hasOwn(SOURCE_PACE, item.source ?? '')) { log(`skip: unknown source ${JSON.stringify(item.source)} (add it to SOURCE_PACE)`); out.skipped++; return; }
     let u;
-    try { u = new URL(item.url); } catch { log(`skip: bad URL ${item.url}`); out.skipped++; continue; }
-    if (u.protocol !== 'https:' || u.username || u.password) { log(`skip ${item.url}: https only, no credentials`); out.skipped++; continue; }
+    try { u = new URL(item.url); } catch { log(`skip: bad URL ${item.url}`); out.skipped++; return; }
+    if (u.protocol !== 'https:' || u.username || u.password) { log(`skip ${item.url}: https only, no credentials`); out.skipped++; return; }
     const host = bare(u.hostname) + (u.port ? ':' + u.port : '');
     const site = siteOf(u.hostname);
-    if (!refresh && store.cached(item.source, u.href)) { out.cached++; continue; }
-    if (refused.has(host)) { out.skipped++; continue; }
+    if (!refresh && store.cached(item.source, u.href)) { out.cached++; return; }
+    if (refused.has(host)) { out.skipped++; return; }
     const rb = await robotsFor(host, MIN_PACE);
-    if (rb.kind !== 'none' && rb.kind !== 'rules') { refuse(host, rb.why, false); out.skipped++; continue; }
+    if (rb.kind !== 'none' && rb.kind !== 'rules') { refuse(host, rb.why, false); out.skipped++; return; }
     let why = '';
     for (const other of relatedHosts(u.hostname)) {
       const pr = await robotsFor(bare(other), MIN_PACE);
@@ -340,20 +362,19 @@ export async function runFetch(list, deps) {
       if ((pr.kind === 'silent' || pr.kind === 'closed') && !noted.has(other + ' ' + host) && noted.add(other + ' ' + host)) log(`note ${other}: ${pr.why}; its robots.txt can't be read, so it sets no rule for ${host}`);
       if (pr.kind === 'rules' && blocksWholeHost(pr.groups)) { why = `${other} blocks bots from the whole host`; break; }
     }
-    if (why) { refuse(host, why, false); out.skipped++; continue; }
-    if (!allowedBy(rb.groups, u.pathname + u.search)) { log(`skip ${u.href}: robots.txt disallows it`); out.skipped++; continue; }
+    if (why) { refuse(host, why, false); out.skipped++; return; }
+    if (!allowedBy(rb.groups, u.pathname + u.search)) { log(`skip ${u.href}: robots.txt disallows it`); out.skipped++; return; }
     await wait(site, paceFor(item.source, crawlDelay(rb.groups), item.pace));
     const r = await get(u.href);
-    if (r.status === 0) { log(`fail ${u.href}: ${r.error ?? 'no answer'} (not saved)`); out.skipped++; continue; }
+    if (r.status === 0) { log(`fail ${u.href}: ${r.error ?? 'no answer'} (not saved)`); out.skipped++; return; }
     const body = Buffer.isBuffer(r.body) ? r.body : Buffer.from(String(r.body ?? ''), 'utf8');
     const check = isChallenge(r.status, text(body, 20000));
-    if (REFUSALS.has(r.status) || check) { refuse(host, `refused (${r.status}${check ? ', bot check' : ''})`, true); out.skipped++; continue; }
+    if (REFUSALS.has(r.status) || check) { refuse(host, `refused (${r.status}${check ? ', bot check' : ''})`, true); out.skipped++; return; }
     const meta = { url: u.href, status: r.status, type: r.type, location: r.location || undefined, fetched: today, agent: USER_AGENT };
     if (r.status >= 200 && r.status < 300) store.save(item.source, u.href, body, meta);
     else if ((r.status >= 300 && r.status < 400) || r.status === 404 || r.status === 410) store.save(item.source, u.href, null, meta); // (an answer worth remembering, with no page)
-    else { log(`${r.status} ${u.href} (not saved)`); out.skipped++; continue; }
+    else { log(`${r.status} ${u.href} (not saved)`); out.skipped++; return; }
     out.saved++;
     log(`${r.status} ${u.href}${r.location ? ` → ${r.location} (not followed)` : ''}`);
   }
-  return out;
 }

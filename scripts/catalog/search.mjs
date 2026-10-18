@@ -93,7 +93,7 @@ const session = fetchSession(); // (one robots.txt read and one pace per site, a
 const tallies = {};
 const tally = (line) => { const k = /^(\d{3}|stop|skip|fail\w*)/.exec(line)?.[1] ?? 'other'; tallies[k] = (tallies[k] ?? 0) + 1; };
 const fetched = new Set(); // (every URL this run asked for: what it leaves behind with no page is removed at the end)
-const fetchList = (list) => { for (const x of list) fetched.add(x.url); return runFetch(list, { get, store: fileStore('catalog-src', today), today, session, sleep: pause, now: () => Date.now(), log: tally }); };
+const fetchList = (list) => { for (const x of list) fetched.add(x.url); return runFetch(list, { get, store: fileStore('catalog-src', today), today, session, concurrency: 8, sleep: pause, now: () => Date.now(), log: tally }); };
 /**
  * Fetch URLs, following redirects within the same site (up to 3), each
  * target fetched by the same rules. Returns url → the URL whose page

@@ -105,16 +105,12 @@ const hostKey = (n) => (/\(([A-Z][a-z]+ [a-z]+)\)$/.exec(n)?.[1] ?? String(n)).t
 /** NC State Plant Toolbox fields → claims (an authority). */
 export function ncsuClaims(f) {
   const c = [], add = (fact, v) => { if (v != null && !(Array.isArray(v) && !v.length)) c.push({ fact, v, src: 'ncsu', kind: 'authority' }); };
-  const forms = ncsuForms(f['Plant Type']);
-  if (forms.length === 1) {
-    let form = forms[0];
-    if (form === 'Tree') {
-      const df = f['Design Feature'] ?? [];
-      const under = df.includes('Understory Tree'), shade = df.includes('Shade Tree');
-      form = under && !shade ? 'Tree (understory)' : shade && !under ? 'Tree (canopy)' : null;
-    }
-    add('form', form);
-  }
+  // Forms, as a list: NC State tags some plants with more than one (redbud: Shrub and Tree). A tree is
+  // understory or canopy by its "Design Feature"; a tree it doesn't place either way is left out.
+  const df = f['Design Feature'] ?? [];
+  const under = df.includes('Understory Tree'), shade = df.includes('Shade Tree');
+  const forms = ncsuForms(f['Plant Type']).map((x) => (x !== 'Tree' ? x : under && !shade ? 'Tree (understory)' : shade && !under ? 'Tree (canopy)' : null)).filter(Boolean);
+  add('form', forms);
   const h = f.Height ? feetRange(f.Height[0]) : null, w = f.Width ? feetRange(f.Width[0]) : null;
   add('height', h); add('width', w);
   const z = f['USDA Plant Hardiness Zone'] ? halfZones(f['USDA Plant Hardiness Zone'][0]) : null;
@@ -173,6 +169,17 @@ export function usdaClaims(u) {
   const l48 = (u?.['Native status'] ?? []).find((s) => s.startsWith('L48'));
   if (l48) c.push({ fact: 'native_us', v: l48.replace('L48: ', '').toLowerCase(), src: 'usda', kind: 'authority' });
   const flag = (fact, text) => c.push({ fact, flag: text, src: 'usda' });
+  // Growth habit and lifespan say what the plant is (not how it grows in a garden): a form where no
+  // garden source gives one. (A fern is "Forb/herb" to USDA, so it never overrides a garden source;
+// its "Tree" says tree, not which kind, so it supports either kind a garden source names.)
+  const habit = u?.['Growth habit'] ?? [], life = u?.Duration ?? [];
+  const uf = [];
+  if (habit.includes('Graminoid')) uf.push('Grass/Sedge');
+  else if (habit.includes('Vine')) uf.push('Vine');
+  else if (habit.includes('Forb/herb') && habit.length === 1) uf.push(life.includes('Perennial') || life.includes('Biennial') ? 'Perennial' : life.includes('Annual') ? 'Annual' : null);
+  if (habit.includes('Shrub') && !habit.includes('Vine')) uf.push('Shrub');
+  if (habit.includes('Tree')) uf.push('Tree');
+  if (uf.filter(Boolean).length) c.push({ fact: 'form', v: uf.filter(Boolean), src: 'usda', kind: 'authority', fallback: true });
   const t = u?.['Temperature, Minimum (°F)']?.[0];
   if (t != null && Number.isFinite(Number(t))) flag('zone_min', { temp: Number(t), text: `USDA: lowest ${t} °F` });
   const shade = u?.['Shade Tolerance']?.[0];
@@ -207,7 +214,7 @@ export function agrees(fact, a, b) {
  * source), 'disputed' (sources of the deciding rank disagree, or a safety fact
  * has none). Facts with no claims are null.
  */
-export function combine(claims, { cultivar = false } = {}) {
+export function combine(claims, { cultivar = false, prefer = null } = {}) {
   const out = {};
   const facts = new Set([...Object.keys(TIER), ...claims.map((c) => c.fact)]);
   for (const fact of facts) {
@@ -216,7 +223,10 @@ export function combine(claims, { cultivar = false } = {}) {
     let usable = all.filter((c) => !c.flag && c.v != null);
     if (TIER[fact] === 'safety') usable = usable.filter((c) => c.kind === 'authority');
     if (TIER[fact] === 'survival') usable = usable.filter((c) => c.kind !== 'blog'); // (authority, breeder, nursery: no blogs)
-    if (cultivar && CULTIVAR_OWN.has(fact)) usable = usable.filter((c) => c.cultivarPage || c.kind === 'breeder');
+    // A cultivar's own size and color come only from pages for it. Its form too, except a perennial,
+    // grass, fern, bulb, vine or annual stays one whatever the cultivar (a dwarf tree can be a shrub).
+    const kept = (c) => fact === 'form' && [c.v].flat().every((x) => !/Tree/.test(x));
+    if (cultivar && CULTIVAR_OWN.has(fact)) usable = usable.filter((c) => c.cultivarPage || c.kind === 'breeder' || kept(c));
     // Copies count once: the same text on two sites, or two pages of one site. The highest kind keeps it
     // (a shop that copies an extension's sheet doesn't stand in for the extension).
     usable = usable.map((c, i) => ({ c, i })).sort((x, y) => (RANK[y.c.kind] ?? 0) - (RANK[x.c.kind] ?? 0) || x.i - y.i).map((x) => x.c);
@@ -228,6 +238,7 @@ export function combine(claims, { cultivar = false } = {}) {
     });
     // A breeder speaks first only for its own cultivars; on a species it's one more nursery.
     if (!cultivar) usable = usable.map((c) => (c.kind === 'breeder' ? { ...c, kind: 'nursery' } : c));
+    if (fact === 'form') { out[fact] = combineForm(usable, prefer); continue; }
     if (fact === 'host') { // (a list: every source's names, together)
       const byKey = new Map();
       for (const n of usable.flatMap((c) => c.v)) { const k = hostKey(n); if (!byKey.has(k) || /\(/.test(n)) byKey.set(k, n); }
@@ -272,5 +283,32 @@ export function combine(claims, { cultivar = false } = {}) {
     out[fact] = r;
   }
   return out;
+}
+/**
+ * A plant's forms, from authorities' lists (USDA's only where no garden source gives one):
+ * the forms two independent sources share, the catalog's current form first; with only one
+ * source, its single form, or of its several the one the catalog has (else unsettled).
+ */
+function combineForm(usable, prefer) {
+  let auth = usable.filter((c) => c.kind === 'authority' && !c.fallback);
+  const fallback = usable.filter((c) => c.fallback);
+  if (!auth.length) auth = usable.filter((c) => c.kind === 'authority');
+  const all = auth.length ? auth : usable;
+  if (!all.length) return null;
+  const sources = new Map();
+  for (const c of [...all, ...(auth.length ? fallback : [])]) for (const f of [c.v].flat()) sources.set(f, new Set([...(sources.get(f) ?? []), c.src]));
+  // USDA's plain "Tree" backs whichever kind of tree a garden source names; on its own it isn't a form.
+  const tree = sources.get('Tree');
+  sources.delete('Tree');
+  if (tree) for (const k of ['Tree (understory)', 'Tree (canopy)']) if (sources.has(k)) sources.set(k, new Set([...sources.get(k), ...tree]));
+  const order = (l) => [...l].sort((a, b) => Number(b === prefer) - Number(a === prefer));
+  const shared = [...sources].filter(([, s]) => s.size > 1).map(([f]) => f);
+  const deciding = all[0];
+  if (shared.length) return { v: order(shared), src: [...new Set(shared.flatMap((f) => [...sources.get(f)]))], check: 'confirmed', kind: deciding.kind };
+  const own = [deciding.v].flat().filter((x) => x !== 'Tree');
+  if (!own.length) return null;
+  if (own.length === 1) return { v: own, src: [deciding.src], check: all.length > 1 ? 'disputed' : 'single', kind: deciding.kind };
+  if (prefer && own.includes(prefer)) return { v: [prefer], src: [deciding.src], check: 'single', kind: deciding.kind, note: `${deciding.src} also lists ${own.filter((x) => x !== prefer).join(', ')}` };
+  return { v: null, src: [deciding.src], check: 'disputed', kind: deciding.kind, note: `${deciding.src} lists ${own.join(', ')}` };
 }
 const fmtV = (v) => (Array.isArray(v) ? v.join(', ') : v && typeof v === 'object' ? ('min' in v ? `${v.min}–${v.max}` : 'start' in v ? `months ${v.start}–${v.end}` : JSON.stringify(v)) : String(v));

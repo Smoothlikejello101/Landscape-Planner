@@ -145,6 +145,20 @@ describe('claims and how they combine', () => {
     expect(agrees('tox_people', ['major', 'dermatitis'], ['minor', 'dermatitis'])).toBe(false);
     expect(agrees('tox_people', ['dermatitis', 'major'], ['major', 'dermatitis'])).toBe(true);
   });
+  it('gives forms as a list: those two sources share, USDA backing a kind of tree, the catalog\'s form first', () => {
+    const nc = (v: string[]) => ({ fact: 'form', v, src: 'ncsu', kind: 'authority' });
+    const usda = (habit: string[], life = ['Perennial']) => usdaClaims({ 'Growth habit': habit, Duration: life }).filter((c: { fact: string }) => c.fact === 'form');
+    // Redbud: NC State Shrub and understory tree, USDA Shrub and Tree.
+    expect(combine([nc(['Shrub', 'Tree (understory)']), ...usda(['Shrub', 'Tree'])], { prefer: 'Tree (understory)' }).form).toMatchObject({ v: ['Tree (understory)', 'Shrub'], check: 'confirmed' });
+    // USDA alone: a forb that lives for years is a perennial; a fern's "Forb/herb" never overrides a garden source.
+    expect(combine(usda(['Forb/herb'])).form).toMatchObject({ v: ['Perennial'] });
+    expect(combine([nc(['Fern']), ...usda(['Forb/herb'])]).form).toMatchObject({ v: ['Fern'] });
+    // One source with two forms: the catalog's, noted; else unsettled.
+    expect(combine([nc(['Shrub', 'Vine'])], { prefer: 'Vine' }).form).toMatchObject({ v: ['Vine'], note: 'ncsu also lists Shrub' });
+    // A cultivar keeps its species' perennial form, but not a tree form (a dwarf can be a shrub).
+    expect(combine([nc(['Perennial'])], { cultivar: true }).form).toMatchObject({ v: ['Perennial'] });
+    expect(combine([nc(['Tree (canopy)'])], { cultivar: true }).form).toBeNull();
+  });
   it('confirms a caterpillar host only where two sources name the same one', () => {
     const h = (src: string, v: string[]) => ({ fact: 'host', v, src, kind: 'authority' });
     expect(combine([h('ncsu', ['A']), h('x.edu', ['B'])]).host).toMatchObject({ v: ['A', 'B'], check: 'single' });
@@ -197,7 +211,8 @@ describe('claims and how they combine', () => {
     expect(f.zone_max.v).toBe(9.5);
     expect(f.height.v).toEqual({ min: 20, max: 30 });
     expect(f.host.v).toEqual(["Henry's Elfin (Callophrys henrici)"]);
-    expect(f.form).toBeNull(); // (NC State says Shrub and Tree)
+    // NC State's fixture says Shrub and Tree without placing the tree: one source with two forms is unsettled…
+    expect(f.form).toMatchObject({ v: null, check: 'disputed' });
     expect(f.bloom_months).toMatchObject({ v: 'July - September', at: 'MN' });
     const o = combine(ncsuClaims(ncsuFields(fixture('ncsu-nerium.html'))));
     expect(o.tox_people.v).toEqual(['major', 'dermatitis']);

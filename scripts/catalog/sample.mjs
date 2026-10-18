@@ -76,7 +76,7 @@ for (const s of sample) {
     ...mnwildClaims(mnwild), ...arkatlasClaims(ar), ...usdaClaims(usda), ...tallamyClaims(tallamy, s.species),
     ...(extraClaims[s.id] ?? []),
   ];
-  const mapped = combine(claims, { cultivar });
+  const mapped = combine(claims, { cultivar, prefer: rec?.facts?.form?.v ?? rec?.facts?.form ?? null });
   if (cultivar && (speciesPage || !seen.ncsu)) notes.push('A cultivar read from species pages: its size, form and flower color come only from a page for the cultivar');
   out.push({ id: s.id, common: rec?.common, botanical: rec?.botanical, species: s.species, compendium: rec?.facts ?? {}, sources: seen, raw: { ncsu, usda, mnwild, arkatlas: ar }, claims, facts: mapped, notes });
 }
