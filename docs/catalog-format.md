@@ -7,7 +7,8 @@ personal (a gardener's own plants live in My plants, on their device).
 The plan behind it is the "Plant Catalog Plan" doc. In short: every value has
 a source; "unknown" is an allowed answer; a value counts as verified only when
 two independent sources agree; and nothing from the first compendium is
-trusted until the audit re-derives it.
+trusted until the audit re-derives it. Which sources may be used, and which
+one decides each fact: [catalog-sources.md](catalog-sources.md).
 
 ## The file
 
@@ -19,7 +20,7 @@ trusted until the audit re-derives it.
     "updated": "2026-10-17",
     "sources": {
       "compendium": { "title": "First compendium (2026)", "trust": "unverified" },
-      "aspca": { "title": "ASPCA toxic and non-toxic plants", "url": "https://www.aspca.org/...", "trust": "reference" }
+      "ncsu": { "title": "NC State Extension Gardener Plant Toolbox", "url": "https://plants.ces.ncsu.edu", "trust": "reference" }
     },
     "enums": { "form": ["Annual", "..."] }
   },
@@ -28,7 +29,7 @@ trusted until the audit re-derives it.
 ```
 
 `meta.sources` names every source a fact may cite. `trust` is `reference`
-(a published reference: extension service, USDA, ASPCA, a botanical garden),
+(a published reference: an extension service, USDA, a botanical garden),
 `observation` (a gardener's own record) or `unverified` (the first
 compendium: claims with no source behind them).
 
@@ -46,7 +47,7 @@ compendium: claims with no source behind them).
   "facts": {
     "form": "Shrub",
     "width": { "min": 4, "max": 6, "med": 5 },
-    "bloom": { "v": { "start": 6, "end": 8, "color": "White" }, "src": ["mobot", "ncsu"], "at": "MO", "check": "agree" }
+    "zone_min": { "v": 4, "src": ["ncsu", "usda"], "check": "agree" }
   }
 }
 ```
