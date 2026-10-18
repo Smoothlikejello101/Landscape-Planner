@@ -85,7 +85,7 @@ test('copy a catalog plant as your own cultivar', async ({ page }) => {
   await page.getByTestId('pf-save').click();
   await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker');
   await page.getByTestId('plant-search').fill('Caramel');
-  await page.locator('.proj-row', { hasText: 'Caramel' }).click();
+  await page.locator('.proj-row', { hasText: 'Caramel' }).locator('[data-testid=plant-place]').click();
   await placeOnceAtCenter(page);
   await expect(page.locator('.sel-pill .name')).toHaveText("Heuchera 'Caramel'");
 });

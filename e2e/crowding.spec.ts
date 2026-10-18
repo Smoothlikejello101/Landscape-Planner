@@ -4,7 +4,7 @@ import { closeSheet, field, openFresh, openSections, placeOnceAtCenter } from '.
 async function addPlant(page: Page, name: string, x: number) {
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill(name);
-  await page.locator('.sheet .proj-row', { hasText: name }).first().click();
+  await page.locator('.sheet .proj-row', { hasText: name }).first().locator('[data-testid=plant-place]').click();
   await placeOnceAtCenter(page);
   await page.locator('.sel-pill button.edit').click(); await openSections(page);
   await field(page, 'X position').fill(String(x));

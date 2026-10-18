@@ -18,7 +18,10 @@ export interface Plant {
   id: string;
   common: string;
   botanical?: string;
+  /** Its growth form (the first of `forms`, for its color and symbol). */
   form?: string;
+  /** Every form it takes, primary first (redbud: understory tree and shrub). */
+  forms?: string[];
   habit?: string;
   /** USDA hardiness zones it's rated for. */
   zone_min?: number;
@@ -60,6 +63,8 @@ export interface Plant {
   thorns?: boolean;
   /** Catalog plants: where each value came from (see src/catalog.ts). */
   prov?: Record<string, Provenance>;
+  /** What nurseries report where it differs from the authority's value (its sources are in `prov[key].alt`). */
+  reported?: Partial<Record<string, unknown>>;
   /** Catalog plants the audit hasn't re-derived from sources yet. */
   unverified?: boolean;
   /** Color it's drawn in (My plants; catalog plants are colored by form). */
@@ -74,6 +79,8 @@ export interface PlantMeta {
   version?: string;
   count?: number;
   enums?: Record<string, string[]>;
+  /** The catalog's sources, by id (for saying where a value came from). */
+  sources?: Record<string, { title: string; trust?: string }>;
 }
 type SunLevel = 'Full' | 'Part' | 'Shade';
 
@@ -93,6 +100,8 @@ export const PLANT_FILTER_DEFAULTS = {
   edible: false, noTaproot: false, inPlan: false,
   /** Rated for the plan's zone (when the plan has a location). */
   hardyHere: false,
+  /** Let what nurseries report count where it differs from the authorities (a match only by it is flagged). */
+  withReported: true,
   advanced: false      // UI: is the "More filters" section expanded
 };
 export type PlantFilter = typeof PLANT_FILTER_DEFAULTS;
@@ -116,7 +125,7 @@ export function loadPlants(): Promise<void> {
     // Version 2 (sourced facts) is resolved into plants; the old flat list still loads.
     if (isCatalogV2(d)) {
       PLANTS = resolveCatalog(d);
-      PLANT_META = { title: d.meta.title, version: d.meta.updated, count: d.plants.length, enums: d.meta.enums };
+      PLANT_META = { title: d.meta.title, version: d.meta.updated, count: d.plants.length, enums: d.meta.enums, sources: d.meta.sources };
     } else {
       const old = d as { plants?: Plant[]; meta?: PlantMeta };
       PLANTS = old.plants || [];
@@ -138,7 +147,7 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (f.dogSafeOnly && !nonToxicToDogs(p)) return false;
   // (Plants at the edge of their range count: the list marks them.)
   if (f.hardyHere && state.location && !hardyEnough(zoneFit(p, state.location))) return false;
-  if (f.form && p.form !== f.form) return false;
+  if (f.form && !formsOf(p).includes(f.form)) return false;
   if (f.water && p.water !== f.water) return false;
   if (f.sun && !plantTakesSun(p, f.sun)) return false;
   if (f.native && p.native !== f.native) return false;
@@ -214,9 +223,57 @@ export function matchedBy(p: Plant, query: string): MatchedBy | null {
 export function plantIdsInPlan(): Set<string> {
   return new Set(state.shapes.filter((s) => s.status !== 'gone').map((s) => s.plantId).filter((id): id is string => !!id));
 }
+/**
+ * The filters a nursery's report can count for, the facts each reads, and
+ * what the flag calls them. Safety and status facts (toxicity, invasive,
+ * native) never come from nurseries: the catalog doesn't accept reports
+ * for them.
+ */
+const FILTER_FACTS: [keyof PlantFilter, string[], string][] = [
+  ['sun', ['sun_most', 'sun_least'], 'sun'], ['hardyHere', ['zone_min', 'zone_max'], 'hardiness zones'], ['water', ['water'], 'water'],
+  ['deer', ['deer'], 'deer resistance'], ['maxHeight', ['height'], 'height'], ['bloomMonth', ['bloom'], 'bloom time'], ['form', ['form'], 'form'],
+];
+/** The plant as a nursery describes these facts (each pair as a whole: a nursery's sun range, not half of one). */
+function asReported(p: Plant, facts: string[]): Plant {
+  const r = p.reported ?? {};
+  const q: Plant = { ...p };
+  for (const k of facts) if (k in r) (q as unknown as Record<string, unknown>)[k] = r[k];
+  if ('form' in r && facts.includes('form')) { const fs = [r.form].flat() as string[]; q.form = fs[0]; q.forms = fs; }
+  return q;
+}
+/**
+ * Whether a plant matches, and if only by what nurseries report (where an
+ * authority says otherwise): null (no match), [] (a match on the
+ * authorities' values), or the filters the match rests on ("sun",
+ * "hardiness zones"). Each filter is judged on its own: it passes on the
+ * authorities' value, or failing that on a nursery's; every other filter
+ * must pass on the authorities' values.
+ */
+export function reportedMatch(p: Plant, f: PlantFilter, inPlan?: Set<string>): string[] | null {
+  if (plantMatches(p, f, inPlan)) return [];
+  if (!f.withReported || !p.reported) return null;
+  const reportable = Object.fromEntries(FILTER_FACTS.map(([k]) => [k, PLANT_FILTER_DEFAULTS[k]]));
+  if (!plantMatches(p, { ...f, ...reportable }, inPlan)) return null; // (the rest must pass as published)
+  const needed: string[] = [];
+  for (const [k, facts, label] of FILTER_FACTS) {
+    if (f[k] === PLANT_FILTER_DEFAULTS[k]) continue;
+    const only = { ...PLANT_FILTER_DEFAULTS, [k]: f[k], q: '', inPlan: false };
+    if (plantMatches(p, only)) continue;
+    if (!facts.some((x) => x in p.reported!) || !plantMatches(asReported(p, facts), only)) return null;
+    needed.push(label);
+  }
+  return needed.length ? needed : null;
+}
+/** Plants in the last list that match only by nurseries' reports, and on what. */
+export const reportedOnly = new Map<string, string[]>();
 export function filteredPlants(): Plant[] {
   const inPlan = plantIdsInPlan();
-  const out = PLANTS.filter(p => plantMatches(p, plantFilter, inPlan));
+  reportedOnly.clear();
+  const out = PLANTS.filter((p) => {
+    const m = reportedMatch(p, plantFilter, inPlan);
+    if (m?.length) reportedOnly.set(p.id, m);
+    return m !== null;
+  });
   // Name matches first, then botanical, then host plants; alphabetical within each.
   const q = plantFilter.q;
   const rank = new Map(out.map((p) => [p.id, searchRank(p, q)]));
@@ -243,6 +300,8 @@ export function newPlantStatus(): Pick<CircleShape, 'status' | 'phase'> {
     ...(f.phase ? { phase: f.phase } : {}),
   };
 }
+/** Every form a plant takes, primary first. */
+export const formsOf = (p: Pick<Plant, 'form' | 'forms'>): string[] => p.forms?.length ? p.forms : p.form ? [p.form] : [];
 /** The color a plant is drawn in: its own (My plants), else by form, else green. */
 export function plantColor(p: Plant | undefined): string {
   return p?.color || (p?.form && FORM_COLORS[p.form]) || '#16a34a';
@@ -294,7 +353,7 @@ export function zoneNote(p: Plant): string {
 }
 export function plantMetaLine(p: Plant): string {
   const bits: string[] = [];
-  if (p.form) bits.push(p.form);
+  if (p.form) bits.push(formsOf(p).join(' / '));
   const spread = p.width && p.width.med;
   const ht = p.height && p.height.med;
   if (ht || spread) bits.push((ht ? ht + "'" : '?') + ' x ' + (spread ? spread + "'" : '?'));

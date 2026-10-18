@@ -72,7 +72,7 @@ test('new plants start as Planned, or join the status the plan is showing', asyn
   const place = async (name: string) => {
     await page.locator('.tool-btn.plants').click();
     await page.locator('.sheet input[type=text]').fill(name);
-    await page.locator('.sheet .proj-row', { hasText: name }).first().click();
+    await page.locator('.sheet .proj-row', { hasText: name }).first().locator('[data-testid=plant-place]').click();
     await placeOnceAtCenter(page);
   };
   await place('Purple Coneflower');
