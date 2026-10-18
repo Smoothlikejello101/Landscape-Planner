@@ -219,7 +219,9 @@ the same rules as every other source (scripts/catalog/search.mjs).
    terms of use first, then legal, policies, licence and copyright pages; a
    privacy policy alone isn't read as terms; never a platform's own such as reCAPTCHA's or a
    payment provider's), or the usual addresses (`/terms`,
-   `/terms-of-use`, `/policies/terms-of-service`…) when it links none, and
+   `/terms-of-use`, `/policies/terms-of-service`…) when none of the pages
+   it links is the terms of use (none linked, or only terms of sale,
+   shipping or returns: a shop that links only its shipping policy), and
    writes a review packet: each page's opening and the passages about
    robots, scraping, automated access, commercial use, databases and
    copying, with a pattern's guess marked as a hint only. Each owner on a

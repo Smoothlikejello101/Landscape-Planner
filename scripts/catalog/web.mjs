@@ -301,7 +301,7 @@ const TERMS_PATH = /(?:^|[\/_-])(?:terms|tos|legal|conditions-of-use|copyright|p
 /** How much a link looks like the terms of use (not of sale or shipping). */
 const termsRank = (text, path) => (/terms of (?:use|service)|terms (?:&|and) conditions|conditions of use|website terms|site terms|legal|copyright|user agreement|licen[cs]e|acceptable use/.test(text + ' ' + path.replace(/[-_\/]/g, ' ')) ? 2 : 0)
   - (/sale|shipping|guarantee|warranty|return|refund|reward|gift|loyalty|promo|sweepstake|contest|privacy|cookie/.test(text + ' ' + path) ? 1 : 0);
-/** Places a site's terms usually live, to try when its home page links none. */
+/** Places a site's terms usually live, to try when its home page links none, or links only terms of sale or shipping. */
 export const TERMS_GUESSES = ['/terms', '/terms-of-use', '/terms-of-service', '/policies/terms-of-service', '/terms-and-conditions'];
 /**
  * Links on a page that look like its terms, best first: on the same site,
@@ -339,6 +339,13 @@ export function termsLinks(html, pageUrl) {
 /** Words on a home page that say it links its terms somewhere, even if the link itself can't be read (built by script). */
 export const mentionsTerms = (html) => /\bterms (?:of (?:use|service)|(?:&|and) conditions)|conditions of use\b/i.test(plainText(html));
 /** Whether a page that answered at a guessed address is really a terms page (not the home page or a "not found" page served with 200). */
+/**
+ * Whether a page is a site's terms of use (not only of sale, shipping or
+ * returns): when none of the pages a home page links is, the usual
+ * addresses are tried too (a shop that links only its shipping policy still
+ * has its terms of service at /policies/terms-of-service).
+ */
+export const isUseTerms = (html) => /terms of (?:use|service)|conditions of use|website terms|site terms|user agreement|legal notice|acceptable use/i.test(headline(html) + ' ' + plainText(html).slice(0, 3000));
 export const looksLikeTerms = (html) => /terms (?:of (?:use|service|sale)|and conditions|& conditions)|conditions of (?:use|sale)|terms of service|user agreement|legal notice/i.test(headline(html) + ' ' + plainText(html).slice(0, 3000));
 
 const BAN = /\b(?:may not|shall not|must not|will not|cannot|can't|do not|don't|agree not|agrees not|not to|not (?:be )?(?:permitted|allowed|authori[sz]ed)|prohibit\w*|forbid\w*|restrict\w*|unauthori[sz]ed|refrain|strictly|without (?:the |our )?(?:prior |express |explicit )?(?:written )?(?:consent|permission|authori[sz]ation)|only for|solely for|limited to)\b/i;

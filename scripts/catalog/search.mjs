@@ -28,7 +28,7 @@ import { join } from 'node:path';
 import { cacheName, fetchSession, fileStore, runFetch, siteOf } from './fetch-lib.mjs';
 import { get } from './net.mjs';
 import { lockCatalogSrc, savedMeta, savedPage } from './pages.mjs';
-import { TERMS_GUESSES, headline, looksLikeTerms, mentionsTerms, plainText, siteKind, termsKey, termsLinks, termsPassages, termsVerdict, webClaims } from './web.mjs';
+import { TERMS_GUESSES, headline, isUseTerms, looksLikeTerms, mentionsTerms, plainText, siteKind, termsKey, termsLinks, termsPassages, termsVerdict, webClaims } from './web.mjs';
 
 const args = process.argv.slice(2);
 const flag = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
@@ -138,10 +138,15 @@ for (const [k, home] of pending) {
 }
 const found = await fetchAll([...linked.values()].flatMap((r) => r.links));
 for (const guess of TERMS_GUESSES) {
-  const want = [...linked].filter(([, r]) => r.html && !r.links.length && !r.guessed).map(([k, r]) => [k, new URL(guess, r.home).href]);
+  // Tried when no linked page is the terms of use (none linked, or only terms of sale, shipping or returns).
+  const lacking = (r) => r.html && !r.guessed && !r.links.some((u) => isUseTerms(htmlOf(found.get(u)) ?? ''));
+  const want = [...linked].filter(([, r]) => lacking(r)).map(([k, r]) => [k, new URL(guess, r.home).href]).filter(([k, u]) => !linked.get(k).links.includes(u));
   if (!want.length) break;
   const got = await fetchAll(want.map(([, u]) => u));
-  for (const [k, u] of want) { const at = got.get(u), r = linked.get(k); if (at && at !== r.home && looksLikeTerms(htmlOf(at) ?? '')) r.guessed = at; }
+  for (const [k, u] of want) {
+    const at = got.get(u), r = linked.get(k);
+    if (at && at !== r.home && !r.links.some((l) => found.get(l) === at) && looksLikeTerms(htmlOf(at) ?? '')) r.guessed = at;
+  }
 }
 for (const [k, r] of linked) {
   const pages = [...r.links.map((u) => ({ url: u, at: found.get(u) })), ...(r.guessed ? [{ url: r.guessed, at: r.guessed, guessed: true }] : [])];

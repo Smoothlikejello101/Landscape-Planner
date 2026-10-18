@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error (plain JavaScript build script)
-import { aboutPlant, copyKey, looksLikeTerms, pageText, siteKind, sizeIn, sourceOf, termsKey, termsLinks, termsPassages, termsVerdict, webClaims, webFields } from '../scripts/catalog/web.mjs';
+import { aboutPlant, copyKey, isUseTerms, looksLikeTerms, pageText, siteKind, sizeIn, sourceOf, termsKey, termsLinks, termsPassages, termsVerdict, webClaims, webFields } from '../scripts/catalog/web.mjs';
 // @ts-expect-error (plain JavaScript build script)
 import { combine } from '../scripts/catalog/claims.mjs';
 
@@ -149,6 +149,10 @@ describe("reading a site's terms", () => {
   it('tells a terms page from a home page or a "not found" served at a guessed address', () => {
     expect(looksLikeTerms('<title>Terms of Service</title><p>These terms…</p>')).toBe(true);
     expect(looksLikeTerms('<title>A Shop</title><p>Shop our plants</p>')).toBe(false);
+    // Terms of sale or shipping aren't the terms of use: the usual addresses are tried as well.
+    expect(isUseTerms('<title>Terms of Service</title><p>These terms…</p>')).toBe(true);
+    expect(isUseTerms('<title>Shipping policy</title><p>We ship Monday to Wednesday.</p>')).toBe(false);
+    expect(isUseTerms('<title>Terms of Sale</title><p>All plants are guaranteed…</p>')).toBe(false);
   });
   it('keeps the terms pages that matter: the owner\'s terms of use first, never a platform\'s, at most six', () => {
     const home = '<a href="https://policies.google.com/terms">Terms</a><a href="/pages/shipping-terms">Shipping Terms</a><a href="/pages/terms-of-sale">Terms of Sale</a>'
