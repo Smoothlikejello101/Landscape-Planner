@@ -11,7 +11,8 @@ down: the rule found, and the date it was checked.
 
 1. **robots.txt.** The rule for the pages we'd read, under `*` and under any
    group naming our fetcher. The fetcher sends
-   `FullGrownCatalog/1.0 (mailto:hello@fullgrown.garden)`. Claude runs the
+   `FullGrownCatalog/1.0 (mailto:hello@fullgrown.garden)`, an address that
+   reaches Jason. Claude runs the
    audit, so groups for `ClaudeBot`, `Claude-User` and `Claude-SearchBot`
    count too. A `Disallow` means no automated reading, whatever the terms
    say.
@@ -69,6 +70,11 @@ stores. Another, independent source **checks** it.
   only lists whether something applies (NC State's "Attracts: Bees") never
   becomes a level such as High or None.
 
+Facts entered **by hand** from a source that allows it (MOBOT, for now) count
+as an independent source. They can check any fact and give `agree`, and where
+neither USDA nor NC State has a fact, they decide it (`single`). That includes
+bloom months, with `at` set to the source's state ("MO" for MOBOT).
+
 USDA PLANTS describes species as they grow wild or in conservation
 plantings, and its own notes call the values approximations. NC State
 describes garden plants, cultivars included. So for anything a garden
@@ -78,23 +84,23 @@ it.
 | Fact | Decides | Checks | USDA stands in? | Rule |
 | --- | --- | --- | --- | --- |
 | Names, `usda` symbol, synonyms | USDA | NC State | — | USDA's accepted name. A cultivar keeps its name and points to its species. |
-| `form` | NC State plant type | USDA growth habit | Yes | Which kind of tree comes only from NC State: "Tree (understory)" where it tags the tree for understory planting, "Tree (canopy)" where it says shade or canopy tree. Otherwise `null`. |
+| `form` | NC State "Plant Type" | USDA growth habit and duration | Yes | NC State's Tree, Shrub, Vine, Fern, Bulb and Cactus/Succulent tags map to the enum of the same name; Ornamental Grasses and Sedges → Grass/Sedge; Annual → Annual; Herbaceous Perennial → Perennial; Aquatic → Aquatic/Emergent. Other tags (Edible, Native Plant…) are ignored. If NC State gives more than one form, USDA decides when its growth habit names exactly one of them; otherwise `disputed` (redbud: Shrub and Tree at both). The kind of tree comes from NC State's "Design Feature": Understory Tree → "Tree (understory)", Shade Tree → "Tree (canopy)"; both or neither → `null`. |
 | `height`, `width` | NC State | — | No | `med` is the midpoint of `min` and `max`. Most sizes stay `single` until a second garden source agrees. |
 | `zone_min` | NC State | USDA minimum temperature | Yes | See "Zones". |
 | `zone_max` | NC State | — | No | |
 | `sun_least` | NC State light | USDA shade tolerance | Yes | Map USDA's distinct shade-tolerance values only after listing them from the 20-plant sample. They often differ from NC State: redbud is "Low" at USDA, and NC State lists part shade. |
 | `sun_most` | NC State light | — | No | |
-| `water` | NC State soil drainage and drought tolerance | USDA moisture use and drought tolerance | Yes | `Wetland` where USDA's wetland indicator is OBL or FACW. The rest of the mapping is set on the 20-plant sample and written here before any other plant. |
+| `water` | NC State soil drainage and drought tolerance | USDA moisture use and drought tolerance | Yes | `Wetland` where USDA's National Wetland Plant List indicator is OBL or FACW in every region it lists for the plant. The rest of the mapping is set on the 20-plant sample and written here before any other plant. |
 | `bloom` | NC State | USDA | Yes | Seasons only: see "Waiting on format changes". |
 | `native` | USDA native status and state distribution | — | — | `single`. NC State's region of origin often comes from USDA, so it isn't independent. Waiting on a format change. |
 | `invasive` | USDA invasive and noxious lists | — | — | Waiting on a format change and a sourced rule for "widely invasive". |
-| Toxicity to people | NC State poison severity and contact dermatitis | UC ANR, once its terms are read | No | High → `major`, Medium or Low → `minor`, contact dermatitis → `dermatitis`. Oxalates only from UC ANR. |
+| Toxicity to people | NC State poison severity and contact dermatitis | UC ANR, once its terms are read | No | High or Medium → `major`, Low → `minor`, contact dermatitis → `dermatitis`. Oxalates only from UC ANR. (Medium goes to `major` because erring toward harmless is the dangerous mistake.) |
 | Toxicity to dogs, cats, horses | — | — | — | No usable source yet. NC State's poison facts are about people, and toxicity to people doesn't stand in for pets. |
 | `deer` | NC State resistance list | — | No | Listed for deer → `Resistant`. Otherwise `null`. |
 | `nectar`, `bird` | — | — | — | `null`: neither source gives a level. |
-| `host` | NC State wildlife value | — | No | Only where it names the plant as a larval host. |
-| `edible` | NC State edibility | USDA "Palatable Human" | No | |
-| `fall_color` | NC State fall leaf color | USDA "Fall Conspicuous" | Yes | |
+| `host` | NC State "Wildlife Value" | — | No | Only where it says the plant is a larval host. Stored as the butterflies or moths it names, or the count it gives ("12 Lepidoptera species"), never its sentence. |
+| `edible` | NC State "Plant Type" tag Edible | USDA "Palatable Human" | No | The tag, not the free-text "Edibility" note. |
+| `fall_color` | NC State "Deciduous Leaf Fall Color" | — | No | USDA's "Fall Conspicuous" is about the plant overall in fall, not leaf color (redbud: No at USDA, gold at NC State). |
 | `clay_ok` | NC State soil texture | USDA fine-textured soils | Yes | |
 | `wet_feet` | NC State soil drainage | USDA anaerobic tolerance | Yes | |
 | `maintenance` | — | — | — | `null`: NC State gives a level, not a task, and the catalog's values are tasks. |
@@ -110,14 +116,23 @@ b the warmer.
   entirely at or above *T*: *n* = ⌈(*T* + 60) / 10⌉ + 1, clamped to 1–13.
   Example: redbud, −28 °F → zone 5. Zone 4 reaches down to −30 °F, which
   is colder than USDA says redbud takes.
-- **From NC State's list ("4a, 4b, … 9b"):** the whole zone of its coldest
-  entry, for `zone_min` (4a → 4), and of its warmest, for `zone_max`
-  (9b → 9).
-- **They agree** when they're no more than one whole zone apart. NC State's
-  value is stored. Redbud: NC State 4, USDA 5 → `agree`, stored as 4.
-- **They differ by more:** the more cautious value (the warmer `zone_min`)
-  is stored, cited to the source it came from, with the other source also
-  in `src`, `check: "disputed"`.
+- **From NC State's list ("4a, 4b, … 9b"):** for `zone_min`, the bottom of
+  its coldest entry as a temperature *L* (4a → −30 °F, 4b → −25 °F), then
+  the same formula (4a → 4, 4b → 5: zone 4 would include 4a, which NC State
+  doesn't claim). For `zone_max`, the whole zone of its warmest entry
+  (9a or 9b → 9).
+- **They agree** when *L* and *T* are no more than 5 °F apart. NC State's
+  zone is stored. Redbud: NC State −30 °F, USDA −28 °F → `agree`, stored as
+  zone 4. That's 2 °F more generous than USDA alone, within what its
+  approximations claim.
+- **They differ by more:** the warmer of the two temperatures decides,
+  turned into a whole zone by the formula above, with `check: "disputed"`.
+  The source that gave the value is listed first in `src`. Example: NC State
+  4a (−30 °F), USDA −20 °F → zone 5, `src: ["usda", "ncsu"]`.
+- **Only one of them:** its zone as above, `single`.
+
+Plants are rated in whole zones while gardens have half-zones, so a plant
+rated 4b is stored as 5. Storing half-zones would be another format change.
 
 ## Waiting on format changes
 
@@ -127,12 +142,13 @@ writes that fact.
 - **Bloom seasons.** Neither usable source gives months. NC State and USDA
   give seasons, and the months a season covers shift with place, so turning
   one into months would be our guess. A bloom fact may then be a season
-  (`{ "season": ["spring"] }`) as well as months. Plants are audited without
-  `bloom` until this lands.
+  (`{ "season": ["spring"] }`) as well as months. Until it lands, the audit leaves
+  `bloom` as it is: the compendium's value, labeled unverified.
 - **Toxicity by animal.** `tox` is one fact today, with one `src` and
   `check`, and no part of it can be `null`. People and each animal need
   their own source, check and `null`. The `unlisted` value is defined in
-  ASPCA's terms and gets a source-neutral meaning.
+  ASPCA's terms and gets a source-neutral meaning, and the app's own wording
+  that names ASPCA (src/plants.ts) changes with it.
 - **Native by state.** `native` is the first compendium's wording, not
   USDA's native status by state.
 - **Invasive.** "Widely invasive in the US" needs a rule built on sourced

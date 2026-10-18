@@ -20,7 +20,8 @@ one decides each fact: [catalog-sources.md](catalog-sources.md).
     "updated": "2026-10-17",
     "sources": {
       "compendium": { "title": "First compendium (2026)", "trust": "unverified" },
-      "ncsu": { "title": "NC State Extension Gardener Plant Toolbox", "url": "https://plants.ces.ncsu.edu", "trust": "reference" }
+      "ncsu": { "title": "NC State Extension Gardener Plant Toolbox", "url": "https://plants.ces.ncsu.edu", "trust": "reference" },
+      "usda": { "title": "USDA PLANTS Database", "url": "https://plants.usda.gov", "trust": "reference" }
     },
     "enums": { "form": ["Annual", "..."] }
   },
@@ -65,7 +66,8 @@ compendium: claims with no source behind them).
   `null`. Until then the app labels the record's values as unverified.
 - **`facts`**: each fact is either a plain value (sourced by the record's
   `src`) or an object with `v` (the value) and any of:
-  - `src`: source ids for this value;
+  - `src`: source ids for this value, the one that gave the value first
+    (the others agree with it, or dispute it);
   - `at`: where it was observed (a US state, e.g. `"AR"`), for values that
     depend on place, such as bloom months;
   - `check`: `agree` (two independent sources agree within tolerance),
