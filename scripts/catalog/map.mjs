@@ -55,7 +55,7 @@ export function usdaLeastSun(value) {
   return null;
 }
 
-/** Minnesota Wildflowers' habitat ("part shade, sun; moist, …") → { most, least } sun. */
+/** Minnesota Wildflowers' habitat light ("part shade, sun") → { most, least } sun. */
 export function mnLight(habitat) {
   const first = String(habitat).split(';')[0].toLowerCase();
   const got = new Set();
@@ -75,52 +75,77 @@ const NCSU_FORM = { Tree: 'Tree', Shrub: 'Shrub', Vine: 'Vine', Fern: 'Fern', Bu
 export function ncsuForms(types) {
   return [...new Set((types ?? []).map((t) => NCSU_FORM[t]).filter(Boolean))];
 }
-/** USDA growth habits → forms in the same terms. */
+/** PROPOSED: USDA growth habits → forms in the same terms. */
 export function usdaForms(habits, durations) {
   const annual = (durations ?? []).includes('Annual') && !(durations ?? []).includes('Perennial');
   const map = { Tree: 'Tree', Shrub: 'Shrub', Subshrub: 'Shrub', Vine: 'Vine', Graminoid: 'Grass/Sedge', 'Forb/herb': annual ? 'Annual' : 'Perennial' };
   return [...new Set((habits ?? []).map((h) => map[h]).filter(Boolean))];
 }
-/** form, by the doc's rule; a tree's kind only from NC State's Design Feature. */
+/**
+ * form, by the doc's rule; a tree's kind only from NC State's Design Feature.
+ * PROPOSED: how USDA's habits map (usdaForms), and that USDA's Forb/herb
+ * neither confirms nor disputes a fern or a bulb (it has no habit for them).
+ */
 export function decideForm(ncsu, usda) {
   const n = ncsuForms(ncsu['Plant Type']);
   const u = usdaForms(usda?.['Growth habit'], usda?.Duration);
-  let form = null, src = [], check = 'single', note = '';
-  // (USDA has no habit for ferns or bulbs: its Forb/herb neither confirms nor disputes them.)
-  const uCounts = u.length && !(n.length === 1 && (n[0] === 'Fern' || n[0] === 'Bulb') && u.every((f) => f === 'Perennial'));
-  if (n.length === 1) { form = n[0]; src = ['ncsu']; if (uCounts) { check = u.includes(form) ? 'agree' : 'disputed'; src.push('usda'); } }
-  else if (n.length > 1) {
-    const one = u.filter((f) => n.includes(f));
-    if (u.length === 1 && one.length === 1) { form = one[0]; src = ['usda', 'ncsu']; check = 'agree'; }
-    else { check = 'disputed'; note = `NC State lists ${n.join(', ')}${u.length ? `; USDA ${u.join(', ')}` : ''}`; }
-  } else if (u.length === 1) { form = u[0]; src = ['usda']; }
-  if (form === 'Tree') {
+  const usdaSilent = n.length === 1 && (n[0] === 'Fern' || n[0] === 'Bulb') && u.every((f) => f === 'Perennial');
+  let out;
+  if (n.length === 1) {
+    out = !u.length || usdaSilent ? { v: n[0], src: ['ncsu'], check: 'single' }
+      : u.includes(n[0]) ? { v: n[0], src: ['ncsu', 'usda'], check: 'agree' }
+      : { v: n[0], src: ['ncsu', 'usda'], check: 'disputed', note: `USDA: ${u.join(', ')}` };
+  } else if (n.length > 1) {
+    // USDA decides when exactly one of NC State's forms is among its habits.
+    const shared = u.filter((f) => n.includes(f));
+    out = shared.length === 1 ? { v: shared[0], src: ['usda', 'ncsu'], check: 'agree' }
+      : { v: null, src: u.length ? ['ncsu', 'usda'] : ['ncsu'], check: 'disputed', note: `NC State lists ${n.join(', ')}${u.length ? `; USDA ${u.join(', ')}` : ''}` };
+  } else if (u.length === 1) out = { v: u[0], src: ['usda'], check: 'single' };
+  else if (u.length > 1) out = { v: null, src: ['usda'], check: 'disputed', note: `USDA lists ${u.join(', ')}` };
+  else return null;
+  if (u.length) out.proposed = true;
+  if (out.v === 'Tree') {
     const df = ncsu['Design Feature'] ?? [];
     const under = df.includes('Understory Tree'), shade = df.includes('Shade Tree');
-    form = under && !shade ? 'Tree (understory)' : shade && !under ? 'Tree (canopy)' : null;
-    if (!form) note = 'a tree, but NC State doesn\'t say understory or shade tree';
+    const kind = under && !shade ? 'Tree (understory)' : shade && !under ? 'Tree (canopy)' : null;
+    if (kind) out.v = kind;
+    else { out.v = null; out.check = 'disputed'; out.note = [out.note, "a tree, but NC State doesn't say understory or shade tree"].filter(Boolean).join('; '); }
   }
-  return { v: form, src, check: form ? check : (note ? 'disputed' : 'single'), note };
+  return out;
 }
 
 // ---------- Water (PROPOSED: the doc leaves it to the sample) ----------
 
-/** PROPOSED: NC State drainage and drought tolerance → Low / Moderate / High / Wetland. */
+/**
+ * PROPOSED: NC State drainage and drought tolerance → Low / Moderate / High.
+ * (Wetland comes only from USDA's National Wetland Plant List, as the doc
+ * says, and that isn't read yet.)
+ */
 export function ncsuWater(f) {
   const d = new Set(f['Soil Drainage'] ?? []), r = new Set(f['Resistance To Challenges'] ?? []);
   if (!d.size) return null;
-  if (d.has('Frequent Standing Water')) return 'Wetland';
+  if (d.has('Frequent Standing Water')) return 'High';
   if (d.has('Occasionally Wet') && !d.has('Occasionally Dry')) return 'High';
   if (d.has('Occasionally Dry') && r.has('Drought')) return 'Low';
   return 'Moderate';
 }
-/** PROPOSED: USDA moisture use → the same scale. */
+/** PROPOSED: USDA moisture use → the same scale. (It measures how much water a plant uses, not what it needs.) */
 export function usdaWater(u) {
   const m = (u?.['Moisture Use'] ?? [])[0];
   return m === 'Low' ? 'Low' : m === 'Medium' ? 'Moderate' : m === 'High' ? 'High' : null;
 }
 
 // ---------- The rest ----------
+
+/** A decided fact: `by` decides, every other source checks; any disagreement disputes. */
+function decide(said, extra = {}) {
+  const have = said.filter(([, v]) => v != null);
+  if (!have.length) return null;
+  const [by, v] = have[0];
+  const others = have.slice(1);
+  const agreeing = others.filter(([, x]) => x === v);
+  return { v, src: [by, ...others.map(([s]) => s)], check: !others.length ? 'single' : agreeing.length === others.length ? 'agree' : 'disputed', ...(others.length ? { note: others.map(([s, x]) => `${s}: ${x}`).join('; ') } : {}), ...extra };
+}
 
 /** Every fact the sample compares, from one plant's fields per source. */
 export function mapPlant({ ncsu = {}, usda = {}, mnwild = null, arkatlas = null }) {
@@ -134,42 +159,47 @@ export function mapPlant({ ncsu = {}, usda = {}, mnwild = null, arkatlas = null 
   out.zone_min = decideZoneMin(ncsu['USDA Plant Hardiness Zone']?.[0], usda['Temperature, Minimum (°F)']?.[0]);
   const nz = ncsu['USDA Plant Hardiness Zone'] ? ncsuZones(ncsu['USDA Plant Hardiness Zone'][0]) : null;
   out.zone_max = nz ? { v: nz.zone_max, src: ['ncsu'], check: 'single' } : null;
+
+  // Sun: NC State decides; USDA stands in, then a regional source; every other source checks.
   const sun = ncsuSun(ncsu.Light);
   const uLeast = usdaLeastSun(usda['Shade Tolerance']?.[0]);
-  out.sun_most = sun ? { v: sun.most, src: ['ncsu'], check: 'single' } : null;
-  const mnSun = mnwild?.Habitat ? mnLight(mnwild.Habitat[0]) : null;
-  // (The checks: USDA's shade tolerance, and Minnesota Wildflowers' habitat where it has the plant.)
-  const checks = [['usda', uLeast], ['mnwild', mnSun?.least]].filter(([, v]) => v);
-  // (src names the sources that agree; the note gives every check's own answer.)
-  const decideLeast = (v, by, others) => {
-    const agreeing = others.filter(([, x]) => x === v).map(([s2]) => s2);
-    return { v, src: [by, ...agreeing], check: !others.length ? 'single' : agreeing.length ? 'agree' : 'disputed', note: others.map(([s2, x]) => `${s2}: ${x}`).join('; ') };
-  };
-  out.sun_least = sun ? decideLeast(sun.least, 'ncsu', checks)
-    : mnSun ? decideLeast(mnSun.least, 'mnwild', checks.filter(([s2]) => s2 !== 'mnwild'))
-    : uLeast ? { v: uLeast, src: ['usda'], check: 'single' } : null;
+  const mnSun = mnwild?.['Habitat light'] ? mnLight(mnwild['Habitat light'][0]) : null;
+  out.sun_most = decide([['ncsu', sun?.most], ['mnwild', mnSun?.most]]);
+  out.sun_least = decide([['ncsu', sun?.least], ['usda', uLeast], ['mnwild', mnSun?.least]], uLeast ? { proposed: true } : {});
+
   const nw = ncsuWater(ncsu), uw = usdaWater(usda);
-  out.water = nw ? { v: nw, src: uw ? ['ncsu', 'usda'] : ['ncsu'], check: uw ? (uw === nw ? 'agree' : 'disputed') : 'single', proposed: true }
-    : uw ? { v: uw, src: ['usda'], check: 'single', proposed: true } : null;
+  out.water = decide([['ncsu', nw], ['usda', uw]], { proposed: true });
   const seasons = (ncsu['Flower Bloom Time'] ?? []).map((s) => s.toLowerCase());
   out.bloom_season = seasons.length ? { v: seasons, src: ['ncsu'], check: 'single', note: usda['Bloom Period'] ? `USDA: ${usda['Bloom Period'][0]}` : '' } : usda['Bloom Period'] ? { v: [usda['Bloom Period'][0].toLowerCase()], src: ['usda'], check: 'single' } : null;
   out.bloom_months_mn = mnwild?.['Bloom season'] ? { v: mnwild['Bloom season'][0], src: ['mnwild'], at: 'MN' } : null;
   out.flower_color = ncsu['Flower Color'] ? { v: ncsu['Flower Color'], src: ['ncsu'], check: 'single' } : null;
-  if (arkatlas) out.native_ar = { v: arkatlas.codes.includes(1) ? 'introduced' : 'native', src: ['arkatlas'], check: 'single', at: 'AR', note: arkatlas.codes.includes(3) ? 'non-native invasive in Arkansas' : arkatlas.codes.includes(4) ? 'of special conservation concern in Arkansas' : '' };
+
+  if (arkatlas && !arkatlas.uncertain) {
+    const infra = arkatlas.infraOnly ? `in Arkansas only as ${arkatlas.rows.map((r) => r.infra).join(', ')}` : '';
+    out.native_ar = { v: arkatlas.codes.includes(1) ? 'introduced' : 'native', src: ['arkatlas'], check: 'single', at: 'AR',
+      note: [arkatlas.codes.includes(3) ? 'non-native invasive in Arkansas' : arkatlas.codes.includes(4) ? 'of special conservation concern in Arkansas' : '', infra].filter(Boolean).join('; ') };
+  } else out.native_ar = null; // (not listed, or its maps disagree: left for the review)
   const l48 = (usda['Native status'] ?? []).find((s) => s.startsWith('L48'));
-  if (l48) out.native_us = { v: l48.replace('L48: ', '').toLowerCase(), src: ['usda'], check: 'single' };
+  out.native_us = l48 ? { v: l48.replace('L48: ', '').toLowerCase(), src: ['usda'], check: 'single' } : null;
+
   const sev = ncsu['Poison Severity']?.[0];
   const derm = ncsu['Causes Contact Dermatitis']?.[0] === 'Yes';
   out.tox_people = sev || derm ? { v: [sev === 'High' || sev === 'Medium' ? 'major' : sev === 'Low' ? 'minor' : null, derm ? 'dermatitis' : null].filter(Boolean), src: ['ncsu'], check: 'single' } : null;
   out.tox_pets = null; // (no usable source: docs/catalog-sources.md)
   out.deer = (ncsu['Resistance To Challenges'] ?? []).includes('Deer') ? { v: 'Resistant', src: ['ncsu'], check: 'single' } : null;
   out.host = ncsu['Larval host for'] ? { v: ncsu['Larval host for'][0], src: ['ncsu'], check: 'single' } : null;
-  out.edible = (ncsu['Plant Type'] ?? []).includes('Edible') ? { v: true, src: ['ncsu'], check: 'single' } : null;
+  const uEat = usda['Palatable Human']?.[0];
+  out.edible = (ncsu['Plant Type'] ?? []).includes('Edible') ? decide([['ncsu', true], ['usda', uEat ? uEat === 'Yes' : null]]) : null;
+  out.nectar = null; out.bird = null; out.maintenance = null; // (no source gives a level: docs/catalog-sources.md)
   out.fall_color = ncsu['Deciduous Leaf Fall Color'] ? { v: true, src: ['ncsu'], check: 'single', note: ncsu['Deciduous Leaf Fall Color'].join(', ') } : null;
-  const clay = (ncsu['Soil Texture'] ?? []).includes('Clay');
+
+  // clay_ok: NC State's Clay decides; USDA's fine-textured soils checks, and stands in (its Yes or No is stated).
   const uFine = usda['Adapted to Fine Textured Soils']?.[0];
-  out.clay_ok = clay ? { v: true, src: uFine ? ['ncsu', 'usda'] : ['ncsu'], check: uFine ? (uFine === 'Yes' ? 'agree' : 'disputed') : 'single' } : null;
-  const wet = ['Occasionally Wet', 'Frequent Standing Water'].some((d) => (ncsu['Soil Drainage'] ?? []).includes(d));
-  out.wet_feet = wet ? { v: true, src: ['ncsu'], check: 'single' } : null;
+  out.clay_ok = decide([['ncsu', (ncsu['Soil Texture'] ?? []).includes('Clay') ? true : null], ['usda', uFine === 'Yes' ? true : uFine === 'No' ? false : null]]);
+  // wet_feet, PROPOSED: NC State's wet drainage, occasional flooding or wet-soil resistance; USDA's anaerobic tolerance (None: no) checks and stands in.
+  const nd = new Set(ncsu['Soil Drainage'] ?? []);
+  const wet = ['Occasionally Wet', 'Frequent Standing Water', 'Occasional Flooding'].some((d) => nd.has(d)) || (ncsu['Resistance To Challenges'] ?? []).includes('Wet Soil');
+  const anaer = usda['Anaerobic Tolerance']?.[0];
+  out.wet_feet = decide([['ncsu', wet ? true : null], ['usda', anaer ? anaer !== 'None' : null]], { proposed: true });
   return out;
 }

@@ -22,6 +22,13 @@ describe('reading sources', () => {
     expect(o['Poison Severity']).toEqual(['High']);
     expect(o['Causes Contact Dermatitis']).toEqual(['Yes']);
   });
+  it('keeps only the name of NC State\'s light levels, and only the light part of a Minnesota habitat', () => {
+    const f = ncsuFields('<dl><dt>Light:</dt><dd><span>Full sun (6 or more hours of direct sunlight a day)</span></dd><dd><span>Deep shade (Less than 2 hours)</span></dd></dl>');
+    expect(f.Light).toEqual(['Full sun', 'Deep shade']);
+    const m = mnwildFields('<title>Aster foo (Foo Aster): Minnesota Wildflowers</title><tr><th scope="row">Habitat:</th><td>sun; dry prairies, roadsides</td></tr>');
+    expect(m['Habitat light']).toEqual(['sun']);
+    expect(m.Habitat).toBeUndefined();
+  });
   it('reads sizes and months', () => {
     expect(feetRange('20 ft. 0 in. - 30 ft. 6 in.')).toEqual({ min: 20, max: 30.5 });
     expect(feetRange('8 in. - 1 ft. 0 in.')).toEqual({ min: 0.67, max: 1 });
@@ -42,7 +49,7 @@ describe('reading sources', () => {
     const m = mnwildFields(fixture('mnwild-cardinal-flower.html'));
     expect(m['Scientific name']).toEqual(['Lobelia cardinalis']);
     expect(m['Bloom season']).toEqual(['July - September']);
-    expect(mnLight(m.Habitat[0])).toEqual({ most: 'Full', least: 'Part' });
+    expect(mnLight(m['Habitat light'][0])).toEqual({ most: 'Full', least: 'Part' });
   });
   it('reads Arkansas status codes from the atlas layout, by column', () => {
     const t = fixture('arkatlas-pages.txt');
@@ -52,6 +59,25 @@ describe('reading sources', () => {
     expect(arkatlasStatus(t, 'Lonicera maackii')?.codes).toEqual([1, 3]);
     expect(arkatlasStatus(t, 'Berberis thunbergii')?.codes).toEqual([]); // (its row's codes, if any, sit above this excerpt)
     expect(arkatlasStatus(t, 'Nerium oleander')).toBeNull();
+  });
+  it('reads columns from the family line, so a name with an accent keeps its own codes', () => {
+    const t = fixture('arkatlas-pages.txt');
+    expect(arkatlasStatus(t, 'Bromus tectorum')?.codes).toEqual([1, 3]);
+    expect(arkatlasStatus(t, 'Buchloe dactyloides')?.codes).toEqual([1]);
+  });
+  it('gives a species mapped only as a variety the variety\'s introduced-or-not status, not its other codes', () => {
+    const r = arkatlasStatus(fixture('arkatlas-pages.txt'), 'Heuchera villosa');
+    expect(r).toMatchObject({ infraOnly: true, codes: [] });
+    expect(r.rows[0]).toMatchObject({ infra: 'var. arkansana (Rydb.) E.B.Sm.', codes: [2, 4] });
+    expect(mapPlant({ arkatlas: r }).native_ar).toMatchObject({ v: 'native', note: 'in Arkansas only as var. arkansana (Rydb.) E.B.Sm.' });
+  });
+  it('reads only the map pages: a name in an appendix isn\'t a listing', () => {
+    expect(arkatlasStatus(fixture('arkatlas-pages.txt'), 'Coreopsis verticillata')).toBeNull();
+  });
+  it('leaves Arkansas status unknown when the atlas\'s maps disagree', () => {
+    const t = ['                         1', '', '      ASTERACEAE                  ASTERACEAE', '   Aster foo L.               Aster foo L.', '   var. bar Smith             var. baz Jones'].join('\n');
+    expect(arkatlasStatus(t, 'Aster foo')).toMatchObject({ uncertain: true });
+    expect(mapPlant({ arkatlas: arkatlasStatus(t, 'Aster foo') }).native_ar).toBeNull();
   });
 });
 
@@ -65,6 +91,9 @@ describe('mapping to catalog facts', () => {
     expect(ncsuZones('4b, 5a, 9a')).toMatchObject({ bottom: -25, zone_min: 5, zone_max: 9 });
   });
   it('decides zone_min by the doc: agree within 5 °F, else the warmer one, cited first', () => {
+    expect(decideZoneMin('4a, 4b', -25)).toMatchObject({ check: 'agree' }); // (exactly 5 °F)
+    expect(decideZoneMin('4a, 4b', -24)).toMatchObject({ check: 'disputed' }); // (6 °F)
+    expect(ncsuZones('4a, 9b')).toMatchObject({ zone_max: 9 });
     expect(decideZoneMin('4a, 4b, 5a', -28)).toEqual({ v: 4, src: ['ncsu', 'usda'], check: 'agree' });
     expect(decideZoneMin('4a, 4b', -20)).toEqual({ v: 5, src: ['usda', 'ncsu'], check: 'disputed' });
     expect(decideZoneMin('6a, 6b', -40)).toEqual({ v: 6, src: ['ncsu', 'usda'], check: 'disputed' });
@@ -86,7 +115,13 @@ describe('mapping to catalog facts', () => {
     expect(decideForm({ 'Plant Type': ['Tree'], 'Design Feature': ['Shade Tree'] }, { 'Growth habit': ['Tree'] })).toMatchObject({ v: 'Tree (canopy)', check: 'agree' });
     expect(decideForm({ 'Plant Type': ['Tree'], 'Design Feature': ['Understory Tree', 'Shade Tree'] }, {})).toMatchObject({ v: null });
     expect(decideForm({ 'Plant Type': ['Fern'] }, { 'Growth habit': ['Forb/herb'], Duration: ['Perennial'] })).toMatchObject({ v: 'Fern', check: 'single' });
-    expect(decideForm({}, { 'Growth habit': ['Graminoid'] })).toMatchObject({ v: 'Grass/Sedge', src: ['usda'] });
+    expect(decideForm({}, { 'Growth habit': ['Graminoid'] })).toMatchObject({ v: 'Grass/Sedge', src: ['usda'], proposed: true });
+    // USDA picks the one of NC State's forms it shares.
+    expect(decideForm({ 'Plant Type': ['Shrub', 'Vine'] }, { 'Growth habit': ['Shrub', 'Forb/herb'] })).toMatchObject({ v: 'Shrub', src: ['usda', 'ncsu'], check: 'agree' });
+    // A disputed form keeps both sources.
+    expect(decideForm({ 'Plant Type': ['Shrub', 'Tree'] }, { 'Growth habit': ['Shrub', 'Tree'] })).toMatchObject({ src: ['ncsu', 'usda'] });
+    expect(decideForm({}, { 'Growth habit': ['Shrub', 'Tree'] })).toMatchObject({ v: null, check: 'disputed' });
+    expect(decideForm({}, {})).toBeNull();
   });
   it('maps a plant: toxicity errs toward harm, missing facts stay null', () => {
     const f = mapPlant({ ncsu: ncsuFields(fixture('ncsu-nerium.html')), usda: {} });
@@ -99,5 +134,24 @@ describe('mapping to catalog facts', () => {
     const c = mapPlant({ ncsu: ncsuFields(fixture('ncsu-cercis.html')) });
     expect(c.height.v).toEqual({ min: 20, max: 30, med: 25 });
     expect(c.host.v).toBe('12 Lepidoptera species');
+  });
+  it('decides sun: NC State first, USDA stands in, and any check that differs disputes', () => {
+    const full = ['Full sun', 'Partial Shade'];
+    expect(mapPlant({ ncsu: { Light: full }, usda: { 'Shade Tolerance': ['Low'] }, mnwild: { 'Habitat light': ['part shade, sun'] } }).sun_least).toMatchObject({ v: 'Part', check: 'disputed', proposed: true });
+    expect(mapPlant({ ncsu: { Light: full }, mnwild: { 'Habitat light': ['part shade, sun'] } }).sun_least).toMatchObject({ v: 'Part', src: ['ncsu', 'mnwild'], check: 'agree' });
+    expect(mapPlant({ usda: { 'Shade Tolerance': ['Medium'] }, mnwild: { 'Habitat light': ['sun'] } }).sun_least).toMatchObject({ v: 'Part', src: ['usda', 'mnwild'], check: 'disputed' });
+  });
+  it('takes clay and wet feet from USDA where NC State is silent, as true or false', () => {
+    expect(mapPlant({ usda: { 'Adapted to Fine Textured Soils': ['No'] } }).clay_ok).toMatchObject({ v: false, src: ['usda'] });
+    expect(mapPlant({ ncsu: { 'Soil Texture': ['Clay'] }, usda: { 'Adapted to Fine Textured Soils': ['No'] } }).clay_ok).toMatchObject({ v: true, check: 'disputed' });
+    expect(mapPlant({ usda: { 'Anaerobic Tolerance': ['None'] } }).wet_feet).toMatchObject({ v: false, src: ['usda'] });
+    expect(mapPlant({ ncsu: { 'Soil Drainage': ['Occasional Flooding'] }, usda: { 'Anaerobic Tolerance': ['High'] } }).wet_feet).toMatchObject({ v: true, check: 'agree' });
+    expect(mapPlant({}).clay_ok).toBeNull();
+  });
+  it('reads toxicity with dermatitis alone, and never makes standing water a wetland plant', () => {
+    expect(mapPlant({ ncsu: { 'Causes Contact Dermatitis': ['Yes'] } }).tox_people.v).toEqual(['dermatitis']);
+    expect(mapPlant({ ncsu: { 'Soil Drainage': ['Frequent Standing Water', 'Moist'] } }).water.v).toBe('High');
+    const f = mapPlant({});
+    expect([f.nectar, f.bird, f.maintenance, f.tox_pets]).toEqual([null, null, null, null]);
   });
 });

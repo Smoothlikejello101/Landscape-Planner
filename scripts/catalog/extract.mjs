@@ -16,7 +16,7 @@ export const NCSU_FIELDS = [
   'Light', 'Soil Texture', 'Soil pH', 'Soil Drainage', 'USDA Plant Hardiness Zone', 'Height', 'Width',
   'Flower Color', 'Flower Bloom Time', 'Deciduous Leaf Fall Color', 'Woody Plant Leaf Characteristics',
   'Attracts', 'Resistance To Challenges', 'Design Feature', 'Landscape Location', 'Landscape Theme',
-  'Poison Severity', 'Causes Contact Dermatitis', 'Poison Part', 'Country Or Region Of Origin', 'Stem Surface',
+  'Poison Severity', 'Causes Contact Dermatitis', 'Poison Part', 'Stem Surface',
 ];
 /** NC State's free-text fields the audit reads one fact out of, never keeping the text. */
 const NCSU_TEXT = ['Wildlife Value'];
@@ -42,7 +42,9 @@ export function ncsuFields(html) {
       if (host) out['Larval host for'] = [`${host[1]} Lepidoptera species`];
       continue;
     }
-    out[label] = [...new Set([...(out[label] ?? []), ...values])];
+    // (Light values carry NC State's definitions in parentheses: only the name is kept.)
+    const kept = label === 'Light' ? values.map((v) => v.replace(/\s*\(.*\)\s*$/, '')) : values;
+    out[label] = [...new Set([...(out[label] ?? []), ...kept])];
   }
   return out;
 }
@@ -94,7 +96,10 @@ export function mnwildFields(html) {
   const keep = new Set(['Life cycle', 'Origin', 'Habitat', 'Bloom season', 'Plant height', 'Wetland Indicator Status']);
   for (const m of html.matchAll(/<tr[^>]*>\s*<th[^>]*>([\s\S]*?)<\/th>\s*<td[^>]*>([\s\S]*?)<\/td>/gi)) {
     const label = decode(m[1]).replace(/:$/, '');
-    if (keep.has(label)) out[label] = [decode(m[2])];
+    if (!keep.has(label)) continue;
+    // (Habitat: only its light part, before the first ";", is a fact we read; the rest is description.)
+    if (label === 'Habitat') out['Habitat light'] = [decode(m[2]).split(';')[0].trim()];
+    else out[label] = [decode(m[2])];
   }
   return out;
 }
@@ -111,36 +116,66 @@ export function monthRange(text) {
 const CODE = /^[1-4](\s*,\s*[1-4])*$/;
 /** A layout line's pieces: runs of text with at most two spaces inside, and where each starts. */
 const segments = (line) => [...line.matchAll(/\S+(?: {1,2}\S+)*/g)].map((m) => ({ text: m[0], at: m.index }));
+/** Lower case, accents dropped (Buchloë → buchloe), single spaces. */
+const fold = (t) => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+const FAMILY = /^[A-Z]+ACEAE$|^[A-Z]{4,}$/;
+const INFRA = /^(var\.|subsp\.|ssp\.|f\.)\s/;
 /**
- * Arkansas status for a binomial, from the atlas's text (pdftotext -layout):
- * each map's name, under its family; its status codes (1 introduced,
- * 2 endemic, 3 non-native invasive, 4 special concern) sit on the line above
- * the row's family names, to the right of their column. Returns null if the
- * atlas doesn't list it, else { codes: [...], name }.
+ * Arkansas status for a binomial, from the atlas's text (pdftotext -layout).
+ * Only the map pages count (everything before "APPENDIX I": the appendices
+ * list taxa reported without specimens, or excluded). Each map's name sits
+ * under its family name; its status codes (1 introduced, 2 endemic,
+ * 3 non-native invasive, 4 special concern) sit on the line above the row's
+ * family names, to the right of their column. A species mapped only as
+ * varieties or subspecies gets their shared introduced-or-not status, never a
+ * variety's other codes. Returns null if the map pages don't list it, else
+ * { name, codes, rows: [{ name, infra, codes }], infraOnly?, uncertain? }.
  */
 export function arkatlasStatus(text, binomial) {
   const lines = String(text).split(/\r?\n/);
-  const want = binomial.toLowerCase().replace(/\s+/g, ' ');
-  for (let i = 1; i < lines.length; i++) {
+  const endAt = lines.findIndex((l) => /^\s*APPENDIX I\s*$/.test(l));
+  const end = endAt < 0 ? lines.length : endAt;
+  const want = fold(binomial);
+  const prevLine = (i) => { let j = i - 1; while (j >= 0 && !lines[j].trim()) j--; return j; };
+  const nextLine = (i) => { let j = i + 1; while (j < end && !lines[j].trim()) j++; return j; };
+  const rows = [];
+  for (let i = 1; i < end; i++) {
     const segs = segments(lines[i]);
-    const hit = segs.find((s) => s.text.toLowerCase().replace(/\s+/g, ' ').startsWith(want + ' '));
-    if (!hit) continue;
-    // The family line is just above; the line above that, if it's codes, holds this row's codes.
-    let j = i - 1;
-    while (j >= 0 && !lines[j].trim()) j--;
-    if (j < 0 || !/^[A-Z]+ACEAE$|^[A-Z]{4,}$/.test(segments(lines[j])[0]?.text ?? '')) return { name: hit.text, codes: [], uncertain: true };
-    let k = j - 1;
-    while (k >= 0 && !lines[k].trim()) k--;
-    const codeSegs = k >= 0 ? segments(lines[k]) : [];
-    const codes = [];
-    if (codeSegs.length && codeSegs.every((s) => CODE.test(s.text))) {
-      const starts = segs.filter((s) => /^[A-Z][a-z]+ /.test(s.text)).map((s) => s.at).sort((a, b) => a - b);
-      for (const c of codeSegs) {
-        const col = starts.filter((a) => a <= c.at).pop();
-        if (col === hit.at) codes.push(...c.text.split(/\s*,\s*/).map(Number));
+    for (const hit of segs) {
+      const name = fold(hit.text);
+      if (!(name === want || name.startsWith(want + ' '))) continue;
+      const j = prevLine(i);
+      const fam = j >= 0 ? segments(lines[j]) : [];
+      if (!fam.length || !fam.every((f) => FAMILY.test(f.text))) continue; // (prose, an index, a table)
+      const starts = fam.map((f) => f.at).sort((a, b) => a - b);
+      const col = starts.reduce((best, a) => (Math.abs(a - hit.at) < Math.abs(best - hit.at) ? a : best), starts[0]);
+      // A variety or subspecies is named on the line below, in the same column (or on the same line).
+      let infra = /\b(var\.|subsp\.|ssp\.) /.test(hit.text) ? hit.text.replace(/^.*?\b((var\.|subsp\.|ssp\.) .*)$/, '$1') : '';
+      const n = nextLine(i);
+      if (!infra && n < end) {
+        const below = segments(lines[n]).find((sg) => INFRA.test(sg.text) && Math.abs(sg.at - hit.at) < 20);
+        if (below) infra = below.text;
       }
+      const k = prevLine(j);
+      const codeSegs = k >= 0 ? segments(lines[k]) : [];
+      const codes = [];
+      if (codeSegs.length && codeSegs.every((c) => CODE.test(c.text))) {
+        for (const c of codeSegs) {
+          const owner = starts.filter((a) => a <= c.at).pop();
+          if (owner === col) codes.push(...c.text.split(/\s*,\s*/).map(Number));
+        }
+      }
+      rows.push({ name: hit.text, infra, codes });
     }
-    return { name: hit.text, codes };
   }
-  return null;
+  if (!rows.length) return null;
+  const species = rows.filter((r) => !r.infra);
+  const sameCodes = (rs) => new Set(rs.map((r) => r.codes.join(','))).size === 1;
+  if (species.length) {
+    if (!sameCodes(species)) return { name: binomial, codes: [], rows, uncertain: true };
+    return { name: species[0].name, codes: species[0].codes, rows };
+  }
+  const introduced = new Set(rows.map((r) => r.codes.includes(1)));
+  if (introduced.size > 1) return { name: binomial, codes: [], rows, uncertain: true };
+  return { name: binomial, codes: rows[0].codes.includes(1) ? [1] : [], rows, infraOnly: true };
 }

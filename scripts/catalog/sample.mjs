@@ -73,8 +73,17 @@ for (const s of sample) {
   // Arkansas atlas
   const ar = s.genusOnly ? null : arkatlasStatus(atlas, s.species);
   if (ar) seen.arkatlas = { name: ar.name };
-  else notes.push('Not in the Arkansas atlas (not known growing wild in Arkansas)');
+  if (s.genusOnly) notes.push('Arkansas atlas not looked up (no species name)');
+  else if (!ar) notes.push(`Not found under ${s.species} on the Arkansas atlas's map pages`);
+  else if (ar.uncertain) notes.push(`The Arkansas atlas maps ${s.species} more than once with different status: left for the review`);
   const mapped = mapPlant({ ncsu, usda, mnwild, arkatlas: ar });
+  // A cultivar record read from a species page: size and flower color are the cultivar's own, so they stay unknown.
+  const cultivar = /'[^']+'/.test(`${rec?.common ?? ''} ${rec?.botanical ?? ''}`);
+  const speciesPage = seen.ncsu && !/'/.test(s.ncsu) && s.ncsu.split('-').length <= 2;
+  if (cultivar && (speciesPage || !seen.ncsu)) {
+    for (const k of ['height', 'width', 'flower_color']) mapped[k] = null;
+    notes.push('A cultivar read from species pages: its size and flower color stay unknown until a page for the cultivar is found');
+  }
   out.push({ id: s.id, common: rec?.common, botanical: rec?.botanical, species: s.species, compendium: rec?.facts ?? {}, sources: seen, raw: { ncsu, usda, mnwild, arkatlas: ar }, facts: mapped, notes });
 }
 writeFileSync(outPath, JSON.stringify(out, null, 1));
