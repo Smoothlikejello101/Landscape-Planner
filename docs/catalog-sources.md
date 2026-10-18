@@ -384,29 +384,34 @@ months ("MO" for MOBOT).
 
 The 2023 USDA map divides zones into 10 °F bands. Zone *n* covers
 −60 + 10(*n* − 1) °F up to 10 °F warmer. Half-zone a is the colder 5 °F,
-b the warmer.
+b the warmer. The catalog stores zones on a half-zone scale (7a is 7, 7b is
+7.5; docs/catalog-format.md), so a half-zone the source gives is kept, and
+a whole zone covers both halves (a coldest zone "7" is 7, a warmest zone
+"9" is 9.5).
 
-- **From USDA's minimum temperature *T*:** the coldest whole zone that sits
-  entirely at or above *T*: *n* = ⌈(*T* + 60) / 10⌉ + 1, clamped to 1–13.
-  Example: redbud, −28 °F → zone 5. Zone 4 reaches down to −30 °F, which
-  is colder than USDA says redbud takes.
-- **From NC State's list ("4a, 4b, … 9b"):** for `zone_min`, the bottom of
-  its coldest entry as a temperature *L* (4a → −30 °F, 4b → −25 °F), then
-  the same formula (4a → 4, 4b → 5: zone 4 would include 4a, which NC State
-  doesn't claim). For `zone_max`, the whole zone of its warmest entry
-  (9a or 9b → 9).
+- **From USDA's minimum temperature *T*:** the coldest half-zone that sits
+  entirely at or above *T*: ⌈(*T* + 60) / 5⌉ / 2 + 1, clamped to 1–13.5.
+  Example: redbud, −28 °F → 4.5 (4b). Zone 4a reaches down to −30 °F,
+  which is colder than USDA says redbud takes.
+- **From NC State's list ("4a, 4b, … 9b"):** `zone_min` is its coldest
+  entry (4a → 4, 4b → 4.5) and `zone_max` its warmest (9a → 9, 9b → 9.5).
+  For comparing, its coldest entry is also a temperature *L*, the bottom of
+  that half-zone (4a → −30 °F, 4b → −25 °F).
 - **They agree** when *L* and *T* are no more than 5 °F apart. NC State's
   zone is stored. Redbud: NC State −30 °F, USDA −28 °F → `agree`, stored as
-  zone 4. That's 2 °F more generous than USDA alone, within what its
+  4 (4a). That's 2 °F more generous than USDA alone, within what its
   approximations claim.
 - **They differ by more:** the warmer of the two temperatures decides,
-  turned into a whole zone by the formula above, with `check: "disputed"`.
+  turned into a half-zone by the formula above, with `check: "disputed"`.
   The source that gave the value is listed first in `src`. Example: NC State
-  4a (−30 °F), USDA −20 °F → zone 5, `src: ["usda", "ncsu"]`.
+  4a (−30 °F), USDA −20 °F → 5 (5a), `src: ["usda", "ncsu"]`.
 - **Only one of them:** its zone as above, `single`.
 
-Plants are rated in whole zones while gardens have half-zones, so a plant
-rated 4b is stored as 5. Storing half-zones would be another format change.
+In the app, a garden in the end half-zone of a plant's range (a 7a garden,
+a plant rated from zone 7) is at the edge of its range: still hardy there,
+with a line of advice. Outside the range it isn't counted as hardy. Zones
+1a and 13b are the ends of the map, so a range reaching them has no edge
+there.
 
 ## Waiting on format changes
 

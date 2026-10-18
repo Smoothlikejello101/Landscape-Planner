@@ -30,7 +30,8 @@ export function convertV1(v1, today = new Date().toISOString().slice(0, 10)) {
     const facts = {};
     for (const [k, v] of Object.entries(p)) {
       if (NAMES.has(k) || v == null) continue; // a missing value is unknown, not a fact
-      facts[k] = v;
+      // Version 1 rated zones in whole zones: its zone_max 9 was through 9b, 9.5 on the half-zone scale.
+      facts[k] = k === 'zone_max' && Number.isInteger(v) ? v + 0.5 : v;
     }
     const parent = isCultivar(p.botanical) ? species.get(speciesOf(p.botanical)) : undefined;
     return {
@@ -43,7 +44,7 @@ export function convertV1(v1, today = new Date().toISOString().slice(0, 10)) {
   enums.bird ??= enums.nectar;
   return {
     meta: {
-      format: 'lp-catalog', version: 2, title: 'Plant catalog', updated: today,
+      format: 'lp-catalog', version: 2, zones: 'half', title: 'Plant catalog', updated: today,
       sources: { compendium: { title: 'First compendium (2026): unsourced claims, kept until the audit replaces them', trust: 'unverified' } },
       enums,
       notes: 'See docs/catalog-format.md. Heights and spreads in feet; bloom months 1-12. Records with audited: null are unverified.',

@@ -8,7 +8,7 @@ import { snap, uid } from './util';
 import { plantRadius } from './my-plants';
 import { isCatalogV2, resolveCatalog, type Provenance } from './catalog';
 import { setRadius } from './geometry';
-import { zoneFit, zoneRange } from './climate';
+import { hardyEnough, zoneFit, zoneRange } from './climate';
 
 /**
  * One plant: a row of the catalog (plants.json), or one of the user's own
@@ -136,7 +136,8 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   // Invasives are never suggested; they turn up when searched by name (to map one already in the yard).
   if (p.invasive && !f.q.trim() && !f.inPlan) return false;
   if (f.dogSafeOnly && !nonToxicToDogs(p)) return false;
-  if (f.hardyHere && state.location && zoneFit(p, state.location) !== 'fits') return false;
+  // (Plants at the edge of their range count: the list marks them.)
+  if (f.hardyHere && state.location && !hardyEnough(zoneFit(p, state.location))) return false;
   if (f.form && p.form !== f.form) return false;
   if (f.water && p.water !== f.water) return false;
   if (f.sun && !plantTakesSun(p, f.sun)) return false;
@@ -285,7 +286,11 @@ export const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul',
 export function zoneNote(p: Plant): string {
   const fit = zoneFit(p, state.location);
   if (!fit || fit === 'fits' || !state.location) return '';
-  return fit === 'cold' ? ` (zone ${state.location.zone} winters are too cold)` : ` (zone ${state.location.zone} may be too warm)`;
+  const z = state.location.zone;
+  return fit === 'cold' ? ` (zone ${z} winters are too cold)`
+    : fit === 'warm' ? ` (zone ${z} may be too warm)`
+    : fit === 'edge-cold' ? ` (at its cold edge in zone ${z})`
+    : ` (at its warm edge in zone ${z})`;
 }
 export function plantMetaLine(p: Plant): string {
   const bits: string[] = [];

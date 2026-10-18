@@ -32,6 +32,8 @@ export interface CatalogMeta {
   format: 'lp-catalog';
   version: 2;
   updated?: string;
+  /** "half": zones are on the half-zone scale (zone_max 9.5 is through 9b). Files without it rated zone_max in whole zones (9 was through 9b). */
+  zones?: 'half';
   title?: string;
   sources: Record<string, SourceDef>;
   enums?: Record<string, string[]>;
@@ -78,6 +80,8 @@ export function factOf(rec: CatalogRecord, key: string): { v: unknown; prov: Pro
  */
 export function resolveCatalog(file: CatalogFile): Plant[] {
   const byId = new Map(file.plants.map((r) => [r.id, r]));
+  // An older file (whole-zone zone_max) read by this code: its "9" meant through 9b.
+  const wholeZoneMax = file.meta.zones !== 'half';
   return file.plants.map((rec) => {
     const parent = rec.parent ? byId.get(rec.parent) : undefined;
     const p: Plant = { id: rec.id, common: rec.common };
@@ -93,7 +97,7 @@ export function resolveCatalog(file: CatalogFile): Plant[] {
       const pv = own ? got.prov : { ...got.prov, inherited: true };
       // Known unknown: no value, but the record says the sources were checked.
       if (got.v == null) { prov[key] = { ...pv, unknown: true }; continue; }
-      (p as unknown as Record<string, unknown>)[key] = got.v;
+      (p as unknown as Record<string, unknown>)[key] = key === 'zone_max' && wholeZoneMax && Number.isInteger(got.v) ? (got.v as number) + 0.5 : got.v;
       prov[key] = pv;
     }
     p.prov = prov;
@@ -119,14 +123,15 @@ const isRange = (v: unknown) => {
   const keys = Object.keys(v);
   return keys.length > 0 && keys.every((k) => ['min', 'max', 'med'].includes(k) && typeof v[k] === 'number' && (v[k] as number) > 0);
 };
+const isHalfZone = (v: unknown) => typeof v === 'number' && Number.isInteger(v * 2) && v >= 1 && v <= 13.5;
 const isMonth = (v: unknown) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 12;
 /** Fact types: what a value must look like. Unknown fact names are errors (typos). */
 const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) => boolean> = {
   form: (v, e) => typeof v === 'string' && (!e.form || e.form.includes(v)),
   habit: (v) => typeof v === 'string',
   height: isRange, width: isRange,
-  zone_min: (v) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 13,
-  zone_max: (v) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 13,
+  // (Half-zone scale: 7a is 7, 7b is 7.5; see src/climate.ts.)
+  zone_min: (v) => isHalfZone(v), zone_max: (v) => isHalfZone(v),
   sun_most: (v) => SUN.includes(v as string), sun_least: (v) => SUN.includes(v as string),
   water: (v, e) => typeof v === 'string' && (!e.water || e.water.includes(v)),
   bloom: (v) => isObj(v) && Object.keys(v).every((k) => ['start', 'end', 'color'].includes(k))
@@ -158,6 +163,7 @@ export function catalogErrors(file: CatalogFile): string[] {
   const errs: string[] = [];
   const enums = file.meta.enums ?? {};
   const sources = file.meta.sources ?? {};
+  if (file.meta.zones !== 'half') errs.push('meta.zones must be "half" (zones on the half-zone scale; see docs/catalog-format.md)');
   for (const [id, s] of Object.entries(sources)) {
     if (!s || typeof s.title !== 'string' || !['reference', 'observation', 'unverified'].includes(s.trust)) errs.push(`source ${id}: needs a title and a trust of reference, observation or unverified`);
   }
