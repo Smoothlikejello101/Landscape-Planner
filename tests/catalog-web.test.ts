@@ -169,6 +169,8 @@ describe("reading a site's terms", () => {
     expect(more.sort()).toEqual(['https://www.site.org/image-use', 'https://www.site.org/licence', 'https://www.site.org/policies']);
     // A contractor's licence isn't a licence for the content.
     expect(termsLinks('<a href="/about">Licensed &amp; Insured</a><a href="/contractor-license">Contractor License #123</a><a href="/terms">Terms of Use</a>', 'https://www.site.org/')).toEqual(['https://www.site.org/terms']);
+    // …but a content licence is read.
+    expect(termsLinks('<a href="https://creativecommons.org/licenses/by-nc/4.0/">Licensed under CC BY-NC 4.0</a>', 'https://www.site.org/')).toEqual(['https://creativecommons.org/licenses/by-nc/4.0/']);
   });
   it('reads each owner on a shared host as its own site', () => {
     expect(termsKey('foo.wordpress.com')).toBe('foo.wordpress.com');

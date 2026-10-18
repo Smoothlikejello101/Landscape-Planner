@@ -326,8 +326,8 @@ export function termsLinks(html, pageUrl) {
     const path = u.pathname.toLowerCase();
     const sameSite = siteOf(u.hostname) === siteOf(base.hostname);
     if (!sameSite && PLATFORMS.test(u.hostname)) continue;
-    const saysTerms = TERMS_TEXT.test(text) && !/glossary|licensed|contractor/.test(text) && text.length <= 60;
-    const pathTerms = TERMS_PATH.test(path) && !/glossary|licensed|contractor/.test(path);
+    const saysTerms = TERMS_TEXT.test(text) && !/glossary|licensed\s*(?:&|and)\s*insured|contractor/.test(text) && text.length <= 60;
+    const pathTerms = TERMS_PATH.test(path) && !/glossary|licensed-and-insured|contractor/.test(path);
     if (!(saysTerms || (sameSite && pathTerms))) continue;
     // A privacy or cookie policy alone isn't terms of use (a "Privacy & Terms" page is read).
     if (/privacy|cookie/.test(text + ' ' + path) && !/terms|legal|licen[cs]e|copyright|conditions/.test(text + ' ' + path)) continue;
