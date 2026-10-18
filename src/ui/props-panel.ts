@@ -420,7 +420,7 @@ function plantLinkSection(s: CircleShape): HTMLElement {
       `Hardy in ${zones}.` + (!state.location ? ' (Set the garden’s ZIP in ⋮ → Garden location to check.)'
         : fit === 'fits' ? ` Fine for zone ${z}.`
         : fit === 'edge-cold' ? ` Zone ${z} is at the cold edge of its range: give it a sheltered spot and mulch its roots for winter.`
-        : fit === 'edge-warm' ? ` Zone ${z} is at the warm edge of its range: give it afternoon shade and steady water in summer.`
+        : fit === 'edge-warm' ? ` Zone ${z} is at the warm edge of its range: give it afternoon shade${p.water === 'Low' ? '' : ' and steady water'} in summer.`
         : fit === 'cold' ? ` Zone ${z} winters are colder than it’s rated for.`
         : ` Zone ${z} is warmer than it’s rated for: it may lack the winter chill or cool summers it needs.`)));
   }

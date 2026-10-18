@@ -32,6 +32,8 @@ export interface CatalogMeta {
   format: 'lp-catalog';
   version: 2;
   updated?: string;
+  /** "half": zones are on the half-zone scale (zone_max 9.5 is through 9b). Files without it rated zone_max in whole zones (9 was through 9b). */
+  zones?: 'half';
   title?: string;
   sources: Record<string, SourceDef>;
   enums?: Record<string, string[]>;
@@ -78,6 +80,8 @@ export function factOf(rec: CatalogRecord, key: string): { v: unknown; prov: Pro
  */
 export function resolveCatalog(file: CatalogFile): Plant[] {
   const byId = new Map(file.plants.map((r) => [r.id, r]));
+  // An older file (whole-zone zone_max) read by this code: its "9" meant through 9b.
+  const wholeZoneMax = file.meta.zones !== 'half';
   return file.plants.map((rec) => {
     const parent = rec.parent ? byId.get(rec.parent) : undefined;
     const p: Plant = { id: rec.id, common: rec.common };
@@ -93,7 +97,7 @@ export function resolveCatalog(file: CatalogFile): Plant[] {
       const pv = own ? got.prov : { ...got.prov, inherited: true };
       // Known unknown: no value, but the record says the sources were checked.
       if (got.v == null) { prov[key] = { ...pv, unknown: true }; continue; }
-      (p as unknown as Record<string, unknown>)[key] = got.v;
+      (p as unknown as Record<string, unknown>)[key] = key === 'zone_max' && wholeZoneMax && Number.isInteger(got.v) ? (got.v as number) + 0.5 : got.v;
       prov[key] = pv;
     }
     p.prov = prov;
@@ -159,6 +163,7 @@ export function catalogErrors(file: CatalogFile): string[] {
   const errs: string[] = [];
   const enums = file.meta.enums ?? {};
   const sources = file.meta.sources ?? {};
+  if (file.meta.zones !== 'half') errs.push('meta.zones must be "half" (zones on the half-zone scale; see docs/catalog-format.md)');
   for (const [id, s] of Object.entries(sources)) {
     if (!s || typeof s.title !== 'string' || !['reference', 'observation', 'unverified'].includes(s.trust)) errs.push(`source ${id}: needs a title and a trust of reference, observation or unverified`);
   }
