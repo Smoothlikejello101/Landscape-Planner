@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchedBy, nonToxicToDogs, PLANT_FILTER_DEFAULTS, plantMatches, plantTakesSun, searchRank, type Plant } from '../src/plants';
+import { matchedBy, nonToxicToDogs, PLANT_FILTER_DEFAULTS, plantMatches, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
 
 const heuchera: Plant = {
   id: 'h', common: "Heuchera 'Autumn Bride'", botanical: 'Heuchera villosa', form: 'Perennial',
@@ -9,6 +9,22 @@ const heuchera: Plant = {
 const f = (over: Partial<typeof PLANT_FILTER_DEFAULTS> = {}) => ({ ...PLANT_FILTER_DEFAULTS, ...over });
 
 describe('plant filters', () => {
+  it('let what nurseries report count (by choice), and say when a match rests on it', () => {
+    const h = { id: 'h', common: 'Heuchera', sun_most: 'Part', sun_least: 'Shade', reported: { sun_most: 'Full' } } as Plant;
+    const fs = (o: Partial<typeof PLANT_FILTER_DEFAULTS>) => ({ ...PLANT_FILTER_DEFAULTS, ...o });
+    expect(reportedMatch(h, fs({ sun: 'Part' }))).toEqual([]); // (the references say so)
+    expect(reportedMatch(h, fs({ sun: 'Full' }))).toEqual(['sun']); // (only nurseries say so)
+    expect(reportedMatch(h, fs({ sun: 'Full', withReported: false }))).toBeNull();
+    expect(reportedMatch({ ...h, reported: undefined }, fs({ sun: 'Full' }))).toBeNull();
+  });
+  it('match a plant under each of its forms', () => {
+    const redbud = { id: 'r', common: 'Redbud', form: 'Tree (understory)', forms: ['Tree (understory)', 'Shrub'] } as Plant;
+    const fo = (form: string) => ({ ...PLANT_FILTER_DEFAULTS, form });
+    expect(plantMatches(redbud, fo('Shrub'))).toBe(true);
+    expect(plantMatches(redbud, fo('Tree (understory)'))).toBe(true);
+    expect(plantMatches(redbud, fo('Vine'))).toBe(false);
+    expect(plantMatches({ id: 'h', common: 'Heuchera', form: 'Perennial' } as Plant, fo('Perennial'))).toBe(true);
+  });
   it('treats sun tolerance as a range', () => {
     expect(plantTakesSun(heuchera, 'Part')).toBe(true);
     expect(plantTakesSun(heuchera, 'Shade')).toBe(true);

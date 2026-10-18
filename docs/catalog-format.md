@@ -89,7 +89,7 @@ hasn't been looked up.
 
 | Fact | Value |
 | --- | --- |
-| `form` | one of `meta.enums.form` |
+| `form` | one of `meta.enums.form`, or a list of up to three, primary first (redbud: `["Tree (understory)", "Shrub"]`): the first decides its color and symbol, and it shows under every form filter in the list |
 | `habit` | free text, e.g. "Clumping" |
 | `height`, `width` | `{ min, max, med }` feet |
 | `zone_min`, `zone_max` | USDA hardiness zones on a half-zone scale (7a is 7, 7b is 7.5), 1 to 13.5. `zone_min` is the coldest half-zone it takes (a whole-zone rating "7" is 7); `zone_max` is the warmest (a whole-zone "9" is 9.5, through 9b; "9a" is 9) |

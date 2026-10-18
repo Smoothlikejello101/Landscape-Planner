@@ -10,9 +10,16 @@ import type { Plant } from './plants';
 
 export type Trust = 'reference' | 'observation' | 'unverified';
 export interface SourceDef { title: string; url?: string; trust: Trust }
-export type Check = 'agree' | 'disputed' | 'single';
+/**
+ * How sure a value is (docs/catalog-sources.md, "Deciding each fact"): `agree` / `confirmed` (an authority,
+ * and an independent source agrees), `single` (one authority), `likely` (no authority; most nurseries that
+ * give it agree), `reported` (one nursery), `disputed`.
+ */
+export type Check = 'agree' | 'confirmed' | 'disputed' | 'single' | 'likely' | 'reported';
+/** What nurseries report where it differs from the authority's value (shown, and usable in filters, by the user's choice). */
+export interface Reported<T = unknown> { v: T; src: string[]; check: 'likely' | 'reported' }
 /** A fact with its own sourcing (else a plain value, sourced by its record). */
-export interface SourcedFact<T = unknown> { v: T; src?: string[]; at?: string; check?: Check }
+export interface SourcedFact<T = unknown> { v: T; src?: string[]; at?: string; check?: Check; alt?: Reported<T> }
 export interface CatalogRecord {
   id: string;
   common: string;
@@ -50,6 +57,8 @@ export interface Provenance {
   inherited?: boolean;
   /** Looked up, and none of the sources say (the value is left out). */
   unknown?: boolean;
+  /** What nurseries report instead, where it differs. */
+  alt?: Reported;
 }
 
 /**
@@ -69,7 +78,7 @@ const isSourced = (f: unknown): f is SourcedFact =>
 export function factOf(rec: CatalogRecord, key: string): { v: unknown; prov: Provenance } | undefined {
   if (!(key in rec.facts)) return undefined;
   const f = rec.facts[key];
-  if (isSourced(f)) return { v: f.v, prov: { src: f.src ?? rec.src ?? [], ...(f.at ? { at: f.at } : {}), ...(f.check ? { check: f.check } : {}) } };
+  if (isSourced(f)) return { v: f.v, prov: { src: f.src ?? rec.src ?? [], ...(f.at ? { at: f.at } : {}), ...(f.check ? { check: f.check } : {}), ...(f.alt ? { alt: f.alt } : {}) } };
   return { v: f, prov: { src: rec.src ?? [] } };
 }
 
@@ -97,6 +106,8 @@ export function resolveCatalog(file: CatalogFile): Plant[] {
       const pv = own ? got.prov : { ...got.prov, inherited: true };
       // Known unknown: no value, but the record says the sources were checked.
       if (got.v == null) { prov[key] = { ...pv, unknown: true }; continue; }
+      if (pv.alt) (p.reported ??= {})[key] = pv.alt.v;
+      if (key === 'form' && Array.isArray(got.v)) { p.form = got.v[0]; p.forms = got.v as string[]; prov[key] = pv; continue; }
       (p as unknown as Record<string, unknown>)[key] = key === 'zone_max' && wholeZoneMax && Number.isInteger(got.v) ? (got.v as number) + 0.5 : got.v;
       prov[key] = pv;
     }
@@ -127,7 +138,8 @@ const isHalfZone = (v: unknown) => typeof v === 'number' && Number.isInteger(v *
 const isMonth = (v: unknown) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 12;
 /** Fact types: what a value must look like. Unknown fact names are errors (typos). */
 const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) => boolean> = {
-  form: (v, e) => typeof v === 'string' && (!e.form || e.form.includes(v)),
+  // One form, or a short list, primary first (redbud: understory tree and shrub).
+  form: (v, e) => [v].flat().length > 0 && [v].flat().length <= 3 && [v].flat().every((x) => typeof x === 'string' && (!e.form || e.form.includes(x))) && new Set([v].flat()).size === [v].flat().length,
   habit: (v) => typeof v === 'string',
   height: isRange, width: isRange,
   // (Half-zone scale: 7a is 7, 7b is 7.5; see src/climate.ts.)
@@ -196,9 +208,14 @@ export function catalogErrors(file: CatalogFile): string[] {
       if (!f.prov.src.length) errs.push(`${at}.${key}: no source`);
       for (const s of f.prov.src) if (!sources[s]) errs.push(`${at}.${key}: unknown source ${s}`);
       if (isSourced(raw)) {
-        for (const k of Object.keys(raw)) if (!['v', 'src', 'at', 'check'].includes(k)) errs.push(`${at}.${key}: unknown key ${k}`);
+        for (const k of Object.keys(raw)) if (!['v', 'src', 'at', 'check', 'alt'].includes(k)) errs.push(`${at}.${key}: unknown key ${k}`);
+        if (raw.alt != null) {
+          const a = raw.alt as Partial<Reported>;
+          if (!isObj(a) || !('v' in a) || !check(a.v, enums) || !Array.isArray(a.src) || !a.src.length || !['likely', 'reported'].includes(a.check as string)) errs.push(`${at}.${key}: alt needs a value, its sources, and a check of likely or reported`);
+          else for (const s of a.src) if (!sources[s]) errs.push(`${at}.${key}: unknown source ${s}`);
+        }
         if (raw.at != null && !STATE.test(raw.at)) errs.push(`${at}.${key}: "at" must be a state code`);
-        if (raw.check != null && !['agree', 'disputed', 'single'].includes(raw.check)) errs.push(`${at}.${key}: unknown check ${raw.check}`);
+        if (raw.check != null && !['agree', 'confirmed', 'disputed', 'single', 'likely', 'reported'].includes(raw.check)) errs.push(`${at}.${key}: unknown check ${raw.check}`);
       }
       if (f.v != null && !check(f.v, enums)) errs.push(`${at}.${key}: unexpected value ${JSON.stringify(f.v)}`);
     }

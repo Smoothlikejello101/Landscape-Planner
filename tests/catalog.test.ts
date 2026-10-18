@@ -95,6 +95,25 @@ describe('records', () => {
     expect(resolveCatalog({ meta: older as CatalogFile['meta'], plants: [p] })[0]).toMatchObject({ zone_min: 5, zone_max: 9.5 });
     expect(resolveCatalog({ meta, plants: [p] })[0]).toMatchObject({ zone_min: 5, zone_max: 9 });
   });
+  it('take a list of forms, primary first, for a plant that grows more than one way', () => {
+    const r = rec({ id: 'redbud', facts: { form: ['Shrub', 'Perennial'] } });
+    const [p] = resolveCatalog({ meta, plants: [r] });
+    expect(p).toMatchObject({ form: 'Shrub', forms: ['Shrub', 'Perennial'] });
+    expect(catalogErrors({ meta, plants: [r] })).toEqual([]);
+    for (const bad of [[], ['Shrub', 'Shrub'], ['Shrub', 'Tree'], ['Shrub', 'Perennial', 'Shrub', 'Perennial']]) {
+      expect(catalogErrors({ meta, plants: [rec({ id: 'b', facts: { form: bad } })] })).toEqual([`b.form: unexpected value ${JSON.stringify(bad)}`]);
+    }
+  });
+  it('keep what nurseries report beside the authority\'s value, and check it like any value', () => {
+    const r = rec({ id: 'h', facts: { sun_most: { v: 'Shade', src: ['ncsu'], check: 'single', alt: { v: 'Part', src: ['mobot'], check: 'reported' } } } });
+    const [p] = resolveCatalog({ meta, plants: [r] });
+    expect(p.sun_most).toBe('Shade');
+    expect(p.reported).toEqual({ sun_most: 'Part' });
+    expect(p.prov!.sun_most.alt).toEqual({ v: 'Part', src: ['mobot'], check: 'reported' });
+    expect(catalogErrors({ meta, plants: [r] })).toEqual([]);
+    const bad = rec({ id: 'b', facts: { sun_most: { v: 'Shade', src: ['ncsu'], alt: { v: 'Lots', src: ['mobot'], check: 'maybe' } } } });
+    expect(catalogErrors({ meta, plants: [bad] })).toEqual(['b.sun_most: alt needs a value, its sources, and a check of likely or reported']);
+  });
   it('list implausible values for the audit', () => {
     const w = catalogWarnings({ meta, plants: [rec({ id: 'p', common: "Coneflower 'Magnus'", botanical: 'Echinacea purpurea', facts: { form: 'Perennial', height: { min: 30, max: 36 }, zone_min: 9, zone_max: 3 } })] });
     expect(w).toEqual([

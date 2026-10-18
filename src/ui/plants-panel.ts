@@ -1,7 +1,7 @@
 import { el, type Child } from '../dom';
 import { I } from '../icons';
 import type { Plant, PlantFilter } from '../plants';
-import { MONTH_NAMES, matchedBy, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkShapeToPlant, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun } from '../plants';
+import { MONTH_NAMES, formsOf, matchedBy, reportedOnly, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkShapeToPlant, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { isMine, myPlants } from '../my-plants';
@@ -10,9 +10,10 @@ import { state } from '../state';
 import { ZONE_SOURCE_SHORT } from '../climate';
 import { dismissZipPrompt, openLocation, zipPromptDismissed } from './location-panel';
 import { render } from './render';
+import { plantDetails } from './plant-details';
 
 function closePicker() { state.panel = null; state.pickerLinkId = null; state.pickerForTree = false; render(); }
-const isTree = (p: Plant) => !!p.form && p.form.startsWith('Tree');
+const isTree = (p: Plant) => formsOf(p).some((f) => f.startsWith('Tree'));
 // My plants folded away in the picker: kept here, and remembered on this device when storage allows.
 const FOLD_KEY = 'lp-my-plants-folded';
 let myPlantsFolded = (() => { try { return localStorage.getItem(FOLD_KEY) === '1'; } catch { return false; } })();
@@ -84,6 +85,12 @@ export function renderPlantsPanel() {
   // --- Results list (rebuilt in place so typing never destroys input focus) ---
   const countLine = el('div', { className: 'hint', style: { padding: '0 0 6px' } });
   const listWrap = el('div', {});
+  // Rows opened to show their details (kept while the list is rebuilt by typing or filtering).
+  const opened = new Set<string>();
+  /**
+   * A plant's row: tap it to open its details, or Place (Link, Pick) to use it.
+   * Opening and closing change only this row, so the search box keeps the keyboard.
+   */
   function buildRow(p: Plant) {
     const info = el('div', { className: 'pinfo' },
       el('div', { className: 'pname' }, p.common),
@@ -97,8 +104,16 @@ export function renderPlantsPanel() {
       width: '14px', height: '14px', borderRadius: '50%', flex: 'none',
       background: plantColor(p), marginRight: '10px'
     } });
-    const row = el('div', { className: 'proj-row', style: { alignItems: 'center' } }, dot, info);
-    row.addEventListener('click', () => pick(p));
+    const flagged = reportedOnly.get(p.id);
+    const chev = el('span', { className: 'row-open' + (flagged ? ' flagged' : '') },
+      flagged ? el('span', { className: 'row-flag', 'data-testid': 'row-flag', title: 'Shown because of what nurseries report' }, '!') : null,
+      el('span', { className: 'fold-chev', html: I.chevronDown }));
+    const head = el('div', { className: 'proj-row', style: { alignItems: 'center' }, role: 'button', tabindex: '0', 'aria-expanded': 'false', 'data-testid': 'plant-row',
+      'aria-label': `${p.common}: show details` + (flagged ? ' (shown because of what nurseries report)' : '') }, dot, info, chev);
+    const place = el('button', { className: 'btn place-btn', 'data-testid': 'plant-place', 'aria-label': `${linking ? 'Link to' : forTree ? 'Pick' : 'Place'} ${p.common}` },
+      linking ? 'Link' : forTree ? 'Pick' : 'Place');
+    place.addEventListener('click', (e) => { e.stopPropagation(); pick(p); });
+    head.appendChild(place);
     // Mine: edit. Catalog: copy as my own (a cultivar of it, say).
     const mine = isMine(p);
     const side = el('button', {
@@ -110,11 +125,22 @@ export function renderPlantsPanel() {
       e.stopPropagation();
       openForm(mine ? { editId: p.id, place: false } : { copyFromId: p.id, place: false });
     });
-    row.appendChild(side);
+    head.appendChild(side);
     if (mine) info.firstChild!.appendChild(el('span', { className: 'mine-badge' }, 'Mine'));
     // Details not yet checked against sources say so, plainly, on every row (first in the details, where it can't be cut off).
     else if (p.unverified) (info.childNodes[1] as HTMLElement).prepend(el('span', { className: 'unverified-badge', title: "From an older list with no sources; it's being checked" }, 'Unverified'), ' ');
-    return row;
+    const item = el('div', { className: 'plant-item' }, head);
+    let details: HTMLElement | null = null;
+    const setOpen = (open: boolean) => {
+      head.setAttribute('aria-expanded', String(open));
+      item.classList.toggle('open', open);
+      if (open) { opened.add(p.id); details ??= plantDetails(p, flagged); item.appendChild(details); }
+      else { opened.delete(p.id); details?.remove(); }
+    };
+    head.addEventListener('click', () => setOpen(!opened.has(p.id)));
+    head.addEventListener('keydown', (e) => { if (e.target === head && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setOpen(!opened.has(p.id)); } });
+    if (opened.has(p.id)) setOpen(true);
+    return item;
   }
   /** "My plants" matching the search and sun filter (their other fields are whatever the user entered). */
   function myHits(): Plant[] {
@@ -138,7 +164,7 @@ export function renderPlantsPanel() {
     const hits = filteredPlants().filter((p) => !forTree || isTree(p));
     const n = hits.length + mine.length, all = PLANTS.length + myPlants.length;
     countLine.textContent = (n === all ? `All ${all} plants` : `${n} of ${all} plants match`) +
-      (linking ? ' \u00b7 tap the plant this circle stands for' : forTree ? ' \u00b7 trees only' : ' \u00b7 tap a plant, then tap the plan where it goes');
+      (linking ? ' \u00b7 Link the plant this circle stands for' : forTree ? ' \u00b7 trees only' : ' \u00b7 Place a plant, then tap the plan where it goes; tap a plant for its details');
     if (mine.length) {
       // My plants fold away (remembered on this device); a search always shows its matches.
       const searching = !!plantFilter.q.trim();
@@ -252,6 +278,10 @@ export function renderPlantsPanel() {
     mkCheck('Transplantable', 'noTaproot'),
     mkCheck('Already in this plan', 'inPlan')
   ));
+  adv.appendChild(el('div', { className: 'hint', style: { padding: '10px 0 0' } }, 'Sources'));
+  adv.appendChild(el('div', { style: { margin: '4px 0 8px' } },
+    mkCheck('Include what nurseries report', 'withReported'),
+    el('div', { className: 'hint', style: { fontSize: '11px' } }, 'Where nurseries differ from the published references (extension services, botanical gardens), let their values count too. A plant shown only because of them is marked !.')));
 
   // ---- Toggle + reset ----
   const toggle = el('button', { className: 'btn ghost', style: { flex: '1', fontSize: '13px', padding: '6px' } });

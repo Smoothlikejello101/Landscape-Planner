@@ -10,7 +10,7 @@ test('the search is kept while switching plants, and starts empty on a fresh pic
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Tennessee coneflower');
-  await page.locator('.sheet .proj-row', { hasText: 'Tennessee coneflower' }).first().click();
+  await page.locator('.sheet .proj-row', { hasText: 'Tennessee coneflower' }).first().locator('[data-testid=plant-place]').click();
   await tapFromCenter(page, 0, 0);
   // The next plant for the same purpose is likely another match.
   await placeBar(page).getByTestId('place-switch').click();

@@ -10,7 +10,7 @@ test('printable plan: options persist and a PDF downloads', async ({ page }) => 
   await closeSheet(page);
   await page.locator('.tool-btn.plants').click();
   await page.locator('.sheet input[type=text]').fill("Heuchera 'Autumn Bride'");
-  await page.locator('.sheet .proj-row', { hasText: "Heuchera 'Autumn Bride'" }).first().click();
+  await page.locator('.sheet .proj-row', { hasText: "Heuchera 'Autumn Bride'" }).first().locator('[data-testid=plant-place]').click();
   await placeOnceAtCenter(page);
 
   await openExport(page);
