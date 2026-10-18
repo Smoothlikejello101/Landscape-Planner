@@ -236,8 +236,8 @@ export function combine(claims, { cultivar = false, prefer = null } = {}) {
         if (!usable.some(ownPage)) {
           const species = usable.filter((c) => !c.cultivarPage);
           // (Only the source that would decide: NC State's, else USDA's; another's tree is just a note.)
-          const decider = species.filter((c) => c.kind === 'authority' && !c.fallback);
-          if ((decider.length ? decider : species.filter((c) => c.fallback)).some((c) => [c.v].flat().some((x) => /Tree/.test(x)))) {
+          const decider = [species.filter((c) => c.kind === 'authority' && !c.fallback), species.filter((c) => c.fallback), species].find((l) => l.length) ?? [];
+          if (decider.some((c) => [c.v].flat().some((x) => /Tree/.test(x)))) {
             out[fact] = { v: null, src: [...new Set(species.map((c) => c.src))], check: 'disputed', kind: species[0].kind, note: 'its species is listed as a tree; a cultivar may be a tree or a shrub' };
             continue;
           }
@@ -341,14 +341,14 @@ function combineForm(usable, prefer) {
   }
   // USDA deciding with only "Perennial" (any herb that lives for years), where the catalog names a kind of
   // herb: it settles nothing (a fern or bulb is a forb to USDA too).
-  if (deciding.fallback && own.length === 1 && own[0] === 'Perennial' && (HERB_FORMS.has(prefer) || prefer === 'Aquatic/Emergent')) return null;
+  if (deciding.fallback && own.every((f) => f === 'Perennial' || f === 'Annual') && own.includes('Perennial') && (HERB_FORMS.has(prefer) || prefer === 'Aquatic/Emergent')) return null;
   // Another authority (USDA's habit included) with none of the same forms: a dispute. USDA's "Perennial"
   // isn't against a fern, bulb, grass, cactus or aquatic, which are perennial herbs too.
   const herbsOnly = (c) => c.fallback && c.forms.every((f) => f === 'Perennial') && own.some((o) => HERB_FORMS.has(o) || o === 'Aquatic/Emergent');
   const rival = others.find((c) => c.kind === 'authority' && !herbsOnly(c) && !c.forms.some((f) => own.some((o) => lists({ forms: [f] }, o) || f === o)));
   if (rival) return { v: null, src: [deciding.src, rival.src], check: 'disputed', kind: deciding.kind, note: `${deciding.src} lists ${own.join(', ')}; ${rival.src} lists ${rival.forms.join(', ')}` };
   // USDA's "Perennial" says only that an herb lives for years: it backs a plain perennial and nothing else.
-  const backers = (f) => others.filter((c) => (c.fallback && c.forms.includes('Perennial') && f !== 'Perennial' ? false : lists(c, f))).map((c) => c.src);
+  const backers = (f) => others.filter((c) => lists(c.fallback && f !== 'Perennial' ? { forms: c.forms.filter((x) => x !== 'Perennial') } : c, f)).map((c) => c.src);
   const backed = own.filter((f) => backers(f).length);
   const notes = [];
   if (backed.length && backed.length < own.length) notes.push(`${own.filter((f) => !backed.includes(f)).join(', ')} from ${deciding.src} alone`);
