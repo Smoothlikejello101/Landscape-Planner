@@ -185,14 +185,22 @@ export function paceFor(source, delay, itemPace) {
   return Math.max(MIN_PACE, SOURCE_PACE[source] ?? 0, itemPace ?? 0, delay ?? 0);
 }
 /**
- * What a request that got no HTTP answer means. Behind a proxy, curl's own
- * errors can't tell a missing host from a slow or refused one, so only a DNS
- * answer can: `none` when the name doesn't exist or has no address (nothing
- * there to block anything), `failed` otherwise (it couldn't be checked).
- * dns: 'nxdomain' | 'noaddress' | 'exists' | 'unknown' (the lookup itself failed).
+ * What a request that got no HTTP answer means.
+ * - `none`: DNS says the name doesn't exist or has no address. (Behind a
+ *   proxy, curl's own errors can't say this; only DNS can.)
+ * - `failed`: something answered but couldn't be checked: a TLS
+ *   certificate that doesn't verify (the host serves HTTPS, just badly), or
+ *   this machine's proxy refusing to connect.
+ * - `silent`: the host exists but no web exchange happened (reset, refused,
+ *   timed out). For the host we want, that closes it; for a related host it
+ *   means it serves no robots.txt anyone could read, so it blocks nothing.
+ * dns: 'nxdomain' | 'noaddress' | 'exists' | 'unknown'; exitCode and message from curl.
  */
-export function noAnswer(dns) {
-  return dns === 'nxdomain' || dns === 'noaddress' ? 'none' : 'failed';
+export function noAnswer(dns, exitCode, message) {
+  if (dns === 'nxdomain' || dns === 'noaddress') return 'none';
+  if (/CONNECT tunnel failed, response 40[37]/.test(message ?? '')) return 'failed';
+  if (exitCode === 60 || exitCode === 58 || exitCode === 51 || exitCode === 77) return 'failed';
+  return dns === 'exists' ? 'silent' : 'failed';
 }
 /** A DNS-over-HTTPS JSON answer (RFC 8484 JSON form) as noAnswer() reads it. */
 export function dnsVerdict(answers) {
@@ -259,7 +267,7 @@ export function fileStore(root, today) {
  * Fetch a list of { source, url, pace? } politely.
  * deps:
  *   get(url) → { status, type, location, body: Buffer | string, reach?, error? }
- *     (status 0: no HTTP answer; reach 'none' or 'failed', as noAnswer() says)
+ *     (status 0: no HTTP answer; reach 'none', 'silent' or 'failed', as noAnswer() says)
  *   sleep(seconds), now() → ms
  *   store: { cached(source, url) → bool, save(source, url, page, meta), saveRobots(host, status, type, body),
  *            refused() → { host: { why, date } }, refuse(host, why) }
@@ -274,6 +282,7 @@ export async function runFetch(list, deps) {
   const lastHit = new Map(); // site → ms
   const refused = new Map(Object.entries(store.refused()).map(([h, v]) => [h, v.why]));
   const out = { saved: 0, cached: 0, skipped: 0 };
+  const noted = new Set(); // (each note once)
   async function wait(site, pace) {
     const ms = (lastHit.get(site) ?? -Infinity) + pace * 1000 - now();
     if (ms > 0) await sleep(ms / 1000);
@@ -295,6 +304,7 @@ export async function runFetch(list, deps) {
     // (After a redirect the host did answer, so a missing redirect target means it couldn't be checked.)
     const parsed = r.status !== 0 ? robotsFromResponse(r.status, r.type, body)
       : r.reach === 'none' && url === `https://${host}/robots.txt` ? { kind: 'absent', groups: [], why: 'no such host' }
+      : r.reach === 'silent' && url === `https://${host}/robots.txt` ? { kind: 'silent', groups: [], why: `no answer (${r.error ?? 'no answer'})` }
       : { kind: 'closed', groups: [], why: `robots.txt couldn't be read (${r.error ?? 'no answer'})` };
     robots.set(host, parsed);
     return parsed;
@@ -319,8 +329,10 @@ export async function runFetch(list, deps) {
     let why = '';
     for (const other of relatedHosts(u.hostname)) {
       const pr = await robotsFor(bare(other), MIN_PACE);
-      // (A host that isn't there blocks nothing; one that can't be checked, or answers with an error or a bot check, closes this one.)
-      if (pr.kind === 'closed') { why = `${other}: ${pr.why}`; break; }
+      // (Only a related host's robots.txt rules reach down to its subdomains. One that answers with an error
+      // or a bot filter is closed itself, but that says nothing about the subdomain: a university's main site
+      // behind a bot filter isn't a rule about its extension service's plant database.)
+      if ((pr.kind === 'silent' || pr.kind === 'closed') && !noted.has(other + ' ' + host) && noted.add(other + ' ' + host)) log(`note ${other}: ${pr.why}; its robots.txt can't be read, so it sets no rule for ${host}`);
       if (pr.kind === 'rules' && blocksWholeHost(pr.groups)) { why = `${other} blocks bots from the whole host`; break; }
     }
     if (why) { refuse(host, why, false); out.skipped++; continue; }

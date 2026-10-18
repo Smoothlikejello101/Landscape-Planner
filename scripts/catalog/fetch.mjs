@@ -32,7 +32,7 @@ function get(url) {
       '-D', head, '-o', body, '-w', '%{http_code}', '--', url], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }));
   } catch (e) {
     const error = String(e.stderr ?? e.message).trim().split('\n')[0];
-    return { status: 0, type: '', location: '', body: Buffer.alloc(0), error, reach: noAnswer(lookUp(new URL(url).hostname)) };
+    return { status: 0, type: '', location: '', body: Buffer.alloc(0), error, reach: noAnswer(lookUp(new URL(url).hostname), e.status, error) };
   }
   // (The header file can hold a proxy's CONNECT answer or early hints first: only the last block is the page's.)
   const blocks = (existsSync(head) ? readFileSync(head, 'latin1') : '').split(/\r?\n\r?\n/).filter((b) => b.trim());

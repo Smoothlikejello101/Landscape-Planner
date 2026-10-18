@@ -74,10 +74,13 @@ describe('robots.txt', () => {
     for (const s of [301, 400, 403, 429, 500, 0]) expect(robotsFromResponse(s, 'text/plain', '').kind).toBe('closed');
   });
   it('counts a host as not there only on a DNS answer that says so', () => {
-    expect(noAnswer('nxdomain')).toBe('none');
-    expect(noAnswer('noaddress')).toBe('none');
-    expect(noAnswer('exists')).toBe('failed'); // (there, but slow, refused or broken: couldn't be checked)
-    expect(noAnswer('unknown')).toBe('failed');
+    expect(noAnswer('nxdomain', 56, 'curl: (56) CONNECT tunnel failed, response 502')).toBe('none');
+    expect(noAnswer('noaddress', 7, '')).toBe('none');
+    expect(noAnswer('exists', 35, 'curl: (35) Recv failure: Connection reset by peer')).toBe('silent');
+    expect(noAnswer('exists', 28, 'curl: (28) Operation timed out')).toBe('silent');
+    expect(noAnswer('exists', 60, 'curl: (60) SSL certificate problem')).toBe('failed'); // (it serves HTTPS, badly: can't be checked)
+    expect(noAnswer('exists', 56, 'curl: (56) CONNECT tunnel failed, response 403')).toBe('failed'); // (this machine's proxy said no)
+    expect(noAnswer('unknown', 7, '')).toBe('failed');
     expect(dnsVerdict([{ Status: 3 }, { Status: 3 }])).toBe('nxdomain');
     expect(dnsVerdict([{ Status: 0 }, { Status: 0, Answer: [] }])).toBe('noaddress');
     expect(dnsVerdict([{ Status: 0, Answer: [{ type: 1, data: '1.2.3.4' }] }, { Status: 0 }])).toBe('exists');
@@ -118,6 +121,7 @@ describe('hosts and pace', () => {
 
 /** A fake web and clock: `pages` maps URL → response; time only moves when the fetcher sleeps. */
 const NOT_THERE = { status: 0, reach: 'none' };
+const SILENT = { status: 0, reach: 'silent', error: 'curl: (35) Recv failure' };
 function fakeWorld(pages: Record<string, { status: number; type?: string; body?: string; location?: string; reach?: string }>, refusedAtStart: Record<string, { why: string; date: string }> = {}) {
   let t = 0;
   const requests: { url: string; at: number }[] = [];
@@ -244,11 +248,18 @@ describe('the fetch loop', () => {
     expect(r).toEqual({ saved: 0, cached: 0, skipped: 7 });
     expect(w.requests).toHaveLength(0);
   });
-  it('closes a host when a related host can\'t be checked or answers with an error, a bot check or a whole-host block', async () => {
-    for (const answer of [{ status: 0, reach: 'failed' }, { status: 403 }, { status: 200, type: 'text/html', body: '<title>Just a moment...</title>' }, { status: 301, location: 'https://other.example.net/robots.txt' }, { status: 200, body: 'User-agent: *\nDisallow: /' }]) {
+  it('closes a host when a related host\'s robots.txt blocks bots everywhere, but not when it only answers with an error or a bot filter', async () => {
+    for (const [answer, closes] of [
+      [{ status: 200, body: 'User-agent: *\nDisallow: /' }, true],
+      [{ status: 200, body: 'User-agent: ClaudeBot\nDisallow: /\nAllow: /$' }, true],
+      [{ status: 200, body: 'User-agent: *\nDisallow: /admin' }, false],
+      [{ status: 0, reach: 'failed' }, false],
+      [{ status: 403, type: 'text/html', body: '<title>Access Denied</title>' }, false], // (USDA's main site, behind its bot filter)
+      [{ status: 202, type: 'text/html', body: '' }, false], // (NC State's main site, likewise)
+      [{ status: 301, location: 'https://other.example.net/robots.txt' }, false],
+    ] as const) {
       const w = fakeWorld({ 'https://plants.ces.ncsu.edu/robots.txt': { status: 404 }, 'https://ncsu.edu/robots.txt': answer, [plant(1)]: { status: 200, body: 'a' } });
-      expect(await runFetch([{ source: 'ncsu', url: plant(1) }], w.deps)).toEqual({ saved: 0, cached: 0, skipped: 1 });
-      expect(w.requests.some((q) => q.url === plant(1))).toBe(false);
+      expect(await runFetch([{ source: 'ncsu', url: plant(1) }], w.deps)).toEqual(closes ? { saved: 0, cached: 0, skipped: 1 } : { saved: 1, cached: 0, skipped: 0 });
     }
   });
   it('lets a host\'s own narrower Allow decide its paths', async () => {
@@ -291,8 +302,7 @@ describe('the fetcher\'s files', () => {
   });
   it('treats a robots.txt redirect to a host that doesn\'t answer as unchecked', async () => {
     const w = fakeWorld({
-      'https://plants.ces.ncsu.edu/robots.txt': { status: 404 },
-      'https://ncsu.edu/robots.txt': { status: 301, location: 'https://www.ncsu.edu/robots.txt' },
+      'https://plants.ces.ncsu.edu/robots.txt': { status: 301, location: 'https://www.plants.ces.ncsu.edu/robots.txt' },
       [plant(1)]: { status: 200, body: 'a' },
     });
     expect(await runFetch([{ source: 'ncsu', url: plant(1) }], w.deps)).toEqual({ saved: 0, cached: 0, skipped: 1 });
@@ -304,5 +314,15 @@ describe('the fetcher\'s files', () => {
     store.save('ncsu', url, Buffer.from('old'), { url, status: 200 });
     store.save('ncsu', url, null, { url, status: 301 });
     expect(existsSync(join(root, 'ncsu', '2026-10-17', cacheName(url)))).toBe(false);
+  });
+  it('ignores a related host that serves nothing, but closes the host we want if it\'s silent', async () => {
+    const w = fakeWorld({
+      'https://plants.ces.ncsu.edu/robots.txt': { status: 404 },
+      'https://ncsu.edu/robots.txt': SILENT,
+      [plant(1)]: { status: 200, body: 'a' },
+      'https://d.example.org/robots.txt': SILENT,
+    });
+    expect(await runFetch([{ source: 'ncsu', url: plant(1) }, { source: 'usda', url: 'https://d.example.org/p' }], w.deps)).toEqual({ saved: 1, cached: 0, skipped: 1 });
+    expect(w.requests.some((q) => q.url === 'https://d.example.org/p')).toBe(false);
   });
 });

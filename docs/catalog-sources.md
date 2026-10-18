@@ -51,13 +51,17 @@ reading, to be checked with one before launch.
 within the same site, up to five times. Any other error, a
 network failure, or a challenge page in its place ("are you human",
 Cloudflare, Incapsula) counts as disallowing everything. So does a
-request that reaches the host but breaks (a TLS failure, a timeout), or that
-this machine's proxy refuses, since it couldn't be checked. Only a host that
+request to the host we want that gets no web answer, a certificate that
+doesn't verify, or this machine's proxy refusing, since it couldn't be
+checked. Those answers close only the host that gave them: for a related host
+(below), only its robots.txt rules reach down. A university's main site
+behind a bot filter (ncsu.edu answers our robots.txt request with a 202
+challenge, usda.gov with a 403 "Access Denied") isn't a rule about its
+extension service's plant database. Only a host that
 isn't there at all counts as having none, and only DNS can say so: the
 fetcher asks a DNS-over-HTTPS resolver (cloudflare-dns.com), since behind
 this machine's proxy curl can't tell a missing host from a slow one. Run
-with all domains allowed, or a related host outside the allowed list closes
-the one we want. The groups that
+with all domains allowed, so related hosts' rules can be read. The groups that
 apply are `*`, `FullGrownCatalog`, `ClaudeBot`, `Claude-User`,
 `Claude-SearchBot`, `Claude-Web` and `anthropic-ai`. A host that disallows
 the pages we'd read is **closed to bots** for those pages (its own rules
