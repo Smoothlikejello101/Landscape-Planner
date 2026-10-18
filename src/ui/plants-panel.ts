@@ -205,7 +205,7 @@ export function renderPlantsPanel() {
         mkSelect('Blooming in\u2026', 'bloomMonth', [1,2,3,4,5,6,7,8,9,10,11,12], m => MONTH_NAMES[m]))
   );
   const primaryChecks = el('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px 16px', margin: '8px 0 4px' } },
-    // Says unverified while it goes by the older list for any plant (until each is checked against the ASPCA).
+    // Says unverified while it goes by the older list for any plant (until each has a sourced rating: docs/catalog-sources.md).
     mkCheck(PLANTS.some((p) => !p.tox?.dog) ? 'Non-toxic to dogs (unverified)' : 'Non-toxic to dogs', 'dogSafeOnly'),
     state.location ? mkCheck(`Hardy in zone ${state.location.zone}`, 'hardyHere') : null,
     mkCheck('Dry shade', 'dryShade'),

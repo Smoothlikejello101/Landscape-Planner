@@ -16,5 +16,6 @@
   automatic reloads.
 - Commits: end messages with the Co-Authored-By line.
 - Plant catalog (public/plants.json) is version 2, sourced facts: see
-  docs/catalog-format.md. One record per line; `npm run catalog:check` lists
+  docs/catalog-format.md; which sources may be used: docs/catalog-sources.md.
+  One record per line; `npm run catalog:check` lists
   problems. Never add a value without a source.
