@@ -3,11 +3,25 @@ import { el } from '../dom';
 import { I } from '../icons';
 import { state } from '../state';
 import { save } from '../storage';
+import { plantFilter } from '../plants';
+import type { PanelName } from '../types';
+import { toast } from './toast';
 import { render } from './render';
 
 // The garden's location: a ZIP code gives its hardiness zone and frost
 // dates, kept with the plan. Only the ZIP's first three digits are fetched
 // (a table from the app's own site); the full ZIP isn't sent anywhere.
+
+/** The sheet it was opened from (the plant picker): back there when done. */
+let returnTo: PanelName | null = null;
+export function openLocation(from: PanelName | null = null) {
+  returnTo = from;
+  state.panel = 'location';
+  render();
+}
+const PROMPT_KEY = 'lp-zip-prompt-dismissed';
+export function zipPromptDismissed(): boolean { try { return localStorage.getItem(PROMPT_KEY) === '1'; } catch { return false; } }
+export function dismissZipPrompt() { try { localStorage.setItem(PROMPT_KEY, '1'); } catch { /* shown again next time */ } }
 
 let busy = false;
 let problem = '';
@@ -19,7 +33,7 @@ export function setLocation(loc: GardenLocation | null) {
   save();
 }
 
-function closePanel() { state.panel = null; problem = ''; typed = ''; render(); }
+function closePanel() { state.panel = returnTo; returnTo = null; problem = ''; typed = ''; render(); }
 
 export function renderLocationPanel(): HTMLElement {
   const loc = state.location ?? null;
@@ -45,7 +59,16 @@ export function renderLocationPanel(): HTMLElement {
       if (state.panel === 'location') render(); // (else leave the screen alone: something else may have the keyboard)
       return;
     }
-    if (r.ok) { typed = ''; setLocation(r.location); }
+    if (r.ok) {
+      typed = ''; setLocation(r.location);
+      if (returnTo === 'plants') {
+        // Asked from the plant picker: straight back, showing what's hardy here.
+        plantFilter.hardyHere = true;
+        toast(`Zone ${r.location.zone}: showing plants hardy there. Untick “Hardy in zone ${r.location.zone}” to see them all. Frost dates are in ⋮ → Garden location.`, 7000);
+        closePanel();
+        return;
+      }
+    }
     else problem = r.why === 'format' ? 'A ZIP code is five digits.'
       : r.why === 'unknown' ? 'That ZIP isn’t in the zone tables (they cover the 50 states and Puerto Rico).'
       : 'Couldn’t reach the zone tables. Looking up needs a connection; what you’ve looked up before stays with the plan.';

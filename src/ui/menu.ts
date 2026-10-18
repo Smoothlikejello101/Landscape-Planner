@@ -6,6 +6,7 @@ import { state } from '../state';
 import { finishPlacing } from '../place';
 import { currentProject, getClipboard } from '../storage';
 import { render } from './render';
+import { openLocation } from './location-panel';
 
 /** Select mode on or off (the lasso button on the top bar). */
 export function toggleSelectMode() {
@@ -35,7 +36,7 @@ export function renderMoreMenu() {
   items.push({
     icon: I.pin,
     label: state.location ? `Garden location (zone ${state.location.zone})…` : 'Garden location…',
-    onClick: () => { state.panel = 'location'; state.menu = null; render(); }
+    onClick: () => { state.menu = null; openLocation(); }
   });
   items.push({
     icon: I.image,

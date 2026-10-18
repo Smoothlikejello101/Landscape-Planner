@@ -8,6 +8,7 @@ import { isMine, myPlants } from '../my-plants';
 import type { PlantFormArgs } from '../types';
 import { state } from '../state';
 import { ZONE_SOURCE_SHORT } from '../climate';
+import { dismissZipPrompt, openLocation, zipPromptDismissed } from './location-panel';
 import { render } from './render';
 
 function closePicker() { state.panel = null; state.pickerLinkId = null; state.pickerForTree = false; render(); }
@@ -212,6 +213,15 @@ export function renderPlantsPanel() {
     mkCheck('Host plant', 'hostOnly')
   );
   if (state.location) primaryChecks.appendChild(el('div', { className: 'hint', style: { flexBasis: '100%', fontSize: '11px' } }, `Zones: ${ZONE_SOURCE_SHORT}.`));
+  // No location yet: offer it once, where it pays off (dismissed for good on this device).
+  const zipPrompt = !state.location && !zipPromptDismissed() ? (() => {
+    const go = el('button', { className: 'zip-prompt-go', 'data-testid': 'zip-prompt' }, el('span', { html: I.pin }), 'Add your ZIP code to see which plants are hardy where you are');
+    go.addEventListener('click', () => openLocation('plants'));
+    const no = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Don’t show this again' });
+    no.addEventListener('click', () => { dismissZipPrompt(); zipRow.remove(); search.focus(); }); // (focus stays in the picker)
+    const zipRow = el('div', { className: 'zip-prompt' }, go, no);
+    return zipRow;
+  })() : null;
 
   // ---- ADVANCED FILTERS (collapsible) ----
   const adv = el('div', { style: { display: plantFilter.advanced ? 'block' : 'none',
@@ -266,6 +276,7 @@ export function renderPlantsPanel() {
   body.appendChild(el('div', { className: 'field' }, search));
   body.appendChild(primary);
   body.appendChild(primaryChecks);
+  if (zipPrompt) body.insertBefore(zipPrompt, primary);
   body.appendChild(btnRow);
   body.appendChild(adv);
   body.appendChild(countLine);

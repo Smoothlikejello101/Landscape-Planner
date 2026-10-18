@@ -47,3 +47,40 @@ test('a ZIP gives the zone and frost dates; the plant picker can show only plant
   await hardy.locator('input').check();
   await expect(row).toHaveCount(0);
 });
+
+test('the plant picker offers the ZIP once: from there, back with only plants hardy here', async ({ page }) => {
+  await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TABLE) }));
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('zip-prompt').click();
+  await page.getByTestId('zip').fill('71923');
+  await page.getByTestId('zip-lookup').click();
+  // Back in the picker, filtered.
+  await expect(page.getByTestId('plant-search')).toBeVisible();
+  await expect(page.locator('.sheet label', { hasText: 'Hardy in zone 8a' }).locator('input')).toBeChecked();
+  await expect(page.locator('#toast')).toContainText('showing plants hardy there');
+  await page.getByTestId('plant-search').fill('Pagoda dogwood'); // rated for zones 3–7
+  await expect(page.locator('.sheet .proj-row', { hasText: 'Pagoda dogwood' })).toHaveCount(0);
+  await expect(page.getByTestId('zip-prompt')).toHaveCount(0);
+});
+
+test('closing the ZIP sheet opened from the picker goes back to the picker as it was', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('aster');
+  await page.getByTestId('zip-prompt').click();
+  await page.locator('.sheet-header .iconbtn').click();
+  await expect(page.getByTestId('plant-search')).toHaveValue('aster');
+  await expect(page.getByTestId('zip-prompt')).toBeVisible();
+});
+
+test('the ZIP offer can be put away for good', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.locator('.zip-prompt .iconbtn').click();
+  await expect(page.getByTestId('zip-prompt')).toHaveCount(0);
+  await page.reload();
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.getByTestId('plant-search')).toBeVisible();
+  await expect(page.getByTestId('zip-prompt')).toHaveCount(0);
+});
