@@ -397,15 +397,14 @@ a whole zone covers both halves (a coldest zone "7" is 7, a warmest zone
   entry (4a → 4, 4b → 4.5) and `zone_max` its warmest (9a → 9, 9b → 9.5).
   For comparing, its coldest entry is also a temperature *L*, the bottom of
   that half-zone (4a → −30 °F, 4b → −25 °F).
-- **They agree** when *L* and *T* are no more than 5 °F apart. NC State's
-  zone is stored. Redbud: NC State −30 °F, USDA −28 °F → `agree`, stored as
-  4 (4a). That's 2 °F more generous than USDA alone, within what its
-  approximations claim.
-- **They differ by more:** the warmer of the two temperatures decides,
-  turned into a half-zone by the formula above, with `check: "disputed"`.
-  The source that gave the value is listed first in `src`. Example: NC State
-  4a (−30 °F), USDA −20 °F → 5 (5a), `src: ["usda", "ncsu"]`.
-- **Only one of them:** its zone as above, `single`.
+- **Agreeing:** two sources' zones agree within one whole zone (10 °F),
+  the same half-zone scale both ways. Whole-zone ratings are rounded to
+  begin with, so a half-zone apart is noise, not a dispute.
+- **Deciding:** by the tiers ("Deciding each fact"): an authority's zone is
+  stored; authorities more than a zone apart are `disputed`, for the
+  review. USDA's temperature is only a flag, shown where it's more than a
+  zone from what was decided (pink muhly: NC State zone 5, USDA 7 °F, about
+  8a).
 
 In the app, a garden in the end half-zone of a plant's range (a 7a garden,
 a plant rated from zone 7) is at the edge of its range: still hardy there,
