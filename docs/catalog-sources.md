@@ -23,7 +23,8 @@ down: the rule found, and the date it was checked.
    and only then page by page. Keep to the slowest of: the site's crawl
    delay, our pace for that source, or 1 request every 2 seconds. Our paces
    are in `SOURCE_PACE` (scripts/catalog/fetch-lib.mjs): USDA 2 s; NC State,
-   Minnesota Wildflowers and the Arkansas atlas 5 s. A source not listed
+   Minnesota Wildflowers, the Arkansas atlas, the Tallamy download and
+   pages found by search ("Searching the web") 5 s. A source not listed
    there isn't fetched.
 
 What we take is facts (a zone range, a height, a bloom season), written in
@@ -148,7 +149,7 @@ It's an upper bound on pages we'd use.
 | **Tennessee Smart Yards Native Plant Database** (tynnativeplants.wordpress.com, linked from UT's tnyards.utk.edu) | Light, moisture, soil, height, bloom season, Tennessee region, wildlife | about 130 | WordPress.com defaults (UT's own site: crawl delay 30). No terms found. Confirm UT owns it before use. WordPress.com's own robots.txt applies too (its parent host). |
 | **Clemson HGIC**, **LSU AgCenter**, **Alabama Extension** (crawl delay 2), **Wisconsin Horticulture**, **Penn State** (crawl delay 10), **Purdue** (crawl delay 3), **UMD**, **UNH**, **UVM**, **Missouri, Ohio State and Maine Extension** | Narrative fact sheets | small each | © notices, or statements about copying the material. |
 | **Oregon State Landscape Plants** (crawl delay 10), **Colorado State Extension**, **Plant Select**, **Conservation Garden Park** (Utah), **AMWUA** (Arizona), **Texas SmartScape** | Zones, size, sun, water, soil; Plant Select and Conservation Garden Park add deer, pollinators and (CGP) **bloom months** | small to medium | © notices only. Plant Select asks permission for stories and photos, which we don't use. |
-| **Shropshire & Tallamy 2025** caterpillar host-plant dataset (University of Delaware) | Which caterpillars use which plant genera, 7,423 species | genus level | CC0 at the university's repository (the journal's copy says ODbL, which allows commercial use with credit). |
+| **Shropshire & Tallamy 2025** caterpillar host-plant dataset (University of Delaware) | Which caterpillars use which plant genera, 7,423 species | genus level | CC0 at the university's repository and on Zenodo (record 17747343, the copy we read); the journal's copy says ODbL, which allows commercial use with credit. |
 | **Virginia DCR Native Plant Finder** | About 1,600 natives with sun, moisture and pollinator flags, offered as CSV | not measured | Allowed. Copyright notice, with fair use granted and a request asked when in doubt (web@dcr.virginia.gov): a courtesy note before use. |
 | **Kew World Checklist of Vascular Plants** | Accepted names and native range worldwide | all species | CC BY. Confirm the range table is in the download. |
 
@@ -186,6 +187,44 @@ By hand only after each site's terms are read.
 - **Terms forbid it:** Sunset Western Garden (its zones are proprietary),
   Garden.org.
 
+## Searching the web
+
+For the sources no list names, the audit searches the web for each plant,
+the way a person compiling this by hand would, and reads what it finds by
+the same rules as every other source (scripts/catalog/search.mjs).
+
+1. **Search.** Brave's Search API, two queries a plant (its name, and its
+   name with "hardiness zone height spread sun"), at most one a second.
+   **Brave's terms forbid storing results** except transiently, and using
+   them to train AI. So results live only in the script's memory: their
+   URLs go to the fetcher, and what's kept is the pages we fetch ourselves
+   and the facts read from them, each citing its page. The key is read from
+   `BRAVE_API_KEY` or `~/.config/fullgrown/brave-key`, never committed or
+   logged.
+2. **Pick.** Up to 10 pages a plant, one a site. Left out: the sites in
+   this document's closed, ask-first and not-used lists; crowd-sourced and
+   AI-written sites (Wikipedia, Dave's Garden, iNaturalist…); marketplaces
+   and social media; and pages read another way already (NC State's
+   toolbox, Minnesota Wildflowers, USDA).
+3. **Terms.** Each new site's terms are read by pattern, the same reading as
+   "How terms are read", cautiously: its home page's links to terms, legal
+   or copyright pages, else the usual places (`/terms`,
+   `/terms-of-use`, `/policies/terms-of-service`…). A sentence banning
+   robots, scrapers, crawlers or automated access closes it (**not by
+   bot**); one banning commercial use or a database of its content makes it
+   **ask first**. Either way its pages aren't read. A site with no terms to
+   find is read, as "No terms found" sources are above. The reading and the
+   sentence that decided it are kept in `catalog-src/site-terms.json`, and a
+   site we lean on has its terms read by a person before launch.
+4. **Fetch.** Through the fetcher: robots.txt, pace (`web`: 5 s a site),
+   refusals and the honest user agent, as for every source. Redirects
+   within a site are followed, each one fetched by the same rules.
+5. **Read.** Only labeled spec lines ("Hardiness Zones: 5–9", "Mature
+   Height: 3–4 ft", "Light: Full sun to part shade"), never prose, and only
+   from a page that names the plant (for a cultivar, the cultivar's name).
+   A cultivar's size, form and flower color come only from a page for the
+   cultivar.
+
 ## Paid licenses
 
 Checked 2026-10-17. No paid source found both covers our facts well and
@@ -213,46 +252,90 @@ plainly lets a paid app ship its data.
 
 ## Deciding each fact
 
-For each fact, one source **decides**: its value is what the catalog
-stores. Another, independent source **checks** it. Two sources aren't
-independent when one is compiled from the other (many extension sheets cite
-USDA or NC State).
+Agreed 2026-10-18: more sources, sorted by what a wrong value costs. Each
+fact belongs to one of three tiers, and each source is one of four kinds.
 
-The table below names the national sources. Regional sources from the
-"Use now" list check any fact they give, and decide where the national
-sources are silent, with `at` set to their state for facts that depend on
-place (bloom months, water).
+**Kinds of source.**
+- **Authority:** extension services (.edu, .gov), botanical gardens and
+  arboreta, state floras and atlases.
+- **Breeder:** the company that bred or introduced a cultivar (Proven
+  Winners, Monrovia, First Editions…). Its primary source for that cultivar's
+  own traits. On a species it counts as a nursery.
+- **Nursery:** a retail grower or shop.
+- **Blog:** anything else that is open to us: garden writers, societies'
+  articles, magazines.
+
+**Tiers.**
+- **Safety** (toxicity, invasiveness, native status): authorities only.
+  These are what could hurt someone or expose us to liability; a value from
+  a shop or blog never stands in.
+- **Survival** (zones, sun, water, size, soil, deer): an authority decides.
+  Where none has it: a breeder for its own cultivar; then retail nurseries,
+  where most agree (`likely`) or one says it (`reported`).
+- **Description** (form, bloom, flower color, fall color, wildlife,
+  edibility): any source, highest kind first.
+
+**How sure.** Each fact gets a `check`:
+- `confirmed`: an authority decides, and an independent source agrees.
+- `single`: one authority, nothing else.
+- `likely`: no authority; most of the independent lower-kind sources that
+  give it agree.
+- `reported`: one lower-kind source.
+- `disputed`: authorities disagree; or below them, there's no majority.
+Lower-kind sources that disagree with the decider are kept as notes for the
+review. (`likely` and `reported` wait on the format change that adds them:
+see "Waiting on format changes".)
+
+**Independent.** Copies count once. Two pages with the same longest
+paragraph are one source, wherever they're published, and so are two
+pages on one site. A source compiled from another (many extension sheets
+cite USDA or NC State) isn't independent of it.
+
+**USDA PLANTS** describes species as they grow wild, and its own notes call
+its garden figures approximations. So its temperature, shade and moisture
+values are **flags only**: shown to the review where they differ from what
+was decided (zones by more than a whole zone), never deciding or checking.
+The exception is native status, where USDA is the national authority and
+decides.
+
+**Agreement.** Zones agree within one whole zone (10 °F); sizes when the
+ranges overlap, with a quarter's give; lists (colors, seasons, hosts) when
+they share a word.
+
+**Water** is what a plant needs, not what it tolerates. From NC State's
+soil fields: **High** where it grows wet (frequent standing water, or
+occasionally wet without good drainage); **Low** where it takes real dry
+(very dry, or drought-tolerant and occasionally dry, without moist soil
+listed); **Moderate** otherwise. Witch hazel (moist to occasionally wet,
+good drainage) is Moderate; red oak (occasionally dry, good drainage, moist)
+Moderate.
+
+**Caterpillar hosts** come from every source that says so: tables, and
+sentences naming a host ("larval host for the X (Genus species)",
+"host plant for the X butterfly"). The Shropshire & Tallamy dataset (CC0)
+adds the caterpillars recorded on each plant genus, as its own fact
+(`host_genus`: how many native species use the genus, how many of those
+live in Arkansas, and those butterflies by name), since it's genus-level.
+scripts/catalog/tallamy.py builds the index from the spreadsheet on Zenodo
+(record 17747343, CC0). The `host` fact is the list of names, never a
+source's sentence.
+
+The table below names the national sources' fields and how they map.
+Regional sources from the "Use now" list are authorities like them, with
+`at` set to their state for facts that depend on place (bloom months,
+water).
 
 - **Facts that depend on place** differ by region without anyone being
   wrong, so they're never `disputed` against each other. They wait for the
   "Values by region" format change, which keeps each region's value.
-- **Other facts** (zones, size, sun, native status) where regional sources
-  disagree and no national source decides: `disputed`, stored as `null`
-  until the review picks one. None is picked silently. The
-20-plant sample settles how each source's fields map.
-
-- **Both agree:** `check: "agree"`, both in `src`.
-- **They differ:** the deciding source's value, `check: "disputed"`, both
-  in `src`, and the fact goes on the review list. (Zones differ; see below.)
-- **Only the deciding source has it:** `check: "single"`.
-- **Only the checking source has it:** it stands in, `single`, but only
-  where the table says it may.
-- **Neither has it:** the fact is `null`.
 - **Neither yes nor no is listed:** the fact is `null`, never `false`.
 - **No source gives the fact's scale:** the fact is `null`. A source that
   only lists whether something applies (NC State's "Attracts: Bees") never
   becomes a level such as High or None.
 
 Facts entered **by hand** from a source that allows it (MOBOT, for now) count
-as an independent source. They can check any fact and give `agree`, and where
-neither USDA nor NC State has a fact, they decide it (`single`). That includes
-bloom months, with `at` set to the source's state ("MO" for MOBOT).
-
-USDA PLANTS describes species as they grow wild or in conservation
-plantings, and its own notes call the values approximations. NC State
-describes garden plants, cultivars included. So for anything a garden
-changes (size above all), USDA neither confirms NC State nor stands in for
-it.
+as an independent authority, with `at` set to the source's state for bloom
+months ("MO" for MOBOT).
 
 | Fact | Decides | Checks | USDA stands in? | Rule |
 | --- | --- | --- | --- | --- |
@@ -263,7 +346,7 @@ it.
 | `zone_max` | NC State | — | No | |
 | `sun_least` | NC State light | USDA shade tolerance | Yes | Map USDA's distinct shade-tolerance values only after listing them from the 20-plant sample. They often differ from NC State: redbud is "Low" at USDA, and NC State lists part shade. |
 | `sun_most` | NC State light | — | No | |
-| `water` | NC State soil drainage and drought tolerance | USDA moisture use and drought tolerance | Yes | `Wetland` where USDA's National Wetland Plant List indicator is OBL or FACW in every region it lists for the plant. The rest of the mapping is set on the 20-plant sample and written here before any other plant. |
+| `water` | NC State soil drainage and drought tolerance | USDA moisture use (a flag) | No | The water rule above. `Wetland` where USDA's National Wetland Plant List indicator is OBL or FACW in every region it lists for the plant. |
 | `bloom` | NC State | USDA | Yes | Seasons only: see "Waiting on format changes". |
 | `native` | USDA native status and state distribution | — | — | `single`. NC State's region of origin often comes from USDA, so it isn't independent. Waiting on a format change. |
 | `invasive` | USDA invasive and noxious lists | — | — | Waiting on a format change and a sourced rule for "widely invasive". |
@@ -271,7 +354,7 @@ it.
 | Toxicity to dogs, cats, horses | — | — | — | No usable source yet. NC State's poison facts are about people, and toxicity to people doesn't stand in for pets. |
 | `deer` | NC State resistance list | — | No | Listed for deer → `Resistant`. Otherwise `null`. |
 | `nectar`, `bird` | — | — | — | `null`: neither source gives a level. |
-| `host` | NC State "Wildlife Value" | — | No | Only where it says the plant is a larval host. Stored as the butterflies or moths it names, or the count it gives ("12 Lepidoptera species"), never its sentence. |
+| `host` | Every source that names one; Shropshire & Tallamy by genus | — | No | Only where a source says the plant is a larval host. Stored as the butterflies or moths it names, never its sentence. |
 | `edible` | NC State "Plant Type" tag Edible | USDA "Palatable Human" | No | The tag, not the free-text "Edibility" note. |
 | `fall_color` | NC State "Deciduous Leaf Fall Color" | — | No | USDA's "Fall Conspicuous" is about the plant overall in fall, not leaf color (redbud: No at USDA, gold at NC State). |
 | `clay_ok` | NC State soil texture | USDA fine-textured soils | Yes | |
@@ -311,6 +394,14 @@ rated 4b is stored as 5. Storing half-zones would be another format change.
 
 Each of these is its own pull request with a migration, before the audit
 writes that fact.
+
+- **How sure.** `check` holds `agree`, `disputed` or `single` today. The
+  tiers add `confirmed` (for `agree`), `likely` and `reported`, and the app
+  labels a `likely` or `reported` fact as from nurseries rather than an
+  authority.
+- **Sources by the hundred.** Search finds many sites, so a fact's `src`
+  names sites (`provenwinners.com`), and `meta.sources` gets an entry for
+  each, with its kind.
 
 - **Bloom seasons.** The national sources give seasons, not months, and
   the months a season covers shift with place, so turning one into months

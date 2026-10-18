@@ -1,4 +1,5 @@
 // Turning saved source pages into labeled facts (docs/catalog-sources.md).
+import { hostNames } from './claims.mjs';
 // Each reader keeps only the fields the audit reads, as short labels and
 // values: never descriptions or other prose.
 
@@ -37,9 +38,9 @@ export function ncsuFields(html) {
       continue;
     }
     if (NCSU_TEXT.includes(label)) {
-      // Wildlife Value: only "N species of … larval host", as a count.
-      const host = /(\d+)\s+species\s+of\s+(Lepidoptera|butterfl\w*|moths?)[^.]*larval host/i.exec(values.join(' '));
-      if (host) out['Larval host for'] = [`${host[1]} Lepidoptera species`];
+      // Wildlife Value: only the caterpillar hosts it names, as names (never the text).
+      const names = hostNames(values.join(' '));
+      if (names.length) out['Larval hosts'] = names;
       continue;
     }
     // (Light values carry NC State's definitions in parentheses: only the name is kept.)

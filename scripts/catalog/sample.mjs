@@ -1,37 +1,26 @@
 // Build the side-by-side for a set of catalog plants from pages already in
 // catalog-src/ (fetch them first with fetch.mjs):
-//   node scripts/catalog/sample.mjs <sample.json> <atlas.txt> <out.json>
+//   node scripts/catalog/sample.mjs <sample.json> <atlas.txt> <out.json> [extra-claims.json]
 // <sample.json>: [{ id, species, ncsu?: slug, mnwild?: url path, ... }]
 // <atlas.txt>: the Arkansas atlas PDF as `pdftotext -layout` text.
 // A page whose botanical name doesn't match the plant is left out, and said so.
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { cacheName } from './fetch-lib.mjs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { savedPage } from './pages.mjs';
 import { arkatlasStatus, mnwildFields, ncsuFields, usdaFields } from './extract.mjs';
-import { mapPlant } from './map.mjs';
+import { arkatlasClaims, combine, mnwildClaims, ncsuClaims, tallamyClaims, usdaClaims } from './claims.mjs';
 
-const [samplePath, atlasPath, outPath] = process.argv.slice(2);
+const [samplePath, atlasPath, outPath, extraPath] = process.argv.slice(2);
+/** Claims gathered elsewhere (the web search, the Tallamy data), by plant id. */
+const extraClaims = extraPath && existsSync(extraPath) ? JSON.parse(readFileSync(extraPath, 'utf8')) : {};
 const sample = JSON.parse(readFileSync(samplePath, 'utf8'));
 const atlas = readFileSync(atlasPath, 'utf8');
+// Shropshire & Tallamy by host genus (scripts/catalog/tallamy.py builds it from their spreadsheet).
+const TALLAMY = 'catalog-src/tallamy/genera.json';
+const tallamy = existsSync(TALLAMY) ? JSON.parse(readFileSync(TALLAMY, 'utf8')) : null;
 const catalog = JSON.parse(readFileSync('public/plants.json', 'utf8'));
 const byId = new Map(catalog.plants.map((p) => [p.id, p]));
 
-/** The newest saved copy of a URL, or null. */
-function page(source, url) {
-  const dir = join('catalog-src', source);
-  if (!existsSync(dir)) return null;
-  const name = cacheName(url);
-  for (const d of readdirSync(dir).sort().reverse()) {
-    const f = join(dir, d, name);
-    if (!existsSync(f) || !existsSync(f + '.meta.json')) continue;
-    const meta = JSON.parse(readFileSync(f + '.meta.json', 'utf8'));
-    if (meta.url !== url) continue;
-    // (Decoded as the server said: Minnesota Wildflowers sends ISO-8859-1.)
-    const latin = /charset="?(iso-8859-1|windows-1252|latin1)/i.test(meta.type ?? '');
-    return { text: new TextDecoder(latin ? 'windows-1252' : 'utf-8').decode(readFileSync(f)), fetched: d, url };
-  }
-  return null;
-}
+const page = (source, url) => savedPage(source, url);
 const json = (p) => { try { return p ? JSON.parse(p.text) : null; } catch { return null; } };
 const sameName = (a, b) => a && b && a.toLowerCase().replace(/\s+/g, ' ').startsWith(b.toLowerCase());
 
@@ -76,15 +65,17 @@ for (const s of sample) {
   if (s.genusOnly) notes.push('Arkansas atlas not looked up (no species name)');
   else if (!ar) notes.push(`Not found under ${s.species} on the Arkansas atlas's map pages`);
   else if (ar.uncertain) notes.push(`The Arkansas atlas maps ${s.species} more than once with different status: left for the review`);
-  const mapped = mapPlant({ ncsu, usda, mnwild, arkatlas: ar });
-  // A cultivar record read from a species page: size and flower color are the cultivar's own, so they stay unknown.
+  // Claims from each source, combined by tier (docs/catalog-sources.md).
   const cultivar = /'[^']+'/.test(`${rec?.common ?? ''} ${rec?.botanical ?? ''}`);
   const slugOf = (t) => t.toLowerCase().replace(/×/g, 'x').replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   const speciesPage = seen.ncsu && (s.ncsuName || s.genusOnly || s.ncsu === slugOf(s.species));
-  if (cultivar && (speciesPage || !seen.ncsu)) {
-    for (const k of ['height', 'width', 'flower_color']) mapped[k] = null;
-    notes.push('A cultivar read from species pages: its size and flower color stay unknown until a page for the cultivar is found');
-  }
+  const claims = [
+    ...ncsuClaims(ncsu).map((c) => ({ ...c, cultivarPage: !!seen.ncsu && !speciesPage })),
+    ...mnwildClaims(mnwild), ...arkatlasClaims(ar), ...usdaClaims(usda), ...tallamyClaims(tallamy, s.species),
+    ...(extraClaims[s.id] ?? []),
+  ];
+  const mapped = combine(claims, { cultivar });
+  if (cultivar && (speciesPage || !seen.ncsu)) notes.push('A cultivar read from species pages: its size, form and flower color come only from a page for the cultivar');
   out.push({ id: s.id, common: rec?.common, botanical: rec?.botanical, species: s.species, compendium: rec?.facts ?? {}, sources: seen, raw: { ncsu, usda, mnwild, arkatlas: ar }, facts: mapped, notes });
 }
 writeFileSync(outPath, JSON.stringify(out, null, 1));
