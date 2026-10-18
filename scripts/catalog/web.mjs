@@ -296,10 +296,10 @@ export function termsKey(host) {
 }
 /** Platforms whose own terms show up in footers (reCAPTCHA, payments): not the site owner's. */
 const PLATFORMS = /(?:^|\.)(?:google|gstatic|recaptcha|paypal|shopify|shop\.app|apple|facebook|instagram|klaviyo|yotpo|affirm|afterpay|klarna|stripe|squareup|square|amazon|cloudflare|wix|squarespace|godaddy|bigcommerce|youtube|twitter|x|pinterest)\.(?:com|net|app|co)$/;
-const TERMS_TEXT = /\bterms\b|conditions of (?:use|sale)|\blegal\b|copyright|site polic|website polic|disclaimer|digital rights/;
-const TERMS_PATH = /(?:^|[\/_-])(?:terms|tos|legal|conditions-of-use|copyright|site-policies|disclaimer)(?:[\/_.-]|$)/;
+const TERMS_TEXT = /\bterms\b|conditions of (?:use|sale)|\blegal\b|copyright|\bpolicies\b|site polic|website polic|disclaimer|digital rights|licen[cs]e|acceptable use|(?:image|photo|content) use/;
+const TERMS_PATH = /(?:^|[\/_-])(?:terms|tos|legal|conditions-of-use|copyright|policies|site-policies|disclaimer|licen[cs]e|acceptable-use)(?:[\/_.-]|$)/;
 /** How much a link looks like the terms of use (not of sale or shipping). */
-const termsRank = (text, path) => (/terms of (?:use|service)|terms (?:&|and) conditions|conditions of use|website terms|site terms|legal|copyright|user agreement/.test(text + ' ' + path.replace(/[-_\/]/g, ' ')) ? 2 : 0)
+const termsRank = (text, path) => (/terms of (?:use|service)|terms (?:&|and) conditions|conditions of use|website terms|site terms|legal|copyright|user agreement|licen[cs]e|acceptable use/.test(text + ' ' + path.replace(/[-_\/]/g, ' ')) ? 2 : 0)
   - (/sale|shipping|guarantee|warranty|return|refund|reward|gift|loyalty|promo|sweepstake|contest|privacy|cookie/.test(text + ' ' + path) ? 1 : 0);
 /** Places a site's terms usually live, to try when its home page links none. */
 export const TERMS_GUESSES = ['/terms', '/terms-of-use', '/terms-of-service', '/policies/terms-of-service', '/terms-and-conditions'];
@@ -329,6 +329,8 @@ export function termsLinks(html, pageUrl) {
     const saysTerms = TERMS_TEXT.test(text) && !/glossary/.test(text) && text.length <= 60;
     const pathTerms = TERMS_PATH.test(path) && !/glossary/.test(path);
     if (!(saysTerms || (sameSite && pathTerms))) continue;
+    // A privacy or cookie policy alone isn't terms of use (a "Privacy & Terms" page is read).
+    if (/privacy|cookie/.test(text + ' ' + path) && !/terms|legal|licen[cs]e|copyright|conditions/.test(text + ' ' + path)) continue;
     if (found.some((f) => f.url === u.href)) continue;
     found.push({ url: u.href, rank: termsRank(text, path) + (sameSite ? 0.5 : 0) });
   }

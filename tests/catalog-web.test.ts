@@ -157,6 +157,9 @@ describe("reading a site's terms", () => {
     expect(links[0]).toBe('https://www.shop.com/pages/terms-of-use');
     expect(links).toContain('https://www.shop.com/x');
     expect(links).not.toContain('https://policies.google.com/terms');
+    // Policies, licence and image-use pages are read too; a privacy policy alone isn't.
+    const more = termsLinks('<a href="/policies">Policies</a><a href="/licence">Licence</a><a href="/privacy-policy">Privacy Policy</a><a href="/image-use">Image use policy</a>', 'https://www.site.org/');
+    expect(more.sort()).toEqual(['https://www.site.org/image-use', 'https://www.site.org/licence', 'https://www.site.org/policies']);
   });
   it('reads each owner on a shared host as its own site', () => {
     expect(termsKey('foo.wordpress.com')).toBe('foo.wordpress.com');

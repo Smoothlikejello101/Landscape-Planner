@@ -216,7 +216,8 @@ the same rules as every other source (scripts/catalog/search.mjs).
    decided it. **A site is read only when that record says its terms allow
    it**; one not yet reviewed is left out of the run. For each new site the
    run fetches its home page and the terms pages it links (up to six, the
-   terms of use first, never a platform's own such as reCAPTCHA's or a
+   terms of use first, then legal, policies, licence and copyright pages; a
+   privacy policy alone isn't read as terms; never a platform's own such as reCAPTCHA's or a
    payment provider's), or the usual addresses (`/terms`,
    `/terms-of-use`, `/policies/terms-of-service`…) when it links none, and
    writes a review packet: each page's opening and the passages about
@@ -244,7 +245,8 @@ the same rules as every other source (scripts/catalog/search.mjs).
    When unsure, it isn't **open**. A site we lean on is also read by Jason
    before launch.
 4. **Fetch.** Through the fetcher: robots.txt, pace (`web`: 5 s a site),
-   refusals and the honest user agent, as for every source. Redirects
+   refusals and the honest user agent, as for every source. Up to eight
+   sites are read at once, each still one request at a time at its pace. Redirects
    within a site are followed, each one fetched by the same rules.
 5. **Read.** Only labeled spec lines ("Hardiness Zones: 5–9", "Mature
    Height: 3–4 ft", "Light: Full sun to part shade"), never prose; a
