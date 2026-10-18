@@ -100,28 +100,52 @@ export async function lookUpZip(zip: string, fetcher: typeof fetch = fetch): Pro
 }
 
 // ---------- Plants and zones ----------
+// Zones on a half-zone scale: 7a is 7, 7b is 7.5. A plant's zone_min is the
+// coldest half-zone it takes (a whole-zone rating "7" is 7: all of zone 7);
+// its zone_max is the warmest half-zone it takes (a whole-zone "9" is 9.5:
+// all of zone 9, through 9b).
+
 /** The whole-number zone ("8a" → 8). */
 export const zoneNumber = (zone: string) => parseInt(zone, 10);
+/** A garden's zone on the half-zone scale ("8a" → 8, "8b" → 8.5). */
+export const halfZone = (zone: string) => parseInt(zone, 10) + (/b$/i.test(zone.trim()) ? 0.5 : 0);
+export type ZoneFit = 'fits' | 'edge-cold' | 'edge-warm' | 'cold' | 'warm';
 /**
- * Whether a plant is rated for the garden's zone: 'fits', 'cold' (the
- * garden's winters are colder than it's rated for), 'warm' (warmer: it may
- * lack the winter chill or summer cool it needs), or null if either is unknown.
+ * Whether a plant is rated for the garden's zone:
+ * - 'fits': inside its range with at least half a zone to spare;
+ * - 'edge-cold' / 'edge-warm': within half a zone of the end of its range,
+ *   either side (a 7a garden and a plant rated to zone 7, or to 7b): worth
+ *   growing with care;
+ * - 'cold': the garden's winters are colder than that; 'warm': warmer (it
+ *   may lack the winter chill or summer cool it needs);
+ * - null if either is unknown.
  */
-export function zoneFit(p: { zone_min?: number; zone_max?: number }, loc: GardenLocation | null | undefined): 'fits' | 'cold' | 'warm' | null {
+export function zoneFit(p: { zone_min?: number; zone_max?: number }, loc: GardenLocation | null | undefined): ZoneFit | null {
   if (!loc) return null;
   const lo = typeof p.zone_min === 'number' ? p.zone_min : null, hi = typeof p.zone_max === 'number' ? p.zone_max : null;
   if (lo == null && hi == null) return null;
-  const z = zoneNumber(loc.zone);
-  if (lo != null && z < lo) return 'cold';
-  if (hi != null && z > hi) return 'warm';
+  const g = halfZone(loc.zone);
+  const cold = lo != null ? g - lo : Infinity, warm = hi != null ? hi - g : Infinity;
+  if (cold <= -1) return 'cold';
+  if (warm <= -1) return 'warm';
+  if (cold <= 0) return 'edge-cold';
+  if (warm <= 0) return 'edge-warm';
   return 'fits';
 }
-/** "zones 5–9" */
+/** Whether a fit counts as hardy there (the edges do, marked). */
+export const hardyEnough = (fit: ZoneFit | null) => fit === 'fits' || fit === 'edge-cold' || fit === 'edge-warm';
+/** A plant's coldest and warmest zones as people write them: 7 (all of zone 7) or 7b; 9 (through 9b) or 9a. */
+const lowName = (z: number) => (z % 1 ? `${Math.floor(z)}b` : `${z}`);
+const highName = (z: number) => (z % 1 ? `${Math.floor(z)}` : `${z}a`);
+/** "zones 5–9", "zones 7b–9", "zone 8" */
 export function zoneRange(p: { zone_min?: number; zone_max?: number }): string | null {
   const lo = typeof p.zone_min === 'number' ? p.zone_min : null, hi = typeof p.zone_max === 'number' ? p.zone_max : null;
   if (lo == null && hi == null) return null;
-  if (lo != null && hi != null) return lo === hi ? `zone ${lo}` : `zones ${lo}–${hi}`;
-  return lo != null ? `zone ${lo} and warmer` : `zone ${hi} and colder`;
+  if (lo != null && hi != null) {
+    const a = lowName(lo), b = highName(hi);
+    return a === b ? `zone ${a}` : `zones ${a}–${b}`;
+  }
+  return lo != null ? `zone ${lowName(lo)} and warmer` : `zone ${highName(hi as number)} and colder`;
 }
 
 // ---------- Showing ----------

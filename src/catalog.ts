@@ -119,14 +119,15 @@ const isRange = (v: unknown) => {
   const keys = Object.keys(v);
   return keys.length > 0 && keys.every((k) => ['min', 'max', 'med'].includes(k) && typeof v[k] === 'number' && (v[k] as number) > 0);
 };
+const isHalfZone = (v: unknown) => typeof v === 'number' && Number.isInteger(v * 2) && v >= 1 && v <= 13.5;
 const isMonth = (v: unknown) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 12;
 /** Fact types: what a value must look like. Unknown fact names are errors (typos). */
 const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) => boolean> = {
   form: (v, e) => typeof v === 'string' && (!e.form || e.form.includes(v)),
   habit: (v) => typeof v === 'string',
   height: isRange, width: isRange,
-  zone_min: (v) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 13,
-  zone_max: (v) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 13,
+  // (Half-zone scale: 7a is 7, 7b is 7.5; see src/climate.ts.)
+  zone_min: (v) => isHalfZone(v), zone_max: (v) => isHalfZone(v),
   sun_most: (v) => SUN.includes(v as string), sun_least: (v) => SUN.includes(v as string),
   water: (v, e) => typeof v === 'string' && (!e.water || e.water.includes(v)),
   bloom: (v) => isObj(v) && Object.keys(v).every((k) => ['start', 'end', 'color'].includes(k))

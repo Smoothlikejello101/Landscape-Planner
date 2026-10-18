@@ -415,11 +415,14 @@ function plantLinkSection(s: CircleShape): HTMLElement {
   const zones = zoneRange(p);
   if (zones) {
     const fit = zoneFit(p, state.location);
+    const z = state.location?.zone;
     wrap.appendChild(el('div', { className: 'hint' + (fit && fit !== 'fits' ? ' zone-warn' : ''), 'data-testid': 'plant-zones' },
       `Hardy in ${zones}.` + (!state.location ? ' (Set the garden’s ZIP in ⋮ → Garden location to check.)'
-        : fit === 'fits' ? ` Fine for zone ${state.location.zone}.`
-        : fit === 'cold' ? ` Zone ${state.location.zone} winters are colder than it’s rated for.`
-        : ` Zone ${state.location.zone} is warmer than it’s rated for: it may lack the winter chill or cool summers it needs.`)));
+        : fit === 'fits' ? ` Fine for zone ${z}.`
+        : fit === 'edge-cold' ? ` Zone ${z} is at the cold edge of its range: give it a sheltered spot and mulch its roots for winter.`
+        : fit === 'edge-warm' ? ` Zone ${z} is at the warm edge of its range: give it afternoon shade and steady water in summer.`
+        : fit === 'cold' ? ` Zone ${z} winters are colder than it’s rated for.`
+        : ` Zone ${z} is warmer than it’s rated for: it may lack the winter chill or cool summers it needs.`)));
   }
   if (p.unverified) wrap.appendChild(el('div', { className: 'hint', 'data-testid': 'plant-unverified' }, "Unverified: this plant's details come from an older list with no sources, and haven't been checked yet."));
   const row = el('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' } });

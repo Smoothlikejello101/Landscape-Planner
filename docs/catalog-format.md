@@ -85,7 +85,7 @@ hasn't been looked up.
 | `form` | one of `meta.enums.form` |
 | `habit` | free text, e.g. "Clumping" |
 | `height`, `width` | `{ min, max, med }` feet |
-| `zone_min`, `zone_max` | USDA hardiness zones, 1 to 13 |
+| `zone_min`, `zone_max` | USDA hardiness zones on a half-zone scale (7a is 7, 7b is 7.5), 1 to 13.5. `zone_min` is the coldest half-zone it takes (a whole-zone rating "7" is 7); `zone_max` is the warmest (a whole-zone "9" is 9.5, through 9b; "9a" is 9) |
 | `sun_most`, `sun_least` | `Full`, `Part`, `Shade`: the most and least sun it takes |
 | `water` | `Low`, `Moderate`, `High`, `Wetland` |
 | `bloom` | `{ start, end, color? }`, months 1 to 12 |
