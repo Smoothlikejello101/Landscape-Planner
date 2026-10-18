@@ -54,5 +54,6 @@ export function lockCatalogSrc(root = 'catalog-src') {
     console.error(`catalog-src/ is locked (${lock}, by process ${readFileSync(lock, 'utf8').trim() || '?'}). If no catalog run is going, delete that file and start again.`);
     process.exit(1);
   }
+  for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, () => process.exit(130)); // (so the lock goes with a stopped run)
   process.on('exit', () => { try { if (readFileSync(lock, 'utf8') === String(process.pid)) rmSync(lock); } catch { /* gone already */ } });
 }

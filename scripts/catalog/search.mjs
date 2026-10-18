@@ -126,9 +126,16 @@ const registry = existsSync(REGISTRY) ? JSON.parse(readFileSync(REGISTRY, 'utf8'
 const pending = new Map(); // key → home URL
 for (const { urls } of picks.values()) for (const u of urls) { const k = keyOf(u); if (!registry[k] && !pending.has(k)) pending.set(k, `https://${new URL(u).hostname}/`); }
 mkdirSync(REVIEW_DIR, { recursive: true }); mkdirSync(VERDICT_DIR, { recursive: true });
-const homes = await fetchAll([...pending.values()]);
+// A subdomain's owner usually keeps its terms on the main site too (explorer.natureserve.org, natureserve.org): both are read.
+const rootOf = (home) => { const h = new URL(home).hostname, site = siteOf(h); return termsKey(h) === site && h !== site && h !== `www.${site}` ? `https://${site}/` : null; };
+const homes = await fetchAll([...pending.values()].flatMap((home) => [home, rootOf(home)]).filter(Boolean));
 const linked = new Map();
-for (const [k, home] of pending) { const at = homes.get(home), h = htmlOf(at); linked.set(k, { home: at, html: h, links: h ? termsLinks(h, at) : [] }); }
+for (const [k, home] of pending) {
+  const at = homes.get(home), h = htmlOf(at);
+  const root = rootOf(home), rootAt = root && homes.get(root), rh = rootAt && htmlOf(rootAt);
+  const links = [...new Set([...(h ? termsLinks(h, at) : []), ...(rh ? termsLinks(rh, rootAt) : [])])].slice(0, 6);
+  linked.set(k, { home: at, html: h, root: rootAt, rootHtml: rh, links });
+}
 const found = await fetchAll([...linked.values()].flatMap((r) => r.links));
 for (const guess of TERMS_GUESSES) {
   const want = [...linked].filter(([, r]) => r.html && !r.links.length && !r.guessed).map(([k, r]) => [k, new URL(guess, r.home).href]);
@@ -138,8 +145,13 @@ for (const guess of TERMS_GUESSES) {
 }
 for (const [k, r] of linked) {
   const pages = [...r.links.map((u) => ({ url: u, at: found.get(u) })), ...(r.guessed ? [{ url: r.guessed, at: r.guessed, guessed: true }] : [])];
-  const lines = [`SITE ${k}`, `home: ${r.home ?? '(not fetched)'}`, `home page mentions terms of use/service: ${r.html ? (mentionsTerms(r.html) ? 'yes' : 'no') : '?'}`, ''];
+  const lines = [`SITE ${k}`, `home: ${r.home ?? '(not fetched)'}`, `home page mentions terms of use/service: ${r.html ? (mentionsTerms(r.html) ? 'yes' : 'no') : '?'}`];
+  if (r.root !== undefined && rootOf(pending.get(k))) lines.push(`main site's home: ${r.root ?? '(not fetched)'}`, `main site's home mentions terms of use/service: ${r.rootHtml ? (mentionsTerms(r.rootHtml) ? 'yes' : 'no') : '? (not fetched: then this site is unread)'}`);
+  lines.push('');
   if (!r.html) lines.push('The home page could not be fetched: leave this site unread (verdict "unread").');
+  // The end of each home page, where footers link their terms: a reviewer can see whether terms are named but not linked in a way we could follow.
+  else lines.push("home page's last part (its footer):", plainText(r.html).slice(-1500), '');
+  if (r.rootHtml) lines.push("main site's home page, last part:", plainText(r.rootHtml).slice(-1500), '');
   for (const p of pages) {
     const html = htmlOf(p.at);
     lines.push(`=== ${p.guessed ? 'GUESSED ' : ''}PAGE ${p.url}${p.at && p.at !== p.url ? ` → ${p.at}` : ''}`);
