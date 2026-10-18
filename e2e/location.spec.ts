@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { openFresh } from './helpers';
+import { openFresh, openSections, placeOnceAtCenter } from './helpers';
 
 // The garden's location, from a ZIP code (the tables are stood in for: the
 // real ones are built from official data by scripts/climate/build.mjs).
 
 const TABLE = {
   v: 1, accessed: '2026-10-17',
-  zips: { '71923': ['8a', 0, 3] },
+  zips: { '71923': ['8a', 0, 3], '71901': ['8b', 0, 5] },
   stations: [{ name: 'Arkadelphia 2 N, AR', chance: 100, spring: '03-24', springLate: '04-08', fall: '11-06', fallEarly: '10-24' }],
 };
 
@@ -41,11 +41,47 @@ test('a ZIP gives the zone and frost dates; the plant picker can show only plant
   await page.locator('.tool-btn.plants').click();
   const hardy = page.locator('.sheet label', { hasText: 'Hardy in zone 8a' });
   await expect(hardy).toBeVisible();
-  await page.getByTestId('plant-search').fill('Pagoda dogwood'); // rated for zones 3–7
-  const row = page.locator('.sheet .proj-row', { hasText: 'Pagoda dogwood' });
-  await expect(row).toContainText('zones 3–7 (zone 8a may be too warm)');
+  await page.getByTestId('plant-search').fill('Speckled alder'); // rated for zones 2–6
+  const row = page.locator('.sheet .proj-row', { hasText: 'Speckled alder' });
+  await expect(row).toContainText('zones 2–6 (zone 8a may be too warm)');
+  // Half a zone past the end of its range is outside it: not counted as hardy.
+  await page.getByTestId('plant-search').fill('Pagoda dogwood'); // rated for zones 3–7 (through 7b)
+  const past = page.locator('.sheet .proj-row', { hasText: 'Pagoda dogwood' });
+  await expect(past).toContainText('zones 3–7 (zone 8a may be too warm)');
+  // The end half-zone of its range is its edge: shown as hardy, and marked.
+  await page.getByTestId('plant-search').fill('Oleander'); // rated from zone 8 (8a)
+  const edge = page.locator('.sheet .proj-row', { hasText: 'Oleander' });
+  await expect(edge).toContainText('(at its cold edge in zone 8a)');
   await hardy.locator('input').check();
+  await expect(edge).toHaveCount(1);
+  await page.getByTestId('plant-search').fill('Pagoda dogwood');
+  await expect(past).toHaveCount(0);
+  await page.getByTestId('plant-search').fill('Speckled alder');
   await expect(row).toHaveCount(0);
+  // Placed, its properties say what the edge means.
+  await page.getByTestId('plant-search').fill('Oleander');
+  await edge.click();
+  await placeOnceAtCenter(page);
+  await page.locator('.sel-pill button.edit').click(); await openSections(page);
+  await expect(page.getByTestId('plant-zones')).toHaveText('Hardy in zones 8–11. Zone 8a is at the cold edge of its range: give it a sheltered spot and mulch its roots for winter.');
+});
+
+test('at the warm edge of a plant\'s range: shade, and water unless it wants little', async ({ page }) => {
+  await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TABLE) }));
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('zip-prompt').click();
+  await page.getByTestId('zip').fill('71901');
+  await page.getByTestId('zip-lookup').click();
+  await page.getByTestId('plant-search').fill('Red buckeye'); // rated through zone 8 (8b), moderate water
+  await expect(page.locator('.sheet .proj-row', { hasText: 'Red buckeye' })).toContainText('(at its warm edge in zone 8b)');
+  await page.getByTestId('plant-search').fill('Lead plant'); // rated through zone 8, low water
+  const lead = page.locator('.sheet .proj-row', { hasText: 'Lead plant' });
+  await expect(lead).toContainText('(at its warm edge in zone 8b)');
+  await lead.click();
+  await placeOnceAtCenter(page);
+  await page.locator('.sel-pill button.edit').click(); await openSections(page);
+  await expect(page.getByTestId('plant-zones')).toHaveText('Hardy in zones 3–8. Zone 8b is at the warm edge of its range: give it afternoon shade in summer.');
 });
 
 test('the plant picker offers the ZIP once: from there, back with only plants hardy here', async ({ page }) => {
@@ -59,8 +95,8 @@ test('the plant picker offers the ZIP once: from there, back with only plants ha
   await expect(page.getByTestId('plant-search')).toBeVisible();
   await expect(page.locator('.sheet label', { hasText: 'Hardy in zone 8a' }).locator('input')).toBeChecked();
   await expect(page.locator('#toast')).toContainText('showing plants hardy there');
-  await page.getByTestId('plant-search').fill('Pagoda dogwood'); // rated for zones 3–7
-  await expect(page.locator('.sheet .proj-row', { hasText: 'Pagoda dogwood' })).toHaveCount(0);
+  await page.getByTestId('plant-search').fill('Speckled alder'); // rated for zones 2–6
+  await expect(page.locator('.sheet .proj-row', { hasText: 'Speckled alder' })).toHaveCount(0);
   await expect(page.getByTestId('zip-prompt')).toHaveCount(0);
 });
 

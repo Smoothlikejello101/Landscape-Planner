@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
-import { formatMonthDay, lookUpZip, sanitizeLocation, zoneFit, zoneRange, type ClimateFile } from '../src/climate';
+import { formatMonthDay, hardyEnough, lookUpZip, sanitizeLocation, zoneFit, zoneRange, type ClimateFile } from '../src/climate';
 // @ts-expect-error (plain JavaScript build script)
 import { buildFiles, centersByZip, frostStations, miles, monthDay, stationName, table, zonesByZip } from '../scripts/climate/lib.mjs';
 import { openKV } from '../src/db';
@@ -89,13 +89,47 @@ describe('looking up a ZIP', () => {
 describe('plants and zones', () => {
   const loc = { zip: '71923', zone: '8a' };
   it('a plant fits, is too tender, or may want colder winters', () => {
-    expect(zoneFit({ zone_min: 5, zone_max: 9 }, loc)).toBe('fits');
-    expect(zoneFit({ zone_min: 9, zone_max: 11 }, loc)).toBe('cold');
-    expect(zoneFit({ zone_min: 3, zone_max: 7 }, loc)).toBe('warm');
+    expect(zoneFit({ zone_min: 5, zone_max: 9.5 }, loc)).toBe('fits');
+    expect(zoneFit({ zone_min: 9, zone_max: 11.5 }, loc)).toBe('cold');
+    expect(zoneFit({ zone_min: 3, zone_max: 7 }, loc)).toBe('warm'); // (rated through 7a)
     expect(zoneFit({}, loc)).toBeNull();
-    expect(zoneFit({ zone_min: 5, zone_max: 9 }, null)).toBeNull();
-    expect(zoneRange({ zone_min: 5, zone_max: 9 })).toBe('zones 5–9');
+    expect(zoneFit({ zone_min: 5, zone_max: 9.5 }, null)).toBeNull();
     expect(formatMonthDay('03-24')).toBe('Mar 24');
+  });
+  it('a garden in the end half-zone of a plant\'s range is at its edge; outside it is not', () => {
+    const at = (zone: string, p: { zone_min?: number; zone_max?: number }) => zoneFit(p, { zip: '71923', zone });
+    // Rated from all of zone 7 (7): a 7a garden is at its cold edge, 7b fits, 6b is too cold.
+    expect(at('7a', { zone_min: 7 })).toBe('edge-cold');
+    expect(at('7b', { zone_min: 7 })).toBe('fits');
+    expect(at('6b', { zone_min: 7 })).toBe('cold');
+    // Rated from 7b (7.5): 7b is its edge; 7a is already colder than it's rated for.
+    expect(at('7b', { zone_min: 7.5 })).toBe('edge-cold');
+    expect(at('7a', { zone_min: 7.5 })).toBe('cold');
+    // Rated through zone 9 (9.5): 9a fits, 9b is its warm edge, 10a is too warm.
+    expect(at('9a', { zone_max: 9.5 })).toBe('fits');
+    expect(at('9b', { zone_max: 9.5 })).toBe('edge-warm');
+    expect(at('10a', { zone_max: 9.5 })).toBe('warm');
+    // One half-zone wide: the cold edge says it.
+    expect(at('8a', { zone_min: 8, zone_max: 8 })).toBe('edge-cold');
+    // The ends of the map have nothing beyond them, so no edge there.
+    expect(at('1a', { zone_min: 1, zone_max: 5.5 })).toBe('fits');
+    expect(at('13b', { zone_min: 10, zone_max: 13.5 })).toBe('fits');
+    // Not a zone: unknown, never "fits".
+    expect(at('abc', { zone_min: 5, zone_max: 9.5 })).toBeNull();
+    expect(hardyEnough('edge-cold')).toBe(true);
+    expect(hardyEnough('edge-warm')).toBe(true);
+    expect(hardyEnough('cold')).toBe(false);
+    expect(hardyEnough('warm')).toBe(false);
+    expect(hardyEnough(null)).toBe(false);
+  });
+  it('writes zone ranges as people do', () => {
+    expect(zoneRange({ zone_min: 5, zone_max: 9.5 })).toBe('zones 5–9');
+    expect(zoneRange({ zone_min: 7.5, zone_max: 9 })).toBe('zones 7b–9a');
+    expect(zoneRange({ zone_min: 8, zone_max: 8.5 })).toBe('zone 8');
+    expect(zoneRange({ zone_min: 8, zone_max: 8 })).toBe('zone 8a');
+    expect(zoneRange({ zone_min: 7.5, zone_max: 7.5 })).toBe('zone 7b');
+    expect(zoneRange({ zone_min: 6.5 })).toBe('zone 6b and warmer');
+    expect(zoneRange({ zone_max: 7.5 })).toBe('zone 7 and colder');
   });
   it('anything malformed in a stored location reads as none', () => {
     expect(sanitizeLocation({ zip: '7192', zone: '8a' })).toBeNull();

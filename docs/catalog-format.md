@@ -17,7 +17,8 @@ one decides each fact: [catalog-sources.md](catalog-sources.md).
   "meta": {
     "format": "lp-catalog",
     "version": 2,
-    "updated": "2026-10-17",
+    "zones": "half",
+    "updated": "2026-10-18",
     "sources": {
       "compendium": { "title": "First compendium (2026)", "trust": "unverified" },
       "ncsu": { "title": "NC State Extension Gardener Plant Toolbox", "url": "https://plants.ces.ncsu.edu", "trust": "reference" },
@@ -28,6 +29,12 @@ one decides each fact: [catalog-sources.md](catalog-sources.md).
   "plants": [ { "...": "records, below" } ]
 }
 ```
+
+`meta.zones` is `"half"`: zones are on the half-zone scale (see `zone_min`,
+`zone_max` below). Files from before 2026-10-18 lack it and rated
+`zone_max` in whole zones (9 meant through 9b); the app reads such a file's
+whole-number `zone_max` as half a zone warmer, and `catalog:check` won't
+pass a file without it.
 
 `meta.sources` names every source a fact may cite. `trust` is `reference`
 (a published reference: an extension service, USDA, a botanical garden),
@@ -85,7 +92,7 @@ hasn't been looked up.
 | `form` | one of `meta.enums.form` |
 | `habit` | free text, e.g. "Clumping" |
 | `height`, `width` | `{ min, max, med }` feet |
-| `zone_min`, `zone_max` | USDA hardiness zones, 1 to 13 |
+| `zone_min`, `zone_max` | USDA hardiness zones on a half-zone scale (7a is 7, 7b is 7.5), 1 to 13.5. `zone_min` is the coldest half-zone it takes (a whole-zone rating "7" is 7); `zone_max` is the warmest (a whole-zone "9" is 9.5, through 9b; "9a" is 9) |
 | `sun_most`, `sun_least` | `Full`, `Part`, `Shade`: the most and least sun it takes |
 | `water` | `Low`, `Moderate`, `High`, `Wetland` |
 | `bloom` | `{ start, end, color? }`, months 1 to 12 |

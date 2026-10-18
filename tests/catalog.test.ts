@@ -24,7 +24,7 @@ describe('the shipped catalog', () => {
 
 describe('records', () => {
   const meta: CatalogFile['meta'] = {
-    format: 'lp-catalog', version: 2,
+    format: 'lp-catalog', version: 2, zones: 'half',
     sources: { compendium: { title: 'old', trust: 'unverified' }, mobot: { title: 'Missouri Botanical Garden', trust: 'reference' }, ncsu: { title: 'NC State Extension', trust: 'reference' } },
     enums: { form: ['Shrub', 'Perennial'] },
   };
@@ -81,6 +81,19 @@ describe('records', () => {
     ]);
     expect(catalogErrors({ meta: { ...meta, sources: { x: { title: 'X', trust: 'maybe' as 'reference' } } }, plants: [] })).toEqual(['source x: needs a title and a trust of reference, observation or unverified']);
     expect(catalogErrors({ meta, plants: [species, cultivar] })).toEqual([]);
+    // Zone values: half-zones from 1 (1a) to 13.5 (13b), nothing finer.
+    const z = (v: number) => catalogErrors({ meta, plants: [rec({ id: 'z', facts: { zone_min: v } })] });
+    for (const ok of [1, 7, 7.5, 13.5]) expect(z(ok)).toEqual([]);
+    for (const bad of [0.5, 7.25, 14]) expect(z(bad)).toEqual([`z.zone_min: unexpected value ${bad}`]);
+    // A file must say its zones are on the half-zone scale.
+    const { zones: _z, ...older } = meta;
+    expect(catalogErrors({ meta: older as CatalogFile['meta'], plants: [] })).toEqual(['meta.zones must be "half" (zones on the half-zone scale; see docs/catalog-format.md)']);
+  });
+  it('read an older file\'s whole-zone zone_max as through the b half', () => {
+    const p = rec({ id: 'p', facts: { zone_min: 5, zone_max: 9 } });
+    const { zones: _z, ...older } = meta;
+    expect(resolveCatalog({ meta: older as CatalogFile['meta'], plants: [p] })[0]).toMatchObject({ zone_min: 5, zone_max: 9.5 });
+    expect(resolveCatalog({ meta, plants: [p] })[0]).toMatchObject({ zone_min: 5, zone_max: 9 });
   });
   it('list implausible values for the audit', () => {
     const w = catalogWarnings({ meta, plants: [rec({ id: 'p', common: "Coneflower 'Magnus'", botanical: 'Echinacea purpurea', facts: { form: 'Perennial', height: { min: 30, max: 36 }, zone_min: 9, zone_max: 3 } })] });
@@ -98,12 +111,12 @@ describe('converting the first catalog', () => {
     { id: 'monarda-didyma', common: "Beebalm 'Jacob Cline'", botanical: 'Monarda didyma', host: 'Hermit sphinx' },
     { id: 'monarda-didyma-rw', common: "Beebalm 'Raspberry Wine'", botanical: "Monarda didyma 'Raspberry Wine'" },
     { id: 'panicum-n', common: "Switchgrass 'Northwind'", botanical: 'Panicum virgatum' },
-    { id: 'panicum', common: 'Switchgrass (species)', botanical: 'Panicum virgatum', host: 'Skippers', width: null },
+    { id: 'panicum', common: 'Switchgrass (species)', botanical: 'Panicum virgatum', host: 'Skippers', width: null, zone_min: 4, zone_max: 9 },
     { id: 'panicum-s', common: "Switchgrass 'Shenandoah'", botanical: "Panicum virgatum 'Shenandoah'" },
   ] };
   const out = convertV1(v1, '2026-10-17') as CatalogFile;
   it('keeps every value, sourced to the first compendium and unaudited', () => {
-    expect(out.plants[3]).toEqual({ id: 'panicum', common: 'Switchgrass (species)', botanical: 'Panicum virgatum', src: ['compendium'], audited: null, facts: { host: 'Skippers' } });
+    expect(out.plants[3]).toEqual({ id: 'panicum', common: 'Switchgrass (species)', botanical: 'Panicum virgatum', src: ['compendium'], audited: null, facts: { host: 'Skippers', zone_min: 4, zone_max: 9.5 } });
     expect(catalogErrors(out)).toEqual([]);
   });
   it('links a cultivar only to a record that is clearly its species', () => {
