@@ -21,7 +21,10 @@ down: the rule found, and the date it was checked.
    data grants nothing. It only means nothing forbids taking facts.
 3. **How we read it.** First a download, then an API the site itself uses,
    and only then page by page. Keep to the slowest of: the site's crawl
-   delay, our pace for that source, or 1 request every 2 seconds.
+   delay, our pace for that source, or 1 request every 2 seconds. Our paces
+   are in `SOURCE_PACE` (scripts/catalog/fetch-lib.mjs): USDA 2 s; NC State,
+   Minnesota Wildflowers and the Arkansas atlas 5 s. A source not listed
+   there isn't fetched.
 
 What we take is facts (a zone range, a height, a bloom season), written in
 our own words, each citing its source. Descriptions, photos and notes are
@@ -44,13 +47,20 @@ stop, one pass removes everything taken from it.
 The same reading for every source. We're not lawyers: this is a cautious
 reading, to be checked with one before launch.
 
-**robots.txt.** A 404 or 410 means there is none. Any other error, a
+**robots.txt.** A 404 or 410 means there is none. A redirect is followed
+within the same site, up to five times. Any other error, a
 network failure, or a challenge page in its place ("are you human",
-Cloudflare, Incapsula) counts as disallowing everything. The groups that
+Cloudflare, Incapsula) counts as disallowing everything. So does a
+request that reaches the host but breaks (a TLS failure, a timeout), or that
+this machine's proxy refuses, since it couldn't be checked. Only a host that
+isn't there at all counts as having none: run with all domains allowed, or a
+related host outside the allowed list closes the one we want. The groups that
 apply are `*`, `FullGrownCatalog`, `ClaudeBot`, `Claude-User`,
 `Claude-SearchBot`, `Claude-Web` and `anthropic-ai`. A host that disallows
-the pages we'd read, or blocks a Claude agent from the whole host, is
-**closed to bots**, and so are its subdomains (www.extension.iastate.edu
+the pages we'd read is **closed to bots** for those pages (its own rules
+decide each path, any narrower `Allow` included). One that blocks bots or a
+Claude agent from the whole host (`Disallow: /`) also closes its subdomains,
+whatever it allows on itself (www.extension.iastate.edu
 closes yardandgarden.extension.iastate.edu; ffl-api.ifas.ufl.edu closes
 nothing else at ifas.ufl.edu).
 
@@ -128,7 +138,7 @@ It's an upper bound on pages we'd use.
 | **University of Arkansas Plant of the Week** | Native range, Arkansas nativity, size, bloom in prose, wildlife notes. Narrative, 1,016 articles | about 109 | Allows plant pages. No terms found. |
 | **Atlas of the Vascular Plants of Arkansas** (2013) | Arkansas county distribution; introduced, native, invasive status; 2,892 taxa | about 540 | No robots.txt on its host. "Free download edition. Not for commercial sale": we cite its facts and never ship the PDF. |
 | **UGA "Native Plants for Georgia"** bulletins | Zones, size, native range, habitat, wildlife and host notes, under fixed headings | about 94 (one part) | Allowed. Its footer's copyright page wasn't read. |
-| **Tennessee Smart Yards Native Plant Database** (tynnativeplants.wordpress.com, linked from UT's tnyards.utk.edu) | Light, moisture, soil, height, bloom season, Tennessee region, wildlife | about 130 | WordPress.com defaults (UT's own site: crawl delay 30). No terms found. Confirm UT owns it before use. |
+| **Tennessee Smart Yards Native Plant Database** (tynnativeplants.wordpress.com, linked from UT's tnyards.utk.edu) | Light, moisture, soil, height, bloom season, Tennessee region, wildlife | about 130 | WordPress.com defaults (UT's own site: crawl delay 30). No terms found. Confirm UT owns it before use. WordPress.com's own robots.txt applies too (its parent host). |
 | **Clemson HGIC**, **LSU AgCenter**, **Alabama Extension** (crawl delay 2), **Wisconsin Horticulture**, **Penn State** (crawl delay 10), **Purdue** (crawl delay 3), **UMD**, **UNH**, **UVM**, **Missouri, Ohio State and Maine Extension** | Narrative fact sheets | small each | © notices, or statements about copying the material. |
 | **Oregon State Landscape Plants** (crawl delay 10), **Colorado State Extension**, **Plant Select**, **Conservation Garden Park** (Utah), **AMWUA** (Arizona), **Texas SmartScape** | Zones, size, sun, water, soil; Plant Select and Conservation Garden Park add deer, pollinators and (CGP) **bloom months** | small to medium | © notices only. Plant Select asks permission for stories and photos, which we don't use. |
 | **Shropshire & Tallamy 2025** caterpillar host-plant dataset (University of Delaware) | Which caterpillars use which plant genera, 7,423 species | genus level | CC0 at the university's repository (the journal's copy says ODbL, which allows commercial use with credit). |
