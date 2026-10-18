@@ -1,0 +1,94 @@
+{
+"profile": {
+"Symbol": "CECA4",
+"ScientificName": "<i>Cercis canadensis</i> L.",
+"CommonName": "eastern redbud",
+"Durations": [
+"Perennial"
+],
+"GrowthHabits": [
+"Shrub",
+"Tree"
+],
+"NativeStatuses": [
+{
+"Region": "CAN",
+"Status": "N",
+"Type": "Native"
+},
+{
+"Region": "L48",
+"Status": "N",
+"Type": "Native"
+}
+],
+"HasInvasiveStatuses": false,
+"HasNoxiousStatuses": false
+},
+"characteristics": [
+{
+"PlantCharacteristicName": "Fall Conspicuous",
+"PlantCharacteristicValue": "No"
+},
+{
+"PlantCharacteristicName": "Flower Color",
+"PlantCharacteristicValue": "Purple"
+},
+{
+"PlantCharacteristicName": "Growth Rate",
+"PlantCharacteristicValue": "Slow"
+},
+{
+"PlantCharacteristicName": "Height, Mature (feet)",
+"PlantCharacteristicValue": "30.0"
+},
+{
+"PlantCharacteristicName": "Leaf Retention",
+"PlantCharacteristicValue": "No"
+},
+{
+"PlantCharacteristicName": "Toxicity",
+"PlantCharacteristicValue": "None"
+},
+{
+"PlantCharacteristicName": "Adapted to Fine Textured Soils",
+"PlantCharacteristicValue": "Yes"
+},
+{
+"PlantCharacteristicName": "Anaerobic Tolerance",
+"PlantCharacteristicValue": "None"
+},
+{
+"PlantCharacteristicName": "Drought Tolerance",
+"PlantCharacteristicValue": "High"
+},
+{
+"PlantCharacteristicName": "Moisture Use",
+"PlantCharacteristicValue": "Low"
+},
+{
+"PlantCharacteristicName": "pH, Maximum",
+"PlantCharacteristicValue": "7.9"
+},
+{
+"PlantCharacteristicName": "pH, Minimum",
+"PlantCharacteristicValue": "5.0"
+},
+{
+"PlantCharacteristicName": "Shade Tolerance",
+"PlantCharacteristicValue": "Low"
+},
+{
+"PlantCharacteristicName": "Temperature, Minimum (\u00b0F)",
+"PlantCharacteristicValue": "-28"
+},
+{
+"PlantCharacteristicName": "Bloom Period",
+"PlantCharacteristicValue": "Spring"
+},
+{
+"PlantCharacteristicName": "Palatable Human",
+"PlantCharacteristicValue": "Yes"
+}
+]
+}
