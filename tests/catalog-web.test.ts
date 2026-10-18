@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error (plain JavaScript build script)
-import { aboutPlant, copyKey, looksLikeTerms, pageText, siteKind, siteTerms, sizeIn, sourceOf, termsLinks, termsVerdict, webClaims, webFields } from '../scripts/catalog/web.mjs';
+import { aboutPlant, copyKey, looksLikeTerms, pageText, siteKind, sizeIn, sourceOf, termsKey, termsLinks, termsPassages, termsVerdict, webClaims, webFields } from '../scripts/catalog/web.mjs';
 // @ts-expect-error (plain JavaScript build script)
 import { combine } from '../scripts/catalog/claims.mjs';
 
@@ -14,6 +14,10 @@ describe('which sites the audit reads from search results', () => {
     expect(siteKind('https://shop.example.com/p/x', shop(''))).toBe('nursery');
     expect(siteKind('https://www.provenwinners.com/plants/x', shop(''))).toBe('nursery'); // (breeders read as nurseries, for now)
     expect(siteKind('https://blog.example.com/x', '<p>My garden this spring</p>')).toBe('blog');
+    expect(siteKind('https://blog.example.com/x', '<p>The pruners I use: $24.99. Plant a quantity of seeds. Ships to you free.</p>')).toBe('blog'); // (prices alone aren't a shop)
+    expect(siteKind('https://shop.example.com/x', '<script type="application/ld+json">{"@type": "Product"}</script>')).toBe('nursery');
+    expect(siteKind('https://www.uni.edu/~bob/plants.html')).toBe('blog');
+    expect(siteKind('https://edis.ifas.ufl.edu/x')).toBe('authority');
     for (const closed of [
       'https://www.missouribotanicalgarden.org/x', 'https://plantfinder.mobot.org/x', 'https://www.wildflower.org/x', 'https://en.wikipedia.org/wiki/X',
       'https://garden.org/plants/x', 'https://web.archive.org/web/2024/https://calscape.org/x', 'https://trefle.io/x', 'https://archive.ph/abc',
@@ -58,10 +62,15 @@ describe('reading spec lines', () => {
   it("doesn't mistake temperatures, negations, pot sizes or two sizes for values", () => {
     expect(webFields('Hardiness: 5 to 10 °F')).toEqual({});
     expect(webFields('Hardiness: -20 to -10 F')).toEqual({});
-    expect(webFields('Light: Full sun (does not tolerate shade)')).toEqual({ sun: { most: 'Full', least: 'Full' } });
+    // A value with a qualifier isn't read: a miss is better than a wrong value.
+    for (const v of ['Full sun (does not tolerate shade)', 'Not full sun', 'Shade intolerant', 'Shade tolerant', 'Prefers shade but tolerates sun', 'Full sun except in the South, where afternoon shade helps']) expect(webFields(`Light: ${v}`), v).toEqual({});
+    expect(webFields('Flower Color: White; red stems')).toEqual({});
+    expect(webFields('Bloom Time: Spring (fall foliage color)')).toEqual({});
+    expect(webFields('Deer Resistant: Yes, but browsed when young')).toEqual({});
     expect(webFields('Light: Morning sun, afternoon shade')).toEqual({ sun: { most: 'Part', least: 'Part' } });
     expect(webFields('Light: Sun, part shade, shade')).toEqual({ sun: { most: 'Full', least: 'Shade' } });
-    expect(webFields('Bloom Time: Summer; may rebloom')).toEqual({ bloomSeasons: ['summer'] });
+    expect(webFields('Bloom Time: Summer; may rebloom')).toEqual({}); // (a qualifier: left out)
+    expect(webFields('Bloom Time: Late spring to early summer')).toEqual({ bloomSeasons: ['spring', 'summer'] });
     expect(webFields('Height: 10 years: 6 ft; mature 20 ft')).toEqual({});
     expect(webFields('Height: 24 in. pot')).toEqual({});
   });
@@ -77,10 +86,20 @@ describe('reading spec lines', () => {
     const page = (title: string, body: string): [string, string] => { const h = `<title>${title}</title><h1>${title}</h1><p>${body}</p>`; return [h, pageText(h)]; };
     expect(aboutPlant(...page('Itea virginica ‘Little Henry’', 'Itea virginica'), henry)).toBe(true);
     expect(aboutPlant(...page('Virginia sweetspire', 'Itea virginica; see also Little Henry.'), henry)).toBe(false); // (named only in passing)
-    const redbud = { species: 'Cercis canadensis', cultivar: null };
+    const redbud = { species: 'Cercis canadensis', cultivar: null, common: 'Eastern redbud' };
     expect(aboutPlant(...page('Eastern redbud', 'Cercis canadensis, eastern redbud'), redbud)).toBe(true);
     expect(aboutPlant(...page("Cercis canadensis 'Forest Pansy'", "Cercis canadensis 'Forest Pansy'"), redbud)).toBe(false); // (a cultivar's page)
     expect(aboutPlant(...page('Eastern redbud', "Cercis canadensis 'Forest Pansy' only"), redbud)).toBe(false);
+    // Another plant's page that mentions this one; a cultivar or form with no marks; a page about several.
+    expect(aboutPlant(...page('Black-eyed Susan', 'Rudbeckia hirta. Pairs well with Echinacea purpurea.'), { species: 'Echinacea purpurea', cultivar: null, common: 'Purple coneflower' })).toBe(false);
+    expect(aboutPlant(...page('Forest Pansy Redbud', 'Cercis canadensis Forest Pansy'), { ...redbud, common: 'Redbud' })).toBe(false);
+    expect(aboutPlant(...page('White redbud', 'Cercis canadensis alba'), redbud)).toBe(false);
+    expect(aboutPlant(...page('Three coneflower species', 'Echinacea purpurea, Echinacea pallida'), { species: 'Echinacea purpurea', cultivar: null, common: 'Purple coneflower' })).toBe(false);
+    expect(aboutPlant(...page('Eastern Redbud Tree | A Shop', 'Cercis canadensis'), redbud)).toBe(true);
+    const magnus = { species: 'Echinacea purpurea', cultivar: 'Magnus', common: "Coneflower 'Magnus'" };
+    expect(aboutPlant(...page("Echinacea 'Magnus' | A Shop", 'Echinacea purpurea'), magnus)).toBe(true);
+    expect(aboutPlant(...page('Echinacea Magnus Superior', 'Echinacea purpurea'), magnus)).toBe(false);
+    expect(aboutPlant(...page('Best coneflowers: Magnus, White Swan and more', 'Echinacea purpurea'), magnus)).toBe(false);
     // A cultivar name that is also part of another name.
     expect(aboutPlant(...page('Quercus alba, white oak', 'Quercus alba'), { species: 'Echinacea purpurea', cultivar: 'Alba' })).toBe(false);
     expect(aboutPlant(...page("Coneflower 'Henry's Choice'", "Echinacea purpurea, a host for Henry's Elfin"), { species: 'Echinacea purpurea', cultivar: 'Henry' })).toBe(false);
@@ -101,11 +120,12 @@ describe('web claims', () => {
     expect(webClaims('https://shop.example.com/x', shop('<p>Zones: 5-9</p>', 'Something else'), plant)).toEqual([]); // (not about this plant)
   });
   it('treat a page that draws on a source closed to us as that source, credited in text or by a link', () => {
-    const p = { species: 'Cercis canadensis', cultivar: null };
+    const p = { species: 'Cercis canadensis', cultivar: null, common: 'Eastern redbud' };
     const page = (extra: string) => `<title>Eastern redbud</title><p>Cercis canadensis</p><p>Zones: 4-9</p>${extra}`;
     expect(webClaims('https://shop.example.com/x', page('<p>(Missouri Botanical Garden)</p>'), p)).toEqual([]);
     expect(webClaims('https://shop.example.com/x', page('<a href="https://www.missouribotanicalgarden.org/x">Source</a>'), p)).toEqual([]);
     expect(webClaims('https://shop.example.com/x', page('<p>Data: NPIN</p>'), p)).toEqual([]);
+    expect(webClaims('https://shop.example.com/x', page('<p>Source: Calscape</p>'), p)).toEqual([]);
     expect(webClaims('https://shop.example.com/x', page(''), p)).toHaveLength(2);
   });
   it('combine: nurseries alone are "likely" when most agree, a copy counts once, one site counts once', () => {
@@ -129,13 +149,24 @@ describe("reading a site's terms", () => {
     expect(looksLikeTerms('<title>Terms of Service</title><p>These terms…</p>')).toBe(true);
     expect(looksLikeTerms('<title>A Shop</title><p>Shop our plants</p>')).toBe(false);
   });
-  it('reads a site: linked terms it couldn\'t fetch are unread (tried again), a guess must be a terms page, and the worst page decides', () => {
-    const ok = '<title>Terms of Use</title><p>Orders ship in two days.</p>', bots = '<title>Terms of Use</title><p>You may not use robots.</p>';
-    expect(siteTerms({ homeRead: false, linked: [], guessed: [] }).verdict).toBe('unread');
-    expect(siteTerms({ homeRead: true, linked: [{ url: 'a', html: null }], guessed: [] }).verdict).toBe('unread');
-    expect(siteTerms({ homeRead: true, linked: [], guessed: [{ url: 'g', html: '<title>Shop</title><p>Welcome</p>' }] }).verdict).toBe('none found');
-    expect(siteTerms({ homeRead: true, linked: [], guessed: [{ url: 'g', html: ok }] })).toMatchObject({ verdict: 'open', terms: ['g'] });
-    expect(siteTerms({ homeRead: true, linked: [{ url: 'a', html: ok }, { url: 'b', html: bots }], guessed: [] }).verdict).toBe('bots');
+  it('keeps the terms pages that matter: the owner\'s terms of use first, never a platform\'s, at most six', () => {
+    const home = '<a href="https://policies.google.com/terms">Terms</a><a href="/pages/shipping-terms">Shipping Terms</a><a href="/pages/terms-of-sale">Terms of Sale</a>'
+      + '<a href=/pages/terms-of-use>Terms of Use</a><a href="/x" aria-label="Legal notices"><svg></svg></a>';
+    const links = termsLinks(home, 'https://www.shop.com/');
+    expect(links[0]).toBe('https://www.shop.com/pages/terms-of-use');
+    expect(links).toContain('https://www.shop.com/x');
+    expect(links).not.toContain('https://policies.google.com/terms');
+  });
+  it('reads each owner on a shared host as its own site', () => {
+    expect(termsKey('foo.wordpress.com')).toBe('foo.wordpress.com');
+    expect(termsKey('bar.wordpress.com')).not.toBe(termsKey('foo.wordpress.com'));
+    expect(termsKey('www.shop.com')).toBe('shop.com');
+    expect(sourceOf('foo.wordpress.com')).toBe('foo.wordpress.com');
+  });
+  it('picks out the passages a reviewer needs to read', () => {
+    const page = '<p>' + 'Shipping is free over fifty dollars. '.repeat(40) + '</p><p>12. Prohibited uses. You are prohibited from using the site (a) for any unlawful purpose; … (i) to spam, phish, spider, crawl, or scrape.</p>';
+    const ps = termsPassages(page);
+    expect(ps.some((p: string) => /prohibited/.test(p) && /scrape/.test(p))).toBe(true);
   });
   it("reads a ban on bots, a ban on using the information, or neither, however it's worded", () => {
     for (const bots of [

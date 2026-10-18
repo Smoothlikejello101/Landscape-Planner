@@ -90,12 +90,15 @@ export function hostNames(text) { // (with the binomial where the source gives o
  * Only names that are butterflies or moths: where a name carries its
  * binomial, its genus must be one the Tallamy dataset lists as Lepidoptera
  * (so "Cedar Waxwing (Bombycilla cedrorum)" in a sentence about larvae is
- * dropped). Without the list, names with a binomial are kept.
+ * dropped).
  */
 export function onlyCaterpillars(names, lepGenera) {
-  if (!lepGenera) return names;
-  return names.filter((n) => { const g = /\(([A-Z][a-z]+) [a-z]+\)$/.exec(n)?.[1]; return !g || lepGenera.has(g); });
+  // Without the list, a name with a binomial can't be checked, so it's left out. ("Host plant for the X
+  // butterfly" names, with no binomial, say what they are.)
+  return names.filter((n) => { const g = /\(([A-Z][a-z]+) [a-z]+\)$/.exec(n)?.[1]; return !g || !!lepGenera?.has(g); });
 }
+/** The same caterpillar however a source writes it: by binomial where given, else by name. */
+const hostKey = (n) => (/\(([A-Z][a-z]+ [a-z]+)\)$/.exec(n)?.[1] ?? String(n)).toLowerCase().replace(/^the\s+/, '').trim();
 
 // ---------- Claims from each source ----------
 
@@ -226,11 +229,13 @@ export function combine(claims, { cultivar = false } = {}) {
     // A breeder speaks first only for its own cultivars; on a species it's one more nursery.
     if (!cultivar) usable = usable.map((c) => (c.kind === 'breeder' ? { ...c, kind: 'nursery' } : c));
     if (fact === 'host') { // (a list: every source's names, together)
-      const names = [...new Set(usable.flatMap((c) => c.v))];
+      const byKey = new Map();
+      for (const n of usable.flatMap((c) => c.v)) { const k = hostKey(n); if (!byKey.has(k) || /\(/.test(n)) byKey.set(k, n); }
+      const names = [...byKey.values()];
       const top = Math.max(-1, ...usable.map((c) => RANK[c.kind] ?? 0));
       const kind = Object.keys(RANK).find((k) => RANK[k] === top);
       // Confirmed only where two sources name the same caterpillar.
-      const named = (n) => usable.filter((c) => c.v.includes(n)).length;
+      const named = (n) => usable.filter((c) => c.v.some((x) => hostKey(x) === hostKey(n))).length;
       const check = names.some((n) => named(n) > 1) ? 'confirmed' : kind === 'authority' ? 'single' : 'reported';
       out[fact] = names.length ? { v: names, src: [...new Set(usable.map((c) => c.src))], check, kind } : null;
       continue;

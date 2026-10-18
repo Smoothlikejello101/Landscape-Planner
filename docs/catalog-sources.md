@@ -206,22 +206,43 @@ the same rules as every other source (scripts/catalog/search.mjs).
    AI-written sites (Wikipedia, Dave's Garden, iNaturalist…); archives,
    caches and aggregators (the Wayback Machine, archive.today, Trefle,
    GBIF…); marketplaces and social media; and sources read another way
-   already (all of usda.gov and ncsu.edu, Minnesota Wildflowers). The script
-   prints counts, never the results.
-3. **Terms.** Each new site's terms are read by pattern, the same reading as
-   "How terms are read", cautiously: its home page's links to terms, legal
-   or copyright pages, else the usual places (`/terms`,
-   `/terms-of-use`, `/policies/terms-of-service`…), where the page that
-   answers must read as terms (not the home page or a "not found"). A ban
-   word ("may not", "agree not to", "prohibited", "without our permission"…)
-   within a few lines of robots, bots, scrapers, crawlers or automated
-   access closes it (**not by bot**); near commercial use, a database, or
-   "personal use only", it's **ask first**. Either way its pages aren't
-   read. When a site links terms we couldn't fetch, it's left out this run
-   and tried again next time. A site with no terms to find is read, as "No
-   terms found" sources are above. The reading and the
-   sentence that decided it are kept in `catalog-src/site-terms.json`, and a
-   site we lean on has its terms read by a person before launch.
+   already (all of usda.gov and ncsu.edu, Minnesota Wildflowers: cautious,
+   since NRCS plant guides and NC State's other sheets are left out too). The
+   script prints counts, never the results.
+3. **Terms.** Each site's terms are read by a person or an agent, never
+   decided by pattern, and the reading is kept in
+   `scripts/catalog/site-terms.json` (committed, so it can be checked): the
+   verdict, the date, the pages read, and a line in our own words on what
+   decided it. **A site is read only when that record says its terms allow
+   it**; one not yet reviewed is left out of the run. For each new site the
+   run fetches its home page and the terms pages it links (up to six, the
+   terms of use first, never a platform's own such as reCAPTCHA's or a
+   payment provider's), or the usual addresses (`/terms`,
+   `/terms-of-use`, `/policies/terms-of-service`…) when it links none, and
+   writes a review packet: each page's opening and the passages about
+   robots, scraping, automated access, commercial use, databases and
+   copying, with a pattern's guess marked as a hint only. Each owner on a
+   shared host (wordpress.com, blogspot.com, Wix…) is its own site.
+   How a reviewer reads them, by "How terms are read":
+   - **bots** (not by bot): anything against robots, spiders, scrapers,
+     crawlers, data mining or extraction tools, automated access, or "any
+     means not intentionally made available", wherever the ban word sits
+     (Shopify's standard terms ban spidering and scraping in section 12);
+     also a reservation of text and data mining, or a ban on use for AI
+     training.
+   - **use** (ask first): personal or non-commercial use only of the site's
+     content or information, no commercial use of it, or no database or
+     compilation of it.
+   - **open**: terms that only protect the material itself (copyright,
+     no copying, reproducing or republishing; Creative Commons, NonCommercial
+     included), or that say nothing on these. Facts in our own words are
+     fine.
+   - **none found**: no terms anywhere, the home page included (a home page
+     that mentions terms we couldn't open is **unread**).
+   - **unread**: the home page or a linked terms page couldn't be fetched,
+     or the terms of use aren't among the pages read; tried again next run.
+   When unsure, it isn't **open**. A site we lean on is also read by Jason
+   before launch.
 4. **Fetch.** Through the fetcher: robots.txt, pace (`web`: 5 s a site),
    refusals and the honest user agent, as for every source. Redirects
    within a site are followed, each one fetched by the same rules.
@@ -230,14 +251,20 @@ the same rules as every other source (scripts/catalog/search.mjs).
    false value is worse than a missing one, so a line that could mean two
    things is left out (a row of choices with one lit, a label repeated with
    different values for related products, a temperature under "Hardiness",
-   a pot size under "Height"). Only from a page about the plant: for a
+   a pot size under "Height", a value with a qualifier such as "shade
+   tolerant" or "full sun except in the South"). Only from a page about the plant: for a
    cultivar, its name in the page's title or heading; for a species, its
    botanical name standing alone and no cultivar in the title. A page that
    credits a source closed to us, in its text or by a link (MOBOT, the
-   Wildflower Center, NPIN), is that source second-hand and isn't read. Bloom
+   Wildflower Center, NPIN; or as its source, Calscape, Prairie Moon, Dave's
+   Garden, Garden.org and the other closed ones), is that source second-hand
+   and isn't read. A shop is a page with a cart or a product marked up for
+   search engines, not just prices (a blog's affiliate links); a person's
+   own pages on a university site (`/~name/`) are a blog's. Bloom
    months aren't taken from the web: they differ by place.
 6. **One run at a time.** `catalog-src/.lock` keeps a second run out, so
-   paces don't add up and files don't cross.
+   paces don't add up and files don't cross. It's never taken over: one
+   left by a stopped run is deleted by hand, as the message says.
 
 ## Paid licenses
 
@@ -377,8 +404,8 @@ months ("MO" for MOBOT).
 | `fall_color` | "Deciduous Leaf Fall Color" | — | USDA's "Fall Conspicuous" is about the plant overall in fall, not leaf color. |
 | `clay_ok` | soil texture | — | |
 | `wet_feet` | soil drainage | — | |
-| `maintenance` | — | — | — | `null`: NC State gives a level, not a task, and the catalog's values are tasks. |
-| `thorns`, `winter_interest`, `self_seed`, `dry_shade`, `taproot`, `humidity`, `trunk`, `habit` | Settled on the 20-plant sample | — | — | `null` unless a source states it. |
+| `maintenance` | — | — | `null`: NC State gives a level, not a task, and the catalog's values are tasks. |
+| `thorns`, `winter_interest`, `self_seed`, `dry_shade`, `taproot`, `humidity`, `trunk`, `habit` | — | — | `null` unless a source states it. |
 
 ## Zones
 

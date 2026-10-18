@@ -7,6 +7,7 @@
 # Only established ranges count (strays are a column of their own), and only
 # host genera the authors resolved ("[unresolved]" is left out).
 import json
+import os
 import re
 import sys
 
@@ -52,10 +53,11 @@ for r in rows:
 
 for e in genera.values():
     e['ar_butterflies'].sort()
-with open(out, 'w') as f:
-    json.dump({'source': 'Shropshire & Tallamy 2025, ZooKeys 1261, CC0', 'genera': genera, 'lep_genera': sorted(lep_genera)}, f, indent=0, sort_keys=True)
-# Sanity: a misread state column would leave Arkansas empty everywhere.
+# Sanity, before anything is written: a misread state column would leave Arkansas empty everywhere.
 in_ar = sum(1 for e in genera.values() if e['ar'])
 if not in_ar or len(lep_genera) < 500:
-    sys.exit(f'looks misread: {in_ar} host genera with Arkansas records, {len(lep_genera)} caterpillar genera')
+    sys.exit(f'looks misread: {in_ar} host genera with Arkansas records, {len(lep_genera)} caterpillar genera; nothing written')
+with open(out + '.tmp', 'w') as f:
+    json.dump({'source': 'Shropshire & Tallamy 2025, ZooKeys 1261, CC0', 'genera': genera, 'lep_genera': sorted(lep_genera)}, f, indent=0, sort_keys=True)
+os.replace(out + '.tmp', out)
 print(f'{len(genera)} host genera ({in_ar} with Arkansas records), {len(lep_genera)} caterpillar genera -> {out}')

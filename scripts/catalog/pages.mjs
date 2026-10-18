@@ -43,18 +43,16 @@ export function savedMeta(source, url, root = 'catalog-src') {
 /**
  * Claim catalog-src/ for this process, so two runs never share it (their
  * paces would add up, and their files could cross). A lock left by a run
- * that's no longer running is taken over.
+ * that was stopped is cleared by hand (the message says how).
  */
 export function lockCatalogSrc(root = 'catalog-src') {
   mkdirSync(root, { recursive: true });
   const lock = `${root}/.lock`;
-  for (let tries = 0; ; tries++) {
-    try { writeFileSync(lock, String(process.pid), { flag: 'wx' }); break; } catch (e) { if (e.code !== 'EEXIST' || tries) throw e; }
-    const pid = Number(readFileSync(lock, 'utf8'));
-    let alive = false;
-    try { process.kill(pid, 0); alive = true; } catch { alive = false; }
-    if (alive) { console.error(`catalog-src/ is in use by process ${pid}; wait for it to finish.`); process.exit(1); }
-    rmSync(lock, { force: true }); // (left by a run that's gone)
+  try { writeFileSync(lock, String(process.pid), { flag: 'wx' }); } catch (e) {
+    if (e.code !== 'EEXIST') throw e;
+    // Never taken over: a run that is still going would be doubled. If none is, the lock is left from one that was stopped.
+    console.error(`catalog-src/ is locked (${lock}, by process ${readFileSync(lock, 'utf8').trim() || '?'}). If no catalog run is going, delete that file and start again.`);
+    process.exit(1);
   }
   process.on('exit', () => { try { if (readFileSync(lock, 'utf8') === String(process.pid)) rmSync(lock); } catch { /* gone already */ } });
 }

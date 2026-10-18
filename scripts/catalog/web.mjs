@@ -20,7 +20,7 @@ export const SKIP_SITES = new Set([
   'garden.org', 'perenual.com', 'xerces.org', 'nwf.org', 'iastate.edu',
   // Ask first: waiting for a written yes
   'mortonarb.org', 'nativeplanttrust.org', 'kswildflower.org', 'fnps.org', 'npsot.org', 'uconn.edu', 'ucanr.edu', 'usu.edu', 'nmsu.edu',
-  'calpoly.edu', 'ucdavis.edu', 'rutgers.edu', 'ufl.edu', 'virginia.gov', 'petpoisonhelpline.com',
+  'calpoly.edu', 'ucdavis.edu', 'rutgers.edu', 'ffl.ifas.ufl.edu', 'ffl-api.ifas.ufl.edu', 'petpoisonhelpline.com',
   // Crowd-sourced, AI-written, or not plant references
   'davesgarden.com', 'gardentags.com', 'permapeople.org', 'growstuff.org', 'getgrowli.app', 'plantsmap.com', 'pinterest.com', 'youtube.com',
   'facebook.com', 'instagram.com', 'reddit.com', 'quora.com', 'amazon.com', 'ebay.com', 'etsy.com', 'walmart.com', 'homedepot.com', 'lowes.com',
@@ -50,15 +50,17 @@ const COMPANY = {
   'encoreazalea.com': 'plantdevelopmentservices', 'plantdevelopment.com': 'plantdevelopmentservices',
 };
 /** The source a site counts as (one company's sites are one). */
-export const sourceOf = (host) => { const site = siteOf(host); return COMPANY[site] ?? site; };
+export const sourceOf = (host) => { const site = siteOf(host); return COMPANY[site] ?? termsKey(host); };
 /** What kind of source a URL is: 'authority', 'nursery', 'blog', or 'skip'. `html` helps tell a shop from a blog. */
 export function siteKind(url, html = '') {
   let host;
   try { host = new URL(url).hostname.toLowerCase(); } catch { return 'skip'; }
   const site = siteOf(host);
   if (SKIP_SITES.has(site) || SKIP_SITES.has(host)) return 'skip';
+  if (/\/~/.test(new URL(url).pathname)) return 'blog'; // (a person's own pages on a university's site)
   if (/\.(edu|gov)$/.test(site) || /\.gov\.\w+$/.test(host) || AUTHORITY_SITES.has(site) || AUTHORITY_SITES.has(host)) return 'authority';
-  return /add to cart|add-to-cart|in stock|out of stock|\$\s?\d+\.\d\d|ships? (?:in|to)|quantity/i.test(html.slice(0, 400000)) ? 'nursery' : 'blog';
+  // A shop: a cart, or a product with an offer marked up for search engines. (Prices alone could be a blog's affiliate links.)
+  return /add to cart|add-to-cart|addtocart|\/cart\/add|"@type"\s*:\s*"(?:Product|Offer)"|itemtype="https?:\/\/schema\.org\/(?:Product|Offer)"/i.test(html.slice(0, 600000)) ? 'nursery' : 'blog';
 }
 
 // ---------- Pages ----------
@@ -85,25 +87,43 @@ const norm = (t) => String(t).toLowerCase().replace(/[‘’`´]/g, "'").replace
 /** A page's title and main headings, the part that says what it's about. */
 export const headline = (html) => norm(plainText([...String(html).matchAll(/<(title|h1)\b[^>]*>([\s\S]*?)<\/\1>/gi)].map((m) => m[2]).join(' | ')));
 const CULTIVAR_MARK = /'[^']{2,40}'|"[^"]{2,40}"|®|™|\bpp ?\d{4,}|\bpbr\b|\bcultivar\b/;
+/** A title about several plants: a list, a comparison, a genus. */
+const LIST_CUE = /\bbest\b|\btop \d|\b\d+ (?:best|great|favorite|easy|native)\b|\bvarieties\b|\bcultivars\b|\btypes of\b|\bvs\.?\b|\band more\b|\bspecies\b|\bcollection\b/;
+const SEP = String.raw`(?:^|$|\s*[|–—:,;()\/]\s*|\s+-\s+)`;
+const GENERIC = ['tree', 'trees', 'shrub', 'shrubs', 'plant', 'plants', 'perennial', 'perennials', 'grass', 'fern', 'vine', 'bush', 'seeds', 'seed', 'native'];
+/** Whether `name` stands on its own in the headline: only separators, generic words, or the allowed words around it. */
+function standsAlone(head, name, allowed) {
+  const ok = [...new Set([...GENERIC, ...allowed])].map(esc).join('|');
+  return new RegExp(String.raw`(?:^|[|–—:,;()\/]|\s-\s)\s*(?:(?:${ok})\s+)*['"]?${esc(name)}['"®™]*(?:\s+(?:${ok}))*\s*(?:$|[|–—:,;()\/]|\s-\s)`).test(head);
+}
 /**
- * Whether a page is about this plant, not one beside it:
- * - a cultivar: its name in the page's title or main heading, as a whole
- *   name, with its genus somewhere on the page;
- * - a species: its botanical name on the page standing alone (not as the
- *   start of a cultivar's name), and no cultivar named in the title or
- *   heading.
+ * Whether a page is about this plant, not one beside it (a wrong value is
+ * worse than a missing one, so when in doubt it isn't):
+ * - a cultivar: its name standing on its own in the page's title or main
+ *   heading ("Magnus" isn't "Magnus Superior"), with its genus on the page;
+ * - a species: its botanical name, or its common name, standing on its own
+ *   in the title or heading, its botanical name on the page not as the start
+ *   of a cultivar or form ('Forest Pansy', alba, f., var.), and no cultivar
+ *   named in the title.
+ * Never a page whose title is about several plants.
  */
-export function aboutPlant(html, text, { species, cultivar }) {
+export function aboutPlant(html, text, { species, cultivar, common = '' }) {
   const head = headline(html), t = norm(text);
-  const genus = species.split(' ')[0].toLowerCase();
-  if (cultivar) {
-    const c = norm(cultivar);
-    return new RegExp(`(^|[^a-z])${esc(c)}(?![a-z]|'[a-z])`).test(head) && t.includes(genus); // ("Henry" isn't "Henry's Choice")
-  }
+  if (LIST_CUE.test(head)) return false;
+  const [genus, epithet] = norm(species).split(' ');
+  const commonWords = norm(common).replace(/\([^)]*\)|'[^']*'/g, ' ').split(/[^a-z-]+/).filter((w) => w.length > 2);
+  if (cultivar) return standsAlone(head, norm(cultivar), [genus, epithet ?? '', ...commonWords]) && t.includes(genus);
+  if (CULTIVAR_MARK.test(head)) return false;
   const sp = norm(species);
-  const bare = new RegExp(`${esc(sp)}(?!\\s*(?:['"]|var\\.|subsp\\.|×|x\\s))`);
-  if (!bare.test(t)) return false;
-  return !CULTIVAR_MARK.test(head);
+  // On the page as written (case kept, one line at a time): the name followed by a quote, a capitalized
+  // name, var./subsp./f., or a form's epithet is a cultivar's or form's name, not the species'.
+  const lines = String(text).replace(/[‘’]/g, "'").replace(/[“”]/g, '"');
+  const FORMS = 'alba|albus|albiflora|rubra|rosea|pendula|nana|compacta|variegata|plena|aurea|atropurpurea|forma';
+  const bare = new RegExp(`${esc(species).replace(/ /g, '[ \\t]+')}(?![ \\t]*(?:['"]|var\\.|subsp\\.|ssp\\.|f\\.|×|x[ \\t]|(?:${FORMS})\\b))`, 'i');
+  const ok = lines.split('\n').some((l) => { const m = bare.exec(l); return !!m && !/^[ \t]+[A-Z]/.test(l.slice(m.index + m[0].length)); });
+  if (!ok) return false;
+  const commonName = norm(common).replace(/\s*\([^)]*\)|\s*'[^']*'/g, '').trim();
+  return standsAlone(head, sp, []) || (commonName.length > 3 && standsAlone(head, commonName, []));
 }
 
 const NUM = String.raw`(\d+(?:\.\d+)?(?:\s*\d\/\d)?|\d\/\d)`;
@@ -145,28 +165,36 @@ const zonesOf = (v) => {
   const m = /^\D{0,12}(\d{1,2}\s*[ab]?)\s*(?:-|–|to|through|thru)\s*(\d{1,2}\s*[ab]?)\b/i.exec(v);
   return m ? zoneSpan(m[1].replace(/\s/g, ''), m[2].replace(/\s/g, '')) : null;
 };
+/** Whether a value is only words from a vocabulary (and "to", "and", "or"): anything else, a qualifier or a sentence, and it isn't read. */
+const onlyWords = (v, vocab) => { const w = v.toLowerCase().split(/[^a-z]+/).filter(Boolean); return w.length > 0 && w.every((x) => vocab.has(x) || ['to', 'and', 'or', 'through', 'thru', 'into'].includes(x)); };
+const SUN_WORDS = new Set(['full', 'sun', 'part', 'partial', 'shade', 'light', 'dappled', 'morning', 'afternoon', 'deep', 'dense', 'half', 'filtered', 'sunny', 'shady']);
 const sunOf = (v) => {
-  // What it doesn't take isn't what it takes.
-  let t = v.toLowerCase().replace(/\b(?:does not|doesn't|will not|won't|cannot|can't)\s+(?:tolerate|take|like|handle)[^,.;)]*|\b(?:not|in)tolerant of[^,.;)]*|\bavoid[^,.;)]*|\bnot (?:for|in)[^,.;)]*|\bno (?:full )?(?:sun|shade)[^,.;)]*/g, ' ');
+  if (!onlyWords(v, SUN_WORDS)) return null; // ("not full sun", "shade tolerant", "except in the South…": left out)
+  let t = v.toLowerCase();
   if (/morning sun/.test(t) && /afternoon shade/.test(t)) t = t.replace(/morning sun|afternoon shade/g, ' part shade ');
   const got = SUNS.filter(([re]) => re.test(t)).map(([, x]) => x);
-  if (/^\s*sun\b(?!\s*(?:to|-|–)?\s*part)/.test(t) || /\bsun to\b/.test(t)) got.push('Full'); // ("sun", "sun to part shade")
+  if (/^\s*sun\b(?!\s*(?:to|-|–)?\s*part)/.test(t) || /\bsun to\b/.test(t) || /(?:^|,\s*)sun(?:\s*,|$)/.test(t)) got.push('Full'); // ("sun", "sun to part shade")
   // "shade" on its own, once the part-shade phrases are out of the way.
   if (/\bshade\b/.test(t.replace(/part(?:ial)? shade|light shade|half[- ]shade|dappled shade|afternoon shade|filtered shade/g, ' '))) got.push('Shade');
   const order = ['Full', 'Part', 'Shade'].filter((x) => got.includes(x));
   return order.length ? { most: order[0], least: order[order.length - 1] } : null;
 };
+const SEASON_WORDS = new Set(['early', 'mid', 'late', 'spring', 'summer', 'midsummer', 'fall', 'autumn', 'winter']);
 /** Bloom seasons only: months differ by place (they wait on "values by region"), and "may" is also a word. */
 const bloomOf = (v) => {
+  if (!onlyWords(v, SEASON_WORDS)) return null; // ("Spring (fall foliage color)": left out)
   const b = v.toLowerCase();
   const ss = [...new Set(SEASONS.filter((x) => new RegExp(`\\b${x}\\b`).test(b)).map((x) => (x === 'autumn' ? 'fall' : x.replace(/^(early |mid |late )|mid ?/, ''))))];
   return ss.length ? ss : null;
 };
+const COLORS = ['white', 'pink', 'red', 'purple', 'lavender', 'violet', 'blue', 'yellow', 'orange', 'green', 'cream', 'maroon', 'burgundy', 'magenta', 'rose', 'coral', 'peach', 'gold'];
+const COLOR_WORDS = new Set([...COLORS, 'light', 'dark', 'pale', 'deep', 'bright', 'soft', 'creamy', 'pinkish', 'purplish', 'bluish', 'reddish', 'yellowish']);
 const colorOf = (v) => {
-  const cs = v.match(/\b(white|pink|red|purple|lavender|violet|blue|yellow|orange|green|cream|maroon|burgundy|magenta|rose|coral|peach|gold)\b/gi);
+  if (!onlyWords(v, COLOR_WORDS)) return null; // ("White; red stems": left out)
+  const cs = v.match(new RegExp(`\\b(${COLORS.join('|')})\\b`, 'gi'));
   return cs ? [...new Set(cs.map((c) => c[0].toUpperCase() + c.slice(1).toLowerCase()))] : null;
 };
-const deerOf = (v) => (/^(yes|high|resistant|very resistant|true)\b/i.test(v.trim()) ? 'Resistant' : null);
+const deerOf = (v) => (/^(yes|high|resistant|very resistant|true)$/i.test(v.trim()) ? 'Resistant' : null); // (exactly: "Yes, but browsed when young" isn't)
 
 /**
  * The facts a page states in its spec lines ("Hardiness Zones: 5-9",
@@ -218,7 +246,9 @@ export function webFields(text) {
 /** Sources closed to us that a page says it draws on: then the page is that source, second-hand, and isn't read. */
 const SECOND_HAND = /missouri botanical garden|missouribotanicalgarden|mobot\.org|\bmobot\b|kemper center|lady bird johnson|wildflower\.org|\bnpin\b|native plant information network/i;
 /** Checked on the page as sent, links included: a source credited only by a link is still the source. */
-export const secondHand = (html) => SECOND_HAND.test(String(html));
+/** Other sources closed to us, when a page credits them ("Source: Calscape"), or links them as its source. */
+const CREDITED = /(?:source|sources|from|courtesy of|via|according to|data|information|adapted)[^.<\n]{0,40}(?:prairie ?moon|calscape|dave'?s garden|garden\.org|national gardening association|sunset western|perenual|garden ?tags|morton arboretum|go ?botany|native plant trust|calflora|jepson|seinet|oregonflora|plant ?atlas)/i;
+export const secondHand = (html) => SECOND_HAND.test(String(html)) || CREDITED.test(plainText(html));
 
 /** A page's own wording, to tell copies apart: the hash of its longest paragraph (null if it has none long enough). */
 export function copyKey(html) {
@@ -253,36 +283,58 @@ export function webClaims(url, html, plant) {
 // pattern for sites found by search, cautiously: a site whose terms page
 // can't be told apart from a ban is treated as banning.
 
+// Hosts where each subdomain is a different owner (the Public Suffix List doesn't split them all).
+const SHARED_HOSTS = new Set(['wordpress.com', 'blogspot.com', 'weebly.com', 'godaddysites.com', 'mystrikingly.com', 'jimdofree.com', 'webs.com',
+  'substack.com', 'medium.com', 'tumblr.com', 'wixsite.com', 'squarespace.com', 'square.site', 'myshopify.com', 'business.site', 'sites.google.com', 'google.com']);
+/** Whose terms a host is under: its site, or on a shared host the host itself. */
+export function termsKey(host) {
+  const h = String(host).toLowerCase().replace(/\.+$/, '');
+  const site = siteOf(h);
+  if (h.startsWith('sites.google.com')) return h;
+  return SHARED_HOSTS.has(site) ? h : site;
+}
+/** Platforms whose own terms show up in footers (reCAPTCHA, payments): not the site owner's. */
+const PLATFORMS = /(?:^|\.)(?:google|gstatic|recaptcha|paypal|shopify|shop\.app|apple|facebook|instagram|klaviyo|yotpo|affirm|afterpay|klarna|stripe|squareup|square|amazon|cloudflare|wix|squarespace|godaddy|bigcommerce|youtube|twitter|x|pinterest)\.(?:com|net|app|co)$/;
 const TERMS_TEXT = /\bterms\b|conditions of (?:use|sale)|\blegal\b|copyright|site polic|website polic|disclaimer|digital rights/;
 const TERMS_PATH = /(?:^|[\/_-])(?:terms|tos|legal|conditions-of-use|copyright|site-policies|disclaimer)(?:[\/_.-]|$)/;
+/** How much a link looks like the terms of use (not of sale or shipping). */
+const termsRank = (text, path) => (/terms of (?:use|service)|terms (?:&|and) conditions|conditions of use|website terms|site terms|legal|copyright|user agreement/.test(text + ' ' + path.replace(/[-_\/]/g, ' ')) ? 2 : 0)
+  - (/sale|shipping|guarantee|warranty|return|refund|reward|gift|loyalty|promo|sweepstake|contest|privacy|cookie/.test(text + ' ' + path) ? 1 : 0);
 /** Places a site's terms usually live, to try when its home page links none. */
 export const TERMS_GUESSES = ['/terms', '/terms-of-use', '/terms-of-service', '/policies/terms-of-service', '/terms-and-conditions'];
 /**
- * Links on a page that look like its terms of use. On the same site, or
- * (when the link says so) the owner's terms on another site; http links
- * are read over https.
+ * Links on a page that look like its terms, best first: on the same site,
+ * or (when the link says so) the owner's terms on another site, never a
+ * platform's own (reCAPTCHA's, a payment provider's). Quoted or unquoted
+ * hrefs, names in the text or in aria-label; http read over https.
  */
 export function termsLinks(html, pageUrl) {
   const base = new URL(pageUrl);
-  const out = [];
-  for (const m of String(html).matchAll(/<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
-    const text = norm(plainText(m[2])).trim();
+  const found = [];
+  for (const m of String(html).matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi)) {
+    const attrs = m[1];
+    const href = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(attrs);
+    if (!href) continue;
+    const label = /\baria-label\s*=\s*(?:"([^"]*)"|'([^']*)')/i.exec(attrs);
+    const text = norm(plainText(m[2]) + ' ' + (label ? label[1] ?? label[2] : '')).trim();
     let u;
-    try { u = new URL(m[1].replace(/&amp;/g, '&'), base); } catch { continue; }
+    try { u = new URL((href[1] ?? href[2] ?? href[3]).replace(/&amp;/g, '&'), base); } catch { continue; }
     if (u.protocol === 'http:') u.protocol = 'https:';
     if (u.protocol !== 'https:') continue;
     u.hash = '';
     const path = u.pathname.toLowerCase();
-    const saysTerms = TERMS_TEXT.test(text) && !/glossary|^(?:privacy|cookies?|shipping|returns?|refunds?)(?: policy)?$/.test(text) && text.length <= 60;
-    const pathTerms = TERMS_PATH.test(path) && !/glossary/.test(path);
     const sameSite = siteOf(u.hostname) === siteOf(base.hostname);
+    if (!sameSite && PLATFORMS.test(u.hostname)) continue;
+    const saysTerms = TERMS_TEXT.test(text) && !/glossary/.test(text) && text.length <= 60;
+    const pathTerms = TERMS_PATH.test(path) && !/glossary/.test(path);
     if (!(saysTerms || (sameSite && pathTerms))) continue;
-    if (!sameSite && !saysTerms) continue;
-    if (!out.includes(u.href)) out.push(u.href);
+    if (found.some((f) => f.url === u.href)) continue;
+    found.push({ url: u.href, rank: termsRank(text, path) + (sameSite ? 0.5 : 0) });
   }
-  // Terms first, then the rest (legal notices, copyright, disclaimers).
-  return out.sort((a, b) => Number(/terms|conditions|tos\b/i.test(b)) - Number(/terms|conditions|tos\b/i.test(a))).slice(0, 3);
+  return found.sort((a, b) => b.rank - a.rank).slice(0, 6).map((f) => f.url);
 }
+/** Words on a home page that say it links its terms somewhere, even if the link itself can't be read (built by script). */
+export const mentionsTerms = (html) => /\bterms (?:of (?:use|service)|(?:&|and) conditions)|conditions of use\b/i.test(plainText(html));
 /** Whether a page that answered at a guessed address is really a terms page (not the home page or a "not found" page served with 200). */
 export const looksLikeTerms = (html) => /terms (?:of (?:use|service|sale)|and conditions|& conditions)|conditions of (?:use|sale)|terms of service|user agreement|legal notice/i.test(headline(html) + ' ' + plainText(html).slice(0, 3000));
 
@@ -291,7 +343,8 @@ const BOTS = /\b(?:robots?|bots?|spiders?|scrap(?:e|er|ers|ing)|crawl(?:er|ers|i
 const USE = /\b(?:non-?commercial|commercial|database|compil(?:e|ing|ation)|personal use)\b/gi;
 
 /**
- * What a site's terms say about us: 'bots' (no automated reading: not by
+ * A hint for the person or agent reading the terms (never the verdict):
+ * what a site's terms seem to say about us: 'bots' (no automated reading: not by
  * bot), 'use' (personal or non-commercial use only, or no database of its
  * information: ask first), or 'open' (nothing found against either). A
  * ban word within a few lines of a bot or use word counts, so a list of
@@ -315,20 +368,19 @@ export function termsVerdict(text) {
 }
 
 /**
- * A site's terms, read: from the pages its home page links to (each one
- * fetched, or the reading is 'unread' and tried again next run), or else
- * from a page at a usual address that really is a terms page, or else
- * 'none found'. The worst verdict among its pages decides.
- *   linked: [{ url, html }] (html null when it couldn't be fetched)
- *   guessed: [{ url, html }] pages that answered at the usual addresses
+ * The passages of a terms page worth reading for our questions: where it
+ * speaks of robots, scraping, automated access, commercial use, databases,
+ * or copying. For the reviewer, so a long page is read where it matters.
  */
-export function siteTerms({ homeRead, linked, guessed }) {
-  if (!homeRead) return { verdict: 'unread', because: 'home page not fetched' };
-  let pages = linked.filter((x) => x.html);
-  if (linked.length && !pages.length) return { verdict: 'unread', because: 'its terms pages could not be fetched' };
-  if (!linked.length) pages = guessed.filter((x) => x.html && looksLikeTerms(x.html)).slice(0, 1);
-  if (!pages.length) return { verdict: 'none found', because: null };
-  const vs = pages.map((x) => ({ ...termsVerdict(x.html), url: x.url }));
-  const worst = vs.find((v) => v.verdict === 'bots') ?? vs.find((v) => v.verdict === 'use') ?? vs[0];
-  return { verdict: worst.verdict, because: worst.because, terms: pages.map((x) => x.url) };
+export function termsPassages(html, max = 12) {
+  const t = plainText(html).replace(/[‘’]/g, "'");
+  const re = /\b(?:robots?|bots?|spiders?|scrap\w*|crawl\w*|data[- ]mining|text and data mining|harvest\w*|automat\w+|extract\w*|commercial\w*|non-?commercial|database|compil\w+|personal use|reproduc\w+|copy\w*|derivative|resell|exploit|artificial intelligence|machine learning|train\w*|means not intentionally)\b/gi;
+  const spans = [];
+  for (const m of t.matchAll(re)) {
+    const a = Math.max(0, m.index - 350), b = Math.min(t.length, m.index + 250);
+    const last = spans[spans.length - 1];
+    if (last && a <= last[1]) last[1] = b; else spans.push([a, b]);
+    if (spans.length > max) break;
+  }
+  return spans.map(([a, b]) => t.slice(a, b).trim());
 }
