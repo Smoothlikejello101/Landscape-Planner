@@ -169,7 +169,14 @@ describe('claims and how they combine', () => {
     expect(combine([...fern, ...usda(['Forb/herb'])], { prefer: 'Perennial' }).form).toMatchObject({ v: ['Fern'], check: 'single' });
     expect(combine([nc(['Bulb', 'Perennial']), ...usda(['Forb/herb'])], { prefer: 'Perennial' }).form).toMatchObject({ v: ['Bulb'], check: 'single' });
     // A lower source that lists something else is noted (a rush USDA calls a grass).
-    expect(combine([nc(['Perennial']), ...usda(['Graminoid'])]).form).toMatchObject({ v: ['Perennial'], check: 'single', note: 'usda lists Grass/Sedge' });
+    // USDA's habit sharing no form with NC State's is a dispute (a rush USDA calls a grass)…
+    expect(combine([nc(['Perennial']), ...usda(['Graminoid'])]).form).toMatchObject({ v: null, check: 'disputed' });
+    // …but its "Perennial" isn't against a bulb, fern or aquatic, and a plant that lives either way is both.
+    expect(combine([nc(['Bulb']), ...usda(['Forb/herb'])]).form).toMatchObject({ v: ['Bulb'], check: 'single' });
+    expect(usda(['Forb/herb'], ['Annual', 'Biennial', 'Perennial'])[0].v).toEqual(['Perennial', 'Annual']);
+    expect(combine([nc(['Perennial']), ...usda(['Forb/herb'], ['Annual', 'Perennial'])]).form).toMatchObject({ v: ['Perennial'], check: 'confirmed', note: 'usda lists Annual' });
+    // USDA alone with "Perennial", where the catalog names a fern: nothing settled.
+    expect(combine(usda(['Forb/herb']), { prefer: 'Fern' }).form).toBeNull();
     expect(combine([nc(['Shrub']), ...usda(['Shrub', 'Tree'])]).form).toMatchObject({ v: ['Shrub'], check: 'confirmed', note: 'usda lists Tree' });
     // A plain tree takes the kind exactly one other authority names; otherwise the form is unsettled (pawpaw is never just "a shrub").
     expect(combine([nc(['Shrub', 'Tree']), ext('x.edu', ['Tree (understory)'])]).form).toMatchObject({ v: ['Shrub', 'Tree (understory)'], check: 'single', note: 'Shrub from ncsu alone' });
@@ -188,6 +195,8 @@ describe('claims and how they combine', () => {
     expect(combine([nc(['Perennial'])], { cultivar: true }).form).toMatchObject({ v: ['Perennial'] });
     expect(combine([nc(['Tree (canopy)'])], { cultivar: true }).form).toMatchObject({ v: null, check: 'disputed' });
     expect(combine([nc(['Shrub', 'Tree'])], { cultivar: true, prefer: 'Shrub' }).form).toMatchObject({ v: null, check: 'disputed' });
+    // (Only the deciding source's tree counts: NC State's shrub with USDA's Shrub and Tree stays a shrub.)
+    expect(combine([nc(['Shrub']), ...usda(['Shrub', 'Tree'])], { cultivar: true }).form).toMatchObject({ v: ['Shrub'], check: 'confirmed' });
     expect(combine([ns('shop.com', ['Shrub'], { cultivarPage: true }), nc(['Tree (canopy)'])], { cultivar: true }).form).toMatchObject({ v: null, check: 'disputed' });
     // Its own authority or breeder page decides, species pages backing it, trees included.
     expect(combine([ns('breeder.com', ['Tree (understory)'], { kind: 'breeder' }), ...usda(['Shrub', 'Tree'])], { cultivar: true }).form).toMatchObject({ v: ['Tree (understory)'], src: ['breeder.com', 'usda'], note: 'usda lists Shrub' });
