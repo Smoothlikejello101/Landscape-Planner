@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error (plain JavaScript build script)
-import { allowedBy, blocksWholeHost, cacheName, crawlDelay, dnsVerdict, fileStore, isChallenge, noAnswer, normalizePath, paceFor, parseRobots, patternMatches, relatedHosts, robotsFromResponse, runFetch, siteOf } from '../scripts/catalog/fetch-lib.mjs';
+import { allowedBy, blocksWholeHost, cacheName, crawlDelay, dnsVerdict, fileStore, isChallenge, noAnswer, normalizePath, paceFor, parseRobots, patternMatches, relatedHosts, robotsFromResponse, runFetch, siteOf, fetchSession } from '../scripts/catalog/fetch-lib.mjs';
 import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -165,6 +165,21 @@ describe('the fetch loop', () => {
     const before = w.requests.length;
     expect(await runFetch([{ source: 'ncsu', url: plant(1) }], w.deps)).toEqual({ saved: 0, cached: 1, skipped: 0 });
     expect(w.requests.length).toBe(before);
+  });
+  it('in one session, reads robots.txt once and keeps the pace across runs', async () => {
+    const w = fakeWorld({
+      'https://plants.ces.ncsu.edu/robots.txt': { status: 404 },
+      [plant(1)]: { status: 200, type: 'text/html', body: 'one' },
+      [plant(2)]: { status: 200, type: 'text/html', body: 'two' },
+    });
+    const session = fetchSession();
+    await runFetch([{ source: 'ncsu', url: plant(1) }], { ...w.deps, session });
+    await runFetch([{ source: 'ncsu', url: plant(2) }], { ...w.deps, session });
+    const robots = w.requests.filter((q) => q.url.endsWith('/robots.txt')).map((q) => q.url);
+    expect(robots.length).toBeGreaterThan(0);
+    expect(new Set(robots).size).toBe(robots.length); // (each host's, and its related hosts', once)
+    const pages = w.requests.filter((q) => q.url.includes('/plants/'));
+    expect(pages[1].at - pages[0].at).toBeGreaterThanOrEqual(5000);
   });
   it('keeps to the crawl delay', async () => {
     const w = fakeWorld({

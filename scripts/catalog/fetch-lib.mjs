@@ -15,7 +15,7 @@ export const OUR_AGENTS = ['fullgrowncatalog', 'claudebot', 'claude-user', 'clau
 /** Never faster than this, whatever a site allows (seconds). */
 export const MIN_PACE = 2;
 /** Each source's own pace (seconds), from docs/catalog-sources.md. */
-export const SOURCE_PACE = { usda: 2, ncsu: 5, mnwild: 5, arkatlas: 5 };
+export const SOURCE_PACE = { usda: 2, ncsu: 5, mnwild: 5, arkatlas: 5, web: 5, tallamy: 5 };
 /** HTTP answers that mean "stop asking this site". */
 const REFUSALS = new Set([401, 403, 429, 451, 503]);
 /** Signs of a bot check in place of the page asked for. On an ordinary 200 page only the unmistakable ones count. */
@@ -238,9 +238,11 @@ export function fileStore(root, today) {
       const dir = join(root, source, today);
       mkdirSync(dir, { recursive: true });
       const name = cacheName(url);
-      if (page != null) writeFileSync(join(dir, name), page);
+      // Each file written whole, then moved into place: a run cut off leaves no half-written page or meta.
+      const put = (f, data) => { const tmp = `${f}.${process.pid}.tmp`; writeFileSync(tmp, data); renameSync(tmp, f); };
+      if (page != null) put(join(dir, name), page);
       else rmSync(join(dir, name), { force: true }); // (no page: drop one saved earlier today)
-      writeFileSync(join(dir, name + '.meta.json'), JSON.stringify(meta, null, 1));
+      put(join(dir, name + '.meta.json'), JSON.stringify(meta, null, 1));
     },
     saveRobots(host, status, type, body) {
       mkdirSync(join(root, 'robots'), { recursive: true });
@@ -273,13 +275,16 @@ export function fileStore(root, today) {
  *            refused() → { host: { why, date } }, refuse(host, why) }
  *   Only HTTP refusals and bot checks are remembered across runs; robots.txt is read afresh each run.
  *   today: 'YYYY-MM-DD', refresh: bool, log(line)
+ *   session: fetchSession(), to share robots.txt and pacing across runFetch calls in one process
  * Returns { saved, cached, skipped }.
  */
+/** What runs within one process share: robots.txt read this run, and when each site was last asked (so pace holds across runs). */
+export const fetchSession = () => ({ robots: new Map(), lastHit: new Map() });
 export async function runFetch(list, deps) {
-  const { get, sleep, now, store, today, refresh = false, log = () => {} } = deps;
-  const robots = new Map(); // host → parsed
+  const { get, sleep, now, store, today, refresh = false, log = () => {}, session = fetchSession() } = deps;
+  const robots = session.robots; // host → parsed
   const text = (b, n) => (Buffer.isBuffer(b) ? b.subarray(0, n ?? b.length).toString(n ? 'latin1' : 'utf8') : String(b ?? '').slice(0, n));
-  const lastHit = new Map(); // site → ms
+  const lastHit = session.lastHit; // site → ms
   const refused = new Map(Object.entries(store.refused()).map(([h, v]) => [h, v.why]));
   const out = { saved: 0, cached: 0, skipped: 0 };
   const noted = new Set(); // (each note once)
