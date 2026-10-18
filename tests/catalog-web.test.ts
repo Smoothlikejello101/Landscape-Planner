@@ -57,6 +57,7 @@ describe('reading spec lines', () => {
     expect(webFields('Sun Exposure\nsun\nSoil Needs\nwell-drained')).toEqual({ sun: { most: 'Full', least: 'Full' } });
     expect(webFields('Hardiness Zones:\n5a , 5b , 6a , 9b\nWater Category:')).toEqual({ zones: { zone_min: 5, zone_max: 9.5 } });
     expect(webFields('sun - mostly shade')).toEqual({});
+    expect(webFields('Sun Exposure\nPartial, Shade\nBloom Color')).toEqual({ sun: { most: 'Part', least: 'Shade' } });
     expect(webFields('USDA Hardiness Zone: 4 to 9')).toEqual({ zones: { zone_min: 4, zone_max: 9.5 } });
   });
   it("doesn't mistake temperatures, negations, pot sizes or two sizes for values", () => {
