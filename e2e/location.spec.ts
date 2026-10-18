@@ -60,7 +60,7 @@ test('a ZIP gives the zone and frost dates; the plant picker can show only plant
   await expect(row).toHaveCount(0);
   // Placed, its properties say what the edge means.
   await page.getByTestId('plant-search').fill('Oleander');
-  await edge.click();
+  await edge.locator('[data-testid=plant-place]').click();
   await placeOnceAtCenter(page);
   await page.locator('.sel-pill button.edit').click(); await openSections(page);
   await expect(page.getByTestId('plant-zones')).toHaveText('Hardy in zones 8–11. Zone 8a is at the cold edge of its range: give it a sheltered spot and mulch its roots for winter.');
@@ -78,7 +78,7 @@ test('at the warm edge of a plant\'s range: shade, and water unless it wants lit
   await page.getByTestId('plant-search').fill('Lead plant'); // rated through zone 8, low water
   const lead = page.locator('.sheet .proj-row', { hasText: 'Lead plant' });
   await expect(lead).toContainText('(at its warm edge in zone 8b)');
-  await lead.click();
+  await lead.locator('[data-testid=plant-place]').click();
   await placeOnceAtCenter(page);
   await page.locator('.sel-pill button.edit').click(); await openSections(page);
   await expect(page.getByTestId('plant-zones')).toHaveText('Hardy in zones 3–8. Zone 8b is at the warm edge of its range: give it afternoon shade in summer.');

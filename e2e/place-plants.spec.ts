@@ -7,7 +7,7 @@ const banner = (page: Page) => page.getByTestId('place-banner');
 const bar = (page: Page) => page.getByTestId('place-bar');
 async function pick(page: Page, name: string) {
   await page.getByTestId('plant-search').fill(name);
-  await page.locator('.sheet .proj-row', { hasText: name }).first().click();
+  await page.locator('.sheet .proj-row', { hasText: name }).first().locator('[data-testid=plant-place]').click();
 }
 
 test('pick a plant once, tap each spot, Undo the last, Done leaves the batch selected', async ({ page }) => {
@@ -99,7 +99,7 @@ test('an existing tree: pick which, or draw an unknown one, by trunk and canopy 
   const name = (await first.locator('.pname').innerText()).replace(/Mine$/, '').trim();
   await expect(first.locator('.unverified-badge')).toHaveText('Unverified'); // the old list, not yet checked
   await expect(page.getByTestId('unverified-note')).toBeVisible();
-  await first.click();
+  await first.locator('[data-testid=plant-place]').click();
   await expect(page.getByTestId('draw-banner')).toContainText('Tap the trunk');
   await tapFromCenter(page, 0, 0);
   await tapFromCenter(page, 5, 0);

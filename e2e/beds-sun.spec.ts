@@ -14,7 +14,7 @@ async function addPlant(page: Page, name: string) {
   await page.locator('.tool-btn.plants').click();
   await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker (820)');
   await page.locator('.sheet input[type=text]').fill(name);
-  await page.locator('.sheet .proj-row', { hasText: name }).first().click();
+  await page.locator('.sheet .proj-row', { hasText: name }).first().locator('[data-testid=plant-place]').click();
   await placeOnceAtCenter(page);
 }
 const shapeEl = (page: Page, label: string) =>
