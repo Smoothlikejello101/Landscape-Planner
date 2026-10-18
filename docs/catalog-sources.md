@@ -13,8 +13,8 @@ down: the rule found, and the date it was checked.
    group naming our fetcher. The fetcher sends
    `FullGrownCatalog/1.0 (mailto:hello@fullgrown.garden)`, an address that
    reaches Jason. Claude runs the
-   audit, so groups for `ClaudeBot`, `Claude-User` and `Claude-SearchBot`
-   count too. A `Disallow` means no automated reading, whatever the terms
+   audit, so the Claude agents' groups count too (the full list is under
+   "How terms are read"). A `Disallow` means no automated reading, whatever the terms
    say.
 2. **Terms of use and any data license.** Do they allow automated access?
    Do they allow use in a paid product? A terms page that says nothing about
@@ -48,9 +48,11 @@ reading, to be checked with one before launch.
 network failure, or a challenge page in its place ("are you human",
 Cloudflare, Incapsula) counts as disallowing everything. The groups that
 apply are `*`, `FullGrownCatalog`, `ClaudeBot`, `Claude-User`,
-`Claude-SearchBot`, `Claude-Web` and `anthropic-ai`. A site that blocks bots
-from its pages, or blocks a Claude agent anywhere on its main site, is
-**closed to bots** on all its hosts.
+`Claude-SearchBot`, `Claude-Web` and `anthropic-ai`. A host that disallows
+the pages we'd read, or blocks a Claude agent from the whole host, is
+**closed to bots**, and so are its subdomains (www.extension.iastate.edu
+closes yardandgarden.extension.iastate.edu; ffl-api.ifas.ufl.edu closes
+nothing else at ifas.ufl.edu).
 
 **Terms.** What a statement is about decides how it's read:
 
@@ -68,22 +70,23 @@ from its pages, or blocks a Claude agent anywhere on its main site, is
   written yes, not used, not even by hand.
 
 **Ask first anyway** for:
-- **Ratings and judgments** (deer-damage ratings, trial scores, water-use
-  classes). An expert's rating is closer to their expression than a
-  measurement is.
-- **A structured database** whose owner has chosen not to offer a public
-  download, or of which we'd take a substantial part (more than about a
-  tenth of its records). The selection and arrangement of a database can be
-  protected, and in the EU and UK the database itself. The tenth is our
-  line, not a legal one: a question for the lawyer. (NC State: about 446 of
-  4,723 pages, so just under it.)
+- **Graded scores** an owner assigns from trials or expert judgment: Rutgers'
+  A–D deer ratings, trial scores out of 5. An expert's grading is closer to
+  their expression than a measurement is. Plain categories (low or moderate
+  water, deer-resistant, poison severity) are facts.
+- **A database whose download is open only to restricted users** (editors,
+  members). Taking it through its public pages would get around that choice.
+
+For the lawyer: whether taking facts for hundreds of plants from one
+structured database raises database rights, which protect a database itself
+in the EU and UK.
 
 **Lean on** means a source decides values for more than 25 catalog plants.
 A source we lean on gets a courtesy note before launch, and if it objects,
 its values come out.
 
 **Second-hand** means a source says it's compiled from a source closed to
-us, or its values match one word for word. It's treated as that source.
+bots, or its values match one word for word. It's treated as that source.
 
 ## Sources
 
@@ -113,7 +116,7 @@ It's an upper bound on pages we'd use.
 
 | Source | Gives | Matches | robots.txt and terms |
 | --- | --- | --- | --- |
-| **UMN Extension Plant Elements of Design** (plantsearch.extension.umn.edu) | Zones, height, spread, soil, flower color, seasons of interest, invasive flag. Structured, 2,314 records with cultivars | not measured | No robots.txt. © notice only. Count our matches before use: past a tenth of its records, ask first. |
+| **UMN Extension Plant Elements of Design** (plantsearch.extension.umn.edu) | Zones, height, spread, soil, flower color, seasons of interest, invasive flag. Structured, 2,314 records with cultivars | not measured | No robots.txt. © notice only. |
 | **Mt. Cuba Center** plants and trials | Zones, sun, moisture, pH, bloom season; trials give **peak bloom month**, weeks in bloom and 3-year size for cultivars | about 205 | Crawl delay 10. Its "Privacy Policy and Terms & Conditions" page holds privacy text only; © footer. Trial ratings are judgments, so not taken. |
 | **Minnesota Wildflowers** | Native status, habitat (sun, moisture), **bloom months**, height, wetland status. Wild Minnesota species | about 307 | Blocks only Wget-type tools. Terms: "facts cannot be copyrighted"; no verbatim text. |
 | **Illinois Wildflowers** (John Hilty) | Height, bloom season and length, sun, moisture, soil, range, and detailed wildlife: bees, caterpillar hosts, birds, browsing | not measured | Empty robots.txt. © notice only. |
@@ -125,17 +128,17 @@ It's an upper bound on pages we'd use.
 | **University of Arkansas Plant of the Week** | Native range, Arkansas nativity, size, bloom in prose, wildlife notes. Narrative, 1,016 articles | about 109 | Allows plant pages. No terms found. |
 | **Atlas of the Vascular Plants of Arkansas** (2013) | Arkansas county distribution; introduced, native, invasive status; 2,892 taxa | about 540 | No robots.txt on its host. "Free download edition. Not for commercial sale": we cite its facts and never ship the PDF. |
 | **UGA "Native Plants for Georgia"** bulletins | Zones, size, native range, habitat, wildlife and host notes, under fixed headings | about 94 (one part) | Allowed. Its footer's copyright page wasn't read. |
-| **Tennessee Smart Yards native plants** (UT) | Light, moisture, soil, height, bloom season, Tennessee region, wildlife | about 242 | WordPress defaults (UT's own site: crawl delay 30). No terms found. |
+| **Tennessee Smart Yards Native Plant Database** (tynnativeplants.wordpress.com, linked from UT's tnyards.utk.edu) | Light, moisture, soil, height, bloom season, Tennessee region, wildlife | about 130 | WordPress.com defaults (UT's own site: crawl delay 30). No terms found. Confirm UT owns it before use. |
 | **Clemson HGIC**, **LSU AgCenter**, **Alabama Extension** (crawl delay 2), **Wisconsin Horticulture**, **Penn State** (crawl delay 10), **Purdue** (crawl delay 3), **UMD**, **UNH**, **UVM**, **Missouri, Ohio State and Maine Extension** | Narrative fact sheets | small each | © notices, or statements about copying the material. |
 | **Oregon State Landscape Plants** (crawl delay 10), **Colorado State Extension**, **Plant Select**, **Conservation Garden Park** (Utah), **AMWUA** (Arizona), **Texas SmartScape** | Zones, size, sun, water, soil; Plant Select and Conservation Garden Park add deer, pollinators and (CGP) **bloom months** | small to medium | © notices only. Plant Select asks permission for stories and photos, which we don't use. |
 | **Shropshire & Tallamy 2025** caterpillar host-plant dataset (University of Delaware) | Which caterpillars use which plant genera, 7,423 species | genus level | CC0 at the university's repository (the journal's copy says ODbL, which allows commercial use with credit). |
+| **Virginia DCR Native Plant Finder** | About 1,600 natives with sun, moisture and pollinator flags, offered as CSV | not measured | Allowed. Copyright notice, with fair use granted and a request asked when in doubt (web@dcr.virginia.gov): a courtesy note before use. |
 | **Kew World Checklist of Vascular Plants** | Accepted names and native range worldwide | all species | CC BY. Confirm the range table is in the download. |
 
 ### Ask first
 
 | Source | Why it's worth asking | Why we ask |
 | --- | --- | --- |
-| **UF/IFAS Florida-Friendly Landscaping plant app** | The only regional source with structured **pet toxicity** and **flowering months** | Its data API's robots.txt returns an error (closed to bots), and pet toxicity is a safety fact we'd lean on. |
 | **Rutgers deer-resistance ratings** (E271, 527 plants) | The cleanest deer rating found | A rating, and we'd take all of it that matches. |
 | **SelecTree** (Cal Poly) | Trees: zones, size, water, soil, deer palatability, wildlife, native range. About 1,500, structured | A database whose download is open only to its editors; taking it through the public API would get around that. |
 | **WUCOLS** (UC Davis) | Water use for about 3,500 species, by six California regions | Its site blocks non-browsers, and its data host's robots.txt returns an error. Water classes are ratings. A UC Extension product, where UC ANR's terms may apply. |
@@ -143,9 +146,8 @@ It's an upper bound on pages we'd use.
 | **Kansas Wildflowers & Grasses** | About 330 matches, with **bloom months** | "may not be used commercially". One owner to ask. |
 | **Morton Arboretum** | 774 well-structured plants, about 144 matches | Terms bar commercial use and automated downloading. |
 | **Florida Native Plant Society** | About 121 matches, structured | Non-commercial use only. |
-| **Virginia DCR Native Plant Finder** | About 1,600 natives with sun, moisture and pollinator flags, as CSV | Its policy bars using the system "for other than its intended purposes" and asks for a request when in doubt (web@dcr.virginia.gov). |
+| **Native Plant Society of Texas** | About 179 matches, structured, with soil, water and wildlife | Its references are largely MOBOT and the Wildflower Center, closed to bots, so we'd need to know which facts are its own. |
 | **UConn Plant Database**, **Utah State**, **NMSU**, **UC ANR**, **Xerces**, **NWF Native Plant Finder** | Assorted | Terms bar use for profit, commercial use or commercial distribution. |
-| **Pet Poison Helpline** | Pet toxicity | A terms page exists but didn't load, so it's unread. |
 
 ### Not by bot
 
@@ -155,13 +157,15 @@ By hand only after each site's terms are read.
   State Extension (ClaudeBot, Claude-Web and anthropic-ai on its main site,
   so all its hosts), SEINet, OregonFlora and the Washington Native Plant
   Society (`*`).
+- **UF/IFAS Florida-Friendly Landscaping plant app:** its data API's
+  robots.txt returns an error. The only regional source with structured
+  **pet toxicity** and **flowering months**: by hand is allowed (its terms
+  are about copying), and asking would let us read it properly.
 - **Blocked, or robots.txt unreadable:** Calscape, Jepson eFlora, Michigan
   State, Prairie Moon, Grow Native!, Oklahoma State, WSU, PNW Plants.
 
 ### Not used
 
-- **Second-hand:** Native Plant Society of Texas. Its facts are compiled
-  largely from MOBOT and the Wildflower Center, which are closed to bots.
 - **Terms forbid it:** Sunset Western Garden (its zones are proprietary),
   Garden.org.
 
@@ -200,9 +204,14 @@ USDA or NC State).
 The table below names the national sources. Regional sources from the
 "Use now" list check any fact they give, and decide where the national
 sources are silent, with `at` set to their state for facts that depend on
-place (bloom months, water). When regional sources disagree with each other,
-the fact is `disputed` and goes on the review list: none is picked
-silently. Keeping a value per region is a format change (below). The
+place (bloom months, water).
+
+- **Facts that depend on place** differ by region without anyone being
+  wrong, so they're never `disputed` against each other. They wait for the
+  "Values by region" format change, which keeps each region's value.
+- **Other facts** (zones, size, sun, native status) where regional sources
+  disagree and no national source decides: `disputed`, stored as `null`
+  until the review picks one. None is picked silently. The
 20-plant sample settles how each source's fields map.
 
 - **Both agree:** `check: "agree"`, both in `src`.
