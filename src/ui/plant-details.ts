@@ -1,5 +1,5 @@
-// A plant's full details, shown when its row in the picker is opened: every
-// fact the catalog has, where it came from and how sure it is, and what
+// A plant's full details, shown when its row in the picker is opened: the
+// facts the catalog has, where it came from and how sure it is, and what
 // nurseries report where it differs from the authorities.
 import { el } from '../dom';
 import type { Plant } from '../plants';
@@ -16,7 +16,9 @@ const ft = (r?: { min?: number; max?: number; med?: number }) => {
   const f = (x: number) => (x >= 1 ? `${+x.toFixed(1)} ft` : `${Math.round(x * 12)} in`);
   return r.min != null && r.max != null && r.min !== r.max ? `${f(r.min).replace(' ft', '')}–${f(r.max)}` : r.med != null ? f(r.med) : r.min != null ? f(r.min) : '';
 };
-const sun = (most?: unknown, least?: unknown) => (!most ? '' : most === least || !least ? `${most} sun` : `${most} sun to ${least === 'Shade' ? 'shade' : 'part shade'}`);
+const SUN_WORDS: Record<string, string> = { Full: 'full sun', Part: 'part shade', Shade: 'shade' };
+const cap = (t: string) => t[0].toUpperCase() + t.slice(1);
+const sun = (most?: unknown, least?: unknown) => (!most ? '' : cap(most === least || !least ? SUN_WORDS[most as string] ?? String(most) : `${SUN_WORDS[most as string] ?? most} to ${SUN_WORDS[least as string] ?? least}`));
 const yes = (v: unknown) => (v === true ? 'Yes' : v === false ? 'No' : '');
 const bloom = (b?: { start?: number; end?: number; color?: string }) => (b?.start ? `${MONTH_NAMES[b.start]}${b.end && b.end !== b.start ? `–${MONTH_NAMES[b.end]}` : ''}${b.color ? `, ${b.color}` : ''}` : b?.color ?? '');
 const tox = (t?: Plant['tox']) => (!t ? '' : [t.dog && `dogs: ${t.dog}`, t.cat && `cats: ${t.cat}`, t.horse && `horses: ${t.horse}`, t.people && `people: ${t.people}`].filter(Boolean).join('; '));
@@ -49,6 +51,10 @@ function rows(p: Plant): Row[] {
     ['Self-seeds', p.self_seed ?? '', ['self_seed']],
     ['Maintenance', p.maintenance ?? '', ['maintenance']],
     ['Taproot (hard to move)', yes(p.taproot), ['taproot']],
+    ['Humidity', p.humidity === 'humid' ? 'Likes humid summers' : p.humidity === 'dry' ? 'Likes dry air' : p.humidity === 'either' ? 'Either' : '', ['humidity']],
+    ['Habit', p.habit ?? '', ['habit']],
+    ['Trunk', p.trunk ? `${p.trunk} in across` : '', ['trunk']],
+    ['Nativar', p.nativar ? 'A cultivar of a native species' : '', ['nativar']],
   ];
 }
 /** Where a value came from, in a few words: "NC State, USDA · confirmed", "older list, unverified". */
@@ -75,7 +81,11 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
   for (const [label, value, facts, reportedText] of rows(p)) {
     const prov = facts.map((f) => p.prov?.[f]).find(Boolean);
     const reported = p.reported && facts.some((f) => f in p.reported!) && reportedText ? reportedText(p.reported) : '';
-    if (!value && !reported) continue;
+    if (!value && !reported) {
+      // Looked up, and none of the sources say: shown as such, so it isn't mistaken for "not looked at".
+      if (facts.some((f) => p.prov?.[f]?.unknown)) { dl.appendChild(el('dt', {}, label)); dl.appendChild(el('dd', { className: 'details-unknown' }, 'Not known: none of the sources say')); }
+      continue;
+    }
     const dd = el('dd', {}, value || '—');
     const line = sourceLine(prov);
     if (line) dd.appendChild(el('span', { className: 'details-src' }, line));

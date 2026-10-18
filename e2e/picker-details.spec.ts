@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openFresh } from './helpers';
+import { addPlainShape, field, openFresh } from './helpers';
 
 // Plant picker rows open to show a plant's details; Place uses it.
 
@@ -20,6 +20,13 @@ test('a plant row opens to its details, and stays open while the list changes', 
   await search.type(' ');
   await expect(search).toBeFocused();
   await expect(page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" }).getByTestId('plant-details')).toBeVisible();
+  // A tap inside the details neither closes the row nor places the plant.
+  await page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" }).getByTestId('plant-details').click();
+  await expect(page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" }).getByTestId('plant-details')).toBeVisible();
+  await expect(page.getByTestId('place-bar')).toHaveCount(0);
+  // The row opens from the keyboard too, and its name (with its summary) is what's announced.
+  const toggle = page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" }).getByTestId('plant-row');
+  await expect(toggle).toHaveAccessibleName(/Heuchera 'Autumn Bride'.*Heuchera villosa/);
   // Tap again: closed. Nothing was placed.
   await page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" }).getByTestId('plant-row').click();
   await expect(page.getByTestId('plant-details')).toHaveCount(0);
@@ -56,4 +63,15 @@ test('a plant shown only because of what nurseries report is marked, and says so
   // Placing works from the row's button.
   await page.locator('.plant-item', { hasText: 'Sweetspire' }).getByTestId('plant-place').click();
   await expect(page.getByTestId('place-bar')).toBeVisible();
+});
+
+test('linking a circle to a catalog plant uses the Link button', async ({ page }) => {
+  await openFresh(page);
+  await addPlainShape(page, 'circle');
+  await page.getByTestId('plant-link').getByRole('button', { name: 'Link to a plant…' }).click();
+  await page.getByTestId('plant-search').fill('Autumn Bride');
+  const item = page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" });
+  await expect(item.getByTestId('plant-place')).toHaveText('Link');
+  await item.getByTestId('plant-place').click();
+  await expect(field(page, 'Label')).toHaveValue("Heuchera 'Autumn Bride'");
 });

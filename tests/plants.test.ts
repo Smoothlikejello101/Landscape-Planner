@@ -16,6 +16,21 @@ describe('plant filters', () => {
     expect(reportedMatch(h, fs({ sun: 'Full' }))).toEqual(['sun']); // (only nurseries say so)
     expect(reportedMatch(h, fs({ sun: 'Full', withReported: false }))).toBeNull();
     expect(reportedMatch({ ...h, reported: undefined }, fs({ sun: 'Full' }))).toBeNull();
+    // Each filter on its own: only the one that needed the nursery is named…
+    const w = { ...h, water: 'Low', reported: { sun_most: 'Full', water: 'Moderate' } } as Plant;
+    expect(reportedMatch(w, fs({ sun: 'Part', water: 'Moderate' }))).toEqual(['water']);
+    // …a nursery's value that would fail a filter the references pass doesn't hide the plant…
+    expect(reportedMatch({ ...w, sun_most: 'Full', sun_least: 'Part', reported: { sun_most: 'Part', water: 'Moderate' } } as Plant, fs({ sun: 'Full', water: 'Moderate' }))).toEqual(['water']);
+    // …and a filter that isn't in use (zones, with no location) is never named.
+    expect(reportedMatch(w, fs({ hardyHere: true, water: 'Moderate' }))).toEqual(['water']);
+    // A reported single form against a list of forms.
+    const redbud = { id: 'r', common: 'Redbud', form: 'Tree (understory)', forms: ['Tree (understory)', 'Shrub'], reported: { form: 'Perennial' } } as Plant;
+    expect(reportedMatch(redbud, fs({ form: 'Perennial' }))).toEqual(['form']);
+    // Facts nurseries aren't taken for never count, even if a record carried them.
+    const dog = { id: 'd', common: 'D', tox: { dog: 'toxic' }, reported: { tox: { dog: 'nontoxic' } } } as unknown as Plant;
+    expect(reportedMatch(dog, fs({ dogSafeOnly: true }))).toBeNull();
+    const inv = { id: 'i', common: 'I', invasive: true, reported: { invasive: false } } as unknown as Plant;
+    expect(reportedMatch(inv, fs({}))).toBeNull();
   });
   it('match a plant under each of its forms', () => {
     const redbud = { id: 'r', common: 'Redbud', form: 'Tree (understory)', forms: ['Tree (understory)', 'Shrub'] } as Plant;

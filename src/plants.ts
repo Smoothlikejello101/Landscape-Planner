@@ -223,23 +223,46 @@ export function matchedBy(p: Plant, query: string): MatchedBy | null {
 export function plantIdsInPlan(): Set<string> {
   return new Set(state.shapes.filter((s) => s.status !== 'gone').map((s) => s.plantId).filter((id): id is string => !!id));
 }
-/** The facts each filter reads: a match only by a nursery's value is flagged with these. */
+/**
+ * The filters a nursery's report can count for, the facts each reads, and
+ * what the flag calls them. Safety and status facts (toxicity, invasive,
+ * native) never come from nurseries: the catalog doesn't accept reports
+ * for them.
+ */
 const FILTER_FACTS: [keyof PlantFilter, string[], string][] = [
   ['sun', ['sun_most', 'sun_least'], 'sun'], ['hardyHere', ['zone_min', 'zone_max'], 'hardiness zones'], ['water', ['water'], 'water'],
   ['deer', ['deer'], 'deer resistance'], ['maxHeight', ['height'], 'height'], ['bloomMonth', ['bloom'], 'bloom time'], ['form', ['form'], 'form'],
 ];
+/** The plant as a nursery describes these facts (each pair as a whole: a nursery's sun range, not half of one). */
+function asReported(p: Plant, facts: string[]): Plant {
+  const r = p.reported ?? {};
+  const q: Plant = { ...p };
+  for (const k of facts) if (k in r) (q as unknown as Record<string, unknown>)[k] = r[k];
+  if ('form' in r && facts.includes('form')) { const fs = [r.form].flat() as string[]; q.form = fs[0]; q.forms = fs; }
+  return q;
+}
 /**
  * Whether a plant matches, and if only by what nurseries report (where an
  * authority says otherwise): null (no match), [] (a match on the
- * authorities' values), or what the match rests on ("sun", "hardiness zones").
+ * authorities' values), or the filters the match rests on ("sun",
+ * "hardiness zones"). Each filter is judged on its own: it passes on the
+ * authorities' value, or failing that on a nursery's; every other filter
+ * must pass on the authorities' values.
  */
 export function reportedMatch(p: Plant, f: PlantFilter, inPlan?: Set<string>): string[] | null {
   if (plantMatches(p, f, inPlan)) return [];
   if (!f.withReported || !p.reported) return null;
-  const merged: Plant = { ...p, ...(p.reported as Partial<Plant>) };
-  if (Array.isArray(p.reported.form)) { merged.form = (p.reported.form as string[])[0]; merged.forms = p.reported.form as string[]; }
-  if (!plantMatches(merged, f, inPlan)) return null;
-  return FILTER_FACTS.filter(([k, facts]) => f[k] && facts.some((x) => x in p.reported!)).map(([, , label]) => label);
+  const reportable = Object.fromEntries(FILTER_FACTS.map(([k]) => [k, PLANT_FILTER_DEFAULTS[k]]));
+  if (!plantMatches(p, { ...f, ...reportable }, inPlan)) return null; // (the rest must pass as published)
+  const needed: string[] = [];
+  for (const [k, facts, label] of FILTER_FACTS) {
+    if (f[k] === PLANT_FILTER_DEFAULTS[k]) continue;
+    const only = { ...PLANT_FILTER_DEFAULTS, [k]: f[k], q: '', inPlan: false };
+    if (plantMatches(p, only)) continue;
+    if (!facts.some((x) => x in p.reported!) || !plantMatches(asReported(p, facts), only)) return null;
+    needed.push(label);
+  }
+  return needed.length ? needed : null;
 }
 /** Plants in the last list that match only by nurseries' reports, and on what. */
 export const reportedOnly = new Map<string, string[]>();

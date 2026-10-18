@@ -113,6 +113,15 @@ describe('records', () => {
     expect(catalogErrors({ meta, plants: [r] })).toEqual([]);
     const bad = rec({ id: 'b', facts: { sun_most: { v: 'Shade', src: ['ncsu'], alt: { v: 'Lots', src: ['mobot'], check: 'maybe' } } } });
     expect(catalogErrors({ meta, plants: [bad] })).toEqual(['b.sun_most: alt needs a value, its sources, and a check of likely or reported']);
+    const tox = rec({ id: 't', facts: { tox: { v: { dog: 'toxic' }, src: ['ncsu'], alt: { v: { dog: 'nontoxic' }, src: ['mobot'], check: 'reported' } } } });
+    expect(catalogErrors({ meta, plants: [tox] })).toEqual(["t.tox: nurseries' reports aren't taken for tox"]);
+    expect(resolveCatalog({ meta, plants: [tox] })[0].reported).toBeUndefined();
+    const same = rec({ id: 's', facts: { sun_most: { v: 'Shade', src: ['ncsu'], alt: { v: 'Shade', src: ['mobot'], check: 'reported' } } } });
+    expect(catalogErrors({ meta, plants: [same] })).toEqual(["s.sun_most: alt is for a value that differs from the authority's"]);
+    // An older file's whole-zone zone_max is read half a zone warmer, nurseries' too.
+    const { zones: _z, ...older } = meta;
+    const z = rec({ id: 'z', facts: { zone_max: { v: 8, src: ['ncsu'], alt: { v: 9, src: ['mobot'], check: 'reported' } } } });
+    expect(resolveCatalog({ meta: older as CatalogFile['meta'], plants: [z] })[0]).toMatchObject({ zone_max: 8.5, reported: { zone_max: 9.5 } });
   });
   it('list implausible values for the audit', () => {
     const w = catalogWarnings({ meta, plants: [rec({ id: 'p', common: "Coneflower 'Magnus'", botanical: 'Echinacea purpurea', facts: { form: 'Perennial', height: { min: 30, max: 36 }, zone_min: 9, zone_max: 3 } })] });

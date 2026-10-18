@@ -16,7 +16,12 @@ export interface SourceDef { title: string; url?: string; trust: Trust }
  * give it agree), `reported` (one nursery), `disputed`.
  */
 export type Check = 'agree' | 'confirmed' | 'disputed' | 'single' | 'likely' | 'reported';
-/** What nurseries report where it differs from the authority's value (shown, and usable in filters, by the user's choice). */
+/**
+ * What nurseries report where it differs from the authority's value (shown, and usable in filters, by the
+ * user's choice). Only for what a nursery can speak to; never toxicity, invasiveness or native status. A pair
+ * (sun_most and sun_least, zone_min and zone_max) is reported whole: both get an `alt` when either differs.
+ */
+export const REPORTABLE = new Set(['form', 'height', 'width', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'bloom', 'deer']);
 export interface Reported<T = unknown> { v: T; src: string[]; check: 'likely' | 'reported' }
 /** A fact with its own sourcing (else a plain value, sourced by its record). */
 export interface SourcedFact<T = unknown> { v: T; src?: string[]; at?: string; check?: Check; alt?: Reported<T> }
@@ -106,7 +111,7 @@ export function resolveCatalog(file: CatalogFile): Plant[] {
       const pv = own ? got.prov : { ...got.prov, inherited: true };
       // Known unknown: no value, but the record says the sources were checked.
       if (got.v == null) { prov[key] = { ...pv, unknown: true }; continue; }
-      if (pv.alt) (p.reported ??= {})[key] = pv.alt.v;
+      if (pv.alt && REPORTABLE.has(key)) (p.reported ??= {})[key] = key === 'zone_max' && wholeZoneMax && Number.isInteger(pv.alt.v) ? (pv.alt.v as number) + 0.5 : pv.alt.v;
       if (key === 'form' && Array.isArray(got.v)) { p.form = got.v[0]; p.forms = got.v as string[]; prov[key] = pv; continue; }
       (p as unknown as Record<string, unknown>)[key] = key === 'zone_max' && wholeZoneMax && Number.isInteger(got.v) ? (got.v as number) + 0.5 : got.v;
       prov[key] = pv;
@@ -211,7 +216,9 @@ export function catalogErrors(file: CatalogFile): string[] {
         for (const k of Object.keys(raw)) if (!['v', 'src', 'at', 'check', 'alt'].includes(k)) errs.push(`${at}.${key}: unknown key ${k}`);
         if (raw.alt != null) {
           const a = raw.alt as Partial<Reported>;
-          if (!isObj(a) || !('v' in a) || !check(a.v, enums) || !Array.isArray(a.src) || !a.src.length || !['likely', 'reported'].includes(a.check as string)) errs.push(`${at}.${key}: alt needs a value, its sources, and a check of likely or reported`);
+          if (!REPORTABLE.has(key)) errs.push(`${at}.${key}: nurseries' reports aren't taken for ${key}`);
+          else if (!isObj(a) || !('v' in a) || a.v == null || !check(a.v, enums) || !Array.isArray(a.src) || !a.src.length || !['likely', 'reported'].includes(a.check as string)) errs.push(`${at}.${key}: alt needs a value, its sources, and a check of likely or reported`);
+          else if (raw.v == null || JSON.stringify(a.v) === JSON.stringify(raw.v)) errs.push(`${at}.${key}: alt is for a value that differs from the authority's`);
           else for (const s of a.src) if (!sources[s]) errs.push(`${at}.${key}: unknown source ${s}`);
         }
         if (raw.at != null && !STATE.test(raw.at)) errs.push(`${at}.${key}: "at" must be a state code`);

@@ -77,9 +77,19 @@ compendium: claims with no source behind them).
     (the others agree with it, or dispute it);
   - `at`: where it was observed (a US state, e.g. `"AR"`), for values that
     depend on place, such as bloom months;
-  - `check`: `agree` (two independent sources agree within tolerance),
-    `disputed` (they don't: it goes on the review list) or `single` (one
-    source only).
+  - `check`: how sure it is. `agree` or `confirmed` (an authority, and an
+    independent source agrees within tolerance), `single` (one authority),
+    `likely` (no authority; most of the nurseries that give it agree),
+    `reported` (one nursery says it), `disputed` (sources disagree: it goes
+    on the review list);
+  - `alt`: what nurseries report where it differs from the authority's
+    value: `{ "v": …, "src": [...], "check": "likely" | "reported" }`. Only
+    for `form`, `height`, `width`, the zones, sun, `water`, `bloom` and
+    `deer`, never toxicity, invasiveness or native status. A pair (the two
+    zones, the two sun levels) gets an `alt` on both when either differs.
+    The app shows it in the plant's details, and its filters let it count
+    unless the user turns "Include what nurseries report" off; a plant shown
+    only because of it is marked.
 
 A fact that is `null` is known to be unknown: the sources were checked and
 none say (the app keeps that, without a value). A missing fact simply

@@ -1,7 +1,7 @@
 import { el, type Child } from '../dom';
 import { I } from '../icons';
 import type { Plant, PlantFilter } from '../plants';
-import { MONTH_NAMES, formsOf, matchedBy, reportedOnly, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkShapeToPlant, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun } from '../plants';
+import { MONTH_NAMES, matchedBy, reportedOnly, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkShapeToPlant, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { isMine, myPlants } from '../my-plants';
@@ -13,7 +13,7 @@ import { render } from './render';
 import { plantDetails } from './plant-details';
 
 function closePicker() { state.panel = null; state.pickerLinkId = null; state.pickerForTree = false; render(); }
-const isTree = (p: Plant) => formsOf(p).some((f) => f.startsWith('Tree'));
+const isTree = (p: Plant) => !!p.form?.startsWith('Tree'); // (its first form: what it's drawn as)
 // My plants folded away in the picker: kept here, and remembered on this device when storage allows.
 const FOLD_KEY = 'lp-my-plants-folded';
 let myPlantsFolded = (() => { try { return localStorage.getItem(FOLD_KEY) === '1'; } catch { return false; } })();
@@ -106,13 +106,16 @@ export function renderPlantsPanel() {
     } });
     const flagged = reportedOnly.get(p.id);
     const chev = el('span', { className: 'row-open' + (flagged ? ' flagged' : '') },
-      flagged ? el('span', { className: 'row-flag', 'data-testid': 'row-flag', title: 'Shown because of what nurseries report' }, '!') : null,
+      flagged ? el('span', { className: 'row-flag', 'data-testid': 'row-flag', title: 'Shown because of what nurseries report' }, '!',
+        el('span', { className: 'sr-only' }, ' (shown because of what nurseries report)')) : null,
       el('span', { className: 'fold-chev', html: I.chevronDown }));
-    const head = el('div', { className: 'proj-row', style: { alignItems: 'center' }, role: 'button', tabindex: '0', 'aria-expanded': 'false', 'data-testid': 'plant-row',
-      'aria-label': `${p.common}: show details` + (flagged ? ' (shown because of what nurseries report)' : '') }, dot, info, chev);
-    const place = el('button', { className: 'btn place-btn', 'data-testid': 'plant-place', 'aria-label': `${linking ? 'Link to' : forTree ? 'Pick' : 'Place'} ${p.common}` },
-      linking ? 'Link' : forTree ? 'Pick' : 'Place');
-    place.addEventListener('click', (e) => { e.stopPropagation(); pick(p); });
+    // The plant itself is the button that opens its details (its name and summary are what a screen reader says);
+    // Place and copy or edit sit beside it, not inside it.
+    const toggle = el('button', { className: 'row-toggle', 'aria-expanded': 'false', 'data-testid': 'plant-row' }, dot, info, chev);
+    const head = el('div', { className: 'proj-row', style: { alignItems: 'center' } }, toggle);
+    const verb = linking ? 'Link' : forTree ? 'Pick' : state.placing ? 'Switch' : 'Place';
+    const place = el('button', { className: 'btn place-btn', 'data-testid': 'plant-place', 'aria-label': `${verb === 'Link' ? 'Link to' : verb === 'Switch' ? 'Switch to' : verb} ${p.common}` }, verb);
+    place.addEventListener('click', () => pick(p));
     head.appendChild(place);
     // Mine: edit. Catalog: copy as my own (a cultivar of it, say).
     const mine = isMine(p);
@@ -121,10 +124,7 @@ export function renderPlantsPanel() {
       title: mine ? 'Edit my plant' : 'Copy as my plant',
       'aria-label': (mine ? 'Edit ' : 'Copy as my plant: ') + p.common,
     });
-    side.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openForm(mine ? { editId: p.id, place: false } : { copyFromId: p.id, place: false });
-    });
+    side.addEventListener('click', () => openForm(mine ? { editId: p.id, place: false } : { copyFromId: p.id, place: false }));
     head.appendChild(side);
     if (mine) info.firstChild!.appendChild(el('span', { className: 'mine-badge' }, 'Mine'));
     // Details not yet checked against sources say so, plainly, on every row (first in the details, where it can't be cut off).
@@ -132,13 +132,12 @@ export function renderPlantsPanel() {
     const item = el('div', { className: 'plant-item' }, head);
     let details: HTMLElement | null = null;
     const setOpen = (open: boolean) => {
-      head.setAttribute('aria-expanded', String(open));
+      toggle.setAttribute('aria-expanded', String(open));
       item.classList.toggle('open', open);
       if (open) { opened.add(p.id); details ??= plantDetails(p, flagged); item.appendChild(details); }
       else { opened.delete(p.id); details?.remove(); }
     };
-    head.addEventListener('click', () => setOpen(!opened.has(p.id)));
-    head.addEventListener('keydown', (e) => { if (e.target === head && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setOpen(!opened.has(p.id)); } });
+    toggle.addEventListener('click', () => setOpen(!opened.has(p.id)));
     if (opened.has(p.id)) setOpen(true);
     return item;
   }
