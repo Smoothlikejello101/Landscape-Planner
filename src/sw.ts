@@ -3,12 +3,17 @@
 // release replaces exactly what changed) and serves the app offline.
 import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
+import { StaleWhileRevalidate } from 'workbox-strategies';
 
 declare const self: ServiceWorkerGlobalScope;
 
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 registerRoute(new NavigationRoute(createHandlerBoundToURL('index.html')));
+// Wild plant records by state (public/wild/NN.json, src/wild.ts): too many to keep every state's, so each
+// is kept once fetched (the garden's own state, and any over a county line), then works offline. Refreshed
+// in the background when online. (Not "landscape-planner-…": that's the old worker's, cleared below.)
+registerRoute(({ url }) => url.origin === self.location.origin && /\/wild\/\d\d\.json$/.test(url.pathname), new StaleWhileRevalidate({ cacheName: 'fullgrown-wild' }));
 
 // Normally a new version waits for the user to tap "Update". But the
 // previous hand-written worker has no update prompt, so when replacing it we

@@ -14,15 +14,13 @@ what the record shows: "recorded", never "grows".
 | What | Source |
 | --- | --- |
 | Arkansas counties a plant is recorded in | **Atlas of the Vascular Plants of Arkansas** (Arkansas Vascular Flora Committee, 2013), its county dot maps. A dot is a herbarium record: the plant was collected growing in that county. Native and introduced plants both (an escaped garden plant growing wild there counts). |
+| Counties a plant is recorded in, every state | **USDA PLANTS Database** (NRCS) county records, as its site's distribution map shows them (its public map service; US government work). Native and introduced; USDA's "Excluded" records (not there) are left out. |
 | County names, and which counties border which (across state lines) | U.S. Census Bureau cartographic boundary files (1:10m counties), as packaged by `us-atlas` 3.0.1 |
 | The garden's county | its ZIP code's row in the ZIP tables ([climate-data.md](climate-data.md)) |
 
 Only facts are taken from the atlas: which counties a species is recorded in. No map, image or text of it
 is stored or shipped. A missing dot isn't evidence the plant can't grow there (no one may have collected
 it), so the app never says "not found here".
-
-Later: USDA PLANTS has county records for the whole country (see the USDA row in
-[catalog-sources.md](catalog-sources.md)), which would cover every state the same way.
 
 ## How they're read
 
@@ -36,7 +34,16 @@ Later: USDA PLANTS has county records for the whole country (see the USDA row in
    county's fitted center, or if any dot isn't on a county spot. (The 2013 atlas fits within 3.7 points,
    1.3 on average.) The species is the bold name under its map; a species mapped more than once (as its
    varieties) gets every county.
-3. `node scripts/catalog/wild.mjs <combined.json>`: `public/wild/05.json` and `public/wild/index.json`.
+3. USDA's records: each catalog plant's USDA profile (by the symbol the audit found) gives its PLANTS id,
+   and the PLANTS site's map service gives its county records with their shapes (fetched politely into
+   `catalog-src/web/`). USDA's county ids are its own, so `node scripts/catalog/usda-counties.mjs
+   <combined.json>` places each record by its shape: the county (Census boundaries) its center falls in,
+   or, where that county's name isn't the record's (a city inside a county), one of its corners' counties
+   that has its name. Of about 456,000 records for 743 plants, 69 couldn't be placed (mostly territories).
+   A plant gets its own taxon's records where USDA has it under its own name; otherwise its species', said
+   so.
+4. `node scripts/catalog/wild.mjs <combined.json>`: `public/wild/<state>.json` for every state with
+   records, and `public/wild/index.json`.
    A plant gets its own taxon's records: a species all its maps (its varieties' too), matched by the atlas
    name the audit found for it or its botanical name; a variety or subspecies its own map. A cultivar or
    mix with no species record in the catalog, or a variety the atlas maps only as its species, gets its
@@ -49,25 +56,31 @@ Later: USDA PLANTS has county records for the whole country (see the USDA row in
 ```json
 {
   "v": 1, "state": "AR", "fips": 5,
-  "source": { "title": "Atlas of the Vascular Plants of Arkansas (…)", "url": "…", "counties": "…" },
+  "sources": { "arkatlas": { "title": "Atlas of the Vascular Plants of Arkansas (…)", "url": "…" }, "usda": { "title": "USDA PLANTS Database (NRCS), county records", "url": "…" } },
   "counties": {
     "5019": { "name": "Clark", "near": [5039, 5059, 5097, 5099, 5103, 5109] },
     "48037": { "name": "Bowie", "state": "TX", "near": [5081, 5091] }
   },
   "plants": { "quercus-muehlenbergii": [5005, 5007, 5019] },
+  "src": { "quercus-muehlenbergii": ["arkatlas", "usda"] },
   "species": ["rudbeckia-fulgida-goldsturm"]
 }
 ```
 
 County codes are five-digit FIPS as numbers. `counties` holds the state's own counties (their neighbors
 in any state) and the counties over its line that border it (their state, and their neighbors in it), so
-a garden in Texarkana, Texas is told about Miller County, Arkansas. `plants` is keyed by catalog species
-id; a cultivar uses its species' records, and says so.
+a garden in Texarkana, Texas is told about Miller County, Arkansas. `plants` is keyed by catalog id: the
+union of its sources' records in the state, `src` naming them (the details line cites them). Where any
+source has the plant's own taxon's records, only those count: a variety never takes its species'
+counties from another source. `species` lists plants whose records are their species'; a cultivar with a
+species record in the catalog uses that record's, and says so.
 
 `public/wild/index.json`: `{ "v": 1, "states": { "5": "AR" }, "border": { "48037": [5] } }`: which states
 have a file, and which files a county outside them should load. The app loads the garden's own state's
-file and any its county borders. The files are part of the offline copy; the garden's county is
-remembered on the device once looked up (the last 20 ZIPs), so they work offline. A lookup that finds
+file and any its county borders. The index is part of the offline copy; a state's file (up to 250 KB,
+for 52 states and territories 4 MB in all) is kept on the device once fetched (src/sw.ts) and refreshed in
+the background when online. The garden's county is remembered on the device once looked up (the last 20
+ZIPs), so it all works offline after the first time. A lookup that finds
 nothing (offline before the county was ever looked up) is tried again a minute later.
 
 ## Limits

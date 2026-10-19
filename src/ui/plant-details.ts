@@ -6,7 +6,7 @@ import type { Plant } from '../plants';
 import { MONTH_NAMES, PLANT_META, formsOf, zoneNote } from '../plants';
 import { zoneRange } from '../climate';
 import type { Provenance } from '../catalog';
-import { wildHere, wildSource, wildText } from '../wild';
+import { wildHere, wildText } from '../wild';
 
 const SURE: Record<string, string> = {
   agree: 'confirmed', confirmed: 'confirmed', single: 'one source', likely: 'nurseries agree', reported: 'one nursery', disputed: 'sources disagree',
@@ -110,7 +110,7 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
   const wild = wildHere(p);
   if (wild) {
     const dd = el('dd', { 'data-testid': 'wild-here' }, wildText(wild));
-    dd.appendChild(el('span', { className: 'details-src' }, wildSource()));
+    dd.appendChild(el('span', { className: 'details-src' }, wild.sources.join('; ')));
     dl.appendChild(el('dt', {}, 'Wild near you'));
     dl.appendChild(dd);
   }

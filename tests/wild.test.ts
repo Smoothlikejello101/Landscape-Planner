@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
-import { wildFile, wildIndex } from '../scripts/catalog/wild.mjs';
-import { loadWild, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
+import { atlasRecords, SOURCES, stateFile, wildIndex } from '../scripts/catalog/wild.mjs';
+// @ts-expect-error (a plain .mjs script)
+import { placer } from '../scripts/catalog/usda-counties.mjs';
+import { countyName, loadWild, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
 import { plantMatches, PLANT_FILTER_DEFAULTS, zoneNote, type Plant } from '../src/plants';
 import { state } from '../src/state';
 
@@ -33,15 +35,24 @@ const maps = {
   'Quercus muehlenbergii': [5019, 5007], 'Viola sororia': [5059, 5091], 'Mitella diphylla': [5007], 'Asarum canadense': [5109, 5007],
   'Allium canadense': [5007, 5019], 'Allium canadense var. lavendulare': [5007], 'Rudbeckia fulgida': [5019], 'Morus alba': [5019], 'Morus rubra': [5019],
 };
-const file: WildFile = wildFile(catalog, audit, maps, counties, { title: 'Arkansas atlas' });
-const index = wildIndex([file]);
+const atlas = atlasRecords(catalog, audit, maps);
+// USDA: a second source. Its own records for the oak add Hot Spring; only its species' for lavendulare
+// (which has its own atlas map, so USDA's species-wide counties never reach it); a Texas county.
+const usda = {
+  'quercus-muehlenbergii': { counties: [5059, 48037], species: false },
+  'allium-canadense-var-lavendulare': { counties: [5019], species: true },
+  'rosmarinus': { counties: [48067], species: false },
+};
+const file: WildFile = stateFile({ fips: 5, code: 'AR' }, { arkatlas: atlas, usda }, SOURCES, counties);
+const tx: WildFile = stateFile({ fips: 48, code: 'TX' }, { arkatlas: atlas, usda }, SOURCES, counties);
+const index = wildIndex([file, tx]);
 
 const zipTable = { v: 1, zips: { 71923: ['8a', 0, 3, 5019], 71998: ['8a', -2, 0] }, stations: [] };
 const texTable = { v: 1, zips: { 75501: ['8a', 0, 3, 48037], 75551: ['8a', 0, 9, 48067] }, stations: [] };
 let fetched: string[] = [];
 const fetcher = (async (url: string) => {
   fetched.push(url);
-  const body = { 'climate/719.json': zipTable, 'climate/755.json': texTable, 'wild/index.json': index, 'wild/05.json': file }[url];
+  const body = { 'climate/719.json': zipTable, 'climate/755.json': texTable, 'wild/index.json': index, 'wild/05.json': file, 'wild/48.json': tx }[url];
   return body ? new Response(JSON.stringify(body)) : new Response('', { status: 404 });
 }) as typeof fetch;
 
@@ -50,20 +61,26 @@ beforeEach(() => { resetWild(); fetched = []; state.location = { zip: '71923', z
 describe('wild records near the garden', () => {
   it('are each plant\'s own taxon\'s (a cultivar\'s are its species\', said so; a hybrid has none), with the counties over the state line', () => {
     expect(file.plants).toEqual({
-      'allium-canadense-var-lavendulare': [5007], // (its own map: not the species' Clark County)
-      'allium-canadense-var-mobilense': [5007, 5019], 'asarum-canadense': [5109, 5007], 'mitella-diphylla': [5007],
-      'quercus-muehlenbergii': [5019, 5007], 'rudbeckia-goldsturm': [5019], 'viola-sororia': [5059, 5091],
+      'allium-canadense-var-lavendulare': [5007], // (its own map: not the species' Clark County, from either source)
+      'allium-canadense-var-mobilense': [5007, 5019], 'asarum-canadense': [5007, 5109], 'mitella-diphylla': [5007],
+      'quercus-muehlenbergii': [5007, 5019, 5059], 'rudbeckia-goldsturm': [5019], 'viola-sororia': [5059, 5091],
     });
+    expect(file.src!['quercus-muehlenbergii']).toEqual(['arkatlas', 'usda']);
+    expect(file.src!['allium-canadense-var-lavendulare']).toEqual(['arkatlas']);
     expect(file.species).toEqual(['allium-canadense-var-mobilense', 'rudbeckia-goldsturm']);
     expect(file.counties[5019]).toEqual({ name: 'Clark', near: [5059, 5109] });
     expect(file.counties[48037]).toEqual({ name: 'Bowie', state: 'TX', near: [5091] });
     expect(file.counties[48067]).toBeUndefined(); // (doesn't touch Arkansas)
-    expect(index).toEqual({ v: 1, states: { 5: 'AR' }, border: { 48037: [5] } });
+    expect(tx.plants).toEqual({ 'quercus-muehlenbergii': [48037], rosmarinus: [48067] });
+    expect(Object.keys(tx.sources)).toEqual(['usda']);
+    expect(index).toEqual({ v: 1, states: { 5: 'AR', 48: 'TX' }, border: { 5091: [48], 48037: [5] } });
   });
   it('say where: the garden\'s county, a neighbor, or elsewhere in the state', async () => {
     await loadWild(undefined, fetcher);
     expect(fetched).toEqual(['climate/719.json', 'wild/index.json', 'wild/05.json']);
     expect(wildText(wildHere({ id: 'quercus-muehlenbergii' })!)).toBe('Recorded growing wild in Clark County');
+    expect(wildHere({ id: 'quercus-muehlenbergii' })!.sources).toEqual([SOURCES.arkatlas.title, SOURCES.usda.title]);
+    expect(wildHere({ id: 'allium-canadense-var-lavendulare' })!.sources).toEqual([SOURCES.arkatlas.title]);
     expect(wildText(wildHere({ id: 'asarum-canadense' })!)).toBe('Recorded growing wild in a neighboring county (Pike)');
     expect(wildText(wildHere({ id: 'viola-sororia-freckles', parent: 'viola-sororia' })!)).toBe('Its species is recorded growing wild in a neighboring county (Hot Spring)');
     expect(wildText(wildHere({ id: 'mitella-diphylla' })!)).toBe('Recorded growing wild in 1 Arkansas county, none recorded in or next to yours');
@@ -72,17 +89,38 @@ describe('wild records near the garden', () => {
     expect(wildHere({ id: 'allium-canadense-var-lavendulare' })!.where).toBe('state');
     expect([wildNearby({ id: 'quercus-muehlenbergii' }), wildNearby({ id: 'mitella-diphylla' })]).toEqual([true, false]);
   });
-  it('reach over a state line: a Texas garden next to Arkansas hears about the county next door, and nothing else', async () => {
+  it('reach over a state line: a Texas garden next to Arkansas hears about the county next door, and its own state\'s', async () => {
     state.location = { zip: '75501', zone: '8a' };
     await loadWild(undefined, fetcher);
-    expect(fetched).toEqual(['climate/755.json', 'wild/index.json', 'wild/05.json']);
+    expect(fetched).toEqual(['climate/755.json', 'wild/index.json', 'wild/48.json', 'wild/05.json']); // (its own state first)
     expect(wildText(wildHere({ id: 'viola-sororia' })!)).toBe('Recorded growing wild in a neighboring county (Miller, AR)');
+    expect(wildText(wildHere({ id: 'quercus-muehlenbergii' })!)).toBe('Recorded growing wild in Bowie County');
+    expect(wildText(wildHere({ id: 'rosmarinus' })!)).toBe('Recorded growing wild in a neighboring county (Cass)');
     expect(wildHere({ id: 'mitella-diphylla' })).toBeNull(); // (Arkansas's count isn't this garden's state)
     resetWild(); fetched = [];
     state.location = { zip: '75551', zone: '8a' }; // (Cass County: no Arkansas neighbor)
     await loadWild(undefined, fetcher);
-    expect(fetched).toEqual(['climate/755.json', 'wild/index.json']);
+    expect(fetched).toEqual(['climate/755.json', 'wild/index.json', 'wild/48.json']);
     expect(wildHere({ id: 'viola-sororia' })).toBeNull();
+    expect(wildText(wildHere({ id: 'rosmarinus' })!)).toBe('Recorded growing wild in Cass County');
+  });
+  it('name counties as people do', () => {
+    expect([countyName('Clark', 5019), countyName('Caddo', 22017), countyName('Salem', 51775), countyName('Juneau', 2110)]).toEqual(['Clark County', 'Caddo Parish', 'Salem', 'Juneau']);
+  });
+  it('place USDA\'s records by shape: the county a record\'s center is in, or one of its corners\' that has its name; never an excluded one', () => {
+    const sq = (x0: number, x1: number, y0: number, y1: number) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]];
+    // Alleghany County with Covington, a city inside it (its own county): a record for Covington is a small square in the hole.
+    const shapes = [
+      { id: '51005', geometry: { type: 'Polygon', coordinates: [sq(-80.2, -79.6, 37.6, 38.0), sq(-80.0, -79.95, 37.77, 37.82)] } },
+      { id: '51580', geometry: { type: 'Polygon', coordinates: [sq(-80.0, -79.95, 37.77, 37.82)] } },
+    ];
+    const place = placer(shapes, new Map([[51005, 'Alleghany'], [51580, 'Covington']]));
+    const rec = (name: string, ring: number[][], Symbol = 'Native') => ({ attributes: { country_subdivision_name: name, Symbol }, geometry: { rings: [ring] } });
+    // (Alleghany's record, drawn whole, has its center in Covington: its corners find Alleghany by name.)
+    expect(place([rec('Alleghany', sq(-80.2, -79.6, 37.6, 38.0).map(([x, y]) => [x, y]))]).counties).toEqual([51005]);
+    expect(place([rec('Covington (city)', sq(-79.99, -79.96, 37.78, 37.81))]).counties).toEqual([51580]);
+    expect(place([rec('Covington (city)', sq(-79.99, -79.96, 37.78, 37.81), 'Excluded')]).counties).toEqual([]);
+    expect(place([rec('Nowhere', sq(10, 11, 10, 11))])).toEqual({ counties: [], unplaced: 1 });
   });
   it('are looked up once per ZIP, the county remembered on the device; nothing for a ZIP with no county', async () => {
     await loadWild(undefined, fetcher);
