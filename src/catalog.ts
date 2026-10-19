@@ -120,6 +120,8 @@ export function resolveCatalog(file: CatalogFile): Plant[] {
     p.prov = prov;
     // Not yet audited, or (a cultivar) leaning on a species that isn't.
     if (!rec.audited || (parent && !parent.audited && Object.values(prov).some((x) => x.inherited))) p.unverified = true;
+    // Audited, but some details it shows still rest only on the older, unsourced list.
+    else if (Object.values(prov).some((x) => !x.unknown && x.src.length > 0 && x.src.every((s) => file.meta.sources[s]?.trust === 'unverified'))) p.partlyChecked = true;
     return p;
   });
 }

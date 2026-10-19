@@ -70,6 +70,8 @@ export interface Plant {
   reported?: Partial<Record<string, unknown>>;
   /** Catalog plants the audit hasn't re-derived from sources yet. */
   unverified?: boolean;
+  /** Catalog plants the audit has reached, with some details still from the older, unsourced list. */
+  partlyChecked?: boolean;
   /** Color it's drawn in (My plants; catalog plants are colored by form). */
   color?: string;
   /** The user's own notes (My plants only; the catalog holds no notes). */

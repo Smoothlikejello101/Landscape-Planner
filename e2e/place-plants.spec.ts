@@ -98,6 +98,7 @@ test('an existing tree: pick which, or draw an unknown one, by trunk and canopy 
   const first = page.locator('.sheet .proj-row').first();
   const name = (await first.locator('.pname').innerText()).replace(/Mine$/, '').trim();
   await expect(page.getByTestId('unverified-note')).toBeVisible();
+  await expect(page.getByTestId('partly-badge').first()).toBeAttached();
   await first.locator('[data-testid=plant-place]').click();
   await expect(page.getByTestId('draw-banner')).toContainText('Tap the trunk');
   await tapFromCenter(page, 0, 0);

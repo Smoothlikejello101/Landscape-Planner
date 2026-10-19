@@ -16,6 +16,9 @@ describe('the shipped catalog', () => {
     expect(plants).toHaveLength(820);
     const unaudited = (shipped as CatalogFile).plants.filter((r) => !r.audited).map((r) => r.id);
     expect(plants.filter((p) => p.unverified).map((p) => p.id)).toEqual(unaudited);
+    // The rest say they're partly checked while any detail still comes only from the older list.
+    expect(plants.filter((p) => p.partlyChecked).length).toBeGreaterThan(0);
+    expect(plants.some((p) => p.partlyChecked && p.unverified)).toBe(false);
     // An audited fact names its sources and how sure it is; what the audit couldn't settle stays the older list's.
     const bs = plants.find((p) => p.id === 'cephalanthus-occidentalis')!;
     expect(bs).toMatchObject({ common: 'Buttonbush', form: 'Shrub', width: { min: 3, max: 6, med: 4.5 } });
@@ -50,6 +53,13 @@ describe('records', () => {
     expect(c.prov!.width).toEqual({ src: ['ncsu'] });
     expect(c.bloom).toBeUndefined(); // flower color is what cultivars are bred to change
     expect(c.unverified).toBeUndefined();
+    // Audited, but the cultivar's form and toxicity come from Missouri's page: sourced, so fully checked.
+    expect(c.partlyChecked).toBeUndefined();
+    // A detail still resting only on the older list makes it partly checked (a known unknown doesn't).
+    const [old] = resolveCatalog({ meta, plants: [rec({ ...species, facts: { ...species.facts, habit: { v: 'Mounding', src: ['compendium'] }, edible: { v: null, src: ['compendium'] } } })] });
+    expect(old.partlyChecked).toBe(true);
+    const [none] = resolveCatalog({ meta, plants: [rec({ ...species, facts: { ...species.facts, edible: { v: null, src: ['compendium'] } } })] });
+    expect(none.partlyChecked).toBeUndefined();
     // A species not yet audited makes what the cultivar takes from it unverified too.
     const [, c2] = resolveCatalog({ meta, plants: [{ ...species, audited: null }, cultivar] });
     expect(c2.unverified).toBe(true);

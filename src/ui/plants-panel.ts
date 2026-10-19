@@ -74,9 +74,9 @@ export function renderPlantsPanel() {
     }
     body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Recent'), row));
   }
-  if (PLANTS.some((p) => p.unverified)) {
+  if (PLANTS.some((p) => p.unverified || p.partlyChecked)) {
     body.appendChild(el('div', { className: 'hint', 'data-testid': 'unverified-note' },
-      'Unverified: from an older list with no sources. Each plant is being checked against published references; until then, treat its details as a rough guide.'));
+      'Plants are being checked against published references. Unverified: all its details are from an older list with no sources. Partly checked: some are sourced; open it to see which (the rest say "older list"). Treat unchecked details as a rough guide.'));
   }
   if (!PLANTS.length) {
     body.appendChild(el('div', { className: 'hint' }, 'The plant catalog is still loading (or could not load). Your own plants work either way.'));
@@ -129,6 +129,7 @@ export function renderPlantsPanel() {
     if (mine) info.firstChild!.appendChild(el('span', { className: 'mine-badge' }, 'Mine'));
     // Details not yet checked against sources say so, plainly, on every row (first in the details, where it can't be cut off).
     else if (p.unverified) (info.childNodes[1] as HTMLElement).prepend(el('span', { className: 'unverified-badge', title: "From an older list with no sources; it's being checked" }, 'Unverified'), ' ');
+    else if (p.partlyChecked) (info.childNodes[1] as HTMLElement).prepend(el('span', { className: 'unverified-badge', 'data-testid': 'partly-badge', title: 'Some details are checked against sources; those marked "older list" in its details are not yet' }, 'Partly checked'), ' ');
     const item = el('div', { className: 'plant-item' }, head);
     let details: HTMLElement | null = null;
     const setOpen = (open: boolean) => {
