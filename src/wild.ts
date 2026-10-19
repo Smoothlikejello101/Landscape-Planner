@@ -38,10 +38,11 @@ let failed: { zip: string; at: number } | null = null;
 
 /** The county a ZIP is in, from its ZIP table; remembered on this device. */
 async function countyOf(zip: string, fetcher: typeof fetch): Promise<number | null> {
-  let saved: Record<string, number> = {};
-  try { saved = JSON.parse(localStorage.getItem(COUNTY_KEY) ?? '{}') ?? {}; } catch { /* none */ }
-  if (!saved || typeof saved !== 'object') saved = {};
-  if (typeof saved[zip] === 'number') return saved[zip];
+  // ([zip, county] pairs, the latest last: a ZIP-keyed object would sort numerically.)
+  let saved: [string, number][] = [];
+  try { const v = JSON.parse(localStorage.getItem(COUNTY_KEY) ?? '[]'); if (Array.isArray(v)) saved = v.filter((x) => Array.isArray(x) && typeof x[0] === 'string' && typeof x[1] === 'number'); } catch { /* none */ }
+  const known = saved.find(([z]) => z === zip);
+  if (known) return known[1];
   try {
     const res = await fetcher(`climate/${zip.slice(0, 3)}.json`);
     if (!res.ok) return null;
@@ -49,8 +50,8 @@ async function countyOf(zip: string, fetcher: typeof fetch): Promise<number | nu
     const c = f?.zips?.[zip]?.[3];
     if (typeof c !== 'number' || !(c > 0)) return null;
     // (A few ZIPs, for plans in different places; the latest kept.)
-    const keep = Object.entries(saved).filter(([z]) => z !== zip).slice(-19);
-    try { localStorage.setItem(COUNTY_KEY, JSON.stringify(Object.fromEntries([...keep, [zip, c]]))); } catch { /* looked up again next time */ }
+    const keep = saved.filter(([z]) => z !== zip).slice(-19);
+    try { localStorage.setItem(COUNTY_KEY, JSON.stringify([...keep, [zip, c]])); } catch { /* looked up again next time */ }
     return c;
   } catch { return null; }
 }
@@ -72,17 +73,18 @@ export function loadWild(done?: () => void, fetcher: typeof fetch = fetch): Prom
   if (!zip) { loaded = null; return Promise.resolve(); }
   if (loaded?.zip === zip) return Promise.resolve();
   if (failed?.zip === zip && Date.now() - failed.at < RETRY_MS) return Promise.resolve();
-  if (done) waiting.push(done); // (every caller is told, those that joined a lookup under way too)
+  if (done && !waiting.includes(done)) waiting.push(done); // (every caller is told, those that joined a lookup under way too)
   if (pending) return pending;
   pending = (async () => {
     const county = await countyOf(zip, fetcher);
     const files: WildFile[] = [];
-    let index: unknown = null;
+    let index: unknown = null, wanted = 0;
     if (county) {
       index = await getJson('wild/index.json', fetcher);
       if (isIndex(index)) {
         const own = Math.floor(county / 1000);
         const want = new Set([...(index.states[own] ? [own] : []), ...(index.border[county] ?? [])]);
+        wanted = want.size;
         for (const s of want) {
           const f = await getJson(`wild/${String(s).padStart(2, '0')}.json`, fetcher);
           if (isWildFile(f)) files.push(f);
@@ -90,7 +92,7 @@ export function loadWild(done?: () => void, fetcher: typeof fetch = fetch): Prom
       }
     }
     // (Nothing found, offline say: tried again after a while, or when the ZIP changes.)
-    if (!county || !isIndex(index)) failed = { zip, at: Date.now() };
+    if (!county || !isIndex(index) || files.length < wanted) failed = { zip, at: Date.now() };
     else if (state.location?.zip === zip) { loaded = { zip, county, files }; failed = null; }
   })().finally(() => {
     pending = null;

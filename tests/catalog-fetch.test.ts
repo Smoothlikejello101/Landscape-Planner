@@ -83,6 +83,8 @@ describe('robots.txt', () => {
     expect(robotsFromResponse(200, 'text/html', '<!DOCTYPE html><title>Just a moment...</title>', 'plants.usda.gov', same).kind).toBe('closed');
     expect(robotsFromResponse(200, 'text/html', '<html><title>Request Rejected</title>Your support ID is: 123</html>', 'x.usda.gov', same).kind).toBe('closed');
     expect(robotsFromResponse(200, 'text/html', '<html><head><meta name="robots" content="noindex,nofollow"></head></html>', 'x.usda.gov', same).kind).toBe('closed');
+    expect(robotsFromResponse(200, 'text/html', '<html><head><meta content="noindex" name="robots"></head></html>', 'x.usda.gov', same).kind).toBe('closed');
+    expect(robotsFromResponse(200, 'text/html', '<html><h1>Web Page Blocked</h1>The page has been blocked.</html>', 'x.usda.gov', same).kind).toBe('closed');
     expect(robotsFromResponse(200, 'text/html', '<pre>User-agent: *\nDisallow: /</pre>', 'plants.usda.gov', same).kind).toBe('closed');
     expect(robotsFromResponse(403, 'text/html', app, 'plants.usda.gov', same).kind).toBe('closed');
   });

@@ -142,7 +142,7 @@ export function isGovernmentHost(host) {
 }
 const ROBOTS_LINE = /^\s*(user-agent|disallow|allow|sitemap|crawl-delay)\s*:/im;
 /** Signs a page is a refusal or keeps bots out (F5's "Request Rejected … support ID", a noindex/nofollow robots tag). */
-const BLOCK_PAGE = /request rejected|support id|access denied|forbidden|<meta[^>]+name=["']?robots["']?[^>]+(noindex|nofollow|none)/i;
+const BLOCK_PAGE = /request rejected|support id|access denied|forbidden|blocked|security policy|unauthori[sz]ed|<meta(?=[^>]*name=["']?robots\b)(?=[^>]*content=["'][^"']*(noindex|nofollow|none))/i;
 /**
  * What a robots.txt answer means. 404 or 410: there is none (allow all). A
  * text file: its rules. Anything else (other errors, redirects, a network

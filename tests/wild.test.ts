@@ -131,6 +131,19 @@ describe('wild records near the garden', () => {
     // Two ZIPs remembered on the device: back to the first, offline, it still knows its county.
     state.location = { zip: '71923', zone: '8a' };
     await loadWild(undefined, fetcher);
-    expect(JSON.parse(localStorage.getItem('lp-zip-county')!)).toEqual({ 75501: 48037, 71923: 5019 });
+    expect(JSON.parse(localStorage.getItem('lp-zip-county')!)).toEqual([['75501', 48037], ['71923', 5019]]); // (the latest last)
+    // A caller asking twice while a lookup is under way is told once.
+    resetWild(); calls.length = 0;
+    const once = () => calls.push('once');
+    await Promise.all([loadWild(once, fetcher), loadWild(once, fetcher)]);
+    expect(calls).toEqual(['once']);
+    // The index in, the state's file not: tried again later, not left empty.
+    resetWild(); fetched = [];
+    const noFile = (async (url: string) => (url === 'wild/05.json' ? new Response('', { status: 500 }) : fetcher(url))) as typeof fetch;
+    await loadWild(undefined, noFile);
+    expect(wildHere({ id: 'quercus-muehlenbergii' })).toBeNull();
+    const t = Date.now(); const real = Date.now; Date.now = () => t + 61_000;
+    try { await loadWild(undefined, fetcher); } finally { Date.now = real; }
+    expect(wildHere({ id: 'quercus-muehlenbergii' })?.where).toBe('county');
   });
 });
