@@ -358,14 +358,21 @@ export function linkShapesToPlant(shapeIds: string[], p: Plant): number {
  */
 export function linkFromPicker(p: Plant) {
   if (!state.pickerLinkId) return;
-  const ids = [state.pickerLinkId, ...state.pickerLinkAlso];
+  // (Checked again now: shapes deleted or locked since the picker opened are left out; a lone circle is
+  // linked as before, locked or not, since it was chosen on its own.)
+  const several = state.pickerLinkAlso.length > 0;
+  const ids = [state.pickerLinkId, ...state.pickerLinkAlso].filter((id) => {
+    const s = state.shapes.find((x) => x.id === id);
+    return !!s && canLinkToPlant(s) && (!several || !isLocked(s));
+  });
+  state.pickerLinkId = null;
+  state.pickerLinkAlso = [];
+  if (!ids.length) { state.selectedIds = []; state.linkOffer = null; return; }
   // (Its label before it takes the plant's name.)
   const label = state.shapes.find((s) => s.id === ids[0])?.label;
   const n = linkShapesToPlant(ids, p);
-  state.pickerLinkId = null;
-  state.pickerLinkAlso = [];
   state.selectedIds = ids;
-  if (ids.length > 1) { state.linkOffer = null; toast(`${n} circle${n === 1 ? '' : 's'} linked to ${p.common}.`); return; }
+  if (several) { state.linkOffer = null; toast(`${n} circle${n === 1 ? '' : 's'} linked to ${p.common}.`); return; }
   const same = unlinkedWithLabel(label, ids);
   state.linkOffer = same.length ? { fromId: ids[0], plantId: p.id, label: label!.trim(), ids: same } : null;
 }
@@ -383,12 +390,6 @@ export function unlinkedWithLabel(label: string | undefined, exceptIds: string[]
   const except = new Set(exceptIds);
   return state.shapes.filter((s) => !except.has(s.id) && s.type === 'circle' && !s.plantId && canLinkToPlant(s)
     && shownWith(s, state.viewFilter) && !isLocked(s) && sameLabel(s.label, label)).map((s) => s.id);
-}
-/** Forget a pending link (the picker's targets and the same-label offer): the plan or its shapes changed under it. */
-export function clearLinking() {
-  state.pickerLinkId = null;
-  state.pickerLinkAlso = [];
-  state.linkOffer = null;
 }
 export const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** After a plant's zones: whether they suit the plan's location (if it has one). */
