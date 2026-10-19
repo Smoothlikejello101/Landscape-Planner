@@ -11,6 +11,13 @@ import { ZONE_SOURCE_SHORT } from '../climate';
 import { dismissZipPrompt, openLocation, zipPromptDismissed } from './location-panel';
 import { render } from './render';
 import { plantDetails } from './plant-details';
+import { loadWild } from '../wild';
+
+/** Once the garden's wild records are in, show them (not while something has the keyboard: they show next time). */
+function afterWild() {
+  const a = document.activeElement;
+  if (state.panel === 'plants' && !(a instanceof HTMLInputElement || a instanceof HTMLTextAreaElement || a instanceof HTMLSelectElement)) render();
+}
 
 function closePicker() { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerForTree = false; render(); }
 const isTree = (p: Plant) => !!p.form?.startsWith('Tree'); // (its first form: what it's drawn as)
@@ -42,6 +49,7 @@ function pick(p: Plant) {
 function openForm(args: PlantFormArgs) { state.plantForm = args; state.panel = 'plantForm'; render(); }
 
 export function renderPlantsPanel() {
+  void loadWild(afterWild);
   const linking = !!state.pickerLinkId;
   const forTree = !linking && state.pickerForTree;
   const title = linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker' + (PLANTS.length ? ' (' + (PLANTS.length + myPlants.length) + ')' : '');

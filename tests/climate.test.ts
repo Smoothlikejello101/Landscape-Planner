@@ -4,7 +4,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
 import { formatMonthDay, hardyEnough, lookUpZip, sanitizeLocation, zoneFit, zoneRange, type ClimateFile } from '../src/climate';
 // @ts-expect-error (plain JavaScript build script)
-import { buildFiles, centersByZip, frostStations, miles, monthDay, stationName, table, zonesByZip } from '../scripts/climate/lib.mjs';
+import { buildFiles, centersByZip, countyFinder, frostStations, miles, monthDay, stationName, table, zonesByZip } from '../scripts/climate/lib.mjs';
 import { openKV } from '../src/db';
 import { state } from '../src/state';
 import { _resetStorageForTests, createProject, flushSave, initStorage, readProject, replaceProjectContent, projectChangeToken, save, switchProject, syncedContent, sanitizeProjectData } from '../src/storage';
@@ -63,6 +63,22 @@ describe('building the tables', () => {
     expect(stationName('JACKSON INTL AP, MS US')).toBe('Jackson Intl AP, MS');
     expect(stationName('FAIRBANKS 11 NE, AK US')).toBe('Fairbanks 11 NE, AK');
     expect(stationName('SAN FRANCISCO 1.1 SW, CA US')).toBe('San Francisco 1.1 SW, CA');
+  });
+  it('each ZIP gets the county its area\'s center is in, where it has one', () => {
+    // Two squares side by side (lon -94..-93 and -93..-92, lat 33.5..34.5), the second with a hole.
+    const sq = (x0: number, x1: number, y0: number, y1: number) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]];
+    const countyOf = countyFinder([
+      { id: '05019', geometry: { type: 'Polygon', coordinates: [sq(-94, -93, 33.5, 34.5)] } },
+      { id: '05039', geometry: { type: 'MultiPolygon', coordinates: [[sq(-93, -92, 33.5, 34.5), sq(-92.6, -92.4, 33.9, 34.1)]] } },
+    ]);
+    expect(countyOf([34.0812, -93.0771])).toBe(5019);
+    expect(countyOf([34.0, -92.8])).toBe(5039);
+    expect(countyOf([34.0, -92.5])).toBeNull(); // (in the hole)
+    expect(countyOf([40, -100])).toBeNull();
+    const files = buildFiles(zonesByZip(PRISM), centersByZip(GAZ), frostStations(table(NORMALS)), '2026-10-17', countyOf);
+    expect(files.get('719')!.zips['71923']).toEqual(['8a', 0, 3, 5019]);
+    expect(files.get('719')!.zips['71998']).toEqual(['8a', -2, 0]); // (no mapped area: no county)
+    expect(files.get('722')!.zips['72201']).toEqual(['8a', -1, 0]); // (outside both)
   });
 });
 

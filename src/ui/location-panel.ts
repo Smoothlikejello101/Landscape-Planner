@@ -7,6 +7,7 @@ import { plantFilter } from '../plants';
 import type { PanelName } from '../types';
 import { toast } from './toast';
 import { render } from './render';
+import { loadWild } from '../wild';
 
 // The garden's location: a ZIP code gives its hardiness zone and frost
 // dates, kept with the plan. Only the ZIP's first three digits are fetched
@@ -31,6 +32,7 @@ let typed = '';
 export function setLocation(loc: GardenLocation | null) {
   state.location = loc;
   save();
+  void loadWild(); // (its county's wild records, for the picker)
 }
 
 function closePanel() { state.panel = returnTo; returnTo = null; problem = ''; typed = ''; render(); }

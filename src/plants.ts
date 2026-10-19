@@ -12,6 +12,7 @@ import { setRadius } from './geometry';
 import { isLocked } from './roles';
 import { shownWith } from './status';
 import { hardyEnough, zoneFit, zoneRange } from './climate';
+import { wildNearby } from './wild';
 
 /**
  * One plant: a row of the catalog (plants.json), or one of the user's own
@@ -150,8 +151,9 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   // Invasives are never suggested; they turn up when searched by name (to map one already in the yard).
   if (p.invasive && !f.q.trim() && !f.inPlan) return false;
   if (f.dogSafeOnly && !nonToxicToDogs(p)) return false;
-  // (Plants at the edge of their range count: the list marks them.)
-  if (f.hardyHere && state.location && !hardyEnough(zoneFit(p, state.location))) return false;
+  // (Plants at the edge of their range count: the list marks them. So do plants recorded growing wild in the
+  // garden's county or one bordering it, whatever their rated zones: they live through its winters and summers.)
+  if (f.hardyHere && state.location && !hardyEnough(zoneFit(p, state.location)) && !wildNearby(p)) return false;
   if (f.form && !formsOf(p).includes(f.form)) return false;
   if (f.water && p.water !== f.water) return false;
   if (f.sun && !plantTakesSun(p, f.sun)) return false;
@@ -399,8 +401,9 @@ export function zoneNote(p: Plant): string {
   const fit = zoneFit(p, state.location);
   if (!fit || fit === 'fits' || !state.location) return '';
   const z = state.location.zone;
-  return fit === 'cold' ? ` (zone ${z} winters are too cold)`
-    : fit === 'warm' ? ` (zone ${z} may be too warm)`
+  const wild = (fit === 'cold' || fit === 'warm') && wildNearby(p);
+  return fit === 'cold' ? ` (zone ${z} winters are too cold${wild ? ' by its rating, though it grows wild nearby' : ''})`
+    : fit === 'warm' ? ` (zone ${z} may be too warm${wild ? ', though it grows wild nearby' : ''})`
     : fit === 'edge-cold' ? ` (at its cold edge in zone ${z})`
     : ` (at its warm edge in zone ${z})`;
 }

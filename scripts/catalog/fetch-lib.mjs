@@ -136,15 +136,27 @@ export function blocksWholeHost(groups) {
   return ourGroups(groups).some((g) => g.rules.some((r) => !r.allow && (r.path === '/' || r.path === '/*')));
 }
 
+/** A government's own site (US federal, military, state; other countries' .gov.xx and Canada's .gc.ca). */
+export function isGovernmentHost(host) {
+  return /(^|\.)(gov|mil)$|\.gov\.[a-z]{2}$|\.fed\.us$|\.state\.[a-z]{2}\.us$|\.gc\.ca$/.test(bare(host ?? ''));
+}
+const ROBOTS_LINE = /^\s*(user-agent|disallow|allow|sitemap|crawl-delay)\s*:/im;
 /**
  * What a robots.txt answer means. 404 or 410: there is none (allow all). A
  * text file: its rules. Anything else (other errors, redirects, a network
  * failure, a page in its place such as a bot check): disallow everything.
+ * One exception, for public-domain government data: a government site that
+ * answers with an ordinary web page holding no robots rules and no bot check
+ * (USDA PLANTS's site answers every unknown address with its app page) has
+ * no robots.txt, so none.
  */
-export function robotsFromResponse(status, contentType, body) {
+export function robotsFromResponse(status, contentType, body, host) {
   if (status === 404 || status === 410) return { kind: 'none', groups: [] };
   const page = /html|xml/i.test(contentType ?? '') || /^\s*</.test(body ?? '');
   if (status >= 200 && status < 300 && !page) return { kind: 'rules', groups: parseRobots(body ?? '') };
+  if (status >= 200 && status < 300 && page && isGovernmentHost(host) && !ROBOTS_LINE.test(body ?? '') && !isChallenge(status, body ?? '')) {
+    return { kind: 'none', groups: [], note: 'a government site\'s page in place of robots.txt: none' };
+  }
   return { kind: 'closed', groups: [], why: status ? `robots.txt answered ${status}${page ? ' with a page' : ''}` : 'robots.txt unreachable' };
 }
 
@@ -313,7 +325,7 @@ export async function runFetch(list, deps) {
     const body = text(r.body);
     store.saveRobots(host, r.status, r.type, body);
     // (After a redirect the host did answer, so a missing redirect target means it couldn't be checked.)
-    const parsed = r.status !== 0 ? robotsFromResponse(r.status, r.type, body)
+    const parsed = r.status !== 0 ? robotsFromResponse(r.status, r.type, body, host)
       : r.reach === 'none' && url === `https://${host}/robots.txt` ? { kind: 'absent', groups: [], why: 'no such host' }
       : r.reach === 'silent' && url === `https://${host}/robots.txt` ? { kind: 'silent', groups: [], why: `no answer (${r.error ?? 'no answer'})` }
       : { kind: 'closed', groups: [], why: `robots.txt couldn't be read (${r.error ?? 'no answer'})` };

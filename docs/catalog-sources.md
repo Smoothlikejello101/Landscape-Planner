@@ -58,7 +58,12 @@ checked. Those answers close only the host that gave them: for a related host
 (below), only its robots.txt rules reach down. A university's main site
 behind a bot filter (ncsu.edu answers our robots.txt request with a 202
 challenge, usda.gov with a 403 "Access Denied") isn't a rule about its
-extension service's plant database. Only a host that
+extension service's plant database. One exception, for public-domain
+government data: a government site (.gov, .mil, .fed.us, a state's
+.state.xx.us, another country's .gov.xx or Canada's .gc.ca) that answers
+robots.txt with an ordinary web page, holding no robots rules and no bot
+check, has none. USDA PLANTS's site answers every unknown address with its
+app page, robots.txt included. Only a host that
 isn't there at all counts as having none, and only DNS can say so: the
 fetcher asks a DNS-over-HTTPS resolver (cloudflare-dns.com), since behind
 this machine's proxy curl can't tell a missing host from a slow one. Run
@@ -110,7 +115,7 @@ bots, or its values match one word for word. It's treated as that source.
 
 | Source | Status | What was checked (2026-10-17 unless noted) |
 | --- | --- | --- |
-| **USDA PLANTS** (NRCS) | Use | **License:** US government work (17 U.S.C. § 105). The data.gov listing for PLANTS also gives CC0, though it is titled for the name list. **robots.txt:** none on the API host (`plantsservices.sc.egov.usda.gov`, the API the PLANTS site uses). **Reading:** check the downloads page (plants.sc.egov.usda.gov/home/downloads) first, then the API at 1 request every 2 s. |
+| **USDA PLANTS** (NRCS) | Use | **License:** US government work (17 U.S.C. § 105). The data.gov listing for PLANTS also gives CC0, though it is titled for the name list. **robots.txt:** none on the API host (`plantsservices.sc.egov.usda.gov`, the API the PLANTS site uses). **Reading:** check the downloads page (plants.sc.egov.usda.gov/home/downloads) first, then the API at 1 request every 2 s. **County records (later):** the PLANTS site's map reads them from USDA's public map service, `apps.geo.fpac.usda.gov/nrcs-geodata/rest/services/land_use_land_cover/plants/MapServer/6/query?where=plant_master_id=<profile Id>` (layer 6, counties; its county ids are its own, not FIPS, so they need placing by their shapes). |
 | **NC State Extension Gardener Plant Toolbox** | Use, and tell them | **robots.txt:** none (404). **Terms:** the toolbox links no terms page, only privacy and nondiscrimination statements; NC State University's site-wide policies are not yet checked. Nothing found forbids a paid product taking facts, and nothing grants it. **Help page:** "strongly encourage[s]" citing the toolbox. Photos carry individual CC licenses, and we don't use them. **Before launch:** a courtesy note through the site's feedback form. **Pace:** 1 request every 5 s. |
 | **Missouri Botanical Garden Plant Finder** | Not by bot. By hand is allowed. Permission asked. | **robots.txt:** `*` disallows `/PlantFinder/`, `/plant-finder/` and `/gardens-gardening/your-garden/plant-finder/*`, with a 30 s crawl delay ("For ai bots") for the rest. `ClaudeBot` is disallowed everywhere. **Terms:** forbid getting information "through any means not intentionally made available", and grant no reuse rights. A person reading the public pages is the intended use. So by-hand facts are allowed, cited per value, without waiting for the reply. If MOBOT says no, they come out. **TLS:** the server's certificate chain is incomplete (no intermediate), so strict clients fail. |
 | **Lady Bird Johnson Wildflower Center** | Not by bot. By hand only after its terms are read. Permission asked. | **Access:** turns away clients that aren't browsers (403), and we don't pretend to be one. **robots.txt and terms:** not yet read. |
@@ -144,7 +149,7 @@ It's an upper bound on pages we'd use.
 | **Cornell Woody Plants Database** | Height, shape, light, zone, pH, salt and moisture tolerance, invasiveness, native origin. Structured, a few hundred woody plants | not measured | `Allow: /`. CC BY-NC-SA 3.0. |
 | **Virginia Cooperative Extension publications** | Narrative and lists | — | Crawl delay 2. "available for public use, reprint, or citation without further permission", with credit. |
 | **University of Arkansas Plant of the Week** | Native range, Arkansas nativity, size, bloom in prose, wildlife notes. Narrative, 1,016 articles | about 109 | Allows plant pages. No terms found. |
-| **Atlas of the Vascular Plants of Arkansas** (2013) | Arkansas county distribution; introduced, native, invasive status; 2,892 taxa | about 540 | No robots.txt on its host. "Free download edition. Not for commercial sale": we cite its facts and never ship the PDF. |
+| **Atlas of the Vascular Plants of Arkansas** (2013) | Arkansas county distribution (read from its county maps: [wild-records.md](wild-records.md)); introduced, native, invasive status; 2,892 taxa | about 540 | No robots.txt on its host. "Free download edition. Not for commercial sale": we take facts (which counties a plant is recorded in) and never ship the PDF, its maps or its text. |
 | **UGA "Native Plants for Georgia"** bulletins | Zones, size, native range, habitat, wildlife and host notes, under fixed headings | about 94 (one part) | Allowed. Its footer's copyright page wasn't read. |
 | **Tennessee Smart Yards Native Plant Database** (tynnativeplants.wordpress.com, linked from UT's tnyards.utk.edu) | Light, moisture, soil, height, bloom season, Tennessee region, wildlife | about 130 | WordPress.com defaults (UT's own site: crawl delay 30). No terms found. Confirm UT owns it before use. WordPress.com's own robots.txt applies too (its parent host). |
 | **Clemson HGIC**, **LSU AgCenter**, **Alabama Extension** (crawl delay 2), **Wisconsin Horticulture**, **Penn State** (crawl delay 10), **Purdue** (crawl delay 3), **UMD**, **UNH**, **UVM**, **Missouri, Ohio State and Maine Extension** | Narrative fact sheets | small each | © notices, or statements about copying the material. |

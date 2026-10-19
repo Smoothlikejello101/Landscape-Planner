@@ -6,6 +6,7 @@ import type { Plant } from '../plants';
 import { MONTH_NAMES, PLANT_META, formsOf, zoneNote } from '../plants';
 import { zoneRange } from '../climate';
 import type { Provenance } from '../catalog';
+import { wildHere, wildSource, wildText } from '../wild';
 
 const SURE: Record<string, string> = {
   agree: 'confirmed', confirmed: 'confirmed', single: 'one source', likely: 'nurseries agree', reported: 'one nursery', disputed: 'sources disagree',
@@ -103,6 +104,14 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
       dd.appendChild(el('span', { className: 'details-alt' }, `Nurseries report: ${reported}` + (alt ? ` (${alt.src.map(sourceName).join(', ')})` : '')));
     }
     dl.appendChild(el('dt', {}, label));
+    dl.appendChild(dd);
+  }
+  // Where it grows wild near the garden (the state's county records): shown after the catalog's facts.
+  const wild = wildHere(p);
+  if (wild) {
+    const dd = el('dd', { 'data-testid': 'wild-here' }, wildText(wild));
+    dd.appendChild(el('span', { className: 'details-src' }, wildSource()));
+    dl.appendChild(el('dt', {}, 'Wild near you'));
     dl.appendChild(dd);
   }
   box.appendChild(dl);

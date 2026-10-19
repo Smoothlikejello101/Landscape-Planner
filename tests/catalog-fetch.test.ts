@@ -72,6 +72,15 @@ describe('robots.txt', () => {
     expect(robotsFromResponse(200, 'text/plain', '<html><body>app</body></html>').kind).toBe('closed');
     expect(robotsFromResponse(200, 'text/plain', '  <script>challenge()</script>').kind).toBe('closed');
     for (const s of [301, 400, 403, 429, 500, 0]) expect(robotsFromResponse(s, 'text/plain', '').kind).toBe('closed');
+    // A government site's own page in place of robots.txt (no rules, no bot check): it has none.
+    const app = '<!doctype html><html><head><title>USDA Plants Database</title></head><body><plants-app></plants-app></body></html>';
+    expect(robotsFromResponse(200, 'text/html', app, 'plants.usda.gov').kind).toBe('none');
+    expect(robotsFromResponse(200, 'text/html', app, 'www.fs.fed.us').kind).toBe('none');
+    expect(robotsFromResponse(200, 'text/html', app, 'example.com').kind).toBe('closed');
+    expect(robotsFromResponse(200, 'text/html', app, 'gov.example.com').kind).toBe('closed');
+    expect(robotsFromResponse(200, 'text/html', '<!DOCTYPE html><title>Just a moment...</title>', 'plants.usda.gov').kind).toBe('closed');
+    expect(robotsFromResponse(200, 'text/html', '<pre>User-agent: *\nDisallow: /</pre>', 'plants.usda.gov').kind).toBe('closed');
+    expect(robotsFromResponse(403, 'text/html', app, 'plants.usda.gov').kind).toBe('closed');
   });
   it('counts a host as not there only on a DNS answer that says so', () => {
     expect(noAnswer('nxdomain', 56, 'curl: (56) CONNECT tunnel failed, response 502')).toBe('none');

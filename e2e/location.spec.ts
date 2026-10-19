@@ -120,3 +120,28 @@ test('the ZIP offer can be put away for good', async ({ page }) => {
   await expect(page.getByTestId('plant-search')).toBeVisible();
   await expect(page.getByTestId('zip-prompt')).toHaveCount(0);
 });
+
+test('a plant recorded growing wild in the garden\'s county or next door says so, and counts as hardy there', async ({ page }) => {
+  // (The ZIP table stood in for, with Clark County; the Arkansas records are the real ones.)
+  const table = { ...TABLE, zips: { '71923': ['8a', 0, 3, 5019] } };
+  await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(table) }));
+  await openFresh(page);
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Garden location' }).click();
+  await page.getByTestId('zip').fill('71923');
+  await page.getByTestId('zip-lookup').click();
+  await expect(page.getByTestId('location-result')).toContainText('Zone 8a');
+  await page.locator('.sheet-header .iconbtn').click();
+  await page.locator('.tool-btn.plants').click();
+  await page.locator('.sheet label', { hasText: 'Hardy in zone 8a' }).locator('input').check();
+  // Chinquapin oak: rated to zone 7 by NC State, but recorded wild in Clark County (the Arkansas atlas).
+  await page.getByTestId('plant-search').fill('Chinquapin oak');
+  const oak = page.locator('.plant-item', { hasText: 'Chinquapin oak' });
+  await expect(oak).toContainText('(zone 8a may be too warm, though it grows wild nearby)');
+  await oak.getByTestId('plant-row').click();
+  await expect(oak.getByTestId('wild-here')).toContainText('Recorded growing wild in Clark County');
+  await expect(oak.getByTestId('wild-here')).toContainText('Atlas of the Vascular Plants of Arkansas');
+  // Bishop's cap: rated the same, recorded only in the Ozarks: not hardy here.
+  await page.getByTestId('plant-search').fill("Bishop's cap");
+  await expect(page.locator('.plant-item', { hasText: "Bishop's cap" })).toHaveCount(0);
+});
