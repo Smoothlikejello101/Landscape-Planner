@@ -3,7 +3,8 @@ import { resizeCanvas } from './canvas';
 import { fitAboveKeyboard } from './keyboard';
 import { cancelGestures, onCanvasPointerMove, onCanvasPointerUp } from './gestures';
 import { pushHistory, redo, undo } from './history';
-import { copySelected, deleteSelected, duplicateSelected, paste } from './mutations';
+import { copySelected, duplicateSelected, paste } from './mutations';
+import { deleteSelectedAsking } from './ui/delete-selected';
 import { clearSelection } from './selection';
 import { canFinishDraw, finishDraw, startKind } from './draw';
 import { kindForShortcut } from './kinds';
@@ -75,7 +76,7 @@ window.addEventListener('keydown', (e) => {
   } else if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
     if (state.selectedIds.length) { e.preventDefault(); duplicateSelected(); render(); }
   } else if (e.key === 'Delete' || e.key === 'Backspace') {
-    if (state.selectedIds.length) { e.preventDefault(); deleteSelected(); render(); }
+    if (state.selectedIds.length) { e.preventDefault(); deleteSelectedAsking(); render(); }
   } else if (e.key === 'Escape') {
     if (state.panel) { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; render(); }
     else if (state.placing) { finishPlacing(); render(); }

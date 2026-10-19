@@ -9,7 +9,7 @@ import { boxSize, resizedPoints, shapeArea, shapePerimeter } from '../geometry';
 const round1 = (v: number) => Math.round(v * 10) / 10;
 import { roleChips } from './role-picker';
 import { bedSection, crowdingNote, measureText, plantSunBanner, shadeSunSection, sunListText } from './role-sections';
-import { setRoleForIds, bringForward, bringToFront, copySelected, deleteSelected, duplicateSelected, findNextSameTier, sendBackward, sendToBack, setLockedForIds, updateSelected, updateSelectedSilent } from '../mutations';
+import { setRoleForIds, bringForward, bringToFront, copySelected, duplicateSelected, findNextSameTier, sendBackward, sendToBack, setLockedForIds, updateSelected, updateSelectedSilent } from '../mutations';
 import { getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { render } from './render';
@@ -17,6 +17,7 @@ import type { CircleShape, Corner, RoleKey, Shape } from '../types';
 import { formatSize, isMine, plantRadius, type Range } from '../my-plants';
 import { canLinkToPlant, linkShapesToPlant, plantFilter, plantsById, unlinkedWithLabel, type Plant } from '../plants';
 import { toast } from './toast';
+import { deleteSelectedAsking } from './delete-selected';
 import { zoneFit, zoneRange } from '../climate';
 import { isTree, trunkDiameter } from '../trees';
 import { MAX_TRUNK, MIN_TRUNK } from '../constants';
@@ -341,7 +342,7 @@ function actionRow(single: boolean): HTMLElement {
     row.appendChild(dupBtn);
   }
   const delBtn = el('button', { className: 'btn danger', html: I.trash + '<span>Delete</span>' });
-  delBtn.addEventListener('click', () => { deleteSelected(); render(); });
+  delBtn.addEventListener('click', () => { deleteSelectedAsking(); render(); });
   row.appendChild(delBtn);
   return row;
 }
@@ -517,7 +518,7 @@ export function renderPropsPanelMulti(selected: Shape[]) {
   const copyBtn = el('button', { className: 'btn ghost', html: I.copy + '<span style="margin-left:6px">Copy to clipboard</span>' });
   copyBtn.addEventListener('click', () => { copySelected(); alert(selected.length + ' shapes copied. Use Paste in any project to bring them in.'); });
   const delBtn = el('button', { className: 'btn danger', html: I.trash + '<span style="margin-left:6px">Delete all</span>' });
-  delBtn.addEventListener('click', () => { deleteSelected(); render(); });
+  delBtn.addEventListener('click', () => { deleteSelectedAsking(); render(); });
   body.appendChild(dupBtn);
   body.appendChild(copyBtn);
   body.appendChild(delBtn);

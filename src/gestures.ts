@@ -318,7 +318,12 @@ export function onCanvasPointerUp(e: PointerEvent) {
       if (g.moved && state.marquee) {
         const m = state.marquee;
         const box = { minX: Math.min(m.x1, m.x2), maxX: Math.max(m.x1, m.x2), minY: Math.min(m.y1, m.y2), maxY: Math.max(m.y1, m.y2) };
-        state.selectedIds = state.shapes.filter((s) => shownWith(s, state.viewFilter) && rectsIntersect(shapeBBox(s), box)).map((s) => s.id);
+        // What the box touches, but not a shape the box lies wholly inside: lassoing plants within the property
+        // line, a bed or the lawn picks the plants, not what surrounds them.
+        state.selectedIds = state.shapes.filter((s) => {
+          const b = shapeBBox(s);
+          return shownWith(s, state.viewFilter) && rectsIntersect(b, box) && !(b.minX <= box.minX && b.maxX >= box.maxX && b.minY <= box.minY && b.maxY >= box.maxY);
+        }).map((s) => s.id);
       } else if (g.tapShapeId) {
         toggleSelect(g.tapShapeId);
       } else {
