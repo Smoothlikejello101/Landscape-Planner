@@ -64,6 +64,9 @@ export function writeAudit(catalog, audit, date) {
       if (f.check === 'disputed') { review.push({ id: rec.id, fact: key, note: f.note ?? '' }); continue; }
       if (f.v == null || !SETTLED.has(f.check)) continue;
       const v = conv(f.v, enums);
+      // (The sources can't say Wetland yet: it waits on USDA's wetland list. A plant the catalog calls a wetland
+      // plant keeps that until then, rather than becoming merely "High".)
+      if (key === 'water' && (rec.facts.water?.v ?? rec.facts.water) === 'Wetland') continue;
       if (v === undefined) { review.push({ id: rec.id, fact: key, note: `value the catalog can't take: ${JSON.stringify(f.v)}` }); continue; }
       const out = { v, src: f.src, check: f.check };
       if (f.at) out.at = f.at;
