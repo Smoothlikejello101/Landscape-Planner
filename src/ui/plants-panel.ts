@@ -1,7 +1,7 @@
 import { el, type Child } from '../dom';
 import { I } from '../icons';
 import type { Plant, PlantFilter } from '../plants';
-import { MONTH_NAMES, matchedBy, reportedOnly, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkShapeToPlant, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun } from '../plants';
+import { MONTH_NAMES, matchedBy, reportedOnly, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { isMine, myPlants } from '../my-plants';
@@ -12,7 +12,7 @@ import { dismissZipPrompt, openLocation, zipPromptDismissed } from './location-p
 import { render } from './render';
 import { plantDetails } from './plant-details';
 
-function closePicker() { state.panel = null; state.pickerLinkId = null; state.pickerForTree = false; render(); }
+function closePicker() { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerForTree = false; render(); }
 const isTree = (p: Plant) => !!p.form?.startsWith('Tree'); // (its first form: what it's drawn as)
 // My plants folded away in the picker: kept here, and remembered on this device when storage allows.
 const FOLD_KEY = 'lp-my-plants-folded';
@@ -28,10 +28,7 @@ function setMyPlantsFolded(v: boolean) {
  */
 function pick(p: Plant) {
   if (state.pickerLinkId) {
-    const id = state.pickerLinkId;
-    linkShapeToPlant(id, p);
-    state.pickerLinkId = null;
-    state.selectedIds = [id];
+    linkFromPicker(p);
     state.panel = 'props';
   } else if (state.pickerForTree) {
     startTreeDraw(p.id);
@@ -54,7 +51,10 @@ export function renderPlantsPanel() {
   );
 
   const body = el('div', { className: 'sheet-body' });
-  if (linking) body.appendChild(el('div', { className: 'banner' }, 'Pick the plant this circle stands for. It keeps its place and takes the plant\'s name and size.'));
+  const linkCount = 1 + state.pickerLinkAlso.length;
+  if (linking) body.appendChild(el('div', { className: 'banner' }, linkCount > 1
+    ? `Pick the plant these ${linkCount} circles stand for. They keep their places and take the plant's name and size.`
+    : 'Pick the plant this circle stands for. It keeps its place and takes the plant\'s name and size.'));
   if (forTree) {
     // A tree already in the yard: name it if it's in the list, then draw its canopy as it is.
     body.appendChild(el('div', { className: 'banner' }, 'Pick the tree, then tap its trunk and the edge of its canopy.'));
@@ -302,7 +302,8 @@ export function renderPlantsPanel() {
   });
   const btnRow = el('div', { style: { display: 'flex', gap: '8px', margin: '8px 0 4px' } }, toggle, resetBtn);
 
-  body.appendChild(el('div', { className: 'field' }, search));
+  // The search stays in view while the list scrolls (with the header, below).
+  const searchBar = el('div', { className: 'picker-search field' }, search);
   body.appendChild(primary);
   body.appendChild(primaryChecks);
   if (zipPrompt) body.insertBefore(zipPrompt, primary);
@@ -312,7 +313,13 @@ export function renderPlantsPanel() {
   body.appendChild(listWrap);
   rebuildList();
 
-  const sheet = el('div', { className: 'sheet' }, header, body);
+  const sheet = el('div', { className: 'sheet' }, el('div', { className: 'sheet-top' }, header, searchBar), body);
+  // Typing far down the list: bring the start of the results back into view (scrolling only; the keyboard stays).
+  search.addEventListener('input', () => {
+    const top = sheet.querySelector<HTMLElement>('.sheet-top')!.offsetHeight;
+    const y = countLine.getBoundingClientRect().top - sheet.getBoundingClientRect().top;
+    if (y < top) sheet.scrollTop += y - top - 4;
+  });
   const overlay = el('div', { className: 'overlay' }, sheet);
   overlay.addEventListener('click', e => { if (e.target === overlay) closePicker(); });
   return overlay;

@@ -387,3 +387,11 @@ a { color: inherit; }
 .plant-item .row-toggle:focus-visible { outline: 2px solid #059669; outline-offset: 2px; border-radius: 4px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .details-unknown { color: #a8a29e; font-style: italic; }
+/* The picker's search stays in view (with the header) while the list scrolls. */
+.sheet-top { position: sticky; top: 0; z-index: 2; background: #fff; }
+.sheet-top .sheet-header { position: static; }
+.picker-search { padding: 10px 16px; border-bottom: 1px solid #e7e5e4; background: #fff; }
+.picker-search input { width: 100%; }
+.link-offer { display: block; margin-bottom: 8px; }
+/* (With the pinned search, a field scrolled into view isn't hidden behind it.) */
+.sheet:has(.sheet-top) { scroll-padding-top: 130px; }
