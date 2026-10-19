@@ -58,3 +58,29 @@ test('deleting several keeps locked shapes, and asks first when it would take mo
   await page.locator('.multi-bar button[title=Delete]').click();
   await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(3);
 });
+
+test('a plain shape from an older plan (a property line with no role) is asked about too', async ({ page }) => {
+  const dialogs: string[] = [];
+  page.on('dialog', async (d) => { dialogs.push(d.message()); await d.dismiss(); });
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    const base = { color: '#16a34a', opacity: 0.65 };
+    localStorage.setItem('landscape-planner-v1', JSON.stringify({
+      shapes: [
+        { ...base, id: 'old', type: 'rect', x: -3, y: -60, width: 60, height: 120, rotation: 0, label: 'Lot' },
+        { ...base, id: 'p1', type: 'circle', x: -2, y: 0, radius: 1, label: 'One', role: 'plant' },
+      ],
+      zoom: 1, offsetX: -10, offsetY: -6,
+    }));
+  });
+  await page.goto('./');
+  await page.getByTestId('select-mode').click();
+  const box = await canvasBox(page);
+  // Across the old lot's west edge and the plant.
+  await drag(page, { x: box.x + (-5 + 10) * 24, y: box.y + (-2 + 6) * 24 }, { x: box.x + (0 + 10) * 24, y: box.y + (2 + 6) * 24 });
+  await expect(page.locator('.multi-bar .count')).toHaveText('2 selected');
+  await page.locator('.multi-bar button[title=Delete]').click();
+  expect(dialogs[0]).toBe('Delete 2 shapes: 1 plain shape, 1 plant?');
+  await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(2);
+});
