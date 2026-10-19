@@ -1,11 +1,10 @@
 // Write the audit's values into the catalog (public/plants.json), each with its sources and how sure it
 // is (docs/catalog-format.md), from the combined claims sample.mjs produces:
-//   node scripts/catalog/write.mjs <combined.json> [--date YYYY-MM-DD] [--review review.json]
+//   npm run catalog:write -- <combined.json> [--date YYYY-MM-DD] [--review review.json]   (write-cli.ts)
 // Only facts the audit settled are written; a fact it couldn't settle (unknown, unsettled, disputed)
-// keeps the catalog's current value, still marked unverified, and a disputed one goes on the review list.
-import { readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { catalogText } from './convert-v1.mjs';
+// keeps the catalog's current value, still marked unverified, and a disputed one goes on the review list,
+// as does a value that would make the record implausible (the app's catalogWarnings: 1 in tall, zones
+// backwards).
 
 /** The checks the app takes (src/catalog.ts): disputed facts aren't written. */
 const SETTLED = new Set(['confirmed', 'single', 'likely', 'reported']);
@@ -42,12 +41,20 @@ const BUILT_IN = {
   tallamy: { title: 'Shropshire & Tallamy, Lepidoptera host plant records', trust: 'reference' },
 };
 
+/** Facts that make one range together: a nursery's report on one half only makes sense with its other. */
+const PAIRS = [['zone_min', 'zone_max'], ['sun_most', 'sun_least']];
+/** Which facts a catalogWarnings message is about (to take back the values that caused it). */
+const WARNED = [[/ tall |under 3 in|height/, ['height', 'form']], [/width|spread/, ['width']], [/zones/, ['zone_min', 'zone_max']], [/sun range/, ['sun_most', 'sun_least']]];
+const valueOf = (f) => (f && typeof f === 'object' && !Array.isArray(f) && 'v' in f ? f.v : f);
 /**
  * The catalog with the audit written in. `audit`: sample.mjs's output (per plant: id, facts, claims).
- * Returns the new file and a review list (disputed facts, and values the catalog can't take).
+ * `warnings`: the app's catalogWarnings (src/catalog.ts), to hold back values that would make a record
+ * implausible. Returns the new file and a review list (disputed facts, values the catalog can't take, and
+ * values held back).
  */
-export function writeAudit(catalog, audit, date) {
+export function writeAudit(catalog, audit, date, warnings = () => []) {
   const byId = new Map(audit.map((a) => [a.id, a]));
+  const recById = new Map(catalog.plants.map((r) => [r.id, r]));
   const enums = catalog.meta.enums ?? {};
   const kindOf = new Map(); // source id → its kind (from the claims citing it)
   for (const a of audit) for (const c of a.claims ?? []) if (c.src && c.kind) kindOf.set(c.src, kindOf.get(c.src) === 'authority' ? 'authority' : c.kind);
@@ -56,8 +63,12 @@ export function writeAudit(catalog, audit, date) {
   const plants = catalog.plants.map((rec) => {
     const a = byId.get(rec.id);
     if (!a) return rec;
+    const parent = rec.parent ? recById.get(rec.parent) : undefined, parentAudit = rec.parent ? byId.get(rec.parent) : undefined;
+    // What the plant (or, for a cultivar, its species) is rated: the catalog's own, and the audit's.
+    const rated = (key) => valueOf(rec.facts[key]) ?? valueOf(parent?.facts[key]);
+    const auditSays = (key) => a.facts?.[key]?.v ?? parentAudit?.facts?.[key]?.v;
     const facts = { ...rec.facts };
-    let wrote = 0;
+    const written = new Set();
     for (const [key, [to, conv]] of Object.entries(FACTS)) {
       const f = a.facts?.[key];
       if (!f) continue;
@@ -66,22 +77,35 @@ export function writeAudit(catalog, audit, date) {
       const v = conv(f.v, enums);
       // (The sources can't say Wetland yet: it waits on USDA's wetland list. A plant the catalog calls a wetland
       // plant keeps that until then, rather than becoming merely "High".)
-      if (key === 'water' && (rec.facts.water?.v ?? rec.facts.water) === 'Wetland') continue;
+      if (key === 'water' && rated('water') === 'Wetland') continue;
       // "Edible" beside a toxic rating (mayapple's ripe fruit; a plant whose other parts poison): for a person to
-      // word, not a flag to set.
-      if (key === 'edible' && /toxic|hard no/i.test(String(rec.facts.dog?.v ?? rec.facts.dog ?? ''))) { review.push({ id: rec.id, fact: key, note: 'edible, but rated toxic' }); continue; }
+      // word, not a flag to set. (Toxic to dogs on the older list, or seriously toxic to people by the audit.)
+      if (key === 'edible' && (/toxic|hard no/i.test(String(rated('dog') ?? '')) || [auditSays('tox_people')].flat().includes('major'))) { review.push({ id: rec.id, fact: key, note: 'edible, but rated toxic' }); continue; }
       if (v === undefined) { review.push({ id: rec.id, fact: key, note: `value the catalog can't take: ${JSON.stringify(f.v)}` }); continue; }
       const out = { v, src: f.src, check: f.check };
       if (f.at) out.at = f.at;
       if (f.alt) {
         const av = conv(f.alt.v, enums);
-        if (av !== undefined && JSON.stringify(av) !== JSON.stringify(v)) { out.alt = { v: av, src: f.alt.src, check: f.alt.check }; for (const s of f.alt.src) used.add(s); }
+        if (av !== undefined && JSON.stringify(av) !== JSON.stringify(v)) out.alt = { v: av, src: f.alt.src, check: f.alt.check };
       }
-      for (const s of f.src) used.add(s);
       facts[to] = out;
-      wrote++;
+      written.add(to);
     }
-    return wrote ? { ...rec, audited: date, facts } : rec;
+    // Values that make the record implausible (new warnings, not the kinds it had: "40 ft is tall for a shrub"
+    // becoming "50 ft …" is the same doubt, about its form) go back, for review.
+    const kind = (w) => w.replace(/\d+(\.\d+)?/g, '#');
+    const before = new Set(warnings({ meta: catalog.meta, plants: [rec] }).map(kind));
+    for (const w of warnings({ meta: catalog.meta, plants: [{ ...rec, facts }] })) {
+      if (before.has(kind(w))) continue;
+      const keys = (WARNED.find(([re]) => re.test(w))?.[1] ?? []).filter((k) => written.has(k));
+      for (const k of keys) { facts[k] = rec.facts[k]; if (facts[k] === undefined) delete facts[k]; written.delete(k); }
+      if (keys.length) review.push({ id: rec.id, fact: keys.join(', '), note: `held back: ${w.replace(`${rec.id}: `, '')}` });
+    }
+    // A nursery's report on half a pair (the other half not written: unsettled, or held back) would be read
+    // with the older list's other half, as a range no nursery gave.
+    for (const pair of PAIRS) if (pair.some((k) => !written.has(k))) for (const k of pair) if (written.has(k) && facts[k].alt) { facts[k] = { ...facts[k] }; delete facts[k].alt; }
+    for (const k of written) for (const s of [...facts[k].src, ...(facts[k].alt?.src ?? [])]) used.add(s);
+    return written.size ? { ...rec, audited: date, facts } : rec;
   });
   const sources = { ...catalog.meta.sources };
   for (const s of [...used].sort()) {
@@ -91,19 +115,3 @@ export function writeAudit(catalog, audit, date) {
   return { file: { meta: { ...catalog.meta, updated: date, sources }, plants }, review };
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const args = process.argv.slice(2);
-  const opt = (name) => { const i = args.indexOf(name); return i >= 0 ? args.splice(i, 2)[1] : undefined; };
-  const date = opt('--date') ?? new Date().toISOString().slice(0, 10);
-  const reviewPath = opt('--review');
-  const [auditPath] = args;
-  if (!auditPath) { console.error('usage: node scripts/catalog/write.mjs <combined.json> [--date YYYY-MM-DD] [--review review.json]'); process.exit(1); }
-  const path = 'public/plants.json';
-  const { file, review } = writeAudit(JSON.parse(readFileSync(path, 'utf8')), JSON.parse(readFileSync(auditPath, 'utf8')), date);
-  const tmp = `${path}.${process.pid}.tmp`;
-  writeFileSync(tmp, catalogText(file));
-  renameSync(tmp, path);
-  if (reviewPath) writeFileSync(reviewPath, JSON.stringify(review, null, 1) + '\n');
-  const audited = file.plants.filter((p) => p.audited).length;
-  console.log(`${audited} of ${file.plants.length} records audited; ${review.length} facts for review`);
-}

@@ -37,7 +37,7 @@ test('a plant shown only because of what nurseries report is marked, and says so
   const catalog = {
     meta: {
       format: 'lp-catalog', version: 2, zones: 'half', title: 'Test catalog', updated: '2026-10-18',
-      sources: { ncsu: { title: 'NC State Extension', trust: 'reference' }, shop: { title: 'A nursery', trust: 'reference' }, grower: { title: 'A grower', trust: 'nursery' } },
+      sources: { ncsu: { title: 'NC State Extension', trust: 'reference' }, shop: { title: 'A nursery', trust: 'reference' }, grower: { title: 'A grower', trust: 'nursery' }, compendium: { title: 'Older list', trust: 'unverified' } },
       enums: { form: ['Perennial', 'Shrub'] },
     },
     plants: [
@@ -46,6 +46,8 @@ test('a plant shown only because of what nurseries report is marked, and says so
       { id: 'itea', common: 'Sweetspire', botanical: 'Itea virginica', src: ['ncsu'], audited: '2026-10-18', facts: { form: 'Shrub', sun_most: 'Full', sun_least: 'Shade' } },
       { id: 'carex-eburnea', common: 'Bristleleaf sedge', src: ['ncsu'], audited: '2026-10-18',
         facts: { form: 'Perennial', sun_most: 'Full', sun_least: 'Part', zone_min: { v: 2, src: ['grower'], check: 'reported' }, zone_max: { v: 7.5, src: ['grower'], check: 'reported' } } },
+      { id: 'old', common: 'Old-list aster', src: ['compendium'], audited: null, facts: { form: 'Perennial', sun_most: 'Full', sun_least: 'Part' } },
+      { id: 'half', common: 'Half-checked aster', src: ['compendium'], audited: '2026-10-18', facts: { form: { v: 'Perennial', src: ['ncsu'], check: 'single' }, sun_most: 'Full', sun_least: 'Part' } },
     ],
   };
   await page.route('**/plants.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(catalog) }));
@@ -55,6 +57,10 @@ test('a plant shown only because of what nurseries report is marked, and says so
   const alumroot = page.locator('.plant-item', { hasText: 'Hairy alumroot' });
   await expect(alumroot.getByTestId('row-flag')).toBeVisible();
   await expect(page.locator('.plant-item', { hasText: 'Sweetspire' }).getByTestId('row-flag')).toHaveCount(0);
+  // Each row says how far it's checked: all older list, some, or (no badge) every detail sourced.
+  await expect(page.locator('.plant-item', { hasText: 'Old-list aster' }).locator('.unverified-badge')).toHaveText('Unverified');
+  await expect(page.locator('.plant-item', { hasText: 'Half-checked aster' }).locator('.unverified-badge')).toHaveText('Partly checked');
+  await expect(page.locator('.plant-item', { hasText: 'Sweetspire' }).locator('.unverified-badge')).toHaveCount(0);
   await alumroot.getByTestId('plant-row').click();
   await expect(alumroot.getByTestId('reported-flag')).toContainText('what nurseries report for its sun');
   await expect(alumroot.getByTestId('plant-details')).toContainText('Nurseries report: Full sun to shade (A nursery)');

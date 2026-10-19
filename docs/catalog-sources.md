@@ -498,13 +498,18 @@ That change lands before any record gets an `audited` date.
    and values the script reads, with no descriptive text.
 3. **Compare.** `scripts/catalog/sample.mjs` combines each plant's claims
    by the rules above (with the web search's claims, `search.mjs`).
-4. **Write.** `node scripts/catalog/write.mjs <combined.json> --review
-   review.json` writes each settled fact into `public/plants.json` with its
+4. **Write.** `npm run catalog:write -- <combined.json> --date <day the
+   pages were read> --review review.json` writes each settled fact into `public/plants.json` with its
    `src`, `check` and, where nurseries differ from the authority, `alt`; a
    record with any fact written gets its `audited` date. A fact the audit
    couldn't settle (unknown, unsettled, disputed) keeps the catalog's
    current value, still labeled unverified (its only source is the
-   compendium), and a disputed one goes on the review list. It never
+   compendium), and a disputed one goes on the review list. So do values
+   that would make the record implausible (the app's `catalogWarnings`:
+   inches read as feet, a zone or sun range backwards), which are held back,
+   and "edible" on a plant rated toxic to dogs or seriously toxic to people.
+   A nursery's report on a pair (the zones, the sun levels) is one
+   nursery's whole range, kept only where both halves are written. It never
    removes a value. Web sources are added to `meta.sources` by domain:
    `reference` for authorities, `nursery` for nurseries and breeders.
    Native status, toxicity, caterpillar hosts and bloom wait on their format

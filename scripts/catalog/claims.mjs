@@ -236,6 +236,7 @@ export function agrees(fact, a, b) {
  */
 export function combine(claims, { cultivar = false, prefer = null } = {}) {
   const out = {};
+  const kept = {}; // (each fact's claims as weighed: copies counted once)
   const facts = new Set([...Object.keys(TIER), ...claims.map((c) => c.fact)]);
   for (const fact of facts) {
     const all = claims.filter((c) => c.fact === fact);
@@ -272,6 +273,7 @@ export function combine(claims, { cultivar = false, prefer = null } = {}) {
     });
     // A breeder speaks first only for its own cultivars; on a species it's one more nursery.
     if (!cultivar) usable = usable.map((c) => (c.kind === 'breeder' ? { ...c, kind: 'nursery' } : c));
+    kept[fact] = usable;
     if (fact === 'form') { out[fact] = combineForm(usable, prefer); continue; }
     if (fact === 'host') { // (a list: every source's names, together)
       const byKey = new Map();
@@ -328,7 +330,31 @@ export function combine(claims, { cultivar = false, prefer = null } = {}) {
     if (flags.length) r.flags = flags;
     out[fact] = r;
   }
+  for (const pair of PAIRS) pairAlt(out, kept, pair);
   return out;
+}
+/** Facts that make one range together: a nursery's report for one is read with its report for the other. */
+const PAIRS = [['zone_min', 'zone_max'], ['sun_most', 'sun_least']];
+/**
+ * A pair's `alt` comes from nurseries that give both halves: the pair most of them share where it differs
+ * from the authorities' (either half), on both halves. Built from each half alone, one nursery's cold limit
+ * could be shown with another's (or the authority's) warm one, as a range nobody gave.
+ */
+function pairAlt(out, kept, [a, b]) {
+  const ra = out[a], rb = out[b];
+  if (ra) delete ra.alt;
+  if (rb) delete rb.alt;
+  if (!ra || !rb || ra.v == null || rb.v == null || ra.kind !== 'authority' || rb.kind !== 'authority') return;
+  const shop = (c) => c.kind === 'nursery' || c.kind === 'breeder';
+  const bOf = new Map((kept[b] ?? []).filter(shop).map((c) => [c.src, c]));
+  const both = (kept[a] ?? []).filter(shop).filter((c) => bOf.has(c.src)).map((c) => ({ src: c.src, va: c.v, vb: bOf.get(c.src).v }));
+  const differ = both.filter((n) => !agrees(a, ra.v, n.va) || !agrees(b, rb.v, n.vb));
+  const same = (x, y) => agrees(a, x.va, y.va) && agrees(b, x.vb, y.vb);
+  const largest = differ.map((n) => differ.filter((o) => same(n, o))).sort((x, y) => y.length - x.length)[0];
+  if (!largest) return;
+  const src = largest.map((n) => n.src), check = largest.length > 1 ? 'likely' : 'reported';
+  ra.alt = { v: largest[0].va, src, check };
+  rb.alt = { v: largest[0].vb, src, check };
 }
 /** A page for the cultivar itself that may decide its form: an authority's, or its breeder's (a nursery's is one more nursery). */
 const ownPage = (c) => (c.cultivarPage && c.kind === 'authority') || c.kind === 'breeder';

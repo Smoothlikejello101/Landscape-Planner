@@ -60,6 +60,10 @@ describe('records', () => {
     expect(old.partlyChecked).toBe(true);
     const [none] = resolveCatalog({ meta, plants: [rec({ ...species, facts: { ...species.facts, edible: { v: null, src: ['compendium'] } } })] });
     expect(none.partlyChecked).toBeUndefined();
+    // What a cultivar takes from its species counts too: an older-list detail there leaves the cultivar partly checked.
+    const [, inheritsOld] = resolveCatalog({ meta, plants: [rec({ ...species, facts: { ...species.facts, native: { v: 'Native', src: ['compendium'] } } }), cultivar] });
+    expect(inheritsOld.prov!.native).toEqual({ src: ['compendium'], inherited: true });
+    expect(inheritsOld.partlyChecked).toBe(true);
     // A species not yet audited makes what the cultivar takes from it unverified too.
     const [, c2] = resolveCatalog({ meta, plants: [{ ...species, audited: null }, cultivar] });
     expect(c2.unverified).toBe(true);
