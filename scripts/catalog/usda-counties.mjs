@@ -3,9 +3,11 @@
 //   node scripts/catalog/usda-counties.mjs <combined.json> [out.json]   (default catalog-src/usda-counties.json)
 // USDA's county ids are its own, so each record is placed by its shape: the county (Census boundaries) its
 // center falls in, or one its corners fall in whose name is the record's (a city inside a county, say).
-// "Excluded" records (USDA's own: not there) are left out. Writes { id: { counties: [fips], species } },
-// `species` where the records are the plant's species' (a cultivar, mix, or variety USDA maps only as its
-// species). A hybrid gets none. docs/wild-records.md.
+// (Its map service holds no "Excluded" county records: a query for them counts none, 2026-10-19.) Writes
+// { id: { counties: [fips], species } }, `species` where the records are the plant's species' (a cultivar or
+// mix, or a variety USDA has only as its species). A hybrid gets none. A plant whose USDA symbol leads to
+// another name gets its records only where that's a reviewed rename of the same plant (SAME_PLANT): USDA's
+// redirects also lead from misapplied names, lumps and Old World look-alikes. docs/wild-records.md.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { feature } from 'topojson-client';
@@ -15,6 +17,26 @@ import { savedPage } from './pages.mjs';
 const MAP = 'https://apps.geo.fpac.usda.gov/nrcs-geodata/rest/services/land_use_land_cover/plants/MapServer';
 export const recordsUrl = (id) => `${MAP}/6/query?where=plant_master_id%3D${id}&outFields=country_subdivision_name,plant_nativity_id&returnGeometry=true&outSR=4326&maxAllowableOffset=0.1&geometryPrecision=2&f=json`;
 const profileUrl = (symbol) => `https://plantsservices.sc.egov.usda.gov/api/PlantProfile?symbol=${symbol}`;
+const strip = (s) => String(s ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+const binomialOf = (s) => strip(s).replace(/ ×/, ' ×').split(' ').slice(0, 2).join(' ');
+/**
+ * Plants whose USDA symbol leads to another accepted name that is the same plant renamed (reviewed by hand,
+ * 2026-10-19, from the 35 redirects among the catalog's symbols). The others are left without USDA's records:
+ * a misapplied name (Carex albicans → C. peckii, Carex frankii → C. aureolensis, Silphium terebinthinaceum →
+ * S. compositum var. reniforme, Ziziphus jujuba → Z. mauritiana), a lump into a wider taxon (Iliamna remota,
+ * Symphyotrichum firmum, Oenothera rhombipetala), an Old World taxon USDA excludes (Anemone patens, Anthoxanthum
+ * hirtum), a hybrid (Viola palmata).
+ */
+export const SAME_PLANT = new Map([
+  ['Potentilla fruticosa', 'Dasiphora fruticosa'], ['Sambucus canadensis', 'Sambucus nigra'], ['Viburnum trilobum', 'Viburnum opulus'],
+  ['Bidens polylepis', 'Bidens aristosa'], ['Bidens trichosperma', 'Bidens coronata'], ['Campanula americana', 'Campanulastrum americanum'],
+  ['Drymocallis arguta', 'Potentilla arguta'], ['Gentiana flavida', 'Gentiana alba'], ['Hepatica acutiloba', 'Hepatica nobilis'],
+  ['Hypericum pyramidatum', 'Hypericum ascyron'], ['Linaria canadensis', 'Nuttallanthus canadensis'], ['Persicaria virginiana', 'Polygonum virginianum'],
+  ['Persicaria pensylvanica', 'Polygonum pensylvanicum'], ['Persicaria punctata', 'Polygonum punctatum'], ['Polymnia uvedalia', 'Smallanthus uvedalius'],
+  ['Porteranthus stipulatus', 'Gillenia stipulata'], ['Thermopsis caroliniana', 'Thermopsis villosa'], ['Buchloe dactyloides', 'Bouteloua dactyloides'],
+  ['Juncus balticus', 'Juncus arcticus'], ['Turritis glabra', 'Arabis glabra'], ['Peritoma serrulata', 'Cleome serrulata'],
+  ['Osmundastrum cinnamomeum', 'Osmunda cinnamomea'], ['Osmunda spectabilis', 'Osmunda regalis'], ['Malus domestica', 'Malus pumila'],
+]);
 const norm = (s) => String(s ?? '').toLowerCase().replace(/\((city|county)\)|\b(county|parish|borough|census area|city and borough|municipality|city)\b/g, '').replace(/[^a-z]/g, '');
 
 /** Places USDA's county records: (features) → the counties (FIPS) they're in, and how many couldn't be placed. */
@@ -24,7 +46,6 @@ export function placer(countyFeatures, nameOf) {
     const out = new Set();
     let unplaced = 0;
     for (const f of features) {
-      if (f.attributes?.Symbol === 'Excluded') continue;
       const rings = f.geometry?.rings ?? [];
       const ring = rings.reduce((a, r) => (r.length > a.length ? r : a), []);
       if (!ring.length) { unplaced++; continue; }
@@ -46,7 +67,7 @@ export function placer(countyFeatures, nameOf) {
 export function usdaRecords(catalog, audit, place, page = savedPage) {
   const byId = new Map(audit.map((a) => [a.id, a]));
   const out = {};
-  let unplaced = 0, noRecords = 0;
+  let unplaced = 0, noRecords = 0, otherName = 0;
   for (const rec of catalog.plants) {
     if (rec.parent) continue;
     const bot = String(rec.botanical ?? '').replace(/\s+/g, ' ').trim();
@@ -56,6 +77,9 @@ export function usdaRecords(catalog, audit, place, page = savedPage) {
     let profile = null, records = null;
     try { profile = JSON.parse(page('usda', profileUrl(symbol))?.text ?? 'null'); } catch { /* none */ }
     if (!profile?.Id) continue;
+    // The plant's own name, or a reviewed rename of it; never another plant's records.
+    const mine = binomialOf(bot), theirs = binomialOf(profile.ScientificName);
+    if (theirs !== mine && SAME_PLANT.get(mine) !== theirs) { otherName++; continue; }
     try { records = JSON.parse(page('web', recordsUrl(profile.Id))?.text ?? 'null'); } catch { /* none */ }
     if (!records?.features || records.exceededTransferLimit) { noRecords++; continue; }
     const r = place(records.features);
@@ -64,10 +88,10 @@ export function usdaRecords(catalog, audit, place, page = savedPage) {
     // Its own records: a plain species, or a variety USDA has under its own name. Otherwise its species'.
     const infra = bot.match(/ (var\.|subsp\.|ssp\.) ([a-zë-]+)/);
     const plain = /^[A-Z][a-zë-]+ [a-zë-]+$/.test(bot);
-    const own = plain || (infra && String(profile.ScientificName ?? '').includes(`${infra[1] === 'ssp.' ? 'subsp.' : infra[1]} ${infra[2]}`));
+    const own = plain || (infra && strip(profile.ScientificName).includes(`${infra[1] === 'ssp.' ? 'ssp.' : infra[1]} ${infra[2]}`));
     out[rec.id] = { counties: r.counties, species: !own };
   }
-  return { records: out, unplaced, noRecords };
+  return { records: out, unplaced, noRecords, otherName };
 }
 
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop())) {
@@ -76,7 +100,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   const topo = JSON.parse(readFileSync(createRequire(import.meta.url).resolve('us-atlas/counties-10m.json'), 'utf8'));
   const fc = feature(topo, topo.objects.counties).features;
   const nameOf = new Map(fc.map((f) => [Number(f.id), f.properties.name]));
-  const { records, unplaced, noRecords } = usdaRecords(JSON.parse(readFileSync('public/plants.json', 'utf8')), JSON.parse(readFileSync(auditPath, 'utf8')), placer(fc, nameOf));
+  const { records, unplaced, noRecords, otherName } = usdaRecords(JSON.parse(readFileSync('public/plants.json', 'utf8')), JSON.parse(readFileSync(auditPath, 'utf8')), placer(fc, nameOf));
   writeFileSync(outPath, JSON.stringify(records));
-  console.log(`${Object.keys(records).length} plants with USDA county records (${Object.values(records).filter((r) => r.species).length} as their species'); ${unplaced} records not placed; ${noRecords} plants with no records page → ${outPath}`);
+  console.log(`${Object.keys(records).length} plants with USDA county records (${Object.values(records).filter((r) => r.species).length} as their species'); ${unplaced} records not placed; ${noRecords} plants with no records page; ${otherName} left out (USDA's symbol leads to another plant) → ${outPath}`);
 }

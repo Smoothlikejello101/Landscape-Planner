@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
 import { atlasRecords, SOURCES, stateFile, wildIndex } from '../scripts/catalog/wild.mjs';
 // @ts-expect-error (a plain .mjs script)
-import { placer } from '../scripts/catalog/usda-counties.mjs';
-import { countyName, loadWild, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
+import { placer, usdaRecords } from '../scripts/catalog/usda-counties.mjs';
+import { countyName, loadWild, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
 import { plantMatches, PLANT_FILTER_DEFAULTS, zoneNote, type Plant } from '../src/plants';
 import { state } from '../src/state';
 
@@ -52,7 +52,7 @@ const texTable = { v: 1, zips: { 75501: ['8a', 0, 3, 48037], 75551: ['8a', 0, 9,
 let fetched: string[] = [];
 const fetcher = (async (url: string) => {
   fetched.push(url);
-  const body = { 'climate/719.json': zipTable, 'climate/755.json': texTable, 'wild/index.json': index, 'wild/05.json': file, 'wild/48.json': tx }[url];
+  const body = { 'climate/719.json': zipTable, 'climate/755.json': texTable, 'wild/1/index.json': index, 'wild/1/05.json': file, 'wild/1/48.json': tx }[url];
   return body ? new Response(JSON.stringify(body)) : new Response('', { status: 404 });
 }) as typeof fetch;
 
@@ -77,7 +77,7 @@ describe('wild records near the garden', () => {
   });
   it('say where: the garden\'s county, a neighbor, or elsewhere in the state', async () => {
     await loadWild(undefined, fetcher);
-    expect(fetched).toEqual(['climate/719.json', 'wild/index.json', 'wild/05.json']);
+    expect(fetched).toEqual(['climate/719.json', 'wild/1/index.json', 'wild/1/05.json']);
     expect(wildText(wildHere({ id: 'quercus-muehlenbergii' })!)).toBe('Recorded growing wild in Clark County');
     expect(wildHere({ id: 'quercus-muehlenbergii' })!.sources).toEqual([SOURCES.arkatlas.title, SOURCES.usda.title]);
     expect(wildHere({ id: 'allium-canadense-var-lavendulare' })!.sources).toEqual([SOURCES.arkatlas.title]);
@@ -92,7 +92,7 @@ describe('wild records near the garden', () => {
   it('reach over a state line: a Texas garden next to Arkansas hears about the county next door, and its own state\'s', async () => {
     state.location = { zip: '75501', zone: '8a' };
     await loadWild(undefined, fetcher);
-    expect(fetched).toEqual(['climate/755.json', 'wild/index.json', 'wild/48.json', 'wild/05.json']); // (its own state first)
+    expect(fetched).toEqual(['climate/755.json', 'wild/1/index.json', 'wild/1/48.json', 'wild/1/05.json']); // (its own state first)
     expect(wildText(wildHere({ id: 'viola-sororia' })!)).toBe('Recorded growing wild in a neighboring county (Miller, AR)');
     expect(wildText(wildHere({ id: 'quercus-muehlenbergii' })!)).toBe('Recorded growing wild in Bowie County');
     expect(wildText(wildHere({ id: 'rosmarinus' })!)).toBe('Recorded growing wild in a neighboring county (Cass)');
@@ -100,14 +100,17 @@ describe('wild records near the garden', () => {
     resetWild(); fetched = [];
     state.location = { zip: '75551', zone: '8a' }; // (Cass County: no Arkansas neighbor)
     await loadWild(undefined, fetcher);
-    expect(fetched).toEqual(['climate/755.json', 'wild/index.json', 'wild/48.json']);
+    expect(fetched).toEqual(['climate/755.json', 'wild/1/index.json', 'wild/1/48.json']);
     expect(wildHere({ id: 'viola-sororia' })).toBeNull();
     expect(wildText(wildHere({ id: 'rosmarinus' })!)).toBe('Recorded growing wild in Cass County');
   });
   it('name counties as people do', () => {
-    expect([countyName('Clark', 5019), countyName('Caddo', 22017), countyName('Salem', 51775), countyName('Juneau', 2110)]).toEqual(['Clark County', 'Caddo Parish', 'Salem', 'Juneau']);
+    expect([countyName('Clark', 5019), countyName('Caddo', 22017), countyName('Salem', 51775), countyName('Juneau', 2110)]).toEqual(['Clark County', 'Caddo Parish', 'Salem (city)', 'Juneau']);
+    expect([countyName('Baltimore', 24510), countyName('Baltimore', 24005), countyName('St. Louis', 29510), countyName('Carson City', 32510), countyName('District of Columbia', 11001), countyName('James City', 51095)])
+      .toEqual(['Baltimore (city)', 'Baltimore County', 'St. Louis (city)', 'Carson City', 'District of Columbia', 'James City County']);
+    expect([shortCountyName('Roanoke', 51161), shortCountyName('Roanoke', 51770)]).toEqual(['Roanoke', 'Roanoke (city)']);
   });
-  it('place USDA\'s records by shape: the county a record\'s center is in, or one of its corners\' that has its name; never an excluded one', () => {
+  it('place USDA\'s records by shape: the county a record\'s center is in, or one of its corners\' that has its name', () => {
     const sq = (x0: number, x1: number, y0: number, y1: number) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]];
     // Alleghany County with Covington, a city inside it (its own county): a record for Covington is a small square in the hole.
     const shapes = [
@@ -119,13 +122,30 @@ describe('wild records near the garden', () => {
     // (Alleghany's record, drawn whole, has its center in Covington: its corners find Alleghany by name.)
     expect(place([rec('Alleghany', sq(-80.2, -79.6, 37.6, 38.0).map(([x, y]) => [x, y]))]).counties).toEqual([51005]);
     expect(place([rec('Covington (city)', sq(-79.99, -79.96, 37.78, 37.81))]).counties).toEqual([51580]);
-    expect(place([rec('Covington (city)', sq(-79.99, -79.96, 37.78, 37.81), 'Excluded')]).counties).toEqual([]);
     expect(place([rec('Nowhere', sq(10, 11, 10, 11))])).toEqual({ counties: [], unplaced: 1 });
+  });
+  it('take USDA\'s records only under the plant\'s own name, or a reviewed rename of it: never another plant\'s', () => {
+    const profiles: Record<string, unknown> = {
+      CAAL23: { Id: 1, ScientificName: '<i>Carex peckii</i> Howe' }, // (a misapplied name: another sedge)
+      BUDA: { Id: 2, ScientificName: '<i>Bouteloua dactyloides</i> (Nutt.) J.T. Columbus' }, // (buffalograss, renamed)
+      QUMU: { Id: 3, ScientificName: '<i>Quercus muehlenbergii</i> Engelm.' },
+    };
+    const page = (source: string, url: string) => {
+      const sym = url.match(/symbol=(\w+)/)?.[1];
+      if (source === 'usda' && sym) return { text: JSON.stringify(profiles[sym] ?? null) };
+      if (source === 'web') return { text: JSON.stringify({ features: [{ id: url }] }) };
+      return null;
+    };
+    const cat = { plants: [{ id: 'carex-albicans', botanical: 'Carex albicans' }, { id: 'buchloe', botanical: 'Buchloe dactyloides' }, { id: 'oak', botanical: 'Quercus muehlenbergii' }, { id: 'oak-cv', botanical: "Quercus muehlenbergii 'X'" }] };
+    const aud = [{ id: 'carex-albicans', sources: { usda: { symbol: 'CAAL23' } } }, { id: 'buchloe', sources: { usda: { symbol: 'BUDA' } } }, { id: 'oak', sources: { usda: { symbol: 'QUMU' } } }, { id: 'oak-cv', sources: { usda: { symbol: 'QUMU' } } }];
+    const r = usdaRecords(cat, aud, () => ({ counties: [5019], unplaced: 0 }), page);
+    expect(r.records).toEqual({ buchloe: { counties: [5019], species: false }, oak: { counties: [5019], species: false }, 'oak-cv': { counties: [5019], species: true } });
+    expect(r.otherName).toBe(1);
   });
   it('are looked up once per ZIP, the county remembered on the device; nothing for a ZIP with no county', async () => {
     await loadWild(undefined, fetcher);
     await loadWild(undefined, fetcher);
-    expect(fetched).toEqual(['climate/719.json', 'wild/index.json', 'wild/05.json']);
+    expect(fetched).toEqual(['climate/719.json', 'wild/1/index.json', 'wild/1/05.json']);
     resetWild(); fetched = [];
     state.location = { zip: '71998', zone: '8a' };
     await loadWild(undefined, fetcher);
@@ -177,7 +197,7 @@ describe('wild records near the garden', () => {
     expect(calls).toEqual(['once']);
     // The index in, the state's file not: tried again later, not left empty.
     resetWild(); fetched = [];
-    const noFile = (async (url: string) => (url === 'wild/05.json' ? new Response('', { status: 500 }) : fetcher(url))) as typeof fetch;
+    const noFile = (async (url: string) => (url === 'wild/1/05.json' ? new Response('', { status: 500 }) : fetcher(url))) as typeof fetch;
     await loadWild(undefined, noFile);
     expect(wildHere({ id: 'quercus-muehlenbergii' })).toBeNull();
     const t = Date.now(); const real = Date.now; Date.now = () => t + 61_000;

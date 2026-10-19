@@ -1,6 +1,7 @@
-// Build public/wild/<state FIPS>.json, the counties each catalog plant is recorded growing wild in, by
+// Build public/wild/1/<state FIPS>.json (1: the format; a new format gets a new folder, so a phone never
+// reads one format with an app made for another), the counties each catalog plant is recorded growing wild in, by
 // state, and public/wild/index.json, which says what states have records and which counties outside each
-// border it (docs/wild-records.md):
+// border it (public/wild/1/index.json; docs/wild-records.md):
 //   node scripts/catalog/wild.mjs <combined.json>
 // Sources: the Atlas of the Vascular Plants of Arkansas's county maps (catalog-src/arkatlas/counties.json,
 // from atlas_counties.py) and USDA PLANTS's county records (catalog-src/usda-counties.json, from
@@ -86,6 +87,8 @@ export function wildIndex(files) {
   return { v: 1, states, border };
 }
 
+/** The files' format: their folder (public/wild/1/), and src/wild.ts's WILD_FORMAT. */
+export const FORMAT = 1;
 export const SOURCES = {
   arkatlas: { title: 'Atlas of the Vascular Plants of Arkansas (Arkansas Vascular Flora Committee, 2013)', url: 'https://biology.uark.edu/herbarium/' },
   usda: { title: 'USDA PLANTS Database (NRCS), county records', url: 'https://plants.usda.gov' },
@@ -97,20 +100,21 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   const read = (p) => JSON.parse(readFileSync(p, 'utf8'));
   const write = (path, data) => { const tmp = `${path}.${process.pid}.tmp`; writeFileSync(tmp, JSON.stringify(data)); renameSync(tmp, path); };
   const catalog = read('public/plants.json'), counties = read('catalog-src/counties.json');
-  const bySource = { arkatlas: atlasRecords(catalog, read(auditPath), read('catalog-src/arkatlas/counties.json')) };
-  if (existsSync('catalog-src/usda-counties.json')) bySource.usda = read('catalog-src/usda-counties.json');
+  if (!existsSync('catalog-src/usda-counties.json')) { console.error('catalog-src/usda-counties.json is missing: run usda-fetch.mjs and usda-counties.mjs first (or every state but Arkansas would lose its records)'); process.exit(1); }
+  const bySource = { arkatlas: atlasRecords(catalog, read(auditPath), read('catalog-src/arkatlas/counties.json')), usda: read('catalog-src/usda-counties.json') };
   const states = [...new Set(counties.map((c) => stateOf(c.fips)))].sort((a, b) => a - b);
+  const dir = `public/wild/${FORMAT}`;
   rmSync('public/wild', { recursive: true, force: true });
-  mkdirSync('public/wild', { recursive: true });
+  mkdirSync(dir, { recursive: true });
   const files = [];
   for (const fips of states) {
     const code = counties.find((c) => stateOf(c.fips) === fips)?.state;
     const f = stateFile({ fips, code }, bySource, SOURCES, counties);
     if (!Object.keys(f.plants).length) continue;
-    write(`public/wild/${String(fips).padStart(2, '0')}.json`, f);
+    write(`${dir}/${String(fips).padStart(2, '0')}.json`, f);
     files.push(f);
   }
-  write('public/wild/index.json', wildIndex(files));
-  const size = readdirSync('public/wild').reduce((n, f) => n + readFileSync(`public/wild/${f}`).length, 0);
+  write(`${dir}/index.json`, wildIndex(files));
+  const size = readdirSync(dir).reduce((n, f) => n + readFileSync(`${dir}/${f}`).length, 0);
   console.log(`${files.length} state files (${Math.round(size / 1024)} KB); Arkansas: ${Object.keys(files.find((f) => f.fips === 5)?.plants ?? {}).length} plants`);
 }

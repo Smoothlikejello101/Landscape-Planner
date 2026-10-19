@@ -14,7 +14,7 @@ what the record shows: "recorded", never "grows".
 | What | Source |
 | --- | --- |
 | Arkansas counties a plant is recorded in | **Atlas of the Vascular Plants of Arkansas** (Arkansas Vascular Flora Committee, 2013), its county dot maps. A dot is a herbarium record: the plant was collected growing in that county. Native and introduced plants both (an escaped garden plant growing wild there counts). |
-| Counties a plant is recorded in, every state | **USDA PLANTS Database** (NRCS) county records, as its site's distribution map shows them (its public map service; US government work). Native and introduced; USDA's "Excluded" records (not there) are left out. |
+| Counties a plant is recorded in, every state | **USDA PLANTS Database** (NRCS) county records, as its site's distribution map shows them (its public map service; US government work). Native and introduced. (The map service holds no "Excluded" county records: a query for them counts none.) Connecticut has no county records. |
 | County names, and which counties border which (across state lines) | U.S. Census Bureau cartographic boundary files (1:10m counties), as packaged by `us-atlas` 3.0.1 |
 | The garden's county | its ZIP code's row in the ZIP tables ([climate-data.md](climate-data.md)) |
 
@@ -39,11 +39,16 @@ it), so the app never says "not found here".
    `catalog-src/web/`). USDA's county ids are its own, so `node scripts/catalog/usda-counties.mjs
    <combined.json>` places each record by its shape: the county (Census boundaries) its center falls in,
    or, where that county's name isn't the record's (a city inside a county), one of its corners' counties
-   that has its name. Of about 456,000 records for 743 plants, 69 couldn't be placed (mostly territories).
-   A plant gets its own taxon's records where USDA has it under its own name; otherwise its species', said
-   so.
-4. `node scripts/catalog/wild.mjs <combined.json>`: `public/wild/<state>.json` for every state with
-   records, and `public/wild/index.json`.
+   that has its name. Of about 446,000 records, 68 couldn't be placed (all on Pacific islands); checked
+   against every record's own name and shape, none is in the wrong county or state. A plant gets USDA's
+   records only under its own name, or a rename of the same plant reviewed by hand (`SAME_PLANT`: USDA's
+   symbols also lead from misapplied names, lumps and Old World look-alikes to other plants, and those
+   are left out: 10 plants). A cultivar or mix, or a variety USDA has only as its species, gets its
+   species', said so.
+4. `node scripts/catalog/wild.mjs <combined.json>`: `public/wild/1/<state>.json` for every state with
+   records (52, with DC and the territories), and `public/wild/1/index.json`. The `1` is the format: a new
+   format goes in a new folder (and a new cache on the device), so an app never reads a format it wasn't
+   made for.
    A plant gets its own taxon's records: a species all its maps (its varieties' too), matched by the atlas
    name the audit found for it or its botanical name; a variety or subspecies its own map. A cultivar or
    mix with no species record in the catalog, or a variety the atlas maps only as its species, gets its
@@ -51,7 +56,7 @@ it), so the app never says "not found here".
 
 ## The files
 
-`public/wild/<state FIPS, two digits>.json`:
+`public/wild/1/<state FIPS, two digits>.json`:
 
 ```json
 {
@@ -72,14 +77,14 @@ in any state) and the counties over its line that border it (their state, and th
 a garden in Texarkana, Texas is told about Miller County, Arkansas. `plants` is keyed by catalog id: the
 union of its sources' records in the state, `src` naming them (the details line cites them). Where any
 source has the plant's own taxon's records, only those count: a variety never takes its species'
-counties from another source. `species` lists plants whose records are their species'; a cultivar with a
+counties from another source in that state. `species` lists plants whose records are their species'; a cultivar with a
 species record in the catalog uses that record's, and says so.
 
-`public/wild/index.json`: `{ "v": 1, "states": { "5": "AR" }, "border": { "48037": [5] } }`: which states
+`public/wild/1/index.json`: `{ "v": 1, "states": { "5": "AR" }, "border": { "48037": [5] } }`: which states
 have a file, and which files a county outside them should load. The app loads the garden's own state's
 file and any its county borders. The index is part of the offline copy; a state's file (up to 250 KB,
-for 52 states and territories 4 MB in all) is kept on the device once fetched (src/sw.ts) and refreshed in
-the background when online. The garden's county is remembered on the device once looked up (the last 20
+4 MB in all) is kept on the device once fetched (src/sw.ts, cache `fullgrown-wild-1`) and refreshed in the
+background when online. The garden's county is remembered on the device once looked up (the last 20
 ZIPs), so it all works offline after the first time. A lookup that finds
 nothing (offline before the county was ever looked up) is tried again a minute later.
 
