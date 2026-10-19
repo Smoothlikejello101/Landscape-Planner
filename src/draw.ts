@@ -53,7 +53,7 @@ export function startDraw(method: DrawKind, target?: KindKey) {
 export function startKind(key: KindKey) {
   if (key === 'plant' || key === 'tree') {
     // Plants are picked first. An existing tree is picked (or "unknown"), then its canopy drawn.
-    state.draw = null; state.editPoints = null; state.placing = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.linkOffer = null; state.menu = null;
+    state.draw = null; state.editPoints = null; state.placing = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; state.linkOffer = null; state.menu = null;
     state.pickerForTree = key === 'tree';
     // A fresh pick starts with an empty search. (Switching plants while placing keeps it:
     // the next of several plants for the same purpose, say monarch hosts, is likely another match.)

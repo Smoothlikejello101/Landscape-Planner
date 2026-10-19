@@ -33,6 +33,7 @@ describe('linking many circles to a plant', () => {
     ];
     state.roleViews = { other: { hidden: true } };
     expect(unlinkedWithLabel('Bergamot', ['a'])).toEqual(['b']);
+    expect(unlinkedWithLabel('Bergamot', ['a'], { locked: true })).toEqual(['locked']); // (asked about separately)
     expect(unlinkedWithLabel('', [])).toEqual([]);
     expect(canLinkToPlant(state.shapes[2])).toBe(false); // (a pond)
   });

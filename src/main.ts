@@ -77,7 +77,7 @@ window.addEventListener('keydown', (e) => {
   } else if (e.key === 'Delete' || e.key === 'Backspace') {
     if (state.selectedIds.length) { e.preventDefault(); deleteSelected(); render(); }
   } else if (e.key === 'Escape') {
-    if (state.panel) { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; render(); }
+    if (state.panel) { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; render(); }
     else if (state.placing) { finishPlacing(); render(); }
     else if (state.menu) { state.menu = null; render(); }
     else if (state.draw || state.editPoints) { state.draw = null; state.editPoints = null; render(); }

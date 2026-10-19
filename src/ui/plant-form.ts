@@ -19,7 +19,7 @@ type SunLevel = 'Full' | 'Part' | 'Shade';
 
 function close(to: 'plants' | null) {
   state.plantForm = null;
-  if (!to) { state.pickerLinkId = null; state.pickerLinkAlso = []; }
+  if (!to) { state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; }
   state.panel = to;
   render();
 }
