@@ -44,7 +44,7 @@ const BUILT_IN = {
 /** Facts that make one range together: a nursery's report on one half only makes sense with its other. */
 const PAIRS = [['zone_min', 'zone_max'], ['sun_most', 'sun_least']];
 /** Which facts a catalogWarnings message is about (to take back the values that caused it). */
-const WARNED = [[/ tall |under 3 in|height/, ['height', 'form']], [/width|spread/, ['width']], [/zones/, ['zone_min', 'zone_max']], [/sun range/, ['sun_most', 'sun_least']]];
+const WARNED = [[/ tall for /, ['height', 'form']], [/under 3 in|height range/, ['height']], [/width|spread/, ['width']], [/zones/, ['zone_min', 'zone_max']], [/sun range/, ['sun_most', 'sun_least']]];
 const valueOf = (f) => (f && typeof f === 'object' && !Array.isArray(f) && 'v' in f ? f.v : f);
 /**
  * The catalog with the audit written in. `audit`: sample.mjs's output (per plant: id, facts, claims).
@@ -93,17 +93,22 @@ export function writeAudit(catalog, audit, date, warnings = () => []) {
     }
     // Values that make the record implausible (new warnings, not the kinds it had: "40 ft is tall for a shrub"
     // becoming "50 ft …" is the same doubt, about its form) go back, for review.
+    // (Of a kind it had, a height that's grown past double is a new doubt: 40 ft for a shrub becoming 400 ft.)
     const kind = (w) => w.replace(/\d+(\.\d+)?/g, '#');
-    const before = new Set(warnings({ meta: catalog.meta, plants: [rec] }).map(kind));
+    const first = (w) => parseFloat(w.replace(`${rec.id}: `, ''));
+    const before = new Map(warnings({ meta: catalog.meta, plants: [rec] }).map((w) => [kind(w), w]));
     for (const w of warnings({ meta: catalog.meta, plants: [{ ...rec, facts }] })) {
-      if (before.has(kind(w))) continue;
+      const had = before.get(kind(w));
+      if (had && !(/ tall for /.test(w) && first(w) > 2 * first(had))) continue;
       const keys = (WARNED.find(([re]) => re.test(w))?.[1] ?? []).filter((k) => written.has(k));
       for (const k of keys) { facts[k] = rec.facts[k]; if (facts[k] === undefined) delete facts[k]; written.delete(k); }
       if (keys.length) review.push({ id: rec.id, fact: keys.join(', '), note: `held back: ${w.replace(`${rec.id}: `, '')}` });
     }
     // A nursery's report on half a pair (the other half not written: unsettled, or held back) would be read
     // with the older list's other half, as a range no nursery gave.
-    for (const pair of PAIRS) if (pair.some((k) => !written.has(k))) for (const k of pair) if (written.has(k) && facts[k].alt) { facts[k] = { ...facts[k] }; delete facts[k].alt; }
+    // (A half sourced by an earlier run counts as written.)
+    const sourced = (k) => written.has(k) || (valueOf(facts[k]) != null && facts[k]?.src?.length > 0 && facts[k].src.every((s) => catalog.meta.sources[s]?.trust !== 'unverified'));
+    for (const pair of PAIRS) if (pair.some((k) => !sourced(k))) for (const k of pair) if (written.has(k) && facts[k].alt) { facts[k] = { ...facts[k] }; delete facts[k].alt; }
     for (const k of written) for (const s of [...facts[k].src, ...(facts[k].alt?.src ?? [])]) used.add(s);
     return written.size ? { ...rec, audited: date, facts } : rec;
   });

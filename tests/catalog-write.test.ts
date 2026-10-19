@@ -83,6 +83,17 @@ describe('what the writer holds back', () => {
     expect(gg.facts.zone_min).toBe(6); // (10 against the older list's warm limit of 9: backwards)
     expect(gg.facts.sun_most).toEqual({ v: 'Part', src: ['ncsu'], check: 'single' }); // (Full from the shop is half a range)
     expect(review.map((r: { fact: string }) => r.fact)).toEqual(expect.arrayContaining(['height', 'zone_min']));
+    expect(review.find((r: { fact: string }) => r.fact.includes('height'))).toMatchObject({ fact: 'height' }); // (the form isn't in doubt)
+  });
+  it('takes a height that only sharpens an old doubt, not one grown past double; keeps a report whose other half an earlier run sourced', () => {
+    const shrub = (id: string) => rec(id, { form: 'Shrub', height: { min: 30, max: 40, med: 35 } });
+    const { file } = run([shrub('pear'), shrub('slip')], [
+      { id: 'pear', facts: { height: settled({ min: 30, max: 50 }) } }, { id: 'slip', facts: { height: settled({ min: 300, max: 400 }) } },
+    ]);
+    expect(file.plants[0].facts.height).toMatchObject({ v: { min: 30, max: 50 } });
+    expect(file.plants[1].facts.height).toEqual({ min: 30, max: 40, med: 35 });
+    const again = run([rec('z', { zone_min: { v: 5, src: ['ncsu'], check: 'single' } })], [{ id: 'z', facts: { zone_max: settled(8, 10) } }]);
+    expect(again.file.plants[0].facts.zone_max.alt).toMatchObject({ v: 10 });
     expect(file.meta.sources['shop.com']).toBeUndefined(); // (cited nowhere now)
   });
 });
