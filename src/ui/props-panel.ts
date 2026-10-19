@@ -14,7 +14,7 @@ import { getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { render } from './render';
 import type { CircleShape, Corner, RoleKey, Shape } from '../types';
-import { formatSize, isMine, plantRadius, type Range } from '../my-plants';
+import { formatSize, fullRingRadius, isMine, plantRadius, type Range } from '../my-plants';
 import { canLinkToPlant, linkShapesToPlant, plantFilter, plantsById, unlinkedWithLabel, type Plant } from '../plants';
 import { toast } from './toast';
 import { zoneFit, zoneRange } from '../climate';
@@ -435,7 +435,7 @@ function plantLinkSection(s: CircleShape): HTMLElement {
       };
       const row = el('div', { style: { display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' } });
       if (open.length) {
-        const yes = el('button', { className: 'btn secondary', 'data-testid': 'link-offer-yes' }, shut.length ? `Link the ${open.length} unlocked` : `Link ${open.length === 1 ? 'it' : `all ${open.length}`} to ${p.common}`);
+        const yes = el('button', { className: 'btn secondary', 'data-testid': 'link-offer-yes' }, shut.length ? `Link the ${open.length} unlocked to ${p.common}` : `Link ${open.length === 1 ? 'it' : `all ${open.length}`} to ${p.common}`);
         yes.addEventListener('click', () => go(false));
         row.appendChild(yes);
       }
@@ -452,7 +452,7 @@ function plantLinkSection(s: CircleShape): HTMLElement {
     }
   }
   const sizes = `Spread ${formatSize(p.width as Range | undefined) || 'unknown'}. ` + (s.sizeFrom === 'manual'
-    ? 'Drawn at the size it was given' + (s.tree ? ' (a tree as it is now); the dashed ring, when it\u2019s selected, is its full size.' : '.')
+    ? 'Drawn at the size it was given' + (s.tree ? ' (a tree as it is now)' : '') + (fullRingRadius(s) ? '; the dashed ring, when it\u2019s selected, is its full size.' : '.')
     : `Drawn at ${state.sizeMode === 'full' ? 'full' : 'typical'} size (change in Layers).`);
   wrap.appendChild(el('div', { className: 'hint' }, sizes));
   const zones = zoneRange(p);
@@ -518,7 +518,7 @@ export function renderPropsPanelMulti(selected: Shape[]) {
       render();
     };
     const locked = selected.length - unlocked.length;
-    if (unlocked.length > 1 || (unlocked.length && !locked)) {
+    if (unlocked.some((s) => s.type === 'circle' && !s.plantId) && (unlocked.length > 1 || !locked)) {
       const link = el('button', { className: 'btn secondary', 'data-testid': 'link-all' }, locked ? `Link the ${unlocked.length} unlocked to a plant\u2026` : `Link all ${unlocked.length} to a plant\u2026`);
       link.addEventListener('click', () => open(unlocked, false));
       body.appendChild(link);

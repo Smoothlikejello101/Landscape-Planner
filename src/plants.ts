@@ -6,7 +6,7 @@ import { render } from './ui/render';
 import { toast } from './ui/toast';
 import type { CircleShape, Point, Shape } from './types';
 import { snap, uid } from './util';
-import { plantRadius } from './my-plants';
+import { isDataSized, plantRadius } from './my-plants';
 import { isCatalogV2, resolveCatalog, type Provenance } from './catalog';
 import { setRadius } from './geometry';
 import { isLocked } from './roles';
@@ -344,11 +344,20 @@ export function linkShapesToPlant(shapeIds: string[], p: Plant): number {
   flushHistoryDebounce();
   for (const s of circles) {
     if (s.type !== 'circle') continue;
+    // (Sized from the plant it was linked to before: that size says nothing about this one as it stands.)
+    const dataSized = isDataSized(s);
     s.plantId = p.id;
     s.label = p.common;
     s.role = 'plant';
-    if (asTree) { s.tree = true; s.sizeFrom = 'manual'; }
-    else if (!(s.tree && s.sizeFrom === 'manual')) {
+    if (asTree) {
+      // A tree as it stands: the size it was drawn at (the dashed ring shows its full size).
+      if (dataSized && !s.canopy) setRadius(s, plantRadius(p, state.sizeMode));
+      s.tree = true;
+      s.sizeFrom = 'manual';
+    } else if (!s.canopy) {
+      // Not a tree (a mislinked tree put right, too): the plant's size, and no trunk.
+      s.tree = undefined;
+      s.trunk = undefined;
       setRadius(s, plantRadius(p, state.sizeMode));
       s.sizeFrom = 'plant';
     }
