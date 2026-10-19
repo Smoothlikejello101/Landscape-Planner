@@ -56,14 +56,23 @@ export const halfZoneOfTemp = (t) => Math.min(13.5, Math.max(1, Math.ceil((t + 6
  * occasionally dry without needing moist soil); Moderate otherwise. Wetland
  * waits for USDA's wetland list.
  */
+/**
+ * Water need from NC State's tags (it has no water field; docs/catalog-sources.md).
+ * High: standing water, or wet without good drainage. Low: NC State calls it
+ * drought tolerant (Drought Tolerant Garden theme, Very Dry drainage, or Drought
+ * resistance with Occasionally Dry drainage) and lists no wet conditions; a
+ * plant it rates for both wet and dry is adaptable, so Moderate.
+ */
 export function waterNeed(f) {
   const d = new Set(f['Soil Drainage'] ?? []), r = new Set(f['Resistance To Challenges'] ?? []);
+  const theme = new Set(f['Landscape Theme'] ?? []), loc = new Set(f['Landscape Location'] ?? []);
   if (!d.size) return null;
   if (d.has('Frequent Standing Water')) return 'High';
   if (d.has('Occasionally Wet') && !d.has('Good Drainage')) return 'High';
-  if (d.has('Very Dry')) return 'Low';
-  if (r.has('Drought') && d.has('Occasionally Dry') && !d.has('Moist')) return 'Low';
-  return 'Moderate';
+  const wet = ['Occasionally Wet', 'Occasional Flooding'].some((x) => d.has(x)) || r.has('Wet Soil')
+    || theme.has('Rain Garden') || theme.has('Water Garden') || loc.has('Pond') || loc.has('Riparian');
+  const dry = theme.has('Drought Tolerant Garden') || d.has('Very Dry') || (r.has('Drought') && d.has('Occasionally Dry'));
+  return dry && !wet ? 'Low' : 'Moderate';
 }
 
 /**

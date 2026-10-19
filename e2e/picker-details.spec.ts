@@ -37,13 +37,15 @@ test('a plant shown only because of what nurseries report is marked, and says so
   const catalog = {
     meta: {
       format: 'lp-catalog', version: 2, zones: 'half', title: 'Test catalog', updated: '2026-10-18',
-      sources: { ncsu: { title: 'NC State Extension', trust: 'reference' }, shop: { title: 'A nursery', trust: 'reference' } },
+      sources: { ncsu: { title: 'NC State Extension', trust: 'reference' }, shop: { title: 'A nursery', trust: 'reference' }, grower: { title: 'A grower', trust: 'nursery' } },
       enums: { form: ['Perennial', 'Shrub'] },
     },
     plants: [
       { id: 'heuchera-villosa', common: 'Hairy alumroot', botanical: 'Heuchera villosa', src: ['ncsu'], audited: '2026-10-18',
         facts: { form: 'Perennial', sun_most: { v: 'Part', src: ['ncsu'], check: 'single', alt: { v: 'Full', src: ['shop'], check: 'reported' } }, sun_least: { v: 'Shade', src: ['ncsu'], check: 'single' } } },
       { id: 'itea', common: 'Sweetspire', botanical: 'Itea virginica', src: ['ncsu'], audited: '2026-10-18', facts: { form: 'Shrub', sun_most: 'Full', sun_least: 'Shade' } },
+      { id: 'carex-eburnea', common: 'Bristleleaf sedge', src: ['ncsu'], audited: '2026-10-18',
+        facts: { form: 'Perennial', sun_most: 'Full', sun_least: 'Part', zone_min: { v: 2, src: ['grower'], check: 'reported' }, zone_max: { v: 7.5, src: ['grower'], check: 'reported' } } },
     ],
   };
   await page.route('**/plants.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(catalog) }));
@@ -56,6 +58,11 @@ test('a plant shown only because of what nurseries report is marked, and says so
   await alumroot.getByTestId('plant-row').click();
   await expect(alumroot.getByTestId('reported-flag')).toContainText('what nurseries report for its sun');
   await expect(alumroot.getByTestId('plant-details')).toContainText('Nurseries report: Full sun to shade (A nursery)');
+  // Hardiness only a nursery gives says so; one a reference gives doesn't.
+  await expect(alumroot.getByTestId('nursery-only')).toHaveCount(0);
+  const sedge = page.locator('.plant-item', { hasText: 'Bristleleaf sedge' });
+  await sedge.getByTestId('plant-row').click();
+  await expect(sedge.getByTestId('nursery-only')).toHaveText('Only nurseries rate this; no published reference gives a range.');
   // Only the references: it's gone.
   await page.getByRole('button', { name: '+ More filters' }).click();
   await page.locator('label', { hasText: 'Include what nurseries report' }).locator('input').uncheck();

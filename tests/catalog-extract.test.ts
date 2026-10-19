@@ -115,7 +115,11 @@ describe('claims and how they combine', () => {
   });
   it('reads water need from what a plant tolerates', () => {
     expect(waterNeed({ 'Soil Drainage': ['Good Drainage', 'Moist', 'Occasionally Wet'] })).toBe('Moderate'); // (witch hazel)
-    expect(waterNeed({ 'Soil Drainage': ['Good Drainage', 'Moist', 'Occasionally Dry'], 'Resistance To Challenges': ['Drought'] })).toBe('Moderate'); // (red oak)
+    expect(waterNeed({ 'Soil Drainage': ['Good Drainage', 'Moist', 'Occasionally Dry'], 'Resistance To Challenges': ['Drought'] })).toBe('Low'); // (red oak: drought tolerant once established)
+    expect(waterNeed({ 'Soil Drainage': ['Good Drainage', 'Moist'], 'Landscape Theme': ['Drought Tolerant Garden'] })).toBe('Low');
+    // Rated for wet and dry both (red maple): adaptable, so Moderate.
+    expect(waterNeed({ 'Soil Drainage': ['Good Drainage', 'Moist', 'Occasionally Dry', 'Occasionally Wet'], 'Resistance To Challenges': ['Drought', 'Wet Soil'], 'Landscape Theme': ['Drought Tolerant Garden'] })).toBe('Moderate');
+    expect(waterNeed({ 'Soil Drainage': ['Good Drainage', 'Very Dry'], 'Landscape Theme': ['Rain Garden'] })).toBe('Moderate');
     expect(waterNeed({ 'Soil Drainage': ['Good Drainage', 'Moist', 'Occasionally Dry', 'Very Dry'] })).toBe('Low'); // (pink muhly)
     expect(waterNeed({ 'Soil Drainage': ['Moist', 'Occasionally Wet'] })).toBe('High'); // (cardinal flower)
     expect(waterNeed({ 'Soil Drainage': ['Frequent Standing Water', 'Moist'] })).toBe('High');
