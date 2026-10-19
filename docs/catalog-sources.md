@@ -60,10 +60,11 @@ behind a bot filter (ncsu.edu answers our robots.txt request with a 202
 challenge, usda.gov with a 403 "Access Denied") isn't a rule about its
 extension service's plant database. One exception, for public-domain
 government data: a government site (.gov, .mil, .fed.us, a state's
-.state.xx.us, another country's .gov.xx or Canada's .gc.ca) that answers
-robots.txt with an ordinary web page, holding no robots rules and no bot
-check, has none. USDA PLANTS's site answers every unknown address with its
-app page, robots.txt included. Only a host that
+.state.xx.us, another country's .gov.xx or Canada's .gc.ca) whose robots.txt
+address gives the very page it gives for an address that doesn't exist (one
+more request checks), with no robots rules, no bot check and no refusal or
+noindex in it, has none: it's an app that answers every address. USDA
+PLANTS's site does. Only a host that
 isn't there at all counts as having none, and only DNS can say so: the
 fetcher asks a DNS-over-HTTPS resolver (cloudflare-dns.com), since behind
 this machine's proxy curl can't tell a missing host from a slow one. Run

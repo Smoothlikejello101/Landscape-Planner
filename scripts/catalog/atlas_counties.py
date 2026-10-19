@@ -4,8 +4,9 @@
 
 <atlas.pdf>: the Atlas of the Vascular Plants of Arkansas (2013, the free download edition, as fetched into
 catalog-src/arkatlas/). <counties.json>: from scripts/catalog/counties.mjs (Census county centers).
-Writes {"Genus species": [county FIPS, ...]} (five-digit codes as numbers: Clark County is 5019): the counties with a dot on the species' map (a map of a species
-drawn more than once, as its varieties, counts each).
+Writes {"Genus species": [county FIPS, ...], "Genus species var. x": [...]} (five-digit codes as numbers:
+Clark County is 5019): a species' counties are every dot on its maps (its varieties' too), a variety's or
+subspecies' only the dots on its own map.
 
 How it reads them: every map is the same county base map, and each dot is a small image placed at its
 county's spot, so the PDF says exactly where each dot is. The dot spots, gathered from every map, are the
@@ -49,9 +50,10 @@ def maps_on(page):
 
 
 def name_under(page, words, m):
-    """The bold botanical name under a map ("Quercus muehlenbergii Engelm." → "Quercus muehlenbergii")."""
-    # (A long name wraps: the genus can sit a line above the rest, just under the map's family line.)
-    # (and a long one, centered, runs wider than its map: its column is its half of the page.)
+    """The bold botanical name under a map: ("Quercus muehlenbergii", None), or with its variety or subspecies
+    ("Allium canadense", "var. lavendulare"); a hybrid's binomial has its ×. None if there's no name."""
+    # (A long name wraps: the genus can sit a line above the rest, just under the map's family line;
+    # and a long one, centered, runs wider than its map: its column is its half of the page.)
     left = (m['x0'] + m['x1']) / 2 < page.width / 2
     bold = [w for w in words if m['bottom'] + 4 < w['top'] < m['bottom'] + 45 and 'Bold' in w['fontname']
             and ((w['x0'] + w['x1']) / 2 < page.width / 2) == left]
@@ -62,7 +64,9 @@ def name_under(page, words, m):
     m_ = re.search(r'\b([A-Z][a-zë-]+) (× )?([a-zë][a-zë-]+)\b', text)
     if not m_ or m_.group(1).isupper():
         return None
-    return f'{m_.group(1)} × {m_.group(3)}' if m_.group(2) else f'{m_.group(1)} {m_.group(3)}'
+    binomial = f'{m_.group(1)} × {m_.group(3)}' if m_.group(2) else f'{m_.group(1)} {m_.group(3)}'
+    infra = re.search(r'\b(var\.|subsp\.|ssp\.) ([a-zë][a-zë-]+)', text[m_.end():])
+    return binomial, (f'{"subsp." if infra.group(1) == "ssp." else infra.group(1)} {infra.group(2)}' if infra else None)
 
 
 def main(pdf_path, counties_path, out_path):
@@ -127,18 +131,20 @@ def main(pdf_path, counties_path, out_path):
             if not name:
                 unnamed += 1
                 continue
-            got = set(out.get(name, []))
+            here = set()
             for x, y in dots:
                 f = county_at(x, y)
                 if f is None:
                     stray += 1
                 else:
-                    got.add(f)
-            out[name] = sorted(got)
+                    here.add(f)
+            binomial, infra = name
+            for key in [binomial] + ([f'{binomial} {infra}'] if infra else []):
+                out[key] = sorted(set(out.get(key, [])) | here)
     if stray:
         sys.exit(f'{stray} dots not on any county spot: not trusted')
     json.dump(out, open(out_path, 'w'), indent=0, sort_keys=True)
-    print(f'{len(out)} species from {sum(len(e) for _, e in pages)} maps ({unnamed} without a name read); '
+    print(f'{len(out)} species and varieties from {sum(len(e) for _, e in pages)} maps ({unnamed} without a name read); '
           f'county fit within {err.max():.1f} pt (mean {err.mean():.1f}) → {out_path}')
 
 

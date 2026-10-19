@@ -13,11 +13,10 @@ import { render } from './render';
 import { plantDetails } from './plant-details';
 import { loadWild } from '../wild';
 
-/** Once the garden's wild records are in, show them (not while something has the keyboard: they show next time). */
-function afterWild() {
-  const a = document.activeElement;
-  if (state.panel === 'plants' && !(a instanceof HTMLInputElement || a instanceof HTMLTextAreaElement || a instanceof HTMLSelectElement)) render();
-}
+/** The open picker's list rebuild (in place: the search keeps the keyboard, opened rows stay open). */
+let refreshList: (() => void) | null = null;
+/** Once the garden's wild records are in, show them in the list. */
+function afterWild() { if (state.panel === 'plants') refreshList?.(); }
 
 function closePicker() { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerForTree = false; render(); }
 const isTree = (p: Plant) => !!p.form?.startsWith('Tree'); // (its first form: what it's drawn as)
@@ -166,6 +165,7 @@ export function renderPlantsPanel() {
     b.addEventListener('click', () => openForm({ name: q, place: true }));
     return b;
   }
+  refreshList = () => { if (listWrap.isConnected) rebuildList(); };
   function rebuildList() {
     while (listWrap.firstChild) listWrap.removeChild(listWrap.firstChild);
     const mine = myHits().filter((p) => !forTree || isTree(p) || !p.form);

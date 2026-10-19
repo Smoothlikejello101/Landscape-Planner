@@ -15,8 +15,10 @@ export interface WildFile {
   source: { title: string; url?: string; counties?: string };
   /** The state's counties (their neighbors in any state), and counties over its line (`state`: theirs; neighbors in it). */
   counties: Record<string, { name: string; state?: string; near: number[] }>;
-  /** Catalog species id → the counties it's recorded in. */
+  /** Catalog id → the counties it's recorded in (its own taxon's records). */
   plants: Record<string, number[]>;
+  /** Ids whose records are their species' (a cultivar, mix, or variety the atlas maps only as its species). */
+  species?: string[];
 }
 export interface WildIndex { v: 1; states: Record<string, string>; border: Record<string, number[]> }
 /** What the records say for a plant, from the garden's county. `species`: they're its species' records (a cultivar). */
@@ -29,11 +31,16 @@ const STATE_NAMES: Record<string, string> = { AR: 'Arkansas' };
 const COUNTY_KEY = 'lp-zip-county';
 let loaded: { zip: string; county: number; files: WildFile[] } | null = null;
 let pending: Promise<void> | null = null;
+let waiting: (() => void)[] = [];
+/** A lookup that came back with nothing (offline, say) is tried again after this long. */
+const RETRY_MS = 60_000;
+let failed: { zip: string; at: number } | null = null;
 
 /** The county a ZIP is in, from its ZIP table; remembered on this device. */
 async function countyOf(zip: string, fetcher: typeof fetch): Promise<number | null> {
   let saved: Record<string, number> = {};
   try { saved = JSON.parse(localStorage.getItem(COUNTY_KEY) ?? '{}') ?? {}; } catch { /* none */ }
+  if (!saved || typeof saved !== 'object') saved = {};
   if (typeof saved[zip] === 'number') return saved[zip];
   try {
     const res = await fetcher(`climate/${zip.slice(0, 3)}.json`);
@@ -41,7 +48,9 @@ async function countyOf(zip: string, fetcher: typeof fetch): Promise<number | nu
     const f = await res.json() as ClimateFile;
     const c = f?.zips?.[zip]?.[3];
     if (typeof c !== 'number' || !(c > 0)) return null;
-    try { localStorage.setItem(COUNTY_KEY, JSON.stringify({ [zip]: c })); } catch { /* looked up again next time */ }
+    // (A few ZIPs, for plans in different places; the latest kept.)
+    const keep = Object.entries(saved).filter(([z]) => z !== zip).slice(-19);
+    try { localStorage.setItem(COUNTY_KEY, JSON.stringify(Object.fromEntries([...keep, [zip, c]]))); } catch { /* looked up again next time */ }
     return c;
   } catch { return null; }
 }
@@ -62,12 +71,15 @@ export function loadWild(done?: () => void, fetcher: typeof fetch = fetch): Prom
   const zip = state.location?.zip;
   if (!zip) { loaded = null; return Promise.resolve(); }
   if (loaded?.zip === zip) return Promise.resolve();
+  if (failed?.zip === zip && Date.now() - failed.at < RETRY_MS) return Promise.resolve();
+  if (done) waiting.push(done); // (every caller is told, those that joined a lookup under way too)
   if (pending) return pending;
   pending = (async () => {
     const county = await countyOf(zip, fetcher);
     const files: WildFile[] = [];
+    let index: unknown = null;
     if (county) {
-      const index = await getJson('wild/index.json', fetcher);
+      index = await getJson('wild/index.json', fetcher);
       if (isIndex(index)) {
         const own = Math.floor(county / 1000);
         const want = new Set([...(index.states[own] ? [own] : []), ...(index.border[county] ?? [])]);
@@ -77,20 +89,28 @@ export function loadWild(done?: () => void, fetcher: typeof fetch = fetch): Prom
         }
       }
     }
-    if (state.location?.zip === zip) loaded = { zip, county: county ?? 0, files };
-  })().finally(() => { pending = null; done?.(); });
+    // (Nothing found, offline say: tried again after a while, or when the ZIP changes.)
+    if (!county || !isIndex(index)) failed = { zip, at: Date.now() };
+    else if (state.location?.zip === zip) { loaded = { zip, county, files }; failed = null; }
+  })().finally(() => {
+    pending = null;
+    const ws = waiting; waiting = [];
+    for (const w of ws) w();
+    // (The ZIP changed while this one was looked up: look up the new one.)
+    if (state.location?.zip && state.location.zip !== zip && loaded?.zip !== state.location.zip) void loadWild(ws[0]);
+  });
   return pending;
 }
 
 /** For tests: forget what was loaded, here and on the device. */
-export function resetWild() { loaded = null; pending = null; try { localStorage.removeItem(COUNTY_KEY); } catch { /* none */ } }
+export function resetWild() { loaded = null; pending = null; waiting = []; failed = null; try { localStorage.removeItem(COUNTY_KEY); } catch { /* none */ } }
 
 /** Where a plant (a cultivar: its species) is recorded growing wild, said from the garden's county. Null: nothing to say. */
 export function wildHere(p: { id: string; parent?: string }): WildHere | null {
   if (!loaded || loaded.zip !== state.location?.zip || !loaded.county || !loaded.files.length) return null;
   const { county: here, files } = loaded;
   const recordsFor = (id: string) => files.flatMap((f) => f.plants[id] ?? []);
-  let records = recordsFor(p.id), species = false;
+  let records = recordsFor(p.id), species = files.some((f) => f.plants[p.id] && f.species?.includes(p.id));
   if (!records.length && p.parent) { records = recordsFor(p.parent); species = records.length > 0; }
   if (!records.length) return null;
   const info = (c: number) => files.map((f) => f.counties[c]).find(Boolean);
@@ -105,11 +125,11 @@ export function wildHere(p: { id: string; parent?: string }): WildHere | null {
   }
   const ownFile = files.find((f) => f.fips === hereState);
   if (!ownFile) return null;
-  const count = (ownFile.plants[species ? p.parent! : p.id] ?? []).length;
+  const count = (ownFile.plants[p.id] ?? (p.parent ? ownFile.plants[p.parent] : undefined) ?? []).length;
   return count ? { where: 'state', count, stateName: STATE_NAMES[ownFile.state] ?? ownFile.state, species } : null;
 }
 
-/** Recorded wild in the garden's county or one bordering it (in any state): it lives through the local climate. */
+/** Recorded wild in the garden's county or one bordering it (in any state). */
 export const wildNearby = (p: { id: string; parent?: string }) => { const w = wildHere(p); return !!w && w.where !== 'state'; };
 
 /** The plant's line, in words ("Recorded growing wild in Clark County"). */
@@ -117,7 +137,7 @@ export function wildText(w: WildHere): string {
   const who = w.species ? 'Its species is recorded' : 'Recorded';
   if (w.where === 'county') return `${who} growing wild in ${w.county} County`;
   if (w.where === 'near') return `${who} growing wild in a neighboring county (${w.counties.join(w.counties.some((c) => c.includes(',')) ? '; ' : ', ')})`;
-  return `${who} growing wild in ${w.count} ${w.stateName} ${w.count === 1 ? 'county' : 'counties'}, none near you`;
+  return `${who} growing wild in ${w.count} ${w.stateName} ${w.count === 1 ? 'county' : 'counties'}, none recorded in or next to yours`;
 }
 /** The sources, as a details line names them. */
 export const wildSource = () => [...new Set(loaded?.files.map((f) => f.source.title) ?? [])].join('; ');

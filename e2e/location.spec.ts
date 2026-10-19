@@ -137,7 +137,7 @@ test('a plant recorded growing wild in the garden\'s county or next door says so
   // Chinquapin oak: rated to zone 7 by NC State, but recorded wild in Clark County (the Arkansas atlas).
   await page.getByTestId('plant-search').fill('Chinquapin oak');
   const oak = page.locator('.plant-item', { hasText: 'Chinquapin oak' });
-  await expect(oak).toContainText('(zone 8a may be too warm, though it grows wild nearby)');
+  await expect(oak).toContainText('(zone 8a may be too warm, though it\'s recorded wild nearby)');
   await oak.getByTestId('plant-row').click();
   await expect(oak.getByTestId('wild-here')).toContainText('Recorded growing wild in Clark County');
   await expect(oak.getByTestId('wild-here')).toContainText('Atlas of the Vascular Plants of Arkansas');

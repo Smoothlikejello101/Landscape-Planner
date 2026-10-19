@@ -5,6 +5,9 @@
 // <combined.json>: sample.mjs's output, for the atlas name each plant was matched by. Reads
 // catalog-src/arkatlas/counties.json (atlas_counties.py), catalog-src/counties.json (counties.mjs) and
 // public/plants.json. County codes are five-digit FIPS as numbers (Clark County, Arkansas, 05019, is 5019).
+// A plant's records are its own taxon's: a species' (all its maps), a variety's own map. A cultivar, mix, or
+// variety the atlas maps only as its species gets its species' records, listed in `species` so the app says
+// so; a hybrid gets none.
 import { mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 
 const stateOf = (fips) => Math.floor(fips / 1000);
@@ -18,13 +21,20 @@ const stateOf = (fips) => Math.floor(fips / 1000);
 export function wildFile(catalog, audit, maps, counties, source, state = { fips: 5, code: 'AR' }) {
   const byId = new Map(audit.map((a) => [a.id, a]));
   const binomial = (s) => String(s ?? '').replace(/\s+/g, ' ').trim().split(' ').slice(0, 2).join(' ');
-  const plants = {};
+  const plants = {}, ofSpecies = [];
   for (const rec of catalog.plants) {
-    if (rec.parent) continue; // (a cultivar takes its species')
+    if (rec.parent) continue; // (a cultivar with a species record takes its records in the app, and says so)
+    const bot = String(rec.botanical ?? '').replace(/\s+/g, ' ').trim();
+    if (/×| x |\bhybrid\b/i.test(bot) && !/\bhybrids\b/i.test(bot)) continue; // (a hybrid isn't its parents)
     const a = byId.get(rec.id);
-    const names = [a?.raw?.arkatlas?.name, a?.species, rec.botanical].map(binomial).filter((n) => /^[A-Z][a-zë-]+ [a-zë-]+$/.test(n));
-    const found = names.map((n) => maps[n]).find((m) => m?.length);
-    if (found) plants[rec.id] = found;
+    const species = [a?.raw?.arkatlas?.name, a?.species, bot].map(binomial).filter((n) => /^[A-Z][a-zë-]+ [a-zë-]+$/.test(n));
+    const speciesMap = species.map((n) => maps[n]).find((m) => m?.length);
+    // A variety or subspecies: its own map, else its species' (said as its species').
+    const infra = bot.match(/^[A-Z][a-zë-]+ [a-zë-]+ (var\.|subsp\.|ssp\.) ([a-zë-]+)/);
+    const ownMap = infra ? maps[`${binomial(bot)} ${infra[1] === 'ssp.' ? 'subsp.' : infra[1]} ${infra[2]}`] : null;
+    const plain = /^[A-Z][a-zë-]+ [a-zë-]+$/.test(bot) || (!bot && species.length);
+    if (ownMap?.length) plants[rec.id] = ownMap;
+    else if (speciesMap) { plants[rec.id] = speciesMap; if (!plain) ofSpecies.push(rec.id); } // (a cultivar, a mix, a variety mapped only as its species)
   }
   const inState = counties.filter((c) => stateOf(c.fips) === state.fips);
   const own = new Set(inState.map((c) => c.fips));
@@ -38,6 +48,7 @@ export function wildFile(catalog, audit, maps, counties, source, state = { fips:
   return {
     v: 1, state: state.code, fips: state.fips, source, counties: out,
     plants: Object.fromEntries(Object.entries(plants).sort(([x], [y]) => x.localeCompare(y))),
+    species: ofSpecies.sort(),
   };
 }
 /** The index: which states have a file, and for each county outside them that borders one, which files to load. */

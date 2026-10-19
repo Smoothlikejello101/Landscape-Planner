@@ -1,11 +1,13 @@
 # Wild plant records near the garden
 
 A plant's details say where it's recorded growing wild near the garden ("Recorded growing wild in Clark
-County"), and the picker's "Hardy in zone …" filter counts a plant recorded wild in the garden's county or
-a county bordering it, whatever its rated zones. A published zone range is a judgement about heat, cold and
-humidity; a plant that grows wild in the next county has lived through that county's winters and summers.
-It isn't a promise for every spot in a garden (a woodland plant still wants its shade), so the app says
-only what the record shows.
+County"), and the picker's "Hardy in zone …" filter counts a plant rated only for cooler zones if it's
+recorded wild in the garden's county or a county bordering it. A published zone range's warm end is a
+judgement about heat and humidity, and a plant collected growing wild next door has been found living
+through those summers. Not the cold end: the atlas records escaped garden plants too, and a tender annual
+collected one summer says nothing about winters. Records are historical (when the plant was collected),
+not a promise for every spot in a garden (a woodland plant still wants its shade), so the app says only
+what the record shows: "recorded", never "grows".
 
 ## What the records are
 
@@ -34,8 +36,11 @@ Later: USDA PLANTS has county records for the whole country (see the USDA row in
    county's fitted center, or if any dot isn't on a county spot. (The 2013 atlas fits within 3.7 points,
    1.3 on average.) The species is the bold name under its map; a species mapped more than once (as its
    varieties) gets every county.
-3. `node scripts/catalog/wild.mjs <combined.json>`: `public/wild/05.json` (each catalog species matched
-   by the atlas name the audit found for it, or its botanical name) and `public/wild/index.json`.
+3. `node scripts/catalog/wild.mjs <combined.json>`: `public/wild/05.json` and `public/wild/index.json`.
+   A plant gets its own taxon's records: a species all its maps (its varieties' too), matched by the atlas
+   name the audit found for it or its botanical name; a variety or subspecies its own map. A cultivar or
+   mix with no species record in the catalog, or a variety the atlas maps only as its species, gets its
+   species' records, listed in `species` so the app says "Its species is recorded…". A hybrid gets none.
 
 ## The files
 
@@ -49,7 +54,8 @@ Later: USDA PLANTS has county records for the whole country (see the USDA row in
     "5019": { "name": "Clark", "near": [5039, 5059, 5097, 5099, 5103, 5109] },
     "48037": { "name": "Bowie", "state": "TX", "near": [5081, 5091] }
   },
-  "plants": { "quercus-muehlenbergii": [5005, 5007, 5019] }
+  "plants": { "quercus-muehlenbergii": [5005, 5007, 5019] },
+  "species": ["rudbeckia-fulgida-goldsturm"]
 }
 ```
 
@@ -61,4 +67,12 @@ id; a cultivar uses its species' records, and says so.
 `public/wild/index.json`: `{ "v": 1, "states": { "5": "AR" }, "border": { "48037": [5] } }`: which states
 have a file, and which files a county outside them should load. The app loads the garden's own state's
 file and any its county borders. The files are part of the offline copy; the garden's county is
-remembered on the device once looked up, so they work offline.
+remembered on the device once looked up (the last 20 ZIPs), so they work offline. A lookup that finds
+nothing (offline before the county was ever looked up) is tried again a minute later.
+
+## Limits
+
+- The garden's county is the one its ZIP area's center is in. A ZIP that spans a county (or state) line
+  gets one of them: a garden near the line may be told about the county next to its own.
+- A missing dot isn't evidence of anything, so nothing is said where there are no records.
+- "…none recorded in or next to yours" is about records, not about whether it would grow.
