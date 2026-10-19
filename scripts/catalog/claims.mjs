@@ -102,20 +102,18 @@ const hostKey = (n) => (/\(([A-Z][a-z]+ [a-z]+)\)$/.exec(n)?.[1] ?? String(n)).t
 
 // ---------- Claims from each source ----------
 
+/** Forms that are herbaceous perennials of a kind of their own: with one of these, "Perennial" adds nothing. */
+const HERB_FORMS = new Set(['Fern', 'Bulb', 'Grass/Sedge', 'Cactus']); // (not aquatic: a perennial that grows in water, cardinal flower too, is still a perennial)
 /** NC State Plant Toolbox fields → claims (an authority). */
 export function ncsuClaims(f) {
   const c = [], add = (fact, v) => { if (v != null && !(Array.isArray(v) && !v.length)) c.push({ fact, v, src: 'ncsu', kind: 'authority' }); };
-  const forms = ncsuForms(f['Plant Type']);
-  if (forms.length === 1) {
-    let form = forms[0];
-    if (form === 'Tree') {
-      const df = f['Design Feature'] ?? [];
-      const under = df.includes('Understory Tree'), shade = df.includes('Shade Tree');
-      form = under && !shade ? 'Tree (understory)' : shade && !under ? 'Tree (canopy)' : null;
-    }
-    add('form', form);
-  }
+  // Forms, as a list: NC State tags some plants with more than one (redbud: Shrub and Tree). A tree is
+  // understory or canopy by its "Design Feature" (Understory Tree or Small Tree; Shade Tree); one it
+  // places neither way, or both, stays a plain "Tree": tree, but not which kind.
   const h = f.Height ? feetRange(f.Height[0]) : null, w = f.Width ? feetRange(f.Width[0]) : null;
+  const df = f['Design Feature'] ?? [];
+  const under = df.includes('Understory Tree') || df.includes('Small Tree'), shade = df.includes('Shade Tree');
+  add('form', ncsuForms(f['Plant Type']).map((x) => (x !== 'Tree' ? x : under && !shade ? 'Tree (understory)' : shade && !under ? 'Tree (canopy)' : 'Tree')));
   add('height', h); add('width', w);
   const z = f['USDA Plant Hardiness Zone'] ? halfZones(f['USDA Plant Hardiness Zone'][0]) : null;
   if (z) { add('zone_min', z.zone_min); add('zone_max', z.zone_max); }
@@ -173,6 +171,18 @@ export function usdaClaims(u) {
   const l48 = (u?.['Native status'] ?? []).find((s) => s.startsWith('L48'));
   if (l48) c.push({ fact: 'native_us', v: l48.replace('L48: ', '').toLowerCase(), src: 'usda', kind: 'authority' });
   const flag = (fact, text) => c.push({ fact, flag: text, src: 'usda' });
+  // Growth habit and lifespan say what the plant is (not how it grows in a garden): a form where no
+  // garden source gives one. (A fern is "Forb/herb" to USDA, so it never overrides a garden source;
+// its "Tree" says tree, not which kind, so it supports either kind a garden source names.)
+  const habit = u?.['Growth habit'] ?? [], life = u?.Duration ?? [];
+  const uf = [];
+  if (habit.includes('Graminoid')) uf.push('Grass/Sedge');
+  else if (habit.includes('Vine')) uf.push('Vine');
+  // (A biennial dies after it flowers: closer to an annual in a garden. Some live either way: both.)
+  else if (habit.includes('Forb/herb') && habit.length === 1) uf.push(life.includes('Perennial') ? 'Perennial' : null, life.includes('Annual') || life.includes('Biennial') ? 'Annual' : null);
+  if (habit.includes('Shrub') && !habit.includes('Vine')) uf.push('Shrub');
+  if (habit.includes('Tree')) uf.push('Tree');
+  if (uf.filter(Boolean).length) c.push({ fact: 'form', v: uf.filter(Boolean), src: 'usda', kind: 'authority', fallback: true });
   const t = u?.['Temperature, Minimum (°F)']?.[0];
   if (t != null && Number.isFinite(Number(t))) flag('zone_min', { temp: Number(t), text: `USDA: lowest ${t} °F` });
   const shade = u?.['Shade Tolerance']?.[0];
@@ -207,7 +217,7 @@ export function agrees(fact, a, b) {
  * source), 'disputed' (sources of the deciding rank disagree, or a safety fact
  * has none). Facts with no claims are null.
  */
-export function combine(claims, { cultivar = false } = {}) {
+export function combine(claims, { cultivar = false, prefer = null } = {}) {
   const out = {};
   const facts = new Set([...Object.keys(TIER), ...claims.map((c) => c.fact)]);
   for (const fact of facts) {
@@ -216,7 +226,24 @@ export function combine(claims, { cultivar = false } = {}) {
     let usable = all.filter((c) => !c.flag && c.v != null);
     if (TIER[fact] === 'safety') usable = usable.filter((c) => c.kind === 'authority');
     if (TIER[fact] === 'survival') usable = usable.filter((c) => c.kind !== 'blog'); // (authority, breeder, nursery: no blogs)
-    if (cultivar && CULTIVAR_OWN.has(fact)) usable = usable.filter((c) => c.cultivarPage || c.kind === 'breeder');
+    // A cultivar's own size and color come only from pages for it. Its form too, except a perennial,
+    // grass, fern, bulb, vine or annual stays one whatever the cultivar (a dwarf tree can be a shrub).
+    // (From a species page, a cultivar keeps the forms that aren't trees, and is unsettled where that leaves
+    // out a tree: a dwarf can be a shrub, a cultivar of a shrub-or-tree either. An authority's or the
+    // breeder's page for the cultivar decides, and species pages only back it, trees included.)
+    if (cultivar && CULTIVAR_OWN.has(fact)) {
+      if (fact === 'form') {
+        if (!usable.some(ownPage)) {
+          const species = usable.filter((c) => !c.cultivarPage);
+          // (Only the source that would decide: NC State's, else USDA's; another's tree is just a note.)
+          const decider = [species.filter((c) => c.kind === 'authority' && !c.fallback), species.filter((c) => c.fallback), species].find((l) => l.length) ?? [];
+          if (decider.some((c) => [c.v].flat().some((x) => /Tree/.test(x)))) {
+            out[fact] = { v: null, src: [...new Set(species.map((c) => c.src))], check: 'disputed', kind: species[0].kind, note: 'its species is listed as a tree; a cultivar may be a tree or a shrub' };
+            continue;
+          }
+        }
+      } else usable = usable.filter((c) => c.cultivarPage || c.kind === 'breeder');
+    }
     // Copies count once: the same text on two sites, or two pages of one site. The highest kind keeps it
     // (a shop that copies an extension's sheet doesn't stand in for the extension).
     usable = usable.map((c, i) => ({ c, i })).sort((x, y) => (RANK[y.c.kind] ?? 0) - (RANK[x.c.kind] ?? 0) || x.i - y.i).map((x) => x.c);
@@ -228,6 +255,7 @@ export function combine(claims, { cultivar = false } = {}) {
     });
     // A breeder speaks first only for its own cultivars; on a species it's one more nursery.
     if (!cultivar) usable = usable.map((c) => (c.kind === 'breeder' ? { ...c, kind: 'nursery' } : c));
+    if (fact === 'form') { out[fact] = combineForm(usable, prefer); continue; }
     if (fact === 'host') { // (a list: every source's names, together)
       const byKey = new Map();
       for (const n of usable.flatMap((c) => c.v)) { const k = hostKey(n); if (!byKey.has(k) || /\(/.test(n)) byKey.set(k, n); }
@@ -272,5 +300,64 @@ export function combine(claims, { cultivar = false } = {}) {
     out[fact] = r;
   }
   return out;
+}
+/** A page for the cultivar itself that may decide its form: an authority's, or its breeder's (a nursery's is one more nursery). */
+const ownPage = (c) => (c.cultivarPage && c.kind === 'authority') || c.kind === 'breeder';
+/**
+ * A plant's forms, as a list (at most three, the catalog's current form first).
+ *
+ * One source decides: an authority's or the breeder's page for the cultivar itself, else an authority
+ * (NC State), else USDA's habit (a fallback), else the nursery other sources back most. Its forms are the
+ * answer; the catalog's form only orders them, never supplies one. Each form another independent source
+ * also lists is backed: confirmed when every form is (likely, without an authority), else single
+ * (reported). Another source listing a form the decider doesn't is noted; another authority (USDA's habit
+ * included) whose forms share none with the decider's makes it disputed. USDA deciding alone with "Perennial"
+ * where the catalog names a fern, bulb, grass, cactus or aquatic settles nothing.
+ * A plain "Tree" (tree, not which kind) takes the kind exactly one other authority names, and backs either
+ * kind; otherwise the form is unsettled (a small tree never becomes just "a shrub").
+ * "Perennial" beside a fern, bulb, grass or cactus is its life cycle, not a second form, and
+ * USDA's "Perennial" (any herb that lives for years) backs only a plain perennial.
+ */
+function combineForm(usable, prefer) {
+  prefer = [prefer].flat()[0] ?? null;
+  const KINDS = ['Tree (understory)', 'Tree (canopy)'];
+  const herb = (list) => (list.some((x) => HERB_FORMS.has(x)) ? list.filter((x) => x !== 'Perennial') : list);
+  const claims = usable.map((c) => ({ ...c, forms: herb([...new Set([c.v].flat().filter((x) => typeof x === 'string'))]) })).filter((c) => c.forms.length);
+  if (!claims.length) return null;
+  const levels = [claims.filter((c) => ownPage(c) && !c.fallback), claims.filter((c) => c.kind === 'authority' && !c.fallback), claims.filter((c) => c.fallback), claims.filter((c) => !c.fallback)];
+  const level = levels.find((l) => l.length);
+  const lists = (c, f) => c.forms.includes(f) || (c.forms.includes('Tree') && KINDS.includes(f)) || (f === 'Tree' && c.forms.some((x) => KINDS.includes(x)));
+  const backersOf = (d, f) => claims.filter((c) => c !== d && lists(c, f)).map((c) => c.src);
+  const support = (d) => d.forms.reduce((n, f) => n + backersOf(d, f).length, 0);
+  const deciding = level.reduce((best, c) => (support(c) > support(best) ? c : best), level[0]);
+  const authority = deciding.kind === 'authority';
+  const others = claims.filter((c) => c !== deciding);
+  let own = deciding.forms;
+  // A plain tree takes the kind exactly one other authority names; else the form is unsettled.
+  if (own.includes('Tree')) {
+    const named = KINDS.filter((k) => others.some((c) => c.kind === 'authority' && c.forms.includes(k)));
+    if (named.length !== 1) return { v: null, src: [deciding.src], check: 'disputed', kind: deciding.kind, note: `${deciding.src} lists ${own.join(', ')}, the tree without saying understory or canopy` };
+    own = [...new Set(own.map((x) => (x === 'Tree' ? named[0] : x)))];
+  }
+  // USDA deciding with only "Perennial" (any herb that lives for years), where the catalog names a kind of
+  // herb: it settles nothing (a fern or bulb is a forb to USDA too).
+  if (deciding.fallback && own.every((f) => f === 'Perennial' || f === 'Annual') && own.includes('Perennial') && (HERB_FORMS.has(prefer) || prefer === 'Aquatic/Emergent')) return null;
+  // Another authority (USDA's habit included) with none of the same forms: a dispute. USDA's "Perennial"
+  // isn't against a fern, bulb, grass, cactus or aquatic, which are perennial herbs too.
+  const herbsOnly = (c) => c.fallback && c.forms.every((f) => f === 'Perennial') && own.some((o) => HERB_FORMS.has(o) || o === 'Aquatic/Emergent');
+  const rival = others.find((c) => c.kind === 'authority' && !herbsOnly(c) && !c.forms.some((f) => own.some((o) => lists({ forms: [f] }, o) || f === o)));
+  if (rival) return { v: null, src: [deciding.src, rival.src], check: 'disputed', kind: deciding.kind, note: `${deciding.src} lists ${own.join(', ')}; ${rival.src} lists ${rival.forms.join(', ')}` };
+  // USDA's "Perennial" says only that an herb lives for years: it backs a plain perennial and nothing else.
+  const backers = (f) => others.filter((c) => lists(c.fallback && f !== 'Perennial' ? { forms: c.forms.filter((x) => x !== 'Perennial') } : c, f)).map((c) => c.src);
+  const backed = own.filter((f) => backers(f).length);
+  const notes = [];
+  if (backed.length && backed.length < own.length) notes.push(`${own.filter((f) => !backed.includes(f)).join(', ')} from ${deciding.src} alone`);
+  for (const c of others) {
+    const extra = c.forms.filter((f) => !own.some((o) => o === f || (f === 'Tree' && KINDS.includes(o))) && !(c.fallback && f === 'Perennial' && own.some((o) => HERB_FORMS.has(o))));
+    if (extra.length) notes.push(`${c.src} lists ${extra.join(', ')}`);
+  }
+  const order = [...own].sort((x, y) => Number(y === prefer) - Number(x === prefer)).slice(0, 3);
+  const all = backed.length === own.length;
+  return { v: order, src: [...new Set([deciding.src, ...own.flatMap(backers)])], check: authority ? (all ? 'confirmed' : 'single') : all ? 'likely' : 'reported', kind: deciding.kind, ...(notes.length ? { note: notes.join('; ') } : {}) };
 }
 const fmtV = (v) => (Array.isArray(v) ? v.join(', ') : v && typeof v === 'object' ? ('min' in v ? `${v.min}–${v.max}` : 'start' in v ? `months ${v.start}–${v.end}` : JSON.stringify(v)) : String(v));

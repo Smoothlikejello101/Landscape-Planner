@@ -181,6 +181,31 @@ describe('the fetch loop', () => {
     const pages = w.requests.filter((q) => q.url.includes('/plants/'));
     expect(pages[1].at - pages[0].at).toBeGreaterThanOrEqual(5000);
   });
+  it('fetches several sites at once, each still one at a time at its pace, reading each robots.txt once', async () => {
+    const w = fakeWorld({
+      'https://plants.ces.ncsu.edu/robots.txt': { status: 404 },
+      'https://www.minnesotawildflowers.info/robots.txt': { status: 404 },
+      [plant(1)]: { status: 200, type: 'text/html', body: 'one' },
+      [plant(2)]: { status: 200, type: 'text/html', body: 'two' },
+      'https://www.minnesotawildflowers.info/a': { status: 200, type: 'text/html', body: 'a' },
+      'https://www.minnesotawildflowers.info/b': { status: 200, type: 'text/html', body: 'b' },
+    });
+    const list = [plant(1), 'https://www.minnesotawildflowers.info/a', plant(2), 'https://www.minnesotawildflowers.info/b'];
+    const r = await runFetch(list.map((url) => ({ source: url.includes('ncsu') ? 'ncsu' : 'mnwild', url })), { ...w.deps, concurrency: 2 });
+    expect(r).toEqual({ saved: 4, cached: 0, skipped: 0 });
+    const robots = w.requests.filter((q) => q.url.endsWith('/robots.txt')).map((q) => q.url);
+    expect(new Set(robots).size).toBe(robots.length);
+    for (const site of ['ncsu.edu', 'minnesotawildflowers.info']) {
+      const hits = w.requests.filter((q) => q.url.includes(site) && !q.url.endsWith('robots.txt'));
+      expect(hits).toHaveLength(2);
+      expect(hits[1].at - hits[0].at).toBeGreaterThanOrEqual(5000);
+    }
+    // A bad setting fetches one site at a time, never nothing.
+    for (const bad of [NaN, 'x', 0]) {
+      const w2 = fakeWorld({ 'https://plants.ces.ncsu.edu/robots.txt': { status: 404 }, [plant(1)]: { status: 200, type: 'text/html', body: 'a' } });
+      expect(await runFetch([{ source: 'ncsu', url: plant(1) }], { ...w2.deps, concurrency: bad as unknown as number })).toEqual({ saved: 1, cached: 0, skipped: 0 });
+    }
+  });
   it('keeps to the crawl delay', async () => {
     const w = fakeWorld({
       'https://plants.ces.ncsu.edu/robots.txt': { status: 200, body: 'User-agent: *\nCrawl-delay: 30\nDisallow: /admin' },

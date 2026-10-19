@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error (plain JavaScript build script)
-import { aboutPlant, copyKey, looksLikeTerms, pageText, siteKind, sizeIn, sourceOf, termsKey, termsLinks, termsPassages, termsVerdict, webClaims, webFields } from '../scripts/catalog/web.mjs';
+import { aboutPlant, copyKey, isUseTerms, looksLikeTerms, pageText, siteKind, sizeIn, sourceOf, termsKey, termsLinks, termsPassages, termsVerdict, webClaims, webFields } from '../scripts/catalog/web.mjs';
 // @ts-expect-error (plain JavaScript build script)
 import { combine } from '../scripts/catalog/claims.mjs';
 
@@ -149,6 +149,13 @@ describe("reading a site's terms", () => {
   it('tells a terms page from a home page or a "not found" served at a guessed address', () => {
     expect(looksLikeTerms('<title>Terms of Service</title><p>These terms…</p>')).toBe(true);
     expect(looksLikeTerms('<title>A Shop</title><p>Shop our plants</p>')).toBe(false);
+    // Terms of sale or shipping aren't the terms of use: the usual addresses are tried as well.
+    expect(isUseTerms('<title>Terms of Service</title><p>These terms…</p>')).toBe(true);
+    expect(isUseTerms('<title>Shipping policy</title><p>We ship Monday to Wednesday.</p>')).toBe(false);
+    expect(isUseTerms('<title>Terms of Sale</title><p>All plants are guaranteed…</p>')).toBe(false);
+    // Judged by its title: sale terms that mention "our Terms of Use" aren't them.
+    expect(isUseTerms('<title>Terms of Sale</title><p>These terms, together with our Terms of Use, govern your order.</p>')).toBe(false);
+    expect(isUseTerms('<title>Shipping</title><p>We ship weekly.</p><footer><a href="/tos">Terms of Service</a></footer>')).toBe(false);
   });
   it('keeps the terms pages that matter: the owner\'s terms of use first, never a platform\'s, at most six', () => {
     const home = '<a href="https://policies.google.com/terms">Terms</a><a href="/pages/shipping-terms">Shipping Terms</a><a href="/pages/terms-of-sale">Terms of Sale</a>'
@@ -157,6 +164,13 @@ describe("reading a site's terms", () => {
     expect(links[0]).toBe('https://www.shop.com/pages/terms-of-use');
     expect(links).toContain('https://www.shop.com/x');
     expect(links).not.toContain('https://policies.google.com/terms');
+    // Policies, licence and image-use pages are read too; a privacy policy alone isn't.
+    const more = termsLinks('<a href="/policies">Policies</a><a href="/licence">Licence</a><a href="/privacy-policy">Privacy Policy</a><a href="/image-use">Image use policy</a>', 'https://www.site.org/');
+    expect(more.sort()).toEqual(['https://www.site.org/image-use', 'https://www.site.org/licence', 'https://www.site.org/policies']);
+    // A contractor's licence isn't a licence for the content.
+    expect(termsLinks('<a href="/about">Licensed &amp; Insured</a><a href="/contractor-license">Contractor License #123</a><a href="/terms">Terms of Use</a>', 'https://www.site.org/')).toEqual(['https://www.site.org/terms']);
+    // …but a content licence is read.
+    expect(termsLinks('<a href="https://creativecommons.org/licenses/by-nc/4.0/">Licensed under CC BY-NC 4.0</a>', 'https://www.site.org/')).toEqual(['https://creativecommons.org/licenses/by-nc/4.0/']);
   });
   it('reads each owner on a shared host as its own site', () => {
     expect(termsKey('foo.wordpress.com')).toBe('foo.wordpress.com');
@@ -168,6 +182,11 @@ describe("reading a site's terms", () => {
     const page = '<p>' + 'Shipping is free over fifty dollars. '.repeat(40) + '</p><p>12. Prohibited uses. You are prohibited from using the site (a) for any unlawful purpose; … (i) to spam, phish, spider, crawl, or scrape.</p>';
     const ps = termsPassages(page);
     expect(ps.some((p: string) => /prohibited/.test(p) && /scrape/.test(p))).toBe(true);
+    // Scripts and AI are named too ("AI" only in capitals, not the letters inside a word).
+    const filler = '<p>' + 'Shipping is free over fifty dollars. '.repeat(40) + '</p>';
+    expect(termsPassages(filler + '<p>You may not run scripts against the site.</p>').some((p: string) => /scripts/.test(p))).toBe(true);
+    expect(termsPassages(filler + '<p>Our content may not be used to build AI tools.</p>').some((p: string) => /AI tools/.test(p))).toBe(true);
+    expect(termsPassages(filler + '<p>Le jardin ai été planté.</p>')).toEqual([]);
   });
   it("reads a ban on bots, a ban on using the information, or neither, however it's worded", () => {
     for (const bots of [

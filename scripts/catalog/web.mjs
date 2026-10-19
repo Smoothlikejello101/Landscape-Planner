@@ -296,12 +296,12 @@ export function termsKey(host) {
 }
 /** Platforms whose own terms show up in footers (reCAPTCHA, payments): not the site owner's. */
 const PLATFORMS = /(?:^|\.)(?:google|gstatic|recaptcha|paypal|shopify|shop\.app|apple|facebook|instagram|klaviyo|yotpo|affirm|afterpay|klarna|stripe|squareup|square|amazon|cloudflare|wix|squarespace|godaddy|bigcommerce|youtube|twitter|x|pinterest)\.(?:com|net|app|co)$/;
-const TERMS_TEXT = /\bterms\b|conditions of (?:use|sale)|\blegal\b|copyright|site polic|website polic|disclaimer|digital rights/;
-const TERMS_PATH = /(?:^|[\/_-])(?:terms|tos|legal|conditions-of-use|copyright|site-policies|disclaimer)(?:[\/_.-]|$)/;
+const TERMS_TEXT = /\bterms\b|conditions of (?:use|sale)|\blegal\b|copyright|\bpolicies\b|site polic|website polic|disclaimer|digital rights|licen[cs]e|acceptable use|(?:image|photo|content) use/;
+const TERMS_PATH = /(?:^|[\/_-])(?:terms|tos|legal|conditions-of-use|copyright|policies|site-policies|disclaimer|licen[cs]e|acceptable-use)(?:[\/_.-]|$)/;
 /** How much a link looks like the terms of use (not of sale or shipping). */
-const termsRank = (text, path) => (/terms of (?:use|service)|terms (?:&|and) conditions|conditions of use|website terms|site terms|legal|copyright|user agreement/.test(text + ' ' + path.replace(/[-_\/]/g, ' ')) ? 2 : 0)
+const termsRank = (text, path) => (/terms of (?:use|service)|terms (?:&|and) conditions|conditions of use|website terms|site terms|legal|copyright|user agreement|licen[cs]e|acceptable use/.test(text + ' ' + path.replace(/[-_\/]/g, ' ')) ? 2 : 0)
   - (/sale|shipping|guarantee|warranty|return|refund|reward|gift|loyalty|promo|sweepstake|contest|privacy|cookie/.test(text + ' ' + path) ? 1 : 0);
-/** Places a site's terms usually live, to try when its home page links none. */
+/** Places a site's terms usually live, to try when its home page links none, or links only terms of sale or shipping. */
 export const TERMS_GUESSES = ['/terms', '/terms-of-use', '/terms-of-service', '/policies/terms-of-service', '/terms-and-conditions'];
 /**
  * Links on a page that look like its terms, best first: on the same site,
@@ -326,9 +326,11 @@ export function termsLinks(html, pageUrl) {
     const path = u.pathname.toLowerCase();
     const sameSite = siteOf(u.hostname) === siteOf(base.hostname);
     if (!sameSite && PLATFORMS.test(u.hostname)) continue;
-    const saysTerms = TERMS_TEXT.test(text) && !/glossary/.test(text) && text.length <= 60;
-    const pathTerms = TERMS_PATH.test(path) && !/glossary/.test(path);
+    const saysTerms = TERMS_TEXT.test(text) && !/glossary|licensed\s*(?:&|and)\s*insured|contractor/.test(text) && text.length <= 60;
+    const pathTerms = TERMS_PATH.test(path) && !/glossary|licensed-and-insured|contractor/.test(path);
     if (!(saysTerms || (sameSite && pathTerms))) continue;
+    // A privacy or cookie policy alone isn't terms of use (a "Privacy & Terms" page is read).
+    if (/privacy|cookie/.test(text + ' ' + path) && !/terms|legal|licen[cs]e|copyright|conditions/.test(text + ' ' + path)) continue;
     if (found.some((f) => f.url === u.href)) continue;
     found.push({ url: u.href, rank: termsRank(text, path) + (sameSite ? 0.5 : 0) });
   }
@@ -337,6 +339,13 @@ export function termsLinks(html, pageUrl) {
 /** Words on a home page that say it links its terms somewhere, even if the link itself can't be read (built by script). */
 export const mentionsTerms = (html) => /\bterms (?:of (?:use|service)|(?:&|and) conditions)|conditions of use\b/i.test(plainText(html));
 /** Whether a page that answered at a guessed address is really a terms page (not the home page or a "not found" page served with 200). */
+/**
+ * Whether a page is a site's terms of use (not only of sale, shipping or
+ * returns): when none of the pages a home page links is, the usual
+ * addresses are tried too (a shop that links only its shipping policy still
+ * has its terms of service at /policies/terms-of-service).
+ */
+export const isUseTerms = (html) => /terms of (?:use|service)|conditions of use|website terms|site terms|user agreement|legal notice|acceptable use/i.test(headline(html)); // (by its title: a body that merely mentions "our Terms of Use" isn't them)
 export const looksLikeTerms = (html) => /terms (?:of (?:use|service|sale)|and conditions|& conditions)|conditions of (?:use|sale)|terms of service|user agreement|legal notice/i.test(headline(html) + ' ' + plainText(html).slice(0, 3000));
 
 const BAN = /\b(?:may not|shall not|must not|will not|cannot|can't|do not|don't|agree not|agrees not|not to|not (?:be )?(?:permitted|allowed|authori[sz]ed)|prohibit\w*|forbid\w*|restrict\w*|unauthori[sz]ed|refrain|strictly|without (?:the |our )?(?:prior |express |explicit )?(?:written )?(?:consent|permission|authori[sz]ation)|only for|solely for|limited to)\b/i;
@@ -375,9 +384,11 @@ export function termsVerdict(text) {
  */
 export function termsPassages(html, max = 12) {
   const t = plainText(html).replace(/[‘’]/g, "'");
-  const re = /\b(?:robots?|bots?|spiders?|scrap\w*|crawl\w*|data[- ]mining|text and data mining|harvest\w*|automat\w+|extract\w*|commercial\w*|non-?commercial|database|compil\w+|personal use|reproduc\w+|copy\w*|derivative|resell|exploit|artificial intelligence|machine learning|train\w*|means not intentionally)\b/gi;
+  const re = /\b(?:robots?|bots?|spiders?|scrap\w*|crawl\w*|data[- ]mining|text and data mining|harvest\w*|automat\w+|scripts?|extract\w*|commercial\w*|non-?commercial|database|compil\w+|personal use|reproduc\w+|copy\w*|derivative|resell|exploit|artificial intelligence|machine learning|train\w*|means not intentionally)\b/gi;
+  // "AI" only in capitals (not the "ai" in other words or languages); with the rest, in page order.
+  const hits = [...t.matchAll(re), ...t.matchAll(/\bAI\b/g)].sort((x, y) => x.index - y.index);
   const spans = [];
-  for (const m of t.matchAll(re)) {
+  for (const m of hits) {
     const a = Math.max(0, m.index - 350), b = Math.min(t.length, m.index + 250);
     const last = spans[spans.length - 1];
     if (last && a <= last[1]) last[1] = b; else spans.push([a, b]);

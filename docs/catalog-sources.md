@@ -216,13 +216,18 @@ the same rules as every other source (scripts/catalog/search.mjs).
    decided it. **A site is read only when that record says its terms allow
    it**; one not yet reviewed is left out of the run. For each new site the
    run fetches its home page and the terms pages it links (up to six, the
-   terms of use first, never a platform's own such as reCAPTCHA's or a
+   terms of use first, then legal, policies, licence and copyright pages; a
+   privacy policy alone isn't read as terms; never a platform's own such as reCAPTCHA's or a
    payment provider's), or the usual addresses (`/terms`,
-   `/terms-of-use`, `/policies/terms-of-service`…) when it links none, and
-   writes a review packet: each page's opening and the passages about
-   robots, scraping, automated access, commercial use, databases and
-   copying, with a pattern's guess marked as a hint only. Each owner on a
-   shared host (wordpress.com, blogspot.com, Wix…) is its own site.
+   `/terms-of-use`, `/policies/terms-of-service`…) when none of the pages
+   it links is titled as the terms of use (none linked, or only terms of
+   sale, shipping or returns: a shop that links only its shipping policy),
+   and writes a review packet: each page's opening and the passages about
+   robots, scraping, scripts, AI, automated access, commercial use,
+   databases and copying (up to twelve, saying how many more there are),
+   with a pattern's guess marked as a hint only. Each owner on a shared
+   host (wordpress.com, blogspot.com, Wix…) is its own site, and a page is
+   followed through a redirect only to the same owner.
    How a reviewer reads them, by "How terms are read":
    - **bots** (not by bot): anything against robots, spiders, scrapers,
      crawlers, data mining or extraction tools, automated access, or "any
@@ -244,7 +249,8 @@ the same rules as every other source (scripts/catalog/search.mjs).
    When unsure, it isn't **open**. A site we lean on is also read by Jason
    before launch.
 4. **Fetch.** Through the fetcher: robots.txt, pace (`web`: 5 s a site),
-   refusals and the honest user agent, as for every source. Redirects
+   refusals and the honest user agent, as for every source. Up to eight
+   sites are read at once, each still one request at a time at its pace. Redirects
    within a site are followed, each one fetched by the same rules.
 5. **Read.** Only labeled spec lines ("Hardiness Zones: 5–9", "Mature
    Height: 3–4 ft", "Light: Full sun to part shade"), never prose; a
@@ -387,7 +393,7 @@ months ("MO" for MOBOT).
 | Fact | From NC State | USDA | Rule |
 | --- | --- | --- | --- |
 | Names, `usda` symbol, synonyms | checks | decides | USDA's accepted name. A cultivar keeps its name and points to its species. |
-| `form` | "Plant Type" | flag (growth habit) | NC State's Tree, Shrub, Vine, Fern, Bulb and Cactus/Succulent tags map to the enum of the same name; Ornamental Grasses and Sedges → Grass/Sedge; Annual → Annual; Herbaceous Perennial → Perennial; Aquatic → Aquatic/Emergent. Other tags (Edible, Native Plant…) are ignored. More than one form at NC State → `null` for the review (redbud: Shrub and Tree). The kind of tree comes from NC State's "Design Feature": Understory Tree → "Tree (understory)", Shade Tree → "Tree (canopy)"; both or neither → `null`. |
+| `form` | "Plant Type" | fallback (growth habit and lifespan) | A list of up to three, the catalog's current form first. One source decides: an authority's or the breeder's page for the cultivar itself, else NC State, else USDA's habit, else the nursery others back most. Its forms are the answer; the catalog's form only orders them, never supplies one. A form another independent source also lists is backed: confirmed when every form is (likely, without an authority), else single (reported), the unbacked ones noted. Another source listing a form the decider doesn't is noted; another authority sharing none of its forms makes it disputed (USDA's habit too, though its "Perennial" isn't against a fern, bulb, grass, cactus or aquatic). NC State's Tree, Shrub, Vine, Fern, Bulb and Cactus/Succulent tags map to the enum of the same name; Ornamental Grasses and Sedges → Grass/Sedge; Annual → Annual; Herbaceous Perennial → Perennial; Aquatic and Water Plant → Aquatic/Emergent; its "Perennial" (any plant that isn't annual), Herb, Wildflower and other tags are ignored. "Perennial" beside Fern, Bulb, Grass/Sedge or Cactus is the life cycle, not a second form (NC State's Bulb takes in rhizomes and corms: crested iris is a "bulb" by its tags). A tree is understory or canopy by NC State's "Design Feature" (Understory Tree or Small Tree; Shade Tree); otherwise it's a plain Tree, which takes the kind exactly one other authority names, else the form is unsettled (a small tree never becomes just a shrub); USDA's Tree is always plain and backs either kind. USDA's habit: Forb/herb → Perennial if it lives for years, Annual if it's annual or biennial (both, where it lists both); Graminoid → Grass/Sedge; Vine → Vine; Shrub → Shrub; its "Perennial" backs only a plain perennial, and deciding alone it settles nothing where the catalog names a fern, bulb, grass, cactus or aquatic (a fern or bulb is a forb to USDA too). A cultivar with no page of its own keeps its species' form, unsettled where the species' deciding source lists a tree (a cultivar may be a tree or a shrub). |
 | `height`, `width` | yes | — | `med` is the midpoint of `min` and `max`. A cultivar's size only from a page for the cultivar. |
 | `zone_min`, `zone_max` | "USDA Plant Hardiness Zone" list | flag (minimum temperature) | See "Zones". |
 | `sun_most`, `sun_least` | light | flag (shade tolerance) | |

@@ -28,7 +28,7 @@ import { join } from 'node:path';
 import { cacheName, fetchSession, fileStore, runFetch, siteOf } from './fetch-lib.mjs';
 import { get } from './net.mjs';
 import { lockCatalogSrc, savedMeta, savedPage } from './pages.mjs';
-import { TERMS_GUESSES, headline, looksLikeTerms, mentionsTerms, plainText, siteKind, termsKey, termsLinks, termsPassages, termsVerdict, webClaims } from './web.mjs';
+import { TERMS_GUESSES, headline, isUseTerms, looksLikeTerms, mentionsTerms, plainText, siteKind, termsKey, termsLinks, termsPassages, termsVerdict, webClaims } from './web.mjs';
 
 const args = process.argv.slice(2);
 const flag = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
@@ -93,7 +93,7 @@ const session = fetchSession(); // (one robots.txt read and one pace per site, a
 const tallies = {};
 const tally = (line) => { const k = /^(\d{3}|stop|skip|fail\w*)/.exec(line)?.[1] ?? 'other'; tallies[k] = (tallies[k] ?? 0) + 1; };
 const fetched = new Set(); // (every URL this run asked for: what it leaves behind with no page is removed at the end)
-const fetchList = (list) => { for (const x of list) fetched.add(x.url); return runFetch(list, { get, store: fileStore('catalog-src', today), today, session, sleep: pause, now: () => Date.now(), log: tally }); };
+const fetchList = (list) => { for (const x of list) fetched.add(x.url); return runFetch(list, { get, store: fileStore('catalog-src', today), today, session, concurrency: 8, sleep: pause, now: () => Date.now(), log: tally }); };
 /**
  * Fetch URLs, following redirects within the same site (up to 3), each
  * target fetched by the same rules. Returns url → the URL whose page
@@ -111,7 +111,8 @@ async function fetchAll(urls) {
       if (!m || m.status < 300 || m.status >= 400 || !m.location) { if (!savedPage('web', at)) final.set(from, null); continue; }
       let to;
       try { to = new URL(m.location, at); } catch { final.set(from, null); continue; }
-      if (to.protocol !== 'https:' || siteOf(to.hostname) !== siteOf(new URL(at).hostname) || hop === 3) { final.set(from, null); continue; }
+      // (Only to the same owner: on a shared host, foo.wordpress.com and bar.wordpress.com are different sites with their own terms.)
+      if (to.protocol !== 'https:' || keyOf(to.href) !== keyOf(at) || hop === 3) { final.set(from, null); continue; }
       to.hash = '';
       final.set(from, to.href); next.push(to.href);
     }
@@ -138,10 +139,15 @@ for (const [k, home] of pending) {
 }
 const found = await fetchAll([...linked.values()].flatMap((r) => r.links));
 for (const guess of TERMS_GUESSES) {
-  const want = [...linked].filter(([, r]) => r.html && !r.links.length && !r.guessed).map(([k, r]) => [k, new URL(guess, r.home).href]);
+  // Tried when no linked page is the terms of use (none linked, or only terms of sale, shipping or returns).
+  const lacking = (r) => r.html && !r.guessed && !r.links.some((u) => isUseTerms(htmlOf(found.get(u)) ?? ''));
+  const want = [...linked].filter(([, r]) => lacking(r)).map(([k, r]) => [k, new URL(guess, r.home).href]).filter(([k, u]) => !linked.get(k).links.includes(u));
   if (!want.length) break;
   const got = await fetchAll(want.map(([, u]) => u));
-  for (const [k, u] of want) { const at = got.get(u), r = linked.get(k); if (at && at !== r.home && looksLikeTerms(htmlOf(at) ?? '')) r.guessed = at; }
+  for (const [k, u] of want) {
+    const at = got.get(u), r = linked.get(k);
+    if (at && at !== r.home && !r.links.some((l) => found.get(l) === at) && looksLikeTerms(htmlOf(at) ?? '')) r.guessed = at;
+  }
 }
 for (const [k, r] of linked) {
   const pages = [...r.links.map((u) => ({ url: u, at: found.get(u) })), ...(r.guessed ? [{ url: r.guessed, at: r.guessed, guessed: true }] : [])];
@@ -158,7 +164,9 @@ for (const [k, r] of linked) {
     if (!html) { lines.push('(could not be fetched, or not a web page)', ''); continue; }
     const text = plainText(html);
     lines.push(`title: ${headline(html)}`, `length: ${text.length} characters`, `pattern hint: ${termsVerdict(html).verdict}`, 'opening:', text.slice(0, 1200), 'passages:');
-    for (const ps of termsPassages(html)) lines.push(`  … ${ps} …`);
+    const all = termsPassages(html, 1000), shown = all.slice(0, 12);
+    for (const ps of shown) lines.push(`  … ${ps} …`);
+    if (all.length > shown.length) lines.push(`  (${all.length - shown.length} more passages not shown: don't treat the page as read in full)`);
     lines.push('');
   }
   if (!pages.length && r.html) lines.push('No terms page linked from the home page, and none at the usual addresses.');
