@@ -26,7 +26,25 @@ test('Layers shows and hides the background image, and sets how faint it is', as
   await expect(slider).toBeFocused();
   await expect(image).toHaveAttribute('opacity', '0.3');
   await expect(row).toContainText('30%');
+  // A toggle right after a slide is its own step to undo.
+  await row.getByRole('button', { name: 'Hide the background image' }).click();
+  await page.locator('.sheet-header button.iconbtn').last().click();
+  await page.locator('button[title=Undo]').click();
+  await expect(image).toHaveCount(1);
+  await expect(image).toHaveAttribute('opacity', '0.3');
+  await page.locator('button[title=Layers]').click();
   // The rest of its settings, one tap away.
   await row.getByTestId('layers-bg-more').click();
   await expect(page.locator('.sheet-header .title')).toContainText(/background/i);
+});
+
+test('while the image is being placed, Layers keeps it shown', async ({ page }) => {
+  autoDialogs(page);
+  await openFresh(page);
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'background image' }).click();
+  await page.locator('.sheet input[type=file]').setInputFiles('public/icon-512.png');
+  await expect(page.locator('.mode-banner')).toContainText('Calibrating');
+  await page.locator('button[title=Layers]').click();
+  await expect(page.getByTestId('layers-bg').getByRole('button', { name: 'Hide the background image' })).toBeDisabled();
 });
