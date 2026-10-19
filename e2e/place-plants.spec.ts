@@ -97,7 +97,6 @@ test('an existing tree: pick which, or draw an unknown one, by trunk and canopy 
   await expect(page.locator('.sheet .count-line, .sheet .hint').filter({ hasText: 'trees only' })).toHaveCount(1);
   const first = page.locator('.sheet .proj-row').first();
   const name = (await first.locator('.pname').innerText()).replace(/Mine$/, '').trim();
-  await expect(first.locator('.unverified-badge')).toHaveText('Unverified'); // the old list, not yet checked
   await expect(page.getByTestId('unverified-note')).toBeVisible();
   await first.locator('[data-testid=plant-place]').click();
   await expect(page.getByTestId('draw-banner')).toContainText('Tap the trunk');

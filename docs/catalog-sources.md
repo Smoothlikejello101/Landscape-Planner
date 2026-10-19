@@ -492,10 +492,21 @@ That change lands before any record gets an `audited` date.
 2. **Extract.** One script per source turns its pages into facts using the
    rules above. Its test fixtures are committed, trimmed to the field labels
    and values the script reads, with no descriptive text.
-3. **Compare.** Each fact is written with its `src` and `check`, and the
-   record gets its `audited` date.
-4. **Review.** `npm run catalog:check` lists disputed values, plants
-   neither source has, and facts left `null`.
-5. **Start small.** First 20 plants, mixing species and cultivars, trees and
+3. **Compare.** `scripts/catalog/sample.mjs` combines each plant's claims
+   by the rules above (with the web search's claims, `search.mjs`).
+4. **Write.** `node scripts/catalog/write.mjs <combined.json> --review
+   review.json` writes each settled fact into `public/plants.json` with its
+   `src`, `check` and, where nurseries differ from the authority, `alt`; a
+   record with any fact written gets its `audited` date. A fact the audit
+   couldn't settle (unknown, unsettled, disputed) keeps the catalog's
+   current value, still labeled unverified (its only source is the
+   compendium), and a disputed one goes on the review list. It never
+   removes a value. Web sources are added to `meta.sources` by domain:
+   `reference` for authorities, `nursery` for nurseries and breeders.
+   Native status, toxicity, caterpillar hosts and bloom wait on their format
+   changes ("Waiting on format changes").
+5. **Review.** The review list, and `npm run catalog:check` for implausible
+   values, plants neither source has, and facts left `null`.
+6. **Start small.** First 20 plants, mixing species and cultivars, trees and
    perennials. The mapping rules marked above are settled on those before
    the rest.

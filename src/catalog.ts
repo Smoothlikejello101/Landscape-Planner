@@ -8,7 +8,8 @@ import type { Plant } from './plants';
 // per plant, where each value came from and whether the record has been
 // audited.
 
-export type Trust = 'reference' | 'observation' | 'unverified';
+/** reference: a published reference (extension, USDA, botanical garden); nursery: a grower's or seller's own listing; observation: a gardener's record; unverified: the first compendium. */
+export type Trust = 'reference' | 'nursery' | 'observation' | 'unverified';
 export interface SourceDef { title: string; url?: string; trust: Trust }
 /**
  * How sure a value is (docs/catalog-sources.md, "Deciding each fact"): `agree` / `confirmed` (an authority,
@@ -182,7 +183,7 @@ export function catalogErrors(file: CatalogFile): string[] {
   const sources = file.meta.sources ?? {};
   if (file.meta.zones !== 'half') errs.push('meta.zones must be "half" (zones on the half-zone scale; see docs/catalog-format.md)');
   for (const [id, s] of Object.entries(sources)) {
-    if (!s || typeof s.title !== 'string' || !['reference', 'observation', 'unverified'].includes(s.trust)) errs.push(`source ${id}: needs a title and a trust of reference, observation or unverified`);
+    if (!s || typeof s.title !== 'string' || !['reference', 'nursery', 'observation', 'unverified'].includes(s.trust)) errs.push(`source ${id}: needs a title and a trust of reference, nursery, observation or unverified`);
   }
   const ids = new Map<string, number>();
   for (const r of file.plants) ids.set(r.id, (ids.get(r.id) ?? 0) + 1);

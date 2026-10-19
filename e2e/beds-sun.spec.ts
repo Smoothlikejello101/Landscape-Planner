@@ -93,10 +93,10 @@ test('a plant in the wrong light gets a warning', async ({ page }) => {
   const hours = page.locator('[data-testid=sun-section] input[type=range]');
   await hours.fill('8');
   await closeSheet(page);
-  await addPlant(page, "Heuchera 'Autumn Bride'"); // part sun to shade
+  await addPlant(page, "Heuchera 'Autumn Bride'"); // part sun (NC State)
   await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(1);
   await page.locator('.sel-pill button.edit').click(); await openSections(page);
-  await expect(page.locator('[data-testid=sun-check]')).toContainText('prefers part sun to shade');
+  await expect(page.locator('[data-testid=sun-check]')).toContainText('prefers part sun');
 
   // Dismiss it for this plant: the badge goes, the note stays in properties.
   await page.getByTestId('sun-dismiss').click();

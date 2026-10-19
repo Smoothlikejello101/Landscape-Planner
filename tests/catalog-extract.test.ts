@@ -210,6 +210,17 @@ describe('claims and how they combine', () => {
     expect(combine([nc(['Shrub', 'Tree (understory)', 'Annual', 'Perennial'])], { prefer: 'Annual' }).form.v).toEqual(['Annual', 'Shrub', 'Tree (understory)']);
     expect(() => combine([{ fact: 'form', v: 'Shrub', src: 'ncsu', kind: 'authority' }], { prefer: null })).not.toThrow();
   });
+  it('keeps what nurseries report beside an authority where it differs (never for safety facts)', () => {
+    const c = (src: string, kind: string, fact: string, v: unknown) => ({ fact, v, src, kind });
+    const sun = combine([c('ncsu', 'authority', 'sun_most', 'Part'), c('a.com', 'nursery', 'sun_most', 'Full'), c('b.com', 'nursery', 'sun_most', 'Full'), c('d.com', 'nursery', 'sun_most', 'Part')]);
+    expect(sun.sun_most).toMatchObject({ v: 'Part', check: 'confirmed', alt: { v: 'Full', src: ['a.com', 'b.com'], check: 'likely' } });
+    // One nursery: reported. Zones within a whole zone agree, so no alt.
+    expect(combine([c('ncsu', 'authority', 'zone_max', 8.5), c('a.com', 'nursery', 'zone_max', 10.5)]).zone_max.alt).toEqual({ v: 10.5, src: ['a.com'], check: 'reported' });
+    expect(combine([c('ncsu', 'authority', 'zone_max', 8.5), c('a.com', 'nursery', 'zone_max', 9.5)]).zone_max.alt).toBeUndefined();
+    // Nothing for facts nurseries don't speak to, or where no authority decides.
+    expect(combine([c('ncsu', 'authority', 'tox_people', ['minor']), c('a.com', 'nursery', 'tox_people', ['major'])]).tox_people.alt).toBeUndefined();
+    expect(combine([c('a.com', 'nursery', 'water', 'Low'), c('b.com', 'nursery', 'water', 'High')]).water.alt).toBeUndefined();
+  });
   it('confirms a caterpillar host only where two sources name the same one', () => {
     const h = (src: string, v: string[]) => ({ fact: 'host', v, src, kind: 'authority' });
     expect(combine([h('ncsu', ['A']), h('x.edu', ['B'])]).host).toMatchObject({ v: ['A', 'B'], check: 'single' });

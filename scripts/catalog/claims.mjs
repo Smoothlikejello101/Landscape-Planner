@@ -21,6 +21,8 @@ export const TIER = {
   fall_color: 'description', host: 'description', host_genus: 'description', edible: 'description',
 };
 const RANK = { authority: 3, breeder: 2, nursery: 1, blog: 0 };
+/** Facts where what nurseries report, differing from an authority, is kept beside it (`alt`; never safety facts). */
+export const REPORTABLE = new Set(['height', 'width', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'deer']);
 /** Facts a cultivar is bred to change: only a page for the cultivar itself speaks to them. */
 export const CULTIVAR_OWN = new Set(['height', 'width', 'flower_color', 'form']);
 
@@ -294,6 +296,14 @@ export function combine(claims, { cultivar = false, prefer = null } = {}) {
     if (best.at) r.at = best.at;
     const notes = [best.note, ...peersAgainst.map((c) => `${c.src}: ${fmtV(c.v)}`), ...lowerAgainst.filter((c) => !peersAgainst.includes(c)).map((c) => `${c.src} says ${fmtV(c.v)}`)].filter(Boolean);
     if (notes.length) r.note = notes.join('; ');
+    // What nurseries report where it differs from the authority's value: the value most of those nurseries
+    // share ("likely" with two or more, else "reported"), kept beside it for the app to show and filter by.
+    if (best.kind === 'authority' && REPORTABLE.has(fact)) {
+      const shops = lowerAgainst.filter((c) => c.kind === 'nursery' || c.kind === 'breeder');
+      const groups = shops.map((c) => shops.filter((o) => agrees(fact, c.v, o.v)));
+      const largest = groups.sort((a, b) => b.length - a.length)[0];
+      if (largest) r.alt = { v: largest[0].v, src: largest.map((c) => c.src), check: largest.length > 1 ? 'likely' : 'reported' };
+    }
     // USDA's figures show only where they differ: for zones, by more than a whole zone.
     const flags = flagClaims.filter((c) => c.flag.temp == null || typeof best.v !== 'number' || Math.abs(halfZoneOfTemp(c.flag.temp) - best.v) > 1).map((c) => c.flag.text);
     if (flags.length) r.flags = flags;
