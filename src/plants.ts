@@ -3,7 +3,8 @@ import { flushHistoryDebounce, pushHistory } from './history';
 import { state } from './state';
 import { save } from './storage';
 import { render } from './ui/render';
-import type { CircleShape, Point } from './types';
+import { toast } from './ui/toast';
+import type { CircleShape, Point, Shape } from './types';
 import { snap, uid } from './util';
 import { plantRadius } from './my-plants';
 import { isCatalogV2, resolveCatalog, type Provenance } from './catalog';
@@ -326,19 +327,56 @@ export function plantShapeAt(p: Plant, at: Point): CircleShape {
  * placed plant: it takes the plant's name, data link and size; its center stays.
  */
 export function linkShapeToPlant(shapeId: string, p: Plant) {
-  const s = state.shapes.find((sh) => sh.id === shapeId);
-  if (!s || s.type !== 'circle') return;
+  linkShapesToPlant([shapeId], p);
+}
+/** Make circles this plant (its name, role and size), as one step to undo. Returns how many were linked. */
+export function linkShapesToPlant(shapeIds: string[], p: Plant): number {
+  const ids = new Set(shapeIds);
+  const circles = state.shapes.filter((sh) => ids.has(sh.id) && sh.type === 'circle' && canLinkToPlant(sh));
+  if (!circles.length) return 0;
   flushHistoryDebounce();
-  s.plantId = p.id;
-  s.label = p.common;
-  s.role = 'plant';
-  // A tree already in the yard keeps the size it was drawn at; other circles take the plant's size.
-  if (!(s.tree && s.sizeFrom === 'manual')) {
-    setRadius(s, plantRadius(p, state.sizeMode));
-    s.sizeFrom = 'plant';
+  for (const s of circles) {
+    if (s.type !== 'circle') continue;
+    s.plantId = p.id;
+    s.label = p.common;
+    s.role = 'plant';
+    // A tree already in the yard keeps the size it was drawn at; other circles take the plant's size.
+    if (!(s.tree && s.sizeFrom === 'manual')) {
+      setRadius(s, plantRadius(p, state.sizeMode));
+      s.sizeFrom = 'plant';
+    }
   }
   pushHistory();
   save();
+  return circles.length;
+}
+/**
+ * The picker was opened to link circles (one, or several selected): link them to this plant and select
+ * them. Linking one, the other unlinked circles that had its label are offered next (state.linkOffer).
+ */
+export function linkFromPicker(p: Plant) {
+  if (!state.pickerLinkId) return;
+  const ids = [state.pickerLinkId, ...state.pickerLinkAlso];
+  // (Its label before it takes the plant's name.)
+  const label = state.shapes.find((s) => s.id === ids[0])?.label;
+  const n = linkShapesToPlant(ids, p);
+  state.pickerLinkId = null;
+  state.pickerLinkAlso = [];
+  state.selectedIds = ids;
+  if (ids.length > 1) { state.linkOffer = null; toast(`${n} circle${n === 1 ? '' : 's'} linked to ${p.common}.`); return; }
+  const same = unlinkedWithLabel(label, ids);
+  state.linkOffer = same.length ? { plantId: p.id, label: label!.trim(), ids: same } : null;
+}
+/** Whether a shape could stand for a plant (a circle that isn't a pond, a trunk or another non-plant). */
+export function canLinkToPlant(s: Shape): boolean {
+  return s.type === 'circle' && (!s.role || s.role === 'plant' || s.role === 'other');
+}
+const sameLabel = (a?: string, b?: string) => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+/** The other circles labeled like this one that aren't linked to a plant yet (a plan from before the catalog). */
+export function unlinkedWithLabel(label: string | undefined, exceptIds: string[]): string[] {
+  if (!label?.trim()) return [];
+  const except = new Set(exceptIds);
+  return state.shapes.filter((s) => !except.has(s.id) && canLinkToPlant(s) && s.type === 'circle' && !s.plantId && sameLabel(s.label, label)).map((s) => s.id);
 }
 export const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** After a plant's zones: whether they suit the plan's location (if it has one). */

@@ -3,7 +3,7 @@ import { I } from '../icons';
 import {
   deleteMyPlant, formatSize, newMyPlantId, parseSize, placedUsing, recolorPlaced, resizePlaced, saveMyPlant, sunLevels, sunRange, type Range,
 } from '../my-plants';
-import { FORM_COLORS, linkShapeToPlant, MONTH_NAMES, plantColor, plantsById, type Plant } from '../plants';
+import { FORM_COLORS, linkFromPicker, MONTH_NAMES, plantColor, plantsById, type Plant } from '../plants';
 import { state } from '../state';
 import { finishPlacing, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
@@ -19,7 +19,7 @@ type SunLevel = 'Full' | 'Part' | 'Shade';
 
 function close(to: 'plants' | null) {
   state.plantForm = null;
-  if (!to) state.pickerLinkId = null;
+  if (!to) { state.pickerLinkId = null; state.pickerLinkAlso = []; }
   state.panel = to;
   render();
 }
@@ -178,7 +178,7 @@ export function renderPlantForm() {
       }
       if (args.place) {
         toast(`Added ${saved.common} to My plants`);
-        if (state.pickerLinkId) { linkShapeToPlant(state.pickerLinkId, saved); state.pickerLinkId = null; close(null); }
+        if (state.pickerLinkId) { linkFromPicker(saved); state.plantForm = null; state.panel = 'props'; render(); }
         else {
           state.plantForm = null;
           if (state.pickerForTree) startTreeDraw(saved.id); // then draw its canopy

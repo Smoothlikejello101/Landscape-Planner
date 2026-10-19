@@ -26,6 +26,7 @@ export function startPlacing(p: Plant) {
   state.panel = null;
   state.menu = null;
   state.pickerLinkId = null;
+  state.pickerLinkAlso = [];
   state.pickerForTree = false;
   state.placing = { plantId: p.id, placed: [] };
   hover = null;

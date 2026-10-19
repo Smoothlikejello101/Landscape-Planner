@@ -15,7 +15,8 @@ import { state } from '../state';
 import { render } from './render';
 import type { CircleShape, Corner, RoleKey, Shape } from '../types';
 import { formatSize, isMine, plantRadius, type Range } from '../my-plants';
-import { plantFilter, plantsById, type Plant } from '../plants';
+import { canLinkToPlant, linkShapesToPlant, plantFilter, plantsById, type Plant } from '../plants';
+import { toast } from './toast';
 import { zoneFit, zoneRange } from '../climate';
 import { isTree, trunkDiameter } from '../trees';
 import { MAX_TRUNK, MIN_TRUNK } from '../constants';
@@ -403,12 +404,33 @@ function plantLinkSection(s: CircleShape): HTMLElement {
   if (!p && s.role && s.role !== 'plant' && s.role !== 'other') return wrap; // a pond or a tree trunk isn't a plant to link
   if (!p) {
     const link = el('button', { className: 'btn ghost' }, s.plantId ? 'Link to a plant again…' : 'Link to a plant…');
-    link.addEventListener('click', () => { state.pickerLinkId = s.id; plantFilter.q = ''; state.panel = 'plants'; render(); });
+    // (The search starts at the circle's label: a plan drawn before the catalog usually names its plants.)
+    link.addEventListener('click', () => { state.pickerLinkId = s.id; state.pickerLinkAlso = []; plantFilter.q = s.label?.trim() ?? ''; state.panel = 'plants'; render(); });
     wrap.appendChild(link);
     wrap.appendChild(el('div', { className: 'hint' }, s.plantId
       ? "This plant's details aren't on this device (removed from My plants, or the plan came from someone else). Its size and name are kept."
       : 'Pick the plant this circle stands for: it takes the plant\'s size and sun needs, and shows in the plant list.'));
     return wrap;
+  }
+  // Just linked: other circles that had the same label, offered for the same plant in one tap.
+  const offer = state.linkOffer;
+  if (offer && offer.plantId === p.id && state.selectedIds.length === 1 && state.selectedIds[0] === s.id) {
+    const still = offer.ids.filter((id) => { const o = state.shapes.find((x) => x.id === id); return !!o && o.type === 'circle' && !o.plantId && canLinkToPlant(o); });
+    if (still.length) {
+      const box = el('div', { className: 'banner link-offer', 'data-testid': 'link-offer' },
+        el('div', {}, `${still.length} other circle${still.length === 1 ? ' is' : 's are'} labeled \u201c${offer.label}\u201d.`));
+      const yes = el('button', { className: 'btn secondary', 'data-testid': 'link-offer-yes' }, `Link ${still.length === 1 ? 'it' : `all ${still.length}`} to ${p.common}`);
+      yes.addEventListener('click', () => {
+        const n = linkShapesToPlant(still, p);
+        state.linkOffer = null;
+        toast(`${n} more circle${n === 1 ? '' : 's'} linked to ${p.common}.`);
+        render();
+      });
+      const no = el('button', { className: 'btn ghost' }, 'No thanks');
+      no.addEventListener('click', () => { state.linkOffer = null; render(); });
+      box.appendChild(el('div', { style: { display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' } }, yes, no));
+      wrap.appendChild(box);
+    }
   }
   const sizes = `Spread ${formatSize(p.width as Range | undefined) || 'unknown'}. Drawn at ${state.sizeMode === 'full' ? 'full' : 'typical'} size (change in Layers).`;
   wrap.appendChild(el('div', { className: 'hint' }, sizes));
@@ -460,6 +482,20 @@ export function renderPropsPanelMulti(selected: Shape[]) {
     render();
   });
   body.appendChild(lockBtn);
+
+  // Circles that could all be one plant: link them at once (a plan drawn before the catalog).
+  if (selected.every(canLinkToPlant)) {
+    const labels = new Set(selected.map((s) => (s.label ?? '').trim().toLowerCase()));
+    const link = el('button', { className: 'btn secondary', 'data-testid': 'link-all' }, `Link all ${selected.length} to a plant\u2026`);
+    link.addEventListener('click', () => {
+      state.pickerLinkId = selected[0].id;
+      state.pickerLinkAlso = selected.slice(1).map((s) => s.id);
+      plantFilter.q = labels.size === 1 ? (selected[0].label ?? '').trim() : '';
+      state.panel = 'plants';
+      render();
+    });
+    body.appendChild(link);
+  }
 
   // More of the same plant, then duplicate, copy, delete
   const more = moreOfSame(selected, false);
