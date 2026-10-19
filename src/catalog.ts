@@ -245,6 +245,7 @@ export function catalogWarnings(file: CatalogFile): string[] {
       if (rr?.min != null && rr.max != null && rr.min > rr.max) out.push(`${r.id}: ${k} range backwards (${rr.min} > ${rr.max})`);
     }
     if (form && h?.max != null && MAX_HEIGHT[form] != null && h.max > MAX_HEIGHT[form]) out.push(`${r.id}: ${h.max} ft is tall for ${/^[aeiou]/i.test(form) ? 'an' : 'a'} ${form.toLowerCase()}`);
+    if (h?.max != null && h.max < 0.25) out.push(`${r.id}: under 3 in tall (${Math.round(h.max * 12)} in): inches read as feet, or the other way?`);
     const zmin = v('zone_min') as number | undefined, zmax = v('zone_max') as number | undefined;
     if (zmin != null && zmax != null && zmin > zmax) out.push(`${r.id}: zones backwards (${zmin} > ${zmax})`);
     const sm = v('sun_most') as string | undefined, sl = v('sun_least') as string | undefined;

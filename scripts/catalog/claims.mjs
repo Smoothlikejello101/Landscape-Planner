@@ -196,6 +196,12 @@ export function usdaClaims(u) {
 
 // ---------- Combining ----------
 
+/** Whether two or more nurseries agree on a value far from this one (see combine). */
+function farOff(fact, v, shops) {
+  const far = (o) => (fact === 'zone_min' || fact === 'zone_max' ? Math.abs(o - v) > 2
+    : fact === 'height' || fact === 'width' ? o.max < v.min / 2 || o.min > v.max * 2 : false);
+  return shops.some((c) => far(c.v) && shops.filter((o) => agrees(fact, c.v, o.v)).length >= 2);
+}
 /** Whether two values for a fact agree. */
 export function agrees(fact, a, b) {
   if (fact === 'zone_min' || fact === 'zone_max') return Math.abs(a - b) <= 1; // (within one whole zone, 10 °F)
@@ -290,6 +296,10 @@ export function combine(claims, { cultivar = false, prefer = null } = {}) {
     let check;
     // Authorities that disagree are a dispute. Below them, the majority is the likely answer.
     if (peersAgainst.length && (best.kind === 'authority' || peersFor.length + 1 <= peersAgainst.length)) check = 'disputed';
+    // One authority far from what two or more nurseries agree on (zones more than two apart; sizes not even
+    // within half or double): more likely a slip in the authority's record than a real difference. Disputed,
+    // for review, rather than taken.
+    else if (best.kind === 'authority' && !peersFor.length && farOff(fact, best.v, lowerAgainst.filter((c) => c.kind === 'nursery' || c.kind === 'breeder'))) check = 'disputed';
     else if (best.kind === 'authority') check = agreeing.length ? 'confirmed' : 'single';
     else check = agreeing.length ? 'likely' : 'reported';
     const r = { v: best.v, src: [best.src, ...agreeing.map((c) => c.src)], check, kind: best.kind };

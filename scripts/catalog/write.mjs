@@ -67,6 +67,9 @@ export function writeAudit(catalog, audit, date) {
       // (The sources can't say Wetland yet: it waits on USDA's wetland list. A plant the catalog calls a wetland
       // plant keeps that until then, rather than becoming merely "High".)
       if (key === 'water' && (rec.facts.water?.v ?? rec.facts.water) === 'Wetland') continue;
+      // "Edible" beside a toxic rating (mayapple's ripe fruit; a plant whose other parts poison): for a person to
+      // word, not a flag to set.
+      if (key === 'edible' && /toxic|hard no/i.test(String(rec.facts.dog?.v ?? rec.facts.dog ?? ''))) { review.push({ id: rec.id, fact: key, note: 'edible, but rated toxic' }); continue; }
       if (v === undefined) { review.push({ id: rec.id, fact: key, note: `value the catalog can't take: ${JSON.stringify(f.v)}` }); continue; }
       const out = { v, src: f.src, check: f.check };
       if (f.at) out.at = f.at;

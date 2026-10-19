@@ -111,10 +111,13 @@ describe('web claims', () => {
   const plant = { species: 'Itea virginica', cultivar: 'Little Henry' };
   const para = '<p>' + 'A compact sweetspire with arching white flower spikes in late spring and red fall color, made up for this test only. '.repeat(2) + '</p>';
   it('cite the page and its site, and mark copies of one text', () => {
-    const a = webClaims('https://shop-a.example.com/itea', shop(`${para}<p>Zones: 5-9</p>`), plant);
-    const b = webClaims('https://shop-b.example.net/itea', shop(`${para}<p>Zones: 5-9</p>`), plant);
+    const a = webClaims('https://shop-a.example.com/products/itea', shop(`${para}<p>Zones: 5-9</p>`), plant);
+    const b = webClaims('https://shop-b.example.net/products/itea', shop(`${para}<p>Zones: 5-9</p>`), plant);
     expect(a.map((c: { fact: string }) => c.fact)).toEqual(['zone_min', 'zone_max']);
-    expect(a[0]).toMatchObject({ src: 'example.com', kind: 'nursery', url: 'https://shop-a.example.com/itea', cultivarPage: true });
+    expect(a[0]).toMatchObject({ src: 'example.com', kind: 'nursery', url: 'https://shop-a.example.com/products/itea', cultivarPage: true });
+    // A shop's page for the plant: by its address, or by product markup naming it. A blog with a shop for its books is a blog.
+    expect(webClaims('https://x.example.org/itea', shop(`${para}<p>Zones: 5-9</p><script type="application/ld+json">{"@type": "Product", "name": "Itea virginica 'Little Henry'"}</script>`), plant)[0].kind).toBe('nursery');
+    expect(webClaims('https://blog.example.org/2024/growing-itea', shop(`${para}<p>Zones: 5-9</p><script type="application/ld+json">{"@type": "Product", "name": "My garden book"}</script>`), plant)[0].kind).toBe('blog');
     expect(a[0].group).toBe(b[0].group);
     expect(copyKey('<p>short</p>')).toBeNull();
     expect(webClaims('https://www.wildflower.org/x', shop('<p>Zones: 5-9</p>'), plant)).toEqual([]);

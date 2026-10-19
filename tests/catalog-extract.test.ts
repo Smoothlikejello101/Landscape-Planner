@@ -210,6 +210,16 @@ describe('claims and how they combine', () => {
     expect(combine([nc(['Shrub', 'Tree (understory)', 'Annual', 'Perennial'])], { prefer: 'Annual' }).form.v).toEqual(['Annual', 'Shrub', 'Tree (understory)']);
     expect(() => combine([{ fact: 'form', v: 'Shrub', src: 'ncsu', kind: 'authority' }], { prefer: null })).not.toThrow();
   });
+  it('disputes an authority far from what two nurseries agree on (a slip in its record, likely)', () => {
+    const c = (src: string, kind: string, fact: string, v: unknown) => ({ fact, v, src, kind });
+    // Palm sedge: NC State through zone 4b, two nurseries through 8.
+    expect(combine([c('ncsu', 'authority', 'zone_max', 4.5), c('a.com', 'nursery', 'zone_max', 8.5), c('b.com', 'nursery', 'zone_max', 8)]).zone_max).toMatchObject({ check: 'disputed' });
+    // Green-and-gold: 1–2 inches tall at NC State, half a foot or more at two nurseries.
+    expect(combine([c('ncsu', 'authority', 'height', { min: 0.08, max: 0.17 }), c('a.com', 'nursery', 'height', { min: 0.5, max: 0.75 }), c('b.com', 'nursery', 'height', { min: 0.5, max: 1 })]).height).toMatchObject({ check: 'disputed' });
+    // One nursery alone, or a near difference: the authority stands.
+    expect(combine([c('ncsu', 'authority', 'zone_max', 4.5), c('a.com', 'nursery', 'zone_max', 8.5)]).zone_max).toMatchObject({ check: 'single' });
+    expect(combine([c('ncsu', 'authority', 'zone_max', 7.5), c('a.com', 'nursery', 'zone_max', 9.5), c('b.com', 'nursery', 'zone_max', 9.5)]).zone_max).toMatchObject({ check: 'single', alt: { v: 9.5, check: 'likely' } });
+  });
   it('keeps what nurseries report beside an authority where it differs (never for safety facts)', () => {
     const c = (src: string, kind: string, fact: string, v: unknown) => ({ fact, v, src, kind });
     const sun = combine([c('ncsu', 'authority', 'sun_most', 'Part'), c('a.com', 'nursery', 'sun_most', 'Full'), c('b.com', 'nursery', 'sun_most', 'Full'), c('d.com', 'nursery', 'sun_most', 'Part')]);
