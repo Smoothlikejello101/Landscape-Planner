@@ -504,6 +504,7 @@ export async function switchProject(id: string): Promise<boolean> {
   state.draw = null;
   state.placing = null;
   state.pickerForTree = false;
+  state.pickerLinkId = null; state.pickerLinkAlso = []; state.linkOffer = null; // (another plan's shapes)
   state.editPoints = null;
   storedImageKeys = new Set(data.bgImage?.imageId ? [imageKey(id, data.bgImage.imageId)] : []);
   committedImageKeys = new Set(storedImageKeys);

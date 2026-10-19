@@ -159,7 +159,7 @@ export function renderPlantForm() {
 
   const actions = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } });
   const saveBtn = el('button', { className: 'btn primary', 'data-testid': 'pf-save' },
-    editing ? 'Save changes' : args.place ? (state.pickerLinkId ? 'Save and use for this circle' : 'Save and place on the plan') : 'Save to My plants');
+    editing ? 'Save changes' : args.place ? (state.pickerLinkId ? (state.pickerLinkAlso.length ? `Save and use for these ${state.pickerLinkAlso.length + 1} circles` : 'Save and use for this circle') : 'Save and place on the plan') : 'Save to My plants');
   saveBtn.addEventListener('click', async () => {
     const p = collect();
     if (!p) return;

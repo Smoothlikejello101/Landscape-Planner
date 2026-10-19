@@ -9,6 +9,8 @@ import { snap, uid } from './util';
 import { plantRadius } from './my-plants';
 import { isCatalogV2, resolveCatalog, type Provenance } from './catalog';
 import { setRadius } from './geometry';
+import { isLocked } from './roles';
+import { shownWith } from './status';
 import { hardyEnough, zoneFit, zoneRange } from './climate';
 
 /**
@@ -365,18 +367,28 @@ export function linkFromPicker(p: Plant) {
   state.selectedIds = ids;
   if (ids.length > 1) { state.linkOffer = null; toast(`${n} circle${n === 1 ? '' : 's'} linked to ${p.common}.`); return; }
   const same = unlinkedWithLabel(label, ids);
-  state.linkOffer = same.length ? { plantId: p.id, label: label!.trim(), ids: same } : null;
+  state.linkOffer = same.length ? { fromId: ids[0], plantId: p.id, label: label!.trim(), ids: same } : null;
 }
 /** Whether a shape could stand for a plant (a circle that isn't a pond, a trunk or another non-plant). */
 export function canLinkToPlant(s: Shape): boolean {
   return s.type === 'circle' && (!s.role || s.role === 'plant' || s.role === 'other');
 }
-const sameLabel = (a?: string, b?: string) => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
-/** The other circles labeled like this one that aren't linked to a plant yet (a plan from before the catalog). */
+export const sameLabel = (a?: string, b?: string) => !!a?.trim() && !!b?.trim() && a.trim().toLowerCase() === b.trim().toLowerCase();
+/**
+ * The other circles labeled like this one that aren't linked to a plant yet (a plan from before the
+ * catalog), among those on view and not locked: never a hidden layer, a filtered-out or gone plant.
+ */
 export function unlinkedWithLabel(label: string | undefined, exceptIds: string[]): string[] {
   if (!label?.trim()) return [];
   const except = new Set(exceptIds);
-  return state.shapes.filter((s) => !except.has(s.id) && canLinkToPlant(s) && s.type === 'circle' && !s.plantId && sameLabel(s.label, label)).map((s) => s.id);
+  return state.shapes.filter((s) => !except.has(s.id) && s.type === 'circle' && !s.plantId && canLinkToPlant(s)
+    && shownWith(s, state.viewFilter) && !isLocked(s) && sameLabel(s.label, label)).map((s) => s.id);
+}
+/** Forget a pending link (the picker's targets and the same-label offer): the plan or its shapes changed under it. */
+export function clearLinking() {
+  state.pickerLinkId = null;
+  state.pickerLinkAlso = [];
+  state.linkOffer = null;
 }
 export const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** After a plant's zones: whether they suit the plan's location (if it has one). */

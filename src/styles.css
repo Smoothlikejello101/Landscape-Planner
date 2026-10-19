@@ -393,3 +393,5 @@ a { color: inherit; }
 .picker-search { padding: 10px 16px; border-bottom: 1px solid #e7e5e4; background: #fff; }
 .picker-search input { width: 100%; }
 .link-offer { display: block; margin-bottom: 8px; }
+/* (With the pinned search, a field scrolled into view isn't hidden behind it.) */
+.sheet:has(.sheet-top) { scroll-padding-top: 130px; }

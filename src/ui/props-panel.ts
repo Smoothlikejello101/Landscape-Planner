@@ -15,7 +15,7 @@ import { state } from '../state';
 import { render } from './render';
 import type { CircleShape, Corner, RoleKey, Shape } from '../types';
 import { formatSize, isMine, plantRadius, type Range } from '../my-plants';
-import { canLinkToPlant, linkShapesToPlant, plantFilter, plantsById, type Plant } from '../plants';
+import { canLinkToPlant, linkShapesToPlant, plantFilter, plantsById, unlinkedWithLabel, type Plant } from '../plants';
 import { toast } from './toast';
 import { zoneFit, zoneRange } from '../climate';
 import { isTree, trunkDiameter } from '../trees';
@@ -414,19 +414,22 @@ function plantLinkSection(s: CircleShape): HTMLElement {
   }
   // Just linked: other circles that had the same label, offered for the same plant in one tap.
   const offer = state.linkOffer;
-  if (offer && offer.plantId === p.id && state.selectedIds.length === 1 && state.selectedIds[0] === s.id) {
-    const still = offer.ids.filter((id) => { const o = state.shapes.find((x) => x.id === id); return !!o && o.type === 'circle' && !o.plantId && canLinkToPlant(o); });
+  if (offer && offer.fromId === s.id && offer.plantId === p.id && state.selectedIds.length === 1 && state.selectedIds[0] === s.id) {
+    // (Checked again now: each still unlinked, on view, unlocked and labeled the same.)
+    const now = new Set(unlinkedWithLabel(offer.label, [s.id]));
+    const still = offer.ids.filter((id) => now.has(id));
     if (still.length) {
-      const box = el('div', { className: 'banner link-offer', 'data-testid': 'link-offer' },
+      const box = el('div', { className: 'banner link-offer', role: 'status', 'data-testid': 'link-offer' },
         el('div', {}, `${still.length} other circle${still.length === 1 ? ' is' : 's are'} labeled \u201c${offer.label}\u201d.`));
       const yes = el('button', { className: 'btn secondary', 'data-testid': 'link-offer-yes' }, `Link ${still.length === 1 ? 'it' : `all ${still.length}`} to ${p.common}`);
       yes.addEventListener('click', () => {
-        const n = linkShapesToPlant(still, p);
+        const ids = offer.ids.filter((id) => new Set(unlinkedWithLabel(offer.label, [s.id])).has(id));
+        const n = linkShapesToPlant(ids, p);
         state.linkOffer = null;
         toast(`${n} more circle${n === 1 ? '' : 's'} linked to ${p.common}.`);
         render();
       });
-      const no = el('button', { className: 'btn ghost' }, 'No thanks');
+      const no = el('button', { className: 'btn ghost', 'data-testid': 'link-offer-no' }, 'No thanks');
       no.addEventListener('click', () => { state.linkOffer = null; render(); });
       box.appendChild(el('div', { style: { display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' } }, yes, no));
       wrap.appendChild(box);
@@ -484,17 +487,22 @@ export function renderPropsPanelMulti(selected: Shape[]) {
   body.appendChild(lockBtn);
 
   // Circles that could all be one plant: link them at once (a plan drawn before the catalog).
-  if (selected.every(canLinkToPlant)) {
-    const labels = new Set(selected.map((s) => (s.label ?? '').trim().toLowerCase()));
-    const link = el('button', { className: 'btn secondary', 'data-testid': 'link-all' }, `Link all ${selected.length} to a plant\u2026`);
+  // (Locked circles are left as they are; it's offered where some aren't plants yet.)
+  const linkable = selected.filter((s) => !isLocked(s));
+  if (selected.every(canLinkToPlant) && linkable.length > 1 && linkable.some((s) => s.type === 'circle' && !s.plantId)) {
+    const labels = new Set(linkable.map((s) => (s.label ?? '').trim().toLowerCase()));
+    const relinked = linkable.filter((s) => s.type === 'circle' && s.plantId).length, locked = selected.length - linkable.length;
+    const link = el('button', { className: 'btn secondary', 'data-testid': 'link-all' }, `Link all ${linkable.length} to a plant\u2026`);
     link.addEventListener('click', () => {
-      state.pickerLinkId = selected[0].id;
-      state.pickerLinkAlso = selected.slice(1).map((s) => s.id);
-      plantFilter.q = labels.size === 1 ? (selected[0].label ?? '').trim() : '';
+      state.pickerLinkId = linkable[0].id;
+      state.pickerLinkAlso = linkable.slice(1).map((s) => s.id);
+      plantFilter.q = labels.size === 1 ? (linkable[0].label ?? '').trim() : '';
       state.panel = 'plants';
       render();
     });
     body.appendChild(link);
+    const notes = [relinked && `${relinked} of them ${relinked === 1 ? 'is' : 'are'} linked to a plant already and will change too.`, locked && `${locked} locked ${locked === 1 ? 'circle stays' : 'circles stay'} as ${locked === 1 ? 'it is' : 'they are'}.`].filter(Boolean);
+    if (notes.length) body.appendChild(el('div', { className: 'hint', 'data-testid': 'link-all-note' }, notes.join(' ')));
   }
 
   // More of the same plant, then duplicate, copy, delete

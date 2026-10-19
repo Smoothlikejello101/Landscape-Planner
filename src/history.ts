@@ -50,6 +50,7 @@ export function undo() {
   flushHistoryDebounce();
   if (state.historyIndex <= 0) return;
   state.historyIndex--;
+  state.linkOffer = null; // (the circles it named may have changed back)
   applySnapshot(state.history[state.historyIndex]);
   save();
 }
@@ -57,6 +58,7 @@ export function redo() {
   flushHistoryDebounce();
   if (state.historyIndex >= state.history.length - 1) return;
   state.historyIndex++;
+  state.linkOffer = null;
   applySnapshot(state.history[state.historyIndex]);
   save();
 }
