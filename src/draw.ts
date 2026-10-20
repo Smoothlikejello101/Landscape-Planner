@@ -8,10 +8,14 @@ import { buildShape, CANOPY_MIN_TAPS, isKindKey, kindDef, tapAccepted, TAPS_TO_F
 import type { DrawState, PathShape, Point, Shape } from './types';
 import { plantColor, plantFilter, plantsById } from './plants';
 import { snap, uid } from './util';
+import { SNAP_PX, snapTargets, snapToShapes, squareUp, tidyOn, setTidyOn } from './tidy';
+import { toast, toastAction } from './ui/toast';
+import { render } from './ui/render';
 
 // Freeform outlines (closed) and lines (open).
 //
-// Drawing: each tap on the canvas adds a corner, snapped to the grid; drags
+// Drawing: each tap on the canvas adds a corner, snapped to the grid, or onto another shape's corner or edge
+// when it's close (src/tidy.ts); an outline with nearly square corners is squared when it's done. Drags
 // still pan and pinches zoom, so a long fence can be drawn across the plan.
 // Tapping the first point (or Done) finishes an outline.
 //
@@ -80,7 +84,7 @@ export function setDrawKind(kind: DrawKind) {
   const d = state.draw;
   if (!d || d.kind === kind) return;
   const keep = (a: DrawKind) => a === 'poly' || a === 'line' || a === 'path';
-  if (!(keep(d.kind) && keep(kind))) d.points = [];
+  if (!(keep(d.kind) && keep(kind))) { d.points = []; d.raw = []; d.snaps = []; }
   d.kind = kind;
   if (d.target && kind !== 'measure') rememberMethod(d.target, kind);
 }
@@ -92,7 +96,16 @@ export function measuredFeet(): number | null {
   return Math.hypot(b.x - a.x, b.y - a.y);
 }
 export function cancelDraw() { state.draw = null; hover = null; }
-export function undoDrawPoint() { state.draw?.points.pop(); }
+export function undoDrawPoint() { state.draw?.points.pop(); state.draw?.raw?.pop(); state.draw?.snaps?.pop(); }
+/**
+ * Where a tap at `f` (feet) lands: onto another shape's corner or edge when within SNAP_PX on screen and
+ * tidying is on (not a note's: it goes where it's tapped), else on the grid.
+ */
+function landing(f: Point, kind: DrawKind, exceptId?: string): { p: Point; grid: Point; hit: ReturnType<typeof snapToShapes> } {
+  const grid = { x: snap(f.x), y: snap(f.y) };
+  const hit = tidyOn() && kind !== 'note' ? snapToShapes(f, snapTargets(state.shapes, exceptId), SNAP_PX / pxPerFoot()) : null;
+  return { p: hit ? hit.point : grid, grid, hit };
+}
 export function canFinishDraw(): boolean {
   return !!state.draw && state.draw.points.length >= minPoints(state.draw.kind);
 }
@@ -105,7 +118,7 @@ export function finishesItself(kind: DrawKind): boolean { return kind !== 'measu
 export function drawTap(clientX: number, clientY: number): boolean {
   const d = state.draw;
   if (!d) return false;
-  if (d.kind === 'measure' && d.points.length >= 2) d.points = []; // a third tap starts a new measurement
+  if (d.kind === 'measure' && d.points.length >= 2) { d.points = []; d.raw = []; d.snaps = []; } // a third tap starts a new measurement
   const ci = closingIndex(d);
   if (ci >= 0) {
     const first = d.points[ci];
@@ -114,11 +127,14 @@ export function drawTap(clientX: number, clientY: number): boolean {
   }
   if (d.points.length >= MAX_POINTS) return false;
   const f = screenToFeet(clientX, clientY);
-  const p = { x: snap(f.x), y: snap(f.y) };
+  const { p, grid, hit } = landing(f, d.kind);
   const last = d.points.at(-1);
   if (last && last.x === p.x && last.y === p.y) return false; // double tap on the same spot
   if (d.kind !== 'measure' && !tapAccepted(d.kind, d.points, p)) return false; // too small to make a shape
   d.points.push(p);
+  // (Kept beside the taps, for the Undo on tidying.)
+  (d.raw ??= []).push(grid);
+  (d.snaps ??= []).push(hit ? { to: hit.to, shapeId: hit.shapeId } : null);
   if (finishesItself(d.kind) && d.points.length >= (TAPS_TO_FINISH[d.kind as Method] ?? Infinity)) { finishDraw(); return true; }
   return false;
 }
@@ -128,10 +144,49 @@ export function finishDraw(): Shape | null {
   if (!d || !canFinishDraw()) return null;
   if (d.kind === 'measure') return keepMeasurement();
   const kind = kindDef(d.target ?? 'plain');
-  const shape = buildShape(d.kind, d.points, drawKindDef(d), state.shapes);
+  // Tidied: taps that landed on other shapes, and an outline with nearly square corners squared (moving no
+  // point more than a little: a foot and a half, or a twentieth of its size).
+  const snapped = (d.snaps ?? []).filter(Boolean);
+  let pts = d.points, squared = false;
+  if (tidyOn() && d.kind === 'poly') {
+    const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
+    const size = Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+    const sq = squareUp(pts, Math.max(1.5, size / 20), (d.snaps ?? []).map(Boolean));
+    if (sq) { pts = sq; squared = true; }
+  }
+  const method = d.kind;
+  const make = (points: Point[], id?: string) => {
+    const sh = buildShape(method, points, drawKindDef(d), state.shapes, id);
+    if (sh) finishNew(sh, d);
+    return sh;
+  };
+  const shape = make(pts);
   if (!shape) return null;
   state.draw = null;
   hover = null;
+  state.shapes.push(shape);
+  state.selectedIds = [shape.id];
+  // Most things stay closed so the plan stays in view; a note needs its text, sun exposure its sun record.
+  state.panel = kind.openProps ? 'props' : null;
+  noteRecentKind(kind.key);
+  pushHistory();
+  save();
+  // Say what was tidied, with an Undo (the shape as tapped) and a way to stop it.
+  const raw = d.raw?.length === d.points.length ? d.raw : null;
+  if ((snapped.length || squared) && raw) {
+    const names = [...new Set(snapped.map((h) => state.shapes.find((x) => x.id === h!.shapeId)).filter(Boolean).map((x) => x!.label || 'a shape'))];
+    const said = [snapped.length ? `Lined up with ${names.slice(0, 2).join(' and ')}${names.length > 2 ? ' and others' : ''}` : '', squared ? 'squared the corners' : '']
+      .filter(Boolean).join('; ');
+    const tidied = JSON.stringify(shape);
+    toastAction(said.charAt(0).toUpperCase() + said.slice(1) + '.', [
+      { label: 'Undo', run: () => undoTidy(shape.id, tidied, () => make(raw, shape.id)) },
+      { label: 'Turn off', run: () => { setTidyOn(false); toast('Snapping and squaring are off. Turn them back on in Layers.', 4000); } },
+    ]);
+  }
+  return shape;
+}
+/** A new shape's finishing touches: a picked tree's plant, the plan's shown status or phase. */
+function finishNew(shape: Shape, d: DrawState) {
   // An existing tree picked from the list: it's that plant (still sized as drawn).
   const tree = d.plantId ? plantsById[d.plantId] : undefined;
   if (tree && shape.type === 'circle') {
@@ -145,14 +200,23 @@ export function finishDraw(): Shape | null {
     if (f.status && f.status !== 'gone') shape.status = f.status;
     if (f.phase) shape.phase = f.phase;
   }
-  state.shapes.push(shape);
-  state.selectedIds = [shape.id];
-  // Most things stay closed so the plan stays in view; a note needs its text, sun exposure its sun record.
-  state.panel = kind.openProps ? 'props' : null;
-  noteRecentKind(kind.key);
+}
+/**
+ * Put back a tidied shape as it was tapped (a step of its own, for Redo), if it's still as it was tidied:
+ * changed since, it's left alone and said so.
+ */
+function undoTidy(id: string, tidied: string, asTapped: () => Shape | null) {
+  const i = state.shapes.findIndex((x) => x.id === id);
+  if (i < 0 || JSON.stringify(state.shapes[i]) !== tidied) { toast('It has changed since, so it was left as it is.'); return; }
+  const before = state.shapes[i];
+  const back = asTapped();
+  if (!back) return;
+  // (Anything set on it since it was drawn stays: its label, say.)
+  state.shapes[i] = { ...back, label: before.label };
+  flushHistoryDebounce();
   pushHistory();
   save();
-  return shape;
+  render();
 }
 
 /** The kind being drawn, with the width set while drawing a path. */
@@ -188,7 +252,7 @@ function noteRecentKind(key: KindKey) {
 
 // ---------- Where the pointer is (mouse only), for a preview of the next tap ----------
 let hover: Point | null = null;
-export function setDrawHover(p: Point | null) { hover = p ? { x: snap(p.x), y: snap(p.y) } : null; }
+export function setDrawHover(p: Point | null) { hover = p ? (state.draw ? landing(p, state.draw.kind).p : { x: snap(p.x), y: snap(p.y) }) : null; }
 
 /** Save the current measurement as a dimension line (stays in measure mode). */
 function keepMeasurement(): Shape | null {
@@ -228,7 +292,8 @@ export function finishEditPoints() { state.editPoints = null; }
 export function moveVertex(s: PathShape, i: number, world: Point) {
   const pts = pathPoints(s);
   if (i < 0 || i >= pts.length) return;
-  pts[i] = { x: snap(world.x), y: snap(world.y) };
+  // (Onto another shape's corner or edge when close, as when drawing.)
+  pts[i] = landing(world, s.type === 'poly' ? 'poly' : 'line', s.id).p;
   setWorldPoints(s, pts);
 }
 /** Insert a point after point `afterIndex` (on that edge). Returns the new point's index. */

@@ -333,7 +333,7 @@ export function displayLabel(s: Shape): string {
 
 // ---- Lasso ----
 /** A shape's outline in world feet, as drawn (rotation applied), and whether it's a closed loop. */
-function drawnOutline(s: Shape): { pts: Point[]; closed: boolean } | null {
+export function drawnOutline(s: Shape): { pts: Point[]; closed: boolean } | null {
   if (s.type === 'circle') {
     if (s.canopy) return { pts: s.canopy.map(([x, y]) => ({ x: s.x + x, y: s.y + y })), closed: true };
     return { pts: Array.from({ length: 32 }, (_, i) => { const t = (i / 32) * Math.PI * 2; return { x: s.x + s.radius * Math.cos(t), y: s.y + s.radius * Math.sin(t) }; }), closed: true };

@@ -187,3 +187,35 @@ test('text notes: multi-line, sized in feet, scale with zoom', async ({ page }) 
   await page.reload();
   await expect(page.locator('#canvas-svg [data-role=text-note] tspan')).toHaveText(['Rain barrel', 'goes here']);
 });
+
+test('a bed drawn against a building lands on its wall and is squared, says so, and can be undone or turned off', async ({ page }) => {
+  await openFresh(page);
+  // A building, 6 × 6 ft, its right wall 7 squares in (within a phone's width).
+  await addKind(page, 'building', 'rect');
+  for (const [x, y] of [[1, 2], [7, 2], [7, 8]]) await tapFt(page, x, y);
+  // A bed against that wall, tapped a little off: its left corners 0.4 ft short of the wall, the rest not quite square.
+  const drawBed = async () => {
+    await addKind(page, 'bed', 'poly');
+    for (const [x, y] of [[7.4, 3], [11, 3.4], [11, 7], [7.3, 7]]) await tapFt(page, x, y); // (16, 3.4 falls on the grid at 3.5: a corner 7° off square)
+    await tapFt(page, 7.4, 3); // (closes it)
+  };
+  await drawBed();
+  const notice = page.locator('#toast-action');
+  await expect(notice).toContainText('Lined up with');
+  await expect(notice).toContainText('squared the corners');
+  const width = async () => { await page.locator('.sel-pill .edit').click(); await openSections(page); const v = await field(page, 'Width (ft)').inputValue(); await closeSheet(page); return v; };
+  expect(await width()).toBe('4'); // (from the wall to 4 ft out)
+  // Undo: as tapped (on the grid: half a foot off the wall).
+  await page.locator('.sel-pill .edit').click(); await closeSheet(page);
+  await drawBed();
+  await notice.getByRole('button', { name: 'Undo' }).click();
+  await expect(notice).toHaveCount(0);
+  expect(await width()).toBe('3.5');
+  // Turned off (in Layers): drawn as tapped, nothing said.
+  await page.locator('button[title=Layers]').click();
+  await page.getByTestId('tidy-drawing').uncheck();
+  await closeSheet(page);
+  await drawBed();
+  await expect(notice).toHaveCount(0);
+  expect(await width()).toBe('3.5');
+});
