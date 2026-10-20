@@ -288,7 +288,7 @@ export interface DrawState {
   plantId?: string;
   /** Each tap where it fell on the grid, before landing on another shape (for undoing the tidy: src/tidy.ts). */
   raw?: Point[];
-  /** Each tap: the shape it landed on (a corner or an edge), or null. */
+  /** Each tap: the shape it landed on (a corner or an edge; `moved`: off its grid point, so it's said), or null. */
   snaps?: ({ to: 'corner' | 'edge'; shapeId: string; moved?: boolean } | null)[];
 }
 /** Editing the points of one outline/line; `vertex` is the selected point. */
