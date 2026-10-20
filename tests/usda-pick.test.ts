@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
-import { misapplied, pickSymbol } from '../scripts/catalog/usda-pick.mjs';
+import { hybridName, misapplied, pickSymbol } from '../scripts/catalog/usda-pick.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { sameTaxon } from '../scripts/catalog/usda-counties.mjs';
 
@@ -19,8 +19,22 @@ describe('picking a USDA symbol', () => {
       result('CAAL25', 'Carex albicans Willd. ex Spreng.', { CommonName: 'whitetinge sedge' }),
       result('CAALA', 'Carex albicans Willd. ex Spreng. var. albicans', { Rank: 'Variety' }),
     ])).toEqual({ symbol: 'CAAL25', id: 1, name: 'Carex albicans Willd. ex Spreng.' });
-    expect(pickSymbol('Malus domestica', [result('MADO4', 'Malus domestica auct. non Borkh.')])).toBeNull();
     expect(pickSymbol('Carex albicans', [result('CAAL', 'Carex albida L.')])).toBeNull();
+    expect([misapplied('Monarda fistulosa Sims, nom. inq.'), misapplied('Aster x sensu Gray'), misapplied('Echinacea purpurea (L.) Moench, nom. cons.')]).toEqual([true, true, false]);
+  });
+  it('takes a doubtful entry only when its profile is the plant\'s own (the apple), and never a hybrid for a species', () => {
+    // USDA's only apple entry is "Malus domestica auct. non Borkh.", whose profile is Malus pumila: the apple, a reviewed rename.
+    const apple = [result('MADO4', 'Malus domestica auct. non Borkh.')];
+    expect(pickSymbol('Malus domestica', apple, () => '<i>Malus pumila</i> Mill.')).toEqual({ symbol: 'MADO4', id: 1, name: 'Malus domestica auct. non Borkh.' });
+    expect(pickSymbol('Malus domestica', apple)).toBeNull(); // (its profile not at hand: not taken)
+    expect(pickSymbol('Carex albicans', [result('CAAL23', 'Carex albicans auct. non Willd.')], () => '<i>Carex peckii</i> Howe')).toBeNull();
+    // A hybrid listed first, at species rank, with a common name: never the species.
+    expect(hybridName('Carex grayi × intumescens [unnamed hybrid]')).toBe(true);
+    expect(pickSymbol('Carex grayi', [
+      result('CAGR6', 'Carex grayi × intumescens [unnamed hybrid]', { CommonName: 'sedge' }),
+      result('CAGR5', 'Carex grayi Carey', { CommonName: "Gray's sedge" }),
+    ])).toEqual({ symbol: 'CAGR5', id: 1, name: 'Carex grayi Carey' });
+    expect(sameTaxon('Carex grayi', '<i>Carex grayi</i> × <i>intumescens</i> [unnamed hybrid]')).toBe(false);
   });
   it('takes a profile only for the plant itself or a reviewed rename of it', () => {
     expect(sameTaxon('Carex albicans', '<i>Carex albicans</i> Willd. ex Spreng.')).toBe(true);

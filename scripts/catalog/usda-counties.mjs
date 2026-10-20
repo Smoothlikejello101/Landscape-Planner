@@ -40,7 +40,8 @@ export const SAME_PLANT = new Map([
   ['Osmunda spectabilis', 'Osmunda regalis var. spectabilis'], ['Malus domestica', 'Malus pumila'], ['Ziziphus jujuba', 'Ziziphus zizyphus'],
 ]);
 /** Whether a USDA profile is the plant's own (its name, or a reviewed rename of it). */
-export const sameTaxon = (binomial, profileName) => canonical(profileName).split(' ').slice(0, 2).join(' ') === binomial || SAME_PLANT.get(binomial) === canonical(profileName);
+export const sameTaxon = (binomial, profileName) => !(/×|\bhybrid\b/i.test(strip(profileName)) && !/×/.test(binomial))
+  && (canonical(profileName).split(' ').slice(0, 2).join(' ') === binomial || SAME_PLANT.get(binomial) === canonical(profileName));
 /** A USDA name without its authors: "Sambucus nigra L. ssp. canadensis (L.) R. Bolli" → "Sambucus nigra ssp. canadensis". */
 export function canonical(sci) {
   const t = strip(sci);
