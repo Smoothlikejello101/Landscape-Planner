@@ -1,34 +1,70 @@
 // Where catalog plants are recorded growing wild near the garden: the county its ZIP is in (from the ZIP
-// tables, public/climate/) and the wild-record files (public/wild/<state FIPS>.json) for its state and for
-// any state over a county line from it (public/wild/index.json says which). Only Arkansas so far, from the
-// Arkansas atlas's county maps: docs/wild-records.md. Nothing is stored in the plan: the county comes from
+// tables, public/climate/) and the wild-record files (public/wild/1/<state FIPS>.json; 1 is the format) for
+// its state and for any state over a county line from it (public/wild/1/index.json says which), from USDA PLANTS's county
+// records and, for Arkansas, the Arkansas atlas's county maps: docs/wild-records.md. The state files are
+// fetched as needed and kept on the device (src/sw.ts). Nothing is stored in the plan: the county comes from
 // the ZIP (remembered on this device, so it works offline). County codes are five-digit FIPS as numbers
 // (Clark County, Arkansas, 05019, is 5019).
 import { state } from './state';
 import type { ClimateFile } from './climate';
+import { WILD_FORMAT } from './wild-format';
 
 export interface WildFile {
   v: 1;
   /** The state's postal code and FIPS. */
   state: string;
   fips: number;
-  source: { title: string; url?: string; counties?: string };
+  /** The sources its records come from, by key. */
+  sources: Record<string, { title: string; url?: string }>;
   /** The state's counties (their neighbors in any state), and counties over its line (`state`: theirs; neighbors in it). */
   counties: Record<string, { name: string; state?: string; near: number[] }>;
   /** Catalog id → the counties it's recorded in (its own taxon's records). */
   plants: Record<string, number[]>;
-  /** Ids whose records are their species' (a cultivar, mix, or variety the atlas maps only as its species). */
+  /** Each plant's sources (keys of `sources`). */
+  src?: Record<string, string[]>;
+  /** Ids whose records are their species' (a cultivar, mix, or variety mapped only as its species). */
   species?: string[];
 }
 export interface WildIndex { v: 1; states: Record<string, string>; border: Record<string, number[]> }
-/** What the records say for a plant, from the garden's county. `species`: they're its species' records (a cultivar). */
-export type WildHere =
-  | { where: 'county'; county: string; species: boolean }
-  | { where: 'near'; counties: string[]; species: boolean }
-  | { where: 'state'; count: number; stateName: string; species: boolean };
+/** What the records say for a plant, from the garden's county. `species`: they're its species' records (a cultivar); `sources`: their titles. */
+export type WildHere = { species: boolean; sources: string[] } & (
+  | { where: 'county'; county: string }
+  | { where: 'near'; counties: string[] }
+  | { where: 'state'; count: number; stateName: string });
 
-const STATE_NAMES: Record<string, string> = { AR: 'Arkansas' };
+const STATE_NAMES: Record<string, string> = {
+  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware',
+  DC: 'District of Columbia', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa',
+  KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota',
+  MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
+  NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon',
+  PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah',
+  VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming', PR: 'Puerto Rico',
+  VI: 'U.S. Virgin Islands', GU: 'Guam', AS: 'American Samoa', MP: 'Northern Mariana Islands',
+};
+/** A county as people name it: "Clark County", "Caddo Parish", "Baltimore (city)", Alaska's areas by name. */
+export function countyName(name: string, fips: number): string {
+  const short = shortCountyName(name, fips);
+  const st = Math.floor(fips / 1000);
+  return short !== name || NO_COUNTIES.has(st) || (CITY_STATES.has(st) && fips % 1000 >= 500 && name.endsWith('City')) ? short : `${name} County`;
+}
+/**
+ * In a list of neighbors: the bare name, but an independent city (a code of 500 or more: Virginia's, Baltimore,
+ * St. Louis, Carson City) or the District marked, so "Roanoke" the county and "Roanoke (city)" differ.
+ */
+const CITY_STATES = new Set([24, 29, 32, 51]);
+/** Places with no counties as such (Alaska's boroughs and areas, DC, Puerto Rico's and the island territories'). */
+const NO_COUNTIES = new Set([2, 11, 60, 66, 69, 72, 78]);
+export function shortCountyName(name: string, fips: number): string {
+  const st = Math.floor(fips / 1000);
+  if (st === 22) return `${name} Parish`;
+  // (Independent cities: Virginia's, Baltimore, St. Louis, Carson City. Texas's counties run past 500.)
+  if (fips % 1000 >= 500 && CITY_STATES.has(st) && !/City$/.test(name)) return `${name} (city)`;
+  return name;
+}
+
 const COUNTY_KEY = 'lp-zip-county';
+const WILD = `wild/${WILD_FORMAT}`;
 let loaded: { zip: string; county: number; files: WildFile[] } | null = null;
 let pending: Promise<void> | null = null;
 let waiting: (() => void)[] = [];
@@ -60,7 +96,7 @@ async function getJson(url: string, fetcher: typeof fetch): Promise<unknown> {
 }
 const isObj = (o: unknown): o is Record<string, unknown> => !!o && typeof o === 'object' && !Array.isArray(o);
 /** Valid enough to use (anything else, or a newer format, is left alone). */
-const isWildFile = (d: unknown): d is WildFile => isObj(d) && d.v === 1 && typeof d.state === 'string' && typeof d.fips === 'number' && isObj(d.counties) && isObj(d.plants);
+const isWildFile = (d: unknown): d is WildFile => isObj(d) && d.v === 1 && typeof d.state === 'string' && typeof d.fips === 'number' && isObj(d.sources) && isObj(d.counties) && isObj(d.plants);
 const isIndex = (d: unknown): d is WildIndex => isObj(d) && d.v === 1 && isObj(d.states) && isObj(d.border);
 
 /**
@@ -80,13 +116,13 @@ export function loadWild(done?: () => void, fetcher: typeof fetch = fetch): Prom
     const files: WildFile[] = [];
     let index: unknown = null, wanted = 0;
     if (county) {
-      index = await getJson('wild/index.json', fetcher);
+      index = await getJson(`${WILD}/index.json`, fetcher);
       if (isIndex(index)) {
         const own = Math.floor(county / 1000);
         const want = new Set([...(index.states[own] ? [own] : []), ...(index.border[county] ?? [])]);
         wanted = want.size;
         for (const s of want) {
-          const f = await getJson(`wild/${String(s).padStart(2, '0')}.json`, fetcher);
+          const f = await getJson(`${WILD}/${String(s).padStart(2, '0')}.json`, fetcher);
           if (isWildFile(f)) files.push(f);
         }
       }
@@ -112,23 +148,24 @@ export function wildHere(p: { id: string; parent?: string }): WildHere | null {
   if (!loaded || loaded.zip !== state.location?.zip || !loaded.county || !loaded.files.length) return null;
   const { county: here, files } = loaded;
   const recordsFor = (id: string) => files.flatMap((f) => f.plants[id] ?? []);
-  let records = recordsFor(p.id), species = files.some((f) => f.plants[p.id] && f.species?.includes(p.id));
-  if (!records.length && p.parent) { records = recordsFor(p.parent); species = records.length > 0; }
+  let id = p.id, records = recordsFor(id), species = files.some((f) => f.plants[id] && f.species?.includes(id));
+  if (!records.length && p.parent) { id = p.parent; records = recordsFor(id); species = records.length > 0; }
   if (!records.length) return null;
+  const sources = [...new Set(files.flatMap((f) => (f.plants[id] ? (f.src?.[id] ?? Object.keys(f.sources)).map((k) => f.sources[k]?.title).filter(Boolean) : [])))] as string[];
   const info = (c: number) => files.map((f) => f.counties[c]).find(Boolean);
   const hereState = Math.floor(here / 1000);
-  if (records.includes(here)) return { where: 'county', county: info(here)?.name ?? '', species };
+  if (records.includes(here)) return { where: 'county', county: countyName(info(here)?.name ?? '', here), species, sources };
   // (The garden's county as each file knows it: its own, or as a county over its line.)
   const near = [...new Set(files.flatMap((f) => f.counties[here]?.near ?? []))].filter((c) => records.includes(c));
   if (near.length) {
     // (Over a state line: "Miller, AR".)
-    const named = near.map((c) => { const i = info(c); return !i ? '' : Math.floor(c / 1000) === hereState ? i.name : `${i.name}, ${files.find((f) => f.fips === Math.floor(c / 1000))?.state ?? i.state ?? ''}`; });
-    return { where: 'near', counties: named.filter(Boolean).sort(), species };
+    const named = near.map((c) => { const i = info(c); if (!i) return ''; const n = shortCountyName(i.name, c); return Math.floor(c / 1000) === hereState ? n : `${n}, ${files.find((f) => f.fips === Math.floor(c / 1000))?.state ?? i.state ?? ''}`; });
+    return { where: 'near', counties: named.filter(Boolean).sort(), species, sources };
   }
   const ownFile = files.find((f) => f.fips === hereState);
   if (!ownFile) return null;
-  const count = (ownFile.plants[p.id] ?? (p.parent ? ownFile.plants[p.parent] : undefined) ?? []).length;
-  return count ? { where: 'state', count, stateName: STATE_NAMES[ownFile.state] ?? ownFile.state, species } : null;
+  const count = (ownFile.plants[id] ?? []).length;
+  return count ? { where: 'state', count, stateName: STATE_NAMES[ownFile.state] ?? ownFile.state, species, sources } : null;
 }
 
 /** Recorded wild in the garden's county or one bordering it (in any state). */
@@ -137,9 +174,8 @@ export const wildNearby = (p: { id: string; parent?: string }) => { const w = wi
 /** The plant's line, in words ("Recorded growing wild in Clark County"). */
 export function wildText(w: WildHere): string {
   const who = w.species ? 'Its species is recorded' : 'Recorded';
-  if (w.where === 'county') return `${who} growing wild in ${w.county} County`;
+  if (w.where === 'county') return `${who} growing wild in ${w.county}`;
   if (w.where === 'near') return `${who} growing wild in a neighboring county (${w.counties.join(w.counties.some((c) => c.includes(',')) ? '; ' : ', ')})`;
   return `${who} growing wild in ${w.count} ${w.stateName} ${w.count === 1 ? 'county' : 'counties'}, none recorded in or next to yours`;
 }
-/** The sources, as a details line names them. */
-export const wildSource = () => [...new Set(loaded?.files.map((f) => f.source.title) ?? [])].join('; ');
+
