@@ -53,4 +53,20 @@ describe('squaring up', () => {
     expect(close([out[0], out[3]], [{ x: 40, y: 5 }, { x: 40, y: 15 }])).toBe(true);
     expect(out[1].y).toBeCloseTo(5); expect(out[2].y).toBeCloseTo(15); expect(out[1].x).toBeCloseTo(out[2].x);
   });
+  it('squares to a wall that is off the grid when given its direction', () => {
+    // A wall at 20°: two corners on it, the other two tapped by hand about 6 ft out, a little off square.
+    const t = (20 * Math.PI) / 180, c = Math.cos(t), s = Math.sin(t);
+    const at = (u: number, v: number) => ({ x: u * c - v * s, y: u * s + v * c });
+    const pts = [at(0, 0), at(10, 0), { ...at(10, 6), x: at(10, 6).x + 0.3 }, at(0, 6.2)];
+    const out = squareUp(pts, 1.5, [true, true, false, false], t)!;
+    for (const i of [0, 1]) { expect(out[i].x).toBeCloseTo(pts[i].x, 2); expect(out[i].y).toBeCloseTo(pts[i].y, 2); }
+    const ang = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.atan2(b.y - a.y, b.x - a.x);
+    expect(ang(out[1], out[2]) - ang(out[0], out[1])).toBeCloseTo(Math.PI / 2, 3);
+    expect(ang(out[2], out[3])).toBeCloseTo(t - Math.PI, 3);
+  });
+  it("leaves alone a tiny wobble of a step, and an outline that would move too far", () => {
+    // An L with a step a twentieth of a foot: no step to square.
+    expect(squareUp([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 5 }, { x: 5, y: 5.05 }, { x: 5.02, y: 5.1 }, { x: 0, y: 5.1 }], 1.5)).toBeNull();
+    expect(squareUp([{ x: 0, y: 0 }, { x: 40, y: 0 }, { x: 40, y: 30 }, { x: 0, y: 34 }], 1.5)).toBeNull();
+  });
 });

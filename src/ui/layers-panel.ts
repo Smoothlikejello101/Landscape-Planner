@@ -164,7 +164,6 @@ function showSection(): HTMLElement {
   return wrap;
 }
 
-/** Plan-wide plant size: typical or full, and full-size rings for every plant. */
 /** Drawing: tidying what's drawn (src/tidy.ts), a setting of this device, not the plan. */
 function drawingSection(): HTMLElement {
   const wrap = el('div', { className: 'role-rows', 'data-testid': 'drawing-settings' }, el('div', { className: 'section-label' }, 'Drawing'));
@@ -176,6 +175,7 @@ function drawingSection(): HTMLElement {
   wrap.appendChild(el('div', { className: 'hint' }, 'Each time it does, it says so, with an Undo. A setting of this device.'));
   return wrap;
 }
+/** Plan-wide plant size: typical or full, and full-size rings for every plant. */
 function plantSizeSection(): HTMLElement {
   const wrap = el('div', { className: 'role-rows', 'data-testid': 'plant-size' }, el('div', { className: 'section-label' }, 'Plants'));
   const seg = el('div', { className: 'seg', role: 'group', 'aria-label': 'Draw plants at' });

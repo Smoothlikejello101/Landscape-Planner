@@ -40,3 +40,5 @@ export function toastAction(message: string, actions: { label: string; run: () =
   document.body.appendChild(node);
   setTimeout(() => node.remove(), ms);
 }
+/** Close a notice with buttons, if one is up (the next drawing starts, say). */
+export function dismissToastAction() { document.getElementById('toast-action')?.remove(); }

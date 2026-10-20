@@ -17,8 +17,9 @@ export function tidyOn(): boolean {
 export function setTidyOn(v: boolean) { on = v; try { localStorage.setItem(KEY, v ? 'on' : 'off'); } catch { /* this session only */ } }
 
 // ---------- Snapping to other shapes ----------
-/** How close (screen px) a tap must be to another shape's corner or edge to land on it. */
+/** How close (screen px) a tap must be to another shape's corner or edge to land on it, and at most (feet). */
 export const SNAP_PX = 14;
+export const SNAP_MAX_FT = 1;
 export interface SnapHit { point: Point; to: 'corner' | 'edge'; shapeId: string }
 /**
  * Shapes a tap can land on: everything drawn with straight edges (outlines, rectangles, triangles, lines),
@@ -28,8 +29,9 @@ export interface SnapHit { point: Point; to: 'corner' | 'edge'; shapeId: string 
 export function snapTargets(shapes: Shape[], exceptId?: string): { id: string; pts: Point[]; closed: boolean }[] {
   const out: { id: string; pts: Point[]; closed: boolean }[] = [];
   for (const s of shapes) {
-    if (s.id === exceptId || s.role === 'plant' || s.type === 'circle' || s.type === 'oval' || s.type === 'text') continue;
-    if (s.type === 'line' && s.pathWidth) continue;
+    // (Nor a sun-exposure zone, which overlays the beds, or a kept measurement.)
+    if (s.id === exceptId || s.role === 'plant' || s.role === 'shade' || s.type === 'circle' || s.type === 'oval' || s.type === 'text') continue;
+    if (s.type === 'line' && (s.pathWidth || s.showLength)) continue;
     if (!shownWith(s, state.viewFilter)) continue;
     const o = drawnOutline(s);
     if (o && o.pts.length >= 2) out.push({ id: s.id, ...o });
@@ -43,25 +45,29 @@ function nearestOnSegment(p: Point, a: Point, b: Point): Point {
   return { x: a.x + t * dx, y: a.y + t * dy };
 }
 /**
- * Where a tap at `p` (feet, unsnapped) lands: on another shape's corner within `tol` feet (corners first:
- * meeting a corner exactly is the likelier intent), else on its nearest edge within `tol`; null if none.
+ * Where a tap at `p` (feet, unsnapped) lands: on another shape's nearest edge within `tol` feet, at the
+ * point there nearest the tap's grid point `grid` (along a wall that runs with the grid, it stays on the
+ * grid: the next corner tapped on the grid lines up with it); or on a corner, where one is near and not
+ * much farther than the edge (meeting a corner exactly is the likelier intent then). Null if none.
  */
-export function snapToShapes(p: Point, targets: ReturnType<typeof snapTargets>, tol: number): SnapHit | null {
-  let best: SnapHit | null = null, bestD = tol;
+export function snapToShapes(p: Point, targets: ReturnType<typeof snapTargets>, tol: number, grid: Point = p): SnapHit | null {
+  let corner: SnapHit | null = null, cornerD = Infinity;
   for (const t of targets) for (const c of t.pts) {
     const d = Math.hypot(c.x - p.x, c.y - p.y);
-    if (d <= bestD) { bestD = d; best = { point: { ...c }, to: 'corner', shapeId: t.id }; }
+    if (d <= tol && d < cornerD) { cornerD = d; corner = { point: { ...c }, to: 'corner', shapeId: t.id }; }
   }
-  if (best) return best;
-  bestD = tol;
+  let edge: SnapHit | null = null, edgeD = Infinity;
   for (const t of targets) {
     const n = t.pts.length, edges = t.closed ? n : n - 1;
     for (let i = 0; i < edges; i++) {
-      const q = nearestOnSegment(p, t.pts[i], t.pts[(i + 1) % n]);
-      const d = Math.hypot(q.x - p.x, q.y - p.y);
-      if (d <= bestD) { bestD = d; best = { point: q, to: 'edge', shapeId: t.id }; }
+      const a = t.pts[i], b = t.pts[(i + 1) % n];
+      const d = Math.hypot(nearestOnSegment(p, a, b).x - p.x, nearestOnSegment(p, a, b).y - p.y);
+      if (d <= tol && d < edgeD) { edgeD = d; edge = { point: nearestOnSegment(grid, a, b), to: 'edge', shapeId: t.id }; }
     }
   }
+  // A corner wins when it's within half the reach and not much farther than the edge (a tap beside a wall
+  // near its end doesn't jump along the wall to the corner).
+  const best = corner && (!edge || (cornerD <= tol / 2 && cornerD <= 1.5 * edgeD + 1e-9)) ? corner : edge;
   return best && { ...best, point: { x: round(best.point.x), y: round(best.point.y) } };
 }
 const round = (v: number) => Math.round(v * 1000) / 1000 + 0;
@@ -80,7 +86,7 @@ const deg = (r: number) => (r * 180) / Math.PI;
  * in `fixed` (snapped onto another shape) stay put where they can: the outline's direction is taken from an
  * edge that runs between two of them, when there is one.
  */
-export function squareUp(pts: Point[], maxMove = Infinity, fixed: boolean[] = []): Point[] | null {
+export function squareUp(pts: Point[], maxMove = Infinity, fixed: boolean[] = [], direction?: number): Point[] | null {
   const n = pts.length;
   if (n < 4 || n % 2) return null; // (a squared outline has an even number of corners)
   const edgeAngle = (i: number) => Math.atan2(pts[(i + 1) % n].y - pts[i].y, pts[(i + 1) % n].x - pts[i].x);
@@ -89,11 +95,10 @@ export function squareUp(pts: Point[], maxMove = Infinity, fixed: boolean[] = []
     turn = ((turn % 360) + 540) % 360 - 180; // (-180, 180]
     if (Math.abs(Math.abs(turn) - 90) > SQUARE_TOL) return null;
   }
-  // The outline's direction: an edge between two fixed points (it lies along another shape), else the
-  // length-weighted mean of its edges' directions folded into a quarter turn.
+  // The outline's direction: `direction` where given (an edge lying along another shape's: the caller
+  // checks it is), else the length-weighted mean of its edges' directions folded into a quarter turn.
   let theta: number;
-  const along = Array.from({ length: n }, (_, i) => i).find((i) => fixed[i] && fixed[(i + 1) % n]);
-  if (along != null) theta = edgeAngle(along);
+  if (direction != null) theta = direction;
   else {
     let sx = 0, sy = 0;
     for (let i = 0; i < n; i++) {
@@ -123,6 +128,16 @@ export function squareUp(pts: Point[], maxMove = Infinity, fixed: boolean[] = []
     return { x: round(u * c - v * s), y: round(u * s + v * c) };
   });
   for (let i = 0; i < n; i++) if (Math.hypot(out[i].x - pts[i].x, out[i].y - pts[i].y) > maxMove) return null;
+  // Still the same outline: every edge there (a tenth of a foot or more), every corner turning the same way
+  // (a small step squared mustn't turn inside out).
+  const turnSign = (q: Point[], i: number) => {
+    const a = q[(i + n - 1) % n], b = q[i], c = q[(i + 1) % n];
+    return Math.sign((b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x));
+  };
+  for (let i = 0; i < n; i++) {
+    if (Math.hypot(out[(i + 1) % n].x - out[i].x, out[(i + 1) % n].y - out[i].y) < 0.1) return null;
+    if (turnSign(out, i) !== turnSign(pts, i)) return null;
+  }
   // Nothing to do: it was square already.
   if (out.every((p, i) => Math.hypot(p.x - pts[i].x, p.y - pts[i].y) < 0.01)) return null;
   return out;
