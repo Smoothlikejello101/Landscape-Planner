@@ -7,6 +7,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { savedPage } from './pages.mjs';
 import { arkatlasStatus, mnwildFields, ncsuFields, usdaFields } from './extract.mjs';
+import { sameTaxon } from './usda-counties.mjs';
 import { arkatlasClaims, combine, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims } from './claims.mjs';
 
 const [samplePath, atlasPath, outPath, extraPath] = process.argv.slice(2);
@@ -48,7 +49,9 @@ for (const s of sample) {
   if (s.usda) {
     const prof = json(page('usda', `https://plantsservices.sc.egov.usda.gov/api/PlantProfile?symbol=${s.usda.symbol}`));
     const chars = json(page('usda', `https://plantsservices.sc.egov.usda.gov/api/PlantCharacteristics/${s.usda.id}`));
-    if (prof) { usda = usdaFields(prof, chars ?? []); seen.usda = { symbol: s.usda.symbol, name: usda['Scientific name']?.[0] }; }
+    // (Only the plant's own profile, or a reviewed rename of it: a symbol can lead to another plant.)
+    if (prof && !sameTaxon(s.species, prof.ScientificName)) notes.push(`USDA's ${s.usda.symbol} is ${String(prof.ScientificName).replace(/<[^>]+>/g, '')}: left out`);
+    else if (prof) { usda = usdaFields(prof, chars ?? []); seen.usda = { symbol: s.usda.symbol, name: usda['Scientific name']?.[0] }; }
     if (prof && !chars?.length) notes.push('USDA has no characteristics for it');
   } else notes.push('Not in USDA PLANTS by this name');
   // Minnesota Wildflowers
