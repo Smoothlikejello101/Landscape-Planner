@@ -99,14 +99,15 @@ export const SOURCES = {
   usda: { title: 'USDA PLANTS Database (NRCS), county records', url: 'https://plants.usda.gov' },
 };
 // ---------- GBIF's herbarium specimens by county ----------
-/** GADM's old names for counties since renamed (Shannon, SD is Oglala Lakota; Alaska's census areas). */
+/** GADM's old names for counties since renamed or merged (Shannon, SD is Oglala Lakota; Alaska's census areas). */
 /**
  * GADM's areas holding a county and a city of the same name together (records from both are in them): Richmond,
  * Virginia (city and county, 50 miles apart), Baltimore and St. Louis (each city with its county). Checked by
  * the spread of the records GBIF places in them, 2026-10-20.
  */
 const GADM_LUMPED = new Set(['VA Richmond', 'MD Baltimore', 'MO Saint Louis']);
-const GADM_RENAMED = { 'SD Shannon': 'Oglala Lakota', 'AK Wade Hampton': 'Kusilvak', 'AK Prince of Wales-Outer Ketchi': 'Prince of Wales-Hyder' };
+const GADM_RENAMED = { 'SD Shannon': 'Oglala Lakota', 'AK Wade Hampton': 'Kusilvak', 'AK Prince of Wales-Outer Ketchi': 'Prince of Wales-Hyder',
+  'VA Clifton Forge City': 'Alleghany' }; // (Clifton Forge merged into Alleghany County in 2001)
 const countyKey = (n) => n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\bsaint\b/g, 'st').replace(/\bsainte\b/g, 'ste').replace(/[^a-z]/g, '');
 /**
  * GADM's counties (a download names them so: "USA.4.10_1" is Clark County, Arkansas) by our FIPS: { gid: fips }.

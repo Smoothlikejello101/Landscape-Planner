@@ -61,7 +61,7 @@ beforeEach(() => { resetWild(); fetched = []; state.location = { zip: '71923', z
 describe("GBIF's herbarium specimens by county", () => {
   const counties = [{ fips: 5019, name: 'Clark', state: 'AR' }, { fips: 51159, name: 'Richmond', state: 'VA' }, { fips: 51760, name: 'Richmond', state: 'VA' },
     { fips: 51161, name: 'Roanoke', state: 'VA' }, { fips: 51770, name: 'Roanoke', state: 'VA' }, { fips: 51067, name: 'Franklin', state: 'VA' }, { fips: 51620, name: 'Franklin', state: 'VA' },
-    { fips: 51019, name: 'Bedford', state: 'VA' }, { fips: 29510, name: 'St. Louis', state: 'MO' }, { fips: 29189, name: 'St. Louis', state: 'MO' }, { fips: 46102, name: 'Oglala Lakota', state: 'SD' }];
+    { fips: 51019, name: 'Bedford', state: 'VA' }, { fips: 51005, name: 'Alleghany', state: 'VA' }, { fips: 29510, name: 'St. Louis', state: 'MO' }, { fips: 29189, name: 'St. Louis', state: 'MO' }, { fips: 46102, name: 'Oglala Lakota', state: 'SD' }];
   it("match GADM's counties to ours by name: a county and a city apart where GADM has both, its lumped areas neither, renamed counties, not lakes", () => {
     // (GADM's entries as GBIF gives them.)
     expect(gadmCounties([
@@ -72,7 +72,7 @@ describe("GBIF's herbarium specimens by county", () => {
       { code: 'MO', subs: [{ id: 'USA.26.95_1', name: 'Saint Louis', type: ['County'] }] },
       { code: 'SD', subs: [{ id: 'USA.42.56_1', name: 'Shannon', type: ['County'] }] },
       { code: 'MI', subs: [{ id: 'USA.23.45_1', name: 'Lake Michigan', type: ['Water body'] }] },
-    ], counties)).toEqual({ 'USA.4.10_1': 5019, 'USA.47.107_1': 51161, 'USA.47.108_1': 51770, 'USA.47.46_1': 51067, 'USA.47.12_1': 51019, 'USA.42.56_1': 46102 });
+    ], counties)).toEqual({ 'USA.4.10_1': 5019, 'USA.47.107_1': 51161, 'USA.47.108_1': 51770, 'USA.47.46_1': 51067, 'USA.47.12_1': 51019, 'USA.47.29_1': 51005, 'USA.42.56_1': 46102 });
   });
   it('count specimens not marked cultivated, only in or next to a county the curated sources have it in', () => {
     const rows = [

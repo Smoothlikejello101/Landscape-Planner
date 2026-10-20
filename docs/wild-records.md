@@ -53,8 +53,9 @@ it), so the app never says "not found here".
    steps). GADM's counties are matched to ours by name in the state. A county and an independent city
    sharing a name are told apart where GADM has both (Roanoke, Virginia); where it has one area, that's the
    county, except the three it lumps with their cities (Richmond, Virginia, whose city and county are 50
-   miles apart; Baltimore; St. Louis), which match none. Bedford City, merged into Bedford County in 2013, is
-   that county; three renamed since (Shannon, SD is Oglala Lakota) by their new names; lakes match none.
+   miles apart; Baltimore; St. Louis), which match none. Bedford City and Clifton Forge, Virginia, merged into
+   Bedford and Alleghany Counties, are those counties; three renamed since (Shannon, SD is Oglala Lakota) by
+   their new names; lakes match none.
 5. `node scripts/catalog/wild.mjs <combined.json>`: `public/wild/1/<state>.json` for every state with
    records (52, with DC and the territories), and `public/wild/1/index.json`. The `1` is the format: a new
    format goes in a new folder (and a new cache on the device), so an app never reads a format it wasn't
