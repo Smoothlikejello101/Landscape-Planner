@@ -3,12 +3,21 @@
 // release replaces exactly what changed) and serves the app offline.
 import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching';
 import { NavigationRoute, registerRoute } from 'workbox-routing';
+import { StaleWhileRevalidate } from 'workbox-strategies';
+import { WILD_FORMAT } from './wild-format';
 
 declare const self: ServiceWorkerGlobalScope;
 
 precacheAndRoute(self.__WB_MANIFEST);
 cleanupOutdatedCaches();
 registerRoute(new NavigationRoute(createHandlerBoundToURL('index.html')));
+// Wild plant records by state (public/wild/<format>/NN.json, src/wild.ts): too many to keep every state's,
+// so each is kept once fetched (the garden's own state, and any over a county line), then works offline.
+// Refreshed in the background when online. A new format has a new folder and cache (an app always reads the
+// format it was made for); older formats' caches are cleared when a new version takes over. (Not
+// "landscape-planner-…": that's the old worker's, cleared below.)
+const WILD_CACHE = `fullgrown-wild-${WILD_FORMAT}`;
+registerRoute(({ url }) => url.origin === self.location.origin && new RegExp(`/wild/${WILD_FORMAT}/\\d\\d\\.json$`).test(url.pathname), new StaleWhileRevalidate({ cacheName: WILD_CACHE }));
 
 // Normally a new version waits for the user to tap "Update". But the
 // previous hand-written worker has no update prompt, so when replacing it we
@@ -26,7 +35,7 @@ self.addEventListener('activate', (event) => {
   // ("landscape-planner-v1" … "-v8"), which served everything cache-first.
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k.startsWith('landscape-planner-')).map((k) => caches.delete(k))),
+      Promise.all(keys.filter((k) => k.startsWith('landscape-planner-') || (k.startsWith('fullgrown-wild') && k !== WILD_CACHE)).map((k) => caches.delete(k))),
     ).then(() => self.clients.claim()),
   );
 });

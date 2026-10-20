@@ -73,8 +73,8 @@ export interface ClimateFile {
   v: 1;
   /** When the source data was downloaded. */
   accessed?: string;
-  /** zip → [zone, station index (-1: none near enough; -2: the ZIP has no mapped area), miles to the station] */
-  zips: Record<string, [string, number, number]>;
+  /** zip → [zone, station index (-1: none near enough; -2: the ZIP has no mapped area), miles to the station, county FIPS (5019: 05019) if it has one] */
+  zips: Record<string, [string, number, number, number?]>;
   stations: { name: string; chance: number; yearRound?: true; spring?: MonthDay; springLate?: MonthDay; fall?: MonthDay; fallEarly?: MonthDay }[];
 }
 export type LookupResult = { ok: true; location: GardenLocation } | { ok: false; why: 'format' | 'unknown' | 'offline' };
