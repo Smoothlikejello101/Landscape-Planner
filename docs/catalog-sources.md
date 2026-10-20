@@ -211,7 +211,8 @@ the same rules as every other source (scripts/catalog/search.mjs).
    this document's closed, ask-first and not-used lists; crowd-sourced and
    AI-written sites (Wikipedia, Dave's Garden, iNaturalist…); archives,
    caches and aggregators (the Wayback Machine, archive.today, Trefle,
-   GBIF…); marketplaces and social media; and sources read another way
+   GBIF…: GBIF's flowering records are read another way, for bloom months
+   only, by the owner's decision: [bloom-months.md](bloom-months.md)); marketplaces and social media; and sources read another way
    already (all of usda.gov and ncsu.edu, Minnesota Wildflowers: cautious,
    since NRCS plant guides and NC State's other sheets are left out too). The
    script prints counts, never the results.

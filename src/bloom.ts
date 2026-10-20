@@ -1,15 +1,26 @@
 import { bedOf, isBed, isPlant } from './beds';
 import type { Plant } from './plants';
 import type { Shape } from './types';
+import { localBloom } from './wild';
 
 // When things bloom: month-by-month, per bed and for the whole plan, so gaps
 // in color show up (task C6). Uses bloom months from the catalog and from
 // the user's own plants. Gone plants don't count; planned ones do.
 
+/**
+ * When a plant blooms: where the garden is, from flowering records there (src/wild.ts), else the
+ * catalog's (or the user's own) months. Null if unknown.
+ */
+export function bloomSpan(p: Plant | undefined): { start: number; end: number } | null {
+  if (!p) return null;
+  const local = localBloom(p);
+  if (local) return { start: local.start, end: local.end };
+  return p.bloom?.start ? { start: p.bloom.start, end: p.bloom.end || p.bloom.start } : null;
+}
 /** Months (1-12) a plant blooms in, wrapping the year end (Nov-Jan). Empty if unknown. */
 export function bloomMonths(p: Plant | undefined): number[] {
-  const b = p?.bloom;
-  if (!b || !b.start) return [];
+  const b = bloomSpan(p);
+  if (!b) return [];
   const start = b.start, end = b.end || b.start;
   const out: number[] = [];
   for (let m = start, i = 0; i < 12; i++, m = (m % 12) + 1) {

@@ -6,7 +6,7 @@ import type { Plant } from '../plants';
 import { MONTH_NAMES, PLANT_META, formsOf, zoneNote } from '../plants';
 import { zoneRange } from '../climate';
 import type { Provenance } from '../catalog';
-import { wildHere, wildText } from '../wild';
+import { localBloom, wildHere, wildText } from '../wild';
 
 const SURE: Record<string, string> = {
   agree: 'confirmed', confirmed: 'confirmed', single: 'one source', likely: 'nurseries agree', reported: 'one nursery', disputed: 'sources disagree',
@@ -82,13 +82,19 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
   for (const [label, value, facts, reportedText] of rows(p)) {
     const prov = facts.map((f) => p.prov?.[f]).find(Boolean);
     const reported = p.reported && facts.some((f) => f in p.reported!) && reportedText ? reportedText(p.reported) : '';
-    if (!value && !reported) {
+    // Bloom where the garden is, from flowering records there: its months, and how many records they rest on.
+    const local = label === 'Bloom' ? localBloom(p) : null;
+    if (!value && !reported && !local) {
       // Looked up, and none of the sources say: shown as such, so it isn't mistaken for "not looked at".
       if (facts.some((f) => p.prov?.[f]?.unknown)) { dl.appendChild(el('dt', {}, label)); dl.appendChild(el('dd', { className: 'details-unknown' }, 'Not known: none of the sources say')); }
       continue;
     }
-    const dd = el('dd', {}, value || '—');
-    const line = sourceLine(prov);
+    const shown = local ? `${MONTH_NAMES[local.start]}${local.end !== local.start ? `–${MONTH_NAMES[local.end]}` : ''}, peak ${MONTH_NAMES[local.peak]}${p.bloom?.color ? `; ${p.bloom.color}` : ''}` : value;
+    const dd = el('dd', { ...(local ? { 'data-testid': 'local-bloom' } : {}) }, shown || '—');
+    const line = local
+      ? `${local.species ? 'its species: ' : ''}${local.n} flowering records in ${local.stateName}${local.area === 'region' ? ' and neighboring states' : ''} · ${local.source}`
+        + (p.bloom?.color ? ` (color: ${sourceLine(prov)})` : '')
+      : sourceLine(prov);
     if (line) dd.appendChild(el('span', { className: 'details-src' }, line));
     // Hardiness only nurseries give: say so, since a grower's range can stop where it sells, not where the plant grows.
     const nurseryOnly = (pv?: Provenance) => !!pv && !pv.unknown && pv.src.length > 0 && pv.src.every((s) => PLANT_META?.sources?.[s]?.trust === 'nursery');

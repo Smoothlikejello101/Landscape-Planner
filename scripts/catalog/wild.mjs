@@ -9,6 +9,10 @@
 // sample.mjs's output, for the atlas name each plant was matched by. County codes are five-digit FIPS as
 // numbers (Clark County, Arkansas, 05019, is 5019).
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { bloomCounts, bloomDisagreements, bloomSpecies, stateBloom } from './bloom.mjs';
+import { gadmUrl, US_GADM } from './gbif.mjs';
+import { STATES } from './counties.mjs';
+import { savedPage } from './pages.mjs';
 
 const stateOf = (fips) => Math.floor(fips / 1000);
 const binomial = (s) => String(s ?? '').replace(/\s+/g, ' ').trim().split(' ').slice(0, 2).join(' ');
@@ -93,7 +97,17 @@ export const FORMAT = 1;
 export const SOURCES = {
   arkatlas: { title: 'Atlas of the Vascular Plants of Arkansas (Arkansas Vascular Flora Committee, 2013)', url: 'https://biology.uark.edu/herbarium/' },
   usda: { title: 'USDA PLANTS Database (NRCS), county records', url: 'https://plants.usda.gov' },
+  gbif: { title: 'GBIF.org flowering records (iNaturalist research-grade observations and herbarium specimens; CC0 and CC BY)', url: 'https://www.gbif.org' },
 };
+/** Each state's neighboring states (sharing a county line). */
+export function neighborStates(counties) {
+  const out = {};
+  for (const c of counties) for (const n of c.near) {
+    const a = stateOf(c.fips), b = stateOf(n);
+    if (a !== b) (out[a] ??= new Set()).add(b);
+  }
+  return Object.fromEntries(Object.entries(out).map(([k, v]) => [k, [...v].sort((x, y) => x - y)]));
+}
 
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop())) {
   const [auditPath] = process.argv.slice(2);
@@ -104,6 +118,15 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   if (!existsSync('catalog-src/usda-counties.json')) { console.error('catalog-src/usda-counties.json is missing: run usda-fetch.mjs and usda-counties.mjs first (or every state but Arkansas would lose its records)'); process.exit(1); }
   const bySource = { arkatlas: atlasRecords(catalog, read(auditPath), read('catalog-src/arkatlas/counties.json')), usda: read('catalog-src/usda-counties.json') };
   const states = [...new Set(counties.map((c) => stateOf(c.fips)))].sort((a, b) => a - b);
+  // Bloom months (GBIF's flowering records, fetched by gbif-fetch.mjs), where they've been fetched.
+  const audit = read(auditPath);
+  const page = (url) => { try { return JSON.parse(savedPage('gbif', url)?.text ?? 'null'); } catch { return null; } };
+  const fipsByPostal = Object.fromEntries(Object.entries(STATES).map(([f, p]) => [p, Number(f)]));
+  const fipsOfGadm = Object.fromEntries(US_GADM.map((g) => [g, (page(gadmUrl(g))?.variantName ?? []).map((v) => fipsByPostal[v]).find((f) => f != null)]));
+  const counts = existsSync('catalog-src/gbif') ? bloomCounts(bloomSpecies(catalog, audit), page, (g) => fipsOfGadm[g]) : {};
+  const ncsuSeasons = Object.fromEntries(audit.map((a) => [a.id, a.facts?.bloom_season?.v]).filter(([, v]) => v?.length));
+  const near = neighborStates(counties);
+  writeFileSync('catalog-src/bloom-review.json', JSON.stringify(bloomDisagreements(counts, ncsuSeasons), null, 1) + '\n');
   const dir = `public/wild/${FORMAT}`;
   rmSync('public/wild', { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
@@ -111,11 +134,18 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   for (const fips of states) {
     const code = counties.find((c) => stateOf(c.fips) === fips)?.state;
     const f = stateFile({ fips, code }, bySource, SOURCES, counties);
-    if (!Object.keys(f.plants).length) continue;
+    const bloom = stateBloom(fips, counts, near, ncsuSeasons);
+    if (Object.keys(bloom).length) {
+      f.bloom = bloom;
+      f.bloomSpecies = Object.keys(bloom).filter((id) => counts[id].species).sort();
+      f.sources.gbif = SOURCES.gbif;
+    }
+    if (!Object.keys(f.plants).length && !f.bloom) continue;
     write(`${dir}/${String(fips).padStart(2, '0')}.json`, f);
     files.push(f);
   }
   write(`${dir}/index.json`, wildIndex(files));
   const size = readdirSync(dir).reduce((n, f) => n + readFileSync(`${dir}/${f}`).length, 0);
-  console.log(`${files.length} state files (${Math.round(size / 1024)} KB); Arkansas: ${Object.keys(files.find((f) => f.fips === 5)?.plants ?? {}).length} plants`);
+  const ar = files.find((f) => f.fips === 5);
+  console.log(`${files.length} state files (${Math.round(size / 1024)} KB); Arkansas: ${Object.keys(ar?.plants ?? {}).length} plants with wild records, ${Object.keys(ar?.bloom ?? {}).length} with bloom months; ${Object.keys(counts).length} plants with flowering records; ${bloomDisagreements(counts, ncsuSeasons).length} left out for disagreeing with NC State (catalog-src/bloom-review.json)`);
 }
