@@ -115,7 +115,11 @@ describe('claims and how they combine', () => {
   });
   it('reads water need from what a plant tolerates', () => {
     expect(waterNeed({ 'Soil Drainage': ['Good Drainage', 'Moist', 'Occasionally Wet'] })).toBe('Moderate'); // (witch hazel)
-    expect(waterNeed({ 'Soil Drainage': ['Good Drainage', 'Moist', 'Occasionally Dry'], 'Resistance To Challenges': ['Drought'] })).toBe('Moderate'); // (red oak)
+    expect(waterNeed({ 'Soil Drainage': ['Good Drainage', 'Moist', 'Occasionally Dry'], 'Resistance To Challenges': ['Drought'] })).toBe('Low'); // (red oak: drought tolerant once established)
+    expect(waterNeed({ 'Soil Drainage': ['Good Drainage', 'Moist'], 'Landscape Theme': ['Drought Tolerant Garden'] })).toBe('Low');
+    // Rated for wet and dry both (red maple): adaptable, so Moderate.
+    expect(waterNeed({ 'Soil Drainage': ['Good Drainage', 'Moist', 'Occasionally Dry', 'Occasionally Wet'], 'Resistance To Challenges': ['Drought', 'Wet Soil'], 'Landscape Theme': ['Drought Tolerant Garden'] })).toBe('Moderate');
+    expect(waterNeed({ 'Soil Drainage': ['Good Drainage', 'Very Dry'], 'Landscape Theme': ['Rain Garden'] })).toBe('Moderate');
     expect(waterNeed({ 'Soil Drainage': ['Good Drainage', 'Moist', 'Occasionally Dry', 'Very Dry'] })).toBe('Low'); // (pink muhly)
     expect(waterNeed({ 'Soil Drainage': ['Moist', 'Occasionally Wet'] })).toBe('High'); // (cardinal flower)
     expect(waterNeed({ 'Soil Drainage': ['Frequent Standing Water', 'Moist'] })).toBe('High');
@@ -209,6 +213,38 @@ describe('claims and how they combine', () => {
     // At most three forms; odd inputs don't throw.
     expect(combine([nc(['Shrub', 'Tree (understory)', 'Annual', 'Perennial'])], { prefer: 'Annual' }).form.v).toEqual(['Annual', 'Shrub', 'Tree (understory)']);
     expect(() => combine([{ fact: 'form', v: 'Shrub', src: 'ncsu', kind: 'authority' }], { prefer: null })).not.toThrow();
+  });
+  it('disputes an authority far from what two nurseries agree on (a slip in its record, likely)', () => {
+    const c = (src: string, kind: string, fact: string, v: unknown) => ({ fact, v, src, kind });
+    // Palm sedge: NC State through zone 4b, two nurseries through 8.
+    expect(combine([c('ncsu', 'authority', 'zone_max', 4.5), c('a.com', 'nursery', 'zone_max', 8.5), c('b.com', 'nursery', 'zone_max', 8)]).zone_max).toMatchObject({ check: 'disputed' });
+    // Green-and-gold: 1–2 inches tall at NC State, half a foot or more at two nurseries.
+    expect(combine([c('ncsu', 'authority', 'height', { min: 0.08, max: 0.17 }), c('a.com', 'nursery', 'height', { min: 0.5, max: 0.75 }), c('b.com', 'nursery', 'height', { min: 0.5, max: 1 })]).height).toMatchObject({ check: 'disputed' });
+    // One nursery alone, or a near difference: the authority stands.
+    expect(combine([c('ncsu', 'authority', 'zone_max', 4.5), c('a.com', 'nursery', 'zone_max', 8.5)]).zone_max).toMatchObject({ check: 'single' });
+    const z = (src: string, kind: string, lo: number, hi: number) => [c(src, kind, 'zone_min', lo), c(src, kind, 'zone_max', hi)];
+    expect(combine([...z('ncsu', 'authority', 4, 7.5), ...z('a.com', 'nursery', 4, 9.5), ...z('b.com', 'nursery', 4, 9.5)]).zone_max).toMatchObject({ check: 'single', alt: { v: 9.5, check: 'likely' } });
+  });
+  it('keeps what nurseries report beside an authority where it differs (never for safety facts)', () => {
+    const c = (src: string, kind: string, fact: string, v: unknown) => ({ fact, v, src, kind });
+    const s2 = (src: string, kind: string, most: string, least: string) => [c(src, kind, 'sun_most', most), c(src, kind, 'sun_least', least)];
+    const z = (src: string, kind: string, lo: number, hi: number) => [c(src, kind, 'zone_min', lo), c(src, kind, 'zone_max', hi)];
+    const sun = combine([...s2('ncsu', 'authority', 'Part', 'Shade'), ...s2('a.com', 'nursery', 'Full', 'Shade'), ...s2('b.com', 'nursery', 'Full', 'Shade'), ...s2('d.com', 'nursery', 'Part', 'Shade')]);
+    expect(sun.sun_most).toMatchObject({ v: 'Part', check: 'confirmed', alt: { v: 'Full', src: ['a.com', 'b.com'], check: 'likely' } });
+    // A pair's report is one nursery's whole range, on both halves (never one nursery's half with another's).
+    expect(sun.sun_least).toMatchObject({ v: 'Shade', alt: { v: 'Shade', src: ['a.com', 'b.com'] } });
+    const mixed = combine([...s2('ncsu', 'authority', 'Full', 'Part'), ...s2('a.com', 'nursery', 'Part', 'Part'), c('b.com', 'nursery', 'sun_least', 'Full')]);
+    expect(mixed.sun_most.alt).toEqual({ v: 'Part', src: ['a.com'], check: 'reported' });
+    expect(mixed.sun_least.alt).toEqual({ v: 'Part', src: ['a.com'], check: 'reported' });
+    // A nursery giving only one half isn't read as a range.
+    expect(combine([...s2('ncsu', 'authority', 'Full', 'Part'), c('b.com', 'nursery', 'sun_most', 'Part')]).sun_most.alt).toBeUndefined();
+    // One nursery: reported. Zones within a whole zone agree, so no alt.
+    expect(combine([...z('ncsu', 'authority', 5, 8.5), ...z('a.com', 'nursery', 5, 10.5)]).zone_max.alt).toEqual({ v: 10.5, src: ['a.com'], check: 'reported' });
+    expect(combine([...z('ncsu', 'authority', 5, 8.5), ...z('a.com', 'nursery', 5, 10.5)]).zone_min.alt).toEqual({ v: 5, src: ['a.com'], check: 'reported' });
+    expect(combine([...z('ncsu', 'authority', 5, 8.5), ...z('a.com', 'nursery', 5, 9.5)]).zone_max.alt).toBeUndefined();
+    // Nothing for facts nurseries don't speak to, or where no authority decides.
+    expect(combine([c('ncsu', 'authority', 'tox_people', ['minor']), c('a.com', 'nursery', 'tox_people', ['major'])]).tox_people.alt).toBeUndefined();
+    expect(combine([c('a.com', 'nursery', 'water', 'Low'), c('b.com', 'nursery', 'water', 'High')]).water.alt).toBeUndefined();
   });
   it('confirms a caterpillar host only where two sources name the same one', () => {
     const h = (src: string, v: string[]) => ({ fact: 'host', v, src, kind: 'authority' });

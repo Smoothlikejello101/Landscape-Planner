@@ -49,7 +49,7 @@ test('a ZIP gives the zone and frost dates; the plant picker can show only plant
   const past = page.locator('.sheet .proj-row', { hasText: 'Pagoda dogwood' });
   await expect(past).toContainText('zones 3–7 (zone 8a may be too warm)');
   // The end half-zone of its range is its edge: shown as hardy, and marked.
-  await page.getByTestId('plant-search').fill('Oleander'); // rated from zone 8 (8a)
+  await page.getByTestId('plant-search').fill('Oleander'); // rated from zone 8 (8a) to 10 (NC State)
   const edge = page.locator('.sheet .proj-row', { hasText: 'Oleander' });
   await expect(edge).toContainText('(at its cold edge in zone 8a)');
   await hardy.locator('input').check();
@@ -63,7 +63,7 @@ test('a ZIP gives the zone and frost dates; the plant picker can show only plant
   await edge.locator('[data-testid=plant-place]').click();
   await placeOnceAtCenter(page);
   await page.locator('.sel-pill button.edit').click(); await openSections(page);
-  await expect(page.getByTestId('plant-zones')).toHaveText('Hardy in zones 8–11. Zone 8a is at the cold edge of its range: give it a sheltered spot and mulch its roots for winter.');
+  await expect(page.getByTestId('plant-zones')).toHaveText('Hardy in zones 8–10. Zone 8a is at the cold edge of its range: give it a sheltered spot and mulch its roots for winter.');
 });
 
 test('at the warm edge of a plant\'s range: shade, and water unless it wants little', async ({ page }) => {
@@ -75,8 +75,8 @@ test('at the warm edge of a plant\'s range: shade, and water unless it wants lit
   await page.getByTestId('zip-lookup').click();
   await page.getByTestId('plant-search').fill('Red buckeye'); // rated through zone 8 (8b), moderate water
   await expect(page.locator('.sheet .proj-row', { hasText: 'Red buckeye' })).toContainText('(at its warm edge in zone 8b)');
-  await page.getByTestId('plant-search').fill('Lead plant'); // rated through zone 8, low water
-  const lead = page.locator('.sheet .proj-row', { hasText: 'Lead plant' });
+  await page.getByTestId('plant-search').fill('Wild lupine'); // rated through zone 8 (8b), low water
+  const lead = page.locator('.sheet .proj-row', { hasText: 'Wild lupine' });
   await expect(lead).toContainText('(at its warm edge in zone 8b)');
   await lead.locator('[data-testid=plant-place]').click();
   await placeOnceAtCenter(page);

@@ -354,13 +354,17 @@ decides.
 ranges overlap, with a quarter's give; lists (colors, seasons, hosts) when
 they share a word.
 
-**Water** is what a plant needs, not what it tolerates. From NC State's
-soil fields: **High** where it grows wet (frequent standing water, or
-occasionally wet without good drainage); **Low** where it takes real dry
-(very dry, or drought-tolerant and occasionally dry, without moist soil
-listed); **Moderate** otherwise. Witch hazel (moist to occasionally wet,
-good drainage) is Moderate; red oak (occasionally dry, good drainage, moist)
-Moderate.
+**Water** is what a plant needs once established. NC State has no water
+field, so it comes from NC State's tags: **High** where it grows wet
+(frequent standing water, or occasionally wet without good drainage);
+**Low** where NC State calls it drought tolerant (the Drought Tolerant
+Garden theme, Very Dry drainage, or Drought resistance with Occasionally Dry
+drainage) and lists nothing wet (Occasionally Wet or Occasional Flooding
+drainage, Wet Soil resistance, a Rain Garden or Water Garden theme, a Pond
+or Riparian location); **Moderate** otherwise. A plant rated for both wet and
+dry (red maple) is adaptable, so Moderate. Witch hazel (moist to
+occasionally wet, good drainage) is Moderate; red oak (occasionally dry,
+good drainage, drought resistant) is Low.
 
 **Caterpillar hosts** come from every source that says so: tables, and
 sentences naming a host ("larval host for the X (Genus species)",
@@ -492,10 +496,26 @@ That change lands before any record gets an `audited` date.
 2. **Extract.** One script per source turns its pages into facts using the
    rules above. Its test fixtures are committed, trimmed to the field labels
    and values the script reads, with no descriptive text.
-3. **Compare.** Each fact is written with its `src` and `check`, and the
-   record gets its `audited` date.
-4. **Review.** `npm run catalog:check` lists disputed values, plants
-   neither source has, and facts left `null`.
-5. **Start small.** First 20 plants, mixing species and cultivars, trees and
+3. **Compare.** `scripts/catalog/sample.mjs` combines each plant's claims
+   by the rules above (with the web search's claims, `search.mjs`).
+4. **Write.** `npm run catalog:write -- <combined.json> --date <day the
+   pages were read> --review review.json` writes each settled fact into `public/plants.json` with its
+   `src`, `check` and, where nurseries differ from the authority, `alt`; a
+   record with any fact written gets its `audited` date. A fact the audit
+   couldn't settle (unknown, unsettled, disputed) keeps the catalog's
+   current value, still labeled unverified (its only source is the
+   compendium), and a disputed one goes on the review list. So do values
+   that would make the record implausible (the app's `catalogWarnings`:
+   inches read as feet, a zone or sun range backwards), which are held back,
+   and "edible" on a plant rated toxic to dogs or seriously toxic to people.
+   A nursery's report on a pair (the zones, the sun levels) is one
+   nursery's whole range, kept only where both halves are written. It never
+   removes a value. Web sources are added to `meta.sources` by domain:
+   `reference` for authorities, `nursery` for nurseries and breeders.
+   Native status, toxicity, caterpillar hosts and bloom wait on their format
+   changes ("Waiting on format changes").
+5. **Review.** The review list, and `npm run catalog:check` for implausible
+   values, plants neither source has, and facts left `null`.
+6. **Start small.** First 20 plants, mixing species and cultivars, trees and
    perennials. The mapping rules marked above are settled on those before
    the rest.

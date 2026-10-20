@@ -89,6 +89,15 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
     const dd = el('dd', {}, value || '—');
     const line = sourceLine(prov);
     if (line) dd.appendChild(el('span', { className: 'details-src' }, line));
+    // Hardiness only nurseries give: say so, since a grower's range can stop where it sells, not where the plant grows.
+    const nurseryOnly = (pv?: Provenance) => !!pv && !pv.unknown && pv.src.length > 0 && pv.src.every((s) => PLANT_META?.sources?.[s]?.trust === 'nursery');
+    if (label === 'Hardiness') {
+      const [cold, warm] = [nurseryOnly(p.prov?.zone_min), nurseryOnly(p.prov?.zone_max)];
+      const which = cold && warm ? 'Only nurseries rate this; no published reference gives a range.'
+        : cold ? 'Only nurseries give its cold limit; no published reference does.'
+        : warm ? 'Only nurseries give its warm limit; no published reference does.' : '';
+      if (which) dd.appendChild(el('span', { className: 'details-alt', 'data-testid': 'nursery-only' }, which));
+    }
     if (reported && reported !== value) {
       const alt = facts.map((f) => p.prov?.[f]?.alt).find(Boolean);
       dd.appendChild(el('span', { className: 'details-alt' }, `Nurseries report: ${reported}` + (alt ? ` (${alt.src.map(sourceName).join(', ')})` : '')));

@@ -38,8 +38,10 @@ pass a file without it.
 
 `meta.sources` names every source a fact may cite. `trust` is `reference`
 (a published reference: an extension service, USDA, a botanical garden),
-`observation` (a gardener's own record) or `unverified` (the first
-compendium: claims with no source behind them).
+`nursery` (a grower's, breeder's or seller's own listing), `observation`
+(a gardener's own record) or `unverified` (the first compendium: claims
+with no source behind them). A site found by the web search is cited by its
+domain (`"newmoonnursery.com"`), with the domain as its title.
 
 ## A record
 

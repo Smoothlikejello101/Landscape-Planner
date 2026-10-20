@@ -8,7 +8,8 @@ import type { Plant } from './plants';
 // per plant, where each value came from and whether the record has been
 // audited.
 
-export type Trust = 'reference' | 'observation' | 'unverified';
+/** reference: a published reference (extension, USDA, botanical garden); nursery: a grower's or seller's own listing; observation: a gardener's record; unverified: the first compendium. */
+export type Trust = 'reference' | 'nursery' | 'observation' | 'unverified';
 export interface SourceDef { title: string; url?: string; trust: Trust }
 /**
  * How sure a value is (docs/catalog-sources.md, "Deciding each fact"): `agree` / `confirmed` (an authority,
@@ -119,6 +120,8 @@ export function resolveCatalog(file: CatalogFile): Plant[] {
     p.prov = prov;
     // Not yet audited, or (a cultivar) leaning on a species that isn't.
     if (!rec.audited || (parent && !parent.audited && Object.values(prov).some((x) => x.inherited))) p.unverified = true;
+    // Audited, but some details it shows still rest only on the older, unsourced list.
+    else if (Object.values(prov).some((x) => !x.unknown && x.src.length > 0 && x.src.every((s) => file.meta.sources[s]?.trust === 'unverified'))) p.partlyChecked = true;
     return p;
   });
 }
@@ -182,7 +185,7 @@ export function catalogErrors(file: CatalogFile): string[] {
   const sources = file.meta.sources ?? {};
   if (file.meta.zones !== 'half') errs.push('meta.zones must be "half" (zones on the half-zone scale; see docs/catalog-format.md)');
   for (const [id, s] of Object.entries(sources)) {
-    if (!s || typeof s.title !== 'string' || !['reference', 'observation', 'unverified'].includes(s.trust)) errs.push(`source ${id}: needs a title and a trust of reference, observation or unverified`);
+    if (!s || typeof s.title !== 'string' || !['reference', 'nursery', 'observation', 'unverified'].includes(s.trust)) errs.push(`source ${id}: needs a title and a trust of reference, nursery, observation or unverified`);
   }
   const ids = new Map<string, number>();
   for (const r of file.plants) ids.set(r.id, (ids.get(r.id) ?? 0) + 1);
@@ -244,6 +247,7 @@ export function catalogWarnings(file: CatalogFile): string[] {
       if (rr?.min != null && rr.max != null && rr.min > rr.max) out.push(`${r.id}: ${k} range backwards (${rr.min} > ${rr.max})`);
     }
     if (form && h?.max != null && MAX_HEIGHT[form] != null && h.max > MAX_HEIGHT[form]) out.push(`${r.id}: ${h.max} ft is tall for ${/^[aeiou]/i.test(form) ? 'an' : 'a'} ${form.toLowerCase()}`);
+    if (h?.max != null && h.max < 0.25) out.push(`${r.id}: under 3 in tall (${Math.round(h.max * 12)} in): inches read as feet, or the other way?`);
     const zmin = v('zone_min') as number | undefined, zmax = v('zone_max') as number | undefined;
     if (zmin != null && zmax != null && zmin > zmax) out.push(`${r.id}: zones backwards (${zmin} > ${zmax})`);
     const sm = v('sun_most') as string | undefined, sl = v('sun_least') as string | undefined;

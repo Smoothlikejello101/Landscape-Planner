@@ -51,8 +51,12 @@ const COMPANY = {
 };
 /** The source a site counts as (one company's sites are one). */
 export const sourceOf = (host) => { const site = siteOf(host); return COMPANY[site] ?? termsKey(host); };
-/** What kind of source a URL is: 'authority', 'nursery', 'blog', or 'skip'. `html` helps tell a shop from a blog. */
-export function siteKind(url, html = '') {
+/**
+ * What kind of source a URL is: 'authority', 'nursery', 'blog', or 'skip'. `html` helps tell a shop from a
+ * blog; with `plant`, a page counts as a nursery's only where it sells that plant (a blog with a shop for its
+ * books, or a landscaper's, is still a blog for that page).
+ */
+export function siteKind(url, html = '', plant = null) {
   let host;
   try { host = new URL(url).hostname.toLowerCase(); } catch { return 'skip'; }
   const site = siteOf(host);
@@ -60,7 +64,18 @@ export function siteKind(url, html = '') {
   if (/\/~/.test(new URL(url).pathname)) return 'blog'; // (a person's own pages on a university's site)
   if (/\.(edu|gov)$/.test(site) || /\.gov\.\w+$/.test(host) || AUTHORITY_SITES.has(site) || AUTHORITY_SITES.has(host)) return 'authority';
   // A shop: a cart, or a product with an offer marked up for search engines. (Prices alone could be a blog's affiliate links.)
-  return /add to cart|add-to-cart|addtocart|\/cart\/add|"@type"\s*:\s*"(?:Product|Offer)"|itemtype="https?:\/\/schema\.org\/(?:Product|Offer)"/i.test(html.slice(0, 600000)) ? 'nursery' : 'blog';
+  const page = html.slice(0, 600000);
+  if (!/add to cart|add-to-cart|addtocart|\/cart\/add|"@type"\s*:\s*"(?:Product|Offer)"|itemtype="https?:\/\/schema\.org\/(?:Product|Offer)"/i.test(page)) return 'blog';
+  return !plant || sellsPlant(url, page, plant) ? 'nursery' : 'blog';
+}
+/** Whether this page is the shop's page for the plant: a product page (by its markup or address) naming it. */
+function sellsPlant(url, html, plant) {
+  const words = [plant.species?.split(' ')[0], plant.cultivar, ...(plant.common ?? '').split(/[\s'’]+/).filter((w) => w.length > 4)].filter(Boolean).map((w) => w.toLowerCase());
+  const names = (s) => words.some((w) => s.toLowerCase().includes(w));
+  // A product's own name in its markup ("@type": "Product", "name": "…").
+  for (const m of html.matchAll(/"@type"\s*:\s*"Product"[\s\S]{0,2000}?"name"\s*:\s*"([^"]{1,200})"|"name"\s*:\s*"([^"]{1,200})"[\s\S]{0,2000}?"@type"\s*:\s*"Product"/gi)) if (names(m[1] ?? m[2])) return true;
+  if (/<meta[^>]+property="og:type"[^>]+content="product"/i.test(html) && names(headline(html))) return true;
+  return /\/[\w-]*(?:products?|shop|plants?|store|catalog|perennials?|shrubs?|trees?|natives?)[\w-]*\//i.test(new URL(url).pathname) && names(headline(html));
 }
 
 // ---------- Pages ----------
@@ -260,7 +275,7 @@ export function copyKey(html) {
 
 /** A page's spec lines as claims, for one plant. (Facts that differ by place, bloom months above all, aren't taken from the web.) */
 export function webClaims(url, html, plant) {
-  const kind = siteKind(url, html);
+  const kind = siteKind(url, html, plant);
   if (kind === 'skip') return [];
   const text = pageText(html);
   if (secondHand(html) || !aboutPlant(html, text, plant)) return [];

@@ -11,14 +11,25 @@ describe('the shipped catalog', () => {
     expect(isCatalogV2(shipped)).toBe(true);
     expect(catalogErrors(shipped)).toEqual([]);
   });
-  it('still has every plant, all marked unverified until audited', () => {
+  it('still has every plant; those the audit has not reached are marked unverified', () => {
     const plants = resolveCatalog(shipped);
     expect(plants).toHaveLength(820);
     const unaudited = (shipped as CatalogFile).plants.filter((r) => !r.audited).map((r) => r.id);
     expect(plants.filter((p) => p.unverified).map((p) => p.id)).toEqual(unaudited);
+    // The rest say they're partly checked while any detail still comes only from the older list.
+    expect(plants.filter((p) => p.partlyChecked).length).toBeGreaterThan(0);
+    expect(plants.some((p) => p.partlyChecked && p.unverified)).toBe(false);
+    // An audited fact names its sources and how sure it is; what the audit couldn't settle stays the older list's.
     const bs = plants.find((p) => p.id === 'cephalanthus-occidentalis')!;
-    expect(bs).toMatchObject({ common: 'Buttonbush', form: 'Shrub', width: { min: 4, max: 6, med: 5 } });
-    expect(bs.prov!.width).toEqual({ src: ['compendium'] });
+    expect(bs).toMatchObject({ common: 'Buttonbush', form: 'Shrub', width: { min: 3, max: 6, med: 4.5 } });
+    expect(bs.prov!.width).toEqual({ src: ['ncsu', 'ufl.edu'], check: 'confirmed' });
+    expect(bs.prov!.zone_max).toEqual({ src: ['compendium'] }); // (disputed: NC State 9, UF/IFAS 11)
+    expect((shipped as CatalogFile).meta.sources['ufl.edu']).toMatchObject({ trust: 'reference' });
+  });
+  it('cites every source it uses, and nursery sources as nurseries', () => {
+    const sources = (shipped as CatalogFile).meta.sources;
+    expect(sources['newmoonnursery.com']).toMatchObject({ trust: 'nursery' });
+    expect(sources.ncsu).toMatchObject({ trust: 'reference' });
   });
 });
 
@@ -42,6 +53,17 @@ describe('records', () => {
     expect(c.prov!.width).toEqual({ src: ['ncsu'] });
     expect(c.bloom).toBeUndefined(); // flower color is what cultivars are bred to change
     expect(c.unverified).toBeUndefined();
+    // Audited, but the cultivar's form and toxicity come from Missouri's page: sourced, so fully checked.
+    expect(c.partlyChecked).toBeUndefined();
+    // A detail still resting only on the older list makes it partly checked (a known unknown doesn't).
+    const [old] = resolveCatalog({ meta, plants: [rec({ ...species, facts: { ...species.facts, habit: { v: 'Mounding', src: ['compendium'] }, edible: { v: null, src: ['compendium'] } } })] });
+    expect(old.partlyChecked).toBe(true);
+    const [none] = resolveCatalog({ meta, plants: [rec({ ...species, facts: { ...species.facts, edible: { v: null, src: ['compendium'] } } })] });
+    expect(none.partlyChecked).toBeUndefined();
+    // What a cultivar takes from its species counts too: an older-list detail there leaves the cultivar partly checked.
+    const [, inheritsOld] = resolveCatalog({ meta, plants: [rec({ ...species, facts: { ...species.facts, native: { v: 'Native', src: ['compendium'] } } }), cultivar] });
+    expect(inheritsOld.prov!.native).toEqual({ src: ['compendium'], inherited: true });
+    expect(inheritsOld.partlyChecked).toBe(true);
     // A species not yet audited makes what the cultivar takes from it unverified too.
     const [, c2] = resolveCatalog({ meta, plants: [{ ...species, audited: null }, cultivar] });
     expect(c2.unverified).toBe(true);
@@ -79,7 +101,7 @@ describe('records', () => {
       'typos.tox: unexpected value {}',
       'typos.bloom: unknown key sources',
     ]);
-    expect(catalogErrors({ meta: { ...meta, sources: { x: { title: 'X', trust: 'maybe' as 'reference' } } }, plants: [] })).toEqual(['source x: needs a title and a trust of reference, observation or unverified']);
+    expect(catalogErrors({ meta: { ...meta, sources: { x: { title: 'X', trust: 'maybe' as 'reference' } } }, plants: [] })).toEqual(['source x: needs a title and a trust of reference, nursery, observation or unverified']);
     expect(catalogErrors({ meta, plants: [species, cultivar] })).toEqual([]);
     // Zone values: half-zones from 1 (1a) to 13.5 (13b), nothing finer.
     const z = (v: number) => catalogErrors({ meta, plants: [rec({ id: 'z', facts: { zone_min: v } })] });

@@ -21,6 +21,8 @@ export const TIER = {
   fall_color: 'description', host: 'description', host_genus: 'description', edible: 'description',
 };
 const RANK = { authority: 3, breeder: 2, nursery: 1, blog: 0 };
+/** Facts where what nurseries report, differing from an authority, is kept beside it (`alt`; never safety facts). */
+export const REPORTABLE = new Set(['height', 'width', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'deer']);
 /** Facts a cultivar is bred to change: only a page for the cultivar itself speaks to them. */
 export const CULTIVAR_OWN = new Set(['height', 'width', 'flower_color', 'form']);
 
@@ -54,14 +56,23 @@ export const halfZoneOfTemp = (t) => Math.min(13.5, Math.max(1, Math.ceil((t + 6
  * occasionally dry without needing moist soil); Moderate otherwise. Wetland
  * waits for USDA's wetland list.
  */
+/**
+ * Water need from NC State's tags (it has no water field; docs/catalog-sources.md).
+ * High: standing water, or wet without good drainage. Low: NC State calls it
+ * drought tolerant (Drought Tolerant Garden theme, Very Dry drainage, or Drought
+ * resistance with Occasionally Dry drainage) and lists no wet conditions; a
+ * plant it rates for both wet and dry is adaptable, so Moderate.
+ */
 export function waterNeed(f) {
   const d = new Set(f['Soil Drainage'] ?? []), r = new Set(f['Resistance To Challenges'] ?? []);
+  const theme = new Set(f['Landscape Theme'] ?? []), loc = new Set(f['Landscape Location'] ?? []);
   if (!d.size) return null;
   if (d.has('Frequent Standing Water')) return 'High';
   if (d.has('Occasionally Wet') && !d.has('Good Drainage')) return 'High';
-  if (d.has('Very Dry')) return 'Low';
-  if (r.has('Drought') && d.has('Occasionally Dry') && !d.has('Moist')) return 'Low';
-  return 'Moderate';
+  const wet = ['Occasionally Wet', 'Occasional Flooding'].some((x) => d.has(x)) || r.has('Wet Soil')
+    || theme.has('Rain Garden') || theme.has('Water Garden') || loc.has('Pond') || loc.has('Riparian');
+  const dry = theme.has('Drought Tolerant Garden') || d.has('Very Dry') || (r.has('Drought') && d.has('Occasionally Dry'));
+  return dry && !wet ? 'Low' : 'Moderate';
 }
 
 /**
@@ -194,6 +205,12 @@ export function usdaClaims(u) {
 
 // ---------- Combining ----------
 
+/** Whether two or more nurseries agree on a value far from this one (see combine). */
+function farOff(fact, v, shops) {
+  const far = (o) => (fact === 'zone_min' || fact === 'zone_max' ? Math.abs(o - v) > 2
+    : fact === 'height' || fact === 'width' ? o.max < v.min / 2 || o.min > v.max * 2 : false);
+  return shops.some((c) => far(c.v) && shops.filter((o) => agrees(fact, c.v, o.v)).length >= 2);
+}
 /** Whether two values for a fact agree. */
 export function agrees(fact, a, b) {
   if (fact === 'zone_min' || fact === 'zone_max') return Math.abs(a - b) <= 1; // (within one whole zone, 10 °F)
@@ -219,6 +236,7 @@ export function agrees(fact, a, b) {
  */
 export function combine(claims, { cultivar = false, prefer = null } = {}) {
   const out = {};
+  const kept = {}; // (each fact's claims as weighed: copies counted once)
   const facts = new Set([...Object.keys(TIER), ...claims.map((c) => c.fact)]);
   for (const fact of facts) {
     const all = claims.filter((c) => c.fact === fact);
@@ -255,6 +273,7 @@ export function combine(claims, { cultivar = false, prefer = null } = {}) {
     });
     // A breeder speaks first only for its own cultivars; on a species it's one more nursery.
     if (!cultivar) usable = usable.map((c) => (c.kind === 'breeder' ? { ...c, kind: 'nursery' } : c));
+    kept[fact] = usable;
     if (fact === 'form') { out[fact] = combineForm(usable, prefer); continue; }
     if (fact === 'host') { // (a list: every source's names, together)
       const byKey = new Map();
@@ -288,18 +307,54 @@ export function combine(claims, { cultivar = false, prefer = null } = {}) {
     let check;
     // Authorities that disagree are a dispute. Below them, the majority is the likely answer.
     if (peersAgainst.length && (best.kind === 'authority' || peersFor.length + 1 <= peersAgainst.length)) check = 'disputed';
+    // One authority far from what two or more nurseries agree on (zones more than two apart; sizes not even
+    // within half or double): more likely a slip in the authority's record than a real difference. Disputed,
+    // for review, rather than taken.
+    else if (best.kind === 'authority' && !peersFor.length && farOff(fact, best.v, lowerAgainst.filter((c) => c.kind === 'nursery' || c.kind === 'breeder'))) check = 'disputed';
     else if (best.kind === 'authority') check = agreeing.length ? 'confirmed' : 'single';
     else check = agreeing.length ? 'likely' : 'reported';
     const r = { v: best.v, src: [best.src, ...agreeing.map((c) => c.src)], check, kind: best.kind };
     if (best.at) r.at = best.at;
     const notes = [best.note, ...peersAgainst.map((c) => `${c.src}: ${fmtV(c.v)}`), ...lowerAgainst.filter((c) => !peersAgainst.includes(c)).map((c) => `${c.src} says ${fmtV(c.v)}`)].filter(Boolean);
     if (notes.length) r.note = notes.join('; ');
+    // What nurseries report where it differs from the authority's value: the value most of those nurseries
+    // share ("likely" with two or more, else "reported"), kept beside it for the app to show and filter by.
+    if (best.kind === 'authority' && REPORTABLE.has(fact)) {
+      const shops = lowerAgainst.filter((c) => c.kind === 'nursery' || c.kind === 'breeder');
+      const groups = shops.map((c) => shops.filter((o) => agrees(fact, c.v, o.v)));
+      const largest = groups.sort((a, b) => b.length - a.length)[0];
+      if (largest) r.alt = { v: largest[0].v, src: largest.map((c) => c.src), check: largest.length > 1 ? 'likely' : 'reported' };
+    }
     // USDA's figures show only where they differ: for zones, by more than a whole zone.
     const flags = flagClaims.filter((c) => c.flag.temp == null || typeof best.v !== 'number' || Math.abs(halfZoneOfTemp(c.flag.temp) - best.v) > 1).map((c) => c.flag.text);
     if (flags.length) r.flags = flags;
     out[fact] = r;
   }
+  for (const pair of PAIRS) pairAlt(out, kept, pair);
   return out;
+}
+/** Facts that make one range together: a nursery's report for one is read with its report for the other. */
+const PAIRS = [['zone_min', 'zone_max'], ['sun_most', 'sun_least']];
+/**
+ * A pair's `alt` comes from nurseries that give both halves: the pair most of them share where it differs
+ * from the authorities' (either half), on both halves. Built from each half alone, one nursery's cold limit
+ * could be shown with another's (or the authority's) warm one, as a range nobody gave.
+ */
+function pairAlt(out, kept, [a, b]) {
+  const ra = out[a], rb = out[b];
+  if (ra) delete ra.alt;
+  if (rb) delete rb.alt;
+  if (!ra || !rb || ra.v == null || rb.v == null || ra.kind !== 'authority' || rb.kind !== 'authority') return;
+  const shop = (c) => c.kind === 'nursery' || c.kind === 'breeder';
+  const bOf = new Map((kept[b] ?? []).filter(shop).map((c) => [c.src, c]));
+  const both = (kept[a] ?? []).filter(shop).filter((c) => bOf.has(c.src)).map((c) => ({ src: c.src, va: c.v, vb: bOf.get(c.src).v }));
+  const differ = both.filter((n) => !agrees(a, ra.v, n.va) || !agrees(b, rb.v, n.vb));
+  const same = (x, y) => agrees(a, x.va, y.va) && agrees(b, x.vb, y.vb);
+  const largest = differ.map((n) => differ.filter((o) => same(n, o))).sort((x, y) => y.length - x.length)[0];
+  if (!largest) return;
+  const src = largest.map((n) => n.src), check = largest.length > 1 ? 'likely' : 'reported';
+  ra.alt = { v: largest[0].va, src, check };
+  rb.alt = { v: largest[0].vb, src, check };
 }
 /** A page for the cultivar itself that may decide its form: an authority's, or its breeder's (a nursery's is one more nursery). */
 const ownPage = (c) => (c.cultivarPage && c.kind === 'authority') || c.kind === 'breeder';
