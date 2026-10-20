@@ -11,7 +11,8 @@ import { gesture, state, tapTracker } from './state';
 import { save } from './storage';
 import type { Point, Shape } from './types';
 import { previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes } from './canvas';
-import { drawTap, editedShape, insertVertex, moveVertex } from './draw';
+import { drawTap, editedShape, insertVertex, moveVertex, vertexDropped } from './draw';
+import { dismissToastAction } from './ui/toast';
 import { placeTap } from './place';
 import { render, updateStatusReadout } from './ui/render';
 import { now, snap } from './util';
@@ -295,11 +296,14 @@ export function onCanvasPointerUp(e: PointerEvent) {
       render();
       return;
     case 'drag-vertex':
-      if (g.moved || g.inserted) { flushHistoryDebounce(); pushHistory(); save(); }
+      if (g.moved || g.inserted) { flushHistoryDebounce(); pushHistory(); save(); vertexDropped(g.id); }
       if (state.editPoints) state.editPoints.vertex = g.index;
       render();
       return;
     case 'pan':
+      // A tap on the plan (not a pan or pinch, which may be to look at it) closes a tidy notice, before the
+      // tap's own work (one that finishes a drawing gives its own).
+      if (!g.moved) dismissToastAction();
       if (g.moved) save();
       else if (state.draw) drawTap(g.startX, g.startY);
       else if (state.placing) placeTap(g.startX, g.startY);

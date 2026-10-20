@@ -31,7 +31,7 @@ export function snapTargets(shapes: Shape[], exceptId?: string): { id: string; p
   for (const s of shapes) {
     // (Nor a sun-exposure zone, which overlays the beds, or a kept measurement.)
     if (s.id === exceptId || s.role === 'plant' || s.role === 'shade' || s.type === 'circle' || s.type === 'oval' || s.type === 'text') continue;
-    if (s.type === 'line' && (s.pathWidth || s.showLength)) continue;
+    if (s.type === 'line' && (s.pathWidth || (s.role === 'other' && s.showLength))) continue; // (a fence showing its length is still a fence)
     if (!shownWith(s, state.viewFilter)) continue;
     const o = drawnOutline(s);
     if (o && o.pts.length >= 2) out.push({ id: s.id, ...o });
@@ -118,8 +118,11 @@ export function squareUp(pts: Point[], maxMove = Infinity, fixed: boolean[] = []
     const alongU = Math.abs(b.u - a.u) >= Math.abs(b.v - a.v);
     const fa = fixed[i], fb = fixed[(i + 1) % n];
     const pick = (x: number, y: number) => (fa && !fb ? x : fb && !fa ? y : (x + y) / 2);
-    return alongU ? { alongU, at: pick(a.v, b.v) } : { alongU, at: pick(a.u, b.u) };
+    // (Both ends on other shapes but not in line: squaring would pull one off what it landed on.)
+    const off = fa && fb && (alongU ? Math.abs(a.v - b.v) : Math.abs(a.u - b.u)) > 0.01;
+    return { alongU, off, at: alongU ? pick(a.v, b.v) : pick(a.u, b.u) };
   });
+  if (lines.some((l) => l.off)) return null;
   // Consecutive edges must alternate directions (it's square everywhere).
   for (let i = 0; i < n; i++) if (lines[i].alongU === lines[(i + 1) % n].alongU) return null;
   const out = Array.from({ length: n }, (_, i) => {

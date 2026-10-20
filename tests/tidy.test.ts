@@ -22,6 +22,16 @@ describe('landing on another shape', () => {
     state.roleViews = { building: { hidden: true } };
     expect(targets()).toEqual([]);
   });
+  it('leaves out sun zones, kept measurements and paths, but not a fence showing its length', () => {
+    const line = (id: string, more: Partial<Shape>) => ({ id, type: 'line', x: 0, y: 0, points: [[0, 0], [10, 0]], rotation: 0, label: id, color: '#000', opacity: 1, locked: false, ...more }) as Shape;
+    const shapes = [
+      { ...house, id: 'sun', role: 'shade' } as Shape,
+      line('measure', { role: 'other', showLength: true }),
+      line('walk', { role: 'path', pathWidth: 3 }),
+      line('fence', { role: 'boundary', showLength: true }),
+    ];
+    expect(snapTargets(shapes).map((t) => t.id)).toEqual(['fence']);
+  });
 });
 
 describe('squaring up', () => {
@@ -63,6 +73,10 @@ describe('squaring up', () => {
     const ang = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.atan2(b.y - a.y, b.x - a.x);
     expect(ang(out[1], out[2]) - ang(out[0], out[1])).toBeCloseTo(Math.PI / 2, 3);
     expect(ang(out[2], out[3])).toBeCloseTo(t - Math.PI, 3);
+  });
+  it('won\'t pull corners off the two different things they landed on', () => {
+    // One corner on a wall at y = 0, the next on a fence at y = 0.4: squaring would move one off its shape.
+    expect(squareUp([{ x: 0, y: 0 }, { x: 10, y: 0.4 }, { x: 10.2, y: 6 }, { x: 0, y: 6.1 }], 1.5, [true, true, false, false])).toBeNull();
   });
   it("leaves alone a tiny wobble of a step, and an outline that would move too far", () => {
     // An L with a step a twentieth of a foot: no step to square.

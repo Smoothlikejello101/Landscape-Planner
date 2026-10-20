@@ -196,7 +196,7 @@ test('a bed drawn against a building lands on its wall and is squared, says so, 
   // A bed against that wall, tapped a little off: its left corners 0.4 ft short of the wall, the rest not quite square.
   const drawBed = async () => {
     await addKind(page, 'bed', 'poly');
-    for (const [x, y] of [[7.4, 3], [11, 3.4], [11, 7], [7.3, 7]]) await tapFt(page, x, y); // (16, 3.4 falls on the grid at 3.5: a corner 7° off square)
+    for (const [x, y] of [[7.4, 3], [11, 3.4], [11, 7], [7.3, 7]]) await tapFt(page, x, y); // (11, 3.4 falls on the grid at 3.5: a corner 7° off square)
     await tapFt(page, 7.4, 3); // (closes it)
   };
   await drawBed();
@@ -205,11 +205,33 @@ test('a bed drawn against a building lands on its wall and is squared, says so, 
   await expect(notice).toContainText('squared the corners');
   const width = async () => { await page.locator('.sel-pill .edit').click(); await openSections(page); const v = await field(page, 'Width (ft)').inputValue(); await closeSheet(page); return v; };
   expect(await width()).toBe('4'); // (from the wall to 4 ft out)
-  // Undo: as tapped (on the grid: half a foot off the wall).
-  await page.locator('.sel-pill .edit').click(); await closeSheet(page);
+  // Undo: as tapped (on the grid: half a foot off the wall), keeping its name. A pan to look first (out and
+  // back) leaves the notice up.
+  await page.locator('button[title=Undo]').click(); // (that bed gone, so the next lands on the wall, not on it)
+  await expect(shapePath(page)).toHaveCount(0);
   await drawBed();
+  const box = await canvasBox(page);
+  await page.mouse.move(box.x + 13 * FT, box.y + 11 * FT); await page.mouse.down();
+  await page.mouse.move(box.x + 12 * FT, box.y + 10 * FT, { steps: 4 }); await page.mouse.move(box.x + 13 * FT, box.y + 11 * FT, { steps: 4 });
+  await page.mouse.up();
+  await expect(notice).toContainText('Lined up with');
+  const label = async () => { await page.locator('.sel-pill .edit').click(); const v = await field(page, 'Label').inputValue(); await closeSheet(page); return v; };
+  const name = await label();
   await notice.getByRole('button', { name: 'Undo' }).click();
   await expect(notice).toHaveCount(0);
+  expect(await width()).toBe('3.5');
+  expect(await label()).toBe(name);
+  // Its corner dragged to just short of the wall when editing points: onto the wall, said, with an Undo.
+  await page.locator('.sel-pill .edit').click(); await openSections(page);
+  await page.getByTestId('edit-points').click();
+  await page.mouse.move(box.x + 7.5 * FT, box.y + 3 * FT); await page.mouse.down();
+  await page.mouse.move(box.x + 8.5 * FT, box.y + 3 * FT, { steps: 4 }); await page.mouse.move(box.x + 7.3 * FT, box.y + 3.1 * FT, { steps: 4 });
+  await page.mouse.up();
+  await expect(notice).toContainText('Point lined up with');
+  await bar(page).getByRole('button', { name: 'Done' }).click();
+  await closeSheet(page);
+  expect(await width()).toBe('4');
+  await notice.getByRole('button', { name: 'Undo' }).click();
   expect(await width()).toBe('3.5');
   // Turned off (in Layers): drawn as tapped, nothing said.
   await page.locator('button[title=Layers]').click();
@@ -218,4 +240,9 @@ test('a bed drawn against a building lands on its wall and is squared, says so, 
   await drawBed();
   await expect(notice).toHaveCount(0);
   expect(await width()).toBe('3.5');
+  // (A setting of this device: still off after a reload.)
+  await page.waitForTimeout(600);
+  await page.reload();
+  await page.locator('button[title=Layers]').click();
+  await expect(page.getByTestId('tidy-drawing')).not.toBeChecked();
 });

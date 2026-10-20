@@ -18,7 +18,6 @@ import { plantColor } from '../plants';
 import { currentProject, storageIsDurable } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
-import { dismissToastAction } from './toast';
 import { renderMoreMenu, toggleSelectMode } from './menu';
 import { renderExportModal, renderPreviewModal, renderResetModal } from './modals';
 import { renderPlantsPanel } from './plants-panel';
@@ -99,8 +98,6 @@ export function render() {
   // ===== CANVAS WRAP =====
   const canvasWrap = el('div', { className: 'canvas-wrap', id: 'canvas-wrap' });
   const svg = svgEl('svg', { id: 'canvas-svg', width: state.canvasW, height: state.canvasH });
-  // A tap on the plan closes a drawing's tidy notice: first, so a tap that finishes a drawing keeps its own.
-  svg.addEventListener('pointerdown', dismissToastAction);
   svg.addEventListener('pointerdown', onCanvasPointerDown);
   svg.addEventListener('touchstart', e => { if (e.touches && e.touches.length === 2) e.preventDefault(); }, { passive: false });
   svg.addEventListener('touchmove', e => { if (e.touches && e.touches.length === 2) e.preventDefault(); }, { passive: false });
