@@ -11,6 +11,12 @@ import { ZONE_SOURCE_SHORT } from '../climate';
 import { dismissZipPrompt, openLocation, zipPromptDismissed } from './location-panel';
 import { render } from './render';
 import { plantDetails } from './plant-details';
+import { loadWild } from '../wild';
+
+/** The open picker's list rebuild (in place: the search keeps the keyboard, opened rows stay open). */
+let refreshList: (() => void) | null = null;
+/** Once the garden's wild records are in, show them in the list. */
+function afterWild() { if (state.panel === 'plants') refreshList?.(); }
 
 function closePicker() { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerForTree = false; render(); }
 const isTree = (p: Plant) => !!p.form?.startsWith('Tree'); // (its first form: what it's drawn as)
@@ -42,6 +48,7 @@ function pick(p: Plant) {
 function openForm(args: PlantFormArgs) { state.plantForm = args; state.panel = 'plantForm'; render(); }
 
 export function renderPlantsPanel() {
+  void loadWild(afterWild);
   const linking = !!state.pickerLinkId;
   const forTree = !linking && state.pickerForTree;
   const title = linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker' + (PLANTS.length ? ' (' + (PLANTS.length + myPlants.length) + ')' : '');
@@ -158,6 +165,7 @@ export function renderPlantsPanel() {
     b.addEventListener('click', () => openForm({ name: q, place: true }));
     return b;
   }
+  refreshList = () => { if (listWrap.isConnected) rebuildList(); };
   function rebuildList() {
     while (listWrap.firstChild) listWrap.removeChild(listWrap.firstChild);
     const mine = myHits().filter((p) => !forTree || isTree(p) || !p.form);

@@ -13,6 +13,7 @@ keeps the answer. The files aren't part of the offline copy.
 | --- | --- | --- |
 | Hardiness zone by ZIP code | PRISM Group, Oregon State University: `phzm_{us,ak,hi,pr}_zipcode_2023.csv` from https://prism.oregonstate.edu/phzm (the data behind the 2023 USDA Plant Hardiness Zone Map) | "May be freely reproduced and distributed"; any description of the data must state the PRISM Group's name, URL and the date of access (https://prism.oregonstate.edu/terms/). The app shows it in full in the Garden location sheet, and in short under the plant picker's zone filter. Commercial use isn't addressed; questions go to prism-questions@nacse.org. |
 | Where each ZIP code area is | U.S. Census Bureau, 2024 Gazetteer, ZIP Code Tabulation Areas (`2024_Gaz_zcta_national.txt`) | U.S. government work, public domain |
+| Which county each ZIP code area is in | U.S. Census Bureau cartographic boundary files (1:10m counties), as packaged by `us-atlas` 3.0.1 (ISC licence; the data is public domain): the county that contains the ZIP area's center | U.S. government work, public domain |
 | Frost dates | NOAA NCEI U.S. Climate Normals 1991–2020, annual/seasonal, by station (`us-climate-normals_1991-2020_v1.0.1_annualseasonal_multivariate_by-station_c20230404.tar.gz`) | U.S. government work, public domain |
 
 ## What the frost numbers are
@@ -25,7 +26,7 @@ From NOAA's 32 °F freeze probabilities:
 - `yearRound`: NOAA's flag V on the dates, "year-round risk of frost-freeze; too cold to compute". The app says frost can come in any month.
 
 Stations with no temperature records (rain gauges) are left out.
-In a ZIP's row, the station index is -1 when no station is within 50 miles, and -2 when the ZIP has no Census area.
+A ZIP's row is `[zone, station index, miles to the station, county]`. The station index is -1 when no station is within 50 miles, and -2 when the ZIP has no Census area. The county is the five-digit FIPS code as a number (05019, Clark County, Arkansas, is 5019), left off where the ZIP has no area or its center falls outside every county shape (a few on coasts and islands). It's the county the ZIP area's center is in: a ZIP that spans a county line gets one of them. The app uses it for wild plant records ([wild-records.md](wild-records.md)).
 
 ## Limits
 
