@@ -140,8 +140,8 @@ export function gadmCounties(states, counties) {
  * GBIF's records of each catalog plant by county, from the counties download's rows: { id: { counties, species } },
  * like atlasRecords. Herbarium specimens only (a botanist collected it there, as the atlas's and USDA's records
  * are), not those marked cultivated or captive; observations aren't counted (a planted shrub is too easily
- * logged as wild). And only in or next to a county where the curated sources (the atlas, USDA) record it wild
- * already (`nearRecord(id, county)`): specimens fill in its range, never extend it. Few specimens of planted
+ * logged as wild). And only in or next to (in the same state) a county where the curated sources (the atlas,
+ * USDA) record it wild already (`nearRecord(id, county)`): specimens fill in its range, never extend it. Few specimens of planted
  * things are marked so (65 of 760,000): unchecked, a garden camellia, a Chinese chestnut or a misnamed
  * coneflower collected in Arkansas would count. `fipsOf(gid)`: a county's FIPS.
  */
@@ -158,6 +158,17 @@ export function gbifRecords(rows, species, keyOf, fipsOf, nearRecord) {
   return Object.fromEntries(Object.entries(out).map(([id, r]) => [id, { counties: [...r.counties].sort((a, b) => a - b), species: r.species }]));
 }
 
+/**
+ * Whether a county is one the curated sources record a plant in, or next to one in the same state: (id, fips)
+ * → boolean. (Over a state line, a record vouches for nothing in the other state; checked, those additions were
+ * mostly look-alikes, a northern blazing star "wild" in Arkansas.)
+ */
+export function curatedNear(bySource, counties) {
+  const nearOf = new Map(counties.map((c) => [c.fips, c.near]));
+  const ok = new Set(Object.values(bySource).flatMap((r) => Object.entries(r).flatMap(([id, x]) =>
+    x.counties.flatMap((c) => [c, ...(nearOf.get(c) ?? []).filter((n) => stateOf(n) === stateOf(c))].map((n) => `${id} ${n}`)))));
+  return (id, fips) => ok.has(`${id} ${fips}`);
+}
 /** The bloom months' source: GBIF's download of the flowering records, cited by its DOI (GBIF's citation form, short). */
 export const gbifSource = (doi) => ({ title: `GBIF.org Occurrence Download doi:${doi}`, url: `https://doi.org/${doi}` });
 /** The county records' source: GBIF's download of herbarium specimens by county, cited by its DOI. */
@@ -203,9 +214,8 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
     const gadm = gadmCounties(US_GADM.map((g) => ({ code: codeOf(g), subs: page(gadmSubdivisionsUrl(g)) ?? [] })), counties);
     if (US_GADM.some((g) => !page(gadmSubdivisionsUrl(g)))) { console.error('a state\'s GADM counties are missing: run gbif-fetch.mjs first'); process.exit(1); }
     const keyOf = (s) => matchedTaxon(page(matchUrl(s.binomial)))?.key;
-    const nearOf = new Map(counties.map((c) => [c.fips, c.near]));
-    const curated = new Set(Object.values(bySource).flatMap((r) => Object.entries(r).flatMap(([id, x]) => x.counties.flatMap((c) => [c, ...(nearOf.get(c) ?? [])].map((n) => `${id} ${n}`)))));
-    bySource.gbif = gbifRecords(tsvRows(readFileSync('catalog-src/gbif-downloads/counties.tsv', 'utf8')), bloomSpecies(catalog, audit), keyOf, (g) => gadm[g], (id, c) => curated.has(`${id} ${c}`));
+    const near = curatedNear(bySource, counties);
+    bySource.gbif = gbifRecords(tsvRows(readFileSync('catalog-src/gbif-downloads/counties.tsv', 'utf8')), bloomSpecies(catalog, audit), keyOf, (g) => gadm[g], near);
     sources.gbif = gbifSpecimensSource(countyMeta.doi);
   }
   const ncsuSeasons = seasonsToCheck(audit);

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
-import { atlasRecords, gadmCounties, gbifRecords, SOURCES, stateFile, wildIndex } from '../scripts/catalog/wild.mjs';
+import { atlasRecords, curatedNear, gadmCounties, gbifRecords, SOURCES, stateFile, wildIndex } from '../scripts/catalog/wild.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { canonical, placer, twoTaxa, usdaRecords } from '../scripts/catalog/usda-counties.mjs';
 import { countyName, loadWild, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
@@ -86,6 +86,12 @@ describe("GBIF's herbarium specimens by county", () => {
     const near = new Set([5019, 5059, 5109]);
     const out = gbifRecords(rows, [{ id: 'coneflower', binomial: 'Echinacea purpurea', species: false }], () => 1, (g: string) => fips[g], (_id: string, c: number) => near.has(c));
     expect(out).toEqual({ coneflower: { counties: [5019], species: false } });
+  });
+  it("vouch, from the atlas's and USDA's records, for a plant's counties and their neighbors in the same state only", () => {
+    // Clark County, Arkansas borders Hot Spring (5059); Miller (5091) borders Bowie, Texas (48037).
+    const near = curatedNear({ arkatlas: { oak: { counties: [5019], species: false } }, usda: { oak: { counties: [48037], species: false } } },
+      [{ fips: 5019, near: [5059] }, { fips: 5059, near: [5019] }, { fips: 48037, near: [5091] }, { fips: 5091, near: [48037] }]);
+    expect([near('oak', 5019), near('oak', 5059), near('oak', 48037), near('oak', 5091), near('ash', 5019)]).toEqual([true, true, true, false, false]);
   });
 });
 

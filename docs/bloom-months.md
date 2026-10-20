@@ -23,7 +23,7 @@ and when a plant was seen in flower.
 - **What's kept:** counts by species, state, month and note, never a record, a photo or text.
 - **Credit:** GBIF builds the counts itself, as an SQL download with its own DOI, which is the citation
   (GBIF's data user agreement: cite the data by DOI). The app's source line names it ("GBIF.org Occurrence
-  Download doi:10.15468/dl.ehs3vp"); the DOI's page lists every dataset behind the counts.
+  Download doi:10.15468/dl.nydfuf"); the DOI's page lists every dataset behind the counts.
 
 ## How it's read
 
