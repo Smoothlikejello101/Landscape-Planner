@@ -35,7 +35,9 @@ export const US_GADM = Array.from({ length: 51 }, (_, i) => `USA.${i + 1}_1`);
 export function matchedTaxon(m) {
   if (!m || m.matchType !== 'EXACT' || m.rank !== 'SPECIES') return null;
   if (m.status === 'ACCEPTED') return { key: m.usageKey, name: m.species ?? m.canonicalName };
-  if (m.status === 'SYNONYM' && m.acceptedUsageKey) return { key: m.acceptedUsageKey, name: m.species, synonym: m.canonicalName };
+  // (A synonym of a variety or subspecies, Hibiscus lasiocarpos → H. moscheutos subsp. lasiocarpos: none. The
+  // downloads count by species, and its species' records would be another plant's too.)
+  if (m.status === 'SYNONYM' && m.acceptedUsageKey && m.speciesKey === m.acceptedUsageKey) return { key: m.acceptedUsageKey, name: m.species, synonym: m.canonicalName };
   return null;
 }
 
@@ -49,10 +51,14 @@ const inList = (keys) => `${SPECIES} IN (${keys.map((k) => `'${Number(k)}'`).joi
 const licensed = `license IN (${LICENSES.map((l) => `'${l}'`).join(', ')})`;
 /** The downloads (counts only, never a record): their SQL for a list of backbone species keys. */
 export const DOWNLOADS = {
-  /** Records with any phenology note, by species, state and month (bloom and fruiting months). */
-  bloom: (keys) => `SELECT ${SPECIES} AS specieskey, level1gid, "month", reproductivecondition, COUNT(*) AS n FROM occurrence `
+  /**
+   * Records with any phenology note, by species, state, month, kind of record and whether marked cultivated
+   * (bloom and fruiting months; bloom.mjs keeps observations and herbarium specimens not marked cultivated).
+   */
+  bloom: (keys) => `SELECT ${SPECIES} AS specieskey, level1gid, "month", reproductivecondition, basisofrecord, `
+    + `degreeofestablishment.concept AS degree, COUNT(*) AS n FROM occurrence `
     + `WHERE countrycode = 'US' AND ${licensed} AND reproductivecondition IS NOT NULL AND ${inList(keys)} `
-    + `GROUP BY ${SPECIES}, level1gid, "month", reproductivecondition`,
+    + `GROUP BY ${SPECIES}, level1gid, "month", reproductivecondition, basisofrecord, degreeofestablishment.concept`,
   /** Records present, by species, county, kind of record and whether marked native, introduced or cultivated. */
   counties: (keys) => `SELECT ${SPECIES} AS specieskey, level1gid, level2gid, basisofrecord, establishmentmeans.concept AS establishment, `
     + `degreeofestablishment.concept AS degree, COUNT(*) AS n, MAX("year") AS latest FROM occurrence `

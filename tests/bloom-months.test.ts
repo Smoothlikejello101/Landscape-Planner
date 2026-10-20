@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
-import { agreesWithSeasons, bloomCounts, bloomDisagreements, bloomSpecies, bloomWindow, MIN_RECORDS, stateBloom } from '../scripts/catalog/bloom.mjs';
+import { agreesWithSeasons, bloomCounts, bloomDisagreements, bloomSpecies, bloomWindow, MIN_RECORDS, seasonsToCheck, stateBloom } from '../scripts/catalog/bloom.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { DOWNLOADS, matchedTaxon, matchUrl, phases, tsvRows } from '../scripts/catalog/gbif.mjs';
 import { loadWild, localBloom, resetWild, type WildFile } from '../src/wild';
@@ -26,12 +26,16 @@ describe('a bloom window', () => {
     expect(agreesWithSeasons({ start: 12, end: 2 }, ['winter', 'spring'])).toBe(true);
     expect(agreesWithSeasons({ start: 6, end: 8 }, ['spring'])).toBe(false);
     expect(agreesWithSeasons({ start: 6, end: 8 }, undefined)).toBe(true);
+    expect(seasonsToCheck([{ id: 'a', facts: { bloom_season: { v: ['spring'], src: ['ncsu', 'x.com'] } } },
+      { id: 'b', facts: { bloom_season: { v: ['spring'], src: ['somenursery.com'] } } }, { id: 'c', facts: {} }])).toEqual({ a: ['spring'] });
   });
 });
 
 describe('flowering records by state', () => {
   const match = { 'Echinacea purpurea': { matchType: 'EXACT', rank: 'SPECIES', status: 'ACCEPTED', usageKey: 1, species: 'Echinacea purpurea' },
-    'Aster novae-angliae': { matchType: 'EXACT', rank: 'SPECIES', status: 'SYNONYM', usageKey: 9, acceptedUsageKey: 2, species: 'Symphyotrichum novae-angliae', canonicalName: 'Aster novae-angliae' },
+    'Aster novae-angliae': { matchType: 'EXACT', rank: 'SPECIES', status: 'SYNONYM', usageKey: 9, acceptedUsageKey: 2, speciesKey: 2, species: 'Symphyotrichum novae-angliae', canonicalName: 'Aster novae-angliae' },
+    // (A synonym of a subspecies: its species' records would be another plant's too.)
+    'Hibiscus lasiocarpos': { matchType: 'EXACT', rank: 'SPECIES', status: 'SYNONYM', usageKey: 6377193, acceptedUsageKey: 6377098, speciesKey: 3152596, species: 'Hibiscus moscheutos' },
     'Fooa bar': { matchType: 'FUZZY', rank: 'SPECIES', status: 'ACCEPTED', usageKey: 3 } } as Record<string, unknown>;
   const pages = new Map<string, unknown>();
   for (const [n, m] of Object.entries(match)) pages.set(matchUrl(n), m);
@@ -40,6 +44,12 @@ describe('flowering records by state', () => {
     '1\tUSA.4_1\t6\tFlowers\t30', '1\tUSA.4_1\t6\tfl-fr\t5', '1\tUSA.26_1\t6\tFlowers|Flower Buds\t5', '1\tUSA.4_1\t7\tflr & frt\t10',
     '1\tUSA.4_1\t8\tNo Flowers or Fruits\t50', '1\tUSA.4_1\t9\tFruits or Seeds\t40', '1\tUSA.4_1\t\tflowers\t9', '1\t\t5\tflowering\t3',
     '2\tUSA.4_1\t9\tflowering or fruiting\t12', '3\tUSA.4_1\t9\tflowering\t12'].join('\n'));
+  it('count observations and herbarium specimens, not a botanic garden\'s plants or ones marked cultivated', () => {
+    const kinds = tsvRows(['specieskey\tlevel1gid\tmonth\treproductivecondition\tbasisofrecord\tdegree\tn',
+      '1\tUSA.4_1\t6\tFlowers\tHUMAN_OBSERVATION\t\t30', '1\tUSA.4_1\t6\tfl\tPRESERVED_SPECIMEN\t\t5', '1\tUSA.4_1\t6\tfl\tLIVING_SPECIMEN\t\t50',
+      '1\tUSA.4_1\t7\tFlowers\tHUMAN_OBSERVATION\tcultivated\t50'].join('\n'));
+    expect(bloomCounts(species, read, (g: string) => fips[g], kinds)['echinacea-purpurea'].states[5]).toEqual(months({ 6: 35 }));
+  });
   const fips = { 'USA.4_1': 5, 'USA.26_1': 29 } as Record<string, number>;
   const species = [{ id: 'echinacea-purpurea', binomial: 'Echinacea purpurea', species: false }, { id: 'aster', binomial: 'Aster novae-angliae', species: false }, { id: 'foo', binomial: 'Fooa bar', species: false }];
   const read = (u: string) => pages.get(u) ?? null;
@@ -47,6 +57,7 @@ describe('flowering records by state', () => {
   it('take an exact match, or a plain synonym\'s accepted name; never a fuzzy guess', () => {
     expect(matchedTaxon(match['Aster novae-angliae'])).toEqual({ key: 2, name: 'Symphyotrichum novae-angliae', synonym: 'Aster novae-angliae' });
     expect(matchedTaxon(match['Fooa bar'])).toBeNull();
+    expect(matchedTaxon(match['Hibiscus lasiocarpos'])).toBeNull();
     expect(Object.keys(counts)).toEqual(['echinacea-purpurea']); // (the aster's one row says flowers or fruit: neither)
   });
   it('count records whose note says flowers, by state and month; no month, nowhere; no state, only in the US total', () => {

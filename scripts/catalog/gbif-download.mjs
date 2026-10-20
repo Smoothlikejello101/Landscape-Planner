@@ -6,7 +6,7 @@
 // `user = "name:password"` (never in the repo, never on a command line). `fetch` needs no account: a built
 // download is public. Run gbif-fetch.mjs first (the species' GBIF names).
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { USER_AGENT } from './fetch-lib.mjs';
@@ -34,7 +34,9 @@ if (cmd === 'request') {
   const missing = species.filter((s) => !savedPage('gbif', matchUrl(s.binomial)));
   if (missing.length) { console.error(`${missing.length} species' GBIF names not fetched yet (gbif-fetch.mjs): ${missing.slice(0, 5).map((s) => s.binomial).join(', ')}…`); process.exit(1); }
   const keys = [...new Set(species.map((s) => matchedTaxon(json(matchUrl(s.binomial)))?.key).filter(Boolean))].sort((a, b) => a - b);
-  const account = readFileSync(join(homedir(), '.config', 'fullgrown', 'gbif'), 'utf8');
+  const accountFile = join(homedir(), '.config', 'fullgrown', 'gbif');
+  if ((statSync(accountFile).mode & 0o077) !== 0) { console.error(`${accountFile} can be read by others: chmod 600 it first`); process.exit(1); }
+  const account = readFileSync(accountFile, 'utf8');
   const body = JSON.stringify({ sendNotification: true, notificationAddresses: ['hello@fullgrown.garden'], format: 'SQL_TSV_ZIP', sql: DOWNLOADS[name](keys) });
   const tmp = join(DIR, `${name}.request.tmp`);
   writeFileSync(tmp, body);

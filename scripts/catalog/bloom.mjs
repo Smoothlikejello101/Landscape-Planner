@@ -59,6 +59,7 @@ export function agreesWithSeasons(w, seasons) {
  * reproductivecondition, n); `read(url)` gives a fetched match page's JSON; `fipsOf(gid)` a GADM id's state
  * FIPS. Records with no month count nowhere; with no state, only in the US-wide total.
  */
+const KINDS = new Set(['HUMAN_OBSERVATION', 'PRESERVED_SPECIMEN']);
 export function bloomCounts(species, read, fipsOf, rows, phase = 'flower') {
   const byKey = new Map();
   for (const s of species) {
@@ -70,6 +71,10 @@ export function bloomCounts(species, read, fipsOf, rows, phase = 'flower') {
     const plants = byKey.get(String(r.specieskey));
     const m = Number(r.month), n = Number(r.n);
     if (!plants || !(m >= 1 && m <= 12) || !(n > 0) || !phases(r.reproductivecondition)[phase]) continue;
+    // Observations and herbarium specimens, not living collections (a botanic garden's plants) or anything
+    // marked cultivated or captive. (The first download had neither column: everything counted.)
+    if (r.basisofrecord != null && !KINDS.has(r.basisofrecord)) continue;
+    if (/^(cultivated|captive)$/i.test(r.degree ?? '')) continue;
     const f = r.level1gid ? fipsOf(r.level1gid) : null;
     for (const s of plants) {
       const c = (out[s.id] ??= { states: {}, total: Array(12).fill(0), species: s.species, taxon: s.taxon });
@@ -98,6 +103,10 @@ export function stateBloom(fips, counts, neighborStates, ncsuSeasons = {}) {
     if (pooled.reduce((a, b) => a + b, 0) >= MIN_RECORDS) out[id] = { ...bloomWindow(pooled), area: 'region' };
   }
   return out;
+}
+/** The seasons each plant's window is checked against: { id: ["spring", …] }, where NC State gives them (a season from another source alone, a nursery's, isn't the check). */
+export function seasonsToCheck(audit) {
+  return Object.fromEntries(audit.map((a) => [a.id, a.facts?.bloom_season]).filter(([, f]) => f?.v?.length && f.src?.includes('ncsu')).map(([id, f]) => [id, f.v]));
 }
 /**
  * Plants whose US-wide window shares no month with NC State's seasons: [{ id, window, seasons }]. Only those

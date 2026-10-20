@@ -9,7 +9,7 @@
 // sample.mjs's output, for the atlas name each plant was matched by. County codes are five-digit FIPS as
 // numbers (Clark County, Arkansas, 05019, is 5019).
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { bloomCounts, bloomDisagreements, bloomSpecies, stateBloom } from './bloom.mjs';
+import { bloomCounts, bloomDisagreements, bloomSpecies, seasonsToCheck, stateBloom } from './bloom.mjs';
 import { gadmSubdivisionsUrl, gadmUrl, matchedTaxon, matchUrl, tsvRows, US_GADM } from './gbif.mjs';
 import { STATES } from './counties.mjs';
 import { savedPage } from './pages.mjs';
@@ -100,23 +100,37 @@ export const SOURCES = {
 };
 // ---------- GBIF's herbarium specimens by county ----------
 /** GADM's old names for counties since renamed (Shannon, SD is Oglala Lakota; Alaska's census areas). */
+/**
+ * GADM's areas holding a county and a city of the same name together (records from both are in them): Richmond,
+ * Virginia (city and county, 50 miles apart), Baltimore and St. Louis (each city with its county). Checked by
+ * the spread of the records GBIF places in them, 2026-10-20.
+ */
+const GADM_LUMPED = new Set(['VA Richmond', 'MD Baltimore', 'MO Saint Louis']);
 const GADM_RENAMED = { 'SD Shannon': 'Oglala Lakota', 'AK Wade Hampton': 'Kusilvak', 'AK Prince of Wales-Outer Ketchi': 'Prince of Wales-Hyder' };
 const countyKey = (n) => n.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\bsaint\b/g, 'st').replace(/\bsainte\b/g, 'ste').replace(/[^a-z]/g, '');
 /**
  * GADM's counties (a download names them so: "USA.4.10_1" is Clark County, Arkansas) by our FIPS: { gid: fips }.
- * `states`: [{ code (postal), subs (GADM's subdivisions of it) }]. By name in the state; where a county and an
- * independent city share it (Richmond, Virginia), the city is the one GADM calls a city (FIPS x500 and up).
- * Lakes, and areas since split or merged (Bedford City, Virginia), match nothing.
+ * `states`: [{ code (postal), subs (GADM's subdivisions of it) }]. By name in the state ("X City" as X; Bedford
+ * City, Virginia, merged into Bedford County in 2013, is that county now). Lakes, and areas since split, match
+ * nothing.
  */
 export function gadmCounties(states, counties) {
   const out = {};
   for (const { code, subs } of states) {
     const mine = counties.filter((c) => c.state === code);
+    const nameOf = (s) => countyKey(GADM_RENAMED[`${code} ${s.name}`] ?? s.name.replace(/ city$/i, ''));
+    const shared = new Map();
+    for (const s of subs) shared.set(nameOf(s), (shared.get(nameOf(s)) ?? 0) + 1);
     for (const s of subs) {
       const city = /city/i.test([...(s.type ?? []), ...(s.englishType ?? [])].join(' ')) || / city$/i.test(s.name);
-      const name = countyKey(GADM_RENAMED[`${code} ${s.name}`] ?? s.name.replace(/ city$/i, ''));
-      let hits = mine.filter((c) => countyKey(c.name.replace(/ city$/i, '')) === name);
-      if (hits.length > 1) hits = hits.filter((c) => (c.fips % 1000 >= 500) === city);
+      let hits = mine.filter((c) => countyKey(c.name.replace(/ city$/i, '')) === nameOf(s));
+      // A county and a city of ours sharing the name: told apart where GADM has both too (Roanoke, Fairfax).
+      // Where it has one area, that's the county (Franklin, Virginia: its city is elsewhere, in GADM's
+      // Southampton), except where GADM's one area holds both (GADM_LUMPED): those are neither.
+      if (hits.length > 1) {
+        hits = shared.get(nameOf(s)) > 1 ? hits.filter((c) => (c.fips % 1000 >= 500) === city)
+          : GADM_LUMPED.has(`${code} ${s.name}`) ? [] : hits.filter((c) => c.fips % 1000 < 500);
+      }
       if (hits.length === 1) out[s.id] = hits[0].fips;
     }
   }
@@ -126,11 +140,12 @@ export function gadmCounties(states, counties) {
  * GBIF's records of each catalog plant by county, from the counties download's rows: { id: { counties, species } },
  * like atlasRecords. Herbarium specimens only (a botanist collected it there, as the atlas's and USDA's records
  * are), not those marked cultivated or captive; observations aren't counted (a planted shrub is too easily
- * logged as wild). And only in a state where the curated sources (the atlas, USDA) record it wild already
- * (`inState(id, stateFips)`): specimens fill in its counties there, never add a state. Unflagged, a garden
- * camellia or ginkgo collected in Arkansas, or a misnamed coneflower, would. `fipsOf(gid)`: a county's FIPS.
+ * logged as wild). And only in or next to a county where the curated sources (the atlas, USDA) record it wild
+ * already (`nearRecord(id, county)`): specimens fill in its range, never extend it. Few specimens of planted
+ * things are marked so (65 of 760,000): unchecked, a garden camellia, a Chinese chestnut or a misnamed
+ * coneflower collected in Arkansas would count. `fipsOf(gid)`: a county's FIPS.
  */
-export function gbifRecords(rows, species, keyOf, fipsOf, inState) {
+export function gbifRecords(rows, species, keyOf, fipsOf, nearRecord) {
   const byKey = new Map();
   for (const s of species) { const k = keyOf(s); if (k != null) (byKey.get(String(k)) ?? byKey.set(String(k), []).get(String(k))).push(s); }
   const out = {};
@@ -138,7 +153,7 @@ export function gbifRecords(rows, species, keyOf, fipsOf, inState) {
     if (r.basisofrecord !== 'PRESERVED_SPECIMEN' || /^(cultivated|captive)$/i.test(r.degree) || !(Number(r.n) > 0)) continue;
     const f = fipsOf(r.level2gid);
     if (f == null) continue;
-    for (const s of byKey.get(String(r.specieskey)) ?? []) if (inState(s.id, stateOf(f))) (out[s.id] ??= { counties: new Set(), species: s.species }).counties.add(f);
+    for (const s of byKey.get(String(r.specieskey)) ?? []) if (nearRecord(s.id, f)) (out[s.id] ??= { counties: new Set(), species: s.species }).counties.add(f);
   }
   return Object.fromEntries(Object.entries(out).map(([id, r]) => [id, { counties: [...r.counties].sort((a, b) => a - b), species: r.species }]));
 }
@@ -188,11 +203,12 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
     const gadm = gadmCounties(US_GADM.map((g) => ({ code: codeOf(g), subs: page(gadmSubdivisionsUrl(g)) ?? [] })), counties);
     if (US_GADM.some((g) => !page(gadmSubdivisionsUrl(g)))) { console.error('a state\'s GADM counties are missing: run gbif-fetch.mjs first'); process.exit(1); }
     const keyOf = (s) => matchedTaxon(page(matchUrl(s.binomial)))?.key;
-    const curated = new Set(Object.values(bySource).flatMap((r) => Object.entries(r).flatMap(([id, x]) => x.counties.map((c) => `${id} ${stateOf(c)}`))));
-    bySource.gbif = gbifRecords(tsvRows(readFileSync('catalog-src/gbif-downloads/counties.tsv', 'utf8')), bloomSpecies(catalog, audit), keyOf, (g) => gadm[g], (id, st) => curated.has(`${id} ${st}`));
+    const nearOf = new Map(counties.map((c) => [c.fips, c.near]));
+    const curated = new Set(Object.values(bySource).flatMap((r) => Object.entries(r).flatMap(([id, x]) => x.counties.flatMap((c) => [c, ...(nearOf.get(c) ?? [])].map((n) => `${id} ${n}`)))));
+    bySource.gbif = gbifRecords(tsvRows(readFileSync('catalog-src/gbif-downloads/counties.tsv', 'utf8')), bloomSpecies(catalog, audit), keyOf, (g) => gadm[g], (id, c) => curated.has(`${id} ${c}`));
     sources.gbif = gbifSpecimensSource(countyMeta.doi);
   }
-  const ncsuSeasons = Object.fromEntries(audit.map((a) => [a.id, a.facts?.bloom_season?.v]).filter(([, v]) => v?.length));
+  const ncsuSeasons = seasonsToCheck(audit);
   const near = neighborStates(counties);
   writeFileSync('catalog-src/bloom-review.json', JSON.stringify(bloomDisagreements(counts, ncsuSeasons), null, 1) + '\n');
   const dir = `public/wild/${FORMAT}`;

@@ -14,9 +14,10 @@ Our source rules leave out crowd-sourced data and aggregators. For bloom months 
 aren't another's; turning a season into months would be a guess. Flowering records are measurements: where
 and when a plant was seen in flower.
 
-- **What:** GBIF.org occurrence records in the US whose phenology note says flowers: iNaturalist
-  research-grade observations (the identification confirmed by others; captive and cultivated plants are
+- **What:** GBIF.org occurrence records in the US whose phenology note says flowers: observations, nearly
+  all iNaturalist research-grade (the identification confirmed by others; captive and cultivated plants are
   never research grade) annotated "Flowers", and herbarium specimens noted in flower ("fl", "flr", "fl-fr").
+  Not living collections (a botanic garden's plants) or records marked cultivated or captive.
 - **Licences:** only records whose own licence allows commercial use with credit (CC0 and CC BY 4.0). CC BY-NC
   records, most of iNaturalist's, are left out.
 - **What's kept:** counts by species, state, month and note, never a record, a photo or text.
@@ -29,11 +30,14 @@ and when a plant was seen in flower.
 1. `node scripts/catalog/gbif-fetch.mjs <combined.json>` (politely: robots.txt, 1 request every 2 s; run
    again to retry what failed): each catalog species' match in GBIF's backbone (exact, species rank; a plain
    synonym counts as its accepted name: Aster novae-angliae is Symphyotrichum novae-angliae; doubtful,
-   misapplied or fuzzy matches don't; a few by GBIF's own name for the same plant, `GBIF_NAME`), and the
+   misapplied or fuzzy matches don't, nor a synonym of a variety: Hibiscus lasiocarpos is H. moscheutos
+   subsp. lasiocarpos to GBIF, and counting by species would give it the other's records; a few by GBIF's
+   own name for the same plant, `GBIF_NAME`), and the
    states' GADM codes (matched to states by their postal codes from GBIF's own GADM lookup).
 2. `node scripts/catalog/gbif-download.mjs request bloom <combined.json>` asks GBIF to count the records
    (`DOWNLOADS.bloom` in gbif.mjs: by species, state, month and note), as the FullGrown GBIF account
-   (`~/.config/fullgrown/gbif`, a curl config line `user = "name:password"`, never in the repo). An email
+   (`~/.config/fullgrown/gbif`, mode 600, a curl config line `user = "name:password"`, with any `"` or `\`
+   in the password escaped with a `\`; never in the repo). An email
    comes to hello@fullgrown.garden when it's built; then `node scripts/catalog/gbif-download.mjs fetch bloom`
    saves it (`catalog-src/gbif-downloads/bloom.tsv`, and its DOI in `bloom.json`).
 3. `node scripts/catalog/wild.mjs <combined.json>` adds each state's bloom windows to its wild-records file
@@ -52,8 +56,9 @@ GBIF calls the backbone deprecated: a move to the Catalogue of Life's keys is on
 - **Window:** the shortest run of months holding 80% of the records, wrapping past December (witch hazel:
   Dec–Feb); the busiest such run on a tie. The peak is the month with the most.
 - **Enough records:** 30 in the state; else 30 in the state and its neighbors together; else none.
-- **Checked against NC State:** where NC State gives seasons, a plant whose US-wide window (of at least 30
-  records) shares no month with them is left out and listed for review (`catalog-src/bloom-review.json`).
+- **Checked against NC State:** where NC State gives seasons (not a nursery alone), a plant whose US-wide
+  window (of at least 30 records) shares no month with them is left out and listed for review
+  (`catalog-src/bloom-review.json`).
 - **Which plants:** species and varieties (a variety is looked up as its species, and says so); a cultivar
   with a species record in the catalog takes its species'; a cultivar or mix without one looks up its
   species, said so ("its species: …"). Not hybrids, or two taxa in one entry.
