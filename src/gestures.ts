@@ -38,7 +38,7 @@ function startPinchGesture() {
   const info = pinchInfo();
   if (!info) return;
   const g = gesture.current;
-  if (g?.type === 'drag-vertex' && (g.moved || g.inserted)) { pushHistory(); save(); } // keep the edit undoable
+  if (g?.type === 'drag-vertex' && (g.moved || g.inserted)) { flushHistoryDebounce(); pushHistory(); save(); vertexDropped(g.id); } // keep the edit undoable (and say if it snapped)
   gesture.current = {
     type: 'pinch',
     startDist: info.dist,
@@ -290,6 +290,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
     case 'drag-shape':
       if (g.moved) { flushHistoryDebounce(); pushHistory(); save(); }
       else {
+        dismissToastAction(); // (a tap on the plan closes a tidy notice)
         const shape = state.shapes.find((s) => s.id === g.id);
         if (shape) handleShapeTap(shape);
       }

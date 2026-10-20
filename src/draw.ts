@@ -8,7 +8,7 @@ import { buildShape, CANOPY_MIN_TAPS, isKindKey, kindDef, tapAccepted, TAPS_TO_F
 import type { DrawState, PathShape, Point, Shape } from './types';
 import { plantColor, plantFilter, plantsById } from './plants';
 import { snap, uid } from './util';
-import { SNAP_MAX_FT, SNAP_PX, snapTargets, snapToShapes, squareUp, tidyOn, setTidyOn } from './tidy';
+import { SNAP_MAX_FT, SNAP_PX, snapTargets, snapToShapes, squareUp, tidyOn, setTidyOn, type SnapHit } from './tidy';
 import { dismissToastAction, toast, toastAction } from './ui/toast';
 import { render } from './ui/render';
 
@@ -103,13 +103,14 @@ export function undoDrawPoint() { state.draw?.points.pop(); state.draw?.raw?.pop
  * SNAP_MAX_FT) and tidying is on, else on the grid. Not for plants (an existing tree's trunk and canopy go
  * where they're tapped), notes, or a path's center line (its band's edges are what meet things).
  */
-function landing(f: Point, kind: DrawKind, exceptId?: string, plant = false): { p: Point; grid: Point; hit: ReturnType<typeof snapToShapes> } {
+function landing(f: Point, kind: DrawKind, exceptId?: string, plant = false): { p: Point; grid: Point; hit: (SnapHit & { moved: boolean }) | null } {
   const grid = { x: snap(f.x), y: snap(f.y) };
   const hit = tidyOn() && kind !== 'note' && kind !== 'path' && !plant
     ? snapToShapes(f, snapTargets(state.shapes, exceptId), Math.min(SNAP_PX / pxPerFoot(), SNAP_MAX_FT), grid) : null;
-  // (Where the grid point is on the shape already, nothing was corrected, so nothing is said.)
-  if (hit && Math.abs(hit.point.x - grid.x) < 1e-6 && Math.abs(hit.point.y - grid.y) < 1e-6) return { p: grid, grid, hit: null };
-  return { p: hit ? hit.point : grid, grid, hit };
+  // (`moved`: off the grid point. Where the grid point is on the shape already, nothing was corrected, so
+  // nothing is said; it's still on the shape, so squaring keeps it there.)
+  const moved = !!hit && (Math.abs(hit.point.x - grid.x) > 1e-6 || Math.abs(hit.point.y - grid.y) > 1e-6);
+  return { p: hit ? hit.point : grid, grid, hit: hit && { ...hit, moved } };
 }
 const drawsPlant = (d: DrawState) => !!d.target && kindDef(d.target).role === 'plant';
 export function canFinishDraw(): boolean {
@@ -140,7 +141,7 @@ export function drawTap(clientX: number, clientY: number): boolean {
   d.points.push(p);
   // (Kept beside the taps, for the Undo on tidying.)
   (d.raw ??= []).push(grid);
-  (d.snaps ??= []).push(hit ? { to: hit.to, shapeId: hit.shapeId } : null);
+  (d.snaps ??= []).push(hit ? { to: hit.to, shapeId: hit.shapeId, moved: hit.moved } : null);
   if (finishesItself(d.kind) && d.points.length >= (TAPS_TO_FINISH[d.kind as Method] ?? Infinity)) { finishDraw(); return true; }
   return false;
 }
@@ -152,7 +153,7 @@ export function finishDraw(): Shape | null {
   const kind = kindDef(d.target ?? 'plain');
   // Tidied: taps that landed on other shapes, and an outline with nearly square corners squared, moving no
   // point more than a foot and a half. Not a property line (it's surveyed, not squared) or a plant.
-  const snapped = (d.snaps ?? []).filter(Boolean);
+  const snapped = (d.snaps ?? []).filter((h) => h?.moved);
   let pts = d.points, squared = false;
   if (tidyOn() && d.kind === 'poly' && kind.role !== 'boundary' && kind.role !== 'plant') {
     const sq = squareUp(pts, 1.5, (d.snaps ?? []).map(Boolean), alongTarget(pts, d.snaps ?? []));
@@ -331,7 +332,7 @@ export function moveVertex(s: PathShape, i: number, world: Point) {
   const method: DrawKind = s.type === 'poly' ? 'poly' : s.pathWidth ? 'path' : 'line';
   const { p, grid, hit } = landing(world, method, s.id, s.role === 'plant');
   pts[i] = p;
-  vertexSnap = hit ? { id: s.id, index: i, at: p, grid, shapeId: hit.shapeId } : null;
+  vertexSnap = hit?.moved ? { id: s.id, index: i, at: p, grid, shapeId: hit.shapeId } : null;
   setWorldPoints(s, pts);
 }
 /**

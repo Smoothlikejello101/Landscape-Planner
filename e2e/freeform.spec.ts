@@ -246,3 +246,19 @@ test('a bed drawn against a building lands on its wall and is squared, says so, 
   await page.locator('button[title=Layers]').click();
   await expect(page.getByTestId('tidy-drawing')).not.toBeChecked();
 });
+
+test('a corner tapped right on a building\'s corner stays on it when the rest is squared', async ({ page }) => {
+  await openFresh(page);
+  await addKind(page, 'building', 'rect');
+  for (const [x, y] of [[1, 2], [7, 2], [7, 8]]) await tapFt(page, x, y);
+  // A bed from the building's top-right corner (on the grid already), the far side not quite square, its last
+  // corner a little short of the wall.
+  await addKind(page, 'bed', 'poly');
+  for (const [x, y] of [[7, 2], [11, 2.4], [11, 6], [7.4, 6]]) await tapFt(page, x, y);
+  await tapFt(page, 7, 2); // (closes it)
+  await expect(page.locator('#toast-action')).toContainText('squared the corners');
+  await page.locator('.sel-pill .edit').click(); await openSections(page);
+  // Squared to 7–11 × 2–6, its top edge still on the building's (not halfway to the tapped 2.5: 3.8 tall).
+  await expect(field(page, 'Width (ft)')).toHaveValue('4');
+  await expect(field(page, 'Height (ft)')).toHaveValue('4');
+});
