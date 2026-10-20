@@ -3,7 +3,8 @@ import { el, svgEl } from '../dom';
 import { onCanvasPointerDown, onWheel } from '../gestures';
 import { canRedo, canUndo, redo, undo } from '../history';
 import { I } from '../icons';
-import { copySelected, deleteSelected, setViewFilter, zoomBy } from '../mutations';
+import { copySelected, setViewFilter, zoomBy } from '../mutations';
+import { deleteSelectedAsking } from './delete-selected';
 import { clearSelection, getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { typeName } from '../util';
@@ -238,7 +239,7 @@ export function render() {
     });
     const delBtn = el('button', { title: 'Delete' });
     delBtn.innerHTML = I.trash;
-    delBtn.addEventListener('click', () => { deleteSelected(); render(); });
+    delBtn.addEventListener('click', () => { deleteSelectedAsking(); render(); });
     const closeBtn = el('button', { title: 'Deselect' });
     closeBtn.innerHTML = I.x;
     closeBtn.addEventListener('click', () => { clearSelection(); render(); });

@@ -330,3 +330,46 @@ export function displayLabel(s: Shape): string {
   }
   return s.label;
 }
+
+// ---- Lasso ----
+/** A shape's outline in world feet, as drawn (rotation applied), and whether it's a closed loop. */
+function drawnOutline(s: Shape): { pts: Point[]; closed: boolean } | null {
+  if (s.type === 'circle') {
+    if (s.canopy) return { pts: s.canopy.map(([x, y]) => ({ x: s.x + x, y: s.y + y })), closed: true };
+    return { pts: Array.from({ length: 32 }, (_, i) => { const t = (i / 32) * Math.PI * 2; return { x: s.x + s.radius * Math.cos(t), y: s.y + s.radius * Math.sin(t) }; }), closed: true };
+  }
+  if (s.type === 'text') return null;
+  if (s.type === 'line' || s.type === 'poly') return { pts: worldPoints(s), closed: s.type === 'poly' };
+  const c = shapeCenter(s);
+  const pts = outlineOf(s).map((p) => { if (!s.rotation) return p; const r = rotate(p.x - c.x, p.y - c.y, s.rotation); return { x: c.x + r.x, y: c.y + r.y }; });
+  return { pts, closed: true };
+}
+const inBox = (p: Point, b: Bounds) => p.x >= b.minX && p.x <= b.maxX && p.y >= b.minY && p.y <= b.maxY;
+/** Whether segment a–b crosses one of the box's edges (or lies in it). */
+function segmentTouchesBox(a: Point, b: Point, box: Bounds): boolean {
+  if (inBox(a, box) || inBox(b, box)) return true;
+  // Liang–Barsky clipping: does any part of the segment fall inside the box?
+  let t0 = 0, t1 = 1;
+  const dx = b.x - a.x, dy = b.y - a.y;
+  for (const [p, q] of [[-dx, a.x - box.minX], [dx, box.maxX - a.x], [-dy, a.y - box.minY], [dy, box.maxY - a.y]]) {
+    if (p === 0) { if (q < 0) return false; continue; }
+    const r = q / p;
+    if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; } else { if (r < t0) return false; if (r < t1) t1 = r; }
+  }
+  return t0 <= t1;
+}
+/**
+ * Whether a lasso box picks this shape: the box touches what's drawn (an edge or a corner of it, or the whole
+ * shape lies in the box). A box lying wholly inside a shape, not touching its edge, doesn't pick it: lassoing
+ * plants within the property line, a bed or the lawn picks the plants, not what surrounds them.
+ */
+export function lassoTouches(s: Shape, box: Bounds): boolean {
+  if (!rectsIntersect(shapeBBox(s), box)) return false;
+  const o = drawnOutline(s);
+  if (!o) return true; // (a text label: its box)
+  // A path's band reaches half its width past its center line.
+  const b = s.type === 'line' && s.pathWidth ? { minX: box.minX - s.pathWidth / 2, maxX: box.maxX + s.pathWidth / 2, minY: box.minY - s.pathWidth / 2, maxY: box.maxY + s.pathWidth / 2 } : box;
+  const n = o.pts.length;
+  for (let i = 0; i < (o.closed ? n : n - 1); i++) if (segmentTouchesBox(o.pts[i], o.pts[(i + 1) % n], b)) return true;
+  return n === 1 && inBox(o.pts[0], b);
+}

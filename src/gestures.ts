@@ -1,6 +1,6 @@
 import { bgCalibrationTap, bgCenterClient } from './background';
 import { DOUBLE_TAP_MS, DRAG_THRESHOLD_PX, MAX_ZOOM, MIN_ZOOM, PX_PER_FOOT_BASE } from './constants';
-import { canvasRect, pxPerFoot, rectsIntersect, screenToFeet, shapeBBox } from './geometry';
+import { canvasRect, lassoTouches, pxPerFoot, screenToFeet } from './geometry';
 import { flushHistoryDebounce, pushHistory } from './history';
 import { zoomBy } from './mutations';
 import { attachedPlants } from './beds';
@@ -318,7 +318,8 @@ export function onCanvasPointerUp(e: PointerEvent) {
       if (g.moved && state.marquee) {
         const m = state.marquee;
         const box = { minX: Math.min(m.x1, m.x2), maxX: Math.max(m.x1, m.x2), minY: Math.min(m.y1, m.y2), maxY: Math.max(m.y1, m.y2) };
-        state.selectedIds = state.shapes.filter((s) => shownWith(s, state.viewFilter) && rectsIntersect(shapeBBox(s), box)).map((s) => s.id);
+        // What the box touches, not a shape it lies wholly inside (the property line around the plants).
+        state.selectedIds = state.shapes.filter((s) => shownWith(s, state.viewFilter) && lassoTouches(s, box)).map((s) => s.id);
       } else if (g.tapShapeId) {
         toggleSelect(g.tapShapeId);
       } else {
