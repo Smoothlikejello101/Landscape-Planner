@@ -4,8 +4,23 @@ const API = 'https://api.gbif.org/v1';
 /** Licences that allow commercial use with credit (a record's own licence; CC BY-NC records are left out). */
 export const LICENSES = ['CC0_1_0', 'CC_BY_4_0'];
 const lic = LICENSES.map((l) => `&license=${l}`).join('');
-/** GBIF's backbone match for a binomial, species rank, strict (no fuzzy guess). */
-export const matchUrl = (binomial) => `${API}/species/match?name=${encodeURIComponent(binomial)}&rank=SPECIES&strict=true&kingdom=Plantae`;
+/**
+ * The catalog's names GBIF's backbone knows by another (checked one by one, 2026-10-20: each the same plant):
+ * spellings (gerardi, macrophyllum, Buddleja), and genera it splits out (Nabalus, Cenchrus; American pasque
+ * flower as Pulsatilla patens, whose US records are all its American subspecies). Not Vaccinium virgatum or
+ * Penstemon grandiflorus: GBIF sinks those into other species, so their records wouldn't be theirs alone.
+ */
+export const GBIF_NAME = {
+  'Anemone patens': 'Pulsatilla patens',
+  'Andropogon gerardii': 'Andropogon gerardi',
+  'Buddleia davidii': 'Buddleja davidii',
+  'Dasistoma macrophylla': 'Dasistoma macrophyllum',
+  'Pennisetum alopecuroides': 'Cenchrus alopecuroides',
+  'Prenanthes alba': 'Nabalus albus',
+  'Prenanthes racemosa': 'Nabalus racemosus',
+};
+/** GBIF's backbone match for a binomial (by GBIF's name for it), species rank, strict (no fuzzy guess). */
+export const matchUrl = (binomial) => `${API}/species/match?name=${encodeURIComponent(GBIF_NAME[binomial] ?? binomial)}&rank=SPECIES&strict=true&kingdom=Plantae`;
 /** Flowering records in the US for a taxon, by month. */
 export const monthsUrl = (key) => `${API}/occurrence/search?taxonKey=${key}&country=US&reproductiveCondition=flowering${lic}&limit=0&facet=month&facetLimit=12`;
 /** Flowering records in the US for a taxon in one month, by state (GADM level 1: "USA.4_1" is Arkansas). */

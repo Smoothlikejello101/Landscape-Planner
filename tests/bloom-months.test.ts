@@ -86,3 +86,11 @@ describe('bloom months in the app', () => {
     expect(plantMatches(witch, { ...PLANT_FILTER_DEFAULTS, bloomMonth: '6' })).toBe(false);
   });
 });
+
+describe("GBIF's names for catalog plants", () => {
+  it('asks GBIF by its own name where it differs, the catalog name otherwise', () => {
+    expect(matchUrl('Andropogon gerardii')).toContain('name=Andropogon%20gerardi&');
+    expect(matchUrl('Anemone patens')).toContain('name=Pulsatilla%20patens&');
+    expect(matchUrl('Echinacea purpurea')).toContain('name=Echinacea%20purpurea&');
+  });
+});
