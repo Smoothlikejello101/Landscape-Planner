@@ -155,8 +155,36 @@ export function nearestFinder(stations) {
   };
 }
 
-/** The files: one per ZIP prefix, as src/climate.ts reads them. */
-export function buildFiles(zones, centers, stations, accessed) {
+/**
+ * Which county a point is in: features from the Census Bureau's cartographic county boundaries (us-atlas
+ * counties-10m, as GeoJSON) → (lat, lon) → the county's five-digit FIPS code as a number (Clark County,
+ * Arkansas, 05019, is 5019), or null. Even-odd over every ring, so holes count.
+ */
+export function countyFinder(features) {
+  const shapes = features.map((f) => {
+    const rings = (f.geometry.type === 'Polygon' ? [f.geometry.coordinates] : f.geometry.coordinates).flat();
+    const xs = rings.flat().map((p) => p[0]), ys = rings.flat().map((p) => p[1]);
+    return { fips: Number(f.id), rings, box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] };
+  });
+  const inside = (rings, x, y) => {
+    let n = false;
+    for (const r of rings) for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+      const [xi, yi] = r[i], [xj, yj] = r[j];
+      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) n = !n;
+    }
+    return n;
+  };
+  return ([lat, lon]) => {
+    for (const s of shapes) if (lon >= s.box[0] && lon <= s.box[2] && lat >= s.box[1] && lat <= s.box[3] && inside(s.rings, lon, lat)) return s.fips;
+    return null;
+  };
+}
+
+/**
+ * The files: one per ZIP prefix, as src/climate.ts reads them. `countyOf` (countyFinder) adds each ZIP's
+ * county, from its area's center, where it has one.
+ */
+export function buildFiles(zones, centers, stations, accessed, countyOf = () => null) {
   const nearest = nearestFinder(stations);
   const files = new Map();
   for (const [zip, zone] of [...zones].sort()) {
@@ -176,7 +204,10 @@ export function buildFiles(zones, centers, stations, accessed) {
       si = f.index.get(s.id);
     }
     // (-2: the ZIP has no mapped area, a PO box or one building; -1: no station near enough.)
-    f.zips[zip] = [zone, c ? si : -2, near ? near.miles : 0];
+    const row = [zone, c ? si : -2, near ? near.miles : 0];
+    const county = c ? countyOf(c) : null;
+    if (county) row.push(county);
+    f.zips[zip] = row;
   }
   for (const f of files.values()) delete f.index;
   return files;

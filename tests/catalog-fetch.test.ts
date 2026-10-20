@@ -72,6 +72,21 @@ describe('robots.txt', () => {
     expect(robotsFromResponse(200, 'text/plain', '<html><body>app</body></html>').kind).toBe('closed');
     expect(robotsFromResponse(200, 'text/plain', '  <script>challenge()</script>').kind).toBe('closed');
     for (const s of [301, 400, 403, 429, 500, 0]) expect(robotsFromResponse(s, 'text/plain', '').kind).toBe('closed');
+    // A government site's app page in place of robots.txt (the page any address gets; no rules, bot check or refusal): none.
+    const app = '<!doctype html><html><head><title>USDA Plants Database</title></head><body><plants-app></plants-app></body></html>';
+    const same = { sameAsMissing: true };
+    expect(robotsFromResponse(200, 'text/html', app, 'plants.usda.gov', same).kind).toBe('none');
+    expect(robotsFromResponse(200, 'text/html', app, 'www.fs.fed.us', same).kind).toBe('none');
+    expect(robotsFromResponse(200, 'text/html', app, 'plants.usda.gov').kind).toBe('closed'); // (a page of its own: not shown to be an app's)
+    expect(robotsFromResponse(200, 'text/html', app, 'example.com', same).kind).toBe('closed');
+    expect(robotsFromResponse(200, 'text/html', app, 'gov.example.com', same).kind).toBe('closed');
+    expect(robotsFromResponse(200, 'text/html', '<!DOCTYPE html><title>Just a moment...</title>', 'plants.usda.gov', same).kind).toBe('closed');
+    expect(robotsFromResponse(200, 'text/html', '<html><title>Request Rejected</title>Your support ID is: 123</html>', 'x.usda.gov', same).kind).toBe('closed');
+    expect(robotsFromResponse(200, 'text/html', '<html><head><meta name="robots" content="noindex,nofollow"></head></html>', 'x.usda.gov', same).kind).toBe('closed');
+    expect(robotsFromResponse(200, 'text/html', '<html><head><meta content="noindex" name="robots"></head></html>', 'x.usda.gov', same).kind).toBe('closed');
+    expect(robotsFromResponse(200, 'text/html', '<html><h1>Web Page Blocked</h1>The page has been blocked.</html>', 'x.usda.gov', same).kind).toBe('closed');
+    expect(robotsFromResponse(200, 'text/html', '<pre>User-agent: *\nDisallow: /</pre>', 'plants.usda.gov', same).kind).toBe('closed');
+    expect(robotsFromResponse(403, 'text/html', app, 'plants.usda.gov', same).kind).toBe('closed');
   });
   it('counts a host as not there only on a DNS answer that says so', () => {
     expect(noAnswer('nxdomain', 56, 'curl: (56) CONNECT tunnel failed, response 502')).toBe('none');
@@ -146,6 +161,18 @@ function fakeWorld(pages: Record<string, { status: number; type?: string; body?:
 const plant = (n: number) => `https://plants.ces.ncsu.edu/plants/p${n}/`;
 
 describe('the fetch loop', () => {
+  it('reads a government site whose robots.txt is its app page (the page any address gets), and not one whose page is its own', async () => {
+    const app = '<!doctype html><html><body><plants-app></plants-app></body></html>';
+    const page = 'https://plants.sc.egov.usda.gov/main.js';
+    for (const [missing, expected] of [[app, 1], ['<html>Not found</html>', 0]] as const) {
+      const w = fakeWorld({ 'https://plants.sc.egov.usda.gov/robots.txt': { status: 200, type: 'text/html', body: app }, [page]: { status: 200, type: 'text/javascript', body: 'x' } });
+      const get = w.deps.get;
+      w.deps.get = async (url: string) => (url.includes('/fullgrown-no-such-page-') ? (w.requests.push({ url, at: 0 }), { type: 'text/html', location: '', body: missing, status: 200 }) : get(url));
+      const r = await runFetch([{ source: 'usda', url: page }], w.deps);
+      expect(r.saved).toBe(expected);
+      expect(w.requests.filter((q) => q.url.includes('/fullgrown-no-such-page-'))).toHaveLength(1);
+    }
+  });
   it('reads robots.txt once per host, keeps the pace, and saves pages', async () => {
     const w = fakeWorld({
       'https://plants.ces.ncsu.edu/robots.txt': { status: 404 },

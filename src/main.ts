@@ -11,6 +11,7 @@ import { kindForShortcut } from './kinds';
 import { finishPlacing, undoPlace } from './place';
 import { state } from './state';
 import { loadPlants } from './plants';
+import { loadWild } from './wild';
 import { initAccount, restoreCodeSent, setAccountListener } from './account';
 import { onAccountChange, setSyncUi, startSyncTriggers } from './sync/sync';
 import { refreshAfterSync, screenBusy, showSyncResults } from './ui/sync-results';
@@ -155,6 +156,7 @@ async function start() {
     alert("Some projects from the previous version couldn't be copied (" + migrationError + "). They are still stored on this device; the app will try again next time it opens.");
   }
   void loadPlants();
+  void loadWild(); // (the garden's county and its state's wild records, if it has a location)
   // Signed in (or just back from signing in): check the session. Changes refresh only the Account section.
   setAccountListener(() => { refreshAccountSection(); onAccountChange(); });
   setSyncUi({
