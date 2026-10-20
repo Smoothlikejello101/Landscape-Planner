@@ -36,6 +36,11 @@ describe('picking a USDA symbol', () => {
     ])).toEqual({ symbol: 'CAGR5', id: 1, name: 'Carex grayi Carey' });
     expect(sameTaxon('Carex grayi', '<i>Carex grayi</i> × <i>intumescens</i> [unnamed hybrid]')).toBe(false);
   });
+  it('prefers a plain entry listed after a doubtful one, and refuses a plain one whose profile is another plant', () => {
+    expect(pickSymbol('Carex frankii', [result('CAFR11', 'Carex frankii auct. non Kunth'), result('CAFR3', 'Carex frankii Kunth')], (s: string) => (s === 'CAFR11' ? '<i>Carex aureolensis</i> Steud.' : '<i>Carex frankii</i> Kunth'))).toMatchObject({ symbol: 'CAFR3' });
+    // (Bidens polylepis: USDA lumps it into B. aristosa, not a reviewed rename.)
+    expect(pickSymbol('Bidens polylepis', [result('BIPO', 'Bidens polylepis S.F. Blake')], () => '<i>Bidens aristosa</i> (Michx.) Britton')).toBeNull();
+  });
   it('takes a profile only for the plant itself or a reviewed rename of it', () => {
     expect(sameTaxon('Carex albicans', '<i>Carex albicans</i> Willd. ex Spreng.')).toBe(true);
     expect(sameTaxon('Carex albicans', '<i>Carex peckii</i> Howe')).toBe(false);
