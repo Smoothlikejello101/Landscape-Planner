@@ -37,8 +37,15 @@ export const SAME_PLANT = new Map([
   ['Polymnia uvedalia', 'Smallanthus uvedalius'], ['Porteranthus stipulatus', 'Gillenia stipulata'], ['Thermopsis caroliniana', 'Thermopsis villosa'],
   ['Buchloe dactyloides', 'Bouteloua dactyloides'], ['Juncus balticus', 'Juncus arcticus ssp. littoralis'], ['Turritis glabra', 'Arabis glabra'],
   ['Peritoma serrulata', 'Cleome serrulata'], ['Osmundastrum cinnamomeum', 'Osmunda cinnamomea'],
-  ['Osmunda spectabilis', 'Osmunda regalis var. spectabilis'], ['Malus domestica', 'Malus pumila'],
+  ['Osmunda spectabilis', 'Osmunda regalis var. spectabilis'], ['Malus domestica', 'Malus pumila'], ['Ziziphus jujuba', 'Ziziphus zizyphus'],
+  // (The American pasque flower: usda-pick.mjs PICK. Not Bidens polylepis → B. aristosa: USDA lumps them, but
+  // Kew's World Checklist (POWO) and World Flora Online keep B. polylepis a species, so B. aristosa's records
+  // aren't its own.)
+  ['Anemone patens', 'Pulsatilla patens ssp. multifida'],
 ]);
+/** Whether a USDA profile is the plant's own (its name, or a reviewed rename of it). */
+export const sameTaxon = (binomial, profileName) => !(/×|\bhybrid\b/i.test(strip(profileName)) && !/×/.test(binomial))
+  && (canonical(profileName).split(' ').slice(0, 2).join(' ') === binomial || SAME_PLANT.get(binomial) === canonical(profileName));
 /** A USDA name without its authors: "Sambucus nigra L. ssp. canadensis (L.) R. Bolli" → "Sambucus nigra ssp. canadensis". */
 export function canonical(sci) {
   const t = strip(sci);
@@ -90,8 +97,7 @@ export function usdaRecords(catalog, audit, place, page = savedPage) {
     if (!profile?.Id) continue;
     // The plant's own name, or a reviewed rename of it; never another plant's records.
     // (A rename is checked to its rank: Sambucus nigra ssp. canadensis, not any Sambucus nigra.)
-    const mine = binomialOf(bot), theirs = binomialOf(profile.ScientificName);
-    if (theirs !== mine && SAME_PLANT.get(mine) !== canonical(profile.ScientificName)) { otherName++; continue; }
+    if (!sameTaxon(binomialOf(bot), profile.ScientificName)) { otherName++; continue; }
     try { records = JSON.parse(page('web', recordsUrl(profile.Id))?.text ?? 'null'); } catch { /* none */ }
     if (!records?.features || records.exceededTransferLimit) { noRecords++; continue; }
     const r = place(records.features);
