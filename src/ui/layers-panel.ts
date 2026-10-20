@@ -16,6 +16,7 @@ import { sunListText } from './role-sections';
 import { applySizeMode, plantsToResize } from '../my-plants';
 import { boxSize, shapePerimeter } from '../geometry';
 import { typeName } from '../util';
+import { updateBgImageSilent } from '../background';
 
 const fmtFt = (v: number) => String(Math.round(v * 10) / 10);
 
@@ -27,6 +28,15 @@ export function renderLayersPanel() {
     (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
   );
   const list = el('div', {});
+  if (state.bgImage) list.appendChild(backgroundSection());
+  else if (state.photoElsewhere) {
+    // The plan has a photo this device doesn't: say where it went, rather than leaving no row at all.
+    const away = state.photoElsewhere;
+    list.appendChild(el('div', { className: 'role-rows', 'data-testid': 'layers-bg' }, el('div', { className: 'section-label' }, 'Background'),
+      el('div', { className: 'hint', style: { padding: '0 16px' } }, 'deviceOnly' in away
+        ? 'This plan’s background photo is kept on another device only.'
+        : 'This plan’s background photo hasn’t come down to this device yet. It will at the next sync.')));
+  }
   if (state.shapes.length) list.appendChild(roleSection());
   if (state.shapes.some((s) => s.plantId)) list.appendChild(plantSizeSection());
   if (state.shapes.some((s) => s.role === 'plant' || s.status || s.phase) || state.phases.length) list.appendChild(showSection());
@@ -187,6 +197,40 @@ function plantSizeSection(): HTMLElement {
   sun.addEventListener('change', () => { state.sunWarnings = sun.checked; save(); render(); });
   wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '8px' } }, sun,
     el('span', {}, 'Sun warnings on plants (\u26a0 badges)')));
+  return wrap;
+}
+
+/** The background image: shown or hidden, and how faint, beside the layers' own (the rest is in ⋮ → Background image). */
+function backgroundSection(): HTMLElement {
+  const bg = state.bgImage!;
+  const wrap = el('div', { className: 'role-rows', 'data-testid': 'layers-bg' }, el('div', { className: 'section-label' }, 'Background'));
+  const eye = el('button', {
+    className: bg.visible ? 'on' : '', html: bg.visible ? I.eye : I.eyeOff,
+    title: bg.visible ? 'Hide' : 'Show', 'aria-label': (bg.visible ? 'Hide' : 'Show') + ' the background image',
+    'aria-pressed': bg.visible ? 'true' : 'false', 'data-action': 'toggle-bg',
+  });
+  // While placing or calibrating the image, it stays shown (those modes work on it; finish them first).
+  const busy = state.bgEditMode || !!state.bgCalibrate;
+  eye.disabled = busy;
+  // One tap, one step to undo (not merged with a slide just before it).
+  eye.addEventListener('click', () => { flushHistoryDebounce(); bg.visible = !bg.visible; pushHistory(); save(); render(); });
+  const more = el('button', { className: 'link-btn', 'data-testid': 'layers-bg-more' }, 'Adjust\u2026');
+  more.disabled = busy;
+  more.addEventListener('click', () => { state.panel = 'bg'; render(); });
+  wrap.appendChild(el('div', { className: 'role-row' + (bg.visible ? '' : ' hidden') }, el('span', { className: 'name' }, 'Background image'), more, eye));
+  // Opacity: redraws the plan only, so the slider keeps its place (and the keyboard, on a phone).
+  const pct = el('span', { className: 'count' }, Math.round(bg.opacity * 100) + '%');
+  const slider = el('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: String(bg.opacity), 'aria-label': 'Background image opacity', 'data-testid': 'layers-bg-opacity' });
+  slider.disabled = !bg.visible;
+  slider.addEventListener('input', () => {
+    const v = parseFloat(slider.value);
+    updateBgImageSilent({ opacity: v });
+    pct.textContent = Math.round(v * 100) + '%';
+  });
+  slider.setAttribute('aria-valuetext', Math.round(bg.opacity * 100) + '%');
+  slider.addEventListener('input', () => slider.setAttribute('aria-valuetext', pct.textContent ?? ''));
+  wrap.appendChild(el('div', { className: 'role-row bg-opacity' }, el('span', { className: 'name' }, 'Opacity'), slider, pct));
+  if (busy) wrap.appendChild(el('div', { className: 'hint', style: { padding: '0 16px' } }, 'Finish placing the image (or its scale) to hide it.'));
   return wrap;
 }
 
