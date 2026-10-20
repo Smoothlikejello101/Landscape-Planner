@@ -6,7 +6,7 @@ import { render } from './ui/render';
 import { toast } from './ui/toast';
 import type { CircleShape, Point, Shape } from './types';
 import { snap, uid } from './util';
-import { plantRadius } from './my-plants';
+import { isDataSized, plantRadius } from './my-plants';
 import { isCatalogV2, resolveCatalog, type Provenance } from './catalog';
 import { setRadius } from './geometry';
 import { isLocked } from './roles';
@@ -331,19 +331,33 @@ export function plantShapeAt(p: Plant, at: Point): CircleShape {
 export function linkShapeToPlant(shapeId: string, p: Plant) {
   linkShapesToPlant([shapeId], p);
 }
-/** Make circles this plant (its name, role and size), as one step to undo. Returns how many were linked. */
+/**
+ * Make circles this plant (its name and role), as one step to undo. Returns how many were linked. A tree
+ * keeps the size it was drawn at, as an existing tree does (its full size shows as the dashed ring); other
+ * plants take the plant's size.
+ */
 export function linkShapesToPlant(shapeIds: string[], p: Plant): number {
   const ids = new Set(shapeIds);
   const circles = state.shapes.filter((sh) => ids.has(sh.id) && sh.type === 'circle' && canLinkToPlant(sh));
   if (!circles.length) return 0;
+  const asTree = !!formsOf(p)[0]?.startsWith('Tree');
   flushHistoryDebounce();
   for (const s of circles) {
     if (s.type !== 'circle') continue;
+    // (Sized from the plant it was linked to before: that size says nothing about this one as it stands.)
+    const dataSized = isDataSized(s);
     s.plantId = p.id;
     s.label = p.common;
     s.role = 'plant';
-    // A tree already in the yard keeps the size it was drawn at; other circles take the plant's size.
-    if (!(s.tree && s.sizeFrom === 'manual')) {
+    if (asTree) {
+      // A tree as it stands: the size it was drawn at (the dashed ring shows its full size).
+      if (dataSized && !s.canopy) setRadius(s, plantRadius(p, state.sizeMode));
+      s.tree = true;
+      s.sizeFrom = 'manual';
+    } else if (!s.canopy) {
+      // Not a tree (a mislinked tree put right, too): the plant's size, and no trunk.
+      s.tree = undefined;
+      s.trunk = undefined;
       setRadius(s, plantRadius(p, state.sizeMode));
       s.sizeFrom = 'plant';
     }
@@ -360,21 +374,22 @@ export function linkFromPicker(p: Plant) {
   if (!state.pickerLinkId) return;
   // (Checked again now: shapes deleted or locked since the picker opened are left out; a lone circle is
   // linked as before, locked or not, since it was chosen on its own.)
-  const several = state.pickerLinkAlso.length > 0;
+  const several = state.pickerLinkAlso.length > 0, withLocked = state.pickerLinkLocked;
   const ids = [state.pickerLinkId, ...state.pickerLinkAlso].filter((id) => {
     const s = state.shapes.find((x) => x.id === id);
-    return !!s && canLinkToPlant(s) && (!several || !isLocked(s));
+    return !!s && canLinkToPlant(s) && (!several || withLocked || !isLocked(s));
   });
   state.pickerLinkId = null;
   state.pickerLinkAlso = [];
+  state.pickerLinkLocked = false;
   if (!ids.length) { state.selectedIds = []; state.linkOffer = null; return; }
   // (Its label before it takes the plant's name.)
   const label = state.shapes.find((s) => s.id === ids[0])?.label;
   const n = linkShapesToPlant(ids, p);
   state.selectedIds = ids;
   if (several) { state.linkOffer = null; toast(`${n} circle${n === 1 ? '' : 's'} linked to ${p.common}.`); return; }
-  const same = unlinkedWithLabel(label, ids);
-  state.linkOffer = same.length ? { fromId: ids[0], plantId: p.id, label: label!.trim(), ids: same } : null;
+  const same = unlinkedWithLabel(label, ids), locked = unlinkedWithLabel(label, ids, { locked: true });
+  state.linkOffer = same.length || locked.length ? { fromId: ids[0], plantId: p.id, label: label!.trim(), ids: same, locked } : null;
 }
 /** Whether a shape could stand for a plant (a circle that isn't a pond, a trunk or another non-plant). */
 export function canLinkToPlant(s: Shape): boolean {
@@ -383,13 +398,14 @@ export function canLinkToPlant(s: Shape): boolean {
 export const sameLabel = (a?: string, b?: string) => !!a?.trim() && !!b?.trim() && a.trim().toLowerCase() === b.trim().toLowerCase();
 /**
  * The other circles labeled like this one that aren't linked to a plant yet (a plan from before the
- * catalog), among those on view and not locked: never a hidden layer, a filtered-out or gone plant.
+ * catalog), among those on view: never a hidden layer, a filtered-out or gone plant. The unlocked ones,
+ * or (`locked`) only the locked ones, which are offered separately.
  */
-export function unlinkedWithLabel(label: string | undefined, exceptIds: string[]): string[] {
+export function unlinkedWithLabel(label: string | undefined, exceptIds: string[], { locked = false } = {}): string[] {
   if (!label?.trim()) return [];
   const except = new Set(exceptIds);
   return state.shapes.filter((s) => !except.has(s.id) && s.type === 'circle' && !s.plantId && canLinkToPlant(s)
-    && shownWith(s, state.viewFilter) && !isLocked(s) && sameLabel(s.label, label)).map((s) => s.id);
+    && shownWith(s, state.viewFilter) && isLocked(s) === locked && sameLabel(s.label, label)).map((s) => s.id);
 }
 export const MONTH_NAMES = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 /** After a plant's zones: whether they suit the plan's location (if it has one). */

@@ -14,7 +14,7 @@ import { getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { render } from './render';
 import type { CircleShape, Corner, RoleKey, Shape } from '../types';
-import { formatSize, isMine, plantRadius, type Range } from '../my-plants';
+import { formatSize, fullRingRadius, isMine, plantRadius, type Range } from '../my-plants';
 import { canLinkToPlant, linkShapesToPlant, plantFilter, plantsById, unlinkedWithLabel, type Plant } from '../plants';
 import { toast } from './toast';
 import { zoneFit, zoneRange } from '../climate';
@@ -405,37 +405,55 @@ function plantLinkSection(s: CircleShape): HTMLElement {
   if (!p) {
     const link = el('button', { className: 'btn ghost' }, s.plantId ? 'Link to a plant again…' : 'Link to a plant…');
     // (The search starts at the circle's label: a plan drawn before the catalog usually names its plants.)
-    link.addEventListener('click', () => { state.pickerLinkId = s.id; state.pickerLinkAlso = []; plantFilter.q = s.label?.trim() ?? ''; state.panel = 'plants'; render(); });
+    link.addEventListener('click', () => { state.pickerLinkId = s.id; state.pickerLinkAlso = []; state.pickerLinkLocked = false; plantFilter.q = s.label?.trim() ?? ''; state.panel = 'plants'; render(); });
     wrap.appendChild(link);
     wrap.appendChild(el('div', { className: 'hint' }, s.plantId
       ? "This plant's details aren't on this device (removed from My plants, or the plan came from someone else). Its size and name are kept."
       : 'Pick the plant this circle stands for: it takes the plant\'s size and sun needs, and shows in the plant list.'));
     return wrap;
   }
-  // Just linked: other circles that had the same label, offered for the same plant in one tap.
+  // Just linked: other circles that had the same label, offered for the same plant in one tap; locked ones
+  // are asked about separately (left as they are unless you say so).
   const offer = state.linkOffer;
   if (offer && offer.fromId === s.id && offer.plantId === p.id && state.selectedIds.length === 1 && state.selectedIds[0] === s.id) {
-    // (Checked again now: each still unlinked, on view, unlocked and labeled the same.)
-    const now = new Set(unlinkedWithLabel(offer.label, [s.id]));
-    const still = offer.ids.filter((id) => now.has(id));
-    if (still.length) {
-      const box = el('div', { className: 'banner link-offer', role: 'status', 'data-testid': 'link-offer' },
-        el('div', {}, `${still.length} other circle${still.length === 1 ? ' is' : 's are'} labeled \u201c${offer.label}\u201d.`));
-      const yes = el('button', { className: 'btn secondary', 'data-testid': 'link-offer-yes' }, `Link ${still.length === 1 ? 'it' : `all ${still.length}`} to ${p.common}`);
-      yes.addEventListener('click', () => {
-        const ids = offer.ids.filter((id) => new Set(unlinkedWithLabel(offer.label, [s.id])).has(id));
-        const n = linkShapesToPlant(ids, p);
+    // (Checked again now, and when tapped: each still unlinked, on view and labeled the same.)
+    const current = () => {
+      const open = new Set(unlinkedWithLabel(offer.label, [s.id])), shut = new Set(unlinkedWithLabel(offer.label, [s.id], { locked: true }));
+      return { open: [...offer.ids, ...offer.locked].filter((id) => open.has(id)), shut: [...offer.ids, ...offer.locked].filter((id) => shut.has(id)) };
+    };
+    const { open, shut } = current();
+    if (open.length || shut.length) {
+      const n = open.length + shut.length;
+      const what = `${n} other circle${n === 1 ? ' is' : 's are'} labeled \u201c${offer.label}\u201d` + (shut.length ? (open.length ? ` (${shut.length} of them locked).` : (shut.length === 1 ? ', and it\u2019s locked.' : ', all locked.')) : '.');
+      const box = el('div', { className: 'banner link-offer', role: 'status', 'data-testid': 'link-offer' }, el('div', {}, what));
+      const go = (withLocked: boolean) => {
+        const now = current();
+        const k = linkShapesToPlant(withLocked ? [...now.open, ...now.shut] : now.open, p);
         state.linkOffer = null;
-        toast(`${n} more circle${n === 1 ? '' : 's'} linked to ${p.common}.`);
+        toast(`${k} more circle${k === 1 ? '' : 's'} linked to ${p.common}.`);
         render();
-      });
+      };
+      const row = el('div', { style: { display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' } });
+      if (open.length) {
+        const yes = el('button', { className: 'btn secondary', 'data-testid': 'link-offer-yes' }, shut.length ? `Link the ${open.length} unlocked to ${p.common}` : `Link ${open.length === 1 ? 'it' : `all ${open.length}`} to ${p.common}`);
+        yes.addEventListener('click', () => go(false));
+        row.appendChild(yes);
+      }
+      if (shut.length) {
+        const all = el('button', { className: 'btn ' + (open.length ? 'ghost' : 'secondary'), 'data-testid': 'link-offer-locked' }, open.length ? `Link all ${n}, locked too` : `Link ${shut.length === 1 ? 'it' : 'them'} anyway`);
+        all.addEventListener('click', () => go(true));
+        row.appendChild(all);
+      }
       const no = el('button', { className: 'btn ghost', 'data-testid': 'link-offer-no' }, 'No thanks');
       no.addEventListener('click', () => { state.linkOffer = null; render(); });
-      box.appendChild(el('div', { style: { display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' } }, yes, no));
+      row.appendChild(no);
+      box.appendChild(row);
       wrap.appendChild(box);
     }
   }
-  const sizes = `Spread ${formatSize(p.width as Range | undefined) || 'unknown'}. Drawn at ${state.sizeMode === 'full' ? 'full' : 'typical'} size (change in Layers).`;
+  const sizes = `Spread ${formatSize(p.width as Range | undefined) || 'unknown'}. ` + (s.sizeFrom === 'manual'
+    ? 'Drawn at the size it was given' + (s.tree ? ' (a tree as it is now)' : '') + (fullRingRadius(s) ? '; the dashed ring, when it\u2019s selected, is its full size.' : '.')
+    : `Drawn at ${state.sizeMode === 'full' ? 'full' : 'typical'} size (change in Layers).`);
   wrap.appendChild(el('div', { className: 'hint' }, sizes));
   const zones = zoneRange(p);
   if (zones) {
@@ -486,23 +504,32 @@ export function renderPropsPanelMulti(selected: Shape[]) {
   });
   body.appendChild(lockBtn);
 
-  // Circles that could all be one plant: link them at once (a plan drawn before the catalog).
-  // (Locked circles are left as they are; it's offered where some aren't plants yet.)
-  const linkable = selected.filter((s) => !isLocked(s));
-  if (selected.every(canLinkToPlant) && linkable.length > 1 && linkable.some((s) => s.type === 'circle' && !s.plantId)) {
-    const labels = new Set(linkable.map((s) => (s.label ?? '').trim().toLowerCase()));
-    const relinked = linkable.filter((s) => s.type === 'circle' && s.plantId).length, locked = selected.length - linkable.length;
-    const link = el('button', { className: 'btn secondary', 'data-testid': 'link-all' }, `Link all ${linkable.length} to a plant\u2026`);
-    link.addEventListener('click', () => {
-      state.pickerLinkId = linkable[0].id;
-      state.pickerLinkAlso = linkable.slice(1).map((s) => s.id);
-      plantFilter.q = labels.size === 1 ? (linkable[0].label ?? '').trim() : '';
+  // Circles that could all be one plant: link them at once (a plan drawn before the catalog). Locked circles
+  // are left as they are unless chosen too; it's offered where some aren't plants yet.
+  const unlocked = selected.filter((s) => !isLocked(s));
+  if (selected.length > 1 && selected.every(canLinkToPlant) && selected.some((s) => s.type === 'circle' && !s.plantId)) {
+    const open = (shapes: Shape[], withLocked: boolean) => {
+      const labels = new Set(shapes.map((s) => (s.label ?? '').trim().toLowerCase()));
+      state.pickerLinkId = shapes[0].id;
+      state.pickerLinkAlso = shapes.slice(1).map((s) => s.id);
+      state.pickerLinkLocked = withLocked;
+      plantFilter.q = labels.size === 1 ? (shapes[0].label ?? '').trim() : '';
       state.panel = 'plants';
       render();
-    });
-    body.appendChild(link);
-    const notes = [relinked && `${relinked} of them ${relinked === 1 ? 'is' : 'are'} linked to a plant already and will change too.`, locked && `${locked} locked ${locked === 1 ? 'circle stays' : 'circles stay'} as ${locked === 1 ? 'it is' : 'they are'}.`].filter(Boolean);
-    if (notes.length) body.appendChild(el('div', { className: 'hint', 'data-testid': 'link-all-note' }, notes.join(' ')));
+    };
+    const locked = selected.length - unlocked.length;
+    if (unlocked.some((s) => s.type === 'circle' && !s.plantId) && (unlocked.length > 1 || !locked)) {
+      const link = el('button', { className: 'btn secondary', 'data-testid': 'link-all' }, locked ? `Link the ${unlocked.length} unlocked to a plant\u2026` : `Link all ${unlocked.length} to a plant\u2026`);
+      link.addEventListener('click', () => open(unlocked, false));
+      body.appendChild(link);
+    }
+    if (locked) {
+      const all = el('button', { className: 'btn ghost', 'data-testid': 'link-all-locked' }, `Link all ${selected.length}, locked too\u2026`);
+      all.addEventListener('click', () => open(selected, true));
+      body.appendChild(all);
+    }
+    const relinked = selected.filter((s) => s.type === 'circle' && s.plantId).length;
+    if (relinked) body.appendChild(el('div', { className: 'hint', 'data-testid': 'link-all-note' }, `${relinked} of them ${relinked === 1 ? 'is' : 'are'} linked to a plant already and will change too.`));
   }
 
   // More of the same plant, then duplicate, copy, delete

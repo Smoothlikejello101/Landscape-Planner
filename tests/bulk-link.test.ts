@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { canLinkToPlant, linkShapesToPlant, sameLabel, unlinkedWithLabel, type Plant } from '../src/plants';
+import { canLinkToPlant, linkShapesToPlant, plantsById, sameLabel, unlinkedWithLabel, type Plant } from '../src/plants';
 import { state } from '../src/state';
 import { undo } from '../src/history';
 import type { Shape } from '../src/types';
@@ -33,6 +33,7 @@ describe('linking many circles to a plant', () => {
     ];
     state.roleViews = { other: { hidden: true } };
     expect(unlinkedWithLabel('Bergamot', ['a'])).toEqual(['b']);
+    expect(unlinkedWithLabel('Bergamot', ['a'], { locked: true })).toEqual(['locked']); // (asked about separately)
     expect(unlinkedWithLabel('', [])).toEqual([]);
     expect(canLinkToPlant(state.shapes[2])).toBe(false); // (a pond)
   });
@@ -44,5 +45,28 @@ describe('linking many circles to a plant', () => {
     expect(state.shapes.filter((s) => s.type === 'circle' && s.plantId === bergamot.id)).toHaveLength(2);
     undo();
     expect(state.shapes.map((s) => s.label)).toEqual(['Bergamot', 'bergamot', 'Bergamot']);
+  });
+  it('a circle linked to a tree keeps its drawn size as an existing tree; relinked to a shrub, it takes the shrub\'s size', () => {
+    const oak = { id: 'quercus-rubra', common: 'Northern red oak', form: 'Tree (canopy)', width: { min: 40, max: 60, med: 50 } } as Plant;
+    const holly = { id: 'ilex-glabra', common: 'Inkberry', form: 'Shrub', width: { min: 4, max: 6, med: 5 } } as Plant;
+    plantsById[oak.id] = oak; plantsById[holly.id] = holly;
+    state.shapes = [circle('t', 'Big oak', { radius: 3 })];
+    linkShapesToPlant(['t'], oak);
+    expect(state.shapes[0]).toMatchObject({ plantId: oak.id, radius: 3, tree: true, sizeFrom: 'manual' });
+    // A mislink put right: no longer a tree, and the shrub's size.
+    linkShapesToPlant(['t'], holly);
+    const t = state.shapes[0];
+    expect(t).toMatchObject({ plantId: holly.id, sizeFrom: 'plant' });
+    expect(t.type === 'circle' && t.tree).toBeFalsy();
+    expect(t.type === 'circle' && t.radius).not.toBe(3);
+    // Sized from the shrub, then linked to the oak: the oak's size (the shrub's says nothing about the tree).
+    linkShapesToPlant(['t'], oak);
+    expect(state.shapes[0]).toMatchObject({ tree: true, sizeFrom: 'manual' });
+    expect(state.shapes[0].type === 'circle' && state.shapes[0].radius).toBeGreaterThan(5);
+    // A shaped canopy keeps its outline either way.
+    const canopy = [{ x: 3, y: 0 }, { x: 0, y: 3 }, { x: -3, y: 0 }];
+    state.shapes = [circle('c', 'Pruned', { radius: 3, tree: true, sizeFrom: 'manual', canopy } as Partial<Shape>)];
+    linkShapesToPlant(['c'], holly);
+    expect(state.shapes[0]).toMatchObject({ radius: 3, canopy });
   });
 });

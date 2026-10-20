@@ -331,7 +331,9 @@ export interface AppState {
   /** More shapes to link along with it (several selected: "Link all to a plant…"). */
   pickerLinkAlso: string[];
   /** After linking a circle: the other unlinked circles that had the same label, offered for the same plant. */
-  linkOffer: { fromId: string; plantId: string; label: string; ids: string[] } | null;
+  linkOffer: { fromId: string; plantId: string; label: string; ids: string[]; locked: string[] } | null;
+  /** "Link all" chosen with the locked circles too. */
+  pickerLinkLocked: boolean;
   /** Picker opened from Add, Existing tree: pick the tree (or an unknown one), then draw its canopy. */
   pickerForTree: boolean;
   /** Placing a plant by tapping: the plant in hand and what's been placed so far (not saved). */

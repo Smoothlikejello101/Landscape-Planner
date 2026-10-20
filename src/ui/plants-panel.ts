@@ -12,7 +12,7 @@ import { dismissZipPrompt, openLocation, zipPromptDismissed } from './location-p
 import { render } from './render';
 import { plantDetails } from './plant-details';
 
-function closePicker() { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerForTree = false; render(); }
+function closePicker() { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; state.pickerForTree = false; render(); }
 const isTree = (p: Plant) => !!p.form?.startsWith('Tree'); // (its first form: what it's drawn as)
 // My plants folded away in the picker: kept here, and remembered on this device when storage allows.
 const FOLD_KEY = 'lp-my-plants-folded';

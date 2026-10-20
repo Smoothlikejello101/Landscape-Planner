@@ -53,6 +53,7 @@ export const state: AppState = {
   pickerLinkId: null,
   pickerLinkAlso: [],
   linkOffer: null,
+  pickerLinkLocked: false,
   pickerForTree: false,
   placing: null,
   // Ephemeral: are we in bg edit mode (drag/rotate handles active, shapes locked)?

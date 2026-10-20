@@ -106,14 +106,43 @@ test('the offer is checked again: a circle relabeled since, or undone, drops out
   await expect(page.getByTestId('link-offer')).toHaveCount(0);
 });
 
-test('Link all says what changes: circles linked already, and locked ones left alone', async ({ page }) => {
+test('Link all leaves locked circles alone unless asked to include them', async ({ page }) => {
   await openLegacyPlan(page);
   await page.getByTestId('select-mode').click();
   for (const id of ['a', 'b', 'c']) await page.locator(`circle[data-shape-id=${id}]`).click();
   await page.locator('.multi-bar button', { hasText: 'Edit' }).click();
   await page.getByRole('button', { name: 'Lock all' }).click();
-  await expect(page.getByTestId('link-all')).toHaveCount(0); // (all locked: nothing to link)
-  await page.getByRole('button', { name: 'Unlock all' }).click();
-  await expect(page.getByTestId('link-all')).toHaveText('Link all 3 to a plant…');
-  await expect(page.getByTestId('link-all-note')).toHaveCount(0);
+  // All locked: only asked, never assumed.
+  await expect(page.getByTestId('link-all')).toHaveCount(0);
+  await page.getByTestId('link-all-locked').click();
+  await page.getByTestId('plant-search').fill('Wild bergamot');
+  await page.locator('.proj-row', { hasText: 'Wild bergamot' }).first().locator('[data-testid=plant-place]').click();
+  await expect(page.locator('#toast')).toContainText('3 circles linked to Wild bergamot');
+  await expect(page.locator('#canvas-svg text', { hasText: 'Wild bergamot' })).toHaveCount(3);
+});
+
+test('linking a circle to a tree keeps it the size it was drawn, as an existing tree', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    localStorage.setItem('landscape-planner-v1', JSON.stringify({
+      shapes: [{ id: 't', type: 'circle', x: 0, y: 0, radius: 3, color: '#16a34a', label: 'Big oak' }, { id: 'u', type: 'circle', x: 8, y: 0, radius: 2, color: '#16a34a', label: 'Big oak', locked: true }],
+      zoom: 1, offsetX: -10, offsetY: -6,
+    }));
+  });
+  await page.goto('./');
+  await page.locator('circle[data-shape-id=t]').click();
+  await page.locator('.sel-pill .edit').click();
+  await openSections(page);
+  await page.getByTestId('plant-link').getByRole('button', { name: 'Link to a plant…' }).click();
+  await page.getByTestId('plant-search').fill('Quercus rubra');
+  await page.locator('.proj-row', { hasText: 'Quercus rubra' }).first().locator('[data-testid=plant-place]').click();
+  await expect(page.locator('circle[data-shape-id=t]')).toHaveAttribute('r', '72'); // (3 ft at 24 px a foot: as drawn)
+  await expect(page.locator('#canvas-svg [data-role=full-ring]')).toHaveCount(1);
+  await expect(page.getByTestId('plant-link')).toContainText('the dashed ring');
+  // The other "Big oak" is locked: asked about, not linked unless chosen.
+  await expect(page.getByTestId('link-offer')).toContainText('and it’s locked');
+  await expect(page.getByTestId('link-offer-yes')).toHaveCount(0);
+  await page.getByTestId('link-offer-locked').click();
+  await expect(page.locator('#canvas-svg text', { hasText: 'Big oak' })).toHaveCount(0);
 });
