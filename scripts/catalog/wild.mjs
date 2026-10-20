@@ -12,7 +12,8 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, w
 
 const stateOf = (fips) => Math.floor(fips / 1000);
 const binomial = (s) => String(s ?? '').replace(/\s+/g, ' ').trim().split(' ').slice(0, 2).join(' ');
-const isHybrid = (bot) => /×| x |\bhybrid\b/i.test(bot) && !/\bhybrids\b/i.test(bot);
+/** A hybrid, or two taxa in one entry: no one plant's records (usda-counties.mjs twoTaxa). */
+const isHybrid = (bot) => (/×| x |\bhybrid\b/i.test(bot) && !/\bhybrids\b/i.test(bot)) || /\/\s*[A-Za-z]/.test(bot.replace(/'[^']*'|‘[^’]*’|\([^)]*\)/g, ''));
 
 /**
  * The atlas's records for each catalog plant: { id: { counties, species } }. A plant gets its own taxon's: a

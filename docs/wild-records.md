@@ -43,7 +43,8 @@ it), so the app never says "not found here".
    against every record's own name and shape, none is in the wrong county or state. A plant gets USDA's
    records only under its own name, or a rename of the same plant reviewed by hand (`SAME_PLANT`: USDA's
    symbols also lead from misapplied names, lumps and Old World look-alikes to other plants, and those
-   are left out: 10 plants). A cultivar or mix, or a variety USDA has only as its species, gets its
+   are left out: 11 plants; a rename is checked to its rank, ssp. or var.). A plant listed as two taxa
+   ("Salvia officinalis / Origanum vulgare") gets no records, from either source. A cultivar or mix, or a variety USDA has only as its species, gets its
    species', said so.
 4. `node scripts/catalog/wild.mjs <combined.json>`: `public/wild/1/<state>.json` for every state with
    records (52, with DC and the territories), and `public/wild/1/index.json`. The `1` is the format: a new

@@ -24,19 +24,30 @@ const binomialOf = (s) => strip(s).replace(/ ×/, ' ×').split(' ').slice(0, 2).
  * 2026-10-19, from the 35 redirects among the catalog's symbols). The others are left without USDA's records:
  * a misapplied name (Carex albicans → C. peckii, Carex frankii → C. aureolensis, Silphium terebinthinaceum →
  * S. compositum var. reniforme, Ziziphus jujuba → Z. mauritiana), a lump into a wider taxon (Iliamna remota,
- * Symphyotrichum firmum, Oenothera rhombipetala), an Old World taxon USDA excludes (Anemone patens, Anthoxanthum
+ * Symphyotrichum firmum, Oenothera rhombipetala, Bidens polylepis), an Old World taxon USDA excludes (Anemone patens, Anthoxanthum
  * hirtum), a hybrid (Viola palmata).
  */
 export const SAME_PLANT = new Map([
-  ['Potentilla fruticosa', 'Dasiphora fruticosa'], ['Sambucus canadensis', 'Sambucus nigra'], ['Viburnum trilobum', 'Viburnum opulus'],
-  ['Bidens polylepis', 'Bidens aristosa'], ['Bidens trichosperma', 'Bidens coronata'], ['Campanula americana', 'Campanulastrum americanum'],
-  ['Drymocallis arguta', 'Potentilla arguta'], ['Gentiana flavida', 'Gentiana alba'], ['Hepatica acutiloba', 'Hepatica nobilis'],
-  ['Hypericum pyramidatum', 'Hypericum ascyron'], ['Linaria canadensis', 'Nuttallanthus canadensis'], ['Persicaria virginiana', 'Polygonum virginianum'],
-  ['Persicaria pensylvanica', 'Polygonum pensylvanicum'], ['Persicaria punctata', 'Polygonum punctatum'], ['Polymnia uvedalia', 'Smallanthus uvedalius'],
-  ['Porteranthus stipulatus', 'Gillenia stipulata'], ['Thermopsis caroliniana', 'Thermopsis villosa'], ['Buchloe dactyloides', 'Bouteloua dactyloides'],
-  ['Juncus balticus', 'Juncus arcticus'], ['Turritis glabra', 'Arabis glabra'], ['Peritoma serrulata', 'Cleome serrulata'],
-  ['Osmundastrum cinnamomeum', 'Osmunda cinnamomea'], ['Osmunda spectabilis', 'Osmunda regalis'], ['Malus domestica', 'Malus pumila'],
+  ['Potentilla fruticosa', 'Dasiphora fruticosa'], ['Sambucus canadensis', 'Sambucus nigra ssp. canadensis'],
+  ['Viburnum trilobum', 'Viburnum opulus var. americanum'], ['Bidens trichosperma', 'Bidens coronata'],
+  ['Campanula americana', 'Campanulastrum americanum'], ['Drymocallis arguta', 'Potentilla arguta ssp. arguta'],
+  ['Gentiana flavida', 'Gentiana alba'], ['Hepatica acutiloba', 'Hepatica nobilis var. acuta'], ['Hypericum pyramidatum', 'Hypericum ascyron'],
+  ['Linaria canadensis', 'Nuttallanthus canadensis'], ['Persicaria virginiana', 'Polygonum virginianum'],
+  ['Persicaria pensylvanica', 'Polygonum pensylvanicum'], ['Persicaria punctata', 'Polygonum punctatum var. punctatum'],
+  ['Polymnia uvedalia', 'Smallanthus uvedalius'], ['Porteranthus stipulatus', 'Gillenia stipulata'], ['Thermopsis caroliniana', 'Thermopsis villosa'],
+  ['Buchloe dactyloides', 'Bouteloua dactyloides'], ['Juncus balticus', 'Juncus arcticus ssp. littoralis'], ['Turritis glabra', 'Arabis glabra'],
+  ['Peritoma serrulata', 'Cleome serrulata'], ['Osmundastrum cinnamomeum', 'Osmunda cinnamomea'],
+  ['Osmunda spectabilis', 'Osmunda regalis var. spectabilis'], ['Malus domestica', 'Malus pumila'],
 ]);
+/** A USDA name without its authors: "Sambucus nigra L. ssp. canadensis (L.) R. Bolli" → "Sambucus nigra ssp. canadensis". */
+export function canonical(sci) {
+  const t = strip(sci);
+  const infra = t.match(/ (ssp\.|subsp\.|var\.) ([a-zë-]+)/);
+  return binomialOf(t) + (infra ? ` ${infra[1] === 'subsp.' ? 'ssp.' : infra[1]} ${infra[2]}` : '');
+}
+/** Two taxa in one entry ("Salvia officinalis / Origanum vulgare", "Prunus laurocerasus / caroliniana"): no one plant's records. */
+export const twoTaxa = (bot) => /\/\s*[A-Za-z]/.test(String(bot ?? '').replace(/'[^']*'|‘[^’]*’|\([^)]*\)/g, ''));
+
 const norm = (s) => String(s ?? '').toLowerCase().replace(/\((city|county)\)|\b(county|parish|borough|census area|city and borough|municipality|city)\b/g, '').replace(/[^a-z]/g, '');
 
 /** Places USDA's county records: (features) → the counties (FIPS) they're in, and how many couldn't be placed. */
@@ -71,15 +82,16 @@ export function usdaRecords(catalog, audit, place, page = savedPage) {
   for (const rec of catalog.plants) {
     if (rec.parent) continue;
     const bot = String(rec.botanical ?? '').replace(/\s+/g, ' ').trim();
-    if (/×| x |\bhybrid\b/i.test(bot) && !/\bhybrids\b/i.test(bot)) continue;
+    if ((/×| x |\bhybrid\b/i.test(bot) && !/\bhybrids\b/i.test(bot)) || twoTaxa(bot)) continue;
     const symbol = byId.get(rec.id)?.sources?.usda?.symbol;
     if (!symbol) continue;
     let profile = null, records = null;
     try { profile = JSON.parse(page('usda', profileUrl(symbol))?.text ?? 'null'); } catch { /* none */ }
     if (!profile?.Id) continue;
     // The plant's own name, or a reviewed rename of it; never another plant's records.
+    // (A rename is checked to its rank: Sambucus nigra ssp. canadensis, not any Sambucus nigra.)
     const mine = binomialOf(bot), theirs = binomialOf(profile.ScientificName);
-    if (theirs !== mine && SAME_PLANT.get(mine) !== theirs) { otherName++; continue; }
+    if (theirs !== mine && SAME_PLANT.get(mine) !== canonical(profile.ScientificName)) { otherName++; continue; }
     try { records = JSON.parse(page('web', recordsUrl(profile.Id))?.text ?? 'null'); } catch { /* none */ }
     if (!records?.features || records.exceededTransferLimit) { noRecords++; continue; }
     const r = place(records.features);
@@ -88,7 +100,7 @@ export function usdaRecords(catalog, audit, place, page = savedPage) {
     // Its own records: a plain species, or a variety USDA has under its own name. Otherwise its species'.
     const infra = bot.match(/ (var\.|subsp\.|ssp\.) ([a-zë-]+)/);
     const plain = /^[A-Z][a-zë-]+ [a-zë-]+$/.test(bot);
-    const own = plain || (infra && strip(profile.ScientificName).includes(`${infra[1] === 'ssp.' ? 'ssp.' : infra[1]} ${infra[2]}`));
+    const own = plain || (infra && canonical(profile.ScientificName).endsWith(`${infra[1] === 'subsp.' ? 'ssp.' : infra[1]} ${infra[2]}`));
     out[rec.id] = { counties: r.counties, species: !own };
   }
   return { records: out, unplaced, noRecords, otherName };

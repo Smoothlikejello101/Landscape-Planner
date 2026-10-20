@@ -46,17 +46,20 @@ const STATE_NAMES: Record<string, string> = {
 export function countyName(name: string, fips: number): string {
   const short = shortCountyName(name, fips);
   const st = Math.floor(fips / 1000);
-  return short !== name || st === 11 || st === 2 || st === 72 || (fips % 1000 >= 500 && name.endsWith('City')) ? short : `${name} County`;
+  return short !== name || NO_COUNTIES.has(st) || (CITY_STATES.has(st) && fips % 1000 >= 500 && name.endsWith('City')) ? short : `${name} County`;
 }
 /**
  * In a list of neighbors: the bare name, but an independent city (a code of 500 or more: Virginia's, Baltimore,
  * St. Louis, Carson City) or the District marked, so "Roanoke" the county and "Roanoke (city)" differ.
  */
+const CITY_STATES = new Set([24, 29, 32, 51]);
+/** Places with no counties as such (Alaska's boroughs and areas, DC, Puerto Rico's and the island territories'). */
+const NO_COUNTIES = new Set([2, 11, 60, 66, 69, 72, 78]);
 export function shortCountyName(name: string, fips: number): string {
   const st = Math.floor(fips / 1000);
-  if (st === 11) return name; // (the District of Columbia)
   if (st === 22) return `${name} Parish`;
-  if (fips % 1000 >= 500 && st !== 2 && st !== 72 && !/City$/.test(name)) return `${name} (city)`;
+  // (Independent cities: Virginia's, Baltimore, St. Louis, Carson City. Texas's counties run past 500.)
+  if (fips % 1000 >= 500 && CITY_STATES.has(st) && !/City$/.test(name)) return `${name} (city)`;
   return name;
 }
 

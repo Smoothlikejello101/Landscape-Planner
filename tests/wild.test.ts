@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
 import { atlasRecords, SOURCES, stateFile, wildIndex } from '../scripts/catalog/wild.mjs';
 // @ts-expect-error (a plain .mjs script)
-import { placer, usdaRecords } from '../scripts/catalog/usda-counties.mjs';
+import { canonical, placer, twoTaxa, usdaRecords } from '../scripts/catalog/usda-counties.mjs';
 import { countyName, loadWild, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
 import { plantMatches, PLANT_FILTER_DEFAULTS, zoneNote, type Plant } from '../src/plants';
 import { state } from '../src/state';
@@ -109,6 +109,7 @@ describe('wild records near the garden', () => {
     expect([countyName('Baltimore', 24510), countyName('Baltimore', 24005), countyName('St. Louis', 29510), countyName('Carson City', 32510), countyName('District of Columbia', 11001), countyName('James City', 51095)])
       .toEqual(['Baltimore (city)', 'Baltimore County', 'St. Louis (city)', 'Carson City', 'District of Columbia', 'James City County']);
     expect([shortCountyName('Roanoke', 51161), shortCountyName('Roanoke', 51770)]).toEqual(['Roanoke', 'Roanoke (city)']);
+    expect([countyName('Zapata', 48505), shortCountyName('Young', 48503), countyName('St. Croix', 78010)]).toEqual(['Zapata County', 'Young', 'St. Croix']); // (Texas's counties run past 500)
   });
   it('place USDA\'s records by shape: the county a record\'s center is in, or one of its corners\' that has its name', () => {
     const sq = (x0: number, x1: number, y0: number, y1: number) => [[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]];
@@ -141,6 +142,10 @@ describe('wild records near the garden', () => {
     const r = usdaRecords(cat, aud, () => ({ counties: [5019], unplaced: 0 }), page);
     expect(r.records).toEqual({ buchloe: { counties: [5019], species: false }, oak: { counties: [5019], species: false }, 'oak-cv': { counties: [5019], species: true } });
     expect(r.otherName).toBe(1);
+    // A rename is checked to its rank; two taxa in one entry get nothing; a list of cultivars is one species.
+    expect(canonical('<i>Sambucus nigra</i> L. ssp. <i>canadensis</i> (L.) R. Bolli')).toBe('Sambucus nigra ssp. canadensis');
+    expect(canonical('<i>Viburnum opulus</i> L. var. <i>opulus</i>')).toBe('Viburnum opulus var. opulus');
+    expect([twoTaxa('Salvia officinalis / Origanum vulgare'), twoTaxa('Prunus laurocerasus / caroliniana'), twoTaxa("Ilex vomitoria 'Nana' / 'Schillings'"), twoTaxa('Echinacea (Cone-fections / Big Sky)')]).toEqual([true, true, false, false]);
   });
   it('are looked up once per ZIP, the county remembered on the device; nothing for a ZIP with no county', async () => {
     await loadWild(undefined, fetcher);

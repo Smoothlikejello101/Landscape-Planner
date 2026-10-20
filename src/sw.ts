@@ -35,7 +35,7 @@ self.addEventListener('activate', (event) => {
   // ("landscape-planner-v1" … "-v8"), which served everything cache-first.
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k.startsWith('landscape-planner-') || (k.startsWith('fullgrown-wild-') && k !== WILD_CACHE)).map((k) => caches.delete(k))),
+      Promise.all(keys.filter((k) => k.startsWith('landscape-planner-') || (k.startsWith('fullgrown-wild') && k !== WILD_CACHE)).map((k) => caches.delete(k))),
     ).then(() => self.clients.claim()),
   );
 });
