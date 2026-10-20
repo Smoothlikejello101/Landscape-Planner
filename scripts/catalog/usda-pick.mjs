@@ -39,8 +39,19 @@ export function symbolCandidates(species, results) {
   return ok.map((p, i) => ({ p, i })).sort((a, b) => rank(a.p) - rank(b.p) || a.i - b.i)
     .map(({ p }) => ({ symbol: p.Symbol, id: p.Id, name: strip(p.ScientificName), doubtful: misapplied(p.ScientificName) }));
 }
+/**
+ * Reviewed choices where the plant is a variety or subspecies of USDA's species (decided 2026-10-19): the
+ * catalog's Anemone patens is the American pasque flower, Pulsatilla patens ssp. multifida (USDA's species
+ * entry leads to the Eurasian subspecies, which it excludes from the US).
+ */
+export const PICK = new Map([['Anemone patens', 'ANPAM']]);
 /** The first candidate whose profile is the plant's own (`profileName(symbol)`: its profile's name, or null if not fetched). */
 export function pickSymbol(species, results, profileName = () => null) {
+  const fixed = PICK.get(species);
+  if (fixed) {
+    const p = (results ?? []).map((r) => r.Plant ?? r).find((x) => x?.Symbol === fixed);
+    return p ? { symbol: p.Symbol, id: p.Id, name: strip(p.ScientificName) } : null;
+  }
   for (const c of symbolCandidates(species, results)) {
     const prof = profileName(c.symbol);
     if (prof != null ? sameTaxon(species, prof) : !c.doubtful) return { symbol: c.symbol, id: c.id, name: c.name };

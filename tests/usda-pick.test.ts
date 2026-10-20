@@ -38,6 +38,10 @@ describe('picking a USDA symbol', () => {
   });
   it('prefers a plain entry listed after a doubtful one, and refuses a plain one whose profile is another plant', () => {
     expect(pickSymbol('Carex frankii', [result('CAFR11', 'Carex frankii auct. non Kunth'), result('CAFR3', 'Carex frankii Kunth')], (s: string) => (s === 'CAFR11' ? '<i>Carex aureolensis</i> Steud.' : '<i>Carex frankii</i> Kunth'))).toMatchObject({ symbol: 'CAFR3' });
+    // A reviewed choice: the catalog's Anemone patens is the American pasque flower.
+    expect(pickSymbol('Anemone patens', [result('ANPA19', 'Anemone patens L.'), result('ANPAM', 'Anemone patens L. var. multifida Pritz.', { Rank: 'Variety' })])).toMatchObject({ symbol: 'ANPAM' });
+    expect(sameTaxon('Anemone patens', '<i>Pulsatilla patens</i> (L.) Mill. ssp. <i>multifida</i> (Pritz.) Zamels')).toBe(true);
+    expect(sameTaxon('Anemone patens', '<i>Pulsatilla patens</i> (L.) Mill. ssp. <i>patens</i> (L.) Mill. [excluded]')).toBe(false);
     // (Bidens polylepis: USDA lumps it into B. aristosa, not a reviewed rename.)
     expect(pickSymbol('Bidens polylepis', [result('BIPO', 'Bidens polylepis S.F. Blake')], () => '<i>Bidens aristosa</i> (Michx.) Britton')).toBeNull();
   });

@@ -38,6 +38,10 @@ export const SAME_PLANT = new Map([
   ['Buchloe dactyloides', 'Bouteloua dactyloides'], ['Juncus balticus', 'Juncus arcticus ssp. littoralis'], ['Turritis glabra', 'Arabis glabra'],
   ['Peritoma serrulata', 'Cleome serrulata'], ['Osmundastrum cinnamomeum', 'Osmunda cinnamomea'],
   ['Osmunda spectabilis', 'Osmunda regalis var. spectabilis'], ['Malus domestica', 'Malus pumila'], ['Ziziphus jujuba', 'Ziziphus zizyphus'],
+  // (The American pasque flower: usda-pick.mjs PICK. Not Bidens polylepis → B. aristosa: USDA lumps them, but
+  // Kew's World Checklist (POWO) and World Flora Online keep B. polylepis a species, so B. aristosa's records
+  // aren't its own.)
+  ['Anemone patens', 'Pulsatilla patens ssp. multifida'],
 ]);
 /** Whether a USDA profile is the plant's own (its name, or a reviewed rename of it). */
 export const sameTaxon = (binomial, profileName) => !(/×|\bhybrid\b/i.test(strip(profileName)) && !/×/.test(binomial))
