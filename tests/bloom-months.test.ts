@@ -27,7 +27,8 @@ describe('a bloom window', () => {
     expect(agreesWithSeasons({ start: 6, end: 8 }, ['spring'])).toBe(false);
     expect(agreesWithSeasons({ start: 6, end: 8 }, undefined)).toBe(true);
     expect(seasonsToCheck([{ id: 'a', facts: { bloom_season: { v: ['spring'], src: ['ncsu', 'x.com'] } } },
-      { id: 'b', facts: { bloom_season: { v: ['spring'], src: ['somenursery.com'] } } }, { id: 'c', facts: {} }])).toEqual({ a: ['spring'] });
+      { id: 'b', facts: { bloom_season: { v: ['spring'], src: ['somenursery.com'] } } }, { id: 'c', facts: {} },
+      { id: 'allium-tricoccum', facts: { bloom_season: { v: ['spring'], src: ['ncsu'] } } }])).toEqual({ a: ['spring'] }); // (ramps: reviewed, the records trusted)
   });
 });
 

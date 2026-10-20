@@ -104,9 +104,19 @@ export function stateBloom(fips, counts, neighborStates, ncsuSeasons = {}) {
   }
   return out;
 }
-/** The seasons each plant's window is checked against: { id: ["spring", …] }, where NC State gives them (a season from another source alone, a nursery's, isn't the check). */
+/**
+ * Plants reviewed where the records and NC State disagree, the records trusted (the owner, 2026-10-20): dwarf
+ * larkspur blooms Apr–May, not summer and fall; ramps flower Jun–Jul, after their spring leaves die back; Carex
+ * flaccosperma Apr–May, not summer.
+ */
+export const RECORDS_TRUSTED = new Set(['delphinium-tricorne', 'allium-tricoccum', 'carex-flaccosperma']);
+/**
+ * The seasons each plant's window is checked against: { id: ["spring", …] }, where NC State gives them (a season
+ * from another source alone, a nursery's, isn't the check), but not for plants reviewed (RECORDS_TRUSTED).
+ */
 export function seasonsToCheck(audit) {
-  return Object.fromEntries(audit.map((a) => [a.id, a.facts?.bloom_season]).filter(([, f]) => f?.v?.length && f.src?.includes('ncsu')).map(([id, f]) => [id, f.v]));
+  return Object.fromEntries(audit.map((a) => [a.id, a.facts?.bloom_season])
+    .filter(([id, f]) => f?.v?.length && f.src?.includes('ncsu') && !RECORDS_TRUSTED.has(id)).map(([id, f]) => [id, f.v]));
 }
 /**
  * Plants whose US-wide window shares no month with NC State's seasons: [{ id, window, seasons }]. Only those

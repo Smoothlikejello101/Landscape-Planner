@@ -58,7 +58,8 @@ GBIF calls the backbone deprecated: a move to the Catalogue of Life's keys is on
 - **Enough records:** 30 in the state; else 30 in the state and its neighbors together; else none.
 - **Checked against NC State:** where NC State gives seasons (not a nursery alone), a plant whose US-wide
   window (of at least 30 records) shares no month with them is left out and listed for review
-  (`catalog-src/bloom-review.json`).
+  (`catalog-src/bloom-review.json`). Reviewed, the records trusted (`RECORDS_TRUSTED`, 2026-10-20): dwarf
+  larkspur, ramps (they flower after their spring leaves die back), Carex flaccosperma.
 - **Which plants:** species and varieties (a variety is looked up as its species, and says so); a cultivar
   with a species record in the catalog takes its species'; a cultivar or mix without one looks up its
   species, said so ("its species: …"). Not hybrids, or two taxa in one entry.
