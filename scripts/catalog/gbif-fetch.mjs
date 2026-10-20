@@ -19,7 +19,7 @@ const json = (url) => { try { return JSON.parse(savedPage('gbif', url)?.text ?? 
 async function fetchAll(urls, label) {
   const todo = [...new Set(urls)].filter((u) => !savedPage('gbif', u));
   let saved = 0, other = 0;
-  await runFetch(todo.map((url) => ({ source: 'gbif', url })), { get, store: fileStore('catalog-src', today), today, session: fetchSession(), concurrency: 1, sleep: (s) => new Promise((r) => setTimeout(r, s * 1000)), now: () => Date.now(), log: (l) => { if (/^200/.test(l)) saved++; else other++; } });
+  await runFetch(todo.map((url) => ({ source: 'gbif', url })), { get, store: fileStore('catalog-src', today), today, session: fetchSession(), concurrency: 1, sleep: (s) => new Promise((r) => setTimeout(r, s * 1000)), now: () => Date.now(), log: (l) => { if (/^200/.test(l)) saved++; else { other++; if (other <= 5) console.log('  ' + l.slice(0, 200)); } } });
   console.log(`${label}: ${todo.length} to fetch, ${saved} saved, ${other} not`);
 }
 const species = bloomSpecies(catalog, audit);
