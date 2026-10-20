@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
 import { agreesWithSeasons, bloomCounts, bloomDisagreements, bloomSpecies, bloomWindow, MIN_RECORDS, stateBloom } from '../scripts/catalog/bloom.mjs';
 // @ts-expect-error (a plain .mjs script)
-import { matchedTaxon, matchUrl, monthsUrl, statesUrl } from '../scripts/catalog/gbif.mjs';
+import { DOWNLOADS, matchedTaxon, matchUrl, phases, tsvRows } from '../scripts/catalog/gbif.mjs';
 import { loadWild, localBloom, resetWild, type WildFile } from '../src/wild';
 import { bloomMonths } from '../src/bloom';
 import { plantMatches, plantMetaLine, PLANT_FILTER_DEFAULTS, type Plant } from '../src/plants';
@@ -35,18 +35,41 @@ describe('flowering records by state', () => {
     'Fooa bar': { matchType: 'FUZZY', rank: 'SPECIES', status: 'ACCEPTED', usageKey: 3 } } as Record<string, unknown>;
   const pages = new Map<string, unknown>();
   for (const [n, m] of Object.entries(match)) pages.set(matchUrl(n), m);
-  pages.set(monthsUrl(1), { facets: [{ counts: [{ name: '6', count: 40 }, { name: '7', count: 10 }] }] });
-  pages.set(statesUrl(1, 6), { facets: [{ counts: [{ name: 'USA.4_1', count: 35 }, { name: 'USA.26_1', count: 5 }] }] });
-  pages.set(statesUrl(1, 7), { facets: [{ counts: [{ name: 'USA.4_1', count: 10 }] }] });
-  pages.set(monthsUrl(2), { facets: [{ counts: [{ name: '9', count: 12 }] }] }); // (its September by state not fetched yet)
+  // The bloom download's rows: species key, state, month, the note as published, records.
+  const rows = tsvRows(['specieskey\tlevel1gid\tmonth\treproductivecondition\tn',
+    '1\tUSA.4_1\t6\tFlowers\t30', '1\tUSA.4_1\t6\tfl-fr\t5', '1\tUSA.26_1\t6\tFlowers|Flower Buds\t5', '1\tUSA.4_1\t7\tflr & frt\t10',
+    '1\tUSA.4_1\t8\tNo Flowers or Fruits\t50', '1\tUSA.4_1\t9\tFruits or Seeds\t40', '1\tUSA.4_1\t\tflowers\t9', '1\t\t5\tflowering\t3',
+    '2\tUSA.4_1\t9\tflowering or fruiting\t12', '3\tUSA.4_1\t9\tflowering\t12'].join('\n'));
   const fips = { 'USA.4_1': 5, 'USA.26_1': 29 } as Record<string, number>;
   const species = [{ id: 'echinacea-purpurea', binomial: 'Echinacea purpurea', species: false }, { id: 'aster', binomial: 'Aster novae-angliae', species: false }, { id: 'foo', binomial: 'Fooa bar', species: false }];
-  const counts = bloomCounts(species, (u: string) => pages.get(u) ?? null, (g: string) => fips[g]);
-  it('take an exact match, or a plain synonym\'s accepted name; never a fuzzy guess; and wait for every month', () => {
+  const read = (u: string) => pages.get(u) ?? null;
+  const counts = bloomCounts(species, read, (g: string) => fips[g], rows);
+  it('take an exact match, or a plain synonym\'s accepted name; never a fuzzy guess', () => {
     expect(matchedTaxon(match['Aster novae-angliae'])).toEqual({ key: 2, name: 'Symphyotrichum novae-angliae', synonym: 'Aster novae-angliae' });
     expect(matchedTaxon(match['Fooa bar'])).toBeNull();
-    expect(Object.keys(counts)).toEqual(['echinacea-purpurea']);
+    expect(Object.keys(counts)).toEqual(['echinacea-purpurea']); // (the aster's one row says flowers or fruit: neither)
+  });
+  it('count records whose note says flowers, by state and month; no month, nowhere; no state, only in the US total', () => {
     expect(counts['echinacea-purpurea'].states).toEqual({ 5: months({ 6: 35, 7: 10 }), 29: months({ 6: 5 }) });
+    expect(counts['echinacea-purpurea'].total).toEqual(months({ 5: 3, 6: 40, 7: 10 }));
+    expect(bloomCounts(species, read, (g: string) => fips[g], rows, 'fruit')['echinacea-purpurea'].states[5]).toEqual(months({ 6: 5, 7: 10, 9: 40 }));
+  });
+  it('read a note as its publisher wrote it: iNaturalist\'s annotations, herbaria\'s codes; unsure or neither says nothing', () => {
+    expect(phases('Flowers|Fruits or Seeds|Flower Buds')).toEqual({ flower: true, fruit: true, bud: true });
+    expect(phases('fl-fr')).toEqual({ flower: true, fruit: true });
+    expect(phases('Phenology: flowering and fruiting.')).toEqual({ flower: true, fruit: true });
+    expect(phases('reproductive/flowering')).toEqual({ flower: true });
+    expect(phases('Flower Buds')).toEqual({ bud: true });
+    for (const none of ['No Flowers or Fruits', 'notdetermined', 'fertile', 'vegetative', 'sterile', 'post-flowering', 'flowering or fruiting', 'flowering and/or fruiting', ''])
+      expect(phases(none)).toEqual({});
+  });
+  it("ask GBIF for counts only, by its backbone's species keys, with the licences that allow commercial use", () => {
+    for (const sql of [DOWNLOADS.bloom([2, 1]), DOWNLOADS.counties([2, 1])]) {
+      expect(sql).toMatch(/^SELECT .*COUNT\(\*\)/);
+      expect(sql).toContain("occurrence.gbif_classification.specieskey IN ('2', '1')");
+      expect(sql).toContain("license IN ('CC0_1_0', 'CC_BY_4_0')");
+      expect(sql).toContain("countrycode = 'US'");
+    }
   });
   it('give a state its own window with enough records, else its region\'s, else none; and leave out a plant NC State disagrees with', () => {
     expect(MIN_RECORDS).toBe(30);
@@ -63,7 +86,7 @@ describe('flowering records by state', () => {
 });
 
 describe('bloom months in the app', () => {
-  const file = { v: 1, state: 'AR', fips: 5, sources: { gbif: { title: 'GBIF.org flowering records' } }, counties: { 5019: { name: 'Clark', near: [] } }, plants: {},
+  const file = { v: 1, state: 'AR', fips: 5, sources: { gbifBloom: { title: 'GBIF.org flowering records' } }, counties: { 5019: { name: 'Clark', near: [] } }, plants: {},
     bloom: { coneflower: { start: 6, end: 8, peak: 8, n: 252, area: 'state' }, witch: { start: 12, end: 2, peak: 12, n: 73, area: 'state' } }, bloomSpecies: [] } as unknown as WildFile;
   const fetcher = (async (url: string) => {
     const body = { 'climate/719.json': { v: 1, zips: { 71923: ['8a', 0, 3, 5019] }, stations: [] }, 'wild/1/index.json': { v: 1, states: { 5: 'AR' }, border: {} }, 'wild/1/05.json': file }[url];

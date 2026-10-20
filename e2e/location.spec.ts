@@ -141,7 +141,8 @@ test('a plant recorded growing wild in the garden\'s county or next door says so
   await oak.getByTestId('plant-row').click();
   await expect(oak.getByTestId('wild-here')).toContainText('Recorded growing wild in Clark County');
   await expect(oak.getByTestId('wild-here')).toContainText('Atlas of the Vascular Plants of Arkansas');
-  // Bishop's cap: rated the same, recorded only in the Ozarks: not hardy here.
-  await page.getByTestId('plant-search').fill("Bishop's cap");
-  await expect(page.locator('.plant-item', { hasText: "Bishop's cap" })).toHaveCount(0);
+  // Pagoda dogwood: rated the same, recorded only in the Ozarks: not hardy here. (Not bishop's cap any more:
+  // GBIF's herbarium specimens put it in Montgomery County, next door.)
+  await page.getByTestId('plant-search').fill('Pagoda dogwood');
+  await expect(page.locator('.plant-item', { hasText: 'Pagoda dogwood' })).toHaveCount(0);
 });

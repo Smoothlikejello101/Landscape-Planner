@@ -1,7 +1,7 @@
 // Bloom months by state from GBIF's flowering records (docs/bloom-months.md). bloomSpecies says which
-// catalog records are looked up (gbif-fetch.mjs); bloomCounts reads what was fetched.
+// catalog records are looked up (gbif-fetch.mjs, gbif-download.mjs); bloomCounts counts the download's rows.
 import { twoTaxa } from './usda-counties.mjs';
-import { gadmUrl, matchedTaxon, matchUrl, monthsUrl, statesUrl } from './gbif.mjs';
+import { matchedTaxon, matchUrl, phases } from './gbif.mjs';
 
 const binomialOf = (s) => String(s ?? '').replace(/\s+/g, ' ').trim().split(' ').slice(0, 2).join(' ');
 /**
@@ -54,31 +54,28 @@ export function agreesWithSeasons(w, seasons) {
 }
 
 /**
- * Each looked-up plant's flowering records by state: { id: { states: { fips: [12 counts] }, total: [12],
- * species, taxon } }. `read(url)` gives a fetched page's JSON; `fipsOf(gid)` a GADM id's state FIPS.
+ * Each looked-up plant's records of a phase ('flower', or 'fruit') by state and month: { id: { states: { fips:
+ * [12 counts] }, total: [12], species, taxon } }. `rows`: the bloom download's (specieskey, level1gid, month,
+ * reproductivecondition, n); `read(url)` gives a fetched match page's JSON; `fipsOf(gid)` a GADM id's state
+ * FIPS. Records with no month count nowhere; with no state, only in the US-wide total.
  */
-export function bloomCounts(species, read, fipsOf) {
-  const out = {};
+export function bloomCounts(species, read, fipsOf, rows, phase = 'flower') {
+  const byKey = new Map();
   for (const s of species) {
     const t = matchedTaxon(read(matchUrl(s.binomial)));
-    if (!t) continue;
-    const months = read(monthsUrl(t.key))?.facets?.[0]?.counts ?? [];
-    const states = {}, total = Array(12).fill(0);
-    let complete = true;
-    for (const c of months) {
-      const m = Number(c.name);
-      if (!(m >= 1 && m <= 12) || !(c.count > 0)) continue;
-      total[m - 1] += c.count;
-      const page = read(statesUrl(t.key, m));
-      if (!page) { complete = false; continue; }
-      for (const g of page.facets?.[0]?.counts ?? []) {
-        const f = fipsOf(g.name);
-        if (f == null) continue;
-        (states[f] ??= Array(12).fill(0))[m - 1] += g.count;
-      }
+    if (t) (byKey.get(String(t.key)) ?? byKey.set(String(t.key), []).get(String(t.key))).push({ ...s, taxon: t });
+  }
+  const out = {};
+  for (const r of rows) {
+    const plants = byKey.get(String(r.specieskey));
+    const m = Number(r.month), n = Number(r.n);
+    if (!plants || !(m >= 1 && m <= 12) || !(n > 0) || !phases(r.reproductivecondition)[phase]) continue;
+    const f = r.level1gid ? fipsOf(r.level1gid) : null;
+    for (const s of plants) {
+      const c = (out[s.id] ??= { states: {}, total: Array(12).fill(0), species: s.species, taxon: s.taxon });
+      c.total[m - 1] += n;
+      if (f != null) (c.states[f] ??= Array(12).fill(0))[m - 1] += n;
     }
-    if (!complete) continue; // (some months not fetched yet: left out rather than shown short)
-    out[s.id] = { states, total, species: s.species, taxon: t };
   }
   return out;
 }
@@ -102,8 +99,11 @@ export function stateBloom(fips, counts, neighborStates, ncsuSeasons = {}) {
   }
   return out;
 }
-/** Plants whose US-wide window shares no month with NC State's seasons: [{ id, window, seasons }]. */
+/**
+ * Plants whose US-wide window shares no month with NC State's seasons: [{ id, window, seasons }]. Only those
+ * with MIN_RECORDS in the US (fewer could never be shown anywhere, so there's nothing to review).
+ */
 export function bloomDisagreements(counts, ncsuSeasons) {
   return Object.entries(counts).map(([id, c]) => ({ id, window: bloomWindow(c.total), seasons: ncsuSeasons[id] }))
-    .filter((d) => d.window && !agreesWithSeasons(d.window, d.seasons));
+    .filter((d) => d.window && d.window.n >= MIN_RECORDS && !agreesWithSeasons(d.window, d.seasons));
 }

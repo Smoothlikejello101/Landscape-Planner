@@ -182,7 +182,7 @@ export function localBloom(p: { id: string; parent?: string }): LocalBloom | nul
   let id = p.id, b = own.bloom[id], species = !!b && !!own.bloomSpecies?.includes(id);
   if (!b && p.parent) { id = p.parent; b = own.bloom[id]; species = !!b; }
   if (!b) return null;
-  return { ...b, stateName: STATE_NAMES[own.state] ?? own.state, species, source: own.sources.gbif?.title ?? 'GBIF.org' };
+  return { ...b, stateName: STATE_NAMES[own.state] ?? own.state, species, source: own.sources.gbifBloom?.title ?? 'GBIF.org' };
 }
 
 /** Recorded wild in the garden's county or one bordering it (in any state). */
