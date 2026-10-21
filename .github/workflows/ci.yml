@@ -43,7 +43,7 @@ jobs:
           n="$PR_NUMBER"
           [ -n "$n" ] || n=$(git log -1 --format=%s | sed -n -e 's/^Merge pull request #\([0-9][0-9]*\).*/\1/p' -e 's/.*(#\([0-9][0-9]*\))$/\1/p' | head -1)
           if [ -n "$n" ]; then
-            export APP_VERSION="$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')").$(printf %03d "$n")"
+            export APP_VERSION="$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')").$(printf %03d "$((10#$n))")"
           fi
           echo "Version: ${APP_VERSION:-from package.json}"
           npm run build
