@@ -79,7 +79,8 @@ it), so the app never says "not found here".
   },
   "plants": { "quercus-muehlenbergii": [5005, 5007, 5019] },
   "src": { "quercus-muehlenbergii": ["arkatlas", "usda"] },
-  "species": ["rudbeckia-fulgida-goldsturm"]
+  "species": ["rudbeckia-fulgida-goldsturm"],
+  "native": { "quercus-muehlenbergii": "N", "lonicera-japonica": "I" }
 }
 ```
 
@@ -90,6 +91,16 @@ union of its sources' records in the state, `src` naming them (the details line 
 source has the plant's own taxon's records, only those count: a variety never takes its species'
 counties from another source in that state. `species` lists plants whose records are their species'; a cultivar with a
 species record in the catalog uses that record's, and says so.
+
+`native`: each plant's status in the state from USDA's county records, which mark each county native (5),
+introduced (3) or both (7) as its map shows them (`usda-counties.mjs` keeps the marks): `N` where every
+county it's recorded in is native, `I` where every one is introduced, `B` where it's both (native in
+parts, introduced in others). None where USDA has no record in the state (a garden plant that hasn't
+escaped there). The app shows it in a plant's details ("In Arkansas: Native to Arkansas"; an introduced
+one in the warning color) and filters on it ("Native to Arkansas": `N` or `B`). The catalog's own "native"
+is North America-wide ("N. American native"); this is the garden's state. GBIF's specimens don't fill in
+counties for a plant introduced in the state: planted specimens of a garden plant are as likely as escaped
+ones, and herbaria seldom mark them.
 
 `public/wild/1/index.json`: `{ "v": 1, "states": { "5": "AR" }, "border": { "48037": [5] } }`: which states
 have a file, and which files a county outside them should load. The app loads the garden's own state's

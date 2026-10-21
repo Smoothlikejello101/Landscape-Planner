@@ -57,11 +57,16 @@ export const twoTaxa = (bot) => /\/\s*[A-Za-z]/.test(String(bot ?? '').replace(/
 
 const norm = (s) => String(s ?? '').toLowerCase().replace(/\((city|county)\)|\b(county|parish|borough|census area|city and borough|municipality|city)\b/g, '').replace(/[^a-z]/g, '');
 
-/** Places USDA's county records: (features) → the counties (FIPS) they're in, and how many couldn't be placed. */
+/** USDA's native status of a county record (`plant_nativity_id`, as its map labels them): 5 native, 3 introduced, 7 both. */
+const NATIVITY = { 5: 'N', 3: 'I', 7: 'B' };
+/**
+ * Places USDA's county records: (features) → the counties (FIPS) they're in, which of them USDA marks introduced
+ * or both native and introduced (the rest native, or unmarked), and how many couldn't be placed.
+ */
 export function placer(countyFeatures, nameOf) {
   const at = countyFinder(countyFeatures);
   return (features) => {
-    const out = new Set();
+    const out = new Set(), status = new Map();
     let unplaced = 0;
     for (const f of features) {
       const rings = f.geometry?.rings ?? [];
@@ -75,9 +80,14 @@ export function placer(countyFeatures, nameOf) {
       const want = norm(f.attributes?.country_subdivision_name);
       const named = candidates.find((c) => norm(nameOf.get(c)) === want);
       const c = named ?? candidates[0];
-      if (c) out.add(c); else unplaced++;
+      if (!c) { unplaced++; continue; }
+      out.add(c);
+      // (Two records in one county, one native and one introduced: both.)
+      const s = NATIVITY[Number(f.attributes?.plant_nativity_id)];
+      if (s) status.set(c, status.has(c) && status.get(c) !== s ? 'B' : s);
     }
-    return { counties: [...out].sort((x, y) => x - y), unplaced };
+    const marked = (s) => [...status].filter(([, v]) => v === s).map(([c]) => c).sort((x, y) => x - y);
+    return { counties: [...out].sort((x, y) => x - y), introduced: marked('I'), both: marked('B'), unplaced };
   };
 }
 
@@ -107,7 +117,7 @@ export function usdaRecords(catalog, audit, place, page = savedPage) {
     const infra = bot.match(/ (var\.|subsp\.|ssp\.) ([a-zë-]+)/);
     const plain = /^[A-Z][a-zë-]+ [a-zë-]+$/.test(bot);
     const own = plain || (infra && canonical(profile.ScientificName).endsWith(`${infra[1] === 'subsp.' ? 'ssp.' : infra[1]} ${infra[2]}`));
-    out[rec.id] = { counties: r.counties, species: !own };
+    out[rec.id] = { counties: r.counties, species: !own, ...(r.introduced?.length ? { introduced: r.introduced } : {}), ...(r.both?.length ? { both: r.both } : {}) };
   }
   return { records: out, unplaced, noRecords, otherName };
 }

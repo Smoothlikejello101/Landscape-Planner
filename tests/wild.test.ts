@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
-import { atlasRecords, curatedNear, gadmCounties, gbifRecords, SOURCES, stateFile, wildIndex } from '../scripts/catalog/wild.mjs';
+import { atlasRecords, curatedNear, gadmCounties, gbifRecords, nativeStatus, SOURCES, stateFile, wildIndex } from '../scripts/catalog/wild.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { canonical, placer, twoTaxa, usdaRecords } from '../scripts/catalog/usda-counties.mjs';
-import { countyName, loadWild, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
+import { countyName, gardenStateName, loadWild, nativeHere, nativeText, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
 import { plantMatches, PLANT_FILTER_DEFAULTS, zoneNote, type Plant } from '../src/plants';
 import { state } from '../src/state';
 
@@ -43,7 +43,7 @@ const usda = {
   'allium-canadense-var-lavendulare': { counties: [5019], species: true },
   'rosmarinus': { counties: [48067], species: false },
 };
-const file: WildFile = stateFile({ fips: 5, code: 'AR' }, { arkatlas: atlas, usda }, SOURCES, counties);
+const file: WildFile = { ...stateFile({ fips: 5, code: 'AR' }, { arkatlas: atlas, usda }, SOURCES, counties), native: { 'quercus-muehlenbergii': 'N', 'viola-sororia': 'N', 'lonicera-japonica': 'I' } };
 const tx: WildFile = stateFile({ fips: 48, code: 'TX' }, { arkatlas: atlas, usda }, SOURCES, counties);
 const index = wildIndex([file, tx]);
 
@@ -95,6 +95,19 @@ describe("GBIF's herbarium specimens by county", () => {
   });
 });
 
+describe('native status by state, from USDA', () => {
+  it('is native where every county it is recorded in is, introduced where every one is, else both', () => {
+    const usdaMarks = {
+      oak: { counties: [5019, 5059, 48037], species: false },
+      honeysuckle: { counties: [5019, 5059], species: false, introduced: [5019, 5059] },
+      mallow: { counties: [5019, 5059, 48037], species: false, introduced: [48037], both: [5059] },
+      sage: { counties: [5019, 48067], species: false, introduced: [48067] },
+    };
+    expect(nativeStatus(5, usdaMarks)).toEqual({ oak: 'N', honeysuckle: 'I', mallow: 'B', sage: 'N' });
+    expect(nativeStatus(48, usdaMarks)).toEqual({ oak: 'N', mallow: 'I', sage: 'I' });
+  });
+});
+
 describe('wild records near the garden', () => {
   it('are each plant\'s own taxon\'s (a cultivar\'s are its species\', said so; a hybrid has none), with the counties over the state line', () => {
     expect(file.plants).toEqual({
@@ -126,6 +139,21 @@ describe('wild records near the garden', () => {
     expect(wildHere({ id: 'allium-canadense-var-lavendulare' })!.where).toBe('state');
     expect([wildNearby({ id: 'quercus-muehlenbergii' }), wildNearby({ id: 'mitella-diphylla' })]).toEqual([true, false]);
   });
+  it("say whether a plant is native to the garden's state (a cultivar: its species)", async () => {
+    await loadWild(undefined, fetcher);
+    expect(gardenStateName()).toBe('Arkansas');
+    expect(nativeText(nativeHere({ id: 'quercus-muehlenbergii' })!)).toBe('Native to Arkansas');
+    expect(nativeText(nativeHere({ id: 'viola-sororia-freckles', parent: 'viola-sororia' })!)).toBe('Its species is native to Arkansas');
+    expect(nativeText(nativeHere({ id: 'lonicera-japonica' })!)).toBe('Introduced in Arkansas (not native there)');
+    expect(nativeHere({ id: 'mitella-diphylla' })).toBeNull(); // (no USDA status there)
+  });
+  it("filter 'Native to Arkansas': native there by USDA's records (not introduced, not unknown)", async () => {
+    await loadWild(undefined, fetcher);
+    const f = { ...PLANT_FILTER_DEFAULTS, native: '@here' };
+    const plant = (id: string, parent?: string) => ({ id, common: id, ...(parent ? { parent } : {}) }) as Plant;
+    expect([plantMatches(plant('quercus-muehlenbergii'), f), plantMatches(plant('viola-sororia-freckles', 'viola-sororia'), f),
+      plantMatches(plant('lonicera-japonica'), f), plantMatches(plant('mitella-diphylla'), f)]).toEqual([true, true, false, false]);
+  });
   it('reach over a state line: a Texas garden next to Arkansas hears about the county next door, and its own state\'s', async () => {
     state.location = { zip: '75501', zone: '8a' };
     await loadWild(undefined, fetcher);
@@ -156,11 +184,14 @@ describe('wild records near the garden', () => {
       { id: '51580', geometry: { type: 'Polygon', coordinates: [sq(-80.0, -79.95, 37.77, 37.82)] } },
     ];
     const place = placer(shapes, new Map([[51005, 'Alleghany'], [51580, 'Covington']]));
-    const rec = (name: string, ring: number[][], Symbol = 'Native') => ({ attributes: { country_subdivision_name: name, Symbol }, geometry: { rings: [ring] } });
+    const rec = (name: string, ring: number[][], nativity = '5') => ({ attributes: { country_subdivision_name: name, plant_nativity_id: nativity }, geometry: { rings: [ring] } });
     // (Alleghany's record, drawn whole, has its center in Covington: its corners find Alleghany by name.)
     expect(place([rec('Alleghany', sq(-80.2, -79.6, 37.6, 38.0).map(([x, y]) => [x, y]))]).counties).toEqual([51005]);
     expect(place([rec('Covington (city)', sq(-79.99, -79.96, 37.78, 37.81))]).counties).toEqual([51580]);
-    expect(place([rec('Nowhere', sq(10, 11, 10, 11))])).toEqual({ counties: [], unplaced: 1 });
+    expect(place([rec('Nowhere', sq(10, 11, 10, 11))])).toEqual({ counties: [], introduced: [], both: [], unplaced: 1 });
+    // USDA's mark on each record (5 native, 3 introduced, 7 both); a county with one of each is both.
+    const marks = place([rec('Alleghany', sq(-80.2, -79.6, 37.6, 38.0), '3'), rec('Covington (city)', sq(-79.99, -79.96, 37.78, 37.81), '3'), rec('Covington (city)', sq(-79.99, -79.96, 37.78, 37.81), '5')]);
+    expect(marks).toMatchObject({ counties: [51005, 51580], introduced: [51005], both: [51580] });
   });
   it('take USDA\'s records only under the plant\'s own name, or a reviewed rename of it: never another plant\'s', () => {
     const profiles: Record<string, unknown> = {

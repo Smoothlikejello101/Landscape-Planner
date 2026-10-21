@@ -11,7 +11,7 @@ import { ZONE_SOURCE_SHORT } from '../climate';
 import { dismissZipPrompt, openLocation, zipPromptDismissed } from './location-panel';
 import { render } from './render';
 import { plantDetails } from './plant-details';
-import { loadWild } from '../wild';
+import { gardenStateName, loadWild } from '../wild';
 
 /** The open picker's list rebuild (in place: the search keeps the keyboard, opened rows stay open). */
 let refreshList: (() => void) | null = null;
@@ -266,7 +266,8 @@ export function renderPlantsPanel() {
     mkSelect('Any bird value', 'bird', ['Med', 'High'], v => v === 'High' ? 'Birds: High' : 'Birds: Med+')
   ));
   adv.appendChild(row(
-    mkSelect('Any native status', 'native', enums.native || []),
+    // (Native to the garden's own state, once its ZIP is known: USDA's records.)
+    mkSelect('Any native status', 'native', [...(gardenStateName() ? ['@here'] : []), ...(enums.native || [])], (v) => (v === '@here' ? `Native to ${gardenStateName()}` : v)),
     mkSelect('Any deer rating', 'deer', enums.deer || [])
   ));
   adv.appendChild(el('div', { className: 'hint', style: { padding: '10px 0 0' } }, 'Size & care'));

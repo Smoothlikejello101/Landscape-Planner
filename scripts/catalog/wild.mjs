@@ -81,6 +81,23 @@ export function stateFile(state, bySource, sources, counties) {
     counties: out, plants, src, species,
   };
 }
+/**
+ * Each plant's native status in a state, from USDA's county records there (`introduced`, `both`: the counties it
+ * marks so; usda-counties.mjs): "I" if introduced in every county it's recorded in, "N" if native in every one,
+ * "B" if native in some and introduced in others (or marked both). { id: "N" | "I" | "B" }; none where USDA has
+ * no record in the state.
+ */
+export function nativeStatus(state, usda) {
+  const out = {};
+  for (const [id, r] of Object.entries(usda)) {
+    const here = r.counties.filter((c) => stateOf(c) === state);
+    if (!here.length) continue;
+    const intro = new Set(r.introduced ?? []), both = new Set(r.both ?? []);
+    const nIntro = here.filter((c) => intro.has(c)).length, nBoth = here.filter((c) => both.has(c)).length;
+    out[id] = nIntro === here.length ? 'I' : nIntro || nBoth ? 'B' : 'N';
+  }
+  return out;
+}
 /** The index: which states have a file, and for each county outside them that borders one, which files to load. */
 export function wildIndex(files) {
   const states = {}, border = {};
@@ -216,7 +233,12 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
     if (US_GADM.some((g) => !page(gadmSubdivisionsUrl(g)))) { console.error('a state\'s GADM counties are missing: run gbif-fetch.mjs first'); process.exit(1); }
     const keyOf = (s) => matchedTaxon(page(matchUrl(s.binomial)))?.key;
     const near = curatedNear(bySource, counties);
-    bySource.gbif = gbifRecords(tsvRows(readFileSync('catalog-src/gbif-downloads/counties.tsv', 'utf8')), bloomSpecies(catalog, audit), keyOf, (g) => gadm[g], near);
+    // (Not where USDA has it introduced in the state: an introduced garden plant's specimens are as likely
+    // planted ones, which herbaria seldom mark.)
+    const status = new Map();
+    const statusIn = (st) => status.get(st) ?? status.set(st, nativeStatus(st, bySource.usda)).get(st);
+    const fillIn = (id, c) => near(id, c) && statusIn(stateOf(c))[id] !== 'I';
+    bySource.gbif = gbifRecords(tsvRows(readFileSync('catalog-src/gbif-downloads/counties.tsv', 'utf8')), bloomSpecies(catalog, audit), keyOf, (g) => gadm[g], fillIn);
     sources.gbif = gbifSpecimensSource(countyMeta.doi);
   }
   const ncsuSeasons = seasonsToCheck(audit);
@@ -229,6 +251,9 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   for (const fips of states) {
     const code = counties.find((c) => stateOf(c.fips) === fips)?.state;
     const f = stateFile({ fips, code }, bySource, sources, counties);
+    // Native or introduced in the state, by USDA's records (with its source, for the line that says so).
+    const native = nativeStatus(fips, bySource.usda);
+    if (Object.keys(native).length) { f.native = native; f.sources.usda ??= SOURCES.usda; }
     const bloom = stateBloom(fips, counts, near, ncsuSeasons);
     if (Object.keys(bloom).length) {
       f.bloom = bloom;
