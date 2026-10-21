@@ -34,6 +34,8 @@ export const setSquareOn = (v: boolean) => squaring.set(v);
 // meant to stand off a wall by less is one Unsnap away, or drawn zoomed in.)
 export const SNAP_PX = 32;
 export const SNAP_MAX_FT = 1.25;
+/** With a mouse, which lands where it's pointed: the first, tighter reach. */
+export const SNAP_PX_MOUSE = 14;
 /**
  * Where a tap landed on another shape: the point, its corner or edge (`seg`, for lighting it), and the
  * directions of the target's edges there (one on an edge, two at a corner), for squaring to them.
@@ -88,6 +90,10 @@ export function snapToShapes(p: Point, targets: ReturnType<typeof snapTargets>, 
     const n = t.pts.length, edges = t.closed ? n : n - 1;
     for (let i = 0; i < edges; i++) {
       const a = t.pts[i], b = t.pts[(i + 1) % n];
+      // (Only beside the edge: off its end, the nearest point is the corner, which has its own, shorter reach.)
+      const dx = b.x - a.x, dy = b.y - a.y, len2 = dx * dx + dy * dy;
+      const along = len2 ? ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2 : 0;
+      if (along <= 0 || along >= 1) continue;
       const near = nearestOnSegment(p, a, b);
       const d = Math.hypot(near.x - p.x, near.y - p.y);
       if (d > tol || d >= edgeD) continue;
@@ -96,9 +102,9 @@ export function snapToShapes(p: Point, targets: ReturnType<typeof snapTargets>, 
       edge = { point: withGrid ? nearestOnSegment(grid, a, b) : near, to: 'edge', shapeId: t.id, seg: [{ ...a }, { ...b }], angles: [angleOf(a, b)] };
     }
   }
-  // A corner wins when it's within half the reach and not much farther than the edge (a tap beside a wall
-  // near its end doesn't jump along the wall to the corner).
-  const best = corner && (!edge || (cornerD <= tol / 2 && cornerD <= 1.5 * edgeD + 1e-9)) ? corner : edge;
+  // A corner reaches half as far, and wins when it's not much farther than the edge (a tap beside a wall near
+  // its end doesn't jump along the wall to the corner, nor one off past the corner pulled in at a slant).
+  const best = corner && cornerD <= tol / 2 && (!edge || cornerD <= 1.5 * edgeD + 1e-9) ? corner : edge;
   return best && { ...best, point: { x: round(best.point.x), y: round(best.point.y) } };
 }
 const round = (v: number) => Math.round(v * 1000) / 1000 + 0;

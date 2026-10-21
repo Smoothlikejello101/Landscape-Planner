@@ -4,7 +4,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../src/ui/render', () => ({ render: () => {}, updateStatusReadout: () => {} }));
 vi.mock('../src/storage', async (orig) => ({ ...(await orig() as object), save: () => {} }));
-import { drawTap, lastSnap, moveVertex, startDraw, startEditPoints, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap, wallDirection } from '../src/draw';
+import { drawTap, lastSnap, notePointer, moveVertex, startDraw, startEditPoints, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap, wallDirection } from '../src/draw';
 import { state } from '../src/state';
 import { pathPoints, shapeBBox } from '../src/geometry';
 import { setSnapOn, setSquareOn } from '../src/tidy';
@@ -20,6 +20,7 @@ const outline = (id: string) => pathPoints(state.shapes.find((x) => x.id === id)
 const near = (a: Point[], b: Point[], tol = 0.002) => a.length === b.length && a.every((p, i) => Math.abs(p.x - b[i].x) < tol && Math.abs(p.y - b[i].y) < tol);
 
 beforeEach(() => {
+  notePointer('touch');
   document.body.innerHTML = '<svg id="canvas-svg"></svg>';
   state.zoom = 1; state.offsetX = 0; state.offsetY = 0;
   state.shapes = [JSON.parse(JSON.stringify(house))]; state.history = []; state.historyIndex = -1; state.draw = null; state.editPoints = null;
@@ -58,6 +59,32 @@ describe('snapping, shown as it happens', () => {
     startDraw('poly', 'bed');
     drawTap(30.9 * 96, 6 * 96);
     expect(state.draw!.points).toEqual([{ x: 31, y: 6 }]);
+  });
+  it('with a mouse, reaches only 14 px (it lands where it points)', () => {
+    notePointer('mouse');
+    startDraw('poly', 'bed');
+    tap(31.2, 5); // (0.73 ft, 17.5 px off)
+    expect(state.draw!.points).toEqual([{ x: 31, y: 5 }]);
+  });
+  it('closes an outline by a tap where its first point was tapped, before it snapped', () => {
+    startDraw('poly', 'bed');
+    tap(31.5, 5); tap(36, 5); tap(36, 12); tap(31.5, 12); // (both near-wall corners onto the wall at 30.47)
+    tap(31.5, 5); // (where the first was tapped: 25 px from its dot)
+    expect(state.draw).toBeNull();
+    expect(outline(state.selectedIds[0])).toHaveLength(4);
+  });
+  it('a tap landing on the last point, from a foot away, goes on the grid rather than nowhere', () => {
+    startDraw('measure');
+    tap(30.47, 6); tap(31.5, 6); // (a foot out from the wall: would land on the wall, on the first point)
+    expect(state.draw!.points).toEqual([{ x: 30.47, y: 6 }, { x: 31.5, y: 6 }]);
+  });
+  it("reaches a corner only at a corner's reach: off an edge's end isn't on the edge", () => {
+    startDraw('poly', 'bed');
+    tap(31.2, 21.2); // (past the house's bottom-right corner, 30.47 × 20.53: 0.99 ft off it)
+    expect(state.draw!.points).toEqual([{ x: 31, y: 21 }]);
+    state.draw!.lastTap!.t -= 1000; // (a moment later: not a double tap)
+    tap(30.8, 20.8); // (0.43 ft off: on the corner)
+    expect(state.draw!.points[1]).toEqual({ x: 30.47, y: 20.53 });
   });
   it('lands on a turned wall where the finger is, not where its grid point would project', () => {
     state.shapes = [{ ...house, x: 0, y: 0, width: 30, height: 20, rotation: 10 } as Shape];
