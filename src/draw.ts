@@ -8,7 +8,7 @@ import { buildShape, CANOPY_MIN_TAPS, isKindKey, kindDef, tapAccepted, TAPS_TO_F
 import type { DrawState, PathShape, Point, Shape, TapSnap } from './types';
 import { plantColor, plantFilter, plantsById } from './plants';
 import { snap, uid } from './util';
-import { SNAP_MAX_FT, SNAP_PX, setSnapOn, setSquareOn, snapOn, snapTargets, snapToShapes, squareOn, squareUp } from './tidy';
+import { SNAP_MAX_FT, SNAP_PX, SNAP_PX_MOUSE, setSnapOn, setSquareOn, snapOn, snapTargets, snapToShapes, squareOn, squareUp } from './tidy';
 import { dismissToastAction, toast, toastAction } from './ui/toast';
 import { render } from './ui/render';
 
@@ -105,13 +105,16 @@ export function undoDrawPoint() { state.draw?.points.pop(); state.draw?.snaps?.p
  * SNAP_MAX_FT) and snapping is on, else on the grid. Not for plants (an existing tree's trunk and canopy go
  * where they're tapped), notes, or a path's center line (its band's edges are what meet things).
  */
-function landing(f: Point, kind: DrawKind, exceptId?: string, plant = false): { p: Point; snapped: TapSnap | null } {
+function landing(f: Point, kind: DrawKind, exceptId?: string, plant = false, reachPx = pointerKind === 'mouse' ? SNAP_PX_MOUSE : SNAP_PX): { p: Point; snapped: TapSnap | null } {
   const grid = { x: snap(f.x), y: snap(f.y) };
   const hit = snapOn() && kind !== 'note' && kind !== 'path' && !plant
-    ? snapToShapes(f, snapTargets(state.shapes, exceptId), Math.min(SNAP_PX / pxPerFoot(), SNAP_MAX_FT), grid) : null;
+    ? snapToShapes(f, snapTargets(state.shapes, exceptId), Math.min(reachPx / pxPerFoot(), SNAP_MAX_FT), grid) : null;
   // (On the shape at the grid point anyway: nothing to unsnap, but still on it, so squaring keeps it there.)
   return hit ? { p: hit.point, snapped: { to: hit.to, shapeId: hit.shapeId, seg: hit.seg, angles: hit.angles, alt: grid } } : { p: grid, snapped: null };
 }
+/** What the last press on the plan was ('mouse', 'touch', 'pen'): a fingertip's miss is wider than a mouse's. */
+let pointerKind = 'touch';
+export function notePointer(type: string) { pointerKind = type || 'touch'; }
 const samePt = (a: Point, b: Point) => Math.abs(a.x - b.x) < 1e-9 && Math.abs(a.y - b.y) < 1e-9;
 /** A snap that moved the point (unsnapping would change something). */
 export const snapMoved = (s: TapSnap | null | undefined, p: Point | undefined): s is TapSnap => !!s && !!p && !samePt(s.alt, p);
@@ -135,9 +138,14 @@ export function drawTap(clientX: number, clientY: number): boolean {
   if (d.kind === 'measure' && d.points.length >= 2) { d.points = []; d.snaps = []; delete d.lastTap; } // a third tap starts a new measurement
   const ci = closingIndex(d);
   if (ci >= 0) {
-    const first = d.points[ci];
+    // Closing: a tap by the first dot, or by where it was tapped before it snapped, or landing on it.
+    const first = d.points[ci], firstSnap = d.snaps?.[ci];
     const f = screenToFeet(clientX, clientY);
-    if (Math.hypot(f.x - first.x, f.y - first.y) * pxPerFoot() <= CLOSE_RADIUS_PX) { finishDraw(); return true; }
+    const by = (q: Point) => Math.hypot(f.x - q.x, f.y - q.y) * pxPerFoot() <= CLOSE_RADIUS_PX;
+    // (Or landing on the same shape as the first point, within a grid step of it: a near miss beside the wall.)
+    const l = landing(f, d.kind, undefined, drawsPlant(d));
+    const besideFirst = !!firstSnap && l.snapped?.shapeId === firstSnap.shapeId && Math.hypot(l.p.x - first.x, l.p.y - first.y) <= 0.5 + 1e-9;
+    if (by(first) || (firstSnap && by(firstSnap.alt)) || samePt(l.p, first) || besideFirst) { finishDraw(); return true; }
   }
   if (d.points.length >= MAX_POINTS) return false;
   // A double tap: the finger in the same spot (not where it landed: two taps either side of a wall both land on it).
@@ -146,7 +154,16 @@ export function drawTap(clientX: number, clientY: number): boolean {
   const f = screenToFeet(clientX, clientY);
   let { p, snapped } = landing(f, d.kind, undefined, drawsPlant(d));
   const last = d.points.at(-1);
-  if (last && samePt(last, p)) return false; // the same spot again
+  // Landing on the last point: the same spot again where the finger's by it; tapped farther off (a foot out
+  // from a wall, after a point on it), it goes on the grid instead.
+  if (last && samePt(last, p)) {
+    const fingerOff = Math.hypot(f.x - last.x, f.y - last.y) * pxPerFoot();
+    if (!snapped || samePt(last, snapped.alt) || fingerOff <= SAME_TAP_PX) return false;
+    p = snapped.alt; snapped = null;
+  }
+  // The same spot as the last tap before it snapped ("did it register?", tapped again): not a new point.
+  const lastSnapped = d.snaps?.[d.points.length - 1];
+  if (lastSnapped && (samePt(snapped?.alt ?? p, lastSnapped.alt) || Math.hypot(f.x - lastSnapped.alt.x, f.y - lastSnapped.alt.y) * pxPerFoot() <= SAME_TAP_PX / 2)) return false;
   const fits = (q: Point) => d.kind === 'measure' || tapAccepted(d.kind, d.points, q);
   // A snap never makes a tap fail (a triangle's third corner on the same wall as the first two would be in line
   // with them): where it would, the tap goes on the grid instead.
@@ -304,7 +321,8 @@ function noteRecentKind(key: KindKey) {
 // ---------- Where the pointer is (mouse only), for a preview of the next tap ----------
 let hover: Point | null = null, hoverSnap: TapSnap | null = null;
 export function setDrawHover(p: Point | null) {
-  const l = p && state.draw ? landing(p, state.draw.kind, undefined, drawsPlant(state.draw)) : null;
+  // (A hover is a mouse's: its tighter reach.)
+  const l = p && state.draw ? landing(p, state.draw.kind, undefined, drawsPlant(state.draw), SNAP_PX_MOUSE) : null;
   hover = l ? l.p : p ? { x: snap(p.x), y: snap(p.y) } : null;
   hoverSnap = l?.snapped ?? null;
 }

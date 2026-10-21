@@ -11,7 +11,7 @@ import { gesture, state, tapTracker } from './state';
 import { save } from './storage';
 import type { Point, Shape } from './types';
 import { previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes } from './canvas';
-import { drawTap, editedShape, forgetLastTap, insertVertex, moveVertex } from './draw';
+import { drawTap, editedShape, forgetLastTap, insertVertex, moveVertex, notePointer } from './draw';
 import { placeTap } from './place';
 import { render, updateStatusReadout } from './ui/render';
 import { now, snap } from './util';
@@ -61,6 +61,7 @@ export function normalizeDeg(d: number): number {
 }
 
 export function onCanvasPointerDown(e: PointerEvent) {
+  notePointer(e.pointerType);
   activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
   if (activePointers.size === 2) { startPinchGesture(); return; }
   if (activePointers.size > 2) return; // palm rejection
