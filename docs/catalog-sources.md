@@ -157,7 +157,7 @@ It's an upper bound on pages we'd use.
 | **Oregon State Landscape Plants** (crawl delay 10), **Colorado State Extension**, **Plant Select**, **Conservation Garden Park** (Utah), **AMWUA** (Arizona), **Texas SmartScape** | Zones, size, sun, water, soil; Plant Select and Conservation Garden Park add deer, pollinators and (CGP) **bloom months** | small to medium | © notices only. Plant Select asks permission for stories and photos, which we don't use. |
 | **Shropshire & Tallamy 2025** caterpillar host-plant dataset (University of Delaware) | Which caterpillars use which plant genera, 7,423 species | genus level | CC0 at the university's repository and on Zenodo (record 17747343, the copy we read); the journal's copy says ODbL, which allows commercial use with credit. |
 | **Virginia DCR Native Plant Finder** | About 1,600 natives with sun, moisture and pollinator flags, offered as CSV | not measured | Allowed. Copyright notice, with fair use granted and a request asked when in doubt (web@dcr.virginia.gov): a courtesy note before use. |
-| **Kew World Checklist of Vascular Plants** | Accepted names and native range worldwide | all species | CC BY. Confirm the range table is in the download. |
+| **Kew World Checklist of Vascular Plants** | Accepted names and native range worldwide; used for native status by US state ([wild-records.md](wild-records.md)) | all species (745 of the catalog's 771) | CC BY 3.0 (its README); the download (sftp.kew.org/pub/data-repositories/WCVP/wcvp.zip) has the distribution table, native or introduced by TDWG area. No robots.txt on that host. Cite Govaerts et al. 2021, doi:10.1038/s41597-021-00997-6. |
 
 ### Ask first
 

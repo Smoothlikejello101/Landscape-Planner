@@ -6,7 +6,7 @@ import type { Plant } from '../plants';
 import { MONTH_NAMES, PLANT_META, formsOf, zoneNote } from '../plants';
 import { zoneRange } from '../climate';
 import type { Provenance } from '../catalog';
-import { localBloom, wildHere, wildText } from '../wild';
+import { localBloom, nativeHere, nativeText, wildHere, wildText } from '../wild';
 
 const SURE: Record<string, string> = {
   agree: 'confirmed', confirmed: 'confirmed', single: 'one source', likely: 'nurseries agree', reported: 'one nursery', disputed: 'sources disagree',
@@ -110,6 +110,14 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
       dd.appendChild(el('span', { className: 'details-alt' }, `Nurseries report: ${reported}` + (alt ? ` (${alt.src.map(sourceName).join(', ')})` : '')));
     }
     dl.appendChild(el('dt', {}, label));
+    dl.appendChild(dd);
+  }
+  // Native to the garden's state or not (Kew's checklist): the catalog's "native" is North America-wide.
+  const native = nativeHere(p);
+  if (native) {
+    const dd = el('dd', { 'data-testid': 'native-here', ...(native.status === 'I' ? { className: 'details-introduced' } : {}) }, nativeText(native));
+    dd.appendChild(el('span', { className: 'details-src' }, native.source));
+    dl.appendChild(el('dt', {}, `In ${native.stateName}`));
     dl.appendChild(dd);
   }
   // Where it grows wild near the garden (the state's county records): shown after the catalog's facts.

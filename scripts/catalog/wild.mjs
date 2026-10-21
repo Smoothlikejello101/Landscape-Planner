@@ -81,6 +81,22 @@ export function stateFile(state, bySource, sources, counties) {
     counties: out, plants, src, species,
   };
 }
+/**
+ * Each plant's native status in a state, from Kew's World Checklist (wcvp.mjs: { id: { states: { fips: "N" | "I" },
+ * species } }): { native: { id: "N" | "I" }, species: [ids whose status is their species'] }. None where WCVP doesn't
+ * list it in the state, nor native where the catalog calls the plant exotic (`exotic`: ids; WCVP's species can
+ * hold a native subspecies the garden plant isn't: its Rubus idaeus, the American red raspberry).
+ */
+export function nativeStatus(state, wcvp, exotic = new Set()) {
+  const native = {}, species = [];
+  for (const [id, r] of Object.entries(wcvp)) {
+    const s = r.states[state];
+    if (!s || (s === 'N' && exotic.has(id))) continue;
+    native[id] = s;
+    if (r.species) species.push(id);
+  }
+  return { native, species: species.sort() };
+}
 /** The index: which states have a file, and for each county outside them that borders one, which files to load. */
 export function wildIndex(files) {
   const states = {}, border = {};
@@ -97,6 +113,7 @@ export const FORMAT = 1;
 export const SOURCES = {
   arkatlas: { title: 'Atlas of the Vascular Plants of Arkansas (Arkansas Vascular Flora Committee, 2013)', url: 'https://biology.uark.edu/herbarium/' },
   usda: { title: 'USDA PLANTS Database (NRCS), county records', url: 'https://plants.usda.gov' },
+  wcvp: { title: 'World Checklist of Vascular Plants v16 (Royal Botanic Gardens, Kew; CC BY 3.0)', url: 'https://doi.org/10.34885/egs6-cp24' },
 };
 // ---------- GBIF's herbarium specimens by county ----------
 /** GADM's old names for counties since renamed or merged (Shannon, SD is Oglala Lakota; Alaska's census areas). */
@@ -192,6 +209,13 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   const catalog = read('public/plants.json'), counties = read('catalog-src/counties.json');
   if (!existsSync('catalog-src/usda-counties.json')) { console.error('catalog-src/usda-counties.json is missing: run usda-fetch.mjs and usda-counties.mjs first (or every state but Arkansas would lose its records)'); process.exit(1); }
   const bySource = { arkatlas: atlasRecords(catalog, read(auditPath), read('catalog-src/arkatlas/counties.json')), usda: read('catalog-src/usda-counties.json') };
+  if (!existsSync('catalog-src/wcvp-native.json')) { console.error('catalog-src/wcvp-native.json is missing: run wcvp.mjs first (native status by state)'); process.exit(1); }
+  const wcvp = read('catalog-src/wcvp-native.json');
+  // (The catalog's own "Exotic", from its sources: never shown native. Listed for review where WCVP says so.)
+  const exotic = new Set(catalog.plants.filter((p) => (p.facts?.native?.v ?? p.facts?.native) === 'Exotic').map((p) => p.id));
+  const nativeReview = Object.entries(wcvp).filter(([id, r]) => exotic.has(id) && Object.values(r.states).includes('N'))
+    .map(([id, r]) => ({ id, name: r.name, nativeIn: Object.entries(r.states).filter(([, s]) => s === 'N').map(([f]) => Number(f)) }));
+  writeFileSync('catalog-src/native-review.json', JSON.stringify(nativeReview, null, 1) + '\n');
   const sources = { ...SOURCES };
   const states = [...new Set(counties.map((c) => stateOf(c.fips)))].sort((a, b) => a - b);
   // Bloom months (GBIF's flowering records: gbif-fetch.mjs, then gbif-download.mjs), where they've been fetched.
@@ -216,7 +240,10 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
     if (US_GADM.some((g) => !page(gadmSubdivisionsUrl(g)))) { console.error('a state\'s GADM counties are missing: run gbif-fetch.mjs first'); process.exit(1); }
     const keyOf = (s) => matchedTaxon(page(matchUrl(s.binomial)))?.key;
     const near = curatedNear(bySource, counties);
-    bySource.gbif = gbifRecords(tsvRows(readFileSync('catalog-src/gbif-downloads/counties.tsv', 'utf8')), bloomSpecies(catalog, audit), keyOf, (g) => gadm[g], near);
+    // (Not where it's introduced in the state, by Kew's checklist: an introduced garden plant's specimens are as
+    // likely planted ones, which herbaria seldom mark.)
+    const fillIn = (id, c) => near(id, c) && wcvp[id]?.states[stateOf(c)] !== 'I';
+    bySource.gbif = gbifRecords(tsvRows(readFileSync('catalog-src/gbif-downloads/counties.tsv', 'utf8')), bloomSpecies(catalog, audit), keyOf, (g) => gadm[g], fillIn);
     sources.gbif = gbifSpecimensSource(countyMeta.doi);
   }
   const ncsuSeasons = seasonsToCheck(audit);
@@ -229,6 +256,13 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   for (const fips of states) {
     const code = counties.find((c) => stateOf(c.fips) === fips)?.state;
     const f = stateFile({ fips, code }, bySource, sources, counties);
+    // Native or introduced in the state, by Kew's checklist (with its source, for the line that says so).
+    const { native, species: nativeSpecies } = nativeStatus(fips, wcvp, exotic);
+    if (Object.keys(native).length) {
+      f.native = native;
+      if (nativeSpecies.length) f.nativeSpecies = nativeSpecies;
+      f.sources.wcvp = SOURCES.wcvp;
+    }
     const bloom = stateBloom(fips, counts, near, ncsuSeasons);
     if (Object.keys(bloom).length) {
       f.bloom = bloom;

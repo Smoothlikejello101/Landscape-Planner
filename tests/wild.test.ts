@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
-import { atlasRecords, curatedNear, gadmCounties, gbifRecords, SOURCES, stateFile, wildIndex } from '../scripts/catalog/wild.mjs';
+import { atlasRecords, curatedNear, gadmCounties, gbifRecords, nativeStatus, SOURCES, stateFile, wildIndex } from '../scripts/catalog/wild.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { canonical, placer, twoTaxa, usdaRecords } from '../scripts/catalog/usda-counties.mjs';
-import { countyName, loadWild, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
+// @ts-expect-error (a plain .mjs script)
+import { acceptedTaxon, stateStatus } from '../scripts/catalog/wcvp.mjs';
+import { countyName, gardenStateName, loadWild, nativeHere, nativeText, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
 import { plantMatches, PLANT_FILTER_DEFAULTS, zoneNote, type Plant } from '../src/plants';
 import { state } from '../src/state';
 
@@ -43,7 +45,7 @@ const usda = {
   'allium-canadense-var-lavendulare': { counties: [5019], species: true },
   'rosmarinus': { counties: [48067], species: false },
 };
-const file: WildFile = stateFile({ fips: 5, code: 'AR' }, { arkatlas: atlas, usda }, SOURCES, counties);
+const file: WildFile = { ...stateFile({ fips: 5, code: 'AR' }, { arkatlas: atlas, usda }, SOURCES, counties), native: { 'quercus-muehlenbergii': 'N', 'viola-sororia': 'N', 'lonicera-japonica': 'I', 'allium-canadense-var-lavendulare': 'N' }, nativeSpecies: ['allium-canadense-var-lavendulare'] };
 const tx: WildFile = stateFile({ fips: 48, code: 'TX' }, { arkatlas: atlas, usda }, SOURCES, counties);
 const index = wildIndex([file, tx]);
 
@@ -95,6 +97,32 @@ describe("GBIF's herbarium specimens by county", () => {
   });
 });
 
+describe("native status by state, from Kew's checklist", () => {
+  it("takes each plant's status in the state, and which are their species'", () => {
+    const wcvp = {
+      oak: { states: { 5: 'N', 48: 'N' }, species: false },
+      honeysuckle: { states: { 5: 'I', 48: 'I' }, species: false },
+      'oak-cv': { states: { 5: 'N' }, species: true },
+      sage: { states: { 48: 'I' }, species: false },
+    };
+    expect(nativeStatus(5, wcvp)).toEqual({ native: { oak: 'N', honeysuckle: 'I', 'oak-cv': 'N' }, species: ['oak-cv'] });
+    expect(nativeStatus(9, wcvp)).toEqual({ native: {}, species: [] });
+    // A plant the catalog calls exotic is never shown native (WCVP's species can hold a native subspecies): still introduced where it is.
+    expect(nativeStatus(5, { raspberry: { states: { 5: 'N' }, species: false }, privet: { states: { 5: 'I' }, species: false } }, new Set(['raspberry', 'privet'])))
+      .toEqual({ native: { privet: 'I' }, species: [] });
+  });
+  it("reads WCVP's names and distribution: an accepted species, or a synonym's; not homonyms, a variety's synonym, extinct or doubtful", () => {
+    const species = (id: string, name: string) => ({ plant_name_id: id, taxon_rank: 'Species', taxon_status: 'Accepted', taxon_name: name, accepted_plant_name_id: id });
+    const byId = (id: string) => ({ 1: { taxon_rank: 'Species', taxon_name: 'Symphyotrichum novae-angliae' }, 2: { taxon_rank: 'Variety', taxon_name: 'Hibiscus moscheutos var. lasiocarpos' } } as Record<string, { taxon_rank: string; taxon_name: string }>)[id];
+    expect(acceptedTaxon([species('1', 'Symphyotrichum novae-angliae')], byId)).toEqual({ id: '1', name: 'Symphyotrichum novae-angliae' });
+    expect(acceptedTaxon([{ ...species('9', 'Aster novae-angliae'), taxon_status: 'Synonym', accepted_plant_name_id: '1' }], byId)).toEqual({ id: '1', name: 'Symphyotrichum novae-angliae' });
+    expect(acceptedTaxon([{ ...species('8', 'Hibiscus lasiocarpos'), taxon_status: 'Synonym', accepted_plant_name_id: '2' }], byId)).toBeNull();
+    expect(acceptedTaxon([{ ...species('7', 'X y'), taxon_status: 'Synonym', accepted_plant_name_id: '1' }, { ...species('6', 'X y'), taxon_status: 'Synonym', accepted_plant_name_id: '3' }], byId)).toBeNull();
+    const row = (area: string, introduced = '0', extinct = '0', doubtful = '0') => ({ area_code_l3: area, introduced, extinct, location_doubtful: doubtful });
+    expect(stateStatus([row('ARK'), row('CAL', '1'), row('NWY', '0', '1'), row('FLA', '0', '0', '1'), row('ONT'), row('MRY'), row('ALU', '1')])).toEqual({ 5: 'N', 6: 'I', 24: 'N', 2: 'I' });
+  });
+});
+
 describe('wild records near the garden', () => {
   it('are each plant\'s own taxon\'s (a cultivar\'s are its species\', said so; a hybrid has none), with the counties over the state line', () => {
     expect(file.plants).toEqual({
@@ -125,6 +153,28 @@ describe('wild records near the garden', () => {
     expect(wildText(wildHere({ id: 'rudbeckia-goldsturm' })!)).toBe('Its species is recorded growing wild in Clark County');
     expect(wildHere({ id: 'allium-canadense-var-lavendulare' })!.where).toBe('state');
     expect([wildNearby({ id: 'quercus-muehlenbergii' }), wildNearby({ id: 'mitella-diphylla' })]).toEqual([true, false]);
+  });
+  it("say whether a plant is native to the garden's state (a cultivar: its species)", async () => {
+    await loadWild(undefined, fetcher);
+    expect(gardenStateName()).toBe('Arkansas');
+    expect(nativeText(nativeHere({ id: 'quercus-muehlenbergii' })!)).toBe('Native to Arkansas');
+    expect(nativeText(nativeHere({ id: 'viola-sororia-freckles', parent: 'viola-sororia' })!)).toBe('Its species is native to Arkansas');
+    expect(nativeText(nativeHere({ id: 'lonicera-japonica' })!)).toBe('Introduced in Arkansas (not native there)');
+    expect(nativeText(nativeHere({ id: 'allium-canadense-var-lavendulare' })!)).toBe('Its species is native to Arkansas');
+    expect(nativeHere({ id: 'mitella-diphylla' })).toBeNull(); // (not listed there)
+  });
+  it("filter 'Native to <state>' does nothing in a state with no native status in its file (Texas, here)", async () => {
+    state.location = { zip: '75501', zone: '8a' };
+    await loadWild(undefined, fetcher);
+    expect(gardenStateName()).toBeNull();
+    expect(plantMatches({ id: 'lonicera-japonica', common: 'x' } as Plant, { ...PLANT_FILTER_DEFAULTS, native: '@here' })).toBe(true);
+  });
+  it("filter 'Native to Arkansas': native there by Kew's checklist (not introduced, not unlisted)", async () => {
+    await loadWild(undefined, fetcher);
+    const f = { ...PLANT_FILTER_DEFAULTS, native: '@here' };
+    const plant = (id: string, parent?: string) => ({ id, common: id, ...(parent ? { parent } : {}) }) as Plant;
+    expect([plantMatches(plant('quercus-muehlenbergii'), f), plantMatches(plant('viola-sororia-freckles', 'viola-sororia'), f),
+      plantMatches(plant('lonicera-japonica'), f), plantMatches(plant('mitella-diphylla'), f)]).toEqual([true, true, false, false]);
   });
   it('reach over a state line: a Texas garden next to Arkansas hears about the county next door, and its own state\'s', async () => {
     state.location = { zip: '75501', zone: '8a' };

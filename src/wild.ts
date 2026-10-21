@@ -28,7 +28,13 @@ export interface WildFile {
   bloom?: Record<string, { start: number; end: number; peak: number; n: number; area: 'state' | 'region' }>;
   /** Ids whose bloom months are their species' records. */
   bloomSpecies?: string[];
+  /** Native status in the state, from Kew's World Checklist (scripts/catalog/wcvp.mjs): N native, I introduced. */
+  native?: Record<string, 'N' | 'I'>;
+  /** Ids whose native status is their species' (a cultivar, mix, or variety). */
+  nativeSpecies?: string[];
 }
+/** A plant's native status in the garden's state (`species`: its species', a cultivar's). */
+export interface NativeHere { status: 'N' | 'I'; stateName: string; species: boolean; source: string }
 /** A plant's bloom months where the garden is: its state's (or, with too few records there, its region's). */
 export interface LocalBloom { start: number; end: number; peak: number; n: number; area: 'state' | 'region'; stateName: string; species: boolean; source: string }
 export interface WildIndex { v: 1; states: Record<string, string>; border: Record<string, number[]> }
@@ -183,6 +189,29 @@ export function localBloom(p: { id: string; parent?: string }): LocalBloom | nul
   if (!b && p.parent) { id = p.parent; b = own.bloom[id]; species = !!b; }
   if (!b) return null;
   return { ...b, stateName: STATE_NAMES[own.state] ?? own.state, species, source: own.sources.gbifBloom?.title ?? 'GBIF.org' };
+}
+
+/** The garden's state, by name, once its county is known and its file has native status ("Arkansas"); null before. */
+export function gardenStateName(): string | null {
+  if (!loaded || loaded.zip !== state.location?.zip || !loaded.county) return null;
+  const own = loaded.files.find((f) => f.fips === Math.floor(loaded!.county / 1000));
+  return own?.native ? STATE_NAMES[own.state] ?? own.state : null;
+}
+/** Whether a plant (a cultivar: its species) is native to the garden's state, by Kew's checklist; null where it doesn't list it there. */
+export function nativeHere(p: { id: string; parent?: string }): NativeHere | null {
+  if (!loaded || loaded.zip !== state.location?.zip || !loaded.county) return null;
+  const own = loaded.files.find((f) => f.fips === Math.floor(loaded!.county / 1000));
+  if (!own?.native) return null;
+  let id = p.id, s = own.native[id], species = !!s && !!own.nativeSpecies?.includes(id);
+  if (!s && p.parent) { id = p.parent; s = own.native[id]; species = !!s; }
+  if (!s) return null;
+  return { status: s, stateName: STATE_NAMES[own.state] ?? own.state, species, source: own.sources.wcvp?.title ?? 'World Checklist of Vascular Plants (Kew)' };
+}
+/** Native status in words: "Native to Arkansas", "Introduced in Arkansas (not native)". */
+export function nativeText(n: NativeHere): string {
+  const who = n.species ? 'Its species is ' : '';
+  const say = n.status === 'N' ? `native to ${n.stateName}` : `introduced in ${n.stateName} (not native there)`;
+  return who ? who + say : say[0].toUpperCase() + say.slice(1);
 }
 
 /** Recorded wild in the garden's county or one bordering it (in any state). */

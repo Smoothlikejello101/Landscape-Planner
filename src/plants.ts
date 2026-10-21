@@ -12,7 +12,7 @@ import { setRadius } from './geometry';
 import { isLocked } from './roles';
 import { shownWith } from './status';
 import { hardyEnough, zoneFit, zoneRange } from './climate';
-import { wildHere, wildNearby } from './wild';
+import { gardenStateName, nativeHere, wildHere, wildNearby } from './wild';
 import { bloomMonths, bloomSpan } from './bloom';
 
 /**
@@ -162,7 +162,9 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (f.form && !formsOf(p).includes(f.form)) return false;
   if (f.water && p.water !== f.water) return false;
   if (f.sun && !plantTakesSun(p, f.sun)) return false;
-  if (f.native && p.native !== f.native) return false;
+  // ("@here": native to the garden's state, by Kew's checklist; until its state is known, no filter.)
+  if (f.native === '@here') { if (gardenStateName()) { const n = nativeHere(p); if (!n || n.status === 'I') return false; } }
+  else if (f.native && p.native !== f.native) return false;
   if (f.deer && p.deer !== f.deer) return false;
   if (f.maintenance && p.maintenance !== f.maintenance) return false;
   if (f.selfSeed && p.self_seed !== f.selfSeed) return false;

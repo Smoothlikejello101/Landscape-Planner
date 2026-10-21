@@ -11,12 +11,23 @@ import { ZONE_SOURCE_SHORT } from '../climate';
 import { dismissZipPrompt, openLocation, zipPromptDismissed } from './location-panel';
 import { render } from './render';
 import { plantDetails } from './plant-details';
-import { loadWild } from '../wild';
+import { gardenStateName, loadWild } from '../wild';
 
 /** The open picker's list rebuild (in place: the search keeps the keyboard, opened rows stay open). */
 let refreshList: (() => void) | null = null;
 /** Once the garden's wild records are in, show them in the list. */
-function afterWild() { if (state.panel === 'plants') refreshList?.(); }
+function afterWild() { if (state.panel === 'plants') { addNativeHereOption(); refreshList?.(); } }
+/**
+ * "Native to <state>" in the native-status filter, once the garden's state (with native status) is known: put in
+ * place when the records arrive after the panel is drawn, without redrawing it (the search box may have focus).
+ */
+function addNativeHereOption() {
+  const sel = document.querySelector<HTMLSelectElement>('[data-testid=native-filter]'), here = gardenStateName();
+  if (!sel || !here || sel.querySelector('option[value="@here"]')) return;
+  const o = el('option', { value: '@here' }, `Native to ${here}`) as HTMLOptionElement;
+  o.selected = plantFilter.native === '@here';
+  sel.insertBefore(o, sel.options[1] ?? null);
+}
 
 function closePicker() { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; state.pickerForTree = false; render(); }
 const isTree = (p: Plant) => !!p.form?.startsWith('Tree'); // (its first form: what it's drawn as)
@@ -221,6 +232,7 @@ export function renderPlantsPanel() {
     sel.addEventListener('change', () => { plantFilter[key] = sel.value; rebuildList(); });
     return el('div', { className: 'field', style: { flex: '1', minWidth: '0' } }, sel);
   }
+  const withTestId = (field: HTMLElement, id: string) => { field.querySelector('select')?.setAttribute('data-testid', id); return field; };
   function mkCheck(label: string, key: BoolKey) {
     const cb = el('input', { type: 'checkbox' });
     cb.checked = !!plantFilter[key];
@@ -266,7 +278,8 @@ export function renderPlantsPanel() {
     mkSelect('Any bird value', 'bird', ['Med', 'High'], v => v === 'High' ? 'Birds: High' : 'Birds: Med+')
   ));
   adv.appendChild(row(
-    mkSelect('Any native status', 'native', enums.native || []),
+    // (Native to the garden's own state, once its ZIP is known: Kew's checklist.)
+    withTestId(mkSelect('Any native status', 'native', [...(gardenStateName() ? ['@here'] : []), ...(enums.native || [])], (v) => (v === '@here' ? `Native to ${gardenStateName()}` : v)), 'native-filter'),
     mkSelect('Any deer rating', 'deer', enums.deer || [])
   ));
   adv.appendChild(el('div', { className: 'hint', style: { padding: '10px 0 0' } }, 'Size & care'));
