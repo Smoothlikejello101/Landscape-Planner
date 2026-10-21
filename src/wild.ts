@@ -32,7 +32,13 @@ export interface WildFile {
   native?: Record<string, 'N' | 'I'>;
   /** Ids whose native status is their species' (a cultivar, mix, or variety). */
   nativeSpecies?: string[];
+  /** Plants a law regulates here (the state's list, then the federal one): id → keys of `rules`. */
+  regulated?: Record<string, string[]>;
+  /** What each list says of the plants it names, and where it says it (scripts/catalog/regulated-plants.json). */
+  rules?: Record<string, RuleLine>;
 }
+/** A law's line: what it says of a plant ("Prohibited in Arkansas: …"), the rule, and when it was read. */
+export interface RuleLine { says: string; title: string; url: string; edition: string; read: string }
 /** A plant's native status in the garden's state (`species`: its species', a cultivar's). */
 export interface NativeHere { status: 'N' | 'I'; stateName: string; species: boolean; source: string }
 /** A plant's bloom months where the garden is: its state's (or, with too few records there, its region's). */
@@ -206,6 +212,17 @@ export function nativeHere(p: { id: string; parent?: string }): NativeHere | nul
   if (!s && p.parent) { id = p.parent; s = own.native[id]; species = !!s; }
   if (!s) return null;
   return { status: s, stateName: STATE_NAMES[own.state] ?? own.state, species, source: own.sources.wcvp?.title ?? 'World Checklist of Vascular Plants (Kew)' };
+}
+/**
+ * What the law says of a plant (a cultivar: its species, which the law names) in the garden's state: its state's
+ * list's line, then the federal list's. Empty where no list we've read names it (not "allowed": docs/regulated-plants.md).
+ */
+export function regulatedHere(p: { id: string; parent?: string }): RuleLine[] {
+  if (!loaded || loaded.zip !== state.location?.zip || !loaded.county) return [];
+  const own = loaded.files.find((f) => f.fips === Math.floor(loaded!.county / 1000));
+  if (!own?.regulated || !own.rules) return [];
+  const keys = own.regulated[p.id] ?? (p.parent ? own.regulated[p.parent] : undefined) ?? [];
+  return keys.map((k) => own.rules![k]).filter((r): r is RuleLine => !!r && typeof r.says === 'string');
 }
 /** Native status in words: "Native to Arkansas", "Introduced in Arkansas (not native)". */
 export function nativeText(n: NativeHere): string {

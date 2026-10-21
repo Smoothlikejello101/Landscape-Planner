@@ -395,6 +395,10 @@ a { color: inherit; }
 .details-alt { color: #a16207; }
 /* Introduced in the garden's state: said plainly, in the warning color. */
 .details-introduced { color: #9a3412; }
+.details-law, .plaw { color: #b91c1c; font-weight: 600; }
+.plaw { font-size: 12px; margin-top: 2px; }
+.details-law .details-src { font-weight: 400; }
+.details-law .details-src a { color: inherit; }
 .details-notes { margin-top: 8px; white-space: pre-wrap; }
 .plant-item .row-toggle { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; background: none; border: 0; padding: 0; margin: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
 .plant-item .row-toggle:focus-visible { outline: 2px solid #059669; outline-offset: 2px; border-radius: 4px; }

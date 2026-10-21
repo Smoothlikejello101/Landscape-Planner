@@ -6,7 +6,7 @@ import type { Plant } from '../plants';
 import { MONTH_NAMES, PLANT_META, formsOf, zoneNote } from '../plants';
 import { zoneRange } from '../climate';
 import type { Provenance } from '../catalog';
-import { localBloom, nativeHere, nativeText, wildHere, wildText } from '../wild';
+import { localBloom, nativeHere, nativeText, regulatedHere, wildHere, wildText } from '../wild';
 
 const SURE: Record<string, string> = {
   agree: 'confirmed', confirmed: 'confirmed', single: 'one source', likely: 'nurseries agree', reported: 'one nursery', disputed: 'sources disagree',
@@ -112,6 +112,19 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
     dl.appendChild(el('dt', {}, label));
     dl.appendChild(dd);
   }
+  // What the law says of it where the garden is (a state's list, the federal one), each with its rule: first,
+  // above the catalog's facts, where it can't be missed.
+  const law = document.createDocumentFragment();
+  for (const rule of regulatedHere(p)) {
+    const dd = el('dd', { 'data-testid': 'regulated-here', className: 'details-law' }, rule.says);
+    const src = el('span', { className: 'details-src' });
+    src.appendChild(el('a', { href: rule.url, target: '_blank', rel: 'noopener' }, rule.title));
+    src.appendChild(document.createTextNode(`; ${rule.edition}; read ${rule.read}`));
+    dd.appendChild(src);
+    law.appendChild(el('dt', {}, 'By law'));
+    law.appendChild(dd);
+  }
+  dl.insertBefore(law, dl.firstChild);
   // Native to the garden's state or not (Kew's checklist): the catalog's "native" is North America-wide.
   const native = nativeHere(p);
   if (native) {

@@ -158,6 +158,7 @@ It's an upper bound on pages we'd use.
 | **Shropshire & Tallamy 2025** caterpillar host-plant dataset (University of Delaware) | Which caterpillars use which plant genera, 7,423 species | genus level | CC0 at the university's repository and on Zenodo (record 17747343, the copy we read); the journal's copy says ODbL, which allows commercial use with credit. |
 | **Virginia DCR Native Plant Finder** | About 1,600 natives with sun, moisture and pollinator flags, offered as CSV | not measured | Allowed. Copyright notice, with fair use granted and a request asked when in doubt (web@dcr.virginia.gov): a courtesy note before use. |
 | **Kew World Checklist of Vascular Plants** | Accepted names and native range worldwide; used for native status by US state ([wild-records.md](wild-records.md)) | all species (745 of the catalog's 771) | CC BY 3.0 (its README); the download (sftp.kew.org/pub/data-repositories/WCVP/wcvp.zip) has the distribution table, native or introduced by TDWG area. No robots.txt on that host. Cite Govaerts et al. 2021, doi:10.1038/s41597-021-00997-6. |
+| **Federal and state plant laws** (7 CFR 360; Arkansas, Texas, Mississippi, Missouri, Oklahoma and Louisiana rules) | Which plants a law regulates, and what it says of them ([regulated-plants.md](regulated-plants.md)) | 2 (2026-10-21) | Government text: public. Read only from the government's own host, where its robots.txt allows (the eCFR's API paths don't: the CFR's annual edition on GovInfo instead); a host that turns away non-browsers (Tennessee's) waits. |
 
 ### Ask first
 

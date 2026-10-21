@@ -148,3 +148,31 @@ test('a plant recorded growing wild in the garden\'s county or next door says so
   await page.getByTestId('plant-search').fill("Bishop's cap");
   await expect(page.locator('.plant-item', { hasText: "Bishop's cap" })).toHaveCount(0);
 });
+
+test('a plant the garden\'s state prohibits says so, with the rule', async ({ page }) => {
+  // (Clark County, Arkansas: the real Arkansas file. Arkansas prohibits planting any Lythrum, its native winged loosestrife too.)
+  const table = { ...TABLE, zips: { '71923': ['8a', 0, 3, 5019] } };
+  await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(table) }));
+  await openFresh(page);
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Garden location' }).click();
+  await page.getByTestId('zip').fill('71923');
+  await page.getByTestId('zip-lookup').click();
+  await expect(page.getByTestId('location-result')).toContainText('Zone 8a');
+  await page.locator('.sheet-header .iconbtn').click();
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Winged loosestrife');
+  const plant = page.locator('.plant-item', { hasText: 'Winged loosestrife' });
+  await expect(plant.getByTestId('row-law')).toHaveText('Prohibited in Arkansas'); // (in its row, before it's opened)
+  await plant.getByTestId('plant-row').click();
+  const law = plant.getByTestId('regulated-here');
+  await expect(law).toContainText('Prohibited in Arkansas: no Lythrum may be planted, sold, bought or moved (2 CAR §50-709)');
+  await expect(law.locator('a')).toHaveAttribute('href', /2CARpt50\.pdf/);
+  // Chinaberry: on Texas's list, not Arkansas's: nothing said here.
+  await page.getByTestId('plant-search').fill('Chinaberry');
+  const chinaberry = page.locator('.plant-item', { hasText: 'Chinaberry' });
+  await chinaberry.getByTestId('plant-row').click();
+  await expect(chinaberry.locator('.plant-details')).toBeVisible();
+  await expect(chinaberry.getByTestId('regulated-here')).toHaveCount(0);
+  await expect(chinaberry.getByTestId('row-law')).toHaveCount(0);
+});

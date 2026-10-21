@@ -6,7 +6,7 @@ import { atlasRecords, curatedNear, gadmCounties, gbifRecords, nativeStatus, SOU
 import { canonical, placer, twoTaxa, usdaRecords } from '../scripts/catalog/usda-counties.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { acceptedTaxon, stateStatus } from '../scripts/catalog/wcvp.mjs';
-import { countyName, gardenStateName, loadWild, nativeHere, nativeText, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
+import { countyName, gardenStateName, loadWild, nativeHere, nativeText, regulatedHere, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
 import { plantMatches, PLANT_FILTER_DEFAULTS, zoneNote, type Plant } from '../src/plants';
 import { state } from '../src/state';
 
@@ -45,7 +45,13 @@ const usda = {
   'allium-canadense-var-lavendulare': { counties: [5019], species: true },
   'rosmarinus': { counties: [48067], species: false },
 };
-const file: WildFile = { ...stateFile({ fips: 5, code: 'AR' }, { arkatlas: atlas, usda }, SOURCES, counties), native: { 'quercus-muehlenbergii': 'N', 'viola-sororia': 'N', 'lonicera-japonica': 'I', 'allium-canadense-var-lavendulare': 'N' }, nativeSpecies: ['allium-canadense-var-lavendulare'] };
+const file: WildFile = { ...stateFile({ fips: 5, code: 'AR' }, { arkatlas: atlas, usda }, SOURCES, counties), native: { 'quercus-muehlenbergii': 'N', 'viola-sororia': 'N', 'lonicera-japonica': 'I', 'allium-canadense-var-lavendulare': 'N' }, nativeSpecies: ['allium-canadense-var-lavendulare'],
+  regulated: { 'lythrum-alatum': ['AR:lythrum'], 'imperata-cylindrica': ['AR:prohibited', 'US:noxious'], 'stray': ['AR:gone'] },
+  rules: {
+    'AR:lythrum': { says: 'Prohibited in Arkansas: no Lythrum may be planted', title: 'Arkansas rules', url: 'https://example.gov/ar.pdf', edition: '2026', read: '2026-10-21' },
+    'AR:prohibited': { says: 'Prohibited in Arkansas: may not be sold or planted', title: 'Arkansas rules', url: 'https://example.gov/ar.pdf', edition: '2026', read: '2026-10-21' },
+    'US:noxious': { says: 'Federal noxious weed', title: '7 CFR 360.200', url: 'https://example.gov/cfr.pdf', edition: '2025', read: '2026-10-21' },
+  } };
 const tx: WildFile = stateFile({ fips: 48, code: 'TX' }, { arkatlas: atlas, usda }, SOURCES, counties);
 const index = wildIndex([file, tx]);
 
@@ -162,6 +168,16 @@ describe('wild records near the garden', () => {
     expect(nativeText(nativeHere({ id: 'lonicera-japonica' })!)).toBe('Introduced in Arkansas (not native there)');
     expect(nativeText(nativeHere({ id: 'allium-canadense-var-lavendulare' })!)).toBe('Its species is native to Arkansas');
     expect(nativeHere({ id: 'mitella-diphylla' })).toBeNull(); // (not listed there)
+  });
+  it("say what the law says of a plant in the garden's state (a cultivar: its species'), the state's list first", async () => {
+    await loadWild(undefined, fetcher);
+    expect(regulatedHere({ id: 'lythrum-alatum' }).map((r) => r.says)).toEqual(['Prohibited in Arkansas: no Lythrum may be planted']);
+    expect(regulatedHere({ id: 'imperata-red-baron', parent: 'imperata-cylindrica' }).map((r) => r.title)).toEqual(['Arkansas rules', '7 CFR 360.200']);
+    expect(regulatedHere({ id: 'quercus-muehlenbergii' })).toEqual([]);
+    expect(regulatedHere({ id: 'stray' })).toEqual([]); // (a key with no line: nothing, rather than a blank)
+    state.location = { zip: '75501', zone: '8a' };
+    await loadWild(undefined, fetcher);
+    expect(regulatedHere({ id: 'lythrum-alatum' })).toEqual([]); // (Arkansas's law, read from a Texas garden: not here)
   });
   it("filter 'Native to <state>' does nothing in a state with no native status in its file (Texas, here)", async () => {
     state.location = { zip: '75501', zone: '8a' };
