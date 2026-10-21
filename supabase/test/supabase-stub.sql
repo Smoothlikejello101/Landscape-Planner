@@ -28,7 +28,8 @@ $$;
 grant usage on schema storage to anon, authenticated;
 grant all on storage.objects to authenticated;
 
--- Supabase grants the API roles everything on public tables; row-level security is the guard.
+-- Supabase's API roles and the public schema. Since 2026-10-30 a new table there gets no grants to them
+-- (before, they got everything, with row-level security the guard): each table the app reads needs its own
+-- grant (05-grants.sql). The stub does as Supabase now does, so a missing grant fails here first.
 grant usage on schema public to anon, authenticated;
-alter default privileges in schema public grant all on tables to anon, authenticated;
 alter default privileges in schema public grant all on functions to anon, authenticated;

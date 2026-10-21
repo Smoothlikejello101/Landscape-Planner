@@ -68,7 +68,8 @@ select pg_temp.check(not exists (select 1 from public.projects), 'b reads no pro
 select pg_temp.check(public.trash_project('p1', 5, '') = 'paused', 'b (no trial) cannot trash');
 select pg_temp.check(public.restore_project('p1', '') is null, 'b cannot restore');
 -- Nobody upgrades themselves: plans can't be written by the app.
-update public.plans set plan = 'beta';
+-- (Refused outright where the app may only read it, 05-grants.sql; else row-level security lets no row change.)
+do $$ begin update public.plans set plan = 'beta'; exception when insufficient_privilege then null; end $$;
 select pg_temp.check((select plan from public.plans) = 'trial', 'plan not writable');
 do $$ begin insert into public.projects (id, name, content) values ('z', 'z', '{}'); raise exception 'FAILED: direct insert allowed'; exception when insufficient_privilege then null; when others then if sqlerrm like 'FAILED%' then raise; end if; end $$;
 
@@ -104,3 +105,21 @@ select pg_temp.check(public.push_project('q1', null, 'Hers', '{}', '') ->> 'stat
 select pg_temp.check(public.trash_project('p1', 5, '') = 'ok' and public.restore_project('p1', '') is null, 'b cannot touch a''s project');
 reset role;
 select 'all SQL checks passed' as result;
+
+-- The grants (05-grants.sql): signed in, the app reads its own plan, projects and plants; signed out, none.
+do $$
+begin
+  set local role anon;
+  begin perform 1 from public.projects limit 1; raise exception 'FAILED: signed out, projects were readable';
+  exception when insufficient_privilege then null; end;
+  begin perform 1 from public.plans limit 1; raise exception 'FAILED: signed out, plans were readable';
+  exception when insufficient_privilege then null; end;
+  reset role;
+  set local role authenticated;
+  perform 1 from public.plans limit 1;
+  perform 1 from public.projects limit 1;
+  perform 1 from public.my_plants limit 1;
+  perform 1 from public.photos limit 1;
+  reset role;
+end $$;
+select 'grants checks passed' as result;
