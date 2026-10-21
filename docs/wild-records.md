@@ -80,7 +80,8 @@ it), so the app never says "not found here".
   "plants": { "quercus-muehlenbergii": [5005, 5007, 5019] },
   "src": { "quercus-muehlenbergii": ["arkatlas", "usda"] },
   "species": ["rudbeckia-fulgida-goldsturm"],
-  "native": { "quercus-muehlenbergii": "N", "lonicera-japonica": "I" }
+  "native": { "quercus-muehlenbergii": "N", "lonicera-japonica": "I" },
+  "nativeSpecies": ["rudbeckia-fulgida-goldsturm"]
 }
 ```
 
@@ -93,74 +94,39 @@ counties from another source in that state. `species` lists plants whose records
 species record in the catalog uses that record's, and says so.
 
 `native`: each plant's status in the state, `N` native or `I` introduced, from Kew's **World Checklist of
-Vascular Plants** (WCVP, CC BY 3.0: Govaerts et al. 2021, doi:10.1038/s41597-021-00997-6), whose distribution
-gives each species' presence in each US state (TDWG "botanical countries": the states, DC, Puerto Rico;
-the Aleutians are Alaska's), native or introduced; not where it's marked extinct or doubtful there.
-`nativeSpecies` lists plants whose status is their species' (a cultivar, mix or variety: "Its species is
-native to Arkansas"). None where WCVP doesn't list it in the state. The app shows it in a plant's details
-("In Arkansas: Native to Arkansas"; an introduced one in the warning color) and filters on it ("Native to
-Arkansas": `N`; offered only where the state's file has native status). The catalog's own "native" is North
-America-wide ("N. American native"); this is the garden's state. Checked against it for Arkansas: no plant
-the catalog calls "Exotic" is native here by WCVP, and none it calls native is introduced.
+Vascular Plants** (WCVP, CC BY 3.0; Govaerts (ed.) 2026, WCVP version 16, doi:10.34885/egs6-cp24, as of
+2026-06-04; and Govaerts et al. 2021, doi:10.1038/s41597-021-00997-6), whose distribution gives each species'
+presence in each US state (TDWG "botanical countries": the states, DC, Puerto Rico; the Aleutians are
+Alaska's; not the Virgin Islands, which WCVP joins with the British ones), native or introduced; not where
+it's marked extinct or doubtful there. `nativeSpecies` lists plants whose status is their species' (a
+cultivar, mix or variety: "Its species is native to Arkansas"). The app shows it in a plant's details ("In
+Arkansas: Native to Arkansas", with Kew named under it; an introduced one in the warning color) and filters on
+it ("Native to Arkansas": `N`; offered only where the state's file has native status).
+
+- **Not said where the catalog disagrees:** a plant the catalog calls "Exotic" (from its own sources) is never
+  shown native: WCVP's species can hold a native subspecies the garden plant isn't (its Rubus idaeus holds the
+  American red raspberry, so the European one would read "Native to New York"). Listed in
+  `catalog-src/native-review.json` for review.
+- **A missing state isn't "not native":** WCVP leaves states out (Salvia lyrata isn't listed for Arkansas,
+  though the Arkansas atlas records it in many counties; 38 Arkansas plants recorded wild are unlisted there),
+  so the filter means "Kew lists it native here", and an unlisted plant gets no line, never "not native".
+- **The catalog's own "native"** is North America-wide ("N. American native"); this is the garden's state.
 
 How it's read: `node scripts/catalog/wcvp.mjs <combined.json>` reads `catalog-src/kew-wcvp/` (wcvp.zip from
 sftp.kew.org/pub/data-repositories/WCVP/, unzipped; no robots.txt there) and writes
 `catalog-src/wcvp-native.json`. Each catalog species is matched by name: an accepted species, or a synonym's
-accepted species (Aster novae-angliae is Symphyotrichum novae-angliae); not where its names lead to more than
-one, or to a variety (Hibiscus lasiocarpos is H. moscheutos var. lasiocarpos to WCVP: the species' range
-isn't its alone). Three spellings are WCVP's own (`WCVP_NAME`: Andropogon gerardi, Buddleja davidii, Monarda
-bradburyana). 745 of 771 matched; the rest are hybrids or those synonyms.
+accepted species (Aster novae-angliae is Symphyotrichum novae-angliae); where a name is both accepted and a
+later homonym's synonym, the accepted one (the run lists each such case, for review); not where its names
+lead to more than one, or to a variety (Hibiscus lasiocarpos is H. moscheutos var. lasiocarpos to WCVP: the
+species' range isn't its alone). Three spellings are WCVP's own (`WCVP_NAME`: Andropogon gerardi, Buddleja
+davidii, Monarda bradburyana). 745 of 771 matched; the rest are hybrids, those synonyms, species WCVP draws
+narrower than the catalog's name, and exotics it doesn't list in the US.
 
-Not USDA's county marks: they carry one native status per jurisdiction (the lower 48, Alaska, Hawaii,
-Puerto Rico), the same in every state, so they can't say a plant is native to Pennsylvania.
+Not USDA's county marks: they carry one native status per jurisdiction (the lower 48, Alaska, Hawaii, Puerto
+Rico), the same in every state, so they can't say a plant is native to Pennsylvania.
 
-GBIF's specimens don't fill in counties for a plant introduced in the state: planted specimens of a garden
-plant are as likely as escaped ones, and herbaria seldom mark them.
-
-`public/wild/1/index.json`. The `1` is the format: a new
-   format goes in a new folder (and a new cache on the device), so an app never reads a format it wasn't
-   made for.
-   A plant gets its own taxon's records: a species all its maps (its varieties' too), matched by the atlas
-   name the audit found for it or its botanical name; a variety or subspecies its own map. A cultivar or
-   mix with no species record in the catalog, or a variety the atlas maps only as its species, gets its
-   species' records, listed in `species` so the app says "Its species is recorded…". A hybrid gets none.
-
-## The files
-
-`public/wild/1/<state FIPS, two digits>.json`:
-
-```json
-{
-  "v": 1, "state": "AR", "fips": 5,
-  "sources": { "arkatlas": { "title": "Atlas of the Vascular Plants of Arkansas (…)", "url": "…" }, "usda": { "title": "USDA PLANTS Database (NRCS), county records", "url": "…" } },
-  "counties": {
-    "5019": { "name": "Clark", "near": [5039, 5059, 5097, 5099, 5103, 5109] },
-    "48037": { "name": "Bowie", "state": "TX", "near": [5081, 5091] }
-  },
-  "plants": { "quercus-muehlenbergii": [5005, 5007, 5019] },
-  "src": { "quercus-muehlenbergii": ["arkatlas", "usda"] },
-  "species": ["rudbeckia-fulgida-goldsturm"],
-  "native": { "quercus-muehlenbergii": "N", "lonicera-japonica": "I" }
-}
-```
-
-County codes are five-digit FIPS as numbers. `counties` holds the state's own counties (their neighbors
-in any state) and the counties over its line that border it (their state, and their neighbors in it), so
-a garden in Texarkana, Texas is told about Miller County, Arkansas. `plants` is keyed by catalog id: the
-union of its sources' records in the state, `src` naming them (the details line cites them). Where any
-source has the plant's own taxon's records, only those count: a variety never takes its species'
-counties from another source in that state. `species` lists plants whose records are their species'; a cultivar with a
-species record in the catalog uses that record's, and says so.
-
-`native`: each plant's status in the state from USDA's county records, which mark each county native (5),
-introduced (3) or both (7) as its map shows them (`usda-counties.mjs` keeps the marks): `N` where every
-county it's recorded in is native, `I` where every one is introduced, `B` where it's both (native in
-parts, introduced in others). None where USDA has no record in the state (a garden plant that hasn't
-escaped there). The app shows it in a plant's details ("In Arkansas: Native to Arkansas"; an introduced
-one in the warning color) and filters on it ("Native to Arkansas": `N` or `B`). The catalog's own "native"
-is North America-wide ("N. American native"); this is the garden's state. GBIF's specimens don't fill in
-counties for a plant introduced in the state: planted specimens of a garden plant are as likely as escaped
-ones, and herbaria seldom mark them.
+GBIF's specimens don't fill in counties for a plant introduced in the state by WCVP: planted specimens of a
+garden plant are as likely as escaped ones, and herbaria seldom mark them.
 
 `public/wild/1/index.json`: `{ "v": 1, "states": { "5": "AR" }, "border": { "48037": [5] } }`: which states
 have a file, and which files a county outside them should load. The app loads the garden's own state's

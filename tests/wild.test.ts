@@ -107,6 +107,9 @@ describe("native status by state, from Kew's checklist", () => {
     };
     expect(nativeStatus(5, wcvp)).toEqual({ native: { oak: 'N', honeysuckle: 'I', 'oak-cv': 'N' }, species: ['oak-cv'] });
     expect(nativeStatus(9, wcvp)).toEqual({ native: {}, species: [] });
+    // A plant the catalog calls exotic is never shown native (WCVP's species can hold a native subspecies): still introduced where it is.
+    expect(nativeStatus(5, { raspberry: { states: { 5: 'N' }, species: false }, privet: { states: { 5: 'I' }, species: false } }, new Set(['raspberry', 'privet'])))
+      .toEqual({ native: { privet: 'I' }, species: [] });
   });
   it("reads WCVP's names and distribution: an accepted species, or a synonym's; not homonyms, a variety's synonym, extinct or doubtful", () => {
     const species = (id: string, name: string) => ({ plant_name_id: id, taxon_rank: 'Species', taxon_status: 'Accepted', taxon_name: name, accepted_plant_name_id: id });

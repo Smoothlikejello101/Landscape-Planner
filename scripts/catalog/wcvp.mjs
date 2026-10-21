@@ -31,9 +31,12 @@ export function acceptedTaxon(rows, byId) {
   // (An accepted name wins over synonyms of the same spelling: a later homonym sunk elsewhere.)
   const accepted = sp.filter((r) => r.taxon_status === 'Accepted');
   const id = accepted.length === 1 ? accepted[0].plant_name_id : targets.size === 1 ? [...targets][0] : null;
+  if (id && accepted.length === 1 && targets.size > 1) decidedByAccepted.push(accepted[0].taxon_name);
   const t = id && byId(id);
   return t && t.taxon_rank === 'Species' ? { id, name: t.taxon_name } : null;
 }
+/** Names where an accepted name won over a homonym's synonym of the same spelling (listed by the run, for review). */
+export const decidedByAccepted = [];
 /** A taxon's status in each state from its distribution rows: N native, I introduced; not where extinct or doubtful. */
 export function stateStatus(rows) {
   const out = {};
@@ -83,5 +86,6 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   }
   const path = 'catalog-src/wcvp-native.json';
   writeFileSync(`${path}.tmp`, JSON.stringify(out)); renameSync(`${path}.tmp`, path);
+  if (decidedByAccepted.length) console.log(`accepted name chosen over a homonym's synonym (check these): ${[...new Set(decidedByAccepted)].join(', ')}`);
   console.log(`${Object.keys(out).length} plants with US states from WCVP (${species.length} looked up); ${unmatched.length} names not matched to one accepted species: ${unmatched.slice(0, 20).join(', ')}${unmatched.length > 20 ? '…' : ''}`);
 }
