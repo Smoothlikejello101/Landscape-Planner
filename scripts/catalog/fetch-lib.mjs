@@ -15,7 +15,7 @@ export const OUR_AGENTS = ['fullgrowncatalog', 'claudebot', 'claude-user', 'clau
 /** Never faster than this, whatever a site allows (seconds). */
 export const MIN_PACE = 2;
 /** Each source's own pace (seconds), from docs/catalog-sources.md. */
-export const SOURCE_PACE = { usda: 2, ncsu: 5, mnwild: 5, arkatlas: 5, web: 5, tallamy: 5 };
+export const SOURCE_PACE = { usda: 2, ncsu: 5, mnwild: 5, arkatlas: 5, web: 5, tallamy: 5, gbif: 2 };
 /** HTTP answers that mean "stop asking this site". */
 const REFUSALS = new Set([401, 403, 429, 451, 503]);
 /** Signs of a bot check in place of the page asked for. On an ordinary 200 page only the unmistakable ones count. */

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
-import { atlasRecords, SOURCES, stateFile, wildIndex } from '../scripts/catalog/wild.mjs';
+import { atlasRecords, curatedNear, gadmCounties, gbifRecords, SOURCES, stateFile, wildIndex } from '../scripts/catalog/wild.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { canonical, placer, twoTaxa, usdaRecords } from '../scripts/catalog/usda-counties.mjs';
 import { countyName, loadWild, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
@@ -57,6 +57,43 @@ const fetcher = (async (url: string) => {
 }) as typeof fetch;
 
 beforeEach(() => { resetWild(); fetched = []; state.location = { zip: '71923', zone: '8a' }; });
+
+describe("GBIF's herbarium specimens by county", () => {
+  const counties = [{ fips: 5019, name: 'Clark', state: 'AR' }, { fips: 51159, name: 'Richmond', state: 'VA' }, { fips: 51760, name: 'Richmond', state: 'VA' },
+    { fips: 51161, name: 'Roanoke', state: 'VA' }, { fips: 51770, name: 'Roanoke', state: 'VA' }, { fips: 51067, name: 'Franklin', state: 'VA' }, { fips: 51620, name: 'Franklin', state: 'VA' },
+    { fips: 51019, name: 'Bedford', state: 'VA' }, { fips: 51005, name: 'Alleghany', state: 'VA' }, { fips: 29510, name: 'St. Louis', state: 'MO' }, { fips: 29189, name: 'St. Louis', state: 'MO' }, { fips: 46102, name: 'Oglala Lakota', state: 'SD' }];
+  it("match GADM's counties to ours by name: a county and a city apart where GADM has both, its lumped areas neither, renamed counties, not lakes", () => {
+    // (GADM's entries as GBIF gives them.)
+    expect(gadmCounties([
+      { code: 'AR', subs: [{ id: 'USA.4.10_1', name: 'Clark', type: ['County'] }] },
+      { code: 'VA', subs: [{ id: 'USA.47.106_1', name: 'Richmond', type: ['Independent City'] }, { id: 'USA.47.107_1', name: 'Roanoke', type: ['County'] },
+        { id: 'USA.47.108_1', name: 'Roanoke City', type: ['Independent City'] }, { id: 'USA.47.46_1', name: 'Franklin', type: ['County'] },
+        { id: 'USA.47.12_1', name: 'Bedford City', type: ['City'] }, { id: 'USA.47.29_1', name: 'Clifton Forge City', type: ['Independent City'] }] },
+      { code: 'MO', subs: [{ id: 'USA.26.95_1', name: 'Saint Louis', type: ['County'] }] },
+      { code: 'SD', subs: [{ id: 'USA.42.56_1', name: 'Shannon', type: ['County'] }] },
+      { code: 'MI', subs: [{ id: 'USA.23.45_1', name: 'Lake Michigan', type: ['Water body'] }] },
+    ], counties)).toEqual({ 'USA.4.10_1': 5019, 'USA.47.107_1': 51161, 'USA.47.108_1': 51770, 'USA.47.46_1': 51067, 'USA.47.12_1': 51019, 'USA.47.29_1': 51005, 'USA.42.56_1': 46102 });
+  });
+  it('count specimens not marked cultivated, only in or next to a county the curated sources have it in', () => {
+    const rows = [
+      { specieskey: '1', level2gid: 'A', basisofrecord: 'PRESERVED_SPECIMEN', degree: '', n: '2' },
+      { specieskey: '1', level2gid: 'B', basisofrecord: 'HUMAN_OBSERVATION', degree: '', n: '40' }, // (an observation)
+      { specieskey: '1', level2gid: 'C', basisofrecord: 'PRESERVED_SPECIMEN', degree: 'cultivated', n: '1' },
+      { specieskey: '1', level2gid: 'D', basisofrecord: 'PRESERVED_SPECIMEN', degree: '', n: '1' }, // (far from its records)
+      { specieskey: '1', level2gid: 'Z', basisofrecord: 'PRESERVED_SPECIMEN', degree: '', n: '1' }, // (no county of ours)
+    ];
+    const fips = { A: 5019, B: 5059, C: 5109, D: 5005 } as Record<string, number>;
+    const near = new Set([5019, 5059, 5109]);
+    const out = gbifRecords(rows, [{ id: 'coneflower', binomial: 'Echinacea purpurea', species: false }], () => 1, (g: string) => fips[g], (_id: string, c: number) => near.has(c));
+    expect(out).toEqual({ coneflower: { counties: [5019], species: false } });
+  });
+  it("vouch, from the atlas's and USDA's records, for a plant's counties and their neighbors in the same state only", () => {
+    // Clark County, Arkansas borders Hot Spring (5059); Miller (5091) borders Bowie, Texas (48037).
+    const near = curatedNear({ arkatlas: { oak: { counties: [5019], species: false } }, usda: { oak: { counties: [48037], species: false } } },
+      [{ fips: 5019, near: [5059] }, { fips: 5059, near: [5019] }, { fips: 48037, near: [5091] }, { fips: 5091, near: [48037] }]);
+    expect([near('oak', 5019), near('oak', 5059), near('oak', 48037), near('oak', 5091), near('ash', 5019)]).toEqual([true, true, true, false, false]);
+  });
+});
 
 describe('wild records near the garden', () => {
   it('are each plant\'s own taxon\'s (a cultivar\'s are its species\', said so; a hybrid has none), with the counties over the state line', () => {

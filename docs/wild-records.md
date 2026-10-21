@@ -15,6 +15,7 @@ what the record shows: "recorded", never "grows".
 | --- | --- |
 | Arkansas counties a plant is recorded in | **Atlas of the Vascular Plants of Arkansas** (Arkansas Vascular Flora Committee, 2013), its county dot maps. A dot is a herbarium record: the plant was collected growing in that county. Native and introduced plants both (an escaped garden plant growing wild there counts). |
 | Counties a plant is recorded in, every state | **USDA PLANTS Database** (NRCS) county records, as its site's distribution map shows them (its public map service; US government work). Native and introduced. (The map service holds no "Excluded" county records: a query for them counts none.) Connecticut has no county records. |
+| More counties in a state where the atlas or USDA records it already | **Herbarium specimens on GBIF.org**, counted by county in an occurrence download GBIF built (cited by its DOI: doi:10.15468/dl.3jzk4m), CC0 and CC BY records only. Specimens only, not those marked cultivated or captive (few are: 65 of 760,000); never observations (a planted shrub is too easily logged as wild). Only in or next to a county the atlas or USDA records it in, in the same state: they fill in a range, never extend it or add a state. Unchecked, GBIF's specimens put garden camellias, Chinese chestnuts and a Tennessee coneflower "wild" in Arkansas. |
 | County names, and which counties border which (across state lines) | U.S. Census Bureau cartographic boundary files (1:10m counties), as packaged by `us-atlas` 3.0.1 |
 | The garden's county | its ZIP code's row in the ZIP tables ([climate-data.md](climate-data.md)) |
 
@@ -46,7 +47,16 @@ it), so the app never says "not found here".
    are left out: 11 plants; a rename is checked to its rank, ssp. or var.). A plant listed as two taxa
    ("Salvia officinalis / Origanum vulgare") gets no records, from either source. A cultivar or mix, or a variety USDA has only as its species, gets its
    species', said so.
-4. `node scripts/catalog/wild.mjs <combined.json>`: `public/wild/1/<state>.json` for every state with
+4. GBIF's specimens: `gbif-fetch.mjs` (GBIF's names for the species, and each state's counties in GADM,
+   GBIF's map of areas), then `gbif-download.mjs request counties <combined.json>` and, once built,
+   `gbif-download.mjs fetch counties` ([bloom-months.md](bloom-months.md) has the account and the
+   steps). GADM's counties are matched to ours by name in the state. A county and an independent city
+   sharing a name are told apart where GADM has both (Roanoke, Virginia); where it has one area, that's the
+   county, except the three it lumps with their cities (Richmond, Virginia, whose city and county are 50
+   miles apart; Baltimore; St. Louis), which match none. Bedford City and Clifton Forge, Virginia, merged into
+   Bedford and Alleghany Counties, are those counties; three renamed since (Shannon, SD is Oglala Lakota) by
+   their new names; lakes match none.
+5. `node scripts/catalog/wild.mjs <combined.json>`: `public/wild/1/<state>.json` for every state with
    records (52, with DC and the territories), and `public/wild/1/index.json`. The `1` is the format: a new
    format goes in a new folder (and a new cache on the device), so an app never reads a format it wasn't
    made for.
