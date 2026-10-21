@@ -48,14 +48,16 @@ describe('snapping, shown as it happens', () => {
     undoDrawPoint();
     expect(state.draw!.points).toEqual([]);
   });
-  it('reaches half a foot at most, and never further than 14 px on screen', () => {
+  it('reaches a fingertip (32 px on screen), a foot and a quarter at most', () => {
     startDraw('poly', 'bed');
-    tap(31.1, 5); // (0.63 ft off)
-    expect(state.draw!.points).toEqual([{ x: 31, y: 5 }]);
-    state.zoom = 4; // (96 px a foot: 14 px is 0.15 ft)
+    tap(31.6, 5); // (1.13 ft, 27 px off)
+    expect(state.draw!.points).toEqual([{ x: 30.47, y: 5 }]);
+    tap(31.9, 9); // (1.43 ft off)
+    expect(state.draw!.points[1]).toEqual({ x: 32, y: 9 });
+    state.zoom = 4; // (96 px a foot: 32 px is a third of a foot)
     startDraw('poly', 'bed');
-    drawTap(30.7 * 96, 6 * 96);
-    expect(state.draw!.points).toEqual([{ x: 30.5, y: 6 }]);
+    drawTap(30.9 * 96, 6 * 96);
+    expect(state.draw!.points).toEqual([{ x: 31, y: 6 }]);
   });
   it('lands on a turned wall where the finger is, not where its grid point would project', () => {
     state.shapes = [{ ...house, x: 0, y: 0, width: 30, height: 20, rotation: 10 } as Shape];

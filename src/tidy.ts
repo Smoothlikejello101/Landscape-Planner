@@ -30,8 +30,10 @@ export const setSquareOn = (v: boolean) => squaring.set(v);
 
 // ---------- Snapping to other shapes ----------
 /** How close (screen px) a tap must be to another shape's corner or edge to land on it, and at most (feet). */
-export const SNAP_PX = 14;
-export const SNAP_MAX_FT = 0.5;
+// (A fingertip's miss, about a third of an inch; the owner, testing, wanted more than the first 14 px. A bed
+// meant to stand off a wall by less is one Unsnap away, or drawn zoomed in.)
+export const SNAP_PX = 32;
+export const SNAP_MAX_FT = 1.25;
 /**
  * Where a tap landed on another shape: the point, its corner or edge (`seg`, for lighting it), and the
  * directions of the target's edges there (one on an edge, two at a corner), for squaring to them.
