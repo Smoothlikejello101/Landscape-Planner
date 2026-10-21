@@ -288,8 +288,8 @@ export interface DrawState {
   plantId?: string;
   /** Each tap: where it landed on another shape (src/tidy.ts), or null. */
   snaps?: (TapSnap | null)[];
-  /** Where (screen px) the last tap was, so a double tap is told by the finger, not where it landed. */
-  lastTap?: { x: number; y: number };
+  /** Where (screen px) and when the last tap was, so a double tap is told by the finger, not where it landed. */
+  lastTap?: { x: number; y: number; t: number };
 }
 /**
  * A tap or a dragged point that landed on another shape: which shape, its corner or edge there (`seg`, lit while
@@ -298,7 +298,7 @@ export interface DrawState {
  */
 export interface TapSnap { to: 'corner' | 'edge'; shapeId: string; seg: [Point, Point]; angles: number[]; alt: Point }
 /** Editing the points of one outline/line; `vertex` is the selected point; `snap`, a point dragged onto another shape. */
-export interface EditPoints { id: string; vertex: number | null; snap?: TapSnap & { index: number } }
+export interface EditPoints { id: string; vertex: number | null; snap?: TapSnap & { index: number; at: Point } }
 
 export interface AppState {
   projects: ProjectMeta[];

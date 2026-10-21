@@ -76,8 +76,22 @@ describe('snapping, shown as it happens', () => {
     startDraw('poly', 'bed');
     drawTap(30.47 * FT, 6 * FT); drawTap(30.47 * FT + 5, 6 * FT); // (5 px: the same tap)
     expect(state.draw!.points).toHaveLength(1);
-    tap(31, 6); // (13 px off: another tap, whose spot on the wall is taken, so on the grid)
-    expect(state.draw!.points).toEqual([{ x: 30.47, y: 6 }, { x: 31, y: 6 }]);
+    drawTap(30.47 * FT + 15, 6 * FT + 9); // (a shaky second tap, 17 px off: still the same tap)
+    expect(state.draw!.points).toHaveLength(1);
+    // Later, the same spot is another tap; landing on the same point as the last, it's the same spot again.
+    state.draw!.lastTap!.t -= 1000;
+    drawTap(30.47 * FT + 5, 6 * FT);
+    expect(state.draw!.points).toHaveLength(1);
+    tap(32, 6);
+    expect(state.draw!.points).toEqual([{ x: 30.47, y: 6 }, { x: 32, y: 6 }]);
+  });
+  it('after a pan, a tap in the same spot on screen is a new tap', async () => {
+    const { forgetLastTap } = await import('../src/draw');
+    startDraw('poly', 'bed');
+    tap(40, 6);
+    state.offsetX = 3; forgetLastTap(); // (panned 3 ft)
+    tap(40, 6);
+    expect(state.draw!.points).toEqual([{ x: 40, y: 6 }, { x: 43, y: 6 }]);
   });
   it('a shape that finishes on its last tap says where that tap landed, and Undo puts it on the grid', () => {
     startDraw('rect', 'bed');
@@ -85,7 +99,7 @@ describe('snapping, shown as it happens', () => {
     const id = state.selectedIds[0];
     const left = () => shapeBBox(state.shapes.find((x) => x.id === id)!).minX;
     expect(left()).toBeCloseTo(30.47);
-    expect(notice()?.textContent).toContain('Last corner on House.');
+    expect(notice()?.textContent).toContain('Last point on House.');
     button('Undo')!.click();
     expect(left()).toBeCloseTo(30.5);
     expect(notice()).toBeNull();
@@ -99,6 +113,18 @@ describe('snapping, shown as it happens', () => {
     expect(vertexSnap()).toMatchObject({ shapeId: 'house', index: 0, alt: { x: 30.5, y: 5 } });
     unsnapVertex();
     expect(outline('bed')[0]).toEqual({ x: 30.5, y: 5 });
+  });
+  it("offers no Unsnap for a dragged point that's been moved back since (the toolbar's Undo)", () => {
+    state.shapes.push({ id: 'bed', type: 'poly', x: 0, y: 0, points: [[32, 5], [36, 5], [36, 9], [32, 9]], rotation: 0, label: 'Bed', role: 'bed', color: '#0f0', opacity: 1, locked: false } as unknown as Shape);
+    startEditPoints('bed');
+    state.editPoints!.vertex = 0;
+    const before = JSON.parse(JSON.stringify(state.shapes[1]));
+    moveVertex(state.shapes[1] as PathShape, 0, { x: 30.6, y: 5 });
+    expect(vertexSnap()).not.toBeNull();
+    state.shapes[1] = before; // (as the toolbar's Undo puts it back)
+    expect(vertexSnap()).toBeNull();
+    unsnapVertex();
+    expect(outline('bed')[0]).toEqual({ x: 32, y: 5 });
   });
   it('turned off, lands on the grid', () => {
     setSnapOn(false);

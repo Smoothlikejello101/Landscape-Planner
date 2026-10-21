@@ -115,8 +115,10 @@ function landing(f: Point, kind: DrawKind, exceptId?: string, plant = false): { 
 const samePt = (a: Point, b: Point) => Math.abs(a.x - b.x) < 1e-9 && Math.abs(a.y - b.y) < 1e-9;
 /** A snap that moved the point (unsnapping would change something). */
 export const snapMoved = (s: TapSnap | null | undefined, p: Point | undefined): s is TapSnap => !!s && !!p && !samePt(s.alt, p);
-/** How close (screen px) a second tap must be to the last to be the same tap again (a double tap). */
-const SAME_TAP_PX = 8;
+/** How close (screen px) and soon (ms) a second tap must be to the last to be the same tap again (a double tap). */
+const SAME_TAP_PX = 20, SAME_TAP_MS = 350;
+/** The plan moved under the finger (a pan or pinch): the next tap in the same spot on screen is a new one. */
+export function forgetLastTap() { if (state.draw) delete state.draw.lastTap; }
 const drawsPlant = (d: DrawState) => !!d.target && kindDef(d.target).role === 'plant';
 export function canFinishDraw(): boolean {
   return !!state.draw && state.draw.points.length >= minPoints(state.draw.kind);
@@ -139,20 +141,22 @@ export function drawTap(clientX: number, clientY: number): boolean {
   }
   if (d.points.length >= MAX_POINTS) return false;
   // A double tap: the finger in the same spot (not where it landed: two taps either side of a wall both land on it).
-  if (d.lastTap && Math.hypot(clientX - d.lastTap.x, clientY - d.lastTap.y) <= SAME_TAP_PX) return false;
+  const now = Date.now();
+  if (d.lastTap && now - d.lastTap.t <= SAME_TAP_MS && Math.hypot(clientX - d.lastTap.x, clientY - d.lastTap.y) <= SAME_TAP_PX) return false;
   const f = screenToFeet(clientX, clientY);
   let { p, snapped } = landing(f, d.kind, undefined, drawsPlant(d));
   const last = d.points.at(-1);
-  const fits = (q: Point) => !(last && samePt(last, q)) && (d.kind === 'measure' || tapAccepted(d.kind, d.points, q));
+  if (last && samePt(last, p)) return false; // the same spot again
+  const fits = (q: Point) => d.kind === 'measure' || tapAccepted(d.kind, d.points, q);
   // A snap never makes a tap fail (a triangle's third corner on the same wall as the first two would be in line
   // with them): where it would, the tap goes on the grid instead.
   if (!fits(p)) {
-    if (!snapped || !fits(snapped.alt)) return false; // the same spot again, or too small to make a shape
+    if (!snapped || !fits(snapped.alt) || (last && samePt(last, snapped.alt))) return false; // too small to make a shape
     p = snapped.alt; snapped = null;
   }
   d.points.push(p);
   (d.snaps ??= []).push(snapped);
-  d.lastTap = { x: clientX, y: clientY };
+  d.lastTap = { x: clientX, y: clientY, t: now };
   if (finishesItself(d.kind) && d.points.length >= (TAPS_TO_FINISH[d.kind as Method] ?? Infinity)) { finishDraw(); return true; }
   return false;
 }
@@ -183,7 +187,7 @@ export function finishDraw(): Shape | null {
     const onGrid = [...seen.slice(0, -1), last.alt];
     if (buildShape(method, onGrid, drawKindDef(d), state.shapes, 'check')) {
       tidied = seen; seen = onGrid;
-      said = `Last corner on ${shapeName(last.shapeId)}.`;
+      said = `Last point on ${shapeName(last.shapeId)}.`;
     }
   }
   const shape = buildShape(method, seen, drawKindDef(d), state.shapes);
@@ -365,13 +369,15 @@ export function moveVertex(s: PathShape, i: number, world: Point) {
   const method: DrawKind = s.type === 'poly' ? 'poly' : s.pathWidth ? 'path' : 'line';
   const { p, snapped } = landing(world, method, s.id, s.role === 'plant');
   pts[i] = p;
-  if (state.editPoints) { if (snapMoved(snapped, p)) state.editPoints.snap = { ...snapped, index: i }; else delete state.editPoints.snap; }
+  if (state.editPoints) { if (snapMoved(snapped, p)) state.editPoints.snap = { ...snapped, index: i, at: p }; else delete state.editPoints.snap; }
   setWorldPoints(s, pts);
 }
-/** The selected point's snap, if it was dragged onto another shape. */
-export function vertexSnap(): (TapSnap & { index: number }) | null {
-  const e = state.editPoints;
-  return e?.snap && e.vertex === e.snap.index ? e.snap : null;
+/** The selected point's snap, if it was dragged onto another shape and is still there (not undone since). */
+export function vertexSnap(): (TapSnap & { index: number; at: Point }) | null {
+  const e = state.editPoints, s = editedShape();
+  if (!e?.snap || !s || e.vertex !== e.snap.index) return null;
+  const now = pathPoints(s)[e.snap.index];
+  return now && Math.hypot(now.x - e.snap.at.x, now.y - e.snap.at.y) < 1e-6 ? e.snap : null;
 }
 /** Put a point dragged onto another shape where it would have gone without snapping (a step of its own). */
 export function unsnapVertex() {

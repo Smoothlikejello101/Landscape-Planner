@@ -11,7 +11,7 @@ import { gesture, state, tapTracker } from './state';
 import { save } from './storage';
 import type { Point, Shape } from './types';
 import { previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes } from './canvas';
-import { drawTap, editedShape, insertVertex, moveVertex } from './draw';
+import { drawTap, editedShape, forgetLastTap, insertVertex, moveVertex } from './draw';
 import { placeTap } from './place';
 import { render, updateStatusReadout } from './ui/render';
 import { now, snap } from './util';
@@ -38,6 +38,7 @@ function startPinchGesture() {
   if (!info) return;
   const g = gesture.current;
   if (g?.type === 'drag-vertex' && (g.moved || g.inserted)) { flushHistoryDebounce(); pushHistory(); save(); } // keep the edit undoable
+  forgetLastTap(); // (the plan moves: the same spot on screen will be another place)
   gesture.current = {
     type: 'pinch',
     startDist: info.dist,
@@ -301,7 +302,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
       render();
       return;
     case 'pan':
-      if (g.moved) save();
+      if (g.moved) { save(); forgetLastTap(); } // (the plan moved: the same spot on screen is another place)
       else if (state.draw) drawTap(g.startX, g.startY);
       else if (state.placing) placeTap(g.startX, g.startY);
       else if (state.editPoints) state.editPoints.vertex = null;
