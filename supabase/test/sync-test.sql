@@ -68,7 +68,8 @@ select pg_temp.check(not exists (select 1 from public.projects), 'b reads no pro
 select pg_temp.check(public.trash_project('p1', 5, '') = 'paused', 'b (no trial) cannot trash');
 select pg_temp.check(public.restore_project('p1', '') is null, 'b cannot restore');
 -- Nobody upgrades themselves: plans can't be written by the app.
-update public.plans set plan = 'beta';
+-- (Refused outright where the app may only read it, 05-grants.sql; else row-level security lets no row change.)
+do $$ begin update public.plans set plan = 'beta'; exception when insufficient_privilege then null; end $$;
 select pg_temp.check((select plan from public.plans) = 'trial', 'plan not writable');
 do $$ begin insert into public.projects (id, name, content) values ('z', 'z', '{}'); raise exception 'FAILED: direct insert allowed'; exception when insufficient_privilege then null; when others then if sqlerrm like 'FAILED%' then raise; end if; end $$;
 
@@ -103,4 +104,22 @@ select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
 select pg_temp.check(public.push_project('q1', null, 'Hers', '{}', '') ->> 'status' = 'ok', 'beta syncs');
 select pg_temp.check(public.trash_project('p1', 5, '') = 'ok' and public.restore_project('p1', '') is null, 'b cannot touch a''s project');
 reset role;
+-- The grants (05-grants.sql): signed in, the app reads its own plan, projects, plants and photo reservations,
+-- and writes none of them directly; signed out, nothing.
+do $$
+declare t text;
+begin
+  foreach t in array array['plans', 'projects', 'my_plants', 'photos', 'trial_used', 'trial_installs'] loop
+    if has_table_privilege('anon', 'public.' || t, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') then raise exception 'FAILED: signed out has a grant on %', t; end if;
+    if has_table_privilege('authenticated', 'public.' || t, 'INSERT,UPDATE,DELETE,TRUNCATE') then raise exception 'FAILED: signed in can write % directly', t; end if;
+    if has_table_privilege('authenticated', 'public.' || t, 'SELECT') <> (t in ('plans', 'projects', 'my_plants', 'photos')) then raise exception 'FAILED: signed-in read of % isn''t as granted', t; end if;
+  end loop;
+  set local role authenticated;
+  perform 1 from public.plans limit 1;
+  perform 1 from public.projects limit 1;
+  perform 1 from public.my_plants limit 1;
+  perform 1 from public.photos limit 1;
+  reset role;
+end $$;
+
 select 'all SQL checks passed' as result;
