@@ -27,11 +27,11 @@ was read narrower than printed or left out, and why.
 | MO | 2 CSR 70-45.005; RSMo §263.190 | Code of State Regulations (2012); Revisor of Statutes (effective 2011-08-28) | 12 | "All sales of noxious weed species are prohibited"; landowners must keep it from seeding |
 | OK | 2 O.S. §3-220 | ODAFF's print of the law and OAC 35:30-34 | 3 | Landowners must control it (no ban on sale) |
 | LA | La. R.S. 3:1791 | Louisiana legislature | 1 | Chinese tallow: a noxious plant, may be destroyed wherever found |
-| TN | Tenn. Comp. R. & Regs. 0080-06-24 | The Secretary of State's PDF, revised April 2009 | 14 | Pest plant: may not be sold, offered for sale or released in the state, nor propagated without a research permit |
+| TN | Tenn. Comp. R. & Regs. 0080-06-24 | The Secretary of State's PDF, revised April 2009 | 14 | Pest plant: may not be sold, offered for sale or released in the state, nor propagated without a permit from the commissioner |
 
 Read 2026-10-21, each from the government's own text, saved in `catalog-src/legal/` (not committed).
 Tennessee's PDF was saved by hand in a browser: the Secretary of State's file host turns away clients that
-aren't browsers, and we don't pretend to be one. One gap: the
+aren't browsers, and we don't pretend to be one. Texas has one gap: the
 offense is Agriculture Code §71.152's, read from the Legislature's site; "in any live form" and "unless permitted" are the rule's,
 §19.300(b), read through Cornell LII's copy of the rule until the Secretary of State's site can be read.
 Not yet: the other states.
@@ -67,15 +67,22 @@ Not yet: the other states.
   cylindrica*, which Arkansas names. A cultivar with a species record in the catalog takes that record's line.
 - **A listed variety takes in only that variety**, by its name or its `also` names: kudzu is *Pueraria montana*
   var. *lobata*, or *P. lobata*.
-- **A named hybrid** is matched by the catalog's own name for the plant, however its sign is typed: Tennessee's
-  *Lonicera × bella* is "Lonicera x bella" too (never *Lonicera xylosteum*, a species). Hybrids have no species
-  record for Kew's names to match.
+- **A named hybrid** is matched by the catalog's own name for the plant, with its sign written "x", "X" or "×":
+  Tennessee's *Lonicera × bella* is "Lonicera x bella" too. An "x" joined to the epithet is left alone, since it
+  can't be told from a species (*Lonicera xylosteum*). The catalog's lookups in Kew's checklist skip hybrids, so a
+  hybrid's name is all there is to match. Not matched: a hybrid written as its parents ("Lonicera morrowii ×
+  tatarica"), or a record of two plants ("Ligustrum sinense / japonicum").
+- **Records that aren't one species** (hybrids, mixes, "spp." records) reach a species line only by a hybrid's
+  name, and a genus line only when they're a named hybrid of that genus; never as "spp.", whose species can't be
+  checked against a rule's exceptions.
 - **A genus** takes in every species in it, but those the rule excepts, by their printed names (and Kew's, where
   it files one under another: the excepted *Cuscuta ceanothi* is Kew's *C. subinclusa*). It goes by the genus a
   plant is filed under now: a species moved out of it (*Orobanche ramosa* as *Phelipanche ramosa*, Russian
   thistle as *Kali tragus*) isn't matched by its old genus, and one moved in is (*Emex australis*, Kew's *Rumex
-  hypogaeus*, takes Arkansas's *Rumex* line). A hybrid in the catalog is matched by its own name's genus too
-  (Arkansas's Lythrum line holds for Lythrum hybrids, as §50-709 says).
+  hypogaeus*, takes Arkansas's *Rumex* line). A named hybrid in the catalog is matched by its own name's genus
+  too (Arkansas's Lythrum line holds for Lythrum hybrids, as §50-709 says). Tennessee's "Lythrum salicaria,
+  Lythrum virgatum and related cultivars" takes in their cultivars, but not a cultivar of a cross with another
+  species (*L. alatum* × *virgatum*, 'Morden Gleam').
 - **A plant on two lines of one list** takes the first (Texas's noxious line before its invasive one; Arkansas's
   Lythrum line, which says the most, first).
 

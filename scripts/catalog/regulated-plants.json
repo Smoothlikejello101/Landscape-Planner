@@ -298,8 +298,8 @@
    "url": "https://publications.tnsosfiles.com/rules/0080/0080-06/0080-06-24.20090413.pdf",
    "edition": "Rules of the Tennessee Department of Agriculture, chapter 0080-06-24, revised April 2009 (effective 2009-04-13)",
    "read": "2026-10-21",
-   "classes": {"pest": "Pest plant in Tennessee: it may not be sold, offered for sale or released in the state, nor propagated without a research permit (Tenn. Comp. R. & Regs. 0080-06-24)"},
-   "notes": "Rule .02 lists 13 entries; Lythrum salicaria and L. virgatum share one (\"and related cultivars\"), so 14 names. The phase-in dates for privets, bush honeysuckles, multiflora rose and the olives (retail 2010 to 2012, wholesale 2012 to 2014) have all passed. Rule .03 allows propagating and collecting under a permit for research and propagation, the plants kept from sale or release; it never allows selling them. The PDF was saved by hand: the Secretary of State's file host turns away clients that aren't browsers.",
+   "classes": {"pest": "Pest plant in Tennessee: it may not be sold, offered for sale or released in the state, nor propagated without a permit from the commissioner (Tenn. Comp. R. & Regs. 0080-06-24)"},
+   "notes": "Rule .02 lists 13 entries; Lythrum salicaria and L. virgatum share one (\"and related cultivars\"), so 14 names. The phase-in dates for privets, bush honeysuckles, multiflora rose and the olives (retail 2010 to 2012, wholesale 2012 to 2014) have all passed. Rule .03 allows propagating, collecting and selling under a permit (a compliance agreement, for research and propagative purposes), so long as the plants are kept from sale or release in Tennessee; it never allows selling them within Tennessee. The PDF was saved by hand: the Secretary of State's file host turns away clients that aren't browsers.",
    "plants": [
     {"name": "Lythrum salicaria", "class": "pest"},
     {"name": "Lythrum virgatum", "class": "pest"},
