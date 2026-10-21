@@ -13,6 +13,7 @@ import { isLocked } from './roles';
 import { shownWith } from './status';
 import { hardyEnough, zoneFit, zoneRange } from './climate';
 import { wildHere, wildNearby } from './wild';
+import { bloomMonths, bloomSpan } from './bloom';
 
 /**
  * One plant: a row of the catalog (plants.json), or one of the user's own
@@ -187,11 +188,8 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (f.edible && !p.edible) return false;
   if (f.noTaproot && p.taproot) return false;
   if (f.inPlan && !inPlan?.has(p.id)) return false;
-  if (f.bloomMonth) {
-    const m = Number(f.bloomMonth);
-    if (!p.bloom || p.bloom.start == null || p.bloom.end == null) return false;
-    if (!(p.bloom.start <= m && m <= p.bloom.end)) return false;
-  }
+  // (Where the garden is, from flowering records there, else the catalog's months; a Dec–Feb bloom wraps.)
+  if (f.bloomMonth && !bloomMonths(p).includes(Number(f.bloomMonth))) return false;
   if (f.q.trim() && searchRank(p, f.q) < 0) return false;
   return true;
 }
@@ -434,8 +432,9 @@ export function plantMetaLine(p: Plant): string {
   const spread = p.width && p.width.med;
   const ht = p.height && p.height.med;
   if (ht || spread) bits.push((ht ? ht + "'" : '?') + ' x ' + (spread ? spread + "'" : '?'));
-  if (p.bloom && p.bloom.start) {
-    bits.push('blooms ' + MONTH_NAMES[p.bloom.start] + (p.bloom.end && p.bloom.end !== p.bloom.start ? '-' + MONTH_NAMES[p.bloom.end] : ''));
+  const span = bloomSpan(p);
+  if (span) {
+    bits.push('blooms ' + MONTH_NAMES[span.start] + (span.end !== span.start ? '-' + MONTH_NAMES[span.end] : ''));
   }
   if (p.invasive) bits.push('INVASIVE: not for planting');
   if (p.tox?.dog === 'toxic') bits.push('toxic to dogs (ASPCA)');

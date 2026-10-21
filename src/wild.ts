@@ -24,7 +24,13 @@ export interface WildFile {
   src?: Record<string, string[]>;
   /** Ids whose records are their species' (a cultivar, mix, or variety mapped only as its species). */
   species?: string[];
+  /** Bloom months in the state from flowering records (scripts/catalog/bloom.mjs): the window holding 80% of them. */
+  bloom?: Record<string, { start: number; end: number; peak: number; n: number; area: 'state' | 'region' }>;
+  /** Ids whose bloom months are their species' records. */
+  bloomSpecies?: string[];
 }
+/** A plant's bloom months where the garden is: its state's (or, with too few records there, its region's). */
+export interface LocalBloom { start: number; end: number; peak: number; n: number; area: 'state' | 'region'; stateName: string; species: boolean; source: string }
 export interface WildIndex { v: 1; states: Record<string, string>; border: Record<string, number[]> }
 /** What the records say for a plant, from the garden's county. `species`: they're its species' records (a cultivar); `sources`: their titles. */
 export type WildHere = { species: boolean; sources: string[] } & (
@@ -166,6 +172,17 @@ export function wildHere(p: { id: string; parent?: string }): WildHere | null {
   if (!ownFile) return null;
   const count = (ownFile.plants[id] ?? []).length;
   return count ? { where: 'state', count, stateName: STATE_NAMES[ownFile.state] ?? ownFile.state, species, sources } : null;
+}
+
+/** When a plant (a cultivar: its species) blooms where the garden is, from flowering records; null where there are too few. */
+export function localBloom(p: { id: string; parent?: string }): LocalBloom | null {
+  if (!loaded || loaded.zip !== state.location?.zip || !loaded.county) return null;
+  const own = loaded.files.find((f) => f.fips === Math.floor(loaded!.county / 1000));
+  if (!own?.bloom) return null;
+  let id = p.id, b = own.bloom[id], species = !!b && !!own.bloomSpecies?.includes(id);
+  if (!b && p.parent) { id = p.parent; b = own.bloom[id]; species = !!b; }
+  if (!b) return null;
+  return { ...b, stateName: STATE_NAMES[own.state] ?? own.state, species, source: own.sources.gbifBloom?.title ?? 'GBIF.org' };
 }
 
 /** Recorded wild in the garden's county or one bordering it (in any state). */
