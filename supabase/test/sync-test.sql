@@ -104,17 +104,16 @@ select pg_temp.as_user('00000000-0000-0000-0000-00000000000b');
 select pg_temp.check(public.push_project('q1', null, 'Hers', '{}', '') ->> 'status' = 'ok', 'beta syncs');
 select pg_temp.check(public.trash_project('p1', 5, '') = 'ok' and public.restore_project('p1', '') is null, 'b cannot touch a''s project');
 reset role;
-select 'all SQL checks passed' as result;
-
--- The grants (05-grants.sql): signed in, the app reads its own plan, projects and plants; signed out, none.
+-- The grants (05-grants.sql): signed in, the app reads its own plan, projects, plants and photo reservations,
+-- and writes none of them directly; signed out, nothing.
 do $$
+declare t text;
 begin
-  set local role anon;
-  begin perform 1 from public.projects limit 1; raise exception 'FAILED: signed out, projects were readable';
-  exception when insufficient_privilege then null; end;
-  begin perform 1 from public.plans limit 1; raise exception 'FAILED: signed out, plans were readable';
-  exception when insufficient_privilege then null; end;
-  reset role;
+  foreach t in array array['plans', 'projects', 'my_plants', 'photos', 'trial_used', 'trial_installs'] loop
+    if has_table_privilege('anon', 'public.' || t, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') then raise exception 'FAILED: signed out has a grant on %', t; end if;
+    if has_table_privilege('authenticated', 'public.' || t, 'INSERT,UPDATE,DELETE,TRUNCATE') then raise exception 'FAILED: signed in can write % directly', t; end if;
+    if has_table_privilege('authenticated', 'public.' || t, 'SELECT') <> (t in ('plans', 'projects', 'my_plants', 'photos')) then raise exception 'FAILED: signed-in read of % isn''t as granted', t; end if;
+  end loop;
   set local role authenticated;
   perform 1 from public.plans limit 1;
   perform 1 from public.projects limit 1;
@@ -122,4 +121,5 @@ begin
   perform 1 from public.photos limit 1;
   reset role;
 end $$;
-select 'grants checks passed' as result;
+
+select 'all SQL checks passed' as result;
