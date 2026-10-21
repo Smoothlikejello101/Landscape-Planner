@@ -201,8 +201,10 @@ test('a bed drawn against an off-grid wall: each snap shown as it lands, with Un
   const ringed = page.locator('#canvas-svg [data-role=draw-point][data-snapped=true]');
   // A tap a little short of the wall lands on it: ringed, the wall lit, and the bar says so.
   await addKind(page, 'bed', 'poly');
+  const planHeight = (await canvasBox(page)).height;
   await tapFt(page, 7.4, 3);
   await expect(ringed).toHaveCount(1);
+  expect((await canvasBox(page)).height).toBe(planHeight); // (the chip has its place in the bar: the plan doesn't shrink)
   await expect(lit).toHaveCount(1);
   await expect(chip).toContainText(/On (House|Building)/);
   // Unsnap: on the grid instead (half a foot off the wall), nothing lit; Undo takes the tap back.

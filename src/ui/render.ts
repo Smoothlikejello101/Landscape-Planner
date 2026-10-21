@@ -19,6 +19,7 @@ import { plantColor } from '../plants';
 import { currentProject, storageIsDurable } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
+import { snapOn } from '../tidy';
 import { dismissToastAction } from './toast';
 import { renderMoreMenu, toggleSelectMode } from './menu';
 import { renderExportModal, renderPreviewModal, renderResetModal } from './modals';
@@ -363,8 +364,12 @@ function renderDrawBar(): HTMLElement {
   };
   const d = state.draw;
   const snapped = d ? lastSnap() : vertexSnap();
+  // The chip's place in the bar, kept while snapping is on (empty when nothing snapped): it never moves the
+  // plan's edge, and never sits over the plan where the next tap goes.
+  const chipRow = (unsnap: () => void) => (snapOn() ? el('div', { className: 'snap-chip-row' }, snapped ? snapChip(snapped, unsnap) : '') : null);
+  const addChipRow = (to: HTMLElement, unsnap: () => void) => { const r = chipRow(unsnap); if (r) to.appendChild(r); };
   if (d && d.kind === 'measure') {
-    if (snapped) bar.appendChild(snapChip(snapped, unsnapLast));
+    addChipRow(bar, unsnapLast);
     bar.appendChild(btn('Keep', '', () => { finishDraw(); }, !canFinishDraw()));
     bar.appendChild(btn('Done', 'primary', cancelDraw));
     return bar;
@@ -373,7 +378,7 @@ function renderDrawBar(): HTMLElement {
     const kind = kindDef(d.target ?? 'plain');
     const col = el('div', { className: 'draw-bar-rows' });
     // The last tap landed on another shape: said, with a way to put it on the grid instead.
-    if (snapped) col.appendChild(snapChip(snapped, unsnapLast));
+    addChipRow(col, unsnapLast);
     // How to draw it: each choice pictures its taps.
     if (kind.methods.length > 1) {
       const seg = el('div', { className: 'method-seg', role: 'group', 'aria-label': 'Draw it as' });
@@ -401,7 +406,7 @@ function renderDrawBar(): HTMLElement {
     bar.appendChild(col);
     return bar;
   }
-  if (snapped) bar.appendChild(snapChip(snapped, unsnapVertex));
+  addChipRow(bar, unsnapVertex);
   bar.appendChild(btn('Delete point', 'danger', deleteSelectedVertex, !canDeleteVertex()));
   bar.appendChild(btn('Done', 'primary', () => {
     const id = state.editPoints?.id;
