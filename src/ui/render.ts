@@ -9,7 +9,8 @@ import { clearSelection, getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { typeName } from '../util';
 import { fmtFeet, screenToFeet } from '../geometry';
-import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishesItself, setDrawHover, setDrawKind, setDrawPathWidth, startKind, undoDrawPoint } from '../draw';
+import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, shapeName, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
+import type { TapSnap } from '../types';
 import { redrawHandles } from '../canvas';
 import { kindDef, METHOD_LABELS, nextTapPrompt, type KindKey } from '../kinds';
 import { methodIcon, renderAddSheet, renderShortcutsPanel, withKey } from './add-sheet';
@@ -18,6 +19,8 @@ import { plantColor } from '../plants';
 import { currentProject, storageIsDurable } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
+import { snapOn } from '../tidy';
+import { dismissToastAction } from './toast';
 import { renderMoreMenu, toggleSelectMode } from './menu';
 import { renderExportModal, renderPreviewModal, renderResetModal } from './modals';
 import { renderPlantsPanel } from './plants-panel';
@@ -69,13 +72,14 @@ export function render() {
   // Undo
   const undoBtn = el('button', { className: 'iconbtn', html: I.undo, title: 'Undo' });
   undoBtn.disabled = !canUndo() || !!state.draw || !!state.placing; // while drawing or placing, the bar's Undo
-  undoBtn.addEventListener('click', () => { undo(); render(); });
+  // (A notice's Undo is the same step: after either, it's gone.)
+  undoBtn.addEventListener('click', () => { dismissToastAction(); undo(); render(); });
   topbar.appendChild(undoBtn);
 
   // Redo
   const redoBtn = el('button', { className: 'iconbtn', html: I.redo, title: 'Redo' });
   redoBtn.disabled = !canRedo() || !!state.draw || !!state.placing;
-  redoBtn.addEventListener('click', () => { redo(); render(); });
+  redoBtn.addEventListener('click', () => { dismissToastAction(); redo(); render(); });
   topbar.appendChild(redoBtn);
 
   // Layers
@@ -359,7 +363,13 @@ function renderDrawBar(): HTMLElement {
     return b;
   };
   const d = state.draw;
+  const snapped = d ? lastSnap() : vertexSnap();
+  // The chip's place in the bar, kept while snapping is on (empty when nothing snapped): it never moves the
+  // plan's edge, and never sits over the plan where the next tap goes.
+  const chipRow = (unsnap: () => void) => (snapOn() ? el('div', { className: 'snap-chip-row' }, snapped ? snapChip(snapped, unsnap) : '') : null);
+  const addChipRow = (to: HTMLElement, unsnap: () => void) => { const r = chipRow(unsnap); if (r) to.appendChild(r); };
   if (d && d.kind === 'measure') {
+    addChipRow(bar, unsnapLast);
     bar.appendChild(btn('Keep', '', () => { finishDraw(); }, !canFinishDraw()));
     bar.appendChild(btn('Done', 'primary', cancelDraw));
     return bar;
@@ -367,6 +377,8 @@ function renderDrawBar(): HTMLElement {
   if (d) {
     const kind = kindDef(d.target ?? 'plain');
     const col = el('div', { className: 'draw-bar-rows' });
+    // The last tap landed on another shape: said, with a way to put it on the grid instead.
+    addChipRow(col, unsnapLast);
     // How to draw it: each choice pictures its taps.
     if (kind.methods.length > 1) {
       const seg = el('div', { className: 'method-seg', role: 'group', 'aria-label': 'Draw it as' });
@@ -394,6 +406,7 @@ function renderDrawBar(): HTMLElement {
     bar.appendChild(col);
     return bar;
   }
+  addChipRow(bar, unsnapVertex);
   bar.appendChild(btn('Delete point', 'danger', deleteSelectedVertex, !canDeleteVertex()));
   bar.appendChild(btn('Done', 'primary', () => {
     const id = state.editPoints?.id;
@@ -403,6 +416,15 @@ function renderDrawBar(): HTMLElement {
   return bar;
 }
 
+/** "On House · Unsnap": a point that landed on another shape, and putting it on the grid instead. */
+function snapChip(s: TapSnap, unsnap: () => void): HTMLElement {
+  const chip = el('div', { className: 'snap-chip', 'data-testid': 'snap-chip', role: 'status' },
+    el('span', { className: 'snap-chip-ring', 'aria-hidden': 'true' }), el('span', {}, `On ${shapeName(s.shapeId)}`));
+  const b = el('button', { 'data-testid': 'unsnap' }, 'Unsnap');
+  b.addEventListener('click', () => { unsnap(); render(); });
+  chip.appendChild(b);
+  return chip;
+}
 /** The first time a plant with a full-size ring is selected, say what the ring is (once per device). */
 function maybeExplainFullSize() {
   const s = singleSelected();
