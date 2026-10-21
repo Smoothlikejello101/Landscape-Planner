@@ -142,6 +142,8 @@ test('a plant recorded growing wild in the garden\'s county or next door says so
   await expect(oak.getByTestId('wild-here')).toContainText('Recorded growing wild in Clark County');
   await expect(oak.getByTestId('wild-here')).toContainText('Atlas of the Vascular Plants of Arkansas');
   await expect(oak.getByTestId('native-here')).toContainText('Native to Arkansas');
+  // The native-status filter offers the garden's state (Kew's checklist).
+  await expect(page.getByTestId('native-filter').locator('option[value="@here"]')).toHaveText('Native to Arkansas');
   // Bishop's cap: rated the same, recorded only in the Ozarks: not hardy here.
   await page.getByTestId('plant-search').fill("Bishop's cap");
   await expect(page.locator('.plant-item', { hasText: "Bishop's cap" })).toHaveCount(0);

@@ -112,7 +112,7 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
     dl.appendChild(el('dt', {}, label));
     dl.appendChild(dd);
   }
-  // Native to the garden's state or not (USDA's records): the catalog's "native" is North America-wide.
+  // Native to the garden's state or not (Kew's checklist): the catalog's "native" is North America-wide.
   const native = nativeHere(p);
   if (native) {
     const dd = el('dd', { 'data-testid': 'native-here', ...(native.status === 'I' ? { className: 'details-introduced' } : {}) }, nativeText(native));
