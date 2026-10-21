@@ -179,12 +179,13 @@
   },
   {
    "code": "TX",
-   "title": "Texas noxious and invasive plant list (4 TAC §19.300)",
+   "title": "Texas noxious and invasive plant list (4 TAC §19.300; Agriculture Code §71.152)",
    "url": "https://texasagriculture.gov/Portals/0/images/ACP/Other%20Pests/TDA's%20List%20of%20Noxious%20and%20Invasive%20plants%20%204%20TAC%20%C2%A719.300(a).pdf",
-   "edition": "Figure: 4 TAC §19.300(a), as published by the Texas Department of Agriculture",
+   "edition": "Figure: 4 TAC §19.300(a), as published by the Texas Department of Agriculture; Agriculture Code §71.152 as amended 2005 (Texas Legislature)",
+   "statuteUrl": "https://statutes.capitol.texas.gov/?tab=1&code=AG&chapter=AG.71&artSec=71.152",
    "read": "2026-10-21",
-   "classes": {"noxious": "Noxious plant in Texas: it may not be sold, distributed or brought into the state, in any live form, without a permit (4 TAC §19.300)", "invasive": "On Texas's invasive plant list: it may not be sold, distributed or brought into the state, in any live form, without a permit (4 TAC §19.300)"},
-   "notes": "Chinese tallow, kudzu, saltcedar and tropical soda apple are on both lists: shown as noxious.",
+   "classes": {"noxious": "Noxious plant in Texas: selling it, distributing it or bringing it into the state, in any live form, is a misdemeanor, unless permitted (Texas Agriculture Code §71.152; 4 TAC §19.300)", "invasive": "On Texas's invasive plant list: selling it, distributing it or bringing it into the state, in any live form, is a misdemeanor, unless permitted (Texas Agriculture Code §71.152; 4 TAC §19.300)"},
+   "notes": "Chinese tallow, kudzu, saltcedar and tropical soda apple are on both lists: shown as noxious. The offense is the statute's (§71.152: a Class C misdemeanor, each item sold, distributed or imported a separate offense); \"in any live form\" and \"unless permitted\" are the rule's, §19.300(b), read through Cornell LII's copy of the rule until the Secretary of State's can be read.",
    "plants": [
     {"name": "Alternanthera philoxeroides", "class": "noxious"},
     {"name": "Cardiospermum halicacabum", "class": "noxious"},

@@ -22,17 +22,17 @@ was read narrower than printed or left out, and why.
 | --- | --- | --- | --- | --- |
 | US | 7 CFR 360.200 (movement: 360.300) | GovInfo, CFR revised as of 2025-01-01 | 111 | Moving it into or through the US, or between states, needs a USDA permit |
 | AR | 2 CAR §50-101(d), (f); §50-709 | Code of Arkansas Rules, printed 2026-03-22 | 42 | (f): no plant, seed or reproductive structure sold or planted. §50-709: no Lythrum planted, sold, bought or moved. (d): noxious weed, a public nuisance; nursery stock must be reasonably free of it (§50-302) |
-| TX | 4 TAC §19.300 (figure (a)) | Texas Department of Agriculture's PDF of the figure | 32 | Noxious and invasive alike: may not be sold, distributed or brought into the state, in any live form, without a permit |
+| TX | 4 TAC §19.300 (figure (a), and (b)); Agriculture Code §71.152 | Texas Department of Agriculture's PDF of the figure; the Texas Legislature's statutes site | 32 | Noxious and invasive alike: selling, distributing or bringing it into the state, in any live form, is a misdemeanor, unless permitted |
 | MS | Rule 136.01 | MDAC rules PDF, as amended 2018-12-28 | 10 | No sale, distribution or movement but under a research permit |
 | MO | 2 CSR 70-45.005; RSMo §263.190 | Code of State Regulations (2012); Revisor of Statutes (effective 2011-08-28) | 12 | "All sales of noxious weed species are prohibited"; landowners must keep it from seeding |
 | OK | 2 O.S. §3-220 | ODAFF's print of the law and OAC 35:30-34 | 3 | Landowners must control it (no ban on sale) |
 | LA | La. R.S. 3:1791 | Louisiana legislature | 1 | Chinese tallow: a noxious plant, may be destroyed wherever found |
 
-Read 2026-10-21, each from the government's own text, saved in `catalog-src/legal/` (not committed). One gap:
-Texas's effect is §19.300(b) and Agriculture Code §71.152, which the saved figure doesn't hold; the wording
-was checked against a copy of the rule (Cornell LII), and the official statute page is to read when it's
-allowed. Not yet: **Tennessee** (its rules site turns away clients that aren't browsers, and we don't pretend
-to be one), and the other states.
+Read 2026-10-21, each from the government's own text, saved in `catalog-src/legal/` (not committed). One gap: the
+offense is Agriculture Code §71.152's, read from the Legislature's site; "in any live form" and "unless permitted" are the rule's,
+§19.300(b), read through Cornell LII's copy of the rule until the Secretary of State's site can be read.
+Not yet: **Tennessee** (its rules site turns away clients that aren't browsers, and we don't pretend to be
+one), and the other states.
 
 **Read narrower than printed, or left out:**
 - **Seed-law lists.** Louisiana's noxious weed list (LAC 7:XIII.109), like most states' seed lists, limits weed
@@ -78,7 +78,7 @@ Each run prints the matches. As of 2026-10-21:
   all Lythrum, "including, but not limited to, purple loosestrife": as written, it may not be planted or sold there.
 - **Wild onion** (*Allium canadense*, and its variety lavendulare) and **rattlebox** (*Crotalaria sagittalis*),
   noxious weeds in Arkansas: natives the rule names.
-- **Chinaberry** (*Melia azedarach*), on Texas's invasive list: not to be sold in Texas.
+- **Chinaberry** (*Melia azedarach*), on Texas's invasive list: selling it in Texas is a misdemeanor.
 
 ## What the line doesn't say
 

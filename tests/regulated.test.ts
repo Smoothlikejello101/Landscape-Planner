@@ -26,7 +26,7 @@ describe('the regulated lists', () => {
   it("say what each rule says, as the rule says it", () => {
     const says = (code: string, cls: string) => real.jurisdictions.find((j: { code: string }) => j.code === code).classes[cls];
     expect(says('AR', 'prohibited')).toBe('Prohibited in Arkansas: no plant, seed or any reproductive structure of it may be sold or planted (2 CAR §50-101(f))');
-    expect(says('TX', 'invasive')).toContain('may not be sold, distributed or brought into the state');
+    expect(says('TX', 'invasive')).toContain('selling it, distributing it or bringing it into the state, in any live form, is a misdemeanor, unless permitted (Texas Agriculture Code §71.152');
     expect(says('OK', 'noxious')).not.toMatch(/sold/); // (Oklahoma's law bans no sale: a duty to control it)
   });
   it('look up their species in Kew\'s checklist by its spelling where the rule spells one otherwise', () => {
