@@ -22,6 +22,7 @@ import { buildEmergencyBackup, downloadText } from './backup';
 import { updateSaveWarning } from './ui/save-warning';
 import { flushSave, initStorage, refreshClipboard, requestPersistence, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
 import { render } from './ui/render';
+import { dismissToastAction } from './ui/toast';
 
 // ============================================================
 // EVENT LISTENERS
@@ -67,9 +68,9 @@ window.addEventListener('keydown', (e) => {
     return;
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-    e.preventDefault(); undo(); render();
+    e.preventDefault(); dismissToastAction(); undo(); render();
   } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) {
-    e.preventDefault(); redo(); render();
+    e.preventDefault(); dismissToastAction(); redo(); render();
   } else if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
     if (state.selectedIds.length) { e.preventDefault(); copySelected(); }
   } else if ((e.ctrlKey || e.metaKey) && e.key === 'v') {

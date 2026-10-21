@@ -1,26 +1,42 @@
 // Tidying what's drawn by hand: a tap near another shape's corner or edge lands on it (a bed drawn against
 // the house touches the house, with no sliver between), and an outline whose corners are all nearly square
-// is squared up. Each tidy is said, with an Undo (src/draw.ts), and can be turned off (Layers, on this device).
+// is squared up when it's finished. A snap happens as the tap lands, so it's shown then (the target lit, an
+// "On House · Unsnap" chip: src/draw.ts); squaring happens out of sight, so it's said, with an Undo. Each can
+// be turned off (Layers, on this device).
 import { drawnOutline } from './geometry';
 import { state } from './state';
 import { shownWith } from './status';
 import type { Point, Shape } from './types';
 
-// ---------- The setting (this device) ----------
-const KEY = 'lp-tidy';
-let on: boolean | null = null;
-/** Whether drawing is tidied (on unless turned off on this device). */
-export function tidyOn(): boolean {
-  if (on == null) { try { on = localStorage.getItem(KEY) !== 'off'; } catch { on = true; } }
-  return on;
+// ---------- The settings (this device) ----------
+// (`lp-tidy`, one switch for both before they were split: off there turns both off.)
+function setting(key: string) {
+  let on: boolean | null = null;
+  return {
+    get(): boolean {
+      if (on == null) { try { const v = localStorage.getItem(key); on = v ? v !== 'off' : localStorage.getItem('lp-tidy') !== 'off'; } catch { on = true; } }
+      return on;
+    },
+    set(v: boolean) { on = v; try { localStorage.setItem(key, v ? 'on' : 'off'); } catch { /* this session only */ } },
+  };
 }
-export function setTidyOn(v: boolean) { on = v; try { localStorage.setItem(KEY, v ? 'on' : 'off'); } catch { /* this session only */ } }
+const snapping = setting('lp-snap'), squaring = setting('lp-square');
+/** Whether taps land on other shapes' edges and corners (on unless turned off on this device). */
+export const snapOn = () => snapping.get();
+export const setSnapOn = (v: boolean) => snapping.set(v);
+/** Whether nearly-square outlines are squared when finished (on unless turned off on this device). */
+export const squareOn = () => squaring.get();
+export const setSquareOn = (v: boolean) => squaring.set(v);
 
 // ---------- Snapping to other shapes ----------
 /** How close (screen px) a tap must be to another shape's corner or edge to land on it, and at most (feet). */
 export const SNAP_PX = 14;
-export const SNAP_MAX_FT = 1;
-export interface SnapHit { point: Point; to: 'corner' | 'edge'; shapeId: string }
+export const SNAP_MAX_FT = 0.5;
+/**
+ * Where a tap landed on another shape: the point, its corner or edge (`seg`, for lighting it), and the
+ * directions of the target's edges there (one on an edge, two at a corner), for squaring to them.
+ */
+export interface SnapHit { point: Point; to: 'corner' | 'edge'; shapeId: string; seg: [Point, Point]; angles: number[] }
 /**
  * Shapes a tap can land on: everything drawn with straight edges (outlines, rectangles, triangles, lines),
  * on view, but not plants (a bed's edge isn't a circle's), notes, round things, or a path's center line
@@ -44,25 +60,38 @@ function nearestOnSegment(p: Point, a: Point, b: Point): Point {
   const t = len2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2)) : 0;
   return { x: a.x + t * dx, y: a.y + t * dy };
 }
+const angleOf = (a: Point, b: Point) => Math.atan2(b.y - a.y, b.x - a.x);
 /**
  * Where a tap at `p` (feet, unsnapped) lands: on another shape's nearest edge within `tol` feet, at the
- * point there nearest the tap's grid point `grid` (along a wall that runs with the grid, it stays on the
- * grid: the next corner tapped on the grid lines up with it); or on a corner, where one is near and not
- * much farther than the edge (meeting a corner exactly is the likelier intent then). Null if none.
+ * point there nearest the finger (on a wall that runs with the grid, nearest the tap's grid point `grid`,
+ * so the next corner tapped on the grid lines up with it); or on a corner, where one is near and not much
+ * farther than the edge (meeting a corner exactly is the likelier intent then). Null if none.
  */
 export function snapToShapes(p: Point, targets: ReturnType<typeof snapTargets>, tol: number, grid: Point = p): SnapHit | null {
   let corner: SnapHit | null = null, cornerD = Infinity;
-  for (const t of targets) for (const c of t.pts) {
-    const d = Math.hypot(c.x - p.x, c.y - p.y);
-    if (d <= tol && d < cornerD) { cornerD = d; corner = { point: { ...c }, to: 'corner', shapeId: t.id }; }
+  for (const t of targets) {
+    const n = t.pts.length;
+    for (let i = 0; i < n; i++) {
+      const c = t.pts[i], d = Math.hypot(c.x - p.x, c.y - p.y);
+      if (d > tol || d >= cornerD) continue;
+      // (Its edges there: before and after it; an open line's end has one.)
+      const prev = t.closed || i > 0 ? t.pts[(i + n - 1) % n] : null, next = t.closed || i < n - 1 ? t.pts[(i + 1) % n] : null;
+      cornerD = d;
+      corner = { point: { ...c }, to: 'corner', shapeId: t.id, seg: [{ ...c }, { ...c }],
+        angles: [prev && angleOf(prev, c), next && angleOf(c, next)].filter((a): a is number => a != null) };
+    }
   }
   let edge: SnapHit | null = null, edgeD = Infinity;
   for (const t of targets) {
     const n = t.pts.length, edges = t.closed ? n : n - 1;
     for (let i = 0; i < edges; i++) {
       const a = t.pts[i], b = t.pts[(i + 1) % n];
-      const d = Math.hypot(nearestOnSegment(p, a, b).x - p.x, nearestOnSegment(p, a, b).y - p.y);
-      if (d <= tol && d < edgeD) { edgeD = d; edge = { point: nearestOnSegment(grid, a, b), to: 'edge', shapeId: t.id }; }
+      const near = nearestOnSegment(p, a, b);
+      const d = Math.hypot(near.x - p.x, near.y - p.y);
+      if (d > tol || d >= edgeD) continue;
+      const withGrid = Math.abs(a.x - b.x) < 1e-9 || Math.abs(a.y - b.y) < 1e-9;
+      edgeD = d;
+      edge = { point: withGrid ? nearestOnSegment(grid, a, b) : near, to: 'edge', shapeId: t.id, seg: [{ ...a }, { ...b }], angles: [angleOf(a, b)] };
     }
   }
   // A corner wins when it's within half the reach and not much farther than the edge (a tap beside a wall

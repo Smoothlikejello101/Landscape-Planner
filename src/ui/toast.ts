@@ -18,10 +18,11 @@ export function toast(message: string, ms = 3000) {
 }
 
 /**
- * A notice with buttons ("Snapped to the house. Undo"), kept up long enough to reach: tapping a button runs
- * it and closes the notice. A new notice replaces it.
+ * A notice with buttons ("Squared the corners. Undo"), kept up long enough to reach: tapping a button runs it
+ * and closes the notice (unless it's `keep`: turning a setting off leaves the Undo there). A new notice
+ * replaces it.
  */
-export function toastAction(message: string, actions: { label: string; run: () => void }[], ms = 8000) {
+export function toastAction(message: string, actions: { label: string; run: () => void; keep?: boolean }[], ms = 10000) {
   toast('', 1); // (clears a plain toast)
   document.getElementById('toast-action')?.remove();
   const node = document.createElement('div');
@@ -34,7 +35,7 @@ export function toastAction(message: string, actions: { label: string; run: () =
   for (const a of actions) {
     const b = document.createElement('button');
     b.textContent = a.label;
-    b.addEventListener('click', () => { node.remove(); a.run(); });
+    b.addEventListener('click', () => { if (a.keep) b.remove(); else node.remove(); a.run(); });
     node.appendChild(b);
   }
   document.body.appendChild(node);

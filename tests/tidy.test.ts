@@ -15,9 +15,9 @@ describe('landing on another shape', () => {
   const targets = () => snapTargets([house, { id: 'p', type: 'circle', x: 60, y: 0, radius: 1, role: 'plant', label: 'x', color: '#0f0', opacity: 1, locked: false } as Shape]);
   it('lands on a corner first, else the nearest edge, within the reach; plants and hidden things aren\'t targets', () => {
     expect(targets().map((t) => t.id)).toEqual(['house']);
-    expect(snapToShapes({ x: 40.4, y: -0.3 }, targets(), 1)).toEqual({ point: { x: 40, y: 0 }, to: 'corner', shapeId: 'house' });
+    expect(snapToShapes({ x: 40.4, y: -0.3 }, targets(), 1)).toMatchObject({ point: { x: 40, y: 0 }, to: 'corner', shapeId: 'house' });
     // A bed drawn against the house's right wall, a tap 0.6 ft short of it: on the wall.
-    expect(snapToShapes({ x: 39.4, y: 12.3 }, targets(), 1)).toEqual({ point: { x: 40, y: 12.3 }, to: 'edge', shapeId: 'house' });
+    expect(snapToShapes({ x: 39.4, y: 12.3 }, targets(), 1)).toMatchObject({ point: { x: 40, y: 12.3 }, to: 'edge', shapeId: 'house', seg: [{ x: 40, y: 0 }, { x: 40, y: 30 }] });
     expect(snapToShapes({ x: 42, y: 12 }, targets(), 1)).toBeNull();
     state.roleViews = { building: { hidden: true } };
     expect(targets()).toEqual([]);

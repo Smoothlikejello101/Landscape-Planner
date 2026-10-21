@@ -1,5 +1,5 @@
 import { el, svgEl } from '../dom';
-import { setTidyOn, tidyOn } from '../tidy';
+import { setSnapOn, setSquareOn, snapOn, squareOn } from '../tidy';
 import { flushHistoryDebounce, pushHistory } from '../history';
 import { I } from '../icons';
 import { centerOnShape, deletePhase, setRoleView, setViewFilter } from '../mutations';
@@ -167,12 +167,16 @@ function showSection(): HTMLElement {
 /** Drawing: tidying what's drawn (src/tidy.ts), a setting of this device, not the plan. */
 function drawingSection(): HTMLElement {
   const wrap = el('div', { className: 'role-rows', 'data-testid': 'drawing-settings' }, el('div', { className: 'section-label' }, 'Drawing'));
-  const tidy = el('input', { type: 'checkbox', 'data-testid': 'tidy-drawing' }) as HTMLInputElement;
-  tidy.checked = tidyOn();
-  tidy.addEventListener('change', () => setTidyOn(tidy.checked));
-  wrap.appendChild(el('label', { className: 'check-row' }, tidy,
-    el('span', {}, 'Snap to nearby edges and corners, and square nearly-square corners')));
-  wrap.appendChild(el('div', { className: 'hint' }, 'Each time it does, it says so, with an Undo. A setting of this device.'));
+  const check = (testid: string, on: boolean, set: (v: boolean) => void, text: string) => {
+    const box = el('input', { type: 'checkbox', 'data-testid': testid }) as HTMLInputElement;
+    box.checked = on;
+    box.addEventListener('change', () => set(box.checked));
+    wrap.appendChild(el('label', { className: 'check-row' }, box, el('span', {}, text)));
+  };
+  check('snap-drawing', snapOn(), setSnapOn, 'Snap to nearby edges and corners');
+  check('square-drawing', squareOn(), setSquareOn, 'Square nearly-square outlines');
+  wrap.appendChild(el('div', { className: 'hint' },
+    'A snapped point lights up the edge it\'s on, with an Unsnap; squaring says so after, with an Undo. Settings of this device.'));
   return wrap;
 }
 /** Plan-wide plant size: typical or full, and full-size rings for every plant. */

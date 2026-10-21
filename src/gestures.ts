@@ -11,8 +11,7 @@ import { gesture, state, tapTracker } from './state';
 import { save } from './storage';
 import type { Point, Shape } from './types';
 import { previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes } from './canvas';
-import { drawTap, editedShape, insertVertex, moveVertex, vertexDropped } from './draw';
-import { dismissToastAction } from './ui/toast';
+import { drawTap, editedShape, insertVertex, moveVertex } from './draw';
 import { placeTap } from './place';
 import { render, updateStatusReadout } from './ui/render';
 import { now, snap } from './util';
@@ -38,7 +37,7 @@ function startPinchGesture() {
   const info = pinchInfo();
   if (!info) return;
   const g = gesture.current;
-  if (g?.type === 'drag-vertex' && (g.moved || g.inserted)) { flushHistoryDebounce(); pushHistory(); save(); vertexDropped(g.id); } // keep the edit undoable (and say if it snapped)
+  if (g?.type === 'drag-vertex' && (g.moved || g.inserted)) { flushHistoryDebounce(); pushHistory(); save(); } // keep the edit undoable
   gesture.current = {
     type: 'pinch',
     startDist: info.dist,
@@ -90,6 +89,7 @@ export function onCanvasPointerDown(e: PointerEvent) {
       redrawShapes([edited.id]);
       redrawHandles();
     }
+    delete state.editPoints.snap; // (a new drag: the last one's Unsnap goes)
     gesture.current = { type: 'drag-vertex', id: edited.id, index, startX: clientX, startY: clientY, moved: false, inserted };
     return;
   }
@@ -290,21 +290,17 @@ export function onCanvasPointerUp(e: PointerEvent) {
     case 'drag-shape':
       if (g.moved) { flushHistoryDebounce(); pushHistory(); save(); }
       else {
-        dismissToastAction(); // (a tap on the plan closes a tidy notice)
         const shape = state.shapes.find((s) => s.id === g.id);
         if (shape) handleShapeTap(shape);
       }
       render();
       return;
     case 'drag-vertex':
-      if (g.moved || g.inserted) { flushHistoryDebounce(); pushHistory(); save(); vertexDropped(g.id); }
+      if (g.moved || g.inserted) { flushHistoryDebounce(); pushHistory(); save(); }
       if (state.editPoints) state.editPoints.vertex = g.index;
       render();
       return;
     case 'pan':
-      // A tap on the plan (not a pan or pinch, which may be to look at it) closes a tidy notice, before the
-      // tap's own work (one that finishes a drawing gives its own).
-      if (!g.moved) dismissToastAction();
       if (g.moved) save();
       else if (state.draw) drawTap(g.startX, g.startY);
       else if (state.placing) placeTap(g.startX, g.startY);
