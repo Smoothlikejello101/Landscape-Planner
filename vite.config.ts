@@ -13,7 +13,8 @@ export default defineConfig({
     alias: Object.fromEntries(['html2canvas', 'dompurify', 'canvg'].map((m) => [m, fileURLToPath(new URL('./src/stubs/unused.ts', import.meta.url))])),
   },
   define: {
-    __APP_VERSION__: JSON.stringify(pkg.version + (process.env.VERSION_SUFFIX ?? '')),
+    // (APP_VERSION: set by the deploy from the pull request's number, 0.2.049 for #49; else package.json's.)
+    __APP_VERSION__: JSON.stringify((process.env.APP_VERSION || pkg.version) + (process.env.VERSION_SUFFIX ?? '')),
     __BUILD_TIME__: JSON.stringify(new Date().toISOString().slice(0, 10)),
   },
   plugins: [
