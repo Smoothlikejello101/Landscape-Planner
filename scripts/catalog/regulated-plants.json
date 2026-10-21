@@ -291,6 +291,31 @@
    "plants": [
     {"name": "Sapium sebiferum", "class": "noxious", "accepted": "Triadica sebifera"}
    ]
+  },
+  {
+   "code": "TN",
+   "title": "Tennessee pest plant regulations (Tenn. Comp. R. & Regs. 0080-06-24)",
+   "url": "https://publications.tnsosfiles.com/rules/0080/0080-06/0080-06-24.20090413.pdf",
+   "edition": "Rules of the Tennessee Department of Agriculture, chapter 0080-06-24, revised April 2009 (effective 2009-04-13)",
+   "read": "2026-10-21",
+   "classes": {"pest": "Pest plant in Tennessee: it may not be sold, offered for sale or released in the state, nor propagated without a research permit (Tenn. Comp. R. & Regs. 0080-06-24)"},
+   "notes": "Rule .02 lists 13 entries; Lythrum salicaria and L. virgatum share one (\"and related cultivars\"), so 14 names. The phase-in dates for privets, bush honeysuckles, multiflora rose and the olives (retail 2010 to 2012, wholesale 2012 to 2014) have all passed. Rule .03 allows propagating and collecting under a permit for research and propagation, the plants kept from sale or release; it never allows selling them. The PDF was saved by hand: the Secretary of State's file host turns away clients that aren't browsers.",
+   "plants": [
+    {"name": "Lythrum salicaria", "class": "pest"},
+    {"name": "Lythrum virgatum", "class": "pest"},
+    {"name": "Solanum viarum", "class": "pest"},
+    {"name": "Ligustrum sinense", "class": "pest"},
+    {"name": "Ligustrum vulgare", "class": "pest"},
+    {"name": "Imperata cylindrica", "class": "pest"},
+    {"name": "Lonicera maackii", "class": "pest"},
+    {"name": "Lonicera morrowii", "class": "pest"},
+    {"name": "Lonicera × bella", "class": "pest"},
+    {"name": "Rosa multiflora", "class": "pest"},
+    {"name": "Elaeagnus umbellata", "class": "pest"},
+    {"name": "Elaeagnus pungens", "class": "pest"},
+    {"name": "Salvinia molesta", "class": "pest"},
+    {"name": "Commelina benghalensis", "class": "pest"}
+   ]
   }
  ]
 }

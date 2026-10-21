@@ -220,7 +220,13 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   // Plants regulated by law (regulated-plants.json), matched by Kew's accepted names (wcvp.mjs; the lists' own reviewed).
   const regulatedData = readRegulated();
   const botanical = new Map(catalog.plants.map((p) => [p.id, p.botanical]));
-  const regulated = regulatedPlants(regulatedData, bloomSpecies(catalog, read(auditPath)).map((s) => ({ ...s, botanical: botanical.get(s.id) })),
+  // (Every catalog plant with its own record: species as bloomSpecies finds them, and the rest, hybrids among them,
+  // by their own names only: Tennessee's Lonicera × bella.)
+  const speciesOf = bloomSpecies(catalog, read(auditPath));
+  const seen = new Set(speciesOf.map((s) => s.id));
+  const forLaw = [...speciesOf.map((s) => ({ ...s, botanical: botanical.get(s.id) })),
+    ...catalog.plants.filter((p) => !p.parent && !seen.has(p.id) && p.botanical).map((p) => ({ id: p.id, botanical: p.botanical }))];
+  const regulated = regulatedPlants(regulatedData, forLaw,
     Object.fromEntries(Object.entries(wcvp).map(([id, r]) => [id, r.name])));
   const sources = { ...SOURCES };
   const states = [...new Set(counties.map((c) => stateOf(c.fips)))].sort((a, b) => a - b);

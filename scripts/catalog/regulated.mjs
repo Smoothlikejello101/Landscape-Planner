@@ -6,6 +6,8 @@ import { readFileSync } from 'node:fs';
 const PATH = 'scripts/catalog/regulated-plants.json';
 const SPECIES = /^[A-Z][a-zë-]+ [a-zë-]+$/;
 const INFRA = /^[A-Z][a-zë-]+ [a-zë-]+ (var\.|subsp\.) [a-zë-]+$/;
+/** A named hybrid (nothospecies), as Kew writes it: "Lonicera × bella". */
+const HYBRID = /^[A-Z][a-zë-]+ × [a-zë-]+$/;
 
 /**
  * The lists, checked: every entry a species, a variety or subspecies, or a genus, with a class its list says.
@@ -36,7 +38,7 @@ export function problems(data) {
     for (const p of j.plants ?? []) {
       const what = p.name ?? p.genus;
       if (!j.classes?.[p.class]) out.push(`${j.code} ${what}: class "${p.class}" not in its list's classes`);
-      if (p.name ? !(SPECIES.test(p.name) || INFRA.test(p.name)) || p.genus : !/^[A-Z][a-z]+$/.test(p.genus ?? '')) out.push(`${j.code} ${what}: not a species, variety, subspecies or genus`);
+      if (p.name ? !(SPECIES.test(p.name) || INFRA.test(p.name) || HYBRID.test(p.name)) || p.genus : !/^[A-Z][a-z]+$/.test(p.genus ?? '')) out.push(`${j.code} ${what}: not a species, variety, subspecies or genus`);
       if (p.kew != null && !(p.name && SPECIES.test(p.kew))) out.push(`${j.code} ${what}: bad Kew spelling`);
       if (p.accepted != null && !(p.name && (p.accepted === false || SPECIES.test(p.accepted)))) out.push(`${j.code} ${what}: bad accepted name`);
       if (p.notKew != null && !(p.name && SPECIES.test(p.notKew) && p.accepted)) out.push(`${j.code} ${what}: bad notKew`);
@@ -52,7 +54,9 @@ export function listedSpecies(data) {
   return [...new Set(data.jurisdictions.flatMap((j) => j.plants.map((p) => p.kew ?? p.name).filter((n) => n && SPECIES.test(n))))].sort();
 }
 
-const clean = (s) => String(s ?? '').replace(/\s+/g, ' ').replace(/\bssp\./, 'subsp.').trim();
+// (A hybrid's sign however it's typed: "Lonicera x bella", "Lonicera ×bella" are "Lonicera × bella"; never
+// Lonicera xylosteum, a species.)
+const clean = (s) => String(s ?? '').replace(/\s+/g, ' ').replace(/\bssp\./, 'subsp.').replace(/^([A-Z][a-zë-]+) (?:x |× ?)(?=[a-z])/, '$1 × ').trim();
 /** The names an entry is matched by: as printed, as Kew spells it, its reviewed accepted name, its other names. */
 const entryNames = (e) => [e.name, e.kew, e.accepted || null, ...(e.also ?? [])].filter(Boolean);
 /**
@@ -63,7 +67,9 @@ const entryNames = (e) => [e.name, e.kew, e.accepted || null, ...(e.also ?? [])]
  * cultivars; a listed variety only that variety (kudzu is Pueraria montana var. lobata, not the species), by its
  * name or its other names; a genus every species in it, but those it excepts (by their printed names, and
  * `exceptAlso`: Kew's names for an excepted one, checked by hand).
- * `plants`: [{ id, botanical, binomial }] (binomial: the species the catalog's record is of); `accepted`:
+ * A named hybrid is matched by the catalog's own name for the plant (Lonicera × bella), and a genus entry by the
+ * genus of its accepted name, its species or its own name (a hybrid's too).
+ * `plants`: [{ id, botanical, binomial? }] (binomial: the species the catalog's record is of; none for a hybrid); `accepted`:
  * { id: accepted name } (wcvp-native.json's).
  */
 export function regulatedPlants(data, plants, accepted) {
@@ -72,9 +78,10 @@ export function regulatedPlants(data, plants, accepted) {
     const mine = {};
     for (const p of plants) {
       const own = clean(p.botanical), names = new Set([p.binomial, accepted[p.id]].filter(Boolean));
-      const genera = new Set([...names].map((n) => n.split(' ')[0]));
+      const genera = new Set([...names, own].filter(Boolean).map((n) => n.split(' ')[0]));
       const hit = j.plants.find((e) => {
         if (e.genus) return genera.has(e.genus) && ![...(e.except ?? []), ...(e.exceptAlso ?? [])].some((x) => names.has(x));
+        if (HYBRID.test(e.name)) return own === e.name || own.startsWith(`${e.name} `);
         if (INFRA.test(e.name)) return [e.name, ...(e.also ?? [])].some((n) => own === n || own.startsWith(`${n} `) || (SPECIES.test(n) && names.has(n)));
         return entryNames(e).some((n) => names.has(n));
       });

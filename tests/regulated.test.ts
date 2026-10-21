@@ -14,7 +14,7 @@ const list = (code: string, plants: object[], classes: Record<string, string> = 
 describe('the regulated lists', () => {
   it('are well formed: each entry a species, variety or genus, of a class its list says, each list cited', () => {
     expect(problems(real)).toEqual([]);
-    expect(real.jurisdictions.map((j: { code: string }) => j.code)).toEqual(['US', 'AR', 'TX', 'MS', 'MO', 'OK', 'LA']);
+    expect(real.jurisdictions.map((j: { code: string }) => j.code)).toEqual(['US', 'AR', 'TX', 'MS', 'MO', 'OK', 'LA', 'TN']);
     expect(problems({ v: 1, jurisdictions: [list('XX', [{ name: 'Melia', class: 'noxious' }, { name: 'Melia azedarach', class: 'banned' },
       { genus: 'Cuscuta', except: ['Lythrum alatum'], class: 'noxious' }, { name: 'Melia azedarach', kew: 'Melia', class: 'noxious' },
       { name: 'Melia azedarach', accepted: 'Melia', also: ['x'], notKew: 'Ophiuros', class: 'noxious' }])] }))
@@ -102,6 +102,18 @@ describe('matching the lists to catalog plants', () => {
     ], { knotroot: 'Setaria parviflora' });
     expect(r.AR).toEqual({ 'allium-canadense': 'noxious', 'crotalaria-sagittalis': 'noxious', 'cirsium-discolor': 'noxious', itchgrass: 'noxious', 'water-hyacinth': 'prohibited' });
     expect(r.US).toEqual({ itchgrass: 'noxious' }); // (not knotroot bristlegrass, a native; water hyacinth isn't on it, rooted water hyacinth is)
+  });
+  it('match a named hybrid by the catalog\'s own name, however its sign is typed; a hybrid by its genus too', () => {
+    const r = regulatedPlants(real, [
+      { id: 'bella-x', botanical: 'Lonicera x bella' },
+      { id: 'bella-sign', botanical: "Lonicera ×bella 'Rosea'" },
+      { id: 'fly-honeysuckle', botanical: 'Lonicera xylosteum', binomial: 'Lonicera xylosteum' },
+      { id: 'lythrum-hybrid', botanical: 'Lythrum × hybrida' },
+      { id: 'privet', botanical: 'Ligustrum sinense', binomial: 'Ligustrum sinense' },
+    ], {});
+    expect(r.TN).toEqual({ 'bella-x': 'pest', 'bella-sign': 'pest', privet: 'pest' });
+    expect(r.AR).toEqual({ 'lythrum-hybrid': 'lythrum' }); // (§50-709: Lythrum "including any hybrid cross thereof")
+    expect(problems({ v: 1, jurisdictions: [list('XX', [{ name: 'Lonicera × bella', class: 'noxious' }])] })).toEqual([]);
   });
   it('match the real lists: winged loosestrife in Arkansas (all Lythrum), chinaberry in Texas', () => {
     const r = regulatedPlants(real, [
