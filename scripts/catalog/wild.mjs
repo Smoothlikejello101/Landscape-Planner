@@ -13,6 +13,7 @@ import { bloomCounts, bloomDisagreements, bloomSpecies, seasonsToCheck, stateBlo
 import { gadmSubdivisionsUrl, gadmUrl, matchedTaxon, matchUrl, tsvRows, US_GADM } from './gbif.mjs';
 import { STATES } from './counties.mjs';
 import { savedPage } from './pages.mjs';
+import { readRegulated, regulatedPlants, stateRegulated } from './regulated.mjs';
 
 const stateOf = (fips) => Math.floor(fips / 1000);
 const binomial = (s) => String(s ?? '').replace(/\s+/g, ' ').trim().split(' ').slice(0, 2).join(' ');
@@ -216,6 +217,11 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   const nativeReview = Object.entries(wcvp).filter(([id, r]) => exotic.has(id) && Object.values(r.states).includes('N'))
     .map(([id, r]) => ({ id, name: r.name, nativeIn: Object.entries(r.states).filter(([, s]) => s === 'N').map(([f]) => Number(f)) }));
   writeFileSync('catalog-src/native-review.json', JSON.stringify(nativeReview, null, 1) + '\n');
+  // Plants regulated by law (regulated-plants.json), matched by Kew's accepted names (wcvp.mjs; the lists' own reviewed).
+  const regulatedData = readRegulated();
+  const botanical = new Map(catalog.plants.map((p) => [p.id, p.botanical]));
+  const regulated = regulatedPlants(regulatedData, bloomSpecies(catalog, read(auditPath)).map((s) => ({ ...s, botanical: botanical.get(s.id) })),
+    Object.fromEntries(Object.entries(wcvp).map(([id, r]) => [id, r.name])));
   const sources = { ...SOURCES };
   const states = [...new Set(counties.map((c) => stateOf(c.fips)))].sort((a, b) => a - b);
   // Bloom months (GBIF's flowering records: gbif-fetch.mjs, then gbif-download.mjs), where they've been fetched.
@@ -263,6 +269,9 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
       if (nativeSpecies.length) f.nativeSpecies = nativeSpecies;
       f.sources.wcvp = SOURCES.wcvp;
     }
+    // What the law says of a plant here: the state's list, and the federal one.
+    const law = stateRegulated(regulatedData, regulated, code);
+    if (Object.keys(law.regulated).length) { f.regulated = law.regulated; f.rules = law.rules; }
     const bloom = stateBloom(fips, counts, near, ncsuSeasons);
     if (Object.keys(bloom).length) {
       f.bloom = bloom;
@@ -276,5 +285,6 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   write(`${dir}/index.json`, wildIndex(files));
   const size = readdirSync(dir).reduce((n, f) => n + readFileSync(`${dir}/${f}`).length, 0);
   const ar = files.find((f) => f.fips === 5);
+  for (const [c, m] of Object.entries(regulated)) console.log(`regulated, ${c}: ${Object.entries(m).map(([id, k]) => `${id} (${k})`).join(', ')}`);
   console.log(`${files.length} state files (${Math.round(size / 1024)} KB); Arkansas: ${Object.keys(ar?.plants ?? {}).length} plants with wild records, ${Object.keys(ar?.bloom ?? {}).length} with bloom months; ${Object.keys(counts).length} plants with flowering records; ${bloomDisagreements(counts, ncsuSeasons).length} left out for disagreeing with NC State (catalog-src/bloom-review.json)`);
 }
