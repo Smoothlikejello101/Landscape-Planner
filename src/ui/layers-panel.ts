@@ -1,4 +1,5 @@
 import { el, svgEl } from '../dom';
+import { setTidyOn, tidyOn } from '../tidy';
 import { flushHistoryDebounce, pushHistory } from '../history';
 import { I } from '../icons';
 import { centerOnShape, deletePhase, setRoleView, setViewFilter } from '../mutations';
@@ -40,6 +41,7 @@ export function renderLayersPanel() {
   if (state.shapes.length) list.appendChild(roleSection());
   if (state.shapes.some((s) => s.plantId)) list.appendChild(plantSizeSection());
   if (state.shapes.some((s) => s.role === 'plant' || s.status || s.phase) || state.phases.length) list.appendChild(showSection());
+  list.appendChild(drawingSection());
   if (state.shapes.length === 0) {
     list.appendChild(el('div', { style: { padding: '32px', textAlign: 'center', color: '#78716c', fontSize: '14px' } }, 'No shapes yet.'));
   } else {
@@ -162,6 +164,17 @@ function showSection(): HTMLElement {
   return wrap;
 }
 
+/** Drawing: tidying what's drawn (src/tidy.ts), a setting of this device, not the plan. */
+function drawingSection(): HTMLElement {
+  const wrap = el('div', { className: 'role-rows', 'data-testid': 'drawing-settings' }, el('div', { className: 'section-label' }, 'Drawing'));
+  const tidy = el('input', { type: 'checkbox', 'data-testid': 'tidy-drawing' }) as HTMLInputElement;
+  tidy.checked = tidyOn();
+  tidy.addEventListener('change', () => setTidyOn(tidy.checked));
+  wrap.appendChild(el('label', { className: 'check-row' }, tidy,
+    el('span', {}, 'Snap to nearby edges and corners, and square nearly-square corners')));
+  wrap.appendChild(el('div', { className: 'hint' }, 'Each time it does, it says so, with an Undo. A setting of this device.'));
+  return wrap;
+}
 /** Plan-wide plant size: typical or full, and full-size rings for every plant. */
 function plantSizeSection(): HTMLElement {
   const wrap = el('div', { className: 'role-rows', 'data-testid': 'plant-size' }, el('div', { className: 'section-label' }, 'Plants'));
