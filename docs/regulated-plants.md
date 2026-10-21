@@ -65,8 +65,11 @@ to be one), and the other states.
   cylindrica*, which Arkansas names. A cultivar with a species record in the catalog takes that record's line.
 - **A listed variety takes in only that variety**, by its name or its `also` names: kudzu is *Pueraria montana*
   var. *lobata*, or *P. lobata*.
-- **A genus** takes in every species in it, but those the rule excepts, by their printed names. A species since
-  moved out of the genus (*Orobanche ramosa* as *Phelipanche ramosa*) isn't matched.
+- **A genus** takes in every species in it, but those the rule excepts, by their printed names (and Kew's, where
+  it files one under another: the excepted *Cuscuta ceanothi* is Kew's *C. subinclusa*). It goes by the genus a
+  plant is filed under now: a species moved out of it (*Orobanche ramosa* as *Phelipanche ramosa*, Russian
+  thistle as *Kali tragus*) isn't matched by its old genus, and one moved in is (*Emex australis*, Kew's *Rumex
+  hypogaeus*, takes Arkansas's *Rumex* line).
 - **A plant on two lines of one list** takes the first (Texas's noxious line before its invasive one; Arkansas's
   Lythrum line, which says the most, first).
 

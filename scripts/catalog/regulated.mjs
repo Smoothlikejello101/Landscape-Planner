@@ -41,6 +41,7 @@ export function problems(data) {
       if (p.accepted != null && !(p.name && (p.accepted === false || SPECIES.test(p.accepted)))) out.push(`${j.code} ${what}: bad accepted name`);
       if (p.notKew != null && !(p.name && SPECIES.test(p.notKew) && p.accepted)) out.push(`${j.code} ${what}: bad notKew`);
       if (p.also != null && !(p.name && Array.isArray(p.also) && p.also.every((a) => SPECIES.test(a) || INFRA.test(a)))) out.push(`${j.code} ${what}: bad other names`);
+      if (p.exceptAlso && (!p.except || !p.exceptAlso.every((e) => SPECIES.test(e) && e.startsWith(`${p.genus} `)))) out.push(`${j.code} ${what}: bad exceptions`);
       if (p.except && (!p.genus || !p.except.every((e) => SPECIES.test(e) && e.startsWith(`${p.genus} `)))) out.push(`${j.code} ${what}: bad exceptions`);
     }
   }
@@ -60,7 +61,8 @@ const entryNames = (e) => [e.name, e.kew, e.accepted || null, ...(e.also ?? [])]
  * own name, against an entry's names (`entryNames`: Kew's accepted names for listed ones are reviewed by hand, in
  * the list, never taken unchecked: wcvp.mjs reports any that differ). A listed species takes in its varieties and
  * cultivars; a listed variety only that variety (kudzu is Pueraria montana var. lobata, not the species), by its
- * name or its other names; a genus every species in it, but those it excepts (by their printed names).
+ * name or its other names; a genus every species in it, but those it excepts (by their printed names, and
+ * `exceptAlso`: Kew's names for an excepted one, checked by hand).
  * `plants`: [{ id, botanical, binomial }] (binomial: the species the catalog's record is of); `accepted`:
  * { id: accepted name } (wcvp-native.json's).
  */
@@ -72,7 +74,7 @@ export function regulatedPlants(data, plants, accepted) {
       const own = clean(p.botanical), names = new Set([p.binomial, accepted[p.id]].filter(Boolean));
       const genera = new Set([...names].map((n) => n.split(' ')[0]));
       const hit = j.plants.find((e) => {
-        if (e.genus) return genera.has(e.genus) && !(e.except ?? []).some((x) => names.has(x));
+        if (e.genus) return genera.has(e.genus) && ![...(e.except ?? []), ...(e.exceptAlso ?? [])].some((x) => names.has(x));
         if (INFRA.test(e.name)) return [e.name, ...(e.also ?? [])].some((n) => own === n || own.startsWith(`${n} `) || (SPECIES.test(n) && names.has(n)));
         return entryNames(e).some((n) => names.has(n));
       });

@@ -45,7 +45,7 @@ describe('the regulated lists', () => {
 
 describe('matching the lists to catalog plants', () => {
   const data = { v: 1, jurisdictions: [
-    list('US', [{ genus: 'Cuscuta', except: ['Cuscuta gronovii'], class: 'noxious' }]),
+    list('US', [{ genus: 'Cuscuta', except: ['Cuscuta gronovii', 'Cuscuta ceanothi'], exceptAlso: ['Cuscuta subinclusa'], class: 'noxious' }]),
     list('TX', [{ name: 'Triadica sebifera', class: 'noxious' }, { name: 'Melia azedarach', class: 'invasive' }, { name: 'Triadica sebifera', class: 'invasive' },
       { name: 'Pueraria montana var. lobata', also: ['Pueraria lobata'], class: 'noxious' }, { name: 'Schinus terebinthifolius', kew: 'Schinus terebinthifolia', class: 'noxious' }],
     { noxious: 'Noxious plant in Texas', invasive: 'On Texas\'s invasive list' }),
@@ -62,6 +62,7 @@ describe('matching the lists to catalog plants', () => {
     { id: 'winged-loosestrife', botanical: 'Lythrum alatum', binomial: 'Lythrum alatum' },
     { id: 'dodder', botanical: 'Cuscuta gronovii', binomial: 'Cuscuta gronovii' },
     { id: 'japanese-dodder', botanical: 'Cuscuta japonica', binomial: 'Cuscuta japonica' },
+    { id: 'canyon-dodder', botanical: 'Cuscuta subinclusa', binomial: 'Cuscuta subinclusa' },
     { id: 'oak', botanical: 'Quercus alba', binomial: 'Quercus alba' },
   ];
   const accepted = { tallow: 'Triadica sebifera', 'chinaberry-cv': 'Melia azedarach', 'winged-loosestrife': 'Lythrum alatum', oak: 'Quercus alba' };
