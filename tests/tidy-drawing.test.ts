@@ -73,6 +73,17 @@ describe('snapping, shown as it happens', () => {
     expect(state.draw).toBeNull();
     expect(outline(state.selectedIds[0])).toHaveLength(4);
   });
+  it('tapping again where the last tap was, after it snapped, is the same tap; a near miss beside the wall closes', () => {
+    startDraw('poly', 'bed');
+    tap(31.5, 5); // (onto the wall at 30.47)
+    state.draw!.lastTap!.t -= 1000; // (a second later: "did it register?")
+    tap(31.5, 5);
+    expect(state.draw!.points).toHaveLength(1);
+    tap(36, 5); tap(36, 12); tap(31.5, 12);
+    tap(31.3, 5.3); // (21 px from the first dot, landing on the wall a grid step from it)
+    expect(state.draw).toBeNull();
+    expect(outline(state.selectedIds[0])).toHaveLength(4);
+  });
   it('a tap landing on the last point, from a foot away, goes on the grid rather than nowhere', () => {
     startDraw('measure');
     tap(30.47, 6); tap(31.5, 6); // (a foot out from the wall: would land on the wall, on the first point)

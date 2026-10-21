@@ -142,7 +142,10 @@ export function drawTap(clientX: number, clientY: number): boolean {
     const first = d.points[ci], firstSnap = d.snaps?.[ci];
     const f = screenToFeet(clientX, clientY);
     const by = (q: Point) => Math.hypot(f.x - q.x, f.y - q.y) * pxPerFoot() <= CLOSE_RADIUS_PX;
-    if (by(first) || (firstSnap && by(firstSnap.alt)) || samePt(landing(f, d.kind, undefined, drawsPlant(d)).p, first)) { finishDraw(); return true; }
+    // (Or landing on the same shape as the first point, within a grid step of it: a near miss beside the wall.)
+    const l = landing(f, d.kind, undefined, drawsPlant(d));
+    const besideFirst = !!firstSnap && l.snapped?.shapeId === firstSnap.shapeId && Math.hypot(l.p.x - first.x, l.p.y - first.y) <= 0.5 + 1e-9;
+    if (by(first) || (firstSnap && by(firstSnap.alt)) || samePt(l.p, first) || besideFirst) { finishDraw(); return true; }
   }
   if (d.points.length >= MAX_POINTS) return false;
   // A double tap: the finger in the same spot (not where it landed: two taps either side of a wall both land on it).
@@ -158,6 +161,9 @@ export function drawTap(clientX: number, clientY: number): boolean {
     if (!snapped || samePt(last, snapped.alt) || fingerOff <= SAME_TAP_PX) return false;
     p = snapped.alt; snapped = null;
   }
+  // The same spot as the last tap before it snapped ("did it register?", tapped again): not a new point.
+  const lastSnapped = d.snaps?.[d.points.length - 1];
+  if (lastSnapped && (samePt(snapped?.alt ?? p, lastSnapped.alt) || Math.hypot(f.x - lastSnapped.alt.x, f.y - lastSnapped.alt.y) * pxPerFoot() <= SAME_TAP_PX / 2)) return false;
   const fits = (q: Point) => d.kind === 'measure' || tapAccepted(d.kind, d.points, q);
   // A snap never makes a tap fail (a triangle's third corner on the same wall as the first two would be in line
   // with them): where it would, the tap goes on the grid instead.
