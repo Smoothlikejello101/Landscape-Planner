@@ -217,12 +217,11 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   const nativeReview = Object.entries(wcvp).filter(([id, r]) => exotic.has(id) && Object.values(r.states).includes('N'))
     .map(([id, r]) => ({ id, name: r.name, nativeIn: Object.entries(r.states).filter(([, s]) => s === 'N').map(([f]) => Number(f)) }));
   writeFileSync('catalog-src/native-review.json', JSON.stringify(nativeReview, null, 1) + '\n');
-  // Plants regulated by law (regulated-plants.json), matched by Kew's accepted names (wcvp.mjs).
-  if (!existsSync('catalog-src/wcvp-regulated.json')) { console.error('catalog-src/wcvp-regulated.json is missing: run wcvp.mjs first (the regulated names\' accepted names)'); process.exit(1); }
+  // Plants regulated by law (regulated-plants.json), matched by Kew's accepted names (wcvp.mjs; the lists' own reviewed).
   const regulatedData = readRegulated();
   const botanical = new Map(catalog.plants.map((p) => [p.id, p.botanical]));
   const regulated = regulatedPlants(regulatedData, bloomSpecies(catalog, read(auditPath)).map((s) => ({ ...s, botanical: botanical.get(s.id) })),
-    Object.fromEntries(Object.entries(wcvp).map(([id, r]) => [id, r.name])), read('catalog-src/wcvp-regulated.json'));
+    Object.fromEntries(Object.entries(wcvp).map(([id, r]) => [id, r.name])));
   const sources = { ...SOURCES };
   const states = [...new Set(counties.map((c) => stateOf(c.fips)))].sort((a, b) => a - b);
   // Bloom months (GBIF's flowering records: gbif-fetch.mjs, then gbif-download.mjs), where they've been fetched.

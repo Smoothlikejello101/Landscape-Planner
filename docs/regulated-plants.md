@@ -13,32 +13,38 @@ advisory judgment, and is never shown as law; if one is used, it gets its own li
 ## The lists
 
 `scripts/catalog/regulated-plants.json`, one entry per line, each list with its rule, its link, the edition
-read and the date. Every name is the rule's own (with Kew's spelling as `kew` where it differs:
-*Echinochloa crusgalli*, Kew's *E. crus-galli*). Each list's `classes` holds what the rule says of the plants
-in each class, worded from the rule; `notes` says what was left out, and why.
+read and the date. Every name is the rule's own; where Kew's checklist differs an entry says so (`kew`: Kew's
+spelling, *Echinochloa crusgalli* as *E. crus-galli*; `accepted`: Kew's accepted name, checked by hand). Each
+list's `classes` holds what the rule says of the plants in each class, worded from the rule; `notes` says what
+was read narrower than printed or left out, and why.
 
 | Code | Rule | Read from | Entries | Effect |
 | --- | --- | --- | --- | --- |
-| US | 7 CFR 360.200 (movement: 360.300) | GovInfo, CFR revised as of 2025-01-01 | 111 | Moving it into the US or between states needs a USDA permit |
-| AR | 2 CAR §50-101(d), (f); §50-709 | Code of Arkansas Rules, printed 2026-03-22 | 31 | (f): may not be sold or planted. §50-709: no Lythrum planted, sold, bought or moved. (d): noxious weed, a public nuisance; nursery stock must be free of it |
-| TX | 4 TAC §19.300 (figure (a)) | Texas Department of Agriculture's PDF of the figure | 32 | Noxious and invasive alike: may not be sold, distributed or brought into the state, in any live form |
+| US | 7 CFR 360.200 (movement: 360.300) | GovInfo, CFR revised as of 2025-01-01 | 111 | Moving it into or through the US, or between states, needs a USDA permit |
+| AR | 2 CAR §50-101(d), (f); §50-709 | Code of Arkansas Rules, printed 2026-03-22 | 42 | (f): no plant, seed or reproductive structure sold or planted. §50-709: no Lythrum planted, sold, bought or moved. (d): noxious weed, a public nuisance; nursery stock must be reasonably free of it (§50-302) |
+| TX | 4 TAC §19.300 (figure (a)) | Texas Department of Agriculture's PDF of the figure | 32 | Noxious and invasive alike: may not be sold, distributed or brought into the state, in any live form, without a permit |
 | MS | Rule 136.01 | MDAC rules PDF, as amended 2018-12-28 | 10 | No sale, distribution or movement but under a research permit |
-| MO | 2 CSR 70-45.005; RSMo §263.190 | Code of State Regulations (2012); the statute as MDA compiles it (2011) | 12 | Sale prohibited; landowners must keep it from seeding |
+| MO | 2 CSR 70-45.005; RSMo §263.190 | Code of State Regulations (2012); Revisor of Statutes (effective 2011-08-28) | 12 | "All sales of noxious weed species are prohibited"; landowners must keep it from seeding |
 | OK | 2 O.S. §3-220 | ODAFF's print of the law and OAC 35:30-34 | 3 | Landowners must control it (no ban on sale) |
 | LA | La. R.S. 3:1791 | Louisiana legislature | 1 | Chinese tallow: a noxious plant, may be destroyed wherever found |
 
-Read 2026-10-21, each from the government's own text. Not yet: **Tennessee** (its rules site turns away
-clients that aren't browsers, and we don't pretend to be one), and the other states.
+Read 2026-10-21, each from the government's own text, saved in `catalog-src/legal/` (not committed). One gap:
+Texas's effect is §19.300(b) and Agriculture Code §71.152, which the saved figure doesn't hold; the wording
+was checked against a copy of the rule (Cornell LII), and the official statute page is to read when it's
+allowed. Not yet: **Tennessee** (its rules site turns away clients that aren't browsers, and we don't pretend
+to be one), and the other states.
 
-**Left out, on purpose:**
+**Read narrower than printed, or left out:**
 - **Seed-law lists.** Louisiana's noxious weed list (LAC 7:XIII.109), like most states' seed lists, limits weed
   seed in seed for sale. It says nothing of growing the plant.
-- **Genus entries that mean less than the genus.** Arkansas lists "wild onion and/or wild garlic (Allium spp.)"
-  and "morning glory (Ipomoea spp.)": read across the genus, they'd make native onions and morning glories
-  noxious, which isn't what the rule is about. A genus is taken whole only where the rule means it whole:
-  §50-709's "all Lythrum species", Texas's *Tamarix* spp. and *Salvinia* spp., the federal parasites
-  (*Cuscuta* and *Orobanche* but the native species the rule excepts), Arkansas's dodder and witchweed.
-- **Red rice** (Arkansas, "Oryza sativa var."): it names no variety, and the species is rice.
+- **Arkansas's genus entries are taken whole,** natives in them too, where the rule names the genus itself:
+  dodder (*Cuscuta* spp.), *Rumex* spp., witchweed, *Crotalaria* spp., cocklebur (*Xanthium* spp.), and the
+  thistle genera it names (*Carduus*, *Cirsium*, *Onopordum*, *Silybum*, *Scolymus*, *Salsola*). Where its
+  common name says which plants it means, the rule is read as that name: "wild onion and/or wild garlic (Allium
+  spp.)" as *Allium canadense* and *A. vineale*; "alligatorweed (Alternanthera spp.)" as *A. philoxeroides*.
+  Left out: "morning glory (Ipomoea spp.)", which names no species, and read whole would make the sweet potato
+  a noxious weed; the thistle entry's "and other genera", which names none; red rice, "Oryza sativa var.",
+  which names no variety (the species is rice). These are judgment calls, written down: each can be revisited.
 - **Caulerpa taxifolia** (federal): an alga.
 
 ## Matching
@@ -46,18 +52,29 @@ clients that aren't browsers, and we don't pretend to be one), and the other sta
 `scripts/catalog/regulated.mjs`, run by `wild.mjs`, which writes the matches into each state's file
 ([wild-records.md](wild-records.md)): the state's list, then the federal list, which holds in every state.
 
-- **By Kew's accepted name** (`wcvp.mjs` looks up each listed species, writing `catalog-src/wcvp-regulated.json`),
-  or the catalog's own name: Mississippi's *Sapium sebiferum* is the catalog's *Triadica sebifera*; Arkansas's
-  *Eichhornia crassipes* is Kew's *Pontederia crassipes*.
+- **By Kew's accepted name**, the catalog plant's (from `wcvp.mjs`) against the entry's names: as printed, as
+  Kew spells it, its `accepted` name and its `also` names. Mississippi's *Sapium sebiferum* is the catalog's
+  *Triadica sebifera*; Arkansas's *Eichhornia crassipes* is Kew's *Pontederia crassipes*.
+- **A listed name's accepted name is never taken unchecked.** `wcvp.mjs` looks each up and lists any Kew accepts
+  under a name the entry doesn't give; each is checked and written into the entry (a unit test fails while any
+  is left, where the lookup has run). Two Kew gets wrong for the rule's plant: federal missiongrass, *Pennisetum
+  polystachion*, which Kew types on a native grass (*Setaria parviflora*: `accepted: false`, matched by its
+  printed names only), and Arkansas's itchgrass, *Rottboellia exaltata* L.f., which Kew's lookup sends to
+  *Ophiuros exaltatus* (`notKew`); it's *R. cochinchinensis*.
 - **A listed species takes in its varieties and cultivars**: Japanese blood grass ('Red Baron') is *Imperata
   cylindrica*, which Arkansas names. A cultivar with a species record in the catalog takes that record's line.
-- **A listed variety takes in only that variety**: kudzu is *Pueraria montana* var. *lobata*.
+- **A listed variety takes in only that variety**, by its name or its `also` names: kudzu is *Pueraria montana*
+  var. *lobata*, or *P. lobata*.
+- **A genus** takes in every species in it, but those the rule excepts, by their printed names. A species since
+  moved out of the genus (*Orobanche ramosa* as *Phelipanche ramosa*) isn't matched.
 - **A plant on two lines of one list** takes the first (Texas's noxious line before its invasive one; Arkansas's
-  prohibited line before its noxious one).
+  Lythrum line, which says the most, first).
 
 Each run prints the matches. As of 2026-10-21:
 - **Winged loosestrife** (*Lythrum alatum*), prohibited in Arkansas. It's a native wildflower, and §50-709 takes in
   all Lythrum, "including, but not limited to, purple loosestrife": as written, it may not be planted or sold there.
+- **Wild onion** (*Allium canadense*, and its variety lavendulare) and **rattlebox** (*Crotalaria sagittalis*),
+  noxious weeds in Arkansas: natives the rule names.
 - **Chinaberry** (*Melia azedarach*), on Texas's invasive list: not to be sold in Texas.
 
 ## What the line doesn't say
@@ -69,6 +86,6 @@ Each run prints the matches. As of 2026-10-21:
 ## Updating
 
 Read the rule again from its government source (its `url`); change the entries and their wording to match it;
-set `edition` and `read`; then `node scripts/catalog/wcvp.mjs <combined.json>` and
-`node scripts/catalog/wild.mjs <combined.json>`. `regulated.mjs` refuses a list with a malformed entry (a
+set `edition` and `read`; then `node scripts/catalog/wcvp.mjs <combined.json>` (check any accepted names it
+lists, and record them) and `node scripts/catalog/wild.mjs <combined.json>`. `regulated.mjs` refuses a list with a malformed entry (a
 class its list doesn't define, a name that isn't a species, variety or genus), and the unit tests check it too.

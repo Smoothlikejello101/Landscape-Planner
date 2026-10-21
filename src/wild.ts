@@ -222,7 +222,7 @@ export function regulatedHere(p: { id: string; parent?: string }): RuleLine[] {
   const own = loaded.files.find((f) => f.fips === Math.floor(loaded!.county / 1000));
   if (!own?.regulated || !own.rules) return [];
   const keys = own.regulated[p.id] ?? (p.parent ? own.regulated[p.parent] : undefined) ?? [];
-  return keys.map((k) => own.rules![k]).filter((r): r is RuleLine => !!r && typeof r.says === 'string');
+  return keys.map((k) => own.rules![k]).filter((r): r is RuleLine => !!r && typeof r.says === 'string' && typeof r.url === 'string' && r.url.startsWith('https://'));
 }
 /** Native status in words: "Native to Arkansas", "Introduced in Arkansas (not native)". */
 export function nativeText(n: NativeHere): string {

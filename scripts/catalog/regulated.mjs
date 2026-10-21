@@ -9,7 +9,12 @@ const INFRA = /^[A-Z][a-zë-]+ [a-zë-]+ (var\.|subsp\.) [a-zë-]+$/;
 
 /**
  * The lists, checked: every entry a species, a variety or subspecies, or a genus, with a class its list says.
- * An entry's `kew`: its name as Kew's checklist spells it, where the rule spells it otherwise (crusgalli, crus-galli).
+ * An entry's `kew`: its name as Kew's checklist spells it, where the rule spells it otherwise (crusgalli,
+ * crus-galli). `accepted`: Kew's accepted name for it, where Kew files it under another, checked by hand
+ * (Sapium sebiferum, Triadica sebifera); false where Kew's would be wrong (it types Pennisetum polystachion on
+ * a native grass): matched by its printed names only. `notKew`: Kew's accepted name for the printed name, checked
+ * and not this plant (Arkansas's Rottboellia exaltata is itchgrass, not Kew's Ophiuros exaltatus). `also`: other names it's printed or sold under (kudzu,
+ * Pueraria lobata).
  */
 export function readRegulated(path = PATH) {
   const data = JSON.parse(readFileSync(path, 'utf8'));
@@ -33,6 +38,9 @@ export function problems(data) {
       if (!j.classes?.[p.class]) out.push(`${j.code} ${what}: class "${p.class}" not in its list's classes`);
       if (p.name ? !(SPECIES.test(p.name) || INFRA.test(p.name)) || p.genus : !/^[A-Z][a-z]+$/.test(p.genus ?? '')) out.push(`${j.code} ${what}: not a species, variety, subspecies or genus`);
       if (p.kew != null && !(p.name && SPECIES.test(p.kew))) out.push(`${j.code} ${what}: bad Kew spelling`);
+      if (p.accepted != null && !(p.name && (p.accepted === false || SPECIES.test(p.accepted)))) out.push(`${j.code} ${what}: bad accepted name`);
+      if (p.notKew != null && !(p.name && SPECIES.test(p.notKew) && p.accepted)) out.push(`${j.code} ${what}: bad notKew`);
+      if (p.also != null && !(p.name && Array.isArray(p.also) && p.also.every((a) => SPECIES.test(a) || INFRA.test(a)))) out.push(`${j.code} ${what}: bad other names`);
       if (p.except && (!p.genus || !p.except.every((e) => SPECIES.test(e) && e.startsWith(`${p.genus} `)))) out.push(`${j.code} ${what}: bad exceptions`);
     }
   }
@@ -40,20 +48,23 @@ export function problems(data) {
 }
 /** The species the lists name, to look up in Kew's checklist (wcvp.mjs). */
 export function listedSpecies(data) {
-  return [...new Set(data.jurisdictions.flatMap((j) => j.plants.flatMap((p) => [p.kew ?? p.name, ...(p.except ?? [])]).filter((n) => n && SPECIES.test(n))))].sort();
+  return [...new Set(data.jurisdictions.flatMap((j) => j.plants.map((p) => p.kew ?? p.name).filter((n) => n && SPECIES.test(n))))].sort();
 }
 
 const clean = (s) => String(s ?? '').replace(/\s+/g, ' ').replace(/\bssp\./, 'subsp.').trim();
+/** The names an entry is matched by: as printed, as Kew spells it, its reviewed accepted name, its other names. */
+const entryNames = (e) => [e.name, e.kew, e.accepted || null, ...(e.also ?? [])].filter(Boolean);
 /**
  * Which catalog plants each list's entries take in: { code: { id: class } } (an id's first entry in its list, where
- * it's on two: the lists are in order of weight). A plant is matched by its accepted name in Kew's checklist (a
- * listed name or the catalog's may be a synonym: Sapium sebiferum is Triadica sebifera), or by its own name. A
- * listed species takes in its varieties and cultivars; a listed variety only that variety (kudzu is
- * Pueraria montana var. lobata, not the species); a genus every species in it, but those it excepts.
+ * it's on two: the lists are in order of weight). A plant is matched by its accepted name in Kew's checklist or its
+ * own name, against an entry's names (`entryNames`: Kew's accepted names for listed ones are reviewed by hand, in
+ * the list, never taken unchecked: wcvp.mjs reports any that differ). A listed species takes in its varieties and
+ * cultivars; a listed variety only that variety (kudzu is Pueraria montana var. lobata, not the species), by its
+ * name or its other names; a genus every species in it, but those it excepts (by their printed names).
  * `plants`: [{ id, botanical, binomial }] (binomial: the species the catalog's record is of); `accepted`:
- * { id: accepted name } (wcvp-native.json's); `acceptedListed`: { listed name: accepted name } (wcvp-regulated.json).
+ * { id: accepted name } (wcvp-native.json's).
  */
-export function regulatedPlants(data, plants, accepted, acceptedListed) {
+export function regulatedPlants(data, plants, accepted) {
   const out = {};
   for (const j of data.jurisdictions) {
     const mine = {};
@@ -61,16 +72,28 @@ export function regulatedPlants(data, plants, accepted, acceptedListed) {
       const own = clean(p.botanical), names = new Set([p.binomial, accepted[p.id]].filter(Boolean));
       const genera = new Set([...names].map((n) => n.split(' ')[0]));
       const hit = j.plants.find((e) => {
-        if (e.genus) return genera.has(e.genus) && !(e.except ?? []).some((x) => names.has(x) || names.has(acceptedListed[x]));
-        if (INFRA.test(e.name)) return own === e.name || own.startsWith(`${e.name} `);
-        const k = e.kew ?? e.name;
-        return names.has(e.name) || names.has(k) || (!!acceptedListed[k] && names.has(acceptedListed[k]));
+        if (e.genus) return genera.has(e.genus) && !(e.except ?? []).some((x) => names.has(x));
+        if (INFRA.test(e.name)) return [e.name, ...(e.also ?? [])].some((n) => own === n || own.startsWith(`${n} `) || (SPECIES.test(n) && names.has(n)));
+        return entryNames(e).some((n) => names.has(n));
       });
       if (hit) mine[p.id] = hit.class;
     }
     if (Object.keys(mine).length) out[j.code] = mine;
   }
   return out;
+}
+/**
+ * Listed species whose accepted name in Kew's checklist (`kewAccepted`: { name as Kew spells it: accepted }, from
+ * wcvp.mjs) isn't the one the list gives: each to check by hand, and record in the list. Empty: all reviewed.
+ */
+export function unreviewed(data, kewAccepted) {
+  const out = new Set();
+  for (const j of data.jurisdictions) for (const e of j.plants) {
+    if (!e.name || !SPECIES.test(e.name) || e.accepted === false) continue;
+    const k = e.kew ?? e.name, kew = kewAccepted[k];
+    if (kew && kew !== (e.accepted ?? k) && kew !== e.notKew) out.add(`${e.name}: Kew's accepted name is ${kew}, the list's ${e.accepted ?? k}`);
+  }
+  return [...out].sort();
 }
 /** A list's lines for a state file: { "AR:prohibited": { says, title, url, edition, read } } for the classes used. */
 export function ruleLines(data, code, used) {

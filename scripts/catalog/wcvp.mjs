@@ -10,7 +10,7 @@
 import { createReadStream, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { bloomSpecies } from './bloom.mjs';
-import { listedSpecies, readRegulated } from './regulated.mjs';
+import { listedSpecies, readRegulated, unreviewed } from './regulated.mjs';
 
 /** TDWG level 3 areas that are US states (and DC, Puerto Rico), by FIPS. The Aleutians are Alaska's. */
 export const TDWG_STATES = {
@@ -67,7 +67,8 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   if (!auditPath) { console.error('usage: node scripts/catalog/wcvp.mjs <combined.json>'); process.exit(1); }
   const dir = 'catalog-src/kew-wcvp';
   const species = bloomSpecies(JSON.parse(readFileSync('public/plants.json', 'utf8')), JSON.parse(readFileSync(auditPath, 'utf8')));
-  const listed = listedSpecies(readRegulated());
+  const regulatedData = readRegulated();
+  const listed = listedSpecies(regulatedData);
   const wanted = new Set([...species.map((s) => wcvpName(s.binomial)), ...listed]);
   const byName = new Map(), rowById = new Map();
   for await (const r of rowsOf(`${dir}/wcvp_names.csv`)) {
@@ -98,5 +99,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   const mine = unmatched.filter((n) => ours.has(n));
   const lost = listed.filter((n) => !regulated[n]);
   console.log(`${Object.keys(regulated).length} of ${listed.length} regulated names matched to an accepted species${lost.length ? ` (not: ${lost.join(', ')})` : ''}`);
+  const check = unreviewed(regulatedData, regulated);
+  if (check.length) console.log(`regulated names Kew accepts under a name the list doesn't give (check each, and set its "accepted" in regulated-plants.json):\n  ${check.join('\n  ')}`);
   console.log(`${Object.values(out).filter((r) => Object.keys(r.states).length).length} plants with US states from WCVP (${species.length} looked up); ${mine.length} names not matched to one accepted species: ${mine.slice(0, 20).join(', ')}${mine.length > 20 ? '…' : ''}`);
 }
