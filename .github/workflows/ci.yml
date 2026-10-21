@@ -33,7 +33,20 @@ jobs:
           name: playwright-results
           path: test-results/
           retention-days: 7
-      - run: npm run build
+      # The version shown in the app's menu: package.json's major.minor and the pull request's number
+      # (0.2.049 for #49), from the event, or from main's merge commit ("Merge pull request #49 …", or a
+      # squash's "… (#49)"). Anything else keeps package.json's.
+      - name: Build
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          n="$PR_NUMBER"
+          [ -n "$n" ] || n=$(git log -1 --format=%s | sed -n -e 's/^Merge pull request #\([0-9][0-9]*\).*/\1/p' -e 's/.*(#\([0-9][0-9]*\))$/\1/p' | head -1)
+          if [ -n "$n" ]; then
+            export APP_VERSION="$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')").$(printf %03d "$n")"
+          fi
+          echo "Version: ${APP_VERSION:-from package.json}"
+          npm run build
       - uses: actions/upload-pages-artifact@v3
         if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
         with:
