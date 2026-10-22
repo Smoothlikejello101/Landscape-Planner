@@ -47,8 +47,8 @@ export function problems(data) {
       if (p.notKew != null && !(p.name && SPECIES.test(p.notKew) && p.accepted)) out.push(`${j.code} ${what}: bad notKew`);
       if (p.also != null && !(p.name && Array.isArray(p.also) && p.also.every((a) => SPECIES.test(a) || INFRA.test(a)))) out.push(`${j.code} ${what}: bad other names`);
       // (A background note: one documented fact about the plants, from a source, shown where a native is listed.)
-      if (p.background != null && !(typeof p.background.note === 'string' && p.background.note.startsWith('Background: ')
-        && typeof p.background.source?.title === 'string' && /^https:\/\//.test(p.background.source?.url ?? '') && /^\d{4}-\d{2}-\d{2}$/.test(p.background.checked ?? ''))) out.push(`${j.code} ${what}: bad background`);
+      if (p.background != null && !(typeof p.background.note === 'string' && /^Background: \S.*\.$/.test(p.background.note)
+        && typeof p.background.source?.title === 'string' && p.background.source.title.trim() && /^https:\/\//.test(p.background.source?.url ?? '') && /^\d{4}-\d{2}-\d{2}$/.test(p.background.checked ?? ''))) out.push(`${j.code} ${what}: bad background`);
       if (p.exceptAlso && (!p.except || !p.exceptAlso.every((e) => SPECIES.test(e) && e.startsWith(`${p.genus} `)))) out.push(`${j.code} ${what}: bad exceptions`);
       if (p.except && (!p.genus || !p.except.every((e) => SPECIES.test(e) && e.startsWith(`${p.genus} `)))) out.push(`${j.code} ${what}: bad exceptions`);
     }

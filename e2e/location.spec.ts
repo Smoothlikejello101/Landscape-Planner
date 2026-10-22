@@ -180,8 +180,8 @@ test('a plant the garden\'s state prohibits says so, with the rule', async ({ pa
   await expect(rattlebox.getByTestId('regulated-here')).toHaveClass(/listed/);
   await expect(rattlebox.getByTestId('law-native')).toHaveText('Native to Arkansas, but this rule lists every Crotalaria species, natives included.');
   // And a documented fact about the plants it names, with its source: why a list might include them, never the rule's reason.
-  await expect(rattlebox.getByTestId('law-background')).toContainText('Background: some rattleboxes are toxic to livestock and dogs');
-  await expect(rattlebox.getByTestId('law-background').locator('a')).toHaveAttribute('href', 'https://plants.ces.ncsu.edu/plants/crotalaria-spectabilis/');
+  await expect(rattlebox.getByTestId('law-background')).toContainText('Background: rattlebox (Crotalaria sagittalis) is poisonous to livestock in all its parts.');
+  await expect(rattlebox.getByTestId('law-background').locator('a')).toHaveAttribute('href', 'https://warcapps.usgs.gov/PlantID/Species/Details/880');
   // Chinaberry: on Texas's list, not Arkansas's: nothing said here.
   await page.getByTestId('plant-search').fill('Chinaberry');
   const chinaberry = page.locator('.plant-item', { hasText: 'Chinaberry' });

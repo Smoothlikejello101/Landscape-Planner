@@ -267,7 +267,7 @@ export function regulatedHere(p: { id: string; parent?: string }): RuleHere[] {
     const said = r.tier === 'listed' || r.tier === 'ban' ? r.tier : undefined;
     if (native?.status !== 'N') return [{ ...r, tier }];
     const bg = own.background?.[id]?.[k];
-    const background = bg && typeof bg.note === 'string' && typeof bg.url === 'string' && bg.url.startsWith('https://') ? bg : undefined;
+    const background = bg && typeof bg.note === 'string' && typeof bg.title === 'string' && bg.title && typeof bg.url === 'string' && bg.url.startsWith('https://') ? bg : undefined;
     return [{ ...r, tier, native: nativeAndListed(native, said, own.genusWide?.[id]?.[k], k.startsWith('US:')), nativeTo: native.stateName, ...(background ? { background } : {}) }];
   });
 }
