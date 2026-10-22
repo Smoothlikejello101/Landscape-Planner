@@ -6,7 +6,7 @@ import { atlasRecords, curatedNear, gadmCounties, gbifRecords, nativeStatus, SOU
 import { canonical, placer, twoTaxa, usdaRecords } from '../scripts/catalog/usda-counties.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { acceptedTaxon, stateStatus } from '../scripts/catalog/wcvp.mjs';
-import { countyName, escapeHere, escapeShort, escapeText, gardenStateName, lawShort, loadWild, nativeHere, nativeText, nativeAndListed, regulatedHere, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
+import { countyName, countyWord, escapeHere, escapeShort, escapeText, gardenStateName, lawShort, loadWild, nativeHere, nativeText, nativeAndListed, regulatedHere, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
 import { plantMatches, PLANT_FILTER_DEFAULTS, zoneNote, type Plant } from '../src/plants';
 import { state } from '../src/state';
 
@@ -210,13 +210,22 @@ describe('wild records near the garden', () => {
     await loadWild(undefined, fetcher);
     const honeysuckle = escapeHere({ id: 'lonicera-japonica' })!;
     expect(escapeText(honeysuckle)).toBe('Not native to Arkansas; recorded growing wild in 2 of its 5 counties');
-    expect(escapeShort(honeysuckle)).toBe('Not native; growing wild in 2 of 5 Arkansas counties');
+    expect(escapeShort(honeysuckle)).toBe('Not native; recorded wild in 2 of 5 Arkansas counties');
     expect(honeysuckle.sources).toEqual([SOURCES.usda.title]);
     // A cultivar: its species' records and status, said so (a sterile one may not seed).
     const hall = escapeHere({ id: 'lonicera-japonica-halliana', parent: 'lonicera-japonica' })!;
     expect(escapeText(hall)).toBe("Its species isn't native to Arkansas; recorded growing wild in 2 of its 5 counties");
     // Not native but recorded nowhere wild in the state; native; unlisted: none.
     expect([escapeHere({ id: 'rosmarinus' }), escapeHere({ id: 'quercus-muehlenbergii' }), escapeHere({ id: 'mitella-diphylla' })]).toEqual([null, null, null]);
+    // A plant whose own records are its species' (a cultivar with no species record), its own status: said so.
+    const e = { stateName: 'Arkansas', stateFips: 5, count: 50, total: 75, sources: [] };
+    expect(escapeText({ ...e, statusSpecies: false, recordsSpecies: true })).toBe('Not native to Arkansas; its species is recorded growing wild in 50 of its 75 counties');
+    expect(escapeShort({ ...e, statusSpecies: false, recordsSpecies: true })).toBe("Its species isn't native; recorded wild in 50 of 75 Arkansas counties");
+    // What a state calls its counties; the District, one unit.
+    expect(escapeText({ ...e, stateName: 'Louisiana', stateFips: 22, total: 64, statusSpecies: false, recordsSpecies: false })).toBe('Not native to Louisiana; recorded growing wild in 50 of its 64 parishes');
+    expect(escapeText({ ...e, stateName: 'Virginia', stateFips: 51, total: 133, statusSpecies: false, recordsSpecies: false })).toBe('Not native to Virginia; recorded growing wild in 50 of its 133 counties and cities');
+    expect(escapeText({ ...e, stateName: 'the District of Columbia', stateFips: 11, count: 1, total: 1, statusSpecies: false, recordsSpecies: false })).toBe('Not native to the District of Columbia; recorded growing wild there');
+    expect(countyWord(2, 30)).toBe('areas');
   });
   it("filter 'Native to <state>' does nothing in a state with no native status in its file (Texas, here)", async () => {
     state.location = { zip: '75501', zone: '8a' };

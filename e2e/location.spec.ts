@@ -187,7 +187,7 @@ test('a plant the garden\'s state prohibits says so, with the rule', async ({ pa
   await expect(chinaberry.getByTestId('row-law')).toHaveCount(0);
 });
 
-test('a plant not native here that grows wild here all the same says so, with its counties', async ({ page }) => {
+test('a plant not native here that is recorded growing wild here says so, with its counties', async ({ page }) => {
   // (Clark County, Arkansas: the real Arkansas file. Chinese privet: introduced by Kew's checklist, recorded wild across the state.)
   const table = { ...TABLE, zips: { '71923': ['8a', 0, 3, 5019] } };
   await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(table) }));
@@ -201,11 +201,19 @@ test('a plant not native here that grows wild here all the same says so, with it
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Chinese privet');
   const privet = page.locator('.plant-item', { hasText: 'Chinese privet' });
-  await expect(privet.getByTestId('row-escape')).toHaveText(/^Not native; growing wild in \d+ of 75 Arkansas counties$/);
+  await expect(privet.getByTestId('row-escape')).toHaveText(/^Not native; recorded wild in \d+ of 75 Arkansas counties$/);
   await privet.getByTestId('plant-row').click();
   await expect(privet.getByTestId('native-here')).toContainText(/Not native to Arkansas; recorded growing wild in \d+ of its 75 counties/);
   // A native, recorded wild nearby: no such line.
   await page.getByTestId('plant-search').fill('Chinquapin oak');
   const oak = page.locator('.plant-item', { hasText: 'Chinquapin oak' });
+  await expect(oak.getByTestId('plant-row')).toBeVisible();
   await expect(oak.getByTestId('row-escape')).toHaveCount(0);
+  // Introduced, recorded nowhere wild in the state: introduced, said plainly; no row line.
+  await page.getByTestId('plant-search').fill('Sasanqua');
+  const camellia = page.locator('.plant-item', { hasText: /sasanqua/i }).first();
+  await expect(camellia.getByTestId('plant-row')).toBeVisible();
+  await expect(camellia.getByTestId('row-escape')).toHaveCount(0);
+  await camellia.getByTestId('plant-row').click();
+  await expect(camellia.getByTestId('native-here')).toContainText('Introduced in Arkansas (not native there)');
 });

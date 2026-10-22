@@ -122,14 +122,17 @@ it ("Native to Arkansas": `N`; offered only where the state's file has native st
   though the Arkansas atlas records it in many counties; 38 Arkansas plants recorded wild are unlisted there),
   so the filter means "Kew lists it native here", and an unlisted plant gets no line, never "not native".
 - **The catalog's own "native"** is North America-wide ("N. American native"); this is the garden's state.
-- **Not native, and growing wild here all the same: it escapes gardens.** Where Kew has a plant introduced in
-  the state and the state's file has county records for it, the line says both, with the count: "Not native to
-  Arkansas; recorded growing wild in 65 of its 75 counties" (a cultivar with only its species' records: "Its
-  species isn't native…", since a sterile cultivar may not seed). The picker's row says it in short ("Not native;
-  growing wild in 65 of 75 Arkansas counties"). It's a fact-based warning: no council's judgment, only Kew's
-  status and the county records, which for an introduced plant are the curated sources' alone (GBIF's specimens
-  never fill in a plant introduced in the state). Recorded wild isn't the same as invasive, and the line doesn't
-  say invasive; the number of counties says how far it has gone. With the law's lines, it's shown first in the
+- **Not native, and recorded growing wild here all the same.** Where Kew has a plant introduced in the state and
+  the state's file has county records for it, the line says both, with the count: "Not native to Arkansas;
+  recorded growing wild in 65 of its 75 counties" (a cultivar with only its species' records: "Its species isn't
+  native…", since a sterile cultivar may not seed; Louisiana's parishes, Virginia's "counties and cities", the
+  District "there"). The picker's row says it in short ("Not native; recorded wild in 65 of 75 Arkansas
+  counties"). A fact-based warning: no council's judgment, only Kew's status and the county records, which for an
+  introduced plant are the curated sources' alone (GBIF's specimens never fill in a plant introduced in the
+  state). It doesn't say invasive, or even escaped from gardens: the records are vouchers outside cultivation,
+  some old, some of waifs that didn't persist (the atlas says so of a few of its introduced taxa), and some
+  plants arrived by accident (squirrel-tail grass). The count says how widely it's been recorded, which follows
+  how much collecting was done as well as how far it has spread. With the law's lines, it's shown first in the
   details.
 
 How it's read: `node scripts/catalog/wcvp.mjs <combined.json>` reads `catalog-src/kew-wcvp/` (wcvp.zip from

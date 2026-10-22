@@ -122,7 +122,7 @@ export function renderPlantsPanel() {
     // (Red for a ban; amber where every line only lists it.)
     const law = regulatedHere(p);
     if (law.length) info.appendChild(el('div', { className: `plaw${law.every((r) => r.tier === 'listed') ? ' listed' : ''}`, 'data-testid': 'row-law' }, lawShort(law)));
-    // Not native here, and growing wild all the same (it escapes gardens): seen without opening it too.
+    // Not native here, and recorded growing wild here all the same: seen without opening it too.
     const escape = escapeHere(p);
     if (escape) info.appendChild(el('div', { className: 'pescape', 'data-testid': 'row-escape' }, escapeShort(escape)));
     const dot = el('div', { style: {
