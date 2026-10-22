@@ -46,6 +46,9 @@ export function problems(data) {
       if (p.accepted != null && !(p.name && (p.accepted === false || SPECIES.test(p.accepted)))) out.push(`${j.code} ${what}: bad accepted name`);
       if (p.notKew != null && !(p.name && SPECIES.test(p.notKew) && p.accepted)) out.push(`${j.code} ${what}: bad notKew`);
       if (p.also != null && !(p.name && Array.isArray(p.also) && p.also.every((a) => SPECIES.test(a) || INFRA.test(a)))) out.push(`${j.code} ${what}: bad other names`);
+      // (A background note: one documented fact about the plants, from a source, shown where a native is listed.)
+      if (p.background != null && !(typeof p.background.note === 'string' && p.background.note.startsWith('Background: ')
+        && typeof p.background.source?.title === 'string' && /^https:\/\//.test(p.background.source?.url ?? '') && /^\d{4}-\d{2}-\d{2}$/.test(p.background.checked ?? ''))) out.push(`${j.code} ${what}: bad background`);
       if (p.exceptAlso && (!p.except || !p.exceptAlso.every((e) => SPECIES.test(e) && e.startsWith(`${p.genus} `)))) out.push(`${j.code} ${what}: bad exceptions`);
       if (p.except && (!p.genus || !p.except.every((e) => SPECIES.test(e) && e.startsWith(`${p.genus} `)))) out.push(`${j.code} ${what}: bad exceptions`);
     }
@@ -91,9 +94,10 @@ const entryNames = (e) => [e.name, e.kew, e.accepted || null, ...(e.also ?? [])]
  * `plants`: [{ id, botanical, binomial? }] (binomial: the species the catalog's record is of; none for a hybrid); `accepted`:
  * { id: accepted name } (wcvp-native.json's). `genusWide`, if given, is filled with the plants a whole-genus entry
  * took in, where it excepts none: { code: { id: genus } } (for the line that says why a native plant is listed:
- * "every Lythrum species").
+ * "every Lythrum species"). `backgrounds`, if given, likewise: { code: { id: { note, title, url } } }, the entry's
+ * background note, for the plants an entry with one took in.
  */
-export function regulatedPlants(data, plants, accepted, genusWide = {}) {
+export function regulatedPlants(data, plants, accepted, genusWide = {}, backgrounds = {}) {
   const out = {};
   for (const j of data.jurisdictions) {
     const mine = {};
@@ -112,6 +116,7 @@ export function regulatedPlants(data, plants, accepted, genusWide = {}) {
       // (Not a genus entry with exceptions: "every Cuscuta species, natives included" would be false of the federal
       // list, which excepts most native dodders.)
       if (hit?.genus && !hit.except?.length && !hit.exceptAlso?.length) (genusWide[j.code] ??= {})[p.id] = hit.genus;
+      if (hit?.background) (backgrounds[j.code] ??= {})[p.id] = { note: hit.background.note, title: hit.background.source.title, url: hit.background.source.url };
     }
     if (Object.keys(mine).length) out[j.code] = mine;
   }
@@ -141,16 +146,17 @@ export function ruleLines(data, code, used) {
  * names, for a plant a whole-genus entry took in, the genus (left out where there are none). `matches`, `genusWide`:
  * regulatedPlants's.
  */
-export function stateRegulated(data, matches, code, genusWide = {}) {
-  const regulated = {}, used = {}, byGenus = {};
+export function stateRegulated(data, matches, code, genusWide = {}, backgrounds = {}) {
+  const regulated = {}, used = {}, byGenus = {}, background = {};
   for (const c of [code, 'US']) {
     if (c === 'US' && code === 'US') continue;
     for (const [id, cls] of Object.entries(matches[c] ?? {})) {
       (regulated[id] ??= []).push(`${c}:${cls}`);
       (used[c] ??= new Set()).add(cls);
       if (genusWide[c]?.[id]) (byGenus[id] ??= {})[`${c}:${cls}`] = genusWide[c][id];
+      if (backgrounds[c]?.[id]) (background[id] ??= {})[`${c}:${cls}`] = backgrounds[c][id];
     }
   }
   const rules = Object.assign({}, ...Object.entries(used).map(([c, u]) => ruleLines(data, c, u)));
-  return Object.keys(byGenus).length ? { regulated, rules, genusWide: byGenus } : { regulated, rules };
+  return { regulated, rules, ...(Object.keys(byGenus).length ? { genusWide: byGenus } : {}), ...(Object.keys(background).length ? { background } : {}) };
 }

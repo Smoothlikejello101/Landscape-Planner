@@ -219,9 +219,9 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   writeFileSync('catalog-src/native-review.json', JSON.stringify(nativeReview, null, 1) + '\n');
   // Plants regulated by law (regulated-plants.json), matched by Kew's accepted names (wcvp.mjs; the lists' own reviewed).
   const regulatedData = readRegulated();
-  const genusWide = {};
+  const genusWide = {}, backgrounds = {};
   const regulated = regulatedPlants(regulatedData, lawPlants(catalog, bloomSpecies(catalog, read(auditPath))),
-    Object.fromEntries(Object.entries(wcvp).map(([id, r]) => [id, r.name])), genusWide);
+    Object.fromEntries(Object.entries(wcvp).map(([id, r]) => [id, r.name])), genusWide, backgrounds);
   const sources = { ...SOURCES };
   const states = [...new Set(counties.map((c) => stateOf(c.fips)))].sort((a, b) => a - b);
   // Bloom months (GBIF's flowering records: gbif-fetch.mjs, then gbif-download.mjs), where they've been fetched.
@@ -270,8 +270,12 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
       f.sources.wcvp = SOURCES.wcvp;
     }
     // What the law says of a plant here: the state's list, and the federal one.
-    const law = stateRegulated(regulatedData, regulated, code, genusWide);
-    if (Object.keys(law.regulated).length) { f.regulated = law.regulated; f.rules = law.rules; if (law.genusWide) f.genusWide = law.genusWide; }
+    const law = stateRegulated(regulatedData, regulated, code, genusWide, backgrounds);
+    if (Object.keys(law.regulated).length) {
+      f.regulated = law.regulated; f.rules = law.rules;
+      if (law.genusWide) f.genusWide = law.genusWide;
+      if (law.background) f.background = law.background;
+    }
     const bloom = stateBloom(fips, counts, near, ncsuSeasons);
     if (Object.keys(bloom).length) {
       f.bloom = bloom;

@@ -38,7 +38,11 @@ export interface WildFile {
   rules?: Record<string, RuleLine>;
   /** For a plant a whole-genus entry took in, the genus, by rule key: { id: { "AR:lythrum": "Lythrum" } }. */
   genusWide?: Record<string, Record<string, string>>;
+  /** For a plant an entry with a background note took in, the note and its source, by rule key. */
+  background?: Record<string, Record<string, LawBackground>>;
 }
+/** A documented fact about the plants a rule's entry names ("Background: some rattleboxes are toxic to livestock…"), and its source. */
+export interface LawBackground { note: string; title: string; url: string }
 /**
  * A law's line: what it says of a plant ("Prohibited in Arkansas: …"), the rule, and when it was read. `tier`: "ban"
  * (the rule forbids selling, planting or moving it) or "listed" (it lists the plant, with lighter duties); files
@@ -52,6 +56,8 @@ export interface RuleHere extends RuleLine {
   /** Where the plant is native to the state all the same: why the law covers it, and the state's name. */
   native?: string;
   nativeTo?: string;
+  /** Where it's native, a documented fact about the plants the entry names, to help explain the listing (never its reason). */
+  background?: LawBackground;
 }
 /** A plant's native status in the garden's state (`species`: its species', a cultivar's). */
 export interface NativeHere { status: 'N' | 'I'; stateName: string; species: boolean; source: string }
@@ -259,9 +265,10 @@ export function regulatedHere(p: { id: string; parent?: string }): RuleHere[] {
     // file, with no tier, is "covered", never "banned", which a listing isn't.)
     const tier = r.tier === 'listed' ? 'listed' : 'ban';
     const said = r.tier === 'listed' || r.tier === 'ban' ? r.tier : undefined;
-    return [native?.status === 'N'
-      ? { ...r, tier, native: nativeAndListed(native, said, own.genusWide?.[id]?.[k], k.startsWith('US:')), nativeTo: native.stateName }
-      : { ...r, tier }];
+    if (native?.status !== 'N') return [{ ...r, tier }];
+    const bg = own.background?.[id]?.[k];
+    const background = bg && typeof bg.note === 'string' && typeof bg.url === 'string' && bg.url.startsWith('https://') ? bg : undefined;
+    return [{ ...r, tier, native: nativeAndListed(native, said, own.genusWide?.[id]?.[k], k.startsWith('US:')), nativeTo: native.stateName, ...(background ? { background } : {}) }];
   });
 }
 /**
