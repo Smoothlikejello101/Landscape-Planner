@@ -186,3 +186,26 @@ test('a plant the garden\'s state prohibits says so, with the rule', async ({ pa
   await expect(chinaberry.getByTestId('regulated-here')).toHaveCount(0);
   await expect(chinaberry.getByTestId('row-law')).toHaveCount(0);
 });
+
+test('a plant not native here that grows wild here all the same says so, with its counties', async ({ page }) => {
+  // (Clark County, Arkansas: the real Arkansas file. Chinese privet: introduced by Kew's checklist, recorded wild across the state.)
+  const table = { ...TABLE, zips: { '71923': ['8a', 0, 3, 5019] } };
+  await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(table) }));
+  await openFresh(page);
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Garden location' }).click();
+  await page.getByTestId('zip').fill('71923');
+  await page.getByTestId('zip-lookup').click();
+  await expect(page.getByTestId('location-result')).toContainText('Zone 8a');
+  await page.locator('.sheet-header .iconbtn').click();
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Chinese privet');
+  const privet = page.locator('.plant-item', { hasText: 'Chinese privet' });
+  await expect(privet.getByTestId('row-escape')).toHaveText(/^Not native; growing wild in \d+ of 75 Arkansas counties$/);
+  await privet.getByTestId('plant-row').click();
+  await expect(privet.getByTestId('native-here')).toContainText(/Not native to Arkansas; recorded growing wild in \d+ of its 75 counties/);
+  // A native, recorded wild nearby: no such line.
+  await page.getByTestId('plant-search').fill('Chinquapin oak');
+  const oak = page.locator('.plant-item', { hasText: 'Chinquapin oak' });
+  await expect(oak.getByTestId('row-escape')).toHaveCount(0);
+});

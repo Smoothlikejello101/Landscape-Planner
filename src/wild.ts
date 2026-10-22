@@ -278,6 +278,36 @@ export function nativeText(n: NativeHere): string {
   return who ? who + say : say[0].toUpperCase() + say.slice(1);
 }
 
+/**
+ * A plant not native to the garden's state, by Kew's checklist, that's recorded growing wild there all the same: it
+ * has escaped gardens and taken hold (the county records: docs/wild-records.md). `count` of the state's `total`
+ * counties; `species`: the records and the status are its species' (a cultivar: a sterile one may not seed); `sources`:
+ * the records' titles. Null where it's native, unlisted, or recorded nowhere wild in the state.
+ */
+export interface EscapeHere { stateName: string; count: number; total: number; species: boolean; sources: string[] }
+export function escapeHere(p: { id: string; parent?: string }): EscapeHere | null {
+  const n = nativeHere(p);
+  if (n?.status !== 'I' || !loaded) return null;
+  const own = loaded.files.find((f) => f.fips === Math.floor(loaded!.county / 1000));
+  if (!own) return null;
+  // (Its own records; else, a cultivar, its species'.)
+  let id = p.id, records = own.plants[id] ?? [], species = n.species || !!own.species?.includes(id);
+  if (!records.length && p.parent) { id = p.parent; records = own.plants[id] ?? []; species = true; }
+  if (!records.length) return null;
+  const sources = (own.src?.[id] ?? Object.keys(own.sources)).map((k) => own.sources[k]?.title).filter((t): t is string => !!t);
+  const total = Object.values(own.counties).filter((c) => !c.state).length;
+  return { stateName: n.stateName, count: records.length, total, species, sources };
+}
+/** "Not native to Arkansas; recorded growing wild in 65 of its 75 counties" (a cultivar: "Its species isn't native …"). */
+export function escapeText(e: EscapeHere): string {
+  const who = e.species ? `Its species isn't native to ${e.stateName}` : `Not native to ${e.stateName}`;
+  return `${who}; recorded growing wild in ${e.count} of its ${e.total} ${e.total === 1 ? 'county' : 'counties'}`;
+}
+/** In short, for a plant's row in the picker: "Not native; growing wild in 65 of 75 Arkansas counties". */
+export function escapeShort(e: EscapeHere): string {
+  return `${e.species ? "Its species isn't native" : 'Not native'}; growing wild in ${e.count} of ${e.total} ${e.stateName} ${e.total === 1 ? 'county' : 'counties'}`;
+}
+
 /** Recorded wild in the garden's county or one bordering it (in any state). */
 export const wildNearby = (p: { id: string; parent?: string }) => { const w = wildHere(p); return !!w && w.where !== 'state'; };
 

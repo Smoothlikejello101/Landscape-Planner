@@ -395,6 +395,7 @@ a { color: inherit; }
 .details-alt { color: #a16207; }
 /* Introduced in the garden's state: said plainly, in the warning color. */
 .details-introduced { color: #9a3412; }
+.pescape { color: #9a3412; font-size: 12px; font-weight: 600; margin-top: 2px; }
 .details-law, .plaw { color: #b91c1c; font-weight: 600; }
 /* (A listing with lighter duties than a ban: amber, the same weight.) */
 .details-law.listed, .plaw.listed { color: #b45309; }

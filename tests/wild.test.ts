@@ -6,7 +6,7 @@ import { atlasRecords, curatedNear, gadmCounties, gbifRecords, nativeStatus, SOU
 import { canonical, placer, twoTaxa, usdaRecords } from '../scripts/catalog/usda-counties.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { acceptedTaxon, stateStatus } from '../scripts/catalog/wcvp.mjs';
-import { countyName, gardenStateName, lawShort, loadWild, nativeHere, nativeText, nativeAndListed, regulatedHere, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
+import { countyName, escapeHere, escapeShort, escapeText, gardenStateName, lawShort, loadWild, nativeHere, nativeText, nativeAndListed, regulatedHere, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
 import { plantMatches, PLANT_FILTER_DEFAULTS, zoneNote, type Plant } from '../src/plants';
 import { state } from '../src/state';
 
@@ -44,8 +44,9 @@ const usda = {
   'quercus-muehlenbergii': { counties: [5059, 48037], species: false },
   'allium-canadense-var-lavendulare': { counties: [5019], species: true },
   'rosmarinus': { counties: [48067], species: false },
+  'lonicera-japonica': { counties: [5019, 5059], species: false },
 };
-const file: WildFile = { ...stateFile({ fips: 5, code: 'AR' }, { arkatlas: atlas, usda }, SOURCES, counties), native: { 'quercus-muehlenbergii': 'N', 'viola-sororia': 'N', 'lonicera-japonica': 'I', 'allium-canadense-var-lavendulare': 'N', 'lythrum-alatum': 'N', 'crotalaria-sagittalis': 'N', 'allium-canadense': 'N' }, nativeSpecies: ['allium-canadense-var-lavendulare'],
+const file: WildFile = { ...stateFile({ fips: 5, code: 'AR' }, { arkatlas: atlas, usda }, SOURCES, counties), native: { 'quercus-muehlenbergii': 'N', 'viola-sororia': 'N', 'lonicera-japonica': 'I', 'rosmarinus': 'I', 'allium-canadense-var-lavendulare': 'N', 'lythrum-alatum': 'N', 'crotalaria-sagittalis': 'N', 'allium-canadense': 'N' }, nativeSpecies: ['allium-canadense-var-lavendulare'],
   regulated: { 'lythrum-alatum': ['AR:lythrum'], 'imperata-cylindrica': ['AR:prohibited', 'US:noxious'], 'stray': ['AR:gone'], 'crotalaria-sagittalis': ['AR:noxious'], 'allium-canadense': ['AR:noxious'] },
   genusWide: { 'lythrum-alatum': { 'AR:lythrum': 'Lythrum' }, 'crotalaria-sagittalis': { 'AR:noxious': 'Crotalaria' } },
   rules: {
@@ -136,7 +137,7 @@ describe('wild records near the garden', () => {
     expect(file.plants).toEqual({
       'allium-canadense-var-lavendulare': [5007], // (its own map: not the species' Clark County, from either source)
       'allium-canadense-var-mobilense': [5007, 5019], 'asarum-canadense': [5007, 5109], 'mitella-diphylla': [5007],
-      'quercus-muehlenbergii': [5007, 5019, 5059], 'rudbeckia-goldsturm': [5019], 'viola-sororia': [5059, 5091],
+      'quercus-muehlenbergii': [5007, 5019, 5059], 'rudbeckia-goldsturm': [5019], 'viola-sororia': [5059, 5091], 'lonicera-japonica': [5019, 5059],
     });
     expect(file.src!['quercus-muehlenbergii']).toEqual(['arkatlas', 'usda']);
     expect(file.src!['allium-canadense-var-lavendulare']).toEqual(['arkatlas']);
@@ -204,6 +205,18 @@ describe('wild records near the garden', () => {
     expect(nativeAndListed({ ...ar, species: true }, 'listed')).toBe('Its species is native to Arkansas, and still listed by this rule.');
     // Two lines on a native plant: "though native" once, naming the state.
     expect(lawShort([{ ...loosestrife }, { ...loosestrife, says: 'Federal noxious weed: …', nativeTo: 'Arkansas' }])).toBe('Prohibited in Arkansas; Federal noxious weed, though native to Arkansas');
+  });
+  it('say when a plant not native here grows wild here all the same (it escapes gardens), with its counties', async () => {
+    await loadWild(undefined, fetcher);
+    const honeysuckle = escapeHere({ id: 'lonicera-japonica' })!;
+    expect(escapeText(honeysuckle)).toBe('Not native to Arkansas; recorded growing wild in 2 of its 5 counties');
+    expect(escapeShort(honeysuckle)).toBe('Not native; growing wild in 2 of 5 Arkansas counties');
+    expect(honeysuckle.sources).toEqual([SOURCES.usda.title]);
+    // A cultivar: its species' records and status, said so (a sterile one may not seed).
+    const hall = escapeHere({ id: 'lonicera-japonica-halliana', parent: 'lonicera-japonica' })!;
+    expect(escapeText(hall)).toBe("Its species isn't native to Arkansas; recorded growing wild in 2 of its 5 counties");
+    // Not native but recorded nowhere wild in the state; native; unlisted: none.
+    expect([escapeHere({ id: 'rosmarinus' }), escapeHere({ id: 'quercus-muehlenbergii' }), escapeHere({ id: 'mitella-diphylla' })]).toEqual([null, null, null]);
   });
   it("filter 'Native to <state>' does nothing in a state with no native status in its file (Texas, here)", async () => {
     state.location = { zip: '75501', zone: '8a' };
