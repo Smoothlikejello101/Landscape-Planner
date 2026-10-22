@@ -9,7 +9,8 @@ import { cleanName, lawPlants, listedSpecies, problems, readRegulated, regulated
 
 const real = readRegulated();
 const list = (code: string, plants: object[], classes: Record<string, string> = { noxious: 'Noxious weed in X' }) =>
-  ({ code, title: `${code} list`, url: 'https://example.gov/rule.pdf', edition: '2025', read: '2026-10-21', classes, plants });
+  ({ code, title: `${code} list`, url: 'https://example.gov/rule.pdf', edition: '2025', read: '2026-10-21', classes,
+    tiers: Object.fromEntries(Object.keys(classes).map((c) => [c, c === 'invasive' ? 'listed' : 'ban'])), plants });
 
 describe('the regulated lists', () => {
   it('are well formed: each entry a species, variety or genus, of a class its list says, each list cited', () => {
@@ -22,6 +23,11 @@ describe('the regulated lists', () => {
         'XX Cuscuta: bad exceptions', 'XX Melia azedarach: bad Kew spelling', 'XX Melia azedarach: bad accepted name',
         'XX Melia azedarach: bad notKew', 'XX Melia azedarach: bad other names']);
     expect(problems({ v: 1, jurisdictions: [{ ...list('XX', []), url: 'http://example.gov' }] })).toEqual(['XX: url not https']);
+    expect(problems({ v: 1, jurisdictions: [{ ...list('XX', []), tiers: { noxious: 'severe' } }] })).toEqual(['XX noxious: no tier (ban or listed)']);
+    // Real lists: bans are bans, listings with lighter duties are listed.
+    const tier = (code: string, cls: string) => real.jurisdictions.find((j: { code: string }) => j.code === code).tiers[cls];
+    expect([tier('AR', 'lythrum'), tier('AR', 'prohibited'), tier('AR', 'noxious'), tier('OK', 'noxious'), tier('LA', 'noxious'), tier('TX', 'invasive')])
+      .toEqual(['ban', 'ban', 'listed', 'listed', 'listed', 'ban']);
   });
   it("say what each rule says, as the rule says it", () => {
     const says = (code: string, cls: string) => real.jurisdictions.find((j: { code: string }) => j.code === code).classes[cls];
@@ -86,8 +92,17 @@ describe('matching the lists to catalog plants', () => {
     const law = stateRegulated(data, { ...m, US: { ...m.US, tallow: 'noxious' } }, 'TX');
     expect(law.regulated.tallow).toEqual(['TX:noxious', 'US:noxious']);
     expect(law.regulated['japanese-dodder']).toEqual(['US:noxious']);
-    expect(law.rules['TX:invasive']).toEqual({ says: 'On Texas\'s invasive list', title: 'TX list', url: 'https://example.gov/rule.pdf', edition: '2025', read: '2026-10-21' });
+    expect(law.rules['TX:invasive']).toEqual({ says: 'On Texas\'s invasive list', tier: 'listed', title: 'TX list', url: 'https://example.gov/rule.pdf', edition: '2025', read: '2026-10-21' });
     expect(Object.keys(stateRegulated(data, m, 'AL').regulated)).toEqual(['japanese-dodder']);
+  });
+  it('record which plants a whole-genus entry took in, for the line that says why a native is covered', () => {
+    const genusWide = {};
+    const r = regulatedPlants(data, plants, accepted, genusWide);
+    expect(r).toEqual(m);
+    // (Not the federal Cuscuta entry, which excepts most native dodders: "every Cuscuta species" would be false.)
+    expect(genusWide).toEqual({ AR: { 'winged-loosestrife': 'Lythrum' } });
+    expect(stateRegulated(data, r, 'AR', genusWide).genusWide).toEqual({ 'winged-loosestrife': { 'AR:lythrum': 'Lythrum' } });
+    expect('genusWide' in stateRegulated(data, r, 'MS', genusWide)).toBe(false); // (none: left out)
   });
   it('match the real lists: Arkansas\'s genera and wild onion, itchgrass by its reviewed name, never missiongrass\'s namesake', () => {
     const r = regulatedPlants(real, [

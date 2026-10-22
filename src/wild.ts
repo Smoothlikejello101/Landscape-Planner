@@ -36,9 +36,23 @@ export interface WildFile {
   regulated?: Record<string, string[]>;
   /** What each list says of the plants it names, and where it says it (scripts/catalog/regulated-plants.json). */
   rules?: Record<string, RuleLine>;
+  /** For a plant a whole-genus entry took in, the genus, by rule key: { id: { "AR:lythrum": "Lythrum" } }. */
+  genusWide?: Record<string, Record<string, string>>;
 }
-/** A law's line: what it says of a plant ("Prohibited in Arkansas: …"), the rule, and when it was read. */
-export interface RuleLine { says: string; title: string; url: string; edition: string; read: string }
+/**
+ * A law's line: what it says of a plant ("Prohibited in Arkansas: …"), the rule, and when it was read. `tier`: "ban"
+ * (the rule forbids selling, planting or moving it) or "listed" (it lists the plant, with lighter duties); files
+ * from before tiers have none, read as a ban.
+ */
+export interface RuleLine { says: string; tier?: 'ban' | 'listed'; title: string; url: string; edition: string; read: string }
+/** A law's line for a plant here, and, where the plant is native to the state all the same, why the law covers it. */
+export interface RuleHere extends RuleLine {
+  /** Its tier, read (a line from an older file, with none: shown as a ban). */
+  tier: 'ban' | 'listed';
+  /** Where the plant is native to the state all the same: why the law covers it, and the state's name. */
+  native?: string;
+  nativeTo?: string;
+}
 /** A plant's native status in the garden's state (`species`: its species', a cultivar's). */
 export interface NativeHere { status: 'N' | 'I'; stateName: string; species: boolean; source: string }
 /** A plant's bloom months where the garden is: its state's (or, with too few records there, its region's). */
@@ -217,12 +231,45 @@ export function nativeHere(p: { id: string; parent?: string }): NativeHere | nul
  * What the law says of a plant (a cultivar: its species, which the law names) in the garden's state: its state's
  * list's line, then the federal list's. Empty where no list we've read names it (not "allowed": docs/regulated-plants.md).
  */
-export function regulatedHere(p: { id: string; parent?: string }): RuleLine[] {
+export function regulatedHere(p: { id: string; parent?: string }): RuleHere[] {
   if (!loaded || loaded.zip !== state.location?.zip || !loaded.county) return [];
   const own = loaded.files.find((f) => f.fips === Math.floor(loaded!.county / 1000));
   if (!own?.regulated || !own.rules) return [];
-  const keys = own.regulated[p.id] ?? (p.parent ? own.regulated[p.parent] : undefined) ?? [];
-  return keys.map((k) => own.rules![k]).filter((r): r is RuleLine => !!r && typeof r.says === 'string' && typeof r.url === 'string' && r.url.startsWith('https://'));
+  const id = own.regulated[p.id] ? p.id : p.parent && own.regulated[p.parent] ? p.parent : null;
+  if (!id) return [];
+  // Native here, by Kew's checklist, and listed all the same: say why, or the two lines read as a contradiction.
+  const native = nativeHere(p);
+  return own.regulated[id].flatMap((k) => {
+    const r = own.rules![k];
+    if (!r || typeof r.says !== 'string' || typeof r.url !== 'string' || !r.url.startsWith('https://')) return [];
+    // (Shown red unless the file says "listed"; but said in words only as the file says it: a line from an older
+    // file, with no tier, is "covered", never "banned", which a listing isn't.)
+    const tier = r.tier === 'listed' ? 'listed' : 'ban';
+    const said = r.tier === 'listed' || r.tier === 'ban' ? r.tier : undefined;
+    return [native?.status === 'N'
+      ? { ...r, tier, native: nativeAndListed(native, said, own.genusWide?.[id]?.[k], k.startsWith('US:')), nativeTo: native.stateName }
+      : { ...r, tier }];
+  });
+}
+/**
+ * Why a law covers a plant native to the state: "Native to Arkansas, but this rule bans every Lythrum species,
+ * natives included." (a whole-genus entry), or "Native to Arkansas, and still banned by this rule." (one it names).
+ */
+export function nativeAndListed(n: NativeHere, tier: 'ban' | 'listed' | undefined, genus?: string, federal = false): string {
+  const who = n.species ? `Its species is native to ${n.stateName}` : `Native to ${n.stateName}`;
+  // (The federal list governs moving a plant into or between states, not growing it: said as what it is.)
+  if (federal) return genus ? `${who}, but every ${genus} species is a federal noxious weed.` : `${who}, and still a federal noxious weed.`;
+  const [does, done] = tier === 'ban' ? ['bans', 'banned'] : tier === 'listed' ? ['lists', 'listed'] : ['covers', 'covered'];
+  return genus ? `${who}, but this rule ${does} every ${genus} species, natives included.` : `${who}, and still ${done} by this rule.`;
+}
+/**
+ * A plant's law lines in short, for its row in the picker: "Prohibited in Arkansas"; where it's native to the state
+ * all the same, once, at the end: "Prohibited in Arkansas, though native to Arkansas".
+ */
+export function lawShort(lines: RuleHere[]): string {
+  const short = lines.map((r) => r.says.split(':')[0]).join('; ');
+  const nativeTo = lines.find((r) => r.native)?.nativeTo;
+  return nativeTo ? `${short}, though native to ${nativeTo}` : short;
 }
 /** Native status in words: "Native to Arkansas", "Introduced in Arkansas (not native)". */
 export function nativeText(n: NativeHere): string {

@@ -35,6 +35,9 @@ export function problems(data) {
     for (const k of ['title', 'url', 'edition', 'read']) if (typeof j[k] !== 'string' || !j[k]) out.push(`${j.code}: no ${k}`);
     if (!/^https:\/\//.test(j.url ?? '')) out.push(`${j.code}: url not https`);
     if (!j.classes || !Object.keys(j.classes).length) out.push(`${j.code}: no classes`);
+    // (Each class's tier: "ban", the rule forbids selling, planting or moving it; "listed", it lists the plant with
+    // lighter duties: a nursery inspection, a landowner's duty to control it. The app shows a ban in red.)
+    for (const c of Object.keys(j.classes ?? {})) if (!['ban', 'listed'].includes(j.tiers?.[c])) out.push(`${j.code} ${c}: no tier (ban or listed)`);
     for (const p of j.plants ?? []) {
       const what = p.name ?? p.genus;
       if (!j.classes?.[p.class]) out.push(`${j.code} ${what}: class "${p.class}" not in its list's classes`);
@@ -86,9 +89,11 @@ const entryNames = (e) => [e.name, e.kew, e.accepted || null, ...(e.also ?? [])]
  * A named hybrid is matched by the catalog's own name for the plant (Lonicera × bella), and a genus entry by the
  * genus of its accepted name, its species, or a named hybrid's own name.
  * `plants`: [{ id, botanical, binomial? }] (binomial: the species the catalog's record is of; none for a hybrid); `accepted`:
- * { id: accepted name } (wcvp-native.json's).
+ * { id: accepted name } (wcvp-native.json's). `genusWide`, if given, is filled with the plants a whole-genus entry
+ * took in, where it excepts none: { code: { id: genus } } (for the line that says why a native plant is listed:
+ * "every Lythrum species").
  */
-export function regulatedPlants(data, plants, accepted) {
+export function regulatedPlants(data, plants, accepted, genusWide = {}) {
   const out = {};
   for (const j of data.jurisdictions) {
     const mine = {};
@@ -104,6 +109,9 @@ export function regulatedPlants(data, plants, accepted) {
         return entryNames(e).some((n) => names.has(n));
       });
       if (hit) mine[p.id] = hit.class;
+      // (Not a genus entry with exceptions: "every Cuscuta species, natives included" would be false of the federal
+      // list, which excepts most native dodders.)
+      if (hit?.genus && !hit.except?.length && !hit.exceptAlso?.length) (genusWide[j.code] ??= {})[p.id] = hit.genus;
     }
     if (Object.keys(mine).length) out[j.code] = mine;
   }
@@ -122,23 +130,27 @@ export function unreviewed(data, kewAccepted) {
   }
   return [...out].sort();
 }
-/** A list's lines for a state file: { "AR:prohibited": { says, title, url, edition, read } } for the classes used. */
+/** A list's lines for a state file: { "AR:prohibited": { says, tier, title, url, edition, read } } for the classes used. */
 export function ruleLines(data, code, used) {
   const j = data.jurisdictions.find((x) => x.code === code);
-  return Object.fromEntries([...used].map((c) => [`${code}:${c}`, { says: j.classes[c], title: j.title, url: j.url, edition: j.edition, read: j.read }]));
+  return Object.fromEntries([...used].map((c) => [`${code}:${c}`, { says: j.classes[c], tier: j.tiers?.[c], title: j.title, url: j.url, edition: j.edition, read: j.read }]));
 }
 /**
- * A state's file's part: { regulated: { id: ["AR:prohibited", "US:noxious"] }, rules: { key: line } }, the state's
- * own list first, then the federal one (which holds in every state). `matches`: regulatedPlants's.
+ * A state's file's part: { regulated: { id: ["AR:prohibited", "US:noxious"] }, rules: { key: line }, genusWide:
+ * { id: { key: genus } } }, the state's own list first, then the federal one (which holds in every state). `genusWide`
+ * names, for a plant a whole-genus entry took in, the genus (left out where there are none). `matches`, `genusWide`:
+ * regulatedPlants's.
  */
-export function stateRegulated(data, matches, code) {
-  const regulated = {}, used = {};
+export function stateRegulated(data, matches, code, genusWide = {}) {
+  const regulated = {}, used = {}, byGenus = {};
   for (const c of [code, 'US']) {
     if (c === 'US' && code === 'US') continue;
     for (const [id, cls] of Object.entries(matches[c] ?? {})) {
       (regulated[id] ??= []).push(`${c}:${cls}`);
       (used[c] ??= new Set()).add(cls);
+      if (genusWide[c]?.[id]) (byGenus[id] ??= {})[`${c}:${cls}`] = genusWide[c][id];
     }
   }
-  return { regulated, rules: Object.assign({}, ...Object.entries(used).map(([c, u]) => ruleLines(data, c, u))) };
+  const rules = Object.assign({}, ...Object.entries(used).map(([c, u]) => ruleLines(data, c, u)));
+  return Object.keys(byGenus).length ? { regulated, rules, genusWide: byGenus } : { regulated, rules };
 }

@@ -83,7 +83,8 @@ it), so the app never says "not found here".
   "native": { "quercus-muehlenbergii": "N", "lonicera-japonica": "I" },
   "nativeSpecies": ["rudbeckia-fulgida-goldsturm"],
   "regulated": { "lythrum-alatum": ["AR:lythrum"] },
-  "rules": { "AR:lythrum": { "says": "Prohibited in Arkansas: …", "title": "Arkansas Plant Board rules (…)", "url": "…", "edition": "…", "read": "2026-10-21" } }
+  "rules": { "AR:lythrum": { "says": "Prohibited in Arkansas: …", "tier": "ban", "title": "Arkansas Plant Board rules (…)", "url": "…", "edition": "…", "read": "2026-10-21" } },
+  "genusWide": { "lythrum-alatum": { "AR:lythrum": "Lythrum" } }
 }
 ```
 
@@ -98,6 +99,10 @@ species record in the catalog uses that record's, and says so.
 `regulated`: the plants a law regulates in the state, each with its lines (`rules`): the state's list's,
 then the federal list's ([regulated-plants.md](regulated-plants.md)). Only the garden's own state's file is
 read for them: Arkansas's law isn't a Texas garden's.
+
+Each line's `tier` is "ban" or "listed" (an older file's lines have none: shown as bans, said as "covered").
+`genusWide` names, for a plant a whole-genus entry took in (one that excepts no species), the genus, by line: for the line that says why a plant native to the state is
+covered all the same ("this rule bans every Lythrum species, natives included").
 
 `native`: each plant's status in the state, `N` native or `I` introduced, from Kew's **World Checklist of
 Vascular Plants** (WCVP, CC BY 3.0; Govaerts (ed.) 2026, WCVP version 16, doi:10.34885/egs6-cp24, as of

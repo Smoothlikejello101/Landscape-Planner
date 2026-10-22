@@ -1,6 +1,6 @@
 {
  "v": 1,
- "about": "Plants regulated by law, as each rule names them: docs/regulated-plants.md. Matched to the catalog by Kew's accepted names (scripts/catalog/regulated.mjs).",
+ "about": "Plants regulated by law, as each rule names them: docs/regulated-plants.md. Each class's tier: ban (the rule forbids selling, planting or moving it) or listed (it lists the plant, with lighter duties). Matched to the catalog by Kew's accepted names (scripts/catalog/regulated.mjs).",
  "jurisdictions": [
   {
    "code": "US",
@@ -9,6 +9,7 @@
    "edition": "Code of Federal Regulations, revised as of January 1, 2025; §360.200 last amended 2010 (75 FR 68953)",
    "read": "2026-10-21",
    "classes": {"noxious": "Federal noxious weed: bringing it into or through the United States, or moving it from state to state, needs a USDA permit (7 CFR 360.300)"},
+   "tiers": {"noxious": "ban"},
    "notes": "Genus entries take in every species, variety and form in the genus but those the rule excepts (its footnote); the exceptions are matched by their printed names. Left out: Caulerpa taxifolia, an alga. Avena ludoviciana is in \"Avena sterilis (including Avena ludoviciana)\"; Kew makes it a subspecies, so it is matched by its printed name. Missiongrass (Pennisetum polystachion): Kew types the name on a native grass, Setaria parviflora, so it is matched by its printed names only. Rubus fruticosus \"(complex)\": matched as the one species; its segregates (R. armeniacus) are not.",
    "plants": [
     {"name": "Azolla pinnata", "class": "noxious"},
@@ -131,6 +132,7 @@
    "edition": "Code of Arkansas Rules, printed 2026-03-22",
    "read": "2026-10-21",
    "classes": {"prohibited": "Prohibited in Arkansas: no plant, seed or any reproductive structure of it may be sold or planted (2 CAR §50-101(f))", "lythrum": "Prohibited in Arkansas: no Lythrum may be planted, sold, bought or moved (2 CAR §50-709)", "noxious": "Declared a noxious weed and public nuisance in Arkansas: nursery stock must be reasonably free of it (2 CAR §50-101; §50-302)"},
+   "tiers": {"prohibited": "ban", "lythrum": "ban", "noxious": "listed"},
    "notes": "Every species §50-101(d) and (f) name, and every genus it lists whole: dodder (Cuscuta spp.), Rumex spp., witchweed (Striga spp.), Crotalaria spp., cocklebur (Xanthium spp.), and the thistle genera it names (Carduus, Cirsium, Onopordum, Silybum, Scolymus, Salsola), natives in them too: the rule takes them in. Lythrum is the whole genus and its hybrids by §50-709 (purple loosestrife is on (d) and (f) too: shown by §50-709, which says more). Read narrower than printed, where a common name says which plants are meant: \"wild onion and/or wild garlic (Allium spp.)\" as wild onion, Allium canadense, and wild garlic, Allium vineale; \"alligatorweed (Alternanthera spp.)\" as alligatorweed, A. philoxeroides. Left out: \"morning glory (Ipomoea spp.)\", which names no species, and read whole would make the sweet potato a noxious weed; the thistle entry's \"and other genera\", which names none; red rice, \"Oryza sativa var.\", which names no variety (the species is rice).",
    "plants": [
     {"genus": "Lythrum", "class": "lythrum"},
@@ -185,6 +187,7 @@
    "statuteUrl": "https://statutes.capitol.texas.gov/?tab=1&code=AG&chapter=AG.71&artSec=71.152",
    "read": "2026-10-21",
    "classes": {"noxious": "Noxious plant in Texas: selling it, distributing it or bringing it into the state, in any live form, is a misdemeanor, unless permitted (Texas Agriculture Code §71.152; 4 TAC §19.300)", "invasive": "On Texas's invasive plant list: selling it, distributing it or bringing it into the state, in any live form, is a misdemeanor, unless permitted (Texas Agriculture Code §71.152; 4 TAC §19.300)"},
+   "tiers": {"noxious": "ban", "invasive": "ban"},
    "notes": "Chinese tallow, kudzu, saltcedar and tropical soda apple are on both lists: shown as noxious. The offense is the statute's (§71.152: a Class C misdemeanor, each item sold, distributed or imported a separate offense); \"in any live form\" and \"unless permitted\" are the rule's, §19.300(b), read through Cornell LII's copy of the rule until the Secretary of State's can be read.",
    "plants": [
     {"name": "Alternanthera philoxeroides", "class": "noxious"},
@@ -228,6 +231,7 @@
    "edition": "Mississippi Department of Agriculture and Commerce rules, Rule 136.01 as amended December 28, 2018",
    "read": "2026-10-21",
    "classes": {"noxious": "Noxious weed in Mississippi: it may not be sold, distributed or moved into or within the state, but under a research permit (Rule 136.01)"},
+   "tiers": {"noxious": "ban"},
    "notes": "The rule prints \"Imperata braziliensis\": I. brasiliensis.",
    "plants": [
     {"name": "Commelina benghalensis", "class": "noxious"},
@@ -250,6 +254,7 @@
    "statuteUrl": "https://revisor.mo.gov/main/OneSection.aspx?section=263.190",
    "read": "2026-10-21",
    "classes": {"noxious": "Noxious weed in Missouri: its sale is prohibited, and landowners must keep it from going to seed (RSMo §263.190; 2 CSR 70-45.005)"},
+   "tiers": {"noxious": "ban"},
    "notes": "Purple loosestrife \"and any hybrids thereof\"; spotted knapweed \"including all subspecies\".",
    "plants": [
     {"name": "Cirsium arvense", "class": "noxious"},
@@ -273,6 +278,7 @@
    "edition": "Oklahoma Department of Agriculture, Food and Forestry's print of the statute and OAC 35:30-34 (rule effective 2000-05-11)",
    "read": "2026-10-21",
    "classes": {"noxious": "Noxious weed in Oklahoma: landowners must control it every year (2 O.S. §3-220)"},
+   "tiers": {"noxious": "listed"},
    "notes": "The statute bans no sale of live plants; its seed listing works through the seed law. Later bills (oklegislature.gov, which robots.txt closes) not read.",
    "plants": [
     {"name": "Carduus nutans", "class": "noxious"},
@@ -287,6 +293,7 @@
    "edition": "Louisiana Revised Statutes, R.S. 3:1791 (Acts 1995, No. 497)",
    "read": "2026-10-21",
    "classes": {"noxious": "Recognized as a noxious plant in Louisiana: it may be destroyed wherever found (La. R.S. 3:1791)"},
+   "tiers": {"noxious": "listed"},
    "notes": "Louisiana's noxious weed list (LAC 7:XIII.109) limits weed seed in seed for sale; it says nothing of live plants, and is left out.",
    "plants": [
     {"name": "Sapium sebiferum", "class": "noxious", "accepted": "Triadica sebifera"}
@@ -299,6 +306,7 @@
    "edition": "Rules of the Tennessee Department of Agriculture, chapter 0080-06-24, revised April 2009 (effective 2009-04-13)",
    "read": "2026-10-21",
    "classes": {"pest": "Pest plant in Tennessee: it may not be sold, offered for sale or released in the state, nor propagated without a permit from the commissioner (Tenn. Comp. R. & Regs. 0080-06-24)"},
+   "tiers": {"pest": "ban"},
    "notes": "Rule .02 lists 13 entries; Lythrum salicaria and L. virgatum share one (\"and related cultivars\"), so 14 names. The phase-in dates for privets, bush honeysuckles, multiflora rose and the olives (retail 2010 to 2012, wholesale 2012 to 2014) have all passed. Rule .03 allows propagating, collecting and selling under a permit (a compliance agreement, for research and propagative purposes), so long as the plants are kept from sale or release in Tennessee; it never allows selling them within Tennessee. The PDF was saved by hand: the Secretary of State's file host turns away clients that aren't browsers.",
    "plants": [
     {"name": "Lythrum salicaria", "class": "pest"},
