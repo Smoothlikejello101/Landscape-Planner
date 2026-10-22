@@ -23,17 +23,9 @@ describe('the catalog against the wild records', () => {
 });
 
 describe('the catalog on sterility', () => {
-  it('keeps no unsourced "Sterile" on a plain species: sterility is a cultivar\'s claim, and a species\' needs a source', () => {
-    // (A plain species: a bare binomial, a subspecies or variety allowed; or two species in one record, "Salvia
-    // officinalis / Origanum vulgare", "Prunus laurocerasus / caroliniana". Not a hybrid, nor "spp.", nor a record
-    // whose common name names a cultivar: "Japanese forest grass 'All Gold'" is Hakonechloa macra by its botanical
-    // name, and the claim may be the cultivar's.)
-    const one = '[A-Z][a-zë-]+ [a-zë-]+( (subsp\\.|var\\.) [a-zë-]+)?';
-    const plain = new RegExp(`^${one}( / (${one}|[a-zë-]+))?$`);
-    const all = (JSON.parse(readFileSync('public/plants.json', 'utf8')) as { plants: { id: string; common?: string; botanical?: string; parent?: string; facts?: Record<string, unknown> }[] }).plants;
-    const bot = (p: { botanical?: string }) => (p.botanical ?? '').replace(/\s+/g, ' ').trim();
-    const species = all.filter((p) => !p.parent && plain.test(bot(p)) && !/ (hybrids?|spp\.?|x)$| x /.test(bot(p)) && !/'[^']+'|‘[^’]+’/.test(p.common ?? ''));
-    expect(species.length).toBeGreaterThan(100);
-    expect(species.filter((p) => p.facts?.self_seed === 'Sterile').map((p) => p.id)).toEqual([]);
+  it('keeps no unsourced "Sterile" at all: none rather than wrong (a sourced one may stand)', () => {
+    // (The older list's "Sterile" was struck from every record, 2026-10-22: a species usually sets seed, and a
+    // cultivar sold as sterile often isn't. A value with its source, { v: "Sterile", src }, is the audit's.)
+    expect(catalog.plants.filter((p) => p.facts?.self_seed === 'Sterile').map((p) => p.id)).toEqual([]);
   });
 });
