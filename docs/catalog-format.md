@@ -114,7 +114,7 @@ hasn't been looked up.
 | `trunk` | mature trunk diameter in feet (trees) |
 | `native`, `nativar` | first-compendium nativeness (to be replaced by USDA status by state) |
 | `dog` | first-compendium dog rating (to be replaced by `tox.dog`) |
-| `nectar`, `bird`, `deer`, `maintenance`, `self_seed`, `host` | wildlife and care, as before |
+| `nectar`, `bird`, `deer`, `maintenance`, `self_seed`, `host` | wildlife and care, as before. A compendium `self_seed` of "Sterile" is suspect until a source confirms it (sterility is a cultivar's trait, never a wild species'): none on a plant recorded growing wild in its own right (its own county records, in any state file; a test checks) |
 | `edible`, `fall_color`, `winter_interest`, `clay_ok`, `wet_feet`, `dry_shade`, `taproot` | yes or no |
 | `invasive` | widely invasive in the US: never suggested |
 
