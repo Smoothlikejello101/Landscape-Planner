@@ -179,12 +179,13 @@
   },
   {
    "code": "TX",
-   "title": "Texas noxious and invasive plant list (4 TAC §19.300)",
+   "title": "Texas noxious and invasive plant list (4 TAC §19.300; Agriculture Code §71.152)",
    "url": "https://texasagriculture.gov/Portals/0/images/ACP/Other%20Pests/TDA's%20List%20of%20Noxious%20and%20Invasive%20plants%20%204%20TAC%20%C2%A719.300(a).pdf",
-   "edition": "Figure: 4 TAC §19.300(a), as published by the Texas Department of Agriculture",
+   "edition": "Figure: 4 TAC §19.300(a), as published by the Texas Department of Agriculture; Agriculture Code §71.152 as amended 2005 (Texas Legislature)",
+   "statuteUrl": "https://statutes.capitol.texas.gov/?tab=1&code=AG&chapter=AG.71&artSec=71.152",
    "read": "2026-10-21",
-   "classes": {"noxious": "Noxious plant in Texas: it may not be sold, distributed or brought into the state, in any live form, without a permit (4 TAC §19.300)", "invasive": "On Texas's invasive plant list: it may not be sold, distributed or brought into the state, in any live form, without a permit (4 TAC §19.300)"},
-   "notes": "Chinese tallow, kudzu, saltcedar and tropical soda apple are on both lists: shown as noxious.",
+   "classes": {"noxious": "Noxious plant in Texas: selling it, distributing it or bringing it into the state, in any live form, is a misdemeanor, unless permitted (Texas Agriculture Code §71.152; 4 TAC §19.300)", "invasive": "On Texas's invasive plant list: selling it, distributing it or bringing it into the state, in any live form, is a misdemeanor, unless permitted (Texas Agriculture Code §71.152; 4 TAC §19.300)"},
+   "notes": "Chinese tallow, kudzu, saltcedar and tropical soda apple are on both lists: shown as noxious. The offense is the statute's (§71.152: a Class C misdemeanor, each item sold, distributed or imported a separate offense); \"in any live form\" and \"unless permitted\" are the rule's, §19.300(b), read through Cornell LII's copy of the rule until the Secretary of State's can be read.",
    "plants": [
     {"name": "Alternanthera philoxeroides", "class": "noxious"},
     {"name": "Cardiospermum halicacabum", "class": "noxious"},
@@ -289,6 +290,31 @@
    "notes": "Louisiana's noxious weed list (LAC 7:XIII.109) limits weed seed in seed for sale; it says nothing of live plants, and is left out.",
    "plants": [
     {"name": "Sapium sebiferum", "class": "noxious", "accepted": "Triadica sebifera"}
+   ]
+  },
+  {
+   "code": "TN",
+   "title": "Tennessee pest plant regulations (Tenn. Comp. R. & Regs. 0080-06-24)",
+   "url": "https://publications.tnsosfiles.com/rules/0080/0080-06/0080-06-24.20090413.pdf",
+   "edition": "Rules of the Tennessee Department of Agriculture, chapter 0080-06-24, revised April 2009 (effective 2009-04-13)",
+   "read": "2026-10-21",
+   "classes": {"pest": "Pest plant in Tennessee: it may not be sold, offered for sale or released in the state, nor propagated without a permit from the commissioner (Tenn. Comp. R. & Regs. 0080-06-24)"},
+   "notes": "Rule .02 lists 13 entries; Lythrum salicaria and L. virgatum share one (\"and related cultivars\"), so 14 names. The phase-in dates for privets, bush honeysuckles, multiflora rose and the olives (retail 2010 to 2012, wholesale 2012 to 2014) have all passed. Rule .03 allows propagating, collecting and selling under a permit (a compliance agreement, for research and propagative purposes), so long as the plants are kept from sale or release in Tennessee; it never allows selling them within Tennessee. The PDF was saved by hand: the Secretary of State's file host turns away clients that aren't browsers.",
+   "plants": [
+    {"name": "Lythrum salicaria", "class": "pest"},
+    {"name": "Lythrum virgatum", "class": "pest"},
+    {"name": "Solanum viarum", "class": "pest"},
+    {"name": "Ligustrum sinense", "class": "pest"},
+    {"name": "Ligustrum vulgare", "class": "pest"},
+    {"name": "Imperata cylindrica", "class": "pest"},
+    {"name": "Lonicera maackii", "class": "pest"},
+    {"name": "Lonicera morrowii", "class": "pest"},
+    {"name": "Lonicera × bella", "class": "pest"},
+    {"name": "Rosa multiflora", "class": "pest"},
+    {"name": "Elaeagnus umbellata", "class": "pest"},
+    {"name": "Elaeagnus pungens", "class": "pest"},
+    {"name": "Salvinia molesta", "class": "pest"},
+    {"name": "Commelina benghalensis", "class": "pest"}
    ]
   }
  ]

@@ -13,7 +13,7 @@ import { bloomCounts, bloomDisagreements, bloomSpecies, seasonsToCheck, stateBlo
 import { gadmSubdivisionsUrl, gadmUrl, matchedTaxon, matchUrl, tsvRows, US_GADM } from './gbif.mjs';
 import { STATES } from './counties.mjs';
 import { savedPage } from './pages.mjs';
-import { readRegulated, regulatedPlants, stateRegulated } from './regulated.mjs';
+import { lawPlants, readRegulated, regulatedPlants, stateRegulated } from './regulated.mjs';
 
 const stateOf = (fips) => Math.floor(fips / 1000);
 const binomial = (s) => String(s ?? '').replace(/\s+/g, ' ').trim().split(' ').slice(0, 2).join(' ');
@@ -219,8 +219,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   writeFileSync('catalog-src/native-review.json', JSON.stringify(nativeReview, null, 1) + '\n');
   // Plants regulated by law (regulated-plants.json), matched by Kew's accepted names (wcvp.mjs; the lists' own reviewed).
   const regulatedData = readRegulated();
-  const botanical = new Map(catalog.plants.map((p) => [p.id, p.botanical]));
-  const regulated = regulatedPlants(regulatedData, bloomSpecies(catalog, read(auditPath)).map((s) => ({ ...s, botanical: botanical.get(s.id) })),
+  const regulated = regulatedPlants(regulatedData, lawPlants(catalog, bloomSpecies(catalog, read(auditPath))),
     Object.fromEntries(Object.entries(wcvp).map(([id, r]) => [id, r.name])));
   const sources = { ...SOURCES };
   const states = [...new Set(counties.map((c) => stateOf(c.fips)))].sort((a, b) => a - b);
