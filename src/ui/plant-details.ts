@@ -73,10 +73,12 @@ function spreadRow(p: Plant): HTMLElement | null {
   if (roots) parts.push([roots, sourceLine(p.prov?.habit)]);
   if (!parts.length) return null;
   const dd = el('dd', { 'data-testid': 'spreads' });
-  for (const [text, src] of parts) {
+  // (One source line under both where they share it: "older list, unverified" once, not twice.)
+  const same = parts.length === 2 && parts[0][1] === parts[1][1];
+  parts.forEach(([text, src], i) => {
     dd.appendChild(el('span', { className: 'details-part' }, text));
-    if (src) dd.appendChild(el('span', { className: 'details-src' }, src));
-  }
+    if (src && !(same && i === 0)) dd.appendChild(el('span', { className: 'details-src' }, src));
+  });
   return dd;
 }
 /** Where a value came from, in a few words: "NC State, USDA · confirmed", "older list, unverified". */

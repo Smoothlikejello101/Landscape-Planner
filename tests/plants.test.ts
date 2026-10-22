@@ -107,7 +107,10 @@ describe('how a plant spreads: by seed, and underground or by runners: two facts
     expect(['Mat-forming', 'Naturalizing', 'Reseeding annual'].map(rootSpread)).toEqual(Array(3).fill('other'));
     expect([rootSpread('No runners'), rootSpread(undefined)]).toEqual([null, null]); // (not in the table: never guessed)
     const catalog = JSON.parse(readFileSync('public/plants.json', 'utf8')) as { plants: { facts?: { habit?: unknown } }[] };
-    const habits = new Set(catalog.plants.map((r) => r.facts?.habit).filter((h): h is string => typeof h === 'string'));
+    // (A habit as a plain value or a sourced one, { v }.)
+    const habitOf = (h: unknown) => (h && typeof h === 'object' ? (h as { v?: unknown }).v : h);
+    const habits = new Set(catalog.plants.map((r) => habitOf(r.facts?.habit)).filter((h): h is string => typeof h === 'string'));
+    expect(habits.size).toBeGreaterThan(20);
     expect([...habits].filter((h) => !(h in HABIT_SPREAD))).toEqual([]);
   });
   it('says each part in words, the habit as given; an older list\'s "Sterile" never as fact; no reassurance for an invasive', () => {
@@ -125,6 +128,7 @@ describe('how a plant spreads: by seed, and underground or by runners: two facts
       spreadsAs(p('Modest', 'Clumping', true), 'stays'), spreadsAs(p('Modest', 'Multi-stem'), 'stays')]).toEqual([false, false, false, false, false]);
     expect([spreadsAs(p('Prolific', 'Clumping'), 'seed'), spreadsAs(p('Modest', 'Suckering (slow)'), 'runs'), spreadsAs(p('Modest', 'Suckering (slow)'), 'aggressive')]).toEqual([true, true, false]);
     expect([spreadsAs(p('Modest', 'Runner - CONTAIN'), 'aggressive'), spreadsAs(p('Prolific', 'Clumping'), 'aggressive')]).toEqual([true, false]);
+    expect([spreadsAs(p('Modest', 'Mat-forming'), 'runs'), spreadsAs(p('Modest', 'Naturalizing'), 'runs'), spreadsAs(p('Prolific', 'Reseeding annual'), 'runs')]).toEqual([true, true, false]);
     expect(plantMatches(p('Modest', 'Clumping'), { ...PLANT_FILTER_DEFAULTS, spread: 'runs' })).toBe(false);
   });
 });

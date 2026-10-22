@@ -54,13 +54,14 @@ export function rootText(p: SpreadFacts): string {
 /**
  * Whether a plant spreads as the picker's filter asks: 'stays' (doesn't run, and self-sows only a little; never a
  * plant listed invasive, nor one only said not to set seed), 'seed' (self-sows freely), 'runs' (spreads underground or
- * by runners at all), 'aggressive' (spreads aggressively underground or by runners).
+ * by runners at all, mats and naturalizing bulbs too), 'aggressive' (spreads aggressively underground or by runners).
  */
 export function spreadsAs(p: SpreadFacts, how: string): boolean {
   const r = rootSpread(p.habit);
   if (how === 'stays') return r === 'stays' && p.self_seed === 'Modest' && !p.invasive;
   if (how === 'seed') return p.self_seed === 'Prolific';
-  if (how === 'runs') return r === 'aggressive' || r === 'spreads' || r === 'slow';
+  // (Mats and naturalizing bulbs spread too: creeping thyme, fogfruit; a reseeding annual is the seed's.)
+  if (how === 'runs') return r === 'aggressive' || r === 'spreads' || r === 'slow' || (r === 'other' && p.habit !== 'Reseeding annual');
   if (how === 'aggressive') return r === 'aggressive';
   return true;
 }

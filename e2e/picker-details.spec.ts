@@ -99,7 +99,7 @@ test('how a plant spreads, by seed and underground, in one row with a source eac
   await expect(details.locator('dt', { hasText: 'How it spreads' })).toHaveCount(1);
   const spreads = details.getByTestId('spreads');
   await expect(spreads.locator('.details-part')).toHaveText(['Self-sows freely', 'Spreads aggressively underground or by runners: Aggressive rhizome']);
-  await expect(spreads.locator('.details-src')).toHaveCount(2); // (each part its own source)
+  await expect(spreads.locator('.details-src')).toHaveText(['older list, unverified']); // (each part its own source; one line where they share it)
   await expect(details.locator('dt', { hasText: /^Habit$/ })).toHaveCount(0); // (said under "How it spreads")
   await page.getByRole('button', { name: '+ More filters' }).click();
   await expect(page.getByTestId('spread-filter').locator('option[value="stays"]')).toHaveText('Stays put (unverified)');

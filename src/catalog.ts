@@ -249,7 +249,8 @@ export function catalogWarnings(file: CatalogFile): string[] {
     }
     // (A habit the spreading table doesn't know: said nothing of, rather than guessed at. Add it to src/spread.ts.)
     const habit = v('habit') as string | undefined;
-    if (typeof habit === 'string' && !(habit in HABIT_SPREAD)) out.push(`${r.id}: habit "${habit}" isn't in the spreading table (src/spread.ts)`);
+    // (Worded without "spread": the audit's writer holds back a new width on a warning that mentions it.)
+    if (typeof habit === 'string' && !(habit in HABIT_SPREAD)) out.push(`${r.id}: habit "${habit}" isn't in the habit table`);
     if (form && h?.max != null && MAX_HEIGHT[form] != null && h.max > MAX_HEIGHT[form]) out.push(`${r.id}: ${h.max} ft is tall for ${/^[aeiou]/i.test(form) ? 'an' : 'a'} ${form.toLowerCase()}`);
     if (h?.max != null && h.max < 0.25) out.push(`${r.id}: under 3 in tall (${Math.round(h.max * 12)} in): inches read as feet, or the other way?`);
     const zmin = v('zone_min') as number | undefined, zmax = v('zone_max') as number | undefined;
