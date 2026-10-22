@@ -10,6 +10,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { savedPage } from './pages.mjs';
 import { sameTaxon } from './usda-counties.mjs';
 export const profileUrl = (symbol) => `https://plantsservices.sc.egov.usda.gov/api/PlantProfile?symbol=${symbol}`;
+export const characteristicsUrl = (id) => `https://plantsservices.sc.egov.usda.gov/api/PlantCharacteristics/${id}`;
 
 export const searchUrl = (name) => `https://plantsservices.sc.egov.usda.gov/api/PlantSearch?searchText=${encodeURIComponent(name)}`;
 const strip = (s) => String(s ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();

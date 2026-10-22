@@ -500,6 +500,9 @@ That change lands before any record gets an `audited` date.
 
 ## How the audit runs
 
+All of it, from the pages already saved, is one command: `npm run catalog:build` ([catalog-build.md](catalog-build.md)),
+which also writes what's waiting on a person into [catalog-review.md](catalog-review.md). The steps:
+
 1. **Fetch.** Each plant is read from each source at that source's pace.
    Raw pages go in `catalog-src/` (git-ignored), named by source and date.
 2. **Extract.** One script per source turns its pages into facts using the

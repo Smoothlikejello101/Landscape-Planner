@@ -119,6 +119,6 @@ Each run prints the matches. As of 2026-10-21:
 ## Updating
 
 Read the rule again from its government source (its `url`); change the entries and their wording to match it;
-set `edition` and `read`; then `node scripts/catalog/wcvp.mjs <combined.json>` (check any accepted names it
-lists, and record them) and `node scripts/catalog/wild.mjs <combined.json>`. `regulated.mjs` refuses a list with a malformed entry (a
+set `edition` and `read`; then `npm run catalog:build` ([catalog-build.md](catalog-build.md)), which runs
+`wcvp.mjs` and `wild.mjs`; check any accepted names its report lists under "Kew names to check", and record them. `regulated.mjs` refuses a list with a malformed entry (a
 class its list doesn't define, a name that isn't a species, variety or genus), and the unit tests check it too.

@@ -27,6 +27,8 @@ and when a plant was seen in flower.
 
 ## How it's read
 
+`npm run catalog:build` runs steps 1 and 3 ([catalog-build.md](catalog-build.md); step 1 with `--fetch`); step 2, the download, is run by hand (its request needs the account).
+
 1. `node scripts/catalog/gbif-fetch.mjs <combined.json>` (politely: robots.txt, 1 request every 2 s; run
    again to retry what failed): each catalog species' match in GBIF's backbone (exact, species rank; a plain
    synonym counts as its accepted name: Aster novae-angliae is Symphyotrichum novae-angliae; doubtful,

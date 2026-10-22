@@ -26,6 +26,18 @@ export function savedPage(source, url, root = 'catalog-src') {
   return null;
 }
 
+/** The file holding the newest saved copy of a URL (a PDF, a spreadsheet), or null. */
+export function savedFile(source, url, root = 'catalog-src') {
+  const dir = join(root, source);
+  if (!existsSync(dir)) return null;
+  const name = cacheName(url);
+  for (const d of readdirSync(dir).sort().reverse()) {
+    const f = join(dir, d, name);
+    if (existsSync(f) && readJson(f + '.meta.json')?.url === url) return f;
+  }
+  return null;
+}
+
 /** What the fetcher recorded for a URL (status, type, location), page or not; or null. */
 export function savedMeta(source, url, root = 'catalog-src') {
   const dir = join(root, source);

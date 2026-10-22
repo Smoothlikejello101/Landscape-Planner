@@ -25,6 +25,8 @@ it), so the app never says "not found here".
 
 ## How they're read
 
+`npm run catalog:build` runs these in order, with the rest of the catalog ([catalog-build.md](catalog-build.md)).
+
 1. `node scripts/catalog/counties.mjs`: every US county's FIPS code, name, state, center and neighbors,
    to `catalog-src/counties.json`.
 2. `python3 -I scripts/catalog/atlas_counties.py <atlas.pdf> catalog-src/counties.json
