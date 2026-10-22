@@ -24,7 +24,10 @@ describe('the catalog against the wild records', () => {
 
 describe('the catalog on sterility', () => {
   it('keeps no unsourced "Sterile" on a plain species: sterility is a cultivar\'s claim, and a species\' needs a source', () => {
-    const plain = /^[A-Z][a-zë-]+ [a-zë-]+( (subsp\.|var\.) [a-zë-]+)?$/;
+    // (A plain species: a bare binomial, a subspecies or variety allowed; or two species in one record, "Salvia
+    // officinalis / Origanum vulgare", "Prunus laurocerasus / caroliniana". Not a hybrid, nor "spp.".)
+    const one = '[A-Z][a-zë-]+ [a-zë-]+( (subsp\\.|var\\.) [a-zë-]+)?';
+    const plain = new RegExp(`^${one}( / (${one}|[a-zë-]+))?$`);
     const all = (JSON.parse(readFileSync('public/plants.json', 'utf8')) as { plants: { id: string; botanical?: string; parent?: string; facts?: Record<string, unknown> }[] }).plants;
     const species = all.filter((p) => !p.parent && plain.test((p.botanical ?? '').trim()) && !/ (hybrids?|spp\.?)$/.test(p.botanical ?? ''));
     expect(species.length).toBeGreaterThan(100);
