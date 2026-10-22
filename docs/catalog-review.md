@@ -1,18 +1,17 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md) from the pages read 2026-10-18: what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 131 to decide, 358 pages not fetched yet, 39 sites whose terms are unsettled, 106 catalog checks; 764 of 820 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md) from the pages read 2026-10-21: what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 125 to decide, 357 pages not fetched yet, 39 sites whose terms are unsettled, 106 catalog checks; 771 of 820 records audited.
 
 - [Sources disagree (38)](#sources-disagree-38)
-- [Tree: understory or canopy? (45)](#tree-understory-or-canopy-45)
+- [Tree: understory or canopy? (46)](#tree-understory-or-canopy-46)
 - [Edible, but rated toxic (12)](#edible-but-rated-toxic-12)
 - [Held back as implausible (1)](#held-back-as-implausible-1)
 - [Kew names to check (8)](#kew-names-to-check-8)
 - [Native status held back (2)](#native-status-held-back-2)
-- [A page under another name (7)](#a-page-under-another-name-7)
 - [Mapped twice on the Arkansas atlas (17)](#mapped-twice-on-the-arkansas-atlas-17)
 - [Read from the genus's page (1)](#read-from-the-genuss-page-1)
 - [A page the list names but that isn't saved (3)](#a-page-the-list-names-but-that-isnt-saved-3)
-- [Not looked up yet (355)](#not-looked-up-yet-355)
+- [Not looked up yet (354)](#not-looked-up-yet-354)
 - [Sites whose terms are unsettled (39)](#sites-whose-terms-are-unsettled-39)
 - [Catalog checks (106)](#catalog-checks-106)
 
@@ -47,7 +46,7 @@ The audit's sources give different values, so the catalog keeps the value it had
 | Porcupine grass (`hesperostipa-spartea`) | most sun | morningskygreenery.com: Part · allendanseed.com: Full | Full |
 | Porcupine grass (`hesperostipa-spartea`) | least sun | morningskygreenery.com: Part · allendanseed.com: Full (USDA: shade tolerance high) | Part |
 | Dark-green bulrush (`scirpus-atrovirens`) | height | morningskygreenery.com: 5 · allendanseed.com: 2–3 | 3–5 |
-| Path rush (`juncus-tenuis`) | least sun | newmoonnursery.com: Shade · morningskygreenery.com: Part (USDA: shade tolerance medium) | Part |
+| Path rush (`juncus-tenuis`) | form | ncsu lists Perennial; usda lists Grass/Sedge | Grass/Sedge |
 | White-tinged sedge (`carex-albicans`) | height | prairienursery.com: 1–2 · mowildflowers.net: 0.33–0.67 | 1–1.3 |
 | Copper-shouldered oval sedge (`carex-bicknellii`) | least sun | newmoonnursery.com: Shade · prairienursery.com: Part (USDA: shade tolerance low) | Part |
 | Common wood sedge (`carex-blanda`) | most sun | newmoonnursery.com: Full · keystonewildflowers.com: Part | Part |
@@ -61,7 +60,7 @@ The audit's sources give different values, so the catalog keeps the value it had
 | Vinca / periwinkle (`vinca-minor`) | form | ncsu lists Perennial; usda lists Vine | Perennial |
 | Lantana (`lantana-camara-miss-huff-hardy`) | form | ncsu lists Annual; usda lists Vine | Shrub |
 
-## Tree: understory or canopy? (45)
+## Tree: understory or canopy? (46)
 
 A source calls it a tree without saying which kind, or the species is a tree and this cultivar may be smaller, so its form is left as it was. There's no place to record a decision on these yet: they stay listed until there is.
 
@@ -100,10 +99,11 @@ A source calls it a tree without saying which kind, or the species is a tree and
 | Apricot (`prunus-armeniaca`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (understory) |
 | Sweet cherry (`prunus-avium`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (understory) |
 | Loropetalum (`loropetalum-chinense-purple-pixie-zhuzhou`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Shrub |
-| Arborvitae 'Green Giant' (`thuja-green-giant`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree (canopy) |
-| Crape myrtle (`lagerstroemia-natchez-muskogee-tonto`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree (understory) |
+| Arborvitae 'Green Giant' (`thuja-green-giant`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (canopy) |
 | Japanese maple (`acer-palmatum-bloodgood-seiryu`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (understory) |
 | Ginkgo (male only) (`ginkgo-biloba-autumn-gold-princeton-sentry`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree (canopy) |
+| Saucer magnolia (`magnolia-x-soulangeana`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Tree (understory) |
+| Flowering cherry (`prunus-x-yedoensis-kwanzan`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Shrub |
 | Bradford/Callery pear (`pyrus-calleryana`) | ncsu lists Tree, the tree without saying understory or canopy | Shrub |
 | Chinese privet (`ligustrum-sinense`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Shrub |
 | Mimosa / silk tree (`albizia-julibrissin`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Shrub |
@@ -158,18 +158,6 @@ Kew has the species native to these states, but the catalog calls the plant "Exo
 - Raspberry (`rubus-idaeus`): Kew's Rubus idaeus, native to 40 states
 - Lantana (`lantana-camara-miss-huff-hardy`): Kew's Lantana camara, native to 1 state
 
-## A page under another name (7)
-
-The page the list points to gives another name, so it wasn't read. Most are the source's own misspelling, or a synonym: the right page. Others are another plant. There's no place yet to accept a page under another name: they stay listed until there is.
-
-- Flat-topped aster (`doellingeria-umbellata`): NC State page doellingeria-umbellata is Doellingeria umbellatus, not Doellingeria umbellata: left out
-- Wild geranium (`geranium-maculatum`): NC State page geranium-maculatum is Geranium manculatum, not Geranium maculatum: left out
-- Purple-headed sneezeweed (`helenium-flexuosum`): NC State page helenium-flexuosum is Helenium nudiflorum, not Helenium flexuosum: left out
-- Solomon's plume (`maianthemum-racemosum`): NC State page maianthemum-racemosum is Maianthemum racemosa, not Maianthemum racemosum: left out
-- Calico aster (`symphyotrichum-lateriflorum`): NC State page symphyotrichum-lateriflorum is Symphyotricum lateriflorum, not Symphyotrichum lateriflorum: left out
-- Path rush (`juncus-tenuis`): NC State page juncus-tenuis is Juncus tenius, not Juncus tenuis: left out
-- Miscanthus (`miscanthus-sinensis`): NC State page miscanthus-sinensis is Miscanthus sinenesis, not Miscanthus sinensis: left out
-
 ## Mapped twice on the Arkansas atlas (17)
 
 The atlas maps the name more than once (its varieties, say) with different status, so the atlas's status for it is left out. There's no place to record a decision on these yet: they stay listed until there is.
@@ -200,17 +188,17 @@ NC State's page for the whole genus was read for this plant (scripts/catalog/ncs
 
 ## A page the list names but that isn't saved (3)
 
-scripts/catalog/ncsu-pages.json names the page, but there's no copy of it. One never fetched: `npm run catalog:build -- --fetch --date <today>` asks for it. One asked for that NC State doesn't have: take its entry out.
+scripts/catalog/ncsu-pages.json names the page, but there's no copy of it. One never fetched: `npm run catalog:build -- --fetch` asks for it. One asked for that NC State doesn't have: take its entry out.
 
 - Artemisia 'Powis Castle' (`artemisia-hybrid`): `artemisia-powis-castle`, never fetched
 - Boxwood (`buxus-green-velvet-microphylla-types`): `buxus-green-velvet`, never fetched
 - Holly 'Nellie R. Stevens' (`ilex-x-nellie-r-stevens`): `ilex-nellie-r-stevens`, never fetched
 
-## Not looked up yet (355)
+## Not looked up yet (354)
 
-Pages the list could use that were never asked for: `npm run catalog:build -- --fetch --date <today>` asks for them (through the fetcher: robots.txt, and each site's pace; NC State's is one page every 5 seconds), then builds with what it finds.
+Pages the list could use that were never asked for: `npm run catalog:build -- --fetch` asks for them (through the fetcher: robots.txt, and each site's pace; NC State's is one page every 5 seconds), then builds with what it finds.
 
-- 346 NC State species pages never asked for: guesses by the plant's name, so many may not exist (a page that doesn't answers 404, which is kept, so it's asked once)
+- 345 NC State species pages never asked for: guesses by the plant's name, so many may not exist (a page that doesn't answers 404, which is kept, so it's asked once)
 - 9 USDA PLANTS profiles and characteristics
 
 ## Sites whose terms are unsettled (39)
@@ -233,11 +221,11 @@ What `npm run catalog:check` lists: implausible values, and names and parents to
 
 Where a source gave nothing, counted only:
 
-- 381 plants: no NC State page in the list: never asked for (see "Not looked up yet"), asked for and NC State has none (a 404), a genus or cultivar group (not read by the rule), or a page not matched to the plant yet
+- 373 plants: no NC State page in the list: never asked for (see "Not looked up yet"), asked for and NC State has none (a 404), a genus or cultivar group (not read by the rule), or a page not matched to the plant yet
 - 64 plants: no USDA PLANTS symbol: a genus or cultivar group (not searched), or a name PLANTS has no species entry for
 - 464 plants: a USDA PLANTS profile with no characteristics saved (size, sun and so on): PLANTS has none, or they were never fetched (see "Not looked up yet")
-- 257 plants: not on the Arkansas atlas's maps under its name (mostly plants not recorded wild in Arkansas)
-- 42 plants: the Arkansas atlas not looked up (a genus or cultivar group: no species name)
-- 79 plants: a cultivar read from species-level pages, its size, form and flower color taken only from a page about the cultivar (a genus or cultivar group's own cultivar page counts as species-level for now: docs/catalog-build.md, "Known quirks")
+- 264 plants: not on the Arkansas atlas's maps under its name (mostly plants not recorded wild in Arkansas)
+- 35 plants: the Arkansas atlas not looked up (a genus or cultivar group: no species name)
+- 76 plants: a cultivar read from species-level pages: its size, form and flower color are taken only from a page about the cultivar
 
 Kew's checklist has no one accepted species for 13 catalog names (hybrids, names it draws narrower, exotics it doesn't list in the US), so they have no native status: Amsonia illustris, Calamovilfa longifolia, Distylium hybrids, Hepatica acutiloba, Hibiscus lasiocarpos, Hypericum pyramidatum, Iris germanica, Oligoneuron rigidum, Onosmodium bejariense, Penstemon grandiflorus, Silphium trifoliatum, Smilax lasioneura, Tulipa hybrids.

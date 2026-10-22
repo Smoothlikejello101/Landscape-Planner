@@ -22,16 +22,16 @@ describe('the plant list', () => {
   it('names each record\'s species, or only its genus', () => {
     expect(speciesOf('Salvia azurea \'Nekan\'')).toEqual({ species: 'Salvia azurea' });
     expect(speciesOf('Fothergilla × intermedia \'Mt. Airy\'')).toEqual({ species: 'Fothergilla × intermedia' });
+    expect(speciesOf('Magnolia x soulangeana')).toEqual({ species: 'Magnolia × soulangeana' }); // (× written as x)
     expect(speciesOf('Hydrangea anomala subsp. petiolaris')).toEqual({ species: 'Hydrangea anomala' });
     expect(speciesOf('  Itea   virginica ')).toEqual({ species: 'Itea virginica' });
-    for (const b of ['Hosta spp.', 'Rosa \'Julia Child\'', 'Magnolia x soulangeana', 'Artemisia hybrid', 'Rosa Drift series', 'Buxus (\'Green Velvet\' / microphylla types)'])
+    for (const b of ['Hosta spp.', 'Rosa \'Julia Child\'', 'Ilex x \'Nellie R. Stevens\'', 'Artemisia hybrid', 'Rosa Drift series', 'Buxus (\'Green Velvet\' / microphylla types)'])
       expect(speciesOf(b).genusOnly).toBe(true);
     expect(speciesOf('Hosta spp.').species).toBe('Hosta');
     // (Known quirks, kept as the 2026-10-18 audit read them, so the build reproduces it; docs/catalog-build.md.)
     expect(speciesOf('Salvia greggii × microphylla')).toEqual({ species: 'Salvia greggii' }); // (one parent)
     expect(speciesOf('Salvia officinalis / Origanum vulgare')).toEqual({ species: 'Salvia officinalis' }); // (the first of two)
     expect(speciesOf('Tulipa hybrids')).toEqual({ species: 'Tulipa hybrids' }); // ("hybrids" read as an epithet)
-    expect(speciesOf('Magnolia x soulangeana').genusOnly).toBe(true); // (a plain x: the genus)
   });
 
   it('reads NC State\'s page by the rule, unless ncsu-pages.json says otherwise; never a genus\'s page by the rule', () => {
@@ -54,10 +54,14 @@ describe('the plant list', () => {
       { id: 'itea-virginica', species: 'Itea virginica', ncsu: 'itea-virginica', usda: { symbol: 'ITEA', id: 1, name: 'Itea virginica' } },
       { id: 'hosta-spp', species: 'Hosta', genusOnly: true },
     ]);
+    // (A page reviewed as the plant's under another name carries that name, for sample.mjs to accept it by.)
+    expect(auditList(cat, { names: { 'itea-virginica': 'Itea virgnica' }, hasNcsu: () => true })[0]).toEqual({ id: 'itea-virginica', species: 'Itea virginica', ncsu: 'itea-virginica', ncsuName: 'Itea virgnica' });
   });
 
-  it('keeps ncsu-pages.json to catalog records, each a page name or null', () => {
+  it('keeps ncsu-pages.json to catalog records, each a page name or null; its other names by page, each a binomial', () => {
     const pages = readNcsuPages() as Record<string, string | null>;
+    const names = (JSON.parse(readFileSync('scripts/catalog/ncsu-pages.json', 'utf8')) as { names: Record<string, string> }).names;
+    expect(Object.entries(names).filter(([slug, n]) => !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug) || !/^[A-Z][a-z]+ [a-z]+$/.test(n))).toEqual([]);
     const ids = new Set(catalog.plants.map((p) => p.id));
     expect(Object.keys(pages).filter((id) => !ids.has(id))).toEqual([]);
     expect(Object.values(pages).filter((s) => s !== null && !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(s))).toEqual([]);
@@ -185,11 +189,11 @@ describe('the review report', () => {
 });
 
 describe('the build\'s arguments', () => {
-  it('takes --fetch only with --date, a real day, and refuses a flag npm took for itself', () => {
+  it('takes --fetch and a real --date, and refuses a flag npm took for itself', () => {
     expect(parseBuildArgs([])).toEqual({ fetch: false, date: undefined });
     expect(parseBuildArgs(['--date', '2026-10-18'])).toEqual({ fetch: false, date: '2026-10-18' });
     expect(parseBuildArgs(['--fetch', '--date', '2026-10-22'])).toEqual({ fetch: true, date: '2026-10-22' });
-    expect(parseBuildArgs(['--fetch']).error).toMatch(/--fetch needs --date/);
+    expect(parseBuildArgs(['--fetch'])).toEqual({ fetch: true, date: undefined });
     expect(parseBuildArgs(['--date', '2026-13-45']).error).toMatch(/not a day/);
     expect(parseBuildArgs(['--date']).error).toMatch(/--date: not an option/);
     expect(parseBuildArgs(['--help']).error).toMatch(/not an option/);

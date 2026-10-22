@@ -1,11 +1,11 @@
 // Build the catalog and the wild records from the pages already saved, in one go, and write the review
 // report (docs/catalog-build.md):
-//   npm run catalog:build [-- --fetch --date YYYY-MM-DD | --date YYYY-MM-DD]
+//   npm run catalog:build [-- [--fetch] [--date YYYY-MM-DD]]
 // Offline unless --fetch: it then first fetches, through the fetcher (robots.txt, each site's pace), what the
 // list needs that was never asked for. The web search and GBIF's download requests aren't run (they need the
 // search key, the account, and terms readings); what they'd add is named in the report.
-// --date: the day the pages were read, which the writer puts on every audited record (default: the catalog's
-// own, the latest `audited` in it). --fetch needs it.
+// --date: written on each record whose facts the build changes (default: today); a record left as it was keeps
+// its date.
 //
 // Writes public/plants.json, public/wild/1/, docs/catalog-review.md (what's waiting on a person), and
 // catalog-src/build/ (the steps' files and log, kept, not committed). Running it twice changes nothing.
@@ -87,7 +87,7 @@ function fetchList(label, items) {
 }
 
 const catalog = JSON.parse(catalogBefore);
-const date = opts.date ?? catalog.plants.map((p) => p.audited).filter(Boolean).sort().pop() ?? new Date().toISOString().slice(0, 10);
+const date = opts.date ?? new Date().toLocaleDateString('en-CA');
 
 // 0. Fetch what the list needs (--fetch): rounds, since a search leads to profiles, and a profile can change a
 // pick. It stops when nothing new is asked for (a page that failed is asked again next build).
@@ -178,8 +178,6 @@ saveLog();
 // What changed, for the person running it.
 const before = new Map(catalog.plants.map((p) => [p.id, JSON.stringify(p)]));
 const changed = after.plants.filter((p) => before.get(p.id) !== JSON.stringify(p)).map((p) => p.id);
-const datedOnly = changed.filter((id) => { const a = after.plants.find((p) => p.id === id), b = JSON.parse(before.get(id) ?? '{}'); return JSON.stringify({ ...a, audited: null }) === JSON.stringify({ ...b, audited: null }); });
-if (datedOnly.length) console.log(`(${datedOnly.length} of the changed records changed only their audited date, to ${date}: the writer dates every audited record by --date)`);
 console.log(`\n${catalogBefore === readFileSync('public/plants.json', 'utf8') ? 'public/plants.json unchanged' : `public/plants.json: ${changed.length} records changed${changed.length ? ` (${changed.slice(0, 12).join(', ')}${changed.length > 12 ? '…' : ''})` : ''}`}`);
 console.log(`docs/catalog-review.md: ${report.summary}`);
 console.log(`(each step's output: ${path('log.txt')}; git diff shows the rest)`);

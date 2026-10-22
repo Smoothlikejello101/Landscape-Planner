@@ -28,7 +28,7 @@ const COUNTED = [
   [/^USDA has no characteristics for it$/, 'a USDA PLANTS profile with no characteristics saved (size, sun and so on): PLANTS has none, or they were never fetched (see "Not looked up yet")'],
   [/^Not found under .* on the Arkansas atlas's map pages$/, "not on the Arkansas atlas's maps under its name (mostly plants not recorded wild in Arkansas)"],
   [/^Arkansas atlas not looked up/, 'the Arkansas atlas not looked up (a genus or cultivar group: no species name)'],
-  [/^A cultivar read from species pages/, "a cultivar read from species-level pages, its size, form and flower color taken only from a page about the cultivar (a genus or cultivar group's own cultivar page counts as species-level for now: docs/catalog-build.md, \"Known quirks\")"],
+  [/^A cultivar read from species pages/, "a cultivar read from species-level pages: its size, form and flower color are taken only from a page about the cultivar"],
 ];
 
 const esc = (s) => String(s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
@@ -139,7 +139,7 @@ export function reviewReport({ catalog, date, list, combined, review, searched =
   const notes = combined.flatMap((a) => (a.notes ?? []).map((note) => ({ id: a.id, note }))).sort(byOrder);
   const noted = (k) => notes.filter((n) => noteKind(n.note) === k);
   section('A page under another name', noted('otherName').length,
-    "The page the list points to gives another name, so it wasn't read. Most are the source's own misspelling, or a synonym: the right page. Others are another plant. There's no place yet to accept a page under another name: they stay listed until there is.",
+    "The page the list points to gives another name, so it wasn't read. It may be the source's own misspelling, or a synonym: the right page. Or it may be another plant. To accept an NC State page as this plant's, add it to `names` in scripts/catalog/ncsu-pages.json, with the name it gives.",
     bullets(noted('otherName').map((n) => `${name(n.id)}: ${esc(n.note)}`)));
   section('Mapped twice on the Arkansas atlas', noted('atlasTwice').length,
     `The atlas maps the name more than once (its varieties, say) with different status, so the atlas's status for it is left out. ${NO_PLACE}`,
@@ -154,7 +154,7 @@ export function reviewReport({ catalog, date, list, combined, review, searched =
   const neverAsked = new Set(unfetched?.named ?? []);
   const notSaved = noted('unfetched'), isNew = (n) => neverAsked.has(`https://plants.ces.ncsu.edu/plants/${listed.get(n.id)?.ncsu}/`);
   section("A page the list names but that isn't saved", notSaved.length,
-    "scripts/catalog/ncsu-pages.json names the page, but there's no copy of it. One never fetched: `npm run catalog:build -- --fetch --date <today>` asks for it. One asked for that NC State doesn't have: take its entry out.",
+    "scripts/catalog/ncsu-pages.json names the page, but there's no copy of it. One never fetched: `npm run catalog:build -- --fetch` asks for it. One asked for that NC State doesn't have: take its entry out.",
     bullets(notSaved.map((n) => `${name(n.id)}: \`${esc(listed.get(n.id)?.ncsu)}\`, ${isNew(n) ? 'never fetched' : 'asked for, and not there'}`)), 'pages');
   const asks = unfetched ? [
     [unfetched.ncsu.length, "NC State species pages never asked for: guesses by the plant's name, so many may not exist (a page that doesn't answers 404, which is kept, so it's asked once)"],
@@ -162,7 +162,7 @@ export function reviewReport({ catalog, date, list, combined, review, searched =
     [unfetched.profiles.length, 'USDA PLANTS profiles and characteristics'],
   ].filter(([n]) => n) : [];
   section('Not looked up yet', asks.reduce((t, [n]) => t + n, 0),
-    'Pages the list could use that were never asked for: `npm run catalog:build -- --fetch --date <today>` asks for them (through the fetcher: robots.txt, and each site\'s pace; NC State\'s is one page every 5 seconds), then builds with what it finds.',
+    'Pages the list could use that were never asked for: `npm run catalog:build -- --fetch` asks for them (through the fetcher: robots.txt, and each site\'s pace; NC State\'s is one page every 5 seconds), then builds with what it finds.',
     bullets(asks.map(([n, what]) => `${n} ${what}`)), 'pages');
   const unsearched = list.filter((s) => !searched[s.id]).sort(byOrder);
   section('Not searched on the web', unsearched.length,

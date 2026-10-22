@@ -110,13 +110,17 @@ export function writeAudit(catalog, audit, date, warnings = () => []) {
     const sourced = (k) => written.has(k) || (valueOf(facts[k]) != null && facts[k]?.src?.length > 0 && facts[k].src.every((s) => catalog.meta.sources[s]?.trust !== 'unverified'));
     for (const pair of PAIRS) if (pair.some((k) => !sourced(k))) for (const k of pair) if (written.has(k) && facts[k].alt) { facts[k] = { ...facts[k] }; delete facts[k].alt; }
     for (const k of written) for (const s of [...facts[k].src, ...(facts[k].alt?.src ?? [])]) used.add(s);
-    return written.size ? { ...rec, audited: date, facts } : rec;
+    // (Dated by this run only where its facts changed, or it had none audited: a record the run leaves as it was
+    // keeps the date its facts were written on. So a build on a later day changes only what it changed.)
+    if (!written.size) return rec;
+    return { ...rec, audited: rec.audited && JSON.stringify(facts) === JSON.stringify(rec.facts) ? rec.audited : date, facts };
   });
   const sources = { ...catalog.meta.sources };
   for (const s of [...used].sort()) {
     if (sources[s]) continue;
     sources[s] = BUILT_IN[s] ?? { title: s, url: `https://${s}`, trust: kindOf.get(s) === 'authority' ? 'reference' : 'nursery' };
   }
-  return { file: { meta: { ...catalog.meta, updated: date, sources }, plants }, review };
+  const changed = plants.some((p, i) => p !== catalog.plants[i] && JSON.stringify(p) !== JSON.stringify(catalog.plants[i]));
+  return { file: { meta: { ...catalog.meta, updated: changed ? date : catalog.meta.updated ?? date, sources }, plants }, review };
 }
 

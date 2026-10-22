@@ -8,13 +8,14 @@ import { characteristicsUrl, pickSymbol, profileUrl, searchUrl, symbolCandidates
 
 /**
  * The species a record's botanical name names, and whether it names only a genus. "Fothergilla × intermedia"
- * names the hybrid species; "Salvia azurea 'Nekan'" names Salvia azurea; a lowercase second word names the
- * species ("Distylium hybrids" too, as the audit read it); anything else ("Hosta spp.", "Rosa 'Julia Child'",
- * "Magnolia x soulangeana", "Artemisia hybrid") names only its genus.
+ * names the hybrid species, as does "Magnolia x soulangeana" (× written as x); "Salvia azurea 'Nekan'" names
+ * Salvia azurea; a lowercase second word names the species ("Distylium hybrids" too, as the audit read it);
+ * anything else ("Hosta spp.", "Rosa 'Julia Child'", "Ilex x 'Nellie R. Stevens'", "Artemisia hybrid") names
+ * only its genus.
  */
 export function speciesOf(botanical) {
   const w = String(botanical ?? '').replace(/\s+/g, ' ').trim().split(' ');
-  if (w[1] === '×' && /^[a-zë-]+$/.test(w[2] ?? '')) return { species: `${w[0]} × ${w[2]}` };
+  if ((w[1] === '×' || w[1] === 'x') && /^[a-zë-]+$/.test(w[2] ?? '')) return { species: `${w[0]} × ${w[2]}` };
   if (/^[a-zë-]+$/.test(w[1] ?? '') && w[1] !== 'x' && w[1] !== 'hybrid') return { species: `${w[0]} ${w[1]}` };
   return { species: w[0], genusOnly: true };
 }
@@ -23,8 +24,12 @@ export function speciesOf(botanical) {
 export const ncsuSlug = (name) => name.toLowerCase().replace(/×/g, 'x').replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 export const ncsuUrl = (slug) => `https://plants.ces.ncsu.edu/plants/${slug}/`;
 
-/** scripts/catalog/ncsu-pages.json: { pages: { record id: slug, or null for none } }. */
-export const readNcsuPages = (path = 'scripts/catalog/ncsu-pages.json') => JSON.parse(readFileSync(path, 'utf8')).pages;
+/**
+ * scripts/catalog/ncsu-pages.json: { pages: { record id: slug, or null for none }, names: { slug: the name its page
+ * gives } }, `names` for pages reviewed as the plant's under another name (NC State's misspelling, or a synonym).
+ */
+export const readNcsuFile = (path = 'scripts/catalog/ncsu-pages.json') => JSON.parse(readFileSync(path, 'utf8'));
+export const readNcsuPages = (path) => readNcsuFile(path).pages;
 
 /**
  * The NC State page a record reads: the one ncsu-pages.json names for it (null: none); else, for a species
@@ -51,12 +56,12 @@ export function usdaFor(species, root = 'catalog-src') {
  * The list for a catalog. `hasNcsu(slug)`: whether that NC State page is saved; `usda(species)`: its pick.
  * A genus alone gets no USDA symbol (its search would find the genus, or a species of it).
  */
-export function auditList(catalog, { pages = {}, hasNcsu = () => false, usda = () => null } = {}) {
+export function auditList(catalog, { pages = {}, names = {}, hasNcsu = () => false, usda = () => null } = {}) {
   return catalog.plants.map((rec) => {
     const sp = speciesOf(rec.botanical);
     const ncsu = ncsuPageFor(rec, sp, pages, hasNcsu);
     const pick = sp.genusOnly ? null : usda(sp.species);
-    return { id: rec.id, species: sp.species, ...(ncsu ? { ncsu } : {}), ...(pick ? { usda: pick } : {}), ...(sp.genusOnly ? { genusOnly: true } : {}) };
+    return { id: rec.id, species: sp.species, ...(ncsu ? { ncsu } : {}), ...(ncsu && names[ncsu] ? { ncsuName: names[ncsu] } : {}), ...(pick ? { usda: pick } : {}), ...(sp.genusOnly ? { genusOnly: true } : {}) };
   });
 }
 
@@ -64,13 +69,14 @@ export function auditList(catalog, { pages = {}, hasNcsu = () => false, usda = (
 export function savedAuditList(catalog, root = 'catalog-src', pagesPath) {
   const memo = new Map();
   const usda = (s) => (memo.has(s) ? memo.get(s) : memo.set(s, usdaFor(s, root)).get(s));
-  return auditList(catalog, { pages: readNcsuPages(pagesPath), hasNcsu: (slug) => !!savedPage('ncsu', ncsuUrl(slug), root), usda });
+  const file = readNcsuFile(pagesPath);
+  return auditList(catalog, { pages: file.pages, names: file.names ?? {}, hasNcsu: (slug) => !!savedPage('ncsu', ncsuUrl(slug), root), usda });
 }
 
 /**
  * The pages a list needs that were never asked for (any answer is kept, a 404 too, so each is asked once):
  * `ncsu`, NC State's page for each species with none; `named`, each NC State page the list names that isn't
- * saved; `searches`, USDA PLANTS's name search for each
+ * saved; `searches`, USDA PLANTS's name search for each (not a hybrid's)
  * species; the profile of every candidate a search found (the pick checks each); each pick's characteristics.
  */
 export function toFetch(list, root = 'catalog-src') {
@@ -79,7 +85,8 @@ export function toFetch(list, root = 'catalog-src') {
   const ncsu = [...new Set(species.filter((s) => !s.ncsu).map((s) => ncsuUrl(ncsuSlug(s.species))))].filter(asked('ncsu'));
   // (A page ncsu-pages.json names that isn't saved: the list names it all the same.)
   const named = [...new Set(list.filter((s) => s.ncsu).map((s) => ncsuUrl(s.ncsu)))].filter(asked('ncsu'));
-  const searches = [...new Set(species.map((s) => searchUrl(s.species)))].filter(asked('usda'));
+  // (Not a hybrid species': usda-pick never takes a hybrid's entry for a species.)
+  const searches = [...new Set(species.filter((s) => !s.species.includes('×')).map((s) => searchUrl(s.species)))].filter(asked('usda'));
   const profiles = new Set();
   for (const s of species) {
     let results = null;

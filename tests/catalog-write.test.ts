@@ -53,6 +53,13 @@ describe('writing the audit into the catalog', () => {
     expect(file.meta.updated).toBe('2026-10-19');
     expect(catalogErrors(file)).toEqual([]);
   });
+  it('dates a record by a later run only where its facts changed: a run that changes nothing changes nothing', () => {
+    const again = writeAudit(file, audit, '2026-11-02').file;
+    expect(again).toEqual(file); // (the same facts: the records keep 2026-10-19, and so does the file)
+    const changed = writeAudit(file, [{ ...audit[0], facts: { ...audit[0].facts, water: { v: 'High', src: ['ncsu'], check: 'single' } } }, audit[1]], '2026-11-02').file;
+    expect([changed.plants[0].audited, changed.plants[0].facts.water]).toEqual(['2026-11-02', { v: 'High', src: ['ncsu'], check: 'single' }]);
+    expect(changed.meta.updated).toBe('2026-11-02');
+  });
 });
 
 describe('what the writer holds back', () => {

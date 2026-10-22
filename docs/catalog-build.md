@@ -5,22 +5,17 @@ already saved. It also writes what's left for a person to decide, fetch or tidy 
 [catalog-review.md](catalog-review.md):
 
 ```
-npm run catalog:build                                   # offline: the pages already in catalog-src/
-npm run catalog:build -- --fetch --date 2026-11-02      # first fetch what was never asked for, then build
-npm run catalog:build -- --date 2026-11-02
+npm run catalog:build                          # offline: the pages already in catalog-src/
+npm run catalog:build -- --fetch               # first fetch what was never asked for, then build
+npm run catalog:build -- --date 2026-10-18     # date the changed records by the day their pages were read
 ```
 
 **The `--` matters.** Without it npm keeps the flags for itself, and the build stops and says so.
 
-**`--date`** is the day the pages were read. The writer puts it on every audited record, not just the ones whose
-facts changed. Without `--date`, the build uses the catalog's own date, the latest `audited` in it. `--fetch`
-needs `--date`, since new pages have a new day.
-
-The pages a record rests on can be read on different days. One date for the whole catalog is then a choice:
-- the day of the newest pages that changed facts;
-- or keep the old date while the changes are few.
-
-A date per record, from its own pages, would be better, and isn't built yet.
+**`--date`** is written on each record whose facts this build changes (its `audited`: the day the audit re-derived
+it). A record it leaves as it was keeps its date, so a build on a later day changes only what it changed. Without
+`--date`, it's today. Pass the day the pages were read when the change comes from pages read earlier, such as a
+fix to a reader.
 
 **Repeatable.** Running it twice changes nothing. A build from the same pages writes the same catalog, files and
 report, so `git diff` after a build shows exactly what it changed. Run on the pages behind the 2026-10-18 audit,
@@ -94,25 +89,30 @@ For each record, in the catalog's order: `{ id, species, genusOnly?, ncsu?, usda
 catalog by rule, except where a committed file says otherwise.
 
 - **Species.** A botanical name's species is:
-  - "Genus × epithet": the hybrid species (Fothergilla × intermedia);
+  - "Genus × epithet", or "Genus x epithet" with a plain x: the hybrid species (Fothergilla × intermedia, Magnolia
+    × soulangeana). Such a species isn't searched in USDA PLANTS, whose pick never takes a hybrid's entry.
   - else the first two words, where the second is a lowercase word other than "x" or "hybrid". So Salvia
     azurea 'Nekan' is Salvia azurea, and a subspecies or variety is read as its species.
-  - Anything else names only a genus (`genusOnly`): "Hosta spp.", "Rosa 'Julia Child'", "Artemisia hybrid".
+  - Anything else names only a genus (`genusOnly`): "Hosta spp.", "Rosa 'Julia Child'", "Ilex x 'Nellie R.
+    Stevens'", "Artemisia hybrid".
     Such a record isn't looked up on the atlas or in USDA PLANTS. It gets no NC State page by the rule, since a
     genus's page describes the genus, not the plant.
-- **Known quirks.** The rule keeps them as the 2026-10-18 audit read them, so the build reproduces it:
-  - A hybrid written with a plain x is read as only its genus: Magnolia x soulangeana, though NC State's page
-    for it is saved.
+- **Known quirks**, as the 2026-10-18 audit read the names:
   - A hybrid of two species takes the first parent: Salvia greggii × microphylla is S. greggii.
-  - A record of two species reads only the first: Salvia officinalis / Origanum vulgare.
+  - A record of two plants reads only the first: Salvia officinalis / Origanum vulgare; Prunus x yedoensis /
+    'Kwanzan' reads the Yoshino cherry's page.
   - "Tulipa hybrids" passes as an epithet.
-  - A genus or cultivar group reads its own cultivar's page (`ncsu-pages.json`: Thuja 'Green Giant') as
-    species-level. So the page's size, form and flower color aren't taken.
 
-  Fixing them changes the catalog, so each fix is its own change, with its diff reviewed.
+  Fixing one changes the catalog, so each fix is its own change, with its diff reviewed.
 - **NC State.** The species' page (its name in lower case, hyphenated, × as x: `fothergilla-x-intermedia`),
   where one is saved. `scripts/catalog/ncsu-pages.json` names the exceptions, chosen by hand, or `null` for none.
-  An exception is a cultivar's own page, the one cultivar page a record of several reads, or a genus's page.
+  An exception is a cultivar's own page, the one cultivar page a record of several reads, a genus's page, or a
+  species' page under another name. A cultivar's own page is read as the cultivar's, whatever the record names
+  (Thuja 'Green Giant' for a Thuja record), so its size, form and flower color count.
+- **A page under another name.** A page is read when the name it gives is the plant's. Where it gives another,
+  `ncsu-pages.json`'s `names` can accept it: the page, and the name it gives. That's for NC State's own
+  misspellings ("Geranium manculatum") and synonyms by Kew's checklist (Helenium nudiflorum for H. flexuosum;
+  Hydrangea petiolaris, which Kew accepts, for the catalog's H. anomala subsp. petiolaris).
 - **USDA PLANTS.** The symbol `usda-pick.mjs` picks from the species' saved name search: its own name at species
   rank, not a hybrid or a variety, and a profile that is the plant's own or a reviewed rename.
 
@@ -153,7 +153,7 @@ terms are unsettled, and catalog checks.
 
 **Where a decision goes.** A few kinds of item have a place to record the decision, and the next build then drops
 the item:
-- an NC State page to read or not: `ncsu-pages.json`;
+- an NC State page to read or not, or a page under another name to accept: `ncsu-pages.json`;
 - a law list's name: its `accepted` in `regulated-plants.json`;
 - bloom months to trust: `RECORDS_TRUSTED` in bloom.mjs.
 
@@ -161,8 +161,7 @@ the item:
 - the writer's items;
 - Kew's homonyms;
 - the atlas's double maps;
-- native status held back;
-- a page under another spelling.
+- native status held back.
 
 They stay listed until there is one. Building those places is the next piece of work. For the writer's items, it
 means a file the writer reads, and a way for the app to say a fact was decided.

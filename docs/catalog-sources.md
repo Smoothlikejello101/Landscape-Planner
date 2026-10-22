@@ -514,7 +514,8 @@ on a person into [catalog-review.md](catalog-review.md). The steps:
 4. **Write.** `npm run catalog:write -- <combined.json> --date <day the
    pages were read> --review review.json` writes each settled fact into `public/plants.json` with its
    `src`, `check` and, where nurseries differ from the authority, `alt`; a
-   record with any fact written gets its `audited` date. A fact the audit
+   record whose facts change (or that had none audited) gets its `audited` date,
+   and one left as it was keeps its own. A fact the audit
    couldn't settle (unknown, unsettled, disputed) keeps the catalog's
    current value, still labeled unverified (its only source is the
    compendium), and a disputed one goes on the review list. So do values

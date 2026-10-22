@@ -38,8 +38,12 @@ for (const s of sample) {
     const p = page('ncsu', url);
     if (p) {
       const f = ncsuFields(p.text);
-      const name = `${f.Genus?.[0] ?? ''} ${f.Species?.[0] ?? ''}`.trim();
-      if (s.ncsuName ? true : sameName(name, s.species) || (s.genusOnly && f.Genus?.[0] === s.species.split(' ')[0])) { ncsu = f; seen.ncsu = { url, fetched: p.fetched, name: name || s.ncsu }; }
+      // (Some hybrids' pages have no species field: the name is the title's, "Magnolia x soulangeana". NC State
+      // writes × as x.)
+      const titled = f.Species?.[0] ? '' : (/<title>\s*([^(<|]+)/.exec(p.text)?.[1] ?? '').replace(/\s+/g, ' ').trim();
+      const name = (/ x [a-zë-]/.test(titled) ? titled : `${f.Genus?.[0] ?? ''} ${f.Species?.[0] ?? ''}`.trim()).replace(/^(\S+) x (?=[a-zë-])/, '$1 × ');
+      // (The page's own name, or one reviewed as this plant's: NC State's misspelling, or a synonym; ncsu-pages.json `names`.)
+      if ((s.ncsuName && name === s.ncsuName) || sameName(name, s.species) || (s.genusOnly && f.Genus?.[0] === s.species.split(' ')[0])) { ncsu = f; seen.ncsu = { url, fetched: p.fetched, name: name || s.ncsu }; }
       else notes.push(`NC State page ${s.ncsu} is ${name}, not ${s.species}: left out`);
       if (s.genusOnly && s.ncsu === s.species.split(' ')[0].toLowerCase()) notes.push(`NC State has only a page for the genus ${s.species.split(' ')[0]}`);
     } else notes.push('NC State page not fetched');
@@ -72,7 +76,9 @@ for (const s of sample) {
   // Claims from each source, combined by tier (docs/catalog-sources.md).
   const cultivar = /'[^']+'/.test(`${rec?.common ?? ''} ${rec?.botanical ?? ''}`);
   const slugOf = (t) => t.toLowerCase().replace(/×/g, 'x').replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  const speciesPage = seen.ncsu && (s.ncsuName || s.genusOnly || s.ncsu === slugOf(s.species));
+  // (A species-level page: the species' own, or one under a reviewed other name; a genus's, for a genus or group.
+  // A cultivar's own page is a cultivar page, whatever the record names: Thuja 'Green Giant' for a Thuja record.)
+  const speciesPage = seen.ncsu && (s.ncsuName || s.ncsu === slugOf(s.species));
   const claims = [
     ...ncsuClaims(ncsu).map((c) => ({ ...c, cultivarPage: !!seen.ncsu && !speciesPage }))
       .map((c) => (c.fact === 'host' ? { ...c, v: onlyCaterpillars(c.v, lepGenera) } : c)).filter((c) => !(c.fact === 'host' && !c.v.length)),
