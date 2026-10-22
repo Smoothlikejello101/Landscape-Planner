@@ -41,7 +41,7 @@ for (const s of sample) {
       const name = `${f.Genus?.[0] ?? ''} ${f.Species?.[0] ?? ''}`.trim();
       if (s.ncsuName ? true : sameName(name, s.species) || (s.genusOnly && f.Genus?.[0] === s.species.split(' ')[0])) { ncsu = f; seen.ncsu = { url, fetched: p.fetched, name: name || s.ncsu }; }
       else notes.push(`NC State page ${s.ncsu} is ${name}, not ${s.species}: left out`);
-      if (s.genusOnly) notes.push(`NC State has only a page for the genus ${s.species.split(' ')[0]}`);
+      if (s.genusOnly && s.ncsu === s.species.split(' ')[0].toLowerCase()) notes.push(`NC State has only a page for the genus ${s.species.split(' ')[0]}`);
     } else notes.push('NC State page not fetched');
   } else notes.push('No NC State page');
   // USDA

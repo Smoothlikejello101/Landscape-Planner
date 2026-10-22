@@ -1,6 +1,6 @@
 {
  "v": 1,
- "about": "NC State Extension Gardener Plant Toolbox pages that don't follow the rule (scripts/catalog/list.mjs ncsuPageFor): record id to the page name under https://plants.ces.ncsu.edu/plants/, or null for none. Chosen by hand: a cultivar's own page, or the one cultivar page a record of several reads. Reviewed in docs/catalog-build.md.",
+ "about": "NC State Extension Gardener Plant Toolbox pages that don't follow the rule (scripts/catalog/list.mjs ncsuPageFor; docs/catalog-build.md): record id to the page name under https://plants.ces.ncsu.edu/plants/, or null for none. Chosen by hand: a cultivar's own page, the one cultivar page a record of several cultivars reads, or a genus's page (narcissus).",
  "pages": {
   "itea-virginica": "itea-virginica-little-henry",
   "artemisia-hybrid": "artemisia-powis-castle",

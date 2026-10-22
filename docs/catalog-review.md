@@ -1,24 +1,24 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md) from the pages read 2026-10-18: what the build left for a person to decide, read or fetch, most useful first. Don't edit it: the next build writes it again. 133 to decide, 397 to fetch or search, 106 catalog checks; 764 of 820 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md) from the pages read 2026-10-18: what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 131 to decide, 358 pages not fetched yet, 39 sites whose terms are unsettled, 106 catalog checks; 764 of 820 records audited.
 
 - [Sources disagree (38)](#sources-disagree-38)
 - [Tree: understory or canopy? (45)](#tree-understory-or-canopy-45)
 - [Edible, but rated toxic (12)](#edible-but-rated-toxic-12)
 - [Held back as implausible (1)](#held-back-as-implausible-1)
-- [Kew names to check (7)](#kew-names-to-check-7)
+- [Kew names to check (8)](#kew-names-to-check-8)
 - [Native status held back (2)](#native-status-held-back-2)
-- [A page that names another plant (7)](#a-page-that-names-another-plant-7)
+- [A page under another name (7)](#a-page-under-another-name-7)
 - [Mapped twice on the Arkansas atlas (17)](#mapped-twice-on-the-arkansas-atlas-17)
+- [Read from the genus's page (1)](#read-from-the-genuss-page-1)
 - [A page the list names but that isn't saved (3)](#a-page-the-list-names-but-that-isnt-saved-3)
-- [Read from the genus's page (4)](#read-from-the-genuss-page-4)
 - [Not looked up yet (355)](#not-looked-up-yet-355)
 - [Sites whose terms are unsettled (39)](#sites-whose-terms-are-unsettled-39)
 - [Catalog checks (106)](#catalog-checks-106)
 
 ## Sources disagree (38)
 
-The audit's sources give different values, so the catalog keeps the value it had, marked unverified, until someone decides. Zones are on the half-zone scale (7 is 7a, 7.5 is 7b); sizes are in feet.
+The audit's sources give different values, so the catalog keeps the value it had, marked unverified. Zones are on the half-zone scale (7 is 7a, 7.5 is 7b); sizes are in feet. There's no place to record a decision on these yet: they stay listed until there is.
 
 | Plant | Fact | What the sources say | Catalog now |
 | --- | --- | --- | --- |
@@ -63,7 +63,7 @@ The audit's sources give different values, so the catalog keeps the value it had
 
 ## Tree: understory or canopy? (45)
 
-A source calls it a tree without saying which kind, or the species is a tree and this cultivar may be smaller. The form is left as it was until someone decides.
+A source calls it a tree without saying which kind, or the species is a tree and this cultivar may be smaller, so its form is left as it was. There's no place to record a decision on these yet: they stay listed until there is.
 
 | Plant | What the sources say | Catalog now |
 | --- | --- | --- |
@@ -115,7 +115,7 @@ A source calls it a tree without saying which kind, or the species is a tree and
 
 ## Edible, but rated toxic (12)
 
-A source says it's edible, and the catalog rates it toxic (to dogs, or to people), so "edible" isn't written until someone decides.
+A source says it's edible, and the catalog rates it toxic (to dogs, or to people), so "edible" isn't written. There's no place to record a decision on these yet: they stay listed until there is.
 
 - Purple passionflower (maypop) (`passiflora-incarnata`)
 - Swamp white oak (`quercus-bicolor`)
@@ -132,15 +132,15 @@ A source says it's edible, and the catalog rates it toxic (to dogs, or to people
 
 ## Held back as implausible (1)
 
-The audit's values would make the record implausible (the app's checks), so they weren't written.
+The audit's values would make the record implausible (the app's checks), so they weren't written. There's no place to record a decision on these yet: they stay listed until there is.
 
 | Plant | Facts | Why |
 | --- | --- | --- |
 | Green-and-gold (`chrysogonum-virginianum`) | height | under 3 in tall (2 in): inches read as feet, or the other way? |
 
-## Kew names to check (7)
+## Kew names to check (8)
 
-Names Kew's World Checklist could read two ways, taken as the accepted name; check each is the plant meant. A law list's name Kew accepts under another needs its `accepted` set in scripts/catalog/regulated-plants.json.
+Names Kew's World Checklist could read two ways, taken as the accepted name (check each is the plant meant: there's no place to record that yet); and law-list names Kew accepts under another, or doesn't match at all (set the entry's `accepted` in scripts/catalog/regulated-plants.json).
 
 - Aquilegia canadensis: an accepted name that is also an older homonym's synonym
 - Bouteloua gracilis: an accepted name that is also an older homonym's synonym
@@ -149,17 +149,18 @@ Names Kew's World Checklist could read two ways, taken as the accepted name; che
 - Conopholis americana: an accepted name that is also an older homonym's synonym
 - Ludwigia alternifolia: an accepted name that is also an older homonym's synonym
 - Scirpus microcarpus: an accepted name that is also an older homonym's synonym
+- Alhagi camelorum: a law list's name Kew doesn't match to one accepted species
 
 ## Native status held back (2)
 
-Kew has the species native to these states, but the catalog calls the plant "Exotic" (its species may hold a native kind the garden plant isn't), so it's never shown native. Decide whether it should be.
+Kew has the species native to these states, but the catalog calls the plant "Exotic" (its species may hold a native kind the garden plant isn't), so it's never shown native. There's no place to record a decision on these yet: they stay listed until there is.
 
 - Raspberry (`rubus-idaeus`): Kew's Rubus idaeus, native to 40 states
 - Lantana (`lantana-camara-miss-huff-hardy`): Kew's Lantana camara, native to 1 state
 
-## A page that names another plant (7)
+## A page under another name (7)
 
-The page the list points to is about another plant (often a synonym or a misapplied name), so it wasn't read. Point the list at the right page (scripts/catalog/ncsu-pages.json for NC State), or leave it out.
+The page the list points to gives another name, so it wasn't read. Most are the source's own misspelling, or a synonym: the right page. Others are another plant. There's no place yet to accept a page under another name: they stay listed until there is.
 
 - Flat-topped aster (`doellingeria-umbellata`): NC State page doellingeria-umbellata is Doellingeria umbellatus, not Doellingeria umbellata: left out
 - Wild geranium (`geranium-maculatum`): NC State page geranium-maculatum is Geranium manculatum, not Geranium maculatum: left out
@@ -171,7 +172,7 @@ The page the list points to is about another plant (often a synonym or a misappl
 
 ## Mapped twice on the Arkansas atlas (17)
 
-The atlas maps the name more than once (its varieties, say) with different status, so the atlas's status for it is left out.
+The atlas maps the name more than once (its varieties, say) with different status, so the atlas's status for it is left out. There's no place to record a decision on these yet: they stay listed until there is.
 
 - Goldenrod 'Fireworks' (`solidago-rugosa`)
 - Boltonia 'Snowbank' (`boltonia-asteroides`)
@@ -191,28 +192,25 @@ The atlas maps the name more than once (its varieties, say) with different statu
 - Hairy lens grass (`paspalum-setaceum`)
 - Little bluestem (species) (`schizachyrium-scoparium-2`)
 
+## Read from the genus's page (1)
+
+NC State's page for the whole genus was read for this plant (scripts/catalog/ncsu-pages.json names it), so the facts read from it are the genus's, not the plant's own. Take the entry out to read none.
+
+- Daffodil 'Tete-a-Tete' (`narcissus-tete-a-tete`)
+
 ## A page the list names but that isn't saved (3)
 
-Run `npm run catalog:build -- --fetch`, or take the page out of scripts/catalog/ncsu-pages.json.
+scripts/catalog/ncsu-pages.json names the page, but there's no copy of it. One never fetched: `npm run catalog:build -- --fetch --date <today>` asks for it. One asked for that NC State doesn't have: take its entry out.
 
-- Artemisia 'Powis Castle' (`artemisia-hybrid`)
-- Boxwood (`buxus-green-velvet-microphylla-types`)
-- Holly 'Nellie R. Stevens' (`ilex-x-nellie-r-stevens`)
-
-## Read from the genus's page (4)
-
-NC State's page for the genus was read for this plant: its facts are the genus's, not the plant's.
-
-- Daffodil 'Tete-a-Tete' (`narcissus-tete-a-tete`): NC State has only a page for the genus Narcissus
-- Arborvitae 'Green Giant' (`thuja-green-giant`): NC State has only a page for the genus Thuja
-- Crape myrtle (`lagerstroemia-natchez-muskogee-tonto`): NC State has only a page for the genus Lagerstroemia
-- Ornamental allium (`allium-millenium-purple-sensation`): NC State has only a page for the genus Allium
+- Artemisia 'Powis Castle' (`artemisia-hybrid`): `artemisia-powis-castle`, never fetched
+- Boxwood (`buxus-green-velvet-microphylla-types`): `buxus-green-velvet`, never fetched
+- Holly 'Nellie R. Stevens' (`ilex-x-nellie-r-stevens`): `ilex-nellie-r-stevens`, never fetched
 
 ## Not looked up yet (355)
 
-Pages the list could use that have never been fetched: `npm run catalog:build -- --fetch` asks for them (politely: robots.txt, and each site's pace), then builds with what it finds.
+Pages the list could use that were never asked for: `npm run catalog:build -- --fetch --date <today>` asks for them (through the fetcher: robots.txt, and each site's pace; NC State's is one page every 5 seconds), then builds with what it finds.
 
-- 346 NC State species pages never asked for (NC State may have a page; asked once, a 404 is kept)
+- 346 NC State species pages never asked for: guesses by the plant's name, so many may not exist (a page that doesn't answers 404, which is kept, so it's asked once)
 - 9 USDA PLANTS profiles and characteristics
 
 ## Sites whose terms are unsettled (39)
@@ -223,7 +221,7 @@ americanpeonysociety.org, arborday.org, brit.org, cloversgarden.com, colesvillen
 
 ## Catalog checks (106)
 
-What `npm run catalog:check` lists: implausible values, and names and parents to tidy.
+What `npm run catalog:check` lists: implausible values, and names and parents to tidy in the catalog itself.
 
 - a cultivar with no species record in the catalog (66): `rosa-julia-child`, `rosa-generous-gardener`, `rosa-climbing-iceberg`, `eutrochium-gateway`, `rudbeckia-american-gold-rush`, `symphyotrichum-ericoides-snow-flurry`, `narcissus-tete-a-tete`, `rudbeckia-fulgida-goldsturm`, `clethra-alnifolia-hummingbird`, `hydrangea-quercifolia-ruby-slippers`, `hydrangea-quercifolia-alice`, `hydrangea-arborescens-haas-halo`, `fothergilla-intermedia-mt-airy`, `bignonia-capreolata-tangerine-beauty`, `lonicera-sempervirens-john-clayton-major-wheeler`, `wisteria-frutescens-amethyst-falls`, `achillea-moonshine`, `ilex-vomitoria-nana-schillings`, `stachys-byzantina-helene-von-stein`, `ficus-carica-celeste-brown-turkey-chicago-hardy`, `diospyros-kaki-fuyu`, `ziziphus-jujuba-li-lang`, `punica-granatum-salavatski-russian-26`, `morus-alba-x-rubra-illinois-everbearing`, `pyrus-communis-moonglow-kieffer-orient`, `pyrus-pyrifolia-shinko`, `malus-domestica-liberty-enterprise-william-s-pride`, `prunus-salicina-methley-bruce`, `carya-illinoinensis-kanza-lakota`, `vaccinium-virgatum-climax-premier-tifblue`, `rubus-caddo-ouachita-natchez-ponca`, `fragaria-x-ananassa-chandler-camarosa`, `asparagus-officinalis-jersey-millennium`, `sambucus-canadensis-bob-gordon-wyldewood`, `distylium-hybrids-vintage-jade-cinnamon-girl`, `loropetalum-chinense-purple-pixie-zhuzhou`, `gardenia-jasminoides-frostproof-kleim-s-hardy`, `abelia-x-grandiflora-rose-creek-kaleidoscope`, `mahonia-eurybracteata-soft-caress`, `cephalotaxus-harringtonia-duke-gardens-prostrata`, `buxus-green-velvet-microphylla-types`, `thuja-green-giant`, `ilex-x-nellie-r-stevens`, `aucuba-japonica-gold-dust`, `lagerstroemia-natchez-muskogee-tonto`, `vitex-agnus-castus-shoal-creek`, `buddleia-davidii-sterile-miss-molly-lo-behold`, `hibiscus-syriacus-sterile-diana-chiffon-series`, `acer-palmatum-bloodgood-seiryu`, `ginkgo-biloba-autumn-gold-princeton-sentry`, `prunus-x-yedoensis-kwanzan`, `chaenomeles-double-take-series`, `nepeta-cat-s-meow-walker-s-low`, `hemerocallis-happy-returns-spider-types`, `oenothera-lindheimeri-whirling-butterflies`, `lavandula-x-intermedia-phenomenal`, `paeonia-lactiflora-festiva-maxima-early-cvs`, `hylotelephium-herbstfreude`, `leucanthemum-becky`, `canna-australia-species-types`, `crinum-milk-and-wine-bulbispermum`, `allium-millenium-purple-sensation`, `liriope-muscari-big-blue`, `clematis-jackmanii-viticella-types`, `pennisetum-alopecuroides-hameln`, `lantana-camara-miss-huff-hardy`
 - named as a cultivar, but its botanical name doesn't say which (25): `heuchera-villosa`, `heuchera-villosa-2`, `astilbe-chinensis`, `hakonechloa-macra`, `chelone-lyonii`, `itea-virginica`, `viburnum-nudum`, `viburnum-nudum-2`, `salvia-rosmarinus`, `artemisia-hybrid`, `monarda-didyma`, `echinacea-purpurea`, `coreopsis-verticillata`, `symphyotrichum-oblongifolium`, `vernonia-hybrid-mt-cuba`, `salvia-yangii`, `salvia-greggii-microphylla`, `asclepias-tuberosa-clay-strain`, `physostegia-virginiana`, `solidago-rugosa`, `boltonia-asteroides`, `panicum-virgatum`, `schizachyrium-scoparium`, `crocus-tommasinianus`, `hypericum-kalmianum`
@@ -233,19 +231,13 @@ What `npm run catalog:check` lists: implausible values, and names and parents to
 
 ## For reference
 
-Where the sources had nothing to give, counted only:
+Where a source gave nothing, counted only:
 
-- 381 plants: no NC State page for it
-- 464 plants: a USDA PLANTS profile with no characteristics (size, sun and so on)
-- 257 plants: not on the Arkansas atlas's maps (mostly plants not found wild in Arkansas)
-- 42 plants: the Arkansas atlas not looked up (a genus or cultivar group, no species name)
-- 79 plants: a cultivar read from its species' pages: its size, form and flower color wait for a page about the cultivar
-- 64 plants not in USDA PLANTS by this name (a hybrid, a cultivar group, or a name it lists under another)
+- 381 plants: no NC State page in the list: never asked for (see "Not looked up yet"), asked for and NC State has none (a 404), a genus or cultivar group (not read by the rule), or a page not matched to the plant yet
+- 64 plants: no USDA PLANTS symbol: a genus or cultivar group (not searched), or a name PLANTS has no species entry for
+- 464 plants: a USDA PLANTS profile with no characteristics saved (size, sun and so on): PLANTS has none, or they were never fetched (see "Not looked up yet")
+- 257 plants: not on the Arkansas atlas's maps under its name (mostly plants not recorded wild in Arkansas)
+- 42 plants: the Arkansas atlas not looked up (a genus or cultivar group: no species name)
+- 79 plants: a cultivar read from species-level pages, its size, form and flower color taken only from a page about the cultivar (a genus or cultivar group's own cultivar page counts as species-level for now: docs/catalog-build.md, "Known quirks")
 
-<details><summary>Not in USDA PLANTS by this name</summary>
-
-Astilbe 'Visions' series (3 cvs) (`astilbe-chinensis`), Climbing hydrangea (`hydrangea-anomala-subsp-petiolaris`), Rosemary 'Hill Hardy' (`salvia-rosmarinus`), Rose 'Julia Child' (floribunda) (`rosa-julia-child`), Drift roses (Coral/Popcorn/Scarlet) (`rosa-drift-series`), Knockout rose (`rosa-knock-out`), Climbing rose 'Generous Gardener' (`rosa-generous-gardener`), Climbing rose 'Climbing Iceberg' (`rosa-climbing-iceberg`), Joe Pye weed 'Gateway' (`eutrochium-gateway`), Artemisia 'Powis Castle' (`artemisia-hybrid`), Black-eyed Susan 'American Gold Rush' (`rudbeckia-american-gold-rush`), Ironweed 'Prairie Princess' (`vernonia-hybrid-mt-cuba`), Russian sage 'Denim 'n Lace' (`salvia-yangii`), Daffodil 'Tete-a-Tete' (`narcissus-tete-a-tete`), Anise shrub (`illicium-spp`), Water iris (`iris-aquatic-spp`), Fancy echinacea hybrids (`echinacea-cone-fections-big-sky-sunseekers`), Creeping thyme (`thymus-spp`), Bearded beggarticks (`bidens-polylepis`), Amethyst shooting star (`primula-fassettii`), Midland shooting star (`primula-meadia`), Kankakee mallow (`iliamna-remota`), Eastern prickly pear (`opuntia-cespitosa`), Scurfy pea (`pediomelum-tenuiflorum`), Shining aster (`symphyotrichum-firmum`), Early blue violet (`viola-palmata`), Sweet grass (`anthoxanthum-hirtum`), Fothergilla 'Mt. Airy' (`fothergilla-intermedia-mt-airy`), Native azaleas (all) (`rhododendron-spp`), Autumn fern (`dryopteris-erythrosora`), Yarrow 'Moonshine' (`achillea-moonshine`), Blackberry (U of A thornless) (`rubus-caddo-ouachita-natchez-ponca`), Strawberry (`fragaria-x-ananassa-chandler-camarosa`), Grapes - ALL types (muscadine + bunch) (`vitis-spp`), Gooseberry / currant (`ribes-spp`), Distylium (`distylium-hybrids-vintage-jade-cinnamon-girl`), Loropetalum (`loropetalum-chinense-purple-pixie-zhuzhou`), Glossy abelia (`abelia-x-grandiflora-rose-creek-kaleidoscope`), Mahonia 'Soft Caress' (`mahonia-eurybracteata-soft-caress`), Boxwood (`buxus-green-velvet-microphylla-types`), Arborvitae 'Green Giant' (`thuja-green-giant`), Holly 'Nellie R. Stevens' (`ilex-x-nellie-r-stevens`), Crape myrtle (`lagerstroemia-natchez-muskogee-tonto`), Butterfly bush (`buddleia-davidii-sterile-miss-molly-lo-behold`), Chinese snowball viburnum (`viburnum-macrocephalum`), Saucer magnolia (`magnolia-x-soulangeana`), Flowering cherry (`prunus-x-yedoensis-kwanzan`), Forsythia (`forsythia-x-intermedia`), Flowering quince (`chaenomeles-double-take-series`), Catmint (`nepeta-cat-s-meow-walker-s-low`), Daylily (`hemerocallis-happy-returns-spider-types`), Lenten rose (`helleborus-x-hybridus`), Lavender 'Phenomenal' (`lavandula-x-intermedia-phenomenal`), Hosta (`hosta-spp`), Sedum 'Autumn Joy' (`hylotelephium-herbstfreude`), Shasta daisy (`leucanthemum-becky`), Canna (`canna-australia-species-types`), Hardy banana (`musa-basjoo`), Crinum lily (`crinum-milk-and-wine-bulbispermum`), Ornamental allium (`allium-millenium-purple-sensation`), Tulip (`tulipa-hybrids`), Clematis (large-flowered) (`clematis-jackmanii-viticella-types`), Yew (`taxus-spp`), Angel's trumpet (`brugmansia-spp`)
-
-</details>
-
-Kew's checklist has no one accepted species for 13 names (hybrids, names it splits, exotics it doesn't list in the US): Amsonia illustris, Calamovilfa longifolia, Distylium hybrids, Hepatica acutiloba, Hibiscus lasiocarpos, Hypericum pyramidatum, Iris germanica, Oligoneuron rigidum, Onosmodium bejariense, Penstemon grandiflorus, Silphium trifoliatum, Smilax lasioneura, Tulipa hybrids.
+Kew's checklist has no one accepted species for 13 catalog names (hybrids, names it draws narrower, exotics it doesn't list in the US), so they have no native status: Amsonia illustris, Calamovilfa longifolia, Distylium hybrids, Hepatica acutiloba, Hibiscus lasiocarpos, Hypericum pyramidatum, Iris germanica, Oligoneuron rigidum, Onosmodium bejariense, Penstemon grandiflorus, Silphium trifoliatum, Smilax lasioneura, Tulipa hybrids.

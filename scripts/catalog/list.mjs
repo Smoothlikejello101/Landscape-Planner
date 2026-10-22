@@ -68,17 +68,18 @@ export function savedAuditList(catalog, root = 'catalog-src', pagesPath) {
 }
 
 /**
- * The pages a list needs that aren't saved: NC State's page for each species with none (never asked: a page
- * NC State doesn't have answers 404, which is kept, so each is asked once), and each page the list names that
- * isn't saved; USDA PLANTS's name search for each
+ * The pages a list needs that were never asked for (any answer is kept, a 404 too, so each is asked once):
+ * `ncsu`, NC State's page for each species with none; `named`, each NC State page the list names that isn't
+ * saved; `searches`, USDA PLANTS's name search for each
  * species; the profile of every candidate a search found (the pick checks each); each pick's characteristics.
  */
 export function toFetch(list, root = 'catalog-src') {
   const species = list.filter((s) => !s.genusOnly);
-  // (And a page ncsu-pages.json names that isn't saved: the list names it all the same.)
-  const ncsu = [...new Set([...species.filter((s) => !s.ncsu).map((s) => ncsuUrl(ncsuSlug(s.species))), ...list.filter((s) => s.ncsu).map((s) => ncsuUrl(s.ncsu))])]
-    .filter((u) => !savedMeta('ncsu', u, root));
-  const searches = [...new Set(species.map((s) => searchUrl(s.species)))].filter((u) => !savedPage('usda', u, root));
+  const asked = (source) => (u) => !savedMeta(source, u, root); // (any answer kept: a page, a 404, a redirect)
+  const ncsu = [...new Set(species.filter((s) => !s.ncsu).map((s) => ncsuUrl(ncsuSlug(s.species))))].filter(asked('ncsu'));
+  // (A page ncsu-pages.json names that isn't saved: the list names it all the same.)
+  const named = [...new Set(list.filter((s) => s.ncsu).map((s) => ncsuUrl(s.ncsu)))].filter(asked('ncsu'));
+  const searches = [...new Set(species.map((s) => searchUrl(s.species)))].filter(asked('usda'));
   const profiles = new Set();
   for (const s of species) {
     let results = null;
@@ -86,5 +87,5 @@ export function toFetch(list, root = 'catalog-src') {
     for (const c of symbolCandidates(s.species, results)) profiles.add(profileUrl(c.symbol));
   }
   const chars = new Set(list.filter((s) => s.usda).map((s) => characteristicsUrl(s.usda.id)));
-  return { ncsu, searches, profiles: [...profiles, ...chars].filter((u) => !savedPage('usda', u, root)) };
+  return { ncsu, named, searches, profiles: [...profiles, ...chars].filter(asked('usda')) };
 }
