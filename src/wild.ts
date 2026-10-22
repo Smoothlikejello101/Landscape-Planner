@@ -62,11 +62,11 @@ export interface WildIndex { v: 1; states: Record<string, string>; border: Recor
 export type WildHere = { species: boolean; sources: string[] } & (
   | { where: 'county'; county: string }
   | { where: 'near'; counties: string[] }
-  | { where: 'state'; count: number; stateName: string });
+  | { where: 'state'; count: number; stateName: string; stateFips: number });
 
 const STATE_NAMES: Record<string, string> = {
   AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware',
-  DC: 'District of Columbia', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa',
+  DC: 'the District of Columbia', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa',
   KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota',
   MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey',
   NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon',
@@ -93,6 +93,19 @@ export function shortCountyName(name: string, fips: number): string {
   // (Independent cities: Virginia's, Baltimore, St. Louis, Carson City. Texas's counties run past 500.)
   if (fips % 1000 >= 500 && CITY_STATES.has(st) && !/City$/.test(name)) return `${name} (city)`;
   return name;
+}
+
+/**
+ * What a state calls its counties, for a count of them: Louisiana's parishes, Alaska's boroughs and census areas
+ * ("areas"), Puerto Rico's municipalities; where independent cities stand beside the counties (Virginia,
+ * Maryland's Baltimore, Missouri's St. Louis, Nevada's Carson City), "counties and cities".
+ */
+export function countyWord(stateFips: number, n: number): string {
+  if (stateFips === 22) return n === 1 ? 'parish' : 'parishes';
+  if (stateFips === 2) return n === 1 ? 'area' : 'areas';
+  if (stateFips === 72) return n === 1 ? 'municipality' : 'municipalities';
+  if (CITY_STATES.has(stateFips)) return n === 1 ? 'county or city' : 'counties and cities';
+  return n === 1 ? 'county' : 'counties';
 }
 
 const COUNTY_KEY = 'lp-zip-county';
@@ -197,7 +210,7 @@ export function wildHere(p: { id: string; parent?: string }): WildHere | null {
   const ownFile = files.find((f) => f.fips === hereState);
   if (!ownFile) return null;
   const count = (ownFile.plants[id] ?? []).length;
-  return count ? { where: 'state', count, stateName: STATE_NAMES[ownFile.state] ?? ownFile.state, species, sources } : null;
+  return count ? { where: 'state', count, stateName: STATE_NAMES[ownFile.state] ?? ownFile.state, stateFips: ownFile.fips, species, sources } : null;
 }
 
 /** When a plant (a cultivar: its species) blooms where the garden is, from flowering records; null where there are too few. */
@@ -278,6 +291,42 @@ export function nativeText(n: NativeHere): string {
   return who ? who + say : say[0].toUpperCase() + say.slice(1);
 }
 
+/**
+ * A plant not native to the garden's state, by Kew's checklist, that's recorded growing wild there all the same
+ * (herbarium vouchers and county records outside cultivation: docs/wild-records.md; a record can be old, or a waif).
+ * `count` of the state's `total` counties; `statusSpecies`: the status is its species', `recordsSpecies`: the records
+ * are (a cultivar: a sterile one may not seed); `sources`: the records' titles. Null where it's native, unlisted, or
+ * recorded nowhere wild in the state.
+ */
+export interface EscapeHere { stateName: string; stateFips: number; count: number; total: number; statusSpecies: boolean; recordsSpecies: boolean; sources: string[] }
+export function escapeHere(p: { id: string; parent?: string }): EscapeHere | null {
+  const n = nativeHere(p);
+  if (n?.status !== 'I' || !loaded) return null;
+  const own = loaded.files.find((f) => f.fips === Math.floor(loaded!.county / 1000));
+  if (!own) return null;
+  // (Its own records; else, a cultivar, its species'.)
+  let id = p.id, records = own.plants[id] ?? [], recordsSpecies = !!own.species?.includes(id);
+  if (!records.length && p.parent) { id = p.parent; records = own.plants[id] ?? []; recordsSpecies = true; }
+  if (!records.length) return null;
+  const sources = (own.src?.[id] ?? Object.keys(own.sources)).map((k) => own.sources[k]?.title).filter((t): t is string => !!t);
+  const total = Object.values(own.counties).filter((c) => !c.state).length;
+  return { stateName: n.stateName, stateFips: own.fips, count: records.length, total, statusSpecies: n.species, recordsSpecies, sources };
+}
+/**
+ * "Not native to Arkansas; recorded growing wild in 65 of its 75 counties" (a cultivar: "Its species isn't native …";
+ * the District, one unit: "…; recorded growing wild there").
+ */
+export function escapeText(e: EscapeHere): string {
+  const who = e.statusSpecies ? `Its species isn't native to ${e.stateName}` : `Not native to ${e.stateName}`;
+  const rec = e.recordsSpecies && !e.statusSpecies ? 'its species is recorded growing wild' : 'recorded growing wild';
+  return e.total === 1 ? `${who}; ${rec} there` : `${who}; ${rec} in ${e.count} of its ${e.total} ${countyWord(e.stateFips, e.total)}`;
+}
+/** In short, for a plant's row in the picker: "Not native; recorded wild in 65 of 75 Arkansas counties". */
+export function escapeShort(e: EscapeHere): string {
+  const who = e.statusSpecies || e.recordsSpecies ? "Its species isn't native" : 'Not native';
+  return e.total === 1 ? `${who}; recorded wild there` : `${who}; recorded wild in ${e.count} of ${e.total} ${e.stateName} ${countyWord(e.stateFips, e.total)}`;
+}
+
 /** Recorded wild in the garden's county or one bordering it (in any state). */
 export const wildNearby = (p: { id: string; parent?: string }) => { const w = wildHere(p); return !!w && w.where !== 'state'; };
 
@@ -286,6 +335,6 @@ export function wildText(w: WildHere): string {
   const who = w.species ? 'Its species is recorded' : 'Recorded';
   if (w.where === 'county') return `${who} growing wild in ${w.county}`;
   if (w.where === 'near') return `${who} growing wild in a neighboring county (${w.counties.join(w.counties.some((c) => c.includes(',')) ? '; ' : ', ')})`;
-  return `${who} growing wild in ${w.count} ${w.stateName} ${w.count === 1 ? 'county' : 'counties'}, none recorded in or next to yours`;
+  return `${who} growing wild in ${w.count} ${w.stateName} ${countyWord(w.stateFips, w.count)}, none recorded in or next to yours`;
 }
 

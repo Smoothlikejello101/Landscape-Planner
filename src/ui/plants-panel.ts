@@ -11,7 +11,7 @@ import { ZONE_SOURCE_SHORT } from '../climate';
 import { dismissZipPrompt, openLocation, zipPromptDismissed } from './location-panel';
 import { render } from './render';
 import { plantDetails } from './plant-details';
-import { gardenStateName, lawShort, loadWild, regulatedHere } from '../wild';
+import { escapeHere, escapeShort, gardenStateName, lawShort, loadWild, regulatedHere } from '../wild';
 
 /** The open picker's list rebuild (in place: the search keeps the keyboard, opened rows stay open). */
 let refreshList: (() => void) | null = null;
@@ -122,6 +122,9 @@ export function renderPlantsPanel() {
     // (Red for a ban; amber where every line only lists it.)
     const law = regulatedHere(p);
     if (law.length) info.appendChild(el('div', { className: `plaw${law.every((r) => r.tier === 'listed') ? ' listed' : ''}`, 'data-testid': 'row-law' }, lawShort(law)));
+    // Not native here, and recorded growing wild here all the same: seen without opening it too.
+    const escape = escapeHere(p);
+    if (escape) info.appendChild(el('div', { className: 'pescape', 'data-testid': 'row-escape' }, escapeShort(escape)));
     const dot = el('div', { style: {
       width: '14px', height: '14px', borderRadius: '50%', flex: 'none',
       background: plantColor(p), marginRight: '10px'
