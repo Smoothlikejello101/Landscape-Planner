@@ -11,7 +11,7 @@ import { ZONE_SOURCE_SHORT } from '../climate';
 import { dismissZipPrompt, openLocation, zipPromptDismissed } from './location-panel';
 import { render } from './render';
 import { plantDetails } from './plant-details';
-import { gardenStateName, loadWild, regulatedHere } from '../wild';
+import { gardenStateName, loadWild, regulatedHere, ruleShort } from '../wild';
 
 /** The open picker's list rebuild (in place: the search keeps the keyboard, opened rows stay open). */
 let refreshList: (() => void) | null = null;
@@ -119,8 +119,9 @@ export function renderPlantsPanel() {
       info.appendChild(el('div', { className: 'pmatch', 'data-testid': 'host-match' }, 'Host for: ' + p.host));
     }
     // What the law says of it here, in short ("Prohibited in Arkansas"): seen without opening it.
-    const law = regulatedHere(p).map((r) => r.says.split(':')[0]);
-    if (law.length) info.appendChild(el('div', { className: 'plaw', 'data-testid': 'row-law' }, law.join('; ')));
+    // (Red for a ban; amber where every line only lists it.)
+    const law = regulatedHere(p);
+    if (law.length) info.appendChild(el('div', { className: `plaw${law.every((r) => r.tier === 'listed') ? ' listed' : ''}`, 'data-testid': 'row-law' }, law.map(ruleShort).join('; ')));
     const dot = el('div', { style: {
       width: '14px', height: '14px', borderRadius: '50%', flex: 'none',
       background: plantColor(p), marginRight: '10px'

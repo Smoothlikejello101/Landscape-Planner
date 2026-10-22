@@ -1,11 +1,24 @@
 # Plants regulated by law
 
 A plant's details say what the law says of it where the garden is: its state's list, then the federal one.
-Each line is the rule's own effect, in red, first in the details, with the rule linked and the date it was
-read; the plant's row in the picker says it in short ("Prohibited in Arkansas") before it's opened:
+Each line is the rule's own effect, first in the details, with the rule linked and the date it was read; the
+plant's row in the picker says it in short ("Prohibited in Arkansas") before it's opened:
 
 > **By law** Prohibited in Arkansas: no Lythrum may be planted, sold, bought or moved (2 CAR §50-709)
+> Native to Arkansas, but this rule bans every Lythrum species, natives included.
 > *Arkansas Plant Board rules (2 CAR §50-101, §50-709); Code of Arkansas Rules, printed 2026-03-22; read 2026-10-21*
+
+**Two tiers,** set per class in the list (`tiers`): a **ban** (the rule forbids selling, planting or moving the
+plant: Arkansas's §50-101(f) and §50-709, Texas, Mississippi, Missouri's sale ban, Tennessee, the federal permit
+rule) is shown in red; a **listing** with lighter duties (Arkansas's noxious weed list, where nursery stock must be
+reasonably free of it; Oklahoma's duty to control thistles; Louisiana's Chinese tallow statute) in amber, in the
+same words. A rattlebox shouldn't look as forbidden as cogongrass.
+
+**Native, and covered anyway.** Where Kew's checklist has the plant native to the state and a rule covers it all
+the same, the line says why, or the two read as a contradiction: "Native to Arkansas, but this rule bans every
+Lythrum species, natives included." (a whole-genus entry took it in: `genusWide` in the state file), or "Native to
+Arkansas, and still listed by this rule." (the rule names it: wild onion). The picker's row adds ", though native
+there".
 
 Only law. A council's invasive list (Cal-IPC, the Florida Invasive Species Council, TexasInvasives.org) is an
 advisory judgment, and is never shown as law; if one is used, it gets its own line, in its own words.

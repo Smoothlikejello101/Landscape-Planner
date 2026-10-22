@@ -116,7 +116,9 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
   // above the catalog's facts, where it can't be missed.
   const law = document.createDocumentFragment();
   for (const rule of regulatedHere(p)) {
-    const dd = el('dd', { 'data-testid': 'regulated-here', className: 'details-law' }, rule.says);
+    const dd = el('dd', { 'data-testid': 'regulated-here', className: `details-law${rule.tier === 'listed' ? ' listed' : ''}` }, rule.says);
+    // (Native here and covered anyway: why, in plain words, under the rule's own.)
+    if (rule.native) dd.appendChild(el('span', { className: 'details-law-native', 'data-testid': 'law-native' }, rule.native));
     const src = el('span', { className: 'details-src' });
     src.appendChild(el('a', { href: rule.url, target: '_blank', rel: 'noopener' }, rule.title));
     src.appendChild(document.createTextNode(`; ${rule.edition}; read ${rule.read}`));

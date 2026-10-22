@@ -396,7 +396,10 @@ a { color: inherit; }
 /* Introduced in the garden's state: said plainly, in the warning color. */
 .details-introduced { color: #9a3412; }
 .details-law, .plaw { color: #b91c1c; font-weight: 600; }
+/* (A listing with lighter duties than a ban: amber, the same weight.) */
+.details-law.listed, .plaw.listed { color: #b45309; }
 .plaw { font-size: 12px; margin-top: 2px; }
+.details-law-native { display: block; font-weight: 400; color: #44403c; margin-top: 2px; }
 .details-law .details-src { font-weight: 400; }
 .details-law .details-src a { color: inherit; }
 .details-notes { margin-top: 8px; white-space: pre-wrap; }

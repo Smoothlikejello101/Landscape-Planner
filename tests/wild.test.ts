@@ -6,7 +6,7 @@ import { atlasRecords, curatedNear, gadmCounties, gbifRecords, nativeStatus, SOU
 import { canonical, placer, twoTaxa, usdaRecords } from '../scripts/catalog/usda-counties.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { acceptedTaxon, stateStatus } from '../scripts/catalog/wcvp.mjs';
-import { countyName, gardenStateName, loadWild, nativeHere, nativeText, regulatedHere, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
+import { countyName, gardenStateName, loadWild, nativeHere, nativeText, regulatedHere, ruleShort, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
 import { plantMatches, PLANT_FILTER_DEFAULTS, zoneNote, type Plant } from '../src/plants';
 import { state } from '../src/state';
 
@@ -45,9 +45,11 @@ const usda = {
   'allium-canadense-var-lavendulare': { counties: [5019], species: true },
   'rosmarinus': { counties: [48067], species: false },
 };
-const file: WildFile = { ...stateFile({ fips: 5, code: 'AR' }, { arkatlas: atlas, usda }, SOURCES, counties), native: { 'quercus-muehlenbergii': 'N', 'viola-sororia': 'N', 'lonicera-japonica': 'I', 'allium-canadense-var-lavendulare': 'N' }, nativeSpecies: ['allium-canadense-var-lavendulare'],
-  regulated: { 'lythrum-alatum': ['AR:lythrum'], 'imperata-cylindrica': ['AR:prohibited', 'US:noxious'], 'stray': ['AR:gone'] },
+const file: WildFile = { ...stateFile({ fips: 5, code: 'AR' }, { arkatlas: atlas, usda }, SOURCES, counties), native: { 'quercus-muehlenbergii': 'N', 'viola-sororia': 'N', 'lonicera-japonica': 'I', 'allium-canadense-var-lavendulare': 'N', 'lythrum-alatum': 'N', 'crotalaria-sagittalis': 'N', 'allium-canadense': 'N' }, nativeSpecies: ['allium-canadense-var-lavendulare'],
+  regulated: { 'lythrum-alatum': ['AR:lythrum'], 'imperata-cylindrica': ['AR:prohibited', 'US:noxious'], 'stray': ['AR:gone'], 'crotalaria-sagittalis': ['AR:noxious'], 'allium-canadense': ['AR:noxious'] },
+  genusWide: { 'lythrum-alatum': { 'AR:lythrum': 'Lythrum' }, 'crotalaria-sagittalis': { 'AR:noxious': 'Crotalaria' } },
   rules: {
+    'AR:noxious': { says: 'Declared a noxious weed and public nuisance in Arkansas: nursery stock must be reasonably free of it', tier: 'listed', title: 'Arkansas rules', url: 'https://example.gov/ar.pdf', edition: '2026', read: '2026-10-21' },
     'AR:lythrum': { says: 'Prohibited in Arkansas: no Lythrum may be planted', title: 'Arkansas rules', url: 'https://example.gov/ar.pdf', edition: '2026', read: '2026-10-21' },
     'AR:prohibited': { says: 'Prohibited in Arkansas: may not be sold or planted', title: 'Arkansas rules', url: 'https://example.gov/ar.pdf', edition: '2026', read: '2026-10-21' },
     'US:noxious': { says: 'Federal noxious weed', title: '7 CFR 360.200', url: 'https://example.gov/cfr.pdf', edition: '2025', read: '2026-10-21' },
@@ -178,6 +180,19 @@ describe('wild records near the garden', () => {
     state.location = { zip: '75501', zone: '8a' };
     await loadWild(undefined, fetcher);
     expect(regulatedHere({ id: 'lythrum-alatum' })).toEqual([]); // (Arkansas's law, read from a Texas garden: not here)
+  });
+  it('say why a law covers a plant native to the state: every species of its genus, or by name; ban or listing', async () => {
+    await loadWild(undefined, fetcher);
+    const [loosestrife] = regulatedHere({ id: 'lythrum-alatum' });
+    expect(loosestrife.tier).toBe('ban'); // (a file's line with no tier: read as a ban)
+    expect(loosestrife.native).toBe('Native to Arkansas, but this rule bans every Lythrum species, natives included.');
+    expect(ruleShort(loosestrife)).toBe('Prohibited in Arkansas, though native there');
+    const [rattlebox] = regulatedHere({ id: 'crotalaria-sagittalis' });
+    expect([rattlebox.tier, rattlebox.native]).toEqual(['listed', 'Native to Arkansas, but this rule lists every Crotalaria species, natives included.']);
+    expect(regulatedHere({ id: 'allium-canadense' })[0].native).toBe('Native to Arkansas, and still listed by this rule.');
+    // Not native here: no such line.
+    expect(regulatedHere({ id: 'imperata-cylindrica' }).map((r) => [r.tier, r.native])).toEqual([['ban', undefined], ['ban', undefined]]);
+    expect(ruleShort(regulatedHere({ id: 'imperata-cylindrica' })[0])).toBe('Prohibited in Arkansas');
   });
   it("filter 'Native to <state>' does nothing in a state with no native status in its file (Texas, here)", async () => {
     state.location = { zip: '75501', zone: '8a' };

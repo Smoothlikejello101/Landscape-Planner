@@ -163,11 +163,21 @@ test('a plant the garden\'s state prohibits says so, with the rule', async ({ pa
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Winged loosestrife');
   const plant = page.locator('.plant-item', { hasText: 'Winged loosestrife' });
-  await expect(plant.getByTestId('row-law')).toHaveText('Prohibited in Arkansas'); // (in its row, before it's opened)
+  await expect(plant.getByTestId('row-law')).toHaveText('Prohibited in Arkansas, though native there'); // (in its row, before it's opened)
   await plant.getByTestId('plant-row').click();
   const law = plant.getByTestId('regulated-here');
   await expect(law).toContainText('Prohibited in Arkansas: no Lythrum may be planted, sold, bought or moved (2 CAR §50-709)');
   await expect(law.locator('a')).toHaveAttribute('href', /2CARpt50\.pdf/);
+  // Native here and banned all the same: the line says why, in plain words.
+  await expect(law.getByTestId('law-native')).toHaveText('Native to Arkansas, but this rule bans every Lythrum species, natives included.');
+  await expect(law).not.toHaveClass(/listed/);
+  // Rattlebox: listed, not banned (amber), native, and why.
+  await page.getByTestId('plant-search').fill('rattlebox');
+  const rattlebox = page.locator('.plant-item', { hasText: /rattlebox/i }).first();
+  await expect(rattlebox.getByTestId('row-law')).toHaveClass(/listed/);
+  await rattlebox.getByTestId('plant-row').click();
+  await expect(rattlebox.getByTestId('regulated-here')).toHaveClass(/listed/);
+  await expect(rattlebox.getByTestId('law-native')).toHaveText('Native to Arkansas, but this rule lists every Crotalaria species, natives included.');
   // Chinaberry: on Texas's list, not Arkansas's: nothing said here.
   await page.getByTestId('plant-search').fill('Chinaberry');
   const chinaberry = page.locator('.plant-item', { hasText: 'Chinaberry' });
