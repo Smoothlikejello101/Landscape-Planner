@@ -3,7 +3,8 @@
 // nurseries report where it differs from the authorities.
 import { el } from '../dom';
 import type { Plant } from '../plants';
-import { MONTH_NAMES, PLANT_META, formsOf, rootSpread, spreadText, zoneNote } from '../plants';
+import { MONTH_NAMES, PLANT_META, formsOf, zoneNote } from '../plants';
+import { rootSpread, rootText, seedText } from '../spread';
 import { zoneRange } from '../climate';
 import type { Provenance } from '../catalog';
 import { escapeHere, escapeText, localBloom, nativeHere, nativeText, regulatedHere, wildHere, wildText } from '../wild';
@@ -49,16 +50,34 @@ function rows(p: Plant): Row[] {
     ['Takes clay', yes(p.clay_ok), ['clay_ok']],
     ['Takes wet feet', yes(p.wet_feet), ['wet_feet']],
     ['Takes dry shade', yes(p.dry_shade), ['dry_shade']],
-    // (By seed and by roots together: two facts, one question, "will it spread?")
-    ['Spreads', spreadText(p), ['self_seed', 'habit']],
+    // (By seed, and underground or by runners: two facts, one question, "will it spread?"; drawn by spreadRow.)
+    ['How it spreads', '', ['self_seed', 'habit']],
     ['Maintenance', p.maintenance ?? '', ['maintenance']],
     ['Taproot (hard to move)', yes(p.taproot), ['taproot']],
     ['Humidity', p.humidity === 'humid' ? 'Likes humid summers' : p.humidity === 'dry' ? 'Likes dry air' : p.humidity === 'either' ? 'Either' : '', ['humidity']],
-    // (A habit that's about spreading is in "Spreads"; one that isn't, a vine's twining, stays here.)
-    ['Habit', rootSpread(p.habit) ? '' : p.habit ?? '', ['habit']],
+    // (A habit that speaks to spreading is under "How it spreads"; one that doesn't, a vine's twining, stays here.)
+    ['Habit', rootSpread(p.habit) && rootSpread(p.habit) !== 'shape' ? '' : p.habit ?? '', ['habit']],
     ['Trunk', p.trunk ? `${p.trunk} in across` : '', ['trunk']],
     ['Nativar', p.nativar ? 'A cultivar of a native species' : '', ['nativar']],
   ];
+}
+/**
+ * "How it spreads": by seed, and underground or by runners, each with its own source (they come from separate
+ * sources). Self-sowing looked up and not found is said so; a part not looked up is left out. Null: nothing to say.
+ */
+function spreadRow(p: Plant): HTMLElement | null {
+  const seed = seedText(p) || (p.prov?.self_seed?.unknown ? 'Self-sowing not known: none of the sources say' : '');
+  const parts: [string, string][] = [];
+  if (seed) parts.push([seed, sourceLine(p.prov?.self_seed)]);
+  const roots = rootText(p);
+  if (roots) parts.push([roots, sourceLine(p.prov?.habit)]);
+  if (!parts.length) return null;
+  const dd = el('dd', { 'data-testid': 'spreads' });
+  for (const [text, src] of parts) {
+    dd.appendChild(el('span', { className: 'details-part' }, text));
+    if (src) dd.appendChild(el('span', { className: 'details-src' }, src));
+  }
+  return dd;
 }
 /** Where a value came from, in a few words: "NC State, USDA · confirmed", "older list, unverified". */
 function sourceLine(prov: Provenance | undefined): string {
@@ -82,6 +101,7 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
   if (p.botanical) box.appendChild(el('div', { className: 'details-bot' }, p.botanical));
   const dl = el('dl', { className: 'details-list' });
   for (const [label, value, facts, reportedText] of rows(p)) {
+    if (label === 'How it spreads') { const dd = spreadRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
     const prov = facts.map((f) => p.prov?.[f]).find(Boolean);
     const reported = p.reported && facts.some((f) => f in p.reported!) && reportedText ? reportedText(p.reported) : '';
     // Bloom where the garden is, from flowering records there: its months, and how many records they rest on.

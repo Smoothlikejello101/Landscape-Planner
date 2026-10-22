@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { matchedBy, nonToxicToDogs, PLANT_FILTER_DEFAULTS, plantMatches, plantTakesSun, reportedMatch, rootSpread, searchRank, spreadsAs, spreadText, type Plant } from '../src/plants';
+import { matchedBy, nonToxicToDogs, PLANT_FILTER_DEFAULTS, plantMatches, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
+import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs } from '../src/spread';
+import { readFileSync } from 'node:fs';
 
 const heuchera: Plant = {
   id: 'h', common: "Heuchera 'Autumn Bride'", botanical: 'Heuchera villosa', form: 'Perennial',
@@ -94,29 +96,35 @@ describe('plant filters', () => {
   });
 });
 
-describe('how a plant spreads: by seed and by roots, two facts under one question', () => {
-  const p = (self_seed: string | undefined, habit: string | undefined) => ({ id: 'x', common: 'x', self_seed, habit }) as Plant;
-  it('reads the roots from the habit', () => {
-    expect(['Aggressive rhizome', 'Runner - CONTAIN', 'Thicket-forming', 'Suckering colonizer'].map(rootSpread)).toEqual(Array(4).fill('aggressive'));
-    expect(['Spreading rhizome', 'Runner (stolons)', 'Suckering', 'Mat-forming', 'Naturalizing'].map(rootSpread)).toEqual(Array(5).fill('spreads'));
-    expect(rootSpread('Suckering (slow)')).toBe('slow');
-    expect(['Clumping', 'Single-stem', 'Multi-stem', 'Clumping rosette'].map(rootSpread)).toEqual(Array(4).fill('stays'));
-    expect([rootSpread('Twining vine'), rootSpread('Reseeding annual'), rootSpread(undefined)]).toEqual([null, null, null]);
+describe('how a plant spreads: by seed, and underground or by runners: two facts under one question', () => {
+  const p = (self_seed: string | undefined, habit: string | undefined, invasive = false) => ({ id: 'x', common: 'x', self_seed, habit, invasive }) as Plant;
+  it('reads what a habit says of spreading from a fixed table, and knows every habit in the catalog', () => {
+    expect(['Aggressive rhizome', 'Runner - CONTAIN', 'Thicket-forming'].map(rootSpread)).toEqual(Array(3).fill('aggressive'));
+    expect(['Spreading rhizome', 'Runner (stolons)', 'Suckering', 'Spreading (tubers)'].map(rootSpread)).toEqual(Array(4).fill('spreads'));
+    expect([rootSpread('Suckering (slow)'), rootSpread('Clumping'), rootSpread('Single-stem')]).toEqual(['slow', 'stays', 'stays']);
+    // (Shape, not spread: an erect cane, a multi-stemmed shrub may sucker or not.)
+    expect(['Erect canes', 'Multi-stem', 'Upright open', 'Twining vine'].map(rootSpread)).toEqual(Array(4).fill('shape'));
+    expect(['Mat-forming', 'Naturalizing', 'Reseeding annual'].map(rootSpread)).toEqual(Array(3).fill('other'));
+    expect([rootSpread('No runners'), rootSpread(undefined)]).toEqual([null, null]); // (not in the table: never guessed)
+    const catalog = JSON.parse(readFileSync('public/plants.json', 'utf8')) as { plants: { facts?: { habit?: unknown } }[] };
+    const habits = new Set(catalog.plants.map((r) => r.facts?.habit).filter((h): h is string => typeof h === 'string'));
+    expect([...habits].filter((h) => !(h in HABIT_SPREAD))).toEqual([]);
   });
-  it('says it in words, both ways; a habit that says nothing of spreading stays its own row', () => {
-    expect(spreadText(p('Prolific', 'Spreading rhizome'))).toBe('Self-sows freely; spreads by roots (spreading rhizome)');
-    expect(spreadText(p('Modest', 'Clumping'))).toBe('Self-sows a little; no runners (clumping)');
-    expect(spreadText(p(undefined, 'Aggressive rhizome'))).toBe('Spreads aggressively by roots (aggressive rhizome)');
-    expect(spreadText(p('Sterile', 'Twining vine'))).toBe('Sets no seed');
-    expect(spreadText(p(undefined, undefined))).toBe('');
+  it('says each part in words, the habit as given; an older list\'s "Sterile" never as fact; no reassurance for an invasive', () => {
+    expect([seedText(p('Prolific', '')), seedText(p('Modest', '')), seedText(p('Sterile', '')), seedText(p(undefined, ''))])
+      .toEqual(['Self-sows freely', 'Self-sows a little', 'Said not to set seed', '']);
+    expect(rootText(p(undefined, 'Runner - CONTAIN'))).toBe('Spreads aggressively underground or by runners: Runner - CONTAIN');
+    expect(rootText(p(undefined, 'Suckering (slow)'))).toBe('Spreads slowly underground or by runners: Suckering (slow)');
+    expect(rootText(p(undefined, 'Clumping'))).toBe("Doesn't run: Clumping");
+    expect(rootText(p(undefined, 'Clumping', true))).toBe(''); // (an invasive plant)
+    expect([rootText(p(undefined, 'Naturalizing')), rootText(p(undefined, 'Twining vine'))]).toEqual(['Naturalizing', '']);
   });
-  it('filters: stays put (both known), self-sows freely, spreads by roots, spreads aggressively', () => {
+  it('filters: stays put (doesn\'t run, self-sows only a little, not invasive), self-sows freely, runs, runs aggressively', () => {
     expect(spreadsAs(p('Modest', 'Clumping'), 'stays')).toBe(true);
-    expect(spreadsAs(p('Prolific', 'Clumping'), 'stays')).toBe(false); // (seeds itself around)
-    expect(spreadsAs(p(undefined, 'Clumping'), 'stays')).toBe(false); // (its seed not known: not said to stay)
-    expect(spreadsAs(p('Modest', 'Twining vine'), 'stays')).toBe(false);
-    expect([spreadsAs(p('Prolific', 'Clumping'), 'seed'), spreadsAs(p('Modest', 'Suckering (slow)'), 'roots'), spreadsAs(p('Modest', 'Suckering (slow)'), 'aggressive')]).toEqual([true, true, false]);
-    expect([spreadsAs(p('Modest', 'Runner - CONTAIN'), 'aggressive'), spreadsAs(p('Prolific', 'Clumping'), 'aggressive')]).toEqual([true, true]);
-    expect(plantMatches(p('Modest', 'Clumping'), { ...PLANT_FILTER_DEFAULTS, spread: 'roots' })).toBe(false);
+    expect([spreadsAs(p('Prolific', 'Clumping'), 'stays'), spreadsAs(p('Sterile', 'Clumping'), 'stays'), spreadsAs(p(undefined, 'Clumping'), 'stays'),
+      spreadsAs(p('Modest', 'Clumping', true), 'stays'), spreadsAs(p('Modest', 'Multi-stem'), 'stays')]).toEqual([false, false, false, false, false]);
+    expect([spreadsAs(p('Prolific', 'Clumping'), 'seed'), spreadsAs(p('Modest', 'Suckering (slow)'), 'runs'), spreadsAs(p('Modest', 'Suckering (slow)'), 'aggressive')]).toEqual([true, true, false]);
+    expect([spreadsAs(p('Modest', 'Runner - CONTAIN'), 'aggressive'), spreadsAs(p('Prolific', 'Clumping'), 'aggressive')]).toEqual([true, false]);
+    expect(plantMatches(p('Modest', 'Clumping'), { ...PLANT_FILTER_DEFAULTS, spread: 'runs' })).toBe(false);
   });
 });

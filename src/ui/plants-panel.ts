@@ -295,7 +295,11 @@ export function renderPlantsPanel() {
     mkSelect('Any maintenance', 'maintenance', enums.maintenance || [])
   ));
   adv.appendChild(row(
-    withTestId(mkSelect('Any spreading', 'spread', ['stays', 'seed', 'roots', 'aggressive'], (v) => ({ stays: 'Stays put', seed: 'Self-sows freely', roots: 'Spreads by roots', aggressive: 'Spreads aggressively' } as Record<string, string>)[v] ?? v), 'spread-filter')
+    // (Says unverified while both facts go by the older list, as the dog filter does.)
+    withTestId(mkSelect('Any spreading', 'spread', ['stays', 'seed', 'runs', 'aggressive'], (v) => ({
+      stays: PLANTS.some((p) => p.prov?.self_seed?.src.every((s) => PLANT_META?.sources?.[s]?.trust === 'unverified') ?? true) ? 'Stays put (unverified)' : 'Stays put',
+      seed: 'Self-sows freely', runs: 'Spreads underground or by runners', aggressive: 'Spreads aggressively underground',
+    } as Record<string, string>)[v] ?? v), 'spread-filter')
   ));
   adv.appendChild(el('div', { className: 'hint', style: { padding: '10px 0 0' } }, 'Traits'));
   adv.appendChild(el('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px 16px', margin: '4px 0 8px' } },
