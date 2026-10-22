@@ -72,6 +72,12 @@ describe('plant filters', () => {
     expect(plantMatches(heuchera, f({ q: 'VILLOSA' }))).toBe(true);
     expect(plantMatches(heuchera, f({ q: 'oak' }))).toBe(false);
   });
+  it('lets what nurseries report count for the height range, flagged', () => {
+    const vine: Plant = { ...heuchera, id: 'v', height: { med: 22.5 }, reported: { height: { min: 40, max: 60, med: 50 } } };
+    expect(reportedMatch(vine, f({ height: '40-', withReported: true }))).toEqual(['height']);
+    expect(reportedMatch(vine, f({ height: '40-', withReported: false }))).toBeNull();
+    expect(reportedMatch(vine, f({ height: '20-30', withReported: true }))).toEqual([]);
+  });
   it('applies the height range to the typical (median) height', () => {
     expect(plantMatches(heuchera, f({ height: '-2' }))).toBe(true);
     expect(plantMatches(heuchera, f({ height: '-1' }))).toBe(false);
@@ -141,6 +147,6 @@ describe('the mature-height slider', () => {
     const last = HEIGHT_STOPS.length - 1;
     expect([heightValue(0, last), heightValue(0, 7), heightValue(9, last), heightValue(4, 7)]).toEqual(['', '-10', '20-', '4-10']);
     expect(['', '-10', '20-', '4-10'].map(heightLabel)).toEqual(['Any height', 'Up to 10 ft', '20 ft and taller', '4–10 ft']);
-    expect([heightStops(''), heightStops('4-10'), heightStops('-10'), heightStops('25-')]).toEqual([[0, last], [4, 7], [0, 7], [9, last]]); // (25 ft: the nearest stop, 20)
+    expect([heightStops(''), heightStops('4-10'), heightStops('-10'), heightStops('24-')]).toEqual([[0, last], [4, 7], [0, 7], [9, last]]); // (24 ft: the nearest stop, 20)
   });
 });

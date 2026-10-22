@@ -38,21 +38,27 @@ export function heightRange(value: string, onInput: (v: string) => void, onChang
   const mk = (v: number, label: string, testId: string) => el('input', { type: 'range', min: 0, max: LAST, step: 1, value: v, 'aria-label': label, 'data-testid': testId });
   const a = mk(lo0, 'Shortest mature height', 'height-min'), b = mk(hi0, 'Tallest mature height', 'height-max');
   const fill = el('div', { className: 'tr-fill' });
-  const sync = () => {
+  // (Once let go, the handles are put in order, a step apart: a handle dragged past the other trades places with
+  // it, so each keeps its label for a screen reader; "Up to 0 ft", or a range of one stop, would find nothing.
+  // Not while dragging: the handle under the finger mustn't jump.)
+  const sync = (settle = false) => {
     let lo = Number(a.value), hi = Number(b.value);
     if (lo > hi) [lo, hi] = [hi, lo];
+    if (lo === hi) { if (hi < LAST) hi++; else lo--; }
+    if (settle) { a.value = String(lo); b.value = String(hi); }
     fill.style.left = (lo / LAST) * 100 + '%';
     fill.style.width = ((hi - lo) / LAST) * 100 + '%';
-    a.setAttribute('aria-valuetext', Number(a.value) === 0 ? 'no shortest' : `${HEIGHT_STOPS[Number(a.value)]} ft`);
-    b.setAttribute('aria-valuetext', Number(b.value) === LAST ? 'no tallest' : `${HEIGHT_STOPS[Number(b.value)]} ft`);
+    const text = (i: number) => (i === 0 ? 'no shortest' : i === LAST ? 'no tallest' : `${HEIGHT_STOPS[i]} ft`);
+    a.setAttribute('aria-valuetext', text(Number(a.value)));
+    b.setAttribute('aria-valuetext', text(Number(b.value)));
     return heightValue(lo, hi);
   };
   a.addEventListener('input', () => onInput(sync()));
   b.addEventListener('input', () => onInput(sync()));
-  a.addEventListener('change', () => onChange(sync()));
-  b.addEventListener('change', () => onChange(sync()));
-  sync();
-  return el('div', { className: 'time-range height-range' },
+  a.addEventListener('change', () => onChange(sync(true)));
+  b.addEventListener('change', () => onChange(sync(true)));
+  sync(true);
+  return el('div', { className: 'time-range height-range', role: 'group', 'aria-label': 'Mature height' },
     el('div', { className: 'tr-track' }, fill), a, b,
     el('div', { className: 'tr-scale' }, el('span', {}, 'any'), el('span', {}, '10 ft'), el('span', {}, '100+ ft')));
 }

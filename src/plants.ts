@@ -103,8 +103,9 @@ export const PLANT_FILTER_DEFAULTS = {
   q: '', form: '', water: '', bloomMonth: '', sun: '',
   native: '', deer: '', nectar: '', bird: '', maintenance: '',
   /** How it spreads (src/spread.ts): '' any; 'stays' stays put; 'seed' self-sows freely; 'runs' spreads underground or by runners; 'aggressive' aggressively so. */
+  spread: '',
   /** Mature height (typical), "lo-hi" in feet, either end empty when open: src/ui/height-range.ts. */
-  spread: '', height: '',
+  height: '',
   dogSafeOnly: false, dryShade: false, wetFeet: false, clayOk: false,
   hostOnly: false, fallColor: false, winterInterest: false,
   edible: false, noTaproot: false, inPlan: false,
