@@ -8,6 +8,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { savedPage } from './pages.mjs';
 import { arkatlasStatus, mnwildFields, ncsuFields, usdaFields } from './extract.mjs';
 import { sameTaxon } from './usda-counties.mjs';
+import { acceptsPage, ncsuPageName, ownCultivarPage, titleCultivar } from './ncsu-page.mjs';
 import { arkatlasClaims, combine, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims } from './claims.mjs';
 
 const [samplePath, atlasPath, outPath, extraPath] = process.argv.slice(2);
@@ -32,18 +33,15 @@ for (const s of sample) {
   const notes = [];
   const seen = {};
   // NC State
-  let ncsu = {};
+  let ncsu = {}, ownCultivar = false, cultivarTitle = null;
   if (s.ncsu) {
     const url = `https://plants.ces.ncsu.edu/plants/${s.ncsu}/`;
     const p = page('ncsu', url);
     if (p) {
       const f = ncsuFields(p.text);
-      // (Some hybrids' pages have no species field: the name is the title's, "Magnolia x soulangeana". NC State
-      // writes × as x.)
-      const titled = f.Species?.[0] ? '' : (/<title>\s*([^(<|]+)/.exec(p.text)?.[1] ?? '').replace(/\s+/g, ' ').trim();
-      const name = (/ x [a-zë-]/.test(titled) ? titled : `${f.Genus?.[0] ?? ''} ${f.Species?.[0] ?? ''}`.trim()).replace(/^(\S+) x (?=[a-zë-])/, '$1 × ');
+      const name = ncsuPageName(p.text, f);
       // (The page's own name, or one reviewed as this plant's: NC State's misspelling, or a synonym; ncsu-pages.json `names`.)
-      if ((s.ncsuName && name === s.ncsuName) || sameName(name, s.species) || (s.genusOnly && f.Genus?.[0] === s.species.split(' ')[0])) { ncsu = f; seen.ncsu = { url, fetched: p.fetched, name: name || s.ncsu }; }
+      if (acceptsPage(s, name, f.Genus?.[0])) { ncsu = f; seen.ncsu = { url, fetched: p.fetched, name: name || s.ncsu }; ownCultivar = !!s.genusOnly && ownCultivarPage(rec, p.text); cultivarTitle = titleCultivar(p.text); }
       else notes.push(`NC State page ${s.ncsu} is ${name}, not ${s.species}: left out`);
       if (s.genusOnly && s.ncsu === s.species.split(' ')[0].toLowerCase()) notes.push(`NC State has only a page for the genus ${s.species.split(' ')[0]}`);
     } else notes.push('NC State page not fetched');
@@ -75,10 +73,10 @@ for (const s of sample) {
   else if (ar.uncertain) notes.push(`The Arkansas atlas maps ${s.species} more than once with different status: left for the review`);
   // Claims from each source, combined by tier (docs/catalog-sources.md).
   const cultivar = /'[^']+'/.test(`${rec?.common ?? ''} ${rec?.botanical ?? ''}`);
-  const slugOf = (t) => t.toLowerCase().replace(/×/g, 'x').replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-  // (A species-level page: the species' own, or one under a reviewed other name; a genus's, for a genus or group.
-  // A cultivar's own page is a cultivar page, whatever the record names: Thuja 'Green Giant' for a Thuja record.)
-  const speciesPage = seen.ncsu && (s.ncsuName || s.ncsu === slugOf(s.species));
+  // (A species-level page: one whose title names no cultivar (the species', a synonym's, the page NC State moved it
+  // to, a genus's), or one under a reviewed other name; for a genus or group, any page but its one cultivar's own:
+  // Thuja 'Green Giant' for "Thuja 'Green Giant'", not 'Natchez' for three crape myrtles.)
+  const speciesPage = seen.ncsu && (s.ncsuName || !cultivarTitle || (s.genusOnly && !ownCultivar));
   const claims = [
     ...ncsuClaims(ncsu).map((c) => ({ ...c, cultivarPage: !!seen.ncsu && !speciesPage }))
       .map((c) => (c.fact === 'host' ? { ...c, v: onlyCaterpillars(c.v, lepGenera) } : c)).filter((c) => !(c.fact === 'host' && !c.v.length)),

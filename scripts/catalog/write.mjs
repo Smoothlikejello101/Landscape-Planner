@@ -110,6 +110,15 @@ export function writeAudit(catalog, audit, date, warnings = () => []) {
     const sourced = (k) => written.has(k) || (valueOf(facts[k]) != null && facts[k]?.src?.length > 0 && facts[k].src.every((s) => catalog.meta.sources[s]?.trust !== 'unverified'));
     for (const pair of PAIRS) if (pair.some((k) => !sourced(k))) for (const k of pair) if (written.has(k) && facts[k].alt) { facts[k] = { ...facts[k] }; delete facts[k].alt; }
     for (const k of written) for (const s of [...facts[k].src, ...(facts[k].alt?.src ?? [])]) used.add(s);
+    // A value an earlier run sourced that no source gives now (its page no longer read, or no longer saying it):
+    // kept, since a record may need it (a plant's spread draws its circle), but listed, its citation no longer
+    // true of today's sources. (Not where this run already lists the fact.)
+    const listed = new Set(review.filter((i) => i.id === rec.id).flatMap((i) => i.fact.split(', ')));
+    for (const [, [to]] of Object.entries(FACTS)) {
+      const f = rec.facts[to];
+      if (written.has(to) || listed.has(to) || !(f?.src?.length > 0) || f.src.some((s) => catalog.meta.sources[s]?.trust === 'unverified')) continue;
+      review.push({ id: rec.id, fact: to, note: `no source gives it now: ${JSON.stringify(f.v)}, from ${f.src.join(', ')}` });
+    }
     // (Dated by this run only where its facts changed, or it had none audited: a record the run leaves as it was
     // keeps the date its facts were written on. So a build on a later day changes only what it changed.)
     if (!written.size) return rec;

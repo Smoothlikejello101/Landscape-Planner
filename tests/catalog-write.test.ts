@@ -59,6 +59,16 @@ describe('writing the audit into the catalog', () => {
     const changed = writeAudit(file, [{ ...audit[0], facts: { ...audit[0].facts, water: { v: 'High', src: ['ncsu'], check: 'single' } } }, audit[1]], '2026-11-02').file;
     expect([changed.plants[0].audited, changed.plants[0].facts.water]).toEqual(['2026-11-02', { v: 'High', src: ['ncsu'], check: 'single' }]);
     expect(changed.meta.updated).toBe('2026-11-02');
+    // (A value an earlier run sourced that no source gives now: kept, and listed.)
+    const { height: _h, ...noHeight } = audit[0].facts;
+    const gone = writeAudit(file, [{ ...audit[0], facts: noHeight }, audit[1]], '2026-11-02');
+    expect(gone.file.plants[0].facts.height).toEqual(file.plants[0].facts.height);
+    expect(gone.review).toContainEqual({ id: 'redbud', fact: 'height', note: 'no source gives it now: {"min":20,"max":30,"med":25}, from ncsu' });
+    expect(gone.review.filter((i: { note: string }) => i.note.startsWith('no source'))).toHaveLength(1); // (not the facts it lists already)
+    // (Beside a record that changes, one that doesn't keeps its date.)
+    const two = { ...file, plants: [...file.plants, { ...file.plants[0], id: 'redbud-2' }] };
+    const both = writeAudit(two, [{ ...audit[0], facts: { ...audit[0].facts, water: { v: 'High', src: ['ncsu'], check: 'single' } } }, audit[1], { ...audit[0], id: 'redbud-2' }], '2026-11-02').file;
+    expect(both.plants.map((p: { audited: string | null }) => p.audited)).toEqual(['2026-11-02', null, '2026-10-19']);
   });
 });
 

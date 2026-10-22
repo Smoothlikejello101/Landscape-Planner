@@ -1,8 +1,8 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md) from the pages read 2026-10-21: what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 125 to decide, 357 pages not fetched yet, 39 sites whose terms are unsettled, 106 catalog checks; 771 of 820 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 123 to decide, 39 sites whose terms are unsettled, 106 catalog checks; 775 of 820 records audited.
 
-- [Sources disagree (38)](#sources-disagree-38)
+- [Sources disagree (36)](#sources-disagree-36)
 - [Tree: understory or canopy? (46)](#tree-understory-or-canopy-46)
 - [Edible, but rated toxic (12)](#edible-but-rated-toxic-12)
 - [Held back as implausible (1)](#held-back-as-implausible-1)
@@ -10,12 +10,10 @@ Written by `npm run catalog:build` (docs/catalog-build.md) from the pages read 2
 - [Native status held back (2)](#native-status-held-back-2)
 - [Mapped twice on the Arkansas atlas (17)](#mapped-twice-on-the-arkansas-atlas-17)
 - [Read from the genus's page (1)](#read-from-the-genuss-page-1)
-- [A page the list names but that isn't saved (3)](#a-page-the-list-names-but-that-isnt-saved-3)
-- [Not looked up yet (354)](#not-looked-up-yet-354)
 - [Sites whose terms are unsettled (39)](#sites-whose-terms-are-unsettled-39)
 - [Catalog checks (106)](#catalog-checks-106)
 
-## Sources disagree (38)
+## Sources disagree (36)
 
 The audit's sources give different values, so the catalog keeps the value it had, marked unverified. Zones are on the half-zone scale (7 is 7a, 7.5 is 7b); sizes are in feet. There's no place to record a decision on these yet: they stay listed until there is.
 
@@ -29,8 +27,6 @@ The audit's sources give different values, so the catalog keeps the value it had
 | Dogbane (`apocynum-cannabinum`) | warmest zone | ncsu, fellabees.com: 11.5 · illinois.edu: 9.5 | 9.5 |
 | Ground plum (`astragalus-crassicarpus`) | least sun | morningskygreenery.com: Part · blazingstargardens.com: Full | Part |
 | Indian paintbrush (`castilleja-coccinea`) | form | ncsu lists Perennial; usda lists Annual | Annual |
-| Tall coreopsis (`coreopsis-tripteris`) | most sun | newmoonnursery.com: Full · fellabees.com: Part | Full |
-| Tall coreopsis (`coreopsis-tripteris`) | least sun | newmoonnursery.com: Full · fellabees.com: Part | Part |
 | Downy gentian (`gentiana-puberulenta`) | most sun | windflowernatives.com: Part · mowildflowers.net: Full | Full |
 | Michigan lily (`lilium-michiganense`) | least sun | blazingstargardens.com: Part · rachelsnativeplants.com: Shade | Part |
 | Sweet cicely (`osmorhiza-claytonii`) | most sun | morningskygreenery.com: Shade · keystonewildflowers.com: Part | Part |
@@ -81,7 +77,6 @@ A source calls it a tree without saying which kind, or the species is a tree and
 | Red-berried elderberry (`sambucus-racemosa`) | usda lists Shrub, Tree, the tree without saying understory or canopy | Shrub |
 | Hazel alder (`alnus-serrulata`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Shrub |
 | Pawpaw (`asimina-triloba`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Tree (understory) |
-| Wax myrtle (`morella-cerifera`) | usda lists Shrub, Tree, the tree without saying understory or canopy | Shrub |
 | Sweetbay magnolia (`magnolia-virginiana`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Tree (understory) |
 | American persimmon (`diospyros-virginiana`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (canopy) |
 | Dwarf yaupon holly (`ilex-vomitoria-nana-schillings`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Shrub |
@@ -100,6 +95,7 @@ A source calls it a tree without saying which kind, or the species is a tree and
 | Sweet cherry (`prunus-avium`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (understory) |
 | Loropetalum (`loropetalum-chinense-purple-pixie-zhuzhou`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Shrub |
 | Arborvitae 'Green Giant' (`thuja-green-giant`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (canopy) |
+| Crape myrtle (`lagerstroemia-natchez-muskogee-tonto`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree (understory) |
 | Japanese maple (`acer-palmatum-bloodgood-seiryu`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (understory) |
 | Ginkgo (male only) (`ginkgo-biloba-autumn-gold-princeton-sentry`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree (canopy) |
 | Saucer magnolia (`magnolia-x-soulangeana`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Tree (understory) |
@@ -186,21 +182,6 @@ NC State's page for the whole genus was read for this plant (scripts/catalog/ncs
 
 - Daffodil 'Tete-a-Tete' (`narcissus-tete-a-tete`)
 
-## A page the list names but that isn't saved (3)
-
-scripts/catalog/ncsu-pages.json names the page, but there's no copy of it. One never fetched: `npm run catalog:build -- --fetch` asks for it. One asked for that NC State doesn't have: take its entry out.
-
-- Artemisia 'Powis Castle' (`artemisia-hybrid`): `artemisia-powis-castle`, never fetched
-- Boxwood (`buxus-green-velvet-microphylla-types`): `buxus-green-velvet`, never fetched
-- Holly 'Nellie R. Stevens' (`ilex-x-nellie-r-stevens`): `ilex-nellie-r-stevens`, never fetched
-
-## Not looked up yet (354)
-
-Pages the list could use that were never asked for: `npm run catalog:build -- --fetch` asks for them (through the fetcher: robots.txt, and each site's pace; NC State's is one page every 5 seconds), then builds with what it finds.
-
-- 345 NC State species pages never asked for: guesses by the plant's name, so many may not exist (a page that doesn't answers 404, which is kept, so it's asked once)
-- 9 USDA PLANTS profiles and characteristics
-
 ## Sites whose terms are unsettled (39)
 
 A search found pages on these sites, but their terms aren't in the record (scripts/catalog/site-terms.json): a reader couldn't tell what they allow, or none has read them. Their pages aren't used. Each one's packet is in catalog-src/terms-review/, which holds the last search run's (docs/catalog-sources.md, "How terms are read").
@@ -221,7 +202,7 @@ What `npm run catalog:check` lists: implausible values, and names and parents to
 
 Where a source gave nothing, counted only:
 
-- 373 plants: no NC State page in the list: never asked for (see "Not looked up yet"), asked for and NC State has none (a 404), a genus or cultivar group (not read by the rule), or a page not matched to the plant yet
+- 350 plants: no NC State page in the list: never asked for (see "Not looked up yet"), asked for and NC State has none (a 404), a genus or cultivar group (not read by the rule), or a page not matched to the plant yet
 - 64 plants: no USDA PLANTS symbol: a genus or cultivar group (not searched), or a name PLANTS has no species entry for
 - 464 plants: a USDA PLANTS profile with no characteristics saved (size, sun and so on): PLANTS has none, or they were never fetched (see "Not looked up yet")
 - 264 plants: not on the Arkansas atlas's maps under its name (mostly plants not recorded wild in Arkansas)

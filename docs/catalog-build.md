@@ -102,17 +102,32 @@ catalog by rule, except where a committed file says otherwise.
   - A record of two plants reads only the first: Salvia officinalis / Origanum vulgare; Prunus x yedoensis /
     'Kwanzan' reads the Yoshino cherry's page.
   - "Tulipa hybrids" passes as an epithet.
+  - A species record of several cultivars (Acer palmatum 'Bloodgood' / 'Seiryu') reads its one cultivar page as
+    the record's: its size is that cultivar's.
 
   Fixing one changes the catalog, so each fix is its own change, with its diff reviewed.
 - **NC State.** The species' page (its name in lower case, hyphenated, × as x: `fothergilla-x-intermedia`),
   where one is saved. `scripts/catalog/ncsu-pages.json` names the exceptions, chosen by hand, or `null` for none.
   An exception is a cultivar's own page, the one cultivar page a record of several reads, a genus's page, or a
-  species' page under another name. A cultivar's own page is read as the cultivar's, whatever the record names
-  (Thuja 'Green Giant' for a Thuja record), so its size, form and flower color count.
+  species' page under another name. For a genus or group record, a cultivar's page counts as the cultivar's, its
+  size, form and flower color included, only when the record names that one cultivar (Thuja 'Green Giant'). For a
+  record of several cultivars, it counts as species-level: 'Natchez' doesn't speak for 'Tonto'.
+- **A page NC State moved.** When NC State renames a plant, the old page answers with a redirect to the new one
+  (coreopsis-verticillata → anacis-verticillata). The fetcher keeps the answer without following it. The list
+  then points at the new page, and `--fetch` asks for it. That's one move, and only from a species' own page: a
+  page `ncsu-pages.json` names that moved is listed in the report, for its entry to be pointed at the new page.
 - **A page under another name.** A page is read when the name it gives is the plant's. Where it gives another,
-  `ncsu-pages.json`'s `names` can accept it: the page, and the name it gives. That's for NC State's own
-  misspellings ("Geranium manculatum") and synonyms by Kew's checklist (Helenium nudiflorum for H. flexuosum;
-  Hydrangea petiolaris, which Kew accepts, for the catalog's H. anomala subsp. petiolaris).
+  `ncsu-pages.json`'s `names` can accept it: the page, and the name it gives. It's for three cases, each checked
+  against Kew's checklist:
+  - NC State's own misspellings ("Geranium manculatum");
+  - synonyms: Helenium nudiflorum for H. flexuosum; Hydrangea petiolaris, which Kew accepts, for the catalog's
+    H. anomala subsp. petiolaris;
+  - the new names of the pages NC State moved, where Kew makes the two names one plant (Coreopsis verticillata
+    is Anacis verticillata to Kew).
+
+  Where Kew keeps them apart, the record's entry in `pages` is `null`. NC State moves Schoenoplectus
+  tabernaemontani to S. lacustris, and Vaccinium virgatum to V. corymbosum. `names` is by record, so another record
+  that reaches the same page isn't accepted by it.
 - **USDA PLANTS.** The symbol `usda-pick.mjs` picks from the species' saved name search: its own name at species
   rank, not a hybrid or a variety, and a profile that is the plant's own or a reviewed rename.
 

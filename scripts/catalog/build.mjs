@@ -4,8 +4,8 @@
 // Offline unless --fetch: it then first fetches, through the fetcher (robots.txt, each site's pace), what the
 // list needs that was never asked for. The web search and GBIF's download requests aren't run (they need the
 // search key, the account, and terms readings); what they'd add is named in the report.
-// --date: written on each record whose facts the build changes (default: today); a record left as it was keeps
-// its date.
+// --date: written on each record whose facts the build changes (default: today, the UTC day, as the fetcher
+// names its folders); a record left as it was keeps its date.
 //
 // Writes public/plants.json, public/wild/1/, docs/catalog-review.md (what's waiting on a person), and
 // catalog-src/build/ (the steps' files and log, kept, not committed). Running it twice changes nothing.
@@ -87,7 +87,7 @@ function fetchList(label, items) {
 }
 
 const catalog = JSON.parse(catalogBefore);
-const date = opts.date ?? new Date().toLocaleDateString('en-CA');
+const date = opts.date ?? new Date().toISOString().slice(0, 10); // (the UTC day, as the fetcher names its folders)
 
 // 0. Fetch what the list needs (--fetch): rounds, since a search leads to profiles, and a profile can change a
 // pick. It stops when nothing new is asked for (a page that failed is asked again next build).
@@ -160,7 +160,6 @@ const after = JSON.parse(readFileSync('public/plants.json', 'utf8'));
 const maybe = (f, empty) => (existsSync(join(ROOT, f)) ? readJson(join(ROOT, f)) : empty);
 const report = reviewReport({
   catalog: after,
-  date,
   list,
   combined: readJson(path('combined.json')),
   review: readJson(path('review.json')),

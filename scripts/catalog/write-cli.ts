@@ -10,7 +10,7 @@ import { catalogWarnings, type CatalogFile } from '../../src/catalog';
 
 const args = process.argv.slice(2);
 const opt = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args.splice(i, 2)[1] : undefined; };
-const date = opt('--date') ?? new Date().toLocaleDateString('en-CA');
+const date = opt('--date') ?? new Date().toISOString().slice(0, 10); // (the UTC day, as the fetcher names its folders)
 const reviewPath = opt('--review');
 const [auditPath] = args;
 if (!auditPath) { console.error('usage: npm run catalog:write -- <combined.json> [--date YYYY-MM-DD] [--review review.json]'); process.exit(1); }

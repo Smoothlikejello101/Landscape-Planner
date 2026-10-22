@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
-import { auditList, ncsuPageFor, ncsuSlug, readNcsuPages, speciesOf, toFetch } from '../scripts/catalog/list.mjs';
+import { auditList, ncsuMovedTo, ncsuPageFor, ncsuSlug, readNcsuPages, speciesOf, toFetch } from '../scripts/catalog/list.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { cultivarOf, rereadClaims } from '../scripts/catalog/reclaim.mjs';
 // @ts-expect-error (a plain .mjs script)
@@ -12,6 +12,8 @@ import { anchor, noteKind, reviewKind, reviewReport, shown, termsUnsettled } fro
 import { isDay, parseBuildArgs } from '../scripts/catalog/build-args.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { cacheName } from '../scripts/catalog/fetch-lib.mjs';
+// @ts-expect-error (a plain .mjs script)
+import { acceptsPage, ncsuPageName, ncsuTitle, ownCultivarPage, recordCultivars, titleCultivar } from '../scripts/catalog/ncsu-page.mjs';
 
 // The catalog build (scripts/catalog/build.mjs, docs/catalog-build.md): its plant list, its re-reading of the
 // web claims, and its review report. The build itself reads catalog-src/, which isn't committed.
@@ -56,28 +58,60 @@ describe('the plant list', () => {
     ]);
     // (A page reviewed as the plant's under another name carries that name, for sample.mjs to accept it by.)
     expect(auditList(cat, { names: { 'itea-virginica': 'Itea virgnica' }, hasNcsu: () => true })[0]).toEqual({ id: 'itea-virginica', species: 'Itea virginica', ncsu: 'itea-virginica', ncsuName: 'Itea virgnica' });
+    expect(auditList({ plants: [{ id: 'other', botanical: 'Itea virginica' }] }, { names: { 'itea-virginica': 'Itea virgnica' }, hasNcsu: () => true })[0].ncsuName).toBeUndefined(); // (by record)
   });
 
   it('keeps ncsu-pages.json to catalog records, each a page name or null; its other names by page, each a binomial', () => {
     const pages = readNcsuPages() as Record<string, string | null>;
-    const names = (JSON.parse(readFileSync('scripts/catalog/ncsu-pages.json', 'utf8')) as { names: Record<string, string> }).names;
-    expect(Object.entries(names).filter(([slug, n]) => !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug) || !/^[A-Z][a-z]+ [a-z]+$/.test(n))).toEqual([]);
     const ids = new Set(catalog.plants.map((p) => p.id));
+    const names = (JSON.parse(readFileSync('scripts/catalog/ncsu-pages.json', 'utf8')) as { names: Record<string, string> }).names;
+    expect(Object.entries(names).filter(([id, n]) => !ids.has(id) || !/^[A-Z][a-z]+ [a-z]+$/.test(n))).toEqual([]);
     expect(Object.keys(pages).filter((id) => !ids.has(id))).toEqual([]);
     expect(Object.values(pages).filter((s) => s !== null && !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(s))).toEqual([]);
     expect(Object.keys(pages)).toEqual(catalog.plants.map((p) => p.id).filter((id) => id in pages)); // (in the catalog's order)
   });
 });
 
+describe('NC State\'s pages', () => {
+  const page = (title: string) => `<html><head><title>\n    ${title}\n        (Common Name)\n    |\nNorth Carolina Extension Gardener Plant Toolbox</title></head></html>`;
+  it('names the plant a page is about: its fields, else a hybrid\'s title; × for NC State\'s x', () => {
+    expect(ncsuTitle(page('Thuja &#x27;Green Giant&#x27;'))).toBe("Thuja 'Green Giant'");
+    expect(ncsuTitle(page('Thuja &#8217;Green Giant’'))).toBe("Thuja 'Green Giant'"); // (curly quotes, as entities or not)
+    expect([titleCultivar(page('Thuja &#x27;Green Giant&#x27;')), titleCultivar(page('Iris x germanica'))]).toEqual(['Green Giant', null]);
+    expect(ncsuPageName(page('Magnolia x soulangeana'), { Genus: ['Magnolia'] })).toBe('Magnolia × soulangeana');
+    expect(ncsuPageName(page('Lavandula x intermedia &#x27;Phenomenal&#x27;'), { Genus: ['Lavandula'] })).toBe('Lavandula × intermedia');
+    expect(ncsuPageName(page('Fragaria x ananassa'), { Genus: ['Fragaria'], Species: ['x ananassa'] })).toBe('Fragaria × ananassa');
+    expect(ncsuPageName(page('Thuja &#x27;Green Giant&#x27;'), { Genus: ['Thuja'] })).toBe('Thuja');
+    expect(ncsuPageName(page('Geranium maculatum'), { Genus: ['Geranium'], Species: ['manculatum'] })).toBe('Geranium manculatum');
+  });
+  it('reads a page under its own name, a name reviewed for it, or for a genus any page of the genus', () => {
+    expect(acceptsPage({ species: 'Geranium maculatum' }, 'Geranium manculatum', 'Geranium')).toBe(false);
+    expect(acceptsPage({ species: 'Geranium maculatum', ncsuName: 'Geranium manculatum' }, 'Geranium manculatum', 'Geranium')).toBe(true);
+    expect(acceptsPage({ species: 'Geranium maculatum', ncsuName: 'Geranium manculatum' }, 'Geranium robertianum', 'Geranium')).toBe(false); // (only under the reviewed name)
+    expect(acceptsPage({ species: 'Magnolia × soulangeana' }, 'Magnolia × soulangeana', 'Magnolia')).toBe(true);
+    expect(acceptsPage({ species: 'Thuja', genusOnly: true }, 'Thuja', 'Thuja')).toBe(true);
+    expect(acceptsPage({ species: 'Thuja', genusOnly: true }, 'Juniperus', 'Juniperus')).toBe(false);
+  });
+  it('reads a cultivar page as a group record\'s own only when the record names that one cultivar', () => {
+    const thuja = { botanical: "Thuja 'Green Giant'", common: "Arborvitae 'Green Giant'" };
+    expect(recordCultivars(thuja)).toEqual(['Green Giant']);
+    expect(ownCultivarPage(thuja, page('Thuja &#x27;Green Giant&#x27;'))).toBe(true);
+    expect(ownCultivarPage(thuja, page('Thuja plicata'))).toBe(false); // (a species page isn't the cultivar's)
+    expect(ownCultivarPage({ botanical: "Lagerstroemia ('Natchez' / 'Muskogee' / 'Tonto')", common: 'Crape myrtle' }, page('Lagerstroemia &#x27;Natchez&#x27;'))).toBe(false);
+    expect(ownCultivarPage({ botanical: "Buxus ('Green Velvet' / microphylla types)", common: 'Boxwood' }, page('Buxus &#x27;Green Velvet&#x27;'))).toBe(false);
+    expect(ownCultivarPage({ botanical: 'Artemisia hybrid', common: "Artemisia 'Powis Castle'" }, page('Artemisia &#x27;Powis Castle&#x27;'))).toBe(true);
+  });
+});
+
 /** A catalog-src/ with a few pages saved as the fetcher saves them. */
-function savedRoot(pages: { source: string; url: string; body?: string; status?: number }[]) {
+function savedRoot(pages: { source: string; url: string; body?: string; status?: number; location?: string }[]) {
   const root = mkdtempSync(join(tmpdir(), 'catalog-src-'));
   for (const p of pages) {
     const dir = join(root, p.source, '2026-10-18');
     mkdirSync(dir, { recursive: true });
     const status = p.status ?? 200;
     if (status === 200) writeFileSync(join(dir, cacheName(p.url)), p.body ?? '');
-    writeFileSync(join(dir, cacheName(p.url) + '.meta.json'), JSON.stringify({ url: p.url, status, type: 'text/html; charset=utf-8', fetched: '2026-10-18' }));
+    writeFileSync(join(dir, cacheName(p.url) + '.meta.json'), JSON.stringify({ url: p.url, status, type: 'text/html; charset=utf-8', location: p.location, fetched: '2026-10-18' }));
   }
   return root;
 }
@@ -93,6 +127,17 @@ describe('reading the web claims again', () => {
     } finally { rmSync(root, { recursive: true }); }
     expect(cultivarOf({ botanical: 'Itea virginica \'Little Henry\'' })).toBe('Little Henry');
     expect(cultivarOf({ botanical: 'Hakonechloa macra', common: 'Japanese forest grass \'All Gold\'' })).toBe('All Gold');
+  });
+
+  it('follows a page NC State moved: to fetch, then to read once its name is reviewed', () => {
+    const old = 'https://plants.ces.ncsu.edu/plants/coreopsis-verticillata/', moved = 'https://plants.ces.ncsu.edu/plants/anacis-verticillata/';
+    const root = savedRoot([{ source: 'ncsu', url: old, status: 301, location: '/plants/anacis-verticillata/' }, { source: 'ncsu', url: 'https://plants.ces.ncsu.edu/plants/x-y/', status: 302, location: 'https://elsewhere.example/' }]);
+    try {
+      expect([ncsuMovedTo('coreopsis-verticillata', root), ncsuMovedTo('x-y', root), ncsuMovedTo('none', root)]).toEqual(['anacis-verticillata', null, null]);
+      expect(toFetch([{ id: 'c', species: 'Coreopsis verticillata' }], root).ncsu).toEqual([moved]);
+      const has = (s: string) => s === 'anacis-verticillata';
+      expect(ncsuPageFor({ id: 'c' }, { species: 'Coreopsis verticillata' }, {}, has, (s: string) => ncsuMovedTo(s, root))).toBe('anacis-verticillata');
+    } finally { rmSync(root, { recursive: true }); }
   });
 
   it('lists the pages a list needs that were never fetched, a page it names too: a 404 counts as asked', () => {
@@ -131,7 +176,7 @@ describe('the review report', () => {
     { id: 'buttonbush', fact: 'zone_max', note: 'ufl.edu: 11.5' },
   ];
   const list = [{ id: 'buttonbush', ncsu: 'cephalanthus-occidentalis-x' }, { id: 'plum', ncsu: 'prunus-x' }, { id: 'pawpaw' }];
-  const report = () => reviewReport({ catalog: cat, date: '2026-10-18', list, combined, review, searched: { buttonbush: [], plum: [] },
+  const report = () => reviewReport({ catalog: cat, list, combined, review, searched: { buttonbush: [], plum: [] },
     wcvp: { homonyms: ['Aquilegia canadensis'], regulatedUnreviewed: [], regulatedNotMatched: [], notMatched: ['Amsonia illustris'] },
     native: [], bloom: [], warnings: ['plum: 50 ft is tall for a shrub', 'buttonbush: no spread', 'pawpaw: no spread'], unfetched: { ncsu: ['x'], named: ['https://plants.ces.ncsu.edu/plants/cephalanthus-occidentalis-x/'], searches: [], profiles: [] }, termsUnsettled: [] });
 
@@ -153,8 +198,10 @@ describe('the review report', () => {
     expect(md).toContain('- 2 plants: no NC State page in the list');
     expect(md).toContain('## A page under another name (1)');
     expect(md).toContain('- Buttonbush (`buttonbush`): `cephalanthus-occidentalis-x`, never fetched');
-    const asked = reviewReport({ catalog: cat, date: '2026-10-18', list, combined, review: [], unfetched: { ncsu: [], named: [], searches: [], profiles: [] } }).markdown;
+    const asked = reviewReport({ catalog: cat, list, combined, review: [], unfetched: { ncsu: [], named: [], searches: [], profiles: [] } }).markdown;
     expect(asked).toContain('- Buttonbush (`buttonbush`): `cephalanthus-occidentalis-x`, asked for, and not there');
+    const moved = reviewReport({ catalog: cat, list, combined, review: [], unfetched: { ncsu: [], named: [], moved: { 'cephalanthus-occidentalis-x': 'cephalanthus-y' }, searches: [], profiles: [] } }).markdown;
+    expect(moved).toContain('- Buttonbush (`buttonbush`): `cephalanthus-occidentalis-x`, moved to `cephalanthus-y`');
   });
 
   it('leads with a contents list whose links are the headings\' anchors, and skips empty sections', () => {
@@ -171,7 +218,7 @@ describe('the review report', () => {
     expect(anchor("A page the list names but that isn't saved (3)")).toBe('a-page-the-list-names-but-that-isnt-saved-3');
     expect(anchor("Read from the genus's page (1)")).toBe('read-from-the-genuss-page-1');
     expect(report().markdown).toBe(markdown); // (the same inputs, the same report)
-    const withTerms = reviewReport({ catalog: cat, date: '2026-10-18', list: [], combined: [], review: [], termsUnsettled: ['arborday.org', 'brit.org'] });
+    const withTerms = reviewReport({ catalog: cat, list: [], combined: [], review: [], termsUnsettled: ['arborday.org', 'brit.org'] });
     expect(withTerms.markdown).toContain('## Sites whose terms are unsettled (2)');
     expect(withTerms.markdown).toContain('\n\narborday.org, brit.org\n');
     expect(withTerms.counts).toEqual({ decide: 0, pages: 0, search: 0, terms: 2, tidy: 0 });
