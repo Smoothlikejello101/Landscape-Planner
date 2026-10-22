@@ -100,8 +100,8 @@ species record in the catalog uses that record's, and says so.
 then the federal list's ([regulated-plants.md](regulated-plants.md)). Only the garden's own state's file is
 read for them: Arkansas's law isn't a Texas garden's.
 
-Each line's `tier` is "ban" or "listed" (an older file's lines have none: read as bans). `genusWide` names, for a
-plant a whole-genus entry took in, the genus, by line: for the line that says why a plant native to the state is
+Each line's `tier` is "ban" or "listed" (an older file's lines have none: shown as bans, said as "covered").
+`genusWide` names, for a plant a whole-genus entry took in (one that excepts no species), the genus, by line: for the line that says why a plant native to the state is
 covered all the same ("this rule bans every Lythrum species, natives included").
 
 `native`: each plant's status in the state, `N` native or `I` introduced, from Kew's **World Checklist of

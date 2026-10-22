@@ -99,10 +99,10 @@ describe('matching the lists to catalog plants', () => {
     const genusWide = {};
     const r = regulatedPlants(data, plants, accepted, genusWide);
     expect(r).toEqual(m);
-    expect(genusWide).toEqual({ US: { 'japanese-dodder': 'Cuscuta' }, AR: { 'winged-loosestrife': 'Lythrum' } });
-    expect(stateRegulated(data, r, 'AR', genusWide).genusWide).toEqual({ 'winged-loosestrife': { 'AR:lythrum': 'Lythrum' }, 'japanese-dodder': { 'US:noxious': 'Cuscuta' } });
-    expect(stateRegulated(data, r, 'MS', genusWide).genusWide).toEqual({ 'japanese-dodder': { 'US:noxious': 'Cuscuta' } });
-    expect('genusWide' in stateRegulated(data, { MS: r.MS }, 'MS', genusWide)).toBe(false); // (none: left out)
+    // (Not the federal Cuscuta entry, which excepts most native dodders: "every Cuscuta species" would be false.)
+    expect(genusWide).toEqual({ AR: { 'winged-loosestrife': 'Lythrum' } });
+    expect(stateRegulated(data, r, 'AR', genusWide).genusWide).toEqual({ 'winged-loosestrife': { 'AR:lythrum': 'Lythrum' } });
+    expect('genusWide' in stateRegulated(data, r, 'MS', genusWide)).toBe(false); // (none: left out)
   });
   it('match the real lists: Arkansas\'s genera and wild onion, itchgrass by its reviewed name, never missiongrass\'s namesake', () => {
     const r = regulatedPlants(real, [

@@ -90,7 +90,8 @@ const entryNames = (e) => [e.name, e.kew, e.accepted || null, ...(e.also ?? [])]
  * genus of its accepted name, its species, or a named hybrid's own name.
  * `plants`: [{ id, botanical, binomial? }] (binomial: the species the catalog's record is of; none for a hybrid); `accepted`:
  * { id: accepted name } (wcvp-native.json's). `genusWide`, if given, is filled with the plants a whole-genus entry
- * took in: { code: { id: genus } } (for the line that says why a native plant is listed: "every Lythrum species").
+ * took in, where it excepts none: { code: { id: genus } } (for the line that says why a native plant is listed:
+ * "every Lythrum species").
  */
 export function regulatedPlants(data, plants, accepted, genusWide = {}) {
   const out = {};
@@ -108,7 +109,9 @@ export function regulatedPlants(data, plants, accepted, genusWide = {}) {
         return entryNames(e).some((n) => names.has(n));
       });
       if (hit) mine[p.id] = hit.class;
-      if (hit?.genus) (genusWide[j.code] ??= {})[p.id] = hit.genus;
+      // (Not a genus entry with exceptions: "every Cuscuta species, natives included" would be false of the federal
+      // list, which excepts most native dodders.)
+      if (hit?.genus && !hit.except?.length && !hit.exceptAlso?.length) (genusWide[j.code] ??= {})[p.id] = hit.genus;
     }
     if (Object.keys(mine).length) out[j.code] = mine;
   }
@@ -130,7 +133,7 @@ export function unreviewed(data, kewAccepted) {
 /** A list's lines for a state file: { "AR:prohibited": { says, tier, title, url, edition, read } } for the classes used. */
 export function ruleLines(data, code, used) {
   const j = data.jurisdictions.find((x) => x.code === code);
-  return Object.fromEntries([...used].map((c) => [`${code}:${c}`, { says: j.classes[c], tier: j.tiers[c], title: j.title, url: j.url, edition: j.edition, read: j.read }]));
+  return Object.fromEntries([...used].map((c) => [`${code}:${c}`, { says: j.classes[c], tier: j.tiers?.[c], title: j.title, url: j.url, edition: j.edition, read: j.read }]));
 }
 /**
  * A state's file's part: { regulated: { id: ["AR:prohibited", "US:noxious"] }, rules: { key: line }, genusWide:

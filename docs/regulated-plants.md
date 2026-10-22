@@ -16,9 +16,11 @@ same words. A rattlebox shouldn't look as forbidden as cogongrass.
 
 **Native, and covered anyway.** Where Kew's checklist has the plant native to the state and a rule covers it all
 the same, the line says why, or the two read as a contradiction: "Native to Arkansas, but this rule bans every
-Lythrum species, natives included." (a whole-genus entry took it in: `genusWide` in the state file), or "Native to
-Arkansas, and still listed by this rule." (the rule names it: wild onion). The picker's row adds ", though native
-there".
+Lythrum species, natives included." (a whole-genus entry took it in, one that excepts no species: `genusWide` in
+the state file), or "Native to Arkansas, and still listed by this rule." (the rule names it: wild onion). The
+federal list governs moving a plant into or between states, so its line says "and still a federal noxious weed". A
+line from an older file, with no tier, is shown red but said as "covered", never "banned". The picker's row adds,
+once: ", though native to Arkansas".
 
 Only law. A council's invasive list (Cal-IPC, the Florida Invasive Species Council, TexasInvasives.org) is an
 advisory judgment, and is never shown as law; if one is used, it gets its own line, in its own words.

@@ -6,7 +6,7 @@ import { atlasRecords, curatedNear, gadmCounties, gbifRecords, nativeStatus, SOU
 import { canonical, placer, twoTaxa, usdaRecords } from '../scripts/catalog/usda-counties.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { acceptedTaxon, stateStatus } from '../scripts/catalog/wcvp.mjs';
-import { countyName, gardenStateName, loadWild, nativeHere, nativeText, regulatedHere, ruleShort, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
+import { countyName, gardenStateName, lawShort, loadWild, nativeHere, nativeText, nativeAndListed, regulatedHere, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
 import { plantMatches, PLANT_FILTER_DEFAULTS, zoneNote, type Plant } from '../src/plants';
 import { state } from '../src/state';
 
@@ -185,14 +185,25 @@ describe('wild records near the garden', () => {
     await loadWild(undefined, fetcher);
     const [loosestrife] = regulatedHere({ id: 'lythrum-alatum' });
     expect(loosestrife.tier).toBe('ban'); // (a file's line with no tier: read as a ban)
-    expect(loosestrife.native).toBe('Native to Arkansas, but this rule bans every Lythrum species, natives included.');
-    expect(ruleShort(loosestrife)).toBe('Prohibited in Arkansas, though native there');
+    // (A line from an older file, with no tier: red, but said as "covers", never "bans".)
+    expect(loosestrife.native).toBe('Native to Arkansas, but this rule covers every Lythrum species, natives included.');
+    expect(lawShort([loosestrife])).toBe('Prohibited in Arkansas, though native to Arkansas');
     const [rattlebox] = regulatedHere({ id: 'crotalaria-sagittalis' });
     expect([rattlebox.tier, rattlebox.native]).toEqual(['listed', 'Native to Arkansas, but this rule lists every Crotalaria species, natives included.']);
     expect(regulatedHere({ id: 'allium-canadense' })[0].native).toBe('Native to Arkansas, and still listed by this rule.');
     // Not native here: no such line.
     expect(regulatedHere({ id: 'imperata-cylindrica' }).map((r) => [r.tier, r.native])).toEqual([['ban', undefined], ['ban', undefined]]);
-    expect(ruleShort(regulatedHere({ id: 'imperata-cylindrica' })[0])).toBe('Prohibited in Arkansas');
+    expect(lawShort(regulatedHere({ id: 'imperata-cylindrica' }))).toBe('Prohibited in Arkansas; Federal noxious weed');
+    // The words, case by case: a ban, a listing, an older file's line, by genus or by name; the federal list; a species'.
+    const ar = { status: 'N' as const, stateName: 'Arkansas', species: false, source: '' };
+    expect(nativeAndListed(ar, 'ban', 'Lythrum')).toBe('Native to Arkansas, but this rule bans every Lythrum species, natives included.');
+    expect(nativeAndListed(ar, 'ban')).toBe('Native to Arkansas, and still banned by this rule.');
+    expect(nativeAndListed(ar, undefined)).toBe('Native to Arkansas, and still covered by this rule.');
+    expect(nativeAndListed(ar, 'ban', undefined, true)).toBe('Native to Arkansas, and still a federal noxious weed.');
+    expect(nativeAndListed(ar, 'ban', 'Striga', true)).toBe('Native to Arkansas, but every Striga species is a federal noxious weed.');
+    expect(nativeAndListed({ ...ar, species: true }, 'listed')).toBe('Its species is native to Arkansas, and still listed by this rule.');
+    // Two lines on a native plant: "though native" once, naming the state.
+    expect(lawShort([{ ...loosestrife }, { ...loosestrife, says: 'Federal noxious weed: …', nativeTo: 'Arkansas' }])).toBe('Prohibited in Arkansas; Federal noxious weed, though native to Arkansas');
   });
   it("filter 'Native to <state>' does nothing in a state with no native status in its file (Texas, here)", async () => {
     state.location = { zip: '75501', zone: '8a' };

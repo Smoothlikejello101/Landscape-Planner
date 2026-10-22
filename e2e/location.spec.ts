@@ -163,7 +163,7 @@ test('a plant the garden\'s state prohibits says so, with the rule', async ({ pa
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Winged loosestrife');
   const plant = page.locator('.plant-item', { hasText: 'Winged loosestrife' });
-  await expect(plant.getByTestId('row-law')).toHaveText('Prohibited in Arkansas, though native there'); // (in its row, before it's opened)
+  await expect(plant.getByTestId('row-law')).toHaveText('Prohibited in Arkansas, though native to Arkansas'); // (in its row, before it's opened)
   await plant.getByTestId('plant-row').click();
   const law = plant.getByTestId('regulated-here');
   await expect(law).toContainText('Prohibited in Arkansas: no Lythrum may be planted, sold, bought or moved (2 CAR §50-709)');

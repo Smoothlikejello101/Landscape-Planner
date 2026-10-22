@@ -46,7 +46,13 @@ export interface WildFile {
  */
 export interface RuleLine { says: string; tier?: 'ban' | 'listed'; title: string; url: string; edition: string; read: string }
 /** A law's line for a plant here, and, where the plant is native to the state all the same, why the law covers it. */
-export interface RuleHere extends RuleLine { native?: string }
+export interface RuleHere extends RuleLine {
+  /** Its tier, read (a line from an older file, with none: shown as a ban). */
+  tier: 'ban' | 'listed';
+  /** Where the plant is native to the state all the same: why the law covers it, and the state's name. */
+  native?: string;
+  nativeTo?: string;
+}
 /** A plant's native status in the garden's state (`species`: its species', a cultivar's). */
 export interface NativeHere { status: 'N' | 'I'; stateName: string; species: boolean; source: string }
 /** A plant's bloom months where the garden is: its state's (or, with too few records there, its region's). */
@@ -236,24 +242,34 @@ export function regulatedHere(p: { id: string; parent?: string }): RuleHere[] {
   return own.regulated[id].flatMap((k) => {
     const r = own.rules![k];
     if (!r || typeof r.says !== 'string' || typeof r.url !== 'string' || !r.url.startsWith('https://')) return [];
+    // (Shown red unless the file says "listed"; but said in words only as the file says it: a line from an older
+    // file, with no tier, is "covered", never "banned", which a listing isn't.)
     const tier = r.tier === 'listed' ? 'listed' : 'ban';
-    return [native?.status === 'N' ? { ...r, tier, native: nativeAndListed(native, tier, own.genusWide?.[id]?.[k]) } : { ...r, tier }];
+    const said = r.tier === 'listed' || r.tier === 'ban' ? r.tier : undefined;
+    return [native?.status === 'N'
+      ? { ...r, tier, native: nativeAndListed(native, said, own.genusWide?.[id]?.[k], k.startsWith('US:')), nativeTo: native.stateName }
+      : { ...r, tier }];
   });
 }
 /**
  * Why a law covers a plant native to the state: "Native to Arkansas, but this rule bans every Lythrum species,
  * natives included." (a whole-genus entry), or "Native to Arkansas, and still banned by this rule." (one it names).
  */
-export function nativeAndListed(n: NativeHere, tier: 'ban' | 'listed', genus?: string): string {
+export function nativeAndListed(n: NativeHere, tier: 'ban' | 'listed' | undefined, genus?: string, federal = false): string {
   const who = n.species ? `Its species is native to ${n.stateName}` : `Native to ${n.stateName}`;
-  const does = tier === 'ban' ? 'bans' : 'lists';
-  return genus ? `${who}, but this rule ${does} every ${genus} species, natives included.`
-    : `${who}, and still ${tier === 'ban' ? 'banned' : 'listed'} by this rule.`;
+  // (The federal list governs moving a plant into or between states, not growing it: said as what it is.)
+  if (federal) return genus ? `${who}, but every ${genus} species is a federal noxious weed.` : `${who}, and still a federal noxious weed.`;
+  const [does, done] = tier === 'ban' ? ['bans', 'banned'] : tier === 'listed' ? ['lists', 'listed'] : ['covers', 'covered'];
+  return genus ? `${who}, but this rule ${does} every ${genus} species, natives included.` : `${who}, and still ${done} by this rule.`;
 }
-/** A law's line in short, for a plant's row in the picker: "Prohibited in Arkansas", "… though native there". */
-export function ruleShort(r: RuleHere): string {
-  const short = r.says.split(':')[0];
-  return r.native ? `${short}, though native there` : short;
+/**
+ * A plant's law lines in short, for its row in the picker: "Prohibited in Arkansas"; where it's native to the state
+ * all the same, once, at the end: "Prohibited in Arkansas, though native to Arkansas".
+ */
+export function lawShort(lines: RuleHere[]): string {
+  const short = lines.map((r) => r.says.split(':')[0]).join('; ');
+  const nativeTo = lines.find((r) => r.native)?.nativeTo;
+  return nativeTo ? `${short}, though native to ${nativeTo}` : short;
 }
 /** Native status in words: "Native to Arkansas", "Introduced in Arkansas (not native)". */
 export function nativeText(n: NativeHere): string {
