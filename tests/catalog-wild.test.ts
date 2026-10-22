@@ -21,3 +21,13 @@ describe('the catalog against the wild records', () => {
     expect(unsourcedSterile.filter((p) => recordedWild.has(p.id)).map((p) => p.id)).toEqual([]);
   });
 });
+
+describe('the catalog on sterility', () => {
+  it('keeps no unsourced "Sterile" on a plain species: sterility is a cultivar\'s claim, and a species\' needs a source', () => {
+    const plain = /^[A-Z][a-zë-]+ [a-zë-]+( (subsp\.|var\.) [a-zë-]+)?$/;
+    const all = (JSON.parse(readFileSync('public/plants.json', 'utf8')) as { plants: { id: string; botanical?: string; parent?: string; facts?: Record<string, unknown> }[] }).plants;
+    const species = all.filter((p) => !p.parent && plain.test((p.botanical ?? '').trim()) && !/ (hybrids?|spp\.?)$/.test(p.botanical ?? ''));
+    expect(species.length).toBeGreaterThan(100);
+    expect(species.filter((p) => p.facts?.self_seed === 'Sterile').map((p) => p.id)).toEqual([]);
+  });
+});
