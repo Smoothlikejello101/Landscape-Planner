@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { matchedBy, nonToxicToDogs, PLANT_FILTER_DEFAULTS, plantMatches, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
 import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs } from '../src/spread';
 import { readFileSync } from 'node:fs';
+import { HEIGHT_STOPS, heightLabel, heightStops, heightValue } from '../src/ui/height-range';
 
 const heuchera: Plant = {
   id: 'h', common: "Heuchera 'Autumn Bride'", botanical: 'Heuchera villosa', form: 'Perennial',
@@ -71,9 +72,11 @@ describe('plant filters', () => {
     expect(plantMatches(heuchera, f({ q: 'VILLOSA' }))).toBe(true);
     expect(plantMatches(heuchera, f({ q: 'oak' }))).toBe(false);
   });
-  it('applies the max height filter to the median height', () => {
-    expect(plantMatches(heuchera, f({ maxHeight: '2' }))).toBe(true);
-    expect(plantMatches(heuchera, f({ maxHeight: '1' }))).toBe(false);
+  it('applies the height range to the typical (median) height', () => {
+    expect(plantMatches(heuchera, f({ height: '-2' }))).toBe(true);
+    expect(plantMatches(heuchera, f({ height: '-1' }))).toBe(false);
+    expect(plantMatches(heuchera, f({ height: '1-2' }))).toBe(true);
+    expect(plantMatches(heuchera, f({ height: '2-' }))).toBe(false); // (by its typical height)
   });
   it('ranks name matches first, and says when a plant matched only by what it hosts', () => {
     const smooth: Plant = { id: 's', common: "Smooth hydrangea 'Haas' Halo'", botanical: 'Hydrangea arborescens' };
@@ -130,5 +133,14 @@ describe('how a plant spreads: by seed, and underground or by runners: two facts
     expect([spreadsAs(p('Modest', 'Runner - CONTAIN'), 'aggressive'), spreadsAs(p('Prolific', 'Clumping'), 'aggressive')]).toEqual([true, false]);
     expect([spreadsAs(p('Modest', 'Mat-forming'), 'runs'), spreadsAs(p('Modest', 'Naturalizing'), 'runs'), spreadsAs(p('Prolific', 'Reseeding annual'), 'runs')]).toEqual([true, true, false]);
     expect(plantMatches(p('Modest', 'Clumping'), { ...PLANT_FILTER_DEFAULTS, spread: 'runs' })).toBe(false);
+  });
+});
+
+describe('the mature-height slider', () => {
+  it('says its range in words and as the filter\'s value, either end open', () => {
+    const last = HEIGHT_STOPS.length - 1;
+    expect([heightValue(0, last), heightValue(0, 7), heightValue(9, last), heightValue(4, 7)]).toEqual(['', '-10', '20-', '4-10']);
+    expect(['', '-10', '20-', '4-10'].map(heightLabel)).toEqual(['Any height', 'Up to 10 ft', '20 ft and taller', '4–10 ft']);
+    expect([heightStops(''), heightStops('4-10'), heightStops('-10'), heightStops('25-')]).toEqual([[0, last], [4, 7], [0, 7], [9, last]]); // (25 ft: the nearest stop, 20)
   });
 });

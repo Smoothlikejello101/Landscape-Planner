@@ -5,6 +5,7 @@ import { MONTH_NAMES, matchedBy, reportedOnly, plantColor, PLANTS, PLANT_FILTER_
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { spreadsAs } from '../spread';
+import { heightLabel, heightRange } from './height-range';
 import { isMine, myPlants } from '../my-plants';
 import type { PlantFormArgs } from '../types';
 import { state } from '../state';
@@ -291,8 +292,12 @@ export function renderPlantsPanel() {
     mkSelect('Any deer rating', 'deer', enums.deer || [])
   ));
   adv.appendChild(el('div', { className: 'hint', style: { padding: '10px 0 0' } }, 'Size & care'));
+  // (Mature height: the readout follows a handle as it moves; the list changes when it's let go.)
+  const heightReadout = el('span', { 'data-testid': 'height-readout' }, heightLabel(plantFilter.height));
+  adv.appendChild(el('div', { className: 'field', style: { marginTop: '8px' } },
+    el('div', { className: 'hint', style: { display: 'flex', justifyContent: 'space-between' } }, el('span', {}, 'Mature height'), heightReadout),
+    heightRange(plantFilter.height, (v) => { heightReadout.textContent = heightLabel(v); }, (v) => { plantFilter.height = v; heightReadout.textContent = heightLabel(v); rebuildList(); })));
   adv.appendChild(row(
-    mkSelect('Any height', 'maxHeight', [1, 2, 3, 4, 6, 10, 20, 40], v => 'Under ' + v + " ft"),
     mkSelect('Any maintenance', 'maintenance', enums.maintenance || [])
   ));
   adv.appendChild(row(

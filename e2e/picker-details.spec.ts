@@ -108,3 +108,32 @@ test('how a plant spreads, by seed and underground, in one row with a source eac
   await page.getByTestId('spread-filter').selectOption('aggressive');
   await expect(page.locator('.plant-item', { hasText: 'Blue mistflower' })).toHaveCount(1);
 });
+
+test('the mature-height slider narrows the list to a range, either end open', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByRole('button', { name: '+ More filters' }).click();
+  // (Set a handle as a drag would: its value, then input and change.)
+  const set = async (id: string, stop: number) => page.getByTestId(id).evaluate((el, v) => {
+    const input = el as HTMLInputElement;
+    input.value = String(v);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, stop);
+  await expect(page.getByTestId('height-readout')).toHaveText('Any height');
+  await page.getByTestId('plant-search').fill('oak');
+  await expect(page.locator('.plant-item', { hasText: 'Bur oak' })).toHaveCount(1);
+  await set('height-max', 7); // (10 ft)
+  await expect(page.getByTestId('height-readout')).toHaveText('Up to 10 ft');
+  await expect(page.locator('.plant-item', { hasText: 'Bur oak' })).toHaveCount(0);
+  await set('height-max', 14); // (no tallest)
+  await set('height-min', 9); // (20 ft)
+  await expect(page.getByTestId('height-readout')).toHaveText('20 ft and taller');
+  await expect(page.locator('.plant-item', { hasText: 'Bur oak' })).toHaveCount(1);
+  await page.getByTestId('plant-search').fill('heuchera');
+  await expect(page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" })).toHaveCount(0);
+  await set('height-min', 1); // (1 ft)
+  await set('height-max', 2); // (2 ft)
+  await expect(page.getByTestId('height-readout')).toHaveText('1–2 ft');
+  await expect(page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" })).toHaveCount(1);
+});
