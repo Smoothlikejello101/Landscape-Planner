@@ -116,7 +116,7 @@ hasn't been looked up.
 | `trunk` | mature trunk diameter in feet (trees) |
 | `native`, `nativar` | first-compendium nativeness (to be replaced by USDA status by state) |
 | `dog` | first-compendium dog rating (to be replaced by `tox.dog`) |
-| `nectar`, `bird`, `deer`, `maintenance`, `self_seed`, `host` | wildlife and care, as before. A compendium `self_seed` of "Sterile" is suspect until a source confirms it: sterility is usually a cultivar's trait, though a few plants recorded wild are sterile clones (the red spider lily, Lycoris radiata, spreads by bulbs). An unsourced "Sterile" is never kept on a plant recorded growing wild in its own right (its own county records, in any state file): it's left missing, not looked up, never `null` (tests/catalog-wild.test.ts) |
+| `nectar`, `bird`, `deer`, `maintenance`, `self_seed`, `host` | wildlife and care, as before. The compendium's `self_seed` "Sterile" was struck from every record (2026-10-22): none rather than wrong. A species usually sets seed, a cultivar sold as sterile often isn't, and a few plants are sterile all the same (the red spider lily, Lycoris radiata, spreads by bulbs), so "Sterile" stands only with a source. It's left missing, not looked up, never `null` (tests/catalog-wild.test.ts) |
 | `edible`, `fall_color`, `winter_interest`, `clay_ok`, `wet_feet`, `dry_shade`, `taproot` | yes or no |
 | `invasive` | widely invasive in the US: never suggested |
 

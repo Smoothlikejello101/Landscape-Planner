@@ -21,3 +21,11 @@ describe('the catalog against the wild records', () => {
     expect(unsourcedSterile.filter((p) => recordedWild.has(p.id)).map((p) => p.id)).toEqual([]);
   });
 });
+
+describe('the catalog on sterility', () => {
+  it('keeps no unsourced "Sterile" at all: none rather than wrong (a sourced one may stand)', () => {
+    // (The older list's "Sterile" was struck from every record, 2026-10-22: a species usually sets seed, and a
+    // cultivar sold as sterile often isn't. A value with its source, { v: "Sterile", src }, is the audit's.)
+    expect(catalog.plants.filter((p) => p.facts?.self_seed === 'Sterile').map((p) => p.id)).toEqual([]);
+  });
+});
