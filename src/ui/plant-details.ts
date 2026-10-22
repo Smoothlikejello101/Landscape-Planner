@@ -6,7 +6,7 @@ import type { Plant } from '../plants';
 import { MONTH_NAMES, PLANT_META, formsOf, rootSpread, spreadText, zoneNote } from '../plants';
 import { zoneRange } from '../climate';
 import type { Provenance } from '../catalog';
-import { localBloom, nativeHere, nativeText, regulatedHere, wildHere, wildText } from '../wild';
+import { escapeHere, escapeText, localBloom, nativeHere, nativeText, regulatedHere, wildHere, wildText } from '../wild';
 
 const SURE: Record<string, string> = {
   agree: 'confirmed', confirmed: 'confirmed', single: 'one source', likely: 'nurseries agree', reported: 'one nursery', disputed: 'sources disagree',
@@ -116,7 +116,7 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
   }
   // What the law says of it where the garden is (a state's list, the federal one), each with its rule: first,
   // above the catalog's facts, where it can't be missed.
-  const law = document.createDocumentFragment();
+  const localRows = document.createDocumentFragment();
   for (const rule of regulatedHere(p)) {
     const dd = el('dd', { 'data-testid': 'regulated-here', className: `details-law${rule.tier === 'listed' ? ' listed' : ''}` }, rule.says);
     // (Native here and covered anyway: why, in plain words, under the rule's own.)
@@ -125,18 +125,21 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
     src.appendChild(el('a', { href: rule.url, target: '_blank', rel: 'noopener' }, rule.title));
     src.appendChild(document.createTextNode(`; ${rule.edition}; read ${rule.read}`));
     dd.appendChild(src);
-    law.appendChild(el('dt', {}, 'By law'));
-    law.appendChild(dd);
+    localRows.appendChild(el('dt', {}, 'By law'));
+    localRows.appendChild(dd);
   }
-  dl.insertBefore(law, dl.firstChild);
-  // Native to the garden's state or not (Kew's checklist): the catalog's "native" is North America-wide.
+  // Native to the garden's state or not (Kew's checklist): the catalog's "native" is North America-wide. With the
+  // law's lines, above the catalog's facts: whether it belongs here, and whether it's recorded wild here, matter first.
   const native = nativeHere(p);
   if (native) {
-    const dd = el('dd', { 'data-testid': 'native-here', ...(native.status === 'I' ? { className: 'details-introduced' } : {}) }, nativeText(native));
-    dd.appendChild(el('span', { className: 'details-src' }, native.source));
-    dl.appendChild(el('dt', {}, `In ${native.stateName}`));
-    dl.appendChild(dd);
+    // (Not native, and recorded growing wild here all the same: said with the counties, and their sources.)
+    const escape = escapeHere(p);
+    const dd = el('dd', { 'data-testid': 'native-here', ...(native.status === 'I' ? { className: 'details-introduced' } : {}) }, escape ? escapeText(escape) : nativeText(native));
+    dd.appendChild(el('span', { className: 'details-src' }, [native.source, ...(escape?.sources ?? [])].join(' · ')));
+    localRows.appendChild(el('dt', {}, `In ${native.stateName}`));
+    localRows.appendChild(dd);
   }
+  dl.insertBefore(localRows, dl.firstChild);
   // Where it grows wild near the garden (the state's county records): shown after the catalog's facts.
   const wild = wildHere(p);
   if (wild) {
