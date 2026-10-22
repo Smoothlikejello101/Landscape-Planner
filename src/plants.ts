@@ -101,7 +101,8 @@ export const plantsById: Record<string, Plant> = {};
 export const PLANT_FILTER_DEFAULTS = {
   q: '', form: '', water: '', bloomMonth: '', sun: '',
   native: '', deer: '', nectar: '', bird: '', maintenance: '',
-  selfSeed: '', maxHeight: '',
+  /** How it spreads: '' any; 'stays' stays put; 'seed' self-sows freely; 'roots' spreads by roots; 'aggressive' either, hard. */
+  spread: '', maxHeight: '',
   dogSafeOnly: false, dryShade: false, wetFeet: false, clayOk: false,
   hostOnly: false, fallColor: false, winterInterest: false,
   edible: false, noTaproot: false, inPlan: false,
@@ -113,6 +114,45 @@ export const PLANT_FILTER_DEFAULTS = {
 };
 export type PlantFilter = typeof PLANT_FILTER_DEFAULTS;
 export const plantFilter: PlantFilter = { ...PLANT_FILTER_DEFAULTS };
+/**
+ * How a plant spreads by its roots, read from its habit ("Spreading rhizome", "Clumping", "Suckering (slow)"):
+ * 'aggressive' (aggressive rhizomes, runners to contain, thickets, colonizers), 'spreads' (rhizomes, runners,
+ * suckers, mats, tubers, naturalizing bulbs), 'slow' (slow suckering), 'stays' (clumps, single or multi-stemmed);
+ * null where the habit says neither (a vine's twining, no habit at all). Seed is the other way: `self_seed`.
+ */
+export function rootSpread(habit: string | undefined): 'aggressive' | 'spreads' | 'slow' | 'stays' | null {
+  const h = (habit ?? '').toLowerCase();
+  if (!h) return null;
+  if (/aggressive|contain|colonizer|thicket/.test(h)) return 'aggressive';
+  if (/slow/.test(h)) return 'slow';
+  if (/rhizom|runner|stolon|sucker|mat-forming|spreading|tuber|naturaliz/.test(h)) return 'spreads';
+  if (/clump|single|multi-stem|upright|tiered|erect canes/.test(h)) return 'stays';
+  return null;
+}
+/**
+ * Whether a plant spreads as the filter asks: 'stays' (no runners, and self-sows no more than modestly: both known),
+ * 'seed' (self-sows freely), 'roots' (spreads by roots at all), 'aggressive' (runs aggressively, or self-sows freely).
+ */
+export function spreadsAs(p: Plant, how: string): boolean {
+  const roots = rootSpread(p.habit), seed = p.self_seed;
+  if (how === 'stays') return roots === 'stays' && !!seed && seed !== 'Prolific';
+  if (how === 'seed') return seed === 'Prolific';
+  if (how === 'roots') return roots === 'aggressive' || roots === 'spreads' || roots === 'slow';
+  if (how === 'aggressive') return roots === 'aggressive' || seed === 'Prolific';
+  return true;
+}
+/**
+ * How it spreads, in words, by seed and by roots: "Self-sows freely; spreads by roots (spreading rhizome)".
+ * Empty where neither is known. (A habit that says nothing of spreading, a vine's twining, stays its own row.)
+ */
+export function spreadText(p: Plant): string {
+  const seed = { Prolific: 'self-sows freely', Modest: 'self-sows a little', Sterile: 'sets no seed' }[p.self_seed ?? ''] ?? '';
+  const roots = rootSpread(p.habit), h = (p.habit ?? '').toLowerCase();
+  const byRoots = roots === 'aggressive' ? `spreads aggressively by roots (${h})` : roots === 'spreads' ? `spreads by roots (${h})`
+    : roots === 'slow' ? `spreads slowly by roots (${h})` : roots === 'stays' ? `no runners (${h})` : '';
+  const text = [seed, byRoots].filter(Boolean).join('; ');
+  return text ? text[0].toUpperCase() + text.slice(1) : '';
+}
 // Sun tolerance is stored as a range: sun_most = most sun tolerated,
 // sun_least = least. A plant suits a level if the level falls in that span.
 export const SUN_RANK: Record<SunLevel, number> = { Full: 0, Part: 1, Shade: 2 };
@@ -167,7 +207,7 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   else if (f.native && p.native !== f.native) return false;
   if (f.deer && p.deer !== f.deer) return false;
   if (f.maintenance && p.maintenance !== f.maintenance) return false;
-  if (f.selfSeed && p.self_seed !== f.selfSeed) return false;
+  if (f.spread && !spreadsAs(p, f.spread)) return false;
   if (f.nectar) {
     // 'High' = high only; 'Med' = med or better
     if (f.nectar === 'High' && p.nectar !== 'High') return false;

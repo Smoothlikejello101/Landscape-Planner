@@ -292,7 +292,7 @@ export function renderPlantsPanel() {
     mkSelect('Any maintenance', 'maintenance', enums.maintenance || [])
   ));
   adv.appendChild(row(
-    mkSelect('Any self-seeding', 'selfSeed', enums.self_seed || [])
+    withTestId(mkSelect('Any spreading', 'spread', ['stays', 'seed', 'roots', 'aggressive'], (v) => ({ stays: 'Stays put', seed: 'Self-sows freely', roots: 'Spreads by roots', aggressive: 'Spreads aggressively' } as Record<string, string>)[v] ?? v), 'spread-filter')
   ));
   adv.appendChild(el('div', { className: 'hint', style: { padding: '10px 0 0' } }, 'Traits'));
   adv.appendChild(el('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px 16px', margin: '4px 0 8px' } },

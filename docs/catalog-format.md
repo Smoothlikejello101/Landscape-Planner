@@ -114,7 +114,7 @@ hasn't been looked up.
 | `trunk` | mature trunk diameter in feet (trees) |
 | `native`, `nativar` | first-compendium nativeness (to be replaced by USDA status by state) |
 | `dog` | first-compendium dog rating (to be replaced by `tox.dog`) |
-| `nectar`, `bird`, `deer`, `maintenance`, `self_seed`, `host` | wildlife and care, as before |
+| `nectar`, `bird`, `deer`, `maintenance`, `self_seed`, `host` | wildlife and care, as before. The app shows `self_seed` with how `habit` says the plant spreads by its roots, under one "Spreads" row ("Self-sows freely; spreads by roots (spreading rhizome)"), and its picker filters on both ("Stays put", "Self-sows freely", "Spreads by roots", "Spreads aggressively"); the two stay separate facts, from separate sources |
 | `edible`, `fall_color`, `winter_interest`, `clay_ok`, `wet_feet`, `dry_shade`, `taproot` | yes or no |
 | `invasive` | widely invasive in the US: never suggested |
 

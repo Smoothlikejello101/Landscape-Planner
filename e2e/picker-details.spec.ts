@@ -88,3 +88,21 @@ test('linking a circle to a catalog plant uses the Link button', async ({ page }
   await item.getByTestId('plant-place').click();
   await expect(field(page, 'Label')).toHaveValue("Heuchera 'Autumn Bride'");
 });
+
+test('how a plant spreads, by seed and by roots, in one row; the picker can show only plants that stay put', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Blue mistflower');
+  const item = page.locator('.plant-item', { hasText: 'Blue mistflower' });
+  await item.getByTestId('plant-row').click();
+  const details = item.getByTestId('plant-details');
+  await expect(details.locator('dt', { hasText: 'Spreads' })).toHaveCount(1);
+  await expect(details).toContainText('Self-sows freely; spreads aggressively by roots (aggressive rhizome)');
+  await expect(details.locator('dt', { hasText: /^Habit$/ })).toHaveCount(0); // (said under "Spreads")
+  // "Stays put": no runners, and self-sows no more than a little.
+  await page.getByRole('button', { name: '+ More filters' }).click();
+  await page.getByTestId('spread-filter').selectOption('stays');
+  await expect(page.locator('.plant-item', { hasText: 'Blue mistflower' })).toHaveCount(0);
+  await page.getByTestId('spread-filter').selectOption('aggressive');
+  await expect(page.locator('.plant-item', { hasText: 'Blue mistflower' })).toHaveCount(1);
+});

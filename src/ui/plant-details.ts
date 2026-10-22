@@ -3,7 +3,7 @@
 // nurseries report where it differs from the authorities.
 import { el } from '../dom';
 import type { Plant } from '../plants';
-import { MONTH_NAMES, PLANT_META, formsOf, zoneNote } from '../plants';
+import { MONTH_NAMES, PLANT_META, formsOf, rootSpread, spreadText, zoneNote } from '../plants';
 import { zoneRange } from '../climate';
 import type { Provenance } from '../catalog';
 import { localBloom, nativeHere, nativeText, regulatedHere, wildHere, wildText } from '../wild';
@@ -49,11 +49,13 @@ function rows(p: Plant): Row[] {
     ['Takes clay', yes(p.clay_ok), ['clay_ok']],
     ['Takes wet feet', yes(p.wet_feet), ['wet_feet']],
     ['Takes dry shade', yes(p.dry_shade), ['dry_shade']],
-    ['Self-seeds', p.self_seed ?? '', ['self_seed']],
+    // (By seed and by roots together: two facts, one question, "will it spread?")
+    ['Spreads', spreadText(p), ['self_seed', 'habit']],
     ['Maintenance', p.maintenance ?? '', ['maintenance']],
     ['Taproot (hard to move)', yes(p.taproot), ['taproot']],
     ['Humidity', p.humidity === 'humid' ? 'Likes humid summers' : p.humidity === 'dry' ? 'Likes dry air' : p.humidity === 'either' ? 'Either' : '', ['humidity']],
-    ['Habit', p.habit ?? '', ['habit']],
+    // (A habit that's about spreading is in "Spreads"; one that isn't, a vine's twining, stays here.)
+    ['Habit', rootSpread(p.habit) ? '' : p.habit ?? '', ['habit']],
     ['Trunk', p.trunk ? `${p.trunk} in across` : '', ['trunk']],
     ['Nativar', p.nativar ? 'A cultivar of a native species' : '', ['nativar']],
   ];
