@@ -1,7 +1,7 @@
 import { el, type Child } from '../dom';
 import { I } from '../icons';
 import type { Plant, PlantFilter } from '../plants';
-import { byMatch, closeMatchIn, matchPlant, readQuery, searchText } from '../search';
+import { byMatch, inNotes, matchPlant, nearShows, readQuery } from '../search';
 import { MONTH_NAMES, formsOf, matchedBy, reportedOnly, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
@@ -178,18 +178,13 @@ export function renderPlantsPanel() {
   function myHits(near: boolean): Plant[] {
     const q = readQuery(plantFilter.q);
     const inPlan = plantFilter.inPlan ? plantIdsInPlan() : null;
-    const inNotes = (notes: unknown) => {
-      if (!q || typeof notes !== 'string') return false;
-      const ws = searchText(notes).split(' ');
-      return q.words.every((alts) => alts.some((f) => ws.some((w) => w.startsWith(f))));
-    };
     const shown = myPlants.filter((p) => (!inPlan || inPlan.has(p.id)) && (!plantFilter.sun || !p.sun_most || plantTakesSun(p, plantFilter.sun)));
     if (!q) return shown;
-    const hits = shown.flatMap((plant) => { const hit = matchPlant(plant, q, near) ?? (inNotes(plant.notes) ? { rank: 3, order: 3 } : null); return hit ? [{ plant, hit }] : []; });
+    const hits = shown.flatMap((plant) => { const hit = matchPlant(plant, q, near) ?? (inNotes(plant, q) ? { rank: 3, order: 4 } : null); return hit ? [{ plant, hit }] : []; });
     return hits.sort(byMatch).map((x) => x.plant);
   }
   function addButton(): HTMLElement {
-    const q = plantFilter.q.trim();
+    const q = readQuery(plantFilter.q) ? plantFilter.q.trim() : ''; // ("'" alone isn't a name)
     const b = el('button', { className: 'btn secondary add-own', 'data-testid': 'add-own-plant' },
       q ? `+ Add \u201c${q}\u201d as my plant` : '+ Add your own plant');
     b.addEventListener('click', () => openForm({ name: q, place: true }));
@@ -198,9 +193,10 @@ export function renderPlantsPanel() {
   refreshList = () => { if (listWrap.isConnected) rebuildList(); };
   function rebuildList() {
     while (listWrap.firstChild) listWrap.removeChild(listWrap.firstChild);
-    // Near spellings only when nothing searched matches closer, before any filter (search.ts).
+    // Near spellings only when nothing searched matches closer, before any filter (search.ts); a plant of mine
+    // found by its notes counts as a match.
     const q = readQuery(plantFilter.q);
-    const near = !!q && !closeMatchIn(q, PLANTS, myPlants);
+    const near = nearShows(q, PLANTS, myPlants);
     const mine = myHits(near).filter((p) => !forTree || isTree(p) || !p.form);
     const hits = filteredPlants(near).filter((p) => !forTree || isTree(p));
     const n = hits.length + mine.length, all = PLANTS.length + myPlants.length;
@@ -208,7 +204,7 @@ export function renderPlantsPanel() {
       (linking ? ' \u00b7 Link the plant this circle stands for' : forTree ? ' \u00b7 trees only' : ' \u00b7 Place a plant, then tap the plan where it goes; tap a plant for its details');
     if (mine.length) {
       // My plants fold away (remembered on this device); a search always shows its matches.
-      const searching = !!plantFilter.q.trim();
+      const searching = !!q;
       const open = searching || !myPlantsFolded;
       const head = el('button', { className: 'list-heading fold', 'aria-expanded': String(open), 'data-testid': 'my-plants-fold' },
         el('span', {}, `My plants (${mine.length})`), el('span', { className: 'fold-chev', html: I.chevronDown }));

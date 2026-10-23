@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { byMatch, closeMatchIn, matchPlant, readQuery } from '../src/search';
+import { byMatch, closeMatchIn, inNotes, matchPlant, nearShows, readQuery } from '../src/search';
 import { matchedBy, nonToxicToDogs, PLANT_FILTER_DEFAULTS, plantMatches, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
 import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs } from '../src/spread';
 import { readFileSync } from 'node:fs';
@@ -149,6 +149,35 @@ describe('plant filters', () => {
     expect(searchRank({ id: 'b', common: 'Arkansas bluestar', botanical: 'Amsonia hubrichtii' }, 'brich')).toBe(-1);
     expect(searchRank({ id: 'b', common: 'Arkansas bluestar', botanical: 'Amsonia hubrichtii' }, 'hubri')).toBe(2);
     expect(searchRank({ id: 'w', common: 'White avens', botanical: 'Geum canadense' }, 'itea')).toBe(-1);
+  });
+  it('reads a plural as its singular only as a whole word', () => {
+    const rank = (common: string, query: string, botanical?: string) => searchRank({ id: 'x', common, botanical }, query);
+    expect(rank('Blue flag iris', 'iris')).toBe(0);
+    expect(rank('Prairie alumroot', 'iris')).toBe(-1); // ("iris" isn't a plural: not "iri" in "prairie")
+    expect(rank('Climbing rose', 'roses')).toBe(0);
+    expect(rank('Rosemary', 'roses')).toBe(-1); // (not "ros")
+    expect(rank('Pink muhly grass', 'pines')).toBe(-1); // (not "pin")
+    expect(rank('Prairie lily', 'lilies')).toBe(0);
+    expect(rank('Black chokeberry', 'berries')).toBe(0); // ("-ies": the end of a word too)
+    expect(rank("Beebalm 'Raspberry Wine'", 'berries')).toBe(-1); // (but not a cultivar's)
+    expect(rank('Common blue violet', 'skies')).toBe(-1);
+    expect(rank('Bottlebrush grass', 'grasses')).toBe(0);
+  });
+  it('lists plants that are what was searched before ones named for it', () => {
+    const plants: Plant[] = [{ id: 'f', common: 'Oak fern' }, { id: 'h', common: "Oakleaf hydrangea 'Alice'" }, { id: 'b', common: 'Bur oak' }, { id: 't', common: 'Tree of heaven' }, { id: 'c', common: 'Chaste tree' }];
+    const ids = (query: string) => { const q = readQuery(query)!; return plants.flatMap((plant) => { const hit = matchPlant(plant, q, true); return hit ? [{ plant, hit }] : []; }).sort(byMatch).map((x) => x.plant.id); };
+    expect(ids('oak')).toEqual(['b', 'f', 'h']);
+    expect(ids('oaks')).toEqual(['b', 'f']);
+    expect(ids('tree')).toEqual(['c', 't']);
+    expect(ids('trees')).toEqual(['c', 't']);
+  });
+  it('shows close spellings only when nothing matches as typed, a plant of mine\'s notes included', () => {
+    const fence: Plant = { id: 'm', common: 'Mystery shrub', notes: 'By the back fence' };
+    const fennel: Plant = { id: 'fe', common: 'Bronze fennel' };
+    expect(nearShows(readQuery('fence'), [fennel], [])).toBe(true);
+    expect(nearShows(readQuery('fence'), [fennel], [fence])).toBe(false); // (found by its notes: a match as typed)
+    expect(nearShows(readQuery("'"), [fennel], [fence])).toBe(false); // (no search)
+    expect(inNotes(fence, readQuery('fences')!)).toBe(true);
   });
   it('puts a plant\'s own name first', () => {
     const plants: Plant[] = [
