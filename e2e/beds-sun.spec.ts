@@ -163,6 +163,11 @@ test('hiding names hides lengths, sun hours and plant badges too, a selected sha
   await page.locator('.layer-row', { hasText: 'Sunny strip' }).click();
   await expect(strip).toHaveCount(1); await expect(hours).toHaveCount(1);
   await expect(plant).toHaveCount(0); await expect(badge).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await page.locator('button[title=Layers]').click();
+  await page.locator('.layer-row', { hasText: 'Autumn Bride' }).click();
+  await expect(plant).toHaveCount(1); await expect(badge).toHaveCount(1);
+  await expect(strip).toHaveCount(0); await expect(hours).toHaveCount(0);
 
   // Back on, from Layers this time.
   await page.keyboard.press('Escape');
@@ -171,4 +176,11 @@ test('hiding names hides lengths, sun hours and plant badges too, a selected sha
   await closeSheet(page);
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   for (const back of [strip, hours, badge, plant]) await expect(back).toHaveCount(1);
+
+  // A view only: hidden from the button, they're back on the next visit.
+  await page.getByRole('button', { name: 'Hide names and badges' }).click();
+  await expect(strip).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByTestId('toggle-names')).toHaveAttribute('aria-pressed', 'false');
+  await expect(strip).toHaveCount(1);
 });

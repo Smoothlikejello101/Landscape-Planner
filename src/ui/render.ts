@@ -446,7 +446,7 @@ function namesButton(): HTMLElement {
   const hidden = !state.showNames;
   const b = el('button', {
     className: 'zoombtn' + (hidden ? ' on' : ''), html: hidden ? I.tagOff : I.tag, 'data-testid': 'toggle-names',
-    title: hidden ? 'Show names' : 'Hide names', 'aria-label': 'Hide names and badges', 'aria-pressed': String(hidden),
+    title: 'Hide names and badges', 'aria-label': 'Hide names and badges', 'aria-pressed': String(hidden),
   });
   b.addEventListener('click', () => {
     state.showNames = !state.showNames;

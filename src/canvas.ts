@@ -389,6 +389,8 @@ function refreshLabelLayout() {
   const placed: Box[] = [];
   const waiting: { s: CircleShape; box: Box }[] = [];
   for (const s of paintOrder(state.shapes)) {
+    // Names hidden: a name that isn't drawn keeps no room (a selected plant's shows beside it).
+    if (!state.showNames && !state.selectedIds.includes(s.id)) continue;
     if (!isPlantCircle(s)) {
       // Other shapes' names (a bed's, a path's) are there first: plant names stay off them.
       const label = s.type === 'text' ? '' : displayLabel(s);
