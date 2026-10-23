@@ -71,8 +71,10 @@ domain (`"newmoonnursery.com"`), with the domain as its title.
   it is (`INHERITED` in src/catalog.ts). Not size, trunk, flower color or
   habit, which cultivars are bred to change.
 - **`src`**: the sources for every fact that doesn't name its own.
-- **`audited`**: the date the audit re-derived this record from sources, or
-  `null`. Until then the app labels the record's values as unverified.
+- **`audited`**: the date of the audit run that last changed this record's
+  facts (its first, for a record audited once), or `null`. A run that leaves
+  the record as it was leaves the date. Until a record is audited the app labels
+  its values as unverified.
 - **`facts`**: each fact is either a plain value (sourced by the record's
   `src`) or an object with `v` (the value) and any of:
   - `src`: source ids for this value, the one that gave the value first

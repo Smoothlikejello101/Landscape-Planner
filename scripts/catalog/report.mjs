@@ -9,6 +9,7 @@ export function reviewKind(item) {
   if (n.startsWith('held back:')) return 'held';
   if (n.startsWith('edible, but rated toxic')) return 'edible';
   if (n.startsWith("value the catalog can't take")) return 'cant';
+  if (n.startsWith('no source gives it now')) return 'stale';
   if (item.fact === 'form' && /tree without saying understory or canopy|a cultivar may be a tree/.test(n)) return 'tree';
   return 'disputed';
 }
@@ -28,7 +29,7 @@ const COUNTED = [
   [/^USDA has no characteristics for it$/, 'a USDA PLANTS profile with no characteristics saved (size, sun and so on): PLANTS has none, or they were never fetched (see "Not looked up yet")'],
   [/^Not found under .* on the Arkansas atlas's map pages$/, "not on the Arkansas atlas's maps under its name (mostly plants not recorded wild in Arkansas)"],
   [/^Arkansas atlas not looked up/, 'the Arkansas atlas not looked up (a genus or cultivar group: no species name)'],
-  [/^A cultivar read from species pages/, "a cultivar read from species-level pages, its size, form and flower color taken only from a page about the cultivar (a genus or cultivar group's own cultivar page counts as species-level for now: docs/catalog-build.md, \"Known quirks\")"],
+  [/^A cultivar read from species pages/, "a cultivar read from species-level pages: its size, form and flower color are taken only from a page about the cultivar"],
 ];
 
 const esc = (s) => String(s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
@@ -67,14 +68,14 @@ export function termsUnsettled(dir, registry) {
 }
 
 /**
- * The report. `catalog`: public/plants.json as written; `date`: the day the pages were read; `list`: the audit's
+ * The report. `catalog`: public/plants.json as written; `list`: the audit's
  * plant list; `combined`: sample.mjs's output; `review`: write.mjs's review list; `searched`: the web search's
  * claims by plant; `wcvp`: wcvp.mjs's review ({ homonyms, regulatedUnreviewed, regulatedNotMatched, notMatched });
  * `native`, `bloom`: wild.mjs's review lists; `warnings`: catalog:check's; `unfetched`: list.mjs toFetch's;
  * `termsUnsettled`: sites whose terms wait for a reading that settles them.
  * Returns { markdown, summary, counts }.
  */
-export function reviewReport({ catalog, date, list, combined, review, searched = {}, wcvp = null, native = [], bloom = [], warnings = [], unfetched = null, termsUnsettled = [] }) {
+export function reviewReport({ catalog, list, combined, review, searched = {}, wcvp = null, native = [], bloom = [], warnings = [], unfetched = null, termsUnsettled = [] }) {
   const byId = new Map(catalog.plants.map((p) => [p.id, p]));
   const order = new Map(catalog.plants.map((p, i) => [p.id, i]));
   const byOrder = (a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9);
@@ -113,6 +114,9 @@ export function reviewReport({ catalog, date, list, combined, review, searched =
   section('Held back as implausible', of('held').length,
     `The audit's values would make the record implausible (the app's checks), so they weren't written. ${NO_PLACE}`,
     table(['Plant', 'Facts', 'Why'], of('held').map((i) => [name(i.id), factName(i.fact), esc(i.note.replace(/^held back: /, ''))])));
+  section('A value its source no longer gives', of('stale').length,
+    `An earlier build wrote it from a source, but no source gives it now: its page is no longer read, or no longer says it. It's kept (a plant's spread draws its circle), with the citation it had. ${NO_PLACE}`,
+    table(['Plant', 'Fact', 'Value now'], of('stale').map((i) => [name(i.id), factName(i.fact), esc(i.note.replace(/^no source gives it now: /, ''))])));
   section("Values the catalog can't take", of('cant').length,
     "A source's value doesn't fit the catalog's format.",
     table(['Plant', 'Fact', 'Value'], of('cant').map((i) => [name(i.id), factName(i.fact), esc(i.note)])));
@@ -139,7 +143,7 @@ export function reviewReport({ catalog, date, list, combined, review, searched =
   const notes = combined.flatMap((a) => (a.notes ?? []).map((note) => ({ id: a.id, note }))).sort(byOrder);
   const noted = (k) => notes.filter((n) => noteKind(n.note) === k);
   section('A page under another name', noted('otherName').length,
-    "The page the list points to gives another name, so it wasn't read. Most are the source's own misspelling, or a synonym: the right page. Others are another plant. There's no place yet to accept a page under another name: they stay listed until there is.",
+    "The page the list points to gives another name, so it wasn't read. It may be the source's own misspelling, or a synonym: the right page. Or it may be another plant. To accept an NC State page as this plant's, add it to `names` in scripts/catalog/ncsu-pages.json, with the name it gives.",
     bullets(noted('otherName').map((n) => `${name(n.id)}: ${esc(n.note)}`)));
   section('Mapped twice on the Arkansas atlas', noted('atlasTwice').length,
     `The atlas maps the name more than once (its varieties, say) with different status, so the atlas's status for it is left out. ${NO_PLACE}`,
@@ -154,15 +158,15 @@ export function reviewReport({ catalog, date, list, combined, review, searched =
   const neverAsked = new Set(unfetched?.named ?? []);
   const notSaved = noted('unfetched'), isNew = (n) => neverAsked.has(`https://plants.ces.ncsu.edu/plants/${listed.get(n.id)?.ncsu}/`);
   section("A page the list names but that isn't saved", notSaved.length,
-    "scripts/catalog/ncsu-pages.json names the page, but there's no copy of it. One never fetched: `npm run catalog:build -- --fetch --date <today>` asks for it. One asked for that NC State doesn't have: take its entry out.",
-    bullets(notSaved.map((n) => `${name(n.id)}: \`${esc(listed.get(n.id)?.ncsu)}\`, ${isNew(n) ? 'never fetched' : 'asked for, and not there'}`)), 'pages');
+    "scripts/catalog/ncsu-pages.json names the page, but there's no copy of it. One never fetched: `npm run catalog:build -- --fetch` asks for it. One NC State moved: point the entry at the new page. One asked for that NC State doesn't have: take its entry out.",
+    bullets(notSaved.map((n) => { const slug = listed.get(n.id)?.ncsu, to = unfetched?.moved?.[slug]; return `${name(n.id)}: \`${esc(slug)}\`, ${isNew(n) ? 'never fetched' : to ? `moved to \`${esc(to)}\`` : 'asked for, and not there'}`; })), 'pages');
   const asks = unfetched ? [
     [unfetched.ncsu.length, "NC State species pages never asked for: guesses by the plant's name, so many may not exist (a page that doesn't answers 404, which is kept, so it's asked once)"],
     [unfetched.searches.length, 'USDA PLANTS name searches'],
     [unfetched.profiles.length, 'USDA PLANTS profiles and characteristics'],
   ].filter(([n]) => n) : [];
   section('Not looked up yet', asks.reduce((t, [n]) => t + n, 0),
-    'Pages the list could use that were never asked for: `npm run catalog:build -- --fetch --date <today>` asks for them (through the fetcher: robots.txt, and each site\'s pace; NC State\'s is one page every 5 seconds), then builds with what it finds.',
+    'Pages the list could use that were never asked for: `npm run catalog:build -- --fetch` asks for them (through the fetcher: robots.txt, and each site\'s pace; NC State\'s is one page every 5 seconds), then builds with what it finds.',
     bullets(asks.map(([n, what]) => `${n} ${what}`)), 'pages');
   const unsearched = list.filter((s) => !searched[s.id]).sort(byOrder);
   section('Not searched on the web', unsearched.length,
@@ -196,7 +200,7 @@ export function reviewReport({ catalog, date, list, combined, review, searched =
   const summary = `${parts.join(', ') || 'nothing waiting'}; ${audited} of ${catalog.plants.length} records audited`;
   const markdown = [
     '# Catalog review',
-    `Written by \`npm run catalog:build\` (docs/catalog-build.md) from the pages read ${date}: what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. ${summary}.`,
+    `Written by \`npm run catalog:build\` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. ${summary}.`,
     contents.join('\n'),
     ...sections,
     '## For reference',
