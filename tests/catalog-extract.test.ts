@@ -154,8 +154,8 @@ describe('claims and how they combine', () => {
     const ext = (src: string, v: string[]) => ({ fact: 'form', v, src, kind: 'authority' });
     const usda = (habit: string[], life = ['Perennial']) => usdaClaims({ 'Growth habit': habit, Duration: life }).filter((c: { fact: string }) => c.fact === 'form');
     const ns = (src: string, v: string[], extra = {}) => ({ fact: 'form', v, src, kind: 'nursery', ...extra });
-    // Redbud: NC State Shrub and understory tree, USDA Shrub and Tree: both backed, the catalog's first.
-    expect(combine([nc(['Shrub', 'Tree (understory)']), ...usda(['Shrub', 'Tree'])], { prefer: 'Tree (understory)' }).form).toMatchObject({ v: ['Tree (understory)', 'Shrub'], check: 'confirmed', src: ['ncsu', 'usda'] });
+    // Redbud: NC State Shrub and Tree, USDA Shrub and Tree: both backed, the catalog's first.
+    expect(combine([nc(['Shrub', 'Tree']), ...usda(['Shrub', 'Tree'])], { prefer: 'Tree' }).form).toMatchObject({ v: ['Tree', 'Shrub'], check: 'confirmed', src: ['ncsu', 'usda'] });
     // One source: its forms, all of them; the catalog only orders them.
     expect(combine([nc(['Shrub', 'Vine'])], { prefer: 'Vine' }).form).toMatchObject({ v: ['Vine', 'Shrub'], check: 'single' });
     expect(combine([nc(['Shrub'])], { prefer: 'Vine' }).form).toMatchObject({ v: ['Shrub'], check: 'single' });
@@ -188,12 +188,14 @@ describe('claims and how they combine', () => {
     expect(combine(usda(['Forb/herb']), { prefer: 'Fern' }).form).toBeNull();
     expect(combine(usda(['Forb/herb'], ['Annual', 'Perennial']), { prefer: 'Fern' }).form).toBeNull();
     expect(combine([nc(['Shrub']), ...usda(['Shrub', 'Tree'])]).form).toMatchObject({ v: ['Shrub'], check: 'confirmed', note: 'usda lists Tree' });
-    // A plain tree takes the kind exactly one other authority names; otherwise the form is unsettled (pawpaw is never just "a shrub").
-    expect(combine([nc(['Shrub', 'Tree']), ext('x.edu', ['Tree (understory)'])]).form).toMatchObject({ v: ['Shrub', 'Tree (understory)'], check: 'single', note: 'Shrub from ncsu alone' });
-    expect(combine([nc(['Shrub', 'Tree']), ...usda(['Shrub', 'Tree'])], { prefer: 'Shrub' }).form).toMatchObject({ v: null, check: 'disputed' });
-    expect(combine([nc(['Tree']), ns('shop.com', ['Tree (canopy)'])]).form).toMatchObject({ v: null, check: 'disputed' });
-    expect(combine(usda(['Shrub', 'Tree'])).form).toMatchObject({ v: null, check: 'disputed' });
-    expect(ncsuClaims({ 'Plant Type': ['Tree'], 'Design Feature': ['Small Tree'] }).find((c: { fact: string }) => c.fact === 'form')?.v).toEqual(['Tree (understory)']);
+    // A tree is a tree, one form however tall (pawpaw, a shrub and a tree to NC State, is both); the app works
+    // out how it layers with what's under it from its height.
+    expect(combine([nc(['Shrub', 'Tree']), ext('x.edu', ['Tree'])]).form).toMatchObject({ v: ['Shrub', 'Tree'], check: 'single', note: 'Shrub from ncsu alone' });
+    expect(combine([nc(['Shrub', 'Tree']), ...usda(['Shrub', 'Tree'])], { prefer: 'Shrub' }).form).toMatchObject({ v: ['Shrub', 'Tree'], check: 'confirmed' });
+    expect(combine([nc(['Tree']), ns('shop.com', ['Tree'])]).form).toMatchObject({ v: ['Tree'], check: 'confirmed' });
+    expect(combine(usda(['Shrub', 'Tree'])).form).toMatchObject({ v: ['Shrub', 'Tree'], check: 'single' });
+    expect(ncsuClaims({ 'Plant Type': ['Tree'], 'Design Feature': ['Small Tree'] }).find((c: { fact: string }) => c.fact === 'form')?.v).toEqual(['Tree']);
+    expect(ncsuClaims({ 'Plant Type': ['Tree'], 'Design Feature': ['Shade Tree'] }).find((c: { fact: string }) => c.fact === 'form')?.v).toEqual(['Tree']);
     expect(ncsuClaims({ 'Plant Type': ['Water Plant', 'Herbaceous Perennial'] }).find((c: { fact: string }) => c.fact === 'form')?.v).toEqual(['Aquatic/Emergent', 'Perennial']);
     // An herb's annual or perennial is its Life Cycle, over the tags (sage "Annual" but perennial; rosepink
     // "Herbaceous Perennial" but biennial); a plain "Perennial" tag alone is a perennial, beside a shrub nothing.
@@ -212,32 +214,32 @@ describe('claims and how they combine', () => {
     expect(combine([nc(['Shrub']), ext('x.edu', ['Vine'])]).form).toMatchObject({ v: ['Shrub', 'Vine'], check: 'single', note: 'ncsu lists Shrub; x.edu lists Vine: both kept' });
     expect(combine([nc(['Shrub']), ext('x.edu', ['Vine']), ...usda(['Shrub'])]).form).toMatchObject({ v: ['Shrub', 'Vine'], src: ['ncsu', 'x.edu', 'usda'] });
     // At most three, at least one from each side, citing only sources whose forms are shown.
-    expect(combine([nc(['Shrub', 'Tree (understory)', 'Perennial']), ext('x.edu', ['Vine'])], { prefer: 'Shrub' }).form)
-      .toMatchObject({ v: ['Shrub', 'Tree (understory)', 'Vine'], src: ['ncsu', 'x.edu'], note: 'ncsu lists Shrub, Tree (understory), Perennial; x.edu lists Vine: both kept (Perennial left out: three at most)' });
+    expect(combine([nc(['Shrub', 'Tree', 'Perennial']), ext('x.edu', ['Vine'])], { prefer: 'Shrub' }).form)
+      .toMatchObject({ v: ['Shrub', 'Tree', 'Vine'], src: ['ncsu', 'x.edu'], note: 'ncsu lists Shrub, Tree, Perennial; x.edu lists Vine: both kept (Perennial left out: three at most)' });
     const lantana = [nc(['Perennial', 'Annual']), ...usda(['Shrub', 'Vine'])];
     expect(combine(lantana, { prefer: 'Shrub' }).form.v).toEqual(['Shrub', 'Perennial', 'Annual']);
     expect(combine(lantana, { prefer: 'Perennial' }).form.v).toEqual(['Perennial', 'Annual', 'Vine']);
-    // …except a tree that says neither understory nor canopy, which settles nothing.
-    expect(combine([nc(['Shrub']), ext('x.edu', ['Tree'])]).form).toMatchObject({ v: null, check: 'disputed' });
+    // (A tree too: a shrub to NC State, a tree to another authority, is both.)
+    expect(combine([nc(['Shrub']), ext('x.edu', ['Tree'])]).form).toMatchObject({ v: ['Shrub', 'Tree'], check: 'single' });
     // Nurseries: the one others back most; likely or reported, never confirmed.
     expect(combine([ns('a.com', ['Shrub']), ns('b.com', ['Vine']), ns('c.com', ['Vine'])]).form).toMatchObject({ v: ['Vine'], check: 'likely', note: 'a.com lists Shrub' });
     expect(combine([ns('a.com', ['Shrub'])]).form).toMatchObject({ v: ['Shrub'], check: 'reported' });
     // A cultivar with no page of its own keeps its species' form, unless the species is listed as a tree.
     expect(combine([nc(['Perennial'])], { cultivar: true }).form).toMatchObject({ v: ['Perennial'] });
-    expect(combine([nc(['Tree (canopy)'])], { cultivar: true }).form).toMatchObject({ v: null, check: 'disputed' });
+    expect(combine([nc(['Tree'])], { cultivar: true }).form).toMatchObject({ v: null, check: 'disputed' });
     expect(combine([nc(['Shrub', 'Tree'])], { cultivar: true, prefer: 'Shrub' }).form).toMatchObject({ v: null, check: 'disputed' });
     // (Only the deciding source's tree counts: NC State's shrub with USDA's Shrub and Tree stays a shrub.)
     expect(combine([nc(['Shrub']), ...usda(['Shrub', 'Tree'])], { cultivar: true }).form).toMatchObject({ v: ['Shrub'], check: 'confirmed' });
     // (With only nurseries for the species, theirs is the deciding source: a tree there unsettles it too.)
-    expect(combine([ns('a.com', ['Tree (understory)']), ns('b.com', ['Tree (understory)'])], { cultivar: true }).form).toMatchObject({ v: null, check: 'disputed' });
+    expect(combine([ns('a.com', ['Tree']), ns('b.com', ['Tree'])], { cultivar: true }).form).toMatchObject({ v: null, check: 'disputed' });
     // USDA's Annual backs NC State's annual, its Perennial beside it notwithstanding.
     expect(combine([nc(['Annual']), ...usda(['Forb/herb'], ['Annual', 'Perennial'])]).form).toMatchObject({ v: ['Annual'], check: 'confirmed' });
-    expect(combine([ns('shop.com', ['Shrub'], { cultivarPage: true }), nc(['Tree (canopy)'])], { cultivar: true }).form).toMatchObject({ v: null, check: 'disputed' });
+    expect(combine([ns('shop.com', ['Shrub'], { cultivarPage: true }), nc(['Tree'])], { cultivar: true }).form).toMatchObject({ v: null, check: 'disputed' });
     // Its own authority or breeder page decides, species pages backing it, trees included.
-    expect(combine([ns('breeder.com', ['Tree (understory)'], { kind: 'breeder' }), ...usda(['Shrub', 'Tree'])], { cultivar: true }).form).toMatchObject({ v: ['Tree (understory)'], src: ['breeder.com', 'usda'], note: 'usda lists Shrub' });
-    expect(combine([nc(['Shrub', 'Tree (understory)'], { cultivarPage: true }), ...usda(['Shrub', 'Tree'])], { cultivar: true, prefer: 'Tree (understory)' }).form).toMatchObject({ v: ['Tree (understory)', 'Shrub'], check: 'confirmed' });
+    expect(combine([ns('breeder.com', ['Tree'], { kind: 'breeder' }), ...usda(['Shrub', 'Tree'])], { cultivar: true }).form).toMatchObject({ v: ['Tree'], src: ['breeder.com', 'usda'], note: 'usda lists Shrub' });
+    expect(combine([nc(['Shrub', 'Tree'], { cultivarPage: true }), ...usda(['Shrub', 'Tree'])], { cultivar: true, prefer: 'Tree' }).form).toMatchObject({ v: ['Tree', 'Shrub'], check: 'confirmed' });
     // At most three forms; odd inputs don't throw.
-    expect(combine([nc(['Shrub', 'Tree (understory)', 'Annual', 'Perennial'])], { prefer: 'Annual' }).form.v).toEqual(['Annual', 'Shrub', 'Tree (understory)']);
+    expect(combine([nc(['Shrub', 'Tree', 'Annual', 'Perennial'])], { prefer: 'Annual' }).form.v).toEqual(['Annual', 'Shrub', 'Tree']);
     expect(() => combine([{ fact: 'form', v: 'Shrub', src: 'ncsu', kind: 'authority' }], { prefer: null })).not.toThrow();
   });
   it('lets two sources that agree outrank a lone authority, the authority shown beside them (agreed 2026-10-22)', () => {
@@ -399,8 +401,8 @@ describe('claims and how they combine', () => {
     expect(f.zone_max.v).toBe(9.5);
     expect(f.height.v).toEqual({ min: 20, max: 30 });
     expect(f.host.v).toEqual(["Henry's Elfin (Callophrys henrici)"]);
-    // NC State's fixture says Shrub and understory tree, and nothing else gives a form: both, from one source.
-    expect(f.form).toMatchObject({ v: ['Shrub', 'Tree (understory)'], check: 'single' });
+    // NC State's fixture says Shrub and Tree, and nothing else gives a form: both, from one source.
+    expect(f.form).toMatchObject({ v: ['Shrub', 'Tree'], check: 'single' });
     expect(f.bloom_months).toMatchObject({ v: 'July - September', at: 'MN' });
     const o = combine(ncsuClaims(ncsuFields(fixture('ncsu-nerium.html'))));
     expect(o.tox_people.v).toEqual(['major', 'dermatitis']);

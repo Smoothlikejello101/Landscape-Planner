@@ -6,7 +6,7 @@ import { migrateShape } from '../src/storage';
 import { pointInShape, shapeArea } from '../src/geometry';
 import type { CircleShape } from '../src/types';
 
-const oak: Plant = { id: 't-oak', common: 'White oak', form: 'Tree (canopy)', width: { min: 30, max: 40, med: 35 } };
+const oak: Plant = { id: 't-oak', common: 'White oak', form: 'Tree', width: { min: 30, max: 40, med: 35 } };
 plantsById[oak.id] = oak;
 const tree = (over: Partial<CircleShape> = {}): CircleShape => ({ id: 'a', type: 'circle', x: 0, y: 0, radius: 10, color: '#000', label: '', opacity: 1, locked: false, role: 'plant', ...over });
 
@@ -56,7 +56,7 @@ describe('trees', () => {
 
 describe('trees with a catalog trunk size', () => {
   it('draw the mature trunk scaled to the canopy drawn', () => {
-    const bur: Plant = { id: 't-bur', common: 'Bur oak', form: 'Tree (canopy)', width: { min: 60, max: 80, med: 70 }, trunk: 4 };
+    const bur: Plant = { id: 't-bur', common: 'Bur oak', form: 'Tree', width: { min: 60, max: 80, med: 70 }, trunk: 4 };
     plantsById[bur.id] = bur;
     const t = (radius: number, over: Partial<CircleShape> = {}) => ({ id: 'b', type: 'circle', x: 0, y: 0, radius, color: '#000', label: '', opacity: 1, locked: false, role: 'plant', plantId: 't-bur', ...over }) as CircleShape;
     expect(trunkDiameter(t(20))).toBe(2); // drawn at half its 80 ft full spread: half its 4 ft trunk

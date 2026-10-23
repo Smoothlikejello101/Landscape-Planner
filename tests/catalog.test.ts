@@ -25,7 +25,11 @@ describe('the shipped catalog', () => {
     expect(bs).toMatchObject({ common: 'Buttonbush', form: 'Shrub', width: { min: 3, max: 6, med: 4.5 } });
     expect(bs.prov!.width).toEqual({ src: ['ncsu', 'ufl.edu'], check: 'confirmed' });
     expect(bs.prov!.zone_max).toEqual({ src: ['ncsu'], check: 'single', alt: { v: 11.5, src: ['ufl.edu'], check: 'single' } }); // (NC State 9b, UF/IFAS 11b: the colder leads)
-    expect(plants.find((p) => p.id === 'viburnum-rufidulum')!.prov!.form).toEqual({ src: ['compendium'] }); // (a tree, without saying which kind: unsettled)
+    // A tree is one form: rusty blackhaw is a tree and a shrub to NC State and USDA alike. A dwarf cultivar of a
+    // tree, with no page of its own, stays unsettled.
+    expect(plants.find((p) => p.id === 'viburnum-rufidulum')).toMatchObject({ form: 'Tree', forms: ['Tree', 'Shrub'], prov: { form: { src: ['ncsu', 'usda'], check: 'confirmed' } } });
+    expect(plants.find((p) => p.id === 'ilex-vomitoria-nana-schillings')!.prov!.form).toEqual({ src: ['compendium'] });
+    expect(new Set(plants.flatMap((p) => p.forms ?? [p.form]).filter((f) => f?.startsWith('Tree')))).toEqual(new Set(['Tree']));
     expect((shipped as CatalogFile).meta.sources['ufl.edu']).toMatchObject({ trust: 'reference' });
   });
   it('cites every source it uses, and nursery sources as nurseries', () => {

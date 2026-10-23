@@ -2,6 +2,7 @@ import { state } from './state';
 import { createProject, currentProjectData, readProject, sanitizeProjectData, setLastBackupAt } from './storage';
 import type { ProjectData } from './types';
 import { myPlants, myPlantsUsedBy } from './my-plants';
+import { wirePlant } from './catalog';
 import { now } from './util';
 
 // Project files: a single project, or a backup of every project, as JSON.
@@ -39,7 +40,7 @@ function stamp() { return new Date().toISOString().slice(0, 10); }
 export async function buildProjectFile(id: string): Promise<{ filename: string; text: string } | null> {
   const project = await exportedProject(id);
   if (!project) return null;
-  const file: ProjectFile = { format: PROJECT_FORMAT, version: FILE_VERSION, exportedAt: new Date().toISOString(), project, myPlants: myPlantsUsedBy(project.data.shapes) };
+  const file: ProjectFile = { format: PROJECT_FORMAT, version: FILE_VERSION, exportedAt: new Date().toISOString(), project, myPlants: myPlantsUsedBy(project.data.shapes).map(wirePlant) };
   return { filename: `${safeFileName(project.name)}-${stamp()}.fullgrown.json`, text: JSON.stringify(file) };
 }
 export async function buildBackupFile(): Promise<{ filename: string; text: string; count: number }> {
@@ -48,7 +49,7 @@ export async function buildBackupFile(): Promise<{ filename: string; text: strin
     const e = await exportedProject(p.id);
     if (e) projects.push(e);
   }
-  const file: BackupFile = { format: BACKUP_FORMAT, version: FILE_VERSION, exportedAt: new Date().toISOString(), projects, myPlants };
+  const file: BackupFile = { format: BACKUP_FORMAT, version: FILE_VERSION, exportedAt: new Date().toISOString(), projects, myPlants: myPlants.map(wirePlant) }; // (forms any version reads: WIRE_FORMS)
   return { filename: `fullgrown-backup-${stamp()}.fullgrown.json`, text: JSON.stringify(file), count: projects.length };
 }
 

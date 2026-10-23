@@ -120,13 +120,10 @@ const HERB_FORMS = new Set(['Fern', 'Bulb', 'Grass/Sedge', 'Cactus']); // (not a
 /** NC State Plant Toolbox fields → claims (an authority). */
 export function ncsuClaims(f) {
   const c = [], add = (fact, v) => { if (v != null && !(Array.isArray(v) && !v.length)) c.push({ fact, v, src: 'ncsu', kind: 'authority' }); };
-  // Forms, as a list: NC State tags some plants with more than one (redbud: Shrub and Tree). A tree is
-  // understory or canopy by its "Design Feature" (Understory Tree or Small Tree; Shade Tree); one it
-  // places neither way, or both, stays a plain "Tree": tree, but not which kind.
+  // Forms, as a list: NC State tags some plants with more than one (redbud: Shrub and Tree). A tree is a
+  // tree: how it layers with what grows under it comes from its height, in the app (src/crowding.ts).
   const h = f.Height ? feetRange(f.Height[0]) : null, w = f.Width ? feetRange(f.Width[0]) : null;
-  const df = f['Design Feature'] ?? [];
-  const under = df.includes('Understory Tree') || df.includes('Small Tree'), shade = df.includes('Shade Tree');
-  add('form', ncsuForms(f['Plant Type'], f['Life Cycle']).map((x) => (x !== 'Tree' ? x : under && !shade ? 'Tree (understory)' : shade && !under ? 'Tree (canopy)' : 'Tree')));
+  add('form', ncsuForms(f['Plant Type'], f['Life Cycle']));
   add('height', h); add('width', w);
   const z = f['USDA Plant Hardiness Zone'] ? halfZones(f['USDA Plant Hardiness Zone'][0]) : null;
   if (z) { add('zone_min', z.zone_min); add('zone_max', z.zone_max); }
@@ -459,35 +456,25 @@ const ownPage = (c) => (c.cultivarPage && c.kind === 'authority') || c.kind === 
  * answer; the catalog's form only orders them, never supplies one. Each form another independent source
  * also lists is backed: confirmed when every form is (likely, without an authority), else single
  * (reported). Another source listing a form the decider doesn't is noted; another authority (USDA's habit
- * included) whose forms share none with the decider's adds its own (both kept, the catalog's first), unless
- * it's a tree that says neither understory nor canopy, which leaves it disputed. USDA deciding alone with "Perennial"
- * where the catalog names a fern, bulb, grass, cactus or aquatic settles nothing.
- * A plain "Tree" (tree, not which kind) takes the kind exactly one other authority names, and backs either
- * kind; otherwise the form is unsettled (a small tree never becomes just "a shrub").
+ * included) whose forms share none with the decider's adds its own (both kept, the catalog's first). USDA
+ * deciding alone with "Perennial" where the catalog names a fern, bulb, grass, cactus or aquatic settles nothing.
  * "Perennial" beside a fern, bulb, grass or cactus is its life cycle, not a second form, and
  * USDA's "Perennial" (any herb that lives for years) backs only a plain perennial.
  */
 function combineForm(usable, prefer) {
   prefer = [prefer].flat()[0] ?? null;
-  const KINDS = ['Tree (understory)', 'Tree (canopy)'];
   const herb = (list) => (list.some((x) => HERB_FORMS.has(x)) ? list.filter((x) => x !== 'Perennial') : list);
   const claims = usable.map((c) => ({ ...c, forms: herb([...new Set([c.v].flat().filter((x) => typeof x === 'string'))]) })).filter((c) => c.forms.length);
   if (!claims.length) return null;
   const levels = [claims.filter((c) => ownPage(c) && !c.fallback), claims.filter((c) => c.kind === 'authority' && !c.fallback), claims.filter((c) => c.fallback), claims.filter((c) => !c.fallback)];
   const level = levels.find((l) => l.length);
-  const lists = (c, f) => c.forms.includes(f) || (c.forms.includes('Tree') && KINDS.includes(f)) || (f === 'Tree' && c.forms.some((x) => KINDS.includes(x)));
+  const lists = (c, f) => c.forms.includes(f);
   const backersOf = (d, f) => claims.filter((c) => c !== d && lists(c, f)).map((c) => c.src);
   const support = (d) => d.forms.reduce((n, f) => n + backersOf(d, f).length, 0);
   const deciding = level.reduce((best, c) => (support(c) > support(best) ? c : best), level[0]);
   const authority = deciding.kind === 'authority';
   const others = claims.filter((c) => c !== deciding);
-  let own = deciding.forms;
-  // A plain tree takes the kind exactly one other authority names; else the form is unsettled.
-  if (own.includes('Tree')) {
-    const named = KINDS.filter((k) => others.some((c) => c.kind === 'authority' && c.forms.includes(k)));
-    if (named.length !== 1) return { v: null, src: [deciding.src], check: 'disputed', kind: deciding.kind, note: `${deciding.src} lists ${own.join(', ')}, the tree without saying understory or canopy` };
-    own = [...new Set(own.map((x) => (x === 'Tree' ? named[0] : x)))];
-  }
+  const own = deciding.forms;
   // USDA deciding with only "Perennial" (any herb that lives for years), where the catalog names a kind of
   // herb: it settles nothing (a fern or bulb is a forb to USDA too).
   if (deciding.fallback && own.every((f) => f === 'Perennial' || f === 'Annual') && own.includes('Perennial') && (HERB_FORMS.has(prefer) || prefer === 'Aquatic/Emergent')) return null;
@@ -498,7 +485,6 @@ function combineForm(usable, prefer) {
   const herbsOnly = (c) => c.fallback && c.forms.every((f) => f === 'Perennial') && own.some((o) => HERB_FORMS.has(o) || o === 'Aquatic/Emergent');
   const rival = others.find((c) => c.kind === 'authority' && !herbsOnly(c) && !c.forms.some((f) => own.some((o) => lists({ forms: [f] }, o) || f === o)));
   if (rival) {
-    if (rival.forms.includes('Tree')) return { v: null, src: [deciding.src, rival.src], check: 'disputed', kind: deciding.kind, note: `${deciding.src} lists ${own.join(', ')}; ${rival.src} lists ${rival.forms.join(', ')}, the tree without saying understory or canopy` };
     // (A plain perennial beside a grass, fern or bulb is that herb: a rush NC State calls a perennial and USDA a grass.)
     const all = herb([...new Set([...own, ...rival.forms])]).sort((x, y) => Number(y === prefer) - Number(x === prefer));
     // At most three, at least one from each where the herb rule leaves one: the first three, else the first two and
@@ -521,7 +507,7 @@ function combineForm(usable, prefer) {
   const notes = [];
   if (backed.length && backed.length < own.length) notes.push(`${own.filter((f) => !backed.includes(f)).join(', ')} from ${deciding.src} alone`);
   for (const c of others) {
-    const extra = c.forms.filter((f) => !own.some((o) => o === f || (f === 'Tree' && KINDS.includes(o))) && !(c.fallback && f === 'Perennial' && own.some((o) => HERB_FORMS.has(o))));
+    const extra = c.forms.filter((f) => !own.includes(f) && !(c.fallback && f === 'Perennial' && own.some((o) => HERB_FORMS.has(o))));
     if (extra.length) notes.push(`${c.src} lists ${extra.join(', ')}`);
   }
   const order = [...own].sort((x, y) => Number(y === prefer) - Number(x === prefer)).slice(0, 3);

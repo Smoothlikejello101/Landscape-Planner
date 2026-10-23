@@ -153,9 +153,10 @@ export function crowdingNote(s: Shape): HTMLElement | null {
   const crowds = crowdingOf(s, state.shapes.filter((x) => shownWith(x, state.viewFilter)), plantsById);
   if (!crowds.length) return null;
   const f = (v: number) => (Math.round(v * 10) / 10).toString();
-  const lines = crowds.slice(0, 3).map((c) => `${c.other.label || 'a plant'}: ${f(c.distance)} ft apart, about ${f(c.recommended)} ft is usual`);
+  // (Less than the full spacing where one grows partly under the other's crown.)
+  const lines = crowds.slice(0, 3).map((c) => `${c.other.label || 'a plant'}: ${f(c.distance)} ft apart, about ${f(c.recommended)} ft is usual${c.shared < 0.75 ? ', as one grows partly under the other' : ''}`);
   return el('div', { className: 'check-banner warn', 'data-testid': 'crowding' },
     el('div', {}, '⚠ Planted closer than usual to ' + (crowds.length === 1 ? 'one neighbor' : `${crowds.length} neighbors`) + ':'),
     ...lines.map((l) => el('div', { style: { marginLeft: '12px' } }, '• ' + l)),
-    el('div', { className: 'hint', style: { marginTop: '4px' } }, 'Usual spacing is half of each plant\'s typical spread added together. Closer can be fine for a quick, full look.'));
+    el('div', { className: 'hint', style: { marginTop: '4px' } }, 'Usual spacing is half of each plant\'s typical spread added together, less where one grows under a tree whose lower limbs can be taken up to a third of its height. Closer can be fine for a quick, full look.'));
 }

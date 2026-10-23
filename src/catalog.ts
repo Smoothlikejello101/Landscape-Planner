@@ -19,6 +19,23 @@ export interface SourceDef { title: string; url?: string; trust: Trust }
  */
 export type Check = 'agree' | 'confirmed' | 'disputed' | 'single' | 'likely' | 'reported';
 /**
+ * Forms by an older name: trees were understory or canopy until 2026-10 and are one "Tree" now (how a tree
+ * layers with what's under it is worked out from its height: src/crowding.ts). A plant of my own saved
+ * with either, or a catalog from before, reads as "Tree".
+ */
+export const LEGACY_FORMS: Record<string, string> = { 'Tree (canopy)': 'Tree', 'Tree (understory)': 'Tree' };
+export const currentForm = (f: string): string => LEGACY_FORMS[f] ?? f;
+/**
+ * A form as it goes to other devices and into files, for now: a version from before 2026-10 knows no plain
+ * "Tree" and drops a form it doesn't know, so a plant of mine synced to it would lose its form, and its
+ * edit would carry the loss back. A tree goes as "Tree (canopy)", which every version reads (this one as
+ * "Tree"). Fingerprints are taken the same way, so a canopy tree's rename uploads nothing; an understory
+ * tree's uploads once, as "Tree (canopy)" (to an older version, a canopy tree from then on: its form kept).
+ * Drop this once no device can still be running a version from before.
+ */
+export const WIRE_FORMS: Record<string, string> = { Tree: 'Tree (canopy)' };
+export const wirePlant = (p: Plant): Plant => (p.form && WIRE_FORMS[p.form] ? { ...p, form: WIRE_FORMS[p.form] } : p);
+/**
  * What other sources say where they differ from the value shown (shown beside it, labelled with who says it,
  * and usable in filters by the user's choice): the side that didn't lead (docs/catalog-sources.md, "Where
  * sources disagree"). Only for the garden facts decided that way; never toxicity, invasiveness or native
@@ -116,7 +133,11 @@ export function resolveCatalog(file: CatalogFile): Plant[] {
       // Known unknown: no value, but the record says the sources were checked.
       if (got.v == null) { prov[key] = { ...pv, unknown: true }; continue; }
       if (pv.alt && REPORTABLE.has(key)) (p.reported ??= {})[key] = key === 'zone_max' && wholeZoneMax && Number.isInteger(pv.alt.v) ? (pv.alt.v as number) + 0.5 : pv.alt.v;
-      if (key === 'form' && Array.isArray(got.v)) { p.form = got.v[0]; p.forms = got.v as string[]; prov[key] = pv; continue; }
+      if (key === 'form') {
+        const forms = [...new Set([got.v].flat().map((f) => currentForm(String(f))))];
+        if (Array.isArray(got.v)) { p.form = forms[0]; p.forms = forms; prov[key] = pv; continue; }
+        p.form = forms[0]; prov[key] = pv; continue;
+      }
       (p as unknown as Record<string, unknown>)[key] = key === 'zone_max' && wholeZoneMax && Number.isInteger(got.v) ? (got.v as number) + 0.5 : got.v;
       prov[key] = pv;
     }
@@ -149,7 +170,7 @@ const isHalfZone = (v: unknown) => typeof v === 'number' && Number.isInteger(v *
 const isMonth = (v: unknown) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 12;
 /** Fact types: what a value must look like. Unknown fact names are errors (typos). */
 const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) => boolean> = {
-  // One form, or a short list, primary first (redbud: understory tree and shrub).
+  // One form, or a short list, primary first (redbud: tree and shrub).
   form: (v, e) => [v].flat().length > 0 && [v].flat().length <= 3 && [v].flat().every((x) => typeof x === 'string' && (!e.form || e.form.includes(x))) && new Set([v].flat()).size === [v].flat().length,
   habit: (v) => typeof v === 'string',
   height: isRange, width: isRange,
@@ -241,7 +262,7 @@ export function catalogWarnings(file: CatalogFile): string[] {
   const out: string[] = [];
   const byBotanical = new Map(file.plants.filter((r) => !r.parent).map((r) => [(r.botanical ?? '').toLowerCase(), r]));
   // Rough tallest plausible height by form (feet), to catch unit slips (inches as feet).
-  const MAX_HEIGHT: Record<string, number> = { Perennial: 15, Annual: 12, 'Grass/Sedge': 20, Fern: 8, Bulb: 8, Shrub: 30, Cactus: 25, Vine: 100, 'Aquatic/Emergent': 15, 'Tree (understory)': 60, 'Tree (canopy)': 200 };
+  const MAX_HEIGHT: Record<string, number> = { Perennial: 15, Annual: 12, 'Grass/Sedge': 20, Fern: 8, Bulb: 8, Shrub: 30, Cactus: 25, Vine: 100, 'Aquatic/Emergent': 15, Tree: 200 };
   for (const r of file.plants) {
     const v = (k: string) => factOf(r, k)?.v as never;
     const form = v('form') as string | undefined;

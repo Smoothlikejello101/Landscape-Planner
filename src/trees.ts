@@ -1,6 +1,6 @@
 import { MIN_TRUNK } from './constants';
 import { fullRingRadius, plantSpread } from './my-plants';
-import { plantsById } from './plants';
+import { plantsById, type Plant } from './plants';
 import type { CircleShape, Shape } from './types';
 
 // Trees: a trunk at the center under the canopy. The trunk is drawn as a
@@ -15,10 +15,10 @@ export const TRUNK_SHARE = 1 / 20;
 export const TRUNK_COLOR = '#78350f';
 
 /** Drawn as a tree: added as one, or a plant whose catalog form is a tree. */
-export function isTree(s: Shape): s is CircleShape {
+export function isTree(s: Shape, byId: Record<string, Plant | undefined> = plantsById): s is CircleShape {
   if (s.type !== 'circle' || s.role !== 'plant') return false;
   if (s.tree) return true;
-  const form = s.plantId ? plantsById[s.plantId]?.form : undefined;
+  const form = s.plantId ? byId[s.plantId]?.form : undefined;
   return !!form && form.startsWith('Tree');
 }
 const quarter = (v: number) => Math.max(MIN_TRUNK, Math.round(v * 4) / 4);

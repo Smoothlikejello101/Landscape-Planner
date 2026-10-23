@@ -216,7 +216,7 @@ function treeBits(kind: KindDef): { sizeFrom?: 'manual'; tree?: true } {
 
 /** Look for a new shape of this kind and type (colors follow the role, as before). */
 export function kindLook(kind: KindDef, type: Shape['type']): { color: string; opacity: number } {
-  if (kind.key === 'tree') return { color: FORM_COLORS['Tree (canopy)'], opacity: 0.5 };
+  if (kind.key === 'tree') return { color: FORM_COLORS.Tree, opacity: 0.5 };
   return defaultLook(kind.role && kind.key !== 'plain' ? kind.role : 'unassigned', type);
 }
 
