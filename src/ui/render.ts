@@ -208,6 +208,7 @@ export function render() {
   const zOut = el('button', { className: 'zoombtn', html: I.zoomOut });
   zOut.addEventListener('click', () => { zoomBy(0.8); render(); });
   zoomBtns.appendChild(zIn); zoomBtns.appendChild(zOut);
+  zoomBtns.appendChild(namesButton());
   canvasWrap.appendChild(zoomBtns);
 
   // Empty hint
@@ -435,4 +436,22 @@ function maybeExplainFullSize() {
     localStorage.setItem(KEY, '1');
   } catch { return; } // no storage: skip the hint rather than repeat it every time
   toast('Circles show typical size; the dashed ring is full size. Change it in Layers.', 7000);
+}
+
+/**
+ * Names on or off, under the zoom buttons: the plan without its names, lengths, sun hours and plant badges, to
+ * step back and see it whole. A view only (not saved): a selected shape still shows its own.
+ */
+function namesButton(): HTMLElement {
+  const hidden = !state.showNames;
+  const b = el('button', {
+    className: 'zoombtn' + (hidden ? ' on' : ''), html: hidden ? I.tagOff : I.tag, 'data-testid': 'toggle-names',
+    title: 'Hide names and badges', 'aria-label': 'Hide names and badges', 'aria-pressed': String(hidden),
+  });
+  b.addEventListener('click', () => {
+    state.showNames = !state.showNames;
+    if (!state.showNames) toast('Names and badges hidden. Select a shape to see its own.');
+    render();
+  });
+  return b;
 }
