@@ -8,6 +8,7 @@ import type { CircleShape, Point, Shape } from './types';
 import { snap, uid } from './util';
 import { isDataSized, plantRadius } from './my-plants';
 import { isCatalogV2, resolveCatalog, type Provenance } from './catalog';
+import { spreadsAs } from './spread';
 import { setRadius } from './geometry';
 import { isLocked } from './roles';
 import { shownWith } from './status';
@@ -101,7 +102,8 @@ export const plantsById: Record<string, Plant> = {};
 export const PLANT_FILTER_DEFAULTS = {
   q: '', form: '', water: '', bloomMonth: '', sun: '',
   native: '', deer: '', nectar: '', bird: '', maintenance: '',
-  selfSeed: '', maxHeight: '',
+  /** How it spreads (src/spread.ts): '' any; 'stays' stays put; 'seed' self-sows freely; 'runs' spreads underground or by runners; 'aggressive' aggressively so. */
+  spread: '', maxHeight: '',
   dogSafeOnly: false, dryShade: false, wetFeet: false, clayOk: false,
   hostOnly: false, fallColor: false, winterInterest: false,
   edible: false, noTaproot: false, inPlan: false,
@@ -167,7 +169,7 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   else if (f.native && p.native !== f.native) return false;
   if (f.deer && p.deer !== f.deer) return false;
   if (f.maintenance && p.maintenance !== f.maintenance) return false;
-  if (f.selfSeed && p.self_seed !== f.selfSeed) return false;
+  if (f.spread && !spreadsAs(p, f.spread)) return false;
   if (f.nectar) {
     // 'High' = high only; 'Med' = med or better
     if (f.nectar === 'High' && p.nectar !== 'High') return false;
