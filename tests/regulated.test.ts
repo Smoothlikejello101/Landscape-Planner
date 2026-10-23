@@ -24,6 +24,12 @@ describe('the regulated lists', () => {
         'XX Melia azedarach: bad notKew', 'XX Melia azedarach: bad other names']);
     expect(problems({ v: 1, jurisdictions: [{ ...list('XX', []), url: 'http://example.gov' }] })).toEqual(['XX: url not https']);
     expect(problems({ v: 1, jurisdictions: [{ ...list('XX', []), tiers: { noxious: 'severe' } }] })).toEqual(['XX noxious: no tier (ban or listed)']);
+    // A background note: "Background: …", a source with an https link, the date it was checked.
+    const bg = { note: 'Background: some are toxic to livestock.', source: { title: 'A page', url: 'https://example.gov/p' }, checked: '2026-10-21' };
+    expect(problems({ v: 1, jurisdictions: [list('XX', [{ genus: 'Crotalaria', class: 'noxious', background: bg }])] })).toEqual([]);
+    expect(problems({ v: 1, jurisdictions: [list('XX', [{ genus: 'Crotalaria', class: 'noxious', background: { ...bg, note: 'Toxic.' } },
+      { genus: 'Xanthium', class: 'noxious', background: { ...bg, source: { title: 'x', url: 'http://example.gov' } } }])] }))
+      .toEqual(['XX Crotalaria: bad background', 'XX Xanthium: bad background']);
     // Real lists: bans are bans, listings with lighter duties are listed.
     const tier = (code: string, cls: string) => real.jurisdictions.find((j: { code: string }) => j.code === code).tiers[cls];
     expect([tier('AR', 'lythrum'), tier('AR', 'prohibited'), tier('AR', 'noxious'), tier('OK', 'noxious'), tier('LA', 'noxious'), tier('TX', 'invasive')])
@@ -103,6 +109,15 @@ describe('matching the lists to catalog plants', () => {
     expect(genusWide).toEqual({ AR: { 'winged-loosestrife': 'Lythrum' } });
     expect(stateRegulated(data, r, 'AR', genusWide).genusWide).toEqual({ 'winged-loosestrife': { 'AR:lythrum': 'Lythrum' } });
     expect('genusWide' in stateRegulated(data, r, 'MS', genusWide)).toBe(false); // (none: left out)
+  });
+  it('carry an entry\'s background note to the plants it took in, by rule key', () => {
+    const withBg = { ...data, jurisdictions: data.jurisdictions.map((j) => j.code !== 'AR' ? j
+      : { ...j, plants: [{ genus: 'Lythrum', class: 'lythrum', background: { note: 'Background: the heading names purple loosestrife.', source: { title: 'NISIC', url: 'https://example.gov/pl' }, checked: '2026-10-21' } }] }) };
+    const backgrounds: Record<string, Record<string, unknown>> = {};
+    const r = regulatedPlants(withBg, plants, accepted, {}, backgrounds);
+    expect(backgrounds).toEqual({ AR: { 'winged-loosestrife': { note: 'Background: the heading names purple loosestrife.', title: 'NISIC', url: 'https://example.gov/pl' } } });
+    expect(stateRegulated(withBg, r, 'AR', {}, backgrounds).background).toEqual({ 'winged-loosestrife': { 'AR:lythrum': backgrounds.AR['winged-loosestrife'] } });
+    expect('background' in stateRegulated(withBg, r, 'MS', {}, backgrounds)).toBe(false);
   });
   it('match the real lists: Arkansas\'s genera and wild onion, itchgrass by its reviewed name, never missiongrass\'s namesake', () => {
     const r = regulatedPlants(real, [
