@@ -1,6 +1,7 @@
 import { el, type Child } from '../dom';
 import { I } from '../icons';
 import type { Plant, PlantFilter } from '../plants';
+import { byMatch, closeMatchIn, matchPlant, readQuery, searchText } from '../search';
 import { MONTH_NAMES, formsOf, matchedBy, reportedOnly, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
@@ -170,14 +171,22 @@ export function renderPlantsPanel() {
     if (opened.has(p.id)) setOpen(true);
     return item;
   }
-  /** "My plants" matching the search and sun filter (their other fields are whatever the user entered). */
-  function myHits(): Plant[] {
-    const q = plantFilter.q.trim().toLowerCase();
+  /**
+   * "My plants" matching the search and sun filter (their other fields are whatever the user entered): by name, as
+   * the catalog is searched, or with every word starting a word of their notes. `near` as for the catalog.
+   */
+  function myHits(near: boolean): Plant[] {
+    const q = readQuery(plantFilter.q);
     const inPlan = plantFilter.inPlan ? plantIdsInPlan() : null;
-    return myPlants.filter((p) =>
-      (!inPlan || inPlan.has(p.id)) &&
-      (!q || (p.common + ' ' + (p.botanical || '') + ' ' + (p.notes || '')).toLowerCase().includes(q)) &&
-      (!plantFilter.sun || !p.sun_most || plantTakesSun(p, plantFilter.sun)));
+    const inNotes = (notes: unknown) => {
+      if (!q || typeof notes !== 'string') return false;
+      const ws = searchText(notes).split(' ');
+      return q.words.every((alts) => alts.some((f) => ws.some((w) => w.startsWith(f))));
+    };
+    const shown = myPlants.filter((p) => (!inPlan || inPlan.has(p.id)) && (!plantFilter.sun || !p.sun_most || plantTakesSun(p, plantFilter.sun)));
+    if (!q) return shown;
+    const hits = shown.flatMap((plant) => { const hit = matchPlant(plant, q, near) ?? (inNotes(plant.notes) ? { rank: 3, order: 3 } : null); return hit ? [{ plant, hit }] : []; });
+    return hits.sort(byMatch).map((x) => x.plant);
   }
   function addButton(): HTMLElement {
     const q = plantFilter.q.trim();
@@ -189,8 +198,11 @@ export function renderPlantsPanel() {
   refreshList = () => { if (listWrap.isConnected) rebuildList(); };
   function rebuildList() {
     while (listWrap.firstChild) listWrap.removeChild(listWrap.firstChild);
-    const mine = myHits().filter((p) => !forTree || isTree(p) || !p.form);
-    const hits = filteredPlants().filter((p) => !forTree || isTree(p));
+    // Near spellings only when nothing searched matches closer, before any filter (search.ts).
+    const q = readQuery(plantFilter.q);
+    const near = !!q && !closeMatchIn(q, PLANTS, myPlants);
+    const mine = myHits(near).filter((p) => !forTree || isTree(p) || !p.form);
+    const hits = filteredPlants(near).filter((p) => !forTree || isTree(p));
     const n = hits.length + mine.length, all = PLANTS.length + myPlants.length;
     countLine.textContent = (n === all ? `All ${all} plants` : `${n} of ${all} plants match`) +
       (linking ? ' \u00b7 Link the plant this circle stands for' : forTree ? ' \u00b7 trees only' : ' \u00b7 Place a plant, then tap the plan where it goes; tap a plant for its details');
@@ -219,9 +231,14 @@ export function renderPlantsPanel() {
       listWrap.appendChild(el('div', { className: 'hint', style: { padding: '8px 0' } },
         'No matches. Add it as your own plant, or loosen a filter.'));
     }
-    // Always offer to add a plant; right under the search when nothing matched.
+    // Always offer to add a plant; right under the search when nothing matched as typed (close spellings are guesses:
+    // say so above them).
     if (hits.length === 0 && mine.length === 0) listWrap.insertBefore(addButton(), listWrap.firstChild);
-    else listWrap.appendChild(addButton());
+    else if (near) {
+      listWrap.insertBefore(el('div', { className: 'hint', style: { padding: '0 0 6px' }, 'data-testid': 'near-note' },
+        `Nothing matches \u201c${plantFilter.q.trim()}\u201d as typed. Close spellings:`), listWrap.firstChild);
+      listWrap.insertBefore(addButton(), listWrap.firstChild);
+    } else listWrap.appendChild(addButton());
   }
 
   // --- Filter controls (all update the list in place; no full render) ---

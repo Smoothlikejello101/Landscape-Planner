@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { byMatch, closeMatchIn, matchPlant, readQuery } from '../src/search';
 import { matchedBy, nonToxicToDogs, PLANT_FILTER_DEFAULTS, plantMatches, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
 import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs } from '../src/spread';
 import { readFileSync } from 'node:fs';
@@ -95,6 +96,72 @@ describe('plant filters', () => {
     expect(matchedBy(buttonbush, 'button')).toBe('name');
     expect(searchRank(buttonbush, 'oak')).toBe(-1);
     expect(searchRank({ id: 'x', common: 'Purple coneflower' }, 'flower')).toBe(1); // inside a word
+  });
+  it('matches a search word by word, in any order, across punctuation and spacing', () => {
+    const pear: Plant = { id: 'p', common: 'Bradford/Callery pear', botanical: 'Pyrus calleryana' };
+    const witherod: Plant = { id: 'w', common: "Witherod viburnum 'Winterthur'", botanical: 'Viburnum nudum' };
+    const hazel: Plant = { id: 'h', common: 'Common witch hazel', botanical: 'Hamamelis virginiana' };
+    const beebalm: Plant = { id: 'b', common: 'Spotted beebalm', botanical: 'Monarda punctata' };
+    expect(searchRank(pear, 'Bradford pear')).toBe(0); // (the slash split the name: it didn't match before)
+    expect(searchRank(witherod, 'Winterthur viburnum')).toBe(0); // (its words in another order)
+    expect(searchRank(witherod, 'winterthur nudum')).toBe(2); // (name and botanical name together)
+    expect(searchRank(hazel, 'witchhazel')).toBe(0); // run together, from a word's start
+    expect(searchRank(beebalm, 'bee balm')).toBe(1); // split apart
+    expect(searchRank(pear, 'Bradford oak')).toBe(-1); // (every word must match)
+    expect(searchRank({ id: 'e', common: 'Échinacée' }, 'echinacee')).toBe(0); // (accents aside)
+  });
+  it('finds a near spelling, but only when nothing anywhere matches closer', () => {
+    const witherod: Plant = { id: 'w', common: "Witherod viburnum 'Winterthur'", botanical: 'Viburnum nudum' };
+    const cranberry: Plant = { id: 'cb', common: 'American cranberrybush', botanical: 'Viburnum trilobum' };
+    const coreopsis: Plant = { id: 'c', common: 'Lance-leaf coreopsis', botanical: 'Coreopsis lanceolata' };
+    const goldenrod: Plant = { id: 'g', common: 'Gray goldenrod', botanical: 'Solidago nemoralis' };
+    const alexanders: Plant = { id: 'a', common: 'Golden Alexanders', botanical: 'Zizia aurea' };
+    expect(searchRank(witherod, 'viburnam')).toBe(4); // a letter changed, in its name
+    expect(searchRank(cranberry, 'viburnam')).toBe(5); // in its botanical name: after those in the name
+    expect(searchRank(coreopsis, 'corepsis')).toBe(4); // one dropped
+    expect(searchRank(coreopsis, 'croeopsis')).toBe(4); // two swapped
+    expect(searchRank(goldenrod, 'goldenrd')).toBe(4);
+    expect(searchRank(alexanders, 'goldenrd')).toBe(-1); // ("golden" is two off: too far for eight letters)
+    expect(searchRank(witherod, 'vib')).toBe(0); // (as it's typed)
+    expect(searchRank({ id: 'p', common: 'Partridge pea' }, 'pear')).toBe(-1); // (four letters: too short to guess at)
+    expect(searchRank({ id: 'ch', common: 'Chinese privet' }, 'chives')).toBe(-1); // (two off)
+    expect(searchRank({ id: 'ap', common: 'Appalachian sedge', botanical: 'Carex appalachica' }, 'hackberry')).toBe(-1); // (nothing like it)
+    expect(searchRank({ id: 'e', common: 'Fancy echinacea hybrids' }, 'echinsc')).toBe(4); // (a slip in the start of a longer word)
+    // Shown only when nothing matches closer: decided over everything searched, before filters.
+    const q = readQuery('viburnam')!;
+    expect(closeMatchIn(q, [witherod, cranberry])).toBe(false);
+    expect(closeMatchIn(readQuery('viburnum')!, [goldenrod], [witherod])).toBe(true); // (in either list)
+    expect(matchedBy(witherod, 'viburnam')).toBe('name');
+    expect(matchedBy(cranberry, 'viburnam')).toBe('botanical');
+  });
+  it('finds a plural\'s singular, and nothing for a search of punctuation alone', () => {
+    const aster: Plant = { id: 'a', common: "Aromatic aster 'October Skies'", botanical: 'Symphyotrichum oblongifolium' };
+    expect(searchRank(aster, 'asters')).toBe(0);
+    expect(searchRank({ id: 'g', common: 'Little bluestem', botanical: 'Schizachyrium scoparium' }, 'grasses')).toBe(-1);
+    expect(searchRank({ id: 'm', common: 'Pink muhly grass' }, 'grasses')).toBe(0);
+    expect(readQuery("'")).toBe(null); // (starting a cultivar name: not yet a search)
+    expect(readQuery(' - / ')).toBe(null);
+    const privet: Plant = { id: 'pr', common: 'Chinese privet', invasive: true };
+    expect(plantMatches(privet, f({ q: "'" }))).toBe(false); // (invasives stay out: it isn't a search for one)
+  });
+  it('matches words run together only from a word\'s start, and botanical names from a word\'s start', () => {
+    expect(searchRank({ id: 'h', common: "Smooth hydrangea 'Haas' Halo'", botanical: 'Hydrangea arborescens' }, 'ash')).toBe(-1);
+    expect(searchRank({ id: 'b', common: 'Arkansas bluestar', botanical: 'Amsonia hubrichtii' }, 'brich')).toBe(-1);
+    expect(searchRank({ id: 'b', common: 'Arkansas bluestar', botanical: 'Amsonia hubrichtii' }, 'hubri')).toBe(2);
+    expect(searchRank({ id: 'w', common: 'White avens', botanical: 'Geum canadense' }, 'itea')).toBe(-1);
+  });
+  it('puts a plant\'s own name first', () => {
+    const plants: Plant[] = [
+      { id: 'h', common: 'Hairy mountain mint' }, { id: 'm', common: 'Mountain mint' }, { id: 'o', common: 'Hoary mountain mint' },
+      { id: 'w', common: "Wood's sedge" }, { id: 's', common: 'Woodland sedge' },
+    ];
+    const first = (query: string) => {
+      const q = readQuery(query)!;
+      return plants.flatMap((plant) => { const hit = matchPlant(plant, q, true); return hit ? [{ plant, hit }] : []; }).sort(byMatch)[0].plant.id;
+    };
+    expect(first('mountain mint')).toBe('m');
+    expect(first("wood's sedge")).toBe('w');
+    expect(first('woods sedge')).toBe('w');
   });
   it('calls a plant non-toxic to dogs only when nothing says otherwise', () => {
     expect(nonToxicToDogs({ id: 'a', common: 'A', dog: 'Safe' })).toBe(true); // the older list, until checked
