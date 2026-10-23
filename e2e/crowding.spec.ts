@@ -52,6 +52,12 @@ test('a tree can be given its own lowest branches and height; an evergreen scree
   // Its lowest branches: a third of its 60 ft, unless set; its height, the plant's.
   await expect(page.getByTestId('lowest-branch')).toHaveAttribute('placeholder', '20');
   await expect(page.getByTestId('tree-height')).toHaveAttribute('placeholder', '60');
+  // An older, taller oak: a third of its 90 ft, as soon as it's typed.
+  await page.getByTestId('tree-height').fill('90');
+  await expect(page.getByTestId('lowest-branch')).toHaveAttribute('placeholder', '30');
+  await page.getByTestId('tree-height').fill('');
+  await page.getByTestId('tree-height').dispatchEvent('change');
+  await expect(page.getByTestId('lowest-branch')).toHaveAttribute('placeholder', '20');
   await page.getByTestId('lowest-branch').fill('0'); // never limbed up: branches to the ground
   await closeSheet(page);
   await addPlant(page, 'Spicebush', 4);

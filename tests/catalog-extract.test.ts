@@ -343,7 +343,7 @@ describe('claims and how they combine', () => {
   it('reads an evergreen screen tree, branches to the ground, from NC State\'s tags', () => {
     const tree = (leaf: string[], use: string[], habit: string[], type = ['Tree']) => ({ 'Plant Type': type, 'Woody Plant Leaf Characteristics': leaf, 'Design Feature': use, 'Habit/Form': habit });
     expect(lowBranched(tree(['Needled Evergreen'], ['Hedge', 'Screen/Privacy'], ['Columnar', 'Dense', 'Pyramidal']))).toBe(true); // Green Giant
-    expect(lowBranched(tree(['Broadleaf Evergreen'], ['Specimen'], ['Conical']))).toBe(true); // (dense or narrow alone)
+    expect(lowBranched(tree(['Broadleaf Evergreen', 'Semi-evergreen'], ['Specimen'], ['Columnar', 'Open', 'Pyramidal']))).toBe(false); // sweetbay: its shape alone isn't a screen
     expect(lowBranched(tree(['Deciduous'], ['Hedge', 'Screen/Privacy'], ['Erect']))).toBe(false); // witch hazel: limbs can go up
     expect(lowBranched(tree(['Needled Evergreen'], ['Shade Tree'], ['Open', 'Rounded']))).toBe(false); // (an open evergreen)
     expect(lowBranched(tree(['Broadleaf Evergreen'], ['Hedge'], ['Dense'], ['Shrub']))).toBe(false); // (not a tree)

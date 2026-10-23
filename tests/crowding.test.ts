@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { crowdedIds, crowdingOf, sharedHeight } from '../src/crowding';
+import { crowdedIds, crowdingOf, sharedHeight, treeBranches } from '../src/crowding';
 import type { Plant } from '../src/plants';
-import type { Shape } from '../src/types';
+import type { CircleShape, Shape } from '../src/types';
 
 const byId: Record<string, Plant> = {
   shrub: { id: 'shrub', common: 'Shrub', width: { min: 3, max: 5, med: 4 } } as Plant,
@@ -72,6 +72,18 @@ describe('crowding', () => {
     expect(near('redbud', tall)).toEqual([]);
     const brute = new Set(low.filter((s) => crowdingOf(s, low, byId).length).map((s) => s.id));
     expect(crowdedIds(low, byId)).toEqual(brute);
+  });
+  it('says where a tree\'s height and lowest branches come from; a lowest branch at or above its height is ignored', () => {
+    const t = (extra: Partial<Shape>, plantId?: string) => ({ ...p('t', 0, { plantId, tree: true, radius: 10, ...extra } as Partial<Shape>) }) as CircleShape;
+    expect(treeBranches(t({}, 'oakH'), byId.oakH)).toMatchObject({ height: 60, lowest: 20, heightFrom: 'plant', lowestFrom: 'third' });
+    expect(treeBranches(t({ treeHeight: 90 }, 'oakH'), byId.oakH)).toMatchObject({ height: 90, lowest: 30, heightFrom: 'hand' });
+    expect(treeBranches(t({ lowestBranch: 0 }, 'oakH'), byId.oakH)).toMatchObject({ lowest: 0, lowestFrom: 'hand' });
+    expect(treeBranches(t({}, 'arbor'), byId.arbor)).toMatchObject({ lowest: 0, lowestFrom: 'screen' });
+    expect(treeBranches(t({}), undefined)).toMatchObject({ height: 20, heightFrom: 'spread' }); // (drawn 20 ft wide)
+    expect(treeBranches(t({ lowestBranch: 70 }, 'oakH'), byId.oakH)).toMatchObject({ lowest: 20, lowestFrom: 'third' });
+    // (So an oak whose lowest branches were set above its height still crowds the oak beside it.)
+    const oaks = [p('a', 0, { plantId: 'oakH', lowestBranch: 70 } as Partial<Shape>), p('b', 1, { plantId: 'oakH' })];
+    expect(crowdingOf(oaks[0], oaks, byId).map((x) => x.other.id)).toEqual(['b']);
   });
   it('a vine shares no height with a tree (planted to climb it), but crowds what else grows beside it', () => {
     const vines: Record<string, Plant> = { ...byId, vine: { id: 'vine', common: 'Crossvine', form: 'Vine', width: { min: 6, max: 10, med: 8 }, height: { min: 30, max: 50, med: 40 } } as Plant };

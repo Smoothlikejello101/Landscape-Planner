@@ -82,8 +82,9 @@ export interface CircleShape extends ShapeBase {
    */
   canopy?: [number, number][];
   /**
-   * Trees: its height in feet, set by hand (unset = the plant's typical height, or, with no plant, about as
-   * tall as it's drawn wide), and how high its lowest branches are (0 = to the ground; unset = the most its
+   * Trees: its height in feet, set by hand (unset = the plant's typical height, or about as tall as it's wide:
+   * the plant's spread, or as drawn, with no plant), and how high its lowest branches are, below its height
+   * (0 = to the ground; unset = the most its
    * lower limbs can be taken up, a third of its height, or the ground for an evergreen screen). What can
    * grow under it is worked out from them (src/crowding.ts).
    */

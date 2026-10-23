@@ -56,8 +56,10 @@ export function bandOf(s: Shape, byId: Record<string, Plant | undefined>): Band 
 export function treeBranches(s: CircleShape, p: Plant | undefined, r: number | null = s.radius): { height: number | undefined; lowest: number; heightFrom: 'hand' | 'plant' | 'spread' | null; lowestFrom: 'hand' | 'screen' | 'third' } {
   const heightFrom = s.treeHeight != null ? 'hand' : p?.height?.med != null ? 'plant' : r ? 'spread' : null;
   const height = s.treeHeight ?? p?.height?.med ?? (r ? r * 2 : undefined);
-  const lowestFrom = s.lowestBranch != null ? 'hand' : p?.low_branched ? 'screen' : 'third';
-  const lowest = s.lowestBranch ?? (p?.low_branched || height == null ? 0 : height * CLEAR_TRUNK);
+  // (A lowest branch set at or above its height says nothing: a crown needs some height to it.)
+  const hand = s.lowestBranch != null && (height == null || s.lowestBranch < height) ? s.lowestBranch : undefined;
+  const lowestFrom = hand != null ? 'hand' : p?.low_branched ? 'screen' : 'third';
+  const lowest = hand ?? (p?.low_branched || height == null ? 0 : height * CLEAR_TRUNK);
   return { height, lowest, heightFrom, lowestFrom };
 }
 /**

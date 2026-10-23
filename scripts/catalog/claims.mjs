@@ -119,16 +119,16 @@ const hostKey = (n) => (/\(([A-Z][a-z]+ [a-z]+)\)$/.exec(n)?.[1] ?? String(n)).t
 const HERB_FORMS = new Set(['Fern', 'Bulb', 'Grass/Sedge', 'Cactus']); // (not aquatic: a perennial that grows in water, cardinal flower too, is still a perennial)
 /**
  * A tree that keeps its branches to the ground, by NC State's tags: an evergreen (needled or broadleaf) that it
- * lists as a hedge or screen, or as dense, pyramidal, columnar or conical (Green Giant arborvitae, Nellie
- * Stevens holly, Carolina cherry laurel). Our reading of its tags, not a field of its own: such a tree is grown
- * clothed to the ground, so nothing grows under it (src/crowding.ts). A deciduous tree tagged as a screen
- * (witch hazel) isn't one: its lower limbs can be taken up.
+ * lists as a hedge or screen (Green Giant arborvitae, Nellie Stevens holly, Carolina cherry laurel). Our reading
+ * of its tags, not a field of its own: such a tree is grown clothed to the ground, so nothing grows under it
+ * (src/crowding.ts). A deciduous tree tagged as a screen (witch hazel) isn't one, nor an evergreen grown for its
+ * shape alone (sweetbay magnolia, pyramidal among other habits, is limbed up and planted under).
  */
 export function lowBranched(f) {
   if (!ncsuForms(f['Plant Type'], f['Life Cycle']).includes('Tree')) return false;
-  const leaf = f['Woody Plant Leaf Characteristics'] ?? [], use = f['Design Feature'] ?? [], habit = f['Habit/Form'] ?? [];
+  const leaf = f['Woody Plant Leaf Characteristics'] ?? [], use = f['Design Feature'] ?? [];
   const evergreen = leaf.includes('Needled Evergreen') || leaf.includes('Broadleaf Evergreen');
-  return evergreen && (use.includes('Hedge') || use.includes('Screen/Privacy') || ['Dense', 'Pyramidal', 'Columnar', 'Conical'].some((h) => habit.includes(h)));
+  return evergreen && (use.includes('Hedge') || use.includes('Screen/Privacy'));
 }
 /** NC State Plant Toolbox fields → claims (an authority). */
 export function ncsuClaims(f) {
