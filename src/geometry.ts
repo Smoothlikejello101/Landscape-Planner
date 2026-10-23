@@ -240,7 +240,20 @@ export function resizedPoints(points: [number, number][], w: number, h: number):
   const kx = size.w > 0 ? w / size.w : 1, ky = size.h > 0 ? h / size.h : 1;
   return points.map(([x, y]) => [round3(x * kx), round3(y * ky)]);
 }
-/** Where to put a label: deep inside an outline, or a line's midpoint. */
+/**
+ * The angle to write a box shape's name at (a bed, rectangle, oval or triangle; degrees, clockwise): along
+ * whichever of its sides is nearer level, so that it reads as upright as it can, unless the name is too long
+ * for that side and the other side is longer. Never upside down. A bed drawn tall and turned on its side reads
+ * across, as it lies; a narrow upright strip keeps a short name across it and turns a long one along it.
+ * `w` and `h` are its unrotated width and height, and `textW` the name's width, all in the same units.
+ */
+export function boxLabelAngle(rotation: number, w: number, h: number, textW: number): number {
+  const upright = (a: number) => { const x = ((a % 360) + 360) % 360; return x > 270 ? x - 360 : x > 90 ? x - 180 : x; };
+  const sides = [{ a: upright(rotation), len: w }, { a: upright(rotation + 90), len: h }];
+  const [level, other] = Math.abs(sides[1].a) < Math.abs(sides[0].a) ? [sides[1], sides[0]] : sides;
+  const a = textW <= level.len * 0.9 || other.len <= level.len ? level.a : other.a;
+  return Math.round(a * 10) / 10 + 0;
+}
 /**
  * Where a label runs along a line (property lines, fences): the middle of the
  * longest straight run, turned to follow it and kept readable (never upside
@@ -261,6 +274,7 @@ export function alongLabel(s: PathShape): { x: number; y: number; angle: number 
   else if (angle <= -90) angle += 180;
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, angle: Math.round(angle * 10) / 10 + 0 };
 }
+/** Where to put a label: deep inside an outline, or a line's midpoint. */
 export function pathLabelPoint(s: PathShape): Point {
   const pts = worldPoints(s);
   if (s.type === 'line') {

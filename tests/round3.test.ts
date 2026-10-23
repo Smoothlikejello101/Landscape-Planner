@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { keyboardInset } from '../src/keyboard';
 import { kindOfShape } from '../src/kinds';
-import { alongLabel } from '../src/geometry';
+import { alongLabel, boxLabelAngle } from '../src/geometry';
 import type { PathShape, Shape } from '../src/types';
 
 const shape = (over: Partial<Shape>): Shape => ({ id: 'x', type: 'rect', x: 0, y: 0, width: 4, height: 4, rotation: 0, color: '#000', label: '', opacity: 1, locked: false, ...over } as Shape);
@@ -43,5 +43,22 @@ describe('labels along a line', () => {
     expect(alongLabel(line([[0, 0], [2, 0], [2, 20]]))).toEqual({ x: 2, y: 10, angle: 90 });
     expect(alongLabel(line([[10, 10], [0, 0]]))).toEqual({ x: 5, y: 5, angle: 45 }); // drawn right to left: still reads left to right
     expect(alongLabel(line([[0, 0], [30, 0], [30, 5], [0, 5]], 'poly')).angle).toBe(0);
+  });
+});
+
+describe('a box shape\'s name', () => {
+  it('reads as upright as it can, along the side nearer level, not turned with the shape', () => {
+    // A bed drawn tall (8 by 50) and turned on its side: across, as it lies (it read top to bottom).
+    expect(boxLabelAngle(90, 8, 50, 30)).toBe(0);
+    expect(boxLabelAngle(270, 8, 50, 30)).toBe(0);
+    // A narrow upright strip: a short name across it; a long one along it, reading down (as a fence's name does).
+    expect(boxLabelAngle(0, 8, 50, 6)).toBe(0);
+    expect(boxLabelAngle(0, 8, 50, 30)).toBe(90);
+    // Never upside down; a slant keeps the side nearer level.
+    expect(boxLabelAngle(180, 50, 8, 30)).toBe(0);
+    expect(boxLabelAngle(30, 50, 8, 30)).toBe(30);
+    expect(boxLabelAngle(60, 8, 50, 30)).toBe(-30);
+    // Too long for either side: along the longer.
+    expect(boxLabelAngle(90, 50, 8, 80)).toBe(90);
   });
 });

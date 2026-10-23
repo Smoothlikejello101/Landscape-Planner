@@ -1,7 +1,7 @@
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from './constants';
 import { escapeHtml } from './dom';
 import { errMsg } from './util';
-import { alongLabel, boxSize, displayLabel, LINE_HEIGHT, pathLabelPoint, textLines, textSize, rotatedBoxBounds, shapeBBox, trianglePoints, unionBounds, worldPoints } from './geometry';
+import { alongLabel, boxLabelAngle, boxSize, displayLabel, LINE_HEIGHT, pathLabelPoint, textLines, textSize, rotatedBoxBounds, shapeBBox, trianglePoints, unionBounds, worldPoints } from './geometry';
 import { state } from './state';
 import { currentProject } from './storage';
 import type { Bounds, Shape } from './types';
@@ -10,7 +10,7 @@ import { paintOrder } from './canvas';
 import { roleDef } from './roles';
 import { shadeOpacity } from './sun';
 import { plantsById } from './plants';
-import { LABEL_LINE_HEIGHT, plantLabelFit } from './labels';
+import { LABEL_LINE_HEIGHT, plantLabelFit, textWidth1 } from './labels';
 import { canopyInnerRadius, canopyPoints, isTree, partsToSvg, trunkParts, trunkReachPx } from './trees';
 
 // ============================================================
@@ -127,7 +127,12 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
     const pts = trianglePoints(s).map(p => `${(p[0] - originX) * scale},${(p[1] - originY) * scale}`).join(' ');
     out = `<polygon points="${pts}" fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}${rotAttr}/>`;
   }
-  if (s.label) out += text(cx, cy, Math.max(10, Math.min(14, (Math.min(w, h) / k) * 0.2)), s.label, rotAttr);
+  if (s.label) {
+    // Its name reads as upright as it can, as on the plan (geometry.ts, boxLabelAngle).
+    const fs = Math.max(10, Math.min(14, (Math.min(w, h) / k) * 0.2));
+    const angle = boxLabelAngle(s.rotation || 0, w, h, textWidth1(s.label) * fs * k);
+    out += text(cx, cy, fs, s.label, angle ? ` transform="rotate(${angle} ${cx} ${cy})"` : '');
+  }
   return out;
 }
 export function buildExportSVG(): { svg: string; widthPx: number; heightPx: number } | null {

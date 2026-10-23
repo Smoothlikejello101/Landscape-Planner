@@ -55,6 +55,18 @@ test.describe('core editing', () => {
     await expect(page.locator('#canvas-svg rect[data-shape-id]')).toHaveAttribute('transform', /rotate\(15 /);
   });
 
+  test('a turned shape\'s name reads as upright as it can, not turned with it', async ({ page }) => {
+    await openFresh(page);
+    await addShape(page, 'rect');
+    await field(page, 'Label').fill('Bed');
+    const name = page.locator('#canvas-svg text', { hasText: 'Bed' });
+    await page.locator('.rot-quick button', { hasText: '+15°' }).click();
+    await expect(name).toHaveAttribute('transform', /rotate\(15 /); // (a slant: along its side nearer level)
+    for (let i = 0; i < 5; i++) await page.locator('.rot-quick button', { hasText: '+15°' }).click();
+    await expect(page.locator('#canvas-svg rect[data-shape-id]')).toHaveAttribute('transform', /rotate\(90 /);
+    await expect(name).not.toHaveAttribute('transform', /.+/); // turned a quarter: the name still reads across
+  });
+
   test('undo and redo', async ({ page }) => {
     await openFresh(page);
     await addShape(page, 'circle');
