@@ -4,6 +4,7 @@ import type { Plant, PlantFilter } from '../plants';
 import { MONTH_NAMES, matchedBy, reportedOnly, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
+import { spreadsAs } from '../spread';
 import { isMine, myPlants } from '../my-plants';
 import type { PlantFormArgs } from '../types';
 import { state } from '../state';
@@ -295,7 +296,11 @@ export function renderPlantsPanel() {
     mkSelect('Any maintenance', 'maintenance', enums.maintenance || [])
   ));
   adv.appendChild(row(
-    mkSelect('Any self-seeding', 'selfSeed', enums.self_seed || [])
+    // (Says unverified while any plant it lets through goes by the older list for either fact, as the dog filter does.)
+    withTestId(mkSelect('Any spreading', 'spread', ['stays', 'seed', 'runs', 'aggressive'], (v) => ({
+      stays: PLANTS.some((p) => spreadsAs(p, 'stays') && [p.prov?.self_seed, p.prov?.habit].some((pv) => !pv || pv.src.every((s) => PLANT_META?.sources?.[s]?.trust === 'unverified'))) ? 'Stays put (unverified)' : 'Stays put',
+      seed: 'Self-sows freely', runs: 'Spreads underground or by runners', aggressive: 'Spreads aggressively underground or by runners',
+    } as Record<string, string>)[v] ?? v), 'spread-filter')
   ));
   adv.appendChild(el('div', { className: 'hint', style: { padding: '10px 0 0' } }, 'Traits'));
   adv.appendChild(el('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px 16px', margin: '4px 0 8px' } },
