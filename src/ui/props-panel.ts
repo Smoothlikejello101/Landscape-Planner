@@ -14,13 +14,14 @@ import { getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { render } from './render';
 import type { CircleShape, Corner, RoleKey, Shape } from '../types';
-import { formatSize, fullRingRadius, isMine, plantRadius, type Range } from '../my-plants';
+import { formatSize, fullRingRadius, isMine, plantRadius, plantSpread, type Range } from '../my-plants';
 import { canLinkToPlant, linkShapesToPlant, plantFilter, plantsById, unlinkedWithLabel, type Plant } from '../plants';
 import { toast } from './toast';
 import { deleteSelectedAsking } from './delete-selected';
 import { zoneFit, zoneRange } from '../climate';
 import { isTree, trunkDiameter } from '../trees';
-import { MAX_TRUNK, MIN_TRUNK } from '../constants';
+import { treeBranches } from '../crowding';
+import { MAX_TREE_HEIGHT, MAX_TRUNK, MIN_TRUNK } from '../constants';
 import { statusSection, statusSummary } from './status-section';
 import { hasStatus } from '../status';
 import { plantsInBed } from '../beds';
@@ -387,8 +388,36 @@ function trunkFields(s: CircleShape): Node[] {
     else if (value() == null) t.value = String(s.trunk ?? '');
   });
   const out: Node[] = [el('div', { className: 'field', style: { marginTop: '8px' } }, el('label', {}, 'Trunk (ft across)'), t,
-    el('div', { className: 'hint' }, 'Leave empty to keep it in proportion to the canopy.'))];
+    el('div', { className: 'hint' }, 'Leave empty to keep it in proportion to the canopy.')), ...branchFields(s)];
   return out;
+}
+/**
+ * A tree's height and how high its lowest branches are: what can grow under it (src/crowding.ts). Empty, each
+ * says what's taken instead, and from where.
+ */
+function branchFields(s: CircleShape): Node[] {
+  const p = s.plantId ? plantsById[s.plantId] : undefined;
+  const r = p ? plantSpread(p, 'typical') / 2 : s.radius;
+  const auto = treeBranches({ ...s, treeHeight: undefined, lowestBranch: undefined }, p, r);
+  const number = (key: 'treeHeight' | 'lowestBranch', min: number, placeholder: number | undefined, testid: string) => {
+    const input = el('input', { type: 'number', step: '1', min: String(min), max: String(MAX_TREE_HEIGHT), inputMode: 'decimal', placeholder: placeholder != null ? String(round1(placeholder)) : '', value: s[key] ?? '', 'data-testid': testid }) as HTMLInputElement;
+    const value = () => { const v = parseFloat(input.value.replace(',', '.')); return v >= min && v <= MAX_TREE_HEIGHT ? v : null; };
+    input.addEventListener('input', () => { const v = value(); if (v != null) updateSelectedSilent({ [key]: v }); });
+    input.addEventListener('change', () => {
+      if (!input.value.trim()) updateSelectedSilent({ [key]: undefined }); // back to what's worked out
+      else if (value() == null) input.value = String(s[key] ?? '');
+    });
+    return input;
+  };
+  const heightHint = auto.heightFrom === 'plant' ? 'Leave empty for its typical height, from the plant; set it to the tree you have.'
+    : 'Not known: taken as about as tall as it\'s drawn wide. Set it for a truer picture of what grows under it.';
+  const lowestHint = auto.lowestFrom === 'screen'
+    ? 'Leave empty: an evergreen screen keeps its branches to the ground, so nothing grows under it (NC State lists it as a hedge, screen or dense evergreen).'
+    : 'Leave empty for a third of its height, the most its lower limbs can be taken up (live branches kept on the upper two thirds). 0: branches to the ground.';
+  return [
+    el('div', { className: 'field' }, el('label', {}, 'Height (ft)'), number('treeHeight', 1, auto.height, 'tree-height'), el('div', { className: 'hint' }, heightHint)),
+    el('div', { className: 'field' }, el('label', {}, 'Lowest branches (ft up)'), number('lowestBranch', 0, auto.lowest, 'lowest-branch'), el('div', { className: 'hint' }, lowestHint)),
+  ];
 }
 /** A shaped canopy back to a circle (also offered if it stopped being a tree). */
 function makeRoundField(s: CircleShape): HTMLElement {

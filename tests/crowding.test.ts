@@ -13,6 +13,7 @@ const byId: Record<string, Plant> = {
   shrubH: { id: 'shrubH', common: 'Spicebush', form: 'Shrub', width: { min: 4, max: 8, med: 6 }, height: { min: 4, max: 8, med: 6 } } as Plant,
   bigShrub: { id: 'bigShrub', common: 'Wax myrtle', form: 'Shrub', width: { min: 15, max: 25, med: 20 }, height: { min: 20, max: 40, med: 30 } } as Plant,
   low: { id: 'low', common: 'Coreopsis', form: 'Perennial', width: { min: 1, max: 3, med: 2 }, height: { min: 1, max: 3, med: 2 } } as Plant,
+  arbor: { id: 'arbor', common: 'Arborvitae', form: 'Tree', low_branched: true, width: { min: 12, max: 20, med: 16 }, height: { min: 40, max: 60, med: 50 } } as Plant,
 };
 const base = { color: '#16a34a', opacity: 0.65, locked: false };
 const p = (id: string, x: number, extra: Partial<Shape> = {}): Shape =>
@@ -49,6 +50,28 @@ describe('crowding', () => {
     expect(near('mystery')).toEqual([]); // a young tree under the oak: nothing shared
     expect(near('oak')).toEqual(['oak2', 'bigUnknown']);
     expect([...crowdedIds(shapes, byId)].sort()).toEqual(['bigUnknown', 'oak', 'oak2']);
+  });
+  it('an evergreen screen keeps its branches to the ground; a tree can be given its own height and lowest branches', () => {
+    const shapes = [p('arbor', 0, { plantId: 'arbor' }), p('shrub', 9, { plantId: 'shrubH' }), p('oak', 40, { plantId: 'oakH' }), p('shrub2', 46, { plantId: 'shrubH' })];
+    const near = (id: string, list = shapes) => crowdingOf(list.find((s) => s.id === id)!, list, byId).map((x) => [x.other.id, x.shared]);
+    // A spicebush 9 ft from an arborvitae: all its height in the arborvitae's (usual 11 ft, crowded under 8¼).
+    expect(near('shrub')).toEqual([]); // (9 ft: just clear)
+    const close = shapes.map((s) => (s.id === 'shrub' ? { ...s, x: 7 } : s));
+    expect(near('shrub', close)).toEqual([['arbor', 1]]);
+    // Under the oak, nothing shared, until its branches are set to reach the ground (never limbed up); at 5 ft up,
+    // a sixth of the spicebush's height is in it, and 6 ft from the trunk is clear of that.
+    expect(near('shrub2')).toEqual([]);
+    const low = shapes.map((s) => (s.id === 'oak' ? { ...s, lowestBranch: 0 } as Shape : s));
+    expect(near('shrub2', low)).toEqual([['oak', 1]]);
+    const five = shapes.map((s) => (s.id === 'oak' ? { ...s, lowestBranch: 5 } as Shape : s));
+    expect(near('shrub2', five)).toEqual([]);
+    // A tree drawn without a plant, given its height: a 90 ft pine 30 ft wide, crown from 30 ft, clears a 25 ft redbud.
+    const pine = [p('pine', 0, { plantId: undefined, tree: true, radius: 15 } as Partial<Shape>), p('redbud', 8, { plantId: 'redbudH' })];
+    expect(near('redbud', pine).length).toBe(1); // (as tall as wide: 30 ft, crown from 10)
+    const tall = pine.map((s) => (s.id === 'pine' ? { ...s, treeHeight: 90 } as Shape : s));
+    expect(near('redbud', tall)).toEqual([]);
+    const brute = new Set(low.filter((s) => crowdingOf(s, low, byId).length).map((s) => s.id));
+    expect(crowdedIds(low, byId)).toEqual(brute);
   });
   it('a vine shares no height with a tree (planted to climb it), but crowds what else grows beside it', () => {
     const vines: Record<string, Plant> = { ...byId, vine: { id: 'vine', common: 'Crossvine', form: 'Vine', width: { min: 6, max: 10, med: 8 }, height: { min: 30, max: 50, med: 40 } } as Plant };

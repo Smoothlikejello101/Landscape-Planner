@@ -20,7 +20,7 @@ export const TIER = {
   zone_min: 'survival', zone_max: 'survival', sun_most: 'survival', sun_least: 'survival', water: 'survival',
   height: 'survival', width: 'survival', clay_ok: 'survival', wet_feet: 'survival', deer: 'survival',
   form: 'description', bloom_season: 'description', bloom_months: 'description', flower_color: 'description',
-  fall_color: 'description', host: 'description', host_genus: 'description', edible: 'description',
+  fall_color: 'description', host: 'description', host_genus: 'description', edible: 'description', low_branched: 'description',
 };
 const RANK = { authority: 3, breeder: 2, nursery: 1, blog: 0 };
 /** Facts decided by sides (`bySides`), the other side kept beside the value (`alt`; never safety facts). */
@@ -117,6 +117,19 @@ const hostKey = (n) => (/\(([A-Z][a-z]+ [a-z]+)\)$/.exec(n)?.[1] ?? String(n)).t
 
 /** Forms that are herbaceous perennials of a kind of their own: with one of these, "Perennial" adds nothing. */
 const HERB_FORMS = new Set(['Fern', 'Bulb', 'Grass/Sedge', 'Cactus']); // (not aquatic: a perennial that grows in water, cardinal flower too, is still a perennial)
+/**
+ * A tree that keeps its branches to the ground, by NC State's tags: an evergreen (needled or broadleaf) that it
+ * lists as a hedge or screen, or as dense, pyramidal, columnar or conical (Green Giant arborvitae, Nellie
+ * Stevens holly, Carolina cherry laurel). Our reading of its tags, not a field of its own: such a tree is grown
+ * clothed to the ground, so nothing grows under it (src/crowding.ts). A deciduous tree tagged as a screen
+ * (witch hazel) isn't one: its lower limbs can be taken up.
+ */
+export function lowBranched(f) {
+  if (!ncsuForms(f['Plant Type'], f['Life Cycle']).includes('Tree')) return false;
+  const leaf = f['Woody Plant Leaf Characteristics'] ?? [], use = f['Design Feature'] ?? [], habit = f['Habit/Form'] ?? [];
+  const evergreen = leaf.includes('Needled Evergreen') || leaf.includes('Broadleaf Evergreen');
+  return evergreen && (use.includes('Hedge') || use.includes('Screen/Privacy') || ['Dense', 'Pyramidal', 'Columnar', 'Conical'].some((h) => habit.includes(h)));
+}
 /** NC State Plant Toolbox fields → claims (an authority). */
 export function ncsuClaims(f) {
   const c = [], add = (fact, v) => { if (v != null && !(Array.isArray(v) && !v.length)) c.push({ fact, v, src: 'ncsu', kind: 'authority' }); };
@@ -137,6 +150,7 @@ export function ncsuClaims(f) {
   if ((f['Resistance To Challenges'] ?? []).includes('Deer')) add('deer', 'Resistant');
   if ((f['Plant Type'] ?? []).includes('Edible')) add('edible', true);
   if (f['Deciduous Leaf Fall Color']) add('fall_color', true);
+  if (lowBranched(f)) add('low_branched', true);
   if ((f['Soil Texture'] ?? []).includes('Clay')) add('clay_ok', true);
   const nd = new Set(f['Soil Drainage'] ?? []);
   if (['Occasionally Wet', 'Frequent Standing Water', 'Occasional Flooding'].some((d) => nd.has(d)) || (f['Resistance To Challenges'] ?? []).includes('Wet Soil')) add('wet_feet', true);

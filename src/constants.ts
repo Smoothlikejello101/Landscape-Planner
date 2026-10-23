@@ -40,3 +40,5 @@ export const STORAGE = {
 /** Tree trunk diameters set by hand, feet. */
 export const MIN_TRUNK = 0.25;
 export const MAX_TRUNK = 20;
+/** Trees: the tallest height (feet) a tree can be given by hand (the tallest trees in the world are under 400). */
+export const MAX_TREE_HEIGHT = 400;

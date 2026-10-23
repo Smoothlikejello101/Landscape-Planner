@@ -488,6 +488,7 @@ months ("MO" for MOBOT).
 | `host` | "Wildlife Value" and its sentences | — | Only where a source says the plant is a larval host. Stored as the names it gives, never its sentence, and only names whose genus the Tallamy data lists as a butterfly or moth. Confirmed only where two sources name the same one. |
 | `edible` | "Plant Type" tag Edible | — | The tag, not the free-text "Edibility" note. |
 | `fall_color` | "Deciduous Leaf Fall Color" | — | USDA's "Fall Conspicuous" is about the plant overall in fall, not leaf color. |
+| `low_branched` | "Woody Plant Leaf Characteristics", "Design Feature", "Habit/Form" | — | Our reading of its tags, agreed 2026-10-22: a tree that's evergreen (Needled or Broadleaf Evergreen) and listed as a Hedge or Screen/Privacy, or as Dense, Pyramidal, Columnar or Conical, keeps its branches to the ground (Green Giant arborvitae, Nellie Stevens holly, Carolina cherry laurel). A deciduous tree tagged as a screen (witch hazel) isn't one: its lower limbs can be taken up. Yes or missing, never no. |
 | `clay_ok` | soil texture | — | |
 | `wet_feet` | soil drainage | — | |
 | `maintenance` | — | — | `null`: NC State gives a level, not a task, and the catalog's values are tasks. |
