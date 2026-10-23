@@ -138,32 +138,37 @@ export function rectFromTaps(a: Point, b: Point, c: Point): { x: number; y: numb
   const ux = b.x - a.x, uy = b.y - a.y;
   const len = Math.hypot(ux, uy);
   if (len < MIN_SIZE) return null;
-  let deg = Math.atan2(uy, ux) * 180 / Math.PI;
+  const deg = Math.atan2(uy, ux) * 180 / Math.PI;
   const n = rotate(0, 1, deg); // the side's normal
   const d = (c.x - a.x) * n.x + (c.y - a.y) * n.y;
   if (Math.abs(d) < MIN_SIZE) return null;
   const cx = a.x + ux / 2 + n.x * d / 2, cy = a.y + uy / 2 + n.y * d / 2;
-  // A box turned 180° is the same box: keep the angle in (-90, 90].
-  if (deg > 90) deg -= 180;
-  else if (deg <= -90) deg += 180;
-  const width = r2(len), height = r2(Math.abs(d));
-  const rotation = Math.abs(deg) < 0.05 ? 0 : Math.round(deg * 10) / 10;
+  const { width, height, rotation } = levelBox(deg, len, Math.abs(d));
   return { x: r2(cx - width / 2), y: r2(cy - height / 2), width, height, rotation };
+}
+/**
+ * A box's turn kept within 45° either way, its sides swapped to match: a box turned 90° is the same box
+ * unturned, its width and height swapped. So a bed started on its short end, tapped top to bottom, is stored
+ * unturned (its Rotation 0°, its name level), however its corners were tapped.
+ */
+function levelBox(deg: number, w: number, h: number): { width: number; height: number; rotation: number } {
+  let a = ((deg % 180) + 180) % 180; // (in [0, 180): a box turned half round is the same box)
+  let width = w, height = h;
+  if (a > 135) a -= 180;
+  else if (a > 45) { a -= 90; [width, height] = [h, w]; }
+  return { width: r2(width), height: r2(height), rotation: Math.abs(a) < 0.05 ? 0 : Math.round(a * 10) / 10 };
 }
 /** An oval from the two ends of its long side and a point on the edge of its short side. */
 export function ovalFromTaps(a: Point, b: Point, c: Point): { x: number; y: number; width: number; height: number; rotation: number } | null {
   const ux = b.x - a.x, uy = b.y - a.y;
   const len = Math.hypot(ux, uy);
   if (len < MIN_SIZE) return null;
-  let deg = Math.atan2(uy, ux) * 180 / Math.PI;
+  const deg = Math.atan2(uy, ux) * 180 / Math.PI;
   const n = rotate(0, 1, deg);
   const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
   const half = Math.abs((c.x - mx) * n.x + (c.y - my) * n.y);
   if (half * 2 < MIN_SIZE) return null;
-  if (deg > 90) deg -= 180;
-  else if (deg <= -90) deg += 180;
-  const width = r2(len), height = r2(half * 2);
-  const rotation = Math.abs(deg) < 0.05 ? 0 : Math.round(deg * 10) / 10;
+  const { width, height, rotation } = levelBox(deg, len, half * 2);
   return { x: r2(mx - width / 2), y: r2(my - height / 2), width, height, rotation };
 }
 /** A circle's radius from its center and a tap on its edge, to the quarter foot. */

@@ -15,6 +15,17 @@ beforeEach(() => {
   localStorage.clear();
 });
 const tap = (x: number, y: number) => state.draw!.points.push({ x, y });
+/** A box's four corners, turned about its center as drawn. */
+function corners(b: { x: number; y: number; width: number; height: number; rotation: number }) {
+  const cx = b.x + b.width / 2, cy = b.y + b.height / 2, t = (b.rotation * Math.PI) / 180;
+  return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([sx, sy]) => {
+    const dx = (sx * b.width) / 2, dy = (sy * b.height) / 2;
+    return { x: cx + dx * Math.cos(t) - dy * Math.sin(t), y: cy + dx * Math.sin(t) + dy * Math.cos(t) };
+  });
+}
+/** Whether `p` is one of the box's corners, to a few hundredths of a foot. */
+const hasCorner = (b: Parameters<typeof corners>[0], p: { x: number; y: number }) =>
+  corners(b).some((q) => Math.hypot(q.x - p.x, q.y - p.y) < 0.03);
 
 describe('rectangles from three taps', () => {
   it('make a square-on rectangle from two corners and the far side', () => {
@@ -22,16 +33,44 @@ describe('rectangles from three taps', () => {
     // the third tap can be anywhere on the far side, and on either side of the first
     expect(rectFromTaps({ x: 0, y: 4 }, { x: 10, y: 4 }, { x: 12, y: 0 })).toEqual({ x: 0, y: 0, width: 10, height: 4, rotation: 0 });
   });
-  it('turn to follow the first side, like a house traced from a photo', () => {
-    const r = rectFromTaps({ x: 0, y: 0 }, { x: 6, y: 8 }, { x: -8, y: 6 })!; // side 10 long at 53.1°, 10 deep
-    expect(r.width).toBe(10); expect(r.height).toBe(10);
-    expect(r.rotation).toBeCloseTo(53.1, 1);
-    expect(r.x + r.width / 2).toBeCloseTo(-1); expect(r.y + r.height / 2).toBeCloseTo(7);
+  it('turn to follow the first side when it is nearer level, like a house traced from a photo', () => {
+    const t = rectFromTaps({ x: 0, y: 0 }, { x: 8, y: 6 }, { x: 5, y: 10 })!; // side 10 long at 36.9°, 5 deep
+    expect(t.width).toBe(10); expect(t.height).toBe(5);
+    expect(t.rotation).toBeCloseTo(36.9, 1);
   });
-  it('keep the angle between -90 and 90 whichever way the side was tapped', () => {
+  it('keep the turn within 45° either way, swapping the sides to match', () => {
+    // side 10 long at 53.1°, 5 deep: the same box as 5 by 10 turned -36.9°
+    const a = { x: 0, y: 0 }, b = { x: 6, y: 8 };
+    const r = rectFromTaps(a, b, { x: -4, y: 3 })!;
+    expect(r.width).toBe(5); expect(r.height).toBe(10);
+    expect(r.rotation).toBeCloseTo(-36.9, 1);
+    expect(r.x + r.width / 2).toBeCloseTo(1); expect(r.y + r.height / 2).toBeCloseTo(5.5);
+    expect(hasCorner(r, a) && hasCorner(r, b)).toBe(true);
+    // first sides turned every way: the corners tapped stay corners, and the turn stays within 45°
+    for (const deg of [-150, -120, -60, -45, -30, 30, 45, 60, 120, 135, 150, 180]) {
+      const t = (deg * Math.PI) / 180;
+      const p = { x: 3, y: -2 }, q = { x: 3 + 8 * Math.cos(t), y: -2 + 8 * Math.sin(t) };
+      const far = { x: q.x - 3 * Math.sin(t), y: q.y + 3 * Math.cos(t) }; // 3 ft off the side
+      for (const box of [rectFromTaps(p, q, far)!, rectFromTaps(q, p, far)!]) {
+        expect(Math.abs(box.rotation)).toBeLessThanOrEqual(45);
+        expect([box.width, box.height].sort((m, n) => m - n)).toEqual([3, 8]);
+        expect(hasCorner(box, p) && hasCorner(box, q) && hasCorner(box, far)).toBe(true);
+      }
+      const o = ovalFromTaps(p, q, far)!;
+      expect(Math.abs(o.rotation)).toBeLessThanOrEqual(45);
+      expect([o.width, o.height].sort((m, n) => m - n)).toEqual([6, 8]);
+    }
     const fwd = rectFromTaps({ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 0, y: 4 })!;
     const back = rectFromTaps({ x: 10, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 4 })!;
     expect(back).toEqual(fwd);
+  });
+  it('store a bed started on its short end unturned, its name level', () => {
+    // A bed 2.5 ft wide and 17 ft long, its short top end tapped first, then a point on its long side.
+    const top = rectFromTaps({ x: 0, y: 0 }, { x: 2.5, y: 0 }, { x: 1, y: 17 });
+    const side = rectFromTaps({ x: 0, y: 0 }, { x: 0, y: 17 }, { x: 2.5, y: 9 });
+    const up = rectFromTaps({ x: 2.5, y: 17 }, { x: 2.5, y: 0 }, { x: 0, y: 3 });
+    const want = { x: 0, y: 0, width: 2.5, height: 17, rotation: 0 };
+    expect(top).toEqual(want); expect(side).toEqual(want); expect(up).toEqual(want);
   });
   it('refuse a side or depth too small to see', () => {
     expect(rectFromTaps({ x: 0, y: 0 }, { x: 0.1, y: 0 }, { x: 0, y: 4 })).toBe(null);
@@ -42,7 +81,7 @@ describe('rectangles from three taps', () => {
 describe('ovals and circles from taps', () => {
   it('make an oval from the ends of its long side and its short edge', () => {
     expect(ovalFromTaps({ x: 0, y: 5 }, { x: 12, y: 5 }, { x: 6, y: 2 })).toEqual({ x: 0, y: 2, width: 12, height: 6, rotation: 0 });
-    expect(ovalFromTaps({ x: 0, y: 0 }, { x: 0, y: 10 }, { x: 2, y: 5 })).toMatchObject({ width: 10, height: 4, rotation: 90 });
+    expect(ovalFromTaps({ x: 0, y: 0 }, { x: 0, y: 10 }, { x: 2, y: 5 })).toEqual({ x: -2, y: 0, width: 4, height: 10, rotation: 0 });
   });
   it('size a circle to the quarter foot from its center and edge', () => {
     expect(radiusFromTaps({ x: 0, y: 0 }, { x: 3, y: 4 })).toBe(5);
