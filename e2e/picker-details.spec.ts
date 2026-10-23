@@ -88,3 +88,23 @@ test('linking a circle to a catalog plant uses the Link button', async ({ page }
   await item.getByTestId('plant-place').click();
   await expect(field(page, 'Label')).toHaveValue("Heuchera 'Autumn Bride'");
 });
+
+test('how a plant spreads, by seed and underground, in one row with a source each; the picker can show only plants that stay put', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Blue mistflower');
+  const item = page.locator('.plant-item', { hasText: 'Blue mistflower' });
+  await item.getByTestId('plant-row').click();
+  const details = item.getByTestId('plant-details');
+  await expect(details.locator('dt', { hasText: 'How it spreads' })).toHaveCount(1);
+  const spreads = details.getByTestId('spreads');
+  await expect(spreads.locator('.details-part')).toHaveText(['Self-sows freely', 'Spreads aggressively underground or by runners: Aggressive rhizome']);
+  await expect(spreads.locator('.details-src')).toHaveText(['older list, unverified']); // (each part its own source; one line where they share it)
+  await expect(details.locator('dt', { hasText: /^Habit$/ })).toHaveCount(0); // (said under "How it spreads")
+  await page.getByRole('button', { name: '+ More filters' }).click();
+  await expect(page.getByTestId('spread-filter').locator('option[value="stays"]')).toHaveText('Stays put (unverified)');
+  await page.getByTestId('spread-filter').selectOption('stays');
+  await expect(page.locator('.plant-item', { hasText: 'Blue mistflower' })).toHaveCount(0);
+  await page.getByTestId('spread-filter').selectOption('aggressive');
+  await expect(page.locator('.plant-item', { hasText: 'Blue mistflower' })).toHaveCount(1);
+});

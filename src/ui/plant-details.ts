@@ -4,6 +4,7 @@
 import { el } from '../dom';
 import type { Plant } from '../plants';
 import { MONTH_NAMES, PLANT_META, formsOf, zoneNote } from '../plants';
+import { rootSpread, rootText, seedText } from '../spread';
 import { zoneRange } from '../climate';
 import type { Provenance } from '../catalog';
 import { escapeHere, escapeText, localBloom, nativeHere, nativeText, regulatedHere, wildHere, wildText } from '../wild';
@@ -49,14 +50,36 @@ function rows(p: Plant): Row[] {
     ['Takes clay', yes(p.clay_ok), ['clay_ok']],
     ['Takes wet feet', yes(p.wet_feet), ['wet_feet']],
     ['Takes dry shade', yes(p.dry_shade), ['dry_shade']],
-    ['Self-seeds', p.self_seed ?? '', ['self_seed']],
+    // (By seed, and underground or by runners: two facts, one question, "will it spread?"; drawn by spreadRow.)
+    ['How it spreads', '', ['self_seed', 'habit']],
     ['Maintenance', p.maintenance ?? '', ['maintenance']],
     ['Taproot (hard to move)', yes(p.taproot), ['taproot']],
     ['Humidity', p.humidity === 'humid' ? 'Likes humid summers' : p.humidity === 'dry' ? 'Likes dry air' : p.humidity === 'either' ? 'Either' : '', ['humidity']],
-    ['Habit', p.habit ?? '', ['habit']],
+    // (A habit that speaks to spreading is under "How it spreads"; one that doesn't, a vine's twining, stays here.)
+    ['Habit', rootSpread(p.habit) && rootSpread(p.habit) !== 'shape' ? '' : p.habit ?? '', ['habit']],
     ['Trunk', p.trunk ? `${p.trunk} in across` : '', ['trunk']],
     ['Nativar', p.nativar ? 'A cultivar of a native species' : '', ['nativar']],
   ];
+}
+/**
+ * "How it spreads": by seed, and underground or by runners, each with its own source (they come from separate
+ * sources). Self-sowing looked up and not found is said so; a part not looked up is left out. Null: nothing to say.
+ */
+function spreadRow(p: Plant): HTMLElement | null {
+  const seed = seedText(p) || (p.prov?.self_seed?.unknown ? 'Self-sowing not known: none of the sources say' : '');
+  const parts: [string, string][] = [];
+  if (seed) parts.push([seed, sourceLine(p.prov?.self_seed)]);
+  const roots = rootText(p);
+  if (roots) parts.push([roots, sourceLine(p.prov?.habit)]);
+  if (!parts.length) return null;
+  const dd = el('dd', { 'data-testid': 'spreads' });
+  // (One source line under both where they share it: "older list, unverified" once, not twice.)
+  const same = parts.length === 2 && parts[0][1] === parts[1][1];
+  parts.forEach(([text, src], i) => {
+    dd.appendChild(el('span', { className: 'details-part' }, text));
+    if (src && !(same && i === 0)) dd.appendChild(el('span', { className: 'details-src' }, src));
+  });
+  return dd;
 }
 /** Where a value came from, in a few words: "NC State, USDA · confirmed", "older list, unverified". */
 function sourceLine(prov: Provenance | undefined): string {
@@ -80,6 +103,7 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
   if (p.botanical) box.appendChild(el('div', { className: 'details-bot' }, p.botanical));
   const dl = el('dl', { className: 'details-list' });
   for (const [label, value, facts, reportedText] of rows(p)) {
+    if (label === 'How it spreads') { const dd = spreadRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
     const prov = facts.map((f) => p.prov?.[f]).find(Boolean);
     const reported = p.reported && facts.some((f) => f in p.reported!) && reportedText ? reportedText(p.reported) : '';
     // Bloom where the garden is, from flowering records there: its months, and how many records they rest on.
@@ -115,6 +139,7 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
   // What the law says of it where the garden is (a state's list, the federal one), each with its rule: first,
   // above the catalog's facts, where it can't be missed.
   const localRows = document.createDocumentFragment();
+  const notesShown = new Set<string>();
   for (const rule of regulatedHere(p)) {
     const dd = el('dd', { 'data-testid': 'regulated-here', className: `details-law${rule.tier === 'listed' ? ' listed' : ''}` }, rule.says);
     // (Native here and covered anyway: why, in plain words, under the rule's own.)
@@ -123,6 +148,15 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
     src.appendChild(el('a', { href: rule.url, target: '_blank', rel: 'noopener' }, rule.title));
     src.appendChild(document.createTextNode(`; ${rule.edition}; read ${rule.read}`));
     dd.appendChild(src);
+    // (And, after the rule and its source, a documented fact about the plants it names, to help a gardener see why a
+    // list might include them; with its own source. Once a plant: the same note from two rules isn't said twice.)
+    if (rule.background && !notesShown.has(rule.background.note)) {
+      notesShown.add(rule.background.note);
+      const bg = el('span', { className: 'details-law-native details-law-bg', 'data-testid': 'law-background' }, `${rule.background.note} (`);
+      bg.appendChild(el('a', { href: rule.background.url, target: '_blank', rel: 'noopener', className: 'details-src-inline' }, rule.background.title));
+      bg.appendChild(document.createTextNode(')'));
+      dd.appendChild(bg);
+    }
     localRows.appendChild(el('dt', {}, 'By law'));
     localRows.appendChild(dd);
   }
