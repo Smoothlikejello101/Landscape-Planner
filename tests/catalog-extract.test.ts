@@ -200,13 +200,22 @@ describe('claims and how they combine', () => {
     const ncForm = (f: Record<string, string[]>) => ncsuClaims(f).find((c: { fact: string }) => c.fact === 'form')?.v;
     expect(ncForm({ 'Plant Type': ['Annual', 'Edible', 'Herb', 'Perennial'], 'Life Cycle': ['Perennial'] })).toEqual(['Perennial']);
     expect(ncForm({ 'Plant Type': ['Herbaceous Perennial', 'Wildflower'], 'Life Cycle': ['Biennial'] })).toEqual(['Annual']);
-    expect(ncForm({ 'Plant Type': ['Perennial', 'Wildflower'], 'Life Cycle': ['Biennial', 'Perennial'] })).toEqual(['Perennial', 'Annual']);
+    expect(ncForm({ 'Plant Type': ['Perennial', 'Wildflower'], 'Life Cycle': ['Biennial', 'Perennial'] })).toEqual(['Perennial']); // (what both say)
+    expect(ncForm({ 'Plant Type': ['Herbaceous Perennial'], 'Life Cycle': ['Annual', 'Perennial'] })).toEqual(['Perennial']); // (wild geranium)
+    expect(ncForm({ 'Plant Type': ['Native Plant', 'Perennial', 'Wildflower'], 'Life Cycle': ['Annual'] })).toEqual(['Annual']); // (sharing none: the Life Cycle)
+    expect(ncForm({ 'Plant Type': ['Annual', 'Ground Cover', 'Perennial'], 'Life Cycle': ['Annual', 'Perennial'] })).toEqual(['Perennial', 'Annual']);
     expect(ncForm({ 'Plant Type': ['Native Plant', 'Perennial'] })).toEqual(['Perennial']);
     expect(ncForm({ 'Plant Type': ['Perennial', 'Shrub', 'Woody Plant'], 'Life Cycle': ['Woody'] })).toEqual(['Shrub']);
     expect(ncForm({ 'Plant Type': ['Ground Cover', 'Woody Plant'], 'Life Cycle': ['Woody'] })).toBeUndefined();
     // Authorities that share no form: both kept, with every source that backs either…
     expect(combine([nc(['Shrub']), ext('x.edu', ['Vine'])]).form).toMatchObject({ v: ['Shrub', 'Vine'], check: 'single', note: 'ncsu lists Shrub; x.edu lists Vine: both kept' });
     expect(combine([nc(['Shrub']), ext('x.edu', ['Vine']), ...usda(['Shrub'])]).form).toMatchObject({ v: ['Shrub', 'Vine'], src: ['ncsu', 'x.edu', 'usda'] });
+    // At most three, at least one from each side, citing only sources whose forms are shown.
+    expect(combine([nc(['Shrub', 'Tree (understory)', 'Perennial']), ext('x.edu', ['Vine'])], { prefer: 'Shrub' }).form)
+      .toMatchObject({ v: ['Shrub', 'Tree (understory)', 'Vine'], src: ['ncsu', 'x.edu'], note: 'ncsu lists Shrub, Tree (understory), Perennial; x.edu lists Vine: both kept (Perennial left out: three at most)' });
+    const lantana = [nc(['Perennial', 'Annual']), ...usda(['Shrub', 'Vine'])];
+    expect(combine(lantana, { prefer: 'Shrub' }).form.v).toEqual(['Shrub', 'Perennial', 'Annual']);
+    expect(combine(lantana, { prefer: 'Perennial' }).form.v).toEqual(['Perennial', 'Annual', 'Vine']);
     // …except a tree that says neither understory nor canopy, which settles nothing.
     expect(combine([nc(['Shrub']), ext('x.edu', ['Tree'])]).form).toMatchObject({ v: null, check: 'disputed' });
     // Nurseries: the one others back most; likely or reported, never confirmed.
@@ -233,8 +242,9 @@ describe('claims and how they combine', () => {
   it('lets two sources that agree outrank a lone authority, the authority shown beside them (agreed 2026-10-22)', () => {
     const c = (src: string, kind: string, fact: string, v: unknown) => ({ fact, v, src, kind });
     // Palm sedge: NC State through zone 4b, two nurseries through 8.
+    // (One half alone: no alt; the pairs below have one.)
     expect(combine([c('ncsu', 'authority', 'zone_max', 4.5), c('a.com', 'nursery', 'zone_max', 8.5), c('b.com', 'nursery', 'zone_max', 8)]).zone_max)
-      .toMatchObject({ v: 8.5, src: ['a.com', 'b.com'], check: 'likely', kind: 'nursery' }); // (one half alone: no alt; the pairs below have one)
+      .toMatchObject({ v: 8.5, src: ['a.com', 'b.com'], check: 'likely', kind: 'nursery' });
     // Green-and-gold: 1–2 inches tall at NC State, half a foot or more at two nurseries.
     expect(combine([c('ncsu', 'authority', 'height', { min: 0.08, max: 0.17 }), c('a.com', 'nursery', 'height', { min: 0.5, max: 0.75 }), c('b.com', 'nursery', 'height', { min: 0.5, max: 1 })]).height)
       .toMatchObject({ v: { min: 0.5, max: 0.75 }, check: 'likely', alt: { v: { min: 0.08, max: 0.17 }, src: ['ncsu'] } });
@@ -245,10 +255,22 @@ describe('claims and how they combine', () => {
     const z = (src: string, kind: string, lo: number, hi: number) => [c(src, kind, 'zone_min', lo), c(src, kind, 'zone_max', hi)];
     const pair = combine([...z('ncsu', 'authority', 4, 7.5), ...z('a.com', 'nursery', 4, 9.5), ...z('b.com', 'nursery', 4, 9.5)]);
     expect(pair.zone_max).toMatchObject({ v: 9.5, check: 'likely', alt: { v: 7.5, src: ['ncsu'], check: 'single' } });
-    expect(pair.zone_min).toMatchObject({ v: 4, check: 'confirmed', alt: { v: 4, src: ['ncsu'] } }); // (a pair's alt is one source's whole range)
-    // Dogbane: 11b, 10b and 9b. 10b agrees with both, but 11b and 9b don't agree: the 9b doesn't join 11b's side.
-    expect(combine([c('ncsu', 'authority', 'zone_max', 11.5), c('a.com', 'nursery', 'zone_max', 10.5), c('x.edu', 'authority', 'zone_max', 9.5)]).zone_max)
-      .toMatchObject({ v: 11.5, src: ['ncsu', 'a.com'], check: 'confirmed', note: 'x.edu says 9.5' });
+    expect(pair.zone_min).toMatchObject({ v: 4, check: 'confirmed' }); // (the range NC State gives, 4–7b, is on the half that differs)
+    expect(pair.zone_min.alt).toBeUndefined();
+    // Dogbane: 11b, 10b and 9b. 10b agrees with both, but 11b and 9b don't agree with each other: two sides of
+    // two, each with an authority, so the cautious 9b leads, whichever order the claims come in.
+    const zp = (src: string, kind: string, lo: number, hi: number) => [c(src, kind, 'zone_min', lo), c(src, kind, 'zone_max', hi)];
+    const dog = [zp('ncsu', 'authority', 3, 11.5), zp('a.com', 'nursery', 3, 10.5), zp('x.edu', 'authority', 3, 9.5)];
+    for (const order of [[0, 1, 2], [2, 1, 0], [1, 0, 2], [1, 2, 0]])
+      expect(combine(order.flatMap((i) => dog[i])).zone_max).toMatchObject({ v: 9.5, src: ['x.edu', 'a.com'], check: 'confirmed', alt: { v: 11.5, src: ['ncsu'], check: 'single' } });
+    // Where the value shown has no authority behind it, an outvoted authority's is the one kept beside it, not a
+    // larger group of nurseries (three at 3, two at 5, NC State at 7).
+    const z1 = (src: string, kind: string, v: number) => zp(src, kind, v, 9);
+    const outvoted = combine([z1('a.com', 'nursery', 3), z1('b.com', 'nursery', 3), z1('d.com', 'nursery', 3), z1('e.com', 'nursery', 5), z1('f.com', 'nursery', 5), z1('ncsu', 'authority', 7)].flat()).zone_min;
+    expect(outvoted).toMatchObject({ v: 3, check: 'likely', alt: { v: 7, src: ['ncsu'], check: 'single' } });
+    // (A fact that isn't half of a range the same: two against two, the cautious nurseries' value shown, NC State's beside it.)
+    expect(combine([c('a.com', 'nursery', 'deer', 'Resistant'), c('b.com', 'nursery', 'deer', 'Resistant'), c('d.com', 'nursery', 'deer', 'Occasional'), c('e.com', 'nursery', 'deer', 'Occasional'), c('ncsu', 'authority', 'deer', 'Candy')]).deer)
+      .toMatchObject({ v: 'Occasional', alt: { v: 'Candy', src: ['ncsu'] } });
   });
   it('settles an even split by the cautious value: the narrower range, the larger plant', () => {
     const c = (src: string, kind: string, fact: string, v: unknown) => ({ fact, v, src, kind });
@@ -260,10 +282,15 @@ describe('claims and how they combine', () => {
     expect(combine([c('a.com', 'nursery', 'height', { min: 2, max: 2 }), c('b.com', 'nursery', 'height', { min: 3, max: 3 })]).height).toMatchObject({ v: { min: 3, max: 3 } });
     expect(combine([c('a.com', 'nursery', 'deer', 'Resistant'), c('b.com', 'nursery', 'deer', 'Occasional')]).deer).toMatchObject({ v: 'Occasional' });
     expect(combine([c('a.com', 'nursery', 'water', 'High'), c('b.com', 'nursery', 'water', 'Moderate')]).water).toMatchObject({ v: 'Moderate' });
-    // Halves decided apart that make no range: both left for the review.
-    const odd = combine([c('ncsu', 'authority', 'zone_min', 7), c('x.edu', 'authority', 'zone_min', 5), c('a.com', 'nursery', 'zone_min', 7),
-      c('ncsu', 'authority', 'zone_max', 6), c('x.edu', 'authority', 'zone_max', 6), c('b.com', 'nursery', 'zone_max', 6)]);
-    expect([odd.zone_min.v, odd.zone_min.check, odd.zone_max.v, odd.zone_max.check]).toEqual([null, 'disputed', null, 'disputed']);
+    // Water: Low against High is as far from Moderate either way: nothing taken, for the review, in either order.
+    for (const claims of [[c('a.com', 'nursery', 'water', 'Low'), c('b.com', 'nursery', 'water', 'High')], [c('b.com', 'nursery', 'water', 'High'), c('a.com', 'nursery', 'water', 'Low')]])
+      expect(combine(claims).water).toMatchObject({ v: null, check: 'disputed', src: expect.arrayContaining(['a.com', 'b.com']) });
+    // Halves decided apart that make no range: two nurseries, one saying full sun only, the other part shade only.
+    // The cautious half of each (the less sun at most, the more at least) crosses: both left for the review.
+    const s2 = (src: string, most: string, least: string) => [c(src, 'nursery', 'sun_most', most), c(src, 'nursery', 'sun_least', least)];
+    const odd = combine([...s2('a.com', 'Full', 'Full'), ...s2('b.com', 'Part', 'Part')]);
+    expect([odd.sun_most.v, odd.sun_most.check, odd.sun_least.v, odd.sun_least.check]).toEqual([null, 'disputed', null, 'disputed']);
+    expect(odd.sun_most.note).toContain('each decided on its own, most sun Part and least sun Full make no range');
   });
   it('keeps what nurseries report beside an authority where it differs (never for safety facts)', () => {
     const c = (src: string, kind: string, fact: string, v: unknown) => ({ fact, v, src, kind });
@@ -271,21 +298,32 @@ describe('claims and how they combine', () => {
     const z = (src: string, kind: string, lo: number, hi: number) => [c(src, kind, 'zone_min', lo), c(src, kind, 'zone_max', hi)];
     const sun = combine([...s2('ncsu', 'authority', 'Part', 'Shade'), ...s2('a.com', 'nursery', 'Full', 'Shade'), ...s2('b.com', 'nursery', 'Full', 'Shade'), ...s2('d.com', 'nursery', 'Part', 'Shade')]);
     expect(sun.sun_most).toMatchObject({ v: 'Part', check: 'confirmed', alt: { v: 'Full', src: ['a.com', 'b.com'], check: 'likely' } });
-    // A pair's report is one nursery's whole range, on both halves (never one nursery's half with another's).
-    expect(sun.sun_least).toMatchObject({ v: 'Shade', alt: { v: 'Shade', src: ['a.com', 'b.com'] } });
+    // A pair's report is one nursery's whole range (never one nursery's half with another's), on the half that
+    // differs: the other half is the value shown.
+    expect(sun.sun_least).toMatchObject({ v: 'Shade' });
+    expect(sun.sun_least.alt).toBeUndefined();
+    // Its value is the one the group gathers around, every member agreeing with it (three authorities at 7–9 against
+    // nurseries at 3–9, 4–9 and 4.5–9: 4 agrees with both others, 3 and 4.5 don't agree).
+    const zz = (src: string, kind: string, lo: number, hi: number) => [c(src, kind, 'zone_min', lo), c(src, kind, 'zone_max', hi)];
+    const grouped = combine([...zz('ncsu', 'authority', 7, 9), ...zz('x.edu', 'authority', 7, 9), ...zz('y.edu', 'authority', 7, 9), ...zz('a.com', 'nursery', 3, 9), ...zz('b.com', 'nursery', 4, 9), ...zz('d.com', 'nursery', 4.5, 9)]);
+    expect(grouped.zone_min.alt).toMatchObject({ v: 4, src: ['b.com', 'a.com', 'd.com'], check: 'likely' });
+    // Two authorities that agree, with the same sources: one side, NC State's value shown (oleander: NC State 8,
+    // UF 9), in either order of the other claims.
+    const ole = [c('ncsu', 'authority', 'zone_min', 8), c('x.edu', 'authority', 'zone_min', 9)];
+    expect(combine(ole).zone_min).toMatchObject({ v: 8, src: ['ncsu', 'x.edu'], check: 'confirmed' });
     const mixed = combine([...s2('ncsu', 'authority', 'Full', 'Part'), ...s2('a.com', 'nursery', 'Part', 'Part'), c('b.com', 'nursery', 'sun_least', 'Full')]);
     expect(mixed.sun_most.alt).toEqual({ v: 'Part', src: ['a.com'], check: 'reported' });
-    expect(mixed.sun_least.alt).toEqual({ v: 'Part', src: ['a.com'], check: 'reported' });
+    expect(mixed.sun_least.alt).toBeUndefined(); // (a.com's least sun, part shade, is the value shown)
     // A nursery giving only one half isn't read as a range.
     expect(combine([...s2('ncsu', 'authority', 'Full', 'Part'), c('b.com', 'nursery', 'sun_most', 'Part')]).sun_most.alt).toBeUndefined();
     // One nursery: reported. Zones within a whole zone agree, so no alt.
     expect(combine([...z('ncsu', 'authority', 5, 8.5), ...z('a.com', 'nursery', 5, 10.5)]).zone_max.alt).toEqual({ v: 10.5, src: ['a.com'], check: 'reported' });
-    expect(combine([...z('ncsu', 'authority', 5, 8.5), ...z('a.com', 'nursery', 5, 10.5)]).zone_min.alt).toEqual({ v: 5, src: ['a.com'], check: 'reported' });
+    expect(combine([...z('ncsu', 'authority', 5, 8.5), ...z('a.com', 'nursery', 5, 10.5)]).zone_min.alt).toBeUndefined(); // (the same cold limit: the range is on the warm half)
     expect(combine([...z('ncsu', 'authority', 5, 8.5), ...z('a.com', 'nursery', 5, 9.5)]).zone_max.alt).toBeUndefined();
-    // Nothing for facts nurseries don't speak to. Where no authority decides, the other side too (an even split:
-    // Low and High are as far from Moderate, so the first leads).
+    // Nothing for facts nurseries don't speak to. Where no authority decides, the other side too (an even split
+    // settled by the cautious value: Moderate, nearer the middle, over High).
     expect(combine([c('ncsu', 'authority', 'tox_people', ['minor']), c('a.com', 'nursery', 'tox_people', ['major'])]).tox_people.alt).toBeUndefined();
-    expect(combine([c('a.com', 'nursery', 'water', 'Low'), c('b.com', 'nursery', 'water', 'High')]).water).toMatchObject({ v: 'Low', alt: { v: 'High', src: ['b.com'], check: 'reported' } });
+    expect(combine([c('a.com', 'nursery', 'water', 'High'), c('b.com', 'nursery', 'water', 'Moderate')]).water).toMatchObject({ v: 'Moderate', alt: { v: 'High', src: ['a.com'], check: 'reported' } });
   });
   it('confirms a caterpillar host only where two sources name the same one', () => {
     const h = (src: string, v: string[]) => ({ fact: 'host', v, src, kind: 'authority' });
@@ -299,7 +337,8 @@ describe('claims and how they combine', () => {
     // (A pair's other side is kept only as a whole range: here both give both halves.)
     const two = combine([nc('sun_most', 'Full'), nc('sun_least', 'Part'), nc('sun_most', 'Full', 'authority', 'mnwild'), nc('sun_least', 'Full', 'authority', 'mnwild')]);
     expect(two.sun_least).toMatchObject({ v: 'Full', src: ['mnwild'], check: 'single', alt: { v: 'Part', src: ['ncsu'], check: 'single' } });
-    expect(two.sun_most).toMatchObject({ v: 'Full', check: 'confirmed', alt: { v: 'Full', src: ['ncsu'] } });
+    expect(two.sun_most).toMatchObject({ v: 'Full', check: 'confirmed' });
+    expect(two.sun_most.alt).toBeUndefined(); // (NC State's range, full sun to part shade, differs on the other half)
     expect(combine([nc('sun_least', 'Part'), nc('sun_least', 'Full', 'authority', 'mnwild')]).sun_least).toMatchObject({ v: 'Full', check: 'single' }); // (one half each: no alt)
   });
   it('never lets one nursery overrule an authority, but two that agree do; nurseries fill a gap at lower confidence', () => {
@@ -309,7 +348,7 @@ describe('claims and how they combine', () => {
     const over = combine([nc('zone_min', 6), nc('zone_min', 4, 'nursery', 'a.com'), nc('zone_min', 4, 'nursery', 'b.com')]);
     expect(over.zone_min).toMatchObject({ v: 4, check: 'likely', kind: 'nursery' });
     expect(over.zone_min.note).toContain('ncsu says 6');
-    expect(combine([nc('zone_min', 5, 'nursery', 'a.com'), nc('zone_min', 5.5, 'nursery', 'b.com')]).zone_min).toMatchObject({ v: 5, check: 'likely' });
+    expect(combine([nc('zone_min', 5, 'nursery', 'a.com'), nc('zone_min', 5.5, 'nursery', 'b.com')]).zone_min).toMatchObject({ v: 5, check: 'likely' }); // (agreeing: one side, the first's value)
     expect(combine([nc('zone_min', 5, 'nursery', 'a.com')]).zone_min).toMatchObject({ check: 'reported' });
   });
   it('counts copies once', () => {

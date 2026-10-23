@@ -22,9 +22,9 @@ The audit's sources give different values, so the catalog keeps the value it had
 | Slender beardtongue (`penstemon-gracilis`) | most sun | morningskygreenery.com says Full; each decided on its own, most sun Part and least sun Full make no range | Full |
 | Slender beardtongue (`penstemon-gracilis`) | least sun | windflowernatives.com says Part; each decided on its own, most sun Part and least sun Full make no range | Part |
 | Prairie brome (`bromus-kalmii`) | most sun | morningskygreenery.com says Full; each decided on its own, most sun Part and least sun Full make no range | Full |
-| Prairie brome (`bromus-kalmii`) | least sun | fellabees.com says Part; each decided on its own, most sun Part and least sun Full make no range | Part |
+| Prairie brome (`bromus-kalmii`) | least sun | fellabees.com says Part; each decided on its own, most sun Part and least sun Full make no range (USDA: shade tolerance low) | Part |
 | Porcupine grass (`hesperostipa-spartea`) | most sun | allendanseed.com says Full; each decided on its own, most sun Part and least sun Full make no range | Full |
-| Porcupine grass (`hesperostipa-spartea`) | least sun | morningskygreenery.com says Part; each decided on its own, most sun Part and least sun Full make no range | Part |
+| Porcupine grass (`hesperostipa-spartea`) | least sun | morningskygreenery.com says Part; each decided on its own, most sun Part and least sun Full make no range (USDA: shade tolerance high) | Part |
 
 ## Tree: understory or canopy? (46)
 

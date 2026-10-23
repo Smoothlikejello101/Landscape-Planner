@@ -13,18 +13,18 @@ export type Trust = 'reference' | 'nursery' | 'observation' | 'unverified';
 export interface SourceDef { title: string; url?: string; trust: Trust }
 /**
  * How sure a value is (docs/catalog-sources.md, "Deciding each fact"): `agree` / `confirmed` (an authority,
- * and an independent source agrees), `single` (one authority), `likely` (no authority; most nurseries that
- * give it agree), `reported` (one nursery), `disputed`.
+ * and an independent source agrees), `single` (one authority), `likely` (no authority behind it; two or more
+ * nurseries agree, outnumbering any authority that says otherwise), `reported` (one nursery), `disputed`.
  */
 export type Check = 'agree' | 'confirmed' | 'disputed' | 'single' | 'likely' | 'reported';
 /**
  * What other sources say where they differ from the value shown (shown beside it, labelled with who says it,
- * and usable in filters by the user's choice): nurseries beside an authority, or, where sources disagree, the
- * side that didn't lead (docs/catalog-sources.md, "Where sources disagree"). Only for what a nursery can speak
- * to; never toxicity, invasiveness or native status. A pair (sun_most and sun_least, zone_min and zone_max) is
- * one source's whole range: both get an `alt` when either differs.
+ * and usable in filters by the user's choice): the side that didn't lead (docs/catalog-sources.md, "Where
+ * sources disagree"). Only for the garden facts decided that way; never toxicity, invasiveness or native
+ * status (a form where sources differ keeps both forms instead). A pair (sun_most and sun_least, zone_min and
+ * zone_max) is one source's whole range: an `alt` on each half where it differs from the value shown.
  */
-export const REPORTABLE = new Set(['form', 'height', 'width', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'bloom', 'deer']);
+export const REPORTABLE = new Set(['height', 'width', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'deer']);
 export interface Reported<T = unknown> { v: T; src: string[]; check: 'confirmed' | 'single' | 'likely' | 'reported' }
 /** A fact with its own sourcing (else a plain value, sourced by its record). */
 export interface SourcedFact<T = unknown> { v: T; src?: string[]; at?: string; check?: Check; alt?: Reported<T> }

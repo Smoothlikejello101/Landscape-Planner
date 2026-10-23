@@ -1,9 +1,11 @@
 // What each source says about a plant ("claims"), and how they combine into
 // catalog facts, by the tiers in docs/catalog-sources.md:
 //   safety (toxicity, invasiveness, native status): authorities only;
-//   survival (zones, sun, water, soil, size, deer): an authority decides;
-//     without one, a breeder (for its own cultivars), then retail nurseries
-//     agreeing with each other, at lower confidence;
+//   survival (zones, sun, water, soil, size, deer): authorities, a breeder
+//     (for its own cultivars) and retail nurseries; for zones, sun, size,
+//     water and deer the side more of them back leads, an authority's on an
+//     even split ("Where sources disagree"); soil: an authority decides,
+//     without one nurseries agreeing with each other, at lower confidence;
 //   description (form, bloom, colors, wildlife, edibility): any source.
 // A claim: { fact, v, src, kind, at?, group? }. kind: 'authority' (extension
 // services, botanical gardens, state floras), 'breeder', 'nursery', 'blog'.
@@ -21,7 +23,7 @@ export const TIER = {
   fall_color: 'description', host: 'description', host_genus: 'description', edible: 'description',
 };
 const RANK = { authority: 3, breeder: 2, nursery: 1, blog: 0 };
-/** Facts where what nurseries report, differing from an authority, is kept beside it (`alt`; never safety facts). */
+/** Facts decided by sides (`bySides`), the other side kept beside the value (`alt`; never safety facts). */
 export const REPORTABLE = new Set(['height', 'width', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'deer']);
 /** Facts a cultivar is bred to change: only a page for the cultivar itself speaks to them. */
 export const CULTIVAR_OWN = new Set(['height', 'width', 'flower_color', 'form']);
@@ -319,67 +321,74 @@ export function combine(claims, { cultivar = false, prefer = null } = {}) {
   return out;
 }
 
+const rankOf = (c) => RANK[c.kind] ?? 0;
+const SUN_ORDER = ['Shade', 'Part', 'Full'], WATER_ORDER = ['Low', 'Moderate', 'High', 'Wetland'], DEER_ORDER = ['Candy', 'Occasional', 'Resistant'];
 /**
- * The sides of a fact the sources take: each value and the sources that agree with it (copies already counted
- * once), the value a side's highest kind gives. Formed greedily: the value most sources agree with first. Every
- * source on a side agrees with the value it shows: agreement isn't transitive (zones 9b and 11b both agree with
- * 10b, not with each other), so one in the middle doesn't carry the far end along.
+ * How cautious a value is to plan by (higher: more): the narrower range of zones and of sun (the warmer cold
+ * limit, the colder warm limit; the less sun it's said to take at most, the more it's said to need at least);
+ * the larger plant (for spacing); water nearer Moderate; the lower deer resistance (no promise the deer pass it by).
+ */
+export function cautionOf(fact, v) {
+  const key = {
+    zone_min: (x) => x, zone_max: (x) => -x,
+    sun_most: (x) => -SUN_ORDER.indexOf(x), sun_least: (x) => SUN_ORDER.indexOf(x),
+    height: (x) => x.max * 1000 + x.min, width: (x) => x.max * 1000 + x.min,
+    water: (x) => -Math.abs(WATER_ORDER.indexOf(x) - 1), deer: (x) => -DEER_ORDER.indexOf(x),
+  }[fact];
+  return key ? key(v) : 0;
+}
+/** Whether side `y` leads side `x`: more sources; then an authority among them; then the more cautious value. */
+const leads = (fact, y, x) => y.members.length - x.members.length || Number(y.authority) - Number(x.authority) || cautionOf(fact, y.v) - cautionOf(fact, x.v);
+/** The same sources: one side, whichever of its values heads it. */
+const sameSources = (x, y) => x.members.length === y.members.length && x.members.every((m) => y.members.includes(m));
+/**
+ * The sides of a fact the sources take, the leading one first: each a value and the sources that agree with it
+ * (copies already counted once). A side's value is its highest kind's, and every source on it agrees with that
+ * value. Agreement isn't transitive (zones 9b and 11b both agree with 10b, not with each other), so each value
+ * that could head a side is tried and the one that leads (`leads`) is kept; then the same among the sources left.
+ * Which claim comes first never changes which sources lead. (Two values of the highest kind that agree with the
+ * same sources are one side, and it shows the first: NC State's, read first, as before.)
  */
 function sidesOf(fact, usable) {
   const sides = [];
-  let rest = [...usable]; // (highest kind first, in claim order: combine sorted them)
+  let rest = [...usable];
   while (rest.length) {
-    const n = (c) => rest.filter((o) => agrees(fact, c.v, o.v)).length;
-    const lead = rest.reduce((x, y) => (n(y) > n(x) ? y : x));
-    // (Its value: the highest kind's near it, the one more of them agree with on a tie.)
-    const rank = (c) => RANK[c.kind] ?? 0;
-    const head = rest.filter((o) => agrees(fact, lead.v, o.v)).reduce((x, y) => (rank(y) > rank(x) || (rank(y) === rank(x) && n(y) > n(x)) ? y : x));
-    const members = rest.filter((o) => agrees(fact, head.v, o.v));
-    sides.push({ v: head.v, head, members, authority: members.some((m) => m.kind === 'authority') });
-    rest = rest.filter((o) => !members.includes(o));
+    const tries = rest.map((head) => ({ v: head.v, head, members: rest.filter((o) => agrees(fact, head.v, o.v)) }))
+      .filter((t) => t.members.every((m) => rankOf(m) <= rankOf(t.head)))
+      .map((t) => ({ ...t, authority: t.members.some((m) => m.kind === 'authority') }));
+    const best = tries.reduce((x, y) => (!sameSources(x, y) && leads(fact, y, x) > 0 ? y : x));
+    sides.push(best);
+    rest = rest.filter((o) => !best.members.includes(o));
   }
   return sides;
 }
-const SUN_ORDER = ['Shade', 'Part', 'Full'], WATER_ORDER = ['Low', 'Moderate', 'High', 'Wetland'], DEER_ORDER = ['Candy', 'Occasional', 'Resistant'];
-/**
- * Of sides the sources back equally, the cautious one: the narrower range of zones and of sun (the warmer cold
- * limit, the colder warm limit; the less sun it's said to take at most, the more it's said to need at least);
- * the larger plant (for spacing); water nearest Moderate; the lower deer resistance (no promise the deer pass it by).
- */
-export function cautiousSide(fact, sides) {
-  const key = {
-    zone_min: (v) => v, zone_max: (v) => -v,
-    sun_most: (v) => -SUN_ORDER.indexOf(v), sun_least: (v) => SUN_ORDER.indexOf(v),
-    height: (v) => v.max * 1000 + v.min, width: (v) => v.max * 1000 + v.min,
-    water: (v) => -Math.abs(WATER_ORDER.indexOf(v) - 1), deer: (v) => -DEER_ORDER.indexOf(v),
-  }[fact] ?? (() => 0);
-  return sides.reduce((x, y) => (key(y.v) > key(x.v) ? y : x));
-}
+const checkOf = (side) => (side.authority ? (side.members.length > 1 ? 'confirmed' : 'single') : side.members.length > 1 ? 'likely' : 'reported');
 /**
  * A garden fact where sources may disagree (zones, sun, size, water, deer): the side more independent sources
  * back leads; where the largest sides are even, one with an authority leads (an authority outranks a lower kind,
- * but not two that agree against it); where they're still even, the cautious value (`cautiousSide`). The
- * largest other side is kept beside it (`alt`), shown and filterable, labelled with who says it.
- * Agreed 2026-10-22 (docs/catalog-sources.md, "Where sources disagree").
+ * but not two that agree against it); where they're still even, the cautious value (`cautionOf`), and where
+ * that's even too (water: Low against High, as far from Moderate), nothing is taken: it's left for the review.
+ * Another side is kept beside it (`alt`), shown and filterable, labelled with who says it: the largest, or, where
+ * the value shown has no authority behind it and an authority's was outvoted, the authority's (the app never
+ * hides that a reference says otherwise). Agreed 2026-10-22 (docs/catalog-sources.md, "Where sources disagree").
  */
 function bySides(fact, usable, flagClaims) {
-  const sides = sidesOf(fact, usable);
-  const order = (a, b) => b.members.length - a.members.length || Number(b.authority) - Number(a.authority);
-  const ranked = [...sides].sort(order);
-  const tied = ranked.filter((s) => !order(s, ranked[0]));
-  const leader = tied.length === 1 ? tied[0] : cautiousSide(fact, tied);
-  const n = leader.members.length;
-  const kind = leader.authority ? 'authority' : leader.head.kind;
-  const r = { v: leader.v, src: [leader.head.src, ...leader.members.filter((c) => c !== leader.head).map((c) => c.src)], check: leader.authority ? (n > 1 ? 'confirmed' : 'single') : n > 1 ? 'likely' : 'reported', kind };
-  const others = ranked.filter((s) => s !== leader);
-  const notes = [leader.head.note, ...others.flatMap((s) => s.members.map((c) => `${c.src} says ${fmtV(c.v)}`))].filter(Boolean);
-  if (notes.length) r.note = notes.join('; ');
-  if (tied.length > 1) r.decided = 'cautious';
-  else if (others.some((s) => s.authority) || (!leader.authority && others.length)) r.decided = 'majority';
-  const next = others[0];
-  if (next) r.alt = { v: next.v, src: next.members.map((c) => c.src), check: next.authority ? (next.members.length > 1 ? 'confirmed' : 'single') : next.members.length > 1 ? 'likely' : 'reported' };
+  const [leader, ...others] = sidesOf(fact, usable);
   // USDA's figures show only where they differ: for zones, by more than a whole zone.
-  const flags = flagClaims.filter((c) => c.flag.temp == null || typeof r.v !== 'number' || Math.abs(halfZoneOfTemp(c.flag.temp) - r.v) > 1).map((c) => c.flag.text);
+  const flagsBy = (v) => flagClaims.filter((c) => c.flag.temp == null || typeof v !== 'number' || Math.abs(halfZoneOfTemp(c.flag.temp) - v) > 1).map((c) => c.flag.text);
+  const says = (s) => s.members.map((c) => `${c.src} says ${fmtV(c.v)}`);
+  if (others.some((s) => !leads(fact, s, leader))) {
+    const flags = flagsBy(null);
+    return { v: null, src: [...new Set([leader, ...others].flatMap((s) => s.members.map((c) => c.src)))], check: 'disputed', kind: leader.head.kind,
+      note: [...[leader, ...others].flatMap(says), 'as many sources, as cautious, either way'].join('; '), ...(flags.length ? { flags } : {}) };
+  }
+  const kind = leader.authority ? 'authority' : leader.head.kind;
+  const r = { v: leader.v, src: [leader.head.src, ...leader.members.filter((c) => c !== leader.head).map((c) => c.src)], check: checkOf(leader), kind };
+  const notes = [leader.head.note, ...others.flatMap(says)].filter(Boolean);
+  if (notes.length) r.note = notes.join('; ');
+  const next = (!leader.authority && others.find((s) => s.authority)) || others[0];
+  if (next) r.alt = { v: next.v, src: next.members.map((c) => c.src), check: checkOf(next) };
+  const flags = flagsBy(r.v);
   if (flags.length) r.flags = flags;
   return r;
 }
@@ -389,7 +398,8 @@ const PAIRS = [['zone_min', 'zone_max'], ['sun_most', 'sun_least']];
 const inOrder = (a, va, vb) => (a === 'zone_min' ? va <= vb : SUN_ORDER.indexOf(va) >= SUN_ORDER.indexOf(vb));
 /**
  * A pair's `alt` comes from sources that give both halves: the pair most of them share where it differs from
- * the one shown (either half), on both halves, an authority's group first on a tie. Built from each half alone,
+ * the one shown (either half), on each half where it differs; an authority's group first on a tie, or where the
+ * pair shown has no authority behind it. Built from each half alone,
  * one source's cold limit could be shown with another's warm one, as a range nobody gave. Halves that, decided
  * apart, don't make a range (the cold limit warmer than the warm one) are both left for the review.
  */
@@ -401,20 +411,29 @@ function pairAlt(out, kept, [a, b]) {
   if (!inOrder(a, ra.v, rb.v)) {
     const word = { zone_min: 'coldest zone', zone_max: 'warmest zone', sun_most: 'most sun', sun_least: 'least sun' };
     const note = `each decided on its own, ${word[a]} ${fmtV(ra.v)} and ${word[b]} ${fmtV(rb.v)} make no range`;
-    out[a] = { v: null, src: ra.src, check: 'disputed', kind: ra.kind, note: [ra.note, note].filter(Boolean).join('; ') };
-    out[b] = { v: null, src: rb.src, check: 'disputed', kind: rb.kind, note: [rb.note, note].filter(Boolean).join('; ') };
+    out[a] = { v: null, src: ra.src, check: 'disputed', kind: ra.kind, note: [ra.note, note].filter(Boolean).join('; '), ...(ra.flags ? { flags: ra.flags } : {}) };
+    out[b] = { v: null, src: rb.src, check: 'disputed', kind: rb.kind, note: [rb.note, note].filter(Boolean).join('; '), ...(rb.flags ? { flags: rb.flags } : {}) };
     return;
   }
   const bOf = new Map((kept[b] ?? []).map((c) => [c.src, c]));
   const both = (kept[a] ?? []).filter((c) => bOf.has(c.src)).map((c) => ({ src: c.src, kind: c.kind, va: c.v, vb: bOf.get(c.src).v }));
   const differ = both.filter((n) => !agrees(a, ra.v, n.va) || !agrees(b, rb.v, n.vb));
   const same = (x, y) => agrees(a, x.va, y.va) && agrees(b, x.vb, y.vb);
-  const auth = (g) => g.some((n) => n.kind === 'authority');
-  const largest = differ.map((n) => differ.filter((o) => same(n, o))).sort((x, y) => y.length - x.length || Number(auth(y)) - Number(auth(x)))[0];
-  if (!largest) return;
-  const src = largest.map((n) => n.src), check = auth(largest) ? (largest.length > 1 ? 'confirmed' : 'single') : largest.length > 1 ? 'likely' : 'reported';
-  ra.alt = { v: largest[0].va, src, check };
-  rb.alt = { v: largest[0].vb, src, check };
+  // Groups as sides are (`sidesOf`): each range its highest kind gives, with every source agreeing with it. The
+  // largest is kept; where the range shown has no authority behind it and an authority's differs, the authority's.
+  const shownByAuthority = ra.kind === 'authority' && rb.kind === 'authority';
+  const groups = differ.map((head) => ({ head, members: differ.filter((o) => same(head, o)) }))
+    .filter((g) => g.members.every((m) => rankOf(m) <= rankOf(g.head)))
+    .map((g) => ({ ...g, authority: g.members.some((m) => m.kind === 'authority') }));
+  const score = (g) => [!shownByAuthority && g.authority ? 1 : 0, g.members.length, Number(g.authority), cautionOf(a, g.head.va) + cautionOf(b, g.head.vb)];
+  const better = (y, x) => { const [p, q] = [score(y), score(x)]; const i = p.findIndex((v, k) => v !== q[k]); return i >= 0 && p[i] > q[i]; };
+  const best = groups.reduce((x, y) => (x && (sameSources(x, y) || !better(y, x)) ? x : y), null);
+  if (!best) return;
+  const src = [best.head.src, ...best.members.filter((m) => m !== best.head).map((m) => m.src)];
+  const check = checkOf(best);
+  // (On a half where it gives the value shown, no alt: the other half carries the range.)
+  if (JSON.stringify(best.head.va) !== JSON.stringify(ra.v)) ra.alt = { v: best.head.va, src, check };
+  if (JSON.stringify(best.head.vb) !== JSON.stringify(rb.v)) rb.alt = { v: best.head.vb, src, check };
 }
 /** A page for the cultivar itself that may decide its form: an authority's, or its breeder's (a nursery's is one more nursery). */
 const ownPage = (c) => (c.cultivarPage && c.kind === 'authority') || c.kind === 'breeder';
@@ -467,11 +486,20 @@ function combineForm(usable, prefer) {
   if (rival) {
     if (rival.forms.includes('Tree')) return { v: null, src: [deciding.src, rival.src], check: 'disputed', kind: deciding.kind, note: `${deciding.src} lists ${own.join(', ')}; ${rival.src} lists ${rival.forms.join(', ')}, the tree without saying understory or canopy` };
     // (A plain perennial beside a grass, fern or bulb is that herb: a rush NC State calls a perennial and USDA a grass.)
-    const both = herb([...new Set([...own, ...rival.forms])]);
-    const order = both.sort((x, y) => Number(y === prefer) - Number(x === prefer)).slice(0, 3);
-    const src = [...new Set([deciding.src, rival.src, ...order.flatMap((f) => backersOf(deciding, f))])];
+    const all = herb([...new Set([...own, ...rival.forms])]).sort((x, y) => Number(y === prefer) - Number(x === prefer));
+    // At most three, at least one from each where the herb rule leaves one: the first three, else the first two and
+    // the other side's first.
+    let order = all.slice(0, 3);
+    for (const side of [own, rival.forms]) {
+      const first = all.find((f) => side.includes(f));
+      if (first && !order.some((f) => side.includes(f))) order = [...order.slice(0, 2), first];
+    }
+    // (A source whose forms the herb rule folded into another's still backs it: NC State's perennial rush.)
+    const shows = (c) => c.forms.some((f) => order.includes(f)) || herb([...c.forms, ...order]).length === order.length;
+    const src = [...new Set([deciding, rival].filter(shows).map((c) => c.src).concat(order.flatMap((f) => backersOf(deciding, f))))];
     const kept = own.some((f) => order.includes(f)) && rival.forms.some((f) => order.includes(f)) ? ': both kept' : '';
-    return { v: order, src, check: 'single', kind: deciding.kind, note: `${deciding.src} lists ${own.join(', ')}; ${rival.src} lists ${rival.forms.join(', ')}${kept}` };
+    const cut = all.length > order.length ? ` (${all.filter((f) => !order.includes(f)).join(', ')} left out: three at most)` : '';
+    return { v: order, src, check: 'single', kind: deciding.kind, note: `${deciding.src} lists ${own.join(', ')}; ${rival.src} lists ${rival.forms.join(', ')}${kept}${cut}` };
   }
   // USDA's "Perennial" says only that an herb lives for years: it backs a plain perennial and nothing else.
   const backers = (f) => others.filter((c) => lists(c.fallback && f !== 'Perennial' ? { forms: c.forms.filter((x) => x !== 'Perennial') } : c, f)).map((c) => c.src);
