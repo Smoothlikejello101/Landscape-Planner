@@ -172,7 +172,7 @@ describe('the review report', () => {
   ];
   const review = [
     { id: 'pawpaw', fact: 'edible', note: 'edible, but rated toxic' },
-    { id: 'plum', fact: 'form', note: 'ncsu lists Shrub, Tree, the tree without saying understory or canopy' },
+    { id: 'plum', fact: 'form', note: 'its species is listed as a tree; a cultivar may be a tree or a shrub' },
     { id: 'buttonbush', fact: 'zone_max', note: 'ufl.edu: 11.5' },
   ];
   const list = [{ id: 'buttonbush', ncsu: 'cephalanthus-occidentalis-x' }, { id: 'plum', ncsu: 'prunus-x' }, { id: 'pawpaw' }];
@@ -189,7 +189,7 @@ describe('the review report', () => {
       .toEqual(['2–3', '2', 'Shrub, Tree', '–', 'Full', '4–6, White']);
     const md = report().markdown;
     expect(md).toContain('| Buttonbush (`buttonbush`) | warmest zone | ncsu: 9.5 · ufl.edu: 11.5 | 9.5 |');
-    expect(md).toContain('| American plum (`plum`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Shrub |');
+    expect(md).toContain('| American plum (`plum`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Shrub |');
     expect(md).toContain('- Pawpaw \\| custard apple (`pawpaw`)'); // (a bar escaped, as a table needs)
     expect(md).toContain('- Aquilegia canadensis: ');
     expect(md).toContain('- no spread (2): `buttonbush`, `pawpaw`');
@@ -209,7 +209,7 @@ describe('the review report', () => {
     const contents = [...markdown.matchAll(/^- \[(.+)\]\(#(.+)\)$/gm)].map((m) => [m[1], m[2]]);
     const headings = [...markdown.matchAll(/^## (.+)$/gm)].map((m) => m[1]).filter((h) => h !== 'For reference');
     expect(contents.map(([t]) => t)).toEqual(headings);
-    expect(contents.find(([t]) => t.startsWith('Tree'))?.[1]).toBe('tree-understory-or-canopy-1');
+    expect(contents.find(([t]) => t.startsWith('Cultivar'))?.[1]).toBe('cultivar-tree-or-shrub-1');
     expect(headings.some((h) => h.startsWith('Native status'))).toBe(false);
     expect(headings).toContain('Not searched on the web (1)');
     // (To decide: the writer's three, Kew's name, the page under another name; pages: one named, one never asked.)

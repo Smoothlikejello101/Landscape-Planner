@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { keyboardInset } from '../src/keyboard';
 import { kindOfShape } from '../src/kinds';
-import { alongLabel } from '../src/geometry';
+import { alongLabel, boxLabelAngle } from '../src/geometry';
 import type { PathShape, Shape } from '../src/types';
 
 const shape = (over: Partial<Shape>): Shape => ({ id: 'x', type: 'rect', x: 0, y: 0, width: 4, height: 4, rotation: 0, color: '#000', label: '', opacity: 1, locked: false, ...over } as Shape);
@@ -57,5 +57,25 @@ describe('the grid', () => {
   it('a thin line takes taps in 18 px close in, no more than 3 ft far out, never under 6 px', async () => {
     const { hitBand } = await import('../src/canvas');
     expect([hitBand(24), hitBand(6), hitBand(3), hitBand(1.2)]).toEqual([18, 18, 9, 6]);
+  });
+});
+
+describe('a box shape\'s name', () => {
+  it('reads along the side nearer level: the shape\'s turn less any quarter turns, never upside down', () => {
+    // A bed drawn tall and turned on its side: across, as it lies (it read top to bottom).
+    expect(boxLabelAngle(90)).toBe(0);
+    expect(boxLabelAngle(270)).toBe(0);
+    expect(boxLabelAngle(-90)).toBe(0);
+    // Unturned, or turned half round: level, as before.
+    expect(boxLabelAngle(0)).toBe(0);
+    expect(boxLabelAngle(180)).toBe(0);
+    // A slant keeps the side nearer level.
+    expect(boxLabelAngle(30)).toBe(30);
+    expect(boxLabelAngle(60)).toBe(-30);
+    expect(boxLabelAngle(-15)).toBe(-15);
+    expect(boxLabelAngle(450)).toBe(0);
+    // No flip from a stray fraction near a quarter turn.
+    expect(boxLabelAngle(90.04)).toBe(0);
+    expect(boxLabelAngle(89.96)).toBe(0);
   });
 });

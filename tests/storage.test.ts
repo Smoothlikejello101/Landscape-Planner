@@ -408,6 +408,26 @@ describe('My plants with their own color', () => {
     const base = { id: 'u-x', common: 'X', width: { min: 1, max: 1, med: 1 } };
     for (const bad of ['red', '#12', 'url(x)', '#1234567', 7]) expect(sanitizeMyPlant({ ...base, color: bad })).not.toHaveProperty('color');
   });
+  it('saved as an understory or canopy tree by an older version, read as a tree, nothing else changed', async () => {
+    const mp = await import('../src/my-plants');
+    const { writeMyPlants } = await import('../src/storage');
+    const name = 'old-trees-' + ++dbCount;
+    _resetStorageForTests();
+    await initStorage(await openKV(name));
+    const width = { min: 25, max: 35, med: 30 };
+    await writeMyPlants([
+      { id: 'u-redbud', common: 'Our redbud', width, height: { min: 20, max: 30, med: 25 }, form: 'Tree (understory)', color: '#57534e' },
+      { id: 'u-oak', common: 'Big oak', width, form: 'Tree (canopy)' },
+      { id: 'u-odd', common: 'Odd one', width, form: 'Tree (somewhere)' },
+    ]);
+    _resetStorageForTests();
+    await initStorage(await openKV(name));
+    mp.loadMyPlants();
+    const got = (id: string) => mp.myPlants.find((p) => p.id === id);
+    expect(got('u-redbud')).toMatchObject({ form: 'Tree', color: '#57534e', height: { min: 20, max: 30, med: 25 } });
+    expect(got('u-oak')?.form).toBe('Tree');
+    expect(got('u-odd')).not.toHaveProperty('form'); // (an unknown form was always dropped)
+  });
 });
 
 describe('synced background photos', () => {

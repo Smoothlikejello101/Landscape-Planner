@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ProjectContent, PushResult, Remote, ServerProject } from './engine';
 import { blobToDataUrl, dataUrlBytes, dataUrlType, photoFingerprint } from './photo';
 import type { PlantPushResult, RemotePlants, ServerPlant } from './plants';
+import { wirePlant } from '../catalog';
 
 // The server's side of sync: the functions in supabase/02-sync.sql.
 
@@ -93,7 +94,8 @@ export function supabasePlants(c: SupabaseClient, device: string): RemotePlants 
       return out;
     },
     async pushPlant(id, base, plant, edited) {
-      const { data, error } = await c.rpc('push_plant', { p_id: id, p_base: base, p_plant: plant, p_edited: edited ? new Date(edited).toISOString() : null, p_device: device });
+      // (A form in the name every version reads: src/catalog.ts, WIRE_FORMS.)
+      const { data, error } = await c.rpc('push_plant', { p_id: id, p_base: base, p_plant: plant && wirePlant(plant), p_edited: edited ? new Date(edited).toISOString() : null, p_device: device });
       fail(error);
       const r = data as PlantPushResult;
       if ('revision' in r && r.revision != null) (r as { revision: number }).revision = Number(r.revision);

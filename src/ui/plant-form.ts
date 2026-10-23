@@ -3,7 +3,7 @@ import { I } from '../icons';
 import {
   deleteMyPlant, formatSize, newMyPlantId, parseSize, placedUsing, recolorPlaced, resizePlaced, saveMyPlant, sunLevels, sunRange, type Range,
 } from '../my-plants';
-import { FORM_COLORS, linkFromPicker, MONTH_NAMES, plantColor, plantsById, type Plant } from '../plants';
+import { FORM_COLORS, linkFromPicker, MONTH_NAMES, plantColor, plantColors, plantsById, type Plant } from '../plants';
 import { state } from '../state';
 import { finishPlacing, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
@@ -166,10 +166,10 @@ export function renderPlantForm() {
     saveBtn.disabled = true;
     try {
       const oldName = editing?.common ?? '';
-      const oldColor = editing ? plantColor(editing) : '';
+      const oldColors = editing ? plantColors(editing) : [];
       const saved = await saveMyPlant(p);
       if (editing) {
-        recolorPlaced(saved.id, oldColor, plantColor(saved));
+        recolorPlaced(saved.id, oldColors, plantColor(saved));
         const n = placedUsing(saved.id).length;
         if (n && confirm(`Update ${n} placed plant${n === 1 ? '' : 's'} in this plan to the new size?`)) resizePlaced(saved, oldName);
         toast(`Saved ${saved.common}`);

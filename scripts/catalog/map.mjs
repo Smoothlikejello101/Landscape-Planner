@@ -30,7 +30,7 @@ export function mnLight(habitat) {
 
 const NCSU_FORM = { Tree: 'Tree', Shrub: 'Shrub', Vine: 'Vine', Fern: 'Fern', Bulb: 'Bulb', 'Cactus/Succulent': 'Cactus', 'Ornamental Grasses and Sedges': 'Grass/Sedge', Annual: 'Annual', 'Herbaceous Perennial': 'Perennial', Aquatic: 'Aquatic/Emergent', 'Water Plant': 'Aquatic/Emergent' };
 /**
- * Forms from NC State's Plant Type tags (Tree not yet split into canopy or understory). For an herb (no
+ * Forms from NC State's Plant Type tags. For an herb (no
  * woody or other form among the tags), annual or perennial is read from the tags and its Life Cycle
  * together: what both say, and where they share nothing, the Life Cycle. The tags can say "Annual" for a
  * perennial grown as one (garden sage: Annual and Perennial tags, a perennial life cycle) or "Herbaceous

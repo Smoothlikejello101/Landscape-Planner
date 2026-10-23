@@ -33,3 +33,15 @@ test('plants planted too close are flagged, and can be outlined', async ({ page 
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(0);
 });
+
+test('plants crowd a tree only as much as they reach into its crown, a third of its height up', async ({ page }) => {
+  await openFresh(page);
+  await addPlant(page, 'Northern red oak', 0); // 60 ft: its crown can be raised to 20 ft
+  await closeSheet(page);
+  await addPlant(page, 'Spicebush', 4); // 11.5 ft: wholly under it
+  await expect(page.getByTestId('crowding')).toHaveCount(0);
+  await closeSheet(page);
+  await addPlant(page, 'Eastern redbud', 9); // 25 ft: its top 5 ft in the oak's crown
+  await expect(page.getByTestId('crowding')).toContainText('Planted closer than usual to one neighbor');
+  await expect(page.getByTestId('crowding')).toContainText('Northern red oak: 9 ft apart, about 13.9 ft is usual, as one grows partly under the other');
+});

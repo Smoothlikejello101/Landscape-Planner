@@ -1,9 +1,9 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 93 to decide, 39 sites whose terms are unsettled, 106 catalog checks; 775 of 820 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 58 to decide, 39 sites whose terms are unsettled, 104 catalog checks; 780 of 820 records audited.
 
 - [Sources disagree (6)](#sources-disagree-6)
-- [Tree: understory or canopy? (46)](#tree-understory-or-canopy-46)
+- [Cultivar: tree or shrub? (11)](#cultivar-tree-or-shrub-11)
 - [Edible, but rated toxic (12)](#edible-but-rated-toxic-12)
 - [Held back as implausible (1)](#held-back-as-implausible-1)
 - [Kew names to check (8)](#kew-names-to-check-8)
@@ -11,7 +11,7 @@ Written by `npm run catalog:build` (docs/catalog-build.md): what the build left 
 - [Mapped twice on the Arkansas atlas (17)](#mapped-twice-on-the-arkansas-atlas-17)
 - [Read from the genus's page (1)](#read-from-the-genuss-page-1)
 - [Sites whose terms are unsettled (39)](#sites-whose-terms-are-unsettled-39)
-- [Catalog checks (106)](#catalog-checks-106)
+- [Catalog checks (104)](#catalog-checks-104)
 
 ## Sources disagree (6)
 
@@ -26,58 +26,23 @@ The audit's sources give different values, so the catalog keeps the value it had
 | Porcupine grass (`hesperostipa-spartea`) | most sun | allendanseed.com says Full; each decided on its own, most sun Part and least sun Full make no range | Full |
 | Porcupine grass (`hesperostipa-spartea`) | least sun | morningskygreenery.com says Part; each decided on its own, most sun Part and least sun Full make no range (USDA: shade tolerance high) | Part |
 
-## Tree: understory or canopy? (46)
+## Cultivar: tree or shrub? (11)
 
-A source calls it a tree without saying which kind, or the species is a tree and this cultivar may be smaller, so its form is left as it was. There's no place to record a decision on these yet: they stay listed until there is.
+The species is a tree, and this cultivar, with no page of its own, may be smaller, so its form is left as it was. There's no place to record a decision on these yet: they stay listed until there is.
 
 | Plant | What the sources say | Catalog now |
 | --- | --- | --- |
-| Rusty blackhaw viburnum (`viburnum-rufidulum`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Tree (understory) |
-| Eastern hop hornbeam (`ostrya-virginiana`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (understory) |
-| Red buckeye (`aesculus-pavia`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Tree (understory) |
-| Downy serviceberry (`amelanchier-arborea`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Tree (understory) |
-| Speckled alder (`alnus-incana-subsp-rugosa`) | usda lists Shrub, Tree, the tree without saying understory or canopy | Shrub |
-| Round-leaved dogwood (`cornus-rugosa`) | usda lists Shrub, Tree, the tree without saying understory or canopy | Shrub |
-| Cockspur hawthorn (`crataegus-crus-galli`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Tree (understory) |
-| Winterberry holly (`ilex-verticillata`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Shrub |
-| American plum (`prunus-americana`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Tree (understory) |
-| Peach-leaved willow (`salix-amygdaloides`) | usda lists Shrub, Tree, the tree without saying understory or canopy | Tree (canopy) |
-| Blue-leaf willow (`salix-myricoides`) | usda lists Shrub, Tree, the tree without saying understory or canopy | Shrub |
-| Meadow willow (`salix-petiolaris`) | usda lists Shrub, Tree, the tree without saying understory or canopy | Shrub |
-| Red-berried elderberry (`sambucus-racemosa`) | usda lists Shrub, Tree, the tree without saying understory or canopy | Shrub |
-| Hazel alder (`alnus-serrulata`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Shrub |
-| Pawpaw (`asimina-triloba`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Tree (understory) |
-| Sweetbay magnolia (`magnolia-virginiana`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Tree (understory) |
-| American persimmon (`diospyros-virginiana`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (canopy) |
 | Dwarf yaupon holly (`ilex-vomitoria-nana-schillings`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Shrub |
-| Asian persimmon 'Fuyu' (`diospyros-kaki-fuyu`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (understory) |
-| Jujube (`ziziphus-jujuba-li-lang`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree (understory) |
+| Jujube (`ziziphus-jujuba-li-lang`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
 | Hardy pomegranate (`punica-granatum-salavatski-russian-26`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Shrub |
-| Mulberry 'Illinois Everbearing' (`morus-alba-x-rubra-illinois-everbearing`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree (understory) |
-| Chickasaw plum (`prunus-angustifolia`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Tree (understory) |
-| Pear (fireblight-resistant) (`pyrus-communis-moonglow-kieffer-orient`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (understory) |
-| Asian pear 'Shinko' (`pyrus-pyrifolia-shinko`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree (understory) |
-| Apple (rust-resistant only) (`malus-domestica-liberty-enterprise-william-s-pride`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree (understory) |
-| Japanese plum (`prunus-salicina-methley-bruce`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (understory) |
+| Mulberry 'Illinois Everbearing' (`morus-alba-x-rubra-illinois-everbearing`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
+| Asian pear 'Shinko' (`pyrus-pyrifolia-shinko`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
+| Apple (rust-resistant only) (`malus-domestica-liberty-enterprise-william-s-pride`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
 | Elderberry (improved cvs) (`sambucus-canadensis-bob-gordon-wyldewood`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Shrub |
-| Peach / nectarine (`prunus-persica`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (understory) |
-| Apricot (`prunus-armeniaca`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (understory) |
-| Sweet cherry (`prunus-avium`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (understory) |
 | Loropetalum (`loropetalum-chinense-purple-pixie-zhuzhou`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Shrub |
-| Arborvitae 'Green Giant' (`thuja-green-giant`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (canopy) |
-| Crape myrtle (`lagerstroemia-natchez-muskogee-tonto`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree (understory) |
-| Japanese maple (`acer-palmatum-bloodgood-seiryu`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (understory) |
-| Ginkgo (male only) (`ginkgo-biloba-autumn-gold-princeton-sentry`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree (canopy) |
-| Saucer magnolia (`magnolia-x-soulangeana`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Tree (understory) |
+| Crape myrtle (`lagerstroemia-natchez-muskogee-tonto`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
+| Ginkgo (male only) (`ginkgo-biloba-autumn-gold-princeton-sentry`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
 | Flowering cherry (`prunus-x-yedoensis-kwanzan`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Shrub |
-| Bradford/Callery pear (`pyrus-calleryana`) | ncsu lists Tree, the tree without saying understory or canopy | Shrub |
-| Chinese privet (`ligustrum-sinense`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Shrub |
-| Mimosa / silk tree (`albizia-julibrissin`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Shrub |
-| Tree of heaven (`ailanthus-altissima`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (canopy) |
-| Chinaberry (`melia-azedarach`) | ncsu lists Tree, the tree without saying understory or canopy | Tree (canopy) |
-| Autumn olive (`elaeagnus-umbellata`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Shrub |
-| Sago palm (`cycas-revoluta`) | ncsu lists Shrub, Tree, the tree without saying understory or canopy | Shrub |
-| Castor bean (`ricinus-communis`) | ncsu lists Annual, Perennial, Shrub, Tree, the tree without saying understory or canopy | Annual |
 
 ## Edible, but rated toxic (12)
 
@@ -158,7 +123,7 @@ A search found pages on these sites, but their terms aren't in the record (scrip
 
 americanpeonysociety.org, arborday.org, brit.org, cloversgarden.com, colesvillenursery.com, costafarms.com, courvillenursery.com, earth.com, earthone.io, finegardening.com, gardenerspath.com, gardenia.net, gardeningknowhow.com, greg.app, grokipedia.com, hoffmannursery.com, ipni.org, jstor.org, kew.org, monrovia.com, myseeds.co, nih.gov, ornamental-trees.co.uk, plantdelights.com, plantlust.com, plantsexpress.com, pridescorner.com, provenwinners.com, rhs.org.uk, sciencedirect.com, southernliving.com, thespruce.com, txsmartscape.com, unc.edu, usf.edu, vaccinium.org, viriar.com, wisc.edu, worldoffloweringplants.com
 
-## Catalog checks (106)
+## Catalog checks (104)
 
 What `npm run catalog:check` lists: implausible values, and names and parents to tidy in the catalog itself.
 
@@ -166,7 +131,6 @@ What `npm run catalog:check` lists: implausible values, and names and parents to
 - named as a cultivar, but its botanical name doesn't say which (25): `heuchera-villosa`, `heuchera-villosa-2`, `astilbe-chinensis`, `hakonechloa-macra`, `chelone-lyonii`, `itea-virginica`, `viburnum-nudum`, `viburnum-nudum-2`, `salvia-rosmarinus`, `artemisia-hybrid`, `monarda-didyma`, `echinacea-purpurea`, `coreopsis-verticillata`, `symphyotrichum-oblongifolium`, `vernonia-hybrid-mt-cuba`, `salvia-yangii`, `salvia-greggii-microphylla`, `asclepias-tuberosa-clay-strain`, `physostegia-virginiana`, `solidago-rugosa`, `boltonia-asteroides`, `panicum-virgatum`, `schizachyrium-scoparium`, `crocus-tommasinianus`, `hypericum-kalmianum`
 - no spread (11): `iris-aquatic-spp`, `echinacea-cone-fections-big-sky-sunseekers`, `clematis-occidentalis`, `dioscorea-villosa`, `passiflora-incarnata`, `echinocystis-lobata`, `phaseolus-polystachios`, `smilax-lasioneura`, `bignonia-capreolata-tangerine-beauty`, `clematis-viorna`, `vitis-spp`
 - a cultivar with a species record it could point to (2): `itea-virginica-henry-s-garnet`, `monarda-didyma-raspberry-wine`
-- tall for a shrub (2): `pyrus-calleryana`, `albizia-julibrissin`
 
 ## For reference
 

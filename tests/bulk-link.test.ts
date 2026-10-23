@@ -47,7 +47,7 @@ describe('linking many circles to a plant', () => {
     expect(state.shapes.map((s) => s.label)).toEqual(['Bergamot', 'bergamot', 'Bergamot']);
   });
   it('a circle linked to a tree keeps its drawn size as an existing tree; relinked to a shrub, it takes the shrub\'s size', () => {
-    const oak = { id: 'quercus-rubra', common: 'Northern red oak', form: 'Tree (canopy)', width: { min: 40, max: 60, med: 50 } } as Plant;
+    const oak = { id: 'quercus-rubra', common: 'Northern red oak', form: 'Tree', width: { min: 40, max: 60, med: 50 } } as Plant;
     const holly = { id: 'ilex-glabra', common: 'Inkberry', form: 'Shrub', width: { min: 4, max: 6, med: 5 } } as Plant;
     plantsById[oak.id] = oak; plantsById[holly.id] = holly;
     state.shapes = [circle('t', 'Big oak', { radius: 3 })];

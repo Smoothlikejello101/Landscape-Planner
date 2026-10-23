@@ -10,7 +10,7 @@ export function reviewKind(item) {
   if (n.startsWith('edible, but rated toxic')) return 'edible';
   if (n.startsWith("value the catalog can't take")) return 'cant';
   if (n.startsWith('no source gives it now')) return 'stale';
-  if (item.fact === 'form' && /tree without saying understory or canopy|a cultivar may be a tree/.test(n)) return 'tree';
+  if (item.fact === 'form' && /a cultivar may be a tree/.test(n)) return 'tree';
   return 'disputed';
 }
 
@@ -105,8 +105,8 @@ export function reviewReport({ catalog, list, combined, review, searched = {}, w
   section('Sources disagree', of('disputed').length,
     `The audit's sources give different values, so the catalog keeps the value it had, marked unverified. Zones are on the half-zone scale (7 is 7a, 7.5 is 7b); sizes are in feet. ${NO_PLACE}`,
     table(['Plant', 'Fact', 'What the sources say', 'Catalog now'], of('disputed').map((i) => [name(i.id), factName(i.fact), esc(sourcesSay(audit(i), i.note)), now(i)])));
-  section('Tree: understory or canopy?', of('tree').length,
-    `A source calls it a tree without saying which kind, or the species is a tree and this cultivar may be smaller, so its form is left as it was. ${NO_PLACE}`,
+  section('Cultivar: tree or shrub?', of('tree').length,
+    `The species is a tree, and this cultivar, with no page of its own, may be smaller, so its form is left as it was. ${NO_PLACE}`,
     table(['Plant', 'What the sources say', 'Catalog now'], of('tree').map((i) => [name(i.id), esc(i.note), now(i)])));
   section('Edible, but rated toxic', of('edible').length,
     `A source says it's edible, and the catalog rates it toxic (to dogs, or to people), so "edible" isn't written. ${NO_PLACE}`,
