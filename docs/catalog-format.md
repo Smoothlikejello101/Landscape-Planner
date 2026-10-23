@@ -86,14 +86,19 @@ domain (`"newmoonnursery.com"`), with the domain as its title.
     `likely` (no authority; most of the nurseries that give it agree),
     `reported` (one nursery says it), `disputed` (sources disagree: it goes
     on the review list);
-  - `alt`: what nurseries report where it differs from the authority's
-    value: `{ "v": …, "src": [...], "check": "likely" | "reported" }`. Only
-    for `form`, `height`, `width`, the zones, sun, `water`, `bloom` and
-    `deer`, never toxicity, invasiveness or native status. A pair (the two
-    zones, the two sun levels) gets an `alt` on both when either differs.
-    The app shows it in the plant's details, and its filters let it count
-    unless the user turns "Include what nurseries report" off; a plant shown
-    only because of it is marked.
+  - `alt`: what other sources say where they differ from the value shown
+    (the value more of them give, or on an even split the cautious one: see
+    docs/catalog-sources.md, "Where sources disagree"):
+    `{ "v": …, "src": [...], "check": "confirmed" | "single" | "likely" | "reported" }`,
+    its check by the same rules as the fact's own (`confirmed` or `single`
+    where an authority gives it). Only for `height`, `width`, the zones,
+    sun, `water` and `deer`, never toxicity, invasiveness or native status;
+    a form where sources differ keeps both forms instead. A pair (the two
+    zones, the two sun levels) gets an `alt` on both when either differs,
+    from sources that give both. The app shows it in the plant's details,
+    labelled with who says it ("Nurseries report: …", "NC State lists:
+    …"), and its filters let it count unless the user turns "Include where
+    sources differ" off; a plant shown only because of it is marked.
 
 A fact that is `null` is known to be unknown: the sources were checked and
 none say (the app keeps that, without a value). A missing fact simply

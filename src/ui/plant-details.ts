@@ -1,6 +1,6 @@
 // A plant's full details, shown when its row in the picker is opened: the
 // facts the catalog has, where it came from and how sure it is, and what
-// nurseries report where it differs from the authorities.
+// other sources say where they differ from the value shown.
 import { el } from '../dom';
 import type { Plant } from '../plants';
 import { MONTH_NAMES, PLANT_META, formsOf, zoneNote } from '../plants';
@@ -12,6 +12,17 @@ const SURE: Record<string, string> = {
   agree: 'confirmed', confirmed: 'confirmed', single: 'one source', likely: 'nurseries agree', reported: 'one nursery', disputed: 'sources disagree',
 };
 const sourceName = (id: string) => PLANT_META?.sources?.[id]?.title ?? id;
+/** A source in a few words, for a label: "NC State", "USDA", else its title (a website's domain). */
+const SHORT: Record<string, string> = { ncsu: 'NC State', usda: 'USDA', arkatlas: 'the Arkansas atlas', mnwild: 'Minnesota Wildflowers' };
+/**
+ * Who gives the other value, and it, in words: "Nurseries report: Full sun (a.com, b.com)" where only nurseries
+ * do; else by name, "NC State lists: 4b to 9b", "NC State and ufl.edu list: …".
+ */
+export function otherValue(src: string[], value: string): string {
+  if (src.every((s) => PLANT_META?.sources?.[s]?.trust === 'nursery')) return `Nurseries report: ${value} (${src.map(sourceName).join(', ')})`;
+  const names = src.map((s) => SHORT[s] ?? sourceName(s));
+  return `${names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]} list` : `${names[0]} lists`}: ${value}`;
+}
 const ft = (r?: { min?: number; max?: number; med?: number }) => {
   if (!r) return '';
   const f = (x: number) => (x >= 1 ? `${+x.toFixed(1)} ft` : `${Math.round(x * 12)} in`);
@@ -24,7 +35,7 @@ const yes = (v: unknown) => (v === true ? 'Yes' : v === false ? 'No' : '');
 const bloom = (b?: { start?: number; end?: number; color?: string }) => (b?.start ? `${MONTH_NAMES[b.start]}${b.end && b.end !== b.start ? `–${MONTH_NAMES[b.end]}` : ''}${b.color ? `, ${b.color}` : ''}` : b?.color ?? '');
 const tox = (t?: Plant['tox']) => (!t ? '' : [t.dog && `dogs: ${t.dog}`, t.cat && `cats: ${t.cat}`, t.horse && `horses: ${t.horse}`, t.people && `people: ${t.people}`].filter(Boolean).join('; '));
 
-/** Each row: label, the catalog's value, the facts it rests on, and how to write a nursery's differing value. */
+/** Each row: label, the catalog's value, the facts it rests on, and how to write the other value where sources differ. */
 type Row = [label: string, value: string, facts: string[], reported?: (r: Record<string, unknown>) => string];
 function rows(p: Plant): Row[] {
   return [
@@ -69,13 +80,13 @@ function sourceLine(prov: Provenance | undefined): string {
 
 /**
  * The opened row. `flagged`: what this plant matches the filters on only by
- * nurseries' reports (said first, in words).
+ * what other sources say (said first, in words).
  */
 export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLElement {
   const box = el('div', { className: 'plant-details', 'data-testid': 'plant-details' });
   if (flagged?.length) {
     box.appendChild(el('div', { className: 'details-flag', 'data-testid': 'reported-flag' },
-      `Shown because of what nurseries report for its ${flagged.join(' and ')}; the published references say otherwise (below).`));
+      `Shown because of what other sources say for its ${flagged.join(' and ')}; the value shown first says otherwise (below).`));
   }
   if (p.botanical) box.appendChild(el('div', { className: 'details-bot' }, p.botanical));
   const dl = el('dl', { className: 'details-list' });
@@ -97,7 +108,9 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
       : sourceLine(prov);
     if (line) dd.appendChild(el('span', { className: 'details-src' }, line));
     // Hardiness only nurseries give: say so, since a grower's range can stop where it sells, not where the plant grows.
-    const nurseryOnly = (pv?: Provenance) => !!pv && !pv.unknown && pv.src.length > 0 && pv.src.every((s) => PLANT_META?.sources?.[s]?.trust === 'nursery');
+    // (Not where a reference gives another range, shown beside it: nurseries can outnumber it.)
+    const isNursery = (s: string) => PLANT_META?.sources?.[s]?.trust === 'nursery';
+    const nurseryOnly = (pv?: Provenance) => !!pv && !pv.unknown && pv.src.length > 0 && pv.src.every(isNursery) && (pv.alt?.src ?? []).every(isNursery);
     if (label === 'Hardiness') {
       const [cold, warm] = [nurseryOnly(p.prov?.zone_min), nurseryOnly(p.prov?.zone_max)];
       const which = cold && warm ? 'Only nurseries rate this; no published reference gives a range.'
@@ -107,7 +120,7 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
     }
     if (reported && reported !== value) {
       const alt = facts.map((f) => p.prov?.[f]?.alt).find(Boolean);
-      dd.appendChild(el('span', { className: 'details-alt' }, `Nurseries report: ${reported}` + (alt ? ` (${alt.src.map(sourceName).join(', ')})` : '')));
+      dd.appendChild(el('span', { className: 'details-alt' }, alt ? otherValue(alt.src, reported) : `Also reported: ${reported}`));
     }
     dl.appendChild(el('dt', {}, label));
     dl.appendChild(dd);

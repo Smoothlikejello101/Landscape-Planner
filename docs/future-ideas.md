@@ -24,5 +24,5 @@ it waits.
 ## Picker
 
 - **Flags for every disagreement.** A row is marked only when a filter
-  match rests on what nurseries report. Other disagreements are listed in
+  match rests on what other sources say (a fact's `alt`). Other disagreements are listed in
   the opened row; flagging them all would mark most rows.

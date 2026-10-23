@@ -131,8 +131,8 @@ export function renderPlantsPanel() {
     } });
     const flagged = reportedOnly.get(p.id);
     const chev = el('span', { className: 'row-open' + (flagged ? ' flagged' : '') },
-      flagged ? el('span', { className: 'row-flag', 'data-testid': 'row-flag', title: 'Shown because of what nurseries report' }, '!',
-        el('span', { className: 'sr-only' }, ' (shown because of what nurseries report)')) : null,
+      flagged ? el('span', { className: 'row-flag', 'data-testid': 'row-flag', title: 'Shown because of what other sources say' }, '!',
+        el('span', { className: 'sr-only' }, ' (shown because of what other sources say)')) : null,
       el('span', { className: 'fold-chev', html: I.chevronDown }));
     // The plant itself is the button that opens its details (its name and summary are what a screen reader says);
     // Place and copy or edit sit beside it, not inside it.
@@ -308,8 +308,8 @@ export function renderPlantsPanel() {
   ));
   adv.appendChild(el('div', { className: 'hint', style: { padding: '10px 0 0' } }, 'Sources'));
   adv.appendChild(el('div', { style: { margin: '4px 0 8px' } },
-    mkCheck('Include what nurseries report', 'withReported'),
-    el('div', { className: 'hint', style: { fontSize: '11px' } }, 'Where nurseries differ from the published references (extension services, botanical gardens), let their values count too. A plant shown only because of them is marked !.')));
+    mkCheck('Include where sources differ', 'withReported'),
+    el('div', { className: 'hint', style: { fontSize: '11px' } }, 'Where sources disagree, a plant shows the value more of them give (on a tie, the cautious one), with the other beside it. Let the other count too. A plant shown only because of it is marked !.')));
 
   // ---- Toggle + reset ----
   const toggle = el('button', { className: 'btn ghost', style: { flex: '1', fontSize: '13px', padding: '6px' } });

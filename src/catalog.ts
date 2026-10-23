@@ -18,12 +18,14 @@ export interface SourceDef { title: string; url?: string; trust: Trust }
  */
 export type Check = 'agree' | 'confirmed' | 'disputed' | 'single' | 'likely' | 'reported';
 /**
- * What nurseries report where it differs from the authority's value (shown, and usable in filters, by the
- * user's choice). Only for what a nursery can speak to; never toxicity, invasiveness or native status. A pair
- * (sun_most and sun_least, zone_min and zone_max) is reported whole: both get an `alt` when either differs.
+ * What other sources say where they differ from the value shown (shown beside it, labelled with who says it,
+ * and usable in filters by the user's choice): nurseries beside an authority, or, where sources disagree, the
+ * side that didn't lead (docs/catalog-sources.md, "Where sources disagree"). Only for what a nursery can speak
+ * to; never toxicity, invasiveness or native status. A pair (sun_most and sun_least, zone_min and zone_max) is
+ * one source's whole range: both get an `alt` when either differs.
  */
 export const REPORTABLE = new Set(['form', 'height', 'width', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'bloom', 'deer']);
-export interface Reported<T = unknown> { v: T; src: string[]; check: 'likely' | 'reported' }
+export interface Reported<T = unknown> { v: T; src: string[]; check: 'confirmed' | 'single' | 'likely' | 'reported' }
 /** A fact with its own sourcing (else a plain value, sourced by its record). */
 export interface SourcedFact<T = unknown> { v: T; src?: string[]; at?: string; check?: Check; alt?: Reported<T> }
 export interface CatalogRecord {
@@ -63,7 +65,7 @@ export interface Provenance {
   inherited?: boolean;
   /** Looked up, and none of the sources say (the value is left out). */
   unknown?: boolean;
-  /** What nurseries report instead, where it differs. */
+  /** What other sources say instead, where they differ. */
   alt?: Reported;
 }
 
@@ -219,9 +221,9 @@ export function catalogErrors(file: CatalogFile): string[] {
         for (const k of Object.keys(raw)) if (!['v', 'src', 'at', 'check', 'alt'].includes(k)) errs.push(`${at}.${key}: unknown key ${k}`);
         if (raw.alt != null) {
           const a = raw.alt as Partial<Reported>;
-          if (!REPORTABLE.has(key)) errs.push(`${at}.${key}: nurseries' reports aren't taken for ${key}`);
-          else if (!isObj(a) || !('v' in a) || a.v == null || !check(a.v, enums) || !Array.isArray(a.src) || !a.src.length || !['likely', 'reported'].includes(a.check as string)) errs.push(`${at}.${key}: alt needs a value, its sources, and a check of likely or reported`);
-          else if (raw.v == null || JSON.stringify(a.v) === JSON.stringify(raw.v)) errs.push(`${at}.${key}: alt is for a value that differs from the authority's`);
+          if (!REPORTABLE.has(key)) errs.push(`${at}.${key}: no other value (alt) is taken for ${key}`);
+          else if (!isObj(a) || !('v' in a) || a.v == null || !check(a.v, enums) || !Array.isArray(a.src) || !a.src.length || !['confirmed', 'single', 'likely', 'reported'].includes(a.check as string)) errs.push(`${at}.${key}: alt needs a value, its sources, and a check of confirmed, single, likely or reported`);
+          else if (raw.v == null || JSON.stringify(a.v) === JSON.stringify(raw.v)) errs.push(`${at}.${key}: alt is for a value that differs from the one shown`);
           else for (const s of a.src) if (!sources[s]) errs.push(`${at}.${key}: unknown source ${s}`);
         }
         if (raw.at != null && !STATE.test(raw.at)) errs.push(`${at}.${key}: "at" must be a state code`);
