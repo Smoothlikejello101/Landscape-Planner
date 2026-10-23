@@ -26,7 +26,19 @@ test('add a plant from its tag, place it, and switch to full size', async ({ pag
   await spread.fill('x');
   await expect(page.getByTestId('pf-spread-missing')).toHaveText(''); // (typing clears it)
   await page.getByTestId('pf-save').click();
-  await expect(page.getByTestId('pf-spread-missing')).toContainText('couldn’t read that; try 6-8');
+  await expect(page.getByTestId('pf-spread-missing')).toContainText('couldn’t read that (see below)');
+  await page.getByTestId('pf-spread-in').click();
+  await expect(page.getByTestId('pf-spread-missing')).toHaveText(''); // (a unit switch reads it again: Save checks)
+  await expect(spread).not.toHaveAttribute('aria-invalid', 'true');
+  // The name, too: on its label, with the cursor.
+  await page.getByTestId('pf-name').fill('');
+  await page.getByTestId('pf-save').click();
+  await expect(page.getByTestId('pf-name-missing')).toContainText('give the plant a name');
+  await expect(page.getByTestId('pf-name')).toBeFocused();
+  await expect(page.getByLabel(/Name, required/)).toHaveAttribute('aria-required', 'true'); // (the label names its field)
+  await page.getByTestId('pf-name').fill("Hydrangea 'Limelight'");
+  await expect(page.getByTestId('pf-name-missing')).toHaveText('');
+  await page.getByTestId('pf-spread-ft').click();
   await expect(spread).toHaveAttribute('inputmode', 'decimal'); // number pad on phones
   // Inches: the number, then "in".
   await spread.fill('36');
@@ -132,4 +144,24 @@ test('turn a labeled circle into a plant, then edit the plant', async ({ page })
   await page.locator('.sel-pill button.edit').click();
   await page.getByTestId('plant-link').getByRole('button', { name: /Reset to plant size/ }).click();
   await expect(field(page, 'Spread (ft)')).toHaveValue('8');
+});
+
+test('a new plant made for a circle keeps the circle\'s size, as the form shows it', async ({ page }) => {
+  autoDialogs(page);
+  await openFresh(page);
+  await addPlainShape(page, 'circle');
+  await field(page, 'Label').fill('Camellia');
+  await field(page, 'Diameter (ft)').fill('3.25'); // (measured by hand: not on the half foot)
+  await page.getByTestId('plant-link').getByRole('button', { name: 'Link to a plant…' }).click();
+  await page.getByTestId('plant-search').fill('Rose camellia');
+  await page.getByTestId('add-own-plant').click();
+  const spread = page.getByTestId('pf-spread');
+  await expect(spread).toHaveValue('3.5'); // (as linking draws it: the radius to the quarter foot)
+  const hint = page.locator('.field', { has: spread }).locator('.hint');
+  await expect(hint).toContainText('From the circle you’re linking');
+  await page.getByTestId('pf-spread-in').click();
+  await expect(hint).not.toContainText('From the circle'); // (3.5 inches isn't the circle)
+  await page.getByTestId('pf-spread-ft').click();
+  await page.getByTestId('pf-save').click();
+  await expect(field(page, 'Spread (ft)')).toHaveValue('3.5');
 });

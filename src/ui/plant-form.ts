@@ -1,10 +1,11 @@
 import { el } from '../dom';
 import { I } from '../icons';
 import {
-  deleteMyPlant, formatSize, newMyPlantId, parseSize, placedUsing, recolorPlaced, resizePlaced, saveMyPlant, sunLevels, sunRange, type Range,
+  deleteMyPlant, formatSize, isDataSized, newMyPlantId, parseSize, placedUsing, recolorPlaced, resizePlaced, saveMyPlant, sunLevels, sunRange, type Range,
 } from '../my-plants';
 import { FORM_COLORS, linkFromPicker, MONTH_NAMES, plantColor, plantColors, plantsById, type Plant } from '../plants';
 import { state } from '../state';
+import type { Shape } from '../types';
 import { finishPlacing, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { errMsg } from '../util';
@@ -39,17 +40,25 @@ export function renderPlantForm() {
    * A field's label, which can say what's missing on the line with its name: above the field, so it shows while the
    * keyboard is up (a note at the foot of the form is under it). Typing clears it.
    */
-  const fieldLabel = (label: string, input: HTMLInputElement, testid: string) => {
+  const fieldLabel = (label: string, input: HTMLInputElement, testid: string, required: boolean) => {
     const missing = el('span', { className: 'label-error', 'data-testid': testid + '-missing' });
-    const node = el('label', {}, label, missing);
-    const need = (why: string) => { missing.textContent = ' \u2014 ' + why; input.setAttribute('aria-invalid', 'true'); input.focus(); };
-    input.addEventListener('input', () => { missing.textContent = ''; input.removeAttribute('aria-invalid'); });
-    return { node, need };
+    // (The label names its field, message and all: a screen reader reads it on reaching the field.)
+    input.id = testid;
+    if (required) input.setAttribute('aria-required', 'true');
+    const node = el('label', { for: testid }, label, missing);
+    const need = (why: string) => {
+      missing.textContent = ' \u2014 ' + why; input.setAttribute('aria-invalid', 'true'); input.focus();
+      // (Once the keyboard is up: the whole field, its label too, not only the box the focus scroll shows.)
+      setTimeout(() => input.closest('.field')?.scrollIntoView({ block: 'nearest' }), 400);
+    };
+    const clear = () => { missing.textContent = ''; input.removeAttribute('aria-invalid'); };
+    input.addEventListener('input', clear);
+    return { node, need, clear };
   };
   const text = (label: string, value: string, placeholder: string, testid: string) => {
     const input = el('input', { type: 'text', value, placeholder, 'data-testid': testid }) as HTMLInputElement;
     const hint = el('div', { className: 'hint' });
-    const { node, need } = fieldLabel(label, input, testid);
+    const { node, need } = fieldLabel(label, input, testid, label.endsWith(', required'));
     body.appendChild(el('div', { className: 'field' }, node, input, hint));
     return { input, hint, need };
   };
@@ -64,14 +73,15 @@ export function renderPlantForm() {
     const value = r ? (r.min === r.max ? `${r.min}` : `${r.min}-${r.max}`) : '';
     const input = el('input', { type: 'text', inputMode: 'decimal', value, placeholder, 'data-testid': testid, autocomplete: 'off' }) as HTMLInputElement;
     const hint = el('div', { className: 'hint' });
-    const { node, need } = fieldLabel(label, input, testid);
+    const { node, need, clear } = fieldLabel(label, input, testid, required);
     const f: SizeField = { input, hint, unit: 'ft', need };
-    const seg = el('div', { className: 'seg unit-seg', role: 'group', 'aria-label': label + ' unit' });
+    const seg = el('div', { className: 'seg unit-seg', role: 'group', 'aria-label': label.replace(/,? \(?(required|optional)\)?$/, '') + ' unit' });
     const btns = (['ft', 'in'] as const).map((u) => {
       const b = el('button', { className: u === 'ft' ? 'sel' : '', 'aria-pressed': String(u === 'ft'), 'data-testid': `${testid}-${u}` }, u);
       b.addEventListener('click', () => {
         f.unit = u;
         btns.forEach((x, i) => { const on = (i === 0) === (u === 'ft'); x.classList.toggle('sel', on); x.setAttribute('aria-pressed', String(on)); });
+        clear(); // (the value reads differently now: Save checks it again)
         show();
       });
       seg.appendChild(b);
@@ -82,7 +92,7 @@ export function renderPlantForm() {
       const rr = parseSize(v, f.unit);
       hint.textContent = !v ? (required ? 'From the tag: one number or a range like 6-8.' : '')
         : rr ? `Read as ${formatSize(rr)}${required && rr.min !== rr.max ? `; drawn at ${formatSize({ min: rr.med, max: rr.med, med: rr.med })} (typical) or ${formatSize({ min: rr.max, max: rr.max, med: rr.max })} (full size)` : ''}.`
-          + (from && v === from ? ' From the circle you\u2019re linking; change it to the tag\u2019s.' : '')
+          + (from && v === from && f.unit === 'ft' ? ' From the circle you\u2019re linking; change it to the tag\u2019s.' : '')
         : "Couldn't read that. Try 6-8, or 36 with inches selected.";
       hint.classList.toggle('error', !!v && !rr);
     };
@@ -92,8 +102,13 @@ export function renderPlantForm() {
     return f;
   };
   // A new plant for a circle being linked: its spread starts as the circle's width, so linking keeps the size drawn.
-  const linking = !source && args.place && state.pickerLinkId ? state.shapes.find((s) => s.id === state.pickerLinkId) : undefined;
-  const drawn = linking?.type === 'circle' && !linking.canopy ? Math.round(linking.radius * 2 * 4) / 4 : undefined;
+  // To the half foot, as linking sizes it (its radius to the quarter foot): the form shows what will be drawn. Not
+  // for several circles at once (whose width?), nor one sized from another plant (that says nothing about this
+  // one), nor a tree (it keeps the size drawn anyway, and its spread is what it grows to, not what it is now).
+  const linking = !source && args.place && state.pickerLinkId && !state.pickerLinkAlso.length
+    ? state.shapes.find((s) => s.id === state.pickerLinkId) : undefined;
+  const fromData = !!linking && (isDataSized as (s: Shape) => boolean)(linking); // (a plain yes or no: no narrowing)
+  const drawn = linking?.type === 'circle' && !linking.canopy && !linking.tree && !fromData ? Math.round(linking.radius * 4) / 2 : undefined;
   const spread = sizeField('Spread (width), required', (source?.width as Range | undefined) ?? (drawn ? { min: drawn, max: drawn, med: drawn } : undefined),
     'e.g. 6-8', 'pf-spread', true, drawn ? String(drawn) : '');
   const height = sizeField('Height (optional)', source?.height as Range | undefined, 'e.g. 3-4', 'pf-height', false);
@@ -158,7 +173,7 @@ export function renderPlantForm() {
     const width = parseSize(spread.input.value, spread.unit);
     error.textContent = '';
     if (!common) { name.need('give the plant a name'); return null; }
-    if (!width) { spread.need(spread.input.value.trim() ? 'couldn\u2019t read that; try 6-8' : 'enter one number or a range like 6-8'); return null; }
+    if (!width) { spread.need(spread.input.value.trim() ? 'couldn\u2019t read that (see below)' : 'enter one number or a range like 6-8'); return null; }
     const h = parseSize(height.input.value, height.unit);
     const start = Number(bloomStart.value) || undefined, end = Number(bloomEnd.value) || start;
     return {
