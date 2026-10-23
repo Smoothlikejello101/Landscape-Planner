@@ -169,6 +169,8 @@ describe('saving and loading', () => {
       shapes: [circle('ok'), { type: 'hexagon' }, null, { type: 'rect', x: 'NaN', width: -5 }],
       zoom: 99, offsetX: 'x',
     });
+    expect(sanitizeProjectData({ shapes: [], zoom: 0.01 }).zoom).toBe(0.05); // (as far out as it goes)
+    expect(sanitizeProjectData({ shapes: [], zoom: 0.05 }).zoom).toBe(0.05);
     expect(d.shapes.map((s) => s.type)).toEqual(['circle', 'rect']);
     expect(d.shapes[1].x).toBe(0);
     expect((d.shapes[1] as { width: number }).width).toBe(0.1);

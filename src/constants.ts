@@ -4,7 +4,8 @@
 export const PX_PER_FOOT_BASE = 24;
 export const SNAP = 0.5;
 export const ROT_SNAP = 5;
-export const MIN_ZOOM = 0.25;
+/** Farthest out: 1.2 px a foot, so a phone held upright shows about 300 ft across, a whole house and yard. */
+export const MIN_ZOOM = 0.05;
 export const MAX_ZOOM = 4;
 export const DOUBLE_TAP_MS = 350;
 export const DRAG_THRESHOLD_PX = 4;

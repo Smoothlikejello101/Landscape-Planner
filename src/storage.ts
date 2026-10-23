@@ -1,4 +1,4 @@
-import { MAX_POINTS, MAX_TREE_HEIGHT, MAX_TRUNK, MIN_POINTS, MIN_TRUNK, STORAGE } from './constants';
+import { MAX_POINTS, MAX_TREE_HEIGHT, MAX_TRUNK, MAX_ZOOM, MIN_POINTS, MIN_TRUNK, MIN_ZOOM, STORAGE } from './constants';
 import { del, openKV, put, type KV, type WriteOp } from './db';
 import { cancelHistoryDebounce } from './history';
 import { DEFAULT_PRINT, state } from './state';
@@ -273,7 +273,7 @@ export function sanitizeProjectData(raw: unknown): ProjectData {
   const bg = d.bgImage && typeof d.bgImage === 'object' ? migrateBgImage(d.bgImage as Partial<BgImage>) : null;
   return {
     shapes,
-    zoom: Math.min(4, Math.max(0.25, num(d.zoom, 1))),
+    zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, num(d.zoom, 1))),
     offsetX: num(d.offsetX, -10),
     offsetY: num(d.offsetY, -10),
     roleViews: sanitizeRoleViews(d.roleViews),
