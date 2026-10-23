@@ -25,7 +25,17 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - run: npx playwright install --with-deps chromium
+      # The test browser, kept between runs (keyed by Playwright's version), and without --with-deps: the system
+      # libraries it needs are on the runner already (its image has Chrome), and fetching them from Ubuntu's mirror
+      # sometimes crawled, from 20 seconds to 13 minutes.
+      - id: pw
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+      - run: npx playwright install chromium
+        timeout-minutes: 5
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
