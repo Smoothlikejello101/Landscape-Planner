@@ -67,6 +67,13 @@ export function statusSection(shapes: Shape[]): HTMLElement {
     date.addEventListener('change', () => updateSelectedSilent({ plantedOn: date.value || undefined }));
     wrap.appendChild(el('div', { className: 'field', style: { marginTop: '8px' } }, el('label', {}, 'Planted on'), date));
   }
+  // When it came out or died (one shape, gone: shown when gone shapes are, from Layers).
+  if (shapes.length === 1 && shapes[0].status === 'gone') {
+    const s = shapes[0];
+    const date = el('input', { type: 'date', value: s.goneOn ?? '', 'data-testid': 'gone-on' }) as HTMLInputElement;
+    date.addEventListener('change', () => updateSelectedSilent({ goneOn: date.value || undefined }));
+    wrap.appendChild(el('div', { className: 'field', style: { marginTop: '8px' } }, el('label', {}, 'Gone on'), date));
+  }
 
   // Phase
   const phases = new Set(shapes.map((s) => s.phase ?? ''));

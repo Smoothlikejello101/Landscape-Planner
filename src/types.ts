@@ -39,6 +39,8 @@ interface ShapeBase {
   status?: Status;
   /** YYYY-MM-DD it went in the ground (status 'planted'). */
   plantedOn?: string;
+  /** YYYY-MM-DD it came out or died (status 'gone'): set when marked gone, cleared if it's marked otherwise. */
+  goneOn?: string;
   /** A phase of the project this belongs to, e.g. "Fall 2026" (one of the project's phases). */
   phase?: string;
 }

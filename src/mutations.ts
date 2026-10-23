@@ -249,8 +249,11 @@ export function setStatusForIds(ids: string[], status: Status | undefined) {
   for (const id of ids) {
     const s = state.shapes.find((sh) => sh.id === id);
     if (!s) continue;
-    const patch = statusPatch(s, status);
-    if (patch.status === undefined) delete s.status; else Object.assign(s, patch);
+    // (A key patched to undefined is removed: no status, no gone date.)
+    for (const [k, v] of Object.entries(statusPatch(s, status))) {
+      if (v === undefined) delete (s as unknown as Record<string, unknown>)[k];
+      else (s as unknown as Record<string, unknown>)[k] = v;
+    }
   }
   // Gone shapes leave the view (unless gone ones are shown): don't keep them selected.
   if (status === 'gone' && !state.viewFilter.showGone) state.selectedIds = state.selectedIds.filter((id) => !ids.includes(id));
