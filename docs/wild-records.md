@@ -25,6 +25,8 @@ it), so the app never says "not found here".
 
 ## How they're read
 
+`npm run catalog:build` runs these with the rest of the catalog ([catalog-build.md](catalog-build.md)): steps 1, 2 and 5, and the placing in step 3; with `--fetch`, step 3's fetch and step 4's `gbif-fetch.mjs` too. Step 4's download (`gbif-download.mjs`) is run by hand.
+
 1. `node scripts/catalog/counties.mjs`: every US county's FIPS code, name, state, center and neighbors,
    to `catalog-src/counties.json`.
 2. `python3 -I scripts/catalog/atlas_counties.py <atlas.pdf> catalog-src/counties.json

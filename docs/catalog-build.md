@@ -1,0 +1,168 @@
+# Building the catalog
+
+One command rebuilds the catalog (`public/plants.json`) and the wild records (`public/wild/1/`) from the pages
+already saved. It also writes what's left for a person to decide, fetch or tidy into
+[catalog-review.md](catalog-review.md):
+
+```
+npm run catalog:build                                   # offline: the pages already in catalog-src/
+npm run catalog:build -- --fetch --date 2026-11-02      # first fetch what was never asked for, then build
+npm run catalog:build -- --date 2026-11-02
+```
+
+**The `--` matters.** Without it npm keeps the flags for itself, and the build stops and says so.
+
+**`--date`** is the day the pages were read. The writer puts it on every audited record, not just the ones whose
+facts changed. Without `--date`, the build uses the catalog's own date, the latest `audited` in it. `--fetch`
+needs `--date`, since new pages have a new day.
+
+The pages a record rests on can be read on different days. One date for the whole catalog is then a choice:
+- the day of the newest pages that changed facts;
+- or keep the old date while the changes are few.
+
+A date per record, from its own pages, would be better, and isn't built yet.
+
+**Repeatable.** Running it twice changes nothing. A build from the same pages writes the same catalog, files and
+report, so `git diff` after a build shows exactly what it changed. Run on the pages behind the 2026-10-18 audit,
+which the scattered steps had built by hand, it printed "public/plants.json unchanged". Nothing under
+public/wild/ changed either.
+
+**Each step's output** goes to `catalog-src/build/log.txt`. Its working files (the list, the combined audit, the
+review list) are kept in `catalog-src/build/`, which isn't committed. A failed step stops the build, with the
+step's last lines. If a step fails after the catalog was written, the build says so: `git diff` shows what was
+written, and a build after the fix makes the rest match.
+
+## The steps
+
+| # | Step | Script | Writes |
+| --- | --- | --- | --- |
+| – | Stops first if the web claims, Kew's checklist or GBIF's downloads are missing (below) | | |
+| 0 | `--fetch` only, in rounds until nothing new is asked for: the atlas PDF and the Tallamy spreadsheet if missing; NC State's page for each species with none in the list; each page `ncsu-pages.json` names that isn't saved; USDA PLANTS's name searches; the profiles of the candidates they find, and the picks' characteristics | `fetch.mjs` | `catalog-src/<source>/<date>/` |
+| 1 | The plant list (below) | `list.mjs` | `build/list.json` |
+| 2 | The Arkansas atlas as text, and the caterpillar host genera, remade each build from their newest saved files | `pdftotext -layout`, `tallamy.py` | `build/atlas.txt`, `tallamy/genera.json` |
+| 3 | The web claims, read again with today's reader (below) | `reclaim.mjs` | `build/web.json` |
+| 4 | Combine each plant's claims by the source rules ([catalog-sources.md](catalog-sources.md)) | `sample.mjs` | `build/combined.json` |
+| 5 | `--fetch` only: USDA's county records and GBIF's names | `usda-fetch.mjs`, `gbif-fetch.mjs` | `catalog-src/web/`, `catalog-src/gbif/` |
+| 6 | Write the settled facts into the catalog | `write-cli.ts` (`catalog:write`) | `public/plants.json`, `build/review.json` |
+| 7 | Counties, made once; the atlas's county maps, made again when the atlas PDF is newer | `counties.mjs`, `atlas_counties.py` | `counties.json`, `arkatlas/counties.json` |
+| 8 | USDA's county records, placed | `usda-counties.mjs` | `usda-counties.json` |
+| 9 | Native status by state, from Kew's checklist | `wcvp.mjs` | `wcvp-native.json`, `wcvp-regulated.json`, `wcvp-review.json` |
+| 10 | The wild records: counties, native status, the law's lines, bloom months ([wild-records.md](wild-records.md)) | `wild.mjs` | `public/wild/1/`, `native-review.json`, `bloom-review.json` |
+| 11 | The catalog's checks, then the report | `check.ts`, `report.mjs` | `docs/catalog-review.md` |
+
+Paths without a folder are in `catalog-src/`. The order matters:
+- Every fetch comes before the write, so a network failure leaves the catalog as it was.
+- `sample.mjs` reads the catalog as it stands, for the older values it keeps and the form order it prefers.
+- Steps 7 to 10 read the catalog after the write.
+- From the write on, the build holds `catalog-src/.lock`, so no fetch or search can change the pages under it.
+
+## What it reads
+
+**Committed:**
+- `public/plants.json`.
+- `scripts/catalog/ncsu-pages.json`.
+- The reviewed lists the scripts keep:
+  - `site-terms.json`: the terms readings;
+  - `regulated-plants.json`;
+  - USDA picks and renames: `PICK` (usda-pick.mjs) and `SAME_PLANT` (usda-counties.mjs);
+  - spellings: `GBIF_NAME` (gbif.mjs) and `WCVP_NAME` (wcvp.mjs);
+  - `RECORDS_TRUSTED` (bloom.mjs) and `COMPANY` (web.mjs).
+
+**Kept in `catalog-src/`** (git-ignored). The build stops before writing anything if one of the last three is
+missing:
+- **The pages the fetcher saved**, each with its date and what the site answered.
+- **`web-claims.json`**: the web search's claims, plant by plant, each with the page it was read from. This is
+  `search.mjs`'s output: the facts read from pages we fetched ourselves, each citing its page. Brave's results
+  aren't kept (its terms; [catalog-sources.md](catalog-sources.md), "Searching the web"). Without this file the
+  build would drop every fact the web gives.
+- **Kew's World Checklist** (`kew-wcvp/`): wcvp.zip from sftp.kew.org/pub/data-repositories/WCVP/, unzipped by
+  hand.
+- **GBIF's downloads** (`gbif-downloads/bloom.tsv`, `counties.tsv`): requested with the account, and fetched
+  without one, by `gbif-download.mjs` ([bloom-months.md](bloom-months.md)). Without them the wild records would
+  lose every bloom month and every GBIF county.
+
+**Not run by the build:**
+- **The web search** (`search.mjs`). It needs the search key, and a person or agent reads each new site's terms
+  before any of its pages are used. A plant it hasn't searched yet is named in the report. Its claims are added
+  to `catalog-src/web-claims.json`.
+- **GBIF download requests** (the account).
+- **Kew's download.**
+
+## The plant list
+
+For each record, in the catalog's order: `{ id, species, genusOnly?, ncsu?, usda? }`. It's worked out from the
+catalog by rule, except where a committed file says otherwise.
+
+- **Species.** A botanical name's species is:
+  - "Genus × epithet": the hybrid species (Fothergilla × intermedia);
+  - else the first two words, where the second is a lowercase word other than "x" or "hybrid". So Salvia
+    azurea 'Nekan' is Salvia azurea, and a subspecies or variety is read as its species.
+  - Anything else names only a genus (`genusOnly`): "Hosta spp.", "Rosa 'Julia Child'", "Artemisia hybrid".
+    Such a record isn't looked up on the atlas or in USDA PLANTS. It gets no NC State page by the rule, since a
+    genus's page describes the genus, not the plant.
+- **Known quirks.** The rule keeps them as the 2026-10-18 audit read them, so the build reproduces it:
+  - A hybrid written with a plain x is read as only its genus: Magnolia x soulangeana, though NC State's page
+    for it is saved.
+  - A hybrid of two species takes the first parent: Salvia greggii × microphylla is S. greggii.
+  - A record of two species reads only the first: Salvia officinalis / Origanum vulgare.
+  - "Tulipa hybrids" passes as an epithet.
+  - A genus or cultivar group reads its own cultivar's page (`ncsu-pages.json`: Thuja 'Green Giant') as
+    species-level. So the page's size, form and flower color aren't taken.
+
+  Fixing them changes the catalog, so each fix is its own change, with its diff reviewed.
+- **NC State.** The species' page (its name in lower case, hyphenated, × as x: `fothergilla-x-intermedia`),
+  where one is saved. `scripts/catalog/ncsu-pages.json` names the exceptions, chosen by hand, or `null` for none.
+  An exception is a cultivar's own page, the one cultivar page a record of several reads, or a genus's page.
+- **USDA PLANTS.** The symbol `usda-pick.mjs` picks from the species' saved name search: its own name at species
+  rank, not a hybrid or a variety, and a profile that is the plant's own or a reviewed rename.
+
+## Reading the web claims again
+
+The search's claims are read again from the saved pages they cite, with today's reader (`web.mjs`). A fix to the
+reader reaches every plant this way, without searching again. Only the pages that gave a claim then are read:
+a page that gave nothing under the old reader isn't among them. Pages no longer saved are counted.
+
+## The report
+
+[catalog-review.md](catalog-review.md) lists what the build left for a person. It's made only from the build's own
+files, so it changes only when what's waiting changes. A contents list leads, with each section's count. Most
+useful first:
+
+- **The writer's items:**
+  - sources disagree;
+  - a tree form left unsettled;
+  - "edible" on a plant rated toxic;
+  - values held back as implausible.
+
+  Each shows what the sources say and the catalog's value now. The catalog keeps its older value, marked
+  unverified, meanwhile.
+- **Kew's names:** names WCVP could read two ways, and law-list names Kew accepts under another or doesn't match.
+- **Native status held back**, and bloom months held back.
+- **Pages:**
+  - a page under another name, mostly NC State's own misspellings;
+  - a name the atlas maps twice;
+  - a genus's page read for a plant;
+  - a page the list names but that isn't saved.
+- **Not looked up yet:** pages `--fetch` would ask for. Also plants not searched on the web, and sites whose terms
+  are unsettled.
+- **Catalog checks** (`npm run catalog:check`), grouped by what each says.
+- **For reference:** counts of what the sources had nothing to give.
+
+The summary line counts what's waiting by kind: to decide, pages not fetched, plants not searched, sites whose
+terms are unsettled, and catalog checks.
+
+**Where a decision goes.** A few kinds of item have a place to record the decision, and the next build then drops
+the item:
+- an NC State page to read or not: `ncsu-pages.json`;
+- a law list's name: its `accepted` in `regulated-plants.json`;
+- bloom months to trust: `RECORDS_TRUSTED` in bloom.mjs.
+
+**Most kinds don't have a place yet.** The report says so for each:
+- the writer's items;
+- Kew's homonyms;
+- the atlas's double maps;
+- native status held back;
+- a page under another spelling.
+
+They stay listed until there is one. Building those places is the next piece of work. For the writer's items, it
+means a file the writer reads, and a way for the app to say a fact was decided.

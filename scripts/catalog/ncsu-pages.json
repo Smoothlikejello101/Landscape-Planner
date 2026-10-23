@@ -1,0 +1,29 @@
+{
+ "v": 1,
+ "about": "NC State Extension Gardener Plant Toolbox pages that don't follow the rule (scripts/catalog/list.mjs ncsuPageFor; docs/catalog-build.md): record id to the page name under https://plants.ces.ncsu.edu/plants/, or null for none. Chosen by hand: a cultivar's own page, the one cultivar page a record of several cultivars reads, or a genus's page (narcissus).",
+ "pages": {
+  "itea-virginica": "itea-virginica-little-henry",
+  "artemisia-hybrid": "artemisia-powis-castle",
+  "physostegia-virginiana": "physostegia-virginiana-miss-manners",
+  "solidago-rugosa": "solidago-rugosa-fireworks",
+  "panicum-virgatum": "panicum-virgatum-northwind",
+  "narcissus-tete-a-tete": "narcissus",
+  "hydrangea-quercifolia-alice": "hydrangea-quercifolia-alice",
+  "wisteria-frutescens-amethyst-falls": "wisteria-frutescens-amethyst-falls",
+  "ficus-carica-celeste-brown-turkey-chicago-hardy": "ficus-carica-celeste",
+  "diospyros-kaki-fuyu": "diospyros-kaki-fuyu",
+  "pyrus-communis-moonglow-kieffer-orient": "pyrus-communis-moonglow",
+  "prunus-salicina-methley-bruce": "prunus-salicina-methley",
+  "carya-illinoinensis-kanza-lakota": "carya-illinoinensis-lakota",
+  "cephalotaxus-harringtonia-duke-gardens-prostrata": "cephalotaxus-harringtonia-duke-gardens",
+  "buxus-green-velvet-microphylla-types": "buxus-green-velvet",
+  "thuja-green-giant": "thuja-green-giant",
+  "ilex-x-nellie-r-stevens": "ilex-nellie-r-stevens",
+  "lagerstroemia-natchez-muskogee-tonto": "lagerstroemia-natchez",
+  "vitex-agnus-castus-shoal-creek": "vitex-agnus-castus-shoal-creek",
+  "hibiscus-syriacus-sterile-diana-chiffon-series": "hibiscus-syriacus-diana",
+  "acer-palmatum-bloodgood-seiryu": "acer-palmatum-bloodgood",
+  "allium-millenium-purple-sensation": "allium-millenium",
+  "lantana-camara-miss-huff-hardy": "lantana-camara-miss-huff"
+ }
+}

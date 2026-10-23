@@ -102,4 +102,10 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   const check = unreviewed(regulatedData, regulated);
   if (check.length) console.log(`regulated names Kew accepts under a name the list doesn't give (check each, and set its "accepted" in regulated-plants.json):\n  ${check.join('\n  ')}`);
   console.log(`${Object.values(out).filter((r) => Object.keys(r.states).length).length} plants with US states from WCVP (${species.length} looked up); ${mine.length} names not matched to one accepted species: ${mine.slice(0, 20).join(', ')}${mine.length > 20 ? '…' : ''}`);
+  // (The same, for the build's review report: docs/catalog-build.md.)
+  // (A law-list name whose `accepted` is set, a name or false, has been looked at: not listed again.)
+  const looked = new Set(regulatedData.jurisdictions.flatMap((j) => j.plants.filter((p) => p.accepted !== undefined).map((p) => p.kew ?? p.name)));
+  const review = { homonyms: [...new Set(decidedByAccepted)].sort(), regulatedUnreviewed: check, regulatedNotMatched: lost.filter((n) => !looked.has(n)), notMatched: [...mine].sort() };
+  writeFileSync('catalog-src/wcvp-review.json.tmp', JSON.stringify(review, null, 1) + '\n');
+  renameSync('catalog-src/wcvp-review.json.tmp', 'catalog-src/wcvp-review.json');
 }
