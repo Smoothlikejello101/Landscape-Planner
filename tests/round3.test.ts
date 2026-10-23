@@ -54,4 +54,8 @@ describe('the grid', () => {
     expect(gridSteps(1.2)).toEqual({ majorEvery: 50, minorEvery: 10 }); // 5%
     expect(gridSteps(0.3)).toEqual({ majorEvery: 500, minorEvery: 100 });
   });
+  it('a thin line takes taps in 18 px close in, no more than 3 ft far out, never under 6 px', async () => {
+    const { hitBand } = await import('../src/canvas');
+    expect([hitBand(24), hitBand(6), hitBand(3), hitBand(1.2)]).toEqual([18, 18, 9, 6]);
+  });
 });

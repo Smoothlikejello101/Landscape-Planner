@@ -141,7 +141,8 @@ export function drawTap(clientX: number, clientY: number): boolean {
     // Closing: a tap by the first dot, or by where it was tapped before it snapped, or landing on it.
     const first = d.points[ci], firstSnap = d.snaps?.[ci];
     const f = screenToFeet(clientX, clientY);
-    const by = (q: Point) => Math.hypot(f.x - q.x, f.y - q.y) * pxPerFoot() <= CLOSE_RADIUS_PX;
+    // (No wider than 3 ft zoomed far out: at 5% 18 px is 15 ft, and a small bed would close on its fourth tap.)
+    const by = (q: Point) => Math.hypot(f.x - q.x, f.y - q.y) * pxPerFoot() <= Math.max(8, Math.min(CLOSE_RADIUS_PX, 3 * pxPerFoot()));
     // (Or landing on the same shape as the first point, within a grid step of it: a near miss beside the wall.)
     const l = landing(f, d.kind, undefined, drawsPlant(d));
     const besideFirst = !!firstSnap && l.snapped?.shapeId === firstSnap.shapeId && Math.hypot(l.p.x - first.x, l.p.y - first.y) <= 0.5 + 1e-9;

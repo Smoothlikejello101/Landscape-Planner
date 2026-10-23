@@ -84,6 +84,19 @@ export function renderGrid(g: SVGElement) {
     g.appendChild(svgEl('text', { x: 2, y: py + 10, 'font-size': 10, fill: AXIS_LABEL, 'pointer-events': 'none' }, fy + "'"));
   }
 }
+/** Pixels a foot below which the plan is zoomed out past 25% (the farthest out before 5% was). */
+export const FAR_OUT_PPF = 6;
+/**
+ * The band (px) a thin line takes taps in: 18 px, but no wider than 3 ft once zoomed out past 25% (at 5%,
+ * 18 px is 15 ft of yard: a pan starting near a fence would drag the fence), and never under 6 px.
+ */
+export const hitBand = (ppf: number) => Math.max(6, Math.min(18, 3 * ppf));
+/** Badges (sun warning, to move) at their size close in, shrinking with the plan once zoomed out past 25%. */
+function badgeScale(ppf: number, x: number, y: number): string | null {
+  if (ppf >= FAR_OUT_PPF) return null;
+  const k = Math.max(0.4, ppf / FAR_OUT_PPF);
+  return `translate(${x} ${y}) scale(${k}) translate(${-x} ${-y})`;
+}
 /**
  * The grid's spacing (feet) at this many pixels a foot: labeled lines at least 40 px apart (every 10 ft, as
  * always, until zoomed far out: then 50, 100, 500 ft), and fainter ones between, every foot close in.
@@ -173,14 +186,14 @@ export function shapeGroup(s: Shape): SVGGElement {
       });
       if (sel) g0.push(svgEl('polyline', { 'data-role': 'path-center', points: pts, fill: 'none', stroke: '#0f172a', 'stroke-width': 1.5, 'stroke-dasharray': '6 4', 'pointer-events': 'none' }));
       hitEl = svgEl('polyline', {
-        'data-shape-id': s.id, 'data-role': 'line-hit', points: pts, fill: 'none', stroke: 'transparent', 'stroke-width': Math.max(18, s.pathWidth * ppf),
+        'data-shape-id': s.id, 'data-role': 'line-hit', points: pts, fill: 'none', stroke: 'transparent', 'stroke-width': Math.max(hitBand(ppf), s.pathWidth * ppf),
         'stroke-linejoin': 'round', style: common.style, 'pointer-events': inert ? 'none' : 'stroke',
       });
     } else {
       // A thin line is hard to hit with a finger: a wide invisible stroke takes the taps.
       shapeEl = svgEl('polyline', { ...common, points: pts, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'pointer-events': 'none' });
       hitEl = svgEl('polyline', {
-        'data-shape-id': s.id, 'data-role': 'line-hit', points: pts, fill: 'none', stroke: 'transparent', 'stroke-width': 18,
+        'data-shape-id': s.id, 'data-role': 'line-hit', points: pts, fill: 'none', stroke: 'transparent', 'stroke-width': hitBand(ppf),
         'stroke-linecap': 'round', style: common.style, 'pointer-events': inert ? 'none' : 'stroke',
       });
     }
@@ -229,8 +242,15 @@ export function shapeGroup(s: Shape): SVGGElement {
       g.appendChild(svgEl('line', { 'data-role': 'dim-tick', x1: a.x - nx, y1: a.y - ny, x2: a.x + nx, y2: a.y + ny, stroke: s.color, 'stroke-width': 2, 'pointer-events': 'none' }));
     }
   }
-  const sunText = s.role === 'shade' && s.sun ? '☀ ' + formatHours(sunHours(s.sun)) : '';
-  const label = displayLabel(s);
+  // Zoomed out past 25%, a name (or sun hours) wider than its shape is left off, unless the shape is selected:
+  // a whole yard's names would pile up over beds a few pixels across.
+  const room = (text: string) => {
+    if (ppf >= FAR_OUT_PPF || sel || isPlantCircle(s)) return true;
+    const b = shapeBBox(s);
+    return textWidth1(text) * fs <= Math.max(b.maxX - b.minX, b.maxY - b.minY) * ppf;
+  };
+  const sunText = s.role === 'shade' && s.sun && room('☀ ' + formatHours(sunHours(s.sun))) ? '☀ ' + formatHours(sunHours(s.sun)) : '';
+  const label = room(displayLabel(s)) ? displayLabel(s) : '';
   if (fitted) {
     // Wrapped and sized to fit inside the circle (or below a tree's trunk).
     const lh = fitted.fontSize * LABEL_LINE_HEIGHT;
@@ -277,7 +297,7 @@ export function shapeGroup(s: Shape): SVGGElement {
       }));
     } else {
       const bx = x1 + 2, by = y1 + 2;
-      g.appendChild(svgEl('g', { 'data-role': 'status-move', 'pointer-events': 'none' },
+      g.appendChild(svgEl('g', { 'data-role': 'status-move', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },
         svgEl('circle', { cx: bx, cy: by, r: 9, fill: '#2563eb', stroke: '#fff', 'stroke-width': 1.5 }),
         svgEl('path', { d: `M${bx - 4.5},${by}h9M${bx + 1.5},${by - 3}l3,3l-3,3M${bx - 1.5},${by - 3}l-3,3l3,3`, stroke: '#fff', 'stroke-width': 1.4, fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })));
     }
@@ -288,7 +308,7 @@ export function shapeGroup(s: Shape): SVGGElement {
     if (sunWarningShown(check, s, state.sunWarnings)) {
       const r = s.type === 'circle' ? s.radius * ppf : Math.min(boxSize(s).w, boxSize(s).h) * ppf / 2;
       const bx = labelX + r * 0.7, by = labelY - r * 0.7;
-      g.appendChild(svgEl('g', { 'data-role': 'sun-warning', 'pointer-events': 'none' },
+      g.appendChild(svgEl('g', { 'data-role': 'sun-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },
         svgEl('circle', { cx: bx, cy: by, r: 8, fill: '#f59e0b', stroke: '#fff', 'stroke-width': 1.5 }),
         svgEl('text', { x: bx, y: by + 0.5, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#fff' }, '!')));
     }
@@ -311,7 +331,7 @@ function textGroup(s: TextShape, sel: boolean, inert: boolean, common: Attrs): S
   box.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
   const text = svgEl('text', {
     'data-role': 'text-note', x: px, y: py, 'font-size': fs, fill: s.color, 'font-family': 'sans-serif', 'font-weight': 500,
-    stroke: 'rgba(255,255,255,0.85)', 'stroke-width': Math.max(1.5, fs * 0.12), 'paint-order': 'stroke', 'stroke-linejoin': 'round',
+    stroke: 'rgba(255,255,255,0.85)', 'stroke-width': Math.max(Math.min(1.5, fs * 0.3), fs * 0.12), 'paint-order': 'stroke', 'stroke-linejoin': 'round', // (thin with tiny text, far out)
     'pointer-events': 'none', style: 'user-select:none;', transform: rot,
   });
   textLines(s.label).forEach((line, i) => {
