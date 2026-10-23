@@ -7,6 +7,8 @@ export default defineConfig({
   testDir: 'e2e',
   timeout: 30_000,
   fullyParallel: true,
+  // In CI, a test per processor (the runner has 4; Playwright's default is half). Here, the default.
+  workers: process.env.CI ? '100%' : undefined,
   reporter: [['list']],
   use: {
     baseURL: `http://localhost:${port}/`,
