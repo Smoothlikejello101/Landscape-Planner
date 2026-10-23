@@ -1,8 +1,7 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 58 to decide, 39 sites whose terms are unsettled, 104 catalog checks; 780 of 820 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 52 to decide, 39 sites whose terms are unsettled, 104 catalog checks; 780 of 820 records audited.
 
-- [Sources disagree (6)](#sources-disagree-6)
 - [Cultivar: tree or shrub? (11)](#cultivar-tree-or-shrub-11)
 - [Edible, but rated toxic (12)](#edible-but-rated-toxic-12)
 - [Held back as implausible (1)](#held-back-as-implausible-1)
@@ -12,19 +11,6 @@ Written by `npm run catalog:build` (docs/catalog-build.md): what the build left 
 - [Read from the genus's page (1)](#read-from-the-genuss-page-1)
 - [Sites whose terms are unsettled (39)](#sites-whose-terms-are-unsettled-39)
 - [Catalog checks (104)](#catalog-checks-104)
-
-## Sources disagree (6)
-
-The audit's sources give different values, so the catalog keeps the value it had, marked unverified. Zones are on the half-zone scale (7 is 7a, 7.5 is 7b); sizes are in feet. There's no place to record a decision on these yet: they stay listed until there is.
-
-| Plant | Fact | What the sources say | Catalog now |
-| --- | --- | --- | --- |
-| Slender beardtongue (`penstemon-gracilis`) | most sun | morningskygreenery.com says Full; each decided on its own, most sun Part and least sun Full make no range | Full |
-| Slender beardtongue (`penstemon-gracilis`) | least sun | windflowernatives.com says Part; each decided on its own, most sun Part and least sun Full make no range | Part |
-| Prairie brome (`bromus-kalmii`) | most sun | morningskygreenery.com says Full; each decided on its own, most sun Part and least sun Full make no range | Full |
-| Prairie brome (`bromus-kalmii`) | least sun | fellabees.com says Part; each decided on its own, most sun Part and least sun Full make no range (USDA: shade tolerance low) | Part |
-| Porcupine grass (`hesperostipa-spartea`) | most sun | allendanseed.com says Full; each decided on its own, most sun Part and least sun Full make no range | Full |
-| Porcupine grass (`hesperostipa-spartea`) | least sun | morningskygreenery.com says Part; each decided on its own, most sun Part and least sun Full make no range (USDA: shade tolerance high) | Part |
 
 ## Cultivar: tree or shrub? (11)
 

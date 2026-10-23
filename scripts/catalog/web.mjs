@@ -189,6 +189,7 @@ const sunOf = (v) => {
   if (/morning sun/.test(t) && /afternoon shade/.test(t)) t = t.replace(/morning sun|afternoon shade/g, ' part shade ');
   const got = SUNS.filter(([re]) => re.test(t)).map(([, x]) => x);
   if (/\b(?:part|partial)\b(?!\s*(?:sun|shade))/.test(t)) got.push('Part'); // ("Partial, Shade")
+  if (/\bfull\b(?!\s*shade)/.test(t)) got.push('Full'); // ("Full to Partial", "Full, Partial", "Full – Part": in a sun field, "full" is full sun)
   if (/^\s*sun\b(?!\s*(?:to|-|–)?\s*part)/.test(t) || /\bsun to\b/.test(t) || /(?:^|,\s*)sun(?:\s*,|$)/.test(t)) got.push('Full'); // ("sun", "sun to part shade")
   // "shade" on its own, once the part-shade phrases are out of the way.
   if (/\bshade\b/.test(t.replace(/part(?:ial)? shade|light shade|half[- ]shade|dappled shade|afternoon shade|filtered shade/g, ' '))) got.push('Shade');

@@ -70,6 +70,13 @@ describe('reading spec lines', () => {
     expect(webFields('Deer Resistant: Yes, but browsed when young')).toEqual({});
     expect(webFields('Light: Morning sun, afternoon shade')).toEqual({ sun: { most: 'Part', least: 'Part' } });
     expect(webFields('Light: Sun, part shade, shade')).toEqual({ sun: { most: 'Full', least: 'Shade' } });
+    // A bare "Full" is full sun, as nurseries write it (it was read as "Part" alone: Fellabees, Windflower, Morning Sky).
+    expect(webFields('Sun Exposure: Full to Partial')).toEqual({ sun: { most: 'Full', least: 'Part' } });
+    expect(webFields('Sun: Full, Partial')).toEqual({ sun: { most: 'Full', least: 'Part' } });
+    expect(webFields('Sun: Full – Part')).toEqual({ sun: { most: 'Full', least: 'Part' } });
+    expect(webFields('Sun: Full – Shade')).toEqual({ sun: { most: 'Full', least: 'Shade' } });
+    expect(webFields('Sun Exposure: Full')).toEqual({ sun: { most: 'Full', least: 'Full' } });
+    expect(webFields('Light: Full shade')).toEqual({ sun: { most: 'Shade', least: 'Shade' } });
     expect(webFields('Bloom Time: Summer; may rebloom')).toEqual({}); // (a qualifier: left out)
     expect(webFields('Bloom Time: Late spring to early summer')).toEqual({ bloomSeasons: ['spring', 'summer'] });
     expect(webFields('Height: 10 years: 6 ft; mature 20 ft')).toEqual({});
