@@ -15,9 +15,18 @@ test('add a plant from its tag, place it, and switch to full size', async ({ pag
   await expect(page.locator('.sheet-header .title')).toHaveText('Add a plant');
   await expect(page.getByTestId('pf-name')).toHaveValue('Limelight');
   await page.getByTestId('pf-name').fill("Hydrangea 'Limelight'");
-  await page.getByTestId('pf-save').click();
-  await expect(page.getByTestId('pf-error')).toHaveText('Enter its spread, e.g. 6-8.');
   const spread = page.getByTestId('pf-spread');
+  const spreadLabel = page.locator('.field', { has: spread }).locator('label');
+  await expect(spreadLabel).toContainText('Spread (width), required');
+  await page.getByTestId('pf-save').click();
+  // What's missing shows on the field's own label, above it, where the keyboard that opens doesn't cover it.
+  await expect(page.getByTestId('pf-spread-missing')).toContainText('enter one number or a range like 6-8');
+  await expect(spread).toBeFocused();
+  await expect(spread).toHaveAttribute('aria-invalid', 'true');
+  await spread.fill('x');
+  await expect(page.getByTestId('pf-spread-missing')).toHaveText(''); // (typing clears it)
+  await page.getByTestId('pf-save').click();
+  await expect(page.getByTestId('pf-spread-missing')).toContainText('couldn’t read that; try 6-8');
   await expect(spread).toHaveAttribute('inputmode', 'decimal'); // number pad on phones
   // Inches: the number, then "in".
   await spread.fill('36');
@@ -99,6 +108,9 @@ test('turn a labeled circle into a plant, then edit the plant', async ({ page })
   await expect(page.locator('.sheet-header .title')).toHaveText('Link to a plant');
   await page.getByTestId('plant-search').fill('Ninebark');
   await page.getByTestId('add-own-plant').click();
+  // Its spread starts as the circle's width (4 ft), so linking keeps the size drawn; the tag's can replace it.
+  await expect(page.getByTestId('pf-spread')).toHaveValue('4');
+  await expect(page.locator('.field', { has: page.getByTestId('pf-spread') }).locator('.hint')).toContainText('From the circle you’re linking');
   await page.getByTestId('pf-spread').fill('5 ft');
   await expect(page.getByTestId('pf-save')).toHaveText('Save and use for this circle');
   await page.getByTestId('pf-save').click();

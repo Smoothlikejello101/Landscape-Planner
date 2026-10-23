@@ -35,25 +35,37 @@ export function renderPlantForm() {
     body.appendChild(el('div', { className: 'banner' }, `A copy of ${source.common}. Change what differs, such as the cultivar name or size; the catalog entry stays as it is.`));
   }
 
+  /**
+   * A field's label, which can say what's missing on the line with its name: above the field, so it shows while the
+   * keyboard is up (a note at the foot of the form is under it). Typing clears it.
+   */
+  const fieldLabel = (label: string, input: HTMLInputElement, testid: string) => {
+    const missing = el('span', { className: 'label-error', 'data-testid': testid + '-missing' });
+    const node = el('label', {}, label, missing);
+    const need = (why: string) => { missing.textContent = ' \u2014 ' + why; input.setAttribute('aria-invalid', 'true'); input.focus(); };
+    input.addEventListener('input', () => { missing.textContent = ''; input.removeAttribute('aria-invalid'); });
+    return { node, need };
+  };
   const text = (label: string, value: string, placeholder: string, testid: string) => {
     const input = el('input', { type: 'text', value, placeholder, 'data-testid': testid }) as HTMLInputElement;
     const hint = el('div', { className: 'hint' });
-    const field = el('div', { className: 'field' }, el('label', {}, label), input, hint);
-    body.appendChild(field);
-    return { input, hint };
+    const { node, need } = fieldLabel(label, input, testid);
+    body.appendChild(el('div', { className: 'field' }, node, input, hint));
+    return { input, hint, need };
   };
-  const name = text('Name', editing?.common ?? (args.copyFromId && source ? source.common : args.name ?? ''), "e.g. Hydrangea 'Limelight'", 'pf-name');
+  const name = text('Name, required', editing?.common ?? (args.copyFromId && source ? source.common : args.name ?? ''), "e.g. Hydrangea 'Limelight'", 'pf-name');
   const botanical = text('Botanical or cultivar name (optional)', source?.botanical ?? '', 'e.g. Hydrangea paniculata', 'pf-botanical');
 
   // Sizes: typed on the number pad, in feet or inches (most tags give feet for
   // shrubs, inches for perennials). Writing a unit ("36 in") also works. The
   // hint shows how it was read, so a feet/inches mix-up shows at once.
-  type SizeField = { input: HTMLInputElement; hint: HTMLElement; unit: 'ft' | 'in' };
-  const sizeField = (label: string, r: Range | undefined, placeholder: string, testid: string, required: boolean): SizeField => {
+  type SizeField = { input: HTMLInputElement; hint: HTMLElement; unit: 'ft' | 'in'; need: (why: string) => void };
+  const sizeField = (label: string, r: Range | undefined, placeholder: string, testid: string, required: boolean, from = ''): SizeField => {
     const value = r ? (r.min === r.max ? `${r.min}` : `${r.min}-${r.max}`) : '';
     const input = el('input', { type: 'text', inputMode: 'decimal', value, placeholder, 'data-testid': testid, autocomplete: 'off' }) as HTMLInputElement;
     const hint = el('div', { className: 'hint' });
-    const f: SizeField = { input, hint, unit: 'ft' };
+    const { node, need } = fieldLabel(label, input, testid);
+    const f: SizeField = { input, hint, unit: 'ft', need };
     const seg = el('div', { className: 'seg unit-seg', role: 'group', 'aria-label': label + ' unit' });
     const btns = (['ft', 'in'] as const).map((u) => {
       const b = el('button', { className: u === 'ft' ? 'sel' : '', 'aria-pressed': String(u === 'ft'), 'data-testid': `${testid}-${u}` }, u);
@@ -70,15 +82,20 @@ export function renderPlantForm() {
       const rr = parseSize(v, f.unit);
       hint.textContent = !v ? (required ? 'From the tag: one number or a range like 6-8.' : '')
         : rr ? `Read as ${formatSize(rr)}${required && rr.min !== rr.max ? `; drawn at ${formatSize({ min: rr.med, max: rr.med, med: rr.med })} (typical) or ${formatSize({ min: rr.max, max: rr.max, med: rr.max })} (full size)` : ''}.`
+          + (from && v === from ? ' From the circle you\u2019re linking; change it to the tag\u2019s.' : '')
         : "Couldn't read that. Try 6-8, or 36 with inches selected.";
       hint.classList.toggle('error', !!v && !rr);
     };
     input.addEventListener('input', show);
-    body.appendChild(el('div', { className: 'field' }, el('label', {}, label), el('div', { className: 'size-row' }, input, seg), hint));
+    body.appendChild(el('div', { className: 'field' }, node, el('div', { className: 'size-row' }, input, seg), hint));
     show();
     return f;
   };
-  const spread = sizeField('Spread (width)', source?.width as Range | undefined, 'e.g. 6-8', 'pf-spread', true);
+  // A new plant for a circle being linked: its spread starts as the circle's width, so linking keeps the size drawn.
+  const linking = !source && args.place && state.pickerLinkId ? state.shapes.find((s) => s.id === state.pickerLinkId) : undefined;
+  const drawn = linking?.type === 'circle' && !linking.canopy ? Math.round(linking.radius * 2 * 4) / 4 : undefined;
+  const spread = sizeField('Spread (width), required', (source?.width as Range | undefined) ?? (drawn ? { min: drawn, max: drawn, med: drawn } : undefined),
+    'e.g. 6-8', 'pf-spread', true, drawn ? String(drawn) : '');
   const height = sizeField('Height (optional)', source?.height as Range | undefined, 'e.g. 3-4', 'pf-height', false);
 
   // Sun: tags show sun as icons; tap every one that applies.
@@ -139,8 +156,9 @@ export function renderPlantForm() {
   const collect = (): Plant | null => {
     const common = name.input.value.trim();
     const width = parseSize(spread.input.value, spread.unit);
-    if (!common) { error.textContent = 'Give the plant a name.'; name.input.focus(); return null; }
-    if (!width) { error.textContent = 'Enter its spread, e.g. 6-8.'; spread.input.focus(); return null; }
+    error.textContent = '';
+    if (!common) { name.need('give the plant a name'); return null; }
+    if (!width) { spread.need(spread.input.value.trim() ? 'couldn\u2019t read that; try 6-8' : 'enter one number or a range like 6-8'); return null; }
     const h = parseSize(height.input.value, height.unit);
     const start = Number(bloomStart.value) || undefined, end = Number(bloomEnd.value) || start;
     return {
