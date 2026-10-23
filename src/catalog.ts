@@ -29,8 +29,9 @@ export const currentForm = (f: string): string => LEGACY_FORMS[f] ?? f;
  * A form as it goes to other devices and into files, for now: a version from before 2026-10 knows no plain
  * "Tree" and drops a form it doesn't know, so a plant of mine synced to it would lose its form, and its
  * edit would carry the loss back. A tree goes as "Tree (canopy)", which every version reads (this one as
- * "Tree"). Fingerprints are taken the same way, so the rename alone uploads nothing. Drop this once no
- * device can still be running a version from before.
+ * "Tree"). Fingerprints are taken the same way, so a canopy tree's rename uploads nothing; an understory
+ * tree's uploads once, as "Tree (canopy)" (to an older version, a canopy tree from then on: its form kept).
+ * Drop this once no device can still be running a version from before.
  */
 export const WIRE_FORMS: Record<string, string> = { Tree: 'Tree (canopy)' };
 export const wirePlant = (p: Plant): Plant => (p.form && WIRE_FORMS[p.form] ? { ...p, form: WIRE_FORMS[p.form] } : p);
