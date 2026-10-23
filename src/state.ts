@@ -54,6 +54,7 @@ export const state: AppState = {
   pickerLinkId: null,
   pickerLinkAlso: [],
   linkOffer: null,
+  statusAsk: null,
   pickerLinkLocked: false,
   pickerForTree: false,
   placing: null,

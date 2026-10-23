@@ -310,7 +310,8 @@ export function render() {
   root.appendChild(app);
 
   // ===== PANELS / MODALS / MENU =====
-  if (state.panel !== 'props') resetKindChange(); // the kind list opens fresh each time
+  // The kind list opens fresh each time; a status question left open is dropped with the panel.
+  if (state.panel !== 'props') { resetKindChange(); state.statusAsk = null; }
   let panelNode = null;
   if (state.panel === 'props') panelNode = renderPropsPanel();
   else if (state.panel === 'arrange') panelNode = renderArrangePanel();

@@ -356,6 +356,8 @@ export interface AppState {
   pickerLinkAlso: string[];
   /** After linking a circle: the other unlinked circles that had the same label, offered for the same plant. */
   linkOffer: { fromId: string; plantId: string; label: string; ids: string[]; locked: string[] } | null;
+  /** A status tapped for several shapes, some of them flagged: waiting on whether to change those too (ui/status-section.ts). */
+  statusAsk: { ids: string[]; key: string } | null;
   /** "Link all" chosen with the locked circles too. */
   pickerLinkLocked: boolean;
   /** Picker opened from Add, Existing tree: pick the tree (or an unknown one), then draw its canopy. */

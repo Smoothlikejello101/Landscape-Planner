@@ -95,3 +95,78 @@ test('set status for several plants at once', async ({ page }) => {
   await expect(plantShapes(page).first()).toHaveAttribute('stroke-dasharray', '6 4');
   await expect(plantShapes(page).last()).toHaveAttribute('stroke-dasharray', '6 4');
 });
+
+test('setting several at once asks before unmarking one marked to remove', async ({ page }) => {
+  await openFresh(page);
+  await addPlant(page, 'Coneflower', 0);
+  await closeSheet(page);
+  await addPlant(page, 'Little bluestem', 5);
+  await page.getByTestId('status-section').getByRole('radio', { name: 'To remove' }).click();
+  await closeSheet(page);
+  const cross = page.locator('#canvas-svg [data-role=status-remove]');
+  await expect(cross).toHaveCount(1);
+  const selectBoth = async () => {
+    // (Select mode stays on after a lasso: turn it on only if it's off.)
+    if ((await page.getByTestId('select-mode').getAttribute('aria-pressed')) !== 'true') await page.getByTestId('select-mode').click();
+    const box = (await page.locator('#canvas-svg').boundingBox())!;
+    await page.mouse.move(box.x + 5, box.y + 5);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width - 60, box.y + box.height - 5, { steps: 8 });
+    await page.mouse.up();
+    await expect(page.locator('.multi-bar .count')).toHaveText('2 selected');
+    await page.locator('.multi-bar button[title=Edit]').click();
+  };
+  await selectBoth();
+  const status = page.getByTestId('status-section');
+  const question = page.getByTestId('flag-question');
+
+  const rows = async (cone: string, blue: string) => {
+    await page.locator('button[title=Layers]').click();
+    await expect(page.locator('.layer-row', { hasText: 'Coneflower' })).toContainText(cone);
+    await expect(page.locator('.layer-row', { hasText: 'Little bluestem' })).toContainText(blue);
+    await closeSheet(page);
+  };
+
+  // Planted, for both: it asks first, and nothing changes yet.
+  await status.getByRole('radio', { name: 'Planted' }).click();
+  await expect(question).toContainText('1 of these is marked To remove: Little bluestem');
+  await expect(question).toContainText('Set it to Planted too?');
+  await expect(page.getByTestId('flag-only')).toBeFocused();
+  await page.getByTestId('flag-cancel').click();
+  await expect(question).toHaveCount(0);
+  await closeSheet(page);
+  await rows('Planned', 'To remove');
+
+  // A question left open goes with the panel: it doesn't come back.
+  await page.keyboard.press('Escape');
+  await selectBoth();
+  await status.getByRole('radio', { name: 'Planted' }).click();
+  await expect(question).toBeVisible();
+  await closeSheet(page);
+  await page.locator('.multi-bar button[title=Edit]').click();
+  await expect(question).toHaveCount(0);
+  await closeSheet(page);
+  await rows('Planned', 'To remove');
+
+  // Only the other: the coneflower is planted, the bluestem still to remove.
+  await page.keyboard.press('Escape');
+  await selectBoth();
+  await status.getByRole('radio', { name: 'Planted' }).click();
+  await page.getByTestId('flag-only').click();
+  await expect(question).toHaveCount(0);
+  await expect(page.locator('.sheet')).toContainText('Mixed');
+  await closeSheet(page);
+  await expect(cross).toHaveCount(1);
+  await rows('Planted', 'To remove');
+
+  // Or all of them, as one step to undo.
+  await page.keyboard.press('Escape');
+  await selectBoth();
+  await status.getByRole('radio', { name: 'Planted' }).click();
+  await page.getByTestId('flag-all').click();
+  await expect(status.getByRole('radio', { name: 'Planted' })).toHaveAttribute('aria-checked', 'true');
+  await closeSheet(page);
+  await expect(cross).toHaveCount(0);
+  await page.locator('button[title=Undo]').click();
+  await expect(cross).toHaveCount(1);
+});

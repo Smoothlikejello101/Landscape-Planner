@@ -33,6 +33,27 @@ export function statusesFor(shapes: Pick<Shape, 'role'>[]): { key: Status; label
 export function statusLabelFor(s: Pick<Shape, 'role' | 'status'>): string {
   return statusesFor([s]).find((x) => x.key === s.status)?.label ?? statusLabel(s.status);
 }
+/**
+ * Statuses that record a decision about something already there (to move it, to remove it, that it's gone). Setting
+ * a status on several shapes at once asks before it overwrites one of these: marking a whole yard planted would
+ * otherwise quietly unmark the one shrub you'd marked to take out.
+ */
+export const FLAGS: ReadonlySet<Status> = new Set<Status>(['move', 'remove', 'gone']);
+/**
+ * The shapes whose flag (To move, To remove, Gone) setting `status` would overwrite. Not To remove becoming Gone:
+ * that's the usual next step, as Planned becoming Planted is.
+ */
+export function flaggedFor<S extends Pick<Shape, 'status'>>(shapes: S[], status: Status | undefined): S[] {
+  return shapes.filter((s) => !!s.status && FLAGS.has(s.status) && s.status !== status && !(s.status === 'remove' && status === 'gone'));
+}
+/**
+ * Whether setting `status` on these shapes asks first: several are selected and some, not all, would lose a flag.
+ * (All of them flagged: they're the ones being changed, chosen as such.)
+ */
+export function asksFirst(shapes: Pick<Shape, 'status'>[], status: Status | undefined): boolean {
+  const n = flaggedFor(shapes, status).length;
+  return shapes.length > 1 && n > 0 && n < shapes.length;
+}
 /** Things a status means something for (not sun records, notes or measurements). */
 export function hasStatus(s: Pick<Shape, 'role' | 'type'>): boolean {
   return s.type !== 'text' && s.role !== 'shade' && s.role !== 'other';

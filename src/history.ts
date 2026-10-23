@@ -51,6 +51,7 @@ export function undo() {
   if (state.historyIndex <= 0) return;
   state.historyIndex--;
   state.linkOffer = null; // (the circles it named may have changed back)
+  state.statusAsk = null; // (and the statuses it asked about)
   applySnapshot(state.history[state.historyIndex]);
   save();
 }
@@ -59,6 +60,7 @@ export function redo() {
   if (state.historyIndex >= state.history.length - 1) return;
   state.historyIndex++;
   state.linkOffer = null;
+  state.statusAsk = null;
   applySnapshot(state.history[state.historyIndex]);
   save();
 }
