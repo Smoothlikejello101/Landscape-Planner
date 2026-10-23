@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { addPhase, deletePhase, setPhaseForIds, setStatusForIds, setViewFilter } from '../src/mutations';
 import { plantSchedule, printContent } from '../src/print';
 import { state } from '../src/state';
-import { filterText, flaggedFor, passesFilter, statusPatch, today } from '../src/status';
+import { asksFirst, filterText, flaggedFor, passesFilter, statusPatch, today } from '../src/status';
 import { nameList } from '../src/ui/status-section';
 import { sanitizePhases, sanitizeProjectData } from '../src/storage';
 import type { Shape } from '../src/types';
@@ -107,12 +107,20 @@ describe('a status set on several shapes at once', () => {
     expect(ids('planted')).toEqual(['c', 'd', 'e']); // (planned to planted is the usual step: not asked)
     expect(ids(undefined)).toEqual(['c', 'd', 'e']); // (clearing them unmarks them too)
     expect(ids('remove')).toEqual(['d', 'e']); // (already to remove: nothing to unmark)
-    expect(ids('gone')).toEqual(['c', 'd']);
+    expect(ids('gone')).toEqual(['d']); // (to remove, then gone: the usual next step)
+  });
+  it('asks only when some, not all, would lose their mark', () => {
+    const marked = plant('m', { status: 'remove' }), other = plant('o', { status: 'planned' });
+    expect(asksFirst([marked, other], 'planted')).toBe(true); // (the yard marked planted, a shrub to remove in it)
+    expect(asksFirst([marked], 'planted')).toBe(false); // (one shape: it's the one tapped)
+    expect(asksFirst([marked, plant('m2', { status: 'move' })], 'planted')).toBe(false); // (all marked: chosen as such)
+    expect(asksFirst([marked, other], 'gone')).toBe(false);
+    expect(asksFirst([plant('v', { status: 'move' }), other], 'gone')).toBe(true);
   });
   it('names them briefly, counting repeats', () => {
     expect(nameList([plant('Rose Camelia')])).toBe('Rose Camelia');
     expect(nameList([plant('Rose Camelia'), plant('Coneflower'), plant('Coneflower')])).toBe('Rose Camelia and Coneflower ×2');
     expect(nameList(['a', 'b', 'c', 'd', 'e', 'f'].map((n) => plant(n)))).toBe('a, b, c, d and 2 more');
-    expect(nameList([bed(''), bed('')])).toBe('unnamed rectangle ×2');
+    expect(nameList([bed(''), bed('')])).toBe('Unlabeled rectangle ×2');
   });
 });

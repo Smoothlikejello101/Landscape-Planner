@@ -1,7 +1,7 @@
 import { el } from '../dom';
 import { addPhase, setPhaseForIds, setStatusForIds, updateSelectedSilent } from '../mutations';
 import { state } from '../state';
-import { flaggedFor, statusesFor, statusLabelFor } from '../status';
+import { asksFirst, flaggedFor, statusesFor, statusLabelFor } from '../status';
 import type { Shape, Status } from '../types';
 import { typeName } from '../util';
 import { render } from './render';
@@ -19,13 +19,14 @@ export function statusSummary(shapes: Shape[]): string {
   return phase ? `${status} · ${phase}` : status;
 }
 
-/** A status tapped for several shapes, some of them flagged: waiting on whether to change those too. */
-let asking: { ids: string; key: string } | null = null;
+/** These shapes as they are now (sync or an undo may have changed them since the panel was drawn). */
+const live = (ids: string[]): Shape[] => ids.map((id) => state.shapes.find((s) => s.id === id)).filter((s): s is Shape => !!s);
+const statusOf = (key: string) => (key || undefined) as Status | undefined;
 
 /** "Rose Camelia, Coneflower ×2 and 3 more": the shapes' names for a short note. */
 export function nameList(shapes: Pick<Shape, 'label' | 'type'>[], max = 4): string {
   const counts = new Map<string, number>();
-  for (const s of shapes) { const n = s.label.trim() || 'unnamed ' + typeName(s.type); counts.set(n, (counts.get(n) ?? 0) + 1); }
+  for (const s of shapes) { const n = s.label.trim() || 'Unlabeled ' + typeName(s.type); counts.set(n, (counts.get(n) ?? 0) + 1); }
   const names = [...counts].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n));
   if (names.length <= max) return names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names.at(-1) : names[0];
   return names.slice(0, max).join(', ') + ` and ${names.length - max} more`;
@@ -45,17 +46,19 @@ export function statusSection(shapes: Shape[]): HTMLElement {
     const b = el('button', { className: 'status-chip status-' + (key || 'none') + (on ? ' sel' : ''), role: 'radio', 'aria-checked': String(on) }, label);
     b.addEventListener('click', () => {
       // Several shapes, some marked To move, To remove or Gone: ask before overwriting those (one shape: it's the one tapped).
-      if (shapes.length > 1 && flaggedFor(shapes, (key || undefined) as Status | undefined).length) asking = { ids: selection, key };
-      else { asking = null; setStatusForIds(ids, (key || undefined) as Status | undefined); }
+      state.statusAsk = asksFirst(live(ids), statusOf(key)) ? { ids, key } : null;
+      if (!state.statusAsk) setStatusForIds(ids, statusOf(key));
       render();
+      if (state.statusAsk) document.querySelector<HTMLElement>('[data-testid=flag-only]')?.focus();
     });
     chips.appendChild(b);
   }
   wrap.appendChild(chips);
-  // (Still asked while these stay selected and some are still flagged: an undo may have changed them.)
-  if (asking && asking.ids === selection && flaggedFor(shapes, (asking.key || undefined) as Status | undefined).length) {
-    wrap.appendChild(flagQuestion(shapes, asking.key, options.find(([k]) => k === asking!.key)?.[1] ?? ''));
-  } else asking = null;
+  // (Asked while these stay selected, the status is still offered, and some, not all, are still flagged.)
+  const ask = state.statusAsk;
+  if (ask && ask.ids.join(',') === selection && options.some(([k]) => k === ask.key) && asksFirst(shapes, statusOf(ask.key))) {
+    wrap.appendChild(flagQuestion(ids, ask.key));
+  } else state.statusAsk = null;
 
   // When it went in the ground (one plant, planted).
   if (shapes.length === 1 && shapes[0].status === 'planted' && shapes[0].role === 'plant') {
@@ -99,26 +102,33 @@ export function statusSection(shapes: Shape[]): HTMLElement {
 }
 
 /**
- * "1 of these is marked To remove: Rose Camelia. Set it to Planted too?" Leaving them sets the rest; changing them
- * sets all; Cancel sets nothing.
+ * "1 of these is marked To remove: Rose Camelia. Set it to Planted too?" Only the others, all of them, or nothing.
+ * The shapes are looked up again when a button is tapped.
  */
-function flagQuestion(shapes: Shape[], key: string, label: string): HTMLElement {
-  const status = (key || undefined) as Status | undefined;
-  const flagged = flaggedFor(shapes, status);
-  const n = flagged.length, one = n === 1;
+function flagQuestion(ids: string[], key: string): HTMLElement {
+  const status = statusOf(key);
+  const shapes = live(ids), flagged = flaggedFor(shapes, status);
+  const n = flagged.length, one = n === 1, rest = shapes.length - n;
   const marks = [...new Set(flagged.map((s) => statusLabelFor(s)))];
   const what = marks.length > 1 ? marks.slice(0, -1).join(', ') + ' or ' + marks.at(-1) : marks[0];
-  const box = el('div', { className: 'banner flag-question', role: 'alert', 'data-testid': 'flag-question' },
-    el('div', {}, `${one ? '1 of these is' : `${n} of these are`} marked ${what}: ${nameList(flagged)}.`),
-    el('div', { style: { marginTop: '4px', fontWeight: '600' } }, `Set ${one ? 'it' : 'them'} to ${key ? label : 'Not set'} too?`));
-  const done = (which: string[]) => { asking = null; if (which.length) setStatusForIds(which, status); render(); };
-  const skip = new Set(flagged.map((s) => s.id));
-  const leave = el('button', { className: 'btn secondary', 'data-testid': 'flag-leave' }, `Leave ${one ? 'it' : 'them'} as ${one ? 'it is' : 'they are'}`);
-  leave.addEventListener('click', () => done(shapes.map((s) => s.id).filter((id) => !skip.has(id))));
-  const change = el('button', { className: 'btn ghost', 'data-testid': 'flag-change' }, `Change ${one ? 'it' : 'them'} too`);
-  change.addEventListener('click', () => done(shapes.map((s) => s.id)));
+  // The status in words that fit the flagged shapes ("Existing" for a shed).
+  const word = statusesFor(flagged).find((s) => s.key === key)?.label ?? key;
+  const box = el('div', { className: 'banner flag-question', 'data-testid': 'flag-question' },
+    el('div', { role: 'alert' },
+      `${one ? '1 of these is' : `${n} of these are`} marked ${what}: ${nameList(flagged)}. `,
+      el('b', {}, key ? `Set ${one ? 'it' : 'them'} to ${word} too?` : `Clear ${one ? 'its' : 'their'} status too?`)));
+  const done = (which: (now: Shape[]) => Shape[]) => {
+    const now = live(ids), chosen = which(now);
+    state.statusAsk = null;
+    if (chosen.length) setStatusForIds(chosen.map((s) => s.id), status);
+    render();
+  };
+  const only = el('button', { className: 'btn secondary', 'data-testid': 'flag-only' }, `Only the other ${rest}`);
+  only.addEventListener('click', () => done((now) => { const skip = new Set(flaggedFor(now, status)); return now.filter((s) => !skip.has(s)); }));
+  const all = el('button', { className: 'btn ghost', 'data-testid': 'flag-all' }, `All ${shapes.length}`);
+  all.addEventListener('click', () => done((now) => now));
   const cancel = el('button', { className: 'link-btn', 'data-testid': 'flag-cancel' }, 'Cancel');
-  cancel.addEventListener('click', () => done([]));
-  box.appendChild(el('div', { style: { display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap', alignItems: 'center' } }, leave, change, cancel));
+  cancel.addEventListener('click', () => done(() => []));
+  box.appendChild(el('div', { style: { display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap', alignItems: 'center' } }, only, all, cancel));
   return box;
 }

@@ -120,33 +120,53 @@ test('setting several at once asks before unmarking one marked to remove', async
   const status = page.getByTestId('status-section');
   const question = page.getByTestId('flag-question');
 
+  const rows = async (cone: string, blue: string) => {
+    await page.locator('button[title=Layers]').click();
+    await expect(page.locator('.layer-row', { hasText: 'Coneflower' })).toContainText(cone);
+    await expect(page.locator('.layer-row', { hasText: 'Little bluestem' })).toContainText(blue);
+    await closeSheet(page);
+  };
+
   // Planted, for both: it asks first, and nothing changes yet.
   await status.getByRole('radio', { name: 'Planted' }).click();
   await expect(question).toContainText('1 of these is marked To remove: Little bluestem');
   await expect(question).toContainText('Set it to Planted too?');
-  await expect(status.getByRole('radio', { name: 'Planted' })).toHaveAttribute('aria-checked', 'false');
+  await expect(page.getByTestId('flag-only')).toBeFocused();
   await page.getByTestId('flag-cancel').click();
   await expect(question).toHaveCount(0);
-  await expect(status.getByRole('radio', { name: 'Planted' })).toHaveAttribute('aria-checked', 'false');
+  await closeSheet(page);
+  await rows('Planned', 'To remove');
 
-  // Leave it as it is: the other is planted, the bluestem still to remove.
+  // A question left open goes with the panel: it doesn't come back.
+  await page.keyboard.press('Escape');
+  await selectBoth();
   await status.getByRole('radio', { name: 'Planted' }).click();
-  await page.getByTestId('flag-leave').click();
+  await expect(question).toBeVisible();
+  await closeSheet(page);
+  await page.locator('.multi-bar button[title=Edit]').click();
+  await expect(question).toHaveCount(0);
+  await closeSheet(page);
+  await rows('Planned', 'To remove');
+
+  // Only the other: the coneflower is planted, the bluestem still to remove.
+  await page.keyboard.press('Escape');
+  await selectBoth();
+  await status.getByRole('radio', { name: 'Planted' }).click();
+  await page.getByTestId('flag-only').click();
   await expect(question).toHaveCount(0);
   await expect(page.locator('.sheet')).toContainText('Mixed');
   await closeSheet(page);
   await expect(cross).toHaveCount(1);
-  await page.locator('button[title=Layers]').click();
-  await expect(page.locator('.layer-row', { hasText: 'Coneflower' })).toContainText('Planted');
-  await expect(page.locator('.layer-row', { hasText: 'Little bluestem' })).toContainText('To remove');
-  await closeSheet(page);
+  await rows('Planted', 'To remove');
 
-  // Or change it too.
+  // Or all of them, as one step to undo.
   await page.keyboard.press('Escape');
   await selectBoth();
   await status.getByRole('radio', { name: 'Planted' }).click();
-  await page.getByTestId('flag-change').click();
+  await page.getByTestId('flag-all').click();
   await expect(status.getByRole('radio', { name: 'Planted' })).toHaveAttribute('aria-checked', 'true');
   await closeSheet(page);
   await expect(cross).toHaveCount(0);
+  await page.locator('button[title=Undo]').click();
+  await expect(cross).toHaveCount(1);
 });
