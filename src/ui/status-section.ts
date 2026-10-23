@@ -61,17 +61,19 @@ export function statusSection(shapes: Shape[]): HTMLElement {
   } else state.statusAsk = null;
 
   // When it went in the ground (one plant, planted).
-  if (shapes.length === 1 && shapes[0].status === 'planted' && shapes[0].role === 'plant') {
+  // (Only with one shape selected: a date is saved to the selected shape, and a note selected with it isn't listed here.)
+  const one = shapes.length === 1 && state.selectedIds.length === 1;
+  if (one && shapes[0].status === 'planted' && shapes[0].role === 'plant') {
     const s = shapes[0];
     const date = el('input', { type: 'date', value: s.plantedOn ?? '', 'data-testid': 'planted-on' }) as HTMLInputElement;
     date.addEventListener('change', () => updateSelectedSilent({ plantedOn: date.value || undefined }));
     wrap.appendChild(el('div', { className: 'field', style: { marginTop: '8px' } }, el('label', {}, 'Planted on'), date));
   }
   // When it came out or died (one shape, gone: shown when gone shapes are, from Layers).
-  if (shapes.length === 1 && shapes[0].status === 'gone') {
+  if (one && shapes[0].status === 'gone') {
     const s = shapes[0];
     const date = el('input', { type: 'date', value: s.goneOn ?? '', 'data-testid': 'gone-on' }) as HTMLInputElement;
-    date.addEventListener('change', () => updateSelectedSilent({ goneOn: date.value || undefined }));
+    date.addEventListener('change', () => updateSelectedSilent({ goneOn: date.value })); // ('' when cleared on purpose)
     wrap.appendChild(el('div', { className: 'field', style: { marginTop: '8px' } }, el('label', {}, 'Gone on'), date));
   }
 

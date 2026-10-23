@@ -86,7 +86,7 @@ describe('the gone date', () => {
   it('is stamped when marked gone, kept while gone, and goes when marked otherwise', () => {
     const s = plant('a', { status: 'remove' });
     expect(statusPatch(s, 'gone')).toEqual({ status: 'gone', goneOn: today() });
-    expect(statusPatch({ ...s, status: 'gone', goneOn: '2026-09-30' }, 'gone')).toEqual({ status: 'gone', goneOn: '2026-09-30' });
+    expect(statusPatch({ ...s, status: 'gone', goneOn: '2026-09-30' }, 'gone')).toEqual({ status: 'gone' }); // (its date untouched)
     state.shapes = [plant('a', { status: 'remove', plantedOn: '2024-04-01' })];
     setStatusForIds(['a'], 'gone');
     expect(state.shapes[0]).toMatchObject({ status: 'gone', goneOn: today(), plantedOn: '2024-04-01' }); // (its planting date stays)
@@ -97,6 +97,11 @@ describe('the gone date', () => {
     setStatusForIds(['a'], undefined);
     expect(state.shapes[0]).not.toHaveProperty('goneOn');
     expect(state.shapes[0]).not.toHaveProperty('status');
+  });
+  it('isn\'t stamped on a shape already gone: one marked before dates, or one cleared by hand, stays as it is', () => {
+    state.shapes = [plant('old', { status: 'gone' }), plant('cleared', { status: 'gone', goneOn: '' }), plant('dated', { status: 'gone', goneOn: '2025-05-05' }), plant('new', { status: 'remove' })];
+    setStatusForIds(['old', 'cleared', 'dated', 'new'], 'gone'); // (a selection set to Gone, some gone already)
+    expect(state.shapes.map((s) => s.goneOn)).toEqual([undefined, '', '2025-05-05', today()]);
   });
 });
 

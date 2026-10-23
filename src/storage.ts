@@ -101,7 +101,8 @@ export function migrateShape(raw: unknown): Shape | null {
     ...(isStatus(s.status) ? { status: s.status } : {}),
     ...(typeof s.plantedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.plantedOn) ? { plantedOn: s.plantedOn } : {}),
     // (Only on a gone shape: a date left from before it was marked otherwise isn't kept.)
-    ...(s.status === 'gone' && typeof s.goneOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.goneOn) ? { goneOn: s.goneOn } : {}),
+    // ('' is a date cleared on purpose: kept, so sync doesn't fill it back from an older copy.)
+    ...(s.status === 'gone' && typeof s.goneOn === 'string' && /^(\d{4}-\d{2}-\d{2})?$/.test(s.goneOn) ? { goneOn: s.goneOn } : {}),
     ...(typeof s.phase === 'string' && cleanPhaseName(s.phase) ? { phase: cleanPhaseName(s.phase) } : {}),
   };
   const size = (v: unknown, d: number) => Math.max(0.1, num(v, d));

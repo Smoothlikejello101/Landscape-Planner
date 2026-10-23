@@ -578,6 +578,7 @@ describe('a gone shape\'s date (goneOn)', () => {
         shape({ id: 'dated', status: 'gone', goneOn: '2026-10-23' }),
         shape({ id: 'bad', status: 'gone', goneOn: 'last week' }),
         shape({ id: 'back', status: 'planted', goneOn: '2026-10-01' }), // (not gone now: no gone date)
+        shape({ id: 'cleared', status: 'gone', goneOn: '' }), // (cleared by hand: kept, so sync doesn't fill it back)
       ],
     });
     const byId = Object.fromEntries(d.shapes.map((s) => [s.id, s]));
@@ -586,5 +587,6 @@ describe('a gone shape\'s date (goneOn)', () => {
     expect(byId.dated).toMatchObject({ status: 'gone', goneOn: '2026-10-23' });
     expect(byId.bad).not.toHaveProperty('goneOn');
     expect(byId.back).not.toHaveProperty('goneOn');
+    expect(byId.cleared).toMatchObject({ status: 'gone', goneOn: '' });
   });
 });

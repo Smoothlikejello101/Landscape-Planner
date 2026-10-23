@@ -89,14 +89,15 @@ export function today(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 /**
- * Status change: planting stamps today's date unless one is already set; so does marking it gone. A gone date
- * goes when it's marked anything else (`undefined` in the patch: the key is removed).
+ * Status change: planting stamps today's date unless one is already set; becoming gone stamps today (one already
+ * gone keeps what it has, no date included). A gone date goes when it's marked anything else (`undefined` in the
+ * patch: the key is removed).
  */
 export function statusPatch(s: Shape, status: Status | undefined): Partial<Shape> {
   const ungone = s.goneOn !== undefined && status !== 'gone' ? { goneOn: undefined } : {};
   if (!status) return { status: undefined, ...ungone };
   if (status === 'planted') return { status, plantedOn: s.plantedOn ?? today(), ...ungone };
-  if (status === 'gone') return { status, goneOn: s.goneOn ?? today() };
+  if (status === 'gone') return s.status === 'gone' ? { status } : { status, goneOn: today() }; // (already gone: as it was)
   return { status, ...ungone };
 }
 
