@@ -401,6 +401,8 @@ a { color: inherit; }
 .details-law.listed, .plaw.listed { color: #b45309; }
 .plaw { font-size: 12px; margin-top: 2px; }
 .details-law-native { display: block; font-weight: 400; color: #44403c; margin-top: 2px; }
+.details-src-inline { font-size: 11px; color: #a8a29e; }
+.details-law-bg { margin-top: 6px; }
 .details-law .details-src { font-weight: 400; }
 .details-law .details-src a { color: inherit; }
 .details-notes { margin-top: 8px; white-space: pre-wrap; }

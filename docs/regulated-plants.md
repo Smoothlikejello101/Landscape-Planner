@@ -25,6 +25,33 @@ once: ", though native to Arkansas".
 Only law. A council's invasive list (Cal-IPC, the Florida Invasive Species Council, TexasInvasives.org) is an
 advisory judgment, and is never shown as law; if one is used, it gets its own line, in its own words.
 
+## Background notes
+
+Where a plant is native to the state and a rule covers it all the same, the line can add a **background note**: one
+documented fact about the plants the rule's entry names, to help a gardener see why a list might include them
+("Background: rattlebox (Crotalaria sagittalis) is poisonous to livestock in all its parts."). It never claims the
+rule's reason. One note per entry, not per plant (`background` on the entry: its note, its source, the date
+checked), each from a federal or state government page or a land-grant university's extension page, the fact on
+the page (checked 2026-10-21; each host's robots.txt allows it). A genus's note names the species its fact is about,
+or says "some". Shown after the rule and its source, once a plant (the same note from two rules isn't said twice).
+None yet for bracted plantain (Arkansas): no allowed source found gives a weed or harm fact about it.
+
+| Entry | Note | Source |
+| --- | --- | --- |
+| US Cuscuta, AR Cuscuta | dodder can weaken or kill the plants it grows on and reduce crop yields. | [Dodder, Cuscuta spp., Wisconsin Horticulture (University of Wisconsin–Madison Division of Extension)](https://hort.extension.wisc.edu/articles/dodder-cuscuta-spp/) |
+| US Orobanche | some broomrapes lower crop yields and crop quality. | [Federal Noxious Weed List: Egyptian broomrape (Orobanche aegyptiaca) fact sheet, USDA APHIS, 2014](https://usbiotechnologyregulation.mrp.usda.gov/sites/default/files/orobanche-aegyptiaca-factsheet.pdf) |
+| US Mikania micrantha | mile-a-minute vine competes aggressively with crops and forest plants for nutrients, light and water. | [Field Release of Puccinia spegazzinii for Biological Control of Mikania micrantha: Environmental Assessment, USDA APHIS, 2011](https://www.aphis.usda.gov/plant_health/ea/downloads/Puccinia_spegazzinii_EA_fonsi.pdf) |
+| AR Lythrum | the rule's heading names purple loosestrife, which crowds out native species. | [Purple Loosestrife, National Invasive Species Information Center (USDA)](https://invasivespeciesinfo.gov/aquatic/plants/purple-loosestrife) |
+| AR Solanum carolinense | all parts of horsenettle are poisonous to livestock and people if eaten. | [Solanum carolinense, North Carolina Extension Gardener Plant Toolbox](https://plants.ces.ncsu.edu/plants/solanum-carolinense/) |
+| AR Calystegia sepium, TX Calystegia sepium | hedge bindweed is hard to get rid of: it can regrow from any piece of rhizome left in the ground. | [Calystegia sepium, North Carolina Extension Gardener Plant Toolbox](https://plants.ces.ncsu.edu/plants/calystegia-sepium/common-name/binghams-false-bindweed) |
+| AR Sesbania exaltata | hemp sesbania is toxic to livestock and people. | [Boyette, Hoagland and Stetina (USDA-ARS), Biological Control of the Weed Hemp Sesbania in Rice, Agronomy 2014](https://ars.usda.gov/ARSUserFiles/60663500/Publications/Hoagland/2014/Boyette%20et%20al._2014_AJ_4-74-89.pdf) |
+| AR Allium canadense | wild onion can be poisonous to livestock that eat a great deal of it. | [Allium canadense, North Carolina Extension Gardener Plant Toolbox](https://plants.ces.ncsu.edu/plants/all/allium-canadense/) |
+| AR Rumex | some docks are crop weeds; curly dock is among the most common weeds in established alfalfa. | [Weed of the Month: Curly Dock, University of Missouri Integrated Pest Management](https://ipm.missouri.edu/cropPest/2015/4/Weed-of-the-Month-Curly-Dock) |
+| AR Crotalaria | rattlebox (Crotalaria sagittalis) is poisonous to livestock in all its parts. | [Crotalaria sagittalis, Plants of Louisiana (U.S. Geological Survey)](https://warcapps.usgs.gov/PlantID/Species/Details/880) |
+| AR Xanthium | young seedlings of common cocklebur are poisonous to livestock. | [Cocklebur, Toxic Plants, Southern Indiana Purdue Agricultural Center (Purdue University)](https://ag.purdue.edu/department/arge/PACs/sipac/toxic-plants/cocklebur.html) |
+| AR Carduus, AR Cirsium, AR Onopordum, AR Silybum, AR Scolymus | some thistles are pasture weeds; musk thistle has been reported to cut pasture yields. | [Musk Thistle (FSA3054), University of Arkansas Cooperative Extension Service](https://www.uaex.uada.edu/publications/PDF/FSA-3054.pdf) |
+| TX Pistia stratiotes | mats of waterlettuce that cover a whole pond can use up its oxygen and kill fish. | [Water Lettuce, AquaPlant (Texas A&M AgriLife Extension)](https://aquaplant.tamu.edu/plant-identification/water-lettuce/) |
+
 ## The lists
 
 `scripts/catalog/regulated-plants.json`, one entry per line, each list with its rule, its link, the edition

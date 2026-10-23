@@ -167,7 +167,8 @@ test('a plant the garden\'s state prohibits says so, with the rule', async ({ pa
   await plant.getByTestId('plant-row').click();
   const law = plant.getByTestId('regulated-here');
   await expect(law).toContainText('Prohibited in Arkansas: no Lythrum may be planted, sold, bought or moved (2 CAR §50-709)');
-  await expect(law.locator('a')).toHaveAttribute('href', /2CARpt50\.pdf/);
+  await expect(law.locator('.details-src a')).toHaveAttribute('href', /2CARpt50\.pdf/);
+  await expect(law.getByTestId('law-background')).toContainText("Background: the rule's heading names purple loosestrife, which crowds out native species.");
   // Native here and banned all the same: the line says why, in plain words.
   await expect(law.getByTestId('law-native')).toHaveText('Native to Arkansas, but this rule bans every Lythrum species, natives included.');
   await expect(law).not.toHaveClass(/listed/);
@@ -178,6 +179,9 @@ test('a plant the garden\'s state prohibits says so, with the rule', async ({ pa
   await rattlebox.getByTestId('plant-row').click();
   await expect(rattlebox.getByTestId('regulated-here')).toHaveClass(/listed/);
   await expect(rattlebox.getByTestId('law-native')).toHaveText('Native to Arkansas, but this rule lists every Crotalaria species, natives included.');
+  // And a documented fact about the plants it names, with its source: why a list might include them, never the rule's reason.
+  await expect(rattlebox.getByTestId('law-background')).toContainText('Background: rattlebox (Crotalaria sagittalis) is poisonous to livestock in all its parts.');
+  await expect(rattlebox.getByTestId('law-background').locator('a')).toHaveAttribute('href', 'https://warcapps.usgs.gov/PlantID/Species/Details/880');
   // Chinaberry: on Texas's list, not Arkansas's: nothing said here.
   await page.getByTestId('plant-search').fill('Chinaberry');
   const chinaberry = page.locator('.plant-item', { hasText: 'Chinaberry' });

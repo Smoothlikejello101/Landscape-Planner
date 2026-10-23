@@ -49,6 +49,11 @@ const usda = {
 const file: WildFile = { ...stateFile({ fips: 5, code: 'AR' }, { arkatlas: atlas, usda }, SOURCES, counties), native: { 'quercus-muehlenbergii': 'N', 'viola-sororia': 'N', 'lonicera-japonica': 'I', 'rosmarinus': 'I', 'allium-canadense-var-lavendulare': 'N', 'lythrum-alatum': 'N', 'crotalaria-sagittalis': 'N', 'allium-canadense': 'N' }, nativeSpecies: ['allium-canadense-var-lavendulare'],
   regulated: { 'lythrum-alatum': ['AR:lythrum'], 'imperata-cylindrica': ['AR:prohibited', 'US:noxious'], 'stray': ['AR:gone'], 'crotalaria-sagittalis': ['AR:noxious'], 'allium-canadense': ['AR:noxious'] },
   genusWide: { 'lythrum-alatum': { 'AR:lythrum': 'Lythrum' }, 'crotalaria-sagittalis': { 'AR:noxious': 'Crotalaria' } },
+  background: {
+    'crotalaria-sagittalis': { 'AR:noxious': { note: 'Background: some rattleboxes are toxic to livestock.', title: 'A page', url: 'https://example.gov/c' } },
+    'imperata-cylindrica': { 'AR:prohibited': { note: 'Background: not shown: not native here.', title: 'x', url: 'https://example.gov/i' } },
+    'allium-canadense': { 'AR:noxious': { note: 'Background: an unsafe link.', title: 'x', url: 'javascript:alert(1)' } },
+  },
   rules: {
     'AR:noxious': { says: 'Declared a noxious weed and public nuisance in Arkansas: nursery stock must be reasonably free of it', tier: 'listed', title: 'Arkansas rules', url: 'https://example.gov/ar.pdf', edition: '2026', read: '2026-10-21' },
     'AR:lythrum': { says: 'Prohibited in Arkansas: no Lythrum may be planted', title: 'Arkansas rules', url: 'https://example.gov/ar.pdf', edition: '2026', read: '2026-10-21' },
@@ -192,6 +197,10 @@ describe('wild records near the garden', () => {
     const [rattlebox] = regulatedHere({ id: 'crotalaria-sagittalis' });
     expect([rattlebox.tier, rattlebox.native]).toEqual(['listed', 'Native to Arkansas, but this rule lists every Crotalaria species, natives included.']);
     expect(regulatedHere({ id: 'allium-canadense' })[0].native).toBe('Native to Arkansas, and still listed by this rule.');
+    // A native's background note, with its source; none for a plant not native here, nor one with a link not https.
+    expect(rattlebox.background).toEqual({ note: 'Background: some rattleboxes are toxic to livestock.', title: 'A page', url: 'https://example.gov/c' });
+    expect(regulatedHere({ id: 'imperata-cylindrica' })[0].background).toBeUndefined();
+    expect(regulatedHere({ id: 'allium-canadense' })[0].background).toBeUndefined();
     // Not native here: no such line.
     expect(regulatedHere({ id: 'imperata-cylindrica' }).map((r) => [r.tier, r.native])).toEqual([['ban', undefined], ['ban', undefined]]);
     expect(lawShort(regulatedHere({ id: 'imperata-cylindrica' }))).toBe('Prohibited in Arkansas; Federal noxious weed');

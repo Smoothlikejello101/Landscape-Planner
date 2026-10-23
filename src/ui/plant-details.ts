@@ -115,6 +115,7 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
   // What the law says of it where the garden is (a state's list, the federal one), each with its rule: first,
   // above the catalog's facts, where it can't be missed.
   const localRows = document.createDocumentFragment();
+  const notesShown = new Set<string>();
   for (const rule of regulatedHere(p)) {
     const dd = el('dd', { 'data-testid': 'regulated-here', className: `details-law${rule.tier === 'listed' ? ' listed' : ''}` }, rule.says);
     // (Native here and covered anyway: why, in plain words, under the rule's own.)
@@ -123,6 +124,15 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
     src.appendChild(el('a', { href: rule.url, target: '_blank', rel: 'noopener' }, rule.title));
     src.appendChild(document.createTextNode(`; ${rule.edition}; read ${rule.read}`));
     dd.appendChild(src);
+    // (And, after the rule and its source, a documented fact about the plants it names, to help a gardener see why a
+    // list might include them; with its own source. Once a plant: the same note from two rules isn't said twice.)
+    if (rule.background && !notesShown.has(rule.background.note)) {
+      notesShown.add(rule.background.note);
+      const bg = el('span', { className: 'details-law-native details-law-bg', 'data-testid': 'law-background' }, `${rule.background.note} (`);
+      bg.appendChild(el('a', { href: rule.background.url, target: '_blank', rel: 'noopener', className: 'details-src-inline' }, rule.background.title));
+      bg.appendChild(document.createTextNode(')'));
+      dd.appendChild(bg);
+    }
     localRows.appendChild(el('dt', {}, 'By law'));
     localRows.appendChild(dd);
   }
