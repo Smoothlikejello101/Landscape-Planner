@@ -135,7 +135,7 @@ describe('web claims', () => {
   it('combine: nurseries alone are "likely" when most agree, a copy counts once, one site counts once', () => {
     const n = (src: string, v: number, group?: string) => ({ fact: 'zone_min', v, src, kind: 'nursery', ...(group ? { group } : {}) });
     expect(combine([n('a.com', 5), n('b.com', 5), n('c.com', 6.5)]).zone_min).toMatchObject({ v: 5, check: 'likely', src: ['a.com', 'b.com'] });
-    expect(combine([n('a.com', 5), n('b.com', 7.5)]).zone_min).toMatchObject({ check: 'disputed' });
+    expect(combine([n('a.com', 5), n('b.com', 7.5)]).zone_min).toMatchObject({ v: 7.5, check: 'reported' }); // (even: the warmer cold limit)
     expect(combine([n('a.com', 5, 'p:1'), n('b.com', 5, 'p:1')]).zone_min).toMatchObject({ check: 'reported', src: ['a.com'] });
     expect(combine([n('a.com', 5), n('a.com', 5, 'p:2')]).zone_min).toMatchObject({ check: 'reported' });
     // Safety facts never come from the web.

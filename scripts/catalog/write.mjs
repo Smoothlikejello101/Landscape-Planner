@@ -41,7 +41,7 @@ const BUILT_IN = {
   tallamy: { title: 'Shropshire & Tallamy, Lepidoptera host plant records', trust: 'reference' },
 };
 
-/** Facts that make one range together: a nursery's report on one half only makes sense with its other. */
+/** Facts that make one range together: another source's range (`alt`) on one half only makes sense with the other. */
 const PAIRS = [['zone_min', 'zone_max'], ['sun_most', 'sun_least']];
 /** Which facts a catalogWarnings message is about (to take back the values that caused it). */
 const WARNED = [[/ tall for /, ['height', 'form']], [/under 3 in|height range/, ['height']], [/width|spread/, ['width']], [/zones/, ['zone_min', 'zone_max']], [/sun range/, ['sun_most', 'sun_least']]];
@@ -104,8 +104,8 @@ export function writeAudit(catalog, audit, date, warnings = () => []) {
       for (const k of keys) { facts[k] = rec.facts[k]; if (facts[k] === undefined) delete facts[k]; written.delete(k); }
       if (keys.length) review.push({ id: rec.id, fact: keys.join(', '), note: `held back: ${w.replace(`${rec.id}: `, '')}` });
     }
-    // A nursery's report on half a pair (the other half not written: unsettled, or held back) would be read
-    // with the older list's other half, as a range no nursery gave.
+    // Another source's range (`alt`) on half a pair (the other half not written: unsettled, or held back) would
+    // be read with the older list's other half, as a range no source gave.
     // (A half sourced by an earlier run counts as written.)
     const sourced = (k) => written.has(k) || (valueOf(facts[k]) != null && facts[k]?.src?.length > 0 && facts[k].src.every((s) => catalog.meta.sources[s]?.trust !== 'unverified'));
     for (const pair of PAIRS) if (pair.some((k) => !sourced(k))) for (const k of pair) if (written.has(k) && facts[k].alt) { facts[k] = { ...facts[k] }; delete facts[k].alt; }

@@ -329,22 +329,91 @@ fact belongs to one of three tiers, and each source is one of four kinds.
 - **Safety** (toxicity, invasiveness, native status): authorities only.
   These are what could hurt someone or expose us to liability; a value from
   a shop or blog never stands in.
-- **Survival** (zones, sun, water, size, soil, deer): an authority decides.
-  Where none has it: a breeder for its own cultivar; then retail nurseries,
-  where most agree (`likely`) or one says it (`reported`). Never a blog.
+- **Survival** (zones, sun, water, size, soil, deer): authorities, a
+  breeder for its own cultivar, and retail nurseries. Never a blog. Zones,
+  sun, size, water and deer go by "Where sources disagree" below: an
+  authority leads unless more sources agree against it. Soil: an authority
+  decides; where none has it, nurseries, where most agree (`likely`) or one
+  says it (`reported`).
 - **Description** (form, bloom, flower color, fall color, wildlife,
   edibility): any source, highest kind first.
 
 **How sure.** Each fact gets a `check`:
 - `confirmed`: an authority decides, and an independent source agrees.
 - `single`: one authority, nothing else.
-- `likely`: no authority; most of the independent lower-kind sources that
-  give it agree.
+- `likely`: no authority behind it; two or more independent lower-kind
+  sources agree on it (outnumbering any authority that says otherwise).
 - `reported`: one lower-kind source.
 - `disputed`: authorities disagree; or below them, there's no majority.
+  For the facts under "Where sources disagree", only where even the
+  cautious rule can't choose, or the result makes no sense (a cold limit
+  warmer than the warm one), or a form names a tree without its kind.
 Lower-kind sources that disagree with the decider are kept as notes for the
 review. (`likely` and `reported` wait on the format change that adds them:
 see "Waiting on format changes".)
+
+### Where sources disagree
+
+Agreed 2026-10-22, for the facts a plant is filtered by: the zones, sun,
+height, width, water and deer. NC State is a large dataset but has been
+wrong before, so one page of it shouldn't outweigh two sources that agree
+against it.
+
+1. **Sides.** Sources that agree (by "Agreement" below) form a side, copies
+   counted once. A side's value is one its highest kind gives, and every
+   source on the side agrees with that value. Agreement isn't transitive
+   (zones 9b and 11b each agree with 10b, not with each other), so each
+   value that could head a side is tried, and the one that leads by the
+   rules below is kept; then the same among the sources left. Where the
+   rules leave two sides as strong, NC State's goes first, then by source
+   name, so the order sources are read in never changes which sources
+   lead, or which other side is kept beside them.
+2. **The side more independent sources back leads.** Two nurseries that
+   agree outrank a lone NC State page (the leader is `likely`; NC State's
+   value is kept beside it). An authority's side with another source is
+   `confirmed`, alone `single`.
+3. **On an even split, a side with an authority leads** over one without
+   (NC State against one nursery: NC State).
+4. **Still even, the cautious value leads**, the one that's safer to plan
+   by: the warmer cold limit and the cooler warm limit (a narrower zone
+   range), the less sun it's said to take at most and the more it's said
+   to need at least, the larger size (room to grow into), the water need
+   nearer Moderate, the lower deer resistance (no promise the deer pass it
+   by). Two nurseries saying 4 ft and 6 ft: 6 ft, with 4 ft beside it.
+   Where even that's even (water: Low against High, as far from Moderate),
+   nothing is taken: it's `disputed`, for the review. (Two values of a
+   side's highest kind that agree with the same sources aren't a split:
+   NC State's 8 and the University of Florida's 9 for oleander's cold
+   limit are one side, `confirmed`, showing NC State's, as before; without
+   NC State, the one the build reads first.)
+5. **Another value is kept beside it** (`alt`): the largest other side (two
+   as large: the one with an authority, then the cautious one, then by
+   name), or, where the value shown has no authority behind it and an
+   authority's was outvoted, the authority's, so the app never hides that a
+   reference says otherwise. It's labelled with who says it: "Nurseries report: …" where
+   they're all nurseries, else by name ("NC State lists: …"). The app shows
+   it in the plant's details and its filters can let it count ("Include
+   where sources differ"); a plant shown only because of it is marked !.
+6. **Pairs** (the two zones, the two sun levels) are one range: the `alt`
+   comes from sources that give both halves, never one source's cold limit
+   with another's warm one, and sits on each half where it differs from
+   the value shown. Each half is decided on its own, so a range's two ends
+   can come from different sides (bee balm: full sun from NC State and two
+   nurseries, part shade from the nurseries alone); the app credits a range
+   to the sources behind both ends, as sure as the less sure end, or where
+   no source gives both, each end to its own, with how sure each is. Halves
+   that, decided apart, make no range (one nursery says full sun only,
+   another part shade only) are both `disputed`, for the review.
+7. **Forms** aren't a choice of one: where two authorities share no form,
+   both are kept, as a list of up to three, the catalog's current form
+   first, at least one from each (autumn sage: a perennial to NC State, a
+   shrub to USDA); only the sources whose forms are shown are cited. A
+   plain "Tree" that says neither understory nor canopy still leaves the
+   form disputed.
+
+The safety tier (toxicity, invasiveness, native status) isn't decided this
+way: authorities only. Description facts (bloom, colors, wildlife) still go
+to the highest kind, with the others noted for the review.
 
 **Independent.** Copies count once. Two pages with the same longest
 paragraph are one source, wherever they're published, and the highest kind
@@ -406,7 +475,7 @@ months ("MO" for MOBOT).
 | Fact | From NC State | USDA | Rule |
 | --- | --- | --- | --- |
 | Names, `usda` symbol, synonyms | checks | decides | USDA's accepted name. A cultivar keeps its name and points to its species. |
-| `form` | "Plant Type" | fallback (growth habit and lifespan) | A list of up to three, the catalog's current form first. One source decides: an authority's or the breeder's page for the cultivar itself, else NC State, else USDA's habit, else the nursery others back most. Its forms are the answer; the catalog's form only orders them, never supplies one. A form another independent source also lists is backed: confirmed when every form is (likely, without an authority), else single (reported), the unbacked ones noted. Another source listing a form the decider doesn't is noted; another authority sharing none of its forms makes it disputed (USDA's habit too, though its "Perennial" isn't against a fern, bulb, grass, cactus or aquatic). NC State's Tree, Shrub, Vine, Fern, Bulb and Cactus/Succulent tags map to the enum of the same name; Ornamental Grasses and Sedges → Grass/Sedge; Annual → Annual; Herbaceous Perennial → Perennial; Aquatic and Water Plant → Aquatic/Emergent; its "Perennial" (any plant that isn't annual), Herb, Wildflower and other tags are ignored. "Perennial" beside Fern, Bulb, Grass/Sedge or Cactus is the life cycle, not a second form (NC State's Bulb takes in rhizomes and corms: crested iris is a "bulb" by its tags). A tree is understory or canopy by NC State's "Design Feature" (Understory Tree or Small Tree; Shade Tree); otherwise it's a plain Tree, which takes the kind exactly one other authority names, else the form is unsettled (a small tree never becomes just a shrub); USDA's Tree is always plain and backs either kind. USDA's habit: Forb/herb → Perennial if it lives for years, Annual if it's annual or biennial (both, where it lists both); Graminoid → Grass/Sedge; Vine → Vine; Shrub → Shrub; its "Perennial" backs only a plain perennial, and deciding alone it settles nothing where the catalog names a fern, bulb, grass, cactus or aquatic (a fern or bulb is a forb to USDA too). A cultivar with no page of its own keeps its species' form, unsettled where the species' deciding source lists a tree (a cultivar may be a tree or a shrub). |
+| `form` | "Plant Type", "Life Cycle" | fallback (growth habit and lifespan) | A list of up to three, the catalog's current form first. One source decides: an authority's or the breeder's page for the cultivar itself, else NC State, else USDA's habit, else the nursery others back most. Its forms are the answer; the catalog's form only orders them, never supplies one. A form another independent source also lists is backed: confirmed when every form is (likely, without an authority), else single (reported), the unbacked ones noted. Another source listing a form the decider doesn't is noted; another authority sharing none of its forms adds its own, both kept, the catalog's first, at most three with at least one from each (autumn sage: a perennial to NC State, a shrub to USDA), a plain perennial beside a grass being that grass; where that authority's is a plain Tree, the form is disputed (USDA's habit counts too, though its "Perennial" isn't against a fern, bulb, grass, cactus or aquatic). See "Where sources disagree". NC State's Tree, Shrub, Vine, Fern, Bulb and Cactus/Succulent tags map to the enum of the same name; Ornamental Grasses and Sedges → Grass/Sedge; Annual → Annual; Herbaceous Perennial → Perennial; Aquatic and Water Plant → Aquatic/Emergent; Herb, Wildflower and other tags are ignored. For an herb (no woody or other form among the tags), annual or perennial is read from the tags and its "Life Cycle" together (Perennial → Perennial, Annual or Biennial → Annual): what both say, and where they share nothing, the Life Cycle. The tags can say Annual for a perennial grown as one (garden sage: Annual and Perennial tags, a perennial life cycle) or Herbaceous Perennial for a biennial (rosepink); the Life Cycle can add a stray Annual (wild geranium). Its plain "Perennial" tag says only that the plant lives for years (oakleaf hydrangea has it beside Shrub): for an herb, a Perennial (baptisia and many wildflowers carry it and nothing else). "Perennial" beside Fern, Bulb, Grass/Sedge or Cactus is the life cycle, not a second form (NC State's Bulb takes in rhizomes and corms: crested iris is a "bulb" by its tags). A tree is understory or canopy by NC State's "Design Feature" (Understory Tree or Small Tree; Shade Tree); otherwise it's a plain Tree, which takes the kind exactly one other authority names, else the form is unsettled (a small tree never becomes just a shrub); USDA's Tree is always plain and backs either kind. USDA's habit: Forb/herb → Perennial if it lives for years, Annual if it's annual or biennial (both, where it lists both); Graminoid → Grass/Sedge; Vine → Vine; Shrub → Shrub (a vine that's also a shrub, lantana, is both); its "Perennial" backs only a plain perennial, and deciding alone it settles nothing where the catalog names a fern, bulb, grass, cactus or aquatic (a fern or bulb is a forb to USDA too). A cultivar with no page of its own keeps its species' form, unsettled where the species' deciding source lists a tree (a cultivar may be a tree or a shrub). |
 | `height`, `width` | yes | — | `med` is the midpoint of `min` and `max`. A cultivar's size only from a page for the cultivar. |
 | `zone_min`, `zone_max` | "USDA Plant Hardiness Zone" list | flag (minimum temperature) | See "Zones". |
 | `sun_most`, `sun_least` | light | flag (shade tolerance) | |
@@ -513,7 +582,7 @@ on a person into [catalog-review.md](catalog-review.md). The steps:
    by the rules above (with the web search's claims, `search.mjs`).
 4. **Write.** `npm run catalog:write -- <combined.json> --date <day the
    pages were read> --review review.json` writes each settled fact into `public/plants.json` with its
-   `src`, `check` and, where nurseries differ from the authority, `alt`; a
+   `src`, `check` and, where other sources differ, `alt`; a
    record whose facts change (or that had none audited) gets its `audited` date,
    and one left as it was keeps its own. A fact the audit
    couldn't settle (unknown, unsettled, disputed) keeps the catalog's

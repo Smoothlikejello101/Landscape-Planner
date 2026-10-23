@@ -1,8 +1,8 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 123 to decide, 39 sites whose terms are unsettled, 106 catalog checks; 775 of 820 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 93 to decide, 39 sites whose terms are unsettled, 106 catalog checks; 775 of 820 records audited.
 
-- [Sources disagree (36)](#sources-disagree-36)
+- [Sources disagree (6)](#sources-disagree-6)
 - [Tree: understory or canopy? (46)](#tree-understory-or-canopy-46)
 - [Edible, but rated toxic (12)](#edible-but-rated-toxic-12)
 - [Held back as implausible (1)](#held-back-as-implausible-1)
@@ -13,48 +13,18 @@ Written by `npm run catalog:build` (docs/catalog-build.md): what the build left 
 - [Sites whose terms are unsettled (39)](#sites-whose-terms-are-unsettled-39)
 - [Catalog checks (106)](#catalog-checks-106)
 
-## Sources disagree (36)
+## Sources disagree (6)
 
 The audit's sources give different values, so the catalog keeps the value it had, marked unverified. Zones are on the half-zone scale (7 is 7a, 7.5 is 7b); sizes are in feet. There's no place to record a decision on these yet: they stay listed until there is.
 
 | Plant | Fact | What the sources say | Catalog now |
 | --- | --- | --- | --- |
-| Buttonbush (`cephalanthus-occidentalis`) | warmest zone | ncsu: 9.5 · ufl.edu: 11.5 | 9.5 |
-| Autumn sage 'Raspberry Delight' (`salvia-greggii-microphylla`) | form | ncsu lists Perennial; usda lists Shrub | Perennial |
-| Soft rush (`juncus-effusus`) | form | ncsu lists Perennial; usda lists Grass/Sedge | Grass/Sedge |
-| Prairie willow (`salix-humilis`) | least sun | greatplainsnursery.com: Full · mowildflowers.net: Part (USDA: shade tolerance medium) | Full |
-| Large-flowered water plantain (`alisma-triviale`) | height | plantasnativa.com: 2 · riverrefugeseed.com: 3–3 | 2–3 |
-| Dogbane (`apocynum-cannabinum`) | warmest zone | ncsu, fellabees.com: 11.5 · illinois.edu: 9.5 | 9.5 |
-| Ground plum (`astragalus-crassicarpus`) | least sun | morningskygreenery.com: Part · blazingstargardens.com: Full | Part |
-| Indian paintbrush (`castilleja-coccinea`) | form | ncsu lists Perennial; usda lists Annual | Annual |
-| Downy gentian (`gentiana-puberulenta`) | most sun | windflowernatives.com: Part · mowildflowers.net: Full | Full |
-| Michigan lily (`lilium-michiganense`) | least sun | blazingstargardens.com: Part · rachelsnativeplants.com: Shade | Part |
-| Sweet cicely (`osmorhiza-claytonii`) | most sun | morningskygreenery.com: Shade · keystonewildflowers.com: Part | Part |
-| Slender beardtongue (`penstemon-gracilis`) | most sun | morningskygreenery.com: Full · windflowernatives.com: Part | Full |
-| Slender beardtongue (`penstemon-gracilis`) | least sun | morningskygreenery.com: Full · windflowernatives.com: Part | Part |
-| Rosepink (`sabatia-angularis`) | form | ncsu lists Perennial; usda lists Annual | Annual |
-| Willow aster (`symphyotrichum-praealtum`) | most sun | fellabees.com: Part · mowildflowers.net: Full | Full |
-| Silky aster (`symphyotrichum-sericeum`) | least sun | mowildflowers.net: Full · morningskygreenery.com: Part | Part |
-| Germander (`teucrium-canadense`) | least sun | campcreeknativeplants.com: Part · morningskygreenery.com: Shade (USDA: shade tolerance medium) | Part |
-| Common ironweed (`vernonia-fasciculata`) | least sun | prairienursery.com: Full · morningskygreenery.com: Part | Part |
-| Prairie brome (`bromus-kalmii`) | most sun | fellabees.com: Part · morningskygreenery.com: Full | Full |
-| Prairie brome (`bromus-kalmii`) | least sun | fellabees.com: Part · morningskygreenery.com: Full (USDA: shade tolerance low) | Part |
-| Porcupine grass (`hesperostipa-spartea`) | most sun | morningskygreenery.com: Part · allendanseed.com: Full | Full |
-| Porcupine grass (`hesperostipa-spartea`) | least sun | morningskygreenery.com: Part · allendanseed.com: Full (USDA: shade tolerance high) | Part |
-| Dark-green bulrush (`scirpus-atrovirens`) | height | morningskygreenery.com: 5 · allendanseed.com: 2–3 | 3–5 |
-| Path rush (`juncus-tenuis`) | form | ncsu lists Perennial; usda lists Grass/Sedge | Grass/Sedge |
-| White-tinged sedge (`carex-albicans`) | height | prairienursery.com: 1–2 · mowildflowers.net: 0.33–0.67 | 1–1.3 |
-| Copper-shouldered oval sedge (`carex-bicknellii`) | least sun | newmoonnursery.com: Shade · prairienursery.com: Part (USDA: shade tolerance low) | Part |
-| Common wood sedge (`carex-blanda`) | most sun | newmoonnursery.com: Full · keystonewildflowers.com: Part | Part |
-| Palm sedge (`carex-muskingumensis`) | coldest zone | ncsu: 1 · newmoonnursery.com says 4; blazingstargardens.com says 3 (USDA: lowest -33 °F) | 4 |
-| Palm sedge (`carex-muskingumensis`) | warmest zone | ncsu: 4.5 · newmoonnursery.com says 7.5; blazingstargardens.com says 7.5 | 8.5 |
-| Long-beaked sedge (`carex-sprengelii`) | least sun | newmoonnursery.com: Part · prairienursery.com: Shade | Part |
-| Loquat (`eriobotrya-japonica`) | least sun | ncsu, ufl.edu: Part · unf.edu: Full | Full |
-| Japanese camellia (`camellia-japonica`) | least sun | ncsu: Part · unf.edu: Shade | Shade |
-| Indian hawthorn (`rhaphiolepis-indica`) | least sun | ncsu: Full · unf.edu: Part | Part |
-| Culinary sage & oregano (`salvia-officinalis-origanum-vulgare`) | form | ncsu lists Annual; usda lists Shrub | Perennial |
-| Vinca / periwinkle (`vinca-minor`) | form | ncsu lists Perennial; usda lists Vine | Perennial |
-| Lantana (`lantana-camara-miss-huff-hardy`) | form | ncsu lists Annual; usda lists Vine | Shrub |
+| Slender beardtongue (`penstemon-gracilis`) | most sun | morningskygreenery.com says Full; each decided on its own, most sun Part and least sun Full make no range | Full |
+| Slender beardtongue (`penstemon-gracilis`) | least sun | windflowernatives.com says Part; each decided on its own, most sun Part and least sun Full make no range | Part |
+| Prairie brome (`bromus-kalmii`) | most sun | morningskygreenery.com says Full; each decided on its own, most sun Part and least sun Full make no range | Full |
+| Prairie brome (`bromus-kalmii`) | least sun | fellabees.com says Part; each decided on its own, most sun Part and least sun Full make no range (USDA: shade tolerance low) | Part |
+| Porcupine grass (`hesperostipa-spartea`) | most sun | allendanseed.com says Full; each decided on its own, most sun Part and least sun Full make no range | Full |
+| Porcupine grass (`hesperostipa-spartea`) | least sun | morningskygreenery.com says Part; each decided on its own, most sun Part and least sun Full make no range (USDA: shade tolerance high) | Part |
 
 ## Tree: understory or canopy? (46)
 

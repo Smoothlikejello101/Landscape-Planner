@@ -20,10 +20,12 @@ describe('the shipped catalog', () => {
     expect(plants.filter((p) => p.partlyChecked).length).toBeGreaterThan(0);
     expect(plants.some((p) => p.partlyChecked && p.unverified)).toBe(false);
     // An audited fact names its sources and how sure it is; what the audit couldn't settle stays the older list's.
+    // Where sources disagree, the value more back (on a tie, the cautious one) leads, the other beside it.
     const bs = plants.find((p) => p.id === 'cephalanthus-occidentalis')!;
     expect(bs).toMatchObject({ common: 'Buttonbush', form: 'Shrub', width: { min: 3, max: 6, med: 4.5 } });
     expect(bs.prov!.width).toEqual({ src: ['ncsu', 'ufl.edu'], check: 'confirmed' });
-    expect(bs.prov!.zone_max).toEqual({ src: ['compendium'] }); // (disputed: NC State 9, UF/IFAS 11)
+    expect(bs.prov!.zone_max).toEqual({ src: ['ncsu'], check: 'single', alt: { v: 11.5, src: ['ufl.edu'], check: 'single' } }); // (NC State 9b, UF/IFAS 11b: the colder leads)
+    expect(plants.find((p) => p.id === 'viburnum-rufidulum')!.prov!.form).toEqual({ src: ['compendium'] }); // (a tree, without saying which kind: unsettled)
     expect((shipped as CatalogFile).meta.sources['ufl.edu']).toMatchObject({ trust: 'reference' });
   });
   it('cites every source it uses, and nursery sources as nurseries', () => {
@@ -134,12 +136,15 @@ describe('records', () => {
     expect(p.prov!.sun_most.alt).toEqual({ v: 'Part', src: ['mobot'], check: 'reported' });
     expect(catalogErrors({ meta, plants: [r] })).toEqual([]);
     const bad = rec({ id: 'b', facts: { sun_most: { v: 'Shade', src: ['ncsu'], alt: { v: 'Lots', src: ['mobot'], check: 'maybe' } } } });
-    expect(catalogErrors({ meta, plants: [bad] })).toEqual(['b.sun_most: alt needs a value, its sources, and a check of likely or reported']);
+    expect(catalogErrors({ meta, plants: [bad] })).toEqual(['b.sun_most: alt needs a value, its sources, and a check of confirmed, single, likely or reported']);
+    // (Where sources disagree, the side that didn't lead may be an authority's: its check is an authority's.)
+    const byAuthority = rec({ id: 'a', facts: { sun_most: { v: 'Part', src: ['mobot'], check: 'likely', alt: { v: 'Shade', src: ['ncsu'], check: 'single' } } } });
+    expect(catalogErrors({ meta, plants: [byAuthority] })).toEqual([]);
     const tox = rec({ id: 't', facts: { tox: { v: { dog: 'toxic' }, src: ['ncsu'], alt: { v: { dog: 'nontoxic' }, src: ['mobot'], check: 'reported' } } } });
-    expect(catalogErrors({ meta, plants: [tox] })).toEqual(["t.tox: nurseries' reports aren't taken for tox"]);
+    expect(catalogErrors({ meta, plants: [tox] })).toEqual(["t.tox: no other value (alt) is taken for tox"]);
     expect(resolveCatalog({ meta, plants: [tox] })[0].reported).toBeUndefined();
     const same = rec({ id: 's', facts: { sun_most: { v: 'Shade', src: ['ncsu'], alt: { v: 'Shade', src: ['mobot'], check: 'reported' } } } });
-    expect(catalogErrors({ meta, plants: [same] })).toEqual(["s.sun_most: alt is for a value that differs from the authority's"]);
+    expect(catalogErrors({ meta, plants: [same] })).toEqual(['s.sun_most: alt is for a value that differs from the one shown']);
     // An older file's whole-zone zone_max is read half a zone warmer, nurseries' too.
     const { zones: _z, ...older } = meta;
     const z = rec({ id: 'z', facts: { zone_max: { v: 8, src: ['ncsu'], alt: { v: 9, src: ['mobot'], check: 'reported' } } } });

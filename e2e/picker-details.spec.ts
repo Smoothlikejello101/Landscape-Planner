@@ -33,19 +33,26 @@ test('a plant row opens to its details, and stays open while the list changes', 
   await expect(page.getByTestId('place-bar')).toHaveCount(0);
 });
 
-test('a plant shown only because of what nurseries report is marked, and says so', async ({ page }) => {
+test('a plant shown only because of what other sources say is marked, and says so, naming who', async ({ page }) => {
   const catalog = {
     meta: {
       format: 'lp-catalog', version: 2, zones: 'half', title: 'Test catalog', updated: '2026-10-18',
-      sources: { ncsu: { title: 'NC State Extension', trust: 'reference' }, shop: { title: 'A nursery', trust: 'reference' }, grower: { title: 'A grower', trust: 'nursery' }, compendium: { title: 'Older list', trust: 'unverified' } },
+      sources: { ncsu: { title: 'NC State Extension', trust: 'reference' }, shop: { title: 'A nursery', trust: 'nursery' }, grower: { title: 'A grower', trust: 'nursery' }, grower2: { title: 'Another grower', trust: 'nursery' }, compendium: { title: 'Older list', trust: 'unverified' } },
       enums: { form: ['Perennial', 'Shrub'] },
     },
     plants: [
       { id: 'heuchera-villosa', common: 'Hairy alumroot', botanical: 'Heuchera villosa', src: ['ncsu'], audited: '2026-10-18',
         facts: { form: 'Perennial', sun_most: { v: 'Part', src: ['ncsu'], check: 'single', alt: { v: 'Full', src: ['shop'], check: 'reported' } }, sun_least: { v: 'Shade', src: ['ncsu'], check: 'single' } } },
-      { id: 'itea', common: 'Sweetspire', botanical: 'Itea virginica', src: ['ncsu'], audited: '2026-10-18', facts: { form: 'Shrub', sun_most: 'Full', sun_least: 'Shade' } },
+      // (No source gives both ends of its zones: each end says its own.)
+      { id: 'itea', common: 'Sweetspire', botanical: 'Itea virginica', src: ['ncsu'], audited: '2026-10-18',
+        facts: { form: 'Shrub', sun_most: 'Full', sun_least: 'Shade', zone_min: { v: 5, src: ['grower'], check: 'reported' }, zone_max: { v: 9.5, src: ['ncsu'], check: 'single' } } },
       { id: 'carex-eburnea', common: 'Bristleleaf sedge', src: ['ncsu'], audited: '2026-10-18',
         facts: { form: 'Perennial', sun_most: 'Full', sun_least: 'Part', zone_min: { v: 2, src: ['grower'], check: 'reported' }, zone_max: { v: 7.5, src: ['grower'], check: 'reported' } } },
+      // (Two nurseries that agree outrank NC State alone: theirs is shown, NC State's beside it, by name. On sun,
+      // only the shady end: NC State agrees it takes full sun, and says it needs it.)
+      { id: 'bee-balm', common: 'Bee balm', src: ['ncsu'], audited: '2026-10-18',
+        facts: { form: 'Perennial', sun_most: { v: 'Full', src: ['ncsu', 'grower', 'grower2'], check: 'confirmed' }, sun_least: { v: 'Part', src: ['grower', 'grower2'], check: 'likely', alt: { v: 'Full', src: ['ncsu'], check: 'single' } },
+          zone_min: { v: 3, src: ['grower', 'grower2'], check: 'likely', alt: { v: 4, src: ['ncsu'], check: 'single' } }, zone_max: { v: 9, src: ['grower', 'grower2'], check: 'likely', alt: { v: 8, src: ['ncsu'], check: 'single' } } } },
       { id: 'old', common: 'Old-list aster', src: ['compendium'], audited: null, facts: { form: 'Perennial', sun_most: 'Full', sun_least: 'Part' } },
       { id: 'half', common: 'Half-checked aster', src: ['compendium'], audited: '2026-10-18', facts: { form: { v: 'Perennial', src: ['ncsu'], check: 'single' }, sun_most: 'Full', sun_least: 'Part' } },
     ],
@@ -62,16 +69,32 @@ test('a plant shown only because of what nurseries report is marked, and says so
   await expect(page.locator('.plant-item', { hasText: 'Half-checked aster' }).locator('.unverified-badge')).toHaveText('Partly checked');
   await expect(page.locator('.plant-item', { hasText: 'Sweetspire' }).locator('.unverified-badge')).toHaveCount(0);
   await alumroot.getByTestId('plant-row').click();
-  await expect(alumroot.getByTestId('reported-flag')).toContainText('what nurseries report for its sun');
+  await expect(alumroot.getByTestId('reported-flag')).toContainText('what other sources say for its sun');
   await expect(alumroot.getByTestId('plant-details')).toContainText('Nurseries report: Full sun to shade (A nursery)');
+  const beeBalm = page.locator('.plant-item', { hasText: 'Bee balm' });
+  await beeBalm.getByTestId('plant-row').click();
+  const details = beeBalm.getByTestId('plant-details');
+  await expect(details).toContainText('NC State lists: Full sun');
+  // The sun range is credited to the sources behind both its ends, as sure as the less sure end.
+  await expect(details).toContainText('Full sun to part shadeA grower, Another grower · nurseries agree');
+  await expect(details).not.toContainText('NC State Extension, A grower');
+  // Nurseries lead its hardiness, a reference's range beside it; the range shown is nurseries' only, and says so.
+  await expect(details).toContainText('NC State lists: zones 4–8a');
+  const onlyNurseries = 'This range is from nurseries only, and a grower\'s range can stop where it sells.';
+  await expect(beeBalm.getByTestId('nursery-only')).toHaveText(onlyNurseries);
   // Hardiness only a nursery gives says so; one a reference gives doesn't.
   await expect(alumroot.getByTestId('nursery-only')).toHaveCount(0);
   const sedge = page.locator('.plant-item', { hasText: 'Bristleleaf sedge' });
   await sedge.getByTestId('plant-row').click();
-  await expect(sedge.getByTestId('nursery-only')).toHaveText('Only nurseries rate this; no published reference gives a range.');
+  await expect(sedge.getByTestId('nursery-only')).toHaveText(onlyNurseries);
+  // Ends from different sources: each named for its own.
+  const itea = page.locator('.plant-item', { hasText: 'Sweetspire' });
+  await itea.getByTestId('plant-row').click();
+  await expect(itea.getByTestId('plant-details')).toContainText('A grower for the cold limit (one nursery); NC State Extension for the warm limit (one source)');
+  await expect(itea.getByTestId('nursery-only')).toHaveText('Its cold limit is from nurseries only.');
   // Only the references: it's gone.
   await page.getByRole('button', { name: '+ More filters' }).click();
-  await page.locator('label', { hasText: 'Include what nurseries report' }).locator('input').uncheck();
+  await page.locator('label', { hasText: 'Include where sources differ' }).locator('input').uncheck();
   await expect(page.locator('.plant-item', { hasText: 'Hairy alumroot' })).toHaveCount(0);
   // Placing works from the row's button.
   await page.locator('.plant-item', { hasText: 'Sweetspire' }).getByTestId('plant-place').click();

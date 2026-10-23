@@ -69,7 +69,7 @@ export interface Plant {
   thorns?: boolean;
   /** Catalog plants: where each value came from (see src/catalog.ts). */
   prov?: Record<string, Provenance>;
-  /** What nurseries report where it differs from the authority's value (its sources are in `prov[key].alt`). */
+  /** What other sources say where they differ from the value shown (its sources are in `prov[key].alt`). */
   reported?: Partial<Record<string, unknown>>;
   /** Catalog plants the audit hasn't re-derived from sources yet. */
   unverified?: boolean;
@@ -111,7 +111,7 @@ export const PLANT_FILTER_DEFAULTS = {
   edible: false, noTaproot: false, inPlan: false,
   /** Rated for the plan's zone (when the plan has a location). */
   hardyHere: false,
-  /** Let what nurseries report count where it differs from the authorities (a match only by it is flagged). */
+  /** Let what other sources say count where it differs from the value shown (a match only by it is flagged). */
   withReported: true,
   advanced: false      // UI: is the "More filters" section expanded
 };
@@ -240,16 +240,16 @@ export function plantIdsInPlan(): Set<string> {
   return new Set(state.shapes.filter((s) => s.status !== 'gone').map((s) => s.plantId).filter((id): id is string => !!id));
 }
 /**
- * The filters a nursery's report can count for, the facts each reads, and
- * what the flag calls them. Safety and status facts (toxicity, invasive,
- * native) never come from nurseries: the catalog doesn't accept reports
- * for them.
+ * The filters another source's value (a fact's `alt`) can count for, the
+ * facts each reads, and what the flag calls them. Safety and status facts
+ * (toxicity, invasive, native) have none: the catalog takes them from
+ * authorities only.
  */
 const FILTER_FACTS: [keyof PlantFilter, string[], string][] = [
   ['sun', ['sun_most', 'sun_least'], 'sun'], ['hardyHere', ['zone_min', 'zone_max'], 'hardiness zones'], ['water', ['water'], 'water'],
   ['deer', ['deer'], 'deer resistance'], ['height', ['height'], 'height'], ['bloomMonth', ['bloom'], 'bloom time'], ['form', ['form'], 'form'],
 ];
-/** The plant as a nursery describes these facts (each pair as a whole: a nursery's sun range, not half of one). */
+/** The plant as the other sources describe these facts (each pair as a whole: one source's sun range, not half of one). */
 function asReported(p: Plant, facts: string[]): Plant {
   const r = p.reported ?? {};
   const q: Plant = { ...p };
@@ -258,12 +258,12 @@ function asReported(p: Plant, facts: string[]): Plant {
   return q;
 }
 /**
- * Whether a plant matches, and if only by what nurseries report (where an
- * authority says otherwise): null (no match), [] (a match on the
- * authorities' values), or the filters the match rests on ("sun",
- * "hardiness zones"). Each filter is judged on its own: it passes on the
- * authorities' value, or failing that on a nursery's; every other filter
- * must pass on the authorities' values.
+ * Whether a plant matches, and if only by what other sources say (a fact's
+ * `alt`, where sources disagree): null (no match), [] (a match on the
+ * values shown), or the filters the match rests on ("sun", "hardiness
+ * zones"). Each filter is judged on its own: it passes on the value shown,
+ * or failing that on the other one; every other filter must pass on the
+ * values shown.
  */
 export function reportedMatch(p: Plant, f: PlantFilter, inPlan?: Set<string>): string[] | null {
   if (plantMatches(p, f, inPlan)) return [];
@@ -280,7 +280,7 @@ export function reportedMatch(p: Plant, f: PlantFilter, inPlan?: Set<string>): s
   }
   return needed.length ? needed : null;
 }
-/** Plants in the last list that match only by nurseries' reports, and on what. */
+/** Plants in the last list that match only by what other sources say, and on what. */
 export const reportedOnly = new Map<string, string[]>();
 export function filteredPlants(): Plant[] {
   const inPlan = plantIdsInPlan();
