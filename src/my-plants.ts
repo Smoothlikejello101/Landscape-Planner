@@ -1,6 +1,6 @@
 import { flushHistoryDebounce, pushHistory } from './history';
 import { FORM_COLORS, plantsById, type Plant } from './plants';
-import { currentForm } from './catalog';
+import { currentForm, wirePlant } from './catalog';
 import { state } from './state';
 import { getPlantSync, rememberSizeMode, save, storedMyPlants, writeMyPlants, type SyncRecord } from './storage';
 import { fingerprint } from './sync/engine';
@@ -147,7 +147,8 @@ export function loadMyPlants() {
   for (const p of myPlants) plantsById[p.id] = p;
 }
 /** A plant's fingerprint (sync tells by it whether a plant changed). */
-export const plantHash = (p: Plant) => fingerprint('', p as unknown as Record<string, unknown>);
+/** A plant's fingerprint, as it's sent (src/catalog.ts, WIRE_FORMS): the same for a tree before and after the rename. */
+export const plantHash = (p: Plant) => fingerprint('', wirePlant(p) as unknown as Record<string, unknown>);
 /**
  * A change to the library. `plant`: the new version, null to delete, or
  * undefined to leave it (only its sync record changes). From sync: `expect`
@@ -243,9 +244,11 @@ export function placedUsing(id: string): CircleShape[] {
   return state.shapes.filter((s): s is CircleShape => s.type === 'circle' && s.plantId === id && isDataSized(s));
 }
 /** Recolored in the library: placed plants still in the old color take the new one (one undo step). */
-export function recolorPlaced(id: string, oldColor: string, newColor: string) {
-  const hit = state.shapes.filter((s) => s.plantId === id && s.color.toLowerCase() === oldColor.toLowerCase());
-  if (!hit.length || oldColor === newColor) return;
+/** Placed plants of this one drawn in any of its old colors take the new one. */
+export function recolorPlaced(id: string, oldColors: string[], newColor: string) {
+  const old = new Set(oldColors.map((c) => c.toLowerCase()).filter((c) => c !== newColor.toLowerCase()));
+  const hit = state.shapes.filter((s) => s.plantId === id && old.has(s.color.toLowerCase()));
+  if (!hit.length) return;
   flushHistoryDebounce();
   for (const s of hit) s.color = newColor;
   pushHistory();

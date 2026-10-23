@@ -36,19 +36,29 @@ describe('crowding', () => {
     const brute = new Set(shapes.filter((s) => crowdingOf(s, shapes, byId).length).map((s) => s.id));
     expect(crowdedIds(shapes, byId)).toEqual(brute);
   });
-  it('without heights, trees crowd only trees and everything else only everything else, as before', () => {
+  it('without a height, a tree is taken to be about as tall as it is wide; other plants crowd as before', () => {
     const shapes = [
-      p('oak', 0, { plantId: 'oak', radius: 10, tree: true, sizeFrom: 'manual' } as Partial<Shape>),
-      p('shrub', 19), p('redbud', 20, { plantId: 'redbud' }),
-      p('oak2', 40, { plantId: 'oak' }), p('mystery', 5, { plantId: undefined, tree: true } as Partial<Shape>),
+      p('oak', 0, { plantId: 'oak', radius: 10, tree: true, sizeFrom: 'manual' } as Partial<Shape>), // 70 ft wide: crown 23⅓–70 ft
+      p('shrub', 19), p('redbud', 20, { plantId: 'redbud' }), // (redbud 30 ft wide: 10–30 ft, a third of it in the oak's)
+      p('oak2', 40, { plantId: 'oak' }), p('mystery', 5, { plantId: undefined, tree: true } as Partial<Shape>), // (4 ft wide: a young tree)
+      p('bigUnknown', -25, { plantId: undefined, tree: true, radius: 20 } as Partial<Shape>), // (40 ft wide: 13⅓–40 ft)
     ];
     const near = (id: string) => crowdingOf(shapes.find((s) => s.id === id)!, shapes, byId).map((x) => x.other.id);
-    expect(near('shrub')).toEqual([]); // under the oak's eventual canopy: fine
-    expect(near('oak')).toEqual(['mystery', 'redbud', 'oak2']); // (trees space against trees, unknown ones too)
-    expect([...crowdedIds(shapes, byId)].sort()).toEqual(['mystery', 'oak', 'oak2', 'redbud']);
+    expect(near('shrub')).toEqual([]); // (no height, not a tree: only other plants like it, as before)
+    expect(near('redbud')).toEqual([]); // under the oak's edge: a third of the usual 50 ft, so fine at 20
+    expect(near('mystery')).toEqual([]); // a young tree under the oak: nothing shared
+    expect(near('oak')).toEqual(['oak2', 'bigUnknown']);
+    expect([...crowdedIds(shapes, byId)].sort()).toEqual(['bigUnknown', 'oak', 'oak2']);
+  });
+  it('a vine shares no height with a tree (planted to climb it), but crowds what else grows beside it', () => {
+    const vines: Record<string, Plant> = { ...byId, vine: { id: 'vine', common: 'Crossvine', form: 'Vine', width: { min: 6, max: 10, med: 8 }, height: { min: 30, max: 50, med: 40 } } as Plant };
+    const shapes = [p('oak', 0, { plantId: 'oakH' }), p('vine', 3, { plantId: 'vine' }), p('shrub', 8, { plantId: 'shrubH' })];
+    const near = (id: string) => crowdingOf(shapes.find((s) => s.id === id)!, shapes, vines).map((x) => x.other.id);
+    expect(near('vine')).toEqual(['shrub']); // (5 ft apart; usual 7, all their height shared)
+    expect(near('oak')).toEqual([]);
   });
   it('with heights, crowds only as much as the leaves share heights: a tree\'s crown from a third of its height', () => {
-    const band = (tree: boolean, h: number) => ({ tree, band: [tree ? h / 3 : 0, h] as [number, number] });
+    const band = (tree: boolean, h: number) => ({ tree, vine: false, band: [tree ? h / 3 : 0, h] as [number, number] });
     expect(sharedHeight(band(true, 60), band(false, 6))).toBe(0); // a shrub under an oak's raised crown
     expect(sharedHeight(band(true, 60), band(true, 25))).toBeCloseTo(5 / (25 - 25 / 3)); // a redbud's top 5 ft in it
     expect(sharedHeight(band(true, 60), band(true, 60))).toBe(1);

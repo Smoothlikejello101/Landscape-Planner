@@ -154,7 +154,7 @@ export function crowdingNote(s: Shape): HTMLElement | null {
   if (!crowds.length) return null;
   const f = (v: number) => (Math.round(v * 10) / 10).toString();
   // (Less than the full spacing where one grows partly under the other's crown.)
-  const lines = crowds.slice(0, 3).map((c) => `${c.other.label || 'a plant'}: ${f(c.distance)} ft apart, about ${f(c.recommended)} ft is usual${c.shared < 1 ? ', as one grows partly under the other' : ''}`);
+  const lines = crowds.slice(0, 3).map((c) => `${c.other.label || 'a plant'}: ${f(c.distance)} ft apart, about ${f(c.recommended)} ft is usual${c.shared < 0.75 ? ', as one grows partly under the other' : ''}`);
   return el('div', { className: 'check-banner warn', 'data-testid': 'crowding' },
     el('div', {}, '⚠ Planted closer than usual to ' + (crowds.length === 1 ? 'one neighbor' : `${crowds.length} neighbors`) + ':'),
     ...lines.map((l) => el('div', { style: { marginLeft: '12px' } }, '• ' + l)),

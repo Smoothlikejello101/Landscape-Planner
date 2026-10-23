@@ -5,9 +5,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { openKV } from '../src/db';
 import {
   applySizeMode, deleteMyPlant, fullRingRadius, isDataSized, loadMyPlants, mergeMyPlants, myPlants, parseSize,
-  plantRadius, plantsToResize, recolorPlaced, sanitizeMyPlant, saveMyPlant, sunRange,
+  plantHash, plantRadius, plantsToResize, recolorPlaced, sanitizeMyPlant, saveMyPlant, sunRange,
 } from '../src/my-plants';
-import { plantShapeAt, plantsById, type Plant } from '../src/plants';
+import { fingerprint } from '../src/sync/engine';
+import { supabasePlants } from '../src/sync/remote';
+import { plantColors, plantShapeAt, plantsById, type Plant } from '../src/plants';
 import { state } from '../src/state';
 import { _resetStorageForTests, createProject, flushSave, initStorage, readProject, sanitizeProjectData, switchProject } from '../src/storage';
 import { buildBackupFile, buildProjectFile, parseImportPlants } from '../src/backup';
@@ -134,16 +136,46 @@ describe('My plants library', () => {
   });
 });
 
+describe('a tree of mine, toward devices and files on an older version', () => {
+  it('goes as "Tree (canopy)", which every version reads, and comes back as "Tree", its fingerprint unchanged', async () => {
+    await fresh();
+    const tree = { id: 'u-oak', common: 'Our oak', form: 'Tree', width: { min: 50, max: 70, med: 60 } } as Plant;
+    await saveMyPlant(tree);
+    // The fingerprint an older version took of it, as "Tree (canopy)": the same, so the rename alone uploads nothing.
+    expect(plantHash(tree)).toBe(fingerprint('', { ...tree, form: 'Tree (canopy)' } as unknown as Record<string, unknown>));
+    // A backup file carries the older name; read back here, it's "Tree".
+    const backup = await buildBackupFile();
+    const inFile = JSON.parse(backup.text).myPlants as { id: string; form?: string }[];
+    expect(inFile.find((x) => x.id === 'u-oak')?.form).toBe('Tree (canopy)');
+    expect(parseImportPlants(backup.text).map((x) => sanitizeMyPlant(x)?.form)).toContain('Tree');
+    // Sync sends it the same way.
+    let sent: unknown = null;
+    const client = { rpc: async (_name: string, args: { p_plant: unknown }) => { sent = args.p_plant; return { data: { status: 'ok', revision: 1 }, error: null }; } };
+    await supabasePlants(client as never, 'phone').pushPlant('u-oak', null, tree, 1);
+    expect(sent).toMatchObject({ id: 'u-oak', form: 'Tree (canopy)' });
+    expect(tree.form).toBe('Tree'); // (the plant itself untouched)
+  });
+});
+
 describe('recoloring a library plant', () => {
   it('recolors placed plants still in the old color, as one undo step; ones colored by hand stay', () => {
     const c = (id: string, color: string, plantId = 'u-a') => ({ id, type: 'circle', x: 0, y: 0, radius: 1, color, label: '', opacity: 1, locked: false, role: 'plant', plantId }) as CircleShape;
     state.shapes = [c('a', '#16A34A'), c('b', '#ff0000'), c('o', '#16a34a', 'u-other')];
     state.history = []; state.historyIndex = -1;
-    recolorPlaced('u-a', '#16a34a', '#a855f7');
+    recolorPlaced('u-a', ['#16a34a'], '#a855f7');
     expect(state.shapes.map((s) => s.color)).toEqual(['#a855f7', '#ff0000', '#16a34a']);
     expect(state.historyIndex).toBe(0);
-    recolorPlaced('u-a', '#16a34a', '#000000'); // nothing left in the old color: no step
+    recolorPlaced('u-a', ['#16a34a'], '#000000'); // nothing left in the old color: no step
     expect(state.historyIndex).toBe(0);
+  });
+  it('a tree of mine with no color of its own: circles still in the old understory gray follow an edit too', () => {
+    const c = (id: string, color: string) => ({ id, type: 'circle', x: 0, y: 0, radius: 1, color, label: '', opacity: 1, locked: false, role: 'plant', plantId: 'u-t' }) as CircleShape;
+    state.shapes = [c('gray', '#57534e'), c('brown', '#78350f'), c('red', '#ff0000')];
+    const tree = { id: 'u-t', common: 'Our redbud', form: 'Tree', width: { min: 25, max: 35, med: 30 } } as Plant;
+    expect(plantColors(tree)).toEqual(['#78350f', '#57534e']);
+    expect(plantColors({ ...tree, color: '#123456' })).toEqual(['#123456']);
+    recolorPlaced('u-t', plantColors(tree), '#16a34a');
+    expect(state.shapes.map((s) => s.color)).toEqual(['#16a34a', '#16a34a', '#ff0000']);
   });
 });
 

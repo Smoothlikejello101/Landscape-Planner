@@ -29,19 +29,29 @@ function typicalRadius(s: Shape, byId: Record<string, Plant | undefined>): numbe
   const p = s.plantId ? byId[s.plantId] : undefined;
   return p ? plantSpread(p, 'typical') / 2 : s.radius;
 }
-/** Where a plant's leaves are, in feet above the ground, by its typical height: null where that isn't known. */
-export interface Band { tree: boolean; band: [number, number] | null }
+/**
+ * Where a plant's leaves are, in feet above the ground, by its typical height: null where that isn't known. A
+ * tree with no height (one drawn without picking which, or a plant of my own without one) is taken to be about as
+ * tall as it's drawn wide, as the catalog's shade trees are (northern red oak 60 ft tall and 62½ wide, bur oak 75
+ * by 75): a stand-in, not a source's figure, so that an oak in the yard doesn't crowd every dogwood near it.
+ */
+export interface Band { tree: boolean; vine: boolean; band: [number, number] | null }
 export function bandOf(s: Shape, byId: Record<string, Plant | undefined>): Band {
   const tree = isTree(s, byId);
-  const h = s.plantId ? byId[s.plantId]?.height?.med : undefined;
-  if (!(h != null && h > 0)) return { tree, band: null };
-  return { tree, band: [tree ? h * CLEAR_TRUNK : 0, h] };
+  const p = s.plantId ? byId[s.plantId] : undefined;
+  const vine = !tree && p?.form === 'Vine';
+  const r = typicalRadius(s, byId);
+  const h = p?.height?.med ?? (tree && r ? r * 2 : undefined);
+  if (!(h != null && h > 0)) return { tree, vine, band: null };
+  return { tree, vine, band: [tree ? h * CLEAR_TRUNK : 0, h] };
 }
 /**
  * How much two plants' leaves share the same heights, 0 to 1: the overlap as a share of the shorter crown.
- * Where either height isn't known, trees crowd trees and everything else crowds everything else, as before.
+ * A vine shares none with a tree: it's planted to climb one, or to cover the ground under it. Where either
+ * height isn't known, trees crowd trees and everything else crowds everything else, as before.
  */
 export function sharedHeight(a: Band, b: Band): number {
+  if ((a.vine && b.tree) || (b.vine && a.tree)) return 0;
   if (!a.band || !b.band) return a.tree === b.tree ? 1 : 0;
   const over = Math.min(a.band[1], b.band[1]) - Math.max(a.band[0], b.band[0]);
   const shorter = Math.min(a.band[1] - a.band[0], b.band[1] - b.band[0]);

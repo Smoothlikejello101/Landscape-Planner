@@ -7,7 +7,7 @@ import { toast } from './ui/toast';
 import type { CircleShape, Point, Shape } from './types';
 import { snap, uid } from './util';
 import { isDataSized, plantRadius } from './my-plants';
-import { isCatalogV2, resolveCatalog, type Provenance } from './catalog';
+import { currentForm, isCatalogV2, resolveCatalog, type Provenance } from './catalog';
 import { spreadsAs } from './spread';
 import { setRadius } from './geometry';
 import { isLocked } from './roles';
@@ -137,7 +137,8 @@ export function loadPlants(): Promise<void> {
       PLANT_META = { title: d.meta.title, version: d.meta.updated, count: d.plants.length, enums: d.meta.enums, sources: d.meta.sources };
     } else {
       const old = d as { plants?: Plant[]; meta?: PlantMeta };
-      PLANTS = old.plants || [];
+      // (Its forms by today's names: src/catalog.ts, LEGACY_FORMS.)
+      PLANTS = (old.plants || []).map((p) => (p.form ? { ...p, form: currentForm(p.form) } : p));
       PLANT_META = old.meta || null;
     }
     for (const p of PLANTS) plantsById[p.id] = p;
@@ -318,6 +319,13 @@ export const formsOf = (p: Pick<Plant, 'form' | 'forms'>): string[] => p.forms?.
 /** The color a plant is drawn in: its own (My plants), else by form, else green. */
 export function plantColor(p: Plant | undefined): string {
   return p?.color || (p?.form && FORM_COLORS[p.form]) || '#16a34a';
+}
+/**
+ * Every color a plant may be drawn in on a plan: its color now, and for a tree with no color of its own, the
+ * understory gray it took before trees were one form (2026-10), which plans may still show.
+ */
+export function plantColors(p: Plant | undefined): string[] {
+  return [plantColor(p), ...(p && !p.color && p.form === 'Tree' ? ['#57534e'] : [])];
 }
 /** A new placed plant centered on `at` (feet, snapped), sized and colored from its data. */
 export function plantShapeAt(p: Plant, at: Point): CircleShape {

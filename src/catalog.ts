@@ -26,6 +26,15 @@ export type Check = 'agree' | 'confirmed' | 'disputed' | 'single' | 'likely' | '
 export const LEGACY_FORMS: Record<string, string> = { 'Tree (canopy)': 'Tree', 'Tree (understory)': 'Tree' };
 export const currentForm = (f: string): string => LEGACY_FORMS[f] ?? f;
 /**
+ * A form as it goes to other devices and into files, for now: a version from before 2026-10 knows no plain
+ * "Tree" and drops a form it doesn't know, so a plant of mine synced to it would lose its form, and its
+ * edit would carry the loss back. A tree goes as "Tree (canopy)", which every version reads (this one as
+ * "Tree"). Fingerprints are taken the same way, so the rename alone uploads nothing. Drop this once no
+ * device can still be running a version from before.
+ */
+export const WIRE_FORMS: Record<string, string> = { Tree: 'Tree (canopy)' };
+export const wirePlant = (p: Plant): Plant => (p.form && WIRE_FORMS[p.form] ? { ...p, form: WIRE_FORMS[p.form] } : p);
+/**
  * What other sources say where they differ from the value shown (shown beside it, labelled with who says it,
  * and usable in filters by the user's choice): the side that didn't lead (docs/catalog-sources.md, "Where
  * sources disagree"). Only for the garden facts decided that way; never toxicity, invasiveness or native
