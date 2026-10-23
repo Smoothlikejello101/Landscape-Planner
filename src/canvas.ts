@@ -1,7 +1,7 @@
 import { renderBgHandles, renderBgImageInto } from './background';
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from './constants';
 import { svgEl, type Attrs } from './dom';
-import { alongLabel, boxSize, shapeBBox, shapeCenter, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, worldPoints } from './geometry';
+import { alongLabel, boxLabelAngle, boxSize, shapeBBox, shapeCenter, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, worldPoints } from './geometry';
 import { renderPathOverlay } from './draw';
 import { fullRingRadius } from './my-plants';
 import { crowdedIds } from './crowding';
@@ -211,6 +211,10 @@ export function shapeGroup(s: Shape): SVGGElement {
     }
     labelX = cx; labelY = cy;
     fs = Math.max(10, Math.min(14, Math.min(w, h) * 0.2));
+    // Its name reads as upright as it can, not turned with the shape (a bed drawn tall and turned on its side).
+    // (The shape has its transform already: from here on, rotTransform turns its labels.)
+    const angle = boxLabelAngle(s.rotation || 0);
+    rotTransform = angle ? `rotate(${angle} ${cx} ${cy})` : '';
   }
   const target = hitEl ?? shapeEl;
   target.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
