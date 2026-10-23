@@ -201,7 +201,25 @@ export function withLocalParts(server: ProjectContent, mine: ProjectContent | un
   if (!mine) return server;
   let out = server;
   for (const k of NEWER_PARTS) if (!(k in server) && k in mine) out = { ...out, [k]: mine[k] };
-  return out;
+  return withGoneDates(out, mine);
+}
+/**
+ * A gone shape's date (goneOn), which an older version leaves out of a shape it sends: kept from here when the
+ * server's copy of that shape is still gone and has no date at all. (A date cleared on purpose is '' and stays so.)
+ */
+function withGoneDates(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
+  type Gone = { id?: unknown; status?: unknown; goneOn?: unknown };
+  const dates = new Map<unknown, string>();
+  for (const s of mine.shapes as Gone[]) if (s && s.status === 'gone' && typeof s.goneOn === 'string') dates.set(s.id, s.goneOn);
+  if (!dates.size) return server;
+  let filled = false;
+  const shapes = (server.shapes as Gone[]).map((s) => {
+    if (!s || s.status !== 'gone' || 'goneOn' in s || !dates.has(s.id)) return s;
+    filled = true;
+    return { ...s, goneOn: dates.get(s.id) };
+  });
+  return filled ? { ...server, shapes } : server;
 }
 const isEmpty = (c: ProjectContent) => Array.isArray(c.shapes) && c.shapes.length === 0 && (photoKey(c) ?? 'none') === 'none';
 /** After this many failures in a row, the trouble is likely the connection: end the pass. */

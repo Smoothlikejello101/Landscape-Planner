@@ -500,3 +500,30 @@ describe('a location set here while another device edits the plan', () => {
   });
 });
 
+describe('a gone date and an older app version', () => {
+  const gone = (id: string, label: string, goneOn?: string): Shape => ({ ...bed(id, label), status: 'gone', ...(goneOn !== undefined ? { goneOn } : {}) });
+  const strip = (shapes: Shape[]) => shapes.map((s) => { const { goneOn: _g, ...rest } = s; return rest; });
+  it('an edit from a device that drops gone dates doesn\'t take them from this one', async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.shapes = [gone('g1', 'Camellia', '2026-10-23'), bed('b1', 'A')]; save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    // The old laptop edits the plan, sending its shapes without the date.
+    const row = server.rows.get(id)!;
+    row.content = { ...row.content, shapes: strip([gone('g1', 'Camellia'), bed('b1', 'B')]) }; row.revision++; row.updated_by = 'laptop';
+    const r = await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    expect(r.conflicts).toEqual([]);
+    expect(state.shapes.map((s) => s.label)).toEqual(['Camellia', 'B']); // (its edit taken)
+    expect(state.shapes[0].goneOn).toBe('2026-10-23'); // (the date kept)
+  });
+  it('a date cleared on another device stays cleared', async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.shapes = [gone('g1', 'Camellia', '2026-10-23')]; save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    const row = server.rows.get(id)!;
+    row.content = { ...row.content, shapes: [gone('g1', 'Camellia', '')] }; row.revision++; row.updated_by = 'laptop';
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    expect(state.shapes[0].goneOn).toBe('');
+  });
+});

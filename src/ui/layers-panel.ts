@@ -55,7 +55,8 @@ export function renderLayersPanel() {
       else if (s.type === 'poly') dims = s.points.length + ' points · ' + fmtFt(boxSize(s).w) + ' × ' + fmtFt(boxSize(s).h) + ' ft';
       else dims = s.width + ' × ' + s.height + ' ft';
       const opacity = s.opacity !== undefined ? s.opacity : 0.65;
-      const extra = (s.status ? statusLabel(s.status) + (s.status === 'planted' && s.plantedOn ? ' ' + s.plantedOn : '') + ' · ' : '') +
+      const when = s.status === 'planted' ? s.plantedOn : s.status === 'gone' ? s.goneOn : undefined;
+      const extra = (s.status ? statusLabel(s.status) + (when ? ' ' + when : '') + ' · ' : '') +
         (s.phase ? s.phase + ' · ' : '') +
         (s.role === 'shade' && s.sun ? sunListText(s.sun) + ' · '
         : s.role === 'bed' ? plantsInBed(s, state.shapes).filter((p) => p.status !== 'gone').length + ' plants · ' : '');

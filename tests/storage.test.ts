@@ -589,3 +589,25 @@ describe('telling sync about edits', () => {
     setSyncHooks(() => {}, () => {});
   });
 });
+
+describe('a gone shape\'s date (goneOn)', () => {
+  it('loads plans saved before it unchanged, keeps a valid date on a gone shape, and drops the rest', () => {
+    const shape = (over: Record<string, unknown>) => ({ type: 'circle', x: 0, y: 0, radius: 1, label: 'Camellia', color: '#16a34a', ...over });
+    const d = sanitizeProjectData({
+      shapes: [
+        shape({ id: 'old', status: 'gone' }), // (saved before the date existed)
+        shape({ id: 'dated', status: 'gone', goneOn: '2026-10-23' }),
+        shape({ id: 'bad', status: 'gone', goneOn: 'last week' }),
+        shape({ id: 'back', status: 'planted', goneOn: '2026-10-01' }), // (not gone now: no gone date)
+        shape({ id: 'cleared', status: 'gone', goneOn: '' }), // (cleared by hand: kept, so sync doesn't fill it back)
+      ],
+    });
+    const byId = Object.fromEntries(d.shapes.map((s) => [s.id, s]));
+    expect(byId.old).toMatchObject({ status: 'gone' });
+    expect(byId.old).not.toHaveProperty('goneOn');
+    expect(byId.dated).toMatchObject({ status: 'gone', goneOn: '2026-10-23' });
+    expect(byId.bad).not.toHaveProperty('goneOn');
+    expect(byId.back).not.toHaveProperty('goneOn');
+    expect(byId.cleared).toMatchObject({ status: 'gone', goneOn: '' });
+  });
+});

@@ -56,14 +56,24 @@ test('track planted and planned plants by phase, view and print one phase', asyn
   // Gone plants can be shown again.
   await page.locator('button[title=Layers]').click();
   await page.getByTestId('show-gone').check();
+  await expect(page.locator('.layer-row', { hasText: 'oneflower' })).toContainText(/Gone \d{4}-\d{2}-\d{2}/); // (marked today)
   await closeSheet(page);
   await expect(plantShapes(page)).toHaveCount(3);
+
+  // When it went: today, unless set otherwise.
+  await page.locator('button[title=Layers]').click();
+  await page.locator('.layer-row', { hasText: 'oneflower' }).click();
+  await page.locator('.sel-pill button.edit').click(); await openSections(page);
+  await expect(page.getByTestId('gone-on')).not.toHaveValue('');
+  await page.getByTestId('gone-on').fill('2026-10-01');
+  await closeSheet(page);
 
   // Saved: statuses, dates and phases survive a reload.
   await page.waitForTimeout(600);
   await page.reload();
   await page.locator('button[title=Layers]').click();
   await expect(page.locator('.layer-row', { hasText: 'Autumn Bride' })).toContainText(/Planted \d{4}-\d{2}-\d{2}/);
+  await expect(page.locator('.layer-row', { hasText: 'oneflower' })).toContainText('Gone 2026-10-01');
   await expect(page.locator('.phase-row')).toContainText('Fall 2026');
   await closeSheet(page);
 
