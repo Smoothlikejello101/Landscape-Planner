@@ -131,3 +131,58 @@ test('how a plant spreads, by seed and underground, in one row with a source eac
   await page.getByTestId('spread-filter').selectOption('aggressive');
   await expect(page.locator('.plant-item', { hasText: 'Blue mistflower' })).toHaveCount(1);
 });
+
+test('the mature-height slider narrows the list to a range, either end open', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByRole('button', { name: '+ More filters' }).click();
+  // (Set a handle as a drag would: its value, then input and change.)
+  const set = async (id: string, stop: number) => page.getByTestId(id).evaluate((el, v) => {
+    const input = el as HTMLInputElement;
+    input.value = String(v);
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  }, stop);
+  await expect(page.getByTestId('height-readout')).toHaveText('Any height');
+  await page.getByTestId('plant-search').fill('oak');
+  await expect(page.locator('.plant-item', { hasText: 'Bur oak' })).toHaveCount(1);
+  await set('height-max', 7); // (10 ft)
+  await expect(page.getByTestId('height-readout')).toHaveText('Up to 10 ft');
+  await expect(page.locator('.plant-item', { hasText: 'Bur oak' })).toHaveCount(0);
+  await set('height-max', 14); // (no tallest)
+  await set('height-min', 9); // (20 ft)
+  await expect(page.getByTestId('height-readout')).toHaveText('20 ft and taller');
+  await expect(page.locator('.plant-item', { hasText: 'Bur oak' })).toHaveCount(1);
+  await page.getByTestId('plant-search').fill('heuchera');
+  await expect(page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" })).toHaveCount(0);
+  await set('height-min', 1); // (1 ft)
+  await set('height-max', 2); // (2 ft)
+  await expect(page.getByTestId('height-readout')).toHaveText('1–2 ft');
+  await expect(page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" })).toHaveCount(1);
+});
+
+test('the height slider\'s handles can be dragged, and settle in order a step apart', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByRole('button', { name: '+ More filters' }).click();
+  const max = page.getByTestId('height-max'), min = page.getByTestId('height-min');
+  await max.scrollIntoViewIfNeeded();
+  // (A real drag: from the tallest handle's spot at the right end to the middle stop, 10 ft.)
+  const box = (await max.boundingBox())!;
+  const thumb = 40, xAt = (i: number) => box.x + thumb / 2 + (i / 14) * (box.width - thumb);
+  await page.mouse.move(xAt(14), box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(xAt(7), box.y + box.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.getByTestId('height-readout')).toHaveText('Up to 10 ft');
+  // Dragged all the way left, the tallest stays a step above the shortest: up to 1 ft, never "up to 0".
+  await page.mouse.move(xAt(7), box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 2, box.y + box.height / 2, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.getByTestId('height-readout')).toHaveText('Up to 1 ft');
+  await expect(min).toHaveValue('0');
+  await expect(max).toHaveValue('1');
+  await page.getByRole('button', { name: 'Reset filters' }).click();
+  await expect(page.getByTestId('height-readout')).toHaveText('Any height');
+});
