@@ -14,7 +14,9 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moves to 26.04 by Nov 19, 2026, where Playwright 1.56 can't install a browser. Move
+    # on purpose, with a Playwright upgrade.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -25,16 +27,10 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      # The test browser, kept between runs (keyed by Playwright's version), and without --with-deps: the system
-      # libraries it needs are on the runner already (its image has Chrome), and fetching them from Ubuntu's mirror
-      # sometimes crawled, from 20 seconds to 13 minutes.
-      - id: pw
-        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
-      - run: npx playwright install chromium
+      # The headless browser alone (the tests run headless), without --with-deps: the system libraries it needs are
+      # on the runner already (its image has Chrome), and fetching them from Ubuntu's mirror sometimes crawled, from
+      # 20 seconds to 13 minutes. The browser itself downloads in seconds.
+      - run: npx playwright install --only-shell chromium
         timeout-minutes: 5
       - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
