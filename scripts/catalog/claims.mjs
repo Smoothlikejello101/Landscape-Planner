@@ -341,6 +341,8 @@ export function cautionOf(fact, v) {
 const leads = (fact, y, x) => y.members.length - x.members.length || Number(y.authority) - Number(x.authority) || cautionOf(fact, y.v) - cautionOf(fact, x.v);
 /** The same sources: one side, whichever of its values heads it. */
 const sameSources = (x, y) => x.members.length === y.members.length && x.members.every((m) => y.members.includes(m));
+/** Last, a fixed order of sources, so that which side is kept never depends on which was read first: NC State, then by name. */
+const byName = (x, y) => { const k = (c) => (c.src === 'ncsu' ? '' : String(c.src)); return k(x) < k(y) ? -1 : k(x) > k(y) ? 1 : 0; };
 /**
  * The sides of a fact the sources take, the leading one first: each a value and the sources that agree with it
  * (copies already counted once). A side's value is its highest kind's, and every source on it agrees with that
@@ -356,7 +358,13 @@ function sidesOf(fact, usable) {
     const tries = rest.map((head) => ({ v: head.v, head, members: rest.filter((o) => agrees(fact, head.v, o.v)) }))
       .filter((t) => t.members.every((m) => rankOf(m) <= rankOf(t.head)))
       .map((t) => ({ ...t, authority: t.members.some((m) => m.kind === 'authority') }));
-    const best = tries.reduce((x, y) => (!sameSources(x, y) && leads(fact, y, x) > 0 ? y : x));
+    // (One side headed two ways, its sources being the same: NC State's value, else the first read. Two sides as
+    // strong: by name, so the next side, the one kept beside it, never depends on which was read first.)
+    const best = tries.reduce((x, y) => {
+      if (sameSources(x, y)) return y.head.src === 'ncsu' && x.head.src !== 'ncsu' ? y : x;
+      const d = leads(fact, y, x);
+      return d > 0 || (!d && byName(y.head, x.head) < 0) ? y : x;
+    });
     sides.push(best);
     rest = rest.filter((o) => !best.members.includes(o));
   }
@@ -426,8 +434,14 @@ function pairAlt(out, kept, [a, b]) {
     .filter((g) => g.members.every((m) => rankOf(m) <= rankOf(g.head)))
     .map((g) => ({ ...g, authority: g.members.some((m) => m.kind === 'authority') }));
   const score = (g) => [!shownByAuthority && g.authority ? 1 : 0, g.members.length, Number(g.authority), cautionOf(a, g.head.va) + cautionOf(b, g.head.vb)];
-  const better = (y, x) => { const [p, q] = [score(y), score(x)]; const i = p.findIndex((v, k) => v !== q[k]); return i >= 0 && p[i] > q[i]; };
-  const best = groups.reduce((x, y) => (x && (sameSources(x, y) || !better(y, x)) ? x : y), null);
+  // (One group headed two ways keeps the first read; two as strong go by name, never by which was read first.)
+  const better = (y, x) => {
+    if (sameSources(x, y)) return y.head.src === 'ncsu' && x.head.src !== 'ncsu';
+    const [p, q] = [score(y), score(x)];
+    const i = p.findIndex((v, k) => v !== q[k]);
+    return i >= 0 ? p[i] > q[i] : byName(y.head, x.head) < 0;
+  };
+  const best = groups.reduce((x, y) => (x && !better(y, x) ? x : y), null);
   if (!best) return;
   const src = [best.head.src, ...best.members.filter((m) => m !== best.head).map((m) => m.src)];
   const check = checkOf(best);

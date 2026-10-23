@@ -44,7 +44,8 @@ export function ncsuForms(types, life) {
   if (!forms.every((f) => f === 'Annual' || f === 'Perennial')) return forms;
   const tags = [...new Set([...forms, ...((types ?? []).includes('Perennial') ? ['Perennial'] : [])])];
   const cycle = [(life ?? []).includes('Perennial') ? 'Perennial' : null, (life ?? []).some((x) => x === 'Annual' || x === 'Biennial') ? 'Annual' : null].filter(Boolean);
-  if (!cycle.length) return tags;
+  // (A woody life cycle with no woody form among the tags: a plant that lives for years, but not which form.)
+  if (!cycle.length) return (life ?? []).includes('Woody') ? forms : tags;
   const both = cycle.filter((f) => tags.includes(f));
   return both.length ? both : cycle;
 }

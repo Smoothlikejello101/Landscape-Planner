@@ -207,6 +207,7 @@ describe('claims and how they combine', () => {
     expect(ncForm({ 'Plant Type': ['Native Plant', 'Perennial'] })).toEqual(['Perennial']);
     expect(ncForm({ 'Plant Type': ['Perennial', 'Shrub', 'Woody Plant'], 'Life Cycle': ['Woody'] })).toEqual(['Shrub']);
     expect(ncForm({ 'Plant Type': ['Ground Cover', 'Woody Plant'], 'Life Cycle': ['Woody'] })).toBeUndefined();
+    expect(ncForm({ 'Plant Type': ['Perennial', 'Woody Plant'], 'Life Cycle': ['Woody'] })).toBeUndefined(); // (woody, but which form?)
     // Authorities that share no form: both kept, with every source that backs either…
     expect(combine([nc(['Shrub']), ext('x.edu', ['Vine'])]).form).toMatchObject({ v: ['Shrub', 'Vine'], check: 'single', note: 'ncsu lists Shrub; x.edu lists Vine: both kept' });
     expect(combine([nc(['Shrub']), ext('x.edu', ['Vine']), ...usda(['Shrub'])]).form).toMatchObject({ v: ['Shrub', 'Vine'], src: ['ncsu', 'x.edu', 'usda'] });
@@ -311,6 +312,18 @@ describe('claims and how they combine', () => {
     // UF 9), in either order of the other claims.
     const ole = [c('ncsu', 'authority', 'zone_min', 8), c('x.edu', 'authority', 'zone_min', 9)];
     expect(combine(ole).zone_min).toMatchObject({ v: 8, src: ['ncsu', 'x.edu'], check: 'confirmed' });
+    expect(combine([...ole].reverse()).zone_min).toMatchObject({ v: 8, src: ['ncsu', 'x.edu'] });
+    // (Without NC State, the one the build reads first: the same sources either way, and the same check.)
+    const two = [c('y.edu', 'authority', 'zone_min', 3.5), c('x.edu', 'authority', 'zone_min', 3)];
+    for (const claims of [two, [...two].reverse()]) expect(combine(claims).zone_min).toMatchObject({ v: claims[0].v, check: 'confirmed', src: [claims[0].src, claims[1].src] });
+    // Two other ranges as strong (a nursery's full sun only, another's part shade only, beside NC State's full sun
+    // to part shade): the alt is the same whichever is read first, by name.
+    const sp = (src: string, kind: string, most: string, least: string) => [c(src, kind, 'sun_most', most), c(src, kind, 'sun_least', least)];
+    const tie = [sp('ncsu', 'authority', 'Full', 'Part'), sp('wind.com', 'nursery', 'Part', 'Part'), sp('allen.com', 'nursery', 'Full', 'Full')];
+    for (const order of [[0, 1, 2], [0, 2, 1], [2, 1, 0]]) {
+      const got = combine(order.flatMap((i) => tie[i]));
+      expect([got.sun_most.alt, got.sun_least.alt]).toEqual([undefined, { v: 'Full', src: ['allen.com'], check: 'reported' }]);
+    }
     const mixed = combine([...s2('ncsu', 'authority', 'Full', 'Part'), ...s2('a.com', 'nursery', 'Part', 'Part'), c('b.com', 'nursery', 'sun_least', 'Full')]);
     expect(mixed.sun_most.alt).toEqual({ v: 'Part', src: ['a.com'], check: 'reported' });
     expect(mixed.sun_least.alt).toBeUndefined(); // (a.com's least sun, part shade, is the value shown)

@@ -90,7 +90,7 @@ test('a plant shown only because of what other sources say is marked, and says s
   // Ends from different sources: each named for its own.
   const itea = page.locator('.plant-item', { hasText: 'Sweetspire' });
   await itea.getByTestId('plant-row').click();
-  await expect(itea.getByTestId('plant-details')).toContainText('A grower for the cold limit; NC State Extension for the warm limit · one nursery');
+  await expect(itea.getByTestId('plant-details')).toContainText('A grower for the cold limit (one nursery); NC State Extension for the warm limit (one source)');
   await expect(itea.getByTestId('nursery-only')).toHaveText('Its cold limit is from nurseries only.');
   // Only the references: it's gone.
   await page.getByRole('button', { name: '+ More filters' }).click();

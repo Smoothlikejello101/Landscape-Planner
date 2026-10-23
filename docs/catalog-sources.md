@@ -364,8 +364,10 @@ against it.
    source on the side agrees with that value. Agreement isn't transitive
    (zones 9b and 11b each agree with 10b, not with each other), so each
    value that could head a side is tried, and the one that leads by the
-   rules below is kept; then the same among the sources left. The order
-   sources are read in never changes which of them lead.
+   rules below is kept; then the same among the sources left. Where the
+   rules leave two sides as strong, NC State's goes first, then by source
+   name, so the order sources are read in never changes which sources
+   lead, or which other side is kept beside them.
 2. **The side more independent sources back leads.** Two nurseries that
    agree outrank a lone NC State page (the leader is `likely`; NC State's
    value is kept beside it). An authority's side with another source is
@@ -382,11 +384,13 @@ against it.
    nothing is taken: it's `disputed`, for the review. (Two values of a
    side's highest kind that agree with the same sources aren't a split:
    NC State's 8 and the University of Florida's 9 for oleander's cold
-   limit are one side, `confirmed`, showing NC State's, as before.)
-5. **Another value is kept beside it** (`alt`): the largest other side, or,
-   where the value shown has no authority behind it and an authority's was
-   outvoted, the authority's, so the app never hides that a reference says
-   otherwise. It's labelled with who says it: "Nurseries report: …" where
+   limit are one side, `confirmed`, showing NC State's, as before; without
+   NC State, the one the build reads first.)
+5. **Another value is kept beside it** (`alt`): the largest other side (two
+   as large: the one with an authority, then the cautious one, then by
+   name), or, where the value shown has no authority behind it and an
+   authority's was outvoted, the authority's, so the app never hides that a
+   reference says otherwise. It's labelled with who says it: "Nurseries report: …" where
    they're all nurseries, else by name ("NC State lists: …"). The app shows
    it in the plant's details and its filters can let it count ("Include
    where sources differ"); a plant shown only because of it is marked !.
@@ -396,7 +400,8 @@ against it.
    the value shown. Each half is decided on its own, so a range's two ends
    can come from different sides (bee balm: full sun from NC State and two
    nurseries, part shade from the nurseries alone); the app credits a range
-   to the sources behind both ends, as sure as the less sure end. Halves
+   to the sources behind both ends, as sure as the less sure end, or where
+   no source gives both, each end to its own, with how sure each is. Halves
    that, decided apart, make no range (one nursery says full sun only,
    another part shade only) are both `disputed`, for the review.
 7. **Forms** aren't a choice of one: where two authorities share no form,

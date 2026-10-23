@@ -90,8 +90,8 @@ function rangeLine(facts: string[], prov: Record<string, Provenance> | undefined
   if (both.length) return sourceLine({ ...a, src: both, check, inherited: a.inherited || b.inherited });
   const [ea, eb] = ENDS[facts[0]] ?? [facts[0], facts[1]];
   const names = (pv: Provenance) => (pv.src.length === 1 && PLANT_META?.sources?.[pv.src[0]]?.trust === 'unverified' ? 'older list, unverified' : pv.src.map(sourceName).join(', '));
-  const how = weaker ? SURE[weaker] ?? '' : '';
-  return [`${names(a)} for the ${ea}; ${names(b)} for the ${eb}`, how, a.inherited || b.inherited ? 'from its species' : ''].filter(Boolean).join(' · ');
+  const how = (pv: Provenance) => (pv.check && SURE[pv.check] ? ` (${SURE[pv.check]})` : '');
+  return [`${names(a)} for the ${ea}${how(a)}; ${names(b)} for the ${eb}${how(b)}`, a.inherited || b.inherited ? 'from its species' : ''].filter(Boolean).join(' · ');
 }
 /** Where a value came from, in a few words: "NC State, USDA · confirmed", "older list, unverified". */
 function sourceLine(prov: Provenance | undefined): string {
