@@ -1,7 +1,7 @@
 import { plantSpread } from './my-plants';
 import type { Plant } from './plants';
 import { isTree } from './trees';
-import type { Shape } from './types';
+import type { CircleShape, Shape } from './types';
 
 // Crowding (task C2): two plants are crowded when their centers are closer
 // than CROWD_FACTOR of the usual spacing, which is half of each plant's
@@ -18,7 +18,10 @@ import type { Shape } from './types';
 // A 25 ft redbud there reaches 5 ft into the oak's crown, three tenths of its
 // own (8⅓ to 25 ft), so they crowd only within three tenths of the usual
 // spacing. Two trees of a height, or two shrubs, share all of it: the usual
-// spacing.
+// spacing. An evergreen screen (Green Giant arborvitae: the catalog's
+// `low_branched`) keeps its branches to the ground, so nothing shares its
+// space; and a tree on the plan can be given its own height and lowest
+// branches (the tree you have: limbed up higher, or never limbed at all).
 
 export const CROWD_FACTOR = 0.75;
 /** The share of a tree's height its trunk can be cleared to, keeping live branches on the upper two thirds. */
@@ -41,9 +44,23 @@ export function bandOf(s: Shape, byId: Record<string, Plant | undefined>): Band 
   const p = s.plantId ? byId[s.plantId] : undefined;
   const vine = !tree && p?.form === 'Vine';
   const r = typicalRadius(s, byId);
-  const h = p?.height?.med ?? (tree && r ? r * 2 : undefined);
+  const { height: h, lowest } = tree && s.type === 'circle' ? treeBranches(s, p, r) : { height: p?.height?.med, lowest: 0 };
   if (!(h != null && h > 0)) return { tree, vine, band: null };
-  return { tree, vine, band: [tree ? h * CLEAR_TRUNK : 0, h] };
+  return { tree, vine, band: [Math.min(lowest, h), h] };
+}
+/**
+ * A tree's height and its lowest branches, in feet, and where each comes from: set by hand on the plan; else
+ * the plant's typical height, or about as tall as it's drawn wide; its lowest branches a third of its height
+ * up (the most they can be taken up), or the ground for an evergreen screen (the catalog's `low_branched`).
+ */
+export function treeBranches(s: CircleShape, p: Plant | undefined, r: number | null = s.radius): { height: number | undefined; lowest: number; heightFrom: 'hand' | 'plant' | 'spread' | null; lowestFrom: 'hand' | 'screen' | 'third' } {
+  const heightFrom = s.treeHeight != null ? 'hand' : p?.height?.med != null ? 'plant' : r ? 'spread' : null;
+  const height = s.treeHeight ?? p?.height?.med ?? (r ? r * 2 : undefined);
+  // (A lowest branch set at or above its height says nothing: a crown needs some height to it.)
+  const hand = s.lowestBranch != null && (height == null || s.lowestBranch < height) ? s.lowestBranch : undefined;
+  const lowestFrom = hand != null ? 'hand' : p?.low_branched ? 'screen' : 'third';
+  const lowest = hand ?? (p?.low_branched || height == null ? 0 : height * CLEAR_TRUNK);
+  return { height, lowest, heightFrom, lowestFrom };
 }
 /**
  * How much two plants' leaves share the same heights, 0 to 1: the overlap as a share of the shorter crown.

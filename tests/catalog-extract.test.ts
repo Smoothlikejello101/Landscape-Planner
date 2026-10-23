@@ -5,7 +5,7 @@ import { arkatlasStatus, feetRange, mnwildFields, monthRange, ncsuFields, usdaFi
 // @ts-expect-error (plain JavaScript build script)
 import { mnLight, ncsuSun } from '../scripts/catalog/map.mjs';
 // @ts-expect-error (plain JavaScript build script)
-import { agrees, arkatlasClaims, combine, halfZoneOfTemp, halfZones, hostNames, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims, waterNeed, zoneSpan } from '../scripts/catalog/claims.mjs';
+import { agrees, arkatlasClaims, combine, lowBranched, halfZoneOfTemp, halfZones, hostNames, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims, waterNeed, zoneSpan } from '../scripts/catalog/claims.mjs';
 
 const fixture = (f: string) => readFileSync(`tests/fixtures/catalog/${f}`, 'utf8');
 
@@ -339,6 +339,17 @@ describe('claims and how they combine', () => {
     // settled by the cautious value: Moderate, nearer the middle, over High).
     expect(combine([c('ncsu', 'authority', 'tox_people', ['minor']), c('a.com', 'nursery', 'tox_people', ['major'])]).tox_people.alt).toBeUndefined();
     expect(combine([c('a.com', 'nursery', 'water', 'High'), c('b.com', 'nursery', 'water', 'Moderate')]).water).toMatchObject({ v: 'Moderate', alt: { v: 'High', src: ['a.com'], check: 'reported' } });
+  });
+  it('reads an evergreen screen tree, branches to the ground, from NC State\'s tags', () => {
+    const tree = (leaf: string[], use: string[], habit: string[], type = ['Tree']) => ({ 'Plant Type': type, 'Woody Plant Leaf Characteristics': leaf, 'Design Feature': use, 'Habit/Form': habit });
+    expect(lowBranched(tree(['Needled Evergreen'], ['Hedge', 'Screen/Privacy'], ['Columnar', 'Dense', 'Pyramidal']))).toBe(true); // Green Giant
+    expect(lowBranched(tree(['Broadleaf Evergreen', 'Semi-evergreen'], ['Specimen'], ['Columnar', 'Open', 'Pyramidal']))).toBe(false); // sweetbay: its shape alone isn't a screen
+    expect(lowBranched(tree(['Deciduous'], ['Hedge', 'Screen/Privacy'], ['Erect']))).toBe(false); // witch hazel: limbs can go up
+    expect(lowBranched(tree(['Needled Evergreen'], ['Shade Tree'], ['Open', 'Rounded']))).toBe(false); // (an open evergreen)
+    expect(lowBranched(tree(['Broadleaf Evergreen'], ['Hedge'], ['Dense'], ['Shrub']))).toBe(false); // (not a tree)
+    expect(lowBranched({})).toBe(false);
+    const f = combine(ncsuClaims({ ...tree(['Needled Evergreen'], ['Screen/Privacy'], ['Dense']) }));
+    expect(f.low_branched).toMatchObject({ v: true, src: ['ncsu'], check: 'single' });
   });
   it('confirms a caterpillar host only where two sources name the same one', () => {
     const h = (src: string, v: string[]) => ({ fact: 'host', v, src, kind: 'authority' });

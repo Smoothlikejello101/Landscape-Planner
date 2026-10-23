@@ -158,5 +158,5 @@ export function crowdingNote(s: Shape): HTMLElement | null {
   return el('div', { className: 'check-banner warn', 'data-testid': 'crowding' },
     el('div', {}, '⚠ Planted closer than usual to ' + (crowds.length === 1 ? 'one neighbor' : `${crowds.length} neighbors`) + ':'),
     ...lines.map((l) => el('div', { style: { marginLeft: '12px' } }, '• ' + l)),
-    el('div', { className: 'hint', style: { marginTop: '4px' } }, 'Usual spacing is half of each plant\'s typical spread added together, less where one grows under a tree whose lower limbs can be taken up to a third of its height. Closer can be fine for a quick, full look.'));
+    el('div', { className: 'hint', style: { marginTop: '4px' } }, 'Usual spacing is half of each plant\'s typical spread added together, less where one grows under a tree whose lower limbs can be taken up (a third of its height, unless the tree says otherwise). Closer can be fine for a quick, full look.'));
 }

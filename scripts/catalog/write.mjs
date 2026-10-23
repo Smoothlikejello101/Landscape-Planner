@@ -32,6 +32,7 @@ const FACTS = {
   wet_feet: ['wet_feet', yes],
   edible: ['edible', yes],
   fall_color: ['fall_color', yes],
+  low_branched: ['low_branched', yes],
 };
 const BUILT_IN = {
   ncsu: { title: 'NC State Extension Gardener Plant Toolbox', url: 'https://plants.ces.ncsu.edu', trust: 'reference' },

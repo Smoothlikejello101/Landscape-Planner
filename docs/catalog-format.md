@@ -126,6 +126,7 @@ hasn't been looked up.
 | `nectar`, `bird`, `deer`, `maintenance`, `self_seed`, `host` | wildlife and care, as before. The compendium's `self_seed` "Sterile" was struck from every record (2026-10-22): none rather than wrong. A species usually sets seed, a cultivar sold as sterile often isn't, and a few plants are sterile all the same (the red spider lily, Lycoris radiata, spreads by bulbs), so "Sterile" stands only with a source. It's left missing, not looked up, never `null` (tests/catalog-wild.test.ts). The app shows `self_seed` with what `habit` says of spreading underground or by runners, under one "How it spreads" row, each part with its own source ("Self-sows freely" · "Spreads underground or by runners: Spreading rhizome"), and its picker filters on both; the two stay separate facts, from separate sources. Which habits speak to spreading, and how, is a fixed table (src/spread.ts); `catalog:check` lists a habit it doesn't know |
 | `edible`, `fall_color`, `winter_interest`, `clay_ok`, `wet_feet`, `dry_shade`, `taproot` | yes or no |
 | `invasive` | widely invasive in the US: never suggested |
+| `low_branched` | a tree that keeps its branches to the ground (an evergreen screen): yes, or missing. The app takes nothing to grow under it, where another tree's lower limbs can be taken up to a third of its height (src/crowding.ts) |
 
 ## Checks
 

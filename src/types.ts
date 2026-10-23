@@ -81,6 +81,15 @@ export interface CircleShape extends ShapeBase {
    * outline always fits inside the circle used for sizes and spacing.
    */
   canopy?: [number, number][];
+  /**
+   * Trees: its height in feet, set by hand (unset = the plant's typical height, or about as tall as it's wide:
+   * the plant's spread, or as drawn, with no plant), and how high its lowest branches are, below its height
+   * (0 = to the ground; unset = the most its
+   * lower limbs can be taken up, a third of its height, or the ground for an evergreen screen). What can
+   * grow under it is worked out from them (src/crowding.ts).
+   */
+  treeHeight?: number;
+  lowestBranch?: number;
   /** Ignored for circles; tolerated so old data and patches stay valid. */
   rotation?: number;
 }

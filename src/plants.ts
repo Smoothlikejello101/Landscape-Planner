@@ -53,6 +53,8 @@ export interface Plant {
   wet_feet?: boolean;
   dry_shade?: boolean;
   taproot?: boolean;
+  /** A tree that keeps its branches to the ground (an evergreen screen): nothing grows under it. */
+  low_branched?: boolean;
   /** Widely invasive in the US: kept so existing ones can be mapped (and removed), never suggested. */
   invasive?: boolean;
   /** A shorter name for small circles on the plan ("'Haas' Halo' hydrangea"). */

@@ -1,4 +1,4 @@
-import { MAX_POINTS, MAX_TRUNK, MAX_ZOOM, MIN_POINTS, MIN_TRUNK, MIN_ZOOM, STORAGE } from './constants';
+import { MAX_POINTS, MAX_TREE_HEIGHT, MAX_TRUNK, MAX_ZOOM, MIN_POINTS, MIN_TRUNK, MIN_ZOOM, STORAGE } from './constants';
 import { del, openKV, put, type KV, type WriteOp } from './db';
 import { cancelHistoryDebounce } from './history';
 import { DEFAULT_PRINT, state } from './state';
@@ -121,6 +121,9 @@ export function migrateShape(raw: unknown): Shape | null {
         ...(s.sizeFrom === 'plant' || s.sizeFrom === 'manual' ? { sizeFrom: s.sizeFrom } : {}),
         ...(s.tree === true ? { tree: true } : {}),
         ...(typeof s.trunk === 'number' && s.trunk >= MIN_TRUNK && s.trunk <= MAX_TRUNK ? { trunk: s.trunk } : {}),
+        // (Trees: a height and lowest branches set by hand; older versions stored neither.)
+        ...(typeof s.treeHeight === 'number' && s.treeHeight >= 1 && s.treeHeight <= MAX_TREE_HEIGHT ? { treeHeight: s.treeHeight } : {}),
+        ...(typeof s.lowestBranch === 'number' && s.lowestBranch >= 0 && s.lowestBranch <= MAX_TREE_HEIGHT ? { lowestBranch: s.lowestBranch } : {}),
         ...(shaped ? { canopy } : {}),
       };
     }

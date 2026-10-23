@@ -197,6 +197,8 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
   edible: (v) => typeof v === 'boolean', fall_color: (v) => typeof v === 'boolean', winter_interest: (v) => typeof v === 'boolean',
   clay_ok: (v) => typeof v === 'boolean', wet_feet: (v) => typeof v === 'boolean', dry_shade: (v) => typeof v === 'boolean',
   taproot: (v) => typeof v === 'boolean', invasive: (v) => typeof v === 'boolean',
+  // A tree that keeps its branches to the ground (NC State's tags: docs/catalog-sources.md).
+  low_branched: (v) => typeof v === 'boolean',
 };
 export const FACT_NAMES = Object.keys(FACT_TYPES);
 const RECORD_KEYS = new Set(['id', 'common', 'botanical', 'short', 'synonyms', 'usda', 'parent', 'src', 'audited', 'facts']);
