@@ -242,17 +242,14 @@ export function resizedPoints(points: [number, number][], w: number, h: number):
 }
 /**
  * The angle to write a box shape's name at (a bed, rectangle, oval or triangle; degrees, clockwise): along
- * whichever of its sides is nearer level, so that it reads as upright as it can, unless the name is too long
- * for that side and the other side is longer. Never upside down. A bed drawn tall and turned on its side reads
- * across, as it lies; a narrow upright strip keeps a short name across it and turns a long one along it.
- * `w` and `h` are its unrotated width and height, and `textW` the name's width, all in the same units.
+ * whichever of its sides is nearer level, so it reads as upright as it can and never upside down. The shape's
+ * turn, less any quarter turns: a bed drawn tall and turned on its side reads across, as it lies; one turned
+ * 30° reads at 30°, one turned 60° at −30°, along its other side. An unturned shape's name stays level, as
+ * before, at any zoom and in every export alike.
  */
-export function boxLabelAngle(rotation: number, w: number, h: number, textW: number): number {
-  const upright = (a: number) => { const x = ((a % 360) + 360) % 360; return x > 270 ? x - 360 : x > 90 ? x - 180 : x; };
-  const sides = [{ a: upright(rotation), len: w }, { a: upright(rotation + 90), len: h }];
-  const [level, other] = Math.abs(sides[1].a) < Math.abs(sides[0].a) ? [sides[1], sides[0]] : sides;
-  const a = textW <= level.len * 0.9 || other.len <= level.len ? level.a : other.a;
-  return Math.round(a * 10) / 10 + 0;
+export function boxLabelAngle(rotation: number): number {
+  const a = ((rotation % 90) + 90) % 90; // (in [0, 90), however far and whichever way it is turned)
+  return Math.round((a > 45 ? a - 90 : a) * 10) / 10 + 0;
 }
 /**
  * Where a label runs along a line (property lines, fences): the middle of the

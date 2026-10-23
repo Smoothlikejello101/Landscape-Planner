@@ -213,7 +213,7 @@ export function shapeGroup(s: Shape): SVGGElement {
     fs = Math.max(10, Math.min(14, Math.min(w, h) * 0.2));
     // Its name reads as upright as it can, not turned with the shape (a bed drawn tall and turned on its side).
     // (The shape has its transform already: from here on, rotTransform turns its labels.)
-    const angle = boxLabelAngle(s.rotation || 0, w, h, textWidth1(displayLabel(s)) * fs);
+    const angle = boxLabelAngle(s.rotation || 0);
     rotTransform = angle ? `rotate(${angle} ${cx} ${cy})` : '';
   }
   const target = hitEl ?? shapeEl;

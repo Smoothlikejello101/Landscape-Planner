@@ -47,18 +47,21 @@ describe('labels along a line', () => {
 });
 
 describe('a box shape\'s name', () => {
-  it('reads as upright as it can, along the side nearer level, not turned with the shape', () => {
-    // A bed drawn tall (8 by 50) and turned on its side: across, as it lies (it read top to bottom).
-    expect(boxLabelAngle(90, 8, 50, 30)).toBe(0);
-    expect(boxLabelAngle(270, 8, 50, 30)).toBe(0);
-    // A narrow upright strip: a short name across it; a long one along it, reading down (as a fence's name does).
-    expect(boxLabelAngle(0, 8, 50, 6)).toBe(0);
-    expect(boxLabelAngle(0, 8, 50, 30)).toBe(90);
-    // Never upside down; a slant keeps the side nearer level.
-    expect(boxLabelAngle(180, 50, 8, 30)).toBe(0);
-    expect(boxLabelAngle(30, 50, 8, 30)).toBe(30);
-    expect(boxLabelAngle(60, 8, 50, 30)).toBe(-30);
-    // Too long for either side: along the longer.
-    expect(boxLabelAngle(90, 50, 8, 80)).toBe(90);
+  it('reads along the side nearer level: the shape\'s turn less any quarter turns, never upside down', () => {
+    // A bed drawn tall and turned on its side: across, as it lies (it read top to bottom).
+    expect(boxLabelAngle(90)).toBe(0);
+    expect(boxLabelAngle(270)).toBe(0);
+    expect(boxLabelAngle(-90)).toBe(0);
+    // Unturned, or turned half round: level, as before.
+    expect(boxLabelAngle(0)).toBe(0);
+    expect(boxLabelAngle(180)).toBe(0);
+    // A slant keeps the side nearer level.
+    expect(boxLabelAngle(30)).toBe(30);
+    expect(boxLabelAngle(60)).toBe(-30);
+    expect(boxLabelAngle(-15)).toBe(-15);
+    expect(boxLabelAngle(450)).toBe(0);
+    // No flip from a stray fraction near a quarter turn.
+    expect(boxLabelAngle(90.04)).toBe(0);
+    expect(boxLabelAngle(89.96)).toBe(0);
   });
 });

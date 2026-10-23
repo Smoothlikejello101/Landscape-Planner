@@ -10,7 +10,7 @@ import { paintOrder } from './canvas';
 import { roleDef } from './roles';
 import { shadeOpacity } from './sun';
 import { plantsById } from './plants';
-import { LABEL_LINE_HEIGHT, plantLabelFit, textWidth1 } from './labels';
+import { LABEL_LINE_HEIGHT, plantLabelFit } from './labels';
 import { canopyInnerRadius, canopyPoints, isTree, partsToSvg, trunkParts, trunkReachPx } from './trees';
 
 // ============================================================
@@ -129,9 +129,8 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
   }
   if (s.label) {
     // Its name reads as upright as it can, as on the plan (geometry.ts, boxLabelAngle).
-    const fs = Math.max(10, Math.min(14, (Math.min(w, h) / k) * 0.2));
-    const angle = boxLabelAngle(s.rotation || 0, w, h, textWidth1(s.label) * fs * k);
-    out += text(cx, cy, fs, s.label, angle ? ` transform="rotate(${angle} ${cx} ${cy})"` : '');
+    const angle = boxLabelAngle(s.rotation || 0);
+    out += text(cx, cy, Math.max(10, Math.min(14, (Math.min(w, h) / k) * 0.2)), s.label, angle ? ` transform="rotate(${angle} ${cx} ${cy})"` : '');
   }
   return out;
 }
