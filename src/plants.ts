@@ -103,7 +103,9 @@ export const PLANT_FILTER_DEFAULTS = {
   q: '', form: '', water: '', bloomMonth: '', sun: '',
   native: '', deer: '', nectar: '', bird: '', maintenance: '',
   /** How it spreads (src/spread.ts): '' any; 'stays' stays put; 'seed' self-sows freely; 'runs' spreads underground or by runners; 'aggressive' aggressively so. */
-  spread: '', maxHeight: '',
+  spread: '',
+  /** Mature height (typical), "lo-hi" in feet, either end empty when open: src/ui/height-range.ts. */
+  height: '',
   dogSafeOnly: false, dryShade: false, wetFeet: false, clayOk: false,
   hostOnly: false, fallColor: false, winterInterest: false,
   edible: false, noTaproot: false, inPlan: false,
@@ -179,9 +181,10 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
     if (f.bird === 'High' && p.bird !== 'High') return false;
     if (f.bird === 'Med' && !(p.bird === 'High' || p.bird === 'Med')) return false;
   }
-  if (f.maxHeight) {
-    const h = p.height && p.height.med;
-    if (h == null || h > Number(f.maxHeight)) return false;
+  if (f.height) {
+    // (By its typical mature height: a plant of 2 to 4 ft is a 3 ft plant.)
+    const h = p.height && p.height.med, [lo, hi] = f.height.split('-');
+    if (h == null || (lo && h < Number(lo)) || (hi && h > Number(hi))) return false;
   }
   if (f.dryShade && !p.dry_shade) return false;
   if (f.wetFeet && !p.wet_feet) return false;
@@ -244,7 +247,7 @@ export function plantIdsInPlan(): Set<string> {
  */
 const FILTER_FACTS: [keyof PlantFilter, string[], string][] = [
   ['sun', ['sun_most', 'sun_least'], 'sun'], ['hardyHere', ['zone_min', 'zone_max'], 'hardiness zones'], ['water', ['water'], 'water'],
-  ['deer', ['deer'], 'deer resistance'], ['maxHeight', ['height'], 'height'], ['bloomMonth', ['bloom'], 'bloom time'], ['form', ['form'], 'form'],
+  ['deer', ['deer'], 'deer resistance'], ['height', ['height'], 'height'], ['bloomMonth', ['bloom'], 'bloom time'], ['form', ['form'], 'form'],
 ];
 /** The plant as a nursery describes these facts (each pair as a whole: a nursery's sun range, not half of one). */
 function asReported(p: Plant, facts: string[]): Plant {
