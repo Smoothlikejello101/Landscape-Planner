@@ -33,6 +33,16 @@ export function statusesFor(shapes: Pick<Shape, 'role'>[]): { key: Status; label
 export function statusLabelFor(s: Pick<Shape, 'role' | 'status'>): string {
   return statusesFor([s]).find((x) => x.key === s.status)?.label ?? statusLabel(s.status);
 }
+/**
+ * Statuses that record a decision about something already there (to move it, to remove it, that it's gone). Setting
+ * a status on several shapes at once asks before it overwrites one of these: marking a whole yard planted would
+ * otherwise quietly unmark the one shrub you'd marked to take out.
+ */
+export const FLAGS: ReadonlySet<Status> = new Set<Status>(['move', 'remove', 'gone']);
+/** The shapes whose flag (To move, To remove, Gone) setting `status` would overwrite. */
+export function flaggedFor<S extends Pick<Shape, 'status'>>(shapes: S[], status: Status | undefined): S[] {
+  return shapes.filter((s) => !!s.status && FLAGS.has(s.status) && s.status !== status);
+}
 /** Things a status means something for (not sun records, notes or measurements). */
 export function hasStatus(s: Pick<Shape, 'role' | 'type'>): boolean {
   return s.type !== 'text' && s.role !== 'shade' && s.role !== 'other';

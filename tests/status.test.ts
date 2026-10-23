@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { addPhase, deletePhase, setPhaseForIds, setStatusForIds, setViewFilter } from '../src/mutations';
 import { plantSchedule, printContent } from '../src/print';
 import { state } from '../src/state';
-import { filterText, passesFilter, statusPatch, today } from '../src/status';
+import { filterText, flaggedFor, passesFilter, statusPatch, today } from '../src/status';
+import { nameList } from '../src/ui/status-section';
 import { sanitizePhases, sanitizeProjectData } from '../src/storage';
 import type { Shape } from '../src/types';
 
@@ -96,5 +97,22 @@ describe('stored status data', () => {
     expect(d.shapes[1]).not.toHaveProperty('phase');
     expect(d.phases).toEqual(['Fall 2026', 'x'.repeat(40), 'Spring 2027']); // a phase a shape uses is kept
     expect(sanitizePhases(undefined, [])).toEqual([]);
+  });
+});
+
+describe('a status set on several shapes at once', () => {
+  it('finds the shapes it would unmark: to move, to remove or gone, and set to something else', () => {
+    const shapes = [plant('a'), plant('b', { status: 'planned' }), plant('c', { status: 'remove' }), plant('d', { status: 'move' }), plant('e', { status: 'gone' })];
+    const ids = (status: Parameters<typeof flaggedFor>[1]) => flaggedFor(shapes, status).map((s) => s.id);
+    expect(ids('planted')).toEqual(['c', 'd', 'e']); // (planned to planted is the usual step: not asked)
+    expect(ids(undefined)).toEqual(['c', 'd', 'e']); // (clearing them unmarks them too)
+    expect(ids('remove')).toEqual(['d', 'e']); // (already to remove: nothing to unmark)
+    expect(ids('gone')).toEqual(['c', 'd']);
+  });
+  it('names them briefly, counting repeats', () => {
+    expect(nameList([plant('Rose Camelia')])).toBe('Rose Camelia');
+    expect(nameList([plant('Rose Camelia'), plant('Coneflower'), plant('Coneflower')])).toBe('Rose Camelia and Coneflower ×2');
+    expect(nameList(['a', 'b', 'c', 'd', 'e', 'f'].map((n) => plant(n)))).toBe('a, b, c, d and 2 more');
+    expect(nameList([bed(''), bed('')])).toBe('unnamed rectangle ×2');
   });
 });
