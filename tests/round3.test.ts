@@ -46,6 +46,20 @@ describe('labels along a line', () => {
   });
 });
 
+describe('the grid', () => {
+  it('keeps labeled lines at least 40 px apart, every 10 ft until zoomed far out', async () => {
+    const { gridSteps } = await import('../src/canvas');
+    expect(gridSteps(24)).toEqual({ majorEvery: 10, minorEvery: 1 }); // 100%
+    expect(gridSteps(6)).toEqual({ majorEvery: 10, minorEvery: 5 }); // 25%, as before
+    expect(gridSteps(1.2)).toEqual({ majorEvery: 50, minorEvery: 10 }); // 5%
+    expect(gridSteps(0.3)).toEqual({ majorEvery: 500, minorEvery: 100 });
+  });
+  it('a thin line takes taps in 18 px close in, no more than 3 ft far out, never under 6 px', async () => {
+    const { hitBand } = await import('../src/canvas');
+    expect([hitBand(24), hitBand(6), hitBand(3), hitBand(1.2)]).toEqual([18, 18, 9, 6]);
+  });
+});
+
 describe('a box shape\'s name', () => {
   it('reads along the side nearer level: the shape\'s turn less any quarter turns, never upside down', () => {
     // A bed drawn tall and turned on its side: across, as it lies (it read top to bottom).
