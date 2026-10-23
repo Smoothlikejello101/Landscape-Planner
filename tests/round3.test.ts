@@ -45,3 +45,13 @@ describe('labels along a line', () => {
     expect(alongLabel(line([[0, 0], [30, 0], [30, 5], [0, 5]], 'poly')).angle).toBe(0);
   });
 });
+
+describe('the grid', () => {
+  it('keeps labeled lines at least 40 px apart, every 10 ft until zoomed far out', async () => {
+    const { gridSteps } = await import('../src/canvas');
+    expect(gridSteps(24)).toEqual({ majorEvery: 10, minorEvery: 1 }); // 100%
+    expect(gridSteps(6)).toEqual({ majorEvery: 10, minorEvery: 5 }); // 25%, as before
+    expect(gridSteps(1.2)).toEqual({ majorEvery: 50, minorEvery: 10 }); // 5%
+    expect(gridSteps(0.3)).toEqual({ majorEvery: 500, minorEvery: 100 });
+  });
+});

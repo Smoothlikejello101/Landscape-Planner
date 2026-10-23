@@ -112,6 +112,15 @@ test.describe('navigation', () => {
     expect(await zoomPct(page)).toBe(100);
   });
 
+  test('zooms out to 5%, far enough for a whole house and yard, the grid thinning to stay legible', async ({ page }) => {
+    await openFresh(page);
+    for (let i = 0; i < 16; i++) await page.locator('.zoombtn').nth(1).click();
+    expect(await zoomPct(page)).toBe(5);
+    // (Labeled lines every 50 ft out here, not every 10.)
+    await expect(page.locator('#canvas-svg text', { hasText: "50'" }).first()).toBeVisible();
+    expect(await page.locator('#canvas-svg text', { hasText: /^-?\d*[1-46-9]0'$/ }).count()).toBe(0);
+  });
+
   test('two-pointer pinch zooms', async ({ page }) => {
     await openFresh(page);
     const box = await canvasBox(page);

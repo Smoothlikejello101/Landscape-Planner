@@ -63,33 +63,35 @@ export function renderGrid(g: SVGElement) {
   const endFx = Math.ceil(state.offsetX + w / ppf);
   const startFy = Math.floor(state.offsetY);
   const endFy = Math.ceil(state.offsetY + h / ppf);
-  const minorEvery = ppf < 10 ? 5 : 1;
-  const majorEvery = 10;
+  const { minorEvery, majorEvery } = gridSteps(ppf);
   // Lines ignore pointers so a touch landing exactly on one still pans.
-  for (let fx = startFx; fx <= endFx; fx++) {
-    if (fx % minorEvery !== 0 && fx % majorEvery !== 0) continue;
+  for (let fx = Math.ceil(startFx / minorEvery) * minorEvery; fx <= endFx; fx += minorEvery) {
     const px = (fx - state.offsetX) * ppf;
     const isMajor = fx % majorEvery === 0;
     g.appendChild(svgEl('line', { x1: px, y1: 0, x2: px, y2: h, stroke: isMajor ? GRID_MAJOR : GRID_MINOR, 'stroke-width': isMajor ? 1 : 0.5, 'pointer-events': 'none' }));
   }
-  for (let fy = startFy; fy <= endFy; fy++) {
-    if (fy % minorEvery !== 0 && fy % majorEvery !== 0) continue;
+  for (let fy = Math.ceil(startFy / minorEvery) * minorEvery; fy <= endFy; fy += minorEvery) {
     const py = (fy - state.offsetY) * ppf;
     const isMajor = fy % majorEvery === 0;
     g.appendChild(svgEl('line', { x1: 0, y1: py, x2: w, y2: py, stroke: isMajor ? GRID_MAJOR : GRID_MINOR, 'stroke-width': isMajor ? 1 : 0.5, 'pointer-events': 'none' }));
   }
-  if (ppf >= 6) {
-    for (let fx = startFx; fx <= endFx; fx++) {
-      if (fx % majorEvery !== 0) continue;
-      const px = (fx - state.offsetX) * ppf;
-      g.appendChild(svgEl('text', { x: px + 2, y: 10, 'font-size': 10, fill: AXIS_LABEL, 'pointer-events': 'none' }, fx + "'"));
-    }
-    for (let fy = startFy; fy <= endFy; fy++) {
-      if (fy % majorEvery !== 0) continue;
-      const py = (fy - state.offsetY) * ppf;
-      g.appendChild(svgEl('text', { x: 2, y: py + 10, 'font-size': 10, fill: AXIS_LABEL, 'pointer-events': 'none' }, fy + "'"));
-    }
+  for (let fx = Math.ceil(startFx / majorEvery) * majorEvery; fx <= endFx; fx += majorEvery) {
+    const px = (fx - state.offsetX) * ppf;
+    g.appendChild(svgEl('text', { x: px + 2, y: 10, 'font-size': 10, fill: AXIS_LABEL, 'pointer-events': 'none' }, fx + "'"));
   }
+  for (let fy = Math.ceil(startFy / majorEvery) * majorEvery; fy <= endFy; fy += majorEvery) {
+    const py = (fy - state.offsetY) * ppf;
+    g.appendChild(svgEl('text', { x: 2, y: py + 10, 'font-size': 10, fill: AXIS_LABEL, 'pointer-events': 'none' }, fy + "'"));
+  }
+}
+/**
+ * The grid's spacing (feet) at this many pixels a foot: labeled lines at least 40 px apart (every 10 ft, as
+ * always, until zoomed far out: then 50, 100, 500 ft), and fainter ones between, every foot close in.
+ */
+export function gridSteps(ppf: number): { minorEvery: number; majorEvery: number } {
+  const majors: [number, number][] = [[10, ppf < 10 ? 5 : 1], [50, 10], [100, 20], [500, 100], [1000, 200]];
+  const [majorEvery, minorEvery] = majors.find(([m]) => m * ppf >= 40) ?? majors[majors.length - 1];
+  return { minorEvery, majorEvery };
 }
 
 /** A shape and its label, wrapped in a group so it can be redrawn alone. */
