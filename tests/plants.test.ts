@@ -24,7 +24,7 @@ describe('plant filters', () => {
     // …and a filter that isn't in use (zones, with no location) is never named.
     expect(reportedMatch(w, fs({ hardyHere: true, water: 'Moderate' }))).toEqual(['water']);
     // A reported single form against a list of forms.
-    const redbud = { id: 'r', common: 'Redbud', form: 'Tree (understory)', forms: ['Tree (understory)', 'Shrub'], reported: { form: 'Perennial' } } as Plant;
+    const redbud = { id: 'r', common: 'Redbud', form: 'Tree', forms: ['Tree', 'Shrub'], reported: { form: 'Perennial' } } as Plant;
     expect(reportedMatch(redbud, fs({ form: 'Perennial' }))).toEqual(['form']);
     // Facts nurseries aren't taken for never count, even if a record carried them.
     const dog = { id: 'd', common: 'D', tox: { dog: 'toxic' }, reported: { tox: { dog: 'nontoxic' } } } as unknown as Plant;
@@ -33,10 +33,10 @@ describe('plant filters', () => {
     expect(reportedMatch(inv, fs({}))).toBeNull();
   });
   it('match a plant under each of its forms', () => {
-    const redbud = { id: 'r', common: 'Redbud', form: 'Tree (understory)', forms: ['Tree (understory)', 'Shrub'] } as Plant;
+    const redbud = { id: 'r', common: 'Redbud', form: 'Tree', forms: ['Tree', 'Shrub'] } as Plant;
     const fo = (form: string) => ({ ...PLANT_FILTER_DEFAULTS, form });
     expect(plantMatches(redbud, fo('Shrub'))).toBe(true);
-    expect(plantMatches(redbud, fo('Tree (understory)'))).toBe(true);
+    expect(plantMatches(redbud, fo('Tree'))).toBe(true);
     expect(plantMatches(redbud, fo('Vine'))).toBe(false);
     expect(plantMatches({ id: 'h', common: 'Heuchera', form: 'Perennial' } as Plant, fo('Perennial'))).toBe(true);
   });

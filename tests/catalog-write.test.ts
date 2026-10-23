@@ -4,15 +4,15 @@ import { writeAudit } from '../scripts/catalog/write.mjs';
 import { catalogErrors, catalogWarnings, type CatalogFile } from '../src/catalog';
 
 const catalog: CatalogFile = {
-  meta: { format: 'lp-catalog', version: 2, zones: 'half', sources: { compendium: { title: 'old', trust: 'unverified' } }, enums: { form: ['Shrub', 'Tree (understory)', 'Perennial'], water: ['Low', 'Moderate', 'High'], deer: ['Resistant'] } },
+  meta: { format: 'lp-catalog', version: 2, zones: 'half', sources: { compendium: { title: 'old', trust: 'unverified' } }, enums: { form: ['Shrub', 'Tree', 'Perennial'], water: ['Low', 'Moderate', 'High'], deer: ['Resistant'] } },
   plants: [
-    { id: 'redbud', common: 'Redbud', src: ['compendium'], audited: null, facts: { form: 'Tree (understory)', zone_max: 9.5, sun_most: 'Full', water: 'Low', height: { min: 20, max: 30, med: 25 } } },
+    { id: 'redbud', common: 'Redbud', src: ['compendium'], audited: null, facts: { form: 'Tree', zone_max: 9.5, sun_most: 'Full', water: 'Low', height: { min: 20, max: 30, med: 25 } } },
     { id: 'nothing', common: 'Nothing found', src: ['compendium'], audited: null, facts: { form: 'Perennial' } },
   ],
 };
 const audit = [
   { id: 'redbud', claims: [{ src: 'ncsu', kind: 'authority' }, { src: 'usda', kind: 'authority' }, { src: 'shop.com', kind: 'nursery' }, { src: 'x.edu', kind: 'authority' }], facts: {
-    form: { v: ['Tree (understory)', 'Shrub'], src: ['ncsu', 'usda'], check: 'confirmed' },
+    form: { v: ['Tree', 'Shrub'], src: ['ncsu', 'usda'], check: 'confirmed' },
     zone_max: { v: 9, src: ['ncsu'], check: 'disputed', note: 'x.edu: 11' },
     sun_most: { v: 'Part', src: ['ncsu'], check: 'single', alt: { v: 'Full', src: ['shop.com'], check: 'reported' } },
     sun_least: { v: 'Shade', src: ['ncsu'], check: 'single', alt: { v: 'Shade', src: ['shop.com'], check: 'reported' } }, // (the same: not kept)
@@ -30,7 +30,7 @@ describe('writing the audit into the catalog', () => {
   const redbud = file.plants[0];
   it('writes settled facts with their sources and how sure they are, nurseries\' differing values beside them', () => {
     expect(redbud.audited).toBe('2026-10-19');
-    expect(redbud.facts.form).toEqual({ v: ['Tree (understory)', 'Shrub'], src: ['ncsu', 'usda'], check: 'confirmed' });
+    expect(redbud.facts.form).toEqual({ v: ['Tree', 'Shrub'], src: ['ncsu', 'usda'], check: 'confirmed' });
     expect(redbud.facts.sun_most).toEqual({ v: 'Part', src: ['ncsu'], check: 'single', alt: { v: 'Full', src: ['shop.com'], check: 'reported' } });
     expect(redbud.facts.sun_least).toEqual({ v: 'Shade', src: ['ncsu'], check: 'single' });
     expect(redbud.facts.height).toEqual({ v: { min: 20, max: 30, med: 25 }, src: ['ncsu'], check: 'single' });

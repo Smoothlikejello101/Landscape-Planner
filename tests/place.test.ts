@@ -8,7 +8,7 @@ import { pushHistory, redo, undo } from '../src/history';
 import type { CircleShape } from '../src/types';
 
 const cone: Plant = { id: 'u-cone', common: 'Coneflower', width: { min: 1.5, max: 2, med: 1.75 }, form: 'Perennial' };
-const oak: Plant = { id: 'u-oak', common: 'White Oak', width: { min: 50, max: 80, med: 65 }, form: 'Tree (canopy)' };
+const oak: Plant = { id: 'u-oak', common: 'White Oak', width: { min: 50, max: 80, med: 65 }, form: 'Tree' };
 const PPF = 24; // px per foot at zoom 1
 
 beforeEach(() => {

@@ -1,5 +1,6 @@
 import { flushHistoryDebounce, pushHistory } from './history';
 import { FORM_COLORS, plantsById, type Plant } from './plants';
+import { currentForm } from './catalog';
 import { state } from './state';
 import { getPlantSync, rememberSizeMode, save, storedMyPlants, writeMyPlants, type SyncRecord } from './storage';
 import { fingerprint } from './sync/engine';
@@ -125,7 +126,8 @@ export function sanitizeMyPlant(raw: unknown): Plant | null {
   const bloom = o.bloom && typeof o.bloom === 'object' ? o.bloom as Record<string, unknown> : null;
   const month = (v: unknown) => { const n = num(v); return n != null && n >= 1 && n <= 12 ? Math.round(n) : undefined; };
   const bs = bloom ? month(bloom.start) : undefined, be = bloom ? month(bloom.end) : undefined;
-  const form = typeof o.form === 'string' && o.form in FORM_COLORS ? o.form : undefined;
+  // (An older form name reads as today's: an understory or canopy tree is a tree.)
+  const form = typeof o.form === 'string' && currentForm(o.form) in FORM_COLORS ? currentForm(o.form) : undefined;
   const p: Plant = { id, common, width };
   const height = range(o.height);
   const botanical = str(o.botanical, 120), notes = str(o.notes, 2000), bloomColor = bloom ? str(bloom.color, 40) : undefined;

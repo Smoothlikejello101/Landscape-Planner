@@ -25,7 +25,7 @@ export interface Plant {
   botanical?: string;
   /** Its growth form (the first of `forms`, for its color and symbol). */
   form?: string;
-  /** Every form it takes, primary first (redbud: understory tree and shrub). */
+  /** Every form it takes, primary first (redbud: tree and shrub). */
   forms?: string[];
   habit?: string;
   /** USDA hardiness zones it's rated for. */
@@ -293,7 +293,7 @@ export function filteredPlants(): Plant[] {
 }
 // Canvas color by growth form, drawn from the existing swatch palette
 export const FORM_COLORS: Record<string, string> = {
-  'Tree (canopy)': '#78350f', 'Tree (understory)': '#57534e', 'Shrub': '#16a34a',
+  'Tree': '#78350f', 'Shrub': '#16a34a',
   'Perennial': '#a855f7', 'Grass/Sedge': '#f59e0b', 'Vine': '#14b8a6',
   'Bulb': '#ec4899', 'Fern': '#65a30d', 'Annual': '#fbbf24',
   // Water plants: deep green, not blue, since they sit in or beside a pond.
