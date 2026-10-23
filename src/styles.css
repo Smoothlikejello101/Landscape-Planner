@@ -392,6 +392,7 @@ a { color: inherit; }
 .details-list dt { color: #78716c; }
 .details-list dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 .details-src, .details-alt { display: block; font-size: 11px; color: #a8a29e; }
+.details-part { display: block; }
 .details-alt { color: #a16207; }
 /* Introduced in the garden's state: said plainly, in the warning color. */
 .details-introduced { color: #9a3412; }

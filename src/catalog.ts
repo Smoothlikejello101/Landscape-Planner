@@ -1,3 +1,4 @@
+import { HABIT_SPREAD } from './spread';
 import type { Plant } from './plants';
 
 // The plant catalog file (public/plants.json), version 2: plant facts, each
@@ -246,6 +247,10 @@ export function catalogWarnings(file: CatalogFile): string[] {
     for (const [k, rr] of [['height', h], ['width', w]] as const) {
       if (rr?.min != null && rr.max != null && rr.min > rr.max) out.push(`${r.id}: ${k} range backwards (${rr.min} > ${rr.max})`);
     }
+    // (A habit the spreading table doesn't know: said nothing of, rather than guessed at. Add it to src/spread.ts.)
+    const habit = v('habit') as string | undefined;
+    // (Worded without "spread": the audit's writer holds back a new width on a warning that mentions it.)
+    if (typeof habit === 'string' && !(habit in HABIT_SPREAD)) out.push(`${r.id}: habit "${habit}" isn't in the habit table`);
     if (form && h?.max != null && MAX_HEIGHT[form] != null && h.max > MAX_HEIGHT[form]) out.push(`${r.id}: ${h.max} ft is tall for ${/^[aeiou]/i.test(form) ? 'an' : 'a'} ${form.toLowerCase()}`);
     if (h?.max != null && h.max < 0.25) out.push(`${r.id}: under 3 in tall (${Math.round(h.max * 12)} in): inches read as feet, or the other way?`);
     const zmin = v('zone_min') as number | undefined, zmax = v('zone_max') as number | undefined;
