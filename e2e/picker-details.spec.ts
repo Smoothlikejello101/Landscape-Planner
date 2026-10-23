@@ -186,3 +186,24 @@ test('the height slider\'s handles can be dragged, and settle in order a step ap
   await page.getByRole('button', { name: 'Reset filters' }).click();
   await expect(page.getByTestId('height-readout')).toHaveText('Any height');
 });
+
+test('search matches word by word, in any order, and forgives a slip when nothing matches exactly', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  const search = page.getByTestId('plant-search');
+  const rows = page.locator('.plant-item [data-testid=plant-row]');
+  await search.fill('Bradford pear'); // ("Bradford/Callery pear")
+  await expect(rows.first()).toContainText('Bradford/Callery pear');
+  await search.fill('Winterthur viburnum'); // ("Witherod viburnum 'Winterthur'")
+  await expect(rows.first()).toContainText("Witherod viburnum 'Winterthur'");
+  await search.fill('witchhazel');
+  await expect(rows.first()).toContainText('witch hazel');
+  await expect(page.getByTestId('near-note')).toHaveCount(0);
+  await search.fill('viburnam');
+  await expect(page.getByTestId('near-note')).toContainText('Nothing matches “viburnam” as typed. Close spellings:');
+  await expect(rows.first()).toContainText('viburnum');
+  await expect(page.getByTestId('add-own-plant')).toBeVisible();
+  // A search of punctuation alone (the start of a cultivar's name) isn't a search: no invasives slip in.
+  await search.fill("'");
+  await expect(page.locator('.plant-item', { hasText: 'Chinese privet' })).toHaveCount(0);
+});

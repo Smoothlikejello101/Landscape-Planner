@@ -15,6 +15,7 @@ import { shownWith } from './status';
 import { hardyEnough, zoneFit, zoneRange } from './climate';
 import { gardenStateName, nativeHere, wildHere, wildNearby } from './wild';
 import { bloomMonths, bloomSpan } from './bloom';
+import { byMatch, matchPlant, readQuery } from './search';
 
 /**
  * One plant: a row of the catalog (plants.json), or one of the user's own
@@ -157,7 +158,7 @@ export function loadPlants(): Promise<void> {
 /** Whether a plant passes the picker's filters. `inPlan`: ids of plants placed in the open plan. */
 export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): boolean {
   // Invasives are never suggested; they turn up when searched by name (to map one already in the yard).
-  if (p.invasive && !f.q.trim() && !f.inPlan) return false;
+  if (p.invasive && !readQuery(f.q) && !f.inPlan) return false;
   if (f.dogSafeOnly && !nonToxicToDogs(p)) return false;
   // (Plants at the edge of their range count: the list marks them. So does a plant rated for cooler zones that's
   // recorded growing wild in the garden's county or one bordering it: it has been found living through those
@@ -200,7 +201,8 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (f.inPlan && !inPlan?.has(p.id)) return false;
   // (Where the garden is, from flowering records there, else the catalog's months; a Dec–Feb bloom wraps.)
   if (f.bloomMonth && !bloomMonths(p).includes(Number(f.bloomMonth))) return false;
-  if (f.q.trim() && searchRank(p, f.q) < 0) return false;
+  const q = readQuery(f.q);
+  if (q && !matchPlant(p, q, true)) return false;
   return true;
 }
 /** The older list's dog rating, when it's a warning (anything but "Safe" or "Unverified"). */
@@ -220,23 +222,17 @@ export function nonToxicToDogs(p: Plant): boolean {
 /** Why a plant matched a search: by its name, its botanical name, or what it hosts. */
 export type MatchedBy = 'name' | 'botanical' | 'host';
 /**
- * How well a plant matches a search, best first: 0 its name starts with it
- * (or a word in its name does), 1 its name contains it, 2 its botanical name,
- * 3 only what it hosts ("monarch" finds milkweed); -1 no match.
+ * How well a plant matches a search, best first (see search.ts): 0 every word starts a word of its name; 1 its
+ * name has every word; 2 its name and botanical name together do; 3 only what it hosts ("monarch" finds milkweed);
+ * 4 or 5 a word is spelled a little differently (from its name, its botanical name); -1 no match. No search: 0.
  */
 export function searchRank(p: Plant, query: string): number {
-  const q = query.trim().toLowerCase();
-  if (!q) return 0;
-  const name = p.common.toLowerCase();
-  if (name.startsWith(q) || name.split(/[\s'‘’(-]+/).some((w) => w.startsWith(q))) return 0;
-  if (name.includes(q)) return 1;
-  if ((p.botanical || '').toLowerCase().includes(q)) return 2;
-  if ((p.host || '').toLowerCase().includes(q)) return 3;
-  return -1;
+  const q = readQuery(query);
+  return q ? matchPlant(p, q, true)?.rank ?? -1 : 0;
 }
 export function matchedBy(p: Plant, query: string): MatchedBy | null {
   const r = searchRank(p, query);
-  return r < 0 ? null : r <= 1 ? 'name' : r === 2 ? 'botanical' : 'host';
+  return r < 0 ? null : r === 2 || r === 5 ? 'botanical' : r === 3 ? 'host' : 'name';
 }
 /** Plants placed in the open plan (not counting ones marked gone). */
 export function plantIdsInPlan(): Set<string> {
@@ -285,19 +281,25 @@ export function reportedMatch(p: Plant, f: PlantFilter, inPlan?: Set<string>): s
 }
 /** Plants in the last list that match only by what other sources say, and on what. */
 export const reportedOnly = new Map<string, string[]>();
-export function filteredPlants(): Plant[] {
+/**
+ * The catalog plants the picker lists: searched, then filtered. `near`: whether near spellings count, decided over
+ * everything searched before any filter (search.ts: closeMatchIn). Best matches first, then alphabetical.
+ */
+export function filteredPlants(near = true): Plant[] {
   const inPlan = plantIdsInPlan();
   reportedOnly.clear();
-  const out = PLANTS.filter((p) => {
-    const m = reportedMatch(p, plantFilter, inPlan);
-    if (m?.length) reportedOnly.set(p.id, m);
+  const q = readQuery(plantFilter.q);
+  // (The search first, so the filters, and any near spellings, are worked out only for plants it found.)
+  const found = q ? PLANTS.flatMap((plant) => { const hit = matchPlant(plant, q, near); return hit ? [{ plant, hit }] : []; })
+    : PLANTS.map((plant) => ({ plant, hit: { rank: 0, order: 0 } }));
+  const out = found.filter(({ plant }) => {
+    const m = reportedMatch(plant, plantFilter, inPlan);
+    if (m?.length) reportedOnly.set(plant.id, m);
     return m !== null;
   });
-  // Name matches first, then botanical, then host plants; alphabetical within each.
-  const q = plantFilter.q;
-  const rank = new Map(out.map((p) => [p.id, searchRank(p, q)]));
-  out.sort((a, b) => rank.get(a.id)! - rank.get(b.id)! || a.common.localeCompare(b.common));
-  return out;
+  if (q) out.sort(byMatch);
+  else out.sort((a, b) => a.plant.common.localeCompare(b.plant.common));
+  return out.map((x) => x.plant);
 }
 // Canvas color by growth form, drawn from the existing swatch palette
 export const FORM_COLORS: Record<string, string> = {
