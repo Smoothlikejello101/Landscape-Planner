@@ -246,16 +246,19 @@ export function shapeGroup(s: Shape): SVGGElement {
       g.appendChild(svgEl('line', { 'data-role': 'dim-tick', x1: a.x - nx, y1: a.y - ny, x2: a.x + nx, y2: a.y + ny, stroke: s.color, 'stroke-width': 2, 'pointer-events': 'none' }));
     }
   }
+  // Names hidden (beside the zoom buttons): no names, lengths, sun hours or badges, but a selected shape's own.
+  const named = state.showNames || sel;
   // Zoomed out past 25%, a name (or sun hours) wider than its shape is left off, unless the shape is selected:
   // a whole yard's names would pile up over beds a few pixels across.
   const room = (text: string) => {
+    if (!named) return false;
     if (ppf >= FAR_OUT_PPF || sel || isPlantCircle(s)) return true;
     const b = shapeBBox(s);
     return textWidth1(text) * fs <= Math.max(b.maxX - b.minX, b.maxY - b.minY) * ppf;
   };
   const sunText = s.role === 'shade' && s.sun && room('☀ ' + formatHours(sunHours(s.sun))) ? '☀ ' + formatHours(sunHours(s.sun)) : '';
   const label = room(displayLabel(s)) ? displayLabel(s) : '';
-  if (fitted) {
+  if (fitted && named) {
     // Wrapped and sized to fit inside the circle (or below a tree's trunk).
     const lh = fitted.fontSize * LABEL_LINE_HEIGHT;
     const text = svgEl('text', {
@@ -287,8 +290,8 @@ export function shapeGroup(s: Shape): SVGGElement {
       style: 'user-select:none;', transform: rotTransform || null,
     }, sunText));
   }
-  // To remove: a red cross over the shape. To move: a blue arrow badge.
-  if (s.status === 'remove' || s.status === 'move') {
+  // To remove: a red cross over the shape. To move: a blue arrow badge (hidden with the names; the cross isn't a badge).
+  if (s.status === 'remove' || (s.status === 'move' && named)) {
     const b = shapeBBox(s);
     const x1 = (b.minX - state.offsetX) * ppf, x2 = (b.maxX - state.offsetX) * ppf;
     const y1 = (b.minY - state.offsetY) * ppf, y2 = (b.maxY - state.offsetY) * ppf;
@@ -307,7 +310,7 @@ export function shapeGroup(s: Shape): SVGGElement {
     }
   }
   // Plants whose spot doesn't match their sun needs get a small warning badge.
-  if (s.role === 'plant' && s.plantId) {
+  if (s.role === 'plant' && s.plantId && named) {
     const check = checkPlantSun(s, plantsById[s.plantId], state.shapes);
     if (sunWarningShown(check, s, state.sunWarnings)) {
       const r = s.type === 'circle' ? s.radius * ppf : Math.min(boxSize(s).w, boxSize(s).h) * ppf / 2;

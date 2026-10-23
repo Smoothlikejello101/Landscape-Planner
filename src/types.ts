@@ -334,6 +334,11 @@ export interface AppState {
   showFullSize: boolean;
   /** View: outline plants planted closer than usual (not saved). */
   showCrowding: boolean;
+  /**
+   * View: names on the plan, with line lengths, sun hours and the badges on plants (not saved). Off, the plan shows
+   * its shapes alone, to step back and see it whole; a selected shape still shows its own.
+   */
+  showNames: boolean;
   /** The add/edit-a-plant form, when open. */
   plantForm: PlantFormArgs | null;
   /** Picker opened to link this shape to a plant. */

@@ -130,3 +130,45 @@ test('boundaries show their length; deleting from properties closes the panel', 
   await expect(page.locator('.sheet')).toHaveCount(0);
   expect(await shapeCount(page)).toBe(0);
 });
+
+test('hiding names hides lengths, sun hours and plant badges too, a selected shape keeping its own', async ({ page }) => {
+  await openFresh(page);
+  await addRect(page, 'Sunny strip', 'Sun exposure', [8, 8]);
+  await page.locator('[data-testid=sun-section] button', { hasText: 'Record sun' }).click();
+  await page.locator('.seg button', { hasText: 'Just hours' }).click();
+  await page.locator('[data-testid=sun-section] input[type=range]').fill('8');
+  await closeSheet(page);
+  await addPlant(page, "Heuchera 'Autumn Bride'"); // part sun: a warning badge here
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.sel-pill')).toHaveCount(0);
+  const strip = page.locator('#canvas-svg text', { hasText: 'Sunny strip' });
+  const hours = page.locator('#canvas-svg [data-role=sun-label]');
+  const badge = page.locator('#canvas-svg [data-role=sun-warning]');
+  const plant = page.locator('#canvas-svg text', { hasText: 'Autumn Bride' });
+  await expect(strip).toHaveCount(1); await expect(hours).toHaveCount(1); await expect(badge).toHaveCount(1);
+  await expect(plant).toHaveCount(1);
+
+  const toggle = page.getByTestId('toggle-names');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('#toast')).toContainText('Names and badges hidden');
+  for (const gone of [strip, hours, badge, plant]) await expect(gone).toHaveCount(0);
+  await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(2); // (the shapes stay)
+  await expect(page.locator('#canvas-svg text', { hasText: "10'" }).first()).toBeVisible(); // (and the grid's feet)
+
+  // A selected shape shows its own, the others staying hidden.
+  await page.locator('button[title=Layers]').click();
+  await expect(page.getByTestId('show-names')).not.toBeChecked();
+  await page.locator('.layer-row', { hasText: 'Sunny strip' }).click();
+  await expect(strip).toHaveCount(1); await expect(hours).toHaveCount(1);
+  await expect(plant).toHaveCount(0); await expect(badge).toHaveCount(0);
+
+  // Back on, from Layers this time.
+  await page.keyboard.press('Escape');
+  await page.locator('button[title=Layers]').click();
+  await page.getByTestId('show-names').check();
+  await closeSheet(page);
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  for (const back of [strip, hours, badge, plant]) await expect(back).toHaveCount(1);
+});

@@ -256,6 +256,12 @@ function roleSection(): HTMLElement {
   for (const s of state.shapes) counts.set(roleKey(s), (counts.get(roleKey(s)) ?? 0) + 1);
   const keys: RoleKey[] = [...ROLES.map((r) => r.key), 'unassigned'].filter((k) => counts.has(k as RoleKey)) as RoleKey[];
   const wrap = el('div', { className: 'role-rows' }, el('div', { className: 'section-label' }, 'Show and lock by role'));
+  // The same as the button under the zoom buttons.
+  const names = el('input', { type: 'checkbox', 'data-testid': 'show-names' }) as HTMLInputElement;
+  names.checked = state.showNames;
+  names.addEventListener('change', () => { state.showNames = names.checked; render(); });
+  wrap.appendChild(el('label', { className: 'check-row', style: { padding: '0 16px 6px' } }, names,
+    el('span', {}, 'Show names, lengths, sun hours and plant badges')));
   for (const k of keys) {
     const v = state.roleViews[k] ?? {};
     const eye = el('button', {
