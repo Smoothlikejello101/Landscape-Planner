@@ -1,5 +1,5 @@
 {
- "about": "Decisions a person made on what the catalog build left for review (docs/catalog-review.md), so each build applies them instead of listing them again. A decision only chooses among what the sources say, or says how a source is read; it never adds a value no source gives (docs/catalog-sources.md, \"Decisions\"). `form`: a cultivar with no page of its own, whose species' sources list it as a tree: the forms it takes, primary first, each listed by a species source. `nativeShown`: a plant the catalog calls exotic that Kew's checklist has native in some states: shown native there all the same. `kewNames`: names Kew's checklist could read two ways, checked to be read as Kew's accepted name, whose authors (`author`) it records. `genusPage`: a plant read from NC State's page for its whole genus, the facts checked to fit it.",
+ "about": "Decisions a person made on what the catalog build left for review (docs/catalog-review.md), so each build applies them instead of listing them again. A decision only chooses among what the sources say, or says how a source is read; it never adds a value no source gives (docs/catalog-sources.md, \"Decisions\"). `form`: a cultivar with no page of its own, whose species' sources list it as a tree: the forms it takes, primary first, each listed by a species source. `edible`: a plant a source calls edible that is rated toxic: true writes the source's \"edible\", with its poisonous parts beside it from the same source (`poison`); false leaves it unmarked. `nativeShown`: a plant the catalog calls exotic that Kew's checklist has native in some states: shown native there all the same. `kewNames`: names Kew's checklist could read two ways, checked to be read as Kew's accepted name, whose authors (`author`) it records. `genusPage`: a plant read from NC State's page for its whole genus, the facts checked to fit it.",
  "form": {
   "ilex-vomitoria-nana-schillings": {"v": "Shrub", "decided": "2026-10-23", "by": "Jason"},
   "ziziphus-jujuba-li-lang": {"v": "Tree", "decided": "2026-10-23", "by": "Jason"},
@@ -12,6 +12,20 @@
   "lagerstroemia-natchez-muskogee-tonto": {"v": ["Tree", "Shrub"], "decided": "2026-10-23", "by": "Jason", "note": "'Natchez' and 'Muskogee' grow into trees, 'Tonto' stays shrub-sized: they could be separate records (docs/future-ideas.md)"},
   "ginkgo-biloba-autumn-gold-princeton-sentry": {"v": "Tree", "decided": "2026-10-23", "by": "Jason"},
   "prunus-x-yedoensis-kwanzan": {"v": "Tree", "decided": "2026-10-23", "by": "Jason"}
+ },
+ "edible": {
+  "passiflora-incarnata": {"v": true, "decided": "2026-10-23", "by": "Jason"},
+  "quercus-bicolor": {"v": false, "decided": "2026-10-23", "by": "Jason"},
+  "sambucus-canadensis": {"v": true, "decided": "2026-10-23", "by": "Jason"},
+  "allium-canadense": {"v": true, "decided": "2026-10-23", "by": "Jason"},
+  "allium-canadense-var-lavendulare": {"v": true, "decided": "2026-10-23", "by": "Jason"},
+  "allium-tricoccum": {"v": true, "decided": "2026-10-23", "by": "Jason"},
+  "podophyllum-peltatum": {"v": true, "decided": "2026-10-23", "by": "Jason"},
+  "prunus-salicina-methley-bruce": {"v": true, "decided": "2026-10-23", "by": "Jason"},
+  "sambucus-canadensis-bob-gordon-wyldewood": {"v": true, "decided": "2026-10-23", "by": "Jason"},
+  "prunus-persica": {"v": true, "decided": "2026-10-23", "by": "Jason"},
+  "prunus-armeniaca": {"v": true, "decided": "2026-10-23", "by": "Jason"},
+  "prunus-avium": {"v": true, "decided": "2026-10-23", "by": "Jason"}
  },
  "nativeShown": {
   "rubus-idaeus": {"decided": "2026-10-23", "by": "Jason"},

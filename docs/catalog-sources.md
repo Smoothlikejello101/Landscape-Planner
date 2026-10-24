@@ -481,7 +481,7 @@ months ("MO" for MOBOT).
 | `bloom` | seasons | — | Seasons only: see "Waiting on format changes". |
 | `native` | — | decides (native status) | NC State's region of origin often comes from USDA, so it isn't independent. The Arkansas atlas decides for Arkansas. Waiting on a format change. |
 | `invasive` | — | invasive and noxious lists | Waiting on a format change and a sourced rule for "widely invasive". |
-| Toxicity to people | poison severity and contact dermatitis | — | High or Medium → `major`, Low → `minor`, contact dermatitis → `dermatitis`. (Medium goes to `major` because erring toward harmless is the dangerous mistake.) Authorities agree only on exactly the same values. |
+| Toxicity to people | poison severity, poison part and contact dermatitis | — | Written as `poison`, in NC State's own terms: its severity (low, medium, high), the parts it names, and whether it irritates skin; a plant it tags Poisonous with nothing more is `{}`. Shown for every plant NC State rates (Jason, 2026-10-23: "Mark anything poisonous to people"), beside "Edible" where a plant is both. Internally the audit also reads it as High or Medium → `major`, Low → `minor`, contact dermatitis → `dermatitis`, for the edible check (Medium goes to `major` because erring toward harmless is the dangerous mistake). Authorities agree only on exactly the same values. |
 | Toxicity to dogs, cats, horses | — | — | No usable source yet. NC State's poison facts are about people, and toxicity to people doesn't stand in for pets. |
 | `deer` | resistance list | — | Listed for deer → `Resistant`. Otherwise `null`. |
 | `nectar`, `bird` | — | — | `null`: no source gives a level. |
@@ -505,6 +505,9 @@ listed). The kinds the build applies:
 - **`form`**: a cultivar with no page of its own, whose species' sources list a tree: the forms it takes,
   primary first (at most three), written with the authorities that list them. Always `single`, never
   `confirmed`: the sources list the species as either form, and a person chose which the cultivar is.
+- **`edible`**: a plant a source calls edible that's rated toxic (to dogs on the older list, or seriously
+  toxic to people): true writes the source's "edible", its poisonous parts shown beside it (`poison`, the same
+  source); false leaves it unmarked, taking out an older unsourced "edible".
 - **`nativeShown`**: a plant the catalog calls exotic that Kew's checklist has native in some states: shown
   native there all the same, said as its species' ("Its species is native to New York": wild.mjs). Where Kew's only native area is a territory (lantana: Puerto Rico), it
   changes nothing in the 50 states. When the catalog's North America-wide native status comes from Kew, the
@@ -567,8 +570,8 @@ writes that fact.
   (`{ "season": ["spring"] }`) as well as months. Until it lands, the audit leaves
   `bloom` as it is: the compendium's value, labeled unverified.
 - **Toxicity by animal.** `tox` is one fact today, with one `src` and
-  `check`, and no part of it can be `null`. People and each animal need
-  their own source, check and `null`. The `unlisted` value is defined in
+  `check`, and no part of it can be `null`. Each animal needs its own
+  source, check and `null`, as people have had since 2026-10-23 (`poison`). The `unlisted` value is defined in
   ASPCA's terms and gets a source-neutral meaning, and the app's own wording
   that names ASPCA (src/plants.ts) changes with it.
 - **Native by state.** `native` is the first compendium's wording, not

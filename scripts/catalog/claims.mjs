@@ -16,7 +16,7 @@ import { feetRange } from './extract.mjs';
 import { mnLight, ncsuForms, ncsuSun } from './map.mjs';
 
 export const TIER = {
-  tox_people: 'safety', tox_pets: 'safety', invasive: 'safety', native_ar: 'safety', native_us: 'safety',
+  tox_people: 'safety', poison: 'safety', tox_pets: 'safety', invasive: 'safety', native_ar: 'safety', native_us: 'safety',
   zone_min: 'survival', zone_max: 'survival', sun_most: 'survival', sun_least: 'survival', water: 'survival',
   height: 'survival', width: 'survival', clay_ok: 'survival', wet_feet: 'survival', deer: 'survival',
   form: 'description', bloom_season: 'description', bloom_months: 'description', flower_color: 'description',
@@ -130,6 +130,22 @@ export function lowBranched(f) {
   const evergreen = leaf.includes('Needled Evergreen') || leaf.includes('Broadleaf Evergreen');
   return evergreen && (use.includes('Hedge') || use.includes('Screen/Privacy'));
 }
+/** NC State's poison fields, in its own terms: Low, Medium or High; the parts it names; and skin irritation. */
+const PARTS = { Leaves: 'leaves', Fruits: 'fruits', Seeds: 'seeds', Stems: 'stems', Flowers: 'flowers', Roots: 'roots', 'Sap/Juice': 'sap', Bark: 'bark' };
+/**
+ * How poisonous to people NC State says a plant is: { severity?, parts?, skin? }, or null where it says nothing
+ * (not "safe": a page without poison fields says nothing either way). A plant tagged Poisonous with no part or
+ * severity is {} (poisonous, nothing more said). Parts NC State names that aren't in PARTS are kept as written.
+ */
+export function ncsuPoison(f) {
+  const sev = f['Poison Severity']?.[0], parts = f['Poison Part'] ?? [], skin = f['Causes Contact Dermatitis']?.[0] === 'Yes';
+  if (!sev && !parts.length && !skin && !(f['Plant Type'] ?? []).includes('Poisonous')) return null;
+  const out = {};
+  if (['Low', 'Medium', 'High'].includes(sev)) out.severity = sev.toLowerCase();
+  if (parts.length) out.parts = parts.map((x) => PARTS[x] ?? x.toLowerCase());
+  if (skin) out.skin = true;
+  return out;
+}
 /** NC State Plant Toolbox fields → claims (an authority). */
 export function ncsuClaims(f) {
   const c = [], add = (fact, v) => { if (v != null && !(Array.isArray(v) && !v.length)) c.push({ fact, v, src: 'ncsu', kind: 'authority' }); };
@@ -147,6 +163,8 @@ export function ncsuClaims(f) {
   add('flower_color', f['Flower Color'] ?? null);
   const sev = f['Poison Severity']?.[0], derm = f['Causes Contact Dermatitis']?.[0] === 'Yes';
   if (sev || derm) add('tox_people', [sev === 'High' || sev === 'Medium' ? 'major' : sev === 'Low' ? 'minor' : null, derm ? 'dermatitis' : null].filter(Boolean));
+  const poison = ncsuPoison(f);
+  if (poison) c.push({ fact: 'poison', v: poison, src: 'ncsu', kind: 'authority' });
   if ((f['Resistance To Challenges'] ?? []).includes('Deer')) add('deer', 'Resistant');
   if ((f['Plant Type'] ?? []).includes('Edible')) add('edible', true);
   if (f['Deciduous Leaf Fall Color']) add('fall_color', true);
@@ -224,6 +242,7 @@ export function usdaClaims(u) {
 /** Whether two values for a fact agree. */
 export function agrees(fact, a, b) {
   if (fact === 'zone_min' || fact === 'zone_max') return Math.abs(a - b) <= 1; // (within one whole zone, 10 °F)
+  if (fact === 'poison') return JSON.stringify(a) === JSON.stringify(b); // (as one reading: severity, parts and skin alike)
   if (TIER[fact] === 'safety') return JSON.stringify([a].flat().map(String).sort()) === JSON.stringify([b].flat().map(String).sort()); // (exactly: major is not minor)
   if (a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b) && !('min' in a)) return JSON.stringify(a) === JSON.stringify(b);
   if (fact === 'height' || fact === 'width') return a.min <= b.max * 1.25 && b.min <= a.max * 1.25; // (ranges overlap, with a little give)

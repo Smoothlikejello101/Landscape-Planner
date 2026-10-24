@@ -91,6 +91,23 @@ describe('what the writer holds back', () => {
     expect(review.filter((r: { note: string }) => r.note === 'edible, but rated toxic').map((r: { id: string }) => r.id)).toEqual(['mayapple', 'cv']);
     expect(file.plants[3].facts.edible).toMatchObject({ v: true }); // (a fig's sap irritates; its fruit is food)
   });
+  it('marks a toxic plant edible, or not, as a person decided, its poisonous parts beside it from the same source', () => {
+    const poison = { v: { severity: 'high', parts: ['leaves', 'roots', 'seeds', 'stems'], skin: true }, src: ['ncsu'], check: 'single' };
+    const { file, review } = writeAudit({ meta, plants: [rec('mayapple', { dog: 'Toxic - rarely eaten' }), rec('oak', { dog: 'Toxic - rarely eaten', edible: true }), rec('ramps', { dog: 'Toxic - rarely eaten' })] }, [
+      { id: 'mayapple', facts: { edible: settled(true), tox_people: settled(['major', 'dermatitis']), poison } },
+      { id: 'oak', facts: { edible: settled(true) } },
+      { id: 'ramps', facts: { edible: settled(true), poison: { v: {}, src: ['ncsu'], check: 'single' } } },
+    ], '2026-10-23', catalogWarnings, { edible: { mayapple: { v: true }, oak: { v: false } } });
+    const [mayapple, oak, ramps] = file.plants;
+    expect(mayapple.facts.edible).toEqual({ v: true, src: ['ncsu'], check: 'single' });
+    expect(mayapple.facts.poison).toEqual(poison);
+    expect(oak.facts.edible).toBeUndefined(); // (an older unsourced "edible", taken out)
+    expect(oak.audited).toBe('2026-10-23'); // (a change, though nothing was written)
+    expect(ramps.facts.edible).toBe(undefined); // (not decided: still listed)
+    expect(ramps.facts.poison).toEqual({ v: {}, src: ['ncsu'], check: 'single' }); // (poisonous, nothing more said)
+    expect(review).toEqual([{ id: 'ramps', fact: 'edible', note: 'edible, but rated toxic' }]);
+    expect(catalogErrors(file)).toEqual([]);
+  });
   it('holds back values that make a record implausible, and drops a nursery report on half a pair', () => {
     const { file, review } = run([rec('gg', { form: 'Perennial', height: { min: 0.5, max: 1, med: 0.75 }, zone_min: 6, zone_max: 9 })], [
       { id: 'gg', facts: { height: settled({ min: 0.08, max: 0.17 }), zone_min: settled(10), zone_max: { v: null, check: 'disputed', note: 'x' }, sun_most: settled('Part', 'Full'), sun_least: null } },

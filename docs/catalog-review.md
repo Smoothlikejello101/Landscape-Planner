@@ -1,28 +1,10 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 13 to decide, 39 sites whose terms are unsettled, 104 catalog checks; 780 of 820 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 1 to decide, 39 sites whose terms are unsettled, 104 catalog checks; 780 of 820 records audited.
 
-- [Edible, but rated toxic (12)](#edible-but-rated-toxic-12)
 - [Held back as implausible (1)](#held-back-as-implausible-1)
 - [Sites whose terms are unsettled (39)](#sites-whose-terms-are-unsettled-39)
 - [Catalog checks (104)](#catalog-checks-104)
-
-## Edible, but rated toxic (12)
-
-A source says it's edible, and the catalog rates it toxic (to dogs, or to people), so "edible" isn't written. There's no place to record a decision on these yet: they stay listed until there is.
-
-- Purple passionflower (maypop) (`passiflora-incarnata`)
-- Swamp white oak (`quercus-bicolor`)
-- Elderberry (`sambucus-canadensis`)
-- Wild garlic (`allium-canadense`)
-- Showy wild garlic (`allium-canadense-var-lavendulare`)
-- Wild leek (ramps) (`allium-tricoccum`)
-- Mayapple (`podophyllum-peltatum`)
-- Japanese plum (`prunus-salicina-methley-bruce`)
-- Elderberry (improved cvs) (`sambucus-canadensis-bob-gordon-wyldewood`)
-- Peach / nectarine (`prunus-persica`)
-- Apricot (`prunus-armeniaca`)
-- Sweet cherry (`prunus-avium`)
 
 ## Held back as implausible (1)
 

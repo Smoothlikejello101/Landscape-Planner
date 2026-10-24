@@ -68,6 +68,8 @@ export interface Plant {
   humidity?: 'humid' | 'dry' | 'either';
   /** Toxicity: ASPCA listings for animals; UC ANR class for people. */
   tox?: { dog?: ToxAnimal; cat?: ToxAnimal; horse?: ToxAnimal; people?: 'major' | 'minor' | 'oxalates' | 'dermatitis' | 'unlisted' };
+  /** Poisonous to people, as its source (NC State) says: how severe, which parts, whether it irritates skin. */
+  poison?: { severity?: 'low' | 'medium' | 'high'; parts?: string[]; skin?: true };
   /** Thorns, spines or prickles. */
   thorns?: boolean;
   /** Catalog plants: where each value came from (see src/catalog.ts). */
@@ -109,7 +111,10 @@ export const PLANT_FILTER_DEFAULTS = {
   spread: '',
   /** Mature height (typical), "lo-hi" in feet, either end empty when open: src/ui/height-range.ts. */
   height: '',
-  dogSafeOnly: false, dryShade: false, wetFeet: false, clayOk: false,
+  dogSafeOnly: false,
+  /** Leave out plants listed as poisonous to people (NC State); plants no source rates stay in. */
+  noPoison: false,
+  dryShade: false, wetFeet: false, clayOk: false,
   hostOnly: false, fallColor: false, winterInterest: false,
   edible: false, noTaproot: false, inPlan: false,
   /** Rated for the plan's zone (when the plan has a location). */
@@ -160,6 +165,7 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   // Invasives are never suggested; they turn up when searched by name (to map one already in the yard).
   if (p.invasive && !readQuery(f.q) && !f.inPlan) return false;
   if (f.dogSafeOnly && !nonToxicToDogs(p)) return false;
+  if (f.noPoison && p.poison) return false;
   // (Plants at the edge of their range count: the list marks them. So does a plant rated for cooler zones that's
   // recorded growing wild in the garden's county or one bordering it: it has been found living through those
   // summers. Not one rated for warmer zones: a record of an escaped garden annual says nothing about winters.)
@@ -456,6 +462,7 @@ export function plantMetaLine(p: Plant): string {
     bits.push('blooms ' + MONTH_NAMES[span.start] + (span.end !== span.start ? '-' + MONTH_NAMES[span.end] : ''));
   }
   if (p.invasive) bits.push('INVASIVE: not for planting');
+  if (p.poison) bits.push('poisonous to people');
   if (p.tox?.dog === 'toxic') bits.push('toxic to dogs (ASPCA)');
   const oldDog = oldDogWarning(p);
   if (oldDog) bits.push('dog: ' + oldDog);

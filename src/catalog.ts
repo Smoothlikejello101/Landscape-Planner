@@ -94,7 +94,7 @@ export interface Provenance {
  * cultivars are bred to change.
  */
 export const INHERITED = new Set([
-  'form', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'humidity', 'tox', 'dog', 'thorns',
+  'form', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'humidity', 'tox', 'poison', 'dog', 'thorns',
   'native', 'host', 'nectar', 'bird', 'deer', 'edible', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'invasive',
 ]);
 
@@ -160,6 +160,7 @@ export function isCatalogV2(d: unknown): d is CatalogFile {
 const SUN = ['Full', 'Part', 'Shade'];
 const TOX_ANIMAL = ['nontoxic', 'toxic', 'unlisted'];
 const TOX_PEOPLE = ['major', 'minor', 'oxalates', 'dermatitis', 'unlisted'];
+const POISON_SEVERITY = ['low', 'medium', 'high'];
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const isRange = (v: unknown) => {
   if (!isObj(v)) return false;
@@ -183,6 +184,12 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
   humidity: (v) => v === 'humid' || v === 'dry' || v === 'either',
   tox: (v) => isObj(v) && Object.keys(v).length > 0
     && Object.entries(v).every(([k, x]) => (k === 'people' ? TOX_PEOPLE : ['dog', 'cat', 'horse'].includes(k) ? TOX_ANIMAL : []).includes(x as string)),
+  // Poisonous to people, in its source's terms (NC State's): how severe, which parts, and whether it irritates skin.
+  // {} is poisonous with nothing more said.
+  poison: (v) => isObj(v) && Object.keys(v).every((k) => ['severity', 'parts', 'skin'].includes(k))
+    && (v.severity == null || POISON_SEVERITY.includes(v.severity as string))
+    && (v.parts == null || (Array.isArray(v.parts) && v.parts.length > 0 && v.parts.every((x) => typeof x === 'string' && x.length > 0)))
+    && (v.skin == null || v.skin === true),
   thorns: (v) => typeof v === 'boolean',
   trunk: (v) => typeof v === 'number' && v > 0 && v <= 20,
   native: (v, e) => typeof v === 'string' && (!e.native || e.native.includes(v)),

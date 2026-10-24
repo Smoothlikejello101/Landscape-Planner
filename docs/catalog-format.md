@@ -119,6 +119,7 @@ hasn't been looked up.
 | `bloom` | `{ start, end, color? }`, months 1 to 12 |
 | `humidity` | `humid` (handles humid summers), `dry` (needs dry summers) or `either` |
 | `tox` | `{ dog?, cat?, horse? }` each `nontoxic`, `toxic` or `unlisted` (ASPCA); `people?` one of `major`, `minor`, `oxalates`, `dermatitis` (UC ANR classes 1 to 4) or `unlisted` |
+| `poison` | poisonous to people, in its source's terms (NC State's): `{ severity?, parts?, skin? }`: `severity` `low`, `medium` or `high`; `parts` the parts it names (`leaves`, `fruits`, `seeds`, `stems`, `flowers`, `roots`, `sap`, `bark`); `skin` true where it irritates skin on contact. `{}` is poisonous with nothing more said. Missing means no source rates it, not that it's safe. A cultivar takes its species' |
 | `thorns` | true for thorns, spines or prickles |
 | `trunk` | mature trunk diameter in feet (trees) |
 | `native`, `nativar` | first-compendium nativeness (to be replaced by USDA status by state) |

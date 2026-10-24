@@ -207,3 +207,23 @@ test('search matches word by word, in any order, and forgives a slip when nothin
   await search.fill("'");
   await expect(page.locator('.plant-item', { hasText: 'Chinese privet' })).toHaveCount(0);
 });
+
+test('a plant poisonous to people says so, beside Edible, and the picker can leave such plants out', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Mayapple');
+  const item = page.locator('.plant-item', { hasText: 'Mayapple' });
+  await expect(item.getByTestId('plant-row')).toContainText('poisonous to people');
+  await item.getByTestId('plant-row').click();
+  const details = item.getByTestId('plant-details');
+  // NC State's words: the parts, how severe, skin irritation; and its fruit is edible all the same.
+  await expect(details).toContainText('Poisonous to people');
+  await expect(details).toContainText('Leaves, roots, seeds and stems, high severity; can irritate skin');
+  await expect(details).toContainText('Edible');
+  await expect(details).toContainText('NC State');
+  // The filter leaves it out; a plant no source rates as poisonous stays in.
+  await page.locator('label', { hasText: 'Not listed as poisonous to people' }).locator('input').check();
+  await expect(page.locator('.plant-item', { hasText: 'Mayapple' })).toHaveCount(0);
+  await page.getByTestId('plant-search').fill("Autumn Bride");
+  await expect(page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" })).toHaveCount(1);
+});

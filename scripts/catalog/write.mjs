@@ -13,9 +13,19 @@ const range = (r) => (r && typeof r.min === 'number' && typeof r.max === 'number
 const ZONE = (z) => (typeof z === 'number' && z >= 1 && z <= 13.5 && Number.isInteger(z * 2) ? z : undefined);
 const SUN = (v) => (['Full', 'Part', 'Shade'].includes(v) ? v : undefined);
 const yes = (v) => (v === true ? true : undefined); // (sources say so only when it's so: no "false" from silence)
+/** Poisonous to people, as NC State says it (claims.mjs ncsuPoison): { severity?, parts?, skin? }. */
+const SEVERITY = ['low', 'medium', 'high'];
+const poisonOf = (v) => {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+  const out = {};
+  if (v.severity != null) { if (!SEVERITY.includes(v.severity)) return undefined; out.severity = v.severity; }
+  if (v.parts != null) { if (!Array.isArray(v.parts) || !v.parts.length || !v.parts.every((x) => typeof x === 'string' && x)) return undefined; out.parts = v.parts; }
+  if (v.skin === true) out.skin = true;
+  return out;
+};
 /**
  * How each audited fact goes into the catalog: its key there and its value (undefined: not writable). Forms
- * are a list of up to three (one: plain); native status, toxicity, hosts and bloom wait on format changes
+ * are a list of up to three (one: plain); native status, toxicity to animals, hosts and bloom wait on format changes
  * (docs/catalog-sources.md, "Waiting on format changes").
  */
 const FACTS = {
@@ -33,6 +43,7 @@ const FACTS = {
   edible: ['edible', yes],
   fall_color: ['fall_color', yes],
   low_branched: ['low_branched', yes],
+  poison: ['poison', poisonOf],
 };
 const BUILT_IN = {
   ncsu: { title: 'NC State Extension Gardener Plant Toolbox', url: 'https://plants.ces.ncsu.edu', trust: 'reference' },
@@ -68,7 +79,7 @@ export function decidedForm(chosen, claims, enums) {
  * The catalog with the audit written in. `audit`: sample.mjs's output (per plant: id, facts, claims).
  * `warnings`: the app's catalogWarnings (src/catalog.ts), to hold back values that would make a record
  * implausible. `decisions`: scripts/catalog/decisions.json, what a person decided on earlier review items (a
- * cultivar's form). Returns the new file and a review list (disputed facts, values the catalog can't take, and
+ * cultivar's form; whether a plant rated toxic is marked edible). Returns the new file and a review list (disputed facts, values the catalog can't take, and
  * values held back).
  */
 export function writeAudit(catalog, audit, date, warnings = () => [], decisions = {}) {
@@ -88,6 +99,7 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
     const auditSays = (key) => a.facts?.[key]?.v ?? parentAudit?.facts?.[key]?.v;
     const facts = { ...rec.facts };
     const written = new Set();
+    let unmarked = false; // (an older "edible" a person decided against, taken out)
     for (const [key, [to, conv]] of Object.entries(FACTS)) {
       const f = a.facts?.[key];
       if (!f) continue;
@@ -106,7 +118,13 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
       if (key === 'water' && rated('water') === 'Wetland') continue;
       // "Edible" beside a toxic rating (mayapple's ripe fruit; a plant whose other parts poison): for a person to
       // word, not a flag to set. (Toxic to dogs on the older list, or seriously toxic to people by the audit.)
-      if (key === 'edible' && (/toxic|hard no/i.test(String(rated('dog') ?? '')) || [auditSays('tox_people')].flat().includes('major'))) { review.push({ id: rec.id, fact: key, note: 'edible, but rated toxic' }); continue; }
+      // A person's decision (scripts/catalog/decisions.json `edible`) settles it: written, its poisonous parts shown
+      // beside it from the same source (poison); or left unmarked.
+      if (key === 'edible' && (/toxic|hard no/i.test(String(rated('dog') ?? '')) || [auditSays('tox_people')].flat().includes('major'))) {
+        const chose = decisions.edible?.[rec.id];
+        if (!chose) { review.push({ id: rec.id, fact: key, note: 'edible, but rated toxic' }); continue; }
+        if (chose.v !== true) { if (valueOf(facts.edible) === true) { delete facts.edible; unmarked = true; } continue; }
+      }
       if (v === undefined) { review.push({ id: rec.id, fact: key, note: `value the catalog can't take: ${JSON.stringify(f.v)}` }); continue; }
       const out = { v, src: f.src, check: f.check };
       if (f.at) out.at = f.at;
@@ -147,7 +165,7 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
     }
     // (Dated by this run only where its facts changed, or it had none audited: a record the run leaves as it was
     // keeps the date its facts were written on. So a build on a later day changes only what it changed.)
-    if (!written.size) return rec;
+    if (!written.size && !unmarked) return rec;
     return { ...rec, audited: rec.audited && JSON.stringify(facts) === JSON.stringify(rec.facts) ? rec.audited : date, facts };
   });
   const sources = { ...catalog.meta.sources };

@@ -4,6 +4,7 @@ import { matchedBy, nonToxicToDogs, PLANT_FILTER_DEFAULTS, plantMatches, plantTa
 import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs } from '../src/spread';
 import { readFileSync } from 'node:fs';
 import { HEIGHT_STOPS, heightLabel, heightStops, heightValue } from '../src/ui/height-range';
+import { poisonText } from '../src/ui/plant-details';
 
 const heuchera: Plant = {
   id: 'h', common: "Heuchera 'Autumn Bride'", botanical: 'Heuchera villosa', form: 'Perennial',
@@ -11,6 +12,17 @@ const heuchera: Plant = {
   height: { med: 1.75 }, width: { med: 2.5 }, bloom: { start: 9, end: 10 }, nectar: 'Low'
 };
 const f = (over: Partial<typeof PLANT_FILTER_DEFAULTS> = {}) => ({ ...PLANT_FILTER_DEFAULTS, ...over });
+
+describe('poisonous to people, in its source\'s words', () => {
+  it('names the parts, how severe, and skin irritation, as NC State gives them', () => {
+    expect(poisonText({ severity: 'high', parts: ['leaves', 'roots', 'seeds', 'stems'], skin: true })).toBe('Leaves, roots, seeds and stems, high severity; can irritate skin');
+    expect(poisonText({ severity: 'medium', parts: ['seeds'] })).toBe('Seeds, medium severity');
+    expect(poisonText({ severity: 'low' })).toBe('Low severity');
+    expect(poisonText({ skin: true })).toBe('Can irritate skin');
+    expect(poisonText({})).toBe('Yes'); // (tagged poisonous, nothing more said)
+    expect(poisonText(undefined)).toBe('');
+  });
+});
 
 describe('plant filters', () => {
   it('let what nurseries report count (by choice), and say when a match rests on it', () => {
@@ -58,6 +70,13 @@ describe('plant filters', () => {
     expect(plantMatches({ ...heuchera, dog: 'Mild GI' }, f())).toBe(true);
     expect(plantMatches({ ...heuchera, dog: 'Mild GI' }, f({ dogSafeOnly: true }))).toBe(false);
     expect(plantMatches({ ...heuchera, dog: 'HARD NO' }, f())).toBe(true);
+  });
+  it("leaves out plants listed as poisonous to people only when asked, and keeps those no source rates", () => {
+    const mayapple = { ...heuchera, poison: { severity: 'high', parts: ['leaves', 'roots', 'seeds', 'stems'], skin: true } } as Plant;
+    expect(plantMatches(mayapple, f())).toBe(true);
+    expect(plantMatches(mayapple, f({ noPoison: true }))).toBe(false);
+    expect(plantMatches({ ...heuchera, poison: {} } as Plant, f({ noPoison: true }))).toBe(false); // (poisonous, nothing more said)
+    expect(plantMatches(heuchera, f({ noPoison: true }))).toBe(true); // (not rated: not called safe, not left out)
   });
   it('never suggests invasives, but finds them by name', () => {
     const privet: Plant = { id: 'p', common: 'Chinese privet', botanical: 'Ligustrum sinense', invasive: true };
