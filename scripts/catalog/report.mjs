@@ -149,7 +149,7 @@ export function reviewReport({ catalog, list, combined, review, searched = {}, w
     "The page the list points to gives another name, so it wasn't read. It may be the source's own misspelling, or a synonym: the right page. Or it may be another plant. To accept an NC State page as this plant's, add it to `names` in scripts/catalog/ncsu-pages.json, with the name it gives.",
     bullets(noted('otherName').map((n) => `${name(n.id)}: ${esc(n.note)}`)));
   section('Mapped twice on the Arkansas atlas', noted('atlasTwice').length,
-    `The atlas maps the name more than once (its varieties, say) with different status, or on one map for varieties whose status differs (its Appendix I), so the atlas's status for it is left out. ${NO_PLACE}`,
+    `The atlas maps the name more than once (its varieties, say) with different status; or on one map for all its varieties, whose status differs in its Appendix I, or which the appendix doesn't list. So the atlas's status for it is left out. ${NO_PLACE}`,
     bullets(noted('atlasTwice').map((n) => name(n.id))));
   const genusPages = noted('genusPage').filter((n) => !decisions.genusPage?.[n.id]);
   section("Read from the genus's page", genusPages.length,

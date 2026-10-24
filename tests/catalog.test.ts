@@ -6,6 +6,26 @@ import { catalogErrors, catalogWarnings, isCatalogV2, resolveCatalog, type Catal
 
 const shipped = JSON.parse(readFileSync(new URL('../public/plants.json', import.meta.url), 'utf8'));
 
+describe('the decisions the build applies (scripts/catalog/decisions.json)', () => {
+  const decisions = JSON.parse(readFileSync(new URL('../scripts/catalog/decisions.json', import.meta.url), 'utf8'));
+  const ids = new Set((shipped as CatalogFile).plants.map((r) => r.id));
+  it('name plants the catalog has, forms it has, and who decided when', () => {
+    for (const kind of ['form', 'edible', 'nativeShown', 'genusPage']) {
+      for (const [id, d] of Object.entries(decisions[kind] ?? {}) as [string, { decided?: string; by?: string }][]) {
+        expect(ids.has(id), `${kind}: ${id}`).toBe(true);
+        expect(d.decided, `${kind}: ${id}`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+        expect(d.by, `${kind}: ${id}`).toBeTruthy();
+      }
+    }
+    for (const [id, d] of Object.entries(decisions.form ?? {}) as [string, { v: string | string[] }][]) {
+      for (const f of [d.v].flat()) expect((shipped as CatalogFile).meta.enums?.form, `${id}: ${f}`).toContain(f);
+      // (Applied: written with its sources, not left as the older list's.)
+      expect((shipped as CatalogFile).plants.find((r) => r.id === id)!.facts.form, id).toMatchObject({ v: d.v, check: 'single' });
+    }
+    for (const [name, d] of Object.entries(decisions.kewNames ?? {}) as [string, { author?: string }][]) expect(d.author, name).toBeTruthy();
+  });
+});
+
 describe('the shipped catalog', () => {
   it('is version 2 with no structural problems', () => {
     expect(isCatalogV2(shipped)).toBe(true);
@@ -28,7 +48,7 @@ describe('the shipped catalog', () => {
     // A tree is one form: rusty blackhaw is a tree and a shrub to NC State and USDA alike. A dwarf cultivar of a
     // tree, with no page of its own, takes the form a person chose from its species' (scripts/catalog/decisions.json).
     expect(plants.find((p) => p.id === 'viburnum-rufidulum')).toMatchObject({ form: 'Tree', forms: ['Tree', 'Shrub'], prov: { form: { src: ['ncsu', 'usda'], check: 'confirmed' } } });
-    expect(plants.find((p) => p.id === 'ilex-vomitoria-nana-schillings')).toMatchObject({ form: 'Shrub', prov: { form: { src: ['ncsu', 'usda'], check: 'confirmed' } } });
+    expect(plants.find((p) => p.id === 'ilex-vomitoria-nana-schillings')).toMatchObject({ form: 'Shrub', prov: { form: { src: ['ncsu', 'usda'], check: 'single' } } });
     expect(new Set(plants.flatMap((p) => p.forms ?? [p.form]).filter((f) => f?.startsWith('Tree')))).toEqual(new Set(['Tree']));
     expect((shipped as CatalogFile).meta.sources['ufl.edu']).toMatchObject({ trust: 'reference' });
   });

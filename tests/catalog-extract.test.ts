@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error (plain JavaScript build script)
-import { arkatlasStatus, feetRange, mnwildFields, monthRange, ncsuFields, usdaFields } from '../scripts/catalog/extract.mjs';
+import { appendixTaxa, arkatlasStatus, feetRange, mnwildFields, monthRange, ncsuFields, usdaFields } from '../scripts/catalog/extract.mjs';
 // @ts-expect-error (plain JavaScript build script)
 import { mnLight, ncsuSun } from '../scripts/catalog/map.mjs';
 // @ts-expect-error (plain JavaScript build script)
@@ -72,6 +72,27 @@ describe('reading sources', () => {
     expect(knotweed).toMatchObject({ codes: [], uncertain: true, why: "combined map: its taxa's status differs (Appendix I)" });
     expect(knotweed?.appendix?.map((x: { codes: number[] }) => x.codes)).toEqual([[1], [], [1], [1]]);
     expect(arkatlasStatus(t, 'Rudbeckia laciniata')?.combined).toBeUndefined(); // (its own map: its varieties there)
+    // (Its claim names the varieties, as for a species mapped only as varieties.)
+    expect(arkatlasClaims(hirta)).toEqual([{ fact: 'native_ar', v: 'native', src: 'arkatlas', kind: 'authority', at: 'AR', note: 'in Arkansas only as var. hirta, var. pulcherrima Farw.' }]);
+    expect(arkatlasClaims(knotweed)).toEqual([]);
+  });
+  it("ends an Appendix I entry at the next heading, and keeps a code carried onto a common name's next line", () => {
+    const lines = [
+      'APPENDIX I', '',
+      'Aster primus L.',
+      '        subsp. primus                                      first aster, prairie',
+      '                                                           aster                       1',
+      '        subsp. altera Smith                                first aster                 1',
+      '                  var. altera                               first aster                 1',
+      '  Aster secundus Jones',
+      '        var. secundus                                      second aster',
+      '',
+      '                                                  APPENDIX II',
+    ];
+    expect(appendixTaxa(lines, 0, 'Aster primus')).toEqual([
+      { name: 'subsp. primus', codes: [1] }, { name: 'subsp. altera Smith', codes: [1] }, { name: 'var. altera', codes: [1] },
+    ]);
+    expect(appendixTaxa(lines, 0, 'Aster secundus')).toBeNull(); // (an indented heading isn't read as a species line)
   });
   it('reads columns from the family line, so a name with an accent keeps its own codes', () => {
     const t = fixture('arkatlas-pages.txt');

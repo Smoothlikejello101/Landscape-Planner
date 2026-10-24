@@ -35,12 +35,14 @@ export function acceptedTaxon(rows, byId) {
   // (An accepted name wins over synonyms of the same spelling: a later homonym sunk elsewhere.)
   const accepted = sp.filter((r) => r.taxon_status === 'Accepted');
   const id = accepted.length === 1 ? accepted[0].plant_name_id : targets.size === 1 ? [...targets][0] : null;
-  if (id && accepted.length === 1 && targets.size > 1) decidedByAccepted.push(accepted[0].taxon_name);
+  if (id && accepted.length === 1 && targets.size > 1) { decidedByAccepted.push(accepted[0].taxon_name); acceptedAuthors.set(accepted[0].taxon_name, accepted[0].taxon_authors); }
   const t = id && byId(id);
   return t && t.taxon_rank === 'Species' ? { id, name: t.taxon_name } : null;
 }
 /** Names where an accepted name won over a homonym's synonym of the same spelling (listed by the run, for review). */
 export const decidedByAccepted = [];
+/** Those names' accepted authors ("L."): a check recorded in decisions.json holds only while Kew's accepted name is the one checked. */
+export const acceptedAuthors = new Map();
 /** A taxon's status in each state from its distribution rows: N native, I introduced; not where extinct or doubtful. */
 export function stateStatus(rows) {
   const out = {};
@@ -94,9 +96,10 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   renameSync('catalog-src/wcvp-regulated.json.tmp', 'catalog-src/wcvp-regulated.json');
   const path = 'catalog-src/wcvp-native.json';
   writeFileSync(`${path}.tmp`, JSON.stringify(out)); renameSync(`${path}.tmp`, path);
-  // (Names a person checked are read as Kew's accepted name: scripts/catalog/decisions.json `kewNames`.)
+  // (Names a person checked are read as Kew's accepted name, by its authors: scripts/catalog/decisions.json
+  // `kewNames`. A later checklist that accepts the other homonym lists the name again.)
   const checked = JSON.parse(readFileSync('scripts/catalog/decisions.json', 'utf8')).kewNames ?? {};
-  const homonyms = [...new Set(decidedByAccepted)].filter((n) => !checked[n]).sort();
+  const homonyms = [...new Set(decidedByAccepted)].filter((n) => checked[n]?.author !== acceptedAuthors.get(n)).sort();
   if (homonyms.length) console.log(`accepted name chosen over a homonym's synonym (check these): ${homonyms.join(', ')}`);
   const ours = new Set(species.map((s) => wcvpName(s.binomial)));
   const mine = unmatched.filter((n) => ours.has(n));

@@ -86,15 +86,16 @@ export function stateFile(state, bySource, sources, counties) {
  * Each plant's native status in a state, from Kew's World Checklist (wcvp.mjs: { id: { states: { fips: "N" | "I" },
  * species } }): { native: { id: "N" | "I" }, species: [ids whose status is their species'] }. None where WCVP doesn't
  * list it in the state, nor native where the catalog calls the plant exotic (`exotic`: ids; WCVP's species can
- * hold a native subspecies the garden plant isn't: its Rubus idaeus, the American red raspberry).
+ * hold a native subspecies the garden plant isn't: its Rubus idaeus, the American red raspberry). `asSpecies`: ids
+ * shown native all the same (a person's decision), said as their species' ("Its species is native to …").
  */
-export function nativeStatus(state, wcvp, exotic = new Set()) {
+export function nativeStatus(state, wcvp, exotic = new Set(), asSpecies = new Set()) {
   const native = {}, species = [];
   for (const [id, r] of Object.entries(wcvp)) {
     const s = r.states[state];
     if (!s || (s === 'N' && exotic.has(id))) continue;
     native[id] = s;
-    if (r.species) species.push(id);
+    if (r.species || asSpecies.has(id)) species.push(id);
   }
   return { native, species: species.sort() };
 }
@@ -265,7 +266,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
     const code = counties.find((c) => stateOf(c.fips) === fips)?.state;
     const f = stateFile({ fips, code }, bySource, sources, counties);
     // Native or introduced in the state, by Kew's checklist (with its source, for the line that says so).
-    const { native, species: nativeSpecies } = nativeStatus(fips, wcvp, exotic);
+    const { native, species: nativeSpecies } = nativeStatus(fips, wcvp, exotic, new Set(Object.keys(shown)));
     if (Object.keys(native).length) {
       f.native = native;
       if (nativeSpecies.length) f.nativeSpecies = nativeSpecies;

@@ -167,17 +167,13 @@ useful first:
 The summary line counts what's waiting by kind: to decide, pages not fetched, plants not searched, sites whose
 terms are unsettled, and catalog checks.
 
-**Where a decision goes.** A few kinds of item have a place to record the decision, and the next build then drops
-the item:
+**Where a decision goes.** Each kind of item that has a place to record the decision names it, and the next build
+then drops the item:
 - an NC State page to read or not, or a page under another name to accept: `ncsu-pages.json`;
 - a law list's name: its `accepted` in `regulated-plants.json`;
-- bloom months to trust: `RECORDS_TRUSTED` in bloom.mjs.
+- bloom months to trust: `RECORDS_TRUSTED` in bloom.mjs;
+- a cultivar's form, a plant both edible and toxic, native status held back, Kew's homonyms, a genus page:
+  `decisions.json` ([catalog-sources.md](catalog-sources.md), "Decisions").
 
-**Most kinds don't have a place yet.** The report says so for each:
-- the writer's items;
-- Kew's homonyms;
-- the atlas's double maps;
-- native status held back.
-
-They stay listed until there is one. Building those places is the next piece of work. For the writer's items, it
-means a file the writer reads, and a way for the app to say a fact was decided.
+**The rest don't have a place yet**, and the report says so for each: sources that disagree, a value held back as
+implausible, a value its source no longer gives, and the atlas's double maps. They stay listed until there is one.

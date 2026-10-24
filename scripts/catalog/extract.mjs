@@ -132,7 +132,10 @@ export function appendixTaxa(lines, from, binomial) {
   const stop = lines.findIndex((l, i) => i > from && /^\s*APPENDIX II\s*$/.test(l));
   const end = stop < 0 ? lines.length : stop;
   const clean = (l) => l.replace(/\f/g, '');
-  const pageFurniture = (l) => /APPENDIX I\b/.test(l) || /^\s*\d{1,4}\s*$/.test(l) || /Free download edition/i.test(l);
+  const pageFurniture = (l) => /APPENDIX\s+I+\b/.test(l) || /^\s*\d{1,4}\s*$/.test(l) || /Free download edition/i.test(l);
+  // (A species or family heading pdftotext indented a little: the entry has ended. A common name carried onto
+  // its own line sits far right, in the common-name column.)
+  const heading = (seg) => seg.at <= 4 && (FAMILY.test(seg.text) || (/^[A-Z][a-z]+ (?:× ?)?[a-z-]+\b/.test(seg.text) && !INFRA.test(seg.text)));
   for (let i = from + 1; i < end; i++) {
     const l = clean(lines[i]);
     if (!l.trim() || /^\s/.test(l)) continue;
@@ -144,9 +147,11 @@ export function appendixTaxa(lines, from, binomial) {
       if (!t.trim() || pageFurniture(t)) continue;
       if (!/^\s/.test(t)) break; // (the next species, family or group)
       const segs = segments(t);
-      if (!INFRA.test(segs[0].text)) continue;
+      if (heading(segs[0])) break;
       const last = segs[segs.length - 1];
-      taxa.push({ name: segs[0].text, codes: segs.length > 1 && CODE.test(last.text) ? last.text.split(/\s*,\s*/).map(Number) : [] });
+      const codes = segs.length > 1 && CODE.test(last.text) ? last.text.split(/\s*,\s*/).map(Number) : [];
+      if (INFRA.test(segs[0].text)) taxa.push({ name: segs[0].text, codes });
+      else if (codes.length && taxa.length) taxa[taxa.length - 1].codes.push(...codes); // (its common name ran on)
     }
     return taxa.length ? taxa : null;
   }

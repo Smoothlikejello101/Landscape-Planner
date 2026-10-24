@@ -119,22 +119,35 @@ describe('what the writer holds back', () => {
       { fact: 'form', v: ncsu, src: 'ncsu', kind: 'authority' }, ...(usda ? [{ fact: 'form', v: usda, src: 'usda', kind: 'authority' }] : []),
     ];
     const disputed = { v: null, src: ['ncsu', 'usda'], check: 'disputed', note: tree };
-    const plants = ['dwarf', 'both', 'cherry', 'vine', 'open'].map((id) => rec(id, { form: 'Shrub' }));
+    const ids = ['dwarf', 'both', 'cherry', 'twice', 'vine', 'shop', 'flagged', 'odd', 'four', 'open'];
+    const plants = ids.map((id) => rec(id, { form: 'Shrub' }));
     const auditOf = (id: string, claims: unknown[]) => ({ id, claims, facts: { form: disputed } });
-    const decisions = { form: { dwarf: { v: 'Shrub' }, both: { v: ['Tree', 'Shrub'] }, cherry: { v: 'Tree' }, vine: { v: 'Vine' } } };
+    const decisions = { form: {
+      dwarf: { v: 'Shrub' }, both: { v: ['Tree', 'Shrub'] }, cherry: { v: 'Tree' }, twice: { v: ['Tree', 'Tree'] }, vine: { v: 'Vine' },
+      shop: { v: 'Vine' }, flagged: { v: 'Vine' }, odd: { v: 'Palm' }, four: { v: ['Tree', 'Shrub', 'Vine', 'Perennial'] },
+    } };
     const { file, review } = writeAudit({ meta: { ...meta, enums: { ...meta.enums, form: ['Shrub', 'Tree', 'Perennial', 'Vine'] } }, plants }, [
       auditOf('dwarf', forms(['Shrub', 'Tree'], ['Shrub', 'Tree'])), auditOf('both', forms(['Shrub', 'Tree'], ['Tree'])),
-      auditOf('cherry', forms(['Tree'])), auditOf('vine', forms(['Tree'])), auditOf('open', forms(['Tree'])),
+      auditOf('cherry', forms(['Tree'])), auditOf('twice', forms(['Tree'])), auditOf('vine', forms(['Tree'])),
+      auditOf('shop', [...forms(['Tree']), { fact: 'form', v: ['Vine'], src: 'shop.com', kind: 'nursery' }]),
+      auditOf('flagged', [...forms(['Tree']), { fact: 'form', v: ['Vine'], src: 'usda', kind: 'authority', flag: { text: 'x' } }]),
+      auditOf('odd', forms(['Tree'])), auditOf('four', forms(['Tree', 'Shrub', 'Vine', 'Perennial'])), auditOf('open', forms(['Tree'])),
     ], '2026-10-23', catalogWarnings, decisions);
     const form = (id: string) => file.plants.find((p: { id: string }) => p.id === id).facts.form;
-    expect(form('dwarf')).toEqual({ v: 'Shrub', src: ['ncsu', 'usda'], check: 'confirmed' }); // (both list a shrub)
-    expect(form('both')).toEqual({ v: ['Tree', 'Shrub'], src: ['ncsu', 'usda'], check: 'single' }); // (only NC State lists both)
+    // (Single, however many list it: the sources list the species as either form, and a person chose.)
+    expect(form('dwarf')).toEqual({ v: 'Shrub', src: ['ncsu', 'usda'], check: 'single' });
+    expect(form('both')).toEqual({ v: ['Tree', 'Shrub'], src: ['ncsu', 'usda'], check: 'single' }); // (NC State lists both: first)
     expect(form('cherry')).toEqual({ v: 'Tree', src: ['ncsu'], check: 'single' }); // (a shrub in the old list: now a tree)
-    expect(form('vine')).toBe('Shrub'); // (no source lists a vine: a decision never adds a form)
-    expect(form('open')).toBe('Shrub'); // (not decided: as it was, and still listed)
+    expect(form('twice')).toEqual({ v: 'Tree', src: ['ncsu'], check: 'single' }); // (one form, said twice)
+    // A decision never adds a form: none listed, or only by a nursery or in a flag, a form the catalog lacks, or four.
+    for (const id of ['vine', 'shop', 'flagged', 'odd', 'four', 'open']) expect(form(id), id).toBe('Shrub');
     expect(review.map((r: { id: string; note: string }) => [r.id, r.note])).toEqual([
-      ['vine', `${tree}; the decision (Vine) names a form its sources don't list`],
-      ['open', tree],
+      ['vine', `${tree}; the decision names a form its sources don't list (Vine)`],
+      ['shop', `${tree}; the decision names a form its sources don't list (Vine)`],
+      ['flagged', `${tree}; the decision names a form its sources don't list (Vine)`],
+      ['odd', `${tree}; the decision names a form the catalog doesn't have (Palm)`],
+      ['four', `${tree}; the decision names more than three forms`],
+      ['open', tree], // (not decided: as it was, and still listed)
     ]);
     expect(catalogErrors(file)).toEqual([]);
   });
