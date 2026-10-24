@@ -25,6 +25,14 @@ const poisonOf = (v) => {
   if (v.skin === true) out.skin = true;
   return out;
 };
+// The words the catalog takes for the leaf facts (the same lists as src/catalog.ts, which checks them).
+const LEAF_COLORS = ['green', 'silver', 'gold', 'blue', 'purple', 'red', 'copper', 'white', 'variegated', 'orange', 'pink', 'cream', 'black'];
+const FALL_COLORS = ['gold', 'red', 'orange', 'purple', 'copper', 'cream', 'silver', 'pink'];
+const FOLIAGE = ['evergreen', 'semi-evergreen', 'deciduous'];
+const GROWTH_RATES = ['slow', 'medium', 'fast'];
+/** A list of words from `words`, each once, in the order given (undefined if empty or any isn't one). */
+const listOf = (words) => (v) => (Array.isArray(v) && v.length && v.every((x) => words.includes(x)) ? [...new Set(v)] : undefined);
+const oneOf = (words) => (v) => (words.includes(v) ? v : undefined);
 /**
  * How each audited fact goes into the catalog: its key there and its value (undefined: not writable). Forms
  * are a list of up to three (one: plain); native status, toxicity to animals, hosts and bloom wait on format changes
@@ -43,7 +51,13 @@ const FACTS = {
   clay_ok: ['clay_ok', yes],
   wet_feet: ['wet_feet', yes],
   edible: ['edible', yes],
-  fall_color: ['fall_color', yes],
+  // (Yes, or no where NC State calls its fall color "Insignificant": a source saying so, not silence.)
+  fall_color: ['fall_color', (v) => (typeof v === 'boolean' ? v : undefined)],
+  fall_colors: ['fall_colors', listOf(FALL_COLORS)],
+  leaf_color: ['leaf_color', listOf(LEAF_COLORS)],
+  foliage: ['foliage', oneOf(FOLIAGE)],
+  needles: ['needles', yes],
+  growth_rate: ['growth_rate', oneOf(GROWTH_RATES)],
   low_branched: ['low_branched', yes],
   poison: ['poison', poisonOf],
 };

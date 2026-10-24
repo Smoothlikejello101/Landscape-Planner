@@ -231,3 +231,29 @@ test('a plant poisonous to people says so, beside Edible, and the picker can kee
   await page.getByTestId('plant-search').fill('Mayapple');
   await expect(page.locator('.plant-item', { hasText: 'Mayapple' })).toHaveCount(0);
 });
+
+test('a plant\'s leaves: their colors, what they do in winter, fall color and growth rate; the picker can keep only evergreens', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Red maple');
+  const maple = page.locator('.plant-item', { hasText: /^Red maple/ }).first();
+  await maple.getByTestId('plant-row').click();
+  const details = maple.getByTestId('plant-details');
+  const row = (label: string) => details.locator('dt', { hasText: new RegExp(`^${label}$`) }).locator('xpath=following-sibling::dd[1]');
+  await expect(row('Leaf colors')).toContainText('Gold, green, orange');
+  await expect(row('In winter')).toContainText('Deciduous: loses its leaves');
+  await expect(row('In winter').locator('.details-src')).toContainText(/NC State.*, USDA.* · confirmed/);
+  await expect(row('Fall color')).toContainText('Yes: gold, red');
+  await expect(row('Growth rate')).toContainText('Fast');
+  // An herb's winter is dying back: Heuchera 'Autumn Bride' keeps its leaves, NC State says.
+  await page.getByTestId('plant-search').fill('Autumn Bride');
+  const heuchera = page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" });
+  await heuchera.getByTestId('plant-row').click();
+  await expect(heuchera.getByTestId('plant-details').locator('dt', { hasText: /^In winter$/ }).locator('xpath=following-sibling::dd[1]')).toContainText('Evergreen: keeps its leaves');
+  // Evergreens only: the heuchera stays, the maple goes.
+  await page.getByRole('button', { name: '+ More filters' }).click();
+  await page.locator('label', { hasText: /^Evergreen$/ }).locator('input').check();
+  await expect(heuchera).toHaveCount(1);
+  await page.getByTestId('plant-search').fill('Red maple');
+  await expect(page.locator('.plant-item', { hasText: /^Red maple/ })).toHaveCount(0);
+});

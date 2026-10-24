@@ -49,6 +49,18 @@ export interface Plant {
   host?: string;
   edible?: boolean;
   fall_color?: boolean;
+  /** Its fall leaf colors (src/catalog.ts FALL_COLORS). */
+  fall_colors?: string[];
+  /**
+   * Its leaf colors (src/catalog.ts LEAF_COLORS), as its source lists them: NC State's take in the seasons and the
+   * undersides (red maple: green, gold, orange), so a color here isn't necessarily the summer color.
+   */
+  leaf_color?: string[];
+  /** Whether its leaves stay through winter (for an herb, deciduous is dying back). */
+  foliage?: 'evergreen' | 'semi-evergreen' | 'deciduous';
+  /** Needled leaves (pines, junipers, arborvitae). */
+  needles?: boolean;
+  growth_rate?: 'slow' | 'medium' | 'fast';
   winter_interest?: boolean;
   clay_ok?: boolean;
   wet_feet?: boolean;
@@ -116,6 +128,8 @@ export const PLANT_FILTER_DEFAULTS = {
   noPoison: false,
   dryShade: false, wetFeet: false, clayOk: false,
   hostOnly: false, fallColor: false, winterInterest: false,
+  /** Keeps its leaves through winter (evergreen; not semi-evergreen, which depends on the winter). */
+  evergreen: false,
   edible: false, noTaproot: false, inPlan: false,
   /** Rated for the plan's zone (when the plan has a location). */
   hardyHere: false,
@@ -201,6 +215,7 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (f.clayOk && !p.clay_ok) return false;
   if (f.hostOnly && !p.host) return false;
   if (f.fallColor && !p.fall_color) return false;
+  if (f.evergreen && p.foliage !== 'evergreen') return false;
   if (f.winterInterest && !p.winter_interest) return false;
   if (f.edible && !p.edible) return false;
   if (f.noTaproot && p.taproot) return false;

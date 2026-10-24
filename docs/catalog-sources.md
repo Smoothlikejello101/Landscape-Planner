@@ -487,7 +487,11 @@ months ("MO" for MOBOT).
 | `nectar`, `bird` | — | — | `null`: no source gives a level. |
 | `host` | "Wildlife Value" and its sentences | — | Only where a source says the plant is a larval host. Stored as the names it gives, never its sentence, and only names whose genus the Tallamy data lists as a butterfly or moth. Confirmed only where two sources name the same one. |
 | `edible` | "Plant Type" tag Edible | — | The tag, not the free-text "Edibility" note. |
-| `fall_color` | "Deciduous Leaf Fall Color" | — | USDA's "Fall Conspicuous" is about the plant overall in fall, not leaf color. |
+| `fall_color`, `fall_colors` | "Deciduous Leaf Fall Color" | — | The colors it lists. "Insignificant" alone is no fall color (`fall_color` no, since 2026-10-24; before, any value counted as yes). USDA's "Fall Conspicuous" is about the plant overall in fall, not leaf color. |
+| `leaf_color` | "Leaf Color" | fallback ("Foliage Color") | Each color it lists, in the catalog's words: Gray/Silver → silver, Gold/Yellow → gold, Purple/Lavender → purple, Red/Burgundy → red, Brown/Copper → copper, Cream/Tan → cream; the rest by name. USDA's Gray-Green and White-Gray are silver, its Dark Green and Yellow-Green green. NC State's list takes in the seasons and the leaves' undersides, so it isn't read as the summer color (no filter rests on it). A cultivar's only from a page for it. |
+| `foliage` | "Woody Plant Leaf Characteristics" | fallback ("Leaf Retention") | Broadleaf or Needled Evergreen → evergreen; Semi-evergreen, or both an evergreen and Deciduous → semi-evergreen; Deciduous → deciduous. NC State gives it for woody plants and some herbs; USDA's Yes is evergreen, its No deciduous (for an herb, dying back). Semi-evergreen agrees with either. A cultivar takes its species'. |
+| `needles` | "Needled Evergreen", or "Leaf Type" Needles | — | Yes or missing. |
+| `growth_rate` | "Growth Rate" | fallback ("Growth Rate") | Slow, Medium (USDA: Moderate), Rapid → slow, medium, fast. A cultivar's only from a page for it. |
 | `low_branched` | "Woody Plant Leaf Characteristics", "Design Feature", "Habit/Form" | — | Our reading of its tags, agreed 2026-10-22: a tree that's evergreen (Needled or Broadleaf Evergreen) and listed as a Hedge or Screen/Privacy keeps its branches to the ground (Green Giant arborvitae, Nellie Stevens holly, Carolina cherry laurel). A deciduous tree tagged as a screen (witch hazel) isn't one, nor an evergreen tagged only for its shape (sweetbay magnolia, pyramidal among other habits): their lower limbs can be taken up. A shrub's page can carry it too (a dwarf cultivar of a tree): the app reads it only for a tree. Yes or missing, never no. |
 | `clay_ok` | soil texture | — | |
 | `wet_feet` | soil drainage | — | |
@@ -520,6 +524,11 @@ listed). The kinds the build applies:
 The first answers (2026-10-23) came from a page of cards built from the review list, one per item, with what
 each source says.
 
+
+**USDA as a fallback** (its habit for `form`; its plant traits for `foliage`, `leaf_color` and `growth_rate`): it
+decides only where NC State says nothing. Otherwise it backs NC State's value (confirmed) or is noted against it,
+never a dispute. Its traits are recorded for the species: a cultivar's leaf color and growth rate never come from
+them.
 ## Zones
 
 The 2023 USDA map divides zones into 10 °F bands. Zone *n* covers

@@ -51,6 +51,12 @@ describe('the shipped catalog', () => {
     // Poisonous to people, from NC State, beside an edible decided by a person (mayapple's ripe fruit).
     expect(plants.find((p) => p.id === 'podophyllum-peltatum')).toMatchObject({ edible: true, poison: { severity: 'high', parts: ['leaves', 'roots', 'seeds', 'stems'], skin: true }, prov: { poison: { src: ['ncsu'], check: 'single' }, edible: { src: ['ncsu'] } } });
     expect(plants.filter((p) => p.poison).length).toBeGreaterThan(100);
+    // Leaves, from NC State and USDA's plant traits: red maple's in full; a cultivar keeps its species' winter
+    // habit, never its leaf color (bred to change).
+    expect(plants.find((p) => p.id === 'acer-rubrum')).toMatchObject({ foliage: 'deciduous', fall_color: true, fall_colors: ['gold', 'red'], growth_rate: 'fast',
+      prov: { foliage: { src: ['ncsu', 'usda'], check: 'confirmed' }, growth_rate: { src: ['ncsu', 'usda'], check: 'confirmed' } } });
+    expect(plants.filter((p) => p.foliage).length).toBeGreaterThan(400);
+    expect(plants.filter((p) => p.parent && p.leaf_color && !(shipped as CatalogFile).plants.find((r) => r.id === p.id)?.facts.leaf_color)).toEqual([]);
     expect(plants.find((p) => p.id === 'ilex-vomitoria-nana-schillings')).toMatchObject({ form: 'Shrub', prov: { form: { src: ['ncsu', 'usda'], check: 'single' } } });
     expect(new Set(plants.flatMap((p) => p.forms ?? [p.form]).filter((f) => f?.startsWith('Tree')))).toEqual(new Set(['Tree']));
     expect((shipped as CatalogFile).meta.sources['ufl.edu']).toMatchObject({ trust: 'reference' });
@@ -81,6 +87,12 @@ describe('records', () => {
     expect(c.prov!.tox).toEqual({ src: ['mobot'], inherited: true });
     expect(c.prov!.width).toEqual({ src: ['ncsu'] });
     expect(c.bloom).toBeUndefined(); // flower color is what cultivars are bred to change
+    // Whether it keeps its leaves in winter comes with the species; leaf color and growth rate are bred to change.
+    const leafy = rec({ ...species, facts: { ...species.facts, foliage: { v: 'deciduous', src: ['ncsu'], check: 'single' }, leaf_color: { v: ['green'], src: ['ncsu'], check: 'single' }, growth_rate: { v: 'fast', src: ['ncsu'], check: 'single' } } });
+    const [, leafyC] = resolveCatalog({ meta, plants: [leafy, cultivar] });
+    expect(leafyC).toMatchObject({ foliage: 'deciduous', prov: { foliage: { src: ['ncsu'], inherited: true } } });
+    expect(leafyC.leaf_color).toBeUndefined();
+    expect(leafyC.growth_rate).toBeUndefined();
     expect(c.unverified).toBeUndefined();
     // Audited, but the cultivar's form and toxicity come from Missouri's page: sourced, so fully checked.
     expect(c.partlyChecked).toBeUndefined();
@@ -141,6 +153,10 @@ describe('records', () => {
     for (const ok of [{}, { severity: 'high', parts: ['seeds'], skin: true }, { severity: 'low' }, { skin: true }]) expect(pz(ok), JSON.stringify(ok)).toEqual([]);
     for (const bad of [{ severity: 'severe' }, { severity: null }, { parts: [] }, { parts: 'seeds' }, { parts: ['seeds', 'seeds'] }, { parts: ['Seeds'] }, { skin: false }, { color: 'red' }, 'yes']) expect(pz(bad), JSON.stringify(bad)).toHaveLength(1);
     expect(pz(null)).toEqual([]); // (NC State read, nothing said of poison)
+    // Leaves: colors and fall colors as lists of the catalog's words, each once; one word for winter and growth.
+    const lf = (k: string, v: unknown) => catalogErrors({ meta, plants: [rec({ id: 'l', facts: { [k]: { v, src: ['ncsu'], check: 'single' } } })] });
+    for (const [k, ok] of [['leaf_color', ['green', 'silver']], ['fall_colors', ['gold']], ['foliage', 'semi-evergreen'], ['growth_rate', 'fast'], ['needles', true]] as const) expect(lf(k, ok), k).toEqual([]);
+    for (const [k, bad] of [['leaf_color', []], ['leaf_color', ['green', 'green']], ['leaf_color', ['Green']], ['fall_colors', ['teal']], ['foliage', 'sometimes'], ['growth_rate', 'rapid'], ['needles', 'yes']] as const) expect(lf(k, bad), `${k} ${JSON.stringify(bad)}`).toHaveLength(1);
     // A file must say its zones are on the half-zone scale.
     const { zones: _z, ...older } = meta;
     expect(catalogErrors({ meta: older as CatalogFile['meta'], plants: [] })).toEqual(['meta.zones must be "half" (zones on the half-zone scale; see docs/catalog-format.md)']);

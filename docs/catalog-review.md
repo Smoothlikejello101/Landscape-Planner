@@ -1,6 +1,6 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 1 to decide, 39 sites whose terms are unsettled, 104 catalog checks; 780 of 820 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 1 to decide, 39 sites whose terms are unsettled, 104 catalog checks; 782 of 820 records audited.
 
 - [Held back as implausible (1)](#held-back-as-implausible-1)
 - [Sites whose terms are unsettled (39)](#sites-whose-terms-are-unsettled-39)

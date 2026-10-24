@@ -188,3 +188,30 @@ describe('what the writer holds back', () => {
     expect(catalogErrors(file)).toEqual([]);
   });
 });
+
+describe('writing the leaf facts', () => {
+  const file: CatalogFile = { meta: { format: 'lp-catalog', version: 2, zones: 'half', sources: { compendium: { title: 'old', trust: 'unverified' } }, enums: { form: ['Shrub', 'Tree'] } },
+    plants: [{ id: 'maple', common: 'Maple', src: ['compendium'], audited: null, facts: { form: 'Tree', fall_color: true } }] };
+  const leafAudit = [{ id: 'maple', claims: [{ src: 'ncsu', kind: 'authority' }, { src: 'usda', kind: 'authority' }], facts: {
+    fall_color: { v: false, src: ['ncsu'], check: 'single' }, // (NC State: "Insignificant")
+    leaf_color: { v: ['green', 'silver'], src: ['ncsu', 'usda'], check: 'confirmed' },
+    foliage: { v: 'semi-evergreen', src: ['ncsu'], check: 'single' },
+    growth_rate: { v: 'rapid', src: ['ncsu'], check: 'single' }, // (not a word the catalog takes)
+    needles: { v: true, src: ['ncsu'], check: 'single' },
+    fall_colors: { v: ['gold', 'teal'], src: ['ncsu'], check: 'single' }, // (teal isn't one)
+  } }];
+  const { file: out, review } = writeAudit(file, leafAudit, '2026-10-24');
+  const f = out.plants[0].facts;
+  it('writes them with their sources, a sourced "no" fall color included', () => {
+    expect(f.fall_color).toEqual({ v: false, src: ['ncsu'], check: 'single' });
+    expect(f.leaf_color).toEqual({ v: ['green', 'silver'], src: ['ncsu', 'usda'], check: 'confirmed' });
+    expect(f.foliage).toEqual({ v: 'semi-evergreen', src: ['ncsu'], check: 'single' });
+    expect(f.needles).toEqual({ v: true, src: ['ncsu'], check: 'single' });
+    expect(catalogErrors(out)).toEqual([]);
+  });
+  it('refuses words the catalog doesn\'t take, and lists them', () => {
+    expect(f.growth_rate).toBeUndefined();
+    expect(f.fall_colors).toBeUndefined();
+    expect(review.map((r: { fact: string }) => r.fact).sort()).toEqual(['fall_colors', 'growth_rate']);
+  });
+});
