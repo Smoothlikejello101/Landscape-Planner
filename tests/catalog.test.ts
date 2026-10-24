@@ -139,7 +139,8 @@ describe('records', () => {
     // Poisonous to people: NC State's severity, the parts it names, skin irritation; {} is poisonous, nothing more said.
     const pz = (v: unknown) => catalogErrors({ meta, plants: [rec({ id: 'p', facts: { poison: { v, src: ['ncsu'], check: 'single' } } })] });
     for (const ok of [{}, { severity: 'high', parts: ['seeds'], skin: true }, { severity: 'low' }, { skin: true }]) expect(pz(ok), JSON.stringify(ok)).toEqual([]);
-    for (const bad of [{ severity: 'severe' }, { parts: [] }, { parts: 'seeds' }, { skin: false }, { color: 'red' }, 'yes']) expect(pz(bad), JSON.stringify(bad)).toHaveLength(1);
+    for (const bad of [{ severity: 'severe' }, { severity: null }, { parts: [] }, { parts: 'seeds' }, { parts: ['seeds', 'seeds'] }, { parts: ['Seeds'] }, { skin: false }, { color: 'red' }, 'yes']) expect(pz(bad), JSON.stringify(bad)).toHaveLength(1);
+    expect(pz(null)).toEqual([]); // (NC State read, nothing said of poison)
     // A file must say its zones are on the half-zone scale.
     const { zones: _z, ...older } = meta;
     expect(catalogErrors({ meta: older as CatalogFile['meta'], plants: [] })).toEqual(['meta.zones must be "half" (zones on the half-zone scale; see docs/catalog-format.md)']);

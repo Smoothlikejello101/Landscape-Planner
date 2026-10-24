@@ -107,6 +107,25 @@ describe('what the writer holds back', () => {
     expect(ramps.facts.poison).toEqual({ v: {}, src: ['ncsu'], check: 'single' }); // (poisonous, nothing more said)
     expect(review).toEqual([{ id: 'ramps', fact: 'edible', note: 'edible, but rated toxic' }]);
     expect(catalogErrors(file)).toEqual([]);
+    // Decided against later: a sourced "edible" comes out, and isn't then listed as one "no source gives now".
+    const again = writeAudit(file, [{ id: 'mayapple', facts: { edible: settled(true), tox_people: settled(['major']), poison } }], '2026-11-01', catalogWarnings, { edible: { mayapple: { v: false } } });
+    expect(again.file.plants[0].facts.edible).toBeUndefined();
+    expect(again.review).toEqual([]);
+  });
+  it("says none listed where NC State's page was read and says nothing of poison, unless its species is rated", () => {
+    const read = (id: string, ncsu: Record<string, string[]>, parent?: string) => ({ id, sources: { ncsu: { url: 'x' } }, raw: { ncsu }, facts: {}, ...(parent ? { parent } : {}) });
+    const { file } = writeAudit({ meta, plants: [rec('aster', {}), rec('jasmine', {}), rec('unread', {}), rec('yew', { poison: { v: { severity: 'high' }, src: ['ncsu'], check: 'single' } }), rec('yew-cv', {}, { parent: 'yew' })] }, [
+      read('aster', { 'Plant Type': ['Herbaceous Perennial'] }),
+      read('jasmine', { 'Plant Type': ['Poisonous', 'Vine'] }), // (a bare tag: nothing said of people, nor "none")
+      { id: 'unread', facts: {} },
+      read('yew-cv', { 'Plant Type': ['Shrub'] }), // (its own page silent, its species rated: not "none")
+    ], '2026-10-23', catalogWarnings);
+    const poison = (id: string) => file.plants.find((p: { id: string }) => p.id === id).facts.poison;
+    expect(poison('aster')).toEqual({ v: null, src: ['ncsu'] });
+    expect(poison('jasmine')).toBeUndefined();
+    expect(poison('unread')).toBeUndefined();
+    expect(poison('yew-cv')).toBeUndefined();
+    expect(catalogErrors(file)).toEqual([]);
   });
   it('holds back values that make a record implausible, and drops a nursery report on half a pair', () => {
     const { file, review } = run([rec('gg', { form: 'Perennial', height: { min: 0.5, max: 1, med: 0.75 }, zone_min: 6, zone_max: 9 })], [

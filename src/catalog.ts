@@ -161,6 +161,8 @@ const SUN = ['Full', 'Part', 'Shade'];
 const TOX_ANIMAL = ['nontoxic', 'toxic', 'unlisted'];
 const TOX_PEOPLE = ['major', 'minor', 'oxalates', 'dermatitis', 'unlisted'];
 const POISON_SEVERITY = ['low', 'medium', 'high'];
+/** The parts NC State names (scripts/catalog/claims.mjs), as the catalog writes them. */
+const POISON_PARTS = ['leaves', 'fruits', 'seeds', 'stems', 'flowers', 'roots', 'sap', 'bark'];
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const isRange = (v: unknown) => {
   if (!isObj(v)) return false;
@@ -187,9 +189,9 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
   // Poisonous to people, in its source's terms (NC State's): how severe, which parts, and whether it irritates skin.
   // {} is poisonous with nothing more said.
   poison: (v) => isObj(v) && Object.keys(v).every((k) => ['severity', 'parts', 'skin'].includes(k))
-    && (v.severity == null || POISON_SEVERITY.includes(v.severity as string))
-    && (v.parts == null || (Array.isArray(v.parts) && v.parts.length > 0 && v.parts.every((x) => typeof x === 'string' && x.length > 0)))
-    && (v.skin == null || v.skin === true),
+    && (!('severity' in v) || POISON_SEVERITY.includes(v.severity as string))
+    && (!('parts' in v) || (Array.isArray(v.parts) && v.parts.length > 0 && new Set(v.parts).size === v.parts.length && v.parts.every((x) => POISON_PARTS.includes(x as string))))
+    && (!('skin' in v) || v.skin === true),
   thorns: (v) => typeof v === 'boolean',
   trunk: (v) => typeof v === 'number' && v > 0 && v <= 20,
   native: (v, e) => typeof v === 'string' && (!e.native || e.native.includes(v)),

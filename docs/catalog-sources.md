@@ -481,7 +481,7 @@ months ("MO" for MOBOT).
 | `bloom` | seasons | — | Seasons only: see "Waiting on format changes". |
 | `native` | — | decides (native status) | NC State's region of origin often comes from USDA, so it isn't independent. The Arkansas atlas decides for Arkansas. Waiting on a format change. |
 | `invasive` | — | invasive and noxious lists | Waiting on a format change and a sourced rule for "widely invasive". |
-| Toxicity to people | poison severity, poison part and contact dermatitis | — | Written as `poison`, in NC State's own terms: its severity (low, medium, high), the parts it names, and whether it irritates skin; a plant it tags Poisonous with nothing more is `{}`. Shown for every plant NC State rates (Jason, 2026-10-23: "Mark anything poisonous to people"), beside "Edible" where a plant is both. Internally the audit also reads it as High or Medium → `major`, Low → `minor`, contact dermatitis → `dermatitis`, for the edible check (Medium goes to `major` because erring toward harmless is the dangerous mistake). Authorities agree only on exactly the same values. |
+| Toxicity to people | poison severity, poison part, contact dermatitis, and "Poisonous to Humans" among its problems | — | Written as `poison`, in NC State's own terms: its severity (low, medium, high), the parts it names, and whether it irritates skin; a plant it lists as poisonous to humans with nothing more is `{}`. Its bare "Poisonous" plant-type tag isn't about people alone (star jasmine has it, its page calling it non-toxic to pets), so it counts for nothing by itself. A page that says nothing of poison at all is `null` ("None listed"), unless the species is rated. Shown for every plant NC State rates (Jason, 2026-10-23: "Mark anything poisonous to people"), beside "Edible" where a plant is both. Internally the audit also reads it as High or Medium → `major`, Low → `minor`, contact dermatitis → `dermatitis`, for the edible check (Medium goes to `major` because erring toward harmless is the dangerous mistake). Authorities agree only on exactly the same values. |
 | Toxicity to dogs, cats, horses | — | — | No usable source yet. NC State's poison facts are about people, and toxicity to people doesn't stand in for pets. |
 | `deer` | resistance list | — | Listed for deer → `Resistant`. Otherwise `null`. |
 | `nectar`, `bird` | — | — | `null`: no source gives a level. |
@@ -506,8 +506,9 @@ listed). The kinds the build applies:
   primary first (at most three), written with the authorities that list them. Always `single`, never
   `confirmed`: the sources list the species as either form, and a person chose which the cultivar is.
 - **`edible`**: a plant a source calls edible that's rated toxic (to dogs on the older list, or seriously
-  toxic to people): true writes the source's "edible", its poisonous parts shown beside it (`poison`, the same
-  source); false leaves it unmarked, taking out an older unsourced "edible".
+  toxic to people): true writes the source's "edible", with what the source lists as poisonous shown beside it
+  (`poison`), where it lists any (Japanese plum's rating is the older list's, for dogs); false leaves edible as it
+  was, taking out an older unsourced "yes".
 - **`nativeShown`**: a plant the catalog calls exotic that Kew's checklist has native in some states: shown
   native there all the same, said as its species' ("Its species is native to New York": wild.mjs). Where Kew's only native area is a territory (lantana: Puerto Rico), it
   changes nothing in the 50 states. When the catalog's North America-wide native status comes from Kew, the
@@ -614,13 +615,16 @@ on a person into [catalog-review.md](catalog-review.md). The steps:
    compendium), and a disputed one goes on the review list. So do values
    that would make the record implausible (the app's `catalogWarnings`:
    inches read as feet, a zone or sun range backwards), which are held back,
-   and "edible" on a plant rated toxic to dogs or seriously toxic to people.
+   and "edible" on a plant rated toxic to dogs or seriously toxic to people,
+   unless a person decided it (`edible` in decisions.json, "Decisions").
    A nursery's report on a pair (the zones, the sun levels) is one
-   nursery's whole range, kept only where both halves are written. It never
-   removes a value. Web sources are added to `meta.sources` by domain:
+   nursery's whole range, kept only where both halves are written. It
+   removes a value only where a person decided against it (an older,
+   unsourced "edible"). Web sources are added to `meta.sources` by domain:
    `reference` for authorities, `nursery` for nurseries and breeders.
-   Native status, toxicity, caterpillar hosts and bloom wait on their format
-   changes ("Waiting on format changes").
+   Toxicity to people is written as `poison`. Native status, toxicity to
+   animals, caterpillar hosts and bloom wait on their format changes
+   ("Waiting on format changes").
 5. **Review.** The review list, and `npm run catalog:check` for implausible
    values, plants neither source has, and facts left `null`.
 6. **Start small.** First 20 plants, mixing species and cultivars, trees and

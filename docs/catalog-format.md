@@ -119,7 +119,7 @@ hasn't been looked up.
 | `bloom` | `{ start, end, color? }`, months 1 to 12 |
 | `humidity` | `humid` (handles humid summers), `dry` (needs dry summers) or `either` |
 | `tox` | `{ dog?, cat?, horse? }` each `nontoxic`, `toxic` or `unlisted` (ASPCA); `people?` one of `major`, `minor`, `oxalates`, `dermatitis` (UC ANR classes 1 to 4) or `unlisted` |
-| `poison` | poisonous to people, in its source's terms (NC State's): `{ severity?, parts?, skin? }`: `severity` `low`, `medium` or `high`; `parts` the parts it names (`leaves`, `fruits`, `seeds`, `stems`, `flowers`, `roots`, `sap`, `bark`); `skin` true where it irritates skin on contact. `{}` is poisonous with nothing more said. Missing means no source rates it, not that it's safe. A cultivar takes its species' |
+| `poison` | poisonous to people, in its source's terms (NC State's): `{ severity?, parts?, skin? }`: `severity` `low`, `medium` or `high`; `parts` the parts it names, only these, each once (`leaves`, `fruits`, `seeds`, `stems`, `flowers`, `roots`, `sap`, `bark`); `skin` true where it irritates skin on contact. `{}` is listed as poisonous to people with nothing more said. `null`: NC State's page was read and says nothing of poison; the app says "None listed", never "safe". Missing: no source we read rates it for people ("Not known"). A cultivar takes its species' rating |
 | `thorns` | true for thorns, spines or prickles |
 | `trunk` | mature trunk diameter in feet (trees) |
 | `native`, `nativar` | first-compendium nativeness (to be replaced by USDA status by state) |

@@ -6,6 +6,8 @@
 // as does a value that would make the record implausible (the app's catalogWarnings: 1 in tall, zones
 // backwards).
 
+import { ncsuNoPoison } from './claims.mjs';
+
 /** The checks the app takes (src/catalog.ts): disputed facts aren't written. */
 const SETTLED = new Set(['confirmed', 'single', 'likely', 'reported']);
 const range = (r) => (r && typeof r.min === 'number' && typeof r.max === 'number' && r.min > 0 && r.min <= r.max
@@ -100,6 +102,12 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
     const facts = { ...rec.facts };
     const written = new Set();
     let unmarked = false; // (an older "edible" a person decided against, taken out)
+    // Poisonous to people: NC State's page read, and it says nothing of poison: none listed, its source named. Not
+    // where the species is rated (a cultivar's own page can leave out what its species' says).
+    if (!a.facts?.poison?.v && a.sources?.ncsu && ncsuNoPoison(a.raw?.ncsu ?? {}) && valueOf(parent?.facts.poison) == null && parentAudit?.facts?.poison?.v == null) {
+      facts.poison = { v: null, src: ['ncsu'] };
+      written.add('poison');
+    }
     for (const [key, [to, conv]] of Object.entries(FACTS)) {
       const f = a.facts?.[key];
       if (!f) continue;
@@ -160,7 +168,7 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
     const listed = new Set(review.filter((i) => i.id === rec.id).flatMap((i) => i.fact.split(', ')));
     for (const [, [to]] of Object.entries(FACTS)) {
       const f = rec.facts[to];
-      if (written.has(to) || listed.has(to) || !(f?.src?.length > 0) || f.src.some((s) => catalog.meta.sources[s]?.trust === 'unverified')) continue;
+      if (written.has(to) || listed.has(to) || (to === 'edible' && unmarked) || !(f?.src?.length > 0) || f.src.some((s) => catalog.meta.sources[s]?.trust === 'unverified')) continue;
       review.push({ id: rec.id, fact: to, note: `no source gives it now: ${JSON.stringify(f.v)}, from ${f.src.join(', ')}` });
     }
     // (Dated by this run only where its facts changed, or it had none audited: a record the run leaves as it was

@@ -133,19 +133,28 @@ export function lowBranched(f) {
 /** NC State's poison fields, in its own terms: Low, Medium or High; the parts it names; and skin irritation. */
 const PARTS = { Leaves: 'leaves', Fruits: 'fruits', Seeds: 'seeds', Stems: 'stems', Flowers: 'flowers', Roots: 'roots', 'Sap/Juice': 'sap', Bark: 'bark' };
 /**
- * How poisonous to people NC State says a plant is: { severity?, parts?, skin? }, or null where it says nothing
- * (not "safe": a page without poison fields says nothing either way). A plant tagged Poisonous with no part or
- * severity is {} (poisonous, nothing more said). Parts NC State names that aren't in PARTS are kept as written.
+ * How poisonous to people NC State says a plant is: { severity?, parts?, skin? }, or null where it says nothing of
+ * people. Its poison fields sit under "Poisonous to Humans"; a plant it lists there (its "Problems") with no part or
+ * severity is {} (poisonous to people, nothing more said). Its bare "Poisonous" plant-type tag isn't about people
+ * alone (star jasmine carries it, its page calling it non-toxic to pets), so it doesn't count by itself. A part
+ * outside PARTS isn't kept (the catalog takes only those): a new one would need adding there and in src/catalog.ts.
  */
 export function ncsuPoison(f) {
   const sev = f['Poison Severity']?.[0], parts = f['Poison Part'] ?? [], skin = f['Causes Contact Dermatitis']?.[0] === 'Yes';
-  if (!sev && !parts.length && !skin && !(f['Plant Type'] ?? []).includes('Poisonous')) return null;
+  if (!sev && !parts.length && !skin && !(f.Problems ?? []).includes('Poisonous to Humans')) return null;
   const out = {};
   if (['Low', 'Medium', 'High'].includes(sev)) out.severity = sev.toLowerCase();
-  if (parts.length) out.parts = parts.map((x) => PARTS[x] ?? x.toLowerCase());
+  // (A part NC State adds that isn't in PARTS isn't kept, so the catalog's check doesn't refuse the record.)
+  if (parts.length) out.parts = [...new Set(parts.map((x) => PARTS[x]).filter(Boolean))];
+  if (parts.length && !out.parts.length) delete out.parts;
   if (skin) out.skin = true;
   return out;
 }
+/**
+ * Whether NC State's page says nothing of poison at all: no poison fields, not listed as poisonous to humans, and
+ * no Poisonous tag. Only then is "none listed" said (`poison` null, sources checked); a bare tag says too little.
+ */
+export const ncsuNoPoison = (f) => !ncsuPoison(f) && !(f['Plant Type'] ?? []).includes('Poisonous');
 /** NC State Plant Toolbox fields → claims (an authority). */
 export function ncsuClaims(f) {
   const c = [], add = (fact, v) => { if (v != null && !(Array.isArray(v) && !v.length)) c.push({ fact, v, src: 'ncsu', kind: 'authority' }); };

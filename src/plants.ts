@@ -112,7 +112,7 @@ export const PLANT_FILTER_DEFAULTS = {
   /** Mature height (typical), "lo-hi" in feet, either end empty when open: src/ui/height-range.ts. */
   height: '',
   dogSafeOnly: false,
-  /** Leave out plants listed as poisonous to people (NC State); plants no source rates stay in. */
+  /** Only plants whose NC State page was read and lists no poison to people (one not rated is left out too, as the dog filter keeps only plants known safe). */
   noPoison: false,
   dryShade: false, wetFeet: false, clayOk: false,
   hostOnly: false, fallColor: false, winterInterest: false,
@@ -165,7 +165,7 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   // Invasives are never suggested; they turn up when searched by name (to map one already in the yard).
   if (p.invasive && !readQuery(f.q) && !f.inPlan) return false;
   if (f.dogSafeOnly && !nonToxicToDogs(p)) return false;
-  if (f.noPoison && p.poison) return false;
+  if (f.noPoison && !(p.prov?.poison?.unknown && !p.poison)) return false;
   // (Plants at the edge of their range count: the list marks them. So does a plant rated for cooler zones that's
   // recorded growing wild in the garden's county or one bordering it: it has been found living through those
   // summers. Not one rated for warmer zones: a record of an escaped garden annual says nothing about winters.)
@@ -462,7 +462,7 @@ export function plantMetaLine(p: Plant): string {
     bits.push('blooms ' + MONTH_NAMES[span.start] + (span.end !== span.start ? '-' + MONTH_NAMES[span.end] : ''));
   }
   if (p.invasive) bits.push('INVASIVE: not for planting');
-  if (p.poison) bits.push('poisonous to people');
+  if (p.poison) bits.push(Object.keys(p.poison).length === 1 && p.poison.skin ? 'can irritate skin' : 'poisonous to people');
   if (p.tox?.dog === 'toxic') bits.push('toxic to dogs (ASPCA)');
   const oldDog = oldDogWarning(p);
   if (oldDog) bits.push('dog: ' + oldDog);

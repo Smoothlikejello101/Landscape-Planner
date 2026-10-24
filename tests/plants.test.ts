@@ -4,7 +4,7 @@ import { matchedBy, nonToxicToDogs, PLANT_FILTER_DEFAULTS, plantMatches, plantTa
 import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs } from '../src/spread';
 import { readFileSync } from 'node:fs';
 import { HEIGHT_STOPS, heightLabel, heightStops, heightValue } from '../src/ui/height-range';
-import { poisonText } from '../src/ui/plant-details';
+import { poisonRow, poisonText } from '../src/ui/plant-details';
 
 const heuchera: Plant = {
   id: 'h', common: "Heuchera 'Autumn Bride'", botanical: 'Heuchera villosa', form: 'Perennial',
@@ -19,8 +19,14 @@ describe('poisonous to people, in its source\'s words', () => {
     expect(poisonText({ severity: 'medium', parts: ['seeds'] })).toBe('Seeds, medium severity');
     expect(poisonText({ severity: 'low' })).toBe('Low severity');
     expect(poisonText({ skin: true })).toBe('Can irritate skin');
-    expect(poisonText({})).toBe('Yes'); // (tagged poisonous, nothing more said)
+    expect(poisonText({})).toBe('Yes; no part or severity given'); // (listed for people, nothing more said)
     expect(poisonText(undefined)).toBe('');
+  });
+  it("says none listed where its source was read and silent, and not known where no source rates it: never nothing", () => {
+    const p = { id: 'a', common: 'Aster' } as Plant;
+    expect(poisonRow({ ...p, prov: { poison: { src: ['ncsu'], unknown: true } } } as Plant)).toBe('None listed');
+    expect(poisonRow(p)).toBe('Not known: no source we read rates it for people');
+    expect(poisonRow({ ...p, poison: { severity: 'low' } } as Plant)).toBe('Low severity');
   });
 });
 
@@ -71,12 +77,14 @@ describe('plant filters', () => {
     expect(plantMatches({ ...heuchera, dog: 'Mild GI' }, f({ dogSafeOnly: true }))).toBe(false);
     expect(plantMatches({ ...heuchera, dog: 'HARD NO' }, f())).toBe(true);
   });
-  it("leaves out plants listed as poisonous to people only when asked, and keeps those no source rates", () => {
+  it('keeps, when asked, only plants whose NC State page lists no poison to people: not those listed, nor those not rated', () => {
     const mayapple = { ...heuchera, poison: { severity: 'high', parts: ['leaves', 'roots', 'seeds', 'stems'], skin: true } } as Plant;
+    const none = { ...heuchera, prov: { ...heuchera.prov, poison: { src: ['ncsu'], unknown: true } } } as Plant;
     expect(plantMatches(mayapple, f())).toBe(true);
     expect(plantMatches(mayapple, f({ noPoison: true }))).toBe(false);
-    expect(plantMatches({ ...heuchera, poison: {} } as Plant, f({ noPoison: true }))).toBe(false); // (poisonous, nothing more said)
-    expect(plantMatches(heuchera, f({ noPoison: true }))).toBe(true); // (not rated: not called safe, not left out)
+    expect(plantMatches({ ...heuchera, poison: {} } as Plant, f({ noPoison: true }))).toBe(false); // (listed, nothing more said)
+    expect(plantMatches(none, f({ noPoison: true }))).toBe(true);
+    expect(plantMatches(heuchera, f({ noPoison: true }))).toBe(false); // (not rated: not called safe, as the dog filter)
   });
   it('never suggests invasives, but finds them by name', () => {
     const privet: Plant = { id: 'p', common: 'Chinese privet', botanical: 'Ligustrum sinense', invasive: true };
