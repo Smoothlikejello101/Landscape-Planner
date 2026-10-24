@@ -6,6 +6,8 @@
 --   select public.new_beta_code(10, 'Wave 1', 60);
 -- The sign-ups: Table Editor → beta_signups. When the beta ends, empty it (the privacy policy says so):
 --   truncate public.beta_signups;
+-- If floods of fake sign-ups ever get past the limits below, the next step is a challenge on the form
+-- (Cloudflare Turnstile), checked by a server function.
 
 -- ---------- Sign-ups ----------
 -- The website has no accounts, so anyone may sign up, through one function that checks each answer. Nobody
@@ -24,10 +26,22 @@ create table if not exists public.beta_signups (
 );
 alter table public.beta_signups enable row level security;
 
+-- Where sign-ups came from in the last hour, to stop a flood from one place: a SHA-256 of the internet (IP)
+-- address, from the first entry of X-Forwarded-For (Supabase's gateway sets it: its "Securing your API"
+-- guide reads it the same way). Kept an hour, as the privacy policy says. A hash of an IP address isn't
+-- anonymous (there are few enough addresses to try them all), so it's deleted, not just scrambled.
+create table if not exists public.beta_signup_tries (
+  ip_hash text not null,
+  at timestamptz not null default now()
+);
+create index if not exists beta_signup_tries_ip_at on public.beta_signup_tries (ip_hash, at);
+alter table public.beta_signup_tries enable row level security;
+
 -- 'ok' for a sign-up, also one already on the list (the first one stands, so nobody can change another
--- person's answers by typing their email); 'invalid' with what's wrong; 'busy' past 200 in an hour, all told,
--- a cap on a flood. The same answer for a new address and a known one, so the form can't be used to find out
--- who signed up.
+-- person's answers by typing their email); 'invalid' with what's wrong; 'too-many' past 10 tries in an hour
+-- from one internet address (a household signing up together fits); 'busy' past 200 sign-ups in an hour,
+-- all told, a backstop for a flood from many addresses. The same answer for a new address and a known one,
+-- so the form can't be used to find out who signed up.
 create or replace function public.beta_signup(p_email text, p_first_name text, p_place text, p_phone text,
   p_computer boolean, p_planning text, p_heard text) returns text
 language plpgsql security definer set search_path = '' as $$
@@ -38,7 +52,15 @@ declare
   v_phone text := lower(trim(coalesce(p_phone, '')));
   v_planning text := nullif(trim(coalesce(p_planning, '')), '');
   v_heard text := nullif(trim(coalesce(p_heard, '')), '');
+  v_ip text := nullif(trim(split_part(coalesce(current_setting('request.headers', true)::json ->> 'x-forwarded-for', ''), ',', 1)), '');
+  v_ip_hash text := case when v_ip is null then null else encode(pg_catalog.sha256(convert_to(v_ip, 'UTF8')), 'hex') end;
 begin
+  -- Every try counts, a wrong answer too, so a flood of bad data is held back as well.
+  delete from public.beta_signup_tries where at < now() - interval '1 hour';
+  if v_ip_hash is not null then
+    if (select count(*) from public.beta_signup_tries where ip_hash = v_ip_hash) >= 10 then return 'too-many'; end if;
+    insert into public.beta_signup_tries (ip_hash) values (v_ip_hash);
+  end if;
   if length(v_email) not between 6 and 254 or v_email !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' then return 'invalid: email'; end if;
   if length(v_name) not between 1 and 60 then return 'invalid: first name'; end if;
   if length(v_place) not between 2 and 40 then return 'invalid: ZIP code or state'; end if;
@@ -84,7 +106,8 @@ create index if not exists beta_code_tries_owner_at on public.beta_code_tries (o
 alter table public.beta_code_tries enable row level security;
 -- Before 2026-10-30 Supabase gave every new table to its API roles, with row-level security the guard
 -- (05-grants.sql). These four are reached only through the functions below, so take that away too.
-revoke all on public.beta_signups, public.beta_codes, public.beta_redemptions, public.beta_code_tries from anon, authenticated;
+revoke all on public.beta_signups, public.beta_signup_tries, public.beta_codes, public.beta_redemptions, public.beta_code_tries from anon, authenticated;
+revoke all on sequence public.beta_signups_id_seq from anon, authenticated;
 
 -- A new code like 'K7PQ-M3XD': 8 characters from 31 (no 0/O, 1/I/L), from the server's strong random
 -- source, about 40 bits. For the SQL Editor only.
@@ -123,6 +146,8 @@ declare
   rec public.beta_codes;
 begin
   if me is null then raise exception 'not signed in'; end if;
+  -- One try at a time per account, so a burst of tries at once can't all slip under the count below.
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('redeem_beta_code:' || me::text));
   delete from public.beta_code_tries where at < now() - interval '1 day';
   if (select count(*) from public.beta_code_tries where owner = me and at > now() - interval '1 hour') >= 10 then
     return 'too-many';

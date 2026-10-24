@@ -279,13 +279,16 @@ test('a beta code from the invitation makes the account a beta account, and sync
   await account.getByTestId('beta-code').fill('K7PQ-M3XE');
   await account.getByTestId('beta-code').press('Enter');
   await expect(account.getByTestId('account-error')).toContainText('That code didn’t work');
+  // Beside the field, where the keyboard can't hide it, and only once.
+  await expect(account.getByTestId('beta-code-box').getByTestId('account-error')).toHaveCount(1);
+  await expect(account.getByTestId('account-error')).toHaveCount(1);
   await expect(account.getByTestId('beta-code')).toHaveValue('K7PQ-M3XE');
   await expect(account.getByTestId('beta-code')).toBeFocused();
   // Lower case and a space: the same code.
   await account.getByTestId('beta-code').fill('k7pq m3xd');
   await account.getByTestId('beta-code-use').click();
   await expect(account.getByTestId('plan')).toHaveText('Beta tester: everything free during the beta');
-  await expect(page.getByText('You’re on the beta')).toBeVisible();
+  await expect(page.getByText('You’re on the beta: everything is free while it lasts.')).toBeVisible();
   await expect(account.getByTestId('account-error')).toHaveCount(0);
   await expect(account.getByTestId('beta-code-open')).toHaveCount(0); // nothing more to enter
   await expect(account.getByTestId('sync-status')).toHaveText('Synced just now');

@@ -7,7 +7,8 @@ import { finishPlacing } from '../place';
 import { currentProject, getClipboard } from '../storage';
 import { render } from './render';
 import { openLocation } from './location-panel';
-import { feedbackLink } from '../feedback';
+import { FEEDBACK_ADDRESS, feedbackLink } from '../feedback';
+import { toast } from './toast';
 import { deviceName } from '../sync/sync';
 
 /** Select mode on or off (the lasso button on the top bar). */
@@ -76,6 +77,8 @@ export function renderMoreMenu() {
     onClick: () => {
       state.menu = null; render();
       el('a', { href: feedbackLink(__APP_VERSION__, deviceName()) }).click();
+      // Where no mail app is set up, nothing opens: the address, to write from anywhere.
+      toast(`Opening your email app. If nothing opens, write to ${FEEDBACK_ADDRESS}.`, 8000);
     }
   });
   const menu = el('div', { className: 'menu' });

@@ -13,3 +13,11 @@ $P -d lp_sql_test -f supabase/test/sync-test.sql
 $P -d lp_sql_test -f supabase/test/photos-plants-test.sql
 $P -d lp_sql_test -f supabase/test/beta-test.sql
 sh supabase/test/race-test.sh
+# The live project, made before Supabase's 2026-10-30 change: new tables get every privilege by default.
+$P -c "drop database if exists lp_sql_test_wide" -c "create database lp_sql_test_wide"
+$P -d lp_sql_test_wide -f supabase/test/supabase-stub.sql
+$P -d lp_sql_test_wide -c "alter default privileges in schema public grant all on tables to anon, authenticated" \
+  -c "alter default privileges in schema public grant all on sequences to anon, authenticated"
+for f in supabase/0*.sql; do $P -d lp_sql_test_wide -f "$f"; done
+$P -d lp_sql_test_wide -f supabase/test/grants-wide-test.sql
+$P -c "drop database lp_sql_test_wide"

@@ -50,7 +50,8 @@ export function refreshAccountSection() {
 }
 
 function fill(section: HTMLElement) {
-  if (account.error) section.appendChild(el('div', { className: 'status warn', role: 'alert', 'data-testid': 'account-error' }, account.error));
+  // A beta code's error shows beside its field (betaCodeBlock), where the keyboard can't hide it.
+  if (account.error && !betaCodeShowing()) section.appendChild(errorLine());
   if (account.status === 'unknown') {
     if (!account.error) { section.appendChild(el('div', { className: 'status' }, 'Checking your account…')); return; }
     // Couldn't check (offline, say): a way to retry, and a way out.
@@ -119,6 +120,15 @@ function fill(section: HTMLElement) {
   section.append(el('div', { className: 'or-line' }, 'or'), el('div', { className: 'email-row' }, email, send));
 }
 
+function errorLine(): HTMLElement {
+  return el('div', { className: 'status warn', role: 'alert', 'data-testid': 'account-error' }, account.error ?? '');
+}
+/** Whether the beta code field is showing: signed in, asked for, and a plan that can use a code. */
+function betaCodeShowing(): boolean {
+  const p = account.plan?.plan;
+  return enteringBetaCode && account.status === 'signedIn' && !confirmingDelete && (p === 'trial' || p === 'lapsed');
+}
+
 /** A link to the privacy policy or the terms, on the website (a new tab, or the browser from the installed app). */
 function policyLink(href: string, words: string): HTMLElement {
   return el('a', { href, target: '_blank', rel: 'noopener' }, words);
@@ -145,7 +155,7 @@ function betaCodeBlock(): HTMLElement | null {
   const go = async () => {
     if (!(await redeemBetaCode(code.value))) return;
     enteringBetaCode = false;
-    toast('You’re on the beta: everything is free, and your plans sync between your devices.', 6000);
+    toast('You’re on the beta: everything is free while it lasts.', 6000);
     refreshAccountSection();
   };
   use.addEventListener('click', () => { void go(); });
@@ -156,7 +166,7 @@ function betaCodeBlock(): HTMLElement | null {
   if (focusBetaCodeNext) { focusBetaCodeNext = false; setTimeout(() => document.querySelector<HTMLInputElement>('[data-testid=beta-code]')?.focus(), 0); }
   return el('div', { className: 'beta-code', 'data-testid': 'beta-code-box' },
     el('div', { className: 'hint' }, 'The code from your beta invitation:'),
-    el('div', { className: 'email-row' }, code, use), cancel);
+    el('div', { className: 'email-row' }, code, use), account.error ? errorLine() : null, cancel);
 }
 
 /** "Synced 2 minutes ago" */

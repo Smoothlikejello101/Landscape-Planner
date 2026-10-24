@@ -14,6 +14,7 @@ test('Send feedback opens an email to us with the version and device, and closes
   const version = (await page.locator('.menu-version').innerText()).match(/^Version (\S+) ·/)![1];
   await page.locator('.menu-item', { hasText: 'Send feedback' }).click();
   await expect(page.locator('.menu')).toHaveCount(0);
+  await expect(page.getByText('If nothing opens, write to hello@fullgrown.garden.')).toBeVisible();
   const opened = await page.evaluate(() => (window as unknown as { opened: string[] }).opened);
   expect(opened).toHaveLength(1);
   const url = new URL(opened[0]);

@@ -44,6 +44,28 @@ set role anon;
 select pg_temp.check(public.beta_signup('late@example.com', 'Late', 'TX', 'none', false, null, null) = 'busy', 'flood cap');
 reset role;
 delete from public.beta_signups where email_key like 'flood%';
+-- One internet address: 10 tries an hour, wrong ones too; another address isn't held back.
+set role anon;
+select set_config('request.headers', '{"x-forwarded-for": "203.0.113.7, 10.0.0.1"}', false);
+select pg_temp.check(public.beta_signup('a' || i || '@example.com', 'A', 'TX', 'none', false, null, null) = 'ok', 'tries from one address') from generate_series(1, 9) i;
+select pg_temp.check(public.beta_signup('bad', 'A', 'TX', 'none', false, null, null) = 'invalid: email', 'a wrong try counts too');
+select pg_temp.check(public.beta_signup('a99@example.com', 'A', 'TX', 'none', false, null, null) = 'too-many', 'the eleventh try from one address waits');
+select set_config('request.headers', '{"x-forwarded-for": "198.51.100.4"}', false);
+select pg_temp.check(public.beta_signup('b1@example.com', 'B', 'TX', 'none', false, null, null) = 'ok', 'another address is fine');
+select set_config('request.headers', '', false);
+reset role;
+select pg_temp.check((select count(*) = 2 and bool_and(ip_hash ~ '^[0-9a-f]{64}$') from (select distinct ip_hash from public.beta_signup_tries) x), 'addresses kept only as hashes');
+select pg_temp.check((select count(*) = 0 from public.beta_signup_tries where ip_hash like '%203.0.113%'), 'no address in the clear');
+-- An hour later the address may try again; older tries are deleted.
+update public.beta_signup_tries set at = now() - interval '61 minutes';
+set role anon;
+select set_config('request.headers', '{"x-forwarded-for": "203.0.113.7"}', false);
+select pg_temp.check(public.beta_signup('a99@example.com', 'A', 'TX', 'none', false, null, null) = 'ok', 'an hour later, fine again');
+select set_config('request.headers', '', false);
+reset role;
+select pg_temp.check((select count(*) = 1 from public.beta_signup_tries), 'tries older than an hour deleted');
+delete from public.beta_signups where email ~ '^(a[0-9]+|b1)@example\.com$';
+select pg_temp.check((select count(*) = 2 from public.beta_signups), 'back to the two sign-ups');
 
 -- ---------- Codes ----------
 create temp table codes as select public.new_beta_code(2, 'Wave 1') as wave1, public.new_beta_code(5, 'Old', 1) as old;
@@ -58,8 +80,13 @@ select pg_temp.as_user('00000000-0000-0000-0000-0000000000c1');
 select pg_temp.check(public.redeem_beta_code(lower(replace((select wave1 from codes), '-', ' '))) = 'ok', 'code used');
 select pg_temp.check((select plan = 'beta' from public.plans where owner = auth.uid()), 'now a beta account');
 select pg_temp.check(public.redeem_beta_code((select wave1 from codes)) = 'already', 'already on the beta');
--- The plan can't be changed any other way.
+-- The plan can't be changed any other way: refused here (no grant); on a database with older, wider grants,
+-- row-level security leaves it nothing to update. Either way account c2's plan stays as it was.
 do $$ begin update public.plans set plan = 'beta'; exception when insufficient_privilege then null; end $$;
+reset role;
+select pg_temp.check((select plan = 'trial' from public.plans where owner = '00000000-0000-0000-0000-0000000000c2'), 'another account''s plan unchanged');
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-0000000000c1');
 do $$ begin perform 1 from public.beta_codes; raise exception 'FAILED: codes readable'; exception when insufficient_privilege then null; end $$;
 
 select pg_temp.as_user('00000000-0000-0000-0000-0000000000c2');
