@@ -10,8 +10,13 @@ import { toast } from './ui/toast';
 // the Account section, comes back from signing in, or is already signed in.
 // The app works fully without it, offline included.
 
-/** The project's address and public key. Public by design: they can do nothing beyond the database's access rules. */
-export const SUPABASE_URL = 'https://erepgvypesysctxezwkm.supabase.co';
+/**
+ * The project's address and public key. Public by design: they can do nothing beyond the database's access rules.
+ * The address is FullGrown's own (Supabase's custom domain, since 2026-10-24); the project's first one,
+ * https://erepgvypesysctxezwkm.supabase.co, still answers. A sign-in is kept under the app's own name
+ * (`AUTH_STORAGE_KEY`), not one derived from the address, so changing it signs no one out.
+ */
+export const SUPABASE_URL = 'https://api.fullgrown.garden';
 export const SUPABASE_KEY = 'sb_publishable_R6aLme10zqxx2yceOFQGEA__ayLzqPV';
 /**
  * Email sign-in needs the app's own email service: Supabase's built-in sender

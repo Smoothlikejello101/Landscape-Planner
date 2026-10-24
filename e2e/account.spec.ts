@@ -4,7 +4,7 @@ import { openFresh } from './helpers';
 // Accounts, against a stand-in for Supabase: every request to the real
 // project is intercepted, so tests never touch live data.
 
-const SUPABASE = 'https://erepgvypesysctxezwkm.supabase.co';
+const SUPABASE = 'https://api.fullgrown.garden';
 /** An unsigned token with the claims a session needs (the stand-in server never checks it). */
 const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
 const token = (exp: number) => `${b64({ alg: 'HS256', typ: 'JWT' })}.${b64({ sub: 'u-1', email: 'jason@example.com', role: 'authenticated', aud: 'authenticated', exp })}.sig`;
