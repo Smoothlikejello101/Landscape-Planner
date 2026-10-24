@@ -86,15 +86,16 @@ export function stateFile(state, bySource, sources, counties) {
  * Each plant's native status in a state, from Kew's World Checklist (wcvp.mjs: { id: { states: { fips: "N" | "I" },
  * species } }): { native: { id: "N" | "I" }, species: [ids whose status is their species'] }. None where WCVP doesn't
  * list it in the state, nor native where the catalog calls the plant exotic (`exotic`: ids; WCVP's species can
- * hold a native subspecies the garden plant isn't: its Rubus idaeus, the American red raspberry).
+ * hold a native subspecies the garden plant isn't: its Rubus idaeus, the American red raspberry). `asSpecies`: ids
+ * shown native all the same (a person's decision), said as their species' ("Its species is native to …").
  */
-export function nativeStatus(state, wcvp, exotic = new Set()) {
+export function nativeStatus(state, wcvp, exotic = new Set(), asSpecies = new Set()) {
   const native = {}, species = [];
   for (const [id, r] of Object.entries(wcvp)) {
     const s = r.states[state];
     if (!s || (s === 'N' && exotic.has(id))) continue;
     native[id] = s;
-    if (r.species) species.push(id);
+    if (r.species || asSpecies.has(id)) species.push(id);
   }
   return { native, species: species.sort() };
 }
@@ -213,7 +214,9 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   if (!existsSync('catalog-src/wcvp-native.json')) { console.error('catalog-src/wcvp-native.json is missing: run wcvp.mjs first (native status by state)'); process.exit(1); }
   const wcvp = read('catalog-src/wcvp-native.json');
   // (The catalog's own "Exotic", from its sources: never shown native. Listed for review where WCVP says so.)
-  const exotic = new Set(catalog.plants.filter((p) => (p.facts?.native?.v ?? p.facts?.native) === 'Exotic').map((p) => p.id));
+  // (Except where a person decided it's shown native where Kew says: scripts/catalog/decisions.json `nativeShown`.)
+  const shown = JSON.parse(readFileSync('scripts/catalog/decisions.json', 'utf8')).nativeShown ?? {};
+  const exotic = new Set(catalog.plants.filter((p) => (p.facts?.native?.v ?? p.facts?.native) === 'Exotic' && !shown[p.id]).map((p) => p.id));
   const nativeReview = Object.entries(wcvp).filter(([id, r]) => exotic.has(id) && Object.values(r.states).includes('N'))
     .map(([id, r]) => ({ id, name: r.name, nativeIn: Object.entries(r.states).filter(([, s]) => s === 'N').map(([f]) => Number(f)) }));
   writeFileSync('catalog-src/native-review.json', JSON.stringify(nativeReview, null, 1) + '\n');
@@ -263,7 +266,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
     const code = counties.find((c) => stateOf(c.fips) === fips)?.state;
     const f = stateFile({ fips, code }, bySource, sources, counties);
     // Native or introduced in the state, by Kew's checklist (with its source, for the line that says so).
-    const { native, species: nativeSpecies } = nativeStatus(fips, wcvp, exotic);
+    const { native, species: nativeSpecies } = nativeStatus(fips, wcvp, exotic, new Set(Object.keys(shown)));
     if (Object.keys(native).length) {
       f.native = native;
       if (nativeSpecies.length) f.nativeSpecies = nativeSpecies;

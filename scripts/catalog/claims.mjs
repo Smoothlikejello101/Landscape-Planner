@@ -170,7 +170,9 @@ export function mnwildClaims(f) {
 export function arkatlasClaims(ar) {
   if (!ar || ar.uncertain) return [];
   const labels = [ar.codes.includes(2) && 'endemic to Arkansas', ar.codes.includes(3) && 'non-native invasive in Arkansas', ar.codes.includes(4) && 'of special conservation concern in Arkansas'].filter(Boolean);
-  const infra = ar.infraOnly ? `in Arkansas only as ${ar.rows.map((r) => r.infra).join(', ')}` : '';
+  // (Mapped only as varieties, or on one map for its varieties listed in Appendix I: which ones.)
+  const infra = ar.infraOnly ? `in Arkansas only as ${ar.rows.map((r) => r.infra).join(', ')}`
+    : ar.combined ? `in Arkansas only as ${ar.appendix.map((t) => t.name).join(', ')}` : '';
   return [{ fact: 'native_ar', v: ar.codes.includes(1) ? 'introduced' : 'native', src: 'arkatlas', kind: 'authority', at: 'AR',
     note: infra && labels.length ? `${infra}, which is ${labels.join(' and ')}` : [...labels, infra].filter(Boolean).join('; ') }];
 }

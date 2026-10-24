@@ -17,7 +17,9 @@ if (!auditPath) { console.error('usage: npm run catalog:write -- <combined.json>
 const path = 'public/plants.json';
 const catalog = JSON.parse(readFileSync(path, 'utf8')) as CatalogFile;
 const audit = JSON.parse(readFileSync(auditPath, 'utf8')) as { id: string }[];
-const { file, review } = writeAudit(catalog, audit, date, catalogWarnings) as { file: CatalogFile; review: unknown[] };
+// (What a person decided on earlier review items: scripts/catalog/decisions.json, docs/catalog-sources.md "Decisions".)
+const decisions = JSON.parse(readFileSync('scripts/catalog/decisions.json', 'utf8'));
+const { file, review } = writeAudit(catalog, audit, date, catalogWarnings, decisions) as { file: CatalogFile; review: unknown[] };
 const tmp = `${path}.${process.pid}.tmp`;
 writeFileSync(tmp, catalogText(file));
 renameSync(tmp, path);

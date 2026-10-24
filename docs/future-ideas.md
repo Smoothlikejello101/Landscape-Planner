@@ -21,6 +21,11 @@ it waits.
   someone adds a plant or a note ("Help us make FullGrown better…"), sending
   plant names only. Needs a privacy decision before launch.
 
+- **Cultivars grouped in one record, split.** Some records stand for several cultivars ("Crape myrtle
+  ('Natchez' / 'Muskogee' / 'Tonto')"), whose sizes differ: 'Natchez' and 'Muskogee' grow into trees, 'Tonto'
+  stays shrub-sized. Each could be its own record with its own size, once a source gives each one's. Low
+  priority (Jason, 2026-10-23).
+
 ## Picker
 
 - **Flags for every disagreement.** A row is marked only when a filter

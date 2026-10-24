@@ -116,10 +116,11 @@ cultivar, mix or variety: "Its species is native to Arkansas"). The app shows it
 Arkansas: Native to Arkansas", with Kew named under it; an introduced one in the warning color) and filters on
 it ("Native to Arkansas": `N`; offered only where the state's file has native status).
 
-- **Not said where the catalog disagrees:** a plant the catalog calls "Exotic" (from its own sources) is never
+- **Not said where the catalog disagrees:** a plant the catalog calls "Exotic" (from its own sources) isn't
   shown native: WCVP's species can hold a native subspecies the garden plant isn't (its Rubus idaeus holds the
-  American red raspberry, so the European one would read "Native to New York"). Listed in
-  `catalog-src/native-review.json` for review.
+  American red raspberry). Listed in `catalog-src/native-review.json` for review. Where a person decides it's
+  shown all the same (`nativeShown` in scripts/catalog/decisions.json: raspberry, lantana), it's said as its
+  species' ("Its species is native to New York"), in `nativeSpecies`.
 - **A missing state isn't "not native":** WCVP leaves states out (Salvia lyrata isn't listed for Arkansas,
   though the Arkansas atlas records it in many counties; 38 Arkansas plants recorded wild are unlisted there),
   so the filter means "Kew lists it native here", and an unlisted plant gets no line, never "not native".
@@ -141,7 +142,8 @@ How it's read: `node scripts/catalog/wcvp.mjs <combined.json>` reads `catalog-sr
 sftp.kew.org/pub/data-repositories/WCVP/, unzipped; no robots.txt there) and writes
 `catalog-src/wcvp-native.json`. Each catalog species is matched by name: an accepted species, or a synonym's
 accepted species (Aster novae-angliae is Symphyotrichum novae-angliae); where a name is both accepted and a
-later homonym's synonym, the accepted one (the run lists each such case, for review); not where its names
+later homonym's synonym, the accepted one (the run lists each such case for review, until it's checked:
+`kewNames` in scripts/catalog/decisions.json, with the accepted name's authors); not where its names
 lead to more than one, or to a variety (Hibiscus lasiocarpos is H. moscheutos var. lasiocarpos to WCVP: the
 species' range isn't its alone). Three spellings are WCVP's own (`WCVP_NAME`: Andropogon gerardi, Buddleja
 davidii, Monarda bradburyana). 745 of 771 matched; the rest are hybrids, those synonyms, species WCVP draws

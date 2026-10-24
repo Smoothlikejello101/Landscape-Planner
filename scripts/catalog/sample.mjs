@@ -70,7 +70,9 @@ for (const s of sample) {
   if (ar) seen.arkatlas = { name: ar.name };
   if (s.genusOnly) notes.push('Arkansas atlas not looked up (no species name)');
   else if (!ar) notes.push(`Not found under ${s.species} on the Arkansas atlas's map pages`);
-  else if (ar.uncertain) notes.push(`The Arkansas atlas maps ${s.species} more than once with different status: left for the review`);
+  else if (ar.uncertain) notes.push(ar.why?.startsWith('combined map')
+    ? `The Arkansas atlas's combined map for ${s.species}: ${ar.why.replace('combined map: ', '')}: left for the review`
+    : `The Arkansas atlas maps ${s.species} more than once with different status: left for the review`);
   // Claims from each source, combined by tier (docs/catalog-sources.md).
   const cultivar = /'[^']+'/.test(`${rec?.common ?? ''} ${rec?.botanical ?? ''}`);
   // (A species-level page: one whose title names no cultivar (the species', a synonym's, the page NC State moved it
