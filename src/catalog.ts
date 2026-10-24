@@ -90,11 +90,11 @@ export interface Provenance {
 /**
  * Facts a cultivar takes from its species when it doesn't state them: what
  * comes with the species (where it's native, what it tolerates, what it
- * feeds, how toxic it is). Not size, trunk, flower color or habit, which
+ * feeds, how toxic it is, whether it keeps its leaves in winter). Not size, trunk, flower or leaf color, growth rate or habit, which
  * cultivars are bred to change.
  */
 export const INHERITED = new Set([
-  'form', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'humidity', 'tox', 'poison', 'dog', 'thorns',
+  'form', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'humidity', 'tox', 'poison', 'dog', 'thorns', 'foliage', 'needles',
   'native', 'host', 'nectar', 'bird', 'deer', 'edible', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'invasive',
 ]);
 
@@ -163,6 +163,16 @@ const TOX_PEOPLE = ['major', 'minor', 'oxalates', 'dermatitis', 'unlisted'];
 const POISON_SEVERITY = ['low', 'medium', 'high'];
 /** The parts NC State names (scripts/catalog/claims.mjs), as the catalog writes them. */
 const POISON_PARTS = ['leaves', 'fruits', 'seeds', 'stems', 'flowers', 'roots', 'sap', 'bark'];
+/** Leaf colors (NC State's "Leaf Color", USDA's "Foliage Color": scripts/catalog/claims.mjs). */
+export const LEAF_COLORS = ['green', 'silver', 'gold', 'blue', 'purple', 'red', 'copper', 'white', 'variegated', 'orange', 'pink', 'cream', 'black'];
+/** Fall leaf colors (NC State's "Deciduous Leaf Fall Color"). */
+export const FALL_COLORS = ['gold', 'red', 'orange', 'purple', 'copper', 'cream', 'silver', 'pink'];
+/** Whether the leaves stay through winter. For an herb, deciduous is dying back. */
+export const FOLIAGE = ['evergreen', 'semi-evergreen', 'deciduous'];
+export const GROWTH_RATES = ['slow', 'medium', 'fast'];
+/** A list of words from `words`, each once. */
+const wordsOf = (words: string[]) => (v: unknown) =>
+  Array.isArray(v) && v.length > 0 && new Set(v).size === v.length && v.every((x) => words.includes(x as string));
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 const isRange = (v: unknown) => {
   if (!isObj(v)) return false;
@@ -208,6 +218,10 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
   taproot: (v) => typeof v === 'boolean', invasive: (v) => typeof v === 'boolean',
   // A tree that keeps its branches to the ground (NC State's tags: docs/catalog-sources.md).
   low_branched: (v) => typeof v === 'boolean',
+  // Leaves: their colors, whether they stay through winter, needles; fall colors; how fast it grows.
+  leaf_color: wordsOf(LEAF_COLORS), fall_colors: wordsOf(FALL_COLORS),
+  foliage: (v) => FOLIAGE.includes(v as string), needles: (v) => typeof v === 'boolean',
+  growth_rate: (v) => GROWTH_RATES.includes(v as string),
 };
 export const FACT_NAMES = Object.keys(FACT_TYPES);
 const RECORD_KEYS = new Set(['id', 'common', 'botanical', 'short', 'synonyms', 'usda', 'parent', 'src', 'audited', 'facts']);

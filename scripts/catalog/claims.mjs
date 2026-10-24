@@ -10,8 +10,10 @@
 // A claim: { fact, v, src, kind, at?, group? }. kind: 'authority' (extension
 // services, botanical gardens, state floras), 'breeder', 'nursery', 'blog'.
 // `group` marks copies: claims sharing a group (the same text) count once,
-// and so do claims from one site (src). USDA's garden
-// figures are flags only: shown for review, never deciding or checking.
+// and so do claims from one site (src). USDA's garden figures are flags only
+// (shown for review, never deciding or checking), but for three plant traits
+// it records (leaves in winter, leaf color, growth rate): a fallback, deciding
+// where no other authority says (usdaClaims).
 import { feetRange } from './extract.mjs';
 import { mnLight, ncsuForms, ncsuSun } from './map.mjs';
 
@@ -21,12 +23,13 @@ export const TIER = {
   height: 'survival', width: 'survival', clay_ok: 'survival', wet_feet: 'survival', deer: 'survival',
   form: 'description', bloom_season: 'description', bloom_months: 'description', flower_color: 'description',
   fall_color: 'description', host: 'description', host_genus: 'description', edible: 'description', low_branched: 'description',
+  leaf_color: 'description', foliage: 'description', needles: 'description', fall_colors: 'description', growth_rate: 'description',
 };
 const RANK = { authority: 3, breeder: 2, nursery: 1, blog: 0 };
 /** Facts decided by sides (`bySides`), the other side kept beside the value (`alt`; never safety facts). */
 export const REPORTABLE = new Set(['height', 'width', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'deer']);
 /** Facts a cultivar is bred to change: only a page for the cultivar itself speaks to them. */
-export const CULTIVAR_OWN = new Set(['height', 'width', 'flower_color', 'form']);
+export const CULTIVAR_OWN = new Set(['height', 'width', 'flower_color', 'form', 'leaf_color', 'fall_colors', 'growth_rate']);
 
 // ---------- Values ----------
 
@@ -155,6 +158,34 @@ export function ncsuPoison(f) {
  * no Poisonous tag. Only then is "none listed" said (`poison` null, sources checked); a bare tag says too little.
  */
 export const ncsuNoPoison = (f) => !ncsuPoison(f) && !(f['Plant Type'] ?? []).includes('Poisonous');
+/**
+ * Leaf colors in the catalog's words (src/catalog.ts LEAF_COLORS), from NC State's "Leaf Color" and USDA's
+ * "Foliage Color". USDA's Gray-Green and White-Gray are the silvery leaves NC State calls Gray/Silver; its Dark
+ * Green and Yellow-Green are green. A color neither list has isn't kept.
+ */
+const LEAF_WORDS = {
+  Green: 'green', 'Gray/Silver': 'silver', 'Gold/Yellow': 'gold', Blue: 'blue', 'Purple/Lavender': 'purple', 'Red/Burgundy': 'red',
+  'Brown/Copper': 'copper', White: 'white', Variegated: 'variegated', Orange: 'orange', Pink: 'pink', 'Cream/Tan': 'cream', Black: 'black',
+  'Dark Green': 'green', 'Yellow-Green': 'green', 'Gray-Green': 'silver', 'White-Gray': 'silver', Red: 'red', Purple: 'purple',
+};
+export const leafColors = (values) => [...new Set((values ?? []).map((v) => LEAF_WORDS[v]).filter(Boolean))];
+/** Fall leaf colors from NC State's "Deciduous Leaf Fall Color" (its "Insignificant" isn't a color: no fall color). */
+const FALL_WORDS = { 'Gold/Yellow': 'gold', 'Red/Burgundy': 'red', Orange: 'orange', 'Purple/Lavender': 'purple', 'Brown/Copper': 'copper', 'Cream/Tan': 'cream', 'Gray/Silver': 'silver', Pink: 'pink' };
+export const fallColors = (values) => [...new Set((values ?? []).map((v) => FALL_WORDS[v]).filter(Boolean))];
+/**
+ * Whether the leaves stay through winter, from NC State's "Woody Plant Leaf Characteristics": evergreen
+ * (needled or broadleaf), semi-evergreen (it says so, or lists the plant as both: it depends on the winter),
+ * deciduous. Mostly of woody plants: NC State says it of some herbs too.
+ */
+export function ncsuFoliage(values) {
+  const v = new Set(values ?? []);
+  const ever = v.has('Broadleaf Evergreen') || v.has('Needled Evergreen');
+  if (v.has('Semi-evergreen') || (ever && v.has('Deciduous'))) return 'semi-evergreen';
+  return ever ? 'evergreen' : v.has('Deciduous') ? 'deciduous' : null;
+}
+/** Growth rate in the catalog's words: NC State's Slow, Medium, Rapid; USDA's Slow, Moderate, Rapid. */
+export const growthRate = (v) => ({ Slow: 'slow', Medium: 'medium', Moderate: 'medium', Rapid: 'fast' })[v] ?? null;
+
 /** NC State Plant Toolbox fields → claims (an authority). */
 export function ncsuClaims(f) {
   const c = [], add = (fact, v) => { if (v != null && !(Array.isArray(v) && !v.length)) c.push({ fact, v, src: 'ncsu', kind: 'authority' }); };
@@ -176,7 +207,17 @@ export function ncsuClaims(f) {
   if (poison) c.push({ fact: 'poison', v: poison, src: 'ncsu', kind: 'authority' });
   if ((f['Resistance To Challenges'] ?? []).includes('Deer')) add('deer', 'Resistant');
   if ((f['Plant Type'] ?? []).includes('Edible')) add('edible', true);
-  if (f['Deciduous Leaf Fall Color']) add('fall_color', true);
+  // Fall color: the colors it lists; "Insignificant" alone says it has none to speak of. (A word not known
+  // here says neither: nothing is read from it.)
+  if (f['Deciduous Leaf Fall Color']) {
+    const listed = f['Deciduous Leaf Fall Color'], fall = fallColors(listed);
+    if (fall.length || listed.every((x) => x === 'Insignificant')) c.push({ fact: 'fall_color', v: fall.length > 0, src: 'ncsu', kind: 'authority' });
+    add('fall_colors', fall);
+  }
+  add('leaf_color', leafColors(f['Leaf Color']));
+  add('foliage', ncsuFoliage(f['Woody Plant Leaf Characteristics']));
+  if ((f['Woody Plant Leaf Characteristics'] ?? []).includes('Needled Evergreen') || (f['Leaf Type'] ?? []).includes('Needles')) add('needles', true);
+  add('growth_rate', growthRate(f['Growth Rate']?.[0]));
   if (lowBranched(f)) add('low_branched', true);
   if ((f['Soil Texture'] ?? []).includes('Clay')) add('clay_ok', true);
   const nd = new Set(f['Soil Drainage'] ?? []);
@@ -237,6 +278,18 @@ export function usdaClaims(u) {
   if (habit.includes('Shrub')) uf.push('Shrub');
   if (habit.includes('Tree')) uf.push('Tree');
   if (uf.filter(Boolean).length) c.push({ fact: 'form', v: uf.filter(Boolean), src: 'usda', kind: 'authority', fallback: true });
+  // Plant traits it records for some species: a fallback, deciding only where no other authority says
+  // (NC State, a garden source, comes first), and backing it or noted against it otherwise. Whether leaves
+  // stay through winter: "Leaf Retention", of a tree or shrub only (it says No of every herb here, those NC
+  // State calls evergreen too: an herb's No doesn't say it dies back). Leaf color and growth rate are the
+  // species' (a cultivar is bred to change them: claims for a cultivar come only from its own page).
+  const keeps = u?.['Leaf Retention']?.[0];
+  const woody = habit.some((h) => h === 'Tree' || h === 'Shrub' || h === 'Subshrub');
+  if (woody && (keeps === 'Yes' || keeps === 'No')) c.push({ fact: 'foliage', v: keeps === 'Yes' ? 'evergreen' : 'deciduous', src: 'usda', kind: 'authority', fallback: true });
+  const leaf = leafColors(u?.['Foliage Color']);
+  if (leaf.length) c.push({ fact: 'leaf_color', v: leaf, src: 'usda', kind: 'authority', fallback: true });
+  const rate = growthRate(u?.['Growth Rate']?.[0]);
+  if (rate) c.push({ fact: 'growth_rate', v: rate, src: 'usda', kind: 'authority', fallback: true });
   const t = u?.['Temperature, Minimum (°F)']?.[0];
   if (t != null && Number.isFinite(Number(t))) flag('zone_min', { temp: Number(t), text: `USDA: lowest ${t} °F` });
   const shade = u?.['Shade Tolerance']?.[0];
@@ -301,6 +354,9 @@ export function combine(claims, { cultivar = false, prefer = null } = {}) {
         }
       } else usable = usable.filter((c) => c.cultivarPage || c.kind === 'breeder');
     }
+    // USDA says only yes or no to leaves staying: of a plant NC State calls semi-evergreen (either, by the winter),
+    // it can neither back that nor contradict it, so it's set aside.
+    if (fact === 'foliage' && usable.some((c) => !c.fallback && c.v === 'semi-evergreen')) usable = usable.filter((c) => !c.fallback);
     // Copies count once: the same text on two sites, or two pages of one site. The highest kind keeps it
     // (a shop that copies an extension's sheet doesn't stand in for the extension).
     usable = usable.map((c, i) => ({ c, i })).sort((x, y) => (RANK[y.c.kind] ?? 0) - (RANK[x.c.kind] ?? 0) || x.i - y.i).map((x) => x.c);
@@ -333,8 +389,11 @@ export function combine(claims, { cultivar = false, prefer = null } = {}) {
       continue;
     }
     if (REPORTABLE.has(fact)) { out[fact] = bySides(fact, usable, flagClaims); continue; }
-    const top = Math.max(...usable.map((c) => RANK[c.kind] ?? 0));
-    const deciders = usable.filter((c) => (RANK[c.kind] ?? 0) === top);
+    // A fallback (USDA's plant traits) decides only where no other authority says: otherwise it backs the
+    // authority's value, or is noted against it, as a lower kind would be.
+    const rankIn = (c) => (RANK[c.kind] ?? 0) - (c.fallback && usable.some((o) => o.kind === c.kind && !o.fallback) ? 0.5 : 0);
+    const top = Math.max(...usable.map(rankIn));
+    const deciders = usable.filter((c) => rankIn(c) === top);
     // The value most deciders share (the first, on a tie).
     const best = deciders.map((d) => ({ d, n: deciders.filter((o) => agrees(fact, d.v, o.v)).length })).sort((x, y) => y.n - x.n)[0].d;
     const others = usable.filter((c) => c !== best);
@@ -342,7 +401,7 @@ export function combine(claims, { cultivar = false, prefer = null } = {}) {
     // (Facts that depend on place, with `at`, differ by region without anyone being wrong: never against each other.)
     const samePlace = (c) => (c.at ?? null) === (best.at ?? null);
     const peersAgainst = deciders.filter((c) => c !== best && samePlace(c) && !agrees(fact, best.v, c.v));
-    const lowerAgainst = others.filter((c) => (RANK[c.kind] ?? 0) < top && samePlace(c) && !agrees(fact, best.v, c.v));
+    const lowerAgainst = others.filter((c) => rankIn(c) < top && samePlace(c) && !agrees(fact, best.v, c.v));
     const peersFor = deciders.filter((c) => c !== best && agrees(fact, best.v, c.v));
     let check;
     // Authorities that disagree are a dispute. Below them, the majority is the likely answer.

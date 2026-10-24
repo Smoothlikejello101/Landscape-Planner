@@ -4,7 +4,7 @@ import { matchedBy, nonToxicToDogs, PLANT_FILTER_DEFAULTS, plantMatches, plantTa
 import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs } from '../src/spread';
 import { readFileSync } from 'node:fs';
 import { HEIGHT_STOPS, heightLabel, heightStops, heightValue } from '../src/ui/height-range';
-import { poisonRow, poisonText } from '../src/ui/plant-details';
+import { fallText, poisonRow, poisonText, winterText } from '../src/ui/plant-details';
 
 const heuchera: Plant = {
   id: 'h', common: "Heuchera 'Autumn Bride'", botanical: 'Heuchera villosa', form: 'Perennial',
@@ -85,6 +85,39 @@ describe('plant filters', () => {
     expect(plantMatches({ ...heuchera, poison: {} } as Plant, f({ noPoison: true }))).toBe(false); // (listed, nothing more said)
     expect(plantMatches(none, f({ noPoison: true }))).toBe(true);
     expect(plantMatches(heuchera, f({ noPoison: true }))).toBe(false); // (not rated: not called safe, as the dog filter)
+  });
+  it('keeps, when asked, only evergreens: not semi-evergreen (it depends on the winter), nor plants no source rates', () => {
+    expect(plantMatches({ ...heuchera, foliage: 'evergreen' }, f({ evergreen: true }))).toBe(true);
+    expect(plantMatches({ ...heuchera, foliage: 'semi-evergreen' }, f({ evergreen: true }))).toBe(false);
+    expect(plantMatches({ ...heuchera, foliage: 'deciduous' }, f({ evergreen: true }))).toBe(false);
+    expect(plantMatches(heuchera, f({ evergreen: true }))).toBe(false);
+    // (A tender shrub, also listed as an annual or perennial, keeps its leaves only where winters are mild.)
+    expect(plantMatches({ ...heuchera, form: 'Shrub', forms: ['Shrub', 'Perennial', 'Annual'], foliage: 'evergreen' }, f({ evergreen: true }))).toBe(false);
+    expect(plantMatches({ ...heuchera, form: 'Shrub', forms: ['Shrub'], foliage: 'evergreen' }, f({ evergreen: true }))).toBe(true);
+  });
+  it('says what happens to its leaves in winter in words fit for its form', () => {
+    expect(winterText({ ...heuchera, foliage: 'evergreen' })).toBe('Evergreen: keeps its leaves');
+    expect(winterText({ ...heuchera, foliage: 'deciduous' })).toBe('Dies back in winter'); // (an herb: no bare branches)
+    expect(winterText({ ...heuchera, form: 'Shrub', foliage: 'deciduous' })).toBe('Deciduous: loses its leaves');
+    expect(winterText({ ...heuchera, form: 'Tree', forms: ['Tree', 'Shrub'], foliage: 'semi-evergreen' })).toBe('Semi-evergreen: keeps some of its leaves, by the winter');
+    expect(winterText({ ...heuchera, form: 'Tree', foliage: 'evergreen', needles: true })).toBe('Evergreen, with needles');
+    expect(winterText({ ...heuchera, form: 'Annual', foliage: 'deciduous' })).toBe(''); // (one season)
+    expect(winterText(heuchera)).toBe('');
+    // (An annual or perennial is an herb; a grass goes dormant, often standing.)
+    expect(winterText({ ...heuchera, form: 'Annual', forms: ['Annual', 'Perennial'], foliage: 'deciduous' })).toBe('Dies back in winter'); // (black-eyed Susan)
+    expect(winterText({ ...heuchera, form: 'Grass/Sedge', forms: ['Grass/Sedge', 'Perennial'], foliage: 'deciduous' })).toBe('Goes dormant in winter');
+    // (Listed as woody and as an herb, or as a vine and a perennial: either, by the plant.)
+    expect(winterText({ ...heuchera, form: 'Perennial', forms: ['Perennial', 'Shrub'], foliage: 'deciduous' })).toBe('Deciduous: loses its leaves, or dies back to the ground'); // (swamp rose mallow)
+    expect(winterText({ ...heuchera, form: 'Vine', forms: ['Vine', 'Perennial'], foliage: 'deciduous' })).toBe('Deciduous: loses its leaves, or dies back to the ground'); // (passionflower)
+    expect(winterText({ ...heuchera, form: 'Vine', forms: ['Vine'], foliage: 'deciduous' })).toBe('Deciduous: loses its leaves');
+    expect(winterText({ ...heuchera, form: 'Shrub', forms: ['Shrub', 'Perennial', 'Annual'], foliage: 'evergreen' })).toBe('Evergreen where winters are mild; may die back in a cold one'); // ('Miss Huff' lantana)
+  });
+  it('says whether it colors in fall, and in what colors', () => {
+    expect(fallText({ ...heuchera, fall_color: true, fall_colors: ['gold', 'red'] })).toBe('Yes: gold, red');
+    expect(fallText({ ...heuchera, fall_color: true })).toBe('Yes');
+    expect(fallText({ ...heuchera, fall_color: false, fall_colors: ['gold'] })).toBe('No');
+    expect(fallText({ ...heuchera, fall_colors: ['gold'] })).toBe('Gold');
+    expect(fallText(heuchera)).toBe('');
   });
   it('never suggests invasives, but finds them by name', () => {
     const privet: Plant = { id: 'p', common: 'Chinese privet', botanical: 'Ligustrum sinense', invasive: true };

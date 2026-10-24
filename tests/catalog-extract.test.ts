@@ -5,7 +5,7 @@ import { appendixTaxa, arkatlasStatus, feetRange, mnwildFields, monthRange, ncsu
 // @ts-expect-error (plain JavaScript build script)
 import { mnLight, ncsuSun } from '../scripts/catalog/map.mjs';
 // @ts-expect-error (plain JavaScript build script)
-import { agrees, arkatlasClaims, combine, lowBranched, ncsuNoPoison, ncsuPoison, halfZoneOfTemp, halfZones, hostNames, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims, waterNeed, zoneSpan } from '../scripts/catalog/claims.mjs';
+import { agrees, arkatlasClaims, combine, fallColors, growthRate, leafColors, lowBranched, ncsuFoliage, ncsuNoPoison, ncsuPoison, halfZoneOfTemp, halfZones, hostNames, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims, waterNeed, zoneSpan } from '../scripts/catalog/claims.mjs';
 
 const fixture = (f: string) => readFileSync(`tests/fixtures/catalog/${f}`, 'utf8');
 
@@ -136,6 +136,84 @@ describe('reading sources', () => {
     const t = ['                         1', '', '      ASTERACEAE                  ASTERACEAE', '   Aster foo L.               Aster foo L.', '   var. bar Smith             var. baz Jones'].join('\n');
     expect(arkatlasStatus(t, 'Aster foo')).toMatchObject({ uncertain: true });
     expect(combine(arkatlasClaims(arkatlasStatus(t, 'Aster foo'))).native_ar).toBeNull();
+  });
+});
+
+describe('leaves: color, winter, fall color, growth rate', () => {
+  it('reads NC State\'s leaf fields into the catalog\'s words', () => {
+    const c = ncsuClaims({ 'Leaf Color': ['Green', 'Gray/Silver'], 'Woody Plant Leaf Characteristics': ['Broadleaf Evergreen'], 'Growth Rate': ['Rapid'],
+      'Deciduous Leaf Fall Color': ['Gold/Yellow', 'Red/Burgundy'] });
+    const v = (fact: string) => c.find((x: { fact: string }) => x.fact === fact)?.v;
+    expect(v('leaf_color')).toEqual(['green', 'silver']);
+    expect(v('foliage')).toBe('evergreen');
+    expect(v('growth_rate')).toBe('fast');
+    expect(v('fall_color')).toBe(true);
+    expect(v('fall_colors')).toEqual(['gold', 'red']);
+    expect(v('needles')).toBeUndefined();
+  });
+  it('"Insignificant" fall color is no fall color, said by NC State (not silence)', () => {
+    const c = ncsuClaims({ 'Deciduous Leaf Fall Color': ['Insignificant'] });
+    expect(c.filter((x: { fact: string }) => x.fact.startsWith('fall_'))).toEqual([{ fact: 'fall_color', v: false, src: 'ncsu', kind: 'authority' }]);
+    expect(fallColors(['Insignificant', 'Orange', 'Orange'])).toEqual(['orange']);
+    // (Colors beside "Insignificant" are fall color; a word not known here says neither.)
+    expect(ncsuClaims({ 'Deciduous Leaf Fall Color': ['Gold/Yellow', 'Insignificant'] }).find((x: { fact: string }) => x.fact === 'fall_color')?.v).toBe(true);
+    expect(ncsuClaims({ 'Deciduous Leaf Fall Color': ['Chartreuse'] }).filter((x: { fact: string }) => x.fact.startsWith('fall_'))).toEqual([]);
+  });
+  it('evergreen, semi-evergreen or deciduous: a plant listed as both depends on the winter', () => {
+    expect(ncsuFoliage(['Deciduous'])).toBe('deciduous');
+    expect(ncsuFoliage(['Needled Evergreen'])).toBe('evergreen');
+    expect(ncsuFoliage(['Semi-evergreen', 'Deciduous'])).toBe('semi-evergreen');
+    expect(ncsuFoliage(['Broadleaf Evergreen', 'Deciduous'])).toBe('semi-evergreen');
+    expect(ncsuFoliage([])).toBeNull();
+    expect(ncsuClaims({ 'Woody Plant Leaf Characteristics': ['Needled Evergreen'] }).some((x: { fact: string; v: unknown }) => x.fact === 'needles' && x.v === true)).toBe(true);
+    expect(ncsuClaims({ 'Leaf Type': ['Needles'], 'Woody Plant Leaf Characteristics': ['Deciduous'] }).some((x: { fact: string }) => x.fact === 'needles')).toBe(true); // (a deciduous conifer)
+  });
+  it('maps leaf colors from both sources, and growth rates from both scales', () => {
+    expect(leafColors(['Gray-Green', 'Dark Green', 'Yellow-Green', 'Something Else'])).toEqual(['silver', 'green']);
+    expect(leafColors(['Purple/Lavender', 'Variegated'])).toEqual(['purple', 'variegated']);
+    expect([growthRate('Slow'), growthRate('Medium'), growthRate('Moderate'), growthRate('Rapid'), growthRate('Quick')]).toEqual(['slow', 'medium', 'medium', 'fast', null]);
+  });
+  it('USDA\'s plant traits are a fallback: NC State decides, USDA backs it or is noted against it', () => {
+    const u = usdaClaims({ 'Growth habit': ['Shrub'], 'Leaf Retention': ['No'], 'Foliage Color': ['Gray-Green'], 'Growth Rate': ['Rapid'] });
+    expect(u.filter((x: { fact: string }) => ['foliage', 'leaf_color', 'growth_rate'].includes(x.fact))).toEqual([
+      { fact: 'foliage', v: 'deciduous', src: 'usda', kind: 'authority', fallback: true },
+      { fact: 'leaf_color', v: ['silver'], src: 'usda', kind: 'authority', fallback: true },
+      { fact: 'growth_rate', v: 'fast', src: 'usda', kind: 'authority', fallback: true },
+    ]);
+    // Against NC State: NC State's value, USDA noted, never a dispute.
+    const r = combine([{ fact: 'growth_rate', v: 'medium', src: 'ncsu', kind: 'authority' }, ...u]);
+    expect(r.growth_rate).toMatchObject({ v: 'medium', src: ['ncsu'], check: 'single', note: 'usda says fast' });
+    // With it: confirmed. Alone: USDA decides.
+    expect(combine([{ fact: 'growth_rate', v: 'fast', src: 'ncsu', kind: 'authority' }, ...u]).growth_rate).toMatchObject({ v: 'fast', src: ['ncsu', 'usda'], check: 'confirmed' });
+    expect(combine(u).foliage).toMatchObject({ v: 'deciduous', src: ['usda'], check: 'single' });
+    // USDA's yes or no can't back semi-evergreen (either, by the winter), nor contradict it: set aside.
+    expect(agrees('foliage', 'semi-evergreen', 'deciduous')).toBe(false);
+    expect(combine([{ fact: 'foliage', v: 'semi-evergreen', src: 'ncsu', kind: 'authority' }, ...u]).foliage).toEqual({ v: 'semi-evergreen', src: ['ncsu'], check: 'single', kind: 'authority' });
+  });
+  it('USDA\'s leaves in winter only of a tree or shrub: its No for an herb doesn\'t say it dies back', () => {
+    const fol = (habit: string[], keeps: string) => usdaClaims({ 'Growth habit': habit, 'Leaf Retention': [keeps] }).find((x: { fact: string }) => x.fact === 'foliage')?.v;
+    expect(fol(['Graminoid'], 'No')).toBeUndefined();
+    expect(fol(['Forb/herb'], 'No')).toBeUndefined();
+    expect(fol(['Vine'], 'No')).toBeUndefined(); // (English ivy: No, though it's evergreen)
+    expect(fol(['Tree', 'Shrub'], 'Yes')).toBe('evergreen');
+    expect(fol(['Subshrub', 'Forb/herb'], 'No')).toBe('deciduous');
+  });
+  it('reads USDA\'s rows for the species, not a named release\'s', () => {
+    const row = (name: string, value: string, cultivar: string | null = null) => ({ PlantCharacteristicName: name, PlantCharacteristicValue: value, CultivarName: cultivar, SynonymName: null });
+    const u = usdaFields({ Symbol: 'BOGR2', ScientificName: 'Bouteloua gracilis' }, [row('Growth Rate', 'Moderate', 'Alma'), row('Growth Rate', 'Rapid'), row('Growth Rate', 'Rapid', 'WW-65')]);
+    expect(u['Growth Rate']).toEqual(['Rapid']);
+    expect(usdaFields({ Symbol: 'X' }, [row('Growth Rate', 'Moderate', 'Egan')])['Growth Rate']).toBeUndefined(); // (a release's row only: none)
+  });
+  it('a cultivar\'s leaf color, fall colors and growth rate come only from its own page; whether it keeps its leaves, from its species too', () => {
+    const species = [{ fact: 'leaf_color', v: ['green'], src: 'ncsu', kind: 'authority', cultivarPage: false }, { fact: 'growth_rate', v: 'fast', src: 'ncsu', kind: 'authority', cultivarPage: false },
+      { fact: 'foliage', v: 'deciduous', src: 'ncsu', kind: 'authority', cultivarPage: false }, { fact: 'fall_colors', v: ['gold', 'orange'], src: 'ncsu', kind: 'authority', cultivarPage: false }];
+    const r = combine(species, { cultivar: true });
+    expect(r.leaf_color).toBeNull();
+    expect(r.growth_rate).toBeNull();
+    expect(r.fall_colors).toBeNull(); // ('Shenandoah' switchgrass is grown for its burgundy, not its species' gold)
+    expect(r.foliage).toMatchObject({ v: 'deciduous' });
+    const own = combine([{ fact: 'leaf_color', v: ['purple'], src: 'ncsu', kind: 'authority', cultivarPage: true }, ...species.slice(1)], { cultivar: true });
+    expect(own.leaf_color).toMatchObject({ v: ['purple'], check: 'single' });
   });
 });
 

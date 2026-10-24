@@ -103,8 +103,6 @@ catalog by rule, except where a committed file says otherwise.
   - A record of two plants reads only the first: Salvia officinalis / Origanum vulgare; Prunus x yedoensis /
     'Kwanzan' reads the Yoshino cherry's page.
   - "Tulipa hybrids" passes as an epithet.
-  - A species record of several cultivars (Acer palmatum 'Bloodgood' / 'Seiryu') reads its one cultivar page as
-    the record's: its size is that cultivar's.
 
   Fixing one changes the catalog, so each fix is its own change, with its diff reviewed.
 - **NC State.** The species' page (its name in lower case, hyphenated, × as x: `fothergilla-x-intermedia`),
@@ -112,7 +110,9 @@ catalog by rule, except where a committed file says otherwise.
   An exception is a cultivar's own page, the one cultivar page a record of several reads, a genus's page, or a
   species' page under another name. For a genus or group record, a cultivar's page counts as the cultivar's, its
   size, form and flower color included, only when the record names that one cultivar (Thuja 'Green Giant'). For a
-  record of several cultivars, it counts as species-level: 'Natchez' doesn't speak for 'Tonto'.
+  record of several cultivars, genus or species, it counts as species-level: 'Natchez' doesn't speak for 'Tonto',
+  nor 'Bloodgood''s purple leaves for 'Seiryu' (fixed 2026-10-24: before, a species record of several read its
+  one cultivar page as its own, size and form included).
 - **A page NC State moved.** When NC State renames a plant, the old page answers with a redirect to the new one
   (coreopsis-verticillata → anacis-verticillata). The fetcher keeps the answer without following it. The list
   then points at the new page, and `--fetch` asks for it. That's one move, and only from a species' own page: a

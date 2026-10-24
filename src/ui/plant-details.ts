@@ -3,7 +3,7 @@
 // other sources say where they differ from the value shown.
 import { el } from '../dom';
 import type { Plant } from '../plants';
-import { MONTH_NAMES, PLANT_META, formsOf, zoneNote } from '../plants';
+import { MONTH_NAMES, PLANT_META, formsOf, tenderWoody, zoneNote } from '../plants';
 import { rootSpread, rootText, seedText } from '../spread';
 import { zoneRange } from '../climate';
 import type { Provenance } from '../catalog';
@@ -53,6 +53,32 @@ export function poisonText(x?: Plant['poison']): string {
 export function poisonRow(p: Plant): string {
   return p.poison ? poisonText(p.poison) : p.prov?.poison?.unknown ? 'None listed' : 'Not known: no source we read rates it for people';
 }
+/** "Green, silver"; "Variegated". */
+const leafText = (l?: string[]) => (l?.length ? cap(l.join(', ')) : '');
+/** Forms whose stems die back in winter, where "deciduous" means that, not bare branches. */
+const HERB_FORMS = new Set(['Perennial', 'Grass/Sedge', 'Fern', 'Bulb', 'Aquatic/Emergent', 'Annual']);
+/**
+ * Its leaves in winter, in plain words: evergreen (with needles, said; a tender shrub's only where winters are
+ * mild, `tenderWoody`); semi-evergreen; deciduous, which for an herb is dying back (a grass goes dormant, often
+ * standing), and for a plant listed as both woody and herb (or a vine and a perennial) either. An annual's
+ * winter isn't asked (it lives one season).
+ */
+export function winterText(p: Plant): string {
+  const forms = formsOf(p);
+  if (!p.foliage || (forms.length && forms.every((f) => f === 'Annual'))) return '';
+  if (p.foliage === 'evergreen') return p.needles ? 'Evergreen, with needles' : tenderWoody(p) ? 'Evergreen where winters are mild; may die back in a cold one' : 'Evergreen: keeps its leaves';
+  if (p.foliage === 'semi-evergreen') return 'Semi-evergreen: keeps some of its leaves, by the winter';
+  const herb = forms.filter((f) => HERB_FORMS.has(f));
+  if (forms.length && herb.length === forms.length) return forms.includes('Grass/Sedge') ? 'Goes dormant in winter' : 'Dies back in winter';
+  return herb.length ? 'Deciduous: loses its leaves, or dies back to the ground' : 'Deciduous: loses its leaves';
+}
+/** "Yes: gold, red"; "No"; or, with colors and no yes or no, the colors. */
+export const fallText = (p: Plant): string => {
+  const colors = p.fall_colors?.length ? p.fall_colors.join(', ') : '';
+  if (p.fall_color === false) return 'No';
+  if (p.fall_color === true) return colors ? `Yes: ${colors}` : 'Yes';
+  return colors ? cap(colors) : '';
+};
 const tox = (t?: Plant['tox']) => (!t ? '' : [t.dog && `dogs: ${t.dog}`, t.cat && `cats: ${t.cat}`, t.horse && `horses: ${t.horse}`, t.people && `people: ${t.people}`].filter(Boolean).join('; '));
 
 /** Each row: label, the catalog's value, the facts it rests on, and how to write the other value where sources differ. */
@@ -77,7 +103,11 @@ function rows(p: Plant): Row[] {
     ['Poisonous to people', poisonRow(p), ['poison']],
     ['Edible', p.edible === true && p.poison ? 'Yes, though it\'s also listed as poisonous to people (above)' : yes(p.edible), ['edible']],
     ['Thorns', yes(p.thorns), ['thorns']],
-    ['Fall color', yes(p.fall_color), ['fall_color']],
+    // (As its source lists them: NC State's take in the seasons and the undersides.)
+    ['Leaf colors', leafText(p.leaf_color), ['leaf_color']],
+    ['In winter', winterText(p), ['foliage']],
+    ['Fall color', fallText(p), ['fall_color', 'fall_colors']],
+    ['Growth rate', p.growth_rate ? cap(p.growth_rate) : '', ['growth_rate']],
     ['Winter interest', yes(p.winter_interest), ['winter_interest']],
     ['Takes clay', yes(p.clay_ok), ['clay_ok']],
     ['Takes wet feet', yes(p.wet_feet), ['wet_feet']],

@@ -17,7 +17,7 @@ export const NCSU_FIELDS = [
   'Light', 'Soil Texture', 'Soil pH', 'Soil Drainage', 'USDA Plant Hardiness Zone', 'Height', 'Width',
   'Flower Color', 'Flower Bloom Time', 'Deciduous Leaf Fall Color', 'Woody Plant Leaf Characteristics',
   'Attracts', 'Resistance To Challenges', 'Design Feature', 'Landscape Location', 'Landscape Theme',
-  'Poison Severity', 'Causes Contact Dermatitis', 'Poison Part', 'Stem Surface', 'Problems',
+  'Poison Severity', 'Causes Contact Dermatitis', 'Poison Part', 'Stem Surface', 'Problems', 'Leaf Color', 'Leaf Type',
 ];
 /** NC State's free-text fields the audit reads one fact out of, never keeping the text. */
 const NCSU_TEXT = ['Wildlife Value'];
@@ -77,8 +77,11 @@ export function usdaFields(profile, characteristics) {
   }
   const wanted = new Set(['Bloom Period', 'Flower Color', 'Height, Mature (feet)', 'Shade Tolerance', 'Drought Tolerance',
     'Moisture Use', 'Temperature, Minimum (°F)', 'Toxicity', 'Fall Conspicuous', 'Adapted to Fine Textured Soils',
-    'Anaerobic Tolerance', 'Growth Rate', 'Palatable Human', 'pH, Minimum', 'pH, Maximum', 'Leaf Retention']);
+    'Anaerobic Tolerance', 'Growth Rate', 'Palatable Human', 'pH, Minimum', 'pH, Maximum', 'Leaf Retention', 'Foliage Color']);
+  // (The species' own rows only: a row with a CultivarName is a named release's, 'Alma' blue grama's, not the
+  // species'. A synonym's row is the same plant's.)
   for (const c of characteristics ?? []) {
+    if (c.CultivarName != null && String(c.CultivarName).trim()) continue;
     const name = c.PlantCharacteristicName;
     if (wanted.has(name) && c.PlantCharacteristicValue != null && String(c.PlantCharacteristicValue).trim()) {
       (out[name] ??= []).push(String(c.PlantCharacteristicValue).trim());

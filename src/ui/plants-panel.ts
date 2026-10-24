@@ -326,6 +326,7 @@ export function renderPlantsPanel() {
   adv.appendChild(el('div', { className: 'hint', style: { padding: '10px 0 0' } }, 'Traits'));
   adv.appendChild(el('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px 16px', margin: '4px 0 8px' } },
     mkCheck('Fall color', 'fallColor'),
+    mkCheck('Evergreen', 'evergreen'),
     mkCheck('Winter interest', 'winterInterest'),
     mkCheck('Clay OK', 'clayOk'),
     mkCheck('Edible', 'edible'),
