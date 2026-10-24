@@ -143,8 +143,8 @@ NC State's Plant Toolbox lists every plant page in its sitemap (`https://plants.
 4,700). Saved with the fetcher like any page, it lets the build add the plants the catalog doesn't have
 (`additions.mjs`):
 
-- **Which pages.** Each plant page the sitemap lists that's saved, and that no record reads. Left out, with why,
-  in `build/additions.json`:
+- **Which pages** (agreed 2026-10-24). Each plant page the sitemap lists that's saved, and that no record reads.
+  Left out, with why, in `build/additions.json`:
   - a vegetable (NC State's Vegetable, Warm or Cool Season Vegetable tag) or a weed (its Weed tag), unless it's
     also tagged Native Plant: wild garlic is a cool-season vegetable to NC State, and asters weeds, and both are
     garden natives. (A Houseplant tag needs no rule: oleander and Confederate jasmine carry it, and a plant ships
