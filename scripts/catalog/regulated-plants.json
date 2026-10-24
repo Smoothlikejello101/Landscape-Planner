@@ -194,7 +194,7 @@
     {"name": "Cardiospermum halicacabum", "class": "noxious"},
     {"name": "Schinus terebinthifolius", "class": "noxious", "kew": "Schinus terebinthifolia"},
     {"name": "Orobanche ramosa", "class": "noxious"},
-    {"name": "Alhagi camelorum", "class": "noxious"},
+    {"name": "Alhagi camelorum", "accepted": "Alhagi maurorum", "class": "noxious"},
     {"name": "Triadica sebifera", "class": "noxious"},
     {"name": "Myriophyllum spicatum", "class": "noxious"},
     {"name": "Spirodela oligorrhiza", "class": "noxious"},

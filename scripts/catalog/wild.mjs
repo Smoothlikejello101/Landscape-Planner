@@ -213,7 +213,9 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   if (!existsSync('catalog-src/wcvp-native.json')) { console.error('catalog-src/wcvp-native.json is missing: run wcvp.mjs first (native status by state)'); process.exit(1); }
   const wcvp = read('catalog-src/wcvp-native.json');
   // (The catalog's own "Exotic", from its sources: never shown native. Listed for review where WCVP says so.)
-  const exotic = new Set(catalog.plants.filter((p) => (p.facts?.native?.v ?? p.facts?.native) === 'Exotic').map((p) => p.id));
+  // (Except where a person decided it's shown native where Kew says: scripts/catalog/decisions.json `nativeShown`.)
+  const shown = JSON.parse(readFileSync('scripts/catalog/decisions.json', 'utf8')).nativeShown ?? {};
+  const exotic = new Set(catalog.plants.filter((p) => (p.facts?.native?.v ?? p.facts?.native) === 'Exotic' && !shown[p.id]).map((p) => p.id));
   const nativeReview = Object.entries(wcvp).filter(([id, r]) => exotic.has(id) && Object.values(r.states).includes('N'))
     .map(([id, r]) => ({ id, name: r.name, nativeIn: Object.entries(r.states).filter(([, s]) => s === 'N').map(([f]) => Number(f)) }));
   writeFileSync('catalog-src/native-review.json', JSON.stringify(nativeReview, null, 1) + '\n');

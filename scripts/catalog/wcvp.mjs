@@ -94,7 +94,10 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   renameSync('catalog-src/wcvp-regulated.json.tmp', 'catalog-src/wcvp-regulated.json');
   const path = 'catalog-src/wcvp-native.json';
   writeFileSync(`${path}.tmp`, JSON.stringify(out)); renameSync(`${path}.tmp`, path);
-  if (decidedByAccepted.length) console.log(`accepted name chosen over a homonym's synonym (check these): ${[...new Set(decidedByAccepted)].join(', ')}`);
+  // (Names a person checked are read as Kew's accepted name: scripts/catalog/decisions.json `kewNames`.)
+  const checked = JSON.parse(readFileSync('scripts/catalog/decisions.json', 'utf8')).kewNames ?? {};
+  const homonyms = [...new Set(decidedByAccepted)].filter((n) => !checked[n]).sort();
+  if (homonyms.length) console.log(`accepted name chosen over a homonym's synonym (check these): ${homonyms.join(', ')}`);
   const ours = new Set(species.map((s) => wcvpName(s.binomial)));
   const mine = unmatched.filter((n) => ours.has(n));
   const lost = listed.filter((n) => !regulated[n]);
@@ -105,7 +108,7 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   // (The same, for the build's review report: docs/catalog-build.md.)
   // (A law-list name whose `accepted` is set, a name or false, has been looked at: not listed again.)
   const looked = new Set(regulatedData.jurisdictions.flatMap((j) => j.plants.filter((p) => p.accepted !== undefined).map((p) => p.kew ?? p.name)));
-  const review = { homonyms: [...new Set(decidedByAccepted)].sort(), regulatedUnreviewed: check, regulatedNotMatched: lost.filter((n) => !looked.has(n)), notMatched: [...mine].sort() };
+  const review = { homonyms, regulatedUnreviewed: check, regulatedNotMatched: lost.filter((n) => !looked.has(n)), notMatched: [...mine].sort() };
   writeFileSync('catalog-src/wcvp-review.json.tmp', JSON.stringify(review, null, 1) + '\n');
   renameSync('catalog-src/wcvp-review.json.tmp', 'catalog-src/wcvp-review.json');
 }

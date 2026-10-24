@@ -48,12 +48,30 @@ const PAIRS = [['zone_min', 'zone_max'], ['sun_most', 'sun_least']];
 const WARNED = [[/ tall for /, ['height', 'form']], [/under 3 in|height range/, ['height']], [/width|spread/, ['width']], [/zones/, ['zone_min', 'zone_max']], [/sun range/, ['sun_most', 'sun_least']]];
 const valueOf = (f) => (f && typeof f === 'object' && !Array.isArray(f) && 'v' in f ? f.v : f);
 /**
+ * A form a person chose for a cultivar from what its species' sources list (scripts/catalog/decisions.json): the
+ * written fact, or null when the choice names a form no source lists (a decision never adds one). Its sources are
+ * those listing the forms chosen, those listing all of them first; confirmed when two or more authorities list
+ * every form chosen, else single (the sources are authorities: NC State's and USDA's pages for the species).
+ */
+export function decidedForm(chosen, claims, enums, kindOf = new Map()) {
+  const forms = [chosen].flat().filter((x) => enums.form?.includes(x));
+  if (!forms.length || forms.length !== [chosen].flat().length) return null;
+  const listing = claims.filter((c) => c.fact === 'form' && c.src).map((c) => ({ src: c.src, forms: [c.v].flat() }));
+  if (!forms.every((x) => listing.some((l) => l.forms.includes(x)))) return null;
+  const all = listing.filter((l) => forms.every((x) => l.forms.includes(x)));
+  const some = listing.filter((l) => !all.includes(l) && forms.some((x) => l.forms.includes(x)));
+  const src = [...new Set([...all, ...some].map((l) => l.src))];
+  const authorities = new Set(all.filter((l) => kindOf.get(l.src) !== 'nursery').map((l) => l.src));
+  return { v: forms.length === 1 ? forms[0] : forms.slice(0, 3), src, check: authorities.size >= 2 ? 'confirmed' : 'single' };
+}
+/**
  * The catalog with the audit written in. `audit`: sample.mjs's output (per plant: id, facts, claims).
  * `warnings`: the app's catalogWarnings (src/catalog.ts), to hold back values that would make a record
- * implausible. Returns the new file and a review list (disputed facts, values the catalog can't take, and
+ * implausible. `decisions`: scripts/catalog/decisions.json, what a person decided on earlier review items (a
+ * cultivar's form). Returns the new file and a review list (disputed facts, values the catalog can't take, and
  * values held back).
  */
-export function writeAudit(catalog, audit, date, warnings = () => []) {
+export function writeAudit(catalog, audit, date, warnings = () => [], decisions = {}) {
   const byId = new Map(audit.map((a) => [a.id, a]));
   const recById = new Map(catalog.plants.map((r) => [r.id, r]));
   const enums = catalog.meta.enums ?? {};
@@ -73,7 +91,14 @@ export function writeAudit(catalog, audit, date, warnings = () => []) {
     for (const [key, [to, conv]] of Object.entries(FACTS)) {
       const f = a.facts?.[key];
       if (!f) continue;
-      if (f.check === 'disputed') { review.push({ id: rec.id, fact: key, note: f.note ?? '' }); continue; }
+      if (f.check === 'disputed') {
+        // A cultivar whose species is listed as a tree: the forms a person chose, from those its species' sources list.
+        const chose = key === 'form' && /a cultivar may be a tree/.test(f.note ?? '') ? decisions.form?.[rec.id] : undefined;
+        const out = chose && decidedForm(chose.v, a.claims ?? [], enums, kindOf);
+        if (out) { facts[to] = out; written.add(to); continue; }
+        review.push({ id: rec.id, fact: key, note: chose ? `${f.note ?? ''}; the decision (${[chose.v].flat().join(', ')}) names a form its sources don't list` : f.note ?? '' });
+        continue;
+      }
       if (f.v == null || !SETTLED.has(f.check)) continue;
       const v = conv(f.v, enums);
       // (The sources can't say Wetland yet: it waits on USDA's wetland list. A plant the catalog calls a wetland

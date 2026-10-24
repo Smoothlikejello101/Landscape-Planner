@@ -122,6 +122,37 @@ const fold = (t) => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCa
 const FAMILY = /^[A-Z]+ACEAE$|^[A-Z]{4,}$/;
 const INFRA = /^(var\.|subsp\.|ssp\.|f\.)\s/;
 /**
+ * A combined map's taxa in the atlas's Appendix I ("Species with Combined Infraspecific Taxa in Maps"), which
+ * starts at line `from`: [{ name, codes }] for each subspecies or variety listed under the species, its status
+ * codes at the line's end; null if the appendix doesn't list the species. Page breaks (page numbers, running
+ * heads, the edition line) inside an entry are skipped; a common name carried onto the next line isn't a taxon.
+ */
+export function appendixTaxa(lines, from, binomial) {
+  const want = fold(binomial);
+  const stop = lines.findIndex((l, i) => i > from && /^\s*APPENDIX II\s*$/.test(l));
+  const end = stop < 0 ? lines.length : stop;
+  const clean = (l) => l.replace(/\f/g, '');
+  const pageFurniture = (l) => /APPENDIX I\b/.test(l) || /^\s*\d{1,4}\s*$/.test(l) || /Free download edition/i.test(l);
+  for (let i = from + 1; i < end; i++) {
+    const l = clean(lines[i]);
+    if (!l.trim() || /^\s/.test(l)) continue;
+    const name = fold(segments(l)[0]?.text ?? '');
+    if (!(name === want || name.startsWith(want + ' '))) continue;
+    const taxa = [];
+    for (let j = i + 1; j < end; j++) {
+      const t = clean(lines[j]);
+      if (!t.trim() || pageFurniture(t)) continue;
+      if (!/^\s/.test(t)) break; // (the next species, family or group)
+      const segs = segments(t);
+      if (!INFRA.test(segs[0].text)) continue;
+      const last = segs[segs.length - 1];
+      taxa.push({ name: segs[0].text, codes: segs.length > 1 && CODE.test(last.text) ? last.text.split(/\s*,\s*/).map(Number) : [] });
+    }
+    return taxa.length ? taxa : null;
+  }
+  return null;
+}
+/**
  * Arkansas status for a binomial, from the atlas's text (pdftotext -layout).
  * Only the map pages count (everything before "APPENDIX I": the appendices
  * list taxa reported without specimens, or excluded). Each map's name sits
@@ -129,9 +160,9 @@ const INFRA = /^(var\.|subsp\.|ssp\.|f\.)\s/;
  * 3 non-native invasive, 4 special concern) sit on the line above the row's
  * family names, to the right of their column. A species mapped only as
  * varieties or subspecies gets the codes they all share (the note names the
- * varieties). A combined map, whose status is only in Appendix I, is left
- * uncertain. Returns null if the map pages don't list it, else
- * { name, codes, rows: [{ name, infra, codes, combined }], infraOnly?, uncertain? }.
+ * varieties). A combined map's status is only in Appendix I, and is read
+ * from there (appendixTaxa) by the same rule. Returns null if the map pages don't list it, else
+ * { name, codes, rows: [{ name, infra, codes, combined }], infraOnly?, combined?, appendix?, uncertain? }.
  */
 export function arkatlasStatus(text, binomial) {
   const lines = String(text).split(/\r?\n/);
@@ -180,7 +211,14 @@ export function arkatlasStatus(text, binomial) {
     }
   }
   if (!rows.length) return null;
-  if (rows.some((r) => r.combined)) return { name: binomial, codes: [], rows, uncertain: true, why: 'combined map: status in Appendix I' };
+  // A combined map: its taxa and their codes are in Appendix I, read by the same rule as a species mapped only as
+  // varieties (introduced-or-not must agree; the codes they all share).
+  if (rows.some((r) => r.combined)) {
+    const taxa = endAt < 0 ? null : appendixTaxa(lines, endAt, binomial);
+    if (!taxa) return { name: binomial, codes: [], rows, uncertain: true, why: 'combined map: not found in Appendix I' };
+    if (new Set(taxa.map((t) => t.codes.includes(1))).size > 1) return { name: binomial, codes: [], rows, appendix: taxa, uncertain: true, why: "combined map: its taxa's status differs (Appendix I)" };
+    return { name: binomial, codes: taxa[0].codes.filter((c) => taxa.every((t) => t.codes.includes(c))), rows, appendix: taxa, combined: true };
+  }
   const species = rows.filter((r) => !r.infra);
   const sameCodes = (rs) => new Set(rs.map((r) => r.codes.join(','))).size === 1;
   if (species.length) {

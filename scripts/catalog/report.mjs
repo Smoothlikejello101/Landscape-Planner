@@ -19,7 +19,7 @@ export function noteKind(note) {
   if (note === 'NC State page not fetched') return 'unfetched';
   if (/^NC State page \S+ is .*: left out$|^USDA's \S+ is .*: left out$|^Minnesota Wildflowers page is .*: left out$/.test(note)) return 'otherName';
   if (/^NC State has only a page for the genus /.test(note)) return 'genusPage';
-  if (/more than once with different status: left for the review$/.test(note)) return 'atlasTwice';
+  if (/(?:more than once with different status|'s combined map for .*): left for the review$/.test(note)) return 'atlasTwice';
   return null;
 }
 /** Notes only counted, with what each means (each note says only that the source gave nothing, not why). */
@@ -72,10 +72,11 @@ export function termsUnsettled(dir, registry) {
  * plant list; `combined`: sample.mjs's output; `review`: write.mjs's review list; `searched`: the web search's
  * claims by plant; `wcvp`: wcvp.mjs's review ({ homonyms, regulatedUnreviewed, regulatedNotMatched, notMatched });
  * `native`, `bloom`: wild.mjs's review lists; `warnings`: catalog:check's; `unfetched`: list.mjs toFetch's;
- * `termsUnsettled`: sites whose terms wait for a reading that settles them.
+ * `termsUnsettled`: sites whose terms wait for a reading that settles them; `decisions`: scripts/catalog/decisions.json
+ * (what a person already decided isn't listed again).
  * Returns { markdown, summary, counts }.
  */
-export function reviewReport({ catalog, list, combined, review, searched = {}, wcvp = null, native = [], bloom = [], warnings = [], unfetched = null, termsUnsettled = [] }) {
+export function reviewReport({ catalog, list, combined, review, searched = {}, wcvp = null, native = [], bloom = [], warnings = [], unfetched = null, termsUnsettled = [], decisions = {} }) {
   const byId = new Map(catalog.plants.map((p) => [p.id, p]));
   const order = new Map(catalog.plants.map((p, i) => [p.id, i]));
   const byOrder = (a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9);
@@ -98,6 +99,8 @@ export function reviewReport({ catalog, list, combined, review, searched = {}, w
   const table = (head, rows) => `| ${head.join(' | ')} |\n|${head.map(() => ' --- ').join('|')}|\n${rows.map((r) => `| ${r.join(' | ')} |`).join('\n')}`;
   const bullets = (rows) => rows.map((r) => `- ${r}`).join('\n');
   const NO_PLACE = "There's no place to record a decision on these yet: they stay listed until there is.";
+  /** Where a decision on a kind of item goes, for the kinds the build applies (docs/catalog-sources.md, "Decisions"). */
+  const DECIDE = (key) => `A decision goes in scripts/catalog/decisions.json (\`${key}\`), and the build applies it.`;
 
   // 1. The writer's review list.
   const items = [...review].sort(byOrder);
@@ -106,7 +109,7 @@ export function reviewReport({ catalog, list, combined, review, searched = {}, w
     `The audit's sources give different values, so the catalog keeps the value it had, marked unverified. Zones are on the half-zone scale (7 is 7a, 7.5 is 7b); sizes are in feet. ${NO_PLACE}`,
     table(['Plant', 'Fact', 'What the sources say', 'Catalog now'], of('disputed').map((i) => [name(i.id), factName(i.fact), esc(sourcesSay(audit(i), i.note)), now(i)])));
   section('Cultivar: tree or shrub?', of('tree').length,
-    `The species is a tree, and this cultivar, with no page of its own, may be smaller, so its form is left as it was. ${NO_PLACE}`,
+    `The species is a tree, and this cultivar, with no page of its own, may be smaller, so its form is left as it was. ${DECIDE('form')}`,
     table(['Plant', 'What the sources say', 'Catalog now'], of('tree').map((i) => [name(i.id), esc(i.note), now(i)])));
   section('Edible, but rated toxic', of('edible').length,
     `A source says it's edible, and the catalog rates it toxic (to dogs, or to people), so "edible" isn't written. ${NO_PLACE}`,
@@ -124,7 +127,7 @@ export function reviewReport({ catalog, list, combined, review, searched = {}, w
   // 2. Kew, the law lists, native status, bloom months.
   if (wcvp) {
     section("Kew names to check", (wcvp.homonyms?.length ?? 0) + (wcvp.regulatedUnreviewed?.length ?? 0) + (wcvp.regulatedNotMatched?.length ?? 0),
-      "Names Kew's World Checklist could read two ways, taken as the accepted name (check each is the plant meant: there's no place to record that yet); and law-list names Kew accepts under another, or doesn't match at all (set the entry's `accepted` in scripts/catalog/regulated-plants.json).",
+      "Names Kew's World Checklist could read two ways, taken as the accepted name (check each is the plant meant, and record it in scripts/catalog/decisions.json, `kewNames`); and law-list names Kew accepts under another, or doesn't match at all (set the entry's `accepted` in scripts/catalog/regulated-plants.json).",
       bullets([
         ...(wcvp.homonyms ?? []).map((n) => `${esc(n)}: an accepted name that is also an older homonym's synonym`),
         ...(wcvp.regulatedUnreviewed ?? []).map(esc),
@@ -132,7 +135,7 @@ export function reviewReport({ catalog, list, combined, review, searched = {}, w
       ]));
   }
   section('Native status held back', native.length,
-    `Kew has the species native to these states, but the catalog calls the plant "Exotic" (its species may hold a native kind the garden plant isn't), so it's never shown native. ${NO_PLACE}`,
+    `Kew has the species native to these states, but the catalog calls the plant "Exotic" (its species may hold a native kind the garden plant isn't), so it's never shown native. ${DECIDE('nativeShown')}`,
     bullets(native.map((n) => `${name(n.id)}: Kew's ${esc(n.name)}, native to ${plural(n.nativeIn?.length ?? 0, 'state')}`)));
   const months = (w) => (w ? `${MONTHS[w.start - 1]}–${MONTHS[w.end - 1]}` : '–');
   section('Bloom months held back', bloom.length,
@@ -146,11 +149,12 @@ export function reviewReport({ catalog, list, combined, review, searched = {}, w
     "The page the list points to gives another name, so it wasn't read. It may be the source's own misspelling, or a synonym: the right page. Or it may be another plant. To accept an NC State page as this plant's, add it to `names` in scripts/catalog/ncsu-pages.json, with the name it gives.",
     bullets(noted('otherName').map((n) => `${name(n.id)}: ${esc(n.note)}`)));
   section('Mapped twice on the Arkansas atlas', noted('atlasTwice').length,
-    `The atlas maps the name more than once (its varieties, say) with different status, so the atlas's status for it is left out. ${NO_PLACE}`,
+    `The atlas maps the name more than once (its varieties, say) with different status, or on one map for varieties whose status differs (its Appendix I), so the atlas's status for it is left out. ${NO_PLACE}`,
     bullets(noted('atlasTwice').map((n) => name(n.id))));
-  section("Read from the genus's page", noted('genusPage').length,
-    "NC State's page for the whole genus was read for this plant (scripts/catalog/ncsu-pages.json names it), so the facts read from it are the genus's, not the plant's own. Take the entry out to read none.",
-    bullets(noted('genusPage').map((n) => name(n.id))));
+  const genusPages = noted('genusPage').filter((n) => !decisions.genusPage?.[n.id]);
+  section("Read from the genus's page", genusPages.length,
+    "NC State's page for the whole genus was read for this plant (scripts/catalog/ncsu-pages.json names it), so the facts read from it are the genus's, not the plant's own. Take the entry out to read none, or record in scripts/catalog/decisions.json (`genusPage`) that they fit it.",
+    bullets(genusPages.map((n) => name(n.id))));
 
   // 4. To fetch or search.
   // (Never asked for, or asked and not there: a page the source doesn't have answers 404, which is kept.)

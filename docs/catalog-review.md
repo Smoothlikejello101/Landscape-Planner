@@ -1,34 +1,11 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 52 to decide, 39 sites whose terms are unsettled, 104 catalog checks; 780 of 820 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 13 to decide, 39 sites whose terms are unsettled, 104 catalog checks; 780 of 820 records audited.
 
-- [Cultivar: tree or shrub? (11)](#cultivar-tree-or-shrub-11)
 - [Edible, but rated toxic (12)](#edible-but-rated-toxic-12)
 - [Held back as implausible (1)](#held-back-as-implausible-1)
-- [Kew names to check (8)](#kew-names-to-check-8)
-- [Native status held back (2)](#native-status-held-back-2)
-- [Mapped twice on the Arkansas atlas (17)](#mapped-twice-on-the-arkansas-atlas-17)
-- [Read from the genus's page (1)](#read-from-the-genuss-page-1)
 - [Sites whose terms are unsettled (39)](#sites-whose-terms-are-unsettled-39)
 - [Catalog checks (104)](#catalog-checks-104)
-
-## Cultivar: tree or shrub? (11)
-
-The species is a tree, and this cultivar, with no page of its own, may be smaller, so its form is left as it was. There's no place to record a decision on these yet: they stay listed until there is.
-
-| Plant | What the sources say | Catalog now |
-| --- | --- | --- |
-| Dwarf yaupon holly (`ilex-vomitoria-nana-schillings`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Shrub |
-| Jujube (`ziziphus-jujuba-li-lang`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
-| Hardy pomegranate (`punica-granatum-salavatski-russian-26`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Shrub |
-| Mulberry 'Illinois Everbearing' (`morus-alba-x-rubra-illinois-everbearing`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
-| Asian pear 'Shinko' (`pyrus-pyrifolia-shinko`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
-| Apple (rust-resistant only) (`malus-domestica-liberty-enterprise-william-s-pride`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
-| Elderberry (improved cvs) (`sambucus-canadensis-bob-gordon-wyldewood`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Shrub |
-| Loropetalum (`loropetalum-chinense-purple-pixie-zhuzhou`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Shrub |
-| Crape myrtle (`lagerstroemia-natchez-muskogee-tonto`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
-| Ginkgo (male only) (`ginkgo-biloba-autumn-gold-princeton-sentry`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
-| Flowering cherry (`prunus-x-yedoensis-kwanzan`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Shrub |
 
 ## Edible, but rated toxic (12)
 
@@ -54,54 +31,6 @@ The audit's values would make the record implausible (the app's checks), so they
 | Plant | Facts | Why |
 | --- | --- | --- |
 | Green-and-gold (`chrysogonum-virginianum`) | height | under 3 in tall (2 in): inches read as feet, or the other way? |
-
-## Kew names to check (8)
-
-Names Kew's World Checklist could read two ways, taken as the accepted name (check each is the plant meant: there's no place to record that yet); and law-list names Kew accepts under another, or doesn't match at all (set the entry's `accepted` in scripts/catalog/regulated-plants.json).
-
-- Aquilegia canadensis: an accepted name that is also an older homonym's synonym
-- Bouteloua gracilis: an accepted name that is also an older homonym's synonym
-- Carex gracillima: an accepted name that is also an older homonym's synonym
-- Castilleja coccinea: an accepted name that is also an older homonym's synonym
-- Conopholis americana: an accepted name that is also an older homonym's synonym
-- Ludwigia alternifolia: an accepted name that is also an older homonym's synonym
-- Scirpus microcarpus: an accepted name that is also an older homonym's synonym
-- Alhagi camelorum: a law list's name Kew doesn't match to one accepted species
-
-## Native status held back (2)
-
-Kew has the species native to these states, but the catalog calls the plant "Exotic" (its species may hold a native kind the garden plant isn't), so it's never shown native. There's no place to record a decision on these yet: they stay listed until there is.
-
-- Raspberry (`rubus-idaeus`): Kew's Rubus idaeus, native to 40 states
-- Lantana (`lantana-camara-miss-huff-hardy`): Kew's Lantana camara, native to 1 state
-
-## Mapped twice on the Arkansas atlas (17)
-
-The atlas maps the name more than once (its varieties, say) with different status, so the atlas's status for it is left out. There's no place to record a decision on these yet: they stay listed until there is.
-
-- Goldenrod 'Fireworks' (`solidago-rugosa`)
-- Boltonia 'Snowbank' (`boltonia-asteroides`)
-- Little bluestem 'Standing Ovation' (`schizachyrium-scoparium`)
-- Black-eyed Susan 'Goldsturm' (`rudbeckia-fulgida-goldsturm`)
-- Prairie willow (`salix-humilis`)
-- False boneset (`brickellia-eupatorioides`)
-- Sweet Joe Pye weed (`eutrochium-purpureum`)
-- Orange coneflower (`rudbeckia-fulgida-var-sullivantii`)
-- Black-eyed Susan (biennial) (`rudbeckia-hirta`)
-- Blue-stemmed goldenrod (`solidago-caesia`)
-- Gray goldenrod (`solidago-nemoralis`)
-- Drummond's aster (`symphyotrichum-drummondii`)
-- Panicled aster (`symphyotrichum-lanceolatum`)
-- Common blue violet (`viola-sororia`)
-- Scribner's panic grass (`dichanthelium-oligosanthes`)
-- Hairy lens grass (`paspalum-setaceum`)
-- Little bluestem (species) (`schizachyrium-scoparium-2`)
-
-## Read from the genus's page (1)
-
-NC State's page for the whole genus was read for this plant (scripts/catalog/ncsu-pages.json names it), so the facts read from it are the genus's, not the plant's own. Take the entry out to read none.
-
-- Daffodil 'Tete-a-Tete' (`narcissus-tete-a-tete`)
 
 ## Sites whose terms are unsettled (39)
 

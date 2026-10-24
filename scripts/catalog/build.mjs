@@ -170,6 +170,7 @@ const report = reviewReport({
   warnings: checkOut.split('\n').filter((l) => l.startsWith('  ')).map((l) => l.trim()),
   unfetched: toFetch(list, ROOT),
   termsUnsettled: termsUnsettled(join(ROOT, 'terms-review'), readJson('scripts/catalog/site-terms.json')),
+  decisions: readJson('scripts/catalog/decisions.json'),
 });
 writeFileSync('docs/catalog-review.md', report.markdown);
 saveLog();

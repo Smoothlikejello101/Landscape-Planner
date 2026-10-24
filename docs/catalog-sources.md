@@ -494,6 +494,28 @@ months ("MO" for MOBOT).
 | `maintenance` | — | — | `null`: NC State gives a level, not a task, and the catalog's values are tasks. |
 | `thorns`, `winter_interest`, `self_seed`, `dry_shade`, `taproot`, `humidity`, `trunk`, `habit` | — | — | `null` unless a source states it. |
 
+## Decisions
+
+What the build can't settle from its sources goes on the review list (docs/catalog-review.md). A person's
+answer goes in `scripts/catalog/decisions.json`, with the date and who decided, and every build applies it, so
+the item isn't listed again. A decision only chooses among what the sources say, or says how a source is read:
+it never adds a value no source gives (a form chosen that no source lists is refused, and the item stays
+listed). The kinds the build applies:
+
+- **`form`**: a cultivar with no page of its own, whose species' sources list a tree: the forms it takes,
+  primary first, written with the sources that list them (confirmed when two authorities list every form
+  chosen, else single).
+- **`nativeShown`**: a plant the catalog calls exotic that Kew's checklist has native in some states: shown
+  native there all the same (wild.mjs). Where Kew's only native area is a territory (lantana: Puerto Rico), it
+  changes nothing in the 50 states. When the catalog's North America-wide native status comes from Kew, the
+  territories stay out of North America.
+- **`kewNames`**: names Kew's checklist could read two ways, checked to be read as its accepted name
+  (wcvp.mjs).
+- **`genusPage`**: a plant read from NC State's page for its whole genus, its facts checked to fit it.
+
+The first answers (2026-10-23) came from a page of cards built from the review list, one per item, with what
+each source says.
+
 ## Zones
 
 The 2023 USDA map divides zones into 10 °F bands. Zone *n* covers

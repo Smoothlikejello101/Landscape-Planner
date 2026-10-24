@@ -61,7 +61,8 @@ Paths without a folder are in `catalog-src/`. The order matters:
   - `regulated-plants.json`;
   - USDA picks and renames: `PICK` (usda-pick.mjs) and `SAME_PLANT` (usda-counties.mjs);
   - spellings: `GBIF_NAME` (gbif.mjs) and `WCVP_NAME` (wcvp.mjs);
-  - `RECORDS_TRUSTED` (bloom.mjs) and `COMPANY` (web.mjs).
+  - `RECORDS_TRUSTED` (bloom.mjs) and `COMPANY` (web.mjs);
+  - `decisions.json`: what a person decided on review items ([catalog-sources.md](catalog-sources.md), "Decisions").
 
 **Kept in `catalog-src/`** (git-ignored). The build stops before writing anything if one of the last three is
 missing:

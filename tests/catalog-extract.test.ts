@@ -62,6 +62,17 @@ describe('reading sources', () => {
     expect(arkatlasStatus(t, 'Berberis thunbergii')?.codes).toEqual([]); // (its row's codes, if any, sit above this excerpt)
     expect(arkatlasStatus(t, 'Nerium oleander')).toBeNull();
   });
+  it("reads a combined map's status from Appendix I, by the rule for a species mapped only as varieties", () => {
+    const t = fixture('arkatlas-appendix.txt');
+    const hirta = arkatlasStatus(t, 'Rudbeckia hirta');
+    expect(hirta).toMatchObject({ codes: [], combined: true }); // (native: no variety has a code)
+    expect(hirta?.uncertain).toBeUndefined();
+    expect(hirta?.appendix?.map((x: { name: string }) => x.name)).toEqual(['var. hirta', 'var. pulcherrima Farw.']); // (one after a page break)
+    const knotweed = arkatlasStatus(t, 'Polygonum aviculare'); // (three subspecies introduced, one not)
+    expect(knotweed).toMatchObject({ codes: [], uncertain: true, why: "combined map: its taxa's status differs (Appendix I)" });
+    expect(knotweed?.appendix?.map((x: { codes: number[] }) => x.codes)).toEqual([[1], [], [1], [1]]);
+    expect(arkatlasStatus(t, 'Rudbeckia laciniata')?.combined).toBeUndefined(); // (its own map: its varieties there)
+  });
   it('reads columns from the family line, so a name with an accent keeps its own codes', () => {
     const t = fixture('arkatlas-pages.txt');
     expect(arkatlasStatus(t, 'Bromus tectorum')?.codes).toEqual([1, 3]);
