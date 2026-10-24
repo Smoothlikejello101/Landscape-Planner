@@ -69,6 +69,24 @@ export function termsUnsettled(dir, registry) {
 }
 
 /**
+ * New plants from NC State (additions.mjs), counted: added, waiting for what their sources don't yet give, left out
+ * and why, and pages not yet saved. Counts only: nothing here is for a person to decide.
+ */
+function newPlantsNote({ added = [], waiting = {}, left = [], unsaved = 0, all = [] }) {
+  if (!all.length && !added.length && !left.length && !Object.keys(waiting).length) return '';
+  const lack = {}, why = {};
+  for (const m of Object.values(waiting)) for (const k of m) lack[k] = (lack[k] ?? 0) + 1;
+  for (const l of left) why[l.why] = (why[l.why] ?? 0) + 1;
+  const rows = [
+    `- ${plural(added.length, 'plant')} added from NC State's Plant Toolbox in this build${all.length > added.length ? ` (${all.length} in all)` : ''}`,
+    Object.keys(waiting).length ? `- ${plural(Object.keys(waiting).length, 'plant')} waiting, for ${Object.entries(lack).map(([k, n]) => `${k === 'its species' ? 'its species' : k} (${n})`).join(', ')}` : '',
+    left.length ? `- ${plural(left.length, 'page')} left out: ${Object.entries(why).map(([k, n]) => `${k} (${n})`).join(', ')}` : '',
+    unsaved ? `- ${plural(unsaved, 'page')} the sitemap lists that aren't saved yet` : '',
+  ].filter(Boolean);
+  return `New plants (scripts/catalog/additions.mjs):\n\n${rows.join('\n')}`;
+}
+
+/**
  * The report. `catalog`: public/plants.json as written; `list`: the audit's
  * plant list; `combined`: sample.mjs's output; `review`: write.mjs's review list; `searched`: the web search's
  * claims by plant; `wcvp`: wcvp.mjs's review ({ homonyms, regulatedUnreviewed, regulatedNotMatched, notMatched });
@@ -77,7 +95,7 @@ export function termsUnsettled(dir, registry) {
  * (what a person already decided isn't listed again).
  * Returns { markdown, summary, counts }.
  */
-export function reviewReport({ catalog, list, combined, review, searched = {}, wcvp = null, native = [], bloom = [], warnings = [], unfetched = null, termsUnsettled = [], decisions = {} }) {
+export function reviewReport({ catalog, list, combined, review, searched = {}, wcvp = null, native = [], bloom = [], warnings = [], unfetched = null, termsUnsettled = [], decisions = {}, additions = null }) {
   const byId = new Map(catalog.plants.map((p) => [p.id, p]));
   const order = new Map(catalog.plants.map((p, i) => [p.id, i]));
   const byOrder = (a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9);
@@ -173,10 +191,13 @@ export function reviewReport({ catalog, list, combined, review, searched = {}, w
   section('Not looked up yet', asks.reduce((t, [n]) => t + n, 0),
     'Pages the list could use that were never asked for: `npm run catalog:build -- --fetch` asks for them (through the fetcher: robots.txt, and each site\'s pace; NC State\'s is one page every 5 seconds), then builds with what it finds.',
     bullets(asks.map(([n, what]) => `${n} ${what}`)), 'pages');
-  const unsearched = list.filter((s) => !searched[s.id]).sort(byOrder);
+  // (Plants added from NC State are counted, not listed: there are thousands. scripts/catalog/added-plants.json has them.)
+  const fromNcsu = new Set(additions?.all ?? []);
+  const unsearched = list.filter((s) => byId.has(s.id) && !searched[s.id]).sort(byOrder);
+  const addedUnsearched = unsearched.filter((s) => fromNcsu.has(s.id)).length;
   section('Not searched on the web', unsearched.length,
     "No web search has run for these yet: `node scripts/catalog/search.mjs` (docs/catalog-sources.md, \"Searching the web\"), then add its claims to catalog-src/web-claims.json.",
-    bullets(unsearched.map((s) => name(s.id))), 'search');
+    [bullets(unsearched.filter((s) => !fromNcsu.has(s.id)).map((s) => name(s.id))), addedUnsearched ? `- ${plural(addedUnsearched, 'plant')} added from NC State (scripts/catalog/added-plants.json)` : ''].filter(Boolean).join('\n'), 'search');
   section('Sites whose terms are unsettled', termsUnsettled.length,
     "A search found pages on these sites, but their terms aren't in the record (scripts/catalog/site-terms.json): a reader couldn't tell what they allow, or none has read them. Their pages aren't used. Each one's packet is in catalog-src/terms-review/, which holds the last search run's (docs/catalog-sources.md, \"How terms are read\").",
     termsUnsettled.map(esc).join(', '), 'terms');
@@ -210,6 +231,7 @@ export function reviewReport({ catalog, list, combined, review, searched = {}, w
     ...sections,
     '## For reference',
     `Where a source gave nothing, counted only:\n\n${counted.map(([n, what]) => `- ${plural(n, 'plant')}: ${what}`).join('\n')}${wcvpMissed}`,
+    additions ? newPlantsNote(additions) : '',
   ].filter(Boolean).join('\n\n') + '\n';
   return { markdown, summary, counts };
 }
