@@ -31,3 +31,9 @@ it waits.
 - **Flags for every disagreement.** A row is marked only when a filter
   match rests on what other sources say (a fact's `alt`). Other disagreements are listed in
   the opened row; flagging them all would mark most rows.
+
+## Promised, not built yet
+
+- **Deleting synced copies 14 months after a trial or plan ends.** The terms and the privacy policy promise
+  it, with an email first. Nothing does it yet. The earliest anyone can reach it is December 2027 (the
+  first trials began in October 2026), and the email needs the sending service (Resend).
