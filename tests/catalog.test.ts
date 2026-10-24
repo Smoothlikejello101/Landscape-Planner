@@ -48,6 +48,9 @@ describe('the shipped catalog', () => {
     // A tree is one form: rusty blackhaw is a tree and a shrub to NC State and USDA alike. A dwarf cultivar of a
     // tree, with no page of its own, takes the form a person chose from its species' (scripts/catalog/decisions.json).
     expect(plants.find((p) => p.id === 'viburnum-rufidulum')).toMatchObject({ form: 'Tree', forms: ['Tree', 'Shrub'], prov: { form: { src: ['ncsu', 'usda'], check: 'confirmed' } } });
+    // Poisonous to people, from NC State, beside an edible decided by a person (mayapple's ripe fruit).
+    expect(plants.find((p) => p.id === 'podophyllum-peltatum')).toMatchObject({ edible: true, poison: { severity: 'high', parts: ['leaves', 'roots', 'seeds', 'stems'], skin: true }, prov: { poison: { src: ['ncsu'], check: 'single' }, edible: { src: ['ncsu'] } } });
+    expect(plants.filter((p) => p.poison).length).toBeGreaterThan(100);
     expect(plants.find((p) => p.id === 'ilex-vomitoria-nana-schillings')).toMatchObject({ form: 'Shrub', prov: { form: { src: ['ncsu', 'usda'], check: 'single' } } });
     expect(new Set(plants.flatMap((p) => p.forms ?? [p.form]).filter((f) => f?.startsWith('Tree')))).toEqual(new Set(['Tree']));
     expect((shipped as CatalogFile).meta.sources['ufl.edu']).toMatchObject({ trust: 'reference' });
@@ -133,6 +136,11 @@ describe('records', () => {
     const z = (v: number) => catalogErrors({ meta, plants: [rec({ id: 'z', facts: { zone_min: v } })] });
     for (const ok of [1, 7, 7.5, 13.5]) expect(z(ok)).toEqual([]);
     for (const bad of [0.5, 7.25, 14]) expect(z(bad)).toEqual([`z.zone_min: unexpected value ${bad}`]);
+    // Poisonous to people: NC State's severity, the parts it names, skin irritation; {} is poisonous, nothing more said.
+    const pz = (v: unknown) => catalogErrors({ meta, plants: [rec({ id: 'p', facts: { poison: { v, src: ['ncsu'], check: 'single' } } })] });
+    for (const ok of [{}, { severity: 'high', parts: ['seeds'], skin: true }, { severity: 'low' }, { skin: true }]) expect(pz(ok), JSON.stringify(ok)).toEqual([]);
+    for (const bad of [{ severity: 'severe' }, { severity: null }, { parts: [] }, { parts: 'seeds' }, { parts: ['seeds', 'seeds'] }, { parts: ['Seeds'] }, { skin: false }, { color: 'red' }, 'yes']) expect(pz(bad), JSON.stringify(bad)).toHaveLength(1);
+    expect(pz(null)).toEqual([]); // (NC State read, nothing said of poison)
     // A file must say its zones are on the half-zone scale.
     const { zones: _z, ...older } = meta;
     expect(catalogErrors({ meta: older as CatalogFile['meta'], plants: [] })).toEqual(['meta.zones must be "half" (zones on the half-zone scale; see docs/catalog-format.md)']);

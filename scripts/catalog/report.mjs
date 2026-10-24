@@ -112,7 +112,7 @@ export function reviewReport({ catalog, list, combined, review, searched = {}, w
     `The species is a tree, and this cultivar, with no page of its own, may be smaller, so its form is left as it was. ${DECIDE('form')}`,
     table(['Plant', 'What the sources say', 'Catalog now'], of('tree').map((i) => [name(i.id), esc(i.note), now(i)])));
   section('Edible, but rated toxic', of('edible').length,
-    `A source says it's edible, and the catalog rates it toxic (to dogs, or to people), so "edible" isn't written. ${NO_PLACE}`,
+    `A source says it's edible, and the catalog rates it toxic (to dogs, or to people), so "edible" isn't written. ${DECIDE('edible')}`,
     bullets(of('edible').map((i) => name(i.id))));
   section('Held back as implausible', of('held').length,
     `The audit's values would make the record implausible (the app's checks), so they weren't written. ${NO_PLACE}`,

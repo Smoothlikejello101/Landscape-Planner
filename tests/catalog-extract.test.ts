@@ -5,7 +5,7 @@ import { appendixTaxa, arkatlasStatus, feetRange, mnwildFields, monthRange, ncsu
 // @ts-expect-error (plain JavaScript build script)
 import { mnLight, ncsuSun } from '../scripts/catalog/map.mjs';
 // @ts-expect-error (plain JavaScript build script)
-import { agrees, arkatlasClaims, combine, lowBranched, halfZoneOfTemp, halfZones, hostNames, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims, waterNeed, zoneSpan } from '../scripts/catalog/claims.mjs';
+import { agrees, arkatlasClaims, combine, lowBranched, ncsuNoPoison, ncsuPoison, halfZoneOfTemp, halfZones, hostNames, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims, waterNeed, zoneSpan } from '../scripts/catalog/claims.mjs';
 
 const fixture = (f: string) => readFileSync(`tests/fixtures/catalog/${f}`, 'utf8');
 
@@ -52,6 +52,23 @@ describe('reading sources', () => {
     expect(m['Scientific name']).toEqual(['Lobelia cardinalis']);
     expect(m['Bloom season']).toEqual(['July - September']);
     expect(mnLight(m['Habitat light'][0])).toEqual({ most: 'Full', least: 'Part' });
+  });
+  it("reads NC State's poison fields in its own terms: severity, parts, skin", () => {
+    expect(ncsuPoison({ 'Plant Type': ['Edible', 'Poisonous', 'Tree'], 'Poison Severity': ['Medium'], 'Poison Part': ['Seeds'], 'Causes Contact Dermatitis': ['No'] }))
+      .toEqual({ severity: 'medium', parts: ['seeds'] });
+    expect(ncsuPoison({ 'Poison Severity': ['High'], 'Poison Part': ['Leaves', 'Sap/Juice', 'Bark'], 'Causes Contact Dermatitis': ['Yes'] }))
+      .toEqual({ severity: 'high', parts: ['leaves', 'sap', 'bark'], skin: true });
+    expect(ncsuPoison({ 'Plant Type': ['Poisonous', 'Vine'], Problems: ['Poisonous to Humans'] })).toEqual({}); // (listed for people, nothing more said)
+    // Its bare "Poisonous" tag isn't about people alone (star jasmine's page: non-toxic to pets): nothing said of people.
+    expect(ncsuPoison({ 'Plant Type': ['Poisonous', 'Vine'], Problems: ['Malodorous'] })).toBeNull();
+    expect(ncsuNoPoison({ 'Plant Type': ['Poisonous', 'Vine'] })).toBe(false); // (…nor "none listed")
+    expect(ncsuPoison({ 'Plant Type': ['Shrub'] })).toBeNull();
+    expect(ncsuNoPoison({ 'Plant Type': ['Shrub'] })).toBe(true); // (its page says nothing of poison: "None listed")
+    expect(ncsuPoison({ 'Poison Part': ['Seeds', 'Seeds', 'Whole plant'], 'Poison Severity': ['Low'] })).toEqual({ severity: 'low', parts: ['seeds'] }); // (each once; only parts the catalog takes)
+    const c = ncsuClaims({ 'Plant Type': ['Poisonous'], 'Poison Severity': ['Low'], 'Poison Part': ['Fruits'] }).find((x: { fact: string }) => x.fact === 'poison');
+    expect(c).toEqual({ fact: 'poison', v: { severity: 'low', parts: ['fruits'] }, src: 'ncsu', kind: 'authority' });
+    expect(agrees('poison', { severity: 'low', parts: ['fruits'] }, { severity: 'low', parts: ['fruits'] })).toBe(true);
+    expect(agrees('poison', { severity: 'low', parts: ['fruits'] }, { severity: 'high', parts: ['fruits'] })).toBe(false);
   });
   it('reads Arkansas status codes from the atlas layout, by column', () => {
     const t = fixture('arkatlas-pages.txt');

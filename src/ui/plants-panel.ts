@@ -276,6 +276,8 @@ export function renderPlantsPanel() {
   const primaryChecks = el('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px 16px', margin: '8px 0 4px' } },
     // Says unverified while it goes by the older list for any plant (until each has a sourced rating: docs/catalog-sources.md).
     mkCheck(PLANTS.some((p) => !p.tox?.dog) ? 'Non-toxic to dogs (unverified)' : 'Non-toxic to dogs', 'dogSafeOnly'),
+    // (Only plants whose NC State page was read and lists no poison: one it doesn't rate isn't called safe.)
+    mkCheck('No poison to people listed (NC State)', 'noPoison'),
     state.location ? mkCheck(`Hardy in zone ${state.location.zone}`, 'hardyHere') : null,
     mkCheck('Dry shade', 'dryShade'),
     mkCheck('Wet feet', 'wetFeet'),

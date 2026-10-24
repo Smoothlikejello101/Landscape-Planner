@@ -34,6 +34,25 @@ const cap = (t: string) => t[0].toUpperCase() + t.slice(1);
 const sun = (most?: unknown, least?: unknown) => (!most ? '' : cap(most === least || !least ? SUN_WORDS[most as string] ?? String(most) : `${SUN_WORDS[most as string] ?? most} to ${SUN_WORDS[least as string] ?? least}`));
 const yes = (v: unknown) => (v === true ? 'Yes' : v === false ? 'No' : '');
 const bloom = (b?: { start?: number; end?: number; color?: string }) => (b?.start ? `${MONTH_NAMES[b.start]}${b.end && b.end !== b.start ? `–${MONTH_NAMES[b.end]}` : ''}${b.color ? `, ${b.color}` : ''}` : b?.color ?? '');
+/**
+ * Poisonous to people, in its source's words: "Leaves and stems, medium severity; can irritate skin"; listed with
+ * nothing more said: "Yes; no part or severity given".
+ */
+export function poisonText(x?: Plant['poison']): string {
+  if (!x) return '';
+  const parts = x.parts?.length ? (x.parts.length > 1 ? `${x.parts.slice(0, -1).join(', ')} and ${x.parts[x.parts.length - 1]}` : x.parts[0]) : '';
+  const head = [parts && cap(parts), x.severity && `${parts ? x.severity : cap(x.severity)} severity`].filter(Boolean).join(', ');
+  const skin = x.skin ? (head ? 'can irritate skin' : 'Can irritate skin') : '';
+  return [head, skin].filter(Boolean).join('; ') || 'Yes; no part or severity given';
+}
+/**
+ * The row's value for any plant: what its source lists; "None listed" where NC State's page was read and says nothing
+ * of poison (a weak no: not "safe"); or, where no source we read rates it for people, "Not known", so a missing
+ * warning isn't taken for a safe plant.
+ */
+export function poisonRow(p: Plant): string {
+  return p.poison ? poisonText(p.poison) : p.prov?.poison?.unknown ? 'None listed' : 'Not known: no source we read rates it for people';
+}
 const tox = (t?: Plant['tox']) => (!t ? '' : [t.dog && `dogs: ${t.dog}`, t.cat && `cats: ${t.cat}`, t.horse && `horses: ${t.horse}`, t.people && `people: ${t.people}`].filter(Boolean).join('; '));
 
 /** Each row: label, the catalog's value, the facts it rests on, and how to write the other value where sources differ. */
@@ -54,8 +73,10 @@ function rows(p: Plant): Row[] {
     ['Caterpillar host for', p.host ?? '', ['host']],
     ['Deer', p.deer ?? '', ['deer'], (r) => String(r.deer ?? '')],
     ['Toxicity', tox(p.tox) || (p.dog ? `dogs: ${p.dog}` : ''), ['tox', 'dog']],
+    // (Beside Edible: a plant can be both, its fruit eaten and its seeds poisonous.)
+    ['Poisonous to people', poisonRow(p), ['poison']],
+    ['Edible', p.edible === true && p.poison ? 'Yes, though it\'s also listed as poisonous to people (above)' : yes(p.edible), ['edible']],
     ['Thorns', yes(p.thorns), ['thorns']],
-    ['Edible', yes(p.edible), ['edible']],
     ['Fall color', yes(p.fall_color), ['fall_color']],
     ['Winter interest', yes(p.winter_interest), ['winter_interest']],
     ['Takes clay', yes(p.clay_ok), ['clay_ok']],
