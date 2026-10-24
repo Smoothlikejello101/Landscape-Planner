@@ -7,6 +7,8 @@ import { finishPlacing } from '../place';
 import { currentProject, getClipboard } from '../storage';
 import { render } from './render';
 import { openLocation } from './location-panel';
+import { feedbackLink } from '../feedback';
+import { deviceName } from '../sync/sync';
 
 /** Select mode on or off (the lasso button on the top bar). */
 export function toggleSelectMode() {
@@ -65,6 +67,16 @@ export function renderMoreMenu() {
     icon: I.reset,
     label: 'Clear all shapes in project',
     onClick: () => { state.panel = 'reset'; state.menu = null; render(); }
+  });
+  items.push({ divider: true });
+  items.push({
+    icon: I.mail,
+    label: 'Send feedback',
+    // The person's own mail app opens, with the version and kind of device filled in (src/feedback.ts).
+    onClick: () => {
+      state.menu = null; render();
+      el('a', { href: feedbackLink(__APP_VERSION__, deviceName()) }).click();
+    }
   });
   const menu = el('div', { className: 'menu' });
   for (const it of items) {

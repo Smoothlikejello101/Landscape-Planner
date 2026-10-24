@@ -33,6 +33,14 @@ async function fakeServer(page: Page, plan: Record<string, unknown> | null = { p
     if (url.pathname === '/auth/v1/logout') return route.fulfill({ status: 204, body: '' });
     if (url.pathname === '/rest/v1/plans') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(plan ? [plan] : []) });
     if (url.pathname === '/rest/v1/rpc/delete_my_account') return route.fulfill({ status: 204, body: '' });
+    // Beta codes: supabase/06-beta.sql. K7PQ-M3XD is good; anything else isn't.
+    if (url.pathname === '/rest/v1/rpc/redeem_beta_code') {
+      const code = String(JSON.parse(req.postData() ?? '{}').p_code ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      seen.push(`redeem ${code}`);
+      if (code !== 'K7PQM3XD') return json(route, 'invalid');
+      if (plan) Object.assign(plan, { plan: 'beta' });
+      return json(route, 'ok');
+    }
     if (url.pathname.startsWith('/storage/v1/object/list/photos')) return route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
     // Sync: the rules of supabase/02-sync.sql, in memory.
     const args = () => JSON.parse(req.postData() ?? '{}');
@@ -252,4 +260,62 @@ test('a trial that hasn’t started: sync waits to be turned on, which starts it
   await expect(account.getByTestId('sync-status')).toHaveText('Synced just now');
   expect(seen).toContain('start_trial with install id');
   expect(seen).toContain('push My Garden');
+});
+
+test('a beta code from the invitation makes the account a beta account, and sync starts', async ({ page }) => {
+  const seen = await fakeServer(page, { plan: 'trial', trial_started: null, trial_ends: null, paid_until: null });
+  await signedIn(page);
+  await openFresh(page);
+  const account = await openAccount(page);
+  await expect(account.getByTestId('sync-start')).toBeVisible();
+  await account.getByTestId('beta-code-open').click();
+  await expect(account.getByTestId('beta-code')).toBeFocused(); // straight in, keyboard up
+  // Too short: said here, no request.
+  await account.getByTestId('beta-code').fill('K7PQ');
+  await account.getByTestId('beta-code-use').click();
+  await expect(account.getByTestId('account-error')).toContainText('8 letters and numbers');
+  expect(seen.filter((s) => s.startsWith('redeem'))).toEqual([]);
+  // A wrong code says so, and keeps what was typed (and the focus) for fixing.
+  await account.getByTestId('beta-code').fill('K7PQ-M3XE');
+  await account.getByTestId('beta-code').press('Enter');
+  await expect(account.getByTestId('account-error')).toContainText('That code didn’t work');
+  await expect(account.getByTestId('beta-code')).toHaveValue('K7PQ-M3XE');
+  await expect(account.getByTestId('beta-code')).toBeFocused();
+  // Lower case and a space: the same code.
+  await account.getByTestId('beta-code').fill('k7pq m3xd');
+  await account.getByTestId('beta-code-use').click();
+  await expect(account.getByTestId('plan')).toHaveText('Beta tester: everything free during the beta');
+  await expect(page.getByText('You’re on the beta')).toBeVisible();
+  await expect(account.getByTestId('account-error')).toHaveCount(0);
+  await expect(account.getByTestId('beta-code-open')).toHaveCount(0); // nothing more to enter
+  await expect(account.getByTestId('sync-status')).toHaveText('Synced just now');
+  expect(seen).toContain('push My Garden');
+  expect(seen).not.toContain('start_trial with install id'); // the beta, not the trial
+});
+
+test('the beta code waits for a trial; a paying account isn’t offered one', async ({ page }) => {
+  await fakeServer(page, { plan: 'active', trial_started: null, trial_ends: null, paid_until: new Date(Date.now() + 86_400_000 * 300).toISOString() });
+  await signedIn(page);
+  await openFresh(page);
+  const account = await openAccount(page);
+  await expect(account.getByTestId('plan')).toContainText('Subscribed through');
+  await expect(account.getByTestId('beta-code-open')).toHaveCount(0);
+});
+
+test('signing in names the terms and the privacy policy; signed in, both are linked', async ({ page }) => {
+  await fakeServer(page);
+  await openFresh(page);
+  let account = await openAccount(page);
+  const agree = account.getByTestId('signin-agree');
+  await expect(agree).toHaveText('By signing in, you agree to the terms and the privacy policy.');
+  await expect(agree.getByRole('link', { name: 'terms' })).toHaveAttribute('href', 'https://fullgrown.garden/terms/');
+  await expect(agree.getByRole('link', { name: 'privacy policy' })).toHaveAttribute('href', 'https://fullgrown.garden/privacy/');
+  await expect(agree.getByRole('link', { name: 'terms' })).toHaveAttribute('target', '_blank');
+  await signedIn(page);
+  await page.reload();
+  account = await openAccount(page);
+  await expect(account.getByTestId('signed-in')).toBeVisible();
+  const links = account.getByTestId('policy-links');
+  await expect(links.getByRole('link', { name: 'Privacy policy' })).toHaveAttribute('href', 'https://fullgrown.garden/privacy/');
+  await expect(links.getByRole('link', { name: 'Terms' })).toHaveAttribute('href', 'https://fullgrown.garden/terms/');
 });

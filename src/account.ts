@@ -221,6 +221,41 @@ export async function verifyEmailCode(code: string) {
       : /too many|rate limit/i.test(String((e as { message?: unknown })?.message ?? '')) ? 'Too many tries for now. Wait a few minutes, then try again.' : msg });
   }
 }
+/** What a beta code that didn't work means, in plain words (supabase/06-beta.sql's answers). */
+const BETA_CODE_WORDS: Record<string, string> = {
+  invalid: 'That code didn’t work. Check it against the email it came in: 8 letters and numbers, like K7PQ-M3XD.',
+  'used-up': 'That code has been used as many times as it allows. Ask for a new one.',
+  'too-many': 'Too many codes that didn’t work. Wait an hour, then try again.',
+  paid: 'You already have a paid plan, so you don’t need a code.',
+};
+/**
+ * Use a beta code: the account becomes a beta account (everything free during the beta). True when it is
+ * one now (or already was).
+ */
+export async function redeemBetaCode(code: string): Promise<boolean> {
+  if (account.busy) return false;
+  if (code.replace(/[^A-Za-z0-9]/g, '').length !== 8) {
+    set({ error: 'A beta code has 8 letters and numbers, like K7PQ-M3XD.' });
+    return false;
+  }
+  set({ busy: true, error: undefined });
+  try {
+    const c = await client();
+    const { data, error } = await c.rpc('redeem_beta_code', { p_code: code });
+    if (error) throw error;
+    if (data === 'ok' || data === 'already') {
+      set({ busy: false });
+      await loadPlan();
+      return true;
+    }
+    set({ busy: false, error: BETA_CODE_WORDS[String(data)] ?? 'That code didn’t work.' });
+    return false;
+  } catch (e) {
+    set({ busy: false, error: friendly(e) });
+    return false;
+  }
+}
+
 export async function signOut() {
   set({ busy: true, error: undefined });
   try {
