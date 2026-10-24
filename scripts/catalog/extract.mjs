@@ -78,7 +78,10 @@ export function usdaFields(profile, characteristics) {
   const wanted = new Set(['Bloom Period', 'Flower Color', 'Height, Mature (feet)', 'Shade Tolerance', 'Drought Tolerance',
     'Moisture Use', 'Temperature, Minimum (°F)', 'Toxicity', 'Fall Conspicuous', 'Adapted to Fine Textured Soils',
     'Anaerobic Tolerance', 'Growth Rate', 'Palatable Human', 'pH, Minimum', 'pH, Maximum', 'Leaf Retention', 'Foliage Color']);
+  // (The species' own rows only: a row with a CultivarName is a named release's, 'Alma' blue grama's, not the
+  // species'. A synonym's row is the same plant's.)
   for (const c of characteristics ?? []) {
+    if (c.CultivarName != null && String(c.CultivarName).trim()) continue;
     const name = c.PlantCharacteristicName;
     if (wanted.has(name) && c.PlantCharacteristicValue != null && String(c.PlantCharacteristicValue).trim()) {
       (out[name] ??= []).push(String(c.PlantCharacteristicValue).trim());

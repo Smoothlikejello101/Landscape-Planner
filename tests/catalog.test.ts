@@ -55,7 +55,7 @@ describe('the shipped catalog', () => {
     // habit, never its leaf color (bred to change).
     expect(plants.find((p) => p.id === 'acer-rubrum')).toMatchObject({ foliage: 'deciduous', fall_color: true, fall_colors: ['gold', 'red'], growth_rate: 'fast',
       prov: { foliage: { src: ['ncsu', 'usda'], check: 'confirmed' }, growth_rate: { src: ['ncsu', 'usda'], check: 'confirmed' } } });
-    expect(plants.filter((p) => p.foliage).length).toBeGreaterThan(400);
+    expect(plants.filter((p) => p.foliage).length).toBeGreaterThan(250); // (USDA's only of trees and shrubs: most herbs have none)
     expect(plants.filter((p) => p.parent && p.leaf_color && !(shipped as CatalogFile).plants.find((r) => r.id === p.id)?.facts.leaf_color)).toEqual([]);
     expect(plants.find((p) => p.id === 'ilex-vomitoria-nana-schillings')).toMatchObject({ form: 'Shrub', prov: { form: { src: ['ncsu', 'usda'], check: 'single' } } });
     expect(new Set(plants.flatMap((p) => p.forms ?? [p.form]).filter((f) => f?.startsWith('Tree')))).toEqual(new Set(['Tree']));

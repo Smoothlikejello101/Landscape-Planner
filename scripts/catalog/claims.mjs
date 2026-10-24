@@ -10,8 +10,10 @@
 // A claim: { fact, v, src, kind, at?, group? }. kind: 'authority' (extension
 // services, botanical gardens, state floras), 'breeder', 'nursery', 'blog'.
 // `group` marks copies: claims sharing a group (the same text) count once,
-// and so do claims from one site (src). USDA's garden
-// figures are flags only: shown for review, never deciding or checking.
+// and so do claims from one site (src). USDA's garden figures are flags only
+// (shown for review, never deciding or checking), but for three plant traits
+// it records (leaves in winter, leaf color, growth rate): a fallback, deciding
+// where no other authority says (usdaClaims).
 import { feetRange } from './extract.mjs';
 import { mnLight, ncsuForms, ncsuSun } from './map.mjs';
 
@@ -27,7 +29,7 @@ const RANK = { authority: 3, breeder: 2, nursery: 1, blog: 0 };
 /** Facts decided by sides (`bySides`), the other side kept beside the value (`alt`; never safety facts). */
 export const REPORTABLE = new Set(['height', 'width', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'deer']);
 /** Facts a cultivar is bred to change: only a page for the cultivar itself speaks to them. */
-export const CULTIVAR_OWN = new Set(['height', 'width', 'flower_color', 'form', 'leaf_color', 'growth_rate']);
+export const CULTIVAR_OWN = new Set(['height', 'width', 'flower_color', 'form', 'leaf_color', 'fall_colors', 'growth_rate']);
 
 // ---------- Values ----------
 
@@ -173,7 +175,7 @@ export const fallColors = (values) => [...new Set((values ?? []).map((v) => FALL
 /**
  * Whether the leaves stay through winter, from NC State's "Woody Plant Leaf Characteristics": evergreen
  * (needled or broadleaf), semi-evergreen (it says so, or lists the plant as both: it depends on the winter),
- * deciduous. Woody plants only: NC State doesn't say it of herbs.
+ * deciduous. Mostly of woody plants: NC State says it of some herbs too.
  */
 export function ncsuFoliage(values) {
   const v = new Set(values ?? []);
@@ -205,10 +207,11 @@ export function ncsuClaims(f) {
   if (poison) c.push({ fact: 'poison', v: poison, src: 'ncsu', kind: 'authority' });
   if ((f['Resistance To Challenges'] ?? []).includes('Deer')) add('deer', 'Resistant');
   if ((f['Plant Type'] ?? []).includes('Edible')) add('edible', true);
-  // Fall color: the colors it lists; "Insignificant" alone says it has none to speak of.
+  // Fall color: the colors it lists; "Insignificant" alone says it has none to speak of. (A word not known
+  // here says neither: nothing is read from it.)
   if (f['Deciduous Leaf Fall Color']) {
-    const fall = fallColors(f['Deciduous Leaf Fall Color']);
-    c.push({ fact: 'fall_color', v: fall.length > 0, src: 'ncsu', kind: 'authority' });
+    const listed = f['Deciduous Leaf Fall Color'], fall = fallColors(listed);
+    if (fall.length || listed.every((x) => x === 'Insignificant')) c.push({ fact: 'fall_color', v: fall.length > 0, src: 'ncsu', kind: 'authority' });
     add('fall_colors', fall);
   }
   add('leaf_color', leafColors(f['Leaf Color']));
@@ -277,10 +280,12 @@ export function usdaClaims(u) {
   if (uf.filter(Boolean).length) c.push({ fact: 'form', v: uf.filter(Boolean), src: 'usda', kind: 'authority', fallback: true });
   // Plant traits it records for some species: a fallback, deciding only where no other authority says
   // (NC State, a garden source, comes first), and backing it or noted against it otherwise. Whether leaves
-  // stay through winter: "Leaf Retention", for herbs too (No: they die back). Leaf color and growth rate are
-  // the species' (a cultivar is bred to change them: claims for a cultivar come only from its own page).
+  // stay through winter: "Leaf Retention", of a tree or shrub only (it says No of every herb here, those NC
+  // State calls evergreen too: an herb's No doesn't say it dies back). Leaf color and growth rate are the
+  // species' (a cultivar is bred to change them: claims for a cultivar come only from its own page).
   const keeps = u?.['Leaf Retention']?.[0];
-  if (keeps === 'Yes' || keeps === 'No') c.push({ fact: 'foliage', v: keeps === 'Yes' ? 'evergreen' : 'deciduous', src: 'usda', kind: 'authority', fallback: true });
+  const woody = habit.some((h) => h === 'Tree' || h === 'Shrub' || h === 'Subshrub');
+  if (woody && (keeps === 'Yes' || keeps === 'No')) c.push({ fact: 'foliage', v: keeps === 'Yes' ? 'evergreen' : 'deciduous', src: 'usda', kind: 'authority', fallback: true });
   const leaf = leafColors(u?.['Foliage Color']);
   if (leaf.length) c.push({ fact: 'leaf_color', v: leaf, src: 'usda', kind: 'authority', fallback: true });
   const rate = growthRate(u?.['Growth Rate']?.[0]);
@@ -300,8 +305,6 @@ export function usdaClaims(u) {
 export function agrees(fact, a, b) {
   if (fact === 'zone_min' || fact === 'zone_max') return Math.abs(a - b) <= 1; // (within one whole zone, 10 °F)
   if (fact === 'poison') return JSON.stringify(a) === JSON.stringify(b); // (as one reading: severity, parts and skin alike)
-  // Semi-evergreen is either, by the winter: it agrees with both.
-  if (fact === 'foliage') return a === b || a === 'semi-evergreen' || b === 'semi-evergreen';
   if (TIER[fact] === 'safety') return JSON.stringify([a].flat().map(String).sort()) === JSON.stringify([b].flat().map(String).sort()); // (exactly: major is not minor)
   if (a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b) && !('min' in a)) return JSON.stringify(a) === JSON.stringify(b);
   if (fact === 'height' || fact === 'width') return a.min <= b.max * 1.25 && b.min <= a.max * 1.25; // (ranges overlap, with a little give)
@@ -351,6 +354,9 @@ export function combine(claims, { cultivar = false, prefer = null } = {}) {
         }
       } else usable = usable.filter((c) => c.cultivarPage || c.kind === 'breeder');
     }
+    // USDA says only yes or no to leaves staying: of a plant NC State calls semi-evergreen (either, by the winter),
+    // it can neither back that nor contradict it, so it's set aside.
+    if (fact === 'foliage' && usable.some((c) => !c.fallback && c.v === 'semi-evergreen')) usable = usable.filter((c) => !c.fallback);
     // Copies count once: the same text on two sites, or two pages of one site. The highest kind keeps it
     // (a shop that copies an extension's sheet doesn't stand in for the extension).
     usable = usable.map((c, i) => ({ c, i })).sort((x, y) => (RANK[y.c.kind] ?? 0) - (RANK[x.c.kind] ?? 0) || x.i - y.i).map((x) => x.c);

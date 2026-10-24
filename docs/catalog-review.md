@@ -1,10 +1,23 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 1 to decide, 39 sites whose terms are unsettled, 104 catalog checks; 782 of 820 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 15 to decide, 39 sites whose terms are unsettled, 104 catalog checks; 782 of 820 records audited.
 
+- [Cultivar: tree or shrub? (4)](#cultivar-tree-or-shrub-4)
 - [Held back as implausible (1)](#held-back-as-implausible-1)
+- [A value its source no longer gives (10)](#a-value-its-source-no-longer-gives-10)
 - [Sites whose terms are unsettled (39)](#sites-whose-terms-are-unsettled-39)
 - [Catalog checks (104)](#catalog-checks-104)
+
+## Cultivar: tree or shrub? (4)
+
+The species is a tree, and this cultivar, with no page of its own, may be smaller, so its form is left as it was. A decision goes in scripts/catalog/decisions.json (`form`), and the build applies it.
+
+| Plant | What the sources say | Catalog now |
+| --- | --- | --- |
+| Pear (fireblight-resistant) (`pyrus-communis-moonglow-kieffer-orient`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
+| Japanese plum (`prunus-salicina-methley-bruce`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
+| Pecan (`carya-illinoinensis-kanza-lakota`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
+| Japanese maple (`acer-palmatum-bloodgood-seiryu`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
 
 ## Held back as implausible (1)
 
@@ -13,6 +26,23 @@ The audit's values would make the record implausible (the app's checks), so they
 | Plant | Facts | Why |
 | --- | --- | --- |
 | Green-and-gold (`chrysogonum-virginianum`) | height | under 3 in tall (2 in): inches read as feet, or the other way? |
+
+## A value its source no longer gives (10)
+
+An earlier build wrote it from a source, but no source gives it now: its page is no longer read, or no longer says it. It's kept (a plant's spread draws its circle), with the citation it had. There's no place to record a decision on these yet: they stay listed until there is.
+
+| Plant | Fact | Value now |
+| --- | --- | --- |
+| Common fig (`ficus-carica-celeste-brown-turkey-chicago-hardy`) | height | {"min":6,"max":10,"med":8}, from ncsu |
+| Common fig (`ficus-carica-celeste-brown-turkey-chicago-hardy`) | width | {"min":6,"max":10,"med":8}, from ncsu |
+| Pear (fireblight-resistant) (`pyrus-communis-moonglow-kieffer-orient`) | height | {"min":8,"max":10,"med":9}, from ncsu |
+| Pear (fireblight-resistant) (`pyrus-communis-moonglow-kieffer-orient`) | width | {"min":8,"max":10,"med":9}, from ncsu |
+| Pecan (`carya-illinoinensis-kanza-lakota`) | height | {"min":70,"max":100,"med":85}, from ncsu |
+| Pecan (`carya-illinoinensis-kanza-lakota`) | width | {"min":40,"max":75,"med":57.5}, from ncsu |
+| Japanese plum yew (`cephalotaxus-harringtonia-duke-gardens-prostrata`) | height | {"min":2,"max":4,"med":3}, from ncsu |
+| Japanese plum yew (`cephalotaxus-harringtonia-duke-gardens-prostrata`) | width | {"min":2,"max":4,"med":3}, from ncsu |
+| Rose of Sharon (`hibiscus-syriacus-sterile-diana-chiffon-series`) | height | {"min":5,"max":8,"med":6.5}, from ncsu |
+| Rose of Sharon (`hibiscus-syriacus-sterile-diana-chiffon-series`) | width | {"min":4,"max":6,"med":5}, from ncsu |
 
 ## Sites whose terms are unsettled (39)
 
@@ -38,6 +68,6 @@ Where a source gave nothing, counted only:
 - 464 plants: a USDA PLANTS profile with no characteristics saved (size, sun and so on): PLANTS has none, or they were never fetched (see "Not looked up yet")
 - 264 plants: not on the Arkansas atlas's maps under its name (mostly plants not recorded wild in Arkansas)
 - 35 plants: the Arkansas atlas not looked up (a genus or cultivar group: no species name)
-- 76 plants: a cultivar read from species-level pages: its size, form and flower color are taken only from a page about the cultivar
+- 83 plants: a cultivar read from species-level pages: its size, form and flower color are taken only from a page about the cultivar
 
 Kew's checklist has no one accepted species for 13 catalog names (hybrids, names it draws narrower, exotics it doesn't list in the US), so they have no native status: Amsonia illustris, Calamovilfa longifolia, Distylium hybrids, Hepatica acutiloba, Hibiscus lasiocarpos, Hypericum pyramidatum, Iris germanica, Oligoneuron rigidum, Onosmodium bejariense, Penstemon grandiflorus, Silphium trifoliatum, Smilax lasioneura, Tulipa hybrids.

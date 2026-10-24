@@ -8,7 +8,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { savedPage } from './pages.mjs';
 import { arkatlasStatus, mnwildFields, ncsuFields, usdaFields } from './extract.mjs';
 import { sameTaxon } from './usda-counties.mjs';
-import { acceptsPage, ncsuPageName, ownCultivarPage, titleCultivar } from './ncsu-page.mjs';
+import { acceptsPage, ncsuPageName, ownCultivarPage, recordCultivars, titleCultivar } from './ncsu-page.mjs';
 import { arkatlasClaims, combine, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims } from './claims.mjs';
 
 const [samplePath, atlasPath, outPath, extraPath] = process.argv.slice(2);
@@ -78,7 +78,10 @@ for (const s of sample) {
   // (A species-level page: one whose title names no cultivar (the species', a synonym's, the page NC State moved it
   // to, a genus's), or one under a reviewed other name; for a genus or group, any page but its one cultivar's own:
   // Thuja 'Green Giant' for "Thuja 'Green Giant'", not 'Natchez' for three crape myrtles.)
-  const speciesPage = seen.ncsu && (s.ncsuName || !cultivarTitle || (s.genusOnly && !ownCultivar));
+  // A record naming several cultivars likewise: one cultivar's page speaks for only one of them ("Acer palmatum
+  // ('Bloodgood' / 'Seiryu')" reads 'Bloodgood''s purple leaves as species-level, not as its own).
+  const several = recordCultivars(rec).length > 1 || /\//.test(rec?.botanical ?? '');
+  const speciesPage = seen.ncsu && (s.ncsuName || !cultivarTitle || (s.genusOnly ? !ownCultivar : several));
   const claims = [
     ...ncsuClaims(ncsu).map((c) => ({ ...c, cultivarPage: !!seen.ncsu && !speciesPage }))
       .map((c) => (c.fact === 'host' ? { ...c, v: onlyCaterpillars(c.v, lepGenera) } : c)).filter((c) => !(c.fact === 'host' && !c.v.length)),

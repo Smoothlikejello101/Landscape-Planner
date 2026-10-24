@@ -56,7 +56,7 @@ export interface Plant {
    * undersides (red maple: green, gold, orange), so a color here isn't necessarily the summer color.
    */
   leaf_color?: string[];
-  /** Whether its leaves stay through winter (for an herb, deciduous is dying back). */
+  /** Whether its leaves stay through winter (for an herb, deciduous is dying back; a grass goes dormant). */
   foliage?: 'evergreen' | 'semi-evergreen' | 'deciduous';
   /** Needled leaves (pines, junipers, arborvitae). */
   needles?: boolean;
@@ -128,7 +128,7 @@ export const PLANT_FILTER_DEFAULTS = {
   noPoison: false,
   dryShade: false, wetFeet: false, clayOk: false,
   hostOnly: false, fallColor: false, winterInterest: false,
-  /** Keeps its leaves through winter (evergreen; not semi-evergreen, which depends on the winter). */
+  /** Keeps its leaves through winter (evergreen; not semi-evergreen, which depends on the winter, nor a tender shrub, `tenderWoody`). */
   evergreen: false,
   edible: false, noTaproot: false, inPlan: false,
   /** Rated for the plan's zone (when the plan has a location). */
@@ -215,7 +215,7 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (f.clayOk && !p.clay_ok) return false;
   if (f.hostOnly && !p.host) return false;
   if (f.fallColor && !p.fall_color) return false;
-  if (f.evergreen && p.foliage !== 'evergreen') return false;
+  if (f.evergreen && (p.foliage !== 'evergreen' || tenderWoody(p))) return false;
   if (f.winterInterest && !p.winter_interest) return false;
   if (f.edible && !p.edible) return false;
   if (f.noTaproot && p.taproot) return false;
@@ -344,6 +344,14 @@ export function newPlantStatus(): Pick<CircleShape, 'status' | 'phase'> {
 }
 /** Every form a plant takes, primary first. */
 export const formsOf = (p: Pick<Plant, 'form' | 'forms'>): string[] => p.forms?.length ? p.forms : p.form ? [p.form] : [];
+/**
+ * A tree or shrub its source also lists as an annual or perennial: woody where winters are mild, grown as one
+ * that dies back where they aren't (lantana, castor bean). Its "evergreen" holds only in a mild winter.
+ */
+export const tenderWoody = (p: Pick<Plant, 'form' | 'forms'>): boolean => {
+  const forms = formsOf(p);
+  return forms.some((f) => f === 'Tree' || f === 'Shrub') && forms.some((f) => f === 'Annual' || f === 'Perennial');
+};
 /** The color a plant is drawn in: its own (My plants), else by form, else green. */
 export function plantColor(p: Plant | undefined): string {
   return p?.color || (p?.form && FORM_COLORS[p.form]) || '#16a34a';
