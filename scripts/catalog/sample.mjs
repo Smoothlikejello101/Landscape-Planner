@@ -9,7 +9,7 @@ import { savedPage } from './pages.mjs';
 import { arkatlasStatus, mnwildFields, ncsuFields, usdaFields } from './extract.mjs';
 import { sameTaxon } from './usda-counties.mjs';
 import { acceptsPage, ncsuPageName, ownCultivarPage, recordCultivars, titleCultivar } from './ncsu-page.mjs';
-import { arkatlasClaims, combine, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims } from './claims.mjs';
+import { arkatlasClaims, combine, FLOWER_FACTS, flowerless, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims } from './claims.mjs';
 
 const [samplePath, atlasPath, outPath, extraPath] = process.argv.slice(2);
 /** Claims gathered elsewhere (the web search, the Tallamy data), by plant id. */
@@ -82,12 +82,17 @@ for (const s of sample) {
   // ('Bloodgood' / 'Seiryu')" reads 'Bloodgood''s purple leaves as species-level, not as its own).
   const several = recordCultivars(rec).length > 1 || /\//.test(rec?.botanical ?? '');
   const speciesPage = seen.ncsu && (s.ncsuName || !cultivarTitle || (s.genusOnly ? !ownCultivar : several));
-  const claims = [
+  const allClaims = [
     ...ncsuClaims(ncsu).map((c) => ({ ...c, cultivarPage: !!seen.ncsu && !speciesPage }))
       .map((c) => (c.fact === 'host' ? { ...c, v: onlyCaterpillars(c.v, lepGenera) } : c)).filter((c) => !(c.fact === 'host' && !c.v.length)),
     ...mnwildClaims(mnwild), ...arkatlasClaims(ar), ...usdaClaims(usda), ...tallamyClaims(tallamy, s.species),
     ...(extraClaims[s.id] ?? []),
   ];
+  // (No flowers: a conifer's or a fern's "bloom" and "flower color" are its cones or spores, left out.)
+  const noFlowers = flowerless(usda, rec?.facts?.form?.v ?? rec?.facts?.form ?? null, ncsu?.Family?.[0]);
+  const by = usda?.Group ? `USDA: ${noFlowers}` : ncsu?.Family?.[0] ? `NC State: ${noFlowers}` : 'a fern';
+  if (noFlowers && allClaims.some((c) => FLOWER_FACTS.has(c.fact))) notes.push(`No flowers (${by}): its sources' bloom time and flower color, its cones or spores, left out`);
+  const claims = noFlowers ? allClaims.filter((c) => !FLOWER_FACTS.has(c.fact)) : allClaims;
   const mapped = combine(claims, { cultivar, prefer: rec?.facts?.form?.v ?? rec?.facts?.form ?? null });
   if (cultivar && (speciesPage || !seen.ncsu)) notes.push('A cultivar read from species pages: its size, form and flower color come only from a page for the cultivar');
   out.push({ id: s.id, common: rec?.common, botanical: rec?.botanical, species: s.species, compendium: rec?.facts ?? {}, sources: seen, raw: { ncsu, usda, mnwild, arkatlas: ar }, claims, facts: mapped, notes });

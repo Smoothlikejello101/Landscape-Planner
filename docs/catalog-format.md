@@ -68,8 +68,8 @@ domain (`"newmoonnursery.com"`), with the domain as its title.
 - **`parent`**: a cultivar points to its species. Facts it doesn't state come
   from the species when they come with the species: where it's native, what
   it tolerates (zones, sun, water, soil, humidity), what it feeds, how toxic
-  it is (`INHERITED` in src/catalog.ts). Not size, trunk, flower color or
-  habit, which cultivars are bred to change.
+  it is, when it blooms (`INHERITED` in src/catalog.ts). Not size, trunk,
+  flower color or habit, which cultivars are bred to change.
 - **`src`**: the sources for every fact that doesn't name its own.
 - **`audited`**: the date of the audit run that last changed this record's
   facts (its first, for a record audited once), or `null`. A run that leaves
@@ -116,7 +116,9 @@ hasn't been looked up.
 | `zone_min`, `zone_max` | USDA hardiness zones on a half-zone scale (7a is 7, 7b is 7.5), 1 to 13.5. `zone_min` is the coldest half-zone it takes (a whole-zone rating "7" is 7); `zone_max` is the warmest (a whole-zone "9" is 9.5, through 9b; "9a" is 9) |
 | `sun_most`, `sun_least` | `Full`, `Part`, `Shade`: the most and least sun it takes |
 | `water` | `Low`, `Moderate`, `High`, `Wetland` |
-| `bloom` | `{ start, end, color? }`, months 1 to 12 |
+| `bloom` | `{ start, end, color? }`, months 1 to 12: the earlier list's (unverified), kept for the bloom calendar and its color words. Where the garden is, flowering records give the months instead (docs/bloom-months.md) |
+| `bloom_season` | when it blooms, as its sources say, a list in their order, each once: a season (`spring`, `summer`, `fall`, `winter`), or USDA's finer `early`, `mid` or `late` one (`mid spring`). Seasons, not months: the months a season covers shift with place. A cultivar takes its species' (a reblooming cultivar's own comes from a page for it). None for a plant without flowers (conifers, ferns and the like) |
+| `flower_color` | its flowers' colors, each once: `white`, `yellow`, `pink`, `purple`, `red`, `orange`, `blue`, `green`, `cream`, `brown`, `silver`, `black`, `variegated` (NC State's word for flowers of several colors), and `insignificant`: the flowers aren't showy (NC State's "Insignificant", USDA's "Flower Conspicuous: No"). NC State's groups, each by its first color ("Gold/Yellow" is `yellow`). A cultivar's come only from a page for it |
 | `humidity` | `humid` (handles humid summers), `dry` (needs dry summers) or `either` |
 | `tox` | `{ dog?, cat?, horse? }` each `nontoxic`, `toxic` or `unlisted` (ASPCA); `people?` one of `major`, `minor`, `oxalates`, `dermatitis` (UC ANR classes 1 to 4) or `unlisted` |
 | `poison` | poisonous to people, in its source's terms (NC State's): `{ severity?, parts?, skin? }`: `severity` `low`, `medium` or `high`; `parts` the parts it names, only these, each once (`leaves`, `fruits`, `seeds`, `stems`, `flowers`, `roots`, `sap`, `bark`); `skin` true where it irritates skin on contact. `{}` is listed as poisonous to people with nothing more said. `null`: NC State's page was read and says nothing of poison; the app says "None listed", never "safe". Missing: no source we read rates it for people ("Not known"). A cultivar takes its species' rating |

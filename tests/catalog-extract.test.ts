@@ -5,7 +5,7 @@ import { appendixTaxa, arkatlasStatus, feetRange, mnwildFields, monthRange, ncsu
 // @ts-expect-error (plain JavaScript build script)
 import { mnLight, ncsuSun } from '../scripts/catalog/map.mjs';
 // @ts-expect-error (plain JavaScript build script)
-import { agrees, arkatlasClaims, combine, fallColors, growthRate, leafColors, lowBranched, ncsuFoliage, ncsuNoPoison, ncsuPoison, halfZoneOfTemp, halfZones, hostNames, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims, waterNeed, zoneSpan } from '../scripts/catalog/claims.mjs';
+import { agrees, arkatlasClaims, bloomSeasons, combine, fallColors, flowerColors, flowerless, growthRate, leafColors, lowBranched, ncsuFoliage, ncsuNoPoison, ncsuPoison, halfZoneOfTemp, halfZones, hostNames, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims, waterNeed, zoneSpan } from '../scripts/catalog/claims.mjs';
 
 const fixture = (f: string) => readFileSync(`tests/fixtures/catalog/${f}`, 'utf8');
 
@@ -205,6 +205,49 @@ describe('leaves: color, winter, fall color, growth rate', () => {
     expect(fol(['Vine'], 'No')).toBeUndefined(); // (English ivy: No, though it's evergreen)
     expect(fol(['Tree', 'Shrub'], 'Yes')).toBe('evergreen');
     expect(fol(['Subshrub', 'Forb/herb'], 'No')).toBe('deciduous');
+  });
+  it('reads bloom seasons and flower colors in the catalog\'s words', () => {
+    expect(bloomSeasons(['Spring', 'Summer'])).toEqual(['spring', 'summer']);
+    expect(bloomSeasons(['Mid Spring'])).toEqual(['mid spring']); // (USDA's, as it writes it)
+    expect(bloomSeasons(['Indeterminate', 'Autumn', 'Late  Winter', 'May'])).toEqual(['fall', 'late winter']);
+    // NC State's groups by their first color; another source's word goes to the group NC State puts it in.
+    expect(flowerColors(['Gold/Yellow', 'Purple/Lavender', 'Red/Burgundy', 'Cream/Tan', 'Brown/Copper', 'Gray/Silver'])).toEqual(['yellow', 'purple', 'red', 'cream', 'brown', 'silver']);
+    expect(flowerColors(['Lavender', 'Purple', 'Burgundy', 'Gold'])).toEqual(['purple', 'red', 'yellow']);
+    expect(flowerColors(['Violet', 'Rose', 'Magenta', 'White'])).toEqual(['purple', 'white']); // (violet: a bluish purple; rose and magenta in none of its groups)
+    expect(flowerColors(['Green', 'Insignificant'])).toEqual(['green', 'insignificant']);
+  });
+  it('a plant without flowers has no bloom time or flower color: a conifer\'s or fern\'s are its cones or spores', () => {
+    expect(flowerless({ Group: ['Gymnosperm'] }, 'Shrub')).toBe('Gymnosperm'); // (a juniper)
+    expect(flowerless({ Group: ['Fern'] }, 'Fern')).toBe('Fern');
+    expect(flowerless({ Group: ['Dicot'] }, 'Fern')).toBeNull(); // (USDA's group decides)
+    expect(flowerless({}, 'Fern')).toBe('Fern'); // (no group: the catalog's form, a fern alone)
+    expect(flowerless({}, ['Perennial', 'Fern'])).toBeNull();
+    expect(flowerless({ Group: ['Monocot'] }, 'Grass/Sedge')).toBeNull();
+    // No USDA group (a fir from abroad): NC State's family, slips and all.
+    expect(flowerless({}, 'Tree', 'Pinaceae')).toBe('Pinaceae');
+    expect(flowerless({}, 'Tree', 'Pineaceae')).toBe('Pineaceae');
+    expect(flowerless({}, 'Fern', 'Polypodiacea')).toBe('Polypodiacea');
+    expect(flowerless({}, 'Shrub', 'Rosaceae')).toBeNull();
+    expect(flowerless({}, 'Perennial', 'Lamiaceae')).toBeNull(); // (salvias: not Salviniaceae)
+    expect(usdaFields({ Symbol: 'JUVI', Group: 'Gymnosperm' }, []).Group).toEqual(['Gymnosperm']);
+  });
+  it('USDA\'s bloom period and flower color are a fallback; flowers it calls not conspicuous are "Insignificant"', () => {
+    const u = usdaClaims({ 'Bloom Period': ['Late Spring'], 'Flower Color': ['Green'], 'Flower Conspicuous': ['No'] });
+    expect(u.filter((x: { fact: string }) => ['bloom_season', 'flower_color'].includes(x.fact))).toEqual([
+      { fact: 'bloom_season', v: ['late spring'], src: 'usda', kind: 'authority', fallback: true },
+      { fact: 'flower_color', v: ['Green', 'Insignificant'], src: 'usda', kind: 'authority', fallback: true },
+    ]);
+    expect(usdaClaims({ 'Bloom Period': ['Indeterminate'], 'Flower Conspicuous': ['Yes'] }).filter((x: { fact: string }) => ['bloom_season', 'flower_color'].includes(x.fact))).toEqual([]);
+    // NC State's season decides; USDA's finer one within it backs it. Against it, noted, never a dispute.
+    const nc = (fact: string, v: unknown) => ({ fact, v, src: 'ncsu', kind: 'authority' });
+    expect(combine([nc('bloom_season', ['spring', 'summer']), ...u]).bloom_season).toMatchObject({ v: ['spring', 'summer'], src: ['ncsu', 'usda'], check: 'confirmed' });
+    expect(combine([nc('bloom_season', ['fall']), ...u]).bloom_season).toMatchObject({ v: ['fall'], src: ['ncsu'], check: 'single', note: 'usda says late spring' });
+    expect(combine([nc('flower_color', ['Gold/Yellow']), ...usdaClaims({ 'Flower Color': ['Yellow'] })]).flower_color).toMatchObject({ v: ['Gold/Yellow'], src: ['ncsu', 'usda'], check: 'confirmed' });
+    expect(combine(u).bloom_season).toMatchObject({ v: ['late spring'], src: ['usda'], check: 'single' });
+    // A cultivar's flowers only from its own page: USDA's are the species'. Its season comes with the species.
+    const cv = combine(u, { cultivar: true });
+    expect(cv.flower_color).toBeNull();
+    expect(cv.bloom_season).toMatchObject({ v: ['late spring'] });
   });
   it('reads USDA\'s rows for the species, not a named release\'s', () => {
     const row = (name: string, value: string, cultivar: string | null = null) => ({ PlantCharacteristicName: name, PlantCharacteristicValue: value, CultivarName: cultivar, SynonymName: null });

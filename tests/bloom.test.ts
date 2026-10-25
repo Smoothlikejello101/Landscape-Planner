@@ -59,6 +59,12 @@ describe('bloom by bed', () => {
     expect(s.noData).toBe(1);
     expect(s.perMonth).toEqual([0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0]);
   });
+  it('colors a row by its flowers\' sourced colors where it has them, else the earlier list\'s words', () => {
+    const sourced = { ...plants, cone: { ...plants.cone, flower_color: ['insignificant', 'white'] } as Plant };
+    const rows = bloomSummary(shapes.slice(2, 4), sourced).rows;
+    expect(rows[0]).toMatchObject({ colorText: 'white', color: '#e7e5e4' });
+    expect(bloomSummary(shapes.slice(4, 5), plants).rows[0]).toMatchObject({ colorText: 'Blue-violet' });
+  });
   it('groups by bed (gone plants left out), loose plants last', () => {
     const g = bloomByBed(shapes, plants);
     expect(g.map((x) => x.bed)).toEqual(['Front', 'Unnamed bed 1', 'Not in a bed']);

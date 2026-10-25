@@ -6,7 +6,7 @@
 // as does a value that would make the record implausible (the app's catalogWarnings: 1 in tall, zones
 // backwards).
 
-import { ncsuNoPoison } from './claims.mjs';
+import { bloomSeasons, flowerColors, ncsuNoPoison } from './claims.mjs';
 
 /** The checks the app takes (src/catalog.ts): disputed facts aren't written. */
 const SETTLED = new Set(['confirmed', 'single', 'likely', 'reported']);
@@ -35,8 +35,9 @@ const listOf = (words) => (v) => (Array.isArray(v) && v.length && v.every((x) =>
 const oneOf = (words) => (v) => (words.includes(v) ? v : undefined);
 /**
  * How each audited fact goes into the catalog: its key there and its value (undefined: not writable). Forms
- * are a list of up to three (one: plain); native status, toxicity to animals, hosts and bloom wait on format changes
- * (docs/catalog-sources.md, "Waiting on format changes").
+ * are a list of up to three (one: plain); native status, toxicity to animals and hosts wait on format changes
+ * (docs/catalog-sources.md, "Waiting on format changes"). Bloom seasons and flower colors are their sources' words
+ * in the catalog's (claims.mjs bloomSeasons, flowerColors); a bloom's months stay the earlier list's (`bloom`).
  */
 const FACTS = {
   form: ['form', (v, enums) => { const l = [v].flat().filter((f) => enums.form?.includes(f)); return l.length ? (l.length === 1 ? l[0] : l.slice(0, 3)) : undefined; }],
@@ -58,6 +59,9 @@ const FACTS = {
   foliage: ['foliage', oneOf(FOLIAGE)],
   needles: ['needles', yes],
   growth_rate: ['growth_rate', oneOf(GROWTH_RATES)],
+  bloom_season: ['bloom_season', (v) => { const l = bloomSeasons([v].flat()); return l.length ? l : undefined; }],
+  // (Every color the source gives, or none: "Violet, Red" isn't "red", nor "Pink, Magenta" "pink".)
+  flower_color: ['flower_color', (v) => { const w = [v].flat(); return w.length && w.every((x) => flowerColors([x]).length) ? flowerColors(w) : undefined; }],
   low_branched: ['low_branched', yes],
   poison: ['poison', poisonOf],
 };

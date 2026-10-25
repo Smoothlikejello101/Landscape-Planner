@@ -57,7 +57,9 @@ export function bloomSummary(plants: Shape[], plantsById: Record<string, Plant |
     const data = p.plantId ? plantsById[p.plantId] : undefined;
     const months = bloomMonths(data);
     if (!months.length) { if (!unknown.has(label)) { unknown.add(label); noData++; } continue; }
-    const row = byName.get(label) ?? { label, count: 0, months, color: bloomColor(data?.bloom?.color, p.color), colorText: data?.bloom?.color ?? '' };
+    // (Its flowers' colors as its sources say, else the earlier list's words; "not showy" isn't a color.)
+    const colorText = data?.flower_color?.filter((c) => c !== 'insignificant').join(', ') || data?.bloom?.color || '';
+    const row = byName.get(label) ?? { label, count: 0, months, color: bloomColor(colorText, p.color), colorText };
     row.count++;
     byName.set(label, row);
   }

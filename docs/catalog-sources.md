@@ -427,13 +427,14 @@ its garden figures approximations. So its temperature, shade and moisture
 values are **flags only**: shown to the review where they differ from what
 was decided (zones by more than a whole zone), never deciding or checking.
 The exceptions: native status, where USDA is the national authority and
-decides; and, as a **fallback**, its growth habit (for `form`) and three plant
+decides; and, as a **fallback**, its growth habit (for `form`) and the plant
 traits it records (whether a tree's or shrub's leaves stay through winter,
-leaf color, growth rate). A fallback decides only where NC State says
+leaf color, growth rate, bloom period, flower color and whether the flowers
+are conspicuous). A fallback decides only where NC State says
 nothing; otherwise it backs NC State's value (confirmed) or is noted against
 it, never a dispute. Only USDA's rows for the species are read: a row naming
 a cultivar (`CultivarName`, a named release such as 'Alma' blue grama) is
-that release's, and is left out. A cultivar's leaf color and growth rate
+that release's, and is left out. A cultivar's leaf color, flower color and growth rate
 never come from USDA.
 
 **Agreement.** Zones agree within one whole zone (10 °F); sizes when the
@@ -488,7 +489,8 @@ months ("MO" for MOBOT).
 | `zone_min`, `zone_max` | "USDA Plant Hardiness Zone" list | flag (minimum temperature) | See "Zones". |
 | `sun_most`, `sun_least` | light | flag (shade tolerance) | |
 | `water` | soil drainage and drought tolerance | flag (moisture use) | The water rule above. `Wetland` where USDA's National Wetland Plant List indicator is OBL or FACW in every region it lists for the plant. |
-| `bloom` | seasons | — | Seasons only: see "Waiting on format changes". |
+| `bloom_season` | "Flower Bloom Time" | fallback ("Bloom Period") | Seasons, as each source writes them: NC State's spring, summer, fall, winter; USDA's finer "Mid Spring" or "Late Winter" kept as written (its "Indeterminate" says nothing). USDA's within NC State's season backs it ("late spring" in "spring"). Never months: those depend on place, and come from flowering records where the garden is (docs/bloom-months.md). A web page's bloom line counts for seasons only, and not at all from a site south of the equator (by its country's domain: .au, .nz, .za and the like), where spring is September to November. A cultivar takes its species'. The earlier list's months (`bloom`) stay, labeled unverified. A plant without flowers has none: one whose USDA group isn't Dicot or Monocot (conifers, cycads, ginkgo, ferns and their allies); where USDA doesn't say, one whose NC State family is a conifer's, cycad's, ginkgo's or fern's (a fir from abroad); else one the catalog calls a fern and nothing else. Sources do give them one (USDA a bloom period for junipers, NC State a flower color for blue spruce), but it's their pollen cones or spores, so those claims are left out (claims.mjs `flowerless`). |
+| `flower_color` | "Flower Color" | fallback ("Flower Color", and "Flower Conspicuous") | NC State's groups by their first color: Gold/Yellow → yellow, Purple/Lavender → purple, Red/Burgundy → red, Cream/Tan → cream, Brown/Copper → brown, Gray/Silver → silver; the rest by name. USDA's eight colors are among them. Another source's word goes to the group NC State puts it in (lavender, burgundy, gold, tan), violet to purple (a bluish purple). A value with a word in none of them (rose, magenta, coral, peach) isn't written at all: "Pink, Magenta" kept as pink, or "Violet, Red" as red, would say something its source didn't. NC State's "Insignificant", and USDA's "Flower Conspicuous: No", are `insignificant` (not showy). Sources agree where they share a color. A cultivar's only from a page for it. None for a plant without flowers (see `bloom_season`). |
 | `native` | — | decides (native status) | NC State's region of origin often comes from USDA, so it isn't independent. The Arkansas atlas decides for Arkansas. Waiting on a format change. |
 | `invasive` | — | invasive and noxious lists | Waiting on a format change and a sourced rule for "widely invasive". |
 | Toxicity to people | poison severity, poison part, contact dermatitis, and "Poisonous to Humans" among its problems | — | Written as `poison`, in NC State's own terms: its severity (low, medium, high), the parts it names, and whether it irritates skin; a plant it lists as poisonous to humans with nothing more is `{}`. Its bare "Poisonous" plant-type tag isn't about people alone (star jasmine has it, its page calling it non-toxic to pets), so it counts for nothing by itself. A page that says nothing of poison at all is `null` ("None listed"), unless the species is rated. Shown for every plant NC State rates (Jason, 2026-10-23: "Mark anything poisonous to people"), beside "Edible" where a plant is both. Internally the audit also reads it as High or Medium → `major`, Low → `minor`, contact dermatitis → `dermatitis`, for the edible check (Medium goes to `major` because erring toward harmless is the dangerous mistake). Authorities agree only on exactly the same values. |
@@ -579,11 +581,14 @@ writes that fact.
   names sites (`provenwinners.com`), and `meta.sources` gets an entry for
   each, with its kind.
 
-- **Bloom seasons.** The national sources give seasons, not months, and
-  the months a season covers shift with place, so turning one into months
-  would be our guess. Some regional sources give months for their state. A bloom fact may then be a season
-  (`{ "season": ["spring"] }`) as well as months. Until it lands, the audit leaves
-  `bloom` as it is: the compendium's value, labeled unverified.
+- **Bloom seasons** (landed 2026-10-25). The national sources give seasons,
+  not months, and the months a season covers shift with place, so turning
+  one into months would be our guess. Seasons became their own fact,
+  `bloom_season`, and flower colors theirs, `flower_color`, each with its
+  own sources; `bloom` keeps the earlier list's months and color, labeled
+  unverified, for the bloom calendar. Months where the garden is come from
+  flowering records (docs/bloom-months.md); a regional source's months for
+  its state wait on "Values by region".
 - **Toxicity by animal.** `tox` is one fact today, with one `src` and
   `check`, and no part of it can be `null`. Each animal needs its own
   source, check and `null`, as people have had since 2026-10-23 (`poison`). The `unlisted` value is defined in
@@ -650,8 +655,9 @@ on a person into [catalog-review.md](catalog-review.md). The steps:
    removes a value only where a person decided against it (an older,
    unsourced "edible"). Web sources are added to `meta.sources` by domain:
    `reference` for authorities, `nursery` for nurseries and breeders.
-   Toxicity to people is written as `poison`. Native status, toxicity to
-   animals, caterpillar hosts and bloom wait on their format changes
+   Toxicity to people is written as `poison`; bloom seasons and flower
+   colors as `bloom_season` and `flower_color`. Native status, toxicity to
+   animals and caterpillar hosts wait on their format changes
    ("Waiting on format changes").
 5. **Review.** The review list, and `npm run catalog:check` for implausible
    values, plants neither source has, and facts left `null`.

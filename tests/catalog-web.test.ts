@@ -130,6 +130,12 @@ describe('web claims', () => {
     expect(webClaims('https://www.wildflower.org/x', shop('<p>Zones: 5-9</p>'), plant)).toEqual([]);
     expect(webClaims('https://shop.example.com/x', shop('<p>Zones: 5-9</p>', 'Something else'), plant)).toEqual([]); // (not about this plant)
   });
+  it('take no bloom season from a site south of the equator, where spring is in September; its colors still count', () => {
+    const page = shop(`${para}<ul><li>Bloom Time: Late spring</li><li>Flower Color: White</li></ul>`);
+    expect(webClaims('https://shop.example.com/itea', page, plant).map((c: { fact: string }) => c.fact)).toEqual(['bloom_season', 'flower_color']);
+    expect(webClaims('https://www.botanicgardens.sa.gov.au/itea', page, plant).map((c: { fact: string }) => c.fact)).toEqual(['flower_color']);
+    expect(webClaims('https://plants.example.co.nz/itea', page, plant).map((c: { fact: string }) => c.fact)).toEqual(['flower_color']);
+  });
   it('treat a page that draws on a source closed to us as that source, credited in text or by a link', () => {
     const p = { species: 'Cercis canadensis', cultivar: null, common: 'Eastern redbud' };
     const page = (extra: string) => `<title>Eastern redbud</title><p>Cercis canadensis</p><p>Zones: 4-9</p>${extra}`;

@@ -1,15 +1,31 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 47 to decide, 2806 plants not searched, 39 sites whose terms are unsettled, 168 catalog checks; 3588 of 3626 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 61 to decide, 2806 plants not searched, 39 sites whose terms are unsettled, 168 catalog checks; 3591 of 3626 records audited.
 
+- [Sources disagree (6)](#sources-disagree-6)
 - [Cultivar: tree or shrub? (5)](#cultivar-tree-or-shrub-5)
 - [Edible, but rated toxic (16)](#edible-but-rated-toxic-16)
 - [Held back as implausible (3)](#held-back-as-implausible-3)
-- [A value its source no longer gives (10)](#a-value-its-source-no-longer-gives-10)
+- [A value its source no longer gives (13)](#a-value-its-source-no-longer-gives-13)
+- [Values the catalog can't take (1)](#values-the-catalog-cant-take-1)
 - [Kew names to check (13)](#kew-names-to-check-13)
+- [Bloom months held back (4)](#bloom-months-held-back-4)
 - [Not searched on the web (2806)](#not-searched-on-the-web-2806)
 - [Sites whose terms are unsettled (39)](#sites-whose-terms-are-unsettled-39)
 - [Catalog checks (168)](#catalog-checks-168)
+
+## Sources disagree (6)
+
+The audit's sources give different values, so the catalog keeps the value it had, marked unverified. Zones are on the half-zone scale (7 is 7a, 7.5 is 7b); sizes are in feet. There's no place to record a decision on these yet: they stay listed until there is.
+
+| Plant | Fact | What the sources say | Catalog now |
+| --- | --- | --- | --- |
+| Cream wild indigo (`baptisia-bracteata`) | flower_color | mowildflowers.net: White, Cream · allendanseed.com: Yellow | – |
+| Slender beardtongue (`penstemon-gracilis`) | flower_color | morningskygreenery.com: Lavender · ecoscapes1.com: Pink; bluethumb.org says Pink | – |
+| Prairie blue-eyed grass (`sisyrinchium-campestre`) | flower_color | morningskygreenery.com: Lavender · mowildflowers.net: Blue | – |
+| Venus' looking glass (`triodanis-perfoliata`) | flower_color | nativebeeginnings.com: Blue, Violet · fellabees.com: Purple | – |
+| Porcupine sedge (`carex-hystericina`) | flower_color | aquascapesunlimited.com: Yellow · bluethumb.org: Green | – |
+| Tree of heaven (`ailanthus-altissima`) | bloom_season | ncsu, davisla.wordpress.com: summer · arizona.edu: spring; usda says late spring | – |
 
 ## Cultivar: tree or shrub? (5)
 
@@ -21,7 +37,7 @@ The species is a tree, and this cultivar, with no page of its own, may be smalle
 | Japanese plum (`prunus-salicina-methley-bruce`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
 | Pecan (`carya-illinoinensis-kanza-lakota`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
 | Japanese maple (`acer-palmatum-bloodgood-seiryu`) | its species is listed as a tree; a cultivar may be a tree or a shrub | Tree |
-| Bellini Cherry Crape myrtle (`lagerstroemia-indica-bellini-cherry-ncli1`) | its species is listed as a tree; a cultivar may be a tree or a shrub | – |
+| Crape myrtle Bellini Cherry (`lagerstroemia-indica-bellini-cherry-ncli1`) | its species is listed as a tree; a cultivar may be a tree or a shrub | – |
 
 ## Edible, but rated toxic (16)
 
@@ -30,19 +46,19 @@ A source says it's edible, and the catalog rates it toxic (to dogs, or to people
 - Cassava (`manihot-esculenta`)
 - Balsampear (`momordica-charantia`)
 - Clammy groundcherry (`physalis-heterophylla`)
-- Guthrie Chickasaw Plum (`prunus-angustifolia-guthrie`)
-- Carolina Belle Peach (`prunus-persica-carolina-belle`)
+- Chickasaw Plum 'Guthrie' (`prunus-angustifolia-guthrie`)
+- Peach 'Carolina Belle' (`prunus-persica-carolina-belle`)
 - Peach / nectarine 'Carolina Gold' (`prunus-persica-carolina-gold`)
-- China Pearl Peach (`prunus-persica-china-pearl`)
-- Cresthaven Peach (`prunus-persica-cresthaven`)
-- Encore Peach (`prunus-persica-encore`)
+- Peach 'China Pearl' (`prunus-persica-china-pearl`)
+- Peach 'Cresthaven' (`prunus-persica-cresthaven`)
+- Peach 'Encore' (`prunus-persica-encore`)
 - Peach / nectarine 'Flavortop' (`prunus-persica-flavortop`)
-- Norman Peach (`prunus-persica-norman`)
-- Redgold Nectarine (`prunus-persica-redgold`)
-- Redhaven Peach (`prunus-persica-redhaven`)
-- Stark SunGlo (`prunus-persica-stark-sunglo-sun-glo`)
+- Peach 'Norman' (`prunus-persica-norman`)
+- Nectarine 'Redgold' (`prunus-persica-redgold`)
+- Peach 'Redhaven' (`prunus-persica-redhaven`)
+- Peach / nectarine Stark SunGlo (`prunus-persica-stark-sunglo-sun-glo`)
 - Peach / nectarine 'Summer Beaut' (`prunus-persica-summer-beaut`)
-- Winblo Peach (`prunus-persica-winblo`)
+- Peach 'Winblo' (`prunus-persica-winblo`)
 
 ## Held back as implausible (3)
 
@@ -54,7 +70,7 @@ The audit's values would make the record implausible (the app's checks), so they
 | Pink sundew (`drosera-capillaris`) | height | under 3 in tall (1 in): inches read as feet, or the other way? |
 | English holly 'Argentea Marginata' (`ilex-aquifolium-argentea-marginata`) | height, form | 40 ft is tall for a shrub |
 
-## A value its source no longer gives (10)
+## A value its source no longer gives (13)
 
 An earlier build wrote it from a source, but no source gives it now: its page is no longer read, or no longer says it. It's kept (a plant's spread draws its circle), with the citation it had. There's no place to record a decision on these yet: they stay listed until there is.
 
@@ -70,6 +86,17 @@ An earlier build wrote it from a source, but no source gives it now: its page is
 | Japanese plum yew (`cephalotaxus-harringtonia-duke-gardens-prostrata`) | width | {"min":2,"max":4,"med":3}, from ncsu |
 | Rose of Sharon (`hibiscus-syriacus-sterile-diana-chiffon-series`) | height | {"min":5,"max":8,"med":6.5}, from ncsu |
 | Rose of Sharon (`hibiscus-syriacus-sterile-diana-chiffon-series`) | width | {"min":4,"max":6,"med":5}, from ncsu |
+| Bachelor's Buttons 'Fireworks' (`gomphrena-globosa-fireworks`) | height | {"min":3,"max":4,"med":3.5}, from ncsu |
+| Bachelor's Buttons 'Fireworks' (`gomphrena-globosa-fireworks`) | width | {"min":3,"max":4,"med":3.5}, from ncsu |
+| Bachelor's Buttons 'Fireworks' (`gomphrena-globosa-fireworks`) | leaf color | ["green"], from ncsu |
+
+## Values the catalog can't take (1)
+
+A source's value doesn't fit the catalog's format.
+
+| Plant | Fact | Value |
+| --- | --- | --- |
+| Switchgrass 'Shenandoah' (`panicum-virgatum-shenandoah`) | flower_color | value the catalog can't take: ["Burgundy","Rose"] |
 
 ## Kew names to check (13)
 
@@ -88,6 +115,15 @@ Names Kew's World Checklist could read two ways, taken as the accepted name (che
 - Quercus lyrata: an accepted name that is also an older homonym's synonym
 - Solanum laxum: an accepted name that is also an older homonym's synonym
 - Viola blanda: an accepted name that is also an older homonym's synonym
+
+## Bloom months held back (4)
+
+The records' flowering months disagree with NC State's season, so the records' months aren't shown (NC State's season still is). To trust the records instead, add the plant to `RECORDS_TRUSTED` in scripts/catalog/bloom.mjs.
+
+- Bigleaf maple (`acer-macrophyllum`): the records say Mar–Apr (363 records); NC State says summer
+- Hobblebush (`viburnum-lantanoides`): the records say May–May (326 records); NC State says summer
+- Silver ponysfoot 'Silver Falls' (`dichondra-argentea-silver-falls`): the records say Jun–Sep (37 records); NC State says spring
+- Calla lily (`zantedeschia-aethiopica`): the records say Jan–May (85 records); NC State says summer
 
 ## Not searched on the web (2806)
 
@@ -119,13 +155,13 @@ Where a source gave nothing, counted only:
 - 1614 plants: a USDA PLANTS profile with no characteristics saved (size, sun and so on): PLANTS has none, or they were never fetched (see "Not looked up yet")
 - 2257 plants: not on the Arkansas atlas's maps under its name (mostly plants not recorded wild in Arkansas)
 - 310 plants: the Arkansas atlas not looked up (a genus or cultivar group: no species name)
-- 83 plants: a cultivar read from species-level pages: its size, form and flower color are taken only from a page about the cultivar
+- 84 plants: a cultivar read from species-level pages: its size, form and flower color are taken only from a page about the cultivar
 
 Kew's checklist has no one accepted species for 37 catalog names (hybrids, names it draws narrower, exotics it doesn't list in the US), so they have no native status: Aloysia citriodora, Alternanthera dentata, Amsonia illustris, Aphelandra squarrosa, Betula jacquemontii, Betula platyphylla, Calamovilfa longifolia, Cartrema americana, Distylium hybrids, Eubotrys racemosa, Euonymus kiautschovicus, Gomphocarpus physocarpa, Hamamelis hybrids, Hepatica acutiloba, Hibiscus lasiocarpos, Hypericum pyramidatum, Iris germanica, Juniperus conferta, Ludwigia sedoides, Malus hybrids, Nothoscordum sellowianum, Nuphar luteum, Oligoneuron rigidum, Onosmodium bejariense, Penstemon grandiflorus, Pieris formosana, Polystichum polyblepharum, Rhus trilobata, Rhychospora latifolia, Rosa lucieae, Rubus pensilvanicus, Silphium trifoliatum, Smilax lasioneura, Thuidium delicatulum, Thymus pseudolanuginosus, Tulipa hybrids, Washingtonia robusta.
 
 New plants (scripts/catalog/additions.mjs):
 
-- 2806 plants added from NC State's Plant Toolbox in this build
-- 898 plants waiting, for size (755), form (97), hardiness (256), sun (92), its species (19)
+- 0 plants added from NC State's Plant Toolbox in this build (2806 in all)
+- 898 plants waiting, for size (755), form (98), hardiness (257), sun (93), its species (19)
 - 595 pages left out: a vegetable (87), a genus (296), a weed (204), in the catalog (8)
 - 18 pages the sitemap lists that aren't saved yet

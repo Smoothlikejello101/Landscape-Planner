@@ -7,6 +7,7 @@ import { DOWNLOADS, matchedTaxon, matchUrl, phases, tsvRows } from '../scripts/c
 import { loadWild, localBloom, resetWild, type WildFile } from '../src/wild';
 import { bloomMonths } from '../src/bloom';
 import { plantMatches, plantMetaLine, PLANT_FILTER_DEFAULTS, type Plant } from '../src/plants';
+import { plantDetails } from '../src/ui/plant-details';
 import { state } from '../src/state';
 
 // Bloom months by state, from GBIF's flowering records (docs/bloom-months.md).
@@ -26,6 +27,8 @@ describe('a bloom window', () => {
     expect(agreesWithSeasons({ start: 12, end: 2 }, ['winter', 'spring'])).toBe(true);
     expect(agreesWithSeasons({ start: 6, end: 8 }, ['spring'])).toBe(false);
     expect(agreesWithSeasons({ start: 6, end: 8 }, undefined)).toBe(true);
+    expect(agreesWithSeasons({ start: 4, end: 5 }, ['mid spring'])).toBe(true); // (USDA's finer seasons: the season's months)
+    expect(agreesWithSeasons({ start: 7, end: 8 }, ['late spring'])).toBe(false);
     expect(seasonsToCheck([{ id: 'a', facts: { bloom_season: { v: ['spring'], src: ['ncsu', 'x.com'] } } },
       { id: 'b', facts: { bloom_season: { v: ['spring'], src: ['somenursery.com'] } } }, { id: 'c', facts: {} },
       { id: 'allium-tricoccum', facts: { bloom_season: { v: ['spring'], src: ['ncsu'] } } }])).toEqual({ a: ['spring'] }); // (ramps: reviewed, the records trusted)
@@ -114,6 +117,16 @@ describe('bloom months in the app', () => {
     expect(localBloom(cultivar)).toMatchObject({ start: 6, species: true });
     const other = { id: 'other', common: 'Other', bloom: { start: 4, end: 5 } } as Plant;
     expect(bloomMonths(other)).toEqual([4, 5]);
+  });
+  it('lead the details\' Bloom row, its season next, each with its source; the earlier list\'s months aren\'t shown then', () => {
+    const cone = { id: 'coneflower', common: 'Purple coneflower', bloom: { start: 5, end: 7, color: 'Purple' }, bloom_season: ['summer'], flower_color: ['purple'],
+      prov: { bloom: { src: ['compendium'] }, bloom_season: { src: ['ncsu'], check: 'single' }, flower_color: { src: ['ncsu'], check: 'single' } } } as unknown as Plant;
+    const box = plantDetails(cone, undefined);
+    const row = box.querySelector('[data-testid=bloom-row]')!;
+    expect([...row.querySelectorAll('.details-part')].map((x) => x.textContent)).toEqual(['Jun–Aug, peak Aug', 'Summer']);
+    expect(row.textContent).toContain('252 flowering records in Arkansas · GBIF.org flowering records');
+    expect(row.querySelector('[data-testid=bloom-months]')).toBeNull();
+    expect(box.querySelector('[data-testid=flower-color]')!.firstChild!.textContent).toBe('Purple');
   });
   it('drive "Blooming in…", a Dec–Feb bloom included in January', () => {
     const witch = { id: 'witch', common: 'Witch hazel' } as Plant;

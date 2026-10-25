@@ -101,6 +101,11 @@ describe('records', () => {
     expect(leafyC).toMatchObject({ foliage: 'deciduous', prov: { foliage: { src: ['ncsu'], inherited: true } } });
     expect(leafyC.leaf_color).toBeUndefined();
     expect(leafyC.growth_rate).toBeUndefined();
+    // When it blooms comes with the species; its flowers' color is bred to change.
+    const flowery = rec({ ...species, facts: { ...species.facts, bloom_season: { v: ['summer'], src: ['ncsu'], check: 'single' }, flower_color: { v: ['white'], src: ['ncsu'], check: 'single' } } });
+    const [, floweryC] = resolveCatalog({ meta, plants: [flowery, cultivar] });
+    expect(floweryC).toMatchObject({ bloom_season: ['summer'], prov: { bloom_season: { src: ['ncsu'], inherited: true } } });
+    expect(floweryC.flower_color).toBeUndefined();
     expect(c.unverified).toBeUndefined();
     // Audited, but the cultivar's form and toxicity come from Missouri's page: sourced, so fully checked.
     expect(c.partlyChecked).toBeUndefined();
