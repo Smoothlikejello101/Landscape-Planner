@@ -76,7 +76,7 @@ test('the same on the other sheets: plant details, adding, projects, export and 
   expect(all).toEqual([]);
 });
 
-test('pinch-zoom is allowed (the plan keeps its own gestures), and a tap on the plan beside a button stays on the plan', async ({ page, isMobile }) => {
+test('pinch-zoom works on sheets and menus, never stranding the plan; a tap on the plan beside a button stays on the plan', async ({ page, isMobile }) => {
   await openFresh(page);
   expect(await page.locator('meta[name=viewport]').getAttribute('content')).not.toMatch(/maximum-scale|user-scalable/);
   await expect(page.locator('#canvas-wrap')).toHaveCSS('touch-action', 'none');

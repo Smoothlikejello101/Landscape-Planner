@@ -22,6 +22,8 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 /* Canvas */
 .canvas-wrap { flex: 1; position: relative; overflow: hidden; touch-action: none; min-height: 0; }
 .canvas-wrap > svg { position: absolute; inset: 0; touch-action: none; display: block; }
+/* (The page still zoomed in with nothing open: a pinch on the plan zooms the page back out. src/page-zoom.ts) */
+.page-zoomed .canvas-wrap, .page-zoomed .canvas-wrap > svg { touch-action: pinch-zoom; }
 .zoombtns { position: absolute; top: 8px; right: 8px; display: flex; flex-direction: column; gap: 4px; z-index: 5; }
 .zoombtn { width: 48px; height: 48px; background: #fff; border: 1px solid #d6d3d1; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: center; }
 .zoombtn:active { background: #f5f5f4; }
@@ -177,8 +179,10 @@ a { color: inherit; }
 #toast { position: fixed; left: 50%; bottom: calc(80px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(8px); background: #1c1917; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 100; max-width: calc(100vw - 32px); text-align: center; }
 #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 #toast-action { position: fixed; left: 50%; top: calc(60px + env(safe-area-inset-top)); transform: translateX(-50%); background: #1c1917; color: #fff; padding: 8px 8px 8px 14px; border-radius: 10px; font-size: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); z-index: 101; width: max-content; max-width: calc(100vw - 32px); display: flex; align-items: center; gap: 6px 8px; flex-wrap: wrap; }
-/* (On a narrow screen: the message on its own line, the buttons in a row under it.) */
-@media (max-width: 520px) { #toast-action > span { flex: 1 1 100%; } }
+/* (A short message and its buttons on one line; a long one wraps, its buttons kept at the end of the line
+   under it, not at its start.) */
+#toast-action > span { flex: 1 1 auto; min-width: 8em; }
+#toast-action { justify-content: flex-end; }
 #toast-action button { background: #fff; color: #1c1917; border: 0; border-radius: 6px; padding: 10px 14px; font-weight: 600; font-size: 15px; min-height: 44px; }
 /* A point that landed on another shape: what it's on, and Unsnap (the snap's color: the lit edge and the ring) */
 /* (Its row is kept while snapping is on, empty or not: coming and going, the chip doesn't move the plan's edge.) */
