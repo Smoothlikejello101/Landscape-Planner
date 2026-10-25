@@ -28,7 +28,7 @@ import { hasStatus } from '../status';
 import { plantsInBed } from '../beds';
 import { startPlacing } from '../place';
 import { bedBloomSection } from './bloom-view';
-import { snapRot, typeName } from '../util';
+import { snapRot, sqFt, typeName } from '../util';
 
 // ============================================================
 // PANELS
@@ -82,10 +82,10 @@ const bySpread = (s: CircleShape) => s.role === 'plant';
 /** "10 × 4 ft · 40 sq ft", "4 ft spread", "8 ft across · 50 sq ft", "16 ft long · 3 ft wide". */
 function sizeSummary(s: Shape): string {
   if (s.type === 'text') return `${fmt1(s.fontSize)} ft text`;
-  if (s.type === 'circle') return bySpread(s) ? `${fmt1(s.radius * 2)} ft spread` : `${fmt1(s.radius * 2)} ft across · ${Math.round(shapeArea(s)).toLocaleString()} sq ft`;
+  if (s.type === 'circle') return bySpread(s) ? `${fmt1(s.radius * 2)} ft spread` : `${fmt1(s.radius * 2)} ft across · ${sqFt(shapeArea(s))} sq ft`;
   if (s.type === 'line') return `${fmt1(shapePerimeter(s))} ft long` + (s.pathWidth ? ` · ${fmt1(s.pathWidth)} ft wide` : '');
   const { w, h } = boxSize(s);
-  const area = s.role === 'boundary' ? '' : ` · ${Math.round(shapeArea(s)).toLocaleString()} sq ft`;
+  const area = s.role === 'boundary' ? '' : ` · ${sqFt(shapeArea(s))} sq ft`;
   return (s.type === 'poly' ? `${s.points.length} points · ` : '') + `${fmt1(w)} × ${fmt1(h)} ft` + area;
 }
 function positionSummary(s: Shape): string {
@@ -204,7 +204,7 @@ export function renderPropsPanelSingle(s: Shape) {
     if (!(s.type === 'line' && s.pathWidth)) {
       sizeParts.push(el('div', { className: 'row-2' },
         el('div', { className: 'field' }, el('label', {}, 'Width (ft)'), wInput),
-        el('div', { className: 'field' }, el('label', {}, 'Height (ft)'), hInput)));
+        el('div', { className: 'field' }, el('label', {}, 'Length (ft)'), hInput)));
     }
     sizeParts.push(measure);
     if (s.type === 'line') {
@@ -355,7 +355,8 @@ export function placeMorePlant(selected: Shape[]): Plant | null {
   const id = [...ids][0];
   return (id && plantsById[id]) || null;
 }
-export interface MoreOfSame { title: string; start: () => void; tree: boolean }
+/** `short`: the button's own words ("Place another", "Another bed"), saying what a tap starts. */
+export interface MoreOfSame { title: string; short: string; start: () => void; tree: boolean }
 /**
  * Adding more of what's selected, the way it was added: a plant is placed
  * tap by tap; a tree already in the yard is drawn (trunk, then canopy) as the
@@ -371,13 +372,14 @@ export function moreOfSame(selected: Shape[], drawn: boolean): MoreOfSame | null
     const id = [...ids][0];
     const p = id ? plantsById[id] : undefined;
     if (id && !p) return null; // its details aren't on this device
-    return { title: `Draw another ${p ? p.common : 'tree'}`, start: () => startTreeDraw(p?.id), tree: true };
+    return { title: `Draw another ${p ? p.common : 'tree'}`, short: 'Draw another', start: () => startTreeDraw(p?.id), tree: true };
   }
   const p = placeMorePlant(selected);
-  if (p) return { title: `Place more ${p.common}`, start: () => startPlacing(p), tree: false };
+  if (p) return { title: `Place more ${p.common}`, short: selected.length === 1 ? 'Place another' : 'Place more', start: () => startPlacing(p), tree: false };
   if (!drawn || selected.length !== 1) return null;
   const kind = kindOfShape(selected[0]);
-  return kind ? { title: `Add another: ${kindDef(kind).label}`, start: () => startKind(kind), tree: false } : null;
+  const what = kind === 'plain' ? typeName(selected[0].type) : kind ? kindDef(kind).label.toLowerCase() : '';
+  return kind ? { title: `Add another: ${kindDef(kind).label}`, short: `Another ${what}`, start: () => startKind(kind), tree: false } : null;
 }
 /** A tree's trunk: in proportion to the canopy unless set by hand; a shaped canopy can be made round again. */
 function trunkFields(s: CircleShape): Node[] {
@@ -507,7 +509,7 @@ function plantLinkSection(s: CircleShape): HTMLElement {
         : fit === 'cold' ? ` Zone ${z} winters are colder than it’s rated for.`
         : ` Zone ${z} is warmer than it’s rated for: it may lack the winter chill or cool summers it needs.`)));
   }
-  if (p.unverified) wrap.appendChild(el('div', { className: 'hint', 'data-testid': 'plant-unverified' }, "Unverified: this plant's details come from an older list with no sources, and haven't been checked yet."));
+  if (p.unverified) wrap.appendChild(el('div', { className: 'hint', 'data-testid': 'plant-unverified' }, "Unverified: this plant's details come from an earlier list with no sources, and haven't been checked yet."));
   const row = el('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' } });
   const target = plantRadius(p, state.sizeMode);
   if (s.radius !== target) {
@@ -592,13 +594,25 @@ export function renderPropsPanelMulti(selected: Shape[]) {
   return body;
 }
 
+/**
+ * The sheet's title names the thing, as people call it: its label ("House", "Chinquapin oak"), else what it is
+ * ("Bed", "Path", "Note"), else its shape ("Rectangle"), never "Rectangle properties".
+ */
+export function sheetTitle(s: Shape): string {
+  if (s.type === 'text') return 'Note';
+  if (s.label.trim()) return s.label.trim();
+  if (s.type === 'line' && s.pathWidth) return 'Path';
+  const k = kindOfShape(s);
+  if (k && k !== 'plain') return kindDef(k).label;
+  if (s.role === 'plant') return 'Plant';
+  const t = typeName(s.type);
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
 export function renderPropsPanel() {
   const selected = getSelected();
   if (selected.length === 0) return null;
   const single = selected.length === 1 ? selected[0] : null;
-  const title = single ?
-    (single.type === 'line' && single.pathWidth ? 'Path' : typeName(single.type).charAt(0).toUpperCase() + typeName(single.type).slice(1)) + ' properties' :
-    selected.length + ' shapes selected';
+  const title = single ? sheetTitle(single) : selected.length + ' shapes selected';
 
   // Header
   const header = el('div', { className: 'sheet-header' });

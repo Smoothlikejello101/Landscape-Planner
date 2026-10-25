@@ -145,7 +145,7 @@ function rangeLine(facts: string[], prov: Record<string, Provenance> | undefined
   const check = !fewer ? weaker : ref ? (both.length > 1 ? 'confirmed' : 'single') : both.length > 1 ? 'likely' : 'reported';
   if (both.length) return sourceLine({ ...a, src: both, check, inherited: a.inherited || b.inherited });
   const [ea, eb] = ENDS[facts[0]] ?? [facts[0], facts[1]];
-  const names = (pv: Provenance) => (pv.src.length === 1 && PLANT_META?.sources?.[pv.src[0]]?.trust === 'unverified' ? 'older list, unverified' : pv.src.map(sourceName).join(', '));
+  const names = (pv: Provenance) => (pv.src.length === 1 && PLANT_META?.sources?.[pv.src[0]]?.trust === 'unverified' ? 'earlier list, unverified' : pv.src.map(sourceName).join(', '));
   const how = (pv: Provenance) => (pv.check && SURE[pv.check] ? ` (${SURE[pv.check]})` : '');
   return [`${names(a)} for the ${ea}${how(a)}; ${names(b)} for the ${eb}${how(b)}`, a.inherited || b.inherited ? 'from its species' : ''].filter(Boolean).join(' · ');
 }
@@ -161,7 +161,7 @@ function spreadRow(p: Plant): HTMLElement | null {
   if (roots) parts.push([roots, sourceLine(p.prov?.habit)]);
   if (!parts.length) return null;
   const dd = el('dd', { 'data-testid': 'spreads' });
-  // (One source line under both where they share it: "older list, unverified" once, not twice.)
+  // (One source line under both where they share it: "earlier list, unverified" once, not twice.)
   const same = parts.length === 2 && parts[0][1] === parts[1][1];
   parts.forEach(([text, src], i) => {
     dd.appendChild(el('span', { className: 'details-part' }, text));
@@ -171,22 +171,22 @@ function spreadRow(p: Plant): HTMLElement | null {
 }
 /**
  * Toxicity to animals, never left blank on a catalog plant (no line reads as "safe"): its own rating; else the
- * older list's warning for another record of its species; else not yet rated. Null for a plant of mine.
+ * earlier list's warning for another record of its species; else not yet rated. Null for a plant of mine.
  */
 export function toxRow(p: Plant): { value: string; line: string } | null {
   const warnsHere = p.tox?.dog === 'toxic' || !!oldDogWarning(p);
   if (p.dogVia && !warnsHere) {
-    return { value: `dogs: ${p.dogVia.dog}`, line: `older list, unverified · given for ${p.dogVia.common}, the same species` + (p.dog === 'Safe' ? '; the older list calls this one safe' : '') };
+    return { value: `dogs: ${p.dogVia.dog}`, line: `earlier list, unverified · given for ${p.dogVia.common}, the same species` + (p.dog === 'Safe' ? '; the earlier list calls this one safe' : '') };
   }
   const own = tox(p.tox) || (p.dog && p.dog !== 'Unverified' ? `dogs: ${p.dog}` : '');
   if (own) return { value: own, line: sourceLine(p.prov?.tox ?? p.prov?.dog) };
   if (isMine(p)) return null;
   return { value: 'dogs: not yet rated', line: 'No source we can use rates plants for pets yet' };
 }
-/** Where a value came from, in a few words: "NC State, USDA · confirmed", "older list, unverified". */
+/** Where a value came from, in a few words: "NC State, USDA · confirmed", "earlier list, unverified". */
 function sourceLine(prov: Provenance | undefined): string {
   if (!prov) return '';
-  if (prov.src.length === 1 && PLANT_META?.sources?.[prov.src[0]]?.trust === 'unverified') return 'older list, unverified';
+  if (prov.src.length === 1 && PLANT_META?.sources?.[prov.src[0]]?.trust === 'unverified') return 'earlier list, unverified';
   const who = prov.src.map(sourceName).join(', ');
   const how = prov.check ? SURE[prov.check] ?? '' : '';
   return [who, how, prov.inherited ? 'from its species' : '', prov.at ? `for ${prov.at}` : ''].filter(Boolean).join(' · ');

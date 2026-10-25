@@ -8,6 +8,7 @@ import { checkPlantSun, formatHours, formatTime, newSunInfo, sunHours, sunLevel 
 import type { Shape, SunInfo } from '../types';
 import { crowdingOf } from '../crowding';
 import { shownWith } from '../status';
+import { sqFt } from '../util';
 import { timeRange } from './time-range';
 
 // Parts of the properties panel that depend on a shape's role.
@@ -23,7 +24,7 @@ export function measureText(s: Shape): string {
   if (s.type === 'line') return `Length: ${fmt(shapePerimeter(s))} ft`;
   if (s.role === 'plant') return '';
   if (s.role === 'boundary') return `Length around: ${fmt(shapePerimeter(s))} ft`;
-  return `Area: ${fmt(shapeArea(s))} sq ft`;
+  return `Area: ${sqFt(shapeArea(s))} sq ft`;
 }
 
 export function bedSection(s: Shape): HTMLElement {

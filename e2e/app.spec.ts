@@ -17,7 +17,7 @@ test.describe('core editing', () => {
     await openFresh(page);
     for (const [cls, title] of [['circle', 'Circle'], ['rect', 'Rectangle'], ['oval', 'Oval'], ['tri', 'Outline']]) {
       await addShape(page, cls);
-      await expect(page.locator('.sheet-header .title')).toHaveText(`${title} properties`);
+      await expect(page.locator('.sheet-header .title')).toHaveText(title);
       await closeSheet(page);
     }
     expect(await shapeCount(page)).toBe(4);

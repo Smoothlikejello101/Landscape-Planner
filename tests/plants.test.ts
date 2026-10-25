@@ -259,7 +259,7 @@ describe('plant filters', () => {
     expect(first('woods sedge')).toBe('w');
   });
   it('calls a plant non-toxic to dogs only when nothing says otherwise', () => {
-    expect(nonToxicToDogs({ id: 'a', common: 'A', dog: 'Safe' })).toBe(true); // the older list, until checked
+    expect(nonToxicToDogs({ id: 'a', common: 'A', dog: 'Safe' })).toBe(true); // the earlier list, until checked
     expect(nonToxicToDogs({ id: 'a', common: 'A', dog: 'Unverified' })).toBe(false);
     expect(nonToxicToDogs({ id: 'a', common: 'A', dog: 'Unverified', tox: { dog: 'nontoxic' } })).toBe(true);
     expect(nonToxicToDogs({ id: 'a', common: 'A', tox: { dog: 'unlisted' } })).toBe(false); // not listed isn't safe
@@ -279,10 +279,10 @@ describe('plant filters', () => {
     expect(sp.dogVia).toEqual({ id: 'clay', common: "Butterfly weed 'for Clay'", dog: 'Toxic - rarely eaten' });
     expect(clay.dogVia).toBeUndefined(); // (its own)
     expect(other.dogVia).toBeUndefined(); // (another species)
-    expect(nonToxicToDogs(safe)).toBe(false); // (a warning beats the older list's "Safe" for one record)
+    expect(nonToxicToDogs(safe)).toBe(false); // (a warning beats the earlier list's "Safe" for one record)
     expect(toxicToDogs(sp)).toBe(true);
-    expect(toxRow(sp)).toEqual({ value: 'dogs: Toxic - rarely eaten', line: "older list, unverified · given for Butterfly weed 'for Clay', the same species" });
-    expect(toxRow(safe)!.line).toContain('the older list calls this one safe');
+    expect(toxRow(sp)).toEqual({ value: 'dogs: Toxic - rarely eaten', line: "earlier list, unverified · given for Butterfly weed 'for Clay', the same species" });
+    expect(toxRow(safe)!.line).toContain('the earlier list calls this one safe');
     expect(toxRow(other)).toEqual({ value: 'dogs: not yet rated', line: 'No source we can use rates plants for pets yet' });
     expect(toxRow({ id: 'u-1', common: 'Mine' })).toBeNull(); // (a plant of mine: the person's own notes)
     // The species' own record's warning is the one given, where it has one.
@@ -319,7 +319,7 @@ describe('how a plant spreads: by seed, and underground or by runners: two facts
     expect(habits.size).toBeGreaterThan(20);
     expect([...habits].filter((h) => !(h in HABIT_SPREAD))).toEqual([]);
   });
-  it('says each part in words, the habit as given; an older list\'s "Sterile" never as fact; no reassurance for an invasive', () => {
+  it('says each part in words, the habit as given; an earlier list\'s "Sterile" never as fact; no reassurance for an invasive', () => {
     expect([seedText(p('Prolific', '')), seedText(p('Modest', '')), seedText(p('Sterile', '')), seedText(p(undefined, ''))])
       .toEqual(['Self-sows freely', 'Self-sows a little', 'Said not to set seed', '']);
     expect(rootText(p(undefined, 'Runner - CONTAIN'))).toBe('Spreads aggressively underground or by runners: Runner - CONTAIN');

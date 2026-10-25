@@ -7,7 +7,7 @@ async function addRect(page: Page, label: string, role: string, size?: [number, 
   await setRole(page, role);
   if (size) {
     await field(page, 'Width (ft)').fill(String(size[0]));
-    await field(page, 'Height (ft)').fill(String(size[1]));
+    await field(page, 'Length (ft)').fill(String(size[1]));
   }
 }
 async function addPlant(page: Page, name: string) {

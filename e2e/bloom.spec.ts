@@ -32,7 +32,7 @@ test('bloom calendar for a bed and for the whole plan', async ({ page }) => {
   const chart = page.getByTestId('bloom-chart');
   await expect(chart.locator('.bloom-name').nth(1)).toHaveText("Heuchera 'Autumn Bride' ×2");
   await expect(chart.locator('.bloom-cell.on').first()).toBeVisible();
-  await expect(page.getByTestId('bloom-gaps')).toContainText('Nothing in bloom in');
+  await expect(page.getByTestId('bloom-gaps')).toContainText(/Nothing here blooms in .*\. The whole plan blooms /);
   await closeSheet(page);
 
   // The whole plan, bed by bed, from the menu.

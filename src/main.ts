@@ -19,6 +19,7 @@ import { refreshAccountSection } from './ui/account-section';
 import { loadMyPlants } from './my-plants';
 import { setupServiceWorker } from './pwa';
 import { buildEmergencyBackup, downloadText } from './backup';
+import { loadViewSettings } from './view-settings';
 import { updateSaveWarning, updateSaveState } from './ui/save-warning';
 import { flushSave, initStorage, refreshClipboard, requestPersistence, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
 import { render } from './ui/render';
@@ -150,6 +151,7 @@ async function start() {
     throw e;
   }
   loadMyPlants();
+  loadViewSettings(); // (full-size rings and crowding outlines, as left on this device)
   setSaveStatusListener(updateSaveWarning);
   setSaveStateListener(updateSaveState);
   pushHistory(); // seed undo history with the loaded state

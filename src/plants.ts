@@ -35,7 +35,7 @@ export interface Plant {
   zone_max?: number;
   dog?: string;
   /**
-   * The older list's dog warning given for another record of the same species (a cultivar, a strain): shown, and
+   * The earlier list's dog warning given for another record of the same species (a cultivar, a strain): shown, and
    * filtered on, here too, since a cultivar keeps its species' chemistry (src: shareDogWarnings).
    */
   dogVia?: { id: string; common: string; dog: string };
@@ -248,21 +248,21 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (q && !matchPlant(p, q, true)) return false;
   return true;
 }
-/** The older list's dog rating, when it's a warning (anything but "Safe" or "Unverified"). */
+/** The earlier list's dog rating, when it's a warning (anything but "Safe" or "Unverified"). */
 export function oldDogWarning(p: Plant): string | null {
   return p.dog && p.dog !== 'Safe' && p.dog !== 'Unverified' ? p.dog : null;
 }
 /**
  * Non-toxic to dogs: listed non-toxic by the ASPCA (not merely unlisted:
  * unlisted isn't safe); until a plant has been checked against the ASPCA,
- * the older list's "Safe". Any warning from the older list still holds
+ * the earlier list's "Safe". Any warning from the earlier list still holds
  * until the audit removes it, so the two can only agree to call a plant safe.
  */
 export function nonToxicToDogs(p: Plant): boolean {
   if (oldDogWarning(p) || p.dogVia) return false;
   return p.tox?.dog ? p.tox.dog === 'nontoxic' : p.dog === 'Safe';
 }
-/** Any warning for dogs: listed toxic, the older list's warning, or that warning given for its species' other record. */
+/** Any warning for dogs: listed toxic, the earlier list's warning, or that warning given for its species' other record. */
 export const toxicToDogs = (p: Plant): boolean => p.tox?.dog === 'toxic' || !!oldDogWarning(p) || !!p.dogVia;
 /**
  * A plant's species from its botanical name ("Asclepias tuberosa (clay strain)", "Ilex verticillata 'Red Sprite'":
@@ -274,7 +274,7 @@ export function speciesOf(botanical: string | undefined): string | null {
   return `${m[1]} ${m[2] ? '× ' : ''}${m[3]}`;
 }
 /**
- * Where the older list warns for one record of a species, its other records carry the warning too (`dogVia`):
+ * Where the earlier list warns for one record of a species, its other records carry the warning too (`dogVia`):
  * otherwise one butterfly weed says "toxic" and the next says nothing, which reads as safe. Each gets the
  * warning of the species' own record if it has one, else of the first record that does. Records with their own
  * warning keep it.

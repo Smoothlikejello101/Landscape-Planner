@@ -45,7 +45,8 @@ export function bloomChart(sum: BloomSummary): HTMLElement {
   const gaps = bloomGaps(sum.perMonth, season);
   if (season.length) {
     wrap.appendChild(el('div', { className: 'hint', 'data-testid': 'bloom-gaps' }, gaps
-      ? `Nothing in bloom in ${gaps} (${seasonText(season)}).`
+      // (Measured against the whole plan's season, so say it in two sentences: "here", then the plan.)
+      ? `Nothing here blooms in ${gaps}. ${cap(seasonText(season))}.`
       : `Something is in bloom every month ${seasonSpan(season)}.`));
   }
   if (sum.noData) wrap.appendChild(el('div', { className: 'hint' }, `${sum.noData} plant${sum.noData === 1 ? ' has' : 's have'} no bloom months recorded.`));
@@ -59,14 +60,15 @@ export function bloomChart(sum: BloomSummary): HTMLElement {
  */
 function planSeason(): number[] { return bloomSeason(bloomSummary(state.shapes, plantsById).perMonth); }
 const fullMonth = (m: number) => MONTH_NAMES[m - 1];
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 /** "from March to October", "all year". */
 function seasonSpan(season: number[]): string {
   if (!season.length) return '';
   return season.length === 12 ? 'of the year' : `from ${fullMonth(season[0])} to ${fullMonth(season.at(-1)!)}`;
 }
-/** "the plan blooms from March to October". */
+/** "the whole plan blooms from March to October". */
 function seasonText(season: number[]): string {
-  return season.length === 12 ? 'the plan blooms all year' : `the plan blooms ${seasonSpan(season)}`;
+  return season.length === 12 ? 'the whole plan blooms all year' : `the whole plan blooms ${seasonSpan(season)}`;
 }
 
 /** Bed properties: when the plants in this bed bloom. */
@@ -88,7 +90,7 @@ export function renderBloomPanel() {
     body.appendChild(el('div', { className: 'banner', 'data-testid': 'plan-bloom-gaps' }, !season.length
       ? 'No bloom months are known for the plants in this plan yet.'
       : gaps
-        ? `Across the whole plan, nothing is in bloom in ${gaps} (${seasonText(season)}).`
+        ? `Across the whole plan, nothing is in bloom in ${gaps}, between the first blooms in ${fullMonth(season[0])} and the last in ${fullMonth(season.at(-1)!)}.`
         : `Across the whole plan, something is in bloom every month ${seasonSpan(season)}.`));
   }
   for (const g of groups) {

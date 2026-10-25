@@ -110,7 +110,7 @@ export function renderPlantsPanel() {
   }
   if (PLANTS.some((p) => p.unverified || p.partlyChecked)) {
     body.appendChild(el('div', { className: 'hint', 'data-testid': 'unverified-note' },
-      'Plants are being checked against published references. Unverified: all its details are from an older list with no sources. Partly checked: some are sourced; open it to see which (the rest say "older list"). Treat unchecked details as a rough guide.'));
+      'Plants are being checked against published references. Unverified: all its details are from an earlier list with no sources. Partly checked: some are sourced; open it to see which (the rest say "earlier list"). Treat unchecked details as a rough guide.'));
   }
   if (!PLANTS.length) {
     body.appendChild(el('div', { className: 'hint' }, 'The plant catalog is still loading (or could not load). Your own plants work either way.'));
@@ -169,8 +169,8 @@ export function renderPlantsPanel() {
     head.appendChild(side);
     if (mine) info.firstChild!.appendChild(el('span', { className: 'mine-badge' }, 'Mine'));
     // Details not yet checked against sources say so, plainly, on every row (first in the details, where it can't be cut off).
-    else if (p.unverified) (info.childNodes[1] as HTMLElement).prepend(el('span', { className: 'unverified-badge', title: "From an older list with no sources; it's being checked" }, 'Unverified'), ' ');
-    else if (p.partlyChecked) (info.childNodes[1] as HTMLElement).prepend(el('span', { className: 'unverified-badge', 'data-testid': 'partly-badge', title: 'Some details are checked against sources; those marked "older list" in its details are not yet' }, 'Partly checked'), ' ');
+    else if (p.unverified) (info.childNodes[1] as HTMLElement).prepend(el('span', { className: 'unverified-badge', title: "From an earlier list with no sources; it's being checked" }, 'Unverified'), ' ');
+    else if (p.partlyChecked) (info.childNodes[1] as HTMLElement).prepend(el('span', { className: 'unverified-badge', 'data-testid': 'partly-badge', title: 'Some details are checked against sources; those marked "earlier list" in its details are not yet' }, 'Partly checked'), ' ');
     const item = el('div', { className: 'plant-item' }, head);
     let details: HTMLElement | null = null;
     const setOpen = (open: boolean) => {
@@ -350,7 +350,7 @@ export function renderPlantsPanel() {
     const DOGS: [DogFilter, string][] = [
       ['', 'Include toxic plants'],
       ['hideToxic', 'Hide toxic plants, include unknown'],
-      // Says unverified while it goes by the older list for any plant (until each has a sourced rating: docs/catalog-sources.md).
+      // Says unverified while it goes by the earlier list for any plant (until each has a sourced rating: docs/catalog-sources.md).
       ['nonToxic', PLANTS.some((p) => !p.tox?.dog) ? 'Include only non-toxic (unverified)' : 'Include only non-toxic'],
     ];
     const summary = () => (plantFilter.dogs === 'hideToxic' ? ' \u00b7 dogs: hiding toxic' : plantFilter.dogs === 'nonToxic' ? ' \u00b7 dogs: non-toxic only' : '');
@@ -363,7 +363,7 @@ export function renderPlantsPanel() {
     const note = el('div', { className: 'hint', 'data-testid': 'dogs-note' });
     const sayNote = () => {
       note.textContent = plantFilter.dogs === 'hideToxic' ? `Hides the ${countWord(nToxic)} plants with a warning for dogs; keeps the ${countWord(nUnrated)} not yet rated.`
-        : plantFilter.dogs === 'nonToxic' ? `Only the ${countWord(nSafe)} plants rated non-toxic to dogs, by an older list with no sources; leaves out the ${countWord(nUnrated)} not yet rated.`
+        : plantFilter.dogs === 'nonToxic' ? `Only the ${countWord(nSafe)} plants rated non-toxic to dogs, by an earlier list with no sources; leaves out the ${countWord(nUnrated)} not yet rated.`
         : `Every plant, whatever it does to dogs. ${countWord(nUnrated)} aren't rated yet: no source we can use rates plants for pets.`;
     };
     sayNote();
@@ -407,7 +407,7 @@ export function renderPlantsPanel() {
     mkSelect('Any maintenance', 'maintenance', enums.maintenance || [])
   ));
   adv.appendChild(row(
-    // (Says unverified while any plant it lets through goes by the older list for either fact, as the dog filter does.)
+    // (Says unverified while any plant it lets through goes by the earlier list for either fact, as the dog filter does.)
     withTestId(mkSelect('Any spreading', 'spread', ['stays', 'seed', 'runs', 'aggressive'], (v) => ({
       stays: PLANTS.some((p) => spreadsAs(p, 'stays') && [p.prov?.self_seed, p.prov?.habit].some((pv) => !pv || pv.src.every((s) => PLANT_META?.sources?.[s]?.trust === 'unverified'))) ? 'Stays put (unverified)' : 'Stays put',
       seed: 'Self-sows freely', runs: 'Spreads underground or by runners', aggressive: 'Spreads aggressively underground or by runners',

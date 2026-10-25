@@ -83,6 +83,8 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .menu-item .icon { color: #57534e; }
 .menu-divider { height: 1px; background: #e7e5e4; margin: 4px 0; }
 .sheet-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #e7e5e4; position: sticky; top: 0; background: #fff; z-index: 2; }
+/* (A long name, a plant's or a label someone typed, stays on one line.) */
+.sheet-header .title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sheet-header .title { font-weight: 600; color: #292524; }
 /* A sheet's main action, kept in view at its bottom while the sheet scrolls (Create PDF and its result). */
 .sheet-foot { position: sticky; bottom: 0; background: #fff; border-top: 1px solid #e7e5e4; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px; z-index: 2; }

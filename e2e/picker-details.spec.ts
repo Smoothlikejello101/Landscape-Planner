@@ -12,7 +12,7 @@ test('a plant row opens to its details, and stays open while the list changes', 
   await item.getByTestId('plant-row').click();
   const details = item.getByTestId('plant-details');
   await expect(details).toContainText('Hardiness');
-  await expect(details).toContainText('older list, unverified');
+  await expect(details).toContainText('earlier list, unverified');
   await expect(item.getByTestId('plant-row')).toHaveAttribute('aria-expanded', 'true');
   // Typing again rebuilds the list in place: the row stays open, and the search keeps the keyboard.
   await search.click();
@@ -37,7 +37,7 @@ test('a plant shown only because of what other sources say is marked, and says s
   const catalog = {
     meta: {
       format: 'lp-catalog', version: 2, zones: 'half', title: 'Test catalog', updated: '2026-10-18',
-      sources: { ncsu: { title: 'NC State Extension', trust: 'reference' }, shop: { title: 'A nursery', trust: 'nursery' }, grower: { title: 'A grower', trust: 'nursery' }, grower2: { title: 'Another grower', trust: 'nursery' }, compendium: { title: 'Older list', trust: 'unverified' } },
+      sources: { ncsu: { title: 'NC State Extension', trust: 'reference' }, shop: { title: 'A nursery', trust: 'nursery' }, grower: { title: 'A grower', trust: 'nursery' }, grower2: { title: 'Another grower', trust: 'nursery' }, compendium: { title: 'Earlier list', trust: 'unverified' } },
       enums: { form: ['Perennial', 'Shrub'] },
     },
     plants: [
@@ -64,7 +64,7 @@ test('a plant shown only because of what other sources say is marked, and says s
   const alumroot = page.locator('.plant-item', { hasText: 'Hairy alumroot' });
   await expect(alumroot.getByTestId('row-flag')).toBeVisible();
   await expect(page.locator('.plant-item', { hasText: 'Sweetspire' }).getByTestId('row-flag')).toHaveCount(0);
-  // Each row says how far it's checked: all older list, some, or (no badge) every detail sourced.
+  // Each row says how far it's checked: all earlier list, some, or (no badge) every detail sourced.
   await expect(page.locator('.plant-item', { hasText: 'Old-list aster' }).locator('.unverified-badge')).toHaveText('Unverified');
   await expect(page.locator('.plant-item', { hasText: 'Half-checked aster' }).locator('.unverified-badge')).toHaveText('Partly checked');
   await expect(page.locator('.plant-item', { hasText: 'Sweetspire' }).locator('.unverified-badge')).toHaveCount(0);
@@ -122,7 +122,7 @@ test('how a plant spreads, by seed and underground, in one row with a source eac
   await expect(details.locator('dt', { hasText: 'How it spreads' })).toHaveCount(1);
   const spreads = details.getByTestId('spreads');
   await expect(spreads.locator('.details-part')).toHaveText(['Self-sows freely', 'Spreads aggressively underground or by runners: Aggressive rhizome']);
-  await expect(spreads.locator('.details-src')).toHaveText(['older list, unverified']); // (each part its own source; one line where they share it)
+  await expect(spreads.locator('.details-src')).toHaveText(['earlier list, unverified']); // (each part its own source; one line where they share it)
   await expect(details.locator('dt', { hasText: /^Habit$/ })).toHaveCount(0); // (said under "How it spreads")
   await page.getByRole('button', { name: '+ More filters' }).click();
   await expect(page.getByTestId('spread-filter').locator('option[value="stays"]')).toHaveText('Stays put (unverified)');

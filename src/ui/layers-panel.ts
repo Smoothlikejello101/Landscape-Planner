@@ -1,9 +1,10 @@
+import { setShowCrowding, setShowFullSize } from '../view-settings';
 import { el, svgEl } from '../dom';
 import { setSnapOn, setSquareOn, snapOn, squareOn } from '../tidy';
 import { flushHistoryDebounce, pushHistory } from '../history';
 import { I } from '../icons';
 import { centerOnShape, deletePhase, setRoleView, setViewFilter } from '../mutations';
-import { passesFilter, shownWith, STATUSES, statusLabel } from '../status';
+import { passesFilter, shownWith, STATUSES, statusLabelFor } from '../status';
 import { crowdedIds } from '../crowding';
 import { plantsById } from '../plants';
 import { ROLES, roleHidden, roleKey, roleLabel } from '../roles';
@@ -23,7 +24,9 @@ const fmtFt = (v: number) => String(Math.round(v * 10) / 10);
 
 export function renderLayersPanel() {
   const lockedCount = state.shapes.filter(s => s.locked).length;
-  const headerTitle = `Shapes (${state.shapes.length}${lockedCount ? ' · ' + lockedCount + ' locked' : ''})`;
+  // (The name on its button: Layers.)
+  const n = state.shapes.length;
+  const headerTitle = `Layers · ${n} shape${n === 1 ? '' : 's'}${lockedCount ? ', ' + lockedCount + ' locked' : ''}`;
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, headerTitle),
     (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
@@ -55,8 +58,9 @@ export function renderLayersPanel() {
       else if (s.type === 'poly') dims = s.points.length + ' points · ' + fmtFt(boxSize(s).w) + ' × ' + fmtFt(boxSize(s).h) + ' ft';
       else dims = s.width + ' × ' + s.height + ' ft';
       const opacity = s.opacity !== undefined ? s.opacity : 0.65;
-      const when = s.status === 'planted' ? s.plantedOn : s.status === 'gone' ? s.goneOn : undefined;
-      const extra = (s.status ? statusLabel(s.status) + (when ? ' ' + when : '') + ' · ' : '') +
+      // ("Existing" for a bed or a house, with no planting date: only plants are planted.)
+      const when = s.status === 'planted' && s.role === 'plant' ? s.plantedOn : s.status === 'gone' ? s.goneOn : undefined;
+      const extra = (s.status ? statusLabelFor(s) + (when ? ' ' + when : '') + ' · ' : '') +
         (s.phase ? s.phase + ' · ' : '') +
         (s.role === 'shade' && s.sun ? sunListText(s.sun) + ' · '
         : s.role === 'bed' ? plantsInBed(s, state.shapes).filter((p) => p.status !== 'gone').length + ' plants · ' : '');
@@ -203,13 +207,13 @@ function plantSizeSection(): HTMLElement {
   const cb = el('input', { type: 'checkbox' }) as HTMLInputElement;
   cb.checked = state.showFullSize;
   cb.disabled = state.sizeMode === 'full';
-  cb.addEventListener('change', () => { state.showFullSize = cb.checked; render(); });
+  cb.addEventListener('change', () => { setShowFullSize(cb.checked); render(); });
   wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, cb,
     el('span', {}, 'Show full-size rings on every plant (check for crowding)')));
   wrap.appendChild(el('div', { className: 'hint' }, 'Typical is the middle of a plant\'s size range; full is the top. Selected plants always show their full-size ring.'));
   const crowd = el('input', { type: 'checkbox', 'data-testid': 'show-crowding' }) as HTMLInputElement;
   crowd.checked = state.showCrowding;
-  crowd.addEventListener('change', () => { state.showCrowding = crowd.checked; render(); });
+  crowd.addEventListener('change', () => { setShowCrowding(crowd.checked); render(); });
   const nCrowded = crowdedIds(state.shapes.filter((x) => shownWith(x, state.viewFilter)), plantsById).size;
   wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, crowd,
     el('span', {}, `Outline crowded plants in red (${nCrowded} now)`)));

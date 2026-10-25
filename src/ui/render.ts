@@ -74,9 +74,14 @@ export function render() {
 
   // Undo
   const undoBtn = el('button', { className: 'iconbtn', html: I.undo, title: 'Undo' });
-  undoBtn.disabled = !canUndo() || !!state.draw || !!state.placing; // while drawing or placing, the bar's Undo
+  // While placing, it takes back the last plant placed; while drawing, the last point: as the bar's Undo does.
   // (A notice's Undo is the same step: after either, it's gone.)
-  undoBtn.addEventListener('click', () => { dismissToastAction(); undo(); render(); });
+  undoBtn.disabled = state.placing ? !state.placing.placed.length : state.draw ? !state.draw.points.length : !canUndo();
+  undoBtn.addEventListener('click', () => {
+    dismissToastAction();
+    if (state.placing) undoPlace(); else if (state.draw) undoDrawPoint(); else undo();
+    render();
+  });
   topbar.appendChild(undoBtn);
 
   // Redo
@@ -260,7 +265,7 @@ export function render() {
     const more = moreOfSame(getSelected(), false);
     if (more) {
       const b = el('button', { title: more.title, 'data-testid': 'bar-place-more' });
-      b.innerHTML = I.plus + '<span>More</span>';
+      b.innerHTML = I.plus + '<span></span>'; b.querySelector('span')!.textContent = more.short;
       b.addEventListener('click', () => { more.start(); render(); });
       bar.appendChild(b);
     }
@@ -286,7 +291,7 @@ export function render() {
       const more = moreOfSame([s], true);
       if (more) {
         const b = el('button', { className: 'pill-more', 'data-testid': 'pill-place-more', title: more.title, 'aria-label': more.title });
-        b.innerHTML = I.plus + '<span>More</span>';
+        b.innerHTML = I.plus + '<span></span>'; b.querySelector('span')!.textContent = more.short;
         b.addEventListener('click', () => { more.start(); render(); });
         pill.appendChild(b);
       }
