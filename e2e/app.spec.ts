@@ -252,7 +252,7 @@ test.describe('plants, background, export', () => {
   test('plant picker places a circle sized to mature spread', async ({ page }) => {
     await openFresh(page);
     await page.locator('.tool-btn.plants').click();
-    await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker (820)');
+    await expect(page.locator('.sheet-header .title')).toContainText(/Plant Picker \(\d{4,}\)/);
     await page.locator('.sheet input[type=text]').fill('Autumn Bride');
     await page.locator('.sheet .proj-row', { hasText: "Heuchera 'Autumn Bride'" }).locator('[data-testid=plant-place]').click();
     await placeOnceAtCenter(page);

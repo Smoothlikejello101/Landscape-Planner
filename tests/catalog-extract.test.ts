@@ -34,6 +34,7 @@ describe('reading sources', () => {
   it('reads sizes and months', () => {
     expect(feetRange('20 ft. 0 in. - 30 ft. 6 in.')).toEqual({ min: 20, max: 30.5 });
     expect(feetRange('8 in. - 1 ft. 0 in.')).toEqual({ min: 0.67, max: 1 });
+    expect(feetRange('3 ft. 0 in. - 1 ft. 6 in.')).toEqual({ min: 1.5, max: 3 }); // (written high to low: Erigeron acris)
     expect(feetRange('about tall')).toBeNull();
     expect(monthRange('July - September')).toEqual({ start: 7, end: 9 });
     expect(monthRange('spring')).toBeNull();
@@ -136,6 +137,13 @@ describe('reading sources', () => {
     const t = ['                         1', '', '      ASTERACEAE                  ASTERACEAE', '   Aster foo L.               Aster foo L.', '   var. bar Smith             var. baz Jones'].join('\n');
     expect(arkatlasStatus(t, 'Aster foo')).toMatchObject({ uncertain: true });
     expect(combine(arkatlasClaims(arkatlasStatus(t, 'Aster foo'))).native_ar).toBeNull();
+  });
+});
+
+describe('a size written high to low', () => {
+  it('still combines, and ends: each value is on its own side', () => {
+    const r = combine([{ fact: 'height', v: { min: 3, max: 1.5 }, src: 'ncsu', kind: 'authority' }, { fact: 'height', v: { min: 2, max: 4 }, src: 'x.com', kind: 'nursery' }]);
+    expect(r.height).toMatchObject({ v: { min: 3, max: 1.5 }, src: ['ncsu'] });
   });
 });
 

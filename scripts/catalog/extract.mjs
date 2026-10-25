@@ -58,7 +58,8 @@ export function feetRange(text) {
     return Math.round(((ft ? Number(ft[1]) : 0) + (inch ? Number(inch[1]) / 12 : 0)) * 100) / 100;
   });
   if (parts.some((p) => p == null) || !parts.length) return null;
-  return { min: parts[0], max: parts[parts.length - 1] };
+  // (Low to high, whichever way the page writes it: NC State's "3 ft. 0 in. - 1 ft. 6 in." is 1.5 to 3 ft.)
+  return { min: Math.min(...parts), max: Math.max(...parts) };
 }
 
 // ---------- USDA PLANTS ----------

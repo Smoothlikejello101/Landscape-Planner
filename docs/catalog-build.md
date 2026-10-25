@@ -32,13 +32,14 @@ written, and a build after the fix makes the rest match.
 | # | Step | Script | Writes |
 | --- | --- | --- | --- |
 | – | Stops first if the web claims, Kew's checklist or GBIF's downloads are missing (below) | | |
-| 0 | `--fetch` only, in rounds until nothing new is asked for: the atlas PDF and the Tallamy spreadsheet if missing; NC State's page for each species with none in the list; each page `ncsu-pages.json` names that isn't saved; USDA PLANTS's name searches; the profiles of the candidates they find, and the picks' characteristics | `fetch.mjs` | `catalog-src/<source>/<date>/` |
+| – | New plants: each saved NC State plant page no record reads, as a record with names and no facts ("Adding plants", below) | `additions.mjs` | `public/plants.json` |
+| 0 | `--fetch` only, in rounds until nothing new is asked for: the atlas PDF and the Tallamy spreadsheet if missing; NC State's page for each species with none in the list; each page `ncsu-pages.json` names that isn't saved; USDA PLANTS's name searches; the profiles of the candidates they find, and the picks' characteristics; for a new species USDA doesn't name, GBIF's match and record (its English name). The new plants are then named again from what was saved | `fetch.mjs` | `catalog-src/<source>/<date>/` |
 | 1 | The plant list (below) | `list.mjs` | `build/list.json` |
 | 2 | The Arkansas atlas as text, and the caterpillar host genera, remade each build from their newest saved files | `pdftotext -layout`, `tallamy.py` | `build/atlas.txt`, `tallamy/genera.json` |
 | 3 | The web claims, read again with today's reader (below) | `reclaim.mjs` | `build/web.json` |
 | 4 | Combine each plant's claims by the source rules ([catalog-sources.md](catalog-sources.md)) | `sample.mjs` | `build/combined.json` |
 | 5 | `--fetch` only: USDA's county records and GBIF's names | `usda-fetch.mjs`, `gbif-fetch.mjs` | `catalog-src/web/`, `catalog-src/gbif/` |
-| 6 | Write the settled facts into the catalog | `write-cli.ts` (`catalog:write`) | `public/plants.json`, `build/review.json` |
+| 6 | Write the settled facts into the catalog; then keep only the new plants that ship, and the page each was found on | `write-cli.ts` (`catalog:write`), `additions.mjs` | `public/plants.json`, `build/review.json`, `build/additions.json`, `scripts/catalog/added-plants.json` |
 | 7 | Counties, made once; the atlas's county maps, made again when the atlas PDF is newer | `counties.mjs`, `atlas_counties.py` | `counties.json`, `arkatlas/counties.json` |
 | 8 | USDA's county records, placed | `usda-counties.mjs` | `usda-counties.json` |
 | 9 | Native status by state, from Kew's checklist | `wcvp.mjs` | `wcvp-native.json`, `wcvp-regulated.json`, `wcvp-review.json` |
@@ -50,12 +51,16 @@ Paths without a folder are in `catalog-src/`. The order matters:
 - `sample.mjs` reads the catalog as it stands, for the older values it keeps and the form order it prefers.
 - Steps 7 to 10 read the catalog after the write.
 - From the write on, the build holds `catalog-src/.lock`, so no fetch or search can change the pages under it.
+- Until the write, `public/plants.json` holds the new plants' names for the steps to read. A build that stops
+  before then puts it back as it was.
 
 ## What it reads
 
 **Committed:**
 - `public/plants.json`.
 - `scripts/catalog/ncsu-pages.json`.
+- `scripts/catalog/added-plants.json`: the page each plant added from NC State was found on (written by the
+  build).
 - The reviewed lists the scripts keep:
   - `site-terms.json`: the terms readings;
   - `regulated-plants.json`;
@@ -131,6 +136,45 @@ catalog by rule, except where a committed file says otherwise.
   that reaches the same page isn't accepted by it.
 - **USDA PLANTS.** The symbol `usda-pick.mjs` picks from the species' saved name search: its own name at species
   rank, not a hybrid or a variety, and a profile that is the plant's own or a reviewed rename.
+
+## Adding plants
+
+NC State's Plant Toolbox lists every plant page in its sitemap (`https://plants.ces.ncsu.edu/sitemap.xml`, about
+4,700). Saved with the fetcher like any page, it lets the build add the plants the catalog doesn't have
+(`additions.mjs`):
+
+- **Which pages** (agreed 2026-10-24). Each plant page the sitemap lists that's saved, and that no record reads.
+  Left out, with why, in `build/additions.json`:
+  - a vegetable (NC State's Vegetable, Warm or Cool Season Vegetable tag) or a weed (its Weed tag), unless it's
+    also tagged Native Plant: wild garlic is a cool-season vegetable to NC State, and asters weeds, and both are
+    garden natives. (A Houseplant tag needs no rule: oleander and Confederate jasmine carry it, and a plant ships
+    only with its hardiness.)
+  - a genus's own page ("Hosta"): it describes the genus, not one plant;
+  - a plant the catalog has under the same name, reading another page (a cultivar record reading its species'
+    page): listed with its id. To have that record read the cultivar's own page, add it to `ncsu-pages.json`;
+  - a second page for a plant already found.
+- **The record.** Its id is the page's name. It has names and no facts: the steps fill it like any other.
+  - Its botanical name is the page's title, × for NC State's x, without ® or ™.
+  - Its name in the app: a species', USDA's common name (from its profile); else GBIF's English name (its
+    backbone record's `vernacularName`); else NC State's, where it gives just one; else the botanical name. NC
+    State lists a plant's names alphabetically, in several languages, and often a related plant's, so which one
+    is the plant's can't be told from its list ("Abeto Del Colorado, Balsam Fir, Colorado Fir, …" for white fir).
+    A cross of two species written as one (Ilex verticillata × serrata) takes neither parent's USDA or GBIF name.
+  - A cultivar's, or a trade-named plant's or group's ("Echinacea purpurea PowWow Wild Berry 'PAS702917'",
+    "Berberis thunbergii Sunjoy Group"): NC State's name for it that starts with the cultivar or names it or the
+    trade name ("'Edward Goucher' Glossy Abelia", "Crimson Sunset Maple"); else its species' name and the cultivar,
+    or the trade name where the cultivar is a breeder's code ("Purple coneflower PowWow Wild Berry"). Its parent is
+    the catalog's record for exactly its species, an added one too. (A group is one plant, not a genus's page.)
+  - NC State's other names are its `synonyms`.
+- **Which ship.** After the write, a new plant stays only with what the app needs to place it, each sourced (not
+  the older list's): its form, its size (height or spread), its hardiness (both zones) and its sun. A cultivar
+  takes form, hardiness and sun from its species, and waits while its species does. One that waits is left out of
+  the catalog, the wild records and the review, and is tried again next build. The report counts them, and what
+  each still lacks.
+- **Once added**, the page it was found on is kept in `scripts/catalog/added-plants.json`, so later builds read
+  the same page for it and don't add it again. That holds once its record is deleted, too: to keep an added plant
+  out, delete its record; to have it added again, delete its line there as well. A page `ncsu-pages.json` names
+  for it by hand comes first.
 
 ## Reading the web claims again
 

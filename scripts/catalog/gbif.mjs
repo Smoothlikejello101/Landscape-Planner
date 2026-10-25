@@ -21,6 +21,8 @@ export const GBIF_NAME = {
 };
 /** GBIF's backbone match for a binomial (by GBIF's name for it), species rank, strict (no fuzzy guess). */
 export const matchUrl = (binomial) => `${API}/species/match?name=${encodeURIComponent(GBIF_NAME[binomial] ?? binomial)}&rank=SPECIES&strict=true&kingdom=Plantae`;
+/** GBIF's backbone record for a name it matched (its `usageKey`): its English name, `vernacularName`, among the rest. */
+export const speciesUrl = (key) => `${API}/species/${key}`;
 /** A GADM area's name and codes (its variant names include the postal code). */
 export const gadmUrl = (gid) => `${API}/geocode/gadm/${gid}`;
 /** A GADM area's subdivisions (a state's counties: ids, names and kind, "County", "Parish"…). */

@@ -79,7 +79,7 @@ test('upgrading from the previous installed version keeps data and works offline
   await page.reload();
   await expect(page.locator('#canvas-svg text', { hasText: 'Planted before upgrade' })).toHaveCount(1);
   await page.locator('.tool-btn.plants').click();
-  await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker (820)');
+  await expect(page.locator('.sheet-header .title')).toContainText(/Plant Picker \(\d{4,}\)/);
   await context.setOffline(false);
 });
 
