@@ -37,6 +37,7 @@ import { filterActive, filterText } from '../status';
 import { toast } from './toast';
 import { renderProjectsPanel, renderRenamePanel } from './projects-panel';
 import { moreOfSame, renderArrangePanel, renderPropsPanel, resetKindChange } from './props-panel';
+import { hintDue, hintShown } from '../hints';
 
 // MAIN RENDER
 // ============================================================
@@ -447,15 +448,13 @@ function snapChip(s: TapSnap, unsnap: () => void): HTMLElement {
   chip.appendChild(b);
   return chip;
 }
-/** The first time a plant with a full-size ring is selected, say what the ring is (once per device). */
+/** The first time a plant with a full-size ring is selected, say what the ring is (once per device; src/hints.ts). */
 function maybeExplainFullSize() {
   const s = singleSelected();
   if (!s || state.panel || !fullRingRadius(s)) return;
   const KEY = 'lp-hint-full-size';
-  try {
-    if (localStorage.getItem(KEY)) return;
-    localStorage.setItem(KEY, '1');
-  } catch { return; } // no storage: skip the hint rather than repeat it every time
+  if (!hintDue(KEY, 1)) return;
+  hintShown(KEY);
   toast('Circles show typical size; the dashed ring is full size. Change it in Layers.', 7000);
 }
 

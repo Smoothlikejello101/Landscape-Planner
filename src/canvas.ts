@@ -172,7 +172,8 @@ export function shapeGroup(s: Shape): SVGGElement {
       // Taps go through the canopy to what's under it (src/canopy.ts); the trunk picks the tree.
       shapeEl.setAttribute('pointer-events', 'none');
       hitEl = svgEl('circle', {
-        'data-shape-id': s.id, 'data-role': 'trunk-hit', cx, cy, r: trunkHitPx(s, ppf), fill: 'transparent',
+        'data-trunk-of': s.id, 'data-role': 'trunk-hit', cx, cy, // (not data-shape-id: that's the tree as drawn)
+        r: trunkHitPx(s, ppf), fill: 'transparent',
         style: common.style, 'pointer-events': inert ? 'none' : 'all',
       });
     }

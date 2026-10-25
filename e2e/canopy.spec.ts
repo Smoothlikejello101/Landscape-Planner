@@ -47,4 +47,12 @@ test('a tap under a canopy picks what\'s under it, locked tree or not; the trunk
   // Then no more.
   await page.mouse.click(trunk.x, trunk.y + 4 * FT);
   await expect.poll(() => page.evaluate(() => localStorage.getItem('lp-canopy-hint'))).toBe('3');
+  // Back after 61 days away: once more.
+  // (Set as the page starts: leaving it, on reload, counts as a visit.)
+  await page.addInitScript(() => localStorage.setItem('lp-last-visit', String(Date.now() - 61 * 24 * 3600 * 1000)));
+  await page.reload();
+  await expect(page.locator('.project-btn .pname')).toBeVisible();
+  await page.mouse.click(onRect.x, onRect.y);
+  await expect(page.locator('#toast')).toContainText('Under Big oak’s canopy.');
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('lp-canopy-hint'))).toBe('4');
 });
