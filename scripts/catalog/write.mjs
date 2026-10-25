@@ -34,8 +34,20 @@ const GROWTH_RATES = ['slow', 'medium', 'fast'];
 const listOf = (words) => (v) => (Array.isArray(v) && v.length && v.every((x) => words.includes(x)) ? [...new Set(v)] : undefined);
 const oneOf = (words) => (v) => (words.includes(v) ? v : undefined);
 /**
+ * Caterpillars a source names the plant a larval host for: names, never a sentence ("Monarch (Danaus plexippus)",
+ * "Spring Azure"), each once; a bare name that another, with its binomial, already gives is the same caterpillar.
+ */
+const hostsOf = (v) => {
+  const names = [v].flat().filter((x) => typeof x === 'string' && x.trim().length >= 3 && x.length <= 80 && !/[.;:!?]/.test(x)).map((x) => x.trim());
+  const withBinomial = new Set(names.filter((x) => /\(/.test(x)).map((x) => x.replace(/\s*\(.*$/, '').toLowerCase()));
+  const out = [...new Set(names.filter((x) => /\(/.test(x) || !withBinomial.has(x.toLowerCase())))];
+  return out.length ? out : undefined;
+};
+/** Shropshire & Tallamy's count for the plant's genus (claims.mjs tallamyClaims): native caterpillar species recorded on it. */
+const hostGenusOf = (v) => (v && typeof v.genus === 'string' && /^[A-Z][a-z]+$/.test(v.genus) && Number.isInteger(v.species) && v.species > 0 ? { genus: v.genus, species: v.species } : undefined);
+/**
  * How each audited fact goes into the catalog: its key there and its value (undefined: not writable). Forms
- * are a list of up to three (one: plain); native status, toxicity to animals and hosts wait on format changes
+ * are a list of up to three (one: plain); native status and toxicity to animals wait on format changes
  * (docs/catalog-sources.md, "Waiting on format changes"). Bloom seasons and flower colors are their sources' words
  * in the catalog's (claims.mjs bloomSeasons, flowerColors); a bloom's months stay the earlier list's (`bloom`).
  */
@@ -63,6 +75,10 @@ const FACTS = {
   // (Every color the source gives, or none: "Violet, Red" isn't "red", nor "Pink, Magenta" "pink".)
   flower_color: ['flower_color', (v) => { const w = [v].flat(); return w.length && w.every((x) => flowerColors([x]).length) ? flowerColors(w) : undefined; }],
   low_branched: ['low_branched', yes],
+  // Caterpillar hosts: the ones its sources name (`hosts`: the earlier list's `host` sentence stays as it was), and
+  // how many native caterpillar species its genus is recorded feeding (each state's count is in its state file).
+  host: ['hosts', hostsOf],
+  host_genus: ['host_genus', hostGenusOf],
   poison: ['poison', poisonOf],
 };
 const BUILT_IN = {

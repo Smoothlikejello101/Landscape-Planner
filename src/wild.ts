@@ -40,6 +40,11 @@ export interface WildFile {
   genusWide?: Record<string, Record<string, string>>;
   /** For a plant an entry with a background note took in, the note and its source, by rule key. */
   background?: Record<string, Record<string, LawBackground>>;
+  /**
+   * Caterpillars by host genus (Shropshire & Tallamy: scripts/catalog/wild.mjs stateHosts): genus → how many native
+   * caterpillar species recorded on it live in the state, and the butterflies among them by name.
+   */
+  hosts?: Record<string, { n: number; butterflies?: string[] }>;
 }
 /** A documented fact about the plants a rule's entry names ("Background: some rattleboxes are toxic to livestock…"), and its source. */
 export interface LawBackground { note: string; title: string; url: string }
@@ -219,6 +224,20 @@ export function wildHere(p: { id: string; parent?: string }): WildHere | null {
   return count ? { where: 'state', count, stateName: STATE_NAMES[ownFile.state] ?? ownFile.state, stateFips: ownFile.fips, species, sources } : null;
 }
 
+/** The caterpillars a plant's genus feeds in the garden's state (its genus's count, and the butterflies among them). */
+export interface HostsHere { genus: string; n: number; butterflies: string[]; stateName: string; source: string }
+/**
+ * How many native caterpillar species recorded on the plant's genus live in the garden's state, and the butterflies
+ * among them (Shropshire & Tallamy, genus-level); null where none do, or the state isn't known yet.
+ */
+export function hostsHere(p: { host_genus?: { genus: string } }): HostsHere | null {
+  const genus = p.host_genus?.genus;
+  if (!genus || !loaded || loaded.zip !== state.location?.zip || !loaded.county) return null;
+  const own = loaded.files.find((f) => f.fips === Math.floor(loaded!.county / 1000));
+  const h = own?.hosts?.[genus];
+  if (!own || !h?.n) return null;
+  return { genus, n: h.n, butterflies: h.butterflies ?? [], stateName: STATE_NAMES[own.state] ?? own.state, source: own.sources.tallamy?.title ?? 'Shropshire & Tallamy 2025' };
+}
 /** When a plant (a cultivar: its species) blooms where the garden is, from flowering records; null where there are too few. */
 export function localBloom(p: { id: string; parent?: string }): LocalBloom | null {
   if (!loaded || loaded.zip !== state.location?.zip || !loaded.county) return null;

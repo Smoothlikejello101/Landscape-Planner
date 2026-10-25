@@ -375,5 +375,5 @@ test('the search clears in one tap, and a search the filters empty says which fi
   await expect(page.getByTestId('plant-search')).toHaveValue('Autumn Bride'); // (the search stays)
   // Found by what it feeds, in words.
   await page.getByTestId('plant-search').fill('mourning cloak');
-  await expect(page.getByTestId('host-match').first()).toContainText(/Its leaves feed the caterpillars of: .*mourning cloak/);
+  await expect(page.getByTestId('host-match').first()).toContainText(/Its leaves feed the caterpillars of: .*mourning cloak/i);
 });

@@ -2,8 +2,10 @@
 # Mexico" (ZooKeys 1261; CC0, https://zenodo.org/records/17747343), as an
 # index by host plant genus:
 #   python3 -I scripts/catalog/tallamy.py <the .xlsx> <genera.json>
-# For each genus: how many native caterpillar species are recorded on it,
-# how many of those live in Arkansas, and the butterflies among them by name.
+# For each genus: how many native caterpillar species are recorded on it, and
+# how many of those live in each state or province; and the butterflies among
+# them by name, with the states each lives in (scripts/catalog/wild.mjs puts a
+# state's own in its file).
 # Only established ranges count (strays are a column of their own), and only
 # host genera the authors resolved ("[unresolved]" is left out).
 import json
@@ -44,17 +46,19 @@ for r in rows:
     gs = {tok.split('[')[0] for tok in re.findall(r'[A-Z][a-z]+(?:\[[^\]]*\])?', hosts)
           if not any(x in tok for x in ('[unresolved', '[Algae', '[Lichen', '[Fung')) and not tok.split('[')[0].endswith('aceae')}
     for g in sorted(gs):
-        e = genera.setdefault(g, {'species': 0, 'ar': 0, 'ar_butterflies': []})
+        e = genera.setdefault(g, {'species': 0, 'states': {}, 'butterflies': []})
         e['species'] += 1
-        if 'AR' in states:
-            e['ar'] += 1
-            if butterfly and common and name:
-                e['ar_butterflies'].append(f'{common} ({name})')
+        here = sorted(st for st in states if re.fullmatch(r'[A-Z]{2}', st))
+        for st in here:
+            e['states'][st] = e['states'].get(st, 0) + 1
+        if butterfly and common and name and here:
+            e['butterflies'].append([f'{common} ({name})', here])
 
 for e in genera.values():
-    e['ar_butterflies'].sort()
+    e['butterflies'].sort()
+    e['states'] = dict(sorted(e['states'].items()))
 # Sanity, before anything is written: a misread state column would leave Arkansas empty everywhere.
-in_ar = sum(1 for e in genera.values() if e['ar'])
+in_ar = sum(1 for e in genera.values() if e['states'].get('AR'))
 if not in_ar or len(lep_genera) < 500:
     sys.exit(f'looks misread: {in_ar} host genera with Arkansas records, {len(lep_genera)} caterpillar genera; nothing written')
 with open(out + '.tmp', 'w') as f:

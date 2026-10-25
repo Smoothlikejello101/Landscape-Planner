@@ -86,7 +86,8 @@ it), so the app never says "not found here".
   "nativeSpecies": ["rudbeckia-fulgida-goldsturm"],
   "regulated": { "lythrum-alatum": ["AR:lythrum"] },
   "rules": { "AR:lythrum": { "says": "Prohibited in Arkansas: …", "tier": "ban", "title": "Arkansas Plant Board rules (…)", "url": "…", "edition": "…", "read": "2026-10-21" } },
-  "genusWide": { "lythrum-alatum": { "AR:lythrum": "Lythrum" } }
+  "genusWide": { "lythrum-alatum": { "AR:lythrum": "Lythrum" } },
+  "hosts": { "Asclepias": { "n": 12, "butterflies": ["Gray Hairstreak (Strymon melinus)", "Monarch (Danaus plexippus)"] } }
 }
 ```
 
@@ -97,6 +98,14 @@ union of its sources' records in the state, `src` naming them (the details line 
 source has the plant's own taxon's records, only those count: a variety never takes its species'
 counties from another source in that state. `species` lists plants whose records are their species'; a cultivar with a
 species record in the catalog uses that record's, and says so.
+
+`hosts`: for each genus of the catalog's plants, how many of the native caterpillar species (moths and
+butterflies) recorded on it live in the state, and the butterflies among them by name, from **Shropshire &
+Tallamy 2025** (ZooKeys 1261; CC0, Zenodo record 17747343: each caterpillar's hosts by genus and its range by
+state or province; only established ranges, only native caterpillars). Genus-level: the count is the genus's,
+not one species'. The app shows it in a plant's details, finds a plant by a butterfly its genus feeds here, and
+counts a plant as a host for the Host plant filter only where it's native to the state as well (a genus-wide count
+says little of a plant from abroad: Chinese privet's genus, Ligustrum, has 29 here).
 
 `regulated`: the plants a law regulates in the state, each with its lines (`rules`): the state's list's,
 then the federal list's ([regulated-plants.md](regulated-plants.md)). Only the garden's own state's file is
