@@ -1,4 +1,5 @@
 import type { Plant } from './plants';
+import { hostsHere } from './wild';
 
 // Plant search: the picker's search box, for the catalog and "My plants".
 //
@@ -59,15 +60,23 @@ function plurals(w: string): Word {
  * a cultivar or a note in brackets ("Black-eyed Susan 'Goldsturm'" → "black eyed susan").
  */
 interface Indexed { key: string; name: string[]; bot: string[]; host: string; nameText: string; base: string; baseWords: string[]; botBase: string; also: string[][] }
+/**
+ * The caterpillars a plant feeds, as searched: those its sources name, the earlier list's sentence, and, where the
+ * garden is, the butterflies recorded on its genus there ("monarch" finds milkweed).
+ */
+export function hostWords(p: Plant): string {
+  return [p.host ?? '', ...(p.hosts ?? []), ...(hostsHere(p)?.butterflies ?? [])].filter(Boolean).join('; ');
+}
 const index = new WeakMap<Plant, Indexed>();
 const baseOf = (s: string | undefined) => (s ? searchText(s.replace(/['‘’][^'‘’]*['‘’]|\([^)]*\)/g, ' ')) : '');
 function indexed(p: Plant): Indexed {
-  const key = p.common + '\n' + (p.botanical ?? '') + '\n' + (p.host ?? '') + '\n' + (p.synonyms ?? []).join('\n');
+  const hosts = hostWords(p);
+  const key = p.common + '\n' + (p.botanical ?? '') + '\n' + hosts + '\n' + (p.synonyms ?? []).join('\n');
   const had = index.get(p);
   if (had && had.key === key) return had;
   const name = wordsOf(p.common);
   const made = {
-    key, name, bot: wordsOf(p.botanical), host: p.host ? searchText(p.host) : '', nameText: name.join(' '),
+    key, name, bot: wordsOf(p.botanical), host: hosts ? searchText(hosts) : '', nameText: name.join(' '),
     base: baseOf(p.common), baseWords: baseOf(p.common).split(' '), botBase: baseOf(p.botanical),
     also: (p.synonyms ?? []).map((n) => wordsOf(n)),
   };
@@ -166,6 +175,19 @@ export function matchPlant(p: Plant, q: Query, near: boolean): Hit | null {
     off += b; rank = 5;
   }
   return { rank, order: off };
+}
+/**
+ * Why a search found a plant by what it hosts, in words: the caterpillars that match, those its sources name ("Its
+ * leaves feed the caterpillars of: Monarch (Danaus plexippus)") or recorded on its genus where the garden is ("Its
+ * genus feeds the caterpillars of: …"); else the earlier list's sentence. Null where none matches.
+ */
+export function hostMatchText(p: Plant, q: Query): string | null {
+  const has = (name: string) => { const t = searchText(name); return q.words.every((w) => t.includes(w.w)); };
+  const named = (p.hosts ?? []).filter(has);
+  if (named.length) return 'Its leaves feed the caterpillars of: ' + named.join(', ');
+  const genus = (hostsHere(p)?.butterflies ?? []).filter(has);
+  if (genus.length) return `Its genus feeds the caterpillars of: ${genus.join(', ')}`;
+  return p.host && has(p.host) ? 'Its leaves feed the caterpillars of: ' + p.host : null;
 }
 /** Whether anything in these lists matches the search closer than a near spelling (if not, near spellings show). */
 export function closeMatchIn(q: Query, ...lists: Plant[][]): boolean {

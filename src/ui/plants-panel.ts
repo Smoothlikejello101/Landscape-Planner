@@ -1,7 +1,7 @@
 import { el, type Child } from '../dom';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
-import { byMatch, inNotes, matchPlant, nearShows, readQuery } from '../search';
+import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery } from '../search';
 import { MONTH_NAMES, formsOf, matchedBy, reportedOnly, earlierFor, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantTakesSun, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
@@ -149,7 +149,8 @@ export function renderPlantsPanel() {
     if (q) {
       const hit = matchPlant(p, q, true);
       if (!isMine(p) && matchedBy(p, plantFilter.q) === 'host') {
-        info.appendChild(el('div', { className: 'pmatch', 'data-testid': 'host-match' }, 'Its leaves feed the caterpillars of: ' + p.host));
+        const why = hostMatchText(p, q);
+        if (why) info.appendChild(el('div', { className: 'pmatch', 'data-testid': 'host-match' }, why));
       } else if (hit?.also) info.appendChild(el('div', { className: 'pmatch', 'data-testid': 'match-also' }, `Also called ${hit.also}`));
       else if (!hit && isMine(p) && inNotes(p, q)) info.appendChild(el('div', { className: 'pmatch', 'data-testid': 'match-notes' }, 'Found in your notes'));
     }

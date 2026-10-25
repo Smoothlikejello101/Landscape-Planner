@@ -293,16 +293,15 @@ export function arkatlasClaims(ar) {
     note: infra && labels.length ? `${infra}, which is ${labels.join(' and ')}` : [...labels, infra].filter(Boolean).join('; ') }];
 }
 /**
- * Shropshire & Tallamy's caterpillar records for a plant's genus: how many
- * native species use it, how many of those live in Arkansas, and the
- * Arkansas butterflies by name. Genus-level, so it's its own fact, beside
- * the species-level `host`.
+ * Shropshire & Tallamy's caterpillar records for a plant's genus: how many native species (north of Mexico) use
+ * it. Genus-level, so it's its own fact, beside the species-level `host`; how many live in each state, and the
+ * butterflies among them, go in the state files (wild.mjs), read where the garden is.
  */
 export function tallamyClaims(index, botanical) {
-  const genus = String(botanical ?? '').trim().split(/\s+/)[0]?.replace(/^×/, '');
+  const genus = String(botanical ?? '').trim().replace(/^[x×]\s*/, '').split(/\s+/)[0]?.replace(/^×/, '');
   const g = genus && index?.genera?.[genus];
-  if (!g) return [];
-  return [{ fact: 'host_genus', v: { genus, species: g.species, ar: g.ar, ar_butterflies: g.ar_butterflies }, src: 'tallamy', kind: 'authority' }];
+  if (!g?.species) return [];
+  return [{ fact: 'host_genus', v: { genus, species: g.species }, src: 'tallamy', kind: 'authority' }];
 }
 /**
  * USDA PLANTS: native status in the lower 48 is a claim (it's the national

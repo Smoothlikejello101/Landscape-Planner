@@ -116,7 +116,23 @@ export const SOURCES = {
   arkatlas: { title: 'Atlas of the Vascular Plants of Arkansas (Arkansas Vascular Flora Committee, 2013)', url: 'https://biology.uark.edu/herbarium/' },
   usda: { title: 'USDA PLANTS Database (NRCS), county records', url: 'https://plants.usda.gov' },
   wcvp: { title: 'World Checklist of Vascular Plants v16 (Royal Botanic Gardens, Kew; CC BY 3.0)', url: 'https://doi.org/10.34885/egs6-cp24' },
+  tallamy: { title: 'Shropshire & Tallamy 2025, Lepidoptera of North America host plant records (CC0)', url: 'https://zenodo.org/records/17747343' },
 };
+/**
+ * The caterpillars a state's catalog genera feed, from Shropshire & Tallamy's index (tallamy.py): genus → { n: the
+ * native species recorded on it that live in the state, butterflies: those of them that are butterflies, by name }.
+ * Only the genera of catalog plants with a `host_genus` fact, and only where some live in the state.
+ */
+export function stateHosts(code, genera, catalogGenera) {
+  const out = {};
+  for (const g of [...catalogGenera].sort()) {
+    const e = genera?.[g], n = e?.states?.[code] ?? 0;
+    if (!n) continue;
+    const butterflies = (e.butterflies ?? []).filter(([, st]) => st.includes(code)).map(([name]) => name);
+    out[g] = butterflies.length ? { n, butterflies } : { n };
+  }
+  return out;
+}
 // ---------- GBIF's herbarium specimens by county ----------
 /** GADM's old names for counties since renamed or merged (Shannon, SD is Oglala Lakota; Alaska's census areas). */
 /**
@@ -227,6 +243,9 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
     Object.fromEntries(Object.entries(wcvp).map(([id, r]) => [id, r.name])), genusWide, backgrounds);
   const sources = { ...SOURCES };
   const states = [...new Set(counties.map((c) => stateOf(c.fips)))].sort((a, b) => a - b);
+  // Caterpillars by host genus (tallamy.py's index), for the catalog's genera.
+  const tallamy = existsSync('catalog-src/tallamy/genera.json') ? read('catalog-src/tallamy/genera.json').genera : null;
+  const hostGenera = new Set(catalog.plants.map((p) => p.facts?.host_genus?.v?.genus ?? p.facts?.host_genus?.genus).filter(Boolean));
   // Bloom months (GBIF's flowering records: gbif-fetch.mjs, then gbif-download.mjs), where they've been fetched.
   const audit = read(auditPath);
   const bloomMeta = existsSync('catalog-src/gbif-downloads/bloom.json') ? read('catalog-src/gbif-downloads/bloom.json') : null;
@@ -285,6 +304,8 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
       f.bloomSpecies = Object.keys(bloom).filter((id) => counts[id].species).sort();
       f.sources.gbifBloom = gbifSource(bloomMeta.doi);
     }
+    const hosts = tallamy ? stateHosts(code, tallamy, hostGenera) : {};
+    if (Object.keys(hosts).length) { f.hosts = hosts; f.sources.tallamy = SOURCES.tallamy; }
     if (!Object.keys(f.plants).length && !f.bloom) continue;
     write(`${dir}/${String(fips).padStart(2, '0')}.json`, f);
     files.push(f);

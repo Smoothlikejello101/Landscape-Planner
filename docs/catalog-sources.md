@@ -457,11 +457,13 @@ good drainage, drought resistant) is Low.
 sentences naming a host ("larval host for the X (Genus species)",
 "host plant for the X butterfly"). The Shropshire & Tallamy dataset (CC0)
 adds the caterpillars recorded on each plant genus, as its own fact
-(`host_genus`: how many native species use the genus, how many of those
-live in Arkansas, and those butterflies by name), since it's genus-level.
+(`host_genus`: the genus, and how many native species north of Mexico use
+it), since it's genus-level; how many of those live in each state, and the
+butterflies among them, go in the state files (docs/wild-records.md).
 scripts/catalog/tallamy.py builds the index from the spreadsheet on Zenodo
-(record 17747343, CC0). The `host` fact is the list of names, never a
-source's sentence.
+(record 17747343, CC0). The `host` audit fact is the list of names, never a
+source's sentence, written as `hosts` (since 2026-10-25); the earlier list's
+`host` sentence stays beside it, labeled, where no source names any.
 
 The table below names NC State's and USDA's fields and how they map
 (USDA: what it decides, and what it only flags).
@@ -656,9 +658,9 @@ on a person into [catalog-review.md](catalog-review.md). The steps:
    unsourced "edible"). Web sources are added to `meta.sources` by domain:
    `reference` for authorities, `nursery` for nurseries and breeders.
    Toxicity to people is written as `poison`; bloom seasons and flower
-   colors as `bloom_season` and `flower_color`. Native status, toxicity to
-   animals and caterpillar hosts wait on their format changes
-   ("Waiting on format changes").
+   colors as `bloom_season` and `flower_color`; caterpillar hosts as `hosts`
+   and `host_genus`. Native status and toxicity to animals wait on their
+   format changes ("Waiting on format changes").
 5. **Review.** The review list, and `npm run catalog:check` for implausible
    values, plants neither source has, and facts left `null`.
 6. **Start small.** First 20 plants, mixing species and cultivars, trees and

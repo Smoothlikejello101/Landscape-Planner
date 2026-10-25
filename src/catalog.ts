@@ -96,7 +96,7 @@ export interface Provenance {
  */
 export const INHERITED = new Set([
   'form', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'humidity', 'tox', 'poison', 'dog', 'thorns', 'foliage', 'needles',
-  'native', 'host', 'nectar', 'bird', 'deer', 'edible', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'invasive', 'bloom_season',
+  'native', 'host', 'hosts', 'host_genus', 'nectar', 'bird', 'deer', 'edible', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'invasive', 'bloom_season',
 ]);
 
 const isSourced = (f: unknown): f is SourcedFact =>
@@ -222,6 +222,11 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
   maintenance: (v, e) => typeof v === 'string' && (!e.maintenance || e.maintenance.includes(v)),
   self_seed: (v, e) => typeof v === 'string' && (!e.self_seed || e.self_seed.includes(v)),
   host: (v) => typeof v === 'string',
+  // Caterpillars its sources name it a host for (names, never a sentence); and its genus's count of native caterpillar
+  // species (Shropshire & Tallamy), each state's own being in its state file.
+  hosts: (v) => Array.isArray(v) && v.length > 0 && new Set(v).size === v.length && v.every((x) => typeof x === 'string' && x.length >= 3 && x.length <= 80),
+  host_genus: (v) => isObj(v) && Object.keys(v).every((k) => k === 'genus' || k === 'species') && typeof v.genus === 'string' && /^[A-Z][a-z]+$/.test(v.genus)
+    && Number.isInteger(v.species) && (v.species as number) > 0,
   edible: (v) => typeof v === 'boolean', fall_color: (v) => typeof v === 'boolean', winter_interest: (v) => typeof v === 'boolean',
   clay_ok: (v) => typeof v === 'boolean', wet_feet: (v) => typeof v === 'boolean', dry_shade: (v) => typeof v === 'boolean',
   taproot: (v) => typeof v === 'boolean', invasive: (v) => typeof v === 'boolean',

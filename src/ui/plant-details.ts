@@ -8,7 +8,7 @@ import { isMine } from '../my-plants';
 import { rootSpread, rootText, seedText } from '../spread';
 import { zoneRange } from '../climate';
 import type { Provenance } from '../catalog';
-import { escapeHere, escapeText, localBloom, nativeHere, nativeText, regulatedHere, wildHere, wildText } from '../wild';
+import { escapeHere, escapeText, hostsHere, localBloom, nativeHere, nativeText, regulatedHere, wildHere, wildText } from '../wild';
 
 const SURE: Record<string, string> = {
   agree: 'confirmed', confirmed: 'confirmed', single: 'one source', likely: 'nurseries agree', reported: 'one nursery', disputed: 'sources disagree',
@@ -110,7 +110,8 @@ function rows(p: Plant): Row[] {
     ['Native', p.native ?? '', ['native']],
     ['Nectar for pollinators', p.nectar ?? '', ['nectar']],
     ['For birds', p.bird ?? '', ['bird']],
-    ['Caterpillar host for', p.host ?? '', ['host']],
+    // (The caterpillars its sources name; its genus's, where the garden is; the earlier list's: drawn by hostRow.)
+    ['Caterpillar host', '', ['hosts', 'host_genus', 'host']],
     ['Deer', p.deer ?? '', ['deer'], (r) => String(r.deer ?? '')],
     // (Drawn by toxRow: never left out for a catalog plant, since no line about pets reads as safe.)
     ['Toxicity', '', ['tox', 'dog']],
@@ -202,6 +203,34 @@ function bloomRow(p: Plant): HTMLElement | null {
   }
   return dd;
 }
+/** Butterflies' common names, for a line: "Monarch, Gray Hairstreak" (the binomials are in the source). */
+const commonNames = (names: string[]) => names.map((n) => n.replace(/\s*\([^)]*\)\s*$/, '')).join(', ');
+const countWords = (n: number) => n.toLocaleString('en-US');
+/**
+ * Caterpillar host, each part with its own source: the caterpillars its sources name it a host for; its genus's
+ * count of native caterpillar species (Shropshire & Tallamy), where the garden is in that state, with the butterflies
+ * among them; and, where no source names any, the earlier list's sentence. Null: nothing to say.
+ */
+function hostRow(p: Plant): HTMLElement | null {
+  const parts: [text: string, src: string, testid: string][] = [];
+  if (p.hosts?.length) parts.push([commonNames(p.hosts), sourceLine(p.prov?.hosts), 'hosts-named']);
+  if (p.host_genus) {
+    const here = hostsHere(p), g = p.host_genus;
+    const text = here
+      ? `Its genus, ${g.genus}: ${countWords(here.n)} kinds of native caterpillars in ${here.stateName} (${countWords(g.species)} in North America)`
+        + (here.butterflies.length ? `. Butterflies among them: ${commonNames(here.butterflies)}` : '')
+      : `Its genus, ${g.genus}: ${countWords(g.species)} kinds of native caterpillars in North America`;
+    parts.push([text, [here?.source ?? sourceLine(p.prov?.host_genus), 'counted for the genus'].filter(Boolean).join(' \u00b7 '), 'hosts-genus']);
+  }
+  if (!p.hosts?.length && p.host) parts.push([p.host, sourceLine(p.prov?.host), 'hosts-earlier']);
+  if (!parts.length) return null;
+  const dd = el('dd', { 'data-testid': 'host-row' });
+  for (const [text, src, testid] of parts) {
+    dd.appendChild(el('span', { className: 'details-part', 'data-testid': testid }, text));
+    if (src) dd.appendChild(el('span', { className: 'details-src' }, src));
+  }
+  return dd;
+}
 /**
  * Toxicity to animals, never left blank on a catalog plant (no line reads as "safe"): its own rating; else the
  * earlier list's warning for another record of its species; else not yet rated. Null for a plant of mine.
@@ -240,6 +269,7 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
   for (const [label, value, facts, reportedText] of rows(p)) {
     if (label === 'How it spreads') { const dd = spreadRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
     if (label === 'Bloom') { const dd = bloomRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
+    if (label === 'Caterpillar host') { const dd = hostRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
     if (label === 'Toxicity') {
       const t = toxRow(p);
       if (t) { dl.appendChild(el('dt', {}, label)); dl.appendChild(el('dd', { 'data-testid': 'tox-row' }, t.value, ...(t.line ? [el('span', { className: 'details-src' }, t.line)] : []))); }

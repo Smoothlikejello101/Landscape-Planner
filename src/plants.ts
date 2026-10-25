@@ -13,7 +13,7 @@ import { setRadius } from './geometry';
 import { isLocked } from './roles';
 import { shownWith } from './status';
 import { hardyEnough, zoneFit, zoneRange } from './climate';
-import { gardenStateName, localBloom, nativeHere, nativeText, wildHere, wildNearby } from './wild';
+import { gardenStateName, hostsHere, localBloom, nativeHere, nativeText, wildHere, wildNearby } from './wild';
 import { bloomMonths } from './bloom';
 import { byMatch, matchPlant, readQuery } from './search';
 
@@ -56,7 +56,12 @@ export interface Plant {
   deer?: string;
   maintenance?: string;
   self_seed?: string;
+  /** The earlier list's caterpillar-host sentence (unverified). */
   host?: string;
+  /** Caterpillars its sources name it a larval host for ("Monarch (Danaus plexippus)"). */
+  hosts?: string[];
+  /** Its genus, and how many native caterpillar species are recorded feeding on it (Shropshire & Tallamy). */
+  host_genus?: { genus: string; species: number };
   edible?: boolean;
   fall_color?: boolean;
   /** Its fall leaf colors (src/catalog.ts FALL_COLORS). */
@@ -258,7 +263,7 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (f.dryShade && !p.dry_shade) return false;
   if (f.wetFeet && !p.wet_feet) return false;
   if (f.clayOk && !p.clay_ok) return false;
-  if (f.hostOnly && !p.host) return false;
+  if (f.hostOnly && !hostPlant(p)) return false;
   if (f.fallColor && !p.fall_color) return false;
   if (f.evergreen && (p.foliage !== 'evergreen' || tenderWoody(p))) return false;
   if (f.winterInterest && !p.winter_interest) return false;
@@ -270,6 +275,16 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   const q = readQuery(f.q);
   if (q && !matchPlant(p, q, true)) return false;
   return true;
+}
+/**
+ * Why a plant counts as a caterpillar host, if it does: a source names caterpillars it feeds (`named`); it's native
+ * to the garden's state, in a genus native caterpillars there are recorded on (`genus`: Shropshire & Tallamy, so a
+ * genus-wide count says something of the plant only where the plant belongs); or only the earlier list says so.
+ */
+export function hostPlant(p: Plant): 'named' | 'genus' | 'earlier' | null {
+  if (p.hosts?.length) return 'named';
+  if (hostsHere(p) && nativeHere(p)?.status === 'N') return 'genus';
+  return p.host ? 'earlier' : null;
 }
 /** The earlier list's dog rating, when it's a warning (anything but "Safe" or "Unverified"). */
 export function oldDogWarning(p: Plant): string | null {
@@ -389,7 +404,7 @@ const FILTER_READS: [keyof PlantFilter, (p: Plant, f: PlantFilter) => string[], 
   ['deer', () => ['deer'], 'deer resistance'], ['maintenance', () => ['maintenance'], 'maintenance'], ['spread', () => ['self_seed', 'habit'], 'how it spreads'],
   ['nectar', () => ['nectar'], 'nectar'], ['bird', () => ['bird'], 'value to birds'], ['height', () => ['height'], 'height'],
   ['dryShade', () => ['dry_shade'], 'dry shade'], ['wetFeet', () => ['wet_feet'], 'wet feet'], ['clayOk', () => ['clay_ok'], 'clay'],
-  ['hostOnly', () => ['host'], 'host plant'], ['fallColor', () => ['fall_color'], 'fall color'], ['evergreen', () => ['foliage'], 'evergreen'],
+  ['hostOnly', (p) => (hostPlant(p) === 'earlier' ? ['host'] : []), 'host plant'], ['fallColor', () => ['fall_color'], 'fall color'], ['evergreen', () => ['foliage'], 'evergreen'],
   ['winterInterest', () => ['winter_interest'], 'winter interest'], ['edible', () => ['edible'], 'edible'], ['noTaproot', () => ['taproot'], 'taproot'],
   ['hardyHere', () => ['zone_min', 'zone_max'], 'hardiness zones'],
 ];

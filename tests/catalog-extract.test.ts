@@ -277,8 +277,10 @@ describe('claims and how they combine', () => {
     expect(halfZoneOfTemp(90)).toBe(13.5);
   });
   it('caterpillars by host genus, from the Tallamy index', () => {
-    const index = { genera: { Cercis: { species: 3, ar: 2, ar_butterflies: ['Test Elfin (Callophrys testii)'] } } };
-    expect(tallamyClaims(index, 'Cercis canadensis')).toEqual([{ fact: 'host_genus', v: { genus: 'Cercis', species: 3, ar: 2, ar_butterflies: ['Test Elfin (Callophrys testii)'] }, src: 'tallamy', kind: 'authority' }]);
+    const index = { genera: { Cercis: { species: 3, states: { AR: 2 }, butterflies: [['Test Elfin (Callophrys testii)', ['AR']]] }, Heucherella: { species: 1, states: {}, butterflies: [] } } };
+    // (North America's count in the catalog; each state's, and its butterflies, go in the state files.)
+    expect(tallamyClaims(index, 'Cercis canadensis')).toEqual([{ fact: 'host_genus', v: { genus: 'Cercis', species: 3 }, src: 'tallamy', kind: 'authority' }]);
+    expect(tallamyClaims(index, '× Heucherella tiarelloides')).toEqual([{ fact: 'host_genus', v: { genus: 'Heucherella', species: 1 }, src: 'tallamy', kind: 'authority' }]);
     expect(tallamyClaims(index, 'Itea virginica')).toEqual([]);
     expect(tallamyClaims(null, 'Cercis canadensis')).toEqual([]);
   });
