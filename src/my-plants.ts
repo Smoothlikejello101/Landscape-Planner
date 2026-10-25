@@ -27,12 +27,20 @@ export interface Range { min: number; max: number; med: number }
 // ---------- Sizes ----------
 /**
  * Read a size the way nursery tags write it: "6-8 ft", "6 to 8'", "36 in",
- * "18-24\"", "3", "2.5 ft". A bare number is in `defaultUnit`. Returns null if unreadable.
+ * "18-24\"", "3", "2.5 ft", ".5" (or "5." while it's typed), "1½ ft", "1 1/2". A bare number is in `defaultUnit`.
+ * Returns null if unreadable.
  */
+const FRACTIONS: Record<string, number> = { '½': 0.5, '¼': 0.25, '¾': 0.75, '⅓': 1 / 3, '⅔': 2 / 3 };
 export function parseSize(text: string, defaultUnit: 'ft' | 'in' = 'ft'): Range | null {
-  const t = text.trim().toLowerCase().replace(/[–—]/g, '-').replace(/\s+to\s+/g, '-').replace(/,/g, '.');
+  const t = text.trim().toLowerCase().replace(/[–—]/g, '-').replace(/\s+to\s+/g, '-').replace(/,/g, '.')
+    // (Fractions as numbers: "1½", "1 1/2", "3/4".)
+    .replace(/(\d*)\s*([½¼¾⅓⅔])/g, (_, w: string, f: string) => String(Number(w || 0) + FRACTIONS[f]))
+    .replace(/(\d+)\s+(\d+)\/(\d+)/g, (_, w: string, n: string, d: string) => String(Number(w) + Number(n) / Number(d)))
+    .replace(/(^|[^\d.])(\d+)\/(\d+)/g, (_, pre: string, n: string, d: string) => pre + String(Number(n) / Number(d)));
   if (!t) return null;
-  const m = t.match(/^(\d+(?:\.\d+)?)\s*(ft|feet|foot|'|in|inch|inches|")?\s*(?:-\s*(\d+(?:\.\d+)?)\s*(ft|feet|foot|'|in|inch|inches|")?)?$/);
+  // (A number: "3", "2.5", ".5", or "5." as it's being typed.)
+  const NUM = String.raw`(\d+(?:\.\d*)?|\.\d+)`, UNIT = String.raw`(ft|feet|foot|'|in|inch|inches|")?`;
+  const m = t.match(new RegExp(String.raw`^${NUM}\s*${UNIT}\s*(?:-\s*${NUM}\s*${UNIT})?$`));
   if (!m) return null;
   const inches = (u?: string) => !!u && (u.startsWith('in') || u === '"');
   // "18-24 in": the unit after the second number applies to both.

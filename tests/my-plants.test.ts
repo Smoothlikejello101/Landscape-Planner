@@ -29,6 +29,8 @@ describe('reading sizes off a tag', () => {
   it.each([
     ['6-8 ft', 6, 8], ['6 to 8 ft', 6, 8], ["6-8'", 6, 8], ['6–8 feet', 6, 8],
     ['36 in', 3, 3], ['18-24 in', 1.5, 2], ['18-24"', 1.5, 2], ['3', 3, 3], ['2.5 ft', 2.5, 2.5], ['8-6 ft', 6, 8],
+    // (A decimal with no leading zero, or a dot still being typed; fractions as tags write them.)
+    ['.5', 0.5, 0.5], ['.5-1', 0.5, 1], ['1-1.5', 1, 1.5], ['5.', 5, 5], ['1½ ft', 1.5, 1.5], ['1 1/2', 1.5, 1.5], ['1/2-1', 0.5, 1], ['½', 0.5, 0.5],
   ])('%s', (text, min, max) => {
     expect(parseSize(text)).toEqual({ min, max, med: (min + max) / 2 });
   });
@@ -37,7 +39,7 @@ describe('reading sizes off a tag', () => {
     expect(parseSize('3 ft', 'in')).toEqual({ min: 3, max: 3, med: 3 });
     expect(parseSize('2,5')).toEqual({ min: 2.5, max: 2.5, med: 2.5 }); // decimal comma
   });
-  it.each(['', 'big', '0', '-3', '6 meters', '500 ft'])('rejects %j', (text) => {
+  it.each(['', 'big', '0', '-3', '6 meters', '500 ft', '.', '1/0'])('rejects %j', (text) => {
     expect(parseSize(text)).toBeNull();
   });
 });
