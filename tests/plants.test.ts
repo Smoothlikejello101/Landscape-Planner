@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { byMatch, closeMatchIn, inNotes, matchPlant, nearShows, readQuery } from '../src/search';
-import { matchedBy, nonToxicToDogs, PLANT_FILTER_DEFAULTS, plantMatches, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
+import { matchedBy, nonToxicToDogs, PLANT_FILTER_DEFAULTS, pickerCount, plantMatches, shareDogWarnings, speciesOf, toxicToDogs, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
 import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs } from '../src/spread';
 import { readFileSync } from 'node:fs';
 import { HEIGHT_STOPS, heightLabel, heightStops, heightValue } from '../src/ui/height-range';
-import { fallText, poisonRow, poisonText, winterText } from '../src/ui/plant-details';
+import { fallText, poisonRow, poisonText, toxRow, winterText } from '../src/ui/plant-details';
 
 const heuchera: Plant = {
   id: 'h', common: "Heuchera 'Autumn Bride'", botanical: 'Heuchera villosa', form: 'Perennial',
@@ -50,7 +50,7 @@ describe('plant filters', () => {
     expect(reportedMatch(redbud, fs({ form: 'Perennial' }))).toEqual(['form']);
     // Facts nurseries aren't taken for never count, even if a record carried them.
     const dog = { id: 'd', common: 'D', tox: { dog: 'toxic' }, reported: { tox: { dog: 'nontoxic' } } } as unknown as Plant;
-    expect(reportedMatch(dog, fs({ dogSafeOnly: true }))).toBeNull();
+    expect(reportedMatch(dog, fs({ dogs: 'nonToxic' }))).toBeNull();
     const inv = { id: 'i', common: 'I', invasive: true, reported: { invasive: false } } as unknown as Plant;
     expect(reportedMatch(inv, fs({}))).toBeNull();
   });
@@ -74,7 +74,7 @@ describe('plant filters', () => {
   });
   it('shows dog-unsafe plants unless asked; hides nothing else by default', () => {
     expect(plantMatches({ ...heuchera, dog: 'Mild GI' }, f())).toBe(true);
-    expect(plantMatches({ ...heuchera, dog: 'Mild GI' }, f({ dogSafeOnly: true }))).toBe(false);
+    expect(plantMatches({ ...heuchera, dog: 'Mild GI' }, f({ dogs: 'nonToxic' }))).toBe(false);
     expect(plantMatches({ ...heuchera, dog: 'HARD NO' }, f())).toBe(true);
   });
   it('keeps, when asked, only plants whose NC State page lists no poison to people: not those listed, nor those not rated', () => {
@@ -124,6 +124,12 @@ describe('plant filters', () => {
     expect(plantMatches(privet, f())).toBe(false);
     expect(plantMatches(privet, f({ q: 'privet' }))).toBe(true);
     expect(plantMatches(privet, f({ inPlan: true }), new Set(['p']))).toBe(true);
+  });
+  it('counts what it offers, and says where the invasives went (so the gap never reads as a filter left on)', () => {
+    expect(pickerCount(3622, 3622, 22)).toBe('All 3,622 plants \u00b7 22 invasive plants show only when searched by name');
+    expect(pickerCount(140, 3622, 22)).toBe('140 of 3,622 plants match \u00b7 22 invasive plants show only when searched by name');
+    expect(pickerCount(1, 3622, 1)).toContain('1 invasive plant shows only');
+    expect(pickerCount(12, 3644, 0)).toBe('12 of 3,644 plants match'); // (a search: they count, and may be among the 12)
   });
   it('can show only plants already placed in the open plan', () => {
     expect(plantMatches(heuchera, f({ inPlan: true }), new Set(['h']))).toBe(true);
@@ -253,11 +259,46 @@ describe('plant filters', () => {
     expect(first('woods sedge')).toBe('w');
   });
   it('calls a plant non-toxic to dogs only when nothing says otherwise', () => {
-    expect(nonToxicToDogs({ id: 'a', common: 'A', dog: 'Safe' })).toBe(true); // the older list, until checked
+    expect(nonToxicToDogs({ id: 'a', common: 'A', dog: 'Safe' })).toBe(true); // the earlier list, until checked
     expect(nonToxicToDogs({ id: 'a', common: 'A', dog: 'Unverified' })).toBe(false);
     expect(nonToxicToDogs({ id: 'a', common: 'A', dog: 'Unverified', tox: { dog: 'nontoxic' } })).toBe(true);
     expect(nonToxicToDogs({ id: 'a', common: 'A', tox: { dog: 'unlisted' } })).toBe(false); // not listed isn't safe
     expect(nonToxicToDogs({ id: 'a', common: 'A', dog: 'HARD NO', tox: { dog: 'nontoxic' } })).toBe(false); // the warning holds until the audit settles it
+  });
+  it('gives a warning for one record of a species to the others, which then say so (never silence, which reads as safe)', () => {
+    expect(speciesOf('Asclepias tuberosa (clay strain)')).toBe('Asclepias tuberosa');
+    expect(speciesOf("Ilex verticillata 'Southern Gentleman'")).toBe('Ilex verticillata');
+    expect(speciesOf('Abelia x grandiflora')).toBe('Abelia × grandiflora');
+    expect(speciesOf("Hosta 'Halcyon'")).toBeNull();
+    expect(speciesOf('Carex spp.')).toBeNull();
+    const clay: Plant = { id: 'clay', common: "Butterfly weed 'for Clay'", botanical: 'Asclepias tuberosa (clay strain)', dog: 'Toxic - rarely eaten' };
+    const sp: Plant = { id: 'sp', common: 'Butterfly milkweed', botanical: 'Asclepias tuberosa' };
+    const safe: Plant = { id: 'hb', common: "Butterfly weed 'Hello Yellow'", botanical: "Asclepias tuberosa 'Hello Yellow'", dog: 'Safe' };
+    const other: Plant = { id: 'sw', common: 'Swamp milkweed', botanical: 'Asclepias incarnata' };
+    shareDogWarnings([clay, sp, safe, other]);
+    expect(sp.dogVia).toEqual({ id: 'clay', common: "Butterfly weed 'for Clay'", dog: 'Toxic - rarely eaten' });
+    expect(clay.dogVia).toBeUndefined(); // (its own)
+    expect(other.dogVia).toBeUndefined(); // (another species)
+    expect(nonToxicToDogs(safe)).toBe(false); // (a warning beats the earlier list's "Safe" for one record)
+    expect(toxicToDogs(sp)).toBe(true);
+    expect(toxRow(sp)).toEqual({ value: 'dogs: Toxic - rarely eaten', line: "earlier list, unverified · given for Butterfly weed 'for Clay', the same species" });
+    expect(toxRow(safe)!.line).toContain('the earlier list calls this one safe');
+    expect(toxRow(other)).toEqual({ value: 'dogs: not yet rated', line: 'No source we can use rates plants for pets yet' });
+    expect(toxRow({ id: 'u-1', common: 'Mine' })).toBeNull(); // (a plant of mine: the person's own notes)
+    // The species' own record's warning is the one given, where it has one.
+    const a: Plant = { id: 'a', common: "Oakleaf 'Alice'", botanical: "Hydrangea quercifolia 'Alice'", dog: 'Mild GI' };
+    const b: Plant = { id: 'b', common: 'Oakleaf hydrangea', botanical: 'Hydrangea quercifolia', dog: 'Toxic' };
+    const c: Plant = { id: 'c', common: "Oakleaf 'Ruby'", botanical: "Hydrangea quercifolia 'Ruby'" };
+    shareDogWarnings([a, b, c]);
+    expect(c.dogVia?.id).toBe('b');
+  });
+  it('filters dogs three ways: any, hide toxic (keep unrated), only non-toxic', () => {
+    const toxic: Plant = { id: 't', common: 'T', dog: 'Toxic' }, unrated: Plant = { id: 'u', common: 'U' }, safe: Plant = { id: 's', common: 'S', dog: 'Safe' };
+    const via: Plant = { id: 'v', common: 'V', dogVia: { id: 't', common: 'T', dog: 'Toxic' } };
+    const shown = (dogs: typeof PLANT_FILTER_DEFAULTS.dogs) => [toxic, unrated, safe, via].filter((p) => plantMatches(p, f({ dogs }))).map((p) => p.id);
+    expect(shown('')).toEqual(['t', 'u', 's', 'v']);
+    expect(shown('hideToxic')).toEqual(['u', 's']);
+    expect(shown('nonToxic')).toEqual(['s']);
   });
 });
 
@@ -278,7 +319,7 @@ describe('how a plant spreads: by seed, and underground or by runners: two facts
     expect(habits.size).toBeGreaterThan(20);
     expect([...habits].filter((h) => !(h in HABIT_SPREAD))).toEqual([]);
   });
-  it('says each part in words, the habit as given; an older list\'s "Sterile" never as fact; no reassurance for an invasive', () => {
+  it('says each part in words, the habit as given; an earlier list\'s "Sterile" never as fact; no reassurance for an invasive', () => {
     expect([seedText(p('Prolific', '')), seedText(p('Modest', '')), seedText(p('Sterile', '')), seedText(p(undefined, ''))])
       .toEqual(['Self-sows freely', 'Self-sows a little', 'Said not to set seed', '']);
     expect(rootText(p(undefined, 'Runner - CONTAIN'))).toBe('Spreads aggressively underground or by runners: Runner - CONTAIN');

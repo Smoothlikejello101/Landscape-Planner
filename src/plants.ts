@@ -34,6 +34,11 @@ export interface Plant {
   zone_min?: number;
   zone_max?: number;
   dog?: string;
+  /**
+   * The earlier list's dog warning given for another record of the same species (a cultivar, a strain): shown, and
+   * filtered on, here too, since a cultivar keeps its species' chemistry (src: shareDogWarnings).
+   */
+  dogVia?: { id: string; common: string; dog: string };
   native?: string;
   water?: string;
   sun_most?: SunLevel;
@@ -115,6 +120,7 @@ type SunLevel = 'Full' | 'Part' | 'Shade';
 export let PLANTS: Plant[] = [];
 export let PLANT_META: PlantMeta | null = null;
 export const plantsById: Record<string, Plant> = {};
+export type DogFilter = '' | 'hideToxic' | 'nonToxic';
 // Picker filter state lives outside `state` so it isn't saved with projects.
 export const PLANT_FILTER_DEFAULTS = {
   q: '', form: '', water: '', bloomMonth: '', sun: '',
@@ -123,7 +129,8 @@ export const PLANT_FILTER_DEFAULTS = {
   spread: '',
   /** Mature height (typical), "lo-hi" in feet, either end empty when open: src/ui/height-range.ts. */
   height: '',
-  dogSafeOnly: false,
+  /** Toxic to dogs: '' any; 'hideToxic' leaves out plants with a warning (unrated ones stay); 'nonToxic' only plants rated non-toxic. */
+  dogs: '' as DogFilter,
   /** Only plants whose NC State page was read and lists no poison to people (one not rated is left out too, as the dog filter keeps only plants known safe). */
   noPoison: false,
   dryShade: false, wetFeet: false, clayOk: false,
@@ -135,7 +142,8 @@ export const PLANT_FILTER_DEFAULTS = {
   hardyHere: false,
   /** Let what other sources say count where it differs from the value shown (a match only by it is flagged). */
   withReported: true,
-  advanced: false      // UI: is the "More filters" section expanded
+  advanced: false,     // UI: is the "More filters" section expanded
+  animals: false       // UI: is "Animal toxicity" open
 };
 export type PlantFilter = typeof PLANT_FILTER_DEFAULTS;
 export const plantFilter: PlantFilter = { ...PLANT_FILTER_DEFAULTS };
@@ -165,6 +173,7 @@ export function loadPlants(): Promise<void> {
       PLANTS = (old.plants || []).map((p) => (p.form ? { ...p, form: currentForm(p.form) } : p));
       PLANT_META = old.meta || null;
     }
+    shareDogWarnings(PLANTS);
     for (const p of PLANTS) plantsById[p.id] = p;
     if (state.panel === 'plants') render(); // refresh picker if already open
     else redrawCanvas(); // sun-check badges need plant data (canvas only: keyboard safe)
@@ -174,11 +183,24 @@ export function loadPlants(): Promise<void> {
 // ============================================================
 // PLANT PICKER
 // ============================================================
+/** Whether the picker leaves invasive plants out: while browsing. A search finds them by name, and "Already in this plan" shows those placed. */
+export const invasivesLeftOut = (f: Pick<PlantFilter, 'q' | 'inPlan'>): boolean => !readQuery(f.q) && !f.inPlan;
+/** A count as the picker writes it: 3,622. */
+export const countWord = (n: number): string => n.toLocaleString('en-US');
+/**
+ * The picker's count line: how many plants show, of how many it offers, and, while browsing, that the invasive
+ * ones it leaves out turn up when searched for (so the gap never reads as a filter left on).
+ */
+export function pickerCount(shown: number, offered: number, invasivesOut: number): string {
+  const head = shown === offered ? `All ${countWord(offered)} plants` : `${countWord(shown)} of ${countWord(offered)} plants match`;
+  return head + (invasivesOut ? ` \u00b7 ${countWord(invasivesOut)} invasive plant${invasivesOut === 1 ? ' shows' : 's show'} only when searched by name` : '');
+}
 /** Whether a plant passes the picker's filters. `inPlan`: ids of plants placed in the open plan. */
 export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): boolean {
   // Invasives are never suggested; they turn up when searched by name (to map one already in the yard).
-  if (p.invasive && !readQuery(f.q) && !f.inPlan) return false;
-  if (f.dogSafeOnly && !nonToxicToDogs(p)) return false;
+  if (p.invasive && invasivesLeftOut(f)) return false;
+  if (f.dogs === 'hideToxic' && toxicToDogs(p)) return false;
+  if (f.dogs === 'nonToxic' && !nonToxicToDogs(p)) return false;
   if (f.noPoison && !(p.prov?.poison?.unknown && !p.poison)) return false;
   // (Plants at the edge of their range count: the list marks them. So does a plant rated for cooler zones that's
   // recorded growing wild in the garden's county or one bordering it: it has been found living through those
@@ -226,19 +248,49 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (q && !matchPlant(p, q, true)) return false;
   return true;
 }
-/** The older list's dog rating, when it's a warning (anything but "Safe" or "Unverified"). */
+/** The earlier list's dog rating, when it's a warning (anything but "Safe" or "Unverified"). */
 export function oldDogWarning(p: Plant): string | null {
   return p.dog && p.dog !== 'Safe' && p.dog !== 'Unverified' ? p.dog : null;
 }
 /**
  * Non-toxic to dogs: listed non-toxic by the ASPCA (not merely unlisted:
  * unlisted isn't safe); until a plant has been checked against the ASPCA,
- * the older list's "Safe". Any warning from the older list still holds
+ * the earlier list's "Safe". Any warning from the earlier list still holds
  * until the audit removes it, so the two can only agree to call a plant safe.
  */
 export function nonToxicToDogs(p: Plant): boolean {
-  if (oldDogWarning(p)) return false;
+  if (oldDogWarning(p) || p.dogVia) return false;
   return p.tox?.dog ? p.tox.dog === 'nontoxic' : p.dog === 'Safe';
+}
+/** Any warning for dogs: listed toxic, the earlier list's warning, or that warning given for its species' other record. */
+export const toxicToDogs = (p: Plant): boolean => p.tox?.dog === 'toxic' || !!oldDogWarning(p) || !!p.dogVia;
+/**
+ * A plant's species from its botanical name ("Asclepias tuberosa (clay strain)", "Ilex verticillata 'Red Sprite'":
+ * "Asclepias tuberosa", "Ilex verticillata"; a hybrid keeps its ×). Null for a genus alone ("Hosta 'Halcyon'").
+ */
+export function speciesOf(botanical: string | undefined): string | null {
+  const m = /^([A-Z][a-z-]+)\s+(?:([×x])\s+)?([a-z][a-z-]+)\b/.exec(botanical?.trim() ?? '');
+  if (!m || m[3] === 'spp' || m[3] === 'sp') return null;
+  return `${m[1]} ${m[2] ? '× ' : ''}${m[3]}`;
+}
+/**
+ * Where the earlier list warns for one record of a species, its other records carry the warning too (`dogVia`):
+ * otherwise one butterfly weed says "toxic" and the next says nothing, which reads as safe. Each gets the
+ * warning of the species' own record if it has one, else of the first record that does. Records with their own
+ * warning keep it.
+ */
+export function shareDogWarnings(plants: Plant[]): void {
+  const warned = new Map<string, Plant>();
+  for (const p of plants) {
+    const sp = speciesOf(p.botanical);
+    if (!sp || !oldDogWarning(p)) continue;
+    const had = warned.get(sp);
+    if (!had || (speciesOf(had.botanical) !== had.botanical?.trim() && p.botanical?.trim() === sp)) warned.set(sp, p);
+  }
+  for (const p of plants) {
+    const sp = speciesOf(p.botanical), from = sp ? warned.get(sp) : undefined;
+    if (from && from !== p && !oldDogWarning(p)) p.dogVia = { id: from.id, common: from.common, dog: from.dog! };
+  }
 }
 /** Why a plant matched a search: by its name, its botanical name, or what it hosts. */
 export type MatchedBy = 'name' | 'botanical' | 'host';
@@ -489,6 +541,7 @@ export function plantMetaLine(p: Plant): string {
   if (p.tox?.dog === 'toxic') bits.push('toxic to dogs (ASPCA)');
   const oldDog = oldDogWarning(p);
   if (oldDog) bits.push('dog: ' + oldDog);
+  else if (p.dogVia && p.tox?.dog !== 'toxic') bits.push('dog: ' + p.dogVia.dog + ' (its species)');
   else if (!p.tox?.dog && p.dog === 'Unverified') bits.push('dog: Unverified');
   if (p.sun_most) bits.push(p.sun_most === p.sun_least ? p.sun_most + ' sun' : p.sun_most + '-' + p.sun_least);
   const zones = zoneRange(p);

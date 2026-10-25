@@ -12,7 +12,7 @@ test('a plant row opens to its details, and stays open while the list changes', 
   await item.getByTestId('plant-row').click();
   const details = item.getByTestId('plant-details');
   await expect(details).toContainText('Hardiness');
-  await expect(details).toContainText('older list, unverified');
+  await expect(details).toContainText('earlier list, unverified');
   await expect(item.getByTestId('plant-row')).toHaveAttribute('aria-expanded', 'true');
   // Typing again rebuilds the list in place: the row stays open, and the search keeps the keyboard.
   await search.click();
@@ -37,7 +37,7 @@ test('a plant shown only because of what other sources say is marked, and says s
   const catalog = {
     meta: {
       format: 'lp-catalog', version: 2, zones: 'half', title: 'Test catalog', updated: '2026-10-18',
-      sources: { ncsu: { title: 'NC State Extension', trust: 'reference' }, shop: { title: 'A nursery', trust: 'nursery' }, grower: { title: 'A grower', trust: 'nursery' }, grower2: { title: 'Another grower', trust: 'nursery' }, compendium: { title: 'Older list', trust: 'unverified' } },
+      sources: { ncsu: { title: 'NC State Extension', trust: 'reference' }, shop: { title: 'A nursery', trust: 'nursery' }, grower: { title: 'A grower', trust: 'nursery' }, grower2: { title: 'Another grower', trust: 'nursery' }, compendium: { title: 'Earlier list', trust: 'unverified' } },
       enums: { form: ['Perennial', 'Shrub'] },
     },
     plants: [
@@ -64,7 +64,7 @@ test('a plant shown only because of what other sources say is marked, and says s
   const alumroot = page.locator('.plant-item', { hasText: 'Hairy alumroot' });
   await expect(alumroot.getByTestId('row-flag')).toBeVisible();
   await expect(page.locator('.plant-item', { hasText: 'Sweetspire' }).getByTestId('row-flag')).toHaveCount(0);
-  // Each row says how far it's checked: all older list, some, or (no badge) every detail sourced.
+  // Each row says how far it's checked: all earlier list, some, or (no badge) every detail sourced.
   await expect(page.locator('.plant-item', { hasText: 'Old-list aster' }).locator('.unverified-badge')).toHaveText('Unverified');
   await expect(page.locator('.plant-item', { hasText: 'Half-checked aster' }).locator('.unverified-badge')).toHaveText('Partly checked');
   await expect(page.locator('.plant-item', { hasText: 'Sweetspire' }).locator('.unverified-badge')).toHaveCount(0);
@@ -122,7 +122,7 @@ test('how a plant spreads, by seed and underground, in one row with a source eac
   await expect(details.locator('dt', { hasText: 'How it spreads' })).toHaveCount(1);
   const spreads = details.getByTestId('spreads');
   await expect(spreads.locator('.details-part')).toHaveText(['Self-sows freely', 'Spreads aggressively underground or by runners: Aggressive rhizome']);
-  await expect(spreads.locator('.details-src')).toHaveText(['older list, unverified']); // (each part its own source; one line where they share it)
+  await expect(spreads.locator('.details-src')).toHaveText(['earlier list, unverified']); // (each part its own source; one line where they share it)
   await expect(details.locator('dt', { hasText: /^Habit$/ })).toHaveCount(0); // (said under "How it spreads")
   await page.getByRole('button', { name: '+ More filters' }).click();
   await expect(page.getByTestId('spread-filter').locator('option[value="stays"]')).toHaveText('Stays put (unverified)');
@@ -256,4 +256,60 @@ test('a plant\'s leaves: their colors, what they do in winter, fall color and gr
   await expect(heuchera).toHaveCount(1);
   await page.getByTestId('plant-search').fill('Red maple');
   await expect(page.locator('.plant-item', { hasText: /^Red maple/ })).toHaveCount(0);
+});
+
+test('animal toxicity: dogs three ways, and a warning given for one record of a species shows on the others', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  const count = page.getByTestId('picker-count');
+  await expect(count).toContainText(/^All /);
+  const fold = page.getByTestId('animal-fold');
+  await expect(fold).toHaveAttribute('aria-expanded', 'false');
+  await fold.click();
+  await expect(page.getByTestId('dogs-any')).toBeChecked();
+  await page.getByTestId('dogs-hideToxic').check();
+  await expect(fold).toContainText('dogs: hiding toxic');
+  await expect(page.getByTestId('dogs-note')).toContainText(/Hides the \d+ plants with a warning for dogs; keeps the [\d,]+ not yet rated/);
+  await expect(count).toContainText(/^[\d,]+ of [\d,]+ plants match/);
+  // The species record carries its strain's warning, so hiding toxic hides it too; any shows it again, saying where the warning came from.
+  await page.getByTestId('plant-search').fill('Butterfly milkweed');
+  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly milkweed$/ }) });
+  await expect(item).toHaveCount(0);
+  await page.getByTestId('dogs-any').check();
+  await expect(item).toHaveCount(1);
+  await item.getByRole('button', { name: /Butterfly milkweed/ }).first().click();
+  await expect(item.getByTestId('tox-row')).toContainText("given for Butterfly weed 'for Clay', the same species");
+  // A plant no source rates says so, rather than nothing.
+  await page.getByTestId('plant-search').fill("'Acapulco Orange'");
+  const unrated = page.locator('.plant-item').first();
+  await unrated.getByRole('button', { name: /Acapulco Orange/ }).first().click();
+  await expect(unrated.getByTestId('tox-row')).toContainText('dogs: not yet rated');
+  // Reset clears the filter, keeps the search and the open section.
+  await page.getByTestId('dogs-nonToxic').check();
+  await page.getByRole('button', { name: 'Reset filters' }).click();
+  await expect(page.getByTestId('dogs-any')).toBeChecked();
+  await expect(page.getByTestId('plant-search')).toHaveValue("'Acapulco Orange'");
+});
+
+test('the search clears in one tap, and a search the filters empty says which filters hid it', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  const search = page.getByTestId('plant-search');
+  await expect(search).toHaveAttribute('placeholder', 'Search plants or butterflies…');
+  await expect(page.getByTestId('clear-search')).toBeHidden();
+  await search.fill('Autumn Bride');
+  await page.getByTestId('clear-search').click();
+  await expect(search).toHaveValue('');
+  await expect(search).toBeFocused(); // (the keyboard stays)
+  await expect(page.getByTestId('clear-search')).toBeHidden();
+  // A filter that hides everything the search finds.
+  await page.getByText('Wet feet', { exact: true }).click();
+  await search.fill('Autumn Bride');
+  await expect(page.getByTestId('hidden-by')).toContainText(/plants? match.* “Autumn Bride”, hidden by your filters: Wet feet/);
+  await page.getByTestId('show-hidden').click();
+  await expect(page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" }).first()).toBeVisible();
+  await expect(page.getByTestId('plant-search')).toHaveValue('Autumn Bride'); // (the search stays)
+  // Found by what it feeds, in words.
+  await page.getByTestId('plant-search').fill('mourning cloak');
+  await expect(page.getByTestId('host-match').first()).toContainText(/Its leaves feed the caterpillars of: .*mourning cloak/);
 });

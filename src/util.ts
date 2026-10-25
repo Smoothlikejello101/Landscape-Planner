@@ -13,3 +13,6 @@ export function errMsg(e: unknown): string { return e instanceof Error ? e.messa
 const TYPE_NAMES: Record<ShapeType, string> = { circle: 'circle', rect: 'rectangle', oval: 'oval', triangle: 'triangle', poly: 'outline', line: 'line', text: 'text' };
 /** "outline", "rectangle"... for showing a shape's kind to people. */
 export function typeName(t: ShapeType): string { return TYPE_NAMES[t]; }
+
+/** An area in square feet as every screen shows it: whole feet from 10 up, tenths below ("189", "4.5"). */
+export const sqFt = (a: number): string => (a >= 10 ? Math.round(a) : Math.round(a * 10) / 10).toLocaleString();

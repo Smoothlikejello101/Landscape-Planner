@@ -41,10 +41,10 @@ test('a building from three taps: tilted to follow the first side, labeled House
   await expect(page.locator('.sheet')).toHaveCount(0); // properties stay closed
   await expect(page.locator('.sel-pill .name')).toHaveText('House');
   await page.locator('.sel-pill .edit').click(); await openSections(page);
-  await expect(page.locator('.sheet-header .title')).toHaveText('Rectangle properties');
+  await expect(page.locator('.sheet-header .title')).toHaveText('House');
   await expect(page.getByTestId('what-it-is')).toContainText('Building');
   await expect(field(page, 'Width (ft)')).toHaveValue('10');
-  await expect(field(page, 'Height (ft)')).toHaveValue('6');
+  await expect(field(page, 'Length (ft)')).toHaveValue('6');
   await expect(page.locator('#canvas-svg rect[data-shape-id]')).toHaveAttribute('transform', /rotate\(-36\.9 /);
   await closeSheet(page);
 
@@ -96,7 +96,7 @@ test('a path is a band at its real width, set while drawing', async ({ page }) =
   const band = page.locator('#canvas-svg polyline[data-shape-id]').first();
   await expect(band).toHaveAttribute('stroke-width', String(4 * FT));
   await page.locator('.sel-pill .edit').click(); await openSections(page);
-  await expect(page.locator('.sheet-header .title')).toHaveText('Path properties');
+  await expect(page.locator('.sheet-header .title')).toHaveText('Path');
   await expect(page.locator('[data-testid=measure]')).toHaveText('Length: 16 ft · about 64 sq ft');
   await page.getByTestId('path-width').fill('2');
   await expect(band).toHaveAttribute('stroke-width', String(2 * FT));
@@ -167,7 +167,7 @@ test('sun exposure and notes open their properties; others stay closed', async (
   await openFresh(page);
   await addKind(page, 'sun', 'circle');
   await tapFt(page, 10, 10); await tapFt(page, 14, 10);
-  await expect(page.locator('.sheet-header .title')).toHaveText('Circle properties');
+  await expect(page.locator('.sheet-header .title')).toHaveText('Sun exposure');
   await expect(page.getByTestId('what-it-is')).toContainText('Sun exposure');
   await closeSheet(page);
   await addKind(page, 'note');
@@ -246,7 +246,7 @@ test('triangles from older plans keep their right-angle corner control', async (
   await expect(page.locator('.project-btn .pname')).toHaveText('Old plan');
   await page.locator('#canvas-svg polygon[data-shape-id=t]').click();
   await page.locator('.sel-pill .edit').click(); await openSections(page);
-  await expect(page.locator('.sheet-header .title')).toHaveText('Triangle properties');
+  await expect(page.locator('.sheet-header .title')).toHaveText('Old triangle');
   await page.locator('.tri-corner-btn', { hasText: 'Top-right' }).click();
   await expect(page.locator('.tri-corner-btn', { hasText: 'Top-right' })).toHaveClass(/sel/);
 });

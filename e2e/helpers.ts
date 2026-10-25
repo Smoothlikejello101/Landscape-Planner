@@ -83,7 +83,7 @@ export async function addPlainShape(page: Page, type: 'circle' | 'rect' | 'oval'
   for (const [x, y] of taps[type]) await tapFromCenter(page, x, y);
   await expect(page.getByTestId('draw-bar')).toHaveCount(0);
   await page.locator('.sel-pill .edit').click();
-  await expect(page.locator('.sheet-header .title')).toContainText('properties');
+  await expect(page.locator('.sheet .lockbtn')).toBeVisible(); // (the properties sheet)
   await openSections(page);
 }
 

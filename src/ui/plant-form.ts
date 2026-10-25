@@ -250,7 +250,7 @@ export function renderPlantForm() {
 
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, editing ? 'Edit my plant' : 'Add a plant'),
-    (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', () => close(null)); return b; })());
+    (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', () => close(null)); return b; })());
   const sheet = el('div', { className: 'sheet' }, header, body);
   const overlay = el('div', { className: 'overlay' }, sheet);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });

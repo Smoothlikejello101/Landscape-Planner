@@ -47,6 +47,8 @@ export function renderMoreMenu() {
     onClick: () => { state.panel = 'bg'; state.menu = null; render(); }
   });
   if (state.shapes.length) {
+    // (Its own item: people look for "print", not for it under Export.)
+    items.push({ icon: I.print, label: 'Print or save as PDF…', onClick: () => { state.panel = 'print'; state.menu = null; render(); } });
     items.push({ icon: I.download, label: 'Export image…', onClick: () => { state.panel = 'export'; state.menu = null; render(); } });
   }
   items.push({ divider: true });

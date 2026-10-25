@@ -4,7 +4,9 @@ import { isLocked, roleKey } from '../roles';
 import { getSelected } from '../selection';
 import { state } from '../state';
 import type { RoleKey, Shape } from '../types';
-import { toast } from './toast';
+import { flushHistoryDebounce, undo } from '../history';
+import { render } from './render';
+import { toast, toastAction } from './toast';
 
 /** "6 plants, 1 boundary": what a set of shapes is, by role. */
 const NAMES: Record<RoleKey, [string, string]> = {
@@ -36,6 +38,7 @@ export function deleteSelectedAsking() {
     if (isLocked(selected[0]) && !confirm(`This ${NAMES[roleKey(selected[0])][0]} is locked. Delete it anyway?`)) return;
     deleteShapesByIds([selected[0].id]);
     state.panel = null;
+    undoNotice(`Deleted ${selected[0].label || describeShapes(selected)}`);
     return;
   }
   const going = selected.filter((s) => !isLocked(s));
@@ -53,5 +56,17 @@ export function deleteSelectedAsking() {
   }
   deleteShapesByIds(going.map((s) => s.id));
   state.panel = null;
-  if (kept) toast(`${going.length} deleted; ${kept} locked ${kept === 1 ? 'shape' : 'shapes'} kept.`);
+  undoNotice(`Deleted ${describeShapes(going)}` + (kept ? `; ${kept} locked ${kept === 1 ? 'shape' : 'shapes'} kept` : ''));
+}
+/**
+ * "Deleted 3 plants · Undo": every delete says what went, with an Undo of that step (while nothing has changed
+ * since; after that, the top bar's Undo).
+ */
+export function undoNotice(said: string) {
+  const step = state.history[state.historyIndex];
+  toastAction(said, [{ label: 'Undo', run: () => {
+    flushHistoryDebounce();
+    if (state.history[state.historyIndex] !== step) { toast('It has changed since, so it was left as it is.'); return; }
+    undo(); render();
+  } }], 8000);
 }

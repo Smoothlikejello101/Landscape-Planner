@@ -25,7 +25,7 @@ test('draw an L-shaped bed by tapping corners', async ({ page }) => {
   await openFresh(page);
   await drawL(page);
   await page.locator('.sel-pill .edit').click(); await openSections(page); // properties stay closed after adding
-  await expect(page.locator('.sheet-header .title')).toHaveText('Outline properties');
+  await expect(page.locator('.sheet-header .title')).toHaveText('Outline');
   await setRole(page, 'Bed');
   await expect(page.locator('[data-testid=measure]')).toHaveText('Area: 64 sq ft');
   await expect(field(page, 'Width (ft)')).toHaveValue('10');
@@ -70,7 +70,7 @@ test('draw a fence line: a boundary with a length, easy to tap', async ({ page }
   await tapFt(page, 14, 9);
   await bar(page).getByRole('button', { name: 'Done' }).click();
   await page.locator('.sel-pill .edit').click(); await openSections(page);
-  await expect(page.locator('.sheet-header .title')).toHaveText('Line properties');
+  await expect(page.locator('.sheet-header .title')).toHaveText('Fence');
   await expect(page.getByTestId('what-it-is')).toContainText('Boundary');
   await expect(page.locator('[data-testid=measure]')).toHaveText('Length: 17 ft');
   await expect(field(page, 'Label')).toHaveValue('Fence');
@@ -129,7 +129,7 @@ test('convert a rectangle to an outline and reshape it', async ({ page }) => {
   await addPlainShape(page, 'rect');
   await field(page, 'Label').fill('Patio');
   await page.getByTestId('convert-outline').click();
-  await expect(page.locator('.sheet-header .title')).toHaveText('Outline properties');
+  await expect(page.locator('.sheet-header .title')).toHaveText('Patio');
   await expect(page.locator('[data-testid=measure]')).toHaveText('Area: 12 sq ft');
   await expect(field(page, 'Label')).toHaveValue('Patio');
   await field(page, 'Width (ft)').fill('8'); // stretches the points
@@ -171,7 +171,7 @@ test('text notes: multi-line, sized in feet, scale with zoom', async ({ page }) 
   await addKind(page, 'note');
   await expect(page.getByTestId('draw-banner')).toContainText('Tap where the note goes');
   await tapFt(page, 4, 4);
-  await expect(page.locator('.sheet-header .title')).toHaveText('Text properties'); // a note opens on its text
+  await expect(page.locator('.sheet-header .title')).toHaveText('Note'); // a note opens on its text
   await openSections(page);
   const ta = page.locator('.sheet textarea');
   await ta.fill('Rain barrel\ngoes here');
@@ -223,7 +223,7 @@ test('a bed drawn against an off-grid wall: each snap shown as it lands, with Un
   await expect(notice).toContainText('Squared the corners (moved up to 0.5 ft).');
   await expect(notice).not.toContainText('Lined up');
   const area = async () => { await page.locator('.sel-pill .edit').click(); await openSections(page); const v = await page.getByTestId('measure').textContent(); const w = await field(page, 'Width (ft)').inputValue(); await closeSheet(page); return [w, v]; };
-  expect(await area()).toEqual(['3.7', expect.stringContaining('14.8 sq ft')]); // (from the wall, square)
+  expect(await area()).toEqual(['3.7', expect.stringContaining('Area: 15 sq ft')]); // (from the wall, square: 3.7 × 4 ft, 14.8 sq ft, shown whole as everywhere)
   // A pan to look leaves the notice up; its Undo gives back the dots as drawn, still on the wall.
   const box = await canvasBox(page);
   await page.mouse.move(box.x + 13 * FT, box.y + 11 * FT); await page.mouse.down();
@@ -267,5 +267,5 @@ test('a corner tapped right on a building\'s corner stays on it when the rest is
   await page.locator('.sel-pill .edit').click(); await openSections(page);
   // Squared to 7–11 × 2–6, its top edge still on the building's (not halfway to the tapped 2.5: 3.8 tall).
   await expect(field(page, 'Width (ft)')).toHaveValue('4');
-  await expect(field(page, 'Height (ft)')).toHaveValue('4');
+  await expect(field(page, 'Length (ft)')).toHaveValue('4');
 });

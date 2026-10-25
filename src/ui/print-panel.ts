@@ -113,38 +113,48 @@ export function renderPrintPanel() {
     try {
       const { buildPlanPdf } = await import('../print-pdf');
       const r = await buildPlanPdf(state.print, projectName, state.shapes, state.bgImage, state.sizeMode);
-      result = { blob: r.blob, pages: r.pages, filename: `${safeFileName(state.print.title.trim() || projectName)}-plan-${localDate()}.pdf` };
+      result = { blob: r.blob, pages: r.pages, filename: pdfName(state.print.title.trim() || projectName, localDate()) };
     } catch (e) {
       alert("Couldn't make the PDF: " + errMsg(e));
     } finally {
       busy = false;
-      if (state.panel === 'print') render();
+      if (state.panel === 'print') {
+        render();
+        // (The result where it can be seen: the bar it's in stays at the bottom of the sheet.)
+        document.querySelector('[data-testid=print-result]')?.scrollIntoView({ block: 'nearest' });
+      }
     }
   });
-  body.appendChild(create);
-
   const out = el('div', { 'data-testid': 'print-result', style: { display: 'flex', flexDirection: 'column', gap: '8px' } });
   if (result) {
     const r = result;
-    out.appendChild(el('div', { className: 'hint' }, `${r.filename} · ${r.pages} page${r.pages === 1 ? '' : 's'} · ${Math.max(1, Math.round(r.blob.size / 1024))} KB`));
-    const dl = el('button', { className: 'btn secondary', 'data-testid': 'download-pdf' }, 'Download PDF');
-    dl.addEventListener('click', () => { downloadBlob(r.filename, r.blob); toast('Saved ' + r.filename); });
-    out.appendChild(dl);
+    out.appendChild(el('div', { className: 'hint', 'data-testid': 'pdf-ready' }, `Ready: ${r.filename} · ${r.pages} page${r.pages === 1 ? '' : 's'} · ${Math.max(1, Math.round(r.blob.size / 1024))} KB`));
+    const row = el('div', { style: { display: 'flex', gap: '8px' } });
+    const dl = el('button', { className: 'btn secondary', style: { flex: '1' }, 'data-testid': 'download-pdf' }, 'Download PDF');
+    dl.addEventListener('click', () => { downloadBlob(r.filename, r.blob); toast(`Saved ${r.filename} to your Downloads`, 6000); });
+    row.appendChild(dl);
     if (canShareFiles('application/pdf', 'x.pdf')) {
-      const sh = el('button', { className: 'btn ghost' }, 'Share…');
+      const sh = el('button', { className: 'btn ghost', style: { flex: '1' } }, 'Share…');
       sh.addEventListener('click', async () => {
         try { await shareBlob(r.filename, r.blob); } catch (e) { alert("Couldn't share: " + errMsg(e)); }
       });
-      out.appendChild(sh);
+      row.appendChild(sh);
     }
+    out.appendChild(row);
   }
-  body.appendChild(out);
+  // Create, and what it made, stay at the bottom of the sheet, in view however far the options are scrolled.
+  const foot = el('div', { className: 'sheet-foot' }, create, out);
 
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, 'Printable plan'),
-    (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })());
-  const sheet = el('div', { className: 'sheet' }, header, body);
+    (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })());
+  const sheet = el('div', { className: 'sheet' }, header, body, foot);
   const overlay = el('div', { className: 'overlay' }, sheet);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) { state.panel = null; render(); } });
   return overlay;
+}
+/** "Back yard-plan-2026-10-25.pdf"; a title already ending in "plan" isn't given another ("My plan-2026-10-25.pdf"). */
+export function pdfName(title: string, date: string): string {
+  const base = safeFileName(title);
+  return `${/(^|[-_ ])plan$/i.test(base) ? base : `${base}-plan`}-${date}.pdf`;
 }

@@ -10,7 +10,7 @@ export function renderBgPanel() {
   const bg = state.bgImage;
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, 'Background image'),
-    (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
+    (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
   );
   const body = el('div', { className: 'sheet-body' });
 
@@ -203,7 +203,7 @@ export function renderBgDistanceModal() {
   const modal = el('div', { className: 'modal' },
     el('div', { className: 'sheet-header' },
       el('div', { className: 'title' }, 'Real-world distance'),
-      (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', () => { state.bgCalibrate = null; state.panel = 'bg'; render(); }); return b; })()
+      (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', () => { state.bgCalibrate = null; state.panel = 'bg'; render(); }); return b; })()
     ),
     el('div', { className: 'sheet-body' },
       el('div', { style: { fontSize: '13px', color: '#57534e' } },

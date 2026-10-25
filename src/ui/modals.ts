@@ -4,6 +4,7 @@ import { I } from '../icons';
 import { resetCurrentProject } from '../mutations';
 import { state } from '../state';
 import { currentProject } from '../storage';
+import { undoNotice } from './delete-selected';
 import { render } from './render';
 
 export function renderExportModal() {
@@ -18,7 +19,7 @@ export function renderExportModal() {
   const modal = el('div', { className: 'modal' },
     el('div', { className: 'sheet-header' },
       el('div', { className: 'title' }, 'Export plan'),
-      (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
+      (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
     ),
     el('div', { className: 'sheet-body' },
       el('div', { style: { fontSize: '14px', color: '#57534e' } }, 'The printable plan is a to-scale sheet with a title, scale bar, north arrow, legend and plant list. PNG and SVG are just the drawing.'),
@@ -64,7 +65,7 @@ export function renderPreviewModal() {
   const modal = el('div', { className: 'modal' },
     el('div', { className: 'sheet-header' },
       el('div', { className: 'title' }, 'Save your plan (' + p.format.toUpperCase() + ')'),
-      (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', () => { state.panel = null; state.exportPreview = null; render(); }); return b; })()
+      (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', () => { state.panel = null; state.exportPreview = null; render(); }); return b; })()
     ),
     body
   );
@@ -77,7 +78,11 @@ export function renderResetModal() {
   const cancelBtn = el('button', { className: 'btn ghost' }, 'Cancel');
   cancelBtn.addEventListener('click', () => { state.panel = null; render(); });
   const confirmBtn = el('button', { className: 'btn danger-solid' }, 'Clear all');
-  confirmBtn.addEventListener('click', () => { resetCurrentProject(); render(); });
+  confirmBtn.addEventListener('click', () => {
+    const n = state.shapes.length;
+    resetCurrentProject(); render();
+    undoNotice(`Cleared ${n} shape${n === 1 ? '' : 's'}`);
+  });
   const modal = el('div', { className: 'modal' },
     el('div', { className: 'sheet-body' },
       el('div', { style: { fontWeight: 600, color: '#292524', marginBottom: '8px' } }, 'Clear this project?'),

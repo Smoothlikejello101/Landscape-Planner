@@ -49,7 +49,11 @@ function setSaveFailing(v: boolean) {
   if (saveFailing === v) return;
   saveFailing = v;
   onSaveStatus?.();
+  onSaveState?.();
 }
+let onSaveState: (() => void) | null = null;
+/** Called when changes start waiting to be saved, and when they're saved (the top bar's "Saved"). */
+export function setSaveStateListener(fn: () => void) { onSaveState = fn; }
 /** Edit counter vs. last edit known to be on disk; unequal means unsaved changes. */
 let editSeq = 0;
 let savedSeq = 0;
@@ -337,6 +341,7 @@ async function writeCurrent(): Promise<boolean> {
     await kv.write(ops);
     for (const op of ops) if (op.store === 'images') committedImageKeys.add(op.key);
     savedSeq = Math.max(savedSeq, seq);
+    if (savedSeq === editSeq) onSaveState?.();
     if (savedSeq === editSeq && state.currentProjectId === id) clearJournal(id);
     setSaveFailing(false);
     if (hadEdits) afterSave?.();
@@ -358,7 +363,9 @@ async function writeCurrent(): Promise<boolean> {
 }
 /** Schedule a save of the current project. */
 export function save() {
+  const was = editSeq === savedSeq;
   editSeq++;
+  if (was) onSaveState?.();
   if (state.currentProjectId) bumpChange(state.currentProjectId);
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(() => { saveTimer = null; void flushSave(); }, SAVE_DEBOUNCE_MS);

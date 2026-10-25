@@ -31,7 +31,7 @@ export const rootSpread = (habit: string | undefined): RootSpread | null => (hab
 /** A plant's spreading, as far as the facts go. */
 export interface SpreadFacts { self_seed?: string; habit?: string; invasive?: boolean }
 /**
- * The seed part, in words: "Self-sows freely", "Self-sows a little", "Said not to set seed" (an older list's claim,
+ * The seed part, in words: "Self-sows freely", "Self-sows a little", "Said not to set seed" (an earlier list's claim,
  * never stated as fact). Empty where it's missing.
  */
 export function seedText(p: SpreadFacts): string {

@@ -1,9 +1,10 @@
+import { setShowCrowding, setShowFullSize } from '../view-settings';
 import { el, svgEl } from '../dom';
 import { setSnapOn, setSquareOn, snapOn, squareOn } from '../tidy';
 import { flushHistoryDebounce, pushHistory } from '../history';
 import { I } from '../icons';
 import { centerOnShape, deletePhase, setRoleView, setViewFilter } from '../mutations';
-import { passesFilter, shownWith, STATUSES, statusLabel } from '../status';
+import { passesFilter, shownWith, STATUSES, statusLabelFor } from '../status';
 import { crowdedIds } from '../crowding';
 import { plantsById } from '../plants';
 import { ROLES, roleHidden, roleKey, roleLabel } from '../roles';
@@ -23,10 +24,12 @@ const fmtFt = (v: number) => String(Math.round(v * 10) / 10);
 
 export function renderLayersPanel() {
   const lockedCount = state.shapes.filter(s => s.locked).length;
-  const headerTitle = `Shapes (${state.shapes.length}${lockedCount ? ' · ' + lockedCount + ' locked' : ''})`;
+  // (The name on its button: Layers.)
+  const n = state.shapes.length;
+  const headerTitle = `Layers · ${n} shape${n === 1 ? '' : 's'}${lockedCount ? ', ' + lockedCount + ' locked' : ''}`;
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, headerTitle),
-    (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
+    (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
   );
   const list = el('div', {});
   if (state.bgImage) list.appendChild(backgroundSection());
@@ -55,8 +58,9 @@ export function renderLayersPanel() {
       else if (s.type === 'poly') dims = s.points.length + ' points · ' + fmtFt(boxSize(s).w) + ' × ' + fmtFt(boxSize(s).h) + ' ft';
       else dims = s.width + ' × ' + s.height + ' ft';
       const opacity = s.opacity !== undefined ? s.opacity : 0.65;
-      const when = s.status === 'planted' ? s.plantedOn : s.status === 'gone' ? s.goneOn : undefined;
-      const extra = (s.status ? statusLabel(s.status) + (when ? ' ' + when : '') + ' · ' : '') +
+      // ("Existing" for a bed or a house, with no planting date: only plants are planted.)
+      const when = s.status === 'planted' && s.role === 'plant' ? s.plantedOn : s.status === 'gone' ? s.goneOn : undefined;
+      const extra = (s.status ? statusLabelFor(s) + (when ? ' ' + when : '') + ' · ' : '') +
         (s.phase ? s.phase + ' · ' : '') +
         (s.role === 'shade' && s.sun ? sunListText(s.sun) + ' · '
         : s.role === 'bed' ? plantsInBed(s, state.shapes).filter((p) => p.status !== 'gone').length + ' plants · ' : '');
@@ -97,7 +101,9 @@ export function renderLayersPanel() {
       const lockBtn = el('button', {
         className: 'layer-lock ' + (s.locked ? 'on' : ''),
         html: s.locked ? I.lock : I.unlock,
-        title: s.locked ? 'Unlock' : 'Lock'
+        title: s.locked ? 'Unlock' : 'Lock',
+        'aria-label': (s.locked ? 'Unlock ' : 'Lock ') + (s.label || 'unlabeled ' + typeName(s.type)),
+        'aria-pressed': s.locked ? 'true' : 'false',
       });
       lockBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -105,7 +111,8 @@ export function renderLayersPanel() {
         flushHistoryDebounce(); pushHistory();
         save(); render();
       });
-      const row = el('div', { className: 'layer-row' + (sel ? ' sel' : '') }, swatch, info, lockBtn);
+      // (The lock leads the row, as the eye and lock do above, and the checkboxes: each control beside what it controls.)
+      const row = el('div', { className: 'layer-row' + (sel ? ' sel' : '') }, lockBtn, swatch, info);
       row.addEventListener('click', () => {
         if (roleHidden(s)) setRoleView(roleKey(s), { hidden: false }); // show what was asked for
         if (!passesFilter(s, state.viewFilter)) setViewFilter({ status: '', phase: '', showGone: s.status === 'gone' });
@@ -128,12 +135,12 @@ export function renderLayersPanel() {
 function showSection(): HTMLElement {
   const f = state.viewFilter;
   const wrap = el('div', { className: 'role-rows', 'data-testid': 'show-filter' }, el('div', { className: 'section-label' }, 'Show plants'));
-  const status = el('select', { 'data-testid': 'filter-status' }) as HTMLSelectElement;
+  const status = el('select', { 'data-testid': 'filter-status', 'aria-label': 'Status' }) as HTMLSelectElement;
   status.appendChild(el('option', { value: '' }, 'Any status'));
   for (const st of STATUSES) status.appendChild(el('option', { value: st.key }, st.label));
   status.value = f.status;
   status.addEventListener('change', () => { setViewFilter({ status: status.value as ShapeFilter['status'] }); render(); });
-  const phase = el('select', { 'data-testid': 'filter-phase' }) as HTMLSelectElement;
+  const phase = el('select', { 'data-testid': 'filter-phase', 'aria-label': 'Phase' }) as HTMLSelectElement;
   phase.appendChild(el('option', { value: '' }, 'Any phase'));
   for (const p of state.phases) phase.appendChild(el('option', { value: p }, p));
   phase.value = f.phase;
@@ -200,13 +207,13 @@ function plantSizeSection(): HTMLElement {
   const cb = el('input', { type: 'checkbox' }) as HTMLInputElement;
   cb.checked = state.showFullSize;
   cb.disabled = state.sizeMode === 'full';
-  cb.addEventListener('change', () => { state.showFullSize = cb.checked; render(); });
+  cb.addEventListener('change', () => { setShowFullSize(cb.checked); render(); });
   wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, cb,
     el('span', {}, 'Show full-size rings on every plant (check for crowding)')));
   wrap.appendChild(el('div', { className: 'hint' }, 'Typical is the middle of a plant\'s size range; full is the top. Selected plants always show their full-size ring.'));
   const crowd = el('input', { type: 'checkbox', 'data-testid': 'show-crowding' }) as HTMLInputElement;
   crowd.checked = state.showCrowding;
-  crowd.addEventListener('change', () => { state.showCrowding = crowd.checked; render(); });
+  crowd.addEventListener('change', () => { setShowCrowding(crowd.checked); render(); });
   const nCrowded = crowdedIds(state.shapes.filter((x) => shownWith(x, state.viewFilter)), plantsById).size;
   wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, crowd,
     el('span', {}, `Outline crowded plants in red (${nCrowded} now)`)));
@@ -235,7 +242,7 @@ function backgroundSection(): HTMLElement {
   const more = el('button', { className: 'link-btn', 'data-testid': 'layers-bg-more' }, 'Adjust\u2026');
   more.disabled = busy;
   more.addEventListener('click', () => { state.panel = 'bg'; render(); });
-  wrap.appendChild(el('div', { className: 'role-row' + (bg.visible ? '' : ' hidden') }, el('span', { className: 'name' }, 'Background image'), more, eye));
+  wrap.appendChild(el('div', { className: 'role-row' + (bg.visible ? '' : ' hidden') }, eye, el('span', { className: 'name' }, 'Background image'), more));
   // Opacity: redraws the plan only, so the slider keeps its place (and the keyboard, on a phone).
   const pct = el('span', { className: 'count' }, Math.round(bg.opacity * 100) + '%');
   const slider = el('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: String(bg.opacity), 'aria-label': 'Background image opacity', 'data-testid': 'layers-bg-opacity' });
@@ -277,9 +284,9 @@ function roleSection(): HTMLElement {
       'aria-pressed': v.locked ? 'true' : 'false', 'data-action': 'toggle-locked',
     });
     lock.addEventListener('click', () => { setRoleView(k, { locked: !v.locked }); render(); });
-    wrap.appendChild(el('div', { className: 'role-row' + (v.hidden ? ' hidden' : ''), 'data-role-key': k },
-      el('span', { className: 'name' }, roleLabel(k)),
-      el('span', { className: 'count' }, String(counts.get(k))), eye, lock));
+    // (The eye and lock lead the row, beside the name they act on; the count follows the name: "Plant · 2".)
+    wrap.appendChild(el('div', { className: 'role-row' + (v.hidden ? ' hidden' : ''), 'data-role-key': k }, eye, lock,
+      el('span', { className: 'name' }, roleLabel(k), el('span', { className: 'count' }, ` · ${counts.get(k)}`))));
   }
   return wrap;
 }

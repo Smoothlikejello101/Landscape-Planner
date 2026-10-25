@@ -60,6 +60,11 @@ test('a whole role can be hidden and locked from Layers, and that is saved', asy
   await addRect(page, 'Shade one', 'Sun exposure');
   await page.locator('button[title=Layers]').click();
   const shadeRow = page.locator('.role-row[data-role-key=shade]');
+  // (Each row's eye and lock come first, beside the name they act on, and are fingertip-sized.)
+  await expect(shadeRow.locator(':scope > *').first()).toHaveAttribute('data-action', 'toggle-hidden');
+  await expect(shadeRow.locator(':scope > *').nth(1)).toHaveAttribute('data-action', 'toggle-locked');
+  const eyeBox = (await shadeRow.locator('[data-action=toggle-hidden]').boundingBox())!;
+  expect(Math.min(eyeBox.width, eyeBox.height)).toBeGreaterThanOrEqual(48);
   await shadeRow.locator('[data-action=toggle-hidden]').click();
   await closeSheet(page);
   await expect(page.locator('#canvas-svg text', { hasText: 'Shade one' })).toHaveCount(0);
@@ -93,5 +98,5 @@ test('several shapes can be given a role at once', async ({ page }) => {
   await setRole(page, 'Lawn');
   await closeSheet(page);
   await page.locator('button[title=Layers]').click();
-  await expect(page.locator('.role-row[data-role-key=lawn] .count')).toHaveText('2');
+  await expect(page.locator('.role-row[data-role-key=lawn] .count')).toHaveText(/· 2$/); // (beside the name: "Lawn · 2")
 });

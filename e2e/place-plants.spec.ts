@@ -48,8 +48,9 @@ test('recent plants are one tap; the plant in hand can be switched; Place more f
   await bar(page).getByTestId('place-switch').click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Switch plant');
   await pick(page, 'Black-eyed Susan');
-  await expect(banner(page)).toHaveText(/Tap to place Black-eyed Susan.* · 1 placed/);
+  await expect(banner(page)).toHaveText(/Tap to place Black-eyed Susan.* · 0 placed/); // (its own count: the coneflower's isn't carried over)
   await tapFromCenter(page, 4, 0);
+  await expect(banner(page)).toHaveText(/Tap to place Black-eyed Susan.* · 1 placed/);
   await bar(page).getByRole('button', { name: 'Done' }).click();
   expect(await shapeCount(page)).toBe(2);
 

@@ -162,18 +162,26 @@ export async function shareText(filename: string, text: string): Promise<boolean
     throw e;
   }
 }
-/** Save a full backup and record when it happened. */
-export async function backupAll(via: 'download' | 'share'): Promise<number> {
+/** Save a full backup and record when it happened: how many projects, the file, and whether it was downloaded or shared (null: cancelled). */
+export async function backupAll(via: 'download' | 'share'): Promise<{ count: number; filename: string; via: 'download' | 'share' } | null> {
   const { filename, text, count } = await buildBackupFile();
+  let went = via;
   if (via === 'share') {
     try {
-      if (!(await shareText(filename, text))) return 0;
+      if (!(await shareText(filename, text))) return null;
     } catch (e) {
       // e.g. the share sheet refused because preparing the file took too long
       if (!(e instanceof DOMException && e.name === 'NotAllowedError')) throw e;
       downloadText(filename, text);
+      went = 'download';
     }
   } else downloadText(filename, text);
   await setLastBackupAt(now());
-  return count;
+  return { count, filename, via: went };
+}
+/** What a backup notice says: where the file went, and how to bring it back. */
+export function backupSaid(b: { count: number; filename: string; via: 'download' | 'share' }): string {
+  const what = `Backed up ${b.count} project${b.count === 1 ? '' : 's'}`;
+  return (b.via === 'download' ? `${what} to your Downloads: ${b.filename}.` : `${what}: ${b.filename}.`)
+    + ' To bring them back, open Projects and tap Import from file.';
 }

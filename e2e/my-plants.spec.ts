@@ -58,6 +58,9 @@ test('add a plant from its tag, place it, and switch to full size', async ({ pag
   expect(await circleR(page, 'Limelight')).toBe(84);
   await expect(page.locator('#canvas-svg [data-role=full-ring]')).toHaveAttribute('r', '96');
   await expect(page.locator('#toast')).toContainText('dashed ring is full size');
+  // (Above the chip, clear of its Edit and More.)
+  const toastBox = (await page.locator('#toast').boundingBox())!, pillBox = (await page.locator('.sel-pill').boundingBox())!;
+  expect(toastBox.y + toastBox.height).toBeLessThanOrEqual(pillBox.y);
 
   // It's in the picker under My plants.
   await page.locator('.tool-btn.plants').click();

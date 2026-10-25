@@ -587,10 +587,24 @@ writes that fact.
   source, check and `null`, as people have had since 2026-10-23 (`poison`). The `unlisted` value is defined in
   ASPCA's terms and gets a source-neutral meaning, and the app's own wording
   that names ASPCA (src/plants.ts) changes with it.
+  Until then (agreed with Jason 2026-10-25): the older list's dog warning
+  for one record shows, labeled, on every record of its species
+  (`shareDogWarnings`), a plant with no rating says "not yet rated" rather
+  than nothing, and the picker's dog filter is three-way: include toxic
+  plants; hide toxic plants, include unknown; only non-toxic (unverified).
+  Requests to use their ratings: ASPCA and Pet Poison Helpline (both sent by
+  Jason, the second on 2026-10-25).
+  If neither comes through, look at open government sources (Canada's
+  Poisonous Plants Information System, the FDA Poisonous Plant Database:
+  licenses and coverage not yet checked) before dropping pet toxicity.
 - **Native by state.** `native` is the first compendium's wording, not
   USDA's native status by state.
 - **Invasive.** "Widely invasive in the US" needs a rule built on sourced
   state or federal lists.
+  Cultivars (agreed with Jason 2026-10-25): a cultivar takes its species'
+  invasive flag, unless an authority rates the cultivar itself differently
+  (a sterile or low-fruiting selection). Such a cultivar is offered, with a
+  warning that its species is invasive, citing the rating. None has one yet.
 - **Values by region.** One value per fact can't hold Minnesota's bloom
   months beside Arkansas's, or a water need that differs by climate. Facts
   that depend on place need a value per region, and the app shows the one
