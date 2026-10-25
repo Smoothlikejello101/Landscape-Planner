@@ -181,7 +181,7 @@ test('a plant of mine the catalog now has: compare, switch (placed plants follow
   // The picker says it's in the catalog now, on its row.
   await page.locator('.tool-btn.plants').click();
   const offer = page.getByTestId('now-in-catalog');
-  await expect(offer).toContainText('Now in the catalog as Limelight Hydrangea');
+  await expect(offer).toContainText("Now in the catalog as Hydrangea 'Limelight'");
   await expect(page.getByTestId('my-plants-fold')).toContainText('1 now in the catalog');
   await offer.getByTestId('switch-offer').click();
   const sheet = page.getByTestId('switch-sheet');
@@ -190,11 +190,11 @@ test('a plant of mine the catalog now has: compare, switch (placed plants follow
   await expect(sheet).toContainText('1 placed in this plan');
   await expect(sheet.getByTestId('switch-resize')).toBeChecked();
   await sheet.getByTestId('switch-go').click();
-  await expect(page.locator('#toast-action')).toContainText('Switched to Limelight Hydrangea (1 placed here)');
+  await expect(page.locator('#toast-action')).toContainText("Switched to Hydrangea 'Limelight' (1 placed here)");
   // No longer listed as mine; the catalog's plant is.
   await page.getByTestId('plant-search').fill('limelight');
   await expect(page.locator('.proj-row .mine-badge')).toHaveCount(0);
-  await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Limelight Hydrangea$/ }) })).toHaveCount(1);
+  await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Hydrangea 'Limelight'$/ }) })).toHaveCount(1);
   // Undo: mine again, the placed plant back to it.
   await page.locator('#toast-action').getByRole('button', { name: 'Undo' }).click();
   await expect(page.locator('.proj-row .mine-badge')).toHaveCount(1);

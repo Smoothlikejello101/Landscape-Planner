@@ -176,6 +176,18 @@ NC State's Plant Toolbox lists every plant page in its sitemap (`https://plants.
   out, delete its record; to have it added again, delete its line there as well. A page `ncsu-pages.json` names
   for it by hand comes first.
 
+## Cultivar names
+
+Agreed with Jason 2026-10-25: a cultivar is named **the plant, then the cultivar in quotes, or its trade name
+without them**: "Hydrangea 'Limelight'", "Giant Hyssop 'Acapulco Orange'", "Nandina Flirt" (a trade name; its
+registered cultivar, 'Murasaki', stays in the botanical name). The words are the sources' own; only their order
+and the quotes change (`scripts/catalog/names.mjs`). The plant part is what the name already says around the
+cultivar; a name that is the cultivar alone takes its species' name in the catalog, else its genus. Left as they
+are: groups ("Astilbe 'Visions' series"), names that never say which cultivar, and names with the cultivar in the
+middle ("Red Rome Apple"). The former name is kept as a synonym, and search reads synonyms.
+
+The build's write step applies it; `npm run catalog:names` applies it to the catalog as it is.
+
 ## Reading the web claims again
 
 The search's claims are read again from the saved pages they cite, with today's reader (`web.mjs`). A fix to the

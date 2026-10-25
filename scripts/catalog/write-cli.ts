@@ -6,6 +6,8 @@ import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { writeAudit } from './write.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { catalogText } from './convert-v1.mjs';
+// @ts-expect-error (a plain .mjs script)
+import { renameCultivars } from './names.mjs';
 import { catalogWarnings, type CatalogFile } from '../../src/catalog';
 
 const args = process.argv.slice(2);
@@ -20,6 +22,8 @@ const audit = JSON.parse(readFileSync(auditPath, 'utf8')) as { id: string }[];
 // (What a person decided on earlier review items: scripts/catalog/decisions.json, docs/catalog-sources.md "Decisions".)
 const decisions = JSON.parse(readFileSync('scripts/catalog/decisions.json', 'utf8'));
 const { file, review } = writeAudit(catalog, audit, date, catalogWarnings, decisions) as { file: CatalogFile; review: unknown[] };
+// (Cultivars named as agreed: the plant, then the cultivar or trade name. scripts/catalog/names.mjs)
+renameCultivars(file);
 const tmp = `${path}.${process.pid}.tmp`;
 writeFileSync(tmp, catalogText(file));
 renameSync(tmp, path);
