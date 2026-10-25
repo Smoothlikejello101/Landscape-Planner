@@ -255,3 +255,70 @@ describe('switching a plant of mine to the catalog’s', () => {
     expect(activeMyPlants().map((p) => p.id)).toContain(tag.id);
   });
 });
+
+describe('the same species as a catalog plant', () => {
+  const species = {
+    id: 'hydrangea-paniculata', common: 'Panicle hydrangea', botanical: 'Hydrangea paniculata', form: 'Shrub',
+    width: { min: 10, max: 20, med: 15 }, zone_min: 3, zone_max: 8.5, sun_most: 'Full', sun_least: 'Part',
+    poison: { severity: 'low', parts: ['leaves'] }, native: 'No', deer: 'Seldom', bloom_season: ['summer'],
+    flower_color: ['white'], bloom: { start: 7, end: 9 },
+    prov: { zone_min: { src: ['ncstate'] }, poison: { src: ['ncstate'] }, native: { src: ['usda'] }, tox: { src: ['aspca'], unknown: true } },
+  } as unknown as Plant;
+  const cultivar = { id: 'hydrangea-paniculata-limelight', common: 'Limelight Hydrangea', botanical: "Hydrangea paniculata 'Limelight'", parent: 'hydrangea-paniculata', width: { min: 6, max: 8, med: 7 } } as Plant;
+  const mine = (o: Partial<Plant>): Plant => ({ id: 'u-lime', common: "Our 'Limelight'", width: { min: 5, max: 6, med: 5.5 }, ...o });
+
+  it('has what holds for the whole species, its own values standing; its size, color and bloom stay its own', async () => {
+    const { withSpecies } = await import('../src/my-plants');
+    const seen = withSpecies(mine({ sun_most: 'Part', sun_least: 'Part', color: '#ffffff', species: species.id }), species);
+    expect(seen).toMatchObject({
+      parent: species.id, zone_min: 3, zone_max: 8.5, poison: { severity: 'low' }, native: 'No', deer: 'Seldom', form: 'Shrub', bloom_season: ['summer'],
+      sun_most: 'Part', sun_least: 'Part', color: '#ffffff', width: { min: 5, max: 6, med: 5.5 },
+    });
+    expect(seen).not.toHaveProperty('bloom');
+    expect(seen).not.toHaveProperty('flower_color');
+    expect(seen.prov).toMatchObject({ zone_min: { src: ['ncstate'], inherited: true }, poison: { inherited: true }, tox: { unknown: true, inherited: true } });
+    expect(seen.prov).not.toHaveProperty('sun_most');
+    expect(withSpecies(mine({}), undefined)).toEqual(mine({})); // (its species not loaded yet: as it is)
+  });
+  it('is found for a botanical name, and for a plant to start from', async () => {
+    const { speciesLinkFor, speciesRecordFor } = await import('../src/my-plants');
+    const catalog = [species, cultivar];
+    expect(speciesRecordFor("Hydrangea paniculata 'Bobo'", catalog)).toBe(species);
+    expect(speciesRecordFor('Hydrangea', catalog)).toBeUndefined();
+    expect(speciesRecordFor('Hydrangea arborescens', catalog)).toBeUndefined();
+    for (const p of catalog) plantsById[p.id] = p;
+    expect(speciesLinkFor(cultivar)).toBe(species);
+    expect(speciesLinkFor(species)).toBe(species);
+  });
+  it('keeps only the link in storage, sync and backups; the app sees the species’ facts once the catalog loads', async () => {
+    const mp = await import('../src/my-plants');
+    const { loadPlants } = await import('../src/plants');
+    await fresh();
+    for (const p of [species, cultivar]) delete plantsById[p.id];
+    await saveMyPlant(mine({ species: species.id, notes: 'From the co-op' }));
+    expect(plantsById['u-lime']).not.toHaveProperty('poison'); // (the catalog isn't loaded yet)
+    const was = globalThis.fetch;
+    globalThis.fetch = (async () => ({ json: async () => ({ plants: [species, cultivar], meta: {} }) })) as unknown as typeof fetch;
+    try { await loadPlants(); } finally { globalThis.fetch = was; }
+    expect(plantsById['u-lime']).toMatchObject({ parent: species.id, poison: { severity: 'low' }, notes: 'From the co-op' });
+    expect(mp.activeMyPlants().find((p) => p.id === 'u-lime')).toBe(plantsById['u-lime']);
+    // Stored, synced and backed up: the link, never the species' facts.
+    const stored = myPlants.find((p) => p.id === 'u-lime')!;
+    expect(stored).toMatchObject({ species: species.id });
+    for (const k of ['poison', 'zone_min', 'parent', 'prov']) expect(stored).not.toHaveProperty(k);
+    expect(fingerprint('', stored as unknown as Record<string, unknown>)).toBe(plantHash(stored));
+    const backup = JSON.parse((await buildBackupFile()).text) as { myPlants: Plant[] };
+    expect(backup.myPlants.find((p) => p.id === 'u-lime')).not.toHaveProperty('poison');
+    // Across a restart, the link stays.
+    loadMyPlants();
+    expect(myPlants.find((p) => p.id === 'u-lime')?.species).toBe(species.id);
+    expect(plantsById['u-lime']).toMatchObject({ poison: { severity: 'low' } });
+    // "Keep mine" on a catalog match stores the plant as it was, link and all, and nothing of its species'.
+    await mp.keepMine(plantsById['u-lime'], cultivar);
+    const kept = myPlants.find((p) => p.id === 'u-lime')!;
+    expect(kept).toMatchObject({ species: species.id, notSame: cultivar.id });
+    expect(kept).not.toHaveProperty('poison');
+    // A link to something that isn't a catalog plant is dropped when read.
+    expect(sanitizeMyPlant({ ...mine({}), species: 'Not An Id!' })).not.toHaveProperty('species');
+  });
+});

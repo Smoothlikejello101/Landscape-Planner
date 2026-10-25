@@ -1,9 +1,11 @@
 import { el } from '../dom';
 import { I } from '../icons';
 import {
-  deleteMyPlant, formatSize, isDataSized, newMyPlantId, parseSize, placedUsing, recolorPlaced, resizePlaced, saveMyPlant, sunLevels, sunRange, type Range,
+  activeMyPlants, deleteMyPlant, formatSize, isDataSized, isMine, newMyPlantId, parseSize, placedUsing, rawMyPlant, recolorPlaced, resizePlaced,
+  saveMyPlant, speciesLinkFor, speciesRecordFor, sunLevels, sunRange, type Range,
 } from '../my-plants';
-import { FORM_COLORS, linkFromPicker, MONTH_NAMES, plantColor, plantColors, plantsById, type Plant } from '../plants';
+import { FORM_COLORS, linkFromPicker, MONTH_NAMES, PLANTS, plantColor, plantColors, plantsById, speciesOf, type Plant } from '../plants';
+import { byMatch, matchPlant, readQuery } from '../search';
 import { state } from '../state';
 import type { Shape } from '../types';
 import { finishPlacing, startPlacing, switchPlacingPlant } from '../place';
@@ -15,6 +17,10 @@ import { toast } from './toast';
 // Add or edit one of "My plants". Text fields never re-render the panel
 // (Android keyboard safety): their values are read when Save is tapped, and
 // the size hints update in place.
+//
+// A new plant can start from another, from the catalog or the person's own (asked for by Jason, 2026-10-25): its
+// size, sun, type, color and bloom are filled in, to change what differs. And a plant can be the same species as
+// a catalog plant: then it has what holds for the whole species (src/my-plants.ts, withSpecies).
 
 type SunLevel = 'Full' | 'Part' | 'Shade';
 
@@ -31,12 +37,43 @@ function close(to: 'plants' | null) {
 export function renderPlantForm() {
   const args = state.plantForm;
   if (!args) return null;
-  const editing = args.editId ? plantsById[args.editId] : undefined;
-  const source = editing ?? (args.copyFromId ? plantsById[args.copyFromId] : undefined);
+  // (A plant of mine as stored: its own values, none of its species'.)
+  const own = (id: string) => rawMyPlant(id) ?? plantsById[id];
+  const editing = args.editId ? own(args.editId) : undefined;
+  const startedFrom = !editing && args.copyFromId ? own(args.copyFromId) : undefined;
+  const source = editing ?? startedFrom;
   const body = el('div', { className: 'sheet-body' });
 
-  if (args.copyFromId && source) {
-    body.appendChild(el('div', { className: 'banner' }, `A copy of ${source.common}. Change what differs, such as the cultivar name or size; the catalog entry stays as it is.`));
+  if (startedFrom) {
+    body.appendChild(el('div', { className: 'banner', 'data-testid': 'pf-from-banner' }, `Starting from ${startedFrom.common}. Change what differs, such as the name or size`
+      + (isMine(startedFrom) ? '; yours stays as it is.' : '; the catalog entry stays as it is.')));
+  }
+  // A new plant: start from another, found by name (its fields filled in; what's typed in the name stays).
+  if (!editing) {
+    const find = el('input', { type: 'text', enterkeyhint: 'search', placeholder: 'e.g. panicle hydrangea', 'data-testid': 'pf-from', autocomplete: 'off', id: 'pf-from' }) as HTMLInputElement;
+    const hits = el('div', { className: 'from-hits', 'data-testid': 'pf-from-hits' });
+    find.addEventListener('input', () => {
+      hits.replaceChildren();
+      const q = readQuery(find.value);
+      if (!q) return;
+      const found = [...PLANTS, ...activeMyPlants()].map((plant) => ({ plant, hit: matchPlant(plant, q, true) }))
+        .filter((x): x is { plant: Plant; hit: NonNullable<typeof x.hit> } => !!x.hit).sort(byMatch).slice(0, 6);
+      if (!found.length) { hits.appendChild(el('div', { className: 'hint' }, 'No plant by that name.')); return; }
+      for (const { plant } of found) {
+        const b = el('button', { className: 'from-hit', 'data-testid': 'pf-from-hit' }, el('span', {}, plant.common),
+          plant.botanical ? el('span', { className: 'from-bot' }, plant.botanical) : null, isMine(plant) ? el('span', { className: 'mine-badge' }, 'Mine') : null);
+        b.addEventListener('click', () => {
+          // What's been typed stays (a name from the picker's search, a botanical name); the rest comes from it.
+          const kept = (input: HTMLInputElement, was?: string) => (input.value.trim() && input.value.trim() !== (was ?? '').trim() ? input.value.trim() : undefined);
+          state.plantForm = { ...args, copyFromId: plant.id, name: kept(name.input, startedFrom?.common), botanical: kept(botanical.input, startedFrom?.botanical) };
+          render();
+        });
+        hits.appendChild(b);
+      }
+    });
+    body.appendChild(el('div', { className: 'field' },
+      el('label', { for: 'pf-from' }, startedFrom ? 'Start from another plant (optional)' : 'Start from a plant (optional)'), find,
+      el('div', { className: 'hint' }, 'Its size, sun, type and bloom are filled in, to change what differs.'), hits));
   }
 
   /**
@@ -65,8 +102,40 @@ export function renderPlantForm() {
     body.appendChild(el('div', { className: 'field' }, node, input, hint));
     return { input, hint, need };
   };
-  const name = text('Name, required', editing?.common ?? (args.copyFromId && source ? source.common : args.name ?? ''), "e.g. Hydrangea 'Limelight'", 'pf-name');
-  const botanical = text('Botanical or cultivar name (optional)', source?.botanical ?? '', 'e.g. Hydrangea paniculata', 'pf-botanical');
+  const name = text('Name, required', editing?.common ?? (args.name || startedFrom?.common || ''), "e.g. Hydrangea 'Limelight'", 'pf-name');
+  const botanical = text('Botanical or cultivar name (optional)', editing ? editing.botanical ?? '' : args.botanical ?? source?.botanical ?? '', 'e.g. Hydrangea paniculata', 'pf-botanical');
+
+  // The same species as a catalog plant: offered for the plant it started from (ticked), the one it's linked to
+  // (ticked), or the one its botanical name names (not ticked: the person says so). A botanical name of another
+  // species unticks it.
+  const linked = editing?.species ? plantsById[editing.species] : undefined;
+  let species: Plant | undefined = linked ?? (startedFrom ? speciesLinkFor(plantsById[startedFrom.id] ?? startedFrom) : speciesRecordFor(source?.botanical));
+  const same = el('input', { type: 'checkbox', 'data-testid': 'pf-species', id: 'pf-species' }) as HTMLInputElement;
+  same.checked = !!species && (!!linked || !!startedFrom);
+  const sameText = el('span', {});
+  const sameNote = el('div', { className: 'hint', 'data-testid': 'pf-species-note' });
+  const sameBox = el('div', { className: 'field species-field' },
+    el('label', { for: 'pf-species', className: 'check-label' }, same, sameText),
+    el('div', { className: 'hint' }, 'Ticked, it has what holds for the whole species, from the catalog: hardiness, toxicity, poison, native status, value to wildlife. Its size, color and bloom stay its own.'));
+  const showSpecies = () => {
+    sameBox.hidden = !species;
+    if (species) sameText.textContent = `Same species as ${species.common}` + (species.botanical && species.botanical !== species.common ? ` (${species.botanical})` : '');
+  };
+  showSpecies();
+  body.append(sameBox, sameNote); // (the note outside: it says why when the box goes)
+  // (Read once it's typed, on leaving the field: part-way, "Hydrangea pa" would name another species.)
+  botanical.input.addEventListener('change', () => {
+    const typed = speciesOf(botanical.input.value);
+    if (!typed) return; // (empty, or a genus alone: nothing to go by)
+    const have = speciesOf(species?.botanical);
+    if (species && have === typed) return;
+    // Another species: the one it names now, if the catalog has it, offered unticked.
+    if (same.checked && species) sameNote.textContent = `Unticked: ${typed} isn\u2019t ${have ?? species.common}.`;
+    same.checked = false;
+    species = speciesRecordFor(botanical.input.value);
+    showSpecies();
+  });
+  same.addEventListener('change', () => { sameNote.textContent = ''; });
 
   // Sizes: typed on the number pad, in feet or inches (most tags give feet for
   // shrubs, inches for perennials). Writing a unit ("36 in") also works. The
@@ -190,6 +259,9 @@ export function renderPlantForm() {
       ...(color.value.toLowerCase() !== plantColor({ id: '', common: '', form: form.value || undefined }) ? { color: color.value.toLowerCase() } : {}),
       ...(start ? { bloom: { start, end, ...(bloomColor.value.trim() ? { color: bloomColor.value.trim() } : {}) } } : {}),
       ...(notes.value.trim() ? { notes: notes.value.trim() } : {}),
+      // (Kept as the person left them: switched to the catalog's, or not that one.)
+      ...(editing?.sameAs ? { sameAs: editing.sameAs } : editing?.notSame ? { notSame: editing.notSame } : {}),
+      ...(same.checked && species ? { species: species.id } : {}),
     };
   };
 

@@ -104,6 +104,11 @@ export interface Plant {
   sameAs?: string;
   /** My plants only: a catalog plant the person said this isn't ("Keep mine"), so it isn't offered again. */
   notSame?: string;
+  /**
+   * My plants only: the catalog plant whose species this is ("Same species as", src/ui/plant-form.ts). What holds
+   * for the whole species comes from it, as a catalog cultivar's does (src/my-plants.ts, withSpecies).
+   */
+  species?: string;
   /** A cultivar's species (catalog id). */
   parent?: string;
   /** Mature trunk diameter, feet (trees). */
@@ -152,6 +157,9 @@ export type DogFilter = '' | 'hideToxic' | 'nonToxic';
 export const aliases: Record<string, string> = {};
 /** A catalog plant → the plant of mine switched to it (its notes and color go on with it). */
 export const ownCopies: Record<string, Plant> = {};
+/** Run once the catalog has loaded (plants of mine linked to a species take its facts then: src/my-plants.ts). */
+const catalogHooks: (() => void)[] = [];
+export function onCatalogLoaded(fn: () => void) { catalogHooks.push(fn); }
 /** Each switched plant's id stands for its catalog plant, once the catalog has it (until then, for itself). */
 export function applyAliases() {
   for (const [from, to] of Object.entries(aliases)) if (plantsById[to] && !to.startsWith('u-')) plantsById[from] = plantsById[to];
@@ -210,6 +218,7 @@ export function loadPlants(): Promise<void> {
     }
     shareDogWarnings(PLANTS);
     for (const p of PLANTS) plantsById[p.id] = p;
+    for (const fn of catalogHooks) fn();
     applyAliases(); // (plants of mine switched to these)
     if (state.panel === 'plants') render(); // refresh picker if already open
     else redrawCanvas(); // sun-check badges need plant data (canvas only: keyboard safe)

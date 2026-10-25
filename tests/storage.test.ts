@@ -448,6 +448,27 @@ describe('My plants with their own color', () => {
     expect(got('u-old')).not.toHaveProperty('sameAs');
     expect(got('u-old')).not.toHaveProperty('notSame');
   });
+  it('a plant linked to its species keeps the link across a restart; a library from before, and a bad link, read as before', async () => {
+    const mp = await import('../src/my-plants');
+    const { writeMyPlants } = await import('../src/storage');
+    const name = 'species-' + ++dbCount;
+    _resetStorageForTests();
+    await initStorage(await openKV(name));
+    const width = { min: 6, max: 8, med: 7 };
+    await writeMyPlants([
+      { id: 'u-lime', common: "Our 'Limelight'", width, species: 'hydrangea-paniculata', notSame: 'hydrangea-paniculata-limelight' },
+      { id: 'u-old', common: 'Before species links', width },
+      { id: 'u-bad', common: 'Bad link', width, species: '../etc' },
+    ]);
+    _resetStorageForTests();
+    await initStorage(await openKV(name));
+    mp.loadMyPlants();
+    const got = (id: string) => mp.myPlants.find((p) => p.id === id);
+    expect(got('u-lime')).toMatchObject({ species: 'hydrangea-paniculata', notSame: 'hydrangea-paniculata-limelight' });
+    expect(got('u-old')).not.toHaveProperty('species');
+    expect(got('u-bad')).not.toHaveProperty('species');
+    expect(got('u-bad')?.common).toBe('Bad link'); // (the plant itself is kept)
+  });
   it('saved as an understory or canopy tree by an older version, read as a tree, nothing else changed', async () => {
     const mp = await import('../src/my-plants');
     const { writeMyPlants } = await import('../src/storage');

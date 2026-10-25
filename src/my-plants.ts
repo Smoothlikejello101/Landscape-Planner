@@ -1,6 +1,6 @@
 import { flushHistoryDebounce, pushHistory } from './history';
-import { aliases, applyAliases, FORM_COLORS, ownCopies, PLANTS, plantsById, type Plant } from './plants';
-import { currentForm, wirePlant } from './catalog';
+import { aliases, applyAliases, FORM_COLORS, onCatalogLoaded, ownCopies, PLANTS, plantsById, speciesOf, type Plant } from './plants';
+import { currentForm, INHERITED, wirePlant, type Provenance } from './catalog';
 import { state } from './state';
 import { getPlantSync, rememberSizeMode, save, storedMyPlants, writeMyPlants, type SyncRecord } from './storage';
 import { fingerprint } from './sync/engine';
@@ -148,16 +148,74 @@ export function sanitizeMyPlant(raw: unknown): Plant | null {
   if (typeof o.color === 'string' && /^#[0-9a-f]{6}$/i.test(o.color)) p.color = o.color.toLowerCase();
   // (A catalog id, as the catalog writes them: lower case, digits, hyphens.)
   const ref = (v: unknown) => (typeof v === 'string' && /^[a-z0-9][a-z0-9-]{0,99}$/.test(v) ? v : undefined);
-  const sameAs = ref(o.sameAs), notSame = ref(o.notSame);
+  const sameAs = ref(o.sameAs), notSame = ref(o.notSame), species = ref(o.species);
   if (sameAs) p.sameAs = sameAs;
   else if (notSame) p.notSame = notSame;
+  if (species) p.species = species;
   return p;
 }
 /** Load the library from storage into memory and the plant lookup. */
 export function loadMyPlants() {
   for (const p of myPlants) delete plantsById[p.id];
   myPlants = storedMyPlants().map(sanitizeMyPlant).filter((p): p is Plant => !!p);
-  for (const p of myPlants) plantsById[p.id] = p;
+  // (The catalog loads after the library: the species links resolve then. Hooked here, at start-up, not on import:
+  // plants.ts may not have run yet when this module is first imported, the two importing each other.)
+  if (!hooked) { hooked = true; onCatalogLoaded(indexMine); }
+  indexMine();
+}
+let hooked = false;
+/** A plant of mine as stored (its own values only: none of its species'), for its form and for copying. */
+export const rawMyPlant = (id: string): Plant | undefined => myPlants.find((p) => p.id === id);
+
+// ---------- The same species as a catalog plant ----------
+// "Same species as Hydrangea paniculata": a plant of mine then has what holds for the whole species, from the
+// catalog, as a catalog cultivar has its species' (src/catalog.ts, INHERITED): hardiness, toxicity, poison,
+// native status, value to wildlife. Its own values stand where it has them (its sun, its form); its size, color
+// and bloom months are its own. Only the link is stored (and synced); the species' facts are read from the
+// catalog each time, so they follow the catalog as it's corrected. Its species' id is its `parent`, so records
+// kept by species (flowering months and native status where the garden is, what the law says: src/wild.ts)
+// apply to it too.
+
+/** A plant of mine seen with its species' facts (`sp`: the catalog plant it's linked to; none: as it is). */
+export function withSpecies(mine: Plant, sp: Plant | undefined): Plant {
+  if (!sp) return mine;
+  const out: Plant = { ...mine, parent: sp.id };
+  const prov: Record<string, Provenance> = {};
+  for (const key of INHERITED) {
+    if (mine[key] != null) continue; // (its own value stands)
+    const pv = sp.prov?.[key];
+    if (sp[key] == null && !pv?.unknown) continue;
+    if (sp[key] != null) out[key] = sp[key];
+    if (pv) prov[key] = { ...pv, inherited: true };
+  }
+  if (!mine.form && sp.forms) out.forms = sp.forms;
+  // (The earlier list's dog warning given for its species' other records.)
+  if (sp.dogVia && out.dog == null) out.dogVia = sp.dogVia;
+  if (Object.keys(prov).length) out.prov = prov;
+  return out;
+}
+/** The catalog plant a link names (never one of mine). */
+const catalogPlant = (id: string | undefined): Plant | undefined =>
+  id && !id.startsWith(MY_PREFIX) && plantsById[id]?.id === id ? plantsById[id] : undefined;
+/**
+ * The catalog's record of a species, by a botanical name that names it ("Hydrangea paniculata 'Limelight'":
+ * Hydrangea paniculata's): the record whose botanical name is the species alone. Undefined when it has none.
+ */
+export function speciesRecordFor(botanical: string | undefined, catalog: Plant[] = PLANTS): Plant | undefined {
+  const sp = speciesOf(botanical);
+  return sp ? catalog.find((p) => !p.parent && p.botanical?.trim() === sp) : undefined;
+}
+/**
+ * The species a plant to start from stands for: one of mine, its link; a catalog cultivar, its species; a catalog
+ * species, itself (a cultivar with no species record: its species by botanical name, else the cultivar).
+ */
+export function speciesLinkFor(source: Plant): Plant | undefined {
+  if (isMine(source)) return catalogPlant(rawMyPlant(source.id)?.species ?? source.species);
+  return catalogPlant(source.parent) ?? speciesRecordFor(source.botanical) ?? catalogPlant(source.id);
+}
+/** Plants of mine into the plant lookup, each with its species' facts where it's linked to one. */
+function indexMine() {
+  for (const p of myPlants) plantsById[p.id] = p.species ? withSpecies(p, catalogPlant(p.species)) : p;
   indexSwitched();
 }
 // ---------- Switching a plant of mine to the catalog's ----------
@@ -167,8 +225,8 @@ export function loadMyPlants() {
 // rewritten, and it keeps the person's notes and color. In the open plan, placed plants are relinked as one
 // undo step.
 
-/** Plants of mine in use as themselves (not switched to a catalog plant the catalog has). */
-export const activeMyPlants = (): Plant[] => myPlants.filter((p) => plantsById[p.id] === p);
+/** Plants of mine in use as themselves (not switched to a catalog plant the catalog has), as the app sees them. */
+export const activeMyPlants = (): Plant[] => myPlants.filter((p) => plantsById[p.id]?.id === p.id).map((p) => plantsById[p.id]);
 function indexSwitched() {
   for (const k of Object.keys(aliases)) delete aliases[k];
   for (const k of Object.keys(ownCopies)) delete ownCopies[k];
@@ -206,7 +264,8 @@ export function catalogMatchFor(mine: Plant, catalog: Plant[] = PLANTS): Plant |
  * plant's data take the catalog's size, the rest keep theirs (then sized by hand). Returns how many were placed
  * here. Throws if the library couldn't be saved: nothing changes.
  */
-export async function switchToCatalog(mine: Plant, target: Plant, resize: boolean): Promise<number> {
+export async function switchToCatalog(seen: Plant, target: Plant, resize: boolean): Promise<number> {
+  const mine = rawMyPlant(seen.id) ?? seen; // (as stored: none of its species' facts)
   const before = state.shapes.filter((s) => s.plantId === mine.id).map((s) => s.id);
   const dataSized = new Set(state.shapes.filter((s) => s.plantId === mine.id && isDataSized(s)).map((s) => s.id));
   const { notSame: _drop, ...rest } = mine;
@@ -227,12 +286,13 @@ export async function switchToCatalog(mine: Plant, target: Plant, resize: boolea
   return n;
 }
 /** Not the same plant after all: the plant of mine is itself again (placed plants relinked here stay linked to the catalog's). */
-export async function unswitch(mine: Plant): Promise<void> {
-  const { sameAs: _drop, ...rest } = mine;
-  await applyPlantChanges([{ id: mine.id, plant: rest }]);
+export async function unswitch(seen: Plant): Promise<void> {
+  const { sameAs: _drop, ...rest } = rawMyPlant(seen.id) ?? seen;
+  await applyPlantChanges([{ id: seen.id, plant: rest }]);
 }
 /** "Keep mine": this catalog plant isn't offered for it again. */
-export async function keepMine(mine: Plant, target: Plant): Promise<void> {
+export async function keepMine(seen: Plant, target: Plant): Promise<void> {
+  const mine = rawMyPlant(seen.id) ?? seen;
   await applyPlantChanges([{ id: mine.id, plant: { ...mine, notSame: target.id } }]);
 }
 
@@ -279,8 +339,7 @@ export function applyPlantChanges(changes: PlantChange[], bySync = false): Promi
     await writeMyPlants(next, sync); // throws on failure: nothing changes in memory
     for (const p of myPlants) delete plantsById[p.id];
     myPlants = next;
-    for (const p of myPlants) plantsById[p.id] = p;
-    indexSwitched();
+    indexMine();
     if (done.length && !bySync) afterPlantEdit();
     return done;
   });
