@@ -25,6 +25,7 @@ import { updateSaveWarning, updateSaveState } from './ui/save-warning';
 import { flushSave, initStorage, refreshClipboard, requestPersistence, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
 import { render } from './ui/render';
 import { dismissToastAction } from './ui/toast';
+import { noteVisit } from './hints';
 
 // ============================================================
 // EVENT LISTENERS
@@ -111,6 +112,7 @@ window.addEventListener('keydown', (e) => {
 // pending edits as soon as the page is hidden instead of waiting for the
 // save debounce.
 document.addEventListener('visibilitychange', () => {
+  noteVisit(); // (for hints after a long time away: src/hints.ts)
   if (document.visibilityState === 'hidden') { cancelGestures(); writeJournalIfDirty(); void flushSave(); }
   else void refreshClipboard().then(() => { if (state.menu || state.panel === 'projects') render(); });
 });
@@ -151,6 +153,7 @@ async function start() {
     if (e instanceof StorageUnavailableError) { showStorageError(); return; }
     throw e;
   }
+  noteVisit(); // (before the first render: a hint may be due again)
   loadMyPlants();
   loadViewSettings(); // (full-size rings and crowding outlines, as left on this device)
   setSaveStatusListener(updateSaveWarning);

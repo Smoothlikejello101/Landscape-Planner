@@ -10,6 +10,7 @@ import { onShapePointerDown } from './gestures';
 import { plantsById } from './plants';
 import { plantLabelFit, LABEL_LINE_HEIGHT, textWidth1, type FittedLabel } from './labels';
 import { canopyInnerRadius, canopyPoints, isTree, trunkParts, trunkReachPx } from './trees';
+import { trunkHitPx } from './canopy';
 import { isLocked, roleDef, roleRank } from './roles';
 import { shownWith } from './status';
 import { checkPlantSun, formatHours, shadeOpacity, sunHours, sunWarningShown } from './sun';
@@ -168,6 +169,13 @@ export function shapeGroup(s: Shape): SVGGElement {
     if (isTree(s)) {
       const trunk = trunkParts(s, cx, cy, ppf, showFull).map((p) => svgEl(p.tag, { ...p.attrs, 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : null }));
       g0.unshift(...trunk);
+      // Taps go through the canopy to what's under it (src/canopy.ts); the trunk picks the tree.
+      shapeEl.setAttribute('pointer-events', 'none');
+      hitEl = svgEl('circle', {
+        'data-trunk-of': s.id, 'data-role': 'trunk-hit', cx, cy, // (not data-shape-id: that's the tree as drawn)
+        r: trunkHitPx(s, ppf), fill: 'transparent',
+        style: common.style, 'pointer-events': inert ? 'none' : 'all',
+      });
     }
     labelX = cx; labelY = cy;
     fs = Math.max(10, Math.min(14, r * 0.4));

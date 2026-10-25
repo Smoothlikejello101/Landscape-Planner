@@ -15,6 +15,7 @@ import { drawTap, editedShape, forgetLastTap, insertVertex, moveVertex, notePoin
 import { placeTap } from './place';
 import { render, updateStatusReadout } from './ui/render';
 import { now, snap } from './util';
+import { canopyHint } from './canopy';
 
 // Pointer gestures on the canvas: pan, pinch-zoom, marquee selection, shape
 // drag, background move/rotate, calibration taps.
@@ -294,6 +295,8 @@ export function onCanvasPointerUp(e: PointerEvent) {
       else {
         const shape = state.shapes.find((s) => s.id === g.id);
         if (shape) handleShapeTap(shape);
+        // (Under a tree's canopy, the tap went through to this: say how to pick the tree, the first few times.)
+        canopyHint(screenToFeet(g.startX, g.startY), state.shapes, pxPerFoot(), g.id);
       }
       render();
       return;
@@ -310,10 +313,12 @@ export function onCanvasPointerUp(e: PointerEvent) {
       else if (g.tapShapeId) { // tap on a locked shape: select it
         const shape = state.shapes.find((s) => s.id === g.tapShapeId);
         if (shape) handleShapeTap(shape);
+        canopyHint(screenToFeet(g.startX, g.startY), state.shapes, pxPerFoot(), g.tapShapeId);
       } else { // tap on empty canvas
         clearSelection();
         state.panel = null;
         tapTracker.id = null; tapTracker.time = 0;
+        canopyHint(screenToFeet(g.startX, g.startY), state.shapes, pxPerFoot());
       }
       render();
       return;
