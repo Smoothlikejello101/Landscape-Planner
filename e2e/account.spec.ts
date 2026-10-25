@@ -88,8 +88,6 @@ async function fakeServer(page: Page, plan: Record<string, unknown> | null = { p
   });
   return seen;
 }
-/** Email sign-in waits for the app's own email service; tests turn it on. */
-async function emailOn(page: Page) { await page.addInitScript(() => localStorage.setItem('lp-email-signin', '1')); }
 async function signedIn(page: Page) {
   const exp = Math.floor(Date.now() / 1000) + 3600;
   await page.addInitScript(([key, value]) => { if (!localStorage.getItem('lp-auth-seeded')) { localStorage.setItem(key, value); localStorage.setItem('lp-auth-seeded', '1'); } }, ['lp-auth', JSON.stringify({
@@ -106,7 +104,6 @@ const openAccount = async (page: Page) => {
 
 test('signed out: Google goes to Google and back here; an emailed link is sent', async ({ page }) => {
   const seen = await fakeServer(page);
-  await emailOn(page);
   await openFresh(page);
   const account = await openAccount(page);
   await expect(account.getByTestId('signin-google')).toBeVisible();
@@ -128,18 +125,8 @@ test('signed out: Google goes to Google and back here; an emailed link is sent',
   expect(decodeURIComponent(authorize)).toMatch(/redirect_to=http:\/\/localhost:\d+\/(&|$)/);
 });
 
-test('email sign-in waits for the app’s own email service', async ({ page }) => {
-  await fakeServer(page);
-  await openFresh(page);
-  const account = await openAccount(page);
-  await expect(account.getByTestId('signin-google')).toBeVisible();
-  await expect(account.getByTestId('signin-email')).toHaveCount(0);
-  await expect(account.getByTestId('email-later')).toBeVisible();
-});
-
 test('an emailed code, typed into the app, signs in here', async ({ page }) => {
   const seen = await fakeServer(page);
-  await emailOn(page);
   await openFresh(page);
   const account = await openAccount(page);
   await account.getByTestId('signin-email').fill('new@example.com');
