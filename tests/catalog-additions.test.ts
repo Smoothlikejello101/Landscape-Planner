@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
-import { commonName, gbifCommonName, hybridFormula, leftOutWhy, missingToShip, namePagesToFetch, nameKey, newId, newRecords, pageBotanical, pageCommons, readAdded, shipOnly, SITEMAP, sitemapSlugs, tradeName, usdaCommonName, writeAdded } from '../scripts/catalog/additions.mjs';
+import { commonName, gbifCommonName, hybridFormula, leftOutWhy, missingToShip, namePagesToFetch, nameKey, newId, newRecords, pageBotanical, pagesInUse, pageCommons, readAdded, shipOnly, SITEMAP, sitemapSlugs, tradeName, usdaCommonName, writeAdded } from '../scripts/catalog/additions.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { savedAuditList } from '../scripts/catalog/list.mjs';
 // @ts-expect-error (a plain .mjs script)
@@ -193,6 +193,19 @@ describe('naming a new species from USDA, then GBIF', () => {
   });
   it('asks GBIF only once USDA has answered without a name, its match before its record; never for a cultivar or genus', () => {
     expect(namePagesToFetch(records, root).sort()).toEqual([match('Abelia × grandiflora'), record(2685681)].sort());
+  });
+});
+
+describe('the pages the catalog already reads', () => {
+  it('are every record\'s, but a cultivar\'s only where its page was chosen by hand', () => {
+    const catalog = { plants: [
+      { id: 'clay', common: "Butterfly weed 'for Clay'", botanical: 'Asclepias tuberosa' }, // (reads the species' page)
+      { id: 'thuja', common: "Arborvitae 'Green Giant'", botanical: "Thuja 'Green Giant'" }, // (its own page, chosen)
+      { id: 'itea', common: 'Virginia sweetspire', botanical: 'Itea virginica' },
+      { id: 'sunjoy', common: 'Japanese barberry Sunjoy Group', botanical: 'Berberis thunbergii Sunjoy Group' },
+    ] };
+    const list = [{ id: 'clay', ncsu: 'asclepias-tuberosa' }, { id: 'thuja', ncsu: 'thuja-green-giant' }, { id: 'itea', ncsu: 'itea-virginica' }, { id: 'sunjoy', ncsu: 'berberis-thunbergii' }];
+    expect(pagesInUse(catalog, list, { thuja: 'thuja-green-giant' })).toEqual(['thuja-green-giant', 'itea-virginica']);
   });
 });
 

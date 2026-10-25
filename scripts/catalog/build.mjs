@@ -13,8 +13,8 @@ import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseBuildArgs } from './build-args.mjs';
-import { savedAuditList, toFetch } from './list.mjs';
-import { gbifCommonName, namePagesToFetch, newRecords, readAdded, shipOnly, usdaCommonName, writeAdded } from './additions.mjs';
+import { readNcsuFile, savedAuditList, toFetch } from './list.mjs';
+import { gbifCommonName, namePagesToFetch, newRecords, pagesInUse, readAdded, shipOnly, usdaCommonName, writeAdded } from './additions.mjs';
 import { catalogText } from './convert-v1.mjs';
 import { lockCatalogSrc, savedFile } from './pages.mjs';
 import { rereadClaims } from './reclaim.mjs';
@@ -100,7 +100,7 @@ const date = opts.date ?? new Date().toISOString().slice(0, 10); // (the UTC day
 const addedBefore = readAdded(); // (the pages plants added before were found on)
 function withAdditions() {
   const base = JSON.parse(catalogBefore);
-  const found = newRecords(base, savedAuditList(base, ROOT, undefined, addedBefore).map((e) => e.ncsu).filter(Boolean), {
+  const found = newRecords(base, pagesInUse(base, savedAuditList(base, ROOT, undefined, addedBefore), { ...addedBefore, ...readNcsuFile().pages }), {
     root: ROOT, added: addedBefore, usdaCommon: (sp) => usdaCommonName(sp, ROOT), gbifCommon: (sp) => gbifCommonName(sp, ROOT),
   });
   base.plants.push(...found.records);
