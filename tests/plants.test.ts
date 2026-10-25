@@ -135,6 +135,15 @@ describe('plant filters', () => {
     expect(plantMatches(heuchera, f({ inPlan: true }), new Set(['h']))).toBe(true);
     expect(plantMatches(heuchera, f({ inPlan: true }), new Set(['other']))).toBe(false);
   });
+  it('finds a plant by another name it goes by, or had (after cultivar names were reordered)', () => {
+    const lime: Plant = { id: 'l', common: "Hydrangea 'Limelight'", botanical: "Hydrangea paniculata 'Limelight'", synonyms: ['Limelight Hydrangea'] };
+    const bonica: Plant = { id: 'b', common: 'Rosa Bonica', botanical: "Rosa Bonica 'MELdomonac'", synonyms: ['Bonica 82'] };
+    const weed: Plant = { id: 'w', common: 'Butterfly milkweed', botanical: 'Asclepias tuberosa', synonyms: ['Chiggerflower'] };
+    expect(matchPlant(bonica, readQuery('bonica 82')!, false)).not.toBeNull();
+    expect(matchPlant(weed, readQuery('chigger')!, false)).not.toBeNull();
+    expect(matchPlant(lime, readQuery('limelight hydrangea')!, false)?.rank).toBe(0); // (its own name has both words)
+    expect(matchPlant(weed, readQuery('monarch')!, false)).toBeNull();
+  });
   it('searches common and botanical names case-insensitively', () => {
     expect(plantMatches(heuchera, f({ q: 'VILLOSA' }))).toBe(true);
     expect(plantMatches(heuchera, f({ q: 'oak' }))).toBe(false);

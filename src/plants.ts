@@ -77,6 +77,8 @@ export interface Plant {
   invasive?: boolean;
   /** A shorter name for small circles on the plan ("'Haas' Halo' hydrangea"). */
   short?: string;
+  /** Other names it goes by (its sources' other common names, or a name it had before: searched too). */
+  synonyms?: string[];
   /**
    * My plants only: the catalog plant this one was switched to (src/my-plants.ts, switchToCatalog). Its id then
    * stands for that plant everywhere, in every plan; this record keeps the person's notes and color.
