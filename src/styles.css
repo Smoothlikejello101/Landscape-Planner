@@ -260,6 +260,12 @@ a { color: inherit; }
 .list-heading.fold:disabled .fold-chev { visibility: hidden; }
 .list-heading.fold .fold-chev { display: flex; transition: transform 0.15s; }
 .list-heading.fold[aria-expanded=false] .fold-chev { transform: rotate(-90deg); }
+.filter-fold { display: flex; width: 100%; align-items: center; justify-content: space-between; background: none; border: 0; text-align: left; min-height: 44px; padding: 6px 0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #78716c; cursor: pointer; }
+.filter-fold .fold-chev { display: flex; transition: transform 0.15s; }
+.filter-fold[aria-expanded=false] .fold-chev { transform: rotate(-90deg); }
+.animal-box { padding: 0 0 6px; }
+.animal-name { font-size: 13px; font-weight: 600; color: #44403c; margin: 2px 0; }
+.animal-rows .check-row { min-height: 40px; }
 .list-heading { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #78716c; padding: 10px 0 4px; }
 .add-own { width: 100%; margin: 8px 0; }
 .hint.error { color: #b91c1c; }

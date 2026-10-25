@@ -257,3 +257,36 @@ test('a plant\'s leaves: their colors, what they do in winter, fall color and gr
   await page.getByTestId('plant-search').fill('Red maple');
   await expect(page.locator('.plant-item', { hasText: /^Red maple/ })).toHaveCount(0);
 });
+
+test('animal toxicity: dogs three ways, and a warning given for one record of a species shows on the others', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  const count = page.getByTestId('picker-count');
+  await expect(count).toContainText(/^All /);
+  const fold = page.getByTestId('animal-fold');
+  await expect(fold).toHaveAttribute('aria-expanded', 'false');
+  await fold.click();
+  await expect(page.getByTestId('dogs-any')).toBeChecked();
+  await page.getByTestId('dogs-hideToxic').check();
+  await expect(fold).toContainText('dogs: hiding toxic');
+  await expect(page.getByTestId('dogs-note')).toContainText(/Hides the \d+ plants with a warning for dogs; keeps the [\d,]+ not yet rated/);
+  await expect(count).toContainText(/^[\d,]+ of [\d,]+ plants match/);
+  // The species record carries its strain's warning, so hiding toxic hides it too; any shows it again, saying where the warning came from.
+  await page.getByTestId('plant-search').fill('Butterfly milkweed');
+  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly milkweed$/ }) });
+  await expect(item).toHaveCount(0);
+  await page.getByTestId('dogs-any').check();
+  await expect(item).toHaveCount(1);
+  await item.getByRole('button', { name: /Butterfly milkweed/ }).first().click();
+  await expect(item.getByTestId('tox-row')).toContainText("given for Butterfly weed 'for Clay', the same species");
+  // A plant no source rates says so, rather than nothing.
+  await page.getByTestId('plant-search').fill("'Acapulco Orange'");
+  const unrated = page.locator('.plant-item').first();
+  await unrated.getByRole('button', { name: /Acapulco Orange/ }).first().click();
+  await expect(unrated.getByTestId('tox-row')).toContainText('dogs: not yet rated');
+  // Reset clears the filter, keeps the search and the open section.
+  await page.getByTestId('dogs-nonToxic').check();
+  await page.getByRole('button', { name: 'Reset filters' }).click();
+  await expect(page.getByTestId('dogs-any')).toBeChecked();
+  await expect(page.getByTestId('plant-search')).toHaveValue("'Acapulco Orange'");
+});

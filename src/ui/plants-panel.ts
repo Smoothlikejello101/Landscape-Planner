@@ -1,8 +1,8 @@
 import { el, type Child } from '../dom';
 import { I } from '../icons';
-import type { Plant, PlantFilter } from '../plants';
+import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, inNotes, matchPlant, nearShows, readQuery } from '../search';
-import { MONTH_NAMES, formsOf, matchedBy, reportedOnly, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun, countWord, invasivesLeftOut, pickerCount } from '../plants';
+import { MONTH_NAMES, formsOf, matchedBy, reportedOnly, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { spreadsAs } from '../spread';
@@ -244,7 +244,7 @@ export function renderPlantsPanel() {
   search.addEventListener('input', () => { plantFilter.q = search.value; rebuildList(); });
 
   const enums = (PLANT_META && PLANT_META.enums) || {};
-  type StringKey = { [K in keyof PlantFilter]: PlantFilter[K] extends string ? K : never }[keyof PlantFilter];
+  type StringKey = { [K in keyof PlantFilter]: PlantFilter[K] extends string ? (string extends PlantFilter[K] ? K : never) : never }[keyof PlantFilter];
   type BoolKey = { [K in keyof PlantFilter]: PlantFilter[K] extends boolean ? K : never }[keyof PlantFilter];
   function mkSelect<T extends string | number>(label: string, key: StringKey, options: readonly T[], display?: (o: T) => string) {
     const sel = el('select', {});
@@ -276,8 +276,6 @@ export function renderPlantsPanel() {
         mkSelect('Blooming in\u2026', 'bloomMonth', [1,2,3,4,5,6,7,8,9,10,11,12], m => MONTH_NAMES[m]))
   );
   const primaryChecks = el('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px 16px', margin: '8px 0 4px' } },
-    // Says unverified while it goes by the older list for any plant (until each has a sourced rating: docs/catalog-sources.md).
-    mkCheck(PLANTS.some((p) => !p.tox?.dog) ? 'Non-toxic to dogs (unverified)' : 'Non-toxic to dogs', 'dogSafeOnly'),
     // (Only plants whose NC State page was read and lists no poison: one it doesn't rate isn't called safe.)
     mkCheck('No poison to people listed (NC State)', 'noPoison'),
     state.location ? mkCheck(`Hardy in zone ${state.location.zone}`, 'hardyHere') : null,
@@ -295,6 +293,45 @@ export function renderPlantsPanel() {
     const zipRow = el('div', { className: 'zip-prompt' }, go, no);
     return zipRow;
   })() : null;
+
+  // ---- ANIMAL TOXICITY (folds; a line per animal: dogs now, cats and horses when a source rates them) ----
+  const animals = (() => {
+    const DOGS: [DogFilter, string][] = [
+      ['', 'Include toxic plants'],
+      ['hideToxic', 'Hide toxic plants, include unknown'],
+      // Says unverified while it goes by the older list for any plant (until each has a sourced rating: docs/catalog-sources.md).
+      ['nonToxic', PLANTS.some((p) => !p.tox?.dog) ? 'Include only non-toxic (unverified)' : 'Include only non-toxic'],
+    ];
+    const summary = () => (plantFilter.dogs === 'hideToxic' ? ' \u00b7 dogs: hiding toxic' : plantFilter.dogs === 'nonToxic' ? ' \u00b7 dogs: non-toxic only' : '');
+    const label = el('span', {}, 'Animal toxicity' + summary());
+    const head = el('button', { className: 'filter-fold', 'aria-expanded': String(plantFilter.animals), 'data-testid': 'animal-fold' },
+      label, el('span', { className: 'fold-chev', html: I.chevronDown }));
+    // (What the choice does, in numbers: how many it hides, and how many aren't rated at all.)
+    const nToxic = PLANTS.filter(toxicToDogs).length, nSafe = PLANTS.filter(nonToxicToDogs).length;
+    const nUnrated = PLANTS.length - nToxic - nSafe;
+    const note = el('div', { className: 'hint', 'data-testid': 'dogs-note' });
+    const sayNote = () => {
+      note.textContent = plantFilter.dogs === 'hideToxic' ? `Hides the ${countWord(nToxic)} plants with a warning for dogs; keeps the ${countWord(nUnrated)} not yet rated.`
+        : plantFilter.dogs === 'nonToxic' ? `Only the ${countWord(nSafe)} plants rated non-toxic to dogs, by an older list with no sources; leaves out the ${countWord(nUnrated)} not yet rated.`
+        : `Every plant, whatever it does to dogs. ${countWord(nUnrated)} aren't rated yet: no source we can use rates plants for pets.`;
+    };
+    sayNote();
+    const group = el('div', { role: 'radiogroup', 'aria-label': 'Dogs', className: 'animal-rows' });
+    for (const [value, text] of DOGS) {
+      const r = el('input', { type: 'radio', name: 'dogs-filter', value, 'data-testid': `dogs-${value || 'any'}` }) as HTMLInputElement;
+      r.checked = plantFilter.dogs === value;
+      r.addEventListener('change', () => { if (!r.checked) return; plantFilter.dogs = value; label.textContent = 'Animal toxicity' + summary(); sayNote(); rebuildList(); });
+      group.appendChild(el('label', { className: 'check-row' }, r, el('span', {}, text)));
+    }
+    const box = el('div', { className: 'animal-box', style: { display: plantFilter.animals ? 'block' : 'none' } },
+      el('div', { className: 'animal-name' }, 'Dogs'), group, note);
+    head.addEventListener('click', () => {
+      plantFilter.animals = !plantFilter.animals;
+      head.setAttribute('aria-expanded', String(plantFilter.animals));
+      box.style.display = plantFilter.animals ? 'block' : 'none';
+    });
+    return el('div', { 'data-testid': 'animal-toxicity' }, head, box);
+  })();
 
   // ---- ADVANCED FILTERS (collapsible) ----
   const adv = el('div', { style: { display: plantFilter.advanced ? 'block' : 'none',
@@ -353,9 +390,9 @@ export function renderPlantsPanel() {
   });
   const resetBtn = el('button', { className: 'btn ghost', style: { flex: '1', fontSize: '13px', padding: '6px' } }, 'Reset filters');
   resetBtn.addEventListener('click', () => {
-    const wasAdvanced = plantFilter.advanced;
-    Object.assign(plantFilter, PLANT_FILTER_DEFAULTS);
-    plantFilter.advanced = wasAdvanced;
+    // (Filters only: the search stays, and so do the sections that were open.)
+    const { advanced, animals: animalsOpen, q } = plantFilter;
+    Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { advanced, animals: animalsOpen, q });
     render(); // full rebuild so every control shows its cleared value
   });
   const btnRow = el('div', { style: { display: 'flex', gap: '8px', margin: '8px 0 4px' } }, toggle, resetBtn);
@@ -364,6 +401,7 @@ export function renderPlantsPanel() {
   const searchBar = el('div', { className: 'picker-search field' }, search);
   body.appendChild(primary);
   body.appendChild(primaryChecks);
+  body.appendChild(animals);
   if (zipPrompt) body.insertBefore(zipPrompt, primary);
   body.appendChild(btnRow);
   body.appendChild(adv);
