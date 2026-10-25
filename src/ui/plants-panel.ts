@@ -2,7 +2,7 @@ import { el, type Child } from '../dom';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, inNotes, matchPlant, nearShows, readQuery } from '../search';
-import { MONTH_NAMES, formsOf, matchedBy, reportedOnly, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch } from '../plants';
+import { MONTH_NAMES, formsOf, matchedBy, reportedOnly, earlierFor, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantTakesSun, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { spreadsAs } from '../spread';
@@ -120,6 +120,8 @@ export function renderPlantsPanel() {
   // --- Results list (rebuilt in place so typing never destroys input focus) ---
   const countLine = el('div', { className: 'hint', 'data-testid': 'picker-count', style: { padding: '0 0 6px' } });
   const listWrap = el('div', {});
+  /** The Sources section's "Include where sources differ" (the divider's Hide sets it too). */
+  let reportedCheck: HTMLInputElement | null = null;
   // Rows opened to show their details (kept while the list is rebuilt by typing or filtering).
   const opened = new Set<string>();
   /**
@@ -127,13 +129,29 @@ export function renderPlantsPanel() {
    * Opening and closing change only this row, so the search box keeps the keyboard.
    */
   function buildRow(p: Plant) {
+    // Its names and forms; then size, sun and hardiness (a hardiness that doesn't fit here in amber); then its marks.
+    const lines = rowLines(p);
+    const facts = el('div', { className: 'pmeta', 'data-testid': 'row-facts' }, [lines.size, lines.sun].filter(Boolean).join(' \u00b7 '));
+    if (lines.hardy) {
+      if (lines.size || lines.sun) facts.append(' \u00b7 ');
+      facts.appendChild(el('span', { className: lines.hardy.ok ? '' : 'hardy-no', 'data-testid': 'row-hardy' }, lines.hardy.text));
+    }
     const info = el('div', { className: 'pinfo' },
       el('div', { className: 'pname' }, p.common),
-      el('div', { className: 'pmeta' }, (p.botanical ? p.botanical + ' \u2014 ' : '') + plantMetaLine(p))
+      lines.names ? el('div', { className: 'pmeta', 'data-testid': 'row-names' }, lines.names) : null,
+      facts.childNodes.length ? facts : null,
     );
-    // Found by what it hosts, not its name: say so, or the match looks like a mistake.
-    if (!isMine(p) && matchedBy(p, plantFilter.q) === 'host') {
-      info.appendChild(el('div', { className: 'pmatch', 'data-testid': 'host-match' }, 'Its leaves feed the caterpillars of: ' + p.host));
+    const flags = rowFlags(p);
+    if (flags.length) info.appendChild(el('div', { className: 'pflags' },
+      ...flags.map((f) => el('span', { className: `pflag ${f.kind}${f.kind === 'check' ? ' unverified-badge' : ''}`, 'data-testid': f.testid, ...(f.title ? { title: f.title } : {}) }, f.text))));
+    // Why it matched, where its name doesn't say: what it hosts, another name it goes by, my notes.
+    const q = readQuery(plantFilter.q);
+    if (q) {
+      const hit = matchPlant(p, q, true);
+      if (!isMine(p) && matchedBy(p, plantFilter.q) === 'host') {
+        info.appendChild(el('div', { className: 'pmatch', 'data-testid': 'host-match' }, 'Its leaves feed the caterpillars of: ' + p.host));
+      } else if (hit?.also) info.appendChild(el('div', { className: 'pmatch', 'data-testid': 'match-also' }, `Also called ${hit.also}`));
+      else if (!hit && isMine(p) && inNotes(p, q)) info.appendChild(el('div', { className: 'pmatch', 'data-testid': 'match-notes' }, 'Found in your notes'));
     }
     // What the law says of it here, in short ("Prohibited in Arkansas"): seen without opening it.
     // (Red for a ban; amber where every line only lists it.)
@@ -176,9 +194,6 @@ export function renderPlantsPanel() {
       go.addEventListener('click', () => openSwitch(p.id, match.id));
       info.appendChild(el('div', { className: 'pmatch', 'data-testid': 'now-in-catalog' }, `Now in the catalog as ${match.common}. `, go));
     }
-    // Details not yet checked against sources say so, plainly, on every row (first in the details, where it can't be cut off).
-    else if (p.unverified) (info.childNodes[1] as HTMLElement).prepend(el('span', { className: 'unverified-badge', title: "From an earlier list with no sources; it's being checked" }, 'Unverified'), ' ');
-    else if (p.partlyChecked) (info.childNodes[1] as HTMLElement).prepend(el('span', { className: 'unverified-badge', 'data-testid': 'partly-badge', title: 'Some details are checked against sources; those marked "earlier list" in its details are not yet' }, 'Partly checked'), ' ');
     const item = el('div', { className: 'plant-item' }, head);
     let details: HTMLElement | null = null;
     const setOpen = (open: boolean) => {
@@ -241,10 +256,37 @@ export function renderPlantsPanel() {
       if (open) for (const p of mine) listWrap.appendChild(buildRow(p));
       if (hits.length) listWrap.appendChild(el('div', { className: 'list-heading' }, 'Catalog'));
     }
-    for (const p of hits.slice(0, 60)) listWrap.appendChild(buildRow(p));
-    if (hits.length > 60) {
-      listWrap.appendChild(el('div', { className: 'hint', style: { padding: '8px 0' } },
-        '+ ' + (hits.length - 60) + ' more \u2014 narrow the filters to see them'));
+    // In three groups (decided with Jason, 2026-10-25): what its sources say fits; what fits by what other sources say,
+    // below a divider, with a way to hide them; what fits only by the earlier list's word, below its own.
+    const earlier = hits.filter((p) => earlierFor.has(p.id));
+    const others = hits.filter((p) => reportedOnly.has(p.id) && !earlierFor.has(p.id));
+    const sourced = hits.filter((p) => !reportedOnly.has(p.id) && !earlierFor.has(p.id));
+    // (Each group up to 60 rows, so a long first group never hides the others.)
+    const rows = (ps: Plant[]) => {
+      for (const p of ps.slice(0, 60)) listWrap.appendChild(buildRow(p));
+      if (ps.length > 60) listWrap.appendChild(el('div', { className: 'hint', style: { padding: '8px 0' } }, `+ ${countWord(ps.length - 60)} more \u2014 narrow the filters to see them`));
+    };
+    rows(sourced);
+    if (others.length) {
+      const hide = el('button', { className: 'link-btn', 'data-testid': 'hide-others' }, 'Hide these');
+      hide.addEventListener('click', () => { plantFilter.withReported = false; if (reportedCheck) reportedCheck.checked = false; rebuildList(); });
+      listWrap.appendChild(el('div', { className: 'list-divider', 'data-testid': 'others-divider' },
+        el('span', {}, `Other sources say these ${reportedPhrase(others.flatMap((p) => reportedOnly.get(p.id) ?? []), plantFilter)} too`), hide));
+      rows(others);
+    }
+    // Hidden: say how many, and offer them back.
+    const hiddenOthers = !plantFilter.withReported && hits.length + mine.length > 0 ? othersHidden() : 0;
+    if (hiddenOthers) {
+      const show = el('button', { className: 'link-btn', 'data-testid': 'show-others' }, 'Show them');
+      show.addEventListener('click', () => { plantFilter.withReported = true; if (reportedCheck) reportedCheck.checked = true; rebuildList(); });
+      listWrap.appendChild(el('div', { className: 'hint list-note', 'data-testid': 'others-hidden' },
+        `${countWord(hiddenOthers)} more fit by what other sources say. `, show));
+    }
+    if (earlier.length) {
+      const on = [...new Set(earlier.flatMap((p) => earlierFor.get(p.id) ?? []))];
+      listWrap.appendChild(el('div', { className: 'list-divider earlier', 'data-testid': 'earlier-divider' },
+        el('span', {}, `These match on ${on.length > 1 ? `${on.slice(0, -1).join(', ')} and ${on[on.length - 1]}` : on[0]} only by the earlier list (unverified). No source we've read says so yet.`)));
+      rows(earlier);
     }
     if (hits.length === 0 && mine.length === 0) {
       // A search the filters emptied: which ones, and a way to see the plants anyway.
@@ -286,6 +328,13 @@ export function renderPlantsPanel() {
     }
     return names.length ? { n: found.length, names } : null;
   }
+  /** How many more plants the list would show with what other sources say counted (while it's hidden). */
+  function othersHidden(): number {
+    const was = plantFilter.withReported;
+    plantFilter.withReported = true;
+    try { return filteredPlants(nearShows(readQuery(plantFilter.q), PLANTS, activeMyPlants())).filter((p) => !forTree || isTree(p)).filter((p) => reportedOnly.has(p.id)).length; }
+    finally { plantFilter.withReported = was; filteredPlants(nearShows(readQuery(plantFilter.q), PLANTS, activeMyPlants())); }
+  }
   /** Clear the filters; the search stays, and so do the sections that were open. */
   function resetFilters() {
     const { advanced, animals: animalsOpen, q } = plantFilter;
@@ -319,7 +368,8 @@ export function renderPlantsPanel() {
   }
   const withTestId = (field: HTMLElement, id: string) => { field.querySelector('select')?.setAttribute('data-testid', id); return field; };
   function mkCheck(label: string, key: BoolKey) {
-    const cb = el('input', { type: 'checkbox' });
+    const cb = el('input', { type: 'checkbox' }) as HTMLInputElement;
+    if (key === 'withReported') reportedCheck = cb;
     cb.checked = !!plantFilter[key];
     cb.addEventListener('change', () => { plantFilter[key] = cb.checked; rebuildList(); });
     return el('label', { style: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '4px 0' } }, cb, label);

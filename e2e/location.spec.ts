@@ -43,15 +43,16 @@ test('a ZIP gives the zone and frost dates; the plant picker can show only plant
   await expect(hardy).toBeVisible();
   await page.getByTestId('plant-search').fill('Speckled alder'); // rated for zones 2–6
   const row = page.locator('.sheet .proj-row', { hasText: 'Speckled alder' });
-  await expect(row).toContainText('zones 2–6 (zone 8a may be too warm)');
+  await expect(row.getByTestId('row-hardy')).toHaveText('May be too warm here');
+  await expect(row.getByTestId('row-hardy')).toHaveClass(/hardy-no/);
   // Half a zone past the end of its range is outside it: not counted as hardy.
   await page.getByTestId('plant-search').fill('Pagoda dogwood'); // rated for zones 3–7 (through 7b)
   const past = page.locator('.sheet .proj-row', { hasText: 'Pagoda dogwood' });
-  await expect(past).toContainText('zones 3–7 (zone 8a may be too warm)');
+  await expect(past.getByTestId('row-hardy')).toHaveText('May be too warm here');
   // The end half-zone of its range is its edge: shown as hardy, and marked.
   await page.getByTestId('plant-search').fill('Oleander'); // rated from zone 8 (8a) to 10 (NC State)
-  const edge = page.locator('.sheet .proj-row', { hasText: 'Oleander' });
-  await expect(edge).toContainText('(at its cold edge in zone 8a)');
+  const edge = page.locator('.sheet .plant-item').filter({ has: page.locator('.pname', { hasText: /^Oleander$/ }) });
+  await expect(edge.getByTestId('row-hardy')).toHaveText('Hardy here, at its cold edge');
   await hardy.locator('input').check();
   await expect(edge).toHaveCount(1);
   await page.getByTestId('plant-search').fill('Pagoda dogwood');
@@ -74,10 +75,10 @@ test('at the warm edge of a plant\'s range: shade, and water unless it wants lit
   await page.getByTestId('zip').fill('71901');
   await page.getByTestId('zip-lookup').click();
   await page.getByTestId('plant-search').fill('Red buckeye'); // rated through zone 8 (8b), moderate water
-  await expect(page.locator('.sheet .proj-row', { hasText: 'Red buckeye' })).toContainText('(at its warm edge in zone 8b)');
+  await expect(page.locator('.sheet .proj-row', { hasText: 'Red buckeye' }).getByTestId('row-hardy')).toHaveText('Hardy here, at its warm edge');
   await page.getByTestId('plant-search').fill('Wild lupine'); // rated through zone 8 (8b), low water
   const lead = page.locator('.sheet .proj-row', { hasText: 'Wild lupine' });
-  await expect(lead).toContainText('(at its warm edge in zone 8b)');
+  await expect(lead.getByTestId('row-hardy')).toHaveText('Hardy here, at its warm edge');
   await lead.locator('[data-testid=plant-place]').click();
   await placeOnceAtCenter(page);
   await page.locator('.sel-pill button.edit').click(); await openSections(page);
@@ -137,7 +138,7 @@ test('a plant recorded growing wild in the garden\'s county or next door says so
   // Chinquapin oak: rated to zone 7 by NC State, but recorded wild in Clark County (the Arkansas atlas).
   await page.getByTestId('plant-search').fill('Chinquapin oak');
   const oak = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinquapin oak$/ }) });
-  await expect(oak).toContainText('(zone 8a may be too warm, though it\'s recorded wild nearby)');
+  await expect(oak.getByTestId('row-hardy')).toHaveText('May be too warm here; recorded wild nearby');
   await oak.getByTestId('plant-row').click();
   await expect(oak.getByTestId('wild-here')).toContainText('Recorded growing wild in Clark County');
   await expect(oak.getByTestId('wild-here')).toContainText('Atlas of the Vascular Plants of Arkansas');

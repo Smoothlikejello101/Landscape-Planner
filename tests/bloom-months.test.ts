@@ -6,7 +6,7 @@ import { agreesWithSeasons, bloomCounts, bloomDisagreements, bloomSpecies, bloom
 import { DOWNLOADS, matchedTaxon, matchUrl, phases, tsvRows } from '../scripts/catalog/gbif.mjs';
 import { loadWild, localBloom, resetWild, type WildFile } from '../src/wild';
 import { bloomMonths } from '../src/bloom';
-import { plantMatches, plantMetaLine, PLANT_FILTER_DEFAULTS, type Plant } from '../src/plants';
+import { earlierOnly, plantMatches, PLANT_FILTER_DEFAULTS, type Plant } from '../src/plants';
 import { plantDetails } from '../src/ui/plant-details';
 import { state } from '../src/state';
 
@@ -112,7 +112,11 @@ describe('bloom months in the app', () => {
     const cone = { id: 'coneflower', common: 'Purple coneflower', bloom: { start: 5, end: 7 } } as Plant;
     expect(localBloom(cone)).toMatchObject({ start: 6, end: 8, n: 252, stateName: 'Arkansas', species: false });
     expect(bloomMonths(cone)).toEqual([6, 7, 8]);
-    expect(plantMetaLine(cone)).toContain('blooms Jun-Aug');
+    // ("Blooming in June" rests on the records here, not the earlier list's months.)
+    const sources = { compendium: { title: 'Earlier list', trust: 'unverified' } };
+    const fromList = { ...cone, prov: { bloom: { src: ['compendium'] } } } as Plant;
+    expect(earlierOnly(fromList, { ...PLANT_FILTER_DEFAULTS, bloomMonth: '6' }, sources)).toEqual([]);
+    expect(earlierOnly({ ...fromList, id: 'other' }, { ...PLANT_FILTER_DEFAULTS, bloomMonth: '6' }, sources)).toEqual(['bloom time']);
     const cultivar = { id: 'magnus', parent: 'coneflower', common: 'Magnus' } as Plant;
     expect(localBloom(cultivar)).toMatchObject({ start: 6, species: true });
     const other = { id: 'other', common: 'Other', bloom: { start: 4, end: 5 } } as Plant;

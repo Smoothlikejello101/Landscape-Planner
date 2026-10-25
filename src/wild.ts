@@ -60,7 +60,7 @@ export interface RuleHere extends RuleLine {
   background?: LawBackground;
 }
 /** A plant's native status in the garden's state (`species`: its species', a cultivar's). */
-export interface NativeHere { status: 'N' | 'I'; stateName: string; species: boolean; source: string }
+export interface NativeHere { status: 'N' | 'I'; stateName: string; /** Its postal code ("AR"). */ state: string; species: boolean; source: string }
 /** A plant's bloom months where the garden is: its state's (or, with too few records there, its region's). */
 export interface LocalBloom { start: number; end: number; peak: number; n: number; area: 'state' | 'region'; stateName: string; species: boolean; source: string }
 export interface WildIndex { v: 1; states: Record<string, string>; border: Record<string, number[]> }
@@ -244,7 +244,7 @@ export function nativeHere(p: { id: string; parent?: string }): NativeHere | nul
   let id = p.id, s = own.native[id], species = !!s && !!own.nativeSpecies?.includes(id);
   if (!s && p.parent) { id = p.parent; s = own.native[id]; species = !!s; }
   if (!s) return null;
-  return { status: s, stateName: STATE_NAMES[own.state] ?? own.state, species, source: own.sources.wcvp?.title ?? 'World Checklist of Vascular Plants (Kew)' };
+  return { status: s, stateName: STATE_NAMES[own.state] ?? own.state, state: own.state, species, source: own.sources.wcvp?.title ?? 'World Checklist of Vascular Plants (Kew)' };
 }
 /**
  * What the law says of a plant (a cultivar: its species, which the law names) in the garden's state: its state's

@@ -68,6 +68,17 @@ test('a plant shown only because of what other sources say is marked, and says s
   await expect(page.locator('.plant-item', { hasText: 'Old-list aster' }).locator('.unverified-badge')).toHaveText('Unverified');
   await expect(page.locator('.plant-item', { hasText: 'Half-checked aster' }).locator('.unverified-badge')).toHaveText('Partly checked');
   await expect(page.locator('.plant-item', { hasText: 'Sweetspire' }).locator('.unverified-badge')).toHaveCount(0);
+  // In groups: what its sources say fits; below a divider, what fits by what other sources say (with Hide); below
+  // another, what fits only by the earlier list.
+  const order = () => page.locator('.list-divider, .plant-item .pname').evaluateAll((els) => els.map((e) => (e.classList.contains('list-divider') ? '|' + e.getAttribute('data-testid') : e.textContent)));
+  await expect.poll(order).toEqual(['Bee balm', 'Bristleleaf sedge', 'Sweetspire', '|others-divider', 'Hairy alumroot', '|earlier-divider', 'Half-checked aster', 'Old-list aster']);
+  await expect(page.getByTestId('others-divider')).toContainText('Other sources say these take full sun too');
+  await expect(page.getByTestId('earlier-divider')).toContainText('These match on sun only by the earlier list (unverified).');
+  await page.getByTestId('hide-others').click();
+  await expect(page.locator('.plant-item', { hasText: 'Hairy alumroot' })).toHaveCount(0);
+  await expect(page.getByTestId('others-hidden')).toContainText('1 more fit by what other sources say.');
+  await page.getByTestId('show-others').click();
+  await expect(page.locator('.plant-item', { hasText: 'Hairy alumroot' })).toHaveCount(1);
   await alumroot.getByTestId('plant-row').click();
   await expect(alumroot.getByTestId('reported-flag')).toContainText('what other sources say for its sun');
   await expect(alumroot.getByTestId('plant-details')).toContainText('Nurseries report: Full sun to shade (A nursery)');
@@ -264,7 +275,9 @@ test('a plant poisonous to people says so, beside Edible, and the picker can kee
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Mayapple');
   const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Mayapple$/ }) });
-  await expect(item.getByTestId('plant-row')).toContainText('poisonous to people');
+  // (Its row marks only what touching it can do; what eating it does is in its details and the filter.)
+  await expect(item.getByTestId('row-skin')).toHaveText('Can irritate skin');
+  await expect(item.getByTestId('plant-row')).not.toContainText('poisonous');
   await item.getByTestId('plant-row').click();
   const details = item.getByTestId('plant-details');
   // NC State's words: the parts, how severe, skin irritation, credited to it; and its fruit is edible all the same.
