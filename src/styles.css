@@ -31,12 +31,13 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 /* A banner's close: the icon its size, the tap area a fingertip's, without making the banner taller. */
 .banner-close { width: 44px; height: 44px; margin: -12px -12px -12px -4px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; color: inherit; border-radius: 999px; }
 .mode-banner { position: absolute; top: 8px; left: 8px; max-width: calc(100% - 64px); background: #fef3c7; border: 1px solid #fde68a; color: #92400e; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 500; z-index: 5; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
-.sel-pill { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #d6d3d1; border-radius: 999px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); padding: 6px 10px; display: flex; align-items: center; gap: 8px; font-size: 12px; z-index: 5; max-width: calc(100% - 16px); }
+.sel-pill { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #d6d3d1; border-radius: 999px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); padding: 6px 10px; display: flex; align-items: center; gap: 8px; font-size: 12px; z-index: 5; width: max-content; max-width: calc(100% - 16px); }
+/* (Centred by left 50%, a chip would otherwise shrink to half the screen and squeeze its name out.) */
 .sel-pill .sw { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #d6d3d1; flex-shrink: 0; }
-.sel-pill .name { color: #44403c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.sel-pill .name { color: #44403c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 3em; }
 .sel-pill button.edit { background: #1c1917; color: #fff; border-radius: 999px; padding: 4px 14px; min-height: 40px; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .sel-pill button.pill-more { background: #ccfbf1; color: #115e59; border-radius: 999px; padding: 4px 14px; min-height: 40px; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
-.multi-bar { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); background: #1c1917; color: #fff; border-radius: 999px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); padding: 4px; display: flex; align-items: center; gap: 2px; font-size: 12px; z-index: 6; }
+.multi-bar { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); background: #1c1917; color: #fff; border-radius: 999px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); padding: 4px; display: flex; align-items: center; gap: 2px; font-size: 12px; z-index: 6; width: max-content; max-width: calc(100% - 16px); }
 .multi-bar .count { padding: 6px 12px; font-weight: 600; white-space: nowrap; }
 .multi-bar button { padding: 8px 10px; min-width: 44px; min-height: 44px; justify-content: center; border-radius: 999px; color: #fff; display: flex; align-items: center; gap: 4px; font-size: 12px; }
 .multi-bar button:active { background: rgba(255,255,255,0.1); }
