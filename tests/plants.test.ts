@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { byMatch, closeMatchIn, inNotes, matchPlant, nearShows, readQuery } from '../src/search';
-import { matchedBy, nonToxicToDogs, PLANT_FILTER_DEFAULTS, pickerCount, plantMatches, shareDogWarnings, speciesOf, toxicToDogs, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
+import { earlierOnly, matchedBy, nonToxicToDogs, PLANT_FILTER_DEFAULTS, pickerCount, plantMatches, reportedPhrase, rowFlags, rowLines, shareDogWarnings, speciesOf, sunSaid, toxicToDogs, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
 import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs } from '../src/spread';
 import { readFileSync } from 'node:fs';
 import { HEIGHT_STOPS, heightLabel, heightStops, heightValue } from '../src/ui/height-range';
@@ -308,6 +308,48 @@ describe('plant filters', () => {
     expect(shown('')).toEqual(['t', 'u', 's', 'v']);
     expect(shown('hideToxic')).toEqual(['u', 's']);
     expect(shown('nonToxic')).toEqual(['s']);
+  });
+});
+
+describe('a picker row', () => {
+  it('says its names and forms, then its size as its sources give it, its sun and its zones', () => {
+    const r = rowLines({ ...heuchera, height: { min: 1.5, max: 2, med: 1.75 }, width: { min: 0.67, max: 1.5, med: 1.08 }, zone_min: 4, zone_max: 9.5 });
+    expect(r).toEqual({ names: "Heuchera villosa \u00b7 Perennial", size: '1.5\u20132 ft tall, 8 in\u20131.5 ft wide', sun: 'Part shade to shade', hardy: { text: 'Zones 4\u20139', ok: true } });
+    // (A botanical name that is its name isn't said twice; one size alone.)
+    expect(rowLines({ id: 'a', common: 'Adiantum × mairisii', botanical: 'Adiantum × mairisii', form: 'Fern', height: { med: 1.25 } })).toMatchObject({ names: 'Fern', size: '1.3 ft tall' });
+    expect([sunSaid('Full', 'Full'), sunSaid('Full', 'Shade'), sunSaid()]).toEqual(['Full sun', 'Full sun to shade', '']);
+  });
+  it('marks only what applies: skin irritation (not poison that\'s eaten), invasive, how far it\'s checked', () => {
+    expect(rowFlags(heuchera)).toEqual([]);
+    expect(rowFlags({ ...heuchera, poison: { severity: 'high', parts: ['leaves'] } })).toEqual([]);
+    expect(rowFlags({ ...heuchera, poison: { skin: true }, invasive: true, unverified: true }).map((x) => x.text)).toEqual(['Invasive: not for planting', 'Can irritate skin', 'Unverified']);
+    expect(rowFlags({ ...heuchera, partlyChecked: true }).map((x) => x.testid)).toEqual(['partly-badge']);
+  });
+  it('puts a match resting only on the earlier list below its own divider, naming the filter', () => {
+    const sources = { compendium: { title: 'Earlier list', trust: 'unverified' as const }, ncsu: { title: 'NC State', trust: 'reference' as const } };
+    const p = { ...heuchera, deer: 'Resistant', prov: { deer: { src: ['compendium'] }, sun_most: { src: ['ncsu'] }, sun_least: { src: ['ncsu'] }, dry_shade: { src: ['compendium'] } } } as Plant;
+    expect(earlierOnly(p, f({ sun: 'Shade' }), sources)).toEqual([]);
+    expect(earlierOnly(p, f({ sun: 'Shade', deer: 'Resistant', dryShade: true }), sources)).toEqual(['deer resistance', 'dry shade']);
+    // (A plant of mine is its own word.)
+    expect(earlierOnly(heuchera, f({ dryShade: true }), sources)).toEqual([]);
+  });
+  it('says what other sources helped with, as the divider reads', () => {
+    expect(reportedPhrase(['sun'], f({ sun: 'Shade' }))).toBe('take shade');
+    expect(reportedPhrase(['sun', 'hardiness zones', 'sun'], f({ sun: 'Part', hardyHere: true }))).toBe('take part shade and are hardy here');
+    expect(reportedPhrase(['form'], f({ form: 'Shrub' }))).toBe('are shrubs');
+  });
+  it('says why a search found it where its name doesn\'t: another name it goes by', () => {
+    const limelight = { id: 'l', common: "Hydrangea 'Limelight'", botanical: "Hydrangea paniculata 'Limelight'", synonyms: ['Limelight Hydrangea'] } as Plant;
+    expect(matchPlant(limelight, readQuery('limelight hydrangea')!, false)).toMatchObject({ rank: 0 });
+    const chigger = { id: 'c', common: 'Butterfly weed', synonyms: ['Chiggerflower'] } as Plant;
+    expect(matchPlant(chigger, readQuery('chiggerflower')!, false)).toEqual({ rank: 1, order: 5, also: 'Chiggerflower' });
+  });
+  it('ranks a butterfly found inside a word ("oak" in "mourning cloak") after one starting a word', () => {
+    const a = { id: 'a', common: 'Willow', host: 'Mourning cloak' } as Plant, b = { id: 'b', common: 'Oak', host: 'Oak hairstreak' } as Plant;
+    const c = { id: 'c', common: 'Elm', host: 'Oak hairstreak' } as Plant;
+    expect(matchPlant(a, readQuery('oak')!, false)).toMatchObject({ rank: 3, order: 1 });
+    expect(matchPlant(c, readQuery('oak')!, false)).toMatchObject({ rank: 3, order: 0 });
+    expect(b.common).toBe('Oak');
   });
 });
 

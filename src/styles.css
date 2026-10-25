@@ -443,6 +443,21 @@ a { color: inherit; }
 /* Introduced in the garden's state: said plainly, in the warning color. */
 .details-introduced { color: #9a3412; }
 .pescape { color: #9a3412; font-size: 12px; font-weight: 500; margin-top: 2px; }
+/* A picker row's marks: native here (green); something to know before choosing it (amber, red); how far it's checked. */
+/* (A picker row's name wraps: a cultivar's name is what tells it apart.) */
+.plant-item .pname { white-space: normal; overflow-wrap: anywhere; }
+.pflags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.pflag { padding: 0 6px; border-radius: 999px; font-size: 10px; font-weight: 600; line-height: 16px; border: 1px solid transparent; }
+.pflag.native { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
+.pflag.warn { background: #fffbeb; color: #92400e; border-color: #fde68a; }
+.pflag.bad { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.pflag.check { font-weight: 500; }
+.pmeta .hardy-no { color: #b45309; font-weight: 600; }
+/* The list's groups: what other sources say fits, and what fits only by the earlier list. */
+.list-divider { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 10px 0 2px; padding: 8px 0 4px; border-top: 1px solid #e7e5e4; font-size: 12px; font-weight: 600; color: #57534e; }
+.list-divider .link-btn { flex: none; font-size: 12px; }
+.list-divider.earlier { color: #78716c; font-weight: 500; }
+.list-note { padding: 6px 0; }
 .details-law, .plaw { color: #b91c1c; font-weight: 600; }
 /* (A listing with lighter duties than a ban: amber, the same weight.) */
 .details-law.listed, .plaw.listed { color: #b45309; }

@@ -131,7 +131,7 @@ function nearIn(q: string, ws: string[]): number | null {
  * search, as plant names end with what they are ("Bur oak" for "oak"); 2 one starting with it as whole words ("Oak
  * fern"); 3 holding it as a phrase; 4 the rest. Ranks 4 and 5: by how near.
  */
-export interface Hit { rank: number; order: number }
+export interface Hit { rank: number; order: number; /** Found by another name it goes by: that name. */ also?: string }
 export function matchPlant(p: Plant, q: Query, near: boolean): Hit | null {
   const x = indexed(p);
   const orderFor = (t: string) => (x.nameText === t || x.base === t || x.botBase === t ? 0 : x.base.endsWith(' ' + t) ? 1
@@ -145,10 +145,15 @@ export function matchPlant(p: Plant, q: Query, near: boolean): Hit | null {
   const inName = (q: Word) => startsName(q) || inside(q.w, x.name);
   if (q.words.every(inName)) return { rank: 1, order };
   // (Another name it goes by, or had: "chiggerflower", "Limelight Hydrangea" for Hydrangea 'Limelight'.)
-  if (x.also.some((ws) => q.words.every((w) => startsIn(w.w, ws) || asOne(w, ws)))) return { rank: 1, order: order + 1 };
+  const also = x.also.findIndex((ws) => q.words.every((w) => startsIn(w.w, ws) || asOne(w, ws)));
+  if (also >= 0) return { rank: 1, order: order + 1, also: p.synonyms![also] };
   const inBoth = (q: Word) => inName(q) || startsIn(q.w, x.bot) || asOne(q, x.bot);
   if (q.words.every(inBoth)) return { rank: 2, order };
-  if (x.host && q.words.every((q) => x.host.includes(q.w))) return { rank: 3, order };
+  // (Inside a word too, "oak" in "mourning cloak", kept for the butterflies' sake, after those starting a word.)
+  if (x.host && q.words.every((q) => x.host.includes(q.w))) {
+    const hostWords = x.host.split(' ');
+    return { rank: 3, order: q.words.every((w) => startsIn(w.w, hostWords) || asOne(w, hostWords)) ? 0 : 1 };
+  }
   if (!near) return null;
   // Near: every word matches as above, or nearly (in the name: rank 4; any in the botanical name: rank 5).
   let rank = 4, off = 0;

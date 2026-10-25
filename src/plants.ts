@@ -13,8 +13,8 @@ import { setRadius } from './geometry';
 import { isLocked } from './roles';
 import { shownWith } from './status';
 import { hardyEnough, zoneFit, zoneRange } from './climate';
-import { gardenStateName, nativeHere, wildHere, wildNearby } from './wild';
-import { bloomMonths, bloomSpan } from './bloom';
+import { gardenStateName, localBloom, nativeHere, nativeText, wildHere, wildNearby } from './wild';
+import { bloomMonths } from './bloom';
 import { byMatch, matchPlant, readQuery } from './search';
 
 /**
@@ -378,6 +378,50 @@ export function reportedMatch(p: Plant, f: PlantFilter, inPlan?: Set<string>): s
 /** Plants in the last list that match only by what other sources say, and on what. */
 export const reportedOnly = new Map<string, string[]>();
 /**
+ * Which facts each filter reads (for whether a match rests only on the earlier list), and what it's called. The
+ * labels the other-sources filters share are theirs (FILTER_FACTS). Not the dog filter, which says unverified in its
+ * own words, nor poison to people (always sourced), the search or "Already in this plan".
+ */
+const FILTER_READS: [keyof PlantFilter, (p: Plant, f: PlantFilter) => string[], string][] = [
+  ['form', () => ['form'], 'form'], ['sun', () => ['sun_most', 'sun_least'], 'sun'], ['water', () => ['water'], 'water'],
+  // (Months where the garden is come from flowering records; a native filter for the garden's state, from Kew's checklist.)
+  ['bloomMonth', (p) => (localBloom(p) ? [] : ['bloom']), 'bloom time'], ['native', (_p, f) => (f.native === '@here' ? [] : ['native']), 'native status'],
+  ['deer', () => ['deer'], 'deer resistance'], ['maintenance', () => ['maintenance'], 'maintenance'], ['spread', () => ['self_seed', 'habit'], 'how it spreads'],
+  ['nectar', () => ['nectar'], 'nectar'], ['bird', () => ['bird'], 'value to birds'], ['height', () => ['height'], 'height'],
+  ['dryShade', () => ['dry_shade'], 'dry shade'], ['wetFeet', () => ['wet_feet'], 'wet feet'], ['clayOk', () => ['clay_ok'], 'clay'],
+  ['hostOnly', () => ['host'], 'host plant'], ['fallColor', () => ['fall_color'], 'fall color'], ['evergreen', () => ['foliage'], 'evergreen'],
+  ['winterInterest', () => ['winter_interest'], 'winter interest'], ['edible', () => ['edible'], 'edible'], ['noTaproot', () => ['taproot'], 'taproot'],
+  ['hardyHere', () => ['zone_min', 'zone_max'], 'hardiness zones'],
+];
+/** Whether a value rests only on the earlier list: its every source is the unsourced compendium. */
+export function earlierListOnly(pv: Provenance | undefined, sources = PLANT_META?.sources): boolean {
+  return !!pv && !pv.unknown && pv.src.length > 0 && pv.src.every((s) => sources?.[s]?.trust === 'unverified');
+}
+/**
+ * The filters a catalog plant passes only on the earlier list's word (what the filter reads has no source but that
+ * list), by name ("deer resistance"); empty where every filter it passes rests on a source. A filter it passes on
+ * what other sources say (`reportedOnly`) rests on them. A plant of mine has its own word: none.
+ */
+export function earlierOnly(p: Plant, f: PlantFilter, sources = PLANT_META?.sources): string[] {
+  if (!p.prov) return [];
+  const via = new Set(reportedOnly.get(p.id) ?? []);
+  return FILTER_READS.filter(([k, reads, label]) => f[k] !== PLANT_FILTER_DEFAULTS[k] && !via.has(label) && reads(p, f).some((x) => earlierListOnly(p.prov?.[x], sources)))
+    .map(([, , label]) => label);
+}
+/** Plants in the last list that match only on the earlier list's word, and on what. */
+export const earlierFor = new Map<string, string[]>();
+/** What filters the other sources' values helped with: as the divider says it ("take shade", "are hardy here"). */
+export function reportedPhrase(labels: Iterable<string>, f: PlantFilter): string {
+  const FORMS: Record<string, string> = { Tree: 'trees', Shrub: 'shrubs', Perennial: 'perennials', 'Grass/Sedge': 'grasses or sedges', Vine: 'vines', Bulb: 'bulbs', Fern: 'ferns', Annual: 'annuals', 'Aquatic/Emergent': 'water plants', Cactus: 'cacti or succulents' };
+  const say: Record<string, string> = {
+    sun: `take ${SUN_SAID[f.sun] ?? f.sun.toLowerCase()}`, 'hardiness zones': 'are hardy here', water: `fit \u201cWater: ${f.water}\u201d`,
+    'deer resistance': `are deer ${f.deer.toLowerCase()}`, height: 'fit the height range', 'bloom time': `bloom in ${MONTH_NAMES[Number(f.bloomMonth)] ?? ''}`,
+    form: `are ${FORMS[f.form] ?? f.form.toLowerCase()}`,
+  };
+  const parts = [...new Set(labels)].map((l) => say[l] ?? `fit on ${l}`);
+  return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0] ?? 'fit';
+}
+/**
  * The catalog plants the picker lists: searched, then filtered. `near`: whether near spellings count, decided over
  * everything searched before any filter (search.ts: closeMatchIn). Best matches first, then alphabetical.
  */
@@ -388,9 +432,11 @@ export function filteredPlants(near = true): Plant[] {
   // (The search first, so the filters, and any near spellings, are worked out only for plants it found.)
   const found = q ? PLANTS.flatMap((plant) => { const hit = matchPlant(plant, q, near); return hit ? [{ plant, hit }] : []; })
     : PLANTS.map((plant) => ({ plant, hit: { rank: 0, order: 0 } }));
+  earlierFor.clear();
   const out = found.filter(({ plant }) => {
     const m = reportedMatch(plant, plantFilter, inPlan);
     if (m?.length) reportedOnly.set(plant.id, m);
+    if (m !== null) { const e = earlierOnly(plant, plantFilter); if (e.length) earlierFor.set(plant.id, e); }
     return m !== null;
   });
   if (q) out.sort(byMatch);
@@ -549,31 +595,68 @@ export function zoneNote(p: Plant): string {
     : fit === 'edge-cold' ? ` (at its cold edge in zone ${z})`
     : ` (at its warm edge in zone ${z})`;
 }
-export function plantMetaLine(p: Plant): string {
-  const bits: string[] = [];
-  if (p.form) bits.push(formsOf(p).join(' / '));
-  const spread = p.width && p.width.med;
-  const ht = p.height && p.height.med;
-  if (ht || spread) bits.push((ht ? ht + "'" : '?') + ' x ' + (spread ? spread + "'" : '?'));
-  const span = bloomSpan(p);
-  if (span) {
-    bits.push('blooms ' + MONTH_NAMES[span.start] + (span.end !== span.start ? '-' + MONTH_NAMES[span.end] : ''));
+const capital = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
+/** A length as a row says it: "3 ft", "2.5 ft", "8 in". */
+const feetSaid = (x: number) => (x >= 1 ? `${+x.toFixed(1)} ft` : `${Math.round(x * 12)} in`);
+/** A size as its sources give it, a range where they give one: "3–4 ft", "8–12 in", "8 in–1.5 ft", "6 ft". */
+const sizeSaid = (r?: { min?: number; max?: number; med?: number }): string => {
+  if (!r) return '';
+  if (r.min != null && r.max != null && r.min !== r.max) {
+    const a = feetSaid(r.min), b = feetSaid(r.max);
+    return a.endsWith(' ft') === b.endsWith(' ft') ? `${a.replace(/ (ft|in)$/, '')}\u2013${b}` : `${a}\u2013${b}`;
   }
-  if (p.invasive) bits.push('INVASIVE: not for planting');
-  if (p.poison) bits.push(Object.keys(p.poison).length === 1 && p.poison.skin ? 'can irritate skin' : 'poisonous to people');
-  if (p.tox?.dog === 'toxic') bits.push('toxic to dogs (ASPCA)');
-  const oldDog = oldDogWarning(p);
-  if (oldDog) bits.push('dog: ' + oldDog);
-  else if (p.dogVia && p.tox?.dog !== 'toxic') bits.push('dog: ' + p.dogVia.dog + ' (its species)');
-  else if (!p.tox?.dog && p.dog === 'Unverified') bits.push('dog: Unverified');
-  if (p.sun_most) bits.push(p.sun_most === p.sun_least ? p.sun_most + ' sun' : p.sun_most + '-' + p.sun_least);
-  const zones = zoneRange(p);
-  if (zones) bits.push(zones + zoneNote(p));
-  const tags: string[] = [];
-  if (p.dry_shade) tags.push('dry shade');
-  if (p.wet_feet) tags.push('wet ok');
-  if (p.nectar === 'High') tags.push('high nectar');
-  if (p.host) tags.push('host plant');
-  if (tags.length) bits.push(tags.join(', '));
-  return bits.join(' \u00b7 ');
+  const v = r.med ?? r.min ?? r.max;
+  return v ? feetSaid(v) : '';
+};
+const SUN_SAID: Record<string, string> = { Full: 'full sun', Part: 'part shade', Shade: 'shade' };
+/** "Full sun", "Full sun to part shade", "Shade". */
+export function sunSaid(most?: string, least?: string): string {
+  if (!most) return '';
+  const a = SUN_SAID[most] ?? most, b = least ? SUN_SAID[least] ?? least : a;
+  return capital(a === b ? a : `${a} to ${b}`);
+}
+/**
+ * Its hardiness in a few words: where the garden is ("Hardy here"; "Too cold here", `ok` false), else its zones
+ * ("Zones 5–9"). Null where no zones are known.
+ */
+export function hardinessSaid(p: Plant): { text: string; ok: boolean } | null {
+  const fit = state.location ? zoneFit(p, state.location) : null;
+  if (fit === 'fits') return { text: 'Hardy here', ok: true };
+  if (fit === 'edge-cold') return { text: 'Hardy here, at its cold edge', ok: true };
+  if (fit === 'edge-warm') return { text: 'Hardy here, at its warm edge', ok: true };
+  if (fit === 'cold') return { text: 'Too cold here', ok: false };
+  // (Rated for cooler zones, but found living wild nearby: those summers haven't killed it.)
+  if (fit === 'warm') return wildNearby(p) ? { text: 'May be too warm here; recorded wild nearby', ok: true } : { text: 'May be too warm here', ok: false };
+  const z = zoneRange(p);
+  return z ? { text: capital(z), ok: true } : null;
+}
+/**
+ * A picker row's lines (decided with Jason, 2026-10-25): its botanical name and forms; then its typical size, sun
+ * and hardiness. Bloom time, toxicity to animals and poison to people are left to the filters and the details.
+ */
+export function rowLines(p: Plant): { names: string; size: string; sun: string; hardy: { text: string; ok: boolean } | null } {
+  const forms = formsOf(p).join(' / ');
+  const h = sizeSaid(p.height), w = sizeSaid(p.width);
+  const size = [h && `${h} tall`, w && `${w} wide`].filter(Boolean).join(', ');
+  // (Its botanical name, unless that's the name it goes by: "Adiantum × mairisii".)
+  const bot = p.botanical && p.botanical.trim() !== p.common.trim() ? p.botanical : '';
+  return { names: [bot, forms].filter(Boolean).join(' \u00b7 '), size, sun: sunSaid(p.sun_most, p.sun_least), hardy: hardinessSaid(p) };
+}
+/** A short mark on a row: native here, or something to know before choosing it. */
+export interface RowFlag { text: string; kind: 'native' | 'warn' | 'bad' | 'check'; title?: string; testid: string }
+/**
+ * The row's marks, only those that apply: native to the garden's state (Kew's checklist: "AR native"); invasive;
+ * irritates skin (a contact poison matters to anyone who handles it, unlike one that's eaten); and how far its
+ * details are checked (Unverified, Partly checked). What the law says and an escape into the wild have lines of
+ * their own (src/ui/plants-panel.ts).
+ */
+export function rowFlags(p: Plant): RowFlag[] {
+  const out: RowFlag[] = [];
+  const n = nativeHere(p);
+  if (n?.status === 'N') out.push({ text: `${n.state} native`, kind: 'native', title: `${nativeText(n)} (${n.source})`, testid: 'row-native' });
+  if (p.invasive) out.push({ text: 'Invasive: not for planting', kind: 'bad', testid: 'row-invasive' });
+  if (p.poison?.skin) out.push({ text: 'Can irritate skin', kind: 'warn', title: 'NC State lists it as causing contact dermatitis', testid: 'row-skin' });
+  if (p.unverified) out.push({ text: 'Unverified', kind: 'check', title: "From an earlier list with no sources; it's being checked", testid: 'unverified-badge' });
+  else if (p.partlyChecked) out.push({ text: 'Partly checked', kind: 'check', title: 'Some details are checked against sources; those marked "earlier list" in its details are not yet', testid: 'partly-badge' });
+  return out;
 }

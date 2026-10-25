@@ -205,7 +205,7 @@ describe('wild records near the garden', () => {
     expect(regulatedHere({ id: 'imperata-cylindrica' }).map((r) => [r.tier, r.native])).toEqual([['ban', undefined], ['ban', undefined]]);
     expect(lawShort(regulatedHere({ id: 'imperata-cylindrica' }))).toBe('Prohibited in Arkansas; Federal noxious weed');
     // The words, case by case: a ban, a listing, an older file's line, by genus or by name; the federal list; a species'.
-    const ar = { status: 'N' as const, stateName: 'Arkansas', species: false, source: '' };
+    const ar = { status: 'N' as const, stateName: 'Arkansas', state: 'AR', species: false, source: '' };
     expect(nativeAndListed(ar, 'ban', 'Lythrum')).toBe('Native to Arkansas, but this rule bans every Lythrum species, natives included.');
     expect(nativeAndListed(ar, 'ban')).toBe('Native to Arkansas, and still banned by this rule.');
     expect(nativeAndListed(ar, undefined)).toBe('Native to Arkansas, and still covered by this rule.');
