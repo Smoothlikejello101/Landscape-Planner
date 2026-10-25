@@ -1,6 +1,6 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 57 to decide, 2806 plants not searched, 39 sites whose terms are unsettled, 168 catalog checks; 3591 of 3626 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 61 to decide, 2806 plants not searched, 39 sites whose terms are unsettled, 168 catalog checks; 3591 of 3626 records audited.
 
 - [Sources disagree (6)](#sources-disagree-6)
 - [Cultivar: tree or shrub? (5)](#cultivar-tree-or-shrub-5)
@@ -9,6 +9,7 @@ Written by `npm run catalog:build` (docs/catalog-build.md): what the build left 
 - [A value its source no longer gives (13)](#a-value-its-source-no-longer-gives-13)
 - [Values the catalog can't take (1)](#values-the-catalog-cant-take-1)
 - [Kew names to check (13)](#kew-names-to-check-13)
+- [Bloom months held back (4)](#bloom-months-held-back-4)
 - [Not searched on the web (2806)](#not-searched-on-the-web-2806)
 - [Sites whose terms are unsettled (39)](#sites-whose-terms-are-unsettled-39)
 - [Catalog checks (168)](#catalog-checks-168)
@@ -114,6 +115,15 @@ Names Kew's World Checklist could read two ways, taken as the accepted name (che
 - Quercus lyrata: an accepted name that is also an older homonym's synonym
 - Solanum laxum: an accepted name that is also an older homonym's synonym
 - Viola blanda: an accepted name that is also an older homonym's synonym
+
+## Bloom months held back (4)
+
+The records' flowering months disagree with NC State's season, so the records' months aren't shown (NC State's season still is). To trust the records instead, add the plant to `RECORDS_TRUSTED` in scripts/catalog/bloom.mjs.
+
+- Bigleaf maple (`acer-macrophyllum`): the records say Mar–Apr (363 records); NC State says summer
+- Hobblebush (`viburnum-lantanoides`): the records say May–May (326 records); NC State says summer
+- Silver ponysfoot 'Silver Falls' (`dichondra-argentea-silver-falls`): the records say Jun–Sep (37 records); NC State says spring
+- Calla lily (`zantedeschia-aethiopica`): the records say Jan–May (85 records); NC State says summer
 
 ## Not searched on the web (2806)
 
