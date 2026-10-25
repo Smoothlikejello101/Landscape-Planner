@@ -1,3 +1,4 @@
+import { labelFields } from './a11y';
 import { resizeCanvas } from '../canvas';
 import { el, svgEl } from '../dom';
 import { onCanvasPointerDown, onWheel } from '../gestures';
@@ -106,6 +107,9 @@ export function render() {
   svg.addEventListener('touchstart', e => { if (e.touches && e.touches.length === 2) e.preventDefault(); }, { passive: false });
   svg.addEventListener('touchmove', e => { if (e.touches && e.touches.length === 2) e.preventDefault(); }, { passive: false });
   svg.addEventListener('wheel', onWheel, { passive: false });
+  // (A tap target to the browser, so a tap on the plan near a button stays on the plan: Chrome moves a tap that's
+  // near a button onto it when nothing under the finger takes taps. Drawing still runs on pointer events.)
+  svg.addEventListener('click', () => { /* the plan takes its taps */ });
   // With a mouse, the shape being drawn follows the pointer to the next click.
   svg.addEventListener('pointermove', (e) => {
     if (e.pointerType !== 'mouse' || e.buttons) return;
@@ -124,7 +128,7 @@ export function render() {
   if (state.selectMode) {
     const banner = el('div', { className: 'mode-banner' });
     banner.innerHTML = I.lasso + '<span>Select mode — drag to lasso, tap to toggle</span>';
-    const closeX = el('button', { className: 'iconbtn', style: { width: '20px', height: '20px', padding: 0 }, html: I.x });
+    const closeX = el('button', { className: 'banner-close', html: I.x, 'aria-label': 'Leave select mode' });
     closeX.addEventListener('click', () => {
       state.selectMode = false;
       clearSelection();
@@ -138,7 +142,7 @@ export function render() {
   if (state.bgEditMode && !state.bgCalibrate) {
     const banner = el('div', { className: 'mode-banner' });
     banner.innerHTML = I.move + '<span>Editing background — drag image to move, use ⟳ handle to rotate</span>';
-    const doneBtn = el('button', { className: 'iconbtn', style: { width: '20px', height: '20px', padding: 0 }, html: I.x });
+    const doneBtn = el('button', { className: 'banner-close', html: I.x, 'aria-label': 'Done moving the background' });
     doneBtn.addEventListener('click', () => { state.bgEditMode = false; render(); });
     banner.appendChild(doneBtn);
     canvasWrap.appendChild(banner);
@@ -151,7 +155,7 @@ export function render() {
       : state.bgCalibrate.step === 'point2' ? 'Tap the second known point (B)'
       : 'Enter the real distance between A and B';
     banner.innerHTML = I.target + '<span>Calibrating — ' + msg + '</span>';
-    const cancelBtn = el('button', { className: 'iconbtn', style: { width: '20px', height: '20px', padding: 0 }, html: I.x });
+    const cancelBtn = el('button', { className: 'banner-close', html: I.x, 'aria-label': 'Cancel setting the scale' });
     cancelBtn.addEventListener('click', () => {
       state.bgCalibrate = null;
       if (state.panel === 'bgDistance') state.panel = 'bg';
@@ -195,7 +199,7 @@ export function render() {
     const what = filterText(f) || 'All plants';
     const banner = el('div', { className: 'mode-banner filter-banner', 'data-testid': 'filter-banner' });
     banner.appendChild(el('span', {}, 'Showing: ' + what + (f.showGone ? ' (gone included)' : '')));
-    const clear = el('button', { className: 'iconbtn', style: { width: '20px', height: '20px', padding: 0 }, html: I.x, title: 'Show all', 'aria-label': 'Show all plants' });
+    const clear = el('button', { className: 'banner-close', html: I.x, title: 'Show all', 'aria-label': 'Show all plants' });
     clear.addEventListener('click', () => { setViewFilter({ status: '', phase: '', showGone: false }); render(); });
     banner.appendChild(clear);
     canvasWrap.appendChild(banner);
@@ -203,9 +207,9 @@ export function render() {
 
   // Zoom buttons
   const zoomBtns = el('div', { className: 'zoombtns' });
-  const zIn = el('button', { className: 'zoombtn', html: I.zoomIn });
+  const zIn = el('button', { className: 'zoombtn', html: I.zoomIn, 'aria-label': 'Zoom in', title: 'Zoom in' });
   zIn.addEventListener('click', () => { zoomBy(1.25); render(); });
-  const zOut = el('button', { className: 'zoombtn', html: I.zoomOut });
+  const zOut = el('button', { className: 'zoombtn', html: I.zoomOut, 'aria-label': 'Zoom out', title: 'Zoom out' });
   zOut.addEventListener('click', () => { zoomBy(0.8); render(); });
   zoomBtns.appendChild(zIn); zoomBtns.appendChild(zOut);
   zoomBtns.appendChild(namesButton());
@@ -234,7 +238,7 @@ export function render() {
     const editAllBtn = el('button', { title: 'Edit' });
     editAllBtn.innerHTML = I.edit + '<span>Edit</span>';
     editAllBtn.addEventListener('click', () => { state.panel = 'props'; render(); });
-    const copyBtn = el('button', { title: 'Copy' });
+    const copyBtn = el('button', { title: 'Copy', 'aria-label': 'Copy' });
     copyBtn.innerHTML = I.copy;
     copyBtn.addEventListener('click', () => {
       copySelected();
@@ -242,10 +246,10 @@ export function render() {
       copyBtn.style.background = 'rgba(255,255,255,0.2)';
       setTimeout(() => { copyBtn.style.background = ''; }, 300);
     });
-    const delBtn = el('button', { title: 'Delete' });
+    const delBtn = el('button', { title: 'Delete', 'aria-label': 'Delete', className: 'danger' });
     delBtn.innerHTML = I.trash;
     delBtn.addEventListener('click', () => { deleteSelectedAsking(); render(); });
-    const closeBtn = el('button', { title: 'Deselect' });
+    const closeBtn = el('button', { title: 'Deselect', 'aria-label': 'Deselect' });
     closeBtn.innerHTML = I.x;
     closeBtn.addEventListener('click', () => { clearSelection(); render(); });
     bar.appendChild(editAllBtn);
@@ -258,8 +262,9 @@ export function render() {
       bar.appendChild(b);
     }
     bar.appendChild(copyBtn);
-    bar.appendChild(delBtn);
     bar.appendChild(closeBtn);
+    bar.appendChild(el('span', { className: 'bar-gap', 'aria-hidden': 'true' }));
+    bar.appendChild(delBtn);
     canvasWrap.appendChild(bar);
   }
 
@@ -333,6 +338,7 @@ export function render() {
   if (panelNode) root.appendChild(panelNode);
   if (state.menu === 'more') root.appendChild(renderMoreMenu());
 
+  labelFields(root); // (each field's label names its control, for screen readers)
   // Now that the SVG is in the DOM, size it and draw grid/shapes
   resizeCanvas();
   maybeExplainFullSize();

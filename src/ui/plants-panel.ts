@@ -69,7 +69,7 @@ export function renderPlantsPanel() {
   const title = linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker' + (PLANTS.length ? ' (' + countWord(PLANTS.filter((p) => !p.invasive).length + myPlants.length) + ')' : '');
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, title),
-    (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', closePicker); return b; })()
+    (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', closePicker); return b; })()
   );
 
   const body = el('div', { className: 'sheet-body' });
@@ -246,8 +246,10 @@ export function renderPlantsPanel() {
   const enums = (PLANT_META && PLANT_META.enums) || {};
   type StringKey = { [K in keyof PlantFilter]: PlantFilter[K] extends string ? (string extends PlantFilter[K] ? K : never) : never }[keyof PlantFilter];
   type BoolKey = { [K in keyof PlantFilter]: PlantFilter[K] extends boolean ? K : never }[keyof PlantFilter];
+  /** What each dropdown filters, for screen readers (its first option, "Any form", says what it's set to). */
+  const SELECT_NAMES: Partial<Record<StringKey, string>> = { form: 'Form', sun: 'Sun', water: 'Water', bloomMonth: 'Blooming in', nectar: 'Nectar', bird: 'Value to birds', native: 'Native status', deer: 'Deer resistance', maintenance: 'Maintenance', spread: 'How it spreads' };
   function mkSelect<T extends string | number>(label: string, key: StringKey, options: readonly T[], display?: (o: T) => string) {
-    const sel = el('select', {});
+    const sel = el('select', { 'aria-label': SELECT_NAMES[key] ?? label });
     sel.appendChild(el('option', { value: '' }, label));
     for (const o of options) {
       const opt = el('option', { value: String(o) }, display ? display(o) : String(o));

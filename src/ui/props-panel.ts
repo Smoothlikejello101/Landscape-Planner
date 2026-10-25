@@ -1,3 +1,4 @@
+import { SWATCH_NAMES } from './a11y';
 import { SWATCHES } from '../constants';
 import { el, escapeHtml } from '../dom';
 import { I } from '../icons';
@@ -288,7 +289,7 @@ export function renderPropsPanelSingle(s: Shape) {
   const lookSum = lookSummary(s);
   const swatches = el('div', { className: 'swatches' });
   for (const c of SWATCHES) {
-    const btn = el('button', { className: 'swatch' + (s.color === c ? ' sel' : ''), style: { background: c } });
+    const btn = el('button', { className: 'swatch' + (s.color === c ? ' sel' : ''), style: { background: c }, 'aria-label': SWATCH_NAMES[c] ?? c, 'aria-pressed': String(s.color === c) });
     btn.addEventListener('click', () => updateSelected({ color: c }));
     swatches.appendChild(btn);
   }
@@ -611,7 +612,7 @@ export function renderPropsPanel() {
     lockBtn.addEventListener('click', () => updateSelected({ locked: !single.locked }));
     headerRight.appendChild(lockBtn);
   }
-  const closeBtn = el('button', { className: 'iconbtn', html: I.x });
+  const closeBtn = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' });
   closeBtn.addEventListener('click', () => { state.panel = null; render(); });
   headerRight.appendChild(closeBtn);
   header.appendChild(headerRight);
@@ -657,7 +658,7 @@ export function renderArrangePanel() {
   );
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, 'Arrange layer order'),
-    (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
+    (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
   );
   const sheet = el('div', { className: 'sheet' }, header, body);
   const overlay = el('div', { className: 'overlay' }, sheet);

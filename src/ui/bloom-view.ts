@@ -96,7 +96,7 @@ export function renderBloomPanel() {
   }
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, 'Bloom calendar'),
-    (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', close); return b; })());
+    (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', close); return b; })());
   const overlay = el('div', { className: 'overlay' }, el('div', { className: 'sheet' }, header, body));
   overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   return overlay;

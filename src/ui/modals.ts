@@ -18,7 +18,7 @@ export function renderExportModal() {
   const modal = el('div', { className: 'modal' },
     el('div', { className: 'sheet-header' },
       el('div', { className: 'title' }, 'Export plan'),
-      (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
+      (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
     ),
     el('div', { className: 'sheet-body' },
       el('div', { style: { fontSize: '14px', color: '#57534e' } }, 'The printable plan is a to-scale sheet with a title, scale bar, north arrow, legend and plant list. PNG and SVG are just the drawing.'),
@@ -64,7 +64,7 @@ export function renderPreviewModal() {
   const modal = el('div', { className: 'modal' },
     el('div', { className: 'sheet-header' },
       el('div', { className: 'title' }, 'Save your plan (' + p.format.toUpperCase() + ')'),
-      (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', () => { state.panel = null; state.exportPreview = null; render(); }); return b; })()
+      (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', () => { state.panel = null; state.exportPreview = null; render(); }); return b; })()
     ),
     body
   );

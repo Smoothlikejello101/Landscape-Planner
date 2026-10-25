@@ -26,7 +26,7 @@ export function renderLayersPanel() {
   const headerTitle = `Shapes (${state.shapes.length}${lockedCount ? ' · ' + lockedCount + ' locked' : ''})`;
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, headerTitle),
-    (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
+    (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
   );
   const list = el('div', {});
   if (state.bgImage) list.appendChild(backgroundSection());
@@ -131,12 +131,12 @@ export function renderLayersPanel() {
 function showSection(): HTMLElement {
   const f = state.viewFilter;
   const wrap = el('div', { className: 'role-rows', 'data-testid': 'show-filter' }, el('div', { className: 'section-label' }, 'Show plants'));
-  const status = el('select', { 'data-testid': 'filter-status' }) as HTMLSelectElement;
+  const status = el('select', { 'data-testid': 'filter-status', 'aria-label': 'Status' }) as HTMLSelectElement;
   status.appendChild(el('option', { value: '' }, 'Any status'));
   for (const st of STATUSES) status.appendChild(el('option', { value: st.key }, st.label));
   status.value = f.status;
   status.addEventListener('change', () => { setViewFilter({ status: status.value as ShapeFilter['status'] }); render(); });
-  const phase = el('select', { 'data-testid': 'filter-phase' }) as HTMLSelectElement;
+  const phase = el('select', { 'data-testid': 'filter-phase', 'aria-label': 'Phase' }) as HTMLSelectElement;
   phase.appendChild(el('option', { value: '' }, 'Any phase'));
   for (const p of state.phases) phase.appendChild(el('option', { value: p }, p));
   phase.value = f.phase;
