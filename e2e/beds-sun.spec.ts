@@ -12,7 +12,7 @@ async function addRect(page: Page, label: string, role: string, size?: [number, 
 }
 async function addPlant(page: Page, name: string) {
   await page.locator('.tool-btn.plants').click();
-  await expect(page.locator('.sheet-header .title')).toContainText(/Plant Picker \(\d{4,}\)/);
+  await expect(page.locator('.sheet-header .title')).toContainText(/Plant Picker \(\d,\d{3}\)/);
   await page.locator('.sheet input[type=text]').fill(name);
   await page.locator('.sheet .proj-row', { hasText: name }).first().locator('[data-testid=plant-place]').click();
   await placeOnceAtCenter(page);

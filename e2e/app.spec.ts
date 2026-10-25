@@ -252,7 +252,11 @@ test.describe('plants, background, export', () => {
   test('plant picker places a circle sized to mature spread', async ({ page }) => {
     await openFresh(page);
     await page.locator('.tool-btn.plants').click();
-    await expect(page.locator('.sheet-header .title')).toContainText(/Plant Picker \(\d{4,}\)/);
+    await expect(page.locator('.sheet-header .title')).toContainText(/Plant Picker \(\d,\d{3}\)/);
+    // Every plant offered is counted; the invasives left out say where they went.
+    await expect(page.getByTestId('picker-count')).toContainText(/^All \d,\d{3} plants · \d+ invasive plants show only when searched by name/);
+    await page.locator('.sheet input[type=text]').fill('privet');
+    await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinese privet$/ }) })).toHaveCount(1);
     await page.locator('.sheet input[type=text]').fill('Autumn Bride');
     await page.locator('.sheet .proj-row', { hasText: "Heuchera 'Autumn Bride'" }).locator('[data-testid=plant-place]').click();
     await placeOnceAtCenter(page);

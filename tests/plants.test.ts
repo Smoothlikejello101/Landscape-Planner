@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { byMatch, closeMatchIn, inNotes, matchPlant, nearShows, readQuery } from '../src/search';
-import { matchedBy, nonToxicToDogs, PLANT_FILTER_DEFAULTS, plantMatches, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
+import { matchedBy, nonToxicToDogs, PLANT_FILTER_DEFAULTS, pickerCount, plantMatches, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
 import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs } from '../src/spread';
 import { readFileSync } from 'node:fs';
 import { HEIGHT_STOPS, heightLabel, heightStops, heightValue } from '../src/ui/height-range';
@@ -124,6 +124,12 @@ describe('plant filters', () => {
     expect(plantMatches(privet, f())).toBe(false);
     expect(plantMatches(privet, f({ q: 'privet' }))).toBe(true);
     expect(plantMatches(privet, f({ inPlan: true }), new Set(['p']))).toBe(true);
+  });
+  it('counts what it offers, and says where the invasives went (so the gap never reads as a filter left on)', () => {
+    expect(pickerCount(3622, 3622, 22)).toBe('All 3,622 plants \u00b7 22 invasive plants show only when searched by name');
+    expect(pickerCount(140, 3622, 22)).toBe('140 of 3,622 plants match \u00b7 22 invasive plants show only when searched by name');
+    expect(pickerCount(1, 3622, 1)).toContain('1 invasive plant shows only');
+    expect(pickerCount(12, 3644, 0)).toBe('12 of 3,644 plants match'); // (a search: they count, and may be among the 12)
   });
   it('can show only plants already placed in the open plan', () => {
     expect(plantMatches(heuchera, f({ inPlan: true }), new Set(['h']))).toBe(true);

@@ -2,7 +2,7 @@ import { el, type Child } from '../dom';
 import { I } from '../icons';
 import type { Plant, PlantFilter } from '../plants';
 import { byMatch, inNotes, matchPlant, nearShows, readQuery } from '../search';
-import { MONTH_NAMES, formsOf, matchedBy, reportedOnly, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun } from '../plants';
+import { MONTH_NAMES, formsOf, matchedBy, reportedOnly, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun, countWord, invasivesLeftOut, pickerCount } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { spreadsAs } from '../spread';
@@ -66,7 +66,7 @@ export function renderPlantsPanel() {
   void loadWild(afterWild);
   const linking = !!state.pickerLinkId;
   const forTree = !linking && state.pickerForTree;
-  const title = linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker' + (PLANTS.length ? ' (' + (PLANTS.length + myPlants.length) + ')' : '');
+  const title = linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker' + (PLANTS.length ? ' (' + countWord(PLANTS.filter((p) => !p.invasive).length + myPlants.length) + ')' : '');
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, title),
     (() => { const b = el('button', { className: 'iconbtn', html: I.x }); b.addEventListener('click', closePicker); return b; })()
@@ -105,7 +105,7 @@ export function renderPlantsPanel() {
   }
 
   // --- Results list (rebuilt in place so typing never destroys input focus) ---
-  const countLine = el('div', { className: 'hint', style: { padding: '0 0 6px' } });
+  const countLine = el('div', { className: 'hint', 'data-testid': 'picker-count', style: { padding: '0 0 6px' } });
   const listWrap = el('div', {});
   // Rows opened to show their details (kept while the list is rebuilt by typing or filtering).
   const opened = new Set<string>();
@@ -199,8 +199,10 @@ export function renderPlantsPanel() {
     const near = nearShows(q, PLANTS, myPlants);
     const mine = myHits(near).filter((p) => !forTree || isTree(p) || !p.form);
     const hits = filteredPlants(near).filter((p) => !forTree || isTree(p));
-    const n = hits.length + mine.length, all = PLANTS.length + myPlants.length;
-    countLine.textContent = (n === all ? `All ${all} plants` : `${n} of ${all} plants match`) +
+    // (While browsing, the invasives aren't offered: not counted, and said so; a search counts them.)
+    const out = invasivesLeftOut(plantFilter) ? PLANTS.filter((p) => p.invasive) : [];
+    const n = hits.length + mine.length, all = PLANTS.length + myPlants.length - out.length;
+    countLine.textContent = pickerCount(n, all, out.filter((p) => !forTree || isTree(p)).length) +
       (linking ? ' \u00b7 Link the plant this circle stands for' : forTree ? ' \u00b7 trees only' : ' \u00b7 Place a plant, then tap the plan where it goes; tap a plant for its details');
     if (mine.length) {
       // My plants fold away (remembered on this device); a search always shows its matches.

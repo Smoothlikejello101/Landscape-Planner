@@ -174,10 +174,22 @@ export function loadPlants(): Promise<void> {
 // ============================================================
 // PLANT PICKER
 // ============================================================
+/** Whether the picker leaves invasive plants out: while browsing. A search finds them by name, and "Already in this plan" shows those placed. */
+export const invasivesLeftOut = (f: Pick<PlantFilter, 'q' | 'inPlan'>): boolean => !readQuery(f.q) && !f.inPlan;
+/** A count as the picker writes it: 3,622. */
+export const countWord = (n: number): string => n.toLocaleString('en-US');
+/**
+ * The picker's count line: how many plants show, of how many it offers, and, while browsing, that the invasive
+ * ones it leaves out turn up when searched for (so the gap never reads as a filter left on).
+ */
+export function pickerCount(shown: number, offered: number, invasivesOut: number): string {
+  const head = shown === offered ? `All ${countWord(offered)} plants` : `${countWord(shown)} of ${countWord(offered)} plants match`;
+  return head + (invasivesOut ? ` \u00b7 ${countWord(invasivesOut)} invasive plant${invasivesOut === 1 ? ' shows' : 's show'} only when searched by name` : '');
+}
 /** Whether a plant passes the picker's filters. `inPlan`: ids of plants placed in the open plan. */
 export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): boolean {
   // Invasives are never suggested; they turn up when searched by name (to map one already in the yard).
-  if (p.invasive && !readQuery(f.q) && !f.inPlan) return false;
+  if (p.invasive && invasivesLeftOut(f)) return false;
   if (f.dogSafeOnly && !nonToxicToDogs(p)) return false;
   if (f.noPoison && !(p.prov?.poison?.unknown && !p.poison)) return false;
   // (Plants at the edge of their range count: the list marks them. So does a plant rated for cooler zones that's
