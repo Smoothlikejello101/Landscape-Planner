@@ -471,3 +471,11 @@ a { color: inherit; }
 .sheet:has(.sheet-top) { scroll-padding-top: 130px; }
 .role-row.bg-opacity .name { flex: none; }
 .role-row.bg-opacity input[type="range"] { flex: 1; min-width: 0; }
+
+/* "Now in the catalog": yours beside the catalog's, the rows that differ marked. */
+.switch-intro { margin: 0; font-size: 14px; color: #292524; line-height: 1.5; }
+.switch-compare { display: grid; gap: 2px; font-size: 14px; }
+.switch-row { display: grid; grid-template-columns: 5.5em 1fr 1fr; gap: 8px; padding: 6px 8px; border-radius: 6px; }
+.switch-row.head { font-size: 12px; font-weight: 600; color: #57534e; }
+.switch-row.differs { background: #fef3c7; }
+.switch-row [role=rowheader] { color: #57534e; }
