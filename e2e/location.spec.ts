@@ -215,7 +215,8 @@ test('a plant not native here that is recorded growing wild here says so, with i
   await expect(oak.getByTestId('row-escape')).toHaveCount(0);
   // Introduced, recorded nowhere wild in the state: introduced, said plainly; no row line.
   await page.getByTestId('plant-search').fill('Sasanqua');
-  const camellia = page.locator('.plant-item', { hasText: /sasanqua/i }).first();
+  // (The species, not a cultivar of it: 'Our Linda' says its species is introduced.)
+  const camellia = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Sasanqua camellia(?! ')/ }) }).first();
   await expect(camellia.getByTestId('plant-row')).toBeVisible();
   await expect(camellia.getByTestId('row-escape')).toHaveCount(0);
   await camellia.getByTestId('plant-row').click();
