@@ -1,3 +1,4 @@
+import { renderSwitchPanel } from './switch-plant';
 import { labelFields } from './a11y';
 import { saveStateWord } from './save-warning';
 import { resizeCanvas } from '../canvas';
@@ -343,6 +344,7 @@ export function render() {
   else if (state.panel === 'add') panelNode = renderAddSheet();
   else if (state.panel === 'shortcuts') panelNode = renderShortcutsPanel();
   else if (state.panel === 'location') panelNode = renderLocationPanel();
+  else if (state.panel === 'switchPlant') panelNode = renderSwitchPanel();
   if (panelNode) root.appendChild(panelNode);
   if (state.menu === 'more') root.appendChild(renderMoreMenu());
 

@@ -77,6 +77,13 @@ export interface Plant {
   invasive?: boolean;
   /** A shorter name for small circles on the plan ("'Haas' Halo' hydrangea"). */
   short?: string;
+  /**
+   * My plants only: the catalog plant this one was switched to (src/my-plants.ts, switchToCatalog). Its id then
+   * stands for that plant everywhere, in every plan; this record keeps the person's notes and color.
+   */
+  sameAs?: string;
+  /** My plants only: a catalog plant the person said this isn't ("Keep mine"), so it isn't offered again. */
+  notSame?: string;
   /** A cultivar's species (catalog id). */
   parent?: string;
   /** Mature trunk diameter, feet (trees). */
@@ -121,6 +128,14 @@ export let PLANTS: Plant[] = [];
 export let PLANT_META: PlantMeta | null = null;
 export const plantsById: Record<string, Plant> = {};
 export type DogFilter = '' | 'hideToxic' | 'nonToxic';
+/** Plants of mine switched to a catalog plant: their id → the catalog plant's (src/my-plants.ts keeps these). */
+export const aliases: Record<string, string> = {};
+/** A catalog plant → the plant of mine switched to it (its notes and color go on with it). */
+export const ownCopies: Record<string, Plant> = {};
+/** Each switched plant's id stands for its catalog plant, once the catalog has it (until then, for itself). */
+export function applyAliases() {
+  for (const [from, to] of Object.entries(aliases)) if (plantsById[to] && !to.startsWith('u-')) plantsById[from] = plantsById[to];
+}
 // Picker filter state lives outside `state` so it isn't saved with projects.
 export const PLANT_FILTER_DEFAULTS = {
   q: '', form: '', water: '', bloomMonth: '', sun: '',
@@ -175,6 +190,7 @@ export function loadPlants(): Promise<void> {
     }
     shareDogWarnings(PLANTS);
     for (const p of PLANTS) plantsById[p.id] = p;
+    applyAliases(); // (plants of mine switched to these)
     if (state.panel === 'plants') render(); // refresh picker if already open
     else redrawCanvas(); // sun-check badges need plant data (canvas only: keyboard safe)
   })
@@ -406,7 +422,7 @@ export const tenderWoody = (p: Pick<Plant, 'form' | 'forms'>): boolean => {
 };
 /** The color a plant is drawn in: its own (My plants), else by form, else green. */
 export function plantColor(p: Plant | undefined): string {
-  return p?.color || (p?.form && FORM_COLORS[p.form]) || '#16a34a';
+  return p?.color || (p && ownCopies[p.id]?.color) || (p?.form && FORM_COLORS[p.form]) || '#16a34a';
 }
 /**
  * Every color a plant may be drawn in on a plan: its color now, and for a tree with no color of its own, the
