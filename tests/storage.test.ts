@@ -427,6 +427,27 @@ describe('My plants with their own color', () => {
     const base = { id: 'u-x', common: 'X', width: { min: 1, max: 1, med: 1 } };
     for (const bad of ['red', '#12', 'url(x)', '#1234567', 7]) expect(sanitizeMyPlant({ ...base, color: bad })).not.toHaveProperty('color');
   });
+  it('a plant switched to the catalog\u2019s, or kept as mine, stays so across a restart; a library from before reads as before', async () => {
+    const mp = await import('../src/my-plants');
+    const { writeMyPlants } = await import('../src/storage');
+    const name = 'switched-' + ++dbCount;
+    _resetStorageForTests();
+    await initStorage(await openKV(name));
+    const width = { min: 6, max: 8, med: 7 };
+    await writeMyPlants([
+      { id: 'u-lime', common: "Hydrangea 'Limelight'", width, sameAs: 'hydrangea-paniculata-limelight', notes: 'co-op sale' },
+      { id: 'u-mine', common: 'Our milkweed', width, notSame: 'asclepias-tuberosa' },
+      { id: 'u-old', common: 'Before switching existed', width },
+    ]);
+    _resetStorageForTests();
+    await initStorage(await openKV(name));
+    mp.loadMyPlants();
+    const got = (id: string) => mp.myPlants.find((p) => p.id === id);
+    expect(got('u-lime')).toMatchObject({ sameAs: 'hydrangea-paniculata-limelight', notes: 'co-op sale' });
+    expect(got('u-mine')).toMatchObject({ notSame: 'asclepias-tuberosa' });
+    expect(got('u-old')).not.toHaveProperty('sameAs');
+    expect(got('u-old')).not.toHaveProperty('notSame');
+  });
   it('saved as an understory or canopy tree by an older version, read as a tree, nothing else changed', async () => {
     const mp = await import('../src/my-plants');
     const { writeMyPlants } = await import('../src/storage');

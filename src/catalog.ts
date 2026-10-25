@@ -122,6 +122,7 @@ export function resolveCatalog(file: CatalogFile): Plant[] {
     const p: Plant = { id: rec.id, common: rec.common };
     if (rec.botanical) p.botanical = rec.botanical;
     if (rec.short) p.short = rec.short;
+    if (rec.synonyms?.length) p.synonyms = rec.synonyms;
     if (rec.parent) p.parent = rec.parent;
     const prov: Record<string, Provenance> = {};
     const keys = new Set([...Object.keys(rec.facts), ...(parent ? Object.keys(parent.facts).filter((k) => INHERITED.has(k)) : [])]);

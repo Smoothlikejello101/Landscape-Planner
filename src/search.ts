@@ -58,17 +58,18 @@ function plurals(w: string): Word {
  * A plant's names as words, read once (and again if they change: a plant of mine edited). `base`: its name without
  * a cultivar or a note in brackets ("Black-eyed Susan 'Goldsturm'" → "black eyed susan").
  */
-interface Indexed { key: string; name: string[]; bot: string[]; host: string; nameText: string; base: string; baseWords: string[]; botBase: string }
+interface Indexed { key: string; name: string[]; bot: string[]; host: string; nameText: string; base: string; baseWords: string[]; botBase: string; also: string[][] }
 const index = new WeakMap<Plant, Indexed>();
 const baseOf = (s: string | undefined) => (s ? searchText(s.replace(/['‘’][^'‘’]*['‘’]|\([^)]*\)/g, ' ')) : '');
 function indexed(p: Plant): Indexed {
-  const key = p.common + '\n' + (p.botanical ?? '') + '\n' + (p.host ?? '');
+  const key = p.common + '\n' + (p.botanical ?? '') + '\n' + (p.host ?? '') + '\n' + (p.synonyms ?? []).join('\n');
   const had = index.get(p);
   if (had && had.key === key) return had;
   const name = wordsOf(p.common);
   const made = {
     key, name, bot: wordsOf(p.botanical), host: p.host ? searchText(p.host) : '', nameText: name.join(' '),
     base: baseOf(p.common), baseWords: baseOf(p.common).split(' '), botBase: baseOf(p.botanical),
+    also: (p.synonyms ?? []).map((n) => wordsOf(n)),
   };
   index.set(p, made);
   return made;
@@ -143,6 +144,8 @@ export function matchPlant(p: Plant, q: Query, near: boolean): Hit | null {
   if (q.words.every(startsName)) return { rank: 0, order };
   const inName = (q: Word) => startsName(q) || inside(q.w, x.name);
   if (q.words.every(inName)) return { rank: 1, order };
+  // (Another name it goes by, or had: "chiggerflower", "Limelight Hydrangea" for Hydrangea 'Limelight'.)
+  if (x.also.some((ws) => q.words.every((w) => startsIn(w.w, ws) || asOne(w, ws)))) return { rank: 1, order: order + 1 };
   const inBoth = (q: Word) => inName(q) || startsIn(q.w, x.bot) || asOne(q, x.bot);
   if (q.words.every(inBoth)) return { rank: 2, order };
   if (x.host && q.words.every((q) => x.host.includes(q.w))) return { rank: 3, order };

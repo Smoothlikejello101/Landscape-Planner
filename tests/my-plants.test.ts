@@ -199,3 +199,57 @@ describe('stored size settings', () => {
     expect(state.sizeMode).toBe('full');
   });
 });
+
+describe('switching a plant of mine to the catalog’s', () => {
+  const catalog = [
+    { id: 'hydrangea-paniculata', common: 'Panicled hydrangea', botanical: 'Hydrangea paniculata', width: { min: 10, max: 20, med: 15 } },
+    { id: 'hydrangea-paniculata-limelight', common: 'Limelight Hydrangea', botanical: "Hydrangea paniculata 'Limelight'", width: { min: 6, max: 8, med: 7 } },
+    { id: 'hydrangea-paniculata-little-lime', common: 'Little Lime Hydrangea', botanical: "Hydrangea paniculata 'Jane'", width: { min: 3, max: 5, med: 4 } },
+  ] as Plant[];
+  const mine = (o: Partial<Plant>): Plant => ({ id: 'u-1', common: 'X', width: { min: 5, max: 5, med: 5 }, ...o });
+
+  it('finds the one catalog plant it is, by botanical name or by every word of its name; never when unsure', async () => {
+    const { catalogMatchFor } = await import('../src/my-plants');
+    expect(catalogMatchFor(mine({ common: 'My lime', botanical: "Hydrangea paniculata ‘Limelight’" }), catalog)?.id).toBe('hydrangea-paniculata-limelight'); // (curly quotes too)
+    expect(catalogMatchFor(mine({ common: "Hydrangea 'Limelight'" }), catalog)?.id).toBe('hydrangea-paniculata-limelight');
+    expect(catalogMatchFor(mine({ common: 'Panicled hydrangea' }), catalog)?.id).toBe('hydrangea-paniculata'); // (exactly its name, of several that contain it)
+    expect(catalogMatchFor(mine({ common: 'Limelight' }), catalog)).toBeNull(); // (one word: too loose)
+    expect(catalogMatchFor(mine({ common: 'Blue hydrangea' }), catalog)).toBeNull(); // (no plant has both words)
+    expect(catalogMatchFor(mine({ common: 'Lime hydrangea' }), catalog)?.id).toBe('hydrangea-paniculata-little-lime'); // (a suggestion: the person compares, then decides)
+    expect(catalogMatchFor(mine({ common: "Hydrangea 'Limelight'", notSame: 'hydrangea-paniculata-limelight' }), catalog)).toBeNull(); // ("Keep mine")
+    expect(catalogMatchFor(mine({ common: "Hydrangea 'Limelight'", sameAs: 'hydrangea-paniculata-limelight' }), catalog)).toBeNull(); // (already switched)
+    expect(sanitizeMyPlant({ ...mine({}), sameAs: 'hydrangea-paniculata-limelight', notSame: 'x' })).toMatchObject({ sameAs: 'hydrangea-paniculata-limelight' });
+    expect(sanitizeMyPlant({ ...mine({}), sameAs: 'Not An Id!' })).not.toHaveProperty('sameAs');
+  });
+
+  it('relinks the placed plants here (one undo step), stands for the catalog plant everywhere, and keeps notes and color', async () => {
+    const { switchToCatalog, unswitch, activeMyPlants } = await import('../src/my-plants');
+    const { ownCopies } = await import('../src/plants');
+    const { undo } = await import('../src/history');
+    await fresh();
+    for (const p of catalog) plantsById[p.id] = p;
+    const tag = await saveMyPlant(mine({ common: "Hydrangea 'Limelight'", width: { min: 5, max: 5, med: 5 }, notes: 'From the co-op sale', color: '#a855f7' }));
+    state.sizeMode = 'typical';
+    const a = { ...plantShapeAt(tag, { x: 0, y: 0 }), label: "Hydrangea 'Limelight'", plantId: tag.id };           // sized from my plant
+    const b = { ...plantShapeAt(tag, { x: 9, y: 0 }), label: 'By the gate', plantId: tag.id, radius: 4, sizeFrom: 'manual' as const }; // sized by hand
+    state.shapes = [a, b];
+    const { pushHistory } = await import('../src/history');
+    state.history = []; state.historyIndex = -1; pushHistory();
+    const target = catalog[1];
+    expect(await switchToCatalog(tag, target, true)).toBe(2);
+    const [na, nb] = state.shapes as CircleShape[];
+    expect(na).toMatchObject({ plantId: target.id, label: 'Limelight Hydrangea', radius: 3.5, sizeFrom: 'plant', color: '#a855f7' }); // (its color kept)
+    expect(nb).toMatchObject({ plantId: target.id, label: 'By the gate', radius: 4, sizeFrom: 'manual' });
+    // Its id now means the catalog plant (plans not open still hold it); it's no longer listed as mine; its notes go on.
+    expect(plantsById[tag.id]).toBe(target);
+    expect(activeMyPlants().map((p) => p.id)).not.toContain(tag.id);
+    expect(ownCopies[target.id]?.notes).toBe('From the co-op sale');
+    expect(plantColors(target)[0]).toBe('#a855f7');
+    // Undo: the plan step, and the plant of mine is itself again.
+    undo();
+    expect((state.shapes as CircleShape[]).map((s) => s.plantId)).toEqual([tag.id, tag.id]);
+    await unswitch(myPlants.find((p) => p.id === tag.id)!);
+    expect(plantsById[tag.id]).toMatchObject({ id: tag.id, common: "Hydrangea 'Limelight'" });
+    expect(activeMyPlants().map((p) => p.id)).toContain(tag.id);
+  });
+});

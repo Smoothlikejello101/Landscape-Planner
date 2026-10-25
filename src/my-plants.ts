@@ -1,5 +1,5 @@
 import { flushHistoryDebounce, pushHistory } from './history';
-import { FORM_COLORS, plantsById, type Plant } from './plants';
+import { aliases, applyAliases, FORM_COLORS, ownCopies, PLANTS, plantsById, type Plant } from './plants';
 import { currentForm, wirePlant } from './catalog';
 import { state } from './state';
 import { getPlantSync, rememberSizeMode, save, storedMyPlants, writeMyPlants, type SyncRecord } from './storage';
@@ -138,6 +138,11 @@ export function sanitizeMyPlant(raw: unknown): Plant | null {
   if (bs != null) p.bloom = { start: bs, end: be ?? bs, ...(bloomColor ? { color: bloomColor } : {}) };
   if (notes) p.notes = notes;
   if (typeof o.color === 'string' && /^#[0-9a-f]{6}$/i.test(o.color)) p.color = o.color.toLowerCase();
+  // (A catalog id, as the catalog writes them: lower case, digits, hyphens.)
+  const ref = (v: unknown) => (typeof v === 'string' && /^[a-z0-9][a-z0-9-]{0,99}$/.test(v) ? v : undefined);
+  const sameAs = ref(o.sameAs), notSame = ref(o.notSame);
+  if (sameAs) p.sameAs = sameAs;
+  else if (notSame) p.notSame = notSame;
   return p;
 }
 /** Load the library from storage into memory and the plant lookup. */
@@ -145,7 +150,84 @@ export function loadMyPlants() {
   for (const p of myPlants) delete plantsById[p.id];
   myPlants = storedMyPlants().map(sanitizeMyPlant).filter((p): p is Plant => !!p);
   for (const p of myPlants) plantsById[p.id] = p;
+  indexSwitched();
 }
+// ---------- Switching a plant of mine to the catalog's ----------
+// When the catalog adds a plant someone had to add themselves ("Hydrangea 'Limelight'" off a nursery tag), they
+// can switch to the catalog's, with its sourced facts. The plant of mine stays, marked `sameAs`: its id then
+// stands for the catalog plant in every plan and on every device (plants.ts, aliases), so no other plan is
+// rewritten, and it keeps the person's notes and color. In the open plan, placed plants are relinked as one
+// undo step.
+
+/** Plants of mine in use as themselves (not switched to a catalog plant the catalog has). */
+export const activeMyPlants = (): Plant[] => myPlants.filter((p) => plantsById[p.id] === p);
+function indexSwitched() {
+  for (const k of Object.keys(aliases)) delete aliases[k];
+  for (const k of Object.keys(ownCopies)) delete ownCopies[k];
+  for (const p of myPlants) if (p.sameAs) { aliases[p.id] = p.sameAs; ownCopies[p.sameAs] ??= p; }
+  applyAliases();
+}
+/** A name's words, for comparing: lower case, no accents, quotes, marks or brackets ("Hydrangea 'Limelight'": hydrangea, limelight). */
+export function nameWords(s: string | undefined): string[] {
+  return (s ?? '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[®™'"‘’“”().,]/g, ' ').replace(/(^|\s)x(\s|$)/g, '$1×$2').split(/\s+/).filter(Boolean);
+}
+/**
+ * The catalog plant a plant of mine is, when there's exactly one: the same botanical name (cultivar included);
+ * or, with no botanical name, every word of its name in the catalog plant's names ("Hydrangea 'Limelight'":
+ * Limelight Hydrangea), two words at least. Not one the person said it isn't. Null when unsure.
+ */
+export function catalogMatchFor(mine: Plant, catalog: Plant[] = PLANTS): Plant | null {
+  if (mine.sameAs) return null;
+  const pick = (hits: Plant[]) => {
+    const left = hits.filter((p) => p.id !== mine.notSame);
+    return left.length === 1 && hits.length === 1 ? left[0] : null;
+  };
+  const bot = nameWords(mine.botanical).join(' ');
+  if (bot.split(' ').length >= 2) return pick(catalog.filter((p) => nameWords(p.botanical).join(' ') === bot));
+  const want = nameWords(mine.common);
+  if (want.length < 2) return null;
+  const hits = catalog.filter((p) => { const have = new Set([...nameWords(p.common), ...nameWords(p.botanical)]); return want.every((w) => have.has(w)); });
+  // (Several: the one whose common name is exactly these words, if there's one.)
+  const exact = hits.filter((p) => nameWords(p.common).sort().join(' ') === [...want].sort().join(' '));
+  return pick(exact.length ? exact : hits);
+}
+/**
+ * Switch a plant of mine to the catalog's: the library record is marked (and synced); placed plants in the open
+ * plan take the catalog plant's id, and its name where they showed mine; with `resize`, those sized from the
+ * plant's data take the catalog's size, the rest keep theirs (then sized by hand). Returns how many were placed
+ * here. Throws if the library couldn't be saved: nothing changes.
+ */
+export async function switchToCatalog(mine: Plant, target: Plant, resize: boolean): Promise<number> {
+  const before = state.shapes.filter((s) => s.plantId === mine.id).map((s) => s.id);
+  const dataSized = new Set(state.shapes.filter((s) => s.plantId === mine.id && isDataSized(s)).map((s) => s.id));
+  const { notSame: _drop, ...rest } = mine;
+  await applyPlantChanges([{ id: mine.id, plant: { ...rest, sameAs: target.id } }]);
+  flushHistoryDebounce();
+  let n = 0;
+  for (const s of state.shapes) {
+    if (!before.includes(s.id) || s.plantId !== mine.id) continue;
+    n++;
+    s.plantId = target.id;
+    if (s.label === mine.common) s.label = target.common;
+    if (s.type !== 'circle' || s.tree) continue;
+    if (resize && dataSized.has(s.id)) { setRadius(s, plantRadius(target, state.sizeMode)); s.sizeFrom = 'plant'; }
+    else s.sizeFrom = s.radius === plantRadius(target, state.sizeMode) ? 'plant' : 'manual';
+  }
+  if (n) pushHistory();
+  save();
+  return n;
+}
+/** Not the same plant after all: the plant of mine is itself again (placed plants relinked here stay linked to the catalog's). */
+export async function unswitch(mine: Plant): Promise<void> {
+  const { sameAs: _drop, ...rest } = mine;
+  await applyPlantChanges([{ id: mine.id, plant: rest }]);
+}
+/** "Keep mine": this catalog plant isn't offered for it again. */
+export async function keepMine(mine: Plant, target: Plant): Promise<void> {
+  await applyPlantChanges([{ id: mine.id, plant: { ...mine, notSame: target.id } }]);
+}
+
 /** A plant's fingerprint (sync tells by it whether a plant changed). */
 /** A plant's fingerprint, as it's sent (src/catalog.ts, WIRE_FORMS): the same for a tree before and after the rename. */
 export const plantHash = (p: Plant) => fingerprint('', wirePlant(p) as unknown as Record<string, unknown>);
@@ -190,6 +272,7 @@ export function applyPlantChanges(changes: PlantChange[], bySync = false): Promi
     for (const p of myPlants) delete plantsById[p.id];
     myPlants = next;
     for (const p of myPlants) plantsById[p.id] = p;
+    indexSwitched();
     if (done.length && !bySync) afterPlantEdit();
     return done;
   });

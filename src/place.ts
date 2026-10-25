@@ -93,7 +93,9 @@ function noteRecentPlant(id: string) {
 }
 /** The last plants placed, newest first (ones no longer known are skipped). */
 export function recentPlants(): Plant[] {
-  return loadRecent().map((id) => plantsById[id]).filter((p): p is Plant => !!p).slice(0, RECENT_MAX);
+  // (A plant of mine switched to the catalog's is that plant now: listed once.)
+  const seen = new Set<string>();
+  return loadRecent().map((id) => plantsById[id]).filter((p): p is Plant => !!p && !seen.has(p.id) && !!seen.add(p.id)).slice(0, RECENT_MAX);
 }
 
 // ---------- With a mouse: the plant follows the pointer ----------

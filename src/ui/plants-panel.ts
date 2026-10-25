@@ -7,7 +7,8 @@ import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { spreadsAs } from '../spread';
 import { heightLabel, heightRange } from './height-range';
-import { isMine, myPlants } from '../my-plants';
+import { activeMyPlants, catalogMatchFor, isMine } from '../my-plants';
+import { openSwitch } from './switch-plant';
 import type { PlantFormArgs } from '../types';
 import { state } from '../state';
 import { ZONE_SOURCE_SHORT } from '../climate';
@@ -78,7 +79,7 @@ export function renderPlantsPanel() {
   void loadWild(afterWild);
   const linking = !!state.pickerLinkId;
   const forTree = !linking && state.pickerForTree;
-  const title = linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker' + (PLANTS.length ? ' (' + countWord(PLANTS.filter((p) => !p.invasive).length + myPlants.length) + ')' : '');
+  const title = linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker' + (PLANTS.length ? ' (' + countWord(PLANTS.filter((p) => !p.invasive).length + activeMyPlants().length) + ')' : '');
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, title),
     (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', closePicker); return b; })()
@@ -168,6 +169,13 @@ export function renderPlantsPanel() {
     side.addEventListener('click', () => openForm(mine ? { editId: p.id, place: false } : { copyFromId: p.id, place: false }));
     head.appendChild(side);
     if (mine) info.firstChild!.appendChild(el('span', { className: 'mine-badge' }, 'Mine'));
+    // Now in the catalog too: offer its sourced facts (the person decides: src/ui/switch-plant.ts).
+    const match = mine ? catalogMatchFor(p) : null;
+    if (match) {
+      const go = el('button', { className: 'link-btn', 'data-testid': 'switch-offer' }, 'Compare and switch\u2026');
+      go.addEventListener('click', () => openSwitch(p.id, match.id));
+      info.appendChild(el('div', { className: 'pmatch', 'data-testid': 'now-in-catalog' }, `Now in the catalog as ${match.common}. `, go));
+    }
     // Details not yet checked against sources say so, plainly, on every row (first in the details, where it can't be cut off).
     else if (p.unverified) (info.childNodes[1] as HTMLElement).prepend(el('span', { className: 'unverified-badge', title: "From an earlier list with no sources; it's being checked" }, 'Unverified'), ' ');
     else if (p.partlyChecked) (info.childNodes[1] as HTMLElement).prepend(el('span', { className: 'unverified-badge', 'data-testid': 'partly-badge', title: 'Some details are checked against sources; those marked "earlier list" in its details are not yet' }, 'Partly checked'), ' ');
@@ -190,7 +198,7 @@ export function renderPlantsPanel() {
   function myHits(near: boolean): Plant[] {
     const q = readQuery(plantFilter.q);
     const inPlan = plantFilter.inPlan ? plantIdsInPlan() : null;
-    const shown = myPlants.filter((p) => (!inPlan || inPlan.has(p.id)) && (!plantFilter.sun || !p.sun_most || plantTakesSun(p, plantFilter.sun)));
+    const shown = activeMyPlants().filter((p) => (!inPlan || inPlan.has(p.id)) && (!plantFilter.sun || !p.sun_most || plantTakesSun(p, plantFilter.sun)));
     if (!q) return shown;
     const hits = shown.flatMap((plant) => { const hit = matchPlant(plant, q, near) ?? (inNotes(plant, q) ? { rank: 3, order: 4 } : null); return hit ? [{ plant, hit }] : []; });
     return hits.sort(byMatch).map((x) => x.plant);
@@ -208,20 +216,21 @@ export function renderPlantsPanel() {
     // Near spellings only when nothing searched matches closer, before any filter (search.ts); a plant of mine
     // found by its notes counts as a match.
     const q = readQuery(plantFilter.q);
-    const near = nearShows(q, PLANTS, myPlants);
+    const near = nearShows(q, PLANTS, activeMyPlants());
     const mine = myHits(near).filter((p) => !forTree || isTree(p) || !p.form);
     const hits = filteredPlants(near).filter((p) => !forTree || isTree(p));
     // (While browsing, the invasives aren't offered: not counted, and said so; a search counts them.)
     const out = invasivesLeftOut(plantFilter) ? PLANTS.filter((p) => p.invasive) : [];
-    const n = hits.length + mine.length, all = PLANTS.length + myPlants.length - out.length;
+    const n = hits.length + mine.length, all = PLANTS.length + activeMyPlants().length - out.length;
     countLine.textContent = pickerCount(n, all, out.filter((p) => !forTree || isTree(p)).length) +
       (linking ? ' \u00b7 Link the plant this circle stands for' : forTree ? ' \u00b7 trees only' : ' \u00b7 Place a plant, then tap the plan where it goes; tap a plant for its details');
     if (mine.length) {
       // My plants fold away (remembered on this device); a search always shows its matches.
       const searching = !!q;
       const open = searching || !myPlantsFolded;
+      const nowInCatalog = mine.filter((p) => catalogMatchFor(p)).length;
       const head = el('button', { className: 'list-heading fold', 'aria-expanded': String(open), 'data-testid': 'my-plants-fold' },
-        el('span', {}, `My plants (${mine.length})`), el('span', { className: 'fold-chev', html: I.chevronDown }));
+        el('span', {}, `My plants (${mine.length})` + (nowInCatalog ? ` \u00b7 ${nowInCatalog} now in the catalog` : '')), el('span', { className: 'fold-chev', html: I.chevronDown }));
       head.disabled = searching;
       head.addEventListener('click', () => {
         setMyPlantsFolded(open);

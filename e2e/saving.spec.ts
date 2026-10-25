@@ -13,6 +13,11 @@ test('the top bar says the plan is saved; a delete says what went, with an Undo'
   await page.locator('.sheet').getByRole('button', { name: /Delete/ }).first().click();
   const notice = page.locator('#toast-action');
   await expect(notice).toContainText('Deleted');
+  // (A sheet opened under it: the notice moves above the sheet, clear of its buttons.)
+  await page.locator('.tool-btn.plants').click();
+  const n = (await notice.boundingBox())!, sheet = (await page.locator('.sheet').boundingBox())!;
+  expect(n.y + n.height).toBeLessThanOrEqual(sheet.y);
+  await closeSheet(page);
   await notice.getByRole('button', { name: 'Undo' }).click();
   await expect(page.locator('.project-btn .pinfo')).toContainText('1 shape');
   // Clear all, too.

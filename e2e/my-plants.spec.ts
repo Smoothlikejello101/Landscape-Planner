@@ -65,7 +65,7 @@ test('add a plant from its tag, place it, and switch to full size', async ({ pag
   // It's in the picker under My plants.
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('lime');
-  await expect(page.locator('.list-heading').first()).toHaveText('My plants (1)');
+  await expect(page.locator('.list-heading').first()).toHaveText(/^My plants \(1\)/);
   await expect(page.locator('.proj-row', { hasText: 'Limelight' }).locator('.mine-badge')).toHaveText('Mine');
   // Without a search, My plants can be folded away (and stays folded); a search shows its matches anyway.
   await page.getByTestId('plant-search').fill('');
@@ -167,4 +167,35 @@ test('a new plant made for a circle keeps the circle\'s size, as the form shows 
   await page.getByTestId('pf-spread-ft').click();
   await page.getByTestId('pf-save').click();
   await expect(field(page, 'Spread (ft)')).toHaveValue('3.5');
+});
+
+test('a plant of mine the catalog now has: compare, switch (placed plants follow), undo', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill("Hydrangea 'Limelight'");
+  await page.getByTestId('add-own-plant').click();
+  await page.getByTestId('pf-spread').fill('5');
+  await page.getByTestId('pf-save').click();
+  await placeOnceAtCenter(page);
+  await expect(page.locator('.sel-pill .name')).toHaveText("Hydrangea 'Limelight'");
+  // The picker says it's in the catalog now, on its row.
+  await page.locator('.tool-btn.plants').click();
+  const offer = page.getByTestId('now-in-catalog');
+  await expect(offer).toContainText("Now in the catalog as Hydrangea 'Limelight'");
+  await expect(page.getByTestId('my-plants-fold')).toContainText('1 now in the catalog');
+  await offer.getByTestId('switch-offer').click();
+  const sheet = page.getByTestId('switch-sheet');
+  await expect(sheet.locator('.sheet-header .title')).toHaveText('Now in the catalog');
+  await expect(sheet.locator('.switch-row.differs', { hasText: 'Spread' })).toContainText('5 ft');
+  await expect(sheet).toContainText('1 placed in this plan');
+  await expect(sheet.getByTestId('switch-resize')).toBeChecked();
+  await sheet.getByTestId('switch-go').click();
+  await expect(page.locator('#toast-action')).toContainText("Switched to Hydrangea 'Limelight' (1 placed here)");
+  // No longer listed as mine; the catalog's plant is.
+  await page.getByTestId('plant-search').fill('limelight');
+  await expect(page.locator('.proj-row .mine-badge')).toHaveCount(0);
+  await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Hydrangea 'Limelight'$/ }) })).toHaveCount(1);
+  // Undo: mine again, the placed plant back to it.
+  await page.locator('#toast-action').getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('.proj-row .mine-badge')).toHaveCount(1);
 });

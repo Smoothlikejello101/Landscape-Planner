@@ -13,7 +13,8 @@
     "check": "npm run typecheck && npm test && npm run build && npm run test:e2e",
     "catalog:build": "node scripts/catalog/build.mjs",
     "catalog:check": "vite-node scripts/catalog/check.ts",
-    "catalog:write": "vite-node scripts/catalog/write-cli.ts"
+    "catalog:write": "vite-node scripts/catalog/write-cli.ts",
+    "catalog:names": "node scripts/catalog/names-cli.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",

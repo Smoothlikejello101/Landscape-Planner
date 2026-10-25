@@ -64,7 +64,24 @@ export function toastAction(message: string, actions: { label: string; run: () =
     node.appendChild(b);
   }
   document.body.appendChild(node);
+  placeNotice();
+  requestAnimationFrame(placeNotice);
   setTimeout(() => node.remove(), ms);
+}
+/**
+ * Where a notice with buttons sits: at the top of the plan; with a sheet open, just above the sheet, so it never
+ * covers the sheet's own buttons (its close, say), and as high as the screen allows when the sheet is tall.
+ * Run after every render (a sheet opening under a notice moves it).
+ */
+export function placeNotice() {
+  const node = document.getElementById('toast-action');
+  if (!node) return;
+  node.style.top = '';
+  const sheet = document.querySelector('.sheet');
+  if (!sheet) return;
+  const sheetTop = sheet.getBoundingClientRect().top;
+  const h = node.getBoundingClientRect().height;
+  node.style.top = `${Math.max(8, Math.round(sheetTop - h - 8))}px`;
 }
 /** Close a notice with buttons, if one is up (the next drawing starts, say). */
 export function dismissToastAction() { document.getElementById('toast-action')?.remove(); }

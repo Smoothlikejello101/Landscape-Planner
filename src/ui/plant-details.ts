@@ -3,7 +3,7 @@
 // other sources say where they differ from the value shown.
 import { el } from '../dom';
 import type { Plant } from '../plants';
-import { MONTH_NAMES, PLANT_META, formsOf, oldDogWarning, tenderWoody, zoneNote } from '../plants';
+import { MONTH_NAMES, PLANT_META, formsOf, oldDogWarning, ownCopies, tenderWoody, zoneNote } from '../plants';
 import { isMine } from '../my-plants';
 import { rootSpread, rootText, seedText } from '../spread';
 import { zoneRange } from '../climate';
@@ -290,5 +290,7 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
   }
   box.appendChild(dl);
   if (p.notes) box.appendChild(el('div', { className: 'details-notes' }, p.notes));
+  // (A plant of mine switched to this one: its notes come along.)
+  else if (ownCopies[p.id]?.notes) box.appendChild(el('div', { className: 'details-notes', 'data-testid': 'own-notes' }, 'Your notes: ' + ownCopies[p.id].notes));
   return box;
 }
