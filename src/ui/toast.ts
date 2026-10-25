@@ -12,9 +12,34 @@ export function toast(message: string, ms = 3000) {
     document.body.appendChild(node);
   }
   node.textContent = message;
+  placeToast(node);
+  // (Again once this frame's drawing is done: a notice raised as a shape is selected comes before its chip.)
+  const n = node;
+  requestAnimationFrame(() => placeToast(n));
   node.classList.add('show');
   if (timer) clearTimeout(timer);
   timer = setTimeout(() => node!.classList.remove('show'), ms);
+}
+
+/**
+ * Where a notice goes: above whatever sits at the foot of the plan (the selected shape's chip with Edit and More,
+ * the bar for several shapes), so it never covers their buttons; with a sheet open, at the top, clear of the
+ * sheet's own buttons below. (It lets taps through all the same.)
+ */
+export function placeToast(node: HTMLElement) {
+  node.style.top = '';
+  node.style.bottom = '';
+  if (document.querySelector('.sheet')) {
+    node.style.top = 'calc(60px + env(safe-area-inset-top))';
+    node.style.bottom = 'auto';
+    return;
+  }
+  let top = Infinity;
+  for (const e of document.querySelectorAll('.sel-pill, .multi-bar')) {
+    const r = e.getBoundingClientRect();
+    if (r.height > 0) top = Math.min(top, r.top);
+  }
+  if (top < Infinity) node.style.bottom = `${Math.max(80, Math.round(window.innerHeight - top + 8))}px`;
 }
 
 /**
