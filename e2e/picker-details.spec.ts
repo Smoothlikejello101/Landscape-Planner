@@ -290,3 +290,26 @@ test('animal toxicity: dogs three ways, and a warning given for one record of a 
   await expect(page.getByTestId('dogs-any')).toBeChecked();
   await expect(page.getByTestId('plant-search')).toHaveValue("'Acapulco Orange'");
 });
+
+test('the search clears in one tap, and a search the filters empty says which filters hid it', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  const search = page.getByTestId('plant-search');
+  await expect(search).toHaveAttribute('placeholder', 'Search plants or butterflies…');
+  await expect(page.getByTestId('clear-search')).toBeHidden();
+  await search.fill('Autumn Bride');
+  await page.getByTestId('clear-search').click();
+  await expect(search).toHaveValue('');
+  await expect(search).toBeFocused(); // (the keyboard stays)
+  await expect(page.getByTestId('clear-search')).toBeHidden();
+  // A filter that hides everything the search finds.
+  await page.getByText('Wet feet', { exact: true }).click();
+  await search.fill('Autumn Bride');
+  await expect(page.getByTestId('hidden-by')).toContainText(/plants? match.* “Autumn Bride”, hidden by your filters: Wet feet/);
+  await page.getByTestId('show-hidden').click();
+  await expect(page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" }).first()).toBeVisible();
+  await expect(page.getByTestId('plant-search')).toHaveValue('Autumn Bride'); // (the search stays)
+  // Found by what it feeds, in words.
+  await page.getByTestId('plant-search').fill('mourning cloak');
+  await expect(page.getByTestId('host-match').first()).toContainText(/Its leaves feed the caterpillars of: .*mourning cloak/);
+});

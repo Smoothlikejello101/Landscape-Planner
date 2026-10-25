@@ -188,7 +188,8 @@ export function render() {
   const placing = placingPlant();
   if (state.placing && !placing) finishPlacing(); // the plant in hand is gone (removed from My plants)
   if (placing && state.placing) {
-    const n = state.placing.placed.length;
+    // (This plant's, not every plant placed since Place was tapped: a switch starts the count over.)
+    const n = state.placing.placed.filter((x) => state.shapes.find((s) => s.id === x.id)?.plantId === placing.id).length;
     const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'place-banner' });
     banner.innerHTML = I.leaf + '<span></span>';
     banner.querySelector('span')!.textContent = `Tap to place ${placing.common} · ${n} placed`;

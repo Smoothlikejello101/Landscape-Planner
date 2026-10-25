@@ -2,7 +2,7 @@ import { el, type Child } from '../dom';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, inNotes, matchPlant, nearShows, readQuery } from '../search';
-import { MONTH_NAMES, formsOf, matchedBy, reportedOnly, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs } from '../plants';
+import { MONTH_NAMES, formsOf, matchedBy, reportedOnly, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMetaLine, plantTakesSun, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { spreadsAs } from '../spread';
@@ -62,6 +62,18 @@ function pick(p: Plant) {
 }
 function openForm(args: PlantFormArgs) { state.plantForm = args; state.panel = 'plantForm'; render(); }
 
+/** Each filter by name, as "hidden by" says it (with its setting where it has one). */
+const FILTER_NAMES = {
+  form: (v: string) => `Form: ${v}`, sun: (v: string) => `Sun: ${v}`, water: (v: string) => `Water: ${v}`,
+  bloomMonth: (v: string) => `Blooming in ${MONTH_NAMES[Number(v)]}`,
+  native: (v: string) => (v === '@here' ? `Native to ${gardenStateName() ?? 'your state'}` : `Native: ${v}`),
+  deer: (v: string) => `Deer: ${v}`, nectar: (v: string) => `Nectar: ${v === 'High' ? 'High' : 'Med+'}`, bird: (v: string) => `Birds: ${v === 'High' ? 'High' : 'Med+'}`,
+  maintenance: (v: string) => `Maintenance: ${v}`, spread: () => 'How it spreads', height: () => 'Mature height',
+  dogs: (v: string) => (v === 'hideToxic' ? 'Dogs: hide toxic' : 'Dogs: non-toxic only'),
+  noPoison: () => 'No poison to people listed', dryShade: () => 'Dry shade', wetFeet: () => 'Wet feet', clayOk: () => 'Clay OK',
+  hostOnly: () => 'Host plant', fallColor: () => 'Fall color', winterInterest: () => 'Winter interest', evergreen: () => 'Evergreen',
+  edible: () => 'Edible', noTaproot: () => 'Transplantable', inPlan: () => 'Already in this plan', hardyHere: () => 'Hardy in your zone',
+} satisfies Partial<Record<keyof PlantFilter, (v: never) => string>>;
 export function renderPlantsPanel() {
   void loadWild(afterWild);
   const linking = !!state.pickerLinkId;
@@ -120,7 +132,7 @@ export function renderPlantsPanel() {
     );
     // Found by what it hosts, not its name: say so, or the match looks like a mistake.
     if (!isMine(p) && matchedBy(p, plantFilter.q) === 'host') {
-      info.appendChild(el('div', { className: 'pmatch', 'data-testid': 'host-match' }, 'Host for: ' + p.host));
+      info.appendChild(el('div', { className: 'pmatch', 'data-testid': 'host-match' }, 'Its leaves feed the caterpillars of: ' + p.host));
     }
     // What the law says of it here, in short ("Prohibited in Arkansas"): seen without opening it.
     // (Red for a ban; amber where every line only lists it.)
@@ -226,8 +238,17 @@ export function renderPlantsPanel() {
         '+ ' + (hits.length - 60) + ' more \u2014 narrow the filters to see them'));
     }
     if (hits.length === 0 && mine.length === 0) {
-      listWrap.appendChild(el('div', { className: 'hint', style: { padding: '8px 0' } },
-        'No matches. Add it as your own plant, or loosen a filter.'));
+      // A search the filters emptied: which ones, and a way to see the plants anyway.
+      const why = q ? hiddenByFilters() : null;
+      if (why) {
+        const show = el('button', { className: 'link-btn', 'data-testid': 'show-hidden' }, 'Show them');
+        show.addEventListener('click', resetFilters);
+        listWrap.appendChild(el('div', { className: 'hint', style: { padding: '8px 0' }, 'data-testid': 'hidden-by' },
+          `${countWord(why.n)} plant${why.n === 1 ? ' matches' : 's match'} \u201c${plantFilter.q.trim()}\u201d, hidden by your filters: ${why.names.join(', ')}. `, show));
+      } else {
+        listWrap.appendChild(el('div', { className: 'hint', style: { padding: '8px 0' } },
+          'No matches. Add it as your own plant, or loosen a filter.'));
+      }
     }
     // Always offer to add a plant; right under the search when nothing matched as typed (close spellings are guesses:
     // say so above them).
@@ -239,9 +260,37 @@ export function renderPlantsPanel() {
     } else listWrap.appendChild(addButton());
   }
 
+  /**
+   * The filters that hide what a search finds, by name ("Sun: Shade", "Host plant"), and how many plants they hide.
+   * Null when the search finds nothing even without them.
+   */
+  function hiddenByFilters(): { n: number; names: string[] } | null {
+    const inPlan = plantIdsInPlan();
+    const keep = { q: plantFilter.q, withReported: plantFilter.withReported, advanced: plantFilter.advanced, animals: plantFilter.animals };
+    const base: PlantFilter = { ...PLANT_FILTER_DEFAULTS, ...keep };
+    const found = PLANTS.filter((p) => (!forTree || isTree(p)) && reportedMatch(p, base, inPlan) !== null);
+    if (!found.length) return null;
+    const names: string[] = [];
+    for (const k of Object.keys(FILTER_NAMES) as (keyof typeof FILTER_NAMES)[]) {
+      if (plantFilter[k] === PLANT_FILTER_DEFAULTS[k]) continue;
+      if (found.some((p) => reportedMatch(p, { ...base, [k]: plantFilter[k] }, inPlan) === null)) names.push(FILTER_NAMES[k](plantFilter[k] as never));
+    }
+    return names.length ? { n: found.length, names } : null;
+  }
+  /** Clear the filters; the search stays, and so do the sections that were open. */
+  function resetFilters() {
+    const { advanced, animals: animalsOpen, q } = plantFilter;
+    Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { advanced, animals: animalsOpen, q });
+    render(); // full rebuild so every control shows its cleared value
+  }
+
   // --- Filter controls (all update the list in place; no full render) ---
-  const search = el('input', { type: 'text', value: plantFilter.q, placeholder: 'Search name, host, notes\u2026', 'data-testid': 'plant-search' });
-  search.addEventListener('input', () => { plantFilter.q = search.value; rebuildList(); });
+  const search = el('input', { type: 'text', value: plantFilter.q, placeholder: 'Search plants or butterflies\u2026', 'data-testid': 'plant-search', 'aria-label': 'Search plants, or a butterfly whose caterpillars eat them' });
+  // Clear (×): the search emptied in one tap, the keyboard kept (the list redraws, nothing else).
+  const clearSearch = el('button', { className: 'search-clear', html: I.x, 'aria-label': 'Clear the search', 'data-testid': 'clear-search' });
+  clearSearch.hidden = !plantFilter.q;
+  clearSearch.addEventListener('click', () => { search.value = ''; plantFilter.q = ''; clearSearch.hidden = true; rebuildList(); search.focus(); });
+  search.addEventListener('input', () => { plantFilter.q = search.value; clearSearch.hidden = !search.value; rebuildList(); });
 
   const enums = (PLANT_META && PLANT_META.enums) || {};
   type StringKey = { [K in keyof PlantFilter]: PlantFilter[K] extends string ? (string extends PlantFilter[K] ? K : never) : never }[keyof PlantFilter];
@@ -391,16 +440,11 @@ export function renderPlantsPanel() {
     syncToggleLabel();
   });
   const resetBtn = el('button', { className: 'btn ghost', style: { flex: '1', fontSize: '13px', padding: '6px' } }, 'Reset filters');
-  resetBtn.addEventListener('click', () => {
-    // (Filters only: the search stays, and so do the sections that were open.)
-    const { advanced, animals: animalsOpen, q } = plantFilter;
-    Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { advanced, animals: animalsOpen, q });
-    render(); // full rebuild so every control shows its cleared value
-  });
+  resetBtn.addEventListener('click', resetFilters);
   const btnRow = el('div', { style: { display: 'flex', gap: '8px', margin: '8px 0 4px' } }, toggle, resetBtn);
 
   // The search stays in view while the list scrolls (with the header, below).
-  const searchBar = el('div', { className: 'picker-search field' }, search);
+  const searchBar = el('div', { className: 'picker-search field' }, el('div', { className: 'search-wrap' }, search, clearSearch));
   body.appendChild(primary);
   body.appendChild(primaryChecks);
   body.appendChild(animals);

@@ -454,7 +454,10 @@ a { color: inherit; }
 .sheet-top { position: sticky; top: 0; z-index: 2; background: #fff; }
 .sheet-top .sheet-header { position: static; }
 .picker-search { padding: 10px 16px; border-bottom: 1px solid #e7e5e4; background: #fff; }
-.picker-search input { width: 100%; }
+.picker-search input { width: 100%; padding-right: 44px; }
+.search-wrap { position: relative; }
+.search-clear { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #57534e; border-radius: 999px; }
+.search-clear[hidden] { display: none; }
 .link-offer { display: block; margin-bottom: 8px; }
 .flag-question { display: block; margin-top: 8px; font-size: 13px; }
 /* (With the pinned search, a field scrolled into view isn't hidden behind it.) */
