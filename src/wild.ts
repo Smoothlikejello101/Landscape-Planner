@@ -320,18 +320,19 @@ export function escapeHere(p: { id: string; parent?: string }): EscapeHere | nul
   return { stateName: n.stateName, stateFips: own.fips, count: records.length, total, statusSpecies: n.species, recordsSpecies, sources };
 }
 /**
- * "Not native to Arkansas; recorded growing wild in 65 of its 75 counties" (a cultivar: "Its species isn't native …";
+ * "Not native to Arkansas; recorded growing wild in 65 of its 75 counties" (a cultivar whose records are its species': "…; its species is recorded growing wild …";
  * the District, one unit: "…; recorded growing wild there").
  */
 export function escapeText(e: EscapeHere): string {
-  const who = e.statusSpecies ? `Its species isn't native to ${e.stateName}` : `Not native to ${e.stateName}`;
-  const rec = e.recordsSpecies && !e.statusSpecies ? 'its species is recorded growing wild' : 'recorded growing wild';
+  // (A cultivar is as native as its species; where the records are its species', it says so: "its species is recorded".)
+  const who = `Not native to ${e.stateName}`;
+  const rec = e.recordsSpecies ? 'its species is recorded growing wild' : 'recorded growing wild';
   return e.total === 1 ? `${who}; ${rec} there` : `${who}; ${rec} in ${e.count} of its ${e.total} ${countyWord(e.stateFips, e.total)}`;
 }
 /** In short, for a plant's row in the picker: "Not native; recorded wild in 65 of 75 Arkansas counties". */
 export function escapeShort(e: EscapeHere): string {
-  const who = e.statusSpecies || e.recordsSpecies ? "Its species isn't native" : 'Not native';
-  return e.total === 1 ? `${who}; recorded wild there` : `${who}; recorded wild in ${e.count} of ${e.total} ${e.stateName} ${countyWord(e.stateFips, e.total)}`;
+  const rec = e.recordsSpecies ? 'its species is recorded wild' : 'recorded wild';
+  return e.total === 1 ? `Not native; ${rec} there` : `Not native; ${rec} in ${e.count} of ${e.total} ${e.stateName} ${countyWord(e.stateFips, e.total)}`;
 }
 
 /** Recorded wild in the garden's county or one bordering it (in any state). */

@@ -1,4 +1,5 @@
 import { labelFields } from './a11y';
+import { pageZoomed, syncPageZoom } from '../page-zoom';
 import { saveStateWord } from './save-warning';
 import { resizeCanvas } from '../canvas';
 import { el, svgEl } from '../dom';
@@ -22,7 +23,7 @@ import { currentProject, storageIsDurable } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
 import { snapOn } from '../tidy';
-import { dismissToastAction } from './toast';
+import { dismissToastAction, placeNotice } from './toast';
 import { renderMoreMenu, toggleSelectMode } from './menu';
 import { renderExportModal, renderPreviewModal, renderResetModal } from './modals';
 import { renderPlantsPanel } from './plants-panel';
@@ -111,8 +112,9 @@ export function render() {
   const canvasWrap = el('div', { className: 'canvas-wrap', id: 'canvas-wrap' });
   const svg = svgEl('svg', { id: 'canvas-svg', width: state.canvasW, height: state.canvasH });
   svg.addEventListener('pointerdown', onCanvasPointerDown);
-  svg.addEventListener('touchstart', e => { if (e.touches && e.touches.length === 2) e.preventDefault(); }, { passive: false });
-  svg.addEventListener('touchmove', e => { if (e.touches && e.touches.length === 2) e.preventDefault(); }, { passive: false });
+  // (Two fingers zoom the plan; but if the page itself is still zoomed in, they zoom the page back out: page-zoom.ts.)
+  svg.addEventListener('touchstart', e => { if (e.touches && e.touches.length === 2 && !pageZoomed()) e.preventDefault(); }, { passive: false });
+  svg.addEventListener('touchmove', e => { if (e.touches && e.touches.length === 2 && !pageZoomed()) e.preventDefault(); }, { passive: false });
   svg.addEventListener('wheel', onWheel, { passive: false });
   // (A tap target to the browser, so a tap on the plan near a button stays on the plan: Chrome moves a tap that's
   // near a button onto it when nothing under the finger takes taps. Drawing still runs on pointer events.)
@@ -347,6 +349,8 @@ export function render() {
   if (state.menu === 'more') root.appendChild(renderMoreMenu());
 
   labelFields(root); // (each field's label names its control, for screen readers)
+  syncPageZoom(); // (a page left zoomed in when the last sheet or menu closes: back to its size)
+  placeNotice(); // (a notice with buttons stays clear of an open sheet)
   // Now that the SVG is in the DOM, size it and draw grid/shapes
   resizeCanvas();
   maybeExplainFullSize();

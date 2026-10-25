@@ -19,6 +19,7 @@ import { refreshAccountSection } from './ui/account-section';
 import { loadMyPlants } from './my-plants';
 import { setupServiceWorker } from './pwa';
 import { buildEmergencyBackup, downloadText } from './backup';
+import { notePageZoom } from './page-zoom';
 import { loadViewSettings } from './view-settings';
 import { updateSaveWarning, updateSaveState } from './ui/save-warning';
 import { flushSave, initStorage, refreshClipboard, requestPersistence, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
@@ -34,7 +35,7 @@ import { dismissToastAction } from './ui/toast';
 window.addEventListener('resize', () => { fitAboveKeyboard(); resizeCanvas(); });
 // Same goes for visualViewport resize (covers iOS keyboard + zoom)
 if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', () => { fitAboveKeyboard(); resizeCanvas(); });
+  window.visualViewport.addEventListener('resize', () => { fitAboveKeyboard(); resizeCanvas(); notePageZoom(); });
   // iOS pans the visual viewport (scroll, not resize) after its keyboard opens: re-measure (CSS only).
   window.visualViewport.addEventListener('scroll', () => { fitAboveKeyboard(); });
 }
