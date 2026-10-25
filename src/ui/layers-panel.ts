@@ -97,7 +97,9 @@ export function renderLayersPanel() {
       const lockBtn = el('button', {
         className: 'layer-lock ' + (s.locked ? 'on' : ''),
         html: s.locked ? I.lock : I.unlock,
-        title: s.locked ? 'Unlock' : 'Lock'
+        title: s.locked ? 'Unlock' : 'Lock',
+        'aria-label': (s.locked ? 'Unlock ' : 'Lock ') + (s.label || 'unlabeled ' + typeName(s.type)),
+        'aria-pressed': s.locked ? 'true' : 'false',
       });
       lockBtn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -105,7 +107,8 @@ export function renderLayersPanel() {
         flushHistoryDebounce(); pushHistory();
         save(); render();
       });
-      const row = el('div', { className: 'layer-row' + (sel ? ' sel' : '') }, swatch, info, lockBtn);
+      // (The lock leads the row, as the eye and lock do above, and the checkboxes: each control beside what it controls.)
+      const row = el('div', { className: 'layer-row' + (sel ? ' sel' : '') }, lockBtn, swatch, info);
       row.addEventListener('click', () => {
         if (roleHidden(s)) setRoleView(roleKey(s), { hidden: false }); // show what was asked for
         if (!passesFilter(s, state.viewFilter)) setViewFilter({ status: '', phase: '', showGone: s.status === 'gone' });
@@ -235,7 +238,7 @@ function backgroundSection(): HTMLElement {
   const more = el('button', { className: 'link-btn', 'data-testid': 'layers-bg-more' }, 'Adjust\u2026');
   more.disabled = busy;
   more.addEventListener('click', () => { state.panel = 'bg'; render(); });
-  wrap.appendChild(el('div', { className: 'role-row' + (bg.visible ? '' : ' hidden') }, el('span', { className: 'name' }, 'Background image'), more, eye));
+  wrap.appendChild(el('div', { className: 'role-row' + (bg.visible ? '' : ' hidden') }, eye, el('span', { className: 'name' }, 'Background image'), more));
   // Opacity: redraws the plan only, so the slider keeps its place (and the keyboard, on a phone).
   const pct = el('span', { className: 'count' }, Math.round(bg.opacity * 100) + '%');
   const slider = el('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: String(bg.opacity), 'aria-label': 'Background image opacity', 'data-testid': 'layers-bg-opacity' });
@@ -277,9 +280,9 @@ function roleSection(): HTMLElement {
       'aria-pressed': v.locked ? 'true' : 'false', 'data-action': 'toggle-locked',
     });
     lock.addEventListener('click', () => { setRoleView(k, { locked: !v.locked }); render(); });
-    wrap.appendChild(el('div', { className: 'role-row' + (v.hidden ? ' hidden' : ''), 'data-role-key': k },
-      el('span', { className: 'name' }, roleLabel(k)),
-      el('span', { className: 'count' }, String(counts.get(k))), eye, lock));
+    // (The eye and lock lead the row, beside the name they act on; the count follows the name: "Plant · 2".)
+    wrap.appendChild(el('div', { className: 'role-row' + (v.hidden ? ' hidden' : ''), 'data-role-key': k }, eye, lock,
+      el('span', { className: 'name' }, roleLabel(k), el('span', { className: 'count' }, ` · ${counts.get(k)}`))));
   }
   return wrap;
 }
