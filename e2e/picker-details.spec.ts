@@ -101,6 +101,57 @@ test('a plant shown only because of what other sources say is marked, and says s
   await expect(page.getByTestId('place-bar')).toBeVisible();
 });
 
+test('when a plant blooms and its flowers\' color, each with its source; the earlier list\'s months beside a sourced season', async ({ page }) => {
+  const catalog = {
+    meta: {
+      format: 'lp-catalog', version: 2, zones: 'half', title: 'Test catalog', updated: '2026-10-25',
+      sources: { ncsu: { title: 'NC State Extension', trust: 'reference' }, usda: { title: 'USDA PLANTS Database', trust: 'reference' }, compendium: { title: 'Earlier list', trust: 'unverified' } },
+      enums: { form: ['Perennial', 'Tree'] },
+    },
+    plants: [
+      { id: 'phlox-paniculata', common: 'Garden phlox', botanical: 'Phlox paniculata', src: ['compendium'], audited: '2026-10-25',
+        facts: { form: 'Perennial', bloom: { start: 7, end: 9, color: 'Pink' }, bloom_season: { v: ['summer'], src: ['ncsu', 'usda'], check: 'confirmed' },
+          flower_color: { v: ['pink', 'white', 'purple'], src: ['ncsu'], check: 'single' } } },
+      { id: 'phlox-david', common: "Garden phlox 'David'", botanical: "Phlox paniculata 'David'", parent: 'phlox-paniculata', src: ['ncsu'], audited: '2026-10-25',
+        facts: { flower_color: { v: ['white'], src: ['ncsu'], check: 'single' } } },
+      { id: 'quercus-alba', common: 'White oak', botanical: 'Quercus alba', src: ['compendium'], audited: '2026-10-25',
+        facts: { form: 'Tree', bloom_season: { v: ['mid spring'], src: ['usda'], check: 'single' }, flower_color: { v: ['yellow', 'insignificant'], src: ['usda'], check: 'single' } } },
+      { id: 'aster', common: 'Old-list aster', src: ['compendium'], audited: null, facts: { form: 'Perennial', bloom: { start: 9, end: 10, color: 'Lavender' } } },
+    ],
+  };
+  await page.route('**/plants.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(catalog) }));
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  const open = async (name: string) => {
+    const item = page.locator('.plant-item', { hasText: name }).first();
+    await item.getByTestId('plant-row').click();
+    const details = item.getByTestId('plant-details');
+    return (label: string) => details.locator('dt', { hasText: new RegExp(`^${label}$`) }).locator('xpath=following-sibling::dd[1]');
+  };
+  // Its season, from NC State and USDA; the earlier list's months under it, labeled; its colors from NC State.
+  const phlox = await open('Garden phlox');
+  await expect(phlox('Bloom').getByTestId('bloom-season')).toHaveText('Summer');
+  await expect(phlox('Bloom')).toContainText('NC State Extension, USDA PLANTS Database · confirmed');
+  await expect(phlox('Bloom').getByTestId('bloom-months')).toHaveText('Jul–Sep');
+  await expect(phlox('Bloom')).toContainText('earlier list, unverified');
+  await expect(phlox('Flower color')).toContainText('Pink, white, purple');
+  await expect(phlox('Flower color').locator('.details-src')).toHaveText('NC State Extension · one source');
+  // A cultivar blooms when its species does (said so), in its own colors.
+  const david = await open("Garden phlox 'David'");
+  await expect(david('Bloom')).toContainText('Summer');
+  await expect(david('Bloom')).toContainText('from its species');
+  await expect(david('Flower color')).toContainText('White');
+  // USDA's finer season, as it writes it; flowers it calls not conspicuous: not showy.
+  const oak = await open('White oak');
+  await expect(oak('Bloom').getByTestId('bloom-season')).toHaveText('Mid spring');
+  await expect(oak('Flower color')).toContainText('Yellow; not showy');
+  // Only the earlier list: its months and its color, each labeled.
+  const aster = await open('Old-list aster');
+  await expect(aster('Bloom')).toContainText('Sep–Oct');
+  await expect(aster('Flower color')).toContainText('Lavender');
+  await expect(aster('Flower color').locator('.details-src')).toHaveText('earlier list, unverified');
+});
+
 test('linking a circle to a catalog plant uses the Link button', async ({ page }) => {
   await openFresh(page);
   await addPlainShape(page, 'circle');

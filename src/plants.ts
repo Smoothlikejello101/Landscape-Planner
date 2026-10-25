@@ -45,7 +45,12 @@ export interface Plant {
   sun_least?: SunLevel;
   height?: { min?: number; max?: number; med?: number };
   width?: { min?: number; max?: number; med?: number };
+  /** The earlier list's bloom months and color (a plant of mine: its own). */
   bloom?: { start?: number; end?: number; color?: string };
+  /** When it blooms, as its sources say: seasons ("spring"), or USDA's "mid spring" (src/catalog.ts BLOOM_SEASONS). */
+  bloom_season?: string[];
+  /** Its flowers' colors (src/catalog.ts FLOWER_COLORS); `insignificant`: not showy. */
+  flower_color?: string[];
   nectar?: string;
   bird?: string;
   deer?: string;

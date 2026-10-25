@@ -274,6 +274,12 @@ export function copyKey(html) {
   return longest && longest.length >= 120 ? createHash('sha256').update(longest).digest('hex').slice(0, 16) : null;
 }
 
+/**
+ * Countries, by their web domain, south of the equator (all or mostly): their seasons are the other way round
+ * (spring is September to November in Adelaide), so a site there says nothing of when a plant blooms here.
+ */
+const SOUTHERN = new Set(['au', 'nz', 'za', 'ar', 'cl', 'uy', 'py', 'br', 'bo', 'pe', 'na', 'bw', 'zw', 'mz', 'mg', 'ls', 'sz', 'fj']);
+export const southernSite = (host) => SOUTHERN.has(String(host).toLowerCase().split('.').pop());
 /** A page's spec lines as claims, for one plant. (Facts that differ by place, bloom months above all, aren't taken from the web.) */
 export function webClaims(url, html, plant) {
   const kind = siteKind(url, html, plant);
@@ -289,7 +295,7 @@ export function webClaims(url, html, plant) {
   if (f.height) c.push({ ...base, fact: 'height', v: f.height });
   if (f.width) c.push({ ...base, fact: 'width', v: f.width });
   if (f.sun) c.push({ ...base, fact: 'sun_most', v: f.sun.most }, { ...base, fact: 'sun_least', v: f.sun.least });
-  if (f.bloomSeasons) c.push({ ...base, fact: 'bloom_season', v: f.bloomSeasons });
+  if (f.bloomSeasons && !southernSite(new URL(url).hostname)) c.push({ ...base, fact: 'bloom_season', v: f.bloomSeasons });
   if (f.flowerColor) c.push({ ...base, fact: 'flower_color', v: f.flowerColor });
   if (f.deer) c.push({ ...base, fact: 'deer', v: f.deer });
   return c;

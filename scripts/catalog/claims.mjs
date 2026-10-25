@@ -11,9 +11,9 @@
 // services, botanical gardens, state floras), 'breeder', 'nursery', 'blog'.
 // `group` marks copies: claims sharing a group (the same text) count once,
 // and so do claims from one site (src). USDA's garden figures are flags only
-// (shown for review, never deciding or checking), but for three plant traits
-// it records (leaves in winter, leaf color, growth rate): a fallback, deciding
-// where no other authority says (usdaClaims).
+// (shown for review, never deciding or checking), but for the plant traits
+// it records (leaves in winter, leaf color, growth rate, bloom period, flower
+// color): a fallback, deciding where no other authority says (usdaClaims).
 import { feetRange } from './extract.mjs';
 import { mnLight, ncsuForms, ncsuSun } from './map.mjs';
 
@@ -183,6 +183,54 @@ export function ncsuFoliage(values) {
   if (v.has('Semi-evergreen') || (ever && v.has('Deciduous'))) return 'semi-evergreen';
   return ever ? 'evergreen' : v.has('Deciduous') ? 'deciduous' : null;
 }
+/**
+ * Bloom seasons in the catalog's words (src/catalog.ts BLOOM_SEASONS), in the order the source gives them: NC
+ * State's and the web's seasons ("spring"), USDA's finer "mid spring" or "late winter" as it writes them. USDA's
+ * "Indeterminate" says nothing; "autumn" is fall.
+ */
+const SEASON_WORD = /^(?:(?:early|mid|late) )?(?:spring|summer|fall|winter)$/;
+export const bloomSeasons = (values) => [...new Set((values ?? []).map((v) => String(v).toLowerCase().replace(/\s+/g, ' ').trim().replace(/\bautumn$/, 'fall'))
+  .filter((v) => SEASON_WORD.test(v)))];
+/**
+ * Flower colors in the catalog's words (src/catalog.ts FLOWER_COLORS): NC State's groups, each by its first word's
+ * color (Gold/Yellow → yellow, Purple/Lavender → purple, Red/Burgundy → red, Cream/Tan → cream, Brown/Copper →
+ * brown, Gray/Silver → silver), the rest by name. USDA's eight colors are among them. A word another source uses
+ * goes to the group NC State puts it in (lavender: purple; burgundy: red; gold: yellow; tan: cream), violet to
+ * purple (a bluish purple); one in none of its groups (rose, magenta, coral, peach) has no catalog word, and a value
+ * with one isn't written at all (write.mjs: "Violet, Red" kept as "red" would say something else). NC State's
+ * "Insignificant" (flowers not showy) is kept as `insignificant`, and so is USDA's "Flower Conspicuous: No"
+ * (usdaClaims).
+ */
+const FLOWER_WORDS = {
+  white: 'white', yellow: 'yellow', gold: 'yellow', pink: 'pink', purple: 'purple', lavender: 'purple', violet: 'purple', red: 'red', burgundy: 'red',
+  orange: 'orange', blue: 'blue', green: 'green', cream: 'cream', tan: 'cream', brown: 'brown', copper: 'brown', gray: 'silver', silver: 'silver',
+  black: 'black', variegated: 'variegated', insignificant: 'insignificant',
+};
+/** A source's flower colors, each in the catalog's words, once: "Gold/Yellow" is its group's first word. (A word with none is left out.) */
+export const flowerColors = (values) => [...new Set((values ?? []).map((v) => FLOWER_WORDS[String(v).toLowerCase().split('/')[0].trim()]).filter(Boolean))];
+/** USDA's plant groups that flower (its others: Gymnosperm, Fern, Lycopod, Horsetail, Moss, Whisk-fern…). */
+const FLOWERING = new Set(['Dicot', 'Monocot']);
+/** Facts about flowers, which a plant without them doesn't have. */
+export const FLOWER_FACTS = new Set(['bloom_season', 'bloom_months', 'flower_color']);
+/**
+ * The families of plants without flowers, by the start of their names (NC State's "Family" has slips: "Pineaceae",
+ * "Polypodiacea"): the conifers, cycads, ginkgo and their kin, and the ferns, horsetails, clubmosses and mosses.
+ */
+const FLOWERLESS_FAMILY = /^(pin|cupress|tax|podocarp|araucari|sciadopity|cephalotax|ginkgo|cycad|zami|stangeri|ephedr|gnet|welwitschi|pterid|athyri|aspleni|onocle|osmund|polypodi|ophiogloss|dennstaedti|dryopterid|equiset|lycopodi|lygodi|selaginell|woodsi|marsile|thelypterid|blechn|cystopterid|davalli|nephrolepid|cyathe|dicksoni|salvini|isoet|psilot|gleicheni|anemi|schizae|hymenophyll|lindsae|azoll|thuidi)\w*ceae?$/i;
+/**
+ * Whether a plant has no flowers: a conifer, a cycad or ginkgo, a fern or its allies. By USDA's group (not a dicot
+ * or monocot); where USDA doesn't say, by the family NC State gives (an Abies or Picea from abroad); else a plant
+ * the catalog calls a fern and nothing else. A source's bloom time or flower color for one is its pollen cones or
+ * spores (USDA gives junipers a bloom period, NC State blue spruce a flower color), not flowers: those claims are
+ * left out (sample.mjs). Returns what it is (USDA's group, the family, or "Fern"), or null.
+ */
+export function flowerless(usda, form, family) {
+  const group = usda?.Group?.[0];
+  if (group) return FLOWERING.has(group) ? null : group;
+  if (family) return FLOWERLESS_FAMILY.test(String(family).trim()) ? String(family).trim() : null;
+  const forms = [form].flat().filter(Boolean);
+  return forms.length && forms.every((f) => f === 'Fern') ? 'Fern' : null;
+}
 /** Growth rate in the catalog's words: NC State's Slow, Medium, Rapid; USDA's Slow, Moderate, Rapid. */
 export const growthRate = (v) => ({ Slow: 'slow', Medium: 'medium', Moderate: 'medium', Rapid: 'fast' })[v] ?? null;
 
@@ -199,7 +247,7 @@ export function ncsuClaims(f) {
   const sun = ncsuSun(f.Light);
   if (sun) { add('sun_most', sun.most); add('sun_least', sun.least); }
   add('water', waterNeed(f));
-  add('bloom_season', (f['Flower Bloom Time'] ?? []).map((s) => s.toLowerCase()));
+  add('bloom_season', bloomSeasons(f['Flower Bloom Time']));
   add('flower_color', f['Flower Color'] ?? null);
   const sev = f['Poison Severity']?.[0], derm = f['Causes Contact Dermatitis']?.[0] === 'Yes';
   if (sev || derm) add('tox_people', [sev === 'High' || sev === 'Medium' ? 'major' : sev === 'Low' ? 'minor' : null, derm ? 'dermatitis' : null].filter(Boolean));
@@ -290,6 +338,12 @@ export function usdaClaims(u) {
   if (leaf.length) c.push({ fact: 'leaf_color', v: leaf, src: 'usda', kind: 'authority', fallback: true });
   const rate = growthRate(u?.['Growth Rate']?.[0]);
   if (rate) c.push({ fact: 'growth_rate', v: rate, src: 'usda', kind: 'authority', fallback: true });
+  // When it blooms (a season: "mid spring") and its flowers' color, the species' (a cultivar's color comes only from
+  // its own page), a fallback like the traits above. Flowers it calls not conspicuous are NC State's "Insignificant".
+  const season = bloomSeasons(u?.['Bloom Period']);
+  if (season.length) c.push({ fact: 'bloom_season', v: season, src: 'usda', kind: 'authority', fallback: true });
+  const flowers = [...(u?.['Flower Color'] ?? []), ...(u?.['Flower Conspicuous']?.[0] === 'No' ? ['Insignificant'] : [])];
+  if (flowers.length) c.push({ fact: 'flower_color', v: flowers, src: 'usda', kind: 'authority', fallback: true });
   const t = u?.['Temperature, Minimum (°F)']?.[0];
   if (t != null && Number.isFinite(Number(t))) flag('zone_min', { temp: Number(t), text: `USDA: lowest ${t} °F` });
   const shade = u?.['Shade Tolerance']?.[0];

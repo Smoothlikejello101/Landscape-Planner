@@ -47,9 +47,12 @@ export function bloomWindow(counts) {
 }
 const SEASON_MONTHS = { winter: [12, 1, 2], spring: [3, 4, 5], summer: [6, 7, 8], fall: [9, 10, 11] };
 const inWindow = (m, w) => (w.start <= w.end ? m >= w.start && m <= w.end : m >= w.start || m <= w.end);
-/** Whether a window shares a month with a source's seasons ("spring", "summer"…). No seasons: nothing to check. */
+/**
+ * Whether a window shares a month with a source's seasons ("spring", "summer"…; USDA's "mid spring" is spring's
+ * months). No seasons: nothing to check.
+ */
 export function agreesWithSeasons(w, seasons) {
-  const months = (seasons ?? []).flatMap((s) => SEASON_MONTHS[String(s).toLowerCase()] ?? []);
+  const months = (seasons ?? []).flatMap((s) => SEASON_MONTHS[String(s).toLowerCase().replace(/^(early|mid|late) /, '')] ?? []);
   return !months.length || months.some((m) => inWindow(m, w));
 }
 

@@ -189,6 +189,32 @@ describe('what the writer holds back', () => {
   });
 });
 
+describe('writing bloom seasons and flower colors', () => {
+  const file: CatalogFile = { meta: { format: 'lp-catalog', version: 2, zones: 'half', sources: { compendium: { title: 'old', trust: 'unverified' } }, enums: { form: ['Perennial'] } },
+    plants: [{ id: 'aster', common: 'Aster', src: ['compendium'], audited: null, facts: { form: 'Perennial', bloom: { start: 9, end: 10, color: 'Lavender' } } },
+      { id: 'phlox', common: 'Phlox', src: ['compendium'], audited: null, facts: { form: 'Perennial' } }] };
+  const audit = [{ id: 'aster', claims: [{ src: 'ncsu', kind: 'authority' }, { src: 'usda', kind: 'authority' }], facts: {
+    bloom_season: { v: ['fall'], src: ['ncsu', 'usda'], check: 'confirmed' },
+    flower_color: { v: ['Purple/Lavender', 'Gray/Silver'], src: ['ncsu'], check: 'single' },
+  } }, { id: 'phlox', claims: [{ src: 'nursery.com', kind: 'nursery' }], facts: {
+    bloom_season: { v: ['May'], src: ['nursery.com'], check: 'reported' }, // (a month: not a season)
+    flower_color: { v: ['Pink', 'Magenta'], src: ['nursery.com'], check: 'reported' }, // (magenta in none of NC State's groups: not "pink" alone)
+  } }];
+  const { file: out, review } = writeAudit(file, audit, '2026-10-25');
+  it('writes them in the catalog\'s words, with their sources; the earlier list\'s months stay', () => {
+    const f = out.plants[0].facts;
+    expect(f.bloom_season).toEqual({ v: ['fall'], src: ['ncsu', 'usda'], check: 'confirmed' });
+    expect(f.flower_color).toEqual({ v: ['purple', 'silver'], src: ['ncsu'], check: 'single' });
+    expect(f.bloom).toEqual({ start: 9, end: 10, color: 'Lavender' });
+    expect(catalogErrors(out)).toEqual([]);
+  });
+  it('refuses what isn\'t a season or a color it takes, and lists it', () => {
+    expect(out.plants[1].facts.bloom_season).toBeUndefined();
+    expect(out.plants[1].facts.flower_color).toBeUndefined();
+    expect(review.filter((r: { id: string }) => r.id === 'phlox').map((r: { fact: string }) => r.fact).sort()).toEqual(['bloom_season', 'flower_color']);
+  });
+});
+
 describe('writing the leaf facts', () => {
   const file: CatalogFile = { meta: { format: 'lp-catalog', version: 2, zones: 'half', sources: { compendium: { title: 'old', trust: 'unverified' } }, enums: { form: ['Shrub', 'Tree'] } },
     plants: [{ id: 'maple', common: 'Maple', src: ['compendium'], audited: null, facts: { form: 'Tree', fall_color: true } }] };

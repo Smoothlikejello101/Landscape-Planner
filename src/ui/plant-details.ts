@@ -34,7 +34,17 @@ const SUN_WORDS: Record<string, string> = { Full: 'full sun', Part: 'part shade'
 const cap = (t: string) => t[0].toUpperCase() + t.slice(1);
 const sun = (most?: unknown, least?: unknown) => (!most ? '' : cap(most === least || !least ? SUN_WORDS[most as string] ?? String(most) : `${SUN_WORDS[most as string] ?? most} to ${SUN_WORDS[least as string] ?? least}`));
 const yes = (v: unknown) => (v === true ? 'Yes' : v === false ? 'No' : '');
-const bloom = (b?: { start?: number; end?: number; color?: string }) => (b?.start ? `${MONTH_NAMES[b.start]}${b.end && b.end !== b.start ? `–${MONTH_NAMES[b.end]}` : ''}${b.color ? `, ${b.color}` : ''}` : b?.color ?? '');
+/** "Apr–Jun"; "May". */
+const months = (b: { start?: number; end?: number }) => (b.start ? `${MONTH_NAMES[b.start]}${b.end && b.end !== b.start ? `–${MONTH_NAMES[b.end]}` : ''}` : '');
+/** "Spring, summer"; "Mid spring" (USDA's finer seasons, as it writes them). */
+const seasonText = (l?: string[]) => (l?.length ? cap(l.join(', ')) : '');
+/** Its flowers' colors: "White, pink"; "Green; not showy"; "Not showy" (NC State's "Insignificant"). */
+export function flowerText(l?: string[]): string {
+  if (!l?.length) return '';
+  const colors = l.filter((c) => c !== 'insignificant');
+  const plain = colors.length < l.length;
+  return colors.length ? cap(colors.join(', ')) + (plain ? '; not showy' : '') : 'Not showy';
+}
 /**
  * Poisonous to people, in its source's words: "Leaves and stems, medium severity; can irritate skin"; listed with
  * nothing more said: "Yes; no part or severity given".
@@ -93,7 +103,10 @@ function rows(p: Plant): Row[] {
       (r) => zoneRange({ zone_min: (r.zone_min ?? p.zone_min) as number, zone_max: (r.zone_max ?? p.zone_max) as number }) ?? ''],
     ['Sun', sun(p.sun_most, p.sun_least), ['sun_most', 'sun_least'], (r) => sun(r.sun_most ?? p.sun_most, r.sun_least ?? p.sun_least)],
     ['Water', p.water ?? '', ['water'], (r) => String(r.water ?? '')],
-    ['Bloom', bloom(p.bloom), ['bloom'], (r) => bloom(r.bloom as Plant['bloom'])],
+    // (Its months here, its season and the earlier list's months, each with its source: drawn by bloomRow.)
+    ['Bloom', '', ['bloom_season', 'bloom']],
+    // (Its sources' colors; else the earlier list's, or a plant of mine's own words.)
+    ['Flower color', flowerText(p.flower_color) || p.bloom?.color || '', p.flower_color?.length ? ['flower_color'] : ['bloom']],
     ['Native', p.native ?? '', ['native']],
     ['Nectar for pollinators', p.nectar ?? '', ['nectar']],
     ['For birds', p.bird ?? '', ['bird']],
@@ -170,6 +183,26 @@ function spreadRow(p: Plant): HTMLElement | null {
   return dd;
 }
 /**
+ * When it blooms, each part with its own source: where the garden is, the months its flowering records there give
+ * (src/wild.ts); its season, as its sources say; and, with no records here, the earlier list's months (a plant of
+ * mine: its own). Null: nothing to say.
+ */
+function bloomRow(p: Plant): HTMLElement | null {
+  const parts: [text: string, src: string, testid?: string][] = [];
+  const local = localBloom(p);
+  if (local) parts.push([`${months(local)}, peak ${MONTH_NAMES[local.peak]}`,
+    `${local.species ? 'its species: ' : ''}${local.n} flowering records in ${local.stateName}${local.area === 'region' ? ' and neighboring states' : ''} · ${local.source}`, 'local-bloom']);
+  if (p.bloom_season?.length) parts.push([seasonText(p.bloom_season), sourceLine(p.prov?.bloom_season), 'bloom-season']);
+  if (!local && p.bloom?.start) parts.push([months(p.bloom), sourceLine(p.prov?.bloom), 'bloom-months']);
+  if (!parts.length) return null;
+  const dd = el('dd', { 'data-testid': 'bloom-row' });
+  for (const [text, src, testid] of parts) {
+    dd.appendChild(el('span', { className: 'details-part', ...(testid ? { 'data-testid': testid } : {}) }, text));
+    if (src) dd.appendChild(el('span', { className: 'details-src' }, src));
+  }
+  return dd;
+}
+/**
  * Toxicity to animals, never left blank on a catalog plant (no line reads as "safe"): its own rating; else the
  * earlier list's warning for another record of its species; else not yet rated. Null for a plant of mine.
  */
@@ -206,6 +239,7 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
   const dl = el('dl', { className: 'details-list' });
   for (const [label, value, facts, reportedText] of rows(p)) {
     if (label === 'How it spreads') { const dd = spreadRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
+    if (label === 'Bloom') { const dd = bloomRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
     if (label === 'Toxicity') {
       const t = toxRow(p);
       if (t) { dl.appendChild(el('dt', {}, label)); dl.appendChild(el('dd', { 'data-testid': 'tox-row' }, t.value, ...(t.line ? [el('span', { className: 'details-src' }, t.line)] : []))); }
@@ -213,19 +247,13 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
     }
     const prov = facts.map((f) => p.prov?.[f]).find(Boolean);
     const reported = p.reported && facts.some((f) => f in p.reported!) && reportedText ? reportedText(p.reported) : '';
-    // Bloom where the garden is, from flowering records there: its months, and how many records they rest on.
-    const local = label === 'Bloom' ? localBloom(p) : null;
-    if (!value && !reported && !local) {
+    if (!value && !reported) {
       // Looked up, and none of the sources say: shown as such, so it isn't mistaken for "not looked at".
       if (facts.some((f) => p.prov?.[f]?.unknown)) { dl.appendChild(el('dt', {}, label)); dl.appendChild(el('dd', { className: 'details-unknown' }, 'Not known: none of the sources say')); }
       continue;
     }
-    const shown = local ? `${MONTH_NAMES[local.start]}${local.end !== local.start ? `–${MONTH_NAMES[local.end]}` : ''}, peak ${MONTH_NAMES[local.peak]}${p.bloom?.color ? `; ${p.bloom.color}` : ''}` : value;
-    const dd = el('dd', { ...(local ? { 'data-testid': 'local-bloom' } : {}) }, shown || '—');
-    const line = local
-      ? `${local.species ? 'its species: ' : ''}${local.n} flowering records in ${local.stateName}${local.area === 'region' ? ' and neighboring states' : ''} · ${local.source}`
-        + (p.bloom?.color ? ` (color: ${sourceLine(prov)})` : '')
-      : ENDS[facts[0]] ? rangeLine(facts, p.prov) : sourceLine(prov); // (a range: hardiness, sun; not toxicity's two facts)
+    const dd = el('dd', label === 'Flower color' ? { 'data-testid': 'flower-color' } : {}, value || '—');
+    const line = ENDS[facts[0]] ? rangeLine(facts, p.prov) : sourceLine(prov); // (a range: hardiness, sun; not toxicity's two facts)
     if (line) dd.appendChild(el('span', { className: 'details-src' }, line));
     // Hardiness shown from nurseries only: say so, since a grower's range can stop where it sells, not where the
     // plant grows. (Said of the value shown: a reference giving another range is beside it, by name.)

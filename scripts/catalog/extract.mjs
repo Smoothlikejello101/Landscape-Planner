@@ -73,12 +73,15 @@ export function usdaFields(profile, characteristics) {
     if (profile.Durations?.length) out.Duration = profile.Durations;
     if (profile.GrowthHabits?.length) out['Growth habit'] = profile.GrowthHabits;
     for (const n of profile.NativeStatuses ?? []) (out['Native status'] ??= []).push(`${n.Region}: ${n.Type}`);
+    // (Dicot or Monocot: a flowering plant; Gymnosperm, Fern, Lycopod, Horsetail and the like have none: claims.mjs flowerless.)
+    if (profile.Group) out.Group = [profile.Group];
     if (profile.HasInvasiveStatuses) out.Invasive = ['listed'];
     if (profile.HasNoxiousStatuses) out.Noxious = ['listed'];
   }
   const wanted = new Set(['Bloom Period', 'Flower Color', 'Height, Mature (feet)', 'Shade Tolerance', 'Drought Tolerance',
     'Moisture Use', 'Temperature, Minimum (°F)', 'Toxicity', 'Fall Conspicuous', 'Adapted to Fine Textured Soils',
-    'Anaerobic Tolerance', 'Growth Rate', 'Palatable Human', 'pH, Minimum', 'pH, Maximum', 'Leaf Retention', 'Foliage Color']);
+    'Anaerobic Tolerance', 'Growth Rate', 'Palatable Human', 'pH, Minimum', 'pH, Maximum', 'Leaf Retention', 'Foliage Color',
+    'Flower Conspicuous']);
   // (The species' own rows only: a row with a CultivarName is a named release's, 'Alma' blue grama's, not the
   // species'. A synonym's row is the same plant's.)
   for (const c of characteristics ?? []) {
