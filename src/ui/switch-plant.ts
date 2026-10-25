@@ -53,7 +53,8 @@ export function renderSwitchPanel(): HTMLElement | null {
     el('div', { role: 'row', className: 'switch-row head' }, el('span', { role: 'columnheader' }, ''), el('span', { role: 'columnheader' }, 'Yours'), el('span', { role: 'columnheader' }, 'Catalog')));
   for (const [label, a, b] of rows) {
     if (!a && !b) continue;
-    table.appendChild(el('div', { role: 'row', className: 'switch-row' + (a !== b ? ' differs' : '') },
+    // (Marked where both say something and it differs: a blank of yours isn't a disagreement.)
+    table.appendChild(el('div', { role: 'row', className: 'switch-row' + (a && b && a !== b ? ' differs' : '') },
       el('span', { role: 'rowheader' }, label), el('span', { role: 'cell' }, a || '—'), el('span', { role: 'cell' }, b || '—')));
   }
   body.appendChild(table);
@@ -89,13 +90,13 @@ export function renderSwitchPanel(): HTMLElement | null {
       alert("Couldn't switch: " + errMsg(e));
     }
   });
-  const keep = el('button', { className: 'btn secondary', 'data-testid': 'switch-keep' }, 'Keep mine');
+  const keep = el('button', { className: 'btn ghost', style: { flex: '1' }, 'data-testid': 'switch-keep' }, 'Keep mine');
   keep.addEventListener('click', async () => {
     try { await keepMine(mine, target); } catch (e) { alert(errMsg(e)); return; }
     toast(`Keeping yours. ${target.common} won’t be offered for it again.`, 5000);
     back();
   });
-  const later = el('button', { className: 'btn ghost', 'data-testid': 'switch-later' }, 'Not now');
+  const later = el('button', { className: 'btn ghost', style: { flex: '1' }, 'data-testid': 'switch-later' }, 'Not now');
   later.addEventListener('click', back);
   const foot = el('div', { className: 'sheet-foot' }, go, el('div', { style: { display: 'flex', gap: '8px' } }, keep, later));
 
