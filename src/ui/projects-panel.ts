@@ -1,4 +1,4 @@
-import { backupAll, buildProjectFile, canShareFiles, downloadText, importProjects, parseImportFile, parseImportPlants } from '../backup';
+import { backupAll, backupSaid, buildProjectFile, canShareFiles, downloadText, importProjects, parseImportFile, parseImportPlants } from '../backup';
 import { mergeMyPlants } from '../my-plants';
 import { el } from '../dom';
 import { I } from '../icons';
@@ -49,8 +49,8 @@ function backupSection(): HTMLElement {
 
   const runBackup = async (via: 'download' | 'share') => {
     try {
-      const n = await backupAll(via);
-      if (n) toast(`Backed up ${n} project${n === 1 ? '' : 's'}`);
+      const b = await backupAll(via);
+      if (b) toast(backupSaid(b), 10000);
       render();
     } catch (e) { alert('Backup failed: ' + errMsg(e)); }
   };
@@ -105,7 +105,7 @@ export function renderProjectsPanel() {
       e.stopPropagation();
       try {
         const file = await buildProjectFile(p.id);
-        if (file) { downloadText(file.filename, file.text); toast('Saved ' + file.filename); }
+        if (file) { downloadText(file.filename, file.text); toast(`Saved ${file.filename} to your Downloads`, 6000); }
       } catch (err) { alert('Export failed: ' + errMsg(err)); }
     });
     actions.appendChild(exportBtn);

@@ -43,7 +43,8 @@ test('deleting several keeps locked shapes, and asks first when it would take mo
   // Only plants (one locked): no question; the locked one stays.
   await page.locator('.multi-bar button[title=Delete]').click();
   expect(dialogs).toEqual([]);
-  await expect(page.locator('#toast')).toContainText('2 deleted; 1 locked shape kept');
+  await expect(page.locator('#toast-action')).toContainText(/Deleted 2 plants; 1 locked shape kept/); // (with an Undo)
+  await expect(page.locator('#toast-action').getByRole('button', { name: 'Undo' })).toBeVisible();
   await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(3);
   // A plant and the bed: it says what would go. No keeps them; Yes deletes them.
   await page.locator('button[title=Undo]').click();

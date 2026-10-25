@@ -19,8 +19,8 @@ import { refreshAccountSection } from './ui/account-section';
 import { loadMyPlants } from './my-plants';
 import { setupServiceWorker } from './pwa';
 import { buildEmergencyBackup, downloadText } from './backup';
-import { updateSaveWarning } from './ui/save-warning';
-import { flushSave, initStorage, refreshClipboard, requestPersistence, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
+import { updateSaveWarning, updateSaveState } from './ui/save-warning';
+import { flushSave, initStorage, refreshClipboard, requestPersistence, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
 import { render } from './ui/render';
 import { dismissToastAction } from './ui/toast';
 
@@ -151,6 +151,7 @@ async function start() {
   }
   loadMyPlants();
   setSaveStatusListener(updateSaveWarning);
+  setSaveStateListener(updateSaveState);
   pushHistory(); // seed undo history with the loaded state
   render();
   if (migrationError) {

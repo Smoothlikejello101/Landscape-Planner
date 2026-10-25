@@ -4,6 +4,7 @@ import { I } from '../icons';
 import { resetCurrentProject } from '../mutations';
 import { state } from '../state';
 import { currentProject } from '../storage';
+import { undoNotice } from './delete-selected';
 import { render } from './render';
 
 export function renderExportModal() {
@@ -77,7 +78,11 @@ export function renderResetModal() {
   const cancelBtn = el('button', { className: 'btn ghost' }, 'Cancel');
   cancelBtn.addEventListener('click', () => { state.panel = null; render(); });
   const confirmBtn = el('button', { className: 'btn danger-solid' }, 'Clear all');
-  confirmBtn.addEventListener('click', () => { resetCurrentProject(); render(); });
+  confirmBtn.addEventListener('click', () => {
+    const n = state.shapes.length;
+    resetCurrentProject(); render();
+    undoNotice(`Cleared ${n} shape${n === 1 ? '' : 's'}`);
+  });
   const modal = el('div', { className: 'modal' },
     el('div', { className: 'sheet-body' },
       el('div', { style: { fontWeight: 600, color: '#292524', marginBottom: '8px' } }, 'Clear this project?'),

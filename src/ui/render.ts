@@ -1,4 +1,5 @@
 import { labelFields } from './a11y';
+import { saveStateWord } from './save-warning';
 import { resizeCanvas } from '../canvas';
 import { el, svgEl } from '../dom';
 import { onCanvasPointerDown, onWheel } from '../gestures';
@@ -43,7 +44,7 @@ function statusText() {
 }
 /** Refresh the shape count / zoom readout without rebuilding the page. */
 export function updateStatusReadout() {
-  const node = document.querySelector('.project-btn .pinfo');
+  const node = document.querySelector('.project-btn .pcount');
   if (node) node.textContent = statusText();
 }
 
@@ -65,7 +66,8 @@ export function render() {
   const projBtn = el('button', { className: 'project-btn' },
     el('div', { className: 'pname' }, projName),
     el('div', { html: I.chevronDown, style: { display: 'flex', color: '#78716c' } }),
-    el('div', { className: 'pinfo' }, statusText())
+    el('div', { className: 'pinfo' }, el('span', { className: 'pcount' }, statusText()), ' \u00b7 ',
+      (() => { const s = saveStateWord(); return el('span', { className: 'save-state' + (s.bad ? ' bad' : ''), title: s.title, 'data-testid': 'save-state' }, s.word); })())
   );
   projBtn.addEventListener('click', () => { state.panel = 'projects'; render(); });
   topbar.appendChild(projBtn);

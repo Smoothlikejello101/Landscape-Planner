@@ -24,7 +24,7 @@ test('printable plan: options persist and a PDF downloads', async ({ page }) => 
   await page.getByRole('button', { name: '→ Right' }).click();
 
   await page.getByTestId('create-pdf').click();
-  await expect(page.getByTestId('print-result')).toContainText('front-yard-plan-plan-');
+  await expect(page.getByTestId('print-result')).toContainText(/Ready: front-yard-plan-\d{4}/); // (not "plan-plan")
   await expect(page.getByTestId('print-result')).toContainText('1 page');
   const download = page.waitForEvent('download');
   await page.getByTestId('download-pdf').click();
