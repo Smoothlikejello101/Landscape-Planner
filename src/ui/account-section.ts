@@ -1,4 +1,4 @@
-import { account, deleteAccount, emailSignInOn, forgetCodeSent, initAccount, planText, redeemBetaCode, sendSignInLink, signInWithGoogle, signOut, verifyEmailCode } from '../account';
+import { account, deleteAccount, forgetCodeSent, initAccount, planText, redeemBetaCode, sendSignInLink, signInWithGoogle, signOut, verifyEmailCode } from '../account';
 import { PRIVACY_URL, TERMS_URL } from '../feedback';
 import { backupAll, backupSaid } from '../backup';
 import { restoreFromTrash, runSync, setSyncOnThisDevice, startSyncing, sync, syncOnThisDevice } from '../sync/sync';
@@ -86,10 +86,6 @@ function fill(section: HTMLElement) {
   google.addEventListener('click', () => { void signInWithGoogle(); });
   section.append(google, el('div', { className: 'hint', 'data-testid': 'signin-agree' },
     'By signing in, you agree to the ', policyLink(TERMS_URL, 'terms'), ' and the ', policyLink(PRIVACY_URL, 'privacy policy'), '.'));
-  if (!emailSignInOn()) {
-    section.appendChild(el('div', { className: 'hint', 'data-testid': 'email-later' }, 'Signing in by email arrives with the app’s own email address.'));
-    return;
-  }
   if (account.linkSentTo) {
     // The code is typed here, so signing in finishes in this copy of the app whatever opens the email.
     section.appendChild(el('div', { className: 'status', 'data-testid': 'link-sent' },

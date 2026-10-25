@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { flushSave } from './storage';
 import { toast } from './ui/toast';
 
-// Accounts (sync step 1): sign in with Google or an emailed link, sign out,
+// Accounts (sync step 1): sign in with Google or an emailed code, sign out,
 // delete the account. No account is needed to use the app; an account
 // carries the subscription (a 30-day trial to start) and, next, sync.
 //
@@ -18,17 +18,6 @@ import { toast } from './ui/toast';
  */
 export const SUPABASE_URL = 'https://api.fullgrown.garden';
 export const SUPABASE_KEY = 'sb_publishable_R6aLme10zqxx2yceOFQGEA__ayLzqPV';
-/**
- * Email sign-in needs the app's own email service: Supabase's built-in sender
- * reaches only the project's team, two emails an hour, and its emails can't
- * be changed to carry the code. Off until that service is set up; tests (and
- * a trial run) turn it on with localStorage 'lp-email-signin' = '1'.
- */
-export const EMAIL_SIGNIN_READY = false;
-export function emailSignInOn(): boolean {
-  if (EMAIL_SIGNIN_READY) return true;
-  try { return localStorage.getItem('lp-email-signin') === '1'; } catch { return false; }
-}
 /** Where the sign-in session is kept on this device. */
 export const AUTH_STORAGE_KEY = 'lp-auth';
 
