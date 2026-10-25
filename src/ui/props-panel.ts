@@ -536,16 +536,6 @@ export function renderPropsPanelMulti(selected: Shape[]) {
   const withStatus = selected.filter(hasStatus);
   if (withStatus.length) body.appendChild(section('status', 'Status', document.createTextNode(statusSummary(withStatus)), [statusSection(withStatus)]));
 
-  // Common locked state
-  const allLocked = selected.every(s => s.locked);
-  const lockBtn = el('button', { className: 'btn ghost',
-    html: (allLocked ? I.unlock : I.lock) + '<span style="margin-left:6px">' + (allLocked ? 'Unlock all' : 'Lock all') + '</span>' });
-  lockBtn.addEventListener('click', () => {
-    setLockedForIds(state.selectedIds, !allLocked);
-    render();
-  });
-  body.appendChild(lockBtn);
-
   // Circles that could all be one plant: link them at once (a plan drawn before the catalog). Locked circles
   // are left as they are unless chosen too; it's offered where some aren't plants yet.
   const unlocked = selected.filter((s) => !isLocked(s));
@@ -624,6 +614,18 @@ export function renderPropsPanel() {
       html: (single.locked ? I.lock : I.unlock) + '<span style="margin-left:6px">' + (single.locked ? 'Locked' : 'Unlocked') + '</span>'
     });
     lockBtn.addEventListener('click', () => updateSelected({ locked: !single.locked }));
+    headerRight.appendChild(lockBtn);
+  } else {
+    // Several: the same toggle, in the same place (Jason, 2026-10-25). All locked reads Locked and unlocks them; none,
+    // Unlocked; some, how many, and locks the rest.
+    const n = selected.filter((s) => s.locked).length, all = n === selected.length;
+    const says = all ? 'Locked' : n ? `${n} of ${selected.length} locked` : 'Unlocked';
+    const does = all ? 'Unlock all' : n ? `Lock all (${says})` : 'Lock all';
+    const lockBtn = el('button', {
+      className: 'lockbtn ' + (all ? 'on' : n ? 'some' : 'off'), 'data-testid': 'lock-all', title: does, 'aria-label': does,
+      html: (all ? I.lock : I.unlock) + '<span style="margin-left:6px">' + says + '</span>',
+    });
+    lockBtn.addEventListener('click', () => { setLockedForIds(state.selectedIds, !all); render(); });
     headerRight.appendChild(lockBtn);
   }
   const closeBtn = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' });

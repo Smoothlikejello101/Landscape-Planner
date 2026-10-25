@@ -114,7 +114,7 @@ export function methodIcon(m: Method): string {
 // ---------- Keyboard shortcuts ----------
 export const OTHER_SHORTCUTS: [string, string][] = [
   ['A', 'Open the Add sheet'],
-  ['Enter', 'Finish drawing'],
+  ['Enter', 'Done placing or drawing (where Esc doesn\u2019t reach the app, Enter does)'],
   ['Esc', 'Done placing or drawing, close the picker, or clear the selection'],
   ['Shift / Ctrl + click', 'Add to the selection, or take out (drag: add what a box touches)'],
   ['Delete', 'Delete what is selected'],

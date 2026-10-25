@@ -384,7 +384,7 @@ function renderPlaceBar(): HTMLElement {
   const undoB = el('button', { className: 'draw-btn' }, 'Undo');
   undoB.disabled = !state.placing?.placed.length;
   undoB.addEventListener('click', () => { undoPlace(); render(); });
-  const done = el('button', { className: 'draw-btn primary' }, 'Done');
+  const done = el('button', { className: 'draw-btn primary', title: 'Done (Enter or Esc)' }, 'Done');
   done.addEventListener('click', () => { finishPlacing(); render(); });
   bar.append(pick, undoB, done);
   return bar;
@@ -438,7 +438,11 @@ function renderDrawBar(): HTMLElement {
     }
     row.appendChild(btn('Undo', '', undoDrawPoint, d.points.length === 0));
     row.appendChild(btn('Cancel', '', cancelDraw));
-    if (!finishesItself(d.kind)) row.appendChild(btn('Done', 'primary', () => { finishDraw(); }, !canFinishDraw()));
+    if (!finishesItself(d.kind)) {
+      const done = btn('Done', 'primary', () => { finishDraw(); }, !canFinishDraw());
+      done.title = 'Done (Enter or Esc)'; // (its keys, for a keyboard: an extension can take Esc; Enter still works)
+      row.appendChild(done);
+    }
     col.appendChild(row);
     bar.appendChild(col);
     return bar;
