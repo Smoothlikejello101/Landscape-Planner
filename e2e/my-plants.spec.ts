@@ -72,10 +72,10 @@ test('add a plant from its tag, place it, and switch to full size', async ({ pag
   await page.locator('.tool-btn.plants').click();
   await expect(page.getByTestId('my-plants-fold')).toHaveAttribute('aria-expanded', 'false');
   await page.getByTestId('plant-search').fill('lime');
-  await expect(page.locator('.proj-row', { hasText: 'Limelight' })).toBeVisible();
+  await expect(page.locator('.proj-row', { hasText: 'Limelight' }).filter({ has: page.locator('.mine-badge') })).toBeVisible(); // (the catalog's Limelight hydrangea shows too)
   await page.getByTestId('plant-search').fill('');
   await page.getByTestId('my-plants-fold').click();
-  await expect(page.locator('.proj-row', { hasText: 'Limelight' })).toBeVisible();
+  await expect(page.locator('.proj-row', { hasText: 'Limelight' }).filter({ has: page.locator('.mine-badge') })).toBeVisible(); // (the catalog's Limelight hydrangea shows too)
   await closeSheet(page);
 
   // Layers: draw plants at full size.
@@ -91,7 +91,7 @@ test('add a plant from its tag, place it, and switch to full size', async ({ pag
   await page.reload();
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('lime');
-  await expect(page.locator('.proj-row', { hasText: 'Limelight' })).toHaveCount(1);
+  await expect(page.locator('.proj-row', { hasText: 'Limelight' }).filter({ has: page.locator('.mine-badge') })).toHaveCount(1);
 });
 
 test('copy a catalog plant as your own cultivar', async ({ page }) => {

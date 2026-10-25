@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
-import { commonName, gbifCommonName, leftOutWhy, missingToShip, namePagesToFetch, nameKey, newId, newRecords, pageBotanical, pageCommons, readAdded, shipOnly, SITEMAP, sitemapSlugs, usdaCommonName, writeAdded } from '../scripts/catalog/additions.mjs';
+import { commonName, gbifCommonName, hybridFormula, leftOutWhy, missingToShip, namePagesToFetch, nameKey, newId, newRecords, pageBotanical, pageCommons, readAdded, shipOnly, SITEMAP, sitemapSlugs, tradeName, usdaCommonName, writeAdded } from '../scripts/catalog/additions.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { savedAuditList } from '../scripts/catalog/list.mjs';
 // @ts-expect-error (a plain .mjs script)
@@ -40,11 +40,36 @@ describe('reading NC State for new plants', () => {
     expect(commonName({ botanical: 'Abies × nova', commons: ['Hybrid Fir'] })).toBe('Hybrid Fir');
     expect(commonName({ botanical: 'Abies × nova', commons: [] })).toBe('Abies × nova');
   });
+  it('reads a trade name or group beside the cultivar, and a cross of two species', () => {
+    expect(pageBotanical(page("Echinacea purpurea PowWow® Wild Berry &#x27;PAS702917&#x27;", []))).toBe("Echinacea purpurea PowWow Wild Berry 'PAS702917'");
+    expect(pageBotanical(page('Ilex verticillata x serrata (Winterberry)', []))).toBe('Ilex verticillata × serrata');
+    expect(tradeName("Echinacea purpurea PowWow Wild Berry 'PAS702917'")).toBe('PowWow Wild Berry');
+    expect(tradeName('Berberis thunbergii Sunjoy Group')).toBe('Sunjoy Group');
+    expect(tradeName("Acer Crimson Sunset 'JFS-KW202'")).toBe('Crimson Sunset');
+    expect([tradeName('Acer rubrum var. drummondii'), tradeName('Iris aucheri × bucharica'), tradeName("Abelia × grandiflora 'Sunrise'"), tradeName('Hosta')]).toEqual([null, null, null, null]);
+    expect([hybridFormula('Ilex verticillata × serrata'), hybridFormula('Abelia × grandiflora')]).toEqual([true, false]);
+  });
+  it('names a trade-named plant by NC State\'s name for it, else its species\' and the trade name (not a breeder\'s code)', () => {
+    expect(commonName({ botanical: "Acer Crimson Sunset 'JFS-KW202'", cultivar: 'JFS-KW202', trade: 'Crimson Sunset', commons: ['Crimson Sunset Maple'] })).toBe('Crimson Sunset Maple');
+    expect(commonName({ botanical: "Echinacea purpurea PowWow Wild Berry 'PAS702917'", cultivar: 'PAS702917', trade: 'PowWow Wild Berry', commons: [], speciesCommon: 'Purple coneflower (species)' })).toBe('Purple coneflower PowWow Wild Berry');
+    expect(commonName({ botanical: 'Berberis thunbergii Sunjoy Group', trade: 'Sunjoy Group', commons: [], usdaCommon: 'Japanese barberry' })).toBe('Japanese barberry Sunjoy Group'); // (not the species' own name)
+    expect(commonName({ botanical: "Buddleja Lo & Behold 'Ice Chip'", cultivar: 'Ice Chip', trade: 'Lo & Behold', commons: ['Ice Chip Buddleja', 'White Chip Butterfly Bush'] })).toBe('Ice Chip Buddleja');
+  });
+  it('a variety or subspecies takes its species\' name with its own part', () => {
+    expect(commonName({ botanical: 'Asclepias incarnata subsp. pulchra', commons: ['Hairy Swamp Milkweed', 'Swamp Milkweed'], usdaCommon: 'swamp milkweed' })).toBe('Swamp milkweed (subsp. pulchra)');
+    expect(commonName({ botanical: 'Cercis canadensis var. texensis', commons: [], gbifCommon: 'Eastern redbud' })).toBe('Eastern redbud (var. texensis)');
+    expect(commonName({ botanical: 'Cercis canadensis var. texensis', commons: ['Texas Redbud'], usdaCommon: 'eastern redbud' })).toBe('Texas Redbud');
+  });
+  it('a cross of two species takes neither parent\'s name', () => {
+    expect(commonName({ botanical: 'Ilex verticillata × serrata', commons: ['Hybrid Winterberry', 'Winterberry'], usdaCommon: 'common winterberry' })).toBe('Ilex verticillata × serrata');
+    expect(commonName({ botanical: 'Ocimum kilimandscharicum × basilicum', commons: ['African Blue Basil'], gbifCommon: 'Hoary basil' })).toBe('African Blue Basil');
+  });
   it('names a cultivar by NC State\'s name for it, else its species\' name and the cultivar', () => {
     expect(commonName({ botanical: "Abelia 'Edward Goucher'", cultivar: 'Edward Goucher', commons: ["'Edward Goucher' Glossy Abelia"] })).toBe("'Edward Goucher' Glossy Abelia");
     expect(commonName({ botanical: "Abelia × grandiflora 'Sunrise'", cultivar: 'Sunrise', commons: [], speciesCommon: 'Glossy abelia' })).toBe("Glossy abelia 'Sunrise'");
     expect(commonName({ botanical: "Abelia × grandiflora 'Sunrise'", cultivar: 'Sunrise', commons: [], gbifCommon: 'glossy abelia' })).toBe("Glossy abelia 'Sunrise'");
-    expect(commonName({ botanical: "Abelia × grandiflora 'Sunrise'", cultivar: 'Sunrise', commons: ['Sunrise Abelia'] })).toBe("Abelia × grandiflora 'Sunrise'");
+    expect(commonName({ botanical: "Abelia × grandiflora 'Sunrise'", cultivar: 'Sunrise', commons: ['Sunrise Abelia'] })).toBe('Sunrise Abelia'); // (NC State's name with the cultivar in it)
+    expect(commonName({ botanical: "Abelia × grandiflora 'Sunrise'", cultivar: 'Sunrise', commons: ['Glossy Abelia'] })).toBe("Abelia × grandiflora 'Sunrise'");
   });
   it('keeps new ids clear of those taken', () => {
     expect(newId('itea-virginica', new Set(['itea-virginica', 'itea-virginica-2']))).toBe('itea-virginica-3');
@@ -116,6 +141,12 @@ describe('new records from the saved pages', () => {
   it('adds nothing without a saved sitemap', () => {
     expect(newRecords(catalog, [], { root: join(root, 'nothing') })).toEqual({ records: [], pages: {}, left: [], unsaved: 0 });
   });
+  it('knows a plant under the spelling GBIF gives it', () => {
+    const cat = { meta: { sources: {} }, plants: [{ id: 'andropogon-gerardii', common: 'Big bluestem', botanical: 'Andropogon gerardii', facts: {} }] };
+    save(plant('andropogon-gerardi'), page('Andropogon gerardi (Big Bluestem)', ['Native Plant']));
+    save(SITEMAP, ['andropogon-gerardi'].map((s) => `<loc>${plant(s)}</loc>`).join('\n'));
+    expect(newRecords(cat, [], { root }).left).toEqual([{ slug: 'andropogon-gerardi', why: 'in the catalog', id: 'andropogon-gerardii' }]);
+  });
   it('matches names whatever their hybrid sign, quotes or case', () => {
     expect(nameKey("Abelia × grandiflora ‘Sunrise’", 'Sunrise')).toBe(nameKey("abelia x  grandiflora", 'sunrise'));
     expect(nameKey('Acer rubrum var. drummondii', null)).not.toBe(nameKey('Acer rubrum', null));
@@ -141,17 +172,24 @@ describe('naming a new species from USDA, then GBIF', () => {
   save('usda', search('Abies balsamea'), [{ Symbol: 'ABBA', Id: 1, ScientificName: '<i>Abies balsamea</i> (L.) Mill.', CommonName: 'balsam fir', Rank: 'Species' }]);
   save('usda', profile('ABBA'), { Symbol: 'ABBA', ScientificName: '<i>Abies balsamea</i> (L.) Mill.', CommonName: 'balsam fir' });
   save('usda', search('Abies koreana'), []);
-  save('gbif', match('Abies koreana'), { usageKey: 2685681, matchType: 'EXACT' });
-  save('gbif', match('Pseudotsuga taxifolia'), { usageKey: 100, acceptedUsageKey: 2685776, matchType: 'EXACT', status: 'SYNONYM' });
-  save('usda', search('Pseudotsuga taxifolia'), []);
+  save('gbif', match('Abies koreana'), { usageKey: 2685681, matchType: 'EXACT', rank: 'SPECIES', status: 'ACCEPTED' });
+  save('gbif', match('Pseudotsuga menziesii'), { usageKey: 2685776, matchType: 'EXACT', rank: 'SPECIES', status: 'ACCEPTED' });
+  save('usda', search('Pseudotsuga menziesii'), []);
   save('gbif', record(2685776), { key: 2685776, vernacularName: 'Douglas-fir' });
+  // (A synonym's match leads to another name's record; a match at a higher rank, to a family's.)
+  save('gbif', match('Citrus × paradisi'), { usageKey: 3190160, acceptedUsageKey: 3190155, matchType: 'EXACT', rank: 'SPECIES', status: 'SYNONYM' });
+  save('gbif', record(3190155), { key: 3190155, vernacularName: 'Seville orange' });
+  save('gbif', match('Asarum minus'), { usageKey: 2408, matchType: 'HIGHERRANK', rank: 'FAMILY', status: 'ACCEPTED' });
+  save('usda', search('Asarum minus'), []);
   const records = [rec('abies-balsamea', 'Abies balsamea'), rec('abies-koreana', 'Abies koreana'), rec('abies-alba', 'Abies alba'), rec('abelia-x-grandiflora', 'Abelia × grandiflora'),
-    rec('pseudotsuga-taxifolia', 'Pseudotsuga taxifolia'), rec('cv', "Abies koreana 'Silberlocke'", 'abies-koreana'), rec('hosta', 'Hosta')];
-  it('reads USDA\'s name from the profile, and GBIF\'s from the accepted name\'s record', () => {
+    rec('pseudotsuga-menziesii', 'Pseudotsuga menziesii'), rec('cv', "Abies koreana 'Silberlocke'", 'abies-koreana'), rec('hosta', 'Hosta'), rec('citrus-x-paradisi', 'Citrus × paradisi'), rec('asarum-minus', 'Asarum minus')];
+  it('reads USDA\'s name from the profile, and GBIF\'s from the record of an exact, accepted match only', () => {
     expect(usdaCommonName('Abies balsamea', root)).toBe('balsam fir');
     expect(usdaCommonName('Abies koreana', root)).toBeNull();
-    expect(gbifCommonName('Pseudotsuga taxifolia', root)).toBe('Douglas-fir');
-    expect(gbifCommonName('Abies koreana', root)).toBeNull();
+    expect(gbifCommonName('Pseudotsuga menziesii', root)).toBe('Douglas-fir');
+    expect(gbifCommonName('Abies koreana', root)).toBeNull(); // (its record not saved yet)
+    expect(gbifCommonName('Citrus × paradisi', root)).toBeNull(); // (not grapefruit's: "Seville orange")
+    expect(gbifCommonName('Asarum minus', root)).toBeNull(); // (not "birthwort family")
   });
   it('asks GBIF only once USDA has answered without a name, its match before its record; never for a cultivar or genus', () => {
     expect(namePagesToFetch(records, root).sort()).toEqual([match('Abelia × grandiflora'), record(2685681)].sort());

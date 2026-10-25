@@ -33,7 +33,15 @@ describe('the shipped catalog', () => {
   });
   it('still has every plant; those the audit has not reached are marked unverified', () => {
     const plants = resolveCatalog(shipped);
-    expect(plants).toHaveLength(820);
+    const records = (shipped as CatalogFile).plants;
+    expect(plants).toHaveLength(records.length);
+    // Every plant of the first list; the rest added from NC State's Plant Toolbox, each with the page it was found
+    // on (scripts/catalog/added-plants.json: so it's never added twice).
+    expect(records.filter((r) => r.src?.includes('compendium'))).toHaveLength(820);
+    const pages = JSON.parse(readFileSync(new URL('../scripts/catalog/added-plants.json', import.meta.url), 'utf8')).pages;
+    const added = records.filter((r) => !r.src?.includes('compendium'));
+    expect(added.filter((r) => r.src?.join() !== 'ncsu' || !pages[r.id]).map((r) => r.id)).toEqual([]);
+    expect(added.length).toBeGreaterThan(2000);
     const unaudited = (shipped as CatalogFile).plants.filter((r) => !r.audited).map((r) => r.id);
     expect(plants.filter((p) => p.unverified).map((p) => p.id)).toEqual(unaudited);
     // The rest say they're partly checked while any detail still comes only from the older list.

@@ -154,13 +154,17 @@ NC State's Plant Toolbox lists every plant page in its sitemap (`https://plants.
     page): listed with its id. To have that record read the cultivar's own page, add it to `ncsu-pages.json`;
   - a second page for a plant already found.
 - **The record.** Its id is the page's name. It has names and no facts: the steps fill it like any other.
-  - Its botanical name is the page's title (× for NC State's x).
+  - Its botanical name is the page's title, × for NC State's x, without ® or ™.
   - Its name in the app: a species', USDA's common name (from its profile); else GBIF's English name (its
     backbone record's `vernacularName`); else NC State's, where it gives just one; else the botanical name. NC
     State lists a plant's names alphabetically, in several languages, and often a related plant's, so which one
     is the plant's can't be told from its list ("Abeto Del Colorado, Balsam Fir, Colorado Fir, …" for white fir).
-  - A cultivar's: NC State's name for it that starts with the cultivar ("'Edward Goucher' Glossy Abelia"), else its
-    species' name and the cultivar. Its parent is the catalog's record for exactly its species, an added one too.
+    A cross of two species written as one (Ilex verticillata × serrata) takes neither parent's USDA or GBIF name.
+  - A cultivar's, or a trade-named plant's or group's ("Echinacea purpurea PowWow Wild Berry 'PAS702917'",
+    "Berberis thunbergii Sunjoy Group"): NC State's name for it that starts with the cultivar or names it or the
+    trade name ("'Edward Goucher' Glossy Abelia", "Crimson Sunset Maple"); else its species' name and the cultivar,
+    or the trade name where the cultivar is a breeder's code ("Purple coneflower PowWow Wild Berry"). Its parent is
+    the catalog's record for exactly its species, an added one too. (A group is one plant, not a genus's page.)
   - NC State's other names are its `synonyms`.
 - **Which ship.** After the write, a new plant stays only with what the app needs to place it, each sourced (not
   the older list's): its form, its size (height or spread), its hardiness (both zones) and its sun. A cultivar

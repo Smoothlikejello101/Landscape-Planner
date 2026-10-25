@@ -116,7 +116,7 @@ test('how a plant spreads, by seed and underground, in one row with a source eac
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Blue mistflower');
-  const item = page.locator('.plant-item', { hasText: 'Blue mistflower' });
+  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Blue mistflower$/ }) });
   await item.getByTestId('plant-row').click();
   const details = item.getByTestId('plant-details');
   await expect(details.locator('dt', { hasText: 'How it spreads' })).toHaveCount(1);
@@ -127,9 +127,9 @@ test('how a plant spreads, by seed and underground, in one row with a source eac
   await page.getByRole('button', { name: '+ More filters' }).click();
   await expect(page.getByTestId('spread-filter').locator('option[value="stays"]')).toHaveText('Stays put (unverified)');
   await page.getByTestId('spread-filter').selectOption('stays');
-  await expect(page.locator('.plant-item', { hasText: 'Blue mistflower' })).toHaveCount(0);
+  await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Blue mistflower$/ }) })).toHaveCount(0);
   await page.getByTestId('spread-filter').selectOption('aggressive');
-  await expect(page.locator('.plant-item', { hasText: 'Blue mistflower' })).toHaveCount(1);
+  await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Blue mistflower$/ }) })).toHaveCount(1);
 });
 
 test('the mature-height slider narrows the list to a range, either end open', async ({ page }) => {
@@ -196,23 +196,23 @@ test('search matches word by word, in any order, and forgives a slip when nothin
   await expect(rows.first()).toContainText('Bradford/Callery pear');
   await search.fill('Winterthur viburnum'); // ("Witherod viburnum 'Winterthur'")
   await expect(rows.first()).toContainText("Witherod viburnum 'Winterthur'");
-  await search.fill('witchhazel');
-  await expect(rows.first()).toContainText('witch hazel');
+  await search.fill('witchhazel'); // ("Hybrid Witchhazel", and the witch hazels after it)
+  await expect(rows.first()).toContainText(/witch ?hazel/i);
   await expect(page.getByTestId('near-note')).toHaveCount(0);
   await search.fill('viburnam');
   await expect(page.getByTestId('near-note')).toContainText('Nothing matches “viburnam” as typed. Close spellings:');
-  await expect(rows.first()).toContainText('viburnum');
+  await expect(rows.first()).toContainText(/viburnum/i);
   await expect(page.getByTestId('add-own-plant')).toBeVisible();
   // A search of punctuation alone (the start of a cultivar's name) isn't a search: no invasives slip in.
   await search.fill("'");
-  await expect(page.locator('.plant-item', { hasText: 'Chinese privet' })).toHaveCount(0);
+  await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinese privet$/ }) })).toHaveCount(0);
 });
 
 test('a plant poisonous to people says so, beside Edible, and the picker can keep only plants with none listed', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Mayapple');
-  const item = page.locator('.plant-item', { hasText: 'Mayapple' });
+  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Mayapple$/ }) });
   await expect(item.getByTestId('plant-row')).toContainText('poisonous to people');
   await item.getByTestId('plant-row').click();
   const details = item.getByTestId('plant-details');
@@ -229,7 +229,7 @@ test('a plant poisonous to people says so, beside Edible, and the picker can kee
   await page.locator('label', { hasText: 'No poison to people listed (NC State)' }).locator('input').check();
   await expect(heuchera).toHaveCount(1);
   await page.getByTestId('plant-search').fill('Mayapple');
-  await expect(page.locator('.plant-item', { hasText: 'Mayapple' })).toHaveCount(0);
+  await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Mayapple$/ }) })).toHaveCount(0);
 });
 
 test('a plant\'s leaves: their colors, what they do in winter, fall color and growth rate; the picker can keep only evergreens', async ({ page }) => {

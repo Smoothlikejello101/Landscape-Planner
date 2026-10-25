@@ -18,7 +18,7 @@ import { ncsuTitle, recordCultivars, titleCultivar } from './ncsu-page.mjs';
 import { savedMeta, savedPage } from './pages.mjs';
 import { ncsuUrl, speciesOf, usdaFor } from './list.mjs';
 import { profileUrl, searchUrl } from './usda-pick.mjs';
-import { matchUrl, speciesUrl } from './gbif.mjs';
+import { GBIF_NAME, matchUrl, speciesUrl } from './gbif.mjs';
 
 export const SITEMAP = 'https://plants.ces.ncsu.edu/sitemap.xml';
 export const ADDED = 'scripts/catalog/added-plants.json';
@@ -54,8 +54,29 @@ export function pageCommons(html) {
   if (!m) return [];
   return [...new Set(m[1].split(/\s*,\s*/).map((s) => s.trim()).filter(Boolean))];
 }
-/** The plant's name as NC State titles it, with × for a hybrid ("Abelia x grandiflora" → "Abelia × grandiflora"). */
-export const pageBotanical = (html) => ncsuTitle(html).replace(/^(\S+) x (?=[a-zë-])/, '$1 × ');
+/**
+ * The plant's name as NC State titles it, with × for a hybrid ("Abelia x grandiflora" → "Abelia × grandiflora",
+ * "Ilex verticillata x serrata" → "Ilex verticillata × serrata"), and without ® or ™.
+ */
+export const pageBotanical = (html) => ncsuTitle(html).replace(/[®™]/g, '').replace(/\s+/g, ' ').trim()
+  .replace(/^(\S+) x (?=[a-zë-])/, '$1 × ').replace(/^(\S+ [a-zë-]+) x (?=[a-zë-])/, '$1 × ');
+/** A cross of two species written as one ("Ilex verticillata x serrata"): no one species' name is its own. */
+export const hybridFormula = (botanical) => /^\S+ [a-zë-]+ [x×] [a-zë-]+/.test(botanical ?? '');
+/**
+ * The trade name or group a title gives beside (or instead of) a cultivar: "Echinacea purpurea PowWow Wild Berry
+ * 'PAS702917'" → PowWow Wild Berry; "Berberis thunbergii Sunjoy Group" → Sunjoy Group; "Acer Crimson Sunset
+ * 'JFS-KW202'" → Crimson Sunset. Null for a species, a variety or a cross of two species.
+ */
+export function tradeName(botanical) {
+  const words = String(botanical ?? '').replace(/'[^']*'/g, ' ').replace(/\([^)]*\)/g, ' ').trim().split(/\s+/).slice(1);
+  let i = 0;
+  if (words[i] === '×') i++;
+  if (/^[a-zë-]+$/.test(words[i] ?? '')) i++; // (the epithet)
+  if (/^[x×]$/.test(words[i] ?? '') && /^[a-zë-]+$/.test(words[i + 1] ?? '')) i += 2; // (a cross: "aucheri x bucharica")
+  if (/^(var|subsp|ssp|f)\.$/.test(words[i] ?? '')) i += 2; // (a variety or the like)
+  const rest = words.slice(i).join(' ').trim();
+  return rest || null;
+}
 
 /** Why a page's plant is left out (its tags: `fields['Plant Type']`), or null to add it. */
 export function leftOutWhy(fields) {
@@ -73,10 +94,17 @@ const norm = (s) => String(s ?? '').replace(/[‘’]/g, "'").replace(/×/g, 'x'
  * and the cultivar ("abelia x grandiflora|sunrise"). A variety is its own plant ("acer rubrum var. drummondii|").
  */
 export const nameKey = (botanical, cultivar) => `${norm(norm(botanical).replace(/'[^']*'/g, ''))}|${norm(cultivar)}`;
-/** The keys a record answers to: one for each cultivar it names, or its own name. */
+/**
+ * The keys a record answers to: one for each cultivar it names, or its own name; and the same under the spelling
+ * GBIF's backbone gives the species, where the catalog's differs (gbif.mjs GBIF_NAME: NC State's "Andropogon
+ * gerardi" is the catalog's Andropogon gerardii).
+ */
 const recordKeys = (r) => {
   const cvs = recordCultivars(r);
-  return cvs.length ? cvs.map((c) => nameKey(r.botanical, c)) : [nameKey(r.botanical, null)];
+  const names = [r.botanical];
+  const sp = speciesOf(r.botanical ?? '').species;
+  if (sp && GBIF_NAME[sp]) names.push(String(r.botanical).replace(sp, GBIF_NAME[sp]));
+  return names.flatMap((b) => (cvs.length ? cvs.map((c) => nameKey(b, c)) : [nameKey(b, null)]));
 };
 /**
  * The name the app shows for a new plant. A cultivar: NC State's name for it that starts with the cultivar
@@ -86,14 +114,25 @@ const recordKeys = (r) => {
  * alphabetically, in several languages, and often a related plant's: "Abeto Del Colorado, Balsam Fir, Colorado
  * Fir, …" for white fir. Which one is the plant's can't be told from the list.)
  */
-export function commonName({ botanical, commons, cultivar, usdaCommon, gbifCommon, speciesCommon }) {
-  const named = (usdaCommon && cap(usdaCommon)) || (gbifCommon && cap(gbifCommon)) || null;
-  if (cultivar) {
-    const own = commons.find((c) => c.startsWith(`'${cultivar}'`));
+export function commonName({ botanical, commons, cultivar, trade, usdaCommon, gbifCommon, speciesCommon }) {
+  // (A cross of two species: USDA's and GBIF's names are its first parent's, not its own. A variety's or
+  // subspecies' are its species': said with its own part, "Swamp milkweed (subsp. pulchra)".)
+  const infra = /\b((?:var|subsp|ssp|f)\. [a-zë-]+)/.exec(String(botanical ?? '').replace(/'[^']*'/g, ''))?.[1];
+  const species = hybridFormula(botanical) ? null : (usdaCommon && cap(usdaCommon)) || (gbifCommon && cap(gbifCommon)) || null;
+  const named = species && infra ? `${species} (${infra})` : species;
+  if (cultivar || trade) {
+    const has = (c, n) => !!n && new RegExp(`(^|[^A-Za-z])${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[^A-Za-z])`, 'i').test(c);
+    const own = (cultivar && commons.find((c) => c.startsWith(`'${cultivar}'`))) || commons.find((c) => has(c, cultivar) || has(c, trade));
     if (own) return own;
-    const of = speciesCommon || named;
-    return of ? `${of} '${cultivar}'` : botanical;
+    // (Its species' name, without a note such as "(species)"; then the cultivar, or the trade name where the
+    // cultivar is a breeder's code: "Purple coneflower PowWow Wild Berry", not "… 'PAS702917'".)
+    const of = speciesCommon?.replace(/\s*\([^)]*\)\s*$/, '') || named;
+    const code = !!cultivar && (/\d/.test(cultivar) || /^[A-Z-]+$/.test(cultivar));
+    const label = cultivar && (!code || !trade) ? `'${cultivar}'` : trade;
+    return of ? `${of} ${label}` : botanical;
   }
+  // (A variety's own name from NC State, where it gives just one, says more than its species' with a note.)
+  if (infra && commons.length === 1) return commons[0];
   return named || (commons.length === 1 ? commons[0] : botanical);
 }
 
@@ -133,24 +172,25 @@ export function newRecords(catalog, used, { root = 'catalog-src', usdaCommon = (
     if (why) { left.push({ slug, why }); continue; }
     const botanical = pageBotanical(page.text);
     if (!botanical) { left.push({ slug, why: 'no name' }); continue; }
-    const sp = speciesOf(botanical), cultivar = titleCultivar(page.text);
-    // (A genus's own page describes the genus, not a plant: "Hosta". A cultivar of a genus is one plant.)
-    if (sp.genusOnly && !cultivar) { left.push({ slug, why: 'a genus' }); continue; }
+    const sp = speciesOf(botanical), cultivar = titleCultivar(page.text), trade = tradeName(botanical);
+    // (A genus's own page describes the genus, not a plant: "Hosta". A cultivar of a genus is one plant, and so is a
+    // named group or series: "Berberis thunbergii Sunjoy Group".)
+    if (sp.genusOnly && !cultivar && !trade) { left.push({ slug, why: 'a genus' }); continue; }
     // (The catalog's under that name, reading another page; or NC State has two pages for it: the first is added.)
     const key = nameKey(botanical, cultivar), has = named.get(key);
     if (has) { left.push({ slug, why: has.id ? 'in the catalog' : 'a second page', ...(has.id ? { id: has.id } : { page: has.slug }) }); continue; }
     named.set(key, { slug });
-    found.push({ slug, botanical, cultivar, species: sp.genusOnly ? null : sp.species, commons: pageCommons(page.text) });
+    found.push({ slug, botanical, cultivar, trade, named: !!(cultivar || trade), species: sp.genusOnly ? null : sp.species, commons: pageCommons(page.text) });
   }
-  // Species first, so a cultivar finds a species added beside it.
-  found.sort((a, b) => Number(!!a.cultivar) - Number(!!b.cultivar));
+  // Species first, so a cultivar (or a named group) finds a species added beside it.
+  found.sort((a, b) => Number(a.named) - Number(b.named));
   const records = [], pages = {};
   for (const f of found) {
-    const parent = f.cultivar && f.species ? speciesRecord.get(f.species) : undefined;
+    const parent = f.named && f.species ? speciesRecord.get(f.species) : undefined;
     const id = newId(f.slug, taken);
     taken.add(id);
     const usdaName = f.species ? usdaCommon(f.species) : null;
-    const common = commonName({ botanical: f.botanical, commons: f.commons, cultivar: f.cultivar, usdaCommon: usdaName, gbifCommon: f.species && !usdaName ? gbifCommon(f.species) : null, speciesCommon: parent?.common });
+    const common = commonName({ botanical: f.botanical, commons: f.commons, cultivar: f.cultivar, trade: f.trade, usdaCommon: usdaName, gbifCommon: f.species && !usdaName ? gbifCommon(f.species) : null, speciesCommon: parent?.common });
     // (NC State's other names, to find it by: not the one it's shown by.)
     const others = f.commons.filter((c) => c.toLowerCase() !== common.toLowerCase());
     const rec = {
@@ -165,7 +205,7 @@ export function newRecords(catalog, used, { root = 'catalog-src', usdaCommon = (
     };
     records.push(rec);
     pages[id] = f.slug;
-    if (!f.cultivar && f.species && !speciesRecord.has(f.botanical)) speciesRecord.set(f.botanical, rec);
+    if (!f.named && f.species && !speciesRecord.has(f.botanical)) speciesRecord.set(f.botanical, rec);
   }
   return { records, pages, left, unsaved };
 }
@@ -219,9 +259,13 @@ export function usdaCommonName(species, root = 'catalog-src') {
   const pick = usdaFor(species, root);
   return pick ? savedJson('usda', profileUrl(pick.symbol), root)?.CommonName || null : null;
 }
-/** The backbone record a GBIF match is for: the accepted name's, where it matched a synonym. */
-const gbifKey = (match) => match?.acceptedUsageKey ?? match?.usageKey ?? null;
-/** GBIF's English name for a species ("Korean fir"), from its saved backbone match and record (the accepted name's). */
+/**
+ * The backbone record a GBIF match is for, where it's the name itself: an exact match at species rank, accepted (or
+ * doubtful). Not a synonym's accepted name (grapefruit, Citrus × paradisi, would be "Seville orange"), nor a
+ * family's or genus's where GBIF had no species of that name ("birthwort family" for Asarum minus).
+ */
+const gbifKey = (match) => (match?.matchType === 'EXACT' && match.rank === 'SPECIES' && (match.status === 'ACCEPTED' || match.status === 'DOUBTFUL') ? match.usageKey ?? null : null);
+/** GBIF's English name for a species ("Korean fir"), from its saved backbone match and record (`gbifKey`). */
 export function gbifCommonName(species, root = 'catalog-src') {
   const key = gbifKey(savedJson('gbif', matchUrl(species), root));
   return key ? savedJson('gbif', speciesUrl(key), root)?.vernacularName || null : null;
