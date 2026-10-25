@@ -1,24 +1,44 @@
-import { bloomByBed, bloomGaps, bloomSeason, bloomSummary, MONTH_LETTERS, type BloomSummary } from '../bloom';
+import { bloomByBed, bloomGaps, bloomSeason, bloomSummary, MONTH_LETTERS, type BloomSummary, type NoBloomRow } from '../bloom';
 import { plantsInBed } from '../beds';
 import { el } from '../dom';
 import { I } from '../icons';
 import { plantsById } from '../plants';
 import { state } from '../state';
-import type { Shape } from '../types';
+import type { PanelName, Shape } from '../types';
 import { render } from './render';
+import { openLocation } from './location-panel';
 
 // Bloom calendar: a row per plant, a column per month, filled where it
 // blooms, and a bottom row counting what's in bloom, with growing-season
-// gaps called out.
+// gaps called out. Plants with no bloom months are listed too, by name, so
+// it's plain what else is there (asked for by Jason, 2026-10-25); the
+// person's own plants with a button to add them.
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-export function bloomChart(sum: BloomSummary): HTMLElement {
+/** What a row with no bloom months says, after the plant's name. */
+const NO_BLOOM_SAYS: Record<NoBloomRow['why'], string> = {
+  mine: 'No bloom months', season: '', catalog: 'None recorded', fern: "Doesn't flower", unlinked: 'Not linked to a plant',
+};
+/** "Mid summer, late summer (no months)": a season its sources give, where none give months. */
+const seasonSays = (season: string[]) => { const t = season.join(', '); return t.charAt(0).toUpperCase() + t.slice(1) + ' (no months)'; };
+/** A plant with no bloom months: its name, then why, across the months (the person's own: Add). */
+function noBloomRow(r: NoBloomRow, back: PanelName): HTMLElement[] {
+  const name = el('div', { className: 'bloom-name none', title: r.label }, r.label + (r.count > 1 ? ` ×${r.count}` : ''));
+  const says = el('div', { className: 'bloom-none ' + r.why, 'data-testid': 'bloom-none' }, el('span', {}, r.season ? seasonSays(r.season) : NO_BLOOM_SAYS[r.why]));
+  if (r.why === 'mine' && r.plantId) {
+    const add = el('button', { className: 'link-btn', 'data-testid': 'bloom-add', 'aria-label': `Add bloom months to ${r.label}` }, 'Add');
+    add.addEventListener('click', () => { state.plantForm = { editId: r.plantId, place: false, back }; state.panel = 'plantForm'; render(); });
+    says.appendChild(add);
+  }
+  return [name, says];
+}
+
+/** `back`: where adding bloom months to a plant of mine comes back to (the panel this chart is in). */
+export function bloomChart(sum: BloomSummary, back: PanelName = 'bloom'): HTMLElement {
   const wrap = el('div', { className: 'bloom', 'data-testid': 'bloom-chart' });
-  if (!sum.rows.length) {
-    wrap.appendChild(el('div', { className: 'hint' }, sum.noData
-      ? `No bloom months known for the ${sum.noData === 1 ? 'plant' : `${sum.noData} plants`} here. Add them to your own plants to see them.`
-      : 'No plants here yet.'));
+  if (!sum.rows.length && !sum.missing.length) {
+    wrap.appendChild(el('div', { className: 'hint' }, 'No plants here yet.'));
     return wrap;
   }
   const grid = el('div', { className: 'bloom-grid', role: 'table', 'aria-label': 'Bloom months' });
@@ -35,13 +55,16 @@ export function bloomChart(sum: BloomSummary): HTMLElement {
       }));
     }
   }
+  // Then those with none, each saying why.
+  for (const r of sum.missing) grid.append(...noBloomRow(r, back));
+  wrap.appendChild(grid);
+  if (!sum.rows.length) return wrap; // (nothing known to bloom here: no count, no gaps)
   // How many are in bloom each month; empty months within the plan's blooming season are gaps.
   const season = planSeason();
   grid.appendChild(el('div', { className: 'bloom-name total' }, 'In bloom'));
   sum.perMonth.forEach((n, i) => grid.appendChild(el('div', {
     className: 'bloom-count' + (n === 0 && season.includes(i + 1) ? ' gap' : ''), 'data-month': i + 1,
   }, n ? String(n) : '–')));
-  wrap.appendChild(grid);
   const gaps = bloomGaps(sum.perMonth, season);
   if (season.length) {
     wrap.appendChild(el('div', { className: 'hint', 'data-testid': 'bloom-gaps' }, gaps
@@ -49,7 +72,6 @@ export function bloomChart(sum: BloomSummary): HTMLElement {
       ? `Nothing here blooms in ${gaps}. ${cap(seasonText(season))}.`
       : `Something is in bloom every month ${seasonSpan(season)}.`));
   }
-  if (sum.noData) wrap.appendChild(el('div', { className: 'hint' }, `${sum.noData} plant${sum.noData === 1 ? ' has' : 's have'} no bloom months recorded.`));
   return wrap;
 }
 
@@ -74,7 +96,7 @@ function seasonText(season: number[]): string {
 /** Bed properties: when the plants in this bed bloom. */
 export function bedBloomSection(bed: Shape): HTMLElement {
   const plants = plantsInBed(bed, state.shapes);
-  return el('div', { className: 'field' }, el('label', {}, 'Bloom by month'), bloomChart(bloomSummary(plants, plantsById)));
+  return el('div', { className: 'field' }, el('label', {}, 'Bloom by month'), bloomChart(bloomSummary(plants, plantsById), 'props'));
 }
 
 /** The whole plan, bed by bed. */
@@ -95,6 +117,12 @@ export function renderBloomPanel() {
   }
   for (const g of groups) {
     body.appendChild(el('div', { className: 'bloom-group' }, el('div', { className: 'section-label' }, g.bed), bloomChart(g)));
+  }
+  // No ZIP yet, and catalog plants without months: flowering records near the garden would give many of them.
+  if (!state.location && groups.some((g) => g.missing.some((r) => r.why === 'season' || r.why === 'catalog'))) {
+    const set = el('button', { className: 'link-btn', 'data-testid': 'bloom-zip' }, 'Set your ZIP code');
+    set.addEventListener('click', () => openLocation('bloom'));
+    body.appendChild(el('div', { className: 'hint' }, 'Many plants get bloom months from flowering records near your garden. ', set));
   }
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, 'Bloom calendar'),

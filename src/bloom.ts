@@ -43,20 +43,42 @@ export function bloomColor(text: string | undefined, fallback: string): string {
 }
 
 export interface BloomRow { label: string; count: number; months: number[]; color: string; colorText: string }
-export interface BloomSummary { rows: BloomRow[]; noData: number; perMonth: number[] }
+/**
+ * A plant with no bloom months, and why: one of the person's own plants (they can add them), a catalog plant whose
+ * sources give a season only (`season`: "mid summer") or nothing, a fern (it doesn't flower), or a circle not
+ * linked to any plant.
+ */
+export type NoBloomWhy = 'mine' | 'season' | 'catalog' | 'fern' | 'unlinked';
+export interface NoBloomRow { label: string; count: number; why: NoBloomWhy; plantId?: string; season?: string[] }
+export interface BloomSummary { rows: BloomRow[]; missing: NoBloomRow[]; noData: number; perMonth: number[] }
+
+const MY_PREFIX = 'u-'; // (src/my-plants.ts: imported from there, it would bring the whole library in)
+function noBloomWhy(data: Plant | undefined): NoBloomWhy {
+  if (!data) return 'unlinked';
+  if (data.id.startsWith(MY_PREFIX)) return 'mine';
+  if (data.form === 'Fern') return 'fern';
+  return data.bloom_season?.length ? 'season' : 'catalog';
+}
 export interface BloomGroup extends BloomSummary { bed: string }
 
 /** One row per plant name (gone plants left out), sorted by when they start blooming. */
 export function bloomSummary(plants: Shape[], plantsById: Record<string, Plant | undefined>): BloomSummary {
   const byName = new Map<string, BloomRow>();
-  let noData = 0;
-  const unknown = new Set<string>();
+  const missing = new Map<string, NoBloomRow>();
   for (const p of plants) {
     if (!isPlant(p) || p.status === 'gone') continue;
     const label = p.label.trim() || 'Unlabeled plant';
     const data = p.plantId ? plantsById[p.plantId] : undefined;
     const months = bloomMonths(data);
-    if (!months.length) { if (!unknown.has(label)) { unknown.add(label); noData++; } continue; }
+    if (!months.length) {
+      // (One row per name and plant: two circles labeled alike but linked to different plants are two rows.)
+      const key = label + '\n' + (p.plantId ?? '');
+      const why = noBloomWhy(data);
+      const row = missing.get(key) ?? { label, count: 0, why, ...(data ? { plantId: data.id } : {}), ...(why === 'season' ? { season: data!.bloom_season } : {}) };
+      row.count++;
+      missing.set(key, row);
+      continue;
+    }
     // (Its flowers' colors as its sources say, else the earlier list's words; "not showy" isn't a color.)
     const colorText = data?.flower_color?.filter((c) => c !== 'insignificant').join(', ') || data?.bloom?.color || '';
     const row = byName.get(label) ?? { label, count: 0, months, color: bloomColor(colorText, p.color), colorText };
@@ -65,7 +87,10 @@ export function bloomSummary(plants: Shape[], plantsById: Record<string, Plant |
   }
   const rows = [...byName.values()].sort((a, b) => a.months[0] - b.months[0] || a.label.localeCompare(b.label));
   const perMonth = Array.from({ length: 12 }, (_, i) => rows.filter((r) => r.months.includes(i + 1)).length);
-  return { rows, noData, perMonth };
+  // The person's own first (they can add months), then by name.
+  const order: NoBloomWhy[] = ['mine', 'unlinked', 'season', 'catalog', 'fern'];
+  const none = [...missing.values()].sort((a, b) => order.indexOf(a.why) - order.indexOf(b.why) || a.label.localeCompare(b.label));
+  return { rows, missing: none, noData: none.length, perMonth };
 }
 
 /** The same, grouped by the bed each plant sits in (beds by name, then plants in no bed). */
@@ -77,7 +102,7 @@ export function bloomByBed(shapes: Shape[], plantsById: Record<string, Plant | u
     .map((b) => ({ b, name: b.label.trim() || `Unnamed bed ${++unnamed}` }))
     .sort((x, y) => x.name.localeCompare(y.name, undefined, { numeric: true }))
     .map(({ b, name }) => ({ bed: name, ...bloomSummary(plants.filter((p) => bedOf(p, shapes) === b), plantsById) }))
-    .filter((g) => g.rows.length || g.noData);
+    .filter((g) => g.rows.length || g.missing.length);
   const loose = plants.filter((p) => { const b = bedOf(p, shapes); return !b || b.status === 'gone'; });
   if (loose.length) groups.push({ bed: 'Not in a bed', ...bloomSummary(loose, plantsById) });
   return groups;

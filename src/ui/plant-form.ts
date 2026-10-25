@@ -19,6 +19,9 @@ import { toast } from './toast';
 type SunLevel = 'Full' | 'Part' | 'Shade';
 
 function close(to: 'plants' | null) {
+  // (Opened from somewhere else, the bloom calendar say: back there.)
+  const back = state.plantForm?.back;
+  if (back) { state.plantForm = null; state.panel = back; render(); return; }
   state.plantForm = null;
   if (!to) { state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; }
   state.panel = to;
