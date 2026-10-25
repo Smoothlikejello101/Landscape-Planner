@@ -78,12 +78,15 @@ export function auditList(catalog, { pages = {}, names = {}, hasNcsu = () => fal
   });
 }
 
-/** The list, from the saved pages in catalog-src/. */
-export function savedAuditList(catalog, root = 'catalog-src', pagesPath) {
+/**
+ * The list, from the saved pages in catalog-src/. `extraPages`: record id → NC State page name, for plants added
+ * from NC State (additions.mjs). A page ncsu-pages.json names for one, chosen by hand, comes first.
+ */
+export function savedAuditList(catalog, root = 'catalog-src', pagesPath, extraPages = {}) {
   const memo = new Map();
   const usda = (s) => (memo.has(s) ? memo.get(s) : memo.set(s, usdaFor(s, root)).get(s));
   const file = readNcsuFile(pagesPath);
-  return auditList(catalog, { pages: file.pages, names: file.names ?? {}, hasNcsu: (slug) => !!savedPage('ncsu', ncsuUrl(slug), root), movedTo: (slug) => ncsuMovedTo(slug, root), usda });
+  return auditList(catalog, { pages: { ...extraPages, ...file.pages }, names: file.names ?? {}, hasNcsu: (slug) => !!savedPage('ncsu', ncsuUrl(slug), root), movedTo: (slug) => ncsuMovedTo(slug, root), usda });
 }
 
 /**

@@ -136,7 +136,7 @@ test('a plant recorded growing wild in the garden\'s county or next door says so
   await page.locator('.sheet label', { hasText: 'Hardy in zone 8a' }).locator('input').check();
   // Chinquapin oak: rated to zone 7 by NC State, but recorded wild in Clark County (the Arkansas atlas).
   await page.getByTestId('plant-search').fill('Chinquapin oak');
-  const oak = page.locator('.plant-item', { hasText: 'Chinquapin oak' });
+  const oak = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinquapin oak$/ }) });
   await expect(oak).toContainText('(zone 8a may be too warm, though it\'s recorded wild nearby)');
   await oak.getByTestId('plant-row').click();
   await expect(oak.getByTestId('wild-here')).toContainText('Recorded growing wild in Clark County');
@@ -204,18 +204,19 @@ test('a plant not native here that is recorded growing wild here says so, with i
   await page.locator('.sheet-header .iconbtn').click();
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Chinese privet');
-  const privet = page.locator('.plant-item', { hasText: 'Chinese privet' });
+  const privet = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinese privet$/ }) });
   await expect(privet.getByTestId('row-escape')).toHaveText(/^Not native; recorded wild in \d+ of 75 Arkansas counties$/);
   await privet.getByTestId('plant-row').click();
   await expect(privet.getByTestId('native-here')).toContainText(/Not native to Arkansas; recorded growing wild in \d+ of its 75 counties/);
   // A native, recorded wild nearby: no such line.
   await page.getByTestId('plant-search').fill('Chinquapin oak');
-  const oak = page.locator('.plant-item', { hasText: 'Chinquapin oak' });
+  const oak = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinquapin oak$/ }) });
   await expect(oak.getByTestId('plant-row')).toBeVisible();
   await expect(oak.getByTestId('row-escape')).toHaveCount(0);
   // Introduced, recorded nowhere wild in the state: introduced, said plainly; no row line.
   await page.getByTestId('plant-search').fill('Sasanqua');
-  const camellia = page.locator('.plant-item', { hasText: /sasanqua/i }).first();
+  // (The species, not a cultivar of it: 'Our Linda' says its species is introduced.)
+  const camellia = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Sasanqua camellia(?! ')/ }) }).first();
   await expect(camellia.getByTestId('plant-row')).toBeVisible();
   await expect(camellia.getByTestId('row-escape')).toHaveCount(0);
   await camellia.getByTestId('plant-row').click();

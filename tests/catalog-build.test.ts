@@ -225,6 +225,18 @@ describe('the review report', () => {
     expect(withTerms.summary).toBe('2 sites whose terms are unsettled; 1 of 3 records audited');
   });
 
+  it('counts the plants added from NC State, and lists none of them, nor one left out of the catalog', () => {
+    const catalog = { ...cat, plants: [...cat.plants, { id: 'fir', common: 'Korean fir', facts: {} }] };
+    const md = reviewReport({ catalog, list: [...list, { id: 'fir' }, { id: 'waits' }], combined, review: [], searched: { buttonbush: [], plum: [] },
+      additions: { added: ['fir'], waiting: { waits: ['size', 'hardiness'] }, left: [{ slug: 'okra', why: 'a vegetable' }, { slug: 'hosta', why: 'a genus' }], unsaved: 7, all: ['fir', 'earlier'] } }).markdown;
+    expect(md).toContain('## Not searched on the web (2)\n');
+    expect(md).toContain('- Pawpaw \\| custard apple (`pawpaw`)\n- 1 plant added from NC State (scripts/catalog/added-plants.json)');
+    expect(md).not.toContain('`fir`');
+    expect(md).not.toContain('waits');
+    expect(md).toContain('- 1 plant added from NC State\'s Plant Toolbox in this build (2 in all)\n- 1 plant waiting, for size (1), hardiness (1)\n- 2 pages left out: a vegetable (1), a genus (1)\n- 7 pages the sitemap lists that aren\'t saved yet');
+    expect(reviewReport({ catalog: cat, list, combined, review: [], additions: { added: [], waiting: {}, left: [], unsaved: 0, all: [] } }).markdown).not.toContain('New plants');
+  });
+
   it('names the sites whose terms packets the registry hasn\'t settled', () => {
     const dir = mkdtempSync(join(tmpdir(), 'terms-review-'));
     try {

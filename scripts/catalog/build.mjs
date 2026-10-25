@@ -13,7 +13,9 @@ import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseBuildArgs } from './build-args.mjs';
-import { savedAuditList, toFetch } from './list.mjs';
+import { readNcsuFile, savedAuditList, toFetch } from './list.mjs';
+import { gbifCommonName, namePagesToFetch, newRecords, pagesInUse, readAdded, shipOnly, usdaCommonName, writeAdded } from './additions.mjs';
+import { catalogText } from './convert-v1.mjs';
 import { lockCatalogSrc, savedFile } from './pages.mjs';
 import { rereadClaims } from './reclaim.mjs';
 import { reviewReport, termsUnsettled } from './report.mjs';
@@ -51,9 +53,13 @@ process.on('exit', () => { try { if (readFileSync(lock, 'utf8') === String(proce
 for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(sig, () => process.exit(130));
 
 const catalogBefore = readFileSync('public/plants.json', 'utf8');
+// Until the write step is done, public/plants.json holds only the new plants' names (below), for the steps to read:
+// a build that stops before then puts it back as it was.
+let putBack = false;
+process.on('exit', () => { if (putBack) writeFileSync('public/plants.json', catalogBefore); });
 const log = [];
 /** Whether public/plants.json has been rewritten (a later failure says so): by its bytes, not by which step ran. */
-const rewritten = () => { try { return readFileSync('public/plants.json', 'utf8') !== catalogBefore; } catch { return true; } };
+const rewritten = () => { if (putBack) return false; try { return readFileSync('public/plants.json', 'utf8') !== catalogBefore; } catch { return true; } };
 const saveLog = () => writeFileSync(path('log.txt'), log.join('\n'));
 /** Run a step's script, its output to the log (or to the screen as it goes, `live`); stop the build if it fails. */
 function run(label, cmd, cmdArgs, { live = false } = {}) {
@@ -86,29 +92,51 @@ function fetchList(label, items) {
   return items.length;
 }
 
-const catalog = JSON.parse(catalogBefore);
 const date = opts.date ?? new Date().toISOString().slice(0, 10); // (the UTC day, as the fetcher names its folders)
+
+// New plants (additions.mjs): each NC State plant page saved that no record reads, as a record with names and no
+// facts. The steps below fill them like any other; after the write, only those that ship stay (5). (Found again
+// once the pages are fetched, 0: the names they give.)
+const addedBefore = readAdded(); // (the pages plants added before were found on)
+function withAdditions() {
+  const base = JSON.parse(catalogBefore);
+  const found = newRecords(base, pagesInUse(base, savedAuditList(base, ROOT, undefined, addedBefore), { ...addedBefore, ...readNcsuFile().pages }), {
+    root: ROOT, added: addedBefore, usdaCommon: (sp) => usdaCommonName(sp, ROOT), gbifCommon: (sp) => gbifCommonName(sp, ROOT),
+  });
+  base.plants.push(...found.records);
+  if (found.records.length) {
+    putBack = true;
+    writeFileSync('public/plants.json', catalogText(base)); // (the steps read the catalog from there)
+  }
+  return [base, found];
+}
+let [catalog, additions] = withAdditions();
+const auditList = () => savedAuditList(catalog, ROOT, undefined, { ...addedBefore, ...additions.pages });
 
 // 0. Fetch what the list needs (--fetch): rounds, since a search leads to profiles, and a profile can change a
 // pick. It stops when nothing new is asked for (a page that failed is asked again next build).
 if (opts.fetch) {
   const files = [['arkatlas', ATLAS_PDF], ['tallamy', TALLAMY_XLSX]].filter(([s, u]) => !savedFile(s, u, ROOT)).map(([source, url]) => ({ source, url }));
   const tried = new Set();
-  for (let round = 1; round <= 4; round++) {
-    const need = toFetch(savedAuditList(catalog, ROOT), ROOT);
-    const items = [...(round === 1 ? files : []), ...[...need.ncsu, ...need.named].map((url) => ({ source: 'ncsu', url })), ...[...need.searches, ...need.profiles].map((url) => ({ source: 'usda', url }))]
+  // (A new plant's name can take four: USDA's search and profile, then GBIF's match and record.)
+  for (let round = 1; round <= 5; round++) {
+    const need = toFetch(auditList(), ROOT);
+    const items = [...(round === 1 ? files : []), ...[...need.ncsu, ...need.named].map((url) => ({ source: 'ncsu', url })), ...[...need.searches, ...need.profiles].map((url) => ({ source: 'usda', url })),
+      ...namePagesToFetch(additions.records, ROOT).map((url) => ({ source: 'gbif', url }))]
       .filter((i) => !tried.has(i.url));
     if (!items.length) break;
-    if (round === 4) { console.log(`pages: still ${items.length} to ask for after 3 rounds; the next --fetch asks for them`); break; }
+    if (round === 5) { console.log(`pages: still ${items.length} to ask for after 4 rounds; the next --fetch asks for them`); break; }
     items.forEach((i) => tried.add(i.url));
     fetchList(`pages, round ${round}`, items);
   }
+  if (additions.records.length) [catalog, additions] = withAdditions(); // (named from the pages just saved)
 }
+const addedIds = new Set(additions.records.map((r) => r.id));
 const atlasPdf = savedFile('arkatlas', ATLAS_PDF, ROOT);
 if (!atlasPdf) stop(`The Arkansas atlas isn't saved: run with --fetch, or fetch ${ATLAS_PDF} (source arkatlas) with fetch.mjs.`);
 
 // 1. The plant list.
-const list = savedAuditList(catalog, ROOT);
+const list = auditList();
 writeJson(path('list.json'), list);
 console.log(`list: ${list.length} plants, ${list.filter((s) => s.ncsu).length} with an NC State page, ${list.filter((s) => s.usda).length} with a USDA symbol`);
 
@@ -138,6 +166,23 @@ if (opts.fetch) {
 // alone from here: no fetch or search may change it under the steps.)
 lockCatalogSrc(ROOT);
 viteNode('write', 'write-cli.ts', [path('combined.json'), '--date', date, '--review', path('review.json')]);
+// The new plants that ship: those whose sources gave what the app needs to place them. The rest wait, out of the
+// catalog, the wild records and the review (each later build tries them again).
+let shipped = { waiting: new Map() };
+if (addedIds.size) {
+  shipped = shipOnly(readJson('public/plants.json'), addedIds);
+  writeFileSync('public/plants.json', catalogText(shipped.file));
+  writeAdded(Object.fromEntries(Object.entries(additions.pages).filter(([id]) => !shipped.waiting.has(id))));
+  putBack = false;
+  const all = readJson(path('combined.json'));
+  writeJson(path('combined-all.json'), all);
+  writeJson(path('combined.json'), all.filter((a) => !shipped.waiting.has(a.id)));
+  writeJson(path('review.json'), readJson(path('review.json')).filter((i) => !shipped.waiting.has(i.id)));
+  const why = {};
+  for (const m of shipped.waiting.values()) for (const k of m) why[k] = (why[k] ?? 0) + 1;
+  console.log(`new plants: ${addedIds.size - shipped.waiting.size} of ${addedIds.size} added; ${shipped.waiting.size} waiting (${Object.entries(why).map(([k, n]) => `${n} without ${k}`).join(', ') || 'none'}); ${additions.left.length} left out, ${additions.unsaved} pages not saved`);
+}
+writeJson(path('additions.json'), { added: [...addedIds].filter((id) => !shipped.waiting.has(id)), waiting: Object.fromEntries(shipped.waiting), left: additions.left, unsaved: additions.unsaved });
 if (!existsSync(join(ROOT, 'counties.json'))) node('counties', 'counties.mjs', []);
 const atlasCounties = join(ROOT, 'arkatlas', 'counties.json');
 if (!existsSync(atlasCounties) || statSync(atlasCounties).mtimeMs < statSync(atlasPdf).mtimeMs) {
@@ -171,12 +216,13 @@ const report = reviewReport({
   unfetched: toFetch(list, ROOT),
   termsUnsettled: termsUnsettled(join(ROOT, 'terms-review'), readJson('scripts/catalog/site-terms.json')),
   decisions: readJson('scripts/catalog/decisions.json'),
+  additions: { ...readJson(path('additions.json')), all: Object.keys(readAdded()) },
 });
 writeFileSync('docs/catalog-review.md', report.markdown);
 saveLog();
 
 // What changed, for the person running it.
-const before = new Map(catalog.plants.map((p) => [p.id, JSON.stringify(p)]));
+const before = new Map(JSON.parse(catalogBefore).plants.map((p) => [p.id, JSON.stringify(p)]));
 const changed = after.plants.filter((p) => before.get(p.id) !== JSON.stringify(p)).map((p) => p.id);
 console.log(`\n${catalogBefore === readFileSync('public/plants.json', 'utf8') ? 'public/plants.json unchanged' : `public/plants.json: ${changed.length} records changed${changed.length ? ` (${changed.slice(0, 12).join(', ')}${changed.length > 12 ? '…' : ''})` : ''}`}`);
 console.log(`docs/catalog-review.md: ${report.summary}`);

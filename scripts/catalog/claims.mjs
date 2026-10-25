@@ -455,7 +455,9 @@ function sidesOf(fact, usable) {
   const sides = [];
   let rest = [...usable];
   while (rest.length) {
-    const tries = rest.map((head) => ({ v: head.v, head, members: rest.filter((o) => agrees(fact, head.v, o.v)) }))
+    // (A value is always on its own side, whatever `agrees` makes of it: a size written high to low didn't agree
+    // with itself, and the sides were never used up.)
+    const tries = rest.map((head) => ({ v: head.v, head, members: rest.filter((o) => o === head || agrees(fact, head.v, o.v)) }))
       .filter((t) => t.members.every((m) => rankOf(m) <= rankOf(t.head)))
       .map((t) => ({ ...t, authority: t.members.some((m) => m.kind === 'authority') }));
     // (One side headed two ways, its sources being the same: NC State's value, else the first read. Two sides as
