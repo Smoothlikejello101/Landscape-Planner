@@ -3,7 +3,7 @@ import { labelFields } from './a11y';
 import { pageZoomed, syncPageZoom } from '../page-zoom';
 import { saveStateWord } from './save-warning';
 import { resizeCanvas } from '../canvas';
-import { el, svgEl } from '../dom';
+import { el, hasKeyboard, svgEl } from '../dom';
 import { onCanvasPointerDown, onWheel } from '../gestures';
 import { canRedo, canUndo, redo, undo } from '../history';
 import { I } from '../icons';
@@ -50,8 +50,13 @@ export function updateStatusReadout() {
   if (node) node.textContent = statusText();
 }
 
+/** The panel the last render showed (to tell a panel just opened from one redrawn). */
+let shownPanel: typeof state.panel = null;
 export function render() {
   const root = document.getElementById('root')!;
+  // (Typing in the picker's search when the whole app redraws: the cursor goes back where it was.)
+  const typing = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.testid === 'plant-search'
+    ? document.activeElement.selectionStart : null;
   // Clear root
   while (root.firstChild) root.removeChild(root.firstChild);
 
@@ -117,6 +122,8 @@ export function render() {
   svg.addEventListener('touchstart', e => { if (e.touches && e.touches.length === 2 && !pageZoomed()) e.preventDefault(); }, { passive: false });
   svg.addEventListener('touchmove', e => { if (e.touches && e.touches.length === 2 && !pageZoomed()) e.preventDefault(); }, { passive: false });
   svg.addEventListener('wheel', onWheel, { passive: false });
+  // (Ctrl-click adds to the selection; on a Mac it would also open the browser's menu.)
+  svg.addEventListener('contextmenu', (e) => { if (e.ctrlKey) e.preventDefault(); });
   // (A tap target to the browser, so a tap on the plan near a button stays on the plan: Chrome moves a tap that's
   // near a button onto it when nothing under the finger takes taps. Drawing still runs on pointer events.)
   svg.addEventListener('click', () => { /* the plan takes its taps */ });
@@ -348,6 +355,13 @@ export function render() {
   else if (state.panel === 'location') panelNode = renderLocationPanel();
   else if (state.panel === 'switchPlant') panelNode = renderSwitchPanel();
   if (panelNode) root.appendChild(panelNode);
+  // The picker just opened, with a keyboard: the cursor in its search, to start typing (not with a pop-up keyboard,
+  // which would cover the list).
+  if (state.panel === 'plants' && ((shownPanel !== 'plants' && hasKeyboard()) || typing != null)) {
+    const search = root.querySelector<HTMLInputElement>('[data-testid=plant-search]');
+    if (search) { search.focus(); if (typing != null) search.setSelectionRange(typing, typing); }
+  }
+  shownPanel = state.panel;
   if (state.menu === 'more') root.appendChild(renderMoreMenu());
 
   labelFields(root); // (each field's label names its control, for screen readers)

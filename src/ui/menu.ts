@@ -1,4 +1,4 @@
-import { el } from '../dom';
+import { el, hasKeyboard } from '../dom';
 import { I } from '../icons';
 import { paste } from '../mutations';
 import { clearSelection } from '../selection';
@@ -63,7 +63,7 @@ export function renderMoreMenu() {
     }
   });
   // Only where there's a keyboard (a laptop or desktop).
-  if (window.matchMedia?.('(hover: hover) and (pointer: fine)').matches) {
+  if (hasKeyboard()) {
     items.push({ icon: I.text, label: 'Keyboard shortcuts (?)', onClick: () => { state.panel = 'shortcuts'; state.menu = null; render(); } });
   }
   items.push({

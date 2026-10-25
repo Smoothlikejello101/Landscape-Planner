@@ -60,6 +60,9 @@ export function normalizeDeg(d: number): number {
   return ((((d + 180) % 360) + 360) % 360) - 180;
 }
 
+/** Shift, Ctrl or Cmd held: add to the selection or take from it, as in most desktop apps. */
+const adding = (e: PointerEvent) => e.shiftKey || e.ctrlKey || e.metaKey;
+
 export function onCanvasPointerDown(e: PointerEvent) {
   notePointer(e.pointerType);
   activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
@@ -126,9 +129,10 @@ export function onCanvasPointerDown(e: PointerEvent) {
   }
   if (!isCanvas) return;
 
-  if (state.selectMode && !state.draw && !state.editPoints && !state.placing) {
+  const add = adding(e);
+  if ((state.selectMode || add) && !state.draw && !state.editPoints && !state.placing) {
     const feet = screenToFeet(clientX, clientY);
-    gesture.current = { type: 'marquee', startX: clientX, startY: clientY, startFeet: feet, currentFeet: feet, moved: false };
+    gesture.current = { type: 'marquee', startX: clientX, startY: clientY, startFeet: feet, currentFeet: feet, moved: false, add };
     state.marquee = { x1: feet.x, y1: feet.y, x2: feet.x, y2: feet.y };
   } else {
     gesture.current = {
@@ -322,11 +326,12 @@ export function onCanvasPointerUp(e: PointerEvent) {
         const m = state.marquee;
         const box = { minX: Math.min(m.x1, m.x2), maxX: Math.max(m.x1, m.x2), minY: Math.min(m.y1, m.y2), maxY: Math.max(m.y1, m.y2) };
         // What the box touches, not a shape it lies wholly inside (the property line around the plants).
-        state.selectedIds = state.shapes.filter((s) => shownWith(s, state.viewFilter) && lassoTouches(s, box)).map((s) => s.id);
+        const touched = state.shapes.filter((s) => shownWith(s, state.viewFilter) && lassoTouches(s, box)).map((s) => s.id);
+        state.selectedIds = g.add ? [...new Set([...state.selectedIds, ...touched])] : touched;
       } else if (g.tapShapeId) {
         toggleSelect(g.tapShapeId);
-      } else {
-        clearSelection();
+      } else if (!g.add) {
+        clearSelection(); // (a modifier click that missed keeps what's selected)
       }
       state.marquee = null;
       render();
@@ -346,6 +351,15 @@ export function onShapePointerDown(e: PointerEvent, shape: Shape) {
   activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
   if (activePointers.size === 2) { startPinchGesture(); return; }
   if (activePointers.size > 2) return;
+
+  // Shift, Ctrl or Cmd held: a click adds this shape to the selection or takes it out, locked or not; a drag draws a
+  // box that adds what it touches.
+  if (adding(e) && !state.draw && !state.editPoints && !state.placing) {
+    const feet = screenToFeet(e.clientX, e.clientY);
+    gesture.current = { type: 'marquee', startX: e.clientX, startY: e.clientY, startFeet: feet, currentFeet: feet, moved: false, tapShapeId: shape.id, add: true };
+    state.marquee = { x1: feet.x, y1: feet.y, x2: feet.x, y2: feet.y };
+    return;
+  }
 
   // Locked shapes are part of the ground: dragging on one pans (or lassos in
   // select mode), a tap still selects it.

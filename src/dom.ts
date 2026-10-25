@@ -6,6 +6,11 @@ type StyleObject = { [K in keyof CSSStyleDeclaration]?: string | number };
 export type Attrs = { [key: string]: unknown; style?: StyleObject | string; className?: string; html?: string };
 
 const ESCAPES: Record<string, string> = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&apos;' };
+/** Where there's a keyboard and a mouse or trackpad (a laptop or desktop), not a touch screen's pop-up keyboard. */
+export function hasKeyboard(): boolean {
+  return !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
+}
+
 export function escapeHtml(s: unknown): string {
   return String(s).replace(/[<>&"']/g, (c) => ESCAPES[c]);
 }

@@ -60,6 +60,12 @@ window.addEventListener('keydown', (e) => {
   // Don't capture while typing in inputs
   const target = e.target as Element | null;
   const tag = (target?.tagName || '').toLowerCase();
+  // Esc in the picker closes it, from its search too (where the cursor starts, with a keyboard); in the More menu,
+  // closes that. Other sheets keep Esc while one has focus: some hold typing that closing would throw away.
+  if (e.key === 'Escape' && state.panel === 'plants' && target?.closest?.('.overlay')) {
+    e.preventDefault(); state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; render(); return;
+  }
+  if (e.key === 'Escape' && state.menu && target?.closest?.('.menu')) { e.preventDefault(); state.menu = null; render(); return; }
   if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
   // Keys pressed while a panel has focus (a chip, a menu) belong to the panel, never the plan.
   if (target?.closest?.('.overlay, .menu')) return;
@@ -85,7 +91,11 @@ window.addEventListener('keydown', (e) => {
     if (state.panel) { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; render(); }
     else if (state.placing) { finishPlacing(); render(); }
     else if (state.menu) { state.menu = null; render(); }
-    else if (state.draw || state.editPoints) { state.draw = null; state.editPoints = null; render(); }
+    // Drawing: done, as Done would (what's tapped is kept); with too few taps to make anything, put away.
+    else if (state.draw) { if (canFinishDraw()) finishDraw(); else state.draw = null; render(); }
+    else if (state.editPoints) { state.editPoints = null; render(); }
+    else if (state.bgCalibrate) { state.bgCalibrate = null; render(); }
+    else if (state.bgEditMode) { state.bgEditMode = false; render(); }
     else if (state.selectedIds.length) { clearSelection(); render(); }
   } else if (e.key === 'Enter' && state.placing && !state.panel && target?.tagName !== 'BUTTON') {
     e.preventDefault(); finishPlacing(); render();
