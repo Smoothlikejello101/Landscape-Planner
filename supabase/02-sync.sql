@@ -17,9 +17,10 @@ alter table public.plans alter column trial_ends drop not null;
 update public.plans set trial_ends = null where plan = 'trial' and trial_started is null;
 
 -- Who has had a trial: by email (Gmail's dots and anything after a "+" don't
--- make a new address) and by app install (a random id the app makes, kept
--- with the plans on the device; it identifies nothing else). One-way
--- fingerprints only; the app can't read either table.
+-- make a new address), as a one-way fingerprint; and by app install, the
+-- random id the app makes as it is (kept with the plans on the device; it
+-- identifies nothing else). The app can't read either table. An account's
+-- email fingerprint is also kept when the account is deleted, trial or not.
 create or replace function public.email_key(email text) returns text
 language sql immutable set search_path = '' as $$
   with a as (select split_part(lower(trim(coalesce(email, ''))), '@', 1) as l, split_part(lower(trim(coalesce(email, ''))), '@', 2) as d)

@@ -1,4 +1,5 @@
-import { account, deleteAccount, emailSignInOn, forgetCodeSent, initAccount, planText, sendSignInLink, signInWithGoogle, signOut, verifyEmailCode } from '../account';
+import { account, deleteAccount, emailSignInOn, forgetCodeSent, initAccount, planText, redeemBetaCode, sendSignInLink, signInWithGoogle, signOut, verifyEmailCode } from '../account';
+import { PRIVACY_URL, TERMS_URL } from '../feedback';
 import { backupAll } from '../backup';
 import { restoreFromTrash, runSync, setSyncOnThisDevice, startSyncing, sync, syncOnThisDevice } from '../sync/sync';
 import { el } from '../dom';
@@ -12,6 +13,10 @@ import { toast } from './toast';
 
 /** "Delete my account" asked: the confirmation is showing. */
 let confirmingDelete = false;
+/** "Have a beta code?" asked: the field is showing. */
+let enteringBetaCode = false;
+/** Move to the beta code field once it appears. */
+let focusBetaCodeNext = false;
 
 export function accountSection(): HTMLElement {
   const section = el('div', { className: 'account-section', 'data-testid': 'account' }, el('div', { className: 'section-title' }, 'Account'));
@@ -45,7 +50,8 @@ export function refreshAccountSection() {
 }
 
 function fill(section: HTMLElement) {
-  if (account.error) section.appendChild(el('div', { className: 'status warn', role: 'alert', 'data-testid': 'account-error' }, account.error));
+  // A beta code's error shows beside its field (betaCodeBlock), where the keyboard can't hide it.
+  if (account.error && !betaCodeShowing()) section.appendChild(errorLine());
   if (account.status === 'unknown') {
     if (!account.error) { section.appendChild(el('div', { className: 'status' }, 'Checking your account…')); return; }
     // Couldn't check (offline, say): a way to retry, and a way out.
@@ -62,12 +68,14 @@ function fill(section: HTMLElement) {
     if (plan) section.appendChild(el('div', { className: 'status', 'data-testid': 'plan' }, plan));
     section.appendChild(syncBlock());
     if (confirmingDelete) { section.appendChild(deleteConfirmation()); return; }
+    const beta = betaCodeBlock();
+    if (beta) section.appendChild(beta);
     const out = el('button', { className: 'btn ghost', 'data-testid': 'sign-out' }, 'Sign out');
     out.disabled = !!account.busy;
     out.addEventListener('click', () => { void signOut(); });
     const del = el('button', { className: 'link-btn danger-link', 'data-testid': 'delete-account' }, 'Delete my account…');
     del.addEventListener('click', () => { confirmingDelete = true; refreshAccountSection(); });
-    section.append(el('div', { className: 'account-actions' }, out, del));
+    section.append(el('div', { className: 'account-actions' }, out, del), policyLinks());
     return;
   }
   // Signed out.
@@ -76,7 +84,8 @@ function fill(section: HTMLElement) {
   const google = el('button', { className: 'btn google-btn', 'data-testid': 'signin-google' }, 'Continue with Google');
   google.disabled = !!account.busy;
   google.addEventListener('click', () => { void signInWithGoogle(); });
-  section.appendChild(google);
+  section.append(google, el('div', { className: 'hint', 'data-testid': 'signin-agree' },
+    'By signing in, you agree to the ', policyLink(TERMS_URL, 'terms'), ' and the ', policyLink(PRIVACY_URL, 'privacy policy'), '.'));
   if (!emailSignInOn()) {
     section.appendChild(el('div', { className: 'hint', 'data-testid': 'email-later' }, 'Signing in by email arrives with the app’s own email address.'));
     return;
@@ -109,6 +118,55 @@ function fill(section: HTMLElement) {
   send.addEventListener('click', go);
   email.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
   section.append(el('div', { className: 'or-line' }, 'or'), el('div', { className: 'email-row' }, email, send));
+}
+
+function errorLine(): HTMLElement {
+  return el('div', { className: 'status warn', role: 'alert', 'data-testid': 'account-error' }, account.error ?? '');
+}
+/** Whether the beta code field is showing: signed in, asked for, and a plan that can use a code. */
+function betaCodeShowing(): boolean {
+  const p = account.plan?.plan;
+  return enteringBetaCode && account.status === 'signedIn' && !confirmingDelete && (p === 'trial' || p === 'lapsed');
+}
+
+/** A link to the privacy policy or the terms, on the website (a new tab, or the browser from the installed app). */
+function policyLink(href: string, words: string): HTMLElement {
+  return el('a', { href, target: '_blank', rel: 'noopener' }, words);
+}
+function policyLinks(): HTMLElement {
+  return el('div', { className: 'hint policy-links', 'data-testid': 'policy-links' }, policyLink(PRIVACY_URL, 'Privacy policy'), ' · ', policyLink(TERMS_URL, 'Terms'));
+}
+
+/**
+ * "Have a beta code?": for an account on a trial (started or not) or whose plan ended. A code from the beta
+ * invitation makes it a beta account, everything free (supabase/06-beta.sql).
+ */
+function betaCodeBlock(): HTMLElement | null {
+  const p = account.plan?.plan;
+  if (p !== 'trial' && p !== 'lapsed') { enteringBetaCode = false; return null; }
+  if (!enteringBetaCode) {
+    const ask = el('button', { className: 'link-btn', 'data-testid': 'beta-code-open' }, 'Have a beta code?');
+    ask.addEventListener('click', () => { enteringBetaCode = true; focusBetaCodeNext = true; account.error = undefined; refreshAccountSection(); });
+    return ask;
+  }
+  const code = el('input', { type: 'text', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', maxLength: 16, placeholder: 'K7PQ-M3XD', 'aria-label': 'Beta code', 'data-testid': 'beta-code' }) as HTMLInputElement;
+  const use = el('button', { className: 'btn primary', 'data-testid': 'beta-code-use' }, 'Use code');
+  use.disabled = !!account.busy;
+  const go = async () => {
+    if (!(await redeemBetaCode(code.value))) return;
+    enteringBetaCode = false;
+    toast('You’re on the beta: everything is free while it lasts.', 6000);
+    refreshAccountSection();
+  };
+  use.addEventListener('click', () => { void go(); });
+  code.addEventListener('keydown', (e) => { if (e.key === 'Enter') void go(); });
+  const cancel = el('button', { className: 'link-btn' }, 'Cancel');
+  cancel.addEventListener('click', () => { enteringBetaCode = false; account.error = undefined; refreshAccountSection(); });
+  // (Looked up when it runs: the section may have been rebuilt meanwhile.)
+  if (focusBetaCodeNext) { focusBetaCodeNext = false; setTimeout(() => document.querySelector<HTMLInputElement>('[data-testid=beta-code]')?.focus(), 0); }
+  return el('div', { className: 'beta-code', 'data-testid': 'beta-code-box' },
+    el('div', { className: 'hint' }, 'The code from your beta invitation:'),
+    el('div', { className: 'email-row' }, code, use), account.error ? errorLine() : null, cancel);
 }
 
 /** "Synced 2 minutes ago" */

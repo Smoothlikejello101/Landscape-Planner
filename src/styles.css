@@ -374,6 +374,13 @@ a { color: inherit; }
 .account-section .email-row input { flex: 1 1 180px; min-width: 0; min-height: 44px; padding: 0 10px; border: 1px solid #d6d3d1; border-radius: 6px; font-size: 16px; }
 .account-section .account-actions { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .account-section .danger-link { color: #b91c1c; }
+.account-section .beta-code { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.account-section .beta-code .email-row { align-self: stretch; }
+.account-section .beta-code input { text-transform: uppercase; letter-spacing: 0.06em; }
+.account-section .beta-code input::placeholder { text-transform: none; letter-spacing: normal; }
+.account-section .hint a { color: #0f766e; }
+/* A tap target of its own: the links sit in a line of small type. */
+.account-section .policy-links a { display: inline-block; padding: 10px 2px; }
 .account-section .confirm-box { border: 1px solid #fecaca; background: #fef2f2; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 .account-section .sync-block { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-top: 1px dashed #e7e5e4; border-bottom: 1px dashed #e7e5e4; }
 .account-section .trash-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; }
