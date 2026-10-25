@@ -115,7 +115,8 @@ export function methodIcon(m: Method): string {
 export const OTHER_SHORTCUTS: [string, string][] = [
   ['A', 'Open the Add sheet'],
   ['Enter', 'Finish drawing'],
-  ['Esc', 'Cancel drawing, close a panel, or clear the selection'],
+  ['Esc', 'Done placing or drawing, close the picker, or clear the selection'],
+  ['Shift / Ctrl + click', 'Add to the selection, or take out (drag: add what a box touches)'],
   ['Delete', 'Delete what is selected'],
   ['Ctrl+Z / Ctrl+Y', 'Undo / redo'],
   ['Ctrl+C / Ctrl+V / Ctrl+D', 'Copy / paste / duplicate'],

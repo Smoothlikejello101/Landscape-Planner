@@ -277,7 +277,8 @@ export interface Marquee { x1: number; y1: number; x2: number; y2: number }
 export type Gesture =
   | { type: 'pinch'; startDist: number; startZoom: number; centerScreen: Point; centerFeetAtStart: Point }
   | { type: 'pan'; startX: number; startY: number; startOffset: Point; moved: boolean; tapShapeId?: string }
-  | { type: 'marquee'; startX: number; startY: number; startFeet: Point; currentFeet: Point; moved: boolean; tapShapeId?: string }
+  // (`add`: Shift, Ctrl or Cmd held: a tap toggles one shape and a box adds what it touches; the rest stays selected.)
+  | { type: 'marquee'; startX: number; startY: number; startFeet: Point; currentFeet: Point; moved: boolean; tapShapeId?: string; add?: boolean }
   | {
       type: 'drag-shape'; id: string; ids: string[]; grabOffset: Point; primaryStart: Point;
       shapeStarts: { id: string; startX: number; startY: number }[];
