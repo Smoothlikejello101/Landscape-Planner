@@ -102,8 +102,9 @@ test('copy a catalog plant as your own cultivar', async ({ page }) => {
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill("Heuchera 'Autumn Bride'");
   await page.locator('.proj-row', { hasText: "Heuchera 'Autumn Bride'" }).first().getByRole('button', { name: /Copy as my plant/ }).click();
-  await expect(page.locator('.sheet .banner')).toContainText("A copy of Heuchera 'Autumn Bride'");
+  await expect(page.locator('.sheet .banner')).toContainText("Starting from Heuchera 'Autumn Bride'");
   await expect(page.getByTestId('pf-botanical')).toHaveValue('Heuchera villosa');
+  await expect(page.getByTestId('pf-species')).toBeChecked(); // (a cultivar of it: the same species)
   await expect(page.getByTestId('pf-spread')).not.toHaveValue('');
   await page.getByTestId('pf-name').fill("Heuchera 'Caramel'");
   await page.getByTestId('pf-save').click();

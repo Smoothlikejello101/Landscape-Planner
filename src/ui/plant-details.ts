@@ -239,8 +239,9 @@ function hostRow(p: Plant): HTMLElement | null {
   return dd;
 }
 /**
- * Toxicity to animals, never left blank on a catalog plant (no line reads as "safe"): its own rating; else the
- * earlier list's warning for another record of its species; else not yet rated. Null for a plant of mine.
+ * Toxicity to animals, never left blank on a catalog plant (no line reads as "safe"): NC State's "Problem for"; its
+ * own rating; else the earlier list's warning for another record of its species; else not listed by NC State, or not
+ * rated. Null for a plant of mine with no species to go by (one linked to its species is said as for the catalog's).
  */
 export function toxRow(p: Plant): { value: string; line: string } | null {
   // NC State's "Problem for Dogs" (cats, horses) first, with its source; the earlier list's word on dogs beside it where
@@ -257,7 +258,7 @@ export function toxRow(p: Plant): { value: string; line: string } | null {
   }
   const own = tox(p.tox) || (p.dog && p.dog !== 'Unverified' ? `dogs: ${p.dog}` : '');
   if (own) return { value: own, line: sourceLine(p.prov?.tox ?? p.prov?.dog) };
-  if (isMine(p)) return null;
+  if (isMine(p) && !p.parent) return null; // (one of mine linked to its species: said as for the catalog's)
   // (NC State's page read, and it lists no animal: said so, and that it isn't the same as safe.)
   if (p.prov?.poison?.src.includes('ncsu')) return { value: 'Not listed as a problem for dogs, cats or horses', line: 'NC State · a plant not listed isn\u2019t necessarily safe' };
   return { value: 'Not rated for pets', line: 'No source we\u2019ve read rates it for dogs, cats or horses' };
