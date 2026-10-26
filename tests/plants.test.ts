@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { byMatch, closeMatchIn, inNotes, matchPlant, nearShows, readQuery } from '../src/search';
 import { bloomMatch, earlierOnly, filterOn, matchedBy, seasonMonths, trueToColor, nonToxicToDogs, PLANT_FILTER_DEFAULTS, pickerCount, plantMatches, reportedPhrase, rowFlags, rowLines, shareDogWarnings, speciesOf, sunSaid, toxicToDogs, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
-import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs } from '../src/spread';
+import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs, spreadWays } from '../src/spread';
 import { readFileSync } from 'node:fs';
 import { HEIGHT_STOPS, heightLabel, heightStops, heightValue } from '../src/ui/height-range';
 import { fallText, poisonRow, poisonText, toxRow, winterText } from '../src/ui/plant-details';
@@ -447,7 +447,17 @@ describe('how a plant spreads: by seed, and underground or by runners: two facts
     expect([spreadsAs(p('Prolific', 'Clumping'), 'seed'), spreadsAs(p('Modest', 'Suckering (slow)'), 'runs'), spreadsAs(p('Modest', 'Suckering (slow)'), 'aggressive')]).toEqual([true, true, false]);
     expect([spreadsAs(p('Modest', 'Runner - CONTAIN'), 'aggressive'), spreadsAs(p('Prolific', 'Clumping'), 'aggressive')]).toEqual([true, false]);
     expect([spreadsAs(p('Modest', 'Mat-forming'), 'runs'), spreadsAs(p('Modest', 'Naturalizing'), 'runs'), spreadsAs(p('Prolific', 'Reseeding annual'), 'runs')]).toEqual([true, true, false]);
-    expect(plantMatches(p('Modest', 'Clumping'), { ...PLANT_FILTER_DEFAULTS, spread: 'runs' })).toBe(false);
+    expect(plantMatches(p('Modest', 'Clumping'), { ...PLANT_FILTER_DEFAULTS, spread: ['runs'] })).toBe(false);
+  });
+  it('filters on the ways of spreading the person is OK with: every way a plant spreads must be ticked', () => {
+    expect([spreadWays(p('Modest', 'Clumping')), spreadWays(p('Modest', 'Suckering (slow)')), spreadWays(p('Prolific', 'Runner - CONTAIN')), spreadWays(p('Prolific', 'Multi-stem')), spreadWays(p(undefined, 'Multi-stem'))])
+      .toEqual([['stays'], ['runs'], ['aggressive', 'seed'], ['seed'], null]);
+    const ok = (seed: string | undefined, habit: string, ways: string[]) => plantMatches(p(seed, habit), { ...PLANT_FILTER_DEFAULTS, spread: ways });
+    // Stays put or runs, not aggressively (Jason's example): a clump, a slow sucker; not an aggressive runner, nor a runner that self-sows freely.
+    expect([ok('Modest', 'Clumping', ['stays', 'runs']), ok('Modest', 'Suckering (slow)', ['stays', 'runs']), ok('Modest', 'Runner - CONTAIN', ['stays', 'runs']), ok('Prolific', 'Rhizomatous', ['stays', 'runs'])])
+      .toEqual([true, true, false, false]);
+    expect(ok('Modest', 'Rhizomatous', ['aggressive'])).toBe(true); // (OK with aggressive runners is OK with runners)
+    expect(ok(undefined, 'Multi-stem', ['stays', 'runs', 'aggressive', 'seed'])).toBe(false); // (the facts don't say)
   });
 });
 

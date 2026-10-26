@@ -186,12 +186,19 @@ test('how a plant spreads, by seed and underground, in one row with a source eac
   await expect(spreads.locator('.details-part')).toHaveText(['Self-sows freely', 'Spreads aggressively underground or by runners: Aggressive rhizome']);
   await expect(spreads.locator('.details-src')).toHaveText(['earlier list, unverified']); // (each part its own source; one line where they share it)
   await expect(details.locator('dt', { hasText: /^Habit$/ })).toHaveCount(0); // (said under "How it spreads")
+  // The picker: the ways of spreading you're OK with; a plant shows only if every way it spreads is ticked.
   await page.getByTestId('more-filters').click();
-  await expect(page.getByTestId('spread-filter').locator('option[value="stays"]')).toHaveText('Stays put (unverified)');
-  await page.getByTestId('spread-filter').selectOption('stays');
-  await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Blue mistflower$/ }) })).toHaveCount(0);
-  await page.getByTestId('spread-filter').selectOption('aggressive');
-  await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Blue mistflower$/ }) })).toHaveCount(1);
+  const spreading = page.getByTestId('spread-filter');
+  await expect(spreading.locator('legend')).toHaveText('Spreading you\u2019re OK with (unverified)');
+  const tick = (name: string) => spreading.locator('label', { hasText: name }).locator('input');
+  const mistflower = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Blue mistflower$/ }) });
+  await tick('Stays put').check();
+  await expect(mistflower).toHaveCount(0);
+  await tick('Spreads aggressively').check(); // (it self-sows freely too: not yet)
+  await expect(mistflower).toHaveCount(0);
+  await tick('Self-sows freely').check();
+  await expect(mistflower).toHaveCount(1);
+  await expect(page.getByTestId('active-chip')).toHaveText(['Spreading OK: stays put', 'Spreading OK: spreads aggressively by runners or underground', 'Spreading OK: self-sows freely']);
 });
 
 test('the mature-height slider narrows the list to a range, either end open', async ({ page }) => {
