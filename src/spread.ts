@@ -65,3 +65,28 @@ export function spreadsAs(p: SpreadFacts, how: string): boolean {
   if (how === 'aggressive') return r === 'aggressive';
   return true;
 }
+/** The ways of spreading the picker offers, mildest first. */
+export const SPREAD_WAYS = ['stays', 'runs', 'aggressive', 'seed'] as const;
+/**
+ * The ways a plant spreads, for the picker's "Spreading you're OK with" (Jason, 2026-10-25): 'runs' (underground or by
+ * runners, not aggressively; mats and naturalizing bulbs too), 'aggressive' (aggressively so), 'seed' (self-sows
+ * freely); 'stays' where it does none of them (doesn't run, self-sows only a little, not listed invasive). Null where
+ * the facts don't say.
+ */
+export function spreadWays(p: SpreadFacts): string[] | null {
+  const ways: string[] = [];
+  if (spreadsAs(p, 'aggressive')) ways.push('aggressive');
+  else if (spreadsAs(p, 'runs')) ways.push('runs');
+  if (spreadsAs(p, 'seed')) ways.push('seed');
+  if (ways.length) return ways;
+  return spreadsAs(p, 'stays') ? ['stays'] : null;
+}
+/**
+ * Whether every way a plant spreads is one the person is OK with: "stays put or spreads by runners" keeps out an
+ * aggressive runner, and a runner that also self-sows freely. OK with aggressive runners is OK with runners too. A
+ * plant whose facts don't say is left out.
+ */
+export function spreadsOnlyAs(p: SpreadFacts, ok: readonly string[]): boolean {
+  const ways = spreadWays(p);
+  return !!ways && ways.every((w) => ok.includes(w) || (w === 'runs' && ok.includes('aggressive')));
+}
