@@ -183,6 +183,19 @@ describe('leaves: color, winter, fall color, growth rate', () => {
     const none = ncsuClaims({ Appendage: ['Tendrils'], Problems: ['Weedy'] });
     expect(none.filter((x: { fact: string }) => ['thorns', 'tox_pets', 'attracts', 'winter_interest'].includes(x.fact))).toEqual([]);
   });
+  it('reads what shows in winter: bark and its colors, stem and fruit colors, when the fruit is there', () => {
+    const c = ncsuClaims({
+      'Surface/Attachment': ['Exfoliating', 'Peeling', 'Something new'], 'Bark Color': ['Red/Burgundy', 'Light Brown'],
+      'Stem Color': ['Red/Burgundy', 'Insignificant'], 'Display/Harvest Time': ['Fall', 'Winter'], 'Fruit Color': ['Red/Burgundy'],
+    });
+    const v = (fact: string) => c.find((x: { fact: string }) => x.fact === fact)?.v;
+    expect(v('bark')).toEqual(['exfoliating', 'peeling']); // (a word it doesn't know is left out)
+    expect(v('bark_color')).toEqual(['red/burgundy', 'light brown']);
+    expect(v('stem_color')).toEqual(['red/burgundy']); // ("Insignificant" isn't a color)
+    expect(v('fruit_season')).toEqual(['fall', 'winter']);
+    expect(v('fruit_color')).toEqual(['red/burgundy']);
+    expect(ncsuClaims({}).filter((x: { fact: string }) => ['bark', 'bark_color', 'stem_color', 'fruit_season', 'fruit_color'].includes(x.fact))).toEqual([]);
+  });
   it('evergreen, semi-evergreen or deciduous: a plant listed as both depends on the winter', () => {
     expect(ncsuFoliage(['Deciduous'])).toBe('deciduous');
     expect(ncsuFoliage(['Needled Evergreen'])).toBe('evergreen');

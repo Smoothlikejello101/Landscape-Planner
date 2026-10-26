@@ -308,7 +308,7 @@ test('a plant\'s leaves: their colors, what they do in winter, fall color and gr
   const row = (label: string) => details.locator('dt', { hasText: new RegExp(`^${label}$`) }).locator('xpath=following-sibling::dd[1]');
   await expect(row('Leaf colors')).toContainText('Gold, green, orange');
   await expect(row('In winter')).toContainText('Deciduous: loses its leaves');
-  await expect(row('In winter').locator('.details-src')).toContainText(/NC State.*, USDA.* · confirmed/);
+  await expect(row('In winter').locator('.details-src').first()).toContainText(/NC State.*, USDA.* · confirmed/);
   await expect(row('Fall color')).toContainText('Yes: gold, red');
   await expect(row('Growth rate')).toContainText('Fast');
   // An herb's winter is dying back: Heuchera 'Autumn Bride' keeps its leaves, NC State says.
@@ -456,4 +456,23 @@ test('the filters say what they\'re set to: a dropdown names itself, a month met
   await page.getByTestId('in-plan').click();
   await expect(page.getByTestId('in-plan')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('picker-count')).toContainText(/^0 of /);
+});
+
+test('what makes a plant\'s winter interest, each part with its source: showy bark, fruit into winter', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  const open = async (name: string) => {
+    await page.getByTestId('plant-search').fill(name);
+    const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: new RegExp(`^${name}$`) }) });
+    await item.getByTestId('plant-row').click();
+    return item.getByTestId('plant-details');
+  };
+  const birch = await open('River birch');
+  await expect(birch.getByTestId('winter-bark')).toHaveText('Showy bark: exfoliating, papery, peeling');
+  await expect(birch.getByTestId('winter-listed')).toHaveText('Listed for winter gardens');
+  await expect(birch.getByTestId('winter-row').locator('.details-src').nth(1)).toContainText('NC State');
+  await expect(birch.locator('dt', { hasText: /^Bark$/ }).locator('xpath=following-sibling::dd[1]')).toContainText('Exfoliating, papery, peeling, ridges, smooth; light brown, orange');
+  await expect(birch.locator('dt', { hasText: /^Winter interest$/ })).toHaveCount(0); // (said under In winter)
+  const winterberry = await open('Winterberry holly');
+  await expect(winterberry.getByTestId('winter-fruit')).toHaveText('Fruit stays into winter: yellow, orange, red');
 });

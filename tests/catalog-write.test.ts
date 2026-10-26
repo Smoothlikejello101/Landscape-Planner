@@ -257,6 +257,10 @@ describe('writing what NC State lists: attracts, tolerates, problems for animals
       maintenance_level: { v: 'medium', src: ['ncsu'], check: 'single' },
       thorns: { v: true, src: ['ncsu'], check: 'single' },
       winter_interest: { v: true, src: ['ncsu'], check: 'single' },
+      bark: { v: ['shredding'], src: ['ncsu'], check: 'single' },
+      fruit_season: { v: ['fall', 'winter'], src: ['ncsu'], check: 'single' },
+      fruit_color: { v: ['red/burgundy'], src: ['ncsu'], check: 'single' },
+      stem_color: { v: ['red'], src: ['ncsu'], check: 'single' }, // (not NC State's group: refused)
     } },
     { id: 'thornless', claims: ncsu, facts: { thorns: { v: true, src: ['ncsu'], check: 'single' } } },
   ];
@@ -268,13 +272,16 @@ describe('writing what NC State lists: attracts, tolerates, problems for animals
     expect(rose.facts.maintenance_level).toEqual({ v: 'medium', src: ['ncsu'], check: 'single' });
     expect(rose.facts.thorns).toEqual({ v: true, src: ['ncsu'], check: 'single' });
     expect(rose.facts.winter_interest).toEqual({ v: true, src: ['ncsu'], check: 'single' });
+    expect(rose.facts.bark).toEqual({ v: ['shredding'], src: ['ncsu'], check: 'single' });
+    expect(rose.facts.fruit_season).toEqual({ v: ['fall', 'winter'], src: ['ncsu'], check: 'single' });
+    expect(rose.facts.fruit_color).toEqual({ v: ['red/burgundy'], src: ['ncsu'], check: 'single' });
     expect(catalogErrors(out)).toEqual([]);
   });
   it('refuses a word it doesn\'t take, and holds back thorns on a plant named for having none', () => {
     expect(rose.facts.tolerates).toBeUndefined();
     expect(thornless.facts.thorns).toBeUndefined();
     expect(review.map((r: { id: string; fact: string; note: string }) => `${r.id} ${r.fact} ${r.note}`).sort()).toEqual([
-      'rose tolerates value the catalog can\'t take: ["drought","heat","teleportation"]', 'thornless thorns thorns, but named thornless',
+      'rose stem_color value the catalog can\'t take: ["red"]', 'rose tolerates value the catalog can\'t take: ["drought","heat","teleportation"]', 'thornless thorns thorns, but named thornless',
     ]);
   });
 });

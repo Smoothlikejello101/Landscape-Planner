@@ -15,4 +15,5 @@ console.log(`\n${errors.length} errors`);
 for (const e of errors) console.log('  ' + e);
 console.log(`\n${warnings.length} for review`);
 for (const w of warnings) console.log('  ' + w);
-process.exit(errors.length ? 1 : 0);
+// (exitCode, not exit(): exit() cuts off what's still being written to a pipe, and the build reads this through one.)
+process.exitCode = errors.length ? 1 : 0;

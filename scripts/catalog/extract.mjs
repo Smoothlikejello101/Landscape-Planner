@@ -18,6 +18,8 @@ export const NCSU_FIELDS = [
   'Flower Color', 'Flower Bloom Time', 'Deciduous Leaf Fall Color', 'Woody Plant Leaf Characteristics',
   'Attracts', 'Resistance To Challenges', 'Design Feature', 'Landscape Location', 'Landscape Theme',
   'Poison Severity', 'Causes Contact Dermatitis', 'Poison Part', 'Stem Surface', 'Problems', 'Leaf Color', 'Leaf Type', 'Appendage',
+  // (What shows in winter: its bark, its stems' color, its fruit and when it's there.)
+  'Surface/Attachment', 'Bark Color', 'Stem Color', 'Display/Harvest Time', 'Fruit Color',
 ];
 /** NC State's free-text fields the audit reads one fact out of, never keeping the text. */
 const NCSU_TEXT = ['Wildlife Value'];

@@ -24,13 +24,15 @@ export const TIER = {
   form: 'description', bloom_season: 'description', bloom_months: 'description', flower_color: 'description',
   fall_color: 'description', host: 'description', host_genus: 'description', edible: 'description', low_branched: 'description',
   attracts: 'description', tolerates: 'description', maintenance_level: 'description', thorns: 'description', winter_interest: 'description',
+  bark: 'description', bark_color: 'description', stem_color: 'description', fruit_season: 'description', fruit_color: 'description',
   leaf_color: 'description', foliage: 'description', needles: 'description', fall_colors: 'description', growth_rate: 'description',
 };
 const RANK = { authority: 3, breeder: 2, nursery: 1, blog: 0 };
 /** Facts decided by sides (`bySides`), the other side kept beside the value (`alt`; never safety facts). */
 export const REPORTABLE = new Set(['height', 'width', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'deer']);
 /** Facts a cultivar is bred to change: only a page for the cultivar itself speaks to them. */
-export const CULTIVAR_OWN = new Set(['height', 'width', 'flower_color', 'form', 'leaf_color', 'fall_colors', 'growth_rate', 'attracts', 'winter_interest']);
+export const CULTIVAR_OWN = new Set(['height', 'width', 'flower_color', 'form', 'leaf_color', 'fall_colors', 'growth_rate', 'attracts', 'winter_interest',
+  'bark_color', 'stem_color', 'fruit_color']);
 
 // ---------- Values ----------
 
@@ -241,6 +243,13 @@ export const ATTRACTS = ['butterflies', 'pollinators', 'bees', 'specialized bees
 export const TOLERATES = ['deer', 'rabbits', 'squirrels', 'voles', 'slugs', 'drought', 'dry soil', 'wet soil', 'poor soil', 'compaction', 'erosion', 'heat', 'humidity', 'salt', 'pollution', 'urban conditions', 'black walnut', 'heavy shade', 'wind', 'storm damage', 'foot traffic', 'fire', 'diseases', 'insect pests'];
 /** Animals NC State lists a plant as a problem for ("Problem for Dogs"), as the catalog keeps them. */
 export const PETS = ['dogs', 'cats', 'horses'];
+/** NC State's words for bark (its "Surface/Attachment") and bark colors, as the catalog keeps them. */
+export const BARK = ['smooth', 'furrowed', 'fissured', 'ridges', 'scaly', 'lenticels', 'bumpy', 'spongy', 'shiny', 'exfoliating', 'peeling', 'shredding', 'papery', 'shaggy', 'patchy'];
+export const BARK_COLORS = ['light gray', 'dark gray', 'light brown', 'dark brown', 'red/burgundy', 'orange', 'green', 'black', 'white'];
+/** NC State's color groups for stems and fruit ("Red/Burgundy"), as the catalog keeps them; "Insignificant" isn't a color. */
+export const PART_COLORS = ['red/burgundy', 'orange', 'gold/yellow', 'green', 'blue', 'purple/lavender', 'pink', 'white', 'cream/tan', 'brown/copper', 'gray/silver', 'black'];
+/** When its fruit is there to see ("Display/Harvest Time"). */
+export const SEASONS = ['spring', 'summer', 'fall', 'winter'];
 /** NC State's words for a list, in the catalog's (lower case), keeping only those known; each once. */
 const wordsIn = (known, listed) => [...new Set((listed ?? []).map((x) => String(x).trim().toLowerCase()).filter((x) => known.includes(x)))];
 /** NC State Plant Toolbox fields → claims (an authority). */
@@ -296,6 +305,13 @@ export function ncsuClaims(f) {
   if ((f['Landscape Theme'] ?? []).includes('Winter Garden')) add('winter_interest', true);
   // The animals it's a problem for ("Problem for Dogs"): a warning, never "safe" from its absence.
   add('tox_pets', wordsIn(PETS, (f.Problems ?? []).map((x) => x.replace(/^Problem for /, ''))));
+  // What shows in winter (Jason, 2026-10-25: "call out exfoliating bark"): its bark and bark color, its stems' color,
+  // and its fruit, when it's there and its color. As NC State lists them; the app says which ones make winter interest.
+  add('bark', wordsIn(BARK, f['Surface/Attachment']));
+  add('bark_color', wordsIn(BARK_COLORS, f['Bark Color']));
+  add('stem_color', wordsIn(PART_COLORS, f['Stem Color']));
+  add('fruit_season', wordsIn(SEASONS, f['Display/Harvest Time']));
+  add('fruit_color', wordsIn(PART_COLORS, f['Fruit Color']));
   return c;
 }
 /** Minnesota Wildflowers fields → claims (an authority for wild Minnesota plants; bloom months are Minnesota's). */
