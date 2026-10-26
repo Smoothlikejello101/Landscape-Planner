@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { byMatch, closeMatchIn, inNotes, matchPlant, namesCultivar, nearShows, readQuery } from '../src/search';
-import { bloomMatch, groupKey, pluralName, earlierOnly, filterOn, matchedBy, seasonMonths, trueToColor, nonToxicToDogs, PLANT_FILTER_DEFAULTS, pickerCount, plantMatches, reportedPhrase, rowFlags, rowLines, shareDogWarnings, speciesOf, sunSaid, toxicToDogs, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
+import { bloomMatch, groupKey, groupName, pluralName, earlierOnly, filterOn, matchedBy, seasonMonths, trueToColor, nonToxicToDogs, PLANT_FILTER_DEFAULTS, pickerCount, plantMatches, reportedPhrase, rowFlags, rowLines, shareDogWarnings, speciesOf, sunSaid, toxicToDogs, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
 import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs, spreadWays } from '../src/spread';
 import { readFileSync } from 'node:fs';
 import { HEIGHT_STOPS, heightLabel, heightStops, heightValue } from '../src/ui/height-range';
@@ -506,5 +506,16 @@ describe('a heading over cultivars with no species record', () => {
   it('is named for many of them', () => {
     expect(['Rose', 'Holly', 'Camellia', 'Butterfly bush', 'Iris', 'Hibiscus', 'Drift roses', 'Crape myrtle'].map(pluralName))
       .toEqual(['Roses', 'Hollies', 'Camellias', 'Butterfly bushes', 'Irises', 'Hibiscus', 'Drift roses', 'Crape myrtles']);
+  });
+  it('from their own names; the genus beside another name two or more use (Jason, 2026-10-26)', () => {
+    const named = (...cs: string[]) => cs.map((common) => ({ common }));
+    // (The genus written as a name counts for an English name starting the same.)
+    expect(groupName(named("Rosa 'Abraham Darby'", "Rosa 'Heritage'", "Rose 'Julia Child' (floribunda)", "Climbing rose 'New Dawn'", 'Drift roses'), 'Rosa')).toEqual(['Roses', ['Rose']]);
+    expect(groupName(named("Buddleja 'Miss Molly'", "Buddleja 'Pugster Blue'", "Butterfly bush 'Black Knight'", "Butterfly bush 'Royal Red'"), 'Buddleja'))
+      .toEqual(['Buddlejas (Butterfly Bushes)', ['Buddleja', 'Butterfly Bush']]);
+    expect(groupName(named("Rhododendron 'PJM'", "Rhododendron 'Dr. A. Blok'", "Rhododendron 'Nova Zembla'", "Azalea 'Girard's Crimson'", "Azalea 'Hino Crimson'"), 'Rhododendron')[0])
+      .toBe('Rhododendrons (inc. Azaleas)'); // (azaleas are rhododendrons)
+    expect(groupName(named("Giant Hyssop 'Blue Fortune'", "Giant Hyssop 'Black Adder'", "Agastache 'Kudos Coral'"), 'Agastache')[0]).toBe('Giant Hyssops');
+    expect(groupName(named("Juniperus davurica 'Parsonii'", "Juniperus davurica 'Expansa'"), 'Juniperus davurica')[0]).toBe('Juniperus davurica');
   });
 });

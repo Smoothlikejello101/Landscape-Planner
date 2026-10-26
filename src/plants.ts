@@ -548,13 +548,19 @@ export function pluralName(name: string): string {
   return name + 's';
 }
 /**
+ * Genera whose cultivars' other English name is a part of the genus, not another name for all of it (Jason,
+ * 2026-10-26): "Rhododendrons (inc. Azaleas)", where Buddleja's is "Buddlejas (Butterfly Bushes)".
+ */
+const GROUP_INCLUDES = new Set(['rhododendron']);
+/**
  * A group's name from its cultivars' own names: the words they share around the cultivar, the most of them alike
  * ("Rose 'Julia Child' (floribunda)", "Rose 'Belinda's Dream'" → Roses). Its genus written as a name ("Rosa
  * 'Abraham Darby'") counts for an English name that starts the same ("Rose"); on a tie the genus wins (always
- * right: Rhododendron, not Azalea). None: its botanical name. With the name for one ("Rose"): a search for it isn't
- * a search naming the cultivar.
+ * right). Where the genus wins and two or more say another name, that name beside it (Jason, 2026-10-26):
+ * "Buddlejas (Butterfly Bushes)". None: its botanical name. Returns the name, then the names for one ("Rose"):
+ * a search for those isn't a search naming the cultivar.
  */
-function groupName(members: Plant[], key: string): [string, string] {
+export function groupName(members: Pick<Plant, 'common'>[], key: string): [string, string[]] {
   const genus = key.split(' ')[0].toLowerCase();
   const votes = new Map<string, { n: number; as: string }>();
   for (const m of members) {
@@ -566,10 +572,15 @@ function groupName(members: Plant[], key: string): [string, string] {
   const g = votes.get(genus);
   const english = g && [...votes].find(([k]) => k !== genus && !k.includes(' ') && k.slice(0, 3) === genus.slice(0, 3));
   if (g && english) { english[1].n += g.n; votes.delete(genus); }
-  const best = [...votes].sort(([ka, a], [kb, b]) => b.n - a.n || Number(kb === genus) - Number(ka === genus) || a.as.length - b.as.length)[0]?.[1];
-  if (!best || (key.includes(' ') && best.as.toLowerCase() === key.toLowerCase())) return [key, key]; // (a species' botanical name: as it is)
-  const one = best.as[0].toUpperCase() + best.as.slice(1);
-  return [pluralName(one), one];
+  const ranked = [...votes].sort(([ka, a], [kb, b]) => b.n - a.n || Number(kb === genus) - Number(ka === genus) || a.as.length - b.as.length);
+  const best = ranked[0]?.[1];
+  if (!best || (key.includes(' ') && best.as.toLowerCase() === key.toLowerCase())) return [key, [key]]; // (a species' botanical name: as it is)
+  const cap = (x: string) => x[0].toUpperCase() + x.slice(1);
+  const one = cap(best.as);
+  const other = ranked[0][0] === genus ? ranked.find(([k, v]) => k !== genus && v.n >= 2)?.[1] : undefined;
+  if (!other) return [pluralName(one), [one]];
+  const also = cap(other.as).split(' ').map((w, i) => (i ? cap(w) : w)).join(' '); // ("Butterfly Bush")
+  return [`${pluralName(one)} (${GROUP_INCLUDES.has(genus) ? 'inc. ' : ''}${pluralName(also)})`, [one, also]];
 }
 function foldIndex() {
   if (folds?.from === PLANTS) return folds;
@@ -588,8 +599,8 @@ function foldIndex() {
   const groupOf = new Map<string, Plant>();
   for (const [key, members] of byKey) {
     if (members.length < 2) continue;
-    const [name, one] = groupName(members, key);
-    const head = { id: `group:${key}`, common: name, botanical: key, synonyms: [one] } as Plant;
+    const [name, ones] = groupName(members, key);
+    const head = { id: `group:${key}`, common: name, botanical: key, synonyms: ones } as Plant;
     cultivars.set(head.id, members);
     for (const m of members) groupOf.set(m.id, head);
   }
