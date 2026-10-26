@@ -147,12 +147,15 @@ test('when a plant blooms and its flowers\' color, each with its source; the ear
   await expect(phlox('Bloom')).toContainText('earlier list, unverified');
   await expect(phlox('Flower color')).toContainText('Pink, white, purple');
   await expect(phlox('Flower color').locator('.details-src')).toHaveText('NC State Extension · one source');
-  // A cultivar blooms when its species does (said so), in its own colors.
+  // A cultivar blooms when its species does (said so), in its own colors. (Found by its name: a cultivar folds
+  // under its species otherwise.)
+  await page.getByTestId('plant-search').fill('david');
   const david = await open("Garden phlox 'David'");
   await expect(david('Bloom')).toContainText('Summer');
   await expect(david('Bloom')).toContainText('from its species');
   await expect(david('Flower color')).toContainText('White');
   // USDA's finer season, as it writes it; flowers it calls not conspicuous: not showy.
+  await page.getByTestId('plant-search').fill('');
   const oak = await open('White oak');
   await expect(oak('Bloom').getByTestId('bloom-season')).toHaveText('Mid spring');
   await expect(oak('Flower color')).toContainText('Yellow; not showy');
@@ -407,24 +410,25 @@ test('the search clears in one tap, and a search the filters empty says which fi
   await expect(page.getByTestId('host-match').first()).toContainText(/Its leaves feed the caterpillars of: .*mourning cloak/i);
 });
 
-test('flower color: a cultivar or one-color species first, a species that comes in it among others below a divider', async ({ page }) => {
+test('flower color: a cultivar or one-color species first; a species that comes in it among others heads its cultivars that do', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('coneflower');
   await page.locator('[data-testid=flower-colors] label', { hasText: 'Red' }).click();
-  const names = page.locator('.pname, [data-testid=comes-in-divider]');
-  await expect(page.getByTestId('comes-in-divider')).toHaveText('Also comes in red, depending on the plant you buy');
-  const order = await names.allTextContents();
-  const at = (t: string) => order.findIndex((x) => x.startsWith(t));
-  expect(at("Coneflower 'Tomato Soup'")).toBeGreaterThanOrEqual(0);
-  expect(at("Coneflower 'Tomato Soup'")).toBeLessThan(at('Also comes in red'));
-  expect(at('Purple coneflower (species)')).toBeGreaterThan(at('Also comes in red'));
+  await expect(page.locator('.plant-item .pname', { hasText: "Coneflower 'Tomato Soup'" })).toBeVisible();
+  // Purple coneflower comes in red among others: shown for its red cultivars, open to them, and says so (below a
+  // divider only where the catalog has no cultivar of it in the color: e2e/cultivar-fold.spec.ts).
+  const species = page.locator('.plant-item', { has: page.locator('.pname', { hasText: /^Purple coneflower \(species\)$/ }) });
+  await expect(species.getByTestId('comes-in-flag')).toHaveText('Comes in red among others');
+  const fold = species.locator('xpath=following-sibling::*[1][@data-testid="cultivars"]');
+  await expect(fold.getByTestId('cultivar-fold')).toHaveAttribute('aria-expanded', 'true');
+  await expect(fold.getByTestId('cultivar-list').locator('.pname', { hasText: "Purple coneflower 'Sombrero Salsa Red'" })).toBeVisible();
   // What's on, above the list: a chip each; taking one off clears its control too.
   await expect(page.getByTestId('active-chip')).toHaveText(['Red flowers']);
   await page.getByRole('button', { name: 'Remove filter: Red flowers' }).click();
   await expect(page.getByTestId('active-filters')).toBeHidden();
   await expect(page.locator('[data-testid=flower-colors] label', { hasText: 'Red' }).locator('input')).not.toBeChecked();
-  await expect(page.getByTestId('comes-in-divider')).toHaveCount(0);
+  await expect(species.getByTestId('comes-in-flag')).toHaveCount(0);
 });
 
 test('the filters say what they\'re set to: a dropdown names itself, a month met by season is marked, More filters counts what\'s on', async ({ page }) => {

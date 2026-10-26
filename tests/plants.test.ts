@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { byMatch, closeMatchIn, inNotes, matchPlant, nearShows, readQuery } from '../src/search';
+import { byMatch, closeMatchIn, inNotes, matchPlant, namesCultivar, nearShows, readQuery } from '../src/search';
 import { bloomMatch, earlierOnly, filterOn, matchedBy, seasonMonths, trueToColor, nonToxicToDogs, PLANT_FILTER_DEFAULTS, pickerCount, plantMatches, reportedPhrase, rowFlags, rowLines, shareDogWarnings, speciesOf, sunSaid, toxicToDogs, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
 import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs, spreadWays } from '../src/spread';
 import { readFileSync } from 'node:fs';
@@ -482,5 +482,17 @@ describe('the mature-height slider', () => {
     expect([heightValue(0, last), heightValue(0, 7), heightValue(9, last), heightValue(4, 7)]).toEqual(['', '-10', '20-', '4-10']);
     expect(['', '-10', '20-', '4-10'].map(heightLabel)).toEqual(['Any height', 'Up to 10 ft', '20 ft and taller', '4–10 ft']);
     expect([heightStops(''), heightStops('4-10'), heightStops('-10'), heightStops('24-')]).toEqual([[0, last], [4, 7], [0, 7], [9, last]]); // (24 ft: the nearest stop, 20)
+  });
+});
+
+describe('a search naming a cultivar', () => {
+  const pecan = { id: 'carya-illinoinensis', common: 'Pecan', botanical: 'Carya illinoinensis', synonyms: ['Hardy pecan'] } as Plant;
+  const kanza = { id: 'carya-illinoinensis-kanza', common: "Pecan 'Kanza'", botanical: "Carya illinoinensis 'Kanza'", parent: pecan.id } as Plant;
+  const limelight = { id: 'h-l', common: "Panicle hydrangea 'Limelight'", botanical: "Hydrangea paniculata 'Limelight'", synonyms: ['Limelight Hydrangea'], parent: 'h' } as Plant;
+  const panicle = { id: 'h', common: 'Panicle hydrangea', botanical: 'Hydrangea paniculata' } as Plant;
+  const says = (p: Plant, sp: Plant, q: string) => namesCultivar(p, sp, readQuery(q)!);
+  it('is one with a word of the cultivar\'s own names, not only its species\'', () => {
+    expect([says(kanza, pecan, 'kanza'), says(kanza, pecan, 'Pecan Kanz'), says(kanza, pecan, 'pecan'), says(kanza, pecan, 'hardy pecan'), says(kanza, pecan, 'carya')]).toEqual([true, true, false, false, false]);
+    expect([says(limelight, panicle, 'limelight'), says(limelight, panicle, 'hydrangea'), says(limelight, panicle, 'panicle hydrangeas')]).toEqual([true, false, false]);
   });
 });

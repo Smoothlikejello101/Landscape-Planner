@@ -28,6 +28,11 @@ it waits.
 
 ## Picker
 
+- **Folding cultivars with no species record.** Cultivars fold under their species' record (2026-10-26), but a
+  cultivar of a genus or a hybrid has none to fold under: 85 roses ("Rosa 'Julia Child'"), 10 camellias, 9 agastaches
+  and the like show a row each. A heading for the genus ("Roses · 85 cultivars") would fold them; it isn't a plant,
+  so it needs a name of its own, and a decision on what tapping it does.
+
 - **Flags for every disagreement.** A row is marked only when a filter
   match rests on what other sources say (a fact's `alt`). Other disagreements are listed in
   the opened row; flagging them all would mark most rows.

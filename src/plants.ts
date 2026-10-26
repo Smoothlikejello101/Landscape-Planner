@@ -520,6 +520,22 @@ export function earlierOnly(p: Plant, f: PlantFilter, sources = PLANT_META?.sour
   return FILTER_READS.filter(([k, reads, label]) => filterOn(f, k) && !via.has(label) && reads(p, f).some((x) => earlierListOnly(p.prov?.[x], sources)))
     .map(([, , label]) => label);
 }
+/**
+ * Each species' cultivars in the catalog (records naming it as their species, `parent`), and each cultivar's
+ * species: worked out once for the catalog loaded. The picker folds a species' cultivars under it.
+ */
+let folds: { from: Plant[]; byId: Map<string, Plant>; cultivars: Map<string, Plant[]> } | null = null;
+function foldIndex() {
+  if (folds?.from === PLANTS) return folds;
+  const byId = new Map(PLANTS.map((p) => [p.id, p]));
+  const cultivars = new Map<string, Plant[]>();
+  for (const p of PLANTS) if (p.parent && byId.has(p.parent)) cultivars.set(p.parent, [...(cultivars.get(p.parent) ?? []), p]);
+  return (folds = { from: PLANTS, byId, cultivars });
+}
+/** A species' cultivars in the catalog (none for a cultivar, or a plant of mine). */
+export const cultivarsOf = (p: Plant): Plant[] => foldIndex().cultivars.get(p.id) ?? [];
+/** A cultivar's species in the catalog, if it has one there. */
+export const speciesOfCultivar = (p: Plant): Plant | undefined => (p.parent ? foldIndex().byId.get(p.parent) : undefined);
 /** Plants in the last list that match only on the earlier list's word, and on what. */
 export const earlierFor = new Map<string, string[]>();
 /** Plants in the last list that come in a color asked for among others (a species: depends on the plant you buy), and which. */
