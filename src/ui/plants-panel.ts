@@ -5,7 +5,7 @@ import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery } fro
 import { formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantTakesSun, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
-import { spreadsAs } from '../spread';
+import { SPREAD_WAYS, spreadWays } from '../spread';
 import { heightLabel, heightRange } from './height-range';
 import { activeMyPlants, catalogMatchFor, isMine } from '../my-plants';
 import { openSwitch } from './switch-plant';
@@ -73,7 +73,7 @@ const SUN_NAMES: Record<string, string> = { Full: 'Full sun', Part: 'Part shade'
 /** Water needs, in order (the catalog's words; "Wetland" said plainly). */
 const WATER: [string, string, string][] = [['Low', 'Low (drought tolerant)', 'low'], ['Moderate', 'Moderate', 'moderate'], ['High', 'High', 'high'], ['Wetland', 'Wet soil or standing water', 'wet']];
 const GROWTH: [string, string][] = [['slow', 'Slow'], ['medium', 'Medium'], ['fast', 'Fast']];
-const SPREADS: Record<string, string> = { stays: 'Stays put', seed: 'Self-sows freely', runs: 'Spreads underground or by runners', aggressive: 'Spreads aggressively underground or by runners' };
+const SPREADS: Record<string, string> = { stays: 'Stays put', runs: 'Spreads by runners or underground', aggressive: 'Spreads aggressively by runners or underground', seed: 'Self-sows freely' };
 /** The colors offered, most plants first (the catalog's words: src/catalog.ts). Leaf color includes green (Jason, 2026-10-25). */
 const FLOWER_CHOICES = ['white', 'yellow', 'pink', 'purple', 'red', 'orange', 'blue', 'green', 'cream', 'brown', 'silver', 'black'];
 const LEAF_CHOICES = ['green', 'silver', 'gold', 'blue', 'purple', 'red', 'white', 'variegated', 'copper', 'orange', 'pink', 'cream', 'black'];
@@ -84,9 +84,12 @@ const SWATCHES: Record<string, string> = {
   pink: '#ec4899', purple: '#9333ea', blue: '#3b82f6', green: '#16a34a', brown: '#78350f', silver: '#a8a29e', black: '#1c1917',
   variegated: 'linear-gradient(135deg, #16a34a 50%, #fef3c7 50%)',
 };
-type ListKey = 'flowerColors' | 'leafColors' | 'attracts';
+type ListKey = 'flowerColors' | 'leafColors' | 'attracts' | 'spread';
 /** One value of a list filter, as its chip says it ("Red flowers", "Attracts bees"). */
-const LIST_ONE: Record<ListKey, (v: string) => string> = { flowerColors: (v) => `${cap(v)} flowers`, leafColors: (v) => `${cap(v)} leaves`, attracts: (v) => `Attracts ${v}` };
+const LIST_ONE: Record<ListKey, (v: string) => string> = {
+  flowerColors: (v) => `${cap(v)} flowers`, leafColors: (v) => `${cap(v)} leaves`, attracts: (v) => `Attracts ${v}`,
+  spread: (v) => `Spreading OK: ${SPREADS[v]?.toLowerCase() ?? v}`,
+};
 /**
  * Each filter by name, as its chip and "hidden by" say it, with its setting. Not the search, the folds, or whether
  * other sources' values count.
@@ -102,7 +105,7 @@ const FILTER_NAMES: Partial<Record<keyof PlantFilter, (f: PlantFilter) => string
   leafColors: (f) => `${cap(joined(f.leafColors, 'or'))} leaves`, fallColor: () => 'Fall color', evergreen: () => 'Evergreen', winterInterest: () => 'Winter interest',
   growth: (f) => `Growth rate: ${f.growth}`, height: (f) => `Height: ${heightLabel(f.height).replace(/^Up/, 'up')}`,
   lowMaintenance: () => 'Low maintenance', drought: () => 'Drought tolerant', wetFeet: () => 'Takes wet soil', clayOk: () => 'Clay OK',
-  deerResistant: () => 'Deer resistant', noThorns: () => 'No thorns listed', spread: (f) => SPREADS[f.spread] ?? f.spread, edible: () => 'Edible',
+  deerResistant: () => 'Deer resistant', noThorns: () => 'No thorns listed', spread: (f) => `Spreading OK: ${joined(f.spread.map((v) => SPREADS[v]?.toLowerCase() ?? v), 'or')}`, edible: () => 'Edible',
   inPlan: () => 'In this plan',
 };
 /** The filters under Poison & pets, and under More filters (their folded buttons count what's on). */
@@ -474,6 +477,10 @@ export function renderPlantsPanel() {
     return el('div', { style: { display: 'flex', gap: '8px', marginTop: '8px' } }, ...kids);
   }
   const checks = (...kids: Child[]) => el('div', { className: 'filter-checks' }, ...kids);
+  /** A set of ticks that work together (any one will do), boxed and named apart from the ticks that each narrow the list. */
+  const anyOf = (legend: string, testid: string, ticks: Child[], ...after: Child[]) =>
+    el('fieldset', { className: 'filter-set', 'data-testid': testid }, el('legend', {}, legend), el('div', { className: 'filter-checks' }, ticks), ...after);
+  const spreadUnverified = PLANTS.some((p) => spreadWays(p) && [p.prov?.self_seed, p.prov?.habit].some((pv) => !pv || pv.src.every((s) => PLANT_META?.sources?.[s]?.trust === 'unverified')));
   const groupHead = (text: string) => el('div', { className: 'filter-group' }, text);
 
   // ---- ALWAYS IN VIEW: the filters that judge nearly every plant (decided with Jason, 2026-10-25) ----
@@ -547,8 +554,8 @@ export function renderPlantsPanel() {
   const here = gardenStateName();
   const adv = el('div', { className: 'filter-box', id: 'more-filters', hidden: !plantFilter.advanced },
     groupHead('Wildlife'),
-    el('div', { className: 'hint' }, 'Attracts any of'),
-    checks(ATTRACT_CHOICES.map(([v, t]) => listToggle('attracts', v, t, 'filter-check'))),
+    // (A set of ticks where any one will do sits in its own box, so it doesn't read as more ticks that each narrow the list.)
+    anyOf('Attracts any of these', 'attracts-set', ATTRACT_CHOICES.map(([v, t]) => listToggle('attracts', v, t, 'filter-check'))),
     checks(mkCheck('Feeds caterpillars (host plant)', 'hostOnly')),
     // (Native to the garden's own state, once its ZIP is known: Kew's checklist. To North America: the earlier list.)
     row(mkSelect('native', 'Any native status', [...(here ? [['@here', `Native to ${here}`] as Opt] : []), ['@na', 'Native to North America (unverified)']],
@@ -564,11 +571,10 @@ export function renderPlantsPanel() {
     checks(mkCheck('Low maintenance', 'lowMaintenance'), mkCheck('Drought tolerant', 'drought'), mkCheck('Takes wet soil', 'wetFeet'),
       mkCheck('Clay OK', 'clayOk'), mkCheck('Deer resistant', 'deerResistant'), mkCheck('Hide plants with thorns', 'noThorns'), mkCheck('Edible', 'edible')),
     el('div', { className: 'hint' }, 'For dry shade: Drought tolerant, with Shade under Sun.'),
-    row(
-      // (Says unverified while any plant it lets through goes by the earlier list for either fact, as the dog filter does.)
-      mkSelect('spread', 'Any spreading', (['stays', 'seed', 'runs', 'aggressive'] as const).map((v): Opt => [v,
-        v === 'stays' && PLANTS.some((p) => spreadsAs(p, 'stays') && [p.prov?.self_seed, p.prov?.habit].some((pv) => !pv || pv.src.every((s) => PLANT_META?.sources?.[s]?.trust === 'unverified'))) ? 'Stays put (unverified)' : SPREADS[v]]),
-      { name: 'How it spreads', testid: 'spread-filter' })),
+    // (Says unverified while any plant it judges goes by the earlier list for either fact, as the dog filter does.)
+    anyOf(spreadUnverified ? 'Spreading you\u2019re OK with (unverified)' : 'Spreading you\u2019re OK with', 'spread-filter',
+      SPREAD_WAYS.map((v) => listToggle('spread', v, SPREADS[v], 'filter-check')),
+      el('div', { className: 'hint' }, 'A plant shows only if every way it spreads is ticked: a runner that also self-sows freely needs both.')),
     groupHead('Sources'),
     mkCheck('Where sources disagree, count both values', 'withReported'),
     el('div', { className: 'hint' }, 'A plant shows the value more sources give (on a tie, the cautious one), with the other beside it. One shown only because of the other is marked !.'));

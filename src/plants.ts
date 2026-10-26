@@ -8,7 +8,7 @@ import type { CircleShape, Point, Shape } from './types';
 import { snap, uid } from './util';
 import { isDataSized, plantRadius } from './my-plants';
 import { currentForm, isCatalogV2, resolveCatalog, type Provenance } from './catalog';
-import { spreadsAs } from './spread';
+import { spreadsOnlyAs } from './spread';
 import { setRadius } from './geometry';
 import { isLocked } from './roles';
 import { shownWith } from './status';
@@ -174,8 +174,12 @@ export const PLANT_FILTER_DEFAULTS = {
   flowerColors: NONE, leafColors: NONE, attracts: NONE,
   /** Growth rate: '' any; 'slow', 'medium' or 'fast'. */
   growth: '',
-  /** How it spreads (src/spread.ts): '' any; 'stays' stays put; 'seed' self-sows freely; 'runs' spreads underground or by runners; 'aggressive' aggressively so. */
-  spread: '',
+  /**
+   * The ways of spreading the person is OK with (src/spread.ts spreadsOnlyAs: every way a plant spreads must be one of
+   * them): 'stays' stays put; 'runs' spreads underground or by runners; 'aggressive' aggressively so; 'seed' self-sows
+   * freely. Empty: any.
+   */
+  spread: NONE,
   /** Mature height (typical), "lo-hi" in feet, either end empty when open: src/ui/height-range.ts. */
   height: '',
   /** Toxic to dogs: '' any; 'hideToxic' leaves out plants with a warning (unrated ones stay); 'nonToxic' only plants rated non-toxic. */
@@ -324,7 +328,7 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (f.lowMaintenance && p.maintenance_level !== 'low') return false;
   if (f.drought && !p.tolerates?.some((x) => x === 'drought' || x === 'dry soil')) return false;
   if (f.noThorns && p.thorns === true) return false;
-  if (f.spread && !spreadsAs(p, f.spread)) return false;
+  if (f.spread.length && !spreadsOnlyAs(p, f.spread)) return false;
   // (Any of the colors, or of who it attracts: a plant that comes in red or pink, one that draws bees or butterflies.)
   if (f.flowerColors.length && !showyColors(p).some((c) => f.flowerColors.includes(c))) return false;
   if (f.leafColors.length && !(p.leaf_color ?? []).some((c) => f.leafColors.includes(c))) return false;
