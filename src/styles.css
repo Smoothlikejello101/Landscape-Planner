@@ -467,6 +467,9 @@ a { color: inherit; }
 .cultivar-fold[aria-expanded=false] .fold-chev { transform: rotate(-90deg); }
 .cultivar-list { margin-left: 24px; border-left: 2px solid #d1fae5; }
 .cultivar-list .plant-item:last-child { border-bottom: 0; }
+/* A group's heading (cultivars with no species record: "Roses"): not a plant, the whole row opens it. */
+.plant-item .group-head { min-height: 48px; }
+.group-head[aria-expanded=true] .row-open .fold-chev { transform: none; }
 .pflags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
 .pflag { padding: 0 6px; border-radius: 999px; font-size: 10px; font-weight: 600; line-height: 16px; border: 1px solid transparent; }
 .pflag.native { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }

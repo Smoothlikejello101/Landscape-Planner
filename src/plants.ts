@@ -523,19 +523,86 @@ export function earlierOnly(p: Plant, f: PlantFilter, sources = PLANT_META?.sour
 /**
  * Each species' cultivars in the catalog (records naming it as their species, `parent`), and each cultivar's
  * species: worked out once for the catalog loaded. The picker folds a species' cultivars under it.
+ *
+ * A cultivar with no species record (a genus's or a hybrid's: "Rosa 'Julia Child'", "Camellia 'Winter's Charm'") is
+ * gathered by its botanical name's genus, or species where it names one the catalog has no record of, under a
+ * heading that isn't a plant (decided with Jason, 2026-10-26: "Roses"): a group, its id "group:" and that name.
  */
-let folds: { from: Plant[]; byId: Map<string, Plant>; cultivars: Map<string, Plant[]> } | null = null;
+let folds: { from: Plant[]; byId: Map<string, Plant>; cultivars: Map<string, Plant[]>; groupOf: Map<string, Plant> } | null = null;
+/** A cultivar by its name: in quotes after a capital ("Coneflower 'Magnus'", not "Bush's"), or a series or group. */
+const NAMED_CULTIVAR = /['\u2018][A-Z][^'\u2018\u2019]*['\u2019]/;
+export const namesACultivar = (p: Plant): boolean =>
+  [p.botanical, p.common].some((n) => NAMED_CULTIVAR.test(n ?? '')) || /\b(series|group)\b/i.test(p.botanical ?? '');
+/** What a cultivar's botanical name names besides it: its genus, or its species ("Rosa", "Juniperus communis"). */
+export function groupKey(botanical: string): string {
+  // (An intergeneric cross leads with its ×, "x Gordlinia grandiflora 'Sunshine'": its genus is the next word.)
+  const w = botanical.replace(/\([^)]*\)/g, ' ').trim().replace(/^[x\u00d7]\s+(\S+)/, '\u00d7$1').split(/\s+/);
+  if (/^[x\u00d7]$/.test(w[1] ?? '') && /^[a-z\u00eb-]+$/.test(w[2] ?? '')) return `${w[0]} \u00d7 ${w[2]}`;
+  return /^[a-z\u00eb-]+$/.test(w[1] ?? '') && !/^(x|hybrids?|types?|series|group)$/.test(w[1]) ? `${w[0]} ${w[1]}` : w[0];
+}
+/** A plant name as a heading over several ("Rose" → Roses, "Holly" → Hollies; "Hibiscus", "Drift roses" as they are). */
+export function pluralName(name: string): string {
+  if (/(s|us)$/i.test(name) && !/(is)$/i.test(name)) return name;
+  if (/(is|x|z|ch|sh)$/i.test(name)) return name + 'es';
+  if (/[^aeiou]y$/i.test(name)) return name.slice(0, -1) + 'ies';
+  return name + 's';
+}
+/**
+ * A group's name from its cultivars' own names: the words they share around the cultivar, the most of them alike
+ * ("Rose 'Julia Child' (floribunda)", "Rose 'Belinda's Dream'" → Roses). Its genus written as a name ("Rosa
+ * 'Abraham Darby'") counts for an English name that starts the same ("Rose"); on a tie the genus wins (always
+ * right: Rhododendron, not Azalea). None: its botanical name. With the name for one ("Rose"): a search for it isn't
+ * a search naming the cultivar.
+ */
+function groupName(members: Plant[], key: string): [string, string] {
+  const genus = key.split(' ')[0].toLowerCase();
+  const votes = new Map<string, { n: number; as: string }>();
+  for (const m of members) {
+    const plant = m.common.replace(/['\u2018][A-Z].*['\u2019]/, ' ').replace(/\([^)]*\)/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!plant || plant === m.common.trim()) continue; // (no cultivar named in quotes: its name is its own)
+    const k = plant.toLowerCase();
+    votes.set(k, { n: (votes.get(k)?.n ?? 0) + 1, as: votes.get(k)?.as ?? plant });
+  }
+  const g = votes.get(genus);
+  const english = g && [...votes].find(([k]) => k !== genus && !k.includes(' ') && k.slice(0, 3) === genus.slice(0, 3));
+  if (g && english) { english[1].n += g.n; votes.delete(genus); }
+  const best = [...votes].sort(([ka, a], [kb, b]) => b.n - a.n || Number(kb === genus) - Number(ka === genus) || a.as.length - b.as.length)[0]?.[1];
+  if (!best || (key.includes(' ') && best.as.toLowerCase() === key.toLowerCase())) return [key, key]; // (a species' botanical name: as it is)
+  const one = best.as[0].toUpperCase() + best.as.slice(1);
+  return [pluralName(one), one];
+}
 function foldIndex() {
   if (folds?.from === PLANTS) return folds;
   const byId = new Map(PLANTS.map((p) => [p.id, p]));
   const cultivars = new Map<string, Plant[]>();
   for (const p of PLANTS) if (p.parent && byId.has(p.parent)) cultivars.set(p.parent, [...(cultivars.get(p.parent) ?? []), p]);
-  return (folds = { from: PLANTS, byId, cultivars });
+  // Groups: cultivars with no species record, by genus (or species with no record: one with a record is its own).
+  const species = new Set(PLANTS.filter((p) => !p.parent && !namesACultivar(p) && p.botanical).map((p) => p.botanical));
+  const byKey = new Map<string, Plant[]>();
+  for (const p of PLANTS) {
+    if ((p.parent && byId.has(p.parent)) || !p.botanical || !namesACultivar(p)) continue;
+    const key = groupKey(p.botanical);
+    if (key.includes(' ') && species.has(key)) continue;
+    byKey.set(key, [...(byKey.get(key) ?? []), p]);
+  }
+  const groupOf = new Map<string, Plant>();
+  for (const [key, members] of byKey) {
+    if (members.length < 2) continue;
+    const [name, one] = groupName(members, key);
+    const head = { id: `group:${key}`, common: name, botanical: key, synonyms: [one] } as Plant;
+    cultivars.set(head.id, members);
+    for (const m of members) groupOf.set(m.id, head);
+  }
+  return (folds = { from: PLANTS, byId, cultivars, groupOf });
 }
-/** A species' cultivars in the catalog (none for a cultivar, or a plant of mine). */
+/** A species' cultivars in the catalog, or a group's (none for a cultivar, or a plant of mine). */
 export const cultivarsOf = (p: Plant): Plant[] => foldIndex().cultivars.get(p.id) ?? [];
 /** A cultivar's species in the catalog, if it has one there. */
 export const speciesOfCultivar = (p: Plant): Plant | undefined => (p.parent ? foldIndex().byId.get(p.parent) : undefined);
+/** What a cultivar folds under: its species, else the group of its genus's cultivars (a heading, not a plant). */
+export const foldHeadOf = (p: Plant): Plant | undefined => speciesOfCultivar(p) ?? foldIndex().groupOf.get(p.id);
+/** Whether a fold's head is a group's heading (not a plant: nothing to place). */
+export const isGroupHead = (p: Plant): boolean => p.id.startsWith('group:');
 /** Plants in the last list that match only on the earlier list's word, and on what. */
 export const earlierFor = new Map<string, string[]>();
 /** Plants in the last list that come in a color asked for among others (a species: depends on the plant you buy), and which. */

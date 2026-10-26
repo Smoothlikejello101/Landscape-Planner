@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { byMatch, closeMatchIn, inNotes, matchPlant, namesCultivar, nearShows, readQuery } from '../src/search';
-import { bloomMatch, earlierOnly, filterOn, matchedBy, seasonMonths, trueToColor, nonToxicToDogs, PLANT_FILTER_DEFAULTS, pickerCount, plantMatches, reportedPhrase, rowFlags, rowLines, shareDogWarnings, speciesOf, sunSaid, toxicToDogs, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
+import { bloomMatch, groupKey, pluralName, earlierOnly, filterOn, matchedBy, seasonMonths, trueToColor, nonToxicToDogs, PLANT_FILTER_DEFAULTS, pickerCount, plantMatches, reportedPhrase, rowFlags, rowLines, shareDogWarnings, speciesOf, sunSaid, toxicToDogs, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
 import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs, spreadWays } from '../src/spread';
 import { readFileSync } from 'node:fs';
 import { HEIGHT_STOPS, heightLabel, heightStops, heightValue } from '../src/ui/height-range';
@@ -494,5 +494,17 @@ describe('a search naming a cultivar', () => {
   it('is one with a word of the cultivar\'s own names, not only its species\'', () => {
     expect([says(kanza, pecan, 'kanza'), says(kanza, pecan, 'Pecan Kanz'), says(kanza, pecan, 'pecan'), says(kanza, pecan, 'hardy pecan'), says(kanza, pecan, 'carya')]).toEqual([true, true, false, false, false]);
     expect([says(limelight, panicle, 'limelight'), says(limelight, panicle, 'hydrangea'), says(limelight, panicle, 'panicle hydrangeas')]).toEqual([true, false, false]);
+  });
+});
+
+describe('a heading over cultivars with no species record', () => {
+  it('gathers them by genus, or by a species the catalog has no record of', () => {
+    expect([groupKey("Rosa 'Julia Child'"), groupKey('Rosa Drift series'), groupKey("Rosa Child's Play 'SAVachild'"), groupKey("Juniperus communis 'Compressa'"),
+      groupKey("Lagerstroemia ('Natchez' / 'Muskogee')"), groupKey("Fothergilla × intermedia 'Mt. Airy'"), groupKey("Rudbeckia × 'American Gold Rush'"), groupKey("x Gordlinia grandiflora 'Sunshine'")])
+      .toEqual(['Rosa', 'Rosa', 'Rosa', 'Juniperus communis', 'Lagerstroemia', 'Fothergilla × intermedia', 'Rudbeckia', '×Gordlinia grandiflora']);
+  });
+  it('is named for many of them', () => {
+    expect(['Rose', 'Holly', 'Camellia', 'Butterfly bush', 'Iris', 'Hibiscus', 'Drift roses', 'Crape myrtle'].map(pluralName))
+      .toEqual(['Roses', 'Hollies', 'Camellias', 'Butterfly bushes', 'Irises', 'Hibiscus', 'Drift roses', 'Crape myrtles']);
   });
 });

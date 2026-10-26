@@ -2,7 +2,7 @@ import { el, type Child } from '../dom';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, hostMatchText, inNotes, matchPlant, namesCultivar, nearShows, readQuery } from '../search';
-import { formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantTakesSun, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, speciesOfCultivar } from '../plants';
+import { formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantTakesSun, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, isGroupHead } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { SPREAD_WAYS, spreadWays } from '../spread';
@@ -65,6 +65,8 @@ function pick(p: Plant) {
 function openForm(args: PlantFormArgs) { state.plantForm = args; state.panel = 'plantForm'; render(); }
 
 const cap = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
+/** The fewest cultivars a fold holds (Jason, 2026-10-26): fewer are rows of their own. */
+const MIN_FOLD = 4;
 const joined = (xs: string[], word: string) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} ${word} ${xs[xs.length - 1]}` : xs[0] ?? '');
 const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 /** "Blooming in June", "Blooming in spring". */
@@ -329,45 +331,81 @@ export function renderPlantsPanel() {
     const groups = [0, 1, 2, 3].map((g) => hits.filter((p) => groupOf(p) === g));
     const filtering = activeChips().length > 0 || plantFilter.inPlan;
     const hitIds = new Set(hits.map((p) => p.id));
-    const folded = new Map<string, Plant[]>(); // (species id: its cultivars the list has, in the list's order)
+    const at = new Map(hits.map((p, i) => [p.id, i]));
+    const folded = new Map<string, Plant[]>(); // (a fold's head, a species or a group: its cultivars the list has, in its order)
     const alone = new Set<string>(); // (cultivars named by the search, on rows of their own)
     for (const p of hits) {
-      const sp = speciesOfCultivar(p);
-      if (!sp || (forTree && !isTree(sp))) continue;
-      if (q && namesCultivar(p, sp, q)) { alone.add(p.id); continue; }
-      folded.set(sp.id, [...(folded.get(sp.id) ?? []), p]);
+      const head = foldHeadOf(p);
+      if (!head || (forTree && !isGroupHead(head) && !isTree(head))) continue;
+      if (q && namesCultivar(p, head, q)) { alone.add(p.id); continue; }
+      folded.set(head.id, [...(folded.get(head.id) ?? []), p]);
     }
+    /**
+     * What a head's fold holds, or null for none. Matching (or a group, which no search finds itself): the cultivars
+     * the list has. Browsing or a search alone: a species' every cultivar (the search found the species; its
+     * cultivars are what it comes as). Never one the list leaves out whatever the search (not a tree while picking
+     * one, an invasive while browsing), nor one on a row of its own. Fewer than MIN_FOLD isn't a fold: they're rows
+     * of their own (Jason, 2026-10-26: "Roses (2) should have just been in the list").
+     */
+    const foldMemo = new Map<string, { all: Plant[]; kids: Plant[] } | null>();
+    const foldFor = (head: Plant) => {
+      if (!foldMemo.has(head.id)) {
+        const all = cultivarsOf(head).filter((c) => !alone.has(c.id) && (!forTree || isTree(c)) && !(c.invasive && invasivesLeftOut(plantFilter)));
+        // (In the list's order: best matches, else by name; any the search didn't find after them.)
+        const kids = filtering || isGroupHead(head) ? folded.get(head.id) ?? []
+          : [...all].sort((a, b) => (at.get(a.id) ?? Infinity) - (at.get(b.id) ?? Infinity) || a.common.localeCompare(b.common));
+        foldMemo.set(head.id, kids.length >= MIN_FOLD && (!forTree || isGroupHead(head) || isTree(head)) ? { all, kids } : null);
+      }
+      return foldMemo.get(head.id)!;
+    };
     const placed = new Set<string>();
-    const [sourced, species, others, earlier] = groups.map((g) => g.flatMap((p) => {
-      const sp = speciesOfCultivar(p);
-      const row = sp && folded.has(sp.id) && !alone.has(p.id) ? sp : p;
-      if (placed.has(row.id)) return [];
-      placed.add(row.id);
-      return [row];
-    }));
-    /** A row, and a species' fold of its cultivars under it. */
+    const [sourced, species, others, earlier] = groups.map((g) => {
+      const out = g.flatMap((p) => {
+        const head = foldHeadOf(p);
+        const row = head && !alone.has(p.id) && foldFor(head)?.kids.includes(p) ? head : p;
+        if (placed.has(row.id)) return [];
+        placed.add(row.id);
+        return [row];
+      });
+      // (Browsing, by name: a heading at its own name, not its first cultivar's: Roses under R, not Climbing rose's C.)
+      return q ? out : out.sort((a, b) => a.common.localeCompare(b.common));
+    });
+    /** The fold's line, and its cultivars under it when open. `say`: what the line says; `toggle`: the button. */
+    const foldBlock = (head: Plant, g: number, kids: Plant[], toggle: HTMLElement, open: boolean) => {
+      const list = el('div', { className: 'cultivar-list', 'data-testid': 'cultivar-list' });
+      const show = (o: boolean) => {
+        toggle.setAttribute('aria-expanded', String(o));
+        list.replaceChildren(...(o ? kids.map((c) => buildRow(c, g)) : []));
+      };
+      toggle.addEventListener('click', () => { const o = toggle.getAttribute('aria-expanded') !== 'true'; foldOpen.set(head.id, o); show(o); });
+      show(foldOpen.get(head.id) ?? open);
+      return list;
+    };
+    /** A row, with a species' fold of its cultivars under it; or a group's heading, which is its fold. */
     const rowWithFold = (p: Plant, g: number) => {
+      const fold = foldFor(p);
+      if (isGroupHead(p)) {
+        if (!fold) return;
+        const { all, kids } = fold;
+        const narrowed = kids.length < all.length;
+        const count = narrowed ? `${countWord(kids.length)} of ${countWord(all.length)} cultivars match${filtering ? ' your filters' : ''}` : `${countWord(kids.length)} cultivars`;
+        // (Not a plant: nothing to place. The whole heading opens and closes it.)
+        const toggle = el('button', { className: 'row-toggle group-head', 'aria-expanded': 'false', 'data-testid': 'group-head' },
+          el('div', { style: { width: '14px', height: '14px', borderRadius: '50%', flex: 'none', background: plantColor(kids[0]), marginRight: '10px' } }),
+          el('div', { className: 'pinfo' }, el('div', { className: 'pname' }, p.common), el('div', { className: 'pmeta', 'data-testid': 'group-count' }, `${p.botanical} \u00b7 ${count}`)),
+          el('span', { className: 'row-open' }, el('span', { className: 'fold-chev', html: I.chevronDown })));
+        const item = el('div', { className: 'plant-item group-item' }, el('div', { className: 'proj-row', style: { alignItems: 'center' } }, toggle));
+        listWrap.append(el('div', { className: 'cultivars group', 'data-testid': 'cultivar-group' }, item, foldBlock(p, g, kids, toggle, filtering && narrowed)));
+        return;
+      }
       listWrap.appendChild(buildRow(p, g));
-      // (Not one on a row of its own, nor one the list leaves out whatever the search: not a tree while picking one,
-      // an invasive while browsing.)
-      const all = cultivarsOf(p).filter((c) => !alone.has(c.id) && (!forTree || isTree(c)) && !(c.invasive && invasivesLeftOut(plantFilter)));
-      if (!all.length || (forTree && !isTree(p))) return;
-      // Matching: the cultivars the list has. Browsing or a search alone: every cultivar it has (the search found the
-      // species; its cultivars are what it comes as).
-      const kids = filtering ? folded.get(p.id) ?? [] : all;
-      if (!kids.length) return;
+      if (!fold) return;
+      const { all, kids } = fold;
       const narrowed = filtering && (kids.length < all.length || !hitIds.has(p.id));
       const say = narrowed ? `${countWord(kids.length)} of ${countWord(all.length)} cultivars match your filters${hitIds.has(p.id) ? '' : '; the species itself doesn\u2019t'}`
-        : `${countWord(kids.length)} cultivar${kids.length === 1 ? '' : 's'}`;
-      const list = el('div', { className: 'cultivar-list', 'data-testid': 'cultivar-list' });
-      const head = el('button', { className: 'cultivar-fold', 'data-testid': 'cultivar-fold', 'aria-expanded': 'false' }, el('span', { className: 'fold-chev', html: I.chevronDown }), el('span', {}, say));
-      const show = (open: boolean) => {
-        head.setAttribute('aria-expanded', String(open));
-        list.replaceChildren(...(open ? kids.map((c) => buildRow(c, g)) : []));
-      };
-      head.addEventListener('click', () => { const open = head.getAttribute('aria-expanded') !== 'true'; foldOpen.set(p.id, open); show(open); });
-      listWrap.append(el('div', { className: 'cultivars', 'data-testid': 'cultivars' }, head, list));
-      show(foldOpen.get(p.id) ?? narrowed);
+        : `${countWord(kids.length)} cultivars`;
+      const toggle = el('button', { className: 'cultivar-fold', 'data-testid': 'cultivar-fold', 'aria-expanded': 'false' }, el('span', { className: 'fold-chev', html: I.chevronDown }), el('span', {}, say));
+      listWrap.append(el('div', { className: 'cultivars', 'data-testid': 'cultivars' }, toggle, foldBlock(p, g, kids, toggle, narrowed)));
     };
     // (Each group up to 60 rows, so a long first group never hides the others.)
     const rows = (ps: Plant[], g: number) => {

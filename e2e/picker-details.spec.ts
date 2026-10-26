@@ -410,25 +410,24 @@ test('the search clears in one tap, and a search the filters empty says which fi
   await expect(page.getByTestId('host-match').first()).toContainText(/Its leaves feed the caterpillars of: .*mourning cloak/i);
 });
 
-test('flower color: a cultivar or one-color species first; a species that comes in it among others heads its cultivars that do', async ({ page }) => {
+test('flower color: a cultivar or one-color species first, a species that comes in it among others below a divider', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('coneflower');
   await page.locator('[data-testid=flower-colors] label', { hasText: 'Red' }).click();
-  await expect(page.locator('.plant-item .pname', { hasText: "Coneflower 'Tomato Soup'" })).toBeVisible();
-  // Purple coneflower comes in red among others: shown for its red cultivars, open to them, and says so (below a
-  // divider only where the catalog has no cultivar of it in the color: e2e/cultivar-fold.spec.ts).
-  const species = page.locator('.plant-item', { has: page.locator('.pname', { hasText: /^Purple coneflower \(species\)$/ }) });
-  await expect(species.getByTestId('comes-in-flag')).toHaveText('Comes in red among others');
-  const fold = species.locator('xpath=following-sibling::*[1][@data-testid="cultivars"]');
-  await expect(fold.getByTestId('cultivar-fold')).toHaveAttribute('aria-expanded', 'true');
-  await expect(fold.getByTestId('cultivar-list').locator('.pname', { hasText: "Purple coneflower 'Sombrero Salsa Red'" })).toBeVisible();
+  const names = page.locator('.pname, [data-testid=comes-in-divider]');
+  await expect(page.getByTestId('comes-in-divider')).toHaveText('Also comes in red, depending on the plant you buy');
+  const order = await names.allTextContents();
+  const at = (t: string) => order.findIndex((x) => x.startsWith(t));
+  expect(at("Coneflower 'Tomato Soup'")).toBeGreaterThanOrEqual(0);
+  expect(at("Coneflower 'Tomato Soup'")).toBeLessThan(at('Also comes in red'));
+  expect(at('Purple coneflower (species)')).toBeGreaterThan(at('Also comes in red'));
   // What's on, above the list: a chip each; taking one off clears its control too.
   await expect(page.getByTestId('active-chip')).toHaveText(['Red flowers']);
   await page.getByRole('button', { name: 'Remove filter: Red flowers' }).click();
   await expect(page.getByTestId('active-filters')).toBeHidden();
   await expect(page.locator('[data-testid=flower-colors] label', { hasText: 'Red' }).locator('input')).not.toBeChecked();
-  await expect(species.getByTestId('comes-in-flag')).toHaveCount(0);
+  await expect(page.getByTestId('comes-in-divider')).toHaveCount(0);
 });
 
 test('the filters say what they\'re set to: a dropdown names itself, a month met by season is marked, More filters counts what\'s on', async ({ page }) => {
