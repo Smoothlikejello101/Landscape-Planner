@@ -28,6 +28,7 @@ import { join } from 'node:path';
 import { cacheName, fetchSession, fileStore, runFetch, siteOf } from './fetch-lib.mjs';
 import { get } from './net.mjs';
 import { lockCatalogSrc, savedMeta, savedPage } from './pages.mjs';
+import { quotedCultivars } from './ncsu-page.mjs';
 import { TERMS_GUESSES, headline, isUseTerms, looksLikeTerms, mentionsTerms, plainText, siteKind, termsKey, termsLinks, termsPassages, termsVerdict, webClaims } from './web.mjs';
 
 const args = process.argv.slice(2);
@@ -68,7 +69,7 @@ const sample = JSON.parse(readFileSync(samplePath, 'utf8'));
 const picks = new Map(); // plant id → { plant, urls }
 for (const s of sample) {
   const rec = byId.get(s.id) ?? {};
-  const cultivar = (/'([^']+)'/.exec(rec.botanical ?? '') ?? /'([^']+)'/.exec(rec.common ?? ''))?.[1] ?? null;
+  const cultivar = quotedCultivars(rec.botanical)[0] ?? quotedCultivars(rec.common)[0] ?? null;
   const name = cultivar ? `"${cultivar}" ${s.species}` : rec.botanical && rec.botanical !== s.species ? `"${rec.common}" ${s.species}` : `"${s.species}"`;
   const urls = [];
   for (const q of [`${name} plant`, `${name} hardiness zone height spread sun`]) {

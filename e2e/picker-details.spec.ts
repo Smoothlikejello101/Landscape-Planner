@@ -483,3 +483,21 @@ test('what makes a plant\'s winter interest, each part with its source: showy ba
   const winterberry = await open('Winterberry holly');
   await expect(winterberry.getByTestId('winter-fruit')).toHaveText('Fruit stays into winter: yellow, orange, red');
 });
+
+test('a cultivar once grouped with another has a record of its own; one no source sizes takes its species\' size, said so', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  const open = async (search: string, name: string) => {
+    await page.getByTestId('plant-search').fill(search);
+    const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: new RegExp(`^${name}$`) }) });
+    await item.getByTestId('plant-row').click();
+    const details = item.getByTestId('plant-details');
+    return (label: string) => details.locator('dt', { hasText: new RegExp(`^${label}$`) }).locator('xpath=following-sibling::dd[1]');
+  };
+  const kanza = await open('Kanza', "Pecan 'Kanza'");
+  await expect(kanza('Height')).toContainText('from its species');
+  await expect(kanza('Spread')).toContainText('from its species');
+  // The record it was grouped in, now the one cultivar whose size it showed.
+  const lakota = await open('Lakota', "Pecan 'Lakota'");
+  await expect(lakota('Height')).not.toContainText('from its species');
+});

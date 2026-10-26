@@ -74,7 +74,9 @@ for (const s of sample) {
     ? `The Arkansas atlas's combined map for ${s.species}: ${ar.why.replace('combined map: ', '')}: left for the review`
     : `The Arkansas atlas maps ${s.species} more than once with different status: left for the review`);
   // Claims from each source, combined by tier (docs/catalog-sources.md).
-  const cultivar = /'[^']+'/.test(`${rec?.common ?? ''} ${rec?.botanical ?? ''}`);
+  // (A record that takes its species' size, a series named without quotes too: split.mjs, "Hibiscus syriacus Chiffon
+  // series", reading the species' page.)
+  const cultivar = recordCultivars(rec).length > 0 || !!rec?.inherits;
   // (A species-level page: one whose title names no cultivar (the species', a synonym's, the page NC State moved it
   // to, a genus's), or one under a reviewed other name; for a genus or group, any page but its one cultivar's own:
   // Thuja 'Green Giant' for "Thuja 'Green Giant'", not 'Natchez' for three crape myrtles.)

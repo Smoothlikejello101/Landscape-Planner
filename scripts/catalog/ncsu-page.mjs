@@ -9,8 +9,17 @@ export function ncsuTitle(html) {
   const t = /<title>\s*([^(<|]+)/.exec(html ?? '')?.[1] ?? '';
   return straight(t.replace(/&#x27;|&#39;|&apos;|&#8216;|&#8217;|&lsquo;|&rsquo;|&quot;|&amp;|&nbsp;/g, (e) => ENTITIES[e])).replace(/\s+/g, ' ').trim();
 }
+/**
+ * The cultivars a name gives in quotes ("Thuja 'Green Giant'", "('Kanza' / 'Lakota')"), in order. An apostrophe in a
+ * word isn't a quote: "Kalm's St. John's wort" names none, "'Kramer's Supreme'" is one cultivar, and "Lamb's ear
+ * 'Big Ears'" names 'Big Ears'. (A quote that opens follows no letter or digit; one that closes is followed by none.)
+ */
+const QUOTED = /(?<![\p{L}\p{N}])'(.+?)'(?![\p{L}\p{N}])/gu;
+export const quotedCultivars = (text) => [...straight(text).matchAll(QUOTED)].map((m) => m[1].trim()).filter(Boolean);
+/** A name with its quoted cultivars taken out (each as `by`), its apostrophes kept: "Rosa Child's Play 'SAVachild'" → "Rosa Child's Play ". */
+export const withoutCultivars = (text, by = ' ') => straight(text).replace(QUOTED, by);
 /** The cultivar a page's title names ("Thuja 'Green Giant'" → Green Giant), or null for a species' or genus's page. */
-export const titleCultivar = (html) => /'([^']+)'/.exec(ncsuTitle(html))?.[1] ?? null;
+export const titleCultivar = (html) => quotedCultivars(ncsuTitle(html))[0] ?? null;
 
 /**
  * The species a page names, from its fields (`fields`: extract.mjs ncsuFields); a hybrid's page with no species
@@ -33,7 +42,7 @@ export function acceptsPage(entry, name, genus) {
 }
 
 /** The cultivars a record names ("Thuja 'Green Giant'", "Lagerstroemia ('Natchez' / 'Muskogee')"), once each. */
-export const recordCultivars = (rec) => [...new Set([...straight(`${rec?.botanical ?? ''} ${rec?.common ?? ''}`).matchAll(/'([^']+)'/g)].map((m) => m[1]))];
+export const recordCultivars = (rec) => [...new Set([...quotedCultivars(rec?.botanical), ...quotedCultivars(rec?.common)])];
 
 /**
  * Whether a genus or group record reads the page as its own cultivar's, so the page's size, form and color are

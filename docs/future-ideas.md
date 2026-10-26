@@ -21,10 +21,15 @@ it waits.
   someone adds a plant or a note ("Help us make FullGrown better…"), sending
   plant names only. Needs a privacy decision before launch.
 
-- **Cultivars grouped in one record, split.** Some records stand for several cultivars ("Crape myrtle
-  ('Natchez' / 'Muskogee' / 'Tonto')"), whose sizes differ: 'Natchez' and 'Muskogee' grow into trees, 'Tonto'
-  stays shrub-sized. Each could be its own record with its own size, once a source gives each one's. Low
-  priority (Jason, 2026-10-23).
+- **Cultivars grouped in one record, split.** Jason's default (2026-10-25): cultivars get records of their own. The
+  first seven were split on 2026-10-26 (decisions.json `split`). The other records that name several cultivars
+  (crape myrtle 'Natchez' / 'Muskogee' / 'Tonto', whose sizes differ: 'Tonto' stays shrub-sized; apple, blueberry,
+  blackberry and the rest the review lists as "a cultivar with no species record") are next, by the same rule.
+  Records for a series or "types" (boxwood "microphylla types") name no one cultivar and stay as they are.
+
+- **Plants named with a list of names.** Six plants added from NC State before 2026-10-26 are named with GBIF's
+  English names all in one ("Umbrella sedge, Umbrella papyrus, Umbrella palm, …", "Small-leaved Elm, Jersey Elm,
+  English Elm"). New plants take the first now; an added plant keeps its name, so these six need renaming once.
 
 ## Picker
 

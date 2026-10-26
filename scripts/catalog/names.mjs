@@ -6,9 +6,12 @@
 // Hydrangea" → "Hydrangea"), or, where the name is the cultivar alone, its species' name in the catalog, else its
 // genus. Only the order and the quotes change. The name it had stays searchable (a synonym).
 
-/** The cultivar in a botanical name: everything between its first and last straight or curly quote ("Haas' Halo"). */
+/**
+ * The cultivar in a botanical name: everything between its first quote and its last ("Haas' Halo"). A quote opens
+ * after no letter or digit: "Rosa Child's Play 'SAVachild'" is 'SAVachild'.
+ */
 export function cultivarIn(botanical) {
-  const m = /['‘’](.+)['‘’]/.exec(String(botanical ?? ''));
+  const m = /(?<![\p{L}\p{N}])['‘’](.+)['‘’]/u.exec(String(botanical ?? ''));
   return m ? m[1].trim() : null;
 }
 /**
@@ -16,7 +19,7 @@ export function cultivarIn(botanical) {
  * cultivar: "Nandina domestica Flirt 'Murasaki'" → "Flirt". Null for none.
  */
 export function tradeIn(botanical) {
-  const words = String(botanical ?? '').replace(/['‘’].+['‘’]/, ' ').replace(/\([^)]*\)/g, ' ').trim().split(/\s+/).slice(1);
+  const words = String(botanical ?? '').replace(/(?<![\p{L}\p{N}])['‘’].+['‘’]/u, ' ').replace(/\([^)]*\)/g, ' ').trim().split(/\s+/).slice(1);
   let i = 0;
   if (words[i] === '×' || words[i] === 'x') i++;
   if (/^[a-zë-]+$/.test(words[i] ?? '')) i++; // (the epithet)

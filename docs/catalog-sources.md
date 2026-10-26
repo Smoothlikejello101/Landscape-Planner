@@ -542,6 +542,12 @@ listed). The kinds the build applies:
 - **`kewNames`**: names Kew's checklist could read two ways, checked to be read as its accepted name, by
   that name's authors (wcvp.mjs). A later checklist that accepts the other homonym lists it again.
 - **`genusPage`**: a plant read from NC State's page for its whole genus, its facts checked to fit it.
+- **`split`**: a record of several cultivars ("Ficus carica ('Celeste' / 'Brown Turkey' / 'Chicago Hardy')"), made
+  one record per cultivar (split.mjs; Jason, 2026-10-25: cultivars get their own records). The record keeps its id
+  for the cultivar whose size it showed (`keep`), so plants placed from it don't change; it's renamed for it, its old
+  name kept as a synonym. Each other cultivar gets a record of its own: from its own NC State page, added by the
+  build like any page no record reads; or, with no page, names alone, taking its species' size until a source gives
+  its own (`inherits`, said in the app as its species'). No value is written by hand: the names were the record's.
 
 The first answers (2026-10-23) came from a page of cards built from the review list, one per item, with what
 each source says.

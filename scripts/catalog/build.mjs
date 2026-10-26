@@ -16,6 +16,7 @@ import { parseBuildArgs } from './build-args.mjs';
 import { readNcsuFile, savedAuditList, toFetch } from './list.mjs';
 import { gbifCommonName, namePagesToFetch, newRecords, pagesInUse, readAdded, shipOnly, usdaCommonName, writeAdded } from './additions.mjs';
 import { catalogText } from './convert-v1.mjs';
+import { applySplits, linkCultivars } from './split.mjs';
 import { lockCatalogSrc, savedFile } from './pages.mjs';
 import { rereadClaims } from './reclaim.mjs';
 import { reviewReport, termsUnsettled } from './report.mjs';
@@ -100,11 +101,18 @@ const date = opts.date ?? new Date().toISOString().slice(0, 10); // (the UTC day
 const addedBefore = readAdded(); // (the pages plants added before were found on)
 function withAdditions() {
   const base = JSON.parse(catalogBefore);
+  // (Records a person decided to split into one per cultivar, first: split.mjs. A cultivar with a page of its own is
+  // then the build's to add, like any page no record reads.)
+  const split = applySplits(base, readJson('scripts/catalog/decisions.json'));
+  if (split.length) log.push(`## split\n${split.join('\n')}`);
+  // (A cultivar with no species named, linked to its species' record: split.mjs.)
+  const linked = linkCultivars(base);
+  if (linked.length) log.push(`## linked to its species\n${linked.join('\n')}`);
   const found = newRecords(base, pagesInUse(base, savedAuditList(base, ROOT, undefined, addedBefore), { ...addedBefore, ...readNcsuFile().pages }), {
     root: ROOT, added: addedBefore, usdaCommon: (sp) => usdaCommonName(sp, ROOT), gbifCommon: (sp) => gbifCommonName(sp, ROOT),
   });
   base.plants.push(...found.records);
-  if (found.records.length) {
+  if (found.records.length || split.length || linked.length) {
     putBack = true;
     writeFileSync('public/plants.json', catalogText(base)); // (the steps read the catalog from there)
   }
