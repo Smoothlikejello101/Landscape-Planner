@@ -250,7 +250,8 @@ export type PanelName =
   | 'props' | 'arrange' | 'layers' | 'projects' | 'rename' | 'export'
   | 'preview' | 'reset' | 'plants' | 'bg' | 'bgDistance' | 'print' | 'plantForm' | 'bloom' | 'add' | 'shortcuts' | 'location' | 'switchPlant';
 /** What the plant form is doing: a new plant (maybe from a search or a copy), or editing one of yours. */
-export interface PlantFormArgs { editId?: string; name?: string; copyFromId?: string; place: boolean }
+/** `back`: the panel to go back to when the form is done or closed (it was opened from there: the bloom calendar). */
+export interface PlantFormArgs { editId?: string; name?: string; copyFromId?: string; place: boolean; back?: PanelName }
 
 export interface RenameArgs {
   renamingId: string | null;

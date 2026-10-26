@@ -314,6 +314,11 @@ a { color: inherit; }
 .bloom-count { text-align: center; font-size: 11px; color: #44403c; }
 .bloom-count.gap { background: #fee2e2; color: #b91c1c; border-radius: 3px; font-weight: 600; }
 .bloom-group { margin-bottom: 16px; }
+/* A plant with no bloom months: why, across the months; amber for the person's own (they can add them). */
+.bloom-name.none { color: #78716c; }
+.bloom-none { grid-column: span 12; display: flex; align-items: center; gap: 6px; min-height: 16px; padding: 0 6px; border: 1px dashed #d6d3d1; border-radius: 3px; color: #78716c; font-size: 11px; white-space: nowrap; overflow: hidden; }
+.bloom-none.mine { border-color: #f59e0b; background: #fffbeb; color: #92400e; }
+.bloom-none .link-btn { font-size: 12px; min-height: 32px; padding: 4px 6px; margin-left: auto; color: #92400e; }
 
 /* Hint banners without buttons let taps through to the plan. */
 .draw-banner { pointer-events: none; }

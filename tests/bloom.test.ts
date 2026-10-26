@@ -65,6 +65,32 @@ describe('bloom by bed', () => {
     expect(rows[0]).toMatchObject({ colorText: 'white', color: '#e7e5e4' });
     expect(bloomSummary(shapes.slice(4, 5), plants).rows[0]).toMatchObject({ colorText: 'Blue-violet' });
   });
+  it('lists the plants with no bloom months by name, saying why, the person\'s own first', () => {
+    const lib = {
+      ...plants,
+      fern: { id: 'fern', common: 'Fern', form: 'Fern' } as Plant,
+      shrub: { id: 'shrub', common: 'Boxwood', form: 'Shrub' } as Plant,
+      phlox: { id: 'phlox', common: 'Phlox', bloom_season: ['mid summer', 'late summer'] } as Plant,
+      'u-1': { id: 'u-1', common: 'My hosta', width: { min: 1, max: 2, med: 1.5 } } as Plant,
+    };
+    const named = (id: string, plantId: string | undefined, label: string) =>
+      ({ ...base, id, type: 'circle', x: 1, y: 1, radius: 0.5, role: 'plant', label, ...(plantId ? { plantId } : {}) } as Shape);
+    const s = bloomSummary([
+      named('a', 'shrub', 'Boxwood'), named('b', 'fern', 'Fern'), named('c', 'u-1', 'My hosta'), named('d', 'u-1', 'My hosta'),
+      named('e', undefined, 'Mystery'), named('f', 'cone', 'Coneflower'), named('g', 'shrub', 'Boxwood', ), named('h', undefined, ''),
+      named('i', 'phlox', 'Phlox'),
+    ], lib);
+    expect(s.missing).toEqual([
+      { label: 'My hosta', count: 2, why: 'mine', plantId: 'u-1' },
+      { label: 'Mystery', count: 1, why: 'unlinked' },
+      { label: 'Unlabeled plant', count: 1, why: 'unlinked' },
+      { label: 'Phlox', count: 1, why: 'season', plantId: 'phlox', season: ['mid summer', 'late summer'] },
+      { label: 'Boxwood', count: 2, why: 'catalog', plantId: 'shrub' },
+      { label: 'Fern', count: 1, why: 'fern', plantId: 'fern' },
+    ]);
+    expect(s.noData).toBe(6);
+    expect(s.rows.map((r) => r.label)).toEqual(['Coneflower']);
+  });
   it('groups by bed (gone plants left out), loose plants last', () => {
     const g = bloomByBed(shapes, plants);
     expect(g.map((x) => x.bed)).toEqual(['Front', 'Unnamed bed 1', 'Not in a bed']);
