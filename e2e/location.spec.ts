@@ -71,7 +71,7 @@ test('at the warm edge of a plant\'s range: shade, and water unless it wants lit
   await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TABLE) }));
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
-  await page.getByTestId('zip-prompt').click();
+  await page.getByTestId('hardy-here').click(); // (no ZIP yet: asks for one)
   await page.getByTestId('zip').fill('71901');
   await page.getByTestId('zip-lookup').click();
   await page.getByTestId('plant-search').fill('Red buckeye'); // rated through zone 8 (8b), moderate water
@@ -85,41 +85,38 @@ test('at the warm edge of a plant\'s range: shade, and water unless it wants lit
   await expect(page.getByTestId('plant-zones')).toHaveText('Hardy in zones 3–8. Zone 8b is at the warm edge of its range: give it afternoon shade in summer.');
 });
 
-test('the plant picker offers the ZIP once: from there, back with only plants hardy here', async ({ page }) => {
+test('"Hardy in your zone" with no ZIP asks for one, and comes back with only plants hardy there, the other filters kept', async ({ page }) => {
   await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TABLE) }));
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
-  await page.getByTestId('zip-prompt').click();
+  await page.locator('.sheet select[aria-label=Form]').selectOption('Shrub');
+  await page.locator('[data-testid=flower-colors] label', { hasText: 'White' }).click();
+  await expect(page.locator('.sheet label', { hasText: 'Hardy in your zone' })).toContainText('(asks for your ZIP)');
+  await page.getByTestId('hardy-here').click();
   await page.getByTestId('zip').fill('71923');
   await page.getByTestId('zip-lookup').click();
-  // Back in the picker, filtered.
+  // Back in the picker, filtered, as it was.
   await expect(page.getByTestId('plant-search')).toBeVisible();
   await expect(page.locator('.sheet label', { hasText: 'Hardy in zone 8a' }).locator('input')).toBeChecked();
+  await expect(page.locator('.sheet select[aria-label=Form]')).toHaveValue('Shrub');
+  await expect(page.getByTestId('active-chip')).toHaveText(['Shrub', 'White flowers', 'Hardy in zone 8a']);
   await expect(page.locator('#toast')).toContainText('showing plants hardy there');
   await page.getByTestId('plant-search').fill('Speckled alder'); // rated for zones 2–6
   await expect(page.locator('.sheet .proj-row', { hasText: 'Speckled alder' })).toHaveCount(0);
-  await expect(page.getByTestId('zip-prompt')).toHaveCount(0);
+  // Unticked, it's a plain filter again: no ZIP asked for.
+  await page.getByTestId('hardy-here').uncheck();
+  await expect(page.getByTestId('active-chip')).toHaveText(['Shrub', 'White flowers']);
 });
 
-test('closing the ZIP sheet opened from the picker goes back to the picker as it was', async ({ page }) => {
+test('closing the ZIP sheet opened from the picker goes back to the picker as it was, the filter left off', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('aster');
-  await page.getByTestId('zip-prompt').click();
+  await page.getByTestId('hardy-here').click();
+  await expect(page.getByTestId('zip')).toBeVisible();
   await page.locator('.sheet-header .iconbtn').click();
   await expect(page.getByTestId('plant-search')).toHaveValue('aster');
-  await expect(page.getByTestId('zip-prompt')).toBeVisible();
-});
-
-test('the ZIP offer can be put away for good', async ({ page }) => {
-  await openFresh(page);
-  await page.locator('.tool-btn.plants').click();
-  await page.locator('.zip-prompt .iconbtn').click();
-  await expect(page.getByTestId('zip-prompt')).toHaveCount(0);
-  await page.reload();
-  await page.locator('.tool-btn.plants').click();
-  await expect(page.getByTestId('plant-search')).toBeVisible();
-  await expect(page.getByTestId('zip-prompt')).toHaveCount(0);
+  await expect(page.getByTestId('hardy-here')).not.toBeChecked();
 });
 
 test('a plant recorded growing wild in the garden\'s county or next door says so, and counts as hardy there', async ({ page }) => {

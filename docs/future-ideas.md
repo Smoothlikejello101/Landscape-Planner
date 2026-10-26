@@ -31,6 +31,10 @@ it waits.
 - **Flags for every disagreement.** A row is marked only when a filter
   match rests on what other sources say (a fact's `alt`). Other disagreements are listed in
   the opened row; flagging them all would mark most rows.
+- **A "Transplantable" filter.** Its old form passed every plant not known to have a taproot, 97% of the
+  catalog. Dropped from the picker until a source rates taproots for most plants (Jason, 2026-10-25).
+- **Dry shade as its own filter.** The earlier list's word only (a quarter of the catalog). For now, "Drought
+  tolerant" (NC State: drought or dry soil) with Shade under Sun stands in for it.
 
 ## Promised, not built yet
 
