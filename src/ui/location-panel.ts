@@ -13,16 +13,13 @@ import { loadWild } from '../wild';
 // dates, kept with the plan. Only the ZIP's first three digits are fetched
 // (a table from the app's own site); the full ZIP isn't sent anywhere.
 
-/** The sheet it was opened from (the plant picker): back there when done. */
+/** The sheet it was opened from (the plant picker's "Hardy in your zone"): back there when done. */
 let returnTo: PanelName | null = null;
 export function openLocation(from: PanelName | null = null) {
   returnTo = from;
   state.panel = 'location';
   render();
 }
-const PROMPT_KEY = 'lp-zip-prompt-dismissed';
-export function zipPromptDismissed(): boolean { try { return localStorage.getItem(PROMPT_KEY) === '1'; } catch { return false; } }
-export function dismissZipPrompt() { try { localStorage.setItem(PROMPT_KEY, '1'); } catch { /* shown again next time */ } }
 
 let busy = false;
 let problem = '';

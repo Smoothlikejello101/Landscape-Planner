@@ -165,31 +165,97 @@ export function applyAliases() {
   for (const [from, to] of Object.entries(aliases)) if (plantsById[to] && !to.startsWith('u-')) plantsById[from] = plantsById[to];
 }
 // Picker filter state lives outside `state` so it isn't saved with projects.
+/** The earlier list's words for a plant native to North America (its regional and local-ecotype natives too). */
+const NA_NATIVE = ['N. American native', 'Regional native', 'Local ecotype possible'];
+/** A list filter's empty default: frozen, so a filter is only ever changed by a new list, never in place. */
+const NONE = Object.freeze([]) as unknown as string[];
 export const PLANT_FILTER_DEFAULTS = {
-  q: '', form: '', water: '', bloomMonth: '', sun: '',
-  native: '', deer: '', nectar: '', bird: '', maintenance: '',
+  q: '', form: '', water: '', sun: '',
+  /** Blooming in: a month ('1' to '12') or a season ('spring', 'summer', 'fall', 'winter'): src/plants.ts bloomMatch. */
+  bloomMonth: '',
+  /** '' any; '@here' native to the garden's state (Kew's checklist); '@na' native to North America (the earlier list's word). */
+  native: '',
+  /**
+   * Flower colors (a plant that comes in any of them: src/plants.ts trueToColor), leaf colors (any of them), and who it
+   * attracts (any of them), in the catalog's words (src/catalog.ts). Decided with Jason, 2026-10-25.
+   */
+  flowerColors: NONE, leafColors: NONE, attracts: NONE,
+  /** Growth rate: '' any; 'slow', 'medium' or 'fast'. */
+  growth: '',
   /** How it spreads (src/spread.ts): '' any; 'stays' stays put; 'seed' self-sows freely; 'runs' spreads underground or by runners; 'aggressive' aggressively so. */
   spread: '',
   /** Mature height (typical), "lo-hi" in feet, either end empty when open: src/ui/height-range.ts. */
   height: '',
   /** Toxic to dogs: '' any; 'hideToxic' leaves out plants with a warning (unrated ones stay); 'nonToxic' only plants rated non-toxic. */
   dogs: '' as DogFilter,
+  /** Leaves out plants NC State lists as a problem for cats, for horses (one not listed stays: not "safe", just not flagged). */
+  cats: false, horses: false,
   /** Only plants whose NC State page was read and lists no poison to people (one not rated is left out too, as the dog filter keeps only plants known safe). */
   noPoison: false,
-  dryShade: false, wetFeet: false, clayOk: false,
+  /**
+   * Deer resistant (its rating); low maintenance (NC State's level); drought tolerant (NC State: drought or dry soil);
+   * no thorns (leaves out plants listed with thorns, spines or prickles; one not listed stays).
+   */
+  deerResistant: false, lowMaintenance: false, drought: false, noThorns: false,
+  wetFeet: false, clayOk: false,
   hostOnly: false, fallColor: false, winterInterest: false,
   /** Keeps its leaves through winter (evergreen; not semi-evergreen, which depends on the winter, nor a tender shrub, `tenderWoody`). */
   evergreen: false,
-  edible: false, noTaproot: false, inPlan: false,
+  edible: false, inPlan: false,
   /** Rated for the plan's zone (when the plan has a location). */
   hardyHere: false,
   /** Let what other sources say count where it differs from the value shown (a match only by it is flagged). */
   withReported: true,
   advanced: false,     // UI: is the "More filters" section expanded
-  animals: false       // UI: is "Animal toxicity" open
+  animals: false       // UI: is "Poison & pets" open
 };
 export type PlantFilter = typeof PLANT_FILTER_DEFAULTS;
 export const plantFilter: PlantFilter = { ...PLANT_FILTER_DEFAULTS };
+/** Whether a filter is on (set to something other than its default; a list filter, with anything in it). */
+export function filterOn(f: PlantFilter, k: keyof PlantFilter): boolean {
+  const v = f[k];
+  return Array.isArray(v) ? v.length > 0 : v !== PLANT_FILTER_DEFAULTS[k];
+}
+// ---------- Flower colors ----------
+/** A plant's flower colors, the showy ones ("insignificant": not showy). */
+export const showyColors = (p: Plant): string[] => (p.flower_color ?? []).filter((c) => c !== 'insignificant');
+/**
+ * Whether its flower color says what you'll get (decided with Jason, 2026-10-25): a cultivar's record, or a species
+ * listing one color (white and cream count as one). A species listing several comes in them, depending on the plant
+ * you buy: the picker lists those below a divider.
+ */
+export function trueToColor(p: Plant): boolean {
+  // (A cultivar: its record names its species, or its name is in quotes, "Coneflower 'Magnus'"; not a possessive, "Bush's".)
+  if (p.parent || [p.botanical, p.common].some((n) => /['\u2018][A-Z][^'\u2018\u2019]*['\u2019]/.test(n ?? ''))) return true;
+  const c = showyColors(p);
+  return c.filter((x) => !(x === 'cream' && c.includes('white'))).length <= 1;
+}
+// ---------- Blooming in ----------
+const SEASON_MONTHS: Record<string, number[]> = { spring: [3, 4, 5], summer: [6, 7, 8], fall: [9, 10, 11], winter: [12, 1, 2] };
+export const SEASONS = ['spring', 'summer', 'fall', 'winter'];
+/**
+ * The months a season word covers ("summer": June to August; "mid summer": July). Our reading, not a source's (the
+ * months a season covers shift with place): where it decides a month's match, the row says "by season".
+ */
+export function seasonMonths(word: string): number[] {
+  const [part, season] = word.includes(' ') ? word.split(' ') : ['', word];
+  const m = SEASON_MONTHS[season];
+  if (!m) return [];
+  return part === 'early' ? [m[0]] : part === 'mid' ? [m[1]] : part === 'late' ? [m[2]] : m;
+}
+/**
+ * How a plant meets "Blooming in" (`v`: a month, '1' to '12', or a season): by its months where the garden is
+ * (flowering records there: they decide), by its sources' season, or by the earlier list's months; null: it doesn't.
+ */
+export function bloomMatch(p: Plant, v: string): 'local' | 'season' | 'earlier' | null {
+  const want = /^\d+$/.test(v) ? [Number(v)] : SEASON_MONTHS[v] ?? [];
+  const hit = (ms: number[]) => ms.some((m) => want.includes(m));
+  if (localBloom(p)) return hit(bloomMonths(p)) ? 'local' : null;
+  if (p.bloom_season?.length && hit(p.bloom_season.flatMap(seasonMonths))) return 'season';
+  return p.bloom?.start && hit(bloomMonths(p)) ? 'earlier' : null;
+}
+/** "Blooming in June", "Blooming in spring". */
+export const bloomWhen = (v: string): string => (/^\d+$/.test(v) ? MONTH_NAMES[Number(v)] ?? '' : v);
 // Sun tolerance is stored as a range: sun_most = most sun tolerated,
 // sun_least = least. A plant suits a level if the level falls in that span.
 export const SUN_RANK: Record<SunLevel, number> = { Full: 0, Part: 1, Shade: 2 };
@@ -228,7 +294,7 @@ export function loadPlants(): Promise<void> {
 // ============================================================
 // PLANT PICKER
 // ============================================================
-/** Whether the picker leaves invasive plants out: while browsing. A search finds them by name, and "Already in this plan" shows those placed. */
+/** Whether the picker leaves invasive plants out: while browsing. A search finds them by name, and "In this plan" shows those placed. */
 export const invasivesLeftOut = (f: Pick<PlantFilter, 'q' | 'inPlan'>): boolean => !readQuery(f.q) && !f.inPlan;
 /** A count as the picker writes it: 3,622. */
 export const countWord = (n: number): string => n.toLocaleString('en-US');
@@ -246,6 +312,8 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (p.invasive && invasivesLeftOut(f)) return false;
   if (f.dogs === 'hideToxic' && toxicToDogs(p)) return false;
   if (f.dogs === 'nonToxic' && !nonToxicToDogs(p)) return false;
+  if (f.cats && p.problem_for?.includes('cats')) return false;
+  if (f.horses && p.problem_for?.includes('horses')) return false;
   if (f.noPoison && !(p.prov?.poison?.unknown && !p.poison)) return false;
   // (Plants at the edge of their range count: the list marks them. So does a plant rated for cooler zones that's
   // recorded growing wild in the garden's county or one bordering it: it has been found living through those
@@ -257,27 +325,27 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (f.form && !formsOf(p).includes(f.form)) return false;
   if (f.water && p.water !== f.water) return false;
   if (f.sun && !plantTakesSun(p, f.sun)) return false;
-  // ("@here": native to the garden's state, by Kew's checklist; until its state is known, no filter.)
+  // ("@here": native to the garden's state, by Kew's checklist; until its state is known, no filter. "@na": native to
+  // North America, the earlier list's word, its regional and local-ecotype natives included.)
   if (f.native === '@here') { if (gardenStateName()) { const n = nativeHere(p); if (!n || n.status === 'I') return false; } }
-  else if (f.native && p.native !== f.native) return false;
-  if (f.deer && p.deer !== f.deer) return false;
-  if (f.maintenance && p.maintenance !== f.maintenance) return false;
+  else if (f.native === '@na' && !NA_NATIVE.includes(p.native ?? '')) return false;
+  if (f.deerResistant && p.deer !== 'Resistant') return false;
+  if (f.lowMaintenance && p.maintenance_level !== 'low') return false;
+  if (f.drought && !p.tolerates?.some((x) => x === 'drought' || x === 'dry soil')) return false;
+  if (f.noThorns && p.thorns === true) return false;
   if (f.spread && !spreadsAs(p, f.spread)) return false;
-  if (f.nectar) {
-    // 'High' = high only; 'Med' = med or better
-    if (f.nectar === 'High' && p.nectar !== 'High') return false;
-    if (f.nectar === 'Med' && !(p.nectar === 'High' || p.nectar === 'Med')) return false;
-  }
-  if (f.bird) {
-    if (f.bird === 'High' && p.bird !== 'High') return false;
-    if (f.bird === 'Med' && !(p.bird === 'High' || p.bird === 'Med')) return false;
-  }
+  // (Any of the colors, or of who it attracts: a plant that comes in red or pink, one that draws bees or butterflies.)
+  if (f.flowerColors.length && !showyColors(p).some((c) => f.flowerColors.includes(c))) return false;
+  if (f.leafColors.length && !(p.leaf_color ?? []).some((c) => f.leafColors.includes(c))) return false;
+  // (Bees take in NC State's "specialized bees": bees too.)
+  const attracts = f.attracts.includes('bees') ? [...f.attracts, 'specialized bees'] : f.attracts;
+  if (attracts.length && !(p.attracts ?? []).some((a) => attracts.includes(a))) return false;
+  if (f.growth && p.growth_rate !== f.growth) return false;
   if (f.height) {
     // (By its typical mature height: a plant of 2 to 4 ft is a 3 ft plant.)
     const h = p.height && p.height.med, [lo, hi] = f.height.split('-');
     if (h == null || (lo && h < Number(lo)) || (hi && h > Number(hi))) return false;
   }
-  if (f.dryShade && !p.dry_shade) return false;
   if (f.wetFeet && !p.wet_feet) return false;
   if (f.clayOk && !p.clay_ok) return false;
   if (f.hostOnly && !hostPlant(p)) return false;
@@ -285,10 +353,9 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (f.evergreen && (p.foliage !== 'evergreen' || tenderWoody(p))) return false;
   if (f.winterInterest && !p.winter_interest) return false;
   if (f.edible && !p.edible) return false;
-  if (f.noTaproot && p.taproot) return false;
   if (f.inPlan && !inPlan?.has(p.id)) return false;
-  // (Where the garden is, from flowering records there, else the catalog's months; a Dec–Feb bloom wraps.)
-  if (f.bloomMonth && !bloomMonths(p).includes(Number(f.bloomMonth))) return false;
+  // (Where the garden is, from flowering records there; else its season, or the earlier list's months: bloomMatch.)
+  if (f.bloomMonth && !bloomMatch(p, f.bloomMonth)) return false;
   const q = readQuery(f.q);
   if (q && !matchPlant(p, q, true)) return false;
   return true;
@@ -377,7 +444,7 @@ export function plantIdsInPlan(): Set<string> {
  */
 const FILTER_FACTS: [keyof PlantFilter, string[], string][] = [
   ['sun', ['sun_most', 'sun_least'], 'sun'], ['hardyHere', ['zone_min', 'zone_max'], 'hardiness zones'], ['water', ['water'], 'water'],
-  ['deer', ['deer'], 'deer resistance'], ['height', ['height'], 'height'], ['bloomMonth', ['bloom'], 'bloom time'], ['form', ['form'], 'form'],
+  ['deerResistant', ['deer'], 'deer resistance'], ['height', ['height'], 'height'], ['bloomMonth', ['bloom'], 'bloom time'], ['form', ['form'], 'form'],
 ];
 /** The plant as the other sources describe these facts (each pair as a whole: one source's sun range, not half of one). */
 function asReported(p: Plant, facts: string[]): Plant {
@@ -402,7 +469,7 @@ export function reportedMatch(p: Plant, f: PlantFilter, inPlan?: Set<string>): s
   if (!plantMatches(p, { ...f, ...reportable }, inPlan)) return null; // (the rest must pass as published)
   const needed: string[] = [];
   for (const [k, facts, label] of FILTER_FACTS) {
-    if (f[k] === PLANT_FILTER_DEFAULTS[k]) continue;
+    if (!filterOn(f, k)) continue;
     const only = { ...PLANT_FILTER_DEFAULTS, [k]: f[k], q: '', inPlan: false };
     if (plantMatches(p, only)) continue;
     if (!facts.some((x) => x in p.reported!) || !plantMatches(asReported(p, facts), only)) return null;
@@ -415,17 +482,16 @@ export const reportedOnly = new Map<string, string[]>();
 /**
  * Which facts each filter reads (for whether a match rests only on the earlier list), and what it's called. The
  * labels the other-sources filters share are theirs (FILTER_FACTS). Not the dog filter, which says unverified in its
- * own words, nor poison to people (always sourced), the search or "Already in this plan".
+ * own words, nor poison to people (always sourced), the search or "In this plan".
  */
 const FILTER_READS: [keyof PlantFilter, (p: Plant, f: PlantFilter) => string[], string][] = [
   ['form', () => ['form'], 'form'], ['sun', () => ['sun_most', 'sun_least'], 'sun'], ['water', () => ['water'], 'water'],
   // (Months where the garden is come from flowering records; a native filter for the garden's state, from Kew's checklist.)
-  ['bloomMonth', (p) => (localBloom(p) ? [] : ['bloom']), 'bloom time'], ['native', (_p, f) => (f.native === '@here' ? [] : ['native']), 'native status'],
-  ['deer', () => ['deer'], 'deer resistance'], ['maintenance', () => ['maintenance'], 'maintenance'], ['spread', () => ['self_seed', 'habit'], 'how it spreads'],
-  ['nectar', () => ['nectar'], 'nectar'], ['bird', () => ['bird'], 'value to birds'], ['height', () => ['height'], 'height'],
-  ['dryShade', () => ['dry_shade'], 'dry shade'], ['wetFeet', () => ['wet_feet'], 'wet feet'], ['clayOk', () => ['clay_ok'], 'clay'],
+  ['bloomMonth', (p, f) => (bloomMatch(p, f.bloomMonth) === 'earlier' ? ['bloom'] : []), 'bloom time'], ['native', (_p, f) => (f.native === '@here' ? [] : ['native']), 'native status'],
+  ['deerResistant', () => ['deer'], 'deer resistance'], ['spread', () => ['self_seed', 'habit'], 'how it spreads'], ['height', () => ['height'], 'height'],
+  ['wetFeet', () => ['wet_feet'], 'wet feet'], ['clayOk', () => ['clay_ok'], 'clay'],
   ['hostOnly', (p) => (hostPlant(p) === 'earlier' ? ['host'] : []), 'host plant'], ['fallColor', () => ['fall_color'], 'fall color'], ['evergreen', () => ['foliage'], 'evergreen'],
-  ['winterInterest', () => ['winter_interest'], 'winter interest'], ['edible', () => ['edible'], 'edible'], ['noTaproot', () => ['taproot'], 'taproot'],
+  ['winterInterest', () => ['winter_interest'], 'winter interest'], ['edible', () => ['edible'], 'edible'],
   ['hardyHere', () => ['zone_min', 'zone_max'], 'hardiness zones'],
 ];
 /** Whether a value rests only on the earlier list: its every source is the unsourced compendium. */
@@ -440,17 +506,21 @@ export function earlierListOnly(pv: Provenance | undefined, sources = PLANT_META
 export function earlierOnly(p: Plant, f: PlantFilter, sources = PLANT_META?.sources): string[] {
   if (!p.prov) return [];
   const via = new Set(reportedOnly.get(p.id) ?? []);
-  return FILTER_READS.filter(([k, reads, label]) => f[k] !== PLANT_FILTER_DEFAULTS[k] && !via.has(label) && reads(p, f).some((x) => earlierListOnly(p.prov?.[x], sources)))
+  return FILTER_READS.filter(([k, reads, label]) => filterOn(f, k) && !via.has(label) && reads(p, f).some((x) => earlierListOnly(p.prov?.[x], sources)))
     .map(([, , label]) => label);
 }
 /** Plants in the last list that match only on the earlier list's word, and on what. */
 export const earlierFor = new Map<string, string[]>();
+/** Plants in the last list that come in a color asked for among others (a species: depends on the plant you buy), and which. */
+export const comesIn = new Map<string, string[]>();
+/** Plants in the last list that bloom in the month asked for by their season, not by months ("by season"). */
+export const bySeason = new Set<string>();
 /** What filters the other sources' values helped with: as the divider says it ("take shade", "are hardy here"). */
 export function reportedPhrase(labels: Iterable<string>, f: PlantFilter): string {
   const FORMS: Record<string, string> = { Tree: 'trees', Shrub: 'shrubs', Perennial: 'perennials', 'Grass/Sedge': 'grasses or sedges', Vine: 'vines', Bulb: 'bulbs', Fern: 'ferns', Annual: 'annuals', 'Aquatic/Emergent': 'water plants', Cactus: 'cacti or succulents' };
   const say: Record<string, string> = {
     sun: `take ${SUN_SAID[f.sun] ?? f.sun.toLowerCase()}`, 'hardiness zones': 'are hardy here', water: `fit \u201cWater: ${f.water}\u201d`,
-    'deer resistance': `are deer ${f.deer.toLowerCase()}`, height: 'fit the height range', 'bloom time': `bloom in ${MONTH_NAMES[Number(f.bloomMonth)] ?? ''}`,
+    'deer resistance': 'are deer resistant', height: 'fit the height range', 'bloom time': `bloom in ${bloomWhen(f.bloomMonth)}`,
     form: `are ${FORMS[f.form] ?? f.form.toLowerCase()}`,
   };
   const parts = [...new Set(labels)].map((l) => say[l] ?? `fit on ${l}`);
@@ -467,11 +537,17 @@ export function filteredPlants(near = true): Plant[] {
   // (The search first, so the filters, and any near spellings, are worked out only for plants it found.)
   const found = q ? PLANTS.flatMap((plant) => { const hit = matchPlant(plant, q, near); return hit ? [{ plant, hit }] : []; })
     : PLANTS.map((plant) => ({ plant, hit: { rank: 0, order: 0 } }));
-  earlierFor.clear();
+  earlierFor.clear(); comesIn.clear(); bySeason.clear();
+  const month = /^\d+$/.test(plantFilter.bloomMonth);
   const out = found.filter(({ plant }) => {
     const m = reportedMatch(plant, plantFilter, inPlan);
     if (m?.length) reportedOnly.set(plant.id, m);
-    if (m !== null) { const e = earlierOnly(plant, plantFilter); if (e.length) earlierFor.set(plant.id, e); }
+    if (m !== null) {
+      const e = earlierOnly(plant, plantFilter); if (e.length) earlierFor.set(plant.id, e);
+      // (A species that comes in several colors, one of them asked for; a month met only by its season.)
+      if (plantFilter.flowerColors.length && !trueToColor(plant)) comesIn.set(plant.id, showyColors(plant).filter((c) => plantFilter.flowerColors.includes(c)));
+      if (month && bloomMatch(plant, plantFilter.bloomMonth) === 'season') bySeason.add(plant.id);
+    }
     return m !== null;
   });
   if (q) out.sort(byMatch);

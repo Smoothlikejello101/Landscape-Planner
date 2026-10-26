@@ -2,7 +2,7 @@ import { el, type Child } from '../dom';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery } from '../search';
-import { MONTH_NAMES, formsOf, matchedBy, reportedOnly, earlierFor, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantTakesSun, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch } from '../plants';
+import { formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantTakesSun, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { spreadsAs } from '../spread';
@@ -12,7 +12,7 @@ import { openSwitch } from './switch-plant';
 import type { PlantFormArgs } from '../types';
 import { state } from '../state';
 import { ZONE_SOURCE_SHORT } from '../climate';
-import { dismissZipPrompt, openLocation, zipPromptDismissed } from './location-panel';
+import { openLocation } from './location-panel';
 import { render } from './render';
 import { plantDetails } from './plant-details';
 import { escapeHere, escapeShort, gardenStateName, lawShort, loadWild, regulatedHere } from '../wild';
@@ -28,7 +28,8 @@ function afterWild() { if (state.panel === 'plants') { addNativeHereOption(); re
 function addNativeHereOption() {
   const sel = document.querySelector<HTMLSelectElement>('[data-testid=native-filter]'), here = gardenStateName();
   if (!sel || !here || sel.querySelector('option[value="@here"]')) return;
-  const o = el('option', { value: '@here' }, `Native to ${here}`) as HTMLOptionElement;
+  const o = el('option', { value: '@here' }, `Native to ${here}`);
+  o.dataset.text = o.textContent!;
   o.selected = plantFilter.native === '@here';
   sel.insertBefore(o, sel.options[1] ?? null);
 }
@@ -63,18 +64,50 @@ function pick(p: Plant) {
 }
 function openForm(args: PlantFormArgs) { state.plantForm = args; state.panel = 'plantForm'; render(); }
 
-/** Each filter by name, as "hidden by" says it (with its setting where it has one). */
-const FILTER_NAMES = {
-  form: (v: string) => `Form: ${v}`, sun: (v: string) => `Sun: ${v}`, water: (v: string) => `Water: ${v}`,
-  bloomMonth: (v: string) => `Blooming in ${MONTH_NAMES[Number(v)]}`,
-  native: (v: string) => (v === '@here' ? `Native to ${gardenStateName() ?? 'your state'}` : `Native: ${v}`),
-  deer: (v: string) => `Deer: ${v}`, nectar: (v: string) => `Nectar: ${v === 'High' ? 'High' : 'Med+'}`, bird: (v: string) => `Birds: ${v === 'High' ? 'High' : 'Med+'}`,
-  maintenance: (v: string) => `Maintenance: ${v}`, spread: () => 'How it spreads', height: () => 'Mature height',
-  dogs: (v: string) => (v === 'hideToxic' ? 'Dogs: hide toxic' : 'Dogs: non-toxic only'),
-  noPoison: () => 'No poison to people listed', dryShade: () => 'Dry shade', wetFeet: () => 'Wet feet', clayOk: () => 'Clay OK',
-  hostOnly: () => 'Host plant', fallColor: () => 'Fall color', winterInterest: () => 'Winter interest', evergreen: () => 'Evergreen',
-  edible: () => 'Edible', noTaproot: () => 'Transplantable', inPlan: () => 'Already in this plan', hardyHere: () => 'Hardy in your zone',
-} satisfies Partial<Record<keyof PlantFilter, (v: never) => string>>;
+const cap = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
+const joined = (xs: string[], word: string) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} ${word} ${xs[xs.length - 1]}` : xs[0] ?? '');
+const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/** "Blooming in June", "Blooming in spring". */
+const bloomName = (v: string) => (/^\d+$/.test(v) ? MONTHS[Number(v)] : v);
+const SUN_NAMES: Record<string, string> = { Full: 'Full sun', Part: 'Part shade', Shade: 'Shade' };
+/** Water needs, in order (the catalog's words; "Wetland" said plainly). */
+const WATER: [string, string, string][] = [['Low', 'Low (drought tolerant)', 'low'], ['Moderate', 'Moderate', 'moderate'], ['High', 'High', 'high'], ['Wetland', 'Wet soil or standing water', 'wet']];
+const GROWTH: [string, string][] = [['slow', 'Slow'], ['medium', 'Medium'], ['fast', 'Fast']];
+const SPREADS: Record<string, string> = { stays: 'Stays put', seed: 'Self-sows freely', runs: 'Spreads underground or by runners', aggressive: 'Spreads aggressively underground or by runners' };
+/** The colors offered, most plants first (the catalog's words: src/catalog.ts). Leaf color includes green (Jason, 2026-10-25). */
+const FLOWER_CHOICES = ['white', 'yellow', 'pink', 'purple', 'red', 'orange', 'blue', 'green', 'cream', 'brown', 'silver', 'black'];
+const LEAF_CHOICES = ['green', 'silver', 'gold', 'blue', 'purple', 'red', 'white', 'variegated', 'copper', 'orange', 'pink', 'cream', 'black'];
+/** Who a plant attracts, as NC State says it (its "specialized bees" count as bees: src/plants.ts). */
+const ATTRACT_CHOICES: [string, string][] = [['butterflies', 'Butterflies'], ['bees', 'Bees'], ['hummingbirds', 'Hummingbirds'], ['songbirds', 'Songbirds'], ['moths', 'Moths'], ['pollinators', 'Pollinators']];
+const SWATCHES: Record<string, string> = {
+  white: '#ffffff', cream: '#fef3c7', yellow: '#eab308', gold: '#ca8a04', orange: '#f97316', copper: '#b45309', red: '#dc2626',
+  pink: '#ec4899', purple: '#9333ea', blue: '#3b82f6', green: '#16a34a', brown: '#78350f', silver: '#a8a29e', black: '#1c1917',
+  variegated: 'linear-gradient(135deg, #16a34a 50%, #fef3c7 50%)',
+};
+type ListKey = 'flowerColors' | 'leafColors' | 'attracts';
+/** One value of a list filter, as its chip says it ("Red flowers", "Attracts bees"). */
+const LIST_ONE: Record<ListKey, (v: string) => string> = { flowerColors: (v) => `${cap(v)} flowers`, leafColors: (v) => `${cap(v)} leaves`, attracts: (v) => `Attracts ${v}` };
+/**
+ * Each filter by name, as its chip and "hidden by" say it, with its setting. Not the search, the folds, or whether
+ * other sources' values count.
+ */
+const FILTER_NAMES: Partial<Record<keyof PlantFilter, (f: PlantFilter) => string>> = {
+  form: (f) => f.form, sun: (f) => SUN_NAMES[f.sun] ?? f.sun, water: (f) => `Water needs: ${WATER.find(([v]) => v === f.water)?.[2] ?? f.water}`,
+  bloomMonth: (f) => `Blooming in ${bloomName(f.bloomMonth)}`, flowerColors: (f) => `${cap(joined(f.flowerColors, 'or'))} flowers`,
+  hardyHere: () => (state.location ? `Hardy in zone ${state.location.zone}` : 'Hardy in your zone'),
+  noPoison: () => 'Not listed as poisonous to people', dogs: (f) => (f.dogs === 'hideToxic' ? 'No dog warnings' : 'Rated safe for dogs'),
+  cats: () => 'No cat warnings', horses: () => 'No horse warnings',
+  attracts: (f) => `Attracts ${joined(f.attracts, 'or')}`, hostOnly: () => 'Feeds caterpillars',
+  native: (f) => (f.native === '@here' ? `Native to ${gardenStateName() ?? 'your state'}` : 'Native to North America'),
+  leafColors: (f) => `${cap(joined(f.leafColors, 'or'))} leaves`, fallColor: () => 'Fall color', evergreen: () => 'Evergreen', winterInterest: () => 'Winter interest',
+  growth: (f) => `Growth rate: ${f.growth}`, height: (f) => `Height: ${heightLabel(f.height).replace(/^Up/, 'up')}`,
+  lowMaintenance: () => 'Low maintenance', drought: () => 'Drought tolerant', wetFeet: () => 'Takes wet soil', clayOk: () => 'Clay OK',
+  deerResistant: () => 'Deer resistant', noThorns: () => 'No thorns listed', spread: (f) => SPREADS[f.spread] ?? f.spread, edible: () => 'Edible',
+  inPlan: () => 'In this plan',
+};
+/** The filters under Poison & pets, and under More filters (their folded buttons count what's on). */
+const POISON_KEYS: (keyof PlantFilter)[] = ['noPoison', 'dogs', 'cats', 'horses'];
+const MORE_KEYS: (keyof PlantFilter)[] = ['attracts', 'hostOnly', 'native', 'leafColors', 'fallColor', 'evergreen', 'winterInterest', 'growth', 'height', 'lowMaintenance', 'drought', 'wetFeet', 'clayOk', 'deerResistant', 'noThorns', 'spread', 'edible'];
 export function renderPlantsPanel() {
   void loadWild(afterWild);
   const linking = !!state.pickerLinkId;
@@ -110,8 +143,12 @@ export function renderPlantsPanel() {
     body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Recent'), row));
   }
   if (PLANTS.some((p) => p.unverified || p.partlyChecked)) {
-    body.appendChild(el('div', { className: 'hint', 'data-testid': 'unverified-note' },
-      'Plants are being checked against published references. Unverified: all its details are from an earlier list with no sources. Partly checked: some are sourced; open it to see which (the rest say "earlier list"). Treat unchecked details as a rough guide.'));
+    // (One line, so the list starts high on a phone; the link tells the rest.)
+    const full = el('div', { id: 'unverified-more', hidden: true },
+      'Plants are being checked against published references. Unverified: all its details are from an earlier list with no sources. Partly checked: some are sourced; open it to see which (the rest say "earlier list"). Treat unchecked details as a rough guide.');
+    const more = el('button', { className: 'link-btn inline', 'aria-expanded': 'false', 'aria-controls': 'unverified-more', 'data-testid': 'unverified-more' }, 'What that means');
+    more.addEventListener('click', () => { full.hidden = !full.hidden; more.setAttribute('aria-expanded', String(!full.hidden)); more.textContent = full.hidden ? 'What that means' : 'Less'; });
+    body.appendChild(el('div', { className: 'hint checking-note', 'data-testid': 'unverified-note' }, 'Not every detail is checked yet. ', more, full));
   }
   if (!PLANTS.length) {
     body.appendChild(el('div', { className: 'hint' }, 'The plant catalog is still loading (or could not load). Your own plants work either way.'));
@@ -120,7 +157,7 @@ export function renderPlantsPanel() {
   // --- Results list (rebuilt in place so typing never destroys input focus) ---
   const countLine = el('div', { className: 'hint', 'data-testid': 'picker-count', style: { padding: '0 0 6px' } });
   const listWrap = el('div', {});
-  /** The Sources section's "Include where sources differ" (the divider's Hide sets it too). */
+  /** The Sources section's "Where sources disagree, count both values" (the divider's Hide sets it too). */
   let reportedCheck: HTMLInputElement | null = null;
   // Rows opened to show their details (kept while the list is rebuilt by typing or filtering).
   const opened = new Set<string>();
@@ -141,9 +178,13 @@ export function renderPlantsPanel() {
       lines.names ? el('div', { className: 'pmeta', 'data-testid': 'row-names' }, lines.names) : null,
       facts.childNodes.length ? facts : null,
     );
-    const flags = rowFlags(p);
-    if (flags.length) info.appendChild(el('div', { className: 'pflags' },
-      ...flags.map((f) => el('span', { className: `pflag ${f.kind}${f.kind === 'check' ? ' unverified-badge' : ''}`, 'data-testid': f.testid, ...(f.title ? { title: f.title } : {}) }, f.text))));
+    const flags = rowFlags(p).map((f) => el('span', { className: `pflag ${f.kind}${f.kind === 'check' ? ' unverified-badge' : ''}`, 'data-testid': f.testid, ...(f.title ? { title: f.title } : {}) }, f.text));
+    // Blooming in a month, by its season: our reading of the season, not a source's months (src/plants.ts bloomMatch).
+    if (bySeason.has(p.id) && p.bloom_season?.length) {
+      const why = `Blooms in ${joined(p.bloom_season, 'and')}: counted for ${bloomName(plantFilter.bloomMonth)} by its season`;
+      flags.push(el('span', { className: 'pflag check season-badge', 'data-testid': 'by-season', title: why }, 'By season', el('span', { className: 'sr-only' }, ` (${why})`)));
+    }
+    if (flags.length) info.appendChild(el('div', { className: 'pflags' }, ...flags));
     // Why it matched, where its name doesn't say: what it hosts, another name it goes by, my notes.
     const q = readQuery(plantFilter.q);
     if (q) {
@@ -257,17 +298,25 @@ export function renderPlantsPanel() {
       if (open) for (const p of mine) listWrap.appendChild(buildRow(p));
       if (hits.length) listWrap.appendChild(el('div', { className: 'list-heading' }, 'Catalog'));
     }
-    // In three groups (decided with Jason, 2026-10-25): what its sources say fits; what fits by what other sources say,
-    // below a divider, with a way to hide them; what fits only by the earlier list's word, below its own.
+    // In groups (decided with Jason, 2026-10-25): what its sources say fits; a species that comes in a color asked for
+    // among others, below a divider; what fits by what other sources say, below another, with a way to hide them; what
+    // fits only by the earlier list's word, below its own.
     const earlier = hits.filter((p) => earlierFor.has(p.id));
     const others = hits.filter((p) => reportedOnly.has(p.id) && !earlierFor.has(p.id));
-    const sourced = hits.filter((p) => !reportedOnly.has(p.id) && !earlierFor.has(p.id));
+    const species = hits.filter((p) => comesIn.has(p.id) && !reportedOnly.has(p.id) && !earlierFor.has(p.id));
+    const sourced = hits.filter((p) => !comesIn.has(p.id) && !reportedOnly.has(p.id) && !earlierFor.has(p.id));
     // (Each group up to 60 rows, so a long first group never hides the others.)
     const rows = (ps: Plant[]) => {
       for (const p of ps.slice(0, 60)) listWrap.appendChild(buildRow(p));
       if (ps.length > 60) listWrap.appendChild(el('div', { className: 'hint', style: { padding: '8px 0' } }, `+ ${countWord(ps.length - 60)} more \u2014 narrow the filters to see them`));
     };
     rows(sourced);
+    if (species.length) {
+      const colors = plantFilter.flowerColors.filter((c) => species.some((p) => comesIn.get(p.id)?.includes(c)));
+      listWrap.appendChild(el('div', { className: 'list-divider', 'data-testid': 'comes-in-divider' },
+        el('span', {}, `Also comes in ${joined(colors, 'or')}, depending on the plant you buy`)));
+      rows(species);
+    }
     if (others.length) {
       const hide = el('button', { className: 'link-btn', 'data-testid': 'hide-others' }, 'Hide these');
       hide.addEventListener('click', () => { plantFilter.withReported = false; if (reportedCheck) reportedCheck.checked = false; rebuildList(); });
@@ -294,7 +343,7 @@ export function renderPlantsPanel() {
       const why = q ? hiddenByFilters() : null;
       if (why) {
         const show = el('button', { className: 'link-btn', 'data-testid': 'show-hidden' }, 'Show them');
-        show.addEventListener('click', resetFilters);
+        show.addEventListener('click', () => resetFilters(true));
         listWrap.appendChild(el('div', { className: 'hint', style: { padding: '8px 0' }, 'data-testid': 'hidden-by' },
           `${countWord(why.n)} plant${why.n === 1 ? ' matches' : 's match'} \u201c${plantFilter.q.trim()}\u201d, hidden by your filters: ${why.names.join(', ')}. `, show));
       } else {
@@ -310,6 +359,7 @@ export function renderPlantsPanel() {
         `Nothing matches \u201c${plantFilter.q.trim()}\u201d as typed. Close spellings:`), listWrap.firstChild);
       listWrap.insertBefore(addButton(), listWrap.firstChild);
     } else listWrap.appendChild(addButton());
+    syncActive();
   }
 
   /**
@@ -323,9 +373,9 @@ export function renderPlantsPanel() {
     const found = PLANTS.filter((p) => (!forTree || isTree(p)) && reportedMatch(p, base, inPlan) !== null);
     if (!found.length) return null;
     const names: string[] = [];
-    for (const k of Object.keys(FILTER_NAMES) as (keyof typeof FILTER_NAMES)[]) {
-      if (plantFilter[k] === PLANT_FILTER_DEFAULTS[k]) continue;
-      if (found.some((p) => reportedMatch(p, { ...base, [k]: plantFilter[k] }, inPlan) === null)) names.push(FILTER_NAMES[k](plantFilter[k] as never));
+    for (const [k, name] of Object.entries(FILTER_NAMES) as [keyof PlantFilter, (f: PlantFilter) => string][]) {
+      if (!filterOn(plantFilter, k)) continue;
+      if (found.some((p) => reportedMatch(p, { ...base, [k]: plantFilter[k] }, inPlan) === null)) names.push(name(plantFilter));
     }
     return names.length ? { n: found.length, names } : null;
   }
@@ -336,11 +386,31 @@ export function renderPlantsPanel() {
     try { return filteredPlants(nearShows(readQuery(plantFilter.q), PLANTS, activeMyPlants())).filter((p) => !forTree || isTree(p)).filter((p) => reportedOnly.has(p.id)).length; }
     finally { plantFilter.withReported = was; filteredPlants(nearShows(readQuery(plantFilter.q), PLANTS, activeMyPlants())); }
   }
-  /** Clear the filters; the search stays, and so do the sections that were open. */
-  function resetFilters() {
-    const { advanced, animals: animalsOpen, q } = plantFilter;
-    Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { advanced, animals: animalsOpen, q });
+  /**
+   * Clear the filters; the search stays, and so do the sections that were open. "In this plan" (beside the search)
+   * stays too, unless `all` (a search the filters emptied: "Show them").
+   */
+  function resetFilters(all = false) {
+    const { advanced, animals: animalsOpen, q, inPlan } = plantFilter;
+    Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { advanced, animals: animalsOpen, q, inPlan: !all && inPlan });
     render(); // full rebuild so every control shows its cleared value
+  }
+  /**
+   * The filters that are on, a chip each (a list filter, a chip a value), with how to take it off. Not "In this plan",
+   * shown beside the search; not a filter that does nothing yet (hardy or native here with no ZIP).
+   */
+  function activeChips(): { key: keyof PlantFilter; text: string; clear: () => void }[] {
+    const out: { key: keyof PlantFilter; text: string; clear: () => void }[] = [];
+    for (const [k, name] of Object.entries(FILTER_NAMES) as [keyof PlantFilter, (f: PlantFilter) => string][]) {
+      if (k === 'inPlan' || !filterOn(plantFilter, k)) continue;
+      if ((k === 'hardyHere' && !state.location) || (k === 'native' && plantFilter.native === '@here' && !gardenStateName())) continue;
+      const v = plantFilter[k];
+      if (Array.isArray(v)) {
+        const lk = k as ListKey;
+        for (const x of v) out.push({ key: k, text: LIST_ONE[lk](x), clear: () => { plantFilter[lk] = plantFilter[lk].filter((y) => y !== x); } });
+      } else out.push({ key: k, text: name(plantFilter), clear: () => { Object.assign(plantFilter, { [k]: PLANT_FILTER_DEFAULTS[k] }); } });
+    }
+    return out;
   }
 
   // --- Filter controls (all update the list in place; no full render) ---
@@ -354,69 +424,95 @@ export function renderPlantsPanel() {
   const enums = (PLANT_META && PLANT_META.enums) || {};
   type StringKey = { [K in keyof PlantFilter]: PlantFilter[K] extends string ? (string extends PlantFilter[K] ? K : never) : never }[keyof PlantFilter];
   type BoolKey = { [K in keyof PlantFilter]: PlantFilter[K] extends boolean ? K : never }[keyof PlantFilter];
-  /** What each dropdown filters, for screen readers (its first option, "Any form", says what it's set to). */
-  const SELECT_NAMES: Partial<Record<StringKey, string>> = { form: 'Form', sun: 'Sun', water: 'Water', bloomMonth: 'Blooming in', nectar: 'Nectar', bird: 'Value to birds', native: 'Native status', deer: 'Deer resistance', maintenance: 'Maintenance', spread: 'How it spreads' };
-  function mkSelect<T extends string | number>(label: string, key: StringKey, options: readonly T[], display?: (o: T) => string) {
-    const sel = el('select', { 'aria-label': SELECT_NAMES[key] ?? label });
-    sel.appendChild(el('option', { value: '' }, label));
-    for (const o of options) {
-      const opt = el('option', { value: String(o) }, display ? display(o) : String(o));
-      if (String(plantFilter[key]) === String(o)) opt.selected = true;
-      sel.appendChild(opt);
-    }
-    sel.addEventListener('change', () => { plantFilter[key] = sel.value; rebuildList(); });
+  type Opt = [value: string, text: string];
+  /**
+   * A dropdown, its first option the unset one ("Any form"). `name` says what it filters, for screen readers; set, it
+   * names itself where its value alone wouldn't ("Water needs: low"): `selected` words the chosen option.
+   */
+  function mkSelect(key: StringKey, first: string, options: (Opt | { group: string; options: Opt[] })[], o: { name: string; selected?: (value: string, text: string) => string; testid?: string }) {
+    const sel = el('select', { 'aria-label': o.name, 'data-testid': o.testid });
+    const all: HTMLOptionElement[] = [];
+    const option = ([value, text]: Opt) => {
+      const opt = el('option', { value }, text);
+      opt.dataset.text = text;
+      opt.selected = String(plantFilter[key]) === value;
+      all.push(opt);
+      return opt;
+    };
+    sel.appendChild(option(['', first]));
+    for (const x of options) sel.appendChild(Array.isArray(x) ? option(x) : el('optgroup', { label: x.group }, x.options.map(option)));
+    const relabel = () => { for (const opt of all) opt.textContent = opt.selected && opt.value && o.selected ? o.selected(opt.value, opt.dataset.text!) : opt.dataset.text!; };
+    relabel();
+    sel.addEventListener('change', () => { plantFilter[key] = sel.value; relabel(); rebuildList(); });
     return el('div', { className: 'field', style: { flex: '1', minWidth: '0' } }, sel);
   }
-  const withTestId = (field: HTMLElement, id: string) => { field.querySelector('select')?.setAttribute('data-testid', id); return field; };
-  function mkCheck(label: string, key: BoolKey) {
-    const cb = el('input', { type: 'checkbox' }) as HTMLInputElement;
+  function mkCheck(label: Child, key: BoolKey, testid?: string) {
+    const cb = el('input', { type: 'checkbox', 'data-testid': testid });
     if (key === 'withReported') reportedCheck = cb;
     cb.checked = !!plantFilter[key];
     cb.addEventListener('change', () => { plantFilter[key] = cb.checked; rebuildList(); });
-    return el('label', { style: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', padding: '4px 0' } }, cb, label);
+    return el('label', { className: 'filter-check' }, cb, label);
   }
+  /** One value of a list filter, ticked or not: a plant with any value ticked passes. */
+  function listToggle(key: ListKey, value: string, label: Child, className: string) {
+    const cb = el('input', { type: 'checkbox', value });
+    cb.checked = plantFilter[key].includes(value);
+    const box = el('label', { className: className + (cb.checked ? ' on' : '') }, cb, label);
+    cb.addEventListener('change', () => {
+      plantFilter[key] = cb.checked ? [...plantFilter[key], value] : plantFilter[key].filter((v) => v !== value);
+      box.classList.toggle('on', cb.checked);
+      rebuildList();
+    });
+    return box;
+  }
+  /** Colors to tick, in a row that scrolls sideways (a chip each, with its swatch). */
+  const colorChips = (key: 'flowerColors' | 'leafColors', colors: string[], name: string, testid: string) =>
+    el('div', { className: 'color-chips', role: 'group', 'aria-label': name, 'data-testid': testid },
+      el('span', { className: 'chips-label' }, name),
+      colors.map((c) => listToggle(key, c, [el('span', { className: 'swatch', style: { background: SWATCHES[c] ?? '#d6d3d1' } }), cap(c)], 'color-chip')));
   function row(...kids: Child[]) {
     return el('div', { style: { display: 'flex', gap: '8px', marginTop: '8px' } }, ...kids);
   }
+  const checks = (...kids: Child[]) => el('div', { className: 'filter-checks' }, ...kids);
+  const groupHead = (text: string) => el('div', { className: 'filter-group' }, text);
 
-  // ---- PRIMARY FILTERS (always visible) ----
+  // ---- ALWAYS IN VIEW: the filters that judge nearly every plant (decided with Jason, 2026-10-25) ----
+  // Hardy in your zone, always offered: with no ZIP yet, ticking it asks for one, then comes back here with the search
+  // and filters as they were, showing only plants hardy there (src/ui/location-panel.ts).
+  const hardy = (() => {
+    const loc = state.location;
+    const cb = el('input', { type: 'checkbox', 'data-testid': 'hardy-here' });
+    cb.checked = !!loc && plantFilter.hardyHere;
+    const source = el('div', { className: 'hint zone-source', hidden: !cb.checked }, `Zones: ${ZONE_SOURCE_SHORT}.`);
+    cb.addEventListener('change', () => {
+      if (!state.location) { cb.checked = false; openLocation('plants'); return; }
+      plantFilter.hardyHere = cb.checked;
+      source.hidden = !cb.checked;
+      rebuildList();
+    });
+    return el('div', {}, el('label', { className: 'filter-check' }, cb, loc ? `Hardy in zone ${loc.zone}` : 'Hardy in your zone',
+      loc ? null : el('span', { className: 'hint' }, '(asks for your ZIP)')), source);
+  })();
   const primary = el('div', {},
-    row(mkSelect('Any form', 'form', enums.form || []),
-        mkSelect('Any sun', 'sun', ['Full', 'Part', 'Shade'])),
-    row(mkSelect('Any water', 'water', enums.water || []),
-        mkSelect('Blooming in\u2026', 'bloomMonth', [1,2,3,4,5,6,7,8,9,10,11,12], m => MONTH_NAMES[m]))
-  );
-  const primaryChecks = el('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px 16px', margin: '8px 0 4px' } },
-    // (Only plants whose NC State page was read and lists no poison: one it doesn't rate isn't called safe.)
-    mkCheck('No poison to people listed (NC State)', 'noPoison'),
-    state.location ? mkCheck(`Hardy in zone ${state.location.zone}`, 'hardyHere') : null,
-    mkCheck('Dry shade', 'dryShade'),
-    mkCheck('Wet feet', 'wetFeet'),
-    mkCheck('Host plant', 'hostOnly')
-  );
-  if (state.location) primaryChecks.appendChild(el('div', { className: 'hint', style: { flexBasis: '100%', fontSize: '11px' } }, `Zones: ${ZONE_SOURCE_SHORT}.`));
-  // No location yet: offer it once, where it pays off (dismissed for good on this device).
-  const zipPrompt = !state.location && !zipPromptDismissed() ? (() => {
-    const go = el('button', { className: 'zip-prompt-go', 'data-testid': 'zip-prompt' }, el('span', { html: I.pin }), 'Add your ZIP code to see which plants are hardy where you are');
-    go.addEventListener('click', () => openLocation('plants'));
-    const no = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Don’t show this again' });
-    no.addEventListener('click', () => { dismissZipPrompt(); zipRow.remove(); search.focus(); }); // (focus stays in the picker)
-    const zipRow = el('div', { className: 'zip-prompt' }, go, no);
-    return zipRow;
-  })() : null;
+    row(mkSelect('form', 'Any form', (enums.form || []).map((f): Opt => [f, f]), { name: 'Form' }),
+        mkSelect('sun', 'Any sun', [['Full', 'Full sun'], ['Part', 'Part shade'], ['Shade', 'Shade']], { name: 'Sun' })),
+    row(mkSelect('water', 'Water needs', WATER.filter(([v]) => !enums.water || enums.water.includes(v)).map(([v, t]): Opt => [v, t]),
+          { name: 'Water needs', selected: (v) => `Water needs: ${WATER.find(([w]) => w === v)?.[2] ?? v}` }),
+        mkSelect('bloomMonth', 'Blooming in…', [
+          { group: 'Season', options: SEASONS.map((x): Opt => [x, cap(x)]) },
+          { group: 'Month', options: MONTHS.slice(1).map((m, i): Opt => [String(i + 1), m]) },
+        ], { name: 'Blooming in', selected: (v, t) => `Blooming in ${/^\d+$/.test(v) ? t : v}` })),
+    colorChips('flowerColors', FLOWER_CHOICES, 'Flower color', 'flower-colors'),
+    hardy);
 
-  // ---- ANIMAL TOXICITY (folds; a line per animal: dogs now, cats and horses when a source rates them) ----
-  const animals = (() => {
+  // ---- POISON & PETS (folds; one compact button, beside More filters: its count says what's on) ----
+  const poison = (() => {
     const DOGS: [DogFilter, string][] = [
-      ['', 'Include toxic plants'],
-      ['hideToxic', 'Hide toxic plants, include unknown'],
+      ['', 'Any'],
+      ['hideToxic', 'Hide plants toxic to dogs'],
       // Says unverified while it goes by the earlier list for any plant (until each has a sourced rating: docs/catalog-sources.md).
-      ['nonToxic', PLANTS.some((p) => !p.tox?.dog) ? 'Include only non-toxic (unverified)' : 'Include only non-toxic'],
+      ['nonToxic', PLANTS.some((p) => !p.tox?.dog) ? 'Only plants rated safe for dogs (unverified)' : 'Only plants rated safe for dogs'],
     ];
-    const summary = () => (plantFilter.dogs === 'hideToxic' ? ' \u00b7 dogs: hiding toxic' : plantFilter.dogs === 'nonToxic' ? ' \u00b7 dogs: non-toxic only' : '');
-    const label = el('span', {}, 'Animal toxicity' + summary());
-    const head = el('button', { className: 'filter-fold', 'aria-expanded': String(plantFilter.animals), 'data-testid': 'animal-fold' },
-      label, el('span', { className: 'fold-chev', html: I.chevronDown }));
     // (What the choice does, in numbers: how many it hides, and how many aren't rated at all.)
     const nToxic = PLANTS.filter(toxicToDogs).length, nSafe = PLANTS.filter(nonToxicToDogs).length;
     const nUnrated = PLANTS.length - nToxic - nSafe;
@@ -429,88 +525,92 @@ export function renderPlantsPanel() {
     sayNote();
     const group = el('div', { role: 'radiogroup', 'aria-label': 'Dogs', className: 'animal-rows' });
     for (const [value, text] of DOGS) {
-      const r = el('input', { type: 'radio', name: 'dogs-filter', value, 'data-testid': `dogs-${value || 'any'}` }) as HTMLInputElement;
+      const r = el('input', { type: 'radio', name: 'dogs-filter', value, 'data-testid': `dogs-${value || 'any'}` });
       r.checked = plantFilter.dogs === value;
-      r.addEventListener('change', () => { if (!r.checked) return; plantFilter.dogs = value; label.textContent = 'Animal toxicity' + summary(); sayNote(); rebuildList(); });
+      r.addEventListener('change', () => { if (!r.checked) return; plantFilter.dogs = value; sayNote(); rebuildList(); });
       group.appendChild(el('label', { className: 'check-row' }, r, el('span', {}, text)));
     }
-    const box = el('div', { className: 'animal-box', style: { display: plantFilter.animals ? 'block' : 'none' } },
-      el('div', { className: 'animal-name' }, 'Dogs'), group, note);
-    head.addEventListener('click', () => {
-      plantFilter.animals = !plantFilter.animals;
-      head.setAttribute('aria-expanded', String(plantFilter.animals));
-      box.style.display = plantFilter.animals ? 'block' : 'none';
-    });
-    return el('div', { 'data-testid': 'animal-toxicity' }, head, box);
+    return el('div', { className: 'filter-box', id: 'poison-filters', hidden: !plantFilter.animals, 'data-testid': 'animal-toxicity' },
+      // (Only plants whose NC State page was read and lists no poison: one it doesn't rate isn't called safe.)
+      mkCheck('Not listed as poisonous to people', 'noPoison'),
+      el('div', { className: 'hint' }, "By NC State: a plant it doesn't rate is left out too."),
+      el('div', { className: 'animal-name' }, 'Dogs'), group, note,
+      el('div', { className: 'animal-name' }, 'Cats and horses'),
+      mkCheck('Hide plants that are a problem for cats', 'cats'),
+      mkCheck('Hide plants that are a problem for horses', 'horses'),
+      el('div', { className: 'hint' }, "NC State's warnings. A plant it doesn't list stays, which isn't the same as safe."));
   })();
 
-  // ---- ADVANCED FILTERS (collapsible) ----
-  const adv = el('div', { style: { display: plantFilter.advanced ? 'block' : 'none',
-    borderTop: '1px solid #e7e5e4', marginTop: '8px', paddingTop: '4px' } });
-  adv.appendChild(el('div', { className: 'hint', style: { padding: '4px 0 0' } }, 'Ecology'));
-  adv.appendChild(row(
-    mkSelect('Any nectar', 'nectar', ['Med', 'High'], v => v === 'High' ? 'Nectar: High' : 'Nectar: Med+'),
-    mkSelect('Any bird value', 'bird', ['Med', 'High'], v => v === 'High' ? 'Birds: High' : 'Birds: Med+')
-  ));
-  adv.appendChild(row(
-    // (Native to the garden's own state, once its ZIP is known: Kew's checklist.)
-    withTestId(mkSelect('Any native status', 'native', [...(gardenStateName() ? ['@here'] : []), ...(enums.native || [])], (v) => (v === '@here' ? `Native to ${gardenStateName()}` : v)), 'native-filter'),
-    mkSelect('Any deer rating', 'deer', enums.deer || [])
-  ));
-  adv.appendChild(el('div', { className: 'hint', style: { padding: '10px 0 0' } }, 'Size & care'));
+  // ---- MORE FILTERS (folds) ----
   // (Mature height: the readout follows a handle as it moves; the list changes when it's let go.)
   const heightReadout = el('span', { 'data-testid': 'height-readout' }, heightLabel(plantFilter.height));
-  adv.appendChild(el('div', { className: 'field', style: { marginTop: '8px' } },
-    el('div', { className: 'hint', style: { display: 'flex', justifyContent: 'space-between' } }, el('span', {}, 'Mature height'), heightReadout),
-    heightRange(plantFilter.height, (v) => { heightReadout.textContent = heightLabel(v); }, (v) => { plantFilter.height = v; heightReadout.textContent = heightLabel(v); rebuildList(); })));
-  adv.appendChild(row(
-    mkSelect('Any maintenance', 'maintenance', enums.maintenance || [])
-  ));
-  adv.appendChild(row(
-    // (Says unverified while any plant it lets through goes by the earlier list for either fact, as the dog filter does.)
-    withTestId(mkSelect('Any spreading', 'spread', ['stays', 'seed', 'runs', 'aggressive'], (v) => ({
-      stays: PLANTS.some((p) => spreadsAs(p, 'stays') && [p.prov?.self_seed, p.prov?.habit].some((pv) => !pv || pv.src.every((s) => PLANT_META?.sources?.[s]?.trust === 'unverified'))) ? 'Stays put (unverified)' : 'Stays put',
-      seed: 'Self-sows freely', runs: 'Spreads underground or by runners', aggressive: 'Spreads aggressively underground or by runners',
-    } as Record<string, string>)[v] ?? v), 'spread-filter')
-  ));
-  adv.appendChild(el('div', { className: 'hint', style: { padding: '10px 0 0' } }, 'Traits'));
-  adv.appendChild(el('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '2px 16px', margin: '4px 0 8px' } },
-    mkCheck('Fall color', 'fallColor'),
-    mkCheck('Evergreen', 'evergreen'),
-    mkCheck('Winter interest', 'winterInterest'),
-    mkCheck('Clay OK', 'clayOk'),
-    mkCheck('Edible', 'edible'),
-    mkCheck('Transplantable', 'noTaproot'),
-    mkCheck('Already in this plan', 'inPlan')
-  ));
-  adv.appendChild(el('div', { className: 'hint', style: { padding: '10px 0 0' } }, 'Sources'));
-  adv.appendChild(el('div', { style: { margin: '4px 0 8px' } },
-    mkCheck('Include where sources differ', 'withReported'),
-    el('div', { className: 'hint', style: { fontSize: '11px' } }, 'Where sources disagree, a plant shows the value more of them give (on a tie, the cautious one), with the other beside it. Let the other count too. A plant shown only because of it is marked !.')));
+  const here = gardenStateName();
+  const adv = el('div', { className: 'filter-box', id: 'more-filters', hidden: !plantFilter.advanced },
+    groupHead('Wildlife'),
+    el('div', { className: 'hint' }, 'Attracts any of'),
+    checks(ATTRACT_CHOICES.map(([v, t]) => listToggle('attracts', v, t, 'filter-check'))),
+    checks(mkCheck('Feeds caterpillars (host plant)', 'hostOnly')),
+    // (Native to the garden's own state, once its ZIP is known: Kew's checklist. To North America: the earlier list.)
+    row(mkSelect('native', 'Any native status', [...(here ? [['@here', `Native to ${here}`] as Opt] : []), ['@na', 'Native to North America (unverified)']],
+      { name: 'Native status', testid: 'native-filter' })),
+    groupHead('Looks'),
+    colorChips('leafColors', LEAF_CHOICES, 'Leaf color', 'leaf-colors'),
+    checks(mkCheck('Fall color', 'fallColor'), mkCheck('Evergreen', 'evergreen'), mkCheck('Winter interest', 'winterInterest')),
+    row(mkSelect('growth', 'Any growth rate', GROWTH, { name: 'Growth rate', selected: (_v, t) => `Growth rate: ${t}` })),
+    el('div', { className: 'field', style: { marginTop: '8px' } },
+      el('div', { className: 'hint', style: { display: 'flex', justifyContent: 'space-between' } }, el('span', {}, 'Mature height'), heightReadout),
+      heightRange(plantFilter.height, (v) => { heightReadout.textContent = heightLabel(v); }, (v) => { plantFilter.height = v; heightReadout.textContent = heightLabel(v); rebuildList(); })),
+    groupHead('Site & care'),
+    checks(mkCheck('Low maintenance', 'lowMaintenance'), mkCheck('Drought tolerant', 'drought'), mkCheck('Takes wet soil', 'wetFeet'),
+      mkCheck('Clay OK', 'clayOk'), mkCheck('Deer resistant', 'deerResistant'), mkCheck('Hide plants with thorns', 'noThorns'), mkCheck('Edible', 'edible')),
+    el('div', { className: 'hint' }, 'For dry shade: Drought tolerant, with Shade under Sun.'),
+    row(
+      // (Says unverified while any plant it lets through goes by the earlier list for either fact, as the dog filter does.)
+      mkSelect('spread', 'Any spreading', (['stays', 'seed', 'runs', 'aggressive'] as const).map((v): Opt => [v,
+        v === 'stays' && PLANTS.some((p) => spreadsAs(p, 'stays') && [p.prov?.self_seed, p.prov?.habit].some((pv) => !pv || pv.src.every((s) => PLANT_META?.sources?.[s]?.trust === 'unverified'))) ? 'Stays put (unverified)' : SPREADS[v]]),
+      { name: 'How it spreads', testid: 'spread-filter' })),
+    groupHead('Sources'),
+    mkCheck('Where sources disagree, count both values', 'withReported'),
+    el('div', { className: 'hint' }, 'A plant shows the value more sources give (on a tie, the cautious one), with the other beside it. One shown only because of the other is marked !.'));
 
-  // ---- Toggle + reset ----
-  const toggle = el('button', { className: 'btn ghost', style: { flex: '1', fontSize: '13px', padding: '6px' } });
-  function syncToggleLabel() {
-    toggle.textContent = (plantFilter.advanced ? '\u2212 Fewer filters' : '+ More filters');
+  // ---- The two folds' buttons, side by side (each says how many of its filters are on) ----
+  const poisonLabel = el('span', {}), moreLabel = el('span', {});
+  const foldButton = (label: HTMLElement, box: HTMLElement, testid: string, flag: 'animals' | 'advanced') => {
+    const b = el('button', { className: 'btn ghost fold-btn', 'aria-expanded': String(plantFilter[flag]), 'aria-controls': box.id, 'data-testid': testid },
+      label, el('span', { className: 'fold-chev', html: I.chevronDown }));
+    b.addEventListener('click', () => { plantFilter[flag] = !plantFilter[flag]; b.setAttribute('aria-expanded', String(plantFilter[flag])); box.hidden = !plantFilter[flag]; });
+    return b;
+  };
+  const foldRow = el('div', { className: 'fold-row' }, foldButton(poisonLabel, poison, 'animal-fold', 'animals'), foldButton(moreLabel, adv, 'more-filters', 'advanced'));
+
+  // ---- What's on, above the list: a chip each, tap to take it off ----
+  const activeRow = el('div', { className: 'active-filters', 'data-testid': 'active-filters' });
+  /** The chips, and the fold buttons' counts, as the filters now stand (with each list rebuild). */
+  function syncActive() {
+    const chips = activeChips();
+    activeRow.replaceChildren(...chips.map((c) => {
+      const b = el('button', { className: 'active-chip', 'aria-label': `Remove filter: ${c.text}`, 'data-testid': 'active-chip' }, c.text, el('span', { className: 'chip-x', html: I.x }));
+      b.addEventListener('click', () => { c.clear(); render(); }); // (a full rebuild, so its control shows it off)
+      return b;
+    }));
+    if (chips.length) {
+      const all = el('button', { className: 'link-btn', 'data-testid': 'reset-filters' }, 'Clear filters');
+      all.addEventListener('click', () => resetFilters());
+      activeRow.appendChild(all);
+    }
+    activeRow.hidden = !chips.length;
+    const on = (keys: (keyof PlantFilter)[]) => { const n = chips.filter((c) => keys.includes(c.key)).length; return n ? ` (${n} on)` : ''; };
+    poisonLabel.textContent = 'Poison & pets' + on(POISON_KEYS);
+    moreLabel.textContent = 'More filters' + on(MORE_KEYS);
   }
-  syncToggleLabel();
-  toggle.addEventListener('click', () => {
-    plantFilter.advanced = !plantFilter.advanced;
-    adv.style.display = plantFilter.advanced ? 'block' : 'none';
-    syncToggleLabel();
-  });
-  const resetBtn = el('button', { className: 'btn ghost', style: { flex: '1', fontSize: '13px', padding: '6px' } }, 'Reset filters');
-  resetBtn.addEventListener('click', resetFilters);
-  const btnRow = el('div', { style: { display: 'flex', gap: '8px', margin: '8px 0 4px' } }, toggle, resetBtn);
 
-  // The search stays in view while the list scrolls (with the header, below).
-  const searchBar = el('div', { className: 'picker-search field' }, el('div', { className: 'search-wrap' }, search, clearSearch));
-  body.appendChild(primary);
-  body.appendChild(primaryChecks);
-  body.appendChild(animals);
-  if (zipPrompt) body.insertBefore(zipPrompt, primary);
-  body.appendChild(btnRow);
-  body.appendChild(adv);
+  // The search stays in view while the list scrolls (with the header, below); "In this plan" beside it.
+  const planToggle = el('button', { className: 'plan-toggle', 'aria-pressed': String(plantFilter.inPlan), 'data-testid': 'in-plan', title: 'Only the plants placed in this plan' }, 'In this plan');
+  planToggle.addEventListener('click', () => { plantFilter.inPlan = !plantFilter.inPlan; planToggle.setAttribute('aria-pressed', String(plantFilter.inPlan)); rebuildList(); });
+  const searchBar = el('div', { className: 'picker-search field' }, el('div', { className: 'search-row' }, el('div', { className: 'search-wrap' }, search, clearSearch), planToggle));
+  // (One block, so its spacing is its own: the sheet spaces its parts widely.)
+  (primary.firstChild as HTMLElement).style.marginTop = '0';
+  body.appendChild(el('div', { className: 'picker-filters' }, primary, foldRow, poison, adv, activeRow));
   body.appendChild(countLine);
   body.appendChild(listWrap);
   rebuildList();

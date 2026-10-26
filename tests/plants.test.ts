@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { byMatch, closeMatchIn, inNotes, matchPlant, nearShows, readQuery } from '../src/search';
-import { earlierOnly, matchedBy, nonToxicToDogs, PLANT_FILTER_DEFAULTS, pickerCount, plantMatches, reportedPhrase, rowFlags, rowLines, shareDogWarnings, speciesOf, sunSaid, toxicToDogs, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
+import { bloomMatch, earlierOnly, filterOn, matchedBy, seasonMonths, trueToColor, nonToxicToDogs, PLANT_FILTER_DEFAULTS, pickerCount, plantMatches, reportedPhrase, rowFlags, rowLines, shareDogWarnings, speciesOf, sunSaid, toxicToDogs, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
 import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs } from '../src/spread';
 import { readFileSync } from 'node:fs';
 import { HEIGHT_STOPS, heightLabel, heightStops, heightValue } from '../src/ui/height-range';
@@ -71,6 +71,57 @@ describe('plant filters', () => {
   it('matches on bloom month within the range', () => {
     expect(plantMatches(heuchera, f({ bloomMonth: '9' }))).toBe(true);
     expect(plantMatches(heuchera, f({ bloomMonth: '5' }))).toBe(false);
+  });
+  it('counts a plant whose season covers the month asked for, where it has no months; a season, by its months', () => {
+    expect(seasonMonths('summer')).toEqual([6, 7, 8]);
+    expect([seasonMonths('early spring'), seasonMonths('mid summer'), seasonMonths('late fall'), seasonMonths('winter')]).toEqual([[3], [7], [11], [12, 1, 2]]);
+    const aster = { id: 'a', common: 'Aster', bloom_season: ['fall'] } as Plant;
+    expect([bloomMatch(aster, '10'), bloomMatch(aster, '6'), bloomMatch(aster, 'fall'), bloomMatch(aster, 'spring')]).toEqual(['season', null, 'season', null]);
+    // (Its sources' season comes before the earlier list's months; with neither, no match.)
+    expect(bloomMatch({ ...aster, bloom: { start: 5, end: 6 } }, '6')).toBe('earlier');
+    expect(bloomMatch(heuchera, 'fall')).toBe('earlier');
+    expect(bloomMatch({ id: 'x', common: 'X' } as Plant, '6')).toBeNull();
+    expect(plantMatches(aster, f({ bloomMonth: '9' }))).toBe(true);
+  });
+  it('matches any flower color ticked; says whether the color is what you get (a cultivar, or a species of one color)', () => {
+    const cone = { id: 'c', common: 'Purple coneflower', botanical: 'Echinacea purpurea', flower_color: ['purple', 'pink', 'red'] } as Plant;
+    expect(plantMatches(cone, f({ flowerColors: ['red', 'white'] }))).toBe(true);
+    expect(plantMatches(cone, f({ flowerColors: ['white'] }))).toBe(false);
+    expect(plantMatches({ ...cone, flower_color: ['insignificant'] }, f({ flowerColors: ['green'] }))).toBe(false);
+    expect(trueToColor(cone)).toBe(false);
+    expect(trueToColor({ ...cone, common: "Coneflower 'Tomato Soup'" })).toBe(true);
+    expect(trueToColor({ ...cone, parent: 'echinacea-purpurea' })).toBe(true);
+    expect(trueToColor({ ...cone, common: "Bush's coneflower" })).toBe(false); // (a possessive isn't a cultivar name)
+    expect(trueToColor({ ...cone, flower_color: ['white', 'cream'] })).toBe(true); // (white and cream count as one)
+  });
+  it('matches leaf colors and who it attracts by any ticked; bees take in specialized bees', () => {
+    const p = { id: 'p', common: 'P', leaf_color: ['green', 'silver'], attracts: ['specialized bees', 'moths'] } as Plant;
+    expect(plantMatches(p, f({ leafColors: ['silver', 'gold'] }))).toBe(true);
+    expect(plantMatches(p, f({ leafColors: ['gold'] }))).toBe(false);
+    expect(plantMatches(p, f({ attracts: ['bees'] }))).toBe(true);
+    expect(plantMatches(p, f({ attracts: ['hummingbirds'] }))).toBe(false);
+  });
+  it('filters on NC State\'s words: low maintenance, drought or dry soil, deer resistant; hides thorns and pet warnings only where listed', () => {
+    const p = { id: 'p', common: 'P', maintenance_level: 'low', tolerates: ['dry soil'], deer: 'Resistant' } as Plant;
+    expect(plantMatches(p, f({ lowMaintenance: true, drought: true, deerResistant: true, noThorns: true, cats: true, horses: true }))).toBe(true);
+    expect(plantMatches({ ...p, maintenance_level: 'medium' }, f({ lowMaintenance: true }))).toBe(false);
+    expect(plantMatches({ ...p, tolerates: ['deer'] }, f({ drought: true }))).toBe(false);
+    expect(plantMatches({ ...p, deer: 'Occasional' }, f({ deerResistant: true }))).toBe(false);
+    expect(plantMatches({ ...p, thorns: true }, f({ noThorns: true }))).toBe(false);
+    expect(plantMatches({ ...p, problem_for: ['cats'] }, f({ cats: true }))).toBe(false);
+    expect(plantMatches({ ...p, problem_for: ['cats'] }, f({ horses: true }))).toBe(true);
+  });
+  it('filters natives to North America by the earlier list\'s words, its regional natives included', () => {
+    expect(plantMatches(heuchera, f({ native: '@na' }))).toBe(false);
+    expect(plantMatches({ ...heuchera, native: 'Regional native' }, f({ native: '@na' }))).toBe(true);
+    expect(plantMatches({ ...heuchera, native: 'Exotic' }, f({ native: '@na' }))).toBe(false);
+  });
+  it('says a filter is on when it differs from its default, a list when it has anything in it', () => {
+    expect(filterOn(f(), 'flowerColors')).toBe(false);
+    expect(filterOn(f({ flowerColors: ['red'] }), 'flowerColors')).toBe(true);
+    expect(filterOn(f({ withReported: false }), 'withReported')).toBe(true);
+    expect(filterOn(f({ form: 'Shrub' }), 'form')).toBe(true);
+    expect(Object.isFrozen(PLANT_FILTER_DEFAULTS.flowerColors)).toBe(true); // (changed only by a new list, never in place)
   });
   it('shows dog-unsafe plants unless asked; hides nothing else by default', () => {
     expect(plantMatches({ ...heuchera, dog: 'Mild GI' }, f())).toBe(true);
@@ -337,11 +388,11 @@ describe('a picker row', () => {
   });
   it('puts a match resting only on the earlier list below its own divider, naming the filter', () => {
     const sources = { compendium: { title: 'Earlier list', trust: 'unverified' as const }, ncsu: { title: 'NC State', trust: 'reference' as const } };
-    const p = { ...heuchera, deer: 'Resistant', prov: { deer: { src: ['compendium'] }, sun_most: { src: ['ncsu'] }, sun_least: { src: ['ncsu'] }, dry_shade: { src: ['compendium'] } } } as Plant;
+    const p = { ...heuchera, deer: 'Resistant', wet_feet: true, prov: { deer: { src: ['compendium'] }, sun_most: { src: ['ncsu'] }, sun_least: { src: ['ncsu'] }, wet_feet: { src: ['compendium'] } } } as Plant;
     expect(earlierOnly(p, f({ sun: 'Shade' }), sources)).toEqual([]);
-    expect(earlierOnly(p, f({ sun: 'Shade', deer: 'Resistant', dryShade: true }), sources)).toEqual(['deer resistance', 'dry shade']);
+    expect(earlierOnly(p, f({ sun: 'Shade', deerResistant: true, wetFeet: true }), sources)).toEqual(['deer resistance', 'wet feet']);
     // (A plant of mine is its own word.)
-    expect(earlierOnly(heuchera, f({ dryShade: true }), sources)).toEqual([]);
+    expect(earlierOnly(heuchera, f({ wetFeet: true }), sources)).toEqual([]);
   });
   it('says what other sources helped with, as the divider reads', () => {
     expect(reportedPhrase(['sun'], f({ sun: 'Shade' }))).toBe('take shade');
