@@ -14,7 +14,7 @@
 // added plant out, delete its record; to have it added again, delete its line in that file as well.
 import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { ncsuFields } from './extract.mjs';
-import { ncsuTitle, recordCultivars, titleCultivar } from './ncsu-page.mjs';
+import { ncsuTitle, quotedCultivars, recordCultivars, titleCultivar, withoutCultivars } from './ncsu-page.mjs';
 import { savedMeta, savedPage } from './pages.mjs';
 import { ncsuUrl, speciesOf, usdaFor } from './list.mjs';
 import { profileUrl, searchUrl } from './usda-pick.mjs';
@@ -68,7 +68,7 @@ export const hybridFormula = (botanical) => /^\S+ [a-zë-]+ [x×] [a-zë-]+/.tes
  * 'JFS-KW202'" → Crimson Sunset. Null for a species, a variety or a cross of two species.
  */
 export function tradeName(botanical) {
-  const words = String(botanical ?? '').replace(/'[^']*'/g, ' ').replace(/\([^)]*\)/g, ' ').trim().split(/\s+/).slice(1);
+  const words = withoutCultivars(botanical ?? '').replace(/\([^)]*\)/g, ' ').trim().split(/\s+/).slice(1);
   let i = 0;
   if (words[i] === '×') i++;
   if (/^[a-zë-]+$/.test(words[i] ?? '')) i++; // (the epithet)
@@ -93,7 +93,7 @@ const norm = (s) => String(s ?? '').replace(/[‘’]/g, "'").replace(/×/g, 'x'
  * Which plant a name is, to find one the catalog has under the same name: the botanical name without its cultivar,
  * and the cultivar ("abelia x grandiflora|sunrise"). A variety is its own plant ("acer rubrum var. drummondii|").
  */
-export const nameKey = (botanical, cultivar) => `${norm(norm(botanical).replace(/'[^']*'/g, ''))}|${norm(cultivar)}`;
+export const nameKey = (botanical, cultivar) => `${norm(withoutCultivars(norm(botanical), ''))}|${norm(cultivar)}`;
 /**
  * The keys a record answers to: one for each cultivar it names, or its own name; and the same under the spelling
  * GBIF's backbone gives the species, where the catalog's differs (gbif.mjs GBIF_NAME: NC State's "Andropogon
@@ -117,7 +117,7 @@ const recordKeys = (r) => {
 export function commonName({ botanical, commons, cultivar, trade, usdaCommon, gbifCommon, speciesCommon }) {
   // (A cross of two species: USDA's and GBIF's names are its first parent's, not its own. A variety's or
   // subspecies' are its species': said with its own part, "Swamp milkweed (subsp. pulchra)".)
-  const infra = /\b((?:var|subsp|ssp|f)\. [a-zë-]+)/.exec(String(botanical ?? '').replace(/'[^']*'/g, ''))?.[1];
+  const infra = /\b((?:var|subsp|ssp|f)\. [a-zë-]+)/.exec(withoutCultivars(botanical ?? '', ''))?.[1];
   const species = hybridFormula(botanical) ? null : (usdaCommon && cap(usdaCommon)) || (gbifCommon && cap(gbifCommon)) || null;
   const named = species && infra ? `${species} (${infra})` : species;
   if (cultivar || trade) {
@@ -169,7 +169,7 @@ export function newRecords(catalog, used, { root = 'catalog-src', usdaCommon = (
   const usedPages = new Set([...used, ...Object.values(added)]);
   const named = new Map();
   for (const r of catalog.plants) for (const k of recordKeys(r)) if (!named.has(k)) named.set(k, { id: r.id });
-  const isCultivar = (r) => !!r.parent || /'/.test(`${r.botanical ?? ''} ${r.common ?? ''}`);
+  const isCultivar = (r) => !!r.parent || recordCultivars(r).length > 0; // (not "Stokes' aster")
   const speciesRecord = new Map();
   for (const r of catalog.plants) if (r.botanical && !isCultivar(r) && !speciesOf(r.botanical).genusOnly) speciesRecord.set(r.botanical, r);
   const found = [], left = [];
@@ -279,7 +279,9 @@ const gbifKey = (match) => (match?.matchType === 'EXACT' && match.rank === 'SPEC
 /** GBIF's English name for a species ("Korean fir"), from its saved backbone match and record (`gbifKey`). */
 export function gbifCommonName(species, root = 'catalog-src') {
   const key = gbifKey(savedJson('gbif', matchUrl(species), root));
-  return key ? savedJson('gbif', speciesUrl(key), root)?.vernacularName || null : null;
+  // (Its record can give several in one, "Australian tree fern, Lacy tree fern, …": the first.)
+  const name = key ? savedJson('gbif', speciesUrl(key), root)?.vernacularName : null;
+  return name ? String(name).split(/\s*[,;]\s*/)[0].trim() || null : null;
 }
 /**
  * What to fetch to name new species (`records`: the new records): GBIF's match, then its record, for each species
@@ -288,7 +290,7 @@ export function gbifCommonName(species, root = 'catalog-src') {
 export function namePagesToFetch(records, root = 'catalog-src') {
   const urls = new Set();
   for (const r of records) {
-    if (r.parent || /'/.test(r.botanical)) continue;
+    if (r.parent || quotedCultivars(r.botanical).length) continue;
     const sp = speciesOf(r.botanical);
     if (sp.genusOnly) continue;
     if (!sp.species.includes('×')) {

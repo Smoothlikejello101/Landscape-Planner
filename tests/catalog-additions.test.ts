@@ -46,6 +46,8 @@ describe('reading NC State for new plants', () => {
     expect(tradeName("Echinacea purpurea PowWow Wild Berry 'PAS702917'")).toBe('PowWow Wild Berry');
     expect(tradeName('Berberis thunbergii Sunjoy Group')).toBe('Sunjoy Group');
     expect(tradeName("Acer Crimson Sunset 'JFS-KW202'")).toBe('Crimson Sunset');
+    expect(tradeName("Rosa Child's Play 'SAVachild'")).toBe("Child's Play"); // (an apostrophe in a word isn't a quote)
+    expect(tradeName("Helleborus × hybridus Ice N' Roses 'COSEH 4200'")).toBe("Ice N' Roses");
     expect([tradeName('Acer rubrum var. drummondii'), tradeName('Iris aucheri × bucharica'), tradeName("Abelia × grandiflora 'Sunrise'"), tradeName('Hosta')]).toEqual([null, null, null, null]);
     expect([hybridFormula('Ilex verticillata × serrata'), hybridFormula('Abelia × grandiflora')]).toEqual([true, false]);
   });

@@ -37,7 +37,9 @@ describe('the shipped catalog', () => {
     expect(plants).toHaveLength(records.length);
     // Every plant of the first list; the rest added from NC State's Plant Toolbox, each with the page it was found
     // on (scripts/catalog/added-plants.json: so it's never added twice).
-    expect(records.filter((r) => r.src?.includes('compendium'))).toHaveLength(820);
+    // (820, and 5 cultivars split from its records of several: decisions.json `split`, named by the record.)
+    expect(records.filter((r) => r.src?.includes('compendium'))).toHaveLength(825);
+    expect(records.filter((r) => r.src?.includes('compendium') && r.inherits).length).toBe(5);
     const pages = JSON.parse(readFileSync(new URL('../scripts/catalog/added-plants.json', import.meta.url), 'utf8')).pages;
     const added = records.filter((r) => !r.src?.includes('compendium'));
     expect(added.filter((r) => r.src?.join() !== 'ncsu' || !pages[r.id]).map((r) => r.id)).toEqual([]);

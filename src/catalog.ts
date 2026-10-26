@@ -55,6 +55,12 @@ export interface CatalogRecord {
   usda?: string;
   /** Species of a cultivar. */
   parent?: string;
+  /**
+   * Facts a cultivar takes from its species beyond those every cultivar does (INHERITED): only its size, `height` and
+   * `width`, for a cultivar split from a record of several that has no page of its own, until a source gives its own
+   * (scripts/catalog/split.mjs; decided with Jason, 2026-10-25).
+   */
+  inherits?: string[];
   /** Sources of facts that don't name their own. */
   src?: string[];
   /** Date (YYYY-MM-DD) the audit re-derived this record from sources; null until then. */
@@ -127,7 +133,8 @@ export function resolveCatalog(file: CatalogFile): Plant[] {
     if (rec.synonyms?.length) p.synonyms = rec.synonyms;
     if (rec.parent) p.parent = rec.parent;
     const prov: Record<string, Provenance> = {};
-    const keys = new Set([...Object.keys(rec.facts), ...(parent ? Object.keys(parent.facts).filter((k) => INHERITED.has(k)) : [])]);
+    const takes = (k: string) => INHERITED.has(k) || !!rec.inherits?.includes(k);
+    const keys = new Set([...Object.keys(rec.facts), ...(parent ? Object.keys(parent.facts).filter(takes) : [])]);
     for (const key of keys) {
       const own = factOf(rec, key);
       const got = own ?? (parent ? factOf(parent, key) : undefined);
@@ -258,7 +265,9 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
   bloom_season: wordsOf(BLOOM_SEASONS), flower_color: wordsOf(FLOWER_COLORS),
 };
 export const FACT_NAMES = Object.keys(FACT_TYPES);
-const RECORD_KEYS = new Set(['id', 'common', 'botanical', 'short', 'synonyms', 'usda', 'parent', 'src', 'audited', 'facts']);
+const RECORD_KEYS = new Set(['id', 'common', 'botanical', 'short', 'synonyms', 'usda', 'parent', 'inherits', 'src', 'audited', 'facts']);
+/** What `inherits` may name: a cultivar's size, which every other cultivar has from its own sources. */
+const MAY_INHERIT = ['height', 'width'];
 const STATE = /^[A-Z]{2}$/;
 
 /** Structural problems (the file mustn't ship with any). */
@@ -288,6 +297,10 @@ export function catalogErrors(file: CatalogFile): string[] {
       if (!p) errs.push(`${at}: parent ${r.parent} isn't in the catalog`);
       else if (p.parent) errs.push(`${at}: parent ${r.parent} is itself a cultivar`);
       if (r.parent === r.id) errs.push(`${at}: its own parent`);
+    }
+    if (r.inherits != null) {
+      if (!(Array.isArray(r.inherits) && r.inherits.length && r.inherits.every((k) => MAY_INHERIT.includes(k)))) errs.push(`${at}: inherits must list height or width`);
+      if (!r.parent) errs.push(`${at}: inherits, but has no species to take it from`);
     }
     if (r.audited != null && !/^\d{4}-\d{2}-\d{2}$/.test(r.audited)) errs.push(`${at}: audited must be a date or null`);
     for (const s of r.src ?? []) if (!sources[s]) errs.push(`${at}: unknown source ${s}`);
@@ -320,6 +333,7 @@ export function catalogErrors(file: CatalogFile): string[] {
 export function catalogWarnings(file: CatalogFile): string[] {
   const out: string[] = [];
   const byBotanical = new Map(file.plants.filter((r) => !r.parent).map((r) => [(r.botanical ?? '').toLowerCase(), r]));
+  const byIdW = new Map(file.plants.map((r) => [r.id, r])); // (a cultivar taking its species' spread: `inherits`)
   // Rough tallest plausible height by form (feet), to catch unit slips (inches as feet).
   const MAX_HEIGHT: Record<string, number> = { Perennial: 15, Annual: 12, 'Grass/Sedge': 20, Fern: 8, Bulb: 8, Shrub: 30, Cactus: 25, Vine: 100, 'Aquatic/Emergent': 15, Tree: 200 };
   for (const r of file.plants) {
@@ -344,7 +358,7 @@ export function catalogWarnings(file: CatalogFile): string[] {
       out.push(`${r.id}: a cultivar with ${byBotanical.has(species) ? 'a species record it could point to' : 'no species record in the catalog'}`);
     }
     if (/['‘’].+['‘’]/.test(r.common) && !/['‘’]/.test(r.botanical ?? '')) out.push(`${r.id}: named as a cultivar, but its botanical name doesn't say which`);
-    if (!v('width')) out.push(`${r.id}: no spread`);
+    if (!v('width') && !(r.inherits?.includes('width') && r.parent && byIdW.get(r.parent) && factOf(byIdW.get(r.parent)!, 'width'))) out.push(`${r.id}: no spread`);
   }
   return out;
 }

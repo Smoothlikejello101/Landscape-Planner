@@ -156,7 +156,8 @@ NC State's Plant Toolbox lists every plant page in its sitemap (`https://plants.
 - **The record.** Its id is the page's name. It has names and no facts: the steps fill it like any other.
   - Its botanical name is the page's title, × for NC State's x, without ® or ™.
   - Its name in the app: a species', USDA's common name (from its profile); else GBIF's English name (its
-    backbone record's `vernacularName`); else NC State's, where it gives just one; else the botanical name. NC
+    backbone record's `vernacularName`, the first where it gives several in one); else NC State's, where it gives
+    just one; else the botanical name. NC
     State lists a plant's names alphabetically, in several languages, and often a related plant's, so which one
     is the plant's can't be told from its list ("Abeto Del Colorado, Balsam Fir, Colorado Fir, …" for white fir).
     A cross of two species written as one (Ilex verticillata × serrata) takes neither parent's USDA or GBIF name.
@@ -187,6 +188,19 @@ are: groups ("Astilbe 'Visions' series"), names that never say which cultivar, a
 middle ("Red Rome Apple"). The former name is kept as a synonym, and search reads synonyms.
 
 The build's write step applies it; `npm run catalog:names` applies it to the catalog as it is.
+
+**A cultivar's quotes, not an apostrophe** (2026-10-26). A quote opens after no letter or digit and closes before
+none (`quotedCultivars`, ncsu-page.mjs): "Kalm's St. John's wort" names no cultivar, "'Kramer's Supreme'" is one,
+and "Lamb's ear 'Big Ears'" names 'Big Ears'. Until then an apostrophe was read as a quote: a species with a
+possessive in its name was taken for a cultivar and lost its size, a name was cut at it ("Common pear 'Blake'"),
+and a record with one in its name read as naming several cultivars and lost its own page's size.
+
+**Linked to its species.** A record of one cultivar that names no species is linked to its species' record
+(`parent`) where the catalog has exactly one (`linkCultivars`, split.mjs; Jason, 2026-10-26, so the picker can
+fold a species' cultivars under it): the record whose botanical name is its own without the cultivar (a variety's,
+"Rudbeckia fulgida var. sullivantii" for 'Goldsturm'), else its species'. Not a record of the earlier list naming
+a cultivar beside its species ("Aucuba japonica ('Gold Dust')"), or two plants (with a /): those wait for a
+decision.
 
 ## Reading the web claims again
 
@@ -228,8 +242,9 @@ then drops the item:
 - an NC State page to read or not, or a page under another name to accept: `ncsu-pages.json`;
 - a law list's name: its `accepted` in `regulated-plants.json`;
 - bloom months to trust: `RECORDS_TRUSTED` in bloom.mjs;
-- a cultivar's form, a plant both edible and toxic, native status held back, Kew's homonyms, a genus page:
-  `decisions.json` ([catalog-sources.md](catalog-sources.md), "Decisions").
+- a cultivar's form, a plant both edible and toxic, native status held back, Kew's homonyms, a genus page, a
+  record of several cultivars to split: `decisions.json` ([catalog-sources.md](catalog-sources.md), "Decisions").
+  A split is applied first, before new plants are found: a cultivar with a page of its own is then added from it.
 
 **The rest don't have a place yet**, and the report says so for each: sources that disagree, a value held back as
 implausible, a value its source no longer gives, and the atlas's double maps. They stay listed until there is one.

@@ -101,6 +101,17 @@ describe('NC State\'s pages', () => {
     expect(ownCultivarPage({ botanical: "Buxus ('Green Velvet' / microphylla types)", common: 'Boxwood' }, page('Buxus &#x27;Green Velvet&#x27;'))).toBe(false);
     expect(ownCultivarPage({ botanical: 'Artemisia hybrid', common: "Artemisia 'Powis Castle'" }, page('Artemisia &#x27;Powis Castle&#x27;'))).toBe(true);
   });
+  it('tells a cultivar\'s quotes from an apostrophe in a word', () => {
+    // (A species with a possessive in its name was read as a cultivar, and lost its size; a cultivar's name was cut
+    // at its apostrophe, "Common pear 'Blake'".)
+    expect(recordCultivars({ botanical: 'Hypericum kalmianum', common: "Kalm's St. John's wort" })).toEqual([]);
+    expect(recordCultivars({ botanical: "Cephalotaxus harringtonia 'Prostrata'", common: "Harrington's cephalotaxus 'Prostrata'" })).toEqual(['Prostrata']);
+    expect(recordCultivars({ botanical: "Pyrus communis 'Blake's Pride'", common: "'Blake's Pride' pear" })).toEqual(["Blake's Pride"]);
+    expect(recordCultivars({ botanical: "Helleborus × hybridus Ice N' Roses 'COSEH 4200'", common: '' })).toEqual(['COSEH 4200']);
+    expect(recordCultivars({ botanical: "Carya illinoinensis ('Kanza' / 'Lakota')", common: 'Pecan' })).toEqual(['Kanza', 'Lakota']);
+    expect(titleCultivar(page('Pyrus communis &#x27;Blake&#x27;s Pride&#x27;'))).toBe("Blake's Pride");
+    expect(cultivarOf({ botanical: "Ilex cornuta 'D'Or'" })).toBe("D'Or");
+  });
 });
 
 /** A catalog-src/ with a few pages saved as the fetcher saves them. */

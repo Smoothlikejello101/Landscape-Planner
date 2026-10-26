@@ -4,9 +4,10 @@
 // among them, and isn't read.
 import { savedPage } from './pages.mjs';
 import { webClaims } from './web.mjs';
+import { quotedCultivars } from './ncsu-page.mjs';
 
 /** The cultivar a record names ("Itea virginica 'Little Henry'" → Little Henry), or null. */
-export const cultivarOf = (rec) => (/'([^']+)'/.exec(rec?.botanical ?? '') ?? /'([^']+)'/.exec(rec?.common ?? ''))?.[1] ?? null;
+export const cultivarOf = (rec) => quotedCultivars(rec?.botanical)[0] ?? quotedCultivars(rec?.common)[0] ?? null;
 
 /**
  * `searched`: { plant id: [claim, …] } as the search wrote them; `list`: the audit's plant list (list.mjs);

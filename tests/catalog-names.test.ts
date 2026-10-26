@@ -9,6 +9,10 @@ describe('cultivar names: the plant, then the cultivar in quotes or its trade na
     expect(tradeIn("Nandina domestica Flirt 'Murasaki'")).toBe('Flirt');
     expect(tradeIn("Echinacea purpurea 'Magnus'")).toBeNull();
     expect(tradeIn('Acer rubrum var. drummondii')).toBeNull();
+    // (An apostrophe in a word isn't a quote: the trade name keeps it.)
+    expect([cultivarIn("Rosa Child's Play 'SAVachild'"), tradeIn("Rosa Child's Play 'SAVachild'")]).toEqual(['SAVachild', "Child's Play"]);
+    expect(name("Child's Play", "Rosa Child's Play 'SAVachild'")).toBe("Rosa Child's Play");
+    expect(name("Sharum's Shamrock holly", "Ilex Sharum's Shamrock 'EN2'")).toBe("Holly Sharum's Shamrock");
   });
   it('puts the plant first, in the words the name already used', () => {
     expect(name('Limelight Hydrangea', "Hydrangea paniculata 'Limelight'")).toBe("Hydrangea 'Limelight'");
