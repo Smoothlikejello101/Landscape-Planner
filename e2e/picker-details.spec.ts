@@ -147,12 +147,15 @@ test('when a plant blooms and its flowers\' color, each with its source; the ear
   await expect(phlox('Bloom')).toContainText('earlier list, unverified');
   await expect(phlox('Flower color')).toContainText('Pink, white, purple');
   await expect(phlox('Flower color').locator('.details-src')).toHaveText('NC State Extension · one source');
-  // A cultivar blooms when its species does (said so), in its own colors.
+  // A cultivar blooms when its species does (said so), in its own colors. (Found by its name: a cultivar folds
+  // under its species otherwise.)
+  await page.getByTestId('plant-search').fill('david');
   const david = await open("Garden phlox 'David'");
   await expect(david('Bloom')).toContainText('Summer');
   await expect(david('Bloom')).toContainText('from its species');
   await expect(david('Flower color')).toContainText('White');
   // USDA's finer season, as it writes it; flowers it calls not conspicuous: not showy.
+  await page.getByTestId('plant-search').fill('');
   const oak = await open('White oak');
   await expect(oak('Bloom').getByTestId('bloom-season')).toHaveText('Mid spring');
   await expect(oak('Flower color')).toContainText('Yellow; not showy');
