@@ -76,6 +76,14 @@ export interface Plant {
   /** Needled leaves (pines, junipers, arborvitae). */
   needles?: boolean;
   growth_rate?: 'slow' | 'medium' | 'fast';
+  /** Who it attracts, as NC State lists them ("bees", "hummingbirds"): never a level (src/catalog.ts ATTRACTS). */
+  attracts?: string[];
+  /** What it tolerates, as NC State lists it ("drought", "rabbits", "black walnut"): src/catalog.ts TOLERATES. */
+  tolerates?: string[];
+  /** Animals NC State lists it as a problem for ("dogs", "cats", "horses"): a warning; one not listed isn't safe. */
+  problem_for?: string[];
+  /** Upkeep, as NC State rates it (the earlier list's `maintenance` is tasks, another scale). */
+  maintenance_level?: 'low' | 'medium' | 'high';
   winter_interest?: boolean;
   clay_ok?: boolean;
   wet_feet?: boolean;
@@ -297,11 +305,14 @@ export function oldDogWarning(p: Plant): string | null {
  * until the audit removes it, so the two can only agree to call a plant safe.
  */
 export function nonToxicToDogs(p: Plant): boolean {
-  if (oldDogWarning(p) || p.dogVia) return false;
+  if (oldDogWarning(p) || p.dogVia || p.problem_for?.includes('dogs')) return false;
   return p.tox?.dog ? p.tox.dog === 'nontoxic' : p.dog === 'Safe';
 }
-/** Any warning for dogs: listed toxic, the earlier list's warning, or that warning given for its species' other record. */
-export const toxicToDogs = (p: Plant): boolean => p.tox?.dog === 'toxic' || !!oldDogWarning(p) || !!p.dogVia;
+/**
+ * Any warning for dogs: listed toxic, NC State's "Problem for Dogs", the earlier list's warning, or that warning given
+ * for its species' other record.
+ */
+export const toxicToDogs = (p: Plant): boolean => p.tox?.dog === 'toxic' || !!p.problem_for?.includes('dogs') || !!oldDogWarning(p) || !!p.dogVia;
 /**
  * A plant's species from its botanical name ("Asclepias tuberosa (clay strain)", "Ilex verticillata 'Red Sprite'":
  * "Asclepias tuberosa", "Ilex verticillata"; a hybrid keeps its ×). Null for a genus alone ("Hosta 'Halcyon'").

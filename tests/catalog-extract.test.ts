@@ -167,6 +167,22 @@ describe('leaves: color, winter, fall color, growth rate', () => {
     expect(ncsuClaims({ 'Deciduous Leaf Fall Color': ['Gold/Yellow', 'Insignificant'] }).find((x: { fact: string }) => x.fact === 'fall_color')?.v).toBe(true);
     expect(ncsuClaims({ 'Deciduous Leaf Fall Color': ['Chartreuse'] }).filter((x: { fact: string }) => x.fact.startsWith('fall_'))).toEqual([]);
   });
+  it('reads what NC State lists: who it attracts, what it tolerates, animals it\u2019s a problem for, upkeep, thorns, winter interest', () => {
+    const c = ncsuClaims({
+      Attracts: ['Bees', 'Hummingbirds', 'Something new'], 'Resistance To Challenges': ['Deer', 'Drought', 'Black Walnut'], Maintenance: ['Low'],
+      Appendage: ['Tendrils', 'Prickles'], 'Landscape Theme': ['Winter Garden'], Problems: ['Problem for Dogs', 'Weedy', 'Problem for Horses'],
+    });
+    const v = (fact: string) => c.find((x: { fact: string }) => x.fact === fact)?.v;
+    expect(v('attracts')).toEqual(['bees', 'hummingbirds']); // (a word it doesn't know is left out)
+    expect(v('tolerates')).toEqual(['deer', 'drought', 'black walnut']);
+    expect(v('maintenance_level')).toBe('low');
+    expect(v('thorns')).toBe(true);
+    expect(v('winter_interest')).toBe(true);
+    expect(v('tox_pets')).toEqual(['dogs', 'horses']);
+    // Tendrils aren't thorns; nothing listed, nothing claimed (never "no" from silence).
+    const none = ncsuClaims({ Appendage: ['Tendrils'], Problems: ['Weedy'] });
+    expect(none.filter((x: { fact: string }) => ['thorns', 'tox_pets', 'attracts', 'winter_interest'].includes(x.fact))).toEqual([]);
+  });
   it('evergreen, semi-evergreen or deciduous: a plant listed as both depends on the winter', () => {
     expect(ncsuFoliage(['Deciduous'])).toBe('deciduous');
     expect(ncsuFoliage(['Needled Evergreen'])).toBe('evergreen');

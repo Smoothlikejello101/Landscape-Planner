@@ -241,3 +241,40 @@ describe('writing the leaf facts', () => {
     expect(review.map((r: { fact: string }) => r.fact).sort()).toEqual(['fall_colors', 'growth_rate']);
   });
 });
+
+describe('writing what NC State lists: attracts, tolerates, problems for animals, upkeep, thorns, winter interest', () => {
+  const file: CatalogFile = { meta: { format: 'lp-catalog', version: 2, zones: 'half', sources: { compendium: { title: 'old', trust: 'unverified' } }, enums: { form: ['Shrub', 'Tree'] } },
+    plants: [
+      { id: 'rose', common: 'Carolina rose', botanical: 'Rosa carolina', src: ['compendium'], audited: null, facts: { form: 'Shrub', winter_interest: false } },
+      { id: 'thornless', common: 'Honeylocust (var. inermis)', botanical: 'Gleditsia triacanthos var. inermis', src: ['compendium'], audited: null, facts: { form: 'Tree' } },
+    ] };
+  const ncsu = [{ src: 'ncsu', kind: 'authority' }];
+  const rows = [
+    { id: 'rose', claims: ncsu, facts: {
+      attracts: { v: ['pollinators', 'songbirds'], src: ['ncsu'], check: 'single' },
+      tolerates: { v: ['drought', 'heat', 'teleportation'], src: ['ncsu'], check: 'single' }, // (not a word it takes)
+      tox_pets: { v: ['dogs', 'cats'], src: ['ncsu'], check: 'single' },
+      maintenance_level: { v: 'medium', src: ['ncsu'], check: 'single' },
+      thorns: { v: true, src: ['ncsu'], check: 'single' },
+      winter_interest: { v: true, src: ['ncsu'], check: 'single' },
+    } },
+    { id: 'thornless', claims: ncsu, facts: { thorns: { v: true, src: ['ncsu'], check: 'single' } } },
+  ];
+  const { file: out, review } = writeAudit(file, rows, '2026-10-25');
+  const [rose, thornless] = out.plants;
+  it('writes them under their catalog names, with their sources; a sourced yes replaces the earlier list\'s no', () => {
+    expect(rose.facts.attracts).toEqual({ v: ['pollinators', 'songbirds'], src: ['ncsu'], check: 'single' });
+    expect(rose.facts.problem_for).toEqual({ v: ['dogs', 'cats'], src: ['ncsu'], check: 'single' });
+    expect(rose.facts.maintenance_level).toEqual({ v: 'medium', src: ['ncsu'], check: 'single' });
+    expect(rose.facts.thorns).toEqual({ v: true, src: ['ncsu'], check: 'single' });
+    expect(rose.facts.winter_interest).toEqual({ v: true, src: ['ncsu'], check: 'single' });
+    expect(catalogErrors(out)).toEqual([]);
+  });
+  it('refuses a word it doesn\'t take, and holds back thorns on a plant named for having none', () => {
+    expect(rose.facts.tolerates).toBeUndefined();
+    expect(thornless.facts.thorns).toBeUndefined();
+    expect(review.map((r: { id: string; fact: string; note: string }) => `${r.id} ${r.fact} ${r.note}`).sort()).toEqual([
+      'rose tolerates value the catalog can\'t take: ["drought","heat","teleportation"]', 'thornless thorns thorns, but named thornless',
+    ]);
+  });
+});

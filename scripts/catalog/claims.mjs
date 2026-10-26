@@ -23,13 +23,14 @@ export const TIER = {
   height: 'survival', width: 'survival', clay_ok: 'survival', wet_feet: 'survival', deer: 'survival',
   form: 'description', bloom_season: 'description', bloom_months: 'description', flower_color: 'description',
   fall_color: 'description', host: 'description', host_genus: 'description', edible: 'description', low_branched: 'description',
+  attracts: 'description', tolerates: 'description', maintenance_level: 'description', thorns: 'description', winter_interest: 'description',
   leaf_color: 'description', foliage: 'description', needles: 'description', fall_colors: 'description', growth_rate: 'description',
 };
 const RANK = { authority: 3, breeder: 2, nursery: 1, blog: 0 };
 /** Facts decided by sides (`bySides`), the other side kept beside the value (`alt`; never safety facts). */
 export const REPORTABLE = new Set(['height', 'width', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'deer']);
 /** Facts a cultivar is bred to change: only a page for the cultivar itself speaks to them. */
-export const CULTIVAR_OWN = new Set(['height', 'width', 'flower_color', 'form', 'leaf_color', 'fall_colors', 'growth_rate']);
+export const CULTIVAR_OWN = new Set(['height', 'width', 'flower_color', 'form', 'leaf_color', 'fall_colors', 'growth_rate', 'attracts', 'winter_interest']);
 
 // ---------- Values ----------
 
@@ -234,6 +235,14 @@ export function flowerless(usda, form, family) {
 /** Growth rate in the catalog's words: NC State's Slow, Medium, Rapid; USDA's Slow, Moderate, Rapid. */
 export const growthRate = (v) => ({ Slow: 'slow', Medium: 'medium', Moderate: 'medium', Rapid: 'fast' })[v] ?? null;
 
+/** NC State's "Attracts" words, as the catalog keeps them (docs/catalog-sources.md): who visits, never a level. */
+export const ATTRACTS = ['butterflies', 'pollinators', 'bees', 'specialized bees', 'hummingbirds', 'songbirds', 'moths', 'small mammals', 'predatory insects', 'frogs', 'reptiles', 'bats'];
+/** NC State's "Resistance To Challenges" words, as the catalog keeps them: what it tolerates. */
+export const TOLERATES = ['deer', 'rabbits', 'squirrels', 'voles', 'slugs', 'drought', 'dry soil', 'wet soil', 'poor soil', 'compaction', 'erosion', 'heat', 'humidity', 'salt', 'pollution', 'urban conditions', 'black walnut', 'heavy shade', 'wind', 'storm damage', 'foot traffic', 'fire', 'diseases', 'insect pests'];
+/** Animals NC State lists a plant as a problem for ("Problem for Dogs"), as the catalog keeps them. */
+export const PETS = ['dogs', 'cats', 'horses'];
+/** NC State's words for a list, in the catalog's (lower case), keeping only those known; each once. */
+const wordsIn = (known, listed) => [...new Set((listed ?? []).map((x) => String(x).trim().toLowerCase()).filter((x) => known.includes(x)))];
 /** NC State Plant Toolbox fields → claims (an authority). */
 export function ncsuClaims(f) {
   const c = [], add = (fact, v) => { if (v != null && !(Array.isArray(v) && !v.length)) c.push({ fact, v, src: 'ncsu', kind: 'authority' }); };
@@ -272,6 +281,21 @@ export function ncsuClaims(f) {
   if (['Occasionally Wet', 'Frequent Standing Water', 'Occasional Flooding'].some((d) => nd.has(d)) || (f['Resistance To Challenges'] ?? []).includes('Wet Soil')) add('wet_feet', true);
   const hosts = f['Larval hosts'] ?? [];
   if (hosts.length) add('host', hosts);
+  // Decided with Jason, 2026-10-25 (the picker's filters): what NC State lists, as it lists it.
+  // Who it attracts ("Attracts: Bees"), never a level: it says who visits, not how much.
+  add('attracts', wordsIn(ATTRACTS, f.Attracts));
+  // What it takes (its "Resistance To Challenges"): drought, rabbits, black walnut. (Deer and wet soil also have facts of
+  // their own, above.)
+  add('tolerates', wordsIn(TOLERATES, f['Resistance To Challenges']));
+  // Upkeep as NC State rates it: Low, Medium, High. (The earlier list's `maintenance` is tasks, another scale.)
+  const care = String(f.Maintenance?.[0] ?? '').toLowerCase();
+  if (['low', 'medium', 'high'].includes(care)) add('maintenance_level', care);
+  // Thorns, spines or prickles: a stem appendage it lists, or the problem. (Tendrils aren't.)
+  if ((f.Appendage ?? []).some((x) => ['Prickles', 'Spines', 'Thorns'].includes(x)) || (f.Problems ?? []).includes('Spines/Thorns')) add('thorns', true);
+  // Winter interest: a plant it lists for a winter garden.
+  if ((f['Landscape Theme'] ?? []).includes('Winter Garden')) add('winter_interest', true);
+  // The animals it's a problem for ("Problem for Dogs"): a warning, never "safe" from its absence.
+  add('tox_pets', wordsIn(PETS, (f.Problems ?? []).map((x) => x.replace(/^Problem for /, ''))));
   return c;
 }
 /** Minnesota Wildflowers fields → claims (an authority for wild Minnesota plants; bloom months are Minnesota's). */
