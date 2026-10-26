@@ -117,9 +117,13 @@ export const OTHER_SHORTCUTS: [string, string][] = [
   ['Enter', 'Done placing or drawing (where Esc doesn\u2019t reach the app, Enter does)'],
   ['Esc', 'Done placing or drawing, close the picker, or clear the selection'],
   ['Shift / Ctrl + click', 'Add to the selection, or take out (drag: add what a box touches)'],
+  ['Ctrl+A', 'Select everything on the plan'],
   ['Delete', 'Delete what is selected'],
   ['Ctrl+Z / Ctrl+Y', 'Undo / redo'],
-  ['Ctrl+C / Ctrl+V / Ctrl+D', 'Copy / paste / duplicate'],
+  ['Ctrl+X / Ctrl+C / Ctrl+V / Ctrl+D', 'Cut / copy / paste / duplicate'],
+  ['Arrow keys', 'Move what is selected half a foot (Shift: 5 ft); with nothing selected, move around the plan'],
+  ['Ctrl + / Ctrl \u2212', 'Zoom the plan in / out'],
+  ['Two-finger scroll / pinch', 'Move around the plan / zoom (a mouse wheel zooms)'],
   ['?', 'Show this list'],
 ];
 export function renderShortcutsPanel(): HTMLElement {
