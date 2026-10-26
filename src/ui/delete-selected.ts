@@ -1,5 +1,5 @@
 import { pxPerFoot, rectsIntersect, shapeBBox } from '../geometry';
-import { deleteShapesByIds } from '../mutations';
+import { copyShapes, deleteShapesByIds } from '../mutations';
 import { isLocked, roleKey } from '../roles';
 import { getSelected } from '../selection';
 import { state } from '../state';
@@ -62,6 +62,21 @@ export function deleteSelectedAsking() {
  * "Deleted 3 plants · Undo": every delete says what went, with an Undo of that step (while nothing has changed
  * since; after that, the top bar's Undo).
  */
+/**
+ * Cut (Ctrl+X): what's selected goes to the clipboard and off the plan, with Undo; nothing asked, since Paste or Undo
+ * brings it back. Locked shapes stay, and stay off the clipboard.
+ */
+export function cutSelected() {
+  const selected = getSelected();
+  if (!selected.length) return;
+  const going = selected.filter((s) => !isLocked(s));
+  if (!going.length) { toast(selected.length === 1 ? 'It’s locked: unlock it to cut it.' : 'They’re all locked: unlock them to cut them.'); return; }
+  const kept = selected.length - going.length;
+  copyShapes(going);
+  deleteShapesByIds(going.map((s) => s.id));
+  state.panel = null;
+  undoNotice(`Cut ${going.length === 1 ? going[0].label || describeShapes(going) : describeShapes(going)}` + (kept ? `; ${kept} locked ${kept === 1 ? 'shape' : 'shapes'} kept` : ''));
+}
 export function undoNotice(said: string) {
   const step = state.history[state.historyIndex];
   toastAction(said, [{ label: 'Undo', run: () => {

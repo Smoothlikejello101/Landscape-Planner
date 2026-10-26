@@ -3,8 +3,8 @@ import { resizeCanvas } from './canvas';
 import { fitAboveKeyboard } from './keyboard';
 import { cancelGestures, onCanvasPointerMove, onCanvasPointerUp } from './gestures';
 import { pushHistory, redo, undo } from './history';
-import { copySelected, duplicateSelected, paste } from './mutations';
-import { deleteSelectedAsking } from './ui/delete-selected';
+import { copySelected, duplicateSelected, nudgeSelected, paste, selectAllShown, zoomBy } from './mutations';
+import { cutSelected, deleteSelectedAsking } from './ui/delete-selected';
 import { clearSelection } from './selection';
 import { canFinishDraw, finishDraw, startKind } from './draw';
 import { kindForShortcut } from './kinds';
@@ -22,10 +22,11 @@ import { buildEmergencyBackup, downloadText } from './backup';
 import { notePageZoom } from './page-zoom';
 import { loadViewSettings } from './view-settings';
 import { updateSaveWarning, updateSaveState } from './ui/save-warning';
-import { flushSave, initStorage, refreshClipboard, requestPersistence, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
+import { flushSave, initStorage, refreshClipboard, requestPersistence, save, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
 import { render } from './ui/render';
-import { dismissToastAction } from './ui/toast';
+import { dismissToastAction, toast } from './ui/toast';
 import { noteVisit } from './hints';
+import { pxPerFoot } from './geometry';
 
 // ============================================================
 // EVENT LISTENERS
@@ -67,6 +68,28 @@ window.addEventListener('keyup', (e) => {
   if (escPressed) { escPressed = false; return; }
   onKey(e);
 });
+/** The arrow keys' directions. */
+const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+/**
+ * An arrow key: moves what's selected half a foot (a snap step), five feet with Shift, as a drag would (one undo step
+ * for a run of presses). With nothing selected, or while drawing or placing, it pans the plan a tenth of the screen
+ * (half with Shift).
+ */
+function onArrow(e: KeyboardEvent, [ax, ay]: [number, number]) {
+  e.preventDefault();
+  const busy = state.placing || state.draw || state.editPoints || state.bgEditMode || state.bgCalibrate;
+  if (state.selectedIds.length && !busy) {
+    const step = e.shiftKey ? 5 : 0.5;
+    if (!nudgeSelected(ax * step, ay * step)) toast(state.selectedIds.length === 1 ? 'It’s locked: unlock it to move it.' : 'They’re all locked: unlock them to move them.');
+    render();
+    return;
+  }
+  const part = e.shiftKey ? 0.5 : 0.1, ppf = pxPerFoot();
+  state.offsetX += ax * part * state.canvasW / ppf;
+  state.offsetY += ay * part * state.canvasH / ppf;
+  save();
+  render();
+}
 function onKey(e: KeyboardEvent) {
   // Don't capture while typing in inputs
   const target = e.target as Element | null;
@@ -80,10 +103,16 @@ function onKey(e: KeyboardEvent) {
   if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
   // Keys pressed while a panel has focus (a chip, a menu) belong to the panel, never the plan.
   if (target?.closest?.('.overlay, .menu')) return;
+  // Ctrl or Cmd with + or − zooms the plan, not the page, whatever is going on (Jason, 2026-10-25). With a sheet's field
+  // or button focused, the keys never get here: the page zooms, for reading.
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && ['=', '+', '-', '_'].includes(e.key)) {
+    e.preventDefault(); zoomBy(e.key === '-' || e.key === '_' ? 1 / 1.25 : 1.25); render(); return;
+  }
+  if (ARROWS[e.key] && !e.ctrlKey && !e.metaKey && !e.altKey) { onArrow(e, ARROWS[e.key]); return; }
   if (state.placing && (e.ctrlKey || e.metaKey)) {
     // While placing, undo takes back the last plant; other edits wait until Done.
     if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undoPlace(); render(); }
-    else if (['y', 'Z', 'v', 'd'].includes(e.key)) e.preventDefault();
+    else if (['y', 'Z', 'v', 'd', 'a', 'x'].includes(e.key)) e.preventDefault();
     return;
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
@@ -96,6 +125,13 @@ function onKey(e: KeyboardEvent) {
     e.preventDefault(); paste(); render();
   } else if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
     if (state.selectedIds.length) { e.preventDefault(); duplicateSelected(); render(); }
+  } else if ((e.ctrlKey || e.metaKey) && e.key === 'x') {
+    if (state.selectedIds.length) { e.preventDefault(); cutSelected(); render(); }
+  } else if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+    // Everything on the plan (not while drawing or editing an outline: those keep their taps).
+    e.preventDefault();
+    if (state.draw || state.editPoints || state.bgEditMode || state.bgCalibrate) return;
+    selectAllShown(); render();
   } else if (e.key === 'Delete' || e.key === 'Backspace') {
     if (state.selectedIds.length) { e.preventDefault(); deleteSelectedAsking(); render(); }
   } else if (e.key === 'Escape') {

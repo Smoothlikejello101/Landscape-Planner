@@ -1,4 +1,4 @@
-import { carriesPlants, patchBedCarryingPlants } from './beds';
+import { attachedPlants, carriesPlants, patchBedCarryingPlants } from './beds';
 import { redrawCanvas, tierOf } from './canvas';
 import { MAX_ZOOM, MIN_ZOOM, PX_PER_FOOT_BASE } from './constants';
 import { canvasRect, pxPerFoot, shapeBBox, shapeCenter, unionBounds, viewCenterFeet } from './geometry';
@@ -6,7 +6,7 @@ import { flushHistoryDebounce, pushHistory, pushHistoryDebounced } from './histo
 import { getSelected, singleSelected } from './selection';
 import { state } from './state';
 import { getClipboard, save, setClipboard } from './storage';
-import { defaultLook, roleKey } from './roles';
+import { defaultLook, isLocked, roleKey } from './roles';
 import type { Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapeFilter, ShapePatch, Status } from './types';
 import { cleanPhaseName, MAX_PHASES, shownWith, statusPatch } from './status';
 import { render } from './ui/render';
@@ -80,7 +80,10 @@ export function duplicateSelected() {
   duplicateShapesByIds(state.selectedIds.slice());
 }
 export function copySelected(): boolean {
-  const sel = getSelected();
+  return copyShapes(getSelected());
+}
+/** Put these shapes on the clipboard (the device's own, for pasting in any plan). */
+export function copyShapes(sel: Shape[]): boolean {
   if (!sel.length) return false;
   const data: Clipboard = {
     shapes: sel.map((s) => {
@@ -119,6 +122,31 @@ export function paste(): boolean {
   pushHistory();
   save();
   return true;
+}
+/**
+ * Every shape shown on the plan, selected (Ctrl+A): what a box drawn round the whole plan would select, locked shapes
+ * too (the lock keeps them in place; Delete and Cut leave them).
+ */
+export function selectAllShown() {
+  state.selectedIds = state.shapes.filter((s) => shownWith(s, state.viewFilter)).map((s) => s.id);
+}
+/**
+ * Move the selection by (dx, dy) feet (the arrow keys), as a drag would: beds bring the plants in them, locked shapes
+ * stay. A run of moves is one undo step. What moved (ids), or null when everything selected is locked.
+ */
+export function nudgeSelected(dx: number, dy: number): string[] | null {
+  const free = getSelected().filter((s) => !isLocked(s));
+  if (!free.length) return null;
+  const ids = [...new Set(free.flatMap((s) => [s.id, ...attachedPlants(s, state.shapes).map((p) => p.id)]))];
+  for (const id of ids) {
+    const s = state.shapes.find((sh) => sh.id === id);
+    if (!s) continue;
+    s.x = snap(s.x + dx);
+    s.y = snap(s.y + dy);
+  }
+  save();
+  pushHistoryDebounced();
+  return ids;
 }
 export function setLockedForIds(ids: string[], locked: boolean) {
   flushHistoryDebounce();

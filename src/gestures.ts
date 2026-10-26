@@ -417,8 +417,46 @@ export function cancelGestures() {
   }
 }
 
+/** When the last wheel event that looked like a trackpad's came (ms): a scroll's later, bigger steps are the same scroll. */
+let lastTrackpadWheel = -Infinity;
+/** The full redraw after a run of wheel events (each one moves only the view: previewView). */
+let wheelSettle: ReturnType<typeof setTimeout> | null = null;
+/**
+ * Whether a wheel event is a mouse wheel's notch rather than a trackpad's scroll. A mouse wheel turns in whole lines
+ * (Firefox, read before its pixels), or in whole steps of 120 (Chrome, Safari: wheelDelta); a trackpad sends pixels,
+ * sideways too, often in fractions. A big whole step inside a trackpad's scroll is its flick, not a wheel.
+ */
+function fromMouseWheel(e: WheelEvent): boolean {
+  if (e.deltaMode !== 0) return true;
+  const t = performance.now();
+  const legacy = (e as WheelEvent & { wheelDeltaY?: number }).wheelDeltaY;
+  // (Chrome on Linux turns a notch into 53.33 pixels: its wheelDelta, a whole 120, says what it was.)
+  const notch = e.deltaX === 0 && Math.abs(e.deltaY) >= 50 && (legacy ? legacy % 120 === 0 : Number.isInteger(e.deltaY));
+  if (notch && t - lastTrackpadWheel > 300) return true;
+  lastTrackpadWheel = t;
+  return false;
+}
+/**
+ * The wheel over the plan (Jason, 2026-10-25): a trackpad's two-finger scroll pans; its pinch (which browsers send as
+ * a wheel with Ctrl held) zooms, as does Ctrl or Cmd with any wheel, and a mouse wheel's notches.
+ */
 export function onWheel(e: WheelEvent) {
   e.preventDefault();
-  zoomBy(Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY);
-  render();
+  const line = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? state.canvasH : 1; // (in pixels)
+  if (e.ctrlKey || e.metaKey || fromMouseWheel(e)) {
+    // (A pinch sends small steps, a wheel big ones: each step counts for more in a pinch, a wheel's capped.)
+    const dy = e.deltaY * line;
+    zoomBy(Math.exp(e.ctrlKey && Math.abs(dy) < 50 ? -dy * 0.01 : -Math.max(-120, Math.min(120, dy)) * 0.0015), e.clientX, e.clientY);
+    updateStatusReadout();
+  } else {
+    const ppf = pxPerFoot();
+    // (Shift turns a mouse wheel's scroll sideways on most systems; a trackpad's sideways scroll comes as deltaX.)
+    const dx = (e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX) * line, dy = e.shiftKey && !e.deltaX ? 0 : e.deltaY * line;
+    state.offsetX += dx / ppf;
+    state.offsetY += dy / ppf;
+    save();
+  }
+  previewView();
+  if (wheelSettle) clearTimeout(wheelSettle);
+  wheelSettle = setTimeout(() => { wheelSettle = null; render(); }, 150);
 }

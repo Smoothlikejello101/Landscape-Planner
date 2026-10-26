@@ -85,3 +85,24 @@ test('a plain shape from an older plan (a property line with no role) is asked a
   expect(dialogs[0]).toBe('Delete 2 shapes: 1 plain shape, 1 plant?');
   await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(2);
 });
+
+test('cutting several keeps locked shapes, without asking; the arrow keys leave them where they are', async ({ page }) => {
+  const dialogs: string[] = [];
+  page.on('dialog', async (d) => { dialogs.push(d.message()); await d.dismiss(); });
+  await openYard(page);
+  await lassoAround(page);
+  await expect(page.locator('.multi-bar .count')).toHaveText('3 selected');
+  // The locked plant stays put while the other two move.
+  const at = async (id: string) => (await page.locator(`#canvas-svg [data-shape-id=${id}]`).boundingBox())!.x;
+  const [one, three] = [await at('p1'), await at('p3')];
+  await page.keyboard.press('Shift+ArrowRight');
+  expect(await at('p1')).toBeGreaterThan(one + 50);
+  expect(await at('p3')).toBeCloseTo(three, 0);
+  await page.keyboard.press('Control+x');
+  expect(dialogs).toEqual([]);
+  await expect(page.locator('#toast-action')).toContainText('Cut 2 plants; 1 locked shape kept');
+  await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(3);
+  // Only the locked one is left selected: moving it says why not.
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.locator('#toast')).toHaveText('It’s locked: unlock it to move it.');
+});
