@@ -111,7 +111,7 @@ test('Link all leaves locked circles alone unless asked to include them', async 
   await page.getByTestId('select-mode').click();
   for (const id of ['a', 'b', 'c']) await page.locator(`circle[data-shape-id=${id}]`).click();
   await page.locator('.multi-bar button', { hasText: 'Edit' }).click();
-  await page.getByRole('button', { name: 'Lock all' }).click();
+  await page.getByTestId('lock-all').click(); // (in the header, as for one shape)
   // All locked: only asked, never assumed.
   await expect(page.getByTestId('link-all')).toHaveCount(0);
   await page.getByTestId('link-all-locked').click();

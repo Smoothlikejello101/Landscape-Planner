@@ -57,7 +57,17 @@ window.addEventListener('pointercancel', onCanvasPointerUp);
 window.addEventListener('blur', cancelGestures);
 
 // Keyboard shortcuts (helpful on desktop, harmless on phone)
-window.addEventListener('keydown', (e) => {
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') escPressed = true; onKey(e); });
+// Esc whose press never reached the page: an extension took it (PhotoShow closes its viewer with Esc, and takes the
+// key even with none open; Jason, 2026-10-25). Its release may still come through: act on that, once.
+let escPressed = false;
+window.addEventListener('blur', () => { escPressed = false; }); // (a press whose release went elsewhere)
+window.addEventListener('keyup', (e) => {
+  if (e.key !== 'Escape') return;
+  if (escPressed) { escPressed = false; return; }
+  onKey(e);
+});
+function onKey(e: KeyboardEvent) {
   // Don't capture while typing in inputs
   const target = e.target as Element | null;
   const tag = (target?.tagName || '').toLowerCase();
@@ -113,7 +123,7 @@ window.addEventListener('keydown', (e) => {
     const kind = kindForShortcut(e.key);
     if (kind) { e.preventDefault(); startKind(kind.key); render(); }
   }
-});
+}
 
 // ============================================================
 // SAVE ON EXIT
