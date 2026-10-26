@@ -6,6 +6,7 @@ import type { Plant } from '../plants';
 import { MONTH_NAMES, PLANT_META, formsOf, oldDogWarning, ownCopies, tenderWoody, zoneNote } from '../plants';
 import { isMine } from '../my-plants';
 import { rootSpread, rootText, seedText } from '../spread';
+import { butterflyCaps } from '../search';
 import { zoneRange } from '../climate';
 import type { Provenance } from '../catalog';
 import { escapeHere, escapeText, hostsHere, localBloom, nativeHere, nativeText, regulatedHere, wildHere, wildText } from '../wild';
@@ -210,8 +211,8 @@ function bloomRow(p: Plant): HTMLElement | null {
   }
   return dd;
 }
-/** Butterflies' common names, for a line: "Monarch, Gray Hairstreak" (the binomials are in the source). */
-const commonNames = (names: string[]) => names.map((n) => n.replace(/\s*\([^)]*\)\s*$/, '')).join(', ');
+/** Butterflies' common names, for a line, with field-guide capitals: "Monarch, Gray Hairstreak" (the binomials are in the source). */
+const commonNames = (names: string[]) => names.map((n) => butterflyCaps(n.replace(/\s*\([^)]*\)\s*$/, ''))).join(', ');
 const countWords = (n: number) => n.toLocaleString('en-US');
 /**
  * Caterpillar host, each part with its own source: the caterpillars its sources name it a host for; its genus's
@@ -229,7 +230,7 @@ function hostRow(p: Plant): HTMLElement | null {
       : `Its genus, ${g.genus}: ${countWords(g.species)} kinds of native caterpillars in North America`;
     parts.push([text, [here?.source ?? sourceLine(p.prov?.host_genus), 'counted for the genus'].filter(Boolean).join(' \u00b7 '), 'hosts-genus']);
   }
-  if (!p.hosts?.length && p.host) parts.push([p.host, sourceLine(p.prov?.host), 'hosts-earlier']);
+  if (!p.hosts?.length && p.host) parts.push([butterflyCaps(p.host), sourceLine(p.prov?.host), 'hosts-earlier']);
   if (!parts.length) return null;
   const dd = el('dd', { 'data-testid': 'host-row' });
   for (const [text, src, testid] of parts) {
