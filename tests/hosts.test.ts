@@ -7,7 +7,7 @@ import { writeAudit } from '../scripts/catalog/write.mjs';
 import { catalogErrors, resolveCatalog, type CatalogFile } from '../src/catalog';
 import { hostsHere, loadWild, resetWild, type WildFile } from '../src/wild';
 import { hostPlant, plantMatches, PLANT_FILTER_DEFAULTS, type Plant } from '../src/plants';
-import { hostMatchText, matchPlant, readQuery } from '../src/search';
+import { butterflyCaps, hostMatchText, matchPlant, readQuery } from '../src/search';
 import { plantDetails } from '../src/ui/plant-details';
 import { state } from '../src/state';
 
@@ -75,6 +75,21 @@ describe('hosts where the garden is', () => {
     expect(hostMatchText(milkweed, readQuery('monarch')!)).toBe('Its genus feeds the caterpillars of: Monarch (Danaus plexippus)');
     expect(hostMatchText(spicebush, readQuery('spicebush swallowtail')!)).toBe('Its leaves feed the caterpillars of: Spicebush Swallowtail (Papilio troilus)');
     expect(hostMatchText(old, readQuery('moth')!)).toBe('Its leaves feed the caterpillars of: Several moth spp.');
+    // (Field-guide capitals on the earlier list's names too.)
+    expect(hostMatchText({ ...old, host: 'Viceroy, mourning cloak (willow genus)' }, readQuery('cloak')!)).toBe('Its leaves feed the caterpillars of: Viceroy, Mourning Cloak (willow genus)');
+  });
+  it('gives butterfly and moth names field-guide capitals; descriptions, notes and binomials stay as written', () => {
+    expect(butterflyCaps('Monarch, queen')).toBe('Monarch, Queen');
+    expect(butterflyCaps('Viceroy, mourning cloak, many moths')).toBe('Viceroy, Mourning Cloak, many moths');
+    expect(butterflyCaps('Baltimore checkerspot (chiefly C. glabra, C. ovata)')).toBe('Baltimore Checkerspot (chiefly C. glabra, C. ovata)');
+    expect(butterflyCaps('Hydrangea sphinx, titan sphinx moths')).toBe('Hydrangea Sphinx, Titan Sphinx moths');
+    expect(butterflyCaps('Chalcedony midget moth; Penstemon specialist bees')).toBe('Chalcedony Midget Moth; Penstemon specialist bees');
+    expect(butterflyCaps('GIANT SWALLOWTAIL, eastern tiger swallowtail')).toBe('Giant Swallowtail, Eastern Tiger Swallowtail');
+    expect(butterflyCaps('Eastern tailed-blue, silver-spotted skipper, skippers')).toBe('Eastern Tailed-Blue, Silver-spotted Skipper, skippers');
+    expect(butterflyCaps('Red-Spotted Purple and Viceroy')).toBe('Red-Spotted Purple and Viceroy');
+    expect(butterflyCaps('Spring/summer azures')).toBe('Spring/Summer Azures');
+    expect(['Pygarctia spraguei', '500+ Lepidoptera (oak genus)', 'Several moth spp.', 'Hermit sphinx, others'].map(butterflyCaps))
+      .toEqual(['Pygarctia spraguei', '500+ Lepidoptera (oak genus)', 'Several moth spp.', 'Hermit Sphinx, others']);
   });
   it('shows the named ones, then its genus here, each with its source', () => {
     const p = { ...milkweed, hosts: ['Monarch (Danaus plexippus)'], prov: { hosts: { src: ['ncsu'], check: 'single' } } } as unknown as Plant;
@@ -84,6 +99,7 @@ describe('hosts where the garden is', () => {
     expect(row.textContent).toContain('Shropshire & Tallamy 2025 · counted for the genus');
     // (The earlier list's sentence only where no source names any.)
     expect(plantDetails({ ...old, hosts: undefined } as Plant, undefined).querySelector('[data-testid=hosts-earlier]')!.textContent).toBe('Several moth spp.');
+    expect(plantDetails({ ...old, host: 'Monarch, queen' } as Plant, undefined).querySelector('[data-testid=hosts-earlier]')!.textContent).toBe('Monarch, Queen');
     expect(row.querySelector('[data-testid=hosts-earlier]')).toBeNull();
   });
 });

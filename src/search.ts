@@ -176,6 +176,52 @@ export function matchPlant(p: Plant, q: Query, near: boolean): Hit | null {
   }
   return { rank, order: off };
 }
+/** Words that make a part of a host list a description, not a name ("many moths", "Several skippers", "500+ Lepidoptera"). */
+const NOT_A_NAME = /\b(many|several|others?|various|some|spp|specialists?)\b|\d/i;
+/** A group word ending a name, said in lowercase ("titan sphinx moths": Titan Sphinx moths), or standing alone ("skippers"). */
+const GROUP_WORDS = new Set(['moths', 'butterflies', 'bees', 'beetles', 'skippers']);
+/** Little words kept lowercase inside a name ("Red-spotted Purple and Viceroy"). */
+const SMALL_WORDS = new Set(['and', 'or', 'of', 'the']);
+/** A binomial standing in for a name ("Pygarctia spraguei"): kept as written. */
+const BINOMIAL = /^[A-Z][a-z]+ [a-z]{2,}(i|ae|us|um|a|is)$/;
+/**
+ * Butterfly and moth names with field-guide capitals (Jason, 2026-10-25): "Viceroy, mourning cloak (willow genus)" is
+ * "Viceroy, Mourning Cloak (willow genus)". A note in brackets, and a part that describes rather than names ("many
+ * moths", "Several moth spp."), stay as written; a name in capitals throughout is said as a name ("GIANT
+ * SWALLOWTAIL": Giant Swallowtail). Only how it's shown: the catalog keeps its sources' words.
+ */
+export function butterflyCaps(text: string): string {
+  // (Split at commas and semicolons outside brackets: "(chiefly C. glabra, C. ovata)" is one note.)
+  const parts: string[] = [];
+  let depth = 0, from = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (c === '(') depth++;
+    else if (c === ')') depth = Math.max(0, depth - 1);
+    else if ((c === ',' || c === ';') && !depth) { parts.push(text.slice(from, i), c); from = i + 1; }
+  }
+  parts.push(text.slice(from));
+  return parts.map((part, i) => {
+    if (i % 2) return part;
+    const open = part.indexOf('(');
+    const name = open < 0 ? part : part.slice(0, open), note = open < 0 ? '' : part.slice(open);
+    const bare = name.trim();
+    if (!bare || NOT_A_NAME.test(bare) || BINOMIAL.test(bare) || GROUP_WORDS.has(bare.toLowerCase())) return part;
+    const words = name.split(' ');
+    let lastWord = words.length - 1;
+    while (lastWord > 0 && !words[lastWord]) lastWord--;
+    const first = words.findIndex(Boolean);
+    return words.map((w, k) => {
+      const lower = w.toLowerCase();
+      if (k === lastWord && k > first && GROUP_WORDS.has(lower)) return lower;
+      if (k > first && SMALL_WORDS.has(lower)) return lower;
+      const word = w.length > 1 && w === w.toUpperCase() && /[A-Z]/.test(w) ? w[0] + w.slice(1).toLowerCase() : w;
+      // (A capital after a hyphen in the name's last word, its group: "Eastern Tailed-Blue", "Common Wood-Nymph"; not
+      // in a describing word before it: "Silver-spotted Skipper".)
+      return word.replace(k === lastWord ? /(^|[/-])([a-z])/g : /(^|\/)([a-z])/g, (_m, at: string, c: string) => at + c.toUpperCase());
+    }).join(' ') + note;
+  }).join('');
+}
 /**
  * Why a search found a plant by what it hosts, in words: the caterpillars that match, those its sources name ("Its
  * leaves feed the caterpillars of: Monarch (Danaus plexippus)") or recorded on its genus where the garden is ("Its
@@ -184,10 +230,10 @@ export function matchPlant(p: Plant, q: Query, near: boolean): Hit | null {
 export function hostMatchText(p: Plant, q: Query): string | null {
   const has = (name: string) => { const t = searchText(name); return q.words.every((w) => t.includes(w.w)); };
   const named = (p.hosts ?? []).filter(has);
-  if (named.length) return 'Its leaves feed the caterpillars of: ' + named.join(', ');
+  if (named.length) return 'Its leaves feed the caterpillars of: ' + named.map(butterflyCaps).join(', ');
   const genus = (hostsHere(p)?.butterflies ?? []).filter(has);
-  if (genus.length) return `Its genus feeds the caterpillars of: ${genus.join(', ')}`;
-  return p.host && has(p.host) ? 'Its leaves feed the caterpillars of: ' + p.host : null;
+  if (genus.length) return `Its genus feeds the caterpillars of: ${genus.map(butterflyCaps).join(', ')}`;
+  return p.host && has(p.host) ? 'Its leaves feed the caterpillars of: ' + butterflyCaps(p.host) : null;
 }
 /** Whether anything in these lists matches the search closer than a near spelling (if not, near spellings show). */
 export function closeMatchIn(q: Query, ...lists: Plant[][]): boolean {
