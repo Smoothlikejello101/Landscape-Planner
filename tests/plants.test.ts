@@ -4,7 +4,7 @@ import { bloomMatch, earlierOnly, filterOn, matchedBy, seasonMonths, trueToColor
 import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs, spreadWays } from '../src/spread';
 import { readFileSync } from 'node:fs';
 import { HEIGHT_STOPS, heightLabel, heightStops, heightValue } from '../src/ui/height-range';
-import { fallText, poisonRow, poisonText, toxRow, winterText } from '../src/ui/plant-details';
+import { barkText, fallText, poisonRow, poisonText, toxRow, winterParts, winterText } from '../src/ui/plant-details';
 
 const heuchera: Plant = {
   id: 'h', common: "Heuchera 'Autumn Bride'", botanical: 'Heuchera villosa', form: 'Perennial',
@@ -162,6 +162,21 @@ describe('plant filters', () => {
     expect(winterText({ ...heuchera, form: 'Vine', forms: ['Vine', 'Perennial'], foliage: 'deciduous' })).toBe('Deciduous: loses its leaves, or dies back to the ground'); // (passionflower)
     expect(winterText({ ...heuchera, form: 'Vine', forms: ['Vine'], foliage: 'deciduous' })).toBe('Deciduous: loses its leaves');
     expect(winterText({ ...heuchera, form: 'Shrub', forms: ['Shrub', 'Perennial', 'Annual'], foliage: 'evergreen' })).toBe('Evergreen where winters are mild; may die back in a cold one'); // ('Miss Huff' lantana)
+  });
+  it('says what makes its winter interest: showy bark, fruit into winter, colored stems where it\'s listed for winter, winter flowers', () => {
+    const ncsu = { src: ['ncsu'], check: 'single' as const };
+    const birch = { ...heuchera, form: 'Tree', foliage: 'deciduous', bark: ['exfoliating', 'scaly'], bark_color: ['red/burgundy', 'light brown'],
+      fruit_season: ['winter'], fruit_color: ['brown/copper'], stem_color: ['red/burgundy'], winter_interest: true,
+      prov: { foliage: ncsu, bark: ncsu, fruit_season: ncsu, stem_color: ncsu, winter_interest: ncsu } } as Plant;
+    expect(winterParts(birch).map(([text]) => text)).toEqual(['Deciduous: loses its leaves', 'Showy bark: exfoliating', 'Fruit stays into winter: brown',
+      'Colored stems: red', 'Listed for winter gardens']);
+    expect(barkText(birch)).toBe('Exfoliating, scaly; red, light brown');
+    expect([barkText({ ...birch, bark: undefined }), barkText(heuchera)]).toEqual(['Red, light brown', '']);
+    // (Smooth bark isn't showy; red stems on a shrub not listed for winter are new growth, likely as not.)
+    expect(winterParts({ ...birch, bark: ['smooth'], winter_interest: undefined, fruit_season: ['fall'] }).map(([text]) => text)).toEqual(['Deciduous: loses its leaves']);
+    expect(winterParts({ ...heuchera, bloom_season: ['late winter', 'spring'] }).map(([text]) => text)).toEqual(['Blooms in winter']);
+    // (The earlier list's yes says only that it has some.)
+    expect(winterParts({ ...heuchera, winter_interest: true, prov: { winter_interest: { src: ['compendium'] } } } as Plant).map(([text]) => text)).toEqual(['Has winter interest']);
   });
   it('says whether it colors in fall, and in what colors', () => {
     expect(fallText({ ...heuchera, fall_color: true, fall_colors: ['gold', 'red'] })).toBe('Yes: gold, red');

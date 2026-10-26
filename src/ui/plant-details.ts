@@ -86,6 +86,52 @@ export function winterText(p: Plant): string {
   if (forms.length && herb.length === forms.length) return forms.includes('Grass/Sedge') ? 'Goes dormant in winter' : 'Dies back in winter';
   return herb.length ? 'Deciduous: loses its leaves, or dies back to the ground' : 'Deciduous: loses its leaves';
 }
+/** NC State's color groups, said plainly ("Red/Burgundy": red). */
+const COLOR_SAID: Record<string, string> = { 'red/burgundy': 'red', 'gold/yellow': 'yellow', 'purple/lavender': 'purple', 'brown/copper': 'brown', 'gray/silver': 'gray', 'cream/tan': 'cream' };
+const colorsSaid = (cs?: string[]) => [...new Set((cs ?? []).map((c) => COLOR_SAID[c] ?? c))].join(', ');
+/** Its bark, as NC State lists it, and the bark's colors: "Exfoliating, peeling; red, light brown". */
+export function barkText(p: Plant): string {
+  const looks = (p.bark ?? []).join(', '), colors = colorsSaid(p.bark_color);
+  return looks && colors ? `${cap(looks)}; ${colors}` : looks || colors ? cap(looks || colors) : '';
+}
+/** Bark that shows, that a winter garden is made of (NC State's words for it). */
+const SHOWY_BARK = ['exfoliating', 'peeling', 'shredding', 'papery', 'shaggy', 'patchy'];
+/** Stems whose color shows once the leaves are down (not green, brown or gray). */
+const SHOWY_STEMS = ['red/burgundy', 'orange', 'gold/yellow', 'purple/lavender', 'white', 'blue', 'pink'];
+/**
+ * What it's like in winter, each part with its source (Jason, 2026-10-25: "call out exfoliating bark"): its leaves;
+ * then what makes winter interest, as its sources give it: showy bark, fruit that stays into winter, colored stems on a
+ * deciduous tree or shrub it's listed for winter interest for, winter flowers; last, that it's listed for winter
+ * interest. Each `[text, source, testid]`.
+ */
+export function winterParts(p: Plant): [string, string, string][] {
+  const parts: [string, string, string][] = [];
+  const leaves = winterText(p);
+  if (leaves) parts.push([leaves, sourceLine(p.prov?.foliage), 'winter-leaves']);
+  const bark = (p.bark ?? []).filter((b) => SHOWY_BARK.includes(b));
+  if (bark.length) parts.push([`Showy bark: ${bark.join(', ')}`, sourceLine(p.prov?.bark), 'winter-bark']);
+  if (p.fruit_season?.includes('winter')) {
+    const colors = colorsSaid(p.fruit_color);
+    parts.push([`Fruit stays into winter${colors ? `: ${colors}` : ''}`, sourceLine(p.prov?.fruit_season), 'winter-fruit']);
+  }
+  const woody = formsOf(p).some((f) => f === 'Tree' || f === 'Shrub');
+  const stems = (p.stem_color ?? []).filter((c) => SHOWY_STEMS.includes(c));
+  if (p.winter_interest && woody && p.foliage === 'deciduous' && stems.length) parts.push([`Colored stems: ${colorsSaid(stems)}`, sourceLine(p.prov?.stem_color), 'winter-stems']);
+  if (p.bloom_season?.some((x) => x.endsWith('winter'))) parts.push(['Blooms in winter', sourceLine(p.prov?.bloom_season), 'winter-bloom']);
+  if (p.winter_interest) parts.push([p.prov?.winter_interest?.src.includes('ncsu') ? 'Listed for winter gardens' : 'Has winter interest', sourceLine(p.prov?.winter_interest), 'winter-listed']);
+  return parts;
+}
+/** The In winter row: winterParts, each with its source. Null: nothing to say. */
+function winterRow(p: Plant): HTMLElement | null {
+  const parts = winterParts(p);
+  if (!parts.length) return null;
+  const dd = el('dd', { 'data-testid': 'winter-row' });
+  for (const [text, src, testid] of parts) {
+    dd.appendChild(el('span', { className: 'details-part', 'data-testid': testid }, text));
+    if (src) dd.appendChild(el('span', { className: 'details-src' }, src));
+  }
+  return dd;
+}
 /** "Yes: gold, red"; "No"; or, with colors and no yes or no, the colors. */
 export const fallText = (p: Plant): string => {
   const colors = p.fall_colors?.length ? p.fall_colors.join(', ') : '';
@@ -128,10 +174,12 @@ function rows(p: Plant): Row[] {
     ['Thorns', yes(p.thorns), ['thorns']],
     // (As its source lists them: NC State's take in the seasons and the undersides.)
     ['Leaf colors', leafText(p.leaf_color), ['leaf_color']],
-    ['In winter', winterText(p), ['foliage']],
+    // (Its leaves, then what makes winter interest, each with its source: drawn by winterRow.)
+    ['In winter', '', ['foliage', 'bark', 'fruit_season', 'stem_color', 'winter_interest']],
+    // (As NC State lists it, with its colors: "Exfoliating, peeling; red, light brown".)
+    ['Bark', barkText(p), ['bark', 'bark_color']],
     ['Fall color', fallText(p), ['fall_color', 'fall_colors']],
     ['Growth rate', p.growth_rate ? cap(p.growth_rate) : '', ['growth_rate']],
-    ['Winter interest', yes(p.winter_interest), ['winter_interest']],
     ['Takes clay', yes(p.clay_ok), ['clay_ok']],
     ['Takes wet feet', yes(p.wet_feet), ['wet_feet']],
     ['Takes dry shade', yes(p.dry_shade), ['dry_shade']],
@@ -288,6 +336,7 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
   for (const [label, value, facts, reportedText] of rows(p)) {
     if (label === 'How it spreads') { const dd = spreadRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
     if (label === 'Bloom') { const dd = bloomRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
+    if (label === 'In winter') { const dd = winterRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
     if (label === 'Caterpillar host') { const dd = hostRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
     if (label === 'Toxicity') {
       const t = toxRow(p);

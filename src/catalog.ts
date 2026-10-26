@@ -97,7 +97,7 @@ export interface Provenance {
 export const INHERITED = new Set([
   'form', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'humidity', 'tox', 'poison', 'dog', 'thorns', 'foliage', 'needles',
   'native', 'host', 'hosts', 'host_genus', 'nectar', 'bird', 'deer', 'edible', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'invasive', 'bloom_season',
-  'tolerates', 'problem_for', 'maintenance_level',
+  'tolerates', 'problem_for', 'maintenance_level', 'bark', 'fruit_season',
 ]);
 
 const isSourced = (f: unknown): f is SourcedFact =>
@@ -178,6 +178,11 @@ export const ATTRACTS = ['butterflies', 'pollinators', 'bees', 'specialized bees
 export const TOLERATES = ['deer', 'rabbits', 'squirrels', 'voles', 'slugs', 'drought', 'dry soil', 'wet soil', 'poor soil', 'compaction', 'erosion', 'heat', 'humidity', 'salt', 'pollution', 'urban conditions', 'black walnut', 'heavy shade', 'wind', 'storm damage', 'foot traffic', 'fire', 'diseases', 'insect pests'];
 export const PETS = ['dogs', 'cats', 'horses'];
 export const MAINTENANCE_LEVELS = ['low', 'medium', 'high'];
+/** What shows in winter, as NC State lists it (scripts/catalog/claims.mjs): bark, its colors; stem and fruit colors; when the fruit's there. */
+export const BARK = ['smooth', 'furrowed', 'fissured', 'ridges', 'scaly', 'lenticels', 'bumpy', 'spongy', 'shiny', 'exfoliating', 'peeling', 'shredding', 'papery', 'shaggy', 'patchy'];
+export const BARK_COLORS = ['light gray', 'dark gray', 'light brown', 'dark brown', 'red/burgundy', 'orange', 'green', 'black', 'white'];
+export const PART_COLORS = ['red/burgundy', 'orange', 'gold/yellow', 'green', 'blue', 'purple/lavender', 'pink', 'white', 'cream/tan', 'brown/copper', 'gray/silver', 'black'];
+export const FRUIT_SEASONS = ['spring', 'summer', 'fall', 'winter'];
 /** When it blooms: a season, or USDA's finer "mid spring" (scripts/catalog/claims.mjs bloomSeasons). */
 export const BLOOM_SEASONS = ['spring', 'summer', 'fall', 'winter'].flatMap((x) => [x, `early ${x}`, `mid ${x}`, `late ${x}`]);
 /**
@@ -246,6 +251,9 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
   // warning: one not listed isn't safe); its upkeep, as NC State rates it (the earlier list's `maintenance` is tasks).
   attracts: wordsOf(ATTRACTS), tolerates: wordsOf(TOLERATES), problem_for: wordsOf(PETS),
   maintenance_level: (v) => MAINTENANCE_LEVELS.includes(v as string),
+  // What shows in winter: bark and its colors, stem and fruit colors, when the fruit's there (NC State's words).
+  bark: wordsOf(BARK), bark_color: wordsOf(BARK_COLORS), stem_color: wordsOf(PART_COLORS),
+  fruit_season: wordsOf(FRUIT_SEASONS), fruit_color: wordsOf(PART_COLORS),
   // Flowers: when (seasons; a bloom's months are `bloom`, the earlier list's) and their colors.
   bloom_season: wordsOf(BLOOM_SEASONS), flower_color: wordsOf(FLOWER_COLORS),
 };

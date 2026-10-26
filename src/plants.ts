@@ -85,6 +85,13 @@ export interface Plant {
   /** Upkeep, as NC State rates it (the earlier list's `maintenance` is tasks, another scale). */
   maintenance_level?: 'low' | 'medium' | 'high';
   winter_interest?: boolean;
+  /** Its bark as NC State lists it ("exfoliating", "furrowed") and the bark's colors ("red/burgundy"): src/catalog.ts BARK. */
+  bark?: string[];
+  bark_color?: string[];
+  /** Its stems' colors, its fruit's, and when the fruit is there to see ("fall", "winter"), as NC State lists them. */
+  stem_color?: string[];
+  fruit_color?: string[];
+  fruit_season?: string[];
   clay_ok?: boolean;
   wet_feet?: boolean;
   dry_shade?: boolean;

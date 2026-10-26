@@ -515,6 +515,9 @@ months ("MO" for MOBOT).
 | `tolerates` | "Resistance To Challenges" | — | Decided with Jason, 2026-10-25: its words, as a list. |
 | `thorns` | stem "Appendage" (Prickles, Spines, Thorns), or "Spines/Thorns" under "Problems" | — | Decided with Jason, 2026-10-25. Yes or missing. Not written for a plant named thornless (it goes to the review). |
 | `winter_interest` | "Landscape Theme": Winter Garden | — | Decided with Jason, 2026-10-25. Yes or missing. |
+| `bark`, `bark_color` | Bark "Surface/Attachment", "Bark Color" | — | Asked for by Jason, 2026-10-25 (what makes a plant's winter interest: "exfoliating bark"). Its words, as lists (Ridges, Lenticels as given). Bark color is a cultivar's only from a page for it. |
+| `stem_color`, `fruit_color` | Stem "Stem Color", Fruit "Fruit Color" | — | Asked for by Jason, 2026-10-25. NC State's color groups, lower case ("red/burgundy"); "Insignificant" isn't kept. A cultivar's only from a page for it. |
+| `fruit_season` | Fruit "Display/Harvest Time" | — | Asked for by Jason, 2026-10-25: when its fruit is there to see; "winter" is fruit that stays into winter. |
 | `self_seed`, `dry_shade`, `taproot`, `humidity`, `trunk`, `habit` | — | — | `null` unless a source states it. |
 
 ## Decisions

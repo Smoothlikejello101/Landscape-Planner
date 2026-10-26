@@ -6,7 +6,7 @@
 // as does a value that would make the record implausible (the app's catalogWarnings: 1 in tall, zones
 // backwards).
 
-import { ATTRACTS, bloomSeasons, flowerColors, ncsuNoPoison, PETS, TOLERATES } from './claims.mjs';
+import { ATTRACTS, BARK, BARK_COLORS, bloomSeasons, flowerColors, ncsuNoPoison, PART_COLORS, PETS, SEASONS, TOLERATES } from './claims.mjs';
 
 /** The checks the app takes (src/catalog.ts): disputed facts aren't written. */
 const SETTLED = new Set(['confirmed', 'single', 'likely', 'reported']);
@@ -89,6 +89,12 @@ const FACTS = {
   maintenance_level: ['maintenance_level', oneOf(LEVELS)],
   thorns: ['thorns', yes],
   winter_interest: ['winter_interest', yes],
+  // What shows in winter, as NC State lists it (claims.mjs BARK, BARK_COLORS, PART_COLORS, SEASONS).
+  bark: ['bark', listOf(BARK)],
+  bark_color: ['bark_color', listOf(BARK_COLORS)],
+  stem_color: ['stem_color', listOf(PART_COLORS)],
+  fruit_season: ['fruit_season', listOf(SEASONS)],
+  fruit_color: ['fruit_color', listOf(PART_COLORS)],
 };
 const BUILT_IN = {
   ncsu: { title: 'NC State Extension Gardener Plant Toolbox', url: 'https://plants.ces.ncsu.edu', trust: 'reference' },
