@@ -6,7 +6,7 @@
 // as does a value that would make the record implausible (the app's catalogWarnings: 1 in tall, zones
 // backwards).
 
-import { bloomSeasons, flowerColors, ncsuNoPoison } from './claims.mjs';
+import { ATTRACTS, bloomSeasons, flowerColors, ncsuNoPoison, PETS, TOLERATES } from './claims.mjs';
 
 /** The checks the app takes (src/catalog.ts): disputed facts aren't written. */
 const SETTLED = new Set(['confirmed', 'single', 'likely', 'reported']);
@@ -30,6 +30,7 @@ const LEAF_COLORS = ['green', 'silver', 'gold', 'blue', 'purple', 'red', 'copper
 const FALL_COLORS = ['gold', 'red', 'orange', 'purple', 'copper', 'cream', 'silver', 'pink'];
 const FOLIAGE = ['evergreen', 'semi-evergreen', 'deciduous'];
 const GROWTH_RATES = ['slow', 'medium', 'fast'];
+const LEVELS = ['low', 'medium', 'high'];
 /** A list of words from `words`, each once, in the order given (undefined if empty or any isn't one). */
 const listOf = (words) => (v) => (Array.isArray(v) && v.length && v.every((x) => words.includes(x)) ? [...new Set(v)] : undefined);
 const oneOf = (words) => (v) => (words.includes(v) ? v : undefined);
@@ -80,6 +81,14 @@ const FACTS = {
   host: ['hosts', hostsOf],
   host_genus: ['host_genus', hostGenusOf],
   poison: ['poison', poisonOf],
+  // NC State's lists, as it gives them (claims.mjs ATTRACTS, TOLERATES, PETS): who it attracts, what it tolerates, the
+  // animals it's a problem for (a warning: never "safe" from silence); its upkeep level; thorns; winter interest.
+  attracts: ['attracts', listOf(ATTRACTS)],
+  tolerates: ['tolerates', listOf(TOLERATES)],
+  tox_pets: ['problem_for', listOf(PETS)],
+  maintenance_level: ['maintenance_level', oneOf(LEVELS)],
+  thorns: ['thorns', yes],
+  winter_interest: ['winter_interest', yes],
 };
 const BUILT_IN = {
   ncsu: { title: 'NC State Extension Gardener Plant Toolbox', url: 'https://plants.ces.ncsu.edu', trust: 'reference' },
@@ -158,6 +167,9 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
       // (The sources can't say Wetland yet: it waits on USDA's wetland list. A plant the catalog calls a wetland
       // plant keeps that until then, rather than becoming merely "High".)
       if (key === 'water' && rated('water') === 'Wetland') continue;
+      // Thorns on a plant named for having none (a thornless blackberry, honeylocust var. inermis, read off its species'
+      // page): for a person to look at, not a flag to set.
+      if (key === 'thorns' && /thornless|inermis/i.test(`${rec.common ?? ''} ${rec.botanical ?? ''}`)) { review.push({ id: rec.id, fact: key, note: 'thorns, but named thornless' }); continue; }
       // "Edible" beside a toxic rating (mayapple's ripe fruit; a plant whose other parts poison): for a person to
       // word, not a flag to set. (Toxic to dogs on the older list, or seriously toxic to people by the audit.)
       // A person's decision (scripts/catalog/decisions.json `edible`) settles it: written, its poisonous parts shown

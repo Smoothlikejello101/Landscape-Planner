@@ -496,7 +496,7 @@ months ("MO" for MOBOT).
 | `native` | — | decides (native status) | NC State's region of origin often comes from USDA, so it isn't independent. The Arkansas atlas decides for Arkansas. Waiting on a format change. |
 | `invasive` | — | invasive and noxious lists | Waiting on a format change and a sourced rule for "widely invasive". |
 | Toxicity to people | poison severity, poison part, contact dermatitis, and "Poisonous to Humans" among its problems | — | Written as `poison`, in NC State's own terms: its severity (low, medium, high), the parts it names, and whether it irritates skin; a plant it lists as poisonous to humans with nothing more is `{}`. Its bare "Poisonous" plant-type tag isn't about people alone (star jasmine has it, its page calling it non-toxic to pets), so it counts for nothing by itself. A page that says nothing of poison at all is `null` ("None listed"), unless the species is rated. Shown for every plant NC State rates (Jason, 2026-10-23: "Mark anything poisonous to people"), beside "Edible" where a plant is both. Internally the audit also reads it as High or Medium → `major`, Low → `minor`, contact dermatitis → `dermatitis`, for the edible check (Medium goes to `major` because erring toward harmless is the dangerous mistake). Authorities agree only on exactly the same values. |
-| Toxicity to dogs, cats, horses | — | — | No usable source yet. NC State's poison facts are about people, and toxicity to people doesn't stand in for pets. |
+| Toxicity to dogs, cats, horses (`problem_for`) | "Problems": Problem for Dogs, Cats, Horses | — | Decided with Jason, 2026-10-25: the animals NC State lists it as a problem for. A warning only: a plant not listed isn't safe, and the app never says it is. (Its poison facts, about people, still don't stand in for pets.) |
 | `deer` | resistance list | — | Listed for deer → `Resistant`. Otherwise `null`. |
 | `nectar`, `bird` | — | — | `null`: no source gives a level. |
 | `host` | "Wildlife Value" and its sentences | — | Only where a source says the plant is a larval host. Stored as the names it gives, never its sentence, and only names whose genus the Tallamy data lists as a butterfly or moth. Confirmed only where two sources name the same one. |
@@ -510,7 +510,12 @@ months ("MO" for MOBOT).
 | `clay_ok` | soil texture | — | |
 | `wet_feet` | soil drainage | — | |
 | `maintenance` | — | — | `null`: NC State gives a level, not a task, and the catalog's values are tasks. |
-| `thorns`, `winter_interest`, `self_seed`, `dry_shade`, `taproot`, `humidity`, `trunk`, `habit` | — | — | `null` unless a source states it. |
+| `maintenance_level` | "Maintenance": Low, Medium, High | — | Decided with Jason, 2026-10-25: NC State's level, its own fact beside the earlier list's tasks. |
+| `attracts` | "Attracts" | — | Decided with Jason, 2026-10-25: its words, as a list (who visits, never a level: `nectar` and `bird` stay `null`). |
+| `tolerates` | "Resistance To Challenges" | — | Decided with Jason, 2026-10-25: its words, as a list. |
+| `thorns` | stem "Appendage" (Prickles, Spines, Thorns), or "Spines/Thorns" under "Problems" | — | Decided with Jason, 2026-10-25. Yes or missing. Not written for a plant named thornless (it goes to the review). |
+| `winter_interest` | "Landscape Theme": Winter Garden | — | Decided with Jason, 2026-10-25. Yes or missing. |
+| `self_seed`, `dry_shade`, `taproot`, `humidity`, `trunk`, `habit` | — | — | `null` unless a source states it. |
 
 ## Decisions
 

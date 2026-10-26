@@ -424,7 +424,7 @@ export function renderPlantsPanel() {
     const sayNote = () => {
       note.textContent = plantFilter.dogs === 'hideToxic' ? `Hides the ${countWord(nToxic)} plants with a warning for dogs; keeps the ${countWord(nUnrated)} not yet rated.`
         : plantFilter.dogs === 'nonToxic' ? `Only the ${countWord(nSafe)} plants rated non-toxic to dogs, by an earlier list with no sources; leaves out the ${countWord(nUnrated)} not yet rated.`
-        : `Every plant, whatever it does to dogs. ${countWord(nUnrated)} aren't rated yet: no source we can use rates plants for pets.`;
+        : `Every plant, whatever it does to dogs. NC State or the earlier list warns for ${countWord(nToxic)}; ${countWord(nUnrated)} have no rating, which isn't the same as safe.`;
     };
     sayNote();
     const group = el('div', { role: 'radiogroup', 'aria-label': 'Dogs', className: 'animal-rows' });

@@ -97,6 +97,7 @@ export interface Provenance {
 export const INHERITED = new Set([
   'form', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'humidity', 'tox', 'poison', 'dog', 'thorns', 'foliage', 'needles',
   'native', 'host', 'hosts', 'host_genus', 'nectar', 'bird', 'deer', 'edible', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'invasive', 'bloom_season',
+  'tolerates', 'problem_for', 'maintenance_level',
 ]);
 
 const isSourced = (f: unknown): f is SourcedFact =>
@@ -172,6 +173,11 @@ export const FALL_COLORS = ['gold', 'red', 'orange', 'purple', 'copper', 'cream'
 /** Whether the leaves stay through winter. For an herb, deciduous is dying back. */
 export const FOLIAGE = ['evergreen', 'semi-evergreen', 'deciduous'];
 export const GROWTH_RATES = ['slow', 'medium', 'fast'];
+/** NC State's lists, as the catalog keeps them (scripts/catalog/claims.mjs): who visits, what it takes, animals it's a problem for. */
+export const ATTRACTS = ['butterflies', 'pollinators', 'bees', 'specialized bees', 'hummingbirds', 'songbirds', 'moths', 'small mammals', 'predatory insects', 'frogs', 'reptiles', 'bats'];
+export const TOLERATES = ['deer', 'rabbits', 'squirrels', 'voles', 'slugs', 'drought', 'dry soil', 'wet soil', 'poor soil', 'compaction', 'erosion', 'heat', 'humidity', 'salt', 'pollution', 'urban conditions', 'black walnut', 'heavy shade', 'wind', 'storm damage', 'foot traffic', 'fire', 'diseases', 'insect pests'];
+export const PETS = ['dogs', 'cats', 'horses'];
+export const MAINTENANCE_LEVELS = ['low', 'medium', 'high'];
 /** When it blooms: a season, or USDA's finer "mid spring" (scripts/catalog/claims.mjs bloomSeasons). */
 export const BLOOM_SEASONS = ['spring', 'summer', 'fall', 'winter'].flatMap((x) => [x, `early ${x}`, `mid ${x}`, `late ${x}`]);
 /**
@@ -236,6 +242,10 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
   leaf_color: wordsOf(LEAF_COLORS), fall_colors: wordsOf(FALL_COLORS),
   foliage: (v) => FOLIAGE.includes(v as string), needles: (v) => typeof v === 'boolean',
   growth_rate: (v) => GROWTH_RATES.includes(v as string),
+  // Who it attracts and what it tolerates, as NC State lists them (never a level); the animals it's a problem for (a
+  // warning: one not listed isn't safe); its upkeep, as NC State rates it (the earlier list's `maintenance` is tasks).
+  attracts: wordsOf(ATTRACTS), tolerates: wordsOf(TOLERATES), problem_for: wordsOf(PETS),
+  maintenance_level: (v) => MAINTENANCE_LEVELS.includes(v as string),
   // Flowers: when (seasons; a bloom's months are `bloom`, the earlier list's) and their colors.
   bloom_season: wordsOf(BLOOM_SEASONS), flower_color: wordsOf(FLOWER_COLORS),
 };

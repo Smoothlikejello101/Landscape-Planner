@@ -335,19 +335,29 @@ test('animal toxicity: dogs three ways, and a warning given for one record of a 
   await expect(fold).toContainText('dogs: hiding toxic');
   await expect(page.getByTestId('dogs-note')).toContainText(/Hides the \d+ plants with a warning for dogs; keeps the [\d,]+ not yet rated/);
   await expect(count).toContainText(/^[\d,]+ of [\d,]+ plants match/);
-  // The species record carries its strain's warning, so hiding toxic hides it too; any shows it again, saying where the warning came from.
+  // NC State lists it as a problem for dogs: hidden; any shows it, saying so.
   await page.getByTestId('plant-search').fill('Butterfly milkweed');
   const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly milkweed$/ }) });
   await expect(item).toHaveCount(0);
   await page.getByTestId('dogs-any').check();
   await expect(item).toHaveCount(1);
   await item.getByRole('button', { name: /Butterfly milkweed/ }).first().click();
-  await expect(item.getByTestId('tox-row')).toContainText("given for Butterfly weed 'for Clay', the same species");
-  // A plant no source rates says so, rather than nothing.
+  await expect(item.getByTestId('tox-row')).toContainText('A problem for dogs, cats and horses');
+  // The species record carries another record's warning (the earlier list's), so hiding toxic hides it too; any shows
+  // it again, saying where the warning came from.
+  await page.getByTestId('dogs-hideToxic').check();
+  await page.getByTestId('plant-search').fill('Yaupon');
+  const yaupon = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Yaupon$/ }) });
+  await expect(yaupon).toHaveCount(0);
+  await page.getByTestId('dogs-any').check();
+  await expect(yaupon).toHaveCount(1);
+  await yaupon.getByRole('button', { name: /Yaupon/ }).first().click();
+  await expect(yaupon.getByTestId('tox-row')).toContainText('given for Dwarf yaupon holly, the same species');
+  // A plant no source rates says so, rather than nothing (never "safe").
   await page.getByTestId('plant-search').fill("'Acapulco Orange'");
   const unrated = page.locator('.plant-item').first();
   await unrated.getByRole('button', { name: /Acapulco Orange/ }).first().click();
-  await expect(unrated.getByTestId('tox-row')).toContainText('dogs: not yet rated');
+  await expect(unrated.getByTestId('tox-row')).toContainText(/^(Not rated for pets|Not listed as a problem for dogs, cats or horses)/);
   // Reset clears the filter, keeps the search and the open section.
   await page.getByTestId('dogs-nonToxic').check();
   await page.getByRole('button', { name: 'Reset filters' }).click();

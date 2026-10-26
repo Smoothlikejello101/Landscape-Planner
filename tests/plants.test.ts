@@ -292,7 +292,17 @@ describe('plant filters', () => {
     expect(toxicToDogs(sp)).toBe(true);
     expect(toxRow(sp)).toEqual({ value: 'dogs: Toxic - rarely eaten', line: "earlier list, unverified · given for Butterfly weed 'for Clay', the same species" });
     expect(toxRow(safe)!.line).toContain('the earlier list calls this one safe');
-    expect(toxRow(other)).toEqual({ value: 'dogs: not yet rated', line: 'No source we can use rates plants for pets yet' });
+    expect(toxRow(other)).toEqual({ value: 'Not rated for pets', line: 'No source we\u2019ve read rates it for dogs, cats or horses' });
+    // NC State's "Problem for Dogs" (cats, horses): a warning, ahead of the earlier list's word; an NC State page that
+    // lists none says so, and that it isn't the same as safe.
+    const flagged: Plant = { id: 'ff', common: 'Flagged', dog: 'Safe', problem_for: ['dogs', 'cats'], prov: { problem_for: { src: ['ncsu'], check: 'single' } } };
+    expect(toxicToDogs(flagged)).toBe(true);
+    expect(nonToxicToDogs(flagged)).toBe(false);
+    expect(toxRow(flagged)!.value).toBe('A problem for dogs and cats');
+    const catsOnly: Plant = { id: 'fc', common: 'Cats only', dog: 'Mild GI', problem_for: ['cats'], prov: { problem_for: { src: ['ncsu'], check: 'single' } } };
+    expect(toxRow(catsOnly)!.value).toBe('A problem for cats; dogs: Mild GI');
+    const readNone: Plant = { id: 'rn', common: 'Read', prov: { poison: { src: ['ncsu'], unknown: true } } };
+    expect(toxRow(readNone)!.value).toBe('Not listed as a problem for dogs, cats or horses');
     expect(toxRow({ id: 'u-1', common: 'Mine' })).toBeNull(); // (a plant of mine: the person's own notes)
     // The species' own record's warning is the one given, where it has one.
     const a: Plant = { id: 'a', common: "Oakleaf 'Alice'", botanical: "Hydrangea quercifolia 'Alice'", dog: 'Mild GI' };

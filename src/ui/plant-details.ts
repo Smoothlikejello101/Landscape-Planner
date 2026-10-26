@@ -32,6 +32,8 @@ const ft = (r?: { min?: number; max?: number; med?: number }) => {
 };
 const SUN_WORDS: Record<string, string> = { Full: 'full sun', Part: 'part shade', Shade: 'shade' };
 const cap = (t: string) => t[0].toUpperCase() + t.slice(1);
+/** "dogs", "dogs and cats", "dogs, cats and horses". */
+const andList = (l: string[]) => (l.length > 1 ? `${l.slice(0, -1).join(', ')} and ${l.at(-1)}` : l[0] ?? '');
 const sun = (most?: unknown, least?: unknown) => (!most ? '' : cap(most === least || !least ? SUN_WORDS[most as string] ?? String(most) : `${SUN_WORDS[most as string] ?? most} to ${SUN_WORDS[least as string] ?? least}`));
 const yes = (v: unknown) => (v === true ? 'Yes' : v === false ? 'No' : '');
 /** "Apr–Jun"; "May". */
@@ -110,9 +112,13 @@ function rows(p: Plant): Row[] {
     ['Native', p.native ?? '', ['native']],
     ['Nectar for pollinators', p.nectar ?? '', ['nectar']],
     ['For birds', p.bird ?? '', ['bird']],
+    // (Who visits, as NC State lists them: "Butterflies, bees, hummingbirds".)
+    ['Attracts', p.attracts?.length ? cap(p.attracts.join(', ')) : '', ['attracts']],
     // (The caterpillars its sources name; its genus's, where the garden is; the earlier list's: drawn by hostRow.)
     ['Caterpillar host', '', ['hosts', 'host_genus', 'host']],
     ['Deer', p.deer ?? '', ['deer'], (r) => String(r.deer ?? '')],
+    // (What it takes, as NC State lists it: "Drought, heat, rabbits, black walnut"; deer has its own row.)
+    ['Tolerates', p.tolerates?.some((x) => x !== 'deer') ? cap(p.tolerates.filter((x) => x !== 'deer').join(', ')) : '', ['tolerates']],
     // (Drawn by toxRow: never left out for a catalog plant, since no line about pets reads as safe.)
     ['Toxicity', '', ['tox', 'dog']],
     // (Beside Edible: a plant can be both, its fruit eaten and its seeds poisonous.)
@@ -130,7 +136,8 @@ function rows(p: Plant): Row[] {
     ['Takes dry shade', yes(p.dry_shade), ['dry_shade']],
     // (By seed, and underground or by runners: two facts, one question, "will it spread?"; drawn by spreadRow.)
     ['How it spreads', '', ['self_seed', 'habit']],
-    ['Maintenance', p.maintenance ?? '', ['maintenance']],
+    // (NC State's level where it gives one; else the earlier list's task.)
+    ['Maintenance', p.maintenance_level ? cap(p.maintenance_level) : p.maintenance ?? '', p.maintenance_level ? ['maintenance_level'] : ['maintenance']],
     ['Taproot (hard to move)', yes(p.taproot), ['taproot']],
     ['Humidity', p.humidity === 'humid' ? 'Likes humid summers' : p.humidity === 'dry' ? 'Likes dry air' : p.humidity === 'either' ? 'Either' : '', ['humidity']],
     // (A habit that speaks to spreading is under "How it spreads"; one that doesn't, a vine's twining, stays here.)
@@ -236,6 +243,14 @@ function hostRow(p: Plant): HTMLElement | null {
  * earlier list's warning for another record of its species; else not yet rated. Null for a plant of mine.
  */
 export function toxRow(p: Plant): { value: string; line: string } | null {
+  // NC State's "Problem for Dogs" (cats, horses) first, with its source; the earlier list's word on dogs beside it where
+  // NC State says nothing of dogs.
+  const nc = p.problem_for?.length ? ['dogs', 'cats', 'horses'].filter((a) => p.problem_for!.includes(a)) : null; // (in one order)
+  const earlier = p.tox?.dog ? '' : p.dog && p.dog !== 'Unverified' ? `dogs: ${p.dog}` : '';
+  if (nc) {
+    const also = !nc.includes('dogs') && earlier ? earlier : '';
+    return { value: `A problem for ${andList(nc)}` + (also ? `; ${also}` : ''), line: sourceLine(p.prov?.problem_for) + (also ? ' · dogs: earlier list, unverified' : '') };
+  }
   const warnsHere = p.tox?.dog === 'toxic' || !!oldDogWarning(p);
   if (p.dogVia && !warnsHere) {
     return { value: `dogs: ${p.dogVia.dog}`, line: `earlier list, unverified · given for ${p.dogVia.common}, the same species` + (p.dog === 'Safe' ? '; the earlier list calls this one safe' : '') };
@@ -243,7 +258,9 @@ export function toxRow(p: Plant): { value: string; line: string } | null {
   const own = tox(p.tox) || (p.dog && p.dog !== 'Unverified' ? `dogs: ${p.dog}` : '');
   if (own) return { value: own, line: sourceLine(p.prov?.tox ?? p.prov?.dog) };
   if (isMine(p)) return null;
-  return { value: 'dogs: not yet rated', line: 'No source we can use rates plants for pets yet' };
+  // (NC State's page read, and it lists no animal: said so, and that it isn't the same as safe.)
+  if (p.prov?.poison?.src.includes('ncsu')) return { value: 'Not listed as a problem for dogs, cats or horses', line: 'NC State · a plant not listed isn\u2019t necessarily safe' };
+  return { value: 'Not rated for pets', line: 'No source we\u2019ve read rates it for dogs, cats or horses' };
 }
 /** Where a value came from, in a few words: "NC State, USDA · confirmed", "earlier list, unverified". */
 function sourceLine(prov: Provenance | undefined): string {

@@ -17,7 +17,7 @@ export const NCSU_FIELDS = [
   'Light', 'Soil Texture', 'Soil pH', 'Soil Drainage', 'USDA Plant Hardiness Zone', 'Height', 'Width',
   'Flower Color', 'Flower Bloom Time', 'Deciduous Leaf Fall Color', 'Woody Plant Leaf Characteristics',
   'Attracts', 'Resistance To Challenges', 'Design Feature', 'Landscape Location', 'Landscape Theme',
-  'Poison Severity', 'Causes Contact Dermatitis', 'Poison Part', 'Stem Surface', 'Problems', 'Leaf Color', 'Leaf Type',
+  'Poison Severity', 'Causes Contact Dermatitis', 'Poison Part', 'Stem Surface', 'Problems', 'Leaf Color', 'Leaf Type', 'Appendage',
 ];
 /** NC State's free-text fields the audit reads one fact out of, never keeping the text. */
 const NCSU_TEXT = ['Wildlife Value'];
