@@ -345,6 +345,81 @@ deciduous value from care advice alone ("divide it in the fall as it goes
 dormant"); right, but worth a second source. Care advice about watering a
 resting plant settles nothing.
 
+**Deer, self-sowing and spreading** (`deer`, `self_seed`, `habit`;
+2026-10-27). Read a clause at a time ("deer tend to avoid it but may eat
+the flowers": the flowers aren't the plant; "unlike most of its genus, it
+spreads from rhizomes" is about the plant itself), never of its fruit or
+acorns eaten ("the berries are consumed by birds and deer"), the deer fern, a comparison ("less damaged by deer than other
+clematis"), or cultivars it names ("consider 'Merlot Majik', as they are
+sterile").
+
+- *Deer*: `Resistant` where deer pass it by ("deer resistant", "drought,
+  deer and wet soil tolerant", "seldom damaged by deer", "tolerates browsing
+  by deer", which NC State's own field counts as resisting them);
+  `Occasional` where deer eat it, said plainly ("deer will browse roses"),
+  now and then ("may be damaged by deer"), or where it resists them only in
+  part ("mildly resistant"); `Candy` where they favor it or damage it often
+  ("frequently damaged by deer", "a serious problem", "little resistance to
+  deer"). A page's least
+  resistance stands (no promise the deer pass it by). NC State's field
+  lists deer only where a plant resists them, so the sentences are where it
+  says deer eat one. Checked against the 523 pages whose field lists deer
+  and whose description speaks to them: 472 read Resistant, 51 Occasional
+  (34 of them "mildly" or "moderately" resistant: the field lists those
+  too), none Candy.
+- *Self-sowing*: `Prolific` where it self-sows freely ("readily reseeds",
+  "self-seeds and can become weedy", "deadhead to prevent aggressive
+  reseeding"); `Modest` where it does, how much unsaid or a little ("may
+  self-seed", "self-seeds, but is not aggressive", "somewhat rapidly", or
+  "considered sterile, but … can lead to viable seed"); `Sterile` where the
+  plant itself is said to be ("'Karl Foerster' is sterile", "a sterile
+  hybrid", "does not produce seed"), not its fronds or ray flowers. Nearly
+  sterile ("sterile or near sterile", "highly infertile", "usually does not
+  produce fertile seed") settles nothing, and neither does "does not
+  self-seed" (a plant can set seed that doesn't come up) or reseeding a
+  lawn. A page that says the plant is sterile, triploid or seedless and
+  also that it (its species, read on a cultivar's page) self-sows can't
+  settle.
+- *Spreading*, as a habit src/spread.ts knows: by rhizomes ("spreads by
+  rhizomes", "creeping rhizomes", "underground runners"), stolons or
+  runners above ground, suckers (with thickets where the suckers make
+  them: thickets alone say nothing of how it spreads, a rhododendron's or a
+  hedge's; never "found in thickets", nor "can form thickets in riparian
+  areas" of plants in the wild), or mats; aggressively where said
+  of its spreading ("spreads aggressively by rhizomes", "suckers … a weed
+  problem"; or in a sentence of its own, "controlling its spread has proven
+  a challenge", "its aggressive habit"; not "a little aggressive",
+  "vigorous", weediness in a clause that blames seed too, nor "invasive in
+  New England", which is where it goes wild) or slowly where said. "Rhizomatous" alone says nothing: it's a kind of
+  root, a hellebore's or a begonia's as much as a mint's; only beside words
+  that say it spreads ("a rhizomatous, spreading plant") is it read.
+  `Clumping` only where it's said to form clumps and nothing says it runs
+  ("slowly spreads to form clumps" isn't, nor a clump-former whose page
+  says "it can spread rapidly", how unsaid; "Tufted sedge" is a name). Rhizomes divided by the gardener
+  aren't spreading. Two habits were added for it: "Slow-spreading rhizome"
+  (slow) and "Aggressive runner (stolons)" (aggressive).
+- A cultivar's self-sowing and habit come only from a page for it (a
+  sterile or clumping cultivar of a self-sowing, running species); its
+  deer, like the field's, from its species' page too.
+
+Checked 2026-10-27 by an agent that hadn't seen the rules, on three random
+samples of new values read against their pages, the rules fixed after each:
+138 values, 122 right (deer 37 of 38, self-sowing 35 of 36, spreading 50 of
+64); then 74 fresh ones, 61 right; then 75 fresh ones, 64 right (deer 10 of
+10, self-sowing 12 of 15, spreading 42 of 50, 2 of them wrong and 6 unsure).
+What it found, and fixed: thickets taken as spreading, "rhizomatous" alone
+taken as spreading, "infertile soil" read as a nearly sterile plant, a
+gardener's gerund ("Controlling its spread …") taken for another plant's
+name, a trailing "hence the common name" dropping a sentence, and how
+aggressively or slowly. Weakest: spreading's degree (aggressive or not,
+slow or not), more than whether it runs at all.
+
+These replace the earlier list's unsourced values where they differ (a
+"Clumping" the description says spreads by rhizomes). Drought wasn't read
+this way: NC State's field already lists it, and only about 55 pages
+without that field mention drought at all, several to say the plant doesn't
+take it.
+
 ## Paid licenses
 
 Checked 2026-10-17. No paid source found both covers our facts well and

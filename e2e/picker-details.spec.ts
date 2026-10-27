@@ -180,27 +180,28 @@ test('linking a circle to a catalog plant uses the Link button', async ({ page }
 test('how a plant spreads, by seed and underground, in one row with a source each; the picker can show only plants that stay put', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
-  await page.getByTestId('plant-search').fill('Blue mistflower');
-  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Blue mistflower$/ }) });
+  // (Both parts read from NC State's description, 2026-10-27: "freely self-seed", "they sucker profusely".)
+  await page.getByTestId('plant-search').fill('Trumpet creeper');
+  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Trumpet creeper$/ }) });
   await item.getByTestId('plant-row').click();
   const details = item.getByTestId('plant-details');
   await expect(details.locator('dt', { hasText: 'How it spreads' })).toHaveCount(1);
   const spreads = details.getByTestId('spreads');
-  await expect(spreads.locator('.details-part')).toHaveText(['Self-sows freely', 'Spreads aggressively underground or by runners: Aggressive rhizome']);
-  await expect(spreads.locator('.details-src')).toHaveText(['earlier list, unverified']); // (each part its own source; one line where they share it)
+  await expect(spreads.locator('.details-part')).toHaveText(['Self-sows freely', 'Spreads aggressively underground or by runners: Suckering colonizer']);
+  await expect(spreads.locator('.details-src')).toHaveText(['Prose description, NC State Extension Gardener Plant Toolbox · one source']); // (each part its own source; one line where they share it)
   await expect(details.locator('dt', { hasText: /^Habit$/ })).toHaveCount(0); // (said under "How it spreads")
   // The picker: the ways of spreading you're OK with; a plant shows only if every way it spreads is ticked.
   await page.getByTestId('more-filters').click();
   const spreading = page.getByTestId('spread-filter');
   await expect(spreading.locator('legend')).toHaveText('Spreading you\u2019re OK with (unverified)');
   const tick = (name: string) => spreading.locator('label', { hasText: name }).locator('input');
-  const mistflower = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Blue mistflower$/ }) });
+  const creeper = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Trumpet creeper$/ }) });
   await tick('Stays put').check();
-  await expect(mistflower).toHaveCount(0);
+  await expect(creeper).toHaveCount(0);
   await tick('Spreads aggressively').check(); // (it self-sows freely too: not yet)
-  await expect(mistflower).toHaveCount(0);
+  await expect(creeper).toHaveCount(0);
   await tick('Self-sows freely').check();
-  await expect(mistflower).toHaveCount(1);
+  await expect(creeper).toHaveCount(1);
   await expect(page.getByTestId('active-chip')).toHaveText(['Spreading OK: stays put', 'Spreading OK: spreads aggressively by runners or underground', 'Spreading OK: self-sows freely']);
 });
 

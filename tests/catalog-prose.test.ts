@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
-import { aboutAnother, annualZonesSaid, foliageFromProse, foliageOf, foliageWords, ncsuDescription, ncsuNames, ncsuProseClaims, ncsuZones, sentences } from '../scripts/catalog/prose.mjs';
+import { aboutAnother, annualZonesSaid, deerFromProse, deerSaid, foliageFromProse, foliageOf, foliageWords, habitFromProse, ncsuDescription, ncsuNames, ncsuProseClaims, ncsuZones, PROSE_HABITS, seedFromProse, seedSaid, sentences } from '../scripts/catalog/prose.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { combine } from '../scripts/catalog/claims.mjs';
 import { catalogErrors, resolveCatalog, type CatalogFile } from '../src/catalog';
 import { winterParts } from '../src/ui/plant-details';
+import { HABIT_SPREAD } from '../src/spread';
 
 // Reading a source's description, by rule (decided with Jason, 2026-10-26: "read everything"). The sentences here are
 // written for these tests, in the shapes found on NC State's pages (descriptions aren't copied: docs/catalog-sources.md).
@@ -116,8 +117,10 @@ describe('NC State\'s description, as claims', () => {
     expect(ncsuDescription('<dl><dt>Height</dt><dd>1 ft.</dd></dl>')).toEqual([]);
   });
   it('makes a claim citing its sentence; the page\'s own fields come first', () => {
-    const prose = ncsuProseClaims(page);
+    const prose = ncsuProseClaims(page).filter((c: { fact: string }) => c.fact === 'foliage');
     expect(prose).toEqual([{ fact: 'foliage', v: 'semi-evergreen', src: 'ncsu', kind: 'authority', prose: true, says }]);
+    // (And its habit: "a clumping perennial".)
+    expect(ncsuProseClaims(page).find((c: { fact: string }) => c.fact === 'habit')).toMatchObject({ v: 'Clumping', says: 'Lenten rose is a clumping perennial of the buttercup family that blooms in late winter.' });
     // Alone, it decides; the build keeps its sentence for the review, and says where it was read.
     expect(combine(prose).foliage).toMatchObject({ v: 'semi-evergreen', src: ['ncsu'], check: 'single', from: 'description', says });
     // After the page's fields (as the build puts them), the fields' value is the one weighed.
@@ -128,6 +131,157 @@ describe('NC State\'s description, as claims', () => {
     // Over USDA's yes or no for a shrub (a fallback), the sentence decides.
     expect(combine([{ fact: 'foliage', v: 'deciduous', src: 'usda', kind: 'authority', fallback: true }, ...ncsuProseClaims(page.replace(says, 'It is a dense, low, evergreen shrub.'))]).foliage)
       .toMatchObject({ v: 'evergreen', src: ['ncsu'] });
+  });
+});
+
+describe('deer, from a description', () => {
+  const deer = (s: string, names: string[] = []) => deerSaid(s, names)?.v ?? null;
+  it('reads deer passing it by as Resistant', () => {
+    expect(deer('It is deer resistant and takes drought once established.')).toBe('Resistant');
+    expect(deer('It takes heat, drought, poor soil and deer.')).toBe(null); // ("takes" isn't a word the rules know)
+    expect(deer('It tolerates heat, drought, poor soil and deer.')).toBe('Resistant');
+    expect(deer('It is drought, deer, and salt tolerant.')).toBe('Resistant');
+    expect(deer('This shrub is seldom damaged by deer.')).toBe('Resistant');
+    expect(deer('Deer and rabbits tend to leave it alone.')).toBe('Resistant');
+    expect(deer('The bitter leaves discourage deer and rabbits.')).toBe('Resistant');
+    expect(deer('It is not often browsed by deer.')).toBe('Resistant'); // (not "often browsed")
+  });
+  it('reads deer eating it as Occasional, said plainly or now and then', () => {
+    expect(deer('Deer browse the leaves and twigs.')).toBe('Occasional');
+    expect(deer('Deer will browse roses.')).toBe('Occasional');
+    expect(deer('It may be damaged by deer.')).toBe('Occasional');
+    expect(deer('It is moderately resistant to deer.')).toBe('Occasional');
+    expect(deer('It resists browsing by rabbits (but not by deer).')).toBe('Occasional');
+  });
+  it('reads deer favoring it, or damaging it often, as Candy', () => {
+    expect(deer('This plant is frequently damaged by deer and takes salt.')).toBe('Candy');
+    expect(deer('Deer love the new growth.')).toBe('Candy');
+    expect(deer('Damage from deer can be a serious problem.')).toBe('Candy');
+    expect(deer('It has little resistance to deer.')).toBe('Candy');
+  });
+  it('says nothing of its fruit eaten, the deer fern, a comparison, or another plant', () => {
+    expect(deer('Deer and turkeys eat the acorns.')).toBe(null);
+    expect(deer('It is sometimes mistaken for deer fern.')).toBe(null);
+    expect(deer('It is less damaged by deer than other roses.')).toBe(null);
+    expect(deer('Its berries are eaten by birds and deer, which helps the plant spread.')).toBe(null);
+    expect(deer('Unlike hostas, which deer love, it has tough leaves.')).toBe(null);
+    // ("Unlike X, it …" is about the plant itself.)
+    expect(deer('Unlike hostas, it is not bothered by deer.')).toBe('Resistant');
+    expect(deer('Bigleaf hydrangea is frequently damaged by deer.', ['Hydrangea paniculata', 'Panicle hydrangea'])).toBe(null);
+  });
+  it('reads a clause at a time, and a page by its least resistance', () => {
+    expect(deer('Deer tend to avoid it but may eat the flowers.')).toBe('Resistant');
+    expect(deerFromProse(['It is deer resistant.', 'Young plants may be browsed by deer.'])).toEqual({ v: 'Occasional', says: 'Young plants may be browsed by deer.' });
+    expect(deerFromProse(['It has glossy leaves.'])).toBe(null);
+  });
+  it('makes a claim decided as deer is, by sides, citing its sentence', () => {
+    const page = '<h1>Weigela florida</h1><dl><dt>Description</dt><dd><p>Weigela is a deciduous shrub. It may be damaged by deer.</p></dd></dl>';
+    const prose = ncsuProseClaims(page);
+    expect(prose.find((c: { fact: string }) => c.fact === 'deer')).toMatchObject({ v: 'Occasional', says: 'It may be damaged by deer.' });
+    expect(combine(prose).deer).toMatchObject({ v: 'Occasional', src: ['ncsu'], from: 'description' });
+  });
+});
+
+describe('self-sowing, from a description', () => {
+  const seed = (s: string, names: string[] = []) => seedSaid(s, names)?.v ?? null;
+  it('reads freely as Prolific', () => {
+    expect(seed('It readily reseeds itself in the garden.')).toBe('Prolific');
+    expect(seed('It self-seeds and can become weedy.')).toBe('Prolific');
+    expect(seed('Deadhead it to prevent aggressive reseeding.')).toBe('Prolific');
+    expect(seed('It spreads by seed and can be hard to control.')).toBe('Prolific');
+    expect(seed('Its self-sowing may mean removing seedlings regularly.')).toBe('Prolific');
+  });
+  it('reads a little, or how much unsaid, as Modest', () => {
+    expect(seed('It may self-seed in ideal conditions.')).toBe('Modest');
+    expect(seed('It will reseed, but it is not aggressive.')).toBe('Modest');
+    expect(seed('It does not freely self-seed in the garden.')).toBe('Modest');
+    expect(seed('It can spread somewhat rapidly by self-seeding and suckering.')).toBe('Modest');
+    expect(seed('Remove spent flowers to prevent self-seeding.')).toBe('Modest');
+    expect(seed('If happy, it will self-seed and form colonies.')).toBe('Modest'); // (colonies, how freely unsaid)
+  });
+  it('reads sterile only of the plant itself', () => {
+    expect(seed('This cultivar is sterile and will not reseed.')).toBe('Sterile');
+    expect(seed("'Snow Lace' is considered sterile.")).toBe('Sterile');
+    expect(seed('It is a sterile hybrid of two catmints.')).toBe('Sterile');
+    expect(seed('The plant is triploid and does not produce seed.')).toBe('Sterile');
+    expect(seed('The outer fronds are sterile and turn brown.')).toBe(null);
+    expect(seed('The ray flowers are sterile.')).toBe(null);
+    expect(seed("Consider 'Snow Lace' or 'Moonbeam' instead, as they are sterile.")).toBe(null);
+    expect(seed('These are sterile or near sterile.')).toBe(null); // (nor said to self-sow)
+    expect(seed('It is highly infertile.')).toBe(null);
+    expect(seed('It self-seeds freely, even in infertile soil.')).toBe('Prolific'); // (the soil's, not the plant's)
+    expect(seed('It is considered sterile, though cross-pollination can lead to viable seed.')).toBe('Modest');
+  });
+  it('says nothing of not self-sowing, or of a lawn reseeded', () => {
+    expect(seed('It will not self-seed.')).toBe(null);
+    expect(seed('Bare spots must be reseeded each fall.')).toBe(null);
+  });
+  it('weighs a page together: freely over a little; sterile only where nothing says it self-sows', () => {
+    expect(seedFromProse(['It may self-seed.', 'It reseeds readily in sandy soil.'])?.v).toBe('Prolific');
+    expect(seedFromProse(['This cultivar is sterile.', 'Its species self-seeds freely.'])).toBe(null);
+    expect(seedFromProse(['This cultivar is sterile.'])?.v).toBe('Sterile');
+    // (A triploid cultivar's page that says the species self-sows freely.)
+    expect(seedFromProse(['The cultivars are triploid and non-invasive.', 'The species increases freely by self-sowing.'])).toBe(null);
+  });
+});
+
+describe('spreading underground or by runners, from a description', () => {
+  const habit = (s: string | string[], names: string[] = []) => habitFromProse([s].flat(), names)?.v ?? null;
+  it('reads rhizomes, runners, suckers and thickets, aggressively or slowly where said', () => {
+    expect(habit('It spreads aggressively by underground rhizomes.')).toBe('Aggressive rhizome');
+    expect(habit('It spreads slowly by rhizomes to form colonies.')).toBe('Slow-spreading rhizome');
+    expect(habit('It spreads by rhizomes and seed.')).toBe('Spreading rhizome');
+    expect(habit('It does not spread aggressively by rhizomes.')).toBe('Spreading rhizome');
+    expect(habit('It is a rhizomatous, spreading plant.')).toBe('Spreading rhizome');
+    expect(habit('This is a rhizomatous perennial with mottled leaves.')).toBe(null); // (a kind of root, not a way of spreading)
+    expect(habit('It spreads by above-ground stolons.')).toBe('Runner (stolons)');
+    expect(habit('It spreads by underground runners.')).toBe('Spreading rhizome'); // (runners underground are rhizomes)
+    expect(habit('It spreads by runners, so it can be a little aggressive.')).toBe('Runner (stolons)');
+    expect(habit('Unlike most of its genus, it spreads from rhizomes.')).toBe('Spreading rhizome');
+    expect(habit('It spreads slowly by branching, creeping rhizomes, hence the common name.')).toBe('Slow-spreading rhizome');
+    expect(habit(['It spreads by long, creeping roots.', 'Due to its aggressive habit, it needs upkeep.'])).toBe('Aggressive rhizome');
+    expect(habit('It spreads by seeds and rhizomes, making patches some call weedy.')).toBe('Spreading rhizome'); // (the weediness may be the seed's)
+    expect(habit('It can spread somewhat aggressively by rhizomes.')).toBe('Spreading rhizome');
+    expect(habit(['It is a rhizomatous, spreading plant.', 'Plants can be aggressive in rich soil.'])).toBe('Aggressive rhizome');
+    expect(habit('Its root suckers let it overwhelm native plants.')).toBe('Suckering colonizer');
+    expect(habit(['Its suckering habit lets it spread.', 'Controlling its spread has proven to be a challenge.'], ['Vernicia fordii', 'Tung oil tree'])).toBe('Suckering colonizer');
+    expect(habit('Thin out the suckers from the roots to keep thickets from forming.')).toBe('Suckering thicket');
+    expect(habit('It suckers to form colonies.')).toBe('Suckering');
+    expect(habit('It spreads by root suckers and can become weedy.')).toBe('Suckering colonizer');
+    expect(habit('It will form thickets unless the suckers are removed.')).toBe('Suckering thicket');
+  });
+  it('reads clumping only where nothing says it runs', () => {
+    expect(habit('It is a clump-forming perennial.')).toBe('Clumping');
+    expect(habit('It is a clump-forming, rhizomatous perennial.')).toBe('Clumping');
+    expect(habit('It forms clumps and spreads by stolons.')).toBe('Runner (stolons)');
+    expect(habit(['It is a clump-forming grass.', 'It spreads by creeping rhizomes.'])).toBe('Spreading rhizome');
+    expect(habit('It is a clumping grass that slowly spreads.')).toBe(null);
+    expect(habit(['It grows in a clumping form.', 'It can spread rapidly, so confine it.'])).toBe(null); // (spreads, how unsaid)
+    expect(habit('It forms clumps that slowly expand by short rhizomes.')).toBe('Slow-spreading rhizome');
+    expect(habit(['It is a clump-forming perennial.', 'It grows from thick, corky underground rhizomes.'])).toBe('Clumping');
+    expect(habit('Tufted hairgrass is a cool-season grass.', ['Deschampsia cespitosa'])).toBe(null); // (a name, not a habit)
+    expect(habit('It has an upright habit and tufted foliage.')).toBe(null);
+    expect(habit('It is often found growing in clumps in swamps and bogs.')).toBe(null); // (where it grows wild)
+    expect(habit('It is found in meadows in its native range and is clump-forming.')).toBe('Clumping');
+    expect(habit('Propagate it by seed, cuttings or root suckers.')).toBe(null); // (the gardener's doing)
+  });
+  it('says nothing of where it grows wild, a gardener dividing it, said not to, or another plant', () => {
+    expect(habit('It forms dense thickets along stream banks.')).toBe(null);
+    expect(habit('It is a multi-stemmed shrub that often forms dense thickets.')).toBe(null); // (how, unsaid)
+    expect(habit('In the wild it grows alone, but it can form thickets near streams.')).toBe(null);
+    expect(habit('Propagate it by division of the rhizomes in fall.')).toBe(null);
+    expect(habit('It does not spread by rhizomes.')).toBe(null);
+    expect(habit('Bearded iris is clump-forming.', ['Iris sibirica', 'Siberian iris'])).toBe(null);
+  });
+  it('gives only habits the app\'s spreading table knows', () => {
+    for (const h of PROSE_HABITS) expect(HABIT_SPREAD[h], h).toBeTruthy();
+  });
+  it('a cultivar takes its habit and self-sowing only from a page for it', () => {
+    const species = [{ fact: 'habit', v: 'Spreading rhizome', src: 'ncsu', kind: 'authority', cultivarPage: false }, { fact: 'self_seed', v: 'Prolific', src: 'ncsu', kind: 'authority', cultivarPage: false }];
+    const c = combine(species, { cultivar: true });
+    expect(c.habit?.v ?? null).toBe(null);
+    expect(c.self_seed?.v ?? null).toBe(null);
+    expect(combine(species).habit).toMatchObject({ v: 'Spreading rhizome', src: ['ncsu'] });
   });
 });
 

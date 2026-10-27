@@ -36,7 +36,8 @@ const esc = (s) => String(s ?? '').replace(/\|/g, '\\|').replace(/\n/g, ' ');
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const FACT = { form: 'form', height: 'height', width: 'width', zone_min: 'coldest zone', zone_max: 'warmest zone', sun_most: 'most sun', sun_least: 'least sun', water: 'water', deer: 'deer', edible: 'edible', clay_ok: 'clay', wet_feet: 'wet feet', fall_color: 'fall color',
-  fall_colors: 'fall colors', leaf_color: 'leaf color', foliage: 'leaves in winter', needles: 'needles', growth_rate: 'growth rate' };
+  fall_colors: 'fall colors', leaf_color: 'leaf color', foliage: 'leaves in winter', needles: 'needles', growth_rate: 'growth rate',
+  self_seed: 'self-sowing', habit: 'spreading' };
 const factName = (f) => String(f).split(', ').map((k) => FACT[k] ?? k).join(', ');
 /** A value as the report shows it: a range as "2–3", a list joined, nothing as "–". */
 export function shown(v) {
