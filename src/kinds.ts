@@ -1,7 +1,7 @@
 import { FORM_COLORS } from './plants';
 import { defaultLook } from './roles';
 import { rotate, setWorldPoints } from './geometry';
-import type { PathShape, Point, Role, Shape } from './types';
+import type { PathShape, Point, Role, Shape, UtilityKind } from './types';
 import { uid } from './util';
 
 // Kinds: what the user adds ("a bed", "a fence"), as opposed to the shape it
@@ -15,6 +15,7 @@ export type KindKey =
   | 'plant' | 'bed' | 'tree' | 'lawn'
   | 'path' | 'patio' | 'driveway'
   | 'building' | 'fence' | 'property'
+  | 'powerline' | 'buried' | 'septic'
   | 'sun' | 'water'
   | 'note' | 'measure' | 'plain';
 
@@ -40,6 +41,8 @@ export interface KindDef {
    * records, notes and plain shapes.
    */
   startStatus?: 'planned' | 'planted';
+  /** A utility: which (stored on the shape, since what's checked near it depends on it: src/utilities.ts). */
+  utility?: UtilityKind;
 }
 
 const named = (s: string) => () => s;
@@ -59,6 +62,10 @@ export const KINDS: KindDef[] = [
   { key: 'fence', label: 'Fence', group: 'Buildings and boundaries', role: 'boundary', methods: ['line'], shortcut: 'f', startLabel: named('Fence'), startStatus: 'planted' },
   // Open by default: a stretch along one neighbor is often all that matters (who draws the far edge of acreage?).
   { key: 'property', label: 'Property line', group: 'Buildings and boundaries', role: 'boundary', methods: ['line', 'poly'], startLabel: named('Property line'), startStatus: 'planted' },
+  // Utilities (sub-features part 2, decided with Jason, 2026-10-25): what's near them is checked (src/utilities.ts).
+  { key: 'powerline', label: 'Overhead power line', group: 'Utilities', role: 'utility', methods: ['line'], startLabel: named('Power line'), startStatus: 'planted', utility: 'overhead' },
+  { key: 'buried', label: 'Buried line', group: 'Utilities', role: 'utility', methods: ['line'], startLabel: named('Buried line'), startStatus: 'planted', utility: 'buried' },
+  { key: 'septic', label: 'Septic field', group: 'Utilities', role: 'utility', methods: ['rect', 'poly'], startLabel: named('Septic field'), startStatus: 'planted', utility: 'septic' },
   { key: 'sun', label: 'Sun exposure', group: 'Site conditions', role: 'shade', methods: ['poly', 'circle'], shortcut: 's', startLabel: named(''), openProps: true },
   { key: 'water', label: 'Pond, water', group: 'Site conditions', role: 'water', methods: ['poly', 'circle', 'oval'], startLabel: named('Pond'), startStatus: 'planned' },
   { key: 'note', label: 'Note', group: 'Notes and tools', role: 'other', methods: ['note'], shortcut: 'n', startLabel: named(''), openProps: true },
@@ -95,6 +102,7 @@ export function kindOfShape(s: Shape): KindKey | null {
       if (label.includes('patio') || label.includes('deck')) return 'patio';
       if (label.includes('path') || label.includes('walk')) return 'path'; // a path drawn as an outline
       return s.type === 'line' ? 'path' : 'patio';
+    case 'utility': return s.utility === 'overhead' ? 'powerline' : s.utility === 'buried' ? 'buried' : s.utility === 'septic' ? 'septic' : 'plain';
     case 'other': return s.type === 'line' && s.showLength ? 'measure' : 'plain';
     default: return 'plain';
   }
@@ -220,8 +228,11 @@ function treeBits(kind: KindDef): { sizeFrom?: 'manual'; tree?: true } {
 }
 
 /** Look for a new shape of this kind and type (colors follow the role, as before). */
+/** Each utility's own color: a power line orange, a buried line brown (drawn dashed), a septic field gray. */
+export const UTILITY_COLORS: Record<UtilityKind, string> = { overhead: '#ea580c', buried: '#a16207', septic: '#78716c' };
 export function kindLook(kind: KindDef, type: Shape['type']): { color: string; opacity: number } {
   if (kind.key === 'tree') return { color: FORM_COLORS.Tree, opacity: 0.5 };
+  if (kind.utility) return { color: UTILITY_COLORS[kind.utility], opacity: kind.utility === 'septic' ? 0.2 : 1 };
   return defaultLook(kind.role && kind.key !== 'plain' ? kind.role : 'unassigned', type);
 }
 
@@ -231,7 +242,7 @@ export function kindLook(kind: KindDef, type: Shape['type']): { color: string; o
  */
 export function buildShape(m: Method, pts: Point[], kind: KindDef, shapes: Shape[], id = uid()): Shape | null {
   const role = kind.key === 'plain' ? undefined : kind.role;
-  const base = { id, label: kind.startLabel(shapes), locked: false, ...(role ? { role } : {}), ...(kind.startStatus ? { status: kind.startStatus } : {}) };
+  const base = { id, label: kind.startLabel(shapes), locked: false, ...(role ? { role } : {}), ...(kind.startStatus ? { status: kind.startStatus } : {}), ...(kind.utility ? { utility: kind.utility } : {}) };
   switch (m) {
     case 'rect': case 'oval': {
       if (pts.length < 3) return null;

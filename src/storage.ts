@@ -1,4 +1,5 @@
 import { MAX_POINTS, MAX_TREE_HEIGHT, MAX_TRUNK, MAX_ZOOM, MIN_POINTS, MIN_TRUNK, MIN_ZOOM, STORAGE } from './constants';
+import { isUtilityKind } from './utility-kinds';
 import { del, openKV, put, type KV, type WriteOp } from './db';
 import { cancelHistoryDebounce } from './history';
 import { DEFAULT_PRINT, state } from './state';
@@ -109,6 +110,10 @@ export function migrateShape(raw: unknown): Shape | null {
     ...(s.carryPlants === false ? { carryPlants: false } : {}),
     ...(sanitizeSun(s.sun) ? { sun: sanitizeSun(s.sun)! } : {}),
     ...(typeof s.sunDismissed === 'string' && s.sunDismissed ? { sunDismissed: s.sunDismissed.slice(0, 300) } : {}),
+    // (A utility's kind: a power line, a buried line, a septic field; kept on one made something else since, which is
+    // that again if turned back. Older versions had neither.)
+    ...(s.type !== 'circle' && s.type !== 'text' && isUtilityKind(s.utility) ? { utility: s.utility } : {}),
+    ...(typeof s.utilityDismissed === 'string' && s.utilityDismissed ? { utilityDismissed: s.utilityDismissed.slice(0, 600) } : {}),
     ...(isStatus(s.status) ? { status: s.status } : {}),
     ...(typeof s.plantedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.plantedOn) ? { plantedOn: s.plantedOn } : {}),
     // (Only on a gone shape: a date left from before it was marked otherwise isn't kept.)

@@ -16,6 +16,7 @@ import { trunkHitPx } from './canopy';
 import { isLocked, roleDef, roleRank } from './roles';
 import { shownWith } from './status';
 import { checkPlantSun, formatHours, shadeOpacity, sunHours, sunWarningShown } from './sun';
+import { utilityIssues, utilityWarningShown } from './utilities';
 import { isSelected } from './selection';
 import { state } from './state';
 import type { CircleShape, Shape, ShapeFilter, TextShape } from './types';
@@ -118,7 +119,8 @@ export function shapeGroup(s: Shape): SVGGElement {
   const inert = state.bgEditMode || !!state.bgCalibrate || !!state.draw || !!state.editPoints || !!state.placing;
   // Boundaries and open lines: a stroke, no fill.
   const outline = s.type === 'line' || (s.role ? !!roleDef(s.role).outline : false);
-  const dashed = s.role ? !!roleDef(s.role).outline : false;
+  // (And a buried line: under the ground, as a plan shows it.)
+  const dashed = (s.role ? !!roleDef(s.role).outline : false) || (s.role === 'utility' && s.utility === 'buried');
   const common: Attrs = {
     'data-shape-id': s.id,
     fill: outline ? 'none' : s.color,
@@ -328,6 +330,19 @@ export function shapeGroup(s: Shape): SVGGElement {
       const bx = labelX + r * 0.7, by = labelY - r * 0.7;
       g.appendChild(svgEl('g', { 'data-role': 'sun-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },
         svgEl('circle', { cx: bx, cy: by, r: 8, fill: '#f59e0b', stroke: '#fff', 'stroke-width': 1.5 }),
+        svgEl('text', { x: bx, y: by + 0.5, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#fff' }, '!')));
+    }
+  }
+  // Plants too near a power line, a buried line or a septic field for what they are (src/utilities.ts): a badge in
+  // the power line's orange, low on the other side.
+  if (s.role === 'plant' && s.type === 'circle' && named) {
+    const utils = state.shapes.filter((u) => u.role === 'utility' && shownWith(u, state.viewFilter));
+    const issues = utils.length ? utilityIssues(s, utils, plantsById) : [];
+    if (utilityWarningShown(s, issues)) {
+      const r = s.radius * ppf;
+      const bx = labelX - r * 0.7, by = labelY + r * 0.7;
+      g.appendChild(svgEl('g', { 'data-role': 'utility-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },
+        svgEl('circle', { cx: bx, cy: by, r: 8, fill: '#ea580c', stroke: '#fff', 'stroke-width': 1.5 }),
         svgEl('text', { x: bx, y: by + 0.5, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#fff' }, '!')));
     }
   }

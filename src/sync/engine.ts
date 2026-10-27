@@ -201,7 +201,27 @@ export function withLocalParts(server: ProjectContent, mine: ProjectContent | un
   if (!mine) return server;
   let out = server;
   for (const k of NEWER_PARTS) if (!(k in server) && k in mine) out = { ...out, [k]: mine[k] };
-  return withGoneDates(out, mine);
+  return withUtilities(withGoneDates(out, mine), mine);
+}
+/**
+ * A utility (a power line, a buried line, a septic field: src/utilities.ts), whose role an older version doesn't know
+ * and drops, with its kind, from a shape it sends: kept from here when the server's copy of that shape, the same
+ * kind of shape, has neither. (One made something else here keeps its kind, so isn't mistaken for that.)
+ */
+function withUtilities(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
+  type Util = { id?: unknown; type?: unknown; role?: unknown; utility?: unknown };
+  const kept = new Map<unknown, Util>();
+  for (const s of mine.shapes as Util[]) if (s && s.role === 'utility' && typeof s.utility === 'string') kept.set(s.id, s);
+  if (!kept.size) return server;
+  let filled = false;
+  const shapes = (server.shapes as Util[]).map((s) => {
+    const k = s ? kept.get(s.id) : undefined;
+    if (!s || !k || 'role' in s || 'utility' in s || s.type !== k.type) return s;
+    filled = true;
+    return { ...s, role: 'utility', utility: k.utility };
+  });
+  return filled ? { ...server, shapes } : server;
 }
 /**
  * A gone shape's date (goneOn), which an older version leaves out of a shape it sends: kept from here when the

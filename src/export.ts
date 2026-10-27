@@ -46,7 +46,8 @@ export function shapeToSvgString(s: Shape, originX: number, originY: number, sca
     `<path d="M${bx - 4.5 * u},${by}h${9 * u}M${bx + 1.5 * u},${by - 3 * u}l${3 * u},${3 * u}l${-3 * u},${3 * u}M${bx - 1.5 * u},${by - 3 * u}l${-3 * u},${3 * u}l${3 * u},${3 * u}" stroke="#fff" stroke-width="${1.4 * u}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
 }
 function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number, k: number): string {
-  const dashed = s.role ? !!roleDef(s.role).outline : false;
+  // (A buried line dashed, as on the plan.)
+  const dashed = (s.role ? !!roleDef(s.role).outline : false) || (s.role === 'utility' && s.utility === 'buried');
   const outline = dashed || s.type === 'line';
   const planned = s.status === 'planned' && !outline;
   const baseOpacity = outline ? 0 : s.role === 'shade' && s.sun ? shadeOpacity(s.sun) : s.opacity ?? 0.65;

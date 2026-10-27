@@ -250,6 +250,12 @@ export function setRoleForIds(ids: string[], role: Role | undefined) {
     const wasDefault = s.color.toLowerCase() === before.color && Math.abs(s.opacity - before.opacity) < 0.001;
     if (role) s.role = role; else delete s.role;
     if (wasDefault) Object.assign(s, defaultLook(roleKey(s), s.type));
+    // A utility is one kind or another (src/utilities.ts): a line a power line, to start with, an area a septic field;
+    // its properties change it. Made something else, it keeps which it was (only a utility's counts): turned back,
+    // it's that again, and sync can tell it from a copy an older version sent, which has neither (src/sync/engine.ts).
+    if (role === 'utility' && s.type !== 'circle' && s.type !== 'text') {
+      if (!s.utility || (s.type === 'line') !== (s.utility !== 'septic')) s.utility = s.type === 'line' ? 'overhead' : 'septic';
+    }
   }
   pushHistory();
   save();
