@@ -366,9 +366,10 @@ sterile").
   says deer eat one. Checked against the 523 pages whose field lists deer
   and whose description speaks to them: 472 read Resistant, 51 Occasional
   (34 of them "mildly" or "moderately" resistant: the field lists those
-  too), none Candy. Where the page's own text says "mildly" or "moderately"
-  resistant, its field's Resistant gives way to Occasional (Jason,
-  2026-10-27: the text is finer, like the cleomes' zones).
+  too), none Candy. Where the page's own text says deer eat the plant,
+  "mildly" or "moderately" resistant or outright ("may be damaged by deer",
+  "deer will browse roses"), its field's Resistant gives way to Occasional
+  (Jason, 2026-10-27: the text is finer, like the cleomes' zones).
 - *Self-sowing*: `Prolific` where it self-sows freely ("readily reseeds",
   "self-seeds and can become weedy", "deadhead to prevent aggressive
   reseeding"); `Modest` where it does a little ("self-seeds, but is not

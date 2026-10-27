@@ -477,18 +477,18 @@ export function habitFromProse(list, names = []) {
 }
 
 /**
- * NC State's deer claim (its field's Resistant), unless its own description says the plant resists deer only in part
- * ("mildly resistant", "moderately resistant to damage from deer"): then the description's Occasional (Jason,
- * 2026-10-27). The field lists deer for those too; the text is finer.
+ * NC State's deer claim (its field's Resistant), unless its own description says deer eat the plant: that it resists
+ * them only in part ("mildly resistant", "moderately resistant to damage from deer"), or outright ("may be damaged by
+ * deer", "deer will browse roses"). Then Occasional, from the description (Jason, 2026-10-27). The field lists deer
+ * for those too; the text is finer.
  */
 export function ncsuDeer(claims, html) {
   const field = claims.find((c) => c.fact === 'deer');
   if (!field || field.v !== 'Resistant') return claims;
   const list = ncsuDescription(html), names = ncsuNames(html);
-  const partly = list.filter((s) => deerSaid(s, names)?.rule === 'partly');
-  const read = deerFromProse(list, names);
-  if (!partly.length || read?.v !== 'Occasional') return claims;
-  return claims.map((c) => (c === field ? { ...c, v: 'Occasional', says: partly.slice(0, 3).join(' … '), prose: true } : c));
+  const eaten = list.filter((s) => { const d = deerSaid(s, names); return d && d.v !== 'Resistant'; });
+  if (!eaten.length) return claims;
+  return claims.map((c) => (c === field ? { ...c, v: 'Occasional', says: eaten.slice(0, 3).join(' … '), prose: true } : c));
 }
 
 /** Claims read from NC State's description (an authority, like its fields). */

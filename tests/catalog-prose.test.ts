@@ -174,13 +174,15 @@ describe('deer, from a description', () => {
     expect(deerFromProse(['It is deer resistant.', 'Young plants may be browsed by deer.'])).toEqual({ v: 'Occasional', says: 'Young plants may be browsed by deer.' });
     expect(deerFromProse(['It has glossy leaves.'])).toBe(null);
   });
-  it('lowers NC State\'s field to Occasional where its own text says it resists deer only in part (Jason, 2026-10-27)', () => {
+  it('lowers NC State\'s field to Occasional where its own text says deer eat it, in part or outright (Jason, 2026-10-27)', () => {
     const field = [{ fact: 'deer', v: 'Resistant', src: 'ncsu', kind: 'authority' }, { fact: 'water', v: 'Moderate', src: 'ncsu', kind: 'authority' }];
     const page = (text: string) => `<h1>Acer palmatum</h1><dl><dt>Description</dt><dd><p>A small tree. ${text}</p></dd></dl>`;
     expect(ncsuDeer(field, page('This tree is mildly resistant to damage by deer.'))).toEqual([
       { fact: 'deer', v: 'Occasional', src: 'ncsu', kind: 'authority', says: 'This tree is mildly resistant to damage by deer.', prose: true }, field[1]]);
     expect(ncsuDeer(field, page('It is deer resistant.'))).toBe(field);
-    expect(ncsuDeer(field, page('It may be damaged by deer.'))).toBe(field); // (only "in part": the question asked)
+    expect(ncsuDeer(field, page('Deer will browse the plant.'))[0]).toMatchObject({ v: 'Occasional', says: 'Deer will browse the plant.' });
+    expect(ncsuDeer(field, page('It may be damaged by deer.'))[0]).toMatchObject({ v: 'Occasional' });
+    expect(ncsuDeer(field, page('Deer and turkeys eat its acorns.'))).toBe(field); // (its fruit, not the plant)
     expect(ncsuDeer(field.slice(1), page('This tree is mildly resistant to damage by deer.'))).toEqual(field.slice(1)); // (no field: the description's own claim)
   });
   it('makes a claim decided as deer is, by sides, citing its sentence', () => {
