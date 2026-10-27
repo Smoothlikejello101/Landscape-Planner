@@ -3,6 +3,7 @@ import { defaultLook } from './roles';
 import { rotate, setWorldPoints } from './geometry';
 import type { PathShape, Point, Role, Shape, UtilityKind } from './types';
 import { uid } from './util';
+import { utilityLook } from './utility-kinds';
 
 // Kinds: what the user adds ("a bed", "a fence"), as opposed to the shape it
 // is drawn with. Each kind saves as one of the existing roles with a starting
@@ -228,11 +229,9 @@ function treeBits(kind: KindDef): { sizeFrom?: 'manual'; tree?: true } {
 }
 
 /** Look for a new shape of this kind and type (colors follow the role, as before). */
-/** Each utility's own color: a power line orange, a buried line brown (drawn dashed), a septic field gray. */
-export const UTILITY_COLORS: Record<UtilityKind, string> = { overhead: '#ea580c', buried: '#a16207', septic: '#78716c' };
 export function kindLook(kind: KindDef, type: Shape['type']): { color: string; opacity: number } {
   if (kind.key === 'tree') return { color: FORM_COLORS.Tree, opacity: 0.5 };
-  if (kind.utility) return { color: UTILITY_COLORS[kind.utility], opacity: kind.utility === 'septic' ? 0.2 : 1 };
+  if (kind.utility) return utilityLook(kind.utility);
   return defaultLook(kind.role && kind.key !== 'plain' ? kind.role : 'unassigned', type);
 }
 

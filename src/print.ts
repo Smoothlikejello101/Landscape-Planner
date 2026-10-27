@@ -1,4 +1,5 @@
 import { bedOf, isBed, isPlant } from './beds';
+import { utilityLabel } from './utility-kinds';
 import { paintOrder } from './canvas';
 import { escapeHtml } from './dom';
 import { shapeToSvgString } from './export';
@@ -145,7 +146,8 @@ export function plantKeys(plants: Shape[]): Map<string, number> {
 }
 
 // ---------- Legend ----------
-export interface LegendEntry { key: RoleKey; label: string; color: string; outline: boolean }
+/** `solid`: a line drawn unbroken in the legend (a power line), not dashed as a boundary's is. */
+export interface LegendEntry { key: RoleKey; label: string; color: string; outline: boolean; solid?: boolean }
 /** One entry per role on the plan, in the usual role order, colored like most of its shapes. */
 export function legendEntries(shapes: Shape[], sizeMode: SizeMode = 'typical', rings = false): LegendEntry[] {
   const plantLabel = sizeMode === 'full' ? 'Plants (circles show full spread)'
@@ -158,6 +160,15 @@ export function legendEntries(shapes: Shape[], sizeMode: SizeMode = 'typical', r
     const counts = new Map<string, number>();
     for (const s of of) counts.set(s.color.toLowerCase(), (counts.get(s.color.toLowerCase()) ?? 0) + 1);
     const color = [...counts].sort((a, b) => b[1] - a[1])[0][0];
+    if (k === 'utility') {
+      // (Each kind its own line: a power line, a buried line dashed, a septic field.)
+      for (const kind of [...new Set(of.map((s) => s.utility ?? ''))]) {
+        const these = of.filter((s) => (s.utility ?? '') === kind);
+        const line = these.every((s) => s.type === 'line');
+        out.push({ key: k, label: utilityLabel(kind || undefined), color: these[0].color.toLowerCase(), outline: line, ...(line && kind !== 'buried' ? { solid: true } : {}) });
+      }
+      continue;
+    }
     const label = k === 'plant' ? plantLabel : k === 'unassigned' ? 'Other shapes' : roleLabel(k);
     out.push({ key: k, label, color, outline: k === 'boundary' || of.every((s) => s.type === 'line' && !s.pathWidth) });
   }

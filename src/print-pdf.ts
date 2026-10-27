@@ -157,7 +157,7 @@ function legend(doc: JsPDF, box: Box, y: number, entries: LegendEntry[]): number
     if (y + pt(12) > box.y + box.h) break;
     if (e.outline) {
       doc.setDrawColor(e.color); doc.setLineWidth(pt(1.5));
-      doc.setLineDashPattern([0.06, 0.03], 0);
+      if (!e.solid) doc.setLineDashPattern([0.06, 0.03], 0);
       doc.line(box.x, y + 0.06, box.x + 0.28, y + 0.06);
       doc.setLineDashPattern([], 0);
     } else {

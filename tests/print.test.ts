@@ -73,6 +73,12 @@ describe('legend and text', () => {
     const e = legendEntries([plant('p', 'A', 0, 0), bed('b', 'B', 0, 0, 1, 1), fence, note]);
     expect(e.map((x) => [x.key, x.outline])).toEqual([['plant', false], ['bed', false], ['boundary', true]]);
   });
+  it('gives each kind of utility its own line: a power line solid, a buried line dashed, a septic field filled', () => {
+    const wire = (id: string, utility: string, color: string) => ({ ...base, id, type: 'line', x: 0, y: 0, points: [[0, 0], [5, 0]], rotation: 0, role: 'utility', utility, color } as Shape);
+    const field = { ...bed('s', 'Septic field', 0, 0, 4, 4), role: 'utility', utility: 'septic', color: '#78716c' } as Shape;
+    const e = legendEntries([wire('w', 'overhead', '#ea580c'), wire('b', 'buried', '#a16207'), field]);
+    expect(e.map((x) => [x.label, x.outline, !!x.solid])).toEqual([['Overhead power line', true, true], ['Buried line', true, false], ['Septic field', false, false]]);
+  });
   it('makes text safe for the PDF fonts', () => {
     expect(pdfSafe('Heuchera ‘Autumn Bride’ — 3× ☀ café')).toBe("Heuchera 'Autumn Bride' - 3×  café");
   });

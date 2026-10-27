@@ -16,7 +16,7 @@ import { trunkHitPx } from './canopy';
 import { isLocked, roleDef, roleRank } from './roles';
 import { shownWith } from './status';
 import { checkPlantSun, formatHours, shadeOpacity, sunHours, sunWarningShown } from './sun';
-import { utilityIssues, utilityWarningShown } from './utilities';
+import { prepareUtilities, utilityIssues, utilityWarningShown, type PreparedUtility } from './utilities';
 import { isSelected } from './selection';
 import { state } from './state';
 import type { CircleShape, Shape, ShapeFilter, TextShape } from './types';
@@ -335,9 +335,8 @@ export function shapeGroup(s: Shape): SVGGElement {
   }
   // Plants too near a power line, a buried line or a septic field for what they are (src/utilities.ts): a badge in
   // the power line's orange, low on the other side.
-  if (s.role === 'plant' && s.type === 'circle' && named) {
-    const utils = state.shapes.filter((u) => u.role === 'utility' && shownWith(u, state.viewFilter));
-    const issues = utils.length ? utilityIssues(s, utils, plantsById) : [];
+  if (s.role === 'plant' && s.type === 'circle' && named && shownUtilities.length) {
+    const issues = utilityIssues(s, shownUtilities, plantsById);
     if (utilityWarningShown(s, issues)) {
       const r = s.radius * ppf;
       const bx = labelX - r * 0.7, by = labelY + r * 0.7;
@@ -470,10 +469,16 @@ let crowded = new Map<string, CrowdLevel>();
 function refreshCrowding() {
   crowded = state.showCrowding || state.placing ? crowdLevels(state.shapes.filter((s) => shownWith(s, state.viewFilter)), plantsById, crowdOptions()) : new Map();
 }
+/** The utilities shown, measured once a redraw for every plant's check (src/utilities.ts); none on most plans. */
+let shownUtilities: PreparedUtility[] = [];
+function refreshUtilities() {
+  shownUtilities = prepareUtilities(state.shapes.filter((s) => s.role === 'utility' && shownWith(s, state.viewFilter)));
+}
 
 /** Clear and redraw the whole canvas. Never touches panel DOM. */
 export function redrawCanvas() {
   refreshCrowding();
+  refreshUtilities();
   refreshLabelLayout();
   const svg = canvasSvg();
   if (!svg) return;
@@ -521,6 +526,8 @@ export function redrawShapes(ids: string[]) {
   if (!svg || svg.children.length !== LAYERS.length || drawnView.zoom !== state.zoom ||
       drawnView.offsetX !== state.offsetX || drawnView.offsetY !== state.offsetY) { redrawCanvas(); return; }
   const shapes = layer(svg, 'shapes');
+  // (A utility dragged: its own outline measured again; the plants' badges catch up on release, with the full render.)
+  if (ids.some((id) => state.shapes.find((sh) => sh.id === id)?.role === 'utility')) refreshUtilities();
   if (state.showCrowding || state.placing) {
     // Moving one plant can change which others are close or crowded: redraw all plants whose ring changes.
     const before = crowded;

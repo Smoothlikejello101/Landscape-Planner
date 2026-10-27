@@ -375,14 +375,15 @@ describe('backup files', () => {
 
 describe('utilities: power lines, buried lines and septic fields', () => {
   const line = (extra: Record<string, unknown> = {}) => ({ id: 'w', type: 'line', x: 0, y: 0, rotation: 0, points: [[0, 0], [40, 0]], color: '#ea580c', label: 'Power line', opacity: 1, locked: false, role: 'utility', utility: 'overhead', ...extra });
-  it('round-trip, through a backup too; a kind it can\'t be is dropped; one made something else keeps its kind', async () => {
+  it("round-trip, through a backup too; a later version's kind is kept, a malformed one dropped; one made something else keeps its kind", async () => {
     await freshStorage();
     const id = state.currentProjectId!;
     state.shapes = sanitizeProjectData({ shapes: [
       line(),
       line({ id: 'b', utility: 'buried', label: 'Gas line' }),
       { id: 's', type: 'rect', x: 0, y: 20, width: 20, height: 10, rotation: 0, color: '#78716c', label: 'Septic field', opacity: 0.2, locked: false, role: 'utility', utility: 'septic' },
-      line({ id: 'x', utility: 'sewer-ish' }),
+      line({ id: 'x', utility: 'sewer-ish' }), // (a kind a later version might add)
+      line({ id: 'y', utility: '<script>' }),
       line({ id: 'p', role: undefined }), // (made a plain line: still says which it was)
       { id: 'tree', type: 'circle', x: 5, y: 5, radius: 6, color: '#78350f', label: 'Oak', opacity: 0.5, locked: false, role: 'plant', utility: 'overhead', utilityDismissed: 'Grows to 60 ft, 5 ft from a power line' },
     ] }).shapes;
@@ -390,9 +391,9 @@ describe('utilities: power lines, buried lines and septic fields', () => {
     const loaded = (await readProject(id))!.shapes;
     expect(loaded).toEqual(state.shapes);
     expect(loaded.map((s) => [s.id, s.role, s.utility])).toEqual([
-      ['w', 'utility', 'overhead'], ['b', 'utility', 'buried'], ['s', 'utility', 'septic'], ['x', 'utility', undefined], ['p', undefined, 'overhead'], ['tree', 'plant', undefined],
+      ['w', 'utility', 'overhead'], ['b', 'utility', 'buried'], ['s', 'utility', 'septic'], ['x', 'utility', 'sewer-ish'], ['y', 'utility', undefined], ['p', undefined, 'overhead'], ['tree', 'plant', undefined],
     ]);
-    expect(loaded[5]).toMatchObject({ utilityDismissed: 'Grows to 60 ft, 5 ft from a power line' });
+    expect(loaded[6]).toMatchObject({ utilityDismissed: 'Grows to 60 ft, 5 ft from a power line' });
     const file = await buildBackupFile();
     expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
   });

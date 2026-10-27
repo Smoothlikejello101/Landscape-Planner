@@ -49,7 +49,9 @@ function whatItIs(ids: string[], current: RoleKey | null, multi: boolean): HTMLE
   const title = el('span', { className: 'prop-title' }, multi ? 'What they are' : 'What it is');
   if (changingKindOf === key) {
     wrap.append(el('div', { className: 'kind-row' }, title),
-      roleChips(current, (role) => { changingKindOf = null; setRoleForIds(ids, role); render(); }));
+      // (A circle or a note isn't a utility: a utility is a line or an area.)
+      roleChips(current, (role) => { changingKindOf = null; setRoleForIds(ids, role); render(); },
+        ids.some((id) => { const t = state.shapes.find((s) => s.id === id)?.type; return t === 'circle' || t === 'text'; }) ? ['utility'] : []));
     return wrap;
   }
   const change = el('button', { className: 'link-btn', 'data-testid': 'change-kind', 'aria-label': multi ? 'Change what they are' : 'Change what it is' }, 'Change');
@@ -136,7 +138,7 @@ export function renderPropsPanelSingle(s: Shape) {
     body.appendChild(section('sun', 'Sun record', document.createTextNode(s.sun ? sunListText(s.sun) : 'Not recorded'), [shadeSunSection(s)], !s.sun));
   }
   if (s.role === 'utility' && s.type !== 'circle' && s.type !== 'text') {
-    body.appendChild(section('utility', 'Utility', document.createTextNode(utilityLabel(s.utility ?? (s.type === 'line' ? 'overhead' : 'septic'))), [utilitySection(s)], true));
+    body.appendChild(section('utility', 'Utility', document.createTextNode(s.utility ? utilityLabel(s.utility) : 'Which is it?'), [utilitySection(s)], true));
   }
   if (s.role === 'bed') {
     const n = plantsInBed(s, state.shapes).filter((p) => p.status !== 'gone').length;

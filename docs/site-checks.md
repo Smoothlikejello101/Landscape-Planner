@@ -3,14 +3,15 @@
 Sub-features part 2 (decided with Jason, 2026-10-25): a plan can show an overhead power line, a buried line and a
 septic drainfield, under **Add → Utilities**. Each is a shape with the role `utility` and its kind (`utility:
 'overhead' | 'buried' | 'septic'`). Plants near one are checked by what they are and how far they stand from it
-(src/utilities.ts). A plant that fails a check gets an orange badge on the plan, and a one-line warning in its
-properties that opens to say why. The warning can be dismissed for that plant; it comes back if the plant moves or
-the warning changes.
+(src/utilities.ts). Every rule is about trees and shrubs: their roots, and how tall they grow. A plant that fails a
+check gets an orange badge on the plan, and a one-line warning in its properties that opens to say why. The warning
+can be dismissed for that plant. It comes back if the plant breaks another rule (moved from 20–50 ft of a power line
+to within 20 ft, say) or comes near another utility; moving it a little doesn't bring it back.
 
 Distances run from the plant's center (where it's planted) to the nearest point of the line, or of the field's edge
 (0 on the field). A plant's height is its typical mature height: the catalog's, or one set by hand on a tree. A tree
 drawn without a height isn't checked, since its stand-in height (about as tall as it's wide) is only a guess. The
-line's own properties say so.
+line's own properties say so. A vine isn't checked against a power line either: its height is how far it climbs.
 
 ## The rules and their sources
 
@@ -37,12 +38,21 @@ Each source was read on 2026-10-27. The rules are paraphrased here; nothing is q
     grows tall, and farther is better. The app flags one nearer than that, or on the field. With no known height,
     only one on the field is flagged.
   - Vegetable gardens and edible plants don't belong on a drainfield: the produce can be contaminated, and digging
-    can damage the lines. The app flags an edible plant (the catalog's `edible`) on the field.
+    can damage the lines. The field's own properties say so. No plant is flagged for it: the catalog's `edible`
+    includes bee balm and yarrow, which UGA names as suiting the field.
   - Grass and shallow-rooted herbaceous plants suit the field itself.
+
+## Printing
+
+The printed legend gives each kind its own line: a power line drawn solid, a buried line dashed, a septic field
+filled.
 
 ## Older versions
 
 An older version doesn't know the `utility` role, so it drops it and the kind from a shape it saves. When its copy of
 a utility comes back through sync with neither, this device's role and kind are kept (src/sync/engine.ts,
 `withUtilities`). A utility made into something else keeps its `utility` kind, so it isn't mistaken for that copy. If
-it's turned back into a utility, it gets the same kind again.
+it's turned back into a utility, it gets the same kind again. A kind a later version adds is kept as it came. This
+version shows it as "a kind of utility this version doesn't know" and checks nothing near it. A plant's dismissed
+warning, which an older version drops too, is kept from here the same way. A warning shown again on purpose is stored
+as '', so it stays shown.

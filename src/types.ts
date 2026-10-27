@@ -37,9 +37,15 @@ interface ShapeBase {
    * recorded sun changes.
    */
   sunDismissed?: string;
-  /** Utilities: which (an overhead power line, a buried line, a septic field). */
+  /**
+   * Utilities: which (an overhead power line, a buried line, a septic field; one a later version adds is kept as it
+   * came, unchecked). Kept on one made something else since, which is that again if turned back.
+   */
   utility?: UtilityKind;
-  /** Plants: a utility warning the user dismissed, as its message (as `sunDismissed`). */
+  /**
+   * Plants: the utility warnings dismissed, as which utilities and rules they were (src/utilities.ts issuesKey); ''
+   * when shown again on purpose, so sync can tell it from a copy an older version sent without one.
+   */
   utilityDismissed?: string;
   /** Where it stands in the real garden (unset = not tracked). */
   status?: Status;

@@ -206,20 +206,27 @@ export function withLocalParts(server: ProjectContent, mine: ProjectContent | un
 /**
  * A utility (a power line, a buried line, a septic field: src/utilities.ts), whose role an older version doesn't know
  * and drops, with its kind, from a shape it sends: kept from here when the server's copy of that shape, the same
- * kind of shape, has neither. (One made something else here keeps its kind, so isn't mistaken for that.)
+ * kind of shape, has neither. (One made something else here keeps its kind, so isn't mistaken for that.) Likewise a
+ * plant's dismissed utility warning, which an older version drops: kept from here when the server's copy has none at
+ * all ('' is one shown again on purpose, and stays so).
  */
 function withUtilities(server: ProjectContent, mine: ProjectContent): ProjectContent {
   if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
-  type Util = { id?: unknown; type?: unknown; role?: unknown; utility?: unknown };
+  type Util = { id?: unknown; type?: unknown; role?: unknown; utility?: unknown; utilityDismissed?: unknown };
   const kept = new Map<unknown, Util>();
-  for (const s of mine.shapes as Util[]) if (s && s.role === 'utility' && typeof s.utility === 'string') kept.set(s.id, s);
+  for (const s of mine.shapes as Util[]) {
+    if (s && ((s.role === 'utility' && typeof s.utility === 'string') || (typeof s.utilityDismissed === 'string' && s.utilityDismissed))) kept.set(s.id, s);
+  }
   if (!kept.size) return server;
   let filled = false;
   const shapes = (server.shapes as Util[]).map((s) => {
-    const k = s ? kept.get(s.id) : undefined;
-    if (!s || !k || 'role' in s || 'utility' in s || s.type !== k.type) return s;
-    filled = true;
-    return { ...s, role: 'utility', utility: k.utility };
+    const k = s && typeof s === 'object' ? kept.get(s.id) : undefined;
+    if (!k || s.type !== k.type) return s;
+    let out = s;
+    if (k.role === 'utility' && typeof k.utility === 'string' && !('role' in s) && !('utility' in s)) out = { ...out, role: 'utility', utility: k.utility };
+    if (typeof k.utilityDismissed === 'string' && k.utilityDismissed && !('utilityDismissed' in s)) out = { ...out, utilityDismissed: k.utilityDismissed };
+    if (out !== s) filled = true;
+    return out;
   });
   return filled ? { ...server, shapes } : server;
 }

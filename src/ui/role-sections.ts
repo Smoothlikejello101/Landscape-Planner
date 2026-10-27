@@ -14,9 +14,8 @@ import { sqFt } from '../util';
 import { timeRange } from './time-range';
 import { I } from '../icons';
 import { isLocked } from '../roles';
-import { UTILITY_COLORS } from '../kinds';
-import { issuesKey, utilityIssues, utilityNote } from '../utilities';
-import { UTILITY_KINDS } from '../utility-kinds';
+import { issuesKey, prepareUtilities, utilityIssues, utilityNote } from '../utilities';
+import { UTILITY_COLORS, UTILITY_KINDS, isUtilityKind, utilityLook } from '../utility-kinds';
 
 // Parts of the properties panel that depend on a shape's role.
 
@@ -190,7 +189,7 @@ const utilityOpen = new Set<string>();
  */
 export function utilityBanner(s: Shape): HTMLElement | null {
   if (s.role !== 'plant' || s.type !== 'circle') return null;
-  const issues = utilityIssues(s, state.shapes.filter((x) => shownWith(x, state.viewFilter)), plantsById);
+  const issues = utilityIssues(s, prepareUtilities(state.shapes.filter((x) => x.role === 'utility' && shownWith(x, state.viewFilter))), plantsById);
   if (!issues.length) return null;
   const key = issuesKey(issues);
   const dismissed = s.utilityDismissed === key;
@@ -207,7 +206,7 @@ export function utilityBanner(s: Shape): HTMLElement | null {
   });
   for (const i of issues) body.append(el('div', { style: { marginTop: '4px' } }, issues.length > 1 ? el('b', {}, i.line + ': ') : '', i.detail));
   const btn = el('button', { className: 'link-reset', 'data-testid': 'utility-dismiss', style: { marginTop: '4px' } }, dismissed ? 'Show the warning again' : 'Dismiss for this plant');
-  btn.addEventListener('click', () => updateSelected({ utilityDismissed: dismissed ? undefined : key }));
+  btn.addEventListener('click', () => updateSelected({ utilityDismissed: dismissed ? '' : key }));
   body.append(el('div', {}, btn));
   return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'utility-check' }, toggle, body);
 }
@@ -216,22 +215,27 @@ export function utilityBanner(s: Shape): HTMLElement | null {
 export function utilitySection(s: Shape): HTMLElement {
   const wrap = el('div', { className: 'field', 'data-testid': 'utility-section' });
   if (s.type === 'circle' || s.type === 'text') return wrap;
-  const kind = s.utility ?? (s.type === 'line' ? 'overhead' : 'septic');
-  if (s.type === 'line') {
-    const seg = el('div', { className: 'seg utility-seg', role: 'group', 'aria-label': 'Which line' });
-    for (const k of UTILITY_KINDS.filter((x) => x.lines)) {
-      const b = el('button', { 'aria-pressed': String(kind === k.key), 'data-utility': k.key }, k.label);
+  const known = isUtilityKind(s.utility) ? s.utility : null;
+  // (A line is overhead or buried; an area, a septic field. A kind a later version added is shown as it is, unchecked.)
+  const choices = UTILITY_KINDS.filter((x) => x.lines === (s.type === 'line'));
+  if (choices.length > 1 || !known) {
+    const seg = el('div', { className: 'seg utility-seg', role: 'group', 'aria-label': 'Which it is' });
+    for (const k of choices) {
+      const b = el('button', { 'aria-pressed': String(known === k.key), 'data-utility': k.key }, k.label);
       b.disabled = isLocked(s);
       b.addEventListener('click', () => {
-        if (k.key === kind) return;
-        // (Its color goes with it, if it still has the one it started with.)
-        const recolor = s.color.toLowerCase() === UTILITY_COLORS[kind] ? { color: UTILITY_COLORS[k.key] } : {};
-        updateSelected({ utility: k.key, ...recolor });
+        if (k.key === known) return;
+        // (Its look goes with it, if it still has the one it started with.)
+        const was = known ? UTILITY_COLORS[known] : '#ea580c';
+        const relook = s.color.toLowerCase() === was ? utilityLook(k.key) : {};
+        updateSelected({ utility: k.key, ...relook });
       });
       seg.appendChild(b);
     }
     wrap.appendChild(seg);
   }
-  wrap.appendChild(el('div', { className: 'hint' }, utilityNote(kind)));
+  wrap.appendChild(el('div', { className: 'hint' }, known ? utilityNote(known)
+    : s.utility ? "A kind of utility this version doesn't know (from a later one): nothing near it is checked here."
+      : 'Which is it? Until it says, nothing near it is checked.'));
   return wrap;
 }
