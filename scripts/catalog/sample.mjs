@@ -10,7 +10,7 @@ import { arkatlasStatus, mnwildFields, ncsuFields, usdaFields } from './extract.
 import { sameTaxon } from './usda-counties.mjs';
 import { acceptsPage, ncsuPageName, ownCultivarPage, recordCultivars, titleCultivar } from './ncsu-page.mjs';
 import { arkatlasClaims, combine, FLOWER_FACTS, flowerless, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims } from './claims.mjs';
-import { ncsuProseClaims, ncsuZones } from './prose.mjs';
+import { ncsuDeer, ncsuProseClaims, ncsuZones } from './prose.mjs';
 
 const [samplePath, atlasPath, outPath, extraPath] = process.argv.slice(2);
 /** Claims gathered elsewhere (the web search, the Tallamy data), by plant id. */
@@ -86,7 +86,8 @@ for (const s of sample) {
   const several = recordCultivars(rec).length > 1 || /\//.test(rec?.botanical ?? '');
   const speciesPage = seen.ncsu && (s.ncsuName || !cultivarTitle || (s.genusOnly ? !ownCultivar : several));
   // (Its zones as its fields give them, unless its own description says the coldest are only where it's an annual.)
-  const fields = ncsuZones(ncsuClaims(ncsu), ncsuHtml);
+  // (Its deer as its field gives it, unless its own description says it resists deer only in part.)
+  const fields = ncsuDeer(ncsuZones(ncsuClaims(ncsu), ncsuHtml), ncsuHtml);
   const allClaims = [
     ...fields.map((c) => ({ ...c, cultivarPage: !!seen.ncsu && !speciesPage }))
       .map((c) => (c.fact === 'host' ? { ...c, v: onlyCaterpillars(c.v, lepGenera) } : c)).filter((c) => !(c.fact === 'host' && !c.v.length)),

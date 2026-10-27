@@ -303,8 +303,8 @@ export function deerFromProse(list, names = []) {
 }
 
 // Self-sowing: Prolific (self-sows freely: "readily reseeds", "self-seeds and can become weedy", "deadhead to prevent
-// aggressive reseeding"), Modest (it does, how much unsaid or a little: "may self-seed", "will self-seed in ideal
-// conditions", "self-seeds, but is not aggressive"), Sterile (said of the plant itself: "'Karl Foerster' is sterile",
+// aggressive reseeding"), Modest (a little: "self-seeds, but is not aggressive", "does not freely self-seed"), Unrated
+// (it does, how freely unsaid: "may self-seed", "will self-seed in ideal conditions"; Jason, 2026-10-27), Sterile (said of the plant itself: "'Karl Foerster' is sterile",
 // "a sterile hybrid", "does not produce seed"; never its fronds or florets, nor cultivars it names). "Does not
 // self-seed" says nothing: a plant can set seed that doesn't come up.
 const SOW = String.raw`(?:self[- ]?(?:seed|sow)(?:s|ed|ing|er|ers|n)?|re-?seed(?:s|ed|ing|er|ers)?(?:\s+(?:itself|themselves))?|seeds? (?:itself|themselves)(?: about| around)?|sows? (?:itself|themselves)(?: about| around)?)`;
@@ -322,11 +322,11 @@ const SEED = [
   ['near-sterile', null, /\b(?:is|are|being)\s+(?:\w+\s+)?(?:highly |largely |mostly )?infertile\b(?!\s+(?:soils?|sites?|ground|loam|stamens?|shoots?|flowers?|fronds?))|\bnear(?:ly)?[- ]sterile\b|\bmostly sterile\b|\bpartially sterile\b|\breduced (?:seed|fertility)/i],
   ['freely', 'Prolific', new RegExp(String.raw`\b${SOW}\s+(?:\w+\s+)?${FREELY}\b|\b${FREELY}\s+(?:\w+\s+){0,2}${SOW}\b|\bprolific\s+(?:\w+\s+)?(?:self-?\s?)?(?:seeder|sower|reseeder)\b`, 'i')],
   ['a-lot', 'Prolific', new RegExp(String.raw`\b${SOW}\b|${BY_SEED}`, 'i'), true],
-  ['sows', 'Modest', new RegExp(String.raw`\b${SOW}\b|${BY_SEED}|\bvolunteer (?:seedlings|plants)\b|\b(?:under|beneath|around)\b[^.;]{0,30}\bseedlings (?:may |will |often |can )?(?:appear|come up|pop up|emerge|sprout)\b`, 'i')],
+  ['sows', 'Unrated', new RegExp(String.raw`\b${SOW}\b|${BY_SEED}|\bvolunteer (?:seedlings|plants)\b|\b(?:under|beneath|around)\b[^.;]{0,30}\bseedlings (?:may |will |often |can )?(?:appear|come up|pop up|emerge|sprout)\b`, 'i')],
 ];
 const STERILE_PART = /\b(?:fronds?|leaves|leaf|flowers?|florets?|stems?|spikelets?|cones?|fruits?|parts?|anthers?|pollen|stamens?|sepals?|bracts?)\s+(?:are|is)\s+(?:\w+\s+){0,2}sterile\b/i;
 const STERILE_OF_OTHERS = /\b(?:consider|cultivars|varieties|selections|such as|instead)\b/i;
-/** What one sentence says of the plant sowing itself: 'Prolific', 'Modest' or 'Sterile', or null. */
+/** What one sentence says of the plant sowing itself: 'Prolific', 'Modest', 'Unrated' or 'Sterile', or null. */
 export function seedSaid(sentence, names = []) {
   const s = String(sentence ?? '');
   if (aboutName(s) || aboutAnother(s, names)) return null;
@@ -351,7 +351,7 @@ export function seedSaid(sentence, names = []) {
       if (v !== 'Sterile' && SAID_NOT.test(part.slice(0, m.index))) return new RegExp(String.raw`^${FREELY}`, 'i').test(m[0]) ? { v: 'Modest', rule } : null;
       // ("Somewhat rapidly": hedged, a little.)
       if (v === 'Prolific' && /\b(?:somewhat|fairly|moderately|slightly|a bit)\s+(?:rapidly|quickly|freely|readily|easily|aggressively)\b/i.test(part)) return { v: 'Modest', rule };
-      // "Self-seeds, but is not aggressive": a little.
+      // "Self-seeds, but is not aggressive": a little. Said plainly ("it will self-seed"), how freely isn't said: Unrated.
       if (rule === 'sows' && NOT_A_LOT.test(s)) return { v: 'Modest', rule };
       return { v, rule };
     }
@@ -359,7 +359,8 @@ export function seedSaid(sentence, names = []) {
   return null;
 }
 /**
- * What a page's sentences say of it sowing itself, { v, says }, or null: Prolific where any says freely, else Modest;
+ * What a page's sentences say of it sowing itself, { v, says }, or null: Prolific where any says freely, else Modest
+ * where one says a little, else Unrated;
  * Sterile only where none says it self-sows (a sterile cultivar's page that says its species self-seeds can't settle).
  */
 export function seedFromProse(list, names = []) {
@@ -368,8 +369,9 @@ export function seedFromProse(list, names = []) {
   const has = (k) => said.some((x) => x.d.v === k);
   // (A triploid or seedless plant whose page also says it self-sows: that's its species, read on the cultivar's page.)
   if (!has('Sterile') && (list ?? []).some((s) => /\b(?:triploid|seedless)\b/i.test(s))) return null;
-  if (has('Sterile') && (has('Prolific') || has('Modest') && said.some((x) => x.d.v === 'Modest' && x.d.rule !== 'near-sterile'))) return null;
-  const v = ['Sterile', 'Prolific', 'Modest'].find(has);
+  if (has('Sterile') && (has('Prolific') || has('Unrated') || said.some((x) => x.d.v === 'Modest' && x.d.rule !== 'near-sterile'))) return null;
+  // (Freely over a little; a little, said, over how much unsaid.)
+  const v = ['Sterile', 'Prolific', 'Modest', 'Unrated'].find(has);
   return { v, says: said.filter((x) => x.d.v === v).slice(0, 3).map((x) => x.s).join(' … ') };
 }
 
@@ -472,6 +474,21 @@ export function habitFromProse(list, names = []) {
   if (!v) return null;
   const clumps = v === 'Clumping';
   return { v, says: said.filter((x) => (clumps ? x.w.includes('C') : x.w.some((k) => k !== 'C'))).slice(0, 3).map((x) => x.s).join(' … ') };
+}
+
+/**
+ * NC State's deer claim (its field's Resistant), unless its own description says deer eat the plant: that it resists
+ * them only in part ("mildly resistant", "moderately resistant to damage from deer"), or outright ("may be damaged by
+ * deer", "deer will browse roses"). Then Occasional, from the description (Jason, 2026-10-27). The field lists deer
+ * for those too; the text is finer.
+ */
+export function ncsuDeer(claims, html) {
+  const field = claims.find((c) => c.fact === 'deer');
+  if (!field || field.v !== 'Resistant') return claims;
+  const list = ncsuDescription(html), names = ncsuNames(html);
+  const eaten = list.filter((s) => { const d = deerSaid(s, names); return d && d.v !== 'Resistant'; });
+  if (!eaten.length) return claims;
+  return claims.map((c) => (c === field ? { ...c, v: 'Occasional', says: eaten.slice(0, 3).join(' … '), prose: true } : c));
 }
 
 /** Claims read from NC State's description (an authority, like its fields). */

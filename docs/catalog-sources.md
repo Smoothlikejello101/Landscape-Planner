@@ -366,12 +366,17 @@ sterile").
   says deer eat one. Checked against the 523 pages whose field lists deer
   and whose description speaks to them: 472 read Resistant, 51 Occasional
   (34 of them "mildly" or "moderately" resistant: the field lists those
-  too), none Candy.
+  too), none Candy. Where the page's own text says deer eat the plant,
+  "mildly" or "moderately" resistant or outright ("may be damaged by deer",
+  "deer will browse roses"), its field's Resistant gives way to Occasional
+  (Jason, 2026-10-27: the text is finer, like the cleomes' zones).
 - *Self-sowing*: `Prolific` where it self-sows freely ("readily reseeds",
   "self-seeds and can become weedy", "deadhead to prevent aggressive
-  reseeding"); `Modest` where it does, how much unsaid or a little ("may
-  self-seed", "self-seeds, but is not aggressive", "somewhat rapidly", or
-  "considered sterile, but … can lead to viable seed"); `Sterile` where the
+  reseeding"); `Modest` where it does a little ("self-seeds, but is not
+  aggressive", "somewhat rapidly", "considered sterile, but … can lead to
+  viable seed"); `Unrated` where it does and the page doesn't say how freely
+  ("may self-seed", "will self-seed in ideal conditions", "deadhead to
+  prevent self-seeding": Jason, 2026-10-27); `Sterile` where the
   plant itself is said to be ("'Karl Foerster' is sterile", "a sterile
   hybrid", "does not produce seed"), not its fronds or ray flowers. Nearly
   sterile ("sterile or near sterile", "highly infertile", "usually does not

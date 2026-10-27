@@ -32,11 +32,12 @@ export const rootSpread = (habit: string | undefined): RootSpread | null => (hab
 /** A plant's spreading, as far as the facts go. */
 export interface SpreadFacts { self_seed?: string; habit?: string; invasive?: boolean }
 /**
- * The seed part, in words: "Self-sows freely", "Self-sows a little", "Said not to set seed" (an earlier list's claim,
- * never stated as fact). Empty where it's missing.
+ * The seed part, in words: "Self-sows freely", "Self-sows a little", "Self-sows, aggressiveness unknown" (its source
+ * says it self-sows, not how freely: Jason, 2026-10-27), "Said not to set seed" (never stated as fact). Empty where it's
+ * missing.
  */
 export function seedText(p: SpreadFacts): string {
-  return ({ Prolific: 'Self-sows freely', Modest: 'Self-sows a little', Sterile: 'Said not to set seed' } as Record<string, string>)[p.self_seed ?? ''] ?? '';
+  return ({ Prolific: 'Self-sows freely', Modest: 'Self-sows a little', Unrated: 'Self-sows, aggressiveness unknown', Sterile: 'Said not to set seed' } as Record<string, string>)[p.self_seed ?? ''] ?? '';
 }
 /**
  * The underground part, in words, with the habit as given: "Spreads aggressively underground or by runners: Runner -
@@ -53,14 +54,15 @@ export function rootText(p: SpreadFacts): string {
   return '';
 }
 /**
- * Whether a plant spreads as the picker's filter asks: 'stays' (doesn't run, and self-sows only a little; never a
- * plant listed invasive, nor one only said not to set seed), 'seed' (self-sows freely), 'runs' (spreads underground or
- * by runners at all, mats and naturalizing bulbs too), 'aggressive' (spreads aggressively underground or by runners).
+ * Whether a plant spreads as the picker's filter asks: 'stays' (doesn't run, and self-sows only a little or is said
+ * to be sterile: a sterile value only ever comes with a source, Jason 2026-10-27; never a plant listed invasive),
+ * 'seed' (self-sows freely, or self-sows and how freely isn't known: it may), 'runs' (spreads underground or by runners
+ * at all, mats and naturalizing bulbs too), 'aggressive' (spreads aggressively underground or by runners).
  */
 export function spreadsAs(p: SpreadFacts, how: string): boolean {
   const r = rootSpread(p.habit);
-  if (how === 'stays') return r === 'stays' && p.self_seed === 'Modest' && !p.invasive;
-  if (how === 'seed') return p.self_seed === 'Prolific';
+  if (how === 'stays') return r === 'stays' && (p.self_seed === 'Modest' || p.self_seed === 'Sterile') && !p.invasive;
+  if (how === 'seed') return p.self_seed === 'Prolific' || p.self_seed === 'Unrated';
   // (Mats and naturalizing bulbs spread too: creeping thyme, fogfruit; a reseeding annual is the seed's.)
   if (how === 'runs') return r === 'aggressive' || r === 'spreads' || r === 'slow' || (r === 'other' && p.habit !== 'Reseeding annual');
   if (how === 'aggressive') return r === 'aggressive';
