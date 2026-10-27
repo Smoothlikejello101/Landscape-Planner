@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
-import { aboutAnother, annualZonesSaid, deerFromProse, deerSaid, foliageFromProse, foliageOf, foliageWords, habitFromProse, ncsuDescription, ncsuNames, ncsuProseClaims, ncsuZones, PROSE_HABITS, seedFromProse, seedSaid, sentences } from '../scripts/catalog/prose.mjs';
+import { aboutAnother, annualZonesSaid, deerFromProse, deerSaid, ncsuDeer, foliageFromProse, foliageOf, foliageWords, habitFromProse, ncsuDescription, ncsuNames, ncsuProseClaims, ncsuZones, PROSE_HABITS, seedFromProse, seedSaid, sentences } from '../scripts/catalog/prose.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { combine } from '../scripts/catalog/claims.mjs';
 import { catalogErrors, resolveCatalog, type CatalogFile } from '../src/catalog';
@@ -174,6 +174,15 @@ describe('deer, from a description', () => {
     expect(deerFromProse(['It is deer resistant.', 'Young plants may be browsed by deer.'])).toEqual({ v: 'Occasional', says: 'Young plants may be browsed by deer.' });
     expect(deerFromProse(['It has glossy leaves.'])).toBe(null);
   });
+  it('lowers NC State\'s field to Occasional where its own text says it resists deer only in part (Jason, 2026-10-27)', () => {
+    const field = [{ fact: 'deer', v: 'Resistant', src: 'ncsu', kind: 'authority' }, { fact: 'water', v: 'Moderate', src: 'ncsu', kind: 'authority' }];
+    const page = (text: string) => `<h1>Acer palmatum</h1><dl><dt>Description</dt><dd><p>A small tree. ${text}</p></dd></dl>`;
+    expect(ncsuDeer(field, page('This tree is mildly resistant to damage by deer.'))).toEqual([
+      { fact: 'deer', v: 'Occasional', src: 'ncsu', kind: 'authority', says: 'This tree is mildly resistant to damage by deer.', prose: true }, field[1]]);
+    expect(ncsuDeer(field, page('It is deer resistant.'))).toBe(field);
+    expect(ncsuDeer(field, page('It may be damaged by deer.'))).toBe(field); // (only "in part": the question asked)
+    expect(ncsuDeer(field.slice(1), page('This tree is mildly resistant to damage by deer.'))).toEqual(field.slice(1)); // (no field: the description's own claim)
+  });
   it('makes a claim decided as deer is, by sides, citing its sentence', () => {
     const page = '<h1>Weigela florida</h1><dl><dt>Description</dt><dd><p>Weigela is a deciduous shrub. It may be damaged by deer.</p></dd></dl>';
     const prose = ncsuProseClaims(page);
@@ -191,13 +200,14 @@ describe('self-sowing, from a description', () => {
     expect(seed('It spreads by seed and can be hard to control.')).toBe('Prolific');
     expect(seed('Its self-sowing may mean removing seedlings regularly.')).toBe('Prolific');
   });
-  it('reads a little, or how much unsaid, as Modest', () => {
-    expect(seed('It may self-seed in ideal conditions.')).toBe('Modest');
+  it('reads a little as Modest, and how freely unsaid as Unrated', () => {
+    expect(seed('It may self-seed in ideal conditions.')).toBe('Unrated');
     expect(seed('It will reseed, but it is not aggressive.')).toBe('Modest');
     expect(seed('It does not freely self-seed in the garden.')).toBe('Modest');
     expect(seed('It can spread somewhat rapidly by self-seeding and suckering.')).toBe('Modest');
-    expect(seed('Remove spent flowers to prevent self-seeding.')).toBe('Modest');
-    expect(seed('If happy, it will self-seed and form colonies.')).toBe('Modest'); // (colonies, how freely unsaid)
+    expect(seed('Remove spent flowers to prevent self-seeding.')).toBe('Unrated');
+    expect(seed('If happy, it will self-seed and form colonies.')).toBe('Unrated'); // (colonies, how freely unsaid)
+    expect(seedFromProse(['It will self-seed.', 'It self-seeds, but is not aggressive.'])?.v).toBe('Modest'); // (a little, said, over unsaid)
   });
   it('reads sterile only of the plant itself', () => {
     expect(seed('This cultivar is sterile and will not reseed.')).toBe('Sterile');
