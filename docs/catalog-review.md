@@ -146,7 +146,7 @@ Kew's checklist has no one accepted species for 37 catalog names (hybrids, names
 
 New plants (scripts/catalog/additions.mjs):
 
-- 39 plants added from NC State's Plant Toolbox in this build (2845 in all)
+- 0 plants added from NC State's Plant Toolbox in this build (2845 in all)
 - 859 plants waiting, for size (714), form (94), hardiness (256), sun (92), its species (19)
 - 595 pages left out: a vegetable (87), a genus (296), a weed (204), in the catalog (8)
 - 18 pages the sitemap lists that aren't saved yet
