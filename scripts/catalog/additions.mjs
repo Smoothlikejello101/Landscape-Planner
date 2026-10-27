@@ -283,6 +283,38 @@ export function gbifCommonName(species, root = 'catalog-src') {
   const name = key ? savedJson('gbif', speciesUrl(key), root)?.vernacularName : null;
   return name ? String(name).split(/\s*[,;]\s*/)[0].trim() || null : null;
 }
+/** All of GBIF's English names for a species, as its record lists them ("Crimson fountaingrass, Fountain grass"). */
+export function gbifNames(species, root = 'catalog-src') {
+  const key = gbifKey(savedJson('gbif', matchUrl(species), root));
+  const name = key ? savedJson('gbif', speciesUrl(key), root)?.vernacularName : null;
+  return name ? String(name).split(/\s*[,;]\s*/).map((x) => x.trim()).filter(Boolean) : [];
+}
+/**
+ * A record named with all of GBIF's English names at once ("Small-leaved Elm, Jersey Elm, English Elm": added before
+ * 2026-10-26, when the build took GBIF's list as one name), named with the first, as a plant added now is
+ * (`gbifCommonName`); the others become its synonyms, so a search for any of them still finds it. Only where the name
+ * is exactly GBIF's list for its species. `namesOf(species)`: GBIF's names (`gbifNames`). In place; returns what
+ * changed, in words.
+ */
+export function shortenListNames(catalog, namesOf) {
+  const done = [];
+  const key = (x) => x.toLowerCase();
+  for (const [i, r] of catalog.plants.entries()) {
+    if (r.parent || !r.botanical || !/[,;]/.test(r.common ?? '')) continue;
+    const sp = speciesOf(r.botanical);
+    if (sp.genusOnly) continue;
+    const names = namesOf(sp.species), had = r.common.split(/\s*[,;]\s*/).map((x) => x.trim()).filter(Boolean);
+    if (names.length < 2 || names.map(key).join('|') !== had.map(key).join('|')) continue;
+    const [common, ...rest] = names;
+    const synonyms = [...(r.synonyms ?? [])];
+    for (const n of rest) if (key(n) !== key(common) && !synonyms.some((x) => key(x) === key(n))) synonyms.push(n);
+    // (Names first, in the catalog's order: one record per line.)
+    const { id, common: _old, botanical, synonyms: _s, ...others } = r;
+    catalog.plants[i] = { id, common, botanical, synonyms, ...others };
+    done.push(`${id}: now ${common} (${rest.join(', ')} kept as synonyms)`);
+  }
+  return done;
+}
 /**
  * What to fetch to name new species (`records`: the new records): GBIF's match, then its record, for each species
  * USDA doesn't name, once USDA's search (and profile) for it are saved. (USDA's search isn't asked for a hybrid.)

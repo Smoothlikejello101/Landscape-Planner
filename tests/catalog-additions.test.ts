@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
-import { commonName, gbifCommonName, hybridFormula, leftOutWhy, missingToShip, namePagesToFetch, nameKey, newId, newRecords, pageBotanical, pagesInUse, pageCommons, readAdded, shipOnly, SITEMAP, sitemapSlugs, tradeName, usdaCommonName, writeAdded } from '../scripts/catalog/additions.mjs';
+import { commonName, gbifCommonName, gbifNames, hybridFormula, leftOutWhy, missingToShip, namePagesToFetch, nameKey, newId, newRecords, pageBotanical, pagesInUse, pageCommons, readAdded, shipOnly, shortenListNames, SITEMAP, sitemapSlugs, tradeName, usdaCommonName, writeAdded } from '../scripts/catalog/additions.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { savedAuditList } from '../scripts/catalog/list.mjs';
 // @ts-expect-error (a plain .mjs script)
@@ -192,6 +192,25 @@ describe('naming a new species from USDA, then GBIF', () => {
     expect(gbifCommonName('Abies koreana', root)).toBeNull(); // (its record not saved yet)
     expect(gbifCommonName('Citrus × paradisi', root)).toBeNull(); // (not grapefruit's: "Seville orange")
     expect(gbifCommonName('Asarum minus', root)).toBeNull(); // (not "birthwort family")
+  });
+  it('renames a plant added with all of GBIF\'s names as one, keeping the others as synonyms', () => {
+    save('gbif', match('Ulmus minor'), { usageKey: 5361, matchType: 'EXACT', rank: 'SPECIES', status: 'ACCEPTED' });
+    save('gbif', record(5361), { key: 5361, vernacularName: 'Small-leaved Elm, Jersey Elm, English Elm' });
+    expect(gbifNames('Ulmus minor', root)).toEqual(['Small-leaved Elm', 'Jersey Elm', 'English Elm']);
+    expect(gbifCommonName('Ulmus minor', root)).toBe('Small-leaved Elm');
+    const catalog = { plants: [
+      { id: 'ulmus-minor', common: 'Small-leaved Elm, Jersey Elm, English Elm', botanical: 'Ulmus minor', src: ['ncsu'], audited: null, facts: { form: 'Tree' } },
+      // (Not GBIF's list: a name a person gave, a cultivar, a record of two plants.)
+      { id: 'other', common: 'Elm, the small one', botanical: 'Ulmus minor', src: ['ncsu'], audited: null, facts: {} },
+      { id: 'cv', common: 'Small-leaved Elm, Jersey Elm, English Elm', botanical: "Ulmus minor 'Jacqueline Hillier'", parent: 'ulmus-minor', src: ['ncsu'], audited: null, facts: {} },
+    ] };
+    expect(shortenListNames(catalog, (sp: string) => gbifNames(sp, root))).toEqual(['ulmus-minor: now Small-leaved Elm (Jersey Elm, English Elm kept as synonyms)']);
+    expect(catalog.plants[0]).toEqual({ id: 'ulmus-minor', common: 'Small-leaved Elm', botanical: 'Ulmus minor', synonyms: ['Jersey Elm', 'English Elm'], src: ['ncsu'], audited: null, facts: { form: 'Tree' } });
+    expect(JSON.stringify(Object.keys(catalog.plants[0]))).toBe('["id","common","botanical","synonyms","src","audited","facts"]');
+    expect(catalog.plants[1].common).toBe('Elm, the small one');
+    expect(catalog.plants[2].common).toBe('Small-leaved Elm, Jersey Elm, English Elm');
+    // (Again: nothing to do.)
+    expect(shortenListNames(catalog, (sp: string) => gbifNames(sp, root))).toEqual([]);
   });
   it('asks GBIF only once USDA has answered without a name, its match before its record; never for a cultivar or genus', () => {
     expect(namePagesToFetch(records, root).sort()).toEqual([match('Abelia × grandiflora'), record(2685681)].sort());

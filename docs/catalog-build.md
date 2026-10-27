@@ -156,7 +156,9 @@ NC State's Plant Toolbox lists every plant page in its sitemap (`https://plants.
 - **The record.** Its id is the page's name. It has names and no facts: the steps fill it like any other.
   - Its botanical name is the page's title, × for NC State's x, without ® or ™.
   - Its name in the app: a species', USDA's common name (from its profile); else GBIF's English name (its
-    backbone record's `vernacularName`, the first where it gives several in one); else NC State's, where it gives
+    backbone record's `vernacularName`, the first where it gives several in one; a plant added before
+    2026-10-26 with all of them as its name is renamed so by each build, the others kept as its synonyms:
+    `shortenListNames`); else NC State's, where it gives
     just one; else the botanical name. NC
     State lists a plant's names alphabetically, in several languages, and often a related plant's, so which one
     is the plant's can't be told from its list ("Abeto Del Colorado, Balsam Fir, Colorado Fir, …" for white fir).
