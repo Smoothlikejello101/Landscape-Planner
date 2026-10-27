@@ -1,7 +1,7 @@
 import { el, type Child } from '../dom';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
-import { byMatch, hostMatchText, inNotes, matchPlant, namesCultivar, nearShows, readQuery } from '../search';
+import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery } from '../search';
 import { formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantTakesSun, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, isGroupHead } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
@@ -324,20 +324,27 @@ export function renderPlantsPanel() {
     // among others, below a divider; what fits by what other sources say, below another, with a way to hide them; what
     // fits only by the earlier list's word, below its own.
     // Cultivars fold under their species (decided with Jason, 2026-10-26: a cultivar has a record of its own, and a
-    // list isn't a wall of them): the species' row, then "13 cultivars" to open. A search that names a cultivar
-    // ("kanza") shows it on its own row. Filters look inside a fold, and one that keeps only some of a species'
-    // cultivars opens it to them ("2 of 14 cultivars match your filters"), the species shown even where it doesn't
-    // match itself. A species shows once, in the first group it or a cultivar of it is in.
+    // list isn't a wall of them): the species' row, then "13 cultivars" to open. A search folds a cultivar only where
+    // its species (or heading) answers the search too: "pecan" finds Pecan, its cultivars under it; "kanza", or "rise"
+    // in 'Sunrise', finds the cultivar, on a row of its own. Filters look inside a fold, and one that keeps only some
+    // of a species' cultivars opens it to them ("2 of 14 cultivars match your filters"), the species shown even where
+    // it doesn't match itself. A species shows once, in the first group it or a cultivar of it is in. A fold that's
+    // the only thing found opens (Jason, 2026-10-26).
     const groups = [0, 1, 2, 3].map((g) => hits.filter((p) => groupOf(p) === g));
     const filtering = activeChips().length > 0 || plantFilter.inPlan;
     const hitIds = new Set(hits.map((p) => p.id));
     const at = new Map(hits.map((p, i) => [p.id, i]));
     const folded = new Map<string, Plant[]>(); // (a fold's head, a species or a group: its cultivars the list has, in its order)
-    const alone = new Set<string>(); // (cultivars named by the search, on rows of their own)
+    const alone = new Set<string>(); // (cultivars the search found but not their species: on rows of their own)
+    const answers = new Map<string, boolean>(); // (whether a head answers the search itself, filters aside)
+    const headAnswers = (head: Plant) => {
+      if (!answers.has(head.id)) answers.set(head.id, !q || matchPlant(head, q, near) !== null);
+      return answers.get(head.id)!;
+    };
     for (const p of hits) {
       const head = foldHeadOf(p);
       if (!head || (forTree && !isGroupHead(head) && !isTree(head))) continue;
-      if (q && namesCultivar(p, head, q)) { alone.add(p.id); continue; }
+      if (!headAnswers(head)) { alone.add(p.id); continue; }
       folded.set(head.id, [...(folded.get(head.id) ?? []), p]);
     }
     /**
@@ -370,6 +377,9 @@ export function renderPlantsPanel() {
       // (Browsing, by name: a heading at its own name, not its first cultivar's: Roses under R, not Climbing rose's C.)
       return q ? out : out.sort((a, b) => a.common.localeCompare(b.common));
     });
+    // (The only thing found, a fold: open, unless it was closed by hand.)
+    const shownMine = mine.length && (!!q || !myPlantsFolded) ? mine.length : 0;
+    const sole = sourced.length + species.length + others.length + earlier.length + shownMine === 1;
     /** The fold's line, and its cultivars under it when open. `say`: what the line says; `toggle`: the button. */
     const foldBlock = (head: Plant, g: number, kids: Plant[], toggle: HTMLElement, open: boolean) => {
       const list = el('div', { className: 'cultivar-list', 'data-testid': 'cultivar-list' });
@@ -395,7 +405,7 @@ export function renderPlantsPanel() {
           el('div', { className: 'pinfo' }, el('div', { className: 'pname' }, p.common), el('div', { className: 'pmeta', 'data-testid': 'group-count' }, `${p.botanical} \u00b7 ${count}`)),
           el('span', { className: 'row-open' }, el('span', { className: 'fold-chev', html: I.chevronDown })));
         const item = el('div', { className: 'plant-item group-item' }, el('div', { className: 'proj-row', style: { alignItems: 'center' } }, toggle));
-        listWrap.append(el('div', { className: 'cultivars group', 'data-testid': 'cultivar-group' }, item, foldBlock(p, g, kids, toggle, filtering && narrowed)));
+        listWrap.append(el('div', { className: 'cultivars group', 'data-testid': 'cultivar-group' }, item, foldBlock(p, g, kids, toggle, (filtering && narrowed) || sole)));
         return;
       }
       listWrap.appendChild(buildRow(p, g));
@@ -405,7 +415,7 @@ export function renderPlantsPanel() {
       const say = narrowed ? `${countWord(kids.length)} of ${countWord(all.length)} cultivars match your filters${hitIds.has(p.id) ? '' : '; the species itself doesn\u2019t'}`
         : `${countWord(kids.length)} cultivars`;
       const toggle = el('button', { className: 'cultivar-fold', 'data-testid': 'cultivar-fold', 'aria-expanded': 'false' }, el('span', { className: 'fold-chev', html: I.chevronDown }), el('span', {}, say));
-      listWrap.append(el('div', { className: 'cultivars', 'data-testid': 'cultivars' }, toggle, foldBlock(p, g, kids, toggle, narrowed)));
+      listWrap.append(el('div', { className: 'cultivars', 'data-testid': 'cultivars' }, toggle, foldBlock(p, g, kids, toggle, narrowed || sole)));
     };
     // (Each group up to 60 rows, so a long first group never hides the others.)
     const rows = (ps: Plant[], g: number) => {
