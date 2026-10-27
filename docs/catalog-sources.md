@@ -450,6 +450,82 @@ this way: NC State's field already lists it, and only about 55 pages
 without that field mention drought at all, several to say the plant doesn't
 take it.
 
+### A second reading
+
+Decided with Jason, 2026-10-27, after those checks found about one value in
+seven read from text wrong or debatable (67 of 80 on the web pages): a value
+read from a page's text is written only where a second, blind reading of the
+same text agrees (scripts/catalog/second-reading.mjs).
+
+- **Blind.** The second reader (an agent) gets only the page's sentences, its
+  names and the facts to answer, with its instructions
+  (docs/second-reading.md, word for word): the same values, use only the
+  text, never what it knows of the plant. It isn't told what the rules
+  found, and doesn't see them.
+- **Agreement.** Where the two match, the value is written. Where they differ
+  only in degree, the part they share is: both say it spreads by rhizomes,
+  one "aggressively" (Spreading rhizome); both say deer eat it, one "often"
+  (Occasional); both say it self-sows, one "freely" (Self-sows,
+  aggressiveness unknown). Leaves in winter, a sterile plant, clumping and
+  mats agree only exactly. Otherwise nothing is written, and the review
+  lists it ("Read from text, but a second reading differs").
+- **A degree settled elsewhere.** Where a page's readings agreed only on the
+  shared part and another source gives exactly the degree the rules read
+  (its own readings agreeing, or its field), that degree stands for the page
+  too: prairie sage, whose NC State text the rules read as spreading
+  aggressively and the second reading didn't, beside a nursery's page both
+  readings agree says it spreads aggressively by rhizomes, is Aggressive
+  rhizome, not the less specific value outvoting the nursery's.
+- **It only gates.** The second reading never adds a value the rules didn't
+  read: where the rules read nothing, nothing is written, whatever it says.
+- **What it does to values already written.** A value an earlier build read
+  from that text, which the second reading now differs on, is taken out,
+  unsettled. NC State's deer field, where its text lowered it to Occasional
+  and the second reading doesn't agree, stands as the field gives it
+  (Resistant). Once, for this first gated build: where a value taken out had
+  replaced one of the earlier list's (#111, #113, #114), the earlier list's
+  value is back, unsourced as before.
+- **Kept by page.** The readings are saved in
+  scripts/catalog/second-reading.json, by page, with a hash of the text
+  read. A page whose text changes is read again: its values wait until it
+  is (they're listed, "waiting for a second reading", and a value already
+  written stays as it was). The build lists those pages in
+  catalog-src/build/second-reading-tasks.json.
+- **Reading new pages.** Give a reader (a fresh agent each batch of about
+  150 pages, its own folder for its scripts) docs/second-reading.md and its
+  part of that file; merge its answers with
+  `node scripts/catalog/second-reading.mjs <tasks.json> <answers.json>… --at <date>`,
+  which takes only answers to a page asked, of the same text, every fact
+  asked and only the values allowed; then build again.
+
+First run, 2026-10-27: 2,041 pages (1,558 NC State's, 483 web pages), 2,603
+values read from their text. The readings agreed exactly on 2,406 (92%),
+only in degree on 85 (3%: mostly a spread or a self-sower one reading
+called aggressive or free and the other didn't), and differed on 112 (4%):
+spreading 70 of 1,077, deer 21 of 656, leaves in winter 11 of 349,
+self-sowing 10 of 521. Most of the differences were the second reading
+finding nothing (a river birch's "clump" of trees planted together; "deer
+resistant" said on a nursery's page of the other plants it sells), or
+evergreen against semi-evergreen. Taken out as unsettled: 53 values, with
+nothing to put back, and 6 values of the earlier list back.
+
+**Held-out check**, the same day: for each fact, a fresh agent that hadn't
+seen the rules, the readings or this work graded 100 random values the gated
+build wrote against their page's whole text (never used to change the
+rules). Leaves in winter: 98 right, 2 unsure. Deer: 98 right, 1 less
+specific, 1 unsure. Self-sowing: 87 right, 8 less specific, 4 unsure, 1
+wrong. Spreading: 88 right, 9 less specific, 3 unsure. In all, 1 wrong in
+400 (before the gate, 7 in 80) and 10 unsure. "Less specific": the value
+says less than the text, nothing in it wrong (spreads by rhizomes where the
+text says it can spread aggressively; self-sows, aggressiveness unknown
+where it says freely or slowly); mostly where the two readings differed in
+degree, or a hedge ("can spread aggressively") the rules don't read as
+aggressive. So the gate trades some detail for being right: weakest now is
+how freely a plant self-sows and how aggressively it spreads, said too
+seldom rather than wrongly. Both readers and the checkers are agents of
+the same kind, so a misreading they'd all share wouldn't show here; the
+next check is a person's, on a sample.
+
 ## Paid licenses
 
 Checked 2026-10-17. No paid source found both covers our facts well and

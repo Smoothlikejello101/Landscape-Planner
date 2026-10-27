@@ -141,6 +141,17 @@ export function reviewReport({ catalog, list, combined, review, searched = {}, w
   section('A value its source no longer gives', of('stale').length,
     `An earlier build wrote it from a source, but no source gives it now: its page is no longer read, or no longer says it. It's kept (a plant's spread draws its circle), with the citation it had. ${NO_PLACE}`,
     table(['Plant', 'Fact', 'Value now'], of('stale').map((i) => [name(i.id), factName(i.fact), esc(i.note.replace(/^no source gives it now: /, ''))])));
+  // Values read from a page's text that a second reading didn't agree with, or hasn't read yet (second-reading.mjs).
+  const held = combined.flatMap((a) => (a.held ?? []).map((h) => ({ id: a.id, ...h }))).sort(byOrder);
+  const differs = held.filter((h) => h.why === 'disagree'), unread = held.filter((h) => h.why === 'unread');
+  const has = new Map(catalog.plants.map((p) => [p.id, p.facts]));
+  const catalogHas = (h) => { const f = has.get(h.id)?.[h.fact]; const v = f?.v ?? (typeof f === 'string' ? f : null); return v == null ? 'nothing' : `${shown(v)}${typeof f === 'string' ? ' (the earlier list)' : ''}`; };
+  section('Read from text, but a second reading differs', differs.length,
+    "A value the rules read from a page's text, which a second reading of the same text (blind to the first) read differently, and not just in degree. It isn't written. The catalog keeps what it had, except a value an earlier build read from that text: that's taken out, unsettled (NC State's deer field, where its text lowered it, stands as the field gives it). Nothing to decide yet: a page can be read again, or a person can look.",
+    table(['Plant', 'Fact', 'The rules read', 'The second reading', 'Source', 'The catalog has'], differs.map((h) => [name(h.id), factName(h.fact), esc(shown(h.rules)), esc(h.reader == null ? 'nothing' : shown(h.reader)), esc(h.src), esc(catalogHas(h))])), 'tidy');
+  section('Read from text, waiting for a second reading', unread.length,
+    "Values the rules read from a page's text whose page hasn't had its second reading (its text is new, or changed): not written until it has. The build lists the pages in catalog-src/build/second-reading-tasks.json.",
+    bullets([...new Set(unread.map((h) => h.id))].slice(0, 40).map((id) => name(id)).concat(unread.length > 40 ? ['…'] : [])), 'tidy');
   section('Taken out: a description read wrongly before', of('retracted').length,
     "A value an earlier build read from a page's description, by rules that have since been fixed and no longer read it so. It's taken out (nothing to decide: listed so the change is seen).",
     table(['Plant', 'Fact', 'What was taken out'], of('retracted').map((i) => [name(i.id), factName(i.fact), esc(i.note.replace(/^taken out: /, ''))])), 'tidy');

@@ -228,10 +228,15 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
     // kept, since a record may need it (a plant's spread draws its circle), but listed, its citation no longer
     // true of today's sources. (Not where this run already lists the fact.)
     const listed = new Set(review.filter((i) => i.id === rec.id).flatMap((i) => i.fact.split(', ')));
+    // (Read from text and held by the second reading, second-reading.mjs: the review lists it from the audit. One an
+    // earlier build wrote from a description, the second reading now differing, is taken out: unsettled. One whose page
+    // waits for a second reading stays as it was until it's read.)
+    const heldBy = new Map((a.held ?? []).map((h) => [h.fact, h.why]));
     let retracted = false;
     for (const [, [to]] of Object.entries(FACTS)) {
       const f = rec.facts[to];
       if (written.has(to) || listed.has(to) || (to === 'edible' && unmarked) || !(f?.src?.length > 0) || f.src.some((s) => catalog.meta.sources[s]?.trust === 'unverified')) continue;
+      if (heldBy.has(to) && f.from === 'description') { if (heldBy.get(to) === 'disagree') { delete facts[to]; retracted = true; } continue; }
       // (Read from a description by rules that no longer read it so: a misread, taken out. "A light winter mulch of
       // evergreen boughs" once made a pincushion flower evergreen.)
       if (f.from === 'description') { delete facts[to]; retracted = true; review.push({ id: rec.id, fact: to, note: `taken out: ${JSON.stringify(f.v)}, read from ${f.src.join(', ')}'s description, which the rules no longer read so` }); continue; }

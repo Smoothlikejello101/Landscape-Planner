@@ -500,7 +500,8 @@ export function ncsuDeer(claims, html) {
   const list = ncsuDescription(html), names = ncsuNames(html);
   const eaten = list.filter((s) => { const d = deerSaid(s, names); return d && d.v !== 'Resistant'; });
   if (!eaten.length) return claims;
-  return claims.map((c) => (c === field ? { ...c, v: 'Occasional', says: eaten.slice(0, 3).join(' … '), prose: true } : c));
+  // (The field's own value kept beside it: where a second reading doesn't agree the text lowers it, the field stands.)
+  return claims.map((c) => (c === field ? { ...c, v: 'Occasional', says: eaten.slice(0, 3).join(' … '), prose: true, fallback: field } : c));
 }
 
 /** Claims read from NC State's description (an authority, like its fields). */

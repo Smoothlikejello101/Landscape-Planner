@@ -1,12 +1,13 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 71 to decide, 2850 plants not searched, 39 sites whose terms are unsettled, 421 catalog checks; 3666 of 3670 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 67 to decide, 2850 plants not searched, 39 sites whose terms are unsettled, 518 catalog checks; 3666 of 3670 records audited.
 
-- [Sources disagree (28)](#sources-disagree-28)
+- [Sources disagree (24)](#sources-disagree-24)
 - [Cultivar: tree or shrub? (6)](#cultivar-tree-or-shrub-6)
 - [Edible, but rated toxic (16)](#edible-but-rated-toxic-16)
 - [Held back as implausible (3)](#held-back-as-implausible-3)
-- [Taken out: a description read wrongly before (2)](#taken-out-a-description-read-wrongly-before-2)
+- [Read from text, but a second reading differs (98)](#read-from-text-but-a-second-reading-differs-98)
+- [Taken out: a description read wrongly before (1)](#taken-out-a-description-read-wrongly-before-1)
 - [Values the catalog can't take (1)](#values-the-catalog-cant-take-1)
 - [Kew names to check (13)](#kew-names-to-check-13)
 - [Bloom months held back (4)](#bloom-months-held-back-4)
@@ -14,21 +15,19 @@ Written by `npm run catalog:build` (docs/catalog-build.md): what the build left 
 - [Sites whose terms are unsettled (39)](#sites-whose-terms-are-unsettled-39)
 - [Catalog checks (419)](#catalog-checks-419)
 
-## Sources disagree (28)
+## Sources disagree (24)
 
 The audit's sources give different values, so the catalog keeps the value it had, marked unverified. Zones are on the half-zone scale (7 is 7a, 7.5 is 7b); sizes are in feet. There's no place to record a decision on these yet: they stay listed until there is.
 
 | Plant | Fact | What the sources say | Catalog now |
 | --- | --- | --- | --- |
-| Japanese forest grass 'All Gold' (`hakonechloa-macra`) | spreading | provenwinners.com: Aggressive rhizome · hortech.com: Clumping | Clumping |
+| Japanese forest grass 'All Gold' (`hakonechloa-macra`) | spreading | provenwinners.com: Spreading rhizome · hortech.com: Clumping | Clumping |
 | Sideoats grama (`bouteloua-curtipendula`) | spreading | newmoonnursery.com: Slow-spreading rhizome · prairienursery.com: Clumping | Clumping |
-| Downy serviceberry (`amelanchier-arborea`) | spreading | ncsu: Suckering colonizer · ufl.edu: Suckering | Suckering colonizer |
 | Cream wild indigo (`baptisia-bracteata`) | flower_color | mowildflowers.net: White, Cream · allendanseed.com: Yellow | – |
 | Common sneezeweed (`helenium-autumnale`) | spreading | newmoonnursery.com: Clumping · calfloranursery.com: Mat-forming | Clumping |
-| Bradbury's beebalm (`monarda-bradburiana`) | spreading | newmoonnursery.com: Clumping · prairienursery.com: Slow-spreading rhizome; blazingstargardens.com: Aggressive rhizome | Clumping |
+| Bradbury's beebalm (`monarda-bradburiana`) | spreading | newmoonnursery.com: Clumping · prairienursery.com: Slow-spreading rhizome; blazingstargardens.com: Spreading rhizome | Clumping |
 | Prairie sundrops (`oenothera-pilosella`) | spreading | mowildflowers.net: Aggressive rhizome · ancientrootsnativenursery.com: Mat-forming | Spreading rhizome |
 | Slender beardtongue (`penstemon-gracilis`) | flower_color | morningskygreenery.com: Lavender · ecoscapes1.com: Pink; bluethumb.org says Pink | – |
-| Wild sweet William (`phlox-maculata`) | spreading | newmoonnursery.com: Spreading rhizome · rachelsnativeplants.com: Slow-spreading rhizome | Clumping |
 | Obedient plant (species) (`physostegia-virginiana-2`) | spreading | newmoonnursery.com: Spreading rhizome · prairienursery.com: Aggressive rhizome | Aggressive rhizome |
 | Wild petunia (`ruellia-humilis`) | self-sowing | newmoonnursery.com: Modest · prairienursery.com: Prolific | Modest |
 | Late figwort (`scrophularia-marilandica`) | self-sowing | bugloversnativeplants.com: Modest · rachelsnativeplants.com: Prolific | Modest |
@@ -43,10 +42,8 @@ The audit's sources give different values, so the catalog keeps the value it had
 | Ivory sedge (`carex-eburnea`) | leaves in winter | mowildflowers.net: semi-evergreen · blazingstargardens.com: evergreen | – |
 | Common bur sedge (`carex-grayi`) | spreading | newmoonnursery.com: Slow-spreading rhizome · prairienursery.com: Clumping | Clumping |
 | Porcupine sedge (`carex-hystericina`) | flower_color | aquascapesunlimited.com: Yellow · bluethumb.org: Green | – |
-| Long-beaked sedge (`carex-sprengelii`) | spreading | newmoonnursery.com: Slow-spreading rhizome · prairienursery.com: Spreading rhizome | Clumping |
-| Brown fox sedge (`carex-vulpinoidea`) | spreading | newmoonnursery.com: Aggressive rhizome · blazingstargardens.com: Clumping; nvknurseries.com: Slow-spreading rhizome; jerseyyards.org says Clumping | Clumping |
+| Brown fox sedge (`carex-vulpinoidea`) | spreading | newmoonnursery.com: Spreading rhizome · blazingstargardens.com: Clumping; nvknurseries.com: Slow-spreading rhizome; jerseyyards.org says Clumping | Clumping |
 | Creek sedge (`carex-amphibola`) | self-sowing | prairienursery.com: Prolific · newmoonnursery.com: Modest | Modest |
-| Netleaf leather flower (`clematis-viorna`) | self-sowing | onrockgarden.com: Modest · clayandlimestone.com: Sterile | Modest |
 | Tree of heaven (`ailanthus-altissima`) | bloom_season | ncsu, davisla.wordpress.com: summer · arizona.edu: spring; usda says late spring | – |
 
 ## Cultivar: tree or shrub? (6)
@@ -93,14 +90,118 @@ The audit's values would make the record implausible (the app's checks), so they
 | Pink sundew (`drosera-capillaris`) | height | under 3 in tall (1 in): inches read as feet, or the other way? |
 | English holly 'Argentea Marginata' (`ilex-aquifolium-argentea-marginata`) | height, form | 40 ft is tall for a shrub |
 
-## Taken out: a description read wrongly before (2)
+## Read from text, but a second reading differs (98)
+
+A value the rules read from a page's text, which a second reading of the same text (blind to the first) read differently, and not just in degree. It isn't written. The catalog keeps what it had, except a value an earlier build read from that text: that's taken out, unsettled (NC State's deer field, where its text lowered it, stands as the field gives it). Nothing to decide yet: a page can be read again, or a person can look.
+
+| Plant | Fact | The rules read | The second reading | Source | The catalog has |
+| --- | --- | --- | --- | --- | --- |
+| Heuchera 'Autumn Bride' (`heuchera-villosa`) | leaves in winter | evergreen | semi-evergreen | stonehousenursery.com | evergreen |
+| Turtlehead 'Hot Lips' (`chelone-lyonii`) | deer | Resistant | Occasional | newmoonnursery.com | Resistant |
+| Beebalm 'Jacob Cline' (`monarda-didyma`) | spreading | Aggressive runner (stolons) | Aggressive rhizome | ncsu | Spreading rhizome |
+| Blue false indigo (`baptisia-australis`) | deer | Resistant | Occasional | newmoonnursery.com | Resistant |
+| Goldenrod 'Fireworks' (`solidago-rugosa`) | spreading | Clumping | Slow-spreading rhizome | newmoonnursery.com | Slow-spreading rhizome |
+| Black-eyed Susan 'Goldsturm' (`rudbeckia-fulgida-goldsturm`) | deer | Resistant | nothing | newmoonnursery.com | Resistant |
+| River birch (`betula-nigra`) | spreading | Clumping | nothing | ufl.edu | Single/multi-stem (the earlier list) |
+| Purple clematis (`clematis-occidentalis`) | spreading | Clumping | nothing | plantnative.org | Twining (the earlier list) |
+| Bladdernut (`staphylea-trifolia`) | deer | Resistant | Occasional | awesomenativeplants.info | Resistant |
+| Wild ginger (`asarum-canadense`) | spreading | Slow-spreading rhizome | nothing | ncsu | Slow-spreading rhizome |
+| Poke milkweed (`asclepias-exaltata`) | leaves in winter | deciduous | nothing | butterflygardenstogo.com | nothing |
+| Poke milkweed (`asclepias-exaltata`) | deer | Resistant | nothing | butterflygardenstogo.com | Resistant |
+| Prairie milkweed (`asclepias-sullivantii`) | leaves in winter | deciduous | nothing | butterflygardenstogo.com | nothing |
+| Prairie milkweed (`asclepias-sullivantii`) | deer | Resistant | nothing | butterflygardenstogo.com | Resistant (the earlier list) |
+| Small yellow wild indigo (`baptisia-tinctoria`) | deer | Resistant | Occasional | newmoonnursery.com | Resistant |
+| Downy wood mint (`blephilia-ciliata`) | deer | Resistant | Occasional | newmoonnursery.com | Resistant |
+| Bear corn (`conopholis-americana`) | deer | Occasional | nothing | ncsu | Resistant (the earlier list) |
+| Flat-topped aster (`doellingeria-umbellata`) | deer | Resistant | Occasional | meadowcitynursery.com | Resistant (the earlier list) |
+| Common boneset (`eupatorium-perfoliatum`) | spreading | Clumping | nothing | ncsu | Clumping (the earlier list) |
+| Common boneset (`eupatorium-perfoliatum`) | spreading | Clumping | Spreading rhizome | newmoonnursery.com | Clumping (the earlier list) |
+| Meadow blazing star (`liatris-ligulistylis`) | spreading | Clumping | nothing | prairienursery.com | Clumping |
+| Prairie sundrops (`oenothera-pilosella`) | deer | Resistant | nothing | mowildflowers.net | Resistant (the earlier list) |
+| Hairy beardtongue (`penstemon-hirsutus`) | spreading | Clumping | nothing | ncsu | Spreading rhizome (the earlier list) |
+| Woodland phlox (`phlox-divaricata`) | deer | Resistant | Occasional | newmoonnursery.com | Resistant (the earlier list) |
+| Smooth phlox (`phlox-glaberrima-subsp-interior`) | spreading | Clumping | Spreading rhizome | ncsu | Clumping (the earlier list) |
+| Wild sweet William (`phlox-maculata`) | spreading | Spreading rhizome | nothing | newmoonnursery.com | Slow-spreading rhizome |
+| Virginia mountain mint (`pycnanthemum-virginianum`) | deer | Candy | Resistant | plantnative.org | Resistant |
+| Mexican hat (`ratibida-columnifera`) | self-sowing | Prolific | nothing | plantnative.org | Unrated |
+| Mexican hat (`ratibida-columnifera`) | spreading | Spreading rhizome | Clumping | plantnative.org | Clumping (the earlier list) |
+| Wild petunia (`ruellia-humilis`) | spreading | Runner (stolons) | nothing | onrockgarden.com | Clumping (the earlier list) |
+| Wild stonecrop (`sedum-ternatum`) | spreading | Spreading rhizome | Mat-forming | prairienursery.com | Mat-forming |
+| Blue-stemmed goldenrod (`solidago-caesia`) | deer | Resistant | Occasional | newmoonnursery.com | Resistant |
+| Zigzag goldenrod (`solidago-flexicaulis`) | spreading | Clumping | Spreading rhizome | newmoonnursery.com | Aggressive rhizome (the earlier list) |
+| Sky blue aster (`symphyotrichum-oolentangiense`) | deer | Resistant | Occasional | plantnative.org | Resistant |
+| Early meadow rue (`thalictrum-dioicum`) | leaves in winter | deciduous | nothing | ncsu | nothing |
+| Sessile bellwort (`uvularia-sessilifolia`) | spreading | Runner (stolons) | Spreading rhizome | ncsu | Spreading rhizome (the earlier list) |
+| Blue vervain (`verbena-hastata`) | spreading | Spreading rhizome | Clumping | newmoonnursery.com | Slow-spreading rhizome |
+| Prairie dropseed (`sporobolus-heterolepis`) | self-sowing | Modest | nothing | ncsu | Modest (the earlier list) |
+| Curly-styled wood sedge (`carex-rosea`) | leaves in winter | evergreen | semi-evergreen | stonehousenursery.com | semi-evergreen |
+| Long-beaked sedge (`carex-sprengelii`) | spreading | Spreading rhizome | nothing | prairienursery.com | Slow-spreading rhizome |
+| Robin's plantain (`erigeron-pulchellus`) | self-sowing | Unrated | nothing | backyardgardener.com | Unrated |
+| Cinnamon fern (`osmundastrum-cinnamomeum`) | spreading | Slow-spreading rhizome | Clumping | plantnative.org | Clumping |
+| Creeping phlox (`phlox-stolonifera`) | spreading | Slow-spreading rhizome | Mat-forming | newmoonnursery.com | Aggressive runner (stolons) |
+| Netleaf leather flower (`clematis-viorna`) | self-sowing | Sterile | nothing | clayandlimestone.com | Modest |
+| Beebalm 'Raspberry Wine' (`monarda-didyma-raspberry-wine`) | spreading | Aggressive runner (stolons) | Aggressive rhizome | ncsu | Spreading rhizome (the earlier list) |
+| Arborvitae 'Green Giant' (`thuja-green-giant`) | deer | Resistant | Occasional | instanthedge.com | Resistant |
+| Butterfly bush (`buddleia-davidii-sterile-miss-molly-lo-behold`) | spreading | Suckering thicket | nothing | purdue.edu | Clumping (the earlier list) |
+| Spine acanthus (`acanthus-spinosus`) | spreading | Clumping | nothing | ncsu | nothing |
+| Desert-rose (`adenium-obesum`) | spreading | Clumping | nothing | ncsu | nothing |
+| Adiantum aethiopicum (`adiantum-aethiopicum`) | spreading | Spreading rhizome | Runner (stolons) | ncsu | nothing |
+| Pyramid bugle (`ajuga-pyramidalis`) | spreading | Spreading rhizome | Runner (stolons) | ncsu | nothing |
+| Cape African-queen (`anisodontea-capensis`) | leaves in winter | evergreen | semi-evergreen | ncsu | nothing |
+| Walking fern (`asplenium-rhizophyllum`) | spreading | Clumping | nothing | ncsu | nothing |
+| Betony (subsp. officinalis) (`betonica-officinalis-subsp-officinalis`) | spreading | Spreading rhizome | nothing | ncsu | nothing |
+| Calibrachoa × hybrida (`calibrachoa-x-hybrida`) | deer | Occasional | Resistant | ncsu | nothing |
+| Straggler daisy (`calyptocarpus-vialis`) | spreading | Runner (stolons) | Spreading rhizome | ncsu | nothing |
+| Campsis × tagliabueana (`campsis-x-tagliabueana`) | spreading | Aggressive rhizome | Suckering colonizer | ncsu | nothing |
+| Carex scaposa (`carex-scaposa`) | spreading | Spreading rhizome | Clumping | ncsu | nothing |
+| Eastern Hornbeam (`carpinus-orientalis`) | spreading | Suckering | nothing | ncsu | nothing |
+| Perennial cornflower (`centaurea-montana`) | spreading | Clumping | Runner (stolons) | ncsu | nothing |
+| Cup-and-saucer-vine (`cobaea-scandens`) | leaves in winter | evergreen | semi-evergreen | ncsu | nothing |
+| Chinese fir (`cunninghamia-lanceolata`) | spreading | Suckering | nothing | ncsu | nothing |
+| Evergreen Solomon's seal (`disporopsis-pernyi`) | leaves in winter | evergreen | nothing | ncsu | nothing |
+| Siebold's wood fern (`dryopteris-sieboldii`) | spreading | Spreading rhizome | nothing | ncsu | nothing |
+| Red Easter-lily cactus (`echinopsis-oxygona`) | spreading | Mat-forming | Clumping | ncsu | nothing |
+| Showy orchid (`galearis-spectabilis`) | deer | Occasional | nothing | ncsu | nothing |
+| Haworthiopsis tessellata (`haworthiopsis-tessellata`) | spreading | Runner (stolons) | Clumping | ncsu | nothing |
+| Hemionitis seticaulis (`hemionitis-seticaulis`) | spreading | Spreading rhizome | nothing | ncsu | nothing |
+| Cliff stonecrop (`hylotelephium-cauticola`) | spreading | Runner (stolons) | Spreading rhizome | ncsu | nothing |
+| Showy stonecrop (`hylotelephium-spectabile`) | deer | Occasional | nothing | ncsu | nothing |
+| Aaron's beard (`hypericum-calycinum`) | spreading | Aggressive runner (stolons) | Aggressive rhizome | ncsu | nothing |
+| Common goldstar (`hypoxis-hirsuta`) | spreading | Clumping | nothing | ncsu | nothing |
+| Isotoma (`isotoma-fluviatilis`) | spreading | Mat-forming | Runner (stolons) | ncsu | nothing |
+| Pincushion-flower (`lomelosia-caucasica`) | spreading | Mat-forming | nothing | ncsu | nothing |
+| Scarlet beebalm (`monarda-didyma-2`) | spreading | Aggressive runner (stolons) | Aggressive rhizome | ncsu | nothing |
+| Nimblewill (`muhlenbergia-schreberi`) | spreading | Mat-forming | Runner (stolons) | ncsu | nothing |
+| Parrot feather watermilfoil (`myriophyllum-aquaticum`) | spreading | Mat-forming | nothing | ncsu | nothing |
+| Blue Beargrass (`nolina-nelsonii`) | spreading | Clumping | nothing | ncsu | nothing |
+| Black mondo (`ophiopogon-planiscapus`) | spreading | Clumping | nothing | ncsu | nothing |
+| Mountain woodsorrel (`oxalis-montana`) | spreading | Spreading rhizome | Runner (stolons) | ncsu | nothing |
+| Pygmy date palm (`phoenix-roebelenii`) | spreading | Suckering | nothing | ncsu | nothing |
+| Clammy groundcherry (`physalis-heterophylla`) | spreading | Spreading rhizome | nothing | ncsu | nothing |
+| Loblolly pine (`pinus-taeda`) | self-sowing | Unrated | nothing | ncsu | nothing |
+| Water lettuce (`pistia-stratiotes`) | spreading | Mat-forming | Runner (stolons) | ncsu | nothing |
+| Appalachian polypody (`polypodium-appalachianum`) | spreading | Spreading rhizome | Mat-forming | ncsu | nothing |
+| Soft Shield-fern (`polystichum-setiferum`) | spreading | Clumping | nothing | ncsu | nothing |
+| Dwarf azalea (`rhododendron-atlanticum`) | spreading | Runner (stolons) | Spreading rhizome | ncsu | nothing |
+| Staghorn sumac (`rhus-typhina`) | self-sowing | Unrated | nothing | ncsu | nothing |
+| Butcher's-broom (`ruscus-aculeatus`) | spreading | Suckering (slow) | Slow-spreading rhizome | ncsu | nothing |
+| Saw palmetto (`serenoa-repens`) | spreading | Clumping | nothing | ncsu | nothing |
+| American evergreen (`syngonium-podophyllum`) | leaves in winter | evergreen | nothing | ncsu | nothing |
+| Rice-paper plant (`tetrapanax-papyrifer`) | spreading | Suckering | Spreading rhizome | ncsu | nothing |
+| Boatlily (`tradescantia-spathacea`) | spreading | Mat-forming | Clumping | ncsu | nothing |
+| Tulipa greigii (`tulipa-greigii`) | deer | Candy | nothing | ncsu | nothing |
+| Prostrate blue violet (`viola-walteri`) | spreading | Spreading rhizome | Runner (stolons) | ncsu | nothing |
+| Cape Mallow 'Slightly Strawberry' (`anisodontea-capensis-slightly-strawberry`) | leaves in winter | evergreen | semi-evergreen | ncsu | nothing |
+| Winter creeper 'Colorata' (`euonymus-fortunei-colorata`) | spreading | Runner (stolons) | Mat-forming | ncsu | nothing |
+| Eulalia 'Goliath' (`miscanthus-sinensis-goliath`) | self-sowing | Modest | Sterile | ncsu | nothing |
+
+## Taken out: a description read wrongly before (1)
 
 A value an earlier build read from a page's description, by rules that have since been fixed and no longer read it so. It's taken out (nothing to decide: listed so the change is seen).
 
 | Plant | Fact | What was taken out |
 | --- | --- | --- |
 | Pincushion-flower (`lomelosia-caucasica`) | leaves in winter | "evergreen", read from ncsu's description, which the rules no longer read so |
-| Saw palmetto (`serenoa-repens`) | spreading | "Clumping", read from ncsu's description, which the rules no longer read so |
 
 ## Values the catalog can't take (1)
 

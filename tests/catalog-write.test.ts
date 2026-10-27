@@ -306,4 +306,17 @@ describe('values read from a description (prose.mjs), as written', () => {
   it("doesn't write Clumping for a vine or a tree: its clump is its base or its trunks", () => {
     expect(out.plants[1].facts.habit).toBe('Twining');
   });
+  it('takes out, unlisted here, one a second reading now differs on; keeps one whose page waits for a reading', () => {
+    const had = { form: 'Perennial', deer: { v: 'Resistant', src: ['ncsu'], check: 'single', from: 'description' }, habit: { v: 'Clumping', src: ['ncsu'], check: 'single', from: 'description' }, self_seed: 'Modest' };
+    const { file: gated, review: listed } = writeAudit({ ...file, plants: [{ ...file.plants[0], facts: had }] }, [
+      { id: 'pincushion', claims: [{ src: 'ncsu', kind: 'authority' }], facts: {}, held: [
+        { fact: 'deer', src: 'ncsu', rules: 'Resistant', reader: 'Occasional', why: 'disagree' },
+        { fact: 'habit', src: 'ncsu', rules: 'Clumping', why: 'unread' },
+        { fact: 'self_seed', src: 'ncsu', rules: 'Prolific', reader: null, why: 'disagree' }] },
+    ], '2026-10-27');
+    expect(gated.plants[0].facts.deer).toBeUndefined();
+    expect(gated.plants[0].facts.habit).toEqual(had.habit);
+    expect(gated.plants[0].facts.self_seed).toBe('Modest'); // (the earlier list's, not read from text: kept)
+    expect(listed).toEqual([]); // (the review lists them from the audit's held items)
+  });
 });

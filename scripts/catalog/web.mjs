@@ -313,7 +313,8 @@ export function webProseClaims(html, plant, base, fields = {}, boilerplate = new
   for (const [fact, from] of read) {
     if ((fact === 'foliage' && label) || (fact === 'deer' && fields.deer)) continue;
     const r = from(list, names);
-    if (r) out.push({ ...base, fact, v: r.v, says: r.says, prose: true });
+    // (With the page it was read from, for the second reading: second-reading.mjs.)
+    if (r) out.push({ ...base, fact, v: r.v, says: r.says, prose: true, page: { key: `web:${base.url}`, names, sentences: list } });
   }
   return out;
 }

@@ -180,7 +180,7 @@ describe('deer, from a description', () => {
     const field = [{ fact: 'deer', v: 'Resistant', src: 'ncsu', kind: 'authority' }, { fact: 'water', v: 'Moderate', src: 'ncsu', kind: 'authority' }];
     const page = (text: string) => `<h1>Acer palmatum</h1><dl><dt>Description</dt><dd><p>A small tree. ${text}</p></dd></dl>`;
     expect(ncsuDeer(field, page('This tree is mildly resistant to damage by deer.'))).toEqual([
-      { fact: 'deer', v: 'Occasional', src: 'ncsu', kind: 'authority', says: 'This tree is mildly resistant to damage by deer.', prose: true }, field[1]]);
+      { fact: 'deer', v: 'Occasional', src: 'ncsu', kind: 'authority', says: 'This tree is mildly resistant to damage by deer.', prose: true, fallback: field[0] }, field[1]]);
     expect(ncsuDeer(field, page('It is deer resistant.'))).toBe(field);
     expect(ncsuDeer(field, page('Deer will browse the plant.'))[0]).toMatchObject({ v: 'Occasional', says: 'Deer will browse the plant.' });
     expect(ncsuDeer(field, page('It may be damaged by deer.'))[0]).toMatchObject({ v: 'Occasional' });
