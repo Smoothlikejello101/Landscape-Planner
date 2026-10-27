@@ -16,6 +16,8 @@ import { placeTap } from './place';
 import { render, updateStatusReadout } from './ui/render';
 import { now, snap } from './util';
 import { canopyHint } from './canopy';
+import { applyHandleDrag, handleDragChanged, handleDragLive, startHandleDrag } from './handles';
+import type { HandleKind } from './handle-math';
 
 // Pointer gestures on the canvas: pan, pinch-zoom, marquee selection, shape
 // drag, background move/rotate, calibration taps.
@@ -39,6 +41,8 @@ function startPinchGesture() {
   if (!info) return;
   const g = gesture.current;
   if (g?.type === 'drag-vertex' && (g.moved || g.inserted)) { flushHistoryDebounce(); pushHistory(); save(); } // keep the edit undoable
+  const handleDrag = g?.type === 'shape-resize' || g?.type === 'shape-rotate';
+  if (handleDrag && g.moved && handleDragChanged(g, state.shapes)) { flushHistoryDebounce(); pushHistory(); save(); }
   forgetLastTap(); // (the plan moves: the same spot on screen will be another place)
   gesture.current = {
     type: 'pinch',
@@ -48,6 +52,7 @@ function startPinchGesture() {
     centerFeetAtStart: screenToFeet(info.cx, info.cy)
   };
   state.marquee = null;
+  if (handleDrag) redrawHandles(); // (the size it was dragged to, no longer read out)
 }
 function movedPastThreshold(g: { startX: number; startY: number; moved: boolean }, e: PointerEvent) {
   if (Math.hypot(e.clientX - g.startX, e.clientY - g.startY) > DRAG_THRESHOLD_PX) g.moved = true;
@@ -78,6 +83,13 @@ export function onCanvasPointerDown(e: PointerEvent) {
   const isBgBody = role === 'bg-body';
   const isBgRot = role === 'bg-rot';
   const handle = target.closest?.('[data-role="vertex"],[data-role="midpoint"]') as SVGElement | null;
+  // A handle on the selected shape: resize it, or turn it.
+  const shapeHandle = target.closest?.('[data-role="shape-resize"],[data-role="shape-rotate"]') as SVGElement | null;
+  if (shapeHandle) {
+    const g = startHandleDrag(shapeHandle.dataset.handle as HandleKind, screenToFeet(e.clientX, e.clientY), e.clientX, e.clientY, state.shapes);
+    if (g) { flushHistoryDebounce(); gesture.current = g; }
+    return;
+  }
   if (!isCanvas && !isBgBody && !isBgRot && !handle) return;
   const clientX = e.clientX, clientY = e.clientY;
 
@@ -221,6 +233,18 @@ export function onCanvasPointerMove(e: PointerEvent) {
       e.preventDefault();
       return;
     }
+    case 'shape-resize':
+    case 'shape-rotate': {
+      // (Undone, deleted or deselected mid-drag, by a second finger: the drag stops, and keeps what it did so far.)
+      if (!handleDragLive(g, state.shapes)) { gesture.current = null; render(); return; }
+      movedPastThreshold(g, e);
+      if (g.moved) {
+        redrawShapes(applyHandleDrag(g, screenToFeet(clientX, clientY), e.shiftKey, state.shapes));
+        redrawHandles();
+      }
+      e.preventDefault();
+      return;
+    }
     case 'drag-shape': {
       movedPastThreshold(g, e);
       if (g.moved) {
@@ -234,6 +258,7 @@ export function onCanvasPointerMove(e: PointerEvent) {
           shape.y = snap(item.startY + dyFt);
         }
         redrawShapes(g.ids);
+        redrawHandles(); // (the shape's handles go with it)
       }
       e.preventDefault();
       return;
@@ -304,6 +329,12 @@ export function onCanvasPointerUp(e: PointerEvent) {
       }
       render();
       return;
+    case 'shape-resize':
+    case 'shape-rotate':
+      if (g.moved) { if (handleDragChanged(g, state.shapes)) { flushHistoryDebounce(); pushHistory(); save(); } } // (one undo step for the drag)
+      else tapThroughHandle(g.startX, g.startY); // (a tap on a handle is a tap on what's under it)
+      render();
+      return;
     case 'drag-vertex':
       if (g.moved || g.inserted) { flushHistoryDebounce(); pushHistory(); save(); }
       if (state.editPoints) state.editPoints.vertex = g.index;
@@ -342,6 +373,19 @@ export function onCanvasPointerUp(e: PointerEvent) {
       render();
       return;
   }
+}
+
+/**
+ * A tap on a handle that didn't move: what's under it gets the tap (a plant on a bed's corner, the shape beside its
+ * knob), or, with nothing under it, the empty plan (which clears the selection).
+ */
+function tapThroughHandle(clientX: number, clientY: number) {
+  const under = document.elementsFromPoint(clientX, clientY).find((el) => !el.closest('[data-layer="handles"]')) as SVGElement | HTMLElement | undefined;
+  const id = under?.dataset?.shapeId ?? under?.dataset?.trunkOf;
+  const shape = id ? state.shapes.find((s) => s.id === id) : undefined;
+  if (shape) handleShapeTap(shape);
+  else { clearSelection(); state.panel = null; tapTracker.id = null; tapTracker.time = 0; }
+  canopyHint(screenToFeet(clientX, clientY), state.shapes, pxPerFoot(), shape?.id);
 }
 
 export function onShapePointerDown(e: PointerEvent, shape: Shape) {
@@ -410,6 +454,9 @@ export function onShapePointerDown(e: PointerEvent, shape: Shape) {
 /** Forget all pointers (window lost focus or page hidden mid-gesture). */
 export function cancelGestures() {
   activePointers.clear();
+  const g = gesture.current;
+  // (A handle's drag cut short keeps what it did so far, undoably.)
+  if ((g?.type === 'shape-resize' || g?.type === 'shape-rotate') && g.moved && handleDragChanged(g, state.shapes)) { flushHistoryDebounce(); pushHistory(); save(); }
   if (gesture.current) {
     gesture.current = null;
     state.marquee = null;

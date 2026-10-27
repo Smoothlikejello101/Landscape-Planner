@@ -296,7 +296,12 @@ export type Gesture =
   | { type: 'bg-drag'; startX: number; startY: number; grabOffset: Point; startCenter: Point; moved: boolean }
   | { type: 'bg-rot'; startAngle: number; startRotation: number; angleAt: (x: number, y: number) => number }
   | { type: 'bg-calibrate-tap'; startX: number; startY: number; startOffset: Point; moved: boolean }
-  | { type: 'drag-vertex'; id: string; index: number; startX: number; startY: number; moved: boolean; inserted: boolean };
+  | { type: 'drag-vertex'; id: string; index: number; startX: number; startY: number; moved: boolean; inserted: boolean }
+  // A handle on the selected shape (src/handles.ts): `start`, the shape as the drag began; `carried`, a bed's plants
+  // as they were (they turn with it); `grab`, where on the handle it was pressed (feet from its point); `historyAt`,
+  // the undo step it began at.
+  | { type: 'shape-resize'; id: string; handle: 'tl' | 'tr' | 'bl' | 'br' | 'radius'; start: Shape; carried: Shape[]; grab: Point; startX: number; startY: number; moved: boolean; historyAt: number }
+  | { type: 'shape-rotate'; id: string; start: Shape; carried: Shape[]; center: Point; startAngle: number; startX: number; startY: number; moved: boolean; historyAt: number };
 
 /**
  * Adding something by tapping on the plan: the drawing method, the points

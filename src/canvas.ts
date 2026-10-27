@@ -7,6 +7,7 @@ import { fullRingRadius } from './my-plants';
 import { crowdLevels, type CrowdLevel } from './crowding';
 import { crowdOptions } from './crowd-here';
 import { renderPlaceOverlay } from './place';
+import { renderShapeHandles } from './handles';
 import { onShapePointerDown } from './gestures';
 import { plantsById } from './plants';
 import { plantLabelFit, LABEL_LINE_HEIGHT, textWidth1, type FittedLabel } from './labels';
@@ -27,7 +28,7 @@ import type { CircleShape, Shape, ShapeFilter, TextShape } from './types';
 //   bg       background image
 //   grid     grid lines and axis labels
 //   shapes   one <g> per shape (shape + label), then the marquee
-//   handles  background edit outline/handle, calibration markers
+//   handles  background edit outline/handle, calibration markers, the selected shape's resize and rotate handles
 // During a pan or pinch the bg/shapes/handles layers are moved with a
 // transform and only the grid is redrawn; the full redraw happens on release.
 
@@ -542,6 +543,7 @@ function renderHandles(g: SVGGElement) {
   renderBgHandles(g);
   renderPathOverlay(g);
   renderPlaceOverlay(g);
+  renderShapeHandles(g);
 }
 /** Redraw only the handles layer (drawing in progress, point handles). */
 export function redrawHandles() {
