@@ -464,6 +464,9 @@ a { color: inherit; }
 .details-list dd::after { content: ''; display: block; margin-bottom: 8px; }
 .details-src, .details-alt { display: block; font-size: calc(11px * var(--ts)); color: #6b6560; }
 .details-part { display: block; }
+/* Layers: the crowding settings, lit for a moment when a crowding notice's "Crowding settings…" opens them. */
+.crowding-settings { border-radius: 8px; transition: background-color 0.6s; }
+.crowding-settings.flash { background: #fef3c7; }
 .details-alt { color: #a16207; }
 /* Introduced in the garden's state: said plainly, in the warning color. */
 .details-introduced { color: #9a3412; }

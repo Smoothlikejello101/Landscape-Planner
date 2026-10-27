@@ -95,6 +95,11 @@ export interface CircleShape extends ShapeBase {
    */
   treeHeight?: number;
   lowestBranch?: number;
+  /**
+   * Plants: the ids of plants it's been left close to on purpose ("Leave it" on a crowding notice): that pair
+   * isn't flagged as close or crowded (src/crowding.ts).
+   */
+  crowdOk?: string[];
   /** Ignored for circles; tolerated so old data and patches stay valid. */
   rotation?: number;
 }
@@ -351,8 +356,10 @@ export interface AppState {
   viewFilter: ShapeFilter;
   /** View: full-size rings on every plant (not saved). */
   showFullSize: boolean;
-  /** View: outline plants planted closer than usual (not saved). */
+  /** View: ring plants planted close (amber) or crowded (red) (not saved; on unless turned off on this device). */
   showCrowding: boolean;
+  /** A notice as a plant is placed close to another or crowding it (not saved; on unless turned off on this device). */
+  crowdWarnings: boolean;
   /**
    * View: names on the plan, with line lengths, sun hours and the badges on plants (not saved). Off, the plan shows
    * its shapes alone, to step back and see it whole; a selected shape still shows its own.
@@ -373,7 +380,7 @@ export interface AppState {
   /** Picker opened from Add, Existing tree: pick the tree (or an unknown one), then draw its canopy. */
   pickerForTree: boolean;
   /** Placing a plant by tapping: the plant in hand and what's been placed so far (not saved). */
-  placing: { plantId: string; placed: { id: string; snap: HistorySnapshot }[] } | null;
+  placing: { plantId: string; placed: { id: string; snap: HistorySnapshot }[]; warnedClose?: boolean } | null;
   bgEditMode: boolean;
   bgCalibrate: Calibration | null;
   draw: DrawState | null;

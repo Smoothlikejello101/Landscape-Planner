@@ -86,8 +86,9 @@ test('while placing, plants of the same kind show their full spread and crowding
   await expect(page.locator('#canvas-svg [data-role=full-ring]')).toHaveCount(2);
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);
   await bar(page).getByRole('button', { name: 'Done' }).click();
-  // Afterwards only on request (Layers), or for a single selected plant.
-  await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(0);
+  // Afterwards the full spread only on request (Layers), or for a single selected plant; crowding stays ringed unless
+  // turned off in Layers.
+  await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);
   await expect(page.locator('#canvas-svg [data-role=full-ring]')).toHaveCount(0);
 });
 

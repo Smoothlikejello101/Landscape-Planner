@@ -6,7 +6,9 @@ import { plantsById } from '../plants';
 import { state } from '../state';
 import { checkPlantSun, formatHours, formatTime, newSunInfo, sunHours, sunLevel } from '../sun';
 import type { Shape, SunInfo } from '../types';
-import { crowdingOf } from '../crowding';
+import { BULB_PARTNER_MIN_HEIGHT, crowdingOf } from '../crowding';
+import { crowdOptions } from '../crowd-here';
+import { flagAgain } from './crowd-notice';
 import { shownWith } from '../status';
 import { sqFt } from '../util';
 import { timeRange } from './time-range';
@@ -148,16 +150,29 @@ export function sunListText(info: SunInfo): string {
   return `${formatHours(sunHours(info))} sun${when}${seen}`;
 }
 
-/** A plant closer than usual to its neighbors: who, how far apart, and the usual spacing. */
+/**
+ * A plant close to its neighbors or crowding them: who, how far apart, and the usual spacing; crowded first (red),
+ * then close (amber: their typical spreads touch). Those left close on purpose are said so, with Flag again.
+ */
 export function crowdingNote(s: Shape): HTMLElement | null {
   if (s.role !== 'plant' || s.type !== 'circle') return null;
-  const crowds = crowdingOf(s, state.shapes.filter((x) => shownWith(x, state.viewFilter)), plantsById);
-  if (!crowds.length) return null;
+  const all = crowdingOf(s, state.shapes.filter((x) => shownWith(x, state.viewFilter)), plantsById, { ...crowdOptions(), close: true, includeLeft: true });
+  const left = all.filter((c) => c.left), crowds = all.filter((c) => !c.left);
+  if (!all.length) return null;
   const f = (v: number) => (Math.round(v * 10) / 10).toString();
+  const crowded = crowds.filter((c) => c.level === 'crowded'), close = crowds.filter((c) => c.level === 'close');
+  const n = (k: number) => (k === 1 ? 'one neighbor' : `${k} neighbors`);
   // (Less than the full spacing where one grows partly under the other's crown.)
-  const lines = crowds.slice(0, 3).map((c) => `${c.other.label || 'a plant'}: ${f(c.distance)} ft apart, about ${f(c.recommended)} ft is usual${c.shared < 0.75 ? ', as one grows partly under the other' : ''}`);
-  return el('div', { className: 'check-banner warn', 'data-testid': 'crowding' },
-    el('div', {}, '⚠ Planted closer than usual to ' + (crowds.length === 1 ? 'one neighbor' : `${crowds.length} neighbors`) + ':'),
-    ...lines.map((l) => el('div', { style: { marginLeft: '12px' } }, '• ' + l)),
-    el('div', { className: 'hint', style: { marginTop: '4px' } }, 'Usual spacing is half of each plant\'s typical spread added together, less where one grows under a tree whose lower limbs can be taken up (a third of its height, unless the tree says otherwise). Closer can be fine for a quick, full look.'));
+  const line = (c: (typeof all)[number]) => el('div', { style: { marginLeft: '12px' } }, '• ' + `${c.other.label || 'a plant'}: ${f(c.distance)} ft apart, about ${f(c.recommended)} ft is usual${c.bulb ? ', a spring bulb right at the base of a deciduous plant' : c.shared < 0.75 ? ', as one grows partly under the other' : ''}`);
+  const box = el('div', { className: 'check-banner warn' + (crowded.length ? '' : ' close'), 'data-testid': 'crowding' });
+  if (crowded.length) box.append(el('div', {}, `⚠ Planted closer than usual to ${n(crowded.length)}:`), ...crowded.slice(0, 3).map(line));
+  if (close.length) box.append(el('div', { style: crowded.length ? { marginTop: '4px' } : {} }, `Close to ${n(close.length)}: they may quickly grow into one another.`), ...close.slice(0, 3).map(line));
+  if (left.length) {
+    const again = el('button', { className: 'btn', 'data-testid': 'flag-again', style: { marginLeft: '8px' } }, 'Flag again');
+    again.addEventListener('click', () => flagAgain(s.id));
+    box.append(el('div', { style: { marginTop: crowds.length ? '4px' : '0' } }, `Left close on purpose: ${left.map((c) => c.other.label || 'a plant').join(', ')}`, again));
+  }
+  if (crowds.length) box.append(el('div', { className: 'hint', style: { marginTop: '4px' } }, 'Usual spacing is half of each plant\'s typical spread added together, less where one grows under a tree whose lower limbs can be taken up (a third of its height, unless the tree says otherwise). ' +
+    `Spring bulbs under a deciduous plant ${BULB_PARTNER_MIN_HEIGHT} ft or taller don't count, except right at its base. A little closeness can be fine, if you're after a quick, full look.`));
+  return box;
 }

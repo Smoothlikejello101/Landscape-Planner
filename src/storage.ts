@@ -85,6 +85,13 @@ function safeImageUrl(v: unknown): string {
   return typeof v === 'string' && /^data:image\/[a-z+.-]+;base64,/i.test(v) ? v : '';
 }
 
+/** The plants a plant's been left close to on purpose: ids, each once (at most 200); null for none. */
+function crowdOk(v: unknown): string[] | null {
+  if (!Array.isArray(v)) return null;
+  const ids = [...new Set(v.filter((x): x is string => typeof x === 'string' && x.length > 0 && x.length <= 100))].slice(0, 200);
+  return ids.length ? ids : null;
+}
+
 /** Fill defaults and drop anything that would break rendering. Returns null for unusable input. */
 export function migrateShape(raw: unknown): Shape | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -132,6 +139,8 @@ export function migrateShape(raw: unknown): Shape | null {
         ...(typeof s.treeHeight === 'number' && s.treeHeight >= 1 && s.treeHeight <= MAX_TREE_HEIGHT ? { treeHeight: s.treeHeight } : {}),
         ...(typeof s.lowestBranch === 'number' && s.lowestBranch >= 0 && s.lowestBranch <= MAX_TREE_HEIGHT ? { lowestBranch: s.lowestBranch } : {}),
         ...(shaped ? { canopy } : {}),
+        // (Plants left close to others on purpose, by id; older versions had none.)
+        ...(crowdOk(s.crowdOk) ? { crowdOk: crowdOk(s.crowdOk)! } : {}),
       };
     }
     case 'rect':
