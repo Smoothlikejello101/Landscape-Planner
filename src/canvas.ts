@@ -8,7 +8,8 @@ import { crowdLevels, type CrowdLevel } from './crowding';
 import { crowdOptions } from './crowd-here';
 import { renderPlaceOverlay } from './place';
 import { renderShapeHandles } from './handles';
-import { onShapePointerDown } from './gestures';
+import { onFeaturePointerDown, onShapePointerDown } from './gestures';
+import { featureHitPart, featureParts } from './features';
 import { plantsById } from './plants';
 import { plantLabelFit, LABEL_LINE_HEIGHT, textWidth1, type FittedLabel } from './labels';
 import { canopyInnerRadius, canopyPoints, isTree, trunkParts, trunkReachPx } from './trees';
@@ -18,7 +19,7 @@ import { shownWith } from './status';
 import { checkPlantSun, formatHours, shadeOpacity, sunHours, sunWarningShown } from './sun';
 import { isSelected } from './selection';
 import { state } from './state';
-import type { CircleShape, Shape, ShapeFilter, TextShape } from './types';
+import type { CircleShape, Point, Shape, ShapeFilter, TextShape } from './types';
 
 // Canvas drawing. Everything here writes only into the <svg>, never into
 // panel DOM, so it is safe to call while an input has keyboard focus.
@@ -115,7 +116,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   const ppf = pxPerFoot();
   const sel = isSelected(s.id);
   // Taps fall through to the background tools / drawing / point editing.
-  const inert = state.bgEditMode || !!state.bgCalibrate || !!state.draw || !!state.editPoints || !!state.placing;
+  const inert = state.bgEditMode || !!state.bgCalibrate || !!state.draw || !!state.editPoints || !!state.placing || !!state.featurePlace;
   // Boundaries and open lines: a stroke, no fill.
   const outline = s.type === 'line' || (s.role ? !!roleDef(s.role).outline : false);
   const dashed = s.role ? !!roleDef(s.role).outline : false;
@@ -248,6 +249,22 @@ export function shapeGroup(s: Shape): SVGGElement {
   if (hitEl) g.appendChild(hitEl);
   if (ring) g.appendChild(ring);
   for (const x of g0) g.appendChild(x);
+  // Doors, windows, gates and the like, on its edges (src/features.ts). Each takes taps as part of its shape; on the
+  // selected shape, a drag moves it along the edges.
+  if (s.type !== 'circle' && s.features?.length) {
+    const toPx = (p: Point) => ({ x: (p.x - state.offsetX) * ppf, y: (p.y - state.offsetY) * ppf });
+    for (const f of s.features) {
+      const fg = svgEl('g', { 'data-role': 'sub-feature', 'data-feature': f.kind, 'data-feature-id': f.id, 'pointer-events': 'none' },
+        ...featureParts(s, f, toPx, ppf).map((p) => svgEl(p.tag, p.attrs)));
+      const hit = inert ? null : featureHitPart(s, f, toPx, ppf);
+      if (hit) {
+        const h = svgEl(hit.tag, { ...hit.attrs, 'data-role': 'feature-hit', 'data-feature-of': s.id, style: `cursor:${sel && !isLocked(s) ? 'grab' : isLocked(s) ? 'grab' : 'move'};touch-action:none;`, 'pointer-events': hit.tag === 'line' ? 'stroke' : 'all' });
+        h.addEventListener('pointerdown', (e) => onFeaturePointerDown(e as PointerEvent, s, f.id));
+        fg.appendChild(h);
+      }
+      g.appendChild(fg);
+    }
+  }
   // Dimension lines get end ticks, like a drawing's dimension.
   if (s.type === 'line' && s.showLength) {
     const pts = worldPoints(s).map((p) => ({ x: (p.x - state.offsetX) * ppf, y: (p.y - state.offsetY) * ppf }));

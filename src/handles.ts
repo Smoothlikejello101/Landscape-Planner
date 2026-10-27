@@ -35,7 +35,7 @@ const activeOn = (s: Shape): HandleGesture | null => {
 /** The shape that shows handles now, or null. */
 export function handleTarget(): Shape | null {
   if (state.selectedIds.length !== 1) return null;
-  if (state.bgEditMode || state.bgCalibrate || state.draw || state.editPoints || state.placing) return null;
+  if (state.bgEditMode || state.bgCalibrate || state.draw || state.editPoints || state.placing || state.featurePlace) return null;
   const s = state.shapes.find((sh) => sh.id === state.selectedIds[0]);
   if (!s || isLocked(s) || !shownWith(s, state.viewFilter)) return null;
   if (s.type === 'circle' && (s.role === 'plant' || s.plantId || isTree(s))) return null;

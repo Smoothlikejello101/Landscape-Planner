@@ -1,4 +1,6 @@
 import { MAX_POINTS, MIN_POINTS } from './constants';
+import { afterPointAdded, afterPointDeleted, kindsFor } from './features';
+import { startFeaturePlace } from './feature-edit';
 import { svgEl } from './dom';
 import { bakeRotation, fmtFeet, outlineOf, pathPoints, pxPerFoot, rotate, screenToFeet, setWorldPoints } from './geometry';
 import { flushHistoryDebounce, pushHistory, undo } from './history';
@@ -219,6 +221,9 @@ export function finishDraw(): Shape | null {
   state.panel = kind.openProps ? 'props' : null;
   noteRecentKind(kind.key);
   pushHistory();
+  // Asked for while drawing: on to its doors and windows, gates or steps, tapped onto its edges.
+  const subs = d.thenFeatures ? kindsFor(shape) : [];
+  if (subs.length) startFeaturePlace(shape.id, subs[0]);
   const after = tidied && buildShape(method, tidied, drawKindDef(d), others(shape.id), shape.id);
   if (after) {
     finishNew(after, d);
@@ -414,6 +419,8 @@ export function insertVertex(s: PathShape, afterIndex: number, world: Point): nu
   const pts = pathPoints(s);
   pts.splice(afterIndex + 1, 0, { x: snap(world.x), y: snap(world.y) });
   setWorldPoints(s, pts);
+  // (Its doors, windows or gates stay on their walls: the edge split in two, the edges after it renumbered.)
+  if (s.features?.length) s.features = afterPointAdded(s.features, afterIndex);
   return afterIndex + 1;
 }
 export function canDeleteVertex(): boolean {
@@ -426,6 +433,12 @@ export function deleteSelectedVertex() {
   if (!s || i == null || !canDeleteVertex()) return;
   flushHistoryDebounce();
   const pts = pathPoints(s);
+  // (Its doors, windows or gates stay where they were along the walls: the two edges that met there become one.)
+  if (s.features?.length) {
+    const closed = s.type === 'poly', n = pts.length;
+    const lens = Array.from({ length: closed ? n : n - 1 }, (_, j) => Math.hypot(pts[(j + 1) % n].x - pts[j].x, pts[(j + 1) % n].y - pts[j].y));
+    s.features = afterPointDeleted(s.features, i, lens, closed);
+  }
   pts.splice(i, 1);
   setWorldPoints(s, pts);
   state.editPoints!.vertex = null;

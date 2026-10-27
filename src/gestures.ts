@@ -17,6 +17,9 @@ import { render, updateStatusReadout } from './ui/render';
 import { now, snap } from './util';
 import { canopyHint } from './canopy';
 import { applyHandleDrag, handleDragChanged, handleDragLive, startHandleDrag } from './handles';
+import { nearestOnEdge } from './features';
+import { featureTap } from './feature-edit';
+import { deepClone } from './util';
 import type { HandleKind } from './handle-math';
 
 // Pointer gestures on the canvas: pan, pinch-zoom, marquee selection, shape
@@ -41,6 +44,7 @@ function startPinchGesture() {
   if (!info) return;
   const g = gesture.current;
   if (g?.type === 'drag-vertex' && (g.moved || g.inserted)) { flushHistoryDebounce(); pushHistory(); save(); } // keep the edit undoable
+  if (g?.type === 'drag-feature' && g.moved) { flushHistoryDebounce(); pushHistory(); save(); } // (likewise a sub-feature's)
   const handleDrag = g?.type === 'shape-resize' || g?.type === 'shape-rotate';
   if (handleDrag && g.moved && handleDragChanged(g, state.shapes)) { flushHistoryDebounce(); pushHistory(); save(); }
   forgetLastTap(); // (the plan moves: the same spot on screen will be another place)
@@ -245,6 +249,19 @@ export function onCanvasPointerMove(e: PointerEvent) {
       e.preventDefault();
       return;
     }
+    case 'drag-feature': {
+      movedPastThreshold(g, e);
+      const s = state.shapes.find((sh) => sh.id === g.id);
+      if (!s || s.type === 'circle' || s.type === 'text') { gesture.current = null; return; }
+      if (g.moved) {
+        // Along whichever edge the finger is nearest, in half-foot steps (onto another wall too).
+        const f = s.features?.find((x) => x.id === g.featureId);
+        const near = f && nearestOnEdge(s, screenToFeet(clientX, clientY), f.width ?? 0);
+        if (f && near) { f.edge = near.edge; f.at = near.at; redrawShapes([s.id]); redrawHandles(); }
+      }
+      e.preventDefault();
+      return;
+    }
     case 'drag-shape': {
       movedPastThreshold(g, e);
       if (g.moved) {
@@ -335,6 +352,14 @@ export function onCanvasPointerUp(e: PointerEvent) {
       else tapThroughHandle(g.startX, g.startY); // (a tap on a handle is a tap on what's under it)
       render();
       return;
+    case 'drag-feature': {
+      const s = state.shapes.find((sh) => sh.id === g.id);
+      const now = s && s.type !== 'circle' && s.type !== 'text' ? s.features : undefined;
+      if (g.moved) { if (JSON.stringify(now) !== JSON.stringify(g.start)) { flushHistoryDebounce(); pushHistory(); save(); } }
+      else { selectOnly(g.id); state.panel = 'props'; } // (a tap on one: its shape's properties, where it's listed)
+      render();
+      return;
+    }
     case 'drag-vertex':
       if (g.moved || g.inserted) { flushHistoryDebounce(); pushHistory(); save(); }
       if (state.editPoints) state.editPoints.vertex = g.index;
@@ -343,6 +368,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
     case 'pan':
       if (g.moved) { save(); forgetLastTap(); } // (the plan moved: the same spot on screen is another place)
       else if (state.draw) drawTap(g.startX, g.startY);
+      else if (state.featurePlace) featureTap(g.startX, g.startY);
       else if (state.placing) placeTap(g.startX, g.startY);
       else if (state.editPoints) state.editPoints.vertex = null;
       else if (g.tapShapeId) { // tap on a locked shape: select it
@@ -451,12 +477,28 @@ export function onShapePointerDown(e: PointerEvent, shape: Shape) {
   };
 }
 
+/**
+ * A press on a sub-feature (src/features.ts). On the one selected, unlocked shape it drags the sub-feature along the
+ * edges; anywhere else it's a press on its shape (selecting, dragging, adding to the selection), as before.
+ */
+export function onFeaturePointerDown(e: PointerEvent, shape: Shape, featureId: string) {
+  const own = state.selectedIds.length === 1 && state.selectedIds[0] === shape.id && !isLocked(shape) && !adding(e) && !state.bgEditMode && !state.bgCalibrate;
+  if (!own || shape.type === 'circle' || shape.type === 'text') { onShapePointerDown(e, shape); return; }
+  e.stopPropagation();
+  activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+  if (activePointers.size === 2) { startPinchGesture(); return; }
+  if (activePointers.size > 2) return;
+  flushHistoryDebounce();
+  gesture.current = { type: 'drag-feature', id: shape.id, featureId, start: deepClone(shape.features ?? []), startX: e.clientX, startY: e.clientY, moved: false };
+}
+
 /** Forget all pointers (window lost focus or page hidden mid-gesture). */
 export function cancelGestures() {
   activePointers.clear();
   const g = gesture.current;
   // (A handle's drag cut short keeps what it did so far, undoably.)
   if ((g?.type === 'shape-resize' || g?.type === 'shape-rotate') && g.moved && handleDragChanged(g, state.shapes)) { flushHistoryDebounce(); pushHistory(); save(); }
+  if (g?.type === 'drag-feature' && g.moved) { flushHistoryDebounce(); pushHistory(); save(); }
   if (gesture.current) {
     gesture.current = null;
     state.marquee = null;

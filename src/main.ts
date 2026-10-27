@@ -1,4 +1,5 @@
 import './styles.css';
+import { finishFeaturePlace } from './feature-edit';
 import { resizeCanvas } from './canvas';
 import { fitAboveKeyboard } from './keyboard';
 import { cancelGestures, onCanvasPointerMove, onCanvasPointerUp } from './gestures';
@@ -81,7 +82,7 @@ const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRigh
  */
 function onArrow(e: KeyboardEvent, [ax, ay]: [number, number]) {
   e.preventDefault();
-  const busy = state.placing || state.draw || state.editPoints || state.bgEditMode || state.bgCalibrate;
+  const busy = state.placing || state.draw || state.editPoints || state.bgEditMode || state.bgCalibrate || state.featurePlace;
   if (state.selectedIds.length && !busy) {
     const step = e.shiftKey ? 5 : 0.5;
     if (!nudgeSelected(ax * step, ay * step)) toast(state.selectedIds.length === 1 ? 'It’s locked: unlock it to move it.' : 'They’re all locked: unlock them to move them.');
@@ -141,6 +142,7 @@ function onKey(e: KeyboardEvent) {
   } else if (e.key === 'Escape') {
     if (state.panel) { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; render(); }
     else if (state.placing) { finishPlacing(); render(); }
+    else if (state.featurePlace) { finishFeaturePlace(); render(); }
     else if (state.menu) { state.menu = null; render(); }
     // Drawing: done, as Done would (what's tapped is kept); with too few taps to make anything, put away.
     else if (state.draw) { if (canFinishDraw()) finishDraw(); else state.draw = null; render(); }
@@ -150,13 +152,15 @@ function onKey(e: KeyboardEvent) {
     else if (state.selectedIds.length) { clearSelection(); render(); }
   } else if (e.key === 'Enter' && state.placing && !state.panel && target?.tagName !== 'BUTTON') {
     e.preventDefault(); finishPlacing(); render();
+  } else if (e.key === 'Enter' && state.featurePlace && !state.panel && target?.tagName !== 'BUTTON') {
+    e.preventDefault(); finishFeaturePlace(); render();
   } else if (e.key === 'Enter' && state.draw) {
     // A focused button (Undo, Cancel) gets its own Enter.
     if (canFinishDraw() && target?.tagName !== 'BUTTON') { e.preventDefault(); finishDraw(); render(); }
   } else if (!e.ctrlKey && !e.metaKey && !e.altKey && e.key.length === 1) {
     // Letter shortcuts for adding things (shown in tooltips and the ? list). Never over an open
     // panel (it may hold unsaved typing) or a drawing with taps in it (that would be thrown away).
-    if (state.panel || state.menu || state.bgCalibrate || state.bgEditMode || state.editPoints || state.placing) return;
+    if (state.panel || state.menu || state.bgCalibrate || state.bgEditMode || state.editPoints || state.placing || state.featurePlace) return;
     if (state.draw && state.draw.points.length) return;
     if (e.key === '?') { e.preventDefault(); state.draw = null; state.panel = 'shortcuts'; render(); return; }
     if (e.key.toLowerCase() === 'a') { e.preventDefault(); state.draw = null; state.panel = 'add'; render(); return; }
