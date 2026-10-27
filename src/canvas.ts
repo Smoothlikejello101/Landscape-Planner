@@ -9,7 +9,7 @@ import { crowdOptions } from './crowd-here';
 import { renderPlaceOverlay } from './place';
 import { renderShapeHandles } from './handles';
 import { onFeaturePointerDown, onShapePointerDown } from './gestures';
-import { featureHitPart, featureParts } from './features';
+import { featureHitPart, featureParts, knownFeatures } from './features';
 import { plantsById } from './plants';
 import { plantLabelFit, LABEL_LINE_HEIGHT, textWidth1, type FittedLabel } from './labels';
 import { canopyInnerRadius, canopyPoints, isTree, trunkParts, trunkReachPx } from './trees';
@@ -253,12 +253,13 @@ export function shapeGroup(s: Shape): SVGGElement {
   // selected shape, a drag moves it along the edges.
   if (s.type !== 'circle' && s.features?.length) {
     const toPx = (p: Point) => ({ x: (p.x - state.offsetX) * ppf, y: (p.y - state.offsetY) * ppf });
-    for (const f of s.features) {
-      const fg = svgEl('g', { 'data-role': 'sub-feature', 'data-feature': f.kind, 'data-feature-id': f.id, 'pointer-events': 'none' },
+    for (const f of knownFeatures(s.features)) {
+      const fg = svgEl('g', { 'data-role': 'sub-feature', 'data-feature': f.kind, 'data-feature-id': f.id, 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : null },
         ...featureParts(s, f, toPx, ppf).map((p) => svgEl(p.tag, p.attrs)));
-      const hit = inert ? null : featureHitPart(s, f, toPx, ppf);
+      // (Its touch area no wider than a line's, zoomed far out: a pan beside a door moves the plan, not the house.)
+      const hit = inert ? null : featureHitPart(s, f, toPx, ppf, hitBand(ppf));
       if (hit) {
-        const h = svgEl(hit.tag, { ...hit.attrs, 'data-role': 'feature-hit', 'data-feature-of': s.id, style: `cursor:${sel && !isLocked(s) ? 'grab' : isLocked(s) ? 'grab' : 'move'};touch-action:none;`, 'pointer-events': hit.tag === 'line' ? 'stroke' : 'all' });
+        const h = svgEl(hit.tag, { ...hit.attrs, 'data-role': 'feature-hit', 'data-feature-of': s.id, style: `cursor:${sel || isLocked(s) ? 'grab' : 'move'};touch-action:none;`, 'pointer-events': hit.tag === 'line' ? 'stroke' : 'all' });
         h.addEventListener('pointerdown', (e) => onFeaturePointerDown(e as PointerEvent, s, f.id));
         fg.appendChild(h);
       }

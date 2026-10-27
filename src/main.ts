@@ -1,5 +1,5 @@
 import './styles.css';
-import { finishFeaturePlace } from './feature-edit';
+import { finishFeaturePlace, undoFeaturePlace } from './feature-edit';
 import { resizeCanvas } from './canvas';
 import { fitAboveKeyboard } from './keyboard';
 import { cancelGestures, onCanvasPointerMove, onCanvasPointerUp } from './gestures';
@@ -119,6 +119,13 @@ function onKey(e: KeyboardEvent) {
     if (e.key === 'z' && !e.shiftKey) { e.preventDefault(); undoPlace(); render(); }
     else if (['y', 'Z', 'v', 'd', 'a', 'x'].includes(e.key)) e.preventDefault();
     return;
+  }
+  if (state.featurePlace) {
+    // Likewise while adding doors and windows: undo takes back the last one; the house they go on stays selected, but
+    // isn't deleted, cut, copied over or swapped for another until Done.
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undoFeaturePlace(); render(); return; }
+    if ((e.ctrlKey || e.metaKey) && ['y', 'Z', 'v', 'd', 'a', 'x'].includes(e.key)) { e.preventDefault(); return; }
+    if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); return; }
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
     e.preventDefault(); dismissToastAction(); undo(); render();

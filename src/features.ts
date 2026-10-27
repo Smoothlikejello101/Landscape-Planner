@@ -1,4 +1,4 @@
-import { drawnOutline, pointInPolygon } from './geometry';
+import { drawnOutline } from './geometry';
 import type { Point, Role, Shape, SubFeature, SubFeatureKind } from './types';
 
 // Sub-features (decided with Jason, 2026-10-25): what sits on a building's wall, a fence or a deck's edge. Doors,
@@ -25,7 +25,9 @@ export const SUB_FEATURES: Record<SubFeatureKind, KindInfo> = {
   meter: { label: 'Meter', hosts: ['building'] },
 };
 export const SUB_FEATURE_ORDER: SubFeatureKind[] = ['door', 'window', 'garage', 'steps', 'gate', 'downspout', 'spigot', 'ac', 'meter'];
-export const isSubFeatureKind = (v: unknown): v is SubFeatureKind => typeof v === 'string' && v in SUB_FEATURES;
+export const isSubFeatureKind = (v: unknown): v is SubFeatureKind => typeof v === 'string' && Object.hasOwn(SUB_FEATURES, v);
+/** The sub-features this version knows (one from a later version is kept, but not drawn, listed or changed). */
+export const knownFeatures = (fs: SubFeature[] | undefined): SubFeature[] => (fs ?? []).filter((f) => isSubFeatureKind(f.kind));
 /** Most sub-features a shape keeps. */
 export const MAX_SUB_FEATURES = 200;
 
@@ -58,24 +60,33 @@ export function hostOutline(s: Shape): { pts: Point[]; closed: boolean } | null 
   return drawnOutline(s);
 }
 export const edgeCount = (o: { pts: Point[]; closed: boolean }) => (o.closed ? o.pts.length : o.pts.length - 1);
+/** Whether an outline goes clockwise on screen (y down): its shoelace sum is positive. */
+export function turnsClockwise(pts: Point[]): boolean {
+  let sum = 0;
+  for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; sum += p.x * q.y - q.x * p.y; }
+  return sum > 0;
+}
 
 /** Where a sub-feature is, in feet: its edge's ends, its center, along the edge and out from the shape (unit vectors). */
 export interface FeatureSpot { a: Point; b: Point; mid: Point; u: Point; n: Point; edgeLen: number; span: number; from: Point; to: Point }
 /**
  * Where a sub-feature is on its shape, or null (an edge it no longer has: the outline lost points another way). `n`
  * points out of a closed shape (the side a door swings to, steps lead down to), or to the left of a line's direction.
+ * A stretch is kept on its edge as drawn (a wall shortened since, or a point put in beside it), not stored moved.
  */
 export function featureSpot(s: Shape, f: SubFeature): FeatureSpot | null {
   const o = hostOutline(s);
-  if (!o || f.edge < 0 || f.edge >= edgeCount(o)) return null;
+  if (!o || !isSubFeatureKind(f.kind) || f.edge < 0 || f.edge >= edgeCount(o)) return null;
   const a = o.pts[f.edge], b = o.pts[(f.edge + 1) % o.pts.length];
   const edgeLen = Math.hypot(b.x - a.x, b.y - a.y);
   if (edgeLen < 1e-6) return null;
   const u = { x: (b.x - a.x) / edgeLen, y: (b.y - a.y) / edgeLen };
-  let n = { x: u.y, y: -u.x };
-  const mid = { x: a.x + u.x * f.at * edgeLen, y: a.y + u.y * f.at * edgeLen };
-  if (o.closed && pointInPolygon(o.pts, { x: mid.x + n.x * 0.01, y: mid.y + n.y * 0.01 })) n = { x: -n.x, y: -n.y };
+  // (Out of a closed outline by the way round it goes, the same for every edge: a test at the point itself fails at
+  // a corner, where it sits on the next wall's line too.)
+  const n = !o.closed || turnsClockwise(o.pts) ? { x: u.y, y: -u.x } : { x: -u.y, y: u.x };
   const span = Math.min(edgeLen, f.width ?? 0);
+  const along = Math.max(span / 2, Math.min(edgeLen - span / 2, f.at * edgeLen));
+  const mid = { x: a.x + u.x * along, y: a.y + u.y * along };
   const from = { x: mid.x - (u.x * span) / 2, y: mid.y - (u.y * span) / 2 };
   const to = { x: mid.x + (u.x * span) / 2, y: mid.y + (u.y * span) / 2 };
   return { a, b, mid, u, n, edgeLen, span, from, to };
@@ -111,14 +122,17 @@ export function newSubFeature(kind: SubFeatureKind, edge: number, at: number, id
 }
 
 /**
- * Sub-features after a point is put in after point `after` of an outline with `n` points: the edge it splits becomes
- * two (one taking what was on its first half, one its second), and the edges after it move up one.
+ * Sub-features after a point is put in after point `after`, `t` of the way along the edge it splits (as projected on
+ * it): the edge becomes two, one taking what was before the point, one what was after it, and the edges after it move
+ * up one. One right at the point goes to the longer of the two.
  */
-export function afterPointAdded(fs: SubFeature[], after: number): SubFeature[] {
+export function afterPointAdded(fs: SubFeature[], after: number, t = 0.5): SubFeature[] {
+  const cut = Math.max(0.001, Math.min(0.999, Number.isFinite(t) ? t : 0.5));
   return fs.map((f) => {
     if (f.edge < after) return f;
     if (f.edge > after) return { ...f, edge: f.edge + 1 };
-    return f.at < 0.5 ? { ...f, at: round4(f.at * 2) } : { ...f, edge: f.edge + 1, at: round4((f.at - 0.5) * 2) };
+    const first = f.at < cut || (f.at === cut && cut >= 0.5);
+    return first ? { ...f, at: round4(f.at / cut) } : { ...f, edge: f.edge + 1, at: round4((f.at - cut) / (1 - cut)) };
   });
 }
 /**
@@ -152,19 +166,29 @@ export function afterPointDeleted(fs: SubFeature[], i: number, lens: number[], c
 }
 const round4 = (v: number) => Math.round(v * 1e4) / 1e4;
 
-/** Read sub-features as stored or synced: only well-formed ones, at most 200; [] kept as a choice (none). */
+/**
+ * Read sub-features as stored, synced or pasted: only well-formed ones, at most 200; [] kept as a choice (none). One
+ * of a kind this version doesn't know (a later version's) is kept as it came, its plain values only, so opening and
+ * saving a plan here doesn't take it away.
+ */
 export function sanitizeSubFeatures(raw: unknown): SubFeature[] | null {
   if (!Array.isArray(raw)) return null;
   const out: SubFeature[] = [];
   const ids = new Set<string>();
   for (const f of raw.slice(0, MAX_SUB_FEATURES)) {
-    if (!f || typeof f !== 'object') continue;
+    if (!f || typeof f !== 'object' || Array.isArray(f)) continue;
     const o = f as Record<string, unknown>;
-    if (!isSubFeatureKind(o.kind) || typeof o.id !== 'string' || !o.id || o.id.length > 100 || ids.has(o.id)) continue;
+    if (typeof o.kind !== 'string' || !/^[a-z][a-z0-9-]{0,30}$/.test(o.kind)) continue;
+    if (typeof o.id !== 'string' || !o.id || o.id.length > 100 || ids.has(o.id)) continue;
     if (!Number.isInteger(o.edge) || (o.edge as number) < 0 || (o.edge as number) > 10000) continue;
     if (typeof o.at !== 'number' || !Number.isFinite(o.at)) continue;
-    const w = SUB_FEATURES[o.kind].width;
     ids.add(o.id);
+    if (!isSubFeatureKind(o.kind)) {
+      const plain = Object.entries(o).filter(([k, v]) => k.length <= 40 && (typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v)) || (typeof v === 'string' && v.length <= 200))).slice(0, 20);
+      out.push(Object.fromEntries(plain) as unknown as SubFeature);
+      continue;
+    }
+    const w = SUB_FEATURES[o.kind].width;
     out.push({
       id: o.id, kind: o.kind, edge: o.edge as number, at: Math.max(0, Math.min(1, o.at)),
       ...(w ? { width: typeof o.width === 'number' && Number.isFinite(o.width) ? Math.max(w[1], Math.min(w[2], o.width)) : w[0] } : {}),
@@ -194,12 +218,14 @@ export function featureParts(s: Shape, f: SubFeature, toPx: (p: Point) => Point,
     return { tag: 'line', attrs: { x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y, 'stroke-linecap': 'butt', ...attrs } };
   };
   const from = at.from, to = at.to;
-  // (A mark's size: its feet, or a few pixels zoomed out.)
-  const atLeast = (ft: number, px: number) => Math.max(ft, px / ppf);
+  // (A mark's size: its feet, or a few pixels zoomed out; past 25% (6 px a foot), those pixels shrink with the plan,
+  // as badges do, so a street of houses isn't all marks.)
+  const shrink = ppf >= 6 ? 1 : Math.max(0.4, ppf / 6);
+  const atLeast = (ft: number, px: number) => Math.max(ft, (px * shrink) / ppf);
   switch (f.kind) {
     case 'window':
       return [
-        line(from, to, { stroke: '#7dd3fc', 'stroke-width': Math.max(4, 0.35 * ppf) * k }),
+        line(from, to, { stroke: '#7dd3fc', 'stroke-width': Math.max(4 * shrink, 0.35 * ppf) * k }),
         line(from, to, { stroke: '#0369a1', 'stroke-width': 1.2 * k }),
       ];
     case 'door':
@@ -210,14 +236,14 @@ export function featureParts(s: Shape, f: SubFeature, toPx: (p: Point) => Point,
       const r = span * ppf;
       const cross = (P(to).x - P(hinge).x) * (pa.y - P(hinge).y) - (P(to).y - P(hinge).y) * (pa.x - P(hinge).x);
       return [
-        line(from, to, { stroke: '#ffffff', 'stroke-width': Math.max(4, 0.3 * ppf) * k }),
+        line(from, to, { stroke: '#ffffff', 'stroke-width': Math.max(4 * shrink, 0.3 * ppf) * k }),
         line(hinge, tip, { stroke: INK, 'stroke-width': 1.6 * k }),
         { tag: 'path', attrs: { d: `M${pa.x},${pa.y}A${r},${r} 0 0 ${cross > 0 ? 0 : 1} ${pb.x},${pb.y}`, fill: 'none', stroke: INK, 'stroke-width': 1 * k, 'stroke-dasharray': `${3 * k} ${2 * k}` } },
       ];
     }
     case 'garage':
       return [
-        line(from, to, { stroke: '#ffffff', 'stroke-width': Math.max(4, 0.3 * ppf) * k }),
+        line(from, to, { stroke: '#ffffff', 'stroke-width': Math.max(4 * shrink, 0.3 * ppf) * k }),
         line(off(from, 0, 0.4), off(to, 0, 0.4), { stroke: INK, 'stroke-width': 2 * k, 'stroke-dasharray': `${6 * k} ${3 * k}` }),
       ];
     case 'steps': {
@@ -258,20 +284,23 @@ export function featureParts(s: Shape, f: SubFeature, toPx: (p: Point) => Point,
         { tag: 'circle', attrs: { cx: c.x, cy: c.y, r: side * 0.35 * ppf, fill: 'none', stroke: '#475569', 'stroke-width': 1 * k } },
       ];
     }
+    default:
+      return [];
   }
 }
 /**
  * Where a sub-feature takes taps (px), invisible: a band along a door, window or gate, the steps themselves, a disc
- * around a point mark. Never narrower than a finger, and no wider than the mark (a plant by the wall stays tappable).
+ * around a point mark. As wide as a line's band (`band`, px: a finger's width close in, a few feet at most zoomed
+ * far out, so a pan there moves the plan), or the mark if it's wider.
  */
-export function featureHitPart(s: Shape, f: SubFeature, toPx: (p: Point) => Point, ppf: number): FeaturePart | null {
+export function featureHitPart(s: Shape, f: SubFeature, toPx: (p: Point) => Point, ppf: number, band = 18): FeaturePart | null {
   const at = featureSpot(s, f);
   if (!at) return null;
   const { mid, n, u } = at;
   const P = toPx;
   if (SUB_FEATURES[f.kind].width && f.kind !== 'steps') {
     const a = P(at.from), b = P(at.to);
-    return { tag: 'line', attrs: { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: 'transparent', 'stroke-width': Math.max(16, 0.6 * ppf), 'stroke-linecap': 'round' } };
+    return { tag: 'line', attrs: { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: 'transparent', 'stroke-width': Math.max(band, 0.6 * ppf), 'stroke-linecap': 'round' } };
   }
   if (f.kind === 'steps' || f.kind === 'ac') {
     const depth = f.kind === 'steps' ? 3 : Math.max(3, 10 / ppf) + 0.3;
@@ -280,7 +309,7 @@ export function featureHitPart(s: Shape, f: SubFeature, toPx: (p: Point) => Poin
     return { tag: 'polygon', attrs: { points: pts.map((q) => `${q.x},${q.y}`).join(' '), fill: 'transparent' } };
   }
   const c = P({ x: mid.x + n.x * 0.4, y: mid.y + n.y * 0.4 });
-  return { tag: 'circle', attrs: { cx: c.x, cy: c.y, r: Math.max(12, 0.6 * ppf), fill: 'transparent' } };
+  return { tag: 'circle', attrs: { cx: c.x, cy: c.y, r: Math.max((band * 2) / 3, 0.6 * ppf), fill: 'transparent' } };
 }
 /** Parts as SVG text (export and print). */
 export function featurePartsSvg(parts: FeaturePart[]): string {

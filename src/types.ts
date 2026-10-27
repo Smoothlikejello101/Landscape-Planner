@@ -110,6 +110,8 @@ export type SubFeatureKind = 'door' | 'window' | 'garage' | 'steps' | 'gate' | '
  * along it (its middle); `width` in feet along the edge, for those that take a stretch of it (a door, not a hose bib).
  */
 export interface SubFeature { id: string; kind: SubFeatureKind; edge: number; at: number; width?: number }
+// (One of a kind this version doesn't know, from a later one, is kept as it came: not drawn, listed or changed, so
+// it's still there when the plan is opened on that version again.)
 /**
  * Sub-features of a shape with edges. [] where they were all taken off (so a copy from an older version, which
  * doesn't know them and leaves them out, can be told apart: src/sync/engine.ts).
@@ -310,7 +312,9 @@ export type Gesture =
   | { type: 'bg-calibrate-tap'; startX: number; startY: number; startOffset: Point; moved: boolean }
   | { type: 'drag-vertex'; id: string; index: number; startX: number; startY: number; moved: boolean; inserted: boolean }
   // A sub-feature dragged along its shape's edges (src/features.ts): `start`, the shape's sub-features as it began.
-  | { type: 'drag-feature'; id: string; featureId: string; start: SubFeature[]; startX: number; startY: number; moved: boolean }
+  // A sub-feature dragged along its shape's edges: `grab`, where on it it was pressed (feet from its middle);
+  // `historyAt`, the undo step it began on (an Undo mid-drag ends it).
+  | { type: 'drag-feature'; id: string; featureId: string; start: SubFeature[]; grab: Point; historyAt: number; startX: number; startY: number; moved: boolean }
   // A handle on the selected shape (src/handles.ts): `start`, the shape as the drag began; `carried`, a bed's plants
   // as they were (they turn with it); `grab`, where on the handle it was pressed (feet from its point); `historyAt`,
   // the undo step it began at.

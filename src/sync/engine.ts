@@ -206,7 +206,8 @@ export function withLocalParts(server: ProjectContent, mine: ProjectContent | un
 /**
  * A shape's sub-features (doors, windows, gates: src/features.ts), which an older version leaves out of a shape it
  * sends: kept from here when the server's copy of that shape has none at all. (All taken off on purpose is [], and
- * stays so.) The shape must still be the same kind of shape, with edges.
+ * stays so.) The shape must still have the same edges: the same kind of shape, or one turned into an outline there
+ * (which keeps its edges in order).
  */
 function withSubFeatures(server: ProjectContent, mine: ProjectContent): ProjectContent {
   if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
@@ -217,7 +218,8 @@ function withSubFeatures(server: ProjectContent, mine: ProjectContent): ProjectC
   let filled = false;
   const shapes = (server.shapes as Featured[]).map((s) => {
     const k = s ? kept.get(s.id) : undefined;
-    if (!s || !k || 'features' in s || s.type !== k.type) return s;
+    const sameEdges = s?.type === k?.type || (s?.type === 'poly' && ['rect', 'oval', 'triangle'].includes(k?.type as string));
+    if (!s || !k || 'features' in s || !sameEdges) return s;
     filled = true;
     return { ...s, features: k.features };
   });

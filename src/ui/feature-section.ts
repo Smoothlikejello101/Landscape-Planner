@@ -1,7 +1,8 @@
 import { el } from '../dom';
 import { startFeaturePlace } from '../feature-edit';
-import { kindsFor, SUB_FEATURES } from '../features';
+import { kindsFor, knownFeatures, SUB_FEATURES } from '../features';
 import { updateSelected, updateSelectedSilent } from '../mutations';
+import { state } from '../state';
 import { isLocked } from '../roles';
 import type { Shape, SubFeature } from '../types';
 import { render } from './render';
@@ -9,17 +10,21 @@ import { render } from './render';
 // The properties' section for what sits on a shape's edges (src/features.ts): each listed, its width typed in place,
 // taken off with ✕; and buttons to add more, tapped onto the plan.
 
-/** The section's title: "Doors, windows and more", "Gates", "Steps". */
+/** The section's title: "Doors, windows and more", "Gates", "Steps"; for what something else left on it, plainer. */
 export function featuresTitle(s: Shape): string {
-  return s.role === 'building' ? 'Doors, windows and more' : s.role === 'boundary' ? 'Gates' : 'Steps';
+  if (s.role === 'building') return 'Doors, windows and more';
+  if (s.role === 'boundary') return 'Gates';
+  return kindsFor(s).length ? 'Steps' : 'On its edges';
 }
+/** Whether its properties show the section: it can take some, or has some (left from when it was a building). */
+export const hasFeaturesSection = (s: Shape) => kindsFor(s).length > 0 || (s.type !== 'circle' && s.type !== 'text' && knownFeatures(s.features).length > 0);
 const PLURAL: Record<SubFeature['kind'], string> = {
   door: 'doors', window: 'windows', garage: 'garage doors', steps: 'sets of steps', gate: 'gates',
   downspout: 'downspouts', spigot: 'hose bibs', ac: 'AC units', meter: 'meters',
 };
 /** "Door, 2 windows, AC unit", or "None yet". */
 export function featuresSummary(s: Shape): string {
-  const fs = s.type === 'circle' || s.type === 'text' ? [] : s.features ?? [];
+  const fs = s.type === 'circle' || s.type === 'text' ? [] : knownFeatures(s.features);
   if (!fs.length) return 'None yet';
   const counts = new Map<SubFeature['kind'], number>();
   for (const f of fs) counts.set(f.kind, (counts.get(f.kind) ?? 0) + 1);
@@ -34,11 +39,14 @@ export function featuresSection(s: Shape): HTMLElement {
   const list = el('div', { className: 'feature-list' });
   // (Numbered within each kind, in the order they were added: "Window 2".)
   const seen = new Map<string, number>();
-  for (const f of s.features ?? []) {
+  const known = knownFeatures(s.features);
+  // (Each change made to the list as it is then, kept with any this version doesn't know.)
+  const current = () => { const now = state.shapes.find((x) => x.id === s.id); return now && now.type !== 'circle' && now.type !== 'text' ? now.features ?? [] : []; };
+  for (const f of known) {
     const info = SUB_FEATURES[f.kind];
     const n = (seen.get(f.kind) ?? 0) + 1;
     seen.set(f.kind, n);
-    const many = (s.features ?? []).filter((x) => x.kind === f.kind).length > 1;
+    const many = known.filter((x) => x.kind === f.kind).length > 1;
     const row = el('div', { className: 'feature-row', 'data-feature-id': f.id }, el('span', { className: 'feature-name' }, info.label + (many ? ` ${n}` : '')));
     if (info.width) {
       // Typed without re-rendering (keyboard safety): only the plan redraws.
@@ -48,14 +56,18 @@ export function featuresSection(s: Shape): HTMLElement {
       w.addEventListener('input', () => {
         const v = parseFloat(w.value.replace(',', '.'));
         if (!(v >= lo && v <= hi)) return; // (a passing "0" mustn't shrink it to nothing)
-        updateSelectedSilent({ features: (s.features ?? []).map((x) => (x.id === f.id ? { ...x, width: v } : x)) });
+        updateSelectedSilent({ features: current().map((x) => (x.id === f.id ? { ...x, width: v } : x)) });
       });
-      w.addEventListener('change', () => { const v = parseFloat(w.value.replace(',', '.')); if (!(v >= lo && v <= hi)) w.value = String(f.width ?? info.width![0]); });
+      // (A width it can't be goes back to the one it has now.)
+      w.addEventListener('change', () => {
+        const v = parseFloat(w.value.replace(',', '.'));
+        if (!(v >= lo && v <= hi)) w.value = String(current().find((x) => x.id === f.id)?.width ?? info.width![0]);
+      });
       row.appendChild(el('label', { className: 'feature-width' }, w, el('span', {}, 'ft wide')));
     }
     const del = el('button', { className: 'iconbtn feature-del', 'aria-label': `Take off ${info.label.toLowerCase()}`, title: 'Take it off', 'data-testid': 'feature-delete' }, '✕');
     del.disabled = locked;
-    del.addEventListener('click', () => updateSelected({ features: (s.features ?? []).filter((x) => x.id !== f.id) }));
+    del.addEventListener('click', () => updateSelected({ features: current().filter((x) => x.id !== f.id) }));
     row.appendChild(del);
     list.appendChild(row);
   }
@@ -71,6 +83,8 @@ export function featuresSection(s: Shape): HTMLElement {
   wrap.appendChild(adds);
   wrap.appendChild(el('div', { className: 'hint' }, locked
     ? 'Unlock it to add or change these.'
-    : 'Tap one to add it, then tap where it goes on the plan. Drag one along the edge to move it.'));
+    : !kindsFor(s).length
+      ? 'Left from what it was before: take off any it doesn\'t have.'
+      : 'Tap one to add it, then tap where it goes on the plan. Drag one along the edge to move it.'));
   return wrap;
 }

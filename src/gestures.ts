@@ -9,7 +9,7 @@ import { shownWith } from './status';
 import { clearSelection, isSelected, selectOnly, toggleSelect } from './selection';
 import { gesture, state, tapTracker } from './state';
 import { save } from './storage';
-import type { Point, Shape } from './types';
+import type { Gesture, Point, Shape } from './types';
 import { previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes } from './canvas';
 import { drawTap, editedShape, forgetLastTap, insertVertex, moveVertex, notePointer } from './draw';
 import { placeTap } from './place';
@@ -17,7 +17,7 @@ import { render, updateStatusReadout } from './ui/render';
 import { now, snap } from './util';
 import { canopyHint } from './canopy';
 import { applyHandleDrag, handleDragChanged, handleDragLive, startHandleDrag } from './handles';
-import { nearestOnEdge } from './features';
+import { featureSpot, nearestOnEdge } from './features';
 import { featureTap } from './feature-edit';
 import { deepClone } from './util';
 import type { HandleKind } from './handle-math';
@@ -44,7 +44,7 @@ function startPinchGesture() {
   if (!info) return;
   const g = gesture.current;
   if (g?.type === 'drag-vertex' && (g.moved || g.inserted)) { flushHistoryDebounce(); pushHistory(); save(); } // keep the edit undoable
-  if (g?.type === 'drag-feature' && g.moved) { flushHistoryDebounce(); pushHistory(); save(); } // (likewise a sub-feature's)
+  if (g?.type === 'drag-feature' && featureDragChanged(g)) { flushHistoryDebounce(); pushHistory(); save(); } // (likewise a sub-feature's)
   const handleDrag = g?.type === 'shape-resize' || g?.type === 'shape-rotate';
   if (handleDrag && g.moved && handleDragChanged(g, state.shapes)) { flushHistoryDebounce(); pushHistory(); save(); }
   forgetLastTap(); // (the plan moves: the same spot on screen will be another place)
@@ -147,7 +147,7 @@ export function onCanvasPointerDown(e: PointerEvent) {
   if (!isCanvas) return;
 
   const add = adding(e);
-  if ((state.selectMode || add) && !state.draw && !state.editPoints && !state.placing) {
+  if ((state.selectMode || add) && !state.draw && !state.editPoints && !state.placing && !state.featurePlace) {
     const feet = screenToFeet(clientX, clientY);
     gesture.current = { type: 'marquee', startX: clientX, startY: clientY, startFeet: feet, currentFeet: feet, moved: false, add };
     state.marquee = { x1: feet.x, y1: feet.y, x2: feet.x, y2: feet.y };
@@ -252,11 +252,14 @@ export function onCanvasPointerMove(e: PointerEvent) {
     case 'drag-feature': {
       movedPastThreshold(g, e);
       const s = state.shapes.find((sh) => sh.id === g.id);
-      if (!s || s.type === 'circle' || s.type === 'text') { gesture.current = null; return; }
+      // (Ended by an Undo mid-drag, or its shape gone: what's on screen is what history has.)
+      if (!s || s.type === 'circle' || s.type === 'text' || state.historyIndex !== g.historyAt) { gesture.current = null; render(); return; }
       if (g.moved) {
-        // Along whichever edge the finger is nearest, in half-foot steps (onto another wall too).
+        // Along whichever edge the finger is nearest, in half-foot steps (onto another wall too), held where it was
+        // pressed on it rather than jumping to the finger.
         const f = s.features?.find((x) => x.id === g.featureId);
-        const near = f && nearestOnEdge(s, screenToFeet(clientX, clientY), f.width ?? 0);
+        const p = screenToFeet(clientX, clientY);
+        const near = f && nearestOnEdge(s, { x: p.x - g.grab.x, y: p.y - g.grab.y }, f.width ?? 0);
         if (f && near) { f.edge = near.edge; f.at = near.at; redrawShapes([s.id]); redrawHandles(); }
       }
       e.preventDefault();
@@ -353,9 +356,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
       render();
       return;
     case 'drag-feature': {
-      const s = state.shapes.find((sh) => sh.id === g.id);
-      const now = s && s.type !== 'circle' && s.type !== 'text' ? s.features : undefined;
-      if (g.moved) { if (JSON.stringify(now) !== JSON.stringify(g.start)) { flushHistoryDebounce(); pushHistory(); save(); } }
+      if (g.moved) { if (featureDragChanged(g)) { flushHistoryDebounce(); pushHistory(); save(); } }
       else { selectOnly(g.id); state.panel = 'props'; } // (a tap on one: its shape's properties, where it's listed)
       render();
       return;
@@ -407,7 +408,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
  */
 function tapThroughHandle(clientX: number, clientY: number) {
   const under = document.elementsFromPoint(clientX, clientY).find((el) => !el.closest('[data-layer="handles"]')) as SVGElement | HTMLElement | undefined;
-  const id = under?.dataset?.shapeId ?? under?.dataset?.trunkOf;
+  const id = under?.dataset?.shapeId ?? under?.dataset?.trunkOf ?? under?.dataset?.featureOf;
   const shape = id ? state.shapes.find((s) => s.id === id) : undefined;
   if (shape) handleShapeTap(shape);
   else { clearSelection(); state.panel = null; tapTracker.id = null; tapTracker.time = 0; }
@@ -429,7 +430,7 @@ export function onShapePointerDown(e: PointerEvent, shape: Shape) {
 
   // Shift, Ctrl or Cmd held: a click adds this shape to the selection or takes it out, locked or not; a drag draws a
   // box that adds what it touches.
-  if (adding(e) && !state.draw && !state.editPoints && !state.placing) {
+  if (adding(e) && !state.draw && !state.editPoints && !state.placing && !state.featurePlace) {
     const feet = screenToFeet(e.clientX, e.clientY);
     gesture.current = { type: 'marquee', startX: e.clientX, startY: e.clientY, startFeet: feet, currentFeet: feet, moved: false, tapShapeId: shape.id, add: true };
     state.marquee = { x1: feet.x, y1: feet.y, x2: feet.x, y2: feet.y };
@@ -482,14 +483,27 @@ export function onShapePointerDown(e: PointerEvent, shape: Shape) {
  * edges; anywhere else it's a press on its shape (selecting, dragging, adding to the selection), as before.
  */
 export function onFeaturePointerDown(e: PointerEvent, shape: Shape, featureId: string) {
-  const own = state.selectedIds.length === 1 && state.selectedIds[0] === shape.id && !isLocked(shape) && !adding(e) && !state.bgEditMode && !state.bgCalibrate;
-  if (!own || shape.type === 'circle' || shape.type === 'text') { onShapePointerDown(e, shape); return; }
+  const own = state.selectedIds.length === 1 && state.selectedIds[0] === shape.id && !isLocked(shape) && !adding(e) && !state.selectMode && !state.bgEditMode && !state.bgCalibrate;
+  const f = shape.type !== 'circle' && shape.type !== 'text' ? shape.features?.find((x) => x.id === featureId) : undefined;
+  const spot = f && featureSpot(shape, f);
+  if (!own || !spot || shape.type === 'circle' || shape.type === 'text') { onShapePointerDown(e, shape); return; }
   e.stopPropagation();
   activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
   if (activePointers.size === 2) { startPinchGesture(); return; }
   if (activePointers.size > 2) return;
   flushHistoryDebounce();
-  gesture.current = { type: 'drag-feature', id: shape.id, featureId, start: deepClone(shape.features ?? []), startX: e.clientX, startY: e.clientY, moved: false };
+  const p = screenToFeet(e.clientX, e.clientY);
+  gesture.current = {
+    type: 'drag-feature', id: shape.id, featureId, start: deepClone(shape.features ?? []), grab: { x: p.x - spot.mid.x, y: p.y - spot.mid.y },
+    historyAt: state.historyIndex, startX: e.clientX, startY: e.clientY, moved: false,
+  };
+}
+/** Whether a sub-feature's drag moved anything (one undo step if so, none if it came back where it was). */
+function featureDragChanged(g: Extract<Gesture, { type: 'drag-feature' }>): boolean {
+  if (!g.moved || state.historyIndex !== g.historyAt) return false;
+  const s = state.shapes.find((sh) => sh.id === g.id);
+  const now = s && s.type !== 'circle' && s.type !== 'text' ? s.features : undefined;
+  return JSON.stringify(now ?? []) !== JSON.stringify(g.start);
 }
 
 /** Forget all pointers (window lost focus or page hidden mid-gesture). */
@@ -498,7 +512,7 @@ export function cancelGestures() {
   const g = gesture.current;
   // (A handle's drag cut short keeps what it did so far, undoably.)
   if ((g?.type === 'shape-resize' || g?.type === 'shape-rotate') && g.moved && handleDragChanged(g, state.shapes)) { flushHistoryDebounce(); pushHistory(); save(); }
-  if (g?.type === 'drag-feature' && g.moved) { flushHistoryDebounce(); pushHistory(); save(); }
+  if (g?.type === 'drag-feature' && featureDragChanged(g)) { flushHistoryDebounce(); pushHistory(); save(); }
   if (gesture.current) {
     gesture.current = null;
     state.marquee = null;

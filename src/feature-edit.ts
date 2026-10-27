@@ -2,9 +2,10 @@ import { kindsFor, nearestOnEdge, newSubFeature, SUB_FEATURES } from './features
 import { pxPerFoot, screenToFeet } from './geometry';
 import { flushHistoryDebounce, pushHistory } from './history';
 import { isLocked } from './roles';
+import { shownWith } from './status';
 import { state } from './state';
 import { save } from './storage';
-import type { Shape, SubFeature, SubFeatureKind } from './types';
+import type { Shape, SubFeatureKind } from './types';
 import { toast } from './ui/toast';
 import { uid } from './util';
 
@@ -15,13 +16,15 @@ import { uid } from './util';
 export function featureHost(): Shape | null {
   const fp = state.featurePlace;
   const s = fp ? state.shapes.find((x) => x.id === fp.id) : undefined;
-  return s && kindsFor(s).length && !isLocked(s) ? s : null;
+  // (Not one hidden since, by its kind in Layers or by what the plan is showing.)
+  return s && kindsFor(s).length && !isLocked(s) && shownWith(s, state.viewFilter) ? s : null;
 }
 /** Start adding sub-features of a kind to a shape by tapping its edges. */
 export function startFeaturePlace(id: string, kind: SubFeatureKind) {
   flushHistoryDebounce();
   state.featurePlace = { id, kind, added: [] };
   state.selectedIds = [id];
+  state.selectMode = false; // (its taps place them: none drag a box)
   state.panel = null;
   state.draw = null;
   state.editPoints = null;
@@ -55,15 +58,12 @@ export function featureTap(clientX: number, clientY: number): boolean {
 /** Take back the last one added while adding (a step of its own). */
 export function undoFeaturePlace() {
   const fp = state.featurePlace, s = featureHost();
-  const last = fp?.added.pop();
-  if (!s || !last || s.type === 'circle' || s.type === 'text') return;
+  if (!fp || !s || s.type === 'circle' || s.type === 'text') return;
+  // (The last one still there: one taken off another way, by the top bar's Undo say, is already gone.)
+  let last: string | undefined;
+  while ((last = fp.added.pop()) && !(s.features ?? []).some((f) => f.id === last));
+  if (!last) return;
   s.features = (s.features ?? []).filter((f) => f.id !== last);
   pushHistory();
   save();
-}
-
-/** The sub-features of a shape, changed: `change` gets the list and returns the new one (a step of its own). */
-export function changeFeatures(s: Shape, change: (fs: SubFeature[]) => SubFeature[]) {
-  if (s.type === 'circle' || s.type === 'text') return;
-  s.features = change(s.features ?? []);
 }

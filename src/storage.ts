@@ -530,6 +530,7 @@ export async function switchProject(id: string): Promise<boolean> {
   state.bgCalibrate = null;
   state.draw = null;
   state.placing = null;
+  state.featurePlace = null;
   state.pickerForTree = false;
   state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; state.linkOffer = null; state.statusAsk = null; // (another plan's shapes)
   state.editPoints = null;

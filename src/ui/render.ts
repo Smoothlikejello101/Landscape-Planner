@@ -112,10 +112,11 @@ export function render() {
   const undoBtn = el('button', { className: 'iconbtn', html: I.undo, title: 'Undo' });
   // While placing, it takes back the last plant placed; while drawing, the last point: as the bar's Undo does.
   // (A notice's Undo is the same step: after either, it's gone.)
-  undoBtn.disabled = state.placing ? !state.placing.placed.length : state.draw ? !state.draw.points.length : !canUndo();
+  // (And while adding doors and windows, the last one added.)
+  undoBtn.disabled = state.placing ? !state.placing.placed.length : state.draw ? !state.draw.points.length : state.featurePlace ? !state.featurePlace.added.length : !canUndo();
   undoBtn.addEventListener('click', () => {
     dismissToastAction();
-    if (state.placing) undoPlace(); else if (state.draw) undoDrawPoint(); else undo();
+    if (state.placing) undoPlace(); else if (state.draw) undoDrawPoint(); else if (state.featurePlace) undoFeaturePlace(); else undo();
     render();
   });
   topbar.appendChild(undoBtn);
@@ -123,7 +124,7 @@ export function render() {
   // Redo (at Medium and Large text, in the ⋮ menu: room for the name)
   if (!roomyText()) {
     const redoBtn = el('button', { className: 'iconbtn', html: I.redo, title: 'Redo' });
-    redoBtn.disabled = !canRedo() || !!state.draw || !!state.placing;
+    redoBtn.disabled = !canRedo() || !!state.draw || !!state.placing || !!state.featurePlace;
     redoBtn.addEventListener('click', () => { dismissToastAction(); redo(); render(); });
     topbar.appendChild(redoBtn);
   }

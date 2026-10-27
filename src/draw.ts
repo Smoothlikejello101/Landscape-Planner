@@ -47,6 +47,7 @@ export function startDraw(method: DrawKind, target?: KindKey) {
   dismissToastAction(); // (a notice about the last drawing gives way to the next)
   state.draw = { kind: method, points: [], ...(target ? { target } : {}) };
   state.placing = null;
+  state.featurePlace = null;
   state.pickerForTree = false;
   state.editPoints = null;
   state.selectMode = false;
@@ -62,7 +63,7 @@ export function startDraw(method: DrawKind, target?: KindKey) {
 export function startKind(key: KindKey) {
   if (key === 'plant' || key === 'tree') {
     // Plants are picked first. An existing tree is picked (or "unknown"), then its canopy drawn.
-    state.draw = null; state.editPoints = null; state.placing = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; state.linkOffer = null; state.menu = null;
+    state.draw = null; state.editPoints = null; state.placing = null; state.featurePlace = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; state.linkOffer = null; state.menu = null;
     state.pickerForTree = key === 'tree';
     // A fresh pick starts with an empty search. (Switching plants while placing keeps it:
     // the next of several plants for the same purpose, say monarch hosts, is likely another match.)
@@ -417,10 +418,15 @@ export function unsnapVertex() {
 export function insertVertex(s: PathShape, afterIndex: number, world: Point): number {
   if (s.points.length >= MAX_POINTS) return -1;
   const pts = pathPoints(s);
-  pts.splice(afterIndex + 1, 0, { x: snap(world.x), y: snap(world.y) });
+  const p = { x: snap(world.x), y: snap(world.y) };
+  // (Its doors, windows or gates stay on their walls: the edge split in two where the point went in, which is
+  // where it was pressed, snapped, not always the middle; the edges after it renumbered.)
+  const a = pts[afterIndex], b = pts[(afterIndex + 1) % pts.length];
+  const len2 = (b.x - a.x) ** 2 + (b.y - a.y) ** 2;
+  const t = len2 > 0 ? ((p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)) / len2 : 0.5;
+  pts.splice(afterIndex + 1, 0, p);
   setWorldPoints(s, pts);
-  // (Its doors, windows or gates stay on their walls: the edge split in two, the edges after it renumbered.)
-  if (s.features?.length) s.features = afterPointAdded(s.features, afterIndex);
+  if (s.features?.length) s.features = afterPointAdded(s.features, afterIndex, t);
   return afterIndex + 1;
 }
 export function canDeleteVertex(): boolean {
