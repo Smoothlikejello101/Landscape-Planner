@@ -1,11 +1,12 @@
-import { setShowCrowding, setShowFullSize } from '../view-settings';
+import { setCrowdWarnings, setShowCrowding, setShowFullSize } from '../view-settings';
 import { el, svgEl, ts } from '../dom';
 import { setSnapOn, setSquareOn, snapOn, squareOn } from '../tidy';
 import { flushHistoryDebounce, pushHistory } from '../history';
 import { I } from '../icons';
 import { centerOnShape, deletePhase, setRoleView, setViewFilter } from '../mutations';
 import { passesFilter, shownWith, STATUSES, statusLabelFor } from '../status';
-import { crowdedIds } from '../crowding';
+import { BULB_PARTNER_MIN_HEIGHT, crowdLevels } from '../crowding';
+import { crowdOptions } from '../crowd-here';
 import { plantsById } from '../plants';
 import { ROLES, roleHidden, roleKey, roleLabel } from '../roles';
 import type { RoleKey, ShapeFilter } from '../types';
@@ -187,6 +188,41 @@ function drawingSection(): HTMLElement {
     'A snapped point lights up the edge it\'s on, with an Unsnap; squaring says so after, with an Undo. Settings of this device.'));
   return wrap;
 }
+/**
+ * Crowding (decided with Jason, 2026-10-25): rings on the plan, amber where plants are close (their typical spreads
+ * touch) and red where they're crowded; a notice as one is placed too close; the pairs left close on purpose.
+ * Settings of this device; a crowding notice's "Crowding settings…" opens here.
+ */
+function crowdingSettings(): HTMLElement {
+  const wrap = el('div', { 'data-testid': 'crowding-settings', className: 'crowding-settings' });
+  const levels = [...crowdLevels(state.shapes.filter((x) => shownWith(x, state.viewFilter)), plantsById, crowdOptions()).values()];
+  const nClose = levels.filter((l) => l === 'close').length, nCrowded = levels.filter((l) => l === 'crowded').length;
+  const show = el('input', { type: 'checkbox', 'data-testid': 'show-crowding' }) as HTMLInputElement;
+  show.checked = state.showCrowding;
+  show.addEventListener('change', () => { setShowCrowding(show.checked); render(); });
+  wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, show,
+    el('span', {}, `Show crowding on the plan: amber rings where plants are close, red where they're crowded (${nClose} close, ${nCrowded} crowded now)`)));
+  const warn = el('input', { type: 'checkbox', 'data-testid': 'crowd-warnings' }) as HTMLInputElement;
+  warn.checked = state.crowdWarnings;
+  warn.addEventListener('change', () => { setCrowdWarnings(warn.checked); render(); });
+  wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, warn,
+    el('span', {}, 'Warn me as I place a plant close to another')));
+  // Pairs left close on purpose (Leave it), and a way to have them flagged again.
+  const pairs = state.shapes.reduce((n, s) => n + (s.type === 'circle' ? s.crowdOk?.length ?? 0 : 0), 0);
+  if (pairs) {
+    const again = el('button', { className: 'btn', 'data-testid': 'flag-all-again' }, 'Flag them again');
+    again.addEventListener('click', () => {
+      for (const s of state.shapes) if (s.type === 'circle') delete s.crowdOk;
+      pushHistory(); save(); render();
+    });
+    wrap.appendChild(el('div', { className: 'check-row', style: { marginTop: '6px', gap: '10px' } },
+      el('span', {}, `${pairs} pair${pairs === 1 ? '' : 's'} left close on purpose`), again));
+  }
+  wrap.appendChild(el('div', { className: 'hint' },
+    'Usual spacing is half of each plant\'s typical spread added together, less where one grows under a tree whose lower limbs can be taken up. ' +
+    `Close is where their typical spreads touch; crowded, closer than three quarters of that. Spring bulbs under a deciduous plant ${BULB_PARTNER_MIN_HEIGHT} ft or taller don't count, except right at its base. Settings of this device.`));
+  return wrap;
+}
 /** Plan-wide plant size: typical or full, and full-size rings for every plant. */
 function plantSizeSection(): HTMLElement {
   const wrap = el('div', { className: 'role-rows', 'data-testid': 'plant-size' }, el('div', { className: 'section-label' }, 'Plants'));
@@ -211,12 +247,7 @@ function plantSizeSection(): HTMLElement {
   wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, cb,
     el('span', {}, 'Show full-size rings on every plant (check for crowding)')));
   wrap.appendChild(el('div', { className: 'hint' }, 'Typical is the middle of a plant\'s size range; full is the top. Selected plants always show their full-size ring.'));
-  const crowd = el('input', { type: 'checkbox', 'data-testid': 'show-crowding' }) as HTMLInputElement;
-  crowd.checked = state.showCrowding;
-  crowd.addEventListener('change', () => { setShowCrowding(crowd.checked); render(); });
-  const nCrowded = crowdedIds(state.shapes.filter((x) => shownWith(x, state.viewFilter)), plantsById).size;
-  wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, crowd,
-    el('span', {}, `Outline crowded plants in red (${nCrowded} now)`)));
+  wrap.appendChild(crowdingSettings());
   const sun = el('input', { type: 'checkbox', 'data-testid': 'sun-warnings' }) as HTMLInputElement;
   sun.checked = state.sunWarnings;
   sun.addEventListener('change', () => { state.sunWarnings = sun.checked; save(); render(); });

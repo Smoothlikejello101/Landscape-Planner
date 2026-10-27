@@ -10,7 +10,7 @@ async function addPlant(page: Page, name: string, x: number) {
   await field(page, 'X position').fill(String(x));
 }
 
-test('plants planted too close are flagged, and can be outlined', async ({ page }) => {
+test('plants planted too close are flagged, and ringed on the plan unless that\'s turned off', async ({ page }) => {
   await openFresh(page);
   await addPlant(page, "Heuchera 'Autumn Bride'", 0);
   await expect(page.getByTestId('crowding')).toHaveCount(0);
@@ -20,9 +20,14 @@ test('plants planted too close are flagged, and can be outlined', async ({ page 
   await expect(page.getByTestId('crowding')).toContainText('0.5 ft apart');
   await closeSheet(page);
 
+  // Ringed by default (decided with Jason, 2026-10-25); Layers turns it off and on.
+  await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);
+  await page.locator('button[title=Layers]').click();
+  await expect(page.getByTestId('crowding-settings')).toContainText('(0 close, 2 crowded now)');
+  await page.getByTestId('show-crowding').uncheck();
+  await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(0);
   await page.locator('button[title=Layers]').click();
-  await expect(page.locator('.check-row', { hasText: 'Outline crowded plants' })).toContainText('(2 now)');
   await page.getByTestId('show-crowding').check();
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);

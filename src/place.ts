@@ -7,6 +7,7 @@ import { state } from './state';
 import { save } from './storage';
 import type { Point } from './types';
 import { snap } from './util';
+import { crowdNotice, dismissCrowdNotice } from './ui/crowd-notice';
 
 // Placing plants by tapping: pick a plant once, then each tap on the plan
 // places one there, until Done. Drags still pan and pinches zoom, as while
@@ -48,6 +49,8 @@ export function placeTap(clientX: number, clientY: number) {
   state.placing.placed.push({ id: shape.id, snap: state.history[state.historyIndex] });
   noteRecentPlant(p.id); // what's actually placed, not just picked
   save();
+  // Too close to another: a notice (Move it takes this one back, to tap again).
+  crowdNotice(shape, () => { if (state.placing?.placed.at(-1)?.id === shape.id) undoPlace(); });
 }
 /**
  * Take back the last one placed. Placing is a sandbox: a plant taken back is
@@ -73,6 +76,7 @@ export function undoPlace() {
 /** Stop placing, with what was placed selected. */
 export function finishPlacing() {
   if (!state.placing) return;
+  dismissCrowdNotice();
   const ids = new Set(state.shapes.map((s) => s.id));
   state.selectedIds = state.placing.placed.map((x) => x.id).filter((id) => ids.has(id));
   state.placing = null;

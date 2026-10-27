@@ -38,11 +38,18 @@ leafed out, for that plant in that year.
   broadleaf, semi-evergreen forb, drought deciduous broadleaf, …). A second source for leaves in winter, for the
   woody plants; for most herbs it says only "forb".
 - **A few big downloads, not a crawl.** One request can ask for many species, states and years at once (the
-  `rnpn` package's download functions take `species_ids`, `states` and `years` as lists), so the 675 species in
-  the states around Arkansas come down in one request, or a few split by year to keep each file a manageable size,
-  saved like any page. (The redbud test above asked for one species only to see what a reply looks like.) By hand,
+  `rnpn` package's download functions take `species_ids`, `states` and `years` as lists), so every plant, all
+  over the US, comes down in one request, or a few split by region or by year to keep each file a manageable size,
+  saved like any page. All over, not only near Arkansas (Jason, 2026-10-27): the app is for gardens everywhere, and
+  each region's leaf-out comes from its own records (leaf-out follows local warmth, so another region's dates don't
+  stand in; a region with too few says so). (The redbud test above asked for one species only to see what a reply looks like.) By hand,
   it would be the download page on their site (not opened here, since reading their site by program is what needs
   their OK). Either way the build then reads the saved files, as it does GBIF's downloads.
+- **What to ask for:** Individual Phenometrics (per plant and year: the first "yes", the days since the "no"
+  before it, the last "yes"); all plant species; 2009 to 2025; the whole US; the leaf phenophases (breaking leaf
+  buds and initial growth for leaf-out; colored and falling leaves, a second source for leaves in winter) and
+  open flowers (to check bloom months); with each site's latitude, longitude, elevation and state and each
+  species' functional type; and the citation that comes with it.
 - **If it's approved**, a sketch: a `leaf_out` fact as the median week, with `at` for the region it was computed
   for, only where enough plant-years back it (say 10 or more). Cultivars take their species'.
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { crowdedIds, crowdingOf, sharedHeight, treeBranches } from '../src/crowding';
+import { bulbPartner, bulbsUnder, crowdedIds, crowdingOf, crowdLevels, sharedHeight, springBulb, treeBranches } from '../src/crowding';
 import type { Plant } from '../src/plants';
 import type { CircleShape, Shape } from '../src/types';
 
@@ -119,3 +119,74 @@ describe('crowding', () => {
     expect(crowdedIds(shapes, byId)).toEqual(brute);
   });
 });
+
+// Two levels (decided with Jason, 2026-10-25): close where typical spreads touch, crowded past three quarters of that.
+describe('close and crowded', () => {
+  it('close where the typical spreads touch; crowded under three quarters of the usual spacing', () => {
+    // Two 4 ft shrubs: usual spacing 4 ft; crowded under 3 ft, close from 3 to 4 ft.
+    const shapes = [p('a', 0), p('b', 2.9), p('c', 6.5), p('d', 30)];
+    expect([...crowdLevels(shapes, byId)].sort()).toEqual([['a', 'crowded'], ['b', 'crowded'], ['c', 'close']]);
+    expect(crowdingOf(shapes[2], shapes, byId)).toEqual([]); // (crowded only, unless asked)
+    expect(crowdingOf(shapes[2], shapes, byId, { close: true }).map((c) => [c.other.id, c.level])).toEqual([['b', 'close']]);
+    expect(crowdingOf(shapes[1], shapes, byId, { close: true }).map((c) => [c.other.id, c.level])).toEqual([['a', 'crowded'], ['c', 'close']]);
+  });
+  it('matches the pairwise check, both levels, on a larger random layout', () => {
+    const shapes = Array.from({ length: 200 }, (_, i) => p('s' + i, ((i * 7919) % 97) * 0.9, { y: ((i * 104729) % 89) * 0.9 } as Partial<Shape>));
+    const worst = (s: Shape) => { const c = crowdingOf(s, shapes, byId, { close: true }); return c.some((x) => x.level === 'crowded') ? 'crowded' : c.length ? 'close' : null; };
+    const brute = new Map(shapes.map((s) => [s.id, worst(s)] as const).filter(([, l]) => l));
+    expect(crowdLevels(shapes, byId)).toEqual(brute);
+  });
+  it('a pair left close on purpose is not flagged, either way round', () => {
+    const shapes = [p('a', 0, { crowdOk: ['b'] } as Partial<Shape>), p('b', 1), p('c', 4.5)];
+    expect([...crowdLevels(shapes, byId)].sort()).toEqual([['b', 'close'], ['c', 'close']]); // (b and c: 3.5 apart, usual 4)
+    expect(crowdingOf(shapes[1], shapes, byId, { close: true }).map((c) => c.other.id)).toEqual(['c']);
+    expect(crowdingOf(shapes[1], shapes, byId, { close: true, includeLeft: true }).map((c) => [c.other.id, !!c.left])).toEqual([['a', true], ['c', false]]);
+  });
+});
+
+// Spring bulbs under bigger plants (decided with Jason, 2026-10-26).
+describe('spring bulbs under a deciduous plant', () => {
+  const sourced = { src: ['ncsu'], check: 'single' as const };
+  const bulbs: Record<string, Plant> = {
+    ...byId,
+    daffodil: { id: 'daffodil', common: 'Daffodil', form: 'Bulb', bloom_season: ['early spring', 'mid spring'], width: { min: 0.5, max: 1, med: 0.75 }, height: { min: 1, max: 1.5, med: 1.25 }, zone_min: 4, zone_max: 8 } as Plant,
+    lily: { id: 'lily', common: 'Lily', form: 'Bulb', bloom_season: ['summer'], width: { min: 1, max: 1, med: 1 }, height: { min: 3, max: 4, med: 3.5 } } as Plant,
+    tender: { id: 'tender', common: 'Freesia', form: 'Bulb', bloom_season: ['spring'], width: { min: 0.5, max: 1, med: 0.75 }, height: { min: 1, max: 1.5, med: 1.25 }, zone_min: 9, zone_max: 10 } as Plant,
+    joePye: { id: 'joePye', common: 'Joe Pye weed', form: 'Perennial', foliage: 'deciduous', prov: { foliage: sourced }, width: { min: 2, max: 4, med: 3 }, height: { min: 5, max: 7, med: 6 } } as Plant,
+    earlier: { id: 'earlier', common: 'Aster', form: 'Perennial', foliage: 'deciduous', prov: { foliage: { src: ['compendium'] } }, width: { min: 2, max: 4, med: 3 }, height: { min: 4, max: 6, med: 5 } } as Plant,
+    unknown: { id: 'unknown', common: 'Phlox', form: 'Perennial', width: { min: 2, max: 4, med: 3 }, height: { min: 3, max: 4, med: 3.5 } } as Plant,
+    short: { id: 'short', common: 'Coreopsis', form: 'Perennial', foliage: 'deciduous', prov: { foliage: sourced }, width: { min: 2, max: 4, med: 3 }, height: { min: 1, max: 3, med: 2 } } as Plant,
+    holly: { id: 'holly', common: 'Holly', form: 'Shrub', foliage: 'evergreen', prov: { foliage: sourced }, width: { min: 2, max: 4, med: 3 }, height: { min: 4, max: 6, med: 5 } } as Plant,
+  };
+  const at = (id: string, plantId: string, x: number) => p(id, x, { plantId });
+  it('knows a spring bulb, and a plant one can grow under', () => {
+    expect(springBulb(bulbs.daffodil)).toBe(true);
+    expect(springBulb(bulbs.lily)).toBe(false); // (summer)
+    expect(springBulb({ ...bulbs.daffodil, bloom_season: undefined })).toBe(false); // (when it blooms not known)
+    expect(springBulb({ ...bulbs.daffodil, bloom_season: ['late winter'] })).toBe(true);
+    expect(springBulb(bulbs.tender, (pl) => (pl.zone_min ?? 0) <= 8)).toBe(false); // (not hardy here)
+    expect(bulbPartner(at('j', 'joePye', 0), bulbs)).toBe(true);
+    for (const id of ['earlier', 'unknown', 'short', 'holly', 'daffodil']) expect(bulbPartner(at('x', id, 0), bulbs)).toBe(false);
+  });
+  it('a spring bulb under it is not close or crowded, except right at its base, where it is close', () => {
+    // A 3 ft-wide Joe Pye weed: usual spacing to a daffodil 1.9 ft; its base is within 0.75 ft of its center.
+    const shapes = [at('joe', 'joePye', 0), at('d1', 'daffodil', 1), at('d2', 'daffodil', 0.4), at('d3', 'daffodil', 3)];
+    const near = (id: string) => crowdingOf(shapes.find((s) => s.id === id)!, shapes, bulbs, { close: true }).map((c) => [c.other.id, c.level, !!c.bulb]);
+    expect(near('d1')).toEqual([['d2', 'close', false]]); // (the bulbs crowd each other as ever: 0.6 ft, usual 0.75)
+    expect(near('d2')).toEqual([['joe', 'close', true], ['d1', 'close', false]]);
+    expect(near('joe')).toEqual([['d2', 'close', true]]);
+    expect(crowdLevels(shapes, bulbs).get('joe')).toBe('close');
+    expect(bulbsUnder(shapes[0], shapes, bulbs).map((s) => s.id)).toEqual(['d1']); // (d2 at its base; d3 too far to matter)
+    expect(bulbsUnder(shapes[1], shapes, bulbs).map((s) => s.id)).toEqual(['joe']);
+    // Without a sourced leaf-drop fact, or under an evergreen, a bulb crowds it as any plant would.
+    const plain = [at('x', 'unknown', 0), at('d', 'daffodil', 1)];
+    expect(crowdingOf(plain[1], plain, bulbs, { close: true }).map((c) => c.level)).toEqual(['crowded']);
+    const ever = [at('x', 'holly', 0), at('d', 'daffodil', 1)];
+    expect(crowdingOf(ever[1], ever, bulbs, { close: true }).map((c) => c.level)).toEqual(['crowded']);
+    // Not hardy here: crowds it.
+    const tender = [at('joe', 'joePye', 0), at('f', 'tender', 1)];
+    expect(crowdingOf(tender[1], tender, bulbs, { close: true, hardy: (pl) => (pl.zone_min ?? 0) <= 8 }).map((c) => c.level)).toEqual(['crowded']);
+    expect(crowdingOf(tender[1], tender, bulbs, { close: true }).map((c) => c.level)).toEqual([]);
+  });
+});
+

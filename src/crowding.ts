@@ -23,7 +23,29 @@ import type { CircleShape, Shape } from './types';
 // space; and a tree on the plan can be given its own height and lowest
 // branches (the tree you have: limbed up higher, or never limbed at all).
 
+// Two levels (decided with Jason, 2026-10-25): plants whose typical spreads touch are close ("they may quickly grow into
+// one another"; amber), and past the limit above they're crowded (red). Plants the person chose to leave close
+// (`crowdOk` on either) aren't flagged.
+//
+// Spring bulbs under bigger plants (decided with Jason, 2026-10-26): a spring bulb (its form Bulb, flowering only in
+// late winter or spring, hardy where the garden is) doesn't crowd a deciduous plant at least 3 ft tall (a sourced
+// leaf-drop fact, not the earlier list's; a plant with none doesn't count): it flowers and ripens its leaves before
+// the bigger plant leafs out, the usual way to underplant shrubs and tall perennials. 3 ft: taller than every spring
+// bulb in the catalog in flower (the tallest is 2½ ft), so the bulb is under it, not beside it. Right at its base,
+// within a quarter of its typical spread, the bulb is still close.
+
 export const CROWD_FACTOR = 0.75;
+/** How tall, typically, a deciduous plant must be for spring bulbs to grow under it, in feet. */
+export const BULB_PARTNER_MIN_HEIGHT = 3;
+/** How near a bulb can be to that plant's center, as a share of its typical spread, and still count as close. */
+export const BULB_BASE = 1 / 4;
+export type CrowdLevel = 'close' | 'crowded';
+export interface CrowdOptions {
+  /** Whether a plant is hardy where the garden is (unknown: every plant is). */
+  hardy?: (p: Plant) => boolean;
+  /** Include pairs the person chose to leave close (marked `left`). */
+  includeLeft?: boolean;
+}
 /** The share of a tree's height its trunk can be cleared to, keeping live branches on the upper two thirds. */
 export const CLEAR_TRUNK = 1 / 3;
 
@@ -74,33 +96,101 @@ export function sharedHeight(a: Band, b: Band): number {
   const shorter = Math.min(a.band[1] - a.band[0], b.band[1] - b.band[0]);
   return over <= 0 ? 0 : shorter > 0 ? Math.min(1, over / shorter) : 1;
 }
-/** `recommended`: the spacing they want, for the height they share (`shared`, 0 to 1). */
-export interface Crowd { other: Shape; distance: number; recommended: number; shared: number }
+/**
+ * `recommended`: the spacing they want, for the height they share (`shared`, 0 to 1). `level`: close (typical
+ * spreads touching) or crowded. `bulb`: a spring bulb and a deciduous plant it can grow under, close only at its
+ * base. `left`: the person chose to leave these two close (only with `includeLeft`).
+ */
+export interface Crowd { other: Shape; distance: number; recommended: number; shared: number; level: CrowdLevel; bulb?: boolean; left?: boolean }
 
-/** Plants crowding `s`, closest first. */
-export function crowdingOf(s: Shape, shapes: Shape[], byId: Record<string, Plant | undefined>): Crowd[] {
+const formsOf = (p: Plant) => (p.forms?.length ? p.forms : p.form ? [p.form] : []);
+const SPRING = /^(?:late winter|winter|(?:early |mid |late )?spring)$/;
+/** A spring bulb: its form Bulb, flowering only in late winter or spring (as its sources say), hardy here. */
+export function springBulb(p: Plant | undefined, hardy: (p: Plant) => boolean = () => true): boolean {
+  return !!p && formsOf(p).includes('Bulb') && !!p.bloom_season?.length && p.bloom_season.every((x) => SPRING.test(x)) && hardy(p);
+}
+/**
+ * A plant spring bulbs can grow under: deciduous by a source (not only the earlier list, whose values are unverified;
+ * no leaf-drop fact, no), at least BULB_PARTNER_MIN_HEIGHT ft tall typically (a tree as tall as it's set or drawn),
+ * and not an annual or a bulb itself.
+ */
+export function bulbPartner(s: Shape, byId: Record<string, Plant | undefined>): boolean {
+  const p = s.plantId ? byId[s.plantId] : undefined;
+  const pv = p?.prov?.foliage;
+  if (!p || p.foliage !== 'deciduous' || !pv || pv.unknown || !pv.src.some((x) => x !== 'compendium')) return false;
+  const forms = formsOf(p);
+  if (forms.includes('Bulb') || (forms.length && forms.every((f) => f === 'Annual'))) return false;
+  const h = s.type === 'circle' && isTree(s, byId) ? treeBranches(s, p, typicalRadius(s, byId)).height : p.height?.med;
+  return h != null && h >= BULB_PARTNER_MIN_HEIGHT;
+}
+const leftClose = (a: Shape, b: Shape) => !!(a.type === 'circle' && a.crowdOk?.includes(b.id)) || !!(b.type === 'circle' && b.crowdOk?.includes(a.id));
+
+/**
+ * How two plants stand: close, crowded, or neither (null). `ra`, `rb`: their typical radii; `share`: the height
+ * they share. A spring bulb under a deciduous plant it can grow under is close only within BULB_BASE of that
+ * plant's typical spread from its center, and never crowded.
+ */
+function pairLevel(a: Shape, b: Shape, ra: number, rb: number, share: number, byId: Record<string, Plant | undefined>, hardy: (p: Plant) => boolean):
+  { level: CrowdLevel; distance: number; recommended: number; bulb?: boolean } | null {
+  if (share <= 0) return null;
+  const distance = Math.hypot(b.x - a.x, b.y - a.y);
+  const recommended = (ra + rb) * share;
+  if (distance >= recommended) return null;
+  const pa = a.plantId ? byId[a.plantId] : undefined, pb = b.plantId ? byId[b.plantId] : undefined;
+  const under = springBulb(pa, hardy) && bulbPartner(b, byId) ? rb : springBulb(pb, hardy) && bulbPartner(a, byId) ? ra : null;
+  if (under != null) return distance < under * 2 * BULB_BASE ? { level: 'close', distance, recommended, bulb: true } : null;
+  return { level: distance < recommended * CROWD_FACTOR ? 'crowded' : 'close', distance, recommended };
+}
+
+/** Plants crowding `s`, closest first: crowded ones only, or, with `close`, those close to it too. */
+export function crowdingOf(s: Shape, shapes: Shape[], byId: Record<string, Plant | undefined>, opts: CrowdOptions & { close?: boolean } = {}): Crowd[] {
   const r = typicalRadius(s, byId);
   if (r == null || s.type !== 'circle') return [];
   const band = bandOf(s, byId);
+  const hardy = opts.hardy ?? (() => true);
   const out: Crowd[] = [];
   for (const o of shapes) {
     if (o === s || o.type !== 'circle') continue;
     const ro = typicalRadius(o, byId);
     if (ro == null) continue;
+    const left = leftClose(s, o);
+    if (left && !opts.includeLeft) continue;
     const share = sharedHeight(band, bandOf(o, byId));
-    if (share <= 0) continue;
-    const distance = Math.hypot(o.x - s.x, o.y - s.y);
-    const recommended = (r + ro) * share;
-    if (distance < recommended * CROWD_FACTOR) out.push({ other: o, distance, recommended, shared: share });
+    const pair = pairLevel(s, o, r, ro, share, byId, hardy);
+    if (!pair || (pair.level === 'close' && !opts.close)) continue;
+    out.push({ other: o, shared: share, ...pair, ...(left ? { left: true } : {}) });
   }
   return out.sort((a, b) => a.distance / a.recommended - b.distance / b.recommended);
 }
-/** Ids of every crowded plant (for highlighting). */
-export function crowdedIds(shapes: Shape[], byId: Record<string, Plant | undefined>): Set<string> {
+/**
+ * The plants a spring bulb `s` grows under, or the spring bulbs under a plant `s`, that would count as close or
+ * crowded but for the bulb rule (not right at the bigger plant's base): for the note that says why they don't.
+ */
+export function bulbsUnder(s: Shape, shapes: Shape[], byId: Record<string, Plant | undefined>, opts: CrowdOptions = {}): Shape[] {
+  const r = typicalRadius(s, byId);
+  if (r == null || s.type !== 'circle') return [];
+  const hardy = opts.hardy ?? (() => true);
+  const p = s.plantId ? byId[s.plantId] : undefined;
+  const bulb = springBulb(p, hardy), partner = !bulb && bulbPartner(s, byId);
+  if (!bulb && !partner) return [];
+  const band = bandOf(s, byId);
+  return shapes.filter((o) => {
+    if (o === s || o.type !== 'circle' || leftClose(s, o)) return false;
+    const ro = typicalRadius(o, byId), po = o.plantId ? byId[o.plantId] : undefined;
+    if (ro == null || !(bulb ? bulbPartner(o, byId) : springBulb(po, hardy))) return false;
+    const share = sharedHeight(band, bandOf(o, byId));
+    const d = Math.hypot(o.x - s.x, o.y - s.y);
+    return share > 0 && d < (r + ro) * share && d >= (bulb ? ro : r) * 2 * BULB_BASE;
+  });
+}
+/** Each plant that's close to another or crowded, by its worst (for the rings on the plan). */
+export function crowdLevels(shapes: Shape[], byId: Record<string, Plant | undefined>, opts: CrowdOptions = {}): Map<string, CrowdLevel> {
   const plants = shapes.filter((s) => typicalRadius(s, byId) != null) as (Shape & { type: 'circle' })[];
   const radii = plants.map((s) => typicalRadius(s, byId)!);
   const bands = plants.map((s) => bandOf(s, byId));
-  const ids = new Set<string>();
+  const hardy = opts.hardy ?? (() => true);
+  const out = new Map<string, CrowdLevel>();
+  const mark = (id: string, level: CrowdLevel) => { if (out.get(id) !== 'crowded') out.set(id, level); };
   // Sort by x so only nearby plants are compared (a shared height never widens the usual spacing).
   const order = plants.map((_, i) => i).sort((a, b) => plants[a].x - plants[b].x);
   const maxR = Math.max(0, ...radii);
@@ -108,12 +198,15 @@ export function crowdedIds(shapes: Shape[], byId: Record<string, Plant | undefin
     const i = order[a];
     for (let b = a + 1; b < order.length; b++) {
       const j = order[b];
-      if (plants[j].x - plants[i].x >= (radii[i] + maxR) * CROWD_FACTOR) break;
-      const share = sharedHeight(bands[i], bands[j]);
-      if (share <= 0) continue;
-      const d = Math.hypot(plants[j].x - plants[i].x, plants[j].y - plants[i].y);
-      if (d < (radii[i] + radii[j]) * share * CROWD_FACTOR) { ids.add(plants[i].id); ids.add(plants[j].id); }
+      if (plants[j].x - plants[i].x >= radii[i] + maxR) break;
+      if (leftClose(plants[i], plants[j])) continue;
+      const pair = pairLevel(plants[i], plants[j], radii[i], radii[j], sharedHeight(bands[i], bands[j]), byId, hardy);
+      if (pair) { mark(plants[i].id, pair.level); mark(plants[j].id, pair.level); }
     }
   }
-  return ids;
+  return out;
+}
+/** Ids of every crowded plant. */
+export function crowdedIds(shapes: Shape[], byId: Record<string, Plant | undefined>, opts: CrowdOptions = {}): Set<string> {
+  return new Set([...crowdLevels(shapes, byId, opts)].filter(([, l]) => l === 'crowded').map(([id]) => id));
 }

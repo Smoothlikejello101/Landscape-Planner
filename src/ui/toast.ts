@@ -47,11 +47,12 @@ export function placeToast(node: HTMLElement) {
  * and closes the notice (unless it's `keep`: turning a setting off leaves the Undo there). A new notice
  * replaces it.
  */
-export function toastAction(message: string, actions: { label: string; run: () => void; keep?: boolean }[], ms = 10000) {
+export function toastAction(message: string, actions: { label: string; run: () => void; keep?: boolean }[], ms = 10000, testid?: string) {
   toast('', 1); // (clears a plain toast)
   document.getElementById('toast-action')?.remove();
   const node = document.createElement('div');
   node.id = 'toast-action';
+  if (testid) node.dataset.testid = testid;
   node.setAttribute('role', 'status');
   node.setAttribute('aria-live', 'polite');
   const text = document.createElement('span');

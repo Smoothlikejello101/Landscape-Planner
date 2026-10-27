@@ -4,7 +4,8 @@ import { svgEl, type Attrs } from './dom';
 import { alongLabel, boxLabelAngle, boxSize, shapeBBox, shapeCenter, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, worldPoints } from './geometry';
 import { renderPathOverlay } from './draw';
 import { fullRingRadius } from './my-plants';
-import { crowdedIds } from './crowding';
+import { crowdLevels, type CrowdLevel } from './crowding';
+import { crowdOptions } from './crowd-here';
 import { renderPlaceOverlay } from './place';
 import { onShapePointerDown } from './gestures';
 import { plantsById } from './plants';
@@ -162,9 +163,10 @@ export function shapeGroup(s: Shape): SVGGElement {
     // While placing more of a plant, its full spread shows so the next one can be spaced by eye.
     const showFull = (sel && state.selectedIds.length === 1) || state.showFullSize || (!!state.placing && s.plantId === state.placing.plantId);
     const full = showFull ? fullRingRadius(s) : null;
-    if (crowded.has(s.id)) {
-      g0.push(svgEl('circle', { 'data-role': 'crowded', cx, cy, r: r + 4, fill: 'none', stroke: '#dc2626', 'stroke-width': 2.5, 'pointer-events': 'none' }));
-    }
+    // Crowding: red where it's crowded; amber where it's close to another (their typical spreads touch).
+    const level = crowded.get(s.id);
+    if (level === 'crowded') g0.push(svgEl('circle', { 'data-role': 'crowded', cx, cy, r: r + 4, fill: 'none', stroke: '#dc2626', 'stroke-width': 2.5, 'pointer-events': 'none' }));
+    else if (level === 'close') g0.push(svgEl('circle', { 'data-role': 'close', cx, cy, r: r + 4, fill: 'none', stroke: '#d97706', 'stroke-width': 2, 'stroke-dasharray': '6 4', 'pointer-events': 'none' }));
     if (full) ring = svgEl('circle', { 'data-role': 'full-ring', cx, cy, r: full * ppf, fill: 'none', stroke: s.color, 'stroke-width': 1.5, 'stroke-dasharray': '5 4', 'pointer-events': 'none' });
     if (isTree(s)) {
       const trunk = trunkParts(s, cx, cy, ppf, showFull).map((p) => svgEl(p.tag, { ...p.attrs, 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : null }));
@@ -447,10 +449,10 @@ function circleLabel(s: CircleShape, ppf: number): FittedLabel | null | undefine
   return fit ?? (isPlantCircle(s) ? null : undefined);
 }
 
-/** Plants outlined as crowded (Layers switch); refreshed on each redraw. */
-let crowded = new Set<string>();
+/** Plants ringed as close or crowded (Layers switch, and always while placing); refreshed on each redraw. */
+let crowded = new Map<string, CrowdLevel>();
 function refreshCrowding() {
-  crowded = state.showCrowding || state.placing ? crowdedIds(state.shapes.filter((s) => shownWith(s, state.viewFilter)), plantsById) : new Set();
+  crowded = state.showCrowding || state.placing ? crowdLevels(state.shapes.filter((s) => shownWith(s, state.viewFilter)), plantsById, crowdOptions()) : new Map();
 }
 
 /** Clear and redraw the whole canvas. Never touches panel DOM. */
@@ -503,11 +505,12 @@ export function redrawShapes(ids: string[]) {
   if (!svg || svg.children.length !== LAYERS.length || drawnView.zoom !== state.zoom ||
       drawnView.offsetX !== state.offsetX || drawnView.offsetY !== state.offsetY) { redrawCanvas(); return; }
   const shapes = layer(svg, 'shapes');
-  if (state.showCrowding) {
-    // Moving one plant can change which others are crowded: redraw all plants whose state flips.
+  if (state.showCrowding || state.placing) {
+    // Moving one plant can change which others are close or crowded: redraw all plants whose ring changes.
     const before = crowded;
     refreshCrowding();
-    ids = [...new Set([...ids, ...[...before].filter((id) => !crowded.has(id)), ...[...crowded].filter((id) => !before.has(id))])];
+    const changed = [...new Set([...before.keys(), ...crowded.keys()])].filter((id) => before.get(id) !== crowded.get(id));
+    ids = [...new Set([...ids, ...changed])];
   }
   for (const id of ids) {
     const s = state.shapes.find((sh) => sh.id === id);
