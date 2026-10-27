@@ -37,7 +37,7 @@ written, and a build after the fix makes the rest match.
 | 1 | The plant list (below) | `list.mjs` | `build/list.json` |
 | 2 | The Arkansas atlas as text, and the caterpillar host genera, remade each build from their newest saved files | `pdftotext -layout`, `tallamy.py` | `build/atlas.txt`, `tallamy/genera.json` |
 | 3 | The web claims, read again with today's reader (below) | `reclaim.mjs` | `build/web.json` |
-| 4 | Combine each plant's claims by the source rules ([catalog-sources.md](catalog-sources.md)) | `sample.mjs` | `build/combined.json` |
+| 4 | Combine each plant's claims by the source rules ([catalog-sources.md](catalog-sources.md)), NC State's description read for what its fields don't say ("Reading descriptions" there) | `sample.mjs`, `prose.mjs` | `build/combined.json` |
 | 5 | `--fetch` only: USDA's county records and GBIF's names | `usda-fetch.mjs`, `gbif-fetch.mjs` | `catalog-src/web/`, `catalog-src/gbif/` |
 | 6 | Write the settled facts into the catalog; then keep only the new plants that ship, and the page each was found on | `write-cli.ts` (`catalog:write`), `additions.mjs` | `public/plants.json`, `build/review.json`, `build/additions.json`, `scripts/catalog/added-plants.json` |
 | 7 | Counties, made once; the atlas's county maps, made again when the atlas PDF is newer | `counties.mjs`, `atlas_counties.py` | `counties.json`, `arkatlas/counties.json` |

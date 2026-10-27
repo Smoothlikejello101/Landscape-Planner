@@ -10,6 +10,7 @@ import { arkatlasStatus, mnwildFields, ncsuFields, usdaFields } from './extract.
 import { sameTaxon } from './usda-counties.mjs';
 import { acceptsPage, ncsuPageName, ownCultivarPage, recordCultivars, titleCultivar } from './ncsu-page.mjs';
 import { arkatlasClaims, combine, FLOWER_FACTS, flowerless, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims } from './claims.mjs';
+import { ncsuProseClaims, ncsuZones } from './prose.mjs';
 
 const [samplePath, atlasPath, outPath, extraPath] = process.argv.slice(2);
 /** Claims gathered elsewhere (the web search, the Tallamy data), by plant id. */
@@ -33,7 +34,7 @@ for (const s of sample) {
   const notes = [];
   const seen = {};
   // NC State
-  let ncsu = {}, ownCultivar = false, cultivarTitle = null;
+  let ncsu = {}, ncsuHtml = null, ownCultivar = false, cultivarTitle = null;
   if (s.ncsu) {
     const url = `https://plants.ces.ncsu.edu/plants/${s.ncsu}/`;
     const p = page('ncsu', url);
@@ -41,7 +42,7 @@ for (const s of sample) {
       const f = ncsuFields(p.text);
       const name = ncsuPageName(p.text, f);
       // (The page's own name, or one reviewed as this plant's: NC State's misspelling, or a synonym; ncsu-pages.json `names`.)
-      if (acceptsPage(s, name, f.Genus?.[0])) { ncsu = f; seen.ncsu = { url, fetched: p.fetched, name: name || s.ncsu }; ownCultivar = !!s.genusOnly && ownCultivarPage(rec, p.text); cultivarTitle = titleCultivar(p.text); }
+      if (acceptsPage(s, name, f.Genus?.[0])) { ncsu = f; ncsuHtml = p.text; seen.ncsu = { url, fetched: p.fetched, name: name || s.ncsu }; ownCultivar = !!s.genusOnly && ownCultivarPage(rec, p.text); cultivarTitle = titleCultivar(p.text); }
       else notes.push(`NC State page ${s.ncsu} is ${name}, not ${s.species}: left out`);
       if (s.genusOnly && s.ncsu === s.species.split(' ')[0].toLowerCase()) notes.push(`NC State has only a page for the genus ${s.species.split(' ')[0]}`);
     } else notes.push('NC State page not fetched');
@@ -84,9 +85,13 @@ for (const s of sample) {
   // ('Bloodgood' / 'Seiryu')" reads 'Bloodgood''s purple leaves as species-level, not as its own).
   const several = recordCultivars(rec).length > 1 || /\//.test(rec?.botanical ?? '');
   const speciesPage = seen.ncsu && (s.ncsuName || !cultivarTitle || (s.genusOnly ? !ownCultivar : several));
+  // (Its zones as its fields give them, unless its own description says the coldest are only where it's an annual.)
+  const fields = ncsuZones(ncsuClaims(ncsu), ncsuHtml);
   const allClaims = [
-    ...ncsuClaims(ncsu).map((c) => ({ ...c, cultivarPage: !!seen.ncsu && !speciesPage }))
+    ...fields.map((c) => ({ ...c, cultivarPage: !!seen.ncsu && !speciesPage }))
       .map((c) => (c.fact === 'host' ? { ...c, v: onlyCaterpillars(c.v, lepGenera) } : c)).filter((c) => !(c.fact === 'host' && !c.v.length)),
+    // Its description, read by rule (prose.mjs), only for what its fields don't say.
+    ...ncsuProseClaims(ncsuHtml).filter((c) => !fields.some((f) => f.fact === c.fact)).map((c) => ({ ...c, cultivarPage: !!seen.ncsu && !speciesPage })),
     ...mnwildClaims(mnwild), ...arkatlasClaims(ar), ...usdaClaims(usda), ...tallamyClaims(tallamy, s.species),
     ...(extraClaims[s.id] ?? []),
   ];

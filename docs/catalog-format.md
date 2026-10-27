@@ -82,6 +82,11 @@ domain (`"newmoonnursery.com"`), with the domain as its title.
   `src`) or an object with `v` (the value) and any of:
   - `src`: source ids for this value, the one that gave the value first
     (the others agree with it, or dispute it);
+  - `from`: `description` for a value read from a sentence of its source's
+    description rather than its fields (docs/catalog-sources.md, "Reading
+    descriptions"). The sentence itself is kept in the build's own files and
+    shown in the review, not here: descriptions aren't copied. The app names
+    the description as the source ("NC State · its description");
   - `at`: where it was observed (a US state, e.g. `"AR"`), for values that
     depend on place, such as bloom months;
   - `check`: how sure it is. `agree` or `confirmed` (an authority, and an

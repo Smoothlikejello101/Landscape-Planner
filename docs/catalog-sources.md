@@ -29,7 +29,9 @@ down: the rule found, and the date it was checked.
 
 What we take is facts (a zone range, a height, a bloom season), written in
 our own words, each citing its source. Descriptions, photos and notes are
-never copied.
+never copied. (A fact can be read from a description's sentences, by rule;
+the catalog then says it came from the description, and the sentence stays
+in the build's own files: "Reading descriptions".)
 
 **Never second-hand.** When a source is closed to us, so is every copy of
 it: web archives, caches, Common Crawl, aggregators (Trefle included),
@@ -283,6 +285,64 @@ the same rules as every other source (scripts/catalog/search.mjs).
 6. **One run at a time.** `catalog-src/.lock` keeps a second run out, so
    paces don't add up and files don't cross. It's never taken over: one
    left by a stopped run is deleted by hand, as the message says.
+
+## Reading descriptions
+
+Decided with Jason, 2026-10-26 ("read everything"): facts are read from the
+sentences of the pages we've saved, not only their labeled fields. NC State's
+descriptions first, then the web pages whose terms allow reading them. Each
+value cites the sentence it was read from.
+
+- **By rule, never by guess** (scripts/catalog/prose.mjs). A sentence speaks
+  to a fact only in words the rules know, and only about the plant itself:
+  not the "deciduous forests" it grows in, the evergreens it's planted
+  under, a plant it's compared with ("unlike", "whereas"), another plant
+  named as the sentence's subject, or where its name comes from. A sentence
+  the rules can't settle says nothing.
+- **Fields first.** A page's sentences are read only for a fact its labeled
+  fields don't give. They count as the same source (NC State is one
+  authority however many of its sentences agree). Over USDA's plant traits,
+  which are a fallback, NC State's sentence decides. One exception, where
+  the page contradicts itself: a zone field that takes in the zones its own
+  text says the plant is only grown as an annual in (a field listing 3a to
+  11b, a text saying winter hardy in zones 9 to 10 and grown as an annual in
+  3 to 8) gives way to the text's hardy zones. Checked 2026-10-26 against
+  the 25 NC State pages that say where a plant is grown as an annual: only
+  the two Señorita cleomes' fields list those zones.
+- **Cited, not copied.** The build keeps each sentence beside its claim
+  (catalog-src/build/combined.json, not committed), so a value can be checked
+  against its page; the tests use sentences written in the same shapes, not
+  the sources' own; the catalog says only that
+  the value was read from the description (`from: "description"`,
+  docs/catalog-format.md), and the app names the description as its source.
+- **Checked before shipping.** Each fact's rules are checked against the
+  plants whose fields already give it, and a sample of new values is read
+  against their sentences by a person or an agent.
+
+**Leaves in winter** (`foliage`), the first fact read this way, for the bulb
+rule (a spring bulb under a deciduous plant): a sentence calling the plant
+evergreen, deciduous or semi-evergreen, or saying it dies back or goes
+dormant in winter (not in summer's heat, after it flowers, or as a
+houseplant's rest). Said to depend on the winter ("evergreen in warmer
+climates", "may be semi-evergreen", "deciduous or evergreen"), or evergreen
+in one sentence and dying back in winter in another: semi-evergreen. A
+deciduous shrub that "may die to the ground in a cold winter" stays
+deciduous (its stems depend on the winter, not its leaves); that alone, with
+nothing else said, settles nothing. Checked 2026-10-26 against the 1,417
+plants whose NC State fields or USDA traits already say and whose
+description speaks to it: 1,299 agree, 9 say the opposite (several of those
+the fields' error: USDA has 'San Jose' juniper deciduous), and the rest are
+the sentences being finer ("may be semi-evergreen in the south" of a plant
+the fields call deciduous). New values read against their sentences: 48 of
+a first 50 right; after fixing what those two showed, an agent that hadn't
+seen the rules checked another 50 and the two cleomes' zones: 48 and both
+zones right; the 2 wrong were a place it grows taken for a winter, and dying
+back only in long freezes taken as deciduous. Both fixed: a place after
+"native to" or "found in" is where it grows, and dying back only in a hard
+or long freeze, with nothing else said, settles nothing. Weakest: a
+deciduous value from care advice alone ("divide it in the fall as it goes
+dormant"); right, but worth a second source. Care advice about watering a
+resting plant settles nothing.
 
 ## Paid licenses
 

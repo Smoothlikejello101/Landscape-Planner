@@ -45,7 +45,11 @@ export const wirePlant = (p: Plant): Plant => (p.form && WIRE_FORMS[p.form] ? { 
 export const REPORTABLE = new Set(['height', 'width', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'deer']);
 export interface Reported<T = unknown> { v: T; src: string[]; check: 'confirmed' | 'single' | 'likely' | 'reported' }
 /** A fact with its own sourcing (else a plain value, sourced by its record). */
-export interface SourcedFact<T = unknown> { v: T; src?: string[]; at?: string; check?: Check; alt?: Reported<T> }
+export interface SourcedFact<T = unknown> {
+  v: T; src?: string[]; at?: string; check?: Check; alt?: Reported<T>;
+  /** Where in its source it was read: 'description', a sentence of the source's description (docs/catalog-format.md). */
+  from?: 'description';
+}
 export interface CatalogRecord {
   id: string;
   common: string;
@@ -91,6 +95,8 @@ export interface Provenance {
   unknown?: boolean;
   /** What other sources say instead, where they differ. */
   alt?: Reported;
+  /** Read from a sentence of the source's description, not its fields. */
+  from?: 'description';
 }
 
 /**
@@ -112,7 +118,7 @@ const isSourced = (f: unknown): f is SourcedFact =>
 export function factOf(rec: CatalogRecord, key: string): { v: unknown; prov: Provenance } | undefined {
   if (!(key in rec.facts)) return undefined;
   const f = rec.facts[key];
-  if (isSourced(f)) return { v: f.v, prov: { src: f.src ?? rec.src ?? [], ...(f.at ? { at: f.at } : {}), ...(f.check ? { check: f.check } : {}), ...(f.alt ? { alt: f.alt } : {}) } };
+  if (isSourced(f)) return { v: f.v, prov: { src: f.src ?? rec.src ?? [], ...(f.at ? { at: f.at } : {}), ...(f.check ? { check: f.check } : {}), ...(f.alt ? { alt: f.alt } : {}), ...(f.from ? { from: f.from } : {}) } };
   return { v: f, prov: { src: rec.src ?? [] } };
 }
 
@@ -312,7 +318,8 @@ export function catalogErrors(file: CatalogFile): string[] {
       if (!f.prov.src.length) errs.push(`${at}.${key}: no source`);
       for (const s of f.prov.src) if (!sources[s]) errs.push(`${at}.${key}: unknown source ${s}`);
       if (isSourced(raw)) {
-        for (const k of Object.keys(raw)) if (!['v', 'src', 'at', 'check', 'alt'].includes(k)) errs.push(`${at}.${key}: unknown key ${k}`);
+        for (const k of Object.keys(raw)) if (!['v', 'src', 'at', 'check', 'alt', 'from'].includes(k)) errs.push(`${at}.${key}: unknown key ${k}`);
+        if (raw.from != null && (raw.from !== 'description' || raw.v == null)) errs.push(`${at}.${key}: from must be description, for a value read from one`);
         if (raw.alt != null) {
           const a = raw.alt as Partial<Reported>;
           if (!REPORTABLE.has(key)) errs.push(`${at}.${key}: no other value (alt) is taken for ${key}`);

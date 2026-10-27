@@ -318,7 +318,7 @@ function sourceLine(prov: Provenance | undefined): string {
   if (prov.src.length === 1 && PLANT_META?.sources?.[prov.src[0]]?.trust === 'unverified') return 'earlier list, unverified';
   const who = prov.src.map(sourceName).join(', ');
   const how = prov.check ? SURE[prov.check] ?? '' : '';
-  return [who, how, prov.inherited ? 'from its species' : '', prov.at ? `for ${prov.at}` : ''].filter(Boolean).join(' · ');
+  return [who, prov.from === 'description' ? 'its description' : '', how, prov.inherited ? 'from its species' : '', prov.at ? `for ${prov.at}` : ''].filter(Boolean).join(' · ');
 }
 
 /**
