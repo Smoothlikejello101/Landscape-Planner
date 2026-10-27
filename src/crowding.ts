@@ -176,14 +176,13 @@ export function crowdRelation(s: Shape, o: Shape, byId: Record<string, Plant | u
   if (a == null || b == null || a <= 0 || b <= 0) return 'even';
   return b >= a * BURIES ? 'under' : a >= b * BURIES ? 'over' : 'even';
 }
-/** Each plant that's close to another or crowded, by its worst (for the rings on the plan). */
-export function crowdLevels(shapes: Shape[], byId: Record<string, Plant | undefined>, opts: CrowdOptions = {}): Map<string, CrowdLevel> {
+/** Every pair of plants close or crowded now (not those left close on purpose), each once. */
+export function crowdPairs(shapes: Shape[], byId: Record<string, Plant | undefined>, opts: CrowdOptions = {}): { a: Shape; b: Shape; level: CrowdLevel }[] {
   const plants = shapes.filter((s) => typicalRadius(s, byId) != null) as (Shape & { type: 'circle' })[];
   const radii = plants.map((s) => typicalRadius(s, byId)!);
   const bands = plants.map((s) => bandOf(s, byId));
   const hardy = opts.hardy ?? (() => true);
-  const out = new Map<string, CrowdLevel>();
-  const mark = (id: string, level: CrowdLevel) => { if (out.get(id) !== 'crowded') out.set(id, level); };
+  const out: { a: Shape; b: Shape; level: CrowdLevel }[] = [];
   // Sort by x so only nearby plants are compared (a shared height never widens the usual spacing).
   const order = plants.map((_, i) => i).sort((a, b) => plants[a].x - plants[b].x);
   const maxR = Math.max(0, ...radii);
@@ -194,9 +193,16 @@ export function crowdLevels(shapes: Shape[], byId: Record<string, Plant | undefi
       if (plants[j].x - plants[i].x >= radii[i] + maxR) break;
       if (leftClose(plants[i], plants[j])) continue;
       const pair = pairLevel(plants[i], plants[j], radii[i], radii[j], sharedHeight(bands[i], bands[j]), byId, hardy);
-      if (pair) { mark(plants[i].id, pair.level); mark(plants[j].id, pair.level); }
+      if (pair) out.push({ a: plants[i], b: plants[j], level: pair.level });
     }
   }
+  return out;
+}
+/** Each plant that's close to another or crowded, by its worst (for the rings on the plan). */
+export function crowdLevels(shapes: Shape[], byId: Record<string, Plant | undefined>, opts: CrowdOptions = {}): Map<string, CrowdLevel> {
+  const out = new Map<string, CrowdLevel>();
+  const mark = (id: string, level: CrowdLevel) => { if (out.get(id) !== 'crowded') out.set(id, level); };
+  for (const p of crowdPairs(shapes, byId, opts)) { mark(p.a.id, p.level); mark(p.b.id, p.level); }
   return out;
 }
 /** Ids of every crowded plant. */

@@ -5,7 +5,7 @@
 // a plant crowded by one half again its size is "too far under" it, buried, and is best moved out toward its edge. A
 // spring bulb under a deciduous plant, which doesn't count (src/crowding.ts), gets no notice at all.
 import { pushHistory } from '../history';
-import { crowdingOf, crowdRelation } from '../crowding';
+import { crowdingOf, crowdPairs, crowdRelation } from '../crowding';
 import { crowdOptions } from '../crowd-here';
 import { plantsById } from '../plants';
 import { state } from '../state';
@@ -78,6 +78,19 @@ export function leaveClose(id: string, others: string[]) {
   else pushHistory();
   save();
   render();
+}
+
+/**
+ * Leave every pair flagged now close on purpose (Jason, 2026-10-27: a plan drawn before the warnings, red all over):
+ * the rings clear, the warnings stay on for what's placed from now on. One undo step. Returns how many pairs.
+ */
+export function leaveAllClose(): number {
+  const pairs = crowdPairs(state.shapes.filter((x) => shownWith(x, state.viewFilter)), plantsById, crowdOptions());
+  for (const { a, b } of pairs) if (a.type === 'circle') a.crowdOk = [...new Set([...(a.crowdOk ?? []), b.id])];
+  if (!pairs.length) return 0;
+  pushHistory();
+  save();
+  return pairs.length;
 }
 
 /** Flag a plant's pairs again (each one it, or the other, was left close to). */

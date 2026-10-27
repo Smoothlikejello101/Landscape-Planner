@@ -99,6 +99,32 @@ test('a small plant crowded by a bigger one is too far under it: try out toward 
   await expect(page.getByTestId('crowding-detail')).toContainText('buried by it: try out toward its edge');
 });
 
+test('flagged pairs can be left close after the fact: one plant from its properties, or all at once from Layers', async ({ page }) => {
+  await openFresh(page);
+  await startPlacing(page, 'Buttonbush');
+  for (const x of [-6, -4, 2, 4]) await tapFromCenter(page, x, 0); // (two crowded pairs)
+  await bar(page).getByRole('button', { name: 'Done' }).click();
+  await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(4);
+  // One plant: its crowding line opens to Leave this close.
+  await tapFromCenter(page, 0, 8);
+  await tapFromCenter(page, -6, 0);
+  await page.locator('.sel-pill button.edit').click();
+  await page.getByTestId('crowding-line').click();
+  await page.getByTestId('leave-close').click();
+  await expect(page.getByTestId('crowding')).toContainText('Left close on purpose: Buttonbush');
+  await closeSheet(page);
+  await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);
+  // The rest at once, from Layers; warnings stay on; Undo brings them back.
+  await page.locator('button[title=Layers]').click();
+  await page.getByTestId('leave-all-close').click();
+  await expect(page.locator('#toast-action')).toContainText('Left 1 pair close on purpose');
+  await expect(page.getByTestId('leave-all-close')).toHaveCount(0);
+  await expect(page.getByTestId('crowd-warnings')).toBeChecked();
+  await expect(page.getByTestId('crowding-settings')).toContainText('2 pairs left close on purpose');
+  await page.locator('#toast-action').getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByTestId('leave-all-close')).toHaveText('Leave all flagged now (1 pair)');
+});
+
 test('Crowding settings… opens Layers at its crowding switches; with warnings off, no notice', async ({ page }) => {
   await openFresh(page);
   await startPlacing(page, 'Buttonbush');

@@ -9,7 +9,7 @@ import type { Shape, SunInfo } from '../types';
 import { BULB_PARTNER_MIN_HEIGHT, crowdingOf, crowdRelation } from '../crowding';
 import { I } from '../icons';
 import { crowdOptions } from '../crowd-here';
-import { flagAgain } from './crowd-notice';
+import { flagAgain, leaveClose } from './crowd-notice';
 import { shownWith } from '../status';
 import { sqFt } from '../util';
 import { timeRange } from './time-range';
@@ -195,6 +195,10 @@ export function crowdingNote(s: Shape): HTMLElement | null {
   });
   if (crowded.length) body.append(el('div', {}, `Planted closer than usual to ${n(crowded.length)}:`), ...crowded.slice(0, 3).map(line));
   if (close.length) body.append(el('div', { style: crowded.length ? { marginTop: '4px' } : {} }, `Close to ${n(close.length)}: they may quickly grow into one another.`), ...close.slice(0, 3).map(line));
+  // Left close after the fact, as Leave it does as a plant is placed (Jason, 2026-10-27); Flag again takes it back.
+  const leave = el('button', { className: 'btn', 'data-testid': 'leave-close', style: { marginTop: '6px' } }, crowds.length === 1 ? 'Leave this close' : 'Leave these close');
+  leave.addEventListener('click', () => leaveClose(s.id, crowds.map((c) => c.other.id)));
+  body.append(el('div', {}, leave));
   if (left.length) body.append(flagAgainRow());
   body.append(el('div', { className: 'hint', style: { marginTop: '4px' } }, 'Usual spacing is half of each plant\'s typical spread added together, less where one grows under a tree whose lower limbs can be taken up (a third of its height, unless the tree says otherwise). ' +
     `Spring bulbs under a deciduous plant ${BULB_PARTNER_MIN_HEIGHT} ft or taller don't count, except right at its base. A little closeness can be fine, if you're after a quick, full look.`));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bulbPartner, crowdedIds, crowdRelation, crowdingOf, crowdLevels, sharedHeight, springBulb, treeBranches } from '../src/crowding';
+import { bulbPartner, crowdedIds, crowdPairs, crowdRelation, crowdingOf, crowdLevels, sharedHeight, springBulb, treeBranches } from '../src/crowding';
 import type { Plant } from '../src/plants';
 import type { CircleShape, Shape } from '../src/types';
 
@@ -142,6 +142,12 @@ describe('close and crowded', () => {
     expect([crowdRelation(low, sb, byId), crowdRelation(sb, low, byId), crowdRelation(sb, sb2, byId)]).toEqual(['under', 'over', 'even']);
     const free = p('free', 1, { plantId: undefined, radius: 0.5 });
     expect([crowdRelation(free, p('a', 0), byId), crowdRelation(p('a', 0), p('b', 1), byId)]).toEqual(['under', 'even']);
+  });
+  it('lists each pair flagged now once, both levels, not those left close', () => {
+    const shapes = [p('a', 0), p('b', 2.9), p('c', 6.5), p('d', 30)];
+    expect(crowdPairs(shapes, byId).map((x) => [x.a.id, x.b.id, x.level])).toEqual([['a', 'b', 'crowded'], ['b', 'c', 'close']]);
+    const left = [{ ...shapes[0], crowdOk: ['b'] } as Shape, ...shapes.slice(1)];
+    expect(crowdPairs(left, byId).map((x) => [x.a.id, x.b.id])).toEqual([['b', 'c']]);
   });
   it('a pair left close on purpose is not flagged, either way round', () => {
     const shapes = [p('a', 0, { crowdOk: ['b'] } as Partial<Shape>), p('b', 1), p('c', 4.5)];
