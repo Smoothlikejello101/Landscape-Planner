@@ -472,12 +472,15 @@ a { color: inherit; }
 /* (A picker row's name wraps: a cultivar's name is what tells it apart.) */
 .plant-item .pname { white-space: normal; overflow-wrap: anywhere; }
 /* A species' cultivars, folded under its row (indented, so they read as its). */
+/* (No line between a species and its fold: they're one entry. The fold's arrow sits where the rows' colour dots
+   do, 16 px in, 14 px wide, centred at 23 px, so it catches the eye down the list (Jason, 2026-10-26).) */
+.plant-item:has(+ .cultivars) { border-bottom: 0; }
 .cultivars { border-bottom: 1px solid #f5f5f4; }
-.cultivar-fold { display: flex; align-items: center; gap: 4px; width: 100%; min-height: 36px; padding: 0 8px 0 30px; background: none; border: 0; text-align: left; font: inherit; font-size: calc(13px * var(--ts)); color: #047857; cursor: pointer; }
+.cultivar-fold { display: flex; align-items: center; gap: 6px; width: 100%; min-height: var(--tap); padding: 0 8px 0 calc(23px - 8px * var(--ts)); background: none; border: 0; text-align: left; font: inherit; font-size: calc(13px * var(--ts)); font-weight: 600; color: #047857; cursor: pointer; }
 .cultivar-fold:focus-visible { outline: 2px solid #059669; outline-offset: -2px; border-radius: 4px; }
 .cultivar-fold .fold-chev { display: flex; transition: transform 0.15s; }
 .cultivar-fold[aria-expanded=false] .fold-chev { transform: rotate(-90deg); }
-.cultivar-list { margin-left: 24px; border-left: 2px solid #d1fae5; }
+.cultivar-list { margin-left: 22px; border-left: 2px solid #d1fae5; }
 .cultivar-list .plant-item:last-child { border-bottom: 0; }
 /* A group's heading (cultivars with no species record: "Roses"): not a plant, the whole row opens it. */
 .plant-item .group-head { min-height: 48px; }
