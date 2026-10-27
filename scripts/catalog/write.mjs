@@ -178,6 +178,9 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
       // (The sources can't say Wetland yet: it waits on USDA's wetland list. A plant the catalog calls a wetland
       // plant keeps that until then, rather than becoming merely "High".)
       if (key === 'water' && rated('water') === 'Wetland') continue;
+      // (A tree's or a vine's "clumps" are its trunks or its base, not a way of not running: a river birch "grows in a
+      // clump", a clematis "forms a clump".)
+      if (key === 'habit' && f.v === 'Clumping' && [rated('form')].flat().some((x) => x === 'Tree' || x === 'Vine')) continue;
       // Thorns on a plant named for having none (a thornless blackberry, honeylocust var. inermis, read off its species'
       // page): for a person to look at, not a flag to set.
       if (key === 'thorns' && /thornless|inermis/i.test(`${rec.common ?? ''} ${rec.botanical ?? ''}`)) { review.push({ id: rec.id, fact: key, note: 'thorns, but named thornless' }); continue; }
@@ -225,14 +228,23 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
     // kept, since a record may need it (a plant's spread draws its circle), but listed, its citation no longer
     // true of today's sources. (Not where this run already lists the fact.)
     const listed = new Set(review.filter((i) => i.id === rec.id).flatMap((i) => i.fact.split(', ')));
+    // (Read from text and held by the second reading, second-reading.mjs: the review lists it from the audit. One an
+    // earlier build wrote from a description, the second reading now differing, is taken out: unsettled. One whose page
+    // waits for a second reading stays as it was until it's read.)
+    const heldBy = new Map((a.held ?? []).map((h) => [h.fact, h.why]));
+    let retracted = false;
     for (const [, [to]] of Object.entries(FACTS)) {
       const f = rec.facts[to];
       if (written.has(to) || listed.has(to) || (to === 'edible' && unmarked) || !(f?.src?.length > 0) || f.src.some((s) => catalog.meta.sources[s]?.trust === 'unverified')) continue;
+      if (heldBy.has(to) && f.from === 'description') { if (heldBy.get(to) === 'disagree') { delete facts[to]; retracted = true; } continue; }
+      // (Read from a description by rules that no longer read it so: a misread, taken out. "A light winter mulch of
+      // evergreen boughs" once made a pincushion flower evergreen.)
+      if (f.from === 'description') { delete facts[to]; retracted = true; review.push({ id: rec.id, fact: to, note: `taken out: ${JSON.stringify(f.v)}, read from ${f.src.join(', ')}'s description, which the rules no longer read so` }); continue; }
       review.push({ id: rec.id, fact: to, note: `no source gives it now: ${JSON.stringify(f.v)}, from ${f.src.join(', ')}` });
     }
     // (Dated by this run only where its facts changed, or it had none audited: a record the run leaves as it was
     // keeps the date its facts were written on. So a build on a later day changes only what it changed.)
-    if (!written.size && !unmarked) return rec;
+    if (!written.size && !unmarked && !retracted) return rec;
     return { ...rec, audited: rec.audited && JSON.stringify(facts) === JSON.stringify(rec.facts) ? rec.audited : date, facts };
   });
   const sources = { ...catalog.meta.sources };

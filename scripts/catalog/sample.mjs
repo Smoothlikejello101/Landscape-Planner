@@ -5,12 +5,14 @@
 // <atlas.txt>: the Arkansas atlas PDF as `pdftotext -layout` text.
 // A page whose botanical name doesn't match the plant is left out, and said so.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { savedPage } from './pages.mjs';
 import { arkatlasStatus, mnwildFields, ncsuFields, usdaFields } from './extract.mjs';
 import { sameTaxon } from './usda-counties.mjs';
 import { acceptsPage, ncsuPageName, ownCultivarPage, recordCultivars, titleCultivar } from './ncsu-page.mjs';
 import { arkatlasClaims, combine, FLOWER_FACTS, flowerless, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims } from './claims.mjs';
-import { ncsuDeer, ncsuProseClaims, ncsuZones } from './prose.mjs';
+import { ncsuDeer, ncsuDescription, ncsuNames, ncsuProseClaims, ncsuZones } from './prose.mjs';
+import { gateProse, GATED, loadReadings, settleDegree } from './second-reading.mjs';
 
 const [samplePath, atlasPath, outPath, extraPath] = process.argv.slice(2);
 /** Claims gathered elsewhere (the web search, the Tallamy data), by plant id. */
@@ -28,6 +30,9 @@ const page = (source, url) => savedPage(source, url);
 const json = (p) => { try { return p ? JSON.parse(p.text) : null; } catch { return null; } };
 const sameName = (a, b) => a && b && a.toLowerCase().replace(/\s+/g, ' ').startsWith(b.toLowerCase());
 
+// What a second reading agreed (second-reading.mjs): values read from a page's text are written only where it does.
+const readings = loadReadings();
+const tasks = new Map();
 const out = [];
 for (const s of sample) {
   const rec = byId.get(s.id);
@@ -87,15 +92,24 @@ for (const s of sample) {
   const speciesPage = seen.ncsu && (s.ncsuName || !cultivarTitle || (s.genusOnly ? !ownCultivar : several));
   // (Its zones as its fields give them, unless its own description says the coldest are only where it's an annual.)
   // (Its deer as its field gives it, unless its own description says it resists deer only in part.)
-  const fields = ncsuDeer(ncsuZones(ncsuClaims(ncsu), ncsuHtml), ncsuHtml);
-  const allClaims = [
-    ...fields.map((c) => ({ ...c, cultivarPage: !!seen.ncsu && !speciesPage }))
+  // (The page a value read from its text came from, for the second reading.)
+  const ncsuPage = ncsuHtml ? { key: `ncsu:${s.ncsu}`, names: ncsuNames(ncsuHtml), sentences: ncsuDescription(ncsuHtml) } : null;
+  const onPage = (c) => (c.prose && GATED.has(c.fact) && ncsuPage ? { ...c, page: ncsuPage } : c);
+  const fields = ncsuDeer(ncsuZones(ncsuClaims(ncsu), ncsuHtml), ncsuHtml).map(onPage);
+  const read = [
+    // (A field its text lowered keeps the field's own claim beside it, for where the second reading doesn't agree.)
+    ...fields.map((c) => ({ ...c, cultivarPage: !!seen.ncsu && !speciesPage, ...(c.fallback ? { fallback: { ...c.fallback, cultivarPage: !!seen.ncsu && !speciesPage } } : {}) }))
       .map((c) => (c.fact === 'host' ? { ...c, v: onlyCaterpillars(c.v, lepGenera) } : c)).filter((c) => !(c.fact === 'host' && !c.v.length)),
     // Its description, read by rule (prose.mjs), only for what its fields don't say.
-    ...ncsuProseClaims(ncsuHtml).filter((c) => !fields.some((f) => f.fact === c.fact)).map((c) => ({ ...c, cultivarPage: !!seen.ncsu && !speciesPage })),
+    ...ncsuProseClaims(ncsuHtml).filter((c) => !fields.some((f) => f.fact === c.fact)).map((c) => ({ ...c, cultivarPage: !!seen.ncsu && !speciesPage })).map(onPage),
     ...mnwildClaims(mnwild), ...arkatlasClaims(ar), ...usdaClaims(usda), ...tallamyClaims(tallamy, s.species),
     ...(extraClaims[s.id] ?? []),
   ];
+  // Values read from text, only where the second reading agrees; the rest held, and their pages listed to read.
+  const gate = gateProse(read, readings);
+  for (const [k, t] of gate.tasks) { const had = tasks.get(k); tasks.set(k, had ? { ...had, facts: [...new Set([...had.facts, ...t.facts])] } : t); }
+  // (A degree left open by the readings, settled by another source that gives the degree the rules read.)
+  const allClaims = settleDegree(gate.claims);
   // (No flowers: a conifer's or a fern's "bloom" and "flower color" are its cones or spores, left out.)
   const noFlowers = flowerless(usda, rec?.facts?.form?.v ?? rec?.facts?.form ?? null, ncsu?.Family?.[0]);
   const by = usda?.Group ? `USDA: ${noFlowers}` : ncsu?.Family?.[0] ? `NC State: ${noFlowers}` : 'a fern';
@@ -103,7 +117,10 @@ for (const s of sample) {
   const claims = noFlowers ? allClaims.filter((c) => !FLOWER_FACTS.has(c.fact)) : allClaims;
   const mapped = combine(claims, { cultivar, prefer: rec?.facts?.form?.v ?? rec?.facts?.form ?? null });
   if (cultivar && (speciesPage || !seen.ncsu)) notes.push('A cultivar read from species pages: its size, form and flower color come only from a page for the cultivar');
-  out.push({ id: s.id, common: rec?.common, botanical: rec?.botanical, species: s.species, compendium: rec?.facts ?? {}, sources: seen, raw: { ncsu, usda, mnwild, arkatlas: ar }, claims, facts: mapped, notes });
+  out.push({ id: s.id, common: rec?.common, botanical: rec?.botanical, species: s.species, compendium: rec?.facts ?? {}, sources: seen, raw: { ncsu, usda, mnwild, arkatlas: ar }, claims, facts: mapped, notes, ...(gate.held.length ? { held: gate.held } : {}) });
 }
 writeFileSync(outPath, JSON.stringify(out, null, 1));
-console.log(`${out.length} plants → ${outPath}`);
+// (The pages whose text still needs a second reading: second-reading.mjs, docs/catalog-sources.md.)
+writeFileSync(join(dirname(outPath), 'second-reading-tasks.json'), JSON.stringify([...tasks.values()], null, 1));
+const held = out.flatMap((a) => a.held ?? []);
+console.log(`${out.length} plants → ${outPath}; read from text: ${held.filter((h) => h.why === 'disagree').length} held where a second reading differs, ${held.filter((h) => h.why === 'unread').length} waiting for one (${tasks.size} pages)`);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error (plain JavaScript build script)
-import { aboutPlant, copyKey, isUseTerms, looksLikeTerms, pageText, siteKind, sizeIn, sourceOf, termsKey, termsLinks, termsPassages, termsVerdict, webClaims, webFields } from '../scripts/catalog/web.mjs';
+import { aboutPlant, copyKey, isUseTerms, looksLikeTerms, pageText, paragraphKey, siteKind, sizeIn, sourceOf, termsKey, termsLinks, termsPassages, termsVerdict, webClaims, webFields, webParagraphs } from '../scripts/catalog/web.mjs';
 // @ts-expect-error (plain JavaScript build script)
 import { combine } from '../scripts/catalog/claims.mjs';
 
@@ -153,6 +153,36 @@ describe('web claims', () => {
     expect(combine([n('a.com', 5), n('a.com', 5, 'p:2')]).zone_min).toMatchObject({ check: 'reported' });
     // Safety facts never come from the web.
     expect(combine([{ fact: 'tox_pets', v: ['nontoxic'], src: 'a.com', kind: 'nursery' }]).tox_pets).toBeNull();
+  });
+});
+
+// A page's own paragraphs, read by prose.mjs's rules (2026-10-27). Written for these tests in the shapes nursery
+// pages use; no page's own words.
+describe("a page's description, read by rule", () => {
+  const plant = { species: 'Itea virginica', cultivar: 'Little Henry', common: 'Virginia sweetspire' };
+  const url = 'https://shop.example.com/products/itea';
+  const facts = (body: string, opts = {}) => webClaims(url, shop(body), plant, opts).filter((c: { prose?: boolean; fact: string }) => c.prose || c.fact === 'foliage');
+  it('reads its paragraphs for leaves in winter, deer, self-sowing and spreading, citing the sentence', () => {
+    const got = facts(`<p>Little Henry is a compact deciduous shrub grown for its white summer spikes.</p>
+      <p>It spreads slowly by underground suckers to form a low colony. Deer seldom bother it.</p>`);
+    expect(got.map((c: { fact: string; v: unknown }) => [c.fact, c.v])).toEqual([['foliage', 'deciduous'], ['deer', 'Resistant'], ['habit', 'Suckering (slow)']]);
+    expect(got[1]).toMatchObject({ src: 'example.com', kind: 'nursery', prose: true, says: 'Deer seldom bother it.' });
+  });
+  it('takes a labeled "Evergreen or Deciduous" as the page\'s field, not as prose', () => {
+    const got = facts('<p>Deer Resistant: Yes Attractive to Bees: Yes Good Under Oaks: No Evergreen or Deciduous: Deciduous</p>');
+    expect(got.find((c: { fact: string }) => c.fact === 'foliage')).toMatchObject({ v: 'deciduous' });
+    expect(got.find((c: { fact: string }) => c.fact === 'foliage').prose).toBeUndefined();
+  });
+  it('leaves its menus, footer and the site\'s repeated paragraphs out; its spec line\'s deer comes first', () => {
+    expect(facts('<footer><p>All of our shrubs are deer resistant and ship in spring.</p></footer><p>Zones: 5-9</p>')).toEqual([]);
+    const blurb = "<p>Weigela 'Red Prince' is a deciduous shrub with red flowers that hummingbirds love.</p>";
+    expect(facts(blurb)).toHaveLength(0); // (another plant, named as the subject)
+    const said = '<p>This shrub is evergreen in mild winters and deciduous elsewhere.</p>';
+    expect(facts(said, { boilerplate: new Set([paragraphKey('This shrub is evergreen in mild winters and deciduous elsewhere.')]) })).toEqual([]);
+    expect(webClaims(url, shop('<ul><li>Deer Resistant: Yes</li></ul><p>Young plants may be browsed by deer.</p>'), plant).filter((c: { fact: string }) => c.fact === 'deer')).toEqual([expect.objectContaining({ v: 'Resistant' })]);
+    expect(webParagraphs('<nav><p>Shop all shrubs and trees for every garden</p></nav><p>short</p><p>A paragraph long enough to be read as the page\'s own text.</p>')).toEqual(["A paragraph long enough to be read as the page's own text."]);
+    // (Readers' comments aren't the page's.)
+    expect(webParagraphs('<p>The page\'s own paragraph about its plant, long enough.</p><div id="comments" class="comments-area"><p>I love plants that self-seed, mine seeds everywhere!</p></div>')).toEqual(["The page's own paragraph about its plant, long enough."]);
   });
 });
 
