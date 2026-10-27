@@ -26,13 +26,14 @@ export const TIER = {
   attracts: 'description', tolerates: 'description', maintenance_level: 'description', thorns: 'description', winter_interest: 'description',
   bark: 'description', bark_color: 'description', stem_color: 'description', fruit_season: 'description', fruit_color: 'description',
   leaf_color: 'description', foliage: 'description', needles: 'description', fall_colors: 'description', growth_rate: 'description',
+  self_seed: 'description', habit: 'description',
 };
 const RANK = { authority: 3, breeder: 2, nursery: 1, blog: 0 };
 /** Facts decided by sides (`bySides`), the other side kept beside the value (`alt`; never safety facts). */
 export const REPORTABLE = new Set(['height', 'width', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'deer']);
 /** Facts a cultivar is bred to change: only a page for the cultivar itself speaks to them. */
 export const CULTIVAR_OWN = new Set(['height', 'width', 'flower_color', 'form', 'leaf_color', 'fall_colors', 'growth_rate', 'attracts', 'winter_interest',
-  'bark_color', 'stem_color', 'fruit_color']);
+  'bark_color', 'stem_color', 'fruit_color', 'habit', 'self_seed']);
 
 // ---------- Values ----------
 

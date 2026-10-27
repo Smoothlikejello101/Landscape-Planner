@@ -7,8 +7,9 @@
 //
 // Read by rule, never by guess: a sentence speaks to a fact only in the words the rules below know, and about the plant
 // itself (not "the deciduous forests" it grows in, the evergreens it's planted under, or a plant it's compared to). A
-// sentence these rules can't settle says nothing. So far: whether its leaves stay through winter (`foliage`), and the
-// zones a plant is hardy in where the page's own zone field takes in the zones its text says it's only an annual in.
+// sentence these rules can't settle says nothing. So far: whether its leaves stay through winter (`foliage`); deer
+// (`deer`), self-sowing (`self_seed`) and spreading underground or by runners (`habit`); and the zones a plant is hardy
+// in where the page's own zone field takes in the zones its text says it's only an annual in.
 import { zoneSpan } from './claims.mjs';
 
 const decode = (s) => String(s)
@@ -110,6 +111,8 @@ export function aboutAnother(sentence, names) {
   if (!m) return false;
   const subject = words(m[1]);
   if (!subject.length || GENERIC.test(subject[0])) return false;
+  // (A gardener's doing, not a plant: "Controlling its spread has …", "Pruning the shrub is …". Not "Flowering dogwood".)
+  if (/ing$/.test(subject[0]) && /^(?:its|the|a|an|this|these|them|it|spent|dead|old)$/.test(subject[1] ?? '')) return false;
   const known = names.map(words);
   const inside = (a, b) => a.length <= b.length && b.join(' ').includes(a.join(' '));
   // ("Holly fern" for "Japanese holly fern"; "Lantana" for Lantana camara; the genus alone for a species.)
@@ -214,8 +217,267 @@ export function ncsuZones(claims, html) {
   return [...claims.filter((c) => c.fact !== 'zone_min' && c.fact !== 'zone_max'), zone('zone_min'), zone('zone_max')];
 }
 
+// ---------- Deer, self-sowing and spreading (2026-10-27) ----------
+//
+// A sentence is read a clause at a time ("Deer tend to avoid it but may eat the flowers": the flowers aren't the
+// plant), and only where it's about the plant itself (not one it's compared to, planted with, or a cultivar it names).
+
+/** A sentence's clauses: split at semicolons and at "but", "although", "whereas" and the like. */
+/** About its name: "the genus name comes from …", not "…, hence the common name" trailing a sentence about the plant. */
+const aboutName = (s) => NAMING.test(String(s).replace(/[,;]?\s*(?:hence|thus|giving it|which (?:is|explains)) (?:its|the) (?:common )?name\b.*$/i, ''));
+const clauses = (s) => String(s).split(/;|\s+\(?(?:but|while|although|though|however|whereas|yet|except)\s+|\.\s/i);
+/** Another plant, or a comparison, in the clause: "unlike", "an alternative to hostas", "less … than other clematis". */
+const OTHER_PLANT = /\b(?:unlike|similar to|compared|resembles?|confused with|mistaken for|combine (?:it )?with|pair (?:it )?with|plant (?:it )?(?:with|near|among|under|beneath)|companions?|underplant|in contrast|whereas|differs? from|alternative to|instead of|substitute|than the species|than its parent|than (?:other|most|many)\b)/i;
+
+// Deer: Resistant (deer pass it by), Occasional (deer eat it now and then, or it's resistant only in part) or Candy
+// (deer favor it, or damage it often). Said plainly ("Deer browse the foliage", "Deer will browse roses"), it's
+// Occasional: they eat it, how often unsaid. NC State's field lists deer only where it resists them, so the sentences
+// are where it says deer eat a plant (checked 2026-10-27: of the plants its field lists, nine in ten of the sentences
+// read Resistant, and most of the rest "mildly" or "moderately" resistant).
+const NOT_DEER = /\bdeer[- ](?:tongue|fern|grass|berry|berries|vetch|brush|weed|mice|mouse|ticks?|tick-borne|hunt\w*|season|flies|fly|pea|foot|horn|oak)\b|\(male deer\)|\bgame\b/i;
+const EATEN_PART = /\b(?:fruits?|acorns?|nuts?|berries|seeds?|pods?|mast|drupes?|cones?|samaras?|nectar|flowers?|bulbs?)\b/i;
+const PLANT_PART = /\b(?:foliage|leaves|twigs|stems|shoots|buds|plants?|bark|shrubs?|trees?|vines?|it|seedlings|saplings|branches|growth)\b/i;
+const OFTEN = String.raw`(?:frequently|often|heavily|severely|commonly|readily|regularly|very|highly|extremely|especially|particularly|quite|notoriously)`;
+const PARTLY = String.raw`(?:mildly|somewhat|moderately|fairly|partially|partly|relatively|slightly|reasonably|marginally|semi-?)`;
+const HURT = String.raw`(?:damaged|browsed|eaten|grazed|bothered|attacked|nibbled|chewed|devoured|consumed|targeted|troubled|munched)`;
+/** Other animals named with deer: "deer and rabbits", "rabbits, deer, and goats". */
+const ANIMALS = String.raw`(?:(?:,\s*|\s+and\s+|\s+or\s+|,\s+and\s+|,\s+or\s+)(?:white-tailed\s+|cottontail\s+|box\s+)?(?!is\b|are\b|be\b|it\b|was\b|has\b)[\w-]+){0,4}?`;
+const ITEMS = String.raw`(?:[\w,'()-]+\s+)`;
+/** Deer rules, in order, each [name, value, rule]: the first that a clause meets says (null: it can't settle it). */
+const DEER = [
+  // Said not to: "not favored by deer", "often not bothered", "deer browsing is almost nonexistent".
+  ['not-eaten', 'Resistant', new RegExp(String.raw`\b(?:not|never|rarely|seldom)\s+(?:\w+\s+){0,2}(?:${HURT}|favou?red|preferred|bothered|touched|browsed|troubled)\b[^.;]{0,25}\bdeer|\bdeer (?:browsing|damage|feeding) (?:is|has been) (?:\w+\s+)?(?:nonexistent|rare|minimal|uncommon|unusual|negligible|slight|light)\b`, 'i')],
+  // A comparison ("less damaged by deer than other clematis") or a doubt ("conflicting data"): nothing settled.
+  ['compared', null, /\b(?:less|fewer|more)\s+(?:\w+\s+){0,2}(?:damaged|browsed|eaten|bothered|resistant|susceptible|favou?red|palatable|frequently|often|attractive)\b[^.;]*\bdeer|\bdeer\b[^.;]*\b(?:less|more) (?:than|so than|often than)\b|\bthan (?:other|most|many)\b[^.;]*\bdeer|\bdeer\b[^.;]*\bthan (?:other|most|many)\b|\bconflicting\b/i],
+  ['often', 'Candy', new RegExp(String.raw`\b${OFTEN}\s+(?:\w+\s+){0,2}(?:${HURT}|susceptible|vulnerable|prone|favored|preferred|attractive|palatable|appealing|(?:sustains?|suffers?|receives?)\s+(?:\w+\s+)?damage)\b[^.;]{0,40}\bdeer`, 'i')],
+  ['deer-favor', 'Candy', new RegExp(String.raw`\bdeer\b${ANIMALS}\s+(?:will\s+|can\s+|may\s+|also\s+|do\s+)?(?:${OFTEN}\s+(?:\w+\s+)?(?:browse|eat|damage|feed|graze|devour|target)|love|loves|likes?\s+(?:it|this|the|these|them|to eat|to browse)|favou?r|relish|prefer|enjoy|devour|seek out|are fond of|are attracted\b|are drawn to|find (?:it|them|this plant|the \w+) (?:tasty|delicious|irresistible|palatable))`, 'i')],
+  ['little-resistance', 'Candy', /\b(?:little|no|poor|low)\s+resistance\b[^.;]{0,30}\bdeer/i],
+  ['serious', 'Candy', /\bdeer\b[^.;]{0,30}\b(?:serious|major|significant|severe|big) (?:problem|issue|pest|threat)\b|\b(?:serious|major|significant|severe|heavy)\s+(?:damage|problems?|browsing)\b[^.;]{0,20}\bdeer\b/i],
+  ['favorite', 'Candy', /\b(?:favou?rite|preferred|choice|candy|delicacy|magnet|ice cream)\b[^.;]{0,40}\bdeer\b|\bdeer(?:'s|s')?\s+(?:candy|favou?rite|magnet|delicacy)\b|\bfavou?red by (?:\w+\s+){0,2}deer\b/i],
+  ['partly', 'Occasional', new RegExp(String.raw`\b${PARTLY}\s*(?:deer[- ](?:and[- ][\w-]+[- ])?)?(?:resist\w*|tolerant|immun\w*)\b[^.;]{0,40}\bdeer|\b${PARTLY}\s*deer[- ](?:and[- ][\w-]+[- ])?(?:resist\w*|tolerant)\b|\bsome (?:tolerance|resistance)\b[^.;]{0,30}\bdeer`, 'i')],
+  ['not-resistant', 'Occasional', /\bnot\s+(?:\w+\s+){0,2}deer[- ]?(?:resist\w*)|\bnot\s+(?:\w+\s+){0,1}resistant to (?:\w+\s+){0,3}deer|\bno deer resistance|\blimited\s+resistance\b[^.;]{0,30}\bdeer|(?:^|\()\s*not (?:by |to |from )?deer\b/i],
+  ['may', 'Occasional', new RegExp(String.raw`\b(?:occasionally|sometimes|can be|may be|might be|could be|can become|is not immune)\s+(?:\w+\s+){0,2}${HURT}\b[^.;]{0,30}\bdeer|\bdeer\b${ANIMALS}\s+(?:occasionally|sometimes|may|might|can|could)\s+(?:\w+\s+){0,2}(?:browse|eat|damage|nibble|feed|graze|cause damage)\b|\b(?:can|may|could|might)\s+(?:\w+\s+)?suffer\b[^.;]{0,40}\bdeer|\bdeer (?:damage |browsing )?(?:can be|is often|may be) (?:a problem|troublesome|a nuisance|an issue|a concern)\b`, 'i')],
+  ['young', 'Occasional', /\bdeer[- ]?resist\w*[^.;]{0,30}\b(?:when mature|except when young|but young|young plants)/i],
+  // Resistant: "deer resistant", "drought, deer, and wet soil tolerant", "tolerates browsing by deer" (NC State's own
+  // field counts that as resisting deer), "resistant to salt, drought, and damage by deer", "seldom damaged by deer".
+  ['listed', 'Resistant', new RegExp(String.raw`\bdeer\b(?:,?\s+(?:and\s+|&\s+)?(?!is\b|are\b|be\b|it\b|was\b|has\b)[\w-]+(?:\s(?!is\b|are\b)[\w-]+)?){1,7}?,?\s+(?:tolerant|resistant)\b|\b(?:tolerat\w*|withstands?|handles?|stands? up to)\s+${ITEMS}{0,18}?(?:(?:browsing|grazing|damage|visits)\s+(?:by|from)\s+|(?:nighttime|occasional)\s+visits from\s+)?deer\b|\b(?:tolerat\w*|withstands?)\s+${ITEMS}{0,10}?deer (?:browsing|damage|grazing)\b`, 'i')],
+  ['resistant', 'Resistant', /\bdeer-[^.;]{0,60}?-\s?(?:tolerant|resistant)\b|\bdeer(?:[- ]+(?:and|&)[- ]+[\w]+)?[- ]+(?:resistant|resistance|tolerant|proof)\b|\bdeer-?\s+and\s+[\w-]+-(?:resistant|tolerant)\b/i],
+  ['resists', 'Resistant', /\b(?:resist(?:ant|s|ance)?|tolerant|immune|immunity)\s+(?:to\s+|from\s+)?(?:[\w,()-]+\s+){0,10}?(?:(?:damage|browsing|feeding|grazing)\s+(?:by|from)\s+)?deer\b|\bresists?\s+(?:[\w,-]+\s+){0,4}deer\b/i],
+  ['avoided', 'Resistant', new RegExp(String.raw`\b(?:seldom|rarely|not often|infrequently|not usually|not generally|not typically|usually not|generally not|never)\s+(?:\w+\s+){0,2}(?:${HURT}|favored|preferred|touched|bothered|browse\w*|eat\w*)\b[^.;]{0,25}\bdeer|\bdeer\b${ANIMALS}\s+(?:will\s+|usually\s+|generally\s+|typically\s+|tends? to\s+|mostly\s+)?(?:avoid|ignore|dislike|shun|pass (?:it|them) by|leave (?:it|them|this plant) alone|(?:won't|don't|do not|will not|rarely|seldom|usually don't)\s+(?:\w+\s+)?(?:eat|browse|bother|touch|damage))`, 'i')],
+  ['distasteful', 'Resistant', /\b(?:discourage|deter|repel)s?\b[^.;]{0,50}\bdeer|\bkeeps?\b[^.;]{0,40}\bdeer\b[^.;]{0,20}\baway\b|\b(?:do not|don't|doesn't|does not)\s+find\b[^.;]{0,30}\b(?:appetizing|palatable|appealing|tasty)\b|\b(?:ignored|avoided|shunned|unbothered|untouched|passed over|left alone)\s+by\s+(?:\w+\s+){0,3}deer\b|\bdeer\b[^.;]{0,15}\b(?:are|is)\s+not\s+(?:\w+\s+)?(?:attracted|interested|fond|a problem|bothersome|an issue|a concern|a pest)\b|\b(?:unpalatable|distasteful|unappealing|unattractive|unappetizing|not palatable|not appealing)\b[^.;]{0,30}\bdeer|\bdeer\b[^.;]{0,40}\b(?:unpalatable|distasteful|unappealing|unattractive|unappetizing)\b/i],
+  // Said plainly: deer eat it.
+  ['eaten', 'Occasional', new RegExp(String.raw`\bdeer\b${ANIMALS}\s+(?:will\s+|can\s+|do\s+|also\s+|often\s+|are known to\s+|have been known to\s+)?(?:browse|browses|eat|eats|damage|damages|feed on|feast on|graze|nibble|consume|cause damage)\b|\b(?:${HURT}|susceptible|vulnerable|prone|palatable)\b[^.;]{0,15}\b(?:by|to|from)\s+(?:\w+\s+){0,3}deer\b|\b(?:susceptible|vulnerable|prone)\s+to\s+${ITEMS}{0,12}?deer\b|\b(?:browsed?|browsing|chewing|grazing)\b[^.;]{0,20}\bdeer\b|\bdeer (?:damage|browsing|browse)\b|\bbrowse for (?:\w+\s+){0,2}deer|\b(?:protected|protection)\s+from\s+(?:\w+\s+){0,2}deer\b|\b(?:suffers?|sustains?)\s+(?:\w+\s+)?damage\s+from\s+deer\b`, 'i')],
+];
+/**
+ * What one sentence says of deer: 'Resistant', 'Occasional' or 'Candy', or null where it says nothing it can settle
+ * (deer eating its fruit or acorns, the deer fern, another plant). `rule`: the rule that read it.
+ */
+export function deerSaid(sentence, names = []) {
+  const s = String(sentence ?? '');
+  if (!/\bdeer\b/i.test(s) || NOT_DEER.test(s) || aboutName(s) || aboutAnother(s, names)) return null;
+  for (const raw of clauses(s)) {
+    const part = raw.replace(/^\s*unlike\b[^,]*,(?!\s*(?:which|that|who)\b)\s*/i, '');
+    if (!/\bdeer\b/i.test(part)) continue;
+    if (OTHER_PLANT.test(part)) return null;
+    for (const [rule, v, re] of DEER) {
+      if (!re.test(part)) continue;
+      // (Its fruit, flowers or bulbs eaten, not the plant: "deer eat the acorns", "the berries are consumed by birds and
+      // deer".)
+      const before = part.slice(0, part.search(/\bdeer\b/i));
+      if (v !== 'Resistant' && ((EATEN_PART.test(s) && !PLANT_PART.test(part)) || (EATEN_PART.test(before) && !/\b(?:foliage|leaves|twigs|stems|shoots|buds|bark|branches|seedlings|saplings)\b/i.test(before)))) return null;
+      return v ? { v, rule } : null;
+    }
+  }
+  return null;
+}
+export const DEER_ORDER = ['Candy', 'Occasional', 'Resistant'];
+/**
+ * What a page's sentences say of deer, { v, says }, or null: the least resistance any of them gives (no promise the
+ * deer pass it by: "deer resistant" and "may be damaged by deer" is Occasional).
+ */
+export function deerFromProse(list, names = []) {
+  const said = (list ?? []).map((s) => ({ s, d: deerSaid(s, names) })).filter((x) => x.d);
+  if (!said.length) return null;
+  const v = DEER_ORDER.find((k) => said.some((x) => x.d.v === k));
+  return { v, says: said.filter((x) => x.d.v === v).slice(0, 3).map((x) => x.s).join(' … ') };
+}
+
+// Self-sowing: Prolific (self-sows freely: "readily reseeds", "self-seeds and can become weedy", "deadhead to prevent
+// aggressive reseeding"), Modest (it does, how much unsaid or a little: "may self-seed", "will self-seed in ideal
+// conditions", "self-seeds, but is not aggressive"), Sterile (said of the plant itself: "'Karl Foerster' is sterile",
+// "a sterile hybrid", "does not produce seed"; never its fronds or florets, nor cultivars it names). "Does not
+// self-seed" says nothing: a plant can set seed that doesn't come up.
+const SOW = String.raw`(?:self[- ]?(?:seed|sow)(?:s|ed|ing|er|ers|n)?|re-?seed(?:s|ed|ing|er|ers)?(?:\s+(?:itself|themselves))?|seeds? (?:itself|themselves)(?: about| around)?|sows? (?:itself|themselves)(?: about| around)?)`;
+const BY_SEED = String.raw`\bspreads?\s+(?:\w+\s+)?(?:by|via|through|from)\s+(?:its\s+|both\s+)?seeds?\b`;
+const FREELY = String.raw`(?:freely|readily|easily|prolifically|aggressively|abundantly|profusely|heavily|vigorously|generously|prolific|copiously|liberally|rampantly|quickly|rapidly|widely|everywhere|with abandon|all over)`;
+const A_LOT = /\b(?:weedy|weed|invasive|aggressive|aggressively|aggressiveness|nuisance|take over|takes over|taking over|under control|to control|keep it in check|keep in check|problem|pest|everywhere|excessive|too much|numerous seedlings|many seedlings|lots of seedlings|hundreds|thousands|prolific|out of control|(?:difficult|hard) to (?:manage|control|eradicate|remove|get rid of)|eradicate|invasion|an issue|spreads? quickly|spreads? rapidly|remov\w* (?:of )?(?:the )?seedlings|seedlings on a regular basis)\b/i;
+const NOT_A_LOT = /\b(?:not|non-?|never|nor|isn't|aren't|without being|less|rarely|seldom|unlikely to)\s*(?:\w+\s+){0,3}?(?:prolific|aggressive|aggressively|invasive|invasively|weedy|a problem|a pest|a nuisance|spread aggressively)\b/i;
+const SAID_NOT = /\b(?:not|never|rarely|seldom|no|isn't|aren't|doesn't|don't|won't|without|unlikely to|not likely to)\s+(?:\w+\s+){0,3}$/i;
+/** Reseeding as a gardener's job (a lawn's bare spots), not the plant sowing itself. */
+const RESOWN = /\b(?:must|should|needs? to|you can|you may|you will|be)\s+(?:\w+\s+)?re-?seed|\bre-?seed(?:ing|ed)?\s+(?:must|should|is (?:needed|required|necessary)|bare|thin|the lawn|lawns|areas|spots|annually|every)|\boverseed/i;
+const SEED = [
+  ['sterile', 'Sterile', /\b(?:as a|being a) sterile (?:plant|hybrid|cultivar|selection|clone)\b|\bits seeds are sterile\b|(?:^|[,:]\s*|\b(?:since|because|as|and)\s+)(?:it|this(?: \w+){0,2}|these(?: \w+)?|they|the (?:plant|tree|shrub|cultivar|hybrid|variety|selection|grass|form|clone)s?|'[^']+'|[A-Z][\w-]+(?: [A-Z]?[\w-]+){0,3})\s+(?:is|are)\s+(?:\w+\s+){0,2}?(?:a\s+)?sterile\b(?!\s+(?:fronds?|leaves|leaf|florets?|flowers?|ray|stems?|shoots?|spikelets?|blades?|branches|pinnae|segments|cultivars|selections|varieties|forms))|\b(?:does not|doesn't|do not|don't|will not|won't|never)\s+(?:\w+\s+)?(?:set|produce|form|make|develop)\s+(?:\w+\s+)?(?:viable\s+)?seeds?\b|\b(?:it|this(?: \w+){0,2}|they)\s+(?:produces?|sets?|forms?)\s+no (?:viable )?seeds?\b/],
+  ['seedlings', 'Prolific', new RegExp(String.raw`\bseedlings\s+(?:\w+\s+)?(?:sprout|come up|appear|pop up|emerge)\s+${FREELY}`, 'i')],
+  // Nearly sterile ("highly infertile", "reduced seed formation"): it may not self-sow at all, so nothing's said.
+  ['near-sterile', null, /\b(?:is|are|being)\s+(?:\w+\s+)?(?:highly |largely |mostly )?infertile\b(?!\s+(?:soils?|sites?|ground|loam|stamens?|shoots?|flowers?|fronds?))|\bnear(?:ly)?[- ]sterile\b|\bmostly sterile\b|\bpartially sterile\b|\breduced (?:seed|fertility)/i],
+  ['freely', 'Prolific', new RegExp(String.raw`\b${SOW}\s+(?:\w+\s+)?${FREELY}\b|\b${FREELY}\s+(?:\w+\s+){0,2}${SOW}\b|\bprolific\s+(?:\w+\s+)?(?:self-?\s?)?(?:seeder|sower|reseeder)\b`, 'i')],
+  ['a-lot', 'Prolific', new RegExp(String.raw`\b${SOW}\b|${BY_SEED}`, 'i'), true],
+  ['sows', 'Modest', new RegExp(String.raw`\b${SOW}\b|${BY_SEED}|\bvolunteer (?:seedlings|plants)\b|\b(?:under|beneath|around)\b[^.;]{0,30}\bseedlings (?:may |will |often |can )?(?:appear|come up|pop up|emerge|sprout)\b`, 'i')],
+];
+const STERILE_PART = /\b(?:fronds?|leaves|leaf|flowers?|florets?|stems?|spikelets?|cones?|fruits?|parts?|anthers?|pollen|stamens?|sepals?|bracts?)\s+(?:are|is)\s+(?:\w+\s+){0,2}sterile\b/i;
+const STERILE_OF_OTHERS = /\b(?:consider|cultivars|varieties|selections|such as|instead)\b/i;
+/** What one sentence says of the plant sowing itself: 'Prolific', 'Modest' or 'Sterile', or null. */
+export function seedSaid(sentence, names = []) {
+  const s = String(sentence ?? '');
+  if (aboutName(s) || aboutAnother(s, names)) return null;
+  for (const part of clauses(s)) {
+    if (OTHER_PLANT.test(part)) continue;
+    for (const [rule, v, re, aLot] of SEED) {
+      const m = re.exec(part);
+      if (!m) continue;
+      if (v === null) return null;
+      if (aLot && (!A_LOT.test(s) || NOT_A_LOT.test(s))) continue;
+      // (Sterile cultivars it names, "consider 'Merlot Majik', as they are sterile", or parts of it, "the shield fronds
+      // are sterile": not the plant.)
+      if (v === 'Sterile' && STERILE_OF_OTHERS.test(s) && !/^(?:this|the) (?:cultivar|variety|selection)\b/i.test(part.trim())) return null;
+      if (v === 'Sterile' && STERILE_PART.test(part)) return null;
+      if (v === 'Sterile' && /\bsterile or near(?:ly)?[- ]sterile\b/i.test(part)) return null;
+      // ("Usually does not produce fertile seed": not quite none, nor said to self-sow. "Considered sterile, but
+      // cross-pollination can lead to viable seed": a little.)
+      if (v === 'Sterile' && /\b(?:usually|generally|mostly|often|typically|largely|rarely|seldom)\s+(?:does not|doesn't|do not|don't|will not|won't)\b/i.test(part)) return null;
+      if (v === 'Sterile' && /\b(?:can|may|could)\s+(?:\w+\s+){0,3}(?:lead to|produce|set|result in)\s+(?:\w+\s+)?viable seeds?|\btruly sterile\b/i.test(s)) return { v: 'Modest', rule: 'near-sterile' };
+      if (v !== 'Sterile' && RESOWN.test(part)) return null;
+      // "Does not freely self-seed": a little; "does not self-seed": nothing said.
+      if (v !== 'Sterile' && SAID_NOT.test(part.slice(0, m.index))) return new RegExp(String.raw`^${FREELY}`, 'i').test(m[0]) ? { v: 'Modest', rule } : null;
+      // ("Somewhat rapidly": hedged, a little.)
+      if (v === 'Prolific' && /\b(?:somewhat|fairly|moderately|slightly|a bit)\s+(?:rapidly|quickly|freely|readily|easily|aggressively)\b/i.test(part)) return { v: 'Modest', rule };
+      // "Self-seeds, but is not aggressive": a little.
+      if (rule === 'sows' && NOT_A_LOT.test(s)) return { v: 'Modest', rule };
+      return { v, rule };
+    }
+  }
+  return null;
+}
+/**
+ * What a page's sentences say of it sowing itself, { v, says }, or null: Prolific where any says freely, else Modest;
+ * Sterile only where none says it self-sows (a sterile cultivar's page that says its species self-seeds can't settle).
+ */
+export function seedFromProse(list, names = []) {
+  const said = (list ?? []).map((s) => ({ s, d: seedSaid(s, names) })).filter((x) => x.d);
+  if (!said.length) return null;
+  const has = (k) => said.some((x) => x.d.v === k);
+  // (A triploid or seedless plant whose page also says it self-sows: that's its species, read on the cultivar's page.)
+  if (!has('Sterile') && (list ?? []).some((s) => /\b(?:triploid|seedless)\b/i.test(s))) return null;
+  if (has('Sterile') && (has('Prolific') || has('Modest') && said.some((x) => x.d.v === 'Modest' && x.d.rule !== 'near-sterile'))) return null;
+  const v = ['Sterile', 'Prolific', 'Modest'].find(has);
+  return { v, says: said.filter((x) => x.d.v === v).slice(0, 3).map((x) => x.s).join(' … ') };
+}
+
+// Spreading underground or by runners, as a habit src/spread.ts knows: by rhizomes ("spreads by rhizomes", "creeping
+// rhizomes", "underground runners"; "rhizomatous" only beside words that say it spreads: alone, it's a kind of root, a
+// hellebore's or a begonia's as much as a mint's), stolons or runners, suckers (forming thickets, where its suckers do;
+// not "found in thickets", where it grows wild), or mats; aggressively ("spreads aggressively by rhizomes", "suckers
+// … can become a weed problem") or slowly where said. Clumping where it's said to form clumps and nothing of running
+// ("a clump-forming perennial", "a bunchgrass"); not where the same clause says it spreads.
+const HABIT_NOT = /\b(?:not|never|no|isn't|aren't|doesn't|don't|won't|without|nor|rather than|instead of)\s+(?:\w+ly\s+)?$/i;
+const AGGRESSIVE = /\b(?:aggressive(?:ly)?|invasive(?:ly)?|rapidly|quickly|vigorously|rampant(?:ly)?|prolific(?:ally)?|challeng\w* to (?:control|contain|remove)|(?:proven|proved) (?:to be )?(?:a )?challeng\w*|takes? over|taking over|(?:hard|difficult) to (?:control|contain|eradicate|remove)|weed problem|become a weed|a weed\b|out of control|weedy|aggressiveness|escape|needs? to be contained|should be contained|contain it|barriers?|thugs?|invade|outcompet\w*|crowds? out|overwhelm\w*)\b/i;
+const NOT_AGGRESSIVE = /\b(?:not|non-?|never|nor|isn't|aren't|less|rarely|seldom|unlikely to|without being)\s*(?:\w+\s+){0,3}?(?:aggressive(?:ly)?|invasive(?:ly)?|weedy|a problem|rampant|take over)\b|\b(?:a little|a bit|somewhat|slightly|mildly|moderately|fairly)\s+aggressive(?:ly)?\b/i;
+/** Its spread hard to keep in check, said in a sentence of its own (not "invasive" or "escapes": where it goes wild, by seed as often). */
+const SPREADING_HARD = /\b(?:aggressive(?:ly)?|rampant(?:ly)?|takes? over|taking over|(?:hard|difficult) to (?:control|contain|eradicate|remove)|challeng\w* to (?:control|contain|remove)|(?:proven|proved) (?:to be )?(?:a )?challeng\w*|out of control|thugs?)\b/i;
+const SLOWLY = /\b(?:slowly|slow(?:ly)?[- ](?:spreading|creeping)|slow to spread|spreads? slowly|gradually|slowly expanding|a few suckers)\b/i;
+const WILD = /\b(?:in the wild|found|occurs?|occurring|habitats?|along|in (?:wet|moist|dry|open)|bogs|woods|roadsides|pastures|fields|banks|clearings|riparian)\b/i;
+const SPREADS = String.raw`(?:spreads?|spreading|spread|expands?|expanding|creeps?|creeping|travels?|runs?|running|colonizes?|colonizing|increases?|increasing|forms? (?:\w+\s+)?(?:colonies|colony|patches|drifts|stands|thickets)|form (?:\w+\s+)?(?:colonies|colony|patches|drifts|stands)|naturalizes?|multipl(?:y|ies)|reproduces?|propagates? (?:itself|vegetatively))`;
+const BY = (what) => String.raw`\b${SPREADS}\b[^.;]{0,40}?\b(?:by|via|through|from|with|on|using|means of)\s+(?:[\w,-]+\s+){0,4}?\(?${what}\b`;
+/** Spreading words, each [word, rule]: R rhizomes, W "rhizomatous", T stolons or runners, K suckers, H thickets, C clumps, M mats. */
+const SPREAD_WORDS = [
+  ['R', new RegExp(String.raw`${BY('(?:rhizomes?|rootstocks?|underground runners?|creeping roots)')}|\bunderground runners\b|\b(?:creeping|spreading|running|wandering|aggressive|slow-creeping)\s+(?:\w+\s+)?rhizomes?\b|\brhizomes?\s+(?:that|which)\s+(?:\w+\s+){0,2}${SPREADS}`, 'i')],
+  ['W', /\brhizomatous\b(?!\s+division)/i],
+  ['T', new RegExp(String.raw`${BY('(?:stolons?|(?<!underground )runners?|rooting (?:stems|runners))')}|\bstoloniferous\b|\b(?:creeping|spreading|above-ground|aboveground|surface|long)\s+(?:\w+\s+)?(?:stolons?|runners)\b|\b(?:stolons?|runners)\s+(?:that|which)\s+(?:\w+\s+){0,2}(?:root|${SPREADS})|\bsends? (?:out|up) (?:\w+\s+)?(?:stolons|runners)\b|\bproduces? (?:\w+\s+)?(?:stolons|runners)\b`, 'i')],
+  ['K', new RegExp(String.raw`${BY('(?:root\\s+)?suckers?(?:ing)?')}|\bsuckers?\s+(?:\w+\s+)?(?:freely|readily|profusely|heavily|vigorously|aggressively|easily|prolifically|from the (?:roots|base)|to form|and forms?|forming)\b|\b(?:produces?|sends? up|forms?|develops?)\s+(?:\w+\s+){0,2}(?:root\s+)?suckers\b|\bsuckering\s+(?:habit|shrub|tree|plant|nature|tendenc\w+|growth)\b|\b(?:a |is )suckering\b|\bspreading by suckering\b|\bthrough suckering\b|\bby suckering\b|\bsuckering and\b|\band suckering\b|\bits suckering\b|\bsuckering (?:can|may|makes?|will)\b|\broot suckers\b`, 'i')],
+  ['H', /\b(?:forms?|forming|form|creates?|creating|develops?|develop|grows? into|spreads? into|spread into|into)\s+(?:a\s+)?(?:\w+\s+){0,2}?thickets?\b|\bthicket-forming\b/i],
+  ['C', /\bclump[- ]forming\b|\b(?:forms?|forming|grows? in|growing in|grows? as|develops?)\s+(?:a\s+|an\s+)?(?:\w+\s+){0,2}?(?:clumps?|tufts?)\b(?! of (?:flowers|blooms))|\bclumping\s+(?:habit|grass|perennial|form|plant|bamboo|sedge|fern|growth|nature|variety|cultivar)\b|\b(?:bunchgrass|bunch-forming|bunch grass|tufted(?!\s+(?:foliage|leaves|hairs?|flowers?|branch\w*|stems?))|caespitose|cespitose)\b|\bis\s+(?:\w+\s+)?clumping\b|\bclumping,|\ba clumper\b/i],
+  ['M', /\bmat[- ]forming\b|\b(?:forms?|forming|creates?|creating|spreads? (?:to form|into))\s+(?:a\s+)?(?:\w+\s+){0,2}?mats?\b/i],
+];
+/** The spreading words in one sentence (`R`, `T`, `K`, `H`, `C`, `M`), with `A` (aggressively) or `L` (slowly) where said. */
+export function spreadWords(sentence, names = []) {
+  const s = String(sentence ?? '');
+  if (aboutName(s) || aboutAnother(s, names)) return [];
+  const out = [];
+  // (Its spread said to be hard to control, in a sentence of its own: "Controlling its spread has proven a challenge".
+  // Not seed's: "spreads aggressively by seed" is self-sowing.)
+  const bySeed = /\bseeds?\b|self-?sow|re-?seed/i.test(s), spreadsSaid = /\b(?:spread|spreads|spreading|expands?|colonizes?)\b/i.test(s) && !SPREAD_WORDS.some(([, re]) => re.test(s));
+  if (!bySeed && !NOT_AGGRESSIVE.test(s) && ((spreadsSaid && SPREADING_HARD.test(s)) || /\baggressive (?:habit|nature|spreader|grower|growth)\b|\b(?:can|may|will) (?:be|become) (?:quite |very |too )?aggressive\b/i.test(s))) out.push('A');
+  // (It spreads, said without how: "it can spread rapidly". Then a clump it forms isn't "doesn't run".)
+  if (!bySeed && spreadsSaid && /\b(?:can|will|may|does|quickly|rapidly|readily|easily)\s+(?:\w+\s+)?spread\b|\bspreads? (?:rapidly|quickly|readily|easily|aggressively)\b/i.test(s) && !/\b(?:spreading|spread) (?:\d|to |up to|of|habit|form|canopy|crown)/i.test(s)) out.push('S');
+  for (const raw of clauses(s)) {
+    // ("Unlike most of its genus, it spreads from rhizomes": about this plant. Not "unlike X, which …".)
+    const part = raw.replace(/^\s*unlike\b[^,]*,(?!\s*(?:which|that|who)\b)\s*/i, '');
+    if (OTHER_PLANT.test(part)) continue;
+    for (const [w, re] of SPREAD_WORDS) {
+      const m = re.exec(part);
+      if (!m) continue;
+      // ("Doesn't spread aggressively by rhizomes": it spreads, not aggressively. "Does not spread by rhizomes": not.)
+      if (HABIT_NOT.test(part.slice(0, m.index))) { if (w !== 'C' && AGGRESSIVE.test(m[0])) out.push(w); continue; }
+      // (Divided by the gardener, "division of rhizomes dug up in the fall", isn't spreading.)
+      if ((w === 'R' || w === 'W') && /\b(?:division|dividing|divide|divided|cuttings? of|planting|plant the|dug up)\b[^.;]{0,25}\brhizom/i.test(part) && !/\b(?:spreads?|creeping|colon\w*)\b[^.;]{0,30}\brhizom/i.test(part.replace(/\b(?:division|dividing|divide|divided)\b[^.;]{0,25}\brhizom\w*/gi, ''))) continue;
+      // ("Rhizomatous" says it spreads only beside words that do: "a rhizomatous, spreading plant", "rhizomatous, producing
+      // new plants from underground runners".)
+      if (w === 'W') { if (/\b(?:spread\w*|creep\w*|colon\w*|runs|running|producing new plants|sends? (?:up )?(?:roots and )?shoots|sending roots and shoots|form colonies)\b/i.test(part)) out.push('R'); continue; }
+      // (Propagated by the gardener, "propagate by seed, cuttings or root suckers", isn't spreading.)
+      if (w === 'K' && /\bpropagat\w*\b[^.;]{0,40}\bsuckers\b/i.test(part) && !new RegExp(String.raw`\b${SPREADS}\b`, 'i').test(part)) continue;
+      // (Short rhizomes clump, unless it's said to spread by them.)
+      if ((w === 'R' || w === 'T') && /\bshort[- ](?:\w+\s+)?(?:rhizom|stolon)/i.test(part) && !/\b(?:spread|expand)/i.test(part)) { out.push('C'); continue; }
+      // (Where it grows wild, "forming thickets along river banks": not how it grows in a garden.)
+      if (w === 'H' && WILD.test(s)) continue;
+      // (Clumps that spread, or quickly, "slowly spreads to form clumps": nothing said of not running.)
+      if (w === 'C' && (/\b(?:spread|spreads|spreading|creep\w*|colon\w*|runs|running|expand\w*)\b/i.test(part) || AGGRESSIVE.test(part))) { if (SLOWLY.test(part)) out.push('L'); continue; }
+      // (A plant's name isn't its habit: "Tufted sedge is …". Nor clumps where it grows wild: "found growing in clumps in
+      // swamps".)
+      if (w === 'C' && (/^(?:Tufted|Bunch)/.test(m[0]) || /\b(?:found|occurs?|occurring|in the wild|grows wild)\s+(?:\w+\s+){0,2}$/i.test(part.slice(0, m.index)))) continue;
+      out.push(w);
+      if (w === 'H' && /\bsuckers?\b/i.test(part)) out.push('K');
+      // (Suckers that make thickets: "thin the suckers to prevent thickets".)
+      if (w === 'K' && /\bthickets?\b/i.test(part) && !WILD.test(s)) out.push('H');
+      if (w !== 'C' && w !== 'M') {
+        // ("Spreads by seeds and rhizomes … weedy": the weediness may be the seed's. "Aggressively" still says how.)
+        if (AGGRESSIVE.test(part) && !NOT_AGGRESSIVE.test(part) && (!/\bseeds?\b|self-?sow|re-?seed/i.test(part) || /\b(?:aggressively|rapidly|quickly|vigorously)\b/i.test(part))) out.push('A');
+        else if (SLOWLY.test(part)) out.push('L');
+      }
+    }
+  }
+  return out;
+}
+/** The habits `habitOf` gives (each in src/spread.ts's table). */
+export const PROSE_HABITS = ['Suckering thicket', 'Suckering colonizer', 'Suckering (slow)', 'Suckering', 'Aggressive rhizome', 'Slow-spreading rhizome', 'Spreading rhizome', 'Aggressive runner (stolons)', 'Runner (stolons)', 'Mat-forming', 'Clumping'];
+/**
+ * A page's habit from its sentences' spreading words: suckers first (a suckering shrub that forms thickets), then
+ * rhizomes, runners, mats; clumping only where nothing else is said. Thickets alone say nothing of how it spreads (a
+ * rhododendron's thickets, a hedge planted as one), so only a suckering plant's are read. Aggressively where any sentence about
+ * its spreading says so; slowly where one says that and none aggressively.
+ */
+export function habitOf(words) {
+  const w = new Set(words);
+  const fast = w.has('A'), slow = w.has('L') && !fast;
+  if (w.has('K')) return fast ? (w.has('H') ? 'Suckering thicket' : 'Suckering colonizer') : w.has('H') ? 'Suckering thicket' : slow ? 'Suckering (slow)' : 'Suckering';
+  if (w.has('R')) return fast ? 'Aggressive rhizome' : slow ? 'Slow-spreading rhizome' : 'Spreading rhizome';
+  if (w.has('T')) return fast ? 'Aggressive runner (stolons)' : 'Runner (stolons)';
+  if (w.has('M')) return 'Mat-forming';
+  if (w.has('C') && !w.has('S')) return 'Clumping';
+  return null;
+}
+/** What a page's sentences say of its spreading, { v, says } (a habit), or null. */
+export function habitFromProse(list, names = []) {
+  const said = (list ?? []).map((s) => ({ s, w: spreadWords(s, names) })).filter((x) => x.w.length);
+  const v = habitOf(said.flatMap((x) => x.w));
+  if (!v) return null;
+  const clumps = v === 'Clumping';
+  return { v, says: said.filter((x) => (clumps ? x.w.includes('C') : x.w.some((k) => k !== 'C'))).slice(0, 3).map((x) => x.s).join(' … ') };
+}
+
 /** Claims read from NC State's description (an authority, like its fields). */
 export function ncsuProseClaims(html) {
-  const leaves = foliageFromProse(ncsuDescription(html), ncsuNames(html));
-  return leaves ? [{ fact: 'foliage', v: leaves.v, src: 'ncsu', kind: 'authority', says: leaves.says, prose: true }] : [];
+  const list = ncsuDescription(html), names = ncsuNames(html);
+  const read = [['foliage', foliageFromProse], ['deer', deerFromProse], ['self_seed', seedFromProse], ['habit', habitFromProse]];
+  return read.map(([fact, from]) => [fact, from(list, names)]).filter(([, r]) => r)
+    .map(([fact, r]) => ({ fact, v: r.v, src: 'ncsu', kind: 'authority', says: r.says, prose: true }));
 }

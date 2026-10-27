@@ -12,10 +12,11 @@ export type RootSpread = 'aggressive' | 'spreads' | 'slow' | 'stays' | 'other' |
  */
 export const HABIT_SPREAD: Record<string, RootSpread> = {
   'Aggressive rhizome': 'aggressive', 'Aggressive rhizomatous': 'aggressive', 'Runner - CONTAIN': 'aggressive',
+  'Aggressive runner (stolons)': 'aggressive',
   'Suckering colonizer': 'aggressive', 'Suckering thicket': 'aggressive', 'Thicket-forming': 'aggressive',
   'Spreading rhizome': 'spreads', 'Rhizomatous': 'spreads', 'Runner (stolons)': 'spreads', 'Suckering': 'spreads',
   'Suckering (rhizome)': 'spreads', 'Suckering canes': 'spreads', 'Spreading (tubers)': 'spreads',
-  'Suckering (slow)': 'slow',
+  'Suckering (slow)': 'slow', 'Slow-spreading rhizome': 'slow',
   'Clumping': 'stays', 'Clumping (this cv)': 'stays', 'Clumping (semi-woody)': 'stays', 'Clumping rosette': 'stays',
   'Single-stem': 'stays', 'Single-stem, horizontal': 'stays',
   'Mat-forming': 'other', 'Naturalizing': 'other', 'Reseeding annual': 'other',

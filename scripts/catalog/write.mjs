@@ -7,6 +7,7 @@
 // backwards).
 
 import { ATTRACTS, BARK, BARK_COLORS, bloomSeasons, flowerColors, ncsuNoPoison, PART_COLORS, PETS, SEASONS, TOLERATES } from './claims.mjs';
+import { PROSE_HABITS } from './prose.mjs';
 
 /** The checks the app takes (src/catalog.ts): disputed facts aren't written. */
 const SETTLED = new Set(['confirmed', 'single', 'likely', 'reported']);
@@ -62,6 +63,10 @@ const FACTS = {
   sun_least: ['sun_least', SUN],
   water: ['water', (v, enums) => (enums.water?.includes(v) ? v : undefined)],
   deer: ['deer', (v, enums) => (enums.deer?.includes(v) ? v : undefined)],
+  // How it spreads, read from NC State's description (prose.mjs): by seed, and underground or by runners (a habit
+  // src/spread.ts knows).
+  self_seed: ['self_seed', (v, enums) => (enums.self_seed?.includes(v) ? v : undefined)],
+  habit: ['habit', oneOf(PROSE_HABITS)],
   clay_ok: ['clay_ok', yes],
   wet_feet: ['wet_feet', yes],
   edible: ['edible', yes],
