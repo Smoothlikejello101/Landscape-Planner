@@ -503,6 +503,9 @@ export function combine(claims, { cultivar = false, prefer = null } = {}) {
     else check = agreeing.length ? 'likely' : 'reported';
     const r = { v: best.v, src: [best.src, ...agreeing.map((c) => c.src)], check, kind: best.kind };
     if (best.at) r.at = best.at;
+    // (Read from a source's description, prose.mjs: the sentence it was read from, for the build's own files and the
+    // review; the catalog says only where it was read.)
+    if (best.says) { r.from = 'description'; r.says = best.says; }
     const notes = [best.note, ...peersAgainst.map((c) => `${c.src}: ${fmtV(c.v)}`), ...lowerAgainst.filter((c) => !peersAgainst.includes(c)).map((c) => `${c.src} says ${fmtV(c.v)}`)].filter(Boolean);
     if (notes.length) r.note = notes.join('; ');
     // USDA's figures show only where they differ: for zones, by more than a whole zone.
@@ -587,6 +590,7 @@ function bySides(fact, usable, flagClaims) {
   }
   const kind = leader.authority ? 'authority' : leader.head.kind;
   const r = { v: leader.v, src: [leader.head.src, ...leader.members.filter((c) => c !== leader.head).map((c) => c.src)], check: checkOf(leader), kind };
+  if (leader.head.says) { r.from = 'description'; r.says = leader.head.says; } // (read from a description: prose.mjs)
   const notes = [leader.head.note, ...others.flatMap(says)].filter(Boolean);
   if (notes.length) r.note = notes.join('; ');
   const next = (!leader.authority && others.find((s) => s.authority)) || others[0];

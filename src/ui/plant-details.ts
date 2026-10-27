@@ -316,7 +316,9 @@ export function toxRow(p: Plant): { value: string; line: string } | null {
 function sourceLine(prov: Provenance | undefined): string {
   if (!prov) return '';
   if (prov.src.length === 1 && PLANT_META?.sources?.[prov.src[0]]?.trust === 'unverified') return 'earlier list, unverified';
-  const who = prov.src.map(sourceName).join(', ');
+  // (A value read from a page's text, not its fields, credits that: "Prose description, NC State …" (Jason, 2026-10-27:
+  // credit it, don't quote it).)
+  const who = (prov.from === 'description' ? 'Prose description, ' : '') + prov.src.map(sourceName).join(', ');
   const how = prov.check ? SURE[prov.check] ?? '' : '';
   return [who, how, prov.inherited ? 'from its species' : '', prov.at ? `for ${prov.at}` : ''].filter(Boolean).join(' · ');
 }

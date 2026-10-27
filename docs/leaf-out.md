@@ -37,10 +37,14 @@ leafed out, for that plant in that year.
 - **Also in its species list:** each species' kind of leaves (`functional_type`: deciduous broadleaf, evergreen
   broadleaf, semi-evergreen forb, drought deciduous broadleaf, …). A second source for leaves in winter, for the
   woody plants; for most herbs it says only "forb".
-- **If it's approved**, a sketch: for each catalog species USA-NPN has, one summarized-data request at the
-  fetcher's pace (about 675 requests: under an hour at 5 s), saved like any page; a `leaf_out` fact as the median
-  week, with `at` for the region it was computed for, only where enough plant-years back it (say 10 or more).
-  Cultivars take their species'.
+- **A few big downloads, not a crawl.** One request can ask for many species, states and years at once (the
+  `rnpn` package's download functions take `species_ids`, `states` and `years` as lists), so the 675 species in
+  the states around Arkansas come down in one request, or a few split by year to keep each file a manageable size,
+  saved like any page. (The redbud test above asked for one species only to see what a reply looks like.) By hand,
+  it would be the download page on their site (not opened here, since reading their site by program is what needs
+  their OK). Either way the build then reads the saved files, as it does GBIF's downloads.
+- **If it's approved**, a sketch: a `leaf_out` fact as the median week, with `at` for the region it was computed
+  for, only where enough plant-years back it (say 10 or more). Cultivars take their species'.
 
 ## Panchen and others (2014)
 

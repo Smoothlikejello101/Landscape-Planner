@@ -188,6 +188,8 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
       if (v === undefined) { review.push({ id: rec.id, fact: key, note: `value the catalog can't take: ${JSON.stringify(f.v)}` }); continue; }
       const out = { v, src: f.src, check: f.check };
       if (f.at) out.at = f.at;
+      // (Read from a description: said so, not the sentence itself. Descriptions aren't copied: docs/catalog-sources.md.)
+      if (f.from) out.from = f.from;
       if (f.alt) {
         const av = conv(f.alt.v, enums);
         if (av !== undefined && JSON.stringify(av) !== JSON.stringify(v)) out.alt = { v: av, src: f.alt.src, check: f.alt.check };
