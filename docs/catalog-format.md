@@ -84,9 +84,9 @@ domain (`"newmoonnursery.com"`), with the domain as its title.
     (the others agree with it, or dispute it);
   - `from`: `description` for a value read from a sentence of its source's
     description rather than its fields (docs/catalog-sources.md, "Reading
-    descriptions"). The sentence itself is kept in the build's own files and
-    shown in the review, not here: descriptions aren't copied. The app names
-    the description as the source ("NC State · its description");
+    descriptions"). The sentence itself is kept in the build's own files
+    (catalog-src/build), not here: descriptions aren't copied. The app credits
+    it without quoting it ("Prose description, NC State …"; Jason, 2026-10-27);
   - `at`: where it was observed (a US state, e.g. `"AR"`), for values that
     depend on place, such as bloom months;
   - `check`: how sure it is. `agree` or `confirmed` (an authority, and an

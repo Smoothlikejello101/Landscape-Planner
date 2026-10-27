@@ -314,7 +314,8 @@ value cites the sentence it was read from.
   against its page; the tests use sentences written in the same shapes, not
   the sources' own; the catalog says only that
   the value was read from the description (`from: "description"`,
-  docs/catalog-format.md), and the app names the description as its source.
+  docs/catalog-format.md), and the app credits it as "Prose description, NC
+  State …", without quoting it (Jason, 2026-10-27: credit, don't quote).
 - **Checked before shipping.** Each fact's rules are checked against the
   plants whose fields already give it, and a sample of new values is read
   against their sentences by a person or an agent.

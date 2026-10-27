@@ -170,8 +170,8 @@ describe('a fact read from a description, in the catalog and the app', () => {
     expect(p.prov?.foliage?.from).toBe('description');
     const [text, src] = winterParts(p)[0];
     expect(text).toBe('Semi-evergreen: keeps some of its leaves, by the winter');
-    expect(src).toMatch(/ · its description · one source$/);
+    expect(src).toMatch(/^Prose description, .+ · one source$/);
     const [q] = resolveCatalog(file({ form: 'Perennial', foliage: { v: 'evergreen', src: ['ncsu'], check: 'single' } }));
-    expect(winterParts(q)[0][1]).not.toContain('description');
+    expect(winterParts(q)[0][1]).not.toMatch(/description/i);
   });
 });
