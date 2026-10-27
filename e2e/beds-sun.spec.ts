@@ -38,7 +38,7 @@ test('a bed carries the plants inside it, unless that is turned off', async ({ p
   const plant = shapeEl(page, 'Autumn Bride');
   const p0 = (await plant.boundingBox())!;
   const bed = (await shapeEl(page, 'Front bed').boundingBox())!;
-  const grab = { x: bed.x + 8, y: bed.y + 8 }; // a corner of the bed, clear of the plant
+  const grab = { x: bed.x + 30, y: bed.y + 30 }; // near a corner of the bed, clear of the plant (and of its corner handle)
   await drag(page, grab, { x: grab.x + 48, y: grab.y });
   const p1 = (await plant.boundingBox())!;
   expect(Math.round(p1.x - p0.x)).toBe(48);
@@ -48,7 +48,7 @@ test('a bed carries the plants inside it, unless that is turned off', async ({ p
   await closeSheet(page);
   const bed2 = (await shapeEl(page, 'Front bed').boundingBox())!;
   const p2 = (await plant.boundingBox())!; // the view re-centered on the bed
-  await drag(page, { x: bed2.x + 8, y: bed2.y + 8 }, { x: bed2.x + 56, y: bed2.y + 8 });
+  await drag(page, { x: bed2.x + 30, y: bed2.y + 30 }, { x: bed2.x + 78, y: bed2.y + 30 });
   expect(Math.round((await shapeEl(page, 'Front bed').boundingBox())!.x - bed2.x)).toBe(48); // bed moved
   expect(Math.round((await plant.boundingBox())!.x - p2.x)).toBe(0); // plant stayed
 });
