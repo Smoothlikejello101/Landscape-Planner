@@ -24,8 +24,9 @@ import type { CircleShape, Shape } from './types';
 // branches (the tree you have: limbed up higher, or never limbed at all).
 
 // Two levels (decided with Jason, 2026-10-25): plants whose typical spreads touch are close ("they may quickly grow into
-// one another"; amber), and past the limit above they're crowded (red). Plants the person chose to leave close
-// (`crowdOk` on either) aren't flagged.
+// one another"; amber), and past the limit above they're crowded (red): where one is half again as big as the other,
+// the smaller is buried by it ("too far under", 2026-10-27), else they grow into each other. Plants the person chose to
+// leave close (`crowdOk` on either) aren't flagged.
 //
 // Spring bulbs under bigger plants (decided with Jason, 2026-10-26): a spring bulb (its form Bulb, flowering only in
 // late winter or spring, hardy where the garden is) doesn't crowd a deciduous plant at least 3 ft tall (a sourced
@@ -162,26 +163,18 @@ export function crowdingOf(s: Shape, shapes: Shape[], byId: Record<string, Plant
   }
   return out.sort((a, b) => a.distance / a.recommended - b.distance / b.recommended);
 }
+/** How much bigger one plant must be than another, typically, to bury it: half again as tall (or, heights unknown, wide). */
+export const BURIES = 1.5;
 /**
- * The plants a spring bulb `s` grows under, or the spring bulbs under a plant `s`, that would count as close or
- * crowded but for the bulb rule (not right at the bigger plant's base): for the note that says why they don't.
+ * Which of two plants is under the other (for the notice's words, decided with Jason, 2026-10-27): 'under', `s` is
+ * buried by `o` (a coneflower under a beautyberry); 'over', `s` buries `o`; 'even', they grow into each other. By
+ * typical height where both are known, else by typical spread.
  */
-export function bulbsUnder(s: Shape, shapes: Shape[], byId: Record<string, Plant | undefined>, opts: CrowdOptions = {}): Shape[] {
-  const r = typicalRadius(s, byId);
-  if (r == null || s.type !== 'circle') return [];
-  const hardy = opts.hardy ?? (() => true);
-  const p = s.plantId ? byId[s.plantId] : undefined;
-  const bulb = springBulb(p, hardy), partner = !bulb && bulbPartner(s, byId);
-  if (!bulb && !partner) return [];
-  const band = bandOf(s, byId);
-  return shapes.filter((o) => {
-    if (o === s || o.type !== 'circle' || leftClose(s, o)) return false;
-    const ro = typicalRadius(o, byId), po = o.plantId ? byId[o.plantId] : undefined;
-    if (ro == null || !(bulb ? bulbPartner(o, byId) : springBulb(po, hardy))) return false;
-    const share = sharedHeight(band, bandOf(o, byId));
-    const d = Math.hypot(o.x - s.x, o.y - s.y);
-    return share > 0 && d < (r + ro) * share && d >= (bulb ? ro : r) * 2 * BULB_BASE;
-  });
+export function crowdRelation(s: Shape, o: Shape, byId: Record<string, Plant | undefined>): 'under' | 'over' | 'even' {
+  const hs = bandOf(s, byId).band?.[1], ho = bandOf(o, byId).band?.[1];
+  const [a, b] = hs != null && ho != null ? [hs, ho] : [typicalRadius(s, byId), typicalRadius(o, byId)];
+  if (a == null || b == null || a <= 0 || b <= 0) return 'even';
+  return b >= a * BURIES ? 'under' : a >= b * BURIES ? 'over' : 'even';
 }
 /** Each plant that's close to another or crowded, by its worst (for the rings on the plan). */
 export function crowdLevels(shapes: Shape[], byId: Record<string, Plant | undefined>, opts: CrowdOptions = {}): Map<string, CrowdLevel> {

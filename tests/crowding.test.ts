@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bulbPartner, bulbsUnder, crowdedIds, crowdingOf, crowdLevels, sharedHeight, springBulb, treeBranches } from '../src/crowding';
+import { bulbPartner, crowdedIds, crowdRelation, crowdingOf, crowdLevels, sharedHeight, springBulb, treeBranches } from '../src/crowding';
 import type { Plant } from '../src/plants';
 import type { CircleShape, Shape } from '../src/types';
 
@@ -136,6 +136,13 @@ describe('close and crowded', () => {
     const brute = new Map(shapes.map((s) => [s.id, worst(s)] as const).filter(([, l]) => l));
     expect(crowdLevels(shapes, byId)).toEqual(brute);
   });
+  it("which is buried by which: half again as tall, or wide where heights aren't known", () => {
+    // A 2 ft coreopsis under a 6 ft spicebush; two spicebushes; plain shrubs of 4 ft and a drawn 1 ft circle.
+    const low = p('low', 0, { plantId: 'low' }), sb = p('sb', 1, { plantId: 'shrubH' }), sb2 = p('sb2', 2, { plantId: 'shrubH' });
+    expect([crowdRelation(low, sb, byId), crowdRelation(sb, low, byId), crowdRelation(sb, sb2, byId)]).toEqual(['under', 'over', 'even']);
+    const free = p('free', 1, { plantId: undefined, radius: 0.5 });
+    expect([crowdRelation(free, p('a', 0), byId), crowdRelation(p('a', 0), p('b', 1), byId)]).toEqual(['under', 'even']);
+  });
   it('a pair left close on purpose is not flagged, either way round', () => {
     const shapes = [p('a', 0, { crowdOk: ['b'] } as Partial<Shape>), p('b', 1), p('c', 4.5)];
     expect([...crowdLevels(shapes, byId)].sort()).toEqual([['b', 'close'], ['c', 'close']]); // (b and c: 3.5 apart, usual 4)
@@ -176,8 +183,6 @@ describe('spring bulbs under a deciduous plant', () => {
     expect(near('d2')).toEqual([['joe', 'close', true], ['d1', 'close', false]]);
     expect(near('joe')).toEqual([['d2', 'close', true]]);
     expect(crowdLevels(shapes, bulbs).get('joe')).toBe('close');
-    expect(bulbsUnder(shapes[0], shapes, bulbs).map((s) => s.id)).toEqual(['d1']); // (d2 at its base; d3 too far to matter)
-    expect(bulbsUnder(shapes[1], shapes, bulbs).map((s) => s.id)).toEqual(['joe']);
     // Without a sourced leaf-drop fact, or under an evergreen, a bulb crowds it as any plant would.
     const plain = [at('x', 'unknown', 0), at('d', 'daffodil', 1)];
     expect(crowdingOf(plain[1], plain, bulbs, { close: true }).map((c) => c.level)).toEqual(['crowded']);

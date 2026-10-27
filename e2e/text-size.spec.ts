@@ -1,14 +1,14 @@
 import { test, expect, type Page } from '@playwright/test';
 import { addPlainShape, closeSheet, openFresh, shapeCount } from './helpers';
 
-// Text size (decided with Jason, 2026-10-25): Medium (125%) by default; Small and Large in the ⋮ menu, kept on this
-// device. At Medium and Large the top bar keeps room for the plan's name.
+// Text size (decided with Jason, 2026-10-25; four sizes 2026-10-27): Medium (115%, main text 16 px) by default; Small,
+// Large and Extra large in the ⋮ menu, kept on this device. Above Small the top bar keeps room for the plan's name.
 const fontPx = (page: Page, sel: string) => page.locator(sel).first().evaluate((e) => parseFloat(getComputedStyle(e).fontSize));
 
 test('Medium by default: the top bar keeps room for the name, Redo in the menu, the zoom shown as it changes', async ({ page }) => {
   await openFresh(page);
   await expect(page.locator('html')).toHaveAttribute('data-text', 'medium');
-  expect(await fontPx(page, '.project-btn .pname')).toBeCloseTo(14 * 1.25, 1);
+  expect(await fontPx(page, '.project-btn .pname')).toBeCloseTo(14 * 1.15, 1);
   // Only whether it's saved: no shape count or zoom, no Redo.
   await expect(page.locator('.project-btn .pinfo')).toHaveText('Saved');
   await expect(page.locator('button[title=Redo]')).toHaveCount(0);
@@ -31,7 +31,7 @@ test('Medium by default: the top bar keeps room for the name, Redo in the menu, 
   await expect(page.getByTestId('zoom-flash')).not.toHaveClass(/on/, { timeout: 4000 });
 });
 
-test('the menu sets Small or Large, at once and on this device from then on', async ({ page }) => {
+test('the menu sets Small, Large or Extra large, at once and on this device from then on', async ({ page }) => {
   await openFresh(page);
   await page.locator('button[title=More]').click();
   await expect(page.getByTestId('text-size-medium')).toHaveAttribute('aria-pressed', 'true');
@@ -47,13 +47,23 @@ test('the menu sets Small or Large, at once and on this device from then on', as
   // Kept after a reload.
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-text', 'small');
-  // Large: 145%; buttons at least 48 px.
+  // Large: 130%; Extra large: 145%, buttons at least 48 px.
   await page.locator('button[title=More]').click();
   await page.getByTestId('text-size-large').click();
   await expect(page.locator('html')).toHaveAttribute('data-text', 'large');
+  expect(await fontPx(page, '.menu-item')).toBeCloseTo(14 * 1.3, 1);
+  await page.getByTestId('text-size-xlarge').click();
+  await expect(page.locator('html')).toHaveAttribute('data-text', 'xlarge');
   expect(await fontPx(page, '.menu-item')).toBeCloseTo(14 * 1.45, 1);
   const more = (await page.locator('button[title=More]').boundingBox())!;
   expect(Math.min(more.width, more.height)).toBeGreaterThanOrEqual(48);
+});
+
+test('a size chosen before there were four carries over: Large stays as big as it was, now Extra large', async ({ page }) => {
+  await page.addInitScript(() => { if (!sessionStorage.getItem('set')) { localStorage.setItem('lp-text-size', 'large'); sessionStorage.setItem('set', '1'); } });
+  await openFresh(page);
+  await expect(page.locator('html')).toHaveAttribute('data-text', 'xlarge');
+  expect(await fontPx(page, '.project-btn .pname')).toBeCloseTo(14 * 1.45, 1);
 });
 
 test('a plant\'s details: one column, each fact on its label\'s line, its source on a line of its own', async ({ page }) => {

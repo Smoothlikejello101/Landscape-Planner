@@ -15,6 +15,13 @@ const SURE: Record<string, string> = {
   agree: 'confirmed', confirmed: 'confirmed', single: 'one source', likely: 'nurseries agree', reported: 'one nursery', disputed: 'sources disagree',
 };
 const sourceName = (id: string) => PLANT_META?.sources?.[id]?.title ?? id;
+
+/**
+ * How much deer eat it, in plain words (Jason, 2026-10-27: "candy", gardeners' slang, says it to some and not others):
+ * the catalog's three ratings, or a plant of mine's own word as it was entered.
+ */
+const DEER_WORDS: Record<string, string> = { Candy: 'A favorite: heavily browsed', Occasional: 'Sometimes browsed', Resistant: 'Resistant: seldom browsed' };
+export const deerWords = (v: string | undefined): string => (v ? DEER_WORDS[v] ?? v : '');
 /** A source in a few words, for a label: "NC State", "USDA", else its title (a website's domain). */
 const SHORT: Record<string, string> = { ncsu: 'NC State', usda: 'USDA', arkatlas: 'the Arkansas atlas', mnwild: 'Minnesota Wildflowers' };
 /**
@@ -163,7 +170,7 @@ function rows(p: Plant): Row[] {
     ['Attracts', p.attracts?.length ? cap(p.attracts.join(', ')) : '', ['attracts']],
     // (The caterpillars its sources name; its genus's, where the garden is; the earlier list's: drawn by hostRow.)
     ['Caterpillar host', '', ['hosts', 'host_genus', 'host']],
-    ['Deer', p.deer ?? '', ['deer'], (r) => String(r.deer ?? '')],
+    ['Deer', deerWords(p.deer), ['deer'], (r) => deerWords(r.deer as string | undefined)],
     // (What it takes, as NC State lists it: "Drought, heat, rabbits, black walnut"; deer has its own row.)
     ['Tolerates', p.tolerates?.some((x) => x !== 'deer') ? cap(p.tolerates.filter((x) => x !== 'deer').join(', ')) : '', ['tolerates']],
     // (Drawn by toxRow: never left out for a catalog plant, since no line about pets reads as safe.)

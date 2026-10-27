@@ -373,6 +373,7 @@ export function startEditPoints(id: string) {
   flushHistoryDebounce();
   if (s.rotation) { bakeRotation(s); save(); } // same picture; points are simpler to edit unrotated
   state.editPoints = { id, vertex: null };
+  state.selectedIds = [id]; // (its width, typed in the bar, goes to it)
   state.draw = null;
   state.selectMode = false;
   state.panel = null;

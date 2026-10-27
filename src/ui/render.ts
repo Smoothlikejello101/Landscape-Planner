@@ -7,13 +7,13 @@ import { el, hasKeyboard, svgEl } from '../dom';
 import { onCanvasPointerDown, onWheel } from '../gestures';
 import { canRedo, canUndo, redo, undo } from '../history';
 import { I } from '../icons';
-import { copySelected, setViewFilter, zoomBy } from '../mutations';
+import { copySelected, setViewFilter, updateSelectedSilent, zoomBy } from '../mutations';
 import { deleteSelectedAsking } from './delete-selected';
 import { clearSelection, getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { typeName } from '../util';
 import { fmtFeet, screenToFeet } from '../geometry';
-import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, shapeName, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
+import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, shapeName, startEditPoints, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
 import type { TapSnap } from '../types';
 import { redrawHandles } from '../canvas';
 import { kindDef, METHOD_LABELS, nextTapPrompt, type KindKey } from '../kinds';
@@ -39,6 +39,7 @@ import { renderProjectsPanel, renderRenamePanel } from './projects-panel';
 import { moreOfSame, renderArrangePanel, renderPropsPanel, resetKindChange } from './props-panel';
 import { hintDue, hintShown } from '../hints';
 import { roomyText } from '../text-size';
+import { isLocked } from '../roles';
 
 // MAIN RENDER
 // ============================================================
@@ -327,6 +328,13 @@ export function render() {
       editBtn.innerHTML = I.edit + '<span>Edit</span>';
       editBtn.addEventListener('click', () => { state.panel = 'props'; render(); });
       pill.appendChild(editBtn);
+      // An outline or a line is reshaped by its points: straight there, without opening its properties (Jason,
+      // 2026-10-27; a path's width is in that bar too).
+      if ((s.type === 'poly' || s.type === 'line') && !isLocked(s)) {
+        const pts = el('button', { className: 'pill-points', 'data-testid': 'pill-edit-points', title: 'Edit its points' }, 'Edit points');
+        pts.addEventListener('click', () => { startEditPoints(s.id); render(); });
+        pill.appendChild(pts);
+      }
       // Another of the same: a plant placed, a tree or anything else drawn.
       const more = moreOfSame([s], true);
       if (more) {
@@ -477,6 +485,16 @@ function renderDrawBar(): HTMLElement {
     return bar;
   }
   addChipRow(bar, unsnapVertex);
+  const edited = editedShape();
+  if (edited?.type === 'line' && edited.pathWidth) {
+    // A path's width, typed without re-rendering (keyboard safety): only the plan redraws.
+    const w = el('input', { type: 'number', min: '0.25', max: '50', step: '0.5', inputMode: 'decimal', value: edited.pathWidth, 'aria-label': 'Path width in feet', 'data-testid': 'edit-path-width' }) as HTMLInputElement;
+    w.addEventListener('input', () => {
+      const v = parseFloat(w.value.replace(',', '.'));
+      if (v >= 0.25 && v <= 50) updateSelectedSilent({ pathWidth: v });
+    });
+    bar.appendChild(el('label', { className: 'draw-width' }, w, el('span', {}, 'ft wide')));
+  }
   bar.appendChild(btn('Delete point', 'danger', deleteSelectedVertex, !canDeleteVertex()));
   bar.appendChild(btn('Done', 'primary', () => {
     const id = state.editPoints?.id;

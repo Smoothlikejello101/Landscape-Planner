@@ -67,18 +67,26 @@ test('add a plant from its tag, place it, and switch to full size', async ({ pag
   await page.getByTestId('plant-search').fill('lime');
   await expect(page.locator('.list-heading').first()).toHaveText(/^My plants \(1\)/);
   await expect(page.locator('.proj-row', { hasText: 'Limelight' }).locator('.mine-badge')).toHaveText('Mine');
-  // Without a search, My plants can be folded away (and stays folded); a search shows its matches anyway.
+  // Without a search, My plants starts folded away; opened, it stays open; a search shows its matches anyway.
   await page.getByTestId('plant-search').fill('');
-  await page.getByTestId('my-plants-fold').click();
+  await expect(page.getByTestId('my-plants-fold')).toHaveAttribute('aria-expanded', 'false');
   await expect(page.locator('.proj-row .mine-badge')).toHaveCount(0);
+  await page.getByTestId('my-plants-fold').click();
+  await expect(page.locator('.proj-row', { hasText: 'Limelight' }).filter({ has: page.locator('.mine-badge') })).toBeVisible(); // (the catalog's Limelight hydrangea shows too)
   await closeSheet(page);
   await page.locator('.tool-btn.plants').click();
-  await expect(page.getByTestId('my-plants-fold')).toHaveAttribute('aria-expanded', 'false');
-  await page.getByTestId('plant-search').fill('lime');
-  await expect(page.locator('.proj-row', { hasText: 'Limelight' }).filter({ has: page.locator('.mine-badge') })).toBeVisible(); // (the catalog's Limelight hydrangea shows too)
-  await page.getByTestId('plant-search').fill('');
+  await expect(page.getByTestId('my-plants-fold')).toHaveAttribute('aria-expanded', 'true');
   await page.getByTestId('my-plants-fold').click();
-  await expect(page.locator('.proj-row', { hasText: 'Limelight' }).filter({ has: page.locator('.mine-badge') })).toBeVisible(); // (the catalog's Limelight hydrangea shows too)
+  await page.getByTestId('plant-search').fill('lime');
+  await expect(page.locator('.proj-row', { hasText: 'Limelight' }).filter({ has: page.locator('.mine-badge') })).toBeVisible();
+  // Filters apply to it too: it takes full sun and part shade, so asked for shade, it's left out.
+  const sun = page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any sun' }) });
+  await sun.selectOption('Shade');
+  await expect(page.locator('.proj-row', { hasText: 'Limelight' }).filter({ has: page.locator('.mine-badge') })).toHaveCount(0);
+  await sun.selectOption('Part');
+  await expect(page.locator('.proj-row', { hasText: 'Limelight' }).filter({ has: page.locator('.mine-badge') })).toBeVisible();
+  await sun.selectOption('');
+  await page.getByTestId('plant-search').fill('');
   await closeSheet(page);
 
   // Layers: draw plants at full size.
@@ -181,6 +189,7 @@ test('a plant of mine the catalog now has: compare, switch (placed plants follow
   await expect(page.locator('.sel-pill .name')).toHaveText("Hydrangea 'Limelight'");
   // The picker says it's in the catalog now, on its row.
   await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('my-plants-fold').click(); // (My plants starts folded)
   const offer = page.getByTestId('now-in-catalog');
   await expect(offer).toContainText("Now in the catalog as Hydrangea 'Limelight'");
   await expect(page.getByTestId('my-plants-fold')).toContainText('1 now in the catalog');

@@ -6,7 +6,8 @@ import { plantsById } from '../plants';
 import { state } from '../state';
 import { checkPlantSun, formatHours, formatTime, newSunInfo, sunHours, sunLevel } from '../sun';
 import type { Shape, SunInfo } from '../types';
-import { BULB_PARTNER_MIN_HEIGHT, crowdingOf } from '../crowding';
+import { BULB_PARTNER_MIN_HEIGHT, crowdingOf, crowdRelation } from '../crowding';
+import { I } from '../icons';
 import { crowdOptions } from '../crowd-here';
 import { flagAgain } from './crowd-notice';
 import { shownWith } from '../status';
@@ -150,9 +151,12 @@ export function sunListText(info: SunInfo): string {
   return `${formatHours(sunHours(info))} sun${when}${seen}`;
 }
 
+/** Plants whose crowding note is open in their properties (it starts folded: Jason, 2026-10-27). */
+const crowdNoteOpen = new Set<string>();
 /**
- * A plant close to its neighbors or crowding them: who, how far apart, and the usual spacing; crowded first (red),
- * then close (amber: their typical spreads touch). Those left close on purpose are said so, with Flag again.
+ * A plant close to its neighbors or crowding them: one line ("Planted closer than usual to 2 neighbors · close to 1"),
+ * red or amber, that opens to who, how far apart, the usual spacing and why; crowded first, then close (their typical
+ * spreads touch). Those left close on purpose are said so, with Flag again.
  */
 export function crowdingNote(s: Shape): HTMLElement | null {
   if (s.role !== 'plant' || s.type !== 'circle') return null;
@@ -163,16 +167,37 @@ export function crowdingNote(s: Shape): HTMLElement | null {
   const crowded = crowds.filter((c) => c.level === 'crowded'), close = crowds.filter((c) => c.level === 'close');
   const n = (k: number) => (k === 1 ? 'one neighbor' : `${k} neighbors`);
   // (Less than the full spacing where one grows partly under the other's crown.)
-  const line = (c: (typeof all)[number]) => el('div', { style: { marginLeft: '12px' } }, '• ' + `${c.other.label || 'a plant'}: ${f(c.distance)} ft apart, about ${f(c.recommended)} ft is usual${c.bulb ? ', a spring bulb right at the base of a deciduous plant' : c.shared < 0.75 ? ', as one grows partly under the other' : ''}`);
-  const box = el('div', { className: 'check-banner warn' + (crowded.length ? '' : ' close'), 'data-testid': 'crowding' });
-  if (crowded.length) box.append(el('div', {}, `⚠ Planted closer than usual to ${n(crowded.length)}:`), ...crowded.slice(0, 3).map(line));
-  if (close.length) box.append(el('div', { style: crowded.length ? { marginTop: '4px' } : {} }, `Close to ${n(close.length)}: they may quickly grow into one another.`), ...close.slice(0, 3).map(line));
-  if (left.length) {
+  const line = (c: (typeof all)[number]) => {
+    const how = c.level === 'crowded' ? crowdRelation(s, c.other, plantsById) : 'even';
+    const why = c.bulb ? ', a spring bulb right at the base of a deciduous plant' : c.shared < 0.75 ? ', as one grows partly under the other'
+      : how === 'under' ? ', buried by it: try out toward its edge' : how === 'over' ? ', buried by this one' : '';
+    return el('div', { style: { marginLeft: '12px' } }, '• ' + `${c.other.label || 'a plant'}: ${f(c.distance)} ft apart, about ${f(c.recommended)} ft is usual${why}`);
+  };
+  const box = el('div', { className: 'check-banner warn' + (crowded.length ? ' crowded' : ' close'), 'data-testid': 'crowding' });
+  const flagAgainRow = () => {
     const again = el('button', { className: 'btn', 'data-testid': 'flag-again', style: { marginLeft: '8px' } }, 'Flag again');
     again.addEventListener('click', () => flagAgain(s.id));
-    box.append(el('div', { style: { marginTop: crowds.length ? '4px' : '0' } }, `Left close on purpose: ${left.map((c) => c.other.label || 'a plant').join(', ')}`, again));
-  }
-  if (crowds.length) box.append(el('div', { className: 'hint', style: { marginTop: '4px' } }, 'Usual spacing is half of each plant\'s typical spread added together, less where one grows under a tree whose lower limbs can be taken up (a third of its height, unless the tree says otherwise). ' +
+    return el('div', { style: { marginTop: crowds.length ? '4px' : '0' } }, `Left close on purpose: ${left.map((c) => c.other.label || 'a plant').join(', ')}`, again);
+  };
+  if (!crowds.length) { box.append(flagAgainRow()); return box; }
+  // The line, a button that opens the rest.
+  const head = crowded.length
+    ? `⚠ Planted closer than usual to ${n(crowded.length)}` + (close.length ? ` · close to ${close.length}` : '')
+    : `Close to ${n(close.length)}`;
+  const open = crowdNoteOpen.has(s.id);
+  const toggle = el('button', { className: 'crowd-line', 'aria-expanded': String(open), 'data-testid': 'crowding-line' }, el('span', {}, head), el('span', { className: 'fold-chev', html: I.chevronDown }));
+  const body = el('div', { 'data-testid': 'crowding-detail' });
+  body.hidden = !open;
+  toggle.addEventListener('click', () => {
+    body.hidden = !body.hidden;
+    toggle.setAttribute('aria-expanded', String(!body.hidden));
+    if (body.hidden) crowdNoteOpen.delete(s.id); else crowdNoteOpen.add(s.id);
+  });
+  if (crowded.length) body.append(el('div', {}, `Planted closer than usual to ${n(crowded.length)}:`), ...crowded.slice(0, 3).map(line));
+  if (close.length) body.append(el('div', { style: crowded.length ? { marginTop: '4px' } : {} }, `Close to ${n(close.length)}: they may quickly grow into one another.`), ...close.slice(0, 3).map(line));
+  if (left.length) body.append(flagAgainRow());
+  body.append(el('div', { className: 'hint', style: { marginTop: '4px' } }, 'Usual spacing is half of each plant\'s typical spread added together, less where one grows under a tree whose lower limbs can be taken up (a third of its height, unless the tree says otherwise). ' +
     `Spring bulbs under a deciduous plant ${BULB_PARTNER_MIN_HEIGHT} ft or taller don't count, except right at its base. A little closeness can be fine, if you're after a quick, full look.`));
+  box.append(toggle, body);
   return box;
 }

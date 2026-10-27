@@ -1,22 +1,22 @@
 // Crowding, as a plant is placed (decided with Jason, 2026-10-25): a notice saying which plant it's close to or
-// crowding, how far apart they are and why it matters, with Leave it (that pair isn't flagged again), Move it (take it
-// back and tap again) and Crowding settings… (where the notices can be turned off). Crowded: every time. Close: once
-// each time plants are placed (the first close one). Spring bulbs placed under a deciduous plant, which don't count
-// (src/crowding.ts), get a note saying why, once on this device.
+// crowding, with Leave it (that pair isn't flagged again), Move it (take it back and tap again) and Settings (where the
+// notices can be turned off). Crowded: every time. Close: once each time plants are placed (the first close one).
+// One line, amber or red, that opens to say how far apart they are and why it matters (2026-10-27: it got in the way);
+// a plant crowded by one half again its size is "too far under" it, buried, and is best moved out toward its edge. A
+// spring bulb under a deciduous plant, which doesn't count (src/crowding.ts), gets no notice at all.
 import { pushHistory } from '../history';
-import { bulbsUnder, crowdingOf } from '../crowding';
+import { crowdingOf, crowdRelation } from '../crowding';
 import { crowdOptions } from '../crowd-here';
-import { hintDue, hintShown } from '../hints';
 import { plantsById } from '../plants';
 import { state } from '../state';
 import { shownWith } from '../status';
 import { save } from '../storage';
+import type { Crowd } from '../crowding';
 import type { Shape } from '../types';
 import { render } from './render';
 import { toast, toastAction } from './toast';
 
 const TESTID = 'crowd-notice';
-export const BULB_HINT = 'lp-hint-bulbs-under';
 const f = (v: number) => (Math.round(v * 10) / 10).toString();
 const nameOf = (s: Shape) => (s.plantId && plantsById[s.plantId]?.common) || s.label || 'a plant';
 
@@ -35,29 +35,34 @@ export function crowdNotice(shape: Shape, moveIt: () => void) {
   const crowds = crowdingOf(shape, shapes, plantsById, { ...opts, close: true });
   const crowded = crowds.filter((c) => c.level === 'crowded');
   const list = crowded.length ? crowded : crowds;
-  if (!list.length || (!crowded.length && state.placing?.warnedClose)) { bulbNote(shape, shapes); return; }
+  if (!list.length || (!crowded.length && state.placing?.warnedClose)) return;
   if (!crowded.length && state.placing) state.placing.warnedClose = true;
-  const name = nameOf(shape), first = list[0], other = nameOf(first.other);
-  const more = list.length > 1 ? ` (and ${list.length - 1} more)` : '';
-  const text = crowded.length
-    ? `${name} is crowding ${other}${more}: ${f(first.distance)} ft apart, where about ${f(first.recommended)} ft is usual for these two, so they'll grow into each other.`
-    : `${name} is close to ${other}${more}${first.bulb ? ', right at its base' : ''}, and they may quickly grow into one another. A little of this can be fine, if you're after a quick, full look.`;
-  toastAction(text, [
+  const { line, detail } = crowdWords(shape, list[0], list.length - 1, !!crowded.length);
+  toastAction(line, [
     { label: 'Leave it', run: () => leaveClose(shape.id, list.map((c) => c.other.id)) },
     { label: 'Move it', run: () => { moveIt(); render(); toast('Tap where it should go.'); } },
-    { label: 'Crowding settings…', run: openCrowdingSettings },
-  ], 10000, TESTID);
+    { label: 'Settings', run: openCrowdingSettings },
+  ], 10000, TESTID, { detail, tone: crowded.length ? 'red' : 'amber' });
 }
 
-/** A spring bulb placed under a deciduous plant (or the plant placed over bulbs): why that isn't crowding, once. */
-function bulbNote(shape: Shape, shapes: Shape[]) {
-  const under = bulbsUnder(shape, shapes, plantsById, crowdOptions());
-  if (!under.length || !hintDue(BULB_HINT, 1)) return;
-  hintShown(BULB_HINT);
-  const p = shape.plantId ? plantsById[shape.plantId] : undefined;
-  const isBulb = !!p && (p.forms ?? [p.form]).includes('Bulb');
-  const [bulb, big] = isBulb ? [nameOf(shape), nameOf(under[0])] : [nameOf(under[0]), nameOf(shape)];
-  toast(`${bulb} under ${big}: spring bulbs flower and ripen their leaves before a deciduous plant leafs out, so they aren't counted as crowding it. Right at its base, they still are.`, 9000);
+/**
+ * The notice's words: a short line ("Too far under Beautyberry"), and what opens under it, how far apart they are,
+ * what's usual and what to do. `more`: how many others it's close to as well.
+ */
+export function crowdWords(shape: Shape, c: Crowd, more: number, crowded: boolean): { line: string; detail: string } {
+  const name = nameOf(shape), other = nameOf(c.other);
+  const also = more > 0 ? ` (+${more} more)` : '';
+  const apart = `${f(c.distance)} ft apart, where about ${f(c.recommended)} ft is usual for these two`;
+  if (!crowded) {
+    return {
+      line: `Close to ${other}${c.bulb ? ', at its base' : ''}${also}`,
+      detail: `${name} and ${other} may quickly grow into one another: ${apart}. A little of this can be fine, if you're after a quick, full look.`,
+    };
+  }
+  const how = crowdRelation(shape, c.other, plantsById);
+  if (how === 'under') return { line: `Too far under ${other}${also}`, detail: `${name} will be buried by ${other}: ${apart}. Try moving it out toward the edge of ${other}.` };
+  if (how === 'over') return { line: `Too far over ${other}${also}`, detail: `${name} will bury ${other}: ${apart}. Try moving it farther away, so ${other} is out at its edge.` };
+  return { line: `Crowding ${other}${also}`, detail: `${name} and ${other} will grow into each other: ${apart}.` };
 }
 
 /**

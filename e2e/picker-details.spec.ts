@@ -505,3 +505,14 @@ test('a cultivar once grouped with another has a record of its own; one no sourc
   const lakota = await open('Lakota', "Pecan 'Lakota'");
   await expect(lakota('Height')).not.toContainText('from its species');
 });
+
+test('how much deer eat it, in plain words', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Buttonbush');
+  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Buttonbush$/ }) }).first();
+  await item.getByTestId('plant-row').click();
+  const deer = item.getByTestId('plant-details').locator('dt', { hasText: /^Deer$/ }).locator('xpath=following-sibling::dd[1]');
+  await expect(deer).toContainText('Sometimes browsed');
+  await expect(deer).not.toContainText('Occasional');
+});
