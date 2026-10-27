@@ -117,3 +117,24 @@ test('filters look inside a fold, and open it to the cultivars that match; a spe
   await page.locator('[data-testid=flower-colors] label', { hasText: 'Purple' }).click();
   await expect(page.locator('.plant-item .pname, [data-testid=comes-in-divider]')).toHaveText(["Rose of Sharon 'Minerva'", 'Also comes in purple, depending on the plant you buy', 'Rose of Sharon']);
 });
+
+test('a search folds a cultivar only where its species answers it too; a fold that\'s the only thing found opens', async ({ page }) => {
+  await openPicker(page);
+  // "awnee" is in 'Pawnee', not in Pecan: the cultivar, on its own (Jason's "rise", in Glossy abelia 'Sunrise').
+  await page.getByTestId('plant-search').fill('awnee');
+  await expect(names(page)).toHaveText(["Pecan 'Pawnee'"]);
+  await expect(page.getByTestId('cultivars')).toHaveCount(0);
+  // "pecan": Pecan and its fold, the only thing found: open.
+  await page.getByTestId('plant-search').fill('pecan');
+  const pecans = foldOf(page, 'Pecan');
+  await expect(pecans.getByTestId('cultivar-fold')).toHaveAttribute('aria-expanded', 'true');
+  await expect(pecans.getByTestId('cultivar-list').locator('.pname')).toHaveCount(4);
+  // Closed by hand: it stays closed.
+  await pecans.getByTestId('cultivar-fold').click();
+  await page.getByTestId('plant-search').fill('pecan ');
+  await expect(foldOf(page, 'Pecan').getByTestId('cultivar-fold')).toHaveAttribute('aria-expanded', 'false');
+  // A heading, the only thing found: open too.
+  await page.getByTestId('plant-search').fill('rosa');
+  await expect(page.getByTestId('group-head')).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByTestId('cultivar-group').getByTestId('cultivar-list').locator('.pname')).toHaveCount(5);
+});

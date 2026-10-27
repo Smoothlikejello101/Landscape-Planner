@@ -176,17 +176,6 @@ export function matchPlant(p: Plant, q: Query, near: boolean): Hit | null {
   }
   return { rank, order: off };
 }
-/**
- * Whether a search names a cultivar itself, not only its species: a word of the search starts (or runs across) a
- * word of the cultivar's names that its species' names don't have ("kanza" or "pecan kanza" for Pecan 'Kanza'; not
- * "pecan"). The picker shows such a cultivar on a row of its own, and folds the others under their species.
- */
-export function namesCultivar(p: Plant, species: Plant, q: Query): boolean {
-  const sp = indexed(species), x = indexed(p);
-  const theirs = new Set([...sp.name, ...sp.bot, ...sp.also.flat()]);
-  const own = [...new Set([...x.name, ...x.bot, ...x.also.flat()])].filter((w) => !theirs.has(w));
-  return own.length > 0 && q.words.some((w) => startsIn(w.w, own) || w.one.some((f) => own.includes(f)));
-}
 /** Words that make a part of a host list a description, not a name ("many moths", "Several skippers", "500+ Lepidoptera"). */
 const NOT_A_NAME = /\b(many|several|others?|various|some|spp|specialists?)\b|\d/i;
 /** A group word ending a name, said in lowercase ("titan sphinx moths": Titan Sphinx moths), or standing alone ("skippers"). */
