@@ -1,6 +1,6 @@
 import { SWATCH_NAMES } from './a11y';
 import { SWATCHES } from '../constants';
-import { el, escapeHtml } from '../dom';
+import { el, escapeHtml, ts } from '../dom';
 import { I } from '../icons';
 import { isLocked, roleKey, roleLabel, roleLocked } from '../roles';
 import { convertToOutline, startEditPoints, startKind, startTreeDraw } from '../draw';
@@ -261,7 +261,7 @@ export function renderPropsPanelSingle(s: Shape) {
   if (s.type !== 'circle') {
     const rotVal = s.rotation || 0;
     const rotInput = el('input', { type: 'number', step: '5', value: rotVal });
-    const rotPct = el('span', { style: { fontSize: '12px', color: '#78716c' } }, rotVal + '°');
+    const rotPct = el('span', { style: { fontSize: ts(12), color: '#78716c' } }, rotVal + '°');
     const setRot = (v: number) => { updateSelectedSilent({ rotation: v }); rotPct.textContent = v + '°'; refreshPos(); };
     rotInput.addEventListener('input', e => setRot(parseFloat((e.target as HTMLInputElement).value) || 0));
     const quickBtns = el('div', { className: 'rot-quick' });
@@ -300,12 +300,12 @@ export function renderPropsPanelSingle(s: Shape) {
   });
   const lookParts: Node[] = [el('div', { className: 'field' }, el('label', {}, 'Color'), swatches,
     el('div', { style: { marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' } },
-      el('label', { style: { fontSize: '12px', color: '#57534e' } }, 'Custom:'), colorInput))];
+      el('label', { style: { fontSize: ts(12), color: '#57534e' } }, 'Custom:'), colorInput))];
   // Opacity (not for outlines; sun exposure with a record is shaded by its sun hours)
   if (!(s.role === 'boundary' || (s.type === 'line' && !s.pathWidth) || s.type === 'text' || (s.role === 'shade' && s.sun))) {
     const opacityVal = s.opacity !== undefined ? s.opacity : 0.65;
     const rangeInput = el('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: opacityVal });
-    const opacityPct = el('span', { style: { fontSize: '12px', color: '#78716c' } }, Math.round(opacityVal * 100) + '%');
+    const opacityPct = el('span', { style: { fontSize: ts(12), color: '#78716c' } }, Math.round(opacityVal * 100) + '%');
     rangeInput.addEventListener('input', e => {
       const v = parseFloat((e.target as HTMLInputElement).value);
       updateSelectedSilent({ opacity: v });
@@ -666,7 +666,7 @@ export function renderArrangePanel() {
   const backBtn = el('button', { className: 'btn ghost' }, '← Back to properties');
   backBtn.addEventListener('click', () => { state.panel = 'props'; render(); });
   const body = el('div', { className: 'sheet-body' },
-    el('div', { className: 'hint', style: { fontSize: '13px', color: '#57534e' } },
+    el('div', { className: 'hint', style: { fontSize: ts(13), color: '#57534e' } },
       s.locked ? 'Reorders within the locked (background) layer. Locked shapes always render behind unlocked ones.' :
       'Reorders within the unlocked layer. Locked shapes always render behind these.'),
     grid,

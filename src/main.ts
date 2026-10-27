@@ -21,12 +21,16 @@ import { setupServiceWorker } from './pwa';
 import { buildEmergencyBackup, downloadText } from './backup';
 import { notePageZoom } from './page-zoom';
 import { loadViewSettings } from './view-settings';
+import { applyTextSize } from './text-size';
 import { updateSaveWarning, updateSaveState } from './ui/save-warning';
 import { flushSave, initStorage, refreshClipboard, requestPersistence, save, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
-import { render } from './ui/render';
+import { flashZoom, render } from './ui/render';
 import { dismissToastAction, toast } from './ui/toast';
 import { noteVisit } from './hints';
 import { pxPerFoot } from './geometry';
+
+// The page at this device's text size, before anything is drawn (src/text-size.ts).
+applyTextSize();
 
 // ============================================================
 // EVENT LISTENERS
@@ -106,7 +110,7 @@ function onKey(e: KeyboardEvent) {
   // Ctrl or Cmd with + or − zooms the plan, not the page, whatever is going on (Jason, 2026-10-25). With a sheet's field
   // or button focused, the keys never get here: the page zooms, for reading.
   if ((e.ctrlKey || e.metaKey) && !e.altKey && ['=', '+', '-', '_'].includes(e.key)) {
-    e.preventDefault(); zoomBy(e.key === '-' || e.key === '_' ? 1 / 1.25 : 1.25); render(); return;
+    e.preventDefault(); zoomBy(e.key === '-' || e.key === '_' ? 1 / 1.25 : 1.25); render(); flashZoom(); return;
   }
   if (ARROWS[e.key] && !e.ctrlKey && !e.metaKey && !e.altKey) { onArrow(e, ARROWS[e.key]); return; }
   if (state.placing && (e.ctrlKey || e.metaKey)) {

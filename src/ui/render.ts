@@ -38,6 +38,7 @@ import { toast } from './toast';
 import { renderProjectsPanel, renderRenamePanel } from './projects-panel';
 import { moreOfSame, renderArrangePanel, renderPropsPanel, resetKindChange } from './props-panel';
 import { hintDue, hintShown } from '../hints';
+import { roomyText } from '../text-size';
 
 // MAIN RENDER
 // ============================================================
@@ -45,10 +46,34 @@ function statusText() {
   const n = state.shapes.length;
   return n + (n === 1 ? ' shape · ' : ' shapes · ') + Math.round(state.zoom * 100) + '%';
 }
-/** Refresh the shape count / zoom readout without rebuilding the page. */
+/**
+ * Refresh the shape count / zoom readout without rebuilding the page. At Medium and Large text the top bar has no
+ * readout (room for the plan's name): the zoom shows for a moment instead.
+ */
 export function updateStatusReadout() {
+  noteCounts();
+  if (roomyText()) { flashZoom(); return; }
   const node = document.querySelector('.project-btn .pcount');
   if (node) node.textContent = statusText();
+}
+/** The shape count and zoom on the plan's element too (read by the tests: the top bar may not show them). */
+function noteCounts(svg: Element | null = document.getElementById('canvas-svg')) {
+  svg?.setAttribute('data-shapes', String(state.shapes.length));
+  svg?.setAttribute('data-zoom', String(Math.round(state.zoom * 100)));
+}
+let zoomFlashTimer: ReturnType<typeof setTimeout> | null = null;
+/**
+ * The plan's zoom, for a moment, while it changes (Medium and Large text, where the top bar doesn't show it; Jason,
+ * 2026-10-25). Outside the page's redraws, so a render while zooming doesn't take it away.
+ */
+export function flashZoom() {
+  if (!roomyText()) return;
+  let node = document.getElementById('zoom-flash');
+  if (!node) { node = el('div', { id: 'zoom-flash', className: 'zoom-flash', 'aria-hidden': 'true', 'data-testid': 'zoom-flash' }); document.body.appendChild(node); }
+  node.textContent = Math.round(state.zoom * 100) + '%';
+  node.classList.add('on');
+  if (zoomFlashTimer) clearTimeout(zoomFlashTimer);
+  zoomFlashTimer = setTimeout(() => node!.classList.remove('on'), 1200);
 }
 
 /** The panel the last render showed (to tell a panel just opened from one redrawn). */
@@ -74,7 +99,8 @@ export function render() {
   const projBtn = el('button', { className: 'project-btn' },
     el('div', { className: 'pname' }, projName),
     el('div', { html: I.chevronDown, style: { display: 'flex', color: '#78716c' } }),
-    el('div', { className: 'pinfo' }, el('span', { className: 'pcount' }, statusText()), ' \u00b7 ',
+    // (At Medium and Large text, only whether it's saved, small: room for the name. The zoom shows while it changes.)
+    el('div', { className: 'pinfo' }, ...(roomyText() ? [] : [el('span', { className: 'pcount' }, statusText()), ' \u00b7 ']),
       (() => { const s = saveStateWord(); return el('span', { className: 'save-state' + (s.bad ? ' bad' : ''), title: s.title, 'data-testid': 'save-state' }, s.word); })())
   );
   projBtn.addEventListener('click', () => { state.panel = 'projects'; render(); });
@@ -92,11 +118,13 @@ export function render() {
   });
   topbar.appendChild(undoBtn);
 
-  // Redo
-  const redoBtn = el('button', { className: 'iconbtn', html: I.redo, title: 'Redo' });
-  redoBtn.disabled = !canRedo() || !!state.draw || !!state.placing;
-  redoBtn.addEventListener('click', () => { dismissToastAction(); redo(); render(); });
-  topbar.appendChild(redoBtn);
+  // Redo (at Medium and Large text, in the ⋮ menu: room for the name)
+  if (!roomyText()) {
+    const redoBtn = el('button', { className: 'iconbtn', html: I.redo, title: 'Redo' });
+    redoBtn.disabled = !canRedo() || !!state.draw || !!state.placing;
+    redoBtn.addEventListener('click', () => { dismissToastAction(); redo(); render(); });
+    topbar.appendChild(redoBtn);
+  }
 
   // Layers
   const layersBtn = el('button', { className: 'iconbtn', html: I.layers, title: 'Layers' });
@@ -118,6 +146,7 @@ export function render() {
   // ===== CANVAS WRAP =====
   const canvasWrap = el('div', { className: 'canvas-wrap', id: 'canvas-wrap' });
   const svg = svgEl('svg', { id: 'canvas-svg', width: state.canvasW, height: state.canvasH });
+  noteCounts(svg);
   svg.addEventListener('pointerdown', onCanvasPointerDown);
   // (Two fingers zoom the plan; but if the page itself is still zoomed in, they zoom the page back out: page-zoom.ts.)
   svg.addEventListener('touchstart', e => { if (e.touches && e.touches.length === 2 && !pageZoomed()) e.preventDefault(); }, { passive: false });
@@ -227,9 +256,9 @@ export function render() {
   // Zoom buttons
   const zoomBtns = el('div', { className: 'zoombtns' });
   const zIn = el('button', { className: 'zoombtn', html: I.zoomIn, 'aria-label': 'Zoom in', title: 'Zoom in' });
-  zIn.addEventListener('click', () => { zoomBy(1.25); render(); });
+  zIn.addEventListener('click', () => { zoomBy(1.25); render(); flashZoom(); });
   const zOut = el('button', { className: 'zoombtn', html: I.zoomOut, 'aria-label': 'Zoom out', title: 'Zoom out' });
-  zOut.addEventListener('click', () => { zoomBy(0.8); render(); });
+  zOut.addEventListener('click', () => { zoomBy(0.8); render(); flashZoom(); });
   zoomBtns.appendChild(zIn); zoomBtns.appendChild(zOut);
   zoomBtns.appendChild(namesButton());
   canvasWrap.appendChild(zoomBtns);

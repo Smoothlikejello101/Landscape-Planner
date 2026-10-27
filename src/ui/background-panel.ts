@@ -1,5 +1,5 @@
 import { finishBgCalibration, handleBgImageFile, removeBgImage, setPhotoDeviceOnly, startBgCalibration, updateBgImage, updateBgImageSilent } from '../background';
-import { el } from '../dom';
+import { el, ts } from '../dom';
 import { I } from '../icons';
 import { account } from '../account';
 import { state } from '../state';
@@ -41,7 +41,7 @@ export function renderBgPanel() {
         ? 'This plan’s background photo is kept on another device only.'
         : 'This plan’s background photo hasn’t come down to this device yet. It will at the next sync.'), uploadBtn);
     }
-    body.appendChild(el('div', { style: { fontSize: '13px', color: '#57534e', lineHeight: '1.5' } },
+    body.appendChild(el('div', { style: { fontSize: ts(13), color: '#57534e', lineHeight: '1.5' } },
       'Use a straight-down view of your property: a drone photo taken looking directly down from well above the roof, ',
       'a survey or plat scan, or aerial imagery you have the right to use (many county GIS sites publish aerials). ',
       'Photos taken at an angle stretch distances, so measurements traced from them will be off. ',
@@ -62,7 +62,7 @@ export function renderBgPanel() {
   // Scale readout
   const wFt = bg.naturalWidth * bg.ftPerPx;
   const hFt = bg.naturalHeight * bg.ftPerPx;
-  body.appendChild(el('div', { style: { fontSize: '12px', color: '#57534e' } },
+  body.appendChild(el('div', { style: { fontSize: ts(12), color: '#57534e' } },
     'Current scale: ' + (1 / bg.ftPerPx).toFixed(1) + ' pixels per foot',
     el('br'),
     'Image covers ~' + wFt.toFixed(1) + ' × ' + hFt.toFixed(1) + ' ft'
@@ -95,7 +95,7 @@ export function renderBgPanel() {
 
   // Opacity slider (silent update — keeps slider focus smooth)
   const opInput = el('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: bg.opacity });
-  const opPct = el('span', { style: { fontSize: '12px', color: '#78716c' } }, Math.round(bg.opacity * 100) + '%');
+  const opPct = el('span', { style: { fontSize: ts(12), color: '#78716c' } }, Math.round(bg.opacity * 100) + '%');
   opInput.addEventListener('input', e => {
     const v = parseFloat((e.target as HTMLInputElement).value);
     updateBgImageSilent({ opacity: v });
@@ -111,7 +111,7 @@ export function renderBgPanel() {
   // Rotation input + quick buttons (mirrors shape rotation UI)
   const rotVal = bg.rotation || 0;
   const rotInput = el('input', { type: 'number', step: '5', value: rotVal });
-  const rotPct = el('span', { style: { fontSize: '12px', color: '#78716c' } }, rotVal.toFixed(1) + '°');
+  const rotPct = el('span', { style: { fontSize: ts(12), color: '#78716c' } }, rotVal.toFixed(1) + '°');
   rotInput.addEventListener('input', e => {
     const v = parseFloat((e.target as HTMLInputElement).value) || 0;
     updateBgImageSilent({ rotation: v });
@@ -206,7 +206,7 @@ export function renderBgDistanceModal() {
       (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', () => { state.bgCalibrate = null; state.panel = 'bg'; render(); }); return b; })()
     ),
     el('div', { className: 'sheet-body' },
-      el('div', { style: { fontSize: '13px', color: '#57534e' } },
+      el('div', { style: { fontSize: ts(13), color: '#57534e' } },
         'How far apart are the two points you just tapped, in feet? Enter the real distance between them.'),
       el('div', { className: 'field' },
         el('label', {}, 'Distance (ft)'),

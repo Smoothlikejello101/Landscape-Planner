@@ -1,4 +1,4 @@
-import { el } from '../dom';
+import { el, ts } from '../dom';
 import { copySvg, doExport } from '../export';
 import { I } from '../icons';
 import { resetCurrentProject } from '../mutations';
@@ -22,7 +22,7 @@ export function renderExportModal() {
       (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', () => { state.panel = null; render(); }); return b; })()
     ),
     el('div', { className: 'sheet-body' },
-      el('div', { style: { fontSize: '14px', color: '#57534e' } }, 'The printable plan is a to-scale sheet with a title, scale bar, north arrow, legend and plant list. PNG and SVG are just the drawing.'),
+      el('div', { style: { fontSize: ts(14), color: '#57534e' } }, 'The printable plan is a to-scale sheet with a title, scale bar, north arrow, legend and plant list. PNG and SVG are just the drawing.'),
       el('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } }, printBtn, pngBtn, svgBtn, cancelBtn)
     )
   );
@@ -47,7 +47,7 @@ export function renderPreviewModal() {
   doneBtn.addEventListener('click', () => { state.panel = null; state.exportPreview = null; render(); });
   buttons.appendChild(doneBtn);
   const body = el('div', { className: 'sheet-body' },
-    el('div', { style: { fontSize: '13px', color: '#57534e', lineHeight: '1.5' } },
+    el('div', { style: { fontSize: ts(13), color: '#57534e', lineHeight: '1.5' } },
       el('b', {}, 'On phone:'), ' long-press the image, then choose "Save to Photos" or "Download Image."',
       el('br'), el('br'),
       el('b', {}, 'On desktop:'), ' right-click the image and choose "Save image as...", or tap the Download button.'),
@@ -86,7 +86,7 @@ export function renderResetModal() {
   const modal = el('div', { className: 'modal' },
     el('div', { className: 'sheet-body' },
       el('div', { style: { fontWeight: 600, color: '#292524', marginBottom: '8px' } }, 'Clear this project?'),
-      el('div', { style: { fontSize: '14px', color: '#57534e', marginBottom: '16px' } },
+      el('div', { style: { fontSize: ts(14), color: '#57534e', marginBottom: '16px' } },
         'This will delete all ' + state.shapes.length + ' shapes from "' + (currentProject()?.name || 'this project') + "\". You can undo immediately after if it's a mistake."),
       el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } }, cancelBtn, confirmBtn)
     )

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { openFresh, autoDialogs, shapeCount, closeSheet, field, addPlainShape } from './helpers';
+import { openFresh, autoDialogs, shapeCount, clickRedo, closeSheet, field, addPlainShape } from './helpers';
 
 test('an edit survives an immediate reload (saved when the page hides)', async ({ page }) => {
   await openFresh(page);
@@ -104,8 +104,8 @@ test('undo and redo after adding a background image keep a single stored copy', 
   for (let i = 0; i < 3; i++) {
     await page.locator('button[title=Undo]').click();
     await page.locator('button[title=Undo]').click();
-    await page.locator('button[title=Redo]').click();
-    await page.locator('button[title=Redo]').click();
+    await clickRedo(page);
+    await clickRedo(page);
   }
   await page.waitForTimeout(600);
   const imageRecords = await page.evaluate(() => new Promise<number>((resolve) => {
