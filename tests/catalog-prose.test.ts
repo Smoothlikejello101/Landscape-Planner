@@ -158,6 +158,8 @@ describe('deer, from a description', () => {
     expect(deer('Deer love the new growth.')).toBe('Candy');
     expect(deer('Damage from deer can be a serious problem.')).toBe('Candy');
     expect(deer('It has little resistance to deer.')).toBe('Candy');
+    expect(deer('Deer eat the leaves and flowers, which are popular with deer.')).toBe('Candy');
+    expect(deer('Does it resist deer?')).toBe(null); // (a question: its answer is its own sentence)
   });
   it('says nothing of its fruit eaten, the deer fern, a comparison, or another plant', () => {
     expect(deer('Deer and turkeys eat the acorns.')).toBe(null);
@@ -227,6 +229,9 @@ describe('self-sowing, from a description', () => {
   it('says nothing of not self-sowing, or of a lawn reseeded', () => {
     expect(seed('It will not self-seed.')).toBe(null);
     expect(seed('Bare spots must be reseeded each fall.')).toBe(null);
+    expect(seed('The seed itself is eaten by songbirds.')).toBe(null); // (the seed, not the plant seeding itself)
+    expect(seed('Occasionally it will self-seed.')).toBe('Modest');
+    expect(seed('It sometimes grows in pure stands and commonly spreads into old fields by self-seeding.')).toBe('Unrated');
   });
   it('weighs a page together: freely over a little; sterile only where nothing says it self-sows', () => {
     expect(seedFromProse(['It may self-seed.', 'It reseeds readily in sandy soil.'])?.v).toBe('Prolific');
@@ -254,6 +259,11 @@ describe('spreading underground or by runners, from a description', () => {
     expect(habit(['It spreads by long, creeping roots.', 'Due to its aggressive habit, it needs upkeep.'])).toBe('Aggressive rhizome');
     expect(habit('It spreads by seeds and rhizomes, making patches some call weedy.')).toBe('Spreading rhizome'); // (the weediness may be the seed's)
     expect(habit('It can spread somewhat aggressively by rhizomes.')).toBe('Spreading rhizome');
+    expect(habit('Its semi-aggressive nature calls for caution; it spreads by rhizomes.')).toBe('Spreading rhizome');
+    expect(habit('It spreads gently by rhizomes, without becoming aggressive.')).toBe('Slow-spreading rhizome');
+    expect(habit('It is reported to be invasive in Florida, where it spreads by long stolons.')).toBe('Runner (stolons)'); // (somewhere else)
+    expect(habit(['It spreads slowly by rhizomes.', 'Does it spread aggressively?'])).toBe('Slow-spreading rhizome');
+    expect(habit('It spreads by seed and rhizomes (and can be aggressive in wet sites).')).toBe('Aggressive rhizome');
     expect(habit(['It is a rhizomatous, spreading plant.', 'Plants can be aggressive in rich soil.'])).toBe('Aggressive rhizome');
     expect(habit('Its root suckers let it overwhelm native plants.')).toBe('Suckering colonizer');
     expect(habit(['Its suckering habit lets it spread.', 'Controlling its spread has proven to be a challenge.'], ['Vernicia fordii', 'Tung oil tree'])).toBe('Suckering colonizer');

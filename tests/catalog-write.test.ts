@@ -285,3 +285,25 @@ describe('writing what NC State lists: attracts, tolerates, problems for animals
     ]);
   });
 });
+
+describe('values read from a description (prose.mjs), as written', () => {
+  const file: CatalogFile = {
+    meta: { format: 'lp-catalog', version: 2, zones: 'half', sources: { compendium: { title: 'old', trust: 'unverified' }, ncsu: { title: 'NC State', trust: 'reference' } }, enums: { form: ['Perennial', 'Vine'] } },
+    plants: [
+      { id: 'pincushion', common: 'Pincushion flower', src: ['compendium'], audited: '2026-10-26', facts: { form: 'Perennial', foliage: { v: 'evergreen', src: ['ncsu'], check: 'single', from: 'description' } } },
+      { id: 'clematis', common: 'Clematis', src: ['compendium'], audited: null, facts: { form: 'Vine', habit: 'Twining' } },
+    ],
+  };
+  const read = (v: string) => ({ v, src: ['ncsu'], check: 'single', from: 'description' });
+  const { file: out, review } = writeAudit(file, [
+    { id: 'pincushion', claims: [{ src: 'ncsu', kind: 'authority' }], facts: {} },
+    { id: 'clematis', claims: [{ src: 'ncsu', kind: 'authority' }], facts: { habit: read('Clumping') } },
+  ], '2026-10-27');
+  it('takes out a value the rules no longer read (a misread, since fixed), and says so in the review', () => {
+    expect(out.plants[0].facts.foliage).toBeUndefined();
+    expect(review).toContainEqual(expect.objectContaining({ id: 'pincushion', fact: 'foliage', note: expect.stringMatching(/^taken out: "evergreen", read from ncsu's description/) }));
+  });
+  it("doesn't write Clumping for a vine or a tree: its clump is its base or its trunks", () => {
+    expect(out.plants[1].facts.habit).toBe('Twining');
+  });
+});

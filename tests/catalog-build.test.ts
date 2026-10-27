@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
 import { auditList, ncsuMovedTo, ncsuPageFor, ncsuSlug, readNcsuPages, speciesOf, toFetch } from '../scripts/catalog/list.mjs';
 // @ts-expect-error (a plain .mjs script)
-import { cultivarOf, rereadClaims } from '../scripts/catalog/reclaim.mjs';
+import { cultivarOf, rereadClaims, siteBoilerplate } from '../scripts/catalog/reclaim.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { anchor, noteKind, reviewKind, reviewReport, shown, termsUnsettled } from '../scripts/catalog/report.mjs';
 // @ts-expect-error (a plain .mjs script)
@@ -138,6 +138,21 @@ describe('reading the web claims again', () => {
     } finally { rmSync(root, { recursive: true }); }
     expect(cultivarOf({ botanical: 'Itea virginica \'Little Henry\'' })).toBe('Little Henry');
     expect(cultivarOf({ botanical: 'Hakonechloa macra', common: 'Japanese forest grass \'All Gold\'' })).toBe('All Gold');
+  });
+
+  it("leaves out a site's paragraphs that name a plant and show on pages for different species; keeps its stock sentences", () => {
+    const blurb = '<p>Try pairing it with Asclepias tuberosa and Rudbeckia hirta in a sunny border.</p>';
+    const stock = '<p>Plants are pest resistant and unpalatable to deer and other herbivores.</p>';
+    const shared = '<p>Viola sororia is a low rosette-forming wildflower with heart-shaped leaves.</p>';
+    const pages = [['https://n.example.org/a', 'Itea virginica', blurb + stock], ['https://n.example.org/b', 'Viola sororia', blurb + stock + shared], ['https://n.example.org/c', 'Viola sororia', shared]] as const;
+    const root = savedRoot(pages.map(([url, , body]) => ({ source: 'web', url, body: `<html><body>${body}</body></html>` })));
+    try {
+      const searched = Object.fromEntries(pages.map(([url], i) => [`p${i}`, [{ url, fact: 'height', v: { min: 1, max: 2 } }]]));
+      // (A plant's name: a genus the list knows.)
+      const list = [...pages.map(([, species], i) => ({ id: `p${i}`, species })), { id: 'milkweed', species: 'Asclepias tuberosa' }];
+      const bp = siteBoilerplate(searched, list, root).get('example.org');
+      expect([...bp]).toEqual(['try pairing it with asclepias tuberosa and rudbeckia hirta in a sunny border']);
+    } finally { rmSync(root, { recursive: true }); }
   });
 
   it('follows a page NC State moved: to fetch, then to read once its name is reviewed', () => {

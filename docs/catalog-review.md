@@ -1,11 +1,12 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 49 to decide, 2850 plants not searched, 39 sites whose terms are unsettled, 419 catalog checks; 3666 of 3670 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 71 to decide, 2850 plants not searched, 39 sites whose terms are unsettled, 421 catalog checks; 3666 of 3670 records audited.
 
-- [Sources disagree (6)](#sources-disagree-6)
+- [Sources disagree (28)](#sources-disagree-28)
 - [Cultivar: tree or shrub? (6)](#cultivar-tree-or-shrub-6)
 - [Edible, but rated toxic (16)](#edible-but-rated-toxic-16)
 - [Held back as implausible (3)](#held-back-as-implausible-3)
+- [Taken out: a description read wrongly before (2)](#taken-out-a-description-read-wrongly-before-2)
 - [Values the catalog can't take (1)](#values-the-catalog-cant-take-1)
 - [Kew names to check (13)](#kew-names-to-check-13)
 - [Bloom months held back (4)](#bloom-months-held-back-4)
@@ -13,17 +14,39 @@ Written by `npm run catalog:build` (docs/catalog-build.md): what the build left 
 - [Sites whose terms are unsettled (39)](#sites-whose-terms-are-unsettled-39)
 - [Catalog checks (419)](#catalog-checks-419)
 
-## Sources disagree (6)
+## Sources disagree (28)
 
 The audit's sources give different values, so the catalog keeps the value it had, marked unverified. Zones are on the half-zone scale (7 is 7a, 7.5 is 7b); sizes are in feet. There's no place to record a decision on these yet: they stay listed until there is.
 
 | Plant | Fact | What the sources say | Catalog now |
 | --- | --- | --- | --- |
+| Japanese forest grass 'All Gold' (`hakonechloa-macra`) | spreading | provenwinners.com: Aggressive rhizome · hortech.com: Clumping | Clumping |
+| Sideoats grama (`bouteloua-curtipendula`) | spreading | newmoonnursery.com: Slow-spreading rhizome · prairienursery.com: Clumping | Clumping |
+| Downy serviceberry (`amelanchier-arborea`) | spreading | ncsu: Suckering colonizer · ufl.edu: Suckering | Suckering colonizer |
 | Cream wild indigo (`baptisia-bracteata`) | flower_color | mowildflowers.net: White, Cream · allendanseed.com: Yellow | – |
+| Common sneezeweed (`helenium-autumnale`) | spreading | newmoonnursery.com: Clumping · calfloranursery.com: Mat-forming | Clumping |
+| Bradbury's beebalm (`monarda-bradburiana`) | spreading | newmoonnursery.com: Clumping · prairienursery.com: Slow-spreading rhizome; blazingstargardens.com: Aggressive rhizome | Clumping |
+| Prairie sundrops (`oenothera-pilosella`) | spreading | mowildflowers.net: Aggressive rhizome · ancientrootsnativenursery.com: Mat-forming | Spreading rhizome |
 | Slender beardtongue (`penstemon-gracilis`) | flower_color | morningskygreenery.com: Lavender · ecoscapes1.com: Pink; bluethumb.org says Pink | – |
+| Wild sweet William (`phlox-maculata`) | spreading | newmoonnursery.com: Spreading rhizome · rachelsnativeplants.com: Slow-spreading rhizome | Clumping |
+| Obedient plant (species) (`physostegia-virginiana-2`) | spreading | newmoonnursery.com: Spreading rhizome · prairienursery.com: Aggressive rhizome | Aggressive rhizome |
+| Wild petunia (`ruellia-humilis`) | self-sowing | newmoonnursery.com: Modest · prairienursery.com: Prolific | Modest |
+| Late figwort (`scrophularia-marilandica`) | self-sowing | bugloversnativeplants.com: Modest · rachelsnativeplants.com: Prolific | Modest |
 | Prairie blue-eyed grass (`sisyrinchium-campestre`) | flower_color | morningskygreenery.com: Lavender · mowildflowers.net: Blue | – |
+| Blue-stemmed goldenrod (`solidago-caesia`) | spreading | newmoonnursery.com: Spreading rhizome · whiteflowerfarm.com: Clumping | Clumping |
+| Showy goldenrod (`solidago-speciosa`) | spreading | prairienursery.com: Clumping · newmoonnursery.com: Spreading rhizome | Clumping |
+| Smooth blue aster (`symphyotrichum-laeve`) | self-sowing | ncsu: Prolific · ufl.edu: Unrated | Prolific |
 | Venus' looking glass (`triodanis-perfoliata`) | flower_color | nativebeeginnings.com: Blue, Violet · fellabees.com: Purple | – |
+| Poverty oat grass (`danthonia-spicata`) | spreading | newmoonnursery.com: Slow-spreading rhizome · mowildflowers.net: Clumping | Clumping |
+| Beak grass (`diarrhena-obovata`) | spreading | prairienursery.com: Clumping · sagmoraine.org: Slow-spreading rhizome | Clumping |
+| White-tinged sedge (`carex-albicans`) | spreading | newmoonnursery.com: Slow-spreading rhizome · mowildflowers.net: Clumping | Clumping |
+| Ivory sedge (`carex-eburnea`) | leaves in winter | mowildflowers.net: semi-evergreen · blazingstargardens.com: evergreen | – |
+| Common bur sedge (`carex-grayi`) | spreading | newmoonnursery.com: Slow-spreading rhizome · prairienursery.com: Clumping | Clumping |
 | Porcupine sedge (`carex-hystericina`) | flower_color | aquascapesunlimited.com: Yellow · bluethumb.org: Green | – |
+| Long-beaked sedge (`carex-sprengelii`) | spreading | newmoonnursery.com: Slow-spreading rhizome · prairienursery.com: Spreading rhizome | Clumping |
+| Brown fox sedge (`carex-vulpinoidea`) | spreading | newmoonnursery.com: Aggressive rhizome · blazingstargardens.com: Clumping; nvknurseries.com: Slow-spreading rhizome; jerseyyards.org says Clumping | Clumping |
+| Creek sedge (`carex-amphibola`) | self-sowing | prairienursery.com: Prolific · newmoonnursery.com: Modest | Modest |
+| Netleaf leather flower (`clematis-viorna`) | self-sowing | onrockgarden.com: Modest · clayandlimestone.com: Sterile | Modest |
 | Tree of heaven (`ailanthus-altissima`) | bloom_season | ncsu, davisla.wordpress.com: summer · arizona.edu: spring; usda says late spring | – |
 
 ## Cultivar: tree or shrub? (6)
@@ -69,6 +92,15 @@ The audit's values would make the record implausible (the app's checks), so they
 | Green-and-gold (`chrysogonum-virginianum`) | height | under 3 in tall (2 in): inches read as feet, or the other way? |
 | Pink sundew (`drosera-capillaris`) | height | under 3 in tall (1 in): inches read as feet, or the other way? |
 | English holly 'Argentea Marginata' (`ilex-aquifolium-argentea-marginata`) | height, form | 40 ft is tall for a shrub |
+
+## Taken out: a description read wrongly before (2)
+
+A value an earlier build read from a page's description, by rules that have since been fixed and no longer read it so. It's taken out (nothing to decide: listed so the change is seen).
+
+| Plant | Fact | What was taken out |
+| --- | --- | --- |
+| Pincushion-flower (`lomelosia-caucasica`) | leaves in winter | "evergreen", read from ncsu's description, which the rules no longer read so |
+| Saw palmetto (`serenoa-repens`) | spreading | "Clumping", read from ncsu's description, which the rules no longer read so |
 
 ## Values the catalog can't take (1)
 

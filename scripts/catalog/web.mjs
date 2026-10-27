@@ -1,10 +1,12 @@
 // Reading the open web for the catalog (docs/catalog-sources.md, "Tiers" and
 // "Searching"): which sites a search result may come from and what kind of
-// source each is, what a plant page says in its spec lines, and which pages
-// are copies of each other.
+// source each is, what a plant page says in its spec lines and its
+// description (read by prose.mjs's rules), and which pages are copies of
+// each other.
 import { createHash } from 'node:crypto';
 import { halfZones, zoneSpan } from './claims.mjs';
 import { siteOf } from './fetch-lib.mjs';
+import { deerFromProse, foliageFromProse, habitFromProse, seedFromProse, sentences } from './prose.mjs';
 
 // ---------- Sites ----------
 
@@ -280,8 +282,47 @@ export function copyKey(html) {
  */
 const SOUTHERN = new Set(['au', 'nz', 'za', 'ar', 'cl', 'uy', 'py', 'br', 'bo', 'pe', 'na', 'bw', 'zw', 'mz', 'mg', 'ls', 'sz', 'fj']);
 export const southernSite = (host) => SOUTHERN.has(String(host).toLowerCase().split('.').pop());
-/** A page's spec lines as claims, for one plant. (Facts that differ by place, bloom months above all, aren't taken from the web.) */
-export function webClaims(url, html, plant) {
+// ---------- Descriptions (2026-10-27) ----------
+// A page's own paragraphs, read by the same rules as NC State's descriptions (prose.mjs), for what its spec lines
+// don't say: leaves in winter, deer, self-sowing, spreading. A site's boilerplate (a paragraph on several of its pages:
+// a shipping note, a related product's blurb) isn't the plant's.
+
+/** A paragraph as a key, to tell repeats apart: its letters and digits. */
+export const paragraphKey = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+/** A page's paragraphs, as text: its <p>s of 40 letters or more, outside its menus, header, footer, forms and comments. */
+export function webParagraphs(html) {
+  // (Readers' comments aren't the page's: everything from a blog's comments section on.)
+  const page = String(html), comments = /<(?:div|section|ol|ul)\b[^>]*\b(?:id|class)="[^"]*\bcomments?(?:-area|-list|list|-section)?\b[^"]*"/i.exec(page);
+  const body = (comments ? page.slice(0, comments.index) : page).replace(/<(script|style|noscript|svg|template|nav|header|footer|form|button|select|aside)\b[\s\S]*?<\/\1>/gi, ' ');
+  return [...body.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)].map((m) => plainText(m[1]).trim()).filter((t) => t.length >= 40);
+}
+/** A labeled line inside a paragraph: "Evergreen or Deciduous: Deciduous", "Foliage: Semi-evergreen". */
+const LEAF_LABEL = /\b(?:evergreen or deciduous|evergreen\s*\/\s*deciduous|deciduous\s*\/\s*evergreen|foliage(?: type)?|leaf (?:retention|persistence))\s*:\s*(semi-evergreen|evergreen|deciduous)\b/i;
+/**
+ * What a page's description says, as claims, for the facts its spec lines (`fields`) don't give. `boilerplate`: the
+ * paragraph keys repeated across its site, left out. A labeled "Evergreen or Deciduous: X" is the page's field, not prose.
+ */
+export function webProseClaims(html, plant, base, fields = {}, boilerplate = new Set()) {
+  const paras = webParagraphs(html).filter((t) => !boilerplate.has(paragraphKey(t)));
+  const names = [plant.species, plant.common, plant.cultivar].filter(Boolean);
+  const out = [];
+  const label = paras.map((t) => LEAF_LABEL.exec(t)).find(Boolean);
+  if (label) out.push({ ...base, fact: 'foliage', v: label[1].toLowerCase() });
+  const list = paras.map((t) => t.replace(new RegExp(LEAF_LABEL.source, 'gi'), ' ')).flatMap((t) => sentences(t));
+  const read = [['foliage', foliageFromProse], ['deer', deerFromProse], ['self_seed', seedFromProse], ['habit', habitFromProse]];
+  for (const [fact, from] of read) {
+    if ((fact === 'foliage' && label) || (fact === 'deer' && fields.deer)) continue;
+    const r = from(list, names);
+    if (r) out.push({ ...base, fact, v: r.v, says: r.says, prose: true });
+  }
+  return out;
+}
+
+/**
+ * A page's spec lines and description as claims, for one plant. (Facts that differ by place, bloom months above all,
+ * aren't taken from the web.) `boilerplate`: its site's repeated paragraphs (reclaim.mjs), left out of its description.
+ */
+export function webClaims(url, html, plant, { boilerplate } = {}) {
   const kind = siteKind(url, html, plant);
   if (kind === 'skip') return [];
   const text = pageText(html);
@@ -298,6 +339,7 @@ export function webClaims(url, html, plant) {
   if (f.bloomSeasons && !southernSite(new URL(url).hostname)) c.push({ ...base, fact: 'bloom_season', v: f.bloomSeasons });
   if (f.flowerColor) c.push({ ...base, fact: 'flower_color', v: f.flowerColor });
   if (f.deer) c.push({ ...base, fact: 'deer', v: f.deer });
+  c.push(...webProseClaims(html, plant, base, f, boilerplate));
   return c;
 }
 

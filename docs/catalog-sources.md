@@ -419,6 +419,31 @@ name, a trailing "hence the common name" dropping a sentence, and how
 aggressively or slowly. Weakest: spreading's degree (aggressive or not,
 slow or not), more than whether it runs at all.
 
+**Web pages' text** (2026-10-27): the same four facts read from the pages
+the search saved and cites (nurseries, extension pages, blogs; only sites
+whose terms allow it), by the same rules, for what a page's spec lines
+don't say. A page's own paragraphs only: not its menus, header, footer or
+forms, and not its site's boilerplate, a paragraph that names a plant and
+shows on the site's pages for other species (a related product's blurb, a
+genus's trivia, companions to plant with). A nursery's stock sentence said
+of each plant it fits ("Plants are pest resistant and unpalatable to deer")
+stays: it's said of this plant too. A labeled "Evergreen or Deciduous:
+Deciduous" inside a paragraph is the page's field. They count as the
+site's claims, at its tier: a nursery's deer is one side of the sides
+(docs above), NC State's an authority's; a blog's deer isn't read at all.
+A tree's or a vine's "clump" (its trunks, its base) isn't written as
+Clumping. A value an earlier build read from a description that today's
+rules no longer read is taken out, and listed in the review ("Taken out").
+Checked by the same agent on 80 of the values the pages decided: 67 right
+(leaves in winter 23 of 25, deer 13 of 15, self-sowing 12 of 15, spreading
+19 of 25). Fixed from what it found: related products' blurbs, a site's
+legend of terms, readers' comments, an FAQ's questions ("Does it spread
+aggressively?" settles nothing; its answer is its own sentence), and
+"aggressive" negated ("without becoming aggressive"), hedged ("semi-
+aggressive"), regional ("invasive in Florida") or said of another species.
+Weakest: a nursery's page that contradicts itself (a summary against its
+FAQ), and how aggressive a spread is.
+
 These replace the earlier list's unsourced values where they differ (a
 "Clumping" the description says spreads by rhizomes). Drought wasn't read
 this way: NC State's field already lists it, and only about 55 pages
