@@ -14,7 +14,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, 
 import { join } from 'node:path';
 import { parseBuildArgs } from './build-args.mjs';
 import { readNcsuFile, savedAuditList, toFetch } from './list.mjs';
-import { gbifCommonName, namePagesToFetch, newRecords, pagesInUse, readAdded, shipOnly, usdaCommonName, writeAdded } from './additions.mjs';
+import { gbifCommonName, gbifNames, namePagesToFetch, newRecords, pagesInUse, readAdded, shipOnly, shortenListNames, usdaCommonName, writeAdded } from './additions.mjs';
 import { catalogText } from './convert-v1.mjs';
 import { applySplits, linkCultivars } from './split.mjs';
 import { lockCatalogSrc, savedFile } from './pages.mjs';
@@ -108,11 +108,14 @@ function withAdditions() {
   // (A cultivar with no species named, linked to its species' record: split.mjs.)
   const linked = linkCultivars(base);
   if (linked.length) log.push(`## linked to its species\n${linked.join('\n')}`);
+  // (A plant added with all of GBIF's English names as its name, named with the first: additions.mjs.)
+  const renamed = shortenListNames(base, (sp) => gbifNames(sp, ROOT));
+  if (renamed.length) log.push(`## renamed\n${renamed.join('\n')}`);
   const found = newRecords(base, pagesInUse(base, savedAuditList(base, ROOT, undefined, addedBefore), { ...addedBefore, ...readNcsuFile().pages }), {
     root: ROOT, added: addedBefore, usdaCommon: (sp) => usdaCommonName(sp, ROOT), gbifCommon: (sp) => gbifCommonName(sp, ROOT),
   });
   base.plants.push(...found.records);
-  if (found.records.length || split.length || linked.length) {
+  if (found.records.length || split.length || linked.length || renamed.length) {
     putBack = true;
     writeFileSync('public/plants.json', catalogText(base)); // (the steps read the catalog from there)
   }
