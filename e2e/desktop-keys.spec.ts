@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, openFresh, shapeCount, tapFromCenter } from './helpers';
+import { addKind, openFresh, shapeCount, tapFromCenter, zoomPct } from './helpers';
 
 // What a keyboard and mouse are expected to do on a laptop or desktop (asked for by Jason, 2026-10-25).
 
@@ -125,7 +125,7 @@ test('the arrow keys move what is selected (Shift: farther), one undo step a run
 
 test('Ctrl + and Ctrl − zoom the plan, not the page', async ({ page }) => {
   await openFresh(page);
-  const pct = async () => Number((await page.locator('.project-btn .pinfo').innerText()).match(/(\d+)%/)![1]);
+  const pct = () => zoomPct(page);
   const start = await pct();
   await page.keyboard.press('Control+Equal');
   expect(await pct()).toBe(Math.round(start * 1.25));
@@ -138,7 +138,7 @@ test('a trackpad\'s two-finger scroll moves around the plan; its pinch and a mou
   test.skip(info.project.name === 'phone', 'a trackpad or mouse');
   await openFresh(page);
   await threeRects(page);
-  const pct = async () => Number((await page.locator('.project-btn .pinfo').innerText()).match(/(\d+)%/)![1]);
+  const pct = () => zoomPct(page);
   type Wheel = { deltaX?: number; deltaY: number; deltaMode?: number; ctrlKey?: boolean };
   const wheel = (init: Wheel) => page.evaluate((i: Wheel) => {
     const svg = document.getElementById('canvas-svg')!, r = svg.getBoundingClientRect();

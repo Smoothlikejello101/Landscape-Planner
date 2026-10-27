@@ -54,3 +54,6 @@ export function svgEl<K extends keyof SVGElementTagNameMap>(tag: K, attrs?: Attr
   appendChildren(e, children);
   return e;
 }
+
+/** A text size in an element's style: `px` at Small, scaled with the text size like every size in styles.css. */
+export const ts = (px: number): string => `calc(${px}px * var(--ts))`;

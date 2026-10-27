@@ -1,5 +1,5 @@
 import { setShowCrowding, setShowFullSize } from '../view-settings';
-import { el, svgEl } from '../dom';
+import { el, svgEl, ts } from '../dom';
 import { setSnapOn, setSquareOn, snapOn, squareOn } from '../tidy';
 import { flushHistoryDebounce, pushHistory } from '../history';
 import { I } from '../icons';
@@ -46,7 +46,7 @@ export function renderLayersPanel() {
   if (state.shapes.some((s) => s.role === 'plant' || s.status || s.phase) || state.phases.length) list.appendChild(showSection());
   list.appendChild(drawingSection());
   if (state.shapes.length === 0) {
-    list.appendChild(el('div', { style: { padding: '32px', textAlign: 'center', color: '#78716c', fontSize: '14px' } }, 'No shapes yet.'));
+    list.appendChild(el('div', { style: { padding: '32px', textAlign: 'center', color: '#78716c', fontSize: ts(14) } }, 'No shapes yet.'));
   } else {
     const reversed = [...state.shapes].reverse();
     for (const s of reversed) {
@@ -85,7 +85,7 @@ export function renderLayersPanel() {
           svgEl('svg', { width: 32, height: 32, viewBox: '0 0 32 32' },
             svgEl('polygon', { points: '4,10 16,2 30,12 24,30 6,26', fill: s.color, 'fill-opacity': opacity, stroke: '#d6d3d1', 'stroke-width': 1 })));
       } else if (s.type === 'text') {
-        swatch = el('div', { className: 'layer-sw', style: { background: 'transparent', border: 'none', color: s.color, fontWeight: '700', fontSize: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' } }, 'T');
+        swatch = el('div', { className: 'layer-sw', style: { background: 'transparent', border: 'none', color: s.color, fontWeight: '700', fontSize: ts(20), display: 'flex', alignItems: 'center', justifyContent: 'center' } }, 'T');
       } else {
         swatch = el('div', { className: 'layer-sw', style: { background: 'transparent', border: 'none' } },
           svgEl('svg', { width: 32, height: 32, viewBox: '0 0 32 32' },
@@ -203,7 +203,7 @@ function plantSizeSection(): HTMLElement {
     seg.appendChild(b);
   }
   wrap.appendChild(el('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' } },
-    el('span', { style: { fontSize: '13px', color: '#57534e' } }, 'Draw plants at'), seg));
+    el('span', { style: { fontSize: ts(13), color: '#57534e' } }, 'Draw plants at'), seg));
   const cb = el('input', { type: 'checkbox' }) as HTMLInputElement;
   cb.checked = state.showFullSize;
   cb.disabled = state.sizeMode === 'full';

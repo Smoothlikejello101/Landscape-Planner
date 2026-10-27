@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openFresh, autoDialogs, shapeCount, zoomPct, closeSheet, canvasBox, field, drag, addPlainShape, placeOnceAtCenter, openExport } from './helpers';
+import { openFresh, autoDialogs, shapeCount, zoomPct, clickRedo, closeSheet, canvasBox, field, drag, addPlainShape, placeOnceAtCenter, openExport } from './helpers';
 
 async function addShape(page: Page, cls: string) {
   await addPlainShape(page, ({ circle: 'circle', rect: 'rect', oval: 'oval', tri: 'triangle' } as const)[cls as 'circle']);
@@ -79,7 +79,7 @@ test.describe('core editing', () => {
     await page.locator('button[title=Undo]').click();
     expect(await shapeCount(page)).toBe(0);
     await expect(page.locator('button[title=Undo]')).toBeDisabled();
-    await page.locator('button[title=Redo]').click();
+    await clickRedo(page);
     expect(await shapeCount(page)).toBe(1);
   });
 

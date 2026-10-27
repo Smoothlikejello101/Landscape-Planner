@@ -1,4 +1,7 @@
 import { el, hasKeyboard } from '../dom';
+import { canRedo, redo } from '../history';
+import { roomyText, setTextSize, textSize, TEXT_SIZES } from '../text-size';
+import { dismissToastAction } from './toast';
 import { I } from '../icons';
 import { paste } from '../mutations';
 import { clearSelection } from '../selection';
@@ -20,7 +23,15 @@ export function toggleSelectMode() {
   state.menu = null;
 }
 export function renderMoreMenu() {
-  const items = [];
+  const items: { icon?: string; label?: string; onClick?: () => void; disabled?: boolean; divider?: boolean; testid?: string }[] = [];
+  // Redo, at Medium and Large text (the top bar keeps room for the plan's name; Jason, 2026-10-25).
+  if (roomyText()) {
+    items.push({
+      icon: I.redo, label: 'Redo', testid: 'menu-redo',
+      disabled: !canRedo() || !!state.draw || !!state.placing,
+      onClick: () => { dismissToastAction(); redo(); state.menu = null; render(); },
+    });
+  }
   // Paste (if clipboard has data)
   const clip = getClipboard();
   if (clip && clip.shapes && clip.shapes.length) {
@@ -86,11 +97,21 @@ export function renderMoreMenu() {
   const menu = el('div', { className: 'menu' });
   for (const it of items) {
     if (!it.onClick) { menu.appendChild(el('div', { className: 'menu-divider' })); continue; }
-    const btn = el('button', { className: 'menu-item' });
+    const btn = el('button', { className: 'menu-item', ...(it.testid ? { 'data-testid': it.testid } : {}) });
     btn.innerHTML = it.icon + '<span>' + it.label + '</span>';
+    btn.disabled = !!it.disabled;
     btn.addEventListener('click', it.onClick);
     menu.appendChild(btn);
   }
+  // Text size: three A's, each at its size. A change shows at once; the menu stays open to try another.
+  const seg = el('div', { className: 'seg', role: 'group', 'aria-label': 'Text size' });
+  for (const s of TEXT_SIZES) {
+    const b = el('button', { 'aria-pressed': String(textSize() === s.key), 'aria-label': s.name, title: s.name, 'data-testid': `text-size-${s.key}`, style: { fontSize: `${14 * s.scale}px` } }, 'A');
+    b.addEventListener('click', () => { setTextSize(s.key); render(); });
+    seg.appendChild(b);
+  }
+  menu.appendChild(el('div', { className: 'menu-divider' }));
+  menu.appendChild(el('div', { className: 'text-size-row', 'data-testid': 'text-size' }, el('span', {}, 'Text size'), seg));
   menu.appendChild(el('div', { className: 'menu-version' }, `Version ${__APP_VERSION__} · ${__BUILD_TIME__}`));
   const overlay = el('div', { className: 'overlay top' }, el('div', { style: { paddingRight: '8px', paddingTop: '4px' } }, menu));
   overlay.addEventListener('click', e => { if (e.target === overlay) { state.menu = null; render(); } });

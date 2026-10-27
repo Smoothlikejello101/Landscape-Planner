@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { addPlainShape, autoDialogs, closeSheet, openFresh } from './helpers';
+import { addPlainShape, autoDialogs, closeSheet, openFresh, shapeCount } from './helpers';
 
 // Saving, printing and deleting say what happened.
 
@@ -19,14 +19,14 @@ test('the top bar says the plan is saved; a delete says what went, with an Undo'
   expect(n.y + n.height).toBeLessThanOrEqual(sheet.y);
   await closeSheet(page);
   await notice.getByRole('button', { name: 'Undo' }).click();
-  await expect(page.locator('.project-btn .pinfo')).toContainText('1 shape');
+  await expect.poll(() => shapeCount(page)).toBe(1);
   // Clear all, too.
   await page.locator('button[title=More]').click();
   await page.locator('.menu-item', { hasText: 'Clear all shapes' }).click();
   await page.getByRole('button', { name: 'Clear all' }).click();
   await expect(notice).toContainText('Cleared 1 shape');
   await notice.getByRole('button', { name: 'Undo' }).click();
-  await expect(page.locator('.project-btn .pinfo')).toContainText('1 shape');
+  await expect.poll(() => shapeCount(page)).toBe(1);
 });
 
 test('print is its own menu item, and Create PDF stays in view with its result', async ({ page }) => {

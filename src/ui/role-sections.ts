@@ -1,5 +1,5 @@
 import { plantsInBed, plantSummary } from '../beds';
-import { el } from '../dom';
+import { el, ts } from '../dom';
 import { shapeArea, shapePerimeter } from '../geometry';
 import { updateSelected, updateSelectedSilent } from '../mutations';
 import { plantsById } from '../plants';
@@ -105,7 +105,7 @@ export function shadeSunSection(s: Shape): HTMLElement {
       wrap.appendChild(row);
     });
     if (info().periods.length < 4) {
-      const more = el('button', { className: 'btn ghost', style: { marginTop: '6px', fontSize: '13px', padding: '6px' } }, '+ Another sunny period');
+      const more = el('button', { className: 'btn ghost', style: { marginTop: '6px', fontSize: ts(13), padding: '6px' } }, '+ Another sunny period');
       more.addEventListener('click', () => {
         const last = info().periods[info().periods.length - 1];
         const start = Math.min(19 * 60, last[1] + 120);

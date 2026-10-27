@@ -17,15 +17,22 @@ export function autoDialogs(page: Page, answer = '') {
   return seen;
 }
 
-/** "N shapes" count from the top bar. */
+/** How many shapes the plan has (kept on the plan's element: at Medium and Large text the top bar doesn't say). */
 export async function shapeCount(page: Page): Promise<number> {
-  const txt = await page.locator('.project-btn .pinfo').innerText();
-  return Number(txt.match(/(\d+) shapes?/)![1]);
+  return Number(await page.locator('#canvas-svg').getAttribute('data-shapes'));
 }
 
+/** The plan's zoom, in percent (likewise). */
 export async function zoomPct(page: Page): Promise<number> {
-  const txt = await page.locator('.project-btn .pinfo').innerText();
-  return Number(txt.match(/(\d+)%/)![1]);
+  return Number(await page.locator('#canvas-svg').getAttribute('data-zoom'));
+}
+
+/** Redo: on the top bar at Small text, in the ⋮ menu at Medium and Large. */
+export async function clickRedo(page: Page) {
+  const bar = page.locator('button[title=Redo]');
+  if (await bar.count()) { await bar.click(); return; }
+  await page.locator('button[title=More]').click();
+  await page.getByTestId('menu-redo').click();
 }
 
 export async function closeSheet(page: Page) {
