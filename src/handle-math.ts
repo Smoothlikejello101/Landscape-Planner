@@ -1,4 +1,4 @@
-import { ROT_SNAP, SNAP } from './constants';
+import { SNAP } from './constants';
 import { boxSize, pathLength, resizedPoints, rotate, textSize } from './geometry';
 import type { CircleShape, Point, Shape, ShapePatch } from './types';
 
@@ -97,11 +97,14 @@ export function angleTo(center: Point, p: Point): number {
 }
 /**
  * The turn after the knob has gone from `startAngle` to `angle` (degrees, around the shape's center): the shape's turn
- * when the drag began plus the knob's, in steps of 5° (15° with Shift), as the properties' rotation buttons step.
+ * when the drag began plus the knob's, in whole degrees, free (36° is as easy as 45°), sticking only within a degree
+ * of every 45° (Jason, 2026-10-25: free, fine turning; no 15° steps).
  */
-export function rotatePatch(start: BoxLike, startAngle: number, angle: number, step = ROT_SNAP): ShapePatch {
-  const r = (start.rotation || 0) + angle - startAngle;
-  return { rotation: turnOf(Math.round(r / step) * step) };
+export function rotatePatch(start: BoxLike, startAngle: number, angle: number): ShapePatch {
+  let r = Math.round((start.rotation || 0) + angle - startAngle);
+  const eighth = Math.round(r / 45) * 45;
+  if (Math.abs(r - eighth) <= 1) r = eighth;
+  return { rotation: turnOf(r) };
 }
 
 /** What a drag reads as, beside the handle: the size it's dragged to, or the turn. */
