@@ -58,6 +58,11 @@ export const SKIP_SITES = new Set([
   'vdict.com', 'gesneriads.info', 'plantae.org', // (user-edited or members' posts)
   'floraccess.com', // (a wholesale marketplace)
   'lapascalinette.com', 'lostcoastoutpost.com', 'surinenglish.com', 'stinehome.com', 'theshrimpfarm.com', 'caringsunshine.com', // (not plant references)
+  // Found by the terms reviews of batch 4a (2026-10-28)
+  'plantoscan.com', 'nargil.com', 'gardenfrontier.com', 'ehouseplant.com', 'wekivafoliage.com', // (content farms, AI-written)
+  'floraneste.com', // (a spam shop)
+  'aa.edu', // (not a plant reference)
+  'horticopia.info', // (sells its plant database; asked to license it: not read until it answers)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
