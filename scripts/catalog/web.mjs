@@ -74,6 +74,12 @@ export const SKIP_SITES = new Set([
   'plantfyi.com', // (an aggregator of other databases, pages made by script)
   'wikidoc.org', 'wikis.evergreen.edu', // (user-edited wikis; the first borrows Wikipedia's wording)
   'horti.co.za', // (a marketplace)
+  // Found by the terms reviews of batch 5b (2026-10-28)
+  'theplantindex.com', 'whatflower.net', 'loamapp.uk', 'botanicmate.com', 'bloomingexpert.com', 'calatheaessentials.com', 'bovees.com', 'garden.eco', // (content farms, AI-written or generated: two say so themselves)
+  'plantversus.com', // (Wikipedia and other databases, retold by script)
+  'mail-archive.com', 'blogs.ubc.ca', // (members' posts, personal blogs)
+  'plusgarden.com', 'digitaltowns.app', // (marketplaces)
+  '947qdr.com', // (not a plant reference)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
@@ -97,6 +103,10 @@ const COMPANY = {
   'monrovia.com': 'monrovia.com', 'firsteditionsplants.com': 'firsteditionsplants.com', 'baileynurseries.com': 'firsteditionsplants.com',
   'endlesssummerblooms.com': 'firsteditionsplants.com', 'bloomineasy.com': 'bloomineasy.com', 'southernlivingplants.com': 'southernlivingplants.com',
   'encoreazalea.com': 'plantdevelopmentservices', 'plantdevelopment.com': 'plantdevelopmentservices',
+  // (GardenSoft's plant database, rented by water utilities: their plant pages say © GardenSoft. Seen 2026-10-28.)
+  'watersavingplants.com': 'gardensoft', 'watersmartgardening.com': 'gardensoft', 'reddingwatersmart.com': 'gardensoft',
+  'fresnogardening.org': 'gardensoft', 'bayareagardening.org': 'gardensoft', 'ashlandsaveswater.org': 'gardensoft',
+  'elpasodesertblooms.org': 'gardensoft', 'waterwisegardeningsb.org': 'gardensoft',
 };
 /** The source a site counts as (one company's sites are one). */
 export const sourceOf = (host) => { const site = siteOf(host); return COMPANY[site] ?? termsKey(host); };
