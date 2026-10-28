@@ -292,12 +292,14 @@ export function fileStore(root, today) {
  *   today: 'YYYY-MM-DD', refresh: bool, log(line)
  *   session: fetchSession(), to share robots.txt and pacing across runFetch calls in one process
  *   concurrency: how many sites are fetched from at once (default 1); each site still one request at a time, at its pace
+ *   maxDelay: the longest crawl delay (seconds) worth waiting for; a site whose robots.txt asks for more is left out of
+ *     this run, never asked sooner (default: none, every delay waited for)
  * Returns { saved, cached, skipped }.
  */
 /** What runs within one process share: robots.txt read this run, and when each site was last asked (so pace holds across runs). */
 export const fetchSession = () => ({ robots: new Map(), lastHit: new Map() });
 export async function runFetch(list, deps) {
-  const { get, sleep, now, store, today, refresh = false, log = () => {}, session = fetchSession(), concurrency = 1 } = deps;
+  const { get, sleep, now, store, today, refresh = false, log = () => {}, session = fetchSession(), concurrency = 1, maxDelay = Infinity } = deps;
   const robots = session.robots; // host → parsed
   const text = (b, n) => (Buffer.isBuffer(b) ? b.subarray(0, n ?? b.length).toString(n ? 'latin1' : 'utf8') : String(b ?? '').slice(0, n));
   const lastHit = session.lastHit; // site → ms
@@ -387,7 +389,10 @@ export async function runFetch(list, deps) {
     }
     if (why) { refuse(host, why, false); out.skipped++; return; }
     if (!allowedBy(rb.groups, u.pathname + u.search)) { log(`skip ${u.href}: robots.txt disallows it`); out.skipped++; return; }
-    await wait(site, paceFor(item.source, crawlDelay(rb.groups), item.pace));
+    // (A site that asks for minutes between requests, an hour even, would hold the whole run: left out instead.)
+    const delay = crawlDelay(rb.groups);
+    if (delay > maxDelay) { log(`skip ${u.href}: robots.txt asks for ${delay} s between requests (more than ${maxDelay} s: left out this run)`); out.skipped++; return; }
+    await wait(site, paceFor(item.source, delay, item.pace));
     const r = await get(u.href);
     if (r.status === 0) { log(`fail ${u.href}: ${r.error ?? 'no answer'} (not saved)`); out.skipped++; return; }
     const body = Buffer.isBuffer(r.body) ? r.body : Buffer.from(String(r.body ?? ''), 'utf8');

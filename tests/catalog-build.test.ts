@@ -13,6 +13,8 @@ import { isDay, parseBuildArgs } from '../scripts/catalog/build-args.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { cacheName } from '../scripts/catalog/fetch-lib.mjs';
 // @ts-expect-error (a plain .mjs script)
+import { termsKey } from '../scripts/catalog/web.mjs';
+// @ts-expect-error (a plain .mjs script)
 import { acceptsPage, ncsuPageName, ncsuTitle, ownCultivarPage, recordCultivars, titleCultivar } from '../scripts/catalog/ncsu-page.mjs';
 
 // The catalog build (scripts/catalog/build.mjs, docs/catalog-build.md): its plant list, its re-reading of the
@@ -134,10 +136,29 @@ describe('reading the web claims again', () => {
     try {
       const searched = { 'itea-virginica': [{ url, fact: 'height', v: { min: 3, max: 5 } }, { url, fact: 'width', v: { min: 3, max: 5 } }, { url: gone, fact: 'water', v: 'Moderate' }], 'not-listed': [{ url, fact: 'water', v: 'Low' }] };
       const r = rereadClaims(searched, [{ id: 'itea-virginica', species: 'Itea virginica' }], { plants: [{ id: 'itea-virginica', common: 'Virginia sweetspire', botanical: 'Itea virginica' }] }, root);
-      expect(r).toEqual({ claims: { 'itea-virginica': [] }, pages: 1, missing: 1 });
+      expect(r).toEqual({ claims: { 'itea-virginica': [] }, pages: 1, missing: 1, closed: 0 });
     } finally { rmSync(root, { recursive: true }); }
     expect(cultivarOf({ botanical: 'Itea virginica \'Little Henry\'' })).toBe('Little Henry');
     expect(cultivarOf({ botanical: 'Hakonechloa macra', common: 'Japanese forest grass \'All Gold\'' })).toBe('All Gold');
+  });
+
+  it("reads again only pages from sites whose terms, as read today, allow it: one taken back, or never read, is left out", () => {
+    const body = '<html><body><p>Mature height: 3 to 5 feet.</p></body></html>';
+    const site = (name: string) => `https://www.${name}.example/itea-virginica`;
+    const urls = ['open', 'noterms', 'closed', 'unread', 'unknown'].map(site);
+    const root = savedRoot(urls.map((url) => ({ source: 'web', url, body })));
+    try {
+      const searched = { 'itea-virginica': urls.map((url) => ({ url, fact: 'height', v: { min: 3, max: 5 } })) };
+      // (Keyed as the registry keys a site: by its name, without the www.)
+      const terms = { 'open.example': { verdict: 'open' }, 'noterms.example': { verdict: 'none found' }, 'closed.example': { verdict: 'bots' }, 'unread.example': { verdict: 'unread' } };
+      expect(Object.keys(terms).every((k) => urls.some((u) => termsKey(new URL(u).hostname) === k))).toBe(true);
+      const list = [{ id: 'itea-virginica', species: 'Itea virginica' }], catalog = { plants: [{ id: 'itea-virginica', common: 'Virginia sweetspire', botanical: 'Itea virginica' }] };
+      const r = rereadClaims(searched, list, catalog, root, terms);
+      expect([r.pages, r.closed, r.missing]).toEqual([2, 3, 0]);
+      expect(r.claims['itea-virginica'].every((c: { url: string }) => c.url === urls[0] || c.url === urls[1])).toBe(true);
+      // (Without the registry, as before: every saved page is read.)
+      expect(rereadClaims(searched, list, catalog, root)).toMatchObject({ pages: 5, closed: 0 });
+    } finally { rmSync(root, { recursive: true }); }
   });
 
   it("leaves out a site's paragraphs that name a plant and show on pages for different species; keeps its stock sentences", () => {

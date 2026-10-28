@@ -215,7 +215,9 @@ the same rules as every other source (scripts/catalog/search.mjs).
    logged.
 2. **Pick.** Up to 10 pages a plant, one a site. Left out: the sites in
    this document's closed, ask-first and not-used lists; crowd-sourced and
-   AI-written sites (Wikipedia, Dave's Garden, iNaturalist…); archives,
+   AI-written sites (Wikipedia, Dave's Garden, iNaturalist…, and those
+   the terms reviews find AI-written, spam, copied or a marketplace:
+   `SKIP_SITES` in scripts/catalog/web.mjs); archives,
    caches and aggregators (the Wayback Machine, archive.today, Trefle,
    GBIF…: GBIF's records are read another way, by the owner's decision, as
    counts only: flowering records for bloom months ([bloom-months.md](bloom-months.md)) and herbarium
@@ -235,8 +237,9 @@ the same rules as every other source (scripts/catalog/search.mjs).
    payment provider's), or the usual addresses (`/terms`,
    `/terms-of-use`, `/policies/terms-of-service`…) when none of the pages
    it links is titled as the terms of use (none linked, or only terms of
-   sale, shipping or returns: a shop that links only its shipping policy),
-   and writes a review packet: each page's opening and the passages about
+   sale, shipping or returns: a shop that links only its shipping policy;
+   a Shopify shop's standard terms page is read whatever its footer links,
+   since its robot ban sits there), and writes a review packet: each page's opening and the passages about
    robots, scraping, scripts, AI, automated access, commercial use,
    databases and copying (up to twelve, saying how many more there are),
    with a pattern's guess marked as a hint only. Each owner on a shared
@@ -261,11 +264,17 @@ the same rules as every other source (scripts/catalog/search.mjs).
    - **unread**: the home page or a linked terms page couldn't be fetched,
      or the terms of use aren't among the pages read; tried again next run.
    When unsure, it isn't **open**. A site we lean on is also read by Jason
-   before launch.
+   before launch. The build reads the saved pages again under the record as
+   it stands then, so a reading taken back to be done again (a Shopify shop
+   cleared before its standard terms were read, say) keeps that site's
+   values out of the catalog until it is read again.
 4. **Fetch.** Through the fetcher: robots.txt, pace (`web`: 5 s a site),
    refusals and the honest user agent, as for every source. Up to eight
    sites are read at once, each still one request at a time at its pace. Redirects
-   within a site are followed, each one fetched by the same rules.
+   within a site are followed, each one fetched by the same rules. A site whose
+   robots.txt asks for more than two minutes between requests is left out of the
+   run, never asked sooner (one asking for an hour held a run for hours,
+   2026-10-27).
 5. **Read.** Only labeled spec lines ("Hardiness Zones: 5–9", "Mature
    Height: 3–4 ft", "Light: Full sun to part shade"), never prose; a
    false value is worse than a missing one, so a line that could mean two

@@ -28,9 +28,34 @@ export const SKIP_SITES = new Set([
   'facebook.com', 'instagram.com', 'reddit.com', 'quora.com', 'amazon.com', 'ebay.com', 'etsy.com', 'walmart.com', 'homedepot.com', 'lowes.com',
   'houzz.com', 'tiktok.com', 'x.com', 'twitter.com', 'kaggle.com', 'wikipedia.org', 'wikimedia.org', 'wikidata.org', 'inaturalist.org',
   'mobot.org', 'gardenersworld.com',
+  // Found by the terms reviews of 2026-10-27: AI-written or generated pages, a compromised site's spam, a marketplace,
+  // crowd-sourced records, a translation proxy
+  'bulbsociety.org', 'orchid.guru', 'yourflowersguide.com', 'preachbio.com', 'thatstartendcontain.com', 'courvillenursery.com',
+  'curenursery.com', 'carnivorousplantresource.com', 'budburst.org', 'translate.google.com', 'translate.goog',
+  'grokipedia.com', 'viedujardin.fr', 'useyardwork.com', 'ontosight.ai', 'picturethisai.com', 'myplantin.com', 'plantsnap.com', // (AI)
+  'gardenology.org', 'irises.org', 'pacificbulbsociety.org', 'eddmaps.org', 'zenodo.org', // (wikis, forums, sightings, uploads)
+  'alibaba.com', 'homesteadgear.com', 'kaooriginal.com', 'loreal.com', // (a marketplace; not plant references)
+  'keyblossom.com', 'florgeous.com', 'gardeningbrain.com', 'levelupgarden.com', 'plantcultivar.com', 'plantgeh.com', 'plantsucculents.com',
+  'asucculent.com', 'carnivorousplantsguide.com', 'thegardenstyle.com', 'soildrops.com', 'growableground.com', // (AI-written or content farms)
+  'plantnimals.com', 'naturalatlas.com', 'wikimili.com', 'floraofqatar.com', 'newyorkplantshq.com', // (copied from GBIF, Wikidata, Wikipedia, another nursery)
+  'wikibooks.org', 'wikiversity.org', 'ecoregistros.org', // (anyone can edit; sightings)
+  'gettyimages.com', 'alamy.com', 'digitalplantst.com', 'evergreenbotany.com', // (stock-media marketplaces; a likely fake shop, a dropshipper)
+  'rosewoman.com', 'slohsexpressions.com', 'averbforkeepingwarm.com', 'americanfarm.com', 'mapro.com', 'mskcc.org', 'lecontelodge.com',
+  'landmorphology.com', 'iomcworld.com', // (not plant references)
+  // Found by the terms reviews of batch 3a (2026-10-27 night)
+  '1millionideas.com', 'greencoverinitiative.com', 'archfoundation.org', 'minnetonkaorchards.com', 'rosesabc.com',
+  'm-plantslib.com', // (content farms, AI-written or generated lists)
+  'thesurvivalgardener.com', 'maplesociety.org', 'seedsheirloom.com', // (injected spam; a dropshipper with copied terms)
+  'sciencephotogallery.com', 'cbo.io', // (print-on-demand and auction marketplaces)
+  'growingfruit.org', 'floracarta.com', 'garden-en.com', // (forums and members' gardens)
+  'artsandculture.google.com', 'books.google.com', 'ivydenegardens.co.uk', 'roses-are-red.org', // (re-hosted, copied or aggregated)
+  'cornhillnursery.squarespace.com', // (the same site as cornhillnursery.com)
+  'reco-cs.com', 'recoroatan.com', 'recostextiles.com', 'recov.co', 'spider-farmer.com', 'recon-us.com', 'biobased-diesel.com',
+  'carlisleschesapeake.com', // (not plant references)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
+  'plantsinusa.com', 'en-academic.com', 'dbpedia.org', 'rootfast.org', // (USDA PLANTS, GBIF, Wikipedia, ASPCA, retold)
   // Read through their own extractors already (a search hit would count them twice)
   'usda.gov', 'ncsu.edu', 'minnesotawildflowers.info',
 ]);

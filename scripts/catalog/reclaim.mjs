@@ -3,7 +3,7 @@
 // search's claims cite (catalog-src/web-claims.json, search.mjs's output): a page that gave nothing then isn't
 // among them, and isn't read.
 import { savedPage } from './pages.mjs';
-import { paragraphKey, webClaims, webParagraphs } from './web.mjs';
+import { paragraphKey, termsKey, webClaims, webParagraphs } from './web.mjs';
 import { siteOf } from './fetch-lib.mjs';
 import { quotedCultivars } from './ncsu-page.mjs';
 
@@ -15,10 +15,13 @@ export const cultivarOf = (rec) => quotedCultivars(rec?.botanical)[0] ?? quotedC
  * `catalog`: public/plants.json. Returns { claims: { plant id: [claim, …] }, pages, missing }: only plants in
  * the list, each page read once.
  */
-export function rereadClaims(searched, list, catalog, root = 'catalog-src') {
+export function rereadClaims(searched, list, catalog, root = 'catalog-src', terms = null) {
   const byId = new Map(catalog.plants.map((p) => [p.id, p]));
   const claims = {};
-  let pages = 0, missing = 0;
+  let pages = 0, missing = 0, closed = 0;
+  // (Only from a site whose terms, as read today, allow it (scripts/catalog/site-terms.json): one whose reading was
+  // taken back to be done again is left out until it is.)
+  const allowed = (url) => { if (!terms) return true; try { return ['open', 'none found'].includes(terms[termsKey(new URL(url).hostname)]?.verdict); } catch { return false; } };
   const boilerplate = siteBoilerplate(searched, list, root);
   for (const s of list) {
     const old = searched[s.id];
@@ -27,13 +30,14 @@ export function rereadClaims(searched, list, catalog, root = 'catalog-src') {
     const plant = { species: s.species, cultivar: cultivarOf(rec), common: rec.common ?? '' };
     claims[s.id] = [];
     for (const url of [...new Set(old.map((c) => c.url))]) {
+      if (!allowed(url)) { closed++; continue; }
       const p = savedPage('web', url, root);
       if (!p) { missing++; continue; }
       pages++;
       claims[s.id].push(...webClaims(url, p.text, plant, { boilerplate: boilerplate.get(siteOf(new URL(url).hostname)) }));
     }
   }
-  return { claims, pages, missing };
+  return { claims, pages, missing, closed };
 }
 
 /**
