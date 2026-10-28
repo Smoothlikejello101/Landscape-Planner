@@ -94,6 +94,7 @@ export const SKIP_SITES = new Set([
   'intuitiveplants.org', 'natesgardensupply.com', // (AI-written; a dropship shop of suppliers' listings)
   'istockphoto.com', // (a stock-media marketplace)
   'thesitegardener.com', // (a web agency for nurseries: demo and client copy)
+  'plantlust.com', // (a marketplace: nurseries list their stock there and its descriptions are theirs; 2026-10-28)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',

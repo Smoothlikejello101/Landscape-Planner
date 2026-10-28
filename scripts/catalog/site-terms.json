@@ -11002,13 +11002,11 @@
   "note": "Standard Shopify terms of service: the prohibited-uses list bans using the Service to spider, crawl or scrape, and bars exploiting any portion of the Service."
  },
  "plantlust.com": {
-  "verdict": "none found",
-  "read": "2026-10-27",
-  "by": "agent review",
-  "pages": [
-   "https://plantlust.com/"
-  ],
-  "note": "Home page fetched with no terms mentioned or linked, and nothing at the usual terms addresses."
+  "verdict": "unread",
+  "read": "2026-10-28",
+  "by": "review",
+  "pages": [],
+  "note": "Taken back from 'none found': its plant pages' footer links a Terms of Use page that wasn't read. Also a marketplace (nurseries list inventory, orders through it) whose descriptions are nursery-contributed: skipped (web.mjs)."
  },
  "plantly.io": {
   "verdict": "bots",
