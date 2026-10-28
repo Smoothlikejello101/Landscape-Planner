@@ -95,6 +95,10 @@ export const SKIP_SITES = new Set([
   'istockphoto.com', // (a stock-media marketplace)
   'thesitegardener.com', // (a web agency for nurseries: demo and client copy)
   'plantlust.com', // (a marketplace: nurseries list their stock there and its descriptions are theirs; 2026-10-28)
+  // Found by the terms reviews of batch 7b, first quarter (2026-10-28)
+  'livetoplant.com', 'rose-bushes.com', // (content farms, AI-written)
+  'plantmark.com.au', 'invasivespeciesinfo.gov', // (aggregators of others' stock or resources)
+  'tjhsst.edu', 'loveandrenovations.com', 'oharaikebanacolumbus.com', // (a high school's pages; not plant references)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
