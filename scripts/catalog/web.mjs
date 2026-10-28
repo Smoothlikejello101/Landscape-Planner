@@ -85,6 +85,11 @@ export const SKIP_SITES = new Set([
   'vegeworx.com', 'diy.org', // (members' uploads)
   'silene.eu', // (a sightings aggregator)
   'gulfofme.com', // (not a plant reference)
+  // Found by the terms reviews of batch 6b (2026-10-28)
+  'bloomseye.com', 'onestopgardenshopco.org', 'nurseryplant.net', // (AI-written: the first says so itself; the last a dropship shop)
+  'exoticseedemporium.com', // (its own disclaimer says it carries others' content)
+  'palmstreet.app', 'plant-central.de', // (marketplaces)
+  'hicattle.org', 'herbpathy.com', 'ijbpas.com', // (not plant references)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
