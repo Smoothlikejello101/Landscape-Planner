@@ -52,6 +52,12 @@ export const SKIP_SITES = new Set([
   'cornhillnursery.squarespace.com', // (the same site as cornhillnursery.com)
   'reco-cs.com', 'recoroatan.com', 'recostextiles.com', 'recov.co', 'spider-farmer.com', 'recon-us.com', 'biobased-diesel.com',
   'carlisleschesapeake.com', // (not plant references)
+  // Found by the terms reviews of batch 3b (2026-10-27 night)
+  'improvemyhome24.com', 'florenzogarden.com', 'flowerslib.com', 'bestplants.com', 'plantisima.com', 'shuncy.com', // (content farms, AI-written)
+  'encyclopedia.com', 'ritasgardenpath.com', // (republished reference works; USDA PLANTS retold)
+  'vdict.com', 'gesneriads.info', 'plantae.org', // (user-edited or members' posts)
+  'floraccess.com', // (a wholesale marketplace)
+  'lapascalinette.com', 'lostcoastoutpost.com', 'surinenglish.com', 'stinehome.com', 'theshrimpfarm.com', 'caringsunshine.com', // (not plant references)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
