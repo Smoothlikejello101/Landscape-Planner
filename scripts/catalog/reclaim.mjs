@@ -3,8 +3,9 @@
 // search's claims cite (catalog-src/web-claims.json, search.mjs's output): a page that gave nothing then isn't
 // among them, and isn't read.
 import { savedPage } from './pages.mjs';
-import { paragraphKey, termsKey, webClaims, webParagraphs } from './web.mjs';
+import { paragraphKey, sentenceKey, termsKey, webClaims, webParagraphs } from './web.mjs';
 import { siteOf } from './fetch-lib.mjs';
+import { sentences } from './prose.mjs';
 import { quotedCultivars } from './ncsu-page.mjs';
 
 /** The cultivar a record names ("Itea virginica 'Little Henry'" → Little Henry), or null. */
@@ -46,9 +47,13 @@ export function rereadClaims(searched, list, catalog, root = 'catalog-src', term
  * (three species or more), a legend of terms. A
  * nursery's stock sentence said of each plant it fits ("Plants are pest resistant and unpalatable to deer") names none,
  * and stays: it's said of this plant too. A site that shares one description among a species' cultivars keeps it.
+ * And, inside a paragraph, a long sentence (12 words or more) a site repeats on pages for five species or more, or on
+ * most of its pages: a how-to or a legend run into the description ("Pruning deciduous shrubs can be divided into 4
+ * groups: … suckering habit pruning …" on every shrub of a site, 2026-10-28). A short stock sentence stays as above.
  */
 export function siteBoilerplate(searched, list, root = 'catalog-src') {
   const seen = new Map(); // site → paragraph key → { urls, species }
+  const said = new Map(); // site → a long sentence's key (sentenceKey) → { urls, species }
   const done = new Set();
   for (const s of list) {
     for (const url of [...new Set((searched[s.id] ?? []).map((c) => c.url))]) {
@@ -63,6 +68,11 @@ export function siteBoilerplate(searched, list, root = 'catalog-src') {
         const e = keys.get(k) ?? keys.set(k, { urls: new Set(), species: new Set(), text: '' }).get(k);
         e.urls.add(url); e.species.add(s.species); e.text ||= t;
       }
+      const long = said.get(site) ?? said.set(site, new Map()).get(site);
+      for (const k of new Set([...texts.values()].flatMap((t) => sentences(t)).map(sentenceKey).filter(Boolean))) {
+        const e = long.get(k) ?? long.set(k, { urls: new Set(), species: new Set() }).get(k);
+        e.urls.add(url); e.species.add(s.species);
+      }
     }
   }
   const out = new Map();
@@ -73,6 +83,7 @@ export function siteBoilerplate(searched, list, root = 'catalog-src') {
   for (const [site, keys] of seen) {
     const pages = new Set([...keys.values()].flatMap((e) => [...e.urls])).size;
     out.set(site, new Set([...keys].filter(([, e]) => (namesAPlant(e.text) && e.urls.size >= 2 && e.species.size >= 2) || (e.urls.size >= 4 && e.species.size >= 3 && e.urls.size >= 0.6 * pages)).map(([k]) => k)));
+    for (const [k, e] of said.get(site) ?? []) if (e.species.size >= 5 || (e.urls.size >= 4 && e.species.size >= 3 && e.urls.size >= 0.6 * pages)) out.get(site).add(k);
   }
   return out;
 }

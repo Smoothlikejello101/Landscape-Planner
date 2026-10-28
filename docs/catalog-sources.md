@@ -439,7 +439,11 @@ forms, and not its site's boilerplate, a paragraph that names a plant and
 shows on the site's pages for other species (a related product's blurb, a
 genus's trivia, companions to plant with). A nursery's stock sentence said
 of each plant it fits ("Plants are pest resistant and unpalatable to deer")
-stays: it's said of this plant too. A labeled "Evergreen or Deciduous:
+stays: it's said of this plant too. Nor a long sentence (12 words or more)
+the site repeats on pages for five species or more, or on most of its
+pages, matched by its last 12 words: a how-to or a legend run into the
+description (2026-10-28: one site's pruning how-to, "… suckering habit
+pruning …", on every shrub page had read Suckering into each). A labeled "Evergreen or Deciduous:
 Deciduous" inside a paragraph is the page's field. They count as the
 site's claims, at its tier: a nursery's deer is one side of the sides
 (docs above), NC State's an authority's; a blog's deer isn't read at all.

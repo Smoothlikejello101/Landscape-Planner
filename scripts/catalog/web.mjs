@@ -379,6 +379,11 @@ export const southernSite = (host) => SOUTHERN.has(String(host).toLowerCase().sp
 
 /** A paragraph as a key, to tell repeats apart: its letters and digits. */
 export const paragraphKey = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+/**
+ * A long sentence as a key (12 words or more): its last 12 words, so a how-to repeated across a site's pages matches
+ * whatever heading the page runs into it ("Planting How-to : Pruning Flowering Shrubs It is necessary to prune …").
+ */
+export const sentenceKey = (t) => { const w = paragraphKey(t).split(' '); return w.length >= 12 ? `s:${w.slice(-12).join(' ')}` : null; };
 /** A page's paragraphs, as text: its <p>s of 40 letters or more, outside its menus, header, footer, forms and comments. */
 export function webParagraphs(html) {
   // (Readers' comments aren't the page's: everything from a blog's comments section on.)
@@ -390,7 +395,8 @@ export function webParagraphs(html) {
 const LEAF_LABEL = /\b(?:evergreen or deciduous|evergreen\s*\/\s*deciduous|deciduous\s*\/\s*evergreen|foliage(?: type)?|leaf (?:retention|persistence))\s*:\s*(semi-evergreen|evergreen|deciduous)\b/i;
 /**
  * What a page's description says, as claims, for the facts its spec lines (`fields`) don't give. `boilerplate`: the
- * paragraph keys repeated across its site, left out. A labeled "Evergreen or Deciduous: X" is the page's field, not prose.
+ * paragraph keys repeated across its site, and its long sentences repeated (reclaim.mjs), left out. A labeled
+ * "Evergreen or Deciduous: X" is the page's field, not prose.
  */
 export function webProseClaims(html, plant, base, fields = {}, boilerplate = new Set()) {
   const paras = webParagraphs(html).filter((t) => !boilerplate.has(paragraphKey(t)));
@@ -398,7 +404,7 @@ export function webProseClaims(html, plant, base, fields = {}, boilerplate = new
   const out = [];
   const label = paras.map((t) => LEAF_LABEL.exec(t)).find(Boolean);
   if (label) out.push({ ...base, fact: 'foliage', v: label[1].toLowerCase() });
-  const list = paras.map((t) => t.replace(new RegExp(LEAF_LABEL.source, 'gi'), ' ')).flatMap((t) => sentences(t));
+  const list = paras.map((t) => t.replace(new RegExp(LEAF_LABEL.source, 'gi'), ' ')).flatMap((t) => sentences(t)).filter((t) => !boilerplate.has(paragraphKey(t)) && !boilerplate.has(sentenceKey(t)));
   const read = [['foliage', foliageFromProse], ['deer', deerFromProse], ['self_seed', seedFromProse], ['habit', habitFromProse]];
   for (const [fact, from] of read) {
     if ((fact === 'foliage' && label) || (fact === 'deer' && fields.deer)) continue;

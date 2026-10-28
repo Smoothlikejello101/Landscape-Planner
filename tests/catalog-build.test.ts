@@ -13,7 +13,7 @@ import { isDay, parseBuildArgs } from '../scripts/catalog/build-args.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { cacheName } from '../scripts/catalog/fetch-lib.mjs';
 // @ts-expect-error (a plain .mjs script)
-import { termsKey } from '../scripts/catalog/web.mjs';
+import { sentenceKey, termsKey, webProseClaims } from '../scripts/catalog/web.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { acceptsPage, ncsuPageName, ncsuTitle, ownCultivarPage, recordCultivars, titleCultivar } from '../scripts/catalog/ncsu-page.mjs';
 
@@ -173,6 +173,27 @@ describe('reading the web claims again', () => {
       const list = [...pages.map(([, species], i) => ({ id: `p${i}`, species })), { id: 'milkweed', species: 'Asclepias tuberosa' }];
       const bp = siteBoilerplate(searched, list, root).get('example.org');
       expect([...bp]).toEqual(['try pairing it with asclepias tuberosa and rudbeckia hirta in a sunny border']);
+    } finally { rmSync(root, { recursive: true }); }
+  });
+
+  it("leaves out a long sentence a site repeats for five species, run into descriptions that differ; keeps its short stock sentence", () => {
+    // (As on a site whose shrub pages each end with the same pruning how-to, 2026-10-28.)
+    const howTo = 'Pruning deciduous shrubs can be divided into four groups, the last of them suckering habit pruning for plants that flower on old wood.';
+    const fewer = 'Our growers pot these up in spring and ship them in sturdy recyclable boxes across the country.';
+    const stock = 'Plants are pest resistant and unpalatable to deer.';
+    const species = ['Itea virginica', 'Viola sororia', 'Clethra alnifolia', 'Ilex verticillata', 'Fothergilla gardenii', 'Aronia arbutifolia', 'Cornus amomum', 'Hamamelis vernalis', 'Lindera benzoin', 'Rhus aromatica'];
+    // (The how-to on five of ten pages, some with a heading run into it; the other sentence on four.)
+    const pages = species.map((sp, i) => [`https://n.example.org/${i}`, sp, `<p>${sp} grows ${i + 2} to ${i + 4} feet tall. ${i < 5 ? `${i % 2 ? 'Planting How-to : ' : ''}${howTo}` : ''} ${i >= 6 ? fewer : ''} ${stock}</p>`] as const);
+    const root = savedRoot(pages.map(([url, , body]) => ({ source: 'web', url, body: `<html><body>${body}</body></html>` })));
+    try {
+      const searched = Object.fromEntries(pages.map(([url], i) => [`p${i}`, [{ url, fact: 'height', v: { min: 1, max: 2 } }]]));
+      const list = pages.map(([, species], i) => ({ id: `p${i}`, species }));
+      const bp = siteBoilerplate(searched, list, root).get('example.org');
+      expect([bp.has(sentenceKey(howTo)), bp.has(sentenceKey(fewer)), sentenceKey(stock)]).toEqual([true, false, null]);
+      // (The how-to is what read "Suckering" into every shrub; left out, nothing is read from it.)
+      const plant = { species: 'Itea virginica', common: '', cultivar: null }, base = { src: 'n.example.org', kind: 'nursery', url: pages[0][0] };
+      const habit = (b?: Set<string>) => webProseClaims(pages[0][2], plant, base, {}, b).filter((c: { fact: string }) => c.fact === 'habit').map((c: { v: string }) => c.v);
+      expect([habit(), habit(bp)]).toEqual([['Suckering'], []]);
     } finally { rmSync(root, { recursive: true }); }
   });
 
