@@ -18,6 +18,8 @@ import { deepClone } from './util';
 
 /** Where the knob sits beyond the shape's top edge (px), and its hit area (px). */
 const KNOB_GAP = 30;
+/** How far the turn's readout stays from the knob (px): clear of the finger on it. */
+const READOUT_CLEAR = 80;
 const KNOB_HIT = 14;
 /** The hit area around a resize handle (px): at most this, less on a small shape, so most of it stays free to drag. */
 const MAX_HIT = 18, MIN_HIT = 10;
@@ -136,15 +138,23 @@ export function renderShapeHandles(g: SVGElement) {
       svgEl('circle', { cx: at.x, cy: at.y, r: hit, fill: 'transparent' }),
       svgEl('rect', { x: at.x - 5.5, y: at.y - 5.5, width: 11, height: 11, rx: 2, fill: '#fff', stroke: INK, 'stroke-width': 2, 'pointer-events': 'none', transform: rot ? `rotate(${rot} ${at.x} ${at.y})` : null })));
   }
-  // While a handle is dragged: the size, or the turn, just above it.
+  // While a handle is dragged: the size just above it; the turn at the shape's middle, away from the finger on the
+  // knob (Jason, 2026-10-27: with the knob below the shape, a readout above the knob sat under the finger).
   const live = activeOn(s);
   if (live?.moved) {
     const kind: HandleKind = live.type === 'shape-rotate' ? 'rotate' : live.handle;
     const at = positions.find((p) => p.kind === kind)?.at ?? center;
     const text = readoutText(s, kind);
     const w = text.length * 7 + 16;
-    const x = Math.max(w / 2 + 4, Math.min(state.canvasW - w / 2 - 4, at.x));
-    const y = Math.max(16, at.y - 32);
+    let spot = { x: at.x, y: at.y - 32 };
+    if (kind === 'rotate') {
+      // (At least this far from the knob: on a small shape, past its middle, on the side away from the knob.)
+      const away = { x: center.x - at.x, y: center.y - at.y }, d = Math.hypot(away.x, away.y) || 1;
+      const reach = Math.max(d, READOUT_CLEAR);
+      spot = { x: at.x + (away.x / d) * reach, y: at.y + (away.y / d) * reach };
+    }
+    const x = Math.max(w / 2 + 4, Math.min(state.canvasW - w / 2 - 4, spot.x));
+    const y = Math.max(16, Math.min(state.canvasH - 16, spot.y));
     g.appendChild(svgEl('g', { 'data-role': 'handle-readout', 'pointer-events': 'none' },
       svgEl('rect', { x: x - w / 2, y: y - 11, width: w, height: 22, rx: 11, fill: '#0f172a', opacity: 0.85 }),
       svgEl('text', { x, y: y + 0.5, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 12, 'font-weight': 600, fill: '#fff', style: 'user-select:none;' }, text)));

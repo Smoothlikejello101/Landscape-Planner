@@ -29,6 +29,7 @@ export const I = {
   hand: '<svg class="icon" viewBox="0 0 24 24"><path d="M18 11V6a2 2 0 0 0-4 0v5"/><path d="M14 10V4a2 2 0 0 0-4 0v6"/><path d="M10 10.5V6a2 2 0 0 0-4 0v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>',
   lasso: '<svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="2.5 4.5"/></svg>',
   chevronDown: '<svg class="icon" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>',
+  filter: '<svg class="icon" viewBox="0 0 24 24"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/><circle cx="9" cy="6" r="2.2" class="icon-fill"/><circle cx="15" cy="12" r="2.2" class="icon-fill"/><circle cx="7" cy="18" r="2.2" class="icon-fill"/></svg>',
   plus: '<svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
   rotate: '<svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15A9 9 0 1 1 18 6"/></svg>',
   bed: '<svg class="icon" viewBox="0 0 24 24"><path d="M3 15c0-4 3-7 9-7s9 3 9 7-4 5-9 5-9-1-9-5z"/><circle cx="9" cy="14" r="1.6" class="icon-fill"/><circle cx="14" cy="12" r="1.6" class="icon-fill"/><circle cx="15" cy="17" r="1.6" class="icon-fill"/></svg>',

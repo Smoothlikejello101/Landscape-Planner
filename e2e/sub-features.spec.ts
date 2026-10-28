@@ -10,7 +10,8 @@ async function editSelected(page: Page) { await page.locator('.sel-pill .edit').
 test('a building drawn, then its door and windows tapped onto its walls; moved, sized, taken off, undone', async ({ page }) => {
   await openFresh(page);
   await addKind(page, 'building', 'rect');
-  await page.getByTestId('then-features').check();
+  await page.getByTestId('then-features').click();
+  await expect(page.getByTestId('then-features')).toHaveAttribute('aria-checked', 'true');
   for (const [x, y] of [[-6, -4], [6, -4], [0, 4]]) await tapFromCenter(page, x, y); // a 12 × 8 ft house
   // Straight on to its doors and windows.
   await expect(page.getByTestId('feature-banner')).toContainText('Tap a wall where the door goes');
@@ -37,6 +38,21 @@ test('a building drawn, then its door and windows tapped onto its walls; moved, 
   await editSelected(page);
   await expect(page.getByTestId('section-features').locator('.prop-summary')).toHaveText('Door, window');
   await page.getByTestId('feature-width').first().fill('4');
+  // The door hinged at its other end, then swung in: its leaf stands at the other end, then on the wall's other side.
+  const leaf = async () => {
+    const l = page.locator('#canvas-svg [data-role=sub-feature][data-feature=door] line').nth(1);
+    const [x1, y1, y2] = await Promise.all(['x1', 'y1', 'y2'].map(async (a) => Number(await l.getAttribute(a))));
+    return { x1, y1, y2 };
+  };
+  const before = await leaf();
+  await page.getByTestId('feature-hinge').click();
+  const hinged = await leaf();
+  expect(Math.abs(hinged.x1 - before.x1)).toBeGreaterThan(3 * k0);
+  await expect(page.getByTestId('feature-swing')).toHaveText('Out');
+  await page.getByTestId('feature-swing').click();
+  await expect(page.getByTestId('feature-swing')).toHaveText('In');
+  const swung = await leaf();
+  expect(Math.sign(swung.y2 - swung.y1)).toBe(-Math.sign(hinged.y2 - hinged.y1));
   await closeSheet(page);
 
   // Dragged along the wall: the window goes 2 ft left.

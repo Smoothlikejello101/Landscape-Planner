@@ -123,3 +123,9 @@ export async function placeOnceAtCenter(page: Page) {
   await tapFromCenter(page, 0, 0);
   await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
 }
+
+/** Open the plant picker's filters (one fold for them all, folded to start), if they're shut. */
+export async function openFilters(page: Page) {
+  const b = page.getByTestId('filters');
+  if ((await b.getAttribute('aria-expanded')) !== 'true') await b.click();
+}

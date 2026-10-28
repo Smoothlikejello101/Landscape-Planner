@@ -40,6 +40,9 @@ test('resize a bed by its corner, turn it by its knob, and undo each', async ({ 
   await page.mouse.move(center.x + 3 * k, center.y - 3 * k, { steps: 4 });
   await page.mouse.move(center.x + 5 * k, center.y, { steps: 4 });
   await expect(page.locator('#canvas-svg [data-role=handle-readout]')).toHaveText('90°');
+  // (Its readout well clear of the finger on the knob, wherever the knob has gone.)
+  const r = (await page.locator('#canvas-svg [data-role=handle-readout]').boundingBox())!;
+  expect(Math.hypot(r.x + r.width / 2 - (center.x + 5 * k), r.y + r.height / 2 - center.y)).toBeGreaterThan(60);
   await page.mouse.up();
   await editSelected(page);
   await expect(field(page, 'Rotation')).toHaveValue('90');

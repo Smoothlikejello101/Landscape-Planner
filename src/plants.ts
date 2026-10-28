@@ -217,8 +217,6 @@ export const PLANT_FILTER_DEFAULTS = {
   hardyHere: false,
   /** Let what other sources say count where it differs from the value shown (a match only by it is flagged). */
   withReported: true,
-  advanced: false,     // UI: is the "More filters" section expanded
-  animals: false       // UI: is "Poison & pets" open
 };
 export type PlantFilter = typeof PLANT_FILTER_DEFAULTS;
 export const plantFilter: PlantFilter = { ...PLANT_FILTER_DEFAULTS };

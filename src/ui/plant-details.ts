@@ -443,5 +443,52 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
   if (p.notes) box.appendChild(el('div', { className: 'details-notes' }, p.notes));
   // (A plant of mine switched to this one: its notes come along.)
   else if (ownCopies[p.id]?.notes) box.appendChild(el('div', { className: 'details-notes', 'data-testid': 'own-notes' }, 'Your notes: ' + ownCopies[p.id].notes));
+  // (Once it's on the page, where a line's width can be told.)
+  requestAnimationFrame(() => clipCitations(box));
   return box;
+}
+
+/** A source's short name in a citation cut to a line ("NC State" for NC State Extension Gardener Plant Toolbox). */
+const CITE_SHORT: Record<string, string> = { ncsu: 'NC State', usda: 'USDA', arkatlas: 'Arkansas atlas', mnwild: 'Minnesota Wildflowers' };
+/** A citation with each source it names by its short name. */
+export function shortSources(text: string): string {
+  let out = text;
+  for (const [id, short] of Object.entries(CITE_SHORT)) {
+    const title = PLANT_META?.sources?.[id]?.title;
+    if (title && title !== short) out = out.split(title).join(short);
+  }
+  return out;
+}
+/**
+ * Each citation that would take more than a line, cut to one ending "…", opened in full with a tap (Jason,
+ * 2026-10-27: a long one pushed the details apart). Closed, a tap on it opens it, a link in it too; open, a link
+ * is followed, and a tap elsewhere on it closes it. Only one that doesn't fit: measured once it's laid out.
+ */
+export function clipCitations(root: HTMLElement) {
+  for (const s of root.querySelectorAll<HTMLElement>('.details-src:not(.clipped)')) {
+    s.classList.add('one-line');
+    const over = s.scrollWidth > s.clientWidth + 1;
+    s.classList.remove('one-line');
+    if (!over) continue;
+    s.classList.add('clipped');
+    s.setAttribute('role', 'button');
+    s.tabIndex = 0;
+    s.setAttribute('aria-expanded', 'false');
+    const full = s.textContent ?? '';
+    s.title = full;
+    // (Shut, the sources it names go by their short names, so how sure it is still shows: "NC State, USDA ·
+    // confirmed", drawn by the style from `data-short`. Only on a line of plain text: one with a link stays as it is.
+    // The whole of it stays the line's text, hidden while shut, for a screen reader and a search of the page.)
+    const short = s.children.length ? null : shortSources(full);
+    if (short && short !== full) { s.dataset.short = short; s.replaceChildren(el('span', { className: 'cite-full' }, full)); }
+    const toggle = (e: Event) => {
+      e.stopPropagation();
+      const open = s.getAttribute('aria-expanded') === 'true';
+      if (!open) e.preventDefault();
+      else if ((e.target as HTMLElement).closest('a')) return;
+      s.setAttribute('aria-expanded', String(!open));
+    };
+    s.addEventListener('click', toggle);
+    s.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(e); } });
+  }
 }

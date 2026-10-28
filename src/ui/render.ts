@@ -517,10 +517,14 @@ function renderDrawBar(): HTMLElement {
     }
     // A building, a fence, a patio: go on to its doors and windows, gates or steps once it's finished (off to start).
     if (drawFeatureKinds(kind.role, d.kind).length) {
-      const cb = el('input', { type: 'checkbox', 'data-testid': 'then-features' }) as HTMLInputElement;
-      cb.checked = !!d.thenFeatures;
-      cb.addEventListener('change', () => { if (state.draw) state.draw.thenFeatures = cb.checked; });
-      col.appendChild(el('label', { className: 'check-row then-features' }, cb, el('span', {}, `Add ${kindsPhrase({ role: kind.role })} after`)));
+      // (A switch in the drawing pictures' teal, so it's seen: Jason, 2026-10-27, a checkbox slipped by.)
+      const sw = el('button', { type: 'button', role: 'switch', className: 'then-features', 'data-testid': 'then-features' },
+        el('span', { className: 'switch-track', 'aria-hidden': 'true' }, el('span', { className: 'switch-knob' })),
+        el('span', {}, `Add ${kindsPhrase({ role: kind.role })} after`));
+      const show = () => sw.setAttribute('aria-checked', String(!!state.draw?.thenFeatures));
+      show();
+      sw.addEventListener('click', () => { if (state.draw) state.draw.thenFeatures = !state.draw.thenFeatures; show(); });
+      col.appendChild(sw);
     }
     row.appendChild(btn('Undo', '', undoDrawPoint, d.points.length === 0));
     row.appendChild(btn('Cancel', '', cancelDraw));

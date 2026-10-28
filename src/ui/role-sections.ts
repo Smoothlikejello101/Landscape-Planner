@@ -182,7 +182,23 @@ export function crowdingNote(s: Shape): HTMLElement | null {
     again.addEventListener('click', () => flagAgain(s.id));
     return el('div', { style: { marginTop: crowds.length ? '4px' : '0' } }, `Left close on purpose: ${left.map((c) => c.other.label || 'a plant').join(', ')}`, again);
   };
-  if (!crowds.length) { box.append(flagAgainRow()); return box; }
+  // (Only pairs left close on purpose: one quiet line, folded to start, that opens to who, with Flag again: Jason,
+  // 2026-10-27.)
+  if (!crowds.length) {
+    box.className = 'check-banner left-close';
+    const open = crowdNoteOpen.has(s.id);
+    const toggle = el('button', { className: 'crowd-line', 'aria-expanded': String(open), 'data-testid': 'left-close-line' },
+      el('span', {}, `Left close to ${n(left.length)} on purpose`), el('span', { className: 'fold-chev', html: I.chevronDown }));
+    const body = el('div', { 'data-testid': 'left-close-detail' }, flagAgainRow());
+    body.hidden = !open;
+    toggle.addEventListener('click', () => {
+      body.hidden = !body.hidden;
+      toggle.setAttribute('aria-expanded', String(!body.hidden));
+      if (body.hidden) crowdNoteOpen.delete(s.id); else crowdNoteOpen.add(s.id);
+    });
+    box.append(toggle, body);
+    return box;
+  }
   // The line, a button that opens the rest.
   const head = crowded.length
     ? `⚠ Planted closer than usual to ${n(crowded.length)}` + (close.length ? ` · close to ${close.length}` : '')

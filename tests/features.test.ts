@@ -80,6 +80,17 @@ describe('a sub-feature on its edge', () => {
     expect(featureHitPart(house(), later, toPx, 10)).toBeNull();
     expect(knownFeatures([door(0, 0.5), later])).toEqual([door(0, 0.5)]);
   });
+  it('hinges a door at either end of its opening, swinging out or in', () => {
+    const toPx = (p: { x: number; y: number }) => ({ x: p.x * 10, y: p.y * 10 });
+    // (The house's top wall, a 3 ft door at its middle: from x 8.5 to 11.5 ft, y 0; out is up, -y.)
+    const leaf = (f: Partial<SubFeature>) => featureParts(house(), { ...door(0, 0.5), ...f }, toPx, 10)[1].attrs;
+    expect(leaf({})).toMatchObject({ x1: 85, y1: 0, x2: 85, y2: -30 }); // (as before: hinged where it starts, out)
+    expect(leaf({ hinge: 'end' })).toMatchObject({ x1: 115, y1: 0, x2: 115, y2: -30 });
+    expect(leaf({ swing: 'in' })).toMatchObject({ x1: 85, y1: 0, x2: 85, y2: 30 });
+    expect(leaf({ hinge: 'end', swing: 'in' })).toMatchObject({ x1: 115, x2: 115, y2: 30 });
+    // (A window has neither: kept off it.)
+    expect(sanitizeSubFeatures([{ id: 'w', kind: 'window', edge: 0, at: 0.5, hinge: 'end', swing: 'in' }])).toEqual([{ id: 'w', kind: 'window', edge: 0, at: 0.5, width: 3 }]);
+  });
   it("takes taps no wider than a line's band zoomed far out, a finger's close in", () => {
     const toPx = (k: number) => (p: { x: number; y: number }) => ({ x: p.x * k, y: p.y * k });
     // (At 5% zoom, about 1.2 px a foot, a line's band is 6 px.)

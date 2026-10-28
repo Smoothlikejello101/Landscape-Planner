@@ -396,6 +396,26 @@ describe("a building's doors and windows, a fence's gates (sub-features)", () =>
     const file = await buildBackupFile();
     expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
   });
+  it("keep which way a door or gate opens; older ones open as before (hinged where they start, swinging out)", async () => {
+    await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [
+      house({ features: [
+        { id: 'd1', kind: 'door', edge: 0, at: 0.5, width: 3, hinge: 'end', swing: 'in' },
+        { id: 'd2', kind: 'door', edge: 1, at: 0.5, width: 3 },
+        { id: 'd3', kind: 'door', edge: 2, at: 0.5, width: 3, hinge: 'left', swing: 'sideways' },
+        { id: 'w', kind: 'window', edge: 3, at: 0.5, width: 3, hinge: 'end', swing: 'in' },
+      ] }),
+    ] }).shapes;
+    await flushSave();
+    const loaded = (await readProject(id))!.shapes;
+    expect(loaded).toEqual(state.shapes);
+    const fs = (loaded[0] as unknown as { features: Record<string, unknown>[] }).features;
+    expect(fs[0]).toMatchObject({ hinge: 'end', swing: 'in' });
+    for (const f of fs.slice(1)) expect(['hinge', 'swing'].some((k) => k in f), String(f.id)).toBe(false);
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
+  });
 });
 
 describe('utilities: power lines, buried lines and septic fields', () => {
