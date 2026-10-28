@@ -90,6 +90,10 @@ export const SKIP_SITES = new Set([
   'exoticseedemporium.com', // (its own disclaimer says it carries others' content)
   'palmstreet.app', 'plant-central.de', // (marketplaces)
   'hicattle.org', 'herbpathy.com', 'ijbpas.com', // (not plant references)
+  // Found by the terms reviews of batch 7a (2026-10-28)
+  'intuitiveplants.org', 'natesgardensupply.com', // (AI-written; a dropship shop of suppliers' listings)
+  'istockphoto.com', // (a stock-media marketplace)
+  'thesitegardener.com', // (a web agency for nurseries: demo and client copy)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
