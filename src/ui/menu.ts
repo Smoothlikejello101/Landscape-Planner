@@ -28,7 +28,7 @@ export function renderMoreMenu() {
   if (roomyText()) {
     items.push({
       icon: I.redo, label: 'Redo', testid: 'menu-redo',
-      disabled: !canRedo() || !!state.draw || !!state.placing,
+      disabled: !canRedo() || !!state.draw || !!state.placing || !!state.featurePlace,
       onClick: () => { dismissToastAction(); redo(); state.menu = null; render(); },
     });
   }

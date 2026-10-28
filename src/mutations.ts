@@ -1,6 +1,7 @@
 import { attachedPlants, carriesPlants, patchBedCarryingPlants } from './beds';
 import { redrawCanvas, tierOf } from './canvas';
 import { MAX_ZOOM, MIN_ZOOM, PX_PER_FOOT_BASE } from './constants';
+import { sanitizeSubFeatures } from './features';
 import { canvasRect, pxPerFoot, shapeBBox, shapeCenter, unionBounds, viewCenterFeet } from './geometry';
 import { flushHistoryDebounce, pushHistory, pushHistoryDebounced } from './history';
 import { getSelected, singleSelected } from './selection';
@@ -116,6 +117,11 @@ export function paste(): boolean {
     s.x = snap(s.x + dx);
     s.y = snap(s.y + dy);
     s.locked = false;
+    // (Its doors and windows read as a stored plan's are: a clipboard can come from another version's tab.)
+    if (s.type !== 'circle' && s.type !== 'text' && 'features' in s) {
+      const fs = sanitizeSubFeatures(s.features);
+      if (fs) s.features = fs; else delete s.features;
+    }
     state.shapes.push(s);
   }
   state.selectedIds = incoming.map((s) => s.id);
@@ -232,6 +238,7 @@ export function resetCurrentProject() {
   state.bgCalibrate = null;
   state.draw = null;
   state.editPoints = null;
+  state.featurePlace = null;
   pushHistory();
   save();
 }

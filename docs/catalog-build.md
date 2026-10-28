@@ -43,7 +43,7 @@ written, and a build after the fix makes the rest match.
 | 7 | Counties, made once; the atlas's county maps, made again when the atlas PDF is newer | `counties.mjs`, `atlas_counties.py` | `counties.json`, `arkatlas/counties.json` |
 | 8 | USDA's county records, placed | `usda-counties.mjs` | `usda-counties.json` |
 | 9 | Native status by state, from Kew's checklist | `wcvp.mjs` | `wcvp-native.json`, `wcvp-regulated.json`, `wcvp-review.json` |
-| 10 | The wild records: counties, native status, the law's lines, bloom months ([wild-records.md](wild-records.md)) | `wild.mjs` | `public/wild/1/`, `native-review.json`, `bloom-review.json` |
+| 10 | USA-NPN's download summed up, when a newer one is in `usanpn/<date>/` ([leaf-out.md](leaf-out.md)); then the wild records: counties, native status, the law's lines, bloom months, leaf-out days ([wild-records.md](wild-records.md)) | `npn.mjs`, `wild.mjs` | `usanpn/leafout.json`, `public/wild/1/`, `native-review.json`, `bloom-review.json` |
 | 11 | The catalog's checks, then the report | `check.ts`, `report.mjs` | `docs/catalog-review.md` |
 
 Paths without a folder are in `catalog-src/`. The order matters:
@@ -81,6 +81,8 @@ missing:
 - **GBIF's downloads** (`gbif-downloads/bloom.tsv`, `counties.tsv`): requested with the account, and fetched
   without one, by `gbif-download.mjs` ([bloom-months.md](bloom-months.md)). Without them the wild records would
   lose every bloom month and every GBIF county.
+- **USA-NPN's download** (`usanpn/<date>/individual_phenometrics_data.csv`): downloaded by hand from its site
+  ([leaf-out.md](leaf-out.md)). Without it the wild records would lose every leaf-out day.
 
 **Not run by the build:**
 - **The web search** (`search.mjs`). It needs the search key, and a person or agent reads each new site's terms

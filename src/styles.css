@@ -607,3 +607,18 @@ a { color: inherit; }
 .text-size-row .seg button { min-width: var(--tap); min-height: var(--tap); display: flex; align-items: center; justify-content: center; font-weight: 600; color: #44403c; background: #fff; }
 .text-size-row .seg button + button { border-left: 1px solid #d6d3d1; }
 .text-size-row .seg button[aria-pressed="true"] { background: #047857; color: #fff; }
+
+/* Sub-features in properties: each listed with its width and ✕, then a button per kind to add (src/ui/feature-section.ts). */
+.feature-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.feature-row { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+.feature-name { flex: 1; font-size: calc(14px * var(--ts)); }
+.feature-width { display: flex; align-items: center; gap: 4px; font-size: calc(13px * var(--ts)); color: #57534e; }
+.feature-width input { width: 64px; }
+.feature-adds { display: flex; flex-wrap: wrap; gap: 6px; }
+.feature-add { min-height: 40px; padding: 6px 12px; border-radius: 999px; background: #f0fdfa; border: 1px solid #99f6e4; font-size: calc(13px * var(--ts)); color: #115e59; font-weight: 600; }
+.feature-add:disabled { opacity: 0.5; }
+/* While adding them: a chip per kind, wrapping rather than squeezed. */
+.feature-seg { display: flex; flex-wrap: wrap; gap: 4px; }
+.feature-seg button { flex: 0 0 auto; min-height: 36px; padding: 4px 10px; border: 1px solid #d6d3d1; border-radius: 999px; background: #fff; color: #44403c; font-size: calc(12px * var(--ts)); }
+.feature-seg button.on { background: #ccfbf1; border-color: #0f766e; color: #115e59; font-weight: 600; }
+.then-features { font-size: calc(13px * var(--ts)); color: #44403c; }
