@@ -648,6 +648,10 @@ a { color: inherit; }
 .feature-seg { display: flex; flex-wrap: wrap; gap: 4px; }
 .feature-seg button { flex: 0 0 auto; min-height: 36px; padding: 4px 10px; border: 1px solid #d6d3d1; border-radius: 999px; background: #fff; color: #44403c; font-size: calc(12px * var(--ts)); }
 .feature-seg button.on { background: #ccfbf1; border-color: #0f766e; color: #115e59; font-weight: 600; }
+/* The door or gate just placed: its two flips, as buttons in the bar. */
+.feature-last { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: calc(13px * var(--ts)); color: #44403c; }
+.feature-last .feature-flips { width: auto; gap: 6px; }
+.feature-last .feature-flip { min-width: 48px; border: 1px solid #d6d3d1; background: #fff; }
 /* Go on to its doors and windows once it's drawn: a switch, in the drawing pictures' teal. */
 .then-features { display: flex; align-items: center; gap: 8px; align-self: flex-start; min-height: 40px; padding: 4px 12px 4px 6px; border: 1px solid #5eead4; border-radius: 999px; background: #f0fdfa; color: #115e59; font-size: calc(13px * var(--ts)); font-weight: 600; }
 .then-features[aria-checked="true"] { background: #ccfbf1; border-color: #0f766e; }

@@ -19,8 +19,17 @@ test('a building drawn, then its door and windows tapped onto its walls; moved, 
   const k0 = await ppf(page);
   const h = (await page.locator('#canvas-svg [data-shape-id]').first().boundingBox())!;
   await page.mouse.click(h.x + 4 * k0, h.y - 0.2 * k0); // on the top wall
+  // The door just placed can be swung in right there; the bar's Undo takes that back first, then the door.
+  await expect(page.getByTestId('feature-last')).toContainText('Door just placed');
+  await expect(page.getByTestId('bar-swing')).toHaveText('Out');
+  await page.getByTestId('bar-swing').click();
+  await expect(page.getByTestId('bar-swing')).toHaveText('In');
+  await page.getByTestId('feature-bar').getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByTestId('bar-swing')).toHaveText('Out');
+  await expect(page.getByTestId('feature-banner')).toContainText('1 added');
   await page.locator('[data-testid=feature-bar] [data-feature=window]').click();
   await page.mouse.click(h.x + 9 * k0, h.y + 0.1 * k0);
+  await expect(page.getByTestId('feature-last')).toHaveCount(0); // (a window doesn't open)
   await page.mouse.click(h.x + h.width / 2, h.y + h.height / 2); // the middle of the house: not a wall
   await expect(page.locator('#toast')).toContainText('Tap on an edge of it');
   await expect(page.getByTestId('feature-banner')).toContainText('2 added');
@@ -45,7 +54,14 @@ test('a building drawn, then its door and windows tapped onto its walls; moved, 
     return { x1, y1, y2 };
   };
   const before = await leaf();
+  // (The sheet stays where it's scrolled to: Jason, 2026-10-28.)
+  const sheet = page.locator('.overlay .sheet');
+  await sheet.evaluate((e) => { e.scrollTop = e.scrollHeight; });
+  await page.getByTestId('feature-hinge').scrollIntoViewIfNeeded();
+  const top = await sheet.evaluate((e) => e.scrollTop);
+  expect(top).toBeGreaterThan(0);
   await page.getByTestId('feature-hinge').click();
+  await expect.poll(() => page.locator('.overlay .sheet').evaluate((e) => e.scrollTop)).toBe(top);
   const hinged = await leaf();
   expect(Math.abs(hinged.x1 - before.x1)).toBeGreaterThan(3 * k0);
   await expect(page.getByTestId('feature-swing')).toHaveText('Out');

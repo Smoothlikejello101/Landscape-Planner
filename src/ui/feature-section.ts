@@ -1,6 +1,6 @@
 import { el } from '../dom';
 import { startFeaturePlace } from '../feature-edit';
-import { kindsFor, knownFeatures, SUB_FEATURES } from '../features';
+import { flipHinge, flipSwing, kindsFor, knownFeatures, SUB_FEATURES, swings } from '../features';
 import { updateSelected, updateSelectedSilent } from '../mutations';
 import { state } from '../state';
 import { isLocked } from '../roles';
@@ -32,6 +32,21 @@ export function featuresSummary(s: Shape): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+/**
+ * A door's or gate's two flips: ⇄ to hinge it at the other end, and one saying which way it swings now (a tap swings it
+ * the other way). In its properties and, for the one just placed, in the bar while placing them (test ids
+ * `<prefix>-hinge`, `<prefix>-swing`).
+ */
+export function flipButtons(f: SubFeature, prefix: string, onFlip: (which: 'hinge' | 'swing') => void): [HTMLButtonElement, HTMLButtonElement] {
+  const what = SUB_FEATURES[f.kind].label.toLowerCase();
+  const hinge = el('button', { className: 'iconbtn feature-flip', 'aria-label': `Hinge the ${what} at its other end`, title: 'Hinge at the other end', 'data-testid': `${prefix}-hinge` }, '⇄') as HTMLButtonElement;
+  hinge.addEventListener('click', () => onFlip('hinge'));
+  const now = f.swing === 'in' ? 'in' : 'out', other = f.swing === 'in' ? 'out' : 'in';
+  const swing = el('button', { className: 'iconbtn feature-flip feature-swing', 'aria-label': `Swings ${now}: swing the ${what} ${other}`, title: `Swings ${now}: tap to swing it ${other}`, 'data-testid': `${prefix}-swing` }, now === 'in' ? 'In' : 'Out') as HTMLButtonElement;
+  swing.addEventListener('click', () => onFlip('swing'));
+  return [hinge, swing];
+}
+
 export function featuresSection(s: Shape): HTMLElement {
   const wrap = el('div', { className: 'feature-section', 'data-testid': 'feature-section' });
   if (s.type === 'circle' || s.type === 'text') return wrap;
@@ -40,7 +55,7 @@ export function featuresSection(s: Shape): HTMLElement {
   // (Numbered within each kind, in the order they were added: "Window 2".)
   const seen = new Map<string, number>();
   const known = knownFeatures(s.features);
-  const anySwing = known.some((f) => f.kind === 'door' || f.kind === 'gate');
+  const anySwing = known.some(swings);
   // (Each change made to the list as it is then, kept with any this version doesn't know.)
   const current = () => { const now = state.shapes.find((x) => x.id === s.id); return now && now.type !== 'circle' && now.type !== 'text' ? now.features ?? [] : []; };
   for (const f of known) {
@@ -70,17 +85,10 @@ export function featuresSection(s: Shape): HTMLElement {
     // their own where any row has them, so the widths line up.)
     const flips = el('span', { className: 'feature-flips' });
     if (anySwing) row.appendChild(flips);
-    if (f.kind === 'door' || f.kind === 'gate') {
-      const what = info.label.toLowerCase();
+    if (swings(f)) {
       const flip = (patch: (x: SubFeature) => SubFeature) => updateSelected({ features: current().map((x) => (x.id === f.id ? patch(x) : x)) });
-      const hinge = el('button', { className: 'iconbtn feature-flip', 'aria-label': `Hinge the ${what} at its other end`, title: 'Hinge at the other end', 'data-testid': 'feature-hinge' }, '⇄');
-      hinge.disabled = locked;
-      hinge.addEventListener('click', () => flip(({ hinge: h, ...x }) => (h === 'end' ? x : { ...x, hinge: 'end' })));
-      // (Says which way it swings now; a tap swings it the other way.)
-      const now = f.swing === 'in' ? 'in' : 'out', other = f.swing === 'in' ? 'out' : 'in';
-      const swing = el('button', { className: 'iconbtn feature-flip feature-swing', 'aria-label': `Swings ${now}: swing the ${what} ${other}`, title: `Swings ${now}: tap to swing it ${other}`, 'data-testid': 'feature-swing' }, now === 'in' ? 'In' : 'Out');
-      swing.disabled = locked;
-      swing.addEventListener('click', () => flip(({ swing: w, ...x }) => (w === 'in' ? x : { ...x, swing: 'in' })));
+      const [hinge, swing] = flipButtons(f, 'feature', (which) => flip(which === 'hinge' ? flipHinge : flipSwing));
+      hinge.disabled = swing.disabled = locked;
       flips.append(hinge, swing);
     }
     const del = el('button', { className: 'iconbtn feature-del', 'aria-label': `Take off ${info.label.toLowerCase()}`, title: 'Take it off', 'data-testid': 'feature-delete' }, '✕');
