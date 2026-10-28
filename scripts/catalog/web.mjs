@@ -107,6 +107,10 @@ export const SKIP_SITES = new Set([
   'fann.org', 'teratrees.com', // (a directory of member nurseries' stock; a crowdfunding marketplace)
   'gardentaining.com', 'theglorifiedtomato.com', 'indohobby.com', // (an empty WordPress shell; a revived blog with spun posts; a spam-abused pet shop)
   'juniperpublishers.com', // (a publisher on predatory-journal lists: not a reliable source)
+  // Found by the terms reviews of batch 8, second quarter (2026-10-28)
+  'newworldencyclopedia.org', 'bugwoodcloud.org', // (a Wikipedia fork; Bugwood's content host)
+  'plant.garden', // (a directory built from users' submissions and other databases)
+  'letplant.com', // (an AI plant-care app: generated pages)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
