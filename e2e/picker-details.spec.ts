@@ -366,7 +366,7 @@ test('animal toxicity: dogs three ways, and a warning given for one record of a 
   await page.getByTestId('dogs-any').check();
   await expect(yaupon).toHaveCount(1);
   await yaupon.getByRole('button', { name: /Yaupon/ }).first().click();
-  await expect(yaupon.getByTestId('tox-row')).toContainText('given for Dwarf yaupon holly, the same species');
+  await expect(yaupon.getByTestId('tox-row')).toContainText("given for Dwarf yaupon holly 'Schillings', the same species");
   // A plant no source rates says so, rather than nothing (never "safe").
   await page.getByTestId('plant-search').fill("'Acapulco Orange'");
   const unrated = page.locator('.plant-item').first();

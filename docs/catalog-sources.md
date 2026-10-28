@@ -790,6 +790,38 @@ listed). The kinds the build applies:
   name kept as a synonym. Each other cultivar gets a record of its own: from its own NC State page, added by the
   build like any page no record reads; or, with no page, names alone, taking its species' size until a source gives
   its own (`inherits`, said in the app as its species'). No value is written by hand: the names were the record's.
+  Made with the split too (Jason, 2026-10-27): a cultivar its page files under a species Kew keeps apart from its own
+  (`species`: Kew's, below), a plant the record named that isn't one of its cultivars (`botanical`: "Hemerocallis
+  ('Happy Returns' / spider types)" gave a record for the genus, reading NC State's Hemerocallis page; "Crinum ('Milk
+  and Wine' / bulbispermum)", one for Crinum bulbispermum, named from its sources once they give a name), and the
+  species record a split needs where the catalog has none (an entry's `species`, named by a source: NC State calls
+  'Climax' a rabbiteye blueberry). A decision made on the record before the split (its form, whether it's edible)
+  goes with each cultivar split from it, its note saying so.
+- **`cultivar`**: a record naming one cultivar beside its species ("Aucuba japonica ('Gold Dust')"), renamed for
+  it ("Aucuba 'Gold Dust'") and put under its species, as a split's kept record is.
+- **`kewSpecies`**: a cultivar NC State files under a species Kew keeps apart from its own, put under Kew's (below).
+- **`parent`**: a cultivar put under a species its own name doesn't give, where its page names it: 'Edward Goucher'
+  glossy abelia, a cross of Abelia × grandiflora and A. schumannii that NC State names by the genus alone. It takes
+  its species' facts only where its own page says nothing, as any cultivar does.
+- **`fold`**: a record whose plants all have records of their own ("Culinary sage & oregano"): it goes, and the
+  catalog's `meta.moved` says which record its id stands for (`into`), so a plant placed from it shows that
+  record's facts (docs/catalog-format.md).
+- **`group`**: a record kept for a group of cultivars ("Asparagus officinalis ('Jersey' / 'Millennium')"), read from
+  its species' NC State page as its own, its size included, where a cultivar's would be its own page's alone.
+
+### Kew's species
+
+A cultivar goes under the species Kew's checklist accepts (Jason, 2026-10-27). NC State files the rabbiteye
+blueberries under Vaccinium corymbosum (its page for V. virgatum leads to its V. corymbosum page), and its pages for
+'Climax' and 'Premier' say they are rabbiteyes; Kew keeps rabbiteye, V. virgatum, apart from highbush. So the catalog
+has a record for V. virgatum, and they go under it, each still reading its own NC State page (its name there accepted
+in ncsu-pages.json `names`). Which species a cultivar is comes from a source's own words, never from the catalog's
+guess.
+
+The build lists the others it finds, rather than moving them: where NC State's page for a species leads to another
+species' page and Kew keeps the two apart (ncsu-pages.json gives the first no page), each cultivar the catalog reads
+from a page under the second whose names or description call it the first's, by the first's names
+(docs/catalog-review.md, "Under a species Kew keeps apart"). Moving one is a decision (`kewSpecies`).
 
 The first answers (2026-10-23) came from a page of cards built from the review list, one per item, with what
 each source says.

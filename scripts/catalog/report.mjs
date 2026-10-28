@@ -93,11 +93,12 @@ function newPlantsNote({ added = [], waiting = {}, left = [], unsaved = 0, all =
  * plant list; `combined`: sample.mjs's output; `review`: write.mjs's review list; `searched`: the web search's
  * claims by plant; `wcvp`: wcvp.mjs's review ({ homonyms, regulatedUnreviewed, regulatedNotMatched, notMatched });
  * `native`, `bloom`: wild.mjs's review lists; `warnings`: catalog:check's; `unfetched`: list.mjs toFetch's;
- * `termsUnsettled`: sites whose terms wait for a reading that settles them; `decisions`: scripts/catalog/decisions.json
+ * `termsUnsettled`: sites whose terms wait for a reading that settles them; `kewApart`: cultivars NC State may file
+ * under a species Kew keeps apart (split.mjs); `decisions`: scripts/catalog/decisions.json
  * (what a person already decided isn't listed again).
  * Returns { markdown, summary, counts }.
  */
-export function reviewReport({ catalog, list, combined, review, searched = {}, wcvp = null, native = [], bloom = [], warnings = [], unfetched = null, termsUnsettled = [], decisions = {}, additions = null }) {
+export function reviewReport({ catalog, list, combined, review, searched = {}, wcvp = null, native = [], bloom = [], warnings = [], unfetched = null, termsUnsettled = [], decisions = {}, additions = null, kewApart = [] }) {
   const byId = new Map(catalog.plants.map((p) => [p.id, p]));
   const order = new Map(catalog.plants.map((p, i) => [p.id, i]));
   const byOrder = (a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9);
@@ -169,6 +170,10 @@ export function reviewReport({ catalog, list, combined, review, searched = {}, w
         ...(wcvp.regulatedNotMatched ?? []).map((n) => `${esc(n)}: a law list's name Kew doesn't match to one accepted species`),
       ]));
   }
+  const apart = kewApart.filter((k) => !decisions.kewSpecies?.[k.id]).sort(byOrder);
+  section("Under a species Kew keeps apart", apart.length,
+    `NC State files these cultivars under one species, and its page for another, which Kew's checklist keeps apart, leads there; each one's page calls it the other's. A cultivar goes under the species Kew accepts (docs/catalog-sources.md, "Kew's species"), so check each and move it. ${DECIDE('kewSpecies')}`,
+    bullets(apart.map((k) => `${name(k.id)}: filed under ${esc(k.y)}; its page (\`${k.page}\`) says "${esc(k.word)}", for ${esc(k.x)}`)));
   section('Native status held back', native.length,
     `Kew has the species native to these states, but the catalog calls the plant "Exotic" (its species may hold a native kind the garden plant isn't), so it's never shown native. ${DECIDE('nativeShown')}`,
     bullets(native.map((n) => `${name(n.id)}: Kew's ${esc(n.name)}, native to ${plural(n.nativeIn?.length ?? 0, 'state')}`)));

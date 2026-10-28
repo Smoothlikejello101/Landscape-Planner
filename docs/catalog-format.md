@@ -43,6 +43,11 @@ pass a file without it.
 with no source behind them). A site found by the web search is cited by its
 domain (`"newmoonnursery.com"`), with the domain as its title.
 
+`meta.moved`, where there is one, lists records folded into another (`fold` in scripts/catalog/decisions.json): the
+old id, and the record it stands for now (`{ "salvia-officinalis-origanum-vulgare": "salvia-officinalis" }`). A plant
+placed from the old record keeps its id in the plan, and the app shows it with the other record's facts.
+`catalog:check` won't pass an old id that is still a record, or one that stands for a record that isn't there.
+
 ## A record
 
 ```json
@@ -72,7 +77,8 @@ domain (`"newmoonnursery.com"`), with the domain as its title.
   flower color or habit, which cultivars are bred to change.
 - **`inherits`**: facts beyond those a cultivar takes from its species anyway: only `height` and `width`, for a
   cultivar split from a record of several cultivars that has no page of its own (decisions.json `split`). Its size
-  is then its species' until a source gives its own; the app says so ("from its species").
+  is then its species' until a source gives its own; the app says so ("from its species"). A cultivar with no
+  species record (a genus's hybrid: "Rubus 'Ouachita'") has none to take, and no size until a source gives one.
 - **`src`**: the sources for every fact that doesn't name its own.
 - **`audited`**: the date of the audit run that last changed this record's
   facts (its first, for a record audited once), or `null`. A run that leaves
