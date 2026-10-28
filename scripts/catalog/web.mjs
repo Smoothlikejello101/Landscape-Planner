@@ -69,6 +69,11 @@ export const SKIP_SITES = new Set([
   'paperblog.com', 'steemit.com', // (members' posts, aggregated)
   'biocrick.com', // (not a plant reference)
   'jcraulstonarboretum.wordpress.com', // (NC State's arboretum: NC State is read through its own extractor)
+  // Found by the terms reviews of batch 5a (2026-10-28)
+  'pollinatorflowers.com', 'succulent.care', 'chlorobase.com', 'naturebring.com', // (content farms, AI-written: the first says so itself)
+  'plantfyi.com', // (an aggregator of other databases, pages made by script)
+  'wikidoc.org', 'wikis.evergreen.edu', // (user-edited wikis; the first borrows Wikipedia's wording)
+  'horti.co.za', // (a marketplace)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
