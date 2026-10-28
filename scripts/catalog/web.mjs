@@ -63,6 +63,12 @@ export const SKIP_SITES = new Set([
   'floraneste.com', // (a spam shop)
   'aa.edu', // (not a plant reference)
   'horticopia.info', // (sells its plant database; asked to license it: not read until it answers)
+  // Found by the terms reviews of batch 4b (2026-10-28)
+  'plant-garden-secrets.com', 'dharaseeds.com', 'explorebioedge.com', // (content farms, AI-written)
+  'botanical.com', 'eurekalert.org', // (republished reference works; press releases)
+  'paperblog.com', 'steemit.com', // (members' posts, aggregated)
+  'biocrick.com', // (not a plant reference)
+  'jcraulstonarboretum.wordpress.com', // (NC State's arboretum: NC State is read through its own extractor)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
