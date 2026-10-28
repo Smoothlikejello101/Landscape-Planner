@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
-import { applySplits, linkCultivars } from '../scripts/catalog/split.mjs';
+import { applySplits, kewApart, linkCultivars } from '../scripts/catalog/split.mjs';
 import { catalogErrors, catalogWarnings, resolveCatalog, type CatalogFile } from '../src/catalog';
 
 // A record of several cultivars, made one record per cultivar (decided with Jason, 2026-10-25).
@@ -79,5 +79,93 @@ describe('a cultivar with no species named', () => {
     expect(parent).toMatchObject({ goldsturm: 'rudbeckia-fulgida-var-sullivantii', bluestone: 'stokesia-laevis', flirt: 'nandina-domestica', aucuba: null, 'rosa-julia-child': null, 'stokesia-laevis': null });
     expect(done).toHaveLength(3);
     expect(linkCultivars(f)).toEqual([]);
+  });
+});
+
+// The decisions of 2026-10-27: one record per cultivar where the catalog needs a species or a genus beside it, a
+// record renamed for its one cultivar, a cultivar under the species Kew accepts, and records folded into another.
+describe('the names a person decided', () => {
+  const rec = (id: string, common: string, botanical: string, more = {}) => ({ id, common, botanical, src: ['compendium'], audited: '2026-10-25', facts: {}, ...more });
+  const cat = (): CatalogFile => ({ meta: file().meta, plants: [
+    rec('vaccinium-corymbosum', 'Highbush blueberry', 'Vaccinium corymbosum', { src: ['ncsu'] }),
+    rec('vaccinium-corymbosum-premier', "Highbush blueberry 'Premier'", "Vaccinium corymbosum 'Premier'", { parent: 'vaccinium-corymbosum', src: ['ncsu'] }),
+    rec('blueberries', 'Rabbiteye blueberry', "Vaccinium virgatum ('Climax' / 'Premier' / 'Tifblue')", { facts: { height: { v: { min: 6, max: 10, med: 8 }, src: ['compendium'] } } }),
+    rec('daylilies', 'Daylily', "Hemerocallis ('Happy Returns' / spider types)"),
+    rec('crinums', 'Crinum lily', "Crinum ('Milk and Wine' / bulbispermum)"),
+    rec('distylium', 'Distylium', "Distylium hybrids ('Vintage Jade' / 'Cinnamon Girl')"),
+    rec('aucuba-japonica', 'Japanese laurel', 'Aucuba japonica', { src: ['ncsu'] }),
+    rec('aucuba', 'Aucuba', "Aucuba japonica ('Gold Dust')"),
+    rec('abelia-x-grandiflora', 'Glossy Abelia', 'Abelia × grandiflora', { src: ['ncsu'] }),
+    rec('goucher', "Glossy Abelia 'Edward Goucher'", "Abelia 'Edward Goucher'", { src: ['ncsu'] }),
+    rec('salvia-officinalis', 'Kitchen sage', 'Salvia officinalis', { src: ['ncsu'] }),
+    rec('sage-and-oregano', 'Culinary sage & oregano', 'Salvia officinalis / Origanum vulgare'),
+  ] });
+  const J = { decided: '2026-10-27', by: 'Jason' };
+  const decided = {
+    split: {
+      blueberries: { keep: { cultivar: 'Tifblue', common: "Rabbiteye blueberry 'Tifblue'" }, species: { common: 'Rabbiteye blueberry' }, ...J,
+        others: [{ cultivar: 'Climax', common: "Rabbiteye blueberry 'Climax'", page: 'vaccinium-corymbosum-climax', species: 'Vaccinium virgatum' }, { cultivar: 'Premier', page: 'vaccinium-corymbosum-premier' }] },
+      daylilies: { keep: { cultivar: 'Happy Returns', common: "Daylily 'Happy Returns'" }, others: [{ botanical: 'Hemerocallis', common: 'Daylily', page: 'hemerocallis' }], ...J },
+      crinums: { keep: { cultivar: 'Milk and Wine', common: "Crinum lily 'Milk and Wine'" }, others: [{ botanical: 'Crinum bulbispermum', page: null }], ...J },
+      distylium: { keep: { cultivar: 'Vintage Jade', common: "Distylium 'Vintage Jade'" }, others: [{ cultivar: 'Cinnamon Girl', common: "Distylium 'Cinnamon Girl'", page: null }], ...J },
+    },
+    cultivar: { aucuba: { cultivar: 'Gold Dust', common: "Aucuba 'Gold Dust'", ...J } },
+    kewSpecies: { 'vaccinium-corymbosum-premier': { species: 'Vaccinium virgatum', common: "Rabbiteye blueberry 'Premier'", ...J } },
+    parent: { goucher: { parent: 'abelia-x-grandiflora', ...J } },
+    fold: { 'sage-and-oregano': { into: 'salvia-officinalis', ...J } },
+  };
+  const names = { commonFor: (sp: string) => ({ 'Vaccinium virgatum': 'smallflower blueberry' } as Record<string, string>)[sp] ?? null, namesOf: (page: string) => (page === 'hemerocallis' ? ['Day Lily', 'Daylily'] : []) };
+  const applied = () => { const f = cat(); applySplits(f, decided, names); return { f, byId: new Map(f.plants.map((r) => [r.id, r])) }; };
+  it('makes the species record a split needs, and puts each cultivar under the species Kew accepts', () => {
+    const { f, byId } = applied();
+    expect(byId.get('vaccinium-virgatum')).toEqual({ id: 'vaccinium-virgatum', common: 'Rabbiteye blueberry', botanical: 'Vaccinium virgatum', synonyms: ['Smallflower blueberry'], src: [], audited: null, facts: {} });
+    expect(byId.get('blueberries')).toMatchObject({ common: "Rabbiteye blueberry 'Tifblue'", botanical: "Vaccinium virgatum 'Tifblue'", parent: 'vaccinium-virgatum', facts: { height: { v: { min: 6, max: 10, med: 8 } } } });
+    // (Filed by its page under highbush: made here, under rabbiteye, reading that page, with no size of its species' standing in.)
+    expect(byId.get('vaccinium-virgatum-climax')).toEqual({ id: 'vaccinium-virgatum-climax', common: "Rabbiteye blueberry 'Climax'", botanical: "Vaccinium virgatum 'Climax'", parent: 'vaccinium-virgatum', src: ['ncsu'], audited: null, facts: {} });
+    expect(byId.get('vaccinium-corymbosum-premier')).toMatchObject({ common: "Rabbiteye blueberry 'Premier'", botanical: "Vaccinium virgatum 'Premier'", parent: 'vaccinium-virgatum' });
+    expect(byId.get('vaccinium-corymbosum-premier')).not.toHaveProperty('synonyms'); // (not "highbush": Kew's reading says it isn't)
+    expect(f.plants.filter((r) => /Premier/.test(r.botanical ?? ''))).toHaveLength(1);
+    expect(catalogErrors(f)).toEqual([]);
+  });
+  it("adds the genus or species a record named beside its cultivar; a genus isn't a cultivar's species", () => {
+    const { byId } = applied();
+    expect(byId.get('hemerocallis')).toEqual({ id: 'hemerocallis', common: 'Daylily', botanical: 'Hemerocallis', synonyms: ['Day Lily'], src: ['ncsu'], audited: null, facts: {} });
+    expect(byId.get('daylilies')).toMatchObject({ common: "Daylily 'Happy Returns'", botanical: "Hemerocallis 'Happy Returns'" });
+    expect(byId.get('daylilies')).not.toHaveProperty('parent');
+    // (No name from its sources yet: its botanical name, until one comes.)
+    expect(byId.get('crinum-bulbispermum')).toMatchObject({ common: 'Crinum bulbispermum', botanical: 'Crinum bulbispermum', src: [] });
+    expect(byId.get('crinums')!.botanical).toBe("Crinum 'Milk and Wine'");
+    // (The earlier list's "hybrids" isn't part of the name; with no species, no size stands in.)
+    expect(byId.get('distylium')!.botanical).toBe("Distylium 'Vintage Jade'");
+    expect(byId.get('distylium-cinnamon-girl')).toEqual({ id: 'distylium-cinnamon-girl', common: "Distylium 'Cinnamon Girl'", botanical: "Distylium 'Cinnamon Girl'", src: ['compendium'], audited: null, facts: {} });
+    const f = cat();
+    applySplits(f, decided, names);
+    expect(linkCultivars(f)).toEqual([]); // ('Happy Returns' isn't linked to the genus either)
+    // Named once its sources give a name.
+    expect(applySplits(f, decided, { ...names, commonFor: (sp: string) => (sp === 'Crinum bulbispermum' ? 'orange river lily' : null) })).toEqual(['crinum-bulbispermum: named Orange river lily']);
+  });
+  it('renames a record for its one cultivar, puts a hybrid under the species its page names, and folds a record into another', () => {
+    const { f, byId } = applied();
+    expect(byId.get('aucuba')).toMatchObject({ common: "Aucuba 'Gold Dust'", botanical: "Aucuba japonica 'Gold Dust'", parent: 'aucuba-japonica' });
+    expect(byId.get('aucuba')).not.toHaveProperty('synonyms'); // (its new name starts with its old one)
+    expect(byId.get('goucher')!.parent).toBe('abelia-x-grandiflora');
+    expect(byId.has('sage-and-oregano')).toBe(false);
+    expect(f.meta.moved).toEqual({ 'sage-and-oregano': 'salvia-officinalis' });
+    expect(catalogErrors(f)).toEqual([]);
+    expect(applySplits(f, decided, names)).toEqual([]); // (twice: nothing more)
+    // The catalog's checks: a moved id is no record's, and stands for one that's there.
+    expect(catalogErrors({ ...f, meta: { ...f.meta, moved: { aucuba: 'salvia-officinalis', gone: 'nowhere' } } })).toEqual(['meta.moved: aucuba is still a record', "meta.moved: gone stands for nowhere, which isn't a record"]);
+  });
+  it('lists cultivars NC State files under a species Kew keeps apart, where their pages say so', () => {
+    const f = cat();
+    f.plants.push(rec('vaccinium-virgatum', 'Rabbiteye blueberry', 'Vaccinium virgatum', { src: [] }), rec('powderblue', "Highbush blueberry 'Powderblue'", "Vaccinium corymbosum 'Powderblue'", { parent: 'vaccinium-corymbosum', src: ['ncsu'] }),
+      rec('duke', "Highbush blueberry 'Duke'", "Vaccinium corymbosum 'Duke'", { parent: 'vaccinium-corymbosum', src: ['ncsu'] }));
+    const list = [{ id: 'powderblue', ncsu: 'vaccinium-corymbosum-powderblue' }, { id: 'duke', ncsu: 'vaccinium-corymbosum-duke' }, { id: 'vaccinium-corymbosum', ncsu: 'vaccinium-corymbosum' }];
+    const text: Record<string, string> = { 'vaccinium-corymbosum-powderblue': "'Powderblue' is a rabbiteye cultivar of Vaccinium corymbosum.", 'vaccinium-corymbosum-duke': "'Duke' is an early highbush cultivar." };
+    const found = kewApart(f, list, { pages: { 'vaccinium-virgatum': null }, movedTo: (s: string) => (s === 'vaccinium-virgatum' ? 'vaccinium-corymbosum' : null), pageText: (s: string) => text[s] ?? null });
+    expect(found).toEqual([{ id: 'powderblue', page: 'vaccinium-corymbosum-powderblue', x: 'Vaccinium virgatum', y: 'Vaccinium corymbosum', word: 'Rabbiteye' }]);
+    // (None where NC State's page for the species isn't moved, or no page is given up for it.)
+    expect(kewApart(f, list, { pages: { 'vaccinium-virgatum': null }, pageText: (s: string) => text[s] ?? null })).toEqual([]);
+    expect(kewApart(f, list, { pages: {}, movedTo: () => 'vaccinium-corymbosum', pageText: (s: string) => text[s] ?? null })).toEqual([]);
   });
 });

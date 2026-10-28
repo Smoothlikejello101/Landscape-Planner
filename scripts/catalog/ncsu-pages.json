@@ -1,6 +1,6 @@
 {
  "v": 1,
- "about": "NC State Extension Gardener Plant Toolbox pages that don't follow the rule (scripts/catalog/list.mjs ncsuPageFor; docs/catalog-build.md). `pages`: record id to the page name under https://plants.ces.ncsu.edu/plants/, or null for none, chosen by hand: a cultivar's own page, the one cultivar page a record of several cultivars reads, a genus's page (narcissus), a species' page under another name, or none where NC State's page is for a plant Kew keeps apart (NC State moves Schoenoplectus tabernaemontani to S. lacustris, and Vaccinium virgatum to V. corymbosum). `names`: record id to the name its page gives, where that isn't the plant's but is reviewed as the same plant: NC State's misspelling, or a synonym by Kew's World Checklist (including the pages NC State moved a plant to when it took up a new name, 2026-10-22).",
+ "about": "NC State Extension Gardener Plant Toolbox pages that don't follow the rule (scripts/catalog/list.mjs ncsuPageFor; docs/catalog-build.md). `pages`: record id to the page name under https://plants.ces.ncsu.edu/plants/, or null for none, chosen by hand: a cultivar's own page, the one cultivar page a record of several cultivars reads, a genus's page (narcissus), a species' page under another name, or none where NC State's page is for a plant Kew keeps apart (NC State moves Schoenoplectus tabernaemontani to S. lacustris, and Vaccinium virgatum to V. corymbosum; its cultivars filed there go under Kew's species, each reading its own page: decisions.json `kewSpecies`). `names`: record id to the name its page gives, where that isn't the plant's but is reviewed as the same plant: NC State's misspelling, a synonym by Kew's World Checklist (including the pages NC State moved a plant to when it took up a new name, 2026-10-22), or the species NC State files a cultivar under where Kew keeps the cultivar's own apart.",
  "pages": {
   "itea-virginica": "itea-virginica-little-henry",
   "hydrangea-anomala-subsp-petiolaris": "hydrangea-petiolaris",
@@ -17,7 +17,10 @@
   "pyrus-communis-moonglow-kieffer-orient": "pyrus-communis-moonglow",
   "prunus-salicina-methley-bruce": "prunus-salicina-methley",
   "carya-illinoinensis-kanza-lakota": "carya-illinoinensis-lakota",
+  "vaccinium-virgatum": null,
   "vaccinium-virgatum-climax-premier-tifblue": null,
+  "vaccinium-virgatum-climax": "vaccinium-corymbosum-climax",
+  "asparagus-officinalis-jersey-millennium": "asparagus-officinalis",
   "cephalotaxus-harringtonia-duke-gardens-prostrata": "cephalotaxus-harringtonia-duke-gardens",
   "buxus-green-velvet-microphylla-types": "buxus-green-velvet",
   "thuja-green-giant": "thuja-green-giant",
@@ -26,6 +29,8 @@
   "vitex-agnus-castus-shoal-creek": "vitex-agnus-castus-shoal-creek",
   "hibiscus-syriacus-sterile-diana-chiffon-series": "hibiscus-syriacus-diana",
   "acer-palmatum-bloodgood-seiryu": "acer-palmatum-bloodgood",
+  "hemerocallis": "hemerocallis",
+  "canna": "canna",
   "allium-millenium-purple-sensation": "allium-millenium",
   "lantana-camara-miss-huff-hardy": "lantana-camara-miss-huff"
  },
@@ -58,7 +63,8 @@
   "andropogon-glomeratus": "Anatherum glomeratum",
   "morella-cerifera": "Myrica cerifera",
   "mahonia-eurybracteata-soft-caress": "Berberis eurybracteata",
-  "pennisetum-alopecuroides-hameln": "Cenchrus alopecuroides",
-  "miscanthus-sinensis": "Miscanthus sinenesis"
+  "miscanthus-sinensis": "Miscanthus sinenesis",
+  "vaccinium-virgatum-climax": "Vacccinium corymbosum",
+  "vaccinium-corymbosum-premier": "Vaccinium corymbosum"
  }
 }

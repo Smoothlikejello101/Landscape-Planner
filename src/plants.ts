@@ -162,6 +162,8 @@ export const plantsById: Record<string, Plant> = {};
 export type DogFilter = '' | 'hideToxic' | 'nonToxic';
 /** Plants of mine switched to a catalog plant: their id → the catalog plant's (src/my-plants.ts keeps these). */
 export const aliases: Record<string, string> = {};
+/** Catalog records folded into another (the catalog's `meta.moved`): the old id → the record it stands for now. */
+export const movedIds: Record<string, string> = {};
 /** A catalog plant → the plant of mine switched to it (its notes and color go on with it). */
 export const ownCopies: Record<string, Plant> = {};
 /** Run once the catalog has loaded (plants of mine linked to a species take its facts then: src/my-plants.ts). */
@@ -285,6 +287,8 @@ export function loadPlants(): Promise<void> {
     if (isCatalogV2(d)) {
       PLANTS = resolveCatalog(d);
       PLANT_META = { title: d.meta.title, version: d.meta.updated, count: d.plants.length, enums: d.meta.enums, sources: d.meta.sources };
+      for (const k of Object.keys(movedIds)) delete movedIds[k];
+      Object.assign(movedIds, d.meta.moved ?? {});
     } else {
       const old = d as { plants?: Plant[]; meta?: PlantMeta };
       // (Its forms by today's names: src/catalog.ts, LEGACY_FORMS.)
@@ -293,6 +297,8 @@ export function loadPlants(): Promise<void> {
     }
     shareDogWarnings(PLANTS);
     for (const p of PLANTS) plantsById[p.id] = p;
+    // (A plant placed from a record since folded into another shows that one's facts.)
+    for (const [from, to] of Object.entries(movedIds)) if (!plantsById[from] && plantsById[to]) plantsById[from] = plantsById[to];
     for (const fn of catalogHooks) fn();
     applyAliases(); // (plants of mine switched to these)
     if (state.panel === 'plants') render(); // refresh picker if already open
@@ -443,7 +449,7 @@ export function matchedBy(p: Plant, query: string): MatchedBy | null {
 }
 /** Plants placed in the open plan (not counting ones marked gone). */
 export function plantIdsInPlan(): Set<string> {
-  return new Set(state.shapes.filter((s) => s.status !== 'gone').map((s) => s.plantId).filter((id): id is string => !!id));
+  return new Set(state.shapes.filter((s) => s.status !== 'gone').map((s) => s.plantId).filter((id): id is string => !!id).map((id) => movedIds[id] ?? id));
 }
 /**
  * The filters another source's value (a fact's `alt`) can count for, the
