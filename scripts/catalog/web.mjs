@@ -99,6 +99,10 @@ export const SKIP_SITES = new Set([
   'livetoplant.com', 'rose-bushes.com', // (content farms, AI-written)
   'plantmark.com.au', 'invasivespeciesinfo.gov', // (aggregators of others' stock or resources)
   'tjhsst.edu', 'loveandrenovations.com', 'oharaikebanacolumbus.com', // (a high school's pages; not plant references)
+  // Found by the terms reviews of batch 7b, second quarter (2026-10-28)
+  'ngb.org', // (a trade association's pages of its member breeders' own copy: second-hand)
+  'seedsplantworld.com', // (a dropship-style shop: unfilled template terms, marketplace reviews)
+  'themeaningofwater.com', // (not a plant reference)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
