@@ -109,5 +109,11 @@
  },
  "group": {
   "asparagus-officinalis-jersey-millennium": {"decided": "2026-10-27", "by": "Jason", "note": "One record for 'Jersey' and 'Millennium', read from NC State's species page, its size included."}
+ },
+ "withdrawn": {
+  "abnativeplants.com": {"why": "its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read)", "decided": "2026-10-28", "by": "Claude, by the terms rules"},
+  "meadowcitynursery.com": {"why": "its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read)", "decided": "2026-10-28", "by": "Claude, by the terms rules"},
+  "plantingtree.com": {"why": "its terms bar spidering, crawling and scraping (read 2026-10-27)", "decided": "2026-10-28", "by": "Claude, by the terms rules"},
+  "whiteflowerfarm.com": {"why": "its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read)", "decided": "2026-10-28", "by": "Claude, by the terms rules"}
  }
 }

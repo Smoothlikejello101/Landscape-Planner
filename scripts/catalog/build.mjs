@@ -163,8 +163,9 @@ if (xlsx) {
   run('caterpillar hosts', 'python3', ['-I', 'scripts/catalog/tallamy.py', path('tallamy.xlsx'), join(ROOT, 'tallamy', 'genera.json')]);
 } else console.log(`caterpillar hosts: the Tallamy spreadsheet isn't saved (--fetch gets it)${existsSync(join(ROOT, 'tallamy', 'genera.json')) ? '; the genera made from it before are used' : '; none read'}`);
 
-// 3. The web claims, read again with today's reader.
-const searched = readJson(CLAIMS);
+// 3. The web claims, read again with today's reader. (Not a withdrawn source's: decisions.json `withdrawn`.)
+const withdrawn = readJson('scripts/catalog/decisions.json').withdrawn ?? {};
+const searched = Object.fromEntries(Object.entries(readJson(CLAIMS)).map(([id, cs]) => [id, cs.filter((c) => !withdrawn[c.src])]));
 const web = rereadClaims(searched, list, catalog, ROOT);
 writeFileSync(path('web.json'), JSON.stringify(web.claims));
 console.log(`web claims: ${web.pages} pages read again${web.missing ? `, ${web.missing} no longer saved` : ''}`);
