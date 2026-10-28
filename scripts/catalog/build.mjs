@@ -13,11 +13,12 @@ import { execFileSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseBuildArgs } from './build-args.mjs';
-import { readNcsuFile, savedAuditList, toFetch } from './list.mjs';
-import { gbifCommonName, gbifNames, namePagesToFetch, newRecords, pagesInUse, readAdded, shipOnly, shortenListNames, usdaCommonName, writeAdded } from './additions.mjs';
+import { ncsuMovedTo, ncsuUrl, readNcsuFile, savedAuditList, toFetch } from './list.mjs';
+import { gbifCommonName, gbifNames, namePagesToFetch, newRecords, pageCommons, pagesInUse, readAdded, shipOnly, shortenListNames, usdaCommonName, writeAdded } from './additions.mjs';
 import { catalogText } from './convert-v1.mjs';
-import { applySplits, linkCultivars } from './split.mjs';
-import { lockCatalogSrc, savedFile } from './pages.mjs';
+import { applySplits, kewApart, linkCultivars } from './split.mjs';
+import { lockCatalogSrc, savedFile, savedPage } from './pages.mjs';
+import { ncsuDescription } from './prose.mjs';
 import { rereadClaims } from './reclaim.mjs';
 import { reviewReport, termsUnsettled } from './report.mjs';
 
@@ -94,6 +95,8 @@ function fetchList(label, items) {
 }
 
 const date = opts.date ?? new Date().toISOString().slice(0, 10); // (the UTC day, as the fetcher names its folders)
+/** A saved NC State page's HTML, by its name, or null. */
+const ncsuPage = (slug) => savedPage('ncsu', ncsuUrl(slug), ROOT)?.text ?? null;
 
 // New plants (additions.mjs): each NC State plant page saved that no record reads, as a record with names and no
 // facts. The steps below fill them like any other; after the write, only those that ship stay (5). (Found again
@@ -101,9 +104,9 @@ const date = opts.date ?? new Date().toISOString().slice(0, 10); // (the UTC day
 const addedBefore = readAdded(); // (the pages plants added before were found on)
 function withAdditions() {
   const base = JSON.parse(catalogBefore);
-  // (Records a person decided to split into one per cultivar, first: split.mjs. A cultivar with a page of its own is
-  // then the build's to add, like any page no record reads.)
-  const split = applySplits(base, readJson('scripts/catalog/decisions.json'));
+  // (Records a person decided to split into one per cultivar, rename, move or fold into another, first: split.mjs. A
+  // cultivar with a page of its own is then the build's to add, like any page no record reads.)
+  const split = applySplits(base, readJson('scripts/catalog/decisions.json'), { commonFor: (sp) => usdaCommonName(sp, ROOT) ?? gbifCommonName(sp, ROOT), namesOf: (slug) => pageCommons(ncsuPage(slug)) });
   if (split.length) log.push(`## split\n${split.join('\n')}`);
   // (A cultivar with no species named, linked to its species' record: split.mjs.)
   const linked = linkCultivars(base);
@@ -234,6 +237,8 @@ const report = reviewReport({
   warnings: checkOut.split('\n').filter((l) => l.startsWith('  ')).map((l) => l.trim()),
   unfetched: toFetch(list, ROOT),
   termsUnsettled: termsUnsettled(join(ROOT, 'terms-review'), readJson('scripts/catalog/site-terms.json')),
+  // (Cultivars NC State may file under a species Kew keeps apart from theirs: split.mjs, listed, not moved.)
+  kewApart: kewApart(after, list, { pages: readNcsuFile().pages, movedTo: (slug) => ncsuMovedTo(slug, ROOT), pageText: (slug) => { const h = ncsuPage(slug); return h ? [...pageCommons(h), ...ncsuDescription(h)].join(' ') : null; } }),
   decisions: readJson('scripts/catalog/decisions.json'),
   additions: { ...readJson(path('additions.json')), all: Object.keys(readAdded()) },
 });

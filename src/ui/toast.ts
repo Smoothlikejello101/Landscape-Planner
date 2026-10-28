@@ -96,6 +96,15 @@ export function toastAction(message: string, actions: { label: string; run: () =
     buttons.appendChild(b);
   }
   node.appendChild(buttons);
+  // Put away without its buttons (Jason, 2026-10-27): ✕, or a swipe sideways.
+  const close = document.createElement('button');
+  close.className = 'notice-close';
+  close.textContent = '✕';
+  close.setAttribute('aria-label', 'Dismiss');
+  close.dataset.testid = 'notice-close';
+  close.addEventListener('click', () => node.remove());
+  node.appendChild(close);
+  swipeAway(node);
   document.body.appendChild(node);
   placeNotice();
   requestAnimationFrame(placeNotice);
@@ -116,6 +125,48 @@ export function placeNotice() {
   const sheetTop = sheet.getBoundingClientRect().top;
   const h = node.getBoundingClientRect().height;
   node.style.top = `${Math.max(8, Math.round(sheetTop - h - 8))}px`;
+}
+/** How far a notice is swiped before it goes on its own (px), or how fast (px a millisecond). */
+const SWIPE_AWAY = 80, SWIPE_FLICK = 0.5;
+/**
+ * A notice that follows a finger (or the mouse) sideways and goes when let go far enough, or flicked; short of
+ * that, it slides back. A press that doesn't move sideways is a tap, its button's as before.
+ */
+function swipeAway(node: HTMLElement) {
+  let start: { x: number; y: number; t: number; id: number } | null = null, dx = 0, swiping = false, swallow = false;
+  const at = (x: number) => { node.style.transform = `translateX(calc(-50% + ${x}px))`; node.style.opacity = String(Math.max(0.2, 1 - Math.abs(x) / 240)); };
+  node.addEventListener('pointerdown', (e) => { start = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId }; dx = 0; swiping = false; });
+  node.addEventListener('pointermove', (e) => {
+    if (!start || e.pointerId !== start.id) return;
+    dx = e.clientX - start.x;
+    if (!swiping && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(e.clientY - start.y)) {
+      swiping = true;
+      node.classList.add('swiping');
+      try { node.setPointerCapture(e.pointerId); } catch { /* not capturable: it follows anyway */ }
+    }
+    if (swiping) at(dx);
+  });
+  const end = (e: PointerEvent) => {
+    if (!start || e.pointerId !== start.id) return;
+    const was = start;
+    start = null;
+    if (!swiping) return;
+    swiping = false;
+    node.classList.remove('swiping');
+    // (The click that follows a swipe, if it ended on a button, doesn't press it; nothing later is held back.)
+    swallow = true;
+    setTimeout(() => { swallow = false; }, 0);
+    const speed = Math.abs(dx) / Math.max(1, Date.now() - was.t);
+    if (Math.abs(dx) >= SWIPE_AWAY || speed >= SWIPE_FLICK) {
+      node.classList.add('gone');
+      at(Math.sign(dx || 1) * (window.innerWidth));
+      setTimeout(() => node.remove(), 200);
+    } else { node.style.transform = ''; node.style.opacity = ''; }
+  };
+  node.addEventListener('pointerup', end);
+  node.addEventListener('pointercancel', end);
+  // (A swipe that ends on a button doesn't press it.)
+  node.addEventListener('click', (e) => { if (swallow) { e.stopPropagation(); e.preventDefault(); } }, true);
 }
 /** Close a notice with buttons, if one is up (the next drawing starts, say). */
 export function dismissToastAction() { document.getElementById('toast-action')?.remove(); }

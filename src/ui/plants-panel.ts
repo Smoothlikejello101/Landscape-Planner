@@ -111,9 +111,16 @@ const FILTER_NAMES: Partial<Record<keyof PlantFilter, (f: PlantFilter) => string
   deerResistant: () => 'Deer resistant', noThorns: () => 'No thorns listed', spread: (f) => `Spreading OK: ${joined(f.spread.map((v) => SPREADS[v]?.toLowerCase() ?? v), 'or')}`, edible: () => 'Edible',
   inPlan: () => 'In this plan',
 };
-/** The filters under Poison & pets, and under More filters (their folded buttons count what's on). */
-const POISON_KEYS: (keyof PlantFilter)[] = ['noPoison', 'dogs', 'cats', 'horses'];
-const MORE_KEYS: (keyof PlantFilter)[] = ['attracts', 'hostOnly', 'native', 'leafColors', 'fallColor', 'evergreen', 'winterInterest', 'growth', 'height', 'lowMaintenance', 'drought', 'wetFeet', 'clayOk', 'deerResistant', 'noThorns', 'spread', 'edible'];
+/**
+ * Whether the filters are open: one fold for them all, folded to start and left as the gardener left it (Jason,
+ * 2026-10-27: they took most of a phone's screen before the first plant). "Hardy in zone 8a" stays beside it.
+ */
+const FILTERS_KEY = 'lp-filters-open';
+let filtersOpen = (() => { try { return localStorage.getItem(FILTERS_KEY) === '1'; } catch { return false; } })();
+function setFiltersOpen(v: boolean) {
+  filtersOpen = v;
+  try { localStorage.setItem(FILTERS_KEY, v ? '1' : '0'); } catch { /* open for now, not remembered */ }
+}
 export function renderPlantsPanel() {
   void loadWild(afterWild);
   const linking = !!state.pickerLinkId;
@@ -482,7 +489,7 @@ export function renderPlantsPanel() {
    */
   function hiddenByFilters(): { n: number; names: string[] } | null {
     const inPlan = plantIdsInPlan();
-    const keep = { q: plantFilter.q, withReported: plantFilter.withReported, advanced: plantFilter.advanced, animals: plantFilter.animals };
+    const keep = { q: plantFilter.q, withReported: plantFilter.withReported };
     const base: PlantFilter = { ...PLANT_FILTER_DEFAULTS, ...keep };
     const found = PLANTS.filter((p) => (!forTree || isTree(p)) && reportedMatch(p, base, inPlan) !== null);
     if (!found.length) return null;
@@ -501,12 +508,12 @@ export function renderPlantsPanel() {
     finally { plantFilter.withReported = was; filteredPlants(nearShows(readQuery(plantFilter.q), PLANTS, activeMyPlants())); }
   }
   /**
-   * Clear the filters; the search stays, and so do the sections that were open. "In this plan" (beside the search)
+   * Clear the filters; the search stays, and so does the fold, open or not. "In this plan" (beside the search)
    * stays too, unless `all` (a search the filters emptied: "Show them").
    */
   function resetFilters(all = false) {
-    const { advanced, animals: animalsOpen, q, inPlan } = plantFilter;
-    Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { advanced, animals: animalsOpen, q, inPlan: !all && inPlan });
+    const { q, inPlan } = plantFilter;
+    Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { q, inPlan: !all && inPlan });
     render(); // full rebuild so every control shows its cleared value
   }
   /**
@@ -608,10 +615,10 @@ export function renderPlantsPanel() {
       source.hidden = !cb.checked;
       rebuildList();
     });
-    return el('div', {}, el('label', { className: 'filter-check' }, cb, loc ? `Hardy in zone ${loc.zone}` : 'Hardy in your zone',
-      loc ? null : el('span', { className: 'hint' }, '(asks for your ZIP)')), source);
+    return { box: el('label', { className: 'filter-check hardy-check' }, cb, loc ? `Hardy in zone ${loc.zone}` : 'Hardy in your zone',
+      loc ? null : el('span', { className: 'hint' }, '(asks for your ZIP)')), source };
   })();
-  const primary = el('div', {},
+  const primary = el('div', { className: 'filter-main' },
     row(mkSelect('form', 'Any form', (enums.form || []).map((f): Opt => [f, f]), { name: 'Form' }),
         mkSelect('sun', 'Any sun', [['Full', 'Full sun'], ['Part', 'Part shade'], ['Shade', 'Shade']], { name: 'Sun' })),
     row(mkSelect('water', 'Water needs', WATER.filter(([v]) => !enums.water || enums.water.includes(v)).map(([v, t]): Opt => [v, t]),
@@ -620,10 +627,9 @@ export function renderPlantsPanel() {
           { group: 'Season', options: SEASONS.map((x): Opt => [x, cap(x)]) },
           { group: 'Month', options: MONTHS.slice(1).map((m, i): Opt => [String(i + 1), m]) },
         ], { name: 'Blooming in', selected: (v, t) => `Blooming in ${/^\d+$/.test(v) ? t : v}` })),
-    colorChips('flowerColors', FLOWER_CHOICES, 'Flower color', 'flower-colors'),
-    hardy);
+    colorChips('flowerColors', FLOWER_CHOICES, 'Flower color', 'flower-colors'));
 
-  // ---- POISON & PETS (folds; one compact button, beside More filters: its count says what's on) ----
+  // ---- POISON & PETS ----
   const poison = (() => {
     const DOGS: [DogFilter, string][] = [
       ['', 'Any'],
@@ -648,7 +654,7 @@ export function renderPlantsPanel() {
       r.addEventListener('change', () => { if (!r.checked) return; plantFilter.dogs = value; sayNote(); rebuildList(); });
       group.appendChild(el('label', { className: 'check-row' }, r, el('span', {}, text)));
     }
-    return el('div', { className: 'filter-box', id: 'poison-filters', hidden: !plantFilter.animals, 'data-testid': 'animal-toxicity' },
+    return el('div', { id: 'poison-filters', 'data-testid': 'animal-toxicity' }, groupHead('Poison & pets'),
       // (Only plants whose NC State page was read and lists no poison: one it doesn't rate isn't called safe.)
       mkCheck('Not listed as poisonous to people', 'noPoison'),
       el('div', { className: 'hint' }, "By NC State: a plant it doesn't rate is left out too."),
@@ -659,11 +665,11 @@ export function renderPlantsPanel() {
       el('div', { className: 'hint' }, "NC State's warnings. A plant it doesn't list stays, which isn't the same as safe."));
   })();
 
-  // ---- MORE FILTERS (folds) ----
+  // ---- THE REST ----
   // (Mature height: the readout follows a handle as it moves; the list changes when it's let go.)
   const heightReadout = el('span', { 'data-testid': 'height-readout' }, heightLabel(plantFilter.height));
   const here = gardenStateName();
-  const adv = el('div', { className: 'filter-box', id: 'more-filters', hidden: !plantFilter.advanced },
+  const adv = el('div', { id: 'more-filters' },
     groupHead('Wildlife'),
     // (A set of ticks where any one will do sits in its own box, so it doesn't read as more ticks that each narrow the list.)
     anyOf('Attracts any of these', 'attracts-set', ATTRACT_CHOICES.map(([v, t]) => listToggle('attracts', v, t, 'filter-check'))),
@@ -690,15 +696,13 @@ export function renderPlantsPanel() {
     mkCheck('Where sources disagree, count both values', 'withReported'),
     el('div', { className: 'hint' }, 'A plant shows the value more sources give (on a tie, the cautious one), with the other beside it. One shown only because of the other is marked !.'));
 
-  // ---- The two folds' buttons, side by side (each says how many of its filters are on) ----
-  const poisonLabel = el('span', {}), moreLabel = el('span', {});
-  const foldButton = (label: HTMLElement, box: HTMLElement, testid: string, flag: 'animals' | 'advanced') => {
-    const b = el('button', { className: 'btn ghost fold-btn', 'aria-expanded': String(plantFilter[flag]), 'aria-controls': box.id, 'data-testid': testid },
-      label, el('span', { className: 'fold-chev', html: I.chevronDown }));
-    b.addEventListener('click', () => { plantFilter[flag] = !plantFilter[flag]; b.setAttribute('aria-expanded', String(plantFilter[flag])); box.hidden = !plantFilter[flag]; });
-    return b;
-  };
-  const foldRow = el('div', { className: 'fold-row' }, foldButton(poisonLabel, poison, 'animal-fold', 'animals'), foldButton(moreLabel, adv, 'more-filters', 'advanced'));
+  // ---- One fold for them all, its button saying how many are on; "Hardy in zone 8a" beside it ----
+  const all = el('div', { className: 'filter-box', id: 'all-filters', hidden: !filtersOpen, 'data-testid': 'all-filters' }, primary, poison, adv);
+  const filtersLabel = el('span', {});
+  const filtersBtn = el('button', { className: 'btn ghost fold-btn', 'aria-expanded': String(filtersOpen), 'aria-controls': 'all-filters', 'data-testid': 'filters' },
+    el('span', { className: 'fold-icon', html: I.filter }), filtersLabel, el('span', { className: 'fold-chev', html: I.chevronDown }));
+  filtersBtn.addEventListener('click', () => { setFiltersOpen(!filtersOpen); filtersBtn.setAttribute('aria-expanded', String(filtersOpen)); all.hidden = !filtersOpen; });
+  const foldRow = el('div', { className: 'fold-row' }, filtersBtn, hardy.box);
 
   // ---- What's on, above the list: a chip each, tap to take it off ----
   const activeRow = el('div', { className: 'active-filters', 'data-testid': 'active-filters' });
@@ -716,9 +720,9 @@ export function renderPlantsPanel() {
       activeRow.appendChild(all);
     }
     activeRow.hidden = !chips.length;
-    const on = (keys: (keyof PlantFilter)[]) => { const n = chips.filter((c) => keys.includes(c.key)).length; return n ? ` (${n} on)` : ''; };
-    poisonLabel.textContent = 'Poison & pets' + on(POISON_KEYS);
-    moreLabel.textContent = 'More filters' + on(MORE_KEYS);
+    // (Not Hardy: its own box beside the button says it's on.)
+    const n = chips.filter((c) => c.key !== 'hardyHere').length;
+    filtersLabel.textContent = 'Filters' + (n ? ` (${n} on)` : '');
   }
 
   // The search stays in view while the list scrolls (with the header, below); "In this plan" beside it.
@@ -726,8 +730,7 @@ export function renderPlantsPanel() {
   planToggle.addEventListener('click', () => { plantFilter.inPlan = !plantFilter.inPlan; planToggle.setAttribute('aria-pressed', String(plantFilter.inPlan)); rebuildList(); });
   const searchBar = el('div', { className: 'picker-search field' }, el('div', { className: 'search-row' }, el('div', { className: 'search-wrap' }, search, clearSearch), planToggle));
   // (One block, so its spacing is its own: the sheet spaces its parts widely.)
-  (primary.firstChild as HTMLElement).style.marginTop = '0';
-  body.appendChild(el('div', { className: 'picker-filters' }, primary, foldRow, poison, adv, activeRow));
+  body.appendChild(el('div', { className: 'picker-filters' }, foldRow, hardy.source, all, activeRow));
   body.appendChild(countLine);
   body.appendChild(listWrap);
   rebuildList();

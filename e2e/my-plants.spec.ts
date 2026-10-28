@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { autoDialogs, closeSheet, field, openFresh, addPlainShape, placeOnceAtCenter } from './helpers';
+import { addPlainShape, autoDialogs, closeSheet, field, openFilters, openFresh, placeOnceAtCenter } from './helpers';
 
 const circleR = async (page: Page, label: string) =>
   Number(await page.locator('[data-shape-group]', { has: page.locator('text', { hasText: label }) }).locator('circle[data-shape-id]').getAttribute('r'));
@@ -80,6 +80,7 @@ test('add a plant from its tag, place it, and switch to full size', async ({ pag
   await page.getByTestId('plant-search').fill('lime');
   await expect(page.locator('.proj-row', { hasText: 'Limelight' }).filter({ has: page.locator('.mine-badge') })).toBeVisible();
   // Filters apply to it too: it takes full sun and part shade, so asked for shade, it's left out.
+  await openFilters(page);
   const sun = page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any sun' }) });
   await sun.selectOption('Shade');
   await expect(page.locator('.proj-row', { hasText: 'Limelight' }).filter({ has: page.locator('.mine-badge') })).toHaveCount(0);

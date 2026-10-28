@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openFresh } from './helpers';
+import { openFilters, openFresh } from './helpers';
 
 // Cultivars fold under their species in the picker (decided with Jason, 2026-10-26).
 const f = (v: unknown) => ({ v, src: ['ncsu'], check: 'single' });
@@ -90,6 +90,7 @@ test('a species\' cultivars fold under it, a tap to open; a search naming one sh
 
 test('filters look inside a fold, and open it to the cultivars that match; a species that doesn\'t match itself still heads them', async ({ page }) => {
   await openPicker(page);
+  await openFilters(page);
   await page.locator('[data-testid=flower-colors] label', { hasText: 'Pink' }).click();
   // Rose of Sharon comes in pink among others: above the divider now, for its pink cultivars, and says so.
   const ros = page.locator('.plant-item', { has: page.locator('.pname', { hasText: /^Rose of Sharon$/ }) });

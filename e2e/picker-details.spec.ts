@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { addPlainShape, field, openFresh } from './helpers';
+import { addPlainShape, field, openFilters, openFresh } from './helpers';
 
 // Plant picker rows open to show a plant's details; Place uses it.
 
@@ -60,6 +60,7 @@ test('a plant shown only because of what other sources say is marked, and says s
   await page.route('**/plants.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(catalog) }));
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
+  await openFilters(page);
   await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any sun' }) }).selectOption('Full');
   const alumroot = page.locator('.plant-item', { hasText: 'Hairy alumroot' });
   await expect(alumroot.getByTestId('row-flag')).toBeVisible();
@@ -104,7 +105,7 @@ test('a plant shown only because of what other sources say is marked, and says s
   await expect(itea.getByTestId('plant-details')).toContainText('A grower for the cold limit (one nursery); NC State Extension for the warm limit (one source)');
   await expect(itea.getByTestId('nursery-only')).toHaveText('Its cold limit is from nurseries only.');
   // Only the references: it's gone.
-  await page.getByTestId('more-filters').click();
+  await openFilters(page);
   await page.locator('label', { hasText: 'Where sources disagree, count both values' }).locator('input').uncheck();
   await expect(page.locator('.plant-item', { hasText: 'Hairy alumroot' })).toHaveCount(0);
   // Placing works from the row's button.
@@ -191,7 +192,7 @@ test('how a plant spreads, by seed and underground, in one row with a source eac
   await expect(spreads.locator('.details-src')).toHaveText(['Prose description, NC State Extension Gardener Plant Toolbox · one source']); // (each part its own source; one line where they share it)
   await expect(details.locator('dt', { hasText: /^Habit$/ })).toHaveCount(0); // (said under "How it spreads")
   // The picker: the ways of spreading you're OK with; a plant shows only if every way it spreads is ticked.
-  await page.getByTestId('more-filters').click();
+  await openFilters(page);
   const spreading = page.getByTestId('spread-filter');
   await expect(spreading.locator('legend')).toHaveText('Spreading you\u2019re OK with (unverified)');
   const tick = (name: string) => spreading.locator('label', { hasText: name }).locator('input');
@@ -208,7 +209,7 @@ test('how a plant spreads, by seed and underground, in one row with a source eac
 test('the mature-height slider narrows the list to a range, either end open', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
-  await page.getByTestId('more-filters').click();
+  await openFilters(page);
   // (Set a handle as a drag would: its value, then input and change.)
   const set = async (id: string, stop: number) => page.getByTestId(id).evaluate((el, v) => {
     const input = el as HTMLInputElement;
@@ -237,7 +238,7 @@ test('the mature-height slider narrows the list to a range, either end open', as
 test('the height slider\'s handles can be dragged, and settle in order a step apart', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
-  await page.getByTestId('more-filters').click();
+  await openFilters(page);
   const max = page.getByTestId('height-max'), min = page.getByTestId('height-min');
   await max.scrollIntoViewIfNeeded();
   // (A real drag: from the tallest handle's spot at the right end to the middle stop, 10 ft.)
@@ -301,7 +302,7 @@ test('a plant poisonous to people says so, beside Edible, and the picker can kee
   const heuchera = page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" });
   await heuchera.getByTestId('plant-row').click();
   await expect(heuchera.getByTestId('plant-details').locator('dt', { hasText: /^Poisonous to people$/ }).locator('xpath=following-sibling::dd[1]')).toContainText('None listed');
-  await page.getByTestId('animal-fold').click(); // (Poison & pets)
+  await openFilters(page); // (Poison & pets, among them)
   await page.locator('label', { hasText: 'Not listed as poisonous to people' }).locator('input').check();
   await expect(page.getByTestId('active-chip')).toHaveText(['Not listed as poisonous to people']);
   await expect(heuchera).toHaveCount(1);
@@ -328,7 +329,7 @@ test('a plant\'s leaves: their colors, what they do in winter, fall color and gr
   await heuchera.getByTestId('plant-row').click();
   await expect(heuchera.getByTestId('plant-details').locator('dt', { hasText: /^In winter$/ }).locator('xpath=following-sibling::dd[1]')).toContainText('Evergreen: keeps its leaves');
   // Evergreens only: the heuchera stays, the maple goes.
-  await page.getByTestId('more-filters').click();
+  await openFilters(page);
   await page.locator('label', { hasText: /^Evergreen$/ }).locator('input').check();
   await expect(heuchera).toHaveCount(1);
   await page.getByTestId('plant-search').fill('Red maple');
@@ -340,12 +341,12 @@ test('animal toxicity: dogs three ways, and a warning given for one record of a 
   await page.locator('.tool-btn.plants').click();
   const count = page.getByTestId('picker-count');
   await expect(count).toContainText(/^All /);
-  const fold = page.getByTestId('animal-fold');
+  const fold = page.getByTestId('filters');
   await expect(fold).toHaveAttribute('aria-expanded', 'false');
   await fold.click();
   await expect(page.getByTestId('dogs-any')).toBeChecked();
   await page.getByTestId('dogs-hideToxic').check();
-  await expect(fold).toHaveText('Poison & pets (1 on)');
+  await expect(fold).toHaveText('Filters (1 on)');
   await expect(page.getByTestId('active-chip')).toHaveText(['No dog warnings']);
   await expect(page.getByTestId('dogs-note')).toContainText(/Hides the \d+ plants with a warning for dogs; keeps the [\d,]+ not yet rated/);
   await expect(count).toContainText(/^[\d,]+ of [\d,]+ plants match/);
@@ -366,7 +367,7 @@ test('animal toxicity: dogs three ways, and a warning given for one record of a 
   await page.getByTestId('dogs-any').check();
   await expect(yaupon).toHaveCount(1);
   await yaupon.getByRole('button', { name: /Yaupon/ }).first().click();
-  await expect(yaupon.getByTestId('tox-row')).toContainText('given for Dwarf yaupon holly, the same species');
+  await expect(yaupon.getByTestId('tox-row')).toContainText("given for Dwarf yaupon holly 'Schillings', the same species");
   // A plant no source rates says so, rather than nothing (never "safe").
   await page.getByTestId('plant-search').fill("'Acapulco Orange'");
   const unrated = page.locator('.plant-item').first();
@@ -399,7 +400,7 @@ test('the search clears in one tap, and a search the filters empty says which fi
   await expect(search).toBeFocused(); // (the keyboard stays)
   await expect(page.getByTestId('clear-search')).toBeHidden();
   // A filter that hides everything the search finds.
-  await page.getByTestId('more-filters').click();
+  await openFilters(page);
   await page.getByText('Takes wet soil', { exact: true }).click();
   await search.fill('Autumn Bride');
   await expect(page.getByTestId('hidden-by')).toContainText(/plants? match.* “Autumn Bride”, hidden by your filters: Takes wet soil/);
@@ -415,6 +416,7 @@ test('flower color: a cultivar or one-color species first, a species that comes 
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('coneflower');
+  await openFilters(page);
   await page.locator('[data-testid=flower-colors] label', { hasText: 'Red' }).click();
   const names = page.locator('.pname, [data-testid=comes-in-divider]');
   await expect(page.getByTestId('comes-in-divider')).toHaveText('Also comes in red, depending on the plant you buy');
@@ -438,6 +440,7 @@ test('the filters say what they\'re set to: a dropdown names itself, a month met
   await expect(page.getByTestId('unverified-note')).toContainText('Not every detail is checked yet.');
   await page.getByTestId('unverified-more').click();
   await expect(page.getByTestId('unverified-note')).toContainText('Unverified: all its details are from an earlier list');
+  await openFilters(page);
   const water = page.locator('.sheet select[aria-label="Water needs"]');
   await water.selectOption('Low');
   await expect(water.locator('option:checked')).toHaveText('Water needs: low');
@@ -454,12 +457,13 @@ test('the filters say what they\'re set to: a dropdown names itself, a month met
   await bloom.selectOption('summer');
   await expect(weigela).toHaveCount(1);
   await expect(weigela.getByTestId('by-season')).toHaveCount(0); // (a season asked for: no reading of ours)
-  // More filters says how many of its filters are on, folded.
-  await page.getByTestId('more-filters').click();
+  // The Filters button says how many are on, folded.
+  await openFilters(page);
   await page.locator('.sheet label', { hasText: /^Bees$/ }).click();
   await page.locator('.sheet label', { hasText: 'Deer resistant' }).locator('input').check();
-  await page.getByTestId('more-filters').click();
-  await expect(page.getByTestId('more-filters')).toHaveText('More filters (2 on)');
+  await page.getByTestId('filters').click();
+  await expect(page.getByTestId('all-filters')).toBeHidden();
+  await expect(page.getByTestId('filters')).toHaveText('Filters (3 on)');
   await expect(page.getByTestId('active-chip')).toHaveText(['Blooming in summer', 'Attracts bees', 'Deer resistant']);
   // In this plan, beside the search: nothing placed yet, nothing shown.
   await page.getByTestId('plant-search').fill('');

@@ -247,8 +247,10 @@ then drops the item:
 - a law list's name: its `accepted` in `regulated-plants.json`;
 - bloom months to trust: `RECORDS_TRUSTED` in bloom.mjs;
 - a cultivar's form, a plant both edible and toxic, native status held back, Kew's homonyms, a genus page, a
-  record of several cultivars to split: `decisions.json` ([catalog-sources.md](catalog-sources.md), "Decisions").
-  A split is applied first, before new plants are found: a cultivar with a page of its own is then added from it.
+  record of several cultivars to split, rename for its one cultivar, keep for a group, or fold into another, a
+  cultivar under a species Kew keeps apart from its own, a hybrid's species: `decisions.json`
+  ([catalog-sources.md](catalog-sources.md), "Decisions"). These are applied first, before new plants are found: a
+  cultivar with a page of its own is then added from it.
 
 **The rest don't have a place yet**, and the report says so for each: sources that disagree, a value held back as
 implausible, a value its source no longer gives, and the atlas's double maps. They stay listed until there is one.
