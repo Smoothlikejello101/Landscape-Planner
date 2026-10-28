@@ -103,6 +103,10 @@ export const SKIP_SITES = new Set([
   'ngb.org', // (a trade association's pages of its member breeders' own copy: second-hand)
   'seedsplantworld.com', // (a dropship-style shop: unfilled template terms, marketplace reviews)
   'themeaningofwater.com', // (not a plant reference)
+  // Found by the terms reviews of batch 8, first quarter (2026-10-28)
+  'fann.org', 'teratrees.com', // (a directory of member nurseries' stock; a crowdfunding marketplace)
+  'gardentaining.com', 'theglorifiedtomato.com', 'indohobby.com', // (an empty WordPress shell; a revived blog with spun posts; a spam-abused pet shop)
+  'juniperpublishers.com', // (a publisher on predatory-journal lists: not a reliable source)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
