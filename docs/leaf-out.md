@@ -31,6 +31,37 @@ with "233 plant-years in Arkansas and neighboring states · USA National Phenolo
 - **Not yet used** by the bulb rule (which still counts any deciduous plant 3 ft or taller) or for hidden plants.
   Both could use it: a bulb that flowers before its partner leafs out here.
 
+## When leaves turn and fall
+
+**Built (2026-10-27), from the same download**, for showing the garden through the year (docs/seasons.md). Not shown
+in a plant's details yet.
+
+- **Which phenophases.** The download has two protocols for fall. Nature's Notebook's current one asks, on each
+  visit, whether a plant has "Colored leaves" (one or more leaves showing their fall color; for a deciduous conifer
+  such as bald cypress, "Colored needles") and "Falling leaves" ("Falling needles"): about 120,000 rows each. The
+  older one asks whether at least half the leaves are colored or fallen: about 1,500 rows each, too few to place a
+  plant in a state. So the current ones are used. They mark when fall starts on a plant (its first colored leaves,
+  its first falling ones), not its peak. When the plant stands bare comes from the last day it has live leaves at all
+  ("Leaves"; a deciduous conifer's "Needles (deciduous)"; an herb's, grass's or sedge's "Leaves (forbs)",
+  "(grasses)", "(sedges)").
+- **What counts** (scripts/catalog/npn.mjs, `fallDays`, `bareDays`):
+  - Coloring and falling: the first day of the plant-year's first "yes" series that starts on or after July 1. A
+    "yes" before July is last fall's leaves still hanging, or a leaf colored or shed in spring or by drought.
+  - Bare: the last day of the plant-year's last "Leaves" series, on or after July 1. An evergreen's leaves run to the
+    year's end, so it has none.
+  - The same checks as leaf-out: a "no" 1 to 14 days before the first "yes" (for bare, after the last one), no
+    observer recording both that day, and a series that doesn't qualify isn't stood in for by another.
+  - 36,849 plant-years coloring (380 species), 37,708 falling (373), 36,641 bare (803, herbs included).
+- **Where:** as for leaf-out (`stateLeafOut`): the state with 10 plant-years or more, else the state and its
+  neighbors. Arkansas has almost none of its own (3 plant-years coloring), so all its plants come from its region
+  (4,606 coloring plant-years in Arkansas and its neighbors): 65 plants coloring, 61 falling, 69 bare. Eastern redbud
+  there: first leaves coloring around Sep 14, falling around Sep 30, bare around Nov 10 (89 to 100 plant-years each).
+- **In the wild files:** `leafTurn`, `leafDrop` and `leafBare` beside `leafOut` (the same shape: middle day, quartiles,
+  count, area) and `leafFallSpecies` (ids whose fall days are their species' records); src/wild.ts `localLeafFall`.
+- **The build** sums the download up again when its summary (`catalog-src/usanpn/leafout.json`) is in an older format
+  than npn.mjs writes (`NPN_SUMMARY_V`).
+- **Credit:** the same source line as leaf-out.
+
 The sources considered on 2026-10-26 follow, as written then.
 
 Why: the bulb rule (decided with Jason, 2026-10-26). A spring bulb planted under a deciduous plant at least 3 ft tall

@@ -35,6 +35,16 @@ export interface WildFile {
   leafOut?: Record<string, { med: number; q1: number; q3: number; n: number; area: 'state' | 'region' }>;
   /** Ids whose leaf-out days are their species' records. */
   leafOutSpecies?: string[];
+  /**
+   * Fall in the state, from the same records (scripts/catalog/npn.mjs, docs/leaf-out.md): the day a plant's first
+   * leaves show their fall color (`leafTurn`), the day its leaves start to fall (`leafDrop`) and the day it has none
+   * left (`leafBare`: the year's last live leaves), as days of the year like `leafOut`.
+   */
+  leafTurn?: Record<string, { med: number; q1: number; q3: number; n: number; area: 'state' | 'region' }>;
+  leafDrop?: Record<string, { med: number; q1: number; q3: number; n: number; area: 'state' | 'region' }>;
+  leafBare?: Record<string, { med: number; q1: number; q3: number; n: number; area: 'state' | 'region' }>;
+  /** Ids whose fall days are their species' records. */
+  leafFallSpecies?: string[];
   /** Native status in the state, from Kew's World Checklist (scripts/catalog/wcvp.mjs): N native, I introduced. */
   native?: Record<string, 'N' | 'I'>;
   /** Ids whose native status is their species' (a cultivar, mix, or variety). */
@@ -75,6 +85,10 @@ export interface RuleHere extends RuleLine {
 export interface NativeHere { status: 'N' | 'I'; stateName: string; /** Its postal code ("AR"). */ state: string; species: boolean; source: string }
 /** When a plant leafs out where the garden is (days of the year): its state's records, or its region's. */
 export interface LocalLeafOut { med: number; q1: number; q3: number; n: number; area: 'state' | 'region'; stateName: string; species: boolean; source: string }
+/** Days of the year (the middle one, the quartiles) over `n` plant-years, in the state or its region. */
+export interface PlantYearDays { med: number; q1: number; q3: number; n: number; area: 'state' | 'region' }
+/** A plant's fall where the garden is: leaves start to color (`turn`), start to fall (`drop`), all gone (`bare`). */
+export interface LocalLeafFall { turn?: PlantYearDays; drop?: PlantYearDays; bare?: PlantYearDays; stateName: string; species: boolean; source: string }
 /** A plant's bloom months where the garden is: its state's (or, with too few records there, its region's). */
 export interface LocalBloom { start: number; end: number; peak: number; n: number; area: 'state' | 'region'; stateName: string; species: boolean; source: string }
 export interface WildIndex { v: 1; states: Record<string, string>; border: Record<string, number[]> }
@@ -267,6 +281,24 @@ export function localLeafOut(p: { id: string; parent?: string }): LocalLeafOut |
   if (!b && p.parent) { id = p.parent; b = own.leafOut[id]; species = !!b; }
   if (!b) return null;
   return { ...b, stateName: STATE_NAMES[own.state] ?? own.state, species, source: own.sources.usanpn?.title ?? 'USA National Phenology Network' };
+}
+/**
+ * When a plant's (a cultivar: its species') leaves color, fall and are gone where the garden is, from USA-NPN's
+ * records; null where none of the three has enough. Each part is there only where its own records are enough.
+ */
+export function localLeafFall(p: { id: string; parent?: string }): LocalLeafFall | null {
+  if (!loaded || loaded.zip !== state.location?.zip || !loaded.county) return null;
+  const own = loaded.files.find((f) => f.fips === Math.floor(loaded!.county / 1000));
+  if (!own || !(own.leafTurn || own.leafDrop || own.leafBare)) return null;
+  const parts = (id: string) => ({ turn: own.leafTurn?.[id], drop: own.leafDrop?.[id], bare: own.leafBare?.[id] });
+  let id = p.id, got = parts(id), species = !!own.leafFallSpecies?.includes(id);
+  if (!got.turn && !got.drop && !got.bare && p.parent) { id = p.parent; got = parts(id); species = true; }
+  if (!got.turn && !got.drop && !got.bare) return null;
+  const out: LocalLeafFall = { stateName: STATE_NAMES[own.state] ?? own.state, species, source: own.sources.usanpn?.title ?? 'USA National Phenology Network' };
+  if (got.turn) out.turn = got.turn;
+  if (got.drop) out.drop = got.drop;
+  if (got.bare) out.bare = got.bare;
+  return out;
 }
 /** A day of the year as a date ("Mar 28"), in a year that isn't a leap year. */
 export function dayOfYear(doy: number): string {

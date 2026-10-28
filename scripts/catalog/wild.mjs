@@ -318,7 +318,19 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
       if (sp.length) f.leafOutSpecies = sp;
       f.sources.usanpn = npnSource(npn.meta);
     }
-    if (!Object.keys(f.plants).length && !f.bloom && !f.leafOut) continue;
+    // When leaves start to color, start to fall, and are gone (the same records; a summary in the older format has none).
+    const fall = Object.fromEntries(['turn', 'drop', 'bare'].map((k) => [k, npn?.[k] ? stateLeafOut(fips, npn[k], looked, near, (x) => STATES[x]) : {}]));
+    const fallIds = new Set(Object.values(fall).flatMap((m) => Object.keys(m)));
+    if (fallIds.size) {
+      if (Object.keys(fall.turn).length) f.leafTurn = fall.turn;
+      if (Object.keys(fall.drop).length) f.leafDrop = fall.drop;
+      if (Object.keys(fall.bare).length) f.leafBare = fall.bare;
+      const bySpecies = new Set(looked.filter((p) => p.species).map((p) => p.id));
+      const sp = [...fallIds].filter((id) => bySpecies.has(id)).sort();
+      if (sp.length) f.leafFallSpecies = sp;
+      f.sources.usanpn = npnSource(npn.meta);
+    }
+    if (!Object.keys(f.plants).length && !f.bloom && !f.leafOut && !fallIds.size) continue;
     write(`${dir}/${String(fips).padStart(2, '0')}.json`, f);
     files.push(f);
   }
@@ -326,5 +338,5 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   const size = readdirSync(dir).reduce((n, f) => n + readFileSync(`${dir}/${f}`).length, 0);
   const ar = files.find((f) => f.fips === 5);
   for (const [c, m] of Object.entries(regulated)) console.log(`regulated, ${c}: ${Object.entries(m).map(([id, k]) => `${id} (${k})`).join(', ')}`);
-  console.log(`${files.length} state files (${Math.round(size / 1024)} KB); Arkansas: ${Object.keys(ar?.plants ?? {}).length} plants with wild records, ${Object.keys(ar?.bloom ?? {}).length} with bloom months, ${Object.keys(ar?.leafOut ?? {}).length} with leaf-out days; ${Object.keys(counts).length} plants with flowering records; ${bloomDisagreements(counts, ncsuSeasons).length} left out for disagreeing with NC State (catalog-src/bloom-review.json)`);
+  console.log(`${files.length} state files (${Math.round(size / 1024)} KB); Arkansas: ${Object.keys(ar?.plants ?? {}).length} plants with wild records, ${Object.keys(ar?.bloom ?? {}).length} with bloom months, ${Object.keys(ar?.leafOut ?? {}).length} with leaf-out days, ${Object.keys(ar?.leafTurn ?? {}).length} coloring, ${Object.keys(ar?.leafDrop ?? {}).length} falling, ${Object.keys(ar?.leafBare ?? {}).length} bare; ${Object.keys(counts).length} plants with flowering records; ${bloomDisagreements(counts, ncsuSeasons).length} left out for disagreeing with NC State (catalog-src/bloom-review.json)`);
 }

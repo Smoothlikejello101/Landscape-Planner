@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
-import { csvFields, daySpread, leafOutDays, MIN_PLANT_YEARS, npnSource, stateLeafOut } from '../scripts/catalog/npn.mjs';
-import { dayOfYear, loadWild, localLeafOut, resetWild, type WildFile } from '../src/wild';
+import { bareDays, csvFields, daySpread, DROP_PHASES, fallDays, FALL_FROM, leafOutDays, MIN_PLANT_YEARS, npnSource, stateLeafOut, TURN_PHASES } from '../scripts/catalog/npn.mjs';
+import { dayOfYear, loadWild, localLeafFall, localLeafOut, resetWild, type WildFile } from '../src/wild';
 import type { Plant } from '../src/plants';
 import { plantDetails } from '../src/ui/plant-details';
 import { state } from '../src/state';
@@ -50,9 +50,42 @@ describe("USA-NPN's records, summed up", () => {
   });
 });
 
+describe("fall in USA-NPN's records", () => {
+  const fall = (o: Record<string, string | number>) => row({ Phenophase_Description: 'Colored leaves', First_Yes_DOY: 260, NumDays_Since_Prior_No: 7, ...o });
+  it("takes each plant-year's first coloring (or falling) series from July on, only where a no came at most two weeks before it", () => {
+    expect(FALL_FROM).toBe(182);
+    const rows = [
+      fall({ First_Yes_DOY: 40, NumDays_Since_Prior_No: -9999 }), // (last fall's leaves still hanging in February: not this fall)
+      fall({}), // 260
+      fall({ First_Yes_DOY: 300 }), // (a later series that fall)
+      fall({ First_Yes_Year: 2021, First_Yes_DOY: 250, NumDays_Since_Prior_No: 40 }), // (a month and more since the last no: unknown, not stood in for)
+      fall({ First_Yes_Year: 2021, First_Yes_DOY: 280 }),
+      fall({ First_Yes_Year: 2022, First_Yes_DOY: 262, Observed_Status_Conflict_Flag: 'MultiObserver-StatusConflict' }),
+      fall({ Individual_ID: 2, State: 'TX', First_Yes_DOY: 270 }),
+      fall({ Individual_ID: 3, Phenophase_Description: 'Falling leaves', First_Yes_DOY: 275 }),
+      fall({ Individual_ID: 4, genus: 'Taxodium', Species: 'distichum', Phenophase_Description: 'Colored needles', First_Yes_DOY: 300 }),
+    ];
+    expect(fallDays(rows, TURN_PHASES)).toEqual({ 'cercis canadensis': { AR: [260], TX: [270] }, 'taxodium distichum': { AR: [300] } });
+    expect(fallDays(rows, DROP_PHASES)).toEqual({ 'cercis canadensis': { AR: [275] } });
+  });
+  it("takes each plant-year's last day with leaves, only where a no came at most two weeks after it; an evergreen has none", () => {
+    const leaves = (o: Record<string, string | number>) => row({ Phenophase_Description: 'Leaves', First_Yes_DOY: 90, Last_Yes_Year: 2020, Last_Yes_DOY: 310, NumDays_Until_Next_No: 6, ...o });
+    expect(bareDays([
+      leaves({ Last_Yes_DOY: 200 }), // (an earlier series that year)
+      leaves({}), // 310
+      leaves({ Last_Yes_Year: 2021, First_Yes_Year: 2021, Last_Yes_DOY: 305, NumDays_Until_Next_No: 30 }), // (a month to the next no: unknown)
+      leaves({ Individual_ID: 2, genus: 'Magnolia', Species: 'grandiflora', Last_Yes_DOY: 365, NumDays_Until_Next_No: -9999 }), // (evergreen: leaves to the year's end)
+      leaves({ Individual_ID: 3, genus: 'Asclepias', Species: 'tuberosa', Phenophase_Description: 'Leaves (forbs)', Last_Yes_DOY: 290 }),
+      leaves({ Individual_ID: 4, Last_Yes_DOY: 150 }), // (gone by June: not a fall)
+    ])).toEqual({ 'cercis canadensis': { AR: [310] }, 'asclepias tuberosa': { AR: [290] } });
+  });
+});
+
 describe('leaf-out in the app', () => {
   const file = { v: 1, state: 'AR', fips: 5, sources: { usanpn: { title: 'USA National Phenology Network. 2026.' } }, counties: { 5019: { name: 'Clark', near: [] } }, plants: {},
-    leafOut: { redbud: { med: 87, q1: 75, q3: 94, n: 233, area: 'region' } }, leafOutSpecies: [] } as unknown as WildFile;
+    leafOut: { redbud: { med: 87, q1: 75, q3: 94, n: 233, area: 'region' } }, leafOutSpecies: [],
+    leafTurn: { redbud: { med: 257, q1: 244, q3: 274, n: 89, area: 'region' } }, leafBare: { redbud: { med: 314, q1: 307, q3: 332, n: 98, area: 'region' }, sumac: { med: 300, q1: 290, q3: 310, n: 12, area: 'state' } },
+    leafFallSpecies: ['sumac'] } as unknown as WildFile;
   const fetcher = (async (url: string) => {
     const body = { 'climate/719.json': { v: 1, zips: { 71923: ['8a', 0, 3, 5019] }, stations: [] }, 'wild/1/index.json': { v: 1, states: { 5: 'AR' }, border: {} }, 'wild/1/05.json': file }[url];
     return body ? new Response(JSON.stringify(body)) : new Response('', { status: 404 });
@@ -63,6 +96,14 @@ describe('leaf-out in the app', () => {
     expect(localLeafOut({ id: 'forest-pansy', parent: 'redbud' })).toMatchObject({ med: 87, species: true });
     expect(localLeafOut({ id: 'other' })).toBeNull();
     expect([dayOfYear(1), dayOfYear(87), dayOfYear(365)]).toEqual(['Jan 1', 'Mar 28', 'Dec 31']);
+  });
+  it("gives when leaves color, fall and are gone where there are records enough for each; a cultivar takes its species'", () => {
+    expect(localLeafFall({ id: 'redbud' })).toEqual({ turn: { med: 257, q1: 244, q3: 274, n: 89, area: 'region' }, bare: { med: 314, q1: 307, q3: 332, n: 98, area: 'region' },
+      stateName: 'Arkansas', species: false, source: 'USA National Phenology Network. 2026.' });
+    expect(localLeafFall({ id: 'forest-pansy', parent: 'redbud' })).toMatchObject({ turn: { med: 257 }, species: true });
+    expect(localLeafFall({ id: 'sumac' })).toMatchObject({ bare: { med: 300 }, species: true });
+    expect(localLeafFall({ id: 'sumac' })?.turn).toBeUndefined();
+    expect(localLeafFall({ id: 'other' })).toBeNull();
   });
   it('shows in the details as a day and the middle half of the plant-years, with where and the source', () => {
     const box = plantDetails({ id: 'redbud', common: 'Eastern redbud' } as Plant, undefined);

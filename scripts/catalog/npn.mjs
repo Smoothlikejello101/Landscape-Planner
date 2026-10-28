@@ -1,7 +1,8 @@
-// When plants leaf out, by state, from USA-NPN's Individual Phenometrics (docs/leaf-out.md): downloaded by hand from
-// its site, as its terms ask of anything but approved automated access, and summed up here for the build.
+// When plants leaf out, and when their leaves color, fall and are gone, by state, from USA-NPN's Individual
+// Phenometrics (docs/leaf-out.md): downloaded by hand from its site, as its terms ask of anything but approved
+// automated access, and summed up here for the build.
 //   node scripts/catalog/npn.mjs <individual_phenometrics_data.csv> [catalog-src/usanpn/leafout.json]
-// wild.mjs then gives each state's file the days its plants leaf out (stateLeafOut).
+// wild.mjs then gives each state's file those days for its plants (stateLeafOut).
 import { createReadStream, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 
@@ -61,6 +62,78 @@ export function leafOutDays(rows) {
   return out;
 }
 
+/**
+ * Fall (docs/leaf-out.md, "When leaves turn and fall"): the phenophases that say a plant's leaves have started to
+ * color (one or more leaves showing their fall color: Nature's Notebook's "Colored leaves", a deciduous conifer's
+ * "Colored needles"), have started to fall ("Falling leaves", "Falling needles"), and that it has leaves at all (the
+ * last "Leaves" of the year is the day it stands bare: a tree's or shrub's, a deciduous conifer's needles, an herb's
+ * or a grass's live leaves).
+ */
+export const TURN_PHASES = new Set(['Colored leaves', 'Colored needles']);
+export const DROP_PHASES = new Set(['Falling leaves', 'Falling needles']);
+export const LEAVES_PHASES = new Set(['Leaves', 'Needles (deciduous)', 'Leaves (forbs)', 'Leaves (grasses)', 'Leaves (sedges)']);
+/**
+ * Day of the year fall is counted from (July 1): a "yes" before it is last fall's leaves still hanging, or a leaf
+ * colored or shed in spring or by drought, not this year's fall.
+ */
+export const FALL_FROM = 182;
+const binomialOf = (r) => `${r.genus} ${r.Species}`.toLowerCase().trim();
+const usable = (r, binomial) => /^[a-zë-]+ [a-zë-]+$/.test(binomial) && /^[A-Z]{2}$/.test(r.State ?? '');
+const noConflict = (r) => (r.Observed_Status_Conflict_Flag ?? '-9999') === '-9999';
+const byPlant = (kept) => {
+  const out = {};
+  for (const { doy, ok, binomial, state } of kept) {
+    if (!ok) continue;
+    ((out[binomial] ??= {})[state] ??= []).push(doy);
+  }
+  for (const s of Object.values(out)) for (const v of Object.values(s)) v.sort((a, b) => a - b);
+  return out;
+};
+/**
+ * Each plant-year's first day in fall for `phases` (TURN_PHASES: leaves start to color; DROP_PHASES: they start to
+ * fall): the year's first "yes" series starting on or after FALL_FROM, kept only where a "no" came 1 to MAX_GAP days
+ * before it and no observer recorded both that day. As for leaf-out, a later series doesn't stand in for an unknown
+ * first one. Returns { "genus species": { ST: [day of year, …] } }.
+ */
+export function fallDays(rows, phases) {
+  const first = new Map();
+  for (const r of rows) {
+    if (!phases.has(r.Phenophase_Description)) continue;
+    const doy = Number(r.First_Yes_DOY), year = Number(r.First_Yes_Year), gap = Number(r.NumDays_Since_Prior_No);
+    if (!(doy >= FALL_FROM && doy <= 366) || !(year >= 1900)) continue;
+    const binomial = binomialOf(r);
+    if (!usable(r, binomial)) continue;
+    const k = `${r.Individual_ID} ${year}`;
+    const was = first.get(k);
+    if (was && was.doy <= doy) continue;
+    first.set(k, { doy, ok: gap >= 1 && gap <= MAX_GAP && noConflict(r), binomial, state: r.State });
+  }
+  return byPlant(first.values());
+}
+/**
+ * Each plant-year's day it stands bare: the last "yes" of its last LEAVES_PHASES series that year, on or after
+ * FALL_FROM, kept only where a "no" came 1 to MAX_GAP days after it (the day known to two weeks) and no observer
+ * recorded both. An evergreen's leaves never end in the year, so it has none. An earlier series doesn't stand in for
+ * an unknown last one.
+ */
+export function bareDays(rows) {
+  const last = new Map();
+  for (const r of rows) {
+    if (!LEAVES_PHASES.has(r.Phenophase_Description)) continue;
+    const doy = Number(r.Last_Yes_DOY), year = Number(r.Last_Yes_Year), gap = Number(r.NumDays_Until_Next_No);
+    if (!(doy >= 1 && doy <= 366) || !(year >= 1900)) continue;
+    const binomial = binomialOf(r);
+    if (!usable(r, binomial)) continue;
+    const k = `${r.Individual_ID} ${year}`;
+    const was = last.get(k);
+    if (was && was.doy >= doy) continue;
+    last.set(k, { doy, ok: doy >= FALL_FROM && gap >= 1 && gap <= MAX_GAP && noConflict(r), binomial, state: r.State });
+  }
+  return byPlant(last.values());
+}
+/** The summary's format: 2 adds `turn`, `drop` and `bare` beside `days` (leaf-out). The build sums up again below it. */
+export const NPN_SUMMARY_V = 2;
+
 /** Plant-years a state needs before its own day is shown; below it, the state and its neighbors together. */
 export const MIN_PLANT_YEARS = 10;
 /** The middle day and the quartiles of sorted days (rounded to whole days). */
@@ -105,16 +178,19 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
     if (!header) { header = f; continue; }
     n++;
     const r = {};
-    for (const k of ['genus', 'Species', 'State', 'Individual_ID', 'Phenophase_Description', 'First_Yes_Year', 'First_Yes_DOY', 'NumDays_Since_Prior_No', 'Observed_Status_Conflict_Flag']) r[k] = f[header.indexOf(k)];
-    if (LEAF_PHASES.has(r.Phenophase_Description)) rows.push(r);
+    for (const k of ['genus', 'Species', 'State', 'Individual_ID', 'Phenophase_Description', 'First_Yes_Year', 'First_Yes_DOY', 'NumDays_Since_Prior_No',
+      'Last_Yes_Year', 'Last_Yes_DOY', 'NumDays_Until_Next_No', 'Observed_Status_Conflict_Flag']) r[k] = f[header.indexOf(k)];
+    const ph = r.Phenophase_Description;
+    if (LEAF_PHASES.has(ph) || TURN_PHASES.has(ph) || DROP_PHASES.has(ph) || LEAVES_PHASES.has(ph)) rows.push(r);
   }
   const days = leafOutDays(rows);
+  const turn = fallDays(rows, TURN_PHASES), drop = fallDays(rows, DROP_PHASES), bare = bareDays(rows);
   // (Downloaded on the day its folder is named for: the citation's year.)
   const accessed = /(\d{4}-\d{2}-\d{2})\/[^/]*$/.exec(csv)?.[1] ?? new Date().toISOString().slice(0, 10);
-  const meta = { file: csv.split('/').slice(-2).join('/'), rows: n, from: params['Start Date'] ?? '', to: params['End Date'] ?? '', accessed, year: accessed.slice(0, 4) };
+  const meta = { v: NPN_SUMMARY_V, file: csv.split('/').slice(-2).join('/'), rows: n, from: params['Start Date'] ?? '', to: params['End Date'] ?? '', accessed, year: accessed.slice(0, 4) };
   const tmp = `${out}.${process.pid}.tmp`;
-  writeFileSync(tmp, JSON.stringify({ meta, days }));
+  writeFileSync(tmp, JSON.stringify({ meta, days, turn, drop, bare }));
   renameSync(tmp, out);
-  const plantYears = Object.values(days).reduce((a, s) => a + Object.values(s).reduce((b, v) => b + v.length, 0), 0);
-  console.log(`${n} rows; ${plantYears} plant-years leafing out, ${Object.keys(days).length} species → ${out}`);
+  const count = (d) => `${Object.values(d).reduce((a, s) => a + Object.values(s).reduce((b, v) => b + v.length, 0), 0)} plant-years, ${Object.keys(d).length} species`;
+  console.log(`${n} rows → ${out}; leafing out: ${count(days)}; leaves coloring: ${count(turn)}; falling: ${count(drop)}; bare: ${count(bare)}`);
 }
