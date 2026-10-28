@@ -189,9 +189,14 @@ export function sanitizeSubFeatures(raw: unknown): SubFeature[] | null {
       continue;
     }
     const w = SUB_FEATURES[o.kind].width;
+    const swings = o.kind === 'door' || o.kind === 'gate';
     out.push({
       id: o.id, kind: o.kind, edge: o.edge as number, at: Math.max(0, Math.min(1, o.at)),
       ...(w ? { width: typeof o.width === 'number' && Number.isFinite(o.width) ? Math.max(w[1], Math.min(w[2], o.width)) : w[0] } : {}),
+      // (Which way a door or gate opens: its hinge, its swing. Absent, as before they could be turned: hinged where
+      // its opening starts, swinging out.)
+      ...(swings && o.hinge === 'end' ? { hinge: 'end' as const } : {}),
+      ...(swings && o.swing === 'in' ? { swing: 'in' as const } : {}),
     });
   }
   return out;
@@ -199,7 +204,18 @@ export function sanitizeSubFeatures(raw: unknown): SubFeature[] | null {
 
 // ---------- Drawing ----------
 export interface FeaturePart { tag: 'line' | 'path' | 'polygon' | 'circle'; attrs: Record<string, string | number> }
-const INK = '#334155';
+/**
+ * The colors they're drawn in: muted (Jason, 2026-10-27: they're there to say where things are, and shouldn't
+ * draw the eye from the garden). Grays with a little of each one's own color left: water bluish, a meter's tan.
+ */
+const C = {
+  ink: '#64748b', swing: '#94a3b8', opening: '#ffffff',
+  glass: '#bfdbe9', frame: '#5b7f93',
+  treads: '#eeece9', tread: '#a8a29e',
+  pipe: '#9aa5b4', water: '#8ba3bd',
+  meter: '#f3efe6', meterInk: '#a08f78',
+  unit: '#eef1f4', unitInk: '#94a3b8',
+};
 /**
  * A sub-feature drawn as plan symbols, in px (`toPx` maps feet; `ppf` px a foot; `k` scales strokes, for print).
  * Doors and gates: the wall opened, the leaf and its swing; windows: glass in the wall; garage doors: a dashed
@@ -225,32 +241,34 @@ export function featureParts(s: Shape, f: SubFeature, toPx: (p: Point) => Point,
   switch (f.kind) {
     case 'window':
       return [
-        line(from, to, { stroke: '#7dd3fc', 'stroke-width': Math.max(4 * shrink, 0.35 * ppf) * k }),
-        line(from, to, { stroke: '#0369a1', 'stroke-width': 1.2 * k }),
+        line(from, to, { stroke: C.glass, 'stroke-width': Math.max(4 * shrink, 0.35 * ppf) * k }),
+        line(from, to, { stroke: C.frame, 'stroke-width': 1.2 * k }),
       ];
     case 'door':
     case 'gate': {
-      // The opening, the leaf standing open from its hinge, and the arc it swings through.
-      const hinge = from, tip = off(from, 0, span);
-      const pa = P(tip), pb = P(to);
+      // The opening, the leaf standing open from its hinge, and the arc it swings through: hinged at either end of
+      // the opening, swinging out or in.
+      const [hinge, latch] = f.hinge === 'end' ? [to, from] : [from, to];
+      const tip = off(hinge, 0, f.swing === 'in' ? -span : span);
+      const ph = P(hinge), pa = P(tip), pb = P(latch);
       const r = span * ppf;
-      const cross = (P(to).x - P(hinge).x) * (pa.y - P(hinge).y) - (P(to).y - P(hinge).y) * (pa.x - P(hinge).x);
+      const cross = (pb.x - ph.x) * (pa.y - ph.y) - (pb.y - ph.y) * (pa.x - ph.x);
       return [
-        line(from, to, { stroke: '#ffffff', 'stroke-width': Math.max(4 * shrink, 0.3 * ppf) * k }),
-        line(hinge, tip, { stroke: INK, 'stroke-width': 1.6 * k }),
-        { tag: 'path', attrs: { d: `M${pa.x},${pa.y}A${r},${r} 0 0 ${cross > 0 ? 0 : 1} ${pb.x},${pb.y}`, fill: 'none', stroke: INK, 'stroke-width': 1 * k, 'stroke-dasharray': `${3 * k} ${2 * k}` } },
+        line(from, to, { stroke: C.opening, 'stroke-width': Math.max(4 * shrink, 0.3 * ppf) * k }),
+        line(hinge, tip, { stroke: C.ink, 'stroke-width': 1.6 * k }),
+        { tag: 'path', attrs: { d: `M${pa.x},${pa.y}A${r},${r} 0 0 ${cross > 0 ? 0 : 1} ${pb.x},${pb.y}`, fill: 'none', stroke: C.swing, 'stroke-width': 1 * k, 'stroke-dasharray': `${3 * k} ${2 * k}` } },
       ];
     }
     case 'garage':
       return [
-        line(from, to, { stroke: '#ffffff', 'stroke-width': Math.max(4 * shrink, 0.3 * ppf) * k }),
-        line(off(from, 0, 0.4), off(to, 0, 0.4), { stroke: INK, 'stroke-width': 2 * k, 'stroke-dasharray': `${6 * k} ${3 * k}` }),
+        line(from, to, { stroke: C.opening, 'stroke-width': Math.max(4 * shrink, 0.3 * ppf) * k }),
+        line(off(from, 0, 0.4), off(to, 0, 0.4), { stroke: C.ink, 'stroke-width': 2 * k, 'stroke-dasharray': `${6 * k} ${3 * k}` }),
       ];
     case 'steps': {
       // Three treads, a foot each, out from the edge.
       const depth = 3;
-      const parts: FeaturePart[] = [{ tag: 'polygon', attrs: { points: [from, to, off(to, 0, depth), off(from, 0, depth)].map(xy).join(' '), fill: '#e7e5e4', stroke: '#78716c', 'stroke-width': 1 * k } }];
-      for (let t = 1; t < depth; t++) parts.push(line(off(from, 0, t), off(to, 0, t), { stroke: '#78716c', 'stroke-width': 1 * k }));
+      const parts: FeaturePart[] = [{ tag: 'polygon', attrs: { points: [from, to, off(to, 0, depth), off(from, 0, depth)].map(xy).join(' '), fill: C.treads, stroke: C.tread, 'stroke-width': 1 * k } }];
+      for (let t = 1; t < depth; t++) parts.push(line(off(from, 0, t), off(to, 0, t), { stroke: C.tread, 'stroke-width': 1 * k }));
       return parts;
     }
     case 'downspout': {
@@ -258,20 +276,20 @@ export function featureParts(s: Shape, f: SubFeature, toPx: (p: Point) => Point,
       const d = atLeast(0.5, 7), c = off(mid, 0, d / 2);
       const end = off(mid, 0, d + atLeast(2.5, 18)), pe = P(end), w = atLeast(0.6, 5) * ppf;
       return [
-        { tag: 'polygon', attrs: { points: [off(c, -d / 2, -d / 2), off(c, d / 2, -d / 2), off(c, d / 2, d / 2), off(c, -d / 2, d / 2)].map(xy).join(' '), fill: '#64748b', stroke: '#fff', 'stroke-width': 1 * k } },
-        line(off(mid, 0, d), end, { stroke: '#2563eb', 'stroke-width': 1.5 * k, 'stroke-dasharray': `${3 * k} ${2 * k}` }),
-        { tag: 'path', attrs: { d: `M${pe.x - (n.x * w - u.x * w) / 2},${pe.y - (n.y * w - u.y * w) / 2}L${pe.x},${pe.y}L${pe.x - (n.x * w + u.x * w) / 2},${pe.y - (n.y * w + u.y * w) / 2}`, fill: 'none', stroke: '#2563eb', 'stroke-width': 1.5 * k } },
+        { tag: 'polygon', attrs: { points: [off(c, -d / 2, -d / 2), off(c, d / 2, -d / 2), off(c, d / 2, d / 2), off(c, -d / 2, d / 2)].map(xy).join(' '), fill: C.pipe, stroke: '#fff', 'stroke-width': 1 * k } },
+        line(off(mid, 0, d), end, { stroke: C.water, 'stroke-width': 1.5 * k, 'stroke-dasharray': `${3 * k} ${2 * k}` }),
+        { tag: 'path', attrs: { d: `M${pe.x - (n.x * w - u.x * w) / 2},${pe.y - (n.y * w - u.y * w) / 2}L${pe.x},${pe.y}L${pe.x - (n.x * w + u.x * w) / 2},${pe.y - (n.y * w + u.y * w) / 2}`, fill: 'none', stroke: C.water, 'stroke-width': 1.5 * k } },
       ];
     }
     case 'spigot': {
       const r = atLeast(0.35, 5), c = P(off(mid, 0, r));
-      return [{ tag: 'circle', attrs: { cx: c.x, cy: c.y, r: r * ppf, fill: '#2563eb', stroke: '#fff', 'stroke-width': 1.5 * k } }];
+      return [{ tag: 'circle', attrs: { cx: c.x, cy: c.y, r: r * ppf, fill: C.water, stroke: '#fff', 'stroke-width': 1.5 * k } }];
     }
     case 'meter': {
       const r = atLeast(0.45, 5), c = P(off(mid, 0, r));
       return [
-        { tag: 'circle', attrs: { cx: c.x, cy: c.y, r: r * ppf, fill: '#fef3c7', stroke: '#92400e', 'stroke-width': 1.5 * k } },
-        line(off(mid, -r * 0.5, r), off(mid, r * 0.5, r), { stroke: '#92400e', 'stroke-width': 1.2 * k }),
+        { tag: 'circle', attrs: { cx: c.x, cy: c.y, r: r * ppf, fill: C.meter, stroke: C.meterInk, 'stroke-width': 1.5 * k } },
+        line(off(mid, -r * 0.5, r), off(mid, r * 0.5, r), { stroke: C.meterInk, 'stroke-width': 1.2 * k }),
       ];
     }
     case 'ac': {
@@ -280,8 +298,8 @@ export function featureParts(s: Shape, f: SubFeature, toPx: (p: Point) => Point,
       const box = [off(mid, -side / 2, gap), off(mid, side / 2, gap), off(mid, side / 2, gap + side), off(mid, -side / 2, gap + side)];
       const c = P(off(mid, 0, gap + side / 2));
       return [
-        { tag: 'polygon', attrs: { points: box.map(xy).join(' '), fill: '#e2e8f0', stroke: '#475569', 'stroke-width': 1.2 * k } },
-        { tag: 'circle', attrs: { cx: c.x, cy: c.y, r: side * 0.35 * ppf, fill: 'none', stroke: '#475569', 'stroke-width': 1 * k } },
+        { tag: 'polygon', attrs: { points: box.map(xy).join(' '), fill: C.unit, stroke: C.unitInk, 'stroke-width': 1.2 * k } },
+        { tag: 'circle', attrs: { cx: c.x, cy: c.y, r: side * 0.35 * ppf, fill: 'none', stroke: C.unitInk, 'stroke-width': 1 * k } },
       ];
     }
     default:

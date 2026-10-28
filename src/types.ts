@@ -109,7 +109,13 @@ export type SubFeatureKind = 'door' | 'window' | 'garage' | 'steps' | 'gate' | '
  * A sub-feature: on edge `edge` of its shape's outline (from point `edge` to the next), `at` the share of the way
  * along it (its middle); `width` in feet along the edge, for those that take a stretch of it (a door, not a hose bib).
  */
-export interface SubFeature { id: string; kind: SubFeatureKind; edge: number; at: number; width?: number }
+export interface SubFeature {
+  id: string; kind: SubFeatureKind; edge: number; at: number; width?: number;
+  /** A door's or gate's hinge: at the other end of its opening from where it starts ('end'), or where it starts (absent). */
+  hinge?: 'end';
+  /** A door or gate that swings in, into the building or across the line the other way ('in'), or out (absent). */
+  swing?: 'in';
+}
 // (One of a kind this version doesn't know, from a later one, is kept as it came: not drawn, listed or changed, so
 // it's still there when the plan is opened on that version again.)
 /**

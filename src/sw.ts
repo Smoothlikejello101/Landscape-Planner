@@ -13,20 +13,40 @@ cleanupOutdatedCaches();
 registerRoute(new NavigationRoute(createHandlerBoundToURL('index.html')));
 // Wild plant records by state (public/wild/<format>/NN.json, src/wild.ts): too many to keep every state's,
 // so each is kept once fetched (the garden's own state, and any over a county line), then works offline.
-// Refreshed in the background when online. A new format has a new folder and cache (an app always reads the
+// Refreshed in the background when online, and as a new version installs. A new format has a new folder and cache (an app always reads the
 // format it was made for); older formats' caches are cleared when a new version takes over. (Not
 // "landscape-planner-…": that's the old worker's, cleared below.)
 const WILD_CACHE = `fullgrown-wild-${WILD_FORMAT}`;
 registerRoute(({ url }) => url.origin === self.location.origin && new RegExp(`/wild/${WILD_FORMAT}/\\d\\d\\.json$`).test(url.pathname), new StaleWhileRevalidate({ cacheName: WILD_CACHE }));
+
+/**
+ * The state files kept, fetched again for a new version as it installs, so it opens with the records it was built
+ * with (Jason, 2026-10-27: leaf-out days came only on the second open, the first served from the cache). One that
+ * can't be fetched now (offline, slow) stays as it was, and is refreshed the next time it's read.
+ */
+async function refreshWild(): Promise<void> {
+  try {
+    const cache = await caches.open(WILD_CACHE);
+    await Promise.all((await cache.keys()).map(async (req) => {
+      try {
+        const res = await fetch(req.url, { cache: 'no-cache', signal: AbortSignal.timeout(15_000) });
+        if (res.ok) await cache.put(req, res);
+      } catch { /* kept as it was */ }
+    }));
+  } catch { /* no cache yet */ }
+}
 
 // Normally a new version waits for the user to tap "Update". But the
 // previous hand-written worker has no update prompt, so when replacing it we
 // take over right away (the page keeps running; the next open is the new app).
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      if (keys.some((k) => k.startsWith('landscape-planner-'))) return self.skipWaiting();
-    }),
+    Promise.all([
+      refreshWild(),
+      caches.keys().then((keys) => {
+        if (keys.some((k) => k.startsWith('landscape-planner-'))) return self.skipWaiting();
+      }),
+    ]),
   );
 });
 

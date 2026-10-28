@@ -63,6 +63,10 @@ test('Leave it: that pair is left close, said so in its sheet, and can be flagge
   await tapFromCenter(page, 0, 8); // (nothing there: the two placed are let go)
   await tapFromCenter(page, 2.5, 0);
   await page.locator('.sel-pill button.edit').click();
+  // (One quiet line, folded, that opens to who.)
+  await expect(page.getByTestId('left-close-line')).toHaveText('Left close to one neighbor on purpose');
+  await expect(page.getByTestId('flag-again')).toBeHidden();
+  await page.getByTestId('left-close-line').click();
   await expect(page.getByTestId('crowding')).toContainText('Left close on purpose: Buttonbush');
   await page.getByTestId('flag-again').click();
   await expect(page.getByTestId('crowding')).toContainText('Planted closer than usual to one neighbor');
@@ -159,4 +163,23 @@ test('a spring bulb under a deciduous plant 3 ft or taller is not crowding it, e
   // Right at its base: close.
   await tapFromCenter(page, -0.4, 0);
   await expect(notice(page).getByTestId('notice-line')).toHaveText('Close to Sweet Joe Pye weed, at its base');
+});
+
+test('a notice can be put away without its buttons: ✕, or a swipe sideways; a short swipe slides it back', async ({ page }) => {
+  await openFresh(page);
+  await startPlacing(page, 'Buttonbush');
+  await tapFromCenter(page, 0, 0);
+  await tapFromCenter(page, 2, 0);
+  await expect(notice(page)).toBeVisible();
+  await notice(page).getByTestId('notice-close').click();
+  await expect(notice(page)).toHaveCount(0);
+  await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2); // (put away, not left close)
+  // Again, swiped: a little, and it comes back; far enough, and it goes.
+  await tapFromCenter(page, -2, 0);
+  const b = (await notice(page).boundingBox())!;
+  const y = b.y + b.height / 2, x = b.x + 30;
+  await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 30, y, { steps: 5 }); await page.mouse.up();
+  await expect(notice(page)).toBeVisible();
+  await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 160, y, { steps: 8 }); await page.mouse.up();
+  await expect(notice(page)).toHaveCount(0);
 });
