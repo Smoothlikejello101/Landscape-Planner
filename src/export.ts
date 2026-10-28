@@ -1,6 +1,7 @@
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from './constants';
 import { escapeHtml } from './dom';
 import { errMsg } from './util';
+import { featureParts, featurePartsSvg } from './features';
 import { alongLabel, boxLabelAngle, boxSize, displayLabel, LINE_HEIGHT, pathLabelPoint, textLines, textSize, rotatedBoxBounds, shapeBBox, trianglePoints, unionBounds, worldPoints } from './geometry';
 import { state } from './state';
 import { currentProject } from './storage';
@@ -31,7 +32,11 @@ export function computeAllBBox(): Bounds | null {
  * print needs them bigger to read at the same physical size).
  */
 export function shapeToSvgString(s: Shape, originX: number, originY: number, scale: number, k = 1): string {
-  const body = shapeBodySvg(s, originX, originY, scale, k);
+  // (Its doors, windows, gates and the like, as on the plan: src/features.ts.)
+  const subs = s.type !== 'circle' && s.type !== 'text' && s.features?.length
+    ? s.features.map((f) => featurePartsSvg(featureParts(s, f, (p) => ({ x: (p.x - originX) * scale, y: (p.y - originY) * scale }), scale, k))).join('')
+    : '';
+  const body = shapeBodySvg(s, originX, originY, scale, k) + subs;
   if (!s.status || s.status === 'planted' || s.status === 'planned') return body;
   if (s.status === 'gone') return `<g opacity="0.35">${body}</g>`;
   // To remove: a red cross; to move: a blue arrow badge (as on screen).

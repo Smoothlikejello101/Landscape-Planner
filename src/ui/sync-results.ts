@@ -13,7 +13,7 @@ import { toast } from './toast';
 const typing = () => document.activeElement instanceof HTMLElement && document.activeElement.matches('input, textarea, select');
 /** The open plan is in use right now (a gesture, a drawing, typing): sync leaves the screen alone. */
 export function screenBusy(): boolean {
-  return activePointers.size > 0 || !!state.draw || !!state.placing || !!state.editPoints || !!state.bgCalibrate || typing();
+  return activePointers.size > 0 || !!state.draw || !!state.placing || !!state.editPoints || !!state.featurePlace || !!state.bgCalibrate || typing();
 }
 
 /** Show the plan (and the project list, if open) as sync left them. */

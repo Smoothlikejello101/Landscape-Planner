@@ -28,6 +28,7 @@ import { hasStatus } from '../status';
 import { plantsInBed } from '../beds';
 import { startPlacing } from '../place';
 import { bedBloomSection } from './bloom-view';
+import { featuresSection, featuresSummary, featuresTitle, hasFeaturesSection } from './feature-section';
 import { snapRot, sqFt, typeName } from '../util';
 
 // ============================================================
@@ -142,6 +143,8 @@ export function renderPropsPanelSingle(s: Shape) {
     body.appendChild(section('plant', 'Plant', document.createTextNode(p ? p.common + (isMine(p) ? ' (mine)' : '') : s.plantId ? 'Details not on this device' : 'Not linked'), [plantLinkSection(s)]));
   }
   if (hasStatus(s)) body.appendChild(section('status', 'Status', document.createTextNode(statusSummary([s])), [statusSection([s])]));
+  // What sits on its edges: a building's doors and windows, a fence's gates, a deck's steps.
+  if (hasFeaturesSection(s)) body.appendChild(section('features', featuresTitle(s), document.createTextNode(featuresSummary(s)), [featuresSection(s)]));
 
   // ----- Size (with area or length, refreshed as you type) -----
   const sizeSum = document.createTextNode(sizeSummary(s));

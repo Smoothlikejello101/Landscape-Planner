@@ -103,14 +103,28 @@ export interface CircleShape extends ShapeBase {
   /** Ignored for circles; tolerated so old data and patches stay valid. */
   rotation?: number;
 }
-export interface BoxShape<T extends 'rect' | 'oval' = 'rect' | 'oval'> extends ShapeBase {
+/** What sits on a shape's edge (src/features.ts): a building's doors and windows, a fence's gates, a deck's steps. */
+export type SubFeatureKind = 'door' | 'window' | 'garage' | 'steps' | 'gate' | 'downspout' | 'spigot' | 'ac' | 'meter';
+/**
+ * A sub-feature: on edge `edge` of its shape's outline (from point `edge` to the next), `at` the share of the way
+ * along it (its middle); `width` in feet along the edge, for those that take a stretch of it (a door, not a hose bib).
+ */
+export interface SubFeature { id: string; kind: SubFeatureKind; edge: number; at: number; width?: number }
+// (One of a kind this version doesn't know, from a later one, is kept as it came: not drawn, listed or changed, so
+// it's still there when the plan is opened on that version again.)
+/**
+ * Sub-features of a shape with edges. [] where they were all taken off (so a copy from an older version, which
+ * doesn't know them and leaves them out, can be told apart: src/sync/engine.ts).
+ */
+interface Featured { features?: SubFeature[] }
+export interface BoxShape<T extends 'rect' | 'oval' = 'rect' | 'oval'> extends ShapeBase, Featured {
   type: T;
   width: number;
   height: number;
   /** Degrees, clockwise, around the box center. */
   rotation: number;
 }
-export interface TriangleShape extends ShapeBase {
+export interface TriangleShape extends ShapeBase, Featured {
   type: 'triangle';
   width: number;
   height: number;
@@ -124,7 +138,7 @@ export interface TriangleShape extends ShapeBase {
  * turns the points around that box's center, like the other shapes; editing
  * points first bakes the rotation into them.
  */
-export interface PathShape<T extends 'poly' | 'line' = 'poly' | 'line'> extends ShapeBase {
+export interface PathShape<T extends 'poly' | 'line' = 'poly' | 'line'> extends ShapeBase, Featured {
   type: T;
   points: [number, number][];
   rotation: number;
@@ -297,6 +311,10 @@ export type Gesture =
   | { type: 'bg-rot'; startAngle: number; startRotation: number; angleAt: (x: number, y: number) => number }
   | { type: 'bg-calibrate-tap'; startX: number; startY: number; startOffset: Point; moved: boolean }
   | { type: 'drag-vertex'; id: string; index: number; startX: number; startY: number; moved: boolean; inserted: boolean }
+  // A sub-feature dragged along its shape's edges (src/features.ts): `start`, the shape's sub-features as it began.
+  // A sub-feature dragged along its shape's edges: `grab`, where on it it was pressed (feet from its middle);
+  // `historyAt`, the undo step it began on (an Undo mid-drag ends it).
+  | { type: 'drag-feature'; id: string; featureId: string; start: SubFeature[]; grab: Point; historyAt: number; startX: number; startY: number; moved: boolean }
   // A handle on the selected shape (src/handles.ts): `start`, the shape as the drag began; `carried`, a bed's plants
   // as they were (they turn with it); `grab`, where on the handle it was pressed (feet from its point); `historyAt`,
   // the undo step it began at.
@@ -319,6 +337,8 @@ export interface DrawState {
   snaps?: (TapSnap | null)[];
   /** Where (screen px) and when the last tap was, so a double tap is told by the finger, not where it landed. */
   lastTap?: { x: number; y: number; t: number };
+  /** Once it's finished, go on to add its doors, windows, gates or steps (the drawing bar's switch, off to start). */
+  thenFeatures?: boolean;
 }
 /**
  * A tap or a dragged point that landed on another shape: which shape, its corner or edge there (`seg`, lit while
@@ -390,4 +410,6 @@ export interface AppState {
   bgCalibrate: Calibration | null;
   draw: DrawState | null;
   editPoints: EditPoints | null;
+  /** Adding sub-features to a shape by tapping its edges (src/feature-edit.ts): which shape, the kind, and those added. */
+  featurePlace: { id: string; kind: SubFeatureKind; added: string[] } | null;
 }
