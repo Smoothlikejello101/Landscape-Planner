@@ -143,6 +143,10 @@ describe('web claims', () => {
     expect(webClaims('https://shop.example.com/x', page('<a href="https://www.missouribotanicalgarden.org/x">Source</a>'), p)).toEqual([]);
     expect(webClaims('https://shop.example.com/x', page('<p>Data: NPIN</p>'), p)).toEqual([]);
     expect(webClaims('https://shop.example.com/x', page('<p>Source: Calscape</p>'), p)).toEqual([]);
+    // (A plant database sold to the sites that show it: GardenSoft, NetPS Plant Finder, Horticopia.)
+    expect(webClaims('https://www.water.example.gov/x', page('<footer>© 2026 GardenSoft</footer>'), p)).toEqual([]);
+    expect(webClaims('https://shop.example.com/x', page('<p>Plant information by NetPS Plant Finder</p>'), p)).toEqual([]);
+    expect(webClaims('https://shop.example.com/x', page('<a href="https://www.gardensoftheblueridge.com/">Gardens of the Blue Ridge</a>'), p)).toHaveLength(2);
     expect(webClaims('https://shop.example.com/x', page(''), p)).toHaveLength(2);
   });
   it('combine: nurseries alone are "likely" when most agree, a copy counts once, one site counts once', () => {

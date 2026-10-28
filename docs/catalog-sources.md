@@ -287,7 +287,10 @@ the same rules as every other source (scripts/catalog/search.mjs).
    credits a source closed to us, in its text or by a link (MOBOT, the
    Wildflower Center, NPIN; or as its source, Calscape, Prairie Moon, Dave's
    Garden, Garden.org and the other closed ones), is that source second-hand
-   and isn't read. A shop is a page with a cart or a product marked up for
+   and isn't read. So is a page carrying a plant database sold to the sites
+   that show it (GardenSoft's, rented by water utilities; NetPS Plant Finder,
+   by garden centres; Horticopia), until that database's own terms are read
+   (2026-10-28). A shop is a page with a cart or a product marked up for
    search engines, not just prices (a blog's affiliate links); a person's
    own pages on a university site (`/~name/`) are a blog's. Bloom
    months aren't taken from the web: they differ by place.

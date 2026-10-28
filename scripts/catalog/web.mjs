@@ -80,6 +80,11 @@ export const SKIP_SITES = new Set([
   'mail-archive.com', 'blogs.ubc.ca', // (members' posts, personal blogs)
   'plusgarden.com', 'digitaltowns.app', // (marketplaces)
   '947qdr.com', // (not a plant reference)
+  // Found by the terms reviews of batch 6a (2026-10-28)
+  'caudexgarden.com', 'smartgardenadvice.com', // (content farms, AI-written)
+  'vegeworx.com', 'diy.org', // (members' uploads)
+  'silene.eu', // (a sightings aggregator)
+  'gulfofme.com', // (not a plant reference)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
@@ -324,7 +329,13 @@ const SECOND_HAND = /missouri botanical garden|missouribotanicalgarden|mobot\.or
 /** Checked on the page as sent, links included: a source credited only by a link is still the source. */
 /** Other sources closed to us, when a page credits them ("Source: Calscape"), or links them as its source. */
 const CREDITED = /(?:source|sources|from|courtesy of|via|according to|data|information|adapted)[^.<\n]{0,40}(?:prairie ?moon|calscape|dave'?s garden|garden\.org|national gardening association|sunset western|perenual|garden ?tags|morton arboretum|go ?botany|native plant trust|calflora|jepson|seinet|oregonflora|plant ?atlas)/i;
-export const secondHand = (html) => SECOND_HAND.test(String(html)) || CREDITED.test(plainText(html));
+/**
+ * Plant databases sold to the sites that show them (GardenSoft to water utilities, NetPS Plant Finder to garden
+ * centres, Horticopia): a page carrying one is that database, and isn't read until the database's own terms are
+ * (2026-10-28; docs/catalog-sources.md "Never second-hand").
+ */
+const LICENSED = /\bgardensoft\b|\bnetps\b|\bhorticopia\b/i;
+export const secondHand = (html) => SECOND_HAND.test(String(html)) || LICENSED.test(String(html)) || CREDITED.test(plainText(html));
 
 /** A page's own wording, to tell copies apart: the hash of its longest paragraph (null if it has none long enough). */
 export function copyKey(html) {
