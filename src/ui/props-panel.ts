@@ -9,7 +9,8 @@ import { boxSize, resizedPoints, shapeArea, shapePerimeter } from '../geometry';
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
 import { roleChips } from './role-picker';
-import { bedSection, crowdingNote, measureText, plantSunBanner, shadeSunSection, sunListText } from './role-sections';
+import { bedSection, crowdingNote, measureText, plantSunBanner, shadeSunSection, sunListText, utilityBanner, utilitySection } from './role-sections';
+import { utilityLabel } from '../utility-kinds';
 import { setRoleForIds, bringForward, bringToFront, copySelected, duplicateSelected, findNextSameTier, sendBackward, sendToBack, setLockedForIds, updateSelected, updateSelectedSilent } from '../mutations';
 import { getSelected, singleSelected } from '../selection';
 import { state } from '../state';
@@ -49,7 +50,9 @@ function whatItIs(ids: string[], current: RoleKey | null, multi: boolean): HTMLE
   const title = el('span', { className: 'prop-title' }, multi ? 'What they are' : 'What it is');
   if (changingKindOf === key) {
     wrap.append(el('div', { className: 'kind-row' }, title),
-      roleChips(current, (role) => { changingKindOf = null; setRoleForIds(ids, role); render(); }));
+      // (A circle or a note isn't a utility: a utility is a line or an area.)
+      roleChips(current, (role) => { changingKindOf = null; setRoleForIds(ids, role); render(); },
+        ids.some((id) => { const t = state.shapes.find((s) => s.id === id)?.type; return t === 'circle' || t === 'text'; }) ? ['utility'] : []));
     return wrap;
   }
   const change = el('button', { className: 'link-btn', 'data-testid': 'change-kind', 'aria-label': multi ? 'Change what they are' : 'Change what it is' }, 'Change');
@@ -113,7 +116,8 @@ export function renderPropsPanelSingle(s: Shape) {
   if (sunCheck) body.appendChild(sunCheck);
   // Crowding: refreshed in place as the position is typed (no re-render).
   const crowdBox = el('div', {});
-  const refreshCrowd = () => { crowdBox.replaceChildren(...[crowdingNote(s)].filter((x): x is HTMLElement => !!x)); };
+  // (A plant too near a power line, a buried line or a septic field too: src/utilities.ts.)
+  const refreshCrowd = () => { crowdBox.replaceChildren(...[utilityBanner(s), crowdingNote(s)].filter((x): x is HTMLElement => !!x)); };
   refreshCrowd();
   body.appendChild(crowdBox);
   // The label (for a text note, the text itself; it can run to several lines)
@@ -133,6 +137,9 @@ export function renderPropsPanelSingle(s: Shape) {
   if (s.role === 'shade') {
     // Recording the sun is the point of a sun exposure area: open until there's a record.
     body.appendChild(section('sun', 'Sun record', document.createTextNode(s.sun ? sunListText(s.sun) : 'Not recorded'), [shadeSunSection(s)], !s.sun));
+  }
+  if (s.role === 'utility' && s.type !== 'circle' && s.type !== 'text') {
+    body.appendChild(section('utility', 'Utility', document.createTextNode(s.utility ? utilityLabel(s.utility) : 'Which is it?'), [utilitySection(s)], true));
   }
   if (s.role === 'bed') {
     const n = plantsInBed(s, state.shapes).filter((p) => p.status !== 'gone').length;

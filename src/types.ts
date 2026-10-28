@@ -4,7 +4,9 @@ import type { KindKey } from './kinds';
 
 export type ShapeType = 'circle' | 'rect' | 'oval' | 'triangle' | 'poly' | 'line' | 'text';
 /** What a shape represents. Undefined = not yet assigned (shapes from older versions). */
-export type Role = 'plant' | 'bed' | 'boundary' | 'building' | 'shade' | 'path' | 'lawn' | 'water' | 'other';
+export type Role = 'plant' | 'bed' | 'boundary' | 'building' | 'shade' | 'path' | 'lawn' | 'water' | 'utility' | 'other';
+/** A utility (role 'utility', src/utilities.ts): a line overhead or buried, or a septic drainfield (an area). */
+export type UtilityKind = 'overhead' | 'buried' | 'septic';
 /** Per-project display state for a role (or 'unassigned'). */
 export interface RoleView { hidden?: boolean; locked?: boolean }
 export type RoleKey = Role | 'unassigned';
@@ -35,6 +37,16 @@ interface ShapeBase {
    * recorded sun changes.
    */
   sunDismissed?: string;
+  /**
+   * Utilities: which (an overhead power line, a buried line, a septic field; one a later version adds is kept as it
+   * came, unchecked). Kept on one made something else since, which is that again if turned back.
+   */
+  utility?: UtilityKind;
+  /**
+   * Plants: the utility warnings dismissed, as which utilities and rules they were (src/utilities.ts issuesKey); ''
+   * when shown again on purpose, so sync can tell it from a copy an older version sent without one.
+   */
+  utilityDismissed?: string;
   /** Where it stands in the real garden (unset = not tracked). */
   status?: Status;
   /** YYYY-MM-DD it went in the ground (status 'planted'). */

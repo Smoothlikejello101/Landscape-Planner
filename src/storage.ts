@@ -1,11 +1,12 @@
 import { MAX_POINTS, MAX_TREE_HEIGHT, MAX_TRUNK, MAX_ZOOM, MIN_POINTS, MIN_TRUNK, MIN_ZOOM, STORAGE } from './constants';
 import { sanitizeSubFeatures } from './features';
+import { isStoredUtilityKind } from './utility-kinds';
 import { del, openKV, put, type KV, type WriteOp } from './db';
 import { cancelHistoryDebounce } from './history';
 import { DEFAULT_PRINT, state } from './state';
 import { isRole } from './roles';
 import { cleanPhaseName, isStatus, MAX_PHASES } from './status';
-import type { BgImage, Clipboard, PathShape, PhotoRef, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, SunInfo } from './types';
+import type { BgImage, Clipboard, PathShape, PhotoRef, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, SunInfo, UtilityKind } from './types';
 import { setWorldPoints } from './geometry';
 import { now, uid } from './util';
 import { photoFingerprint } from './sync/photo';
@@ -110,6 +111,12 @@ export function migrateShape(raw: unknown): Shape | null {
     ...(s.carryPlants === false ? { carryPlants: false } : {}),
     ...(sanitizeSun(s.sun) ? { sun: sanitizeSun(s.sun)! } : {}),
     ...(typeof s.sunDismissed === 'string' && s.sunDismissed ? { sunDismissed: s.sunDismissed.slice(0, 300) } : {}),
+    // (A utility's kind: a power line, a buried line, a septic field; kept on one made something else since, which is
+    // that again if turned back. Older versions had neither.)
+    // (One a later version adds, a short word, is kept as it came: not checked here, but not taken away.)
+    ...(s.type !== 'circle' && s.type !== 'text' && isStoredUtilityKind(s.utility) ? { utility: s.utility as UtilityKind } : {}),
+    // ('' is a warning shown again on purpose: kept, so sync doesn't fill it back from an older copy.)
+    ...(typeof s.utilityDismissed === 'string' && s.utilityDismissed.length <= 2000 ? { utilityDismissed: s.utilityDismissed } : {}),
     ...(isStatus(s.status) ? { status: s.status } : {}),
     ...(typeof s.plantedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.plantedOn) ? { plantedOn: s.plantedOn } : {}),
     // (Only on a gone shape: a date left from before it was marked otherwise isn't kept.)

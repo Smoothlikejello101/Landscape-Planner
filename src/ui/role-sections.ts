@@ -13,6 +13,9 @@ import { flagAgain, leaveClose } from './crowd-notice';
 import { shownWith } from '../status';
 import { sqFt } from '../util';
 import { timeRange } from './time-range';
+import { isLocked } from '../roles';
+import { issuesKey, prepareUtilities, utilityIssues, utilityNote } from '../utilities';
+import { UTILITY_COLORS, UTILITY_KINDS, isUtilityKind, utilityLook } from '../utility-kinds';
 
 // Parts of the properties panel that depend on a shape's role.
 
@@ -204,4 +207,63 @@ export function crowdingNote(s: Shape): HTMLElement | null {
     `Spring bulbs under a deciduous plant ${BULB_PARTNER_MIN_HEIGHT} ft or taller don't count, except right at its base. A little closeness can be fine, if you're after a quick, full look.`));
   box.append(toggle, body);
   return box;
+}
+
+/** Plants whose utility warning is open in their properties (it starts folded, as the crowding note does). */
+const utilityOpen = new Set<string>();
+/**
+ * A plant too near a utility for what it is (src/utilities.ts): one line, the first ("Grows to 60 ft, 12 ft from a
+ * power line"), that opens to why and what to do; dismissable for this plant, coming back if it moves or changes.
+ */
+export function utilityBanner(s: Shape): HTMLElement | null {
+  if (s.role !== 'plant' || s.type !== 'circle') return null;
+  const issues = utilityIssues(s, prepareUtilities(state.shapes.filter((x) => x.role === 'utility' && shownWith(x, state.viewFilter))), plantsById);
+  if (!issues.length) return null;
+  const key = issuesKey(issues);
+  const dismissed = s.utilityDismissed === key;
+  const more = issues.length > 1 ? ` (+${issues.length - 1} more)` : '';
+  const open = utilityOpen.has(s.id);
+  const toggle = el('button', { className: 'site-line', 'aria-expanded': String(open), 'data-testid': 'utility-line' },
+    el('span', {}, `⚠ ${issues[0].line}${more}${dismissed ? ' (dismissed: no badge on the plan)' : ''}`), el('span', { className: 'fold-chev', html: I.chevronDown }));
+  const body = el('div', { 'data-testid': 'utility-detail' });
+  body.hidden = !open;
+  toggle.addEventListener('click', () => {
+    body.hidden = !body.hidden;
+    toggle.setAttribute('aria-expanded', String(!body.hidden));
+    if (body.hidden) utilityOpen.delete(s.id); else utilityOpen.add(s.id);
+  });
+  for (const i of issues) body.append(el('div', { style: { marginTop: '4px' } }, issues.length > 1 ? el('b', {}, i.line + ': ') : '', i.detail));
+  const btn = el('button', { className: 'link-reset', 'data-testid': 'utility-dismiss', style: { marginTop: '4px' } }, dismissed ? 'Show the warning again' : 'Dismiss for this plant');
+  btn.addEventListener('click', () => updateSelected({ utilityDismissed: dismissed ? '' : key }));
+  body.append(el('div', {}, btn));
+  return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'utility-check' }, toggle, body);
+}
+
+/** A utility's own properties: which it is (a line: overhead or buried), and what's checked near it. */
+export function utilitySection(s: Shape): HTMLElement {
+  const wrap = el('div', { className: 'field', 'data-testid': 'utility-section' });
+  if (s.type === 'circle' || s.type === 'text') return wrap;
+  const known = isUtilityKind(s.utility) ? s.utility : null;
+  // (A line is overhead or buried; an area, a septic field. A kind a later version added is shown as it is, unchecked.)
+  const choices = UTILITY_KINDS.filter((x) => x.lines === (s.type === 'line'));
+  if (choices.length > 1 || !known) {
+    const seg = el('div', { className: 'seg utility-seg', role: 'group', 'aria-label': 'Which it is' });
+    for (const k of choices) {
+      const b = el('button', { 'aria-pressed': String(known === k.key), 'data-utility': k.key }, k.label);
+      b.disabled = isLocked(s);
+      b.addEventListener('click', () => {
+        if (k.key === known) return;
+        // (Its look goes with it, if it still has the one it started with.)
+        const was = known ? UTILITY_COLORS[known] : '#ea580c';
+        const relook = s.color.toLowerCase() === was ? utilityLook(k.key) : {};
+        updateSelected({ utility: k.key, ...relook });
+      });
+      seg.appendChild(b);
+    }
+    wrap.appendChild(seg);
+  }
+  wrap.appendChild(el('div', { className: 'hint' }, known ? utilityNote(known)
+    : s.utility ? "A kind of utility this version doesn't know (from a later one): nothing near it is checked here."
+      : 'Which is it? Until it says, nothing near it is checked.'));
+  return wrap;
 }

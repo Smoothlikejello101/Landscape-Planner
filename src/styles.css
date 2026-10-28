@@ -282,6 +282,14 @@ a { color: inherit; }
 .seg { display: inline-flex; border: 1px solid #d6d3d1; border-radius: 6px; overflow: hidden; }
 .seg button { padding: 6px 12px; font-size: calc(13px * var(--ts)); background: #fff; color: #44403c; }
 .seg button.sel { background: #1c1917; color: #fff; }
+/* A utility line: overhead or buried (pressed is the one it is). */
+.utility-seg { margin-bottom: 6px; }
+.utility-seg button { min-height: var(--tap); }
+.utility-seg button[aria-pressed="true"] { background: #1c1917; color: #fff; }
+/* A plant's utility warning, folded to its one line (a button, the whole width) until opened. */
+.site-line { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; background: none; border: 0; padding: 2px 0; text-align: left; color: inherit; font: inherit; font-weight: 600; min-height: var(--tap); cursor: pointer; }
+.site-line .fold-chev { display: flex; flex: none; transition: transform 0.15s; }
+.site-line[aria-expanded=false] .fold-chev { transform: rotate(-90deg); }
 .sun-summary { font-size: calc(13px * var(--ts)); color: #44403c; }
 .check-banner { padding: 8px 12px; border-radius: 6px; font-size: calc(13px * var(--ts)); line-height: 1.4; }
 .check-banner.ok { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
