@@ -1,5 +1,38 @@
 # When plants leaf out: sources
 
+**Built (2026-10-27), from USA-NPN's records.** Jason downloaded USA-NPN's Individual Phenometrics by hand from its
+site (every plant species, 2009 to 2025, every state; leaf, flower and fruit phenophases), as its terms ask of
+anything but approved automated access. The download is in `catalog-src/usanpn/<date>/`: 1.3 million rows, 1,343
+species. A plant's details now say when it leafs out where the garden is: "Around Mar 28 (most Mar 16 to Apr 4)",
+with "233 plant-years in Arkansas and neighboring states · USA National Phenology Network…".
+
+- **What counts** (scripts/catalog/npn.mjs, `leafOutDays`):
+  - A plant-year is one marked plant in one year. Its leaf-out day is the first day of its first series of the year
+    for a leaf phenophase: a tree's or shrub's leaf buds breaking, a conifer's needle buds breaking or a pine's
+    needles emerging, an herb's or a grass's first growth.
+  - It's kept only where a "no" came 1 to 14 days before that first "yes", so the day is known to within two
+    weeks, and no observer recorded both "yes" and "no" that day.
+  - A later series that year doesn't stand in for an unknown first one.
+  - 64,592 plant-years for 1,008 species.
+- **Where** (`stateLeafOut`, the way bloom months are placed):
+  - the garden's state, where it has 10 plant-years or more;
+  - else the state and its neighbors together;
+  - else nothing is shown.
+
+  Leaf-out follows local warmth, so the records nearest the garden are the ones used. A cultivar takes its
+  species'. Each state's wild-records file (`public/wild/1/NN.json`) holds `leafOut` (the middle day of the year,
+  the quartiles and the count) and `leafOutSpecies`. Arkansas has 105 plants, nearly all by its region (Arkansas on
+  its own has 10 plant-years for one species).
+- **The build** sums the newest download up into `catalog-src/usanpn/leafout.json`, again whenever a newer download
+  is added, before the wild records are written.
+- **Credit:** as USA-NPN's data use policy asks (CC BY 4.0), in each plant's source line: "USA National Phenology
+  Network. 2026. Plant and Animal Phenology Data… Data were provided by the USA National Phenology Network",
+  doi:10.5066/F78S4N1V.
+- **Not yet used** by the bulb rule (which still counts any deciduous plant 3 ft or taller) or for hidden plants.
+  Both could use it: a bulb that flowers before its partner leafs out here.
+
+The sources considered on 2026-10-26 follow, as written then.
+
 Why: the bulb rule (decided with Jason, 2026-10-26). A spring bulb planted under a deciduous plant at least 3 ft tall
 doesn't crowd it, because the bulb flowers and ripens its leaves before the bigger plant leafs out. To check that per
 plant, or to say how much spring sun a bulb gets under it, the catalog would need when each plant leafs out. No source

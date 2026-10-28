@@ -10,6 +10,7 @@
 // numbers (Clark County, Arkansas, 05019, is 5019).
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { bloomCounts, bloomDisagreements, bloomSpecies, seasonsToCheck, stateBloom } from './bloom.mjs';
+import { npnSource, stateLeafOut } from './npn.mjs';
 import { gadmSubdivisionsUrl, gadmUrl, matchedTaxon, matchUrl, tsvRows, US_GADM } from './gbif.mjs';
 import { STATES } from './counties.mjs';
 import { savedPage } from './pages.mjs';
@@ -276,6 +277,9 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   }
   const ncsuSeasons = seasonsToCheck(audit);
   const near = neighborStates(counties);
+  // When plants leaf out (USA-NPN's records, summed up by npn.mjs), where the download's been summed up.
+  const npn = existsSync('catalog-src/usanpn/leafout.json') ? read('catalog-src/usanpn/leafout.json') : null;
+  const looked = bloomSpecies(catalog, audit);
   writeFileSync('catalog-src/bloom-review.json', JSON.stringify(bloomDisagreements(counts, ncsuSeasons), null, 1) + '\n');
   const dir = `public/wild/${FORMAT}`;
   rmSync('public/wild', { recursive: true, force: true });
@@ -306,7 +310,15 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
     }
     const hosts = tallamy ? stateHosts(code, tallamy, hostGenera) : {};
     if (Object.keys(hosts).length) { f.hosts = hosts; f.sources.tallamy = SOURCES.tallamy; }
-    if (!Object.keys(f.plants).length && !f.bloom) continue;
+    const leaf = npn ? stateLeafOut(fips, npn.days, looked, near, (x) => STATES[x]) : {};
+    if (Object.keys(leaf).length) {
+      f.leafOut = leaf;
+      const bySpecies = new Set(looked.filter((p) => p.species).map((p) => p.id));
+      const sp = Object.keys(leaf).filter((id) => bySpecies.has(id)).sort();
+      if (sp.length) f.leafOutSpecies = sp;
+      f.sources.usanpn = npnSource(npn.meta);
+    }
+    if (!Object.keys(f.plants).length && !f.bloom && !f.leafOut) continue;
     write(`${dir}/${String(fips).padStart(2, '0')}.json`, f);
     files.push(f);
   }
@@ -314,5 +326,5 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   const size = readdirSync(dir).reduce((n, f) => n + readFileSync(`${dir}/${f}`).length, 0);
   const ar = files.find((f) => f.fips === 5);
   for (const [c, m] of Object.entries(regulated)) console.log(`regulated, ${c}: ${Object.entries(m).map(([id, k]) => `${id} (${k})`).join(', ')}`);
-  console.log(`${files.length} state files (${Math.round(size / 1024)} KB); Arkansas: ${Object.keys(ar?.plants ?? {}).length} plants with wild records, ${Object.keys(ar?.bloom ?? {}).length} with bloom months; ${Object.keys(counts).length} plants with flowering records; ${bloomDisagreements(counts, ncsuSeasons).length} left out for disagreeing with NC State (catalog-src/bloom-review.json)`);
+  console.log(`${files.length} state files (${Math.round(size / 1024)} KB); Arkansas: ${Object.keys(ar?.plants ?? {}).length} plants with wild records, ${Object.keys(ar?.bloom ?? {}).length} with bloom months, ${Object.keys(ar?.leafOut ?? {}).length} with leaf-out days; ${Object.keys(counts).length} plants with flowering records; ${bloomDisagreements(counts, ncsuSeasons).length} left out for disagreeing with NC State (catalog-src/bloom-review.json)`);
 }
