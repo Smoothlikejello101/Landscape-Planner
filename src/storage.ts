@@ -1,4 +1,5 @@
 import { MAX_POINTS, MAX_TREE_HEIGHT, MAX_TRUNK, MAX_ZOOM, MIN_POINTS, MIN_TRUNK, MIN_ZOOM, STORAGE } from './constants';
+import { sanitizeSubFeatures } from './features';
 import { isStoredUtilityKind } from './utility-kinds';
 import { del, openKV, put, type KV, type WriteOp } from './db';
 import { cancelHistoryDebounce } from './history';
@@ -124,6 +125,9 @@ export function migrateShape(raw: unknown): Shape | null {
     ...(typeof s.phase === 'string' && cleanPhaseName(s.phase) ? { phase: cleanPhaseName(s.phase) } : {}),
   };
   const size = (v: unknown, d: number) => Math.max(0.1, num(v, d));
+  // (Doors, windows, gates and the like, on a shape with edges; [] kept: they were all taken off. Older versions had none.)
+  const subs = sanitizeSubFeatures(s.features);
+  const featured = subs ? { features: subs } : {};
   switch (s.type) {
     case 'circle': {
       // Trees: a trunk size set by hand, and an outline for a canopy pruned into a shape.
@@ -152,12 +156,12 @@ export function migrateShape(raw: unknown): Shape | null {
     }
     case 'rect':
     case 'oval':
-      return { ...base, type: s.type, width: size(s.width, 4), height: size(s.height, 3), rotation: num(s.rotation, 0) };
+      return { ...base, type: s.type, width: size(s.width, 4), height: size(s.height, 3), rotation: num(s.rotation, 0), ...featured };
     case 'triangle': {
       const ra = s.rightAngle;
       return {
         ...base, type: 'triangle', width: size(s.width, 4), height: size(s.height, 3), rotation: num(s.rotation, 0),
-        rightAngle: ra === 'br' || ra === 'tl' || ra === 'tr' ? ra : 'bl',
+        rightAngle: ra === 'br' || ra === 'tl' || ra === 'tr' ? ra : 'bl', ...featured,
       };
     }
     case 'poly':
@@ -175,6 +179,7 @@ export function migrateShape(raw: unknown): Shape | null {
         ...(s.type === 'line' && s.showLength === true ? { showLength: true } : {}),
         // Paths: a width in feet (a quarter foot to 50 ft); anything else draws as a thin line.
         ...(s.type === 'line' && typeof s.pathWidth === 'number' && s.pathWidth >= 0.25 && s.pathWidth <= 50 ? { pathWidth: s.pathWidth } : {}),
+        ...featured,
       } as PathShape;
       setWorldPoints(shape, pts); // re-normalize, whatever the file said
       return shape;
@@ -532,6 +537,7 @@ export async function switchProject(id: string): Promise<boolean> {
   state.bgCalibrate = null;
   state.draw = null;
   state.placing = null;
+  state.featurePlace = null;
   state.pickerForTree = false;
   state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; state.linkOffer = null; state.statusAsk = null; // (another plan's shapes)
   state.editPoints = null;

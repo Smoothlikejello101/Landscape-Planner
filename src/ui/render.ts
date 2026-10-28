@@ -7,13 +7,13 @@ import { el, hasKeyboard, svgEl } from '../dom';
 import { onCanvasPointerDown, onWheel } from '../gestures';
 import { canRedo, canUndo, redo, undo } from '../history';
 import { I } from '../icons';
-import { copySelected, setViewFilter, zoomBy } from '../mutations';
+import { copySelected, setViewFilter, updateSelectedSilent, zoomBy } from '../mutations';
 import { deleteSelectedAsking } from './delete-selected';
 import { clearSelection, getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { typeName } from '../util';
 import { fmtFeet, screenToFeet } from '../geometry';
-import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, shapeName, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
+import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, shapeName, startEditPoints, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
 import type { TapSnap } from '../types';
 import { redrawHandles } from '../canvas';
 import { kindDef, METHOD_LABELS, nextTapPrompt, type KindKey } from '../kinds';
@@ -38,7 +38,10 @@ import { toast } from './toast';
 import { renderProjectsPanel, renderRenamePanel } from './projects-panel';
 import { moreOfSame, renderArrangePanel, renderPropsPanel, resetKindChange } from './props-panel';
 import { hintDue, hintShown } from '../hints';
+import { featureHost, finishFeaturePlace, setFeatureKind, undoFeaturePlace } from '../feature-edit';
+import { drawFeatureKinds, kindsFor, kindsPhrase, SUB_FEATURES } from '../features';
 import { roomyText } from '../text-size';
+import { isLocked } from '../roles';
 
 // MAIN RENDER
 // ============================================================
@@ -110,10 +113,11 @@ export function render() {
   const undoBtn = el('button', { className: 'iconbtn', html: I.undo, title: 'Undo' });
   // While placing, it takes back the last plant placed; while drawing, the last point: as the bar's Undo does.
   // (A notice's Undo is the same step: after either, it's gone.)
-  undoBtn.disabled = state.placing ? !state.placing.placed.length : state.draw ? !state.draw.points.length : !canUndo();
+  // (And while adding doors and windows, the last one added.)
+  undoBtn.disabled = state.placing ? !state.placing.placed.length : state.draw ? !state.draw.points.length : state.featurePlace ? !state.featurePlace.added.length : !canUndo();
   undoBtn.addEventListener('click', () => {
     dismissToastAction();
-    if (state.placing) undoPlace(); else if (state.draw) undoDrawPoint(); else undo();
+    if (state.placing) undoPlace(); else if (state.draw) undoDrawPoint(); else if (state.featurePlace) undoFeaturePlace(); else undo();
     render();
   });
   topbar.appendChild(undoBtn);
@@ -121,7 +125,7 @@ export function render() {
   // Redo (at Medium and Large text, in the ⋮ menu: room for the name)
   if (!roomyText()) {
     const redoBtn = el('button', { className: 'iconbtn', html: I.redo, title: 'Redo' });
-    redoBtn.disabled = !canRedo() || !!state.draw || !!state.placing;
+    redoBtn.disabled = !canRedo() || !!state.draw || !!state.placing || !!state.featurePlace;
     redoBtn.addEventListener('click', () => { dismissToastAction(); redo(); render(); });
     topbar.appendChild(redoBtn);
   }
@@ -229,6 +233,17 @@ export function render() {
     canvasWrap.appendChild(banner);
   }
 
+  // Adding doors, windows, gates or steps: where to tap.
+  if (state.featurePlace && !featureHost()) finishFeaturePlace(); // (its shape gone: undone past it, or locked)
+  if (state.featurePlace) {
+    const host = featureHost()!, what = SUB_FEATURES[state.featurePlace.kind].label.toLowerCase();
+    const where = host.role === 'boundary' ? 'the line' : host.role === 'building' ? 'a wall' : 'an edge';
+    const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'feature-banner' });
+    banner.innerHTML = I.draw + '<span></span>';
+    banner.querySelector('span')!.textContent = `Tap ${where} where the ${what} goes · ${state.featurePlace.added.length} added`;
+    canvasWrap.appendChild(banner);
+  }
+
   // Placing plants: which one, and how many so far.
   const placing = placingPlant();
   if (state.placing && !placing) finishPlacing(); // the plant in hand is gone (removed from My plants)
@@ -279,7 +294,7 @@ export function render() {
   }
 
   // Multi-select action bar (floating, only when 2+ selected and no panel open)
-  const drawing = !!state.draw || !!state.editPoints || !!state.placing;
+  const drawing = !!state.draw || !!state.editPoints || !!state.placing || !!state.featurePlace;
   if (state.selectedIds.length >= 2 && !state.panel && !drawing) {
     const bar = el('div', { className: 'multi-bar' });
     bar.appendChild(el('div', { className: 'count' }, state.selectedIds.length + ' selected'));
@@ -327,6 +342,13 @@ export function render() {
       editBtn.innerHTML = I.edit + '<span>Edit</span>';
       editBtn.addEventListener('click', () => { state.panel = 'props'; render(); });
       pill.appendChild(editBtn);
+      // An outline or a line is reshaped by its points: straight there, without opening its properties (Jason,
+      // 2026-10-27; a path's width is in that bar too).
+      if ((s.type === 'poly' || s.type === 'line') && !isLocked(s)) {
+        const pts = el('button', { className: 'pill-points', 'data-testid': 'pill-edit-points', title: 'Edit its points' }, 'Edit points');
+        pts.addEventListener('click', () => { startEditPoints(s.id); render(); });
+        pill.appendChild(pts);
+      }
       // Another of the same: a plant placed, a tree or anything else drawn.
       const more = moreOfSame([s], true);
       if (more) {
@@ -358,7 +380,7 @@ export function render() {
   addBtn.innerHTML = I.plus + '<div class="lbl">Add</div>';
   addBtn.addEventListener('click', () => { state.panel = 'add'; render(); });
   bottomBar.appendChild(addBtn);
-  app.appendChild(state.placing ? renderPlaceBar() : drawing ? renderDrawBar() : bottomBar);
+  app.appendChild(state.placing ? renderPlaceBar() : state.featurePlace ? renderFeatureBar() : drawing ? renderDrawBar() : bottomBar);
 
   root.appendChild(app);
 
@@ -419,6 +441,34 @@ function renderPlaceBar(): HTMLElement {
   return bar;
 }
 
+/** Bottom bar while adding sub-features: the kinds this shape takes, Undo, Done. */
+function renderFeatureBar(): HTMLElement {
+  const bar = el('div', { className: 'bottom-toolbar draw-bar', 'data-testid': 'feature-bar' });
+  const fp = state.featurePlace!, host = featureHost();
+  const col = el('div', { className: 'draw-bar-rows' });
+  const kinds = host ? kindsFor(host) : [];
+  if (kinds.length > 1) {
+    const seg = el('div', { className: 'feature-seg', role: 'group', 'aria-label': 'What to add' });
+    for (const k of kinds) {
+      const on = fp.kind === k;
+      const b = el('button', { className: on ? 'on' : '', 'aria-pressed': String(on), 'data-feature': k }, SUB_FEATURES[k].label);
+      b.addEventListener('click', () => { setFeatureKind(k); render(); });
+      seg.appendChild(b);
+    }
+    col.appendChild(seg);
+  }
+  const row = el('div', { className: 'draw-bar-row' });
+  const undoB = el('button', { className: 'draw-btn' }, 'Undo');
+  undoB.disabled = !fp.added.length;
+  undoB.addEventListener('click', () => { undoFeaturePlace(); render(); });
+  const done = el('button', { className: 'draw-btn primary', title: 'Done (Enter or Esc)' }, 'Done');
+  done.addEventListener('click', () => { finishFeaturePlace(); render(); });
+  row.append(undoB, done);
+  col.appendChild(row);
+  bar.appendChild(col);
+  return bar;
+}
+
 /** Bottom bar while drawing or editing an outline's points. */
 function renderDrawBar(): HTMLElement {
   const bar = el('div', { className: 'bottom-toolbar draw-bar', 'data-testid': 'draw-bar' });
@@ -465,6 +515,13 @@ function renderDrawBar(): HTMLElement {
       w.addEventListener('input', () => { setDrawPathWidth(parseFloat(w.value.replace(',', '.'))); redrawHandles(); });
       row.appendChild(el('label', { className: 'draw-width' }, w, el('span', {}, 'ft wide')));
     }
+    // A building, a fence, a patio: go on to its doors and windows, gates or steps once it's finished (off to start).
+    if (drawFeatureKinds(kind.role, d.kind).length) {
+      const cb = el('input', { type: 'checkbox', 'data-testid': 'then-features' }) as HTMLInputElement;
+      cb.checked = !!d.thenFeatures;
+      cb.addEventListener('change', () => { if (state.draw) state.draw.thenFeatures = cb.checked; });
+      col.appendChild(el('label', { className: 'check-row then-features' }, cb, el('span', {}, `Add ${kindsPhrase({ role: kind.role })} after`)));
+    }
     row.appendChild(btn('Undo', '', undoDrawPoint, d.points.length === 0));
     row.appendChild(btn('Cancel', '', cancelDraw));
     if (!finishesItself(d.kind)) {
@@ -477,6 +534,16 @@ function renderDrawBar(): HTMLElement {
     return bar;
   }
   addChipRow(bar, unsnapVertex);
+  const edited = editedShape();
+  if (edited?.type === 'line' && edited.pathWidth) {
+    // A path's width, typed without re-rendering (keyboard safety): only the plan redraws.
+    const w = el('input', { type: 'number', min: '0.25', max: '50', step: '0.5', inputMode: 'decimal', value: edited.pathWidth, 'aria-label': 'Path width in feet', 'data-testid': 'edit-path-width' }) as HTMLInputElement;
+    w.addEventListener('input', () => {
+      const v = parseFloat(w.value.replace(',', '.'));
+      if (v >= 0.25 && v <= 50) updateSelectedSilent({ pathWidth: v });
+    });
+    bar.appendChild(el('label', { className: 'draw-width' }, w, el('span', {}, 'ft wide')));
+  }
   bar.appendChild(btn('Delete point', 'danger', deleteSelectedVertex, !canDeleteVertex()));
   bar.appendChild(btn('Done', 'primary', () => {
     const id = state.editPoints?.id;

@@ -9,12 +9,19 @@ import { rootSpread, rootText, seedText } from '../spread';
 import { butterflyCaps } from '../search';
 import { zoneRange } from '../climate';
 import type { Provenance } from '../catalog';
-import { escapeHere, escapeText, hostsHere, localBloom, nativeHere, nativeText, regulatedHere, wildHere, wildText } from '../wild';
+import { dayOfYear, escapeHere, escapeText, hostsHere, localBloom, localLeafOut, nativeHere, nativeText, regulatedHere, wildHere, wildText } from '../wild';
 
 const SURE: Record<string, string> = {
   agree: 'confirmed', confirmed: 'confirmed', single: 'one source', likely: 'nurseries agree', reported: 'one nursery', disputed: 'sources disagree',
 };
 const sourceName = (id: string) => PLANT_META?.sources?.[id]?.title ?? id;
+
+/**
+ * How much deer eat it, in plain words (Jason, 2026-10-27: "candy", gardeners' slang, says it to some and not others):
+ * the catalog's three ratings, or a plant of mine's own word as it was entered.
+ */
+const DEER_WORDS: Record<string, string> = { Candy: 'A favorite: heavily browsed', Occasional: 'Sometimes browsed', Resistant: 'Resistant: seldom browsed' };
+export const deerWords = (v: string | undefined): string => (v ? DEER_WORDS[v] ?? v : '');
 /** A source in a few words, for a label: "NC State", "USDA", else its title (a website's domain). */
 const SHORT: Record<string, string> = { ncsu: 'NC State', usda: 'USDA', arkatlas: 'the Arkansas atlas', mnwild: 'Minnesota Wildflowers' };
 /**
@@ -163,7 +170,7 @@ function rows(p: Plant): Row[] {
     ['Attracts', p.attracts?.length ? cap(p.attracts.join(', ')) : '', ['attracts']],
     // (The caterpillars its sources name; its genus's, where the garden is; the earlier list's: drawn by hostRow.)
     ['Caterpillar host', '', ['hosts', 'host_genus', 'host']],
-    ['Deer', p.deer ?? '', ['deer'], (r) => String(r.deer ?? '')],
+    ['Deer', deerWords(p.deer), ['deer'], (r) => deerWords(r.deer as string | undefined)],
     // (What it takes, as NC State lists it: "Drought, heat, rabbits, black walnut"; deer has its own row.)
     ['Tolerates', p.tolerates?.some((x) => x !== 'deer') ? cap(p.tolerates.filter((x) => x !== 'deer').join(', ')) : '', ['tolerates']],
     // (Drawn by toxRow: never left out for a catalog plant, since no line about pets reads as safe.)
@@ -174,6 +181,8 @@ function rows(p: Plant): Row[] {
     ['Thorns', yes(p.thorns), ['thorns']],
     // (As its source lists them: NC State's take in the seasons and the undersides.)
     ['Leaf colors', leafText(p.leaf_color), ['leaf_color']],
+    // (Where the garden is, from USA-NPN's records of plants leafing out: drawn by leafOutRow.)
+    ['Leafs out', '', ['leaf_out']],
     // (Its leaves, then what makes winter interest, each with its source: drawn by winterRow.)
     ['In winter', '', ['foliage', 'bark', 'fruit_season', 'stem_color', 'winter_interest']],
     // (As NC State lists it, with its colors: "Exfoliating, peeling; red, light brown".)
@@ -259,6 +268,19 @@ function bloomRow(p: Plant): HTMLElement | null {
   }
   return dd;
 }
+/**
+ * When it leafs out where the garden is: the middle day of its plant-years there, and the middle half of them
+ * ("Around Mar 28 (most Mar 16 to Apr 4)"), with how many and where, and the source. Null: too few records.
+ */
+function leafOutRow(p: Plant): HTMLElement | null {
+  const l = localLeafOut(p);
+  if (!l) return null;
+  const dd = el('dd', { 'data-testid': 'leaf-out-row' });
+  dd.appendChild(el('span', { className: 'details-part' }, `Around ${dayOfYear(l.med)} (most ${dayOfYear(l.q1)} to ${dayOfYear(l.q3)})`));
+  dd.appendChild(el('span', { className: 'details-src' },
+    `${l.species ? 'its species: ' : ''}${l.n} plant-years in ${l.stateName}${l.area === 'region' ? ' and neighboring states' : ''} · ${l.source}`));
+  return dd;
+}
 /** Butterflies' common names, for a line, with field-guide capitals: "Monarch, Gray Hairstreak" (the binomials are in the source). */
 const commonNames = (names: string[]) => names.map((n) => butterflyCaps(n.replace(/\s*\([^)]*\)\s*$/, ''))).join(', ');
 const countWords = (n: number) => n.toLocaleString('en-US');
@@ -338,6 +360,7 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
   for (const [label, value, facts, reportedText] of rows(p)) {
     if (label === 'How it spreads') { const dd = spreadRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
     if (label === 'Bloom') { const dd = bloomRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
+    if (label === 'Leafs out') { const dd = leafOutRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
     if (label === 'In winter') { const dd = winterRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
     if (label === 'Caterpillar host') { const dd = hostRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
     if (label === 'Toxicity') {

@@ -201,7 +201,29 @@ export function withLocalParts(server: ProjectContent, mine: ProjectContent | un
   if (!mine) return server;
   let out = server;
   for (const k of NEWER_PARTS) if (!(k in server) && k in mine) out = { ...out, [k]: mine[k] };
-  return withUtilities(withGoneDates(out, mine), mine);
+  return withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine);
+}
+/**
+ * A shape's sub-features (doors, windows, gates: src/features.ts), which an older version leaves out of a shape it
+ * sends: kept from here when the server's copy of that shape has none at all. (All taken off on purpose is [], and
+ * stays so.) The shape must still have the same edges: the same kind of shape, or one turned into an outline there
+ * (which keeps its edges in order).
+ */
+function withSubFeatures(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
+  type Featured = { id?: unknown; type?: unknown; features?: unknown };
+  const kept = new Map<unknown, { type: unknown; features: unknown[] }>();
+  for (const s of mine.shapes as Featured[]) if (s && Array.isArray(s.features) && s.features.length) kept.set(s.id, { type: s.type, features: s.features });
+  if (!kept.size) return server;
+  let filled = false;
+  const shapes = (server.shapes as Featured[]).map((s) => {
+    const k = s ? kept.get(s.id) : undefined;
+    const sameEdges = s?.type === k?.type || (s?.type === 'poly' && ['rect', 'oval', 'triangle'].includes(k?.type as string));
+    if (!s || !k || 'features' in s || !sameEdges) return s;
+    filled = true;
+    return { ...s, features: k.features };
+  });
+  return filled ? { ...server, shapes } : server;
 }
 /**
  * A utility (a power line, a buried line, a septic field: src/utilities.ts), whose role an older version doesn't know

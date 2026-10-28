@@ -373,6 +373,31 @@ describe('backup files', () => {
   });
 });
 
+describe("a building's doors and windows, a fence's gates (sub-features)", () => {
+  const house = (extra: Record<string, unknown> = {}) => ({ id: 'h', type: 'rect', x: 0, y: 0, width: 20, height: 10, rotation: 0, color: '#78716c', label: 'House', opacity: 0.65, locked: false, role: 'building', ...extra });
+  it("round-trip, through a backup too; older shapes have none; [] is kept; malformed ones are dropped, a later version's kept", async () => {
+    await freshStorage();
+    const id = state.currentProjectId!;
+    const door = { id: 'd', kind: 'door', edge: 0, at: 0.5, width: 3 };
+    state.shapes = sanitizeProjectData({ shapes: [
+      house({ features: [door, { id: 'w', kind: 'window', edge: 2, at: 0.25, width: 4 }, { id: 'x', kind: 'chimney', edge: 0, at: 0.5 }, { id: 'y', kind: 'window', edge: -1, at: 0.5 }] }),
+      house({ id: 'old' }),
+      house({ id: 'none', features: [] }),
+      { id: 'fence', type: 'line', x: 0, y: 20, rotation: 0, points: [[0, 0], [30, 0]], color: '#444', label: 'Fence', opacity: 1, locked: false, role: 'boundary', features: [{ id: 'g', kind: 'gate', edge: 0, at: 0.4, width: 4 }] },
+    ] }).shapes;
+    await flushSave();
+    const loaded = (await readProject(id))!.shapes;
+    expect(loaded).toEqual(state.shapes);
+    // (The chimney is a kind a later version might add: kept as it came, so saving here doesn't take it away.)
+    expect(loaded[0]).toMatchObject({ features: [door, { id: 'w', kind: 'window', edge: 2, at: 0.25, width: 4 }, { id: 'x', kind: 'chimney', edge: 0, at: 0.5 }] });
+    expect('features' in loaded[1]).toBe(false);
+    expect(loaded[2]).toMatchObject({ features: [] });
+    expect(loaded[3]).toMatchObject({ features: [{ id: 'g', kind: 'gate', edge: 0, at: 0.4, width: 4 }] });
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
+  });
+});
+
 describe('utilities: power lines, buried lines and septic fields', () => {
   const line = (extra: Record<string, unknown> = {}) => ({ id: 'w', type: 'line', x: 0, y: 0, rotation: 0, points: [[0, 0], [40, 0]], color: '#ea580c', label: 'Power line', opacity: 1, locked: false, role: 'utility', utility: 'overhead', ...extra });
   it("round-trip, through a backup too; a later version's kind is kept, a malformed one dropped; one made something else keeps its kind", async () => {

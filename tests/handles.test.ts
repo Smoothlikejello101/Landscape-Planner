@@ -67,15 +67,16 @@ describe('sizing a circle by its edge', () => {
 });
 
 describe('turning by the knob', () => {
-  it('turns by as much as the knob went round, in 5° steps (15° with Shift), within a full turn', () => {
+  it('turns by as much as the knob went round, in whole degrees, sticking only near every 45°', () => {
     const r = rect(0, 0, 4, 2, 10);
     const c = { x: 2, y: 1 };
     const start = angleTo(c, { x: 2, y: -5 }); // straight up: 0°
     close(start, 0);
     expect(rotatePatch(r, start, angleTo(c, { x: 8, y: 1 }))).toEqual({ rotation: 100 }); // a quarter turn to the right
-    expect(rotatePatch(r, start, 33)).toEqual({ rotation: 45 });
-    expect(rotatePatch(r, start, 33, 15)).toEqual({ rotation: 45 });
-    expect(rotatePatch(r, start, -40)).toEqual({ rotation: 330 });
+    expect(rotatePatch(r, start, 26)).toEqual({ rotation: 36 }); // (36° is reachable: no 15° steps)
+    expect(rotatePatch(r, start, 33)).toEqual({ rotation: 43 });
+    expect(rotatePatch(r, start, 34.2)).toEqual({ rotation: 45 }); // (within a degree of 45°: it sticks)
+    expect(rotatePatch(r, start, -40.4)).toEqual({ rotation: 330 });
   });
   it('reads out the size or the turn as it goes', () => {
     expect(readoutText(rect(0, 0, 6, 4.25), 'br')).toBe('6 × 4.3 ft');
@@ -121,11 +122,20 @@ describe('a drag on the plan', () => {
     const zoom = state.zoom;
     state.zoom = 0.25; // (zoomed out: its 0.1 ft rise is under a pixel)
     try {
-      expect(handlePositions(state.shapes[0]).map((h) => h.kind)).toEqual(['tl', 'br', 'rotate']);
+      expect(handlePositions(state.shapes[0]).map((h) => h.kind)).toEqual(['tl', 'br']); // (no knob on a line)
       const g = startHandleDrag('br', { x: 10, y: 0.1 }, 0, 0, state.shapes)!;
       applyHandleDrag(g, { x: 11, y: 0.1 }, false, state.shapes);
       expect(state.shapes[0]).toMatchObject({ x: 0, y: 0, points: [[0, 0], [11, 0.1]] });
     } finally { state.zoom = zoom; }
+  });
+  it('sizes a tree drawn as an outline by its edge, its outline scaled with it', () => {
+    const tree: CircleShape = { ...base, id: 't', type: 'circle', role: 'plant', tree: true, x: 0, y: 0, radius: 4, canopy: [[4, 0], [0, 3], [-2, 0], [0, -3]] };
+    select([tree], 't');
+    expect(handleTarget()?.id).toBe('t');
+    const edge = 4 / Math.SQRT2;
+    const g = startHandleDrag('radius', { x: edge, y: edge }, 0, 0, state.shapes)!;
+    applyHandleDrag(g, { x: 8 / Math.SQRT2, y: 8 / Math.SQRT2 }, false, state.shapes);
+    expect(state.shapes[0]).toMatchObject({ radius: 8, canopy: [[8, 0], [0, 6], [-4, 0], [0, -6]] });
   });
   it('shows no handles on a plant, a locked shape or two shapes at once', () => {
     select([plant()], 'p');

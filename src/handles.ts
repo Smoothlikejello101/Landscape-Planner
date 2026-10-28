@@ -9,10 +9,12 @@ import { isTree } from './trees';
 import type { Gesture, Point, Shape } from './types';
 import { deepClone } from './util';
 
-// Handles on the selected shape (Jason's idea, 2026-10-27): drag a corner to resize it, the knob above it to turn
-// it, a circle's edge to size it. Only one shape at a time, unlocked, and not a plant: a plant's size is its spread
-// (the catalog's, or set in its properties), not something to pull by accident. A path (a band drawn along a center
-// line) has the knob only: its size is its width and length, reshaped by its points.
+// Handles on the selected shape (decided with Jason, 2026-10-25): drag a corner to resize it, the knob above it to
+// turn it, a circle's edge to size it. Only one shape at a time, unlocked, and not a plant circle: a plant's circle is
+// its spread (the catalog's, or set in its properties), not something to pull by accident; a tree drawn as an outline
+// is the exception, sized by its edge. A line (a fence, a measuring line, a path's center line) has no knob (Jason,
+// 2026-10-27: a line is reshaped by its points, Edit points on its chip), so a path (a band drawn along a center line)
+// has no handles at all: its size is its width and length.
 
 /** Where the knob sits beyond the shape's top edge (px), and its hit area (px). */
 const KNOB_GAP = 30;
@@ -35,10 +37,10 @@ const activeOn = (s: Shape): HandleGesture | null => {
 /** The shape that shows handles now, or null. */
 export function handleTarget(): Shape | null {
   if (state.selectedIds.length !== 1) return null;
-  if (state.bgEditMode || state.bgCalibrate || state.draw || state.editPoints || state.placing) return null;
+  if (state.bgEditMode || state.bgCalibrate || state.draw || state.editPoints || state.placing || state.featurePlace) return null;
   const s = state.shapes.find((sh) => sh.id === state.selectedIds[0]);
   if (!s || isLocked(s) || !shownWith(s, state.viewFilter)) return null;
-  if (s.type === 'circle' && (s.role === 'plant' || s.plantId || isTree(s))) return null;
+  if (s.type === 'circle' && (s.role === 'plant' || s.plantId || isTree(s)) && !s.canopy) return null;
   return s;
 }
 
@@ -86,7 +88,8 @@ export function handlePositions(s: Shape): { kind: HandleKind; at: Point; hit: n
     const hit = flat ? 14 : clamp(shortPx / 3, MIN_HIT, MAX_HIT);
     for (const c of cornerHandles(s, f)) out.push({ kind: c.kind, at: c.at, hit });
   }
-  // The knob: beyond the middle of the top edge, out along the shape's own up.
+  // The knob: beyond the middle of the top edge, out along the shape's own up. Not on a line.
+  if (s.type === 'line') return out;
   const top = toScreen(framePoint(f, 0, -f.h / 2));
   const up = rotate(0, -1, f.rot);
   out.push({ kind: 'rotate', at: { x: top.x + up.x * KNOB_GAP, y: top.y + up.y * KNOB_GAP }, hit: KNOB_HIT });
@@ -103,6 +106,10 @@ export function renderShapeHandles(g: SVGElement) {
   const knob = positions.find((p) => p.kind === 'rotate');
   // The box the corners belong to, faintly, where it isn't the shape's own edge (an oval's, an outline's, a line's):
   // a corner handle off in the open reads as that box's corner.
+  // (A tree's outline: the circle its edge handle sizes, the farthest the outline reaches.)
+  if (s.type === 'circle' && s.canopy && positions.length) {
+    g.appendChild(svgEl('circle', { 'data-role': 'handle-frame', cx: center.x, cy: center.y, r: s.radius * pxPerFoot(), fill: 'none', stroke: INK, 'stroke-width': 1, 'stroke-dasharray': '3 3', 'stroke-opacity': 0.6, 'pointer-events': 'none' }));
+  }
   if (s.type === 'oval' || s.type === 'triangle' || s.type === 'poly' || s.type === 'line') {
     const f = frameOf(s);
     if (f.w > 0 && f.h > 0 && positions.some((p) => p.kind !== 'rotate')) {
@@ -192,7 +199,7 @@ export function applyHandleDrag(g: HandleGesture, p: Point, shift: boolean, shap
   }
   if (g.type === 'shape-rotate') {
     if (s.type === 'circle' || g.start.type === 'circle') return [];
-    const patch = rotatePatch(g.start, g.startAngle, angleTo(g.center, p), shift ? 15 : undefined);
+    const patch = rotatePatch(g.start, g.startAngle, angleTo(g.center, p));
     const moved = carriesPlants(s) ? patchBedCarryingPlants(s, patch, shapes) : (Object.assign(s, patch), []);
     return [s.id, ...new Set([...moved, ...g.carried.map((c) => c.id)])];
   }
@@ -200,6 +207,7 @@ export function applyHandleDrag(g: HandleGesture, p: Point, shift: boolean, shap
   if (s.type === 'circle' && g.start.type === 'circle') {
     const { radius } = radiusPatch(g.start, to);
     setRadius(s, radius!); // (a circle with a shaped outline grows and shrinks with it)
+    if (s.plantId) s.sizeFrom = 'manual'; // (a tree of the catalog's, sized by hand: kept when the plan's size mode changes)
   } else if (s.type !== 'circle' && g.start.type !== 'circle' && g.handle !== 'radius') Object.assign(s, resizePatch(g.start, g.handle, to, shift));
   return [s.id];
 }

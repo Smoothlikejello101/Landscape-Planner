@@ -28,6 +28,13 @@ export interface WildFile {
   bloom?: Record<string, { start: number; end: number; peak: number; n: number; area: 'state' | 'region' }>;
   /** Ids whose bloom months are their species' records. */
   bloomSpecies?: string[];
+  /**
+   * When plants leaf out in the state, from USA-NPN's records (scripts/catalog/npn.mjs): days of the year, the middle
+   * one and the quartiles, over `n` plant-years (each plant's first leaf buds breaking, or first growth, that year).
+   */
+  leafOut?: Record<string, { med: number; q1: number; q3: number; n: number; area: 'state' | 'region' }>;
+  /** Ids whose leaf-out days are their species' records. */
+  leafOutSpecies?: string[];
   /** Native status in the state, from Kew's World Checklist (scripts/catalog/wcvp.mjs): N native, I introduced. */
   native?: Record<string, 'N' | 'I'>;
   /** Ids whose native status is their species' (a cultivar, mix, or variety). */
@@ -66,6 +73,8 @@ export interface RuleHere extends RuleLine {
 }
 /** A plant's native status in the garden's state (`species`: its species', a cultivar's). */
 export interface NativeHere { status: 'N' | 'I'; stateName: string; /** Its postal code ("AR"). */ state: string; species: boolean; source: string }
+/** When a plant leafs out where the garden is (days of the year): its state's records, or its region's. */
+export interface LocalLeafOut { med: number; q1: number; q3: number; n: number; area: 'state' | 'region'; stateName: string; species: boolean; source: string }
 /** A plant's bloom months where the garden is: its state's (or, with too few records there, its region's). */
 export interface LocalBloom { start: number; end: number; peak: number; n: number; area: 'state' | 'region'; stateName: string; species: boolean; source: string }
 export interface WildIndex { v: 1; states: Record<string, string>; border: Record<string, number[]> }
@@ -247,6 +256,21 @@ export function localBloom(p: { id: string; parent?: string }): LocalBloom | nul
   if (!b && p.parent) { id = p.parent; b = own.bloom[id]; species = !!b; }
   if (!b) return null;
   return { ...b, stateName: STATE_NAMES[own.state] ?? own.state, species, source: own.sources.gbifBloom?.title ?? 'GBIF.org' };
+}
+
+/** When a plant (a cultivar: its species) leafs out where the garden is, from USA-NPN's records; null where there are too few. */
+export function localLeafOut(p: { id: string; parent?: string }): LocalLeafOut | null {
+  if (!loaded || loaded.zip !== state.location?.zip || !loaded.county) return null;
+  const own = loaded.files.find((f) => f.fips === Math.floor(loaded!.county / 1000));
+  if (!own?.leafOut) return null;
+  let id = p.id, b = own.leafOut[id], species = !!b && !!own.leafOutSpecies?.includes(id);
+  if (!b && p.parent) { id = p.parent; b = own.leafOut[id]; species = !!b; }
+  if (!b) return null;
+  return { ...b, stateName: STATE_NAMES[own.state] ?? own.state, species, source: own.sources.usanpn?.title ?? 'USA National Phenology Network' };
+}
+/** A day of the year as a date ("Mar 28"), in a year that isn't a leap year. */
+export function dayOfYear(doy: number): string {
+  return new Date(Date.UTC(2025, 0, Math.max(1, Math.min(365, Math.round(doy))))).toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
 }
 
 /** The garden's state, by name, once its county is known and its file has native status ("Arkansas"); null before. */

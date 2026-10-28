@@ -105,8 +105,8 @@ export function paste(): boolean {
   const data = getClipboard();
   if (!data || !data.shapes || !data.shapes.length) return false;
   flushHistoryDebounce();
-  // (Read as a stored plan's shapes are: a clipboard can come from another version's tab, a utility of a kind this
-  // one doesn't know, say.)
+  // (Read as a stored plan's shapes are, doors and windows too: a clipboard can come from another version's tab, a
+  // utility of a kind this one doesn't know, say.)
   const incoming = data.shapes.map((s) => migrateShape(deepClone(s))).filter((s): s is Shape => !!s).map((s) => ({ ...s, id: uid() }) as Shape);
   if (!incoming.length) return false;
   let dx = 1, dy = 1;
@@ -236,6 +236,7 @@ export function resetCurrentProject() {
   state.bgCalibrate = null;
   state.draw = null;
   state.editPoints = null;
+  state.featurePlace = null;
   pushHistory();
   save();
 }

@@ -22,6 +22,7 @@ export function startPlacing(p: Plant) {
   flushHistoryDebounce();
   state.draw = null;
   state.editPoints = null;
+  state.featurePlace = null;
   state.selectMode = false;
   state.selectedIds = [];
   state.panel = null;
