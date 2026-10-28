@@ -12,8 +12,9 @@ import { deepClone } from './util';
 // Handles on the selected shape (decided with Jason, 2026-10-25): drag a corner to resize it, the knob above it to
 // turn it, a circle's edge to size it. Only one shape at a time, unlocked, and not a plant circle: a plant's circle is
 // its spread (the catalog's, or set in its properties), not something to pull by accident; a tree drawn as an outline
-// is the exception, sized by its edge. A path (a band drawn along a center line) has the knob only: its size is its
-// width and length, reshaped by its points.
+// is the exception, sized by its edge. A line (a fence, a measuring line, a path's center line) has no knob (Jason,
+// 2026-10-27: a line is reshaped by its points, Edit points on its chip), so a path (a band drawn along a center line)
+// has no handles at all: its size is its width and length.
 
 /** Where the knob sits beyond the shape's top edge (px), and its hit area (px). */
 const KNOB_GAP = 30;
@@ -87,7 +88,8 @@ export function handlePositions(s: Shape): { kind: HandleKind; at: Point; hit: n
     const hit = flat ? 14 : clamp(shortPx / 3, MIN_HIT, MAX_HIT);
     for (const c of cornerHandles(s, f)) out.push({ kind: c.kind, at: c.at, hit });
   }
-  // The knob: beyond the middle of the top edge, out along the shape's own up.
+  // The knob: beyond the middle of the top edge, out along the shape's own up. Not on a line.
+  if (s.type === 'line') return out;
   const top = toScreen(framePoint(f, 0, -f.h / 2));
   const up = rotate(0, -1, f.rot);
   out.push({ kind: 'rotate', at: { x: top.x + up.x * KNOB_GAP, y: top.y + up.y * KNOB_GAP }, hit: KNOB_HIT });

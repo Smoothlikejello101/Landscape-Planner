@@ -122,7 +122,7 @@ describe('a drag on the plan', () => {
     const zoom = state.zoom;
     state.zoom = 0.25; // (zoomed out: its 0.1 ft rise is under a pixel)
     try {
-      expect(handlePositions(state.shapes[0]).map((h) => h.kind)).toEqual(['tl', 'br', 'rotate']);
+      expect(handlePositions(state.shapes[0]).map((h) => h.kind)).toEqual(['tl', 'br']); // (no knob on a line)
       const g = startHandleDrag('br', { x: 10, y: 0.1 }, 0, 0, state.shapes)!;
       applyHandleDrag(g, { x: 11, y: 0.1 }, false, state.shapes);
       expect(state.shapes[0]).toMatchObject({ x: 0, y: 0, points: [[0, 0], [11, 0.1]] });

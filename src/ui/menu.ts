@@ -103,7 +103,7 @@ export function renderMoreMenu() {
     btn.addEventListener('click', it.onClick);
     menu.appendChild(btn);
   }
-  // Text size: three A's, each at its size. A change shows at once; the menu stays open to try another.
+  // Text size: four A's, each at its size. A change shows at once; the menu stays open to try another.
   const seg = el('div', { className: 'seg', role: 'group', 'aria-label': 'Text size' });
   for (const s of TEXT_SIZES) {
     const b = el('button', { 'aria-pressed': String(textSize() === s.key), 'aria-label': s.name, title: s.name, 'data-testid': `text-size-${s.key}`, style: { fontSize: `${14 * s.scale}px` } }, 'A');

@@ -2,7 +2,7 @@ import { el, type Child } from '../dom';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery } from '../search';
-import { formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantTakesSun, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, isGroupHead } from '../plants';
+import { formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, isGroupHead } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { SPREAD_WAYS, spreadWays } from '../spread';
@@ -37,9 +37,10 @@ function addNativeHereOption() {
 function closePicker() { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; state.pickerForTree = false; render(); }
 // (A tree among its forms: a shrub that grows into a tree, mimosa or wax myrtle, can be the tree in the yard.)
 const isTree = (p: Plant) => formsOf(p).includes('Tree');
-// My plants folded away in the picker: kept here, and remembered on this device when storage allows.
+// My plants folded away in the picker: kept here, and remembered on this device when storage allows. Folded until
+// opened (Jason, 2026-10-27: the catalog is what's browsed; a search shows your matches anyway).
 const FOLD_KEY = 'lp-my-plants-folded';
-let myPlantsFolded = (() => { try { return localStorage.getItem(FOLD_KEY) === '1'; } catch { return false; } })();
+let myPlantsFolded = (() => { try { return localStorage.getItem(FOLD_KEY) !== '0'; } catch { return true; } })();
 function setMyPlantsFolded(v: boolean) {
   myPlantsFolded = v;
   try { localStorage.setItem(FOLD_KEY, v ? '1' : '0'); } catch { /* folded for now, not remembered */ }
@@ -271,13 +272,14 @@ export function renderPlantsPanel() {
     return item;
   }
   /**
-   * "My plants" matching the search and sun filter (their other fields are whatever the user entered): by name, as
-   * the catalog is searched, or with every word starting a word of their notes. `near` as for the catalog.
+   * "My plants" matching the search and the filters, as the catalog's plants are (Jason, 2026-10-27): one without
+   * what a filter asks about (no deer rating, say) is left out while that filter is on, as a catalog plant is. Found
+   * by name, as the catalog is searched, or with every word starting a word of their notes. `near` as for the catalog.
    */
   function myHits(near: boolean): Plant[] {
     const q = readQuery(plantFilter.q);
-    const inPlan = plantFilter.inPlan ? plantIdsInPlan() : null;
-    const shown = activeMyPlants().filter((p) => (!inPlan || inPlan.has(p.id)) && (!plantFilter.sun || !p.sun_most || plantTakesSun(p, plantFilter.sun)));
+    const inPlan = plantFilter.inPlan ? plantIdsInPlan() : undefined;
+    const shown = activeMyPlants().filter((p) => plantMatches(p, { ...plantFilter, q: '' }, inPlan));
     if (!q) return shown;
     const hits = shown.flatMap((plant) => { const hit = matchPlant(plant, q, near) ?? (inNotes(plant, q) ? { rank: 3, order: 4 } : null); return hit ? [{ plant, hit }] : []; });
     return hits.sort(byMatch).map((x) => x.plant);

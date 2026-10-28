@@ -45,29 +45,62 @@ export function placeToast(node: HTMLElement) {
 /**
  * A notice with buttons ("Squared the corners. Undo"), kept up long enough to reach: tapping a button runs it
  * and closes the notice (unless it's `keep`: turning a setting off leaves the Undo there). A new notice
- * replaces it.
+ * replaces it. With `detail`, the message is one short line that opens to say more (Jason, 2026-10-27: a notice
+ * mustn't get in the way); opened, it stays up while it's read. `tone` marks it amber or red.
  */
-export function toastAction(message: string, actions: { label: string; run: () => void; keep?: boolean }[], ms = 10000, testid?: string) {
+export function toastAction(message: string, actions: { label: string; run: () => void; keep?: boolean }[], ms = 10000, testid?: string,
+  opts: { detail?: string; tone?: 'amber' | 'red' } = {}) {
   toast('', 1); // (clears a plain toast)
   document.getElementById('toast-action')?.remove();
   const node = document.createElement('div');
   node.id = 'toast-action';
   if (testid) node.dataset.testid = testid;
+  if (opts.tone) node.classList.add(`tone-${opts.tone}`);
   node.setAttribute('role', 'status');
   node.setAttribute('aria-live', 'polite');
-  const text = document.createElement('span');
-  text.textContent = message;
-  node.appendChild(text);
+  let closeAt = Date.now() + ms;
+  if (opts.detail) {
+    const line = document.createElement('button');
+    line.className = 'notice-line';
+    line.setAttribute('aria-expanded', 'false');
+    line.dataset.testid = 'notice-line';
+    const words = document.createElement('span');
+    words.textContent = message;
+    const chev = document.createElement('span');
+    chev.className = 'notice-chev';
+    chev.setAttribute('aria-hidden', 'true');
+    line.append(words, chev);
+    const more = document.createElement('div');
+    more.className = 'notice-detail';
+    more.dataset.testid = 'notice-detail';
+    more.textContent = opts.detail;
+    more.hidden = true;
+    line.addEventListener('click', () => {
+      more.hidden = !more.hidden;
+      line.setAttribute('aria-expanded', String(!more.hidden));
+      if (!more.hidden) closeAt = Math.max(closeAt, Date.now() + 30000); // (time to read it)
+      placeNotice();
+    });
+    node.append(line, more);
+  } else {
+    const text = document.createElement('span');
+    text.textContent = message;
+    node.appendChild(text);
+  }
+  const buttons = document.createElement('div');
+  buttons.className = 'notice-buttons';
   for (const a of actions) {
     const b = document.createElement('button');
     b.textContent = a.label;
     b.addEventListener('click', () => { if (a.keep) b.remove(); else node.remove(); a.run(); });
-    node.appendChild(b);
+    buttons.appendChild(b);
   }
+  node.appendChild(buttons);
   document.body.appendChild(node);
   placeNotice();
   requestAnimationFrame(placeNotice);
-  setTimeout(() => node.remove(), ms);
+  const tick = () => { if (!node.isConnected) return; const left = closeAt - Date.now(); if (left <= 0) node.remove(); else setTimeout(tick, left); };
+  setTimeout(tick, ms);
 }
 /**
  * Where a notice with buttons sits: at the top of the plan; with a sheet open, just above the sheet, so it never

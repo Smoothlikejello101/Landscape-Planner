@@ -1,11 +1,13 @@
 import { setCrowdWarnings, setShowCrowding, setShowFullSize } from '../view-settings';
 import { el, svgEl, ts } from '../dom';
 import { setSnapOn, setSquareOn, snapOn, squareOn } from '../tidy';
-import { flushHistoryDebounce, pushHistory } from '../history';
+import { flushHistoryDebounce, pushHistory, undo } from '../history';
 import { I } from '../icons';
 import { centerOnShape, deletePhase, setRoleView, setViewFilter } from '../mutations';
 import { passesFilter, shownWith, STATUSES, statusLabelFor } from '../status';
-import { BULB_PARTNER_MIN_HEIGHT, crowdLevels } from '../crowding';
+import { BULB_PARTNER_MIN_HEIGHT, crowdLevels, crowdPairs } from '../crowding';
+import { leaveAllClose } from './crowd-notice';
+import { toastAction } from './toast';
 import { crowdOptions } from '../crowd-here';
 import { plantsById } from '../plants';
 import { ROLES, roleHidden, roleKey, roleLabel } from '../roles';
@@ -207,6 +209,17 @@ function crowdingSettings(): HTMLElement {
   warn.addEventListener('change', () => { setCrowdWarnings(warn.checked); render(); });
   wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, warn,
     el('span', {}, 'Warn me as I place a plant close to another')));
+  // Everything flagged now, left close at once (a plan drawn before the warnings: Jason, 2026-10-27).
+  const flagged = crowdPairs(state.shapes.filter((x) => shownWith(x, state.viewFilter)), plantsById, crowdOptions()).length;
+  if (flagged) {
+    const leave = el('button', { className: 'btn', 'data-testid': 'leave-all-close' }, `Leave all flagged now (${flagged} pair${flagged === 1 ? '' : 's'})`);
+    leave.addEventListener('click', () => {
+      const n = leaveAllClose();
+      render();
+      if (n) toastAction(`Left ${n} pair${n === 1 ? '' : 's'} close on purpose. Plants placed from now on are still flagged.`, [{ label: 'Undo', run: () => { undo(); render(); } }]);
+    });
+    wrap.appendChild(el('div', { className: 'check-row', style: { marginTop: '6px', gap: '10px' } }, leave));
+  }
   // Pairs left close on purpose (Leave it), and a way to have them flagged again.
   const pairs = state.shapes.reduce((n, s) => n + (s.type === 'circle' ? s.crowdOk?.length ?? 0 : 0), 0);
   if (pairs) {
