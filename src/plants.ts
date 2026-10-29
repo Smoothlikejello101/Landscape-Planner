@@ -1,3 +1,4 @@
+import { recordError } from './error-log';
 import { redrawCanvas } from './canvas';
 import { flushHistoryDebounce, pushHistory } from './history';
 import { state } from './state';
@@ -304,7 +305,7 @@ export function loadPlants(): Promise<void> {
     if (state.panel === 'plants') render(); // refresh picker if already open
     else redrawCanvas(); // sun-check badges need plant data (canvas only: keyboard safe)
   })
-  .catch((err) => console.error('plants.json load failed', err));
+  .catch((err) => { console.error('plants.json load failed', err); recordError(err, 'catalog'); });
 }
 // ============================================================
 // PLANT PICKER

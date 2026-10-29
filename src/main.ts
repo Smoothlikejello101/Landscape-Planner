@@ -29,7 +29,11 @@ import { flushSave, initStorage, refreshClipboard, requestPersistence, save, set
 import { flashZoom, render } from './ui/render';
 import { dismissToastAction, toast } from './ui/toast';
 import { noteVisit } from './hints';
+import { installErrorLog } from './error-log';
 import { pxPerFoot } from './geometry';
+
+// The app's own errors, kept on this device for a support file (src/error-log.ts): from the start.
+installErrorLog();
 
 // The page at this device's text size, before anything is drawn (src/text-size.ts).
 applyTextSize();
