@@ -22,7 +22,7 @@ The audit's sources give different values, so the catalog keeps the value it had
 
 | Plant | Fact | What the sources say | Catalog now |
 | --- | --- | --- | --- |
-| Japanese forest grass 'All Gold' (`hakonechloa-macra`) | spreading | provenwinners.com: Spreading rhizome · hortech.com: Clumping | Clumping |
+| Japanese forest grass 'All Gold' (`hakonechloa-macra`) | spreading | waltersgardens.com: Spreading rhizome · hortech.com: Clumping | Clumping |
 | Sideoats grama (`bouteloua-curtipendula`) | spreading | newmoonnursery.com: Slow-spreading rhizome · prairienursery.com: Clumping | Clumping |
 | Cream wild indigo (`baptisia-bracteata`) | flower_color | mowildflowers.net: White, Cream · allendanseed.com: Yellow | – |
 | Common sneezeweed (`helenium-autumnale`) | spreading | newmoonnursery.com: Clumping · calfloranursery.com: Mat-forming | Clumping |
@@ -50,7 +50,7 @@ The audit's sources give different values, so the catalog keeps the value it had
 | Siebold's maple (`acer-sieboldianum`) | flower_color | ncsu: Gold/Yellow · chicagobotanic.org: Green | yellow |
 | Shantung maple (`acer-truncatum`) | flower_color | ncsu: Gold/Yellow · chicagobotanic.org: Green | yellow |
 | Winter bentgrass (`agrostis-hyemalis`) | self-sowing | ncsu: Prolific · illinoiswildflowers.info: Unrated | Prolific |
-| Lady's-mantle (`alchemilla-mollis`) | self-sowing | ncsu, provenwinners.com: Prolific · wisc.edu: Unrated | Prolific |
+| Lady's-mantle (`alchemilla-mollis`) | self-sowing | ncsu, waltersgardens.com: Prolific · wisc.edu: Unrated | Prolific |
 | Pineapple (`ananas-comosus`) | most sun | chicagobotanic.org says Full; each decided on its own, most sun Part and least sun Full make no range | Part |
 | Pineapple (`ananas-comosus`) | least sun | ncsu says Part; each decided on its own, most sun Part and least sun Full make no range (USDA: shade tolerance low) | Part |
 | Dill (`anethum-graveolens`) | self-sowing | ncsu, gardenershq.com: Unrated · wisc.edu: Prolific | Unrated |
@@ -72,7 +72,7 @@ The audit's sources give different values, so the catalog keeps the value it had
 | Umbrella sedge (`cyperus-alternifolius`) | spreading | ncsu: Spreading rhizome · uada.edu: Slow-spreading rhizome; levypreserve.org says Clumping | Spreading rhizome |
 | Poinsettia (`euphorbia-pulcherrima`) | most sun | unf.edu says Full; each decided on its own, most sun Part and least sun Full make no range | Part |
 | Poinsettia (`euphorbia-pulcherrima`) | least sun | ncsu says Part; each decided on its own, most sun Part and least sun Full make no range | Part |
-| Blue Oat-grass (`helictotrichon-sempervirens`) | leaves in winter | ncsu, provenwinners.com: semi-evergreen · wisc.edu: deciduous | semi-evergreen |
+| Blue Oat-grass (`helictotrichon-sempervirens`) | leaves in winter | ncsu, waltersgardens.com: semi-evergreen · wisc.edu: deciduous | semi-evergreen |
 | Manyflower marshpennywort (`hydrocotyle-umbellata`) | flower_color | ncsu: White · chicagobotanic.org: Green | white |
 | Winterberry (`ilex-verticillata-x-serrata`) | spreading | ncsu, leavesforwildlife.com: Suckering · clemson.edu: Suckering thicket | Suckering |
 | Yellow Archangel (`lamium-galeobdolon`) | leaves in winter | ncsu: evergreen · wisc.edu: semi-evergreen | evergreen |
@@ -551,7 +551,7 @@ Kew's checklist has no one accepted species for 37 catalog names (hybrids, names
 
 New plants (scripts/catalog/additions.mjs):
 
-- 56 plants added from NC State's Plant Toolbox in this build (2901 in all)
+- 0 plants added from NC State's Plant Toolbox in this build (2901 in all)
 - 802 plants waiting, for size (661), form (94), hardiness (235), sun (89), its species (19)
 - 592 pages left out: a vegetable (86), a genus (294), a weed (204), in the catalog (8)
 - 18 pages the sitemap lists that aren't saved yet
