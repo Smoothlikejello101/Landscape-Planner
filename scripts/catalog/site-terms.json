@@ -5142,5 +5142,14 @@
    "https://www.zubaplants.com/pages/billing-terms-conditions"
   ],
   "note": "Standard Shopify terms of service: section 12 prohibited uses include spider, crawl, or scrape; also bars exploiting any portion of the Service."
+ },
+ "provenwinners.com": {
+  "verdict": "bots",
+  "read": "2026-10-28",
+  "by": "Jason, by hand (its Legal Terms, pasted)",
+  "pages": [
+   "https://www.provenwinners.com (footer: Terms and Conditions, Termly)"
+  ],
+  "note": "Its Legal Terms bar \"any data mining, robots, or similar data gathering and extraction tools\" and \"any spider, robot, cheat utility, scraper\"; bar systematically retrieving content \"to create or compile ... a collection, compilation, database, or directory without written permission\"; content is for \"personal, non-commercial use only\"; and bar \"unauthorized framing of or linking to the Services\". Permission requests: brian@provenwinners.com."
  }
 }

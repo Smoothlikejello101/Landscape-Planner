@@ -46,7 +46,9 @@ const AUTHORITY_SITES = new Set([
  */
 const COMPANY = {
   'provenwinners.com': 'provenwinners.com', 'provenwinners-shrubs.com': 'provenwinners.com', 'provenwinnersdirect.com': 'provenwinners.com',
-  'spring-meadow.com': 'provenwinners.com', 'waltersgardens.com': 'provenwinners.com',
+  // (Walters Gardens and Spring Meadow grow for the Proven Winners brand but are companies of their own, with their own
+  // sites and terms: each its own source, credited as itself. Copy they share with the brand's pages counts once by
+  // its text, as any shared copy does. 2026-10-28.)
   'monrovia.com': 'monrovia.com', 'firsteditionsplants.com': 'firsteditionsplants.com', 'baileynurseries.com': 'firsteditionsplants.com',
   'endlesssummerblooms.com': 'firsteditionsplants.com', 'bloomineasy.com': 'bloomineasy.com', 'southernlivingplants.com': 'southernlivingplants.com',
   'encoreazalea.com': 'plantdevelopmentservices', 'plantdevelopment.com': 'plantdevelopmentservices',
