@@ -231,6 +231,15 @@
   "pages": [],
   "note": "Home page names no terms and none were at the usual addresses; only a cookie-consent notice."
  },
+ "agristarts.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.agristarts.com/index.cfm/fuseaction/home.showpage/pageID/56/index.htm"
+  ],
+  "note": "Wholesale propagator; its only Terms & Conditions page is ordering, shipping and SMS terms with no clause on bots, use or copying; no terms of use."
+ },
  "ainsleyplant.com": {
   "verdict": "none found",
   "read": "2026-10-28",
@@ -792,6 +801,15 @@
    "https://arboretumfoundation.org/terms-of-use/"
   ],
   "note": "The footer's Terms of Use page holds only a privacy statement, with no scan hits on bots, use of information or copying; otherwise just a copyright line."
+ },
+ "arborgate.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://arborgate.com/"
+  ],
+  "note": "Garden center whose home footer has only a copyright line and privacy link; the page fetched as 'terms' is a gardening glossary, and no terms of use are linked."
  },
  "archfoundation.org": {
   "verdict": "use",
@@ -1358,6 +1376,15 @@
    "https://www.bayareagardening.org/"
   ],
   "note": "GardenSoft water-wise site with a copyright line only; no terms linked or at the usual addresses."
+ },
+ "baygardens.com": {
+  "verdict": "bots",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://baygardens.com/policies/terms-of-service"
+  ],
+  "note": "Shopify standard terms of service forbid using the service to spider, crawl or scrape."
  },
  "baysidegardencenter.com": {
   "verdict": "open",
@@ -1982,6 +2009,15 @@
   ],
   "note": "User Agreement's Access and Interference section bars any robot, spider, scraper or other automated means without written permission."
  },
+ "bonsaify.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.bonsaify.com/policies/terms-of-service"
+  ],
+  "note": "Shopify shop whose terms-of-service address is an empty shell (menus only, while its refund policy has text); the footer links only privacy and refund policies."
+ },
  "bonsaioutlet.com": {
   "verdict": "none found",
   "read": "2026-10-28",
@@ -2212,6 +2248,16 @@
    "https://www.briggsnursery.com/sales/terms-conditions/"
   ],
   "note": "Short Website Terms page shows only a copyright line and an accuracy/external-links disclaimer; the other page is terms of sale. Nothing on bots or use limits seen."
+ },
+ "brighterblooms.com": {
+  "verdict": "open",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.brighterblooms.com/pages/terms-of-service",
+   "https://www.brighterblooms.com/policies/terms-of-service"
+  ],
+  "note": "Footer-linked custom terms of service (orders, SMS consent, liability; not Shopify's standard text) with no keyword passage on bots, use or databases; the bots hint came from 'automatic telephone dialing', and the standard-terms address returned nothing."
  },
  "brilliant-creation.org": {
   "verdict": "open",
@@ -2449,6 +2495,16 @@
    "https://bunchberrynurseries.ca/pages/terms-of-service"
   ],
   "note": "Shopify-standard Terms & Conditions; the prohibited-uses section (section 12) bans spidering, crawling or scraping."
+ },
+ "bunkershillgardenshop.co.uk": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://bunkershillgardenshop.co.uk/terms-conditions/",
+   "https://bunkershillgardenshop.co.uk/terms-conditions-for-offers/"
+  ],
+  "note": "Both terms pages are terms of sale and offer conditions; the use hint came from 'commercial unit' in the cancellation clause, and nothing addresses bots, use of content or copying."
  },
  "burford.co.uk": {
   "verdict": "bots",
@@ -3027,6 +3083,15 @@
   "pages": [],
   "note": "No terms page linked or at usual addresses; the home footer lists only Home, About, Contact and a copyright line, with no Terms, Legal or Policies link."
  },
+ "cincinnatibonsai.org": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://cincinnatibonsai.org/"
+  ],
+  "note": "Bonsai society home page names no terms and none were found at the usual addresses."
+ },
  "cirrusimage.com": {
   "verdict": "none found",
   "read": "2026-10-28",
@@ -3443,6 +3508,15 @@
   ],
   "note": "The footer's Terms and Conditions page is the site builder's unfilled placeholder describing what terms could contain, so the site states no terms; only a copyright line in the footer."
  },
+ "creeksidegardensinc.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.creeksidegardensinc.com/"
+  ],
+  "note": "Garden center whose home footer has only a copyright line and privacy link; no terms linked or at the usual addresses."
+ },
  "crescentbloom.com": {
   "verdict": "none found",
   "read": "2026-10-27",
@@ -3824,6 +3898,15 @@
   "by": "agent review",
   "pages": [],
   "note": "WordPress.com blog; no terms page linked or at usual addresses, and the home footer names no Terms, Legal or Policies link."
+ },
+ "dgiplants.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.dgiplants.com/service-a-contacts/our-policies"
+  ],
+  "note": "Wholesale greenhouse whose only policy page covers planting lots, availability and ordering, with nothing on bots, use or copying; no terms of use, only a copyright line."
  },
  "dharaseeds.com": {
   "verdict": "use",
@@ -4209,6 +4292,15 @@
   "pages": [],
   "note": "Home page links no terms and none were at the usual addresses; the footer has only menu links."
  },
+ "ediblelandscaping.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://ediblelandscaping.com/policies/terms-of-service"
+  ],
+  "note": "Shopify terms-of-service address holds a short custom order and guarantee text, not Shopify's standard terms; no keyword passage on bots, use or copying, so no terms of use as such."
+ },
  "ediblewildfood.com": {
   "verdict": "open",
   "read": "2026-10-18",
@@ -4235,6 +4327,16 @@
    "https://edsplantshop.com/policies/terms-of-service"
   ],
   "note": "Terms of Service Section 2 bars reproducing, selling or exploiting any portion of the Service (which includes the site's information) without written permission; no bot clause."
+ },
+ "edulis.co.uk": {
+  "verdict": "bots",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.edulis.co.uk/policies/terms-of-service",
+   "https://www.edulis.co.uk/pages/terms-conditions"
+  ],
+  "note": "Shopify standard terms (at both terms addresses) forbid using the service to spider, crawl or scrape."
  },
  "efloraofindia.com": {
   "verdict": "open",
@@ -4871,6 +4973,15 @@
   "pages": [],
   "note": "Home page footer names only a Privacy Policy and no terms, legal or policies page; none found at the usual addresses."
  },
+ "fleurandie.fr": {
+  "verdict": "open",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://fleurandie.fr/policies/terms-of-service"
+  ],
+  "note": "Its Conditions d'utilisation page holds the shop's own French terms of sale (not Shopify's standard text); the intellectual-property article, shown in full, only forbids reproducing or adapting the site's logos, text and images."
+ },
  "fleuroselect.com": {
   "verdict": "none found",
   "read": "2026-10-29",
@@ -5348,6 +5459,15 @@
    "https://www.fourwindsgrowers.com/policies/terms-of-service"
   ],
   "note": "Shopify standard Terms of Service forbid using the site to spider, crawl or scrape."
+ },
+ "franklin-brothers-nursery.myshopify.com": {
+  "verdict": "bots",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://franklin-brothers-nursery.myshopify.com/policies/terms-of-service"
+  ],
+  "note": "Shopify standard terms of service forbid using the service to spider, crawl or scrape."
  },
  "frankpmatthews.com": {
   "verdict": "open",
@@ -5886,6 +6006,16 @@
   ],
   "note": "Home page is a near-empty WordPress site with a 2018 copyright line; no terms linked or at the usual addresses."
  },
+ "gardenweb.com": {
+  "verdict": "bots",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.houzz.com/termsOfUse",
+   "https://www.houzz.com/copyrightTrademarkPolicy"
+  ],
+  "note": "Houzz's terms of use, which cover GardenWeb, prohibit data mining, robots, scraping and extraction tools and use of content for AI training, and limit use to personal non-commercial use."
+ },
  "gardenwild.net": {
   "verdict": "none found",
   "read": "2026-10-28",
@@ -6217,6 +6347,15 @@
   ],
   "note": "Standard Shopify terms: the prohibited-uses list (section 12, item i) bars using the Service to spider, crawl or scrape; section 2's no-exploit clause would also call for asking, but the bot ban decides it."
  },
+ "gogardennow.com": {
+  "verdict": "bots",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://gogardennow.com/policies/terms-of-service"
+  ],
+  "note": "Shopify standard terms of service forbid using the service to spider, crawl or scrape."
+ },
  "govinfo.gov": {
   "verdict": "open",
   "read": "2026-10-27",
@@ -6446,6 +6585,15 @@
    "https://www.greenthumb.com/terms-conditions/"
   ],
   "note": "Terms forbid access by bot or script, data mining, robots, spiders and scrapers, and compiling a database from the site; content is for personal, non-commercial use only."
+ },
+ "greenthumbgardencentre.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://greenthumbgardencentre.com/policies/terms-of-service"
+  ],
+  "note": "Shopify shop whose terms-of-service address is an empty shell (menus and footer, no policy text); the footer links only a privacy policy."
  },
  "greenwoodplants.co.uk": {
   "verdict": "none found",
@@ -7138,6 +7286,15 @@
   "pages": [],
   "note": "No terms page linked or at usual addresses, and the home page's text and footer name no terms, legal or policies link."
  },
+ "himanursery.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://himanursery.com/"
+  ],
+  "note": "Nursery home page names no terms in its footer, and none exist at the usual addresses."
+ },
  "himountainnativeplants.com": {
   "verdict": "none found",
   "read": "2026-10-27",
@@ -7171,6 +7328,15 @@
    "https://historicgardens.wordpress.com/"
   ],
   "note": "WordPress.com blog of a historic garden with no terms of its own linked or at the usual addresses (a Shopify-standard address tried on the blog doesn't exist); only the platform's footer."
+ },
+ "historyland.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.historyland.com/"
+  ],
+  "note": "Wholesale nursery site built by Clarity Connect; the footer has only a copyright line, with no terms linked or at the usual addresses."
  },
  "hmiadvantage.com": {
   "verdict": "bots",
@@ -7230,6 +7396,15 @@
    "https://homeplantsguide.com/Disclaimer.html"
   ],
   "note": "Its only terms, the Disclaimer, restrict reproducing, permanently storing, retransmitting or republishing the contents under copyright; nothing on bots or use of information."
+ },
+ "homesick.com": {
+  "verdict": "bots",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://homesick.com/policies/terms-of-service"
+  ],
+  "note": "Candle shop's terms of service forbid any robot, spider or other automatic means of accessing the site, and bar using its content for commercial purposes."
  },
  "hometoheather.com": {
   "verdict": "none found",
@@ -7406,6 +7581,15 @@
    "https://houseplantshop.com/policies/terms-of-service"
   ],
   "note": "Shopify terms of service bar using the Service to spider, crawl or scrape, and the shop's own terms and conditions ban data mining."
+ },
+ "hptagile.com": {
+  "verdict": "open",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://hptagile.com/terms-and-conditions"
+  ],
+  "note": "Standard UK website terms only protect the site's design and material against reproduction outside its copyright notice; nothing on bots, linking, commercial use or databases."
  },
  "hscactus.org": {
   "verdict": "none found",
@@ -7849,6 +8033,15 @@
   "by": "agent review",
   "pages": [],
   "note": "No terms page found; the home footer names only a privacy statement and disclaimers and a citation guide, with no Terms, Legal or Policies link or copyright line."
+ },
+ "itsaulplants.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.itsaulplants.com/"
+  ],
+  "note": "Wholesale nursery home page has only a copyright line; no terms linked or at the usual addresses."
  },
  "iucngisd.org": {
   "verdict": "use",
@@ -8427,6 +8620,15 @@
   "pages": [],
   "note": "No terms page linked or found and the footer names no Terms/Legal/Policies; only an 'All Rights Reserved' copyright-style notice, which protects the material, not facts."
  },
+ "kingsgardencenter.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.kingsgardencenter.com/"
+  ],
+  "note": "Garden centre site built by GardenCenterMarketing.com; footer has only a copyright line, with no terms linked or at the usual addresses."
+ },
  "kitchengardenseeds.com": {
   "verdict": "none found",
   "read": "2026-10-27",
@@ -8612,6 +8814,15 @@
   "pages": [],
   "note": "Squarespace site of a landscape architecture firm; no terms page linked or at the usual addresses."
  },
+ "landscapeprofessionals.org": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.landscapeprofessionals.org/"
+  ],
+  "note": "Trade association footer links only cookie preferences, privacy policy and site map; no terms linked or at the usual addresses."
+ },
  "landscaping.co.uk": {
   "verdict": "use",
   "read": "2026-10-29",
@@ -8620,6 +8831,15 @@
    "https://www.landscaping.co.uk/policies/terms-of-service"
   ],
   "note": "Cedar Nursery's own terms (sale terms plus a Website Use Policy, not Shopify's standard text; every keyword passage shown) bar copying, republishing or adapting content and entering restricted areas, and ask consent for links; nothing on bots or use of information. Taken as use on a second look (2026-10-28): its terms say \"any link to the website from external sites and businesses must have the written consent of Cedar Nursery\", and the app credits each source with a link."
+ },
+ "langthorns.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://langthorns.com/index.php?route=information/information&information_id=5"
+  ],
+  "note": "The only terms page is the shop's terms of sale for purchases, with no keyword passage in its body on bots, use of information or copying; no terms of use linked."
  },
  "laportesnursery.ca": {
   "verdict": "none found",
@@ -8939,6 +9159,15 @@
    "https://www.livelyroot.com/policies/terms-of-service"
   ],
   "note": "Standard Shopify terms of service; the prohibited-uses section bars using the Service to spider, crawl or scrape."
+ },
+ "livesgarden.com": {
+  "verdict": "use",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.livesgarden.com/terms-conditions"
+  ],
+  "note": "Its Terms & Conditions say none of the site's content may be copied, distributed or used without express written permission."
  },
  "livetoplant.com": {
   "verdict": "none found",
@@ -9348,6 +9577,15 @@
   "pages": [],
   "note": "No terms of use linked or at usual addresses; footer carries only a copyright notice for Marek Landscaping LLC, which protects the material, not facts."
  },
+ "marianiplants.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.marianiplants.com/"
+  ],
+  "note": "Wholesale nursery footer links only About, Blog, Cancellations & Claims and Contact; no terms linked or at the usual addresses."
+ },
  "mariettesbacktobasics.blogspot.com": {
   "verdict": "none found",
   "read": "2026-10-28",
@@ -9547,6 +9785,15 @@
   ],
   "note": "Standard Shopify terms at the policies address (not linked from home): the prohibited-uses list (section 12, item i) bars spidering, crawling or scraping, which outranks the section 2 no-exploit clause."
  },
+ "michlers.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.michlers.com/policies/terms-of-service"
+  ],
+  "note": "Footer names no terms; the Shopify terms-of-service address is an empty shell with only a heading, menus and footer, no policy text."
+ },
  "middletonnurseries.co.uk": {
   "verdict": "none found",
   "read": "2026-10-27",
@@ -9635,6 +9882,15 @@
    "https://millettephotomedia.com/terms_and_conditions.html"
   ],
   "note": "Access terms exclude any use of exploration, collection or data extraction tools; they also allow downloads only for non-commercial use."
+ },
+ "millicannurseriesinc.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.millicannurseriesinc.com/general-information/terms-and-conditions.aspx"
+  ],
+  "note": "The only terms page is wholesale conditions of sale (qualifying buyers, ordering), with nothing on bots, use of information or copying; no terms of use."
  },
  "milliesplants.com": {
   "verdict": "bots",
@@ -10689,6 +10945,15 @@
   ],
   "note": "Go Orchids' Terms of Use (the Smithsonian's) allow only personal, educational and non-commercial use and bar selling products or services that use the Content, databases included; si.edu's own terms page could not be fetched."
  },
+ "northcoastperennials.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.northcoastperennials.com/"
+  ],
+  "note": "Wholesale grower's home page has only a copyright line; no terms linked or at the usual addresses."
+ },
  "northcreeknurseries.com": {
   "verdict": "open",
   "read": "2026-10-27",
@@ -10776,6 +11041,15 @@
    "https://www.nparks.gov.sg/terms-of-use"
   ],
   "note": "Its terms of use forbid using robots, spiders or other automatic devices to navigate, search, monitor or copy any pages without consent, and also limit the contents to personal non-commercial use."
+ },
+ "npcginkgo.org": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.npcginkgo.org/"
+  ],
+  "note": "Wix site of a national Ginkgo collection with a copyright line only; no terms linked or at the usual addresses."
  },
  "nps.gov": {
   "verdict": "open",
@@ -11038,6 +11312,15 @@
   "by": "agent review",
   "pages": [],
   "note": "No terms page at usual addresses; home footer has navigation, contact info and copyright but no Terms, Legal or Policies link."
+ },
+ "oldsodburytrees.co.uk": {
+  "verdict": "open",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://oldsodburytrees.co.uk/terms-of-use/"
+  ],
+  "note": "Terms of use only claim copyright in the site's text and images and ask for lawful use; no keyword passage on bots, commercial use, databases or use of information."
  },
  "omahaplants.org": {
   "verdict": "open",
@@ -12448,6 +12731,15 @@
   ],
   "note": "No terms of use; only a copyright page and footer notice (Mack Hitch) covering the photos, which are even offered for free use; nothing restricts facts or automated access."
  },
+ "plants2gardens.com": {
+  "verdict": "bots",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://plants2gardens.com/policies/terms-of-service"
+  ],
+  "note": "Shopify standard terms of service bar using the site to spider, crawl or scrape, and bar exploiting any portion of the Service without permission."
+ },
  "plants4home.com": {
   "verdict": "bots",
   "read": "2026-10-28",
@@ -12945,6 +13237,15 @@
    "https://www.prehealing.com/"
   ],
   "note": "Small Wix site whose home page names no terms; none at the usual addresses."
+ },
+ "premiergrowersinc.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://premiergrowersinc.com/"
+  ],
+  "note": "Atlanta grower whose home footer has only a copyright line; no terms linked and none at the usual addresses."
  },
  "premierseedsdirect.com": {
   "verdict": "use",
@@ -13607,6 +13908,15 @@
   ],
   "note": "Copyright notice says content may be downloaded only for your own personal non-commercial use."
  },
+ "sagesacre.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://sagesacre.com/"
+  ],
+  "note": "Personal garden blog whose footer links only contact, privacy and sitemap with a copyright line; no terms linked or at the usual addresses."
+ },
  "sagmoraine.org": {
   "verdict": "none found",
   "read": "2026-10-18",
@@ -14064,6 +14374,16 @@
   "by": "agent review",
   "pages": [],
   "note": "No terms page linked or at usual addresses; the home page's ending (plant list and blog feed) names no Terms, Legal or Policies."
+ },
+ "shepherdssupply.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.shepherdssupply.com/terms-conditions",
+   "https://www.shepherdssupply.com/"
+  ],
+  "note": "Its only Terms & Conditions page is plant purchase, pickup and delivery policy with no scan hits on bots, use or copying; no terms of use."
  },
  "shopgasper.net": {
   "verdict": "bots",
@@ -14561,6 +14881,15 @@
   ],
   "note": "Shopify-standard terms forbid using the site to spider, crawl or scrape."
  },
+ "stadlergardencenters.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.stadlergardencenters.com/"
+  ],
+  "note": "Maryland garden centre whose footer has only a copyright and accessibility link; no terms linked or at the usual addresses."
+ },
  "stamenandstemblog.com": {
   "verdict": "none found",
   "read": "2026-10-27",
@@ -14623,6 +14952,15 @@
    "https://www.steenboknaturereserve.org.za/"
   ],
   "note": "No terms linked from the home page or at the usual addresses; footer names only the web designer."
+ },
+ "stephenryan.com.au": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://stephenryan.com.au/"
+  ],
+  "note": "Australian horticulturist's tours and blog site with only a copyright line; no terms linked or at the usual addresses."
  },
  "stevesleaves.com": {
   "verdict": "bots",
@@ -15366,6 +15704,15 @@
   ],
   "note": "Standard Shopify terms of service: the prohibited-uses list bars using the site to spider, crawl or scrape."
  },
+ "thegardengeeks.com": {
+  "verdict": "bots",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://thegardengeeks.com/terms-and-conditions/"
+  ],
+  "note": "Terms grant a viewing-only licence and forbid data mining, harvesting or extracting, and commercialising any site material."
+ },
  "thegardenhelper.com": {
   "verdict": "none found",
   "read": "2026-10-18",
@@ -15550,6 +15897,15 @@
   ],
   "note": "The page at the Shopify terms-of-service address holds only the 14-day quality guarantee (terms of sale), with nothing on bots, copying or use."
  },
+ "thenurseryoutlet.us": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://thenurseryoutlet.us/"
+  ],
+  "note": "Oregon nursery whose footer links closures, sitemap and privacy with a copyright line; no terms linked or at the usual addresses."
+ },
  "theodorepayne.org": {
   "verdict": "bots",
   "read": "2026-10-18",
@@ -15576,6 +15932,15 @@
    "https://www.thepalmtreecompany.com/terms-and-conditions"
   ],
   "note": "Terms and Conditions only bar reproducing the site's material (design, photos, graphics) without permission; nothing on bots or on use of the information."
+ },
+ "theplantattraction.com": {
+  "verdict": "bots",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.theplantattraction.com/policies/terms-of-service"
+  ],
+  "note": "Shopify's standard terms forbid using the service to spider, crawl or scrape."
  },
  "theplantbroker.com.au": {
   "verdict": "bots",
@@ -16479,6 +16844,15 @@
   ],
   "note": "Its Terms & Conditions page covers online purchases only (descriptions, ordering, delivery) with nothing on bots, use of information or copying; no terms of use linked or at the usual addresses."
  },
+ "urbanorganicyield.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.urbanorganicyield.com/"
+  ],
+  "note": "Affiliate gardening blog whose footer links about, contact, privacy and affiliate disclosure only; no terms linked or at the usual addresses."
+ },
  "urbanpalms.com": {
   "verdict": "use",
   "read": "2026-10-28",
@@ -17031,6 +17405,15 @@
   ],
   "note": "The water district's template terms only claim copyright and trademark in the service and its content; the bots hint came from 'scripts' in the virus disclaimer, not from any ban."
  },
+ "wattersgardencenter.com": {
+  "verdict": "bots",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://wattersgardencenter.com/policies/terms-of-service"
+  ],
+  "note": "Shopify's standard terms forbid using the service to spider, crawl or scrape."
+ },
  "wavehill.org": {
   "verdict": "none found",
   "read": "2026-10-29",
@@ -17107,6 +17490,16 @@
    "https://www.wekivafoliage.com/policies/terms-of-service"
   ],
   "note": "Terms of service section 9 says all site content, text included, belongs to the shop and any unauthorized use is prohibited, which reaches past copying; no bot clause seen."
+ },
+ "wellandvale.co.uk": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.wellandvale.co.uk/terms-conditions",
+   "https://www.wellandvale.co.uk/"
+  ],
+  "note": "Its only T's & C's page is delivery and sale terms with no scan hits on bots, use or copying; no terms of use."
  },
  "wellspringgardens.com": {
   "verdict": "bots",
@@ -17386,6 +17779,15 @@
    "https://www.wilsonbrosgardens.com/Terms-and-Conditions_ep_2-1.html"
   ],
   "note": "Copyright section allows downloading or printing material solely for your own non-commercial use or to order, and prohibits any other use."
+ },
+ "wilsonnurseries.com": {
+  "verdict": "none found",
+  "read": "2026-10-29",
+  "by": "agent review",
+  "pages": [
+   "https://www.wilsonnurseries.com/"
+  ],
+  "note": "Wholesale grower whose footer links privacy, sitemap and feedback with a copyright line; no terms linked or at the usual addresses."
  },
  "windflowernatives.com": {
   "verdict": "open",

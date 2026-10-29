@@ -125,6 +125,10 @@ export const SKIP_SITES = new Set([
   'usagardenhub.com', 'theplantdb.com', // (an AI content farm; a template shop with a copied plant list)
   'smartseedsemporium.com', 'vitegreenhouses.com', // (a reseller of others' seed packets; plant pages built from breeders' information)
   'bananas.org', 'hcpid.weebly.com', // (a forum; a class's plant-ID study list)
+  // Found by the terms reviews of batch 9, third quarter (2026-10-28)
+  'thegardengeeks.com', 'urbanorganicyield.com', 'hptagile.com', // (template and affiliate content sites; an off-topic coaching site)
+  'gogardennow.com', 'livesgarden.com', 'ftd.com', // (drop-ship resellers; a florists' order relay)
+  'boydnursery.net', // (an unfinished shop template)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
