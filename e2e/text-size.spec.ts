@@ -73,7 +73,7 @@ test('a plant\'s details: one column, each fact on its label\'s line, its source
   const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly milkweed$/ }) }).first();
   await item.getByTestId('plant-row').click();
   const details = item.getByTestId('plant-details');
-  const dt = details.locator('dt', { hasText: /^Height$/ });
+  const dt = details.locator('dt', { hasText: /^Size$/ });
   const dd = dt.locator('xpath=following-sibling::dd[1]');
   const label = (await dt.boundingBox())!;
   const value = (await dd.locator('xpath=text()/..').boundingBox())!;
