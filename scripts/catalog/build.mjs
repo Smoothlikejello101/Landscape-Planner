@@ -20,6 +20,7 @@ import { applySplits, kewApart, linkCultivars } from './split.mjs';
 import { lockCatalogSrc, savedFile, savedPage } from './pages.mjs';
 import { ncsuDescription } from './prose.mjs';
 import { rereadClaims } from './reclaim.mjs';
+import { sourceOf } from './web.mjs';
 import { reviewReport, termsUnsettled } from './report.mjs';
 
 const opts = parseBuildArgs(process.argv.slice(2), process.env);
@@ -163,9 +164,12 @@ if (xlsx) {
   run('caterpillar hosts', 'python3', ['-I', 'scripts/catalog/tallamy.py', path('tallamy.xlsx'), join(ROOT, 'tallamy', 'genera.json')]);
 } else console.log(`caterpillar hosts: the Tallamy spreadsheet isn't saved (--fetch gets it)${existsSync(join(ROOT, 'tallamy', 'genera.json')) ? '; the genera made from it before are used' : '; none read'}`);
 
-// 3. The web claims, read again with today's reader. (Not a withdrawn source's: decisions.json `withdrawn`.)
+// 3. The web claims, read again with today's reader. (Not a withdrawn source's: decisions.json `withdrawn`. The source
+// as today's rules name it from the page's site, not as the claim was saved: a site since counted on its own, as
+// Walters Gardens was from Proven Winners, is judged as itself.)
 const withdrawn = readJson('scripts/catalog/decisions.json').withdrawn ?? {};
-const searched = Object.fromEntries(Object.entries(readJson(CLAIMS)).map(([id, cs]) => [id, cs.filter((c) => !withdrawn[c.src])]));
+const sourceNow = (c) => { try { return sourceOf(new URL(c.url).hostname); } catch { return c.src; } };
+const searched = Object.fromEntries(Object.entries(readJson(CLAIMS)).map(([id, cs]) => [id, cs.filter((c) => !withdrawn[sourceNow(c)])]));
 const web = rereadClaims(searched, list, catalog, ROOT);
 writeFileSync(path('web.json'), JSON.stringify(web.claims));
 console.log(`web claims: ${web.pages} pages read again${web.missing ? `, ${web.missing} no longer saved` : ''}`);

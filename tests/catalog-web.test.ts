@@ -27,6 +27,9 @@ describe('which sites the audit reads from search results', () => {
   it("counts one company's sites as one source", () => {
     expect(sourceOf('www.provenwinners.com')).toBe(sourceOf('provenwinnersdirect.com'));
     expect(sourceOf('shop.example.com')).toBe('example.com');
+    // (Growers for a brand that are companies of their own count, and are credited, as themselves.)
+    expect(sourceOf('www.waltersgardens.com')).toBe('waltersgardens.com');
+    expect(sourceOf('www.spring-meadow.com')).toBe('spring-meadow.com');
   });
 });
 

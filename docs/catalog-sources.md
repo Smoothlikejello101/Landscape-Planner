@@ -564,8 +564,12 @@ fact belongs to one of three tiers, and each source is one of four kinds.
   cultivar's own traits. Not used yet: a breeder's site also sells other
   breeders' plants, so knowing which cultivars are its own needs a list of
   its introductions first. Until then its pages count as a nursery's, and
-  one company's sites (Proven Winners, Proven Winners Direct, Spring
-  Meadow…) count as one source.
+  one company's sites (Proven Winners, Proven Winners Direct…) count as one
+  source. Growers for a brand that are companies of their own (Walters
+  Gardens, Spring Meadow) count, and are credited, as themselves, with their
+  own terms; copy they share with the brand's pages counts once by its text.
+  (2026-10-28: Walters Gardens' values had been credited to Proven Winners,
+  whose site we may not read.)
 - **Nursery:** a retail grower or shop.
 - **Blog:** anything else that is open to us: garden writers, societies'
   articles, magazines.

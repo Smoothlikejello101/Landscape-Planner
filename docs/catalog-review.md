@@ -1,26 +1,26 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 66 to decide, 2873 plants not searched, 519 catalog checks; 3681 of 3686 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 67 to decide, 2873 plants not searched, 518 catalog checks; 3681 of 3686 records audited.
 
-- [Sources disagree (22)](#sources-disagree-22)
+- [Sources disagree (23)](#sources-disagree-23)
 - [Cultivar: tree or shrub? (6)](#cultivar-tree-or-shrub-6)
 - [Edible, but rated toxic (16)](#edible-but-rated-toxic-16)
 - [Held back as implausible (3)](#held-back-as-implausible-3)
 - [A value its source no longer gives (1)](#a-value-its-source-no-longer-gives-1)
 - [Read from text, but a second reading differs (96)](#read-from-text-but-a-second-reading-differs-96)
-- [Taken out: a description read wrongly before (1)](#taken-out-a-description-read-wrongly-before-1)
 - [Values the catalog can't take (1)](#values-the-catalog-cant-take-1)
 - [Kew names to check (13)](#kew-names-to-check-13)
 - [Bloom months held back (4)](#bloom-months-held-back-4)
 - [Not searched on the web (2873)](#not-searched-on-the-web-2873)
 - [Catalog checks (422)](#catalog-checks-422)
 
-## Sources disagree (22)
+## Sources disagree (23)
 
 The audit's sources give different values, so the catalog keeps the value it had, marked unverified. Zones are on the half-zone scale (7 is 7a, 7.5 is 7b); sizes are in feet. There's no place to record a decision on these yet: they stay listed until there is.
 
 | Plant | Fact | What the sources say | Catalog now |
 | --- | --- | --- | --- |
+| Japanese forest grass 'All Gold' (`hakonechloa-macra`) | spreading | waltersgardens.com: Spreading rhizome · hortech.com: Clumping | Clumping |
 | Sideoats grama (`bouteloua-curtipendula`) | spreading | newmoonnursery.com: Slow-spreading rhizome · prairienursery.com: Clumping | Clumping |
 | Cream wild indigo (`baptisia-bracteata`) | flower_color | mowildflowers.net: White, Cream · allendanseed.com: Yellow | – |
 | Common sneezeweed (`helenium-autumnale`) | spreading | newmoonnursery.com: Clumping · calfloranursery.com: Mat-forming | Clumping |
@@ -198,14 +198,6 @@ A value the rules read from a page's text, which a second reading of the same te
 | Cape Mallow 'Slightly Strawberry' (`anisodontea-capensis-slightly-strawberry`) | leaves in winter | evergreen | semi-evergreen | ncsu | nothing |
 | Winter creeper 'Colorata' (`euonymus-fortunei-colorata`) | spreading | Runner (stolons) | Mat-forming | ncsu | nothing |
 | Eulalia 'Goliath' (`miscanthus-sinensis-goliath`) | self-sowing | Modest | Sterile | ncsu | nothing |
-
-## Taken out: a description read wrongly before (1)
-
-A value an earlier build read from a page's description, by rules that have since been fixed and no longer read it so. It's taken out (nothing to decide: listed so the change is seen).
-
-| Plant | Fact | What was taken out |
-| --- | --- | --- |
-| Black-eyed Susan 'Goldsturm' (`rudbeckia-fulgida-goldsturm`) | self-sowing | "Unrated", read from provenwinners.com's description, which the rules no longer read so |
 
 ## Values the catalog can't take (1)
 
