@@ -11,7 +11,8 @@ import { canFinishDraw, finishDraw, startKind } from './draw';
 import { kindForShortcut } from './kinds';
 import { finishPlacing, undoPlace } from './place';
 import { state } from './state';
-import { loadPlants } from './plants';
+import { loadPlants, plantFilter } from './plants';
+import { applyYard, loadYard } from './yard';
 import { loadWild } from './wild';
 import { initAccount, restoreCodeSent, setAccountListener } from './account';
 import { onAccountChange, setSyncUi, startSyncTriggers } from './sync/sync';
@@ -227,6 +228,7 @@ async function start() {
   noteVisit(); // (before the first render: a hint may be due again)
   loadMyPlants();
   loadViewSettings(); // (full-size rings and crowding outlines, as left on this device)
+  applyYard(plantFilter, loadYard()); // (kids and pets in the yard: the picker's filters for them, as left on this device)
   setSaveStatusListener(updateSaveWarning);
   setSaveStateListener(updateSaveState);
   pushHistory(); // seed undo history with the loaded state

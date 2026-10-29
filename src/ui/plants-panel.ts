@@ -1,4 +1,5 @@
 import { el, type Child } from '../dom';
+import { saveYard, yardOf } from '../yard';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery } from '../search';
@@ -299,6 +300,13 @@ export function renderPlantsPanel() {
     return b;
   }
   refreshList = () => { if (listWrap.isConnected) rebuildList(); };
+  /**
+   * Kids and pets, as set by their own controls: kept on this device (src/yard.ts), as the guided introduction's step 6
+   * does. Not "Clear filters" or "Show them": those are for the search at hand.
+   */
+  function keepYard(key: keyof PlantFilter) {
+    if (key === 'noPoison' || key === 'dogs' || key === 'cats' || key === 'horses') saveYard(yardOf(plantFilter));
+  }
   function rebuildList() {
     while (listWrap.firstChild) listWrap.removeChild(listWrap.firstChild);
     // Near spellings only when nothing searched matches closer, before any filter (search.ts); a plant of mine
@@ -571,7 +579,7 @@ export function renderPlantsPanel() {
     const cb = el('input', { type: 'checkbox', 'data-testid': testid });
     if (key === 'withReported') reportedCheck = cb;
     cb.checked = !!plantFilter[key];
-    cb.addEventListener('change', () => { plantFilter[key] = cb.checked; rebuildList(); });
+    cb.addEventListener('change', () => { plantFilter[key] = cb.checked; keepYard(key); rebuildList(); });
     return el('label', { className: 'filter-check' }, cb, label);
   }
   /** One value of a list filter, ticked or not: a plant with any value ticked passes. */
@@ -651,7 +659,7 @@ export function renderPlantsPanel() {
     for (const [value, text] of DOGS) {
       const r = el('input', { type: 'radio', name: 'dogs-filter', value, 'data-testid': `dogs-${value || 'any'}` });
       r.checked = plantFilter.dogs === value;
-      r.addEventListener('change', () => { if (!r.checked) return; plantFilter.dogs = value; sayNote(); rebuildList(); });
+      r.addEventListener('change', () => { if (!r.checked) return; plantFilter.dogs = value; keepYard('dogs'); sayNote(); rebuildList(); });
       group.appendChild(el('label', { className: 'check-row' }, r, el('span', {}, text)));
     }
     return el('div', { id: 'poison-filters', 'data-testid': 'animal-toxicity' }, groupHead('Poison & pets'),
@@ -711,7 +719,7 @@ export function renderPlantsPanel() {
     const chips = activeChips();
     activeRow.replaceChildren(...chips.map((c) => {
       const b = el('button', { className: 'active-chip', 'aria-label': `Remove filter: ${c.text}`, 'data-testid': 'active-chip' }, c.text, el('span', { className: 'chip-x', html: I.x }));
-      b.addEventListener('click', () => { c.clear(); render(); }); // (a full rebuild, so its control shows it off)
+      b.addEventListener('click', () => { c.clear(); keepYard(c.key); render(); }); // (a full rebuild, so its control shows it off)
       return b;
     }));
     if (chips.length) {

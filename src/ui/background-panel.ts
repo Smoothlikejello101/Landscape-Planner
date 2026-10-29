@@ -29,7 +29,7 @@ export function renderBgPanel() {
     }
     fileInput.value = ''; // allow re-picking the same file
   });
-  const uploadBtn = el('button', { className: bg ? 'btn ghost' : 'btn primary', html: (bg ? I.image : I.plus) + '<span style="margin-left:6px">' + (bg ? 'Replace image' : 'Choose image (JPEG/PNG)') + '</span>' });
+  const uploadBtn = el('button', { className: bg ? 'btn ghost' : 'btn primary', 'data-testid': 'bg-choose', html: (bg ? I.image : I.plus) + '<span style="margin-left:6px">' + (bg ? 'Replace image' : 'Choose image (JPEG/PNG)') + '</span>' });
   uploadBtn.addEventListener('click', () => fileInput.click());
   body.appendChild(fileInput);
   body.appendChild(uploadBtn);
@@ -75,7 +75,7 @@ export function renderBgPanel() {
 
   // Edit mode toggle
   const editBtn = el('button', {
-    className: 'btn ' + (state.bgEditMode ? 'secondary' : 'ghost'),
+    className: 'btn ' + (state.bgEditMode ? 'secondary' : 'ghost'), 'data-testid': 'bg-edit',
     html: I.move + '<span style="margin-left:6px">' + (state.bgEditMode ? 'Editing position — tap to finish' : 'Edit position & rotation') + '</span>'
   });
   editBtn.addEventListener('click', () => {
@@ -94,7 +94,7 @@ export function renderBgPanel() {
   body.appendChild(visBtn);
 
   // Opacity slider (silent update — keeps slider focus smooth)
-  const opInput = el('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: bg.opacity });
+  const opInput = el('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: bg.opacity, 'data-testid': 'bg-opacity' });
   const opPct = el('span', { style: { fontSize: ts(12), color: '#78716c' } }, Math.round(bg.opacity * 100) + '%');
   opInput.addEventListener('input', e => {
     const v = parseFloat((e.target as HTMLInputElement).value);

@@ -9,6 +9,8 @@ import {
   readProject, sanitizeProjectData, save, switchProject, writeJournalIfDirty,
 } from '../src/storage';
 import { buildBackupFile, importProjects, parseImportFile, uniqueName } from '../src/backup';
+import { NEW_RECORD, parseIntroRecord } from '../src/intro';
+import { NO_YARD, loadYard } from '../src/yard';
 
 const IMG = 'data:image/jpeg;base64,' + 'A'.repeat(64);
 const circle = (label: string) => ({ id: label, type: 'circle', x: 1, y: 2, radius: 3, color: '#000', label, opacity: 0.5, locked: false });
@@ -738,5 +740,28 @@ describe('a gone shape\'s date (goneOn)', () => {
     expect(byId.bad).not.toHaveProperty('goneOn');
     expect(byId.back).not.toHaveProperty('goneOn');
     expect(byId.cleared).toMatchObject({ status: 'gone', goneOn: '' });
+  });
+});
+
+// The guided introduction's record and "who's in your yard" (per device, beside the plans: src/intro.ts, src/yard.ts).
+// Nothing to migrate (new keys); what another version left must never stop the plan from drawing.
+describe('the guided introduction and the yard, as kept on this device', () => {
+  const base = { zip: null, scale: null, rotation: 0, opacity: 1, visible: true, buildings: 0, beds: 1, sunAreas: 0, plants: 0, busy: false, panel: null, bgEditMode: false };
+  it('reads a record back as written', () => {
+    const r = { status: 'active', step: 'bed', done: ['zip', 'house'], skipped: ['photo'], base, who: { kids: true, dogs: false, cats: false, horses: false }, project: 'p1' };
+    expect(parseIntroRecord(JSON.stringify(r))).toEqual(r);
+  });
+  it("a record this version can't read is a fresh one; a step it doesn't know is left part way", () => {
+    for (const raw of [null, '', 'not json', '42', '{"status":"dancing"}']) expect(parseIntroRecord(raw)).toEqual(NEW_RECORD);
+    const r = parseIntroRecord(JSON.stringify({ status: 'active', step: 'water', done: ['zip', 'water'], skipped: 7, base }));
+    expect(r).toMatchObject({ status: 'exited', step: null, done: ['zip'], skipped: [] });
+    expect(parseIntroRecord(JSON.stringify({ status: 'active', step: 'bed', done: [], base: { beds: 'one' } }))).toMatchObject({ status: 'exited', base: null });
+  });
+  it("the yard: a bad record reads as nobody", () => {
+    localStorage.setItem('lp-yard', '{"kids":"yes","dogs":"wolves","horses":1}');
+    expect(loadYard()).toEqual({ kids: true, dogs: '', cats: false, horses: true });
+    localStorage.setItem('lp-yard', '[');
+    expect(loadYard()).toEqual(NO_YARD);
+    localStorage.removeItem('lp-yard');
   });
 });

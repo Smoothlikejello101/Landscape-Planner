@@ -13,6 +13,7 @@ import { openLocation } from './location-panel';
 import { FEEDBACK_ADDRESS, feedbackLink } from '../feedback';
 import { toast } from './toast';
 import { deviceName } from '../sync/sync';
+import { showMeAround } from './intro-card';
 
 /** Select mode on or off (the lasso button on the top bar). */
 export function toggleSelectMode() {
@@ -83,6 +84,11 @@ export function renderMoreMenu() {
     onClick: () => { state.panel = 'reset'; state.menu = null; render(); }
   });
   items.push({ divider: true });
+  // The guided introduction, any time: from the start, or (left part way) pick up where they left (src/ui/intro-card.ts).
+  items.push({
+    icon: I.leaf, label: 'Show me around', testid: 'menu-intro',
+    onClick: () => { state.menu = null; showMeAround(); render(); },
+  });
   items.push({
     icon: I.mail,
     label: 'Send feedback',

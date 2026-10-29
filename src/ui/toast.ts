@@ -30,12 +30,14 @@ export function placeToast(node: HTMLElement) {
   node.style.top = '';
   node.style.bottom = '';
   if (document.querySelector('.sheet')) {
-    node.style.top = 'calc(60px + env(safe-area-inset-top))';
+    // (Under the guided introduction's card, which sits at the top while a sheet is open.)
+    const card = document.querySelector('.intro-card.at-top')?.getBoundingClientRect();
+    node.style.top = card && card.height > 0 ? `${Math.round(card.bottom + 8)}px` : 'calc(60px + env(safe-area-inset-top))';
     node.style.bottom = 'auto';
     return;
   }
   let top = Infinity;
-  for (const e of document.querySelectorAll('.sel-pill, .multi-bar')) {
+  for (const e of document.querySelectorAll('.sel-pill, .multi-bar, .intro-card')) {
     const r = e.getBoundingClientRect();
     if (r.height > 0) top = Math.min(top, r.top);
   }
