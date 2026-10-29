@@ -5256,11 +5256,13 @@
   "note": "Terms of Use forbid using site content as AI training data; they also limit use to personal, non-commercial purposes and bar building a competing database."
  },
  "gardencentermarketing.com": {
-  "verdict": "none found",
-  "read": "2026-10-18",
-  "by": "agent review",
-  "pages": [],
-  "note": "No terms page linked or at usual addresses; the rendered footer lists only privacy, return, shipping and accessibility pages, with no Terms, Legal or Policies link."
+  "verdict": "use",
+  "read": "2026-10-28",
+  "by": "Claude, second look",
+  "pages": [
+   "https://www.gardencentermarketing.com/plantName/Abies-concolor-Compacta"
+  ],
+  "note": "Each plant library page says: \"Images and descriptions are copyrighted. Only for use on signage and websites created by Clarity Connect / GardenCenterMarketing.com\". (The Oct 18 reading found no terms page; the notice is on the plant pages themselves.)"
  },
  "gardenclubplants.com": {
   "verdict": "bots",
