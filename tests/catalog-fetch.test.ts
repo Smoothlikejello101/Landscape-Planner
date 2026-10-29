@@ -193,6 +193,20 @@ describe('the fetch loop', () => {
     expect(await runFetch([{ source: 'ncsu', url: plant(1) }], w.deps)).toEqual({ saved: 0, cached: 1, skipped: 0 });
     expect(w.requests.length).toBe(before);
   });
+  it('leaves out a site whose robots.txt asks for longer between requests than the run waits, never asking it sooner', async () => {
+    const slow = 'https://slow-nursery.com/plant/';
+    const w = fakeWorld({
+      'https://slow-nursery.com/robots.txt': { status: 200, body: 'User-agent: *\nCrawl-delay: 3600\nDisallow: /cart' },
+      [slow]: { status: 200, type: 'text/html', body: 'a plant' },
+    });
+    const lines: string[] = [];
+    const r = await runFetch([{ source: 'web', url: slow }], { ...w.deps, maxDelay: 120, log: (l: string) => lines.push(l) });
+    expect(r).toEqual({ saved: 0, cached: 0, skipped: 1 });
+    expect(w.requests.map((q) => q.url)).not.toContain(slow);
+    expect(lines.join('\n')).toContain('asks for 3600 s between requests');
+    // (With no limit, as the catalog's own fetches run: waited for.)
+    expect(await runFetch([{ source: 'web', url: slow }], w.deps)).toEqual({ saved: 1, cached: 0, skipped: 0 });
+  });
   it('in one session, reads robots.txt once and keeps the pace across runs', async () => {
     const w = fakeWorld({
       'https://plants.ces.ncsu.edu/robots.txt': { status: 404 },

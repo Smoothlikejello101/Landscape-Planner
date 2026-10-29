@@ -170,9 +170,9 @@ if (xlsx) {
 const withdrawn = readJson('scripts/catalog/decisions.json').withdrawn ?? {};
 const sourceNow = (c) => { try { return sourceOf(new URL(c.url).hostname); } catch { return c.src; } };
 const searched = Object.fromEntries(Object.entries(readJson(CLAIMS)).map(([id, cs]) => [id, cs.filter((c) => !withdrawn[sourceNow(c)])]));
-const web = rereadClaims(searched, list, catalog, ROOT);
+const web = rereadClaims(searched, list, catalog, ROOT, readJson('scripts/catalog/site-terms.json'));
 writeFileSync(path('web.json'), JSON.stringify(web.claims));
-console.log(`web claims: ${web.pages} pages read again${web.missing ? `, ${web.missing} no longer saved` : ''}`);
+console.log(`web claims: ${web.pages} pages read again${web.missing ? `, ${web.missing} no longer saved` : ''}${web.closed ? `, ${web.closed} from sites whose terms are to be read again` : ''}`);
 
 // 4. Combine; with --fetch, the county records and GBIF names the combined audit leads to (before anything is written).
 node('combine', 'sample.mjs', [path('list.json'), atlasText, path('combined.json'), path('web.json')]);

@@ -28,9 +28,132 @@ export const SKIP_SITES = new Set([
   'facebook.com', 'instagram.com', 'reddit.com', 'quora.com', 'amazon.com', 'ebay.com', 'etsy.com', 'walmart.com', 'homedepot.com', 'lowes.com',
   'houzz.com', 'tiktok.com', 'x.com', 'twitter.com', 'kaggle.com', 'wikipedia.org', 'wikimedia.org', 'wikidata.org', 'inaturalist.org',
   'mobot.org', 'gardenersworld.com',
+  // Found by the terms reviews of 2026-10-27: AI-written or generated pages, a compromised site's spam, a marketplace,
+  // crowd-sourced records, a translation proxy
+  'bulbsociety.org', 'orchid.guru', 'yourflowersguide.com', 'preachbio.com', 'thatstartendcontain.com', 'courvillenursery.com',
+  'curenursery.com', 'carnivorousplantresource.com', 'budburst.org', 'translate.google.com', 'translate.goog',
+  'grokipedia.com', 'viedujardin.fr', 'useyardwork.com', 'ontosight.ai', 'picturethisai.com', 'myplantin.com', 'plantsnap.com', // (AI)
+  'gardenology.org', 'irises.org', 'pacificbulbsociety.org', 'eddmaps.org', 'zenodo.org', // (wikis, forums, sightings, uploads)
+  'alibaba.com', 'homesteadgear.com', 'kaooriginal.com', 'loreal.com', // (a marketplace; not plant references)
+  'keyblossom.com', 'florgeous.com', 'gardeningbrain.com', 'levelupgarden.com', 'plantcultivar.com', 'plantgeh.com', 'plantsucculents.com',
+  'asucculent.com', 'carnivorousplantsguide.com', 'thegardenstyle.com', 'soildrops.com', 'growableground.com', // (AI-written or content farms)
+  'plantnimals.com', 'naturalatlas.com', 'wikimili.com', 'floraofqatar.com', 'newyorkplantshq.com', // (copied from GBIF, Wikidata, Wikipedia, another nursery)
+  'wikibooks.org', 'wikiversity.org', 'ecoregistros.org', // (anyone can edit; sightings)
+  'gettyimages.com', 'alamy.com', 'digitalplantst.com', 'evergreenbotany.com', // (stock-media marketplaces; a likely fake shop, a dropshipper)
+  'rosewoman.com', 'slohsexpressions.com', 'averbforkeepingwarm.com', 'americanfarm.com', 'mapro.com', 'mskcc.org', 'lecontelodge.com',
+  'landmorphology.com', 'iomcworld.com', // (not plant references)
+  // Found by the terms reviews of batch 3a (2026-10-27 night)
+  '1millionideas.com', 'greencoverinitiative.com', 'archfoundation.org', 'minnetonkaorchards.com', 'rosesabc.com',
+  'm-plantslib.com', // (content farms, AI-written or generated lists)
+  'thesurvivalgardener.com', 'maplesociety.org', 'seedsheirloom.com', // (injected spam; a dropshipper with copied terms)
+  'sciencephotogallery.com', 'cbo.io', // (print-on-demand and auction marketplaces)
+  'growingfruit.org', 'floracarta.com', 'garden-en.com', // (forums and members' gardens)
+  'artsandculture.google.com', 'books.google.com', 'ivydenegardens.co.uk', 'roses-are-red.org', // (re-hosted, copied or aggregated)
+  'cornhillnursery.squarespace.com', // (the same site as cornhillnursery.com)
+  'reco-cs.com', 'recoroatan.com', 'recostextiles.com', 'recov.co', 'spider-farmer.com', 'recon-us.com', 'biobased-diesel.com',
+  'carlisleschesapeake.com', // (not plant references)
+  // Found by the terms reviews of batch 3b (2026-10-27 night)
+  'improvemyhome24.com', 'florenzogarden.com', 'flowerslib.com', 'bestplants.com', 'plantisima.com', 'shuncy.com', // (content farms, AI-written)
+  'encyclopedia.com', 'ritasgardenpath.com', // (republished reference works; USDA PLANTS retold)
+  'vdict.com', 'gesneriads.info', 'plantae.org', // (user-edited or members' posts)
+  'floraccess.com', // (a wholesale marketplace)
+  'lapascalinette.com', 'lostcoastoutpost.com', 'surinenglish.com', 'stinehome.com', 'theshrimpfarm.com', 'caringsunshine.com', // (not plant references)
+  // Found by the terms reviews of batch 4a (2026-10-28)
+  'plantoscan.com', 'nargil.com', 'gardenfrontier.com', 'ehouseplant.com', 'wekivafoliage.com', // (content farms, AI-written)
+  'floraneste.com', // (a spam shop)
+  'aa.edu', // (not a plant reference)
+  'horticopia.info', // (sells its plant database; asked to license it: not read until it answers)
+  // Found by the terms reviews of batch 4b (2026-10-28)
+  'plant-garden-secrets.com', 'dharaseeds.com', 'explorebioedge.com', // (content farms, AI-written)
+  'botanical.com', 'eurekalert.org', // (republished reference works; press releases)
+  'paperblog.com', 'steemit.com', // (members' posts, aggregated)
+  'biocrick.com', // (not a plant reference)
+  'jcraulstonarboretum.wordpress.com', // (NC State's arboretum: NC State is read through its own extractor)
+  // Found by the terms reviews of batch 5a (2026-10-28)
+  'pollinatorflowers.com', 'succulent.care', 'chlorobase.com', 'naturebring.com', // (content farms, AI-written: the first says so itself)
+  'plantfyi.com', // (an aggregator of other databases, pages made by script)
+  'wikidoc.org', 'wikis.evergreen.edu', // (user-edited wikis; the first borrows Wikipedia's wording)
+  'horti.co.za', // (a marketplace)
+  // Found by the terms reviews of batch 5b (2026-10-28)
+  'theplantindex.com', 'whatflower.net', 'loamapp.uk', 'botanicmate.com', 'bloomingexpert.com', 'calatheaessentials.com', 'bovees.com', 'garden.eco', // (content farms, AI-written or generated: two say so themselves)
+  'plantversus.com', // (Wikipedia and other databases, retold by script)
+  'mail-archive.com', 'blogs.ubc.ca', // (members' posts, personal blogs)
+  'plusgarden.com', 'digitaltowns.app', // (marketplaces)
+  '947qdr.com', // (not a plant reference)
+  // Found by the terms reviews of batch 6a (2026-10-28)
+  'caudexgarden.com', 'smartgardenadvice.com', // (content farms, AI-written)
+  'vegeworx.com', 'diy.org', // (members' uploads)
+  'silene.eu', // (a sightings aggregator)
+  'gulfofme.com', // (not a plant reference)
+  // Found by the terms reviews of batch 6b (2026-10-28)
+  'bloomseye.com', 'onestopgardenshopco.org', 'nurseryplant.net', // (AI-written: the first says so itself; the last a dropship shop)
+  'exoticseedemporium.com', // (its own disclaimer says it carries others' content)
+  'palmstreet.app', 'plant-central.de', // (marketplaces)
+  'hicattle.org', 'herbpathy.com', 'ijbpas.com', // (not plant references)
+  // Found by the terms reviews of batch 7a (2026-10-28)
+  'intuitiveplants.org', 'natesgardensupply.com', // (AI-written; a dropship shop of suppliers' listings)
+  'istockphoto.com', // (a stock-media marketplace)
+  'thesitegardener.com', // (a web agency for nurseries: demo and client copy)
+  'plantlust.com', // (a marketplace: nurseries list their stock there and its descriptions are theirs; 2026-10-28)
+  // Found by the terms reviews of batch 7b, first quarter (2026-10-28)
+  'livetoplant.com', 'rose-bushes.com', // (content farms, AI-written)
+  'plantmark.com.au', 'invasivespeciesinfo.gov', // (aggregators of others' stock or resources)
+  'tjhsst.edu', 'loveandrenovations.com', 'oharaikebanacolumbus.com', // (a high school's pages; not plant references)
+  // Found by the terms reviews of batch 7b, second quarter (2026-10-28)
+  'ngb.org', // (a trade association's pages of its member breeders' own copy: second-hand)
+  'seedsplantworld.com', // (a dropship-style shop: unfilled template terms, marketplace reviews)
+  'themeaningofwater.com', // (not a plant reference)
+  // Found by the terms reviews of batch 8, first quarter (2026-10-28)
+  'fann.org', 'teratrees.com', // (a directory of member nurseries' stock; a crowdfunding marketplace)
+  'gardentaining.com', 'theglorifiedtomato.com', 'indohobby.com', // (an empty WordPress shell; a revived blog with spun posts; a spam-abused pet shop)
+  'juniperpublishers.com', // (a publisher on predatory-journal lists: not a reliable source)
+  // Found by the terms reviews of batch 8, second quarter (2026-10-28)
+  'newworldencyclopedia.org', 'bugwoodcloud.org', // (a Wikipedia fork; Bugwood's content host)
+  'plant.garden', // (a directory built from users' submissions and other databases)
+  'letplant.com', // (an AI plant-care app: generated pages)
+  // Found by the terms reviews of batch 8, third quarter (2026-10-28)
+  'expoplant.com', // (a marketplace: wholesalers' and gardeners' storefronts, classified ads)
+  // Found by the terms reviews of batch 8, last quarter (2026-10-28)
+  'agronom.info', 'homeandgardensforless.com', 'pottedhaven.com', // (a price aggregator; dropship storefronts of others' stock)
+  'nwaplantsinc.com', // (its plant text is Wikipedia's, word for word)
+  'plantsinsights.com', 'perunorth.com', // (a blog turned to casino spam; a travel agency)
+  // Found by the terms reviews of batch 9, first quarter (2026-10-28)
+  'floriscope.io', 'nationwideplants.com', // (a portal of growers' catalogues; a drop-ship reseller)
+  'sjgbloom2012.wordpress.com', // (pastes other sites' descriptions)
+  'towerlandscapedesign.com', // (a repurposed domain: generic SEO posts)
+  // Found by the terms reviews of batch 9, second quarter (2026-10-28)
+  'usagardenhub.com', 'theplantdb.com', // (an AI content farm; a template shop with a copied plant list)
+  'smartseedsemporium.com', 'vitegreenhouses.com', // (a reseller of others' seed packets; plant pages built from breeders' information)
+  'bananas.org', 'hcpid.weebly.com', // (a forum; a class's plant-ID study list)
+  // Found by the terms reviews of batch 9, third quarter (2026-10-28)
+  'thegardengeeks.com', 'urbanorganicyield.com', 'hptagile.com', // (template and affiliate content sites; an off-topic coaching site)
+  'gogardennow.com', 'livesgarden.com', 'ftd.com', // (drop-ship resellers; a florists' order relay)
+  'boydnursery.net', // (an unfinished shop template)
+  // Found by the terms reviews of batch 9, last quarter (2026-10-28)
+  'bidscape.com', 'victorynursery.us', // (a plant auction marketplace; a sourcing reseller)
+  'horticopia.net', // (Horticopia itself: a rented plant database and image library, as horticopia.info)
+  'succulentgardenweb.com', 'twogreenthumbs.com', // (an AI-written content farm; content "compiled mainly from various sources")
+  // Found by the terms reviews of batch 10, first quarter (2026-10-28)
+  'theleafjournal.com', 'plantsforallseasons.co.uk', 'plantspatio.com', // (AI-written how-tos and product copy; an unfilled template store)
+  '1800flowers.com', 'fondazioneslowfood.com', // (a florists' order relay; a food foundation's publicly nominated entries)
+  'pollenlibrary.com', // (county maps from BONAP)
+  // Found by the terms reviews of batch 10, second quarter (2026-10-28)
+  'catskillnativenursery.shop', 'greenpacks.org', 'gardeningtipsandtools.com', 'rosapedia.com', 'windrivergreens.com', // (spam and AI-written sites)
+  'poshmark.com', 'foodplace.info', // (a resale marketplace; a forum)
+  'plantsrose.com', 'fast-growing-plant.com', 'spotswoodgreenery.com', 'theteamfamily.com', // (drop-ship and template stores)
+  // Found by the terms reviews of batch 10, third quarter (2026-10-28)
+  'e-katalogroslin.pl', 'researcher.life', // (aggregators: a nurserymen's association's members' stock; others' papers with AI summaries)
+  'garten-de.com', 'ohgarden.se', // (crowd-sourced: members' entries; users' plant profiles)
+  'tiempodesanjuan.com', 'middendorf-funeralhome.com', // (a news site; a funeral home's florist shop)
+  // Found by the terms reviews of batch 10, last quarter (2026-10-28)
+  's4shops.com', 'clarity-connect.com', // (a demo-store host; a web vendor's development copies of client shops)
+  'areverenceforroses.com', 'hometuary.com', 'spnanyc.org', // (spam; AI-written lifestyle copy; a neighborhood association)
+  'mossvalepark.com', // (its catalogue text is Wikipedia's, by its own terms)
+  'hytiva.com', // (a cannabis marketplace)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
+  'plantsinusa.com', 'en-academic.com', 'dbpedia.org', 'rootfast.org', // (USDA PLANTS, GBIF, Wikipedia, ASPCA, retold)
   // Read through their own extractors already (a search hit would count them twice)
   'usda.gov', 'ncsu.edu', 'minnesotawildflowers.info',
 ]);
@@ -46,12 +169,21 @@ const AUTHORITY_SITES = new Set([
  */
 const COMPANY = {
   'provenwinners.com': 'provenwinners.com', 'provenwinners-shrubs.com': 'provenwinners.com', 'provenwinnersdirect.com': 'provenwinners.com',
+  'provenwinnersplants.com': 'provenwinners.com', // (the brand's EU site, ColorChoice Plants EU)
   // (Walters Gardens and Spring Meadow grow for the Proven Winners brand but are companies of their own, with their own
   // sites and terms: each its own source, credited as itself. Copy they share with the brand's pages counts once by
   // its text, as any shared copy does. 2026-10-28.)
   'monrovia.com': 'monrovia.com', 'firsteditionsplants.com': 'firsteditionsplants.com', 'baileynurseries.com': 'firsteditionsplants.com',
   'endlesssummerblooms.com': 'firsteditionsplants.com', 'bloomineasy.com': 'bloomineasy.com', 'southernlivingplants.com': 'southernlivingplants.com',
   'encoreazalea.com': 'plantdevelopmentservices', 'plantdevelopment.com': 'plantdevelopmentservices',
+  // (GardenSoft's plant database, rented by water utilities: their plant pages say © GardenSoft. Seen 2026-10-28.)
+  'watersavingplants.com': 'gardensoft', 'watersmartgardening.com': 'gardensoft', 'reddingwatersmart.com': 'gardensoft',
+  'fresnogardening.org': 'gardensoft', 'bayareagardening.org': 'gardensoft', 'ashlandsaveswater.org': 'gardensoft',
+  'elpasodesertblooms.org': 'gardensoft', 'waterwisegardeningsb.org': 'gardensoft', 'hillsborogardening.org': 'gardensoft',
+  'slcgardenwise.com': 'gardensoft', 'trivalleywaterwise.com': 'gardensoft', 'ocplants.org': 'gardensoft',
+  // (One Hungarian grower's shop, machine-translated under local names: one source. Seen 2026-10-28.)
+  'pharmarosa.be': 'pharmarosa', 'pharmarosa.co.uk': 'pharmarosa', 'pharmarosa.es': 'pharmarosa', 'pharmarosa.nl': 'pharmarosa',
+  'pharmarosa.ro': 'pharmarosa', 'pharmarosaneonatal.it': 'pharmarosa',
 };
 /** The source a site counts as (one company's sites are one). */
 export const sourceOf = (host) => { const site = siteOf(host); return COMPANY[site] ?? termsKey(host); };
@@ -189,12 +321,12 @@ const onlyWords = (v, vocab) => { const w = v.toLowerCase().split(/[^a-z]+/).fil
 const SUN_WORDS = new Set(['full', 'sun', 'part', 'partial', 'shade', 'light', 'dappled', 'morning', 'afternoon', 'deep', 'dense', 'half', 'filtered', 'sunny', 'shady']);
 const sunOf = (v) => {
   if (!onlyWords(v, SUN_WORDS)) return null; // ("not full sun", "shade tolerant", "except in the South…": left out)
-  let t = v.toLowerCase();
+  let t = v.toLowerCase().replace(/\b(part(?:ial)?)-(sun|shade)\b/g, '$1 $2'); // ("Sun/part-shade")
   if (/morning sun/.test(t) && /afternoon shade/.test(t)) t = t.replace(/morning sun|afternoon shade/g, ' part shade ');
   const got = SUNS.filter(([re]) => re.test(t)).map(([, x]) => x);
   if (/\b(?:part|partial)\b(?!\s*(?:sun|shade))/.test(t)) got.push('Part'); // ("Partial, Shade")
   if (/\bfull\b(?!\s*shade)/.test(t)) got.push('Full'); // ("Full to Partial", "Full, Partial", "Full – Part": in a sun field, "full" is full sun)
-  if (/^\s*sun\b(?!\s*(?:to|-|–)?\s*part)/.test(t) || /\bsun to\b/.test(t) || /(?:^|,\s*)sun(?:\s*,|$)/.test(t)) got.push('Full'); // ("sun", "sun to part shade")
+  if (/^\s*sun\b/.test(t) || /\bsun to\b/.test(t) || /(?:^|,\s*)sun(?:\s*,|$)/.test(t)) got.push('Full'); // ("sun", "sun to part shade", "Sun Part Shade": a sun field's leading "sun" is full sun)
   // "shade" on its own, once the part-shade phrases are out of the way.
   if (/\bshade\b/.test(t.replace(/part(?:ial)? shade|light shade|half[- ]shade|dappled shade|afternoon shade|filtered shade/g, ' '))) got.push('Shade');
   const order = ['Full', 'Part', 'Shade'].filter((x) => got.includes(x));
@@ -269,7 +401,13 @@ const SECOND_HAND = /missouri botanical garden|missouribotanicalgarden|mobot\.or
 /** Checked on the page as sent, links included: a source credited only by a link is still the source. */
 /** Other sources closed to us, when a page credits them ("Source: Calscape"), or links them as its source. */
 const CREDITED = /(?:source|sources|from|courtesy of|via|according to|data|information|adapted)[^.<\n]{0,40}(?:prairie ?moon|calscape|dave'?s garden|garden\.org|national gardening association|sunset western|perenual|garden ?tags|morton arboretum|go ?botany|native plant trust|calflora|jepson|seinet|oregonflora|plant ?atlas)/i;
-export const secondHand = (html) => SECOND_HAND.test(String(html)) || CREDITED.test(plainText(html));
+/**
+ * Plant databases sold to the sites that show them (GardenSoft to water utilities, NetPS Plant Finder to garden
+ * centres, Horticopia): a page carrying one is that database, and isn't read until the database's own terms are
+ * (2026-10-28; docs/catalog-sources.md "Never second-hand").
+ */
+const LICENSED = /\bgardensoft\b|\bnetps\b|\bhorticopia\b/i;
+export const secondHand = (html) => SECOND_HAND.test(String(html)) || LICENSED.test(String(html)) || CREDITED.test(plainText(html));
 
 /** A page's own wording, to tell copies apart: the hash of its longest paragraph (null if it has none long enough). */
 export function copyKey(html) {
@@ -291,6 +429,11 @@ export const southernSite = (host) => SOUTHERN.has(String(host).toLowerCase().sp
 
 /** A paragraph as a key, to tell repeats apart: its letters and digits. */
 export const paragraphKey = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+/**
+ * A long sentence as a key (12 words or more): its last 12 words, so a how-to repeated across a site's pages matches
+ * whatever heading the page runs into it ("Planting How-to : Pruning Flowering Shrubs It is necessary to prune …").
+ */
+export const sentenceKey = (t) => { const w = paragraphKey(t).split(' '); return w.length >= 12 ? `s:${w.slice(-12).join(' ')}` : null; };
 /** A page's paragraphs, as text: its <p>s of 40 letters or more, outside its menus, header, footer, forms and comments. */
 export function webParagraphs(html) {
   // (Readers' comments aren't the page's: everything from a blog's comments section on.)
@@ -302,7 +445,8 @@ export function webParagraphs(html) {
 const LEAF_LABEL = /\b(?:evergreen or deciduous|evergreen\s*\/\s*deciduous|deciduous\s*\/\s*evergreen|foliage(?: type)?|leaf (?:retention|persistence))\s*:\s*(semi-evergreen|evergreen|deciduous)\b/i;
 /**
  * What a page's description says, as claims, for the facts its spec lines (`fields`) don't give. `boilerplate`: the
- * paragraph keys repeated across its site, left out. A labeled "Evergreen or Deciduous: X" is the page's field, not prose.
+ * paragraph keys repeated across its site, and its long sentences repeated (reclaim.mjs), left out. A labeled
+ * "Evergreen or Deciduous: X" is the page's field, not prose.
  */
 export function webProseClaims(html, plant, base, fields = {}, boilerplate = new Set()) {
   const paras = webParagraphs(html).filter((t) => !boilerplate.has(paragraphKey(t)));
@@ -310,7 +454,7 @@ export function webProseClaims(html, plant, base, fields = {}, boilerplate = new
   const out = [];
   const label = paras.map((t) => LEAF_LABEL.exec(t)).find(Boolean);
   if (label) out.push({ ...base, fact: 'foliage', v: label[1].toLowerCase() });
-  const list = paras.map((t) => t.replace(new RegExp(LEAF_LABEL.source, 'gi'), ' ')).flatMap((t) => sentences(t));
+  const list = paras.map((t) => t.replace(new RegExp(LEAF_LABEL.source, 'gi'), ' ')).flatMap((t) => sentences(t)).filter((t) => !boilerplate.has(paragraphKey(t)) && !boilerplate.has(sentenceKey(t)));
   const read = [['foliage', foliageFromProse], ['deer', deerFromProse], ['self_seed', seedFromProse], ['habit', habitFromProse]];
   for (const [fact, from] of read) {
     if ((fact === 'foliage' && label) || (fact === 'deer' && fields.deer)) continue;

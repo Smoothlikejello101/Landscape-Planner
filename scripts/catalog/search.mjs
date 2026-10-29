@@ -2,7 +2,8 @@
 // fetcher's rules: robots.txt, pace, refusals), and read their spec lines as
 // claims (docs/catalog-sources.md, "Searching the web"):
 //   node scripts/catalog/search.mjs <sample.json> <claims-out.json> [--max N] [--wait MINUTES] [--dry]
-// <sample.json>: [{ id, species }, …] (names come from public/plants.json).
+// <sample.json>: [{ id, species, botanical?, common? }, …] (names come from public/plants.json; a plant added from NC State
+// that isn't shipped yet, waiting for its size or form, isn't in it: its names come with it, from the build's records).
 // --max: pages per plant (default 10). --dry: search only, and say how many.
 // --wait: how long to wait for terms reviews before reading (default 0:
 //   sites not yet reviewed are left out of this run).
@@ -68,7 +69,7 @@ const sample = JSON.parse(readFileSync(samplePath, 'utf8'));
 // 1. Search (in memory only).
 const picks = new Map(); // plant id → { plant, urls }
 for (const s of sample) {
-  const rec = byId.get(s.id) ?? {};
+  const rec = byId.get(s.id) ?? { botanical: s.botanical, common: s.common };
   const cultivar = quotedCultivars(rec.botanical)[0] ?? quotedCultivars(rec.common)[0] ?? null;
   const name = cultivar ? `"${cultivar}" ${s.species}` : rec.botanical && rec.botanical !== s.species ? `"${rec.common}" ${s.species}` : `"${s.species}"`;
   const urls = [];
@@ -94,7 +95,10 @@ const session = fetchSession(); // (one robots.txt read and one pace per site, a
 const tallies = {};
 const tally = (line) => { const k = /^(\d{3}|stop|skip|fail\w*)/.exec(line)?.[1] ?? 'other'; tallies[k] = (tallies[k] ?? 0) + 1; };
 const fetched = new Set(); // (every URL this run asked for: what it leaves behind with no page is removed at the end)
-const fetchList = (list) => { for (const x of list) fetched.add(x.url); return runFetch(list, { get, store: fileStore('catalog-src', today), today, session, concurrency: 8, sleep: pause, now: () => Date.now(), log: tally }); };
+// (A site whose robots.txt asks for more than two minutes between requests is left out: one asking for an hour held a
+// run for hours, 2026-10-27.)
+const MAX_DELAY = 120;
+const fetchList = (list) => { for (const x of list) fetched.add(x.url); return runFetch(list, { get, store: fileStore('catalog-src', today), today, session, concurrency: 8, maxDelay: MAX_DELAY, sleep: pause, now: () => Date.now(), log: tally }); };
 /**
  * Fetch URLs, following redirects within the same site (up to 3), each
  * target fetched by the same rules. Returns url → the URL whose page
@@ -135,7 +139,10 @@ const linked = new Map();
 for (const [k, home] of pending) {
   const at = homes.get(home), h = htmlOf(at);
   const root = rootOf(home), rootAt = root && homes.get(root), rh = rootAt && htmlOf(rootAt);
-  const links = [...new Set([...(h ? termsLinks(h, at) : []), ...(rh ? termsLinks(rh, rootAt) : [])])].slice(0, 6);
+  // A Shopify shop keeps its terms of service at a standard address, the spidering ban usually in them, whatever its
+  // footer links (often only a custom page, or an SMS programme's terms): read too (the terms reviews of 2026-10-27).
+  const shopify = h && /cdn\.shopify\.com|Shopify\.theme|\.myshopify\.com/i.test(h) ? [new URL('/policies/terms-of-service', at).href] : [];
+  const links = [...new Set([...shopify, ...(h ? termsLinks(h, at) : []), ...(rh ? termsLinks(rh, rootAt) : [])])].slice(0, 6);
   linked.set(k, { home: at, html: h, root: rootAt, rootHtml: rh, links });
 }
 const found = await fetchAll([...linked.values()].flatMap((r) => r.links));

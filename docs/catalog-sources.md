@@ -215,7 +215,9 @@ the same rules as every other source (scripts/catalog/search.mjs).
    logged.
 2. **Pick.** Up to 10 pages a plant, one a site. Left out: the sites in
    this document's closed, ask-first and not-used lists; crowd-sourced and
-   AI-written sites (Wikipedia, Dave's Garden, iNaturalist…); archives,
+   AI-written sites (Wikipedia, Dave's Garden, iNaturalist…, and those
+   the terms reviews find AI-written, spam, copied or a marketplace:
+   `SKIP_SITES` in scripts/catalog/web.mjs); archives,
    caches and aggregators (the Wayback Machine, archive.today, Trefle,
    GBIF…: GBIF's records are read another way, by the owner's decision, as
    counts only: flowering records for bloom months ([bloom-months.md](bloom-months.md)) and herbarium
@@ -235,8 +237,9 @@ the same rules as every other source (scripts/catalog/search.mjs).
    payment provider's), or the usual addresses (`/terms`,
    `/terms-of-use`, `/policies/terms-of-service`…) when none of the pages
    it links is titled as the terms of use (none linked, or only terms of
-   sale, shipping or returns: a shop that links only its shipping policy),
-   and writes a review packet: each page's opening and the passages about
+   sale, shipping or returns: a shop that links only its shipping policy;
+   a Shopify shop's standard terms page is read whatever its footer links,
+   since its robot ban sits there), and writes a review packet: each page's opening and the passages about
    robots, scraping, scripts, AI, automated access, commercial use,
    databases and copying (up to twelve, saying how many more there are),
    with a pattern's guess marked as a hint only. Each owner on a shared
@@ -261,11 +264,17 @@ the same rules as every other source (scripts/catalog/search.mjs).
    - **unread**: the home page or a linked terms page couldn't be fetched,
      or the terms of use aren't among the pages read; tried again next run.
    When unsure, it isn't **open**. A site we lean on is also read by Jason
-   before launch.
+   before launch. The build reads the saved pages again under the record as
+   it stands then, so a reading taken back to be done again (a Shopify shop
+   cleared before its standard terms were read, say) keeps that site's
+   values out of the catalog until it is read again.
 4. **Fetch.** Through the fetcher: robots.txt, pace (`web`: 5 s a site),
    refusals and the honest user agent, as for every source. Up to eight
    sites are read at once, each still one request at a time at its pace. Redirects
-   within a site are followed, each one fetched by the same rules.
+   within a site are followed, each one fetched by the same rules. A site whose
+   robots.txt asks for more than two minutes between requests is left out of the
+   run, never asked sooner (one asking for an hour held a run for hours,
+   2026-10-27).
 5. **Read.** Only labeled spec lines ("Hardiness Zones: 5–9", "Mature
    Height: 3–4 ft", "Light: Full sun to part shade"), never prose; a
    false value is worse than a missing one, so a line that could mean two
@@ -278,7 +287,10 @@ the same rules as every other source (scripts/catalog/search.mjs).
    credits a source closed to us, in its text or by a link (MOBOT, the
    Wildflower Center, NPIN; or as its source, Calscape, Prairie Moon, Dave's
    Garden, Garden.org and the other closed ones), is that source second-hand
-   and isn't read. A shop is a page with a cart or a product marked up for
+   and isn't read. So is a page carrying a plant database sold to the sites
+   that show it (GardenSoft's, rented by water utilities; NetPS Plant Finder,
+   by garden centres; Horticopia), until that database's own terms are read
+   (2026-10-28). A shop is a page with a cart or a product marked up for
    search engines, not just prices (a blog's affiliate links); a person's
    own pages on a university site (`/~name/`) are a blog's. Bloom
    months aren't taken from the web: they differ by place.
@@ -427,7 +439,11 @@ forms, and not its site's boilerplate, a paragraph that names a plant and
 shows on the site's pages for other species (a related product's blurb, a
 genus's trivia, companions to plant with). A nursery's stock sentence said
 of each plant it fits ("Plants are pest resistant and unpalatable to deer")
-stays: it's said of this plant too. A labeled "Evergreen or Deciduous:
+stays: it's said of this plant too. Nor a long sentence (12 words or more)
+the site repeats on pages for five species or more, or on most of its
+pages, matched by its last 12 words: a how-to or a legend run into the
+description (2026-10-28: one site's pruning how-to, "… suckering habit
+pruning …", on every shrub page had read Suckering into each). A labeled "Evergreen or Deciduous:
 Deciduous" inside a paragraph is the page's field. They count as the
 site's claims, at its tier: a nursery's deer is one side of the sides
 (docs above), NC State's an authority's; a blog's deer isn't read at all.
