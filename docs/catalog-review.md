@@ -1,14 +1,16 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 168 to decide, 23 plants not searched, 1437 sites whose terms are unsettled, 728 catalog checks; 3737 of 3742 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 184 to decide, 23 plants not searched, 1437 sites whose terms are unsettled, 738 catalog checks; 3737 of 3742 records audited.
 
 - [Sources disagree (92)](#sources-disagree-92)
 - [Cultivar: tree or shrub? (6)](#cultivar-tree-or-shrub-6)
 - [Edible, but rated toxic (16)](#edible-but-rated-toxic-16)
 - [Held back as implausible (3)](#held-back-as-implausible-3)
 - [A value its source no longer gives (8)](#a-value-its-source-no-longer-gives-8)
-- [Sizes whose sources are far apart (22)](#sizes-whose-sources-are-far-apart-22)
+- [Sizes whose sources are far apart (37)](#sizes-whose-sources-are-far-apart-37)
+- [Sources often far from the authorities (1)](#sources-often-far-from-the-authorities-1)
 - [Read from text, but a second reading differs (276)](#read-from-text-but-a-second-reading-differs-276)
+- [Taken out: its source check-only (10)](#taken-out-its-source-check-only-10)
 - [Values the catalog can't take (1)](#values-the-catalog-cant-take-1)
 - [Kew names to check (14)](#kew-names-to-check-14)
 - [Bloom months held back (4)](#bloom-months-held-back-4)
@@ -175,7 +177,7 @@ An earlier build wrote it from a source, but no source gives it now: its page is
 | Dwarf yaupon holly 'Schillings' (`ilex-vomitoria-nana-schillings`) | flower_color | ["white"], from kiefernursery.com |
 | Mulberry 'Illinois Everbearing' (`morus-alba-x-rubra-illinois-everbearing`) | fall color | true, from ncsu |
 
-## Sizes whose sources are far apart (22)
+## Sizes whose sources are far apart (37)
 
 The size shown and the other source's are 3 times apart or more, so one is likely wrong (a reading of the wrong number, a range that's a bin, a climbing vine's length). Each source's value is here; the plant's other size beside it can tell which. A decision goes in scripts/catalog/decisions.json (`leads`), and the build applies it. (the source that leads that size).
 
@@ -185,24 +187,47 @@ The size shown and the other source's are 3 times apart or more, so one is likel
 | Slender bush clover (`lespedeza-virginica`) | height | 3–6 ft (ncsu) | 1–2 ft (roundstoneseed.com) | width 4–10 ft |
 | White-tinged sedge (`carex-albicans`) | height | 1–2 ft (prairienursery.com) | 0.33–0.67 ft (mowildflowers.net) |  |
 | Vinca / periwinkle (`vinca-minor`) | height | 0.25–0.5 ft (ncsu) | 50 ft (sylvangardenslandscape.com) | width 0.5–1.5 ft |
+| Bluemink (`ageratum-houstonianum`) | height | 0.5–1 ft (ncsu) | 2–5 ft (toptropicals.com, check only) | width 0.83–1 ft |
 | Woolly dutchman's pipe (`aristolochia-tomentosa`) | height | 20–30 ft (ncsu) | 75 ft (mowildflowers.net) | width 5–10 ft |
-| Red silk cottontree (`bombax-ceiba`) | height | 60–75 ft (ncsu) | 20 ft (toptropicals.com) | width 40–60 ft |
-| Be-still tree (`cascabela-thevetia`) | height | 4–8 ft (ncsu, toptropicals.com) | 20–50 ft (arizona.edu) | width 4–5 ft |
+| Maidenhair spleenwort (`asplenium-trichomanes`) | height | 0.33–0.58 ft (ncsu) | 2–5 ft (toptropicals.com, check only) | width 0.33–0.58 ft |
+| Red silk cottontree (`bombax-ceiba`) | height | 60–75 ft (ncsu) | 20 ft (toptropicals.com, check only) | width 40–60 ft |
+| Be-still tree (`cascabela-thevetia`) | height | 4–8 ft (ncsu) | 20–50 ft (arizona.edu) | width 4–5 ft |
 | Be-still tree (`cascabela-thevetia`) | width | 4–5 ft (ncsu) | 20–50 ft (arizona.edu) | height 4–8 ft |
+| European chestnut (`castanea-sativa`) | height | 80–100 ft (ncsu) | 20 ft (toptropicals.com, check only) | width 30–50 ft |
 | Northern catalpa (`catalpa-speciosa`) | width | 8–16 ft (ncsu) | 35–40 ft (greatplainsnursery.com) | height 40–70 ft |
+| Japanese cedar (`cryptomeria-japonica`) | height | 50–70 ft (ncsu) | 20 ft (toptropicals.com, check only) | width 20–30 ft |
+| Zebra-striped Dragon Tree (`dracaena-goldieana`) | height | 2–3 ft (ncsu) | 5–10 ft (toptropicals.com, check only) | width 2–3 ft |
 | Dwarf scouringrush (`equisetum-scirpoides`) | width | 1–4 ft (ncsu) | 0.67 ft (kiefernursery.com) | height 0.5–1 ft |
 | Winter creeper (`euonymus-fortunei`) | height | 14–32 ft (ncsu) | 0.5–0.67 ft (illinois.edu) | width 2–10 ft |
+| Mistletoe fig (`ficus-deltoidea`) | height | 2–3 ft (ncsu) | 20 ft (toptropicals.com, check only) | width 1–2 ft |
 | Downy rattlesnake plantain (`goodyera-pubescens`) | height | 1–2 ft (ncsu) | 0.17–0.33 ft (nativewildflowers.net) | width 0.75–1 ft |
+| Manyflower marshpennywort (`hydrocotyle-umbellata`) | height | 0.25–0.83 ft (ncsu) | 2–5 ft (toptropicals.com, check only) | width 3–20 ft |
+| True indigo (`indigofera-tinctoria`) | height | 2–3 ft (ncsu) | 5–10 ft (toptropicals.com, check only) | width 2–3 ft |
 | Chinese juniper (`juniperus-chinensis`) | height | 50–60 ft (ncsu) | 2–25 ft (illinois.edu) | width 10–20 ft |
 | Hyacinthbean (`lablab-purpureus`) | height | 10–25 ft (ncsu) | 3–4 ft (roundstoneseed.com) | width 3–6 ft |
-| Southern magnolia (`magnolia-grandiflora`) | height | 60–80 ft (ncsu) | 10–20 ft (toptropicals.com) | width 30–50 ft |
+| Moroccan toadflax (`linaria-maroccana`) | height | 0.75–1.5 ft (ncsu) | 2–5 ft (toptropicals.com, check only) | width 0.5–0.75 ft |
+| Coralgem (`lotus-berthelotii`) | height | 0.5–0.75 ft (ncsu) | 2–5 ft (toptropicals.com, check only) | width 2–3 ft |
+| Southern magnolia (`magnolia-grandiflora`) | height | 60–80 ft (ncsu) | 10–20 ft (toptropicals.com, check only) | width 30–50 ft |
+| Tulip pricklypear (`opuntia-phaeacantha`) | height | 1–3 ft (ncsu) | 5–10 ft (toptropicals.com, check only) | width 3–5 ft |
+| Peperomia clusiifolia (`peperomia-clusiifolia`) | height | 0.5–1 ft (ncsu) | 2–5 ft (toptropicals.com, check only) | width 0.5–1 ft |
+| Platinum pepper (`peperomia-griseoargentea`) | height | 0.5–0.67 ft (ncsu) | 2–5 ft (toptropicals.com, check only) | width 0.42–0.58 ft |
 | Turkey tangle fogfruit (`phyla-nodiflora`) | width | 1–2 ft (ncsu) | 4–10 ft (calfloranursery.com) | height 0.25–0.5 ft |
-| Cork oak (`quercus-suber`) | height | 70–100 ft (ncsu) | 10–20 ft (toptropicals.com) | width 70–100 ft |
+| Cork oak (`quercus-suber`) | height | 70–100 ft (ncsu) | 10–20 ft (toptropicals.com, check only) | width 70–100 ft |
 | Chinese rose (`rosa-chinensis`) | height | 6–8 ft (ncsu) | 1.17 ft (outsidepride.com) | width 6–8 ft |
+| Schima (`schima-wallichii`) | height | 20–120 ft (ncsu) | 10–20 ft (toptropicals.com, check only) | width 20–40 ft |
 | Cranberry (`vaccinium-macrocarpon`) | height | 1–3 ft (ncsu) | 0.33–0.5 ft (bluestemnatives.com) | width 1.5–2.33 ft |
 | Deodar Cedar 'Snow Sprite' (`cedrus-deodara-snow-sprite`) | height | 1.67–3 ft (ncsu) | 4–15 ft (farwestturf.com) | width 0.5–1 ft |
 | Deodar Cedar 'Snow Sprite' (`cedrus-deodara-snow-sprite`) | width | 0.5–1 ft (ncsu) | 3–6 ft (farwestturf.com) | height 1.67–3 ft |
 | Asian Pear 'Shinseiki' (`pyrus-pyrifolia-shinseiki`) | width | 6–7 ft (ncsu) | 20 ft (buchanansplants.com) | height 8–10 ft |
+| Cumin (`cuminum-cyminum`) | height | 0.67–1.33 ft (outsidepride.com) | 2–5 ft (toptropicals.com, check only) |  |
+
+## Sources often far from the authorities (1)
+
+Sources whose sizes are 3 times or more from every authority's for the same plant on at least 14% of the plants they share (2.5 times the 6% of all sources together), with 20 plants or more to judge by. Often a sign of bins or a misread field, not measured sizes. A source made check-only never decides a value, backs one or shows as its alternate; where it's far from the value shown, the plant is still listed above ("Sizes whose sources are far apart"), since a sound source's rare big disagreement is often where an authority is wrong. A decision goes in scripts/catalog/decisions.json (`checkOnly`), and the build applies it.
+
+| Source | Plants | Far off | Some of them |
+| --- | --- | --- | --- |
+| plantsrescue.com | 27 | 4 (15%) | Norfolk Island pine (`araucaria-heterophylla`), Madagascar periwinkle (`catharanthus-roseus`), Hardy fuchsia (`fuchsia-magellanica`), Blackeyed Susan vine (`thunbergia-alata`) |
 
 ## Read from text, but a second reading differs (276)
 
@@ -487,6 +512,23 @@ A value the rules read from a page's text, which a second reading of the same te
 | Roving sailor (`maurandella-antirrhiniflora`) | deer | Resistant | nothing | lindavistanatives.com | Resistant |
 | Plymouth rose gentian (`sabatia-kennedyana`) | leaves in winter | deciduous | nothing | mellowmarshfarm.com | evergreen |
 
+## Taken out: its source check-only (10)
+
+A value whose only source is check-only (decisions.json `checkOnly`): such a source never decides. It's taken out (nothing to decide: listed so the change is seen).
+
+| Plant | Fact | What was taken out |
+| --- | --- | --- |
+| Fire-on-the-mountain (`euphorbia-cyathophora`) | self-sowing | "Unrated", from toptropicals.com |
+| Maraca amarilla (`canna-glauca`) | spreading | "Spreading rhizome", from toptropicals.com |
+| Common turmeric (`curcuma-longa`) | spreading | "Clumping", from toptropicals.com |
+| Pin-stripe calathea (`goeppertia-ornata`) | leaves in winter | "evergreen", from toptropicals.com |
+| Persian buttercup (`ranunculus-asiaticus`) | spreading | "Clumping", from toptropicals.com |
+| Scarlet sage (`salvia-splendens`) | self-sowing | "Unrated", from toptropicals.com |
+| St. John's bread (`ceratonia-siliqua`) | height | {"min":10,"max":20,"med":15}, from toptropicals.com |
+| Dracaena angolensis (`dracaena-angolensis`) | coldest zone | 9, from toptropicals.com |
+| Dracaena angolensis (`dracaena-angolensis`) | warmest zone | 11.5, from toptropicals.com |
+| Dracaena angolensis (`dracaena-angolensis`) | spreading | "Slow-spreading rhizome", from toptropicals.com |
+
 ## Values the catalog can't take (1)
 
 A source's value doesn't fit the catalog's format.
@@ -589,6 +631,6 @@ Kew's checklist has no one accepted species for 37 catalog names (hybrids, names
 New plants (scripts/catalog/additions.mjs):
 
 - 0 plants added from NC State's Plant Toolbox in this build (2901 in all)
-- 802 plants waiting, for size (661), form (94), hardiness (235), sun (89), its species (19)
+- 802 plants waiting, for size (662), form (94), hardiness (236), sun (89), its species (19)
 - 589 pages left out: a vegetable (86), a genus (294), a weed (204), in the catalog (5)
 - 18 pages the sitemap lists that aren't saved yet

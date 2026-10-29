@@ -7,7 +7,7 @@ import { auditList, ncsuMovedTo, ncsuPageFor, ncsuSlug, readNcsuPages, speciesOf
 // @ts-expect-error (a plain .mjs script)
 import { cultivarOf, rereadClaims, siteBoilerplate } from '../scripts/catalog/reclaim.mjs';
 // @ts-expect-error (a plain .mjs script)
-import { anchor, farApartSizes, noteKind, reviewKind, reviewReport, shown, termsUnsettled } from '../scripts/catalog/report.mjs';
+import { anchor, farApartSizes, farOffSources, noteKind, oftenFarOff, reviewKind, reviewReport, shown, termsUnsettled } from '../scripts/catalog/report.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { isDay, parseBuildArgs } from '../scripts/catalog/build-args.mjs';
 // @ts-expect-error (a plain .mjs script)
@@ -336,5 +336,50 @@ describe('sizes whose sources are far apart', () => {
       { id: 'close', facts: { width: { v: { min: 4, max: 6, med: 5 }, src: ['ncsu'], alt: { v: { min: 8, max: 12, med: 10 }, src: ['x.com'] } } } },
     ] };
     expect(farApartSizes(catalog)).toEqual([{ id: 'populus-alba', fact: 'width', shown: { v: { min: 4, max: 6, med: 5 }, src: ['ncsu'] }, other: { v: { min: 50, max: 100, med: 75 }, src: ['arizona.edu'] }, otherFact: 'height', otherSize: { min: 50, max: 75, med: 62.5 } }]);
+  });
+  // A check-only source (decisions.json `checkOnly`, Jason, Oct 29) is never the alternate: its size far from the one
+  // shown is listed from the audit, so an authority's mistake can still be caught.
+  it("lists a check-only source's size 3 times from the one shown, though it isn't the alternate; not one close to it", () => {
+    const catalog = { plants: [
+      { id: 'magnolia', facts: { height: { v: { min: 60, max: 80, med: 70 }, src: ['ncsu'] } } },
+      { id: 'redbud', facts: { height: { v: { min: 20, max: 30, med: 25 }, src: ['ncsu'] } } },
+    ] };
+    const combined = [
+      { id: 'magnolia', claims: [{ fact: 'height', v: { min: 10, max: 20 }, src: 'tt.com', kind: 'nursery' }, { fact: 'height', v: { min: 60, max: 80 }, src: 'ncsu', kind: 'authority' }] },
+      { id: 'redbud', claims: [{ fact: 'height', v: { min: 10, max: 20 }, src: 'tt.com', kind: 'nursery' }] },
+    ];
+    const checkOnly = { 'tt.com': { why: 'bins', decided: '2026-10-29', by: 'test' } };
+    expect(farApartSizes(catalog, 3, combined, checkOnly)).toEqual([{ id: 'magnolia', fact: 'height', shown: { v: { min: 60, max: 80, med: 70 }, src: ['ncsu'] }, other: { v: { min: 10, max: 20 }, src: ['tt.com'], checkOnly: true }, otherFact: 'width', otherSize: null }]);
+    expect(farApartSizes(catalog, 3, combined)).toEqual([]); // (not check-only: its alternate, if any, is the catalog's)
+  });
+});
+
+describe('sources often far from the authorities (judged by their record, Jason, Oct 29)', () => {
+  // Twenty plants: one source 3 times off the authority's height on 6 of them; three others on 1, 0 and 0.
+  const plant = (i: number) => ({ id: `p${i}`, claims: [
+    { fact: 'height', v: { min: 10, max: 10 }, src: 'ncsu', kind: 'authority' },
+    { fact: 'height', v: { min: i < 6 ? 35 : 12, max: i < 6 ? 35 : 12 }, src: 'bins.com', kind: 'nursery' },
+    { fact: 'width', v: { min: 10, max: 10 }, src: 'ncsu', kind: 'authority' },
+    { fact: 'width', v: { min: i === 0 ? 2 : 9, max: i === 0 ? 2 : 9 }, src: 'sound.com', kind: 'nursery' },
+    { fact: 'width', v: { min: 9, max: 11 }, src: 'also.com', kind: 'nursery' },
+    { fact: 'height', v: { min: 8, max: 12 }, src: 'also.com', kind: 'nursery' },
+    { fact: 'height', v: { min: 11, max: 11 }, src: 'third.com', kind: 'nursery' },
+    // (USDA's figures are flags, not an authority's size.)
+    { fact: 'height', v: { min: 90, max: 90 }, src: 'usda', kind: 'authority', flag: { text: 'x' } },
+  ] });
+  const combined = Array.from({ length: 20 }, (_, i) => plant(i));
+  it('counts each plant once (height or spread), against every authority, most far first', () => {
+    const r = farOffSources(combined);
+    expect(r.sources.map((s: { src: string; plants: number; far: number }) => [s.src, s.plants, s.far])).toEqual([['bins.com', 20, 6], ['sound.com', 20, 1], ['also.com', 20, 0], ['third.com', 20, 0]]);
+    expect([r.plants, r.far]).toEqual([80, 7]);
+    expect(r.sources[0].examples).toEqual(['p0', 'p1', 'p2', 'p3']);
+  });
+  it('lists a source far off 2.5 times as often as all of them together, with 20 plants to judge by; not one decided', () => {
+    expect(oftenFarOff(combined).sources.map((s: { src: string }) => s.src)).toEqual(['bins.com']); // (30%, against 8.75% for all)
+    expect(oftenFarOff(combined.slice(0, 19)).sources).toEqual([]); // (19 plants: too few to judge)
+    expect(oftenFarOff(combined, { decided: { 'bins.com': {} } }).sources).toEqual([]);
+  });
+  it('says what a check-only take-out is', () => {
+    expect(reviewKind({ note: 'check only: 7, from tt.com' })).toBe('checkOnly');
   });
 });

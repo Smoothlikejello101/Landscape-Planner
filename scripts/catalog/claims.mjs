@@ -454,6 +454,16 @@ export function agrees(fact, a, b) {
 }
 
 /**
+ * One plant's claims as a person's decisions weigh them (decisions.json): a source chosen to lead a fact (`leads`,
+ * { fact: { source } }) weighs as an authority there, the others as nurseries, so it leads and they confirm it or show
+ * as its alternate; a check-only source's claims (`checkOnly`, { src }) are left out, but where it was chosen to lead.
+ */
+export function asDecided(claims, leads = {}, checkOnly = {}) {
+  return claims.filter((c) => !checkOnly[c.src] || leads[c.fact]?.source === c.src)
+    .map((c) => (leads[c.fact] ? { ...c, kind: c.src === leads[c.fact].source ? 'authority' : c.kind === 'authority' ? 'nursery' : c.kind } : c));
+}
+
+/**
  * Combine one plant's claims into facts. Each fact: { v, src, check, kind,
  * note?, flags? }. check: 'confirmed' (an authority, and another independent
  * source agrees), 'single' (one authority), 'likely' (no authority; two or
