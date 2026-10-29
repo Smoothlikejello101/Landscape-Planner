@@ -23,6 +23,8 @@ import { state } from './state';
 import { isArbor, isTrellis, LATTICE_STEP, latticePath, SLAT_STEP, slatsPath } from './structures';
 import type { CircleShape, Point, Shape, ShapeFilter, TextShape } from './types';
 import { supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
+import { lookFor, lookMarkup, lookShown } from './plant-looks';
+import { bandBlooms, coverBlooms, levelOf } from './looks';
 
 // Canvas drawing. Everything here writes only into the <svg>, never into
 // panel DOM, so it is safe to call while an input has keyboard focus.
@@ -114,6 +116,7 @@ export function gridSteps(ppf: number): { minorEvery: number; majorEvery: number
   return { minorEvery, majorEvery };
 }
 
+let lookClips = 0;
 /** A shape and its label, wrapped in a group so it can be redrawn alone. */
 export function shapeGroup(s: Shape): SVGGElement {
   const ppf = pxPerFoot();
@@ -159,6 +162,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   let fitted: FittedLabel | null | undefined; // circles: the name fitted inside (null = doesn't fit)
   let overflow = false; // a plant's name written over its edge
   let vineDot: number | null = null; // a climbing vine: its planting spot's radius (px), where its badges go
+  let under: SVGElement | null = null; // a plant drawn as an illustration (src/looks.ts): under its rim
 
   const vine = s.type === 'circle' ? supportOf(s, state.shapes) : null;
   if (s.type === 'circle' && vine) {
@@ -169,7 +173,10 @@ export function shapeGroup(s: Shape): SVGGElement {
     const cx = (s.x - state.offsetX) * ppf, cy = (s.y - state.offsetY) * ppf;
     vineDot = Math.max(4, VINE_DOT_RADIUS * ppf);
     const bandW = Math.max(4, VINE_BAND_WIDTH * ppf);
-    const paint = { stroke: s.status === 'remove' ? '#dc2626' : s.color, 'stroke-opacity': s.status === 'planned' ? 0.5 * (s.opacity ?? 0.65) : s.opacity ?? 0.65, fill: 'none', 'pointer-events': 'none' };
+    // (Drawn as a picture (src/looks.ts): in its leaves' color, nearly solid, its blooms along it.)
+    const look = lookShown(s) ? lookFor(s) : null;
+    const op = look ? (s.status === 'planned' ? 0.75 : 0.9) : s.status === 'planned' ? 0.5 * (s.opacity ?? 0.65) : s.opacity ?? 0.65;
+    const paint = { stroke: s.status === 'remove' ? '#dc2626' : look ? look.pal.base : s.color, 'stroke-opacity': op, fill: 'none', 'pointer-events': 'none' };
     // (On an arbor, over its top, as far as its spread reaches: taps go through it to the arbor, the vine taking
     // them at its spot.)
     shapeEl = cover
@@ -178,7 +185,13 @@ export function shapeGroup(s: Shape): SVGGElement {
       : svgEl('polyline', { ...paint, 'data-role': 'vine-band', points: band.map(toPx).join(' '), 'stroke-width': bandW, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
         opacity: s.status === 'gone' ? 0.35 : null }); // (planned: lighter, as its stroke-opacity says; a dashed band reads as beads)
     g0.push(svgEl('polyline', { ...paint, 'data-role': 'vine-reach', points: connector.map(toPx).join(' '), 'stroke-width': Math.max(1.5, bandW / 3), 'stroke-linecap': 'round', opacity: s.status === 'gone' ? 0.35 : null }));
-    g0.push(svgEl('circle', { 'data-role': 'vine-spot', cx, cy, r: vineDot, fill: s.color, stroke: sel ? '#0f172a' : 'rgba(0,0,0,0.35)', 'stroke-width': sel ? 2 : 1, 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : null }));
+    if (look) {
+      const blooms = svgEl('g', { 'data-role': 'vine-blooms', 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : null });
+      const px = (l: Point[]) => l.map((p) => ({ x: (p.x - state.offsetX) * ppf, y: (p.y - state.offsetY) * ppf }));
+      blooms.innerHTML = cover ? coverBlooms(px(cover), look, Math.max(16, 1.5 * ppf)) : bandBlooms(px(band), bandW, look, Math.max(16, 1.6 * ppf));
+      g0.push(blooms);
+    }
+    g0.push(svgEl('circle', { 'data-role': 'vine-spot', cx, cy, r: vineDot, fill: look ? look.pal.dark : s.color, stroke: sel ? '#0f172a' : 'rgba(0,0,0,0.35)', 'stroke-width': sel ? 2 : 1, 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : null }));
     const level = crowded.get(s.id);
     if (level) g0.push(svgEl('circle', { 'data-role': level, cx, cy, r: vineDot + 4, fill: 'none', stroke: level === 'crowded' ? '#dc2626' : '#d97706', 'stroke-width': 2, 'stroke-dasharray': level === 'close' ? '6 4' : null, 'pointer-events': 'none' }));
     hitEl = svgEl('g', { 'data-shape-id': s.id, 'data-role': 'vine-hit', style: common.style, 'pointer-events': inert ? 'none' : null },
@@ -191,6 +204,21 @@ export function shapeGroup(s: Shape): SVGGElement {
     const cx = (s.x - state.offsetX) * ppf;
     const cy = (s.y - state.offsetY) * ppf;
     const r = s.radius * ppf;
+    // A plant drawn as an illustration (src/looks.ts): the drawing, clipped to its outline, under its rim, which keeps
+    // the taps. Off the screen (by half a screen), it's drawn at its simplest: a pan shows it in full on release.
+    if (lookShown(s)) {
+      const margin = Math.max(state.canvasW, state.canvasH) / 2;
+      const seen = cx > -r - margin && cx < state.canvasW + r + margin && cy > -r - margin && cy < state.canvasH + r + margin;
+      const clipId = `look-clip-${++lookClips}`; // (a fresh id each drawing: any shape id is safe)
+      const outline = s.canopy
+        ? svgEl('polygon', { points: s.canopy.map(([x, y]) => `${x * ppf},${y * ppf}`).join(' ') })
+        : svgEl('circle', { cx: 0, cy: 0, r });
+      const art = svgEl('g', { 'clip-path': `url(#${clipId})` });
+      art.innerHTML = lookMarkup(s, r, seen ? levelOf(r) : 'yard');
+      under = svgEl('g', { 'data-role': 'plant-look', transform: `translate(${cx} ${cy})`, 'pointer-events': 'none',
+        opacity: s.status === 'gone' ? 0.35 : s.status === 'planned' || isTree(s) ? 0.85 : null }, svgEl('clipPath', { id: clipId }, outline), art);
+      common.fill = 'transparent';
+    }
     // A tree pruned into a shape: its outline instead of a circle.
     shapeEl = s.canopy
       ? svgEl('polygon', { ...common, points: canopyPoints(s, (x, y) => [(x - state.offsetX) * ppf, (y - state.offsetY) * ppf]), 'stroke-linejoin': 'round' })
@@ -286,7 +314,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   }
   const target = hitEl ?? shapeEl;
   target.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
-  const g = svgEl('g', { 'data-shape-group': s.id }, shapeEl);
+  const g = svgEl('g', { 'data-shape-group': s.id }, ...(under ? [under] : []), shapeEl);
   if (hitEl) g.appendChild(hitEl);
   if (ring) g.appendChild(ring);
   for (const x of g0) g.appendChild(x);
@@ -333,7 +361,7 @@ export function shapeGroup(s: Shape): SVGGElement {
     const lh = fitted.fontSize * LABEL_LINE_HEIGHT;
     const text = svgEl('text', {
       'data-role': 'plant-label', x: labelX, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': fitted.fontSize, fill: '#0f172a',
-      stroke: 'rgba(255,255,255,0.55)', 'stroke-width': 2.5, 'paint-order': 'stroke', 'stroke-linejoin': 'round',
+      stroke: under ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.55)', 'stroke-width': 2.5, 'paint-order': 'stroke', 'stroke-linejoin': 'round',
       'pointer-events': 'none', style: 'user-select:none;font-weight:500;',
     });
     fitted.lines.forEach((line, i) => {

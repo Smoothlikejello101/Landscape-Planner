@@ -155,6 +155,8 @@ export function migrateShape(raw: unknown): Shape | null {
         ...(crowdOk(s.crowdOk) ? { crowdOk: crowdOk(s.crowdOk)! } : {}),
         // (Vines: what it climbs, by id, or '' for none set by hand; older versions had neither: a groundcover.)
         ...(typeof s.climbsOn === 'string' && s.climbsOn.length <= 100 ? { climbsOn: s.climbsOn } : {}),
+        // (A color chosen by hand, which pictures draw its leaves in; older versions had none: the catalog's colors.)
+        ...(s.colorSet === true ? { colorSet: true } : {}),
       };
     }
     case 'rect':

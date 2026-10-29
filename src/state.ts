@@ -48,6 +48,7 @@ export const state: AppState = {
   phases: [],
   viewFilter: { status: '', phase: '', showGone: false },
   showFullSize: false,
+  plantLooks: true,
   showCrowding: true,
   crowdWarnings: true,
   showNames: true,

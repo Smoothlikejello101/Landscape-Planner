@@ -119,6 +119,11 @@ export interface CircleShape extends ShapeBase {
    * as placed (a groundcover, which the app may offer a support nearby).
    */
   climbsOn?: string;
+  /**
+   * A color the user chose for this plant (its properties' Color): with pictures on (src/looks.ts), its leaves are drawn
+   * in it. Unset (every plant before Oct 29, and one put back to its default): the catalog's leaf color.
+   */
+  colorSet?: true;
   /** Ignored for circles; tolerated so old data and patches stay valid. */
   rotation?: number;
 }
@@ -410,6 +415,8 @@ export interface AppState {
   viewFilter: ShapeFilter;
   /** View: full-size rings on every plant (not saved). */
   showFullSize: boolean;
+  /** Plants drawn as illustrations (src/looks.ts), or as plain circles: per device (src/view-settings.ts). */
+  plantLooks: boolean;
   /** View: ring plants planted close (amber) or crowded (red) (not saved; on unless turned off on this device). */
   showCrowding: boolean;
   /** A notice as a plant is placed close to another or crowding it (not saved; on unless turned off on this device). */
