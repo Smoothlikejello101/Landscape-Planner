@@ -43,6 +43,7 @@ import { drawFeatureKinds, kindsFor, kindsPhrase, SUB_FEATURES, swings } from '.
 import { flipButtons } from './feature-section';
 import { roomyText } from '../text-size';
 import { isLocked } from '../roles';
+import { declineIntro, introActive, introAfterRender, introOffered, showMeAround } from './intro-card';
 
 // MAIN RENDER
 // ============================================================
@@ -286,8 +287,16 @@ export function render() {
   canvasWrap.appendChild(zoomBtns);
 
   // Empty hint
-  if (state.shapes.length === 0 && !state.draw && !state.placing && !state.bgCalibrate && !state.bgEditMode) {
+  if (state.shapes.length === 0 && !state.draw && !state.placing && !state.bgCalibrate && !state.bgEditMode && !introActive()) {
     const hint = el('div', { className: 'empty-hint' });
+    // New here: the guided introduction, offered once (it stays in ⋮ as "Show me around").
+    if (introOffered()) {
+      const go = el('button', { className: 'btn primary empty-intro-btn', 'data-testid': 'intro-start' }, 'New here? Show me around');
+      go.addEventListener('click', () => { showMeAround(); render(); });
+      const no = el('button', { className: 'btn ghost empty-intro-no', 'data-testid': 'intro-decline' }, "I'll explore");
+      no.addEventListener('click', () => { declineIntro(); render(); });
+      hint.append(el('div', { className: 'empty-intro' }, go, no));
+    }
     // The easiest start is tracing over a photo of the yard from above, so offer it first.
     if (!state.bgImage) {
       const photo = el('button', { className: 'empty-photo-btn', 'data-testid': 'start-photo', html: I.image + '<span>Start from an aerial photo</span>' });
@@ -428,6 +437,7 @@ export function render() {
   shownSelection = state.selectedIds.join();
   if (state.menu === 'more') root.appendChild(renderMoreMenu());
 
+  introAfterRender(root); // (the guided introduction's card, when it's under way)
   labelFields(root); // (each field's label names its control, for screen readers)
   syncPageZoom(); // (a page left zoomed in when the last sheet or menu closes: back to its size)
   placeNotice(); // (a notice with buttons stays clear of an open sheet)
@@ -588,7 +598,7 @@ function snapChip(s: TapSnap, unsnap: () => void): HTMLElement {
 /** The first time a plant with a full-size ring is selected, say what the ring is (once per device; src/hints.ts). */
 function maybeExplainFullSize() {
   const s = singleSelected();
-  if (!s || state.panel || !fullRingRadius(s)) return;
+  if (!s || state.panel || !fullRingRadius(s) || introActive()) return; // (the introduction's last step says it)
   const KEY = 'lp-hint-full-size';
   if (!hintDue(KEY, 1)) return;
   hintShown(KEY);

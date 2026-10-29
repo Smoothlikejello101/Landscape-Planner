@@ -74,7 +74,7 @@ function summaryText(info: SunInfo): string {
 export function shadeSunSection(s: Shape): HTMLElement {
   const wrap = el('div', { className: 'field', 'data-testid': 'sun-section' }, el('label', {}, 'Sun on this area'));
   if (!s.sun) {
-    const add = el('button', { className: 'btn ghost' }, 'Record sun for this area');
+    const add = el('button', { className: 'btn ghost', 'data-testid': 'record-sun' }, 'Record sun for this area');
     add.addEventListener('click', () => updateSelected({ sun: newSunInfo() }));
     wrap.append(el('div', { className: 'hint' }, 'Note when direct sun reaches this spot. Plants placed here are then checked against it.'), add);
     return wrap;
