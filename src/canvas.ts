@@ -10,7 +10,7 @@ import { renderPlaceOverlay } from './place';
 import { renderShapeHandles } from './handles';
 import { onFeaturePointerDown, onShapePointerDown } from './gestures';
 import { featureHitPart, featureParts, knownFeatures } from './features';
-import { plantsById } from './plants';
+import { catalogReady, plantsById } from './plants';
 import { plantLabelFit, LABEL_LINE_HEIGHT, textWidth1, type FittedLabel } from './labels';
 import { canopyInnerRadius, canopyPoints, isTree, trunkParts, trunkReachPx } from './trees';
 import { trunkHitPx } from './canopy';
@@ -554,7 +554,8 @@ function circleLabel(s: CircleShape, ppf: number): FittedLabel | null | undefine
 /** Plants ringed as close or crowded (Layers switch, and always while placing); refreshed on each redraw. */
 let crowded = new Map<string, CrowdLevel>();
 function refreshCrowding() {
-  crowded = state.showCrowding || state.placing ? crowdLevels(state.shapes.filter((s) => shownWith(s, state.viewFilter)), plantsById, crowdOptions()) : new Map();
+  // (Not until the catalog is in: without plants' heights, plants that grow over and under each other look crowded.)
+  crowded = (state.showCrowding || state.placing) && catalogReady() ? crowdLevels(state.shapes.filter((s) => shownWith(s, state.viewFilter)), plantsById, crowdOptions()) : new Map();
 }
 /** The utilities shown, measured once a redraw for every plant's check (src/utilities.ts); none on most plans. */
 let shownUtilities: PreparedUtility[] = [];
