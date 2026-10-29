@@ -617,6 +617,22 @@ Lower-kind sources that disagree with the decider are kept as notes for the
 review. (`likely` and `reported` wait on the format change that adds them:
 see "Waiting on format changes".)
 
+### A field that isn't the fact
+
+Decided with Jason, 2026-10-29. Some sites give a field that looks like one of
+the catalog's facts but means something else. Their value is kept at a
+nursery's weight (`FIELDS_AS_REPORTED` in scripts/catalog/web.mjs): it
+confirms another source's value or shows as its alternate, but never leads
+over a source that gives the fact itself.
+
+- **The University of Arizona Campus Arboretum's sizes** are picked from a
+  short menu of ranges, often the same for height and width ("Height: 20 - 50
+  feet, Width: 20 - 50 feet"): bins, not measured sizes.
+- **Arkansas Extension's plant database "Exposure"** is the best spot, not
+  the range: its text often says the plant takes more (clethra's field
+  "partial sun", its text "they will grow in full sun"). Reading the range from
+  its text instead is on the Backlog.
+
 ### Where sources disagree
 
 Agreed 2026-10-22, for the facts a plant is filtered by: the zones, sun,
@@ -790,6 +806,11 @@ the item isn't listed again. A decision only chooses among what the sources say,
 it never adds a value no source gives (a form chosen that no source lists is refused, and the item stays
 listed). The kinds the build applies:
 
+- **`leads`**: a fact its sources are far apart on: the source that leads it. The review lists every size whose
+  value and alternate are 3 times apart or more ("Sizes whose sources are far apart"), each with the plant's other
+  size, which often tells which is wrong. Rather than a value fixed by hand, a person picks the source that leads:
+  its claim weighs as an authority's, the others' as a nursery's (they confirm it, or show as its alternate). The
+  first: white poplar's width, where NC State gives a tree 50–75 ft tall a width of 4–6 ft (Jason, 2026-10-29).
 - **`form`**: a cultivar with no page of its own, whose species' sources list a tree: the forms it takes,
   primary first (at most three), written with the authorities that list them. Always `single`, never
   `confirmed`: the sources list the species as either form, and a person chose which the cultivar is.

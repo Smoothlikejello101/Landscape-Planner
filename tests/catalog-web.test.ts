@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error (plain JavaScript build script)
-import { aboutPlant, copyKey, isUseTerms, looksLikeTerms, pageText, paragraphKey, siteKind, sizeIn, sourceOf, termsKey, termsLinks, termsPassages, termsVerdict, webClaims, webFields, webParagraphs } from '../scripts/catalog/web.mjs';
+import { aboutPlant, asReported, copyKey, isUseTerms, looksLikeTerms, pageText, paragraphKey, siteKind, sizeIn, sourceOf, termsKey, termsLinks, termsPassages, termsVerdict, webClaims, webFields, webParagraphs } from '../scripts/catalog/web.mjs';
 // @ts-expect-error (plain JavaScript build script)
 import { combine } from '../scripts/catalog/claims.mjs';
 
@@ -261,5 +261,20 @@ describe("reading a site's terms", () => {
       'You may not use this site for commercial purposes.',
     ]) expect(termsVerdict(use).verdict, use).toBe('use');
     expect(termsVerdict('Orders ship within two days. Prices may change.').verdict).toBe('open');
+  });
+});
+
+describe('a field that isn\'t the fact (docs/catalog-sources.md)', () => {
+  it("weighs the Arboretum's size bins and Arkansas Extension's best exposure as a nursery's, and nothing else of theirs", () => {
+    const arb = { kind: 'authority', url: 'https://apps.cals.arizona.edu/arboretum/taxon.aspx?id=610', src: 'arizona.edu' };
+    expect(asReported({ ...arb, fact: 'width' }).kind).toBe('nursery');
+    expect(asReported({ ...arb, fact: 'height' }).kind).toBe('nursery');
+    expect(asReported({ ...arb, fact: 'bloom_season' }).kind).toBe('authority');
+    const uaex = { kind: 'authority', url: 'https://www.uaex.uada.edu/yard-garden/resource-library/plant-database/shrubs/summersweet-clethra.aspx', src: 'uada.edu' };
+    expect(asReported({ ...uaex, fact: 'sun_most' }).kind).toBe('nursery');
+    expect(asReported({ ...uaex, fact: 'sun_least' }).kind).toBe('nursery');
+    expect(asReported({ ...uaex, fact: 'height' }).kind).toBe('authority');
+    // (Arkansas Extension's other pages, its fact sheets, are read as before.)
+    expect(asReported({ ...uaex, url: 'https://www.uaex.uada.edu/publications/pdf/FSA-6020.pdf', fact: 'sun_most' }).kind).toBe('authority');
   });
 });

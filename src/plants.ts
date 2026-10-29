@@ -21,6 +21,11 @@ import { byMatch, matchPlant, readQuery } from './search';
  * One plant: a row of the catalog (plants.json), or one of the user's own
  * plants (which may also carry their own notes).
  */
+/** A hybrid's parent species and how it's rated for people: `poison` a rating, null none listed, absent not rated. */
+export interface PoisonParent { name: string; id?: string; common?: string; poison?: { severity?: 'low' | 'medium' | 'high'; parts?: string[]; skin?: true } | null }
+/** A hybrid with no rating of its own, one of whose parents is rated poisonous to people. */
+export const parentRated = (p: Pick<Plant, 'poison' | 'poison_parents'>): boolean => !p.poison && !!p.poison_parents?.parents.some((x) => x.poison);
+
 export interface Plant {
   id: string;
   common: string;
@@ -126,6 +131,11 @@ export interface Plant {
   tox?: { dog?: ToxAnimal; cat?: ToxAnimal; horse?: ToxAnimal; people?: 'major' | 'minor' | 'oxalates' | 'dermatitis' | 'unlisted' };
   /** Poisonous to people, as its source (NC State) says: how severe, which parts, whether it irritates skin. */
   poison?: { severity?: 'low' | 'medium' | 'high'; parts?: string[]; skin?: true };
+  /**
+   * A hybrid no source rates for people: its parent species and how each is rated (written only where one is), by its
+   * name ("Morus alba x rubra") or Kew's hybrid formula (scripts/catalog/hybrids.mjs).
+   */
+  poison_parents?: { via: 'name' | 'kew'; parents: PoisonParent[] };
   /** Thorns, spines or prickles. */
   thorns?: boolean;
   /** Catalog plants: where each value came from (see src/catalog.ts). */
@@ -329,7 +339,8 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (f.dogs === 'nonToxic' && !nonToxicToDogs(p)) return false;
   if (f.cats && p.problem_for?.includes('cats')) return false;
   if (f.horses && p.problem_for?.includes('horses')) return false;
-  if (f.noPoison && !(p.prov?.poison?.unknown && !p.poison)) return false;
+  // (A hybrid none rates whose parent is rated: not "not listed", whatever its own page says.)
+  if (f.noPoison && (!(p.prov?.poison?.unknown && !p.poison) || parentRated(p))) return false;
   // (Plants at the edge of their range count: the list marks them. So does a plant rated for cooler zones that's
   // recorded growing wild in the garden's county or one bordering it: it has been found living through those
   // summers. Not one rated for warmer zones: a record of an escaped garden annual says nothing about winters.)

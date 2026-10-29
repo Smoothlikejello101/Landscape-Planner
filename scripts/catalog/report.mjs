@@ -99,6 +99,28 @@ function newPlantsNote({ added = [], waiting = {}, left = [], unsaved = 0, all =
  * (what a person already decided isn't listed again).
  * Returns { markdown, summary, counts }.
  */
+/** "4–6 ft" from a size range. */
+const sizeText = (v) => (v ? (v.min === v.max ? `${v.min} ft` : `${v.min}–${v.max} ft`) : '');
+/**
+ * Height or width facts whose value and alternate are 3 times apart or more (by their middles): { id, fact, shown:
+ * { v, src }, other: { v, src }, otherFact, otherSize }.
+ */
+export function farApartSizes(catalog, ratio = 3) {
+  const out = [];
+  const mid = (v) => v.med ?? (v.min + v.max) / 2;
+  for (const p of catalog.plants) {
+    for (const fact of ['height', 'width']) {
+      const f = p.facts?.[fact];
+      if (!f?.v || !f.alt?.v) continue;
+      const a = mid(f.v), b = mid(f.alt.v);
+      if (!(a > 0 && b > 0) || Math.max(a, b) / Math.min(a, b) < ratio) continue;
+      const otherFact = fact === 'height' ? 'width' : 'height';
+      out.push({ id: p.id, fact, shown: { v: f.v, src: f.src ?? [] }, other: { v: f.alt.v, src: f.alt.src ?? [] }, otherFact, otherSize: p.facts?.[otherFact]?.v ?? null });
+    }
+  }
+  return out;
+}
+
 export function reviewReport({ catalog, list, combined, review, searched = {}, wcvp = null, native = [], bloom = [], warnings = [], unfetched = null, termsUnsettled = [], decisions = {}, additions = null, kewApart = [] }) {
   const byId = new Map(catalog.plants.map((p) => [p.id, p]));
   const order = new Map(catalog.plants.map((p, i) => [p.id, i]));
@@ -143,6 +165,14 @@ export function reviewReport({ catalog, list, combined, review, searched = {}, w
   section('A value its source no longer gives', of('stale').length,
     `An earlier build wrote it from a source, but no source gives it now: its page is no longer read, or no longer says it. It's kept (a plant's spread draws its circle), with the citation it had. ${NO_PLACE}`,
     table(['Plant', 'Fact', 'Value now'], of('stale').map((i) => [name(i.id), factName(i.fact), esc(i.note.replace(/^no source gives it now: /, ''))])));
+  // Sizes whose sources are far apart (decided with Jason, Oct 29: found and decided, not fixed one by one): the value
+  // shown and its alternate 3 times apart or more. One is likely a misreading or a mistake; a person picks the
+  // source that leads (decisions.json `leads`).
+  const leads = decisions.leads ?? {};
+  const far = farApartSizes(catalog).filter((r) => !leads[r.id]?.[r.fact]).sort(byOrder);
+  section('Sizes whose sources are far apart', far.length,
+    `The size shown and the other source's are 3 times apart or more, so one is likely wrong (a reading of the wrong number, a range that's a bin, a climbing vine's length). Each source's value is here; the plant's other size beside it can tell which. ${DECIDE('leads')} (the source that leads that size).`,
+    table(['Plant', 'Fact', 'Shown', 'Other source', 'Its other size'], far.map((r) => [name(r.id), factName(r.fact), esc(`${sizeText(r.shown.v)} (${r.shown.src.join(', ')})`), esc(`${sizeText(r.other.v)} (${r.other.src.join(', ')})`), esc(r.otherSize ? `${r.otherFact} ${sizeText(r.otherSize)}` : '')])));
   // Values read from a page's text that a second reading didn't agree with, or hasn't read yet (second-reading.mjs).
   const held = combined.flatMap((a) => (a.held ?? []).map((h) => ({ id: a.id, ...h }))).sort(byOrder);
   const differs = held.filter((h) => h.why === 'disagree'), unread = held.filter((h) => h.why === 'unread');

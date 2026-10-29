@@ -2,8 +2,8 @@
 // facts the catalog has, where it came from and how sure it is, and what
 // other sources say where they differ from the value shown.
 import { el } from '../dom';
-import type { Plant } from '../plants';
-import { MONTH_NAMES, PLANT_META, formsOf, oldDogWarning, ownCopies, tenderWoody, zoneNote } from '../plants';
+import type { Plant, PoisonParent } from '../plants';
+import { MONTH_NAMES, PLANT_META, formsOf, oldDogWarning, ownCopies, parentRated, tenderWoody, zoneNote } from '../plants';
 import { isMine } from '../my-plants';
 import { rootSpread, rootText, seedText } from '../spread';
 import { butterflyCaps } from '../search';
@@ -72,7 +72,20 @@ export function poisonText(x?: Plant['poison']): string {
  * warning isn't taken for a safe plant.
  */
 export function poisonRow(p: Plant): string {
+  if (parentRated(p)) return parentsPoisonText(p.poison_parents!);
   return p.poison ? poisonText(p.poison) : p.prov?.poison?.unknown ? 'None listed' : 'Not known: no source we read rates it for people';
+}
+/**
+ * A hybrid no source rates, by its parents (Jason, 2026-10-29): "No rating available for this hybrid. Both parents are
+ * rated. Morus alba: Fruits, leaves, sap and stems, low severity. Red mulberry (Morus rubra): Sap, low severity; can
+ * irritate skin." A parent not rated, or listing none, is said too.
+ */
+export function parentsPoisonText(pp: NonNullable<Plant['poison_parents']>): string {
+  const name = (x: PoisonParent) => (x.common ? `${x.common} (${x.name})` : x.name);
+  const rated = pp.parents.filter((x) => x.poison), n = rated.length, all = n === pp.parents.length;
+  const count = all ? (n === 2 ? 'Both parents are' : `All ${n} parents are`) : n === 1 ? '1 parent is' : `${n} parents are`;
+  const each = pp.parents.map((x) => `${name(x)}: ${x.poison ? poisonText(x.poison) : x.poison === null ? 'none listed' : 'not rated'}.`);
+  return [`No rating available for this hybrid. ${count} rated.`, ...each].join(' ');
 }
 /** "Green, silver"; "Variegated". */
 const leafText = (l?: string[]) => (l?.length ? cap(l.join(', ')) : '');
@@ -176,7 +189,7 @@ function rows(p: Plant): Row[] {
     // (Drawn by toxRow: never left out for a catalog plant, since no line about pets reads as safe.)
     ['Toxicity', '', ['tox', 'dog']],
     // (Beside Edible: a plant can be both, its fruit eaten and its seeds poisonous.)
-    ['Poisonous to people', poisonRow(p), ['poison']],
+    ['Poisonous to people', poisonRow(p), parentRated(p) ? ['poison_parents'] : ['poison']],
     ['Edible', p.edible === true && p.poison ? 'Yes, though it\'s also listed as poisonous to people (above)' : yes(p.edible), ['edible']],
     ['Thorns', yes(p.thorns), ['thorns']],
     // (As its source lists them: NC State's take in the seasons and the undersides.)

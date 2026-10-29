@@ -10,6 +10,7 @@
 import { createReadStream, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { bloomSpecies } from './bloom.mjs';
+import { hybridName } from './hybrids.mjs';
 import { listedSpecies, readRegulated, unreviewed } from './regulated.mjs';
 
 /** TDWG level 3 areas that are US states (and DC, Puerto Rico), by FIPS. The Aleutians are Alaska's. */
@@ -72,11 +73,28 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   const regulatedData = readRegulated();
   const listed = listedSpecies(regulatedData);
   const wanted = new Set([...species.map((s) => wcvpName(s.binomial)), ...listed]);
-  const byName = new Map(), rowById = new Map();
+  // (A named hybrid's parents, from Kew's hybrid formula: for hybrids.mjs, poison by the parents.)
+  const catalog = JSON.parse(readFileSync('public/plants.json', 'utf8'));
+  const hybrids = new Map();
+  for (const r of catalog.plants) { const h = hybridName(r.botanical); if (h?.kind === 'named') hybrids.set(r.id, h.wcvp); }
+  const hybridNames = new Set(hybrids.values());
+  const byName = new Map(), rowById = new Map(), hybridRows = new Map(), hybridById = new Map();
   for await (const r of rowsOf(`${dir}/wcvp_names.csv`)) {
     if (wanted.has(r.taxon_name)) (byName.get(r.taxon_name) ?? byName.set(r.taxon_name, []).get(r.taxon_name)).push(r);
     if (r.taxon_rank === 'Species' && r.taxon_status === 'Accepted') rowById.set(r.plant_name_id, { taxon_rank: r.taxon_rank, taxon_name: r.taxon_name });
+    if (r.taxon_rank === 'Species' && hybridNames.has(r.taxon_name)) (hybridRows.get(r.taxon_name) ?? hybridRows.set(r.taxon_name, []).get(r.taxon_name)).push(r);
+    if (r.taxon_rank === 'Species' && r.hybrid_formula) hybridById.set(r.plant_name_id, { name: r.taxon_name, formula: r.hybrid_formula, status: r.taxon_status });
   }
+  // (Kew's own hybrid, else the one a synonym is accepted as: its formula, where Kew gives one.)
+  const kewHybrids = {};
+  for (const [id, name] of hybrids) {
+    const rows = hybridRows.get(name) ?? [];
+    const own = rows.find((r) => r.taxon_status !== 'Synonym' && r.hybrid_formula);
+    const via = own ? hybridById.get(own.plant_name_id) : rows.map((r) => hybridById.get(r.accepted_plant_name_id)).find(Boolean);
+    if (via?.formula) kewHybrids[id] = { name: via.name, formula: via.formula };
+  }
+  writeFileSync('catalog-src/wcvp-hybrids.json.tmp', JSON.stringify(kewHybrids, null, 1) + '\n');
+  renameSync('catalog-src/wcvp-hybrids.json.tmp', 'catalog-src/wcvp-hybrids.json');
   const taxa = new Map(), unmatched = [];
   for (const b of wanted) {
     const t = acceptedTaxon(byName.get(b) ?? [], (id) => rowById.get(id));

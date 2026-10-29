@@ -113,7 +113,7 @@ export interface Provenance {
  */
 export const INHERITED = new Set([
   'form', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'humidity', 'tox', 'poison', 'dog', 'thorns', 'foliage', 'needles',
-  'native', 'host', 'hosts', 'host_genus', 'nectar', 'bird', 'deer', 'edible', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'invasive', 'bloom_season',
+  'poison_parents', 'native', 'host', 'hosts', 'host_genus', 'nectar', 'bird', 'deer', 'edible', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'invasive', 'bloom_season',
   'tolerates', 'problem_for', 'maintenance_level', 'bark', 'fruit_season',
 ]);
 
@@ -240,6 +240,15 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
     && (!('severity' in v) || POISON_SEVERITY.includes(v.severity as string))
     && (!('parts' in v) || (Array.isArray(v.parts) && v.parts.length > 0 && new Set(v.parts).size === v.parts.length && v.parts.every((x) => POISON_PARTS.includes(x as string))))
     && (!('skin' in v) || v.skin === true),
+  // A hybrid no source rates: its parents (a species name each) and each one's rating as `poison` takes it, null for
+  // none listed, absent for not rated; by its name or Kew's formula (scripts/catalog/hybrids.mjs).
+  poison_parents: (v) => isObj(v) && (v.via === 'name' || v.via === 'kew') && Object.keys(v).every((k) => k === 'via' || k === 'parents')
+    && Array.isArray(v.parents) && v.parents.length >= 2 && v.parents.length <= 4
+    && v.parents.every((x) => isObj(x) && typeof x.name === 'string' && /^[A-Z][a-z]+ [a-z][a-z-]+$/.test(x.name)
+      && Object.keys(x).every((k) => ['name', 'id', 'common', 'poison'].includes(k))
+      && (x.id === undefined || typeof x.id === 'string') && (x.common === undefined || typeof x.common === 'string')
+      && (!('poison' in x) || x.poison === null || FACT_TYPES.poison(x.poison, {})))
+    && v.parents.some((x) => isObj(x) && isObj(x.poison)),
   thorns: (v) => typeof v === 'boolean',
   trunk: (v) => typeof v === 'number' && v > 0 && v <= 20,
   native: (v, e) => typeof v === 'string' && (!e.native || e.native.includes(v)),
