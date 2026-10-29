@@ -658,6 +658,11 @@ together. The build never makes a source check-only itself.
   ageratum "2–5 ft". 17 of the 90 plants it shares with an authority are 3
   times or more off, against 6% for all sources together. Check-only for everything it
   says (Jason: "Certainly don't let them lead").
+- **Plants Rescue** (plantsrescue.com): 4 of the 27 plants it shares with an
+  authority are 3 times or more off (15%), among them a Norfolk Island pine at
+  a houseplant's 3–6 ft and a black-eyed Susan vine "1.8-2.4m (68 feet)".
+  Check-only for everything it says (Jason, 2026-10-29: "Put plant rescue on
+  the check only list").
 
 ### Where sources disagree
 
@@ -895,7 +900,7 @@ listed). The kinds the build applies:
 - **`checkOnly`**: a source often far off the authorities ("A source that's often far off", above): it never
   decides, backs or shows as an alternate; a value only it gave is taken out (the report lists it under "Taken out:
   its source check-only"), and it leaves the catalog's list once nothing cites it. Where its size is far from the
-  value shown, the plant stays in "Sizes whose sources are far apart". (2026-10-29: Toptropicals.)
+  value shown, the plant stays in "Sizes whose sources are far apart". (2026-10-29: Toptropicals, Plants Rescue.)
 - **`withdrawn`**: a source we may no longer read: its terms taken back for a fresh reading, or found to bar us
   (`why`). Every value whose only sources are withdrawn is taken out, not kept as "a value its source no longer
   gives" (the report lists it under "Taken out: its source withdrawn"), and the source leaves the catalog's list

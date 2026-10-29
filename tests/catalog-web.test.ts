@@ -96,6 +96,17 @@ describe('reading spec lines', () => {
     expect(sizeIn('6 in to 2 ft')).toEqual({ min: 0.5, max: 2 });
     expect(sizeIn('1 1/2 ft')).toEqual({ min: 1.5, max: 1.5 });
     expect(sizeIn('tall')).toBeNull();
+    // A number may start at its decimal point (Sylvan Gardens' vinca, ".25 - .50'", read as 50 ft until Oct 29).
+    expect(sizeIn(".25 - .50'")).toEqual({ min: 0.25, max: 0.5 });
+    expect(sizeIn(".50 - 1.50'")).toEqual({ min: 0.5, max: 1.5 });
+    expect(sizeIn('0.5-1 ft')).toEqual({ min: 0.5, max: 1 });
+  });
+  it('reads a line giving both sizes where no labeled line does, if the page has just one', () => {
+    expect(webFields("2' tall x 1.5-2' wide, flowers in July-August/September.")).toEqual({ height: { min: 2, max: 2 }, width: { min: 1.5, max: 2 } });
+    expect(webFields('3-4 ft. high by 2 ft. wide')).toEqual({ height: { min: 3, max: 4 }, width: { min: 2, max: 2 } });
+    expect(webFields("2' tall x 2' wide\n4' tall x 3' wide")).toEqual({}); // (a list of plants)
+    expect(webFields("Height: 3 ft\n2' tall x 2' wide")).toEqual({ height: { min: 3, max: 3 } }); // (the labeled line rules)
+    expect(webFields('It grows to be about 2 feet tall and spreads to form a mat 3 feet wide over many years in rich soil.')).toEqual({}); // (prose)
   });
   it('checks a page is about the plant, not one beside it', () => {
     const henry = { species: 'Itea virginica', cultivar: 'Little Henry' };

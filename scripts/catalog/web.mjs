@@ -277,7 +277,9 @@ export function aboutPlant(html, text, { species, cultivar, common = '' }) {
   return standsAlone(head, sp, []) || (commonName.length > 3 && standsAlone(head, commonName, []));
 }
 
-const NUM = String.raw`(\d+(?:\.\d+)?(?:\s*\d\/\d)?|\d\/\d)`;
+// (A number may start at its decimal point: Sylvan Gardens writes ".25 - .50'", which read as 50 ft until Jason
+// caught it, Oct 29.)
+const NUM = String.raw`(\d*\.\d+|\d+(?:\.\d+)?(?:\s*\d\/\d)?|\d\/\d)`;
 const toNumber = (s) => {
   const m = /^(\d+)?\s*(?:(\d)\/(\d))?$/.exec(s.trim());
   if (m && (m[1] || m[2])) return (m[1] ? Number(m[1]) : 0) + (m[2] ? Number(m[2]) / Number(m[3]) : 0);
@@ -389,6 +391,8 @@ export function webFields(text) {
   const z = read(ZONES_RE, zonesOf); if (z) out.zones = z;
   const h = read(HEIGHT_RE, sizeIn); if (h) out.height = h;
   const w = read(WIDTH_RE, sizeIn); if (w) out.width = w;
+  // A size line with no label: "2' tall x 1.5-2' wide" (US Perennials), read only where no labeled line gives the size.
+  if (!h && !w) { const tw = tallWide(lines); if (tw) { out.height = tw.height; out.width = tw.width; } }
   const sun = read(LIGHT_RE, sunOf); if (sun) out.sun = sun;
   const bl = read(BLOOM_RE, bloomOf); if (bl) out.bloomSeasons = bl;
   const c = read(COLOR_RE, colorOf); if (c) out.flowerColor = c;
@@ -396,6 +400,22 @@ export function webFields(text) {
   return out;
 }
 
+/**
+ * A page's one short line giving both sizes, "2' tall x 1.5-2' wide" or "3-4 ft. high by 2 ft. wide": its height and
+ * spread, where the page has exactly one such line (a shop listing several plants has several, and isn't read).
+ */
+export function tallWide(lines) {
+  const re = /^\s*(.{1,30}?)\s*(?:tall|high)\s*(?:x|×|by|and|,)\s*(.{1,30}?)\s*(?:wide|spread|across)\b/i;
+  const found = new Map();
+  for (const l of lines) {
+    if (l.length > 70) continue;
+    const m = re.exec(l);
+    if (!m) continue;
+    const height = sizeIn(m[1]), width = sizeIn(m[2]);
+    if (height && width) found.set(JSON.stringify([height, width]), { height, width });
+  }
+  return found.size === 1 ? [...found.values()][0] : null;
+}
 /** Sources closed to us that a page says it draws on: then the page is that source, second-hand, and isn't read. */
 const SECOND_HAND = /missouri botanical garden|missouribotanicalgarden|mobot\.org|\bmobot\b|kemper center|lady bird johnson|wildflower\.org|\bnpin\b|native plant information network/i;
 /** Checked on the page as sent, links included: a source credited only by a link is still the source. */
