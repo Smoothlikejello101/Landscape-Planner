@@ -814,7 +814,8 @@ listed). The kinds the build applies:
   once nothing cites it. The build leaves its web claims out. A source read again
   and found open comes off the list. (2026-10-28: White Flower Farm, Alabama Native Plants and Meadow City Nursery,
   Shopify shops cleared before their standard terms were read; plantingtree.com, whose terms bar crawling;
-  GardenCenterMarketing.com, whose plant library pages are "only for use on signage and websites created by" it.)
+  GardenCenterMarketing.com, whose plant library pages are "only for use on signage and websites created by" it;
+  provenwinners.com, whose terms bar robots and scrapers and compiling a database from it, read by Jason.)
 
 ### Kew's species
 

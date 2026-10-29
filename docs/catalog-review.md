@@ -1,28 +1,26 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 67 to decide, 2873 plants not searched, 544 catalog checks; 3681 of 3686 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 66 to decide, 2873 plants not searched, 519 catalog checks; 3681 of 3686 records audited.
 
-- [Sources disagree (23)](#sources-disagree-23)
+- [Sources disagree (22)](#sources-disagree-22)
 - [Cultivar: tree or shrub? (6)](#cultivar-tree-or-shrub-6)
 - [Edible, but rated toxic (16)](#edible-but-rated-toxic-16)
 - [Held back as implausible (3)](#held-back-as-implausible-3)
 - [A value its source no longer gives (1)](#a-value-its-source-no-longer-gives-1)
 - [Read from text, but a second reading differs (96)](#read-from-text-but-a-second-reading-differs-96)
-- [Taken out: a description read wrongly before (2)](#taken-out-a-description-read-wrongly-before-2)
-- [Taken out: its source withdrawn (24)](#taken-out-its-source-withdrawn-24)
+- [Taken out: a description read wrongly before (1)](#taken-out-a-description-read-wrongly-before-1)
 - [Values the catalog can't take (1)](#values-the-catalog-cant-take-1)
 - [Kew names to check (13)](#kew-names-to-check-13)
 - [Bloom months held back (4)](#bloom-months-held-back-4)
 - [Not searched on the web (2873)](#not-searched-on-the-web-2873)
 - [Catalog checks (422)](#catalog-checks-422)
 
-## Sources disagree (23)
+## Sources disagree (22)
 
 The audit's sources give different values, so the catalog keeps the value it had, marked unverified. Zones are on the half-zone scale (7 is 7a, 7.5 is 7b); sizes are in feet. There's no place to record a decision on these yet: they stay listed until there is.
 
 | Plant | Fact | What the sources say | Catalog now |
 | --- | --- | --- | --- |
-| Japanese forest grass 'All Gold' (`hakonechloa-macra`) | spreading | provenwinners.com: Spreading rhizome · hortech.com: Clumping | Clumping |
 | Sideoats grama (`bouteloua-curtipendula`) | spreading | newmoonnursery.com: Slow-spreading rhizome · prairienursery.com: Clumping | Clumping |
 | Cream wild indigo (`baptisia-bracteata`) | flower_color | mowildflowers.net: White, Cream · allendanseed.com: Yellow | – |
 | Common sneezeweed (`helenium-autumnale`) | spreading | newmoonnursery.com: Clumping · calfloranursery.com: Mat-forming | Clumping |
@@ -201,45 +199,13 @@ A value the rules read from a page's text, which a second reading of the same te
 | Winter creeper 'Colorata' (`euonymus-fortunei-colorata`) | spreading | Runner (stolons) | Mat-forming | ncsu | nothing |
 | Eulalia 'Goliath' (`miscanthus-sinensis-goliath`) | self-sowing | Modest | Sterile | ncsu | nothing |
 
-## Taken out: a description read wrongly before (2)
+## Taken out: a description read wrongly before (1)
 
 A value an earlier build read from a page's description, by rules that have since been fixed and no longer read it so. It's taken out (nothing to decide: listed so the change is seen).
 
 | Plant | Fact | What was taken out |
 | --- | --- | --- |
-| Soft rush (`juncus-effusus`) | spreading | "Clumping", read from abnativeplants.com's description, which the rules no longer read so |
-| Summersweet 'Hummingbird' (`clethra-alnifolia-hummingbird`) | spreading | "Slow-spreading rhizome", read from abnativeplants.com's description, which the rules no longer read so |
-
-## Taken out: its source withdrawn (24)
-
-A value whose only sources we may no longer read: their terms were taken back for a fresh reading, or found to bar us (decisions.json `withdrawn`). It's taken out (nothing to decide: listed so the change is seen).
-
-| Plant | Fact | What was taken out |
-| --- | --- | --- |
-| Astilbe 'Visions' series (3 cvs) (`astilbe-chinensis`) | height | {"min":1.5,"max":2,"med":1.75}, from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Astilbe 'Visions' series (3 cvs) (`astilbe-chinensis`) | width | {"min":1,"max":1.5,"med":1.25}, from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Astilbe 'Visions' series (3 cvs) (`astilbe-chinensis`) | coldest zone | 4, from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Astilbe 'Visions' series (3 cvs) (`astilbe-chinensis`) | warmest zone | 10.5, from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Astilbe 'Visions' series (3 cvs) (`astilbe-chinensis`) | most sun | "Part", from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Astilbe 'Visions' series (3 cvs) (`astilbe-chinensis`) | least sun | "Part", from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Japanese forest grass 'All Gold' (`hakonechloa-macra`) | height | {"min":1,"max":2,"med":1.5}, from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Japanese forest grass 'All Gold' (`hakonechloa-macra`) | width | {"min":1.5,"max":2,"med":1.75}, from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Rose 'Julia Child' (floribunda) (`rosa-julia-child`) | coldest zone | 4, from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Rose 'Julia Child' (floribunda) (`rosa-julia-child`) | warmest zone | 9.5, from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Beebalm 'Jacob Cline' (`monarda-didyma`) | height | {"min":3,"max":4,"med":3.5}, from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Beebalm 'Jacob Cline' (`monarda-didyma`) | width | {"min":1.25,"max":1.5,"med":1.38}, from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Black-eyed Susan 'American Gold Rush' (`rudbeckia-american-gold-rush`) | height | {"min":1.83,"max":2.17,"med":2}, from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Black-eyed Susan 'American Gold Rush' (`rudbeckia-american-gold-rush`) | width | {"min":1.5,"max":2,"med":1.75}, from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Black-eyed Susan 'American Gold Rush' (`rudbeckia-american-gold-rush`) | coldest zone | 4, from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Black-eyed Susan 'American Gold Rush' (`rudbeckia-american-gold-rush`) | warmest zone | 9.5, from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Black-eyed Susan 'American Gold Rush' (`rudbeckia-american-gold-rush`) | most sun | "Full", from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Black-eyed Susan 'American Gold Rush' (`rudbeckia-american-gold-rush`) | least sun | "Full", from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Coneflower 'Magnus' (`echinacea-purpurea`) | height | {"min":2.5,"max":3,"med":2.75}, from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Coneflower 'Magnus' (`echinacea-purpurea`) | width | {"min":1.5,"max":1.5,"med":1.5}, from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Aromatic aster 'October Skies' (`symphyotrichum-oblongifolium`) | height | {"min":1.5,"max":2.5,"med":2}, from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Aromatic aster 'October Skies' (`symphyotrichum-oblongifolium`) | width | {"min":1.5,"max":2,"med":1.75}, from whiteflowerfarm.com: its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read) |
-| Autumn sage 'Raspberry Delight' (`salvia-greggii-microphylla`) | height | {"min":2,"max":3,"med":2.5}, from gardencentermarketing.com: its plant library pages say "Images and descriptions are copyrighted. Only for use on signage and websites created by Clarity Connect / GardenCenterMarketing.com" (read 2026-10-28) |
-| Autumn sage 'Raspberry Delight' (`salvia-greggii-microphylla`) | width | {"min":2,"max":3,"med":2.5}, from gardencentermarketing.com: its plant library pages say "Images and descriptions are copyrighted. Only for use on signage and websites created by Clarity Connect / GardenCenterMarketing.com" (read 2026-10-28) |
+| Black-eyed Susan 'Goldsturm' (`rudbeckia-fulgida-goldsturm`) | self-sowing | "Unrated", read from provenwinners.com's description, which the rules no longer read so |
 
 ## Values the catalog can't take (1)
 
