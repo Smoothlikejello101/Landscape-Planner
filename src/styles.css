@@ -398,7 +398,16 @@ a { color: inherit; }
 .kind-chip:active { background: #f5f5f4; }
 .draw-bar-rows { display: flex; flex-direction: column; gap: 6px; width: 100%; }
 .draw-bar-row { display: flex; gap: 6px; align-items: center; }
-.draw-bar-row.draw-fields { gap: 16px; } /* (a path's width and its next side: two fields, told apart) */
+.draw-bar-row.draw-fields { gap: 16px; }
+/* Through the year (src/ui/year-bar.ts): the month, its steps, the slider across the year. */
+.year-bar .draw-btn { flex: none; padding: 0 12px; }
+.year-bar .year-step { width: 44px; padding: 0; font-size: 24px; line-height: 1; }
+.year-head { flex: 1; min-width: 0; text-align: center; }
+.year-month { font-size: calc(19px * var(--ts)); font-weight: 800; color: #1c1917; }
+.year-count { font-size: calc(12px * var(--ts)); color: #57534e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.year-slide { display: flex; flex-direction: column; gap: 0; padding: 0 6px; }
+.year-slide input[type=range] { width: 100%; height: 32px; margin: 0; accent-color: #0f766e; }
+.year-letters { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); font-size: calc(11px * var(--ts)); color: #57534e; text-align: center; } /* (a path's width and its next side: two fields, told apart) */
 .method-seg { display: flex; gap: 4px; overflow-x: auto; }
 .method-seg button { flex: 1 0 auto; min-width: 64px; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 6px; border: 1px solid #d6d3d1; border-radius: 6px; background: #fff; color: #44403c; font-size: calc(11px * var(--ts)); }
 .method-seg button.on { background: #ccfbf1; border-color: #0f766e; color: #115e59; font-weight: 600; }

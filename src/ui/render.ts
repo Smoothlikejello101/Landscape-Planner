@@ -1,3 +1,4 @@
+import { renderYearBar, yearButton } from './year-bar';
 import { renderSwitchPanel } from './switch-plant';
 import { labelFields } from './a11y';
 import { pageZoomed, syncPageZoom } from '../page-zoom';
@@ -292,6 +293,7 @@ export function render() {
     zFit.addEventListener('click', () => { zoomToFit(); render(); flashZoom(); });
     zoomBtns.appendChild(zFit);
   }
+  zoomBtns.appendChild(yearButton());
   zoomBtns.appendChild(namesButton());
   canvasWrap.appendChild(zoomBtns);
 
@@ -417,7 +419,8 @@ export function render() {
   addBtn.innerHTML = I.plus + '<div class="lbl">Add</div>';
   addBtn.addEventListener('click', () => { state.panel = 'add'; render(); });
   bottomBar.appendChild(addBtn);
-  app.appendChild(state.placing ? renderPlaceBar() : state.featurePlace ? renderFeatureBar() : drawing ? renderDrawBar() : bottomBar);
+  // (Through the year, the month's controls take the bar's place: src/ui/year-bar.ts.)
+  app.appendChild(state.placing ? renderPlaceBar() : state.featurePlace ? renderFeatureBar() : drawing ? renderDrawBar() : state.month != null ? renderYearBar() : bottomBar);
 
   root.appendChild(app);
 

@@ -2,8 +2,11 @@
 
 `src/seasons.ts` (`monthLook`, `yearLook`) says what a plant shows in a month where the garden is: its leaves (coming
 out, on, coloring, gone or died back), their colors, its flowers and its fruit. It's the data under two ideas Jason
-asked for on 2026-10-27, not yet drawn: plants colored by their leaves and flowers (with a texture by form), and the
-garden through the year. How they're drawn waits on his pick from the mockups.
+asked for on 2026-10-27: plants drawn by their leaves and flowers (src/looks.ts, his pick R5c from the mockups), and the
+garden through the year: the plan's Through the year button draws every plant in a month (src/ui/year-bar.ts;
+src/plant-looks.ts `lookMonthOf` turns a month's look into what's drawn: leafing out, in leaf, coloring, bare twigs or
+died back; in bloom only in its months, faint where they're only "around"; fruit where it shows; a dotted ring where its
+winter isn't known, outside April to October).
 
 It only arranges facts the catalog already has, and records near the garden, by month. It never adds a fact or infers
 one. Each part says what placed it (`basis`), so the app can say "around" or show nothing:

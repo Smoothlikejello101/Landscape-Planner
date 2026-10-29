@@ -21,7 +21,7 @@ async function feetToScreen(page: Page, dx: number, dy: number) {
 test('a vine placed by a fence is offered it; climbing, it\'s drawn along the fence; set to nothing, a groundcover', async ({ page }) => {
   await openFresh(page);
   await addKind(page, 'fence');
-  for (const [x, y] of [[-7, -5], [7, -5]]) await tapFromCenter(page, x, y);
+  for (const [x, y] of [[-6, -5], [6, -5]]) await tapFromCenter(page, x, y); // (clear of the plan's buttons at the top right on a phone)
   await page.getByTestId('draw-bar').getByRole('button', { name: 'Done' }).click();
   await startPlacing(page, 'Carolina jessamine');
   // (A foot below the fence, where it is on the screen now: placing can move the plan's center.)
