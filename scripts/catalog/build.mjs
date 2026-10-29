@@ -204,11 +204,14 @@ if (!existsSync(atlasCounties) || statSync(atlasCounties).mtimeMs < statSync(atl
 }
 node('USDA counties', 'usda-counties.mjs', [path('combined.json')]);
 node('Kew native status', 'wcvp.mjs', [path('combined.json')]);
-// (USA-NPN's download, by hand into usanpn/<date>/: summed up again when the newest one is newer than the summary.)
+// (USA-NPN's download, by hand into usanpn/<date>/: summed up again when the newest one is newer than the summary, or
+// the summary is in an older format.)
 const npnDir = join(ROOT, 'usanpn');
 const npnCsv = existsSync(npnDir) ? readdirSync(npnDir).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().map((d) => join(npnDir, d, 'individual_phenometrics_data.csv')).filter((f) => existsSync(f)).pop() : null;
 const npnOut = join(npnDir, 'leafout.json');
-if (npnCsv && (!existsSync(npnOut) || statSync(npnOut).mtimeMs < statSync(npnCsv).mtimeMs)) node('leaf-out days', 'npn.mjs', [npnCsv, npnOut]);
+const { NPN_SUMMARY_V } = await import('./npn.mjs');
+const npnOld = () => { try { return JSON.parse(readFileSync(npnOut, 'utf8')).meta?.v !== NPN_SUMMARY_V; } catch { return true; } };
+if (npnCsv && (!existsSync(npnOut) || statSync(npnOut).mtimeMs < statSync(npnCsv).mtimeMs || npnOld())) node('leaf-out and fall days', 'npn.mjs', [npnCsv, npnOut]);
 node('wild records', 'wild.mjs', [path('combined.json')]);
 
 // 6. The catalog's own checks, then the report.
