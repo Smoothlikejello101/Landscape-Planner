@@ -27,6 +27,7 @@ import { renderLayersPanel } from './layers-panel';
 import { snapOn } from '../tidy';
 import { dismissToastAction, placeNotice } from './toast';
 import { renderMoreMenu, toggleSelectMode } from './menu';
+import { renderFeedbackSheet } from './feedback-sheet';
 import { renderExportModal, renderPreviewModal, renderResetModal } from './modals';
 import { renderPlantsPanel } from './plants-panel';
 import { renderPrintPanel } from './print-panel';
@@ -441,6 +442,7 @@ export function render() {
   else if (state.panel === 'shortcuts') panelNode = renderShortcutsPanel();
   else if (state.panel === 'location') panelNode = renderLocationPanel();
   else if (state.panel === 'switchPlant') panelNode = renderSwitchPanel();
+  else if (state.panel === 'feedback') panelNode = renderFeedbackSheet();
   if (panelNode) {
     root.appendChild(panelNode);
     const sheet = scrolled ? panelNode.querySelector<HTMLElement>('.sheet') ?? (panelNode.classList.contains('sheet') ? panelNode : null) : null;

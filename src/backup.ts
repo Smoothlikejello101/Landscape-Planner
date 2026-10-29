@@ -35,7 +35,7 @@ async function exportedProject(id: string): Promise<ExportedProject | null> {
 export function safeFileName(name: string): string {
   return (name.trim().replace(/[^a-z0-9-_ ]+/gi, '').replace(/\s+/g, '-').toLowerCase() || 'project').slice(0, 60);
 }
-function stamp() { return new Date().toISOString().slice(0, 10); }
+export function stamp() { return new Date().toISOString().slice(0, 10); }
 
 export async function buildProjectFile(id: string): Promise<{ filename: string; text: string } | null> {
   const project = await exportedProject(id);
@@ -43,12 +43,17 @@ export async function buildProjectFile(id: string): Promise<{ filename: string; 
   const file: ProjectFile = { format: PROJECT_FORMAT, version: FILE_VERSION, exportedAt: new Date().toISOString(), project, myPlants: myPlantsUsedBy(project.data.shapes).map(wirePlant) };
   return { filename: `${safeFileName(project.name)}-${stamp()}.fullgrown.json`, text: JSON.stringify(file) };
 }
-export async function buildBackupFile(): Promise<{ filename: string; text: string; count: number }> {
+/** Every project, as a file holds it (the open one from memory). */
+export async function allExportedProjects(): Promise<ExportedProject[]> {
   const projects: ExportedProject[] = [];
   for (const p of state.projects) {
     const e = await exportedProject(p.id);
     if (e) projects.push(e);
   }
+  return projects;
+}
+export async function buildBackupFile(): Promise<{ filename: string; text: string; count: number }> {
+  const projects = await allExportedProjects();
   const file: BackupFile = { format: BACKUP_FORMAT, version: FILE_VERSION, exportedAt: new Date().toISOString(), projects, myPlants: myPlants.map(wirePlant) }; // (forms any version reads: WIRE_FORMS)
   return { filename: `fullgrown-backup-${stamp()}.fullgrown.json`, text: JSON.stringify(file), count: projects.length };
 }
