@@ -18,8 +18,8 @@ const audit = [
     sun_least: { v: 'Shade', src: ['ncsu'], check: 'single', alt: { v: 'Shade', src: ['shop.com'], check: 'reported' } }, // (the same: not kept)
     water: { v: 'Moderate', src: ['ncsu', 'x.edu'], check: 'confirmed' },
     height: { v: { min: 20, max: 30 }, src: ['ncsu'], check: 'single' },
+    width: { v: { min: 20, max: 30 }, src: ['ncsu', 'shop.com', 'x.edu'], check: 'confirmed', typical: 27.5 },
     zone_min: { v: 4.25, src: ['ncsu'], check: 'single' }, // (not a half-zone: not written)
-    width: null,
     tox_people: { v: ['minor'], src: ['ncsu'], check: 'single' }, // (waits on its format change)
   } },
   { id: 'nothing', claims: [], facts: { form: null } },
@@ -34,6 +34,8 @@ describe('writing the audit into the catalog', () => {
     expect(redbud.facts.sun_most).toEqual({ v: 'Part', src: ['ncsu'], check: 'single', alt: { v: 'Full', src: ['shop.com'], check: 'reported' } });
     expect(redbud.facts.sun_least).toEqual({ v: 'Shade', src: ['ncsu'], check: 'single' });
     expect(redbud.facts.height).toEqual({ v: { min: 20, max: 30, med: 25 }, src: ['ncsu'], check: 'single' });
+    // (Its typical size from the sources that agree, where several do: claims.mjs typicalOf.)
+    expect(redbud.facts.width).toEqual({ v: { min: 20, max: 30, med: 27.5 }, src: ['ncsu', 'shop.com', 'x.edu'], check: 'confirmed' });
     expect(redbud.facts.water).toMatchObject({ v: 'Moderate', check: 'confirmed' });
   });
   it('keeps the current value where the audit settled nothing, and lists disputes and values it can\'t take', () => {

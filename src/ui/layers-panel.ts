@@ -259,7 +259,7 @@ function plantSizeSection(): HTMLElement {
   cb.addEventListener('change', () => { setShowFullSize(cb.checked); render(); });
   wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, cb,
     el('span', {}, 'Show full-size rings on every plant (check for crowding)')));
-  wrap.appendChild(el('div', { className: 'hint' }, 'Typical is the middle of a plant\'s size range; full is the top. Selected plants always show their full-size ring.'));
+  wrap.appendChild(el('div', { className: 'hint' }, 'Typical is the size its sources point to, within its range; full is the top of the range. Selected plants always show their full-size ring.'));
   wrap.appendChild(crowdingSettings());
   const sun = el('input', { type: 'checkbox', 'data-testid': 'sun-warnings' }) as HTMLInputElement;
   sun.checked = state.sunWarnings;

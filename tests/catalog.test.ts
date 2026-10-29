@@ -79,8 +79,10 @@ describe('the shipped catalog', () => {
     // An audited fact names its sources and how sure it is; what the audit couldn't settle stays the older list's.
     // Where sources disagree, the value more back (on a tie, the cautious one) leads, the other beside it.
     const bs = plants.find((p) => p.id === 'cephalanthus-occidentalis')!;
-    expect(bs).toMatchObject({ common: 'Buttonbush', form: 'Shrub', width: { min: 3, max: 6, med: 4.5 } });
-    expect(bs.prov!.width).toEqual({ src: ['ncsu', 'ufl.edu'], check: 'confirmed' });
+    // (Its spread: NC State's 3–6 ft and UF/IFAS's 6–10 only touch, so they're two sides since Oct 29; on the tie, the
+    // larger leads, NC State's beside it.)
+    expect(bs).toMatchObject({ common: 'Buttonbush', form: 'Shrub', width: { min: 6, max: 10, med: 8 } });
+    expect(bs.prov!.width).toEqual({ src: ['ufl.edu'], check: 'single', alt: { v: { min: 3, max: 6, med: 4.5 }, src: ['ncsu'], check: 'single' } });
     expect(bs.prov!.zone_max).toEqual({ src: ['ncsu'], check: 'single', alt: { v: 11.5, src: ['ufl.edu'], check: 'single' } }); // (NC State 9b, UF/IFAS 11b: the colder leads)
     // A tree is one form: rusty blackhaw is a tree and a shrub to NC State and USDA alike. A dwarf cultivar of a
     // tree, with no page of its own, takes the form a person chose from its species' (scripts/catalog/decisions.json).
