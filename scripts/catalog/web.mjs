@@ -117,6 +117,10 @@ export const SKIP_SITES = new Set([
   'agronom.info', 'homeandgardensforless.com', 'pottedhaven.com', // (a price aggregator; dropship storefronts of others' stock)
   'nwaplantsinc.com', // (its plant text is Wikipedia's, word for word)
   'plantsinsights.com', 'perunorth.com', // (a blog turned to casino spam; a travel agency)
+  // Found by the terms reviews of batch 9, first quarter (2026-10-28)
+  'floriscope.io', 'nationwideplants.com', // (a portal of growers' catalogues; a drop-ship reseller)
+  'sjgbloom2012.wordpress.com', // (pastes other sites' descriptions)
+  'towerlandscapedesign.com', // (a repurposed domain: generic SEO posts)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
