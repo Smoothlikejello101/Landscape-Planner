@@ -219,6 +219,8 @@ const npnOut = join(npnDir, 'leafout.json');
 const { NPN_SUMMARY_V } = await import('./npn.mjs');
 const npnOld = () => { try { return JSON.parse(readFileSync(npnOut, 'utf8')).meta?.v !== NPN_SUMMARY_V; } catch { return true; } };
 if (npnCsv && (!existsSync(npnOut) || statSync(npnOut).mtimeMs < statSync(npnCsv).mtimeMs || npnOld())) node('leaf-out and fall days', 'npn.mjs', [npnCsv, npnOut]);
+// (Winter leaves for a plant no source gives foliage for: its species' USA-NPN records, else its relatives (winter.mjs).)
+node('winter leaves', 'winter.mjs', ['--date', date]);
 node('wild records', 'wild.mjs', [path('combined.json')]);
 
 // 6. The catalog's own checks, then the report.
