@@ -28,6 +28,17 @@ describe('poisonous to people, in its source\'s words', () => {
     expect(poisonRow(p)).toBe('Not known: no source we read rates it for people');
     expect(poisonRow({ ...p, poison: { severity: 'low' } } as Plant)).toBe('Low severity');
   });
+  it("a hybrid no source rates: what its parents are rated (Jason, 2026-10-29), each named, the unrated said too", () => {
+    const mulberry = { id: 'm', common: "Mulberry 'Illinois Everbearing'", prov: { poison: { src: ['ncsu'], unknown: true } },
+      poison_parents: { via: 'name', parents: [{ name: 'Morus alba', poison: null }, { name: 'Morus rubra', id: 'morus-rubra', common: 'Red mulberry', poison: { severity: 'low', parts: ['sap'], skin: true } }] } } as Plant;
+    expect(poisonRow(mulberry)).toBe('No rating available for this hybrid. 1 parent is rated. Morus alba: none listed. Red mulberry (Morus rubra): Sap, low severity; can irritate skin.');
+    const both = { ...mulberry, poison_parents: { via: 'kew', parents: [{ name: 'Abelia chinensis', poison: { severity: 'low' } }, { name: 'Abelia uniflora', poison: { parts: ['seeds'] } }] } } as Plant;
+    expect(poisonRow(both)).toBe('No rating available for this hybrid. Both parents are rated. Abelia chinensis: Low severity. Abelia uniflora: Seeds.');
+    const notRated = { ...mulberry, poison_parents: { via: 'kew', parents: [{ name: 'Daphne caucasica', poison: { severity: 'high' } }, { name: 'Daphne cneorum' }] } } as Plant;
+    expect(poisonRow(notRated)).toBe('No rating available for this hybrid. 1 parent is rated. Daphne caucasica: High severity. Daphne cneorum: not rated.');
+    // (Rated itself: its own rating, whatever its parents'.)
+    expect(poisonRow({ ...both, poison: { severity: 'medium' } } as Plant)).toBe('Medium severity');
+  });
 });
 
 describe('plant filters', () => {
@@ -136,6 +147,10 @@ describe('plant filters', () => {
     expect(plantMatches({ ...heuchera, poison: {} } as Plant, f({ noPoison: true }))).toBe(false); // (listed, nothing more said)
     expect(plantMatches(none, f({ noPoison: true }))).toBe(true);
     expect(plantMatches(heuchera, f({ noPoison: true }))).toBe(false); // (not rated: not called safe, as the dog filter)
+    // (A hybrid whose own page lists none, with a parent rated: not "not listed as poisonous".)
+    const hybrid = { ...none, poison_parents: { via: 'name', parents: [{ name: 'Morus alba', poison: null }, { name: 'Morus rubra', poison: { severity: 'low' } }] } } as Plant;
+    expect(plantMatches(hybrid, f({ noPoison: true }))).toBe(false);
+    expect(plantMatches({ ...hybrid, poison_parents: { via: 'name', parents: [{ name: 'Morus alba', poison: null }, { name: 'Morus rubra', poison: null }] } } as Plant, f({ noPoison: true }))).toBe(true);
   });
   it('keeps, when asked, only evergreens: not semi-evergreen (it depends on the winter), nor plants no source rates', () => {
     expect(plantMatches({ ...heuchera, foliage: 'evergreen' }, f({ evergreen: true }))).toBe(true);

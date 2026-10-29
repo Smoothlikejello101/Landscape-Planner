@@ -113,8 +113,8 @@ export interface Provenance {
  */
 export const INHERITED = new Set([
   'form', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'humidity', 'tox', 'poison', 'dog', 'thorns', 'foliage', 'needles',
-  'native', 'host', 'hosts', 'host_genus', 'nectar', 'bird', 'deer', 'edible', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'invasive', 'bloom_season',
-  'tolerates', 'problem_for', 'maintenance_level', 'bark', 'fruit_season',
+  'poison_parents', 'native', 'host', 'hosts', 'host_genus', 'nectar', 'bird', 'deer', 'edible', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'invasive', 'bloom_season',
+  'tolerates', 'problem_for', 'maintenance_level', 'bark', 'fruit_season', 'leaf_form', 'texture', 'climbs_by',
 ]);
 
 const isSourced = (f: unknown): f is SourcedFact =>
@@ -201,6 +201,30 @@ export const BARK = ['smooth', 'furrowed', 'fissured', 'ridges', 'scaly', 'lenti
 export const BARK_COLORS = ['light gray', 'dark gray', 'light brown', 'dark brown', 'red/burgundy', 'orange', 'green', 'black', 'white'];
 export const PART_COLORS = ['red/burgundy', 'orange', 'gold/yellow', 'green', 'blue', 'purple/lavender', 'pink', 'white', 'cream/tan', 'brown/copper', 'gray/silver', 'black'];
 export const FRUIT_SEASONS = ['spring', 'summer', 'fall', 'winter'];
+/**
+ * What its flowers and leaves look like, by part, in the catalog's words for NC State's fields
+ * (scripts/catalog/claims.mjs FORM_WORDS): flower sizes and leaf lengths in inches.
+ */
+export const FLOWER_FORM = {
+  inflorescence: ['raceme', 'panicle', 'cyme', 'solitary', 'head', 'spike', 'umbel', 'corymb', 'catkin', 'spadix', 'insignificant'],
+  shape: ['tubular', 'cup', 'star', 'bell', 'radial', 'funnel', 'saucer', 'lipped', 'trumpet', 'dome', 'irregular', 'cross', 'urn', 'wheel', 'crown'],
+  petals: ['2-3', '4-5', '6', '7-20', '20+', 'bracts', 'fused', 'sepals', 'tepals', 'asymmetrical'],
+  size: ['<1', '1-3', '3-6', '>6'],
+} as const;
+export const LEAF_FORM = {
+  type: ['simple', 'compound', 'needles', 'sheath', 'fronds'],
+  shape: ['ovate', 'lanceolate', 'elliptical', 'linear', 'oblong', 'obovate', 'cordate', 'oblanceolate', 'orbicular', 'spatulate', 'deltoid', 'pinnatifid', 'palmatifid',
+    'acicular', 'cuneate', 'palmasect', 'filiform', 'rhomboidal', 'reniform', 'obtuse', 'peltate', 'pinnatisect', 'subulate', 'auriculate', 'subcordate'],
+  arrangement: ['alternate', 'opposite', 'rosulate', 'whorled', 'complex'],
+  margin: ['entire', 'serrate', 'lobed', 'dentate', 'crenate', 'undulate', 'doubly serrate', 'sinuate', 'denticulate', 'crenulate', 'doubly dentate', 'doubly crenate'],
+  length: ['<1', '1-3', '3-6', '>6'],
+} as const;
+/** How fine its leaves look from a distance; the plant's shape (NC State's "Habit/Form"). */
+export const TEXTURES = ['fine', 'medium', 'coarse'];
+export const HABIT_FORMS = ['erect', 'spreading', 'rounded', 'dense', 'clumping', 'multi-stemmed', 'mounding', 'arching', 'creeping', 'climbing', 'pyramidal', 'open',
+  'horizontal', 'oval', 'prostrate', 'ascending', 'vase', 'columnar', 'cascading', 'broad', 'multi-trunked', 'irregular', 'weeping', 'conical'];
+/** How a vine climbs (NC State's "Climbing Method"). */
+export const CLIMBING = ['twining', 'tendrils', 'clinging', 'scrambler'];
 /** When it blooms: a season, or USDA's finer "mid spring" (scripts/catalog/claims.mjs bloomSeasons). */
 export const BLOOM_SEASONS = ['spring', 'summer', 'fall', 'winter'].flatMap((x) => [x, `early ${x}`, `mid ${x}`, `late ${x}`]);
 /**
@@ -212,6 +236,9 @@ export const FLOWER_COLORS = ['white', 'yellow', 'pink', 'purple', 'red', 'orang
 const wordsOf = (words: string[]) => (v: unknown) =>
   Array.isArray(v) && v.length > 0 && new Set(v).size === v.length && v.every((x) => words.includes(x as string));
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+/** { part: [words] }, each part one of `parts`, its words from that part's list, each once. */
+const formOf = (parts: Record<string, readonly string[]>) => (v: unknown) =>
+  isObj(v) && Object.keys(v).length > 0 && Object.entries(v).every(([k, l]) => !!parts[k] && wordsOf(parts[k] as string[])(l));
 const isRange = (v: unknown) => {
   if (!isObj(v)) return false;
   const keys = Object.keys(v);
@@ -240,6 +267,21 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
     && (!('severity' in v) || POISON_SEVERITY.includes(v.severity as string))
     && (!('parts' in v) || (Array.isArray(v.parts) && v.parts.length > 0 && new Set(v.parts).size === v.parts.length && v.parts.every((x) => POISON_PARTS.includes(x as string))))
     && (!('skin' in v) || v.skin === true),
+  // A hybrid no source rates: its parents (a species name each) and each one's rating as `poison` takes it, null for
+  // none listed, absent for not rated; by its name or Kew's formula (scripts/catalog/hybrids.mjs).
+  poison_parents: (v) => isObj(v) && (v.via === 'name' || v.via === 'kew') && Object.keys(v).every((k) => k === 'via' || k === 'parents')
+    && Array.isArray(v.parents) && v.parents.length >= 2 && v.parents.length <= 4
+    && v.parents.every((x) => isObj(x) && typeof x.name === 'string' && /^[A-Z][a-z]+ [a-z][a-z-]+$/.test(x.name)
+      && Object.keys(x).every((k) => ['name', 'id', 'common', 'poison'].includes(k))
+      && (x.id === undefined || typeof x.id === 'string') && (x.common === undefined || typeof x.common === 'string')
+      && (!('poison' in x) || x.poison === null || FACT_TYPES.poison(x.poison, {})))
+    && v.parents.some((x) => isObj(x) && isObj(x.poison)),
+  // What its flowers and leaves look like, by part (FLOWER_FORM, LEAF_FORM); its texture; its shape.
+  flower_form: (v) => formOf(FLOWER_FORM)(v),
+  leaf_form: (v) => formOf(LEAF_FORM)(v),
+  texture: wordsOf(TEXTURES),
+  habit_form: wordsOf(HABIT_FORMS),
+  climbs_by: wordsOf(CLIMBING),
   thorns: (v) => typeof v === 'boolean',
   trunk: (v) => typeof v === 'number' && v > 0 && v <= 20,
   native: (v, e) => typeof v === 'string' && (!e.native || e.native.includes(v)),

@@ -617,6 +617,22 @@ Lower-kind sources that disagree with the decider are kept as notes for the
 review. (`likely` and `reported` wait on the format change that adds them:
 see "Waiting on format changes".)
 
+### A field that isn't the fact
+
+Decided with Jason, 2026-10-29. Some sites give a field that looks like one of
+the catalog's facts but means something else. Their value is kept at a
+nursery's weight (`FIELDS_AS_REPORTED` in scripts/catalog/web.mjs): it
+confirms another source's value or shows as its alternate, but never leads
+over a source that gives the fact itself.
+
+- **The University of Arizona Campus Arboretum's sizes** are picked from a
+  short menu of ranges, often the same for height and width ("Height: 20 - 50
+  feet, Width: 20 - 50 feet"): bins, not measured sizes.
+- **Arkansas Extension's plant database "Exposure"** is the best spot, not
+  the range: its text often says the plant takes more (clethra's field
+  "partial sun", its text "they will grow in full sun"). Reading the range from
+  its text instead is on the Backlog.
+
 ### Where sources disagree
 
 Agreed 2026-10-22, for the facts a plant is filtered by: the zones, sun,
@@ -780,6 +796,10 @@ months ("MO" for MOBOT).
 | `bark`, `bark_color` | Bark "Surface/Attachment", "Bark Color" | — | Asked for by Jason, 2026-10-25 (what makes a plant's winter interest: "exfoliating bark"). Its words, as lists (Ridges, Lenticels as given). Bark color is a cultivar's only from a page for it. |
 | `stem_color`, `fruit_color` | Stem "Stem Color", Fruit "Fruit Color" | — | Asked for by Jason, 2026-10-25. NC State's color groups, lower case ("red/burgundy"); "Insignificant" isn't kept. A cultivar's only from a page for it. |
 | `fruit_season` | Fruit "Display/Harvest Time" | — | Asked for by Jason, 2026-10-25: when its fruit is there to see; "winter" is fruit that stays into winter. |
+| `flower_form` | Flower "Flower Inflorescence", "Flower Shape", "Flower Petals", "Flower Size" | — | Asked for by Jason, 2026-10-29 (to draw each plant's flowers its own way). NC State's values, each in the catalog's word ("4-5 petals/rays" → `4-5`, "< 1 inch" → `<1`); a value not in its list (claims.mjs `FLOWER_FORM`) isn't kept. A cultivar's only from a page for it. None for a plant without flowers (see `bloom_season`). Never read from a description. |
+| `leaf_form` | Leaves "Leaf Type", "Leaf Shape", "Leaf Arrangement", "Leaf Margin", "Leaf Length" | — | Asked for by Jason, 2026-10-29. As `flower_form` (claims.mjs `LEAF_FORM`). A cultivar takes its species'. |
+| `texture`, `habit_form` | "Texture"; "Habit/Form" | — | Asked for by Jason, 2026-10-29. Its words, lower case, as lists; a word not in the catalog's list isn't kept. Texture a cultivar takes its species'; its habit only from a page for it (cultivars are bred for shape: a weeping or columnar one). |
+| `climbs_by` | "Climbing Method" | — | Asked for by Jason, 2026-10-29 (vines drawn on what they climb). Its words, lower case: Twining, Tendrils, Clinging, Scrambler. A cultivar takes its species'. |
 | `self_seed`, `dry_shade`, `taproot`, `humidity`, `trunk`, `habit` | — | — | `null` unless a source states it. |
 
 ## Decisions
@@ -790,6 +810,11 @@ the item isn't listed again. A decision only chooses among what the sources say,
 it never adds a value no source gives (a form chosen that no source lists is refused, and the item stays
 listed). The kinds the build applies:
 
+- **`leads`**: a fact its sources are far apart on: the source that leads it. The review lists every size whose
+  value and alternate are 3 times apart or more ("Sizes whose sources are far apart"), each with the plant's other
+  size, which often tells which is wrong. Rather than a value fixed by hand, a person picks the source that leads:
+  its claim weighs as an authority's, the others' as a nursery's (they confirm it, or show as its alternate). The
+  first: white poplar's width, where NC State gives a tree 50–75 ft tall a width of 4–6 ft (Jason, 2026-10-29).
 - **`form`**: a cultivar with no page of its own, whose species' sources list a tree: the forms it takes,
   primary first (at most three), written with the authorities that list them. Always `single`, never
   `confirmed`: the sources list the species as either form, and a person chose which the cultivar is.

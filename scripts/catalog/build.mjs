@@ -209,6 +209,8 @@ if (!existsSync(atlasCounties) || statSync(atlasCounties).mtimeMs < statSync(atl
 }
 node('USDA counties', 'usda-counties.mjs', [path('combined.json')]);
 node('Kew native status', 'wcvp.mjs', [path('combined.json')]);
+// (Poison to people for a hybrid no source rates: its parents', by its name or Kew's formula: hybrids.mjs.)
+node('hybrid parents', 'hybrids.mjs', []);
 // (USA-NPN's download, by hand into usanpn/<date>/: summed up again when the newest one is newer than the summary, or
 // the summary is in an older format.)
 const npnDir = join(ROOT, 'usanpn');

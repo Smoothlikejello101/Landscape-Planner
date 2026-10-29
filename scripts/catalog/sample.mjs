@@ -26,6 +26,8 @@ const lepGenera = tallamy?.lep_genera ? new Set(tallamy.lep_genera) : null;
 const catalog = JSON.parse(readFileSync('public/plants.json', 'utf8'));
 /** Records a person decided to keep for a group of cultivars, read from their species' page (decisions.json). */
 const groups = JSON.parse(readFileSync('scripts/catalog/decisions.json', 'utf8')).group ?? {};
+/** The source a person chose to lead a fact, by record (decisions.json `leads`): { id: { fact: { source, why } } }. */
+const leads = JSON.parse(readFileSync('scripts/catalog/decisions.json', 'utf8')).leads ?? {};
 const byId = new Map(catalog.plants.map((p) => [p.id, p]));
 
 const page = (source, url) => savedPage(source, url);
@@ -120,7 +122,12 @@ for (const s of sample) {
   const by = usda?.Group ? `USDA: ${noFlowers}` : ncsu?.Family?.[0] ? `NC State: ${noFlowers}` : 'a fern';
   if (noFlowers && allClaims.some((c) => FLOWER_FACTS.has(c.fact))) notes.push(`No flowers (${by}): its sources' bloom time and flower color, its cones or spores, left out`);
   const claims = noFlowers ? allClaims.filter((c) => !FLOWER_FACTS.has(c.fact)) : allClaims;
-  const mapped = combine(claims, { cultivar, prefer: rec?.facts?.form?.v ?? rec?.facts?.form ?? null });
+  // A person's choice of the source that leads a fact (decisions.json `leads`: a size its sources are far apart on,
+  // Oct 29): that source weighs as an authority, the others as nurseries, so it leads and they confirm it or show as
+  // its alternate.
+  const leadsHere = leads[s.id] ?? {};
+  const weighed = claims.map((c) => (leadsHere[c.fact] ? { ...c, kind: c.src === leadsHere[c.fact].source ? 'authority' : c.kind === 'authority' ? 'nursery' : c.kind } : c));
+  const mapped = combine(weighed, { cultivar, prefer: rec?.facts?.form?.v ?? rec?.facts?.form ?? null });
   if (cultivar && (speciesPage || !seen.ncsu)) notes.push('A cultivar read from species pages: its size, form and flower color come only from a page for the cultivar');
   out.push({ id: s.id, common: rec?.common, botanical: rec?.botanical, species: s.species, compendium: rec?.facts ?? {}, sources: seen, raw: { ncsu, usda, mnwild, arkatlas: ar }, claims, facts: mapped, notes, ...(gate.held.length ? { held: gate.held } : {}) });
 }

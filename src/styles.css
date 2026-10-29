@@ -235,7 +235,8 @@ a { color: inherit; }
 #update-banner span { flex: 1; }
 #update-banner button { background: #047857; color: #fff; border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: calc(13px * var(--ts)); }
 #update-banner button.later { background: transparent; color: #d6d3d1; font-weight: 500; }
-.menu-version { font-size: calc(11px * var(--ts)); color: #78716c; padding: 8px 14px 10px; border-top: 1px solid #e7e5e4; }
+.menu-version { font-size: calc(11px * var(--ts)); color: #78716c; padding: 8px 14px 10px; border-top: 1px solid #e7e5e4; display: flex; align-items: center; gap: 6px; }
+.menu-version .brand-mark { width: calc(16px * var(--ts)); height: calc(16px * var(--ts)); flex: none; color: #2f5d3a; }
 .storage-warning .link-btn { color: inherit; text-decoration: underline; font-weight: 600; font-size: inherit; }
 .fatal { max-width: 420px; margin: 15vh auto 0; padding: 24px; text-align: center; color: #292524; }
 .fatal h1 { font-size: calc(18px * var(--ts)); margin: 0 0 12px; }
@@ -397,6 +398,7 @@ a { color: inherit; }
 .kind-chip:active { background: #f5f5f4; }
 .draw-bar-rows { display: flex; flex-direction: column; gap: 6px; width: 100%; }
 .draw-bar-row { display: flex; gap: 6px; align-items: center; }
+.draw-bar-row.draw-fields { gap: 16px; } /* (a path's width and its next side: two fields, told apart) */
 .method-seg { display: flex; gap: 4px; overflow-x: auto; }
 .method-seg button { flex: 1 0 auto; min-width: 64px; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 6px; border: 1px solid #d6d3d1; border-radius: 6px; background: #fff; color: #44403c; font-size: calc(11px * var(--ts)); }
 .method-seg button.on { background: #ccfbf1; border-color: #0f766e; color: #115e59; font-weight: 600; }
@@ -422,6 +424,10 @@ a { color: inherit; }
 .empty-photo-btn { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px; min-height: 48px; border-radius: 999px; background: #0f766e; color: #fff; font-size: calc(15px * var(--ts)); font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
 .empty-photo-btn .icon { stroke: #fff; }
 .empty-sub { margin-top: 6px; font-size: calc(12px * var(--ts)); }
+.empty-yard { pointer-events: auto; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 2px 0 10px; }
+.empty-yard label { display: inline-flex; align-items: center; gap: 6px; font-size: calc(14px * var(--ts)); color: #44403c; }
+.empty-yard input { width: 64px; min-height: 44px; padding: 0 8px; border: 1px solid #d6d3d1; border-radius: 6px; font-size: calc(15px * var(--ts)); text-align: center; background: #fff; }
+.empty-yard .btn { min-height: 44px; }
 .empty-or { margin: 10px 0 2px; font-size: calc(12px * var(--ts)); text-transform: uppercase; letter-spacing: 0.08em; }
 .add-photo-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 10px 12px; margin-bottom: 14px; border-radius: 8px; border: 1px solid #99f6e4; background: #f0fdfa; color: #134e4a; font-size: calc(13px * var(--ts)); line-height: 1.4; min-height: 52px; }
 .add-photo-row b { font-size: calc(14px * var(--ts)); }
@@ -499,6 +505,7 @@ a { color: inherit; }
 .details-list dd { display: inline; margin: 0; overflow-wrap: anywhere; }
 .details-list dd::after { content: ''; display: block; margin-bottom: 8px; }
 .details-src, .details-alt { display: block; font-size: calc(11px * var(--ts)); color: #6b6560; }
+.details-form { display: block; font-size: calc(12px * var(--ts)); color: #57534e; margin-top: 1px; } /* (what its flowers or leaves look like, under their colors) */
 /* A citation longer than a line: one line, "…", opened with a tap (src/ui/plant-details.ts clipCitations). */
 .details-src.one-line, .details-src.clipped[aria-expanded="false"] { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .details-src.clipped { cursor: pointer; }

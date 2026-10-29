@@ -1,12 +1,13 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 139 to decide, 23 plants not searched, 1437 sites whose terms are unsettled, 728 catalog checks; 3737 of 3742 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 168 to decide, 23 plants not searched, 1437 sites whose terms are unsettled, 728 catalog checks; 3737 of 3742 records audited.
 
 - [Sources disagree (92)](#sources-disagree-92)
 - [Cultivar: tree or shrub? (6)](#cultivar-tree-or-shrub-6)
 - [Edible, but rated toxic (16)](#edible-but-rated-toxic-16)
 - [Held back as implausible (3)](#held-back-as-implausible-3)
-- [A value its source no longer gives (1)](#a-value-its-source-no-longer-gives-1)
+- [A value its source no longer gives (8)](#a-value-its-source-no-longer-gives-8)
+- [Sizes whose sources are far apart (22)](#sizes-whose-sources-are-far-apart-22)
 - [Read from text, but a second reading differs (276)](#read-from-text-but-a-second-reading-differs-276)
 - [Values the catalog can't take (1)](#values-the-catalog-cant-take-1)
 - [Kew names to check (14)](#kew-names-to-check-14)
@@ -159,13 +160,49 @@ The audit's values would make the record implausible (the app's checks), so they
 | Pink sundew (`drosera-capillaris`) | height | under 3 in tall (1 in): inches read as feet, or the other way? |
 | English holly 'Argentea Marginata' (`ilex-aquifolium-argentea-marginata`) | height, form | 40 ft is tall for a shrub |
 
-## A value its source no longer gives (1)
+## A value its source no longer gives (8)
 
 An earlier build wrote it from a source, but no source gives it now: its page is no longer read, or no longer says it. It's kept (a plant's spread draws its circle), with the citation it had. There's no place to record a decision on these yet: they stay listed until there is.
 
 | Plant | Fact | Value now |
 | --- | --- | --- |
+| Virginia sweetspire 'Henry's Garnet' (`itea-virginica-henry-s-garnet`) | deer | "Resistant", from ncsu |
+| Smooth hydrangea 'Haas' Halo' (`hydrangea-arborescens-haas-halo`) | fall color | true, from ncsu |
+| Smooth hydrangea 'Haas' Halo' (`hydrangea-arborescens-haas-halo`) | poison | {}, from ncsu |
+| Smooth hydrangea 'Haas' Halo' (`hydrangea-arborescens-haas-halo`) | problem_for | ["cats","dogs","horses"], from ncsu |
+| Smooth hydrangea 'Haas' Halo' (`hydrangea-arborescens-haas-halo`) | maintenance_level | "low", from ncsu |
+| Smooth hydrangea 'Haas' Halo' (`hydrangea-arborescens-haas-halo`) | bark | ["peeling","shredding"], from ncsu |
 | Dwarf yaupon holly 'Schillings' (`ilex-vomitoria-nana-schillings`) | flower_color | ["white"], from kiefernursery.com |
+| Mulberry 'Illinois Everbearing' (`morus-alba-x-rubra-illinois-everbearing`) | fall color | true, from ncsu |
+
+## Sizes whose sources are far apart (22)
+
+The size shown and the other source's are 3 times apart or more, so one is likely wrong (a reading of the wrong number, a range that's a bin, a climbing vine's length). Each source's value is here; the plant's other size beside it can tell which. A decision goes in scripts/catalog/decisions.json (`leads`), and the build applies it. (the source that leads that size).
+
+| Plant | Fact | Shown | Other source | Its other size |
+| --- | --- | --- | --- | --- |
+| Coralberry (`symphoricarpos-orbiculatus`) | width | 3–6 ft (ncsu, laurensgardenservice.com) | 1 ft (rachelsnativeplants.com) | height 2–4 ft |
+| Slender bush clover (`lespedeza-virginica`) | height | 3–6 ft (ncsu) | 1–2 ft (roundstoneseed.com) | width 4–10 ft |
+| White-tinged sedge (`carex-albicans`) | height | 1–2 ft (prairienursery.com) | 0.33–0.67 ft (mowildflowers.net) |  |
+| Vinca / periwinkle (`vinca-minor`) | height | 0.25–0.5 ft (ncsu) | 50 ft (sylvangardenslandscape.com) | width 0.5–1.5 ft |
+| Woolly dutchman's pipe (`aristolochia-tomentosa`) | height | 20–30 ft (ncsu) | 75 ft (mowildflowers.net) | width 5–10 ft |
+| Red silk cottontree (`bombax-ceiba`) | height | 60–75 ft (ncsu) | 20 ft (toptropicals.com) | width 40–60 ft |
+| Be-still tree (`cascabela-thevetia`) | height | 4–8 ft (ncsu, toptropicals.com) | 20–50 ft (arizona.edu) | width 4–5 ft |
+| Be-still tree (`cascabela-thevetia`) | width | 4–5 ft (ncsu) | 20–50 ft (arizona.edu) | height 4–8 ft |
+| Northern catalpa (`catalpa-speciosa`) | width | 8–16 ft (ncsu) | 35–40 ft (greatplainsnursery.com) | height 40–70 ft |
+| Dwarf scouringrush (`equisetum-scirpoides`) | width | 1–4 ft (ncsu) | 0.67 ft (kiefernursery.com) | height 0.5–1 ft |
+| Winter creeper (`euonymus-fortunei`) | height | 14–32 ft (ncsu) | 0.5–0.67 ft (illinois.edu) | width 2–10 ft |
+| Downy rattlesnake plantain (`goodyera-pubescens`) | height | 1–2 ft (ncsu) | 0.17–0.33 ft (nativewildflowers.net) | width 0.75–1 ft |
+| Chinese juniper (`juniperus-chinensis`) | height | 50–60 ft (ncsu) | 2–25 ft (illinois.edu) | width 10–20 ft |
+| Hyacinthbean (`lablab-purpureus`) | height | 10–25 ft (ncsu) | 3–4 ft (roundstoneseed.com) | width 3–6 ft |
+| Southern magnolia (`magnolia-grandiflora`) | height | 60–80 ft (ncsu) | 10–20 ft (toptropicals.com) | width 30–50 ft |
+| Turkey tangle fogfruit (`phyla-nodiflora`) | width | 1–2 ft (ncsu) | 4–10 ft (calfloranursery.com) | height 0.25–0.5 ft |
+| Cork oak (`quercus-suber`) | height | 70–100 ft (ncsu) | 10–20 ft (toptropicals.com) | width 70–100 ft |
+| Chinese rose (`rosa-chinensis`) | height | 6–8 ft (ncsu) | 1.17 ft (outsidepride.com) | width 6–8 ft |
+| Cranberry (`vaccinium-macrocarpon`) | height | 1–3 ft (ncsu) | 0.33–0.5 ft (bluestemnatives.com) | width 1.5–2.33 ft |
+| Deodar Cedar 'Snow Sprite' (`cedrus-deodara-snow-sprite`) | height | 1.67–3 ft (ncsu) | 4–15 ft (farwestturf.com) | width 0.5–1 ft |
+| Deodar Cedar 'Snow Sprite' (`cedrus-deodara-snow-sprite`) | width | 0.5–1 ft (ncsu) | 3–6 ft (farwestturf.com) | height 1.67–3 ft |
+| Asian Pear 'Shinseiki' (`pyrus-pyrifolia-shinseiki`) | width | 6–7 ft (ncsu) | 20 ft (buchanansplants.com) | height 8–10 ft |
 
 ## Read from text, but a second reading differs (276)
 
@@ -545,7 +582,7 @@ Where a source gave nothing, counted only:
 - 1662 plants: a USDA PLANTS profile with no characteristics saved (size, sun and so on): PLANTS has none, or they were never fetched (see "Not looked up yet")
 - 2314 plants: not on the Arkansas atlas's maps under its name (mostly plants not recorded wild in Arkansas)
 - 345 plants: the Arkansas atlas not looked up (a genus or cultivar group: no species name)
-- 88 plants: a cultivar read from species-level pages: its size, form and flower color are taken only from a page about the cultivar
+- 85 plants: a cultivar read from species-level pages: its size, form and flower color are taken only from a page about the cultivar
 
 Kew's checklist has no one accepted species for 37 catalog names (hybrids, names it draws narrower, exotics it doesn't list in the US), so they have no native status: Aloysia citriodora, Alternanthera dentata, Amsonia illustris, Aphelandra squarrosa, Betula jacquemontii, Betula platyphylla, Calamovilfa longifolia, Cartrema americana, Cercis gigantea, Eubotrys racemosa, Euonymus kiautschovicus, Gomphocarpus physocarpa, Hamamelis hybrids, Hepatica acutiloba, Hibiscus lasiocarpos, Hypericum pyramidatum, Iris germanica, Juniperus conferta, Ludwigia sedoides, Malus hybrids, Nothoscordum sellowianum, Nuphar luteum, Oligoneuron rigidum, Onosmodium bejariense, Penstemon grandiflorus, Pieris formosana, Polystichum polyblepharum, Rhus trilobata, Rhychospora latifolia, Rosa lucieae, Rubus pensilvanicus, Silphium trifoliatum, Smilax lasioneura, Thuidium delicatulum, Thymus pseudolanuginosus, Tulipa hybrids, Washingtonia robusta.
 
@@ -553,5 +590,5 @@ New plants (scripts/catalog/additions.mjs):
 
 - 0 plants added from NC State's Plant Toolbox in this build (2901 in all)
 - 802 plants waiting, for size (661), form (94), hardiness (235), sun (89), its species (19)
-- 592 pages left out: a vegetable (86), a genus (294), a weed (204), in the catalog (8)
+- 589 pages left out: a vegetable (86), a genus (294), a weed (204), in the catalog (5)
 - 18 pages the sitemap lists that aren't saved yet

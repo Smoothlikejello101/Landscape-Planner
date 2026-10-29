@@ -4,7 +4,7 @@ import { resizeCanvas } from './canvas';
 import { fitAboveKeyboard } from './keyboard';
 import { cancelGestures, onCanvasPointerMove, onCanvasPointerUp } from './gestures';
 import { pushHistory, redo, undo } from './history';
-import { copySelected, duplicateSelected, nudgeSelected, paste, selectAllShown, zoomBy } from './mutations';
+import { copySelected, duplicateSelected, nudgeSelected, paste, selectAllShown, zoomBy, zoomToFit } from './mutations';
 import { cutSelected, deleteSelectedAsking } from './ui/delete-selected';
 import { clearSelection } from './selection';
 import { canFinishDraw, finishDraw, startKind } from './draw';
@@ -117,6 +117,10 @@ function onKey(e: KeyboardEvent) {
   // or button focused, the keys never get here: the page zooms, for reading.
   if ((e.ctrlKey || e.metaKey) && !e.altKey && ['=', '+', '-', '_'].includes(e.key)) {
     e.preventDefault(); zoomBy(e.key === '-' || e.key === '_' ? 1 / 1.25 : 1.25); render(); flashZoom(); return;
+  }
+  // Shift+1: the whole plan in view (by the key, not the character: on most layouts Shift+1 types "!").
+  if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.code === 'Digit1') {
+    e.preventDefault(); if (zoomToFit()) { render(); flashZoom(); } return;
   }
   if (ARROWS[e.key] && !e.ctrlKey && !e.metaKey && !e.altKey) { onArrow(e, ARROWS[e.key]); return; }
   if (state.placing && (e.ctrlKey || e.metaKey)) {
