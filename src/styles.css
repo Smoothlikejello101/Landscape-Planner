@@ -710,6 +710,7 @@ a { color: inherit; }
 .details-group-count { font-weight: 400; color: #78716c; }
 .details-group-sum { color: #57534e; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .details-group.warn .details-group-title, .details-group.warn .details-group-sum { color: #991b1b; }
+.details-group.warn .details-group-count { color: #57534e; } /* (the lighter gray falls short of 4.5:1 on the red tint) */
 .details-group-body { padding: 6px 10px 2px 32px; border-top: 1px solid #e7e5e4; }
 .details-group.warn .details-group-body { border-top-color: #fca5a5; }
 .details-group-body[hidden] { display: none; }
