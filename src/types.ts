@@ -410,6 +410,8 @@ export interface AppState {
   viewFilter: ShapeFilter;
   /** View: full-size rings on every plant (not saved). */
   showFullSize: boolean;
+  /** Plants drawn as illustrations (src/looks.ts), or as plain circles: per device (src/view-settings.ts). */
+  plantLooks: boolean;
   /** View: ring plants planted close (amber) or crowded (red) (not saved; on unless turned off on this device). */
   showCrowding: boolean;
   /** A notice as a plant is placed close to another or crowding it (not saved; on unless turned off on this device). */

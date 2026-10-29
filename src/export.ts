@@ -15,6 +15,10 @@ import { plantsById } from './plants';
 import { LABEL_LINE_HEIGHT, plantLabelFit } from './labels';
 import { canopyInnerRadius, canopyPoints, isTree, partsToSvg, trunkParts, trunkReachPx } from './trees';
 import { supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
+import { bandBlooms, coverBlooms, levelOf } from './looks';
+import { lookFor, lookMarkup, lookShown } from './plant-looks';
+
+let lookClips = 0;
 
 // ============================================================
 // EXPORT
@@ -72,19 +76,33 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
     const { band, connector, cover } = vineBand(s, vine);
     const pts = (l: { x: number; y: number }[]) => l.map((p) => `${(p.x - originX) * scale},${(p.y - originY) * scale}`).join(' ');
     const cx = (s.x - originX) * scale, cy = (s.y - originY) * scale, w = Math.max(4 * k, VINE_BAND_WIDTH * scale);
-    const color = s.status === 'remove' ? '#dc2626' : s.color, op = planned ? (s.opacity ?? 0.65) * 0.5 : s.opacity ?? 0.65;
+    // (Drawn as a picture: its leaves' color, its blooms along it, as on the plan.)
+    const look = lookShown(s) ? lookFor(s) : null;
+    const color = s.status === 'remove' ? '#dc2626' : look ? look.pal.base : s.color;
+    const op = look ? (planned ? 0.75 : 0.9) : planned ? (s.opacity ?? 0.65) * 0.5 : s.opacity ?? 0.65;
     const name = displayLabel(s);
+    const px = (l: { x: number; y: number }[]) => l.map((p) => ({ x: (p.x - originX) * scale, y: (p.y - originY) * scale }));
+    const blooms = !look ? '' : cover ? coverBlooms(px(cover), look, Math.max(16 * k, 1.5 * scale)) : bandBlooms(px(band), w, look, Math.max(16 * k, 1.6 * scale));
     // (On an arbor, over its top.)
     return (cover ? `<polygon points="${pts(cover)}" fill="${color}" fill-opacity="${op}" stroke="${color}" stroke-opacity="${op}" stroke-width="${1.5 * k}" stroke-linejoin="round"/>`
       : `<polyline points="${pts(band)}" fill="none" stroke="${color}" stroke-opacity="${op}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`)
       + `<polyline points="${pts(connector)}" fill="none" stroke="${color}" stroke-opacity="${op}" stroke-width="${Math.max(1.5 * k, w / 3)}" stroke-linecap="round"/>`
-      + `<circle cx="${cx}" cy="${cy}" r="${Math.max(4 * k, VINE_DOT_RADIUS * scale)}" fill="${s.color}" stroke="rgba(0,0,0,0.35)" stroke-width="${k}"/>`
+      + blooms
+      + `<circle cx="${cx}" cy="${cy}" r="${Math.max(4 * k, VINE_DOT_RADIUS * scale)}" fill="${look ? look.pal.dark : s.color}" stroke="rgba(0,0,0,0.35)" stroke-width="${k}"/>`
       + (name ? text(cx, cy - Math.max(4 * k, VINE_DOT_RADIUS * scale) - 9 * k, 11, name) : '');
   }
   if (s.type === 'circle') {
     const cx = (s.x - originX) * scale, cy = (s.y - originY) * scale, r = s.radius * scale;
-    const paint = `fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}`;
-    let out = s.canopy
+    // A plant drawn as an illustration, as on the plan (src/looks.ts): drawn at its size on the screen (r / k), scaled.
+    const look = lookShown(s);
+    const paint = `fill="${look ? 'none' : s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}`;
+    let out = '';
+    if (look) {
+      const rr = r / k, id = `export-look-${++lookClips}`;
+      const clip = s.canopy ? `<polygon points="${s.canopy.map(([x, y]) => `${(x * scale) / k},${(y * scale) / k}`).join(' ')}"/>` : `<circle r="${rr}"/>`;
+      out += `<g transform="translate(${cx} ${cy}) scale(${k})"${planned || isTree(s) ? ' opacity="0.85"' : ''}><clipPath id="${id}">${clip}</clipPath><g clip-path="url(#${id})">${lookMarkup(s, rr, levelOf(rr))}</g></g>`;
+    }
+    out += s.canopy
       ? `<polygon points="${canopyPoints(s, (x, y) => [(x - originX) * scale, (y - originY) * scale])}" ${paint} stroke-linejoin="round"/>`
       : `<circle cx="${cx}" cy="${cy}" r="${r}" ${paint}/>`;
     const tree = isTree(s);
