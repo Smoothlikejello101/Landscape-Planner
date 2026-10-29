@@ -141,6 +141,15 @@ export const SKIP_SITES = new Set([
   'catskillnativenursery.shop', 'greenpacks.org', 'gardeningtipsandtools.com', 'rosapedia.com', 'windrivergreens.com', // (spam and AI-written sites)
   'poshmark.com', 'foodplace.info', // (a resale marketplace; a forum)
   'plantsrose.com', 'fast-growing-plant.com', 'spotswoodgreenery.com', 'theteamfamily.com', // (drop-ship and template stores)
+  // Found by the terms reviews of batch 10, third quarter (2026-10-28)
+  'e-katalogroslin.pl', 'researcher.life', // (aggregators: a nurserymen's association's members' stock; others' papers with AI summaries)
+  'garten-de.com', 'ohgarden.se', // (crowd-sourced: members' entries; users' plant profiles)
+  'tiempodesanjuan.com', 'middendorf-funeralhome.com', // (a news site; a funeral home's florist shop)
+  // Found by the terms reviews of batch 10, last quarter (2026-10-28)
+  's4shops.com', 'clarity-connect.com', // (a demo-store host; a web vendor's development copies of client shops)
+  'areverenceforroses.com', 'hometuary.com', 'spnanyc.org', // (spam; AI-written lifestyle copy; a neighborhood association)
+  'mossvalepark.com', // (its catalogue text is Wikipedia's, by its own terms)
+  'hytiva.com', // (a cannabis marketplace)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
@@ -160,6 +169,7 @@ const AUTHORITY_SITES = new Set([
  */
 const COMPANY = {
   'provenwinners.com': 'provenwinners.com', 'provenwinners-shrubs.com': 'provenwinners.com', 'provenwinnersdirect.com': 'provenwinners.com',
+  'provenwinnersplants.com': 'provenwinners.com', // (the brand's EU site, ColorChoice Plants EU)
   'spring-meadow.com': 'provenwinners.com', 'waltersgardens.com': 'provenwinners.com',
   'monrovia.com': 'monrovia.com', 'firsteditionsplants.com': 'firsteditionsplants.com', 'baileynurseries.com': 'firsteditionsplants.com',
   'endlesssummerblooms.com': 'firsteditionsplants.com', 'bloomineasy.com': 'bloomineasy.com', 'southernlivingplants.com': 'southernlivingplants.com',
@@ -169,6 +179,9 @@ const COMPANY = {
   'fresnogardening.org': 'gardensoft', 'bayareagardening.org': 'gardensoft', 'ashlandsaveswater.org': 'gardensoft',
   'elpasodesertblooms.org': 'gardensoft', 'waterwisegardeningsb.org': 'gardensoft', 'hillsborogardening.org': 'gardensoft',
   'slcgardenwise.com': 'gardensoft', 'trivalleywaterwise.com': 'gardensoft', 'ocplants.org': 'gardensoft',
+  // (One Hungarian grower's shop, machine-translated under local names: one source. Seen 2026-10-28.)
+  'pharmarosa.be': 'pharmarosa', 'pharmarosa.co.uk': 'pharmarosa', 'pharmarosa.es': 'pharmarosa', 'pharmarosa.nl': 'pharmarosa',
+  'pharmarosa.ro': 'pharmarosa', 'pharmarosaneonatal.it': 'pharmarosa',
 };
 /** The source a site counts as (one company's sites are one). */
 export const sourceOf = (host) => { const site = siteOf(host); return COMPANY[site] ?? termsKey(host); };
