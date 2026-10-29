@@ -6,7 +6,7 @@
 // as does a value that would make the record implausible (the app's catalogWarnings: 1 in tall, zones
 // backwards).
 
-import { ATTRACTS, BARK, BARK_COLORS, bloomSeasons, flowerColors, ncsuNoPoison, PART_COLORS, PETS, SEASONS, TOLERATES } from './claims.mjs';
+import { ATTRACTS, BARK, BARK_COLORS, bloomSeasons, CLIMBING, flowerColors, FORM_WORDS, HABIT_FORMS, ncsuNoPoison, PART_COLORS, PETS, SEASONS, TEXTURES, TOLERATES } from './claims.mjs';
 import { PROSE_HABITS } from './prose.mjs';
 
 /** The checks the app takes (src/catalog.ts): disputed facts aren't written. */
@@ -35,6 +35,13 @@ const LEVELS = ['low', 'medium', 'high'];
 /** A list of words from `words`, each once, in the order given (undefined if empty or any isn't one). */
 const listOf = (words) => (v) => (Array.isArray(v) && v.length && v.every((x) => words.includes(x)) ? [...new Set(v)] : undefined);
 const oneOf = (words) => (v) => (words.includes(v) ? v : undefined);
+/** { part: [words] } with each part's words from `parts` (undefined if empty, or any part or word isn't one). */
+const formWords = (parts) => (v) => {
+  if (!v || typeof v !== 'object' || Array.isArray(v) || !Object.keys(v).length) return undefined;
+  const out = {};
+  for (const [k, l] of Object.entries(v)) { const ok = parts[k] && listOf(parts[k])(l); if (!ok) return undefined; out[k] = ok; }
+  return out;
+};
 /**
  * Caterpillars a source names the plant a larval host for: names, never a sentence ("Monarch (Danaus plexippus)",
  * "Spring Azure"), each once; a bare name that another, with its binomial, already gives is the same caterpillar.
@@ -100,6 +107,12 @@ const FACTS = {
   stem_color: ['stem_color', listOf(PART_COLORS)],
   fruit_season: ['fruit_season', listOf(SEASONS)],
   fruit_color: ['fruit_color', listOf(PART_COLORS)],
+  // What its flowers, its leaves and the plant look like, as NC State's fields give them (claims.mjs FORM_WORDS).
+  flower_form: ['flower_form', formWords(FORM_WORDS.flower_form)],
+  leaf_form: ['leaf_form', formWords(FORM_WORDS.leaf_form)],
+  texture: ['texture', listOf(TEXTURES)],
+  habit_form: ['habit_form', listOf(HABIT_FORMS)],
+  climbs_by: ['climbs_by', listOf(CLIMBING)],
 };
 const BUILT_IN = {
   ncsu: { title: 'NC State Extension Gardener Plant Toolbox', url: 'https://plants.ces.ncsu.edu', trust: 'reference' },

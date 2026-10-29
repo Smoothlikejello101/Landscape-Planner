@@ -26,14 +26,14 @@ export const TIER = {
   attracts: 'description', tolerates: 'description', maintenance_level: 'description', thorns: 'description', winter_interest: 'description',
   bark: 'description', bark_color: 'description', stem_color: 'description', fruit_season: 'description', fruit_color: 'description',
   leaf_color: 'description', foliage: 'description', needles: 'description', fall_colors: 'description', growth_rate: 'description',
-  self_seed: 'description', habit: 'description',
+  self_seed: 'description', habit: 'description', flower_form: 'description', leaf_form: 'description', texture: 'description', habit_form: 'description', climbs_by: 'description',
 };
 const RANK = { authority: 3, breeder: 2, nursery: 1, blog: 0 };
 /** Facts decided by sides (`bySides`), the other side kept beside the value (`alt`; never safety facts). */
 export const REPORTABLE = new Set(['height', 'width', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'deer']);
 /** Facts a cultivar is bred to change: only a page for the cultivar itself speaks to them. */
 export const CULTIVAR_OWN = new Set(['height', 'width', 'flower_color', 'form', 'leaf_color', 'fall_colors', 'growth_rate', 'attracts', 'winter_interest',
-  'bark_color', 'stem_color', 'fruit_color', 'habit', 'self_seed']);
+  'bark_color', 'stem_color', 'fruit_color', 'habit', 'self_seed', 'flower_form', 'habit_form']);
 
 // ---------- Values ----------
 
@@ -215,7 +215,7 @@ export const flowerColors = (values) => [...new Set((values ?? []).map((v) => FL
 /** USDA's plant groups that flower (its others: Gymnosperm, Fern, Lycopod, Horsetail, Moss, Whisk-fern…). */
 const FLOWERING = new Set(['Dicot', 'Monocot']);
 /** Facts about flowers, which a plant without them doesn't have. */
-export const FLOWER_FACTS = new Set(['bloom_season', 'bloom_months', 'flower_color']);
+export const FLOWER_FACTS = new Set(['bloom_season', 'bloom_months', 'flower_color', 'flower_form']);
 /**
  * The families of plants without flowers, by the start of their names (NC State's "Family" has slips: "Pineaceae",
  * "Polypodiacea"): the conifers, cycads, ginkgo and their kin, and the ferns, horsetails, clubmosses and mosses.
@@ -313,7 +313,49 @@ export function ncsuClaims(f) {
   add('stem_color', wordsIn(PART_COLORS, f['Stem Color']));
   add('fruit_season', wordsIn(SEASONS, f['Display/Harvest Time']));
   add('fruit_color', wordsIn(PART_COLORS, f['Fruit Color']));
+  // What its flowers, its leaves and the plant look like (Jason, 2026-10-29: to draw each plant its own way): NC State's
+  // fields, in the catalog's words (FLOWER_FORM, LEAF_FORM, TEXTURES, HABIT_FORMS). Never its description.
+  add('flower_form', formOf(FLOWER_FORM, f));
+  add('leaf_form', formOf(LEAF_FORM, f));
+  add('texture', wordsIn(TEXTURES, (f.Texture ?? []).map((x) => x.toLowerCase())));
+  add('habit_form', wordsIn(HABIT_FORMS, (f['Habit/Form'] ?? []).map((x) => x.toLowerCase())));
+  // How a vine climbs (its "Climbing Method"), for the vine drawn on what it climbs (Jason, 2026-10-29).
+  add('climbs_by', wordsIn(CLIMBING, f['Climbing Method']));
   return c;
+}
+/** A word in the catalog for each value NC State gives in a field (a value not here isn't kept). */
+const FLOWER_FORM = {
+  inflorescence: ['Flower Inflorescence', { Raceme: 'raceme', Panicle: 'panicle', Cyme: 'cyme', Solitary: 'solitary', Head: 'head', Spike: 'spike', Umbel: 'umbel', Corymb: 'corymb', Catkin: 'catkin', Spadix: 'spadix', Insignificant: 'insignificant' }],
+  shape: ['Flower Shape', Object.fromEntries(['Tubular', 'Cup', 'Star', 'Bell', 'Radial', 'Funnel', 'Saucer', 'Lipped', 'Trumpet', 'Dome', 'Irregular', 'Cross', 'Urn', 'Wheel', 'Crown'].map((x) => [x, x.toLowerCase()]))],
+  petals: ['Flower Petals', { '2-3 rays/petals': '2-3', '4-5 petals/rays': '4-5', '6 petals/rays': '6', '7 - 20 petals/rays': '7-20', 'more than 20 petals/rays': '20+', Bracts: 'bracts', 'fused petals': 'fused', 'Colored Sepals': 'sepals', Tepals: 'tepals', 'asymmetrical petals': 'asymmetrical' }],
+  size: ['Flower Size', { '< 1 inch': '<1', '1-3 inches': '1-3', '3-6 inches': '3-6', '> 6 inches': '>6' }],
+};
+const LEAF_FORM = {
+  type: ['Leaf Type', { Simple: 'simple', 'Compound (Pinnately , Bipinnately, Palmately)': 'compound', Needles: 'needles', Sheath: 'sheath', Fronds: 'fronds' }],
+  shape: ['Leaf Shape', Object.fromEntries(['Ovate', 'Lanceolate', 'Elliptical', 'Linear', 'Oblong', 'Obovate', 'Cordate', 'Oblanceolate', 'Orbicular', 'Spatulate', 'Deltoid', 'Pinnatifid', 'Palmatifid',
+    'Acicular', 'Cuneate', 'Palmasect', 'Filiform', 'Rhomboidal', 'Reniform', 'Obtuse', 'Peltate', 'Pinnatisect', 'Subulate', 'Auriculate', 'Subcordate'].map((x) => [x, x.toLowerCase()]))],
+  arrangement: ['Leaf Arrangement', { Alternate: 'alternate', Opposite: 'opposite', Rosulate: 'rosulate', Whorled: 'whorled', 'Other/more complex': 'complex' }],
+  margin: ['Leaf Margin', Object.fromEntries(['Entire', 'Serrate', 'Lobed', 'Dentate', 'Crenate', 'Undulate', 'Doubly Serrate', 'Sinuate', 'Denticulate', 'Crenulate', 'Doubly Dentate', 'Doubly Crenate'].map((x) => [x, x.toLowerCase()]))],
+  length: ['Leaf Length', { '< 1 inch': '<1', '1-3 inches': '1-3', '3-6 inches': '3-6', '> 6 inches': '>6' }],
+};
+/** Each form's words, by part (for write.mjs and src/catalog.ts, which check them). */
+export const FORM_WORDS = {
+  flower_form: Object.fromEntries(Object.entries(FLOWER_FORM).map(([k, [, m]]) => [k, [...new Set(Object.values(m))]])),
+  leaf_form: Object.fromEntries(Object.entries(LEAF_FORM).map(([k, [, m]]) => [k, [...new Set(Object.values(m))]])),
+};
+export const TEXTURES = ['fine', 'medium', 'coarse'];
+/** How a vine climbs, NC State's words: twining stems, tendrils, clinging (rootlets or pads), scrambling. */
+export const CLIMBING = ['twining', 'tendrils', 'clinging', 'scrambler'];
+export const HABIT_FORMS = ['erect', 'spreading', 'rounded', 'dense', 'clumping', 'multi-stemmed', 'mounding', 'arching', 'creeping', 'climbing', 'pyramidal', 'open',
+  'horizontal', 'oval', 'prostrate', 'ascending', 'vase', 'columnar', 'cascading', 'broad', 'multi-trunked', 'irregular', 'weeping', 'conical'];
+/** { part: [words] } from NC State's fields, each part's words in the field's order, once; null if none. */
+function formOf(spec, f) {
+  const out = {};
+  for (const [part, [field, words]] of Object.entries(spec)) {
+    const got = [...new Set((f[field] ?? []).map((x) => words[x]).filter(Boolean))];
+    if (got.length) out[part] = got;
+  }
+  return Object.keys(out).length ? out : null;
 }
 /** Minnesota Wildflowers fields → claims (an authority for wild Minnesota plants; bloom months are Minnesota's). */
 export function mnwildClaims(f) {

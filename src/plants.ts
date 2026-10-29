@@ -138,6 +138,16 @@ export interface Plant {
   poison_parents?: { via: 'name' | 'kew'; parents: PoisonParent[] };
   /** Thorns, spines or prickles. */
   thorns?: boolean;
+  /** What its flowers look like, by part, as NC State's fields give them (src/catalog.ts FLOWER_FORM): sizes in inches. */
+  flower_form?: { inflorescence?: string[]; shape?: string[]; petals?: string[]; size?: string[] };
+  /** What its leaves look like, by part (src/catalog.ts LEAF_FORM): lengths in inches. */
+  leaf_form?: { type?: string[]; shape?: string[]; arrangement?: string[]; margin?: string[]; length?: string[] };
+  /** How fine its leaves look from a distance: fine, medium, coarse. */
+  texture?: string[];
+  /** Its shape, as NC State's "Habit/Form" gives it: erect, rounded, weeping… */
+  habit_form?: string[];
+  /** How a vine climbs: twining, tendrils, clinging, scrambler (NC State). */
+  climbs_by?: string[];
   /** Catalog plants: where each value came from (see src/catalog.ts). */
   prov?: Record<string, Provenance>;
   /** What other sources say where they differ from the value shown (its sources are in `prov[key].alt`). */

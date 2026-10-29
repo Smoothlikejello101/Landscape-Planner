@@ -796,6 +796,10 @@ months ("MO" for MOBOT).
 | `bark`, `bark_color` | Bark "Surface/Attachment", "Bark Color" | — | Asked for by Jason, 2026-10-25 (what makes a plant's winter interest: "exfoliating bark"). Its words, as lists (Ridges, Lenticels as given). Bark color is a cultivar's only from a page for it. |
 | `stem_color`, `fruit_color` | Stem "Stem Color", Fruit "Fruit Color" | — | Asked for by Jason, 2026-10-25. NC State's color groups, lower case ("red/burgundy"); "Insignificant" isn't kept. A cultivar's only from a page for it. |
 | `fruit_season` | Fruit "Display/Harvest Time" | — | Asked for by Jason, 2026-10-25: when its fruit is there to see; "winter" is fruit that stays into winter. |
+| `flower_form` | Flower "Flower Inflorescence", "Flower Shape", "Flower Petals", "Flower Size" | — | Asked for by Jason, 2026-10-29 (to draw each plant's flowers its own way). NC State's values, each in the catalog's word ("4-5 petals/rays" → `4-5`, "< 1 inch" → `<1`); a value not in its list (claims.mjs `FLOWER_FORM`) isn't kept. A cultivar's only from a page for it. None for a plant without flowers (see `bloom_season`). Never read from a description. |
+| `leaf_form` | Leaves "Leaf Type", "Leaf Shape", "Leaf Arrangement", "Leaf Margin", "Leaf Length" | — | Asked for by Jason, 2026-10-29. As `flower_form` (claims.mjs `LEAF_FORM`). A cultivar takes its species'. |
+| `texture`, `habit_form` | "Texture"; "Habit/Form" | — | Asked for by Jason, 2026-10-29. Its words, lower case, as lists; a word not in the catalog's list isn't kept. Texture a cultivar takes its species'; its habit only from a page for it (cultivars are bred for shape: a weeping or columnar one). |
+| `climbs_by` | "Climbing Method" | — | Asked for by Jason, 2026-10-29 (vines drawn on what they climb). Its words, lower case: Twining, Tendrils, Clinging, Scrambler. A cultivar takes its species'. |
 | `self_seed`, `dry_shade`, `taproot`, `humidity`, `trunk`, `habit` | — | — | `null` unless a source states it. |
 
 ## Decisions

@@ -20,6 +20,10 @@ export const NCSU_FIELDS = [
   'Poison Severity', 'Causes Contact Dermatitis', 'Poison Part', 'Stem Surface', 'Problems', 'Leaf Color', 'Leaf Type', 'Appendage',
   // (What shows in winter: its bark, its stems' color, its fruit and when it's there.)
   'Surface/Attachment', 'Bark Color', 'Stem Color', 'Display/Harvest Time', 'Fruit Color',
+  // (What its flowers and leaves look like, and its shape: for drawing each plant its own way. Jason, 2026-10-29.)
+  'Flower Inflorescence', 'Flower Shape', 'Flower Petals', 'Flower Size', 'Leaf Shape', 'Leaf Arrangement', 'Leaf Margin', 'Leaf Length', 'Texture',
+  // (How a vine climbs: for what it can climb. Jason, 2026-10-29.)
+  'Climbing Method',
 ];
 /** NC State's free-text fields the audit reads one fact out of, never keeping the text. */
 const NCSU_TEXT = ['Wildlife Value'];
