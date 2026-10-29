@@ -469,6 +469,25 @@ export function webProseClaims(html, plant, base, fields = {}, boilerplate = new
  * A page's spec lines and description as claims, for one plant. (Facts that differ by place, bloom months above all,
  * aren't taken from the web.) `boilerplate`: its site's repeated paragraphs (reclaim.mjs), left out of its description.
  */
+/**
+ * Fields a site gives that aren't what the catalog's fact means, kept at a nursery's weight (decided with Jason,
+ * 2026-10-29): they confirm a value or show as its alternate, but never lead over a source that gives the fact itself.
+ * - The University of Arizona Campus Arboretum's sizes are picked from a short menu of ranges, often the same for
+ *   height and width ("Height: 20 - 50 feet, Width: 20 - 50 feet"): bins, not measured sizes.
+ * - Arkansas Extension's plant database gives "Exposure" as the best spot, its text often saying the plant takes more
+ *   (clethra: "partial sun", while "they will grow in full sun"): not the range the sun facts are. (Reading the
+ *   range from its text instead is on the Backlog.)
+ */
+export const FIELDS_AS_REPORTED = [
+  { url: /^https?:\/\/apps\.cals\.arizona\.edu\/arboretum\//, facts: ['height', 'width'] },
+  { url: /^https?:\/\/(?:www\.)?uaex\.uada\.edu\/yard-garden\/resource-library\/plant-database\//, facts: ['sun_most', 'sun_least'] },
+];
+/** A claim from a page's field, at a nursery's weight where FIELDS_AS_REPORTED says the field isn't the fact itself. */
+export function asReported(c) {
+  if (c.kind !== 'authority' || c.from === 'description') return c;
+  return FIELDS_AS_REPORTED.some((r) => r.url.test(c.url) && r.facts.includes(c.fact)) ? { ...c, kind: 'nursery' } : c;
+}
+
 export function webClaims(url, html, plant, { boilerplate } = {}) {
   const kind = siteKind(url, html, plant);
   if (kind === 'skip') return [];
@@ -487,7 +506,7 @@ export function webClaims(url, html, plant, { boilerplate } = {}) {
   if (f.flowerColor) c.push({ ...base, fact: 'flower_color', v: f.flowerColor });
   if (f.deer) c.push({ ...base, fact: 'deer', v: f.deer });
   c.push(...webProseClaims(html, plant, base, f, boilerplate));
-  return c;
+  return c.map(asReported);
 }
 
 // ---------- Terms ----------

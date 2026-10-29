@@ -7,7 +7,7 @@ import { auditList, ncsuMovedTo, ncsuPageFor, ncsuSlug, readNcsuPages, speciesOf
 // @ts-expect-error (a plain .mjs script)
 import { cultivarOf, rereadClaims, siteBoilerplate } from '../scripts/catalog/reclaim.mjs';
 // @ts-expect-error (a plain .mjs script)
-import { anchor, noteKind, reviewKind, reviewReport, shown, termsUnsettled } from '../scripts/catalog/report.mjs';
+import { anchor, farApartSizes, noteKind, reviewKind, reviewReport, shown, termsUnsettled } from '../scripts/catalog/report.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { isDay, parseBuildArgs } from '../scripts/catalog/build-args.mjs';
 // @ts-expect-error (a plain .mjs script)
@@ -326,5 +326,15 @@ describe('the build\'s arguments', () => {
     expect(parseBuildArgs(['--help']).error).toMatch(/not an option/);
     expect(parseBuildArgs([], { npm_config_fetch: 'true' }).error).toMatch(/put `--` before it/);
     expect([isDay('2026-02-28'), isDay('2026-02-30'), isDay('26-1-1')]).toEqual([true, false, false]);
+  });
+});
+
+describe('sizes whose sources are far apart', () => {
+  it('lists a size and its alternate 3 times apart or more, with the plant\'s other size; not one closer', () => {
+    const catalog = { plants: [
+      { id: 'populus-alba', facts: { height: { v: { min: 50, max: 75, med: 62.5 }, src: ['ncsu'] }, width: { v: { min: 4, max: 6, med: 5 }, src: ['ncsu'], alt: { v: { min: 50, max: 100, med: 75 }, src: ['arizona.edu'] } } } },
+      { id: 'close', facts: { width: { v: { min: 4, max: 6, med: 5 }, src: ['ncsu'], alt: { v: { min: 8, max: 12, med: 10 }, src: ['x.com'] } } } },
+    ] };
+    expect(farApartSizes(catalog)).toEqual([{ id: 'populus-alba', fact: 'width', shown: { v: { min: 4, max: 6, med: 5 }, src: ['ncsu'] }, other: { v: { min: 50, max: 100, med: 75 }, src: ['arizona.edu'] }, otherFact: 'height', otherSize: { min: 50, max: 75, med: 62.5 } }]);
   });
 });
