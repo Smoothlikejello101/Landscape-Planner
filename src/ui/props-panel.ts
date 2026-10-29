@@ -1,3 +1,5 @@
+import { isVine, supportOf, supportsNear } from '../vines';
+import { supportName } from './vine-offers';
 import { SWATCH_NAMES } from './a11y';
 import { SWATCHES } from '../constants';
 import { el, escapeHtml, ts } from '../dom';
@@ -5,7 +7,7 @@ import { I } from '../icons';
 import { isLocked, roleKey, roleLabel, roleLocked } from '../roles';
 import { convertToOutline, startEditPoints, startKind, startTreeDraw } from '../draw';
 import { kindDef, kindOfShape } from '../kinds';
-import { boxSize, resizedPoints, shapeArea, shapePerimeter } from '../geometry';
+import { boxSize, fmtFeet, resizedPoints, shapeArea, shapePerimeter } from '../geometry';
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
 import { roleChips } from './role-picker';
@@ -102,6 +104,27 @@ function lookSummary(s: Shape): HTMLElement {
     outline ? '' : ` ${Math.round((s.opacity ?? 0.65) * 100)}%`);
 }
 
+/**
+ * What a vine climbs (src/vines.ts; Jason, 2026-10-29): nothing (grown as a groundcover), or what's within its spread,
+ * nearest first, each with how far. A shrub can be picked here, though it's never offered.
+ */
+function climbingField(s: CircleShape): HTMLElement {
+  const near = supportsNear(s, state.shapes), now = supportOf(s, state.shapes);
+  const list = now && !near.some((n) => n.shape === now.shape) ? [now, ...near] : near;
+  const select = el('select', { 'data-testid': 'climbs-on' }) as HTMLSelectElement;
+  select.appendChild(el('option', { value: '' }, 'Nothing: grown as a groundcover'));
+  for (const n of list) {
+    const what = n.kind === 'shrub' ? ' (a shrub)' : '';
+    select.appendChild(el('option', { value: n.shape.id }, `${cap1(supportName(n).replace(/^the /, ''))}${what}, ${fmtFeet(n.dist)} ft away`));
+  }
+  select.value = now ? now.shape.id : '';
+  select.addEventListener('change', () => updateSelected({ climbsOn: select.value }));
+  const hint = now ? 'Drawn along what it climbs, as long as its spread.'
+    : list.length ? 'Drawn as a patch on the ground. Pick what it climbs to draw it along that instead.'
+      : 'Nothing to climb within its spread: a fence, a wall or a tree near it can be picked here.';
+  return el('div', { className: 'field' }, el('label', {}, 'Climbing on'), select, el('div', { className: 'hint' }, hint));
+}
+const cap1 = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
 export function renderPropsPanelSingle(s: Shape) {
   const body = el('div', { className: 'sheet-body props-compact' });
   // Always in view: warnings, the name, and what it is.
@@ -187,6 +210,7 @@ export function renderPropsPanelSingle(s: Shape) {
     }
     if (isTree(s)) sizeParts.push(...trunkFields(s));
     if (s.canopy) sizeParts.push(makeRoundField(s));
+    if (isVine(s)) sizeParts.push(climbingField(s));
   } else {
     const isPath = s.type === 'poly' || s.type === 'line';
     // Reshaping point by point is the likelier edit for an outline or path, so it comes first.

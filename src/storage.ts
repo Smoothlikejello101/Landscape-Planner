@@ -153,6 +153,8 @@ export function migrateShape(raw: unknown): Shape | null {
         ...(shaped ? { canopy } : {}),
         // (Plants left close to others on purpose, by id; older versions had none.)
         ...(crowdOk(s.crowdOk) ? { crowdOk: crowdOk(s.crowdOk)! } : {}),
+        // (Vines: what it climbs, by id, or '' for none set by hand; older versions had neither: a groundcover.)
+        ...(typeof s.climbsOn === 'string' && s.climbsOn.length <= 100 ? { climbsOn: s.climbsOn } : {}),
       };
     }
     case 'rect':

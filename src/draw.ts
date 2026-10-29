@@ -14,6 +14,7 @@ import { SNAP_MAX_FT, SNAP_PX, SNAP_PX_MOUSE, setSnapOn, setSquareOn, snapOn, sn
 import { dismissToastAction, toast, toastAction } from './ui/toast';
 import { angleSpot, clipToBox, cornerAngle, lengthText, middleOf, SIDE_LABEL_MIN_PX, sideLabelSpot, typedFarSide, typedPoint } from './draw-numbers';
 import { render } from './ui/render';
+import { offerToVines } from './ui/vine-offers';
 
 // Freeform outlines (closed) and lines (open).
 //
@@ -278,6 +279,8 @@ export function finishDraw(): Shape | null {
   state.panel = kind.openProps ? 'props' : null;
   noteRecentKind(kind.key);
   pushHistory();
+  // (A fence or a building drawn by a vine: offered to it, src/ui/vine-offers.ts.)
+  offerToVines(shape);
   // Asked for while drawing: on to its doors and windows, gates or steps, tapped onto its edges.
   const subs = d.thenFeatures ? kindsFor(shape) : [];
   if (subs.length) startFeaturePlace(shape.id, subs[0]);

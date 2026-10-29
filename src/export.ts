@@ -13,6 +13,7 @@ import { shadeOpacity } from './sun';
 import { plantsById } from './plants';
 import { LABEL_LINE_HEIGHT, plantLabelFit } from './labels';
 import { canopyInnerRadius, canopyPoints, isTree, partsToSvg, trunkParts, trunkReachPx } from './trees';
+import { supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
 
 // ============================================================
 // EXPORT
@@ -62,6 +63,19 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
   const strokeWidth = (outline ? 2.5 : planned || s.status === 'remove' ? 2 : 1) * k;
   const text = (x: number, y: number, fs: number, label: string, extra = '') =>
     `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="${fs * k}" fill="#0f172a" font-family="sans-serif" stroke="rgba(255,255,255,0.7)" stroke-width="${2 * k}" paint-order="stroke" stroke-linejoin="round"${extra}>${escapeHtml(label)}</text>`;
+  const vine = s.type === 'circle' ? supportOf(s, state.shapes) : null;
+  if (s.type === 'circle' && vine) {
+    // A vine on what it climbs, as on the plan (src/vines.ts): its spot, and a band along its support.
+    const { band, connector } = vineBand(s, vine);
+    const pts = (l: { x: number; y: number }[]) => l.map((p) => `${(p.x - originX) * scale},${(p.y - originY) * scale}`).join(' ');
+    const cx = (s.x - originX) * scale, cy = (s.y - originY) * scale, w = Math.max(4 * k, VINE_BAND_WIDTH * scale);
+    const color = s.status === 'remove' ? '#dc2626' : s.color, op = planned ? (s.opacity ?? 0.65) * 0.5 : s.opacity ?? 0.65;
+    const name = displayLabel(s);
+    return `<polyline points="${pts(band)}" fill="none" stroke="${color}" stroke-opacity="${op}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`
+      + `<polyline points="${pts(connector)}" fill="none" stroke="${color}" stroke-opacity="${op}" stroke-width="${Math.max(1.5 * k, w / 3)}" stroke-linecap="round"/>`
+      + `<circle cx="${cx}" cy="${cy}" r="${Math.max(4 * k, VINE_DOT_RADIUS * scale)}" fill="${s.color}" stroke="rgba(0,0,0,0.35)" stroke-width="${k}"/>`
+      + (name ? text(cx, cy - Math.max(4 * k, VINE_DOT_RADIUS * scale) - 9 * k, 11, name) : '');
+  }
   if (s.type === 'circle') {
     const cx = (s.x - originX) * scale, cy = (s.y - originY) * scale, r = s.radius * scale;
     const paint = `fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}`;

@@ -13,6 +13,7 @@ import type { Gesture, Point, Shape } from './types';
 import { previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes } from './canvas';
 import { drawTap, editedShape, forgetLastTap, insertVertex, moveVertex, notePointer } from './draw';
 import { placeTap } from './place';
+import { afterMove, freeStrandedVines, saidFreed } from './ui/vine-offers';
 import { render, updateStatusReadout } from './ui/render';
 import { now, snap } from './util';
 import { canopyHint } from './canopy';
@@ -340,7 +341,12 @@ export function onCanvasPointerUp(e: PointerEvent) {
       else { save(); render(); }
       return;
     case 'drag-shape':
-      if (g.moved) { flushHistoryDebounce(); pushHistory(); save(); }
+      if (g.moved) {
+        // (A vine whose support moved out of its reach is a groundcover again, in the same step: src/vines.ts.)
+        const freed = freeStrandedVines();
+        flushHistoryDebounce(); pushHistory(); save();
+        if (freed.length) saidFreed(freed); else afterMove(g.ids);
+      }
       else {
         const shape = state.shapes.find((s) => s.id === g.id);
         if (shape) handleShapeTap(shape);

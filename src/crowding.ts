@@ -1,3 +1,4 @@
+import { climbing, VINE_BASE_RADIUS } from './vines';
 import { plantSpread } from './my-plants';
 import type { Plant } from './plants';
 import { isTree } from './trees';
@@ -50,11 +51,16 @@ export interface CrowdOptions {
 /** The share of a tree's height its trunk can be cleared to, keeping live branches on the upper two thirds. */
 export const CLEAR_TRUNK = 1 / 3;
 
-function typicalRadius(s: Shape, byId: Record<string, Plant | undefined>): number | null {
+/** `climbing`: the vines drawn on a support, whose ground is only around their base (src/vines.ts). */
+function typicalRadius(s: Shape, byId: Record<string, Plant | undefined>, climbing?: Set<string>): number | null {
   if (s.type !== 'circle' || s.role !== 'plant' || s.status === 'gone') return null;
+  if (climbing?.has(s.id)) return VINE_BASE_RADIUS;
   const p = s.plantId ? byId[s.plantId] : undefined;
   return p ? plantSpread(p, 'typical') / 2 : s.radius;
 }
+/** The vines among `shapes` drawn on a support. */
+const climbingIn = (shapes: Shape[], byId: Record<string, Plant | undefined>) =>
+  new Set(shapes.filter((v) => v.type === 'circle' && v.climbsOn && climbing(v, shapes, byId)).map((v) => v.id));
 /**
  * Where a plant's leaves are, in feet above the ground, by its typical height: null where that isn't known. A
  * tree with no height (one drawn without picking which, or a plant of my own without one) is taken to be about as
@@ -145,14 +151,15 @@ function pairLevel(a: Shape, b: Shape, ra: number, rb: number, share: number, by
 
 /** Plants crowding `s`, closest first: crowded ones only, or, with `close`, those close to it too. */
 export function crowdingOf(s: Shape, shapes: Shape[], byId: Record<string, Plant | undefined>, opts: CrowdOptions & { close?: boolean } = {}): Crowd[] {
-  const r = typicalRadius(s, byId);
+  const vines = climbingIn(shapes, byId);
+  const r = typicalRadius(s, byId, vines);
   if (r == null || s.type !== 'circle') return [];
   const band = bandOf(s, byId);
   const hardy = opts.hardy ?? (() => true);
   const out: Crowd[] = [];
   for (const o of shapes) {
     if (o === s || o.type !== 'circle') continue;
-    const ro = typicalRadius(o, byId);
+    const ro = typicalRadius(o, byId, vines);
     if (ro == null) continue;
     const left = leftClose(s, o);
     if (left && !opts.includeLeft) continue;
@@ -178,8 +185,9 @@ export function crowdRelation(s: Shape, o: Shape, byId: Record<string, Plant | u
 }
 /** Every pair of plants close or crowded now (not those left close on purpose), each once. */
 export function crowdPairs(shapes: Shape[], byId: Record<string, Plant | undefined>, opts: CrowdOptions = {}): { a: Shape; b: Shape; level: CrowdLevel }[] {
+  const vines = climbingIn(shapes, byId);
   const plants = shapes.filter((s) => typicalRadius(s, byId) != null) as (Shape & { type: 'circle' })[];
-  const radii = plants.map((s) => typicalRadius(s, byId)!);
+  const radii = plants.map((s) => typicalRadius(s, byId, vines)!);
   const bands = plants.map((s) => bandOf(s, byId));
   const hardy = opts.hardy ?? (() => true);
   const out: { a: Shape; b: Shape; level: CrowdLevel }[] = [];
