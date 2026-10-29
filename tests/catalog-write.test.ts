@@ -18,8 +18,8 @@ const audit = [
     sun_least: { v: 'Shade', src: ['ncsu'], check: 'single', alt: { v: 'Shade', src: ['shop.com'], check: 'reported' } }, // (the same: not kept)
     water: { v: 'Moderate', src: ['ncsu', 'x.edu'], check: 'confirmed' },
     height: { v: { min: 20, max: 30 }, src: ['ncsu'], check: 'single' },
+    width: { v: { min: 20, max: 30 }, src: ['ncsu', 'shop.com', 'x.edu'], check: 'confirmed', typical: 27.5 },
     zone_min: { v: 4.25, src: ['ncsu'], check: 'single' }, // (not a half-zone: not written)
-    width: null,
     tox_people: { v: ['minor'], src: ['ncsu'], check: 'single' }, // (waits on its format change)
   } },
   { id: 'nothing', claims: [], facts: { form: null } },
@@ -34,6 +34,8 @@ describe('writing the audit into the catalog', () => {
     expect(redbud.facts.sun_most).toEqual({ v: 'Part', src: ['ncsu'], check: 'single', alt: { v: 'Full', src: ['shop.com'], check: 'reported' } });
     expect(redbud.facts.sun_least).toEqual({ v: 'Shade', src: ['ncsu'], check: 'single' });
     expect(redbud.facts.height).toEqual({ v: { min: 20, max: 30, med: 25 }, src: ['ncsu'], check: 'single' });
+    // (Its typical size from the sources that agree, where several do: claims.mjs typicalOf.)
+    expect(redbud.facts.width).toEqual({ v: { min: 20, max: 30, med: 27.5 }, src: ['ncsu', 'shop.com', 'x.edu'], check: 'confirmed' });
     expect(redbud.facts.water).toMatchObject({ v: 'Moderate', check: 'confirmed' });
   });
   it('keeps the current value where the audit settled nothing, and lists disputes and values it can\'t take', () => {
@@ -346,5 +348,29 @@ describe('a withdrawn source (decisions.json `withdrawn`): its terms taken back,
     const { file: again } = writeAudit({ ...file, plants: [{ ...file.plants[0], facts: { zone_min: file.plants[0].facts.zone_min } }] }, [{ id: 'astilbe', claims: [], facts: {} }], '2026-10-28', () => [], decisions);
     expect(again.meta.sources['shop.example.com']).toBeUndefined();
     expect(again.meta.sources['other.example.org']).toBeDefined();
+  });
+});
+
+describe('a check-only source (decisions.json `checkOnly`): what it says goes to the review alone', () => {
+  const file: CatalogFile = {
+    meta: { format: 'lp-catalog', version: 2, zones: 'half', sources: { compendium: { title: 'old', trust: 'unverified' }, 'bins.example.com': { title: 'bins.example.com', trust: 'nursery' } } },
+    plants: [
+      { id: 'carob', common: 'Carob', src: ['compendium'], audited: '2026-10-25', facts: {
+        height: { v: { min: 10, max: 20, med: 15 }, src: ['bins.example.com'], check: 'reported' },
+        // (Read from its description: taken out as check-only, not as a misreading.)
+        habit: { v: 'Clumping', src: ['bins.example.com'], check: 'reported', from: 'description' },
+      } },
+    ],
+  } as unknown as CatalogFile;
+  const decisions = { checkOnly: { 'bins.example.com': { why: 'bins', decided: '2026-10-29', by: 'test' } } };
+  const { file: out, review } = writeAudit(file, [{ id: 'carob', claims: [], facts: {} }], '2026-10-29', () => [], decisions);
+  it('takes out a value only it gave, from its fields or its description, and says so', () => {
+    expect(out.plants[0].facts.height).toBeUndefined();
+    expect(out.plants[0].facts.habit).toBeUndefined();
+    expect(review).toContainEqual(expect.objectContaining({ id: 'carob', fact: 'height', note: 'check only: {"min":10,"max":20,"med":15}, from bins.example.com' }));
+    expect(review).toContainEqual(expect.objectContaining({ id: 'carob', fact: 'habit', note: 'check only: "Clumping", from bins.example.com' }));
+  });
+  it('drops it from the list of sources once nothing cites it', () => {
+    expect(out.meta.sources['bins.example.com']).toBeUndefined();
   });
 });

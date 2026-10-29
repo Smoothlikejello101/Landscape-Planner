@@ -11,8 +11,9 @@ import { PROSE_HABITS } from './prose.mjs';
 
 /** The checks the app takes (src/catalog.ts): disputed facts aren't written. */
 const SETTLED = new Set(['confirmed', 'single', 'likely', 'reported']);
-const range = (r) => (r && typeof r.min === 'number' && typeof r.max === 'number' && r.min > 0 && r.min <= r.max
-  ? { min: r.min, max: r.max, med: Math.round(((r.min + r.max) / 2) * 100) / 100 } : undefined);
+/** A size range, its `med` the typical size: from the sources that agree on it (claims.mjs typicalOf), else its middle. */
+const range = (r, _enums, f) => (r && typeof r.min === 'number' && typeof r.max === 'number' && r.min > 0 && r.min <= r.max
+  ? { min: r.min, max: r.max, med: typeof f?.typical === 'number' && f.typical >= r.min && f.typical <= r.max ? f.typical : Math.round(((r.min + r.max) / 2) * 100) / 100 } : undefined);
 const ZONE = (z) => (typeof z === 'number' && z >= 1 && z <= 13.5 && Number.isInteger(z * 2) ? z : undefined);
 const SUN = (v) => (['Full', 'Part', 'Shade'].includes(v) ? v : undefined);
 const yes = (v) => (v === true ? true : undefined); // (sources say so only when it's so: no "false" from silence)
@@ -187,7 +188,7 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
         continue;
       }
       if (f.v == null || !SETTLED.has(f.check)) continue;
-      const v = conv(f.v, enums);
+      const v = conv(f.v, enums, f);
       // (The sources can't say Wetland yet: it waits on USDA's wetland list. A plant the catalog calls a wetland
       // plant keeps that until then, rather than becoming merely "High".)
       if (key === 'water' && rated('water') === 'Wetland') continue;
@@ -250,6 +251,9 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
       const f = rec.facts[to];
       if (written.has(to) || listed.has(to) || (to === 'edible' && unmarked) || !(f?.src?.length > 0) || f.src.some((s) => catalog.meta.sources[s]?.trust === 'unverified')) continue;
       if (heldBy.has(to) && f.from === 'description') { if (heldBy.get(to) === 'disagree') { delete facts[to]; retracted = true; } continue; }
+      // (Every source of it check-only (decisions.json `checkOnly`): taken out, not kept. Such a source never decides, from
+      // its fields or its description.)
+      if (f.src.every((s) => decisions.checkOnly?.[s])) { delete facts[to]; retracted = true; review.push({ id: rec.id, fact: to, note: `check only: ${JSON.stringify(f.v)}, from ${f.src.join(', ')}` }); continue; }
       // (Read from a description by rules that no longer read it so: a misread, taken out. "A light winter mulch of
       // evergreen boughs" once made a pincushion flower evergreen.)
       if (f.from === 'description') { delete facts[to]; retracted = true; review.push({ id: rec.id, fact: to, note: `taken out: ${JSON.stringify(f.v)}, read from ${f.src.join(', ')}'s description, which the rules no longer read so` }); continue; }
@@ -264,9 +268,9 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
     return { ...rec, audited: rec.audited && JSON.stringify(facts) === JSON.stringify(rec.facts) ? rec.audited : date, facts };
   });
   const sources = { ...catalog.meta.sources };
-  // (A withdrawn source nothing cites any more leaves the list of sources.)
+  // (A withdrawn or check-only source nothing cites any more leaves the list of sources.)
   const cited = new Set(plants.flatMap((p) => Object.values(p.facts).flatMap((f) => (f && typeof f === 'object' ? [...(f.src ?? []), ...(f.alt?.src ?? [])] : []))));
-  for (const s of Object.keys(decisions.withdrawn ?? {})) if (!cited.has(s)) delete sources[s];
+  for (const s of [...Object.keys(decisions.withdrawn ?? {}), ...Object.keys(decisions.checkOnly ?? {})]) if (!cited.has(s)) delete sources[s];
   for (const s of [...used].sort()) {
     if (sources[s]) continue;
     sources[s] = BUILT_IN[s] ?? { title: s, url: `https://${s}`, trust: kindOf.get(s) === 'authority' ? 'reference' : 'nursery' };

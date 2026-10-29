@@ -212,8 +212,8 @@ type Row = [label: string, value: string, facts: string[], reported?: (r: Record
 function rows(p: Plant): Row[] {
   return [
     ['Form', formsOf(p).join(', '), ['form'], (r) => [r.form].flat().filter(Boolean).join(', ')],
-    ['Height', ft(p.height), ['height'], (r) => ft(r.height as Plant['height'])],
-    ['Spread', ft(p.width), ['width'], (r) => ft(r.width as Plant['width'])],
+    // (Height and spread, one row: Jason, 2026-10-29.)
+    ['Size', sizeText(p.height, p.width), ['height', 'width'], (r) => sizeText((r.height ?? p.height) as Plant['height'], (r.width ?? p.width) as Plant['width'])],
     ['Hardiness', (zoneRange(p) ?? '') + (zoneRange(p) ? zoneNote(p) : ''), ['zone_min', 'zone_max'],
       (r) => zoneRange({ zone_min: (r.zone_min ?? p.zone_min) as number, zone_max: (r.zone_max ?? p.zone_max) as number }) ?? ''],
     ['Sun', sun(p.sun_most, p.sun_least), ['sun_most', 'sun_least'], (r) => sun(r.sun_most ?? p.sun_most, r.sun_least ?? p.sun_least)],
@@ -405,6 +405,84 @@ function sourceLine(prov: Provenance | undefined): string {
 }
 
 /**
+ * The facts list, folded (Jason, 2026-10-29: "the list is getting long"): a few rows always open, then groups, each a
+ * line that opens to its rows. A fact from the earlier list sits in its topic's group, as any other.
+ */
+const GLANCE = ['Form', 'Size', 'Hardiness', 'Sun', 'Water', 'Bloom'];
+export const DETAIL_GROUPS: { id: string; title: string; labels: string[] }[] = [
+  { id: 'looks', title: 'Flowers and leaves', labels: ['Flower color', 'Leaf colors', 'Leafs out', 'Fall color', 'In winter', 'Bark'] },
+  { id: 'wildlife', title: 'Wildlife', labels: ['Native', 'Nectar for pollinators', 'For birds', 'Attracts', 'Caterpillar host', 'Nativar'] },
+  { id: 'safety', title: 'Safety', labels: ['Poisonous to people', 'Toxicity', 'Edible', 'Thorns'] },
+  { id: 'growing', title: 'Growing', labels: ['Deer', 'Tolerates', 'Growth rate', 'Takes clay', 'Takes wet feet', 'Takes dry shade', 'How it spreads', 'Maintenance',
+    'Taproot (hard to move)', 'Humidity', 'Habit', 'Trunk'] },
+];
+/** The groups opened while the picker is open (Jason: they stay open until it closes, then fold again). */
+const openGroups = new Set<string>();
+/** The picker closed: every group folds again. */
+export function foldDetailGroups() { openGroups.clear(); }
+/**
+ * What a folded Safety group still says, so a warning never folds away: poisonous to people (its own rating, or a
+ * hybrid's parents'), a problem for pets (NC State), or the earlier list's dog warning. Empty: nothing to warn of.
+ */
+export function safetyWarnings(p: Plant): string[] {
+  const w: string[] = [];
+  if (p.poison) w.push(`Poisonous to people${p.poison.severity ? ` (${p.poison.severity} severity)` : ''}${p.poison.skin ? '; can irritate skin' : ''}`);
+  else if (parentRated(p)) w.push('A parent is poisonous to people');
+  if (p.problem_for?.length) w.push(`a problem for ${andList(['dogs', 'cats', 'horses'].filter((a) => p.problem_for!.includes(a)))}`);
+  else if (p.tox?.dog === 'toxic') w.push('toxic to dogs');
+  else if (oldDogWarning(p)) w.push(`dogs: ${oldDogWarning(p)!.toLowerCase()} (earlier list)`);
+  return w;
+}
+const lower = (t: string) => (t ? t[0].toLowerCase() + t.slice(1) : '');
+/** A group's line while it's folded: what its rows say, in a few words each (never more than its rows say). */
+export function groupSummary(id: string, p: Plant): string {
+  const parts: string[] = [];
+  if (id === 'looks') {
+    const flowers = flowerText(p.flower_color);
+    if (flowers) parts.push(flowers === 'Not showy' ? 'flowers not showy' : `${lower(flowers)} flowers`);
+    if (p.fall_color === true) parts.push(p.fall_colors?.length ? `${p.fall_colors.join(', ')} in fall` : 'fall color');
+    else if (p.fall_color === false) parts.push('no fall color');
+    const winter = winterText(p).split(/[:;,]/)[0];
+    if (winter) parts.push(lower(winter));
+    const bark = (p.bark ?? []).filter((b) => SHOWY_BARK.includes(b));
+    if (bark.length) parts.push(`${bark.join(', ')} bark`);
+  } else if (id === 'wildlife') {
+    if (p.attracts?.length) parts.push(p.attracts.join(', '));
+    const here = p.host_genus ? hostsHere(p) : null;
+    if (here) parts.push(`its genus hosts ${countWords(here.n)} kinds of caterpillars here`);
+    else if (p.host_genus) parts.push(`its genus hosts ${countWords(p.host_genus.species)} kinds of caterpillars`);
+    else if (p.hosts?.length || p.host) parts.push('a caterpillar host');
+  } else if (id === 'safety') {
+    const warn = safetyWarnings(p);
+    if (warn.length) return cap(warn.join(' · '));
+    if (p.prov?.poison?.unknown || p.poison === null) parts.push('not listed as poisonous to people');
+    const t = toxRow(p);
+    if (t) parts.push(t.value.startsWith('Not listed') ? 'not listed as a problem for pets' : t.value.startsWith('Not rated') ? 'not rated for pets' : t.value.toLowerCase() + (t.line.startsWith('earlier list') ? ' (earlier list)' : ''));
+    if (p.edible === true) parts.push('edible');
+    if (p.thorns) parts.push('thorns');
+  } else if (id === 'growing') {
+    if (p.deer) parts.push(p.deer === 'Resistant' ? 'deer resistant' : lower(deerWords(p.deer).split(':')[0]));
+    const takes = [...(p.tolerates ?? []).filter((x) => x !== 'deer'), p.clay_ok && 'clay', p.wet_feet && 'wet feet', p.dry_shade && 'dry shade'].filter(Boolean) as string[];
+    if (takes.length) parts.push(`takes ${takes.join(', ')}`);
+    if (p.growth_rate) parts.push(`${p.growth_rate} growth`);
+    if (p.maintenance_level) parts.push(`${p.maintenance_level} upkeep`);
+    const seed = seedText(p), roots = rootSpread(p.habit);
+    if (roots === 'aggressive' || roots === 'spreads') parts.push(roots === 'aggressive' ? 'spreads aggressively' : 'spreads by roots or runners');
+    else if (seed) parts.push(lower(seed));
+  }
+  return cap(parts.join(' · '));
+}
+/** Its size in one row (Jason, 2026-10-29): "15–30 ft tall, 15–20 ft wide". */
+const sizeText = (h?: Plant['height'], w?: Plant['width']) => [ft(h) && `${ft(h)} tall`, ft(w) && `${ft(w)} wide`].filter(Boolean).join(', ');
+/** Where its size came from: one line where height and spread share their sources, else each its own. */
+function sizeLine(prov: Record<string, Provenance> | undefined): string {
+  const [h, w] = [prov?.height, prov?.width].map((x) => (x && !x.unknown ? x : undefined));
+  const a = sourceLine(h), b = sourceLine(w);
+  return a && b && a !== b ? `height: ${a}; spread: ${b}` : a || b;
+}
+const CHEVRON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+
+/**
  * The opened row. `flagged`: what this plant matches the filters on only by
  * what other sources say (said first, in words).
  */
@@ -415,26 +493,28 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
       `Shown because of what other sources say for its ${flagged.join(' and ')}; the value shown first says otherwise (below).`));
   }
   if (p.botanical) box.appendChild(el('div', { className: 'details-bot' }, p.botanical));
-  const dl = el('dl', { className: 'details-list' });
+  /** Each row drawn, by its label (placed below: at a glance, or in its group). */
+  const drawn = new Map<string, HTMLElement[]>();
+  const put = (label: string, dd: HTMLElement) => drawn.set(label, [el('dt', {}, label), dd]);
   for (const [label, value, facts, reportedText] of rows(p)) {
-    if (label === 'How it spreads') { const dd = spreadRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
-    if (label === 'Bloom') { const dd = bloomRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
-    if (label === 'Leafs out') { const dd = leafOutRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
-    if (label === 'In winter') { const dd = winterRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
-    if (label === 'Caterpillar host') { const dd = hostRow(p); if (dd) { dl.appendChild(el('dt', {}, label)); dl.appendChild(dd); } continue; }
+    if (label === 'How it spreads') { const dd = spreadRow(p); if (dd) put(label, dd); continue; }
+    if (label === 'Bloom') { const dd = bloomRow(p); if (dd) put(label, dd); continue; }
+    if (label === 'Leafs out') { const dd = leafOutRow(p); if (dd) put(label, dd); continue; }
+    if (label === 'In winter') { const dd = winterRow(p); if (dd) put(label, dd); continue; }
+    if (label === 'Caterpillar host') { const dd = hostRow(p); if (dd) put(label, dd); continue; }
     if (label === 'Toxicity') {
       const t = toxRow(p);
-      if (t) { dl.appendChild(el('dt', {}, label)); dl.appendChild(el('dd', { 'data-testid': 'tox-row' }, t.value, ...(t.line ? [el('span', { className: 'details-src' }, t.line)] : []))); }
+      if (t) put(label, el('dd', { 'data-testid': 'tox-row' }, t.value, ...(t.line ? [el('span', { className: 'details-src' }, t.line)] : [])));
       continue;
     }
     const prov = facts.map((f) => p.prov?.[f]).find(Boolean);
     const reported = p.reported && facts.some((f) => f in p.reported!) && reportedText ? reportedText(p.reported) : '';
     if (!value && !reported) {
       // Looked up, and none of the sources say: shown as such, so it isn't mistaken for "not looked at".
-      if (facts.some((f) => p.prov?.[f]?.unknown)) { dl.appendChild(el('dt', {}, label)); dl.appendChild(el('dd', { className: 'details-unknown' }, 'Not known: none of the sources say')); }
+      if (facts.some((f) => p.prov?.[f]?.unknown)) put(label, el('dd', { className: 'details-unknown' }, 'Not known: none of the sources say'));
       continue;
     }
-    const dd = el('dd', label === 'Flower color' ? { 'data-testid': 'flower-color' } : {}, value || '—');
+    const dd = el('dd', label === 'Flower color' ? { 'data-testid': 'flower-color' } : label === 'Size' ? { 'data-testid': 'size-row' } : {}, value || '—');
     // (What the flowers and leaves look like, under their colors, and its shape under its form: NC State's fields,
     // its source said where it isn't the row's.)
     const look = LOOKS[label];
@@ -443,7 +523,8 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
       const own = look.facts.map((f) => p.prov?.[f]).find(Boolean), other = own && !own.src.every((s) => prov?.src.includes(s));
       dd.appendChild(el('span', { className: 'details-form', 'data-testid': look.testid }, form + (other ? ` (${own.src.map(sourceName).join(', ')})` : '')));
     }
-    const line = ENDS[facts[0]] ? rangeLine(facts, p.prov) : sourceLine(prov); // (a range: hardiness, sun; not toxicity's two facts)
+    // (A range: hardiness, sun; its size: height and spread; not toxicity's two facts.)
+    const line = label === 'Size' ? sizeLine(p.prov) : ENDS[facts[0]] ? rangeLine(facts, p.prov) : sourceLine(prov);
     if (line) dd.appendChild(el('span', { className: 'details-src' }, line));
     // Hardiness shown from nurseries only: say so, since a grower's range can stop where it sells, not where the
     // plant grows. (Said of the value shown: a reference giving another range is beside it, by name.)
@@ -459,12 +540,11 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
       const alt = facts.map((f) => p.prov?.[f]?.alt).find(Boolean);
       dd.appendChild(el('span', { className: 'details-alt' }, alt ? otherValue(alt.src, reported) : `Also reported: ${reported}`));
     }
-    dl.appendChild(el('dt', {}, label));
-    dl.appendChild(dd);
+    put(label, dd);
   }
+  const top = el('dl', { className: 'details-list' });
   // What the law says of it where the garden is (a state's list, the federal one), each with its rule: first,
   // above the catalog's facts, where it can't be missed.
-  const localRows = document.createDocumentFragment();
   const notesShown = new Set<string>();
   for (const rule of regulatedHere(p)) {
     const dd = el('dd', { 'data-testid': 'regulated-here', className: `details-law${rule.tier === 'listed' ? ' listed' : ''}` }, rule.says);
@@ -483,30 +563,52 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
       bg.appendChild(document.createTextNode(')'));
       dd.appendChild(bg);
     }
-    localRows.appendChild(el('dt', {}, 'By law'));
-    localRows.appendChild(dd);
+    top.append(el('dt', {}, 'By law'), dd);
   }
   // Native to the garden's state or not (Kew's checklist): the catalog's "native" is North America-wide. With the
-  // law's lines, above the catalog's facts: whether it belongs here, and whether it's recorded wild here, matter first.
-  const native = nativeHere(p);
-  if (native) {
+  // law's lines, above the catalog's facts: whether it belongs here, and whether it's recorded wild near the garden
+  // (the state's county records), on one line (Jason, 2026-10-29), each with its sources.
+  const native = nativeHere(p), wild = wildHere(p);
+  if (native || wild) {
     // (Not native, and recorded growing wild here all the same: said with the counties, and their sources.)
-    const escape = escapeHere(p);
-    const dd = el('dd', { 'data-testid': 'native-here', ...(native.status === 'I' ? { className: 'details-introduced' } : {}) }, escape ? escapeText(escape) : nativeText(native));
-    dd.appendChild(el('span', { className: 'details-src' }, [native.source, ...(escape?.sources ?? [])].join(' · ')));
-    localRows.appendChild(el('dt', {}, `In ${native.stateName}`));
-    localRows.appendChild(dd);
+    const escape = native ? escapeHere(p) : null;
+    const dd = el('dd', { 'data-testid': 'native-here', ...(native?.status === 'I' ? { className: 'details-introduced' } : {}) });
+    if (native) {
+      dd.appendChild(document.createTextNode(escape ? escapeText(escape) : nativeText(native)));
+      dd.appendChild(el('span', { className: 'details-src' }, [native.source, ...(escape?.sources ?? [])].join(' · ')));
+    }
+    if (wild) dd.appendChild(el('span', { className: 'details-part', 'data-testid': 'wild-here' }, wildText(wild), el('span', { className: 'details-src' }, wild.sources.join('; '))));
+    top.append(el('dt', {}, native ? `In ${native.stateName}` : 'Wild near you'), dd);
   }
-  dl.insertBefore(localRows, dl.firstChild);
-  // Where it grows wild near the garden (the state's county records): shown after the catalog's facts.
-  const wild = wildHere(p);
-  if (wild) {
-    const dd = el('dd', { 'data-testid': 'wild-here' }, wildText(wild));
-    dd.appendChild(el('span', { className: 'details-src' }, wild.sources.join('; ')));
-    dl.appendChild(el('dt', {}, 'Wild near you'));
-    dl.appendChild(dd);
+  for (const label of GLANCE) { const r = drawn.get(label); if (r) top.append(...r); }
+  box.appendChild(top);
+  // The groups, folded unless opened in this picker; a Safety group with a warning first, and open.
+  const warned = safetyWarnings(p).length > 0;
+  const groups = warned ? [...DETAIL_GROUPS.filter((g) => g.id === 'safety'), ...DETAIL_GROUPS.filter((g) => g.id !== 'safety')] : DETAIL_GROUPS;
+  const wrap = el('div', { className: 'details-groups' });
+  for (const g of groups) {
+    const items = g.labels.map((l) => drawn.get(l)).filter((r): r is HTMLElement[] => !!r);
+    if (!items.length) continue;
+    const warn = g.id === 'safety' && warned;
+    // (A match on what other sources say about deer: Growing opens, where that row is.)
+    const open = openGroups.has(g.id) || warn || (g.id === 'growing' && !!flagged?.includes('deer resistance'));
+    const body = el('dl', { className: 'details-list details-group-body' }, ...items.flat());
+    body.hidden = !open;
+    const summary = groupSummary(g.id, p);
+    const head = el('button', { type: 'button', className: 'details-group-head', 'aria-expanded': String(open), 'data-testid': `group-${g.id}` },
+      el('span', { className: 'details-group-chev', html: CHEVRON }),
+      el('span', { className: 'details-group-text' },
+        el('span', { className: 'details-group-title' }, g.title, el('span', { className: 'details-group-count' }, ` · ${items.length} ${items.length === 1 ? 'fact' : 'facts'}`)),
+        ...(summary ? [el('span', { className: 'details-group-sum', 'data-testid': `group-${g.id}-sum` }, summary)] : [])));
+    head.addEventListener('click', () => {
+      const opening = body.hidden;
+      body.hidden = !opening;
+      head.setAttribute('aria-expanded', String(opening));
+      if (opening) { openGroups.add(g.id); clipCitations(body); } else openGroups.delete(g.id);
+    });
+    wrap.appendChild(el('div', { className: `details-group${warn ? ' warn' : ''}` }, head, body));
   }
-  box.appendChild(dl);
+  if (wrap.childElementCount) box.appendChild(wrap);
   if (p.notes) box.appendChild(el('div', { className: 'details-notes' }, p.notes));
   // (A plant of mine switched to this one: its notes come along.)
   else if (ownCopies[p.id]?.notes) box.appendChild(el('div', { className: 'details-notes', 'data-testid': 'own-notes' }, 'Your notes: ' + ownCopies[p.id].notes));

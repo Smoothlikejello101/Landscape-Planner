@@ -5,7 +5,7 @@ import { appendixTaxa, arkatlasStatus, feetRange, mnwildFields, monthRange, ncsu
 // @ts-expect-error (plain JavaScript build script)
 import { mnLight, ncsuSun } from '../scripts/catalog/map.mjs';
 // @ts-expect-error (plain JavaScript build script)
-import { agrees, arkatlasClaims, bloomSeasons, combine, fallColors, flowerColors, flowerless, growthRate, leafColors, lowBranched, ncsuFoliage, ncsuNoPoison, ncsuPoison, halfZoneOfTemp, halfZones, hostNames, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims, waterNeed, zoneSpan } from '../scripts/catalog/claims.mjs';
+import { agrees, arkatlasClaims, asDecided, bloomSeasons, combine, typicalOf, fallColors, flowerColors, flowerless, growthRate, leafColors, lowBranched, ncsuFoliage, ncsuNoPoison, ncsuPoison, halfZoneOfTemp, halfZones, hostNames, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims, waterNeed, zoneSpan } from '../scripts/catalog/claims.mjs';
 
 const fixture = (f: string) => readFileSync(`tests/fixtures/catalog/${f}`, 'utf8');
 
@@ -142,7 +142,7 @@ describe('reading sources', () => {
 
 describe('a size written high to low', () => {
   it('still combines, and ends: each value is on its own side', () => {
-    const r = combine([{ fact: 'height', v: { min: 3, max: 1.5 }, src: 'ncsu', kind: 'authority' }, { fact: 'height', v: { min: 2, max: 4 }, src: 'x.com', kind: 'nursery' }]);
+    const r = combine([{ fact: 'height', v: { min: 3, max: 1.5 }, src: 'ncsu', kind: 'authority' }, { fact: 'height', v: { min: 8, max: 10 }, src: 'x.com', kind: 'nursery' }]);
     expect(r.height).toMatchObject({ v: { min: 3, max: 1.5 }, src: ['ncsu'] });
   });
 });
@@ -634,5 +634,62 @@ describe('claims and how they combine', () => {
     expect(ncsuSun(['Full sun', 'Partial Shade'])).toEqual({ most: 'Full', least: 'Part' });
     expect(ncsuSun(['Deep shade'])).toEqual({ most: 'Shade', least: 'Shade' });
     expect(mnLight('part shade, sun')).toEqual({ most: 'Full', least: 'Part' });
+  });
+});
+
+describe("a person's decisions on how sources weigh (decisions.json `leads`, `checkOnly`)", () => {
+  const claims = [
+    { fact: 'height', v: { min: 60, max: 80 }, src: 'ncsu', kind: 'authority' },
+    { fact: 'height', v: { min: 10, max: 20 }, src: 'bins.com', kind: 'nursery' },
+    { fact: 'zone_min', v: 9, src: 'bins.com', kind: 'nursery' },
+  ];
+  const checkOnly = { 'bins.com': { why: 'bins' } };
+  it('leaves a check-only source out: it neither decides alone nor shows as the alternate', () => {
+    expect(asDecided(claims, {}, checkOnly).map((c: { src: string }) => c.src)).toEqual(['ncsu']);
+    const facts = combine(asDecided(claims, {}, checkOnly));
+    expect(facts.height).toMatchObject({ v: { min: 60, max: 80 }, src: ['ncsu'] });
+    expect(facts.height.alt).toBeUndefined();
+    expect(facts.zone_min).toBeNull();
+    // (Without the decision it's the alternate, and the coldest zone's only source.)
+    expect(combine(claims).height.alt).toMatchObject({ src: ['bins.com'] });
+    expect(combine(claims).zone_min).toMatchObject({ v: 9 });
+  });
+  it('keeps it where a person chose it to lead, as an authority, the others as nurseries', () => {
+    const r = asDecided(claims, { height: { source: 'bins.com' } }, checkOnly);
+    expect(r.map((c: { fact: string; src: string; kind: string }) => [c.fact, c.src, c.kind])).toEqual([['height', 'ncsu', 'nursery'], ['height', 'bins.com', 'authority']]);
+  });
+});
+
+// Sizes (Jason, 2026-10-29): agreeing means the narrower range's middle is inside the wider one (a quarter's give);
+// the typical size is the median of the agreeing sources' middles, an authority's counted twice, within the range.
+describe('size agreement and the typical size', () => {
+  const c = (src: string, min: number, max: number, kind = 'nursery') => ({ fact: 'height', v: { min, max }, src, kind });
+  it("agrees when the narrower range's middle is inside the wider, not when they only touch", () => {
+    expect(agrees('height', { min: 1, max: 3 }, { min: 3, max: 5 })).toBe(false); // (meadow blazing star: they touch)
+    expect(agrees('height', { min: 1, max: 3 }, { min: 1, max: 1 })).toBe(true); // (a nursery's one figure, inside)
+    expect(agrees('height', { min: 10, max: 20 }, { min: 60, max: 80 })).toBe(false);
+    expect(agrees('height', { min: 3, max: 15 }, { min: 3, max: 5 })).toBe(true); // (4, inside 3–15)
+    expect(agrees('height', { min: 3, max: 4 }, { min: 4, max: 6 })).toBe(true); // (3.5, within a quarter of 4)
+    expect(agrees('height', { min: 2, max: 2 }, { min: 2.4, max: 2.4 })).toBe(true); // (two figures, a fifth apart)
+    expect(agrees('height', { min: 2, max: 2 }, { min: 3, max: 3 })).toBe(false);
+    // (The same from either side.)
+    for (const [a, b] of [[{ min: 1, max: 3 }, { min: 3, max: 5 }], [{ min: 3, max: 15 }, { min: 3, max: 5 }], [{ min: 2, max: 4 }, { min: 3, max: 5 }]]) expect(agrees('height', a, b)).toBe(agrees('height', b, a));
+  });
+  it('takes the median of the middles, an authority counted twice, kept within the range shown', () => {
+    // Prairie rose: NC State 3–15, Prairie Nursery 4–15, Missouri Wildflowers 3–5: 9 (their overlap's middle would be 4.5).
+    expect(typicalOf({ min: 3, max: 15 }, [c('ncsu', 3, 15, 'authority'), c('prairie', 4, 15), c('mowild', 3, 5)])).toBe(9);
+    // One authority and one nursery: the authority's middle.
+    expect(typicalOf({ min: 3, max: 15 }, [c('ncsu', 3, 15, 'authority'), c('prairie', 10, 12)])).toBe(9);
+    // Two nurseries with it: halfway.
+    expect(typicalOf({ min: 6, max: 12 }, [c('ncsu', 6, 12, 'authority'), c('a', 10, 14), c('b', 11, 13)])).toBe(10.5);
+    // Never outside the range shown.
+    expect(typicalOf({ min: 6, max: 10 }, [c('a', 6, 10), c('b', 12, 14), c('c', 11, 13)])).toBe(10);
+  });
+  it('gives a size its typical value where several sources agree, and none of its own for one', () => {
+    const f = combine([c('ncsu', 6, 12, 'authority'), c('a', 10, 14), c('b', 11, 13)]);
+    expect(f.height).toMatchObject({ v: { min: 6, max: 12 }, src: ['ncsu', 'a', 'b'], typical: 10.5 });
+    expect(combine([c('ncsu', 6, 12, 'authority')]).height.typical).toBeUndefined();
+    // (Touching only, a nursery is the other side, not a backer: NC State's on an even split.)
+    expect(combine([c('ncsu', 1, 3, 'authority'), c('prairie', 3, 5)]).height).toMatchObject({ v: { min: 1, max: 3 }, src: ['ncsu'], alt: { v: { min: 3, max: 5 } } });
   });
 });

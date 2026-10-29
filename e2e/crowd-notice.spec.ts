@@ -17,16 +17,16 @@ async function startPlacing(page: Page, name: string) {
 
 test('placing too close: a notice says which plant and why; Move it takes it back; close warns once, crowded every time', async ({ page }) => {
   await openFresh(page);
-  await startPlacing(page, 'Buttonbush'); // 4½ ft typical spread: usual spacing 4½ ft, crowded under 3⅜
+  await startPlacing(page, 'Snowberry'); // 4½ ft typical spread: usual spacing 4½ ft, crowded under 3⅜ (buttonbush's spread is 6–10 ft since Oct 29)
   await tapFromCenter(page, -6, 0);
   await expect(notice(page)).toHaveCount(0);
   await tapFromCenter(page, -4, 0); // 2 ft away: crowded
   // One red line; tapped, it says how far apart and why.
-  await expect(notice(page).getByTestId('notice-line')).toHaveText('Crowding Buttonbush');
+  await expect(notice(page).getByTestId('notice-line')).toHaveText('Crowding Snowberry');
   await expect(notice(page)).toHaveClass(/tone-red/);
   await expect(notice(page).getByTestId('notice-detail')).toBeHidden();
   await notice(page).getByTestId('notice-line').click();
-  await expect(notice(page).getByTestId('notice-detail')).toHaveText('Buttonbush and Buttonbush will grow into each other: 2 ft apart, where about 4.5 ft is usual for these two.');
+  await expect(notice(page).getByTestId('notice-detail')).toHaveText('Snowberry and Snowberry will grow into each other: 2 ft apart, where about 4.5 ft is usual for these two.');
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);
   // Move it: that one goes, to be tapped again.
   await notice(page).getByRole('button', { name: 'Move it' }).click();
@@ -35,15 +35,15 @@ test('placing too close: a notice says which plant and why; Move it takes it bac
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(0);
   // 4 ft away: close (their typical spreads touch). Amber, and the words Jason asked for.
   await tapFromCenter(page, -2, 0);
-  await expect(notice(page).getByTestId('notice-line')).toHaveText('Close to Buttonbush');
+  await expect(notice(page).getByTestId('notice-line')).toHaveText('Close to Snowberry');
   await expect(notice(page)).toHaveClass(/tone-amber/);
-  await expect(notice(page).getByTestId('notice-detail')).toHaveText('Buttonbush and Buttonbush may quickly grow into one another: 4 ft apart, where about 4.5 ft is usual for these two. A little of this can be fine, if you\'re after a quick, full look.');
+  await expect(notice(page).getByTestId('notice-detail')).toHaveText('Snowberry and Snowberry may quickly grow into one another: 4 ft apart, where about 4.5 ft is usual for these two. A little of this can be fine, if you\'re after a quick, full look.');
   await expect(page.locator('#canvas-svg [data-role=close]')).toHaveCount(2);
   // Another close one: no notice this time (once a placing session); a crowded one: again.
   await tapFromCenter(page, 2, 0);
   await expect(notice(page)).toHaveCount(0);
   await tapFromCenter(page, 3, 0);
-  await expect(notice(page).getByTestId('notice-line')).toContainText('Crowding Buttonbush');
+  await expect(notice(page).getByTestId('notice-line')).toContainText('Crowding Snowberry');
   // Done closes it; the rings stay (on by default).
   await bar(page).getByRole('button', { name: 'Done' }).click();
   await expect(notice(page)).toHaveCount(0);
@@ -52,7 +52,7 @@ test('placing too close: a notice says which plant and why; Move it takes it bac
 
 test('Leave it: that pair is left close, said so in its sheet, and can be flagged again', async ({ page }) => {
   await openFresh(page);
-  await startPlacing(page, 'Buttonbush');
+  await startPlacing(page, 'Snowberry');
   await tapFromCenter(page, 0, 0);
   await tapFromCenter(page, 2, 0);
   await notice(page).getByRole('button', { name: 'Leave it' }).click();
@@ -67,7 +67,7 @@ test('Leave it: that pair is left close, said so in its sheet, and can be flagge
   await expect(page.getByTestId('left-close-line')).toHaveText('Left close to one neighbor on purpose');
   await expect(page.getByTestId('flag-again')).toBeHidden();
   await page.getByTestId('left-close-line').click();
-  await expect(page.getByTestId('crowding')).toContainText('Left close on purpose: Buttonbush');
+  await expect(page.getByTestId('crowding')).toContainText('Left close on purpose: Snowberry');
   await page.getByTestId('flag-again').click();
   await expect(page.getByTestId('crowding')).toContainText('Planted closer than usual to one neighbor');
   await closeSheet(page);
@@ -105,7 +105,7 @@ test('a small plant crowded by a bigger one is too far under it: try out toward 
 
 test('flagged pairs can be left close after the fact: one plant from its properties, or all at once from Layers', async ({ page }) => {
   await openFresh(page);
-  await startPlacing(page, 'Buttonbush');
+  await startPlacing(page, 'Snowberry');
   for (const x of [-6, -4, 2, 4]) await tapFromCenter(page, x, 0); // (two crowded pairs)
   await bar(page).getByRole('button', { name: 'Done' }).click();
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(4);
@@ -115,7 +115,7 @@ test('flagged pairs can be left close after the fact: one plant from its propert
   await page.locator('.sel-pill button.edit').click();
   await page.getByTestId('crowding-line').click();
   await page.getByTestId('leave-close').click();
-  await expect(page.getByTestId('crowding')).toContainText('Left close on purpose: Buttonbush');
+  await expect(page.getByTestId('crowding')).toContainText('Left close on purpose: Snowberry');
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);
   // The rest at once, from Layers; warnings stay on; Undo brings them back.
@@ -131,7 +131,7 @@ test('flagged pairs can be left close after the fact: one plant from its propert
 
 test('Crowding settings… opens Layers at its crowding switches; with warnings off, no notice', async ({ page }) => {
   await openFresh(page);
-  await startPlacing(page, 'Buttonbush');
+  await startPlacing(page, 'Snowberry');
   await tapFromCenter(page, 0, 0);
   await tapFromCenter(page, 2, 0);
   await notice(page).getByRole('button', { name: 'Settings' }).click();
@@ -167,7 +167,7 @@ test('a spring bulb under a deciduous plant 3 ft or taller is not crowding it, e
 
 test('a notice can be put away without its buttons: ✕, or a swipe sideways; a short swipe slides it back', async ({ page }) => {
   await openFresh(page);
-  await startPlacing(page, 'Buttonbush');
+  await startPlacing(page, 'Snowberry');
   await tapFromCenter(page, 0, 0);
   await tapFromCenter(page, 2, 0);
   await expect(notice(page)).toBeVisible();

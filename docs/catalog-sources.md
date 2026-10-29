@@ -633,6 +633,32 @@ over a source that gives the fact itself.
   "partial sun", its text "they will grow in full sun"). Reading the range from
   its text instead is on the Backlog.
 
+### A source that's often far off
+
+Decided with Jason, 2026-10-29. A source is judged by its record, not by one
+value: a sound source's rare big disagreement with an authority is often
+where the authority is wrong (Great Plains Nursery's one size in 38 far from
+NC State's is catalpa's spread, where NC State's is the odd one out). So no
+value is set aside for being far off. A source whose sizes are far off
+much more often than everyone's can be made **check-only**
+(`scripts/catalog/decisions.json`, `checkOnly`): it never decides a value,
+backs one or shows as its alternate, and a value only it gave is taken out.
+What it says stays in the audit, and where a size of its is 3 times or more
+from the value shown, the plant is listed in the review's "Sizes whose
+sources are far apart", so it can still catch an authority's mistake. A
+person can choose it to lead that size there (`leads`).
+
+The review lists the candidates ("Sources often far from the authorities"):
+sources with 20 plants or more to judge by whose height or spread is 3 times
+or more from every authority's on at least 2.5 times the share of all sources
+together. The build never makes a source check-only itself.
+
+- **Toptropicals** (toptropicals.com): its heights are one of four bins
+  (2–5, 5–10, 10–20 or 20 ft), so a southern magnolia is "10–20 ft" and an
+  ageratum "2–5 ft". 17 of the 90 plants it shares with an authority are 3
+  times or more off, against 6% for all sources together. Check-only for everything it
+  says (Jason: "Certainly don't let them lead").
+
 ### Where sources disagree
 
 Agreed 2026-10-22, for the facts a plant is filtered by: the zones, sun,
@@ -715,9 +741,22 @@ a cultivar (`CultivarName`, a named release such as 'Alma' blue grama) is
 that release's, and is left out. A cultivar's leaf color, flower color and growth rate
 never come from USDA.
 
-**Agreement.** Zones agree within one whole zone (10 °F); sizes when the
-ranges overlap, with a quarter's give; lists (colors, seasons, hosts) when
-they share a word.
+**Agreement.** Zones agree within one whole zone (10 °F); lists (colors,
+seasons, hosts) when they share a word. Sizes agree when the narrower range's
+middle falls inside the wider one, with a quarter's give either way (two as
+wide: each middle inside the other). Until 2026-10-29 it was enough for the
+ranges to overlap, so ranges touching at an end agreed (meadow blazing star's
+1–3 ft and 3–5 ft), and a wide bin agreed with nearly anything (Jason: the
+tighter rule).
+
+**Typical size.** A size's `med`, which the app draws a plant at, is the
+median of the middles of every source on its side (above), an authority's
+counted twice, kept within the range shown; with one source, its range's
+middle. Not where the ranges overlap: two that agree often only touch, and the
+overlap is then their edge, set by whichever is narrowest (prairie rose: NC
+State's 3–15 ft, Prairie Nursery's 4–15 and Missouri Wildflowers' 3–5 overlap
+at 4–5; the median of their middles keeps it 9 ft). Decided with Jason,
+2026-10-29.
 
 **Water** is what a plant needs once established. NC State has no water
 field, so it comes from NC State's tags: **High** where it grows wet
@@ -853,6 +892,10 @@ listed). The kinds the build applies:
   record's facts (docs/catalog-format.md).
 - **`group`**: a record kept for a group of cultivars ("Asparagus officinalis ('Jersey' / 'Millennium')"), read from
   its species' NC State page as its own, its size included, where a cultivar's would be its own page's alone.
+- **`checkOnly`**: a source often far off the authorities ("A source that's often far off", above): it never
+  decides, backs or shows as an alternate; a value only it gave is taken out (the report lists it under "Taken out:
+  its source check-only"), and it leaves the catalog's list once nothing cites it. Where its size is far from the
+  value shown, the plant stays in "Sizes whose sources are far apart". (2026-10-29: Toptropicals.)
 - **`withdrawn`**: a source we may no longer read: its terms taken back for a fresh reading, or found to bar us
   (`why`). Every value whose only sources are withdrawn is taken out, not kept as "a value its source no longer
   gives" (the report lists it under "Taken out: its source withdrawn"), and the source leaves the catalog's list
