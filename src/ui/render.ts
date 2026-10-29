@@ -26,6 +26,7 @@ import { renderLayersPanel } from './layers-panel';
 import { snapOn } from '../tidy';
 import { dismissToastAction, placeNotice } from './toast';
 import { renderMoreMenu, toggleSelectMode } from './menu';
+import { foldDetailGroups } from './plant-details';
 import { renderExportModal, renderPreviewModal, renderResetModal } from './modals';
 import { renderPlantsPanel } from './plants-panel';
 import { renderPrintPanel } from './print-panel';
@@ -433,6 +434,8 @@ export function render() {
     const search = root.querySelector<HTMLInputElement>('[data-testid=plant-search]');
     if (search) { search.focus(); if (typing != null) search.setSelectionRange(typing, typing); }
   }
+  // (The picker closed: its plants' detail groups fold again, Jason, 2026-10-29.)
+  if (shownPanel === 'plants' && state.panel !== 'plants') foldDetailGroups();
   shownPanel = state.panel;
   shownSelection = state.selectedIds.join();
   if (state.menu === 'more') root.appendChild(renderMoreMenu());

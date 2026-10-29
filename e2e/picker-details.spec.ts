@@ -503,11 +503,11 @@ test('a cultivar once grouped with another has a record of its own; one no sourc
     return (label: string) => details.locator('dt', { hasText: new RegExp(`^${label}$`) }).locator('xpath=following-sibling::dd[1]');
   };
   const kanza = await open('Kanza', "Pecan 'Kanza'");
-  await expect(kanza('Height')).toContainText('from its species');
-  await expect(kanza('Spread')).toContainText('from its species');
+  // (Height and spread in one row, Size: Jason, 2026-10-29.)
+  await expect(kanza('Size')).toContainText('from its species');
   // The record it was grouped in, now the one cultivar whose size it showed.
   const lakota = await open('Lakota', "Pecan 'Lakota'");
-  await expect(lakota('Height')).not.toContainText('from its species');
+  await expect(lakota('Size')).not.toContainText('from its species');
 });
 
 test('how much deer eat it, in plain words', async ({ page }) => {
@@ -519,4 +519,36 @@ test('how much deer eat it, in plain words', async ({ page }) => {
   const deer = item.getByTestId('plant-details').locator('dt', { hasText: /^Deer$/ }).locator('xpath=following-sibling::dd[1]');
   await expect(deer).toContainText('Sometimes browsed');
   await expect(deer).not.toContainText('Occasional');
+});
+
+test('a plant\'s facts fold into groups that open with a tap, stay open until the picker closes, and never fold a warning away', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  const open = async (name: string) => {
+    await page.getByTestId('plant-search').fill(name);
+    const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: new RegExp(`^${name}$`) }) }).first();
+    await item.getByTestId('plant-row').click();
+    return item.getByTestId('plant-details');
+  };
+  const hazel = await open('Common witch hazel');
+  await expect(hazel.locator('dt', { hasText: /^Size$/ })).toBeVisible();
+  await expect(hazel.locator('dt', { hasText: /^Deer$/ })).toBeHidden();
+  await expect(hazel.getByTestId('group-growing')).toHaveAttribute('aria-expanded', 'false');
+  await expect(hazel.getByTestId('group-growing-sum')).toContainText('Deer resistant');
+  await hazel.getByTestId('group-growing').click();
+  await expect(hazel.locator('dt', { hasText: /^Deer$/ })).toBeVisible();
+  // (Open for the next plant too, while the picker stays open.)
+  const buttonbush = await open('Buttonbush');
+  await expect(buttonbush.getByTestId('group-growing')).toHaveAttribute('aria-expanded', 'true');
+  // A warning: Safety first, open, and its line says it.
+  const jessamine = await open('Carolina jessamine');
+  await expect(jessamine.locator('.details-group-head').first()).toHaveAttribute('data-testid', 'group-safety');
+  await expect(jessamine.getByTestId('group-safety')).toHaveAttribute('aria-expanded', 'true');
+  await expect(jessamine.getByTestId('group-safety-sum')).toContainText('Poisonous to people (high severity)');
+  // The picker closed and opened again: folded again.
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('plant-search')).toHaveCount(0);
+  await page.locator('.tool-btn.plants').click();
+  const again = await open('Common witch hazel');
+  await expect(again.getByTestId('group-growing')).toHaveAttribute('aria-expanded', 'false');
 });
