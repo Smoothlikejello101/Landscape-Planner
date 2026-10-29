@@ -13,12 +13,13 @@ import { toastAction } from './toast';
 /** Pairs already offered (vine id, support id), this session: each offered once. */
 const offered = new Set<string>();
 const nameOf = (s: Shape) => (s.type === 'circle' && s.plantId ? plantsById[s.plantId]?.common ?? s.label : s.label) || '';
-/** What a support is called in a notice: "the red maple", "the fence", "the house". */
+/** What a support is called in a notice: "the red maple", "the fence", "the house", "the arbor". */
 export function supportName(sup: Pick<Support, 'shape' | 'kind'>): string {
   const name = nameOf(sup.shape);
   // (Its first letter only: "the red maple 'October Glory'".)
   if (name) return `the ${name.charAt(0).toLowerCase()}${name.slice(1)}`;
-  return sup.kind === 'tree' ? 'the tree' : sup.kind === 'shrub' ? 'the shrub' : sup.shape.role === 'building' ? 'the building' : 'the line';
+  return sup.kind === 'tree' ? 'the tree' : sup.kind === 'shrub' ? 'the shrub' : sup.kind === 'arbor' ? 'the arbor'
+    : sup.shape.role === 'building' ? 'the building' : sup.shape.role === 'structure' ? 'the trellis' : 'the line';
 }
 function offer(vines: CircleShape[], sup: Support) {
   const fresh = vines.filter((v) => !offered.has(`${v.id}:${sup.shape.id}`));

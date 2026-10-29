@@ -3,7 +3,9 @@ import type { Plant } from '../src/plants';
 import type { CircleShape, Shape } from '../src/types';
 import { crowdingOf } from '../src/crowding';
 import { withLocalParts } from '../src/sync/engine';
-import { isVine, offerFor, strandedVines, supportFrom, supportOf, supportsNear, vineBand, vinesFor, VINE_BASE_RADIUS } from '../src/vines';
+import { arborCover, isVine, offerFor, strandedVines, supportFrom, supportOf, supportsNear, vineBand, vinesFor, VINE_BASE_RADIUS } from '../src/vines';
+import { latticePath, slatsPath } from '../src/structures';
+import { kindOfShape } from '../src/kinds';
 
 // Vines on what they climb (Jason, Oct 28–29): a band along a fence, a wall or a tree's crown, offered when the
 // vine's base is close (3 ft from a trunk's edge, 2 ft from a line), never a shrub; a groundcover otherwise.
@@ -111,3 +113,57 @@ describe('what a vine climbs', () => {
     expect(withLocalParts({ shapes: [v('m')] }, { shapes: [v('')] }).shapes).toEqual([v('m')]);
   });
 });
+
+// A trellis and an arbor (the vine plan's last part, Oct 29): garden structures. A trellis is climbed as a fence is;
+// an arbor or pergola is covered from its nearer end, as far as the vine's spread reaches.
+describe('a trellis and an arbor', () => {
+  const trellis = { id: 't', type: 'line', role: 'structure', x: 0, y: 0, points: [[0, 0], [6, 0]], color: '#8b5a2b', label: 'Trellis', opacity: 0.25, locked: false } as unknown as Shape;
+  // (An arbor 8 ft long and 4 deep, its corners (0, 10), (8, 10), (8, 14), (0, 14).)
+  const arbor = { id: 'a', type: 'rect', role: 'structure', x: 0, y: 10, width: 8, height: 4, rotation: 0, color: '#8b5a2b', label: 'Arbor', opacity: 0.25, locked: false } as unknown as Shape;
+  it('are what they were added as', () => {
+    expect(kindOfShape(trellis)).toBe('trellis');
+    expect(kindOfShape(arbor)).toBe('arbor');
+  });
+  it('a vine by a trellis is offered it, and drawn along it, as by a fence', () => {
+    const v = circle('v', 'jessamine', 3, 1, 12.5);
+    expect(offerFor(v, [trellis, v], byId)?.shape.id).toBe('t');
+    const band = vineBand({ ...v, climbsOn: 't' }, supportOf({ ...v, climbsOn: 't' }, [trellis, v], byId)!).band;
+    expect(band[0]).toEqual({ x: 0, y: 0 });
+    expect(band.at(-1)).toEqual({ x: 6, y: 0 }); // (cut at its ends: 6 ft, though the vine spreads 25)
+  });
+  it('a vine within 2 ft of an arbor, or under it, is offered it; farther, not', () => {
+    const near = circle('v', 'jessamine', 4, 15.5, 12.5); // (1.5 ft from its edge)
+    expect(supportFrom(arbor, near, byId)).toMatchObject({ kind: 'arbor', dist: 1.5, at: { x: 4, y: 14 } });
+    expect(offerFor(near, [arbor, near], byId)?.shape.id).toBe('a');
+    const under = circle('v', 'jessamine', 1, 12, 12.5);
+    expect(supportFrom(arbor, under, byId)!.dist).toBe(0);
+    const far = circle('v', 'jessamine', 4, 17, 12.5);
+    expect(offerFor(far, [arbor, far], byId)).toBeNull();
+    expect(supportsNear(far, [arbor, far], byId).map((s) => s.shape.id)).toEqual(['a']); // (pickable by hand)
+  });
+  it("a vine on an arbor covers its top as far as its spread reaches, from the nearer end", () => {
+    const v = circle('v', 'jessamine', 4, 15.5, 12.5, { climbsOn: 'a' });
+    const { band, cover } = vineBand(v, supportOf(v, [arbor, v], byId)!);
+    expect(band).toEqual([]);
+    expect(cover).toEqual([{ x: 0, y: 10 }, { x: 8, y: 10 }, { x: 8, y: 14 }, { x: 0, y: 14 }]); // (25 ft: all of it)
+    // A small vine at the right end: 3 ft of it, from that end.
+    const part = arborCover([{ x: 0, y: 10 }, { x: 8, y: 10 }, { x: 8, y: 14 }, { x: 0, y: 14 }], { x: 9, y: 12 }, 3);
+    expect(part.map((p) => [Math.round(p.x * 100) / 100, p.y])).toEqual([[8, 10], [5, 10], [5, 14], [8, 14]]);
+    // Moved away past its spread: a groundcover again.
+    expect(strandedVines([{ ...arbor, y: 40 } as Shape, v], byId).map((x) => x.id)).toEqual(['v']);
+  });
+  it("keeps a structure's role through an older version's sync, which drops it; one given another role keeps that", () => {
+    const { role: _, ...dropped } = arbor as unknown as Record<string, unknown>;
+    expect(withLocalParts({ shapes: [dropped] }, { shapes: [arbor] }).shapes).toEqual([arbor]);
+    expect(withLocalParts({ shapes: [{ ...dropped, role: 'bed' }] }, { shapes: [arbor] }).shapes).toEqual([{ ...dropped, role: 'bed' }]);
+    expect(withLocalParts({ shapes: [{ ...dropped, type: 'poly' }] }, { shapes: [arbor] }).shapes).toEqual([{ ...dropped, type: 'poly' }]);
+  });
+  it('draws a lattice along a trellis and slats across an arbor, spaced wider zoomed out', () => {
+    const marks = (d: string) => (d.match(/M/g) ?? []).length;
+    expect(marks(latticePath([{ x: 0, y: 0 }, { x: 60, y: 0 }], 10))).toBe(12); // (6 crosses, two strokes each)
+    expect(marks(latticePath([{ x: 0, y: 0 }, { x: 60, y: 0 }], 2))).toBe(16); // (8 px apart at the least: 8 crosses)
+    expect(marks(slatsPath(0, 0, 80, 40, 15))).toBe(5); // (across the depth, along its 80 px)
+    expect(slatsPath(0, 0, 40, 80, 15)).toMatch(/^M0,\d/); // (turned: across its width)
+  });
+});
+

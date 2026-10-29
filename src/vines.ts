@@ -1,4 +1,4 @@
-import { drawnOutline } from './geometry';
+import { drawnOutline, pointInPolygon } from './geometry';
 import { formsOf, plantsById, type Plant } from './plants';
 import { isTree, trunkDiameter } from './trees';
 import type { CircleShape, Point, Shape } from './types';
@@ -7,7 +7,8 @@ import type { CircleShape, Point, Shape } from './types';
 // catalog width is how far it spreads along what it climbs, not a disc on the ground. Its "Climbing on" (the
 // shape's `climbsOn`) is a fence or wall line, a building's wall, or a tree; with none, it's a groundcover patch,
 // drawn as any plant. On a support it's drawn as its planting spot and a band along the support, as long as its
-// spread; on a tree, a band up to the trunk and along part of the crown. Its ground crowds only around its base.
+// spread; on a tree, a band up to the trunk and along part of the crown; on an arbor or pergola, over its top. Its
+// ground crowds only around its base. A trellis (a garden structure drawn as a line) is climbed as a fence is.
 //
 // The app offers a support when one is close: a vine's base within VINE_REACH_TRUNK of a trunk's edge, or
 // VINE_REACH_LINE of a line, whichever is placed second. No source gives how far a vine reaches for support:
@@ -31,7 +32,7 @@ export function isVine(s: Shape, byId: Record<string, Plant | undefined> = plant
   return !!p && formsOf(p).includes('Vine');
 }
 /** What a vine can climb, found near it: the shape, how far its base is from it, and the nearest point of it. */
-export interface Support { shape: Shape; kind: 'tree' | 'line' | 'shrub'; dist: number; at: Point }
+export interface Support { shape: Shape; kind: 'tree' | 'line' | 'shrub' | 'arbor'; dist: number; at: Point }
 /** Lines a vine climbs: a fence or wall drawn as a line (not a path, a dimension or a utility), or a building's walls. */
 function climbableEdges(s: Shape): { pts: Point[]; closed: boolean } | null {
   if (s.status === 'gone') return null;
@@ -44,6 +45,12 @@ function climbableEdges(s: Shape): { pts: Point[]; closed: boolean } | null {
   }
   if (s.role === 'building' && s.type !== 'circle' && s.type !== 'text') return drawnOutline(s);
   return null;
+}
+/** An arbor or pergola (a garden structure drawn as an area): its outline, which a vine on it covers. */
+function arborOutline(s: Shape): Point[] | null {
+  if (s.status === 'gone' || s.role !== 'structure' || s.type === 'line' || s.type === 'circle' || s.type === 'text') return null;
+  const o = drawnOutline(s);
+  return o && o.pts.length >= 3 ? o.pts : null;
 }
 /** The nearest point of a polyline to `p`, and how far. */
 export function nearestOnLine(pts: Point[], p: Point, closed = false): { at: Point; dist: number; seg: number } {
@@ -72,6 +79,12 @@ export function supportFrom(t: Shape, base: Point, byId: Record<string, Plant | 
     const k = d > 0 ? edge / d : 0;
     return { shape: t, kind: tree ? 'tree' : 'shrub', dist: Math.max(0, d - edge), at: { x: t.x + (base.x - t.x) * k, y: t.y + (base.y - t.y) * k } };
   }
+  // (An arbor: from its nearest edge, a post or a beam; planted under it, no distance at all.)
+  const arbor = arborOutline(t);
+  if (arbor) {
+    const near = nearestOnLine(arbor, base, true);
+    return { shape: t, kind: 'arbor', dist: pointInPolygon(arbor, base) ? 0 : near.dist, at: near.at };
+  }
   const edges = climbableEdges(t);
   if (!edges || edges.pts.length < 2) return null;
   const near = nearestOnLine(edges.pts, base, edges.closed);
@@ -94,7 +107,7 @@ export function supportsNear(v: CircleShape, shapes: Shape[], byId: Record<strin
 export function offerFor(v: CircleShape, shapes: Shape[], byId: Record<string, Plant | undefined> = plantsById): Support | null {
   // (Climbing already, or set to none by hand: '').
   if (!isVine(v, byId) || v.climbsOn !== undefined) return null;
-  return supportsNear(v, shapes, byId).find((x) => (x.kind === 'tree' && x.dist <= VINE_REACH_TRUNK) || (x.kind === 'line' && x.dist <= VINE_REACH_LINE)) ?? null;
+  return supportsNear(v, shapes, byId).find((x) => (x.kind === 'tree' && x.dist <= VINE_REACH_TRUNK) || ((x.kind === 'line' || x.kind === 'arbor') && x.dist <= VINE_REACH_LINE)) ?? null;
 }
 /** Vines (not climbing, not decided by hand) a support just placed or moved is close enough to offer itself to. */
 export function vinesFor(t: Shape, shapes: Shape[], byId: Record<string, Plant | undefined> = plantsById): CircleShape[] {
@@ -110,13 +123,33 @@ export function strandedVines(shapes: Shape[], byId: Record<string, Plant | unde
   });
 }
 /**
+ * What a vine on an arbor covers, in feet: from the end nearest the vine, across the whole width and along the
+ * length its spread reaches (all of it, as far as its spread goes). An arbor drawn as an outline, not a box: all of it.
+ */
+export function arborCover(outline: Point[], v: Point, spread: number): Point[] {
+  if (outline.length !== 4) return outline;
+  const [a, b, c, d] = outline, len = (p: Point, q: Point) => Math.hypot(q.x - p.x, q.y - p.y);
+  // (Its length along the longer sides: a–b and d–c, or b–c and a–d.)
+  const [e0, e1, f0, f1] = len(a, b) >= len(b, c) ? [a, b, d, c] : [b, c, a, d];
+  const long = len(e0, e1);
+  if (spread >= long) return outline;
+  // (From whichever end the vine is nearer.)
+  const mid = (p: Point, q: Point) => ({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 });
+  const fromStart = len(mid(e0, f0), v) <= len(mid(e1, f1), v);
+  const [s0, s1, t0, t1] = fromStart ? [e0, f0, e1, f1] : [e1, f1, e0, f0];
+  const k = spread / long, at = (p: Point, q: Point) => ({ x: p.x + (q.x - p.x) * k, y: p.y + (q.y - p.y) * k });
+  return [s0, at(s0, t0), at(s1, t1), s1];
+}
+/**
  * A climbing vine's band, in feet: along a line, centered on its nearest point and as long as the vine's spread
  * (cut at the line's ends, and following its corners); on a tree, an arc along the crown's edge as long as its
- * spread (at most half the crown), centered toward the vine. `connector`: from its base to the support.
+ * spread (at most half the crown), centered toward the vine. On an arbor, `cover` instead: the part of its top the
+ * vine covers (arborCover), and no band. `connector`: from its base to the support.
  */
-export function vineBand(v: CircleShape, sup: Support): { band: Point[]; connector: Point[] } {
+export function vineBand(v: CircleShape, sup: Support): { band: Point[]; connector: Point[]; cover?: Point[] } {
   const length = v.radius * 2;
   const connector: Point[] = [{ x: v.x, y: v.y }, sup.at];
+  if (sup.kind === 'arbor') return { band: [], connector, cover: arborCover(arborOutline(sup.shape) ?? [], v, length) };
   if (sup.kind !== 'line') {
     const t = sup.shape as CircleShape;
     const R = t.radius;

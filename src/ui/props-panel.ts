@@ -119,9 +119,9 @@ function climbingField(s: CircleShape): HTMLElement {
   }
   select.value = now ? now.shape.id : '';
   select.addEventListener('change', () => updateSelected({ climbsOn: select.value }));
-  const hint = now ? 'Drawn along what it climbs, as long as its spread.'
+  const hint = now ? (now.kind === 'arbor' ? 'Drawn over the arbor, as far as its spread reaches.' : 'Drawn along what it climbs, as long as its spread.')
     : list.length ? 'Drawn as a patch on the ground. Pick what it climbs to draw it along that instead.'
-      : 'Nothing to climb within its spread: a fence, a wall or a tree near it can be picked here.';
+      : 'Nothing to climb within its spread: a fence, a wall, a trellis, an arbor or a tree near it can be picked here.';
   return el('div', { className: 'field' }, el('label', {}, 'Climbing on'), select, el('div', { className: 'hint' }, hint));
 }
 const cap1 = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);

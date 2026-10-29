@@ -20,6 +20,7 @@ import { checkPlantSun, formatHours, shadeOpacity, sunHours, sunWarningShown } f
 import { prepareUtilities, utilityIssues, utilityWarningShown, type PreparedUtility } from './utilities';
 import { isSelected } from './selection';
 import { state } from './state';
+import { isArbor, isTrellis, LATTICE_STEP, latticePath, SLAT_STEP, slatsPath } from './structures';
 import type { CircleShape, Point, Shape, ShapeFilter, TextShape } from './types';
 import { supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
 
@@ -147,6 +148,8 @@ export function shapeGroup(s: Shape): SVGGElement {
     common.opacity = 0.35;
     common['stroke-dasharray'] = '2 3';
   }
+  // An arbor or pergola: edged in its own color, as its slats are (src/structures.ts).
+  if (isArbor(s) && s.status !== 'remove') { common.stroke = sel ? '#0f172a' : s.color; common['stroke-width'] = sel ? 2.5 : 2; }
   if (s.type === 'text') return textGroup(s, sel, inert, common);
   let shapeEl: SVGElement;
   let hitEl: SVGElement | null = null;
@@ -162,19 +165,24 @@ export function shapeGroup(s: Shape): SVGGElement {
     // A vine on what it climbs (src/vines.ts): its planting spot, and a band from it along the fence, wall or tree's
     // crown, as long as its spread. The spot and the band take taps; its name sits over the spot.
     const toPx = (p: Point) => `${(p.x - state.offsetX) * ppf},${(p.y - state.offsetY) * ppf}`;
-    const { band, connector } = vineBand(s, vine);
+    const { band, connector, cover } = vineBand(s, vine);
     const cx = (s.x - state.offsetX) * ppf, cy = (s.y - state.offsetY) * ppf;
     vineDot = Math.max(4, VINE_DOT_RADIUS * ppf);
     const bandW = Math.max(4, VINE_BAND_WIDTH * ppf);
     const paint = { stroke: s.status === 'remove' ? '#dc2626' : s.color, 'stroke-opacity': s.status === 'planned' ? 0.5 * (s.opacity ?? 0.65) : s.opacity ?? 0.65, fill: 'none', 'pointer-events': 'none' };
-    shapeEl = svgEl('polyline', { ...paint, 'data-role': 'vine-band', points: band.map(toPx).join(' '), 'stroke-width': bandW, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
-      opacity: s.status === 'gone' ? 0.35 : null }); // (planned: lighter, as its stroke-opacity says; a dashed band reads as beads)
+    // (On an arbor, over its top, as far as its spread reaches: taps go through it to the arbor, the vine taking
+    // them at its spot.)
+    shapeEl = cover
+      ? svgEl('polygon', { ...paint, 'data-role': 'vine-band', points: cover.map(toPx).join(' '), fill: paint.stroke, 'fill-opacity': paint['stroke-opacity'], 'stroke-width': 1.5, 'stroke-linejoin': 'round',
+        opacity: s.status === 'gone' ? 0.35 : null })
+      : svgEl('polyline', { ...paint, 'data-role': 'vine-band', points: band.map(toPx).join(' '), 'stroke-width': bandW, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+        opacity: s.status === 'gone' ? 0.35 : null }); // (planned: lighter, as its stroke-opacity says; a dashed band reads as beads)
     g0.push(svgEl('polyline', { ...paint, 'data-role': 'vine-reach', points: connector.map(toPx).join(' '), 'stroke-width': Math.max(1.5, bandW / 3), 'stroke-linecap': 'round', opacity: s.status === 'gone' ? 0.35 : null }));
     g0.push(svgEl('circle', { 'data-role': 'vine-spot', cx, cy, r: vineDot, fill: s.color, stroke: sel ? '#0f172a' : 'rgba(0,0,0,0.35)', 'stroke-width': sel ? 2 : 1, 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : null }));
     const level = crowded.get(s.id);
     if (level) g0.push(svgEl('circle', { 'data-role': level, cx, cy, r: vineDot + 4, fill: 'none', stroke: level === 'crowded' ? '#dc2626' : '#d97706', 'stroke-width': 2, 'stroke-dasharray': level === 'close' ? '6 4' : null, 'pointer-events': 'none' }));
     hitEl = svgEl('g', { 'data-shape-id': s.id, 'data-role': 'vine-hit', style: common.style, 'pointer-events': inert ? 'none' : null },
-      svgEl('polyline', { points: band.map(toPx).join(' '), fill: 'none', stroke: 'transparent', 'stroke-width': Math.max(hitBand(ppf), bandW), 'stroke-linecap': 'round', 'pointer-events': inert ? 'none' : 'stroke' }),
+      svgEl('polyline', { points: (cover ? connector : band).map(toPx).join(' '), fill: 'none', stroke: 'transparent', 'stroke-width': Math.max(hitBand(ppf), cover ? 0 : bandW), 'stroke-linecap': 'round', 'pointer-events': inert ? 'none' : 'stroke' }),
       svgEl('circle', { cx, cy, r: Math.max(vineDot, 12), fill: 'transparent', 'pointer-events': inert ? 'none' : 'all' }));
     labelX = cx; labelY = cy - vineDot - 9;
     fs = 12;
@@ -230,6 +238,11 @@ export function shapeGroup(s: Shape): SVGGElement {
     } else {
       // A thin line is hard to hit with a finger: a wide invisible stroke takes the taps.
       shapeEl = svgEl('polyline', { ...common, points: pts, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'pointer-events': 'none' });
+      // A trellis: its lattice marked along it (src/structures.ts).
+      if (isTrellis(s)) {
+        const px = worldPoints(s).map((p) => ({ x: (p.x - state.offsetX) * ppf, y: (p.y - state.offsetY) * ppf }));
+        g0.push(svgEl('path', { 'data-role': 'trellis-lattice', d: latticePath(px, LATTICE_STEP * ppf), fill: 'none', stroke: s.status === 'remove' ? '#dc2626' : s.color, 'stroke-width': 1.5, 'stroke-linecap': 'round', 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : null }));
+      }
       hitEl = svgEl('polyline', {
         'data-shape-id': s.id, 'data-role': 'line-hit', points: pts, fill: 'none', stroke: 'transparent', 'stroke-width': hitBand(ppf),
         'stroke-linecap': 'round', style: common.style, 'pointer-events': inert ? 'none' : 'stroke',
@@ -256,6 +269,8 @@ export function shapeGroup(s: Shape): SVGGElement {
     if (rotTransform) common.transform = rotTransform;
     if (s.type === 'rect') {
       shapeEl = svgEl('rect', { ...common, x: px, y: py, width: w, height: h });
+      // An arbor or pergola: the slats across its top (src/structures.ts), turned with it.
+      if (isArbor(s)) g0.push(svgEl('path', { 'data-role': 'arbor-slats', d: slatsPath(px, py, w, h, SLAT_STEP * ppf), transform: rotTransform || null, fill: 'none', stroke: s.status === 'remove' ? '#dc2626' : s.color, 'stroke-width': 1.5, 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : null }));
     } else if (s.type === 'oval') {
       shapeEl = svgEl('ellipse', { ...common, cx, cy, rx: w / 2, ry: h / 2 });
     } else {

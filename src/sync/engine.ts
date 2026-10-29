@@ -201,7 +201,7 @@ export function withLocalParts(server: ProjectContent, mine: ProjectContent | un
   if (!mine) return server;
   let out = server;
   for (const k of NEWER_PARTS) if (!(k in server) && k in mine) out = { ...out, [k]: mine[k] };
-  return withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine);
+  return withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine);
 }
 /**
  * A shape's sub-features (doors, windows, gates: src/features.ts), which an older version leaves out of a shape it
@@ -249,6 +249,25 @@ function withUtilities(server: ProjectContent, mine: ProjectContent): ProjectCon
     if (typeof k.utilityDismissed === 'string' && k.utilityDismissed && !('utilityDismissed' in s)) out = { ...out, utilityDismissed: k.utilityDismissed };
     if (out !== s) filled = true;
     return out;
+  });
+  return filled ? { ...server, shapes } : server;
+}
+/**
+ * A garden structure (a trellis, an arbor: src/structures.ts), whose role an older version doesn't know and drops from
+ * a shape it sends: kept from here when the server's copy of that shape, the same kind of shape, has no role at all.
+ * (One given another role there keeps it.)
+ */
+function withStructures(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
+  type Built = { id?: unknown; type?: unknown; role?: unknown };
+  const kept = new Map<unknown, unknown>();
+  for (const s of mine.shapes as Built[]) if (s && s.role === 'structure') kept.set(s.id, s.type);
+  if (!kept.size) return server;
+  let filled = false;
+  const shapes = (server.shapes as Built[]).map((s) => {
+    if (!s || typeof s !== 'object' || 'role' in s || !kept.has(s.id) || kept.get(s.id) !== s.type) return s;
+    filled = true;
+    return { ...s, role: 'structure' };
   });
   return filled ? { ...server, shapes } : server;
 }

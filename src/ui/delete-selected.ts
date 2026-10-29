@@ -11,7 +11,7 @@ import { toast, toastAction } from './toast';
 /** "6 plants, 1 boundary": what a set of shapes is, by role. */
 const NAMES: Record<RoleKey, [string, string]> = {
   plant: ['plant', 'plants'], bed: ['bed', 'beds'], lawn: ['lawn', 'lawns'], path: ['path', 'paths'], water: ['water feature', 'water features'],
-  shade: ['sun record', 'sun records'], building: ['building', 'buildings'], boundary: ['boundary', 'boundaries'], utility: ['utility', 'utilities'], other: ['note', 'notes'],
+  shade: ['sun record', 'sun records'], building: ['building', 'buildings'], structure: ['garden structure', 'garden structures'], boundary: ['boundary', 'boundaries'], utility: ['utility', 'utilities'], other: ['note', 'notes'],
   unassigned: ['plain shape', 'plain shapes'],
 };
 export function describeShapes(shapes: Shape[]): string {

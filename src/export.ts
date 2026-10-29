@@ -4,6 +4,7 @@ import { errMsg } from './util';
 import { featureParts, featurePartsSvg } from './features';
 import { alongLabel, boxLabelAngle, boxSize, displayLabel, LINE_HEIGHT, pathLabelPoint, textLines, textSize, rotatedBoxBounds, shapeBBox, trianglePoints, unionBounds, worldPoints } from './geometry';
 import { state } from './state';
+import { isArbor, isTrellis, LATTICE_STEP, latticePath, SLAT_STEP, slatsPath } from './structures';
 import { currentProject } from './storage';
 import type { Bounds, Shape } from './types';
 import { render } from './ui/render';
@@ -59,19 +60,23 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
   const baseOpacity = outline ? 0 : s.role === 'shade' && s.sun ? shadeOpacity(s.sun) : s.opacity ?? 0.65;
   const opacity = planned ? baseOpacity * 0.5 : baseOpacity;
   const dash = dashed ? ` stroke-dasharray="${8 * k} ${4 * k}"` : planned ? ` stroke-dasharray="${6 * k} ${4 * k}"` : s.locked ? ` stroke-dasharray="${4 * k} ${2 * k}"` : '';
-  const stroke = outline || planned ? s.color : s.status === 'remove' ? '#dc2626' : 'rgba(0,0,0,0.3)';
-  const strokeWidth = (outline ? 2.5 : planned || s.status === 'remove' ? 2 : 1) * k;
+  // (An arbor or pergola edged in its own color, as on the plan.)
+  const arbor = isArbor(s);
+  const stroke = s.status === 'remove' && !outline ? '#dc2626' : outline || planned || arbor ? s.color : 'rgba(0,0,0,0.3)';
+  const strokeWidth = (outline ? 2.5 : planned || arbor || s.status === 'remove' ? 2 : 1) * k;
   const text = (x: number, y: number, fs: number, label: string, extra = '') =>
     `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="${fs * k}" fill="#0f172a" font-family="sans-serif" stroke="rgba(255,255,255,0.7)" stroke-width="${2 * k}" paint-order="stroke" stroke-linejoin="round"${extra}>${escapeHtml(label)}</text>`;
   const vine = s.type === 'circle' ? supportOf(s, state.shapes) : null;
   if (s.type === 'circle' && vine) {
     // A vine on what it climbs, as on the plan (src/vines.ts): its spot, and a band along its support.
-    const { band, connector } = vineBand(s, vine);
+    const { band, connector, cover } = vineBand(s, vine);
     const pts = (l: { x: number; y: number }[]) => l.map((p) => `${(p.x - originX) * scale},${(p.y - originY) * scale}`).join(' ');
     const cx = (s.x - originX) * scale, cy = (s.y - originY) * scale, w = Math.max(4 * k, VINE_BAND_WIDTH * scale);
     const color = s.status === 'remove' ? '#dc2626' : s.color, op = planned ? (s.opacity ?? 0.65) * 0.5 : s.opacity ?? 0.65;
     const name = displayLabel(s);
-    return `<polyline points="${pts(band)}" fill="none" stroke="${color}" stroke-opacity="${op}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`
+    // (On an arbor, over its top.)
+    return (cover ? `<polygon points="${pts(cover)}" fill="${color}" fill-opacity="${op}" stroke="${color}" stroke-opacity="${op}" stroke-width="${1.5 * k}" stroke-linejoin="round"/>`
+      : `<polyline points="${pts(band)}" fill="none" stroke="${color}" stroke-opacity="${op}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`)
       + `<polyline points="${pts(connector)}" fill="none" stroke="${color}" stroke-opacity="${op}" stroke-width="${Math.max(1.5 * k, w / 3)}" stroke-linecap="round"/>`
       + `<circle cx="${cx}" cy="${cy}" r="${Math.max(4 * k, VINE_DOT_RADIUS * scale)}" fill="${s.color}" stroke="rgba(0,0,0,0.35)" stroke-width="${k}"/>`
       + (name ? text(cx, cy - Math.max(4 * k, VINE_DOT_RADIUS * scale) - 9 * k, 11, name) : '');
@@ -105,6 +110,8 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
       : band // a path: a band at its real width
         ? `<polyline points="${pts}" fill="none" stroke="${s.status === 'remove' ? '#dc2626' : s.color}" stroke-opacity="${(s.status === 'planned' ? 0.5 : 1) * (s.opacity ?? 0.65)}" stroke-width="${band * scale}" stroke-linejoin="round" stroke-linecap="butt"/>`
         : `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="${2.5 * k}" stroke-linejoin="round" stroke-linecap="round"${dash}/>`;
+    // A trellis: its lattice along it, as on the plan.
+    if (isTrellis(s)) out += `<path d="${latticePath(wp, LATTICE_STEP * scale, 4 * k)}" fill="none" stroke="${s.status === 'remove' ? '#dc2626' : s.color}" stroke-width="${1.5 * k}" stroke-linecap="round"/>`;
     if (s.type === 'line' && s.showLength) {
       for (const [a, b] of [[wp[0], wp[1]], [wp.at(-1)!, wp.at(-2)!]]) {
         const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
@@ -141,6 +148,8 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
   let out = '';
   if (s.type === 'rect') {
     out = `<rect x="${px}" y="${py}" width="${w}" height="${h}" fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}${rotAttr}/>`;
+    // An arbor or pergola: its slats, as on the plan.
+    if (arbor) out += `<path d="${slatsPath(px, py, w, h, SLAT_STEP * scale)}" fill="none" stroke="${s.status === 'remove' ? '#dc2626' : s.color}" stroke-width="${1.5 * k}"${rotAttr}/>`;
   } else if (s.type === 'oval') {
     out = `<ellipse cx="${cx}" cy="${cy}" rx="${w/2}" ry="${h/2}" fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}${rotAttr}/>`;
   } else {

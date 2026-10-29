@@ -4,7 +4,8 @@ import type { KindKey } from './kinds';
 
 export type ShapeType = 'circle' | 'rect' | 'oval' | 'triangle' | 'poly' | 'line' | 'text';
 /** What a shape represents. Undefined = not yet assigned (shapes from older versions). */
-export type Role = 'plant' | 'bed' | 'boundary' | 'building' | 'shade' | 'path' | 'lawn' | 'water' | 'utility' | 'other';
+export type Role = 'plant' | 'bed' | 'boundary' | 'building' | 'structure' | 'shade' | 'path' | 'lawn' | 'water' | 'utility' | 'other';
+/** (A garden structure, role 'structure': a trellis drawn as a line, an arbor or pergola as an area. What vines climb: src/vines.ts.) */
 /** A utility (role 'utility', src/utilities.ts): a line overhead or buried, or a septic drainfield (an area). */
 export type UtilityKind = 'overhead' | 'buried' | 'septic';
 /** Per-project display state for a role (or 'unassigned'). */
