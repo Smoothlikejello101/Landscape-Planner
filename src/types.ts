@@ -428,6 +428,9 @@ export interface AppState {
   bgCalibrate: Calibration | null;
   draw: DrawState | null;
   editPoints: EditPoints | null;
-  /** Adding sub-features to a shape by tapping its edges (src/feature-edit.ts): which shape, the kind, and those added. */
-  featurePlace: { id: string; kind: SubFeatureKind; added: string[] } | null;
+  /**
+   * Adding sub-features to a shape by tapping its edges (src/feature-edit.ts): which shape, the kind, those added, and
+   * the flips made to the one just added (each with how many had been added then: Undo takes back whichever came last).
+   */
+  featurePlace: { id: string; kind: SubFeatureKind; added: string[]; flips: { id: string; which: 'hinge' | 'swing'; n: number }[] } | null;
 }

@@ -164,3 +164,44 @@ describe('stored and synced', () => {
     expect((withLocalParts({ shapes: [outline] }, { shapes: [fence] }).shapes as object[])[0]).not.toHaveProperty('features');
   });
 });
+
+describe('the door just placed, flipped while placing', () => {
+  it('flips its hinge and swing; Undo takes back the last step, flip or door', async () => {
+    const { state } = await import('../src/state');
+    const { flipLastAdded, lastAdded, startFeaturePlace, undoFeaturePlace } = await import('../src/feature-edit');
+    state.shapes = [{ ...house(), features: [] }];
+    startFeaturePlace('h', 'door');
+    const add = (id: string, at: number) => {
+      const s = state.shapes[0] as RectShape;
+      s.features = [...(s.features ?? []), { ...door(0, at), id }];
+      state.featurePlace!.added.push(id);
+    };
+    const doors = () => ((state.shapes[0] as RectShape).features ?? []).map((f) => `${f.id}${f.hinge ? ' end' : ''}${f.swing ? ' in' : ''}`);
+    add('a', 0.2);
+    flipLastAdded('swing');
+    add('b', 0.7);
+    expect(lastAdded()?.id).toBe('b');
+    flipLastAdded('hinge');
+    flipLastAdded('swing');
+    expect(doors()).toEqual(['a in', 'b end in']);
+    undoFeaturePlace(); // b's swing
+    expect(doors()).toEqual(['a in', 'b end']);
+    undoFeaturePlace(); // b's hinge
+    undoFeaturePlace(); // b itself
+    expect(doors()).toEqual(['a in']);
+    expect(lastAdded()?.id).toBe('a');
+    undoFeaturePlace(); // a's swing
+    expect(doors()).toEqual(['a']);
+    undoFeaturePlace(); // a
+    expect(doors()).toEqual([]);
+    // (A window doesn't open: nothing to flip.)
+    startFeaturePlace('h', 'window');
+    const s = state.shapes[0] as RectShape;
+    s.features = [{ id: 'w', kind: 'window', edge: 0, at: 0.5, width: 3 }];
+    state.featurePlace!.added.push('w');
+    flipLastAdded('hinge');
+    expect(s.features).toEqual([{ id: 'w', kind: 'window', edge: 0, at: 0.5, width: 3 }]);
+    expect(state.featurePlace!.flips).toEqual([]);
+    state.featurePlace = null;
+  });
+});

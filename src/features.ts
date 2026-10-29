@@ -121,6 +121,13 @@ export function newSubFeature(kind: SubFeatureKind, edge: number, at: number, id
   return { id, kind, edge, at, ...(w ? { width: w[0] } : {}) };
 }
 
+/** Whether it opens one way or another: a door or a gate (its hinge and swing can be flipped). */
+export const swings = (f: SubFeature) => f.kind === 'door' || f.kind === 'gate';
+/** A door or gate hinged at the other end of its opening. */
+export function flipHinge({ hinge, ...f }: SubFeature): SubFeature { return hinge === 'end' ? f : { ...f, hinge: 'end' }; }
+/** A door or gate swinging the other way (in, or back out). */
+export function flipSwing({ swing, ...f }: SubFeature): SubFeature { return swing === 'in' ? f : { ...f, swing: 'in' }; }
+
 /**
  * Sub-features after a point is put in after point `after`, `t` of the way along the edge it splits (as projected on
  * it): the edge becomes two, one taking what was before the point, one what was after it, and the edges after it move
@@ -189,14 +196,14 @@ export function sanitizeSubFeatures(raw: unknown): SubFeature[] | null {
       continue;
     }
     const w = SUB_FEATURES[o.kind].width;
-    const swings = o.kind === 'door' || o.kind === 'gate';
+    const opens = o.kind === 'door' || o.kind === 'gate';
     out.push({
       id: o.id, kind: o.kind, edge: o.edge as number, at: Math.max(0, Math.min(1, o.at)),
       ...(w ? { width: typeof o.width === 'number' && Number.isFinite(o.width) ? Math.max(w[1], Math.min(w[2], o.width)) : w[0] } : {}),
       // (Which way a door or gate opens: its hinge, its swing. Absent, as before they could be turned: hinged where
       // its opening starts, swinging out.)
-      ...(swings && o.hinge === 'end' ? { hinge: 'end' as const } : {}),
-      ...(swings && o.swing === 'in' ? { swing: 'in' as const } : {}),
+      ...(opens && o.hinge === 'end' ? { hinge: 'end' as const } : {}),
+      ...(opens && o.swing === 'in' ? { swing: 'in' as const } : {}),
     });
   }
   return out;

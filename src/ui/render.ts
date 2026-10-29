@@ -38,8 +38,9 @@ import { toast } from './toast';
 import { renderProjectsPanel, renderRenamePanel } from './projects-panel';
 import { moreOfSame, renderArrangePanel, renderPropsPanel, resetKindChange } from './props-panel';
 import { hintDue, hintShown } from '../hints';
-import { featureHost, finishFeaturePlace, setFeatureKind, undoFeaturePlace } from '../feature-edit';
-import { drawFeatureKinds, kindsFor, kindsPhrase, SUB_FEATURES } from '../features';
+import { featureHost, finishFeaturePlace, flipLastAdded, lastAdded, setFeatureKind, undoFeaturePlace } from '../feature-edit';
+import { drawFeatureKinds, kindsFor, kindsPhrase, SUB_FEATURES, swings } from '../features';
+import { flipButtons } from './feature-section';
 import { roomyText } from '../text-size';
 import { isLocked } from '../roles';
 
@@ -81,11 +82,17 @@ export function flashZoom() {
 
 /** The panel the last render showed (to tell a panel just opened from one redrawn). */
 let shownPanel: typeof state.panel = null;
+/** What was selected when the app last drew: an open sheet keeps its place only while it shows the same things. */
+let shownSelection = '';
 export function render() {
   const root = document.getElementById('root')!;
   // (Typing in the picker's search when the whole app redraws: the cursor goes back where it was.)
   const typing = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.testid === 'plant-search'
     ? document.activeElement.selectionStart : null;
+  // (A change made in an open sheet, a door's ⇄ say, redraws it: it stays where it was scrolled to, not back at the
+  // top. Jason, 2026-10-28. A different sheet, or the same one for something else, opens at the top.)
+  const scrolled = state.panel && state.panel === shownPanel && state.selectedIds.join() === shownSelection
+    ? root.querySelector<HTMLElement>('.overlay .sheet')?.scrollTop ?? 0 : 0;
   // Clear root
   while (root.firstChild) root.removeChild(root.firstChild);
 
@@ -406,7 +413,11 @@ export function render() {
   else if (state.panel === 'shortcuts') panelNode = renderShortcutsPanel();
   else if (state.panel === 'location') panelNode = renderLocationPanel();
   else if (state.panel === 'switchPlant') panelNode = renderSwitchPanel();
-  if (panelNode) root.appendChild(panelNode);
+  if (panelNode) {
+    root.appendChild(panelNode);
+    const sheet = scrolled ? panelNode.querySelector<HTMLElement>('.sheet') ?? (panelNode.classList.contains('sheet') ? panelNode : null) : null;
+    if (sheet) sheet.scrollTop = scrolled;
+  }
   // The picker just opened, with a keyboard: the cursor in its search, to start typing (not with a pop-up keyboard,
   // which would cover the list).
   if (state.panel === 'plants' && ((shownPanel !== 'plants' && hasKeyboard()) || typing != null)) {
@@ -414,6 +425,7 @@ export function render() {
     if (search) { search.focus(); if (typing != null) search.setSelectionRange(typing, typing); }
   }
   shownPanel = state.panel;
+  shownSelection = state.selectedIds.join();
   if (state.menu === 'more') root.appendChild(renderMoreMenu());
 
   labelFields(root); // (each field's label names its control, for screen readers)
@@ -456,6 +468,13 @@ function renderFeatureBar(): HTMLElement {
       seg.appendChild(b);
     }
     col.appendChild(seg);
+  }
+  // The door or gate just placed: which way it opens, set here and now (its properties have the same).
+  const last = lastAdded();
+  if (last && swings(last)) {
+    const [hinge, swing] = flipButtons(last, 'bar', (which) => { flipLastAdded(which); render(); });
+    col.appendChild(el('div', { className: 'feature-last', 'data-testid': 'feature-last' },
+      el('span', {}, `${SUB_FEATURES[last.kind].label} just placed:`), el('span', { className: 'feature-flips' }, hinge, swing)));
   }
   const row = el('div', { className: 'draw-bar-row' });
   const undoB = el('button', { className: 'draw-btn' }, 'Undo');
