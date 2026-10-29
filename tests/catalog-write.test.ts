@@ -320,3 +320,31 @@ describe('values read from a description (prose.mjs), as written', () => {
     expect(listed).toEqual([]); // (the review lists them from the audit's held items)
   });
 });
+
+describe('a withdrawn source (decisions.json `withdrawn`): its terms taken back, or found to bar us', () => {
+  const file: CatalogFile = {
+    meta: { format: 'lp-catalog', version: 2, zones: 'half', sources: { compendium: { title: 'old', trust: 'unverified' }, 'shop.example.com': { title: 'shop.example.com', trust: 'nursery' }, 'other.example.org': { title: 'other.example.org', trust: 'nursery' } } },
+    plants: [
+      { id: 'astilbe', common: 'Astilbe', src: ['compendium'], audited: '2026-10-25', facts: {
+        zone_min: { v: 4, src: ['shop.example.com'], check: 'reported' },
+        zone_max: { v: 9, src: ['shop.example.com', 'other.example.org'], check: 'likely' },
+      } },
+    ],
+  };
+  const decisions = { withdrawn: { 'shop.example.com': { why: 'its terms were taken back', decided: '2026-10-28', by: 'test' } } };
+  const { file: out, review } = writeAudit(file, [{ id: 'astilbe', claims: [], facts: {} }], '2026-10-28', () => [], decisions);
+  it('takes out a value whose only source is withdrawn, and says why', () => {
+    expect(out.plants[0].facts.zone_min).toBeUndefined();
+    expect(review).toContainEqual(expect.objectContaining({ id: 'astilbe', fact: 'zone_min', note: 'withdrawn: 4, from shop.example.com: its terms were taken back' }));
+  });
+  it('keeps one another source gave too (listed as no source giving it now), and keeps that source listed', () => {
+    expect(out.plants[0].facts.zone_max).toMatchObject({ v: 9 });
+    expect(review).toContainEqual(expect.objectContaining({ id: 'astilbe', fact: 'zone_max', note: expect.stringMatching(/^no source gives it now/) }));
+    expect(out.meta.sources['shop.example.com']).toBeDefined(); // (still cited by zone_max)
+  });
+  it('drops a withdrawn source from the list once nothing cites it', () => {
+    const { file: again } = writeAudit({ ...file, plants: [{ ...file.plants[0], facts: { zone_min: file.plants[0].facts.zone_min } }] }, [{ id: 'astilbe', claims: [], facts: {} }], '2026-10-28', () => [], decisions);
+    expect(again.meta.sources['shop.example.com']).toBeUndefined();
+    expect(again.meta.sources['other.example.org']).toBeDefined();
+  });
+});

@@ -240,6 +240,9 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
       // (Read from a description by rules that no longer read it so: a misread, taken out. "A light winter mulch of
       // evergreen boughs" once made a pincushion flower evergreen.)
       if (f.from === 'description') { delete facts[to]; retracted = true; review.push({ id: rec.id, fact: to, note: `taken out: ${JSON.stringify(f.v)}, read from ${f.src.join(', ')}'s description, which the rules no longer read so` }); continue; }
+      // (Every source of it withdrawn, its terms taken back or found to bar us (decisions.json `withdrawn`): taken
+      // out, not kept: we may no longer read it.)
+      if (f.src.every((s) => decisions.withdrawn?.[s])) { delete facts[to]; retracted = true; review.push({ id: rec.id, fact: to, note: `withdrawn: ${JSON.stringify(f.v)}, from ${f.src.join(', ')}: ${f.src.map((s) => decisions.withdrawn[s].why).join('; ')}` }); continue; }
       review.push({ id: rec.id, fact: to, note: `no source gives it now: ${JSON.stringify(f.v)}, from ${f.src.join(', ')}` });
     }
     // (Dated by this run only where its facts changed, or it had none audited: a record the run leaves as it was
@@ -248,6 +251,9 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
     return { ...rec, audited: rec.audited && JSON.stringify(facts) === JSON.stringify(rec.facts) ? rec.audited : date, facts };
   });
   const sources = { ...catalog.meta.sources };
+  // (A withdrawn source nothing cites any more leaves the list of sources.)
+  const cited = new Set(plants.flatMap((p) => Object.values(p.facts).flatMap((f) => (f && typeof f === 'object' ? [...(f.src ?? []), ...(f.alt?.src ?? [])] : []))));
+  for (const s of Object.keys(decisions.withdrawn ?? {})) if (!cited.has(s)) delete sources[s];
   for (const s of [...used].sort()) {
     if (sources[s]) continue;
     sources[s] = BUILT_IN[s] ?? { title: s, url: `https://${s}`, trust: kindOf.get(s) === 'authority' ? 'reference' : 'nursery' };

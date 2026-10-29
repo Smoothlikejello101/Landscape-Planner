@@ -15,13 +15,6 @@
   "pages": [],
   "note": "No terms page found; footer names no Terms/Legal/Policies and carries only a copyright notice (Northeast School of Botanical Medicine, all rights reserved), which protects the material, not facts."
  },
- "abnativeplants.com": {
-  "verdict": "none found",
-  "read": "2026-10-18",
-  "by": "agent review",
-  "pages": [],
-  "note": "No terms page linked or at usual addresses; the visible Shopify footer names no Terms, Legal or Policies link."
- },
  "acultivatedart.com": {
   "verdict": "open",
   "read": "2026-10-18",
@@ -1487,11 +1480,13 @@
   "note": "Standard Shopify terms of service: the prohibited-uses section (section 12) bans using the site to spider, crawl, or scrape; section 1 also bars reselling or exploiting any portion of the Service."
  },
  "gardencentermarketing.com": {
-  "verdict": "none found",
-  "read": "2026-10-18",
-  "by": "agent review",
-  "pages": [],
-  "note": "No terms page linked or at usual addresses; the rendered footer lists only privacy, return, shipping and accessibility pages, with no Terms, Legal or Policies link."
+  "verdict": "use",
+  "read": "2026-10-28",
+  "by": "Claude, second look",
+  "pages": [
+   "https://www.gardencentermarketing.com/plantName/Abies-concolor-Compacta"
+  ],
+  "note": "Each plant library page says: \"Images and descriptions are copyrighted. Only for use on signage and websites created by Clarity Connect / GardenCenterMarketing.com\". (The Oct 18 reading found no terms page; the notice is on the plant pages themselves.)"
  },
  "gardencrossings.com": {
   "verdict": "bots",
@@ -2508,13 +2503,6 @@
   ],
   "note": "No terms of use page; the Copyright Information page only asserts copyright and allows unaltered educational redistribution, protecting the material itself. Policies page is cancellation/privacy/email only."
  },
- "meadowcitynursery.com": {
-  "verdict": "none found",
-  "read": "2026-10-18",
-  "by": "agent review",
-  "pages": [],
-  "note": "Shopify store whose home footer shows only contact details, hours, social links and a copyright line; no terms link and none at the usual addresses."
- },
  "mellowmarshfarm.com": {
   "verdict": "none found",
   "read": "2026-10-18",
@@ -3441,11 +3429,13 @@
   "note": "Standard Shopify terms of service; the prohibited-uses section (section 12) bans spidering, crawling or scraping."
  },
  "plantingtree.com": {
-  "verdict": "none found",
-  "read": "2026-10-18",
+  "verdict": "bots",
+  "read": "2026-10-27",
   "by": "agent review",
-  "pages": [],
-  "note": "Home page footer lists privacy, shipping protection, refunds and warranty links but no terms of use/service, legal or policies page; none found at the usual addresses."
+  "pages": [
+   "https://www.plantingtree.com/policies/terms-of-service"
+  ],
+  "note": "Shopify-style terms forbid using the site to spider, crawl or scrape."
  },
  "plantmaster.com": {
   "verdict": "use",
@@ -4987,13 +4977,6 @@
   "by": "agent review",
   "pages": [],
   "note": "No terms page linked or at usual addresses, and the home page footer names no Terms, Legal or Policies link (only address, contact and hours)."
- },
- "whiteflowerfarm.com": {
-  "verdict": "none found",
-  "read": "2026-10-18",
-  "by": "agent review",
-  "pages": [],
-  "note": "Home page footer names only Privacy Policy, privacy choices and data-sharing opt-out plus a copyright line; no terms, legal or policies page named or found."
  },
  "whiterivernursery.com": {
   "verdict": "open",

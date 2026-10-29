@@ -11,6 +11,7 @@ export function reviewKind(item) {
   if (n.startsWith("value the catalog can't take")) return 'cant';
   if (n.startsWith('no source gives it now')) return 'stale';
   if (n.startsWith('taken out:')) return 'retracted';
+  if (n.startsWith('withdrawn:')) return 'withdrawn';
   if (item.fact === 'form' && /a cultivar may be a tree/.test(n)) return 'tree';
   return 'disputed';
 }
@@ -156,6 +157,9 @@ export function reviewReport({ catalog, list, combined, review, searched = {}, w
   section('Taken out: a description read wrongly before', of('retracted').length,
     "A value an earlier build read from a page's description, by rules that have since been fixed and no longer read it so. It's taken out (nothing to decide: listed so the change is seen).",
     table(['Plant', 'Fact', 'What was taken out'], of('retracted').map((i) => [name(i.id), factName(i.fact), esc(i.note.replace(/^taken out: /, ''))])), 'tidy');
+  section('Taken out: its source withdrawn', of('withdrawn').length,
+    "A value whose only sources we may no longer read: their terms were taken back for a fresh reading, or found to bar us (decisions.json `withdrawn`). It's taken out (nothing to decide: listed so the change is seen).",
+    table(['Plant', 'Fact', 'What was taken out'], of('withdrawn').map((i) => [name(i.id), factName(i.fact), esc(i.note.replace(/^withdrawn: /, ''))])), 'tidy');
   section("Values the catalog can't take", of('cant').length,
     "A source's value doesn't fit the catalog's format.",
     table(['Plant', 'Fact', 'Value'], of('cant').map((i) => [name(i.id), factName(i.fact), esc(i.note)])));

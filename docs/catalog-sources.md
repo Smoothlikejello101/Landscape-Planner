@@ -808,6 +808,13 @@ listed). The kinds the build applies:
   record's facts (docs/catalog-format.md).
 - **`group`**: a record kept for a group of cultivars ("Asparagus officinalis ('Jersey' / 'Millennium')"), read from
   its species' NC State page as its own, its size included, where a cultivar's would be its own page's alone.
+- **`withdrawn`**: a source we may no longer read: its terms taken back for a fresh reading, or found to bar us
+  (`why`). Every value whose only sources are withdrawn is taken out, not kept as "a value its source no longer
+  gives" (the report lists it under "Taken out: its source withdrawn"), and the source leaves the catalog's list
+  once nothing cites it. The build leaves its web claims out. A source read again
+  and found open comes off the list. (2026-10-28: White Flower Farm, Alabama Native Plants and Meadow City Nursery,
+  Shopify shops cleared before their standard terms were read; plantingtree.com, whose terms bar crawling;
+  GardenCenterMarketing.com, whose plant library pages are "only for use on signage and websites created by" it.)
 
 ### Kew's species
 
