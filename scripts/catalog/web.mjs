@@ -277,12 +277,12 @@ const onlyWords = (v, vocab) => { const w = v.toLowerCase().split(/[^a-z]+/).fil
 const SUN_WORDS = new Set(['full', 'sun', 'part', 'partial', 'shade', 'light', 'dappled', 'morning', 'afternoon', 'deep', 'dense', 'half', 'filtered', 'sunny', 'shady']);
 const sunOf = (v) => {
   if (!onlyWords(v, SUN_WORDS)) return null; // ("not full sun", "shade tolerant", "except in the South…": left out)
-  let t = v.toLowerCase();
+  let t = v.toLowerCase().replace(/\b(part(?:ial)?)-(sun|shade)\b/g, '$1 $2'); // ("Sun/part-shade")
   if (/morning sun/.test(t) && /afternoon shade/.test(t)) t = t.replace(/morning sun|afternoon shade/g, ' part shade ');
   const got = SUNS.filter(([re]) => re.test(t)).map(([, x]) => x);
   if (/\b(?:part|partial)\b(?!\s*(?:sun|shade))/.test(t)) got.push('Part'); // ("Partial, Shade")
   if (/\bfull\b(?!\s*shade)/.test(t)) got.push('Full'); // ("Full to Partial", "Full, Partial", "Full – Part": in a sun field, "full" is full sun)
-  if (/^\s*sun\b(?!\s*(?:to|-|–)?\s*part)/.test(t) || /\bsun to\b/.test(t) || /(?:^|,\s*)sun(?:\s*,|$)/.test(t)) got.push('Full'); // ("sun", "sun to part shade")
+  if (/^\s*sun\b/.test(t) || /\bsun to\b/.test(t) || /(?:^|,\s*)sun(?:\s*,|$)/.test(t)) got.push('Full'); // ("sun", "sun to part shade", "Sun Part Shade": a sun field's leading "sun" is full sun)
   // "shade" on its own, once the part-shade phrases are out of the way.
   if (/\bshade\b/.test(t.replace(/part(?:ial)? shade|light shade|half[- ]shade|dappled shade|afternoon shade|filtered shade/g, ' '))) got.push('Shade');
   const order = ['Full', 'Part', 'Shade'].filter((x) => got.includes(x));

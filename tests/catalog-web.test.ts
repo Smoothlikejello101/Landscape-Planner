@@ -76,6 +76,11 @@ describe('reading spec lines', () => {
     expect(webFields('Sun: Full – Part')).toEqual({ sun: { most: 'Full', least: 'Part' } });
     expect(webFields('Sun: Full – Shade')).toEqual({ sun: { most: 'Full', least: 'Shade' } });
     expect(webFields('Sun Exposure: Full')).toEqual({ sun: { most: 'Full', least: 'Full' } });
+    // A leading bare "Sun" before part shade is full sun too, however it's joined (it was dropped: "Sun Part Shade" read
+    // as part shade only, Blooming Advantage's icons); and "part-shade" with a hyphen is part shade, not shade.
+    expect(webFields('Exposure\nSun Part Shade')).toEqual({ sun: { most: 'Full', least: 'Part' } });
+    expect(webFields('Light: sun - partial shade')).toEqual({ sun: { most: 'Full', least: 'Part' } });
+    expect(webFields('Light requirement\nSun/part-shade')).toEqual({ sun: { most: 'Full', least: 'Part' } });
     expect(webFields('Light: Full shade')).toEqual({ sun: { most: 'Shade', least: 'Shade' } });
     expect(webFields('Bloom Time: Summer; may rebloom')).toEqual({}); // (a qualifier: left out)
     expect(webFields('Bloom Time: Late spring to early summer')).toEqual({ bloomSeasons: ['spring', 'summer'] });
