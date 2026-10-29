@@ -552,6 +552,22 @@ describe('trees with a trunk and a shaped canopy', () => {
     const file = await buildBackupFile();
     expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
   });
+  it('keep a color chosen by hand (a picture draws its leaves in it); older circles have none, and odd values are dropped', async () => {
+    await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [
+      tree({ id: 'v', colorSet: true }),
+      tree({ id: 'x' }),
+      tree({ id: 'y', colorSet: 'yes' }),
+      tree({ id: 'z', colorSet: false }),
+    ] }).shapes;
+    expect(state.shapes[0]).toMatchObject({ colorSet: true });
+    for (const s of state.shapes.slice(1)) expect('colorSet' in s).toBe(false);
+    await flushSave();
+    expect((await readProject(id))!.shapes).toEqual(state.shapes);
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
+  });
   it('keep a height and lowest branches set by hand; older circles have neither, and odd values are dropped', async () => {
     await freshStorage();
     const id = state.currentProjectId!;

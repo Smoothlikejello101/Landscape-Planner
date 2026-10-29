@@ -201,7 +201,7 @@ export function withLocalParts(server: ProjectContent, mine: ProjectContent | un
   if (!mine) return server;
   let out = server;
   for (const k of NEWER_PARTS) if (!(k in server) && k in mine) out = { ...out, [k]: mine[k] };
-  return withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine);
+  return withChosenColors(withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine), mine);
 }
 /**
  * A shape's sub-features (doors, windows, gates: src/features.ts), which an older version leaves out of a shape it
@@ -286,6 +286,25 @@ function withVineSupports(server: ProjectContent, mine: ProjectContent): Project
     if (!s || s.type !== 'circle' || 'climbsOn' in s || !kept.has(s.id)) return s;
     filled = true;
     return { ...s, climbsOn: kept.get(s.id) };
+  });
+  return filled ? { ...server, shapes } : server;
+}
+/**
+ * A color chosen by hand for a plant (`colorSet`: its picture's leaves drawn in it), which an older version leaves out
+ * of a shape it sends: kept from here when the server's copy of that circle has none and the same color (a color
+ * changed there is that version's, and isn't taken as chosen).
+ */
+function withChosenColors(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
+  type Colored = { id?: unknown; type?: unknown; color?: unknown; colorSet?: unknown };
+  const kept = new Map<unknown, unknown>();
+  for (const s of mine.shapes as Colored[]) if (s && s.type === 'circle' && s.colorSet === true) kept.set(s.id, s.color);
+  if (!kept.size) return server;
+  let filled = false;
+  const shapes = (server.shapes as Colored[]).map((s) => {
+    if (!s || s.type !== 'circle' || 'colorSet' in s || !kept.has(s.id) || kept.get(s.id) !== s.color) return s;
+    filled = true;
+    return { ...s, colorSet: true };
   });
   return filled ? { ...server, shapes } : server;
 }

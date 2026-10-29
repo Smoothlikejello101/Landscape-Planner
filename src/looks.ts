@@ -90,16 +90,19 @@ export function flowerColorOf(common: string, listed: string[]): string | undefi
   const words = common.toLowerCase().split(/[^a-z]+/);
   return listed.find((c) => !NOT_PETALS.has(c) && words.includes(c)) ?? listed.find((c) => !NOT_PETALS.has(c)) ?? listed[0];
 }
-/** How a plant is drawn: its kind of drawing and its colors, from its catalog facts (or its shape's color). */
-export function lookOf(p: Plant | undefined, shapeColor: string): Look {
+/**
+ * How a plant is drawn: its kind of drawing and its colors, from its catalog facts (or its shape's color). `chosen`: a
+ * color the user set (Jason, Oct 29), which its leaves are drawn in; its flowers keep theirs.
+ */
+export function lookOf(p: Plant | undefined, shapeColor: string, chosen = false): Look {
   const form0 = p ? formsOf(p)[0] ?? '' : '';
   const evergreen = p?.foliage === 'evergreen';
   // (Its summer leaf color, the dominant one (src/seasons.ts): green unless another color leads; a darker green if
-  // evergreen; a plant of the user's own, with no catalog record, its shape's color.)
+  // evergreen; a plant of the user's own, with no catalog record, or one given a color by hand, its shape's color.)
   const summer = p ? summerLeafColors(p) : { colors: [], variegated: false };
   const variegated = summer.variegated;
   const first = summer.colors[0];
-  const base = !p ? shapeColor : first && first !== 'green' && LEAF_HEX[first] ? LEAF_HEX[first] : evergreen ? EVERGREEN_GREEN : LEAF_HEX.green;
+  const base = !p || chosen ? shapeColor : first && first !== 'green' && LEAF_HEX[first] ? LEAF_HEX[first] : evergreen ? EVERGREEN_GREEN : LEAF_HEX.green;
   const listed = (p?.flower_color ?? []).filter((c) => c !== 'insignificant' && FLOWER_HEX[c]);
   const insignificant = !!p && (!listed.length || (p.flower_form?.inflorescence ?? []).some((x) => x === 'insignificant' || x === 'catkin'));
   const color = p ? flowerColorOf(p.common ?? '', listed) : undefined;

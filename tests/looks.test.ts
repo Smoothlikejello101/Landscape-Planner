@@ -3,6 +3,7 @@ import type { Plant } from '../src/plants';
 import { bandBlooms, bloomKind, coverBlooms, flowerColorOf, levelOf, lookOf, lookSvg } from '../src/looks';
 import { LOOK_MAX_R, lookMarkup } from '../src/plant-looks';
 import type { CircleShape } from '../src/types';
+import { withLocalParts } from '../src/sync/engine';
 
 // Plant looks (Jason, Oct 27–29: R5c, version 3, every plant in bloom until garden over time brings a month
 // slider; no leaf color on record: default green).
@@ -32,6 +33,12 @@ describe('a plant drawn from its catalog facts', () => {
     expect(lookOf(plant({ foliage: 'evergreen' }), '#000').pal.base).toBe('#3f6b3a');
     // A plant of the user's own, with no catalog record: its shape's color.
     expect(lookOf(undefined, '#123456').pal.base).toBe('#123456');
+  });
+  it("in a color chosen by hand, its leaves; its flowers keep theirs (Jason, Oct 29: plans' older colors aren't taken as chosen)", () => {
+    const p = plant({ flower_color: ['yellow'], flower_form: { inflorescence: ['head'] } });
+    expect(lookOf(p, '#7c3aed', true).pal.base).toBe('#7c3aed');
+    expect(lookOf(p, '#7c3aed', true).pal.fl).toBe('#f2c230');
+    expect(lookOf(p, '#7c3aed').pal.base).toBe('#6f9a4a');
   });
   it('drawn the way its form is: a conifer by its needles, an evergreen tree broadleaf, a grass by its blades', () => {
     expect(lookOf(plant({ form: 'Tree', needles: true }), '#000').form).toBe('conifer');
@@ -75,6 +82,12 @@ describe('a plant drawn from its catalog facts', () => {
 describe('a placed plant', () => {
   const shape = (extra: Partial<CircleShape> = {}): CircleShape =>
     ({ id: 's1', type: 'circle', x: 0, y: 0, radius: 2, role: 'plant', plantId: 'nope', color: '#16a34a', label: '', opacity: 0.65, locked: false, ...extra });
+  it("keeps a color chosen by hand through an older version's sync, which drops it, unless the color changed there", () => {
+    const c = (color: string, colorSet?: true) => shape({ color, ...(colorSet ? { colorSet } : {}) });
+    expect(withLocalParts({ shapes: [c('#7c3aed')] }, { shapes: [c('#7c3aed', true)] }).shapes).toEqual([c('#7c3aed', true)]);
+    expect(withLocalParts({ shapes: [c('#dc2626')] }, { shapes: [c('#7c3aed', true)] }).shapes).toEqual([c('#dc2626')]);
+    expect(withLocalParts({ shapes: [c('#7c3aed')] }, { shapes: [c('#7c3aed')] }).shapes).toEqual([c('#7c3aed')]);
+  });
   it('drawn bigger than the largest size, is scaled up rather than thinned out', () => {
     expect(lookMarkup(shape(), LOOK_MAX_R, 'close')).not.toMatch(/^<g transform="scale/);
     expect(lookMarkup(shape(), LOOK_MAX_R * 3, 'close')).toMatch(/^<g transform="scale\(3\)">/);

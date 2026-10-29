@@ -4,7 +4,7 @@ import { SWATCH_NAMES } from './a11y';
 import { SWATCHES } from '../constants';
 import { el, escapeHtml, ts } from '../dom';
 import { I } from '../icons';
-import { isLocked, roleKey, roleLabel, roleLocked } from '../roles';
+import { defaultLook, isLocked, roleKey, roleLabel, roleLocked } from '../roles';
 import { convertToOutline, startEditPoints, startKind, startTreeDraw } from '../draw';
 import { kindDef, kindOfShape } from '../kinds';
 import { boxSize, fmtFeet, resizedPoints, shapeArea, shapePerimeter } from '../geometry';
@@ -12,14 +12,14 @@ import { boxSize, fmtFeet, resizedPoints, shapeArea, shapePerimeter } from '../g
 const round1 = (v: number) => Math.round(v * 10) / 10;
 import { roleChips } from './role-picker';
 import { bedSection, crowdingNote, measureText, plantSunBanner, shadeSunSection, sunListText, utilityBanner, utilitySection } from './role-sections';
-import { utilityLabel } from '../utility-kinds';
+import { isUtilityKind, utilityLabel, utilityLook } from '../utility-kinds';
 import { setRoleForIds, bringForward, bringToFront, copySelected, duplicateSelected, findNextSameTier, sendBackward, sendToBack, setLockedForIds, updateSelected, updateSelectedSilent } from '../mutations';
 import { getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { render } from './render';
 import type { CircleShape, Corner, RoleKey, Shape } from '../types';
 import { formatSize, fullRingRadius, isMine, plantRadius, plantSpread, type Range } from '../my-plants';
-import { canLinkToPlant, linkShapesToPlant, plantFilter, plantsById, unlinkedWithLabel, type Plant } from '../plants';
+import { canLinkToPlant, linkShapesToPlant, plantColor, plantFilter, plantsById, unlinkedWithLabel, type Plant } from '../plants';
 import { toast } from './toast';
 import { deleteSelectedAsking } from './delete-selected';
 import { zoneFit, zoneRange } from '../climate';
@@ -97,6 +97,14 @@ function sizeSummary(s: Shape): string {
 function positionSummary(s: Shape): string {
   const rot = s.type !== 'circle' && s.rotation ? ` · ${fmt1(s.rotation)}°` : '';
   return `x ${fmt1(s.x)}, y ${fmt1(s.y)}` + rot;
+}
+/** A color picked here: for a circle, one chosen by hand, which a plant's picture draws its leaves in (src/looks.ts). */
+const colorPatch = (s: Shape, color: string) => (s.type === 'circle' ? { color, colorSet: true as const } : { color });
+/** The color a shape starts with: a plant's from its catalog record (src/plants.ts plantColor), else its role's. */
+export function defaultColorOf(s: Shape): string {
+  if (s.type === 'circle' && s.role === 'plant' && s.plantId && plantsById[s.plantId]) return plantColor(plantsById[s.plantId]);
+  if (s.role === 'utility' && isUtilityKind(s.utility)) return utilityLook(s.utility).color;
+  return defaultLook(roleKey(s), s.type).color;
 }
 function lookSummary(s: Shape): HTMLElement {
   const outline = s.role === 'boundary' || (s.type === 'line' && !s.pathWidth) || s.type === 'text';
@@ -324,17 +332,26 @@ export function renderPropsPanelSingle(s: Shape) {
   const swatches = el('div', { className: 'swatches' });
   for (const c of SWATCHES) {
     const btn = el('button', { className: 'swatch' + (s.color === c ? ' sel' : ''), style: { background: c }, 'aria-label': SWATCH_NAMES[c] ?? c, 'aria-pressed': String(s.color === c) });
-    btn.addEventListener('click', () => updateSelected({ color: c }));
+    btn.addEventListener('click', () => updateSelected(colorPatch(s, c)));
     swatches.appendChild(btn);
   }
   const colorInput = el('input', { type: 'color', value: s.color });
   colorInput.addEventListener('input', e => {
-    updateSelectedSilent({ color: (e.target as HTMLInputElement).value });
+    updateSelectedSilent(colorPatch(s, (e.target as HTMLInputElement).value));
     (lookSum.firstChild as HTMLElement).style.background = s.color;
   });
+  // Back to the color it started with (Jason, Oct 29): for a catalog plant, its picture's own colors again.
+  const def = defaultColorOf(s);
+  const isDefault = s.color.toLowerCase() === def.toLowerCase() && !(s.type === 'circle' && s.colorSet);
+  const resetColor = el('button', { className: 'link-btn', 'data-testid': 'default-color' }, 'Default color');
+  resetColor.addEventListener('click', () => updateSelected({ color: def, ...(s.type === 'circle' ? { colorSet: undefined } : {}) }));
+  const pictured = s.type === 'circle' && s.role === 'plant' && !!s.plantId && !!plantsById[s.plantId] && !isMine(plantsById[s.plantId]);
   const lookParts: Node[] = [el('div', { className: 'field' }, el('label', {}, 'Color'), swatches,
     el('div', { style: { marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' } },
-      el('label', { style: { fontSize: ts(12), color: '#57534e' } }, 'Custom:'), colorInput))];
+      el('label', { style: { fontSize: ts(12), color: '#57534e' } }, 'Custom:'), colorInput, isDefault ? '' : resetColor),
+    pictured && state.plantLooks ? el('div', { className: 'hint' }, s.colorSet
+      ? 'Its picture\'s leaves are drawn in this color. Default color brings back its own colors.'
+      : 'Its picture is drawn in its own colors. A color you pick here draws its leaves.') : '')];
   // Opacity (not for outlines; sun exposure with a record is shaded by its sun hours)
   if (!(s.role === 'boundary' || (s.type === 'line' && !s.pathWidth) || s.type === 'text' || (s.role === 'shade' && s.sun))) {
     const opacityVal = s.opacity !== undefined ? s.opacity : 0.65;
