@@ -67,3 +67,32 @@ test('a tree placed by a vine is offered to it; the vine moved out of its reach 
   await freed.getByRole('button', { name: 'Undo' }).click();
   await expect(band(page)).toHaveCount(1);
 });
+
+// A trellis and an arbor (the vine plan's last part, Oct 29): garden structures in the Add sheet. A vine by a trellis
+// bands along it; a vine by an arbor covers its top.
+test('an arbor drawn, a vine placed by it is offered it and covers it; a trellis is drawn with its lattice', async ({ page }) => {
+  await openFresh(page);
+  await addKind(page, 'arbor');
+  for (const [x, y] of [[-4, -6], [4, -6], [4, -2]]) await tapFromCenter(page, x, y);
+  await expect(page.locator('#canvas-svg [data-role=arbor-slats]')).toHaveCount(1);
+  const arbor = page.locator('#canvas-svg rect[data-shape-id]');
+  await startPlacing(page, 'Carolina jessamine');
+  // (A foot below the arbor, where it is on the screen now.)
+  const box = (await arbor.boundingBox())!;
+  const ppf = 24 * (await zoomPct(page)) / 100;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height + ppf);
+  const offer = page.getByTestId('vine-offer');
+  await expect(offer).toContainText('Carolina jessamine could climb the arbor.');
+  await offer.getByRole('button', { name: 'Climb it' }).click();
+  await done(page);
+  // Over its top: the cover is the arbor's own size (the vine's 25 ft spread covers all 8 ft of it).
+  const cover = (await band(page).boundingBox())!, under = (await arbor.boundingBox())!;
+  expect(Math.abs(cover.width - under.width)).toBeLessThan(4);
+  expect(Math.abs(cover.height - under.height)).toBeLessThan(4);
+  // A trellis: a line with its lattice.
+  await page.keyboard.press('Escape');
+  await addKind(page, 'trellis');
+  for (const [x, y] of [[-3, 6], [3, 6]]) await tapFromCenter(page, x, y);
+  await page.getByTestId('draw-bar').getByRole('button', { name: 'Done' }).click();
+  await expect(page.locator('#canvas-svg [data-role=trellis-lattice]')).toHaveCount(1);
+});

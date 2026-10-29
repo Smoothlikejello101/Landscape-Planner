@@ -483,6 +483,24 @@ describe('utilities: power lines, buried lines and septic fields', () => {
   });
 });
 
+describe('garden structures: a trellis and an arbor', () => {
+  it('round-trip, through a backup too, a vine climbing one included', async () => {
+    await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [
+      { id: 't', type: 'line', x: 0, y: 0, rotation: 0, points: [[0, 0], [6, 0]], color: '#8b5a2b', label: 'Trellis', opacity: 0.25, locked: false, role: 'structure', status: 'planned' },
+      { id: 'a', type: 'rect', x: 10, y: 0, width: 8, height: 4, rotation: 15, color: '#8b5a2b', label: 'Arbor', opacity: 0.25, locked: false, role: 'structure', status: 'planned' },
+      { id: 'v', type: 'circle', x: 12, y: 5, radius: 12.5, color: '#16a34a', label: 'Carolina jessamine', opacity: 0.65, locked: false, role: 'plant', plantId: 'gelsemium-sempervirens', climbsOn: 'a' },
+    ] }).shapes;
+    await flushSave();
+    const loaded = (await readProject(id))!.shapes;
+    expect(loaded).toEqual(state.shapes);
+    expect(loaded.map((s) => [s.id, s.role])).toEqual([['t', 'structure'], ['a', 'structure'], ['v', 'plant']]);
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
+  });
+});
+
 describe('trees with a trunk and a shaped canopy', () => {
   const tree = (extra: Record<string, unknown> = {}) => ({ id: 't', type: 'circle', x: 5, y: 5, radius: 6, color: '#78350f', label: 'Tree', opacity: 0.5, locked: false, role: 'plant', sizeFrom: 'manual', ...extra });
   it('round-trip, and circles from older versions stay plain circles', async () => {

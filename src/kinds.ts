@@ -13,7 +13,7 @@ import { utilityLook } from './utility-kinds';
 /** How a shape is drawn, tap by tap. */
 export type Method = 'poly' | 'line' | 'path' | 'rect' | 'circle' | 'oval' | 'triangle' | 'note' | 'trunk' | 'canopy';
 export type KindKey =
-  | 'plant' | 'bed' | 'tree' | 'lawn'
+  | 'plant' | 'bed' | 'tree' | 'lawn' | 'trellis' | 'arbor'
   | 'path' | 'patio' | 'driveway'
   | 'building' | 'fence' | 'property'
   | 'powerline' | 'buried' | 'septic'
@@ -52,6 +52,10 @@ export const KINDS: KindDef[] = [
   { key: 'bed', label: 'Bed', group: 'Garden', role: 'bed', methods: ['poly', 'rect', 'circle', 'oval'], shortcut: 'b', startLabel: named('Bed'), startStatus: 'planned' },
   { key: 'tree', label: 'Existing tree', group: 'Garden', role: 'plant', methods: ['trunk', 'canopy'], shortcut: 't', startLabel: named('Tree'), startStatus: 'planted' },
   { key: 'lawn', label: 'Lawn', group: 'Garden', role: 'lawn', methods: ['poly', 'rect'], shortcut: 'l', startLabel: named('Lawn'), startStatus: 'planted' },
+  // What vines climb (src/vines.ts; the Backlog's vine plan, Oct 28–29): a trellis, a line a vine bands along; an arbor
+  // or pergola, an area a vine covers. Planned to start: a structure is more often built for the plan than there.
+  { key: 'trellis', label: 'Trellis', group: 'Garden', role: 'structure', methods: ['line'], startLabel: named('Trellis'), startStatus: 'planned' },
+  { key: 'arbor', label: 'Arbor or pergola', group: 'Garden', role: 'structure', methods: ['rect', 'poly'], startLabel: named('Arbor'), startStatus: 'planned' },
   { key: 'path', label: 'Path', group: 'Paths and paving', role: 'path', methods: ['path', 'poly'], shortcut: 'w', startLabel: named('Path'), pathWidth: 3, startStatus: 'planned' },
   { key: 'patio', label: 'Patio or deck', group: 'Paths and paving', role: 'path', methods: ['rect', 'poly'], startLabel: named('Patio'), startStatus: 'planned' },
   { key: 'driveway', label: 'Driveway', group: 'Paths and paving', role: 'path', methods: ['rect', 'poly', 'path'], startLabel: named('Driveway'), pathWidth: 10, startStatus: 'planted' },
@@ -97,6 +101,7 @@ export function kindOfShape(s: Shape): KindKey | null {
     case 'water': return 'water';
     case 'shade': return 'sun';
     case 'building': return 'building';
+    case 'structure': return s.type === 'line' ? 'trellis' : 'arbor';
     case 'boundary': return label.includes('property') ? 'property' : 'fence';
     case 'path':
       if (label.includes('drive')) return 'driveway';

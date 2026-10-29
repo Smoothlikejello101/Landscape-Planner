@@ -24,6 +24,8 @@ export const ROLES: RoleDef[] = [
   { key: 'shade', label: 'Sun exposure', color: '#334155', opacity: 0.3 },
   { key: 'building', label: 'Building', color: '#57534e', opacity: 0.8 },
   { key: 'boundary', label: 'Boundary', color: '#44403c', opacity: 1, outline: true },
+  // (A trellis, drawn as a line with its lattice; an arbor or pergola, an area with its slats: what vines climb.)
+  { key: 'structure', label: 'Garden structure', color: '#8b5a2b', opacity: 0.25 },
   // (Power lines, buried lines and septic fields: src/utilities.ts. Each kind starts in its own color: src/kinds.ts.)
   { key: 'utility', label: 'Utility', color: '#ea580c', opacity: 1 },
   { key: 'other', label: 'Note / other', color: '#94a3b8', opacity: 0.6 },
@@ -42,7 +44,7 @@ export function isRole(v: unknown): v is Role { return typeof v === 'string' && 
  * they stay readable and easy to tap.
  */
 const RANK: Record<RoleKey, number> = {
-  lawn: 0, water: 1, path: 2, bed: 3, shade: 4, utility: 5, boundary: 6, building: 7,
+  lawn: 0, water: 1, path: 2, bed: 3, shade: 4, utility: 5, boundary: 6, building: 7, structure: 7,
   plant: 8, other: 8, unassigned: 8,
 };
 export function roleRank(s: Shape): number { return RANK[roleKey(s)]; }
