@@ -19,8 +19,8 @@ test('the bottom bar names garden things; the Add sheet holds the rest', async (
   await expect(page.locator('.bottom-toolbar .tool-btn .lbl')).toHaveText(['Plant', 'Bed', 'Path', 'Add']);
   await page.getByTestId('add-btn').click();
   const sheet = page.getByTestId('add-sheet');
-  await expect(sheet.locator('.kind-group-name')).toHaveText(['Garden', 'Paths and paving', 'Buildings and boundaries', 'Site conditions', 'Notes and tools']);
-  await expect(sheet.locator('.kind-chip')).toHaveCount(15);
+  await expect(sheet.locator('.kind-group-name')).toHaveText(['Garden', 'Paths and paving', 'Buildings and boundaries', 'Utilities', 'Site conditions', 'Notes and tools']);
+  await expect(sheet.locator('.kind-chip')).toHaveCount(18);
   await expect(sheet.getByTestId('recent-kinds')).toHaveCount(0); // nothing added yet
   await sheet.locator('.sheet-header button').click();
   await page.locator('.tool-btn.plants').click();
@@ -184,7 +184,7 @@ test('what something is can be changed behind Change', async ({ page }) => {
   const what = page.getByTestId('what-it-is');
   await expect(what.locator('.role-chip')).toHaveCount(0); // the list stays out of the way
   await page.getByTestId('change-kind').click();
-  await expect(what.locator('.role-chip')).toHaveCount(10);
+  await expect(what.locator('.role-chip')).toHaveCount(11);
   await expect(what.locator('.role-chip', { hasText: 'Plain shape' })).toHaveCount(1);
   await what.locator('.role-chip', { hasText: 'Lawn' }).click();
   await expect(what).toContainText('Lawn');

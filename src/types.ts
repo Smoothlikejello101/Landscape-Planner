@@ -4,7 +4,9 @@ import type { KindKey } from './kinds';
 
 export type ShapeType = 'circle' | 'rect' | 'oval' | 'triangle' | 'poly' | 'line' | 'text';
 /** What a shape represents. Undefined = not yet assigned (shapes from older versions). */
-export type Role = 'plant' | 'bed' | 'boundary' | 'building' | 'shade' | 'path' | 'lawn' | 'water' | 'other';
+export type Role = 'plant' | 'bed' | 'boundary' | 'building' | 'shade' | 'path' | 'lawn' | 'water' | 'utility' | 'other';
+/** A utility (role 'utility', src/utilities.ts): a line overhead or buried, or a septic drainfield (an area). */
+export type UtilityKind = 'overhead' | 'buried' | 'septic';
 /** Per-project display state for a role (or 'unassigned'). */
 export interface RoleView { hidden?: boolean; locked?: boolean }
 export type RoleKey = Role | 'unassigned';
@@ -35,6 +37,16 @@ interface ShapeBase {
    * recorded sun changes.
    */
   sunDismissed?: string;
+  /**
+   * Utilities: which (an overhead power line, a buried line, a septic field; one a later version adds is kept as it
+   * came, unchecked). Kept on one made something else since, which is that again if turned back.
+   */
+  utility?: UtilityKind;
+  /**
+   * Plants: the utility warnings dismissed, as which utilities and rules they were (src/utilities.ts issuesKey); ''
+   * when shown again on purpose, so sync can tell it from a copy an older version sent without one.
+   */
+  utilityDismissed?: string;
   /** Where it stands in the real garden (unset = not tracked). */
   status?: Status;
   /** YYYY-MM-DD it went in the ground (status 'planted'). */
@@ -103,14 +115,34 @@ export interface CircleShape extends ShapeBase {
   /** Ignored for circles; tolerated so old data and patches stay valid. */
   rotation?: number;
 }
-export interface BoxShape<T extends 'rect' | 'oval' = 'rect' | 'oval'> extends ShapeBase {
+/** What sits on a shape's edge (src/features.ts): a building's doors and windows, a fence's gates, a deck's steps. */
+export type SubFeatureKind = 'door' | 'window' | 'garage' | 'steps' | 'gate' | 'downspout' | 'spigot' | 'ac' | 'meter';
+/**
+ * A sub-feature: on edge `edge` of its shape's outline (from point `edge` to the next), `at` the share of the way
+ * along it (its middle); `width` in feet along the edge, for those that take a stretch of it (a door, not a hose bib).
+ */
+export interface SubFeature {
+  id: string; kind: SubFeatureKind; edge: number; at: number; width?: number;
+  /** A door's or gate's hinge: at the other end of its opening from where it starts ('end'), or where it starts (absent). */
+  hinge?: 'end';
+  /** A door or gate that swings in, into the building or across the line the other way ('in'), or out (absent). */
+  swing?: 'in';
+}
+// (One of a kind this version doesn't know, from a later one, is kept as it came: not drawn, listed or changed, so
+// it's still there when the plan is opened on that version again.)
+/**
+ * Sub-features of a shape with edges. [] where they were all taken off (so a copy from an older version, which
+ * doesn't know them and leaves them out, can be told apart: src/sync/engine.ts).
+ */
+interface Featured { features?: SubFeature[] }
+export interface BoxShape<T extends 'rect' | 'oval' = 'rect' | 'oval'> extends ShapeBase, Featured {
   type: T;
   width: number;
   height: number;
   /** Degrees, clockwise, around the box center. */
   rotation: number;
 }
-export interface TriangleShape extends ShapeBase {
+export interface TriangleShape extends ShapeBase, Featured {
   type: 'triangle';
   width: number;
   height: number;
@@ -124,7 +156,7 @@ export interface TriangleShape extends ShapeBase {
  * turns the points around that box's center, like the other shapes; editing
  * points first bakes the rotation into them.
  */
-export interface PathShape<T extends 'poly' | 'line' = 'poly' | 'line'> extends ShapeBase {
+export interface PathShape<T extends 'poly' | 'line' = 'poly' | 'line'> extends ShapeBase, Featured {
   type: T;
   points: [number, number][];
   rotation: number;
@@ -296,7 +328,16 @@ export type Gesture =
   | { type: 'bg-drag'; startX: number; startY: number; grabOffset: Point; startCenter: Point; moved: boolean }
   | { type: 'bg-rot'; startAngle: number; startRotation: number; angleAt: (x: number, y: number) => number }
   | { type: 'bg-calibrate-tap'; startX: number; startY: number; startOffset: Point; moved: boolean }
-  | { type: 'drag-vertex'; id: string; index: number; startX: number; startY: number; moved: boolean; inserted: boolean };
+  | { type: 'drag-vertex'; id: string; index: number; startX: number; startY: number; moved: boolean; inserted: boolean }
+  // A sub-feature dragged along its shape's edges (src/features.ts): `start`, the shape's sub-features as it began.
+  // A sub-feature dragged along its shape's edges: `grab`, where on it it was pressed (feet from its middle);
+  // `historyAt`, the undo step it began on (an Undo mid-drag ends it).
+  | { type: 'drag-feature'; id: string; featureId: string; start: SubFeature[]; grab: Point; historyAt: number; startX: number; startY: number; moved: boolean }
+  // A handle on the selected shape (src/handles.ts): `start`, the shape as the drag began; `carried`, a bed's plants
+  // as they were (they turn with it); `grab`, where on the handle it was pressed (feet from its point); `historyAt`,
+  // the undo step it began at.
+  | { type: 'shape-resize'; id: string; handle: 'tl' | 'tr' | 'bl' | 'br' | 'radius'; start: Shape; carried: Shape[]; grab: Point; startX: number; startY: number; moved: boolean; historyAt: number }
+  | { type: 'shape-rotate'; id: string; start: Shape; carried: Shape[]; center: Point; startAngle: number; startX: number; startY: number; moved: boolean; historyAt: number };
 
 /**
  * Adding something by tapping on the plan: the drawing method, the points
@@ -314,6 +355,8 @@ export interface DrawState {
   snaps?: (TapSnap | null)[];
   /** Where (screen px) and when the last tap was, so a double tap is told by the finger, not where it landed. */
   lastTap?: { x: number; y: number; t: number };
+  /** Once it's finished, go on to add its doors, windows, gates or steps (the drawing bar's switch, off to start). */
+  thenFeatures?: boolean;
 }
 /**
  * A tap or a dragged point that landed on another shape: which shape, its corner or edge there (`seg`, lit while
@@ -385,4 +428,9 @@ export interface AppState {
   bgCalibrate: Calibration | null;
   draw: DrawState | null;
   editPoints: EditPoints | null;
+  /**
+   * Adding sub-features to a shape by tapping its edges (src/feature-edit.ts): which shape, the kind, those added, and
+   * the flips made to the one just added (each with how many had been added then: Undo takes back whichever came last).
+   */
+  featurePlace: { id: string; kind: SubFeatureKind; added: string[]; flips: { id: string; which: 'hinge' | 'swing'; n: number }[] } | null;
 }

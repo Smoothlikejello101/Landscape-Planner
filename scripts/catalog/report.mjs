@@ -11,6 +11,7 @@ export function reviewKind(item) {
   if (n.startsWith("value the catalog can't take")) return 'cant';
   if (n.startsWith('no source gives it now')) return 'stale';
   if (n.startsWith('taken out:')) return 'retracted';
+  if (n.startsWith('withdrawn:')) return 'withdrawn';
   if (item.fact === 'form' && /a cultivar may be a tree/.test(n)) return 'tree';
   return 'disputed';
 }
@@ -93,11 +94,12 @@ function newPlantsNote({ added = [], waiting = {}, left = [], unsaved = 0, all =
  * plant list; `combined`: sample.mjs's output; `review`: write.mjs's review list; `searched`: the web search's
  * claims by plant; `wcvp`: wcvp.mjs's review ({ homonyms, regulatedUnreviewed, regulatedNotMatched, notMatched });
  * `native`, `bloom`: wild.mjs's review lists; `warnings`: catalog:check's; `unfetched`: list.mjs toFetch's;
- * `termsUnsettled`: sites whose terms wait for a reading that settles them; `decisions`: scripts/catalog/decisions.json
+ * `termsUnsettled`: sites whose terms wait for a reading that settles them; `kewApart`: cultivars NC State may file
+ * under a species Kew keeps apart (split.mjs); `decisions`: scripts/catalog/decisions.json
  * (what a person already decided isn't listed again).
  * Returns { markdown, summary, counts }.
  */
-export function reviewReport({ catalog, list, combined, review, searched = {}, wcvp = null, native = [], bloom = [], warnings = [], unfetched = null, termsUnsettled = [], decisions = {}, additions = null }) {
+export function reviewReport({ catalog, list, combined, review, searched = {}, wcvp = null, native = [], bloom = [], warnings = [], unfetched = null, termsUnsettled = [], decisions = {}, additions = null, kewApart = [] }) {
   const byId = new Map(catalog.plants.map((p) => [p.id, p]));
   const order = new Map(catalog.plants.map((p, i) => [p.id, i]));
   const byOrder = (a, b) => (order.get(a.id) ?? 1e9) - (order.get(b.id) ?? 1e9);
@@ -155,6 +157,9 @@ export function reviewReport({ catalog, list, combined, review, searched = {}, w
   section('Taken out: a description read wrongly before', of('retracted').length,
     "A value an earlier build read from a page's description, by rules that have since been fixed and no longer read it so. It's taken out (nothing to decide: listed so the change is seen).",
     table(['Plant', 'Fact', 'What was taken out'], of('retracted').map((i) => [name(i.id), factName(i.fact), esc(i.note.replace(/^taken out: /, ''))])), 'tidy');
+  section('Taken out: its source withdrawn', of('withdrawn').length,
+    "A value whose only sources we may no longer read: their terms were taken back for a fresh reading, or found to bar us (decisions.json `withdrawn`). It's taken out (nothing to decide: listed so the change is seen).",
+    table(['Plant', 'Fact', 'What was taken out'], of('withdrawn').map((i) => [name(i.id), factName(i.fact), esc(i.note.replace(/^withdrawn: /, ''))])), 'tidy');
   section("Values the catalog can't take", of('cant').length,
     "A source's value doesn't fit the catalog's format.",
     table(['Plant', 'Fact', 'Value'], of('cant').map((i) => [name(i.id), factName(i.fact), esc(i.note)])));
@@ -169,6 +174,10 @@ export function reviewReport({ catalog, list, combined, review, searched = {}, w
         ...(wcvp.regulatedNotMatched ?? []).map((n) => `${esc(n)}: a law list's name Kew doesn't match to one accepted species`),
       ]));
   }
+  const apart = kewApart.filter((k) => !decisions.kewSpecies?.[k.id]).sort(byOrder);
+  section("Under a species Kew keeps apart", apart.length,
+    `NC State files these cultivars under one species, and its page for another, which Kew's checklist keeps apart, leads there; each one's page calls it the other's. A cultivar goes under the species Kew accepts (docs/catalog-sources.md, "Kew's species"), so check each and move it. ${DECIDE('kewSpecies')}`,
+    bullets(apart.map((k) => `${name(k.id)}: filed under ${esc(k.y)}; its page (\`${k.page}\`) says "${esc(k.word)}", for ${esc(k.x)}`)));
   section('Native status held back', native.length,
     `Kew has the species native to these states, but the catalog calls the plant "Exotic" (its species may hold a native kind the garden plant isn't), so it's never shown native. ${DECIDE('nativeShown')}`,
     bullets(native.map((n) => `${name(n.id)}: Kew's ${esc(n.name)}, native to ${plural(n.nativeIn?.length ?? 0, 'state')}`)));

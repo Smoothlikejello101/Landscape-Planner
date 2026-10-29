@@ -68,6 +68,7 @@ export const state: AppState = {
   // Ephemeral: drawing a freeform outline/line, or editing one's points.
   draw: null,
   editPoints: null,
+  featurePlace: null,
 };
 export const gesture: { current: Gesture | null } = { current: null };
 export const tapTracker: { id: string | null; time: number } = { id: null, time: 0 };

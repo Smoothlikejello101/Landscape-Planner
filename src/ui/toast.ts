@@ -45,29 +45,71 @@ export function placeToast(node: HTMLElement) {
 /**
  * A notice with buttons ("Squared the corners. Undo"), kept up long enough to reach: tapping a button runs it
  * and closes the notice (unless it's `keep`: turning a setting off leaves the Undo there). A new notice
- * replaces it.
+ * replaces it. With `detail`, the message is one short line that opens to say more (Jason, 2026-10-27: a notice
+ * mustn't get in the way); opened, it stays up while it's read. `tone` marks it amber or red.
  */
-export function toastAction(message: string, actions: { label: string; run: () => void; keep?: boolean }[], ms = 10000, testid?: string) {
+export function toastAction(message: string, actions: { label: string; run: () => void; keep?: boolean }[], ms = 10000, testid?: string,
+  opts: { detail?: string; tone?: 'amber' | 'red' } = {}) {
   toast('', 1); // (clears a plain toast)
   document.getElementById('toast-action')?.remove();
   const node = document.createElement('div');
   node.id = 'toast-action';
   if (testid) node.dataset.testid = testid;
+  if (opts.tone) node.classList.add(`tone-${opts.tone}`);
   node.setAttribute('role', 'status');
   node.setAttribute('aria-live', 'polite');
-  const text = document.createElement('span');
-  text.textContent = message;
-  node.appendChild(text);
+  let closeAt = Date.now() + ms;
+  if (opts.detail) {
+    const line = document.createElement('button');
+    line.className = 'notice-line';
+    line.setAttribute('aria-expanded', 'false');
+    line.dataset.testid = 'notice-line';
+    const words = document.createElement('span');
+    words.textContent = message;
+    const chev = document.createElement('span');
+    chev.className = 'notice-chev';
+    chev.setAttribute('aria-hidden', 'true');
+    line.append(words, chev);
+    const more = document.createElement('div');
+    more.className = 'notice-detail';
+    more.dataset.testid = 'notice-detail';
+    more.textContent = opts.detail;
+    more.hidden = true;
+    line.addEventListener('click', () => {
+      more.hidden = !more.hidden;
+      line.setAttribute('aria-expanded', String(!more.hidden));
+      if (!more.hidden) closeAt = Math.max(closeAt, Date.now() + 30000); // (time to read it)
+      placeNotice();
+    });
+    node.append(line, more);
+  } else {
+    const text = document.createElement('span');
+    text.textContent = message;
+    node.appendChild(text);
+  }
+  const buttons = document.createElement('div');
+  buttons.className = 'notice-buttons';
   for (const a of actions) {
     const b = document.createElement('button');
     b.textContent = a.label;
     b.addEventListener('click', () => { if (a.keep) b.remove(); else node.remove(); a.run(); });
-    node.appendChild(b);
+    buttons.appendChild(b);
   }
+  node.appendChild(buttons);
+  // Put away without its buttons (Jason, 2026-10-27): ✕, or a swipe sideways.
+  const close = document.createElement('button');
+  close.className = 'notice-close';
+  close.textContent = '✕';
+  close.setAttribute('aria-label', 'Dismiss');
+  close.dataset.testid = 'notice-close';
+  close.addEventListener('click', () => node.remove());
+  node.appendChild(close);
+  swipeAway(node);
   document.body.appendChild(node);
   placeNotice();
   requestAnimationFrame(placeNotice);
-  setTimeout(() => node.remove(), ms);
+  const tick = () => { if (!node.isConnected) return; const left = closeAt - Date.now(); if (left <= 0) node.remove(); else setTimeout(tick, left); };
+  setTimeout(tick, ms);
 }
 /**
  * Where a notice with buttons sits: at the top of the plan; with a sheet open, just above the sheet, so it never
@@ -83,6 +125,48 @@ export function placeNotice() {
   const sheetTop = sheet.getBoundingClientRect().top;
   const h = node.getBoundingClientRect().height;
   node.style.top = `${Math.max(8, Math.round(sheetTop - h - 8))}px`;
+}
+/** How far a notice is swiped before it goes on its own (px), or how fast (px a millisecond). */
+const SWIPE_AWAY = 80, SWIPE_FLICK = 0.5;
+/**
+ * A notice that follows a finger (or the mouse) sideways and goes when let go far enough, or flicked; short of
+ * that, it slides back. A press that doesn't move sideways is a tap, its button's as before.
+ */
+function swipeAway(node: HTMLElement) {
+  let start: { x: number; y: number; t: number; id: number } | null = null, dx = 0, swiping = false, swallow = false;
+  const at = (x: number) => { node.style.transform = `translateX(calc(-50% + ${x}px))`; node.style.opacity = String(Math.max(0.2, 1 - Math.abs(x) / 240)); };
+  node.addEventListener('pointerdown', (e) => { start = { x: e.clientX, y: e.clientY, t: Date.now(), id: e.pointerId }; dx = 0; swiping = false; });
+  node.addEventListener('pointermove', (e) => {
+    if (!start || e.pointerId !== start.id) return;
+    dx = e.clientX - start.x;
+    if (!swiping && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(e.clientY - start.y)) {
+      swiping = true;
+      node.classList.add('swiping');
+      try { node.setPointerCapture(e.pointerId); } catch { /* not capturable: it follows anyway */ }
+    }
+    if (swiping) at(dx);
+  });
+  const end = (e: PointerEvent) => {
+    if (!start || e.pointerId !== start.id) return;
+    const was = start;
+    start = null;
+    if (!swiping) return;
+    swiping = false;
+    node.classList.remove('swiping');
+    // (The click that follows a swipe, if it ended on a button, doesn't press it; nothing later is held back.)
+    swallow = true;
+    setTimeout(() => { swallow = false; }, 0);
+    const speed = Math.abs(dx) / Math.max(1, Date.now() - was.t);
+    if (Math.abs(dx) >= SWIPE_AWAY || speed >= SWIPE_FLICK) {
+      node.classList.add('gone');
+      at(Math.sign(dx || 1) * (window.innerWidth));
+      setTimeout(() => node.remove(), 200);
+    } else { node.style.transform = ''; node.style.opacity = ''; }
+  };
+  node.addEventListener('pointerup', end);
+  node.addEventListener('pointercancel', end);
+  // (A swipe that ends on a button doesn't press it.)
+  node.addEventListener('click', (e) => { if (swallow) { e.stopPropagation(); e.preventDefault(); } }, true);
 }
 /** Close a notice with buttons, if one is up (the next drawing starts, say). */
 export function dismissToastAction() { document.getElementById('toast-action')?.remove(); }

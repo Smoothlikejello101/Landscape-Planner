@@ -1,5 +1,5 @@
 {
- "about": "Decisions a person made on what the catalog build left for review (docs/catalog-review.md), so each build applies them instead of listing them again. A decision only chooses among what the sources say, or says how a source is read; it never adds a value no source gives (docs/catalog-sources.md, \"Decisions\"). `form`: a cultivar with no page of its own, whose species' sources list it as a tree: the forms it takes, primary first, each listed by a species source. `edible`: a plant a source calls edible that is rated toxic: true writes the source's \"edible\", with what it lists as poisonous beside it (`poison`), where it lists any; false leaves edible as it was, taking out an older unsourced \"yes\". `nativeShown`: a plant the catalog calls exotic that Kew's checklist has native in some states: shown native there all the same. `kewNames`: names Kew's checklist could read two ways, checked to be read as Kew's accepted name, whose authors (`author`) it records. `genusPage`: a plant read from NC State's page for its whole genus, the facts checked to fit it. `split`: a record of several cultivars made one record per cultivar (scripts/catalog/split.mjs): the record keeps its id for one cultivar (`keep`, the one whose size it showed), and each other gets a record of its own, from its own NC State page (`page`) or, with none, names alone, taking its species' size until a source gives its own.",
+ "about": "Decisions a person made on what the catalog build left for review (docs/catalog-review.md), so each build applies them instead of listing them again. A decision only chooses among what the sources say, or says how a source is read; it never adds a value no source gives (docs/catalog-sources.md, \"Decisions\"). `form`: a cultivar with no page of its own, whose species' sources list it as a tree: the forms it takes, primary first, each listed by a species source. `edible`: a plant a source calls edible that is rated toxic: true writes the source's \"edible\", with what it lists as poisonous beside it (`poison`), where it lists any; false leaves edible as it was, taking out an older unsourced \"yes\". `nativeShown`: a plant the catalog calls exotic that Kew's checklist has native in some states: shown native there all the same. `kewNames`: names Kew's checklist could read two ways, checked to be read as Kew's accepted name, whose authors (`author`) it records. `genusPage`: a plant read from NC State's page for its whole genus, the facts checked to fit it. `split`: a record of several cultivars made one record per cultivar (scripts/catalog/split.mjs): the record keeps its id for one cultivar (`keep`, the one whose size it showed), and each other gets a record of its own, from its own NC State page (`page`) or, with none, names alone, taking its species' size until a source gives its own. An other with `species` is filed by its page under a species Kew keeps apart from its own, and goes under Kew's; one with `botanical` is a plant the record named that isn't one of its cultivars (its genus, or a species), with the page ncsu-pages.json gives it, if any; an entry's `species` is the species record to make where the catalog has none. `cultivar`: a record naming one cultivar beside its species, renamed for it. `kewSpecies`: a cultivar NC State files under a species Kew keeps apart from its own (its page says which it is), put under Kew's species (docs/catalog-sources.md, \"Kew's species\"). `parent`: a cultivar put under a species its name doesn't give, where its page names it. `fold`: a record whose plants all have records of their own: it goes, and the catalog's `meta.moved` says which record its id stands for from then on (`into`). `group`: a record kept for a group of cultivars, read from its species' page as its own, its size included.",
  "form": {
   "ilex-vomitoria-nana-schillings": {"v": "Shrub", "decided": "2026-10-23", "by": "Jason"},
   "ziziphus-jujuba-li-lang": {"v": "Tree", "decided": "2026-10-23", "by": "Jason"},
@@ -11,7 +11,13 @@
   "loropetalum-chinense-purple-pixie-zhuzhou": {"v": "Shrub", "decided": "2026-10-23", "by": "Jason"},
   "lagerstroemia-natchez-muskogee-tonto": {"v": ["Tree", "Shrub"], "decided": "2026-10-23", "by": "Jason", "note": "'Natchez' and 'Muskogee' grow into trees, 'Tonto' stays shrub-sized: they could be separate records (docs/future-ideas.md)"},
   "ginkgo-biloba-autumn-gold-princeton-sentry": {"v": "Tree", "decided": "2026-10-23", "by": "Jason"},
-  "prunus-x-yedoensis-kwanzan": {"v": "Tree", "decided": "2026-10-23", "by": "Jason"}
+  "ziziphus-jujuba-lang": {"v": "Tree", "decided": "2026-10-23", "by": "Jason", "note": "Decided for ziziphus-jujuba-li-lang, the record it was split from (2026-10-27)."},
+  "punica-granatum-russian-26": {"v": ["Shrub", "Tree"], "decided": "2026-10-23", "by": "Jason", "note": "Decided for punica-granatum-salavatski-russian-26, the record it was split from (2026-10-27)."},
+  "malus-domestica-enterprise": {"v": "Tree", "decided": "2026-10-23", "by": "Jason", "note": "Decided for malus-domestica-liberty-enterprise-william-s-pride, the record it was split from (2026-10-27)."},
+  "malus-domestica-williams-pride": {"v": "Tree", "decided": "2026-10-23", "by": "Jason", "note": "Decided for malus-domestica-liberty-enterprise-william-s-pride, the record it was split from (2026-10-27)."},
+  "sambucus-canadensis-wyldewood": {"v": "Shrub", "decided": "2026-10-23", "by": "Jason", "note": "Decided for sambucus-canadensis-bob-gordon-wyldewood, the record it was split from (2026-10-27)."},
+  "loropetalum-chinense-zhuzhou": {"v": "Shrub", "decided": "2026-10-23", "by": "Jason", "note": "Decided for loropetalum-chinense-purple-pixie-zhuzhou, the record it was split from (2026-10-27)."},
+  "ginkgo-biloba-princeton-sentry": {"v": "Tree", "decided": "2026-10-23", "by": "Jason", "note": "Decided for ginkgo-biloba-autumn-gold-princeton-sentry, the record it was split from (2026-10-27)."}
  },
  "edible": {
   "passiflora-incarnata": {"v": true, "decided": "2026-10-23", "by": "Jason"},
@@ -25,7 +31,8 @@
   "sambucus-canadensis-bob-gordon-wyldewood": {"v": true, "decided": "2026-10-23", "by": "Jason"},
   "prunus-persica": {"v": true, "decided": "2026-10-23", "by": "Jason"},
   "prunus-armeniaca": {"v": true, "decided": "2026-10-23", "by": "Jason"},
-  "prunus-avium": {"v": true, "decided": "2026-10-23", "by": "Jason"}
+  "prunus-avium": {"v": true, "decided": "2026-10-23", "by": "Jason"},
+  "sambucus-canadensis-wyldewood": {"v": true, "decided": "2026-10-23", "by": "Jason", "note": "Decided for sambucus-canadensis-bob-gordon-wyldewood, the record it was split from (2026-10-27)."}
  },
  "nativeShown": {
   "rubus-idaeus": {"decided": "2026-10-23", "by": "Jason"},
@@ -41,7 +48,9 @@
   "Scirpus microcarpus": {"author": "J.Presl & C.Presl", "decided": "2026-10-23", "by": "Jason", "note": "J.Presl & C.Presl; not S. microcarpus (Torr.) Kuntze (Eleocharis microcarpa)"}
  },
  "genusPage": {
-  "narcissus-tete-a-tete": {"decided": "2026-10-23", "by": "Jason", "note": "NC State's Narcissus page: bulb, zones 4a-8b, full sun to part shade, low water, takes clay, deer resistant"}
+  "narcissus-tete-a-tete": {"decided": "2026-10-23", "by": "Jason", "note": "NC State's Narcissus page: bulb, zones 4a-8b, full sun to part shade, low water, takes clay, deer resistant"},
+  "hemerocallis": {"decided": "2026-10-27", "by": "Jason", "note": "The genus's own record (split from Daylily 'Happy Returns'): NC State's Hemerocallis page is its page."},
+  "canna": {"decided": "2026-10-27", "by": "Jason", "note": "The genus's own record (split from Canna 'Australia'): NC State's Canna page is its page."}
  },
  "split": {
   "ficus-carica-celeste-brown-turkey-chicago-hardy": {"keep": {"cultivar": "Celeste", "common": "Common fig 'Celeste'"}, "others": [{"cultivar": "Brown Turkey", "page": "ficus-carica-brown-turkey"}, {"cultivar": "Chicago Hardy", "common": "Common fig 'Chicago Hardy'", "page": null}], "decided": "2026-10-25", "by": "Jason"},
@@ -50,6 +59,62 @@
   "carya-illinoinensis-kanza-lakota": {"keep": {"cultivar": "Lakota", "common": "Pecan 'Lakota'"}, "others": [{"cultivar": "Kanza", "common": "Pecan 'Kanza'", "page": null}], "decided": "2026-10-25", "by": "Jason", "note": "If I'm a gardener who knows I've got a Kanza, I'd like the app to support that without me having to make notes."},
   "cephalotaxus-harringtonia-duke-gardens-prostrata": {"keep": {"cultivar": "Duke Gardens", "common": "Japanese plum yew 'Duke Gardens'"}, "others": [{"cultivar": "Prostrata", "page": "cephalotaxus-harringtonia-prostrata"}], "decided": "2026-10-25", "by": "Jason"},
   "hibiscus-syriacus-sterile-diana-chiffon-series": {"keep": {"cultivar": "Diana", "common": "Rose of Sharon 'Diana'"}, "others": [{"cultivar": "Chiffon series", "common": "Rose of Sharon Chiffon series", "page": null}], "decided": "2026-10-25", "by": "Jason"},
-  "acer-palmatum-bloodgood-seiryu": {"keep": {"cultivar": "Bloodgood", "common": "Japanese maple 'Bloodgood'"}, "others": [{"cultivar": "Seiryu", "page": "acer-palmatum-seiryu"}], "decided": "2026-10-25", "by": "Jason"}
+  "acer-palmatum-bloodgood-seiryu": {"keep": {"cultivar": "Bloodgood", "common": "Japanese maple 'Bloodgood'"}, "others": [{"cultivar": "Seiryu", "page": "acer-palmatum-seiryu"}], "decided": "2026-10-25", "by": "Jason"},
+  "lonicera-sempervirens-john-clayton-major-wheeler": {"keep": {"cultivar": "John Clayton", "common": "Coral honeysuckle 'John Clayton'"}, "others": [{"cultivar": "Major Wheeler", "common": "Coral honeysuckle 'Major Wheeler'", "page": null}], "decided": "2026-10-27", "by": "Jason"},
+  "ilex-vomitoria-nana-schillings": {"keep": {"cultivar": "Schillings", "common": "Dwarf yaupon holly 'Schillings'"}, "others": [{"cultivar": "Nana", "page": "ilex-vomitoria-dwarf", "note": "the catalog's Yaupon 'Dwarf': NC State's page for 'Nana' now goes to it"}], "decided": "2026-10-27", "by": "Jason"},
+  "ziziphus-jujuba-li-lang": {"keep": {"cultivar": "Li", "common": "Jujube 'Li'"}, "others": [{"cultivar": "Lang", "common": "Jujube 'Lang'", "page": null}], "decided": "2026-10-27", "by": "Jason"},
+  "punica-granatum-salavatski-russian-26": {"keep": {"cultivar": "Salavatski", "common": "Hardy pomegranate 'Salavatski'"}, "others": [{"cultivar": "Russian 26", "common": "Hardy pomegranate 'Russian 26'", "page": null}], "decided": "2026-10-27", "by": "Jason"},
+  "malus-domestica-liberty-enterprise-william-s-pride": {"keep": {"cultivar": "Liberty", "common": "Apple 'Liberty'"}, "others": [{"cultivar": "Enterprise", "common": "Apple 'Enterprise'", "page": null}, {"cultivar": "William's Pride", "common": "Apple 'William's Pride'", "page": null}], "decided": "2026-10-27", "by": "Jason"},
+  "vaccinium-virgatum-climax-premier-tifblue": {"keep": {"cultivar": "Tifblue", "common": "Rabbiteye blueberry 'Tifblue'"}, "others": [{"cultivar": "Climax", "common": "Rabbiteye blueberry 'Climax'", "page": "vaccinium-corymbosum-climax", "species": "Vaccinium virgatum"}, {"cultivar": "Premier", "page": "vaccinium-corymbosum-premier", "note": "the catalog's 'Premier', moved to rabbiteye (kewSpecies)"}], "species": {"common": "Rabbiteye blueberry"}, "note": "Follow Kew: rabbiteye (Vaccinium virgatum) is its own species there; NC State files rabbiteyes under V. corymbosum. The species' name is NC State's for 'Climax' (Rabbiteye blueberry); USDA's (smallflower blueberry) is kept as a synonym.", "decided": "2026-10-27", "by": "Jason"},
+  "rubus-caddo-ouachita-natchez-ponca": {"keep": {"cultivar": "Caddo", "common": "Blackberry 'Caddo'"}, "others": [{"cultivar": "Ouachita", "common": "Blackberry 'Ouachita'", "page": null}, {"cultivar": "Natchez", "common": "Blackberry 'Natchez'", "page": null}, {"cultivar": "Ponca", "common": "Blackberry 'Ponca'", "page": null}], "note": "Their own sizes, from the University of Arkansas, are on the backlog.", "decided": "2026-10-27", "by": "Jason"},
+  "fragaria-x-ananassa-chandler-camarosa": {"keep": {"cultivar": "Chandler", "common": "Strawberry 'Chandler'"}, "others": [{"cultivar": "Camarosa", "common": "Strawberry 'Camarosa'", "page": null}], "decided": "2026-10-27", "by": "Jason"},
+  "sambucus-canadensis-bob-gordon-wyldewood": {"keep": {"cultivar": "Bob Gordon", "common": "Elderberry 'Bob Gordon'"}, "others": [{"cultivar": "Wyldewood", "common": "Elderberry 'Wyldewood'", "page": null}], "decided": "2026-10-27", "by": "Jason"},
+  "distylium-hybrids-vintage-jade-cinnamon-girl": {"keep": {"cultivar": "Vintage Jade", "common": "Distylium 'Vintage Jade'"}, "others": [{"cultivar": "Cinnamon Girl", "common": "Distylium 'Cinnamon Girl'", "page": null}], "decided": "2026-10-27", "by": "Jason"},
+  "loropetalum-chinense-purple-pixie-zhuzhou": {"keep": {"cultivar": "Purple Pixie", "common": "Loropetalum 'Purple Pixie'"}, "others": [{"cultivar": "Zhuzhou", "common": "Loropetalum 'Zhuzhou'", "page": null}], "decided": "2026-10-27", "by": "Jason"},
+  "gardenia-jasminoides-frostproof-kleim-s-hardy": {"keep": {"cultivar": "Frostproof", "common": "Gardenia 'Frostproof'"}, "others": [{"cultivar": "Kleim's Hardy", "page": "gardenia-jasminoides-kleims-hardy"}], "decided": "2026-10-27", "by": "Jason"},
+  "lagerstroemia-natchez-muskogee-tonto": {"keep": {"cultivar": "Natchez", "common": "Crape myrtle 'Natchez'"}, "others": [{"cultivar": "Muskogee", "common": "Crape myrtle 'Muskogee'", "page": null}, {"cultivar": "Tonto", "common": "Crape myrtle 'Tonto'", "page": null}], "decided": "2026-10-27", "by": "Jason"},
+  "ginkgo-biloba-autumn-gold-princeton-sentry": {"keep": {"cultivar": "Autumn Gold", "common": "Ginkgo 'Autumn Gold'"}, "others": [{"cultivar": "Princeton Sentry", "common": "Ginkgo 'Princeton Sentry'", "page": null}], "decided": "2026-10-27", "by": "Jason"},
+  "allium-millenium-purple-sensation": {"keep": {"cultivar": "Millenium", "common": "Ornamental allium 'Millenium'"}, "others": [{"cultivar": "Purple Sensation", "common": "Ornamental allium 'Purple Sensation'", "page": null}], "decided": "2026-10-27", "by": "Jason"},
+  "nepeta-cat-s-meow-walker-s-low": {"keep": {"cultivar": "Cat's Meow", "common": "Catmint 'Cat's Meow'"}, "others": [{"cultivar": "Walker's Low", "page": "nepeta-x-faassenii-walkers-low"}], "note": "No source here names 'Cat's Meow''s species, so it isn't under a species yet.", "decided": "2026-10-27", "by": "Jason"},
+  "hemerocallis-happy-returns-spider-types": {"keep": {"cultivar": "Happy Returns", "common": "Daylily 'Happy Returns'"}, "others": [{"botanical": "Hemerocallis", "common": "Daylily", "page": "hemerocallis"}], "note": "The genus's record reads NC State's genus page; spider daylilies are among those.", "decided": "2026-10-27", "by": "Jason"},
+  "canna-australia-species-types": {"keep": {"cultivar": "Australia", "common": "Canna 'Australia'"}, "others": [{"botanical": "Canna", "common": "Canna", "page": "canna"}], "decided": "2026-10-27", "by": "Jason"},
+  "crinum-milk-and-wine-bulbispermum": {"keep": {"cultivar": "Milk and Wine", "common": "Crinum lily 'Milk and Wine'"}, "others": [{"botanical": "Crinum bulbispermum", "page": null}], "note": "Crinum bulbispermum has no NC State page; its facts and name come from its other sources.", "decided": "2026-10-27", "by": "Jason"},
+  "echinacea-cone-fections-big-sky-sunseekers": {"keep": {"cultivar": "Cone-fections series", "common": "Echinacea Cone-fections series"}, "others": [{"cultivar": "Big Sky series", "common": "Echinacea Big Sky series", "page": null}, {"cultivar": "SunSeekers series", "common": "Echinacea SunSeekers series", "page": null}], "decided": "2026-10-27", "by": "Jason"}
+ },
+ "cultivar": {
+  "aucuba-japonica-gold-dust": {"cultivar": "Gold Dust", "common": "Aucuba 'Gold Dust'", "decided": "2026-10-27", "by": "Jason"},
+  "vitex-agnus-castus-shoal-creek": {"cultivar": "Shoal Creek", "common": "Chaste tree 'Shoal Creek'", "decided": "2026-10-27", "by": "Jason"},
+  "oenothera-lindheimeri-whirling-butterflies": {"cultivar": "Whirling Butterflies", "common": "White gaura 'Whirling Butterflies'", "decided": "2026-10-27", "by": "Jason"},
+  "leucanthemum-becky": {"cultivar": "Becky", "common": "Shasta daisy 'Becky'", "note": "Under Shasta daisy once a source names its species.", "decided": "2026-10-27", "by": "Jason"},
+  "liriope-muscari-big-blue": {"cultivar": "Big Blue", "common": "Liriope 'Big Blue'", "decided": "2026-10-27", "by": "Jason"},
+  "lantana-camara-miss-huff-hardy": {"cultivar": "Miss Huff", "common": "Lantana 'Miss Huff'", "decided": "2026-10-27", "by": "Jason"},
+  "chaenomeles-double-take-series": {"cultivar": "Double Take series", "common": "Flowering quince Double Take series", "note": "Under a species once a source names one.", "decided": "2026-10-27", "by": "Jason"},
+  "buxus-green-velvet-microphylla-types": {"cultivar": "Green Velvet", "common": "Boxwood 'Green Velvet'", "note": "Littleleaf boxwood is the catalog's record for the microphylla types.", "decided": "2026-10-27", "by": "Jason"},
+  "paeonia-lactiflora-festiva-maxima-early-cvs": {"cultivar": "Festiva Maxima", "common": "Peony 'Festiva Maxima'", "decided": "2026-10-27", "by": "Jason"}
+ },
+ "kewSpecies": {
+  "vaccinium-corymbosum-premier": {"species": "Vaccinium virgatum", "common": "Rabbiteye blueberry 'Premier'", "decided": "2026-10-27", "by": "Jason", "note": "NC State's page calls it a rabbiteye cultivar and files it under V. corymbosum; Kew keeps rabbiteye (V. virgatum) apart."}
+ },
+ "parent": {
+  "abelia-edward-goucher": {"parent": "abelia-x-grandiflora", "decided": "2026-10-27", "by": "Jason", "note": "NC State's page: a hybrid of Abelia × grandiflora and A. schumannii, which it names by the genus alone. It takes Glossy Abelia's facts only where its own page says nothing."}
+ },
+ "fold": {
+  "abelia-x-grandiflora-rose-creek-kaleidoscope": {"into": "abelia-x-grandiflora-rose-creek", "note": "'Kaleidoscope' has its own record too.", "decided": "2026-10-27", "by": "Jason"},
+  "buddleia-davidii-sterile-miss-molly-lo-behold": {"into": "buddleja-miss-molly", "note": "The Lo & Behold series have their own records.", "decided": "2026-10-27", "by": "Jason"},
+  "pennisetum-alopecuroides-hameln": {"into": "cenchrus-alopecuroides-hameln", "note": "The same plant under its older name.", "decided": "2026-10-27", "by": "Jason"},
+  "clematis-jackmanii-viticella-types": {"into": "clematis-x-jackmanii", "note": "Clematis viticella has its own record too.", "decided": "2026-10-27", "by": "Jason"},
+  "prunus-laurocerasus-caroliniana": {"into": "prunus-laurocerasus", "note": "Prunus caroliniana has its own record too.", "decided": "2026-10-27", "by": "Jason"},
+  "prunus-x-yedoensis-kwanzan": {"into": "prunus-x-yedoensis", "note": "'Kanzan' has its own record too.", "decided": "2026-10-27", "by": "Jason"},
+  "salvia-officinalis-origanum-vulgare": {"into": "salvia-officinalis", "note": "Oregano has its own record too.", "decided": "2026-10-27", "by": "Jason"}
+ },
+ "group": {
+  "asparagus-officinalis-jersey-millennium": {"decided": "2026-10-27", "by": "Jason", "note": "One record for 'Jersey' and 'Millennium', read from NC State's species page, its size included."}
+ },
+ "withdrawn": {
+  "abnativeplants.com": {"why": "its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read)", "decided": "2026-10-28", "by": "Claude, by the terms rules"},
+  "gardencentermarketing.com": {"why": "its plant library pages say \"Images and descriptions are copyrighted. Only for use on signage and websites created by Clarity Connect / GardenCenterMarketing.com\" (read 2026-10-28)", "decided": "2026-10-28", "by": "Claude, by the terms rules"},
+  "meadowcitynursery.com": {"why": "its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read)", "decided": "2026-10-28", "by": "Claude, by the terms rules"},
+  "plantingtree.com": {"why": "its terms bar spidering, crawling and scraping (read 2026-10-27)", "decided": "2026-10-28", "by": "Claude, by the terms rules"},
+  "whiteflowerfarm.com": {"why": "its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read)", "decided": "2026-10-28", "by": "Claude, by the terms rules"}
  }
 }

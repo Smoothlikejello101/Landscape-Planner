@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { createServer, type Server } from 'node:http';
 import { execSync } from 'node:child_process';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { extname, join, normalize } from 'node:path';
 
 // Simulates a phone that has the previous version installed (with its
@@ -24,6 +24,9 @@ test.describe.configure({ mode: 'serial' });
 test.beforeAll(async () => {
   // A second build standing in for the next release.
   execSync(`npx vite build --outDir ${NEXT_DIR} --emptyOutDir`, { env: { ...process.env, VERSION_SUFFIX: '-next' }, stdio: 'ignore' });
+  // (Its Arkansas records, changed, as a release's catalog build would change them.)
+  const ar = join(NEXT_DIR, 'wild', '1', '05.json');
+  writeFileSync(ar, JSON.stringify({ ...JSON.parse(readFileSync(ar, 'utf8')), nextRelease: true }));
   server = createServer((req, res) => {
     let path = decodeURIComponent((req.url || '/').split('?')[0]);
     if (path.endsWith('/')) path += 'index.html';
@@ -107,4 +110,26 @@ test('a later release offers an Update button and switches only when tapped', as
   ]);
   await page.locator('button[title=More]').click();
   await expect(page.locator('.menu-version')).toContainText('-next', { timeout: 15_000 });
+});
+
+test("a later release brings the kept state records up to date as it installs, so it opens with them", async ({ page }) => {
+  const url = `http://localhost:${PORT}/`;
+  mode = 'new';
+  await page.goto(url);
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  // The garden's state file, read once, so kept (src/sw.ts).
+  const kept = () => page.evaluate(async () => {
+    const name = (await caches.keys()).find((k) => k.startsWith('fullgrown-wild'));
+    const res = name ? await (await caches.open(name)).match(new URL('wild/1/05.json', location.href).href) : undefined;
+    return res ? ((await res.json()) as { nextRelease?: boolean }).nextRelease ?? false : null;
+  });
+  await page.evaluate(() => fetch('wild/1/05.json').then((r) => r.json()));
+  await expect.poll(kept).toBe(false);
+
+  mode = 'next';
+  await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())!.update());
+  await expect(page.locator('#update-banner')).toBeVisible({ timeout: 15_000 });
+  // Fetched again as the new version installed: before it's opened, its first read is the new file.
+  expect(await kept()).toBe(true);
 });

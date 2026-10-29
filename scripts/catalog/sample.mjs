@@ -24,6 +24,8 @@ const TALLAMY = 'catalog-src/tallamy/genera.json';
 const tallamy = existsSync(TALLAMY) ? JSON.parse(readFileSync(TALLAMY, 'utf8')) : null;
 const lepGenera = tallamy?.lep_genera ? new Set(tallamy.lep_genera) : null;
 const catalog = JSON.parse(readFileSync('public/plants.json', 'utf8'));
+/** Records a person decided to keep for a group of cultivars, read from their species' page (decisions.json). */
+const groups = JSON.parse(readFileSync('scripts/catalog/decisions.json', 'utf8')).group ?? {};
 const byId = new Map(catalog.plants.map((p) => [p.id, p]));
 
 const page = (source, url) => savedPage(source, url);
@@ -82,14 +84,17 @@ for (const s of sample) {
   // Claims from each source, combined by tier (docs/catalog-sources.md).
   // (A record that takes its species' size, a series named without quotes too: split.mjs, "Hibiscus syriacus Chiffon
   // series", reading the species' page.)
-  const cultivar = recordCultivars(rec).length > 0 || !!rec?.inherits;
+  // (A record kept for a group of cultivars reads its species' page as its own, size and all: decisions.json `group`.)
+  const cultivar = (recordCultivars(rec).length > 0 || !!rec?.inherits) && !Object.hasOwn(groups, s.id);
   // (A species-level page: one whose title names no cultivar (the species', a synonym's, the page NC State moved it
-  // to, a genus's), or one under a reviewed other name; for a genus or group, any page but its one cultivar's own:
+  // to, a genus's), or one under a reviewed other name that isn't the cultivar's own (NC State files 'Premier' under
+  // the species Kew keeps it apart from: still its page); for a genus or group, any page but its one cultivar's own:
   // Thuja 'Green Giant' for "Thuja 'Green Giant'", not 'Natchez' for three crape myrtles.)
   // A record naming several cultivars likewise: one cultivar's page speaks for only one of them ("Acer palmatum
   // ('Bloodgood' / 'Seiryu')" reads 'Bloodgood''s purple leaves as species-level, not as its own).
   const several = recordCultivars(rec).length > 1 || /\//.test(rec?.botanical ?? '');
-  const speciesPage = seen.ncsu && (s.ncsuName || !cultivarTitle || (s.genusOnly ? !ownCultivar : several));
+  const ownName = !!cultivarTitle && !several && recordCultivars(rec).length === 1 && recordCultivars(rec)[0] === cultivarTitle;
+  const speciesPage = seen.ncsu && ((s.ncsuName && !ownName) || !cultivarTitle || (s.genusOnly ? !ownCultivar : several));
   // (Its zones as its fields give them, unless its own description says the coldest are only where it's an annual.)
   // (Its deer as its field gives it, unless its own description says it resists deer only in part.)
   // (The page a value read from its text came from, for the second reading.)

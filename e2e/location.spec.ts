@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openFresh, openSections, placeOnceAtCenter } from './helpers';
+import { openFilters, openFresh, openSections, placeOnceAtCenter } from './helpers';
 
 // The garden's location, from a ZIP code (the tables are stood in for: the
 // real ones are built from official data by scripts/climate/build.mjs).
@@ -89,6 +89,7 @@ test('"Hardy in your zone" with no ZIP asks for one, and comes back with only pl
   await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TABLE) }));
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
+  await openFilters(page);
   await page.locator('.sheet select[aria-label=Form]').selectOption('Shrub');
   await page.locator('[data-testid=flower-colors] label', { hasText: 'White' }).click();
   await expect(page.locator('.sheet label', { hasText: 'Hardy in your zone' })).toContainText('(asks for your ZIP)');
@@ -140,6 +141,14 @@ test('a plant recorded growing wild in the garden\'s county or next door says so
   await expect(oak.getByTestId('wild-here')).toContainText('Recorded growing wild in Clark County');
   await expect(oak.getByTestId('wild-here')).toContainText('Atlas of the Vascular Plants of Arkansas');
   await expect(oak.getByTestId('native-here')).toContainText('Native to Arkansas');
+  // A citation longer than a line: cut to one, and opened in full with a tap.
+  const cite = oak.locator('.details-src.clipped').first();
+  await expect(cite).toHaveAttribute('aria-expanded', 'false');
+  const shut = (await cite.boundingBox())!.height;
+  await cite.click();
+  await expect(cite).toHaveAttribute('aria-expanded', 'true');
+  expect((await cite.boundingBox())!.height).toBeGreaterThan(shut * 1.5);
+  await expect(oak.getByTestId('wild-here')).toBeVisible(); // (the plant stays open)
   // The native-status filter offers the garden's state (Kew's checklist).
   await expect(page.getByTestId('native-filter').locator('option[value="@here"]')).toHaveText('Native to Arkansas');
   // Bishop's cap: rated the same, recorded only in the Ozarks: not hardy here.

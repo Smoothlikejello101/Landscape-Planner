@@ -373,6 +373,77 @@ describe('backup files', () => {
   });
 });
 
+describe("a building's doors and windows, a fence's gates (sub-features)", () => {
+  const house = (extra: Record<string, unknown> = {}) => ({ id: 'h', type: 'rect', x: 0, y: 0, width: 20, height: 10, rotation: 0, color: '#78716c', label: 'House', opacity: 0.65, locked: false, role: 'building', ...extra });
+  it("round-trip, through a backup too; older shapes have none; [] is kept; malformed ones are dropped, a later version's kept", async () => {
+    await freshStorage();
+    const id = state.currentProjectId!;
+    const door = { id: 'd', kind: 'door', edge: 0, at: 0.5, width: 3 };
+    state.shapes = sanitizeProjectData({ shapes: [
+      house({ features: [door, { id: 'w', kind: 'window', edge: 2, at: 0.25, width: 4 }, { id: 'x', kind: 'chimney', edge: 0, at: 0.5 }, { id: 'y', kind: 'window', edge: -1, at: 0.5 }] }),
+      house({ id: 'old' }),
+      house({ id: 'none', features: [] }),
+      { id: 'fence', type: 'line', x: 0, y: 20, rotation: 0, points: [[0, 0], [30, 0]], color: '#444', label: 'Fence', opacity: 1, locked: false, role: 'boundary', features: [{ id: 'g', kind: 'gate', edge: 0, at: 0.4, width: 4 }] },
+    ] }).shapes;
+    await flushSave();
+    const loaded = (await readProject(id))!.shapes;
+    expect(loaded).toEqual(state.shapes);
+    // (The chimney is a kind a later version might add: kept as it came, so saving here doesn't take it away.)
+    expect(loaded[0]).toMatchObject({ features: [door, { id: 'w', kind: 'window', edge: 2, at: 0.25, width: 4 }, { id: 'x', kind: 'chimney', edge: 0, at: 0.5 }] });
+    expect('features' in loaded[1]).toBe(false);
+    expect(loaded[2]).toMatchObject({ features: [] });
+    expect(loaded[3]).toMatchObject({ features: [{ id: 'g', kind: 'gate', edge: 0, at: 0.4, width: 4 }] });
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
+  });
+  it("keep which way a door or gate opens; older ones open as before (hinged where they start, swinging out)", async () => {
+    await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [
+      house({ features: [
+        { id: 'd1', kind: 'door', edge: 0, at: 0.5, width: 3, hinge: 'end', swing: 'in' },
+        { id: 'd2', kind: 'door', edge: 1, at: 0.5, width: 3 },
+        { id: 'd3', kind: 'door', edge: 2, at: 0.5, width: 3, hinge: 'left', swing: 'sideways' },
+        { id: 'w', kind: 'window', edge: 3, at: 0.5, width: 3, hinge: 'end', swing: 'in' },
+      ] }),
+    ] }).shapes;
+    await flushSave();
+    const loaded = (await readProject(id))!.shapes;
+    expect(loaded).toEqual(state.shapes);
+    const fs = (loaded[0] as unknown as { features: Record<string, unknown>[] }).features;
+    expect(fs[0]).toMatchObject({ hinge: 'end', swing: 'in' });
+    for (const f of fs.slice(1)) expect(['hinge', 'swing'].some((k) => k in f), String(f.id)).toBe(false);
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
+  });
+});
+
+describe('utilities: power lines, buried lines and septic fields', () => {
+  const line = (extra: Record<string, unknown> = {}) => ({ id: 'w', type: 'line', x: 0, y: 0, rotation: 0, points: [[0, 0], [40, 0]], color: '#ea580c', label: 'Power line', opacity: 1, locked: false, role: 'utility', utility: 'overhead', ...extra });
+  it("round-trip, through a backup too; a later version's kind is kept, a malformed one dropped; one made something else keeps its kind", async () => {
+    await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [
+      line(),
+      line({ id: 'b', utility: 'buried', label: 'Gas line' }),
+      { id: 's', type: 'rect', x: 0, y: 20, width: 20, height: 10, rotation: 0, color: '#78716c', label: 'Septic field', opacity: 0.2, locked: false, role: 'utility', utility: 'septic' },
+      line({ id: 'x', utility: 'sewer-ish' }), // (a kind a later version might add)
+      line({ id: 'y', utility: '<script>' }),
+      line({ id: 'p', role: undefined }), // (made a plain line: still says which it was)
+      { id: 'tree', type: 'circle', x: 5, y: 5, radius: 6, color: '#78350f', label: 'Oak', opacity: 0.5, locked: false, role: 'plant', utility: 'overhead', utilityDismissed: 'Grows to 60 ft, 5 ft from a power line' },
+    ] }).shapes;
+    await flushSave();
+    const loaded = (await readProject(id))!.shapes;
+    expect(loaded).toEqual(state.shapes);
+    expect(loaded.map((s) => [s.id, s.role, s.utility])).toEqual([
+      ['w', 'utility', 'overhead'], ['b', 'utility', 'buried'], ['s', 'utility', 'septic'], ['x', 'utility', 'sewer-ish'], ['y', 'utility', undefined], ['p', undefined, 'overhead'], ['tree', 'plant', undefined],
+    ]);
+    expect(loaded[6]).toMatchObject({ utilityDismissed: 'Grows to 60 ft, 5 ft from a power line' });
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
+  });
+});
+
 describe('trees with a trunk and a shaped canopy', () => {
   const tree = (extra: Record<string, unknown> = {}) => ({ id: 't', type: 'circle', x: 5, y: 5, radius: 6, color: '#78350f', label: 'Tree', opacity: 0.5, locked: false, role: 'plant', sizeFrom: 'manual', ...extra });
   it('round-trip, and circles from older versions stay plain circles', async () => {

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, canvasBox, closeSheet, openFresh, shapeCount, zoomPct, placeOnceAtCenter } from './helpers';
+import { addKind, canvasBox, closeSheet, openFresh, openSections, shapeCount, zoomPct, placeOnceAtCenter } from './helpers';
 
 // The compact properties panel, statuses that fit the thing, and getting
 // started from an aerial photo.
@@ -47,6 +47,23 @@ test('an outline or path puts Edit points before its size', async ({ page }) => 
   await head(page, 'size').click();
   const items = page.locator('[data-testid=section-size] .prop-body > *');
   await expect(items.first()).toContainText('Edit points');
+});
+
+test("a path's chip goes straight to its points, its width there too; a line has no turning knob", async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.path').click();
+  await tapFt(page, 2, 4); await tapFt(page, 12, 4);
+  await page.locator('[data-testid=draw-bar]').getByRole('button', { name: 'Done' }).click();
+  await expect(page.locator('[data-role=shape-rotate]')).toHaveCount(0);
+  await page.getByTestId('pill-edit-points').click();
+  await expect(page.locator('[data-testid=draw-bar]').getByRole('button', { name: 'Delete point' })).toBeVisible();
+  const w = page.getByTestId('edit-path-width');
+  await expect(w).toHaveValue('3');
+  await w.fill('5');
+  await expect(w).toBeFocused(); // (typed without rebuilding the bar: the keyboard stays)
+  await page.locator('[data-testid=draw-bar]').getByRole('button', { name: 'Done' }).click();
+  await openSections(page);
+  await expect(head(page, 'size')).toContainText('10 ft long · 5 ft wide');
 });
 
 test('statuses fit the thing: a house is Existing, not Planted', async ({ page }) => {

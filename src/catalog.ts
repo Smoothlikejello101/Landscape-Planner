@@ -81,6 +81,11 @@ export interface CatalogMeta {
   sources: Record<string, SourceDef>;
   enums?: Record<string, string[]>;
   notes?: string;
+  /**
+   * Records folded into another (scripts/catalog/decisions.json `fold`): the old id → the record it stands for now,
+   * so a plant placed from it keeps its facts.
+   */
+  moved?: Record<string, string>;
 }
 export interface CatalogFile { meta: CatalogMeta; plants: CatalogRecord[] }
 
@@ -289,6 +294,11 @@ export function catalogErrors(file: CatalogFile): string[] {
   for (const r of file.plants) ids.set(r.id, (ids.get(r.id) ?? 0) + 1);
   for (const [id, n] of ids) if (n > 1) errs.push(`${id}: id used ${n} times`);
   const byId = new Map(file.plants.map((r) => [r.id, r]));
+  // (A folded record's id stands for a record that's there, and is no longer one itself.)
+  for (const [from, to] of Object.entries(file.meta.moved ?? {})) {
+    if (byId.has(from)) errs.push(`meta.moved: ${from} is still a record`);
+    if (typeof to !== 'string' || !byId.has(to)) errs.push(`meta.moved: ${from} stands for ${String(to)}, which isn't a record`);
+  }
   for (const r of file.plants) {
     const at = r.id || '(no id)';
     if (!/^[a-z0-9-]+$/.test(r.id ?? '')) errs.push(`${at}: id must be lowercase letters, digits and dashes`);

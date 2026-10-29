@@ -9,7 +9,8 @@ import { boxSize, resizedPoints, shapeArea, shapePerimeter } from '../geometry';
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
 import { roleChips } from './role-picker';
-import { bedSection, crowdingNote, measureText, plantSunBanner, shadeSunSection, sunListText } from './role-sections';
+import { bedSection, crowdingNote, measureText, plantSunBanner, shadeSunSection, sunListText, utilityBanner, utilitySection } from './role-sections';
+import { utilityLabel } from '../utility-kinds';
 import { setRoleForIds, bringForward, bringToFront, copySelected, duplicateSelected, findNextSameTier, sendBackward, sendToBack, setLockedForIds, updateSelected, updateSelectedSilent } from '../mutations';
 import { getSelected, singleSelected } from '../selection';
 import { state } from '../state';
@@ -28,6 +29,7 @@ import { hasStatus } from '../status';
 import { plantsInBed } from '../beds';
 import { startPlacing } from '../place';
 import { bedBloomSection } from './bloom-view';
+import { featuresSection, featuresSummary, featuresTitle, hasFeaturesSection } from './feature-section';
 import { snapRot, sqFt, typeName } from '../util';
 
 // ============================================================
@@ -48,7 +50,9 @@ function whatItIs(ids: string[], current: RoleKey | null, multi: boolean): HTMLE
   const title = el('span', { className: 'prop-title' }, multi ? 'What they are' : 'What it is');
   if (changingKindOf === key) {
     wrap.append(el('div', { className: 'kind-row' }, title),
-      roleChips(current, (role) => { changingKindOf = null; setRoleForIds(ids, role); render(); }));
+      // (A circle or a note isn't a utility: a utility is a line or an area.)
+      roleChips(current, (role) => { changingKindOf = null; setRoleForIds(ids, role); render(); },
+        ids.some((id) => { const t = state.shapes.find((s) => s.id === id)?.type; return t === 'circle' || t === 'text'; }) ? ['utility'] : []));
     return wrap;
   }
   const change = el('button', { className: 'link-btn', 'data-testid': 'change-kind', 'aria-label': multi ? 'Change what they are' : 'Change what it is' }, 'Change');
@@ -112,7 +116,8 @@ export function renderPropsPanelSingle(s: Shape) {
   if (sunCheck) body.appendChild(sunCheck);
   // Crowding: refreshed in place as the position is typed (no re-render).
   const crowdBox = el('div', {});
-  const refreshCrowd = () => { crowdBox.replaceChildren(...[crowdingNote(s)].filter((x): x is HTMLElement => !!x)); };
+  // (A plant too near a power line, a buried line or a septic field too: src/utilities.ts.)
+  const refreshCrowd = () => { crowdBox.replaceChildren(...[utilityBanner(s), crowdingNote(s)].filter((x): x is HTMLElement => !!x)); };
   refreshCrowd();
   body.appendChild(crowdBox);
   // The label (for a text note, the text itself; it can run to several lines)
@@ -133,6 +138,9 @@ export function renderPropsPanelSingle(s: Shape) {
     // Recording the sun is the point of a sun exposure area: open until there's a record.
     body.appendChild(section('sun', 'Sun record', document.createTextNode(s.sun ? sunListText(s.sun) : 'Not recorded'), [shadeSunSection(s)], !s.sun));
   }
+  if (s.role === 'utility' && s.type !== 'circle' && s.type !== 'text') {
+    body.appendChild(section('utility', 'Utility', document.createTextNode(s.utility ? utilityLabel(s.utility) : 'Which is it?'), [utilitySection(s)], true));
+  }
   if (s.role === 'bed') {
     const n = plantsInBed(s, state.shapes).filter((p) => p.status !== 'gone').length;
     body.appendChild(section('bed', 'Plants in this bed', document.createTextNode(n ? `${n} plant${n === 1 ? '' : 's'}` : 'None yet'), [bedSection(s), bedBloomSection(s)]));
@@ -142,6 +150,8 @@ export function renderPropsPanelSingle(s: Shape) {
     body.appendChild(section('plant', 'Plant', document.createTextNode(p ? p.common + (isMine(p) ? ' (mine)' : '') : s.plantId ? 'Details not on this device' : 'Not linked'), [plantLinkSection(s)]));
   }
   if (hasStatus(s)) body.appendChild(section('status', 'Status', document.createTextNode(statusSummary([s])), [statusSection([s])]));
+  // What sits on its edges: a building's doors and windows, a fence's gates, a deck's steps.
+  if (hasFeaturesSection(s)) body.appendChild(section('features', featuresTitle(s), document.createTextNode(featuresSummary(s)), [featuresSection(s)]));
 
   // ----- Size (with area or length, refreshed as you type) -----
   const sizeSum = document.createTextNode(sizeSummary(s));

@@ -5,8 +5,9 @@ import { canvasRect, pxPerFoot, shapeBBox, shapeCenter, unionBounds, viewCenterF
 import { flushHistoryDebounce, pushHistory, pushHistoryDebounced } from './history';
 import { getSelected, singleSelected } from './selection';
 import { state } from './state';
-import { getClipboard, save, setClipboard } from './storage';
+import { getClipboard, migrateShape, save, setClipboard } from './storage';
 import { defaultLook, isLocked, roleKey } from './roles';
+import { isUtilityKind, utilityLook } from './utility-kinds';
 import type { Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapeFilter, ShapePatch, Status } from './types';
 import { cleanPhaseName, MAX_PHASES, shownWith, statusPatch } from './status';
 import { render } from './ui/render';
@@ -104,7 +105,10 @@ export function paste(): boolean {
   const data = getClipboard();
   if (!data || !data.shapes || !data.shapes.length) return false;
   flushHistoryDebounce();
-  const incoming = data.shapes.map((s) => ({ ...deepClone(s), id: uid() }) as Shape);
+  // (Read as a stored plan's shapes are, doors and windows too: a clipboard can come from another version's tab, a
+  // utility of a kind this one doesn't know, say.)
+  const incoming = data.shapes.map((s) => migrateShape(deepClone(s))).filter((s): s is Shape => !!s).map((s) => ({ ...s, id: uid() }) as Shape);
+  if (!incoming.length) return false;
   let dx = 1, dy = 1;
   if (data.sourceProjectId !== state.currentProjectId) {
     const b = unionBounds(incoming.map(shapeBBox))!;
@@ -232,6 +236,7 @@ export function resetCurrentProject() {
   state.bgCalibrate = null;
   state.draw = null;
   state.editPoints = null;
+  state.featurePlace = null;
   pushHistory();
   save();
 }
@@ -246,10 +251,19 @@ export function setRoleForIds(ids: string[], role: Role | undefined) {
   for (const id of ids) {
     const s = state.shapes.find((sh) => sh.id === id);
     if (!s) continue;
-    const before = defaultLook(roleKey(s), s.type);
+    // (A utility's look is its kind's: a power line orange, a septic field gray.)
+    const lookOf = (sh: Shape) => (sh.role === 'utility' && isUtilityKind(sh.utility) ? utilityLook(sh.utility) : defaultLook(roleKey(sh), sh.type));
+    const before = lookOf(s);
     const wasDefault = s.color.toLowerCase() === before.color && Math.abs(s.opacity - before.opacity) < 0.001;
     if (role) s.role = role; else delete s.role;
-    if (wasDefault) Object.assign(s, defaultLook(roleKey(s), s.type));
+    // A utility is one kind or another (src/utilities.ts): a line a power line, to start with, an area a septic field;
+    // its properties change it. Made something else, it keeps which it was (only a utility's counts): turned back,
+    // it's that again, and sync can tell it from a copy an older version sent, which has neither (src/sync/engine.ts).
+    // (A kind a later version added is left as it is.)
+    if (role === 'utility' && s.type !== 'circle' && s.type !== 'text' && (!s.utility || isUtilityKind(s.utility))) {
+      if (!s.utility || (s.type === 'line') !== (s.utility !== 'septic')) s.utility = s.type === 'line' ? 'overhead' : 'septic';
+    }
+    if (wasDefault) Object.assign(s, lookOf(s));
   }
   pushHistory();
   save();

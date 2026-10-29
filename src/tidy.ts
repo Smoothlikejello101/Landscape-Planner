@@ -49,8 +49,8 @@ export interface SnapHit { point: Point; to: 'corner' | 'edge'; shapeId: string;
 export function snapTargets(shapes: Shape[], exceptId?: string): { id: string; pts: Point[]; closed: boolean }[] {
   const out: { id: string; pts: Point[]; closed: boolean }[] = [];
   for (const s of shapes) {
-    // (Nor a sun-exposure zone, which overlays the beds, or a kept measurement.)
-    if (s.id === exceptId || s.role === 'plant' || s.role === 'shade' || s.type === 'circle' || s.type === 'oval' || s.type === 'text') continue;
+    // (Nor a sun-exposure zone, which overlays the beds, a utility, which runs over or under them, or a kept measurement.)
+    if (s.id === exceptId || s.role === 'plant' || s.role === 'shade' || s.role === 'utility' || s.type === 'circle' || s.type === 'oval' || s.type === 'text') continue;
     if (s.type === 'line' && (s.pathWidth || (s.role === 'other' && s.showLength))) continue; // (a fence showing its length is still a fence)
     if (!shownWith(s, state.viewFilter)) continue;
     const o = drawnOutline(s);

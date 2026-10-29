@@ -1,10 +1,12 @@
-/* Text size (decided with Jason, 2026-10-25): Small is the size the app was drawn at; Medium (the default) and Large
-   scale all of the text by one factor, --ts, so a source stays a step smaller than the fact it backs (src/text-size.ts
-   sets data-text on <html>, from the menu). Sizes are written as calc(Npx * var(--ts)), N the size at Small. --tap:
-   the smallest a button is, each way. The plan's own drawing isn't scaled. */
-:root { --ts: 1.25; --tap: 44px; }
+/* Text size (decided with Jason, 2026-10-25; four sizes 2026-10-27): Small is the size the app was drawn at; Medium
+   (the default), Large and Extra large scale all of the text by one factor, --ts, so a source stays a step smaller
+   than the fact it backs (src/text-size.ts sets data-text on <html>, from the menu). Sizes are written as
+   calc(Npx * var(--ts)), N the size at Small. --tap: the smallest a button is, each way. The plan's own drawing isn't
+   scaled. */
+:root { --ts: 1.15; --tap: 44px; }
 :root[data-text="small"] { --ts: 1; --tap: 32px; }
-:root[data-text="large"] { --ts: 1.45; --tap: 48px; }
+:root[data-text="large"] { --ts: 1.3; --tap: 46px; }
+:root[data-text="xlarge"] { --ts: 1.45; --tap: 48px; }
 html { font-size: calc(16px * var(--ts)); }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 /* Pinch-zoom works on menus and sheets (the plan, touch-action: none, keeps its own); no double-tap zoom. */
@@ -47,6 +49,7 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .sel-pill .sw { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #d6d3d1; flex-shrink: 0; }
 .sel-pill .name { color: #44403c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 3em; }
 .sel-pill button.edit { background: #1c1917; color: #fff; border-radius: 999px; padding: 4px 14px; min-height: 40px; font-size: calc(13px * var(--ts)); font-weight: 500; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.sel-pill button.pill-points { background: #f5f5f4; color: #1c1917; border: 1px solid #d6d3d1; border-radius: 999px; padding: 4px 12px; min-height: 40px; font-size: calc(13px * var(--ts)); font-weight: 500; flex-shrink: 0; }
 .sel-pill button.pill-more { background: #ccfbf1; color: #115e59; border-radius: 999px; padding: 4px 14px; min-height: 40px; font-size: calc(13px * var(--ts)); font-weight: 600; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .multi-bar { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); background: #1c1917; color: #fff; border-radius: 999px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); padding: 4px; display: flex; align-items: center; gap: 2px; font-size: calc(12px * var(--ts)); z-index: 6; width: max-content; max-width: calc(100% - 16px); }
 .multi-bar .count { padding: 6px 12px; font-weight: 600; white-space: nowrap; }
@@ -204,6 +207,23 @@ a { color: inherit; }
 .snap-chip-ring { width: 12px; height: 12px; border-radius: 50%; border: 3px solid #c2410c; background: #fff; box-sizing: border-box; flex-shrink: 0; }
 .snap-chip button { background: #c2410c; color: #fff; border: 0; border-radius: 999px; padding: 6px 16px; font-weight: 600; font-size: calc(14px * var(--ts)); min-height: 44px; }
 #toast-action button + button { background: transparent; color: #d6d3d1; font-weight: 500; }
+#toast-action .notice-buttons { display: flex; flex-wrap: wrap; gap: 6px 8px; justify-content: flex-end; margin-left: auto; }
+/* Put away with its ✕, or swiped off sideways (src/ui/toast.ts). */
+#toast-action { touch-action: pan-y; }
+#toast-action.swiping { transition: none; }
+#toast-action.gone { transition: transform 0.18s ease-in, opacity 0.18s ease-in; opacity: 0; }
+#toast-action button.notice-close { background: transparent; color: #d6d3d1; font-weight: 400; font-size: calc(18px * var(--ts)); padding: 6px 10px; min-width: 44px; }
+/* A notice folded to one line that opens to say more (the crowding notice): the line is its own button, with a
+   chevron; amber or red, as the rings on the plan are. */
+#toast-action button.notice-line { background: transparent; color: #fff; padding: 6px 4px 6px 0; min-height: 44px; display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 8em; text-align: left; font-weight: 600; font-size: calc(14px * var(--ts)); border-radius: 6px; }
+#toast-action .notice-chev { width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg) translate(-2px, -2px); flex: none; opacity: 0.8; }
+#toast-action .notice-line[aria-expanded="true"] .notice-chev { transform: rotate(-135deg) translate(-2px, -2px); }
+#toast-action .notice-detail { flex: 1 1 100%; font-size: calc(13px * var(--ts)); color: #e7e5e4; line-height: 1.45; padding: 0 6px 4px 0; }
+#toast-action.tone-amber { border-left: 6px solid #f59e0b; }
+#toast-action.tone-red { border-left: 6px solid #ef4444; }
+#toast-action.tone-amber .notice-line::before, #toast-action.tone-red .notice-line::before { content: ''; width: 10px; height: 10px; border-radius: 50%; flex: none; }
+#toast-action.tone-amber .notice-line::before { background: #f59e0b; }
+#toast-action.tone-red .notice-line::before { background: #ef4444; }
 /* Projects panel: backup section */
 .account-section, .backup-section { border-top: 1px solid #e7e5e4; padding: 12px 16px 20px; display: flex; flex-direction: column; gap: 8px; }
 .account-section .section-title, .backup-section .section-title { font-size: calc(12px * var(--ts)); font-weight: 600; color: #57534e; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -267,11 +287,23 @@ a { color: inherit; }
 .seg { display: inline-flex; border: 1px solid #d6d3d1; border-radius: 6px; overflow: hidden; }
 .seg button { padding: 6px 12px; font-size: calc(13px * var(--ts)); background: #fff; color: #44403c; }
 .seg button.sel { background: #1c1917; color: #fff; }
+/* A utility line: overhead or buried (pressed is the one it is). */
+.utility-seg { margin-bottom: 6px; }
+.utility-seg button { min-height: var(--tap); }
+.utility-seg button[aria-pressed="true"] { background: #1c1917; color: #fff; }
+/* A plant's utility warning, folded to its one line (a button, the whole width) until opened. */
+.site-line { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; background: none; border: 0; padding: 2px 0; text-align: left; color: inherit; font: inherit; font-weight: 600; min-height: var(--tap); cursor: pointer; }
+.site-line .fold-chev { display: flex; flex: none; transition: transform 0.15s; }
+.site-line[aria-expanded=false] .fold-chev { transform: rotate(-90deg); }
 .sun-summary { font-size: calc(13px * var(--ts)); color: #44403c; }
 .check-banner { padding: 8px 12px; border-radius: 6px; font-size: calc(13px * var(--ts)); line-height: 1.4; }
 .check-banner.ok { background: #ecfdf5; border: 1px solid #a7f3d0; color: #065f46; }
 .check-banner.warn { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
 .check-banner.muted { opacity: 0.75; }
+/* Crowded: red, as its ring on the plan is (close stays amber). */
+.check-banner.warn.crowded { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.check-banner.left-close { background: #f5f5f4; border: 1px solid #e7e5e4; color: #57534e; }
+.check-banner.left-close .crowd-line { font-weight: 500; }
 .check-banner .link-reset { color: inherit; }
 .unit-seg { flex-shrink: 0; }
 .size-row { display: flex; gap: 8px; align-items: center; }
@@ -297,6 +329,10 @@ a { color: inherit; }
 .list-heading.fold:disabled .fold-chev { visibility: hidden; }
 .list-heading.fold .fold-chev { display: flex; transition: transform 0.15s; }
 .list-heading.fold[aria-expanded=false] .fold-chev { transform: rotate(-90deg); }
+/* A plant's crowding note, folded to its one line (a button, the whole width) until opened. */
+.crowd-line { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; background: none; border: 0; padding: 2px 0; text-align: left; color: inherit; font: inherit; font-weight: 600; min-height: var(--tap); cursor: pointer; }
+.crowd-line .fold-chev { display: flex; flex: none; transition: transform 0.15s; }
+.crowd-line[aria-expanded=false] .fold-chev { transform: rotate(-90deg); }
 .filter-fold { display: flex; width: 100%; align-items: center; justify-content: space-between; background: none; border: 0; text-align: left; min-height: 44px; padding: 6px 0; font-size: calc(12px * var(--ts)); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #78716c; cursor: pointer; }
 .filter-fold .fold-chev { display: flex; transition: transform 0.15s; }
 .filter-fold[aria-expanded=false] .fold-chev { transform: rotate(-90deg); }
@@ -463,6 +499,12 @@ a { color: inherit; }
 .details-list dd { display: inline; margin: 0; overflow-wrap: anywhere; }
 .details-list dd::after { content: ''; display: block; margin-bottom: 8px; }
 .details-src, .details-alt { display: block; font-size: calc(11px * var(--ts)); color: #6b6560; }
+/* A citation longer than a line: one line, "…", opened with a tap (src/ui/plant-details.ts clipCitations). */
+.details-src.one-line, .details-src.clipped[aria-expanded="false"] { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.details-src.clipped { cursor: pointer; }
+.details-src.clipped[data-short][aria-expanded="false"]::before { content: attr(data-short); }
+.details-src.clipped[data-short][aria-expanded="false"] .cite-full { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.details-src.clipped:focus-visible { outline: 2px solid #0f766e; outline-offset: 1px; }
 .details-part { display: block; }
 /* Layers: the crowding settings, lit for a moment when a crowding notice's "Crowding settings…" opens them. */
 .crowding-settings { border-radius: 8px; transition: background-color 0.6s; }
@@ -542,8 +584,11 @@ a { color: inherit; }
 .color-chip.on { background: #ecfdf5; border-color: #059669; color: #065f46; font-weight: 600; }
 .color-chip:has(input:focus-visible) { outline: 2px solid #059669; outline-offset: 1px; }
 .color-chip .swatch { flex: none; width: calc(14px * var(--ts)); height: calc(14px * var(--ts)); border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.2); }
-.fold-row { display: flex; gap: 8px; margin: 8px 0 4px; }
-.fold-btn { flex: 1; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: calc(13px * var(--ts)); padding: 6px; min-height: 40px; white-space: nowrap; }
+/* The filters' one fold: its button, then "Hardy in zone 8a" beside it (src/ui/plants-panel.ts). */
+.fold-row { display: flex; align-items: center; gap: 12px; margin: 0 0 4px; }
+.fold-btn { flex: 0 0 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: calc(13px * var(--ts)); padding: 6px 12px; min-height: 40px; white-space: nowrap; }
+.fold-btn .fold-icon { display: flex; }
+.fold-row .hardy-check { flex: 1; min-width: 0; margin: 0; }
 .fold-btn .fold-chev { display: flex; transition: transform 0.15s; }
 .fold-btn[aria-expanded=false] .fold-chev { transform: rotate(-90deg); }
 .fold-btn[aria-expanded=true] { background: #e7e5e4; }
@@ -586,3 +631,31 @@ a { color: inherit; }
 .text-size-row .seg button { min-width: var(--tap); min-height: var(--tap); display: flex; align-items: center; justify-content: center; font-weight: 600; color: #44403c; background: #fff; }
 .text-size-row .seg button + button { border-left: 1px solid #d6d3d1; }
 .text-size-row .seg button[aria-pressed="true"] { background: #047857; color: #fff; }
+
+/* Sub-features in properties: each listed with its width and ✕, then a button per kind to add (src/ui/feature-section.ts). */
+.feature-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+.feature-row { display: flex; align-items: center; gap: 8px; min-height: 40px; }
+.feature-name { flex: 1; font-size: calc(14px * var(--ts)); }
+.feature-width { display: flex; align-items: center; gap: 4px; font-size: calc(13px * var(--ts)); color: #57534e; }
+.feature-width input { width: 64px; }
+.feature-flips { display: flex; justify-content: flex-end; gap: 2px; width: 84px; flex: 0 0 auto; }
+.feature-flip { min-width: 40px; font-size: calc(14px * var(--ts)); color: #44403c; }
+.feature-swing { font-size: calc(12px * var(--ts)); font-weight: 600; }
+.feature-adds { display: flex; flex-wrap: wrap; gap: 6px; }
+.feature-add { min-height: 40px; padding: 6px 12px; border-radius: 999px; background: #f0fdfa; border: 1px solid #99f6e4; font-size: calc(13px * var(--ts)); color: #115e59; font-weight: 600; }
+.feature-add:disabled { opacity: 0.5; }
+/* While adding them: a chip per kind, wrapping rather than squeezed. */
+.feature-seg { display: flex; flex-wrap: wrap; gap: 4px; }
+.feature-seg button { flex: 0 0 auto; min-height: 36px; padding: 4px 10px; border: 1px solid #d6d3d1; border-radius: 999px; background: #fff; color: #44403c; font-size: calc(12px * var(--ts)); }
+.feature-seg button.on { background: #ccfbf1; border-color: #0f766e; color: #115e59; font-weight: 600; }
+/* The door or gate just placed: its two flips, as buttons in the bar. */
+.feature-last { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: calc(13px * var(--ts)); color: #44403c; }
+.feature-last .feature-flips { width: auto; gap: 6px; }
+.feature-last .feature-flip { min-width: 48px; border: 1px solid #d6d3d1; background: #fff; }
+/* Go on to its doors and windows once it's drawn: a switch, in the drawing pictures' teal. */
+.then-features { display: flex; align-items: center; gap: 8px; align-self: flex-start; min-height: 40px; padding: 4px 12px 4px 6px; border: 1px solid #5eead4; border-radius: 999px; background: #f0fdfa; color: #115e59; font-size: calc(13px * var(--ts)); font-weight: 600; }
+.then-features[aria-checked="true"] { background: #ccfbf1; border-color: #0f766e; }
+.then-features .switch-track { position: relative; flex: 0 0 auto; width: 34px; height: 20px; border-radius: 999px; background: #99c9c1; transition: background 0.15s; }
+.then-features .switch-knob { position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.25); transition: left 0.15s; }
+.then-features[aria-checked="true"] .switch-track { background: #0f766e; }
+.then-features[aria-checked="true"] .switch-knob { left: 16px; }

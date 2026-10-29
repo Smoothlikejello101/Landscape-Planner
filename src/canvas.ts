@@ -7,7 +7,9 @@ import { fullRingRadius } from './my-plants';
 import { crowdLevels, type CrowdLevel } from './crowding';
 import { crowdOptions } from './crowd-here';
 import { renderPlaceOverlay } from './place';
-import { onShapePointerDown } from './gestures';
+import { renderShapeHandles } from './handles';
+import { onFeaturePointerDown, onShapePointerDown } from './gestures';
+import { featureHitPart, featureParts, knownFeatures } from './features';
 import { plantsById } from './plants';
 import { plantLabelFit, LABEL_LINE_HEIGHT, textWidth1, type FittedLabel } from './labels';
 import { canopyInnerRadius, canopyPoints, isTree, trunkParts, trunkReachPx } from './trees';
@@ -15,9 +17,10 @@ import { trunkHitPx } from './canopy';
 import { isLocked, roleDef, roleRank } from './roles';
 import { shownWith } from './status';
 import { checkPlantSun, formatHours, shadeOpacity, sunHours, sunWarningShown } from './sun';
+import { prepareUtilities, utilityIssues, utilityWarningShown, type PreparedUtility } from './utilities';
 import { isSelected } from './selection';
 import { state } from './state';
-import type { CircleShape, Shape, ShapeFilter, TextShape } from './types';
+import type { CircleShape, Point, Shape, ShapeFilter, TextShape } from './types';
 
 // Canvas drawing. Everything here writes only into the <svg>, never into
 // panel DOM, so it is safe to call while an input has keyboard focus.
@@ -27,7 +30,7 @@ import type { CircleShape, Shape, ShapeFilter, TextShape } from './types';
 //   bg       background image
 //   grid     grid lines and axis labels
 //   shapes   one <g> per shape (shape + label), then the marquee
-//   handles  background edit outline/handle, calibration markers
+//   handles  background edit outline/handle, calibration markers, the selected shape's resize and rotate handles
 // During a pan or pinch the bg/shapes/handles layers are moved with a
 // transform and only the grid is redrawn; the full redraw happens on release.
 
@@ -114,10 +117,11 @@ export function shapeGroup(s: Shape): SVGGElement {
   const ppf = pxPerFoot();
   const sel = isSelected(s.id);
   // Taps fall through to the background tools / drawing / point editing.
-  const inert = state.bgEditMode || !!state.bgCalibrate || !!state.draw || !!state.editPoints || !!state.placing;
+  const inert = state.bgEditMode || !!state.bgCalibrate || !!state.draw || !!state.editPoints || !!state.placing || !!state.featurePlace;
   // Boundaries and open lines: a stroke, no fill.
   const outline = s.type === 'line' || (s.role ? !!roleDef(s.role).outline : false);
-  const dashed = s.role ? !!roleDef(s.role).outline : false;
+  // (And a buried line: under the ground, as a plan shows it.)
+  const dashed = (s.role ? !!roleDef(s.role).outline : false) || (s.role === 'utility' && s.utility === 'buried');
   const common: Attrs = {
     'data-shape-id': s.id,
     fill: outline ? 'none' : s.color,
@@ -247,6 +251,23 @@ export function shapeGroup(s: Shape): SVGGElement {
   if (hitEl) g.appendChild(hitEl);
   if (ring) g.appendChild(ring);
   for (const x of g0) g.appendChild(x);
+  // Doors, windows, gates and the like, on its edges (src/features.ts). Each takes taps as part of its shape; on the
+  // selected shape, a drag moves it along the edges.
+  if (s.type !== 'circle' && s.features?.length) {
+    const toPx = (p: Point) => ({ x: (p.x - state.offsetX) * ppf, y: (p.y - state.offsetY) * ppf });
+    for (const f of knownFeatures(s.features)) {
+      const fg = svgEl('g', { 'data-role': 'sub-feature', 'data-feature': f.kind, 'data-feature-id': f.id, 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : null },
+        ...featureParts(s, f, toPx, ppf).map((p) => svgEl(p.tag, p.attrs)));
+      // (Its touch area no wider than a line's, zoomed far out: a pan beside a door moves the plan, not the house.)
+      const hit = inert ? null : featureHitPart(s, f, toPx, ppf, hitBand(ppf));
+      if (hit) {
+        const h = svgEl(hit.tag, { ...hit.attrs, 'data-role': 'feature-hit', 'data-feature-of': s.id, style: `cursor:${sel || isLocked(s) ? 'grab' : 'move'};touch-action:none;`, 'pointer-events': hit.tag === 'line' ? 'stroke' : 'all' });
+        h.addEventListener('pointerdown', (e) => onFeaturePointerDown(e as PointerEvent, s, f.id));
+        fg.appendChild(h);
+      }
+      g.appendChild(fg);
+    }
+  }
   // Dimension lines get end ticks, like a drawing's dimension.
   if (s.type === 'line' && s.showLength) {
     const pts = worldPoints(s).map((p) => ({ x: (p.x - state.offsetX) * ppf, y: (p.y - state.offsetY) * ppf }));
@@ -327,6 +348,18 @@ export function shapeGroup(s: Shape): SVGGElement {
       const bx = labelX + r * 0.7, by = labelY - r * 0.7;
       g.appendChild(svgEl('g', { 'data-role': 'sun-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },
         svgEl('circle', { cx: bx, cy: by, r: 8, fill: '#f59e0b', stroke: '#fff', 'stroke-width': 1.5 }),
+        svgEl('text', { x: bx, y: by + 0.5, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#fff' }, '!')));
+    }
+  }
+  // Plants too near a power line, a buried line or a septic field for what they are (src/utilities.ts): a badge in
+  // the power line's orange, low on the other side.
+  if (s.role === 'plant' && s.type === 'circle' && named && shownUtilities.length) {
+    const issues = utilityIssues(s, shownUtilities, plantsById);
+    if (utilityWarningShown(s, issues)) {
+      const r = s.radius * ppf;
+      const bx = labelX - r * 0.7, by = labelY + r * 0.7;
+      g.appendChild(svgEl('g', { 'data-role': 'utility-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },
+        svgEl('circle', { cx: bx, cy: by, r: 8, fill: '#ea580c', stroke: '#fff', 'stroke-width': 1.5 }),
         svgEl('text', { x: bx, y: by + 0.5, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#fff' }, '!')));
     }
   }
@@ -454,10 +487,16 @@ let crowded = new Map<string, CrowdLevel>();
 function refreshCrowding() {
   crowded = state.showCrowding || state.placing ? crowdLevels(state.shapes.filter((s) => shownWith(s, state.viewFilter)), plantsById, crowdOptions()) : new Map();
 }
+/** The utilities shown, measured once a redraw for every plant's check (src/utilities.ts); none on most plans. */
+let shownUtilities: PreparedUtility[] = [];
+function refreshUtilities() {
+  shownUtilities = prepareUtilities(state.shapes.filter((s) => s.role === 'utility' && shownWith(s, state.viewFilter)));
+}
 
 /** Clear and redraw the whole canvas. Never touches panel DOM. */
 export function redrawCanvas() {
   refreshCrowding();
+  refreshUtilities();
   refreshLabelLayout();
   const svg = canvasSvg();
   if (!svg) return;
@@ -505,6 +544,8 @@ export function redrawShapes(ids: string[]) {
   if (!svg || svg.children.length !== LAYERS.length || drawnView.zoom !== state.zoom ||
       drawnView.offsetX !== state.offsetX || drawnView.offsetY !== state.offsetY) { redrawCanvas(); return; }
   const shapes = layer(svg, 'shapes');
+  // (A utility dragged: its own outline measured again; the plants' badges catch up on release, with the full render.)
+  if (ids.some((id) => state.shapes.find((sh) => sh.id === id)?.role === 'utility')) refreshUtilities();
   if (state.showCrowding || state.placing) {
     // Moving one plant can change which others are close or crowded: redraw all plants whose ring changes.
     const before = crowded;
@@ -542,6 +583,7 @@ function renderHandles(g: SVGGElement) {
   renderBgHandles(g);
   renderPathOverlay(g);
   renderPlaceOverlay(g);
+  renderShapeHandles(g);
 }
 /** Redraw only the handles layer (drawing in progress, point handles). */
 export function redrawHandles() {

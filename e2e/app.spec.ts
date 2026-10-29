@@ -21,7 +21,7 @@ test.describe('core editing', () => {
       await closeSheet(page);
     }
     expect(await shapeCount(page)).toBe(4);
-    const svg = page.locator('#canvas-svg');
+    const svg = page.locator('#canvas-svg [data-layer=shapes]'); // (the shapes, not the selected one's handles)
     await expect(svg.locator('circle')).toHaveCount(1);
     await expect(svg.locator('ellipse')).toHaveCount(1);
     await expect(svg.locator('polygon')).toHaveCount(1);
@@ -45,7 +45,7 @@ test.describe('core editing', () => {
     const swatch = page.locator('.swatch').nth(8); // #ef4444
     await swatch.click();
     await expect(page.locator('.swatch').nth(8)).toHaveClass(/sel/);
-    await expect(page.locator('#canvas-svg circle').first()).toHaveAttribute('fill', '#ef4444');
+    await expect(page.locator('#canvas-svg [data-layer=shapes] circle').first()).toHaveAttribute('fill', '#ef4444');
   });
 
   test('the rotation control applies', async ({ page }) => {
@@ -99,7 +99,7 @@ test.describe('core editing', () => {
     await addShape(page, 'circle');
     const x0 = Number(await field(page, 'X position').inputValue());
     await closeSheet(page);
-    const c = await page.locator('#canvas-svg circle').first().boundingBox();
+    const c = await page.locator('#canvas-svg [data-layer=shapes] circle').first().boundingBox();
     const cx = c!.x + c!.width / 2, cy = c!.y + c!.height / 2;
     await drag(page, { x: cx, y: cy }, { x: cx + 48, y: cy }); // 48px = 2ft at 100%
     await page.locator('.sel-pill button.edit').click();
@@ -112,10 +112,10 @@ test.describe('navigation', () => {
     await openFresh(page);
     await addShape(page, 'circle');
     await closeSheet(page);
-    const before = await page.locator('#canvas-svg circle').first().boundingBox();
+    const before = await page.locator('#canvas-svg [data-layer=shapes] circle').first().boundingBox();
     const box = await canvasBox(page);
     await drag(page, { x: box.x + 40, y: box.y + 60 }, { x: box.x + 140, y: box.y + 60 });
-    const after = await page.locator('#canvas-svg circle').first().boundingBox();
+    const after = await page.locator('#canvas-svg [data-layer=shapes] circle').first().boundingBox();
     expect(Math.round(after!.x - before!.x)).toBe(100);
     expect(await zoomPct(page)).toBe(100);
     await page.locator('.zoombtn').first().click();
@@ -165,7 +165,7 @@ test('a finger lifted over the toolbar does not turn the next drag into a pinch'
   await openFresh(page);
   await addPlainShape(page, 'circle');
   await closeSheet(page);
-  const before = await page.locator('#canvas-svg circle').first().boundingBox();
+  const before = await page.locator('#canvas-svg [data-layer=shapes] circle').first().boundingBox();
   const box = await canvasBox(page);
   await page.evaluate(({ x, y }) => {
     const svg = () => document.getElementById('canvas-svg')!;
@@ -182,7 +182,7 @@ test('a finger lifted over the toolbar does not turn the next drag into a pinch'
     svg().dispatchEvent(ev('pointerup', 12, x + 100, y));
   }, { x: box.x + 30, y: box.y + 60 });
   expect(await zoomPct(page)).toBe(100);
-  const after = await page.locator('#canvas-svg circle').first().boundingBox();
+  const after = await page.locator('#canvas-svg [data-layer=shapes] circle').first().boundingBox();
   expect(Math.round(after!.x - before!.x)).toBe(100);
   expect(Math.round(after!.y - before!.y)).toBe(10);
 });
@@ -219,17 +219,17 @@ test.describe('projects and selection', () => {
     await addShape(page, 'circle');
     await closeSheet(page);
     // second circle sits on top of the first; move it off with a drag
-    let c = await page.locator('#canvas-svg circle').last().boundingBox();
+    let c = await page.locator('#canvas-svg [data-layer=shapes] circle').last().boundingBox();
     await drag(page, { x: c!.x + c!.width / 2, y: c!.y + c!.height / 2 }, { x: c!.x + c!.width / 2 + 120, y: c!.y + c!.height / 2 });
     await page.getByTestId('select-mode').click();
     await expect(page.locator('.mode-banner')).toContainText('Select mode');
     const box = await canvasBox(page);
     await drag(page, { x: box.x + 10, y: box.y + 70 }, { x: box.x + box.width - 50, y: box.y + box.height - 70 });
     await expect(page.locator('.multi-bar .count')).toHaveText('2 selected');
-    const before = await page.locator('#canvas-svg circle').first().boundingBox();
-    c = await page.locator('#canvas-svg circle').last().boundingBox();
+    const before = await page.locator('#canvas-svg [data-layer=shapes] circle').first().boundingBox();
+    c = await page.locator('#canvas-svg [data-layer=shapes] circle').last().boundingBox();
     await drag(page, { x: c!.x + c!.width / 2, y: c!.y + c!.height / 2 }, { x: c!.x + c!.width / 2, y: c!.y + c!.height / 2 + 48 });
-    const after = await page.locator('#canvas-svg circle').first().boundingBox();
+    const after = await page.locator('#canvas-svg [data-layer=shapes] circle').first().boundingBox();
     expect(Math.round(after!.y - before!.y)).toBe(48);
   });
 

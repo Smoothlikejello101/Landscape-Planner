@@ -10,15 +10,17 @@
 // Writes public/plants.json, public/wild/1/, docs/catalog-review.md (what's waiting on a person), and
 // catalog-src/build/ (the steps' files and log, kept, not committed). Running it twice changes nothing.
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseBuildArgs } from './build-args.mjs';
-import { readNcsuFile, savedAuditList, toFetch } from './list.mjs';
-import { gbifCommonName, gbifNames, namePagesToFetch, newRecords, pagesInUse, readAdded, shipOnly, shortenListNames, usdaCommonName, writeAdded } from './additions.mjs';
+import { ncsuMovedTo, ncsuUrl, readNcsuFile, savedAuditList, toFetch } from './list.mjs';
+import { gbifCommonName, gbifNames, namePagesToFetch, newRecords, pageCommons, pagesInUse, readAdded, shipOnly, shortenListNames, usdaCommonName, writeAdded } from './additions.mjs';
 import { catalogText } from './convert-v1.mjs';
-import { applySplits, linkCultivars } from './split.mjs';
-import { lockCatalogSrc, savedFile } from './pages.mjs';
+import { applySplits, kewApart, linkCultivars } from './split.mjs';
+import { lockCatalogSrc, savedFile, savedPage } from './pages.mjs';
+import { ncsuDescription } from './prose.mjs';
 import { rereadClaims } from './reclaim.mjs';
+import { sourceOf } from './web.mjs';
 import { reviewReport, termsUnsettled } from './report.mjs';
 
 const opts = parseBuildArgs(process.argv.slice(2), process.env);
@@ -94,6 +96,8 @@ function fetchList(label, items) {
 }
 
 const date = opts.date ?? new Date().toISOString().slice(0, 10); // (the UTC day, as the fetcher names its folders)
+/** A saved NC State page's HTML, by its name, or null. */
+const ncsuPage = (slug) => savedPage('ncsu', ncsuUrl(slug), ROOT)?.text ?? null;
 
 // New plants (additions.mjs): each NC State plant page saved that no record reads, as a record with names and no
 // facts. The steps below fill them like any other; after the write, only those that ship stay (5). (Found again
@@ -101,9 +105,9 @@ const date = opts.date ?? new Date().toISOString().slice(0, 10); // (the UTC day
 const addedBefore = readAdded(); // (the pages plants added before were found on)
 function withAdditions() {
   const base = JSON.parse(catalogBefore);
-  // (Records a person decided to split into one per cultivar, first: split.mjs. A cultivar with a page of its own is
-  // then the build's to add, like any page no record reads.)
-  const split = applySplits(base, readJson('scripts/catalog/decisions.json'));
+  // (Records a person decided to split into one per cultivar, rename, move or fold into another, first: split.mjs. A
+  // cultivar with a page of its own is then the build's to add, like any page no record reads.)
+  const split = applySplits(base, readJson('scripts/catalog/decisions.json'), { commonFor: (sp) => usdaCommonName(sp, ROOT) ?? gbifCommonName(sp, ROOT), namesOf: (slug) => pageCommons(ncsuPage(slug)) });
   if (split.length) log.push(`## split\n${split.join('\n')}`);
   // (A cultivar with no species named, linked to its species' record: split.mjs.)
   const linked = linkCultivars(base);
@@ -160,8 +164,12 @@ if (xlsx) {
   run('caterpillar hosts', 'python3', ['-I', 'scripts/catalog/tallamy.py', path('tallamy.xlsx'), join(ROOT, 'tallamy', 'genera.json')]);
 } else console.log(`caterpillar hosts: the Tallamy spreadsheet isn't saved (--fetch gets it)${existsSync(join(ROOT, 'tallamy', 'genera.json')) ? '; the genera made from it before are used' : '; none read'}`);
 
-// 3. The web claims, read again with today's reader.
-const searched = readJson(CLAIMS);
+// 3. The web claims, read again with today's reader. (Not a withdrawn source's: decisions.json `withdrawn`. The source
+// as today's rules name it from the page's site, not as the claim was saved: a site since counted on its own, as
+// Walters Gardens was from Proven Winners, is judged as itself.)
+const withdrawn = readJson('scripts/catalog/decisions.json').withdrawn ?? {};
+const sourceNow = (c) => { try { return sourceOf(new URL(c.url).hostname); } catch { return c.src; } };
+const searched = Object.fromEntries(Object.entries(readJson(CLAIMS)).map(([id, cs]) => [id, cs.filter((c) => !withdrawn[sourceNow(c)])]));
 const web = rereadClaims(searched, list, catalog, ROOT, readJson('scripts/catalog/site-terms.json'));
 writeFileSync(path('web.json'), JSON.stringify(web.claims));
 console.log(`web claims: ${web.pages} pages read again${web.missing ? `, ${web.missing} no longer saved` : ''}${web.closed ? `, ${web.closed} from sites whose terms are to be read again` : ''}`);
@@ -201,6 +209,14 @@ if (!existsSync(atlasCounties) || statSync(atlasCounties).mtimeMs < statSync(atl
 }
 node('USDA counties', 'usda-counties.mjs', [path('combined.json')]);
 node('Kew native status', 'wcvp.mjs', [path('combined.json')]);
+// (USA-NPN's download, by hand into usanpn/<date>/: summed up again when the newest one is newer than the summary, or
+// the summary is in an older format.)
+const npnDir = join(ROOT, 'usanpn');
+const npnCsv = existsSync(npnDir) ? readdirSync(npnDir).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort().map((d) => join(npnDir, d, 'individual_phenometrics_data.csv')).filter((f) => existsSync(f)).pop() : null;
+const npnOut = join(npnDir, 'leafout.json');
+const { NPN_SUMMARY_V } = await import('./npn.mjs');
+const npnOld = () => { try { return JSON.parse(readFileSync(npnOut, 'utf8')).meta?.v !== NPN_SUMMARY_V; } catch { return true; } };
+if (npnCsv && (!existsSync(npnOut) || statSync(npnOut).mtimeMs < statSync(npnCsv).mtimeMs || npnOld())) node('leaf-out and fall days', 'npn.mjs', [npnCsv, npnOut]);
 node('wild records', 'wild.mjs', [path('combined.json')]);
 
 // 6. The catalog's own checks, then the report.
@@ -226,6 +242,8 @@ const report = reviewReport({
   warnings: checkOut.split('\n').filter((l) => l.startsWith('  ')).map((l) => l.trim()),
   unfetched: toFetch(list, ROOT),
   termsUnsettled: termsUnsettled(join(ROOT, 'terms-review'), readJson('scripts/catalog/site-terms.json')),
+  // (Cultivars NC State may file under a species Kew keeps apart from theirs: split.mjs, listed, not moved.)
+  kewApart: kewApart(after, list, { pages: readNcsuFile().pages, movedTo: (slug) => ncsuMovedTo(slug, ROOT), pageText: (slug) => { const h = ncsuPage(slug); return h ? [...pageCommons(h), ...ncsuDescription(h)].join(' ') : null; } }),
   decisions: readJson('scripts/catalog/decisions.json'),
   additions: { ...readJson(path('additions.json')), all: Object.keys(readAdded()) },
 });
