@@ -123,6 +123,7 @@ export const OTHER_SHORTCUTS: [string, string][] = [
   ['Ctrl+X / Ctrl+C / Ctrl+V / Ctrl+D', 'Cut / copy / paste / duplicate'],
   ['Arrow keys', 'Move what is selected half a foot (Shift: 5 ft); with nothing selected, move around the plan'],
   ['Ctrl + / Ctrl \u2212', 'Zoom the plan in / out'],
+  ['Shift+1', 'Fit the whole plan in view'],
   ['Two-finger scroll / pinch', 'Move around the plan / zoom (a mouse wheel zooms)'],
   ['?', 'Show this list'],
 ];
