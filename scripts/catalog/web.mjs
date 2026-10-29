@@ -121,6 +121,10 @@ export const SKIP_SITES = new Set([
   'floriscope.io', 'nationwideplants.com', // (a portal of growers' catalogues; a drop-ship reseller)
   'sjgbloom2012.wordpress.com', // (pastes other sites' descriptions)
   'towerlandscapedesign.com', // (a repurposed domain: generic SEO posts)
+  // Found by the terms reviews of batch 9, second quarter (2026-10-28)
+  'usagardenhub.com', 'theplantdb.com', // (an AI content farm; a template shop with a copied plant list)
+  'smartseedsemporium.com', 'vitegreenhouses.com', // (a reseller of others' seed packets; plant pages built from breeders' information)
+  'bananas.org', 'hcpid.weebly.com', // (a forum; a class's plant-ID study list)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
