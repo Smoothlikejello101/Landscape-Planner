@@ -741,9 +741,22 @@ a cultivar (`CultivarName`, a named release such as 'Alma' blue grama) is
 that release's, and is left out. A cultivar's leaf color, flower color and growth rate
 never come from USDA.
 
-**Agreement.** Zones agree within one whole zone (10 °F); sizes when the
-ranges overlap, with a quarter's give; lists (colors, seasons, hosts) when
-they share a word.
+**Agreement.** Zones agree within one whole zone (10 °F); lists (colors,
+seasons, hosts) when they share a word. Sizes agree when the narrower range's
+middle falls inside the wider one, with a quarter's give either way (two as
+wide: each middle inside the other). Until 2026-10-29 it was enough for the
+ranges to overlap, so ranges touching at an end agreed (meadow blazing star's
+1–3 ft and 3–5 ft), and a wide bin agreed with nearly anything (Jason: the
+tighter rule).
+
+**Typical size.** A size's `med`, which the app draws a plant at, is the
+median of the middles of every source on its side (above), an authority's
+counted twice, kept within the range shown; with one source, its range's
+middle. Not where the ranges overlap: two that agree often only touch, and the
+overlap is then their edge, set by whichever is narrowest (prairie rose: NC
+State's 3–15 ft, Prairie Nursery's 4–15 and Missouri Wildflowers' 3–5 overlap
+at 4–5; the median of their middles keeps it 9 ft). Decided with Jason,
+2026-10-29.
 
 **Water** is what a plant needs once established. NC State has no water
 field, so it comes from NC State's tags: **High** where it grows wet

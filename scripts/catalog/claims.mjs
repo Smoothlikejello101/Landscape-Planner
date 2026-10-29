@@ -443,7 +443,14 @@ export function agrees(fact, a, b) {
   if (fact === 'poison') return JSON.stringify(a) === JSON.stringify(b); // (as one reading: severity, parts and skin alike)
   if (TIER[fact] === 'safety') return JSON.stringify([a].flat().map(String).sort()) === JSON.stringify([b].flat().map(String).sort()); // (exactly: major is not minor)
   if (a && b && typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b) && !('min' in a)) return JSON.stringify(a) === JSON.stringify(b);
-  if (fact === 'height' || fact === 'width') return a.min <= b.max * 1.25 && b.min <= a.max * 1.25; // (ranges overlap, with a little give)
+  // Sizes: the narrower range's middle inside the wider one, with a quarter's give either way (Jason, 2026-10-29). Ranges
+  // that only touch at an end don't agree (1–3 ft and 3–5 ft), nor does a wide bin with whatever it overlaps; a
+  // nursery's one figure inside an authority's range does. (Two as wide: each middle inside the other.)
+  if (fact === 'height' || fact === 'width') {
+    const inside = (x, y) => { const m = (x.min + x.max) / 2; return m >= y.min / 1.25 && m <= y.max * 1.25; };
+    const wa = a.max - a.min, wb = b.max - b.min;
+    return wa < wb ? inside(a, b) : wb < wa ? inside(b, a) : inside(a, b) && inside(b, a);
+  }
   if (Array.isArray(a) && Array.isArray(b)) {
     // (Words, not phrasings: "Purple/Lavender" and "Purple" share a color; "early spring" and "spring" a season.)
     const words = (l) => new Set(l.flatMap((x) => String(x).toLowerCase().split(/[\/,]| and /)).map((x) => x.replace(/^(early|mid|late)[ -]?/, '').trim()).filter(Boolean));
@@ -643,6 +650,8 @@ function bySides(fact, usable, flagClaims) {
   }
   const kind = leader.authority ? 'authority' : leader.head.kind;
   const r = { v: leader.v, src: [leader.head.src, ...leader.members.filter((c) => c !== leader.head).map((c) => c.src)], check: checkOf(leader), kind };
+  // A size's typical value, from every source on its side (`typicalOf`): written as the range's `med`.
+  if ((fact === 'height' || fact === 'width') && leader.members.length > 1) r.typical = typicalOf(leader.v, leader.members);
   if (leader.head.says) { r.from = 'description'; r.says = leader.head.says; } // (read from a description: prose.mjs)
   const notes = [leader.head.note, ...others.flatMap(says)].filter(Boolean);
   if (notes.length) r.note = notes.join('; ');
@@ -651,6 +660,16 @@ function bySides(fact, usable, flagClaims) {
   const flags = flagsBy(r.v);
   if (flags.length) r.flags = flags;
   return r;
+}
+/**
+ * A size's typical value, where several sources agree on it (Jason, 2026-10-29): the median of their ranges'
+ * middles, an authority's counted twice, kept within the range shown. (One source: its range's middle, as before.
+ * Not where the ranges overlap: that's their edges, where two ranges that agree touch, and a narrow one rules.)
+ */
+export function typicalOf(v, members) {
+  const mids = members.flatMap((c) => Array(c.kind === 'authority' ? 2 : 1).fill((c.v.min + c.v.max) / 2)).sort((x, y) => x - y);
+  const n = mids.length, m = n % 2 ? mids[(n - 1) / 2] : (mids[n / 2 - 1] + mids[n / 2]) / 2;
+  return Math.round(Math.min(v.max, Math.max(v.min, m)) * 100) / 100;
 }
 /** Facts that make one range together: a nursery's report for one is read with its report for the other. */
 const PAIRS = [['zone_min', 'zone_max'], ['sun_most', 'sun_least']];

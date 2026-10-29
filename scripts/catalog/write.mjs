@@ -11,8 +11,9 @@ import { PROSE_HABITS } from './prose.mjs';
 
 /** The checks the app takes (src/catalog.ts): disputed facts aren't written. */
 const SETTLED = new Set(['confirmed', 'single', 'likely', 'reported']);
-const range = (r) => (r && typeof r.min === 'number' && typeof r.max === 'number' && r.min > 0 && r.min <= r.max
-  ? { min: r.min, max: r.max, med: Math.round(((r.min + r.max) / 2) * 100) / 100 } : undefined);
+/** A size range, its `med` the typical size: from the sources that agree on it (claims.mjs typicalOf), else its middle. */
+const range = (r, _enums, f) => (r && typeof r.min === 'number' && typeof r.max === 'number' && r.min > 0 && r.min <= r.max
+  ? { min: r.min, max: r.max, med: typeof f?.typical === 'number' && f.typical >= r.min && f.typical <= r.max ? f.typical : Math.round(((r.min + r.max) / 2) * 100) / 100 } : undefined);
 const ZONE = (z) => (typeof z === 'number' && z >= 1 && z <= 13.5 && Number.isInteger(z * 2) ? z : undefined);
 const SUN = (v) => (['Full', 'Part', 'Shade'].includes(v) ? v : undefined);
 const yes = (v) => (v === true ? true : undefined); // (sources say so only when it's so: no "false" from silence)
@@ -187,7 +188,7 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
         continue;
       }
       if (f.v == null || !SETTLED.has(f.check)) continue;
-      const v = conv(f.v, enums);
+      const v = conv(f.v, enums, f);
       // (The sources can't say Wetland yet: it waits on USDA's wetland list. A plant the catalog calls a wetland
       // plant keeps that until then, rather than becoming merely "High".)
       if (key === 'water' && rated('water') === 'Wetland') continue;
