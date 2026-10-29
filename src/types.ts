@@ -357,6 +357,10 @@ export interface DrawState {
   lastTap?: { x: number; y: number; t: number };
   /** Once it's finished, go on to add its doors, windows, gates or steps (the drawing bar's switch, off to start). */
   thenFeatures?: boolean;
+  /** A length typed for the next side (feet): the next tap gives only its direction (src/draw-numbers.ts). */
+  typed?: number;
+  /** Each tap: true where it went down at a typed length (squaring leaves it where it is). */
+  exact?: boolean[];
 }
 /**
  * A tap or a dragged point that landed on another shape: which shape, its corner or edge there (`seg`, lit while

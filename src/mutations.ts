@@ -1,14 +1,14 @@
 import { attachedPlants, carriesPlants, patchBedCarryingPlants } from './beds';
 import { redrawCanvas, tierOf } from './canvas';
 import { MAX_ZOOM, MIN_ZOOM, PX_PER_FOOT_BASE } from './constants';
-import { canvasRect, pxPerFoot, shapeBBox, shapeCenter, unionBounds, viewCenterFeet } from './geometry';
+import { canvasRect, pxPerFoot, rotatedBoxBounds, shapeBBox, shapeCenter, unionBounds, viewCenterFeet } from './geometry';
 import { flushHistoryDebounce, pushHistory, pushHistoryDebounced } from './history';
 import { getSelected, singleSelected } from './selection';
 import { state } from './state';
 import { getClipboard, migrateShape, save, setClipboard } from './storage';
 import { defaultLook, isLocked, roleKey } from './roles';
 import { isUtilityKind, utilityLook } from './utility-kinds';
-import type { Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapeFilter, ShapePatch, Status } from './types';
+import type { Bounds, Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapeFilter, ShapePatch, Status } from './types';
 import { cleanPhaseName, MAX_PHASES, shownWith, statusPatch } from './status';
 import { render } from './ui/render';
 import { deepClone, now, snap, uid } from './util';
@@ -222,6 +222,52 @@ export function zoomBy(factor: number, anchorScreenX?: number, anchorScreenY?: n
   state.zoom = newZoom;
   save();
 }
+/**
+ * The whole plan as shown: every shape in view, and the photo while it shows (feet). Null when nothing shows.
+ */
+export function planBounds(): Bounds | null {
+  // (What's shown: not gone plants, hidden layers or plants the view leaves out.)
+  const list = state.shapes.filter((s) => shownWith(s, state.viewFilter)).map(shapeBBox);
+  const bg = state.bgImage;
+  if (bg?.visible) list.push(rotatedBoxBounds(bg.cx, bg.cy, bg.naturalWidth * bg.ftPerPx, bg.naturalHeight * bg.ftPerPx, bg.rotation));
+  return unionBounds(list);
+}
+/** Zoom and move the view so `b` (feet) fills the plan, a margin all round; as close as the zoom allows. */
+export function zoomToBounds(b: Bounds, marginPx = 28) {
+  const rect = canvasRect();
+  const W = rect.width || state.canvasW, H = rect.height || state.canvasH;
+  const w = Math.max(b.maxX - b.minX, 1), h = Math.max(b.maxY - b.minY, 1);
+  const fit = Math.min((W - 2 * marginPx) / (w * PX_PER_FOOT_BASE), (H - 2 * marginPx) / (h * PX_PER_FOOT_BASE));
+  state.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, fit));
+  const ppf = PX_PER_FOOT_BASE * state.zoom;
+  state.offsetX = (b.minX + b.maxX) / 2 - W / ppf / 2;
+  state.offsetY = (b.minY + b.maxY) / 2 - H / ppf / 2;
+  save();
+}
+/** Everything in view (the zoom buttons' Fit, Shift+1). False when there's nothing on the plan to fit. */
+export function zoomToFit(): boolean {
+  const b = planBounds();
+  if (!b) return false;
+  zoomToBounds(b);
+  return true;
+}
+/**
+ * A new plan drawn by hand: the view zoomed to a yard `feet` wide (asked on the empty plan), its left edge where
+ * the plan starts. Square, as the yard's depth isn't asked: the whole width fits across.
+ */
+export function zoomToYard(feet: number) {
+  const rect = canvasRect(), W = rect.width || state.canvasW;
+  if (W >= YARD_WIDE_PX) { zoomToBounds({ minX: 0, maxX: feet, minY: 0, maxY: feet }); return; }
+  // A phone: the yard's width across the screen, from a little above the plan's top. (By width alone: the plan's
+  // height may still be cut short by the keyboard just put away.)
+  state.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, (W - 2 * 28) / (feet * PX_PER_FOOT_BASE)));
+  const ppf = PX_PER_FOOT_BASE * state.zoom;
+  state.offsetX = feet / 2 - W / ppf / 2;
+  state.offsetY = -28 / ppf;
+  save();
+}
+/** A plan this wide (px) or wider is a desktop's or a tablet's: the yard fits as a square, its depth in view too. */
+const YARD_WIDE_PX = 700;
 export function resetCurrentProject() {
   flushHistoryDebounce();
   state.shapes = [];
