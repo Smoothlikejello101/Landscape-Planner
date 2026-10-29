@@ -7,15 +7,16 @@ import { el, hasKeyboard, svgEl } from '../dom';
 import { onCanvasPointerDown, onWheel } from '../gestures';
 import { canRedo, canUndo, redo, undo } from '../history';
 import { I } from '../icons';
-import { copySelected, setViewFilter, updateSelectedSilent, zoomBy } from '../mutations';
+import { copySelected, planBounds, setViewFilter, updateSelectedSilent, zoomBy, zoomToFit, zoomToYard } from '../mutations';
 import { deleteSelectedAsking } from './delete-selected';
 import { clearSelection, getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { typeName } from '../util';
 import { fmtFeet, screenToFeet } from '../geometry';
-import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, shapeName, startEditPoints, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
+import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, setTypedLength, shapeName, typedApplies, typedLabel, startEditPoints, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
 import type { TapSnap } from '../types';
 import { redrawHandles } from '../canvas';
+import { parseTypedLength } from '../draw-numbers';
 import { kindDef, METHOD_LABELS, nextTapPrompt, type KindKey } from '../kinds';
 import { methodIcon, renderAddSheet, renderShortcutsPanel, withKey } from './add-sheet';
 import { finishPlacing, placingPlant, setPlaceHover, undoPlace } from '../place';
@@ -284,6 +285,12 @@ export function render() {
   const zOut = el('button', { className: 'zoombtn', html: I.zoomOut, 'aria-label': 'Zoom out', title: 'Zoom out' });
   zOut.addEventListener('click', () => { zoomBy(0.8); render(); flashZoom(); });
   zoomBtns.appendChild(zIn); zoomBtns.appendChild(zOut);
+  // Everything in view (not on an empty plan with no photo: nothing to fit).
+  if (planBounds()) {
+    const zFit = el('button', { className: 'zoombtn', html: I.fit, 'aria-label': 'Fit the plan in view', title: 'Fit the plan in view (Shift+1)', 'data-testid': 'zoom-fit' });
+    zFit.addEventListener('click', () => { zoomToFit(); render(); flashZoom(); });
+    zoomBtns.appendChild(zFit);
+  }
   zoomBtns.appendChild(namesButton());
   canvasWrap.appendChild(zoomBtns);
 
@@ -304,6 +311,18 @@ export function render() {
       photo.addEventListener('click', () => { state.panel = 'bg'; render(); });
       hint.append(photo, el('div', { className: 'empty-sub' }, 'A satellite or drone photo of your yard to trace over.'), el('div', { className: 'empty-or' }, 'or'));
     }
+    // Drawing it by hand: the yard's width sets the view, so it fits on screen (the opening view is about 17 ft across).
+    // Typed without re-rendering (keyboard safety); Show it, or Enter, zooms.
+    const yard = el('input', { type: 'text', inputMode: 'decimal', enterKeyHint: 'go', autocomplete: 'off', placeholder: '100', 'aria-label': 'Yard width in feet', 'data-testid': 'yard-width' }) as HTMLInputElement;
+    const showYard = () => {
+      const v = parseTypedLength(yard.value || yard.placeholder);
+      if (v == null || v < 5) { toast('Type the yard’s width in feet, say 80.', 3000); return; }
+      yard.blur(); zoomToYard(v); render(); flashZoom();
+    };
+    yard.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); showYard(); } });
+    const go = el('button', { className: 'btn ghost', 'data-testid': 'yard-show' }, 'Show it');
+    go.addEventListener('click', showYard);
+    hint.append(el('div', { className: 'empty-yard' }, el('label', {}, el('span', {}, 'Yard about'), yard, el('span', {}, 'ft wide')), go));
     hint.append(
       el('div', {}, 'Tap a button below to add something.'),
       el('div', {}, 'Grid lines are ', el('b', {}, '1 ft'), ' apart; bold lines every ', el('b', {}, '10 ft'), '.'));
@@ -557,6 +576,21 @@ function renderDrawBar(): HTMLElement {
       show();
       sw.addEventListener('click', () => { if (state.draw) state.draw.thenFeatures = !state.draw.thenFeatures; show(); });
       col.appendChild(sw);
+    }
+    // A length for the next side (a prototype, Jason to try): typed without re-rendering (keyboard safety), the
+    // next tap gives only its direction. The plan shows where it can go.
+    if (typedApplies(d)) {
+      const t = el('input', { type: 'text', inputMode: 'decimal', enterKeyHint: 'done', autocomplete: 'off', value: d.typed != null ? String(d.typed) : '', placeholder: '–', 'aria-label': `${typedLabel(d)} in feet`, 'data-testid': 'typed-length' }) as HTMLInputElement;
+      t.addEventListener('input', () => { setTypedLength(parseTypedLength(t.value)); redrawHandles(); });
+      // (Enter or Done puts the keyboard away, so the plan is there to tap.)
+      t.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); t.blur(); } });
+      const typed = el('label', { className: 'draw-width typed-length' }, el('span', {}, typedLabel(d)), t, el('span', {}, 'ft'));
+      if (d.kind === 'path') {
+        // (Beside a path's width the row would push Done off a narrow phone: the two fields get a row of their own.)
+        const fields = el('div', { className: 'draw-bar-row draw-fields' });
+        fields.append(...Array.from(row.childNodes), typed);
+        col.appendChild(fields);
+      } else row.appendChild(typed);
     }
     row.appendChild(btn('Undo', '', undoDrawPoint, d.points.length === 0));
     row.appendChild(btn('Cancel', '', cancelDraw));

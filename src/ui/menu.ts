@@ -11,6 +11,7 @@ import { currentProject, getClipboard } from '../storage';
 import { render } from './render';
 import { openLocation } from './location-panel';
 import { FEEDBACK_ADDRESS, feedbackLink } from '../feedback';
+import { MARK_SMALL } from '../brand';
 import { toast } from './toast';
 import { deviceName } from '../sync/sync';
 import { showMeAround } from './intro-card';
@@ -118,7 +119,10 @@ export function renderMoreMenu() {
   }
   menu.appendChild(el('div', { className: 'menu-divider' }));
   menu.appendChild(el('div', { className: 'text-size-row', 'data-testid': 'text-size' }, el('span', {}, 'Text size'), seg));
-  menu.appendChild(el('div', { className: 'menu-version' }, `Version ${__APP_VERSION__} · ${__BUILD_TIME__}`));
+  // The mark leads the version line (it has no text, so the line still reads "Version …").
+  const version = el('div', { className: 'menu-version', html: MARK_SMALL });
+  version.append(`Version ${__APP_VERSION__} · ${__BUILD_TIME__}`);
+  menu.appendChild(version);
   const overlay = el('div', { className: 'overlay top' }, el('div', { style: { paddingRight: '8px', paddingTop: '4px' } }, menu));
   overlay.addEventListener('click', e => { if (e.target === overlay) { state.menu = null; render(); } });
   return overlay;
