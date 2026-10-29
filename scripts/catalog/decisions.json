@@ -118,9 +118,30 @@
   "whiteflowerfarm.com": {"why": "its terms were taken back for a fresh reading (a Shopify shop, cleared before its standard terms were read)", "decided": "2026-10-28", "by": "Claude, by the terms rules"}
  },
  "checkOnly": {
-  "toptropicals.com": {"why": "its heights are one of four bins (2–5, 5–10, 10–20 or 20 ft), not measured sizes: on 17 of the 90 plants it shares with an authority its size is 3 times or more off, against 6% for all sources together (Jason: \"Certainly don't let them lead\", 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}
+  "toptropicals.com": {"why": "its heights are one of four bins (2–5, 5–10, 10–20 or 20 ft), not measured sizes: on 17 of the 90 plants it shares with an authority its size is 3 times or more off, against 6% for all sources together (Jason: \"Certainly don't let them lead\", 2026-10-29)", "decided": "2026-10-29", "by": "Jason"},
+  "plantsrescue.com": {"why": "its sizes are 3 times or more from every authority's on 4 of the 27 plants it shares with one (15%, against 6% for all sources together), among them a houseplant-sized Norfolk Island pine and a black-eyed Susan vine of \"68 feet\" (Jason: \"Put plant rescue on the check only list\", 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}
  },
  "leads": {
-  "populus-alba": {"width": {"source": "arizona.edu", "why": "NC State gives a tree 50–75 ft tall a width of 4–6 ft; the Arboretum's 50–100 ft fits its height (Jason: fix white poplar, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}}
+  "populus-alba": {"width": {"source": "arizona.edu", "why": "NC State gives a tree 50–75 ft tall a width of 4–6 ft; the Arboretum's 50–100 ft fits its height (Jason: fix white poplar, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "symphoricarpos-orbiculatus": {"width": {"source": "ncsu", "why": "Kept as shown: NC State's spread, against a source 3 times apart or more (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "carex-albicans": {"height": {"source": "prairienursery.com", "why": "Kept as shown: Prairie Nursery's height, against a source 3 times apart or more (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "vinca-minor": {"height": {"source": "ncsu", "why": "Kept as shown: NC State's height, against a source 3 times apart or more (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "aristolochia-tomentosa": {"height": {"source": "ncsu", "why": "Kept as shown: NC State's height, against a source 3 times apart or more (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "bombax-ceiba": {"height": {"source": "ncsu", "why": "Kept as shown: NC State's height, against a source 3 times apart or more (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "cascabela-thevetia": {"height": {"source": "ncsu", "why": "Kept as shown: NC State's height, against a source 3 times apart or more (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}, "width": {"source": "ncsu", "why": "Kept as shown: NC State's spread, against a source 3 times apart or more (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "catalpa-speciosa": {"width": {"source": "greatplainsnursery.com", "why": "Great Plains Nursery's spread leads (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "equisetum-scirpoides": {"width": {"source": "ncsu", "why": "Kept as shown: NC State's spread, against a source 3 times apart or more (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "euonymus-fortunei": {"height": {"source": "ncsu", "why": "Kept as shown: NC State's height, against a source 3 times apart or more (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "goodyera-pubescens": {"height": {"source": "ncsu", "why": "Kept as shown: NC State's height, against a source 3 times apart or more (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "juniperus-chinensis": {"height": {"source": "ncsu", "why": "Kept as shown: NC State's height, against a source 3 times apart or more (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "lablab-purpureus": {"height": {"source": "ncsu", "why": "Kept as shown: NC State's height, against a source 3 times apart or more (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "magnolia-grandiflora": {"height": {"source": "ncsu", "why": "Kept as shown: NC State's height, against a source 3 times apart or more (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "phyla-nodiflora": {"width": {"source": "ncsu", "why": "Kept as shown: NC State's spread, against a source 3 times apart or more (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "quercus-suber": {"height": {"source": "ncsu", "why": "Kept as shown: NC State's height, against a source 3 times apart or more (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "rosa-chinensis": {"height": {"source": "ncsu", "why": "Kept as shown: NC State's height, against a source 3 times apart or more (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "vaccinium-macrocarpon": {"height": {"source": "bluestemnatives.com", "why": "Bluestem Natives' height leads (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "cedrus-deodara-snow-sprite": {"height": {"source": "farwestturf.com", "why": "Far West Turf's height leads (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}, "width": {"source": "farwestturf.com", "why": "Far West Turf's spread leads (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "lespedeza-virginica": {"width": {"source": "usperennials.com", "why": "US Perennials' 1.5–2 ft spread leads: NC State's 4–10 ft is out of keeping with the plant's 1–2 ft height, which two nurseries agree on (Jason: \"Let us perennials lead the spread in the bush clover\", 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}},
+  "pyrus-pyrifolia-shinseiki": {"width": {"source": "ncsu", "why": "Kept as shown: NC State's spread, against a source 3 times apart or more (far-apart card, Jason, 2026-10-29)", "decided": "2026-10-29", "by": "Jason"}}
  }
 }

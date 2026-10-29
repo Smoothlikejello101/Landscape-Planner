@@ -1,4 +1,4 @@
-import { setCrowdWarnings, setShowCrowding, setShowFullSize } from '../view-settings';
+import { setCrowdWarnings, setShowCrowding, setPlantLooks, setShowFullSize } from '../view-settings';
 import { el, svgEl, ts } from '../dom';
 import { setSnapOn, setSquareOn, snapOn, squareOn } from '../tidy';
 import { flushHistoryDebounce, pushHistory, undo } from '../history';
@@ -260,6 +260,12 @@ function plantSizeSection(): HTMLElement {
   wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, cb,
     el('span', {}, 'Show full-size rings on every plant (check for crowding)')));
   wrap.appendChild(el('div', { className: 'hint' }, 'Typical is the size its sources point to, within its range; full is the top of the range. Selected plants always show their full-size ring.'));
+  // Drawn as illustrations, or as plain circles (src/looks.ts): on this device.
+  const looks = el('input', { type: 'checkbox', 'data-testid': 'plant-looks' }) as HTMLInputElement;
+  looks.checked = state.plantLooks;
+  looks.addEventListener('change', () => { setPlantLooks(looks.checked); render(); });
+  wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, looks,
+    el('span', {}, 'Draw plants as pictures, in bloom (off: plain colored circles)')));
   wrap.appendChild(crowdingSettings());
   const sun = el('input', { type: 'checkbox', 'data-testid': 'sun-warnings' }) as HTMLInputElement;
   sun.checked = state.sunWarnings;
