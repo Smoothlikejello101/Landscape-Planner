@@ -21,6 +21,7 @@ import { prepareUtilities, utilityIssues, utilityWarningShown, type PreparedUtil
 import { isSelected } from './selection';
 import { state } from './state';
 import type { CircleShape, Point, Shape, ShapeFilter, TextShape } from './types';
+import { supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
 
 // Canvas drawing. Everything here writes only into the <svg>, never into
 // panel DOM, so it is safe to call while an input has keyboard focus.
@@ -154,8 +155,31 @@ export function shapeGroup(s: Shape): SVGGElement {
   let labelX: number, labelY: number, fs: number, rotTransform = '';
   let fitted: FittedLabel | null | undefined; // circles: the name fitted inside (null = doesn't fit)
   let overflow = false; // a plant's name written over its edge
+  let vineDot: number | null = null; // a climbing vine: its planting spot's radius (px), where its badges go
 
-  if (s.type === 'circle') {
+  const vine = s.type === 'circle' ? supportOf(s, state.shapes) : null;
+  if (s.type === 'circle' && vine) {
+    // A vine on what it climbs (src/vines.ts): its planting spot, and a band from it along the fence, wall or tree's
+    // crown, as long as its spread. The spot and the band take taps; its name sits over the spot.
+    const toPx = (p: Point) => `${(p.x - state.offsetX) * ppf},${(p.y - state.offsetY) * ppf}`;
+    const { band, connector } = vineBand(s, vine);
+    const cx = (s.x - state.offsetX) * ppf, cy = (s.y - state.offsetY) * ppf;
+    vineDot = Math.max(4, VINE_DOT_RADIUS * ppf);
+    const bandW = Math.max(4, VINE_BAND_WIDTH * ppf);
+    const paint = { stroke: s.status === 'remove' ? '#dc2626' : s.color, 'stroke-opacity': s.status === 'planned' ? 0.5 * (s.opacity ?? 0.65) : s.opacity ?? 0.65, fill: 'none', 'pointer-events': 'none' };
+    shapeEl = svgEl('polyline', { ...paint, 'data-role': 'vine-band', points: band.map(toPx).join(' '), 'stroke-width': bandW, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+      opacity: s.status === 'gone' ? 0.35 : null }); // (planned: lighter, as its stroke-opacity says; a dashed band reads as beads)
+    g0.push(svgEl('polyline', { ...paint, 'data-role': 'vine-reach', points: connector.map(toPx).join(' '), 'stroke-width': Math.max(1.5, bandW / 3), 'stroke-linecap': 'round', opacity: s.status === 'gone' ? 0.35 : null }));
+    g0.push(svgEl('circle', { 'data-role': 'vine-spot', cx, cy, r: vineDot, fill: s.color, stroke: sel ? '#0f172a' : 'rgba(0,0,0,0.35)', 'stroke-width': sel ? 2 : 1, 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : null }));
+    const level = crowded.get(s.id);
+    if (level) g0.push(svgEl('circle', { 'data-role': level, cx, cy, r: vineDot + 4, fill: 'none', stroke: level === 'crowded' ? '#dc2626' : '#d97706', 'stroke-width': 2, 'stroke-dasharray': level === 'close' ? '6 4' : null, 'pointer-events': 'none' }));
+    hitEl = svgEl('g', { 'data-shape-id': s.id, 'data-role': 'vine-hit', style: common.style, 'pointer-events': inert ? 'none' : null },
+      svgEl('polyline', { points: band.map(toPx).join(' '), fill: 'none', stroke: 'transparent', 'stroke-width': Math.max(hitBand(ppf), bandW), 'stroke-linecap': 'round', 'pointer-events': inert ? 'none' : 'stroke' }),
+      svgEl('circle', { cx, cy, r: Math.max(vineDot, 12), fill: 'transparent', 'pointer-events': inert ? 'none' : 'all' }));
+    labelX = cx; labelY = cy - vineDot - 9;
+    fs = 12;
+    fitted = undefined; overflow = true; // (its name over its spot, with a halo, as a name too big for its circle)
+  } else if (s.type === 'circle') {
     const cx = (s.x - state.offsetX) * ppf;
     const cy = (s.y - state.offsetY) * ppf;
     const r = s.radius * ppf;
@@ -344,7 +368,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   if (s.role === 'plant' && s.plantId && named) {
     const check = checkPlantSun(s, plantsById[s.plantId], state.shapes);
     if (sunWarningShown(check, s, state.sunWarnings)) {
-      const r = s.type === 'circle' ? s.radius * ppf : Math.min(boxSize(s).w, boxSize(s).h) * ppf / 2;
+      const r = vineDot ?? (s.type === 'circle' ? s.radius * ppf : Math.min(boxSize(s).w, boxSize(s).h) * ppf / 2);
       const bx = labelX + r * 0.7, by = labelY - r * 0.7;
       g.appendChild(svgEl('g', { 'data-role': 'sun-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },
         svgEl('circle', { cx: bx, cy: by, r: 8, fill: '#f59e0b', stroke: '#fff', 'stroke-width': 1.5 }),
@@ -356,7 +380,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   if (s.role === 'plant' && s.type === 'circle' && named && shownUtilities.length) {
     const issues = utilityIssues(s, shownUtilities, plantsById);
     if (utilityWarningShown(s, issues)) {
-      const r = s.radius * ppf;
+      const r = vineDot ?? s.radius * ppf;
       const bx = labelX - r * 0.7, by = labelY + r * 0.7;
       g.appendChild(svgEl('g', { 'data-role': 'utility-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },
         svgEl('circle', { cx: bx, cy: by, r: 8, fill: '#ea580c', stroke: '#fff', 'stroke-width': 1.5 }),
@@ -397,7 +421,9 @@ export function tierOf(s: Shape): number {
 }
 /** Visible shapes in paint order (stable within a tier: list order). */
 export function paintOrder(shapes: Shape[], filter: ShapeFilter = state.viewFilter): Shape[] {
-  return shapes.filter((s) => shownWith(s, filter)).sort((a, b) => tierOf(a) - tierOf(b));
+  // (A vine on what it climbs, over it: a vine up a tree shows on its crown.)
+  const k = (s: Shape) => tierOf(s) + (s.type === 'circle' && s.climbsOn ? 0.5 : 0);
+  return shapes.filter((s) => shownWith(s, filter)).sort((a, b) => k(a) - k(b));
 }
 
 function marqueeRect(): SVGRectElement | null {
@@ -553,7 +579,10 @@ export function redrawShapes(ids: string[]) {
     const changed = [...new Set([...before.keys(), ...crowded.keys()])].filter((id) => before.get(id) !== crowded.get(id));
     ids = [...new Set([...ids, ...changed])];
   }
-  for (const id of ids) {
+  // (A support dragged: the vines on it follow along.)
+  const moving = new Set(ids);
+  ids = [...ids, ...state.shapes.filter((v) => v.type === 'circle' && v.climbsOn && moving.has(v.climbsOn)).map((v) => v.id)];
+  for (const id of new Set(ids)) {
     const s = state.shapes.find((sh) => sh.id === id);
     const old = shapes.querySelector(`:scope > g[data-shape-group="${CSS.escape(id)}"]`);
     if (s && old) old.replaceWith(shapeGroup(s));

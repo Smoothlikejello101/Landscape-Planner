@@ -479,6 +479,24 @@ describe('trees with a trunk and a shaped canopy', () => {
     const file = await buildBackupFile();
     expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
   });
+  it("keep what a vine climbs, or '' for none set by hand; older circles have neither (a groundcover), and odd values are dropped", async () => {
+    await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [
+      tree({ id: 'v', climbsOn: 'm' }),
+      tree({ id: 'w', climbsOn: '' }),
+      tree({ id: 'x' }),
+      tree({ id: 'y', climbsOn: 7 }),
+      tree({ id: 'z', climbsOn: 'q'.repeat(101) }),
+    ] }).shapes;
+    expect(state.shapes[0]).toMatchObject({ climbsOn: 'm' });
+    expect(state.shapes[1]).toMatchObject({ climbsOn: '' });
+    for (const s of state.shapes.slice(2)) expect('climbsOn' in s).toBe(false);
+    await flushSave();
+    expect((await readProject(id))!.shapes).toEqual(state.shapes);
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
+  });
   it('keep a height and lowest branches set by hand; older circles have neither, and odd values are dropped', async () => {
     await freshStorage();
     const id = state.currentProjectId!;

@@ -8,6 +8,7 @@ import { save } from './storage';
 import type { Point } from './types';
 import { snap } from './util';
 import { crowdNotice, dismissCrowdNotice } from './ui/crowd-notice';
+import { offerSupport, offerToVines } from './ui/vine-offers';
 
 // Placing plants by tapping: pick a plant once, then each tap on the plan
 // places one there, until Done. Drags still pan and pinches zoom, as while
@@ -52,6 +53,9 @@ export function placeTap(clientX: number, clientY: number) {
   save();
   // Too close to another: a notice (Move it takes this one back, to tap again).
   crowdNotice(shape, () => { if (state.placing?.placed.at(-1)?.id === shape.id) undoPlace(); });
+  // A vine by a fence or a tree, or a tree by a vine: offered to climb it (src/ui/vine-offers.ts).
+  offerSupport(shape);
+  offerToVines(shape);
 }
 /**
  * Take back the last one placed. Placing is a sandbox: a plant taken back is
