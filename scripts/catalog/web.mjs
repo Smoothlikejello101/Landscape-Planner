@@ -113,6 +113,10 @@ export const SKIP_SITES = new Set([
   'letplant.com', // (an AI plant-care app: generated pages)
   // Found by the terms reviews of batch 8, third quarter (2026-10-28)
   'expoplant.com', // (a marketplace: wholesalers' and gardeners' storefronts, classified ads)
+  // Found by the terms reviews of batch 8, last quarter (2026-10-28)
+  'agronom.info', 'homeandgardensforless.com', 'pottedhaven.com', // (a price aggregator; dropship storefronts of others' stock)
+  'nwaplantsinc.com', // (its plant text is Wikipedia's, word for word)
+  'plantsinsights.com', 'perunorth.com', // (a blog turned to casino spam; a travel agency)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
@@ -139,7 +143,7 @@ const COMPANY = {
   // (GardenSoft's plant database, rented by water utilities: their plant pages say © GardenSoft. Seen 2026-10-28.)
   'watersavingplants.com': 'gardensoft', 'watersmartgardening.com': 'gardensoft', 'reddingwatersmart.com': 'gardensoft',
   'fresnogardening.org': 'gardensoft', 'bayareagardening.org': 'gardensoft', 'ashlandsaveswater.org': 'gardensoft',
-  'elpasodesertblooms.org': 'gardensoft', 'waterwisegardeningsb.org': 'gardensoft',
+  'elpasodesertblooms.org': 'gardensoft', 'waterwisegardeningsb.org': 'gardensoft', 'hillsborogardening.org': 'gardensoft',
 };
 /** The source a site counts as (one company's sites are one). */
 export const sourceOf = (host) => { const site = siteOf(host); return COMPANY[site] ?? termsKey(host); };
