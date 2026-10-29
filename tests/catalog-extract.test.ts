@@ -5,7 +5,7 @@ import { appendixTaxa, arkatlasStatus, feetRange, mnwildFields, monthRange, ncsu
 // @ts-expect-error (plain JavaScript build script)
 import { mnLight, ncsuSun } from '../scripts/catalog/map.mjs';
 // @ts-expect-error (plain JavaScript build script)
-import { agrees, arkatlasClaims, bloomSeasons, combine, fallColors, flowerColors, flowerless, growthRate, leafColors, lowBranched, ncsuFoliage, ncsuNoPoison, ncsuPoison, halfZoneOfTemp, halfZones, hostNames, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims, waterNeed, zoneSpan } from '../scripts/catalog/claims.mjs';
+import { agrees, arkatlasClaims, asDecided, bloomSeasons, combine, fallColors, flowerColors, flowerless, growthRate, leafColors, lowBranched, ncsuFoliage, ncsuNoPoison, ncsuPoison, halfZoneOfTemp, halfZones, hostNames, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims, waterNeed, zoneSpan } from '../scripts/catalog/claims.mjs';
 
 const fixture = (f: string) => readFileSync(`tests/fixtures/catalog/${f}`, 'utf8');
 
@@ -634,5 +634,28 @@ describe('claims and how they combine', () => {
     expect(ncsuSun(['Full sun', 'Partial Shade'])).toEqual({ most: 'Full', least: 'Part' });
     expect(ncsuSun(['Deep shade'])).toEqual({ most: 'Shade', least: 'Shade' });
     expect(mnLight('part shade, sun')).toEqual({ most: 'Full', least: 'Part' });
+  });
+});
+
+describe("a person's decisions on how sources weigh (decisions.json `leads`, `checkOnly`)", () => {
+  const claims = [
+    { fact: 'height', v: { min: 60, max: 80 }, src: 'ncsu', kind: 'authority' },
+    { fact: 'height', v: { min: 10, max: 20 }, src: 'bins.com', kind: 'nursery' },
+    { fact: 'zone_min', v: 9, src: 'bins.com', kind: 'nursery' },
+  ];
+  const checkOnly = { 'bins.com': { why: 'bins' } };
+  it('leaves a check-only source out: it neither decides alone nor shows as the alternate', () => {
+    expect(asDecided(claims, {}, checkOnly).map((c: { src: string }) => c.src)).toEqual(['ncsu']);
+    const facts = combine(asDecided(claims, {}, checkOnly));
+    expect(facts.height).toMatchObject({ v: { min: 60, max: 80 }, src: ['ncsu'] });
+    expect(facts.height.alt).toBeUndefined();
+    expect(facts.zone_min).toBeNull();
+    // (Without the decision it's the alternate, and the coldest zone's only source.)
+    expect(combine(claims).height.alt).toMatchObject({ src: ['bins.com'] });
+    expect(combine(claims).zone_min).toMatchObject({ v: 9 });
+  });
+  it('keeps it where a person chose it to lead, as an authority, the others as nurseries', () => {
+    const r = asDecided(claims, { height: { source: 'bins.com' } }, checkOnly);
+    expect(r.map((c: { fact: string; src: string; kind: string }) => [c.fact, c.src, c.kind])).toEqual([['height', 'ncsu', 'nursery'], ['height', 'bins.com', 'authority']]);
   });
 });

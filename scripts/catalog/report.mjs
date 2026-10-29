@@ -12,6 +12,7 @@ export function reviewKind(item) {
   if (n.startsWith('no source gives it now')) return 'stale';
   if (n.startsWith('taken out:')) return 'retracted';
   if (n.startsWith('withdrawn:')) return 'withdrawn';
+  if (n.startsWith('check only:')) return 'checkOnly';
   if (item.fact === 'form' && /a cultivar may be a tree/.test(n)) return 'tree';
   return 'disputed';
 }
@@ -101,24 +102,73 @@ function newPlantsNote({ added = [], waiting = {}, left = [], unsaved = 0, all =
  */
 /** "4–6 ft" from a size range. */
 const sizeText = (v) => (v ? (v.min === v.max ? `${v.min} ft` : `${v.min}–${v.max} ft`) : '');
+/** A size range's middle (feet). */
+const mid = (v) => v.med ?? (v.min + v.max) / 2;
+const apart = (a, b, ratio) => a > 0 && b > 0 && Math.max(a, b) / Math.min(a, b) >= ratio;
 /**
  * Height or width facts whose value and alternate are 3 times apart or more (by their middles): { id, fact, shown:
- * { v, src }, other: { v, src }, otherFact, otherSize }.
+ * { v, src }, other: { v, src, checkOnly? }, otherFact, otherSize }. With the audit (`combined`) and the check-only
+ * sources (decisions.json `checkOnly`), also each size a check-only source gives that far from the value shown: it's
+ * never the alternate, so this is where it's seen (an authority can be the one that's wrong).
  */
-export function farApartSizes(catalog, ratio = 3) {
+export function farApartSizes(catalog, ratio = 3, combined = [], checkOnly = {}) {
   const out = [];
-  const mid = (v) => v.med ?? (v.min + v.max) / 2;
+  const claimsOf = new Map(combined.map((a) => [a.id, a.claims ?? []]));
   for (const p of catalog.plants) {
     for (const fact of ['height', 'width']) {
       const f = p.facts?.[fact];
-      if (!f?.v || !f.alt?.v) continue;
-      const a = mid(f.v), b = mid(f.alt.v);
-      if (!(a > 0 && b > 0) || Math.max(a, b) / Math.min(a, b) < ratio) continue;
+      if (!f?.v) continue;
       const otherFact = fact === 'height' ? 'width' : 'height';
-      out.push({ id: p.id, fact, shown: { v: f.v, src: f.src ?? [] }, other: { v: f.alt.v, src: f.alt.src ?? [] }, otherFact, otherSize: p.facts?.[otherFact]?.v ?? null });
+      const row = (other) => ({ id: p.id, fact, shown: { v: f.v, src: f.src ?? [] }, other, otherFact, otherSize: p.facts?.[otherFact]?.v ?? null });
+      if (f.alt?.v && apart(mid(f.v), mid(f.alt.v), ratio)) out.push(row({ v: f.alt.v, src: f.alt.src ?? [] }));
+      const seen = new Set();
+      for (const c of claimsOf.get(p.id) ?? []) {
+        if (c.fact !== fact || !checkOnly[c.src] || c.flag || !c.v || seen.has(c.src) || (f.src ?? []).includes(c.src)) continue;
+        seen.add(c.src);
+        if (apart(mid(f.v), mid(c.v), ratio)) out.push(row({ v: c.v, src: [c.src], checkOnly: true }));
+      }
     }
   }
   return out;
+}
+/**
+ * How often each source's sizes are far from an authority's for the same plant: a plant counts as far where its
+ * height or spread is 3 times or more from every authority's (by their middles). Sources not authorities only, each
+ * plant once. { sources: [{ src, plants, far, examples }], plants, far } (all of them together), most far first.
+ */
+export function farOffSources(combined, ratio = 3) {
+  const by = new Map();
+  for (const a of combined) {
+    const claims = a.claims ?? [];
+    const result = new Map(); // src → far on this plant
+    for (const fact of ['height', 'width']) {
+      const auth = claims.filter((c) => c.fact === fact && c.kind === 'authority' && !c.flag && !c.fallback && c.v && mid(c.v) > 0);
+      if (!auth.length) continue;
+      for (const c of claims) {
+        if (c.fact !== fact || c.kind === 'authority' || c.flag || !c.v || !(mid(c.v) > 0)) continue;
+        const far = auth.every((x) => apart(mid(x.v), mid(c.v), ratio));
+        result.set(c.src, (result.get(c.src) ?? false) || far);
+      }
+    }
+    for (const [src, far] of result) {
+      const s = by.get(src) ?? { src, plants: 0, far: 0, examples: [] };
+      s.plants++;
+      if (far) { s.far++; if (s.examples.length < 4) s.examples.push(a.id); }
+      by.set(src, s);
+    }
+  }
+  const sources = [...by.values()].sort((x, y) => y.far / y.plants - x.far / x.plants || y.plants - x.plants);
+  return { sources, plants: sources.reduce((n, s) => n + s.plants, 0), far: sources.reduce((n, s) => n + s.far, 0) };
+}
+/**
+ * The sources a person may want to make check-only (decisions.json `checkOnly`): at least `min` plants to judge by,
+ * and far off at least `times` as often as all sources together. (Listed, never applied by the build: a rare big
+ * disagreement from a sound source is often where an authority is wrong.)
+ */
+export function oftenFarOff(combined, { min = 20, times = 2.5, decided = {} } = {}) {
+  const all = farOffSources(combined);
+  const rate = all.plants ? all.far / all.plants : 0;
+  return { rate, sources: all.sources.filter((s) => s.plants >= min && s.far / s.plants >= times * rate && !decided[s.src]) };
 }
 
 export function reviewReport({ catalog, list, combined, review, searched = {}, wcvp = null, native = [], bloom = [], warnings = [], unfetched = null, termsUnsettled = [], decisions = {}, additions = null, kewApart = [] }) {
@@ -169,10 +219,17 @@ export function reviewReport({ catalog, list, combined, review, searched = {}, w
   // shown and its alternate 3 times apart or more. One is likely a misreading or a mistake; a person picks the
   // source that leads (decisions.json `leads`).
   const leads = decisions.leads ?? {};
-  const far = farApartSizes(catalog).filter((r) => !leads[r.id]?.[r.fact]).sort(byOrder);
+  const far = farApartSizes(catalog, 3, combined, decisions.checkOnly ?? {}).filter((r) => !leads[r.id]?.[r.fact]).sort(byOrder);
   section('Sizes whose sources are far apart', far.length,
     `The size shown and the other source's are 3 times apart or more, so one is likely wrong (a reading of the wrong number, a range that's a bin, a climbing vine's length). Each source's value is here; the plant's other size beside it can tell which. ${DECIDE('leads')} (the source that leads that size).`,
-    table(['Plant', 'Fact', 'Shown', 'Other source', 'Its other size'], far.map((r) => [name(r.id), factName(r.fact), esc(`${sizeText(r.shown.v)} (${r.shown.src.join(', ')})`), esc(`${sizeText(r.other.v)} (${r.other.src.join(', ')})`), esc(r.otherSize ? `${r.otherFact} ${sizeText(r.otherSize)}` : '')])));
+    table(['Plant', 'Fact', 'Shown', 'Other source', 'Its other size'], far.map((r) => [name(r.id), factName(r.fact), esc(`${sizeText(r.shown.v)} (${r.shown.src.join(', ')})`), esc(`${sizeText(r.other.v)} (${r.other.src.join(', ')}${r.other.checkOnly ? ', check only' : ''})`), esc(r.otherSize ? `${r.otherFact} ${sizeText(r.otherSize)}` : '')])));
+  // Sources far off the authorities much more often than the rest (decided with Jason, Oct 29: judged by a source's
+  // record, not by one value; a person decides, decisions.json `checkOnly`).
+  const often = oftenFarOff(combined, { decided: decisions.checkOnly ?? {} });
+  const pct = (n) => `${Math.round(n * 100)}%`;
+  section('Sources often far from the authorities', often.sources.length,
+    `Sources whose sizes are 3 times or more from every authority's for the same plant on at least ${pct(often.rate * 2.5)} of the plants they share (2.5 times the ${pct(often.rate)} of all sources together), with 20 plants or more to judge by. Often a sign of bins or a misread field, not measured sizes. A source made check-only never decides a value, backs one or shows as its alternate; where it's far from the value shown, the plant is still listed above ("Sizes whose sources are far apart"), since a sound source's rare big disagreement is often where an authority is wrong. ${DECIDE('checkOnly')}`,
+    table(['Source', 'Plants', 'Far off', 'Some of them'], often.sources.map((s) => [esc(s.src), String(s.plants), `${s.far} (${pct(s.far / s.plants)})`, s.examples.map((id) => name(id)).join(', ')])));
   // Values read from a page's text that a second reading didn't agree with, or hasn't read yet (second-reading.mjs).
   const held = combined.flatMap((a) => (a.held ?? []).map((h) => ({ id: a.id, ...h }))).sort(byOrder);
   const differs = held.filter((h) => h.why === 'disagree'), unread = held.filter((h) => h.why === 'unread');
@@ -190,6 +247,9 @@ export function reviewReport({ catalog, list, combined, review, searched = {}, w
   section('Taken out: its source withdrawn', of('withdrawn').length,
     "A value whose only sources we may no longer read: their terms were taken back for a fresh reading, or found to bar us (decisions.json `withdrawn`). It's taken out (nothing to decide: listed so the change is seen).",
     table(['Plant', 'Fact', 'What was taken out'], of('withdrawn').map((i) => [name(i.id), factName(i.fact), esc(i.note.replace(/^withdrawn: /, ''))])), 'tidy');
+  section('Taken out: its source check-only', of('checkOnly').length,
+    "A value whose only source is check-only (decisions.json `checkOnly`): such a source never decides. It's taken out (nothing to decide: listed so the change is seen).",
+    table(['Plant', 'Fact', 'What was taken out'], of('checkOnly').map((i) => [name(i.id), factName(i.fact), esc(i.note.replace(/^check only: /, ''))])), 'tidy');
   section("Values the catalog can't take", of('cant').length,
     "A source's value doesn't fit the catalog's format.",
     table(['Plant', 'Fact', 'Value'], of('cant').map((i) => [name(i.id), factName(i.fact), esc(i.note)])));

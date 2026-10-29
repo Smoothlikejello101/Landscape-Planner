@@ -10,7 +10,7 @@ import { savedPage } from './pages.mjs';
 import { arkatlasStatus, mnwildFields, ncsuFields, usdaFields } from './extract.mjs';
 import { sameTaxon } from './usda-counties.mjs';
 import { acceptsPage, ncsuPageName, ownCultivarPage, recordCultivars, titleCultivar } from './ncsu-page.mjs';
-import { arkatlasClaims, combine, FLOWER_FACTS, flowerless, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims } from './claims.mjs';
+import { arkatlasClaims, asDecided, combine, FLOWER_FACTS, flowerless, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims } from './claims.mjs';
 import { ncsuDeer, ncsuDescription, ncsuNames, ncsuProseClaims, ncsuZones } from './prose.mjs';
 import { gateProse, GATED, loadReadings, settleDegree } from './second-reading.mjs';
 
@@ -28,6 +28,8 @@ const catalog = JSON.parse(readFileSync('public/plants.json', 'utf8'));
 const groups = JSON.parse(readFileSync('scripts/catalog/decisions.json', 'utf8')).group ?? {};
 /** The source a person chose to lead a fact, by record (decisions.json `leads`): { id: { fact: { source, why } } }. */
 const leads = JSON.parse(readFileSync('scripts/catalog/decisions.json', 'utf8')).leads ?? {};
+/** Sources a person made check-only (decisions.json `checkOnly`): what they say goes to the review alone. */
+const checkOnly = JSON.parse(readFileSync('scripts/catalog/decisions.json', 'utf8')).checkOnly ?? {};
 const byId = new Map(catalog.plants.map((p) => [p.id, p]));
 
 const page = (source, url) => savedPage(source, url);
@@ -125,8 +127,9 @@ for (const s of sample) {
   // A person's choice of the source that leads a fact (decisions.json `leads`: a size its sources are far apart on,
   // Oct 29): that source weighs as an authority, the others as nurseries, so it leads and they confirm it or show as
   // its alternate.
-  const leadsHere = leads[s.id] ?? {};
-  const weighed = claims.map((c) => (leadsHere[c.fact] ? { ...c, kind: c.src === leadsHere[c.fact].source ? 'authority' : c.kind === 'authority' ? 'nursery' : c.kind } : c));
+  // A check-only source (decisions.json `checkOnly`, Oct 29) neither decides, backs nor shows as an alternate: its
+  // claims stay in the audit for the review ("Sizes whose sources are far apart"), unless a person chose it to lead.
+  const weighed = asDecided(claims, leads[s.id], checkOnly);
   const mapped = combine(weighed, { cultivar, prefer: rec?.facts?.form?.v ?? rec?.facts?.form ?? null });
   if (cultivar && (speciesPage || !seen.ncsu)) notes.push('A cultivar read from species pages: its size, form and flower color come only from a page for the cultivar');
   out.push({ id: s.id, common: rec?.common, botanical: rec?.botanical, species: s.species, compendium: rec?.facts ?? {}, sources: seen, raw: { ncsu, usda, mnwild, arkatlas: ar }, claims, facts: mapped, notes, ...(gate.held.length ? { held: gate.held } : {}) });
