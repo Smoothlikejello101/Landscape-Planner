@@ -53,6 +53,8 @@ export function deleteShapesByIds(ids: string[]) {
   flushHistoryDebounce();
   if (!ids.length) return;
   state.shapes = state.shapes.filter((s) => !ids.includes(s.id));
+  // (A vine on what was deleted: a groundcover again, in the same step.)
+  for (const v of state.shapes) if (v.type === 'circle' && v.climbsOn && ids.includes(v.climbsOn)) delete v.climbsOn;
   state.selectedIds = state.selectedIds.filter((id) => !ids.includes(id));
   pushHistory();
   save();

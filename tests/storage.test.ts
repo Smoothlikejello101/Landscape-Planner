@@ -8,7 +8,9 @@ import {
   _resetStorageForTests, createProject, deleteProject, flushSave, getClipboard, initStorage,
   readProject, sanitizeProjectData, save, switchProject, writeJournalIfDirty,
 } from '../src/storage';
-import { buildBackupFile, importProjects, parseImportFile, uniqueName } from '../src/backup';
+import { allExportedProjects, buildBackupFile, importProjects, parseImportFile, uniqueName } from '../src/backup';
+import { buildSupportFile } from '../src/support';
+import { ERROR_LOG_KEY, readErrors, recordError } from '../src/error-log';
 import { NEW_RECORD, parseIntroRecord } from '../src/intro';
 import { NO_YARD, loadYard } from '../src/yard';
 
@@ -363,6 +365,41 @@ describe('backup files', () => {
     expect(restored.find((d) => d?.shapes.length === 2)).toBeTruthy();
   });
 
+  it("a support file (Send feedback) holds every project from storage and imports like a backup, its images left out unless asked; nothing in storage changes", async () => {
+    await freshStorage();
+    state.shapes = sanitizeProjectData({ shapes: [circle('one')] }).shapes;
+    state.bgImage = { dataUrl: IMG, naturalWidth: 4, naturalHeight: 4, ftPerPx: 1, cx: 0, cy: 0, rotation: 30, opacity: 0.6, visible: true };
+    await createProject('Second', sanitizeProjectData({ shapes: [circle('two'), circle('three')] }));
+    await flushSave();
+    localStorage.setItem('lp-auth', '{"access_token":"secret"}');
+    const before = await Promise.all(state.projects.map((p) => readProject(p.id)));
+    const info = { myPlants: [], app: { version: 'test', built: 'now', catalog: null }, device: {}, storage: {}, sync: {}, settings: {}, localData: [], otherKeys: [], errors: [] };
+    const projects = await allExportedProjects();
+    const text = JSON.stringify(buildSupportFile({ ...info, projects, includeImages: false, now: new Date() }));
+    expect(text).not.toContain(IMG);
+    expect(text).not.toContain('secret');
+    expect(JSON.stringify(buildSupportFile({ ...info, projects, includeImages: true, now: new Date() }))).toContain(IMG);
+    // (Taking it changed nothing: the projects, their image too, are as they were.)
+    expect(await Promise.all(state.projects.map((p) => readProject(p.id)))).toEqual(before);
+    expect(state.bgImage?.dataUrl).toBe(IMG);
+
+    await freshStorage();
+    const ids = await importProjects(parseImportFile(text));
+    expect(ids).toHaveLength(2);
+    const restored = await Promise.all(ids.map((id) => readProject(id)));
+    expect(restored.map((d) => d?.shapes.length).sort()).toEqual([1, 2]);
+    expect(restored.every((d) => !d?.bgImage)).toBe(true);
+  });
+
+  it('keeps the error log apart from projects: garbage in it reads as no errors', async () => {
+    await freshStorage();
+    localStorage.setItem(ERROR_LOG_KEY, '{oops');
+    expect(readErrors()).toEqual([]);
+    recordError(new Error('save failed'), 'save');
+    expect(readErrors().map((e) => e.message)).toEqual(['Error: save failed']);
+    expect(state.projects).toHaveLength(1);
+  });
+
   it('rejects files that are not project files, or are from a newer version', () => {
     expect(() => parseImportFile('not json')).toThrow(/valid JSON/);
     expect(() => parseImportFile('{"hello":1}')).toThrow(/isn't a FullGrown/);
@@ -474,6 +511,24 @@ describe('trees with a trunk and a shaped canopy', () => {
     ] }).shapes;
     expect(state.shapes[0]).toMatchObject({ crowdOk: ['b', 'c'] });
     for (const s of state.shapes.slice(1)) expect('crowdOk' in s).toBe(false);
+    await flushSave();
+    expect((await readProject(id))!.shapes).toEqual(state.shapes);
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
+  });
+  it("keep what a vine climbs, or '' for none set by hand; older circles have neither (a groundcover), and odd values are dropped", async () => {
+    await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [
+      tree({ id: 'v', climbsOn: 'm' }),
+      tree({ id: 'w', climbsOn: '' }),
+      tree({ id: 'x' }),
+      tree({ id: 'y', climbsOn: 7 }),
+      tree({ id: 'z', climbsOn: 'q'.repeat(101) }),
+    ] }).shapes;
+    expect(state.shapes[0]).toMatchObject({ climbsOn: 'm' });
+    expect(state.shapes[1]).toMatchObject({ climbsOn: '' });
+    for (const s of state.shapes.slice(2)) expect('climbsOn' in s).toBe(false);
     await flushSave();
     expect((await readProject(id))!.shapes).toEqual(state.shapes);
     const file = await buildBackupFile();

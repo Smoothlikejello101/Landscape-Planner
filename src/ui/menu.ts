@@ -10,10 +10,8 @@ import { finishPlacing } from '../place';
 import { currentProject, getClipboard } from '../storage';
 import { render } from './render';
 import { openLocation } from './location-panel';
-import { FEEDBACK_ADDRESS, feedbackLink } from '../feedback';
+import { openFeedback } from './feedback-sheet';
 import { MARK_SMALL } from '../brand';
-import { toast } from './toast';
-import { deviceName } from '../sync/sync';
 import { showMeAround } from './intro-card';
 
 /** Select mode on or off (the lasso button on the top bar). */
@@ -93,13 +91,9 @@ export function renderMoreMenu() {
   items.push({
     icon: I.mail,
     label: 'Send feedback',
-    // The person's own mail app opens, with the version and kind of device filled in (src/feedback.ts).
-    onClick: () => {
-      state.menu = null; render();
-      el('a', { href: feedbackLink(__APP_VERSION__, deviceName()) }).click();
-      // Where no mail app is set up, nothing opens: the address, to write from anywhere.
-      toast(`Opening your email app. If nothing opens, write to ${FEEDBACK_ADDRESS}.`, 8000);
-    }
+    // A sheet: write to us (the person's own mail app opens, with the version and kind of device filled in:
+    // src/feedback.ts), or save a support file to attach (src/ui/feedback-sheet.ts).
+    onClick: () => openFeedback(),
   });
   const menu = el('div', { className: 'menu' });
   for (const it of items) {

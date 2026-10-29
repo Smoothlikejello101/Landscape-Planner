@@ -201,7 +201,7 @@ export function withLocalParts(server: ProjectContent, mine: ProjectContent | un
   if (!mine) return server;
   let out = server;
   for (const k of NEWER_PARTS) if (!(k in server) && k in mine) out = { ...out, [k]: mine[k] };
-  return withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine);
+  return withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine);
 }
 /**
  * A shape's sub-features (doors, windows, gates: src/features.ts), which an older version leaves out of a shape it
@@ -249,6 +249,24 @@ function withUtilities(server: ProjectContent, mine: ProjectContent): ProjectCon
     if (typeof k.utilityDismissed === 'string' && k.utilityDismissed && !('utilityDismissed' in s)) out = { ...out, utilityDismissed: k.utilityDismissed };
     if (out !== s) filled = true;
     return out;
+  });
+  return filled ? { ...server, shapes } : server;
+}
+/**
+ * What a vine climbs (src/vines.ts), which an older version leaves out of a shape it sends: kept from here when the
+ * server's copy of that circle has none at all. (Set to none by hand is '', and stays so.)
+ */
+function withVineSupports(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
+  type Vine = { id?: unknown; type?: unknown; climbsOn?: unknown };
+  const kept = new Map<unknown, string>();
+  for (const s of mine.shapes as Vine[]) if (s && s.type === 'circle' && typeof s.climbsOn === 'string') kept.set(s.id, s.climbsOn);
+  if (!kept.size) return server;
+  let filled = false;
+  const shapes = (server.shapes as Vine[]).map((s) => {
+    if (!s || s.type !== 'circle' || 'climbsOn' in s || !kept.has(s.id)) return s;
+    filled = true;
+    return { ...s, climbsOn: kept.get(s.id) };
   });
   return filled ? { ...server, shapes } : server;
 }

@@ -112,6 +112,12 @@ export interface CircleShape extends ShapeBase {
    * isn't flagged as close or crowded (src/crowding.ts).
    */
   crowdOk?: string[];
+  /**
+   * Vines: the id of the shape it climbs (a fence or wall line, a building, a tree, a shrub), drawn along it
+   * (src/vines.ts); '' when set to none by hand (grown as a groundcover, and not offered a support again); unset
+   * as placed (a groundcover, which the app may offer a support nearby).
+   */
+  climbsOn?: string;
   /** Ignored for circles; tolerated so old data and patches stay valid. */
   rotation?: number;
 }
@@ -285,7 +291,7 @@ export interface Bounds { minX: number; maxX: number; minY: number; maxY: number
 
 export type PanelName =
   | 'props' | 'arrange' | 'layers' | 'projects' | 'rename' | 'export'
-  | 'preview' | 'reset' | 'plants' | 'bg' | 'bgDistance' | 'print' | 'plantForm' | 'bloom' | 'add' | 'shortcuts' | 'location' | 'switchPlant';
+  | 'preview' | 'reset' | 'plants' | 'bg' | 'bgDistance' | 'print' | 'plantForm' | 'bloom' | 'add' | 'shortcuts' | 'location' | 'switchPlant' | 'feedback';
 /** What the plant form is doing: a new plant (maybe from a search or a copy), or editing one of yours. */
 /**
  * `name`, `botanical`: typed already (kept when starting from a plant). `back`: the panel to go back to when the form is

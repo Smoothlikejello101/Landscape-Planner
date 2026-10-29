@@ -3,6 +3,7 @@
 // button, Back, Skip and Exit, and a pulse on the thing to tap. Each step ends when it's done: the card checks after
 // every redraw (render's last call), and moves on by itself.
 
+import { recordError } from '../error-log';
 import { state } from '../state';
 import { el, hasKeyboard } from '../dom';
 import { I } from '../icons';
@@ -263,7 +264,7 @@ function pulseTarget(step: StepId): string | null {
 export function introAfterRender(root: HTMLElement): void {
   document.documentElement.classList.remove('intro-top');
   // (Never in the way of the plan: anything amiss here leaves the introduction "left part way", to pick up from ⋮.)
-  try { drawIntro(root); } catch (e) { console.error('guided introduction', e); choosing = false; exit(); }
+  try { drawIntro(root); } catch (e) { console.error('guided introduction', e); recordError(e, 'guided introduction'); choosing = false; exit(); }
 }
 function drawIntro(root: HTMLElement): void {
   if (rec.status !== 'active' && !choosing) return;

@@ -714,3 +714,12 @@ a { color: inherit; }
 .details-group-body { padding: 6px 10px 2px 32px; border-top: 1px solid #e7e5e4; }
 .details-group.warn .details-group-body { border-top-color: #fca5a5; }
 .details-group-body[hidden] { display: none; }
+
+/* Send feedback: the support file (src/ui/feedback-sheet.ts) */
+.feedback-sheet .sheet-body { overflow-y: auto; }
+.support-file { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid #e7e5e4; padding-top: 14px; }
+.support-title { font-weight: 600; font-size: calc(15px * var(--ts)); color: #1c1917; }
+.support-what { font-size: calc(14px * var(--ts)); color: #44403c; }
+.support-list { margin: 0; padding-left: 20px; font-size: calc(14px * var(--ts)); color: #44403c; display: flex; flex-direction: column; gap: 2px; }
+.support-buttons { display: flex; flex-direction: column; gap: 8px; }
+.support-saved { font-size: calc(14px * var(--ts)); color: #166534; background: #f0fdf4; border-radius: 6px; padding: 8px 10px; }

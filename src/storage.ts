@@ -1,3 +1,4 @@
+import { recordError } from './error-log';
 import { MAX_POINTS, MAX_TREE_HEIGHT, MAX_TRUNK, MAX_ZOOM, MIN_POINTS, MIN_TRUNK, MIN_ZOOM, STORAGE } from './constants';
 import { sanitizeSubFeatures } from './features';
 import { isStoredUtilityKind } from './utility-kinds';
@@ -152,6 +153,8 @@ export function migrateShape(raw: unknown): Shape | null {
         ...(shaped ? { canopy } : {}),
         // (Plants left close to others on purpose, by id; older versions had none.)
         ...(crowdOk(s.crowdOk) ? { crowdOk: crowdOk(s.crowdOk)! } : {}),
+        // (Vines: what it climbs, by id, or '' for none set by hand; older versions had neither: a groundcover.)
+        ...(typeof s.climbsOn === 'string' && s.climbsOn.length <= 100 ? { climbsOn: s.climbsOn } : {}),
       };
     }
     case 'rect':
@@ -370,7 +373,7 @@ async function writeCurrent(): Promise<boolean> {
   } catch (e) {
     // The write didn't happen; forget image keys from this batch so they're retried.
     for (const op of ops) if (op.store === 'images') storedImageKeys.delete(op.key);
-    console.error('save failed', e);
+    console.error('save failed', e); recordError(e, 'save');
     if (!quotaWarned && e instanceof DOMException && e.name === 'QuotaExceededError') {
       quotaWarned = true;
       alert('Your device is out of storage space for this app, so recent changes could not be saved. Free some space, remove a large background image, or export your projects.');
@@ -467,7 +470,7 @@ async function replayJournals(k: KV) {
       try {
         await k.write(ops);
       } catch (e) {
-        console.error('could not apply unsaved edits; will retry next start', e);
+        console.error('could not apply unsaved edits; will retry next start', e); recordError(e, 'unsaved edits');
         unreplayed.add(j.projectId);
         continue; // keep this journal
       }
@@ -991,13 +994,13 @@ export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: s
   try {
     await migrateFromLocalStorage(kv);
   } catch (e) {
-    console.error('migration from localStorage failed', e);
+    console.error('migration from localStorage failed', e); recordError(e, 'migration');
     migrationError = e instanceof Error ? e.message : String(e);
   }
   try {
     await replayJournals(kv);
   } catch (e) {
-    console.error('replaying unsaved edits failed', e);
+    console.error('replaying unsaved edits failed', e); recordError(e, 'unsaved edits');
   }
   state.projects = (await kv.getAll<ProjectMeta>('meta')).sort((a, b) => b.lastModified - a.lastModified);
   clipboardCache = (await kv.get<Clipboard>('kv', 'clipboard')) ?? null;
