@@ -555,6 +555,7 @@ export function redrawCanvas() {
   renderGrid(grid);
   const shapes = layer(svg, 'shapes');
   for (const s of paintOrder(state.shapes)) shapes.appendChild(shapeGroup(s));
+  liftTrunks(shapes);
   const mq = marqueeRect();
   if (mq) shapes.appendChild(mq);
   renderHandles(layer(svg, 'handles'));
@@ -600,8 +601,23 @@ export function redrawShapes(ids: string[]) {
   for (const id of new Set(ids)) {
     const s = state.shapes.find((sh) => sh.id === id);
     const old = shapes.querySelector(`:scope > g[data-shape-group="${CSS.escape(id)}"]`);
-    if (s && old) old.replaceWith(shapeGroup(s));
+    if (s && old) {
+      shapes.querySelector(`:scope > g[data-role=trunks] > [data-trunk-of="${CSS.escape(id)}"]`)?.remove();
+      old.replaceWith(shapeGroup(s));
+    }
   }
+  liftTrunks(shapes);
+}
+/**
+ * A tree's trunk, its tap target, over every shape (Jason, Oct 29: a tree dragged into a patch of groundcover
+ * jessamine couldn't be picked): a trunk is above whatever grows around it, so tapping one always picks its tree.
+ * Moved, not copied, from each tree's group into one group last in the layer.
+ */
+function liftTrunks(shapes: Element) {
+  let top = shapes.querySelector(':scope > g[data-role=trunks]');
+  if (!top) top = shapes.appendChild(svgEl('g', { 'data-role': 'trunks' }));
+  for (const t of shapes.querySelectorAll(':scope > g[data-shape-group] > [data-role=trunk-hit]')) top.appendChild(t);
+  shapes.appendChild(top); // (last: after any group drawn since)
 }
 
 /** Redraw only the marquee rectangle. */

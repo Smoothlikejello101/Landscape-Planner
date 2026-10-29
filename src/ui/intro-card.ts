@@ -21,6 +21,10 @@ import {
 } from '../intro';
 import { openLocation } from './location-panel';
 import { toast } from './toast';
+import { flushHistoryDebounce, pushHistory } from '../history';
+import { save as savePlan } from '../storage';
+import { fullRingRadius } from '../my-plants';
+import type { Shape } from '../types';
 import type { SunLevel } from '../sun';
 import { render } from './render';
 
@@ -117,6 +121,21 @@ function noteHints(step: StepId): void {
 
 /** The bed the plant step talks about: the newest one. */
 const newestBed = () => [...state.shapes].reverse().find((s) => s.role === 'bed') ?? null;
+/** The house the bed step offers to lock, and the plant the ring step talks about: the newest of each. */
+const newestHouse = () => [...state.shapes].reverse().find((s) => s.role === 'building') ?? null;
+const newestPlant = () => [...state.shapes].reverse().find((s) => s.type === 'circle' && s.role === 'plant') ?? null;
+/** The bed step's button: lock the house, and say how it unlocks. */
+function lockHouse(house: Shape): HTMLElement {
+  const b = el('button', { className: 'intro-chip', 'data-testid': 'intro-lock-house', html: `${I.lock}<span>Lock the house</span>` });
+  b.addEventListener('click', () => {
+    flushHistoryDebounce();
+    house.locked = true;
+    pushHistory(); savePlan();
+    toast('Locked: it stays put. To move it again, open it and tap Locked at the top.', 6000);
+    render();
+  });
+  return el('div', { className: 'intro-chips' }, b);
+}
 /** The sun recorded over the middle of that bed, if any. */
 function bedSun(): SunLevel | null {
   const bed = newestBed();
@@ -149,7 +168,8 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
       action: { label: 'Change it', run: () => openLocation() },
       done: 'Next',
     } : {
-      text: 'Your ZIP gives the garden\'s hardiness zone and frost dates. Only its first three digits leave your device.',
+      // (How to leave a panel, said once, at the first one (Jason, Oct 29: "do I need to save somehow?").)
+      text: `Your ZIP gives the garden's hardiness zone and frost dates. Only its first three digits leave your device. When you're done with a panel, ${tap()} the plan to close it: everything saves as you go.`,
       short: 'Enter your ZIP, then Look up.',
       action: { label: 'Enter your ZIP', run: () => openLocation() },
     };
@@ -173,19 +193,26 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
       short: `${Tap()} Building, then draw your house.`,
       action: { label: 'Add a building', run: () => { state.panel = 'add'; } },
     };
-    case 'bed': return {
-      text: `Now a bed, where you'd like plants. ${Tap()} around its edge.${hasKeyboard() ? ' (B starts one.)' : ''}`,
-      action: { label: 'Draw a bed', run: () => startKind('bed') },
-    };
+    case 'bed': {
+      // (Locking taught here, on the house just drawn (Jason, Oct 29): locked, it stays put, and a press on it goes to
+      // what's drawn on it.)
+      const house = newestHouse();
+      const lock = house && !house.locked;
+      return {
+        text: `${lock ? 'Lock your house, so it stays put while you draw around it. ' : ''}Now a bed, where you'd like plants. ${Tap()} around its edge.${hasKeyboard() ? ' (B starts one.)' : ''}`,
+        action: { label: 'Draw a bed', run: () => startKind('bed') },
+        ...(lock ? { extra: lockHouse(house) } : {}),
+      };
+    }
     case 'fade': return {
       text: 'Photo making it busy? Fade it, or hide it. Background image in ⋮ brings it back any time.',
-      short: 'Slide Opacity down, or Hide image. Then close this.',
+      short: `Slide Opacity down, or Hide image. Then ${tap()} the plan to close this.`,
       action: { label: 'Fade it', run: () => { state.panel = 'bg'; } },
       done: 'Done',
     };
     case 'sun': return {
       text: 'Where does it get shade? Draw that part, then show when direct sun reaches it.',
-      short: state.panel === 'add' ? `${Tap()} Sun exposure, then draw the shady part.` : `${Tap()} Record sun for this area, set when sun reaches it, then close this.`,
+      short: state.panel === 'add' ? `${Tap()} Sun exposure, then draw the shady part.` : `${Tap()} Record sun for this area, set when sun reaches it, then ${tap()} the plan to close this.`,
       action: { label: 'Draw the shade', run: () => startKind('sun') },
     };
     case 'who': return { text: "Kids, dogs, cats, horses? We'll hide plants that are a problem for them. Change it any time in Filters.", extra: whoChips(), done: 'Next' };
@@ -207,10 +234,17 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
         },
       };
     }
-    case 'ring': return {
-      text: 'The circle is its typical size. The dashed ring is how big it gets full-grown. Give it room: when rings overlap, the app tells you.',
-      done: 'Got it',
-    };
+    case 'ring': {
+      // (Not every plant has a ring (Jason, Oct 29): one whose sources give one size, or a plan showing full sizes.)
+      const placed = newestPlant();
+      const ring = !!placed && fullRingRadius(placed) != null;
+      return {
+        text: ring
+          ? 'The circle is its typical size. The dashed ring is how big it gets full-grown. Give it room: when rings overlap, the app tells you.'
+          : 'Its circle is how big it gets full-grown. (A plant whose size has a range shows its typical size, with a dashed ring for full-grown.) Give it room: when circles overlap, the app tells you.',
+        done: 'Got it',
+      };
+    }
   }
 }
 /**

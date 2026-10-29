@@ -23,16 +23,22 @@ export const SETTING_KEYS = [
   'lp-current', 'lp-idb-in-use', 'lp-text-size', 'lp-text-size-2', 'lp-yard', 'lp-square', 'lp-snap', 'lp-tidy', 'lp-kind-prefs',
   'lp-recent-plants', 'lp-full-rings', 'lp-crowding', 'lp-crowd-warn', 'lp-filters-open', 'lp-my-plants-folded', 'lp-sync-device',
   'lp-zip-county', 'lp-zip-prompt-dismissed', 'lp-intro', 'lp-last-visit', 'lp-returned', 'lp-hint-full-size', 'lp-canopy-hint',
+  'lp-hint-tap-under',
 ];
 /** Data, by name and size: exact keys, and prefixes (a project per key, an unsaved-edits journal per project). */
 export const DATA_KEYS = ['lp-projects', 'lp-clipboard', ERROR_LOG_KEY];
 export const DATA_PREFIXES = ['lp-project-', 'lp-journal:'];
-/** Never in a support file: the sign-in session, and the addresses a sign-in email went to. */
+/**
+ * Never in a support file, not even by name: the sign-in session and everything Supabase keeps beside it under its
+ * name (a sign-in's code verifiers, "lp-auth-flow-…-code-verifier", seen in Jason's file, Oct 29), and the addresses
+ * a sign-in email went to.
+ */
 export const PRIVATE_KEYS = ['lp-auth', 'lp-code-sent', 'lp-email-signin'];
+const PRIVATE_PREFIXES = ['lp-auth-'];
 
 export type KeyKind = 'setting' | 'data' | 'private' | 'other';
 export function keyKind(key: string): KeyKind {
-  if (PRIVATE_KEYS.includes(key)) return 'private';
+  if (PRIVATE_KEYS.includes(key) || PRIVATE_PREFIXES.some((p) => key.startsWith(p))) return 'private';
   // (A hint keeps when it last showed beside its count: "lp-canopy-hint-at".)
   if (SETTING_KEYS.includes(key) || SETTING_KEYS.includes(key.replace(/-at$/, ''))) return 'setting';
   if (DATA_KEYS.includes(key) || DATA_PREFIXES.some((p) => key.startsWith(p))) return 'data';

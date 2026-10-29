@@ -1,6 +1,7 @@
 // What a vine climbs, offered as plants and supports come near each other (src/vines.ts; Jason, 2026-10-29): a
-// notice with a button, never a question that stops you, once for each vine and support; and a vine whose support
-// went away (moved out of its reach) back to a groundcover, said, with Undo.
+// notice with a button, never a question that stops you, each time a vine or a support is placed or moved within
+// reach (Jason, Oct 29: "it should offer every time you're moving it"), unless the vine is set to grow as a
+// groundcover; and a vine whose support went away (moved out of its reach) back to a groundcover, said, with Undo.
 import { flushHistoryDebounce, pushHistory, undo } from '../history';
 import { plantsById } from '../plants';
 import { state } from '../state';
@@ -10,8 +11,6 @@ import { offerFor, strandedVines, vinesFor, type Support } from '../vines';
 import { render } from './render';
 import { toastAction } from './toast';
 
-/** Pairs already offered (vine id, support id), this session: each offered once. */
-const offered = new Set<string>();
 const nameOf = (s: Shape) => (s.type === 'circle' && s.plantId ? plantsById[s.plantId]?.common ?? s.label : s.label) || '';
 /** What a support is called in a notice: "the red maple", "the fence", "the house", "the arbor". */
 export function supportName(sup: Pick<Support, 'shape' | 'kind'>): string {
@@ -21,10 +20,8 @@ export function supportName(sup: Pick<Support, 'shape' | 'kind'>): string {
   return sup.kind === 'tree' ? 'the tree' : sup.kind === 'shrub' ? 'the shrub' : sup.kind === 'arbor' ? 'the arbor'
     : sup.shape.role === 'building' ? 'the building' : sup.shape.role === 'structure' ? 'the trellis' : 'the line';
 }
-function offer(vines: CircleShape[], sup: Support) {
-  const fresh = vines.filter((v) => !offered.has(`${v.id}:${sup.shape.id}`));
+function offer(fresh: CircleShape[], sup: Support) {
   if (!fresh.length) return;
-  for (const v of fresh) offered.add(`${v.id}:${sup.shape.id}`);
   const who = fresh.length === 1 ? nameOf(fresh[0]) || 'This vine' : `${fresh.length} vines`;
   toastAction(`${who} could climb ${supportName(sup)}.`, [{
     label: 'Climb it',

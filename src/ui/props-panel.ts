@@ -14,12 +14,13 @@ import { roleChips } from './role-picker';
 import { bedSection, crowdingNote, measureText, plantSunBanner, shadeSunSection, sunListText, utilityBanner, utilitySection } from './role-sections';
 import { utilityLabel } from '../utility-kinds';
 import { setRoleForIds, bringForward, bringToFront, copySelected, duplicateSelected, findNextSameTier, sendBackward, sendToBack, setLockedForIds, updateSelected, updateSelectedSilent } from '../mutations';
-import { getSelected, singleSelected } from '../selection';
+import { getSelected, selectOnly, singleSelected } from '../selection';
 import { state } from '../state';
 import { render } from './render';
 import type { CircleShape, Corner, RoleKey, Shape } from '../types';
 import { formatSize, fullRingRadius, isMine, plantRadius, plantSpread, type Range } from '../my-plants';
-import { canLinkToPlant, linkShapesToPlant, plantFilter, plantsById, unlinkedWithLabel, type Plant } from '../plants';
+import { canLinkToPlant, formsOf, linkShapesToPlant, plantFilter, plantsById, rowLines, unlinkedWithLabel, type Plant } from '../plants';
+import { plantDetails } from './plant-details';
 import { toast } from './toast';
 import { deleteSelectedAsking } from './delete-selected';
 import { zoneFit, zoneRange } from '../climate';
@@ -105,24 +106,54 @@ function lookSummary(s: Shape): HTMLElement {
 }
 
 /**
- * What a vine climbs (src/vines.ts; Jason, 2026-10-29): nothing (grown as a groundcover), or what's within its spread,
- * nearest first, each with how far. A shrub can be picked here, though it's never offered.
+ * What a vine climbs (src/vines.ts; Jason, 2026-10-29), at the top of its pane: nothing, or what's within its spread,
+ * nearest first, each with how far, and a way to select what it's on. A shrub can be picked here, though it's never
+ * offered. Nothing still offers a support when it's moved near one; "Grow as a groundcover" stops that (`climbsOn` '').
  */
 function climbingField(s: CircleShape): HTMLElement {
   const near = supportsNear(s, state.shapes), now = supportOf(s, state.shapes);
   const list = now && !near.some((n) => n.shape === now.shape) ? [now, ...near] : near;
   const select = el('select', { 'data-testid': 'climbs-on' }) as HTMLSelectElement;
-  select.appendChild(el('option', { value: '' }, 'Nothing: grown as a groundcover'));
+  select.appendChild(el('option', { value: '' }, 'Nothing'));
   for (const n of list) {
     const what = n.kind === 'shrub' ? ' (a shrub)' : '';
     select.appendChild(el('option', { value: n.shape.id }, `${cap1(supportName(n).replace(/^the /, ''))}${what}, ${fmtFeet(n.dist)} ft away`));
   }
   select.value = now ? now.shape.id : '';
-  select.addEventListener('change', () => updateSelected({ climbsOn: select.value }));
+  // (Nothing keeps a groundcover set by hand ('') as it is; otherwise it's unset, and offers come again.)
+  select.addEventListener('change', () => updateSelected({ climbsOn: select.value || (s.climbsOn === '' ? '' : undefined) }));
+  const row = el('div', { className: 'climb-row' }, select);
+  if (now) {
+    const go = el('button', { className: 'btn ghost', 'data-testid': 'select-support' }, `Select ${supportName(now)}`);
+    go.addEventListener('click', () => { selectOnly(now.shape.id); state.panel = 'props'; render(); });
+    row.appendChild(go);
+  }
+  const parts: Node[] = [el('label', {}, 'Climbing on'), row];
+  if (!now) {
+    const cb = el('input', { type: 'checkbox', 'data-testid': 'groundcover' }) as HTMLInputElement;
+    cb.checked = s.climbsOn === '';
+    cb.addEventListener('change', () => updateSelected({ climbsOn: cb.checked ? '' : undefined }));
+    parts.push(el('label', { className: 'check-row' }, cb, el('span', {}, "Grow as a groundcover: don't offer what it could climb")));
+  }
   const hint = now ? (now.kind === 'arbor' ? 'Drawn over the arbor, as far as its spread reaches.' : 'Drawn along what it climbs, as long as its spread.')
-    : list.length ? 'Drawn as a patch on the ground. Pick what it climbs to draw it along that instead.'
-      : 'Nothing to climb within its spread: a fence, a wall, a trellis, an arbor or a tree near it can be picked here.';
-  return el('div', { className: 'field' }, el('label', {}, 'Climbing on'), select, el('div', { className: 'hint' }, hint));
+    : s.climbsOn === '' ? 'A patch on the ground, and kept so.'
+      : list.length ? 'A patch on the ground. Pick what it climbs to draw it along that instead; moved near a fence, a wall, a trellis, an arbor or a tree, it\'s offered.'
+        : 'A patch on the ground. Nothing to climb within its spread; moved near a fence, a wall, a trellis, an arbor or a tree, it\'s offered.';
+  parts.push(el('div', { className: 'hint' }, hint));
+  return el('div', { className: 'field', 'data-testid': 'climbing' }, ...parts);
+}
+/** On what vines climb: which, each a tap away (Jason, 2026-10-29: "has x growing on it. Select x"). */
+function vinesOnIt(s: Shape): HTMLElement | null {
+  const vines = state.shapes.filter((v): v is CircleShape => v.type === 'circle' && !!v.climbsOn && v.climbsOn === s.id && v.status !== 'gone');
+  if (!vines.length) return null;
+  const box = el('div', { className: 'banner info', 'data-testid': 'vines-on-it' });
+  for (const v of vines) {
+    const name = (v.plantId && plantsById[v.plantId]?.common) || v.label || 'A vine';
+    const go = el('button', { className: 'link-btn' }, 'Select');
+    go.addEventListener('click', () => { selectOnly(v.id); state.panel = 'props'; render(); });
+    box.appendChild(el('div', {}, `${name} grows on it · `, go));
+  }
+  return box;
 }
 const cap1 = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
 export function renderPropsPanelSingle(s: Shape) {
@@ -155,6 +186,10 @@ export function renderPropsPanelSingle(s: Shape) {
     body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Label'), labelInput));
   }
   if (s.type !== 'text') body.appendChild(whatItIs([s.id], roleKey(s), false));
+  // A vine: what it climbs, the most important thing about it (Jason, Oct 29); a support: the vines on it.
+  if (isVine(s)) body.appendChild(climbingField(s));
+  const onIt = vinesOnIt(s);
+  if (onIt) body.appendChild(onIt);
 
   // ----- What the role adds: sun record, bed contents, the plant, status -----
   if (s.role === 'shade') {
@@ -171,6 +206,12 @@ export function renderPropsPanelSingle(s: Shape) {
   if (s.type === 'circle' && (s.plantId || !s.role || s.role === 'plant' || s.role === 'other')) {
     const p = s.plantId ? plantsById[s.plantId] : undefined;
     body.appendChild(section('plant', 'Plant', document.createTextNode(p ? p.common + (isMine(p) ? ' (mine)' : '') : s.plantId ? 'Details not on this device' : 'Not linked'), [plantLinkSection(s)]));
+    // Its facts, as the picker shows them (Jason, Oct 29: "a way of seeing a plant's facts from its edit pane"):
+    // bloom time and the rest without finding it in the picker. Folded until opened, like every section.
+    if (p && !isMine(p)) {
+      const sun = rowLines(p).sun;
+      body.appendChild(section('about', 'About this plant', document.createTextNode([sun, 'bloom, safety and more'].filter(Boolean).join(' · ')), [el('div', { className: 'about-plant', 'data-testid': 'about-plant' }, plantDetails(p, undefined))]));
+    }
   }
   if (hasStatus(s)) body.appendChild(section('status', 'Status', document.createTextNode(statusSummary([s])), [statusSection([s])]));
   // What sits on its edges: a building's doors and windows, a fence's gates, a deck's steps.
@@ -200,9 +241,13 @@ export function renderPropsPanelSingle(s: Shape) {
     const what = bySpread(s) ? (s.canopy ? 'Spread, widest (ft)' : 'Spread (ft)') : 'Diameter (ft)';
     sizeParts.push(el('div', { className: 'field' }, el('label', {}, what), dInput,
       bySpread(s) ? el('div', { className: 'hint' }, 'How wide it\'s drawn, across. Plant tags call this its spread.') : '', bySpread(s) ? '' : measure));
-    // Trees drawn before trunks existed (or a plant of my own that's a tree): say so here.
-    const formTree = !!s.plantId && !!plantsById[s.plantId]?.form?.startsWith('Tree');
-    if (s.role === 'plant' && !formTree) {
+    // Trees drawn before trunks existed (or a plant of my own that's a tree): say so here. Only for what could be a
+    // tree: a shrub, a plant of my own, one not linked or whose details aren't here. Never a vine, a perennial or a grass
+    // (Jason, Oct 29: a jessamine ticked by a fat finger became a tree); one ticked already can be unticked.
+    const lp = s.plantId ? plantsById[s.plantId] : undefined;
+    const formTree = !!lp?.form?.startsWith('Tree');
+    const mayBeTree = !lp || isMine(lp) || formsOf(lp).some((f) => f === 'Shrub' || f === 'Tree');
+    if (s.role === 'plant' && !formTree && (s.tree || mayBeTree)) {
       const cb = el('input', { type: 'checkbox' }) as HTMLInputElement;
       cb.checked = !!s.tree;
       cb.addEventListener('change', () => updateSelected({ tree: cb.checked || undefined }));
@@ -210,7 +255,6 @@ export function renderPropsPanelSingle(s: Shape) {
     }
     if (isTree(s)) sizeParts.push(...trunkFields(s));
     if (s.canopy) sizeParts.push(makeRoundField(s));
-    if (isVine(s)) sizeParts.push(climbingField(s));
   } else {
     const isPath = s.type === 'poly' || s.type === 'line';
     // Reshaping point by point is the likelier edit for an outline or path, so it comes first.

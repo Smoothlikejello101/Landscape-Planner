@@ -115,8 +115,8 @@ export interface CircleShape extends ShapeBase {
   crowdOk?: string[];
   /**
    * Vines: the id of the shape it climbs (a fence or wall line, a building, a tree, a shrub), drawn along it
-   * (src/vines.ts); '' when set to none by hand (grown as a groundcover, and not offered a support again); unset
-   * as placed (a groundcover, which the app may offer a support nearby).
+   * (src/vines.ts); '' when set to grow as a groundcover by hand (and not offered a support again); unset as placed,
+   * or set to Nothing (a groundcover, which the app offers a support whenever it's moved near one).
    */
   climbsOn?: string;
   /** Ignored for circles; tolerated so old data and patches stay valid. */

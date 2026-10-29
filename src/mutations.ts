@@ -253,23 +253,6 @@ export function zoomToFit(): boolean {
   zoomToBounds(b);
   return true;
 }
-/**
- * A new plan drawn by hand: the view zoomed to a yard `feet` wide (asked on the empty plan), its left edge where
- * the plan starts. Square, as the yard's depth isn't asked: the whole width fits across.
- */
-export function zoomToYard(feet: number) {
-  const rect = canvasRect(), W = rect.width || state.canvasW;
-  if (W >= YARD_WIDE_PX) { zoomToBounds({ minX: 0, maxX: feet, minY: 0, maxY: feet }); return; }
-  // A phone: the yard's width across the screen, from a little above the plan's top. (By width alone: the plan's
-  // height may still be cut short by the keyboard just put away.)
-  state.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, (W - 2 * 28) / (feet * PX_PER_FOOT_BASE)));
-  const ppf = PX_PER_FOOT_BASE * state.zoom;
-  state.offsetX = feet / 2 - W / ppf / 2;
-  state.offsetY = -28 / ppf;
-  save();
-}
-/** A plan this wide (px) or wider is a desktop's or a tablet's: the yard fits as a square, its depth in view too. */
-const YARD_WIDE_PX = 700;
 export function resetCurrentProject() {
   flushHistoryDebounce();
   state.shapes = [];
