@@ -1,12 +1,12 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 139 to decide, 23 plants not searched, 1437 sites whose terms are unsettled, 728 catalog checks; 3737 of 3742 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 145 to decide, 23 plants not searched, 1437 sites whose terms are unsettled, 728 catalog checks; 3737 of 3742 records audited.
 
 - [Sources disagree (92)](#sources-disagree-92)
 - [Cultivar: tree or shrub? (6)](#cultivar-tree-or-shrub-6)
 - [Edible, but rated toxic (16)](#edible-but-rated-toxic-16)
 - [Held back as implausible (3)](#held-back-as-implausible-3)
-- [A value its source no longer gives (1)](#a-value-its-source-no-longer-gives-1)
+- [A value its source no longer gives (7)](#a-value-its-source-no-longer-gives-7)
 - [Read from text, but a second reading differs (276)](#read-from-text-but-a-second-reading-differs-276)
 - [Values the catalog can't take (1)](#values-the-catalog-cant-take-1)
 - [Kew names to check (14)](#kew-names-to-check-14)
@@ -159,12 +159,18 @@ The audit's values would make the record implausible (the app's checks), so they
 | Pink sundew (`drosera-capillaris`) | height | under 3 in tall (1 in): inches read as feet, or the other way? |
 | English holly 'Argentea Marginata' (`ilex-aquifolium-argentea-marginata`) | height, form | 40 ft is tall for a shrub |
 
-## A value its source no longer gives (1)
+## A value its source no longer gives (7)
 
 An earlier build wrote it from a source, but no source gives it now: its page is no longer read, or no longer says it. It's kept (a plant's spread draws its circle), with the citation it had. There's no place to record a decision on these yet: they stay listed until there is.
 
 | Plant | Fact | Value now |
 | --- | --- | --- |
+| Virginia sweetspire 'Henry's Garnet' (`itea-virginica-henry-s-garnet`) | deer | "Resistant", from ncsu |
+| Smooth hydrangea 'Haas' Halo' (`hydrangea-arborescens-haas-halo`) | fall color | true, from ncsu |
+| Smooth hydrangea 'Haas' Halo' (`hydrangea-arborescens-haas-halo`) | poison | {}, from ncsu |
+| Smooth hydrangea 'Haas' Halo' (`hydrangea-arborescens-haas-halo`) | problem_for | ["cats","dogs","horses"], from ncsu |
+| Smooth hydrangea 'Haas' Halo' (`hydrangea-arborescens-haas-halo`) | maintenance_level | "low", from ncsu |
+| Smooth hydrangea 'Haas' Halo' (`hydrangea-arborescens-haas-halo`) | bark | ["peeling","shredding"], from ncsu |
 | Dwarf yaupon holly 'Schillings' (`ilex-vomitoria-nana-schillings`) | flower_color | ["white"], from kiefernursery.com |
 
 ## Read from text, but a second reading differs (276)
@@ -545,7 +551,7 @@ Where a source gave nothing, counted only:
 - 1662 plants: a USDA PLANTS profile with no characteristics saved (size, sun and so on): PLANTS has none, or they were never fetched (see "Not looked up yet")
 - 2314 plants: not on the Arkansas atlas's maps under its name (mostly plants not recorded wild in Arkansas)
 - 345 plants: the Arkansas atlas not looked up (a genus or cultivar group: no species name)
-- 88 plants: a cultivar read from species-level pages: its size, form and flower color are taken only from a page about the cultivar
+- 86 plants: a cultivar read from species-level pages: its size, form and flower color are taken only from a page about the cultivar
 
 Kew's checklist has no one accepted species for 37 catalog names (hybrids, names it draws narrower, exotics it doesn't list in the US), so they have no native status: Aloysia citriodora, Alternanthera dentata, Amsonia illustris, Aphelandra squarrosa, Betula jacquemontii, Betula platyphylla, Calamovilfa longifolia, Cartrema americana, Cercis gigantea, Eubotrys racemosa, Euonymus kiautschovicus, Gomphocarpus physocarpa, Hamamelis hybrids, Hepatica acutiloba, Hibiscus lasiocarpos, Hypericum pyramidatum, Iris germanica, Juniperus conferta, Ludwigia sedoides, Malus hybrids, Nothoscordum sellowianum, Nuphar luteum, Oligoneuron rigidum, Onosmodium bejariense, Penstemon grandiflorus, Pieris formosana, Polystichum polyblepharum, Rhus trilobata, Rhychospora latifolia, Rosa lucieae, Rubus pensilvanicus, Silphium trifoliatum, Smilax lasioneura, Thuidium delicatulum, Thymus pseudolanuginosus, Tulipa hybrids, Washingtonia robusta.
 
@@ -553,5 +559,5 @@ New plants (scripts/catalog/additions.mjs):
 
 - 0 plants added from NC State's Plant Toolbox in this build (2901 in all)
 - 802 plants waiting, for size (661), form (94), hardiness (235), sun (89), its species (19)
-- 592 pages left out: a vegetable (86), a genus (294), a weed (204), in the catalog (8)
+- 590 pages left out: a vegetable (86), a genus (294), a weed (204), in the catalog (6)
 - 18 pages the sitemap lists that aren't saved yet
