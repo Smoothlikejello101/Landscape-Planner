@@ -505,6 +505,7 @@ a { color: inherit; }
 .details-list dd { display: inline; margin: 0; overflow-wrap: anywhere; }
 .details-list dd::after { content: ''; display: block; margin-bottom: 8px; }
 .details-src, .details-alt { display: block; font-size: calc(11px * var(--ts)); color: #6b6560; }
+.details-form { display: block; font-size: calc(12px * var(--ts)); color: #57534e; margin-top: 1px; } /* (what its flowers or leaves look like, under their colors) */
 /* A citation longer than a line: one line, "…", opened with a tap (src/ui/plant-details.ts clipCitations). */
 .details-src.one-line, .details-src.clipped[aria-expanded="false"] { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .details-src.clipped { cursor: pointer; }

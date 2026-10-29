@@ -39,9 +39,11 @@ const ft = (r?: { min?: number; max?: number; med?: number }) => {
   return r.min != null && r.max != null && r.min !== r.max ? `${f(r.min).replace(' ft', '')}–${f(r.max)}` : r.med != null ? f(r.med) : r.min != null ? f(r.min) : '';
 };
 const SUN_WORDS: Record<string, string> = { Full: 'full sun', Part: 'part shade', Shade: 'shade' };
-const cap = (t: string) => t[0].toUpperCase() + t.slice(1);
+const cap = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : '');
 /** "dogs", "dogs and cats", "dogs, cats and horses". */
 const andList = (l: string[]) => (l.length > 1 ? `${l.slice(0, -1).join(', ')} and ${l.at(-1)}` : l[0] ?? '');
+/** "a, b or c": a source's alternatives (leaf shapes it lists). */
+const orList = (l: string[]) => (l.length > 1 ? `${l.slice(0, -1).join(', ')} or ${l.at(-1)}` : l[0] ?? '');
 const sun = (most?: unknown, least?: unknown) => (!most ? '' : cap(most === least || !least ? SUN_WORDS[most as string] ?? String(most) : `${SUN_WORDS[most as string] ?? most} to ${SUN_WORDS[least as string] ?? least}`));
 const yes = (v: unknown) => (v === true ? 'Yes' : v === false ? 'No' : '');
 /** "Apr–Jun"; "May". */
@@ -87,6 +89,50 @@ export function parentsPoisonText(pp: NonNullable<Plant['poison_parents']>): str
   const each = pp.parents.map((x) => `${name(x)}: ${x.poison ? poisonText(x.poison) : x.poison === null ? 'none listed' : 'not rated'}.`);
   return [`No rating available for this hybrid. ${count} rated.`, ...each].join(' ');
 }
+/** A size in inches as the catalog writes it ("<1", "1-3", ">6"), in words. */
+const inches = (x: string) => (x.startsWith('<') ? `under ${x.slice(1)} in` : x.startsWith('>') ? `over ${x.slice(1)} in` : `${x.replace('-', '–')} in`);
+const FLOWER_SHAPE_WORDS: Record<string, string> = { tubular: 'tubular', lipped: 'lipped', irregular: 'irregular', radial: 'radial' };
+const PETAL_WORDS: Record<string, string> = { '2-3': '2–3 petals', '4-5': '4–5 petals', '6': '6 petals', '7-20': '7–20 petals', '20+': 'over 20 petals', bracts: 'showy bracts',
+  fused: 'fused petals', sepals: 'colored sepals', tepals: 'tepals', asymmetrical: 'uneven petals' };
+const CLUSTER_WORDS: Record<string, string> = { solitary: 'borne singly', spadix: 'on a spadix', insignificant: '' };
+/**
+ * What its flowers look like, in a line (NC State's fields), a part to each step: "Cup-shaped · 4–5 petals · 1–3 in · in
+ * panicles". A plant whose flowers NC State calls insignificant says so.
+ */
+export function flowerFormText(f?: Plant['flower_form']): string {
+  if (!f) return '';
+  if (f.inflorescence?.includes('insignificant') && !f.shape?.length) return 'Flowers not showy';
+  const shape = orList((f.shape ?? []).map((x) => FLOWER_SHAPE_WORDS[x] ?? `${x}-shaped`));
+  const petals = orList((f.petals ?? []).map((x) => PETAL_WORDS[x] ?? x));
+  const size = orList((f.size ?? []).map(inches));
+  const where = orList((f.inflorescence ?? []).filter((x) => x !== 'insignificant').map((x) => CLUSTER_WORDS[x] ?? `in ${x === 'corymb' ? 'flat clusters (corymbs)' : x === 'cyme' ? 'clusters (cymes)' : `${x}s`}`));
+  return cap([shape, petals, size, where].filter(Boolean).join(' · '));
+}
+const MARGIN_WORDS: Record<string, string> = { entire: 'smooth-edged', serrate: 'toothed', dentate: 'toothed', denticulate: 'finely toothed', 'doubly serrate': 'double-toothed',
+  'doubly dentate': 'double-toothed', crenate: 'scalloped', crenulate: 'finely scalloped', 'doubly crenate': 'scalloped', lobed: 'lobed', undulate: 'wavy-edged', sinuate: 'wavy-edged' };
+/** What its leaves look like, in a line (NC State's fields): "Simple · elliptical, obovate or ovate · toothed · alternate · 3–6 in". */
+export function leafFormText(l?: Plant['leaf_form']): string {
+  if (!l) return '';
+  const type = orList(l.type ?? []);
+  const shape = orList((l.shape ?? []).slice(0, 3));
+  const margin = orList([...new Set((l.margin ?? []).map((x) => MARGIN_WORDS[x] ?? x))]);
+  const arr = orList((l.arrangement ?? []).filter((x) => x !== 'complex'));
+  const len = orList((l.length ?? []).map(inches));
+  return cap([type, shape, margin, arr, len].filter(Boolean).join(' · '));
+}
+const CLIMB_WORDS: Record<string, string> = { twining: 'twining', tendrils: 'tendrils', clinging: 'clinging', scrambler: 'scrambling' };
+/** Its shape, texture and how it climbs, in a line: "Erect, multi-stemmed, open, spreading · coarse texture"; "Climbing · climbs by twining". */
+export function habitText(p: Pick<Plant, 'habit_form' | 'texture' | 'climbs_by'>): string {
+  const shape = (p.habit_form ?? []).join(', '), texture = p.texture?.length ? `${p.texture.join(' to ')} texture` : '';
+  const climbs = p.climbs_by?.length ? `climbs by ${orList(p.climbs_by.map((x) => CLIMB_WORDS[x] ?? x))}` : '';
+  return cap([shape, texture, climbs].filter(Boolean).join(' · '));
+}
+/** What a row says of the plant's looks, under its value: the line, its facts, its test id. */
+const LOOKS: Record<string, { text: (p: Plant) => string; facts: string[]; testid: string }> = {
+  Form: { text: habitText, facts: ['habit_form', 'texture', 'climbs_by'], testid: 'habit-form' },
+  'Flower color': { text: (p) => flowerFormText(p.flower_form), facts: ['flower_form'], testid: 'flower-form' },
+  'Leaf colors': { text: (p) => leafFormText(p.leaf_form), facts: ['leaf_form'], testid: 'leaf-form' },
+};
 /** "Green, silver"; "Variegated". */
 const leafText = (l?: string[]) => (l?.length ? cap(l.join(', ')) : '');
 /** Forms whose stems die back in winter, where "deciduous" means that, not bare branches. */
@@ -389,6 +435,14 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
       continue;
     }
     const dd = el('dd', label === 'Flower color' ? { 'data-testid': 'flower-color' } : {}, value || '—');
+    // (What the flowers and leaves look like, under their colors, and its shape under its form: NC State's fields,
+    // its source said where it isn't the row's.)
+    const look = LOOKS[label];
+    const form = look?.text(p) ?? '';
+    if (form) {
+      const own = look.facts.map((f) => p.prov?.[f]).find(Boolean), other = own && !own.src.every((s) => prov?.src.includes(s));
+      dd.appendChild(el('span', { className: 'details-form', 'data-testid': look.testid }, form + (other ? ` (${own.src.map(sourceName).join(', ')})` : '')));
+    }
     const line = ENDS[facts[0]] ? rangeLine(facts, p.prov) : sourceLine(prov); // (a range: hardiness, sun; not toxicity's two facts)
     if (line) dd.appendChild(el('span', { className: 'details-src' }, line));
     // Hardiness shown from nurseries only: say so, since a grower's range can stop where it sells, not where the
