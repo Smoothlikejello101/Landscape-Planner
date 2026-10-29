@@ -133,6 +133,14 @@ export const SKIP_SITES = new Set([
   'bidscape.com', 'victorynursery.us', // (a plant auction marketplace; a sourcing reseller)
   'horticopia.net', // (Horticopia itself: a rented plant database and image library, as horticopia.info)
   'succulentgardenweb.com', 'twogreenthumbs.com', // (an AI-written content farm; content "compiled mainly from various sources")
+  // Found by the terms reviews of batch 10, first quarter (2026-10-28)
+  'theleafjournal.com', 'plantsforallseasons.co.uk', 'plantspatio.com', // (AI-written how-tos and product copy; an unfilled template store)
+  '1800flowers.com', 'fondazioneslowfood.com', // (a florists' order relay; a food foundation's publicly nominated entries)
+  'pollenlibrary.com', // (county maps from BONAP)
+  // Found by the terms reviews of batch 10, second quarter (2026-10-28)
+  'catskillnativenursery.shop', 'greenpacks.org', 'gardeningtipsandtools.com', 'rosapedia.com', 'windrivergreens.com', // (spam and AI-written sites)
+  'poshmark.com', 'foodplace.info', // (a resale marketplace; a forum)
+  'plantsrose.com', 'fast-growing-plant.com', 'spotswoodgreenery.com', 'theteamfamily.com', // (drop-ship and template stores)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
@@ -160,7 +168,7 @@ const COMPANY = {
   'watersavingplants.com': 'gardensoft', 'watersmartgardening.com': 'gardensoft', 'reddingwatersmart.com': 'gardensoft',
   'fresnogardening.org': 'gardensoft', 'bayareagardening.org': 'gardensoft', 'ashlandsaveswater.org': 'gardensoft',
   'elpasodesertblooms.org': 'gardensoft', 'waterwisegardeningsb.org': 'gardensoft', 'hillsborogardening.org': 'gardensoft',
-  'slcgardenwise.com': 'gardensoft', 'trivalleywaterwise.com': 'gardensoft',
+  'slcgardenwise.com': 'gardensoft', 'trivalleywaterwise.com': 'gardensoft', 'ocplants.org': 'gardensoft',
 };
 /** The source a site counts as (one company's sites are one). */
 export const sourceOf = (host) => { const site = siteOf(host); return COMPANY[site] ?? termsKey(host); };
