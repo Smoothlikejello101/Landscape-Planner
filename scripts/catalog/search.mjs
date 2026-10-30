@@ -1,12 +1,14 @@
 // Search the web for each plant, fetch the pages the search finds (by the
 // fetcher's rules: robots.txt, pace, refusals), and read their spec lines as
 // claims (docs/catalog-sources.md, "Searching the web"):
-//   node scripts/catalog/search.mjs <sample.json> <claims-out.json> [--max N] [--wait MINUTES] [--about spacing] [--dry]
+//   node scripts/catalog/search.mjs <sample.json> <claims-out.json> [--max N] [--wait MINUTES] [--about spacing|color] [--dry]
 // <sample.json>: [{ id, species, botanical?, common? }, …] (names come from public/plants.json; a plant added from NC State
 // that isn't shipped yet, waiting for its size or form, isn't in it: its names come with it, from the build's records).
 // --max: pages per plant (default 10). --dry: search only, and say how many.
 // --about: what the queries ask. Default: two a plant, its name, and its name with "hardiness zone height spread sun".
 //   "spacing": one a plant, its name with "spacing" (how far apart to plant it: Jason, Oct 29, for the plants with none).
+//   "color": one a plant, its name with "flower color" (Jason, Oct 30, for the plants whose only flower color is the
+//   earlier list's).
 // --wait: how long to wait for terms reviews before reading (default 0:
 //   sites not yet reviewed are left out of this run).
 //
@@ -43,9 +45,10 @@ const dry = args.includes('--dry');
 const QUERIES = {
   all: (name) => [`${name} plant`, `${name} hardiness zone height spread sun`],
   spacing: (name) => [`${name} spacing`],
+  color: (name) => [`${name} flower color`],
 };
 const queriesOf = QUERIES[flag('--about') ?? 'all'];
-if (!samplePath || !outPath || !queriesOf) { console.error('usage: node scripts/catalog/search.mjs <sample.json> <claims-out.json> [--max N] [--wait MINUTES] [--about spacing] [--dry]'); process.exit(1); }
+if (!samplePath || !outPath || !queriesOf) { console.error('usage: node scripts/catalog/search.mjs <sample.json> <claims-out.json> [--max N] [--wait MINUTES] [--about spacing|color] [--dry]'); process.exit(1); }
 
 const keyFile = join(homedir(), '.config', 'fullgrown', 'brave-key');
 const key = (process.env.BRAVE_API_KEY ?? (existsSync(keyFile) ? readFileSync(keyFile, 'utf8') : '')).trim();

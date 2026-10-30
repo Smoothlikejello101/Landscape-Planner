@@ -246,6 +246,12 @@ export const SKIP_SITES = new Set([
   'tlhort.com', 'heritageplus.com', 'homecenteroutlet.com', 'jhspedals.info', 'ifsguild.org', 'jax.org', 'marinelifephotography.com',
   'ilovegrowingmarijuana.com', 'nokidsallowed.club', 'moorcar.co.uk', 'mriquestions.com', 'mutinyrecordings.com', 'nuemaliving.com',
   'megsediblelandscapes.com', 'dreamscapefarm.com', 'ebotanii.com',
+  // Found by the terms reviews of the flower-color round (2026-10-30)
+  'agripure.org', 'canadianinvitroplants.com', 'plantura.garden', // (AI-written or generated, by their own pages or badges)
+  'your-roses.com', // (a dropship storefront on another business's template terms)
+  'nativeplanthub.com', // (the domain now serves a gambling page)
+  'bleedingheartland.com', // (a community politics blog, members' diaries: crowd-sourced, not a plant source)
+  'nativegardenhub.org', // (another app's plant database)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
