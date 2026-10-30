@@ -231,6 +231,21 @@ export const SKIP_SITES = new Set([
   'elliottelectric.com', 'ipexna.com', 'sweetkitchencravings.com', 'thecityofbeverly.com', 'therumpus.net', 'zoneomics.com', // (not plant sources)
   'soxandfreeman.com', 'mydocmd.com', 'afarmgirlskitchen.com', 'd2runewizard.com', 'aldi.co.uk', 'dalss.eu', 'rexelusa.com',
   'smokymountainnews.com', 'sedum-et-toiture.com', 'roomsforrentblog.com',
+  // Found by the terms reviews of the spacing round, batch 10 (2026-10-30)
+  'orchidstudium.com', 'farmingthing.com', 'elika.com.tr', 'muthlerlandscaping.com', // (AI-written or mass-produced)
+  'blericktreefarm.com.au', // (spam injected into every footer)
+  'plantrrstore.com', 'onlinetrees.com', 'gardencaress.com', // (dropship storefronts)
+  'zoneplant.com', 'plantbyzip.com', 'plantatlas.bio', // (compiled or translated plant lists)
+  'rhododendra.com', 'zielonozakreceni.pl', 'amazonforum.com', 'erasmusu.com', // (crowd-sourced)
+  'leafly.com', 'allbud.com', 'viveristesdegirona.com', 'findthatrose.co.uk', 'plantariumgroendirekt.nl', // (directories and aggregators)
+  'ridgecrestflorist.com', 'rosiesandposiesca.com', 'royalroseflorist.net', 'mayflowers-riverside.com', 'delightflorist.com', // (Flower Shop Network's shared florist pages)
+  'flowersbydonnatowanda.net',
+  'rosaprima.com', 'surprose.com', 'ramirezflowersinc.com', 'excellentflowersinc.com', 'fiftyflowers.com', // (cut flowers, not garden plants)
+  'rcsb.org', 'rosafurnitureusa.com', 'roaming-fox.com', '0264noticias.com.ar', 'actualidadjachallera.com.ar', 'diariodecuyo.com.ar', // (not plant sources)
+  'bathgems.com', 'buildpetals.com', 'beenverified.com', 'blandcpa.com', 'slb.com', 'tilebar.com', 'timeandtidewatches.com', 'villarosadesigns.com',
+  'tlhort.com', 'heritageplus.com', 'homecenteroutlet.com', 'jhspedals.info', 'ifsguild.org', 'jax.org', 'marinelifephotography.com',
+  'ilovegrowingmarijuana.com', 'nokidsallowed.club', 'moorcar.co.uk', 'mriquestions.com', 'mutinyrecordings.com', 'nuemaliving.com',
+  'megsediblelandscapes.com', 'dreamscapefarm.com', 'ebotanii.com',
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
@@ -264,11 +279,13 @@ const COMPANY = {
   'elpasodesertblooms.org': 'gardensoft', 'waterwisegardeningsb.org': 'gardensoft', 'hillsborogardening.org': 'gardensoft',
   'slcgardenwise.com': 'gardensoft', 'trivalleywaterwise.com': 'gardensoft', 'ocplants.org': 'gardensoft',
   'ranchoinbloom.com': 'gardensoft', 'surfcitygardening.com': 'gardensoft', // (seen 2026-10-30)
+  'cafriendlylandscaping.com': 'gardensoft', 'camarillogardening.com': 'gardensoft',
   // (One bulb shop's sites: the UK one carries its text word for word, the Swedish one is its edition. Seen 2026-10-30.)
   'flowerbulbs.com': 'flowerbulbs.com', 'flowerbulbs.co.uk': 'flowerbulbs.com', 'blomsterlokar.info': 'flowerbulbs.com',
   // (One Hungarian grower's shop, machine-translated under local names: one source. Seen 2026-10-28.)
   'pharmarosa.be': 'pharmarosa', 'pharmarosa.co.uk': 'pharmarosa', 'pharmarosa.es': 'pharmarosa', 'pharmarosa.nl': 'pharmarosa',
   'pharmarosa.ro': 'pharmarosa', 'pharmarosaneonatal.it': 'pharmarosa',
+  'pharmarosa.com': 'pharmarosa', 'pharmarosa.de': 'pharmarosa', 'pharmarosa.pt': 'pharmarosa', // (seen 2026-10-30)
 };
 /** The source a site counts as (one company's sites are one). */
 export const sourceOf = (host) => { const site = siteOf(host); return COMPANY[site] ?? termsKey(host); };
