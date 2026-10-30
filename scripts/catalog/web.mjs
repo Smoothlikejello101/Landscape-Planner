@@ -150,6 +150,16 @@ export const SKIP_SITES = new Set([
   'areverenceforroses.com', 'hometuary.com', 'spnanyc.org', // (spam; AI-written lifestyle copy; a neighborhood association)
   'mossvalepark.com', // (its catalogue text is Wikipedia's, by its own terms)
   'hytiva.com', // (a cannabis marketplace)
+  // Found by the terms reviews of the spacing round, batch 1 (2026-10-29)
+  'mynzagric.com', 'greeneryinside.com', 'guyabouthome.com', 'treestopsecrets.com', 'gardenesign.com', 'cultivatingflora.com', // (AI-written)
+  'gardenbagan.com', 'smartgardenguru.com', 'theyieldgrid.com', 'viridia.pro', 'ocelot-ocelot-7ha5.squarespace.com', // (AI-written)
+  'microveggy.com', 'buzztum.com', 'decorexpro.com', 'ehow.com', 'bhg.com.au', 'ai-plantfinder.com', // (content farms; AI content by their own notices)
+  'allmyfriendsareflowers.com', 'winefrog.com', // (spam: taken over by gambling links)
+  'livingleafplant.com', 'grasssow.com', 'plantseedworld.com', 'trendoli.com', // (dropship or copied storefronts)
+  'plantistrylabs.com', 'lawn.com.au', 'zoominfo.com', // (marketplaces; a company-data aggregator)
+  'ala.org.au', 'allasiatcn.org', 'oclc.org', 'plantory.ai', // (aggregators: GBIF's Australian node, a herbarium portal, a library host, Trefle's data)
+  'permaplans.com', 'gardenscheme.com', 'monstera-app.com', 'gardenersnavigator.com', // (other apps' compiled plant lists; answers compiled from extension)
+  'homeopathinfo.com', 'lifeasible.com', 'candaceshaw.net', 'saartillery.wordpress.com', 'fairwaystyles.com', 'dmt-nexus.me', // (not plant sources)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
