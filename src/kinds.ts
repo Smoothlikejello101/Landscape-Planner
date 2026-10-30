@@ -1,6 +1,6 @@
 import { FORM_COLORS } from './plants';
 import { defaultLook } from './roles';
-import { rotate, setWorldPoints } from './geometry';
+import { rotate, setWorldPoints, shapeArea, shapePerimeter } from './geometry';
 import type { PathShape, Point, Role, Shape, UtilityKind } from './types';
 import { uid } from './util';
 import { utilityLook } from './utility-kinds';
@@ -94,6 +94,8 @@ export function kindForShortcut(key: string): KindDef | undefined {
 export function kindOfShape(s: Shape): KindKey | null {
   const label = s.label.toLowerCase();
   if (s.type === 'text') return 'note';
+  // What it was added as, where that's kept (Oct 30 on) and still fits what it is.
+  if (isKindKey(s.kind) && s.role && BY_KEY[s.kind].role === s.role) return s.kind;
   switch (s.role) {
     case 'plant': return null;
     case 'bed': return 'bed';
@@ -107,7 +109,10 @@ export function kindOfShape(s: Shape): KindKey | null {
       if (label.includes('drive')) return 'driveway';
       if (label.includes('patio') || label.includes('deck')) return 'patio';
       if (label.includes('path') || label.includes('walk')) return 'path'; // a path drawn as an outline
-      return s.type === 'line' ? 'path' : 'patio';
+      // (Unnamed: a long, narrow outline is a path, a squarish one a patio. Jason, Oct 30: his unnamed paths by the
+      // strawberries read as "Patio or deck". Area over the square of half the edge: a square 0.25, 6 to 1 about 0.12.)
+      if (s.type === 'line') return 'path';
+      return s.type === 'poly' && shapeArea(s) / (shapePerimeter(s) / 2) ** 2 < 0.15 ? 'path' : 'patio';
     case 'utility': return s.utility === 'overhead' ? 'powerline' : s.utility === 'buried' ? 'buried' : s.utility === 'septic' ? 'septic' : 'plain';
     case 'other': return s.type === 'line' && s.showLength ? 'measure' : 'plain';
     default: return 'plain';
@@ -246,7 +251,8 @@ export function kindLook(kind: KindDef, type: Shape['type']): { color: string; o
  */
 export function buildShape(m: Method, pts: Point[], kind: KindDef, shapes: Shape[], id = uid()): Shape | null {
   const role = kind.key === 'plain' ? undefined : kind.role;
-  const base = { id, label: kind.startLabel(shapes), locked: false, ...(role ? { role } : {}), ...(kind.startStatus ? { status: kind.startStatus } : {}), ...(kind.utility ? { utility: kind.utility } : {}) };
+  const base = { id, label: kind.startLabel(shapes), locked: false, ...(role ? { role } : {}), ...(kind.startStatus ? { status: kind.startStatus } : {}), ...(kind.utility ? { utility: kind.utility } : {}),
+    ...(role && kind.key !== 'plain' ? { kind: kind.key } : {}) };
   switch (m) {
     case 'rect': case 'oval': {
       if (pts.length < 3) return null;

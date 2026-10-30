@@ -41,6 +41,11 @@ interface ShapeBase {
   /** A hardiness warning dismissed for this plant (its words, src/plants.ts hardinessWarning): back if they change. */
   hardyDismissed?: string;
   /**
+   * What it was added as (src/kinds.ts KindKey: "path", "patio"…), kept when it's renamed; dropped when what it is
+   * changes. Shapes from before Oct 30 have none: their kind is worked out (kindOfShape).
+   */
+  kind?: string;
+  /**
    * Utilities: which (an overhead power line, a buried line, a septic field; one a later version adds is kept as it
    * came, unchecked). Kept on one made something else since, which is that again if turned back.
    */

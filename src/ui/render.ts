@@ -12,7 +12,6 @@ import { copySelected, planBounds, setViewFilter, updateSelectedSilent, zoomBy, 
 import { deleteSelectedAsking } from './delete-selected';
 import { clearSelection, getSelected, singleSelected } from '../selection';
 import { state } from '../state';
-import { typeName } from '../util';
 import { fmtFeet, screenToFeet } from '../geometry';
 import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishTypedRect, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, setTypedLength, shapeName, typedApplies, typedLabel, startEditPoints, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
 import type { TapSnap } from '../types';
@@ -42,7 +41,7 @@ import { toast } from './toast';
 import { clearedNow, loadCleared } from '../storage';
 import { bringBackCleared } from '../mutations';
 import { renderProjectsPanel, renderRenamePanel } from './projects-panel';
-import { moreOfSame, renderArrangePanel, renderPropsPanel, resetKindChange } from './props-panel';
+import { moreOfSame, renderArrangePanel, renderPropsPanel, resetKindChange, sheetTitle } from './props-panel';
 import { hintDue, hintShown } from '../hints';
 import { featureHost, finishFeaturePlace, flipLastAdded, lastAdded, setFeatureKind, undoFeaturePlace } from '../feature-edit';
 import { drawFeatureKinds, kindsFor, kindsPhrase, SUB_FEATURES, swings } from '../features';
@@ -386,7 +385,8 @@ export function render() {
     if (s) {
       const pill = el('div', { className: 'sel-pill' });
       pill.appendChild(el('div', { className: 'sw', style: { background: s.color } }));
-      pill.appendChild(el('div', { className: 'name' }, s.label || ('Unlabeled ' + typeName(s.type))));
+      // (Unnamed: what it is, "Path", not how it was drawn. Jason, Oct 30.)
+      pill.appendChild(el('div', { className: 'name' }, s.label || sheetTitle(s)));
       const editBtn = el('button', { className: 'edit' });
       editBtn.innerHTML = I.edit + '<span>Edit</span>';
       editBtn.addEventListener('click', () => { state.panel = 'props'; render(); });

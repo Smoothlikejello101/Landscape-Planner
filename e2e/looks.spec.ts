@@ -77,3 +77,16 @@ test('the tallest plant is drawn on top, see-through over a plant growing under 
   await tapFromCenter(page, 3, 0);
   await expect(page.locator('.sel-pill .name')).toHaveText('Buttonbush');
 });
+
+test('a run of the same small plant is named once, at its middle (Jason, Oct 30: a column of "Creeping liriope")', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Creeping phlox');
+  await page.locator('.sheet .proj-row', { hasText: 'Creeping phlox' }).first().locator('[data-testid=plant-place]').click();
+  for (let i = 0; i < 6; i++) await tapFromCenter(page, -4 + i, 0); // (1 ft apart, on the snap steps)
+  await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
+  await page.keyboard.press('Escape');
+  const labels = page.locator('#canvas-svg [data-role=plant-label]');
+  await expect(labels.filter({ hasText: 'Creeping phlox' })).toHaveCount(1);
+  await expect(labels.filter({ hasText: 'Creeping phlox' })).toHaveText('Creeping phlox ×6');
+});

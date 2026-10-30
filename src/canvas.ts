@@ -259,8 +259,11 @@ export function shapeGroup(s: Shape): SVGGElement {
     labelX = cx; labelY = cy;
     fs = Math.max(10, Math.min(14, r * 0.4));
     fitted = circleLabel(s, ppf);
-    // A plant name that won't fit inside still shows, over the edge, where it has the room.
-    if (fitted === null && overflowLabels.has(s.id)) { fitted = undefined; overflow = true; }
+    // A plant name that won't fit inside still shows, over the edge, where it has the room; a run of the same plant's,
+    // once for them all, at their middle (labelGroups).
+    const run = fitted === null ? runLabels.get(s.id) : undefined;
+    if (run) { fitted = undefined; overflow = true; labelX = (run.x - state.offsetX) * ppf; labelY = (run.y - state.offsetY) * ppf; }
+    else if (fitted === null && overflowLabels.has(s.id)) { fitted = undefined; overflow = true; }
   } else if (s.type === 'poly' || s.type === 'line') {
     const pts = worldPoints(s).map((p) => `${(p.x - state.offsetX) * ppf},${(p.y - state.offsetY) * ppf}`).join(' ');
     if (s.type === 'poly') {
@@ -377,7 +380,8 @@ export function shapeGroup(s: Shape): SVGGElement {
     return textWidth1(text) * fs <= Math.max(b.maxX - b.minX, b.maxY - b.minY) * ppf;
   };
   const sunText = s.role === 'shade' && s.sun && room('☀ ' + formatHours(sunHours(s.sun))) ? '☀ ' + formatHours(sunHours(s.sun)) : '';
-  const label = room(displayLabel(s)) ? displayLabel(s) : '';
+  const run = s.type === 'circle' && overflow ? runLabels.get(s.id) : undefined;
+  const label = run && named ? run.text : room(displayLabel(s)) ? displayLabel(s) : '';
   if (fitted && named) {
     // Wrapped and sized to fit inside the circle (or below a tree's trunk).
     const lh = fitted.fontSize * LABEL_LINE_HEIGHT;
@@ -580,9 +584,43 @@ const OVERFLOW_PX = 11;
  * gets every other name, rather than a pile of overlapping text.
  */
 let overflowLabels = new Set<string>();
+/** A run of one plant written once ("Creeping liriope ×12"), on the plant nearest its middle: its words and middle (feet). */
+let runLabels = new Map<string, { text: string; x: number; y: number }>();
+/** Plants in a run of their kind need this many to be named once (two side by side get one name already). */
+const RUN_MIN = 3;
+/** Plants of a kind this close (centers within this share of their two radii) count as one run. */
+const RUN_GAP = 1.25;
+/**
+ * Plants whose names are written beside them (too small for their name), grouped into runs of the same plant: named
+ * alike, each within a little more than touching distance of the next (Jason, Oct 30: twelve liriope 1.5 ft apart
+ * made a column of ten "Creeping liriope"). Runs of RUN_MIN or more; the rest alone.
+ */
+export function labelRuns(plants: CircleShape[]): CircleShape[][] {
+  const byName = new Map<string, CircleShape[]>();
+  for (const s of plants) { const n = displayLabel(s); (byName.get(n) ?? byName.set(n, []).get(n)!).push(s); }
+  const out: CircleShape[][] = [];
+  for (const list of byName.values()) {
+    if (list.length < RUN_MIN) continue;
+    const parent = list.map((_, i) => i);
+    const root = (i: number): number => (parent[i] === i ? i : (parent[i] = root(parent[i])));
+    const order = list.map((s, i) => ({ s, i })).sort((a, b) => a.s.x - b.s.x);
+    const reach = Math.max(...list.map((s) => s.radius)) * 2 * RUN_GAP;
+    for (let a = 0; a < order.length; a++) {
+      for (let b = a + 1; b < order.length && order[b].s.x - order[a].s.x <= reach; b++) {
+        const p = order[a].s, q = order[b].s;
+        if (Math.hypot(p.x - q.x, p.y - q.y) <= (p.radius + q.radius) * RUN_GAP) parent[root(order[a].i)] = root(order[b].i);
+      }
+    }
+    const groups = new Map<number, CircleShape[]>();
+    list.forEach((s, i) => { const r = root(i); (groups.get(r) ?? groups.set(r, []).get(r)!).push(s); });
+    for (const g of groups.values()) if (g.length >= RUN_MIN) out.push(g);
+  }
+  return out;
+}
 function refreshLabelLayout() {
   const ppf = pxPerFoot();
   overflowLabels = new Set();
+  runLabels = new Map();
   type Box = { x0: number; x1: number; y0: number; y1: number };
   const placed: Box[] = [];
   const waiting: { s: CircleShape; box: Box }[] = [];
@@ -617,8 +655,23 @@ function refreshLabelLayout() {
       waiting.push({ s, box: { x0: cx - w / 2, x1: cx + w / 2, y0: cy - h / 2, y1: cy + h / 2 } });
     }
   }
+  // Runs of the same plant: one name each, at the run's middle, first (a run is named where a lone plant might not be).
+  const inRun = new Set<string>();
+  for (const run of labelRuns(waiting.map((w) => w.s))) {
+    for (const s of run) inRun.add(s.id);
+    const x = run.reduce((n, s) => n + s.x, 0) / run.length, y = run.reduce((n, s) => n + s.y, 0) / run.length;
+    const text = `${displayLabel(run[0])} \u00d7${run.length}`;
+    const w = textWidth1(text) * OVERFLOW_PX, h = OVERFLOW_PX * LABEL_LINE_HEIGHT;
+    const box = { x0: x * ppf - w / 2, x1: x * ppf + w / 2, y0: y * ppf - h / 2, y1: y * ppf + h / 2 };
+    if (placed.some((p) => p.x0 < box.x1 && box.x0 < p.x1 && p.y0 < box.y1 && box.y0 < p.y1)) continue;
+    placed.push(box);
+    // (Drawn with the plant nearest the middle, which every redraw of the run's plants keeps in step.)
+    const anchor = run.reduce((best, s) => (Math.hypot(s.x - x, s.y - y) < Math.hypot(best.x - x, best.y - y) ? s : best));
+    runLabels.set(anchor.id, { text, x, y });
+  }
   waiting.sort((a, b) => b.s.radius - a.s.radius);
   for (const { s, box } of waiting) {
+    if (inRun.has(s.id)) continue;
     if (placed.some((p) => p.x0 < box.x1 && box.x0 < p.x1 && p.y0 < box.y1 && box.y0 < p.y1)) continue;
     placed.push(box);
     overflowLabels.add(s.id);

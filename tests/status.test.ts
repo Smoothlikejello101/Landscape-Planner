@@ -144,6 +144,6 @@ describe('a status set on several shapes at once', () => {
     expect(nameList([plant('Rose Camelia')])).toBe('Rose Camelia');
     expect(nameList([plant('Rose Camelia'), plant('Coneflower'), plant('Coneflower')])).toBe('Rose Camelia and Coneflower ×2');
     expect(nameList(['a', 'b', 'c', 'd', 'e', 'f'].map((n) => plant(n)))).toBe('a, b, c, d and 2 more');
-    expect(nameList([bed(''), bed('')])).toBe('Unlabeled rectangle ×2');
+    expect(nameList([bed(''), bed('')])).toBe('Bed ×2'); // (unnamed: what they are, Jason, Oct 30)
   });
 });

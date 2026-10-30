@@ -3,8 +3,8 @@ import { addPhase, setPhaseForIds, setStatusForIds, updateSelectedSilent } from 
 import { state } from '../state';
 import { asksFirst, flaggedFor, statusesFor, statusLabelFor } from '../status';
 import type { Shape, Status } from '../types';
-import { typeName } from '../util';
 import { render } from './render';
+import { sheetTitle } from './props-panel';
 
 // Status and phase controls in the properties panel, for one shape or a
 // multi-selection. Chips and the phase menu re-render; the date and the new
@@ -24,9 +24,9 @@ const live = (ids: string[]): Shape[] => ids.map((id) => state.shapes.find((s) =
 const statusOf = (key: string) => (key || undefined) as Status | undefined;
 
 /** "Rose Camelia, Coneflower ×2 and 3 more": the shapes' names for a short note. */
-export function nameList(shapes: Pick<Shape, 'label' | 'type'>[], max = 4): string {
+export function nameList(shapes: Shape[], max = 4): string {
   const counts = new Map<string, number>();
-  for (const s of shapes) { const n = s.label.trim() || 'Unlabeled ' + typeName(s.type); counts.set(n, (counts.get(n) ?? 0) + 1); }
+  for (const s of shapes) { const n = s.label.trim() || sheetTitle(s); counts.set(n, (counts.get(n) ?? 0) + 1); }
   const names = [...counts].map(([n, k]) => (k > 1 ? `${n} ×${k}` : n));
   if (names.length <= max) return names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names.at(-1) : names[0];
   return names.slice(0, max).join(', ') + ` and ${names.length - max} more`;

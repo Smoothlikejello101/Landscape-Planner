@@ -605,6 +605,12 @@ describe('trees with a trunk and a shaped canopy', () => {
     const file = await buildBackupFile();
     expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
   });
+  it('keep what a shape was added as (Oct 30), and drop an odd one; older shapes have none', () => {
+    const d = sanitizeProjectData({ shapes: [tree({ id: 'a', kind: 'path' }), tree({ id: 'b', kind: 'Path; drop' }), tree({ id: 'c' })] });
+    expect(d.shapes[0]).toMatchObject({ kind: 'path' });
+    expect('kind' in d.shapes[1]).toBe(false);
+    expect('kind' in d.shapes[2]).toBe(false);
+  });
   it('keep a hardiness warning dismissed (Oct 30), and drop an odd one', () => {
     const d = sanitizeProjectData({ shapes: [tree({ id: 'a', hardyDismissed: "Too cold for zone 8a: it's rated for zones 9–11" }), tree({ id: 'b', hardyDismissed: 7 })] });
     expect(d.shapes[0]).toMatchObject({ hardyDismissed: "Too cold for zone 8a: it's rated for zones 9–11" });

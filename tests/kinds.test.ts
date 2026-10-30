@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  buildShape, isKindKey, kindDef, kindForShortcut, KINDS, nextTapPrompt, ovalFromTaps, radiusFromTaps, rectFromTaps, tapAccepted,
-} from '../src/kinds';
+  buildShape, isKindKey, kindDef, kindForShortcut, KINDS, nextTapPrompt, ovalFromTaps, radiusFromTaps, rectFromTaps, tapAccepted, kindOfShape } from '../src/kinds';
 import { canFinishDraw, drawTap, finishDraw, recentKinds, setDrawKind, setDrawPathWidth, startDraw, startKind } from '../src/draw';
 import { shapeBBox, shapeCenter } from '../src/geometry';
 import { state } from '../src/state';
@@ -257,5 +256,25 @@ describe('statuses that fit the thing', () => {
     startDraw('circle', 'tree'); tap(0, 0); tap(5, 0);
     expect(finishDraw()).toMatchObject({ status: 'planted', phase: 'Fall 2026' });
     state.viewFilter = { status: '', phase: '', showGone: false };
+  });
+});
+
+describe('what a shape is, kept and named (Jason, Oct 30)', () => {
+  const poly = (pts: [number, number][], extra: Partial<Shape> = {}) =>
+    ({ id: 'p', type: 'poly', x: 0, y: 0, rotation: 0, points: pts, color: '#a8a29e', label: '', opacity: 0.7, locked: false, role: 'path', ...extra } as unknown as Shape);
+  it('keeps what it was added as, renamed or not, while it is still that; a stored word it doesn\'t know is ignored', () => {
+    const path = buildShape('poly', [{ x: 0, y: 0 }, { x: 20, y: 0 }, { x: 20, y: 3 }, { x: 0, y: 3 }], kindDef('path'), [])!;
+    expect(path.kind).toBe('path');
+    expect(kindOfShape({ ...path, label: '' })).toBe('path');
+    const square = poly([[0, 0], [10, 0], [10, 10], [0, 10]], { kind: 'path' });
+    expect(kindOfShape(square)).toBe('path'); // (added as a path: a path, whatever its shape)
+    expect(kindOfShape({ ...square, kind: 'bed' })).toBe('patio'); // (a bed's kind on a path: not what it is now)
+    expect(kindOfShape({ ...square, kind: 'nonsense' })).toBe('patio');
+    expect(buildShape('rect', [{ x: 0, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 3 }], kindDef('plain'), [])!.kind).toBeUndefined();
+  });
+  it('reads an unnamed path-role outline from before as a path when it\'s long and narrow, a patio when it\'s squarish', () => {
+    expect(kindOfShape(poly([[0, 0], [20, 0], [20, 3], [0, 3]]))).toBe('path');
+    expect(kindOfShape(poly([[0, 0], [10, 0], [10, 14], [0, 14]]))).toBe('patio');
+    expect(kindOfShape(poly([[0, 0], [10, 0], [10, 14], [0, 14]], { label: 'Garden walk' }))).toBe('path');
   });
 });

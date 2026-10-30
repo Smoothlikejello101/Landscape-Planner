@@ -24,6 +24,7 @@ import { boxSize, shapePerimeter } from '../geometry';
 import { typeName } from '../util';
 import { updateBgImageSilent } from '../background';
 import { ask } from './ask';
+import { sheetTitle } from './props-panel';
 
 const fmtFt = (v: number) => String(Math.round(v * 10) / 10);
 
@@ -102,7 +103,7 @@ export function renderLayersPanel() {
       const info = el('div', { className: 'layer-info', role: 'button', tabIndex: 0, 'aria-label': `Select ${name}`, 'data-testid': 'layer-select' },
         s.label
           ? el('div', { className: 'layer-label' }, s.label)
-          : el('div', { className: 'layer-label empty' }, 'Unlabeled ' + typeName(s.type)),
+          : el('div', { className: 'layer-label empty' }, sheetTitle(s)),
         el('div', { className: 'layer-meta' },
           el('span', { className: 'layer-role' }, roleLabel(roleKey(s)) + (roleHidden(s) ? ' · hidden' : '')), meta)
       );

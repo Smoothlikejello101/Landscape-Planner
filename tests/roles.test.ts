@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { drawnHeight, paintOrder, seeThroughIds } from '../src/canvas';
+import { drawnHeight, labelRuns, paintOrder, seeThroughIds } from '../src/canvas';
 import { plantsById, type Plant } from '../src/plants';
 import { setRoleForIds, setRoleView } from '../src/mutations';
 import { defaultLook, isLocked } from '../src/roles';
@@ -43,6 +43,15 @@ describe('drawing order', () => {
     const c = (id: string, x: number, radius: number, extra: Partial<Shape> = {}) => ({ id, type: 'circle', x, y: 0, radius, color: '#16a34a', label: id, opacity: 0.65, locked: false, role: 'plant', ...extra } as Shape);
     state.shapes = [c('shrub', 0, 3), c('under', 1, 1), c('beside', 6.5, 3), c('far', 30, 2), c('gone', 30, 0.5, { status: 'gone' })];
     expect([...seeThroughIds(state.shapes)].sort()).toEqual(['shrub']); // (beside touches shrub's edge; far has only a gone plant under it)
+  });
+  it('names a run of the same plant once: twelve liriope in a column are one run; a gap, another name or two alone are not (Jason, Oct 30)', () => {
+    const c = (id: string, label: string, x: number, y: number) => ({ id, type: 'circle', x, y, radius: 0.75, color: '#16a34a', label, opacity: 0.65, locked: false, role: 'plant' } as CircleShape);
+    const column = Array.from({ length: 12 }, (_, i) => c('l' + i, 'Creeping liriope', 1, -27.5 + i * 1.5));
+    const runs = labelRuns([...column, c('far', 'Creeping liriope', 40, 0), c('a', 'Snowdrops', 0, 0), c('b', 'Snowdrops', 1.5, 0)]);
+    expect(runs.map((r) => r.length)).toEqual([12]);
+    // (A gap twice their width splits it in two runs of six.)
+    const split = column.map((s, i) => (i >= 6 ? { ...s, y: s.y + 3 } : s));
+    expect(labelRuns(split).map((r) => r.length)).toEqual([6, 6]);
   });
   it('leaves hidden roles out', () => {
     state.shapes = [sh('a', { role: 'shade' }), sh('b', { role: 'bed' })];
