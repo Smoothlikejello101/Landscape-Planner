@@ -138,15 +138,17 @@ export function renderShapeHandles(g: SVGElement) {
       svgEl('circle', { cx: at.x, cy: at.y, r: hit, fill: 'transparent' }),
       svgEl('rect', { x: at.x - 5.5, y: at.y - 5.5, width: 11, height: 11, rx: 2, fill: '#fff', stroke: INK, 'stroke-width': 2, 'pointer-events': 'none', transform: rot ? `rotate(${rot} ${at.x} ${at.y})` : null })));
   }
-  // While a handle is dragged: the size just above it; the turn at the shape's middle, away from the finger on the
-  // knob (Jason, 2026-10-27: with the knob below the shape, a readout above the knob sat under the finger).
+  // While a handle is dragged: the size well above it, clear of the finger (Jason, Oct 29: 32 px up, it sat under his
+  // thumb), or beside it where the top of the plan is too near; the turn at the shape's middle, away from the finger
+  // on the knob (Jason, 2026-10-27: with the knob below the shape, a readout above the knob sat under the finger).
   const live = activeOn(s);
   if (live?.moved) {
     const kind: HandleKind = live.type === 'shape-rotate' ? 'rotate' : live.handle;
     const at = positions.find((p) => p.kind === kind)?.at ?? center;
     const text = readoutText(s, kind);
     const w = text.length * 7 + 16;
-    let spot = { x: at.x, y: at.y - 32 };
+    let spot = { x: at.x, y: at.y - READOUT_CLEAR };
+    if (spot.y < 16) spot = { x: at.x < state.canvasW / 2 ? at.x + READOUT_CLEAR + w / 2 : at.x - READOUT_CLEAR - w / 2, y: Math.max(16, at.y) };
     if (kind === 'rotate') {
       // (At least this far from the knob: on a small shape, past its middle, on the side away from the knob.)
       const away = { x: center.x - at.x, y: center.y - at.y }, d = Math.hypot(away.x, away.y) || 1;

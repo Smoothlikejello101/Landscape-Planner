@@ -105,7 +105,7 @@ export function supportsNear(v: CircleShape, shapes: Shape[], byId: Record<strin
 }
 /** The support to offer a vine on its own: the nearest tree or line close enough to mean it (never a shrub). */
 export function offerFor(v: CircleShape, shapes: Shape[], byId: Record<string, Plant | undefined> = plantsById): Support | null {
-  // (Climbing already, or set to none by hand: '').
+  // (Climbing already, or set to grow as a groundcover by hand: '').
   if (!isVine(v, byId) || v.climbsOn !== undefined) return null;
   return supportsNear(v, shapes, byId).find((x) => (x.kind === 'tree' && x.dist <= VINE_REACH_TRUNK) || ((x.kind === 'line' || x.kind === 'arbor') && x.dist <= VINE_REACH_LINE)) ?? null;
 }
