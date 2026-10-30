@@ -215,6 +215,13 @@ export const SKIP_SITES = new Set([
   'lightsource.ca', 'lalandscapesupply.com', 'nacaa.com', 'estellatse.com', 'glamorwood.com', 'greenhydrokw.com', 'gogreenstripe.com', // (not plant sources)
   'rndaccessories.com', 'turfdoctortn.com',
   'forestresearch.gov.uk', // (Open Government Licence: its attribution statement must be shown, which the catalog's credits can't carry yet)
+  // Found by the terms reviews of the spacing round, batch 8 (2026-10-30)
+  'citycacti.com', 'homeopathywatch.com', 'leafsgarden.com', 'houseplantsnook.com', 'paperpuppets.co.uk', 'plantizz.com', 'wireandmoss.com', // (AI-written)
+  'thetreeplanters.com', 'aigardenplanner.com', 'foragingguru.com',
+  'auntiedogmasgardenspot.wordpress.com', 'outdoorplantcare.com', // (copied: its own footer says so; checked against a closed source)
+  'ajol.info', 'irmng.org', 'semanticscholar.org', 'truffaut.com', 'iflora.cn', // (aggregators; a marketplace; crowd-sourced)
+  'completegrow.com.au', 'bluecollarq.net', 'conservation-nature.fr', 'everydaylillie.com', 'floragard.de', 'mushroomexpert.com', // (not plant sources)
+  'ponicslife.com', 'stage--interiors.com', 'tambopatalodge.com', 'spearheadspade.com',
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
@@ -247,6 +254,9 @@ const COMPANY = {
   'fresnogardening.org': 'gardensoft', 'bayareagardening.org': 'gardensoft', 'ashlandsaveswater.org': 'gardensoft',
   'elpasodesertblooms.org': 'gardensoft', 'waterwisegardeningsb.org': 'gardensoft', 'hillsborogardening.org': 'gardensoft',
   'slcgardenwise.com': 'gardensoft', 'trivalleywaterwise.com': 'gardensoft', 'ocplants.org': 'gardensoft',
+  'ranchoinbloom.com': 'gardensoft', 'surfcitygardening.com': 'gardensoft', // (seen 2026-10-30)
+  // (One bulb shop's sites: the UK one carries its text word for word, the Swedish one is its edition. Seen 2026-10-30.)
+  'flowerbulbs.com': 'flowerbulbs.com', 'flowerbulbs.co.uk': 'flowerbulbs.com', 'blomsterlokar.info': 'flowerbulbs.com',
   // (One Hungarian grower's shop, machine-translated under local names: one source. Seen 2026-10-28.)
   'pharmarosa.be': 'pharmarosa', 'pharmarosa.co.uk': 'pharmarosa', 'pharmarosa.es': 'pharmarosa', 'pharmarosa.nl': 'pharmarosa',
   'pharmarosa.ro': 'pharmarosa', 'pharmarosaneonatal.it': 'pharmarosa',
