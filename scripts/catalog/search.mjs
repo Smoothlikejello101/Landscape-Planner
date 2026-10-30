@@ -1,10 +1,12 @@
 // Search the web for each plant, fetch the pages the search finds (by the
 // fetcher's rules: robots.txt, pace, refusals), and read their spec lines as
 // claims (docs/catalog-sources.md, "Searching the web"):
-//   node scripts/catalog/search.mjs <sample.json> <claims-out.json> [--max N] [--wait MINUTES] [--dry]
+//   node scripts/catalog/search.mjs <sample.json> <claims-out.json> [--max N] [--wait MINUTES] [--about spacing] [--dry]
 // <sample.json>: [{ id, species, botanical?, common? }, …] (names come from public/plants.json; a plant added from NC State
 // that isn't shipped yet, waiting for its size or form, isn't in it: its names come with it, from the build's records).
 // --max: pages per plant (default 10). --dry: search only, and say how many.
+// --about: what the queries ask. Default: two a plant, its name, and its name with "hardiness zone height spread sun".
+//   "spacing": one a plant, its name with "spacing" (how far apart to plant it: Jason, Oct 29, for the plants with none).
 // --wait: how long to wait for terms reviews before reading (default 0:
 //   sites not yet reviewed are left out of this run).
 //
@@ -34,11 +36,16 @@ import { TERMS_GUESSES, headline, isUseTerms, looksLikeTerms, mentionsTerms, pla
 
 const args = process.argv.slice(2);
 const flag = (name) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
-const [samplePath, outPath] = args.filter((a, i) => !a.startsWith('--') && !['--max', '--wait'].includes(args[i - 1]));
+const [samplePath, outPath] = args.filter((a, i) => !a.startsWith('--') && !['--max', '--wait', '--about'].includes(args[i - 1]));
 const max = Number(flag('--max')) || 10;
 const waitMinutes = Number(flag('--wait')) || 0;
 const dry = args.includes('--dry');
-if (!samplePath || !outPath) { console.error('usage: node scripts/catalog/search.mjs <sample.json> <claims-out.json> [--max N] [--wait MINUTES] [--dry]'); process.exit(1); }
+const QUERIES = {
+  all: (name) => [`${name} plant`, `${name} hardiness zone height spread sun`],
+  spacing: (name) => [`${name} spacing`],
+};
+const queriesOf = QUERIES[flag('--about') ?? 'all'];
+if (!samplePath || !outPath || !queriesOf) { console.error('usage: node scripts/catalog/search.mjs <sample.json> <claims-out.json> [--max N] [--wait MINUTES] [--about spacing] [--dry]'); process.exit(1); }
 
 const keyFile = join(homedir(), '.config', 'fullgrown', 'brave-key');
 const key = (process.env.BRAVE_API_KEY ?? (existsSync(keyFile) ? readFileSync(keyFile, 'utf8') : '')).trim();
@@ -73,7 +80,7 @@ for (const s of sample) {
   const cultivar = quotedCultivars(rec.botanical)[0] ?? quotedCultivars(rec.common)[0] ?? null;
   const name = cultivar ? `"${cultivar}" ${s.species}` : rec.botanical && rec.botanical !== s.species ? `"${rec.common}" ${s.species}` : `"${s.species}"`;
   const urls = [];
-  for (const q of [`${name} plant`, `${name} hardiness zone height spread sun`]) {
+  for (const q of queriesOf(name)) {
     try { urls.push(...search(q)); } catch (e) { console.error(`${s.id}: ${e.message}`); }
     await pause(1.1); // (the plan's limit: one query a second)
   }

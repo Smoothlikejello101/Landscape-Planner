@@ -1,13 +1,13 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 165 to decide, 23 plants not searched, 1437 sites whose terms are unsettled, 728 catalog checks; 3738 of 3743 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 171 to decide, 23 plants not searched, 1437 sites whose terms are unsettled, 728 catalog checks; 3742 of 3747 records audited.
 
-- [Sources disagree (92)](#sources-disagree-92)
+- [Sources disagree (94)](#sources-disagree-94)
 - [Cultivar: tree or shrub? (6)](#cultivar-tree-or-shrub-6)
 - [Edible, but rated toxic (16)](#edible-but-rated-toxic-16)
 - [Held back as implausible (3)](#held-back-as-implausible-3)
 - [A value its source no longer gives (8)](#a-value-its-source-no-longer-gives-8)
-- [Sizes whose sources are far apart (19)](#sizes-whose-sources-are-far-apart-19)
+- [Sizes whose sources are far apart (23)](#sizes-whose-sources-are-far-apart-23)
 - [Read from text, but a second reading differs (276)](#read-from-text-but-a-second-reading-differs-276)
 - [Read from text, waiting for a second reading (1)](#read-from-text-waiting-for-a-second-reading-1)
 - [Values the catalog can't take (1)](#values-the-catalog-cant-take-1)
@@ -18,7 +18,7 @@ Written by `npm run catalog:build` (docs/catalog-build.md): what the build left 
 - [Sites whose terms are unsettled (1437)](#sites-whose-terms-are-unsettled-1437)
 - [Catalog checks (451)](#catalog-checks-451)
 
-## Sources disagree (92)
+## Sources disagree (94)
 
 The audit's sources give different values, so the catalog keeps the value it had, marked unverified. Zones are on the half-zone scale (7 is 7a, 7.5 is 7b); sizes are in feet. There's no place to record a decision on these yet: they stay listed until there is.
 
@@ -26,8 +26,10 @@ The audit's sources give different values, so the catalog keeps the value it had
 | --- | --- | --- | --- |
 | Japanese forest grass 'All Gold' (`hakonechloa-macra`) | spreading | waltersgardens.com: Spreading rhizome · hortech.com: Clumping | Clumping |
 | Sideoats grama (`bouteloua-curtipendula`) | spreading | newmoonnursery.com: Slow-spreading rhizome · prairienursery.com: Clumping | Clumping |
+| Poke milkweed (`asclepias-exaltata`) | spacing | prairienursery.com: 1–2 · butterflygardenstogo.com: 2–3 | – |
 | Cream wild indigo (`baptisia-bracteata`) | flower_color | mowildflowers.net: White, Cream · allendanseed.com: Yellow | – |
 | Common sneezeweed (`helenium-autumnale`) | spreading | newmoonnursery.com: Clumping · calfloranursery.com: Mat-forming | Clumping |
+| Meadow blazing star (`liatris-ligulistylis`) | spacing | prairienursery.com: 0.5–1 · blazingstargardens.com: 1–2 | – |
 | Bradbury's beebalm (`monarda-bradburiana`) | spreading | newmoonnursery.com: Clumping · prairienursery.com: Slow-spreading rhizome; blazingstargardens.com: Spreading rhizome | Clumping |
 | Prairie sundrops (`oenothera-pilosella`) | spreading | mowildflowers.net: Aggressive rhizome · ancientrootsnativenursery.com: Mat-forming | Spreading rhizome |
 | Slender beardtongue (`penstemon-gracilis`) | flower_color | morningskygreenery.com: Lavender · ecoscapes1.com: Pink; bluethumb.org says Pink | – |
@@ -176,15 +178,17 @@ An earlier build wrote it from a source, but no source gives it now: its page is
 | Dwarf yaupon holly 'Schillings' (`ilex-vomitoria-nana-schillings`) | flower_color | ["white"], from kiefernursery.com |
 | Mulberry 'Illinois Everbearing' (`morus-alba-x-rubra-illinois-everbearing`) | fall color | true, from ncsu |
 
-## Sizes whose sources are far apart (19)
+## Sizes whose sources are far apart (23)
 
 The size shown and the other source's are 3 times apart or more, so one is likely wrong (a reading of the wrong number, a range that's a bin, a climbing vine's length). Each source's value is here; the plant's other size beside it can tell which. A decision goes in scripts/catalog/decisions.json (`leads`), and the build applies it. (the source that leads that size).
 
 | Plant | Fact | Shown | Other source | Its other size |
 | --- | --- | --- | --- | --- |
+| Prairie pussytoes (`antennaria-neglecta`) | height | 0.5–1 ft (ncsu, blazingstargardens.com, prairienursery.com) | 0.08–0.33 ft (morningskygreenery.com) | width 0.5–1 ft |
 | Bluemink (`ageratum-houstonianum`) | height | 0.5–1 ft (ncsu) | 2–5 ft (toptropicals.com, check only) | width 0.83–1 ft |
 | Norfolk Island pine (`araucaria-heterophylla`) | height | 60–80 ft (ncsu) | 3–6 ft (plantsrescue.com, check only) | width 12–20 ft |
 | Maidenhair spleenwort (`asplenium-trichomanes`) | height | 0.33–0.58 ft (ncsu) | 2–5 ft (toptropicals.com, check only) | width 0.33–0.58 ft |
+| Trumpet creeper (`campsis-radicans`) | width | 4–10 ft (ncsu) | 20–30 ft (flowerpowerfarms.com) | height 30–40 ft |
 | European chestnut (`castanea-sativa`) | height | 80–100 ft (ncsu) | 20 ft (toptropicals.com, check only) | width 30–50 ft |
 | Madagascar periwinkle (`catharanthus-roseus`) | height | 0.5–1.5 ft (ncsu) | 3 ft (plantsrescue.com, check only) | width 0.67–1 ft |
 | Japanese cedar (`cryptomeria-japonica`) | height | 50–70 ft (ncsu) | 20 ft (toptropicals.com, check only) | width 20–30 ft |
@@ -199,7 +203,9 @@ The size shown and the other source's are 3 times apart or more, so one is likel
 | Peperomia clusiifolia (`peperomia-clusiifolia`) | height | 0.5–1 ft (ncsu) | 2–5 ft (toptropicals.com, check only) | width 0.5–1 ft |
 | Platinum pepper (`peperomia-griseoargentea`) | height | 0.5–0.67 ft (ncsu) | 2–5 ft (toptropicals.com, check only) | width 0.42–0.58 ft |
 | Schima (`schima-wallichii`) | height | 20–120 ft (ncsu) | 10–20 ft (toptropicals.com, check only) | width 20–40 ft |
+| Autumn Moor Grass (`sesleria-autumnalis`) | width | 0.5–1 ft (ncsu) | 18 ft (newmoonnursery.com) | height 1–2 ft |
 | Blackeyed Susan vine (`thunbergia-alata`) | height | 3–8 ft (ncsu) | 68 ft (plantsrescue.com, check only) | width 3–6 ft |
+| Savin Juniper 'Skandia' (`juniperus-sabina-skandia`) | width | 8–10 ft (ncsu) | 2–3 ft (cgfloral.com) | height 1–1.5 ft |
 | Cumin (`cuminum-cyminum`) | height | 0.67–1.33 ft (outsidepride.com) | 2–5 ft (toptropicals.com, check only) |  |
 
 ## Read from text, but a second reading differs (276)
@@ -240,7 +246,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Blue-stemmed goldenrod (`solidago-caesia`) | deer | Resistant | Occasional | newmoonnursery.com | Resistant |
 | Zigzag goldenrod (`solidago-flexicaulis`) | spreading | Clumping | Spreading rhizome | newmoonnursery.com | Aggressive rhizome (the earlier list) |
 | Sky blue aster (`symphyotrichum-oolentangiense`) | deer | Resistant | Occasional | plantnative.org | Resistant |
-| Early meadow rue (`thalictrum-dioicum`) | leaves in winter | deciduous | nothing | ncsu | nothing |
+| Early meadow rue (`thalictrum-dioicum`) | leaves in winter | deciduous | nothing | ncsu | deciduous |
 | Sessile bellwort (`uvularia-sessilifolia`) | spreading | Runner (stolons) | Spreading rhizome | ncsu | Spreading rhizome (the earlier list) |
 | Blue vervain (`verbena-hastata`) | spreading | Spreading rhizome | Clumping | newmoonnursery.com | Slow-spreading rhizome |
 | Prairie dropseed (`sporobolus-heterolepis`) | self-sowing | Modest | nothing | ncsu | Modest (the earlier list) |
@@ -583,8 +589,8 @@ Where a source gave nothing, counted only:
 
 - 359 plants: no NC State page in the list: never asked for (see "Not looked up yet"), asked for and NC State has none (a 404), a genus or cultivar group (not read by the rule), or a page not matched to the plant yet
 - 1174 plants: no USDA PLANTS symbol: a genus or cultivar group (not searched), or a name PLANTS has no species entry for
-- 1663 plants: a USDA PLANTS profile with no characteristics saved (size, sun and so on): PLANTS has none, or they were never fetched (see "Not looked up yet")
-- 2315 plants: not on the Arkansas atlas's maps under its name (mostly plants not recorded wild in Arkansas)
+- 1667 plants: a USDA PLANTS profile with no characteristics saved (size, sun and so on): PLANTS has none, or they were never fetched (see "Not looked up yet")
+- 2317 plants: not on the Arkansas atlas's maps under its name (mostly plants not recorded wild in Arkansas)
 - 345 plants: the Arkansas atlas not looked up (a genus or cultivar group: no species name)
 - 85 plants: a cultivar read from species-level pages: its size, form and flower color are taken only from a page about the cultivar
 
@@ -592,7 +598,7 @@ Kew's checklist has no one accepted species for 37 catalog names (hybrids, names
 
 New plants (scripts/catalog/additions.mjs):
 
-- 0 plants added from NC State's Plant Toolbox in this build (2902 in all)
-- 801 plants waiting, for size (661), form (94), hardiness (236), sun (89), its species (19)
+- 4 plants added from NC State's Plant Toolbox in this build (2906 in all)
+- 797 plants waiting, for size (658), form (94), hardiness (236), sun (89), its species (18)
 - 589 pages left out: a vegetable (86), a genus (294), a weed (204), in the catalog (5)
 - 18 pages the sitemap lists that aren't saved yet

@@ -3,7 +3,7 @@ import type { Plant } from '../src/plants';
 import type { CircleShape, Shape } from '../src/types';
 import { crowdingOf } from '../src/crowding';
 import { withLocalParts } from '../src/sync/engine';
-import { arborCover, isVine, offerFor, strandedVines, supportFrom, supportOf, supportsNear, vineBand, vinesFor, VINE_BASE_RADIUS } from '../src/vines';
+import { arborCover, groundcoverRadius, isVine, offerFor, strandedVines, supportFrom, supportOf, supportsNear, vineBand, vinesFor, VINE_BASE_RADIUS } from '../src/vines';
 import { latticePath, slatsPath } from '../src/structures';
 import { kindOfShape } from '../src/kinds';
 
@@ -167,3 +167,19 @@ describe('a trellis and an arbor', () => {
   });
 });
 
+
+// A vine grown as a groundcover (Jason, Oct 29: option c): its patch by its spacing, a faint ring at its spread.
+describe('a vine grown as a groundcover', () => {
+  const spaced = { ...byId, jessamine: { ...byId.jessamine, spacing: { min: 3, max: 5, med: 4 } } as Plant };
+  it('is a patch half its spacing across, no wider than its spread; with no spacing on record, its spread as before', () => {
+    expect(groundcoverRadius(circle('v', 'jessamine', 0, 0, 12.5), spaced)).toBe(2);
+    expect(groundcoverRadius(circle('v', 'jessamine', 0, 0, 1.5), spaced)).toBe(1.5);
+    expect(groundcoverRadius(circle('v', 'jessamine', 0, 0, 12.5), byId)).toBeNull();
+    expect(groundcoverRadius(circle('a', 'aster', 0, 0, 1), spaced)).toBeNull();
+  });
+  it('crowds its neighbors by that patch, not by the length it would climb', () => {
+    const v = circle('v', 'jessamine', 0, 0, 12.5), a = circle('a', 'aster', 5, 0, 1);
+    expect(crowdingOf(v, [v, a], spaced)).toEqual([]);
+    expect(crowdingOf(v, [v, a], byId).length).toBeGreaterThan(0);
+  });
+});

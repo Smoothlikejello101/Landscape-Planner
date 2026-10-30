@@ -65,6 +65,8 @@ const FACTS = {
   form: ['form', (v, enums) => { const l = [v].flat().filter((f) => enums.form?.includes(f)); return l.length ? (l.length === 1 ? l[0] : l.slice(0, 3)) : undefined; }],
   height: ['height', range],
   width: ['width', range],
+  // How far apart to plant it (a nursery's or an extension's spec line: web.mjs, Oct 29), for a groundcover's circle.
+  spacing: ['spacing', range],
   zone_min: ['zone_min', ZONE],
   zone_max: ['zone_max', ZONE],
   sun_most: ['sun_most', SUN],

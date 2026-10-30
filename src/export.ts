@@ -14,7 +14,7 @@ import { shadeOpacity } from './sun';
 import { plantsById } from './plants';
 import { LABEL_LINE_HEIGHT, plantLabelFit } from './labels';
 import { canopyInnerRadius, canopyPoints, isTree, partsToSvg, trunkParts, trunkReachPx } from './trees';
-import { supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
+import { groundcoverRadius, supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
 import { bandBlooms, coverBlooms, levelOf } from './looks';
 import { lookFor, lookMarkup, lookShown } from './plant-looks';
 
@@ -92,7 +92,9 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
       + (name ? text(cx, cy - Math.max(4 * k, VINE_DOT_RADIUS * scale) - 9 * k, 11, name) : '');
   }
   if (s.type === 'circle') {
-    const cx = (s.x - originX) * scale, cy = (s.y - originY) * scale, r = s.radius * scale;
+    // (A vine grown as a groundcover: its patch by its spacing, a faint ring out to its spread, as on the plan.)
+    const ground = groundcoverRadius(s);
+    const cx = (s.x - originX) * scale, cy = (s.y - originY) * scale, r = (ground ?? s.radius) * scale;
     // A plant drawn as an illustration, as on the plan (src/looks.ts): drawn at its size on the screen (r / k), scaled.
     const look = lookShown(s);
     const paint = `fill="${look ? 'none' : s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}`;
@@ -105,6 +107,7 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
     out += s.canopy
       ? `<polygon points="${canopyPoints(s, (x, y) => [(x - originX) * scale, (y - originY) * scale])}" ${paint} stroke-linejoin="round"/>`
       : `<circle cx="${cx}" cy="${cy}" r="${r}" ${paint}/>`;
+    if (ground != null && ground < s.radius - 0.05) out += `<circle cx="${cx}" cy="${cy}" r="${s.radius * scale}" fill="none" stroke="${s.color}" stroke-opacity="0.45" stroke-width="${1.5 * k}" stroke-dasharray="${k} ${6 * k}" stroke-linecap="round"/>`;
     const tree = isTree(s);
     if (tree) out += partsToSvg(trunkParts(s, cx, cy, scale, false, k));
     const name = displayLabel(s);

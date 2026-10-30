@@ -22,7 +22,7 @@ import { isSelected } from './selection';
 import { state } from './state';
 import { isArbor, isTrellis, LATTICE_STEP, latticePath, SLAT_STEP, slatsPath } from './structures';
 import type { CircleShape, Point, Shape, ShapeFilter, TextShape } from './types';
-import { supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
+import { groundcoverRadius, supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
 import { lookFor, lookMarkup, lookShown } from './plant-looks';
 import { bandBlooms, coverBlooms, levelOf } from './looks';
 
@@ -203,7 +203,10 @@ export function shapeGroup(s: Shape): SVGGElement {
   } else if (s.type === 'circle') {
     const cx = (s.x - state.offsetX) * ppf;
     const cy = (s.y - state.offsetY) * ppf;
-    const r = s.radius * ppf;
+    // (A vine grown as a groundcover: its patch by its spacing, a faint ring out to its spread: src/vines.ts.)
+    const ground = groundcoverRadius(s);
+    const r = (ground ?? s.radius) * ppf;
+    if (ground != null && ground < s.radius - 0.05) g0.push(svgEl('circle', { 'data-role': 'vine-reach-ring', cx, cy, r: s.radius * ppf, fill: 'none', stroke: s.color, 'stroke-opacity': 0.45, 'stroke-width': 1.5, 'stroke-dasharray': '1 6', 'stroke-linecap': 'round', 'pointer-events': 'none' }));
     // A plant drawn as an illustration (src/looks.ts): the drawing, clipped to its outline, under its rim, which keeps
     // the taps. Off the screen (by half a screen), it's drawn at its simplest: a pan shows it in full on release.
     if (lookShown(s)) {

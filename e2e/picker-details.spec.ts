@@ -552,3 +552,14 @@ test('a plant\'s facts fold into groups that open with a tap, stay open until th
   const again = await open('Common witch hazel');
   await expect(again.getByTestId('group-growing')).toHaveAttribute('aria-expanded', 'false');
 });
+
+test("a plant's spacing, from its sources' spec lines (Oct 29), under Growing", async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Buttonbush');
+  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Buttonbush$/ }) }).first();
+  await item.getByTestId('plant-row').click();
+  const row = item.getByTestId('plant-details').locator('dt', { hasText: /^Spacing$/ }).locator('xpath=following-sibling::dd[1]');
+  await expect(row).toContainText('Plant 3–5 ft apart');
+  await expect(row).toContainText(/UF|ufl|Prairie Nursery|prairienursery/i);
+});
