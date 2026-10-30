@@ -10,9 +10,12 @@ import { savedPage } from './pages.mjs';
 import { arkatlasStatus, mnwildFields, ncsuFields, usdaFields } from './extract.mjs';
 import { sameTaxon } from './usda-counties.mjs';
 import { acceptsPage, ncsuPageName, ownCultivarPage, recordCultivars, titleCultivar } from './ncsu-page.mjs';
-import { arkatlasClaims, asDecided, combine, FLOWER_FACTS, flowerless, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims } from './claims.mjs';
+import { arkatlasClaims, asDecided, combine, FLOWER_FACTS, flowerColors, flowerless, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims } from './claims.mjs';
 import { ncsuDeer, ncsuDescription, ncsuNames, ncsuProseClaims, ncsuZones } from './prose.mjs';
 import { gateProse, GATED, loadReadings, settleDegree } from './second-reading.mjs';
+
+/** Whether the color a description gives its flowers can order its NC State colors: one of several listed, not the first. */
+const leadMatters = (lead, ncsu) => { const listed = flowerColors(ncsu?.['Flower Color'] ?? []).filter((x) => x !== 'insignificant'); return listed.length > 1 && listed.includes(lead) && listed[0] !== lead; };
 
 const [samplePath, atlasPath, outPath, extraPath] = process.argv.slice(2);
 /** Claims gathered elsewhere (the web search, the Tallamy data), by plant id. */
@@ -110,7 +113,9 @@ for (const s of sample) {
     ...fields.map((c) => ({ ...c, cultivarPage: !!seen.ncsu && !speciesPage, ...(c.fallback ? { fallback: { ...c.fallback, cultivarPage: !!seen.ncsu && !speciesPage } } : {}) }))
       .map((c) => (c.fact === 'host' ? { ...c, v: onlyCaterpillars(c.v, lepGenera) } : c)).filter((c) => !(c.fact === 'host' && !c.v.length)),
     // Its description, read by rule (prose.mjs), only for what its fields don't say.
-    ...ncsuProseClaims(ncsuHtml).filter((c) => !fields.some((f) => f.fact === c.fact)).map((c) => ({ ...c, cultivarPage: !!seen.ncsu && !speciesPage })).map(onPage),
+    // (The color its text gives its flowers only orders the colors its field lists: kept only where it's one of several
+    // listed and not already the first, the one place it can change anything.)
+    ...ncsuProseClaims(ncsuHtml).filter((c) => !fields.some((f) => f.fact === c.fact)).filter((c) => c.fact !== 'flower_lead' || leadMatters(c.v, ncsu)).map((c) => ({ ...c, cultivarPage: !!seen.ncsu && !speciesPage })).map(onPage),
     ...mnwildClaims(mnwild), ...arkatlasClaims(ar), ...usdaClaims(usda), ...tallamyClaims(tallamy, s.species),
     ...(extraClaims[s.id] ?? []),
   ];

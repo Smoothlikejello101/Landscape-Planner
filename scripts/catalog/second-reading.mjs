@@ -11,11 +11,11 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { PROSE_HABITS } from './prose.mjs';
+import { FRUIT_SET, LEAD_VALUES, PROSE_HABITS, SEXES } from './prose.mjs';
 
 export const READINGS = 'scripts/catalog/second-reading.json';
 /** The facts a second reading covers (a cleome's zones, read from text in two places, were checked by hand instead). */
-export const GATED = new Set(['foliage', 'deer', 'self_seed', 'habit']);
+export const GATED = new Set(['foliage', 'deer', 'self_seed', 'habit', 'fruit_set', 'sex', 'flower_lead']);
 
 /** The text a reading is of, as a short hash: its sentences, in order. */
 export const textHash = (sentences) => createHash('sha256').update((sentences ?? []).join('\n')).digest('hex').slice(0, 16);
@@ -103,6 +103,9 @@ export const READ_VALUES = {
   deer: ['Resistant', 'Occasional', 'Candy'],
   self_seed: ['Prolific', 'Modest', 'Unrated', 'Sterile'],
   habit: PROSE_HABITS,
+  fruit_set: FRUIT_SET,
+  sex: SEXES,
+  flower_lead: LEAD_VALUES,
 };
 /**
  * A reader's answers ([{ key, text, read }], docs/second-reading.md) merged into the readings, each checked against its
@@ -124,13 +127,17 @@ export function mergeReadings(readings, tasks, answers, at) {
     if (facts.length !== t.facts.length || !t.facts.every((f) => facts.includes(f))) { problems.push(`${a.key}: answered ${facts.join(', ')}, asked ${t.facts.join(', ')}`); continue; }
     const bad = facts.filter((f) => read[f] !== null && !READ_VALUES[f]?.includes(read[f]));
     if (bad.length) { problems.push(`${a.key}: values not allowed (${bad.map((f) => `${f}: ${JSON.stringify(read[f])}`).join(', ')})`); continue; }
-    out[a.key] = { text: t.text, read: Object.fromEntries(t.facts.map((f) => [f, read[f]])), at };
+    // (A page read before for other facts, its text the same, keeps those readings: a new fact adds to them.)
+    const had = readings[a.key]?.text === t.text ? readings[a.key].read : {};
+    out[a.key] = { text: t.text, read: { ...had, ...Object.fromEntries(t.facts.map((f) => [f, read[f]])) }, at };
   }
   for (const t of tasks) if (!seen.has(t.key)) problems.push(`${t.key}: no answer`);
   return { readings: out, problems };
 }
 /** The readings file as written: one page per line, by key. */
-export const readingsText = (readings) => `{\n${Object.keys(readings).sort().map((k) => `${JSON.stringify(k)}: ${JSON.stringify(readings[k])}`).join(',\n')}\n}\n`;
+export const readingsText = (readings) => `{\n${Object.keys(readings).sort().map((k) => `${JSON.stringify(k)}: ${spaced(readings[k])}`).join(',\n')}\n}\n`;
+/** One value as JSON with a space after each colon and comma, as the file has always been written. */
+const spaced = (v) => (v && typeof v === 'object' ? (Array.isArray(v) ? `[${v.map(spaced).join(', ')}]` : `{${Object.entries(v).map(([k, x]) => `${JSON.stringify(k)}: ${spaced(x)}`).join(', ')}}`) : JSON.stringify(v));
 
 // Merge readers' answers into the readings:
 //   node scripts/catalog/second-reading.mjs <tasks.json> <answers.json>... --at YYYY-MM-DD

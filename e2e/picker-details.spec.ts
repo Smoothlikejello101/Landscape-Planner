@@ -296,7 +296,7 @@ test('a plant poisonous to people says so, beside Edible, and the picker can kee
   const row = (label: string) => details.locator('dt', { hasText: new RegExp(`^${label}$`) }).locator('xpath=following-sibling::dd[1]');
   await expect(row('Poisonous to people')).toContainText('Leaves, roots, seeds and stems, high severity; can irritate skin');
   await expect(row('Poisonous to people').locator('.details-src')).toContainText('NC State');
-  await expect(row('Edible')).toContainText(/^Yes, though it's also listed as poisonous to people/);
+  await expect(row('Edible')).toContainText(/^Fruit, though it's also listed as poisonous to people/); // (the part NC State marks edible)
   // A plant whose NC State page lists none says so, and the filter keeps only such plants.
   await page.getByTestId('plant-search').fill('Autumn Bride');
   const heuchera = page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" });

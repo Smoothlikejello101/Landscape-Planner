@@ -196,6 +196,16 @@ describe('leaves: color, winter, fall color, growth rate', () => {
     expect(v('fruit_color')).toEqual(['red/burgundy']);
     expect(ncsuClaims({}).filter((x: { fact: string }) => ['bark', 'bark_color', 'stem_color', 'fruit_season', 'fruit_color'].includes(x.fact))).toEqual([]);
   });
+  it('reads which parts are edible, and edible from a part alone (Jason, Oct 30)', () => {
+    const f = ncsuFields('<dl><dt>Fruit Value To Gardener:</dt><dd>Edible</dd><dd>Showy</dd><dt>Leaf Value To Gardener:</dt><dd>Edible</dd>'
+      + '<dt>Flower Value To Gardener:</dt><dd>Fragrant</dd></dl>');
+    const c = ncsuClaims(f);
+    const v = (fact: string) => c.find((x: { fact: string }) => x.fact === fact)?.v;
+    expect(v('edible_parts')).toEqual(['fruit', 'leaves']);
+    expect(v('edible')).toBe(true); // (no "Edible" tag: a part is enough)
+    expect(ncsuClaims({ 'Plant Type': ['Edible', 'Shrub'] }).filter((x: { fact: string }) => x.fact.startsWith('edible')).map((x: { fact: string }) => x.fact)).toEqual(['edible']);
+    expect(ncsuClaims({ 'Fruit Value To Gardener': ['Showy'] }).filter((x: { fact: string }) => x.fact.startsWith('edible'))).toEqual([]);
+  });
   it('evergreen, semi-evergreen or deciduous: a plant listed as both depends on the winter', () => {
     expect(ncsuFoliage(['Deciduous'])).toBe('deciduous');
     expect(ncsuFoliage(['Needled Evergreen'])).toBe('evergreen');
@@ -612,6 +622,17 @@ describe('claims and how they combine', () => {
     expect(aster.flower_color).toMatchObject({ v: ['Purple/Lavender', 'Gold/Yellow'], check: 'confirmed' });
     expect(combine([nc('flower_color', ['Gold/Yellow', 'Orange', 'Pink'])]).flower_color.v).toEqual(['Gold/Yellow', 'Orange', 'Pink']); // (one source: as it says)
     expect(byBacking(['Blue', 'White'], [{ v: ['Blue', 'White'] }, { v: 'white' }, { v: ['Lavender'] }])).toEqual(['White', 'Blue']);
+  });
+  it('among colors backed equally, puts first the one its description gives its flowers, never adding one (Jason, Oct 30)', () => {
+    const lead = (v: string) => ({ fact: 'flower_lead', v, src: 'ncsu', kind: 'authority', says: 'Large red flowers open in winter.', prose: true });
+    const camellia = combine([nc('flower_color', ['Gold/Yellow', 'Pink', 'Red/Burgundy', 'White']), lead('red')]);
+    expect(camellia.flower_color.v).toEqual(['Red/Burgundy', 'Gold/Yellow', 'Pink', 'White']);
+    expect(camellia.flower_color.lead).toEqual({ says: 'Large red flowers open in winter.' });
+    expect(combine([nc('flower_color', ['Gold/Yellow', 'Pink']), lead('blue')]).flower_color.v).toEqual(['Gold/Yellow', 'Pink']); // (not listed: as it was)
+    // (Backed more by the sources: still first.)
+    const aster = combine([nc('flower_color', ['Gold/Yellow', 'Purple/Lavender']), nc('flower_color', ['Purple'], 'nursery', 'mowildflowers.net'), lead('yellow')]);
+    expect(aster.flower_color.v).toEqual(['Purple/Lavender', 'Gold/Yellow']);
+    expect(byBacking(['Pink', 'White', 'Red'], [{ v: ['Pink', 'White', 'Red'] }], 'white')).toEqual(['White', 'Pink', 'Red']);
   });
   it('shows USDA only as a flag, and only where it differs by more than a zone', () => {
     const u = usdaClaims({ 'Temperature, Minimum (°F)': ['7'], 'Native status': ['L48: Native'] });

@@ -76,6 +76,15 @@ export interface Plant {
   /** Its older botanical names (Kew's homotypic synonyms: "Sedum spectabile"), searched (a cultivar: its species'). */
   botanical_synonyms?: string[];
   edible?: boolean;
+  /** Which parts are edible, as NC State marks them (src/catalog.ts EDIBLE_PARTS; a cultivar: its species'). */
+  edible_parts?: string[];
+  /**
+   * What it takes to fruit, read from its description (a cultivar: its own page's, else its species'): `separate` (male and
+   * female plants), `partner` (another cultivar or strain needed), `better` (fruits alone, better with a partner), `self`.
+   */
+  fruit_set?: 'separate' | 'partner' | 'better' | 'self';
+  /** A cultivar's own sex, where its page says (never inherited). */
+  sex?: 'male' | 'female';
   fall_color?: boolean;
   /** Its fall leaf colors (src/catalog.ts FALL_COLORS). */
   fall_colors?: string[];

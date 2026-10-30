@@ -6,8 +6,8 @@
 // as does a value that would make the record implausible (the app's catalogWarnings: 1 in tall, zones
 // backwards).
 
-import { ATTRACTS, BARK, BARK_COLORS, bloomSeasons, CLIMBING, flowerColors, FORM_WORDS, HABIT_FORMS, ncsuNoPoison, PART_COLORS, PETS, SEASONS, TEXTURES, TOLERATES } from './claims.mjs';
-import { PROSE_HABITS } from './prose.mjs';
+import { ATTRACTS, BARK, BARK_COLORS, bloomSeasons, CLIMBING, EDIBLE_PARTS, flowerColors, FORM_WORDS, HABIT_FORMS, ncsuNoPoison, PART_COLORS, PETS, SEASONS, TEXTURES, TOLERATES } from './claims.mjs';
+import { FRUIT_SET, PROSE_HABITS, SEXES } from './prose.mjs';
 
 /** The checks the app takes (src/catalog.ts): disputed facts aren't written. */
 const SETTLED = new Set(['confirmed', 'single', 'likely', 'reported']);
@@ -77,9 +77,12 @@ const FACTS = {
   // src/spread.ts knows).
   self_seed: ['self_seed', (v, enums) => (enums.self_seed?.includes(v) ? v : undefined)],
   habit: ['habit', oneOf(PROSE_HABITS)],
+  fruit_set: ['fruit_set', oneOf(FRUIT_SET)],
+  sex: ['sex', oneOf(SEXES)],
   clay_ok: ['clay_ok', yes],
   wet_feet: ['wet_feet', yes],
   edible: ['edible', yes],
+  edible_parts: ['edible_parts', listOf(EDIBLE_PARTS)],
   // (Yes, or no where NC State calls its fall color "Insignificant": a source saying so, not silence.)
   fall_color: ['fall_color', (v) => (typeof v === 'boolean' ? v : undefined)],
   fall_colors: ['fall_colors', listOf(FALL_COLORS)],
@@ -190,6 +193,8 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
         continue;
       }
       if (f.v == null || !SETTLED.has(f.check)) continue;
+      // (A sex is a cultivar's own: a species has both.)
+      if (key === 'sex' && !rec.parent && !/['‘’]/.test(`${rec.botanical ?? ''} ${rec.common ?? ''}`)) continue;
       const v = conv(f.v, enums, f);
       // (The sources can't say Wetland yet: it waits on USDA's wetland list. A plant the catalog calls a wetland
       // plant keeps that until then, rather than becoming merely "High".)
@@ -221,6 +226,8 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
       facts[to] = out;
       written.add(to);
     }
+    // Its edible parts only beside "edible" (a plant rated toxic and left unmarked, or waiting on a person, lists none).
+    if (facts.edible_parts && valueOf(facts.edible) !== true && valueOf(parent?.facts.edible) !== true) { delete facts.edible_parts; written.delete('edible_parts'); }
     // Values that make the record implausible (new warnings, not the kinds it had: "40 ft is tall for a shrub"
     // becoming "50 ft …" is the same doubt, about its form) go back, for review.
     // (Of a kind it had, a height that's grown past double is a new doubt: 40 ft for a shrub becoming 400 ft.)

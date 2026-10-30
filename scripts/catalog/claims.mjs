@@ -24,16 +24,16 @@ export const TIER = {
   form: 'description', bloom_season: 'description', bloom_months: 'description', flower_color: 'description',
   fall_color: 'description', host: 'description', host_genus: 'description', edible: 'description', low_branched: 'description',
   attracts: 'description', tolerates: 'description', maintenance_level: 'description', thorns: 'description', winter_interest: 'description',
-  bark: 'description', bark_color: 'description', stem_color: 'description', fruit_season: 'description', fruit_color: 'description',
+  bark: 'description', bark_color: 'description', stem_color: 'description', fruit_season: 'description', fruit_color: 'description', edible_parts: 'description',
   leaf_color: 'description', foliage: 'description', needles: 'description', fall_colors: 'description', growth_rate: 'description',
-  self_seed: 'description', habit: 'description', flower_form: 'description', leaf_form: 'description', texture: 'description', habit_form: 'description', climbs_by: 'description',
+  self_seed: 'description', habit: 'description', fruit_set: 'description', sex: 'description', flower_lead: 'description', flower_form: 'description', leaf_form: 'description', texture: 'description', habit_form: 'description', climbs_by: 'description',
 };
 const RANK = { authority: 3, breeder: 2, nursery: 1, blog: 0 };
 /** Facts decided by sides (`bySides`), the other side kept beside the value (`alt`; never safety facts). */
 export const REPORTABLE = new Set(['height', 'width', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'deer']);
 /** Facts a cultivar is bred to change: only a page for the cultivar itself speaks to them. */
 export const CULTIVAR_OWN = new Set(['height', 'width', 'spacing', 'flower_color', 'form', 'leaf_color', 'fall_colors', 'growth_rate', 'attracts', 'winter_interest',
-  'bark_color', 'stem_color', 'fruit_color', 'habit', 'self_seed', 'flower_form', 'habit_form']);
+  'bark_color', 'stem_color', 'fruit_color', 'habit', 'self_seed', 'flower_form', 'habit_form', 'fruit_set', 'sex', 'flower_lead']);
 
 // ---------- Values ----------
 
@@ -218,10 +218,15 @@ export const flowerColors = (values) => [...new Set((values ?? []).map((v) => FL
  * Purple/Lavender" for New England aster, its disks before its rays). `v`: the deciding source's words; `usable`:
  * every claim used.
  */
-export function byBacking(v, usable) {
+export function byBacking(v, usable, lead = null) {
   const lists = usable.map((u) => flowerColors([u.v].flat()));
   const count = (x) => { const c = flowerColors([x])[0]; return c ? lists.filter((l) => l.includes(c)).length : 0; };
-  return v.map((x, i) => ({ x, i, n: count(x) })).sort((a, b) => b.n - a.n || a.i - b.i).map((o) => o.x);
+  const sorted = v.map((x, i) => ({ x, i, n: count(x) })).sort((a, b) => b.n - a.n || a.i - b.i);
+  // (Among those backed most, the color its description first gives its flowers leads: `lead`, prose.mjs flowerLeadFromProse.
+  // Jason, 2026-10-30. It only orders: a color no source listed isn't added.)
+  const at = lead ? sorted.findIndex((o) => o.n === sorted[0].n && flowerColors([o.x])[0] === lead) : -1;
+  if (at > 0) sorted.unshift(...sorted.splice(at, 1));
+  return sorted.map((o) => o.x);
 }
 /** USDA's plant groups that flower (its others: Gymnosperm, Fern, Lycopod, Horsetail, Moss, Whisk-fern…). */
 const FLOWERING = new Set(['Dicot', 'Monocot']);
@@ -260,6 +265,10 @@ export const BARK = ['smooth', 'furrowed', 'fissured', 'ridges', 'scaly', 'lenti
 export const BARK_COLORS = ['light gray', 'dark gray', 'light brown', 'dark brown', 'red/burgundy', 'orange', 'green', 'black', 'white'];
 /** NC State's color groups for stems and fruit ("Red/Burgundy"), as the catalog keeps them; "Insignificant" isn't a color. */
 export const PART_COLORS = ['red/burgundy', 'orange', 'gold/yellow', 'green', 'blue', 'purple/lavender', 'pink', 'white', 'cream/tan', 'brown/copper', 'gray/silver', 'black'];
+/** The parts NC State marks edible (its "Fruit/Flower/Leaf Value To Gardener: Edible"), as the catalog keeps them. */
+export const EDIBLE_PARTS = ['fruit', 'flowers', 'leaves'];
+const PART_FIELD = { fruit: 'Fruit Value To Gardener', flowers: 'Flower Value To Gardener', leaves: 'Leaf Value To Gardener' };
+export const edibleParts = (f) => EDIBLE_PARTS.filter((p) => (f[PART_FIELD[p]] ?? []).includes('Edible'));
 /** When its fruit is there to see ("Display/Harvest Time"). */
 export const SEASONS = ['spring', 'summer', 'fall', 'winter'];
 /** NC State's words for a list, in the catalog's (lower case), keeping only those known; each once. */
@@ -284,7 +293,10 @@ export function ncsuClaims(f) {
   const poison = ncsuPoison(f);
   if (poison) c.push({ fact: 'poison', v: poison, src: 'ncsu', kind: 'authority' });
   if ((f['Resistance To Challenges'] ?? []).includes('Deer')) add('deer', 'Resistant');
-  if ((f['Plant Type'] ?? []).includes('Edible')) add('edible', true);
+  // Edible: tagged so, or a part marked edible (Jason, 2026-10-30: which part, too). Never "not edible" from its absence.
+  const parts = edibleParts(f);
+  if ((f['Plant Type'] ?? []).includes('Edible') || parts.length) add('edible', true);
+  add('edible_parts', parts);
   // Fall color: the colors it lists; "Insignificant" alone says it has none to speak of. (A word not known
   // here says neither: nothing is read from it.)
   if (f['Deciduous Leaf Fall Color']) {
@@ -573,7 +585,12 @@ export function combine(claims, { cultivar = false, prefer = null } = {}) {
     else if (best.kind === 'authority') check = agreeing.length ? 'confirmed' : 'single';
     else check = agreeing.length ? 'likely' : 'reported';
     const r = { v: best.v, src: [best.src, ...agreeing.map((c) => c.src)], check, kind: best.kind };
-    if (fact === 'flower_color' && Array.isArray(r.v)) r.v = byBacking(r.v, usable);
+    if (fact === 'flower_color' && Array.isArray(r.v)) {
+      // (The lead its description gives: from the deciding source's page, a cultivar's own page for a cultivar.)
+      const lead = claims.find((c) => c.fact === 'flower_lead' && c.v != null && c.src === best.src && (!cultivar || c.cultivarPage));
+      r.v = byBacking(r.v, usable, lead?.v ?? null);
+      if (lead && flowerColors([r.v[0]])[0] === lead.v && r.v.length > 1) r.lead = { says: lead.says ?? null };
+    }
     if (best.at) r.at = best.at;
     // (Read from a source's description, prose.mjs: the sentence it was read from, for the build's own files and the
     // review; the catalog says only where it was read.)

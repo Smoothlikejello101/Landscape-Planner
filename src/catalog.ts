@@ -113,7 +113,7 @@ export interface Provenance {
  */
 export const INHERITED = new Set([
   'form', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'humidity', 'tox', 'poison', 'dog', 'thorns', 'foliage', 'winter_leaves', 'needles',
-  'poison_parents', 'native', 'native_na', 'botanical_synonyms', 'host', 'hosts', 'host_genus', 'nectar', 'bird', 'deer', 'edible', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'invasive', 'bloom_season',
+  'poison_parents', 'native', 'native_na', 'botanical_synonyms', 'host', 'hosts', 'host_genus', 'nectar', 'bird', 'deer', 'edible', 'edible_parts', 'fruit_set', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'invasive', 'bloom_season',
   'tolerates', 'problem_for', 'maintenance_level', 'bark', 'fruit_season', 'leaf_form', 'texture', 'climbs_by',
 ]);
 
@@ -201,6 +201,11 @@ export const BARK = ['smooth', 'furrowed', 'fissured', 'ridges', 'scaly', 'lenti
 export const BARK_COLORS = ['light gray', 'dark gray', 'light brown', 'dark brown', 'red/burgundy', 'orange', 'green', 'black', 'white'];
 export const PART_COLORS = ['red/burgundy', 'orange', 'gold/yellow', 'green', 'blue', 'purple/lavender', 'pink', 'white', 'cream/tan', 'brown/copper', 'gray/silver', 'black'];
 export const FRUIT_SEASONS = ['spring', 'summer', 'fall', 'winter'];
+/** The parts NC State marks edible (scripts/catalog/claims.mjs EDIBLE_PARTS). */
+export const EDIBLE_PARTS = ['fruit', 'flowers', 'leaves'];
+/** What it takes to fruit, and a cultivar's sex, read from its description (scripts/catalog/prose.mjs FRUIT_SET, SEXES). */
+export const FRUIT_SET = ['separate', 'partner', 'better', 'self'];
+export const SEXES = ['male', 'female'];
 /**
  * What its flowers and leaves look like, by part, in the catalog's words for NC State's fields
  * (scripts/catalog/claims.mjs FORM_WORDS): flower sizes and leaf lengths in inches.
@@ -320,6 +325,10 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
   // What shows in winter: bark and its colors, stem and fruit colors, when the fruit's there (NC State's words).
   bark: wordsOf(BARK), bark_color: wordsOf(BARK_COLORS), stem_color: wordsOf(PART_COLORS),
   fruit_season: wordsOf(FRUIT_SEASONS), fruit_color: wordsOf(PART_COLORS),
+  // Which parts are edible, as NC State marks them; written only beside `edible`.
+  edible_parts: wordsOf(EDIBLE_PARTS),
+  // What it takes to fruit (separate sexes, a partner needed, better with one, on its own); a cultivar's own sex.
+  fruit_set: (v) => FRUIT_SET.includes(v as string), sex: (v) => SEXES.includes(v as string),
   // Flowers: when (seasons; a bloom's months are `bloom`, the earlier list's) and their colors.
   bloom_season: wordsOf(BLOOM_SEASONS), flower_color: wordsOf(FLOWER_COLORS),
 };

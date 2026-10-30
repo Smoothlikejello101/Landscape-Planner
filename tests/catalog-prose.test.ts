@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
-import { aboutAnother, annualZonesSaid, deerFromProse, deerSaid, ncsuDeer, foliageFromProse, foliageOf, foliageWords, habitFromProse, ncsuDescription, ncsuNames, ncsuProseClaims, ncsuZones, PROSE_HABITS, seedFromProse, seedSaid, sentences } from '../scripts/catalog/prose.mjs';
+import { aboutAnother, annualZonesSaid, deerFromProse, deerSaid, ncsuDeer, foliageFromProse, foliageOf, foliageWords, habitFromProse, ncsuDescription, ncsuNames, ncsuProseClaims, ncsuZones, PROSE_HABITS, seedFromProse, seedSaid, sentences, fruitSetSaid, fruitSetFromProse, sexSaid, sexFromProse, flowerLeadSaid, flowerLeadFromProse } from '../scripts/catalog/prose.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { combine } from '../scripts/catalog/claims.mjs';
 import { catalogErrors, resolveCatalog, type CatalogFile } from '../src/catalog';
@@ -304,6 +304,98 @@ describe('spreading underground or by runners, from a description', () => {
     expect(c.habit?.v ?? null).toBe(null);
     expect(c.self_seed?.v ?? null).toBe(null);
     expect(combine(species).habit).toMatchObject({ v: 'Spreading rhizome', src: ['ncsu'] });
+  });
+});
+
+describe('fruit set, from a description (Jason, Oct 30: partner plants)', () => {
+  const holly = ['Ilex glabra', 'Gallberry', 'Inkberry holly'];
+  const v = (sentence: string, names = holly) => fruitSetSaid(sentence, names)?.v ?? null;
+  it('reads separate sexes: dioecious, a male needed, only females bearing', () => {
+    expect(v('This shrub is dioecious, with male and female flowers on different plants.')).toBe('separate');
+    expect(v('Female shrubs bear berries only when a male pollinizer grows nearby.')).toBe('separate');
+    expect(v('Hollies are dioecious, so plant both sexes for berries.')).toBe('separate'); // (its group)
+    expect(v('Plant one male for every eight females.')).toBe('separate');
+    expect(v('The berries form only on the female plants.')).toBe('separate');
+  });
+  it('reads a partner needed, and a partner helping', () => {
+    const pawpaw = ['Asimina triloba', 'Pawpaw'];
+    expect(v('Its flowers are self-incompatible.', pawpaw)).toBe('partner');
+    expect(v('A second, genetically different tree is needed for fruit.', pawpaw)).toBe('partner');
+    expect(v('It needs to be planted near another variety for pollination.', pawpaw)).toBe('partner');
+    expect(v('A pollinizer is required for a crop.', pawpaw)).toBe('partner');
+    expect(v('It is self-fruitful, but two different cultivars are recommended.', pawpaw)).toBe('better');
+    expect(v('Planting in groups improves pollination and the berry crop.', pawpaw)).toBe('better');
+    expect(v('It is partially self-fertile.', pawpaw)).toBe('better');
+    expect(v('Its flowers may be on the same plant; however, they are not self-fertile.', pawpaw)).toBe('partner');
+  });
+  it('reads fruiting alone, said outright, over its group', () => {
+    const burford = ["Ilex cornuta 'Burfordii'", 'Burford holly'];
+    expect(v('Like all hollies it is dioecious, but it sets heavy fruit without pollination.', burford)).toBe('alone');
+    expect(v('It is self-pollinating.', burford)).toBe('alone');
+    expect(fruitSetFromProse(['Hollies are dioecious.', 'It bears fruit without a male pollinator.'], burford)?.v).toBe('self');
+    expect(fruitSetFromProse(['It sets fruit without pollination.', 'Even so, planting two cultivars is recommended for a better crop.'], burford)?.v).toBe('better');
+    expect(fruitSetFromProse(['Most of the varieties are self-pollinating.'], ['Prunus armeniaca', 'Apricot'])?.v).toBe('self');
+  });
+  it('says nothing of other plants, both sexes on one plant, hybridizing, or other needs', () => {
+    expect(v("'Red Prince' is the male pollinizer usually sold with it.")).toBeNull(); // (another cultivar)
+    expect(v('The male and female flowers are on the same plant (monoecious).')).toBeNull();
+    expect(v('Maples can be monoecious or dioecious.')).toBeNull();
+    expect(v('It may cross-pollinate with other species and hybridize.')).toBeNull();
+    expect(v('Division may be needed every few years.')).toBeNull();
+    expect(v('It requires a lower soil pH than other plants.')).toBeNull();
+    expect(v('The flowers are perfect, with both male and female parts present.')).toBeNull();
+    expect(v('Its lower, cleistogamous flowers are self-fertile.')).toBeNull();
+  });
+  it('a page: separate sexes over a partner over better over a bare word; a sexed cultivar is of separate sexes', () => {
+    expect(fruitSetFromProse(['It is dioecious.', 'Planting in groups improves fruit production.'], holly)?.v).toBe('separate');
+    const hetz = ["Ilex crenata 'Hetzii'", 'Hetz holly'];
+    expect(fruitSetFromProse(["'Hetzii' is a female cultivar.", 'Include a pollinizer to ensure plenty of berries.'], hetz)?.v).toBe('separate');
+    expect(fruitSetFromProse(['It grows in moist woods.'], holly)).toBeNull();
+  });
+});
+
+describe('the color a description first gives its flowers (Jason, Oct 30)', () => {
+  const camellia = ['Camellia japonica', 'Japanese camellia'];
+  const lead = (s: string) => flowerLeadSaid(s, camellia);
+  it('reads a color before or after a word for its flowers, a two-color word by its last', () => {
+    expect(lead('Its large, showy red flowers open in late winter.')).toBe('red');
+    expect(lead('The blooms are pale pink to white.')).toBe('pink');
+    expect(lead('It bears small, white, cup-shaped flowers, then red berries.')).toBe('white');
+    expect(lead('Crimson blossoms cover it in March.')).toBe('red');
+    expect(lead('The creamy-white flowers are fragrant.')).toBe('white');
+    expect(lead('Lavender ray flowers surround a gold disk.')).toBe('purple');
+    expect(lead('Bloom color ranges from white to shades of rose and red.')).toBe('white');
+  });
+  it('says nothing of a disk, a fruit or leaf, other plants, or cultivars', () => {
+    expect(lead('A yellow disk sits in the middle.')).toBeNull();
+    expect(lead('The leaves are glossy green and the fruits red.')).toBeNull();
+    expect(lead('Cultivars with pink flowers are available.')).toBeNull();
+    expect(lead('Unlike its parent, it has white flowers.')).toBeNull();
+    expect(lead("'Snow Queen' has white flowers.")).toBeNull();
+    expect(lead('Its yellow-centered white flowers open in spring.')).toBe('white');
+  });
+  it('a page: the first sentence that gives one', () => {
+    expect(flowerLeadFromProse(['It is an evergreen shrub.', 'Deep red flowers open in winter.', 'Some forms have white blooms.'], camellia)).toEqual({ v: 'red', says: 'Deep red flowers open in winter.' });
+    expect(flowerLeadFromProse(['It is an evergreen shrub.'], camellia)).toBeNull();
+  });
+});
+
+describe("a cultivar's sex, from its own description", () => {
+  const stokes = ["Ilex crenata 'Stokes'", 'Stokes Japanese holly'];
+  it('reads male or female said of the plant itself', () => {
+    expect(sexSaid('Stokes Japanese holly is a male cultivar of Japanese holly.', stokes)).toBe('male');
+    expect(sexSaid('It is a female clone with glossy leaves.', stokes)).toBe('female');
+    expect(sexSaid('This cultivar is male, though female plants are sometimes sold under its name.', stokes)).toBe('male');
+    expect(sexSaid('Being a female selection, it needs a male nearby to fruit.', stokes)).toBe('female');
+    expect(sexSaid('Female clone, compact and rounded', stokes)).toBe('female');
+  });
+  it('says nothing of other plants, both sexes, its group, or another word for "and"', () => {
+    expect(sexSaid("'Jim Dandy' is a male pollinizer for it.", stokes)).toBeNull();
+    expect(sexSaid('This name is used for both male and female plants.', stokes)).toBeNull();
+    expect(sexSaid('Female plants bear red berries.', stokes)).toBeNull();
+    expect(sexSaid('It is self-fertile and female trees fruit without a male.', stokes)).toBeNull();
+    expect(sexSaid('The original selection was female.', stokes)).toBeNull();
+    expect(sexFromProse(['It is a male cultivar.', 'It is a female cultivar.'], stokes)).toBeNull();
   });
 });
 

@@ -1,14 +1,14 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 204 to decide, 2117 sites whose terms are unsettled, 821 catalog checks; 3744 of 3747 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 213 to decide, 2117 sites whose terms are unsettled, 877 catalog checks; 3744 of 3747 records audited.
 
 - [Sources disagree (117)](#sources-disagree-117)
 - [Cultivar: tree or shrub? (6)](#cultivar-tree-or-shrub-6)
-- [Edible, but rated toxic (16)](#edible-but-rated-toxic-16)
+- [Edible, but rated toxic (25)](#edible-but-rated-toxic-25)
 - [Held back as implausible (3)](#held-back-as-implausible-3)
 - [A value its source no longer gives (8)](#a-value-its-source-no-longer-gives-8)
 - [Sizes whose sources are far apart (32)](#sizes-whose-sources-are-far-apart-32)
-- [Read from text, but a second reading differs (373)](#read-from-text-but-a-second-reading-differs-373)
+- [Read from text, but a second reading differs (429)](#read-from-text-but-a-second-reading-differs-429)
 - [Values the catalog can't take (2)](#values-the-catalog-cant-take-2)
 - [Kew names to check (14)](#kew-names-to-check-14)
 - [Bloom months held back (4)](#bloom-months-held-back-4)
@@ -153,13 +153,22 @@ The species is a tree, and this cultivar, with no page of its own, may be smalle
 | Rose of Sharon Chiffon series (`hibiscus-syriacus-chiffon-series`) | its species is listed as a tree; a cultivar may be a tree or a shrub | – |
 | Crape myrtle Bellini Cherry (`lagerstroemia-indica-bellini-cherry-ncli1`) | its species is listed as a tree; a cultivar may be a tree or a shrub | – |
 
-## Edible, but rated toxic (16)
+## Edible, but rated toxic (25)
 
 A source says it's edible, and the catalog rates it toxic (to dogs, or to people), so "edible" isn't written. A decision goes in scripts/catalog/decisions.json (`edible`), and the build applies it.
 
+- American plum (`prunus-americana`)
+- Inkberry holly (`ilex-glabra`)
+- Japanese honeysuckle (`lonicera-japonica`)
+- Chinese wisteria (`wisteria-sinensis`)
 - Cassava (`manihot-esculenta`)
 - Balsampear (`momordica-charantia`)
+- Bluecrown passionflower (`passiflora-caerulea`)
+- Yellow passionflower (`passiflora-lutea`)
 - Clammy groundcherry (`physalis-heterophylla`)
+- Cherry plum (`prunus-cerasifera`)
+- Black cherry (`prunus-serotina`)
+- Black elderberry (`sambucus-nigra`)
 - Chickasaw Plum 'Guthrie' (`prunus-angustifolia-guthrie`)
 - Peach 'Carolina Belle' (`prunus-persica-carolina-belle`)
 - Peach / nectarine 'Carolina Gold' (`prunus-persica-carolina-gold`)
@@ -238,7 +247,7 @@ The size shown and the other source's are 3 times apart or more, so one is likel
 | Cécile Brunner Climbing (`rosa-climbing-cecile-brunner`) | width | 10–20 ft (ncsu, northlandrosarium.com) | 3 ft (tamu.edu) | height 20–30 ft |
 | Cumin (`cuminum-cyminum`) | height | 0.67–1.33 ft (outsidepride.com) | 2–5 ft (toptropicals.com, check only) |  |
 
-## Read from text, but a second reading differs (373)
+## Read from text, but a second reading differs (429)
 
 A value the rules read from a page's text, which a second reading of the same text (blind to the first) read differently, and not just in degree. It isn't written. The catalog keeps what it had, except a value an earlier build read from that text: that's taken out, unsettled (NC State's deer field, where its text lowered it, stands as the field gives it). Nothing to decide yet: a page can be read again, or a person can look.
 
@@ -260,7 +269,9 @@ A value the rules read from a page's text, which a second reading of the same te
 | Winterberry holly (`ilex-verticillata`) | deer | Resistant | Occasional | fellabees.com | Resistant |
 | Prairie willow (`salix-humilis`) | leaves in winter | evergreen | nothing | butterflygardenstogo.com | deciduous |
 | Prairie willow (`salix-humilis`) | deer | Resistant | nothing | butterflygardenstogo.com | Resistant |
+| Steeplebush (`spiraea-tomentosa`) | first flower color | purple | pink | ncsu | nothing |
 | Bladdernut (`staphylea-trifolia`) | deer | Resistant | Occasional | awesomenativeplants.info | Resistant |
+| Snowberry (`symphoricarpos-albus`) | fruit set | partner | nothing | ncsu | nothing |
 | Yellow giant hyssop (`agastache-nepetoides`) | spreading | Runner (stolons) | Spreading rhizome | friendsofeloisebutler.org | Spreading rhizome (the earlier list) |
 | Large-flowered water plantain (`alisma-triviale`) | leaves in winter | deciduous | nothing | illinoiswildflowers.info | nothing |
 | Nodding onion (`allium-cernuum`) | deer | Occasional | Resistant | wisc.edu | Resistant (the earlier list) |
@@ -281,6 +292,8 @@ A value the rules read from a page's text, which a second reading of the same te
 | Common boneset (`eupatorium-perfoliatum`) | spreading | Clumping | nothing | ncsu | Clumping (the earlier list) |
 | Common boneset (`eupatorium-perfoliatum`) | spreading | Clumping | Spreading rhizome | newmoonnursery.com | Clumping (the earlier list) |
 | Schreber's wood aster (`eurybia-schreberi`) | spreading | Clumping | nothing | bethchatto.co.uk | Spreading rhizome |
+| Sweet Joe Pye weed (`eutrochium-purpureum`) | first flower color | purple | pink | ncsu | nothing |
+| Swamp rose mallow (`hibiscus-moscheutos`) | first flower color | red | white | ncsu | nothing |
 | Meadow blazing star (`liatris-ligulistylis`) | spreading | Clumping | nothing | prairienursery.com | Clumping |
 | Solomon's plume (`maianthemum-racemosum`) | spreading | Clumping | Slow-spreading rhizome | davisla.wordpress.com | Slow-spreading rhizome |
 | Prairie sundrops (`oenothera-pilosella`) | deer | Resistant | nothing | mowildflowers.net | Resistant (the earlier list) |
@@ -305,7 +318,9 @@ A value the rules read from a page's text, which a second reading of the same te
 | Celandine poppy (`stylophorum-diphyllum`) | leaves in winter | deciduous | nothing | harvesttotable.com | deciduous |
 | Celandine poppy (`stylophorum-diphyllum`) | spreading | Clumping | nothing | harvesttotable.com | Clumping |
 | Sky blue aster (`symphyotrichum-oolentangiense`) | deer | Resistant | Occasional | plantnative.org | Occasional |
+| Goat's rue (`tephrosia-virginiana`) | first flower color | pink | yellow | ncsu | nothing |
 | Early meadow rue (`thalictrum-dioicum`) | leaves in winter | deciduous | nothing | ncsu | deciduous |
+| Meadow parsnip (`thaspium-trifoliatum-var-flavum`) | first flower color | red | purple | ncsu | nothing |
 | Sessile bellwort (`uvularia-sessilifolia`) | spreading | Runner (stolons) | Spreading rhizome | ncsu | Spreading rhizome (the earlier list) |
 | Blue vervain (`verbena-hastata`) | spreading | Spreading rhizome | Clumping | newmoonnursery.com | Slow-spreading rhizome |
 | Yellow crownbeard (`verbesina-helianthoides`) | deer | Occasional | Resistant | usperennials.com | Resistant |
@@ -325,6 +340,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Catnip (`nepeta-cataria`) | deer | Resistant | nothing | plantcaretoday.com | Resistant |
 | Apple 'Enterprise' (`malus-domestica-enterprise`) | spreading | Suckering | nothing | windyrocknursery.com | nothing |
 | Arborvitae 'Green Giant' (`thuja-green-giant`) | deer | Resistant | Occasional | instanthedge.com | Resistant |
+| Holly 'Nellie R. Stevens' (`ilex-x-nellie-r-stevens`) | fruit set | separate | better | ncsu | nothing |
 | Indian hawthorn (`rhaphiolepis-indica`) | deer | Candy | Resistant | monsteraholic.com | Occasional |
 | Ginkgo 'Princeton Sentry' (`ginkgo-biloba-princeton-sentry`) | deer | Resistant | nothing | naturehills.com | Resistant |
 | Bald cypress (`taxodium-distichum`) | spreading | Clumping | nothing | clemson.edu | Clumping (the earlier list) |
@@ -340,18 +356,25 @@ A value the rules read from a page's text, which a second reading of the same te
 | Caucasian Fir (`abies-nordmanniana`) | spreading | Mat-forming | nothing | treesandshrubsonline.org | nothing |
 | Spine acanthus (`acanthus-spinosus`) | spreading | Clumping | nothing | ncsu | nothing |
 | Cappadocian Maple (`acer-cappadocicum`) | self-sowing | Unrated | nothing | treesandshrubsonline.org | nothing |
+| Devil's maple (`acer-diabolicum`) | first flower color | red | yellow | ncsu | nothing |
 | Desert-rose (`adenium-obesum`) | spreading | Clumping | nothing | ncsu | nothing |
 | Adiantum aethiopicum (`adiantum-aethiopicum`) | spreading | Spreading rhizome | Runner (stolons) | ncsu | nothing |
+| Amazonian Zebra-plant (`aechmea-chantinii`) | first flower color | red | yellow | ncsu | nothing |
 | Gold and Silver Chrysanthemum (`ajania-pacifica`) | spreading | Runner (stolons) | Spreading rhizome | monaconatureencyclopedia.com | Spreading rhizome |
 | Pyramid bugle (`ajuga-pyramidalis`) | spreading | Spreading rhizome | Runner (stolons) | ncsu | nothing |
 | Pyramid bugle (`ajuga-pyramidalis`) | spreading | Clumping | Mat-forming | backyardgardener.com | nothing |
 | Persian onion (`allium-cristophii`) | leaves in winter | deciduous | nothing | egardengo.com | nothing |
+| Alocasia × mortfontanensis (`alocasia-x-mortfontanensis`) | first flower color | green | white | ncsu | nothing |
 | Sweet Almond Bush (`aloysia-virgata`) | deer | Candy | Resistant | monsteraholic.com | Resistant |
 | Lily of the Incas (`alstroemeria-psittacina`) | leaves in winter | deciduous | nothing | backyardgardener.com | nothing |
 | Saskatoon serviceberry (`amelanchier-alnifolia`) | spreading | Spreading rhizome | nothing | realgardensgrownatives.com | Suckering |
+| Amorphophallus kiusianus (`amorphophallus-kiusianus`) | first flower color | white | green | ncsu | nothing |
 | Cape African-queen (`anisodontea-capensis`) | leaves in winter | evergreen | semi-evergreen | ncsu | nothing |
 | Kinnikinnick (`arctostaphylos-uva-ursi`) | spreading | Slow-spreading rhizome | Runner (stolons) | prairienursery.com | Mat-forming |
+| Japanese Jack-in-the-Pulpit (`arisaema-sikokianum`) | first flower color | white | purple | ncsu | nothing |
+| Pipevine (`aristolochia-macrophylla`) | first flower color | yellow | green | ncsu | nothing |
 | Bride's feathers (`aruncus-dioicus`) | self-sowing | Prolific | nothing | wisc.edu | nothing |
+| Red milkweed (`asclepias-rubra`) | first flower color | purple | pink | ncsu | nothing |
 | Walking fern (`asplenium-rhizophyllum`) | spreading | Clumping | nothing | ncsu | nothing |
 | Bottle-palm (`beaucarnea-recurvata`) | spreading | Clumping | nothing | llifle.com | nothing |
 | Betony (subsp. officinalis) (`betonica-officinalis-subsp-officinalis`) | spreading | Spreading rhizome | nothing | ncsu | nothing |
@@ -359,14 +382,19 @@ A value the rules read from a page's text, which a second reading of the same te
 | White doll's daisy (`boltonia-asteroides-2`) | deer | Resistant | Occasional | newmoonnursery.com | Resistant |
 | White doll's daisy (`boltonia-asteroides-2`) | deer | Candy | Resistant | plantnative.org | Resistant |
 | Fountain butterflybush (`buddleja-alternifolia`) | leaves in winter | deciduous | nothing | chicagobotanic.org | deciduous |
+| Buddleja fallowiana (`buddleja-fallowiana`) | first flower color | purple | white | ncsu | nothing |
 | Japanese Boxwood (`buxus-microphylla-var-japonica`) | deer | Occasional | Resistant | monsteraholic.com | Resistant |
 | Pride-of-Barbados (`caesalpinia-pulcherrima`) | leaves in winter | evergreen | semi-evergreen | iplantz.com | evergreen |
 | Calibrachoa × hybrida (`calibrachoa-x-hybrida`) | deer | Occasional | Resistant | ncsu | nothing |
+| Water arum (`calla-palustris`) | first flower color | yellow | white | ncsu | nothing |
 | Evergreen Wisteria (`callerya-reticulata`) | leaves in winter | evergreen | deciduous | flower-db.com | evergreen |
+| Bodinier's Beautyberry (`callicarpa-bodinieri`) | first flower color | pink | purple | ncsu | nothing |
 | Japanese callicarpa (`callicarpa-japonica`) | spreading | Clumping | nothing | treesandshrubsonline.org | nothing |
 | Heather (`calluna-vulgaris`) | deer | Occasional | nothing | sammamishbotanical.org | Resistant |
 | Eastern sweetshrub (`calycanthus-floridus`) | spreading | Suckering colonizer | nothing | ufl.edu | Suckering |
 | Straggler daisy (`calyptocarpus-vialis`) | spreading | Runner (stolons) | Spreading rhizome | ncsu | nothing |
+| Tussock bellflower (`campanula-carpatica`) | first flower color | white | blue | ncsu | nothing |
+| Spotted bellflower (`campanula-punctata`) | fruit set | better | nothing | ncsu | nothing |
 | Campsis × tagliabueana (`campsis-x-tagliabueana`) | spreading | Aggressive rhizome | Suckering colonizer | ncsu | nothing |
 | Carex scaposa (`carex-scaposa`) | spreading | Spreading rhizome | Clumping | ncsu | nothing |
 | Eastern Hornbeam (`carpinus-orientalis`) | spreading | Suckering | nothing | ncsu | nothing |
@@ -386,19 +414,23 @@ A value the rules read from a page's text, which a second reading of the same te
 | Maryland goldenaster (`chrysopsis-mariana`) | spreading | Clumping | nothing | flawildflowers.org | nothing |
 | Field thistle (`cirsium-discolor`) | spreading | Aggressive rhizome | nothing | illinoiswildflowers.info | nothing |
 | Cup-and-saucer-vine (`cobaea-scandens`) | leaves in winter | evergreen | semi-evergreen | ncsu | nothing |
+| Kousa dogwood (`cornus-kousa`) | first flower color | white | cream | ncsu | nothing |
 | Bloodtwig dogwood (`cornus-sanguinea`) | spreading | Suckering | nothing | treesandshrubsonline.org | nothing |
 | Common filbert (`corylus-avellana`) | deer | Occasional | nothing | treesandshrubsonline.org | nothing |
+| Garden cosmos (`cosmos-bipinnatus`) | first flower color | white | red | ncsu | nothing |
 | Littlehip hawthorn (`crataegus-spathulata`) | leaves in winter | semi-evergreen | deciduous | uada.edu | deciduous |
 | Chinese fir (`cunninghamia-lanceolata`) | spreading | Suckering | nothing | ncsu | nothing |
 | Papyrus (`cyperus-papyrus`) | spreading | Clumping | Spreading rhizome | wisc.edu | nothing |
 | Scotch broom (`cytisus-scoparius`) | leaves in winter | semi-evergreen | deciduous | treesandshrubsonline.org | deciduous |
 | Winter daphne (`daphne-odora`) | leaves in winter | evergreen | semi-evergreen | 7dees.com | evergreen |
+| Recurved Thorn-apple (`datura-innoxia`) | first flower color | purple | cream | ncsu | nothing |
 | Sacred thorn-apple (`datura-wrightii`) | leaves in winter | evergreen | semi-evergreen | strictlymedicinalseeds.com | deciduous |
 | Silver false spleenwort (`deparia-acrostichoides`) | spreading | Spreading rhizome | nothing | friendsofeloisebutler.org | Spreading rhizome |
 | Carnation (`dianthus-caryophyllus`) | leaves in winter | semi-evergreen | evergreen | portlandnursery.com | nothing |
 | Carnation (`dianthus-caryophyllus`) | spreading | Clumping | nothing | flowerscanadagrowers.com | nothing |
 | Squirrel corn (`dicentra-canadensis`) | leaves in winter | deciduous | nothing | panglobalplants.com | deciduous |
 | Turkey corn (`dicentra-eximia`) | deer | Resistant | nothing | chicagobotanic.org | Resistant |
+| Hummingbird Bush (`dicliptera-squarrosa`) | first flower color | red | orange | ncsu | nothing |
 | Evergreen Solomon's seal (`disporopsis-pernyi`) | leaves in winter | evergreen | nothing | ncsu | evergreen |
 | Evergreen witch hazel (`distylium-racemosum`) | leaves in winter | evergreen | nothing | treesandshrubsonline.org | evergreen |
 | Evergreen witch hazel (`distylium-racemosum`) | self-sowing | Unrated | nothing | treesandshrubsonline.org | nothing |
@@ -407,6 +439,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Male fern (`dryopteris-filix-mas`) | leaves in winter | semi-evergreen | deciduous | plantcaretoday.com | semi-evergreen |
 | Male fern (`dryopteris-filix-mas`) | deer | Occasional | Resistant | plantcaretoday.com | Resistant |
 | Siebold's wood fern (`dryopteris-sieboldii`) | spreading | Spreading rhizome | nothing | ncsu | nothing |
+| Wavyleaf purple coneflower (`echinacea-simulata`) | first flower color | purple | pink | ncsu | nothing |
 | Red Easter-lily cactus (`echinopsis-oxygona`) | spreading | Mat-forming | Clumping | ncsu | nothing |
 | Oriental paperbush (`edgeworthia-chrysantha`) | leaves in winter | evergreen | deciduous | juniperlevelbotanicgarden.org | deciduous |
 | Kodo Wood (`ehretia-acuminata`) | spreading | Clumping | nothing | treesandshrubsonline.org | nothing |
@@ -418,6 +451,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Winter creeper (`euonymus-fortunei`) | leaves in winter | semi-evergreen | evergreen | treesandshrubsonline.org | semi-evergreen |
 | Dogfennel (`eupatorium-capillifolium`) | spreading | Spreading rhizome | nothing | clemson.edu | Spreading rhizome |
 | Albanian spurge (`euphorbia-characias`) | leaves in winter | semi-evergreen | evergreen | treesandshrubsonline.org | evergreen |
+| Poinsettia (`euphorbia-pulcherrima`) | first flower color | red | yellow | ncsu | nothing |
 | Redbird Flower (`euphorbia-tithymaloides`) | leaves in winter | evergreen | semi-evergreen | llifle.com | evergreen |
 | Fountain bamboo (`fargesia-nitida`) | spreading | Slow-spreading rhizome | Clumping | saratogaseed.com | Clumping |
 | Fountain bamboo (`fargesia-nitida`) | spreading | Spreading rhizome | Clumping | backyardgardener.com | Clumping |
@@ -425,6 +459,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Franklin tree (`franklinia-alatamaha`) | leaves in winter | evergreen | nothing | nashvilletreefoundation.org | deciduous |
 | Showy orchid (`galearis-spectabilis`) | deer | Occasional | nothing | ncsu | nothing |
 | Wavyleaf silktassel (`garrya-elliptica`) | leaves in winter | semi-evergreen | evergreen | treesandshrubsonline.org | evergreen |
+| Dwarf huckleberry (`gaylussacia-dumosa`) | first flower color | pink | white | ncsu | nothing |
 | Honeylocust (`gleditsia-triacanthos`) | self-sowing | Sterile | nothing | treesandshrubsonline.org | nothing |
 | Eternal Flame (`goeppertia-crocata`) | spreading | Spreading rhizome | nothing | travaldo.blogspot.com | Clumping |
 | Calathea musaica (`goeppertia-kegeljanii`) | spreading | Spreading rhizome | nothing | travaldo.blogspot.com | Clumping |
@@ -436,6 +471,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Hemionitis seticaulis (`hemionitis-seticaulis`) | spreading | Spreading rhizome | nothing | ncsu | nothing |
 | Hibiscus hamabo (`hibiscus-hamabo`) | leaves in winter | semi-evergreen | nothing | gchouston.org | semi-evergreen |
 | Anti-febrile Dichroa (Chinese Quinine) (`hydrangea-febrifuga`) | leaves in winter | semi-evergreen | evergreen | treesandshrubsonline.org | evergreen |
+| Panicled hydrangea (`hydrangea-paniculata`) | first flower color | cream | white | ncsu | nothing |
 | Cliff stonecrop (`hylotelephium-cauticola`) | spreading | Runner (stolons) | Spreading rhizome | ncsu | nothing |
 | Showy stonecrop (`hylotelephium-spectabile`) | deer | Occasional | nothing | ncsu | nothing |
 | Aaron's beard (`hypericum-calycinum`) | spreading | Aggressive runner (stolons) | Aggressive rhizome | ncsu | nothing |
@@ -468,6 +504,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Pincushion-flower (`lomelosia-caucasica`) | spreading | Mat-forming | nothing | ncsu | nothing |
 | Yellow honeysuckle (`lonicera-flava`) | deer | Candy | Resistant | dakotamastergardeners.org | Resistant |
 | Peyote (`lophophora-williamsii`) | spreading | Clumping | nothing | llifle.com | nothing |
+| Chinese fringe-flower (var. rubrum) (`loropetalum-chinense-var-rubrum`) | first flower color | red | pink | ncsu | nothing |
 | Large yellow loosestrife (`lysimachia-punctata`) | spreading | Runner (stolons) | Spreading rhizome | davisla.wordpress.com | Aggressive rhizome |
 | Macadamia nut (`macadamia-integrifolia`) | leaves in winter | semi-evergreen | nothing | bibleofbotany.com | evergreen |
 | Macadamia nut (`macadamia-integrifolia`) | spreading | Aggressive rhizome | nothing | bibleofbotany.com | nothing |
@@ -534,7 +571,9 @@ A value the rules read from a page's text, which a second reading of the same te
 | Cork oak (`quercus-suber`) | leaves in winter | semi-evergreen | evergreen | treesandshrubsonline.org | evergreen |
 | Live oak (`quercus-virginiana`) | leaves in winter | evergreen | semi-evergreen | oregonstate.edu | evergreen |
 | Traveler's tree (`ravenala-madagascariensis`) | spreading | Clumping | nothing | thebalconygarden.com.au | Suckering |
+| Rhaphiolepis × delacourii (`rhaphiolepis-x-delacourii`) | first flower color | white | pink | ncsu | nothing |
 | Dwarf azalea (`rhododendron-atlanticum`) | spreading | Runner (stolons) | Spreading rhizome | ncsu | Runner (stolons) |
+| Flame azalea (`rhododendron-calendulaceum`) | first flower color | red | orange | ncsu | nothing |
 | Flame azalea (`rhododendron-calendulaceum`) | leaves in winter | semi-evergreen | nothing | illinois.edu | deciduous |
 | Catawba rosebay (`rhododendron-catawbiense`) | leaves in winter | semi-evergreen | evergreen | illinois.edu | evergreen |
 | Rhododendron eriocarpum (`rhododendron-eriocarpum`) | leaves in winter | evergreen | semi-evergreen | flower-db.com | semi-evergreen |
@@ -548,24 +587,32 @@ A value the rules read from a page's text, which a second reading of the same te
 | Cherokee rose (`rosa-laevigata`) | leaves in winter | deciduous | nothing | treesandshrubsonline.org | deciduous |
 | Cutleaf blackberry (`rubus-laciniatus`) | leaves in winter | evergreen | nothing | toptropicals.com | deciduous |
 | Butcher's-broom (`ruscus-aculeatus`) | spreading | Suckering (slow) | Slow-spreading rhizome | ncsu | Suckering |
+| Butcher's-broom (`ruscus-aculeatus`) | fruit set | separate | better | ncsu | nothing |
 | Fountainbush (`russelia-equisetiformis`) | leaves in winter | evergreen | semi-evergreen | ruthbancroftgarden.org | deciduous |
 | White willow (`salix-alba`) | leaves in winter | deciduous | nothing | treesandshrubsonline.org | deciduous |
 | Weeping willow (`salix-babylonica`) | leaves in winter | deciduous | nothing | treesandshrubsonline.org | deciduous |
 | Silver sage (`salvia-argentea`) | self-sowing | Modest | nothing | nvknurseries.com | Unrated |
 | Arrowleaf Sage (`salvia-sagittata`) | leaves in winter | semi-evergreen | evergreen | scottarboretum.org | evergreen |
 | Arrowleaf Sage (`salvia-sagittata`) | deer | Resistant | nothing | scottarboretum.org | Resistant |
+| Bouncingbet (`saponaria-officinalis`) | first flower color | white | pink | ncsu | nothing |
 | Bouncingbet (`saponaria-officinalis`) | spreading | Runner (stolons) | nothing | eflora.neocities.org | Aggressive rhizome |
 | Lakeshore bulrush (`schoenoplectus-lacustris`) | spreading | Clumping | Spreading rhizome | davisla.wordpress.com | Slow-spreading rhizome |
+| Umbrella-pine (`sciadopitys-verticillata`) | first flower color | green | red | ncsu | nothing |
 | Redwood (`sequoia-sempervirens`) | spreading | Mat-forming | nothing | treesandshrubsonline.org | nothing |
 | Saw palmetto (`serenoa-repens`) | spreading | Clumping | nothing | ncsu | nothing |
+| Coral greenbrier (`smilax-walteri`) | first flower color | yellow | brown | ncsu | nothing |
 | Woolly hedgenettle (`stachys-byzantina`) | spreading | Aggressive runner (stolons) | nothing | chicagobotanic.org | Runner (stolons) |
 | Stachys spathulata (`stachys-spathulata`) | leaves in winter | evergreen | semi-evergreen | odysseyplants.com | semi-evergreen |
 | Korean stewartia (`stewartia-pseudocamellia`) | leaves in winter | semi-evergreen | deciduous | pollyhillarboretum.org | deciduous |
+| Rice button aster (`symphyotrichum-dumosum`) | first flower color | purple | white | ncsu | nothing |
 | Sapphire-berry (`symplocos-paniculata`) | leaves in winter | semi-evergreen | deciduous | treesandshrubsonline.org | deciduous |
 | American evergreen (`syngonium-podophyllum`) | leaves in winter | evergreen | nothing | ncsu | nothing |
+| Syringa × hyacinthiflora (`syringa-x-hyacinthiflora`) | first flower color | purple | nothing | ncsu | nothing |
 | Pond Cypress (`taxodium-distichum-var-imbricarium`) | spreading | Clumping | nothing | clemson.edu | nothing |
 | Canada yew (`taxus-canadensis`) | leaves in winter | semi-evergreen | evergreen | plantnative.org | evergreen |
+| Cape Honeysuckle (`tecomaria-capensis`) | first flower color | orange | yellow | ncsu | nothing |
 | Rice-paper plant (`tetrapanax-papyrifer`) | spreading | Suckering | Spreading rhizome | ncsu | nothing |
+| Garden thyme (`thymus-vulgaris`) | first flower color | white | purple | ncsu | nothing |
 | Chinese windmill palm (`trachycarpus-fortunei`) | leaves in winter | deciduous | nothing | studioplant.com | evergreen |
 | Boatlily (`tradescantia-spathacea`) | spreading | Mat-forming | Clumping | ncsu | nothing |
 | Tricyrtis lasiocarpa (`tricyrtis-lasiocarpa`) | spreading | Runner (stolons) | Clumping | juniperlevelbotanicgarden.org | nothing |
@@ -573,6 +620,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Eastern gamagrass (`tripsacum-dactyloides`) | spreading | Clumping | Slow-spreading rhizome | davisla.wordpress.com | Spreading rhizome |
 | Ithuriel's spear (`triteleia-laxa`) | deer | Resistant | nothing | lindavistanatives.com | Resistant |
 | Tulipa greigii (`tulipa-greigii`) | deer | Candy | nothing | ncsu | nothing |
+| California laurel (`umbellularia-californica`) | first flower color | white | cream | ncsu | nothing |
 | Verbena canadensis (`verbena-canadensis`) | leaves in winter | evergreen | nothing | usperennials.com | semi-evergreen |
 | Blackhaw (`viburnum-prunifolium`) | deer | Resistant | nothing | plantnative.org | Resistant |
 | Prostrate blue violet (`viola-walteri`) | spreading | Spreading rhizome | Runner (stolons) | ncsu | nothing |
@@ -586,36 +634,53 @@ A value the rules read from a page's text, which a second reading of the same te
 | Peruvian zinnia (`zinnia-peruviana`) | spreading | Clumping | nothing | applewoodseed.com | nothing |
 | Common jujube (`ziziphus-jujuba`) | leaves in winter | evergreen | nothing | levypreserve.org | deciduous |
 | Calamus 'Variegatus' (`acorus-calamus-variegatus`) | spreading | Clumping | nothing | chicagobotanic.org | Slow-spreading rhizome |
+| Giant Hyssop 'Blue Boa' (`agastache-blue-boa`) | first flower color | purple | blue | ncsu | nothing |
 | Cape Mallow 'Slightly Strawberry' (`anisodontea-capensis-slightly-strawberry`) | leaves in winter | evergreen | semi-evergreen | ncsu | nothing |
 | Birch 'Royal Frost' (`betula-royal-frost`) | leaves in winter | evergreen | deciduous | thompsons-plants.co.uk | deciduous |
 | Common box 'Aureovariegata' (`buxus-sempervirens-aureovariegata`) | leaves in winter | semi-evergreen | evergreen | mrmaple.com | evergreen |
+| Pecan 'Gloria Grande' (`carya-illinoinensis-gloria-grande`) | fruit set | better | partner | ncsu | nothing |
+| Pecan 'Kiowa' (`carya-illinoinensis-kiowa`) | fruit set | better | partner | ncsu | nothing |
+| Pecan 'Sumner' (`carya-illinoinensis-sumner`) | fruit set | better | partner | ncsu | nothing |
 | Atlas Cedar 'Glauca' (`cedrus-atlantica-glauca`) | spreading | Clumping | nothing | sbbeautiful.org | nothing |
 | Hinoki false cypress 'Confucius' (`chamaecyparis-obtusa-confucius`) | deer | Occasional | Resistant | chicagobotanic.org | nothing |
 | Hinoki false cypress 'Nana Gracilis' (`chamaecyparis-obtusa-nana-gracilis`) | leaves in winter | semi-evergreen | evergreen | thebumpkin.com | evergreen |
 | Hinoki false cypress 'Nana Gracilis' (`chamaecyparis-obtusa-nana-gracilis`) | deer | Resistant | Occasional | thebumpkin.com | nothing |
 | Silver ponysfoot 'Silver Falls' (`dichondra-argentea-silver-falls`) | spreading | Mat-forming | Runner (stolons) | wisc.edu | nothing |
+| Common Persimmon 'Morris Burton' (`diospyros-virginiana-morris-burton`) | fruit set | separate | better | ncsu | nothing |
+| Purple coneflower 'Cheyenne Spirit' (`echinacea-purpurea-cheyenne-spirit`) | first flower color | purple | yellow | ncsu | nothing |
 | Winter creeper 'Colorata' (`euonymus-fortunei-colorata`) | spreading | Runner (stolons) | Mat-forming | ncsu | nothing |
+| Alumroot 'Palace Purple' (`heuchera-palace-purple`) | first flower color | pink | white | ncsu | nothing |
+| Rose-of-sharon 'Blue Bird' (`hibiscus-syriacus-blue-bird`) | first flower color | purple | blue | ncsu | nothing |
+| Hydrangea 'Glowing Embers' (`hydrangea-macrophylla-glowing-embers`) | first flower color | pink | red | ncsu | nothing |
 | English holly 'Argentea Marginata' (`ilex-aquifolium-argentea-marginata`) | leaves in winter | evergreen | nothing | frankpmatthews.com | evergreen |
 | Japanese holly 'Sky Pencil' (`ilex-crenata-sky-pencil`) | leaves in winter | semi-evergreen | evergreen | naturehills.com | evergreen |
 | Dwarf 'Stokes' (`ilex-crenata-stokes`) | leaves in winter | evergreen | nothing | denolf.com | evergreen |
+| Holly 'Whoa Nellie' (`ilex-whoa-nellie`) | fruit set | separate | better | ncsu | nothing |
 | Chinese juniper 'Robusta Green' (`juniperus-chinensis-robusta-green`) | spreading | Clumping | nothing | backyardgardener.com | nothing |
 | Juniper 'Blue Star' (`juniperus-squamata-blue-star`) | deer | Candy | Resistant | monsteraholic.com | Resistant |
 | Juniper 'Blue Star' (`juniperus-squamata-blue-star`) | spreading | Mat-forming | nothing | monsteraholic.com | nothing |
 | Crape Myrtle 'Catawba' (`lagerstroemia-indica-catawba`) | deer | Occasional | Resistant | mortellaros.com | Resistant |
 | Liriope 'Silvery Sunproof' (`liriope-muscari-silvery-sunproof`) | spreading | Clumping | nothing | hortech.com | Clumping |
 | Magnolia 'Freeman' (`magnolia-freeman`) | leaves in winter | semi-evergreen | nothing | backyardgardener.com | evergreen |
+| Apple 'Fuji' (`malus-domestica-fuji`) | first flower color | white | pink | ncsu | nothing |
 | Eulalia 'Goliath' (`miscanthus-sinensis-goliath`) | self-sowing | Modest | Sterile | ncsu | nothing |
 | Miscanthus 'Silberfeder' (`miscanthus-sinensis-silberfeder`) | self-sowing | Prolific | nothing | denolf.com | Sterile |
+| Paeonia – Herbaceous Types (`paeonia-herbaceous-types`) | first flower color | white | nothing | ncsu | nothing |
 | Serbian spruce 'Nana' (`picea-omorika-nana`) | leaves in winter | semi-evergreen | evergreen | whisperingcraneinstitute.com | evergreen |
 | Oriental Spruce 'Skylands' (`picea-orientalis-skylands`) | deer | Resistant | nothing | rainyside.com | nothing |
 | Azalea 'Coral Bells' (`rhododendron-indicum-coral-bells`) | leaves in winter | semi-evergreen | evergreen | uada.edu | evergreen |
+| Hardy Gloxinia 'Evita' (`seemannia-nematanthodes-evita`) | first flower color | red | orange | ncsu | nothing |
 | Redwood 'Soquel' (`sequoia-sempervirens-soquel`) | leaves in winter | evergreen | nothing | mrmaple.com | evergreen |
 | Oldfashioned weigela 'Sunset' (`weigela-florida-sunset`) | leaves in winter | deciduous | nothing | kiefernursery.com | deciduous |
 | Largeleaf brunnera 'Alexander's Great' (`brunnera-macrophylla-alexanders-great`) | deer | Candy | Resistant | americanmeadows.com | Resistant |
+| Camellia 'Winter's Charm' (`camellia-winters-charm`) | first flower color | purple | pink | ncsu | nothing |
+| Chinese Holly 'D'Or' (`ilex-cornuta-dor`) | fruit set | better | separate | ncsu | nothing |
 | Chocolate vine (`akebia-quinata`) | self-sowing | Prolific | nothing | kiefernursery.com | Unrated |
+| Potato dwarfdandelion (`krigia-dandelion`) | first flower color | orange | yellow | ncsu | nothing |
 | Hardy ribbon fern (`lepisorus-bicolor`) | spreading | Clumping | Spreading rhizome | keepingitgreennursery.com | Spreading rhizome |
 | Roving sailor (`maurandella-antirrhiniflora`) | deer | Resistant | nothing | lindavistanatives.com | Resistant |
 | Plymouth rose gentian (`sabatia-kennedyana`) | leaves in winter | deciduous | nothing | mellowmarshfarm.com | evergreen |
+| Canadian white violet (`viola-canadensis`) | first flower color | purple | white | ncsu | nothing |
 | Cotoneaster 'Repens' (`cotoneaster-salicifolius-repens`) | leaves in winter | evergreen | semi-evergreen | backyardgardener.com | semi-evergreen |
 
 ## Values the catalog can't take (2)

@@ -93,6 +93,13 @@ describe('what the writer holds back', () => {
     expect(review.filter((r: { note: string }) => r.note === 'edible, but rated toxic').map((r: { id: string }) => r.id)).toEqual(['mayapple', 'cv']);
     expect(file.plants[3].facts.edible).toMatchObject({ v: true }); // (a fig's sap irritates; its fruit is food)
   });
+  it('writes edible parts only beside "edible": a toxic plant waiting on a person lists none', () => {
+    const { file } = run([rec('mayapple', {}), rec('fig', {})], [
+      { id: 'mayapple', facts: { edible: settled(true), edible_parts: settled(['fruit']), tox_people: settled(['major']) } },
+      { id: 'fig', facts: { edible: settled(true), edible_parts: settled(['fruit', 'leaves']) } },
+    ]);
+    expect(file.plants.map((p: { facts: Record<string, unknown> }) => p.facts.edible_parts)).toEqual([undefined, { v: ['fruit', 'leaves'], src: ['ncsu'], check: 'single' }]);
+  });
   it('marks a toxic plant edible, or not, as a person decided, its poisonous parts beside it from the same source', () => {
     const poison = { v: { severity: 'high', parts: ['leaves', 'roots', 'seeds', 'stems'], skin: true }, src: ['ncsu'], check: 'single' };
     const { file, review } = writeAudit({ meta, plants: [rec('mayapple', { dog: 'Toxic - rarely eaten' }), rec('oak', { dog: 'Toxic - rarely eaten', edible: true }), rec('ramps', { dog: 'Toxic - rarely eaten' })] }, [
