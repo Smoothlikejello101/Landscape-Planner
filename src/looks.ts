@@ -105,6 +105,23 @@ export function bloomKind(p: Pick<Plant, 'flower_form'>): BloomKind {
   return 'plain';
 }
 
+/** A plant of the user's own (src/my-plants.ts; imported from there, it would bring the whole library in). */
+const MY_PREFIX = 'u-';
+/** Words a person might write for a flower's color, to the colors drawn (FLOWER_HEX's). */
+const COLOR_WORDS: Record<string, string> = {
+  lavender: 'purple', violet: 'purple', lilac: 'purple', mauve: 'purple', plum: 'purple', magenta: 'pink', rose: 'pink', fuchsia: 'pink',
+  raspberry: 'pink', scarlet: 'red', crimson: 'red', burgundy: 'red', maroon: 'red', gold: 'yellow', golden: 'yellow', lemon: 'yellow',
+  ivory: 'cream', apricot: 'orange', peach: 'orange', coral: 'orange', salmon: 'orange', tangerine: 'orange',
+};
+/** The colors in a bloom color written by hand ("White", "Pale pink", "Red and yellow"), in order. */
+export function ownBloomColors(text: string | undefined): string[] {
+  const out: string[] = [];
+  for (const w of (text ?? '').toLowerCase().split(/[^a-z]+/)) {
+    const c = FLOWER_HEX[w] ? w : COLOR_WORDS[w];
+    if (c && !out.includes(c)) out.push(c);
+  }
+  return out;
+}
 /** Colors that are a flower's center or its dull parts, not its petals, where it lists others. */
 const NOT_PETALS = new Set(['brown', 'green', 'black', 'silver', 'variegated']);
 /**
@@ -128,7 +145,10 @@ export function lookOf(p: Plant | undefined, shapeColor: string, chosen = false)
   const variegated = summer.variegated;
   const first = summer.colors[0];
   const base = !p || chosen ? shapeColor : first && first !== 'green' && LEAF_HEX[first] ? LEAF_HEX[first] : evergreen ? EVERGREEN_GREEN : LEAF_HEX.green;
-  const listed = (p?.flower_color ?? []).filter((c) => c !== 'insignificant' && FLOWER_HEX[c]);
+  // (A plant of the user's own: the bloom color they gave it, where they gave one (Jason, Oct 29). A catalog plant's
+  // earlier list's color is unsourced, so not drawn.)
+  const own = !!p && p.id?.startsWith(MY_PREFIX) && !p.flower_color?.length ? ownBloomColors(p.bloom?.color) : [];
+  const listed = (own.length ? own : p?.flower_color ?? []).filter((c) => c !== 'insignificant' && FLOWER_HEX[c]);
   const insignificant = !!p && (!listed.length || (p.flower_form?.inflorescence ?? []).some((x) => x === 'insignificant' || x === 'catkin'));
   const color = p ? flowerColorOf(p.common ?? '', listed) : undefined;
   const fl = !p || insignificant || !color ? undefined : FLOWER_HEX[color];
@@ -307,6 +327,12 @@ function bloomRaw(kind: BloomKind | undefined, px: number, py: number, s: number
     default: return bloomOfLeaves(px, py, s * 0.5, s * 0.2, 6, cols, eye, a0, rng);
   }
 }
+/**
+ * A bloom's size, no bigger than its share of the plant (Jason, Oct 29: on a small perennial at mid zoom, blooms of
+ * a fixed size covered it two or three times over, a disc of flower color): at most three quarters of the plant's
+ * radius (a mid bloom's disc reaches three eighths of it), so its green shows between them.
+ */
+const fit = (s: number, r: number) => Math.min(s, r * 0.75);
 /** The same bloom at mid size: a bold disc in its color, a lighter heart, the eye. */
 const midBloom = (px: number, py: number, s: number, cols: string[], eye?: string) => fb(disc(px, py, s * 0.5, cols[0]) + disc(px - s * 0.1, py - s * 0.1, s * 0.24, cols[1]) + (eye ? disc(px, py, s * 0.13, eye) : ''));
 /** Yard size: bold spots of its flower color, pulled in from the tips. */
@@ -321,9 +347,9 @@ function sprigPlant(rng: Rng, r: number, pal: LookPalette, L: LookLevel, perenni
   const s = 16 * (perennial ? 1.05 : 1);
   let out = disc(0, 0, r, pal.base);
   if (L === 'yard') return out + roundness(r, pal) + (cols ? yardSpots(bl.slice(0, 5), r, cols) : '');
-  if (L === 'mid') return out + mottle(rng, r, pal) + stems(d, pal.dark, 2) + (cols ? bl.map(([px, py]) => midBloom(px, py, s * 1.15, cols, pal.eye)).join('') : '');
+  if (L === 'mid') return out + mottle(rng, r, pal) + stems(d, pal.dark, 2) + (cols ? bl.map(([px, py]) => midBloom(px, py, fit(s * 1.15, r), cols, pal.eye)).join('') : '');
   out += stems(d, pal.dark, perennial ? 1 : 1.4) + sprigLeaves(rng, segs, pal);
-  if (cols) for (const [px, py] of bl) out += bloom(pal.bloom, px, py, s, cols, pal.eye, rng.u(0, TAU), rng);
+  if (cols) for (const [px, py] of bl) out += bloom(pal.bloom, px, py, fit(s, r), cols, pal.eye, rng.u(0, TAU), rng);
   return out;
 }
 /** Blades from the crown; in flower, a haze of plume at the blade tips. */
@@ -352,12 +378,12 @@ function tree(rng: Rng, r: number, pal: LookPalette, L: LookLevel, broadleaf: bo
   const cols = pal.fl ? tones2(pal.fl) : null;
   let out = disc(0, 0, r, pal.base, CANOPY);
   if (L === 'yard') return out + roundness(r, pal) + (cols ? yardSpots(bl.slice(0, 4), r, cols, 0.2) : '');
-  if (L === 'mid') return out + mottle(rng, r, pal, 9) + stems(d, pal.dark, 3) + (cols ? bl.map(([px, py]) => midBloom(px, py, 15, cols, pal.eye)).join('') : '');
+  if (L === 'mid') return out + mottle(rng, r, pal, 9) + stems(d, pal.dark, 3) + (cols ? bl.map(([px, py]) => midBloom(px, py, fit(15, r), cols, pal.eye)).join('') : '');
   out += stems(d, pal.dark, 2.2);
   out += broadleaf
     ? sprigLeaves(rng, segs, pal, { cols: [pal.light, shade(pal.base, -0.15), shade(pal.base, -0.3), '#9a6a3a'], ln: [8, 10.5], wd: 3.8, every: 3.6 })
     : sprigLeaves(rng, segs, pal, { ln: [5.5, 7], wd: 3.4, every: 4.2 });
-  if (cols) for (const [px, py] of bl) out += bloom(pal.bloom, px, py, 15, cols, pal.eye, rng.u(0, TAU), rng);
+  if (cols) for (const [px, py] of bl) out += bloom(pal.bloom, px, py, fit(15, r), cols, pal.eye, rng.u(0, TAU), rng);
   return out;
 }
 /** A conifer from above: limbs in whorls, needles as fans along them, or tight scale sprays (a cedar, a juniper). */
@@ -390,9 +416,9 @@ function annual(rng: Rng, r: number, pal: LookPalette, L: LookLevel): string {
   const cols = pal.fl ? tones2(pal.fl) : null;
   let out = disc(0, 0, r, pal.base);
   if (L === 'yard') return out + roundness(r, pal) + (cols ? yardSpots(bl.slice(0, 6), r, cols, 0.25) : '');
-  if (L === 'mid') return out + mottle(rng, r, pal) + stems(d, pal.dark, 2.2) + (cols ? bl.map(([px, py]) => midBloom(px, py, 13, cols, pal.eye)).join('') : '');
+  if (L === 'mid') return out + mottle(rng, r, pal) + stems(d, pal.dark, 2.2) + (cols ? bl.map(([px, py]) => midBloom(px, py, fit(13, r), cols, pal.eye)).join('') : '');
   out += stems(d, pal.dark, 1) + sprigLeaves(rng, segs, pal);
-  if (cols) for (const [px, py] of bl) out += bloom(pal.bloom, px, py, 12, cols, pal.eye, rng.u(0, TAU), rng);
+  if (cols) for (const [px, py] of bl) out += bloom(pal.bloom, px, py, fit(12, r), cols, pal.eye, rng.u(0, TAU), rng);
   return out;
 }
 /** A clump of bulbs: strap leaves from the center, blooms held at their tips. */
@@ -403,7 +429,7 @@ function bulb(rng: Rng, r: number, pal: LookPalette, L: LookLevel): string {
   const bl = pickTips(pts.map((p) => [p[0], p[1]]), 5);
   if (L === 'yard') return out + roundness(r, pal) + (cols ? yardSpots(bl, r, cols, 0.26) : '');
   for (const [, , a, ln] of pts) out += path(leaf(0, 0, a, ln, L === 'close' ? 2.6 : 4), rng.pick([pal.dark, pal.light, shade(pal.base, 0.15)]));
-  if (cols) out += bl.map(([px, py]) => (L === 'close' ? bloom(pal.bloom, px, py, 15, cols, pal.eye, rng.u(0, TAU), rng) : midBloom(px, py, 18, cols, pal.eye))).join('');
+  if (cols) out += bl.map(([px, py]) => (L === 'close' ? bloom(pal.bloom, px, py, fit(15, r), cols, pal.eye, rng.u(0, TAU), rng) : midBloom(px, py, fit(18, r), cols, pal.eye))).join('');
   return out;
 }
 /** Fronds from the crown, each a sprig of paired leaflets. */
@@ -438,7 +464,7 @@ function aquatic(rng: Rng, r: number, pal: LookPalette, L: LookLevel): string {
     const sx = ex - Math.cos(a) * 9, sy = ey - Math.sin(a) * 9;
     out += path(roundLeaf(sx - Math.cos(a) * 4, sy - Math.sin(a) * 4, a, L === 'close' ? 17 : 18, 8.5), rng.pick([shade(pal.base, -0.18), shade(pal.base, 0.1), shade(pal.base, -0.32), pal.light]), ` stroke="${pal.dark}" stroke-width="0.7"`);
   }
-  if (cols) for (const [px, py] of bl) { const a = Math.atan2(py, px); out += L === 'close' ? bloom('spike', px - Math.cos(a) * 3, py - Math.sin(a) * 3, 16, cols, undefined, a, rng) : midBloom(px, py, 16, cols); }
+  if (cols) for (const [px, py] of bl) { const a = Math.atan2(py, px); out += L === 'close' ? bloom('spike', px - Math.cos(a) * 3, py - Math.sin(a) * 3, fit(16, r), cols, undefined, a, rng) : midBloom(px, py, fit(16, r), cols); }
   return out;
 }
 /** Pads from above, dotted with areoles; cups on the pad rims in flower. */
@@ -453,7 +479,7 @@ function cactus(rng: Rng, r: number, pal: LookPalette, L: LookLevel): string {
     out += `<ellipse cx="${f1(px)}" cy="${f1(py)}" rx="${f1(rx)}" ry="${f1(ry)}" transform="rotate(${f1(a)} ${f1(px)} ${f1(py)})" fill="${rng.pick([pal.base, shade(pal.base, -0.12), shade(pal.base, 0.08)])}" stroke="${shade(pal.base, 0.35)}" stroke-width="0.8"/>`;
     if (L === 'close') for (let j = 0; j < 7; j++) { const [qx, qy] = inDisc(rng, ry * 0.75, 0, px, py); out += disc(qx, qy, 0.55, '#e8e0b8'); }
   }
-  if (cols) out += bl.map(([px, py]) => (L === 'close' ? bloom('cup5', px, py, 11, cols, pal.eye ?? '#d8702a', rng.u(0, TAU), rng) : midBloom(px, py, 13, cols, pal.eye))).join('');
+  if (cols) out += bl.map(([px, py]) => (L === 'close' ? bloom('cup5', px, py, fit(11, r), cols, pal.eye ?? '#d8702a', rng.u(0, TAU), rng) : midBloom(px, py, fit(13, r), cols, pal.eye))).join('');
   return out;
 }
 /** A vine grown with no support: a patch of runners along the ground, its blooms at the runners' tips. */
@@ -465,7 +491,7 @@ function groundcover(rng: Rng, r: number, pal: LookPalette, L: LookLevel): strin
   if (L === 'yard') return out + roundness(r, pal) + (cols ? yardSpots(bl, r, cols, 0.2) : '');
   out += stems(d, pal.dark, L === 'close' ? 1 : 2);
   out += L === 'close' ? sprigLeaves(rng, segs, pal, { ln: [4.5, 6], wd: 2.4, every: 3.6 }) : mottle(rng, r, pal);
-  if (cols) out += bl.map(([px, py]) => (L === 'close' ? bloom(pal.bloom, px, py, 13, cols, pal.eye, rng.u(0, TAU), rng) : midBloom(px, py, 14, cols, pal.eye))).join('');
+  if (cols) out += bl.map(([px, py]) => (L === 'close' ? bloom(pal.bloom, px, py, fit(13, r), cols, pal.eye, rng.u(0, TAU), rng) : midBloom(px, py, fit(14, r), cols, pal.eye))).join('');
   return out;
 }
 
