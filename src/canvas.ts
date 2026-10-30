@@ -23,8 +23,8 @@ import { state } from './state';
 import { isArbor, isTrellis, LATTICE_STEP, latticePath, SLAT_STEP, slatsPath } from './structures';
 import type { CircleShape, Point, Shape, ShapeFilter, TextShape } from './types';
 import { groundcoverRadius, supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
-import { lookFor, lookMarkup, lookShown } from './plant-looks';
-import { bandBlooms, coverBlooms, levelOf } from './looks';
+import { lookFor, lookMarkup, lookMonthOf, lookShown } from './plant-looks';
+import { bandBlooms, colorIn, coverBlooms, levelOf } from './looks';
 
 // Canvas drawing. Everything here writes only into the <svg>, never into
 // panel DOM, so it is safe to call while an input has keyboard focus.
@@ -175,8 +175,10 @@ export function shapeGroup(s: Shape): SVGGElement {
     const bandW = Math.max(4, VINE_BAND_WIDTH * ppf);
     // (Drawn as a picture (src/looks.ts): in its leaves' color, nearly solid, its blooms along it.)
     const look = lookShown(s) ? lookFor(s) : null;
+    // (Through the year: its band in the month's color, bare twigs in winter; its blooms only in its months.)
+    const inMonth = look ? lookMonthOf(s) : undefined;
     const op = look ? (s.status === 'planned' ? 0.75 : 0.9) : s.status === 'planned' ? 0.5 * (s.opacity ?? 0.65) : s.opacity ?? 0.65;
-    const paint = { stroke: s.status === 'remove' ? '#dc2626' : look ? look.pal.base : s.color, 'stroke-opacity': op, fill: 'none', 'pointer-events': 'none' };
+    const paint = { stroke: s.status === 'remove' ? '#dc2626' : look ? (inMonth ? colorIn(look, inMonth) : look.pal.base) : s.color, 'stroke-opacity': op, fill: 'none', 'pointer-events': 'none' };
     // (On an arbor, over its top, as far as its spread reaches: taps go through it to the arbor, the vine taking
     // them at its spot.)
     shapeEl = cover
@@ -185,8 +187,8 @@ export function shapeGroup(s: Shape): SVGGElement {
       : svgEl('polyline', { ...paint, 'data-role': 'vine-band', points: band.map(toPx).join(' '), 'stroke-width': bandW, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
         opacity: s.status === 'gone' ? 0.35 : null }); // (planned: lighter, as its stroke-opacity says; a dashed band reads as beads)
     g0.push(svgEl('polyline', { ...paint, 'data-role': 'vine-reach', points: connector.map(toPx).join(' '), 'stroke-width': Math.max(1.5, bandW / 3), 'stroke-linecap': 'round', opacity: s.status === 'gone' ? 0.35 : null }));
-    if (look) {
-      const blooms = svgEl('g', { 'data-role': 'vine-blooms', 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : null });
+    if (look && inMonth?.bloom !== 'no') {
+      const blooms = svgEl('g', { 'data-role': 'vine-blooms', 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : inMonth?.bloom === 'around' ? 0.45 : null });
       const px = (l: Point[]) => l.map((p) => ({ x: (p.x - state.offsetX) * ppf, y: (p.y - state.offsetY) * ppf }));
       blooms.innerHTML = cover ? coverBlooms(px(cover), look, Math.max(16, 1.5 * ppf)) : bandBlooms(px(band), bandW, look, Math.max(16, 1.6 * ppf));
       g0.push(blooms);
@@ -221,6 +223,8 @@ export function shapeGroup(s: Shape): SVGGElement {
       under = svgEl('g', { 'data-role': 'plant-look', transform: `translate(${cx} ${cy})`, 'pointer-events': 'none',
         opacity: s.status === 'gone' ? 0.35 : s.status === 'planned' || isTree(s) ? 0.85 : null }, svgEl('clipPath', { id: clipId }, outline), art);
       common.fill = 'transparent';
+      // Through the year, a winter not known (no source says whether its leaves stay): a dotted ring says so.
+      if (lookMonthOf(s)?.leaves === 'unknown') g0.push(svgEl('circle', { 'data-role': 'look-unknown', cx, cy, r: Math.max(2, r - 3), fill: 'none', stroke: '#57534e', 'stroke-width': 1.5, 'stroke-dasharray': '2 4', 'stroke-linecap': 'round', 'pointer-events': 'none' }));
     }
     // A tree pruned into a shape: its outline instead of a circle.
     shapeEl = s.canopy
