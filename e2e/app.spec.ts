@@ -263,7 +263,7 @@ test.describe('plants, background, export', () => {
     expect(await shapeCount(page)).toBe(1);
     await expect(page.locator('.sel-pill .name')).toContainText('Autumn Bride');
     await page.locator('.sel-pill button.edit').click();
-    await expect(field(page, 'Spread')).toHaveValue('2.5'); // 2.5 ft spread, drawn 2.5 ft across
+    await expect(field(page, 'Spread')).toHaveValue('1.5'); // 1.5 ft spread (Schroeder Gardens), drawn 1.5 ft across
   });
 
   test('background image two-point calibration sets the scale', async ({ page }) => {
