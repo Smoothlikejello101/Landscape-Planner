@@ -145,12 +145,35 @@ const HERB_FORMS = new Set(['Perennial', 'Grass/Sedge', 'Fern', 'Bulb', 'Aquatic
  */
 export function winterText(p: Plant): string {
   const forms = formsOf(p);
-  if (!p.foliage || (forms.length && forms.every((f) => f === 'Annual'))) return '';
+  if (forms.length && forms.every((f) => f === 'Annual')) return '';
+  if (!p.foliage) return expectedWinter(p);
   if (p.foliage === 'evergreen') return p.needles ? 'Evergreen, with needles' : tenderWoody(p) ? 'Evergreen where winters are mild; may die back in a cold one' : 'Evergreen: keeps its leaves';
   if (p.foliage === 'semi-evergreen') return 'Semi-evergreen: keeps some of its leaves, by the winter';
   const herb = forms.filter((f) => HERB_FORMS.has(f));
   if (forms.length && herb.length === forms.length) return forms.includes('Grass/Sedge') ? 'Goes dormant in winter' : 'Dies back in winter';
   return herb.length ? 'Deciduous: loses its leaves, or dies back to the ground' : 'Deciduous: loses its leaves';
+}
+/**
+ * Where no source gives its foliage (scripts/catalog/winter.mjs): recorded bare in winter by USA-NPN's observers, said
+ * as a source's would be; or as its relatives are, said as what's expected, with how many (Jason, 2026-10-29: "say
+ * something like 'Expected to die back, like 5 relatives…', so it doesn't sound like a hard claim").
+ */
+function expectedWinter(p: Plant): string {
+  const w = p.winter_leaves;
+  if (!w) return '';
+  const forms = formsOf(p), herb = forms.length > 0 && forms.every((f) => HERB_FORMS.has(f)), grass = forms.includes('Grass/Sedge');
+  if (w.basis === 'records') return herb ? (grass ? 'Goes dormant in winter' : 'Dies back in winter') : 'Loses its leaves in winter';
+  const what = w.leaves === 'evergreen' ? 'keep its leaves' : w.leaves === 'semi-evergreen' ? 'keep some of its leaves'
+    : herb ? (grass ? 'go dormant' : 'die back') : 'lose its leaves';
+  return `Expected to ${what} in winter, like its ${w.n} relatives in the catalog`;
+}
+/** Where an expected winter came from, in a few words. */
+function expectedWinterSource(p: Plant): string {
+  const w = p.winter_leaves, from = p.prov?.winter_leaves?.inherited ? ' · from its species' : '';
+  if (!w) return '';
+  return (w.basis === 'records'
+    ? `USA-NPN observers recorded it bare: ${w.n} plant-year${w.n === 1 ? '' : 's'}`
+    : 'Not from a source: other species of its genus, as their sources give them') + from;
 }
 /** NC State's color groups, said plainly ("Red/Burgundy": red). */
 const COLOR_SAID: Record<string, string> = { 'red/burgundy': 'red', 'gold/yellow': 'yellow', 'purple/lavender': 'purple', 'brown/copper': 'brown', 'gray/silver': 'gray', 'cream/tan': 'cream' };
@@ -173,7 +196,7 @@ const SHOWY_STEMS = ['red/burgundy', 'orange', 'gold/yellow', 'purple/lavender',
 export function winterParts(p: Plant): [string, string, string][] {
   const parts: [string, string, string][] = [];
   const leaves = winterText(p);
-  if (leaves) parts.push([leaves, sourceLine(p.prov?.foliage), 'winter-leaves']);
+  if (leaves) parts.push([leaves, p.foliage ? sourceLine(p.prov?.foliage) : expectedWinterSource(p), 'winter-leaves']);
   const bark = (p.bark ?? []).filter((b) => SHOWY_BARK.includes(b));
   if (bark.length) parts.push([`Showy bark: ${bark.join(', ')}`, sourceLine(p.prov?.bark), 'winter-bark']);
   if (p.fruit_season?.includes('winter')) {

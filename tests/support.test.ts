@@ -40,11 +40,13 @@ const parts = (projects: ExportedProject[]) => ({
 });
 
 describe('what a support file keeps from this device', () => {
-  it('puts in settings by value, data by size, a key it doesn’t know by name only, and never the sign-in', () => {
+  it('puts in settings by value, data by size, a key it doesn’t know by name only, and never the sign-in, not even its keys’ names', () => {
     const s = fakeStorage({
       'lp-text-size-2': 'large', 'lp-kind-prefs': '{"bed":"rect"}', 'lp-canopy-hint': '2', 'lp-canopy-hint-at': '1761700000000',
       'lp-projects': '[{"id":"p1"}]', 'lp-journal:p1': '{"at":1}', [ERROR_LOG_KEY]: '[]',
       'lp-auth': '{"access_token":"secret"}', 'lp-code-sent': '{"email":"jason@example.com"}', 'lp-email-signin': 'jason@example.com',
+      // (Supabase's own keys beside the session: a sign-in's code verifiers, as in Jason's file, Oct 29.)
+      'lp-auth-flow-38b6-code-verifier': 'verifier', 'lp-auth-flows-code-verifier': '[]', 'lp-auth-code-verifier': 'verifier', 'lp-auth-user': '{}',
       'lp-something-new': 'its value', 'sb-other': 'not the app’s',
     });
     const got = localKeys(s);
@@ -52,7 +54,7 @@ describe('what a support file keeps from this device', () => {
     expect(got.data.map((d) => d.key)).toEqual([ERROR_LOG_KEY, 'lp-journal:p1', 'lp-projects']);
     expect(got.other).toEqual([{ key: 'lp-something-new', bytes: 9 }]);
     const text = JSON.stringify(got);
-    for (const secret of ['lp-auth', 'secret', 'lp-code-sent', 'jason@example.com', 'lp-email-signin', 'sb-other']) expect(text).not.toContain(secret);
+    for (const secret of ['lp-auth', 'secret', 'verifier', 'lp-code-sent', 'jason@example.com', 'lp-email-signin', 'sb-other']) expect(text).not.toContain(secret);
   });
 
   it("lists every key the app keeps: none would go in only by name (src/support.ts SETTING_KEYS, DATA_KEYS, PRIVATE_KEYS)", () => {

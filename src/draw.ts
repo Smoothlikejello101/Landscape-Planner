@@ -4,7 +4,7 @@ import { startFeaturePlace } from './feature-edit';
 import { svgEl } from './dom';
 import { bakeRotation, fmtFeet, outlineOf, pathPoints, pxPerFoot, rotate, screenToFeet, setWorldPoints } from './geometry';
 import { flushHistoryDebounce, pushHistory, undo } from './history';
-import { state } from './state';
+import { gesture, state } from './state';
 import { save } from './storage';
 import { buildShape, CANOPY_MIN_TAPS, isKindKey, kindDef, tapAccepted, TAPS_TO_FINISH, type KindKey, type Method } from './kinds';
 import type { DrawState, PathShape, Point, Shape, TapSnap } from './types';
@@ -708,13 +708,16 @@ function sideLabels(g: SVGElement, pts: Point[], closed: boolean, gap: number, m
     numberPill(g, sideLabelSpot(seen[0], seen[1], gap, mid, { w: pillWidth(text), h: PILL_H }), text, 'side-length');
   }
 }
-/** The angle at a corner, inside it (not where its sides are too short on screen to tell). */
-function cornerLabel(g: SVGElement, prev: Point, at: Point, next: Point) {
+/**
+ * The angle at a corner, inside it (not where its sides are too short on screen to tell); `clear`: its distance from
+ * the corner (px), farther while a finger is on the corner, dragging it (Jason, Oct 29: it sat under his thumb).
+ */
+function cornerLabel(g: SVGElement, prev: Point, at: Point, next: Point, clear = 30) {
   const deg = cornerAngle(prev, at, next);
   const P = toScreen(prev), A = toScreen(at), N = toScreen(next);
   if (deg == null || Math.hypot(P.x - A.x, P.y - A.y) < 24 || Math.hypot(N.x - A.x, N.y - A.y) < 24) return;
   if (A.x < 0 || A.y < 0 || A.x > state.canvasW || A.y > state.canvasH) return; // (the corner off screen)
-  numberPill(g, angleSpot(P, A, N, 30), `${deg}°`, 'corner-angle');
+  numberPill(g, angleSpot(P, A, N, clear), `${deg}°`, 'corner-angle');
 }
 /** While drawing: the sides so far (and, with a mouse, the one to the pointer), and the newest corner's angle. */
 function drawNumbers(g: SVGElement, d: DrawState, shown: Point[], preview: Shape | null) {
@@ -756,6 +759,6 @@ function editNumbers(g: SVGElement, s: PathShape, sel: number | null) {
   const pts = pathPoints(s), n = pts.length, closed = s.type === 'poly';
   sideLabels(g, pts, closed, 12, 64); // (12 px: clear of the + on the side's middle)
   if (sel == null || sel >= n || n < 3 || (!closed && (sel === 0 || sel === n - 1))) return; // (an undo can leave the selected point gone)
-  cornerLabel(g, pts[(sel + n - 1) % n], pts[sel], pts[(sel + 1) % n]);
+  cornerLabel(g, pts[(sel + n - 1) % n], pts[sel], pts[(sel + 1) % n], gesture.current?.type === 'drag-vertex' ? 80 : 30);
 }
 const samePoint = (a: Point, b: Point) => a.x === b.x && a.y === b.y;
