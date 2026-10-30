@@ -6,13 +6,16 @@ asked for on 2026-10-27, not yet drawn: plants colored by their leaves and flowe
 garden through the year. How they're drawn waits on his pick from the mockups.
 
 It only arranges facts the catalog already has, and records near the garden, by month. It never adds a fact or infers
-one. Each part says what placed it (`basis`), so the app can say "around" or show nothing:
+one itself; where no source gives a plant's foliage, the catalog's `winter_leaves` (scripts/catalog/winter.mjs: its
+species' USA-NPN records, else its relatives) stands in for it. Each part says what placed it (`basis`), so the app can
+say "around", "expected" or show nothing:
 
 | basis | meaning |
 | --- | --- |
 | `records` | observations near the garden: USA-NPN's for leaves (docs/leaf-out.md), GBIF's flowering records for bloom |
 | `source` | a source says it outright: the plant is evergreen; the earlier list's bloom months |
 | `season` | a season word ("late spring"), or the season convention below where nothing else places it |
+| `relatives` | its winter taken from its relatives in the catalog, no source giving its foliage: an expectation, every month of its leaves |
 | `unknown` | nothing: no state, no months |
 
 ## The rules
@@ -28,6 +31,9 @@ one. Each part says what placed it (`basis`), so the app can say "around" or sho
   - Where there are no records near the garden: out in March, coloring September to November, gone December to
     February (`basis: 'season'`). Records for one end of the year and not the other: each end placed by its own.
   - An herb, grass, fern, bulb, annual or water plant that's deciduous dies back: "dormant", not "off".
+  - No source's foliage: `winter_leaves` in its place. Recorded bare by USA-NPN, deciduous (`basis` from the timing, as
+    above); by its relatives, as they are (`basis: 'relatives'` every month). Neither: no state (`unknown`), the
+    not-known ring.
   - No foliage fact: no state (`null`), never guessed.
 - **Leaf colors.** The catalog's leaf colors are NC State's list across the seasons and the leaves' undersides (red
   maple: green, gold, orange). The summer colors are that list less the plant's fall colors, unless that leaves

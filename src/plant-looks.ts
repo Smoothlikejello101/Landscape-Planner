@@ -9,7 +9,8 @@ import type { CircleShape, Shape } from './types';
 
 /** A placed plant drawn as an illustration (Layers: plants drawn, the default). */
 export function lookShown(s: Shape): boolean {
-  return state.plantLooks && s.type === 'circle' && s.role === 'plant' && !!s.plantId;
+  // (Once its record is here: drawn before the catalog is in, a plant would show in its shape's color, then change.)
+  return state.plantLooks && s.type === 'circle' && s.role === 'plant' && !!s.plantId && !!plantsById[s.plantId];
 }
 /** How a placed plant is drawn. */
 export const lookFor = (s: CircleShape): Look => lookOf(s.plantId ? plantsById[s.plantId] : undefined, s.color, !!s.colorSet);

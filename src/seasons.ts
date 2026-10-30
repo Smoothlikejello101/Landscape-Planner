@@ -23,11 +23,12 @@ import type { Plant } from './plants';
 import { localBloom, localLeafFall, localLeafOut, type LocalBloom, type LocalLeafFall, type LocalLeafOut } from './wild';
 
 /**
- * What placed a part in a month: `records`, observations near the garden (USA-NPN, GBIF); `source`, a source saying
- * so outright (evergreen; the earlier list's bloom months); `season`, a season word or the season convention; or
- * `unknown`, nothing.
+ * What placed a part in a month: `records`, observations near the garden (USA-NPN, GBIF), or of its species
+ * anywhere where no source gives its foliage; `source`, a source saying so outright (evergreen; the earlier list's
+ * bloom months); `season`, a season word or the season convention; `relatives`, its winter taken from its relatives in
+ * the catalog, no source giving its foliage (an expectation: scripts/catalog/winter.mjs); or `unknown`, nothing.
  */
-export type Basis = 'records' | 'source' | 'season' | 'unknown';
+export type Basis = 'records' | 'source' | 'season' | 'relatives' | 'unknown';
 export type LeafState = 'emerging' | 'on' | 'turning' | 'off' | 'dormant';
 
 export interface MonthLeaves {
@@ -115,12 +116,23 @@ export function monthRange(start: number, end: number): number[] {
 function leavesIn(p: Plant, month: number, here: Here): MonthLeaves {
   const { colors, variegated } = summerLeafColors(p);
   const v = variegated ? { variegated: true } : {};
-  const foliage = p.foliage;
+  // (No source's foliage: its winter as winter.mjs took it, from its species' records or its relatives.)
+  const expected = p.foliage ? undefined : p.winter_leaves;
+  const foliage = p.foliage ?? expected?.leaves;
   if (!foliage) return { state: null, colors, ...v, basis: 'unknown' };
-  if (foliage === 'evergreen') return { state: 'on', colors, ...v, basis: 'source' };
+  const said: Basis = !expected ? 'source' : expected.basis === 'records' ? 'records' : 'relatives';
+  if (foliage === 'evergreen') return { state: 'on', colors, ...v, basis: said };
   if (foliage === 'semi-evergreen') {
-    return SEASON_MONTHS.winter.includes(month) ? { state: 'on', colors, ...v, thin: true, basis: 'season' } : { state: 'on', colors, ...v, basis: 'source' };
+    return SEASON_MONTHS.winter.includes(month) ? { state: 'on', colors, ...v, thin: true, basis: said === 'relatives' ? said : 'season' } : { state: 'on', colors, ...v, basis: said };
   }
+  if (expected?.basis === 'relatives') {
+    // (Deciduous by its relatives: when it's bare is theirs too, by the season convention, and said as expected.)
+    const out = deciduousIn(p, month, here, colors, v);
+    return { ...out, basis: 'relatives' };
+  }
+  return deciduousIn(p, month, here, colors, v);
+}
+function deciduousIn(p: Plant, month: number, here: Here, colors: string[], v: { variegated?: boolean }): MonthLeaves {
   const off: LeafState = DIES_BACK.has(p.form ?? '') ? 'dormant' : 'off';
   const fallColors = p.fall_colors ?? [];
   const out = here.leafOut?.med, turn = here.fall?.turn?.med, bare = here.fall?.bare?.med;

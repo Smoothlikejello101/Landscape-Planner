@@ -56,13 +56,12 @@ test("a rectangle from two typed sides: 10 ft, then 6 ft off it", async ({ page 
   await expect(field(page, 'Length (ft)')).toHaveValue('6');
 });
 
-test('the yard on an empty plan sets the view; Fit (and Shift+1) brings the whole plan into view', async ({ page }) => {
+test('Fit (and Shift+1) brings the whole plan into view', async ({ page }) => {
   await openFresh(page);
   await expect(page.getByTestId('zoom-fit')).toHaveCount(0); // (nothing to fit)
-  await page.getByTestId('yard-width').fill('60');
-  await page.getByTestId('yard-show').click();
+  // (Zoomed out by hand, so a bed 30 ft wide fits on screen: the empty plan no longer asks the yard's width.)
+  for (let i = 0; i < 5; i++) await page.getByRole('button', { name: 'Zoom out' }).click();
   const yardZoom = await zoomPct(page);
-  expect(yardZoom).toBeLessThan(50); // (from 100%: 60 ft fits on screen)
   // A bed, then zoomed far in: Fit puts it back in view.
   await addKind(page, 'bed', 'rect');
   const box = await canvasBox(page);

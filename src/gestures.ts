@@ -17,6 +17,10 @@ import { afterMove, freeStrandedVines, saidFreed } from './ui/vine-offers';
 import { render, updateStatusReadout } from './ui/render';
 import { now, snap } from './util';
 import { canopyHint } from './canopy';
+import { hintDue, hintShown } from './hints';
+import { kindDef, kindOfShape } from './kinds';
+import { plantsById } from './plants';
+import { toast } from './ui/toast';
 import { applyHandleDrag, handleDragChanged, handleDragLive, startHandleDrag } from './handles';
 import { featureSpot, nearestOnEdge } from './features';
 import { featureTap } from './feature-edit';
@@ -288,16 +292,53 @@ export function onCanvasPointerMove(e: PointerEvent) {
 }
 
 /** Pan mode: tap selects, double-tap opens properties. Select mode: tap toggles. */
-function handleShapeTap(shape: Shape) {
+/** The shapes under a point on the screen (client px), top first, each once: what a tap there could pick. */
+export function shapesAt(clientX: number, clientY: number): Shape[] {
+  const ids: string[] = [];
+  for (const el of document.elementsFromPoint(clientX, clientY)) {
+    if (el.closest('[data-layer="handles"]')) continue;
+    const owner = el.closest('[data-shape-id],[data-trunk-of],[data-feature-of]') as SVGElement | HTMLElement | null;
+    const id = owner?.dataset.shapeId ?? owner?.dataset.trunkOf ?? owner?.dataset.featureOf;
+    if (id && !ids.includes(id)) ids.push(id);
+  }
+  return ids.map((id) => state.shapes.find((s) => s.id === id)).filter((s): s is Shape => !!s);
+}
+/** A shape as a notice names it: "the fence", "the front bed", "the carolina jessamine". */
+function theName(s: Shape): string {
+  const kind = kindOfShape(s);
+  const name = (s.type === 'circle' && s.plantId && plantsById[s.plantId]?.common) || s.label.trim() || (kind ? kindDef(kind).label : 'shape');
+  return `the ${name.charAt(0).toLowerCase()}${name.slice(1)}`;
+}
+const STACK_HINT = 'lp-hint-tap-under';
+/** What the last tap moved down the stack from, if it did: a quick second tap (a double tap) opens that one's pane. */
+let cycledFrom: string | null = null;
+/**
+ * A tap on a shape. `at` (client px): where, for what's stacked there. A quick second tap opens the pane of what the
+ * first picked; a separate tap where one of the stack is selected picks the next one under it, round the stack
+ * (Jason, Oct 29: a vine over its fence, a tree in a patch of groundcover, a bed under the house).
+ */
+function handleShapeTap(shape: Shape, at?: { x: number; y: number }) {
   if (state.selectMode) { toggleSelect(shape.id); return; }
   const t = now();
-  if (tapTracker.id === shape.id && t - tapTracker.time < DOUBLE_TAP_MS) {
-    selectOnly(shape.id);
+  const stack = at ? shapesAt(at.x, at.y).filter((s) => shownWith(s, state.viewFilter)) : [];
+  if (!stack.some((s) => s.id === shape.id)) stack.unshift(shape);
+  if (tapTracker.id && stack.some((s) => s.id === tapTracker.id) && t - tapTracker.time < DOUBLE_TAP_MS) {
+    // (A double tap on the one selected: its pane, though its first tap went on down the stack.)
+    selectOnly(cycledFrom ?? tapTracker.id);
     state.panel = 'props';
-    tapTracker.id = null; tapTracker.time = 0;
-  } else {
-    selectOnly(shape.id);
-    tapTracker.id = shape.id; tapTracker.time = t;
+    tapTracker.id = null; tapTracker.time = 0; cycledFrom = null;
+    return;
+  }
+  const sel = state.selectedIds.length === 1 ? stack.findIndex((s) => s.id === state.selectedIds[0]) : -1;
+  const pick = sel >= 0 ? stack[(sel + 1) % stack.length] : shape;
+  cycledFrom = sel >= 0 && pick.id !== state.selectedIds[0] ? state.selectedIds[0] : null;
+  selectOnly(pick.id);
+  tapTracker.id = pick.id; tapTracker.time = t;
+  // (The first few times a tap lands on a stack, on this device: say so.)
+  if (sel < 0 && stack.length > 1 && hintDue(STACK_HINT, 3)) {
+    const next = stack[(stack.indexOf(pick) + 1) % stack.length];
+    toast(`Tap again for ${theName(next)} under it.`, 4000);
+    hintShown(STACK_HINT);
   }
 }
 
@@ -349,7 +390,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
       }
       else {
         const shape = state.shapes.find((s) => s.id === g.id);
-        if (shape) handleShapeTap(shape);
+        if (shape) handleShapeTap(shape, { x: g.startX, y: g.startY });
         // (Under a tree's canopy, the tap went through to this: say how to pick the tree, the first few times.)
         canopyHint(screenToFeet(g.startX, g.startY), state.shapes, pxPerFoot(), g.id);
       }
@@ -380,7 +421,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
       else if (state.editPoints) state.editPoints.vertex = null;
       else if (g.tapShapeId) { // tap on a locked shape: select it
         const shape = state.shapes.find((s) => s.id === g.tapShapeId);
-        if (shape) handleShapeTap(shape);
+        if (shape) handleShapeTap(shape, { x: g.startX, y: g.startY });
         canopyHint(screenToFeet(g.startX, g.startY), state.shapes, pxPerFoot(), g.tapShapeId);
       } else { // tap on empty canvas
         clearSelection();
@@ -416,7 +457,7 @@ function tapThroughHandle(clientX: number, clientY: number) {
   const under = document.elementsFromPoint(clientX, clientY).find((el) => !el.closest('[data-layer="handles"]')) as SVGElement | HTMLElement | undefined;
   const id = under?.dataset?.shapeId ?? under?.dataset?.trunkOf ?? under?.dataset?.featureOf;
   const shape = id ? state.shapes.find((s) => s.id === id) : undefined;
-  if (shape) handleShapeTap(shape);
+  if (shape) handleShapeTap(shape, { x: clientX, y: clientY });
   else { clearSelection(); state.panel = null; tapTracker.id = null; tapTracker.time = 0; }
   canopyHint(screenToFeet(clientX, clientY), state.shapes, pxPerFoot(), shape?.id);
 }
@@ -443,9 +484,13 @@ export function onShapePointerDown(e: PointerEvent, shape: Shape) {
     return;
   }
 
-  // Locked shapes are part of the ground: dragging on one pans (or lassos in
-  // select mode), a tap still selects it.
+  // Locked shapes are part of the ground: a press on one goes to what's on it, unlocked, under the finger (Jason,
+  // Oct 29: a bed drawn under a locked house); with nothing there, dragging pans (or lassos in select mode), and a
+  // tap still selects it.
   if (isLocked(shape) && !(isSelected(shape.id) && state.selectedIds.length > 1)) {
+    const busy = state.selectMode || !!state.draw || !!state.editPoints || !!state.placing || !!state.featurePlace;
+    const onIt = !busy && shapesAt(e.clientX, e.clientY).find((s) => s.id !== shape.id && !isLocked(s) && shownWith(s, state.viewFilter));
+    if (onIt) { activePointers.delete(e.pointerId); onShapePointerDown(e, onIt); return; }
     if (state.selectMode) {
       const feet = screenToFeet(e.clientX, e.clientY);
       gesture.current = { type: 'marquee', startX: e.clientX, startY: e.clientY, startFeet: feet, currentFeet: feet, moved: false, tapShapeId: shape.id };

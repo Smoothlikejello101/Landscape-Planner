@@ -178,6 +178,19 @@ describe('plant filters', () => {
     expect(winterText({ ...heuchera, form: 'Vine', forms: ['Vine'], foliage: 'deciduous' })).toBe('Deciduous: loses its leaves');
     expect(winterText({ ...heuchera, form: 'Shrub', forms: ['Shrub', 'Perennial', 'Annual'], foliage: 'evergreen' })).toBe('Evergreen where winters are mild; may die back in a cold one'); // ('Miss Huff' lantana)
   });
+  it("says a winter no source gives as its records show it, or as what's expected from its relatives, with how many (Jason, Oct 29)", () => {
+    const rel = (leaves: 'evergreen' | 'semi-evergreen' | 'deciduous', n: number) => ({ leaves, basis: 'relatives' as const, n });
+    expect(winterText({ ...heuchera, winter_leaves: rel('deciduous', 5) })).toBe('Expected to die back in winter, like its 5 relatives in the catalog');
+    expect(winterText({ ...heuchera, form: 'Shrub', winter_leaves: rel('deciduous', 2) })).toBe('Expected to lose its leaves in winter, like its 2 relatives in the catalog');
+    expect(winterText({ ...heuchera, form: 'Grass/Sedge', winter_leaves: rel('deciduous', 3) })).toBe('Expected to go dormant in winter, like its 3 relatives in the catalog');
+    expect(winterText({ ...heuchera, form: 'Shrub', winter_leaves: rel('evergreen', 4) })).toBe('Expected to keep its leaves in winter, like its 4 relatives in the catalog');
+    expect(winterText({ ...heuchera, winter_leaves: { leaves: 'deciduous', basis: 'records', n: 23 } })).toBe('Dies back in winter');
+    // (A source's foliage, where there is one, is what's said.)
+    expect(winterText({ ...heuchera, foliage: 'evergreen', winter_leaves: rel('deciduous', 5) })).toBe('Evergreen: keeps its leaves');
+    const parts = (p: Plant) => winterParts(p).map(([text, line]) => [text, line]);
+    expect(parts({ ...heuchera, winter_leaves: { leaves: 'deciduous', basis: 'records', n: 23 } })).toEqual([['Dies back in winter', 'USA-NPN observers recorded it bare: 23 plant-years']]);
+    expect(parts({ ...heuchera, winter_leaves: rel('deciduous', 5) })[0][1]).toBe('Not from a source: other species of its genus, as their sources give them');
+  });
   it('says what makes its winter interest: showy bark, fruit into winter, colored stems where it\'s listed for winter, winter flowers', () => {
     const ncsu = { src: ['ncsu'], check: 'single' as const };
     const birch = { ...heuchera, form: 'Tree', foliage: 'deciduous', bark: ['exfoliating', 'scaly'], bark_color: ['red/burgundy', 'light brown'],

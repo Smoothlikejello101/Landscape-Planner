@@ -10,7 +10,7 @@ import { renderPlaceOverlay } from './place';
 import { renderShapeHandles } from './handles';
 import { onFeaturePointerDown, onShapePointerDown } from './gestures';
 import { featureHitPart, featureParts, knownFeatures } from './features';
-import { plantsById } from './plants';
+import { catalogReady, plantsById } from './plants';
 import { plantLabelFit, LABEL_LINE_HEIGHT, textWidth1, type FittedLabel } from './labels';
 import { canopyInnerRadius, canopyPoints, isTree, trunkParts, trunkReachPx } from './trees';
 import { trunkHitPx } from './canopy';
@@ -557,7 +557,8 @@ function circleLabel(s: CircleShape, ppf: number): FittedLabel | null | undefine
 /** Plants ringed as close or crowded (Layers switch, and always while placing); refreshed on each redraw. */
 let crowded = new Map<string, CrowdLevel>();
 function refreshCrowding() {
-  crowded = state.showCrowding || state.placing ? crowdLevels(state.shapes.filter((s) => shownWith(s, state.viewFilter)), plantsById, crowdOptions()) : new Map();
+  // (Not until the catalog is in: without plants' heights, plants that grow over and under each other look crowded.)
+  crowded = (state.showCrowding || state.placing) && catalogReady() ? crowdLevels(state.shapes.filter((s) => shownWith(s, state.viewFilter)), plantsById, crowdOptions()) : new Map();
 }
 /** The utilities shown, measured once a redraw for every plant's check (src/utilities.ts); none on most plans. */
 let shownUtilities: PreparedUtility[] = [];
@@ -586,6 +587,7 @@ export function redrawCanvas() {
   renderGrid(grid);
   const shapes = layer(svg, 'shapes');
   for (const s of paintOrder(state.shapes)) shapes.appendChild(shapeGroup(s));
+  liftTrunks(shapes);
   const mq = marqueeRect();
   if (mq) shapes.appendChild(mq);
   renderHandles(layer(svg, 'handles'));
@@ -631,8 +633,23 @@ export function redrawShapes(ids: string[]) {
   for (const id of new Set(ids)) {
     const s = state.shapes.find((sh) => sh.id === id);
     const old = shapes.querySelector(`:scope > g[data-shape-group="${CSS.escape(id)}"]`);
-    if (s && old) old.replaceWith(shapeGroup(s));
+    if (s && old) {
+      shapes.querySelector(`:scope > g[data-role=trunks] > [data-trunk-of="${CSS.escape(id)}"]`)?.remove();
+      old.replaceWith(shapeGroup(s));
+    }
   }
+  liftTrunks(shapes);
+}
+/**
+ * A tree's trunk, its tap target, over every shape (Jason, Oct 29: a tree dragged into a patch of groundcover
+ * jessamine couldn't be picked): a trunk is above whatever grows around it, so tapping one always picks its tree.
+ * Moved, not copied, from each tree's group into one group last in the layer.
+ */
+function liftTrunks(shapes: Element) {
+  let top = shapes.querySelector(':scope > g[data-role=trunks]');
+  if (!top) top = shapes.appendChild(svgEl('g', { 'data-role': 'trunks' }));
+  for (const t of shapes.querySelectorAll(':scope > g[data-shape-group] > [data-role=trunk-hit]')) top.appendChild(t);
+  shapes.appendChild(top); // (last: after any group drawn since)
 }
 
 /** Redraw only the marquee rectangle. */
