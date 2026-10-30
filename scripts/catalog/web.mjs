@@ -150,6 +150,102 @@ export const SKIP_SITES = new Set([
   'areverenceforroses.com', 'hometuary.com', 'spnanyc.org', // (spam; AI-written lifestyle copy; a neighborhood association)
   'mossvalepark.com', // (its catalogue text is Wikipedia's, by its own terms)
   'hytiva.com', // (a cannabis marketplace)
+  // Found by the terms reviews of the spacing round, batch 1 (2026-10-29)
+  'mynzagric.com', 'greeneryinside.com', 'guyabouthome.com', 'treestopsecrets.com', 'gardenesign.com', 'cultivatingflora.com', // (AI-written)
+  'gardenbagan.com', 'smartgardenguru.com', 'theyieldgrid.com', 'viridia.pro', 'ocelot-ocelot-7ha5.squarespace.com', // (AI-written)
+  'microveggy.com', 'buzztum.com', 'decorexpro.com', 'ehow.com', 'bhg.com.au', 'ai-plantfinder.com', // (content farms; AI content by their own notices)
+  'allmyfriendsareflowers.com', 'winefrog.com', // (spam: taken over by gambling links)
+  'livingleafplant.com', 'grasssow.com', 'plantseedworld.com', 'trendoli.com', // (dropship or copied storefronts)
+  'plantistrylabs.com', 'lawn.com.au', 'zoominfo.com', // (marketplaces; a company-data aggregator)
+  'ala.org.au', 'allasiatcn.org', 'oclc.org', 'plantory.ai', // (aggregators: GBIF's Australian node, a herbarium portal, a library host, Trefle's data)
+  'permaplans.com', 'gardenscheme.com', 'monstera-app.com', 'gardenersnavigator.com', // (other apps' compiled plant lists; answers compiled from extension)
+  'homeopathinfo.com', 'lifeasible.com', 'candaceshaw.net', 'saartillery.wordpress.com', 'fairwaystyles.com', 'dmt-nexus.me', // (not plant sources)
+  // Found by the terms reviews of the spacing round, batch 2 (2026-10-29)
+  'fruitandgarden.com', 'gardeningflow.com', 'thepracticalplanter.com', 'louistheplantgeek.com', 'perennialplants.com', // (AI-written)
+  'sciotogardens.com', // (spam injected into its home page)
+  'timergarden.com', 'pureplantseed.com', // (dropship or affiliate storefronts)
+  'bloompots.com', 'leaftide.com', // (other apps' compiled plant lists)
+  'biogator.org', 'nbnatlas.org', 'marinespecies.org', // (aggregators: a campus species portal, the UK's records atlas, a marine names register)
+  'nationalchampiontree.org', // (record trees, one each: not a species' size)
+  'bruns.de', // (its plant reference is for registered trade buyers: ask first)
+  'fishlaboratory.com', 'aquanswers.com', 'blackhillwoods.ca', 'rootbuyer.com', // (not plant sources: aquariums, tea, a root buyer)
+  // Found by the terms reviews of the spacing round, batch 3 (2026-10-29)
+  'wbperfecttouch.co.uk', 'thewallednursery.com', 'plantblueprint.com', 'intriera.com', 'growplant.org', 'mylifeispeachy.com', // (AI-written)
+  'farmergrows.com', 'gardentabs.com', // (AI-written)
+  'purehomegardens.com', 'ids-water.com', 'farmtilling.com', 'fishkeepingworld.com', // (spam: link farms, casino posts)
+  'ablegardeners.com', 'gardentreenursery.com', 'nestreeo.com', 'ninaseed.com', // (affiliate or dropship storefronts; marketplaces)
+  'tendra-app.com', 'smartgardener.com', 'landscapegpt.io', 'apnikheti.com', // (other apps' plant lists, users' posts, AI guidance)
+  'mapleresearch.org', 'ipmimages.org', // (others' documents; an image archive)
+  'worldcat.org', 'toti.com', 'wood-database.com', 'colegiobolivar.edu.co', '8billiontrees.com', 'qjure.com', 'simpleshowing.com', // (not plant sources)
+  'silverstonegardening.com.au', 'paldat.org', 'ijcmas.com', 'elitetreeaugusta.com', 'mindmapai.app', 'nunnallystreeservice.com', 'mezcalistas.com',
+  // Found by the terms reviews of the spacing round, batch 4 (2026-10-29)
+  'plexerus.com', 'susanhomecare.com', 'thegreenserenity.com', 'theplantworld.com', 'bluestem.ca', 'agrolearner.com', 'bestgardenseed.com', // (AI-written)
+  'agriculture.institute', 'myfloralvault.com', 'murloft.com', 'findsattic.co.uk', 'gardenuk.co.uk', // (AI-written)
+  'mklibrary.com', // (sponsored posts for sale)
+  'gardenseedgrove.com', 'choisya.com', 'diygarden.co.uk', // (a dropship storefront; affiliate sites)
+  'growsonyou.com', 'growveg.com.au', // (crowd-sourced; another planner app's plant data)
+  'shreeyasnaturals.com', 'youngmountaintea.com', 'mintoislandtea.com', 'boweringgardens.com', 'caledonianhorticulture.co.uk', // (not plant sources)
+  'killlakeweeds.com', 'kiwicare.co.nz', 'newcastleflowersbydesign.com.au', 'environmenttreeservice.com',
+  // Found by the terms reviews of the spacing round, batch 5 (2026-10-29)
+  'myedenplants.com', 'plantindex.com', 'orchidstuffplus.com', 'completegardenguide.com', 'decorwithadream.com', 'diys.com', // (AI-written)
+  'fireofroots.co.uk', 'ficusplant.org', 'thetreecareguide.com', 'treecarezone.com', 'aridsage.com.au', 'gardenfine.com', // (AI-written or spun)
+  'gardeningbeyond.com', 'hometosight.com',
+  'shiatoshi.blogspot.com', // (Wikipedia's text)
+  'earthechoseeds.com', // (a dropship storefront)
+  'coloradogardening.co', 'allotmentplanner.com', // (other apps' plant lists, compiled from others')
+  'ravelry.com', 'appropedia.org', 'themulch.com', // (crowd-sourced)
+  'scielo.br', 'banglajol.info', 'indianjournals.com', // (journal aggregators)
+  'roofingrepaircollingwood.com', 'prairiesoapshack.com', 'petaldriven.com', 'firsttunnels.co.uk', 'eclecticschoolofherbalmedicine.com', // (not plant sources)
+  'flowerspicture.org', 'simplelawnslandscaping.com', 'weclinic.in', 'beyondforest.org', 'keepnassaubeautiful.org',
+  // Found by the terms reviews of the spacing round, batch 6 (2026-10-29)
+  'foliagefriend.com', 'trudyweir.co.uk', 'thegardening.org', 'urbangardengal.com', 'thehomeyspace.com', 'trimmedroots.com', // (AI-written)
+  'wildcraftia.com', 'cactus-succulents.com', 'atlas-flora.com', 'agrifarming.in', 'lotusmagus.com', 'leafyheaven.com.au', 'landscapeofus.com',
+  'hanugardens.com', 'theplantseed.com', 'seedsworld.online', 'organicseedshub.com', 'oliviadaolive.com', // (dropship or affiliate storefronts)
+  'aqua-diary.com', 'agroforestdesigner.com', 'world-crops.com', 'birdgardens.ca', // (other apps' and compiled plant lists)
+  'discoverlife.org', 'shopifarm.com', 'chestofbooks.com', // (aggregators; old books republished)
+  'homeownershub.com', 'forumactif.com', 'bliptext.com', // (crowd-sourced)
+  'ziggyscactus.com', // (its owner: "We do not need any AI stuff whatsoever")
+  'esmed.org', 'heringpharma.net', 'greenshipgardenus.com', 'fishi-pedia.com', 'elevationlandscapes.com', 'smokeysgardens.com', 'swst.org', // (not plant sources)
+  'viviero3d.com', 'strongsrq.com', 'suzu-hikone.com', 'abchomeopathy.com', 'annemckenzie.com', '72tree.com', 'philodendronplant.com', 'proflowers.com', 'scirp.org',
+  // Found by the terms reviews of the spacing round, batch 7 (2026-10-30)
+  'businesscomputingworld.net', 'johndenson.com', 'mygardeningzone.com', 'mrclusia.com', 'esselio.co.uk', 'gardenwizz.com', 'wingedsumac.com', // (AI-written)
+  'lawncalcs.com', 'patsnap.com', // (mass-produced compilations; AI summaries)
+  'farmsidegardens.com', 'urbanthumbs.com.au', 'treehouse.co', // (a dropship storefront; a marketplace; an aggregator)
+  'armuro.com', // (a crowd-sourced forum)
+  'lightsource.ca', 'lalandscapesupply.com', 'nacaa.com', 'estellatse.com', 'glamorwood.com', 'greenhydrokw.com', 'gogreenstripe.com', // (not plant sources)
+  'rndaccessories.com', 'turfdoctortn.com',
+  'forestresearch.gov.uk', // (Open Government Licence: its attribution statement must be shown, which the catalog's credits can't carry yet)
+  // Found by the terms reviews of the spacing round, batch 8 (2026-10-30)
+  'citycacti.com', 'homeopathywatch.com', 'leafsgarden.com', 'houseplantsnook.com', 'paperpuppets.co.uk', 'plantizz.com', 'wireandmoss.com', // (AI-written)
+  'thetreeplanters.com', 'aigardenplanner.com', 'foragingguru.com',
+  'auntiedogmasgardenspot.wordpress.com', 'outdoorplantcare.com', // (copied: its own footer says so; checked against a closed source)
+  'ajol.info', 'irmng.org', 'semanticscholar.org', 'truffaut.com', 'iflora.cn', // (aggregators; a marketplace; crowd-sourced)
+  'completegrow.com.au', 'bluecollarq.net', 'conservation-nature.fr', 'everydaylillie.com', 'floragard.de', 'mushroomexpert.com', // (not plant sources)
+  'ponicslife.com', 'stage--interiors.com', 'tambopatalodge.com', 'spearheadspade.com',
+  // Found by the terms reviews of the spacing round, batch 9 (2026-10-30)
+  'gardennexium.com', 'janemagnolia.com', 'urbanlotusproject.org', 'trustedgardenreviews.com', 'orchidshade.com', 'patiotip.com', // (AI-written)
+  'modernagriculturefarm.com', 'docslib.org', 'planteset.com', 'pustakaflora.blogspot.com', // (copied, uploaded, translated or compiled)
+  'yourplantinfo.com', // (a site vendor's plant gallery on a generic domain: a rented database, likely)
+  'gid-rasteniy.ru', 'paisagismodigital.com', // (another app's catalogue with users' content; a portal with a forum)
+  'flagshouse.com', 'bloomfloralfarm.com', 'blueleafnursery.com', // (dropship or repurposed stores; a parked domain turned spam)
+  'elliottelectric.com', 'ipexna.com', 'sweetkitchencravings.com', 'thecityofbeverly.com', 'therumpus.net', 'zoneomics.com', // (not plant sources)
+  'soxandfreeman.com', 'mydocmd.com', 'afarmgirlskitchen.com', 'd2runewizard.com', 'aldi.co.uk', 'dalss.eu', 'rexelusa.com',
+  'smokymountainnews.com', 'sedum-et-toiture.com', 'roomsforrentblog.com',
+  // Found by the terms reviews of the spacing round, batch 10 (2026-10-30)
+  'orchidstudium.com', 'farmingthing.com', 'elika.com.tr', 'muthlerlandscaping.com', // (AI-written or mass-produced)
+  'blericktreefarm.com.au', // (spam injected into every footer)
+  'plantrrstore.com', 'onlinetrees.com', 'gardencaress.com', // (dropship storefronts)
+  'zoneplant.com', 'plantbyzip.com', 'plantatlas.bio', // (compiled or translated plant lists)
+  'rhododendra.com', 'zielonozakreceni.pl', 'amazonforum.com', 'erasmusu.com', // (crowd-sourced)
+  'leafly.com', 'allbud.com', 'viveristesdegirona.com', 'findthatrose.co.uk', 'plantariumgroendirekt.nl', // (directories and aggregators)
+  'ridgecrestflorist.com', 'rosiesandposiesca.com', 'royalroseflorist.net', 'mayflowers-riverside.com', 'delightflorist.com', // (Flower Shop Network's shared florist pages)
+  'flowersbydonnatowanda.net',
+  'rosaprima.com', 'surprose.com', 'ramirezflowersinc.com', 'excellentflowersinc.com', 'fiftyflowers.com', // (cut flowers, not garden plants)
+  'rcsb.org', 'rosafurnitureusa.com', 'roaming-fox.com', '0264noticias.com.ar', 'actualidadjachallera.com.ar', 'diariodecuyo.com.ar', // (not plant sources)
+  'bathgems.com', 'buildpetals.com', 'beenverified.com', 'blandcpa.com', 'slb.com', 'tilebar.com', 'timeandtidewatches.com', 'villarosadesigns.com',
+  'tlhort.com', 'heritageplus.com', 'homecenteroutlet.com', 'jhspedals.info', 'ifsguild.org', 'jax.org', 'marinelifephotography.com',
+  'ilovegrowingmarijuana.com', 'nokidsallowed.club', 'moorcar.co.uk', 'mriquestions.com', 'mutinyrecordings.com', 'nuemaliving.com',
+  'megsediblelandscapes.com', 'dreamscapefarm.com', 'ebotanii.com',
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
@@ -176,14 +272,20 @@ const COMPANY = {
   'monrovia.com': 'monrovia.com', 'firsteditionsplants.com': 'firsteditionsplants.com', 'baileynurseries.com': 'firsteditionsplants.com',
   'endlesssummerblooms.com': 'firsteditionsplants.com', 'bloomineasy.com': 'bloomineasy.com', 'southernlivingplants.com': 'southernlivingplants.com',
   'encoreazalea.com': 'plantdevelopmentservices', 'plantdevelopment.com': 'plantdevelopmentservices',
+  'garden-gab.com': 'firsteditionsplants.com', // (Bailey Nurseries' questions-and-answers site for its brands, 2026-10-29)
   // (GardenSoft's plant database, rented by water utilities: their plant pages say © GardenSoft. Seen 2026-10-28.)
   'watersavingplants.com': 'gardensoft', 'watersmartgardening.com': 'gardensoft', 'reddingwatersmart.com': 'gardensoft',
   'fresnogardening.org': 'gardensoft', 'bayareagardening.org': 'gardensoft', 'ashlandsaveswater.org': 'gardensoft',
   'elpasodesertblooms.org': 'gardensoft', 'waterwisegardeningsb.org': 'gardensoft', 'hillsborogardening.org': 'gardensoft',
   'slcgardenwise.com': 'gardensoft', 'trivalleywaterwise.com': 'gardensoft', 'ocplants.org': 'gardensoft',
+  'ranchoinbloom.com': 'gardensoft', 'surfcitygardening.com': 'gardensoft', // (seen 2026-10-30)
+  'cafriendlylandscaping.com': 'gardensoft', 'camarillogardening.com': 'gardensoft',
+  // (One bulb shop's sites: the UK one carries its text word for word, the Swedish one is its edition. Seen 2026-10-30.)
+  'flowerbulbs.com': 'flowerbulbs.com', 'flowerbulbs.co.uk': 'flowerbulbs.com', 'blomsterlokar.info': 'flowerbulbs.com',
   // (One Hungarian grower's shop, machine-translated under local names: one source. Seen 2026-10-28.)
   'pharmarosa.be': 'pharmarosa', 'pharmarosa.co.uk': 'pharmarosa', 'pharmarosa.es': 'pharmarosa', 'pharmarosa.nl': 'pharmarosa',
   'pharmarosa.ro': 'pharmarosa', 'pharmarosaneonatal.it': 'pharmarosa',
+  'pharmarosa.com': 'pharmarosa', 'pharmarosa.de': 'pharmarosa', 'pharmarosa.pt': 'pharmarosa', // (seen 2026-10-30)
 };
 /** The source a site counts as (one company's sites are one). */
 export const sourceOf = (host) => { const site = siteOf(host); return COMPANY[site] ?? termsKey(host); };
@@ -567,7 +669,8 @@ export function webClaims(url, html, plant, { boilerplate } = {}) {
 
 // Hosts where each subdomain is a different owner (the Public Suffix List doesn't split them all).
 const SHARED_HOSTS = new Set(['wordpress.com', 'blogspot.com', 'weebly.com', 'godaddysites.com', 'mystrikingly.com', 'jimdofree.com', 'webs.com',
-  'substack.com', 'medium.com', 'tumblr.com', 'wixsite.com', 'squarespace.com', 'square.site', 'myshopify.com', 'business.site', 'sites.google.com', 'google.com']);
+  'substack.com', 'medium.com', 'tumblr.com', 'wixsite.com', 'squarespace.com', 'square.site', 'myshopify.com', 'business.site', 'sites.google.com', 'google.com',
+  'neocities.org']);
 /** Whose terms a host is under: its site, or on a shared host the host itself. */
 export function termsKey(host) {
   const h = String(host).toLowerCase().replace(/\.+$/, '');

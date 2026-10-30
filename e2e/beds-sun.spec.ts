@@ -93,7 +93,7 @@ test('a plant in the wrong light gets a warning', async ({ page }) => {
   const hours = page.locator('[data-testid=sun-section] input[type=range]');
   await hours.fill('8');
   await closeSheet(page);
-  await addPlant(page, "Heuchera 'Autumn Bride'"); // part sun (NC State)
+  await addPlant(page, 'Turkey corn'); // part sun (NC State, Chicago Botanic Garden)
   await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(1);
   await page.locator('.sel-pill button.edit').click(); await openSections(page);
   await expect(page.locator('[data-testid=sun-check]')).toContainText('prefers part sun');
@@ -138,13 +138,13 @@ test('hiding names hides lengths, sun hours and plant badges too, a selected sha
   await page.locator('.seg button', { hasText: 'Just hours' }).click();
   await page.locator('[data-testid=sun-section] input[type=range]').fill('8');
   await closeSheet(page);
-  await addPlant(page, "Heuchera 'Autumn Bride'"); // part sun: a warning badge here
+  await addPlant(page, 'Turkey corn'); // part sun: a warning badge here
   await page.keyboard.press('Escape');
   await expect(page.locator('.sel-pill')).toHaveCount(0);
   const strip = page.locator('#canvas-svg text', { hasText: 'Sunny strip' });
   const hours = page.locator('#canvas-svg [data-role=sun-label]');
   const badge = page.locator('#canvas-svg [data-role=sun-warning]');
-  const plant = page.locator('#canvas-svg text', { hasText: 'Autumn Bride' });
+  const plant = page.locator('#canvas-svg text', { hasText: 'Turkey corn' });
   await expect(strip).toHaveCount(1); await expect(hours).toHaveCount(1); await expect(badge).toHaveCount(1);
   await expect(plant).toHaveCount(1);
 
@@ -165,7 +165,7 @@ test('hiding names hides lengths, sun hours and plant badges too, a selected sha
   await expect(plant).toHaveCount(0); await expect(badge).toHaveCount(0);
   await page.keyboard.press('Escape');
   await page.locator('button[title=Layers]').click();
-  await page.locator('.layer-row', { hasText: 'Autumn Bride' }).click();
+  await page.locator('.layer-row', { hasText: 'Turkey corn' }).click();
   await expect(plant).toHaveCount(1); await expect(badge).toHaveCount(1);
   await expect(strip).toHaveCount(0); await expect(hours).toHaveCount(0);
 
