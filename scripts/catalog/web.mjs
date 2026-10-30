@@ -222,6 +222,15 @@ export const SKIP_SITES = new Set([
   'ajol.info', 'irmng.org', 'semanticscholar.org', 'truffaut.com', 'iflora.cn', // (aggregators; a marketplace; crowd-sourced)
   'completegrow.com.au', 'bluecollarq.net', 'conservation-nature.fr', 'everydaylillie.com', 'floragard.de', 'mushroomexpert.com', // (not plant sources)
   'ponicslife.com', 'stage--interiors.com', 'tambopatalodge.com', 'spearheadspade.com',
+  // Found by the terms reviews of the spacing round, batch 9 (2026-10-30)
+  'gardennexium.com', 'janemagnolia.com', 'urbanlotusproject.org', 'trustedgardenreviews.com', 'orchidshade.com', 'patiotip.com', // (AI-written)
+  'modernagriculturefarm.com', 'docslib.org', 'planteset.com', 'pustakaflora.blogspot.com', // (copied, uploaded, translated or compiled)
+  'yourplantinfo.com', // (a site vendor's plant gallery on a generic domain: a rented database, likely)
+  'gid-rasteniy.ru', 'paisagismodigital.com', // (another app's catalogue with users' content; a portal with a forum)
+  'flagshouse.com', 'bloomfloralfarm.com', 'blueleafnursery.com', // (dropship or repurposed stores; a parked domain turned spam)
+  'elliottelectric.com', 'ipexna.com', 'sweetkitchencravings.com', 'thecityofbeverly.com', 'therumpus.net', 'zoneomics.com', // (not plant sources)
+  'soxandfreeman.com', 'mydocmd.com', 'afarmgirlskitchen.com', 'd2runewizard.com', 'aldi.co.uk', 'dalss.eu', 'rexelusa.com',
+  'smokymountainnews.com', 'sedum-et-toiture.com', 'roomsforrentblog.com',
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
