@@ -207,6 +207,14 @@ export const SKIP_SITES = new Set([
   'ziggyscactus.com', // (its owner: "We do not need any AI stuff whatsoever")
   'esmed.org', 'heringpharma.net', 'greenshipgardenus.com', 'fishi-pedia.com', 'elevationlandscapes.com', 'smokeysgardens.com', 'swst.org', // (not plant sources)
   'viviero3d.com', 'strongsrq.com', 'suzu-hikone.com', 'abchomeopathy.com', 'annemckenzie.com', '72tree.com', 'philodendronplant.com', 'proflowers.com', 'scirp.org',
+  // Found by the terms reviews of the spacing round, batch 7 (2026-10-30)
+  'businesscomputingworld.net', 'johndenson.com', 'mygardeningzone.com', 'mrclusia.com', 'esselio.co.uk', 'gardenwizz.com', 'wingedsumac.com', // (AI-written)
+  'lawncalcs.com', 'patsnap.com', // (mass-produced compilations; AI summaries)
+  'farmsidegardens.com', 'urbanthumbs.com.au', 'treehouse.co', // (a dropship storefront; a marketplace; an aggregator)
+  'armuro.com', // (a crowd-sourced forum)
+  'lightsource.ca', 'lalandscapesupply.com', 'nacaa.com', 'estellatse.com', 'glamorwood.com', 'greenhydrokw.com', 'gogreenstripe.com', // (not plant sources)
+  'rndaccessories.com', 'turfdoctortn.com',
+  'forestresearch.gov.uk', // (Open Government Licence: its attribution statement must be shown, which the catalog's credits can't carry yet)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
