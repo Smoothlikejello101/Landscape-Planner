@@ -209,7 +209,8 @@ export function renderPropsPanelSingle(s: Shape) {
   // ----- What the role adds: sun record, bed contents, the plant, status -----
   if (s.role === 'shade') {
     // Recording the sun is the point of a sun exposure area: open until there's a record.
-    body.appendChild(section('sun', 'Sun record', document.createTextNode(s.sun ? sunListText(s.sun) : 'Not recorded'), [shadeSunSection(s)], !s.sun));
+    const sunSum = document.createTextNode(s.sun ? sunListText(s.sun) : 'Not recorded');
+    body.appendChild(section('sun', 'Sun record', sunSum, [shadeSunSection(s, (sun) => { sunSum.textContent = sunListText(sun); })], !s.sun));
   }
   if (s.role === 'utility' && s.type !== 'circle' && s.type !== 'text') {
     body.appendChild(section('utility', 'Utility', document.createTextNode(s.utility ? utilityLabel(s.utility) : 'Which is it?'), [utilitySection(s)], true));
@@ -641,6 +642,7 @@ function openSwap(shapes: Shape[]) {
   state.pickerLinkAlso = shapes.slice(1).map((x) => x.id);
   state.pickerLinkLocked = true;
   plantFilter.q = '';
+  plantFilter.inPlan = false; // (something else to swap in, not the plan's own plants: Priya, Oct 30)
   state.panel = 'plants';
   render();
 }

@@ -223,7 +223,8 @@ describe('plant filters', () => {
     expect(pickerCount(3622, 3622, 22)).toBe('All 3,622 plants \u00b7 22 invasive plants show only when searched by name');
     expect(pickerCount(140, 3622, 22)).toBe('140 of 3,622 plants match \u00b7 22 invasive plants show only when searched by name');
     expect(pickerCount(1, 3622, 1)).toContain('1 invasive plant shows only');
-    expect(pickerCount(12, 3644, 0)).toBe('12 of 3,644 plants match'); // (a search: they count, and may be among the 12)
+    expect(pickerCount(12, 3622, 0)).toBe('12 of 3,622 plants match'); // (a search: out of the same total as the title)
+    expect(pickerCount(11, 3622, 0, 1)).toBe('11 of 3,622 plants match, and 1 invasive plant found by name');
   });
   it('can show only plants already placed in the open plan', () => {
     expect(plantMatches(heuchera, f({ inPlan: true }), new Set(['h']))).toBe(true);

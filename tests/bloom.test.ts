@@ -57,7 +57,7 @@ describe('bloom by bed', () => {
     const s = bloomSummary(shapes.slice(2, 6), plants);
     expect(s.rows.map((r) => [r.label, r.count])).toEqual([['Coneflower', 2], ['Aster', 1]]);
     expect(s.noData).toBe(1);
-    expect(s.perMonth).toEqual([0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0]);
+    expect(s.perMonth).toEqual([0, 0, 0, 0, 0, 2, 2, 2, 1, 1, 0, 0]); // (plants in bloom, as the month slider counts)
   });
   it('colors a row by its flowers\' sourced colors where it has them, else the earlier list\'s words', () => {
     const sourced = { ...plants, cone: { ...plants.cone, flower_color: ['insignificant', 'white'] } as Plant };
@@ -84,12 +84,14 @@ describe('bloom by bed', () => {
       { label: 'My hosta', count: 2, why: 'mine', plantId: 'u-1' },
       { label: 'Mystery', count: 1, why: 'unlinked' },
       { label: 'Unlabeled plant', count: 1, why: 'unlinked' },
-      { label: 'Phlox', count: 1, why: 'season', plantId: 'phlox', season: ['mid summer', 'late summer'] },
       { label: 'Boxwood', count: 2, why: 'catalog', plantId: 'shrub' },
       { label: 'Fern', count: 1, why: 'fern', plantId: 'fern' },
     ]);
-    expect(s.noData).toBe(6);
-    expect(s.rows.map((r) => r.label)).toEqual(['Coneflower']);
+    expect(s.noData).toBe(5);
+    // A season and no months: its months by the season (as the month slider has them), marked so.
+    expect(s.rows.map((r) => [r.label, r.months, r.bySeason])).toEqual([
+      ['Coneflower', expect.any(Array), undefined], ['Phlox', [7, 8], ['mid summer', 'late summer']],
+    ]);
   });
   it('groups by bed (gone plants left out), loose plants last', () => {
     const g = bloomByBed(shapes, plants);

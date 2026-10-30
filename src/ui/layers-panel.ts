@@ -320,6 +320,13 @@ function roleSection(): HTMLElement {
   names.addEventListener('change', () => { state.showNames = names.checked; render(); });
   wrap.appendChild(el('label', { className: 'check-row', style: { padding: '0 16px 6px' } }, names,
     el('span', {}, 'Show names, lengths, sun hours and plant badges')));
+  // A shape locked by itself (a house) while its role isn't: the row says so, beside its open lock (round 2, Oct 30:
+  // "1 locked" in the header and an open padlock on Building read as "the house is unlocked").
+  const shapeLocks = (k: RoleKey, roleLocked?: boolean) => {
+    if (roleLocked) return '';
+    const n = state.shapes.filter((s) => roleKey(s) === k && s.locked).length;
+    return n ? `, ${n === counts.get(k) ? (n === 1 ? 'locked' : 'all locked') : `${n} locked`}` : '';
+  };
   for (const k of keys) {
     const v = state.roleViews[k] ?? {};
     const eye = el('button', {
@@ -336,7 +343,7 @@ function roleSection(): HTMLElement {
     lock.addEventListener('click', () => { setRoleView(k, { locked: !v.locked }); render(); });
     // (The eye and lock lead the row, beside the name they act on; the count follows the name: "Plant · 2".)
     wrap.appendChild(el('div', { className: 'role-row' + (v.hidden ? ' hidden' : ''), 'data-role-key': k }, eye, lock,
-      el('span', { className: 'name' }, roleLabel(k), el('span', { className: 'count' }, ` · ${counts.get(k)}`))));
+      el('span', { className: 'name' }, roleLabel(k), el('span', { className: 'count' }, ` · ${counts.get(k)}${shapeLocks(k, v.locked)}`))));
   }
   return wrap;
 }

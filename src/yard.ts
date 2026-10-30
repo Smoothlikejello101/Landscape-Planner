@@ -41,3 +41,15 @@ export function yardFilter(defaults: PlantFilter, y: Yard): PlantFilter {
 export const yardOf = (f: PlantFilter): Yard => ({ kids: f.noPoison, dogs: f.dogs, cats: f.cats, horses: f.horses });
 /** Whether anyone's in it. */
 export const yardSet = (y: Yard): boolean => y.kids || y.dogs !== '' || y.cats || y.horses;
+
+// "Hardy in zone N" (beside the picker's Filters, decided with Jason, Oct 25) is about the garden, as kids and pets
+// are, not the search at hand: kept per device too (testers, Oct 30: it was ticked when the ZIP was set, unticked after
+// a reload). Off until ticked here (or by the tour, or by a ZIP asked for from the picker): turned on by default, it
+// would start hiding plants with no zones known from someone who never asked for it.
+const HARDY_KEY = 'lp-hardy-here';
+export function loadHardy(): boolean {
+  try { return localStorage.getItem(HARDY_KEY) === '1'; } catch { return false; }
+}
+export function saveHardy(on: boolean): void {
+  try { localStorage.setItem(HARDY_KEY, on ? '1' : '0'); } catch { /* no storage: nothing kept */ }
+}

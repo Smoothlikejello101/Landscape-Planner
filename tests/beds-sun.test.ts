@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { attachedPlants, bedOf, patchBedCarryingPlants, plantSummary, plantsInBed } from '../src/beds';
 import { pointInShape, shapeArea, shapePerimeter, shapeCenter } from '../src/geometry';
-import { afternoonHours, checkPlantSun, formatTime, shadeOpacity, sunHours, sunLevel } from '../src/sun';
+import { afternoonHours, checkPlantSun, formatTime, shadeOpacity, sunAt, sunHours, sunLevel } from '../src/sun';
 import type { Plant } from '../src/plants';
 import type { Shape, SunInfo } from '../src/types';
 
@@ -115,5 +115,15 @@ describe('plant sun check', () => {
     const a = shade({ mode: 'hours', periods: [], hours: 7, dappled: false });
     const b = { ...shade({ mode: 'hours', periods: [], hours: 1, dappled: false }), id: 'b' };
     expect(checkPlantSun(p, coneflower, [a, b, p])?.ok).toBe(false);
+    // Overlapping, neither inside the other: still the darker where they overlap.
+    const c = rect('c', 3, 3, 10, 10, { role: 'shade', sun: { mode: 'hours', periods: [], hours: 7, dappled: false } });
+    expect(sunAt({ x: 5, y: 5 }, [b, c])?.area.id).toBe('b');
+  });
+  it('lets an area drawn inside another say what it is in there (an "after the oak comes down" guess)', () => {
+    const yard = { ...shade({ mode: 'hours', periods: [], hours: 2, dappled: true }), id: 'yard' };
+    const after = rect('after', 3, 3, 4, 4, { role: 'shade', sun: { mode: 'hours', periods: [], hours: 6, dappled: false } });
+    expect(sunAt({ x: 5, y: 5 }, [yard, after])?.area.id).toBe('after');
+    expect(checkPlantSun(p, coneflower, [yard, after, p])?.ok).toBe(true);
+    expect(sunAt({ x: 1, y: 1 }, [yard, after])?.area.id).toBe('yard'); // (outside it, the yard as before)
   });
 });

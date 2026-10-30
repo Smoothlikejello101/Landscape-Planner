@@ -1,4 +1,4 @@
-import { pointInShape, shapeCenter } from './geometry';
+import { drawnOutline, pointInShape, shapeArea, shapeCenter } from './geometry';
 import type { Plant } from './plants';
 import type { Shape, SunInfo } from './types';
 
@@ -61,14 +61,23 @@ export function formatHours(h: number): string {
   return (Math.round(h * 2) / 2).toString().replace(/\.0$/, '') + ' h';
 }
 
-/** The shade area governing a point: the one with the least sun. */
+/**
+ * The shade area governing a point: the one with the least sun, of those it's in. One drawn wholly inside another
+ * says more about where it is, so the one around it doesn't count there (Grace, Oct 30: a 6 h circle drawn inside her
+ * 2 h back yard, where an oak is coming down, changed nothing for the plants in it). Areas that only overlap: the
+ * least sun, where the shade of both falls.
+ */
 export function sunAt(point: { x: number; y: number }, shapes: Shape[]): { area: Shape; info: SunInfo } | null {
+  const here = shapes.filter((s) => s.role === 'shade' && !!s.sun && pointInShape(s, point));
+  const inner = here.filter((outer) => !here.some((s) => s !== outer && insideOf(s, outer)));
   let best: { area: Shape; info: SunInfo } | null = null;
-  for (const s of shapes) {
-    if (s.role !== 'shade' || !s.sun || !pointInShape(s, point)) continue;
-    if (!best || sunHours(s.sun) < sunHours(best.info)) best = { area: s, info: s.sun };
-  }
+  for (const s of inner) if (!best || sunHours(s.sun!) < sunHours(best.info)) best = { area: s, info: s.sun! };
   return best;
+}
+/** Whether `a` lies wholly inside `b` (every point of its outline), and is the smaller. */
+function insideOf(a: Shape, b: Shape): boolean {
+  const o = drawnOutline(a);
+  return !!o && shapeArea(a) < shapeArea(b) && o.pts.every((p) => pointInShape(b, p));
 }
 
 export interface SunCheck { ok: boolean; message: string }

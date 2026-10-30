@@ -45,19 +45,25 @@ export function bloomChart(sum: BloomSummary, back: PanelName = 'bloom'): HTMLEl
   grid.appendChild(el('div', { className: 'bloom-name head' }));
   MONTH_LETTERS.forEach((m, i) => grid.appendChild(el('div', { className: 'bloom-head', title: MONTH_NAMES[i] }, m)));
   for (const r of sum.rows) {
-    grid.appendChild(el('div', { className: 'bloom-name', title: r.label + (r.colorText ? ` (${r.colorText})` : '') },
+    const season = r.bySeason ? ` (by season: ${r.bySeason.join(', ')})` : '';
+    grid.appendChild(el('div', { className: 'bloom-name', title: r.label + (r.colorText ? ` (${r.colorText})` : '') + season },
       r.label + (r.count > 1 ? ` ×${r.count}` : '')));
     for (let m = 1; m <= 12; m++) {
       const on = r.months.includes(m);
       grid.appendChild(el('div', {
-        className: 'bloom-cell' + (on ? ' on' : ''), style: on ? { background: r.color } : undefined,
-        title: on ? `${r.label}: blooms in ${MONTH_NAMES[m - 1]}` : undefined,
+        className: 'bloom-cell' + (on ? ' on' : '') + (on && r.bySeason ? ' by-season' : ''), style: on ? { background: r.color } : undefined,
+        title: on ? `${r.label}: ${r.bySeason ? `in bloom around ${MONTH_NAMES[m - 1]}${season}` : `blooms in ${MONTH_NAMES[m - 1]}`}` : undefined,
       }));
     }
   }
   // Then those with none, each saying why.
   for (const r of sum.missing) grid.append(...noBloomRow(r, back));
   wrap.appendChild(grid);
+  const seasonal = sum.rows.filter((r) => r.bySeason);
+  if (seasonal.length) {
+    wrap.appendChild(el('div', { className: 'hint', 'data-testid': 'bloom-by-season' },
+      `Faint: months from the season its sources give, none giving months (${seasonal.map((r) => `${r.label}: ${r.bySeason!.join(', ')}`).join('; ')}).`));
+  }
   if (!sum.rows.length) return wrap; // (nothing known to bloom here: no count, no gaps)
   // How many are in bloom each month; empty months within the plan's blooming season are gaps.
   const season = planSeason();
@@ -119,7 +125,7 @@ export function renderBloomPanel() {
     body.appendChild(el('div', { className: 'bloom-group' }, el('div', { className: 'section-label' }, g.bed), bloomChart(g)));
   }
   // No ZIP yet, and catalog plants without months: flowering records near the garden would give many of them.
-  if (!state.location && groups.some((g) => g.missing.some((r) => r.why === 'season' || r.why === 'catalog'))) {
+  if (!state.location && groups.some((g) => g.rows.some((r) => r.bySeason) || g.missing.some((r) => r.why === 'season' || r.why === 'catalog'))) {
     const set = el('button', { className: 'link-btn', 'data-testid': 'bloom-zip' }, 'Set your ZIP code');
     set.addEventListener('click', () => openLocation('bloom'));
     body.appendChild(el('div', { className: 'hint' }, 'Many plants get bloom months from flowering records near your garden. ', set));

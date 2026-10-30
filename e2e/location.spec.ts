@@ -100,12 +100,13 @@ test('"Hardy in your zone" with no ZIP asks for one, and comes back with only pl
   await expect(page.getByTestId('plant-search')).toBeVisible();
   await expect(page.locator('.sheet label', { hasText: 'Hardy in zone 8a' }).locator('input')).toBeChecked();
   await expect(page.locator('.sheet select[aria-label=Form]')).toHaveValue('Shrub');
-  await expect(page.getByTestId('active-chip')).toHaveText(['Shrub', 'White flowers', 'Hardy in zone 8a']);
+  await expect(page.getByTestId('active-chip')).toHaveText(['Shrub', 'White flowers']); // (the hardy box is its own, beside Filters)
   await expect(page.locator('#toast')).toContainText('showing plants hardy there');
   await page.getByTestId('plant-search').fill('Speckled alder'); // rated for zones 2–6
   await expect(page.locator('.sheet .proj-row', { hasText: 'Speckled alder' })).toHaveCount(0);
   // Unticked, it's a plain filter again: no ZIP asked for.
   await page.getByTestId('hardy-here').uncheck();
+  await expect(page.getByTestId('hardy-here')).not.toBeChecked();
   await expect(page.getByTestId('active-chip')).toHaveText(['Shrub', 'White flowers']);
 });
 

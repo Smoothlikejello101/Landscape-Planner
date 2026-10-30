@@ -74,12 +74,16 @@ test('plants with no bloom months are listed by name, saying why; one of mine ge
   await expect(page.locator('.bloom-name', { hasText: 'Backyard hosta' })).toBeVisible();
 });
 
-test('catalog plants with a season and no months say so; with no ZIP, the calendar offers one and comes back', async ({ page }) => {
+test('catalog plants with a season and no months count by the season, said so; with no ZIP, the calendar offers one and comes back', async ({ page }) => {
   await openFresh(page);
   await addPlant(page, 'Boxwood', 30);
   await page.locator('.iconbtn[title=More]').click();
   await page.locator('.menu-item', { hasText: 'Bloom calendar' }).click();
-  await expect(page.getByTestId('bloom-none')).toHaveText('Spring (no months)');
+  // (As the month slider has it: in bloom March to May, drawn faint, and counted.)
+  await expect(page.getByTestId('bloom-none')).toHaveCount(0);
+  await expect(page.locator('.bloom-cell.on.by-season')).toHaveCount(3);
+  await expect(page.getByTestId('bloom-by-season')).toContainText(/Boxwood.*: spring/);
+  await expect(page.locator('.bloom-count[data-month="4"]')).toHaveText('1');
   await page.getByTestId('bloom-zip').click();
   await page.locator('.sheet-header .iconbtn').click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Bloom calendar');

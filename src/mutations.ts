@@ -103,20 +103,24 @@ export function copyShapes(sel: Shape[]): boolean {
  * Paste clipboard shapes. From another project they land centered in the
  * current view; within the same project they're offset 1 ft so they're visible.
  */
+/** The clipboard last pasted, and how many times: each paste of it steps a foot further (Tom, Oct 30: a second
+ * Ctrl+V landed exactly on the first, hiding it). */
+let pasted: { from: unknown; n: number } = { from: null, n: 0 };
 export function paste(): boolean {
   const data = getClipboard();
   if (!data || !data.shapes || !data.shapes.length) return false;
+  pasted = data === pasted.from ? { from: data, n: pasted.n + 1 } : { from: data, n: 1 }; // (a new copy starts again)
   flushHistoryDebounce();
   // (Read as a stored plan's shapes are, doors and windows too: a clipboard can come from another version's tab, a
   // utility of a kind this one doesn't know, say.)
   const incoming = data.shapes.map((s) => migrateShape(deepClone(s))).filter((s): s is Shape => !!s).map((s) => ({ ...s, id: uid() }) as Shape);
   if (!incoming.length) return false;
-  let dx = 1, dy = 1;
+  let dx = pasted.n, dy = pasted.n;
   if (data.sourceProjectId !== state.currentProjectId) {
     const b = unionBounds(incoming.map(shapeBBox))!;
     const target = viewCenterFeet();
-    dx = snap(target.x - (b.minX + b.maxX) / 2);
-    dy = snap(target.y - (b.minY + b.maxY) / 2);
+    dx = snap(target.x - (b.minX + b.maxX) / 2) + pasted.n - 1;
+    dy = snap(target.y - (b.minY + b.maxY) / 2) + pasted.n - 1;
   }
   for (const s of incoming) {
     s.x = snap(s.x + dx);

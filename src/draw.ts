@@ -2,7 +2,7 @@ import { MAX_POINTS, MIN_POINTS } from './constants';
 import { afterPointAdded, afterPointDeleted, kindsFor } from './features';
 import { startFeaturePlace } from './feature-edit';
 import { svgEl } from './dom';
-import { bakeRotation, fmtFeet, outlineOf, pathPoints, pxPerFoot, rotate, screenToFeet, setWorldPoints } from './geometry';
+import { bakeRotation, canvasRect, fmtFeet, outlineOf, pathPoints, pxPerFoot, rotate, screenToFeet, setWorldPoints } from './geometry';
 import { flushHistoryDebounce, pushHistory, undo } from './history';
 import { gesture, state } from './state';
 import { save } from './storage';
@@ -385,8 +385,23 @@ function noteRecentKind(key: KindKey) {
 }
 
 // ---------- Where the pointer is (mouse only), for a preview of the next tap ----------
-let hover: Point | null = null, hoverSnap: TapSnap | null = null;
+let hover: Point | null = null, hoverSnap: TapSnap | null = null, hoverRaw: Point | null = null;
+/**
+ * A rectangle with its other side's length typed: made with Enter (testers, Oct 30: five of them pressed Enter and
+ * waited; the shortcut list says Enter finishes drawing). On the side the mouse was last on, or with none (a phone, a
+ * keyboard), the side facing the middle of the screen; Undo takes it back. False when there's no such rectangle.
+ */
+export function finishTypedRect(): boolean {
+  const d = state.draw;
+  if (!d || d.kind !== 'rect' || d.points.length !== 2 || !d.typed) return false;
+  const [a, b] = d.points, r = canvasRect(), ppf = pxPerFoot();
+  const mid = screenToFeet(r.left + r.width / 2, r.top + r.height / 2);
+  let toward = hoverRaw ?? mid;
+  if (!typedFarSide(a, b, toward, d.typed)) toward = { x: (a.x + b.x) / 2 - (b.y - a.y), y: (a.y + b.y) / 2 + (b.x - a.x) }; // (on the line: either side)
+  return drawTap(r.left + (toward.x - state.offsetX) * ppf, r.top + (toward.y - state.offsetY) * ppf);
+}
 export function setDrawHover(p: Point | null) {
+  hoverRaw = p;
   // (A hover is a mouse's: its tighter reach.)
   // (By the first dot, a click closes the outline: the preview shows that, not the typed side.)
   const typed = p && state.draw && !closesAt(state.draw, p) ? typedTarget(state.draw, p) : null;

@@ -359,7 +359,9 @@ async function writeCurrent(): Promise<boolean> {
   const ops = projectWriteOps(id, data, storedImageKeys);
   const meta = metaFor(id);
   if (meta) {
-    meta.lastModified = now();
+    // (Only an edit makes it "last modified": opening a plan and leaving it moved it to the top of the list, under
+    // the finger, and a quick tap opened the wrong one. Sam, Oct 30.)
+    if (hadEdits) meta.lastModified = now();
     meta.shapeCount = state.shapes.length;
     ops.push(put('meta', id, { ...meta }));
   }
@@ -508,6 +510,8 @@ export async function readProject(id: string): Promise<ProjectData | null> {
  * fails, or the project was deleted meanwhile (by sync), stays on the
  * current project and returns false.
  */
+/** Each plan's undo steps while another is open (this session only). */
+const undoKept = new Map<string, { history: typeof state.history; index: number; token: number }>();
 export async function switchProject(id: string): Promise<boolean> {
   let data: ProjectData | null;
   // Edits can land while we read, and sync can replace or delete the project; read again until nothing moved.
@@ -521,6 +525,12 @@ export async function switchProject(id: string): Promise<boolean> {
   if (!metaFor(id)) return false;
   data ??= sanitizeProjectData({});
   cancelHistoryDebounce();
+  // This plan's undo steps, kept while the app is open: back to it, they're back (Sam, Oct 30: Clear all, another
+  // plan, and back, and the shapes couldn't be had again), unless it has changed since (sync): then they'd undo that.
+  if (state.currentProjectId) undoKept.set(state.currentProjectId, { history: state.history, index: state.historyIndex, token: changeToken(state.currentProjectId) });
+  const kept = undoKept.get(id);
+  undoKept.delete(id);
+  const prev = state.currentProjectId;
   state.currentProjectId = id;
   state.shapes = data.shapes;
   state.zoom = data.zoom;
@@ -536,8 +546,9 @@ export async function switchProject(id: string): Promise<boolean> {
   state.photoElsewhere = data.photoElsewhere ?? null;
   state.location = data.location;
   state.selectedIds = [];
-  state.history = [];
-  state.historyIndex = -1;
+  // (Unchanged since: no save, sync or rename has touched it, by its change count.)
+  if (kept && kept.history[kept.index] && prev !== id && kept.token === changeToken(id)) { state.history = kept.history; state.historyIndex = kept.index; }
+  else { state.history = []; state.historyIndex = -1; }
   state.bgEditMode = false;
   state.bgCalibrate = null;
   state.draw = null;

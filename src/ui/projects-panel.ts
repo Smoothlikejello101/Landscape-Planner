@@ -25,7 +25,7 @@ async function openProject(id: string) {
     render();
     return;
   }
-  pushHistory(); // seed undo with the loaded state
+  if (!state.history.length) pushHistory(); // seed undo with the loaded state (unless its steps were kept: src/storage.ts)
   state.panel = null;
   render();
 }
@@ -97,7 +97,7 @@ export function renderProjectsPanel() {
     const shapeCount = isCurrent ? state.shapes.length : (p.shapeCount ?? 0);
     const info = el('div', { className: 'pinfo' },
       el('div', { className: 'pname' }, p.name + (isCurrent ? ' (current)' : '')),
-      el('div', { className: 'pmeta' }, shapeCount + ' shapes · last modified ' + new Date(p.lastModified).toLocaleString()));
+      el('div', { className: 'pmeta' }, shapeCount + (shapeCount === 1 ? ' shape' : ' shapes') + ' · last modified ' + new Date(p.lastModified).toLocaleString()));
     const actions = el('div', { className: 'pactions' });
 
     const exportBtn = el('button', { className: 'iconbtn', html: I.download, title: 'Save project file', 'aria-label': 'Save ' + p.name + ' as a file' });

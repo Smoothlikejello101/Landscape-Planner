@@ -1,6 +1,7 @@
 import { bedOf, isBed, isPlant } from './beds';
 import type { Plant } from './plants';
 import type { Shape } from './types';
+import { seasonMonths } from './seasons';
 import { localBloom } from './wild';
 
 // When things bloom: month-by-month, per bed and for the whole plan, so gaps
@@ -42,7 +43,11 @@ export function bloomColor(text: string | undefined, fallback: string): string {
   return fallback;
 }
 
-export interface BloomRow { label: string; count: number; months: number[]; color: string; colorText: string }
+/**
+ * A row: a plant name, how many, the months it blooms, its color. `bySeason`: months from the season words its sources
+ * give (spring: Mar–May), none giving months, as the month slider draws it (src/seasons.ts); shown faint.
+ */
+export interface BloomRow { label: string; count: number; months: number[]; color: string; colorText: string; bySeason?: string[] }
 /**
  * A plant with no bloom months, and why: one of the person's own plants (they can add them), a catalog plant whose
  * sources give a season only (`season`: "mid summer") or nothing, a fern (it doesn't flower), or a circle not
@@ -69,7 +74,14 @@ export function bloomSummary(plants: Shape[], plantsById: Record<string, Plant |
     if (!isPlant(p) || p.status === 'gone') continue;
     const label = p.label.trim() || 'Unlabeled plant';
     const data = p.plantId ? plantsById[p.plantId] : undefined;
-    const months = bloomMonths(data);
+    let months = bloomMonths(data);
+    // (No months, only a season: its months by the season, as the month slider counts it. Dana, Marcus, Lena,
+    // Oct 30: the calendar left these out, and said nothing bloomed in months the slider showed them in bloom.)
+    let bySeason: string[] | undefined;
+    if (!months.length && data?.bloom_season?.length) {
+      const m = [...new Set(data.bloom_season.flatMap(seasonMonths))].sort((a, b) => a - b);
+      if (m.length) { months = m; bySeason = data.bloom_season; }
+    }
     if (!months.length) {
       // (One row per name and plant: two circles labeled alike but linked to different plants are two rows.)
       const key = label + '\n' + (p.plantId ?? '');
@@ -81,12 +93,13 @@ export function bloomSummary(plants: Shape[], plantsById: Record<string, Plant |
     }
     // (Its flowers' colors as its sources say, else the earlier list's words; "not showy" isn't a color.)
     const colorText = data?.flower_color?.filter((c) => c !== 'insignificant').join(', ') || data?.bloom?.color || '';
-    const row = byName.get(label) ?? { label, count: 0, months, color: bloomColor(colorText, p.color), colorText };
+    const row = byName.get(label) ?? { label, count: 0, months, color: bloomColor(colorText, p.color), colorText, ...(bySeason ? { bySeason } : {}) };
     row.count++;
     byName.set(label, row);
   }
   const rows = [...byName.values()].sort((a, b) => a.months[0] - b.months[0] || a.label.localeCompare(b.label));
-  const perMonth = Array.from({ length: 12 }, (_, i) => rows.filter((r) => r.months.includes(i + 1)).length);
+  // (Plants in bloom, as the month slider counts them: "4 of 18 in bloom", not kinds.)
+  const perMonth = Array.from({ length: 12 }, (_, i) => rows.filter((r) => r.months.includes(i + 1)).reduce((n, r) => n + r.count, 0));
   // The person's own first (they can add months), then by name.
   const order: NoBloomWhy[] = ['mine', 'unlinked', 'season', 'catalog', 'fern'];
   const none = [...missing.values()].sort((a, b) => order.indexOf(a.why) - order.indexOf(b.why) || a.label.localeCompare(b.label));

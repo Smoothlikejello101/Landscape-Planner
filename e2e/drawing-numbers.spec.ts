@@ -56,6 +56,20 @@ test("a rectangle from two typed sides: 10 ft, then 6 ft off it", async ({ page 
   await expect(field(page, 'Length (ft)')).toHaveValue('6');
 });
 
+test('a rectangle whose other side is typed is made with Enter (testers, Oct 30)', async ({ page }) => {
+  await openFresh(page);
+  await addKind(page, 'building');
+  await tapFt(page, 2, 10);
+  await typed(page).fill('10');
+  await tapFt(page, 14, 10.1);
+  await typed(page).fill('6');
+  await typed(page).press('Enter');
+  await expect(page.getByTestId('draw-bar')).toHaveCount(0); // (made: no tap on a side needed)
+  await page.locator('.sel-pill .edit').click(); await openSections(page);
+  await expect(field(page, 'Width (ft)')).toHaveValue('10');
+  await expect(field(page, 'Length (ft)')).toHaveValue('6');
+});
+
 test('Fit (and Shift+1) brings the whole plan into view', async ({ page }) => {
   await openFresh(page);
   await expect(page.getByTestId('zoom-fit')).toHaveCount(0); // (nothing to fit)

@@ -1,5 +1,5 @@
 import { el, type Child } from '../dom';
-import { saveYard, yardOf } from '../yard';
+import { saveHardy, saveYard, yardOf } from '../yard';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery } from '../search';
@@ -20,6 +20,19 @@ import { escapeHere, escapeShort, gardenStateName, lawShort, loadWild, regulated
 
 /** The open picker's list rebuild (in place: the search keeps the keyboard, opened rows stay open). */
 let refreshList: (() => void) | null = null;
+/**
+ * "Show them": the filters that hid a search's plants, set aside while that is the search, and back on for the next
+ * (Diego, Priya, Ruth, Oct 30: taken off for good, they dropped the household's safety filters from every search after,
+ * with nothing said). Never changes the filters themselves.
+ */
+let setAside: { q: string; keys: (keyof PlantFilter)[]; names: string[] } | null = null;
+const searchKey = () => plantFilter.q.trim().toLowerCase();
+/** `fn` with these filters off, the filters as they were after. */
+function withFiltersOff<T>(keys: (keyof PlantFilter)[], fn: () => T): T {
+  const was = keys.map((k) => [k, plantFilter[k]] as const);
+  for (const k of keys) Object.assign(plantFilter, { [k]: PLANT_FILTER_DEFAULTS[k] });
+  try { return fn(); } finally { for (const [k, v] of was) Object.assign(plantFilter, { [k]: v }); }
+}
 /** Once the garden's wild records are in, show them in the list. */
 function afterWild() { if (state.panel === 'plants') { addNativeHereOption(); refreshList?.(); } }
 /**
@@ -183,6 +196,8 @@ export function renderPlantsPanel() {
   // Species whose cultivars were opened or closed by hand (kept likewise; otherwise a fold opens when filters keep
   // only some of its cultivars).
   const foldOpen = new Map<string, boolean>();
+  /** In "In this plan", the plants the filters would hide, and which filters. */
+  const hiddenInPlan = new Map<string, string[]>();
   /**
    * The group a plant in the last list is in: 0 what its sources say fits; 1 a species that comes in a color asked
    * for among others; 2 what fits by what other sources say; 3 what fits only by the earlier list's word.
@@ -220,6 +235,8 @@ export function renderPlantsPanel() {
         flags.push(el('span', { className: 'pflag check unverified-badge', 'data-testid': 'earlier-flag', title: why }, 'Earlier list only', el('span', { className: 'sr-only' }, ` (${why})`)));
       }
     }
+    const hidBy = hiddenInPlan.get(p.id);
+    if (hidBy?.length) flags.push(el('span', { className: 'pflag warn', 'data-testid': 'filtered-in-plan' }, `Your filters would hide it: ${hidBy.join(', ')}`));
     if (flags.length) info.appendChild(el('div', { className: 'pflags' }, ...flags));
     // Why it matched, where its name doesn't say: what it hosts, another name it goes by, my notes.
     const q = readQuery(plantFilter.q);
@@ -319,12 +336,33 @@ export function renderPlantsPanel() {
     const q = readQuery(plantFilter.q);
     const near = nearShows(q, PLANTS, activeMyPlants());
     const mine = myHits(near).filter((p) => !forTree || isTree(p) || !p.form);
-    const hits = filteredPlants(near).filter((p) => !forTree || isTree(p));
+    if (setAside && setAside.q !== searchKey()) setAside = null;
+    const aside = setAside;
+    // "In this plan": every plant in the plan, whatever the filters; one they'd hide says so on its row (Ruth, Dana,
+    // Oct 30: with the Kids filter on, the list left out the one plant in her bed that's poisonous, and said nothing).
+    hiddenInPlan.clear();
+    let hits: Plant[];
+    if (plantFilter.inPlan) {
+      const keys = (Object.keys(FILTER_NAMES) as (keyof PlantFilter)[]).filter((k) => k !== 'inPlan' && filterOn(plantFilter, k));
+      const kept = new Set(filteredPlants(near).map((p) => p.id));
+      hits = withFiltersOff(keys, () => filteredPlants(near));
+      for (const p of hits) if (!kept.has(p.id)) hiddenInPlan.set(p.id, filtersHiding(p, keys));
+    } else hits = aside ? withFiltersOff(aside.keys, () => filteredPlants(near)) : filteredPlants(near);
+    // (Swapping: not the plant it is now. Priya, Oct 30: "Arkansas bluestar [Swap]" offered for itself.)
+    const now = swapping ? new Set([state.pickerLinkId!, ...state.pickerLinkAlso].map((id) => state.shapes.find((x) => x.id === id)?.plantId)) : null;
+    hits = hits.filter((p) => (!forTree || isTree(p)) && !now?.has(p.id));
     // (While browsing, the invasives aren't offered: not counted, and said so; a search counts them.)
-    const out = invasivesLeftOut(plantFilter) ? PLANTS.filter((p) => p.invasive) : [];
-    const n = hits.length + mine.length, all = PLANTS.length + activeMyPlants().length - out.length;
-    countLine.textContent = pickerCount(n, all, out.filter((p) => !forTree || isTree(p)).length) +
-      (linking ? ' \u00b7 Link the plant this circle stands for' : forTree ? ' \u00b7 trees only' : ' \u00b7 Place a plant, then tap the plan where it goes; tap a plant for its details');
+    const invasives = PLANTS.filter((p) => p.invasive);
+    const out = invasivesLeftOut(plantFilter) ? invasives : [];
+    const foundInvasive = hits.filter((p) => p.invasive).length;
+    const n = hits.length + mine.length - foundInvasive, all = PLANTS.length + activeMyPlants().length - invasives.length;
+    // (Nothing matched as typed, only close spellings: said so, not counted as matches (Lena, Oct 30).)
+    // ("In this plan": the plan's kinds, not a share of the catalog (Dana, Oct 30: "6 of 3,725 plants match").)
+    const found = hits.length + mine.length;
+    countLine.textContent = (near ? `Nothing matches as typed${found ? ` \u00b7 ${countWord(found)} close spelling${found === 1 ? '' : 's'}` : ''}`
+      : plantFilter.inPlan ? (found ? `${countWord(found)} kind${found === 1 ? '' : 's'} of plant in this plan${q ? ` match \u201c${plantFilter.q.trim()}\u201d` : ''}` : q ? `No plant in this plan matches \u201c${plantFilter.q.trim()}\u201d` : 'No plants placed in this plan yet')
+      : pickerCount(n, all, out.filter((p) => !forTree || isTree(p)).length, foundInvasive)) +
+      (swapping ? ' \u00b7 Pick the plant to swap in' : linking ? ' \u00b7 Link the plant this circle stands for' : forTree ? ' \u00b7 trees only' : ' \u00b7 Place a plant, then tap the plan where it goes; tap a plant for its details');
     if (mine.length) {
       // My plants fold away (remembered on this device); a search always shows its matches.
       const searching = !!q;
@@ -353,7 +391,7 @@ export function renderPlantsPanel() {
     // it doesn't match itself. A species shows once, in the first group it or a cultivar of it is in. A fold that's
     // the only thing found opens (Jason, 2026-10-26).
     const groups = [0, 1, 2, 3].map((g) => hits.filter((p) => groupOf(p) === g));
-    const filtering = activeChips().length > 0 || plantFilter.inPlan;
+    const filtering = activeChips().length > 0 || plantFilter.inPlan || (plantFilter.hardyHere && !!state.location);
     const hitIds = new Set(hits.map((p) => p.id));
     const at = new Map(hits.map((p, i) => [p.id, i]));
     const folded = new Map<string, Plant[]>(); // (a fold's head, a species or a group: its cultivars the list has, in its order)
@@ -472,22 +510,34 @@ export function renderPlantsPanel() {
         el('span', {}, `These match on ${on.length > 1 ? `${on.slice(0, -1).join(', ')} and ${on[on.length - 1]}` : on[0]} only by the earlier list (unverified). No source we've read says so yet.`)));
       rows(earlier, 3);
     }
+    // A search the filters emptied, or thinned: which ones, and a way to see the plants anyway, taking off only those
+    // filters (Marcus, Oct 30: "Show them" cleared every filter, though it named one). With some found, said above them
+    // (Ruth searched "milkweed" with "Not poisonous" on, from the tour's Kids, and found none she knew).
+    const why = q && !aside ? hiddenByFilters() : null;
+    const more = why ? why.n - hits.length : 0;
+    if (aside) {
+      const back = el('button', { className: 'link-btn', 'data-testid': 'filters-back' }, 'Filter them again');
+      back.addEventListener('click', () => { setAside = null; rebuildList(); });
+      listWrap.insertBefore(el('div', { className: 'hint', style: { padding: '8px 0' }, 'data-testid': 'set-aside' },
+        `Showing what your filters hid for \u201c${plantFilter.q.trim()}\u201d (${aside.names.join(', ')}). They're still on for your next search. `, back), listWrap.firstChild);
+    }
+    if (why && more > 0) {
+      const show = el('button', { className: 'link-btn', 'data-testid': 'show-hidden' }, 'Show them');
+      show.addEventListener('click', () => { setAside = { q: searchKey(), keys: why.keys, names: why.names }; rebuildList(); });
+      const note = el('div', { className: 'hint', style: { padding: '8px 0' }, 'data-testid': 'hidden-by' },
+        `${hits.length ? `${countWord(more)} more` : countWord(more)} plant${more === 1 ? ' matches' : 's match'} \u201c${plantFilter.q.trim()}\u201d, hidden by your filters: ${why.names.join(', ')}. `, show);
+      if (hits.length || mine.length) listWrap.insertBefore(note, listWrap.firstChild); else listWrap.appendChild(note);
+    }
     if (hits.length === 0 && mine.length === 0) {
-      // A search the filters emptied: which ones, and a way to see the plants anyway.
-      const why = q ? hiddenByFilters() : null;
-      if (why) {
-        const show = el('button', { className: 'link-btn', 'data-testid': 'show-hidden' }, 'Show them');
-        show.addEventListener('click', () => resetFilters(true));
-        listWrap.appendChild(el('div', { className: 'hint', style: { padding: '8px 0' }, 'data-testid': 'hidden-by' },
-          `${countWord(why.n)} plant${why.n === 1 ? ' matches' : 's match'} \u201c${plantFilter.q.trim()}\u201d, hidden by your filters: ${why.names.join(', ')}. `, show));
-      } else {
+      if (!why || more <= 0) {
         listWrap.appendChild(el('div', { className: 'hint', style: { padding: '8px 0' } },
           'No matches. Add it as your own plant, or loosen a filter.'));
       }
     }
     // Always offer to add a plant; right under the search when nothing matched as typed (close spellings are guesses:
     // say so above them).
-    if (hits.length === 0 && mine.length === 0) listWrap.insertBefore(addButton(), listWrap.firstChild);
+    // (Below the note that the filters hid some: that's the answer, not a plant of one's own (Ruth, Oct 30).)
+    if (hits.length === 0 && mine.length === 0) { if (why && more > 0) listWrap.appendChild(addButton()); else listWrap.insertBefore(addButton(), listWrap.firstChild); }
     else if (near) {
       listWrap.insertBefore(el('div', { className: 'hint', style: { padding: '0 0 6px' }, 'data-testid': 'near-note' },
         `Nothing matches \u201c${plantFilter.q.trim()}\u201d as typed. Close spellings:`), listWrap.firstChild);
@@ -500,18 +550,24 @@ export function renderPlantsPanel() {
    * The filters that hide what a search finds, by name ("Sun: Shade", "Host plant"), and how many plants they hide.
    * Null when the search finds nothing even without them.
    */
-  function hiddenByFilters(): { n: number; names: string[] } | null {
+  function hiddenByFilters(): { n: number; names: string[]; keys: (keyof PlantFilter)[] } | null {
     const inPlan = plantIdsInPlan();
     const keep = { q: plantFilter.q, withReported: plantFilter.withReported };
     const base: PlantFilter = { ...PLANT_FILTER_DEFAULTS, ...keep };
     const found = PLANTS.filter((p) => (!forTree || isTree(p)) && reportedMatch(p, base, inPlan) !== null);
     if (!found.length) return null;
-    const names: string[] = [];
+    const names: string[] = [], keys: (keyof PlantFilter)[] = [];
     for (const [k, name] of Object.entries(FILTER_NAMES) as [keyof PlantFilter, (f: PlantFilter) => string][]) {
       if (!filterOn(plantFilter, k)) continue;
-      if (found.some((p) => reportedMatch(p, { ...base, [k]: plantFilter[k] }, inPlan) === null)) names.push(name(plantFilter));
+      if (found.some((p) => reportedMatch(p, { ...base, [k]: plantFilter[k] }, inPlan) === null)) { names.push(name(plantFilter)); keys.push(k); }
     }
-    return names.length ? { n: found.length, names } : null;
+    return names.length ? { n: found.length, names, keys } : null;
+  }
+  /** The filters on that would hide this plant, by name. */
+  function filtersHiding(p: Plant, keys: (keyof PlantFilter)[]): string[] {
+    const inPlan = plantIdsInPlan();
+    const base: PlantFilter = { ...PLANT_FILTER_DEFAULTS, q: plantFilter.q, withReported: plantFilter.withReported };
+    return keys.filter((k) => reportedMatch(p, { ...base, [k]: plantFilter[k] }, inPlan) === null).map((k) => FILTER_NAMES[k]!(plantFilter));
   }
   /** How many more plants the list would show with what other sources say counted (while it's hidden). */
   function othersHidden(): number {
@@ -525,8 +581,9 @@ export function renderPlantsPanel() {
    * stays too, unless `all` (a search the filters emptied: "Show them").
    */
   function resetFilters(all = false) {
-    const { q, inPlan } = plantFilter;
-    Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { q, inPlan: !all && inPlan });
+    const { q, inPlan, hardyHere } = plantFilter;
+    // (Hardy in the garden's zone sits beside the filters, not among them: it stays.)
+    Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { q, inPlan: !all && inPlan, hardyHere });
     render(); // full rebuild so every control shows its cleared value
   }
   /**
@@ -536,8 +593,9 @@ export function renderPlantsPanel() {
   function activeChips(): { key: keyof PlantFilter; text: string; clear: () => void }[] {
     const out: { key: keyof PlantFilter; text: string; clear: () => void }[] = [];
     for (const [k, name] of Object.entries(FILTER_NAMES) as [keyof PlantFilter, (f: PlantFilter) => string][]) {
-      if (k === 'inPlan' || !filterOn(plantFilter, k)) continue;
-      if ((k === 'hardyHere' && !state.location) || (k === 'native' && plantFilter.native === '@here' && !gardenStateName())) continue;
+      // (Not "In this plan", beside the search, nor "Hardy in zone N", beside Filters: each shows as its own box.)
+      if (k === 'inPlan' || k === 'hardyHere' || !filterOn(plantFilter, k)) continue;
+      if (k === 'native' && plantFilter.native === '@here' && !gardenStateName()) continue;
       const v = plantFilter[k];
       if (Array.isArray(v)) {
         const lk = k as ListKey;
@@ -625,6 +683,7 @@ export function renderPlantsPanel() {
     cb.addEventListener('change', () => {
       if (!state.location) { cb.checked = false; openLocation('plants'); return; }
       plantFilter.hardyHere = cb.checked;
+      saveHardy(cb.checked);
       source.hidden = !cb.checked;
       rebuildList();
     });
@@ -748,7 +807,9 @@ export function renderPlantsPanel() {
   body.appendChild(listWrap);
   rebuildList();
 
-  const sheet = el('div', { className: 'sheet' }, el('div', { className: 'sheet-top' }, header, searchBar), body);
+  // (Its full height whatever the list holds: a shorter list moved its top, and the search box and filters with it,
+  // between a click and the next. Marcus, Diego, Tom, Oct 30.)
+  const sheet = el('div', { className: 'sheet picker-sheet' }, el('div', { className: 'sheet-top' }, header, searchBar), body);
   // Typing far down the list: bring the start of the results back into view (scrolling only; the keyboard stays).
   search.addEventListener('input', () => {
     const top = sheet.querySelector<HTMLElement>('.sheet-top')!.offsetHeight;

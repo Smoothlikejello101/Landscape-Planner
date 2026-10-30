@@ -3,16 +3,17 @@ import { finishFeaturePlace, undoFeaturePlace } from './feature-edit';
 import { resizeCanvas } from './canvas';
 import { fitAboveKeyboard } from './keyboard';
 import { cancelGestures, onCanvasPointerMove, onCanvasPointerUp } from './gestures';
+import { installTapGuard } from './tap-guard';
 import { pushHistory, redo, undo } from './history';
 import { copySelected, duplicateSelected, nudgeSelected, paste, selectAllShown, zoomBy, zoomToFit } from './mutations';
 import { cutSelected, deleteSelectedAsking } from './ui/delete-selected';
 import { clearSelection } from './selection';
-import { canFinishDraw, finishDraw, startKind } from './draw';
+import { canFinishDraw, finishDraw, finishTypedRect, startKind } from './draw';
 import { kindForShortcut } from './kinds';
 import { finishPlacing, undoPlace } from './place';
 import { state } from './state';
 import { loadPlants, plantFilter } from './plants';
-import { applyYard, loadYard } from './yard';
+import { applyYard, loadHardy, loadYard } from './yard';
 import { loadWild } from './wild';
 import { initAccount, restoreCodeSent, setAccountListener } from './account';
 import { onAccountChange, setSyncUi, startSyncTriggers } from './sync/sync';
@@ -28,6 +29,7 @@ import { updateSaveWarning, updateSaveState } from './ui/save-warning';
 import { flushSave, initStorage, refreshClipboard, requestPersistence, save, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
 import { flashZoom, render } from './ui/render';
 import { dismissToastAction, toast } from './ui/toast';
+import { closeYear } from './ui/year-bar';
 import { noteVisit } from './hints';
 import { installErrorLog } from './error-log';
 import { pxPerFoot } from './geometry';
@@ -62,6 +64,7 @@ document.addEventListener('focusin', (e) => {
 // Pointer moves and releases are watched on the whole window, not just the
 // canvas: a finger lifted over the toolbar must still end the gesture, or a
 // stale pointer makes the next touch look like a second finger (pinch).
+installTapGuard(); // (first: a stray tap is dropped before anything sees it; src/tap-guard.ts)
 window.addEventListener('pointermove', onCanvasPointerMove, { passive: false });
 window.addEventListener('pointerup', onCanvasPointerUp);
 window.addEventListener('pointercancel', onCanvasPointerUp);
@@ -100,6 +103,11 @@ function onArrow(e: KeyboardEvent, [ax, ay]: [number, number]) {
   save();
   render();
 }
+/** A field that holds typing (text, a number, a choice being made), not a button, box or slider. */
+function holdsTyping(t: Element): boolean {
+  if (t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return true;
+  return t instanceof HTMLInputElement && !['range', 'checkbox', 'radio', 'button', 'submit', 'color', 'file'].includes(t.type);
+}
 function onKey(e: KeyboardEvent) {
   // Don't capture while typing in inputs
   const target = e.target as Element | null;
@@ -110,6 +118,9 @@ function onKey(e: KeyboardEvent) {
     e.preventDefault(); state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; render(); return;
   }
   if (e.key === 'Escape' && state.menu && target?.closest?.('.menu')) { e.preventDefault(); state.menu = null; render(); return; }
+  // In any other sheet, Esc closes it from a button, a checkbox or a slider: only typing would be lost (Alex, Tom,
+  // Oct 30: Esc did nothing in Layers with a padlock focused, nor in a sun record with its slider focused).
+  if (e.key === 'Escape' && target?.closest?.('.overlay') && !holdsTyping(target)) { e.preventDefault(); if (closeOne()) render(); return; }
   if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
   // Keys pressed while a panel has focus (a chip, a menu) belong to the panel, never the plan.
   if (target?.closest?.('.overlay, .menu')) return;
@@ -138,7 +149,7 @@ function onKey(e: KeyboardEvent) {
   }
   if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
     e.preventDefault(); dismissToastAction(); undo(); render();
-  } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) {
+  } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { // (Ctrl+Shift+Z: "z" or "Z", by layout and Caps Lock)
     e.preventDefault(); dismissToastAction(); redo(); render();
   } else if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
     if (state.selectedIds.length) { e.preventDefault(); copySelected(); }
@@ -156,20 +167,13 @@ function onKey(e: KeyboardEvent) {
   } else if (e.key === 'Delete' || e.key === 'Backspace') {
     if (state.selectedIds.length) { e.preventDefault(); deleteSelectedAsking(); render(); }
   } else if (e.key === 'Escape') {
-    if (state.panel) { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; render(); }
-    else if (state.placing) { finishPlacing(); render(); }
-    else if (state.featurePlace) { finishFeaturePlace(); render(); }
-    else if (state.menu) { state.menu = null; render(); }
-    // Drawing: done, as Done would (what's tapped is kept); with too few taps to make anything, put away.
-    else if (state.draw) { if (canFinishDraw()) finishDraw(); else state.draw = null; render(); }
-    else if (state.editPoints) { state.editPoints = null; render(); }
-    else if (state.bgCalibrate) { state.bgCalibrate = null; render(); }
-    else if (state.bgEditMode) { state.bgEditMode = false; render(); }
-    else if (state.selectedIds.length) { clearSelection(); render(); }
+    if (closeOne()) render();
   } else if (e.key === 'Enter' && state.placing && !state.panel && target?.tagName !== 'BUTTON') {
     e.preventDefault(); finishPlacing(); render();
   } else if (e.key === 'Enter' && state.featurePlace && !state.panel && target?.tagName !== 'BUTTON') {
     e.preventDefault(); finishFeaturePlace(); render();
+  } else if (e.key === 'Enter' && state.draw && finishTypedRect()) {
+    e.preventDefault(); render();
   } else if (e.key === 'Enter' && state.draw) {
     // A focused button (Undo, Cancel) gets its own Enter.
     if (canFinishDraw() && target?.tagName !== 'BUTTON') { e.preventDefault(); finishDraw(); render(); }
@@ -184,6 +188,44 @@ function onKey(e: KeyboardEvent) {
     if (kind) { e.preventDefault(); startKind(kind.key); render(); }
   }
 }
+
+/**
+ * Put away the one thing most on top: a panel, placing, adding doors, the menu, a drawing (kept, as Done would keep it,
+ * when it has enough taps), editing points, calibrating, the background's edit mode, the selection, the month view.
+ * What Esc does, and the phone's back button. False when nothing was open.
+ */
+function closeOne(): boolean {
+  if (state.panel) { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; }
+  else if (state.placing) finishPlacing();
+  else if (state.featurePlace) finishFeaturePlace();
+  else if (state.menu) state.menu = null;
+  // (Measuring: Esc is Done, which leaves the measurement unkept; Keep is its own button. Tom, Oct 30: Esc kept it.)
+  else if (state.draw) { if (state.draw.kind !== 'measure' && canFinishDraw()) finishDraw(); else state.draw = null; }
+  else if (state.editPoints) state.editPoints = null;
+  else if (state.bgCalibrate) state.bgCalibrate = null;
+  else if (state.bgEditMode) state.bgEditMode = false;
+  else if (state.selectedIds.length) clearSelection();
+  else if (state.month != null) closeYear();
+  else return false;
+  return true;
+}
+
+// ============================================================
+// THE BACK BUTTON
+// ============================================================
+// On a phone, back closes what's open, one thing at a time, as Esc does, rather than leaving the app (a tester on
+// Android pressed it to close a panel and was out of the app: Oct 30). One extra history entry stands guard: each back
+// takes it, and it's put back while there's something to close. With nothing open, back says so and the next one
+// leaves, as it always did. (The guard is added on a tap or a key: Chrome skips history entries a page adds without
+// one.)
+const GUARD = { fullgrownGuard: true };
+function guard() { if (!history.state?.fullgrownGuard) history.pushState(GUARD, ''); }
+window.addEventListener('pointerdown', guard, true);
+window.addEventListener('keydown', guard, true);
+window.addEventListener('popstate', () => {
+  if (closeOne()) { render(); guard(); return; }
+  toast('Press back again to leave FullGrown.');
+});
 
 // ============================================================
 // SAVE ON EXIT
@@ -237,6 +279,7 @@ async function start() {
   loadMyPlants();
   loadViewSettings(); // (full-size rings and crowding outlines, as left on this device)
   applyYard(plantFilter, loadYard()); // (kids and pets in the yard: the picker's filters for them, as left on this device)
+  plantFilter.hardyHere = loadHardy(); // (hardy in the garden's zone: as left on this device, on to start)
   setSaveStatusListener(updateSaveWarning);
   setSaveStateListener(updateSaveState);
   pushHistory(); // seed undo history with the loaded state

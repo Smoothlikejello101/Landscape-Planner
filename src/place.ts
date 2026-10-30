@@ -42,9 +42,15 @@ export function switchPlacingPlant(p: Plant) {
   state.panel = null;
 }
 /** A tap on the plan while placing: one plant there. */
+/** The last tap that placed a plant: a double tap places one, not two exactly on top of each other (Sam, Oct 30). */
+let lastPlaced = { t: -1e9, x: 0, y: 0, id: '' };
 export function placeTap(clientX: number, clientY: number) {
   const p = placingPlant();
   if (!p || !state.placing) return;
+  const t = performance.now();
+  // (The same plant, there again at once. Another plant switched to and placed close by is meant.)
+  if (p.id === lastPlaced.id && t - lastPlaced.t < 400 && Math.hypot(clientX - lastPlaced.x, clientY - lastPlaced.y) < 24) return;
+  lastPlaced = { t, x: clientX, y: clientY, id: p.id };
   const shape = plantShapeAt(p, screenToFeet(clientX, clientY));
   state.shapes.push(shape);
   pushHistory();

@@ -43,6 +43,8 @@ export function crowdNotice(shape: Shape, moveIt: () => void) {
     { label: 'Move it', run: () => { moveIt(); render(); toast('Tap where it should go.'); } },
     { label: 'Settings', run: openCrowdingSettings },
   ], 10000, TESTID, { detail, tone: crowded.length ? 'red' : 'amber' });
+  const n = document.getElementById('toast-action');
+  if (n) n.dataset.about = shape.id; // (gone with the plant: src/ui/toast.ts placeNotice)
 }
 
 /**

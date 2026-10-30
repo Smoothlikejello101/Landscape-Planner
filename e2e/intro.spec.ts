@@ -26,6 +26,9 @@ async function zip(page: Page) {
   await expect(card(page)).toHaveClass(/at-top/); // (clear of the sheet)
   await page.getByTestId('zip').fill('71923');
   await page.getByTestId('zip-lookup').click();
+  // (The zone stays to be read: step 2 waits for the sheet to close (testers, Oct 30).)
+  await expect(page.getByTestId('intro-text')).toContainText('Your zone and frost dates are below.');
+  await expect(step(page)).toHaveText('Step 1 of 8');
   await closeSheet(page);
 }
 /** Step 3: a house, from Add → Building (three taps: a corner, the next, the far side). */
