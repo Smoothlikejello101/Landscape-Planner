@@ -14,6 +14,7 @@ import { save } from '../storage';
 import type { Crowd } from '../crowding';
 import type { Shape } from '../types';
 import { render } from './render';
+import { openWarningsAt } from './layers-panel';
 import { toast, toastAction } from './toast';
 
 const TESTID = 'crowd-notice';
@@ -112,12 +113,4 @@ export function flagAgain(id: string) {
 }
 
 /** Crowding settings…: the Layers panel, at its crowding section. */
-export function openCrowdingSettings() {
-  state.panel = 'layers';
-  render();
-  requestAnimationFrame(() => {
-    const n = document.querySelector('[data-testid=crowding-settings]');
-    n?.scrollIntoView({ block: 'center' });
-    n?.classList.add('flash');
-  });
-}
+export function openCrowdingSettings() { openWarningsAt('crowding-settings'); }

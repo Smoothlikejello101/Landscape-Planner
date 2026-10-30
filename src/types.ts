@@ -38,6 +38,8 @@ interface ShapeBase {
    * recorded sun changes.
    */
   sunDismissed?: string;
+  /** A hardiness warning dismissed for this plant (its words, src/plants.ts hardinessWarning): back if they change. */
+  hardyDismissed?: string;
   /**
    * Utilities: which (an overhead power line, a buried line, a septic field; one a later version adds is kept as it
    * came, unchecked). Kept on one made something else since, which is that again if turned back.
@@ -124,6 +126,12 @@ export interface CircleShape extends ShapeBase {
    * in it. Unset (every plant before Oct 29, and one put back to its default): the catalog's leaf color.
    */
   colorSet?: true;
+  /**
+   * A flower color chosen for this plant among those its sources list (Jason, Oct 30: a cultivar the catalog doesn't
+   * have, or a species that comes in several): its picture's flowers are drawn in it. Unset: the color its sources
+   * give most.
+   */
+  flowerColor?: string;
   /** Ignored for circles; tolerated so old data and patches stay valid. */
   rotation?: number;
 }
@@ -329,7 +337,7 @@ export interface Marquee { x1: number; y1: number; x2: number; y2: number }
 
 export type Gesture =
   | { type: 'pinch'; startDist: number; startZoom: number; centerScreen: Point; centerFeetAtStart: Point }
-  | { type: 'pan'; startX: number; startY: number; startOffset: Point; moved: boolean; tapShapeId?: string }
+  | { type: 'pan'; startX: number; startY: number; startOffset: Point; moved: boolean; tapShapeId?: string; overShape?: boolean }
   // (`add`: Shift, Ctrl or Cmd held: a tap toggles one shape and a box adds what it touches; the rest stays selected.)
   | { type: 'marquee'; startX: number; startY: number; startFeet: Point; currentFeet: Point; moved: boolean; tapShapeId?: string; add?: boolean }
   | {
@@ -423,6 +431,10 @@ export interface AppState {
   showCrowding: boolean;
   /** A notice as a plant is placed close to another or crowding it (not saved; on unless turned off on this device). */
   crowdWarnings: boolean;
+  /** Warnings for a plant too cold or too warm where the garden is: placing, and a badge on the plan (on this device). */
+  hardyWarnings: boolean;
+  /** Warnings for plants poisonous to the people and pets in the yard (src/yard.ts): rows, the plan, the plant (on this device). */
+  poisonWarnings: boolean;
   /**
    * View: names on the plan, with line lengths, sun hours and the badges on plants (not saved). Off, the plan shows
    * its shapes alone, to step back and see it whole; a selected shape still shows its own.
@@ -443,7 +455,7 @@ export interface AppState {
   /** Picker opened from Add, Existing tree: pick the tree (or an unknown one), then draw its canopy. */
   pickerForTree: boolean;
   /** Placing a plant by tapping: the plant in hand and what's been placed so far (not saved). */
-  placing: { plantId: string; placed: { id: string; snap: HistorySnapshot }[]; warnedClose?: boolean } | null;
+  placing: { plantId: string; placed: { id: string; snap: HistorySnapshot }[]; warnedClose?: boolean; warnedHardy?: string } | null;
   bgEditMode: boolean;
   bgCalibrate: Calibration | null;
   draw: DrawState | null;

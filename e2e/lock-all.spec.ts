@@ -51,7 +51,7 @@ test('Esc ends placing once, and still does when something takes its press', asy
   await placeTwo(page);
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('place-bar')).toHaveCount(0);
-  await expect(page.locator('.multi-bar .count')).toHaveText('2 selected'); // (its release didn't act again: still selected)
+  await expect(page.locator('.multi-bar .count')).toHaveText('2 just placed'); // (its release didn't act again: still selected)
 });
 
 test('Esc whose press an extension takes still ends placing, on its release', async ({ page }) => {
@@ -61,5 +61,5 @@ test('Esc whose press an extension takes still ends placing, on its release', as
   await placeTwo(page);
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('place-bar')).toHaveCount(0);
-  await expect(page.locator('.multi-bar .count')).toHaveText('2 selected');
+  await expect(page.locator('.multi-bar .count')).toHaveText('2 just placed');
 });

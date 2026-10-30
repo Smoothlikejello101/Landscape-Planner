@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { openKV, put } from '../src/db';
 import { state } from '../src/state';
 import {
-  _resetStorageForTests, createProject, deleteProject, flushSave, getClipboard, initStorage,
+  _resetStorageForTests, clearedNow, createProject, deleteProject, flushSave, getClipboard, initStorage, keepCleared, loadCleared,
   readProject, sanitizeProjectData, save, switchProject, writeJournalIfDirty,
 } from '../src/storage';
 import { allExportedProjects, buildBackupFile, importProjects, parseImportFile, uniqueName } from '../src/backup';
@@ -114,6 +114,44 @@ describe('migration from localStorage', () => {
     await freshStorage();
     expect(state.projects.map((p) => p.name)).toEqual(['My Garden']);
     expect(state.shapes).toEqual([]);
+  });
+});
+
+describe('what Clear all took (Jason, Oct 30)', () => {
+  const settle = () => new Promise((r) => setTimeout(r, 20));
+  it('is kept with the project, there after a reload, and forgotten once something new is drawn', async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [circle('a'), circle('b')] }).shapes;
+    state.bgImage = { dataUrl: IMG, naturalWidth: 4, naturalHeight: 4, ftPerPx: 1, cx: 0, cy: 0, rotation: 0, opacity: 0.6, visible: true };
+    keepCleared({ shapes: state.shapes, bgImage: state.bgImage, photoElsewhere: null });
+    state.shapes = []; state.bgImage = null;
+    save(); await flushSave(); await settle();
+    // A reload: read from disk, offered while the plan is empty.
+    _resetStorageForTests(); await initStorage(kv);
+    expect(clearedNow()).toBeNull(); // (not read yet)
+    await loadCleared(id);
+    expect(clearedNow()?.shapes.map((x) => x.label)).toEqual(['a', 'b']);
+    expect(clearedNow()?.bgImage?.dataUrl).toBe(IMG);
+    // Something new drawn: no longer offered, and gone from disk.
+    state.shapes = sanitizeProjectData({ shapes: [circle('c')] }).shapes;
+    save(); await flushSave(); await settle();
+    expect(await kv.get('kv', `cleared/${id}`)).toBeUndefined();
+    _resetStorageForTests(); await initStorage(kv);
+    state.shapes = [];
+    await loadCleared(id);
+    expect(clearedNow()).toBeNull();
+  });
+  it('goes with its project when the project is deleted', async () => {
+    const kv = await freshStorage();
+    const first = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [circle('a')] }).shapes;
+    keepCleared({ shapes: state.shapes, bgImage: null, photoElsewhere: null });
+    await settle();
+    const other = await createProject('Other');
+    await switchProject(other);
+    await deleteProject(first);
+    expect(await kv.get('kv', `cleared/${first}`)).toBeUndefined();
   });
 });
 
@@ -551,6 +589,27 @@ describe('trees with a trunk and a shaped canopy', () => {
     expect((await readProject(id))!.shapes).toEqual(state.shapes);
     const file = await buildBackupFile();
     expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
+  });
+  it('keep a flower color chosen among its sources\' (Jason, Oct 30); older circles have none, and odd values are dropped', async () => {
+    await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [
+      tree({ id: 'v', flowerColor: 'purple' }),
+      tree({ id: 'x' }),
+      tree({ id: 'y', flowerColor: 'Purple!' }),
+      tree({ id: 'z', flowerColor: 3 }),
+    ] }).shapes;
+    expect(state.shapes[0]).toMatchObject({ flowerColor: 'purple' });
+    for (const s of state.shapes.slice(1)) expect('flowerColor' in s).toBe(false);
+    await flushSave();
+    expect((await readProject(id))!.shapes).toEqual(state.shapes);
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
+  });
+  it('keep a hardiness warning dismissed (Oct 30), and drop an odd one', () => {
+    const d = sanitizeProjectData({ shapes: [tree({ id: 'a', hardyDismissed: "Too cold for zone 8a: it's rated for zones 9–11" }), tree({ id: 'b', hardyDismissed: 7 })] });
+    expect(d.shapes[0]).toMatchObject({ hardyDismissed: "Too cold for zone 8a: it's rated for zones 9–11" });
+    expect('hardyDismissed' in d.shapes[1]).toBe(false);
   });
   it('keep a color chosen by hand (a picture draws its leaves in it); older circles have none, and odd values are dropped', async () => {
     await freshStorage();

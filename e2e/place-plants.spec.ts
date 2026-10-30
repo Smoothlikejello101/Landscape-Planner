@@ -30,7 +30,7 @@ test('pick a plant once, tap each spot, Undo the last, Done leaves the batch sel
   expect(await shapeCount(page)).toBe(2);
 
   await bar(page).getByRole('button', { name: 'Done' }).click();
-  await expect(page.locator('.multi-bar .count')).toHaveText('2 selected');
+  await expect(page.locator('.multi-bar .count')).toHaveText('2 just placed');
   // One status for the whole batch.
   await page.locator('.multi-bar button[title=Edit]').click();
   await page.locator('.sheet [data-section=status]').click();
@@ -125,6 +125,13 @@ test.describe('with a keyboard and mouse', () => {
     await page.keyboard.press('p');
     await pick(page, 'Tennessee coneflower');
     const box = await canvasBox(page);
+    await page.mouse.move(box.x + 200, box.y + 200);
+    await expect(page.locator('#canvas-svg [data-role=place-ghost]')).toHaveCount(1);
+    // A drag pans the plan: the plant isn't left behind where the plan took it (Tom, Oct 30), and comes back on a move.
+    await page.mouse.down();
+    await page.mouse.move(box.x + 260, box.y + 240, { steps: 6 });
+    await expect(page.locator('#canvas-svg [data-role=place-ghost]')).toHaveCount(0);
+    await page.mouse.up();
     await page.mouse.move(box.x + 200, box.y + 200);
     await expect(page.locator('#canvas-svg [data-role=place-ghost]')).toHaveCount(1);
     await page.mouse.click(box.x + 200, box.y + 200);

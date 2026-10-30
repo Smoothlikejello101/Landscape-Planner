@@ -2,8 +2,8 @@ import { el, type Child } from '../dom';
 import { saveHardy, saveYard, yardOf } from '../yard';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
-import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery } from '../search';
-import { formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById } from '../plants';
+import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery, unsearchable } from '../search';
+import { byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { SPREAD_WAYS, spreadWays } from '../spread';
@@ -17,6 +17,10 @@ import { openLocation } from './location-panel';
 import { render } from './render';
 import { plantDetails } from './plant-details';
 import { escapeHere, escapeShort, gardenStateName, lawShort, loadWild, regulatedHere } from '../wild';
+import { lookOf } from '../looks';
+
+/** A plant's dot in the lists: its flowers' color as its picture draws them, else its own color. */
+const dotColor = (p: Plant): string => lookOf(p, plantColor(p)).pal.fl ?? plantColor(p);
 
 /** The open picker's list rebuild (in place: the search keeps the keyboard, opened rows stay open). */
 let refreshList: (() => void) | null = null;
@@ -168,7 +172,7 @@ export function renderPlantsPanel() {
     const row = el('div', { className: 'recent-plants', 'data-testid': 'recent-plants' });
     for (const p of recent) {
       const chip = el('button', { className: 'recent-plant' },
-        el('span', { className: 'sw-dot', style: { background: plantColor(p) } }), el('span', {}, p.common));
+        el('span', { className: 'sw-dot', style: { background: dotColor(p) } }), el('span', {}, p.common));
       chip.addEventListener('click', () => pick(p));
       row.appendChild(chip);
     }
@@ -255,9 +259,10 @@ export function renderPlantsPanel() {
     // Not native here, and recorded growing wild here all the same: seen without opening it too.
     const escape = escapeHere(p);
     if (escape) info.appendChild(el('div', { className: 'pescape', 'data-testid': 'row-escape' }, escapeShort(escape)));
-    const dot = el('div', { style: {
-      width: '14px', height: '14px', borderRadius: '50%', flex: 'none',
-      background: plantColor(p), marginRight: '10px'
+    // (Its flowers' color, as its picture draws them (Jason, Oct 30); a plant whose flowers don't show, its own color.)
+    const dot = el('div', { 'data-testid': 'row-dot', style: {
+      width: '14px', height: '14px', borderRadius: '50%', flex: 'none', boxSizing: 'border-box', border: '1px solid rgba(0, 0, 0, 0.18)',
+      background: dotColor(p), marginRight: '10px'
     } });
     const flagged = reportedOnly.get(p.id);
     const chev = el('span', { className: 'row-open' + (flagged ? ' flagged' : '') },
@@ -310,7 +315,7 @@ export function renderPlantsPanel() {
     const q = readQuery(plantFilter.q);
     const inPlan = plantFilter.inPlan ? plantIdsInPlan() : undefined;
     const shown = activeMyPlants().filter((p) => plantMatches(p, { ...plantFilter, q: '' }, inPlan));
-    if (!q) return shown;
+    if (!q) return unsearchable(plantFilter.q) ? [] : shown;
     const hits = shown.flatMap((plant) => { const hit = matchPlant(plant, q, near) ?? (inNotes(plant, q) ? { rank: 3, order: 4 } : null); return hit ? [{ plant, hit }] : []; });
     return hits.sort(byMatch).map((x) => x.plant);
   }
@@ -509,6 +514,19 @@ export function renderPlantsPanel() {
       listWrap.appendChild(el('div', { className: 'list-divider earlier', 'data-testid': 'earlier-divider' },
         el('span', {}, `These match on ${on.length > 1 ? `${on.slice(0, -1).join(', ')} and ${on[on.length - 1]}` : on[0]} only by the earlier list (unverified). No source we've read says so yet.`)));
       rows(earlier, 3);
+    }
+    // Typically within "up to N ft", but able to grow past it: below the rest, said so (Jason, Oct 30).
+    const ceiling = plantFilter.height.split('-')[1];
+    if (ceiling && !plantFilter.inPlan && !aside?.keys.includes('height')) {
+      const shown = new Set(hits.map((p) => p.id));
+      const run = () => (aside ? withFiltersOff(aside.keys, () => filteredPlants(near)) : filteredPlants(near));
+      const taller = byTypicalHeight(run).filter((p) => !shown.has(p.id) && (!forTree || isTree(p)) && !now?.has(p.id));
+      if (taller.length) {
+        listWrap.appendChild(el('div', { className: 'list-divider', 'data-testid': 'taller-divider' },
+          el('span', {}, `Typically ${ceiling} ft or less, but they can grow taller`)));
+        for (const p of taller.slice(0, 60)) listWrap.appendChild(buildRow(p, 0));
+      }
+      run(); // (the list above's notes, as they were)
     }
     // A search the filters emptied, or thinned: which ones, and a way to see the plants anyway, taking off only those
     // filters (Marcus, Oct 30: "Show them" cleared every filter, though it named one). With some found, said above them

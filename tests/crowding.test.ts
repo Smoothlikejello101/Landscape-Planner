@@ -32,6 +32,17 @@ describe('crowding', () => {
     expect(crowdingOf(shapes[0], shapes, byId).map((x) => x.other.id)).toEqual(['free']); // 1 ft apart, usual 2.5 ft
     expect(crowdedIds(shapes, byId).has('gone')).toBe(false);
   });
+  it('trees already there get no warning of their own, nor plants marked To remove (Jason, Oct 30)', () => {
+    const tree = (id: string, x: number) => p(id, x, { plantId: 'oak', radius: 35, tree: true } as Partial<Shape>);
+    const shapes = [tree('t1', 0), tree('t2', 30), p('young', -40, { plantId: 'oak' })];
+    expect(crowdingOf(shapes[0], shapes, byId)).toEqual([]);
+    expect(crowdingOf(shapes[2], shapes, byId).map((x) => x.other.id)).toEqual(['t1']); // (a tree planted near one still is)
+    expect(crowdPairs(shapes, byId).some(({ a, b }) => a.id.startsWith('t') && b.id.startsWith('t'))).toBe(false);
+    expect([...crowdLevels(shapes, byId).keys()]).toEqual(['young']);
+    const out = [p('a', 0), p('b', 2, { status: 'remove' })];
+    expect(crowdingOf(out[0], out, byId)).toEqual([]);
+    expect(crowdedIds(out, byId).size).toBe(0);
+  });
   it('matches the pairwise check on a larger random layout', () => {
     const shapes = Array.from({ length: 200 }, (_, i) => p('s' + i, ((i * 7919) % 97) * 0.9, { y: ((i * 104729) % 89) * 0.9 } as Partial<Shape>));
     const brute = new Set(shapes.filter((s) => crowdingOf(s, shapes, byId).length).map((s) => s.id));
@@ -48,8 +59,11 @@ describe('crowding', () => {
     expect(near('shrub')).toEqual([]); // (no height, not a tree: only other plants like it, as before)
     expect(near('redbud')).toEqual([]); // under the oak's edge: a third of the usual 50 ft, so fine at 20
     expect(near('mystery')).toEqual([]); // a young tree under the oak: nothing shared
-    expect(near('oak')).toEqual(['oak2', 'bigUnknown']);
-    expect([...crowdedIds(shapes, byId)].sort()).toEqual(['bigUnknown', 'oak', 'oak2']);
+    // (The oak and the big unknown tree are already there: no warning of their own, and none between them; the oak
+    // planted 40 ft away is crowded by the one there. Jason, Oct 30.)
+    expect(near('oak')).toEqual([]);
+    expect(near('oak2')).toEqual(['oak']);
+    expect([...crowdedIds(shapes, byId)].sort()).toEqual(['oak2']);
   });
   it('an evergreen screen keeps its branches to the ground; a tree can be given its own height and lowest branches', () => {
     const shapes = [p('arbor', 0, { plantId: 'arbor' }), p('shrub', 9, { plantId: 'shrubH' }), p('oak', 40, { plantId: 'oakH' }), p('shrub2', 46, { plantId: 'shrubH' })];

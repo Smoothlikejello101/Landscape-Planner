@@ -11,7 +11,7 @@ import { boxSize, fmtFeet, resizedPoints, shapeArea, shapePerimeter } from '../g
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
 import { roleChips } from './role-picker';
-import { bedSection, crowdingNote, measureText, plantSunBanner, shadeSunSection, sunListText, utilityBanner, utilitySection } from './role-sections';
+import { bedSection, crowdingNote, measureText, plantHardyBanner, plantPoisonBanner, plantSunBanner, shadeSunSection, sunListText, utilityBanner, utilitySection } from './role-sections';
 import { isUtilityKind, utilityLabel, utilityLook } from '../utility-kinds';
 import { setRoleForIds, bringForward, bringToFront, copySelected, duplicateSelected, findNextSameTier, sendBackward, sendToBack, setLockedForIds, updateSelected, updateSelectedSilent } from '../mutations';
 import { getSelected, selectOnly, singleSelected } from '../selection';
@@ -29,6 +29,7 @@ import { treeBranches } from '../crowding';
 import { MAX_TREE_HEIGHT, MAX_TRUNK, MIN_TRUNK } from '../constants';
 import { statusSection, statusSummary } from './status-section';
 import { drawnBySize } from '../canvas';
+import { flowerChoices, flowerHex } from '../looks';
 import { hasStatus, shownWith } from '../status';
 import { plantsInBed } from '../beds';
 import { startPlacing } from '../place';
@@ -169,6 +170,8 @@ function vinesOnIt(s: Shape): HTMLElement | null {
   return box;
 }
 const cap1 = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
+/** The most a typed size can be (ft): about ten times anything real, a bed or a lawn, and a plant across (Jason, Oct 30). */
+const MAX_SIZE = 5000, MAX_SPREAD = 500;
 export function renderPropsPanelSingle(s: Shape) {
   const body = el('div', { className: 'sheet-body props-compact' });
   // Always in view: warnings, the name, and what it is.
@@ -181,6 +184,8 @@ export function renderPropsPanelSingle(s: Shape) {
   }
   const sunCheck = plantSunBanner(s);
   if (sunCheck) body.appendChild(sunCheck);
+  // (Too cold or too warm here; poisonous to who's in the yard: Jason, Oct 30.)
+  for (const b of [plantHardyBanner(s), plantPoisonBanner(s)]) if (b) body.appendChild(b);
   // Crowding: refreshed in place as the position is typed (no re-render).
   const crowdBox = el('div', {});
   // (A plant too near a power line, a buried line or a septic field too: src/utilities.ts.)
@@ -248,12 +253,12 @@ export function renderPropsPanelSingle(s: Shape) {
     const dInput = el('input', { type: 'number', step: '0.5', min: '0.2', inputMode: 'decimal', value: round1(s.radius * 2), 'data-testid': 'circle-size' }) as HTMLInputElement;
     dInput.addEventListener('input', () => {
       const d = parseFloat(dInput.value.replace(',', '.'));
-      if (!(d >= 0.2)) return; // a passing "0" or empty field mustn't shrink it to nothing
+      if (!(d >= 0.2) || d > MAX_SPREAD) return; // a passing "0" or empty field mustn't shrink it to nothing (nor 9999 grow it)
       // A plant resized by hand keeps its size when the plan's size mode changes.
       updateSelectedSilent(s.plantId ? { radius: d / 2, sizeFrom: 'manual' } : { radius: d / 2 });
       refreshMeasure();
     });
-    dInput.addEventListener('change', () => { if (!(parseFloat(dInput.value.replace(',', '.')) >= 0.2)) dInput.value = String(round1(s.radius * 2)); });
+    dInput.addEventListener('change', () => { const d = parseFloat(dInput.value.replace(',', '.')); if (!(d >= 0.2) || d > MAX_SPREAD) dInput.value = String(round1(s.radius * 2)); });
     const what = bySpread(s) ? (s.canopy ? 'Spread, widest (ft)' : 'Spread (ft)') : 'Diameter (ft)';
     sizeParts.push(el('div', { className: 'field' }, el('label', {}, what), dInput,
       bySpread(s) ? el('div', { className: 'hint' }, 'How wide it\'s drawn, across. Plant tags call this its spread.') : '', bySpread(s) ? '' : measure));
@@ -287,10 +292,15 @@ export function renderPropsPanelSingle(s: Shape) {
       if (s.type === 'poly' || s.type === 'line') updateSelectedSilent({ points: resizedPoints(s.points, w, h) });
       else updateSelectedSilent({ width: w, height: h });
     };
-    const wInput = el('input', { type: 'number', step: '0.5', min: '0.1', value: round1(size.w) });
-    wInput.addEventListener('input', e => { resize(Math.max(0.1, parseFloat((e.target as HTMLInputElement).value) || 0), boxSize(s).h); refreshMeasure(); });
-    const hInput = el('input', { type: 'number', step: '0.5', min: '0.1', value: round1(size.h) });
-    hInput.addEventListener('input', e => { resize(boxSize(s).w, Math.max(0.1, parseFloat((e.target as HTMLInputElement).value) || 0)); refreshMeasure(); });
+    // (Within 0.1 and MAX_SIZE ft, and the box shows what was applied once it's left: Sam, Oct 30, made a bed
+    // 99,999,999 ft long, and a typed 0 or −20 stayed in the box while the bed quietly became 0.1 ft.)
+    const sized = (v: string) => Math.min(MAX_SIZE, Math.max(0.1, parseFloat(v) || 0));
+    const wInput = el('input', { type: 'number', step: '0.5', min: '0.1', max: String(MAX_SIZE), value: round1(size.w) }) as HTMLInputElement;
+    wInput.addEventListener('input', e => { resize(sized((e.target as HTMLInputElement).value), boxSize(s).h); refreshMeasure(); });
+    const hInput = el('input', { type: 'number', step: '0.5', min: '0.1', max: String(MAX_SIZE), value: round1(size.h) }) as HTMLInputElement;
+    hInput.addEventListener('input', e => { resize(boxSize(s).w, sized((e.target as HTMLInputElement).value)); refreshMeasure(); });
+    wInput.addEventListener('change', () => { wInput.value = String(round1(boxSize(s).w)); });
+    hInput.addEventListener('change', () => { hInput.value = String(round1(boxSize(s).h)); });
     // A perfectly straight line has no height (or width) to stretch.
     if (isPath && size.w === 0) wInput.disabled = true;
     if (isPath && size.h === 0) hInput.disabled = true;
@@ -345,19 +355,22 @@ export function renderPropsPanelSingle(s: Shape) {
   // ----- Position and rotation -----
   const posSum = document.createTextNode(positionSummary(s));
   const refreshPos = () => { posSum.textContent = positionSummary(s); };
-  const xInput = el('input', { type: 'number', step: '0.5', value: s.x });
-  xInput.addEventListener('input', e => { updateSelectedSilent({ x: parseFloat((e.target as HTMLInputElement).value) || 0 }); refreshCrowd(); refreshPos(); });
-  const yInput = el('input', { type: 'number', step: '0.5', value: s.y });
-  yInput.addEventListener('input', e => { updateSelectedSilent({ y: parseFloat((e.target as HTMLInputElement).value) || 0 }); refreshCrowd(); refreshPos(); });
+  const placed = (v: string) => Math.min(MAX_SIZE, Math.max(-MAX_SIZE, parseFloat(v) || 0));
+  const xInput = el('input', { type: 'number', step: '0.5', value: s.x }) as HTMLInputElement;
+  xInput.addEventListener('input', e => { updateSelectedSilent({ x: placed((e.target as HTMLInputElement).value) }); refreshCrowd(); refreshPos(); });
+  const yInput = el('input', { type: 'number', step: '0.5', value: s.y }) as HTMLInputElement;
+  yInput.addEventListener('input', e => { updateSelectedSilent({ y: placed((e.target as HTMLInputElement).value) }); refreshCrowd(); refreshPos(); });
   const posParts: Node[] = [el('div', { className: 'row-2' },
     el('div', { className: 'field' }, el('label', {}, 'X position (ft)'), xInput),
     el('div', { className: 'field' }, el('label', {}, 'Y position (ft)'), yInput))];
   if (s.type !== 'circle') {
     const rotVal = s.rotation || 0;
-    const rotInput = el('input', { type: 'number', step: '5', value: rotVal });
+    const rotInput = el('input', { type: 'number', step: '5', value: rotVal }) as HTMLInputElement;
     const rotPct = el('span', { style: { fontSize: ts(12), color: '#78716c' } }, rotVal + '°');
-    const setRot = (v: number) => { updateSelectedSilent({ rotation: v }); rotPct.textContent = v + '°'; refreshPos(); };
+    // (Within a turn, as the ±15° buttons keep it: a typed 390° is 30°. Tom, Oct 30.)
+    const setRot = (v: number) => { const r = ((v % 360) + 360) % 360; updateSelectedSilent({ rotation: r }); rotPct.textContent = r + '°'; refreshPos(); };
     rotInput.addEventListener('input', e => setRot(parseFloat((e.target as HTMLInputElement).value) || 0));
+    rotInput.addEventListener('change', () => { rotInput.value = String(s.rotation || 0); });
     const quickBtns = el('div', { className: 'rot-quick' });
     [-90, -15, 15, 90].forEach(delta => {
       const b = el('button', {}, (delta > 0 ? '+' : '') + delta + '°');
@@ -376,6 +389,15 @@ export function renderPropsPanelSingle(s: Shape) {
       el('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: '4px' } },
         el('label', {}, 'Rotation (degrees, around center)'), rotPct),
       rotInput, quickBtns, el('div', { style: { marginTop: '6px' } }, resetBtn)));
+  }
+  // Locked: its size, place and turn can't be typed either (Jason, Oct 30, from Tom's to-scale house: the lock kept
+  // drags and arrow keys off it, but Width 42 typed in here changed it).
+  if (isLocked(s)) {
+    const shut = (parts: Node[]) => {
+      for (const n of parts) if (n instanceof HTMLElement) for (const c of n.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, button')) c.disabled = true;
+      parts.push(el('div', { className: 'hint', 'data-testid': 'locked-fields' }, 'Locked: unlock it to change this.'));
+    };
+    shut(sizeParts); shut(posParts);
   }
   body.appendChild(section('position', 'Position', posSum, posParts));
 
@@ -404,6 +426,22 @@ export function renderPropsPanelSingle(s: Shape) {
     pictured && state.plantLooks ? el('div', { className: 'hint' }, s.colorSet
       ? 'Its picture\'s leaves are drawn in this color. Default color brings back its own colors.'
       : 'Its picture is drawn in its own colors. A color you pick here draws its leaves.') : '')];
+  // Its flowers' color, among those its sources list (Jason, Oct 30): a cultivar the catalog doesn't have, or a
+  // species that comes in several. (The one its sources give most, until another is picked.)
+  const choices = pictured && s.type === 'circle' ? flowerChoices(plantsById[s.plantId!]) : { colors: [] as string[] };
+  if (s.type === 'circle' && choices.colors.length >= 2) {
+    const cur = s.flowerColor && choices.colors.includes(s.flowerColor) ? s.flowerColor : choices.usual;
+    const row = el('div', { className: 'color-chips', role: 'group', 'aria-label': 'Flower color' });
+    for (const c of choices.colors) {
+      const on = c === cur;
+      const b = el('button', { className: 'color-chip' + (on ? ' on' : ''), 'aria-pressed': String(on), 'data-testid': 'flower-chip' },
+        el('span', { className: 'swatch', style: { background: flowerHex(c) ?? '#d6d3d1' } }), c[0].toUpperCase() + c.slice(1));
+      b.addEventListener('click', () => updateSelected({ flowerColor: c === choices.usual ? undefined : c }));
+      row.appendChild(b);
+    }
+    lookParts.push(el('div', { className: 'field', 'data-testid': 'flower-colors' }, el('label', {}, 'Flower color'), row,
+      el('div', { className: 'hint' }, 'The colors its sources list. Its picture\'s flowers are drawn in the one picked.')));
+  }
   // Opacity (not for outlines; sun exposure with a record is shaded by its sun hours)
   if (!(s.role === 'boundary' || (s.type === 'line' && !s.pathWidth) || s.type === 'text' || (s.role === 'shade' && s.sun))) {
     const opacityVal = s.opacity !== undefined ? s.opacity : 0.65;

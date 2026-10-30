@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { closeSheet, openFresh, openSections, shapeCount, tapFromCenter } from './helpers';
+import { closeSheet, openFresh, openSections, openWarnings, shapeCount, tapFromCenter } from './helpers';
 
 // Crowding as plants are placed (decided with Jason, 2026-10-25): amber rings where plants are close, red where
 // they're crowded, on by default; a notice as one is placed too close, with Leave it, Move it and Settings; red every
@@ -120,6 +120,7 @@ test('flagged pairs can be left close after the fact: one plant from its propert
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);
   // The rest at once, from Layers; warnings stay on; Undo brings them back.
   await page.locator('button[title=Layers]').click();
+  await openWarnings(page);
   await page.getByTestId('leave-all-close').click();
   await expect(page.locator('#toast-action')).toContainText('Left 1 pair close on purpose');
   await expect(page.getByTestId('leave-all-close')).toHaveCount(0);
@@ -145,6 +146,7 @@ test('Crowding settings… opens Layers at its crowding switches; with warnings 
   // Kept on this device.
   await page.reload();
   await page.locator('button[title=Layers]').click();
+  await openWarnings(page);
   await expect(page.getByTestId('crowd-warnings')).not.toBeChecked();
   await expect(page.getByTestId('show-crowding')).toBeChecked();
 });

@@ -38,6 +38,16 @@ describe('placing plants by tapping', () => {
     expect(state.placing).toBe(null);
     expect(state.selectedIds).toEqual(state.shapes.map((s) => s.id));
   });
+  it('a quick second tap on the same spot is one plant; a new go\'s first tap there is another (CI, Oct 30)', () => {
+    startPlacing(cone);
+    tapFt(2, 3); tapFt(2, 3); // (a double tap)
+    expect(state.shapes).toHaveLength(1);
+    finishPlacing();
+    startPlacing(cone);
+    tapFt(2, 3); // (at once, in a new go: meant)
+    expect(state.shapes).toHaveLength(2);
+    finishPlacing();
+  });
   it('takes back the last one with Undo', () => {
     startPlacing(cone);
     tapFt(2, 3); tapFt(4, 3);

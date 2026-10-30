@@ -2,15 +2,17 @@
 // docs/wild-records.md): its distribution gives each species' presence in each US state ("botanical country",
 // TDWG level 3), native or introduced. Reads catalog-src/kew-wcvp/wcvp_names.csv and wcvp_distribution.csv
 // (from https://sftp.kew.org/pub/data-repositories/WCVP/wcvp.zip, unzipped there) and writes
-// catalog-src/wcvp-native.json: { id: { states: { fips: "N" | "I" }, species, name } } (states {} for a plant WCVP
-// has in no US state; `name`, its accepted name, is what the regulated lists are matched by), and
+// catalog-src/wcvp-native.json: { id: { states: { fips: "N" | "I" }, species, name, na? } } (states {} for a plant WCVP
+// has in no US state; `name`, its accepted name, is what the regulated lists are matched by; `na` true where it's
+// native to Canada or the US mainland, written into public/plants.json as `native_na`), and
 // catalog-src/wcvp-regulated.json: the accepted name of each species the regulated lists name (regulated.mjs),
 // { "listed name": "accepted name" }.
 //   node scripts/catalog/wcvp.mjs <combined.json>
 import { createReadStream, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { bloomSpecies } from './bloom.mjs';
-import { hybridName } from './hybrids.mjs';
+import { catalogText } from './convert-v1.mjs';
+import { hybridName, WCVP_SOURCE } from './hybrids.mjs';
 import { listedSpecies, readRegulated, unreviewed } from './regulated.mjs';
 
 /** TDWG level 3 areas that are US states (and DC, Puerto Rico), by FIPS. The Aleutians are Alaska's. */
@@ -54,6 +56,29 @@ export function stateStatus(rows) {
     out[fips] = r.introduced === '1' && out[fips] !== 'N' ? 'I' : 'N';
   }
   return out;
+}
+
+/**
+ * Whether a taxon is native somewhere in Canada or the US mainland (Alaska and Greenland too): TDWG regions 70–78,
+ * Kew's "Northern America" less Mexico (79). Not Hawaii (Pacific) or Puerto Rico (Caribbean). For the caterpillar-host
+ * rule (`native_na`, docs/catalog-format.md): the plants the continent's caterpillars grew up with.
+ */
+export function nativeToNorthAmerica(rows) {
+  return rows.some((r) => r.continent_code_l1 === '7' && /^7[0-8]$/.test(r.region_code_l2) && r.introduced !== '1' && r.extinct !== '1' && r.location_doubtful !== '1');
+}
+
+/**
+ * `native_na` on each species record Kew has native to Canada or the US mainland (`native`: wcvp-native.json's, by
+ * id, `na` true); taken off every other record (a cultivar takes its species', in the app). Returns how many have it.
+ */
+export function northAmericaFacts(catalog, native) {
+  let n = 0;
+  for (const rec of catalog.plants) {
+    if (!rec.parent && native[rec.id]?.na) { rec.facts.native_na = { v: true, src: ['wcvp'] }; n++; }
+    else delete rec.facts.native_na;
+  }
+  if (n) catalog.meta.sources.wcvp ??= WCVP_SOURCE;
+  return n;
 }
 
 async function* rowsOf(path) {
@@ -107,13 +132,20 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   for (const s of species) {
     const t = taxa.get(wcvpName(s.binomial));
     if (!t) continue;
-    out[s.id] = { states: stateStatus(dist.get(t.id) ?? []), species: s.species, name: t.name };
+    const rows = dist.get(t.id) ?? [];
+    out[s.id] = { states: stateStatus(rows), species: s.species, name: t.name };
+    if (nativeToNorthAmerica(rows)) out[s.id].na = true;
   }
   const regulated = Object.fromEntries(listed.map((n) => [n, taxa.get(n)?.name]).filter(([, a]) => a));
   writeFileSync('catalog-src/wcvp-regulated.json.tmp', JSON.stringify(regulated, null, 1) + '\n');
   renameSync('catalog-src/wcvp-regulated.json.tmp', 'catalog-src/wcvp-regulated.json');
   const path = 'catalog-src/wcvp-native.json';
   writeFileSync(`${path}.tmp`, JSON.stringify(out)); renameSync(`${path}.tmp`, path);
+  // (Native to Canada or the US mainland, into the catalog: the caterpillar-host rule's.)
+  const na = northAmericaFacts(catalog, out);
+  writeFileSync('public/plants.json.tmp', catalogText(catalog));
+  renameSync('public/plants.json.tmp', 'public/plants.json');
+  console.log(`${na} plants native to Canada or the US mainland (native_na)`);
   // (Names a person checked are read as Kew's accepted name, by its authors: scripts/catalog/decisions.json
   // `kewNames`. A later checklist that accepts the other homonym lists the name again.)
   const checked = JSON.parse(readFileSync('scripts/catalog/decisions.json', 'utf8')).kewNames ?? {};

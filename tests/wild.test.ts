@@ -5,7 +5,7 @@ import { atlasRecords, curatedNear, gadmCounties, gbifRecords, nativeStatus, SOU
 // @ts-expect-error (a plain .mjs script)
 import { canonical, placer, twoTaxa, usdaRecords } from '../scripts/catalog/usda-counties.mjs';
 // @ts-expect-error (a plain .mjs script)
-import { acceptedTaxon, stateStatus } from '../scripts/catalog/wcvp.mjs';
+import { acceptedTaxon, nativeToNorthAmerica, northAmericaFacts, stateStatus } from '../scripts/catalog/wcvp.mjs';
 import { countyName, countyWord, escapeHere, escapeShort, escapeText, gardenStateName, lawShort, loadWild, nativeHere, nativeText, nativeAndListed, regulatedHere, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
 import { plantMatches, PLANT_FILTER_DEFAULTS, zoneNote, type Plant } from '../src/plants';
 import { state } from '../src/state';
@@ -134,6 +134,13 @@ describe("native status by state, from Kew's checklist", () => {
     expect(acceptedTaxon([{ ...species('7', 'X y'), taxon_status: 'Synonym', accepted_plant_name_id: '1' }, { ...species('6', 'X y'), taxon_status: 'Synonym', accepted_plant_name_id: '3' }], byId)).toBeNull();
     const row = (area: string, introduced = '0', extinct = '0', doubtful = '0') => ({ area_code_l3: area, introduced, extinct, location_doubtful: doubtful });
     expect(stateStatus([row('ARK'), row('CAL', '1'), row('NWY', '0', '1'), row('FLA', '0', '0', '1'), row('ONT'), row('MRY'), row('ALU', '1')])).toEqual({ 5: 'N', 6: 'I', 24: 'N', 2: 'I' });
+    // (Native to North America, for the caterpillar-host rule: Canada or the US mainland, not Mexico, Hawaii or Puerto Rico.)
+    const at = (l1: string, l2: string, introduced = '0') => ({ continent_code_l1: l1, region_code_l2: l2, introduced, extinct: '0', location_doubtful: '0' });
+    expect([[at('7', '78')], [at('7', '72')], [at('7', '79')], [at('6', '63')], [at('8', '81')], [at('7', '78', '1')], []].map(nativeToNorthAmerica)).toEqual([true, true, false, false, false, false, false]);
+    const catalog = { meta: { sources: {} }, plants: [{ id: 'a', facts: {} }, { id: 'b', facts: { native_na: { v: true, src: ['wcvp'] } } }, { id: 'c', parent: 'a', facts: {} }] };
+    expect(northAmericaFacts(catalog, { a: { na: true }, c: { na: true } })).toBe(1);
+    expect(catalog.plants.map((r) => r.facts)).toEqual([{ native_na: { v: true, src: ['wcvp'] } }, {}, {}]);
+    expect(catalog.meta.sources).toHaveProperty('wcvp');
   });
 });
 

@@ -144,10 +144,23 @@ export function flowerColorOf(common: string, listed: string[]): string | undefi
   return listed.find((c) => !NOT_PETALS.has(c) && words.includes(c)) ?? listed.find((c) => !NOT_PETALS.has(c)) ?? listed[0];
 }
 /**
- * How a plant is drawn: its kind of drawing and its colors, from its catalog facts (or its shape's color). `chosen`: a
- * color the user set (Jason, Oct 29), which its leaves are drawn in; its flowers keep theirs.
+ * The flower colors a placed plant may be drawn in, chosen on the plan: its sources' petal colors (not a center's or
+ * dull parts'), and the one it's drawn in unless another is chosen. None for a plant whose flowers don't show, or a
+ * plant of the user's own (their own bloom color says it).
  */
-export function lookOf(p: Plant | undefined, shapeColor: string, chosen = false): Look {
+export function flowerChoices(p: Plant | undefined): { colors: string[]; usual?: string } {
+  const listed = (p?.flower_color ?? []).filter((c) => c !== 'insignificant' && FLOWER_HEX[c] && !NOT_PETALS.has(c));
+  if (!p || !listed.length || (p.flower_form?.inflorescence ?? []).some((x) => x === 'insignificant' || x === 'catkin')) return { colors: [] };
+  return { colors: listed, usual: flowerColorOf(p.common ?? '', p.flower_color!.filter((c) => c !== 'insignificant' && FLOWER_HEX[c])) };
+}
+/** A flower color as drawn ("purple": its hex); undefined for a word that isn't one. */
+export const flowerHex = (c: string): string | undefined => FLOWER_HEX[c];
+/**
+ * How a plant is drawn: its kind of drawing and its colors, from its catalog facts (or its shape's color). `chosen`: a
+ * color the user set (Jason, Oct 29), which its leaves are drawn in; its flowers keep theirs. `flower`: a flower
+ * color chosen for it, drawn where its sources list it.
+ */
+export function lookOf(p: Plant | undefined, shapeColor: string, chosen = false, flower?: string): Look {
   const form0 = p ? formsOf(p)[0] ?? '' : '';
   const evergreen = p?.foliage === 'evergreen';
   // (Its summer leaf color, the dominant one (src/seasons.ts): green unless another color leads; a darker green if
@@ -164,7 +177,8 @@ export function lookOf(p: Plant | undefined, shapeColor: string, chosen = false)
   const picked = !sourced.length && !words.length && p?.id?.startsWith(MY_PREFIX) && p.color ? [nearestFlower(p.color)] : [];
   const listed = (sourced.length ? sourced : words.length ? words : picked).filter((c) => c !== 'insignificant' && FLOWER_HEX[c]);
   const insignificant = !!p && (!listed.length || (p.flower_form?.inflorescence ?? []).some((x) => x === 'insignificant' || x === 'catkin'));
-  const color = p ? flowerColorOf(p.common ?? '', listed) : undefined;
+  // (A color its sources list, chosen for this one plant on the plan (Jason, Oct 30): a cultivar not in the catalog.)
+  const color = p ? (flower && listed.includes(flower) ? flower : flowerColorOf(p.common ?? '', listed)) : undefined;
   const fl = !p || insignificant || !color ? undefined : FLOWER_HEX[color];
   const bloom = p ? bloomKind(p) : 'plain';
   // (A daisy's eye: brown where its colors list brown (a coneflower's cone); dark under yellow or orange rays, as a

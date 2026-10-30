@@ -18,7 +18,8 @@ import { sanitizeLocation } from './climate';
 //   projects/<projectId>      ProjectData without the background image bytes
 //   images/<projectId>/<id>   { dataUrl } for the background image
 //   kv/current, kv/clipboard, kv/lastBackupAt, kv/migratedFromLocalStorage,
-//   kv/myPlants (the user's plant library), kv/myPlantSync (its sync state), kv/lastSizeMode
+//   kv/myPlants (the user's plant library), kv/myPlantSync (its sync state), kv/lastSizeMode,
+//   kv/cleared/<projectId>    what Clear all took from that project, until something new is drawn there
 // The current project is held in `state`; saves are debounced and also
 // flushed when the page is hidden so a quick app switch can't lose an edit.
 
@@ -112,6 +113,7 @@ export function migrateShape(raw: unknown): Shape | null {
     ...(s.carryPlants === false ? { carryPlants: false } : {}),
     ...(sanitizeSun(s.sun) ? { sun: sanitizeSun(s.sun)! } : {}),
     ...(typeof s.sunDismissed === 'string' && s.sunDismissed ? { sunDismissed: s.sunDismissed.slice(0, 300) } : {}),
+    ...(typeof s.hardyDismissed === 'string' && s.hardyDismissed ? { hardyDismissed: s.hardyDismissed.slice(0, 300) } : {}),
     // (A utility's kind: a power line, a buried line, a septic field; kept on one made something else since, which is
     // that again if turned back. Older versions had neither.)
     // (One a later version adds, a short word, is kept as it came: not checked here, but not taken away.)
@@ -157,6 +159,9 @@ export function migrateShape(raw: unknown): Shape | null {
         ...(typeof s.climbsOn === 'string' && s.climbsOn.length <= 100 ? { climbsOn: s.climbsOn } : {}),
         // (A color chosen by hand, which pictures draw its leaves in; older versions had none: the catalog's colors.)
         ...(s.colorSet === true ? { colorSet: true } : {}),
+        // (A flower color chosen among its sources' (a word, which the picture draws only where they list it); older
+        // versions had none: the one its sources give most.)
+        ...(typeof s.flowerColor === 'string' && /^[a-z]{3,12}$/.test(s.flowerColor) ? { flowerColor: s.flowerColor } : {}),
       };
     }
     case 'rect':
@@ -389,8 +394,48 @@ async function writeCurrent(): Promise<boolean> {
     return false;
   }
 }
+// ---- What Clear all took (Jason, Oct 30, from Sam: Clear all, a reload, and the plan was gone for good) ----
+/** A project's shapes and photo as Clear all left them, offered back on its empty plan until something new is drawn. */
+export interface ClearedPlan { shapes: Shape[]; bgImage: BgImage | null; photoElsewhere: ProjectData['photoElsewhere']; at: number }
+const clearedKey = (id: string) => `cleared/${id}`;
+/** Read from disk once a project is opened; null: nothing kept. */
+const cleared = new Map<string, ClearedPlan | null>();
+/** Keep what Clear all is about to take from the open project (its shapes, its photo with the bytes). */
+export function keepCleared(plan: Omit<ClearedPlan, 'at'>): void {
+  const id = state.currentProjectId;
+  if (!id || !plan.shapes.length && !plan.bgImage) return;
+  const c: ClearedPlan = { ...plan, at: now() };
+  cleared.set(id, c);
+  void kv?.write([put('kv', clearedKey(id), c)]).catch((e) => recordError(e, 'keep cleared'));
+}
+/** What Clear all took from the open project, if it's still on offer (its plan still empty). */
+export function clearedNow(): ClearedPlan | null {
+  const id = state.currentProjectId;
+  return id && !state.shapes.length ? cleared.get(id) ?? null : null;
+}
+/** Read what Clear all left for a project (on opening it); `then` runs when there's something. */
+export async function loadCleared(id: string, then?: () => void): Promise<void> {
+  if (cleared.has(id) || !kv) return;
+  try {
+    const raw = await kv.get<unknown>('kv', clearedKey(id));
+    if (!raw || typeof raw !== 'object') { cleared.set(id, null); return; }
+    const r = raw as Partial<ClearedPlan>;
+    const data = sanitizeProjectData({ shapes: r.shapes, bgImage: r.bgImage, photoElsewhere: r.photoElsewhere });
+    cleared.set(id, { shapes: data.shapes, bgImage: data.bgImage ?? null, photoElsewhere: data.photoElsewhere ?? null, at: typeof r.at === 'number' ? r.at : 0 });
+    then?.();
+  } catch (e) { recordError(e, 'load cleared'); }
+}
+/** Done with it: brought back, or something new drawn in its place. */
+export function forgetCleared(id = state.currentProjectId): void {
+  if (!id || !cleared.get(id)) return;
+  cleared.set(id, null);
+  void kv?.write([del('kv', clearedKey(id))]).catch((e) => recordError(e, 'forget cleared'));
+}
+
 /** Schedule a save of the current project. */
 export function save() {
+  // (Something new drawn on a cleared plan: what was cleared isn't offered back any more.)
+  if (state.shapes.length && state.currentProjectId && cleared.get(state.currentProjectId)) forgetCleared();
   const was = editSeq === savedSeq;
   editSeq++;
   if (was) onSaveState?.();
@@ -597,7 +642,8 @@ export async function deleteProject(id: string, bySync = false, token?: number):
   const imageKeys = await db().keys('images', id + '/');
   if (token !== undefined && (changeToken(id) !== token || state.currentProjectId === id)) return false;
   if (!metaFor(id)) return false;
-  const ops = [del('meta', id), del('projects', id), ...imageKeys.map((k) => del('images', k))];
+  cleared.delete(id);
+  const ops = [del('meta', id), del('projects', id), ...imageKeys.map((k) => del('images', k)), del('kv', clearedKey(id))];
   // Sync state changes in memory first, then on disk in the same write, so
   // overlapping writes can't put back an older copy.
   const rec = syncRecords[id];
@@ -1053,7 +1099,7 @@ function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
 }
 /** Test hook: forget module state between tests. */
 export function _resetStorageForTests() {
-  kv = null; clipboardCache = null; storedImageKeys = new Set(); committedImageKeys = new Set();
+  kv = null; clipboardCache = null; storedImageKeys = new Set(); committedImageKeys = new Set(); cleared.clear();
   quotaWarned = false; lastBackupAt = null; myPlantsRaw = []; lastSizeMode = 'typical'; editSeq = 0; savedSeq = 0; saveFailing = false;
   lastFailureJournalAt = 0; unreplayed.clear(); syncRecords = {}; syncTombstones = {}; syncUserId = null; changeCounts.clear(); plantSync = { records: {}, edited: {} };
   saveChain = Promise.resolve(true);

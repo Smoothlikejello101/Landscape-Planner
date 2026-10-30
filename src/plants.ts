@@ -16,7 +16,8 @@ import { shownWith } from './status';
 import { hardyEnough, zoneFit, zoneRange } from './climate';
 import { gardenStateName, hostsHere, localBloom, nativeHere, nativeText, wildHere, wildNearby } from './wild';
 import { bloomMonths } from './bloom';
-import { byMatch, matchPlant, readQuery } from './search';
+import { byMatch, matchPlant, readQuery, unsearchable } from './search';
+import { household, type Yard } from './yard';
 
 /**
  * One plant: a row of the catalog (plants.json), or one of the user's own
@@ -70,6 +71,8 @@ export interface Plant {
   hosts?: string[];
   /** Its genus, and how many native caterpillar species are recorded feeding on it (Shropshire & Tallamy). */
   host_genus?: { genus: string; species: number };
+  /** Native to Canada or the US mainland, by Kew's checklist (a cultivar: its species'). */
+  native_na?: boolean;
   edible?: boolean;
   fall_color?: boolean;
   /** Its fall leaf colors (src/catalog.ts FALL_COLORS). */
@@ -361,6 +364,13 @@ export function pickerCount(shown: number, offered: number, invasivesOut: number
   const found = invasivesShown ? `, and ${countWord(invasivesShown)} invasive plant${invasivesShown === 1 ? '' : 's'} found by name` : '';
   return head + found + (invasivesOut ? ` \u00b7 ${countWord(invasivesOut)} invasive plant${invasivesOut === 1 ? ' shows' : 's show'} only when searched by name` : '');
 }
+/** While set, "up to N ft" goes by a plant's typical height, as it used to (byTypicalHeight). */
+let heightByTypical = false;
+/** `fn` with "up to N ft" judged by typical height: what fits typically, though it may grow taller. */
+export function byTypicalHeight<T>(fn: () => T): T {
+  heightByTypical = true;
+  try { return fn(); } finally { heightByTypical = false; }
+}
 /** Whether a plant passes the picker's filters. `inPlan`: ids of plants placed in the open plan. */
 export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): boolean {
   // Invasives are never suggested; they turn up when searched by name (to map one already in the yard).
@@ -400,9 +410,12 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (attracts.length && !(p.attracts ?? []).some((a) => attracts.includes(a))) return false;
   if (f.growth && p.growth_rate !== f.growth) return false;
   if (f.height) {
-    // (By its typical mature height: a plant of 2 to 4 ft is a 3 ft plant.)
-    const h = p.height && p.height.med, [lo, hi] = f.height.split('-');
-    if (h == null || (lo && h < Number(lo)) || (hi && h > Number(hi))) return false;
+    // "Up to N ft" is a ceiling: by its tallest listed height (Jason, Oct 30, from round 2: a 2–6 ft azalea passed
+    // "up to 4 ft"). "N ft and up" by its typical height (a plant of 2 to 4 ft is a 3 ft plant), as before. The
+    // picker lists those typically under the ceiling that can grow past it apart (byTypicalHeight).
+    const med = p.height?.med, [lo, hi] = f.height.split('-');
+    const top = heightByTypical ? med : p.height?.max ?? med;
+    if (med == null || (lo && med < Number(lo)) || (hi && top != null && top > Number(hi))) return false;
   }
   if (f.wetFeet && !p.wet_feet) return false;
   if (f.clayOk && !p.clay_ok) return false;
@@ -416,16 +429,20 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (f.bloomMonth && !bloomMatch(p, f.bloomMonth)) return false;
   const q = readQuery(f.q);
   if (q && !matchPlant(p, q, true)) return false;
+  if (!q && unsearchable(f.q)) return false;
   return true;
 }
 /**
  * Why a plant counts as a caterpillar host, if it does: a source names caterpillars it feeds (`named`); it's native
- * to the garden's state, in a genus native caterpillars there are recorded on (`genus`: Shropshire & Tallamy, so a
- * genus-wide count says something of the plant only where the plant belongs); or only the earlier list says so.
+ * to North America (Canada or the US mainland), in a genus native caterpillars in the garden's state are recorded on
+ * (`genus`: Shropshire & Tallamy count caterpillars north of Mexico, so a genus-wide count says something of the
+ * plants the continent's caterpillars grew up with, not of a relative from abroad); or only the earlier list says so.
+ * (Native to the continent, not only to the garden's state: Jason, Oct 30. A Texas or Appalachian native in a genus
+ * Arkansas's caterpillars use is a host for them too.)
  */
 export function hostPlant(p: Plant): 'named' | 'genus' | 'earlier' | null {
   if (p.hosts?.length) return 'named';
-  if (hostsHere(p) && nativeHere(p)?.status === 'N') return 'genus';
+  if (p.native_na && hostsHere(p)) return 'genus';
   return p.host ? 'earlier' : null;
 }
 /** The earlier list's dog rating, when it's a warning (anything but "Safe" or "Unverified"). */
@@ -910,6 +927,21 @@ export function hardinessSaid(p: Plant): { text: string; ok: boolean } | null {
   return z ? { text: capital(z), ok: true } : null;
 }
 /**
+ * A plant that won't take the garden's winters, or may not take its summers (Jason, Oct 30: "too hot and too cold
+ * should get warnings by default"): the line a warning says, or null where it fits, isn't known, or there's no ZIP.
+ * Not an annual: it isn't kept through a winter.
+ */
+export function hardinessWarning(p: Plant): { cold: boolean; line: string } | null {
+  if (!state.location) return null;
+  const forms = formsOf(p);
+  if (forms.length && forms.every((f) => f === 'Annual')) return null;
+  const said = hardinessSaid(p);
+  if (!said || said.ok) return null;
+  const cold = zoneFit(p, state.location) === 'cold';
+  const z = zoneRange(p);
+  return { cold, line: `${cold ? 'Too cold' : 'May be too warm'} for zone ${state.location.zone}${z ? `: it's rated for ${z}` : ''}` };
+}
+/**
  * A picker row's lines (decided with Jason, 2026-10-25): its botanical name and forms; then its typical size, sun
  * and hardiness. Bloom time, toxicity to animals and poison to people are left to the filters and the details.
  */
@@ -920,6 +952,25 @@ export function rowLines(p: Plant): { names: string; size: string; sun: string; 
   // (Its botanical name, unless that's the name it goes by: "Adiantum × mairisii".)
   const bot = p.botanical && p.botanical.trim() !== p.common.trim() ? p.botanical : '';
   return { names: [bot, forms].filter(Boolean).join(' \u00b7 '), size, sun: sunSaid(p.sun_most, p.sun_least), hardy: hardinessSaid(p) };
+}
+/** Poisonous to people if eaten (its parts or how bad, from its sources), not only to the skin. */
+export const poisonousToPeople = (p: Plant): boolean => !!p.poison && (!!p.poison.parts?.length || !!p.poison.severity);
+const andList = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs[0] ?? '');
+/**
+ * What the household should know of a plant (Jason, Oct 30, from round 2: Dana, Priya and Ruth read an azalea, a
+ * mountain laurel and a milkweed as safe from rows that only said "Can irritate skin"): poisonous to people, with
+ * kids in the yard; a problem for each pet that's there (src/yard.ts). Nothing with no one set, or warnings off.
+ */
+export function householdFlags(p: Plant, y: Yard = household()): RowFlag[] {
+  if (!state.poisonWarnings) return [];
+  const out: RowFlag[] = [];
+  if (y.kids && poisonousToPeople(p)) {
+    const how = [p.poison!.severity ? `${p.poison!.severity} severity` : '', p.poison!.parts?.length ? andList(p.poison!.parts.map((x) => x.toLowerCase())) : ''].filter(Boolean).join(': ');
+    out.push({ text: 'Poisonous to people', kind: 'bad', title: `Poisonous if eaten${how ? ` (${how})` : ''}`, testid: 'row-poison' });
+  }
+  const pets = [y.dogs !== '' && toxicToDogs(p) ? 'dogs' : '', y.cats && p.problem_for?.includes('cats') ? 'cats' : '', y.horses && p.problem_for?.includes('horses') ? 'horses' : ''].filter(Boolean);
+  if (pets.length) out.push({ text: `A problem for ${andList(pets)}`, kind: 'bad', testid: 'row-pets' });
+  return out;
 }
 /** A short mark on a row: native here, or something to know before choosing it. */
 export interface RowFlag { text: string; kind: 'native' | 'warn' | 'bad' | 'check'; title?: string; testid: string }
@@ -934,6 +985,7 @@ export function rowFlags(p: Plant): RowFlag[] {
   const n = nativeHere(p);
   if (n?.status === 'N') out.push({ text: `${n.state} native`, kind: 'native', title: `${nativeText(n)} (${n.source})`, testid: 'row-native' });
   if (p.invasive) out.push({ text: 'Invasive: not for planting', kind: 'bad', testid: 'row-invasive' });
+  out.push(...householdFlags(p));
   if (p.poison?.skin) out.push({ text: 'Can irritate skin', kind: 'warn', title: 'NC State lists it as causing contact dermatitis', testid: 'row-skin' });
   if (p.unverified) out.push({ text: 'Unverified', kind: 'check', title: "From an earlier list with no sources; it's being checked", testid: 'unverified-badge' });
   else if (p.partlyChecked) out.push({ text: 'Partly checked', kind: 'check', title: 'Some details are checked against sources; those marked "earlier list" in its details are not yet', testid: 'partly-badge' });

@@ -9,6 +9,9 @@ import type { Point } from './types';
 import { snap } from './util';
 import { crowdNotice, dismissCrowdNotice } from './ui/crowd-notice';
 import { offerSupport, offerToVines } from './ui/vine-offers';
+import { hardyNotice } from './ui/hardy-notice';
+import { deleteShapesByIds } from './mutations';
+import { render } from './ui/render';
 
 // Placing plants by tapping: pick a plant once, then each tap on the plan
 // places one there, until Done. Drags still pan and pinches zoom, as while
@@ -21,6 +24,7 @@ export function placingPlant(): Plant | null {
 }
 export function startPlacing(p: Plant) {
   flushHistoryDebounce();
+  lastPlaced.t = -1e9; // (a new go: its first tap is never taken for a double tap on the last go's)
   state.draw = null;
   state.editPoints = null;
   state.featurePlace = null;
@@ -62,6 +66,13 @@ export function placeTap(clientX: number, clientY: number) {
   // A vine by a fence or a tree, or a tree by a vine: offered to climb it (src/ui/vine-offers.ts).
   offerSupport(shape);
   offerToVines(shape);
+  // Too cold or too warm here: said once a go, unless a notice above is up (src/ui/hardy-notice.ts).
+  // (Undo while placing takes it back as Undo on the bar does; after Done, it's deleted, as an undo step of its own.)
+  hardyNotice(shape, () => {
+    if (state.placing?.placed.at(-1)?.id === shape.id) undoPlace();
+    else if (!state.placing && state.shapes.some((s) => s.id === shape.id)) deleteShapesByIds([shape.id]);
+    render();
+  });
 }
 /**
  * Take back the last one placed. Placing is a sandbox: a plant taken back is
@@ -90,8 +101,21 @@ export function finishPlacing() {
   dismissCrowdNotice();
   const ids = new Set(state.shapes.map((s) => s.id));
   state.selectedIds = state.placing.placed.map((x) => x.id).filter((id) => ids.has(id));
+  justPlaced = state.selectedIds.join();
   state.placing = null;
   hover = null;
+}
+/** The plants Done left selected, as one key: while they're the selection, its bar says "just placed". */
+let justPlaced = '';
+/**
+ * Whether what's selected is the batch just placed (Jason, Oct 30: kept selected for one status for them all, the bar
+ * saying "N just placed", so a stray tap on its bin isn't taken for an unknown "N selected").
+ */
+export function selectionJustPlaced(): boolean {
+  // (Once the selection is something else, the batch is just selected again: chosen the same way by hand later, it
+  // isn't "just placed".)
+  if (justPlaced && state.selectedIds.join() !== justPlaced) justPlaced = '';
+  return !!justPlaced;
 }
 
 // ---------- Recently placed plants (this device) ----------
@@ -116,6 +140,8 @@ export function recentPlants(): Plant[] {
 // ---------- With a mouse: the plant follows the pointer ----------
 let hover: Point | null = null;
 export function setPlaceHover(p: Point | null) { hover = p ? { x: snap(p.x), y: snap(p.y) } : null; }
+/** Whether the plant is shown following the pointer. */
+export const hasPlaceHover = () => hover !== null;
 export function renderPlaceOverlay(g: SVGElement) {
   const p = placingPlant();
   if (!p || !hover) return;

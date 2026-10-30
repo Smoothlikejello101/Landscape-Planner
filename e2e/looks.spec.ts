@@ -13,8 +13,8 @@ test('a placed plant is drawn as a picture in bloom; Layers turns pictures off o
   await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
   const look = page.locator('#canvas-svg [data-role=plant-look]');
   await expect(look).toHaveCount(1);
-  // (Its blooms, in its first flower color: cream.)
-  await expect(look.locator('[fill="#f1e6c4"]').first()).toBeAttached();
+  // (Its blooms, in its first flower color: white.)
+  await expect(look.locator('[fill="#f7f4ec"]').first()).toBeAttached();
   await page.locator('button[title=Layers]').click();
   const sw = page.getByTestId('plant-looks');
   await expect(sw).toBeChecked();
@@ -44,7 +44,7 @@ test("a color picked for a plant draws its picture's leaves, and Default color b
   await page.locator('[data-section=look]').click();
   await page.locator('.swatch').nth(8).click(); // #ef4444
   await expect(look.locator('[fill="#ef4444"]').first()).toBeAttached();
-  await expect(look.locator('[fill="#f1e6c4"]').first()).toBeAttached(); // (its blooms keep their color)
+  await expect(look.locator('[fill="#f7f4ec"]').first()).toBeAttached(); // (its blooms keep their color)
   await page.getByTestId('default-color').click();
   await expect(look.locator('[fill="#ef4444"]')).toHaveCount(0);
   await expect(look.locator('[fill="#6f9a4a"]').first()).toBeAttached();

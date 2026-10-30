@@ -29,7 +29,7 @@ export function lookMonthOf(s: CircleShape, month = state.month): LookMonth | un
   return { leaves, ...(fall ? { fall } : {}), ...(l.progress != null ? { progress: l.progress } : {}), bloom, ...(fruit ? { fruit } : {}) };
 }
 /** How a placed plant is drawn. */
-export const lookFor = (s: CircleShape): Look => lookOf(s.plantId ? plantsById[s.plantId] : undefined, s.color, !!s.colorSet);
+export const lookFor = (s: CircleShape): Look => lookOf(s.plantId ? plantsById[s.plantId] : undefined, s.color, !!s.colorSet, s.flowerColor);
 /**
  * A planned plant drawn as a picture: its dashed edge in the picture's dark leaf color (the month's, through the
  * year), not its shape's color. Drawn as a picture, a plain red strawberry's red edge read as a warning, as To
@@ -50,7 +50,7 @@ const cache = new Map<string, string>();
 export function lookMarkup(s: CircleShape, rPx: number, level: LookLevel): string {
   const r = Math.min(rPx, LOOK_MAX_R), k = rPx / r;
   const month = lookMonthOf(s);
-  const key = `${s.id}|${s.plantId}|${s.color}|${s.colorSet ? 1 : 0}|${Math.round(r * 4)}|${level}|${month ? JSON.stringify(month) : ''}`;
+  const key = `${s.id}|${s.plantId}|${s.color}|${s.colorSet ? 1 : 0}|${s.flowerColor ?? ''}|${Math.round(r * 4)}|${level}|${month ? JSON.stringify(month) : ''}`;
   let out = cache.get(key);
   if (out == null) {
     if (cache.size > 3000) cache.clear(); // (zoomed through many sizes: start again)

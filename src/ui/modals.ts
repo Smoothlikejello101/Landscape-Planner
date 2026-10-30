@@ -87,9 +87,9 @@ export function renderResetModal() {
     el('div', { className: 'sheet-body' },
       el('div', { style: { fontWeight: 600, color: '#292524', marginBottom: '8px' } }, 'Clear this project?'),
       el('div', { style: { fontSize: ts(14), color: '#57534e', marginBottom: '16px' } },
-        // (Said as it is: the background photo goes too, and Undo lasts until the app is reloaded. Sam, Oct 30.)
+        // (Said as it is: the background photo goes too; what it took is kept to bring back. Sam, Oct 30.)
         `This will delete all ${state.shapes.length} shape${state.shapes.length === 1 ? '' : 's'} from \u201c${currentProject()?.name || 'this project'}\u201d${state.bgImage ? ', and its background photo' : ''}. ` +
-        "If it's a mistake, Undo brings them back, until the app is reloaded or closed."),
+        "If it's a mistake, Undo brings them back, and so does the empty plan (after a reload too), until you draw something new."),
       el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } }, cancelBtn, confirmBtn)
     )
   );

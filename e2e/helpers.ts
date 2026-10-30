@@ -129,3 +129,9 @@ export async function openFilters(page: Page) {
   const b = page.getByTestId('filters');
   if ((await b.getAttribute('aria-expanded')) !== 'true') await b.click();
 }
+
+/** Layers → Warnings, opened if it's folded (Layers already open). */
+export async function openWarnings(page: Page) {
+  const fold = page.getByTestId('warnings');
+  if ((await fold.getAttribute('open')) === null) await fold.locator('summary').click();
+}

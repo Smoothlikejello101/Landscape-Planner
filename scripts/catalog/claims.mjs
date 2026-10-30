@@ -212,6 +212,17 @@ const FLOWER_WORDS = {
 };
 /** A source's flower colors, each in the catalog's words, once: "Gold/Yellow" is its group's first word. (A word with none is left out.) */
 export const flowerColors = (values) => [...new Set((values ?? []).map((v) => FLOWER_WORDS[String(v).toLowerCase().split('/')[0].trim()]).filter(Boolean))];
+/**
+ * A plant's flower colors, those its sources give most first (each source counted once; the deciding source's order
+ * on a tie): the first is the one the app draws it in, and NC State's lists aren't in any such order ("Gold/Yellow,
+ * Purple/Lavender" for New England aster, its disks before its rays). `v`: the deciding source's words; `usable`:
+ * every claim used.
+ */
+export function byBacking(v, usable) {
+  const lists = usable.map((u) => flowerColors([u.v].flat()));
+  const count = (x) => { const c = flowerColors([x])[0]; return c ? lists.filter((l) => l.includes(c)).length : 0; };
+  return v.map((x, i) => ({ x, i, n: count(x) })).sort((a, b) => b.n - a.n || a.i - b.i).map((o) => o.x);
+}
 /** USDA's plant groups that flower (its others: Gymnosperm, Fern, Lycopod, Horsetail, Moss, Whisk-fern…). */
 const FLOWERING = new Set(['Dicot', 'Monocot']);
 /** Facts about flowers, which a plant without them doesn't have. */
@@ -562,6 +573,7 @@ export function combine(claims, { cultivar = false, prefer = null } = {}) {
     else if (best.kind === 'authority') check = agreeing.length ? 'confirmed' : 'single';
     else check = agreeing.length ? 'likely' : 'reported';
     const r = { v: best.v, src: [best.src, ...agreeing.map((c) => c.src)], check, kind: best.kind };
+    if (fact === 'flower_color' && Array.isArray(r.v)) r.v = byBacking(r.v, usable);
     if (best.at) r.at = best.at;
     // (Read from a source's description, prose.mjs: the sentence it was read from, for the build's own files and the
     // review; the catalog says only where it was read.)

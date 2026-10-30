@@ -5,7 +5,8 @@ import { canvasRect, pxPerFoot, rotatedBoxBounds, shapeBBox, shapeCenter, unionB
 import { flushHistoryDebounce, pushHistory, pushHistoryDebounced } from './history';
 import { getSelected, singleSelected } from './selection';
 import { state } from './state';
-import { getClipboard, migrateShape, save, setClipboard } from './storage';
+import { forgetCleared, getClipboard, keepCleared, migrateShape, save, setClipboard, type ClearedPlan } from './storage';
+import { toast } from './ui/toast';
 import { defaultLook, isLocked, roleKey } from './roles';
 import { isUtilityKind, utilityLook } from './utility-kinds';
 import type { Bounds, Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapeFilter, ShapePatch, Status } from './types';
@@ -259,6 +260,8 @@ export function zoomToFit(): boolean {
 }
 export function resetCurrentProject() {
   flushHistoryDebounce();
+  // (Kept on the device until something new is drawn: offered back on the empty plan, after a reload too.)
+  keepCleared({ shapes: deepClone(state.shapes), bgImage: state.bgImage ? { ...state.bgImage } : null, photoElsewhere: state.photoElsewhere });
   state.shapes = [];
   state.selectedIds = [];
   state.zoom = 1;
@@ -274,6 +277,20 @@ export function resetCurrentProject() {
   state.featurePlace = null;
   pushHistory();
   save();
+}
+
+/** What Clear all took, back on the plan (its photo too), as one step to undo. */
+export function bringBackCleared(c: ClearedPlan) {
+  flushHistoryDebounce();
+  state.shapes = deepClone(c.shapes);
+  if (c.bgImage) state.bgImage = { ...c.bgImage };
+  if (c.photoElsewhere) state.photoElsewhere = c.photoElsewhere;
+  state.selectedIds = [];
+  forgetCleared();
+  pushHistory();
+  save();
+  zoomToFit();
+  toast(`Brought back ${c.shapes.length} shape${c.shapes.length === 1 ? '' : 's'}${c.bgImage ? ' and the photo' : ''}.`);
 }
 
 // ---- Roles ----
