@@ -169,6 +169,23 @@ export const SKIP_SITES = new Set([
   'nationalchampiontree.org', // (record trees, one each: not a species' size)
   'bruns.de', // (its plant reference is for registered trade buyers: ask first)
   'fishlaboratory.com', 'aquanswers.com', 'blackhillwoods.ca', 'rootbuyer.com', // (not plant sources: aquariums, tea, a root buyer)
+  // Found by the terms reviews of the spacing round, batch 3 (2026-10-29)
+  'wbperfecttouch.co.uk', 'thewallednursery.com', 'plantblueprint.com', 'intriera.com', 'growplant.org', 'mylifeispeachy.com', // (AI-written)
+  'farmergrows.com', 'gardentabs.com', // (AI-written)
+  'purehomegardens.com', 'ids-water.com', 'farmtilling.com', 'fishkeepingworld.com', // (spam: link farms, casino posts)
+  'ablegardeners.com', 'gardentreenursery.com', 'nestreeo.com', 'ninaseed.com', // (affiliate or dropship storefronts; marketplaces)
+  'tendra-app.com', 'smartgardener.com', 'landscapegpt.io', 'apnikheti.com', // (other apps' plant lists, users' posts, AI guidance)
+  'mapleresearch.org', 'ipmimages.org', // (others' documents; an image archive)
+  'worldcat.org', 'toti.com', 'wood-database.com', 'colegiobolivar.edu.co', '8billiontrees.com', 'qjure.com', 'simpleshowing.com', // (not plant sources)
+  'silverstonegardening.com.au', 'paldat.org', 'ijcmas.com', 'elitetreeaugusta.com', 'mindmapai.app', 'nunnallystreeservice.com', 'mezcalistas.com',
+  // Found by the terms reviews of the spacing round, batch 4 (2026-10-29)
+  'plexerus.com', 'susanhomecare.com', 'thegreenserenity.com', 'theplantworld.com', 'bluestem.ca', 'agrolearner.com', 'bestgardenseed.com', // (AI-written)
+  'agriculture.institute', 'myfloralvault.com', 'murloft.com', 'findsattic.co.uk', 'gardenuk.co.uk', // (AI-written)
+  'mklibrary.com', // (sponsored posts for sale)
+  'gardenseedgrove.com', 'choisya.com', 'diygarden.co.uk', // (a dropship storefront; affiliate sites)
+  'growsonyou.com', 'growveg.com.au', // (crowd-sourced; another planner app's plant data)
+  'shreeyasnaturals.com', 'youngmountaintea.com', 'mintoislandtea.com', 'boweringgardens.com', 'caledonianhorticulture.co.uk', // (not plant sources)
+  'killlakeweeds.com', 'kiwicare.co.nz', 'newcastleflowersbydesign.com.au', 'environmenttreeservice.com',
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
@@ -195,6 +212,7 @@ const COMPANY = {
   'monrovia.com': 'monrovia.com', 'firsteditionsplants.com': 'firsteditionsplants.com', 'baileynurseries.com': 'firsteditionsplants.com',
   'endlesssummerblooms.com': 'firsteditionsplants.com', 'bloomineasy.com': 'bloomineasy.com', 'southernlivingplants.com': 'southernlivingplants.com',
   'encoreazalea.com': 'plantdevelopmentservices', 'plantdevelopment.com': 'plantdevelopmentservices',
+  'garden-gab.com': 'firsteditionsplants.com', // (Bailey Nurseries' questions-and-answers site for its brands, 2026-10-29)
   // (GardenSoft's plant database, rented by water utilities: their plant pages say © GardenSoft. Seen 2026-10-28.)
   'watersavingplants.com': 'gardensoft', 'watersmartgardening.com': 'gardensoft', 'reddingwatersmart.com': 'gardensoft',
   'fresnogardening.org': 'gardensoft', 'bayareagardening.org': 'gardensoft', 'ashlandsaveswater.org': 'gardensoft',
