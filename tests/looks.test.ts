@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Plant } from '../src/plants';
-import { bandBlooms, bloomKind, coverBlooms, flowerColorOf, levelOf, lookOf, lookSvg, ownBloomColors } from '../src/looks';
+import { bandBlooms, bloomKind, coverBlooms, flowerColorOf, levelOf, lookOf, lookSvg, nearestFlower, ownBloomColors } from '../src/looks';
 import { LOOK_MAX_R, lookFor, lookMarkup, plannedEdge } from '../src/plant-looks';
 import { plantsById } from '../src/plants';
 import type { CircleShape } from '../src/types';
@@ -86,13 +86,23 @@ describe('a plant drawn from its catalog facts', () => {
     expect(Math.max(...discs(lookSvg(look, 14, 'a', 'mid'), pink))).toBeLessThanOrEqual(14 * 0.375 + 0.05);
     expect(Math.max(...discs(lookSvg(look, 28, 'a', 'mid'), pink))).toBeCloseTo(16 * 1.05 * 1.15 * 0.5, 1);
   });
-  it("a plant of the user's own: in the bloom color they gave it; a catalog plant's unsourced earlier color isn't drawn", () => {
-    const mine = { id: 'u-abc', common: "Strawberry 'Albion'", form: 'Perennial', bloom: { start: 3, end: 4, color: 'White' } } as Plant;
+  it("a plant of the user's own in the bloom color they gave it, else its plan color; a catalog plant's earlier list color until a source gives one (Jason, Oct 30)", () => {
+    const mine = { id: 'u-abc', common: "Strawberry 'Albion'", form: 'Perennial', bloom: { start: 3, end: 4, color: 'White' }, color: '#ff0000' } as Plant;
     expect(lookOf(mine, '#ff0000').pal.fl).toBe('#f7f4ec');
     expect(lookOf({ ...mine, bloom: { color: 'Pale lavender' } }, '#ff0000').pal.fl).toBe('#8a62c9');
-    expect(lookOf({ ...mine, bloom: undefined }, '#ff0000').pal.fl).toBeUndefined();
-    expect(lookOf(plant({ bloom: { start: 5, end: 10, color: 'Red' } }), '#000').pal.fl).toBeUndefined();
+    // (No bloom color: the color picked for it on the plan, as the nearest flower color; none picked, no flowers.)
+    expect(lookOf({ ...mine, bloom: undefined }, '#ff0000').pal.fl).toBe('#d7263d');
+    expect(lookOf({ ...mine, bloom: undefined, color: '#ffff00' }, '#ffff00').pal.fl).toBe('#f2c230');
+    expect(lookOf({ ...mine, bloom: undefined, color: '#f6f5f4' }, '#f6f5f4').pal.fl).toBe('#f7f4ec');
+    expect(lookOf({ ...mine, bloom: undefined, color: '#ff00ff' }, '#ff00ff').pal.fl).toBe('#e0679f');
+    expect(lookOf({ ...mine, bloom: undefined, color: undefined }, '#16a34a').pal.fl).toBeUndefined();
+    // (A catalog plant: its sources' color; with none, the earlier list's words; never its plan color.)
+    expect(lookOf(plant({ bloom: { start: 5, end: 10, color: 'Red' } }), '#000').pal.fl).toBe('#d7263d');
+    expect(lookOf(plant({ bloom: { color: 'Hot pink fringe' } }), '#000').pal.fl).toBe('#e0679f');
+    expect(lookOf(plant({ flower_color: ['white'], bloom: { color: 'Red' } }), '#000').pal.fl).toBe('#f7f4ec');
+    expect(lookOf(plant({ bloom: { color: 'Tan seed heads' }, color: '#ff0000' }), '#ff0000').pal.fl).toBeUndefined();
     expect(ownBloomColors('Red and gold')).toEqual(['red', 'yellow']);
+    expect(nearestFlower('#d463b4')).toBe('pink');
   });
 });
 
@@ -114,6 +124,10 @@ describe('a placed plant', () => {
     expect(count(bandBlooms([{ x: 0, y: 0 }, { x: 100, y: 0 }], 10, look, 20), 'circle')).toBe(5 * 2); // (two discs a bloom)
     expect(count(coverBlooms([{ x: 0, y: 0 }, { x: 96, y: 0 }, { x: 96, y: 48 }, { x: 0, y: 48 }], look, 24), 'circle')).toBeGreaterThan(4);
     expect(bandBlooms([{ x: 0, y: 0 }, { x: 100, y: 0 }], 10, lookOf(plant({ form: 'Vine' }), '#000'))).toBe('');
+    // (Each about a third of the band's width, not the whole of it: Jason, Oct 30, "oversized to my eye".)
+    const radii = (svg: string) => [...svg.matchAll(/ r="([\d.]+)"/g)].map((m) => Number(m[1]));
+    expect(Math.max(...radii(bandBlooms([{ x: 0, y: 0 }, { x: 200, y: 0 }], 40, look, 40)))).toBeLessThanOrEqual(40 * 0.18 + 0.05);
+    expect(Math.max(...radii(coverBlooms([{ x: 0, y: 0 }, { x: 96, y: 0 }, { x: 96, y: 48 }, { x: 0, y: 48 }], look, 24)))).toBeLessThanOrEqual(24 * 0.18 + 0.05);
   });
 });
 

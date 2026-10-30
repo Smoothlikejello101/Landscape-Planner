@@ -28,6 +28,7 @@ import { isTree, trunkDiameter } from '../trees';
 import { treeBranches } from '../crowding';
 import { MAX_TREE_HEIGHT, MAX_TRUNK, MIN_TRUNK } from '../constants';
 import { statusSection, statusSummary } from './status-section';
+import { drawnBySize } from '../canvas';
 import { hasStatus, shownWith } from '../status';
 import { plantsInBed } from '../beds';
 import { startPlacing } from '../place';
@@ -428,7 +429,9 @@ export function renderPropsPanelSingle(s: Shape) {
 /** Arrange · Duplicate (Place more, for a plant) · Delete, in one row. */
 function actionRow(single: boolean): HTMLElement {
   const row = el('div', { className: 'action-row' });
-  if (single) {
+  // (Not for a plant: plants are drawn by size, biggest first, so a small one shows over a big one: src/canvas.ts.)
+  const one = single ? singleSelected() : null;
+  if (one && !drawnBySize(one)) {
     const arrangeBtn = el('button', { className: 'btn ghost', html: I.layers + '<span>Arrange</span>', title: 'Arrange layer order' });
     arrangeBtn.addEventListener('click', () => { state.panel = 'arrange'; render(); });
     row.appendChild(arrangeBtn);

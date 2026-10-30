@@ -14,7 +14,7 @@ import { catalogReady, plantsById } from './plants';
 import { plantLabelFit, LABEL_LINE_HEIGHT, textWidth1, type FittedLabel } from './labels';
 import { canopyInnerRadius, canopyPoints, isTree, trunkParts, trunkReachPx } from './trees';
 import { trunkHitPx } from './canopy';
-import { isLocked, roleDef, roleRank } from './roles';
+import { isLocked, roleDef, roleKey, roleRank } from './roles';
 import { shownWith } from './status';
 import { checkPlantSun, formatHours, shadeOpacity, sunHours, sunWarningShown } from './sun';
 import { prepareUtilities, utilityIssues, utilityWarningShown, type PreparedUtility } from './utilities';
@@ -190,7 +190,7 @@ export function shapeGroup(s: Shape): SVGGElement {
     if (look && inMonth?.bloom !== 'no') {
       const blooms = svgEl('g', { 'data-role': 'vine-blooms', 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : inMonth?.bloom === 'around' ? 0.45 : null });
       const px = (l: Point[]) => l.map((p) => ({ x: (p.x - state.offsetX) * ppf, y: (p.y - state.offsetY) * ppf }));
-      blooms.innerHTML = cover ? coverBlooms(px(cover), look, Math.max(16, 1.5 * ppf)) : bandBlooms(px(band), bandW, look, Math.max(16, 1.6 * ppf));
+      blooms.innerHTML = cover ? coverBlooms(px(cover), look, Math.max(10, 1 * ppf)) : bandBlooms(px(band), bandW, look, Math.max(10, 1 * ppf));
       g0.push(blooms);
     }
     g0.push(svgEl('circle', { 'data-role': 'vine-spot', cx, cy, r: vineDot, fill: look ? look.pal.dark : s.color, stroke: sel ? '#0f172a' : 'rgba(0,0,0,0.35)', 'stroke-width': sel ? 2 : 1, 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : null }));
@@ -474,8 +474,20 @@ export function tierOf(s: Shape): number {
 export function paintOrder(shapes: Shape[], filter: ShapeFilter = state.viewFilter): Shape[] {
   // (A vine on what it climbs, over it: a vine up a tree shows on its crown.)
   const k = (s: Shape) => tierOf(s) + (s.type === 'circle' && s.climbsOn ? 0.5 : 0);
-  return shapes.filter((s) => shownWith(s, filter)).sort((a, b) => k(a) - k(b));
+  const out = shapes.filter((s) => shownWith(s, filter)).sort((a, b) => k(a) - k(b));
+  // Plants, biggest first, in the places plants hold (Jason, Oct 30): a small plant never hides under a big one,
+  // whatever order they were placed in. (Equal sizes keep their order; everything else stays where it was.)
+  const slots = out.flatMap((s, i) => (drawnBySize(s) ? [i] : []));
+  const sized = slots.map((i) => out[i]).sort((a, b) => drawnRadius(b) - drawnRadius(a));
+  slots.forEach((i, j) => { out[i] = sized[j]; });
+  return out;
 }
+/** A plant (or a circle among them), drawn by its size rather than the plan's order; Arrange leaves it be. */
+export function drawnBySize(s: Shape): s is CircleShape {
+  return s.type === 'circle' && !s.climbsOn && ['plant', 'other', 'unassigned'].includes(roleKey(s));
+}
+/** Its size as drawn: a groundcover vine's patch, else its circle. */
+const drawnRadius = (s: Shape) => (s.type === 'circle' ? groundcoverRadius(s) ?? s.radius : 0);
 
 function marqueeRect(): SVGRectElement | null {
   const m = state.marquee;

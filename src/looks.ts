@@ -113,6 +113,17 @@ const COLOR_WORDS: Record<string, string> = {
   raspberry: 'pink', scarlet: 'red', crimson: 'red', burgundy: 'red', maroon: 'red', gold: 'yellow', golden: 'yellow', lemon: 'yellow',
   ivory: 'cream', apricot: 'orange', peach: 'orange', coral: 'orange', salmon: 'orange', tangerine: 'orange',
 };
+/** The flower color drawn nearest a color picked on the plan ("#ffff00": yellow). */
+export function nearestFlower(color: string): string {
+  const [r, g, b] = hx(color);
+  let best = 'white', d = Infinity;
+  for (const [name, h] of Object.entries(FLOWER_HEX)) {
+    if (name === 'variegated') continue;
+    const [r2, g2, b2] = hx(h), e = (r - r2) ** 2 + (g - g2) ** 2 + (b - b2) ** 2;
+    if (e < d) { d = e; best = name; }
+  }
+  return best;
+}
 /** The colors in a bloom color written by hand ("White", "Pale pink", "Red and yellow"), in order. */
 export function ownBloomColors(text: string | undefined): string[] {
   const out: string[] = [];
@@ -145,10 +156,13 @@ export function lookOf(p: Plant | undefined, shapeColor: string, chosen = false)
   const variegated = summer.variegated;
   const first = summer.colors[0];
   const base = !p || chosen ? shapeColor : first && first !== 'green' && LEAF_HEX[first] ? LEAF_HEX[first] : evergreen ? EVERGREEN_GREEN : LEAF_HEX.green;
-  // (A plant of the user's own: the bloom color they gave it, where they gave one (Jason, Oct 29). A catalog plant's
-  // earlier list's color is unsourced, so not drawn.)
-  const own = !!p && p.id?.startsWith(MY_PREFIX) && !p.flower_color?.length ? ownBloomColors(p.bloom?.color) : [];
-  const listed = (own.length ? own : p?.flower_color ?? []).filter((c) => c !== 'insignificant' && FLOWER_HEX[c]);
+  // (Its flowers' colors: its sources'; else the earlier list's words, or the bloom color a person gave their own
+  // plant ("White bells", "Pale pink"); else, for a plant of the user's own, the color picked for it on the plan
+  // (Jason, Oct 30: "use the old list color if available, plan color if not").)
+  const sourced = p?.flower_color ?? [];
+  const words = sourced.length ? [] : ownBloomColors(p?.bloom?.color);
+  const picked = !sourced.length && !words.length && p?.id?.startsWith(MY_PREFIX) && p.color ? [nearestFlower(p.color)] : [];
+  const listed = (sourced.length ? sourced : words.length ? words : picked).filter((c) => c !== 'insignificant' && FLOWER_HEX[c]);
   const insignificant = !!p && (!listed.length || (p.flower_form?.inflorescence ?? []).some((x) => x === 'insignificant' || x === 'catkin'));
   const color = p ? flowerColorOf(p.common ?? '', listed) : undefined;
   const fl = !p || insignificant || !color ? undefined : FLOWER_HEX[color];
@@ -623,7 +637,7 @@ export function coverBlooms(poly: { x: number; y: number }[], look: Look, step =
   for (let y = Math.min(...ys) + step / 2; y < Math.max(...ys); y += step * 0.87) {
     const shift = (Math.round(y / step) % 2) * step * 0.5; // (staggered, as a planting grid)
     for (let x = Math.min(...xs) + step / 2 + shift; x < Math.max(...xs); x += step) {
-      if (inside(poly, x, y)) out += midBloom(x, y, Math.max(8, step * 0.55), [cols[k % 2], cols[(k++ + 1) % 2]], look.pal.eye);
+      if (inside(poly, x, y)) out += midBloom(x, y, Math.max(5, step * 0.36), [cols[k % 2], cols[(k++ + 1) % 2]], look.pal.eye);
     }
   }
   return out;
@@ -641,7 +655,7 @@ export function bandBlooms(pts: { x: number; y: number }[], width: number, look:
     const a = pts[i], b = pts[i + 1], len = Math.hypot(b.x - a.x, b.y - a.y);
     if (!len) continue;
     let t = carry;
-    for (; t <= len; t += step) out += midBloom(a.x + ((b.x - a.x) * t) / len, a.y + ((b.y - a.y) * t) / len, Math.max(6, width * 0.9), [cols[k % 2], cols[(k++ + 1) % 2]], look.pal.eye);
+    for (; t <= len; t += step) out += midBloom(a.x + ((b.x - a.x) * t) / len, a.y + ((b.y - a.y) * t) / len, Math.max(4, width * 0.36), [cols[k % 2], cols[(k++ + 1) % 2]], look.pal.eye);
     carry = t - len;
   }
   return out;

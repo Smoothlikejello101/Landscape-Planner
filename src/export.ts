@@ -83,7 +83,7 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
     const op = look ? (planned ? 0.75 : 0.9) : planned ? (s.opacity ?? 0.65) * 0.5 : s.opacity ?? 0.65;
     const name = displayLabel(s);
     const px = (l: { x: number; y: number }[]) => l.map((p) => ({ x: (p.x - originX) * scale, y: (p.y - originY) * scale }));
-    const blooms = !look || inMonth?.bloom === 'no' ? '' : cover ? coverBlooms(px(cover), look, Math.max(16 * k, 1.5 * scale)) : bandBlooms(px(band), w, look, Math.max(16 * k, 1.6 * scale));
+    const blooms = !look || inMonth?.bloom === 'no' ? '' : cover ? coverBlooms(px(cover), look, Math.max(10 * k, 1 * scale)) : bandBlooms(px(band), w, look, Math.max(10 * k, 1 * scale));
     // (On an arbor, over its top.)
     return (cover ? `<polygon points="${pts(cover)}" fill="${color}" fill-opacity="${op}" stroke="${color}" stroke-opacity="${op}" stroke-width="${1.5 * k}" stroke-linejoin="round"/>`
       : `<polyline points="${pts(band)}" fill="none" stroke="${color}" stroke-opacity="${op}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`)

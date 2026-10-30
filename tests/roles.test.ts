@@ -28,6 +28,11 @@ describe('drawing order', () => {
     expect(paintOrder(state.shapes).map((s) => s.id)).toEqual(
       ['lawn', 'bed', 'shade', 'building', 'lockedOld', 'plantA', 'old', 'plantB']);
   });
+  it('draws plants biggest first, whatever order they were placed in, a note and a vine on a fence where they were (Jason, Oct 30)', () => {
+    const c = (id: string, radius: number, extra: Partial<Shape> = {}) => ({ id, type: 'circle', x: 0, y: 0, radius, color: '#16a34a', label: id, opacity: 0.65, locked: false, role: 'plant', ...extra } as Shape);
+    state.shapes = [c('crocus', 0.25), c('blueberry', 3), sh('note', { type: 'text' } as Partial<Shape>), c('crocus2', 0.25), c('hazel', 4), c('vine', 10, { climbsOn: 'fence' } as Partial<Shape>), sh('bed', { role: 'bed' })];
+    expect(paintOrder(state.shapes).map((s) => s.id)).toEqual(['bed', 'hazel', 'blueberry', 'note', 'crocus', 'crocus2', 'vine']);
+  });
   it('leaves hidden roles out', () => {
     state.shapes = [sh('a', { role: 'shade' }), sh('b', { role: 'bed' })];
     state.roleViews = { shade: { hidden: true } };
