@@ -41,6 +41,11 @@ interface ShapeBase {
   /** A hardiness warning dismissed for this plant (its words, src/plants.ts hardinessWarning): back if they change. */
   hardyDismissed?: string;
   /**
+   * What it was added as (src/kinds.ts KindKey: "path", "patio"…), kept when it's renamed; dropped when what it is
+   * changes. Shapes from before Oct 30 have none: their kind is worked out (kindOfShape).
+   */
+  kind?: string;
+  /**
    * Utilities: which (an overhead power line, a buried line, a septic field; one a later version adds is kept as it
    * came, unchecked). Kept on one made something else since, which is that again if turned back.
    */
@@ -225,13 +230,19 @@ export interface BgImage {
   fingerprint?: string;
   /** Keep this photo on this device: the project syncs without it. */
   deviceOnly?: boolean;
+  /**
+   * Not calibrated yet: its scale is the first guess, not a measurement (Oct 30: Grace's photo, left half calibrated,
+   * read "Current scale: 10.0 pixels per foot" after a reload as if measured). Unset once calibrated, and for photos
+   * from before Oct 30, which may well have been.
+   */
+  uncalibrated?: true;
 }
 /**
  * A project's background photo as sync carries it: the photo's fingerprint and
  * how it sits on the plan, or a note that it's kept on one device only.
  */
 export type PhotoRef =
-  | { fingerprint: string; naturalWidth: number; naturalHeight: number; ftPerPx: number; cx: number; cy: number; rotation: number; opacity: number; visible: boolean }
+  | { fingerprint: string; naturalWidth: number; naturalHeight: number; ftPerPx: number; cx: number; cy: number; rotation: number; opacity: number; visible: boolean; uncalibrated?: true }
   | { deviceOnly: true };
 
 export interface ProjectMeta {

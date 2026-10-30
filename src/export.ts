@@ -8,15 +8,18 @@ import { isArbor, isTrellis, LATTICE_STEP, latticePath, SLAT_STEP, slatsPath } f
 import { currentProject } from './storage';
 import type { Bounds, Shape } from './types';
 import { render } from './ui/render';
-import { paintOrder } from './canvas';
-import { roleDef } from './roles';
-import { shadeOpacity } from './sun';
+import { paintOrder, seeThroughIds } from './canvas';
+import { roleDef, roleKey, roleLabel, ROLES } from './roles';
+import { filterText } from './status';
+import { formatHours, shadeOpacity, sunHours } from './sun';
 import { plantsById } from './plants';
 import { LABEL_LINE_HEIGHT, plantLabelFit } from './labels';
 import { canopyInnerRadius, canopyPoints, isTree, partsToSvg, trunkParts, trunkReachPx } from './trees';
 import { groundcoverRadius, supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
 import { bandBlooms, colorIn, coverBlooms, levelOf } from './looks';
 import { lookFor, lookMarkup, lookMonthOf, lookShown, plannedEdge } from './plant-looks';
+import { tell } from './ui/ask';
+import { toast } from './ui/toast';
 
 let lookClips = 0;
 
@@ -42,7 +45,7 @@ export function shapeToSvgString(s: Shape, originX: number, originY: number, sca
   const subs = s.type !== 'circle' && s.type !== 'text' && s.features?.length
     ? s.features.map((f) => featurePartsSvg(featureParts(s, f, (p) => ({ x: (p.x - originX) * scale, y: (p.y - originY) * scale }), scale, k))).join('')
     : '';
-  const body = shapeBodySvg(s, originX, originY, scale, k) + subs;
+  const body = shapeBodySvg(s, originX, originY, scale, k) + subs + (s.locked && s.type !== 'text' ? padlockSvg(s, originX, originY, scale, k) : '');
   if (!s.status || s.status === 'planted' || s.status === 'planned') return body;
   if (s.status === 'gone') return `<g opacity="0.35">${body}</g>`;
   // To remove: a red cross; to move: a blue arrow badge (as on screen).
@@ -56,6 +59,31 @@ export function shapeToSvgString(s: Shape, originX: number, originY: number, sca
   return body + `<circle cx="${bx}" cy="${by}" r="${9 * u}" fill="#2563eb" stroke="#fff" stroke-width="${1.5 * u}"/>` +
     `<path d="M${bx - 4.5 * u},${by}h${9 * u}M${bx + 1.5 * u},${by - 3 * u}l${3 * u},${3 * u}l${-3 * u},${3 * u}M${bx - 1.5 * u},${by - 3 * u}l${-3 * u},${3 * u}l${3 * u},${3 * u}" stroke="#fff" stroke-width="${1.4 * u}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
 }
+/** A locked shape's padlock, small, at its top right corner (as a lock's mark, not an edge style). */
+function padlockSvg(s: Shape, originX: number, originY: number, scale: number, k: number): string {
+  const b = shapeBBox(s);
+  const x = (b.maxX - originX) * scale - 9 * k, y = (b.minY - originY) * scale + 9 * k, u = k;
+  return `<g data-role="locked-badge"><circle cx="${x}" cy="${y}" r="${8 * u}" fill="#ffffff" fill-opacity="0.9" stroke="#57534e" stroke-width="${u}"/>`
+    + `<rect x="${x - 3.5 * u}" y="${y - 0.5 * u}" width="${7 * u}" height="${5 * u}" rx="${u}" fill="#57534e"/>`
+    + `<path d="M${x - 2.2 * u},${y - 0.5 * u}v${-1.8 * u}a${2.2 * u},${2.2 * u} 0 0 1 ${4.4 * u},0v${1.8 * u}" fill="none" stroke="#57534e" stroke-width="${1.3 * u}"/></g>`;
+}
+/**
+ * A sun area's name with its hours, as the plan shows them ("Front of house · ☀ 6 h"): exported and printed, the sun
+ * areas could otherwise be told apart only by how dark they're shaded (Marcus, Oct 30).
+ */
+function withSunHours(s: Shape, label: string): string {
+  if (s.role !== 'shade' || !s.sun) return label;
+  const hours = '\u2600 ' + formatHours(sunHours(s.sun));
+  return label ? `${label} \u00b7 ${hours}` : hours;
+}
+/** Plants drawn see-through in what's being exported (as on the plan: src/canvas.ts seeThroughIds). */
+let exportThin = new Set<string>();
+/** `fn` with these plants drawn see-through (an export or a printout of `shapes` as they're shown). */
+export function withSeeThrough<T>(ids: Set<string>, fn: () => T): T {
+  const was = exportThin;
+  exportThin = ids;
+  try { return fn(); } finally { exportThin = was; }
+}
 function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number, k: number): string {
   // (A buried line dashed, as on the plan.)
   const dashed = (s.role ? !!roleDef(s.role).outline : false) || (s.role === 'utility' && s.utility === 'buried');
@@ -63,7 +91,8 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
   const planned = s.status === 'planned' && !outline;
   const baseOpacity = outline ? 0 : s.role === 'shade' && s.sun ? shadeOpacity(s.sun) : s.opacity ?? 0.65;
   const opacity = planned ? baseOpacity * 0.5 : baseOpacity;
-  const dash = dashed ? ` stroke-dasharray="${8 * k} ${4 * k}"` : planned ? ` stroke-dasharray="${6 * k} ${4 * k}"` : s.locked ? ` stroke-dasharray="${4 * k} ${2 * k}"` : '';
+  // (Locked: a padlock badge, not a dashed edge, which read as planned or selected: Lena, Oct 30. shapeToSvgString.)
+  const dash = dashed ? ` stroke-dasharray="${8 * k} ${4 * k}"` : planned ? ` stroke-dasharray="${6 * k} ${4 * k}"` : '';
   // (An arbor or pergola edged in its own color, as on the plan.)
   const arbor = isArbor(s);
   const stroke = s.status === 'remove' && !outline ? '#dc2626' : outline || planned || arbor ? s.color : 'rgba(0,0,0,0.3)';
@@ -99,12 +128,14 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
     // A plant drawn as an illustration, as on the plan (src/looks.ts): drawn at its size on the screen (r / k), scaled.
     const look = lookShown(s);
     const edge = look && planned ? plannedEdge(s) : stroke; // (planned: in the picture's colors, as on the plan)
-    const paint = `fill="${look ? 'none' : s.color}" fill-opacity="${opacity}" stroke="${edge}" stroke-width="${strokeWidth}"${dash}`;
+    const thin = exportThin.has(s.id) ? 0.55 : 1;
+    const paint = `fill="${look ? 'none' : s.color}" fill-opacity="${Math.round(opacity * thin * 100) / 100}" stroke="${edge}" stroke-width="${strokeWidth}"${dash}`;
     let out = '';
     if (look) {
       const rr = r / k, id = `export-look-${++lookClips}`;
       const clip = s.canopy ? `<polygon points="${s.canopy.map(([x, y]) => `${(x * scale) / k},${(y * scale) / k}`).join(' ')}"/>` : `<circle r="${rr}"/>`;
-      out += `<g transform="translate(${cx} ${cy}) scale(${k})"${planned || isTree(s) ? ' opacity="0.85"' : ''}><clipPath id="${id}">${clip}</clipPath><g clip-path="url(#${id})">${lookMarkup(s, rr, levelOf(rr))}</g></g>`;
+      const lookOpacity = (planned || isTree(s) ? 0.85 : 1) * thin;
+      out += `<g transform="translate(${cx} ${cy}) scale(${k})"${lookOpacity < 1 ? ` opacity="${Math.round(lookOpacity * 100) / 100}"` : ''}><clipPath id="${id}">${clip}</clipPath><g clip-path="url(#${id})">${lookMarkup(s, rr, levelOf(rr))}</g></g>`;
     }
     out += s.canopy
       ? `<polygon points="${canopyPoints(s, (x, y) => [(x - originX) * scale, (y - originY) * scale])}" ${paint} stroke-linejoin="round"/>`
@@ -142,7 +173,7 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
         out += `<line x1="${a.x - nx}" y1="${a.y - ny}" x2="${a.x + nx}" y2="${a.y + ny}" stroke="${s.color}" stroke-width="${2 * k}"/>`;
       }
     }
-    const label = displayLabel(s);
+    const label = withSunHours(s, displayLabel(s));
     if (label && s.role === 'boundary') {
       // Along the line, as on screen.
       const al = alongLabel(s);
@@ -179,12 +210,23 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
     const pts = trianglePoints(s).map(p => `${(p[0] - originX) * scale},${(p[1] - originY) * scale}`).join(' ');
     out = `<polygon points="${pts}" fill="${s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}${rotAttr}/>`;
   }
-  if (s.label) {
+  const boxLabel = withSunHours(s, s.label);
+  if (boxLabel) {
     // Its name reads as upright as it can, as on the plan (geometry.ts, boxLabelAngle).
     const angle = boxLabelAngle(s.rotation || 0);
-    out += text(cx, cy, Math.max(10, Math.min(14, (Math.min(w, h) / k) * 0.2)), s.label, angle ? ` transform="rotate(${angle} ${cx} ${cy})"` : '');
+    out += text(cx, cy, Math.max(10, Math.min(14, (Math.min(w, h) / k) * 0.2)), boxLabel, angle ? ` transform="rotate(${angle} ${cx} ${cy})"` : '');
   }
   return out;
+}
+/**
+ * What the picture leaves out because of Layers, in words ("Showing planned plants in Spring 2027 · Hidden: sun
+ * areas"); '' when it shows everything.
+ */
+export function exportCaption(): string {
+  const shown = filterText(state.viewFilter);
+  const hidden = ROLES.filter((r) => state.roleViews[r.key]?.hidden && state.shapes.some((s) => roleKey(s) === r.key)).map((r) => roleLabel(r.key));
+  const parts = [shown ? `Showing ${shown.charAt(0).toLowerCase()}${shown.slice(1)} only` : '', hidden.length ? `Hidden in Layers: ${hidden.join(', ')}` : ''];
+  return parts.filter(Boolean).join(' \u00b7 ');
 }
 export function buildExportSVG(): { svg: string; widthPx: number; heightPx: number } | null {
   const bbox = computeAllBBox();
@@ -223,7 +265,7 @@ export function buildExportSVG(): { svg: string; widthPx: number; heightPx: numb
   }
   const sorted = paintOrder(state.shapes);
   let shapesSvg = '';
-  for (const s of sorted) shapesSvg += shapeToSvgString(s, minX, minY, scale);
+  withSeeThrough(seeThroughIds(state.shapes), () => { for (const s of sorted) shapesSvg += shapeToSvgString(s, minX, minY, scale); });
   // Optional bg image, sits above grid, below shapes (matches on-screen order)
   let bgSvg = '';
   const bg = state.bgImage;
@@ -237,10 +279,17 @@ export function buildExportSVG(): { svg: string; widthPx: number; heightPx: numb
     const rot = bg.rotation ? ` transform="rotate(${bg.rotation} ${cxPx} ${cyPx})"` : '';
     bgSvg = `<image x="${xPx}" y="${yPx}" width="${wFt*scale}" height="${hFt*scale}" opacity="${bg.opacity}" preserveAspectRatio="none" href="${bg.dataUrl}" xlink:href="${bg.dataUrl}"${rot}/>`;
   }
+  // What Layers is leaving out, said on the picture: a picture of planned plants only shouldn't pass for the whole plan
+  // (Priya, Oct 30).
+  const caption = exportCaption();
+  const capSvg = caption
+    ? `<g data-role="export-caption"><rect x="6" y="${heightPx - 30}" width="${Math.min(widthPx - 12, caption.length * 7 + 20)}" height="24" rx="4" fill="#ffffff" fill-opacity="0.92" stroke="#a8a29e"/>`
+      + `<text x="16" y="${heightPx - 14}" font-size="12" fill="#292524" font-family="sans-serif">${escapeHtml(caption)}</text></g>`
+    : '';
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${widthPx}" height="${heightPx}" viewBox="0 0 ${widthPx} ${heightPx}">
 <rect x="0" y="0" width="${widthPx}" height="${heightPx}" fill="${BG_COLOR}"/>
-${grid}${bgSvg}${labels}${shapesSvg}
+${grid}${bgSvg}${labels}${shapesSvg}${capSvg}
 </svg>`;
   return { svg, widthPx, heightPx };
 }
@@ -289,15 +338,15 @@ export async function doExport(format: 'png' | 'svg') {
     state.panel = 'preview';
     render();
   } catch (e) {
-    alert('Export failed: ' + errMsg(e));
+    void tell('Export failed: ' + errMsg(e));
   }
 }
 export async function copySvg() {
   if (!state.exportPreview || !state.exportPreview.svgText) return;
   try {
     await navigator.clipboard.writeText(state.exportPreview.svgText);
-    alert('SVG copied to clipboard');
+    toast('SVG copied to the clipboard');
   } catch (e) {
-    alert('Copy failed — use the "show SVG text" box below to select and copy manually');
+    void tell('Copying failed. Use the "show SVG text" box below to select it and copy it yourself.');
   }
 }

@@ -6,6 +6,7 @@ import { el } from '../dom';
 import { I } from '../icons';
 import { errMsg } from '../util';
 import { toast } from './toast';
+import { tell } from './ask';
 
 // The Account section of the Projects panel. It's refreshed in place when the
 // account changes (signing in finishes, a plan loads), never by a full render,
@@ -216,7 +217,7 @@ function deleteConfirmation(): HTMLElement {
     el('div', { className: 'hint' }, 'This removes your account and anything stored with it on our server. The plans on this device stay here, and the app keeps working without an account.'));
   const backup = el('button', { className: 'btn ghost', html: I.download + '<span>Save a backup first</span>' });
   backup.addEventListener('click', async () => {
-    try { const b = await backupAll('download'); if (b) toast(backupSaid(b), 10000); } catch (e) { alert('Backup failed: ' + errMsg(e)); }
+    try { const b = await backupAll('download'); if (b) toast(backupSaid(b), 10000); } catch (e) { void tell('Backup failed: ' + errMsg(e)); }
   });
   const yes = el('button', { className: 'btn danger', 'data-testid': 'delete-account-confirm' }, 'Delete my account');
   yes.disabled = !!account.busy;

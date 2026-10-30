@@ -105,6 +105,14 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .sheet.picker-sheet { height: 85vh; height: calc(85dvh - var(--kb, 0px)); }
 .sheet { background: #fff; width: 100%; max-height: 85vh; max-height: calc(85dvh - var(--kb, 0px)); border-radius: 16px 16px 0 0; overflow-y: auto; box-shadow: 0 -4px 16px rgba(0,0,0,0.1); }
 .modal { background: #fff; border-radius: 8px; max-width: 400px; width: 100%; box-shadow: 0 4px 16px rgba(0,0,0,0.2); max-height: 90vh; max-height: calc(90dvh - var(--kb, 0px)); display: flex; flex-direction: column; overflow: hidden; }
+/* In-app questions (src/ui/ask.ts): over everything, the tour's card included, centered, above the phone's keyboard. */
+.ask-overlay { position: fixed; inset: 0 0 var(--kb, 0px) 0; background: rgba(0,0,0,0.4); z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.modal.ask .sheet-body { padding: 16px; }
+.ask-title { font-weight: 600; color: #292524; margin-bottom: 8px; font-size: calc(15px * var(--ts)); }
+.ask-message { display: block; font-size: calc(14px * var(--ts)); color: #44403c; margin-bottom: 14px; white-space: pre-line; line-height: 1.45; }
+.modal.ask input[type=text] { width: 100%; box-sizing: border-box; margin: -6px 0 14px; }
+.ask-buttons { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.ask-buttons .btn { min-height: 44px; }
 .menu { background: #fff; border-radius: 8px; max-width: calc(240px * var(--ts)); width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.18); max-height: 80vh; max-height: calc(80dvh - var(--kb, 0px)); overflow-y: auto; }
 .menu-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; font-size: calc(14px * var(--ts)); color: #292524; cursor: pointer; width: 100%; text-align: left; }
 .menu-item:hover { background: #f5f5f4; }

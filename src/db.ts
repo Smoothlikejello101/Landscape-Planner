@@ -92,8 +92,8 @@ function openOnce(name: string): Promise<KV> {
     db.onversionchange = () => {
       // A newer version of the app (another tab) needs to upgrade the database.
       db.close();
-      alert('The app was updated in another tab. This page will reload.');
-      location.reload();
+      // (Said in the app, then reloaded once it's read: the new version's database is the other tab's.)
+      void import('./ui/ask').then(({ tell }) => tell('The app was updated in another tab. This page will reload.', { ok: 'Reload' })).then(() => location.reload());
     };
     return new IdbKV(db) as KV;
   })();

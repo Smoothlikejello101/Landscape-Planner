@@ -48,3 +48,26 @@ test('while the image is being placed, Layers keeps it shown', async ({ page }) 
   await page.locator('button[title=Layers]').click();
   await expect(page.getByTestId('layers-bg').getByRole('button', { name: 'Hide the background image' })).toBeDisabled();
 });
+
+test('a new photo is shown whole to calibrate on; left uncalibrated, it says so in its panel and once after a reload (Dana, Grace)', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'background image' }).click();
+  await page.locator('.sheet input[type=file]').setInputFiles('public/icon-512.png');
+  const image = page.locator('#canvas-svg image');
+  await expect(image).toHaveCount(1);
+  // (The whole photo in view: its box within the plan's.)
+  const plan = (await page.locator('#canvas-svg').boundingBox())!, img = (await image.boundingBox())!;
+  expect(img.x).toBeGreaterThanOrEqual(plan.x - 1);
+  expect(img.x + img.width).toBeLessThanOrEqual(plan.x + plan.width + 1);
+  expect(img.y).toBeGreaterThanOrEqual(plan.y - 1);
+  expect(img.y + img.height).toBeLessThanOrEqual(plan.y + plan.height + 1);
+  await page.locator('.mode-banner button').click(); // skip calibration
+  await expect(page.getByTestId('calibrate-notice')).toHaveCount(0); // (just added: the banner asked)
+  await page.reload();
+  await expect(page.getByTestId('calibrate-notice')).toContainText('isn’t to scale yet');
+  await page.getByTestId('calibrate-notice').getByRole('button', { name: 'Dismiss' }).click();
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'background image' }).click();
+  await expect(page.getByTestId('bg-uncalibrated')).toContainText('Not to scale yet');
+});

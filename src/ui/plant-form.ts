@@ -14,6 +14,7 @@ import { errMsg } from '../util';
 import { zoneRange } from '../climate';
 import { render } from './render';
 import { toast } from './toast';
+import { ask } from './ask';
 
 // Add or edit one of "My plants". Text fields never re-render the panel
 // (Android keyboard safety): their values are read when Save is tapped, and
@@ -319,7 +320,7 @@ export function renderPlantForm() {
         const renamed = renamePlaced(saved, oldName);
         const sizeChanged = JSON.stringify([was?.width, was?.height]) !== JSON.stringify([saved.width, saved.height]);
         const n = sizeChanged ? placedUsing(saved.id).length : 0;
-        if (n && confirm(`Update ${n} placed plant${n === 1 ? '' : 's'} in this plan to the new size?`)) resizePlaced(saved);
+        if (n && await ask(`Update ${n} placed plant${n === 1 ? '' : 's'} in this plan to the new size?`, { ok: n === 1 ? 'Update it' : 'Update them', cancel: 'Keep as drawn' })) resizePlaced(saved);
         toast(`Saved ${saved.common}${renamed ? `; ${renamed} placed plant${renamed === 1 ? '' : 's'} renamed` : ''}`);
         close(state.selectedIds.length ? null : 'plants');
         return;
@@ -347,7 +348,7 @@ export function renderPlantForm() {
   if (editing) {
     const del = el('button', { className: 'btn danger' }, 'Delete from My plants');
     del.addEventListener('click', async () => {
-      if (!confirm(`Delete ${editing.common} from My plants? Plants already on your plans keep their name and size.`)) return;
+      if (!(await ask(`Delete ${editing.common} from My plants? Plants already on your plans keep their name and size.`, { ok: 'Delete', danger: true }))) return;
       try {
         await deleteMyPlant(editing.id);
         const wasInHand = state.placing?.plantId === editing.id;

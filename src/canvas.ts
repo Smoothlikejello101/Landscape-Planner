@@ -4,7 +4,7 @@ import { svgEl, type Attrs } from './dom';
 import { alongLabel, boxLabelAngle, boxSize, shapeBBox, shapeCenter, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, worldPoints } from './geometry';
 import { renderPathOverlay } from './draw';
 import { fullRingRadius } from './my-plants';
-import { crowdLevels, type CrowdLevel } from './crowding';
+import { bandOf, crowdLevels, type CrowdLevel } from './crowding';
 import { crowdOptions } from './crowd-here';
 import { renderPlaceOverlay } from './place';
 import { renderShapeHandles } from './handles';
@@ -220,13 +220,18 @@ export function shapeGroup(s: Shape): SVGGElement {
         : svgEl('circle', { cx: 0, cy: 0, r });
       const art = svgEl('g', { 'clip-path': `url(#${clipId})` });
       art.innerHTML = lookMarkup(s, r, seen ? levelOf(r) : 'yard');
+      // (See-through over a plant growing under it: Jason, Oct 30.)
+      const thin = seeThrough.has(s.id) ? 0.55 : 1;
+      const base = s.status === 'gone' ? 0.35 : s.status === 'planned' || isTree(s) ? 0.85 : 1;
       under = svgEl('g', { 'data-role': 'plant-look', transform: `translate(${cx} ${cy})`, 'pointer-events': 'none',
-        opacity: s.status === 'gone' ? 0.35 : s.status === 'planned' || isTree(s) ? 0.85 : null }, svgEl('clipPath', { id: clipId }, outline), art);
+        opacity: base * thin < 1 ? Math.round(base * thin * 100) / 100 : null, 'data-see-through': thin < 1 ? 'true' : null }, svgEl('clipPath', { id: clipId }, outline), art);
       common.fill = 'transparent';
       if (s.status === 'planned' && !sel) common.stroke = plannedEdge(s); // (in the picture's colors, not its shape's)
       // Through the year, a winter not known (no source says whether its leaves stay): a dotted ring says so.
       if (lookMonthOf(s)?.leaves === 'unknown') g0.push(svgEl('circle', { 'data-role': 'look-unknown', cx, cy, r: Math.max(2, r - 3), fill: 'none', stroke: '#57534e', 'stroke-width': 1.5, 'stroke-dasharray': '2 4', 'stroke-linecap': 'round', 'pointer-events': 'none' }));
     }
+    // (Drawn plain, see-through over what's under it, as its picture would be.)
+    if (!lookShown(s) && seeThrough.has(s.id)) { common['fill-opacity'] = Number(common['fill-opacity'] ?? 0.65) * 0.55; common['data-see-through'] = 'true'; }
     // A tree pruned into a shape: its outline instead of a circle.
     shapeEl = s.canopy
       ? svgEl('polygon', { ...common, points: canopyPoints(s, (x, y) => [(x - state.offsetX) * ppf, (y - state.offsetY) * ppf]), 'stroke-linejoin': 'round' })
@@ -254,8 +259,11 @@ export function shapeGroup(s: Shape): SVGGElement {
     labelX = cx; labelY = cy;
     fs = Math.max(10, Math.min(14, r * 0.4));
     fitted = circleLabel(s, ppf);
-    // A plant name that won't fit inside still shows, over the edge, where it has the room.
-    if (fitted === null && overflowLabels.has(s.id)) { fitted = undefined; overflow = true; }
+    // A plant name that won't fit inside still shows, over the edge, where it has the room; a run of the same plant's,
+    // once for them all, at their middle (labelGroups).
+    const run = fitted === null ? runLabels.get(s.id) : undefined;
+    if (run) { fitted = undefined; overflow = true; labelX = (run.x - state.offsetX) * ppf; labelY = (run.y - state.offsetY) * ppf; }
+    else if (fitted === null && overflowLabels.has(s.id)) { fitted = undefined; overflow = true; }
   } else if (s.type === 'poly' || s.type === 'line') {
     const pts = worldPoints(s).map((p) => `${(p.x - state.offsetX) * ppf},${(p.y - state.offsetY) * ppf}`).join(' ');
     if (s.type === 'poly') {
@@ -372,7 +380,8 @@ export function shapeGroup(s: Shape): SVGGElement {
     return textWidth1(text) * fs <= Math.max(b.maxX - b.minX, b.maxY - b.minY) * ppf;
   };
   const sunText = s.role === 'shade' && s.sun && room('☀ ' + formatHours(sunHours(s.sun))) ? '☀ ' + formatHours(sunHours(s.sun)) : '';
-  const label = room(displayLabel(s)) ? displayLabel(s) : '';
+  const run = s.type === 'circle' && overflow ? runLabels.get(s.id) : undefined;
+  const label = run && named ? run.text : room(displayLabel(s)) ? displayLabel(s) : '';
   if (fitted && named) {
     // Wrapped and sized to fit inside the circle (or below a tree's trunk).
     const lh = fitted.fontSize * LABEL_LINE_HEIGHT;
@@ -505,11 +514,42 @@ export function paintOrder(shapes: Shape[], filter: ShapeFilter = state.viewFilt
   // (A vine on what it climbs, over it: a vine up a tree shows on its crown.)
   const k = (s: Shape) => tierOf(s) + (s.type === 'circle' && s.climbsOn ? 0.5 : 0);
   const out = shapes.filter((s) => shownWith(s, filter)).sort((a, b) => k(a) - k(b));
-  // Plants, biggest first, in the places plants hold (Jason, Oct 30): a small plant never hides under a big one,
-  // whatever order they were placed in. (Equal sizes keep their order; everything else stays where it was.)
+  // Plants, shortest first, in the places plants hold: the tallest on top, as it is in the yard, and drawn see-through
+  // where something grows under it (seeThrough). Jason, Oct 30 afternoon: biggest first, that morning's order, put
+  // the groundcover he'd planted under his shrubs on top of them. Equal heights: the bigger first; equal both, the
+  // plan's order; everything else stays where it was.
   const slots = out.flatMap((s, i) => (drawnBySize(s) ? [i] : []));
-  const sized = slots.map((i) => out[i]).sort((a, b) => drawnRadius(b) - drawnRadius(a));
+  const sized = slots.map((i) => out[i] as CircleShape).map((s) => ({ s, h: drawnHeight(s), r: drawnRadius(s) }))
+    .sort((a, b) => a.h - b.h || b.r - a.r).map((x) => x.s);
   slots.forEach((i, j) => { out[i] = sized[j]; });
+  return out;
+}
+/**
+ * A plant's height for the drawing order: its typical height (a tree's as set on the plan; src/crowding.ts bandOf);
+ * with none known, its spread, a stand-in (a tree is about as tall as it's wide; a plant of my own without one).
+ */
+export function drawnHeight(s: CircleShape): number {
+  return bandOf(s, plantsById).band?.[1] ?? drawnRadius(s) * 2;
+}
+/**
+ * The plants drawn see-through: those with a shorter plant under them, its middle within their circle (a groundcover
+ * under a shrub, a shrub under a tree). Two that only touch at their edges stay solid. Gone plants count for nothing.
+ */
+export function seeThroughIds(shapes: Shape[], filter: ShapeFilter = state.viewFilter): Set<string> {
+  const order = paintOrder(shapes, filter).filter(drawnBySize).filter((s) => s.status !== 'gone');
+  const rank = new Map(order.map((s, i) => [s.id, i]));
+  const byX = [...order].sort((a, b) => a.x - b.x);
+  const out = new Set<string>();
+  for (const u of order) {
+    const r = drawnRadius(u), at = rank.get(u.id)!;
+    // (The plants within its reach sideways, by a binary search on x: big plans stay quick.)
+    let lo = 0, hi = byX.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (byX[m].x < u.x - r) lo = m + 1; else hi = m; }
+    for (let k = lo; k < byX.length && byX[k].x <= u.x + r; k++) {
+      const l = byX[k];
+      if (rank.get(l.id)! < at && Math.hypot(l.x - u.x, l.y - u.y) < r) { out.add(u.id); break; }
+    }
+  }
   return out;
 }
 /** A plant (or a circle among them), drawn by its size rather than the plan's order; Arrange leaves it be. */
@@ -544,9 +584,43 @@ const OVERFLOW_PX = 11;
  * gets every other name, rather than a pile of overlapping text.
  */
 let overflowLabels = new Set<string>();
+/** A run of one plant written once ("Creeping liriope ×12"), on the plant nearest its middle: its words and middle (feet). */
+let runLabels = new Map<string, { text: string; x: number; y: number }>();
+/** Plants in a run of their kind need this many to be named once (two side by side get one name already). */
+const RUN_MIN = 3;
+/** Plants of a kind this close (centers within this share of their two radii) count as one run. */
+const RUN_GAP = 1.25;
+/**
+ * Plants whose names are written beside them (too small for their name), grouped into runs of the same plant: named
+ * alike, each within a little more than touching distance of the next (Jason, Oct 30: twelve liriope 1.5 ft apart
+ * made a column of ten "Creeping liriope"). Runs of RUN_MIN or more; the rest alone.
+ */
+export function labelRuns(plants: CircleShape[]): CircleShape[][] {
+  const byName = new Map<string, CircleShape[]>();
+  for (const s of plants) { const n = displayLabel(s); (byName.get(n) ?? byName.set(n, []).get(n)!).push(s); }
+  const out: CircleShape[][] = [];
+  for (const list of byName.values()) {
+    if (list.length < RUN_MIN) continue;
+    const parent = list.map((_, i) => i);
+    const root = (i: number): number => (parent[i] === i ? i : (parent[i] = root(parent[i])));
+    const order = list.map((s, i) => ({ s, i })).sort((a, b) => a.s.x - b.s.x);
+    const reach = Math.max(...list.map((s) => s.radius)) * 2 * RUN_GAP;
+    for (let a = 0; a < order.length; a++) {
+      for (let b = a + 1; b < order.length && order[b].s.x - order[a].s.x <= reach; b++) {
+        const p = order[a].s, q = order[b].s;
+        if (Math.hypot(p.x - q.x, p.y - q.y) <= (p.radius + q.radius) * RUN_GAP) parent[root(order[a].i)] = root(order[b].i);
+      }
+    }
+    const groups = new Map<number, CircleShape[]>();
+    list.forEach((s, i) => { const r = root(i); (groups.get(r) ?? groups.set(r, []).get(r)!).push(s); });
+    for (const g of groups.values()) if (g.length >= RUN_MIN) out.push(g);
+  }
+  return out;
+}
 function refreshLabelLayout() {
   const ppf = pxPerFoot();
   overflowLabels = new Set();
+  runLabels = new Map();
   type Box = { x0: number; x1: number; y0: number; y1: number };
   const placed: Box[] = [];
   const waiting: { s: CircleShape; box: Box }[] = [];
@@ -581,8 +655,23 @@ function refreshLabelLayout() {
       waiting.push({ s, box: { x0: cx - w / 2, x1: cx + w / 2, y0: cy - h / 2, y1: cy + h / 2 } });
     }
   }
+  // Runs of the same plant: one name each, at the run's middle, first (a run is named where a lone plant might not be).
+  const inRun = new Set<string>();
+  for (const run of labelRuns(waiting.map((w) => w.s))) {
+    for (const s of run) inRun.add(s.id);
+    const x = run.reduce((n, s) => n + s.x, 0) / run.length, y = run.reduce((n, s) => n + s.y, 0) / run.length;
+    const text = `${displayLabel(run[0])} \u00d7${run.length}`;
+    const w = textWidth1(text) * OVERFLOW_PX, h = OVERFLOW_PX * LABEL_LINE_HEIGHT;
+    const box = { x0: x * ppf - w / 2, x1: x * ppf + w / 2, y0: y * ppf - h / 2, y1: y * ppf + h / 2 };
+    if (placed.some((p) => p.x0 < box.x1 && box.x0 < p.x1 && p.y0 < box.y1 && box.y0 < p.y1)) continue;
+    placed.push(box);
+    // (Drawn with the plant nearest the middle, which every redraw of the run's plants keeps in step.)
+    const anchor = run.reduce((best, s) => (Math.hypot(s.x - x, s.y - y) < Math.hypot(best.x - x, best.y - y) ? s : best));
+    runLabels.set(anchor.id, { text, x, y });
+  }
   waiting.sort((a, b) => b.s.radius - a.s.radius);
   for (const { s, box } of waiting) {
+    if (inRun.has(s.id)) continue;
     if (placed.some((p) => p.x0 < box.x1 && box.x0 < p.x1 && p.y0 < box.y1 && box.y0 < p.y1)) continue;
     placed.push(box);
     overflowLabels.add(s.id);
@@ -603,6 +692,10 @@ function circleLabel(s: CircleShape, ppf: number): FittedLabel | null | undefine
 
 /** Plants ringed as close or crowded (Layers switch, and always while placing); refreshed on each redraw. */
 let crowded = new Map<string, CrowdLevel>();
+/** Plants with something growing under them, drawn see-through (seeThroughIds); refreshed on each redraw. */
+let seeThrough = new Set<string>();
+/** Whether a plant is drawn see-through now, over a shorter one. */
+export const isSeeThrough = (id: string) => seeThrough.has(id);
 function refreshCrowding() {
   // (Not until the catalog is in: without plants' heights, plants that grow over and under each other look crowded.)
   crowded = (state.showCrowding || state.placing) && catalogReady() ? crowdLevels(state.shapes.filter((s) => shownWith(s, state.viewFilter)), plantsById, crowdOptions()) : new Map();
@@ -616,6 +709,7 @@ function refreshUtilities() {
 /** Clear and redraw the whole canvas. Never touches panel DOM. */
 export function redrawCanvas() {
   refreshCrowding();
+  seeThrough = seeThroughIds(state.shapes);
   refreshUtilities();
   refreshLabelLayout();
   const svg = canvasSvg();
@@ -674,6 +768,10 @@ export function redrawShapes(ids: string[]) {
     const changed = [...new Set([...before.keys(), ...crowded.keys()])].filter((id) => before.get(id) !== crowded.get(id));
     ids = [...new Set([...ids, ...changed])];
   }
+  // (A plant moved over or off another: those whose see-through changes are drawn again too.)
+  const wasThin = seeThrough;
+  seeThrough = seeThroughIds(state.shapes);
+  ids = [...new Set([...ids, ...[...new Set([...wasThin, ...seeThrough])].filter((id) => wasThin.has(id) !== seeThrough.has(id))])];
   // (A support dragged: the vines on it follow along.)
   const moving = new Set(ids);
   ids = [...ids, ...state.shapes.filter((v) => v.type === 'circle' && v.climbsOn && moving.has(v.climbsOn)).map((v) => v.id)];

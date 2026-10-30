@@ -6,15 +6,50 @@ export async function openFresh(page: Page) {
   await expect(page.locator('.project-btn .pname')).toBeVisible();
 }
 
-/** Accept every native dialog (alert/confirm), answering prompts with `answer`. */
+/**
+ * Answer every question the app asks with its main button (src/ui/ask.ts: the app's own, in place of the browser's
+ * confirm and prompt since Oct 30) the moment it's asked, as a browser dialog accepted at once was, typing `answer`
+ * where it asks for text (with none, its own suggestion stands); and accept any browser dialog left. `seen`: what
+ * each said (a moment after it's asked: check it with expect.poll).
+ */
 export function autoDialogs(page: Page, answer = '') {
   const seen: string[] = [];
+  void page.exposeFunction('__lpAsked', (msg: string) => { seen.push(msg); }).catch(() => { /* already there */ });
+  const script = (text: string) => {
+    const w = window as unknown as { __lpAnswering?: boolean; __lpAsked?: (m: string) => void };
+    if (w.__lpAnswering) return;
+    w.__lpAnswering = true;
+    const answerIt = () => {
+      const d = document.querySelector<HTMLElement>('.ask-overlay [role=alertdialog]:not([data-answered])');
+      if (!d) return;
+      d.setAttribute('data-answered', '1');
+      void w.__lpAsked?.(d.querySelector('.ask-message')?.textContent?.trim() ?? '');
+      const input = d.querySelector<HTMLInputElement>('[data-testid=ask-input]');
+      if (input && text) { input.value = text; input.dispatchEvent(new Event('input', { bubbles: true })); }
+      d.querySelector<HTMLButtonElement>('[data-testid=ask-ok]')?.click();
+    };
+    const start = () => new MutationObserver(answerIt).observe(document.body, { childList: true });
+    if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+  };
+  void page.addInitScript(script, answer);
+  void page.evaluate(script, answer).catch(() => { /* not loaded yet: the init script does it */ });
   page.on('dialog', async (d) => {
     seen.push(d.message());
     if (d.type() === 'prompt') await d.accept(answer);
     else await d.accept();
   });
   return seen;
+}
+
+/** The app's question that's up (src/ui/ask.ts), answered: `ok` its main button, else Cancel; `text` typed first. */
+export async function answerAsk(page: Page, ok: boolean, text?: string): Promise<string> {
+  const d = page.locator('.ask-overlay [role=alertdialog]');
+  await expect(d).toBeVisible();
+  const said = (await d.locator('.ask-message').innerText()).trim();
+  if (text != null) await d.getByTestId('ask-input').fill(text);
+  await d.getByTestId(ok ? 'ask-ok' : 'ask-cancel').click();
+  await expect(d).toHaveCount(0);
+  return said;
 }
 
 /** How many shapes the plan has (kept on the plan's element: at Medium and Large text the top bar doesn't say). */

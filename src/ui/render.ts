@@ -12,7 +12,6 @@ import { copySelected, planBounds, setViewFilter, updateSelectedSilent, zoomBy, 
 import { deleteSelectedAsking } from './delete-selected';
 import { clearSelection, getSelected, singleSelected } from '../selection';
 import { state } from '../state';
-import { typeName } from '../util';
 import { fmtFeet, screenToFeet } from '../geometry';
 import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishTypedRect, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, setTypedLength, shapeName, typedApplies, typedLabel, startEditPoints, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
 import type { TapSnap } from '../types';
@@ -26,7 +25,7 @@ import { currentProject, storageIsDurable } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
 import { snapOn } from '../tidy';
-import { dismissToastAction, placeNotice } from './toast';
+import { dismissToastAction, placeNotice, toastAction } from './toast';
 import { renderMoreMenu, toggleSelectMode } from './menu';
 import { foldDetailGroups } from './plant-details';
 import { renderFeedbackSheet } from './feedback-sheet';
@@ -42,7 +41,7 @@ import { toast } from './toast';
 import { clearedNow, loadCleared } from '../storage';
 import { bringBackCleared } from '../mutations';
 import { renderProjectsPanel, renderRenamePanel } from './projects-panel';
-import { moreOfSame, renderArrangePanel, renderPropsPanel, resetKindChange } from './props-panel';
+import { moreOfSame, renderArrangePanel, renderPropsPanel, resetKindChange, sheetTitle } from './props-panel';
 import { hintDue, hintShown } from '../hints';
 import { featureHost, finishFeaturePlace, flipLastAdded, lastAdded, setFeatureKind, undoFeaturePlace } from '../feature-edit';
 import { drawFeatureKinds, kindsFor, kindsPhrase, SUB_FEATURES, swings } from '../features';
@@ -50,6 +49,8 @@ import { flipButtons } from './feature-section';
 import { roomyText } from '../text-size';
 import { isLocked } from '../roles';
 import { declineIntro, introActive, introAfterRender, introOffered, showMeAround } from './intro-card';
+import { focusAfterRender, focusBeforeRender } from './focus';
+import { startBgCalibration } from '../background';
 
 // MAIN RENDER
 // ============================================================
@@ -100,6 +101,7 @@ export function render() {
   // top. Jason, 2026-10-28. A different sheet, or the same one for something else, opens at the top.)
   const scrolled = state.panel && state.panel === shownPanel && state.selectedIds.join() === shownSelection
     ? root.querySelector<HTMLElement>('.overlay .sheet')?.scrollTop ?? 0 : 0;
+  focusBeforeRender(root); // (with a keyboard: what has focus, found again after: src/ui/focus.ts)
   // Clear root
   while (root.firstChild) root.removeChild(root.firstChild);
   // (Checked on every redraw, so a selection changed and changed back by hand isn't "just placed" again.)
@@ -357,7 +359,7 @@ export function render() {
     });
     const delBtn = el('button', { title: 'Delete', 'aria-label': 'Delete', className: 'danger' });
     delBtn.innerHTML = I.trash;
-    delBtn.addEventListener('click', () => { deleteSelectedAsking(); render(); });
+    delBtn.addEventListener('click', () => { void deleteSelectedAsking(); });
     const closeBtn = el('button', { title: 'Deselect', 'aria-label': 'Deselect' });
     closeBtn.innerHTML = I.x;
     closeBtn.addEventListener('click', () => { clearSelection(); render(); });
@@ -383,7 +385,8 @@ export function render() {
     if (s) {
       const pill = el('div', { className: 'sel-pill' });
       pill.appendChild(el('div', { className: 'sw', style: { background: s.color } }));
-      pill.appendChild(el('div', { className: 'name' }, s.label || ('Unlabeled ' + typeName(s.type))));
+      // (Unnamed: what it is, "Path", not how it was drawn. Jason, Oct 30.)
+      pill.appendChild(el('div', { className: 'name' }, s.label || sheetTitle(s)));
       const editBtn = el('button', { className: 'edit' });
       editBtn.innerHTML = I.edit + '<span>Edit</span>';
       editBtn.addEventListener('click', () => { state.panel = 'props'; render(); });
@@ -476,9 +479,11 @@ export function render() {
   if (state.menu === 'more') root.appendChild(renderMoreMenu());
 
   introAfterRender(root); // (the guided introduction's card, when it's under way)
+  focusAfterRender(root);
   labelFields(root); // (each field's label names its control, for screen readers)
   syncPageZoom(); // (a page left zoomed in when the last sheet or menu closes: back to its size)
   placeNotice(); // (a notice with buttons stays clear of an open sheet)
+  calibrationNotice();
   // Now that the SVG is in the DOM, size it and draw grid/shapes
   resizeCanvas();
   maybeExplainFullSize();
@@ -650,6 +655,21 @@ function snapChip(s: TapSnap, unsnap: () => void): HTMLElement {
   return chip;
 }
 /** The first time a plant with a full-size ring is selected, say what the ring is (once per device; src/hints.ts). */
+/**
+ * A plan opened with its photo not to scale yet (calibrating it was left part way: Grace, Oct 30, after a reload): said
+ * once, as the plan is first shown this session, with Calibrate. Not again that session, nor while calibrating.
+ */
+const calibrationSaid = new Set<string>();
+function calibrationNotice() {
+  const id = state.currentProjectId;
+  if (!id || calibrationSaid.has(id) || !state.bgImage) return;
+  if (state.bgCalibrate || state.panel || introActive() || document.getElementById('toast-action')) return;
+  calibrationSaid.add(id);
+  if (!state.bgImage.uncalibrated) return;
+  toastAction('The photo isn\u2019t to scale yet: its size on the plan is a guess.', [{ label: 'Calibrate', run: () => startBgCalibration() }], 12000, 'calibrate-notice', { tone: 'amber' });
+}
+/** Not said for a photo just added: calibrating it starts at once. */
+export function calibrationSeen() { if (state.currentProjectId) calibrationSaid.add(state.currentProjectId); }
 function maybeExplainFullSize() {
   const s = singleSelected();
   if (!s || state.panel || !fullRingRadius(s) || introActive()) return; // (the introduction's last step says it)

@@ -7,6 +7,7 @@ import type { RoleKey, Shape } from '../types';
 import { flushHistoryDebounce, undo } from '../history';
 import { render } from './render';
 import { toast, toastAction } from './toast';
+import { ask } from './ask';
 
 /** "6 plants, 1 boundary": what a set of shapes is, by role. */
 const NAMES: Record<RoleKey, [string, string]> = {
@@ -30,15 +31,19 @@ function outOfView(shapes: Shape[]): Shape[] {
  * where the selection holds more than plants (a boundary, a bed, a plain shape…) or shapes off screen, it
  * says what will go and asks first. Undo still brings them back.
  */
-export function deleteSelectedAsking() {
+export async function deleteSelectedAsking(): Promise<void> {
   const selected = getSelected();
   if (!selected.length) return;
   if (selected.length === 1) {
     // One shape, chosen on its own: deleted, unless it's locked (then asked).
-    if (isLocked(selected[0]) && !confirm(`This ${NAMES[roleKey(selected[0])][0]} is locked. Delete it anyway?`)) return;
+    if (isLocked(selected[0])) {
+      if (!(await ask(`This ${NAMES[roleKey(selected[0])][0]} is locked. Delete it anyway?`, { ok: 'Delete', danger: true }))) return;
+      if (!state.shapes.some((s) => s.id === selected[0].id)) return; // (gone meanwhile)
+    }
     deleteShapesByIds([selected[0].id]);
     state.panel = null;
     undoNotice(`Deleted ${selected[0].label || describeShapes(selected)}`);
+    render();
     return;
   }
   const going = selected.filter((s) => !isLocked(s));
@@ -52,10 +57,11 @@ export function deleteSelectedAsking() {
     const msg = `Delete ${going.length} shape${going.length === 1 ? '' : 's'}: ${describeShapes(going)}?` +
       (away.length ? `\n\n${away.length} of them ${away.length === 1 ? 'is' : 'are'} off screen.` : '') +
       (kept ? `\n\n${kept} locked ${kept === 1 ? 'shape stays' : 'shapes stay'}.` : '');
-    if (!confirm(msg)) return;
+    if (!(await ask(msg, { ok: 'Delete', danger: true }))) return;
   }
-  deleteShapesByIds(going.map((s) => s.id));
+  deleteShapesByIds(going.map((s) => s.id).filter((id) => state.shapes.some((s) => s.id === id)));
   state.panel = null;
+  render();
   undoNotice(`Deleted ${describeShapes(going)}` + (kept ? `; ${kept} locked ${kept === 1 ? 'shape' : 'shapes'} kept` : ''));
 }
 /**

@@ -20,6 +20,8 @@ export const thisMonth = () => new Date().getMonth() + 1;
 /** Open garden over time at this month; close it. */
 export function openYear() { state.month = thisMonth(); }
 export function closeYear() { state.month = null; listOpen = false; }
+/** A month on or back, round the year (the keys' way: src/main.ts). */
+export function stepMonth(d: number) { state.month = (((state.month ?? thisMonth()) - 1 + d + 12) % 12) + 1; }
 
 /** How many of the plan's plants are in bloom in `month`, and how many say so only "around" (a season word). */
 export function bloomCount(month: number): { n: number; around: number; of: number } {

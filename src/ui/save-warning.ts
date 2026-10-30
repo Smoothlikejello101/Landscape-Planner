@@ -1,4 +1,4 @@
-import { flushSave, hasUnsavedChanges, saveIsFailing, storageIsDurable } from '../storage';
+import { flushSave, hasUnsavedChanges, outOfSpace, saveIsFailing, storageIsDurable } from '../storage';
 
 // "Not saved" warning. Added and removed directly (outside #root) rather than
 // through render(), because saves fail while the user may be typing and a
@@ -7,11 +7,14 @@ import { flushSave, hasUnsavedChanges, saveIsFailing, storageIsDurable } from '.
 export function updateSaveWarning() {
   const existing = document.getElementById('save-warning');
   if (!saveIsFailing()) { existing?.remove(); return; }
-  if (existing) return;
+  const said = outOfSpace()
+    ? "This device is out of storage space for the app, so your latest changes haven't been saved. Free some space, remove a large background photo, or back up your projects. "
+    : "Your latest changes haven't been saved. ";
+  if (existing) { if (existing.firstChild?.textContent !== said) existing.firstChild!.textContent = said; return; }
   const bar = document.createElement('div');
   bar.id = 'save-warning';
   bar.setAttribute('role', 'alert');
-  bar.append("Your latest changes haven't been saved. ");
+  bar.append(said);
   const retry = document.createElement('button');
   retry.textContent = 'Try again';
   retry.addEventListener('click', () => { void flushSave(); });

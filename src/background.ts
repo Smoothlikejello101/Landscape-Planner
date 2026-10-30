@@ -6,8 +6,10 @@ import { flushHistoryDebounce, pushHistory, pushHistoryDebounced } from './histo
 import { state } from './state';
 import { save } from './storage';
 import type { BgImage, Point } from './types';
-import { render } from './ui/render';
+import { calibrationSeen, render } from './ui/render';
 import { uid } from './util';
+import { ask, tell } from './ui/ask';
+import { zoomToBounds } from './mutations';
 
 // Background image (satellite photo or survey) to trace over.
 // Stored per project as a downscaled JPEG data URL. Position is the image
@@ -90,11 +92,11 @@ export async function handleBgImageFile(file: File): Promise<boolean> {
   const name = (file.name || '').toLowerCase();
   const t = (file.type || '').toLowerCase();
   if (t === 'image/heic' || t === 'image/heif' || name.endsWith('.heic') || name.endsWith('.heif')) {
-    alert("iPhone HEIC/HEIF photos aren't supported by browsers. On iPhone: Settings → Camera → Formats → Most Compatible, then re-take the photo. Or convert this image to JPEG first.");
+    void tell("iPhone HEIC/HEIF photos aren't supported by browsers. On iPhone: Settings → Camera → Formats → Most Compatible, then re-take the photo. Or convert this image to JPEG first.");
     return false;
   }
   if (!t.startsWith('image/')) {
-    alert('Please pick an image file (JPEG or PNG).');
+    void tell('Please pick an image file (JPEG or PNG).');
     return false;
   }
   try {
@@ -102,23 +104,26 @@ export async function handleBgImageFile(file: File): Promise<boolean> {
     const { dataUrl, w, h } = downscaleImage(img, BG_MAX_IMAGE_DIM, BG_JPEG_QUALITY);
     const estBytes = Math.round(dataUrl.length * 0.75); // base64 is ~4/3 of raw
     if (estBytes > 4_000_000) {
-      const ok = confirm(`Image is ~${(estBytes / 1024 / 1024).toFixed(1)}MB after compression. This might not fit in browser storage alongside your other projects. Continue?`);
+      const ok = await ask(`The photo is about ${(estBytes / 1024 / 1024).toFixed(1)} MB after compression. It might not fit in this browser's storage alongside your other projects. Use it anyway?`, { ok: 'Use it' });
       if (!ok) return false;
     }
-    // Arbitrary initial scale (1 px = 0.1 ft); calibration follows immediately.
+    // Arbitrary initial scale (1 px = 0.1 ft), said to be a guess until calibrated; calibration follows immediately.
     const c = viewCenterFeet();
     flushHistoryDebounce();
     state.bgImage = {
       dataUrl, imageId: uid(), // id now, so undo snapshots share one stored image
       naturalWidth: w, naturalHeight: h, ftPerPx: 0.1,
-      cx: c.x, cy: c.y, rotation: 0, opacity: 0.6, visible: true
+      cx: c.x, cy: c.y, rotation: 0, opacity: 0.6, visible: true, uncalibrated: true,
     };
     state.photoElsewhere = null; // this photo replaces one kept on another device
     pushHistory();
+    // (The whole photo in view, to find the two points on: Dana and Grace saw only a blur of green and grey.)
+    zoomToBounds({ minX: c.x - (w * 0.1) / 2, maxX: c.x + (w * 0.1) / 2, minY: c.y - (h * 0.1) / 2, maxY: c.y + (h * 0.1) / 2 }, 12);
+    calibrationSeen(); // (just added: no reminder this session; the calibration banner asks)
     save();
     return true;
   } catch (e) {
-    alert('Could not load image: ' + (e instanceof Error ? e.message : String(e)));
+    void tell('Could not load image: ' + (e instanceof Error ? e.message : String(e)));
     return false;
   }
 }
@@ -199,9 +204,10 @@ export function finishBgCalibration(distanceFt: number) {
   const cal = state.bgCalibrate;
   if (!state.bgImage || !cal || !cal.p1 || !cal.p2) return;
   const result = calibrationScale(cal.p1, cal.p2, distanceFt);
-  if (typeof result === 'string') { alert(result); return; }
+  if (typeof result === 'string') { void tell(result); return; }
   flushHistoryDebounce();
   state.bgImage.ftPerPx = result;
+  delete state.bgImage.uncalibrated; // (to scale now)
   pushHistory();
   save();
   state.bgCalibrate = null;

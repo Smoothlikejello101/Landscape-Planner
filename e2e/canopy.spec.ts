@@ -28,7 +28,7 @@ test('a tap under a canopy picks what\'s under it, locked tree or not; the trunk
   // Under the canopy, on the rectangle: the rectangle, and the hint.
   const onRect = await centerOf(page, '#canvas-svg rect[data-shape-id]');
   await page.mouse.click(onRect.x, onRect.y);
-  await expect(name).toHaveText('Unlabeled rectangle');
+  await expect(name).toHaveText('Rectangle'); // (unnamed: what it is; a plain shape, its shape)
   await expect(page.locator('#toast')).toContainText('Under Big oak’s canopy. To pick the tree, tap its trunk.');
   // The trunk: the tree.
   const trunk = await centerOf(page, '#canvas-svg [data-role=trunk-hit]');
@@ -40,7 +40,7 @@ test('a tap under a canopy picks what\'s under it, locked tree or not; the trunk
   await expect(page.getByRole('button', { name: 'Locked' })).toBeVisible();
   await closeSheet(page);
   await page.mouse.click(onRect.x, onRect.y);
-  await expect(name).toHaveText('Unlabeled rectangle');
+  await expect(name).toHaveText('Rectangle'); // (unnamed: what it is; a plain shape, its shape)
   // Under the canopy on open ground: nothing is picked (the hint's third time).
   await page.mouse.click(trunk.x, trunk.y + 5 * FT);
   await expect(page.locator('.sel-pill')).toHaveCount(0);

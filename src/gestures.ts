@@ -10,7 +10,7 @@ import { clearSelection, isSelected, selectOnly, toggleSelect } from './selectio
 import { gesture, state, tapTracker } from './state';
 import { save } from './storage';
 import type { Gesture, Point, Shape } from './types';
-import { previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes } from './canvas';
+import { drawnBySize, isSeeThrough, previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes } from './canvas';
 import { drawTap, editedShape, forgetLastTap, insertVertex, moveVertex, notePointer } from './draw';
 import { placeTap } from './place';
 import { afterMove, freeStrandedVines, saidFreed } from './ui/vine-offers';
@@ -26,6 +26,7 @@ import { featureSpot, nearestOnEdge } from './features';
 import { featureTap } from './feature-edit';
 import { deepClone } from './util';
 import type { HandleKind } from './handle-math';
+import { isTree } from './trees';
 
 // Pointer gestures on the canvas: pan, pinch-zoom, marquee selection, shape
 // drag, background move/rotate, calibration taps.
@@ -489,6 +490,14 @@ export function onShapePointerDown(e: PointerEvent, shape: Shape) {
     return;
   }
 
+  // A plant drawn see-through over a shorter one (Jason, Oct 30: tallest on top): a press within that one goes to it, so
+  // what's planted under a shrub can still be picked; elsewhere, and once it's selected, the shrub.
+  // (Not a tree: its canopy lets presses through already, and one that reaches it is on its trunk.)
+  if (isSeeThrough(shape.id) && !isTree(shape) && !isSelected(shape.id) && !state.selectMode && !state.draw && !state.editPoints && !state.placing && !state.featurePlace) {
+    const here = shapesAt(e.clientX, e.clientY), at = here.findIndex((s) => s.id === shape.id);
+    const under = here.slice(at + 1).find((s) => drawnBySize(s) && s.status !== 'gone' && !isLocked(s) && shownWith(s, state.viewFilter));
+    if (under) { activePointers.delete(e.pointerId); onShapePointerDown(e, under); return; }
+  }
   // Locked shapes are part of the ground: a press on one goes to what's on it, unlocked, under the finger (Jason,
   // Oct 29: a bed drawn under a locked house); with nothing there, dragging pans (or lassos in select mode), and a
   // tap still selects it.

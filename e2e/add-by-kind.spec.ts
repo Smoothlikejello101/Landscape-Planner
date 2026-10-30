@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, closeSheet, field, openFresh, shapeCount, openSections } from './helpers';
+import { addKind, closeSheet, field, openFresh, shapeCount, openSections, tapFromCenter } from './helpers';
 
 // Adding things by what they are: the bottom bar, the Add sheet, and drawing
 // each kind by tapping.
@@ -249,4 +249,18 @@ test('triangles from older plans keep their right-angle corner control', async (
   await expect(page.locator('.sheet-header .title')).toHaveText('Old triangle');
   await page.locator('.tri-corner-btn', { hasText: 'Top-right' }).click();
   await expect(page.locator('.tri-corner-btn', { hasText: 'Top-right' })).toHaveClass(/sel/);
+});
+
+test('a path drawn as an outline stays a path with its name cleared, and an unnamed shape is called what it is (Jason, Oct 30)', async ({ page }) => {
+  await openFresh(page);
+  await addKind(page, 'path', 'poly');
+  for (const [x, y] of [[-6, 0], [6, 0], [6, 1.5], [-6, 1.5]]) await tapFromCenter(page, x, y);
+  await page.getByTestId('draw-bar').getByRole('button', { name: 'Done' }).click();
+  await page.locator('.sel-pill .edit').click();
+  await openSections(page);
+  await field(page, 'Label').fill('');
+  await closeSheet(page);
+  await expect(page.locator('.sel-pill .name')).toHaveText('Path');
+  await page.locator('.sel-pill .edit').click();
+  await expect(page.locator('.sheet-header .title')).toHaveText('Path');
 });

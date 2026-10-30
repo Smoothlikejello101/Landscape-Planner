@@ -12,6 +12,7 @@ import { deviceName } from '../sync/sync';
 import { errMsg } from '../util';
 import { render } from './render';
 import { toast } from './toast';
+import { tell } from './ask';
 
 /** What the sheet has gathered (once each time it opens), whether images go in, and the file saved, if one was. */
 let parts: SupportParts | null = null, gathering = false, failed = '', withImages = false, saved = '';
@@ -45,7 +46,7 @@ async function saveFile(via: 'download' | 'share') {
   } catch (e) {
     // (The share sheet can refuse a file that took a while to make: it's downloaded instead.)
     if (via === 'share' && e instanceof DOMException && e.name === 'NotAllowedError') { downloadText(name, text); saved = name; render(); return; }
-    alert('Saving the support file failed: ' + errMsg(e));
+    void tell('Saving the support file failed: ' + errMsg(e));
   }
 }
 

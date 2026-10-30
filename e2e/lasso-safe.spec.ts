@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { canvasBox, drag } from './helpers';
+import { canvasBox, drag, answerAsk } from './helpers';
 
 // Zoomed in within the property: the property line all around, plants inside, a bed nearby.
 async function openYard(page: Page) {
@@ -36,13 +36,11 @@ test('a lasso inside the property line picks the plants, not the line around the
 });
 
 test('deleting several keeps locked shapes, and asks first when it would take more than plants', async ({ page }) => {
-  const dialogs: string[] = [];
-  page.on('dialog', async (d) => { dialogs.push(d.message()); await (dialogs.length === 1 ? d.dismiss() : d.accept()); });
   await openYard(page);
   await lassoAround(page);
   // Only plants (one locked): no question; the locked one stays.
   await page.locator('.multi-bar button[title=Delete]').click();
-  expect(dialogs).toEqual([]);
+  await expect(page.locator('.ask-overlay')).toHaveCount(0);
   await expect(page.locator('#toast-action')).toContainText(/Deleted 2 plants; 1 locked shape kept/); // (with an Undo)
   await expect(page.locator('#toast-action').getByRole('button', { name: 'Undo' })).toBeVisible();
   await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(3);
@@ -54,15 +52,14 @@ test('deleting several keeps locked shapes, and asks first when it would take mo
   await page.locator('#canvas-svg [data-shape-id=bed]').click();
   await expect(page.locator('.multi-bar .count')).toHaveText('2 selected');
   await page.locator('.multi-bar button[title=Delete]').click();
-  expect(dialogs[0]).toBe('Delete 2 shapes: 1 plant, 1 bed?');
+  expect(await answerAsk(page, false)).toBe('Delete 2 shapes: 1 plant, 1 bed?');
   await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(5);
   await page.locator('.multi-bar button[title=Delete]').click();
+  await answerAsk(page, true);
   await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(3);
 });
 
 test('a plain shape from an older plan (a property line with no role) is asked about too', async ({ page }) => {
-  const dialogs: string[] = [];
-  page.on('dialog', async (d) => { dialogs.push(d.message()); await d.dismiss(); });
   await page.addInitScript(() => {
     if (sessionStorage.getItem('seeded')) return;
     sessionStorage.setItem('seeded', '1');
@@ -82,13 +79,11 @@ test('a plain shape from an older plan (a property line with no role) is asked a
   await drag(page, { x: box.x + (-5 + 10) * 24, y: box.y + (-2 + 6) * 24 }, { x: box.x + (0 + 10) * 24, y: box.y + (2 + 6) * 24 });
   await expect(page.locator('.multi-bar .count')).toHaveText('2 selected');
   await page.locator('.multi-bar button[title=Delete]').click();
-  expect(dialogs[0]).toBe('Delete 2 shapes: 1 plain shape, 1 plant?');
+  expect(await answerAsk(page, false)).toBe('Delete 2 shapes: 1 plain shape, 1 plant?');
   await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(2);
 });
 
 test('cutting several keeps locked shapes, without asking; the arrow keys leave them where they are', async ({ page }) => {
-  const dialogs: string[] = [];
-  page.on('dialog', async (d) => { dialogs.push(d.message()); await d.dismiss(); });
   await openYard(page);
   await lassoAround(page);
   await expect(page.locator('.multi-bar .count')).toHaveText('3 selected');
@@ -99,7 +94,7 @@ test('cutting several keeps locked shapes, without asking; the arrow keys leave 
   expect(await at('p1')).toBeGreaterThan(one + 50);
   expect(await at('p3')).toBeCloseTo(three, 0);
   await page.keyboard.press('Control+x');
-  expect(dialogs).toEqual([]);
+  await expect(page.locator('.ask-overlay')).toHaveCount(0);
   await expect(page.locator('#toast-action')).toContainText('Cut 2 plants; 1 locked shape kept');
   await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(3);
   // Only the locked one is left selected: moving it says why not.

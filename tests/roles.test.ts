@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { paintOrder } from '../src/canvas';
+import { drawnHeight, labelRuns, paintOrder, seeThroughIds } from '../src/canvas';
+import { plantsById, type Plant } from '../src/plants';
 import { setRoleForIds, setRoleView } from '../src/mutations';
 import { defaultLook, isLocked } from '../src/roles';
 import { state } from '../src/state';
 import { sanitizeProjectData } from '../src/storage';
-import type { Shape } from '../src/types';
+import type { CircleShape, Shape } from '../src/types';
 
 const sh = (id: string, extra: Partial<Shape> = {}): Shape =>
   ({ id, type: 'rect', x: 0, y: 0, width: 2, height: 2, rotation: 0, color: '#78350f', label: id, opacity: 0.65, locked: false, ...extra } as Shape);
@@ -28,10 +29,29 @@ describe('drawing order', () => {
     expect(paintOrder(state.shapes).map((s) => s.id)).toEqual(
       ['lawn', 'bed', 'shade', 'building', 'lockedOld', 'plantA', 'old', 'plantB']);
   });
-  it('draws plants biggest first, whatever order they were placed in, a note and a vine on a fence where they were (Jason, Oct 30)', () => {
+  it('draws plants tallest on top, whatever order they were placed in; a note and a vine on a fence where they were (Jason, Oct 30)', () => {
     const c = (id: string, radius: number, extra: Partial<Shape> = {}) => ({ id, type: 'circle', x: 0, y: 0, radius, color: '#16a34a', label: id, opacity: 0.65, locked: false, role: 'plant', ...extra } as Shape);
-    state.shapes = [c('crocus', 0.25), c('blueberry', 3), sh('note', { type: 'text' } as Partial<Shape>), c('crocus2', 0.25), c('hazel', 4), c('vine', 10, { climbsOn: 'fence' } as Partial<Shape>), sh('bed', { role: 'bed' })];
-    expect(paintOrder(state.shapes).map((s) => s.id)).toEqual(['bed', 'hazel', 'blueberry', 'note', 'crocus', 'crocus2', 'vine']);
+    plantsById['t-hazel'] = { id: 't-hazel', common: 'Witch hazel', form: 'Shrub', height: { min: 10, max: 15, med: 12 }, width: { min: 6, max: 10, med: 8 } } as Plant;
+    plantsById['t-ginger'] = { id: 't-ginger', common: 'Wild ginger', form: 'Perennial', height: { min: 0.3, max: 0.5, med: 0.4 }, width: { min: 1, max: 2, med: 1.5 } } as Plant;
+    // (A wide groundcover under a narrower, taller shrub: the shrub on top; with no height known, the spread stands in.)
+    state.shapes = [c('hazel', 4, { plantId: 't-hazel' }), c('ginger', 5, { plantId: 't-ginger' }), sh('note', { type: 'text' } as Partial<Shape>), c('crocus', 0.25), c('blueberry', 3), c('vine', 10, { climbsOn: 'fence' } as Partial<Shape>), sh('bed', { role: 'bed' })];
+    expect(paintOrder(state.shapes).map((s) => s.id)).toEqual(['bed', 'ginger', 'crocus', 'note', 'blueberry', 'hazel', 'vine']);
+    expect(drawnHeight(state.shapes[0] as CircleShape)).toBe(12);
+    expect(drawnHeight(state.shapes[4] as CircleShape)).toBe(6); // (3 ft radius, no height: its spread)
+  });
+  it('draws a plant see-through where a shorter one grows under it (its middle within the circle), not where they only touch', () => {
+    const c = (id: string, x: number, radius: number, extra: Partial<Shape> = {}) => ({ id, type: 'circle', x, y: 0, radius, color: '#16a34a', label: id, opacity: 0.65, locked: false, role: 'plant', ...extra } as Shape);
+    state.shapes = [c('shrub', 0, 3), c('under', 1, 1), c('beside', 6.5, 3), c('far', 30, 2), c('gone', 30, 0.5, { status: 'gone' })];
+    expect([...seeThroughIds(state.shapes)].sort()).toEqual(['shrub']); // (beside touches shrub's edge; far has only a gone plant under it)
+  });
+  it('names a run of the same plant once: twelve liriope in a column are one run; a gap, another name or two alone are not (Jason, Oct 30)', () => {
+    const c = (id: string, label: string, x: number, y: number) => ({ id, type: 'circle', x, y, radius: 0.75, color: '#16a34a', label, opacity: 0.65, locked: false, role: 'plant' } as CircleShape);
+    const column = Array.from({ length: 12 }, (_, i) => c('l' + i, 'Creeping liriope', 1, -27.5 + i * 1.5));
+    const runs = labelRuns([...column, c('far', 'Creeping liriope', 40, 0), c('a', 'Snowdrops', 0, 0), c('b', 'Snowdrops', 1.5, 0)]);
+    expect(runs.map((r) => r.length)).toEqual([12]);
+    // (A gap twice their width splits it in two runs of six.)
+    const split = column.map((s, i) => (i >= 6 ? { ...s, y: s.y + 3 } : s));
+    expect(labelRuns(split).map((r) => r.length)).toEqual([6, 6]);
   });
   it('leaves hidden roles out', () => {
     state.shapes = [sh('a', { role: 'shade' }), sh('b', { role: 'bed' })];

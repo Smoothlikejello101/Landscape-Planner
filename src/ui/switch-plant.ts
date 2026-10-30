@@ -9,6 +9,7 @@ import { state } from '../state';
 import { errMsg } from '../util';
 import { render } from './render';
 import { toast, toastAction } from './toast';
+import { tell } from './ask';
 
 let args: { mineId: string; targetId: string } | null = null;
 let busy = false;
@@ -79,7 +80,7 @@ export function renderSwitchPanel(): HTMLElement | null {
       const step = state.history[state.historyIndex];
       args = null; state.panel = 'plants'; busy = false; render();
       toastAction(`Switched to ${target.common}` + (n ? ` (${n} placed here)` : ''), [{ label: 'Undo', run: async () => {
-        try { await unswitch(mine); } catch (e) { alert("Couldn't undo: " + errMsg(e)); return; }
+        try { await unswitch(mine); } catch (e) { void tell("Couldn't undo: " + errMsg(e)); return; }
         flushHistoryDebounce();
         if (n && state.history[state.historyIndex] === step) undo();
         else if (n) toast('Your plant is back; the plants placed here stay linked to the catalog’s (the plan has changed since).', 6000);
@@ -87,12 +88,12 @@ export function renderSwitchPanel(): HTMLElement | null {
       } }], 10000);
     } catch (e) {
       busy = false; render();
-      alert("Couldn't switch: " + errMsg(e));
+      void tell("Couldn't switch: " + errMsg(e));
     }
   });
   const keep = el('button', { className: 'btn ghost', style: { flex: '1' }, 'data-testid': 'switch-keep' }, 'Keep mine');
   keep.addEventListener('click', async () => {
-    try { await keepMine(mine, target); } catch (e) { alert(errMsg(e)); return; }
+    try { await keepMine(mine, target); } catch (e) { void tell(errMsg(e)); return; }
     toast(`Keeping yours. ${target.common} won’t be offered for it again.`, 5000);
     back();
   });

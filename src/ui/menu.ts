@@ -117,6 +117,16 @@ export function renderMoreMenu() {
   const version = el('div', { className: 'menu-version', html: MARK_SMALL });
   version.append(`Version ${__APP_VERSION__} · ${__BUILD_TIME__}`);
   menu.appendChild(version);
+  // (Up and down step through its items, as a menu's do; Home and End go to the ends.)
+  menu.addEventListener('keydown', (e) => {
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
+    const items = [...menu.querySelectorAll<HTMLButtonElement>('.menu-item:not(:disabled), .menu button:not(:disabled)')];
+    if (!items.length) return;
+    e.preventDefault();
+    const at = items.indexOf(document.activeElement as HTMLButtonElement);
+    const to = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : e.key === 'ArrowDown' ? (at + 1) % items.length : (at - 1 + items.length) % items.length;
+    items[to].focus();
+  });
   const overlay = el('div', { className: 'overlay top' }, el('div', { style: { paddingRight: '8px', paddingTop: '4px' } }, menu));
   overlay.addEventListener('click', e => { if (e.target === overlay) { state.menu = null; render(); } });
   return overlay;

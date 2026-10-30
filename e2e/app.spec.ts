@@ -273,6 +273,8 @@ test.describe('plants, background, export', () => {
     await page.locator('.menu-item', { hasText: 'background image' }).click();
     await page.locator('.sheet input[type=file]').setInputFiles('public/icon-512.png');
     await expect(page.locator('.mode-banner')).toContainText('Calibrating');
+    // (The view fits the whole photo first: 100 px on the screen is 100 × 512 / its width on the screen of its pixels.)
+    const shown = (await page.locator('#canvas-svg image').boundingBox())!.width;
     const box = await canvasBox(page);
     const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
     await page.mouse.click(cx - 50, cy);
@@ -280,8 +282,11 @@ test.describe('plants, background, export', () => {
     await page.mouse.click(cx + 50, cy);
     await page.locator('.modal input[type=number]').fill('10');
     await page.locator('.modal button', { hasText: 'Set scale' }).click();
-    await expect(page.locator('.sheet')).toContainText('Current scale: 4.2 pixels per foot');
-    await expect(page.locator('.sheet')).toContainText('Image covers ~122.9 × 122.9 ft');
+    const pxPerFt = (100 * 512) / shown / 10;
+    await expect(page.locator('.sheet')).toContainText('Current scale:');
+    const said = await page.locator('.sheet').innerText();
+    expect(Number(/Current scale: ([\d.]+) pixels per foot/.exec(said)![1])).toBeCloseTo(pxPerFt, 0);
+    expect(Number(/Image covers ~([\d.]+) ×/.exec(said)![1])).toBeCloseTo(512 / pxPerFt, -1);
   });
 
   test('dragging the rotation handle a quarter turn rotates the background 90°', async ({ page }) => {

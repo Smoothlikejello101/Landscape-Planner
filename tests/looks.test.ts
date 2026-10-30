@@ -13,8 +13,8 @@ const plant = (extra: Partial<Plant>): Plant => ({ id: 'p', common: 'Plant', for
 const count = (svg: string, tag: string) => (svg.match(new RegExp(`<${tag}\\b`, 'g')) ?? []).length;
 
 describe('how much of a plant is drawn, by its size on the screen', () => {
-  it('every leaf close up (22 px and up), branches and bold blooms in between, spots from the whole yard', () => {
-    expect([levelOf(40), levelOf(22), levelOf(21.9), levelOf(10), levelOf(9.9)]).toEqual(['close', 'close', 'mid', 'mid', 'yard']);
+  it('every leaf close up (16 px and up: Jason, Oct 30), branches and bold blooms in between, spots from the whole yard', () => {
+    expect([levelOf(40), levelOf(16), levelOf(15.9), levelOf(10), levelOf(9.9)]).toEqual(['close', 'close', 'mid', 'mid', 'yard']);
   });
   it('draws far less at yard size, and the same plant the same way every time', () => {
     const look = lookOf(plant({ flower_color: ['pink'], flower_form: { inflorescence: ['umbel'] } }), '#16a34a');
