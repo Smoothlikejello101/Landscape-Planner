@@ -31,6 +31,18 @@ export function isVine(s: Shape, byId: Record<string, Plant | undefined> = plant
   const p = byId[s.plantId];
   return !!p && formsOf(p).includes('Vine');
 }
+/**
+ * A vine grown as a groundcover, drawn by how far apart its sources say to plant it (Jason, Oct 29: "option c, with a
+ * faint ring extending further out"): its patch half its spacing across (no wider than its spread), a faint ring at
+ * its spread, how far it can run. Null for any other plant, a vine with no spacing on record (drawn by its spread, as
+ * before), or a vine on a support (src/canvas.ts draws that). Its radius stays its spread, for the band it would climb.
+ */
+export function groundcoverRadius(v: Shape, byId: Record<string, Plant | undefined> = plantsById): number | null {
+  if (!isVine(v, byId)) return null;
+  const sp = byId[v.plantId!]?.spacing;
+  const across = sp?.med ?? (sp?.min != null && sp?.max != null ? (sp.min + sp.max) / 2 : sp?.max);
+  return across ? Math.min(v.radius, Math.max(0.5, across / 2)) : null;
+}
 /** What a vine can climb, found near it: the shape, how far its base is from it, and the nearest point of it. */
 export interface Support { shape: Shape; kind: 'tree' | 'line' | 'shrub' | 'arbor'; dist: number; at: Point }
 /** Lines a vine climbs: a fence or wall drawn as a line (not a path, a dimension or a utility), or a building's walls. */

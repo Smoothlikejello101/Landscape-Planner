@@ -289,3 +289,30 @@ describe('a field that isn\'t the fact (docs/catalog-sources.md)', () => {
     expect(asReported({ ...uaex, url: 'https://www.uaex.uada.edu/publications/pdf/FSA-6020.pdf', fact: 'sun_most' }).kind).toBe('authority');
   });
 });
+
+// The facts Jason agreed to gather (Oct 29): how far apart to plant, whether the leaves stay, the fall color.
+describe('spacing, leaves in winter and fall color, from spec lines', () => {
+  it('reads how far apart to plant, with its unit; not a count a square foot, a calculator or a bare number', () => {
+    expect(webFields('Spacing: 18-24″').spacing).toEqual({ min: 1.5, max: 2 });
+    expect(webFields('Plant Spacing\n3′').spacing).toEqual({ min: 3, max: 3 });
+    expect(webFields('Spacing: 12" to 18" apart').spacing).toEqual({ min: 1, max: 1.5 });
+    expect(webFields('Recommended spacing: 2-3 ft on center').spacing).toEqual({ min: 2, max: 3 });
+    for (const t of ['Spacing: 4/sq ft', 'Spacing calculator', 'Spacing: 24']) expect(webFields(t).spacing).toBeUndefined();
+  });
+  it('reads whether the leaves stay only from words for that', () => {
+    expect(webFields('Foliage: Deciduous').foliage).toBe('deciduous');
+    expect(webFields('Foliage\nBroadleaf Evergreen').foliage).toBe('evergreen');
+    expect(webFields('Foliage: Semi-evergreen').foliage).toBe('semi-evergreen');
+    expect(webFields('Leaf retention: Evergreen').foliage).toBe('evergreen');
+    for (const t of ['Foliage: Green', 'Foliage Color: Dark green', 'Foliage: Deciduous; evergreen in the South']) expect(webFields(t).foliage).toBeUndefined();
+  });
+  it("reads a fall color in the catalog's words, not a line that says there's none", () => {
+    expect(webFields('Fall Color: Yellow').fallColors).toEqual(['gold']);
+    expect(webFields('Fall Foliage Color: bright red to orange').fallColors).toEqual(['red', 'orange']);
+    expect(webFields('Fall color: No color change').fallColors).toBeUndefined();
+  });
+  it('reads the typographic marks for feet and inches in a size too', () => {
+    expect(webFields('Height: 18-24″').height).toEqual({ min: 1.5, max: 2 });
+    expect(webFields('Mature Height: 3’').height).toEqual({ min: 3, max: 3 });
+  });
+});

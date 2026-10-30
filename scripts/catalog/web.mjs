@@ -285,14 +285,15 @@ const toNumber = (s) => {
   if (m && (m[1] || m[2])) return (m[1] ? Number(m[1]) : 0) + (m[2] ? Number(m[2]) / Number(m[3]) : 0);
   return Number(s);
 };
-const UNIT = String.raw`(feet|foot|ft\.?|'|inches|inch|in\.?|")`;
+// (Typographic marks too: 18″ and 3′, or a curly 18” and 3’, as many shops write them.)
+const UNIT = String.raw`(feet|foot|ft\.?|'|’|′|inches|inch|in\.?|"|”|″)`;
 /** "3-4 ft", "36-48 in", "3' to 5'", "6 in to 2 ft", "18-24\"" → { min, max } feet. */
 export function sizeIn(text) {
   if (/\b(pots?|containers?|gallons?|gal\.?|quarts?|qt\.?|plugs?|liners?|trays?)\b|#\d/i.test(text)) return null; // (what it's sold in)
   if ((text.match(new RegExp(String.raw`${NUM}\s*${UNIT}?\s*(?:(?:-|–|to)\s*${NUM}\s*)?${UNIT}`, 'gi')) ?? []).length > 1) return null; // (more than one size: at 10 years, at maturity…)
   const m = new RegExp(String.raw`${NUM}\s*${UNIT}?\s*(?:(?:-|–|to)\s*${NUM}\s*)?${UNIT}`, 'i').exec(text);
   if (!m) return null;
-  const feet = (x, unit) => (/^(inches|inch|in\.?|")$/i.test(unit) ? x / 12 : x);
+  const feet = (x, unit) => (/^(inches|inch|in\.?|"|”|″)$/i.test(unit) ? x / 12 : x);
   const a = feet(toNumber(m[1]), m[2] ?? m[4]), b = m[3] ? feet(toNumber(m[3]), m[4]) : a;
   if (!Number.isFinite(a) || !Number.isFinite(b) || a <= 0) return null;
   const r = (x) => Math.round(x * 100) / 100;
@@ -308,7 +309,11 @@ const LIGHT_RE = /^(?:sun\s+exposure|exposure|light(?:\s+requirements?|\s+needs)
 const BLOOM_RE = /^(?:bloom(?:ing)?|flowering|flower)\s+(?:time|period|season)|^blooms?(?=\s*:)/i;
 const COLOR_RE = /^(?:flower|bloom)\s+colou?rs?/i;
 const DEER_RE = /^deer[ -]resist(?:ant|ance)/i;
-const ANY_LABEL = [ZONES_RE, HEIGHT_RE, WIDTH_RE, LIGHT_RE, BLOOM_RE, COLOR_RE, DEER_RE];
+// (Oct 29, the facts Jason agreed to gather: how far apart to plant, whether the leaves stay, the fall color.)
+const SPACING_RE = /^(?:recommended\s+|plant(?:ing)?\s+)?spacing\b|^space\s+plants\b|^planting\s+distance/i;
+const FOLIAGE_RE = /^foliage(?:\s+type)?(?=\s*:|\s*$)|^leaf\s+retention|^(?:evergreen\s*(?:\/|or)\s*deciduous|deciduous\s*(?:\/|or)\s*evergreen)/i;
+const FALL_RE = /^(?:fall|autumn)\s+(?:foliage\s+|leaf\s+)?colou?rs?|^fall\s+foliage/i;
+const ANY_LABEL = [ZONES_RE, HEIGHT_RE, WIDTH_RE, LIGHT_RE, BLOOM_RE, COLOR_RE, DEER_RE, SPACING_RE, FOLIAGE_RE, FALL_RE];
 const looksLikeLabel = (l) => /:\s*$/.test(l) || ANY_LABEL.some((re) => { const m = re.exec(l); return m && !l.slice(m[0].length).trim(); });
 
 const zonesOf = (v) => {
@@ -348,6 +353,26 @@ const colorOf = (v) => {
   if (!onlyWords(v, COLOR_WORDS)) return null; // ("White; red stems": left out)
   const cs = v.match(new RegExp(`\\b(${COLORS.join('|')})\\b`, 'gi'));
   return cs ? [...new Set(cs.map((c) => c[0].toUpperCase() + c.slice(1).toLowerCase()))] : null;
+};
+/** How far apart to plant: a size with its unit; not a count a square foot, nor a calculator's prompt. */
+const spacingOf = (v) => (/\/\s*sq|per\s+sq|calculat|on\s+cent(?:er|re)s?\s+of/i.test(v) ? null : sizeIn(v.replace(/\s*(?:apart|on\s+cent(?:er|re)s?|o\.?\s?c\.?)\s*$/i, '')));
+const FOLIAGE_WORDS = new Set(['evergreen', 'deciduous', 'semi', 'semievergreen', 'broadleaf', 'broad', 'leaf', 'needled', 'needle']);
+/** Whether its leaves stay: only words for that ("Deciduous", "Broadleaf evergreen", "Semi-evergreen"). */
+const foliageOf = (v) => {
+  if (!onlyWords(v, FOLIAGE_WORDS)) return null; // ("Green", "Not evergreen in zone 6", "Deciduous; evergreen in the South": left out)
+  const t = v.toLowerCase();
+  if (/semi[- ]?evergreen/.test(t)) return 'semi-evergreen';
+  const e = /evergreen/.test(t), d = /deciduous/.test(t);
+  return e && d ? 'semi-evergreen' : e ? 'evergreen' : d ? 'deciduous' : null;
+};
+/** A fall color, in the catalog's words (src/catalog.ts FALL_COLORS). */
+const FALL_WORD = { yellow: 'gold', gold: 'gold', golden: 'gold', red: 'red', scarlet: 'red', crimson: 'red', burgundy: 'red', maroon: 'red', orange: 'orange', purple: 'purple', bronze: 'copper', copper: 'copper', russet: 'copper', pink: 'pink' };
+const FALL_EXTRA = new Set(['bright', 'deep', 'brilliant', 'reddish', 'yellowish', 'orangish', 'purplish', 'with', 'shades', 'of', 'tones', 'hues']);
+const fallOf = (v) => {
+  const w = v.toLowerCase().split(/[^a-z]+/).filter(Boolean);
+  if (!w.length || !w.every((x) => FALL_WORD[x] || FALL_EXTRA.has(x) || ['to', 'and', 'or', 'through', 'into'].includes(x))) return null; // ("No color change", "Insignificant": left out)
+  const cs = [...new Set(w.map((x) => FALL_WORD[x]).filter(Boolean))];
+  return cs.length ? cs : null;
 };
 const deerOf = (v) => (/^(yes|high|resistant|very resistant|true)$/i.test(v.trim()) ? 'Resistant' : null); // (exactly: "Yes, but browsed when young" isn't)
 
@@ -397,6 +422,9 @@ export function webFields(text) {
   const bl = read(BLOOM_RE, bloomOf); if (bl) out.bloomSeasons = bl;
   const c = read(COLOR_RE, colorOf); if (c) out.flowerColor = c;
   const d = read(DEER_RE, deerOf); if (d) out.deer = d;
+  const sp = read(SPACING_RE, spacingOf); if (sp) out.spacing = sp;
+  const fo = read(FOLIAGE_RE, foliageOf); if (fo) out.foliage = fo;
+  const fc = read(FALL_RE, fallOf); if (fc) out.fallColors = fc;
   return out;
 }
 
@@ -525,6 +553,9 @@ export function webClaims(url, html, plant, { boilerplate } = {}) {
   if (f.bloomSeasons && !southernSite(new URL(url).hostname)) c.push({ ...base, fact: 'bloom_season', v: f.bloomSeasons });
   if (f.flowerColor) c.push({ ...base, fact: 'flower_color', v: f.flowerColor });
   if (f.deer) c.push({ ...base, fact: 'deer', v: f.deer });
+  if (f.spacing) c.push({ ...base, fact: 'spacing', v: f.spacing });
+  if (f.foliage) c.push({ ...base, fact: 'foliage', v: f.foliage });
+  if (f.fallColors) c.push({ ...base, fact: 'fall_colors', v: f.fallColors }, { ...base, fact: 'fall_color', v: true });
   c.push(...webProseClaims(html, plant, base, f, boilerplate));
   return c.map(asReported);
 }

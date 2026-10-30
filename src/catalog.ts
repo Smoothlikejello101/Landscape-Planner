@@ -251,7 +251,7 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
   // One form, or a short list, primary first (redbud: tree and shrub).
   form: (v, e) => [v].flat().length > 0 && [v].flat().length <= 3 && [v].flat().every((x) => typeof x === 'string' && (!e.form || e.form.includes(x))) && new Set([v].flat()).size === [v].flat().length,
   habit: (v) => typeof v === 'string',
-  height: isRange, width: isRange,
+  height: isRange, width: isRange, spacing: isRange,
   // (Half-zone scale: 7a is 7, 7b is 7.5; see src/climate.ts.)
   zone_min: (v) => isHalfZone(v), zone_max: (v) => isHalfZone(v),
   sun_most: (v) => SUN.includes(v as string), sun_least: (v) => SUN.includes(v as string),

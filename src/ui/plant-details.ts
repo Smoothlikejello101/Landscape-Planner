@@ -237,6 +237,8 @@ function rows(p: Plant): Row[] {
     ['Form', formsOf(p).join(', '), ['form'], (r) => [r.form].flat().filter(Boolean).join(', ')],
     // (Height and spread, one row: Jason, 2026-10-29.)
     ['Size', sizeText(p.height, p.width), ['height', 'width'], (r) => sizeText((r.height ?? p.height) as Plant['height'], (r.width ?? p.width) as Plant['width'])],
+    // (How far apart its sources say to plant it, Oct 29: a vine grown as a groundcover is drawn by it.)
+    ['Spacing', ft(p.spacing) ? `Plant ${ft(p.spacing)} apart` : '', ['spacing'], () => ''],
     ['Hardiness', (zoneRange(p) ?? '') + (zoneRange(p) ? zoneNote(p) : ''), ['zone_min', 'zone_max'],
       (r) => zoneRange({ zone_min: (r.zone_min ?? p.zone_min) as number, zone_max: (r.zone_max ?? p.zone_max) as number }) ?? ''],
     ['Sun', sun(p.sun_most, p.sun_least), ['sun_most', 'sun_least'], (r) => sun(r.sun_most ?? p.sun_most, r.sun_least ?? p.sun_least)],
@@ -436,7 +438,7 @@ export const DETAIL_GROUPS: { id: string; title: string; labels: string[] }[] = 
   { id: 'looks', title: 'Flowers and leaves', labels: ['Flower color', 'Leaf colors', 'Leafs out', 'Fall color', 'In winter', 'Bark'] },
   { id: 'wildlife', title: 'Wildlife', labels: ['Native', 'Nectar for pollinators', 'For birds', 'Attracts', 'Caterpillar host', 'Nativar'] },
   { id: 'safety', title: 'Safety', labels: ['Poisonous to people', 'Toxicity', 'Edible', 'Thorns'] },
-  { id: 'growing', title: 'Growing', labels: ['Deer', 'Tolerates', 'Growth rate', 'Takes clay', 'Takes wet feet', 'Takes dry shade', 'How it spreads', 'Maintenance',
+  { id: 'growing', title: 'Growing', labels: ['Spacing', 'Deer', 'Tolerates', 'Growth rate', 'Takes clay', 'Takes wet feet', 'Takes dry shade', 'How it spreads', 'Maintenance',
     'Taproot (hard to move)', 'Humidity', 'Habit', 'Trunk'] },
 ];
 /** The groups opened while the picker is open (Jason: they stay open until it closes, then fold again). */

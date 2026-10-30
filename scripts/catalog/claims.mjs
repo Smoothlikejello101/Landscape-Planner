@@ -20,7 +20,7 @@ import { mnLight, ncsuForms, ncsuSun } from './map.mjs';
 export const TIER = {
   tox_people: 'safety', poison: 'safety', tox_pets: 'safety', invasive: 'safety', native_ar: 'safety', native_us: 'safety',
   zone_min: 'survival', zone_max: 'survival', sun_most: 'survival', sun_least: 'survival', water: 'survival',
-  height: 'survival', width: 'survival', clay_ok: 'survival', wet_feet: 'survival', deer: 'survival',
+  height: 'survival', width: 'survival', spacing: 'survival', clay_ok: 'survival', wet_feet: 'survival', deer: 'survival',
   form: 'description', bloom_season: 'description', bloom_months: 'description', flower_color: 'description',
   fall_color: 'description', host: 'description', host_genus: 'description', edible: 'description', low_branched: 'description',
   attracts: 'description', tolerates: 'description', maintenance_level: 'description', thorns: 'description', winter_interest: 'description',
@@ -32,7 +32,7 @@ const RANK = { authority: 3, breeder: 2, nursery: 1, blog: 0 };
 /** Facts decided by sides (`bySides`), the other side kept beside the value (`alt`; never safety facts). */
 export const REPORTABLE = new Set(['height', 'width', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'deer']);
 /** Facts a cultivar is bred to change: only a page for the cultivar itself speaks to them. */
-export const CULTIVAR_OWN = new Set(['height', 'width', 'flower_color', 'form', 'leaf_color', 'fall_colors', 'growth_rate', 'attracts', 'winter_interest',
+export const CULTIVAR_OWN = new Set(['height', 'width', 'spacing', 'flower_color', 'form', 'leaf_color', 'fall_colors', 'growth_rate', 'attracts', 'winter_interest',
   'bark_color', 'stem_color', 'fruit_color', 'habit', 'self_seed', 'flower_form', 'habit_form']);
 
 // ---------- Values ----------
@@ -446,7 +446,7 @@ export function agrees(fact, a, b) {
   // Sizes: the narrower range's middle inside the wider one, with a quarter's give either way (Jason, 2026-10-29). Ranges
   // that only touch at an end don't agree (1–3 ft and 3–5 ft), nor does a wide bin with whatever it overlaps; a
   // nursery's one figure inside an authority's range does. (Two as wide: each middle inside the other.)
-  if (fact === 'height' || fact === 'width') {
+  if (fact === 'height' || fact === 'width' || fact === 'spacing') {
     const inside = (x, y) => { const m = (x.min + x.max) / 2; return m >= y.min / 1.25 && m <= y.max * 1.25; };
     const wa = a.max - a.min, wb = b.max - b.min;
     return wa < wb ? inside(a, b) : wb < wa ? inside(b, a) : inside(a, b) && inside(b, a);

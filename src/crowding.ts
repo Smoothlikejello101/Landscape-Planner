@@ -1,4 +1,4 @@
-import { climbing, VINE_BASE_RADIUS } from './vines';
+import { climbing, groundcoverRadius, VINE_BASE_RADIUS } from './vines';
 import { plantSpread } from './my-plants';
 import type { Plant } from './plants';
 import { isTree } from './trees';
@@ -55,6 +55,9 @@ export const CLEAR_TRUNK = 1 / 3;
 function typicalRadius(s: Shape, byId: Record<string, Plant | undefined>, climbing?: Set<string>): number | null {
   if (s.type !== 'circle' || s.role !== 'plant' || s.status === 'gone') return null;
   if (climbing?.has(s.id)) return VINE_BASE_RADIUS;
+  // (A vine as a groundcover: the patch its spacing gives, not the length it would climb: src/vines.ts.)
+  const ground = groundcoverRadius(s, byId);
+  if (ground != null) return ground;
   const p = s.plantId ? byId[s.plantId] : undefined;
   return p ? plantSpread(p, 'typical') / 2 : s.radius;
 }
