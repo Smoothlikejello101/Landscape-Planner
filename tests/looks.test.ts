@@ -99,3 +99,38 @@ describe('a placed plant', () => {
     expect(bandBlooms([{ x: 0, y: 0 }, { x: 100, y: 0 }], 10, lookOf(plant({ form: 'Vine' }), '#000'))).toBe('');
   });
 });
+
+// Garden over time (Jason, Oct 29): each plant drawn as it is in a month.
+describe('a plant in a month', () => {
+  const shrub = lookOf(plant({ form: 'Shrub', flower_color: ['yellow'], flower_form: { inflorescence: ['head'] } }), '#000');
+  const perennial = lookOf(plant({ form: 'Perennial', common: 'Purple coneflower', flower_color: ['brown', 'purple'], flower_form: { inflorescence: ['head'] } }), '#000');
+  const on = { leaves: 'on', bloom: 'no' } as const;
+  it('with no month, in bloom; in a month, in bloom only when it is, faint when only "around"', () => {
+    expect(lookSvg(shrub, 40, 'a', 'close', undefined)).toBe(lookSvg(shrub, 40, 'a'));
+    expect(lookSvg(shrub, 40, 'a', 'close', on)).not.toContain('#f2c230');
+    expect(lookSvg(shrub, 40, 'a', 'close', { leaves: 'on', bloom: 'yes' })).toContain('#f2c230');
+    const around = lookSvg(shrub, 40, 'a', 'close', { leaves: 'on', bloom: 'around' });
+    expect(around).toContain('<g opacity="0.45">');
+    expect(around).toContain('#f2c230');
+  });
+  it('bare twigs in winter for a woody plant, died back to mulch for an herb, its seed heads standing', () => {
+    const bare = lookSvg(shrub, 40, 'a', 'close', { leaves: 'bare', bloom: 'no' });
+    expect(bare).toContain('#ebe0c9'); // (winter's ground)
+    expect(bare).toContain('#7a5a3c'); // (bare twigs)
+    expect(bare).not.toContain(shrub.pal.base);
+    const dormant = lookSvg(perennial, 40, 'a', 'close', { leaves: 'dormant', bloom: 'no' });
+    expect(dormant).toContain('#cdb894'); // (mulch)
+    expect(dormant).toContain('#4a3220'); // (a coneflower's seed heads)
+  });
+  it('its fall color as it colors, more of it later in fall; lighter as it leafs out', () => {
+    const early = lookSvg(shrub, 40, 'a', 'yard', { leaves: 'turning', fall: '#c0392b', progress: 0, bloom: 'no' });
+    const late = lookSvg(shrub, 40, 'a', 'yard', { leaves: 'turning', fall: '#c0392b', progress: 1, bloom: 'no' });
+    expect(late).toContain('#c0392b');
+    expect(early).not.toBe(late);
+    expect(lookSvg(shrub, 40, 'a', 'yard', { leaves: 'emerging', bloom: 'no' })).not.toBe(lookSvg(shrub, 40, 'a', 'yard', on));
+  });
+  it('fruit where it shows, and a winter not known drawn faint', () => {
+    expect(lookSvg(shrub, 40, 'a', 'close', { leaves: 'bare', bloom: 'no', fruit: '#b3202e' })).toContain('#b3202e');
+    expect(lookSvg(shrub, 40, 'a', 'close', { leaves: 'unknown', bloom: 'no' })).toMatch(/^<g opacity="0.55">/);
+  });
+});

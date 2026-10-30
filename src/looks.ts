@@ -9,8 +9,10 @@ import { summerLeafColors } from './seasons';
 // mottle) and yard (under 10 px: its color and a few bold flower spots). Every kind of plant the catalog has gets its
 // own drawing (grasses as blades, conifers as needle fans, ferns as fronds…), always inside the plant's circle.
 //
-// Until "garden over time" brings a month slider (Jason, Oct 29), every plant is drawn in bloom. A plant with no
-// leaf color on record is drawn green (Jason: default green). Drawn at the origin, in screen pixels: the caller moves
+// With no month (the slider closed), every plant is drawn in bloom (Jason, Oct 29). In a month (garden over time:
+// `LookMonth`, from src/seasons.ts monthLook), it's drawn as it is then: leafing out, in its fall color, bare twigs, a
+// perennial died back to its crown, a grass standing in straw; in bloom only in its months (faint where they're only
+// "around": a season word); fruit where it's showing. A plant with no leaf color on record is drawn green (Jason). Drawn at the origin, in screen pixels: the caller moves
 // it into place. The same plant always draws the same way (`seed`), so it doesn't flicker as the plan redraws.
 
 export type LookLevel = 'close' | 'mid' | 'yard';
@@ -30,6 +32,18 @@ export interface LookPalette {
   variegated?: boolean;
 }
 export interface Look { form: LookForm; pal: LookPalette }
+/**
+ * A plant in one month, as drawn (src/plant-looks.ts lookMonthOf, from src/seasons.ts monthLook): its leaves (on,
+ * coming out, coloring with its fall color `fall` and how far through fall `progress`, bare twigs, died back, or not
+ * known); whether it's in bloom (`around`: its months from a season word only, drawn faint); its fruit's color, showing.
+ */
+export interface LookMonth {
+  leaves: 'on' | 'emerging' | 'turning' | 'bare' | 'dormant' | 'unknown';
+  fall?: string;
+  progress?: number;
+  bloom: 'yes' | 'around' | 'no';
+  fruit?: string;
+}
 
 /** The level a plant is drawn at, by its radius on the screen. */
 export function levelOf(rPx: number): LookLevel {
@@ -58,6 +72,17 @@ const FLOWER_HEX: Record<string, string> = {
   green: '#a8c46a', cream: '#f1e6c4', brown: '#8a5a3a', silver: '#d9dcd6', black: '#3a2a2a', variegated: '#e8b4c8',
 };
 const EVERGREEN_GREEN = '#3f6b3a';
+/** Fall leaf colors (src/catalog.ts FALL_COLORS) as drawn. */
+export const FALL_HEX: Record<string, string> = {
+  gold: '#d4a017', red: '#c0392b', orange: '#d9702a', purple: '#7a3b5e', copper: '#a0602e', cream: '#d8c99a', silver: '#b8b8a8', pink: '#cf6f8a',
+};
+/** Fruit colors (src/catalog.ts PART_COLORS) as drawn. */
+export const FRUIT_HEX: Record<string, string> = {
+  'red/burgundy': '#b3202e', orange: '#e0782a', 'gold/yellow': '#e3b52a', green: '#7aa04a', blue: '#3f5fa8', 'purple/lavender': '#5e3a7a',
+  pink: '#e07a9a', white: '#f2efe6', 'cream/tan': '#d9c79a', 'brown/copper': '#7a4f2a', 'gray/silver': '#a8a8a0', black: '#2a2224',
+};
+/** Winter's ground: bare twigs over it; mulch where a plant died back (the design's BARE_BG, MULCH, BROWN). */
+const BARE_BG = '#ebe0c9', MULCH = '#cdb894', BROWN = '#7a5a3c';
 const palOf = (base: string, extra: Partial<LookPalette> = {}): LookPalette => ({ base, dark: shade(base, 0.38), light: shade(base, -0.4), ...extra });
 
 /**
@@ -253,7 +278,11 @@ function headOfLeaves(px: number, py: number, s: number, cols: string[], rng: Rn
   return out + disc(px, py, s * 0.13, shade(cols[0], 0.25));
 }
 /** One bloom, about `s` across, its kind's shape, built of the style's leaf. */
-function bloom(kind: BloomKind | undefined, px: number, py: number, s: number, cols: string[], eye: string | undefined, a0: number, rng: Rng): string {
+/** Blooms drawn faint: a month it's only "around" in bloom (a season word); set by lookSvg while it draws. */
+let faintBlooms = false;
+const fb = (s: string) => (faintBlooms && s ? `<g opacity="0.45">${s}</g>` : s);
+const bloom = (kind: BloomKind | undefined, px: number, py: number, s: number, cols: string[], eye: string | undefined, a0: number, rng: Rng) => fb(bloomRaw(kind, px, py, s, cols, eye, a0, rng));
+function bloomRaw(kind: BloomKind | undefined, px: number, py: number, s: number, cols: string[], eye: string | undefined, a0: number, rng: Rng): string {
   const ring = (n: number, fn: (a: number, k: number) => string) => Array.from({ length: n }, (_, k) => fn(a0 + (k * TAU) / n, k)).join('');
   switch (kind) {
     case 'cup': return headOfLeaves(px, py, s * 0.95, cols, rng);
@@ -279,9 +308,9 @@ function bloom(kind: BloomKind | undefined, px: number, py: number, s: number, c
   }
 }
 /** The same bloom at mid size: a bold disc in its color, a lighter heart, the eye. */
-const midBloom = (px: number, py: number, s: number, cols: string[], eye?: string) => disc(px, py, s * 0.5, cols[0]) + disc(px - s * 0.1, py - s * 0.1, s * 0.24, cols[1]) + (eye ? disc(px, py, s * 0.13, eye) : '');
+const midBloom = (px: number, py: number, s: number, cols: string[], eye?: string) => fb(disc(px, py, s * 0.5, cols[0]) + disc(px - s * 0.1, py - s * 0.1, s * 0.24, cols[1]) + (eye ? disc(px, py, s * 0.13, eye) : ''));
 /** Yard size: bold spots of its flower color, pulled in from the tips. */
-const yardSpots = (spots: [number, number][], r: number, cols: string[], k = 0.24) => spots.map(([px, py], i) => disc(px * 0.85, py * 0.85, r * k, cols[i % 2])).join('');
+const yardSpots = (spots: [number, number][], r: number, cols: string[], k = 0.24) => fb(spots.map(([px, py], i) => disc(px * 0.85, py * 0.85, r * k, cols[i % 2])).join(''));
 
 // ---------- each kind of plant ----------
 /** A shrub or a perennial (R5c, version 3): sprigs; five bigger blooms at the outer tips, six on a perennial. */
@@ -301,12 +330,14 @@ function sprigPlant(rng: Rng, r: number, pal: LookPalette, L: LookLevel, perenni
 function grass(rng: Rng, r: number, pal: LookPalette, L: LookLevel): string {
   let out = disc(0, 0, r, pal.base);
   const cols = pal.fl ? tones2(pal.fl) : null;
-  if (L === 'yard') return out + roundness(r, pal) + (cols ? disc(0, 0, r * 0.95, cols[0], ' opacity="0.8"') + disc(0, 0, r * 0.42, pal.base, ' opacity="0.6"') : '');
+  if (L === 'yard') return out + roundness(r, pal) + (cols ? fb(disc(0, 0, r * 0.95, cols[0], ' opacity="0.8"') + disc(0, 0, r * 0.42, pal.base, ' opacity="0.6"')) : '');
   const nb = L === 'close' ? 34 : 16;
   for (const c of [pal.dark, pal.light, shade(pal.base, 0.15)]) out += blades(rng, r, c, Math.floor(nb / 3), L === 'close' ? 1 : 2.2);
   if (cols) {
-    if (L === 'close') for (let j = 0; j < 140; j++) { const [px, py] = inDisc(rng, r * 0.98, 0.45); out += path(leafAt(px, py, rng.u(0, TAU), 3.2, 0.9), rng.pick(cols), ' opacity="0.7"'); }
-    else for (const [px, py] of spaced(rng, r * 0.95, 22, r * 0.14, 0.4)) out += disc(px, py, r * 0.13, rng.pick(cols), ' opacity="0.75"');
+    let plume = '';
+    if (L === 'close') for (let j = 0; j < 140; j++) { const [px, py] = inDisc(rng, r * 0.98, 0.45); plume += path(leafAt(px, py, rng.u(0, TAU), 3.2, 0.9), rng.pick(cols), ' opacity="0.7"'); }
+    else for (const [px, py] of spaced(rng, r * 0.95, 22, r * 0.14, 0.4)) plume += disc(px, py, r * 0.13, rng.pick(cols), ' opacity="0.75"');
+    out += fb(plume);
   }
   return out;
 }
@@ -438,11 +469,98 @@ function groundcover(rng: Rng, r: number, pal: LookPalette, L: LookLevel): strin
   return out;
 }
 
+// ---------- the months (garden over time) ----------
+/** Forms with woody stems that stand bare in winter; the rest die back. */
+const WOODY: LookForm[] = ['shrub', 'tree', 'broadleaf', 'conifer', 'vine'];
+/** Twigs forking from the center, for a bare plant drawn small (the design's twigs). */
+function twigs(rng: Rng, r: number, col: string, w: number, n: number): string {
+  const d: string[] = [];
+  const br = (bx: number, by: number, a: number, ln: number, depth: number) => {
+    const ex = bx + Math.cos(a) * ln, ey = by + Math.sin(a) * ln;
+    d.push(`M${P(bx, by)} L${P(ex, ey)}`);
+    if (depth < 3) for (const da of [-0.5, 0.45]) br(ex, ey, a + da + rng.u(-0.15, 0.15), ln * rng.u(0.5, 0.65), depth + 1);
+  };
+  const a0 = rng.u(0, TAU);
+  for (let i = 0; i < n; i++) br(0, 0, a0 + (i * TAU) / n + rng.u(-0.2, 0.2), r * rng.u(0.38, 0.48), 1);
+  return stems(d, col, w);
+}
+/** A woody plant in winter: its limbs bare (the same limbs as in leaf: the same seed, the same first draws). */
+function bare(rng: Rng, r: number, form: LookForm, L: LookLevel): string {
+  const tree = form === 'tree' || form === 'broadleaf' || form === 'conifer';
+  const main = branches(rng, r * (tree ? 0.95 : 1)), more = tree && L === 'close' && r > 50 ? branches(rng, r * 0.9) : null;
+  const d = [...main.d, ...(more?.d ?? [])];
+  const out = disc(0, 0, r, BARE_BG, tree ? CANOPY : ' opacity="0.75"');
+  if (L === 'yard') return out + twigs(rng, r, BROWN, 1.6, tree ? 6 : 5);
+  return out + stems(d, BROWN, L === 'close' ? (tree ? 2.2 : 1.6) : 3) + (L === 'close' ? twigs(rng, r * 0.9, BROWN, 0.8, 7) : '');
+}
+/**
+ * An herb in winter: died back to its crown, on mulch; seed heads left standing where its blooms are a coneflower's or
+ * a daisy's (the mockup's "standing through winter"); a grass's blades standing in straw; bulbs, just their tips.
+ */
+function diedBack(rng: Rng, r: number, look: Look, L: LookLevel): string {
+  const { form, pal } = look;
+  if (form === 'grass') {
+    const straw = ['#b8a878', '#d8c89a', '#a89060'];
+    let out = disc(0, 0, r, '#c8b88a');
+    if (L === 'yard') return out + roundness(r, palOf('#c8b88a'));
+    for (const c of straw) out += blades(rng, r, c, Math.floor((L === 'close' ? 34 : 16) / 3), L === 'close' ? 1 : 2.2);
+    return out;
+  }
+  let out = disc(0, 0, r, MULCH);
+  if (form === 'bulb') return out + (L === 'yard' ? '' : spaced(rng, r * 0.5, 7, 6).map(([px, py]) => disc(px, py, 1.4, '#c4a87a')).join(''));
+  if (form !== 'perennial' && form !== 'annual') return out;
+  const { d, tips } = branches(rng, r * 0.8);
+  const seeds = pal.fl && (pal.bloom === 'cone' || pal.bloom === 'daisy') ? '#4a3220' : undefined;
+  const bl = pickTips(tips, 6);
+  if (L === 'yard') return out + (seeds ? bl.slice(0, 4).map(([px, py]) => disc(px * 0.8, py * 0.8, r * 0.12, seeds)).join('') : '');
+  out += stems(d, '#9a8058', L === 'close' ? 1 : 2);
+  if (seeds) out += bl.map(([px, py]) => disc(px, py, L === 'close' ? 2.6 : 4, seeds)).join('');
+  return out;
+}
+/** Its palette in a month: lighter as it leafs out; its fall color as it colors, more of it the further into fall. */
+function monthPal(pal: LookPalette, m: LookMonth): LookPalette {
+  const keep = { fl: m.bloom === 'no' ? undefined : pal.fl, eye: pal.eye, bloom: pal.bloom, evergreen: pal.evergreen, scale: pal.scale, variegated: pal.variegated };
+  if (m.leaves === 'emerging') return palOf(shade(pal.base, -0.25), keep);
+  if (m.leaves === 'turning') {
+    // (Mostly its fall color from the start, as the design drew fall: a straight blend of green and red is mud. No
+    // fall color on record: a tan, and only so far.)
+    const to = m.fall ?? '#b5a35a', t = m.fall ? 0.72 + 0.28 * (m.progress ?? 0.5) : 0.5 * (m.progress ?? 0.5);
+    return palOf(mix(pal.base, to, t), keep);
+  }
+  return { ...pal, fl: keep.fl };
+}
+/** A plant's color in a month, as one color (a climbing vine's band): its leaves', its fall color's, or bare twigs'. */
+export function colorIn(look: Look, m: LookMonth): string {
+  if (m.leaves === 'bare' || m.leaves === 'dormant') return WOODY.includes(look.form) && m.leaves === 'bare' ? BROWN : MULCH;
+  return monthPal(look.pal, m).base;
+}
+/** Fruit showing: a few berries, in its fruit's color. */
+function fruitOf(seed: string, r: number, col: string, L: LookLevel): string {
+  const rng = rngOf(seed + ':fruit');
+  if (L === 'yard') return spaced(rng, r * 0.7, 3, r * 0.4).map(([px, py]) => disc(px, py, r * 0.12, col)).join('');
+  return spaced(rng, r * 0.8, L === 'close' ? 9 : 5, L === 'close' ? 7 : 10, 0.25).map(([px, py]) => disc(px, py, L === 'close' ? 2.2 : 3.2, col, ` stroke="${shade(col, 0.35)}" stroke-width="0.6"`)).join('');
+}
+
 /**
  * A plant drawn from above, at the origin, in screen pixels: SVG markup inside a circle of radius `r` (the caller
- * clips it to the plant's outline and draws its rim). `seed`: the same plant draws the same way every time.
+ * clips it to the plant's outline and draws its rim). `seed`: the same plant draws the same way every time. `month`:
+ * as it is in a month (garden over time); none, in bloom. Its winter not known (`unknown`): drawn faint, and the
+ * caller says so with the not-known ring.
  */
-export function lookSvg(look: Look, r: number, seed: string, level: LookLevel = levelOf(r)): string {
+export function lookSvg(look: Look, r: number, seed: string, level: LookLevel = levelOf(r), month?: LookMonth): string {
+  if (!month) return drawn(look, r, seed, level);
+  const fruit = month.fruit ? fruitOf(seed, r, month.fruit, level) : '';
+  if (month.leaves === 'bare' || month.leaves === 'dormant') {
+    const woody = WOODY.includes(look.form) && month.leaves === 'bare';
+    return (woody ? bare(rngOf(seed), r, look.form, level) : diedBack(rngOf(seed), r, look, level)) + fruit;
+  }
+  faintBlooms = month.bloom === 'around';
+  try {
+    const out = drawn({ ...look, pal: monthPal(look.pal, month) }, r, seed, level) + fruit;
+    return month.leaves === 'unknown' ? `<g opacity="0.55">${out}</g>` : out;
+  } finally { faintBlooms = false; }
+}
+function drawn(look: Look, r: number, seed: string, level: LookLevel): string {
   const rng = rngOf(seed);
   const { form, pal } = look;
   switch (form) {

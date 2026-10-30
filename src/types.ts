@@ -417,6 +417,8 @@ export interface AppState {
   showFullSize: boolean;
   /** Plants drawn as illustrations (src/looks.ts), or as plain circles: per device (src/view-settings.ts). */
   plantLooks: boolean;
+  /** View: garden over time, the month (1–12) the plants are drawn in; null: in bloom (not saved). */
+  month: number | null;
   /** View: ring plants planted close (amber) or crowded (red) (not saved; on unless turned off on this device). */
   showCrowding: boolean;
   /** A notice as a plant is placed close to another or crowding it (not saved; on unless turned off on this device). */
