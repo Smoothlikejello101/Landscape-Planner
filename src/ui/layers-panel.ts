@@ -1,4 +1,5 @@
-import { setCrowdWarnings, setShowCrowding, setPlantLooks, setShowFullSize } from '../view-settings';
+import { setCrowdWarnings, setHardyWarnings, setPoisonWarnings, setShowCrowding, setPlantLooks, setShowFullSize } from '../view-settings';
+import { household } from '../yard';
 import { el, svgEl, ts } from '../dom';
 import { setSnapOn, setSquareOn, snapOn, squareOn } from '../tidy';
 import { flushHistoryDebounce, pushHistory, undo } from '../history';
@@ -45,7 +46,7 @@ export function renderLayersPanel() {
         : 'This plan’s background photo hasn’t come down to this device yet. It will at the next sync.')));
   }
   if (state.shapes.length) list.appendChild(roleSection());
-  if (state.shapes.some((s) => s.plantId)) list.appendChild(plantSizeSection());
+  if (state.shapes.some((s) => s.plantId)) { list.appendChild(plantSizeSection()); list.appendChild(warningsSection()); }
   if (state.shapes.some((s) => s.role === 'plant' || s.status || s.phase) || state.phases.length) list.appendChild(showSection());
   list.appendChild(drawingSection());
   if (state.shapes.length === 0) {
@@ -266,13 +267,53 @@ function plantSizeSection(): HTMLElement {
   looks.addEventListener('change', () => { setPlantLooks(looks.checked); render(); });
   wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, looks,
     el('span', {}, 'Draw plants as pictures, in bloom (off: plain colored circles)')));
-  wrap.appendChild(crowdingSettings());
-  const sun = el('input', { type: 'checkbox', 'data-testid': 'sun-warnings' }) as HTMLInputElement;
-  sun.checked = state.sunWarnings;
-  sun.addEventListener('change', () => { state.sunWarnings = sun.checked; save(); render(); });
-  wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '8px' } }, sun,
-    el('span', {}, 'Sun warnings on plants (\u26a0 badges)')));
   return wrap;
+}
+
+/** Whether Layers → Warnings is open: kept while the app is open; a notice's Settings opens it (openWarningsAt). */
+let warningsOpen = false;
+/** Layers, at Warnings, open, with one of its settings in view and flashed (`testid`): a notice's Settings. */
+export function openWarningsAt(testid: string) {
+  warningsOpen = true;
+  state.panel = 'layers';
+  render();
+  requestAnimationFrame(() => {
+    const n = document.querySelector(`[data-testid=${testid}]`);
+    n?.scrollIntoView({ block: 'center' });
+    n?.classList.add('flash');
+  });
+}
+/**
+ * Every kind of warning in one place, folded (Jason, Oct 30: "a 'warning settings' panel/collapsed section to house
+ * everything to do with warnings", a switch for each): crowding, sun, hardiness, poison to who's in the yard.
+ */
+function warningsSection(): HTMLElement {
+  const d = el('details', { className: 'role-rows warnings-fold', 'data-testid': 'warnings' }) as HTMLDetailsElement;
+  d.open = warningsOpen;
+  d.addEventListener('toggle', () => { warningsOpen = d.open; });
+  const kinds = [state.showCrowding || state.crowdWarnings, state.sunWarnings, state.hardyWarnings, state.poisonWarnings];
+  const on = kinds.filter(Boolean).length;
+  d.appendChild(el('summary', { className: 'section-label' }, 'Warnings',
+    el('span', { className: 'count' }, on === kinds.length ? ' \u00b7 all on' : ` \u00b7 ${on} of ${kinds.length} kinds on`)));
+  d.appendChild(crowdingSettings());
+  const row = (testid: string, checked: boolean, set: (on: boolean) => void, text: string) => {
+    const cb = el('input', { type: 'checkbox', 'data-testid': testid }) as HTMLInputElement;
+    cb.checked = checked;
+    cb.addEventListener('change', () => { set(cb.checked); render(); });
+    return el('label', { className: 'check-row', style: { marginTop: '8px' } }, cb, el('span', {}, text));
+  };
+  d.appendChild(row('sun-warnings', state.sunWarnings, (v) => { state.sunWarnings = v; save(); },
+    'Sun: a \u26a0 badge where a plant gets more or less sun than it wants (in a sun area you recorded; this plan)'));
+  d.appendChild(row('hardy-warnings', state.hardyWarnings, setHardyWarnings,
+    state.location ? `Hardiness: a warning as I place a plant too cold or too warm for zone ${state.location.zone}, and a \u2744 or \u2600 badge on it`
+      : 'Hardiness: a warning as I place a plant too cold or too warm where the garden is, and a badge on it (once a ZIP is set)'));
+  const y = household();
+  const who = [y.kids ? 'kids' : '', y.dogs ? 'dogs' : '', y.cats ? 'cats' : '', y.horses ? 'horses' : ''].filter(Boolean);
+  d.appendChild(row('poison-warnings', state.poisonWarnings, setPoisonWarnings,
+    who.length ? `Poison: a badge on plants that are a problem for the ${who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0]} in the yard, in lists and on the plan`
+      : "Poison: badges on plants that are a problem for who's in the yard (set in the plant picker's Filters, Poison & pets)"));
+  d.appendChild(el('div', { className: 'hint' }, 'Crowding, hardiness and poison are settings of this device; sun is kept with the plan.'));
+  return d;
 }
 
 /** The background image: shown or hidden, and how faint, beside the layers' own (the rest is in ⋮ → Background image). */

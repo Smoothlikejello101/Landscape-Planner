@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { closeSheet, field, openFresh, openSections, placeOnceAtCenter } from './helpers';
+import { closeSheet, field, openFresh, openSections, openWarnings, placeOnceAtCenter } from './helpers';
 
 async function addPlant(page: Page, name: string, x: number) {
   await page.locator('.tool-btn.plants').click();
@@ -23,6 +23,7 @@ test('plants planted too close are flagged, and ringed on the plan unless that\'
   // Ringed by default (decided with Jason, 2026-10-25); Layers turns it off and on.
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);
   await page.locator('button[title=Layers]').click();
+  await openWarnings(page);
   await expect(page.getByTestId('crowding-settings')).toContainText('(0 close, 2 crowded now)');
   await page.getByTestId('show-crowding').uncheck();
   await closeSheet(page);

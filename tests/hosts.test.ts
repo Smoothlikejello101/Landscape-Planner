@@ -54,7 +54,10 @@ describe('hosts where the garden is', () => {
     const body = { 'climate/719.json': { v: 1, zips: { 71923: ['8a', 0, 3, 5019] }, stations: [] }, 'wild/1/index.json': { v: 1, states: { 5: 'AR' }, border: {} }, 'wild/1/05.json': wild }[url];
     return body ? new Response(JSON.stringify(body)) : new Response('', { status: 404 });
   }) as typeof fetch;
-  const milkweed = { id: 'milkweed', common: 'Butterfly milkweed', botanical: 'Asclepias tuberosa', host_genus: { genus: 'Asclepias', species: 25 } } as Plant;
+  const milkweed = { id: 'milkweed', common: 'Butterfly milkweed', botanical: 'Asclepias tuberosa', host_genus: { genus: 'Asclepias', species: 25 }, native_na: true } as Plant;
+  // (Native to Texas and Mexico, not Arkansas: still the continent's, so a host for Arkansas's milkweed caterpillars.)
+  const antelope = { id: 'antelope', common: 'Antelope horns', botanical: 'Asclepias asperula', host_genus: { genus: 'Asclepias', species: 25 }, native_na: true } as Plant;
+  const tropical = { id: 'tropical', common: 'Tropical milkweed', botanical: 'Asclepias curassavica', host_genus: { genus: 'Asclepias', species: 25 } } as Plant;
   const privet = { id: 'privet', common: 'Chinese privet', botanical: 'Ligustrum sinense', host_genus: { genus: 'Ligustrum', species: 47 } } as Plant;
   const spicebush = { id: 'spicebush', common: 'Spicebush', hosts: ['Spicebush Swallowtail (Papilio troilus)'], prov: { hosts: { src: ['ncsu'], check: 'single' } } } as unknown as Plant;
   const old = { id: 'old', common: 'Old-list plant', host: 'Several moth spp.' } as Plant;
@@ -63,8 +66,9 @@ describe('hosts where the garden is', () => {
     expect(hostsHere(milkweed)).toEqual({ genus: 'Asclepias', n: 12, butterflies: ['Gray Hairstreak (Strymon melinus)', 'Monarch (Danaus plexippus)'], stateName: 'Arkansas', source: 'Shropshire & Tallamy 2025' });
     expect(hostsHere({})).toBeNull();
   });
-  it('counts a plant as a host where a source names its caterpillars, or it\'s native here in a genus they use', () => {
+  it('counts a plant as a host where a source names its caterpillars, or it\'s native to North America in a genus they use here', () => {
     expect([hostPlant(spicebush), hostPlant(milkweed), hostPlant(privet), hostPlant(old)]).toEqual(['named', 'genus', null, 'earlier']);
+    expect([hostPlant(antelope), hostPlant(tropical)]).toEqual(['genus', null]);
     const f = { ...PLANT_FILTER_DEFAULTS, hostOnly: true };
     expect([spicebush, milkweed, privet].map((p) => plantMatches(p, f))).toEqual([true, true, false]);
     state.location = null; // (no state known: a genus-wide count isn't enough)

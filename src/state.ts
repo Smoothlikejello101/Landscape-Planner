@@ -52,6 +52,8 @@ export const state: AppState = {
   month: null,
   showCrowding: true,
   crowdWarnings: true,
+  hardyWarnings: true,
+  poisonWarnings: true,
   showNames: true,
   plantForm: null,
   pickerLinkId: null,

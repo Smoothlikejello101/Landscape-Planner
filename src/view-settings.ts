@@ -5,6 +5,9 @@
 import { state } from './state';
 
 const FULL_RINGS = 'lp-full-rings', CROWDING = 'lp-crowding', CROWD_WARN = 'lp-crowd-warn', LOOKS = 'lp-plant-looks';
+// (Hardiness and poison warnings, on unless turned off: Jason, Oct 30, "too hot and too cold should get warnings by
+// default", with every kind of warning switchable in one place, Layers → Warnings.)
+const HARDY_WARN = 'lp-warn-hardy', POISON_WARN = 'lp-warn-poison';
 const read = (key: string, fallback: boolean): boolean => {
   try { const v = localStorage.getItem(key); return v == null ? fallback : v === 'on'; } catch { return fallback; }
 };
@@ -16,8 +19,12 @@ export function loadViewSettings() {
   state.showCrowding = read(CROWDING, true);
   state.crowdWarnings = read(CROWD_WARN, true);
   state.plantLooks = read(LOOKS, true);
+  state.hardyWarnings = read(HARDY_WARN, true);
+  state.poisonWarnings = read(POISON_WARN, true);
 }
 export function setShowFullSize(on: boolean) { state.showFullSize = on; write(FULL_RINGS, on); }
 export function setShowCrowding(on: boolean) { state.showCrowding = on; write(CROWDING, on); }
 export function setCrowdWarnings(on: boolean) { state.crowdWarnings = on; write(CROWD_WARN, on); }
 export function setPlantLooks(on: boolean) { state.plantLooks = on; write(LOOKS, on); }
+export function setHardyWarnings(on: boolean) { state.hardyWarnings = on; write(HARDY_WARN, on); }
+export function setPoisonWarnings(on: boolean) { state.poisonWarnings = on; write(POISON_WARN, on); }

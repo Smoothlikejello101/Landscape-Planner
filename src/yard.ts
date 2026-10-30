@@ -1,5 +1,6 @@
 // Who's in the yard (the guided introduction's step 6, Oct 25: "Kids · Dogs · Cats · Horses" sets the picker's
-// filters only, no warnings on its rows). Kept per device, like the hints, so the answer outlasts a reload: the other
+// filters; since Oct 30 (Jason, from round 2) it also puts warnings on rows, the plan and the plant: src/plants.ts
+// householdFlags). Kept per device, like the hints, so the answer outlasts a reload: the other
 // filters are for the search at hand and reset, but kids and pets don't change between visits. The picker's own
 // controls for the same four filters keep it up to date (src/ui/plants-panel.ts).
 
@@ -17,7 +18,11 @@ export function loadYard(): Yard {
     return { kids: !!v.kids, dogs: DOGS.includes(v.dogs) ? v.dogs : '', cats: !!v.cats, horses: !!v.horses };
   } catch { return { ...NO_YARD }; }
 }
+/** Who's in the yard, as last kept (read once, then kept up to date by saveYard). */
+let kept: Yard | null = null;
+export function household(): Yard { return (kept ??= loadYard()); }
 export function saveYard(y: Yard): void {
+  kept = { ...y };
   const v = JSON.stringify(y);
   try { if (localStorage.getItem(KEY) !== v) localStorage.setItem(KEY, v); } catch { /* no storage: nothing kept */ }
 }

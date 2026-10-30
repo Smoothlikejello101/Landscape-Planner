@@ -310,6 +310,7 @@ function theName(s: Shape): string {
   return `the ${name.charAt(0).toLowerCase()}${name.slice(1)}`;
 }
 const STACK_HINT = 'lp-hint-tap-under';
+const DRAG_HINT = 'lp-hint-drag-pans';
 /** What the last tap moved down the stack from, if it did: a quick second tap (a double tap) opens that one's pane. */
 let cycledFrom: string | null = null;
 /**
@@ -414,7 +415,11 @@ export function onCanvasPointerUp(e: PointerEvent) {
       render();
       return;
     case 'pan':
-      if (g.moved) { save(); forgetLastTap(); } // (the plan moved: the same spot on screen is another place)
+      if (g.moved) {
+        save(); forgetLastTap(); // (the plan moved: the same spot on screen is another place)
+        // (The first few times a drag over a shape pans, on this device: how to move it.)
+        if (g.overShape && hintDue(DRAG_HINT, 3)) { toast('That moved the plan. To move a shape, tap it first, then drag it.', 4000); hintShown(DRAG_HINT); }
+      }
       else if (state.draw) drawTap(g.startX, g.startY);
       else if (state.featurePlace) featureTap(g.startX, g.startY);
       else if (state.placing) placeTap(g.startX, g.startY);
@@ -510,6 +515,13 @@ export function onShapePointerDown(e: PointerEvent, shape: Shape) {
     const feet = screenToFeet(e.clientX, e.clientY);
     gesture.current = { type: 'marquee', startX: e.clientX, startY: e.clientY, startFeet: feet, currentFeet: feet, moved: false, tapShapeId: shape.id };
     state.marquee = { x1: feet.x, y1: feet.y, x2: feet.x, y2: feet.y };
+    return;
+  }
+  // By touch, a shape that isn't selected is ground under the finger: a drag pans the plan, a tap selects it (Jason,
+  // Oct 30, from round 2: sun areas, lawns and beds cover most of a phone's plan, and a drag meant to look around moved
+  // them). To move one: tap it, then drag. A mouse (or a pen) drags it at once, as before.
+  if (e.pointerType === 'touch' && !isSelected(shape.id) && !state.draw && !state.editPoints && !state.placing && !state.featurePlace) {
+    gesture.current = { type: 'pan', startX: e.clientX, startY: e.clientY, startOffset: { x: state.offsetX, y: state.offsetY }, moved: false, tapShapeId: shape.id, overShape: true };
     return;
   }
   const cur = screenToFeet(e.clientX, e.clientY);

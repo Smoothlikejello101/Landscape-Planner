@@ -1,8 +1,8 @@
 import { el } from '../dom';
 import { I } from '../icons';
 import {
-  activeMyPlants, deleteMyPlant, formatSize, isDataSized, isMine, newMyPlantId, parseSize, placedUsing, rawMyPlant, recolorPlaced, resizePlaced,
-  saveMyPlant, speciesLinkFor, speciesRecordFor, sunLevels, sunRange, type Range,
+  activeMyPlants, deleteMyPlant, formatSize, isDataSized, isMine, MY_WATER, newMyPlantId, parseSize, parseZones, placedUsing, rawMyPlant, recolorPlaced,
+  renamePlaced, resizePlaced, saveMyPlant, speciesLinkFor, speciesRecordFor, sunLevels, sunRange, zonesText, type Range,
 } from '../my-plants';
 import { FORM_COLORS, linkFromPicker, MONTH_NAMES, PLANTS, plantColor, plantColors, plantsById, speciesOf, type Plant } from '../plants';
 import { byMatch, matchPlant, readQuery } from '../search';
@@ -11,6 +11,7 @@ import type { Shape } from '../types';
 import { finishPlacing, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { errMsg } from '../util';
+import { zoneRange } from '../climate';
 import { render } from './render';
 import { toast } from './toast';
 
@@ -123,19 +124,24 @@ export function renderPlantForm() {
   };
   showSpecies();
   body.append(sameBox, sameNote); // (the note outside: it says why when the box goes)
-  // (Read once it's typed, on leaving the field: part-way, "Hydrangea pa" would name another species.)
-  botanical.input.addEventListener('change', () => {
+  // (Read once it's typed, on leaving the field, and again at Save: part-way, "Hydrangea pa" would name another
+  // species.) True when it unticked the box: the note says why.
+  let untickedAt = 0;
+  const recheckSpecies = (): boolean => {
     const typed = speciesOf(botanical.input.value);
-    if (!typed) return; // (empty, or a genus alone: nothing to go by)
+    if (!typed) return false; // (empty, or a genus alone: nothing to go by)
     const have = speciesOf(species?.botanical);
-    if (species && have === typed) return;
+    if (species && have === typed) return false;
     // Another species: the one it names now, if the catalog has it, offered unticked.
-    if (same.checked && species) sameNote.textContent = `Unticked: ${typed} isn\u2019t ${have ?? species.common}.`;
+    const was = same.checked && !!species;
+    if (was) { sameNote.textContent = `Unticked: ${typed} isn\u2019t ${have ?? species!.common}. Tick it again if it is.`; untickedAt = Date.now(); }
     same.checked = false;
     species = speciesRecordFor(botanical.input.value);
     showSpecies();
-  });
-  same.addEventListener('change', () => { sameNote.textContent = ''; });
+    return was;
+  };
+  botanical.input.addEventListener('change', () => { recheckSpecies(); });
+  same.addEventListener('change', () => { sameNote.textContent = ''; untickedAt = 0; }); // (seen, and decided)
 
   // Sizes: typed on the number pad, in feet or inches (most tags give feet for
   // shrubs, inches for perennials). Writing a unit ("36 in") also works. The
@@ -199,6 +205,27 @@ export function renderPlantForm() {
   }
   body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Sun (tap all that apply)'), sunRow));
 
+  // Hardiness zones and water needs, from the tag (optional, Oct 30): with the species ticked, its own stand over the
+  // species'. (Read as typed: the hint shows how.)
+  const ownZones = editing ? zonesText(rawMyPlant(editing.id) ?? {}) : source && !isMine(source) ? '' : zonesText(source ?? {});
+  const zones = text('Hardiness zones (optional)', ownZones, 'e.g. 5-9 or 6b-9a', 'pf-zones');
+  const showZones = () => {
+    const v = zones.input.value.trim(), z = v ? parseZones(v) : null;
+    zones.hint.textContent = !v ? 'From the tag, if it gives them.' : z ? `Read as ${zoneRange(z)}.` : "Couldn't read that. Try 5-9, or 6b-9a.";
+    zones.hint.classList.toggle('error', !!v && !z);
+  };
+  zones.input.addEventListener('input', showZones);
+  showZones();
+  const water = el('select', { 'data-testid': 'pf-water', id: 'pf-water' }) as HTMLSelectElement;
+  water.appendChild(el('option', { value: '' }, 'Not given (optional)'));
+  const ownWater = editing ? rawMyPlant(editing.id)?.water : source && isMine(source) ? source.water : undefined;
+  for (const w of MY_WATER) {
+    const o = el('option', { value: w }, w === 'Wetland' ? 'Wet soil or standing water' : w) as HTMLOptionElement;
+    if (ownWater === w) o.selected = true;
+    water.appendChild(o);
+  }
+  body.appendChild(el('div', { className: 'field' }, el('label', { for: 'pf-water' }, 'Water needs'), water));
+
   // Plant type, and its color on the plan: the type's color (green with none) until a color is picked.
   const form = el('select', { 'data-testid': 'pf-form' }) as HTMLSelectElement;
   form.appendChild(el('option', { value: '' }, 'Choose a type (optional)'));
@@ -247,12 +274,20 @@ export function renderPlantForm() {
     if (!common) { name.need('give the plant a name'); return null; }
     if (!width) { spread.need(spread.input.value.trim() ? 'couldn\u2019t read that (see below)' : 'enter one number or a range like 6-8'); return null; }
     const h = parseSize(height.input.value, height.unit);
+    const z = zones.input.value.trim() ? parseZones(zones.input.value) : null;
+    if (zones.input.value.trim() && !z) { zones.need('couldn\u2019t read that (see below)'); return null; }
+    // (A botanical name of another species typed and Save tapped straight away, which unticks it as the field is
+    // left: said, and saved only at a second tap, not silently. Diego, Oct 30.)
+    recheckSpecies();
+    if (Date.now() - untickedAt < 1500) { untickedAt = 0; sameNote.scrollIntoView({ block: 'nearest' }); return null; }
     const start = Number(bloomStart.value) || undefined, end = Number(bloomEnd.value) || start;
     return {
       id: editing?.id ?? newMyPlantId(),
       common, width,
       ...(botanical.input.value.trim() ? { botanical: botanical.input.value.trim() } : {}),
       ...(h ? { height: h } : {}),
+      ...(z ?? {}),
+      ...(water.value ? { water: water.value } : {}),
       ...sunRange([...sun]),
       ...(form.value ? { form: form.value } : {}),
       // Stored only when it differs from the type's color, so changing the type later still recolors it.
@@ -275,12 +310,17 @@ export function renderPlantForm() {
     try {
       const oldName = editing?.common ?? '';
       const oldColors = editing ? plantColors(editing) : [];
+      const was = editing ? rawMyPlant(editing.id) : undefined;
       const saved = await saveMyPlant(p);
       if (editing) {
         recolorPlaced(saved.id, oldColors, plantColor(saved));
-        const n = placedUsing(saved.id).length;
-        if (n && confirm(`Update ${n} placed plant${n === 1 ? '' : 's'} in this plan to the new size?`)) resizePlaced(saved, oldName);
-        toast(`Saved ${saved.common}`);
+        // Renamed: placed plants still showing the old name take the new one; resized: asked, as a plan's plant may
+        // have been sized by hand. (Diego, Oct 30: the size was asked about, and the name stayed.)
+        const renamed = renamePlaced(saved, oldName);
+        const sizeChanged = JSON.stringify([was?.width, was?.height]) !== JSON.stringify([saved.width, saved.height]);
+        const n = sizeChanged ? placedUsing(saved.id).length : 0;
+        if (n && confirm(`Update ${n} placed plant${n === 1 ? '' : 's'} in this plan to the new size?`)) resizePlaced(saved);
+        toast(`Saved ${saved.common}${renamed ? `; ${renamed} placed plant${renamed === 1 ? '' : 's'} renamed` : ''}`);
         close(state.selectedIds.length ? null : 'plants');
         return;
       }

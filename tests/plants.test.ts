@@ -313,6 +313,14 @@ describe('plant filters', () => {
     expect(readQuery(' - / ')).toBe(null);
     const privet: Plant = { id: 'pr', common: 'Chinese privet', invasive: true };
     expect(plantMatches(privet, f({ q: "'" }))).toBe(false); // (invasives stay out: it isn't a search for one)
+    // Something that isn't searched, and nothing that is: nothing found (Dana searched "🌸", Oct 30, and got everything).
+    expect([plantMatches(aster, f({ q: '🌸' })), plantMatches(aster, f({ q: '玫瑰' })), plantMatches(aster, f({ q: "'" }))]).toEqual([false, false, true]);
+  });
+  it('reads a typed x as a hybrid\'s × (Tom, Oct 30)', () => {
+    const abelia: Plant = { id: 'ab', common: 'Glossy abelia', botanical: 'Abelia × grandiflora' };
+    expect(searchRank(abelia, 'abelia x grandiflora')).toBeGreaterThanOrEqual(0);
+    expect(searchRank(abelia, 'abelia grandiflora')).toBeGreaterThanOrEqual(0);
+    expect(searchRank(abelia, 'abelia × grandiflora')).toBeGreaterThanOrEqual(0);
   });
   it('matches words run together only from a word\'s start, and botanical names from a word\'s start', () => {
     expect(searchRank({ id: 'h', common: "Smooth hydrangea 'Haas' Halo'", botanical: 'Hydrangea arborescens' }, 'ash')).toBe(-1);

@@ -2,7 +2,8 @@ import { plantsInBed, plantSummary } from '../beds';
 import { el, ts } from '../dom';
 import { shapeArea, shapePerimeter } from '../geometry';
 import { updateSelected, updateSelectedSilent } from '../mutations';
-import { plantsById } from '../plants';
+import { hardinessWarning, householdFlags, plantsById } from '../plants';
+import { household } from '../yard';
 import { state } from '../state';
 import { checkPlantSun, formatHours, formatTime, newSunInfo, sunHours, sunLevel } from '../sun';
 import type { Shape, SunInfo } from '../types';
@@ -62,6 +63,38 @@ export function plantSunBanner(s: Shape): HTMLElement | null {
   const note = dismissed ? ' (dismissed: no badge on the plan)' : !state.sunWarnings ? ' (badges are off in Layers)' : '';
   return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'sun-check' },
     el('div', {}, '⚠ ' + check.message + note), el('div', { style: { marginTop: '4px' } }, btn));
+}
+
+/** Whether a plant is one the warnings are for: not a tree already there, nor one gone or coming out. */
+const warnedFor = (s: Shape) => s.role === 'plant' && !!s.plantId && !(s.type === 'circle' && s.tree) && s.status !== 'gone' && s.status !== 'remove';
+/**
+ * Too cold, or maybe too warm, where the garden is (Jason, Oct 30): a warning, dismissed for this plant (a sheltered
+ * spot, a gamble taken); it comes back if what it says changes (the ZIP, the plant).
+ */
+export function plantHardyBanner(s: Shape): HTMLElement | null {
+  if (!warnedFor(s)) return null;
+  const p = plantsById[s.plantId!];
+  const w = p ? hardinessWarning(p) : null;
+  if (!w) return null;
+  const dismissed = s.hardyDismissed === w.line;
+  const btn = el('button', { className: 'link-reset', 'data-testid': 'hardy-dismiss' }, dismissed ? 'Show the warning again' : 'Dismiss for this plant');
+  btn.addEventListener('click', () => updateSelected({ hardyDismissed: dismissed ? undefined : w.line }));
+  const note = dismissed ? ' (dismissed: no badge on the plan)' : !state.hardyWarnings ? ' (badges are off in Layers \u2192 Warnings)' : '';
+  return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'hardy-check' },
+    el('div', {}, `${w.cold ? '\u2744' : '\u2600'} ${w.line}.${note}`), el('div', { style: { marginTop: '4px' } }, btn));
+}
+/** Poisonous to the people or pets in the yard (src/plants.ts householdFlags): said at the top of its pane. */
+export function plantPoisonBanner(s: Shape): HTMLElement | null {
+  if (!warnedFor(s)) return null;
+  const p = plantsById[s.plantId!];
+  const flags = p ? householdFlags(p) : [];
+  if (!flags.length) return null;
+  const y = household();
+  const who = [y.kids ? 'kids' : '', y.dogs ? 'dogs' : '', y.cats ? 'cats' : '', y.horses ? 'horses' : ''].filter(Boolean);
+  const said = flags.map((f, i) => { const t = f.testid === 'row-poison' ? f.title ?? f.text : f.text; return i ? t.charAt(0).toLowerCase() + t.slice(1) : t; }).join('; ');
+  const whoSaid = who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0];
+  return el('div', { className: 'check-banner warn', 'data-testid': 'poison-check' },
+    `\u26a0 ${said}. You said ${whoSaid} are in the yard; its sources are under About this plant \u2192 Safety.`);
 }
 
 function summaryText(info: SunInfo): string {

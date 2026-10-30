@@ -87,6 +87,8 @@ export interface SunCheck { ok: boolean; message: string }
  * app doesn't know the conditions.
  */
 export function checkPlantSun(plantShape: Shape, plant: Plant | undefined, shapes: Shape[]): SunCheck | null {
+  // (A tree already there: it makes the shade, and isn't being planted. Jason, Oct 30.)
+  if (plantShape.type === 'circle' && plantShape.tree) return null;
   if (!plant || !plant.sun_most || !plant.sun_least) return null;
   const at = sunAt(shapeCenter(plantShape), shapes);
   if (!at) return null;

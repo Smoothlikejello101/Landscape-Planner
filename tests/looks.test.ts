@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Plant } from '../src/plants';
-import { bandBlooms, bloomKind, coverBlooms, flowerColorOf, levelOf, lookOf, lookSvg, nearestFlower, ownBloomColors } from '../src/looks';
+import { bandBlooms, bloomKind, coverBlooms, flowerChoices, flowerColorOf, levelOf, lookOf, lookSvg, nearestFlower, ownBloomColors } from '../src/looks';
 import { LOOK_MAX_R, lookFor, lookMarkup, plannedEdge } from '../src/plant-looks';
 import { plantsById } from '../src/plants';
 import type { CircleShape } from '../src/types';
@@ -40,6 +40,15 @@ describe('a plant drawn from its catalog facts', () => {
     expect(lookOf(p, '#7c3aed', true).pal.base).toBe('#7c3aed');
     expect(lookOf(p, '#7c3aed', true).pal.fl).toBe('#f2c230');
     expect(lookOf(p, '#7c3aed').pal.base).toBe('#6f9a4a');
+  });
+  it('in a flower color picked for it among its sources\' (Jason, Oct 30), never one they don\'t list', () => {
+    const aster = plant({ common: 'New England aster', flower_color: ['purple', 'yellow', 'pink'], flower_form: { inflorescence: ['head'] } });
+    expect(lookOf(aster, '#000').pal.fl).toBe('#8a62c9');
+    expect(lookOf(aster, '#000', false, 'pink').pal.fl).toBe('#e0679f');
+    expect(lookOf(aster, '#000', false, 'blue').pal.fl).toBe('#8a62c9');
+    expect(flowerChoices(aster)).toEqual({ colors: ['purple', 'yellow', 'pink'], usual: 'purple' });
+    expect(flowerChoices(plant({ flower_color: ['red', 'green'] }))).toEqual({ colors: ['red'], usual: 'red' }); // (green: a dull part)
+    expect(flowerChoices(plant({ flower_color: ['red', 'white'], flower_form: { inflorescence: ['catkin'] } })).colors).toEqual([]);
   });
   it('drawn the way its form is: a conifer by its needles, an evergreen tree broadleaf, a grass by its blades', () => {
     expect(lookOf(plant({ form: 'Tree', needles: true }), '#000').form).toBe('conifer');

@@ -53,7 +53,8 @@ export const CLEAR_TRUNK = 1 / 3;
 
 /** `climbing`: the vines drawn on a support, whose ground is only around their base (src/vines.ts). */
 function typicalRadius(s: Shape, byId: Record<string, Plant | undefined>, climbing?: Set<string>): number | null {
-  if (s.type !== 'circle' || s.role !== 'plant' || s.status === 'gone') return null;
+  // (Coming out: it crowds nothing it will leave room for. Jason, Oct 30, from Grace's oak marked To remove.)
+  if (s.type !== 'circle' || s.role !== 'plant' || s.status === 'gone' || s.status === 'remove') return null;
   if (climbing?.has(s.id)) return VINE_BASE_RADIUS;
   // (A vine as a groundcover: the patch its spacing gives, not the length it would climb: src/vines.ts.)
   const ground = groundcoverRadius(s, byId);
@@ -154,6 +155,9 @@ function pairLevel(a: Shape, b: Shape, ra: number, rb: number, share: number, by
 
 /** Plants crowding `s`, closest first: crowded ones only, or, with `close`, those close to it too. */
 export function crowdingOf(s: Shape, shapes: Shape[], byId: Record<string, Plant | undefined>, opts: CrowdOptions & { close?: boolean } = {}): Crowd[] {
+  // A tree already in the yard gets no crowding warning of its own; plants near it still do (Jason, Oct 30, from
+  // Grace's three old oaks, each 'close to' the next).
+  if (s.type === 'circle' && s.tree) return [];
   const vines = climbingIn(shapes, byId);
   const r = typicalRadius(s, byId, vines);
   if (r == null || s.type !== 'circle') return [];
@@ -203,6 +207,7 @@ export function crowdPairs(shapes: Shape[], byId: Record<string, Plant | undefin
       const j = order[b];
       if (plants[j].x - plants[i].x >= radii[i] + maxR) break;
       if (leftClose(plants[i], plants[j])) continue;
+      if (plants[i].tree && plants[j].tree) continue; // (two trees already there: nothing to plan)
       const pair = pairLevel(plants[i], plants[j], radii[i], radii[j], sharedHeight(bands[i], bands[j]), byId, hardy);
       if (pair) out.push({ a: plants[i], b: plants[j], level: pair.level });
     }
@@ -213,7 +218,10 @@ export function crowdPairs(shapes: Shape[], byId: Record<string, Plant | undefin
 export function crowdLevels(shapes: Shape[], byId: Record<string, Plant | undefined>, opts: CrowdOptions = {}): Map<string, CrowdLevel> {
   const out = new Map<string, CrowdLevel>();
   const mark = (id: string, level: CrowdLevel) => { if (out.get(id) !== 'crowded') out.set(id, level); };
-  for (const p of crowdPairs(shapes, byId, opts)) { mark(p.a.id, p.level); mark(p.b.id, p.level); }
+  for (const p of crowdPairs(shapes, byId, opts)) {
+    if (!(p.a.type === 'circle' && p.a.tree)) mark(p.a.id, p.level);
+    if (!(p.b.type === 'circle' && p.b.tree)) mark(p.b.id, p.level);
+  }
   return out;
 }
 /** Ids of every crowded plant. */

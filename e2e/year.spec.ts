@@ -24,20 +24,29 @@ test('through the year: each plant as it is that month, bare in winter and in bl
   await page.getByTestId('year-slider').fill('1');
   await expect(month).toHaveText('January');
   await expect(look.locator('[fill="#ebe0c9"]').first()).toBeAttached();
-  await expect(look.locator('[fill="#f1e6c4"]')).toHaveCount(0);
+  await expect(look.locator('[fill="#f7f4ec"]')).toHaveCount(0);
   await expect(page.getByTestId('year-count')).toHaveText('Nothing in bloom');
-  // A step on: February. July: in leaf, its cream blooms (faint: NC State's "summer" is a season, so "around").
+  // A step on: February. July: in leaf, its white blooms (faint: NC State's "summer" is a season, so "around").
   await page.getByTestId('year-next').click();
   await expect(month).toHaveText('February');
   await page.getByTestId('year-slider').fill('7');
   await expect(month).toHaveText('July');
-  await expect(look.locator('[fill="#f1e6c4"]').first()).toBeAttached();
+  await expect(look.locator('[fill="#f7f4ec"]').first()).toBeAttached();
   await expect(page.getByTestId('year-count')).toHaveText('1 of 1 in bloom');
+  // The count opens what's in bloom (Jason, Oct 30), and it follows the month.
+  await expect(page.getByTestId('year-list')).toBeHidden();
+  await page.getByTestId('year-count').click();
+  await expect(page.getByTestId('year-list')).toContainText('Buttonbush');
+  await page.getByTestId('year-slider').fill('1');
+  await expect(page.getByTestId('year-list')).toBeHidden();
+  await expect(page.getByTestId('year-count')).toBeDisabled();
+  await page.getByTestId('year-slider').fill('7');
+  await expect(page.getByTestId('year-list')).toBeVisible();
   // Done: the plan's own bar again, the plant in bloom.
   await page.getByTestId('year-done').click();
   await expect(page.getByTestId('year-bar')).toHaveCount(0);
   await expect(page.locator('.tool-btn.plants')).toBeVisible();
-  await expect(look.locator('[fill="#f1e6c4"]').first()).toBeAttached();
+  await expect(look.locator('[fill="#f7f4ec"]').first()).toBeAttached();
 });
 
 test("a plant whose winter isn't on record: a dotted ring in the winter months, none in summer", async ({ page }) => {

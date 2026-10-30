@@ -8,6 +8,7 @@ import { redrawCanvas } from '../canvas';
 import { el } from '../dom';
 import { I } from '../icons';
 import { lookMonthOf } from '../plant-looks';
+import { plantsById } from '../plants';
 import { state } from '../state';
 import type { CircleShape } from '../types';
 import { render } from './render';
@@ -18,7 +19,7 @@ export const thisMonth = () => new Date().getMonth() + 1;
 
 /** Open garden over time at this month; close it. */
 export function openYear() { state.month = thisMonth(); }
-export function closeYear() { state.month = null; }
+export function closeYear() { state.month = null; listOpen = false; }
 
 /** How many of the plan's plants are in bloom in `month`, and how many say so only "around" (a season word). */
 export function bloomCount(month: number): { n: number; around: number; of: number } {
@@ -33,6 +34,26 @@ export function bloomCount(month: number): { n: number; around: number; of: numb
   }
   return { n, around, of };
 }
+/**
+ * The plan's plants in bloom in `month`, a line each kind (its name, how many, and whether only "around": a season
+ * word, drawn faint), in the order they're on the plan. (Jason, Oct 30: "a button or expandable panel to see which
+ * plants are in bloom".)
+ */
+export function inBloom(month: number): { name: string; n: number; around: boolean }[] {
+  const out = new Map<string, { name: string; n: number; around: boolean }>();
+  for (const s of state.shapes) {
+    if (s.type !== 'circle' || s.role !== 'plant' || !s.plantId || s.status === 'gone') continue;
+    const m = lookMonthOf(s as CircleShape, month);
+    if (!m || m.bloom === 'no') continue;
+    const name = s.label || plantsById[s.plantId]?.common || 'A plant';
+    const row = out.get(name) ?? out.set(name, { name, n: 0, around: true }).get(name)!;
+    row.n++;
+    if (m.bloom === 'yes') row.around = false;
+  }
+  return [...out.values()];
+}
+/** Whether the list of what's in bloom is open (kept while the month changes; closed with the bar). */
+let listOpen = false;
 const bloomText = (month: number) => {
   const { n, of } = bloomCount(month);
   if (!of) return 'No plants from the catalog yet';
@@ -56,13 +77,26 @@ export function renderYearBar(): HTMLElement {
   const month = state.month ?? thisMonth();
   const bar = el('div', { className: 'bottom-toolbar draw-bar year-bar', 'data-testid': 'year-bar' });
   const name = el('div', { className: 'year-month', 'data-testid': 'year-month', 'aria-live': 'polite' }, MONTHS[month - 1]);
-  const count = el('div', { className: 'year-count', 'data-testid': 'year-count' }, bloomText(month));
+  // (The count opens the list of what's in bloom, a line a kind, above the bar.)
+  const count = el('button', { className: 'year-count', 'data-testid': 'year-count', 'aria-expanded': String(listOpen), 'aria-controls': 'year-list' }, bloomText(month));
+  const list = el('div', { className: 'year-list', id: 'year-list', 'data-testid': 'year-list' });
+  const fill = (m: number) => {
+    const rows = inBloom(m);
+    count.disabled = !rows.length;
+    list.hidden = !listOpen || !rows.length;
+    list.replaceChildren(...rows.map((r) => el('div', { className: 'year-list-row' + (r.around ? ' around' : '') },
+      el('span', {}, r.name), r.n > 1 ? el('span', { className: 'count' }, ` \u00d7${r.n}`) : '',
+      r.around ? el('span', { className: 'count' }, ' (around now, by its season)') : '')));
+  };
+  count.addEventListener('click', () => { listOpen = !listOpen; count.setAttribute('aria-expanded', String(listOpen)); fill(state.month ?? month); });
+  fill(month);
   const slider = el('input', { type: 'range', min: '1', max: '12', step: '1', value: String(month), 'aria-label': 'Month', 'data-testid': 'year-slider' }) as HTMLInputElement;
   // (Slid: the plan redraws, and the words beside it change, without rebuilding the bar: the slider keeps its place.)
   const show = (m: number) => {
     state.month = m;
     name.textContent = MONTHS[m - 1];
     count.textContent = bloomText(m);
+    fill(m);
     slider.value = String(m);
     // (Once a frame, however fast the slider moves: a big plan draws every plant anew in a month it hasn't shown yet.)
     if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; redrawCanvas(); }); }
@@ -79,7 +113,7 @@ export function renderYearBar(): HTMLElement {
   const done = el('button', { className: 'draw-btn primary', 'data-testid': 'year-done' }, 'Done');
   done.addEventListener('click', () => { closeYear(); render(); });
   const letters = el('div', { className: 'year-letters', 'aria-hidden': 'true' }, ...MONTHS.map((m) => el('span', {}, m[0])));
-  bar.append(el('div', { className: 'draw-bar-rows' },
+  bar.append(el('div', { className: 'draw-bar-rows' }, list,
     el('div', { className: 'draw-bar-row' }, step(-1, 'Previous month', '‹'), el('div', { className: 'year-head' }, name, count), step(1, 'Next month', '›'), today, done),
     el('div', { className: 'year-slide' }, slider, letters)));
   return bar;

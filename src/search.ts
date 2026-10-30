@@ -13,9 +13,18 @@ import { hostsHere } from './wild';
 // decided over everything searched, before any filter: a search for "pear" isn't padded with "pea", and "holly"
 // with a filter that leaves no hollies says so rather than showing "Hollow Joe Pye weed".
 
-/** Text for searching: lower case, no accents or apostrophes, other punctuation as spaces. */
+/**
+ * Text for searching: lower case, no accents or apostrophes, other punctuation as spaces; a hybrid's "×" an x, as
+ * it's typed ("abelia x grandiflora" finds "Abelia × grandiflora": Tom, Oct 30).
+ */
 export const searchText = (s: string): string =>
-  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/['’‘`]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/['’‘`]/g, '').replace(/×/g, ' x ').replace(/[^a-z0-9]+/g, ' ').trim();
+/**
+ * A search with something in it that isn't searched (an emoji, another script's letters) and nothing that is: it
+ * finds nothing, rather than reading as no search and showing everything (Dana's "🌸", Oct 30). Punctuation alone
+ * ("'", starting a cultivar's name) is still no search.
+ */
+export const unsearchable = (q: string): boolean => !readQuery(q) && /[\p{L}\p{N}\p{So}]/u.test(q);
 const wordsOf = (s: string | undefined): string[] => { const t = s ? searchText(s) : ''; return t ? t.split(' ') : []; };
 
 /**

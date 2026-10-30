@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openFresh, closeSheet, drag, field, shapeCount, addPlainShape, setRole, openSections, placeOnceAtCenter } from './helpers';
+import { addPlainShape, closeSheet, drag, field, openFresh, openSections, openWarnings, placeOnceAtCenter, setRole, shapeCount } from './helpers';
 
 async function addRect(page: Page, label: string, role: string, size?: [number, number]) {
   await addPlainShape(page, 'rect');
@@ -117,6 +117,7 @@ test('a plant in the wrong light gets a warning', async ({ page }) => {
 
   // Or turn badges off for the whole plan.
   await page.locator('button[title=Layers]').click();
+  await openWarnings(page);
   await page.getByTestId('sun-warnings').uncheck();
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(0);

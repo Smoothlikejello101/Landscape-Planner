@@ -5,7 +5,7 @@ import { appendixTaxa, arkatlasStatus, feetRange, mnwildFields, monthRange, ncsu
 // @ts-expect-error (plain JavaScript build script)
 import { mnLight, ncsuSun } from '../scripts/catalog/map.mjs';
 // @ts-expect-error (plain JavaScript build script)
-import { agrees, arkatlasClaims, asDecided, bloomSeasons, combine, typicalOf, fallColors, flowerColors, flowerless, growthRate, leafColors, lowBranched, ncsuFoliage, ncsuNoPoison, ncsuPoison, halfZoneOfTemp, halfZones, hostNames, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims, waterNeed, zoneSpan } from '../scripts/catalog/claims.mjs';
+import { agrees, arkatlasClaims, asDecided, bloomSeasons, byBacking, combine, typicalOf, fallColors, flowerColors, flowerless, growthRate, leafColors, lowBranched, ncsuFoliage, ncsuNoPoison, ncsuPoison, halfZoneOfTemp, halfZones, hostNames, mnwildClaims, ncsuClaims, onlyCaterpillars, tallamyClaims, usdaClaims, waterNeed, zoneSpan } from '../scripts/catalog/claims.mjs';
 
 const fixture = (f: string) => readFileSync(`tests/fixtures/catalog/${f}`, 'utf8');
 
@@ -606,6 +606,12 @@ describe('claims and how they combine', () => {
     expect(agrees('height', { min: 3, max: 4 }, { min: 4, max: 6 })).toBe(true);
     expect(agrees('height', { min: 3, max: 4 }, { min: 8, max: 10 })).toBe(false);
     expect(agrees('flower_color', ['Pink', 'White'], ['white'])).toBe(true);
+  });
+  it('puts first the flower color most sources give, NC State\'s order on a tie (Jason, Oct 30: asters drawn yellow)', () => {
+    const aster = combine([nc('flower_color', ['Gold/Yellow', 'Purple/Lavender']), nc('flower_color', ['Purple'], 'nursery', 'mowildflowers.net'), nc('flower_color', ['Lavender', 'Pink'], 'nursery', 'x.com')]);
+    expect(aster.flower_color).toMatchObject({ v: ['Purple/Lavender', 'Gold/Yellow'], check: 'confirmed' });
+    expect(combine([nc('flower_color', ['Gold/Yellow', 'Orange', 'Pink'])]).flower_color.v).toEqual(['Gold/Yellow', 'Orange', 'Pink']); // (one source: as it says)
+    expect(byBacking(['Blue', 'White'], [{ v: ['Blue', 'White'] }, { v: 'white' }, { v: ['Lavender'] }])).toEqual(['White', 'Blue']);
   });
   it('shows USDA only as a flag, and only where it differs by more than a zone', () => {
     const u = usdaClaims({ 'Temperature, Minimum (°F)': ['7'], 'Native status': ['L48: Native'] });

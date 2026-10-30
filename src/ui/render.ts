@@ -20,7 +20,7 @@ import { redrawHandles } from '../canvas';
 import { parseTypedLength } from '../draw-numbers';
 import { kindDef, METHOD_LABELS, nextTapPrompt, type KindKey } from '../kinds';
 import { methodIcon, renderAddSheet, renderShortcutsPanel, withKey } from './add-sheet';
-import { finishPlacing, placingPlant, setPlaceHover, undoPlace } from '../place';
+import { finishPlacing, hasPlaceHover, placingPlant, selectionJustPlaced, setPlaceHover, undoPlace } from '../place';
 import { plantColor } from '../plants';
 import { currentProject, storageIsDurable } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
@@ -39,6 +39,8 @@ import { renderLocationPanel } from './location-panel';
 import { fullRingRadius } from '../my-plants';
 import { filterActive, filterText } from '../status';
 import { toast } from './toast';
+import { clearedNow, loadCleared } from '../storage';
+import { bringBackCleared } from '../mutations';
 import { renderProjectsPanel, renderRenamePanel } from './projects-panel';
 import { moreOfSame, renderArrangePanel, renderPropsPanel, resetKindChange } from './props-panel';
 import { hintDue, hintShown } from '../hints';
@@ -100,6 +102,8 @@ export function render() {
     ? root.querySelector<HTMLElement>('.overlay .sheet')?.scrollTop ?? 0 : 0;
   // Clear root
   while (root.firstChild) root.removeChild(root.firstChild);
+  // (Checked on every redraw, so a selection changed and changed back by hand isn't "just placed" again.)
+  const justPlaced = selectionJustPlaced();
 
   const app = el('div', { className: 'app' });
   if (!storageIsDurable()) {
@@ -175,7 +179,10 @@ export function render() {
   svg.addEventListener('click', () => { /* the plan takes its taps */ });
   // With a mouse, the shape being drawn follows the pointer to the next click.
   svg.addEventListener('pointermove', (e) => {
-    if (e.pointerType !== 'mouse' || e.buttons) return;
+    if (e.pointerType !== 'mouse') return;
+    // (A drag pans the plan: the plant that followed the pointer is put away till it moves again, not left behind
+    // where the plan took it. Tom, Oct 30.)
+    if (e.buttons) { if (state.placing && hasPlaceHover()) { setPlaceHover(null); redrawHandles(); } return; }
     if (state.placing) { setPlaceHover(screenToFeet(e.clientX, e.clientY)); redrawHandles(); return; }
     if (!state.draw || state.draw.kind === 'measure') return;
     setDrawHover(screenToFeet(e.clientX, e.clientY));
@@ -300,6 +307,16 @@ export function render() {
   // Empty hint
   if (state.shapes.length === 0 && !state.draw && !state.placing && !state.bgCalibrate && !state.bgEditMode && !introActive()) {
     const hint = el('div', { className: 'empty-hint' });
+    // Cleared with Clear all: what it took, offered back until something new is drawn, across reloads (Jason, Oct 30).
+    if (state.currentProjectId) void loadCleared(state.currentProjectId, render);
+    const was = clearedNow();
+    if (was) {
+      const n = was.shapes.length;
+      const back = el('button', { className: 'btn primary empty-intro-btn', 'data-testid': 'bring-back' },
+        `Bring back what Clear all took (${n} shape${n === 1 ? '' : 's'}${was.bgImage ? ' and the photo' : ''})`);
+      back.addEventListener('click', () => { bringBackCleared(was); render(); });
+      hint.append(el('div', { className: 'empty-intro' }, back));
+    }
     // New here: the guided introduction, offered once (it stays in ⋮ as "Show me around").
     if (introOffered()) {
       const go = el('button', { className: 'btn primary empty-intro-btn', 'data-testid': 'intro-start' }, 'New here? Show me around');
@@ -326,7 +343,7 @@ export function render() {
   const drawing = !!state.draw || !!state.editPoints || !!state.placing || !!state.featurePlace;
   if (state.selectedIds.length >= 2 && !state.panel && !drawing) {
     const bar = el('div', { className: 'multi-bar' });
-    bar.appendChild(el('div', { className: 'count' }, state.selectedIds.length + ' selected'));
+    bar.appendChild(el('div', { className: 'count' }, state.selectedIds.length + (justPlaced ? ' just placed' : ' selected')));
     const editAllBtn = el('button', { title: 'Edit' });
     editAllBtn.innerHTML = I.edit + '<span>Edit</span>';
     editAllBtn.addEventListener('click', () => { state.panel = 'props'; render(); });

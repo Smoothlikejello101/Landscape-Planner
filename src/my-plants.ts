@@ -30,6 +30,31 @@ export interface Range { min: number; max: number; med: number }
  * "18-24\"", "3", "2.5 ft", ".5" (or "5." while it's typed), "1½ ft", "1 1/2". A bare number is in `defaultUnit`.
  * Returns null if unreadable.
  */
+/**
+ * Hardiness zones as a tag gives them ("5-9", "zones 6b to 9a", "7"), on the half-zone scale the catalog uses
+ * (src/climate.ts): a coldest zone "5" is all of zone 5 (5), "5b" its warmer half (5.5); a warmest "9" is through 9b
+ * (9.5), "9a" 9. Null if it can't be read, or the range runs backwards. (Jason, Oct 30: optional, for my plants.)
+ */
+export function parseZones(text: string): { zone_min: number; zone_max: number } | null {
+  const parts = text.toLowerCase().replace(/zones?/g, ' ').trim().split(/\s*(?:-|–|—|to|through)\s*/).filter(Boolean);
+  if (!parts.length || parts.length > 2) return null;
+  const read = (s: string) => { const m = /^(\d{1,2})([ab])?$/.exec(s.trim()); return m && +m[1] >= 1 && +m[1] <= 13 ? { n: +m[1], half: m[2] as 'a' | 'b' | undefined } : null; };
+  const a = read(parts[0]), b = read(parts[parts.length - 1]);
+  if (!a || !b) return null;
+  const zone_min = a.n + (a.half === 'b' ? 0.5 : 0), zone_max = b.n + (b.half === 'a' ? 0 : 0.5);
+  if (parts.length === 1 && a.half) return { zone_min, zone_max: zone_min };
+  return zone_min <= zone_max ? { zone_min, zone_max } : null;
+}
+/** A plant's zones as typed back into its form ("5-9", "6b-9a"); '' with none. */
+export function zonesText(p: { zone_min?: number; zone_max?: number }): string {
+  if (p.zone_min == null || p.zone_max == null) return '';
+  const lo = p.zone_min % 1 ? `${Math.floor(p.zone_min)}b` : `${p.zone_min}`;
+  const hi = p.zone_max % 1 ? `${Math.floor(p.zone_max)}` : `${p.zone_max}a`;
+  if (p.zone_min === p.zone_max) return `${Math.floor(p.zone_min)}${p.zone_min % 1 ? 'b' : 'a'}`;
+  return lo === hi ? lo : `${lo}-${hi}`;
+}
+/** Water needs a plant of mine can be given: the catalog's words. */
+export const MY_WATER = ['Low', 'Moderate', 'High', 'Wetland'] as const;
 const FRACTIONS: Record<string, number> = { '½': 0.5, '¼': 0.25, '¾': 0.75, '⅓': 1 / 3, '⅔': 2 / 3 };
 export function parseSize(text: string, defaultUnit: 'ft' | 'in' = 'ft'): Range | null {
   const t = text.trim().toLowerCase().replace(/[–—]/g, '-').replace(/\s+to\s+/g, '-').replace(/,/g, '.')
@@ -145,6 +170,11 @@ export function sanitizeMyPlant(raw: unknown): Plant | null {
   if (form) p.form = form;
   if (bs != null) p.bloom = { start: bs, end: be ?? bs, ...(bloomColor ? { color: bloomColor } : {}) };
   if (notes) p.notes = notes;
+  // (Zones and water needs, given by hand (Oct 30); older plants have neither.)
+  const half = (v: unknown) => (typeof v === 'number' && v >= 1 && v <= 13.5 && Number.isInteger(v * 2) ? v : undefined);
+  const zmin = half(o.zone_min), zmax = half(o.zone_max);
+  if (zmin != null && zmax != null && zmin <= zmax) { p.zone_min = zmin; p.zone_max = zmax; }
+  if (MY_WATER.includes(o.water as typeof MY_WATER[number])) p.water = o.water as string;
   if (typeof o.color === 'string' && /^#[0-9a-f]{6}$/i.test(o.color)) p.color = o.color.toLowerCase();
   // (A catalog id, as the catalog writes them: lower case, digits, hyphens.)
   const ref = (v: unknown) => (typeof v === 'string' && /^[a-z0-9][a-z0-9-]{0,99}$/.test(v) ? v : undefined);
@@ -404,14 +434,23 @@ export function recolorPlaced(id: string, oldColors: string[], newColor: string)
   pushHistory();
   save();
 }
-export function resizePlaced(p: Plant, oldName: string) {
+export function resizePlaced(p: Plant) {
   flushHistoryDebounce();
   for (const s of placedUsing(p.id)) {
     setRadius(s, plantRadius(p, state.sizeMode));
     s.sizeFrom = 'plant';
   }
-  // Renamed in the library: rename placed plants still showing the old name.
-  for (const s of state.shapes) if (s.plantId === p.id && s.label === oldName) s.label = p.common;
   pushHistory();
   save();
+}
+/** Renamed in the library: placed plants still showing the old name take the new one (one undo step). How many. */
+export function renamePlaced(p: Plant, oldName: string): number {
+  if (!oldName || oldName === p.common) return 0;
+  const these = state.shapes.filter((s) => s.plantId === p.id && s.label === oldName);
+  if (!these.length) return 0;
+  flushHistoryDebounce();
+  for (const s of these) s.label = p.common;
+  pushHistory();
+  save();
+  return these.length;
 }
