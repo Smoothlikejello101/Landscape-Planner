@@ -79,6 +79,12 @@ export interface Plant {
   leaf_color?: string[];
   /** Whether its leaves stay through winter (for an herb, deciduous is dying back; a grass goes dormant). */
   foliage?: 'evergreen' | 'semi-evergreen' | 'deciduous';
+  /**
+   * Where no source gives `foliage`: what its winter is taken to be (scripts/catalog/winter.mjs): from its species'
+   * USA-NPN records (`records`: recorded bare, `n` plant-years), or its relatives in the catalog (`relatives`: `n`
+   * other species of its genus, all alike). Said as what's expected; never a filter's.
+   */
+  winter_leaves?: { leaves: 'evergreen' | 'semi-evergreen' | 'deciduous'; basis: 'records' | 'relatives'; n: number };
   /** Needled leaves (pines, junipers, arborvitae). */
   needles?: boolean;
   growth_rate?: 'slow' | 'medium' | 'fast';
@@ -189,6 +195,13 @@ export const movedIds: Record<string, string> = {};
 export const ownCopies: Record<string, Plant> = {};
 /** Run once the catalog has loaded (plants of mine linked to a species take its facts then: src/my-plants.ts). */
 const catalogHooks: (() => void)[] = [];
+/**
+ * Whether the catalog is in (or couldn't be had): until then a plan is drawn without what rests on plant facts. On a
+ * cold start the plan draws before plants.json is read, and crowding judged without plants' heights rang plants a
+ * moment, then took the rings back (Jason, Oct 29: "a flash of dismissed warning rings when I first open the app").
+ */
+let catalogSettled = false;
+export const catalogReady = () => catalogSettled;
 export function onCatalogLoaded(fn: () => void) { catalogHooks.push(fn); }
 /** Each switched plant's id stands for its catalog plant, once the catalog has it (until then, for itself). */
 export function applyAliases() {
@@ -320,12 +333,13 @@ export function loadPlants(): Promise<void> {
     for (const p of PLANTS) plantsById[p.id] = p;
     // (A plant placed from a record since folded into another shows that one's facts.)
     for (const [from, to] of Object.entries(movedIds)) if (!plantsById[from] && plantsById[to]) plantsById[from] = plantsById[to];
+    catalogSettled = true;
     for (const fn of catalogHooks) fn();
     applyAliases(); // (plants of mine switched to these)
     if (state.panel === 'plants') render(); // refresh picker if already open
     else redrawCanvas(); // sun-check badges need plant data (canvas only: keyboard safe)
   })
-  .catch((err) => { console.error('plants.json load failed', err); recordError(err, 'catalog'); });
+  .catch((err) => { console.error('plants.json load failed', err); recordError(err, 'catalog'); catalogSettled = true; redrawCanvas(); });
 }
 // ============================================================
 // PLANT PICKER

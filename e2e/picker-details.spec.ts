@@ -552,3 +552,20 @@ test('a plant\'s facts fold into groups that open with a tap, stay open until th
   const again = await open('Common witch hazel');
   await expect(again.getByTestId('group-growing')).toHaveAttribute('aria-expanded', 'false');
 });
+
+test("a winter no source gives: as its species' USA-NPN records show it, or as expected from its relatives (Oct 29)", async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  const winter = async (name: string) => {
+    await page.getByTestId('plant-search').fill(name);
+    const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: new RegExp(`^${name}$`) }) }).first();
+    await item.getByTestId('plant-row').click();
+    return item.getByTestId('plant-details').locator('dt', { hasText: /^In winter$/ }).locator('xpath=following-sibling::dd[1]');
+  };
+  const indigo = await winter('Fragrant false indigo');
+  await expect(indigo).toContainText('Expected to lose its leaves in winter, like its 2 relatives in the catalog');
+  await expect(indigo).toContainText('Not from a source: other species of its genus');
+  const grama = await winter('Sideoats grama');
+  await expect(grama).toContainText('Goes dormant in winter');
+  await expect(grama).toContainText(/USA-NPN observers recorded it bare: \d+ plant-years/);
+});

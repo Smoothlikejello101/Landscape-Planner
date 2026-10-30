@@ -69,6 +69,11 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await expect(step(page)).toHaveText('Step 3 of 8'); // (no photo: no turning it)
   await house(page);
   await expect(step(page)).toHaveText('Step 4 of 8');
+  // Locking taught on the house just drawn (Oct 29).
+  await expect(page.getByTestId('intro-text')).toContainText('Lock your house, so it stays put while you draw around it.');
+  await page.getByTestId('intro-lock-house').click();
+  await expect(page.locator('#toast')).toContainText('Locked: it stays put.');
+  await expect(page.getByTestId('intro-text')).not.toContainText('Lock your house');
   await bed(page);
   await expect(step(page)).toHaveText('Step 5 of 8'); // (no photo: no fading it)
   // Sun and shade: a circle of shade, sun recorded on it, the sheet closed.

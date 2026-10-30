@@ -26,6 +26,20 @@ describe('months and seasons', () => {
   });
 });
 
+describe('a winter no source gives (scripts/catalog/winter.mjs)', () => {
+  it("is drawn as its species' records or its relatives show it, each month saying which", () => {
+    const records = plant({ form: 'Shrub', winter_leaves: { leaves: 'deciduous', basis: 'records', n: 12 } });
+    expect(states(records)).toEqual(states(plant({ form: 'Shrub', foliage: 'deciduous' })));
+    const relatives = plant({ form: 'Perennial', winter_leaves: { leaves: 'deciduous', basis: 'relatives', n: 5 } });
+    expect(monthLook(relatives, 1).leaves).toMatchObject({ state: 'dormant', basis: 'relatives' });
+    expect(monthLook(relatives, 7).leaves).toMatchObject({ state: 'on', basis: 'relatives' });
+    expect(monthLook(plant({ form: 'Shrub', winter_leaves: { leaves: 'evergreen', basis: 'relatives', n: 3 } }), 1).leaves).toMatchObject({ state: 'on', basis: 'relatives' });
+    // (A source's foliage first; none at all: not known.)
+    expect(monthLook(plant({ form: 'Shrub', foliage: 'evergreen', winter_leaves: { leaves: 'deciduous', basis: 'relatives', n: 3 } }), 1).leaves).toMatchObject({ state: 'on', basis: 'source' });
+    expect(monthLook(plant({ form: 'Shrub' }), 1).leaves).toMatchObject({ state: null, basis: 'unknown' });
+  });
+});
+
 describe('leaf colors', () => {
   it("takes the fall colors out of NC State's list for the summer's, green first", () => {
     expect(summerLeafColors({ leaf_color: ['gold', 'green', 'orange'], fall_colors: ['gold', 'orange', 'red'] })).toEqual({ colors: ['green'], variegated: false });

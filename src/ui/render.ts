@@ -8,7 +8,7 @@ import { el, hasKeyboard, svgEl } from '../dom';
 import { onCanvasPointerDown, onWheel } from '../gestures';
 import { canRedo, canUndo, redo, undo } from '../history';
 import { I } from '../icons';
-import { copySelected, planBounds, setViewFilter, updateSelectedSilent, zoomBy, zoomToFit, zoomToYard } from '../mutations';
+import { copySelected, planBounds, setViewFilter, updateSelectedSilent, zoomBy, zoomToFit } from '../mutations';
 import { deleteSelectedAsking } from './delete-selected';
 import { clearSelection, getSelected, singleSelected } from '../selection';
 import { state } from '../state';
@@ -314,18 +314,8 @@ export function render() {
       photo.addEventListener('click', () => { state.panel = 'bg'; render(); });
       hint.append(photo, el('div', { className: 'empty-sub' }, 'A satellite or drone photo of your yard to trace over.'), el('div', { className: 'empty-or' }, 'or'));
     }
-    // Drawing it by hand: the yard's width sets the view, so it fits on screen (the opening view is about 17 ft across).
-    // Typed without re-rendering (keyboard safety); Show it, or Enter, zooms.
-    const yard = el('input', { type: 'text', inputMode: 'decimal', enterKeyHint: 'go', autocomplete: 'off', placeholder: '100', 'aria-label': 'Yard width in feet', 'data-testid': 'yard-width' }) as HTMLInputElement;
-    const showYard = () => {
-      const v = parseTypedLength(yard.value || yard.placeholder);
-      if (v == null || v < 5) { toast('Type the yard’s width in feet, say 80.', 3000); return; }
-      yard.blur(); zoomToYard(v); render(); flashZoom();
-    };
-    yard.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); showYard(); } });
-    const go = el('button', { className: 'btn ghost', 'data-testid': 'yard-show' }, 'Show it');
-    go.addEventListener('click', showYard);
-    hint.append(el('div', { className: 'empty-yard' }, el('label', {}, el('span', {}, 'Yard about'), yard, el('span', {}, 'ft wide')), go));
+    // (Drawing by hand starts in the opening view, about 17 ft across: pinch to see more. The yard's width once asked
+    // here only zoomed, and was dropped (Jason, Oct 29).)
     hint.append(
       el('div', {}, 'Tap a button below to add something.'),
       el('div', {}, 'Grid lines are ', el('b', {}, '1 ft'), ' apart; bold lines every ', el('b', {}, '10 ft'), '.'));

@@ -126,6 +126,10 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .lockbtn.off { background: #f5f5f4; color: #44403c; }
 .lockbtn.some { background: #fffbeb; color: #92400e; box-shadow: inset 0 0 0 1px #fcd34d; }
 .banner { padding: 8px 12px; background: #fef3c7; border: 1px solid #fde68a; border-radius: 6px; font-size: calc(12px * var(--ts)); color: #92400e; }
+.banner.info { background: #f0fdfa; border-color: #99f6e4; color: #134e4a; }
+.banner.info .link-btn { min-height: 32px; padding: 4px; font-size: inherit; color: #0f766e; }
+.climb-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.climb-row select { flex: 1 1 160px; min-width: 0; }
 .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; min-height: var(--tap); border-radius: 6px; font-size: calc(14px * var(--ts)); font-weight: 500; }
 .btn.ghost { background: #f5f5f4; color: #44403c; border: 1px solid #d6d3d1; }
@@ -433,10 +437,6 @@ a { color: inherit; }
 .empty-photo-btn { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px; min-height: 48px; border-radius: 999px; background: #0f766e; color: #fff; font-size: calc(15px * var(--ts)); font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
 .empty-photo-btn .icon { stroke: #fff; }
 .empty-sub { margin-top: 6px; font-size: calc(12px * var(--ts)); }
-.empty-yard { pointer-events: auto; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; margin: 2px 0 10px; }
-.empty-yard label { display: inline-flex; align-items: center; gap: 6px; font-size: calc(14px * var(--ts)); color: #44403c; }
-.empty-yard input { width: 64px; min-height: 44px; padding: 0 8px; border: 1px solid #d6d3d1; border-radius: 6px; font-size: calc(15px * var(--ts)); text-align: center; background: #fff; }
-.empty-yard .btn { min-height: 44px; }
 .empty-or { margin: 10px 0 2px; font-size: calc(12px * var(--ts)); text-transform: uppercase; letter-spacing: 0.08em; }
 .add-photo-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 10px 12px; margin-bottom: 14px; border-radius: 8px; border: 1px solid #99f6e4; background: #f0fdfa; color: #134e4a; font-size: calc(13px * var(--ts)); line-height: 1.4; min-height: 52px; }
 .add-photo-row b { font-size: calc(14px * var(--ts)); }

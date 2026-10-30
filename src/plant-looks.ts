@@ -10,7 +10,8 @@ import type { CircleShape, Shape } from './types';
 
 /** A placed plant drawn as an illustration (Layers: plants drawn, the default; always through the year). */
 export function lookShown(s: Shape): boolean {
-  return (state.plantLooks || state.month != null) && s.type === 'circle' && s.role === 'plant' && !!s.plantId;
+  // (Once its record is here: drawn before the catalog is in, a plant would show in its shape's color, then change.)
+  return (state.plantLooks || state.month != null) && s.type === 'circle' && s.role === 'plant' && !!s.plantId && !!plantsById[s.plantId];
 }
 /**
  * A placed plant in the month shown (garden over time, src/seasons.ts monthLook with the records near the garden), as
