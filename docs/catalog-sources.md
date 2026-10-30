@@ -208,7 +208,9 @@ the same rules as every other source (scripts/catalog/search.mjs).
 1. **Search.** Brave's Search API, two queries a plant (its name, and its
    name with "hardiness zone height spread sun"), at most one a second. A
    round for one fact asks one query a plant instead (`--about spacing`:
-   its name with "spacing", for the plants with no spacing on record).
+   its name with "spacing", for the plants with no spacing on record;
+   `--about color`: its name with "flower color", for the plants whose only
+   flower color is the earlier list's).
    **Brave's terms forbid storing results** except transiently, and using
    them to train AI. So results live only in the script's memory: their
    URLs go to the fetcher, and what's kept is the pages we fetch ourselves
