@@ -160,6 +160,15 @@ export const SKIP_SITES = new Set([
   'ala.org.au', 'allasiatcn.org', 'oclc.org', 'plantory.ai', // (aggregators: GBIF's Australian node, a herbarium portal, a library host, Trefle's data)
   'permaplans.com', 'gardenscheme.com', 'monstera-app.com', 'gardenersnavigator.com', // (other apps' compiled plant lists; answers compiled from extension)
   'homeopathinfo.com', 'lifeasible.com', 'candaceshaw.net', 'saartillery.wordpress.com', 'fairwaystyles.com', 'dmt-nexus.me', // (not plant sources)
+  // Found by the terms reviews of the spacing round, batch 2 (2026-10-29)
+  'fruitandgarden.com', 'gardeningflow.com', 'thepracticalplanter.com', 'louistheplantgeek.com', 'perennialplants.com', // (AI-written)
+  'sciotogardens.com', // (spam injected into its home page)
+  'timergarden.com', 'pureplantseed.com', // (dropship or affiliate storefronts)
+  'bloompots.com', 'leaftide.com', // (other apps' compiled plant lists)
+  'biogator.org', 'nbnatlas.org', 'marinespecies.org', // (aggregators: a campus species portal, the UK's records atlas, a marine names register)
+  'nationalchampiontree.org', // (record trees, one each: not a species' size)
+  'bruns.de', // (its plant reference is for registered trade buyers: ask first)
+  'fishlaboratory.com', 'aquanswers.com', 'blackhillwoods.ca', 'rootbuyer.com', // (not plant sources: aquariums, tea, a root buyer)
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
@@ -577,7 +586,8 @@ export function webClaims(url, html, plant, { boilerplate } = {}) {
 
 // Hosts where each subdomain is a different owner (the Public Suffix List doesn't split them all).
 const SHARED_HOSTS = new Set(['wordpress.com', 'blogspot.com', 'weebly.com', 'godaddysites.com', 'mystrikingly.com', 'jimdofree.com', 'webs.com',
-  'substack.com', 'medium.com', 'tumblr.com', 'wixsite.com', 'squarespace.com', 'square.site', 'myshopify.com', 'business.site', 'sites.google.com', 'google.com']);
+  'substack.com', 'medium.com', 'tumblr.com', 'wixsite.com', 'squarespace.com', 'square.site', 'myshopify.com', 'business.site', 'sites.google.com', 'google.com',
+  'neocities.org']);
 /** Whose terms a host is under: its site, or on a shared host the host itself. */
 export function termsKey(host) {
   const h = String(host).toLowerCase().replace(/\.+$/, '');
