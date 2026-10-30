@@ -1,4 +1,4 @@
-import { isVine, supportOf, supportsNear } from '../vines';
+import { groundcoverRadius, isVine, supportOf, supportsNear, vineSpacing } from '../vines';
 import { supportName } from './vine-offers';
 import { SWATCH_NAMES } from './a11y';
 import { SWATCHES } from '../constants';
@@ -28,7 +28,8 @@ import { isTree, trunkDiameter } from '../trees';
 import { treeBranches } from '../crowding';
 import { MAX_TREE_HEIGHT, MAX_TRUNK, MIN_TRUNK } from '../constants';
 import { statusSection, statusSummary } from './status-section';
-import { hasStatus } from '../status';
+import { drawnBySize } from '../canvas';
+import { hasStatus, shownWith } from '../status';
 import { plantsInBed } from '../beds';
 import { startPlacing } from '../place';
 import { bedBloomSection } from './bloom-view';
@@ -143,10 +144,14 @@ function climbingField(s: CircleShape): HTMLElement {
     cb.addEventListener('change', () => updateSelected({ climbsOn: cb.checked ? '' : undefined }));
     parts.push(el('label', { className: 'check-row' }, cb, el('span', {}, "Grow as a groundcover: don't offer what it could climb")));
   }
+  // (On the ground: a patch as wide as its spacing, or at its base with none on record: src/vines.ts.)
+  const ground = groundcoverRadius(s);
+  const ring = ground != null && ground < s.radius - 0.05 ? '; the dotted ring is how far it can run' : '';
+  const onGround = vineSpacing(s) ? `A patch on the ground as wide as its spacing${ring}.` : `On the ground, drawn at its base: no source we've read says how far apart to plant it${ring}.`;
   const hint = now ? (now.kind === 'arbor' ? 'Drawn over the arbor, as far as its spread reaches.' : 'Drawn along what it climbs, as long as its spread.')
-    : s.climbsOn === '' ? 'A patch on the ground, and kept so.'
-      : list.length ? 'A patch on the ground. Pick what it climbs to draw it along that instead; moved near a fence, a wall, a trellis, an arbor or a tree, it\'s offered.'
-        : 'A patch on the ground. Nothing to climb within its spread; moved near a fence, a wall, a trellis, an arbor or a tree, it\'s offered.';
+    : s.climbsOn === '' ? `${onGround} Kept so.`
+      : list.length ? `${onGround} Pick what it climbs to draw it along that instead; moved near a fence, a wall, a trellis, an arbor or a tree, it's offered.`
+        : `${onGround} Nothing to climb within its spread; moved near a fence, a wall, a trellis, an arbor or a tree, it's offered.`;
   parts.push(el('div', { className: 'hint' }, hint));
   return el('div', { className: 'field', 'data-testid': 'climbing' }, ...parts);
 }
@@ -194,6 +199,8 @@ export function renderPropsPanelSingle(s: Shape) {
     body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Label'), labelInput));
   }
   if (s.type !== 'text') body.appendChild(whatItIs([s.id], roleKey(s), false));
+  const actions = plantActions(s);
+  if (actions) body.appendChild(actions);
   // A vine: what it climbs, the most important thing about it (Jason, Oct 29); a support: the vines on it.
   if (isVine(s)) body.appendChild(climbingField(s));
   const onIt = vinesOnIt(s);
@@ -422,7 +429,9 @@ export function renderPropsPanelSingle(s: Shape) {
 /** Arrange · Duplicate (Place more, for a plant) · Delete, in one row. */
 function actionRow(single: boolean): HTMLElement {
   const row = el('div', { className: 'action-row' });
-  if (single) {
+  // (Not for a plant: plants are drawn by size, biggest first, so a small one shows over a big one: src/canvas.ts.)
+  const one = single ? singleSelected() : null;
+  if (one && !drawnBySize(one)) {
     const arrangeBtn = el('button', { className: 'btn ghost', html: I.layers + '<span>Arrange</span>', title: 'Arrange layer order' });
     arrangeBtn.addEventListener('click', () => { state.panel = 'arrange'; render(); });
     row.appendChild(arrangeBtn);
@@ -621,6 +630,40 @@ function plantLinkSection(s: CircleShape): HTMLElement {
   return wrap;
 }
 
+/** The placed plants of this plant on view in the plan (never a gone or filtered-out one, or a hidden layer's). */
+const sameOnView = (plantId: string) =>
+  state.shapes.filter((x) => x.type === 'circle' && x.plantId === plantId && shownWith(x, state.viewFilter)).map((x) => x.id);
+/** Whether every shape is a placed plant whose plant is known here: what can be swapped for another. */
+const allPlants = (shapes: Shape[]) => shapes.length > 0 && shapes.every((x) => x.type === 'circle' && !!x.plantId && !!plantsById[x.plantId]);
+/** The picker, to swap these placed plants for another (src/plants.ts linkFromPicker): locked ones too, as chosen. */
+function openSwap(shapes: Shape[]) {
+  state.pickerLinkId = shapes[0].id;
+  state.pickerLinkAlso = shapes.slice(1).map((x) => x.id);
+  state.pickerLinkLocked = true;
+  plantFilter.q = '';
+  state.panel = 'plants';
+  render();
+}
+/**
+ * A placed plant's actions on the planting (Jason, Oct 30): select every one of it on view, and swap it for a
+ * different plant, keeping its place, status and notes. In view at the top of its pane, not folded in a section.
+ */
+function plantActions(s: Shape): HTMLElement | null {
+  const p = s.type === 'circle' && s.plantId ? plantsById[s.plantId] : undefined;
+  if (!p) return null;
+  const row = el('div', { className: 'plant-actions', 'data-testid': 'plant-actions' });
+  const same = sameOnView(p.id);
+  if (same.length > 1) {
+    const all = el('button', { className: 'btn ghost', 'data-testid': 'select-all-same', title: `Select every ${p.common} on view in this plan` }, `Select all ${same.length}`);
+    all.addEventListener('click', () => { state.selectedIds = sameOnView(p.id); state.panel = null; toast(`All ${state.selectedIds.length} ${p.common} selected.`); render(); });
+    row.appendChild(all);
+  }
+  const swap = el('button', { className: 'btn ghost', 'data-testid': 'swap-plant' }, 'Swap for another plant\u2026');
+  swap.addEventListener('click', () => openSwap([s]));
+  row.appendChild(swap);
+  return row;
+}
+
 export function renderPropsPanelMulti(selected: Shape[]) {
   const body = el('div', { className: 'sheet-body' });
   body.appendChild(el('div', { className: 'banner' },
@@ -657,6 +700,13 @@ export function renderPropsPanelMulti(selected: Shape[]) {
     }
     const relinked = selected.filter((s) => s.type === 'circle' && s.plantId).length;
     if (relinked) body.appendChild(el('div', { className: 'hint', 'data-testid': 'link-all-note' }, `${relinked} of them ${relinked === 1 ? 'is' : 'are'} linked to a plant already and will change too.`));
+  }
+
+  // Placed plants: swapped for another all at once (Jason, Oct 30), keeping their places, status and notes.
+  if (allPlants(selected)) {
+    const swap = el('button', { className: 'btn secondary', 'data-testid': 'swap-all' }, `Swap all ${selected.length} for another plant\u2026`);
+    swap.addEventListener('click', () => openSwap(selected));
+    body.appendChild(swap);
   }
 
   // More of the same plant, then duplicate, copy, delete

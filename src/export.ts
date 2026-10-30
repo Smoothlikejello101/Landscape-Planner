@@ -16,7 +16,7 @@ import { LABEL_LINE_HEIGHT, plantLabelFit } from './labels';
 import { canopyInnerRadius, canopyPoints, isTree, partsToSvg, trunkParts, trunkReachPx } from './trees';
 import { groundcoverRadius, supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
 import { bandBlooms, colorIn, coverBlooms, levelOf } from './looks';
-import { lookFor, lookMarkup, lookMonthOf, lookShown } from './plant-looks';
+import { lookFor, lookMarkup, lookMonthOf, lookShown, plannedEdge } from './plant-looks';
 
 let lookClips = 0;
 
@@ -83,7 +83,7 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
     const op = look ? (planned ? 0.75 : 0.9) : planned ? (s.opacity ?? 0.65) * 0.5 : s.opacity ?? 0.65;
     const name = displayLabel(s);
     const px = (l: { x: number; y: number }[]) => l.map((p) => ({ x: (p.x - originX) * scale, y: (p.y - originY) * scale }));
-    const blooms = !look || inMonth?.bloom === 'no' ? '' : cover ? coverBlooms(px(cover), look, Math.max(16 * k, 1.5 * scale)) : bandBlooms(px(band), w, look, Math.max(16 * k, 1.6 * scale));
+    const blooms = !look || inMonth?.bloom === 'no' ? '' : cover ? coverBlooms(px(cover), look, Math.max(10 * k, 1 * scale)) : bandBlooms(px(band), w, look, Math.max(10 * k, 1 * scale));
     // (On an arbor, over its top.)
     return (cover ? `<polygon points="${pts(cover)}" fill="${color}" fill-opacity="${op}" stroke="${color}" stroke-opacity="${op}" stroke-width="${1.5 * k}" stroke-linejoin="round"/>`
       : `<polyline points="${pts(band)}" fill="none" stroke="${color}" stroke-opacity="${op}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`)
@@ -98,7 +98,8 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
     const cx = (s.x - originX) * scale, cy = (s.y - originY) * scale, r = (ground ?? s.radius) * scale;
     // A plant drawn as an illustration, as on the plan (src/looks.ts): drawn at its size on the screen (r / k), scaled.
     const look = lookShown(s);
-    const paint = `fill="${look ? 'none' : s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}`;
+    const edge = look && planned ? plannedEdge(s) : stroke; // (planned: in the picture's colors, as on the plan)
+    const paint = `fill="${look ? 'none' : s.color}" fill-opacity="${opacity}" stroke="${edge}" stroke-width="${strokeWidth}"${dash}`;
     let out = '';
     if (look) {
       const rr = r / k, id = `export-look-${++lookClips}`;

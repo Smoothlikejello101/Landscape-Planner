@@ -87,9 +87,9 @@ describe('crowding', () => {
   });
   it('a vine shares no height with a tree (planted to climb it), but crowds what else grows beside it', () => {
     const vines: Record<string, Plant> = { ...byId, vine: { id: 'vine', common: 'Crossvine', form: 'Vine', width: { min: 6, max: 10, med: 8 }, height: { min: 30, max: 50, med: 40 } } as Plant };
-    const shapes = [p('oak', 0, { plantId: 'oakH' }), p('vine', 3, { plantId: 'vine' }), p('shrub', 8, { plantId: 'shrubH' })];
+    const shapes = [p('oak', 0, { plantId: 'oakH' }), p('vine', 3, { plantId: 'vine' }), p('shrub', 5.5, { plantId: 'shrubH' })];
     const near = (id: string) => crowdingOf(shapes.find((s) => s.id === id)!, shapes, vines).map((x) => x.other.id);
-    expect(near('vine')).toEqual(['shrub']); // (5 ft apart; usual 7, all their height shared)
+    expect(near('vine')).toEqual(['shrub']); // (2½ ft apart; usual 4, its base's and the shrub's, all their height shared)
     expect(near('oak')).toEqual([]);
   });
   it('with heights, crowds only as much as the leaves share heights: a tree\'s crown from a third of its height', () => {

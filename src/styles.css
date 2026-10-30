@@ -51,6 +51,10 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .sel-pill button.edit { background: #1c1917; color: #fff; border-radius: 999px; padding: 4px 14px; min-height: 40px; font-size: calc(13px * var(--ts)); font-weight: 500; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .sel-pill button.pill-points { background: #f5f5f4; color: #1c1917; border: 1px solid #d6d3d1; border-radius: 999px; padding: 4px 12px; min-height: 40px; font-size: calc(13px * var(--ts)); font-weight: 500; flex-shrink: 0; }
 .sel-pill button.pill-more { background: #ccfbf1; color: #115e59; border-radius: 999px; padding: 4px 14px; min-height: 40px; font-size: calc(13px * var(--ts)); font-weight: 600; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+.sel-pill button.pill-close { background: none; color: #57534e; border-radius: 999px; width: 40px; min-height: 40px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin: 0 -6px 0 -4px; }
+.sel-pill button.pill-close svg { width: 18px; height: 18px; }
+.plant-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 2px 0 10px; }
+.plant-actions .btn { flex: 1 1 auto; }
 .multi-bar { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); background: #1c1917; color: #fff; border-radius: 999px; box-shadow: 0 4px 12px rgba(0,0,0,0.2); padding: 4px; display: flex; align-items: center; gap: 2px; font-size: calc(12px * var(--ts)); z-index: 6; width: max-content; max-width: calc(100% - 16px); }
 .multi-bar .count { padding: 6px 12px; font-weight: 600; white-space: nowrap; }
 .multi-bar button { padding: 8px 10px; min-width: 44px; min-height: 44px; justify-content: center; border-radius: 999px; color: #fff; display: flex; align-items: center; gap: 4px; font-size: calc(12px * var(--ts)); }

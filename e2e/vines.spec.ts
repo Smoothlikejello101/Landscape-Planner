@@ -142,3 +142,33 @@ test('an arbor drawn, a vine placed by it is offered it and covers it; a trellis
   await page.getByTestId('draw-bar').getByRole('button', { name: 'Done' }).click();
   await expect(page.locator('#canvas-svg [data-role=trellis-lattice]')).toHaveCount(1);
 });
+
+// On the ground (Jason, Oct 29–30): a patch as wide as its spacing; with none on record, at its base (2 ft across),
+// not its catalog width (Carolina jessamine's 20–30 ft is how far it spreads along a support). A faint dotted ring
+// out to its spread either way.
+test('a vine on the ground: a patch as wide as its spacing; with none on record, at its base; a faint ring at its spread', async ({ page }) => {
+  await openFresh(page);
+  const ring = page.locator('#canvas-svg [data-role=vine-reach-ring]');
+  const drawnR = async () => Number(await page.locator('#canvas-svg circle[data-shape-id]').last().getAttribute('r'));
+  const ppf = async () => 24 * (await zoomPct(page)) / 100;
+  await startPlacing(page, 'Carolina jessamine');
+  await tapFromCenter(page, 0, 0);
+  await done(page);
+  await expect(ring).toHaveCount(1);
+  expect((await drawnR()) / (await ppf())).toBeCloseTo(1, 1); // (its base: 1 ft out)
+  expect(Number(await ring.getAttribute('r')) / (await ppf())).toBeCloseTo(12.5, 0); // (its spread: 25 ft across)
+  await tapFromCenter(page, 0, 0);
+  await page.locator('.sel-pill button.edit').click();
+  await expect(page.getByTestId('climbing')).toContainText("On the ground, drawn at its base: no source we've read says how far apart to plant it; the dotted ring is how far it can run.");
+  await closeSheet(page);
+  await page.keyboard.press('Escape');
+  // Virgin's bower: 1 ft apart (Prairie Nursery), a patch 1 ft across.
+  await startPlacing(page, "Virgin's bower");
+  await tapFromCenter(page, -6, 6);
+  await done(page);
+  await expect(ring).toHaveCount(2);
+  expect((await drawnR()) / (await ppf())).toBeCloseTo(0.5, 1);
+  await tapFromCenter(page, -6, 6);
+  await page.locator('.sel-pill button.edit').click();
+  await expect(page.getByTestId('climbing')).toContainText('A patch on the ground as wide as its spacing; the dotted ring is how far it can run.');
+});

@@ -3,7 +3,7 @@ import { saveYard, yardOf } from '../yard';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery } from '../search';
-import { formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, isGroupHead } from '../plants';
+import { formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { SPREAD_WAYS, spreadWays } from '../spread';
@@ -125,8 +125,10 @@ function setFiltersOpen(v: boolean) {
 export function renderPlantsPanel() {
   void loadWild(afterWild);
   const linking = !!state.pickerLinkId;
+  // (Placed plants to swap for another: Jason, Oct 30.)
+  const swapping = linking && [state.pickerLinkId!, ...state.pickerLinkAlso].every((id) => { const s = state.shapes.find((x) => x.id === id); return !!s?.plantId && !!plantsById[s.plantId]; });
   const forTree = !linking && state.pickerForTree;
-  const title = linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker' + (PLANTS.length ? ' (' + countWord(PLANTS.filter((p) => !p.invasive).length + activeMyPlants().length) + ')' : '');
+  const title = swapping ? 'Swap for another plant' : linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker' + (PLANTS.length ? ' (' + countWord(PLANTS.filter((p) => !p.invasive).length + activeMyPlants().length) + ')' : '');
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, title),
     (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', closePicker); return b; })()
@@ -134,7 +136,10 @@ export function renderPlantsPanel() {
 
   const body = el('div', { className: 'sheet-body' });
   const linkCount = 1 + state.pickerLinkAlso.length;
-  if (linking) body.appendChild(el('div', { className: 'banner' }, linkCount > 1
+  if (swapping) body.appendChild(el('div', { className: 'banner', 'data-testid': 'swap-banner' }, linkCount > 1
+    ? `Pick the plant to swap these ${linkCount} for. They keep their places, status and notes, and take its name, size and color.`
+    : 'Pick the plant to swap it for. It keeps its place, status and notes, and takes the plant\'s name, size and color.'));
+  else if (linking) body.appendChild(el('div', { className: 'banner' }, linkCount > 1
     ? `Pick the plant these ${linkCount} circles stand for. They keep their places and take the plant's name and size.`
     : 'Pick the plant this circle stands for. It keeps its place and takes the plant\'s name and size.'));
   if (forTree) {
@@ -196,7 +201,7 @@ export function renderPlantsPanel() {
       facts.appendChild(el('span', { className: lines.hardy.ok ? '' : 'hardy-no', 'data-testid': 'row-hardy' }, lines.hardy.text));
     }
     const info = el('div', { className: 'pinfo' },
-      el('div', { className: 'pname' }, p.common),
+      el('div', { className: 'pname' }, headName(p)),
       lines.names ? el('div', { className: 'pmeta', 'data-testid': 'row-names' }, lines.names) : null,
       facts.childNodes.length ? facts : null,
     );
@@ -246,8 +251,8 @@ export function renderPlantsPanel() {
     // Place and copy or edit sit beside it, not inside it.
     const toggle = el('button', { className: 'row-toggle', 'aria-expanded': 'false', 'data-testid': 'plant-row' }, dot, info, chev);
     const head = el('div', { className: 'proj-row', style: { alignItems: 'center' } }, toggle);
-    const verb = linking ? 'Link' : forTree ? 'Pick' : state.placing ? 'Switch' : 'Place';
-    const place = el('button', { className: 'btn place-btn', 'data-testid': 'plant-place', 'aria-label': `${verb === 'Link' ? 'Link to' : verb === 'Switch' ? 'Switch to' : verb} ${p.common}` }, verb);
+    const verb = swapping ? 'Swap' : linking ? 'Link' : forTree ? 'Pick' : state.placing ? 'Switch' : 'Place';
+    const place = el('button', { className: 'btn place-btn', 'data-testid': 'plant-place', 'aria-label': `${verb === 'Link' ? 'Link to' : verb === 'Switch' ? 'Switch to' : verb === 'Swap' ? 'Swap for' : verb} ${p.common}` }, verb);
     place.addEventListener('click', () => pick(p));
     head.appendChild(place);
     // Mine: edit. Catalog: copy as my own (a cultivar of it, say).

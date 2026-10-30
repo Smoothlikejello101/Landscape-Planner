@@ -650,6 +650,17 @@ function foldIndex() {
 }
 /** A species' cultivars in the catalog, or a group's (none for a cultivar, or a plant of mine). */
 export const cultivarsOf = (p: Plant): Plant[] => foldIndex().cultivars.get(p.id) ?? [];
+/**
+ * A species as the picker names it, heading its cultivars: where two or more of them go by its genus ("Gardenia
+ * 'Frostproof'", "Gardenia 'Crown Jewel'") and its own name doesn't ("Cape jasmine"), the genus beside it, as a
+ * group's other name is (Jason, 2026-10-30: "the butterfly bush treatment"): "Cape jasmine (Gardenia)".
+ */
+export function headName(p: Plant, cultivars: Pick<Plant, 'common'>[] = cultivarsOf(p)): string {
+  const genus = p.parent ? '' : (p.botanical ?? '').trim().split(/\s+/)[0];
+  if (!/^[A-Z][a-z]+$/.test(genus) || p.common.toLowerCase().includes(genus.toLowerCase())) return p.common;
+  const byGenus = cultivars.filter((c) => c.common.startsWith(genus + ' ')).length;
+  return byGenus >= 2 ? `${p.common} (${genus})` : p.common;
+}
 /** A cultivar's species in the catalog, if it has one there. */
 export const speciesOfCultivar = (p: Plant): Plant | undefined => (p.parent ? foldIndex().byId.get(p.parent) : undefined);
 /** What a cultivar folds under: its species, else the group of its genus's cultivars (a heading, not a plant). */
@@ -779,6 +790,8 @@ export function linkShapesToPlant(shapeIds: string[], p: Plant): number {
     if (s.type !== 'circle') continue;
     // (Sized from the plant it was linked to before: that size says nothing about this one as it stands.)
     const dataSized = isDataSized(s);
+    // Swapped from another plant (Jason, Oct 30): its color too, unless it was picked by hand.
+    if (s.plantId && plantsById[s.plantId] && !s.colorSet) s.color = plantColor(p);
     s.plantId = p.id;
     s.label = p.common;
     s.role = 'plant';
@@ -818,8 +831,11 @@ export function linkFromPicker(p: Plant) {
   if (!ids.length) { state.selectedIds = []; state.linkOffer = null; return; }
   // (Its label before it takes the plant's name.)
   const label = state.shapes.find((s) => s.id === ids[0])?.label;
+  // (Placed plants swapped for another: said so.)
+  const swapping = ids.every((id) => { const s = state.shapes.find((x) => x.id === id); return !!s?.plantId && !!plantsById[s.plantId]; });
   const n = linkShapesToPlant(ids, p);
   state.selectedIds = ids;
+  if (swapping) { state.linkOffer = null; toast(`${n === 1 ? 'Swapped' : `${n} swapped`} for ${p.common}.`); return; }
   if (several) { state.linkOffer = null; toast(`${n} circle${n === 1 ? '' : 's'} linked to ${p.common}.`); return; }
   const same = unlinkedWithLabel(label, ids), locked = unlinkedWithLabel(label, ids, { locked: true });
   state.linkOffer = same.length || locked.length ? { fromId: ids[0], plantId: p.id, label: label!.trim(), ids: same, locked } : null;

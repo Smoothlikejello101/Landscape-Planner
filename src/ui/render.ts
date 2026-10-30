@@ -386,6 +386,10 @@ export function render() {
         b.addEventListener('click', () => { more.start(); render(); });
         pill.appendChild(b);
       }
+      // Select nothing (Jason, Oct 30): a plan covered in lawn and beds may have no background left to tap.
+      const off = el('button', { className: 'pill-close', 'data-testid': 'pill-deselect', title: 'Deselect', 'aria-label': 'Deselect', html: I.x });
+      off.addEventListener('click', () => { clearSelection(); render(); });
+      pill.appendChild(off);
       canvasWrap.appendChild(pill);
     }
   }

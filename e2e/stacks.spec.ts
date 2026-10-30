@@ -39,7 +39,7 @@ test('a second tap picks what\'s under it, round the stack, said the first time;
 test('a tree\'s trunk is over a groundcover patch around it: a tap on it picks the tree', async ({ page }) => {
   await openFresh(page);
   await place(page, 'Eastern redbud', 0, 0);
-  await place(page, 'Carolina jessamine', 0.5, 0); // (a groundcover patch 25 ft across, over the trunk)
+  await place(page, 'Carolina jessamine', 0.5, 0); // (on the ground, drawn at its base, 2 ft across: over the trunk)
   await page.keyboard.press('Escape');
   const trunk = (await page.locator('#canvas-svg [data-role=trunk-hit]').boundingBox())!;
   await page.waitForTimeout(450);

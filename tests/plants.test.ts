@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { byMatch, closeMatchIn, inNotes, matchPlant, nearShows, readQuery } from '../src/search';
-import { bloomMatch, groupKey, groupName, pluralName, earlierOnly, filterOn, matchedBy, seasonMonths, trueToColor, nonToxicToDogs, PLANT_FILTER_DEFAULTS, pickerCount, plantMatches, reportedPhrase, rowFlags, rowLines, shareDogWarnings, speciesOf, sunSaid, toxicToDogs, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
+import { bloomMatch, groupKey, groupName, headName, pluralName, earlierOnly, filterOn, matchedBy, seasonMonths, trueToColor, nonToxicToDogs, PLANT_FILTER_DEFAULTS, pickerCount, plantMatches, reportedPhrase, rowFlags, rowLines, shareDogWarnings, speciesOf, sunSaid, toxicToDogs, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
 import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs, spreadWays } from '../src/spread';
 import { readFileSync } from 'node:fs';
 import { HEIGHT_STOPS, heightLabel, heightStops, heightValue } from '../src/ui/height-range';
@@ -515,6 +515,27 @@ describe('the mature-height slider', () => {
     expect([heightValue(0, last), heightValue(0, 7), heightValue(9, last), heightValue(4, 7)]).toEqual(['', '-10', '20-', '4-10']);
     expect(['', '-10', '20-', '4-10'].map(heightLabel)).toEqual(['Any height', 'Up to 10 ft', '20 ft and taller', '4–10 ft']);
     expect([heightStops(''), heightStops('4-10'), heightStops('-10'), heightStops('24-')]).toEqual([[0, last], [4, 7], [0, 7], [9, last]]); // (24 ft: the nearest stop, 20)
+  });
+});
+
+describe('a species heading its cultivars', () => {
+  const cape = { id: 'gardenia-jasminoides', common: 'Cape jasmine', botanical: 'Gardenia jasminoides' } as Plant;
+  const named = (...n: string[]) => n.map((common) => ({ common }));
+  it("has its genus beside its name where two or more of them go by it (Jason, 2026-10-30)", () => {
+    expect(headName(cape, named("Gardenia 'Frostproof'", "Gardenia 'Crown Jewel'", "Cape jasmine 'Radicans'"))).toBe('Cape jasmine (Gardenia)');
+    expect(headName(cape, named("Gardenia 'Frostproof'", "Cape jasmine 'Radicans'"))).toBe('Cape jasmine'); // (one isn't many)
+    expect(headName(cape, [])).toBe('Cape jasmine');
+    // (Its name says it already; a cultivar is named as it is.)
+    const bigleaf = { id: 'h', common: 'Bigleaf hydrangea', botanical: 'Hydrangea macrophylla' } as Plant;
+    expect(headName(bigleaf, named("Hydrangea 'Endless Summer'", "Hydrangea 'Nikko Blue'"))).toBe('Bigleaf hydrangea');
+    expect(headName({ ...cape, parent: 'x' }, named("Gardenia 'A'", "Gardenia 'B'"))).toBe('Cape jasmine');
+  });
+  it('in the shipped catalog: Cape jasmine (Gardenia), Maidenhair tree (Ginkgo) and others', () => {
+    const shipped = JSON.parse(readFileSync('public/plants.json', 'utf8')).plants as { id: string; common: string; botanical: string; parent?: string }[];
+    const kids = new Map<string, { common: string }[]>();
+    for (const c of shipped) if (c.parent) kids.set(c.parent, [...(kids.get(c.parent) ?? []), c]);
+    const named2 = shipped.filter((p) => kids.has(p.id)).map((p) => headName(p as Plant, kids.get(p.id))).filter((n) => n.endsWith(')'));
+    expect(named2).toEqual(expect.arrayContaining(['Cape jasmine (Gardenia)', 'Maidenhair tree (Ginkgo)', 'Chinese fringe-flower (Loropetalum)', 'Big blue lilyturf (Liriope)']));
   });
 });
 
