@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Plant } from '../src/plants';
-import { bandBlooms, bloomKind, coverBlooms, flowerColorOf, levelOf, lookOf, lookSvg } from '../src/looks';
+import { bandBlooms, bloomKind, coverBlooms, flowerColorOf, levelOf, lookOf, lookSvg, ownBloomColors } from '../src/looks';
 import { LOOK_MAX_R, lookMarkup } from '../src/plant-looks';
 import type { CircleShape } from '../src/types';
 import { withLocalParts } from '../src/sync/engine';
@@ -76,6 +76,22 @@ describe('a plant drawn from its catalog facts', () => {
     expect(lookSvg(look, 40, 'a')).toContain('#f2c230');
     expect(lookSvg(look, 15, 'a')).toContain('#f2c230');
     expect(lookSvg(look, 6, 'a')).toContain('#f2c230');
+  });
+  it("blooms no bigger than their share of a small plant: its green shows between them (Jason, Oct 29: 'blobs of color')", () => {
+    const look = lookOf(plant({ form: 'Perennial', flower_color: ['pink'] }), '#000');
+    const discs = (svg: string, fill: string) => [...svg.matchAll(/<circle[^>]*\br="([\d.]+)"[^>]*fill="([^"]+)"/g)].filter((m) => m[2] === fill).map((m) => Number(m[1]));
+    const pink = '#e0679f';
+    // (At mid zoom a 14 px perennial's blooms reach at most three eighths of it; a bigger one's keep their full size.)
+    expect(Math.max(...discs(lookSvg(look, 14, 'a', 'mid'), pink))).toBeLessThanOrEqual(14 * 0.375 + 0.05);
+    expect(Math.max(...discs(lookSvg(look, 28, 'a', 'mid'), pink))).toBeCloseTo(16 * 1.05 * 1.15 * 0.5, 1);
+  });
+  it("a plant of the user's own: in the bloom color they gave it; a catalog plant's unsourced earlier color isn't drawn", () => {
+    const mine = { id: 'u-abc', common: "Strawberry 'Albion'", form: 'Perennial', bloom: { start: 3, end: 4, color: 'White' } } as Plant;
+    expect(lookOf(mine, '#ff0000').pal.fl).toBe('#f7f4ec');
+    expect(lookOf({ ...mine, bloom: { color: 'Pale lavender' } }, '#ff0000').pal.fl).toBe('#8a62c9');
+    expect(lookOf({ ...mine, bloom: undefined }, '#ff0000').pal.fl).toBeUndefined();
+    expect(lookOf(plant({ bloom: { start: 5, end: 10, color: 'Red' } }), '#000').pal.fl).toBeUndefined();
+    expect(ownBloomColors('Red and gold')).toEqual(['red', 'yellow']);
   });
 });
 
