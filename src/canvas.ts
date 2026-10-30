@@ -320,6 +320,15 @@ export function shapeGroup(s: Shape): SVGGElement {
     const angle = boxLabelAngle(s.rotation || 0);
     rotTransform = angle ? `rotate(${angle} ${cx} ${cy})` : '';
   }
+  // An outline (a property line drawn as a rectangle or an outline): only its thin, dashed edge is painted, so a
+  // finger missed it every time (round 2 testing, Oct 30). A wide invisible edge takes the taps, as a line's does.
+  if (outline && !hitEl && shapeEl && s.type !== 'line') {
+    hitEl = shapeEl.cloneNode(false) as SVGElement;
+    hitEl.removeAttribute('data-shape-id'); // (not data-shape-id: that's the line as drawn, as a tree's trunk)
+    for (const [k, v] of Object.entries({ 'data-outline-of': s.id, 'data-role': 'outline-hit', stroke: 'transparent', 'stroke-width': String(hitBand(ppf)), 'pointer-events': inert ? 'none' : 'stroke' })) hitEl.setAttribute(k, v);
+    hitEl.removeAttribute('stroke-dasharray');
+    shapeEl.setAttribute('pointer-events', 'none');
+  }
   const target = hitEl ?? shapeEl;
   target.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
   const g = svgEl('g', { 'data-shape-group': s.id }, ...(under ? [under] : []), shapeEl);
@@ -709,12 +718,20 @@ export function redrawHandles() {
  * the full render(): Android fires a resize when the keyboard opens, and a
  * full render would destroy the input being typed into.
  */
+/** The plan's width when last measured (none yet: the first measure moves nothing). */
+let measuredW: number | null = null;
 export function resizeCanvas() {
   const wrap = document.getElementById('canvas-wrap');
   const svg = canvasSvg();
   if (!wrap || !svg) return;
   const rect = wrap.getBoundingClientRect();
-  state.canvasW = Math.max(100, Math.round(rect.width));
+  const w = Math.max(100, Math.round(rect.width));
+  // A window made narrower or wider (a phone turned, a window resized) keeps what was in the middle in the middle,
+  // across: the plan stayed pinned at its left edge, and the bed selected went off screen (Diego, Oct 30). Not
+  // up and down: the keyboard opening shortens it, and the plan stays put for that.
+  if (measuredW != null && w !== measuredW) state.offsetX -= (w - measuredW) / 2 / pxPerFoot();
+  measuredW = w;
+  state.canvasW = w;
   state.canvasH = Math.max(100, Math.round(rect.height));
   svg.setAttribute('width', String(state.canvasW));
   svg.setAttribute('height', String(state.canvasH));

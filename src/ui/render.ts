@@ -14,7 +14,7 @@ import { clearSelection, getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { typeName } from '../util';
 import { fmtFeet, screenToFeet } from '../geometry';
-import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, setTypedLength, shapeName, typedApplies, typedLabel, startEditPoints, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
+import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishTypedRect, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, setTypedLength, shapeName, typedApplies, typedLabel, startEditPoints, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
 import type { TapSnap } from '../types';
 import { redrawHandles } from '../canvas';
 import { parseTypedLength } from '../draw-numbers';
@@ -581,8 +581,9 @@ function renderDrawBar(): HTMLElement {
     if (typedApplies(d)) {
       const t = el('input', { type: 'text', inputMode: 'decimal', enterKeyHint: 'done', autocomplete: 'off', value: d.typed != null ? String(d.typed) : '', placeholder: '–', 'aria-label': `${typedLabel(d)} in feet`, 'data-testid': 'typed-length' }) as HTMLInputElement;
       t.addEventListener('input', () => { setTypedLength(parseTypedLength(t.value)); redrawHandles(); });
-      // (Enter or Done puts the keyboard away, so the plan is there to tap.)
-      t.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); t.blur(); } });
+      // (Enter or Done puts the keyboard away, so the plan is there to tap; a rectangle's other side, typed, is made then,
+      // on the side the mouse was on, or facing the middle of the screen: src/draw.ts finishTypedRect.)
+      t.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); t.blur(); if (finishTypedRect()) render(); } });
       const typed = el('label', { className: 'draw-width typed-length' }, el('span', {}, typedLabel(d)), t, el('span', {}, 'ft'));
       if (d.kind === 'path') {
         // (Beside a path's width the row would push Done off a narrow phone: the two fields get a row of their own.)

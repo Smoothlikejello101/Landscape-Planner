@@ -354,9 +354,12 @@ export const countWord = (n: number): string => n.toLocaleString('en-US');
  * The picker's count line: how many plants show, of how many it offers, and, while browsing, that the invasive
  * ones it leaves out turn up when searched for (so the gap never reads as a filter left on).
  */
-export function pickerCount(shown: number, offered: number, invasivesOut: number): string {
+export function pickerCount(shown: number, offered: number, invasivesOut: number, invasivesShown = 0): string {
+  // (Out of the plants offered, the title's number, always: a search adds the invasives it finds by name beside it, not
+  // to the total (testers, Oct 30: "3,725" in the title, "of 3,747" once they searched).)
   const head = shown === offered ? `All ${countWord(offered)} plants` : `${countWord(shown)} of ${countWord(offered)} plants match`;
-  return head + (invasivesOut ? ` \u00b7 ${countWord(invasivesOut)} invasive plant${invasivesOut === 1 ? ' shows' : 's show'} only when searched by name` : '');
+  const found = invasivesShown ? `, and ${countWord(invasivesShown)} invasive plant${invasivesShown === 1 ? '' : 's'} found by name` : '';
+  return head + found + (invasivesOut ? ` \u00b7 ${countWord(invasivesOut)} invasive plant${invasivesOut === 1 ? ' shows' : 's show'} only when searched by name` : '');
 }
 /** Whether a plant passes the picker's filters. `inPlan`: ids of plants placed in the open plan. */
 export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): boolean {
@@ -371,7 +374,9 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   // (Plants at the edge of their range count: the list marks them. So does a plant rated for cooler zones that's
   // recorded growing wild in the garden's county or one bordering it: it has been found living through those
   // summers. Not one rated for warmer zones: a record of an escaped garden annual says nothing about winters.)
-  if (f.hardyHere && state.location) {
+  // (One's own plant with no zones (its form has no field for them) isn't hidden: Lena and Diego, Oct 30, found
+  // theirs gone from My plants with the hardy box ticked, as it is by default, and nothing said.)
+  if (f.hardyHere && state.location && !(p.id.startsWith('u-') && p.zone_min == null && p.zone_max == null)) {
     const fit = zoneFit(p, state.location);
     if (!hardyEnough(fit) && !(fit === 'warm' && wildNearby(p))) return false;
   }

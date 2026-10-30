@@ -297,8 +297,8 @@ export function shapesAt(clientX: number, clientY: number): Shape[] {
   const ids: string[] = [];
   for (const el of document.elementsFromPoint(clientX, clientY)) {
     if (el.closest('[data-layer="handles"]')) continue;
-    const owner = el.closest('[data-shape-id],[data-trunk-of],[data-feature-of]') as SVGElement | HTMLElement | null;
-    const id = owner?.dataset.shapeId ?? owner?.dataset.trunkOf ?? owner?.dataset.featureOf;
+    const owner = el.closest('[data-shape-id],[data-trunk-of],[data-feature-of],[data-outline-of]') as SVGElement | HTMLElement | null;
+    const id = owner?.dataset.shapeId ?? owner?.dataset.trunkOf ?? owner?.dataset.featureOf ?? owner?.dataset.outlineOf;
     if (id && !ids.includes(id)) ids.push(id);
   }
   return ids.map((id) => state.shapes.find((s) => s.id === id)).filter((s): s is Shape => !!s);
@@ -455,7 +455,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
  */
 function tapThroughHandle(clientX: number, clientY: number) {
   const under = document.elementsFromPoint(clientX, clientY).find((el) => !el.closest('[data-layer="handles"]')) as SVGElement | HTMLElement | undefined;
-  const id = under?.dataset?.shapeId ?? under?.dataset?.trunkOf ?? under?.dataset?.featureOf;
+  const id = under?.dataset?.shapeId ?? under?.dataset?.trunkOf ?? under?.dataset?.featureOf ?? under?.dataset?.outlineOf;
   const shape = id ? state.shapes.find((s) => s.id === id) : undefined;
   if (shape) handleShapeTap(shape, { x: clientX, y: clientY });
   else { clearSelection(); state.panel = null; tapTracker.id = null; tapTracker.time = 0; }
@@ -504,6 +504,14 @@ export function onShapePointerDown(e: PointerEvent, shape: Shape) {
     return;
   }
 
+  // Select mode, on a shape not picked: a drag lassos, as the banner says, and a tap picks it (Priya, Oct 30: a drag
+  // there moved the patio, then a bed with plants the phase filter hid). A drag on what's picked moves the picks.
+  if (state.selectMode && !isSelected(shape.id) && !state.draw && !state.editPoints && !state.placing && !state.featurePlace) {
+    const feet = screenToFeet(e.clientX, e.clientY);
+    gesture.current = { type: 'marquee', startX: e.clientX, startY: e.clientY, startFeet: feet, currentFeet: feet, moved: false, tapShapeId: shape.id };
+    state.marquee = { x1: feet.x, y1: feet.y, x2: feet.x, y2: feet.y };
+    return;
+  }
   const cur = screenToFeet(e.clientX, e.clientY);
   // Dragging a member of a multi-selection drags the whole selection.
   const selectedIds = isSelected(shape.id) && state.selectedIds.length > 1 ? state.selectedIds.slice() : [shape.id];

@@ -399,14 +399,29 @@ test('the search clears in one tap, and a search the filters empty says which fi
   await expect(search).toHaveValue('');
   await expect(search).toBeFocused(); // (the keyboard stays)
   await expect(page.getByTestId('clear-search')).toBeHidden();
-  // A filter that hides everything the search finds.
+  // A filter that hides everything the search finds; Show them takes off that one only (Marcus, Oct 30: it cleared all).
   await openFilters(page);
   await page.getByText('Takes wet soil', { exact: true }).click();
+  await page.getByText('Clay OK', { exact: true }).click();
   await search.fill('Autumn Bride');
-  await expect(page.getByTestId('hidden-by')).toContainText(/plants? match.* “Autumn Bride”, hidden by your filters: Takes wet soil/);
+  await expect(page.getByTestId('hidden-by')).toContainText(/plants? match.* “Autumn Bride”, hidden by your filters: Takes wet soil\./);
   await page.getByTestId('show-hidden').click();
   await expect(page.locator('.plant-item', { hasText: "Heuchera 'Autumn Bride'" }).first()).toBeVisible();
   await expect(page.getByTestId('plant-search')).toHaveValue('Autumn Bride'); // (the search stays)
+  // Set aside for this search only: every filter stays on, said so, and they're back for the next search.
+  await expect(page.getByTestId('set-aside')).toContainText('Showing what your filters hid for “Autumn Bride” (Takes wet soil)');
+  await expect(page.getByRole('checkbox', { name: 'Clay OK', exact: true })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Takes wet soil', exact: true })).toBeChecked();
+  await search.fill('Autumn Brid');
+  await expect(page.getByTestId('set-aside')).toHaveCount(0);
+  await expect(page.getByTestId('hidden-by')).toContainText('hidden by your filters: Takes wet soil');
+  await page.getByRole('checkbox', { name: 'Takes wet soil', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Clay OK', exact: true }).click();
+  // Some found, more hidden: said above them (Ruth, Oct 30: "milkweed" with "Not poisonous" on found two).
+  await page.getByRole('checkbox', { name: 'Clay OK', exact: true }).click();
+  await search.fill('heuchera');
+  await expect(page.locator('.plant-item').first()).toBeVisible();
+  await expect(page.getByTestId('hidden-by')).toContainText(/\d+ more plants? match.* “heuchera”, hidden by your filters: Clay OK/);
   // Found by what it feeds, in words.
   await page.getByTestId('plant-search').fill('mourning cloak');
   await expect(page.getByTestId('host-match').first()).toContainText(/Its leaves feed the caterpillars of: .*mourning cloak/i);
@@ -470,7 +485,7 @@ test('the filters say what they\'re set to: a dropdown names itself, a month met
   await page.getByTestId('reset-filters').click();
   await page.getByTestId('in-plan').click();
   await expect(page.getByTestId('in-plan')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('picker-count')).toContainText(/^0 of /);
+  await expect(page.getByTestId('picker-count')).toContainText(/^No plants placed in this plan yet/);
 });
 
 test('what makes a plant\'s winter interest, each part with its source: showy bark, fruit into winter', async ({ page }) => {

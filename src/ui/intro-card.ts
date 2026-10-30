@@ -14,7 +14,7 @@ import { PLANT_FILTER_DEFAULTS, plantFilter, plantMatches, plantsById, plantTake
 import { hardyEnough, zoneFit } from '../climate';
 import { nativeHere, regulatedHere } from '../wild';
 import { sunAt, sunLevel } from '../sun';
-import { applyYard, saveYard, yardFilter, yardOf, type Yard } from '../yard';
+import { applyYard, saveHardy, saveYard, yardFilter, yardOf, type Yard } from '../yard';
 import {
   NEW_RECORD, STEP_NUMBER, STEP_TITLE, UNSCALED, applies, nextStep, parseIntroRecord, plantCardText, prevStep, resumeStep, shrubToFind,
   stepDone, type IntroRecord, type Snapshot, type StepId,
@@ -170,7 +170,7 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
     } : {
       // (How to leave a panel, said once, at the first one (Jason, Oct 29: "do I need to save somehow?").)
       text: `Your ZIP gives the garden's hardiness zone and frost dates. Only its first three digits leave your device. When you're done with a panel, ${tap()} the plan to close it: everything saves as you go.`,
-      short: 'Enter your ZIP, then Look up.',
+      short: state.location?.zip ? `Your zone and frost dates are below. ${Tap()} the plan to close this and go on.` : 'Enter your ZIP, then Look up.',
       action: { label: 'Enter your ZIP', run: () => openLocation() },
     };
     case 'photo': return rec.base?.scale != null && rec.base.scale !== UNSCALED ? {
@@ -228,7 +228,7 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
           run: () => {
             startKind('plant');
             // (The picker opens with what the earlier steps set: hardy here, and the bed's sun.)
-            if (zip) plantFilter.hardyHere = true;
+            if (zip) { plantFilter.hardyHere = true; saveHardy(true); }
             if (sun) plantFilter.sun = sun;
           },
         },
@@ -240,7 +240,7 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
       const ring = !!placed && fullRingRadius(placed) != null;
       return {
         text: ring
-          ? 'The circle is its typical size. The dashed ring is how big it gets full-grown. Give it room: when rings overlap, the app tells you.'
+          ? 'The circle is its typical size. The dashed ring is how big it gets full-grown. Give it room: plant two closer than usual and the app tells you.'
           : 'Its circle is how big it gets full-grown. (A plant whose size has a range shows its typical size, with a dashed ring for full-grown.) Give it room: when circles overlap, the app tells you.',
         done: 'Got it',
       };
@@ -308,7 +308,10 @@ function drawIntro(root: HTMLElement): void {
     if (rec.project !== state.currentProjectId) { rec.project = state.currentProjectId; rec.base = snapshot(); save(); }
     // (A photo's own step with the photo gone: on to the next, not counted as done.)
     if (rec.step && !applies(rec.step, snapshot(), rec.done)) { rec.step = nextStep(rec.step, rec, snapshot()); rec.base = snapshot(); if (!rec.step) { finish(); return; } save(); }
-    if (rec.step && rec.base && stepDone(rec.step, rec.base, snapshot())) advance('done');
+    // (The ZIP looked up: its zone and frost dates stay to be read; the next step waits for the panel to close (testers,
+    // Oct 30: step 2 came up over it, asking for a photo with no way to give one).)
+    const reading = rec.step === 'zip' && state.panel === 'location';
+    if (rec.step && rec.base && !reading && stepDone(rec.step, rec.base, snapshot())) advance('done');
     if (rec.status !== 'active' || !rec.step) return;
   }
   const card = choosing ? resumeCard() : stepCard();

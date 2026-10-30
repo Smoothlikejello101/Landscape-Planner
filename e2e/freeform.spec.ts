@@ -84,6 +84,21 @@ test('draw a fence line: a boundary with a length, easy to tap', async ({ page }
   await expect(page.locator('.sel-pill .name')).toHaveText('Back fence');
 });
 
+test('a property line drawn as an outline can be picked again by tapping near its edge', async ({ page }) => {
+  await openFresh(page);
+  await addKind(page, 'property', 'poly');
+  for (const [x, y] of [[2, 2], [12, 2], [12, 10], [2, 10]]) await tapFt(page, x, y);
+  await bar(page).getByRole('button', { name: 'Done' }).click();
+  await expect(page.locator('.sel-pill .name')).toHaveText('Property line');
+  // Deselect (inside it is the yard: a tap there picks nothing), then tap a few pixels off its dashed edge.
+  const box = await canvasBox(page);
+  await page.mouse.click(box.x + 7 * FT, box.y + 6 * FT);
+  await expect(page.locator('.sel-pill')).toHaveCount(0);
+  await page.waitForTimeout(400);
+  await page.mouse.click(box.x + 7 * FT, box.y + 10 * FT + 5);
+  await expect(page.locator('.sel-pill .name')).toHaveText('Property line');
+});
+
 test('edit points: drag, add with +, delete, undo', async ({ page }) => {
   await openFresh(page);
   await addKind(page, 'plain', 'poly');

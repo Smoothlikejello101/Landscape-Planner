@@ -1,3 +1,5 @@
+import { state } from '../state';
+
 // Brief, non-blocking status messages ("Backup saved").
 
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -18,7 +20,8 @@ export function toast(message: string, ms = 3000) {
   requestAnimationFrame(() => placeToast(n));
   node.classList.add('show');
   if (timer) clearTimeout(timer);
-  timer = setTimeout(() => node!.classList.remove('show'), ms);
+  // (Its words go with it: a screen reader, and the page's text, kept reading old notices long after: round 2, Oct 30.)
+  timer = setTimeout(() => { n.classList.remove('show'); timer = setTimeout(() => { if (!n.classList.contains('show')) n.textContent = ''; }, 400); }, ms);
 }
 
 /**
@@ -119,8 +122,15 @@ export function toastAction(message: string, actions: { label: string; run: () =
  * Run after every render (a sheet opening under a notice moves it).
  */
 export function placeNotice() {
+  // A plain notice up when the screen changed (a sheet opened over where it was): placed again, at the top over a
+  // sheet (round 2, Oct 30: "Tap again for the bed under it." sat on the plant's edit pane).
+  const plain = document.getElementById('toast');
+  if (plain?.classList.contains('show')) placeToast(plain);
   const node = document.getElementById('toast-action');
   if (!node) return;
+  // A notice about a shape that's gone (undone, deleted): gone with it (Ruth, Oct 30: a crowding notice stayed after
+  // Undo took the plant back, and its Move it then had nothing to move).
+  if (node.dataset.about && !state.shapes.some((x) => x.id === node.dataset.about)) { node.remove(); return; }
   node.style.top = '';
   const sheet = document.querySelector('.sheet');
   if (!sheet) return;

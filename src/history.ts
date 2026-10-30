@@ -64,5 +64,9 @@ export function redo() {
   applySnapshot(state.history[state.historyIndex]);
   save();
 }
-export function canUndo(): boolean { return state.historyIndex > 0; }
+/**
+ * Whether there's a step to undo: one taken, or one still being gathered (a run of arrow nudges, typing in a field),
+ * which Undo takes first (Alex, Sam, Oct 30: the button stayed grey after a nudge, though Ctrl+Z undid it).
+ */
+export function canUndo(): boolean { return state.historyIndex > 0 || historyTimer !== null; }
 export function canRedo(): boolean { return state.historyIndex < state.history.length - 1; }

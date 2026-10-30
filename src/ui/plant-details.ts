@@ -9,6 +9,8 @@ import { rootSpread, rootText, seedText } from '../spread';
 import { butterflyCaps } from '../search';
 import { zoneRange } from '../climate';
 import type { Provenance } from '../catalog';
+/** "1 kind", "12 kinds" (Priya, Alex, Oct 30: "1 kinds of caterpillars"). */
+const kinds = (n: number) => `${countWords(n)} kind${n === 1 ? '' : 's'}`;
 import { dayOfYear, escapeHere, escapeText, hostsHere, localBloom, localLeafOut, nativeHere, nativeText, regulatedHere, wildHere, wildText } from '../wild';
 
 const SURE: Record<string, string> = {
@@ -379,9 +381,9 @@ function hostRow(p: Plant): HTMLElement | null {
   if (p.host_genus) {
     const here = hostsHere(p), g = p.host_genus;
     const text = here
-      ? `Its genus, ${g.genus}: ${countWords(here.n)} kinds of native caterpillars in ${here.stateName} (${countWords(g.species)} in North America)`
+      ? `Its genus, ${g.genus}: ${kinds(here.n)} of native caterpillars in ${here.stateName} (${countWords(g.species)} in North America)`
         + (here.butterflies.length ? `. Butterflies among them: ${commonNames(here.butterflies)}` : '')
-      : `Its genus, ${g.genus}: ${countWords(g.species)} kinds of native caterpillars in North America`;
+      : `Its genus, ${g.genus}: ${kinds(g.species)} of native caterpillars in North America`;
     parts.push([text, [here?.source ?? sourceLine(p.prov?.host_genus), 'counted for the genus'].filter(Boolean).join(' \u00b7 '), 'hosts-genus']);
   }
   if (!p.hosts?.length && p.host) parts.push([butterflyCaps(p.host), sourceLine(p.prov?.host), 'hosts-earlier']);
@@ -474,8 +476,8 @@ export function groupSummary(id: string, p: Plant): string {
   } else if (id === 'wildlife') {
     if (p.attracts?.length) parts.push(p.attracts.join(', '));
     const here = p.host_genus ? hostsHere(p) : null;
-    if (here) parts.push(`its genus hosts ${countWords(here.n)} kinds of caterpillars here`);
-    else if (p.host_genus) parts.push(`its genus hosts ${countWords(p.host_genus.species)} kinds of caterpillars`);
+    if (here) parts.push(`its genus hosts ${kinds(here.n)} of caterpillars here`);
+    else if (p.host_genus) parts.push(`its genus hosts ${kinds(p.host_genus.species)} of caterpillars`);
     else if (p.hosts?.length || p.host) parts.push('a caterpillar host');
   } else if (id === 'safety') {
     const warn = safetyWarnings(p);

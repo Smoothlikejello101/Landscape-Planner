@@ -1,3 +1,4 @@
+import { saveHardy } from '../yard';
 import { CLIMATE_ACCESSED, FROST_SOURCE, formatMonthDay, lookUpZip, ZONE_SOURCE, type GardenLocation } from '../climate';
 import { el } from '../dom';
 import { I } from '../icons';
@@ -62,7 +63,7 @@ export function renderLocationPanel(): HTMLElement {
       typed = ''; setLocation(r.location);
       if (returnTo === 'plants') {
         // Asked from the plant picker: straight back, showing what's hardy here.
-        plantFilter.hardyHere = true;
+        plantFilter.hardyHere = true; saveHardy(true);
         toast(`Zone ${r.location.zone}: showing plants hardy there. Untick “Hardy in zone ${r.location.zone}” to see them all. Frost dates are in ⋮ → Garden location.`, 7000);
         closePanel();
         return;

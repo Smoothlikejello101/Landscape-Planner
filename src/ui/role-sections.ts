@@ -71,7 +71,7 @@ function summaryText(info: SunInfo): string {
 }
 
 /** Observed sun on a shade area: times (two-handle sliders) or total hours. */
-export function shadeSunSection(s: Shape): HTMLElement {
+export function shadeSunSection(s: Shape, onChange?: (sun: SunInfo) => void): HTMLElement {
   const wrap = el('div', { className: 'field', 'data-testid': 'sun-section' }, el('label', {}, 'Sun on this area'));
   if (!s.sun) {
     const add = el('button', { className: 'btn ghost', 'data-testid': 'record-sun' }, 'Record sun for this area');
@@ -85,6 +85,7 @@ export function shadeSunSection(s: Shape): HTMLElement {
   const setSilent = (patch: Partial<SunInfo>) => {
     updateSelectedSilent({ sun: { ...info(), ...patch } });
     summary.textContent = summaryText(info());
+    onChange?.(info()); // (the section's header line too: Dana and Grace, Oct 30, saw it keep the old hours)
   };
   const setAndRender = (patch: Partial<SunInfo>) => updateSelected({ sun: { ...info(), ...patch } });
 

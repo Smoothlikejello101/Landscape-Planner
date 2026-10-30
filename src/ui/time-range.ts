@@ -28,6 +28,9 @@ export function timeRange(value: [number, number], onInput: (v: [number, number]
   sync();
   const node = el('div', { className: 'time-range' },
     el('div', { className: 'tr-track' }, fill), a, b,
-    el('div', { className: 'tr-scale' }, el('span', {}, formatTime(DAY_START)), el('span', {}, 'noon'), el('span', {}, formatTime(DAY_END))));
+    // ("noon" where noon is on the track, not half way along it: the day runs 5 am to 9 pm, so half way is 1 pm (Dana,
+    // Oct 30: a handle set on "noon" read 1 pm).)
+    el('div', { className: 'tr-scale' }, el('span', {}, formatTime(DAY_START)),
+      el('span', { className: 'tr-noon', style: { left: `${((12 * 60 - DAY_START) / (DAY_END - DAY_START)) * 100}%` } }, 'noon'), el('span', {}, formatTime(DAY_END))));
   return { node, readout };
 }
