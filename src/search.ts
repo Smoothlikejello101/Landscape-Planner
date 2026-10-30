@@ -68,7 +68,7 @@ function plurals(w: string): Word {
  * A plant's names as words, read once (and again if they change: a plant of mine edited). `base`: its name without
  * a cultivar or a note in brackets ("Black-eyed Susan 'Goldsturm'" → "black eyed susan").
  */
-interface Indexed { key: string; name: string[]; bot: string[]; host: string; nameText: string; base: string; baseWords: string[]; botBase: string; also: string[][] }
+interface Indexed { key: string; name: string[]; bot: string[]; host: string; nameText: string; base: string; baseWords: string[]; botBase: string; also: string[][]; was: string[][] }
 /**
  * The caterpillars a plant feeds, as searched: those its sources name, the earlier list's sentence, and, where the
  * garden is, the butterflies recorded on its genus there ("monarch" finds milkweed).
@@ -80,7 +80,7 @@ const index = new WeakMap<Plant, Indexed>();
 const baseOf = (s: string | undefined) => (s ? searchText(s.replace(/['‘’][^'‘’]*['‘’]|\([^)]*\)/g, ' ')) : '');
 function indexed(p: Plant): Indexed {
   const hosts = hostWords(p);
-  const key = p.common + '\n' + (p.botanical ?? '') + '\n' + hosts + '\n' + (p.synonyms ?? []).join('\n');
+  const key = p.common + '\n' + (p.botanical ?? '') + '\n' + hosts + '\n' + (p.synonyms ?? []).join('\n') + '\n' + (p.botanical_synonyms ?? []).join('\n');
   const had = index.get(p);
   if (had && had.key === key) return had;
   const name = wordsOf(p.common);
@@ -88,6 +88,7 @@ function indexed(p: Plant): Indexed {
     key, name, bot: wordsOf(p.botanical), host: hosts ? searchText(hosts) : '', nameText: name.join(' '),
     base: baseOf(p.common), baseWords: baseOf(p.common).split(' '), botBase: baseOf(p.botanical),
     also: (p.synonyms ?? []).map((n) => wordsOf(n)),
+    was: (p.botanical_synonyms ?? []).map((n) => wordsOf(n)),
   };
   index.set(p, made);
   return made;
@@ -149,7 +150,7 @@ function nearIn(q: string, ws: string[]): number | null {
  * search, as plant names end with what they are ("Bur oak" for "oak"); 2 one starting with it as whole words ("Oak
  * fern"); 3 holding it as a phrase; 4 the rest. Ranks 4 and 5: by how near.
  */
-export interface Hit { rank: number; order: number; /** Found by another name it goes by: that name. */ also?: string }
+export interface Hit { rank: number; order: number; /** Found by another name it goes by: that name. */ also?: string; /** Found by an older botanical name: that name. */ was?: string }
 export function matchPlant(p: Plant, q: Query, near: boolean): Hit | null {
   const x = indexed(p);
   const orderFor = (t: string) => (x.nameText === t || x.base === t || x.botBase === t ? 0 : x.base.endsWith(' ' + t) ? 1
@@ -167,6 +168,9 @@ export function matchPlant(p: Plant, q: Query, near: boolean): Hit | null {
   if (also >= 0) return { rank: 1, order: order + 1, also: p.synonyms![also] };
   const inBoth = (q: Word) => inName(q) || startsIn(q.w, x.bot) || asOne(q, x.bot);
   if (q.words.every(inBoth)) return { rank: 2, order };
+  // (An older botanical name, as on older tags and in older books: "Mahonia aquifolium" finds Berberis aquifolium.)
+  const was = x.was.findIndex((ws) => q.words.every((w) => startsIn(w.w, ws)));
+  if (was >= 0) return { rank: 2, order: order + 1, was: p.botanical_synonyms![was] };
   // (Inside a word too, "oak" in "mourning cloak", kept for the butterflies' sake, after those starting a word.)
   if (x.host && q.words.every((q) => x.host.includes(q.w))) {
     const hostWords = x.host.split(' ');

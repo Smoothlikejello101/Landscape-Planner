@@ -316,6 +316,13 @@ describe('plant filters', () => {
     // Something that isn't searched, and nothing that is: nothing found (Dana searched "🌸", Oct 30, and got everything).
     expect([plantMatches(aster, f({ q: '🌸' })), plantMatches(aster, f({ q: '玫瑰' })), plantMatches(aster, f({ q: "'" }))]).toEqual([false, false, true]);
   });
+  it('finds a plant by an older botanical name, and says which (Kew\'s synonyms, Oct 30)', () => {
+    const oregon: Plant = { id: 'og', common: 'Oregon grape', botanical: 'Berberis aquifolium', botanical_synonyms: ['Mahonia aquifolium', 'Odostemon aquifolius'] };
+    expect(matchPlant(oregon, readQuery('mahonia')!, false)).toMatchObject({ rank: 2, was: 'Mahonia aquifolium' });
+    expect(matchPlant(oregon, readQuery('mahonia aquifolium')!, false)).toMatchObject({ rank: 2, was: 'Mahonia aquifolium' });
+    expect(matchPlant(oregon, readQuery('berberis')!, false)).toMatchObject({ rank: 2 });
+    expect(matchPlant(oregon, readQuery('berberis')!, false)?.was).toBeUndefined(); // (its own name first)
+  });
   it('reads a typed x as a hybrid\'s × (Tom, Oct 30)', () => {
     const abelia: Plant = { id: 'ab', common: 'Glossy abelia', botanical: 'Abelia × grandiflora' };
     expect(searchRank(abelia, 'abelia x grandiflora')).toBeGreaterThanOrEqual(0);

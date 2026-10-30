@@ -250,6 +250,7 @@ export function renderPlantsPanel() {
         const why = hostMatchText(p, q);
         if (why) info.appendChild(el('div', { className: 'pmatch', 'data-testid': 'host-match' }, why));
       } else if (hit?.also) info.appendChild(el('div', { className: 'pmatch', 'data-testid': 'match-also' }, `Also called ${hit.also}`));
+      else if (hit?.was) info.appendChild(el('div', { className: 'pmatch', 'data-testid': 'match-was' }, `Formerly ${hit.was} (an older botanical name)`));
       else if (!hit && isMine(p) && inNotes(p, q)) info.appendChild(el('div', { className: 'pmatch', 'data-testid': 'match-notes' }, 'Found in your notes'));
     }
     // What the law says of it here, in short ("Prohibited in Arkansas"): seen without opening it.
