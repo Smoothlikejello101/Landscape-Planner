@@ -5,7 +5,7 @@ import { atlasRecords, curatedNear, gadmCounties, gbifRecords, nativeStatus, SOU
 // @ts-expect-error (a plain .mjs script)
 import { canonical, placer, twoTaxa, usdaRecords } from '../scripts/catalog/usda-counties.mjs';
 // @ts-expect-error (a plain .mjs script)
-import { acceptedTaxon, nativeToNorthAmerica, northAmericaFacts, stateStatus } from '../scripts/catalog/wcvp.mjs';
+import { acceptedTaxon, nativeToNorthAmerica, northAmericaFacts, oldNameFacts, stateStatus } from '../scripts/catalog/wcvp.mjs';
 import { countyName, countyWord, escapeHere, escapeShort, escapeText, gardenStateName, lawShort, loadWild, nativeHere, nativeText, nativeAndListed, regulatedHere, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
 import { plantMatches, PLANT_FILTER_DEFAULTS, zoneNote, type Plant } from '../src/plants';
 import { state } from '../src/state';
@@ -141,6 +141,10 @@ describe("native status by state, from Kew's checklist", () => {
     expect(northAmericaFacts(catalog, { a: { na: true }, c: { na: true } })).toBe(1);
     expect(catalog.plants.map((r) => r.facts)).toEqual([{ native_na: { v: true, src: ['wcvp'] } }, {}, {}]);
     expect(catalog.meta.sources).toHaveProperty('wcvp');
+    // (Older botanical names, Kew's homotypic synonyms: on species records, never their own name.)
+    const named = { meta: { sources: {} }, plants: [{ id: 'oregon', botanical: 'Berberis aquifolium', facts: {} }, { id: 'cv', parent: 'oregon', botanical: "Berberis aquifolium 'Compacta'", facts: {} }, { id: 'x', botanical: 'X y', facts: { botanical_synonyms: { v: ['Old one'], src: ['wcvp'] } } }] };
+    expect(oldNameFacts(named, { oregon: { was: ['Mahonia aquifolium', 'Odostemon aquifolius'] }, cv: { was: ['Mahonia aquifolium'] }, x: { was: ['X y'] } })).toBe(1);
+    expect(named.plants.map((r) => r.facts)).toEqual([{ botanical_synonyms: { v: ['Mahonia aquifolium', 'Odostemon aquifolius'], src: ['wcvp'] } }, {}, {}]);
   });
 });
 

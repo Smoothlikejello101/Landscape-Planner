@@ -4,7 +4,8 @@
 // (from https://sftp.kew.org/pub/data-repositories/WCVP/wcvp.zip, unzipped there) and writes
 // catalog-src/wcvp-native.json: { id: { states: { fips: "N" | "I" }, species, name, na? } } (states {} for a plant WCVP
 // has in no US state; `name`, its accepted name, is what the regulated lists are matched by; `na` true where it's
-// native to Canada or the US mainland, written into public/plants.json as `native_na`), and
+// native to Canada or the US mainland, written into public/plants.json as `native_na`; `was`, its older botanical names,
+// as `botanical_synonyms`), and
 // catalog-src/wcvp-regulated.json: the accepted name of each species the regulated lists name (regulated.mjs),
 // { "listed name": "accepted name" }.
 //   node scripts/catalog/wcvp.mjs <combined.json>
@@ -68,6 +69,22 @@ export function nativeToNorthAmerica(rows) {
 }
 
 /**
+ * `botanical_synonyms` on each species record: its older botanical names, by Kew's checklist (`native`: wcvp-native.json's,
+ * by id, `was`): homotypic synonyms only, the same species under an earlier genus or spelling ("Mahonia aquifolium",
+ * "Sedum spectabile", "Aster novae-angliae"), the names on older tags and in older books; never its own name. Taken off
+ * every other record (a cultivar takes its species', in the app). Returns how many have some.
+ */
+export function oldNameFacts(catalog, native) {
+  let n = 0;
+  for (const rec of catalog.plants) {
+    const was = rec.parent ? [] : (native[rec.id]?.was ?? []).filter((x) => x !== rec.botanical);
+    if (was.length) { rec.facts.botanical_synonyms = { v: was, src: ['wcvp'] }; n++; }
+    else delete rec.facts.botanical_synonyms;
+  }
+  if (n) catalog.meta.sources.wcvp ??= WCVP_SOURCE;
+  return n;
+}
+/**
  * `native_na` on each species record Kew has native to Canada or the US mainland (`native`: wcvp-native.json's, by
  * id, `na` true); taken off every other record (a cultivar takes its species', in the app). Returns how many have it.
  */
@@ -126,6 +143,12 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
     if (t) taxa.set(b, t); else unmatched.push(b);
   }
   const ids = new Set([...taxa.values()].map((t) => t.id));
+  // (Each accepted species' homotypic synonyms: its older names. A second read of the names, now the ids are known.)
+  const older = new Map();
+  for await (const r of rowsOf(`${dir}/wcvp_names.csv`)) {
+    if (r.taxon_status !== 'Synonym' || r.taxon_rank !== 'Species' || r.homotypic_synonym !== 'T' || !ids.has(r.accepted_plant_name_id)) continue;
+    (older.get(r.accepted_plant_name_id) ?? older.set(r.accepted_plant_name_id, new Set()).get(r.accepted_plant_name_id)).add(r.taxon_name);
+  }
   const dist = new Map();
   for await (const r of rowsOf(`${dir}/wcvp_distribution.csv`)) if (ids.has(r.plant_name_id)) (dist.get(r.plant_name_id) ?? dist.set(r.plant_name_id, []).get(r.plant_name_id)).push(r);
   const out = {};
@@ -135,6 +158,8 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
     const rows = dist.get(t.id) ?? [];
     out[s.id] = { states: stateStatus(rows), species: s.species, name: t.name };
     if (nativeToNorthAmerica(rows)) out[s.id].na = true;
+    const was = [...(older.get(t.id) ?? [])].filter((n) => n !== t.name).sort();
+    if (was.length) out[s.id].was = was;
   }
   const regulated = Object.fromEntries(listed.map((n) => [n, taxa.get(n)?.name]).filter(([, a]) => a));
   writeFileSync('catalog-src/wcvp-regulated.json.tmp', JSON.stringify(regulated, null, 1) + '\n');
@@ -143,9 +168,10 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].split('/').pop()
   writeFileSync(`${path}.tmp`, JSON.stringify(out)); renameSync(`${path}.tmp`, path);
   // (Native to Canada or the US mainland, into the catalog: the caterpillar-host rule's.)
   const na = northAmericaFacts(catalog, out);
+  const olderNames = oldNameFacts(catalog, out);
   writeFileSync('public/plants.json.tmp', catalogText(catalog));
   renameSync('public/plants.json.tmp', 'public/plants.json');
-  console.log(`${na} plants native to Canada or the US mainland (native_na)`);
+  console.log(`${na} plants native to Canada or the US mainland (native_na); ${olderNames} with older botanical names (botanical_synonyms)`);
   // (Names a person checked are read as Kew's accepted name, by its authors: scripts/catalog/decisions.json
   // `kewNames`. A later checklist that accepts the other homonym lists the name again.)
   const checked = JSON.parse(readFileSync('scripts/catalog/decisions.json', 'utf8')).kewNames ?? {};

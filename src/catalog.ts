@@ -113,7 +113,7 @@ export interface Provenance {
  */
 export const INHERITED = new Set([
   'form', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'humidity', 'tox', 'poison', 'dog', 'thorns', 'foliage', 'winter_leaves', 'needles',
-  'poison_parents', 'native', 'native_na', 'host', 'hosts', 'host_genus', 'nectar', 'bird', 'deer', 'edible', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'invasive', 'bloom_season',
+  'poison_parents', 'native', 'native_na', 'botanical_synonyms', 'host', 'hosts', 'host_genus', 'nectar', 'bird', 'deer', 'edible', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'invasive', 'bloom_season',
   'tolerates', 'problem_for', 'maintenance_level', 'bark', 'fruit_season', 'leaf_form', 'texture', 'climbs_by',
 ]);
 
@@ -298,6 +298,8 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
   hosts: (v) => Array.isArray(v) && v.length > 0 && new Set(v).size === v.length && v.every((x) => typeof x === 'string' && x.length >= 3 && x.length <= 80),
   // Native to Canada or the US mainland, by Kew's checklist (written only where it is): the caterpillar-host rule's.
   native_na: (v) => v === true,
+  // Its older botanical names, Kew's homotypic synonyms ("Mahonia aquifolium"): searched, as its own name is.
+  botanical_synonyms: (v) => Array.isArray(v) && v.length > 0 && v.length <= 30 && v.every((x) => typeof x === 'string' && /^[A-Z][a-z-]+ (× )?[a-z][a-z-]+/.test(x) && x.length <= 80),
   host_genus: (v) => isObj(v) && Object.keys(v).every((k) => k === 'genus' || k === 'species') && typeof v.genus === 'string' && /^[A-Z][a-z]+$/.test(v.genus)
     && Number.isInteger(v.species) && (v.species as number) > 0,
   edible: (v) => typeof v === 'boolean', fall_color: (v) => typeof v === 'boolean', winter_interest: (v) => typeof v === 'boolean',

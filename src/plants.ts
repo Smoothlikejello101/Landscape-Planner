@@ -73,6 +73,8 @@ export interface Plant {
   host_genus?: { genus: string; species: number };
   /** Native to Canada or the US mainland, by Kew's checklist (a cultivar: its species'). */
   native_na?: boolean;
+  /** Its older botanical names (Kew's homotypic synonyms: "Sedum spectabile"), searched (a cultivar: its species'). */
+  botanical_synonyms?: string[];
   edible?: boolean;
   fall_color?: boolean;
   /** Its fall leaf colors (src/catalog.ts FALL_COLORS). */
