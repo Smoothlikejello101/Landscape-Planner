@@ -24,6 +24,7 @@ export function placingPlant(): Plant | null {
 }
 export function startPlacing(p: Plant) {
   flushHistoryDebounce();
+  lastPlaced.t = -1e9; // (a new go: its first tap is never taken for a double tap on the last go's)
   state.draw = null;
   state.editPoints = null;
   state.featurePlace = null;
