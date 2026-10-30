@@ -186,6 +186,17 @@ export const SKIP_SITES = new Set([
   'growsonyou.com', 'growveg.com.au', // (crowd-sourced; another planner app's plant data)
   'shreeyasnaturals.com', 'youngmountaintea.com', 'mintoislandtea.com', 'boweringgardens.com', 'caledonianhorticulture.co.uk', // (not plant sources)
   'killlakeweeds.com', 'kiwicare.co.nz', 'newcastleflowersbydesign.com.au', 'environmenttreeservice.com',
+  // Found by the terms reviews of the spacing round, batch 5 (2026-10-29)
+  'myedenplants.com', 'plantindex.com', 'orchidstuffplus.com', 'completegardenguide.com', 'decorwithadream.com', 'diys.com', // (AI-written)
+  'fireofroots.co.uk', 'ficusplant.org', 'thetreecareguide.com', 'treecarezone.com', 'aridsage.com.au', 'gardenfine.com', // (AI-written or spun)
+  'gardeningbeyond.com', 'hometosight.com',
+  'shiatoshi.blogspot.com', // (Wikipedia's text)
+  'earthechoseeds.com', // (a dropship storefront)
+  'coloradogardening.co', 'allotmentplanner.com', // (other apps' plant lists, compiled from others')
+  'ravelry.com', 'appropedia.org', 'themulch.com', // (crowd-sourced)
+  'scielo.br', 'banglajol.info', 'indianjournals.com', // (journal aggregators)
+  'roofingrepaircollingwood.com', 'prairiesoapshack.com', 'petaldriven.com', 'firsttunnels.co.uk', 'eclecticschoolofherbalmedicine.com', // (not plant sources)
+  'flowerspicture.org', 'simplelawnslandscaping.com', 'weclinic.in', 'beyondforest.org', 'keepnassaubeautiful.org',
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
