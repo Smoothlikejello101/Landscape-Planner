@@ -79,6 +79,12 @@ export interface Plant {
   leaf_color?: string[];
   /** Whether its leaves stay through winter (for an herb, deciduous is dying back; a grass goes dormant). */
   foliage?: 'evergreen' | 'semi-evergreen' | 'deciduous';
+  /**
+   * Where no source gives `foliage`: what its winter is taken to be (scripts/catalog/winter.mjs): from its species'
+   * USA-NPN records (`records`: recorded bare, `n` plant-years), or its relatives in the catalog (`relatives`: `n`
+   * other species of its genus, all alike). Said as what's expected; never a filter's.
+   */
+  winter_leaves?: { leaves: 'evergreen' | 'semi-evergreen' | 'deciduous'; basis: 'records' | 'relatives'; n: number };
   /** Needled leaves (pines, junipers, arborvitae). */
   needles?: boolean;
   growth_rate?: 'slow' | 'medium' | 'fast';

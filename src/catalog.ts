@@ -112,7 +112,7 @@ export interface Provenance {
  * page for it; its species' is labeled as such.)
  */
 export const INHERITED = new Set([
-  'form', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'humidity', 'tox', 'poison', 'dog', 'thorns', 'foliage', 'needles',
+  'form', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'humidity', 'tox', 'poison', 'dog', 'thorns', 'foliage', 'winter_leaves', 'needles',
   'poison_parents', 'native', 'host', 'hosts', 'host_genus', 'nectar', 'bird', 'deer', 'edible', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'invasive', 'bloom_season',
   'tolerates', 'problem_for', 'maintenance_level', 'bark', 'fruit_season', 'leaf_form', 'texture', 'climbs_by',
 ]);
@@ -306,6 +306,8 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
   // Leaves: their colors, whether they stay through winter, needles; fall colors; how fast it grows.
   leaf_color: wordsOf(LEAF_COLORS), fall_colors: wordsOf(FALL_COLORS),
   foliage: (v) => FOLIAGE.includes(v as string), needles: (v) => typeof v === 'boolean',
+  // (Where no source gives foliage: its species' USA-NPN records, or its relatives: scripts/catalog/winter.mjs.)
+  winter_leaves: (v) => isObj(v) && FOLIAGE.includes(v.leaves as string) && (v.basis === 'records' || v.basis === 'relatives') && Number.isInteger(v.n) && (v.n as number) > 0,
   growth_rate: (v) => GROWTH_RATES.includes(v as string),
   // Who it attracts and what it tolerates, as NC State lists them (never a level); the animals it's a problem for (a
   // warning: one not listed isn't safe); its upkeep, as NC State rates it (the earlier list's `maintenance` is tasks).
