@@ -3,6 +3,8 @@ import {
   buildPlanSvg, gridStep, legendEntries, pdfSafe, planLayout, plantKeys, plantSchedule, printContent, scaleBarFeet, scaleText,
 } from '../src/print';
 import type { Plant } from '../src/plants';
+import { exportCaption, shapeToSvgString } from '../src/export';
+import { state } from '../src/state';
 import type { Shape } from '../src/types';
 
 const base = { color: '#16a34a', label: '', opacity: 0.65, locked: false };
@@ -51,14 +53,18 @@ describe('plant list', () => {
   it('counts plants by name within each bed, beds by name, loose plants last', () => {
     const groups = plantSchedule(shapes, plants);
     expect(groups.map((g) => [g.bed, g.total])).toEqual([['Front', 2], ['Unnamed bed 1', 1], ['Not in a bed', 2]]);
-    expect(groups[0].rows).toEqual([{ label: 'Coneflower', botanical: 'Echinacea purpurea', count: 2, key: 2 }]);
+    expect(groups[0].rows).toEqual([{ label: 'Coneflower', botanical: 'Echinacea purpurea', count: 2, key: 1 }]);
     expect(groups[2].rows.map((r) => r.label)).toEqual(['Coneflower', 'Unlabeled plant']);
   });
-  it('gives each plant name one key number everywhere', () => {
-    expect([...plantKeys(shapes)]).toEqual([['Aster', 1], ['Coneflower', 2], ['Unlabeled plant', 3]]);
+  it('gives each plant name one key number everywhere, in the order the plan got them: a rename renumbers nothing else (Grace)', () => {
+    expect([...plantKeys(shapes)]).toEqual([['Coneflower', 1], ['Aster', 2], ['Unlabeled plant', 3]]);
+    const renamed = shapes.map((s) => (s.id === 'p3' ? { ...s, label: 'Aromatic aster' } : s));
+    expect([...plantKeys(renamed)]).toEqual([['Coneflower', 1], ['Aromatic aster', 2], ['Unlabeled plant', 3]]);
+    // (Drawn in another order, tallest last: numbered by the plan's order all the same.)
+    expect([...plantKeys([...shapes].reverse(), shapes)]).toEqual([['Coneflower', 1], ['Aster', 2], ['Unlabeled plant', 3]]);
     const svg = buildPlanSvg(planLayout('letter', 'auto', printContent(shapes, null, false).bounds!), shapes, null,
       { includeBackground: false, includeGrid: false, includePlantList: true }, 100).svg;
-    expect(svg.match(/>2<\/text>/g)).toHaveLength(3); // three coneflowers
+    expect(svg.match(/>1<\/text>/g)).toHaveLength(3); // three coneflowers
     expect(svg).not.toContain('>Coneflower<');
   });
   it('is empty without plants', () => {
@@ -81,5 +87,27 @@ describe('legend and text', () => {
   });
   it('makes text safe for the PDF fonts', () => {
     expect(pdfSafe('Heuchera ‘Autumn Bride’ — 3× ☀ café')).toBe("Heuchera 'Autumn Bride' - 3×  café");
+  });
+});
+
+describe('the exported picture', () => {
+  it('says what Layers leaves out of it, and nothing when it shows everything (Priya, Oct 30)', () => {
+    state.shapes = [plant('p1', 'Aster', 0, 0), { ...bed('b', 'Front', 0, 0, 4, 4), role: 'lawn' } as Shape];
+    state.viewFilter = { status: '', phase: '', showGone: false };
+    state.roleViews = {};
+    expect(exportCaption()).toBe('');
+    state.viewFilter = { status: 'planned', phase: 'Spring 2027', showGone: false };
+    state.roleViews = { lawn: { hidden: true }, water: { hidden: true } }; // (no water on the plan: not said)
+    expect(exportCaption()).toBe('Showing planned plants in Spring 2027 only · Hidden in Layers: Lawn');
+    state.viewFilter = { status: '', phase: '', showGone: false };
+    state.roleViews = {};
+  });
+  it('marks a locked shape with a padlock, not a dashed edge; a sun area with its hours', () => {
+    const house = { ...bed('h', 'House', 0, 0, 10, 8), role: 'building', locked: true } as Shape;
+    const svg = shapeToSvgString(house, 0, 0, 10);
+    expect(svg).toContain('data-role="locked-badge"');
+    expect(svg).not.toContain('stroke-dasharray');
+    const sun = { ...bed('s', 'Front of house', 0, 0, 10, 8), role: 'shade', sun: { mode: 'hours', hours: 6 } } as Shape;
+    expect(shapeToSvgString(sun, 0, 0, 10)).toContain('Front of house · ☀ 6 h');
   });
 });

@@ -40,6 +40,8 @@ let committedImageKeys = new Set<string>();
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
 let saveChain: Promise<boolean> = Promise.resolve(true);
 let quotaWarned = false;
+/** Whether the last failed save failed for want of space on the device (the warning bar says so). */
+export const outOfSpace = () => quotaWarned;
 /** True after a save failed and nothing has saved successfully since. */
 let saveFailing = false;
 let onSaveStatus: (() => void) | null = null;
@@ -213,6 +215,8 @@ export function migrateBgImage(raw: Partial<BgImage>): BgImage {
     visible: raw.visible !== false,
     ...(isFingerprint(raw.fingerprint) ? { fingerprint: raw.fingerprint } : {}),
     ...(raw.deviceOnly === true ? { deviceOnly: true } : {}),
+    // (Not to scale yet; older photos have no word on it, and are taken as calibrated.)
+    ...(raw.uncalibrated === true ? { uncalibrated: true as const } : {}),
   };
 }
 const isFingerprint = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v);
@@ -228,8 +232,8 @@ export function sanitizePhotoRef(raw: unknown): PhotoRef | null {
 /** How a background photo is synced: its fingerprint and placement (`fingerprint` known), or kept here. */
 export function photoRefOf(bg: BgImage, fingerprint: string): PhotoRef {
   if (bg.deviceOnly) return { deviceOnly: true };
-  const { naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible } = migrateBgImage(bg);
-  return { fingerprint, naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible };
+  const { naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible, uncalibrated } = migrateBgImage(bg);
+  return { fingerprint, naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible, ...(uncalibrated ? { uncalibrated } : {}) };
 }
 const MINUTES_PER_DAY = 24 * 60;
 /** Validate observed-sun data; null if unusable. */
@@ -377,16 +381,16 @@ async function writeCurrent(): Promise<boolean> {
     if (savedSeq === editSeq) onSaveState?.();
     if (savedSeq === editSeq && state.currentProjectId === id) clearJournal(id);
     setSaveFailing(false);
+    quotaWarned = false;
     if (hadEdits) afterSave?.();
     return true;
   } catch (e) {
     // The write didn't happen; forget image keys from this batch so they're retried.
     for (const op of ops) if (op.store === 'images') storedImageKeys.delete(op.key);
     console.error('save failed', e); recordError(e, 'save');
-    if (!quotaWarned && e instanceof DOMException && e.name === 'QuotaExceededError') {
-      quotaWarned = true;
-      alert('Your device is out of storage space for this app, so recent changes could not be saved. Free some space, remove a large background image, or export your projects.');
-    }
+    // (Out of space: the warning bar says so, src/ui/save-warning.ts. Never a dialog: it would take the focus from a
+    // field being typed in, and close the phone's keyboard.)
+    if (e instanceof DOMException && e.name === 'QuotaExceededError') quotaWarned = true;
     // Keep a copy of the edits in case the app is closed now (at most every few
     // seconds: with a large unsaved image this is expensive). Page hide always writes one.
     if (now() - lastFailureJournalAt > 5000) { lastFailureJournalAt = now(); writeJournalIfDirty(); }

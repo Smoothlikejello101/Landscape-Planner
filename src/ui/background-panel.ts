@@ -5,6 +5,8 @@ import { account } from '../account';
 import { state } from '../state';
 import { render } from './render';
 import { snapRot } from '../util';
+import { ask } from './ask';
+import { toast } from './toast';
 
 export function renderBgPanel() {
   const bg = state.bgImage;
@@ -24,8 +26,8 @@ export function renderBgPanel() {
       // After a fresh upload, auto-start calibration. Otherwise the image
       // will be at whatever arbitrary scale it defaulted to.
       startBgCalibration();
-      // Show a hint via alert since we just closed the panel
-      alert('Image loaded. Tap the first known point on the image, then the second, then enter the real-world distance between them.');
+      // (What to do next: the calibration's own banner says it too.)
+      toast('Photo added. Tap two points on it you know the distance between, then type that distance.', 8000);
     }
     fileInput.value = ''; // allow re-picking the same file
   });
@@ -62,11 +64,14 @@ export function renderBgPanel() {
   // Scale readout
   const wFt = bg.naturalWidth * bg.ftPerPx;
   const hFt = bg.naturalHeight * bg.ftPerPx;
-  body.appendChild(el('div', { style: { fontSize: ts(12), color: '#57534e' } },
-    'Current scale: ' + (1 / bg.ftPerPx).toFixed(1) + ' pixels per foot',
-    el('br'),
-    'Image covers ~' + wFt.toFixed(1) + ' × ' + hFt.toFixed(1) + ' ft'
-  ));
+  body.appendChild(bg.uncalibrated
+    ? el('div', { className: 'banner', 'data-testid': 'bg-uncalibrated' },
+      'Not to scale yet: its size on the plan is a guess. Calibrate it: tap two points on the photo you know the distance between.')
+    : el('div', { style: { fontSize: ts(12), color: '#57534e' } },
+      'Current scale: ' + (1 / bg.ftPerPx).toFixed(1) + ' pixels per foot',
+      el('br'),
+      'Image covers ~' + wFt.toFixed(1) + ' × ' + hFt.toFixed(1) + ' ft'
+    ));
 
   // Calibrate button
   const calBtn = el('button', { className: 'btn primary', html: I.target + '<span style="margin-left:6px">Calibrate scale (tap 2 known points)</span>' });
@@ -169,8 +174,8 @@ export function renderBgPanel() {
 
   // Remove button
   const rmBtn = el('button', { className: 'btn danger', html: I.trash + '<span style="margin-left:6px">Remove background image</span>' });
-  rmBtn.addEventListener('click', () => {
-    if (confirm('Remove the background image? This will free up storage but you\'ll need to re-upload and re-calibrate to add it back.')) {
+  rmBtn.addEventListener('click', async () => {
+    if (await ask('Remove the background image? Undo brings it back for now; once that\u2019s gone, you\u2019ll need to add it and calibrate it again.', { ok: 'Remove it', danger: true })) {
       removeBgImage();
       state.panel = null;
       render();

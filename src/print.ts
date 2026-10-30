@@ -1,8 +1,8 @@
 import { bedOf, isBed, isPlant } from './beds';
 import { utilityLabel } from './utility-kinds';
-import { paintOrder } from './canvas';
+import { paintOrder, seeThroughIds } from './canvas';
 import { escapeHtml } from './dom';
-import { shapeToSvgString } from './export';
+import { shapeToSvgString, withSeeThrough } from './export';
 import { rotatedBoxBounds, shapeBBox, unionBounds } from './geometry';
 import type { Plant } from './plants';
 import { ROLES, roleKey, roleLabel } from './roles';
@@ -107,7 +107,7 @@ export function printContent(shapes: Shape[], bg: BgImage | null, includeBackgro
 export interface ScheduleRow { label: string; botanical: string; count: number; key: number }
 export interface ScheduleGroup { bed: string; rows: ScheduleRow[]; total: number }
 /** Plants counted by name, grouped by the bed they sit in (beds by name, then plants in no bed). */
-export function plantSchedule(shapes: Shape[], plantsById: Record<string, Plant | undefined>): ScheduleGroup[] {
+export function plantSchedule(shapes: Shape[], plantsById: Record<string, Plant | undefined>, order: Shape[] = shapes): ScheduleGroup[] {
   const plants = shapes.filter(isPlant);
   if (!plants.length) return [];
   const beds = shapes.filter(isBed);
@@ -128,20 +128,28 @@ export function plantSchedule(shapes: Shape[], plantsById: Record<string, Plant 
   }
   const names = [...groups.keys()].filter((n) => n !== NONE).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   if (groups.has(NONE)) names.push(NONE);
-  const keys = plantKeys(plants);
+  const keys = plantKeys(plants, order);
   return names.map((bed) => {
-    const rows = [...groups.get(bed)!.values()].sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
+    const rows = [...groups.get(bed)!.values()];
     for (const r of rows) r.key = keys.get(r.label)!;
+    rows.sort((a, b) => a.key - b.key); // (in key order: a number is found where it's expected)
     return { bed, rows, total: rows.reduce((n, r) => n + r.count, 0) };
   });
 }
 /**
- * Key numbers for the plan: one per plant name, alphabetical, so the same
- * plant has the same number in every bed. Printed in each circle instead of
- * the full name, which doesn't fit in small circles.
+ * Key numbers for the plan: one per plant name, so the same plant has the same number in every bed, printed in each
+ * circle instead of the full name, which doesn't fit in small circles. Numbered in the order the plan got them (the
+ * plan's own order, `order`: the order shapes were added): a plant renamed, or a new one placed, leaves the others'
+ * numbers as they were from one printout to the next (Grace, Oct 30: renaming her azalea renumbered the list).
  */
-export function plantKeys(plants: Shape[]): Map<string, number> {
-  const names = [...new Set(plants.filter(isPlant).map((p) => p.label.trim() || 'Unlabeled plant'))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+export function plantKeys(plants: Shape[], order: Shape[] = plants): Map<string, number> {
+  const at = new Map(order.map((s, i) => [s.id, i]));
+  const first = new Map<string, number>();
+  for (const p of plants.filter(isPlant)) {
+    const name = p.label.trim() || 'Unlabeled plant', i = at.get(p.id) ?? Infinity;
+    if (!first.has(name) || i < first.get(name)!) first.set(name, i);
+  }
+  const names = [...first.keys()].sort((a, b) => first.get(a)! - first.get(b)! || a.localeCompare(b, undefined, { numeric: true }));
   return new Map(names.map((n, i) => [n, i + 1]));
 }
 
@@ -181,7 +189,7 @@ export function gridStep(ftPerIn: number): number {
   return [1, 2, 5, 10, 20, 50, 100, 200, 500].find((s) => s / ftPerIn >= 0.1) ?? 1000;
 }
 /** SVG of the yard window at `pxPerIn` (shapes, optional grid and background). */
-export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage | null, opts: Pick<PrintSettings, 'includeBackground' | 'includeGrid' | 'includePlantList'> & { includeFullRings?: boolean }, pxPerIn: number): { svg: string; w: number; h: number } {
+export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage | null, opts: Pick<PrintSettings, 'includeBackground' | 'includeGrid' | 'includePlantList'> & { includeFullRings?: boolean; order?: Shape[] }, pxPerIn: number): { svg: string; w: number; h: number } {
   const { window: win, ftPerIn } = layout;
   const pxPerFt = pxPerIn / ftPerIn;
   const w = Math.round(layout.plan.w * pxPerIn), h = Math.round(layout.plan.h * pxPerIn);
@@ -208,12 +216,12 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
     bgSvg = `<image x="${cx - (wFt * pxPerFt) / 2}" y="${cy - (hFt * pxPerFt) / 2}" width="${wFt * pxPerFt}" height="${hFt * pxPerFt}" opacity="${bg.opacity}" preserveAspectRatio="none" href="${escapeHtml(bg.dataUrl)}"${rot}/>`;
   }
   // Plants show their key number (see the plant list) rather than their name.
-  const keys = opts.includePlantList ? plantKeys(shapes) : null;
+  const keys = opts.includePlantList ? plantKeys(shapes, opts.order) : null;
   const ring = (s: Shape) => {
     const r = opts.includeFullRings && s.type === 'circle' ? fullRingRadius(s) : null;
     return r ? `<circle cx="${(s.x - win.minX) * pxPerFt}" cy="${(s.y - win.minY) * pxPerFt}" r="${r * pxPerFt}" fill="none" stroke="${s.color}" stroke-width="${1.2 * k}" stroke-dasharray="${5 * k} ${4 * k}"/>` : '';
   };
-  const body = shapes.map((s) => ring(s) + (() => {
+  const body = withSeeThrough(seeThroughIds(shapes, NO_FILTER), () => shapes.map((s) => ring(s) + (() => {
     if (!keys || !isPlant(s)) return shapeToSvgString(s, win.minX, win.minY, pxPerFt, k);
     const key = keys.get(s.label.trim() || 'Unlabeled plant');
     let out = shapeToSvgString({ ...s, label: '' }, win.minX, win.minY, pxPerFt, k);
@@ -222,7 +230,7 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
     const fs = 11 * k;
     out += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${fs}" font-weight="700" fill="#0f172a" font-family="sans-serif" stroke="#ffffff" stroke-width="${2.5 * k}" paint-order="stroke" stroke-linejoin="round">${key}</text>`;
     return out;
-  })()).join('');
+  })()).join(''));
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" fill="#ffffff"/>${grid}${bgSvg}${body}</svg>`;
   return { svg, w, h };
 }

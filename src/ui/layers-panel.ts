@@ -23,6 +23,7 @@ import { applySizeMode, plantsToResize } from '../my-plants';
 import { boxSize, shapePerimeter } from '../geometry';
 import { typeName } from '../util';
 import { updateBgImageSilent } from '../background';
+import { ask } from './ask';
 
 const fmtFt = (v: number) => String(Math.round(v * 10) / 10);
 
@@ -95,7 +96,10 @@ export function renderLayersPanel() {
           svgEl('svg', { width: 32, height: 32, viewBox: '0 0 32 32' },
             svgEl('polyline', { points: '2,26 12,8 22,22 30,4', fill: 'none', stroke: s.color, 'stroke-width': 3, 'stroke-linejoin': 'round' })));
       }
-      const info = el('div', { className: 'layer-info' },
+      // (A button to a keyboard and a screen reader: Enter selects it, as a tap on the row does. Alex, Oct 30: only the
+      // padlocks could be reached with Tab.)
+      const name = s.label || 'unlabeled ' + typeName(s.type);
+      const info = el('div', { className: 'layer-info', role: 'button', tabIndex: 0, 'aria-label': `Select ${name}`, 'data-testid': 'layer-select' },
         s.label
           ? el('div', { className: 'layer-label' }, s.label)
           : el('div', { className: 'layer-label empty' }, 'Unlabeled ' + typeName(s.type)),
@@ -125,6 +129,7 @@ export function renderLayersPanel() {
         state.panel = null;
         render();
       });
+      info.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); row.click(); } });
       list.appendChild(row);
     }
   }
@@ -164,8 +169,8 @@ function showSection(): HTMLElement {
     for (const p of state.phases) {
       const n = state.shapes.filter((s) => s.phase === p).length;
       const del = el('button', { className: 'iconbtn', html: I.x, title: 'Remove phase', 'aria-label': 'Remove phase ' + p });
-      del.addEventListener('click', () => {
-        if (n && !confirm(`Remove the phase "${p}"? ${n} shape${n === 1 ? '' : 's'} in it will have no phase.`)) return;
+      del.addEventListener('click', async () => {
+        if (n && !(await ask(`Remove the phase \u201c${p}\u201d? ${n} shape${n === 1 ? '' : 's'} in it will have no phase.`, { ok: 'Remove it' }))) return;
         deletePhase(p); render();
       });
       list.appendChild(el('div', { className: 'phase-row' }, el('span', {}, p), el('span', { className: 'count' }, String(n)), del));
@@ -243,10 +248,11 @@ function plantSizeSection(): HTMLElement {
   const seg = el('div', { className: 'seg', role: 'group', 'aria-label': 'Draw plants at' });
   for (const [mode, label] of [['typical', 'Typical size'], ['full', 'Full size']] as const) {
     const b = el('button', { className: state.sizeMode === mode ? 'sel' : '', 'aria-pressed': String(state.sizeMode === mode) }, label);
-    b.addEventListener('click', () => {
+    b.addEventListener('click', async () => {
       if (state.sizeMode === mode) return;
       const n = plantsToResize(state.shapes, mode).length;
-      if (n && !confirm(`Redraw ${n} plant${n === 1 ? '' : 's'} at ${mode === 'full' ? 'full' : 'typical'} size? Plants you resized by hand keep their size.`)) return;
+      if (n && !(await ask(`Redraw ${n} plant${n === 1 ? '' : 's'} at ${mode === 'full' ? 'full' : 'typical'} size? Plants you resized by hand keep their size.`, { ok: 'Redraw them', testid: 'ask-size-mode' }))) return;
+      if (state.sizeMode === mode) return;
       applySizeMode(mode);
       render();
     });

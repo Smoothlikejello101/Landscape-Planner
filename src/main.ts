@@ -29,10 +29,12 @@ import { updateSaveWarning, updateSaveState } from './ui/save-warning';
 import { flushSave, initStorage, refreshClipboard, requestPersistence, save, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
 import { flashZoom, render } from './ui/render';
 import { dismissToastAction, toast } from './ui/toast';
-import { closeYear } from './ui/year-bar';
+import { closeYear, stepMonth } from './ui/year-bar';
 import { noteVisit } from './hints';
 import { installErrorLog } from './error-log';
 import { pxPerFoot } from './geometry';
+import { asking, dismissAsk, tell } from './ui/ask';
+import { installFocusKeeping } from './ui/focus';
 
 // The app's own errors, kept on this device for a support file (src/error-log.ts): from the start.
 installErrorLog();
@@ -65,6 +67,7 @@ document.addEventListener('focusin', (e) => {
 // canvas: a finger lifted over the toolbar must still end the gesture, or a
 // stale pointer makes the next touch look like a second finger (pinch).
 installTapGuard(); // (first: a stray tap is dropped before anything sees it; src/tap-guard.ts)
+installFocusKeeping(); // (with a keyboard, focus kept through redraws and inside sheets: src/ui/focus.ts)
 window.addEventListener('pointermove', onCanvasPointerMove, { passive: false });
 window.addEventListener('pointerup', onCanvasPointerUp);
 window.addEventListener('pointercancel', onCanvasPointerUp);
@@ -109,6 +112,7 @@ function holdsTyping(t: Element): boolean {
   return t instanceof HTMLInputElement && !['range', 'checkbox', 'radio', 'button', 'submit', 'color', 'file'].includes(t.type);
 }
 function onKey(e: KeyboardEvent) {
+  if (asking()) return; // (a question is up: its keys are its own, src/ui/ask.ts)
   // Don't capture while typing in inputs
   const target = e.target as Element | null;
   const tag = (target?.tagName || '').toLowerCase();
@@ -121,6 +125,9 @@ function onKey(e: KeyboardEvent) {
   // In any other sheet, Esc closes it from a button, a checkbox or a slider: only typing would be lost (Alex, Tom,
   // Oct 30: Esc did nothing in Layers with a padlock focused, nor in a sun record with its slider focused).
   if (e.key === 'Escape' && target?.closest?.('.overlay') && !holdsTyping(target)) { e.preventDefault(); if (closeOne()) render(); return; }
+  // Esc from the month's slider (or another box or slider on the plan's bars): what Esc does anywhere (Alex, Oct 30:
+  // with the slider focused, Esc left the month bar open).
+  if (e.key === 'Escape' && target && tag === 'input' && !holdsTyping(target)) { e.preventDefault(); if (closeOne()) render(); return; }
   if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
   // Keys pressed while a panel has focus (a chip, a menu) belong to the panel, never the plan.
   if (target?.closest?.('.overlay, .menu')) return;
@@ -132,6 +139,17 @@ function onKey(e: KeyboardEvent) {
   // Shift+1: the whole plan in view (by the key, not the character: on most layouts Shift+1 types "!").
   if (e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.code === 'Digit1') {
     e.preventDefault(); if (zoomToFit()) { render(); flashZoom(); } return;
+  }
+  // (The More menu open: the arrow keys are its, never the plan's behind it; from outside it, they go into it. Alex,
+  // Oct 30.)
+  if (state.menu && ARROWS[e.key]) {
+    e.preventDefault();
+    document.querySelector<HTMLElement>('.menu .menu-item:not(:disabled)')?.focus();
+    return;
+  }
+  // Through the year, left and right step the month, as its ‹ › do (Alex, Oct 30); with Shift, they pan as ever.
+  if (state.month != null && !state.panel && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+    e.preventDefault(); stepMonth(e.key === 'ArrowLeft' ? -1 : 1); render(); return;
   }
   if (ARROWS[e.key] && !e.ctrlKey && !e.metaKey && !e.altKey) { onArrow(e, ARROWS[e.key]); return; }
   if (state.placing && (e.ctrlKey || e.metaKey)) {
@@ -165,7 +183,7 @@ function onKey(e: KeyboardEvent) {
     if (state.draw || state.editPoints || state.bgEditMode || state.bgCalibrate) return;
     selectAllShown(); render();
   } else if (e.key === 'Delete' || e.key === 'Backspace') {
-    if (state.selectedIds.length) { e.preventDefault(); deleteSelectedAsking(); render(); }
+    if (state.selectedIds.length) { e.preventDefault(); void deleteSelectedAsking(); }
   } else if (e.key === 'Escape') {
     if (closeOne()) render();
   } else if (e.key === 'Enter' && state.placing && !state.panel && target?.tagName !== 'BUTTON') {
@@ -223,6 +241,7 @@ function guard() { if (!history.state?.fullgrownGuard) history.pushState(GUARD, 
 window.addEventListener('pointerdown', guard, true);
 window.addEventListener('keydown', guard, true);
 window.addEventListener('popstate', () => {
+  if (dismissAsk()) { guard(); return; } // (a question up: back answers no)
   if (closeOne()) { render(); guard(); return; }
   toast('Press back again to leave FullGrown.');
 });
@@ -285,7 +304,7 @@ async function start() {
   pushHistory(); // seed undo history with the loaded state
   render();
   if (migrationError) {
-    alert("Some projects from the previous version couldn't be copied (" + migrationError + "). They are still stored on this device; the app will try again next time it opens.");
+    void tell("Some projects from the previous version couldn't be copied (" + migrationError + "). They are still stored on this device; the app will try again next time it opens.");
   }
   void loadPlants();
   void loadWild(); // (the garden's county and its state's wild records, if it has a location)

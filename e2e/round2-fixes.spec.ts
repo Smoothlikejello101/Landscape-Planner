@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, openFilters, openFresh, shapeCount, tapFromCenter } from './helpers';
+import { addKind, answerAsk, openFilters, openFresh, shapeCount, tapFromCenter } from './helpers';
 
 // Round 2 of persona testing (Oct 30): the smaller fixes, each as a tester met it.
 
@@ -57,11 +57,11 @@ test('Esc closes Layers with one of its buttons focused, and leaves Measure with
 });
 
 test('switching plans and back keeps the undo steps (Sam: Clear all, another plan, back, and they were gone)', async ({ page }) => {
-  page.on('dialog', (d) => d.accept('Second'));
   await openFresh(page);
   await oneRect(page);
   await page.locator('.project-btn').click();
   await page.getByRole('button', { name: /New project/ }).click();
+  await answerAsk(page, true, 'Second');
   await expect(page.locator('.project-btn .pname')).toHaveText('Second');
   await expect.poll(() => shapeCount(page)).toBe(0);
   await page.locator('.project-btn').click();

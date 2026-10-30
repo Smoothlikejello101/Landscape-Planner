@@ -50,3 +50,30 @@ test("a color picked for a plant draws its picture's leaves, and Default color b
   await expect(look.locator('[fill="#6f9a4a"]').first()).toBeAttached();
   await expect(page.getByTestId('default-color')).toHaveCount(0);
 });
+
+test('the tallest plant is drawn on top, see-through over a plant growing under it (Jason, Oct 30)', async ({ page }) => {
+  await openFresh(page);
+  const place = async (name: string, dx: number) => {
+    await page.locator('.tool-btn.plants').click();
+    await page.getByTestId('plant-search').fill(name);
+    await page.locator('.sheet .proj-row', { hasText: name }).first().locator('[data-testid=plant-place]').click();
+    await tapFromCenter(page, dx, 0);
+    await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
+  };
+  await place('Creeping phlox', 0); // (placed first, then the shrub over it: the shrub still on top)
+  await page.keyboard.press('Escape');
+  await place('Buttonbush', 1);
+  const groups = page.locator('#canvas-svg [data-shape-group]');
+  const names = await groups.evaluateAll((gs) => gs.map((g) => g.querySelector('text')?.textContent ?? ''));
+  expect(names.findIndex((n) => /Buttonbush/.test(n))).toBeGreaterThan(names.findIndex((n) => /phlox/i.test(n)));
+  await expect(page.locator('#canvas-svg [data-role=plant-look][data-see-through=true]')).toHaveCount(1);
+  // A tap on the phlox, through the shrub, picks the phlox; elsewhere on the shrub, the shrub.
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(450); // (not a double tap)
+  await tapFromCenter(page, 0, 0);
+  await expect(page.locator('.sel-pill .name')).toHaveText('Creeping phlox');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(450);
+  await tapFromCenter(page, 3, 0);
+  await expect(page.locator('.sel-pill .name')).toHaveText('Buttonbush');
+});

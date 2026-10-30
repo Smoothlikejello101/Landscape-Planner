@@ -4,7 +4,7 @@ import { svgEl, type Attrs } from './dom';
 import { alongLabel, boxLabelAngle, boxSize, shapeBBox, shapeCenter, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, worldPoints } from './geometry';
 import { renderPathOverlay } from './draw';
 import { fullRingRadius } from './my-plants';
-import { crowdLevels, type CrowdLevel } from './crowding';
+import { bandOf, crowdLevels, type CrowdLevel } from './crowding';
 import { crowdOptions } from './crowd-here';
 import { renderPlaceOverlay } from './place';
 import { renderShapeHandles } from './handles';
@@ -220,13 +220,18 @@ export function shapeGroup(s: Shape): SVGGElement {
         : svgEl('circle', { cx: 0, cy: 0, r });
       const art = svgEl('g', { 'clip-path': `url(#${clipId})` });
       art.innerHTML = lookMarkup(s, r, seen ? levelOf(r) : 'yard');
+      // (See-through over a plant growing under it: Jason, Oct 30.)
+      const thin = seeThrough.has(s.id) ? 0.55 : 1;
+      const base = s.status === 'gone' ? 0.35 : s.status === 'planned' || isTree(s) ? 0.85 : 1;
       under = svgEl('g', { 'data-role': 'plant-look', transform: `translate(${cx} ${cy})`, 'pointer-events': 'none',
-        opacity: s.status === 'gone' ? 0.35 : s.status === 'planned' || isTree(s) ? 0.85 : null }, svgEl('clipPath', { id: clipId }, outline), art);
+        opacity: base * thin < 1 ? Math.round(base * thin * 100) / 100 : null, 'data-see-through': thin < 1 ? 'true' : null }, svgEl('clipPath', { id: clipId }, outline), art);
       common.fill = 'transparent';
       if (s.status === 'planned' && !sel) common.stroke = plannedEdge(s); // (in the picture's colors, not its shape's)
       // Through the year, a winter not known (no source says whether its leaves stay): a dotted ring says so.
       if (lookMonthOf(s)?.leaves === 'unknown') g0.push(svgEl('circle', { 'data-role': 'look-unknown', cx, cy, r: Math.max(2, r - 3), fill: 'none', stroke: '#57534e', 'stroke-width': 1.5, 'stroke-dasharray': '2 4', 'stroke-linecap': 'round', 'pointer-events': 'none' }));
     }
+    // (Drawn plain, see-through over what's under it, as its picture would be.)
+    if (!lookShown(s) && seeThrough.has(s.id)) { common['fill-opacity'] = Number(common['fill-opacity'] ?? 0.65) * 0.55; common['data-see-through'] = 'true'; }
     // A tree pruned into a shape: its outline instead of a circle.
     shapeEl = s.canopy
       ? svgEl('polygon', { ...common, points: canopyPoints(s, (x, y) => [(x - state.offsetX) * ppf, (y - state.offsetY) * ppf]), 'stroke-linejoin': 'round' })
@@ -505,11 +510,42 @@ export function paintOrder(shapes: Shape[], filter: ShapeFilter = state.viewFilt
   // (A vine on what it climbs, over it: a vine up a tree shows on its crown.)
   const k = (s: Shape) => tierOf(s) + (s.type === 'circle' && s.climbsOn ? 0.5 : 0);
   const out = shapes.filter((s) => shownWith(s, filter)).sort((a, b) => k(a) - k(b));
-  // Plants, biggest first, in the places plants hold (Jason, Oct 30): a small plant never hides under a big one,
-  // whatever order they were placed in. (Equal sizes keep their order; everything else stays where it was.)
+  // Plants, shortest first, in the places plants hold: the tallest on top, as it is in the yard, and drawn see-through
+  // where something grows under it (seeThrough). Jason, Oct 30 afternoon: biggest first, that morning's order, put
+  // the groundcover he'd planted under his shrubs on top of them. Equal heights: the bigger first; equal both, the
+  // plan's order; everything else stays where it was.
   const slots = out.flatMap((s, i) => (drawnBySize(s) ? [i] : []));
-  const sized = slots.map((i) => out[i]).sort((a, b) => drawnRadius(b) - drawnRadius(a));
+  const sized = slots.map((i) => out[i] as CircleShape).map((s) => ({ s, h: drawnHeight(s), r: drawnRadius(s) }))
+    .sort((a, b) => a.h - b.h || b.r - a.r).map((x) => x.s);
   slots.forEach((i, j) => { out[i] = sized[j]; });
+  return out;
+}
+/**
+ * A plant's height for the drawing order: its typical height (a tree's as set on the plan; src/crowding.ts bandOf);
+ * with none known, its spread, a stand-in (a tree is about as tall as it's wide; a plant of my own without one).
+ */
+export function drawnHeight(s: CircleShape): number {
+  return bandOf(s, plantsById).band?.[1] ?? drawnRadius(s) * 2;
+}
+/**
+ * The plants drawn see-through: those with a shorter plant under them, its middle within their circle (a groundcover
+ * under a shrub, a shrub under a tree). Two that only touch at their edges stay solid. Gone plants count for nothing.
+ */
+export function seeThroughIds(shapes: Shape[], filter: ShapeFilter = state.viewFilter): Set<string> {
+  const order = paintOrder(shapes, filter).filter(drawnBySize).filter((s) => s.status !== 'gone');
+  const rank = new Map(order.map((s, i) => [s.id, i]));
+  const byX = [...order].sort((a, b) => a.x - b.x);
+  const out = new Set<string>();
+  for (const u of order) {
+    const r = drawnRadius(u), at = rank.get(u.id)!;
+    // (The plants within its reach sideways, by a binary search on x: big plans stay quick.)
+    let lo = 0, hi = byX.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (byX[m].x < u.x - r) lo = m + 1; else hi = m; }
+    for (let k = lo; k < byX.length && byX[k].x <= u.x + r; k++) {
+      const l = byX[k];
+      if (rank.get(l.id)! < at && Math.hypot(l.x - u.x, l.y - u.y) < r) { out.add(u.id); break; }
+    }
+  }
   return out;
 }
 /** A plant (or a circle among them), drawn by its size rather than the plan's order; Arrange leaves it be. */
@@ -603,6 +639,10 @@ function circleLabel(s: CircleShape, ppf: number): FittedLabel | null | undefine
 
 /** Plants ringed as close or crowded (Layers switch, and always while placing); refreshed on each redraw. */
 let crowded = new Map<string, CrowdLevel>();
+/** Plants with something growing under them, drawn see-through (seeThroughIds); refreshed on each redraw. */
+let seeThrough = new Set<string>();
+/** Whether a plant is drawn see-through now, over a shorter one. */
+export const isSeeThrough = (id: string) => seeThrough.has(id);
 function refreshCrowding() {
   // (Not until the catalog is in: without plants' heights, plants that grow over and under each other look crowded.)
   crowded = (state.showCrowding || state.placing) && catalogReady() ? crowdLevels(state.shapes.filter((s) => shownWith(s, state.viewFilter)), plantsById, crowdOptions()) : new Map();
@@ -616,6 +656,7 @@ function refreshUtilities() {
 /** Clear and redraw the whole canvas. Never touches panel DOM. */
 export function redrawCanvas() {
   refreshCrowding();
+  seeThrough = seeThroughIds(state.shapes);
   refreshUtilities();
   refreshLabelLayout();
   const svg = canvasSvg();
@@ -674,6 +715,10 @@ export function redrawShapes(ids: string[]) {
     const changed = [...new Set([...before.keys(), ...crowded.keys()])].filter((id) => before.get(id) !== crowded.get(id));
     ids = [...new Set([...ids, ...changed])];
   }
+  // (A plant moved over or off another: those whose see-through changes are drawn again too.)
+  const wasThin = seeThrough;
+  seeThrough = seeThroughIds(state.shapes);
+  ids = [...new Set([...ids, ...[...new Set([...wasThin, ...seeThrough])].filter((id) => wasThin.has(id) !== seeThrough.has(id))])];
   // (A support dragged: the vines on it follow along.)
   const moving = new Set(ids);
   ids = [...ids, ...state.shapes.filter((v) => v.type === 'circle' && v.climbsOn && moving.has(v.climbsOn)).map((v) => v.id)];

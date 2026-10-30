@@ -12,6 +12,7 @@ import { render } from './render';
 import { accountSection } from './account-section';
 import { deleteNote } from '../sync/sync';
 import { toast } from './toast';
+import { ask, askText, tell } from './ask';
 
 function closeButton(onClick: () => void) {
   const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' });
@@ -21,8 +22,8 @@ function closeButton(onClick: () => void) {
 async function openProject(id: string) {
   if (!(await switchProject(id))) {
     if (!state.projects.some((p) => p.id === id)) { render(); return; } // deleted on another device just now (sync says so)
-    alert("Your latest changes couldn't be saved, so the project wasn't switched. Check that your device has free space, then try again.");
     render();
+    void tell("Your latest changes couldn't be saved, so the project wasn't switched. Check that your device has free space, then try again.");
     return;
   }
   if (!state.history.length) pushHistory(); // seed undo with the loaded state (unless its steps were kept: src/storage.ts)
@@ -52,7 +53,7 @@ function backupSection(): HTMLElement {
       const b = await backupAll(via);
       if (b) toast(backupSaid(b), 10000);
       render();
-    } catch (e) { alert('Backup failed: ' + errMsg(e)); }
+    } catch (e) { void tell('Backup failed: ' + errMsg(e)); }
   };
   const dl = el('button', { className: 'btn ghost', html: I.download + '<span>Back up all projects</span>' });
   dl.addEventListener('click', () => void runBackup('download'));
@@ -76,7 +77,7 @@ function backupSection(): HTMLElement {
       toast(`Imported ${ids.length} project${ids.length === 1 ? '' : 's'}` + (added ? ` and ${added} of your plants` : ''));
       if (ids.length === 1) await openProject(ids[0]);
       else render();
-    } catch (e) { alert(errMsg(e)); }
+    } catch (e) { void tell(errMsg(e)); }
   });
   const imp = el('button', { className: 'btn ghost', html: I.upload + '<span>Import from file</span>' });
   imp.addEventListener('click', () => fileInput.click());
@@ -106,7 +107,7 @@ export function renderProjectsPanel() {
       try {
         const file = await buildProjectFile(p.id);
         if (file) { downloadText(file.filename, file.text); toast(`Saved ${file.filename} to your Downloads`, 6000); }
-      } catch (err) { alert('Export failed: ' + errMsg(err)); }
+      } catch (err) { void tell('Export failed: ' + errMsg(err)); }
     });
     actions.appendChild(exportBtn);
 
@@ -123,7 +124,7 @@ export function renderProjectsPanel() {
       const delBtn = el('button', { className: 'iconbtn', html: I.trash, title: 'Delete', 'aria-label': 'Delete ' + p.name });
       delBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        if (confirm('Delete project "' + p.name + '"? ' + deleteNote(p.id))) {
+        if (await ask('Delete project \u201c' + p.name + '\u201d? ' + deleteNote(p.id), { ok: 'Delete', danger: true, testid: 'ask-delete-project' })) {
           await deleteProject(p.id);
           render();
         }
@@ -140,9 +141,9 @@ export function renderProjectsPanel() {
 
   const newBtn = el('button', { className: 'btn primary', style: { margin: '16px' }, html: I.plus + '<span>New project</span>' });
   newBtn.addEventListener('click', async () => {
-    const name = prompt('Name for new project:', 'Untitled');
+    const name = await askText('Name for the new project', 'Untitled', { ok: 'Make it', label: 'Project name' });
     if (name === null) return;
-    await openProject(await createProject(name || 'Untitled'));
+    await openProject(await createProject(name));
   });
 
   const sheet = el('div', { className: 'sheet' }, header, list, newBtn);

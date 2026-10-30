@@ -61,7 +61,7 @@ export async function buildPlanPdf(
 
   // The drawing.
   const pxPerIn = Math.min(200, Math.sqrt(MAX_PIXELS / (layout.plan.w * layout.plan.h)));
-  const plan = buildPlanSvg(layout, content.shapes, bg, settings, pxPerIn);
+  const plan = buildPlanSvg(layout, content.shapes, bg, { ...settings, order: shapes }, pxPerIn);
   const jpeg = await rasterize(plan.svg, plan.w, plan.h);
   const { x, y, w, h } = layout.plan;
   doc.addImage(jpeg, 'JPEG', x, y, w, h, undefined, 'FAST');
@@ -76,7 +76,7 @@ export async function buildPlanPdf(
   let cy = titleBlock(doc, cols[0], settings, projectName, layout);
   cy = legend(doc, cols[0], cy, legendEntries(content.shapes, sizeMode, settings.includeFullRings && sizeMode === 'typical'));
   cy = statusLegend(doc, cols[0], cy, new Set(content.shapes.map((s) => s.status).filter((x): x is Status => !!x)));
-  const schedule = settings.includePlantList ? plantSchedule(content.shapes, plantsById) : [];
+  const schedule = settings.includePlantList ? plantSchedule(content.shapes, plantsById, shapes) : [];
   let pages = 1;
   if (schedule.length) {
     const first: Box[] = layout.sideAt === 'right'

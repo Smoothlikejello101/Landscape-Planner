@@ -120,6 +120,7 @@ test('an empty plan offers to start from an aerial photo', async ({ page }) => {
   // While calibrating, a drag pans and a pinch zooms; only taps place points.
   const box = await canvasBox(page);
   const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  const fitted = await zoomPct(page); // (the whole photo in view to start)
   const before = await page.locator('#canvas-svg [data-layer=grid]').evaluate((n) => n.outerHTML);
   await page.mouse.move(cx, cy); await page.mouse.down();
   await page.mouse.move(cx + 60, cy + 40, { steps: 6 }); await page.mouse.up();
@@ -133,7 +134,7 @@ test('an empty plan offers to start from an aerial photo', async ({ page }) => {
     for (let i = 1; i <= 10; i++) fire('pointermove', 2, cx + 50 + i * 10, cy);
     fire('pointerup', 2, cx + 150, cy); fire('pointerup', 1, cx - 50, cy);
   }, { cx, cy });
-  expect(await zoomPct(page)).toBe(200);
+  expect(Math.abs((await zoomPct(page)) - fitted * 2)).toBeLessThanOrEqual(1.5); // (twice as close, give or take the rounding)
   await expect(page.locator('.mode-banner')).toContainText('first known point');
   await page.mouse.click(cx - 50, cy);
   await expect(page.locator('.mode-banner')).toContainText('second known point');

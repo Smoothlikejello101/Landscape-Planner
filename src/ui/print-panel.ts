@@ -9,6 +9,7 @@ import type { PaperSize, PrintSettings } from '../types';
 import { errMsg } from '../util';
 import { render } from './render';
 import { toast } from './toast';
+import { tell } from './ask';
 
 // Printable plan options and the Create PDF button.
 // Text and number fields update settings without re-rendering (Android
@@ -115,7 +116,7 @@ export function renderPrintPanel() {
       const r = await buildPlanPdf(state.print, projectName, state.shapes, state.bgImage, state.sizeMode);
       result = { blob: r.blob, pages: r.pages, filename: pdfName(state.print.title.trim() || projectName, localDate()) };
     } catch (e) {
-      alert("Couldn't make the PDF: " + errMsg(e));
+      void tell("Couldn't make the PDF: " + errMsg(e));
     } finally {
       busy = false;
       if (state.panel === 'print') {
@@ -136,7 +137,7 @@ export function renderPrintPanel() {
     if (canShareFiles('application/pdf', 'x.pdf')) {
       const sh = el('button', { className: 'btn ghost', style: { flex: '1' } }, 'Share…');
       sh.addEventListener('click', async () => {
-        try { await shareBlob(r.filename, r.blob); } catch (e) { alert("Couldn't share: " + errMsg(e)); }
+        try { await shareBlob(r.filename, r.blob); } catch (e) { void tell("Couldn't share: " + errMsg(e)); }
       });
       row.appendChild(sh);
     }

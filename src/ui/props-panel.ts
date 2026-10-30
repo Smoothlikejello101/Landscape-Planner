@@ -487,7 +487,7 @@ function actionRow(single: boolean): HTMLElement {
     row.appendChild(dupBtn);
   }
   const delBtn = el('button', { className: 'btn danger', html: I.trash + '<span>Delete</span>' });
-  delBtn.addEventListener('click', () => { deleteSelectedAsking(); render(); });
+  delBtn.addEventListener('click', () => { void deleteSelectedAsking(); });
   row.appendChild(delBtn);
   return row;
 }
@@ -759,9 +759,9 @@ export function renderPropsPanelMulti(selected: Shape[]) {
   const dupBtn = el('button', { className: 'btn ghost', html: I.copy + '<span style="margin-left:6px">Duplicate</span>' });
   dupBtn.addEventListener('click', () => { duplicateSelected(); render(); });
   const copyBtn = el('button', { className: 'btn ghost', html: I.copy + '<span style="margin-left:6px">Copy to clipboard</span>' });
-  copyBtn.addEventListener('click', () => { copySelected(); alert(selected.length + ' shapes copied. Use Paste in any project to bring them in.'); });
+  copyBtn.addEventListener('click', () => { copySelected(); toast(selected.length + ' shapes copied. Use Paste in any project to bring them in.', 5000); });
   const delBtn = el('button', { className: 'btn danger', html: I.trash + '<span style="margin-left:6px">Delete all</span>' });
-  delBtn.addEventListener('click', () => { deleteSelectedAsking(); render(); });
+  delBtn.addEventListener('click', () => { void deleteSelectedAsking(); });
   body.appendChild(dupBtn);
   body.appendChild(copyBtn);
   body.appendChild(delBtn);

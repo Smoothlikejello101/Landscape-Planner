@@ -5,7 +5,7 @@ import { summerLeafColors } from './seasons';
 // How a plant is drawn on the plan (Jason, Oct 27–29: the canvas "Plant looks through the year", rounds 1–4): R5c,
 // version 3. Leaves set along curving branches (sprigs); in flower, blooms at the outer branch tips, built of the
 // sprig's own leaf, shaped by the kind of flower. How much is drawn goes by how big the plant is on the screen: close
-// (a radius of 22 px and up: every leaf and bloom), mid (10 to 22 px: the branches and bold blooms, the leaves a soft
+// (a radius of 16 px and up: every leaf and bloom), mid (10 to 16 px: the branches and bold blooms, the leaves a soft
 // mottle) and yard (under 10 px: its color and a few bold flower spots). Every kind of plant the catalog has gets its
 // own drawing (grasses as blades, conifers as needle fans, ferns as fronds…), always inside the plant's circle.
 //
@@ -46,8 +46,13 @@ export interface LookMonth {
 }
 
 /** The level a plant is drawn at, by its radius on the screen. */
+/**
+ * The radius on screen, in px, from which a plant is drawn close up, every leaf and bloom. 16 (Jason, Oct 30: at 22,
+ * 'Prairie Princess' ironweed lost its flowers at 70% zoom and giant coneflower at 49%; about 53% and 35% felt right).
+ */
+export const CLOSE_PX = 16;
 export function levelOf(rPx: number): LookLevel {
-  return rPx >= 22 ? 'close' : rPx >= 10 ? 'mid' : 'yard';
+  return rPx >= CLOSE_PX ? 'close' : rPx >= 10 ? 'mid' : 'yard';
 }
 
 // ---------- colors ----------

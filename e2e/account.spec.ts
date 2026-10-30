@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
-import { openFresh } from './helpers';
+import { openFresh, answerAsk } from './helpers';
 
 // Accounts, against a stand-in for Supabase: every request to the real
 // project is intercepted, so tests never touch live data.
@@ -196,9 +196,8 @@ test('beta: sync runs by itself, uploads this device’s plans, and brings anoth
   expect(seen).toContain('push My Garden'); // this device's plan went up
   await expect(page.locator('.proj-row', { hasText: 'Cabin' })).toHaveCount(1); // the laptop's came down
   // Deleting a synced plan says where it goes, and it shows up there.
-  let asked = '';
-  page.once('dialog', (d) => { asked = d.message(); void d.accept(); });
   await page.getByRole('button', { name: 'Delete Cabin' }).click();
+  const asked = await answerAsk(page, true);
   expect(asked).toContain('Recently deleted');
   expect(asked).not.toContain('cannot be undone');
   await account.getByTestId('sync-now').click();

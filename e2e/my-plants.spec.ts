@@ -93,7 +93,7 @@ test('add a plant from its tag, place it, and switch to full size', async ({ pag
   // Layers: draw plants at full size.
   await page.locator('button[title=Layers]').click();
   await page.getByTestId('plant-size').getByRole('button', { name: 'Full size' }).click();
-  expect(dialogs.at(-1)).toContain('Redraw 1 plant at full size?');
+  await expect.poll(() => dialogs.at(-1)).toContain('Redraw 1 plant at full size?');
   await closeSheet(page);
   expect(await circleR(page, 'Limelight')).toBe(96);
   await expect(page.locator('#canvas-svg [data-role=full-ring]')).toHaveCount(0);

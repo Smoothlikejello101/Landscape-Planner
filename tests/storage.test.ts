@@ -6,8 +6,7 @@ import { openKV, put } from '../src/db';
 import { state } from '../src/state';
 import {
   _resetStorageForTests, clearedNow, createProject, deleteProject, flushSave, getClipboard, initStorage, keepCleared, loadCleared,
-  readProject, sanitizeProjectData, save, switchProject, writeJournalIfDirty,
-} from '../src/storage';
+  readProject, sanitizeProjectData, save, switchProject, writeJournalIfDirty, migrateBgImage, photoRefOf, sanitizePhotoRef } from '../src/storage';
 import { allExportedProjects, buildBackupFile, importProjects, parseImportFile, uniqueName } from '../src/backup';
 import { buildSupportFile } from '../src/support';
 import { ERROR_LOG_KEY, readErrors, recordError } from '../src/error-log';
@@ -911,5 +910,19 @@ describe('the guided introduction and the yard, as kept on this device', () => {
     localStorage.setItem('lp-yard', '[');
     expect(loadYard()).toEqual(NO_YARD);
     localStorage.removeItem('lp-yard');
+  });
+});
+
+describe('a photo not to scale yet (Oct 30)', () => {
+  it('keeps saying so, through a save and a sync, until calibrated; older photos are taken as calibrated', () => {
+    const raw = { dataUrl: 'data:image/png;base64,AAAA', naturalWidth: 10, naturalHeight: 20, ftPerPx: 0.1, cx: 0, cy: 0, rotation: 0, opacity: 0.6, visible: true };
+    expect(migrateBgImage({ ...raw, uncalibrated: true })).toMatchObject({ uncalibrated: true });
+    expect('uncalibrated' in migrateBgImage(raw)).toBe(false);
+    expect('uncalibrated' in migrateBgImage({ ...raw, uncalibrated: 'yes' as unknown as true })).toBe(false);
+    const fp = 'a'.repeat(64);
+    const ref = photoRefOf({ ...raw, uncalibrated: true }, fp);
+    expect(ref).toMatchObject({ fingerprint: fp, uncalibrated: true });
+    expect(sanitizePhotoRef(ref)).toMatchObject({ uncalibrated: true });
+    expect('uncalibrated' in (sanitizePhotoRef(photoRefOf(raw, fp)) as object)).toBe(false);
   });
 });
