@@ -23,7 +23,7 @@ import { state } from './state';
 import { isArbor, isTrellis, LATTICE_STEP, latticePath, SLAT_STEP, slatsPath } from './structures';
 import type { CircleShape, Point, Shape, ShapeFilter, TextShape } from './types';
 import { groundcoverRadius, supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
-import { lookFor, lookMarkup, lookMonthOf, lookShown } from './plant-looks';
+import { lookFor, lookMarkup, lookMonthOf, lookShown, plannedEdge } from './plant-looks';
 import { bandBlooms, colorIn, coverBlooms, levelOf } from './looks';
 
 // Canvas drawing. Everything here writes only into the <svg>, never into
@@ -223,6 +223,7 @@ export function shapeGroup(s: Shape): SVGGElement {
       under = svgEl('g', { 'data-role': 'plant-look', transform: `translate(${cx} ${cy})`, 'pointer-events': 'none',
         opacity: s.status === 'gone' ? 0.35 : s.status === 'planned' || isTree(s) ? 0.85 : null }, svgEl('clipPath', { id: clipId }, outline), art);
       common.fill = 'transparent';
+      if (s.status === 'planned' && !sel) common.stroke = plannedEdge(s); // (in the picture's colors, not its shape's)
       // Through the year, a winter not known (no source says whether its leaves stay): a dotted ring says so.
       if (lookMonthOf(s)?.leaves === 'unknown') g0.push(svgEl('circle', { 'data-role': 'look-unknown', cx, cy, r: Math.max(2, r - 3), fill: 'none', stroke: '#57534e', 'stroke-width': 1.5, 'stroke-dasharray': '2 4', 'stroke-linecap': 'round', 'pointer-events': 'none' }));
     }

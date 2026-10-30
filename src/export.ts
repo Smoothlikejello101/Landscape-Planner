@@ -16,7 +16,7 @@ import { LABEL_LINE_HEIGHT, plantLabelFit } from './labels';
 import { canopyInnerRadius, canopyPoints, isTree, partsToSvg, trunkParts, trunkReachPx } from './trees';
 import { groundcoverRadius, supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
 import { bandBlooms, colorIn, coverBlooms, levelOf } from './looks';
-import { lookFor, lookMarkup, lookMonthOf, lookShown } from './plant-looks';
+import { lookFor, lookMarkup, lookMonthOf, lookShown, plannedEdge } from './plant-looks';
 
 let lookClips = 0;
 
@@ -98,7 +98,8 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
     const cx = (s.x - originX) * scale, cy = (s.y - originY) * scale, r = (ground ?? s.radius) * scale;
     // A plant drawn as an illustration, as on the plan (src/looks.ts): drawn at its size on the screen (r / k), scaled.
     const look = lookShown(s);
-    const paint = `fill="${look ? 'none' : s.color}" fill-opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeWidth}"${dash}`;
+    const edge = look && planned ? plannedEdge(s) : stroke; // (planned: in the picture's colors, as on the plan)
+    const paint = `fill="${look ? 'none' : s.color}" fill-opacity="${opacity}" stroke="${edge}" stroke-width="${strokeWidth}"${dash}`;
     let out = '';
     if (look) {
       const rr = r / k, id = `export-look-${++lookClips}`;

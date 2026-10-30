@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Plant } from '../src/plants';
 import { bandBlooms, bloomKind, coverBlooms, flowerColorOf, levelOf, lookOf, lookSvg, ownBloomColors } from '../src/looks';
-import { LOOK_MAX_R, lookMarkup } from '../src/plant-looks';
+import { LOOK_MAX_R, lookFor, lookMarkup, plannedEdge } from '../src/plant-looks';
+import { plantsById } from '../src/plants';
 import type { CircleShape } from '../src/types';
 import { withLocalParts } from '../src/sync/engine';
 
@@ -113,6 +114,18 @@ describe('a placed plant', () => {
     expect(count(bandBlooms([{ x: 0, y: 0 }, { x: 100, y: 0 }], 10, look, 20), 'circle')).toBe(5 * 2); // (two discs a bloom)
     expect(count(coverBlooms([{ x: 0, y: 0 }, { x: 96, y: 0 }, { x: 96, y: 48 }, { x: 0, y: 48 }], look, 24), 'circle')).toBeGreaterThan(4);
     expect(bandBlooms([{ x: 0, y: 0 }, { x: 100, y: 0 }], 10, lookOf(plant({ form: 'Vine' }), '#000'))).toBe('');
+  });
+});
+
+// Planned (Jason, Oct 29: his red strawberries' red dashed edge read as a warning, as To remove's is).
+describe('a planned plant drawn as a picture', () => {
+  it("is edged in its picture's dark leaf color, not its shape's color", () => {
+    plantsById['looks-test-strawberry'] = plant({ id: 'looks-test-strawberry', common: 'Strawberry', form: 'Perennial' });
+    const s = { id: 's', type: 'circle', role: 'plant', plantId: 'looks-test-strawberry', x: 0, y: 0, radius: 1, color: '#ef4444', status: 'planned', label: '' } as CircleShape;
+    expect(plannedEdge(s)).toBe(lookFor(s).pal.dark);
+    expect(plannedEdge(s)).not.toBe('#ef4444');
+    expect(lookFor(s).pal.base).toBe('#6f9a4a'); // (green leaves: no leaf color on record)
+    delete plantsById['looks-test-strawberry'];
   });
 });
 

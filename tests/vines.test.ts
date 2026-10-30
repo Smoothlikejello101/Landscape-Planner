@@ -101,8 +101,10 @@ describe('what a vine climbs', () => {
     const aster = circle('a', 'aster', 5, 0, 1);
     expect(crowdingOf(aster, [maple, v, aster], byId).map((c) => c.other.id)).toEqual(['v']); // (1.1 ft from its base)
     const farther = circle('a', 'aster', 9, 0, 1);
-    expect(crowdingOf(farther, [maple, v, farther], byId)).toEqual([]); // (as a groundcover patch, 12.5 ft across, it would)
-    expect(crowdingOf(farther, [maple, { ...v, climbsOn: undefined }, farther], byId).map((c) => c.other.id)).toEqual(['v']);
+    expect(crowdingOf(farther, [maple, v, farther], byId)).toEqual([]);
+    // (As a groundcover planted 12 ft apart, a patch 12 ft across, it would.)
+    const wide = { ...byId, jessamine: { ...byId.jessamine, spacing: { min: 10, max: 14, med: 12 } } as Plant };
+    expect(crowdingOf(farther, [maple, { ...v, climbsOn: undefined }, farther], wide).map((c) => c.other.id)).toEqual(['v']);
     expect(VINE_BASE_RADIUS).toBe(1);
   });
 
@@ -168,18 +170,22 @@ describe('a trellis and an arbor', () => {
 });
 
 
-// A vine grown as a groundcover (Jason, Oct 29: option c): its patch by its spacing, a faint ring at its spread.
+// A vine grown as a groundcover (Jason, Oct 29: option c): its patch by its spacing, a faint ring at its spread. With
+// no spacing on record, at its base (Jason, Oct 30): its width is how far it spreads along a support.
 describe('a vine grown as a groundcover', () => {
   const spaced = { ...byId, jessamine: { ...byId.jessamine, spacing: { min: 3, max: 5, med: 4 } } as Plant };
-  it('is a patch half its spacing across, no wider than its spread; with no spacing on record, its spread as before', () => {
+  it('is a patch as wide as its spacing, no wider than its spread; with no spacing on record, at its base', () => {
     expect(groundcoverRadius(circle('v', 'jessamine', 0, 0, 12.5), spaced)).toBe(2);
     expect(groundcoverRadius(circle('v', 'jessamine', 0, 0, 1.5), spaced)).toBe(1.5);
-    expect(groundcoverRadius(circle('v', 'jessamine', 0, 0, 12.5), byId)).toBeNull();
+    expect(groundcoverRadius(circle('v', 'jessamine', 0, 0, 12.5), byId)).toBe(VINE_BASE_RADIUS);
+    expect(groundcoverRadius(circle('v', 'jessamine', 0, 0, 0.8), byId)).toBe(0.8); // (no wider than its spread)
     expect(groundcoverRadius(circle('a', 'aster', 0, 0, 1), spaced)).toBeNull();
   });
-  it('crowds its neighbors by that patch, not by the length it would climb', () => {
-    const v = circle('v', 'jessamine', 0, 0, 12.5), a = circle('a', 'aster', 5, 0, 1);
+  it('crowds its neighbors by that patch, or its base, not by the length it would climb', () => {
+    const v = circle('v', 'jessamine', 0, 0, 12.5), a = circle('a', 'aster', 5, 0, 1), close = circle('a', 'aster', 1.2, 0, 1);
     expect(crowdingOf(v, [v, a], spaced)).toEqual([]);
-    expect(crowdingOf(v, [v, a], byId).length).toBeGreaterThan(0);
+    expect(crowdingOf(v, [v, a], byId)).toEqual([]);
+    expect(crowdingOf(v, [v, close], spaced).length).toBeGreaterThan(0);
+    expect(crowdingOf(v, [v, close], byId).length).toBeGreaterThan(0);
   });
 });

@@ -1,4 +1,4 @@
-import { FALL_HEX, FRUIT_HEX, lookOf, lookSvg, type Look, type LookLevel, type LookMonth } from './looks';
+import { colorIn, FALL_HEX, FRUIT_HEX, lookOf, lookSvg, shade, type Look, type LookLevel, type LookMonth } from './looks';
 import { hereFor, monthLook } from './seasons';
 import { plantsById } from './plants';
 import { state } from './state';
@@ -30,6 +30,15 @@ export function lookMonthOf(s: CircleShape, month = state.month): LookMonth | un
 }
 /** How a placed plant is drawn. */
 export const lookFor = (s: CircleShape): Look => lookOf(s.plantId ? plantsById[s.plantId] : undefined, s.color, !!s.colorSet);
+/**
+ * A planned plant drawn as a picture: its dashed edge in the picture's dark leaf color (the month's, through the
+ * year), not its shape's color. Drawn as a picture, a plain red strawberry's red edge read as a warning, as To
+ * remove's is (Jason, Oct 29).
+ */
+export function plannedEdge(s: CircleShape): string {
+  const look = lookFor(s), m = lookMonthOf(s);
+  return m ? shade(colorIn(look, m), 0.38) : look.pal.dark;
+}
 
 /**
  * The largest radius (screen pixels) a plant is drawn at: bigger, the drawing is scaled up, its leaves and blooms with
