@@ -197,6 +197,16 @@ export const SKIP_SITES = new Set([
   'scielo.br', 'banglajol.info', 'indianjournals.com', // (journal aggregators)
   'roofingrepaircollingwood.com', 'prairiesoapshack.com', 'petaldriven.com', 'firsttunnels.co.uk', 'eclecticschoolofherbalmedicine.com', // (not plant sources)
   'flowerspicture.org', 'simplelawnslandscaping.com', 'weclinic.in', 'beyondforest.org', 'keepnassaubeautiful.org',
+  // Found by the terms reviews of the spacing round, batch 6 (2026-10-29)
+  'foliagefriend.com', 'trudyweir.co.uk', 'thegardening.org', 'urbangardengal.com', 'thehomeyspace.com', 'trimmedroots.com', // (AI-written)
+  'wildcraftia.com', 'cactus-succulents.com', 'atlas-flora.com', 'agrifarming.in', 'lotusmagus.com', 'leafyheaven.com.au', 'landscapeofus.com',
+  'hanugardens.com', 'theplantseed.com', 'seedsworld.online', 'organicseedshub.com', 'oliviadaolive.com', // (dropship or affiliate storefronts)
+  'aqua-diary.com', 'agroforestdesigner.com', 'world-crops.com', 'birdgardens.ca', // (other apps' and compiled plant lists)
+  'discoverlife.org', 'shopifarm.com', 'chestofbooks.com', // (aggregators; old books republished)
+  'homeownershub.com', 'forumactif.com', 'bliptext.com', // (crowd-sourced)
+  'ziggyscactus.com', // (its owner: "We do not need any AI stuff whatsoever")
+  'esmed.org', 'heringpharma.net', 'greenshipgardenus.com', 'fishi-pedia.com', 'elevationlandscapes.com', 'smokeysgardens.com', 'swst.org', // (not plant sources)
+  'viviero3d.com', 'strongsrq.com', 'suzu-hikone.com', 'abchomeopathy.com', 'annemckenzie.com', '72tree.com', 'philodendronplant.com', 'proflowers.com', 'scirp.org',
   // Archives, caches and aggregators: never second-hand (docs/catalog-sources.md)
   'archive.org', 'archive.ph', 'archive.today', 'archive.is', 'archive.li', 'archive.vn', 'archive.md', 'webcitation.org', 'cachedview.nl',
   'googleusercontent.com', 'commoncrawl.org', 'trefle.io', 'gbif.org', 'plantnet.org', 'identify.plantnet.org', 'openfarm.cc', 'pfaf.org',
