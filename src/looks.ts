@@ -646,36 +646,90 @@ function inside(poly: { x: number; y: number }[], x: number, y: number): boolean
   }
   return c;
 }
-/** A vine covering an arbor (src/vines.ts): its blooms over the part it covers, every `step` px, in pixels. */
-export function coverBlooms(poly: { x: number; y: number }[], look: Look, step = 24): string {
-  const fl = look.pal.fl;
-  if (!fl || poly.length < 3) return '';
-  const cols = tones2(fl);
-  const xs = poly.map((p) => p.x), ys = poly.map((p) => p.y);
-  let out = '', k = 0;
-  for (let y = Math.min(...ys) + step / 2; y < Math.max(...ys); y += step * 0.87) {
-    const shift = (Math.round(y / step) % 2) * step * 0.5; // (staggered, as a planting grid)
-    for (let x = Math.min(...xs) + step / 2 + shift; x < Math.max(...xs); x += step) {
-      if (inside(poly, x, y)) out += midBloom(x, y, Math.max(5, step * 0.36), [cols[k % 2], cols[(k++ + 1) % 2]], look.pal.eye);
+/** A point every `step` px along a polyline (pixels), the first half a step in, with its direction there (radians). */
+function along(pts: { x: number; y: number }[], step: number): [number, number, number][] {
+  const out: [number, number, number][] = [];
+  let carry = step / 2;
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const a = pts[i], b = pts[i + 1], len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (!len) continue;
+    const ang = Math.atan2(b.y - a.y, b.x - a.x);
+    let t = carry;
+    for (; t <= len; t += step) out.push([a.x + ((b.x - a.x) * t) / len, a.y + ((b.y - a.y) * t) / len, ang]);
+    carry = t - len;
+  }
+  return out;
+}
+/** A bloom along a vine, as its plant's are drawn at `level`: in its kind's shape close up, a bold disc at mid, a spot far out. */
+function vineBloom(level: LookLevel, x: number, y: number, s: number, cols: string[], look: Look, rng: Rng): string {
+  if (level === 'close') return bloom(look.pal.bloom, x, y, s, cols, look.pal.eye, rng.u(0, TAU), rng);
+  if (level === 'mid') return midBloom(x, y, s, cols, look.pal.eye);
+  return disc(x, y, s * 0.3, cols[0]);
+}
+/**
+ * A climbing vine's leaves along its band (src/vines.ts), in pixels, `width` across, as its plant's leaves are drawn at
+ * `level` (Jason, Oct 30: "only color blobs while everything else gets flowers"): close up, its stem and leaves of the
+ * size every plant's are, in lanes across the band; at mid, a mottle of its tones; far out, none (the band alone). As
+ * in `month` (garden over time): none while it's bare or died back.
+ */
+export function bandLeaves(pts: { x: number; y: number }[], width: number, look: Look, level: LookLevel, seed: string, month?: LookMonth): string {
+  if (level === 'yard' || pts.length < 2 || (month && (month.leaves === 'bare' || month.leaves === 'dormant'))) return '';
+  const pal = month ? monthPal(look.pal, month) : look.pal;
+  const rng = rngOf(seed + ':band');
+  const across = (x: number, y: number, a: number, off: number): [number, number] => [x - Math.sin(a) * off, y + Math.cos(a) * off];
+  if (level === 'mid') {
+    return along(pts, Math.max(4, width * 0.45)).map(([x, y, a]) => {
+      const [px, py] = across(x, y, a, rng.u(-0.22, 0.22) * width);
+      return disc(px, py, width * rng.u(0.18, 0.26), rng.pick([pal.light, shade(pal.base, 0.15)]), ' opacity="0.55"');
+    }).join('');
+  }
+  const cols = [pal.light, shade(pal.base, 0.2), shade(pal.light, -0.12)];
+  const lanes = Math.max(1, Math.round(width / 9)), reach = Math.max(0, width / 2 - 4);
+  let out = stems([`M${pts.map((p) => P(p.x, p.y)).join(' L')}`], pal.dark, 1.2);
+  for (let l = 0; l < lanes; l++) {
+    const off = lanes === 1 ? 0 : -reach + (2 * reach * l) / (lanes - 1);
+    let side = l % 2 ? 1 : -1;
+    for (const [x, y, a] of along(pts, 4.6)) {
+      side = -side;
+      const [px, py] = across(x, y, a, off + rng.u(-1.5, 1.5));
+      const col = pal.variegated && rng.r() < 0.4 ? pal.light : rng.pick(cols);
+      out += path(leaf(px, py, a + side * rng.u(0.55, 0.95) + (rng.r() < 0.5 ? 0 : Math.PI), rng.u(5, 6.8), 2.8 * rng.u(0.9, 1.1)), col);
     }
   }
   return out;
 }
 /**
- * A climbing vine's blooms along its band (src/vines.ts), in pixels: bold ones spaced along it, as the yard and mid
- * steps draw them, every `step` px.
+ * A climbing vine's blooms along its band (src/vines.ts), in pixels, `width` across: one about every `step` px (a foot),
+ * on either side of its middle by turns, drawn as its plant's are at `level` (vineBloom).
  */
-export function bandBlooms(pts: { x: number; y: number }[], width: number, look: Look, step = 22): string {
+export function bandBlooms(pts: { x: number; y: number }[], width: number, look: Look, step = 22, level: LookLevel = 'mid', seed = ''): string {
   const fl = look.pal.fl;
   if (!fl || pts.length < 2) return '';
   const cols = tones2(fl);
-  let out = '', carry = step / 2, k = 0;
-  for (let i = 0; i + 1 < pts.length; i++) {
-    const a = pts[i], b = pts[i + 1], len = Math.hypot(b.x - a.x, b.y - a.y);
-    if (!len) continue;
-    let t = carry;
-    for (; t <= len; t += step) out += midBloom(a.x + ((b.x - a.x) * t) / len, a.y + ((b.y - a.y) * t) / len, Math.max(4, width * 0.36), [cols[k % 2], cols[(k++ + 1) % 2]], look.pal.eye);
-    carry = t - len;
+  const rng = rngOf(seed + ':band-blooms');
+  // (Its size: close up, a plant's bloom, no wider than most of the band; at mid, about a third of the band's width, as
+  // its discs have been since Oct 30, "oversized to my eye".)
+  const s = level === 'close' ? Math.min(16, Math.max(8, width * 0.6)) : Math.max(4, width * 0.36);
+  let k = 0;
+  return along(pts, Math.max(step, s * 1.5)).map(([x, y, a]) => {
+    const off = (k % 2 ? 1 : -1) * width * 0.16;
+    return vineBloom(level, x - Math.sin(a) * off, y + Math.cos(a) * off, s, [cols[k % 2], cols[(k++ + 1) % 2]], look, rng);
+  }).join('');
+}
+/** A vine covering an arbor (src/vines.ts): its blooms over the part it covers, every `step` px, in pixels, as at `level`. */
+export function coverBlooms(poly: { x: number; y: number }[], look: Look, step = 24, level: LookLevel = 'mid', seed = ''): string {
+  const fl = look.pal.fl;
+  if (!fl || poly.length < 3) return '';
+  const cols = tones2(fl);
+  const rng = rngOf(seed + ':cover-blooms');
+  const s = level === 'close' ? Math.min(16, Math.max(8, step * 0.6)) : Math.max(5, step * 0.36);
+  const xs = poly.map((p) => p.x), ys = poly.map((p) => p.y);
+  let out = '', k = 0;
+  for (let y = Math.min(...ys) + step / 2; y < Math.max(...ys); y += step * 0.87) {
+    const shift = (Math.round(y / step) % 2) * step * 0.5; // (staggered, as a planting grid)
+    for (let x = Math.min(...xs) + step / 2 + shift; x < Math.max(...xs); x += step) {
+      if (inside(poly, x, y)) out += vineBloom(level, x, y, s, [cols[k % 2], cols[(k++ + 1) % 2]], look, rng);
+    }
   }
   return out;
 }

@@ -6,9 +6,9 @@ import { alongLabel, boxLabelAngle, boxSize, displayLabel, LINE_HEIGHT, pathLabe
 import { state } from './state';
 import { isArbor, isTrellis, LATTICE_STEP, latticePath, SLAT_STEP, slatsPath } from './structures';
 import { currentProject } from './storage';
-import type { Bounds, Shape } from './types';
+import type { Bounds, CircleShape, Shape } from './types';
 import { render } from './ui/render';
-import { paintOrder, seeThroughIds } from './canvas';
+import { hiddenIds, paintOrder, seeThroughIds } from './canvas';
 import { roleDef, roleKey, roleLabel, ROLES } from './roles';
 import { filterText } from './status';
 import { formatHours, shadeOpacity, sunHours } from './sun';
@@ -16,7 +16,7 @@ import { plantsById } from './plants';
 import { LABEL_LINE_HEIGHT, plantLabelFit } from './labels';
 import { canopyInnerRadius, canopyPoints, isTree, partsToSvg, trunkParts, trunkReachPx } from './trees';
 import { groundcoverRadius, supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
-import { bandBlooms, colorIn, coverBlooms, levelOf } from './looks';
+import { bandBlooms, bandLeaves, colorIn, coverBlooms, levelOf } from './looks';
 import { lookFor, lookMarkup, lookMonthOf, lookShown, plannedEdge } from './plant-looks';
 import { tell } from './ui/ask';
 import { toast } from './ui/toast';
@@ -76,6 +76,16 @@ function withSunHours(s: Shape, label: string): string {
   const hours = '\u2600 ' + formatHours(sunHours(s.sun));
   return label ? `${label} \u00b7 ${hours}` : hours;
 }
+/**
+ * Plants hidden under a solid one (src/canvas.ts hiddenIds): a pin at its middle over the plants, as on the plan, in
+ * the page's units (`scale` px a foot, `k` for strokes).
+ */
+export function hiddenRimsSvg(shapes: Shape[], ids: Set<string>, originX: number, originY: number, scale: number, k = 1): string {
+  return shapes.filter((s): s is CircleShape => s.type === 'circle' && ids.has(s.id)).map((s) => {
+    const cx = (s.x - originX) * scale, cy = (s.y - originY) * scale;
+    return `<circle cx="${cx}" cy="${cy}" r="${4.5 * k}" fill="#ffffff" opacity="0.9"/><circle cx="${cx}" cy="${cy}" r="${2.6 * k}" fill="#292524"/>`;
+  }).join('');
+}
 /** Plants drawn see-through in what's being exported (as on the plan: src/canvas.ts seeThroughIds). */
 let exportThin = new Set<string>();
 /** `fn` with these plants drawn see-through (an export or a printout of `shapes` as they're shown). */
@@ -112,12 +122,16 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
     const op = look ? (planned ? 0.75 : 0.9) : planned ? (s.opacity ?? 0.65) * 0.5 : s.opacity ?? 0.65;
     const name = displayLabel(s);
     const px = (l: { x: number; y: number }[]) => l.map((p) => ({ x: (p.x - originX) * scale, y: (p.y - originY) * scale }));
-    const blooms = !look || inMonth?.bloom === 'no' ? '' : cover ? coverBlooms(px(cover), look, Math.max(10 * k, 1 * scale)) : bandBlooms(px(band), w, look, Math.max(10 * k, 1 * scale));
+    // (Its leaves and blooms drawn as on the screen, at the size they'd be there: in the page's px over k, scaled up.)
+    const sp = (l: { x: number; y: number }[]) => px(l).map((p) => ({ x: p.x / k, y: p.y / k }));
+    const at = levelOf(w / k), up = (m: string) => (m ? `<g transform="scale(${k})">${m}</g>` : '');
+    const leaves = !look || cover || s.status === 'remove' ? '' : up(bandLeaves(sp(band), w / k, look, at, s.id, inMonth));
+    const blooms = !look || inMonth?.bloom === 'no' ? '' : up(cover ? coverBlooms(sp(cover), look, Math.max(10, scale / k), at, s.id) : bandBlooms(sp(band), w / k, look, Math.max(10, scale / k), at, s.id));
     // (On an arbor, over its top.)
     return (cover ? `<polygon points="${pts(cover)}" fill="${color}" fill-opacity="${op}" stroke="${color}" stroke-opacity="${op}" stroke-width="${1.5 * k}" stroke-linejoin="round"/>`
-      : `<polyline points="${pts(band)}" fill="none" stroke="${color}" stroke-opacity="${op}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`)
+      : `<polyline points="${pts(band)}" fill="none" stroke="${color}" stroke-opacity="${op}" stroke-width="${w}" stroke-linecap="butt" stroke-linejoin="round"/>`)
       + `<polyline points="${pts(connector)}" fill="none" stroke="${color}" stroke-opacity="${op}" stroke-width="${Math.max(1.5 * k, w / 3)}" stroke-linecap="round"/>`
-      + blooms
+      + leaves + (blooms && inMonth?.bloom === 'around' ? `<g opacity="0.45">${blooms}</g>` : blooms)
       + `<circle cx="${cx}" cy="${cy}" r="${Math.max(4 * k, VINE_DOT_RADIUS * scale)}" fill="${look ? look.pal.dark : s.color}" stroke="rgba(0,0,0,0.35)" stroke-width="${k}"/>`
       + (name ? text(cx, cy - Math.max(4 * k, VINE_DOT_RADIUS * scale) - 9 * k, 11, name) : '');
   }
@@ -265,7 +279,9 @@ export function buildExportSVG(): { svg: string; widthPx: number; heightPx: numb
   }
   const sorted = paintOrder(state.shapes);
   let shapesSvg = '';
-  withSeeThrough(seeThroughIds(state.shapes), () => { for (const s of sorted) shapesSvg += shapeToSvgString(s, minX, minY, scale); });
+  const thin = seeThroughIds(state.shapes);
+  withSeeThrough(thin, () => { for (const s of sorted) shapesSvg += shapeToSvgString(s, minX, minY, scale); });
+  shapesSvg += hiddenRimsSvg(state.shapes, hiddenIds(state.shapes, state.viewFilter, thin), minX, minY, scale);
   // Optional bg image, sits above grid, below shapes (matches on-screen order)
   let bgSvg = '';
   const bg = state.bgImage;

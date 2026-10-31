@@ -74,6 +74,15 @@ const sectionOpen = new Map<string, boolean>();
  * (`summary`, which callers may update in place while typing); the content is
  * always built, only hidden, so in-place updates never need a re-render.
  */
+/**
+ * Locked: its size, place and turn can't be typed either (Jason, Oct 30, from Tom's to-scale house: the lock kept
+ * drags and arrow keys off it, but Width 42 typed in here changed it). Its fields greyed, and first in the section,
+ * why (Jason, Oct 30: a locked plant's spread "not editable, but nothing tells you that").
+ */
+function shutLocked(parts: Node[]) {
+  for (const n of parts) if (n instanceof HTMLElement) for (const c of n.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, button')) c.disabled = true;
+  parts.unshift(el('div', { className: 'hint locked-hint', 'data-testid': 'locked-fields' }, 'Locked: unlock it to change this.'));
+}
 function section(key: string, title: string, summary: Node, content: Node[], openByDefault = false): HTMLElement {
   // A group that opens by default stays open from then on (recording the sun mustn't fold it away).
   if (openByDefault && !sectionOpen.has(key)) sectionOpen.set(key, true);
@@ -350,6 +359,7 @@ export function renderPropsPanelSingle(s: Shape) {
       sizeParts.push(el('div', { className: 'field' }, el('label', {}, 'Right angle corner'), grid));
     }
   }
+  if (isLocked(s)) shutLocked(sizeParts);
   body.appendChild(section('size', 'Size', sizeSum, sizeParts));
 
   // ----- Position and rotation -----
@@ -390,15 +400,7 @@ export function renderPropsPanelSingle(s: Shape) {
         el('label', {}, 'Rotation (degrees, around center)'), rotPct),
       rotInput, quickBtns, el('div', { style: { marginTop: '6px' } }, resetBtn)));
   }
-  // Locked: its size, place and turn can't be typed either (Jason, Oct 30, from Tom's to-scale house: the lock kept
-  // drags and arrow keys off it, but Width 42 typed in here changed it).
-  if (isLocked(s)) {
-    const shut = (parts: Node[]) => {
-      for (const n of parts) if (n instanceof HTMLElement) for (const c of n.querySelectorAll<HTMLInputElement | HTMLButtonElement>('input, button')) c.disabled = true;
-      parts.push(el('div', { className: 'hint', 'data-testid': 'locked-fields' }, 'Locked: unlock it to change this.'));
-    };
-    shut(sizeParts); shut(posParts);
-  }
+  if (isLocked(s)) shutLocked(posParts);
   body.appendChild(section('position', 'Position', posSum, posParts));
 
   // ----- Look: color, and opacity for filled shapes -----

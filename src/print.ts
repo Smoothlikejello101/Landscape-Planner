@@ -1,8 +1,8 @@
 import { bedOf, isBed, isPlant } from './beds';
 import { utilityLabel } from './utility-kinds';
-import { paintOrder, seeThroughIds } from './canvas';
+import { hiddenIds, paintOrder, seeThroughIds } from './canvas';
 import { escapeHtml } from './dom';
-import { shapeToSvgString, withSeeThrough } from './export';
+import { hiddenRimsSvg, shapeToSvgString, withSeeThrough } from './export';
 import { rotatedBoxBounds, shapeBBox, unionBounds } from './geometry';
 import type { Plant } from './plants';
 import { ROLES, roleKey, roleLabel } from './roles';
@@ -221,7 +221,8 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
     const r = opts.includeFullRings && s.type === 'circle' ? fullRingRadius(s) : null;
     return r ? `<circle cx="${(s.x - win.minX) * pxPerFt}" cy="${(s.y - win.minY) * pxPerFt}" r="${r * pxPerFt}" fill="none" stroke="${s.color}" stroke-width="${1.2 * k}" stroke-dasharray="${5 * k} ${4 * k}"/>` : '';
   };
-  const body = withSeeThrough(seeThroughIds(shapes, NO_FILTER), () => shapes.map((s) => ring(s) + (() => {
+  const thin = seeThroughIds(shapes, NO_FILTER);
+  const body = withSeeThrough(thin, () => shapes.map((s) => ring(s) + (() => {
     if (!keys || !isPlant(s)) return shapeToSvgString(s, win.minX, win.minY, pxPerFt, k);
     const key = keys.get(s.label.trim() || 'Unlabeled plant');
     let out = shapeToSvgString({ ...s, label: '' }, win.minX, win.minY, pxPerFt, k);
@@ -230,7 +231,7 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
     const fs = 11 * k;
     out += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${fs}" font-weight="700" fill="#0f172a" font-family="sans-serif" stroke="#ffffff" stroke-width="${2.5 * k}" paint-order="stroke" stroke-linejoin="round">${key}</text>`;
     return out;
-  })()).join(''));
+  })()).join('')) + hiddenRimsSvg(shapes, hiddenIds(shapes, NO_FILTER, thin), win.minX, win.minY, pxPerFt, k);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" fill="#ffffff"/>${grid}${bgSvg}${body}</svg>`;
   return { svg, w, h };
 }

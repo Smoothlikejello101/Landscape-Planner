@@ -21,9 +21,12 @@ export const VINE_REACH_TRUNK = 3;
 export const VINE_REACH_LINE = 2;
 /** The ground a climbing vine's base takes, for crowding (feet, radius). */
 export const VINE_BASE_RADIUS = 1;
-/** How a climbing vine is drawn: a band this wide along its support, and its planting spot (feet). */
-export const VINE_BAND_WIDTH = 1.5;
-export const VINE_DOT_RADIUS = 0.6;
+/**
+ * How a climbing vine is drawn: a band this wide along its support, and its planting spot (feet). (Jason, Oct 30: a
+ * climbing hydrangea on a trellis "way too big, visually", at 1.5 ft and a spot 1.2 ft across.)
+ */
+export const VINE_BAND_WIDTH = 1;
+export const VINE_DOT_RADIUS = 0.4;
 
 /** A plant drawn as a vine: its catalog form is Vine. */
 export function isVine(s: Shape, byId: Record<string, Plant | undefined> = plantsById): s is CircleShape {
