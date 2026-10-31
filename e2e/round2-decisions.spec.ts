@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, closeSheet, field, openFilters, openFresh, openSections, openWarnings, shapeCount, tapFromCenter, openSettings } from './helpers';
+import { addKind, closeSheet, field, openFilters, openFresh, openSections, openWarnings, shapeCount, tapFromCenter, openSettings, tapping } from './helpers';
 
 // Round 2's decisions (Jason, Oct 30, in the findings doc): each as a tester met what it changes.
 
@@ -41,7 +41,7 @@ test('by touch, dragging a shape that isn\'t selected moves the plan, and says h
   const after = await Promise.all([0, 1].map(async (i) => (await rects(page).nth(i).boundingBox())!));
   expect(Math.round(after[0].x - before[0].x)).toBe(80);
   expect(Math.round(after[1].x - before[1].x)).toBe(80);
-  await expect(page.locator('#toast')).toContainText('To move a shape, tap it first, then drag it');
+  await expect(page.locator('#toast')).toContainText(tapping('To move a shape, tap it first, then drag it'));
   await expect(page.locator('.sel-pill')).toHaveCount(0);
 });
 

@@ -336,7 +336,7 @@ function handleShapeTap(shape: Shape, at?: { x: number; y: number }) {
   const sel = state.selectedIds.length === 1 ? stack.findIndex((s) => s.id === state.selectedIds[0]) : -1;
   const pick = sel >= 0 ? stack[(sel + 1) % stack.length] : shape;
   // (Gone down the stack: "Tap again for … under it" is done with. Round 3, Grace: it stayed over what it named.)
-  if (sel >= 0) hideToastSaying(/^Tap again for /);
+  if (sel >= 0) hideToastSaying(/^(Tap|Click) again for /);
   cycledFrom = sel >= 0 && pick.id !== state.selectedIds[0] ? state.selectedIds[0] : null;
   selectOnly(pick.id);
   tapTracker.id = pick.id; tapTracker.time = t;

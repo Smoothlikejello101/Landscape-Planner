@@ -1,5 +1,5 @@
 import { crowdLevelsOf, crowdNoticeAfterSwap } from './crowd-notice';
-import { el, type Child } from '../dom';
+import { el, tapSaid, type Child } from '../dom';
 import { saveHardy, saveYard, yardOf } from '../yard';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
@@ -174,7 +174,7 @@ export function renderPlantsPanel() {
     : 'Pick the plant this circle stands for. It keeps its place and takes the plant\'s name and size.'));
   if (forTree) {
     // A tree already in the yard: name it if it's in the list, then draw its canopy as it is.
-    body.appendChild(el('div', { className: 'banner' }, 'Pick the tree, then tap its trunk and the edge of its canopy.'));
+    body.appendChild(el('div', { className: 'banner' }, tapSaid('Pick the tree, then tap its trunk and the edge of its canopy.')));
     const unknown = el('button', { className: 'btn secondary', 'data-testid': 'unknown-tree', style: { width: '100%', marginBottom: '10px' } }, "Unknown tree (I'll just draw it)");
     unknown.addEventListener('click', () => { startTreeDraw(); render(); });
     body.appendChild(unknown);
@@ -392,7 +392,7 @@ export function renderPlantsPanel() {
     countLine.textContent = (near ? `Nothing matches as typed${found ? ` \u00b7 ${countWord(found)} close spelling${found === 1 ? '' : 's'}` : ''}`
       : plantFilter.inPlan ? (found ? `${countWord(found)} kind${found === 1 ? '' : 's'} of plant in this plan${q ? ` match \u201c${plantFilter.q.trim()}\u201d` : ''}` : q ? `No plant in this plan matches \u201c${plantFilter.q.trim()}\u201d` : 'No plants placed in this plan yet')
       : pickerCount(n, all, out.filter((p) => !forTree || isTree(p)).length, foundBanned, gardenStateName() ?? 'here')) +
-      (swapping ? ' \u00b7 Pick the plant to swap in' : linking ? ' \u00b7 Link the plant this circle stands for' : forTree ? ' \u00b7 trees only' : ' \u00b7 Place a plant, then tap the plan where it goes; tap a plant for its details');
+      (swapping ? ' \u00b7 Pick the plant to swap in' : linking ? ' \u00b7 Link the plant this circle stands for' : forTree ? ' \u00b7 trees only' : tapSaid(' \u00b7 Place a plant, then tap the plan where it goes; tap a plant for its details'));
     if (mine.length) {
       // My plants fold away (remembered on this device); a search always shows its matches.
       const searching = !!q;

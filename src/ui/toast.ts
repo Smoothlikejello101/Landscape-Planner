@@ -1,4 +1,5 @@
 import { state } from '../state';
+import { tapSaid } from '../dom';
 
 // Brief, non-blocking status messages ("Backup saved").
 
@@ -15,7 +16,8 @@ export function toast(message: string, ms = 3000) {
     node.setAttribute('aria-live', 'polite');
     document.body.appendChild(node);
   }
-  node.textContent = message;
+  // ("Tap" said as a mouse does it, on a computer: src/dom.ts.)
+  node.textContent = tapSaid(message);
   shownAt = Date.now();
   placeToast(node);
   // (Again once this frame's drawing is done: a notice raised as a shape is selected comes before its chip.)
@@ -95,7 +97,7 @@ export function toastAction(message: string, actions: { label: string; run: () =
     line.setAttribute('aria-expanded', 'false');
     line.dataset.testid = 'notice-line';
     const words = document.createElement('span');
-    words.textContent = message;
+    words.textContent = tapSaid(message);
     const chev = document.createElement('span');
     chev.className = 'notice-chev';
     chev.setAttribute('aria-hidden', 'true');
@@ -103,7 +105,7 @@ export function toastAction(message: string, actions: { label: string; run: () =
     const more = document.createElement('div');
     more.className = 'notice-detail';
     more.dataset.testid = 'notice-detail';
-    more.textContent = opts.detail;
+    more.textContent = tapSaid(opts.detail);
     more.hidden = true;
     line.addEventListener('click', () => {
       more.hidden = !more.hidden;
@@ -114,14 +116,14 @@ export function toastAction(message: string, actions: { label: string; run: () =
     node.append(line, more);
   } else {
     const text = document.createElement('span');
-    text.textContent = message;
+    text.textContent = tapSaid(message);
     node.appendChild(text);
   }
   const buttons = document.createElement('div');
   buttons.className = 'notice-buttons';
   for (const a of actions) {
     const b = document.createElement('button');
-    b.textContent = a.label;
+    b.textContent = tapSaid(a.label);
     if (a.className) b.className = a.className;
     b.addEventListener('click', () => { if (a.keep) b.remove(); else node.remove(); a.run(); });
     buttons.appendChild(b);

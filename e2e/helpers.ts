@@ -176,3 +176,14 @@ export async function openWarnings(page: Page) {
   const fold = page.getByTestId('warnings');
   if ((await fold.getAttribute('open')) === null) await fold.locator(':scope > summary').click();
 }
+
+/**
+ * Expected words that say "tap", as either device says them: on a computer the app says "click" (src/dom.ts tapSaid;
+ * round 3, Alex). `exact`: the whole text.
+ */
+export function tapping(text: string, exact = false): RegExp {
+  const esc = text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const body = esc.replace(/\b([Tt])ap(s|ped|ping)?\b/g, (_m, t: string, end: string | undefined) =>
+    `(?:${t}ap${end ?? ''}|${t === 'T' ? 'C' : 'c'}lick${end === 'ped' ? 'ed' : end === 'ping' ? 'ing' : end ?? ''})`);
+  return new RegExp(exact ? `^${body}$` : body);
+}
