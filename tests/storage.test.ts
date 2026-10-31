@@ -8,6 +8,7 @@ import {
   _resetStorageForTests, clearedNow, createProject, deleteProject, flushSave, getClipboard, initStorage, keepCleared, loadCleared,
   readProject, sanitizeProjectData, save, switchProject, writeJournalIfDirty, migrateBgImage, photoRefOf, sanitizePhotoRef, sanitizeDismissed, syncedContent } from '../src/storage';
 import { allExportedProjects, buildBackupFile, importProjects, parseImportFile, uniqueName } from '../src/backup';
+import { sanitizeMyPlant } from '../src/my-plants';
 import { buildSupportFile } from '../src/support';
 import { ERROR_LOG_KEY, readErrors, recordError } from '../src/error-log';
 import { NEW_RECORD, parseIntroRecord } from '../src/intro';
@@ -314,6 +315,37 @@ describe('printable-plan settings', () => {
     expect((await readProject(id))!.print).toMatchObject({ paper: 'tabloid', title: 'Back yard', northDeg: 15, includePlantList: false });
     const file = await buildBackupFile();
     expect(parseImportFile(file.text)[0].data.print).toMatchObject({ paper: 'tabloid', title: 'Back yard' });
+  });
+});
+
+describe('a plant of my own, male or female (Jason, Oct 31)', () => {
+  it('keeps its sex when said, none for older plants or odd values', () => {
+    const base = { id: 'u-abc', common: "Winterberry 'Jim Dandy'", width: { min: 6, max: 8, med: 7 } };
+    expect(sanitizeMyPlant(base)?.sex).toBeUndefined();
+    expect(sanitizeMyPlant({ ...base, sex: 'male' })?.sex).toBe('male');
+    expect(sanitizeMyPlant({ ...base, sex: 'both' })?.sex).toBeUndefined();
+  });
+});
+
+describe('the Show plants filter (Jason, Oct 31: kept with the plan, not synced)', () => {
+  it('is none for older plans, keeps a valid one, drops odd values, round-trips on this device and stays out of sync', async () => {
+    expect(sanitizeProjectData({ shapes: [] }).viewFilter).toBeUndefined();
+    expect(sanitizeProjectData({ phases: ['Fall 2026'], viewFilter: { status: 'planned', phase: 'Fall 2026', showGone: false } }).viewFilter)
+      .toEqual({ status: 'planned', phase: 'Fall 2026', showGone: false });
+    // (A status not known, a phase the plan doesn't have: left out; nothing left on, no filter.)
+    expect(sanitizeProjectData({ phases: [], viewFilter: { status: 'eaten', phase: 'Spring 2099', showGone: 'yes' } }).viewFilter).toBeUndefined();
+    await freshStorage();
+    const id = state.currentProjectId!;
+    state.phases = ['Fall 2026'];
+    state.viewFilter = { status: 'planted', phase: 'Fall 2026', showGone: false };
+    save();
+    await flushSave();
+    expect((await readProject(id))!.viewFilter).toEqual({ status: 'planted', phase: 'Fall 2026', showGone: false });
+    await switchProject(await createProject('Another plan'));
+    expect(state.viewFilter).toEqual({ status: '', phase: '', showGone: false }); // (another plan: its own, none)
+    await switchProject(id);
+    expect(state.viewFilter).toEqual({ status: 'planted', phase: 'Fall 2026', showGone: false });
+    expect('viewFilter' in syncedContent(sanitizeProjectData({ phases: ['Fall 2026'], viewFilter: { status: 'planted', phase: '', showGone: false } }))).toBe(false);
   });
 });
 

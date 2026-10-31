@@ -41,7 +41,8 @@ test('the selection pill deselects; a plant selects all of it on view, and swaps
   const row = page.locator('.sheet .proj-row', { hasText: 'Buttonbush' }).first();
   await expect(row.getByTestId('plant-place')).toHaveText('Swap');
   await row.getByTestId('plant-place').click();
-  await expect(page.locator('#toast')).toContainText('3 swapped for Buttonbush.');
+  // (Bigger, and now crowding each other: the crowding notice says so in place of the toast. Jason, Oct 31.)
+  await expect(page.locator('#toast, [data-testid=crowd-notice]').filter({ hasText: /3 swapped for Buttonbush\.|Buttonbush/ })).toHaveCount(1);
   await page.locator('.sheet .iconbtn[aria-label=Close]').click();
   await page.locator('button[title=Layers]').click();
   await expect(layerRows(page, 'Buttonbush')).toHaveCount(3);

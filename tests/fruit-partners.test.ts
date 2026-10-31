@@ -26,6 +26,9 @@ describe('a partner for fruit (Jason, Oct 30)', () => {
     expect(need?.offer.map((p) => p.id)).toEqual(['ilex-verticillata-southern-gentleman']);
     expect(fruitNeed(winterRed, [winterRed, gentleman], catalog)).toBeNull();
     expect(fruitNeed(winterRed, [winterRed, winterberry], catalog)).not.toBeNull(); // (a seedling's sex isn't known)
+    // (A male of my own, its species ticked: counted. Jason, Oct 31, from round 3: Owen's 'Jim Dandy'.)
+    const jim: Plant = { id: 'u-jim', common: "Jim Dandy", species: 'ilex-verticillata', parent: 'ilex-verticillata', fruit_set: 'separate', sex: 'male' };
+    expect(fruitNeed(winterRed, [winterRed, jim], catalog)).toBeNull();
   });
   it('a male cultivar: a female, or any plant of its kind not known to be male', () => {
     expect(fruitNeed(gentleman, [gentleman], catalog)?.offer.map((p) => p.id)).toEqual(['ilex-verticillata-winter-red']);

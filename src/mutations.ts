@@ -393,4 +393,5 @@ export function setViewFilter(patch: Partial<ShapeFilter>) {
     const s = state.shapes.find((sh) => sh.id === id);
     return s && shownWith(s, state.viewFilter);
   });
+  save(); // (kept with the plan: Jason, Oct 31)
 }

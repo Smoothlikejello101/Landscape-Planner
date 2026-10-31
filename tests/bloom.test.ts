@@ -99,6 +99,18 @@ describe('bloom by bed', () => {
       ['Coneflower', expect.any(Array), undefined], ['Phlox', [7, 8], ['mid summer', 'late summer']],
     ]);
   });
+  it('counts a plant by its months, its season alone apart, and insignificant flowers not at all (Jason, Oct 31)', () => {
+    const lib = {
+      muhly: { id: 'muhly', common: 'Pink muhly', bloom: { start: 10, end: 10 }, bloom_season: ['fall'] } as Plant,
+      oak: { id: 'oak', common: 'White oak', bloom_season: ['spring'], flower_color: ['insignificant'] } as Plant,
+    };
+    const at = (id: string, plantId: string) => ({ ...base, id, type: 'circle', x: 1, y: 1, radius: 0.5, role: 'plant', label: lib[plantId as 'oak'].common, plantId } as Shape);
+    const s = bloomSummary([at('a', 'muhly'), at('b', 'muhly'), at('c', 'oak')], lib);
+    expect(s.rows.find((r) => r.label === 'Pink muhly')).toMatchObject({ months: [9, 10, 11], faint: [9, 11] });
+    expect(s.rows.find((r) => r.label === 'White oak')).toMatchObject({ notShowy: true });
+    expect(s.perMonth).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0]);
+    expect(s.perMonthAround).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 2, 0]);
+  });
   it('groups by bed (gone plants left out), loose plants last', () => {
     const g = bloomByBed(shapes, plants);
     expect(g.map((x) => x.bed)).toEqual(['Front', 'Unnamed bed 1', 'Not in a bed']);

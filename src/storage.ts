@@ -6,8 +6,8 @@ import { del, openKV, put, type KV, type WriteOp } from './db';
 import { cancelHistoryDebounce } from './history';
 import { DEFAULT_PRINT, state } from './state';
 import { isRole } from './roles';
-import { cleanPhaseName, isStatus, MAX_PHASES } from './status';
-import type { BgImage, Clipboard, PathShape, PhotoRef, PlanDismissals, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, SunInfo, UtilityKind } from './types';
+import { cleanPhaseName, filterActive, isStatus, MAX_PHASES } from './status';
+import type { BgImage, Clipboard, PathShape, PhotoRef, PlanDismissals, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, ShapeFilter, SunInfo, UtilityKind } from './types';
 import { setWorldPoints } from './geometry';
 import { now, uid } from './util';
 import { photoFingerprint } from './sync/photo';
@@ -326,6 +326,7 @@ export function currentProjectData(): ProjectData {
     shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY,
     roleViews: state.roleViews, print: state.print, sizeMode: state.sizeMode, sunWarnings: state.sunWarnings, phases: state.phases, bgImage: state.bgImage,
     photoElsewhere: state.photoElsewhere, location: state.location, dismissed: state.dismissed,
+    ...(filterActive(state.viewFilter) ? { viewFilter: state.viewFilter } : {}),
   };
 }
 /** Normalize project data from storage, an old version, or an imported file. */
@@ -333,6 +334,7 @@ export function sanitizeProjectData(raw: unknown): ProjectData {
   const d = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const shapes = Array.isArray(d.shapes) ? d.shapes.map(migrateShape).filter((s): s is Shape => !!s) : [];
   const bg = d.bgImage && typeof d.bgImage === 'object' ? migrateBgImage(d.bgImage as Partial<BgImage>) : null;
+  const phases = sanitizePhases(d.phases, shapes);
   return {
     shapes,
     zoom: Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, num(d.zoom, 1))),
@@ -343,11 +345,26 @@ export function sanitizeProjectData(raw: unknown): ProjectData {
     sizeMode: d.sizeMode === 'full' ? 'full' : 'typical',
     sunWarnings: d.sunWarnings !== false,
     dismissed: sanitizeDismissed(d.dismissed),
-    phases: sanitizePhases(d.phases, shapes),
+    phases,
     bgImage: bg && bg.dataUrl ? bg : null,
     photoElsewhere: bg && bg.dataUrl ? null : sanitizePhotoRef(d.photoElsewhere),
     location: d.location === null ? null : sanitizeLocation(d.location) ?? undefined,
+    ...viewFilterOf(d.viewFilter, phases),
   };
+}
+/**
+ * A plan's Layers → Show plants filter, as stored: a known status, one of the plan's phases, Gone shown or not. Anything
+ * else, or no filter on at all, is none (absent: a plan from before it was kept, read as it was).
+ */
+export function viewFilterOf(raw: unknown, phases: string[]): { viewFilter?: ShapeFilter } {
+  if (!raw || typeof raw !== 'object') return {};
+  const o = raw as Record<string, unknown>;
+  const f: ShapeFilter = {
+    status: isStatus(o.status) ? o.status : '',
+    phase: typeof o.phase === 'string' && phases.includes(o.phase) ? o.phase : '',
+    showGone: o.showGone === true,
+  };
+  return filterActive(f) ? { viewFilter: f } : {};
 }
 
 // ---------- Writing ----------
@@ -372,6 +389,7 @@ function projectWriteOps(id: string, data: ProjectData, knownImageKeys?: Set<str
     photoElsewhere: storedBg ? null : data.photoElsewhere ?? null,
     location: data.location,
     ...(data.dismissed ? { dismissed: data.dismissed } : {}),
+    ...(data.viewFilter ? { viewFilter: data.viewFilter } : {}),
   };
   ops.push(put('projects', id, stored));
   return ops;
@@ -613,7 +631,7 @@ export async function switchProject(id: string): Promise<boolean> {
   state.sunWarnings = data.sunWarnings !== false;
   state.dismissed = data.dismissed;
   state.phases = data.phases ?? [];
-  state.viewFilter = { status: '', phase: '', showGone: false };
+  state.viewFilter = data.viewFilter ? { ...data.viewFilter } : { status: '', phase: '', showGone: false };
   state.bgImage = data.bgImage ?? null;
   state.photoElsewhere = data.photoElsewhere ?? null;
   state.location = data.location;

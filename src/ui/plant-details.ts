@@ -634,7 +634,7 @@ export function plantDetails(p: Plant, flagged: string[] | undefined, opts: { ha
     const escape = native ? escapeHere(p) : null;
     const dd = el('dd', { 'data-testid': 'native-here', ...(native?.status === 'I' ? { className: 'details-introduced' } : {}) });
     if (native) {
-      dd.appendChild(document.createTextNode(escape ? escapeText(escape) : nativeText(native)));
+      dd.appendChild(document.createTextNode(escape ? escapeText(escape) : nativeText(native, p.common)));
       dd.appendChild(el('span', { className: 'details-src' }, [native.source, ...(escape?.sources ?? [])].join(' · ')));
     }
     if (wild) dd.appendChild(el('span', { className: 'details-part', 'data-testid': 'wild-here' }, wildText(wild), el('span', { className: 'details-src' }, wild.sources.join('; '))));

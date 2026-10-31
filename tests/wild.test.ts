@@ -184,6 +184,8 @@ describe('wild records near the garden', () => {
     expect(gardenStateName()).toBe('Arkansas');
     expect(nativeText(nativeHere({ id: 'quercus-muehlenbergii' })!)).toBe('Native to Arkansas');
     expect(nativeText(nativeHere({ id: 'viola-sororia-freckles', parent: 'viola-sororia' })!)).toBe('Its species is native to Arkansas');
+    // (A named cultivar: what that means, said. Jason, Oct 31.)
+    expect(nativeText(nativeHere({ id: 'viola-sororia-freckles', parent: 'viola-sororia' })!, "Common blue violet 'Freckles'")).toBe("Its species is native to Arkansas; 'Freckles' is a cultivar of it");
     expect(nativeText(nativeHere({ id: 'lonicera-japonica' })!)).toBe('Introduced in Arkansas (not native there)');
     expect(nativeText(nativeHere({ id: 'allium-canadense-var-lavendulare' })!)).toBe('Its species is native to Arkansas');
     expect(nativeHere({ id: 'mitella-diphylla' })).toBeNull(); // (not listed there)

@@ -28,7 +28,11 @@ describe('filters', () => {
   it('pick plants by status and phase; other shapes stay as context; gone stays hidden', () => {
     expect(shown({ status: '', phase: '', showGone: false })).toEqual(['a', 'b', 'c', 'bed']);
     expect(shown({ status: 'planned', phase: '', showGone: false })).toEqual(['a', 'bed']);
-    expect(shown({ status: '', phase: 'Fall 2026', showGone: false })).toEqual(['a', 'bed']);
+    // (A bed in another phase isn't shown with this one; one with no phase is. Jason, Oct 31: Jordan's Phase 2 bed drew,
+    // empty, under Phase 1.)
+    expect(shown({ status: '', phase: 'Fall 2026', showGone: false })).toEqual(['a']);
+    expect(shown({ status: '', phase: 'Spring 2027', showGone: false })).toEqual(['bed']);
+    expect(passesFilter(bed('plain'), { status: '', phase: 'Fall 2026', showGone: false })).toBe(true);
     expect(shown({ status: 'gone', phase: '', showGone: false })).toEqual(['d', 'bed', 'old']);
     expect(shown({ status: '', phase: '', showGone: true })).toEqual(['a', 'b', 'c', 'd', 'bed', 'old']);
   });

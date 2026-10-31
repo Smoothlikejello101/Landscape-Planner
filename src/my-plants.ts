@@ -182,6 +182,8 @@ export function sanitizeMyPlant(raw: unknown): Plant | null {
   if (sameAs) p.sameAs = sameAs;
   else if (notSame) p.notSame = notSame;
   if (species) p.species = species;
+  // (Male or female, said by hand for a species with separate sexes: Jason, Oct 31. Older plants have none.)
+  if (o.sex === 'male' || o.sex === 'female') p.sex = o.sex;
   return p;
 }
 /** Load the library from storage into memory and the plant lookup. */

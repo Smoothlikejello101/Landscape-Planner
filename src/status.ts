@@ -64,7 +64,9 @@ export const NO_FILTER: ShapeFilter = { status: '', phase: '', showGone: false }
 /** Whether a shape passes a status/phase filter. */
 export function passesFilter(s: Shape, f: ShapeFilter): boolean {
   if (s.status === 'gone' && !f.showGone && f.status !== 'gone') return false;
-  if (s.role !== 'plant') return true;
+  // (A bed, a path, anything given a phase follows the phase shown, as plants do: Jordan's Phase 2 bed drew, empty,
+  // under Phase 1. Jason, Oct 31. With no phase of its own, it always shows; the status filter is for plants.)
+  if (s.role !== 'plant') return !(f.phase && s.phase && s.phase !== f.phase);
   if (f.status && s.status !== f.status) return false;
   if (f.phase && s.phase !== f.phase) return false;
   return true;

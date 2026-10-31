@@ -317,14 +317,14 @@ function warningsSection(): HTMLElement {
     return el('label', { className: 'check-row', style: { marginTop: '8px' } }, cb, el('span', {}, text));
   };
   d.appendChild(row('sun-warnings', state.sunWarnings, (v) => { state.sunWarnings = v; save(); },
-    'Sun: a \u26a0 badge where a plant gets more or less sun than it wants (in a sun area you recorded; this plan)'));
+    'Sun: a \u26a0 triangle badge where a plant gets more or less sun than it wants (in a sun area you recorded; this plan)'));
   d.appendChild(row('hardy-warnings', state.hardyWarnings, setHardyWarnings,
-    state.location ? `Hardiness: a warning as I place a plant too cold or too warm for zone ${state.location.zone}, and a \u2744 or \u2600 badge on it`
+    state.location ? `Hardiness: a warning as I place a plant too cold or too warm for zone ${state.location.zone}, and a round \u2744 or \u2600 badge on it`
       : 'Hardiness: a warning as I place a plant too cold or too warm where the garden is, and a badge on it (once a ZIP is set)'));
   const y = household();
   const who = [y.kids ? 'kids' : '', y.dogs ? 'dogs' : '', y.cats ? 'cats' : '', y.horses ? 'horses' : ''].filter(Boolean);
   d.appendChild(row('poison-warnings', state.poisonWarnings, setPoisonWarnings,
-    who.length ? `Poison: a badge on plants that are a problem for the ${who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0]} in the yard, in lists and on the plan`
+    who.length ? `Poison: a square badge on plants that are a problem for the ${who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0]} in the yard, in lists and on the plan`
       : "Poison: badges on plants that are a problem for who's in the yard (set in the plant picker's Filters, Poison & pets)"));
   d.appendChild(row('fruit-warnings', state.fruitWarnings, setFruitWarnings,
     'Fruit partners: a notice as I place a plant that needs a partner to fruit (male and female plants, or a second variety), until the plan has one'));
