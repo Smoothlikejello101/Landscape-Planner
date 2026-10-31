@@ -557,15 +557,17 @@ export function seeThroughIds(shapes: Shape[], filter: ShapeFilter = state.viewF
 /** Whether a climbing vine's band is drawn see-through: as tall as a canopy (src/vines.ts; most vines are). */
 export const vineSeeThrough = (s: CircleShape): boolean => s.status !== 'gone' && (bandOf(s, plantsById).band?.[1] ?? 0) >= CANOPY_FT;
 /**
- * The plants hidden under a solid one: drawn before a plant shorter than a canopy whose circle holds their middle (a
- * groundcover under a perennial). Their outline and name are drawn over the plants (liftHidden), so nothing planted
- * is lost from sight. Gone plants count for nothing.
+ * The plants hidden under a solid one, each with the plants hiding it: drawn before a plant shorter than a canopy, of
+ * another kind, whose circle holds their middle (a groundcover under a perennial). Marked over the plants (liftHidden),
+ * so nothing planted is lost from sight. Not under more of its own kind: a mass planting hides nothing worth marking
+ * (Jason, Oct 30, the anise hyssop bed). Gone plants count for nothing.
  */
-export function hiddenIds(shapes: Shape[], filter: ShapeFilter = state.viewFilter, thin: Set<string> = seeThroughIds(shapes, filter)): Set<string> {
+export function hiddenCovers(shapes: Shape[], filter: ShapeFilter = state.viewFilter, thin: Set<string> = seeThroughIds(shapes, filter)): Map<string, string[]> {
   const order = paintOrder(shapes, filter).filter(drawnBySize).filter((s) => s.status !== 'gone');
   const rank = new Map(order.map((s, i) => [s.id, i]));
   const byX = [...order].sort((a, b) => a.x - b.x);
-  const out = new Set<string>();
+  const kind = (s: Shape) => s.plantId || s.label.trim();
+  const out = new Map<string, string[]>();
   for (const u of order) {
     if (thin.has(u.id)) continue;
     const r = drawnRadius(u), at = rank.get(u.id)!;
@@ -574,11 +576,14 @@ export function hiddenIds(shapes: Shape[], filter: ShapeFilter = state.viewFilte
     while (lo < hi) { const m = (lo + hi) >> 1; if (byX[m].x < u.x - r) lo = m + 1; else hi = m; }
     for (let k = lo; k < byX.length && byX[k].x <= u.x + r; k++) {
       const l = byX[k];
-      if (rank.get(l.id)! < at && Math.hypot(l.x - u.x, l.y - u.y) < r) out.add(l.id);
+      if (rank.get(l.id)! < at && Math.hypot(l.x - u.x, l.y - u.y) < r && !(kind(l) && kind(l) === kind(u))) out.set(l.id, [...(out.get(l.id) ?? []), u.id]);
     }
   }
   return out;
 }
+/** The plants hidden under a solid one (hiddenCovers). */
+export const hiddenIds = (shapes: Shape[], filter: ShapeFilter = state.viewFilter, thin?: Set<string>): Set<string> =>
+  new Set(hiddenCovers(shapes, filter, thin ?? seeThroughIds(shapes, filter)).keys());
 /** A plant (or a circle among them), drawn by its size rather than the plan's order; Arrange leaves it be. */
 export function drawnBySize(s: Shape): s is CircleShape {
   return s.type === 'circle' && !s.climbsOn && ['plant', 'other', 'unassigned'].includes(roleKey(s));
@@ -768,8 +773,11 @@ let crowded = new Map<string, CrowdLevel>();
 let seeThrough = new Set<string>();
 /** Whether a plant is drawn see-through now (a canopy over what's under it). */
 export const isSeeThrough = (id: string) => seeThrough.has(id);
-/** Plants hidden under a solid one, their outline and name drawn over it (hiddenIds); refreshed on each redraw. */
+/** Plants hidden under a solid one, their mark and name drawn over it (hiddenCovers); refreshed on each redraw. */
 let hidden = new Set<string>();
+/** Each hidden plant's plants over it (hiddenCovers): selected, it's outlined, not pinned. */
+let hiddenBy = new Map<string, string[]>();
+const refreshHidden = () => { hiddenBy = hiddenCovers(state.shapes, state.viewFilter, seeThrough); hidden = new Set(hiddenBy.keys()); };
 /** Whether a plant is hidden under a solid one now (its outline and name drawn over it). */
 export const isHidden = (id: string) => hidden.has(id);
 function refreshCrowding() {
@@ -786,7 +794,7 @@ function refreshUtilities() {
 export function redrawCanvas() {
   refreshCrowding();
   seeThrough = seeThroughIds(state.shapes);
-  hidden = hiddenIds(state.shapes, state.viewFilter, seeThrough);
+  refreshHidden();
   refreshUtilities();
   refreshLabelLayout();
   const svg = canvasSvg();
@@ -849,7 +857,7 @@ export function redrawShapes(ids: string[]) {
   // (A plant moved over or off another: those whose see-through or hiding changes are drawn again too.)
   const wasThin = seeThrough, wasHidden = hidden;
   seeThrough = seeThroughIds(state.shapes);
-  hidden = hiddenIds(state.shapes, state.viewFilter, seeThrough);
+  refreshHidden();
   const flipped = (a: Set<string>, b: Set<string>) => [...new Set([...a, ...b])].filter((id) => a.has(id) !== b.has(id));
   ids = [...new Set([...ids, ...flipped(wasThin, seeThrough), ...flipped(wasHidden, hidden)])];
   // (A support dragged: the vines on it follow along.)
@@ -868,9 +876,10 @@ export function redrawShapes(ids: string[]) {
   liftTrunks(shapes);
 }
 /**
- * The plants hidden under a solid one (hiddenIds), over every plant: a dotted outline, and their name moved up from
- * their own group (Jason, Oct 30, option C: nothing planted is lost from sight under a solid plant). Outlines drawn
- * afresh each time; a name stays up here until its plant is drawn again.
+ * The plants hidden under a solid one (hiddenCovers), over every plant (Jason, Oct 30, option C: nothing planted is lost
+ * from sight under a solid plant; his pick of the marks, G): a pin at its middle, and its name moved up from its own
+ * group where it's clear; the plant over it selected (or it), its dotted outline instead, to see what's under and how far
+ * it reaches. Marks drawn afresh each time; a name stays up here until its plant is drawn again.
  */
 function liftHidden(shapes: Element) {
   let top = shapes.querySelector(':scope > g[data-role=hidden-over]');
@@ -883,9 +892,13 @@ function liftHidden(shapes: Element) {
     const s = state.shapes.find((x) => x.id === id);
     if (!s || s.type !== 'circle') continue;
     const cx = (s.x - state.offsetX) * ppf, cy = (s.y - state.offsetY) * ppf, r = Math.max(2, drawnRadius(s) * ppf - 1);
-    rims.push(svgEl('g', { 'data-role': 'hidden-rim', 'data-rim-of': id },
-      svgEl('circle', { cx, cy, r, fill: 'none', stroke: 'rgba(255,255,255,0.75)', 'stroke-width': 3 }),
-      svgEl('circle', { cx, cy, r, fill: 'none', stroke: '#292524', 'stroke-width': 1.5, 'stroke-dasharray': '2 3', 'stroke-linecap': 'round', opacity: 0.8 })));
+    const outlined = state.selectedIds.includes(id) || (hiddenBy.get(id) ?? []).some((c) => state.selectedIds.includes(c));
+    rims.push(outlined
+      ? svgEl('g', { 'data-role': 'hidden-rim', 'data-rim-of': id, 'data-mark': 'outline' },
+        svgEl('circle', { cx, cy, r, fill: 'none', stroke: 'rgba(255,255,255,0.75)', 'stroke-width': 3 }),
+        svgEl('circle', { cx, cy, r, fill: 'none', stroke: '#292524', 'stroke-width': 1.5, 'stroke-dasharray': '2 3', 'stroke-linecap': 'round', opacity: 0.8 }))
+      : svgEl('g', { 'data-role': 'hidden-rim', 'data-rim-of': id, 'data-mark': 'pin' },
+        svgEl('circle', { cx, cy, r: 4.5, fill: '#fff', opacity: 0.9 }), svgEl('circle', { cx, cy, r: 2.6, fill: '#292524' })));
     const label = shapes.querySelector(`:scope > g[data-shape-group="${CSS.escape(id)}"] > [data-role=plant-label]`);
     // (Selected, its name shows whatever's around it.)
     if (label && hiddenUnnamed.has(id) && !state.selectedIds.includes(id)) label.remove();

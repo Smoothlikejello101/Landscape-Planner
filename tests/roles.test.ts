@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { drawnHeight, hiddenIds, labelRuns, paintOrder, runLabelSpot, seeThroughIds } from '../src/canvas';
+import { drawnHeight, hiddenCovers, hiddenIds, labelRuns, paintOrder, runLabelSpot, seeThroughIds } from '../src/canvas';
 import { plantsById, type Plant } from '../src/plants';
 import { setRoleForIds, setRoleView } from '../src/mutations';
 import { defaultLook, isLocked } from '../src/roles';
@@ -50,10 +50,13 @@ describe('drawing order', () => {
       c('mint', 40, 1.25, mint), c('underMint', 40.5, 0.75, ginger), c('besideMint', 42, 0.75, ginger), // (beside: its middle clear)
       c('mint2', 60, 1.25, mint), c('goneUnder', 60, 0.5, { ...ginger, status: 'gone' }),
       c('wide', 80, 3), // (no height known: its spread, 6 ft, stands in)
+      c('mint3', 100, 1.25, mint), c('mint4', 100.5, 1.25, mint), // (a mass planting: a mint under a mint isn't marked)
     ];
     expect([...seeThroughIds(state.shapes)].sort()).toEqual(['hazel', 'hazel2', 'wide']);
-    // (Under a canopy, seen through it; under the solid mint, outlined; a gone plant counts for nothing.)
+    // (Under a canopy, seen through it; under the solid mint, marked; a gone plant counts for nothing, nor one under its
+    // own kind.)
     expect([...hiddenIds(state.shapes)].sort()).toEqual(['underMint']);
+    expect(hiddenCovers(state.shapes).get('underMint')).toEqual(['mint']);
   });
   it('names a run of the same plant once: twelve liriope in a column are one run; a gap, another name or two alone are not (Jason, Oct 30)', () => {
     const c = (id: string, label: string, x: number, y: number) => ({ id, type: 'circle', x, y, radius: 0.75, color: '#16a34a', label, opacity: 0.65, locked: false, role: 'plant' } as CircleShape);

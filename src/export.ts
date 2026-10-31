@@ -77,14 +77,13 @@ function withSunHours(s: Shape, label: string): string {
   return label ? `${label} \u00b7 ${hours}` : hours;
 }
 /**
- * Plants hidden under a solid one (src/canvas.ts hiddenIds): a dotted outline over the plants, as on the plan, in the
- * page's units (`scale` px a foot, `k` for strokes).
+ * Plants hidden under a solid one (src/canvas.ts hiddenIds): a pin at its middle over the plants, as on the plan, in
+ * the page's units (`scale` px a foot, `k` for strokes).
  */
 export function hiddenRimsSvg(shapes: Shape[], ids: Set<string>, originX: number, originY: number, scale: number, k = 1): string {
   return shapes.filter((s): s is CircleShape => s.type === 'circle' && ids.has(s.id)).map((s) => {
-    const cx = (s.x - originX) * scale, cy = (s.y - originY) * scale, r = Math.max(2 * k, (groundcoverRadius(s) ?? s.radius) * scale - k);
-    return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#ffffff" stroke-opacity="0.75" stroke-width="${3 * k}"/>`
-      + `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#292524" stroke-width="${1.5 * k}" stroke-dasharray="${2 * k} ${3 * k}" stroke-linecap="round" opacity="0.8"/>`;
+    const cx = (s.x - originX) * scale, cy = (s.y - originY) * scale;
+    return `<circle cx="${cx}" cy="${cy}" r="${4.5 * k}" fill="#ffffff" opacity="0.9"/><circle cx="${cx}" cy="${cy}" r="${2.6 * k}" fill="#292524"/>`;
   }).join('');
 }
 /** Plants drawn see-through in what's being exported (as on the plan: src/canvas.ts seeThroughIds). */
