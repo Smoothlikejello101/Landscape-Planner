@@ -605,6 +605,15 @@ export function plantDetails(p: Plant, flagged: string[] | undefined, opts: { ha
   const top = el('dl', { className: 'details-list' });
   // What the law says of it where the garden is (a state's list, the federal one), each with its rule: first,
   // above the catalog's facts, where it can't be missed.
+  // (Invasive: said in its own details too, not only on its picker row. Jason, Oct 31, from round 3: Kim looked for it
+  // in a placed wisteria's pane and found nothing.)
+  if (p.invasive) {
+    const dd = el('dd', { className: 'details-law', 'data-testid': 'invasive-here' },
+      'Widely invasive in the US: not for planting. In the catalog so one already in the yard can be mapped, and taken out.');
+    const src = sourceLine(p.prov?.invasive);
+    if (src) dd.appendChild(el('span', { className: 'details-src' }, src));
+    top.append(el('dt', {}, 'Invasive'), dd);
+  }
   const notesShown = new Set<string>();
   for (const rule of regulatedHere(p)) {
     const dd = el('dd', { 'data-testid': 'regulated-here', className: `details-law${rule.tier === 'listed' ? ' listed' : ''}` }, rule.says);

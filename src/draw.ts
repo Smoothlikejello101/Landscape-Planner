@@ -299,8 +299,8 @@ export function finishDraw(): Shape | null {
         undo(); render();
       } },
       isSquare
-        ? { label: 'Stop squaring', keep: true, run: () => { setSquareOn(false); toast('Squaring is off: turn it back on in Layers.', 4000); } }
-        : { label: 'Stop snapping', keep: true, run: () => { setSnapOn(false); toast('Snapping is off: turn it back on in Layers.', 4000); } },
+        ? { label: 'Stop squaring', keep: true, run: () => { setSquareOn(false); toast('Squaring is off: turn it back on in \u22ee \u2192 Settings.', 4000); } }
+        : { label: 'Stop snapping', keep: true, run: () => { setSnapOn(false); toast('Snapping is off: turn it back on in \u22ee \u2192 Settings.', 4000); } },
     ], 10000);
   }
   save();

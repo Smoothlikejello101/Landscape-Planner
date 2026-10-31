@@ -46,7 +46,7 @@ export function shapeToSvgString(s: Shape, originX: number, originY: number, sca
     ? s.features.map((f) => featurePartsSvg(featureParts(s, f, (p) => ({ x: (p.x - originX) * scale, y: (p.y - originY) * scale }), scale, k))).join('')
     : '';
   const body = shapeBodySvg(s, originX, originY, scale, k) + subs + (s.locked && s.type !== 'text' ? padlockSvg(s, originX, originY, scale, k) : '');
-  if (!s.status || s.status === 'planted' || s.status === 'planned') return body;
+  if (!s.status || s.status === 'planted' || s.status === 'existing' || s.status === 'planned') return body;
   if (s.status === 'gone') return `<g opacity="0.35">${body}</g>`;
   // To remove: a red cross; to move: a blue arrow badge (as on screen).
   const b = shapeBBox(s);

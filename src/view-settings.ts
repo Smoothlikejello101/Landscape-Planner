@@ -6,7 +6,7 @@ import { state } from './state';
 
 const FULL_RINGS = 'lp-full-rings', CROWDING = 'lp-crowding', CROWD_WARN = 'lp-crowd-warn', LOOKS = 'lp-plant-looks';
 // (Hardiness and poison warnings, on unless turned off: Jason, Oct 30, "too hot and too cold should get warnings by
-// default", with every kind of warning switchable in one place, Layers → Warnings.)
+// default", with every kind of warning switchable in one place, Settings → Warnings, since Oct 31.)
 const HARDY_WARN = 'lp-warn-hardy', POISON_WARN = 'lp-warn-poison';
 // (Fruit partners, on unless turned off: Jason, Oct 30.)
 const FRUIT_WARN = 'lp-warn-fruit';

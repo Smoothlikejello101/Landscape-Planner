@@ -13,6 +13,7 @@ import { featureHitPart, featureParts, knownFeatures } from './features';
 import { catalogReady, hardinessWarning, plantsById } from './plants';
 import { dismissedForPlan, poisonSaid } from './dismissals';
 import { plantLabelFit, LABEL_LINE_HEIGHT, textWidth1, type FittedLabel } from './labels';
+import { labelScale } from './label-size';
 import { canopyInnerRadius, canopyPoints, isTree, trunkParts, trunkReachPx } from './trees';
 import { trunkHitPx } from './canopy';
 import { isLocked, roleDef, roleKey, roleRank } from './roles';
@@ -160,6 +161,8 @@ export function shapeGroup(s: Shape): SVGGElement {
   let ring: SVGElement | null = null;
   const g0: SVGElement[] = [];
   let labelX: number, labelY: number, fs: number, rotTransform = '';
+  // (Names at the label size chosen in Settings: src/label-size.ts. Medium is 1.)
+  const lk = labelScale();
   let fitted: FittedLabel | null | undefined; // circles: the name fitted inside (null = doesn't fit)
   let overflow = false; // a plant's name written over its edge
   let vineDot: number | null = null; // a climbing vine: its planting spot's radius (px), where its badges go
@@ -212,8 +215,8 @@ export function shapeGroup(s: Shape): SVGGElement {
     hitEl = svgEl('g', { 'data-shape-id': s.id, 'data-role': 'vine-hit', style: common.style, 'pointer-events': inert ? 'none' : null },
       svgEl('polyline', { points: (cover ? connector : band).map(toPx).join(' '), fill: 'none', stroke: 'transparent', 'stroke-width': Math.max(hitBand(ppf), cover ? 0 : bandW), 'stroke-linecap': 'round', 'pointer-events': inert ? 'none' : 'stroke' }),
       svgEl('circle', { cx, cy, r: Math.max(vineDot, 12), fill: 'transparent', 'pointer-events': inert ? 'none' : 'all' }));
-    labelX = cx; labelY = cy - vineDot - 9;
-    fs = 12;
+    labelX = cx; labelY = cy - vineDot - 9 * lk;
+    fs = 12 * lk;
     fitted = undefined; overflow = true; // (its name over its spot, with a halo, as a name too big for its circle)
   } else if (s.type === 'circle') {
     const cx = (s.x - state.offsetX) * ppf;
@@ -270,7 +273,7 @@ export function shapeGroup(s: Shape): SVGGElement {
       });
     }
     labelX = cx; labelY = cy;
-    fs = Math.max(10, Math.min(14, r * 0.4));
+    fs = Math.max(10, Math.min(14, r * 0.4)) * lk;
     fitted = circleLabel(s, ppf);
     // A plant name that won't fit inside still shows, over the edge, where it has the room; a run of the same plant's,
     // once for them all, at their middle (labelGroups).
@@ -308,15 +311,15 @@ export function shapeGroup(s: Shape): SVGGElement {
     const lp = pathLabelPoint(s);
     labelX = (lp.x - state.offsetX) * ppf; labelY = (lp.y - state.offsetY) * ppf;
     const { w, h } = boxSize(s);
-    fs = s.type === 'line' ? 12 : Math.max(10, Math.min(14, Math.min(w, h) * ppf * 0.2));
+    fs = (s.type === 'line' ? 12 : Math.max(10, Math.min(14, Math.min(w, h) * ppf * 0.2))) * lk;
     if (s.role === 'boundary') {
       // A property line or fence is named along itself, just beside the line, not in the middle of the yard.
       const al = alongLabel(s);
       labelX = (al.x - state.offsetX) * ppf; labelY = (al.y - state.offsetY) * ppf;
       if (al.angle) rotTransform = `rotate(${al.angle} ${labelX} ${labelY})`;
-      labelY -= 9;
-      fs = 12;
-    } else if (s.type === 'line' && !s.pathWidth) labelY -= 10; // above a thin line, not on it (a path's label sits on it)
+      labelY -= 9 * lk;
+      fs = 12 * lk;
+    } else if (s.type === 'line' && !s.pathWidth) labelY -= 10 * lk; // above a thin line, not on it (a path's label sits on it)
   } else {
     const px = (s.x - state.offsetX) * ppf;
     const py = (s.y - state.offsetY) * ppf;
@@ -335,7 +338,7 @@ export function shapeGroup(s: Shape): SVGGElement {
       shapeEl = svgEl('polygon', { ...common, points: pts });
     }
     labelX = cx; labelY = cy;
-    fs = Math.max(10, Math.min(14, Math.min(w, h) * 0.2));
+    fs = Math.max(10, Math.min(14, Math.min(w, h) * 0.2)) * lk;
     // Its name reads as upright as it can, not turned with the shape (a bed drawn tall and turned on its side).
     // (The shape has its transform already: from here on, rotTransform turns its labels.)
     const angle = boxLabelAngle(s.rotation || 0);
@@ -411,7 +414,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   } else if (label && (fitted === undefined || !isPlantCircle(s) || (sel && state.selectedIds.length === 1))) {
     // Not fitted (other shapes), or a plant's name over its edge (room for it, or selected): one line, with a halo.
     const halo = fitted === null || overflow;
-    if (halo) fs = OVERFLOW_PX;
+    if (halo) fs = OVERFLOW_PX * lk;
     g.appendChild(svgEl('text', {
       x: labelX, y: sunText ? labelY - fs * 0.6 : labelY, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
       'font-size': fs, fill: '#0f172a', 'pointer-events': 'none',
@@ -423,7 +426,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   if (sunText) {
     g.appendChild(svgEl('text', {
       x: labelX, y: label ? labelY + fs * 0.7 : labelY, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
-      'font-size': Math.max(10, fs * 0.85), fill: '#1e293b', 'pointer-events': 'none', 'data-role': 'sun-label',
+      'font-size': Math.max(10 * lk, fs * 0.85), fill: '#1e293b', 'pointer-events': 'none', 'data-role': 'sun-label',
       style: 'user-select:none;', transform: rotTransform || null,
     }, sunText));
   }
@@ -460,11 +463,11 @@ export function shapeGroup(s: Shape): SVGGElement {
         svgEl('text', { x: bx, y: by + 2, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 10, 'font-weight': 700, fill: '#fff' }, '!')));
     }
   }
-  // Too cold, or maybe too warm, where the garden is (Layers → Warnings; Jason, Oct 30): a badge low on the right, a
+  // Too cold, or maybe too warm, where the garden is (Settings → Warnings; Jason, Oct 30): a badge low on the right, a
   // snowflake on blue or a sun on red. Not a tree already there, nor one coming out.
   const living = s.status !== 'gone' && s.status !== 'remove' && !(s.type === 'circle' && s.tree);
   const data = s.role === 'plant' && s.plantId ? plantsById[s.plantId] : undefined;
-  const hardy = data && named && living && state.hardyWarnings ? hardinessWarning(data) : null;
+  const hardy = data && named && living && s.status !== 'existing' && state.hardyWarnings ? hardinessWarning(data) : null;
   if (hardy && s.hardyDismissed !== hardy.line && !dismissedForPlan('hardy', s.plantId, hardy.line)) {
     const r = vineDot ?? (s.type === 'circle' ? s.radius * ppf : Math.min(boxSize(s).w, boxSize(s).h) * ppf / 2);
     const bx = labelX + r * 0.7, by = labelY + r * 0.7;
@@ -681,7 +684,7 @@ export function runLabelSpot(run: CircleShape[], w: number, h: number, ppf: numb
   return spots.find((p) => !placed.some((q) => overlaps(q, boxAt(p, w, h, ppf)))) ?? null;
 }
 function refreshLabelLayout() {
-  const ppf = pxPerFoot();
+  const ppf = pxPerFoot(), lk = labelScale();
   overflowLabels = new Set();
   runLabels = new Map();
   type Box = LabelBox;
@@ -697,11 +700,11 @@ function refreshLabelLayout() {
       // Other shapes' names (a bed's, a path's) are there first: plant names stay off them.
       const label = s.type === 'text' ? '' : displayLabel(s);
       if (!label) continue;
-      const w = textWidth1(label) * 12, h = 14;
+      const w = textWidth1(label) * 12 * lk, h = 14 * lk;
       if (s.role === 'boundary' && (s.type === 'poly' || s.type === 'line')) {
         // Along the line: 9 px off it, turned with it (the box that holds the turned label).
         const al = alongLabel(s), rad = (al.angle * Math.PI) / 180;
-        const cx = al.x * ppf + 9 * Math.sin(rad), cy = al.y * ppf - 9 * Math.cos(rad);
+        const cx = al.x * ppf + 9 * lk * Math.sin(rad), cy = al.y * ppf - 9 * lk * Math.cos(rad);
         const bw = Math.abs(w * Math.cos(rad)) + Math.abs(h * Math.sin(rad)), bh = Math.abs(w * Math.sin(rad)) + Math.abs(h * Math.cos(rad));
         placed.push({ x0: cx - bw / 2, x1: cx + bw / 2, y0: cy - bh / 2, y1: cy + bh / 2 });
         continue;
@@ -719,7 +722,7 @@ function refreshLabelLayout() {
       // (A plant hidden under a solid one: its name drawn over that plant, after the names in sight, where it's clear.)
       if (hidden.has(s.id)) hiddenFits.push({ s, box }); else placed.push(box);
     } else if (fit === null) {
-      const w = textWidth1(displayLabel(s)) * OVERFLOW_PX, h = OVERFLOW_PX * LABEL_LINE_HEIGHT;
+      const w = textWidth1(displayLabel(s)) * OVERFLOW_PX * lk, h = OVERFLOW_PX * lk * LABEL_LINE_HEIGHT;
       waiting.push({ s, box: { x0: cx - w / 2, x1: cx + w / 2, y0: cy - h / 2, y1: cy + h / 2 } });
     }
   }
@@ -742,7 +745,7 @@ function refreshLabelLayout() {
   const inRun = new Set<string>();
   for (const run of labelRuns(waiting.map((w) => w.s))) {
     const text = `${displayLabel(run[0])} \u00d7${run.length}`;
-    const w = textWidth1(text) * OVERFLOW_PX, h = OVERFLOW_PX * LABEL_LINE_HEIGHT;
+    const w = textWidth1(text) * OVERFLOW_PX * lk, h = OVERFLOW_PX * lk * LABEL_LINE_HEIGHT;
     const at = runLabelSpot(run, w, h, ppf, placed);
     if (!at) continue;
     for (const s of run) inRun.add(s.id);
@@ -769,7 +772,7 @@ function circleLabel(s: CircleShape, ppf: number): FittedLabel | null | undefine
   const label = displayLabel(s);
   if (!label || (s.role === 'shade' && s.sun)) return undefined; // sun hours share the space; keep the plain label
   const plant = s.plantId ? plantsById[s.plantId] : undefined;
-  const fit = plantLabelFit(label, canopyInnerRadius(s) * ppf, isTree(s) ? { below: trunkReachPx(s, ppf) + 1 } : {}, isPlantCircle(s) ? plant : undefined);
+  const fit = plantLabelFit(label, canopyInnerRadius(s) * ppf, isTree(s) ? { below: trunkReachPx(s, ppf) + 1 } : {}, isPlantCircle(s) ? plant : undefined, labelScale());
   return fit ?? (isPlantCircle(s) ? null : undefined);
 }
 

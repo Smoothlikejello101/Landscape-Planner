@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, closeSheet, field, openFilters, openFresh, openSections, openWarnings, shapeCount, tapFromCenter } from './helpers';
+import { addKind, closeSheet, field, openFilters, openFresh, openSections, openWarnings, shapeCount, tapFromCenter, openSettings } from './helpers';
 
 // Round 2's decisions (Jason, Oct 30, in the findings doc): each as a tester met what it changes.
 
@@ -98,7 +98,7 @@ test('Clear all keeps what it took: the empty plan offers it back, after a reloa
   await expect(page.getByTestId('bring-back')).toHaveCount(0);
 });
 
-test('one Warnings fold in Layers, a switch for each kind; poison follows the household (2A, and Jason\'s warning settings)', async ({ page }) => {
+test('one Warnings fold in Settings, a switch for each kind; poison follows the household (2A, and Jason\'s warning settings)', async ({ page }) => {
   await openFresh(page);
   await placeOne(page, 'Butterfly milkweed');
   await expect(page.locator('#canvas-svg [data-role=poison-warning]')).toHaveCount(0); // (no one in the yard yet)
@@ -111,13 +111,13 @@ test('one Warnings fold in Layers, a switch for each kind; poison follows the ho
   await expect(page.locator('.plant-item', { hasText: 'Butterfly milkweed' }).first().getByTestId('row-poison')).toHaveText('Poisonous to people');
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=poison-warning]')).toHaveCount(1);
-  await page.locator('button[title=Layers]').click();
-  await expect(page.getByTestId('warnings').locator('summary')).toContainText('all on');
+  await openSettings(page);
+  await expect(page.getByTestId('warnings').locator(':scope > summary')).toContainText('all on');
   await openWarnings(page);
   for (const id of ['crowding-settings', 'sun-warnings', 'hardy-warnings', 'poison-warnings', 'fruit-warnings']) await expect(page.getByTestId(id)).toBeVisible();
   await expect(page.getByTestId('warnings')).toContainText('a problem for the kids in the yard');
   await page.getByTestId('poison-warnings').uncheck();
-  await expect(page.getByTestId('warnings').locator('summary')).toContainText('4 of 5 kinds on');
+  await expect(page.getByTestId('warnings').locator(':scope > summary')).toContainText('4 of 5 kinds on');
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=poison-warning]')).toHaveCount(0);
   await page.locator('.tool-btn.plants').click();
@@ -125,7 +125,7 @@ test('one Warnings fold in Layers, a switch for each kind; poison follows the ho
   await expect(page.locator('.plant-item', { hasText: 'Butterfly milkweed' }).first().getByTestId('row-poison')).toHaveCount(0);
   // (Kept: a reload shows it off still.)
   await page.reload();
-  await page.locator('button[title=Layers]').click();
+  await openSettings(page);
   await openWarnings(page);
   await expect(page.getByTestId('poison-warnings')).not.toBeChecked();
 });
@@ -167,7 +167,7 @@ test('a plant too cold for the garden: a warning as it\'s placed, with Undo, and
   await placeOne(page, 'Barbados aloe');
   await page.getByTestId('hardy-notice').getByRole('button', { name: 'Leave it' }).click();
   // Turned off in Warnings: its badge goes, and the next is placed without a word.
-  await page.locator('button[title=Layers]').click();
+  await openSettings(page);
   await openWarnings(page);
   await page.getByTestId('hardy-warnings').uncheck();
   await closeSheet(page);

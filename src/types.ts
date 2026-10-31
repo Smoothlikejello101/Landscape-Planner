@@ -70,7 +70,12 @@ interface ShapeBase {
   phase?: string;
 }
 /** Planned = not in the ground yet; gone = removed or died (kept as a record, hidden by default). */
-export type Status = 'planned' | 'planted' | 'move' | 'remove' | 'gone';
+/**
+ * Where a thing is in its life on the plan (Jason, Oct 31, from round 3): not yet (planned); in the ground, put there
+ * by you (planted, with its date) or there before the plan (existing: a house, a fence, an old oak); with a change
+ * coming (to move, to remove); gone.
+ */
+export type Status = 'planned' | 'planted' | 'existing' | 'move' | 'remove' | 'gone';
 /** Which plants to show (view or print). Other shapes always show, except gone ones. */
 export interface ShapeFilter { status: '' | Status; phase: string; showGone: boolean }
 /** Direct sun observed on a shade area. Times are minutes after midnight. */
@@ -333,7 +338,7 @@ export interface Bounds { minX: number; maxX: number; minY: number; maxY: number
 
 export type PanelName =
   | 'props' | 'arrange' | 'layers' | 'projects' | 'rename' | 'export'
-  | 'preview' | 'reset' | 'plants' | 'bg' | 'bgDistance' | 'print' | 'plantForm' | 'bloom' | 'add' | 'shortcuts' | 'location' | 'switchPlant' | 'feedback';
+  | 'preview' | 'reset' | 'plants' | 'bg' | 'bgDistance' | 'print' | 'plantForm' | 'bloom' | 'add' | 'shortcuts' | 'location' | 'switchPlant' | 'feedback' | 'settings';
 /** What the plant form is doing: a new plant (maybe from a search or a copy), or editing one of yours. */
 /**
  * `name`, `botanical`: typed already (kept when starting from a plant). `back`: the panel to go back to when the form is

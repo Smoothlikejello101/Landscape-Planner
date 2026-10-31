@@ -11,12 +11,13 @@ import { render } from './render';
 import { toastAction } from './toast';
 import { copiesSaid, dismissedForPlan, dismissForPlan, poisonSaid, showAgainForPlan, warnForNewOnes } from '../dismissals';
 import { BULB_PARTNER_MIN_HEIGHT, crowdingOf, crowdRelation } from '../crowding';
+import { alreadyThere } from '../status';
 import { I } from '../icons';
 import { crowdOptions } from '../crowd-here';
 import { flagAgain, leaveClose } from './crowd-notice';
 import { shownWith } from '../status';
 import { sqFt } from '../util';
-import { timeRange } from './time-range';
+import { emptyTimeline, timeRange } from './time-range';
 import { isLocked } from '../roles';
 import { issuesKey, prepareUtilities, utilityIssues, utilityNote } from '../utilities';
 import { UTILITY_COLORS, UTILITY_KINDS, isUtilityKind, utilityLook } from '../utility-kinds';
@@ -63,7 +64,7 @@ export function plantSunBanner(s: Shape): HTMLElement | null {
   btn.addEventListener('click', () => {
     if (dismissed) updateSelected({ sunDismissed: undefined }); else updateSelected({ sunDismissed: check.message });
   });
-  const note = dismissed ? ' (dismissed: no badge on the plan)' : !state.sunWarnings ? ' (badges are off in Layers)' : '';
+  const note = dismissed ? ' (dismissed: no badge on the plan)' : !state.sunWarnings ? ' (badges are off in Settings \u2192 Warnings)' : '';
   return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'sun-check' },
     el('div', {}, '⚠ ' + check.message + note), el('div', { style: { marginTop: '4px' } }, btn));
 }
@@ -88,7 +89,7 @@ const warnedFor = (s: Shape) => s.role === 'plant' && !!s.plantId && !(s.type ==
  * spot, a gamble taken); it comes back if what it says changes (the ZIP, the plant).
  */
 export function plantHardyBanner(s: Shape): HTMLElement | null {
-  if (!warnedFor(s)) return null;
+  if (!warnedFor(s) || alreadyThere(s)) return null; // (one already there has come through its winters)
   const p = plantsById[s.plantId!];
   const w = p ? hardinessWarning(p) : null;
   if (!w) return null;
@@ -98,7 +99,7 @@ export function plantHardyBanner(s: Shape): HTMLElement | null {
   const btn = el('button', { className: 'link-reset', 'data-testid': 'hardy-dismiss' }, dismissed ? 'Show the warning again' : 'Dismiss');
   btn.addEventListener('click', () => { if (dismissed) { showAgainForPlan('hardy', p!.id); render(); } else dismissAcross('hardy', p!.id, w.line); });
   const note = across ? ' (dismissed for every one in this plan: no badge)' : dismissed ? ' (dismissed for this one: no badge on the plan)'
-    : !state.hardyWarnings ? ' (badges are off in Layers \u2192 Warnings)' : '';
+    : !state.hardyWarnings ? ' (badges are off in Settings \u2192 Warnings)' : '';
   return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'hardy-check' },
     el('div', {}, `${w.cold ? '\u2744' : '\u2600'} ${w.line}.${note}`), el('div', { style: { marginTop: '4px' } }, btn));
 }
@@ -132,9 +133,16 @@ function summaryText(info: SunInfo): string {
 export function shadeSunSection(s: Shape, onChange?: (sun: SunInfo) => void): HTMLElement {
   const wrap = el('div', { className: 'field', 'data-testid': 'sun-section' }, el('label', {}, 'Sun on this area'));
   if (!s.sun) {
-    const add = el('button', { className: 'btn ghost', 'data-testid': 'record-sun' }, 'Record sun for this area');
-    add.addEventListener('click', () => updateSelected({ sun: newSunInfo() }));
-    wrap.append(el('div', { className: 'hint' }, 'Note when direct sun reaches this spot. Plants placed here are then checked against it.'), add);
+    // (Nothing recorded until it's said: an empty day to drag across, a button for a keyboard, or just the hours.
+    // Jason, Oct 31, from round 3: a new record started at 4 h, 9 am–1 pm, for Grace and Tom.)
+    const record = (patch: Partial<SunInfo>) => updateSelected({ sun: { ...newSunInfo(), ...patch } });
+    const line = emptyTimeline((period) => record({ periods: [period] }));
+    const add = el('button', { className: 'btn ghost', 'data-testid': 'record-sun' }, 'Add a sunny period');
+    add.addEventListener('click', () => record({}));
+    const hours = el('button', { className: 'link-btn', 'data-testid': 'record-sun-hours' }, 'Or just how many hours');
+    hours.addEventListener('click', () => record({ mode: 'hours' }));
+    wrap.append(el('div', { className: 'hint' }, 'When does direct sun reach this spot? Plants placed here are then checked against it.'), line,
+      el('div', { style: { display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginTop: '4px' } }, add, hours));
     return wrap;
   }
   const info = () => s.sun!;

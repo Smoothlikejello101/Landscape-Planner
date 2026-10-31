@@ -59,7 +59,7 @@ export interface Placement { dy?: number; below?: number }
  * a circle of radius `r` px. Null if it can't fit at `minPx`. The result's
  * `dy` is where the block's center sits, below the circle's center.
  */
-export function fitInCircle(text: string, r: number, place: Placement = {}, minPx = LABEL_MIN_PX): FittedLabel | null {
+export function fitInCircle(text: string, r: number, place: Placement = {}, minPx = LABEL_MIN_PX, scale = 1): FittedLabel | null {
   const words = text.trim().split(/\s+/).filter(Boolean);
   if (!words.length) return null;
   const inner = r - 2; // keep clear of the circle's edge
@@ -67,7 +67,8 @@ export function fitInCircle(text: string, r: number, place: Placement = {}, minP
   const n = Math.min(MAX_LINES, words.length);
   const options: string[][][] = [];
   for (let k = 1; k <= n; k++) options.push(words.length > 8 && k > 1 ? [] : splits(words, k));
-  for (let fs = LABEL_MAX_PX; fs >= minPx; fs--) {
+  // (At a label size other than Medium (src/label-size.ts), the sizes tried scale with it, still a px apart.)
+  for (let fs = Math.round(LABEL_MAX_PX * scale); fs >= Math.round(minPx * scale); fs--) {
     const lh = fs * LABEL_LINE_HEIGHT;
     for (let k = 1; k <= n; k++) {
       const dy = place.below != null ? place.below + (k * lh) / 2 : place.dy ?? 0;
@@ -121,12 +122,12 @@ export function shortNames(label: string, plant?: Plant): string[] {
  * What to write inside a plant's circle: its name if it fits, else the best
  * shorter form that does, else nothing (null).
  */
-export function plantLabelFit(label: string, r: number, place: Placement = {}, plant?: Plant): FittedLabel | null {
+export function plantLabelFit(label: string, r: number, place: Placement = {}, plant?: Plant, scale = 1): FittedLabel | null {
   if (!label.trim()) return null;
-  const full = fitInCircle(label, r, place, LABEL_MIN_PX);
+  const full = fitInCircle(label, r, place, LABEL_MIN_PX, scale);
   if (full) return full;
   for (const s of shortNames(label, plant)) {
-    const f = fitInCircle(s, r, place, SHORT_MIN_PX);
+    const f = fitInCircle(s, r, place, SHORT_MIN_PX, scale);
     if (f) return f;
   }
   return null;

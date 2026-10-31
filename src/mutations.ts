@@ -1,4 +1,4 @@
-import { attachedPlants, carriesPlants, patchBedCarryingPlants } from './beds';
+import { carriesPlants, movedWith, patchBedCarryingPlants } from './beds';
 import { redrawCanvas, tierOf } from './canvas';
 import { MAX_ZOOM, MIN_ZOOM, PX_PER_FOOT_BASE } from './constants';
 import { canvasRect, pxPerFoot, rotatedBoxBounds, shapeBBox, shapeCenter, unionBounds, viewCenterFeet } from './geometry';
@@ -148,7 +148,7 @@ export function selectAllShown() {
 export function nudgeSelected(dx: number, dy: number): string[] | null {
   const free = getSelected().filter((s) => !isLocked(s));
   if (!free.length) return null;
-  const ids = [...new Set(free.flatMap((s) => [s.id, ...attachedPlants(s, state.shapes).map((p) => p.id)]))];
+  const ids = movedWith(free, state.shapes);
   for (const id of ids) {
     const s = state.shapes.find((sh) => sh.id === id);
     if (!s) continue;

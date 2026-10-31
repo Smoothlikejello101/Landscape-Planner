@@ -24,6 +24,7 @@ import { partnersClosed, plantColor } from '../plants';
 import { currentProject, storageIsDurable } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
+import { renderSettingsPanel } from './settings-panel';
 import { snapOn } from '../tidy';
 import { dismissToastAction, hideOldToast, placeNotice, toastAction } from './toast';
 import { renderMoreMenu, toggleSelectMode } from './menu';
@@ -91,6 +92,9 @@ export function flashZoom() {
 
 /** The panel the last render showed (to tell a panel just opened from one redrawn). */
 let shownPanel: typeof state.panel = null;
+/** Whether the floating Redo was up at the last render (it slides out only as it first appears). */
+let floatRedoUp = false;
+let floatRedoAt: { top: string; left: string } | null = null;
 /** What was selected when the app last drew: an open sheet keeps its place only while it shows the same things. */
 let shownSelection = '';
 /** The menu open when the app last drew. */
@@ -143,12 +147,19 @@ export function render() {
   });
   topbar.appendChild(undoBtn);
 
-  // Redo (at Medium and Large text, in the ⋮ menu: room for the name)
+  // Redo (at Medium and Large text, in the ⋮ menu: room for the name; and, while there's one to redo, floating just
+  // under Undo, over the plan, so nothing in the bar moves. Jason, Oct 31, from round 3: Dana, Alex, Ruth didn't find
+  // it in ⋮. Gone at the next edit, which leaves nothing to redo.)
+  let floatRedo: HTMLElement | null = null;
+  if (!(canRedo() && roomyText())) floatRedoUp = false;
   if (!roomyText()) {
     const redoBtn = el('button', { className: 'iconbtn', html: I.redo, title: 'Redo' });
     redoBtn.disabled = !canRedo() || !!state.draw || !!state.placing || !!state.featurePlace;
     redoBtn.addEventListener('click', () => { dismissToastAction(); redo(); render(); });
     topbar.appendChild(redoBtn);
+  } else if (canRedo() && !state.draw && !state.placing && !state.featurePlace && !state.panel && !state.menu) {
+    floatRedo = el('button', { className: 'float-redo', html: I.redo + '<span>Redo</span>', title: 'Redo', 'data-testid': 'float-redo' });
+    floatRedo.addEventListener('click', () => { dismissToastAction(); redo(); render(); });
   }
 
   // Layers
@@ -167,6 +178,20 @@ export function render() {
   topbar.appendChild(moreBtn);
 
   app.appendChild(topbar);
+  if (floatRedo) {
+    // (Under Undo, wherever the bar puts it: measured once it's on the page. It slides out the first time only.)
+    const btn = floatRedo;
+    if (floatRedoUp && floatRedoAt) { btn.classList.add('shown', 'still'); btn.style.top = floatRedoAt.top; btn.style.left = floatRedoAt.left; }
+    floatRedoUp = true;
+    app.appendChild(btn);
+    requestAnimationFrame(() => {
+      const r = undoBtn.getBoundingClientRect(), w = btn.getBoundingClientRect().width;
+      floatRedoAt = { top: `${Math.round(r.bottom + 6)}px`, left: `${Math.round(Math.min(window.innerWidth - w - 8, Math.max(8, r.left + r.width / 2 - w / 2)))}px` };
+      btn.style.top = floatRedoAt.top;
+      btn.style.left = floatRedoAt.left;
+      btn.classList.add('shown');
+    });
+  }
 
   // ===== CANVAS WRAP =====
   const canvasWrap = el('div', { className: 'canvas-wrap', id: 'canvas-wrap' });
@@ -298,7 +323,7 @@ export function render() {
   zIn.addEventListener('click', () => { zoomBy(1.25); render(); flashZoom(); });
   const zOut = el('button', { className: 'zoombtn', html: I.zoomOut, 'aria-label': 'Zoom out', title: 'Zoom out' });
   zOut.addEventListener('click', () => { zoomBy(0.8); render(); flashZoom(); });
-  // (Off on a phone unless turned on in Layers: src/view-settings.ts.)
+  // (Off on a phone unless turned on in Settings: src/view-settings.ts.)
   if (state.zoomButtons) { zoomBtns.appendChild(zIn); zoomBtns.appendChild(zOut); }
   // Everything in view (not on an empty plan with no photo: nothing to fit).
   if (planBounds()) {
@@ -469,6 +494,7 @@ export function render() {
   else if (state.panel === 'location') panelNode = renderLocationPanel();
   else if (state.panel === 'switchPlant') panelNode = renderSwitchPanel();
   else if (state.panel === 'feedback') panelNode = renderFeedbackSheet();
+  else if (state.panel === 'settings') panelNode = renderSettingsPanel();
   if (panelNode) {
     root.appendChild(panelNode);
     const sheet = scrolled ? panelNode.querySelector<HTMLElement>('.sheet') ?? (panelNode.classList.contains('sheet') ? panelNode : null) : null;

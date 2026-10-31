@@ -1,8 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addPlainShape, closeSheet, openFresh, shapeCount } from './helpers';
+import { addPlainShape, closeSheet, openFresh, openSettings, shapeCount } from './helpers';
 
 // Text size (decided with Jason, 2026-10-25; four sizes 2026-10-27): Medium (115%, main text 16 px) by default; Small,
-// Large and Extra large in the ⋮ menu, kept on this device. Above Small the top bar keeps room for the plan's name.
+// Large and Extra large in Settings (the ⋮ menu's foot until Oct 31), kept on this device. Above Small the top bar keeps room for the plan's name.
 const fontPx = (page: Page, sel: string) => page.locator(sel).first().evaluate((e) => parseFloat(getComputedStyle(e).fontSize));
 
 test('Medium by default: the top bar keeps room for the name, Redo in the menu, the zoom shown as it changes', async ({ page }) => {
@@ -31,16 +31,16 @@ test('Medium by default: the top bar keeps room for the name, Redo in the menu, 
   await expect(page.getByTestId('zoom-flash')).not.toHaveClass(/on/, { timeout: 4000 });
 });
 
-test('the menu sets Small, Large or Extra large, at once and on this device from then on', async ({ page }) => {
+test('Settings sets Small, Large or Extra large, at once and on this device from then on', async ({ page }) => {
   await openFresh(page);
-  await page.locator('button[title=More]').click();
+  await openSettings(page);
   await expect(page.getByTestId('text-size-medium')).toHaveAttribute('aria-pressed', 'true');
   // Small: the size the app was drawn at; the top bar as it was, with its count, zoom and Redo.
   await page.getByTestId('text-size-small').click();
   await expect(page.locator('html')).toHaveAttribute('data-text', 'small');
-  await expect(page.getByTestId('text-size-small')).toHaveAttribute('aria-pressed', 'true'); // (the menu stays open to try another)
-  expect(await fontPx(page, '.menu-item')).toBeCloseTo(14, 1);
-  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('text-size-small')).toHaveAttribute('aria-pressed', 'true'); // (the sheet stays open to try another)
+  expect(await fontPx(page, '.text-size-row > span')).toBeCloseTo(14, 1);
+  await closeSheet(page);
   await page.mouse.click(10, 300);
   await expect(page.locator('.project-btn .pinfo')).toHaveText('0 shapes · 100% · Saved');
   await expect(page.locator('button[title=Redo]')).toBeVisible();
@@ -48,13 +48,13 @@ test('the menu sets Small, Large or Extra large, at once and on this device from
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-text', 'small');
   // Large: 130%; Extra large: 145%, buttons at least 48 px.
-  await page.locator('button[title=More]').click();
+  await openSettings(page);
   await page.getByTestId('text-size-large').click();
   await expect(page.locator('html')).toHaveAttribute('data-text', 'large');
-  expect(await fontPx(page, '.menu-item')).toBeCloseTo(14 * 1.3, 1);
+  expect(await fontPx(page, '.text-size-row > span')).toBeCloseTo(14 * 1.3, 1);
   await page.getByTestId('text-size-xlarge').click();
   await expect(page.locator('html')).toHaveAttribute('data-text', 'xlarge');
-  expect(await fontPx(page, '.menu-item')).toBeCloseTo(14 * 1.45, 1);
+  expect(await fontPx(page, '.text-size-row > span')).toBeCloseTo(14 * 1.45, 1);
   const more = (await page.locator('button[title=More]').boundingBox())!;
   expect(Math.min(more.width, more.height)).toBeGreaterThanOrEqual(48);
 });

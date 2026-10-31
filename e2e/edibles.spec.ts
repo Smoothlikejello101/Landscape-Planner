@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { closeSheet, openFilters, openFresh, openWarnings, shapeCount, tapFromCenter } from './helpers';
+import { closeSheet, openFilters, openFresh, openWarnings, shapeCount, tapFromCenter, openSettings } from './helpers';
 
 // Edibles and fruit partners (Jason, Oct 30): which part is edible, as chips under Edible; a notice as a plant is
 // placed that needs a partner to fruit, with the catalog's partners to add.
@@ -27,8 +27,8 @@ test('a female winterberry placed says it needs a male, and offers one to place;
   await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
   await expect.poll(() => shapeCount(page)).toBe(3);
   await expect(page.getByTestId('fruit-notice')).toHaveCount(0);
-  // The notices have a switch in Layers → Warnings.
-  await page.locator('button[title=Layers]').click();
+  // The notices have a switch in Settings → Warnings.
+  await openSettings(page);
   await openWarnings(page);
   await expect(page.getByTestId('fruit-warnings')).toBeChecked();
 });

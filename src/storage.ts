@@ -125,7 +125,9 @@ export function migrateShape(raw: unknown): Shape | null {
     ...(s.type !== 'circle' && s.type !== 'text' && isStoredUtilityKind(s.utility) ? { utility: s.utility as UtilityKind } : {}),
     // ('' is a warning shown again on purpose: kept, so sync doesn't fill it back from an older copy.)
     ...(typeof s.utilityDismissed === 'string' && s.utilityDismissed.length <= 2000 ? { utilityDismissed: s.utilityDismissed } : {}),
-    ...(isStatus(s.status) ? { status: s.status } : {}),
+    // (Before Existing was a status of its own, a house, a fence or a tree drawn as one already there was "planted":
+    // read as Existing. A tree with a planting date was planted, and stays so. Jason, Oct 31.)
+    ...(isStatus(s.status) ? { status: s.status === 'planted' && ((isRole(s.role) && s.role !== 'plant') || (s.tree === true && typeof s.plantedOn !== 'string')) ? 'existing' as const : s.status } : {}),
     ...(typeof s.plantedOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.plantedOn) ? { plantedOn: s.plantedOn } : {}),
     // (Only on a gone shape: a date left from before it was marked otherwise isn't kept.)
     // ('' is a date cleared on purpose: kept, so sync doesn't fill it back from an older copy.)

@@ -3,7 +3,7 @@ import { DOUBLE_TAP_MS, DRAG_THRESHOLD_PX, MAX_ZOOM, MIN_ZOOM, PX_PER_FOOT_BASE 
 import { canvasRect, lassoTouches, pxPerFoot, screenToFeet } from './geometry';
 import { flushHistoryDebounce, pushHistory } from './history';
 import { zoomBy } from './mutations';
-import { attachedPlants } from './beds';
+import { movedWith } from './beds';
 import { isLocked } from './roles';
 import { shownWith } from './status';
 import { clearSelection, isSelected, selectOnly, toggleSelect } from './selection';
@@ -553,11 +553,8 @@ export function onShapePointerDown(e: PointerEvent, shape: Shape) {
   const cur = screenToFeet(e.clientX, e.clientY);
   // Dragging a member of a multi-selection drags the whole selection.
   const selectedIds = isSelected(shape.id) && state.selectedIds.length > 1 ? state.selectedIds.slice() : [shape.id];
-  // Beds that carry plants bring the plants inside them.
-  const dragIds = [...new Set(selectedIds.flatMap((id) => {
-    const s = state.shapes.find((sh) => sh.id === id);
-    return s ? [id, ...attachedPlants(s, state.shapes).map((p) => p.id)] : [id];
-  }))];
+  // Beds that carry plants bring the plants inside them, unless plants are among what's selected (src/beds.ts).
+  const dragIds = movedWith(selectedIds.map((id) => state.shapes.find((sh) => sh.id === id)).filter((s): s is Shape => !!s), state.shapes);
   const shapeStarts = dragIds
     .map((id) => state.shapes.find((sh) => sh.id === id))
     .filter((s): s is Shape => !!s)

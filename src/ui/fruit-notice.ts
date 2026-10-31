@@ -10,7 +10,7 @@ import { fruitNeed } from '../fruit-partners';
 import { PLANTS, plantsById, showPartnersOf, type Plant } from '../plants';
 import { state } from '../state';
 import type { Shape } from '../types';
-import { openWarningsAt } from './layers-panel';
+import { openWarningsAt } from './settings-panel';
 import { render } from './render';
 import { toastAction } from './toast';
 

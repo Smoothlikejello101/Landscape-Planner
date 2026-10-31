@@ -1,8 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
-import { closeSheet, openFresh, openSections, openWarnings, tapFromCenter } from './helpers';
+import { closeSheet, openFresh, openSections, openWarnings, tapFromCenter, openSettings } from './helpers';
 
 // A warning dismissed for one copy of a plant is dismissed for its other copies and the ones added later, in this plan,
-// with a toast that says so (Jason, Oct 30). Shown again from Layers → Warnings.
+// with a toast that says so (Jason, Oct 30). Shown again from Settings → Warnings.
 
 const TABLE = {
   v: 1, accessed: '2026-10-17',
@@ -18,7 +18,7 @@ async function place(page: Page, name: string, spots: [number, number][]) {
   await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
 }
 
-test('dismissing a hardiness warning on one copy dismisses it for every copy and new ones; Layers shows it again', async ({ page }) => {
+test('dismissing a hardiness warning on one copy dismisses it for every copy and new ones; Settings shows it again', async ({ page }) => {
   await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TABLE) }));
   await openFresh(page);
   await page.locator('button[title=More]').click();
@@ -44,13 +44,17 @@ test('dismissing a hardiness warning on one copy dismisses it for every copy and
   await place(page, 'Barbados aloe', [[0, 5]]);
   await expect(page.getByTestId('hardy-notice')).toHaveCount(0);
   await expect(badges(page)).toHaveCount(0);
-  // Layers → Warnings lists it, to show again: every copy's badge is back.
-  await page.locator('button[title=Layers]').click();
+  // Settings → Warnings lists it, dismissed, to show again: every copy's badge is back.
+  await openSettings(page);
   await openWarnings(page);
-  const row = page.getByTestId('dismissed-row');
-  await expect(row).toHaveText(/^Barbados aloe: hardiness/);
+  await expect(page.getByTestId('warnings-now').locator('summary')).toHaveText('In this plan now \u00b7 1 dismissed');
+  await page.getByTestId('warnings-now').locator('summary').click();
+  const row = page.getByTestId('warning-row');
+  await expect(row).toHaveAttribute('data-dismissed', 'true');
+  await expect(row).toContainText(/^Barbados aloe \u00d73: Too cold for zone/);
   await row.getByRole('button', { name: 'Show again' }).click();
-  await expect(page.getByTestId('dismissed-list')).toHaveCount(0);
+  await expect(row).toHaveAttribute('data-dismissed', 'false');
+  await expect(row.getByRole('button', { name: 'Show again' })).toHaveCount(0);
   await closeSheet(page);
   await expect(badges(page)).toHaveCount(3);
 });

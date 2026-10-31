@@ -38,10 +38,10 @@ export interface KindDef {
   pathWidth?: number;
   /**
    * Status a new one starts with: things almost always already there are
-   * Existing ('planted'); things being designed are Planned. None for sun
+   * Existing; things being designed are Planned. None for sun
    * records, notes and plain shapes.
    */
-  startStatus?: 'planned' | 'planted';
+  startStatus?: 'planned' | 'existing';
   /** A utility: which (stored on the shape, since what's checked near it depends on it: src/utilities.ts). */
   utility?: UtilityKind;
 }
@@ -50,27 +50,27 @@ const named = (s: string) => () => s;
 export const KINDS: KindDef[] = [
   { key: 'plant', label: 'Plant', group: 'Garden', role: 'plant', methods: [], shortcut: 'p', startLabel: named(''), startStatus: 'planned' },
   { key: 'bed', label: 'Bed', group: 'Garden', role: 'bed', methods: ['poly', 'rect', 'circle', 'oval'], shortcut: 'b', startLabel: named('Bed'), startStatus: 'planned' },
-  { key: 'tree', label: 'Existing tree', group: 'Garden', role: 'plant', methods: ['trunk', 'canopy'], shortcut: 't', startLabel: named('Tree'), startStatus: 'planted' },
-  { key: 'lawn', label: 'Lawn', group: 'Garden', role: 'lawn', methods: ['poly', 'rect'], shortcut: 'l', startLabel: named('Lawn'), startStatus: 'planted' },
+  { key: 'tree', label: 'Existing tree', group: 'Garden', role: 'plant', methods: ['trunk', 'canopy'], shortcut: 't', startLabel: named('Tree'), startStatus: 'existing' },
+  { key: 'lawn', label: 'Lawn', group: 'Garden', role: 'lawn', methods: ['poly', 'rect'], shortcut: 'l', startLabel: named('Lawn'), startStatus: 'existing' },
   // What vines climb (src/vines.ts; the Backlog's vine plan, Oct 28–29): a trellis, a line a vine bands along; an arbor
   // or pergola, an area a vine covers. Planned to start: a structure is more often built for the plan than there.
   { key: 'trellis', label: 'Trellis', group: 'Garden', role: 'structure', methods: ['line'], startLabel: named('Trellis'), startStatus: 'planned' },
   { key: 'arbor', label: 'Arbor or pergola', group: 'Garden', role: 'structure', methods: ['rect', 'poly'], startLabel: named('Arbor'), startStatus: 'planned' },
   { key: 'path', label: 'Path', group: 'Paths and paving', role: 'path', methods: ['path', 'poly'], shortcut: 'w', startLabel: named('Path'), pathWidth: 3, startStatus: 'planned' },
   { key: 'patio', label: 'Patio or deck', group: 'Paths and paving', role: 'path', methods: ['rect', 'poly'], startLabel: named('Patio'), startStatus: 'planned' },
-  { key: 'driveway', label: 'Driveway', group: 'Paths and paving', role: 'path', methods: ['rect', 'poly', 'path'], startLabel: named('Driveway'), pathWidth: 10, startStatus: 'planted' },
+  { key: 'driveway', label: 'Driveway', group: 'Paths and paving', role: 'path', methods: ['rect', 'poly', 'path'], startLabel: named('Driveway'), pathWidth: 10, startStatus: 'existing' },
   {
-    key: 'building', label: 'Building', group: 'Buildings and boundaries', role: 'building', methods: ['rect', 'poly'], shortcut: 'h', startStatus: 'planted',
+    key: 'building', label: 'Building', group: 'Buildings and boundaries', role: 'building', methods: ['rect', 'poly'], shortcut: 'h', startStatus: 'existing',
     // The first building in a plan is almost always the house.
     startLabel: (shapes) => (shapes.some((s) => s.role === 'building') ? 'Building' : 'House'),
   },
-  { key: 'fence', label: 'Fence', group: 'Buildings and boundaries', role: 'boundary', methods: ['line'], shortcut: 'f', startLabel: named('Fence'), startStatus: 'planted' },
+  { key: 'fence', label: 'Fence', group: 'Buildings and boundaries', role: 'boundary', methods: ['line'], shortcut: 'f', startLabel: named('Fence'), startStatus: 'existing' },
   // Open by default: a stretch along one neighbor is often all that matters (who draws the far edge of acreage?).
-  { key: 'property', label: 'Property line', group: 'Buildings and boundaries', role: 'boundary', methods: ['line', 'poly'], startLabel: named('Property line'), startStatus: 'planted' },
+  { key: 'property', label: 'Property line', group: 'Buildings and boundaries', role: 'boundary', methods: ['line', 'poly'], startLabel: named('Property line'), startStatus: 'existing' },
   // Utilities (sub-features part 2, decided with Jason, 2026-10-25): what's near them is checked (src/utilities.ts).
-  { key: 'powerline', label: 'Overhead power line', group: 'Utilities', role: 'utility', methods: ['line'], startLabel: named('Power line'), startStatus: 'planted', utility: 'overhead' },
-  { key: 'buried', label: 'Buried line', group: 'Utilities', role: 'utility', methods: ['line'], startLabel: named('Buried line'), startStatus: 'planted', utility: 'buried' },
-  { key: 'septic', label: 'Septic field', group: 'Utilities', role: 'utility', methods: ['rect', 'poly'], startLabel: named('Septic field'), startStatus: 'planted', utility: 'septic' },
+  { key: 'powerline', label: 'Overhead power line', group: 'Utilities', role: 'utility', methods: ['line'], startLabel: named('Power line'), startStatus: 'existing', utility: 'overhead' },
+  { key: 'buried', label: 'Buried line', group: 'Utilities', role: 'utility', methods: ['line'], startLabel: named('Buried line'), startStatus: 'existing', utility: 'buried' },
+  { key: 'septic', label: 'Septic field', group: 'Utilities', role: 'utility', methods: ['rect', 'poly'], startLabel: named('Septic field'), startStatus: 'existing', utility: 'septic' },
   { key: 'sun', label: 'Sun exposure', group: 'Site conditions', role: 'shade', methods: ['poly', 'circle'], shortcut: 's', startLabel: named(''), openProps: true },
   { key: 'water', label: 'Pond, water', group: 'Site conditions', role: 'water', methods: ['poly', 'circle', 'oval'], startLabel: named('Pond'), startStatus: 'planned' },
   { key: 'note', label: 'Note', group: 'Notes and tools', role: 'other', methods: ['note'], shortcut: 'n', startLabel: named(''), openProps: true },

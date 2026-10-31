@@ -241,11 +241,14 @@ a { color: inherit; }
 #toast-action.gone { transition: transform 0.18s ease-in, opacity 0.18s ease-in; opacity: 0; }
 /* Placing: above the place bar, the words and ✕ on one line, the buttons on one under it (src/ui/toast.ts placeNotice). */
 #toast-action.at-bottom > span, #toast-action.at-bottom > .notice-line { order: 1; }
-#toast-action.at-bottom > .notice-close { order: 2; }
 #toast-action.at-bottom > .notice-detail { order: 3; }
 #toast-action.at-bottom > .notice-buttons { order: 4; flex: 1 1 100%; flex-wrap: nowrap; margin-left: 0; }
 #toast-action.at-bottom > .notice-buttons button { flex: 1 1 0; min-width: 0; padding: 10px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #toast-action button.notice-close { background: transparent; color: #d6d3d1; font-weight: 400; font-size: calc(18px * var(--ts)); padding: 6px 10px; min-width: 44px; }
+/* The ✕ in the top right corner of every notice, wherever its words and buttons wrap (Jason, Oct 31: it came in at the
+   lower right, moving with each notice, sometimes alone on a line of its own). */
+#toast-action { padding-right: 46px; }
+#toast-action button.notice-close { position: absolute; top: 2px; right: 2px; min-height: 40px; min-width: 40px; padding: 0; }
 /* A notice folded to one line that opens to say more (the crowding notice): the line is its own button, with a
    chevron; amber or red, as the rings on the plan are. */
 #toast-action button.notice-line { background: transparent; color: #fff; padding: 6px 4px 6px 0; min-height: 44px; display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 8em; text-align: left; font-weight: 600; font-size: calc(14px * var(--ts)); border-radius: 6px; }
@@ -533,8 +536,25 @@ a { color: inherit; }
 .account-section .sync-block { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-top: 1px dashed #e7e5e4; border-bottom: 1px dashed #e7e5e4; }
 .account-section .trash-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: calc(13px * var(--ts)); }
 .account-section .trash-row .link-btn { min-height: 36px; padding: 4px; }
-.dismissed-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: calc(13px * var(--ts)); }
-.dismissed-row .link-btn { min-height: 36px; padding: 4px; }
+/* Every warning in the plan now (Settings → Warnings, src/ui/settings-panel.ts): folded with its counts, by kind
+   when there are more than a handful; active above dismissed, dismissed ones paler with a Show again. */
+.warnings-now, .warnings-kind { margin: 4px 0 8px; }
+.warnings-now > summary, .warnings-kind > summary { cursor: pointer; list-style: none; display: flex; align-items: center; min-height: 44px; font-size: calc(13px * var(--ts)); font-weight: 600; color: #292524; }
+.warnings-kind > summary { font-weight: 500; padding-left: 10px; }
+.warnings-now > summary::-webkit-details-marker, .warnings-kind > summary::-webkit-details-marker { display: none; }
+.warnings-now > summary::after, .warnings-kind > summary::after { content: '\25B8'; margin-left: auto; font-size: calc(14px * var(--ts)); color: #57534e; }
+.warnings-now[open] > summary::after, .warnings-kind[open] > summary::after { content: '\25BE'; }
+.warnings-now > summary .count, .warnings-kind > summary .count { font-weight: 400; color: #57534e; }
+/* (Their " · " kept: a flex row drops a span's leading space.) */
+.warnings-fold > summary .count, .warnings-now > summary .count, .warnings-kind > summary .count { white-space: pre; }
+.warnings-now > summary:focus-visible, .warnings-kind > summary:focus-visible { outline: 2px solid #0f172a; outline-offset: -2px; }
+.warning-row { display: flex; align-items: center; gap: 8px; border-left: 3px solid #d97706; padding-left: 8px; margin: 2px 0 2px 10px; }
+.warning-row.dismissed { border-left-color: #d6d3d1; }
+.warning-row.dismissed .warning-words { color: #78716c; }
+.warning-words { flex: 1; min-height: 40px; display: flex; align-items: center; flex-wrap: wrap; column-gap: 4px; font-size: calc(13px * var(--ts)); color: #292524; cursor: pointer; padding: 4px 0; }
+.warning-words:focus-visible { outline: 2px solid #0f172a; outline-offset: 2px; }
+.warning-name { font-weight: 600; }
+.warning-row .link-btn { min-height: 40px; padding: 4px; flex-shrink: 0; }
 /* Garden location */
 .location-sources { font-size: calc(12px * var(--ts)); color: #44403c; line-height: 1.5; border-top: 1px solid #e7e5e4; padding-top: 8px; }
 .location-card { border: 1px solid #d6d3d1; border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; font-size: calc(14px * var(--ts)); line-height: 1.45; background: #fafaf9; }
@@ -551,6 +571,7 @@ a { color: inherit; }
 .row-flag { display: inline-flex; align-items: center; justify-content: center; width: calc(18px * var(--ts)); height: calc(18px * var(--ts)); border-radius: 50%; background: #facc15; color: #422006; font-size: calc(12px * var(--ts)); font-weight: 700; }
 .place-btn { flex: none; min-width: 64px; min-height: 40px; padding: 6px 12px; background: #047857; color: #fff; font-size: calc(13px * var(--ts)); }
 .place-btn:hover { background: #047857; }
+.place-btn.invasive, .place-btn.invasive:hover { background: #b91c1c; }
 .plant-details { padding: 4px 16px 14px 40px; font-size: calc(12px * var(--ts)); color: #44403c; background: #fafaf9; }
 .plant-details .details-bot { font-style: italic; color: #57534e; margin-bottom: 6px; }
 .plant-details .details-flag { background: #fef9c3; border: 1px solid #fde047; border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; color: #422006; }
@@ -705,6 +726,10 @@ a { color: inherit; }
 .text-size-row .seg button { min-width: var(--tap); min-height: var(--tap); display: flex; align-items: center; justify-content: center; font-weight: 600; color: #44403c; background: #fff; }
 .text-size-row .seg button + button { border-left: 1px solid #d6d3d1; }
 .text-size-row .seg button[aria-pressed="true"] { background: #047857; color: #fff; }
+/* The plan's label size: a plant's green circle with its A, each at its size; the chosen one ringed. */
+.text-size-row .label-seg button { padding: 0 6px; }
+.text-size-row .label-seg button[aria-pressed="true"] { background: #dcfce7; box-shadow: inset 0 0 0 2px #047857; }
+.text-size-row .label-seg svg { display: block; }
 
 /* Sub-features in properties: each listed with its width and ✕, then a button per kind to add (src/ui/feature-section.ts). */
 .feature-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
@@ -798,3 +823,15 @@ a { color: inherit; }
 /* (The zone check on a plant's Hardiness row: amber only when it doesn't fit; "Fine for zone 9a." read as a warning
    in the amber of "other sources say": round 3, Alex and Hank.) */
 .details-alt.zone-check:not(.zone-warn) { color: #166534; }
+
+/* Redo, floating under Undo while there's one to redo, where the bar has no room for it (src/ui/render.ts). */
+.float-redo { position: fixed; z-index: 30; display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 14px 0 10px; border: 1px solid #d6d3d1; border-radius: 999px; background: #fff; color: #1c1917; font-size: calc(14px * var(--ts)); font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.18); opacity: 0; transform: translateY(-8px); transition: opacity 0.15s ease-out, transform 0.15s ease-out; }
+.float-redo.shown { opacity: 1; transform: none; }
+.float-redo.still { transition: none; }
+.float-redo svg { width: 20px; height: 20px; }
+/* A day with no sun recorded yet: an empty bar that says what to do (src/ui/time-range.ts emptyTimeline). */
+.time-range.empty { display: block; width: 100%; height: 56px; padding: 0; border: 0; background: none; cursor: crosshair; touch-action: none; font: inherit; }
+.time-range.empty .tr-track { top: 6px; height: 24px; border-radius: 6px; background: repeating-linear-gradient(90deg, #f5f5f4 0 12px, #e7e5e4 12px 13px); border: 1px dashed #a8a29e; }
+.time-range.empty .tr-fill { border-radius: 6px; }
+.time-range.empty .tr-empty-words { position: absolute; left: 10px; right: 10px; top: 6px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: calc(12px * var(--ts)); color: #57534e; pointer-events: none; }
+.time-range.empty .tr-scale { top: 36px; }

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addPlainShape, closeSheet, drag, field, openFresh, openSections, openWarnings, placeOnceAtCenter, setRole, shapeCount } from './helpers';
+import { addPlainShape, closeSheet, drag, field, openFresh, openSections, openWarnings, placeOnceAtCenter, setRole, shapeCount, openSettings } from './helpers';
 
 async function addRect(page: Page, label: string, role: string, size?: [number, number]) {
   await addPlainShape(page, 'rect');
@@ -56,7 +56,7 @@ test('a bed carries the plants inside it, unless that is turned off', async ({ p
 test('shade sun can be recorded as times or hours, and is saved', async ({ page }) => {
   await openFresh(page);
   await addRect(page, 'Oak shade', 'Sun exposure', [8, 8]);
-  await page.locator('[data-testid=sun-section] button', { hasText: 'Record sun' }).click();
+  await page.getByTestId('record-sun').click();
   await expect(page.locator('[data-testid=sun-summary]')).toHaveText('☀ 4 h of direct sun · part sun / part shade');
   // Move the end handle 2 hours later with the keyboard (30-minute steps).
   const end = page.locator('[data-testid=sun-period] input[aria-label="Sun ends"]');
@@ -88,7 +88,7 @@ test('shade sun can be recorded as times or hours, and is saved', async ({ page 
 test('a plant in the wrong light gets a warning', async ({ page }) => {
   await openFresh(page);
   await addRect(page, 'Sunny strip', 'Sun exposure', [8, 8]);
-  await page.locator('[data-testid=sun-section] button', { hasText: 'Record sun' }).click();
+  await page.getByTestId('record-sun').click();
   await page.locator('.seg button', { hasText: 'Just hours' }).click();
   const hours = page.locator('[data-testid=sun-section] input[type=range]');
   await hours.fill('8');
@@ -116,7 +116,7 @@ test('a plant in the wrong light gets a warning', async ({ page }) => {
   await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(1);
 
   // Or turn badges off for the whole plan.
-  await page.locator('button[title=Layers]').click();
+  await openSettings(page);
   await openWarnings(page);
   await page.getByTestId('sun-warnings').uncheck();
   await closeSheet(page);
@@ -135,7 +135,7 @@ test('boundaries show their length; deleting from properties closes the panel', 
 test('hiding names hides lengths, sun hours and plant badges too, a selected shape keeping its own', async ({ page }) => {
   await openFresh(page);
   await addRect(page, 'Sunny strip', 'Sun exposure', [8, 8]);
-  await page.locator('[data-testid=sun-section] button', { hasText: 'Record sun' }).click();
+  await page.getByTestId('record-sun').click();
   await page.locator('.seg button', { hasText: 'Just hours' }).click();
   await page.locator('[data-testid=sun-section] input[type=range]').fill('8');
   await closeSheet(page);
