@@ -131,6 +131,7 @@ const FILTER_NAMES: Partial<Record<keyof PlantFilter, (f: PlantFilter) => string
   deerResistant: () => 'Deer resistant', noThorns: () => 'No thorns listed', spread: (f) => `Spreading OK: ${joined(f.spread.map((v) => SPREADS[v]?.toLowerCase() ?? v), 'or')}`, edible: () => 'Edible',
   edibleParts: (f) => `Edible ${joined(f.edibleParts, 'or')}`,
   inPlan: () => 'In this plan',
+  partnersOf: (f) => `Partners for ${plantsById[f.partnersOf]?.common ?? 'a plant'}`,
 };
 /**
  * Whether the filters are open: one fold for them all, folded to start and left as the gardener left it (Jason,

@@ -33,6 +33,25 @@ test('a female winterberry placed says it needs a male, and offers one to place;
   await expect(page.getByTestId('fruit-warnings')).toBeChecked();
 });
 
+test('a male holly offers two females alike, and "All 4…" opens the picker on every one (Jason, Oct 30)', async ({ page }) => {
+  await openFresh(page);
+  await pick(page, 'Latifolia', "'Latifolia'");
+  await tapFromCenter(page, -3, 0);
+  const notice = page.getByTestId('fruit-notice');
+  await expect(notice).toContainText("'Latifolia' is a male");
+  // (Its two choices look alike: neither is "the" answer.)
+  const choices = notice.locator('button.notice-choice');
+  await expect(choices).toHaveCount(2);
+  const looks = await choices.evaluateAll((bs) => bs.map((b) => getComputedStyle(b).backgroundColor));
+  expect(looks[0]).toBe(looks[1]);
+  await notice.getByRole('button', { name: 'All 4\u2026' }).click();
+  await expect(page.locator('.sheet')).toContainText("Partners for Japanese holly 'Latifolia'");
+  // (Under their species, its fold open to them: "4 of 8 cultivars match your filters; the species itself doesn't".)
+  await expect(page.locator('.sheet')).toContainText('4 of 8 cultivars match');
+  for (const n of ['Convexa', 'Helleri', 'Hetzii', 'Sky Pencil']) await expect(page.locator('.sheet .proj-row', { hasText: n })).toHaveCount(1);
+  await expect(page.locator('.sheet .proj-row', { hasText: "'Stokes'" })).toHaveCount(0); // (a male)
+});
+
 test("the picker's Edible filter has chips for the part: fruit, leaves, flowers", async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();

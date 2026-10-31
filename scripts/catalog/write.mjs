@@ -84,6 +84,8 @@ const FACTS = {
   habit: ['habit', oneOf(PROSE_HABITS)],
   fruit_set: ['fruit_set', oneOf(FRUIT_SET)],
   sex: ['sex', oneOf(SEXES)],
+  // The cultivars its description names as its pollinizer (prose.mjs partnersFromProse), as it names them.
+  partners: ['partners', (v) => (Array.isArray(v) && v.length && v.length <= 8 && v.every((x) => typeof x === 'string' && x.length >= 2 && x.length <= 40) ? [...new Set(v)] : undefined)],
   clay_ok: ['clay_ok', yes],
   wet_feet: ['wet_feet', yes],
   edible: ['edible', yes],
