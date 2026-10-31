@@ -6,10 +6,11 @@ import { state } from '../state';
 import { currentProject } from '../storage';
 import { undoNotice } from './delete-selected';
 import { render } from './render';
+import { openPrint } from './print-panel';
 
 export function renderExportModal() {
   const printBtn = el('button', { className: 'btn primary', 'data-testid': 'printable-plan' }, 'Printable plan (PDF)…');
-  printBtn.addEventListener('click', () => { state.panel = 'print'; render(); });
+  printBtn.addEventListener('click', () => { openPrint(); render(); });
   const pngBtn = el('button', { className: 'btn secondary' }, 'Download PNG');
   pngBtn.addEventListener('click', () => doExport('png'));
   const svgBtn = el('button', { className: 'btn secondary' }, 'Download SVG');
