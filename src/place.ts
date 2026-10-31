@@ -10,6 +10,7 @@ import { snap } from './util';
 import { crowdNotice, dismissCrowdNotice } from './ui/crowd-notice';
 import { offerSupport, offerToVines } from './ui/vine-offers';
 import { hardyNotice } from './ui/hardy-notice';
+import { fruitNotice } from './ui/fruit-notice';
 import { deleteShapesByIds } from './mutations';
 import { render } from './ui/render';
 
@@ -73,6 +74,9 @@ export function placeTap(clientX: number, clientY: number) {
     else if (!state.placing && state.shapes.some((s) => s.id === shape.id)) deleteShapesByIds([shape.id]);
     render();
   });
+  // Needs a partner to fruit (male and female plants, a second variety): said once a go, until the plan has one;
+  // its Add buttons go on placing the partner (src/ui/fruit-notice.ts).
+  fruitNotice(shape, (q) => { switchPlacingPlant(q); render(); });
 }
 /**
  * Take back the last one placed. Placing is a sandbox: a plant taken back is

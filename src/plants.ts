@@ -265,6 +265,8 @@ export const PLANT_FILTER_DEFAULTS = {
   /** Keeps its leaves through winter (evergreen; not semi-evergreen, which depends on the winter, nor a tender shrub, `tenderWoody`). */
   evergreen: false,
   edible: false, inPlan: false,
+  /** Which parts must be edible (any of them: 'fruit', 'leaves', 'flowers'), chips under Edible (Jason, Oct 30). Empty: any. */
+  edibleParts: NONE,
   /** Rated for the plan's zone (when the plan has a location). */
   hardyHere: false,
   /** Let what other sources say count where it differs from the value shown (a match only by it is flagged). */
@@ -435,6 +437,7 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (f.evergreen && (p.foliage !== 'evergreen' || tenderWoody(p))) return false;
   if (f.winterInterest && !p.winter_interest) return false;
   if (f.edible && !p.edible) return false;
+  if (f.edibleParts.length && !(p.edible === true && (p.edible_parts ?? []).some((x) => f.edibleParts.includes(x)))) return false;
   if (f.inPlan && !inPlan?.has(p.id)) return false;
   // (Where the garden is, from flowering records there; else its season, or the earlier list's months: bloomMatch.)
   if (f.bloomMonth && !bloomMatch(p, f.bloomMonth)) return false;

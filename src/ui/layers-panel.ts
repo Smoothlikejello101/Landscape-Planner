@@ -1,4 +1,4 @@
-import { setCrowdWarnings, setHardyWarnings, setPoisonWarnings, setShowCrowding, setPlantLooks, setShowFullSize } from '../view-settings';
+import { setCrowdWarnings, setHardyWarnings, setFruitWarnings, setPoisonWarnings, setShowCrowding, setPlantLooks, setShowFullSize } from '../view-settings';
 import { household } from '../yard';
 import { el, svgEl, ts } from '../dom';
 import { setSnapOn, setSquareOn, snapOn, squareOn } from '../tidy';
@@ -292,13 +292,13 @@ export function openWarningsAt(testid: string) {
 }
 /**
  * Every kind of warning in one place, folded (Jason, Oct 30: "a 'warning settings' panel/collapsed section to house
- * everything to do with warnings", a switch for each): crowding, sun, hardiness, poison to who's in the yard.
+ * everything to do with warnings", a switch for each): crowding, sun, hardiness, poison to who's in the yard, fruit partners.
  */
 function warningsSection(): HTMLElement {
   const d = el('details', { className: 'role-rows warnings-fold', 'data-testid': 'warnings' }) as HTMLDetailsElement;
   d.open = warningsOpen;
   d.addEventListener('toggle', () => { warningsOpen = d.open; });
-  const kinds = [state.showCrowding || state.crowdWarnings, state.sunWarnings, state.hardyWarnings, state.poisonWarnings];
+  const kinds = [state.showCrowding || state.crowdWarnings, state.sunWarnings, state.hardyWarnings, state.poisonWarnings, state.fruitWarnings];
   const on = kinds.filter(Boolean).length;
   d.appendChild(el('summary', { className: 'section-label' }, 'Warnings',
     el('span', { className: 'count' }, on === kinds.length ? ' \u00b7 all on' : ` \u00b7 ${on} of ${kinds.length} kinds on`)));
@@ -319,7 +319,9 @@ function warningsSection(): HTMLElement {
   d.appendChild(row('poison-warnings', state.poisonWarnings, setPoisonWarnings,
     who.length ? `Poison: a badge on plants that are a problem for the ${who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0]} in the yard, in lists and on the plan`
       : "Poison: badges on plants that are a problem for who's in the yard (set in the plant picker's Filters, Poison & pets)"));
-  d.appendChild(el('div', { className: 'hint' }, 'Crowding, hardiness and poison are settings of this device; sun is kept with the plan.'));
+  d.appendChild(row('fruit-warnings', state.fruitWarnings, setFruitWarnings,
+    'Fruit partners: a notice as I place a plant that needs a partner to fruit (male and female plants, or a second variety), until the plan has one'));
+  d.appendChild(el('div', { className: 'hint' }, 'Crowding, hardiness, poison and fruit partners are settings of this device; sun is kept with the plan.'));
   return d;
 }
 

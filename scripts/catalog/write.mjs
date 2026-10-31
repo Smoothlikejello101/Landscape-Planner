@@ -36,6 +36,11 @@ const LEVELS = ['low', 'medium', 'high'];
 /** A list of words from `words`, each once, in the order given (undefined if empty or any isn't one). */
 const listOf = (words) => (v) => (Array.isArray(v) && v.length && v.every((x) => words.includes(x)) ? [...new Set(v)] : undefined);
 const oneOf = (words) => (v) => (words.includes(v) ? v : undefined);
+/** Whether the parts NC State calls edible and those it calls poisonous are both named, and none is in both ("fruit" is its "fruits"). */
+export const partsApart = (edible, poisonous) => {
+  const as = { fruit: 'fruits', flowers: 'flowers', leaves: 'leaves' };
+  return edible?.length > 0 && poisonous?.length > 0 && !edible.some((p) => poisonous.includes(as[p] ?? p));
+};
 /** { part: [words] } with each part's words from `parts` (undefined if empty, or any part or word isn't one). */
 const formWords = (parts) => (v) => {
   if (!v || typeof v !== 'object' || Array.isArray(v) || !Object.keys(v).length) return undefined;
@@ -208,11 +213,14 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
       // "Edible" beside a toxic rating (mayapple's ripe fruit; a plant whose other parts poison): for a person to
       // word, not a flag to set. (Toxic to dogs on the older list, or seriously toxic to people by the audit.)
       // A person's decision (scripts/catalog/decisions.json `edible`) settles it: written, its poisonous parts shown
-      // beside it from the same source (poison); or left unmarked.
+      // beside it from the same source (poison); or left unmarked. A species' decision covers its cultivars (Jason, Oct 30).
+      // Without one: where NC State names the parts that are edible and the parts that are poisonous, and none is in both
+      // (a plum's fruit; its leaves, seeds and stems), it's edible, the poisonous parts shown beside it (Jason, Oct 30). A
+      // part in both, or either list not named (a dog's rating, a severity alone), is for a person.
       if (key === 'edible' && (/toxic|hard no/i.test(String(rated('dog') ?? '')) || [auditSays('tox_people')].flat().includes('major'))) {
-        const chose = decisions.edible?.[rec.id];
-        if (!chose) { review.push({ id: rec.id, fact: key, note: 'edible, but rated toxic' }); continue; }
-        if (chose.v !== true) { if (valueOf(facts.edible) === true) { delete facts.edible; unmarked = true; } continue; }
+        const chose = decisions.edible?.[rec.id] ?? (rec.parent ? decisions.edible?.[rec.parent] : undefined);
+        if (!chose && !partsApart([auditSays('edible_parts')].flat().filter(Boolean), (auditSays('poison') ?? rated('poison'))?.parts)) { review.push({ id: rec.id, fact: key, note: 'edible, but rated toxic' }); continue; }
+        if (chose && chose.v !== true) { if (valueOf(facts.edible) === true) { delete facts.edible; unmarked = true; } continue; }
       }
       if (v === undefined) { review.push({ id: rec.id, fact: key, note: `value the catalog can't take: ${JSON.stringify(f.v)}` }); continue; }
       const out = { v, src: f.src, check: f.check };

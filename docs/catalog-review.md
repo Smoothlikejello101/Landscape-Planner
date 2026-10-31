@@ -1,10 +1,9 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 213 to decide, 2117 sites whose terms are unsettled, 877 catalog checks; 3744 of 3747 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 188 to decide, 2117 sites whose terms are unsettled, 877 catalog checks; 3744 of 3747 records audited.
 
 - [Sources disagree (117)](#sources-disagree-117)
 - [Cultivar: tree or shrub? (6)](#cultivar-tree-or-shrub-6)
-- [Edible, but rated toxic (25)](#edible-but-rated-toxic-25)
 - [Held back as implausible (3)](#held-back-as-implausible-3)
 - [A value its source no longer gives (8)](#a-value-its-source-no-longer-gives-8)
 - [Sizes whose sources are far apart (32)](#sizes-whose-sources-are-far-apart-32)
@@ -152,36 +151,6 @@ The species is a tree, and this cultivar, with no page of its own, may be smalle
 | Pecan 'Kanza' (`carya-illinoinensis-kanza`) | its species is listed as a tree; a cultivar may be a tree or a shrub | – |
 | Rose of Sharon Chiffon series (`hibiscus-syriacus-chiffon-series`) | its species is listed as a tree; a cultivar may be a tree or a shrub | – |
 | Crape myrtle Bellini Cherry (`lagerstroemia-indica-bellini-cherry-ncli1`) | its species is listed as a tree; a cultivar may be a tree or a shrub | – |
-
-## Edible, but rated toxic (25)
-
-A source says it's edible, and the catalog rates it toxic (to dogs, or to people), so "edible" isn't written. A decision goes in scripts/catalog/decisions.json (`edible`), and the build applies it.
-
-- American plum (`prunus-americana`)
-- Inkberry holly (`ilex-glabra`)
-- Japanese honeysuckle (`lonicera-japonica`)
-- Chinese wisteria (`wisteria-sinensis`)
-- Cassava (`manihot-esculenta`)
-- Balsampear (`momordica-charantia`)
-- Bluecrown passionflower (`passiflora-caerulea`)
-- Yellow passionflower (`passiflora-lutea`)
-- Clammy groundcherry (`physalis-heterophylla`)
-- Cherry plum (`prunus-cerasifera`)
-- Black cherry (`prunus-serotina`)
-- Black elderberry (`sambucus-nigra`)
-- Chickasaw Plum 'Guthrie' (`prunus-angustifolia-guthrie`)
-- Peach 'Carolina Belle' (`prunus-persica-carolina-belle`)
-- Peach / nectarine 'Carolina Gold' (`prunus-persica-carolina-gold`)
-- Peach 'China Pearl' (`prunus-persica-china-pearl`)
-- Peach 'Cresthaven' (`prunus-persica-cresthaven`)
-- Peach 'Encore' (`prunus-persica-encore`)
-- Peach / nectarine 'Flavortop' (`prunus-persica-flavortop`)
-- Peach 'Norman' (`prunus-persica-norman`)
-- Nectarine 'Redgold' (`prunus-persica-redgold`)
-- Peach 'Redhaven' (`prunus-persica-redhaven`)
-- Peach / nectarine Stark SunGlo (`prunus-persica-stark-sunglo-sun-glo`)
-- Peach / nectarine 'Summer Beaut' (`prunus-persica-summer-beaut`)
-- Peach 'Winblo' (`prunus-persica-winblo`)
 
 ## Held back as implausible (3)
 

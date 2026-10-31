@@ -323,6 +323,16 @@ describe('plant filters', () => {
     expect(matchPlant(oregon, readQuery('berberis')!, false)).toMatchObject({ rank: 2 });
     expect(matchPlant(oregon, readQuery('berberis')!, false)?.was).toBeUndefined(); // (its own name first)
   });
+  it('keeps only plants edible for a part ticked, any of them (Jason, Oct 30: chips under Edible)', () => {
+    const plum: Plant = { id: 'pl', common: 'Plum', edible: true, edible_parts: ['fruit'] };
+    const violet: Plant = { id: 'vi', common: 'Violet', edible: true, edible_parts: ['flowers', 'leaves'] };
+    const ramps: Plant = { id: 'ra', common: 'Ramps', edible: true }; // (edible, no part said)
+    const yew: Plant = { id: 'ye', common: 'Yew', edible_parts: ['fruit'] }; // (not marked edible)
+    const pass = (q: Partial<typeof PLANT_FILTER_DEFAULTS>) => [plum, violet, ramps, yew].filter((p) => plantMatches(p, f(q))).map((p) => p.id);
+    expect(pass({ edible: true })).toEqual(['pl', 'vi', 'ra']);
+    expect(pass({ edible: true, edibleParts: ['fruit'] })).toEqual(['pl']);
+    expect(pass({ edible: true, edibleParts: ['fruit', 'leaves'] })).toEqual(['pl', 'vi']);
+  });
   it('reads a typed x as a hybrid\'s × (Tom, Oct 30)', () => {
     const abelia: Plant = { id: 'ab', common: 'Glossy abelia', botanical: 'Abelia × grandiflora' };
     expect(searchRank(abelia, 'abelia x grandiflora')).toBeGreaterThanOrEqual(0);

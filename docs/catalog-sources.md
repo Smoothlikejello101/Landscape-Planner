@@ -874,7 +874,11 @@ listed). The kinds the build applies:
 - **`edible`**: a plant a source calls edible that's rated toxic (to dogs on the older list, or seriously
   toxic to people): true writes the source's "edible", with what the source lists as poisonous shown beside it
   (`poison`), where it lists any (Japanese plum's rating is the older list's, for dogs); false leaves edible as it
-  was, taking out an older unsourced "yes".
+  was, taking out an older unsourced "yes". A species' decision covers its cultivars (Jason, 2026-10-30: the
+  peaches). Without a decision, a plant whose NC State page names the parts that are edible and the parts that
+  are poisonous, with none in both, is written edible, its poisonous parts beside it (Jason, 2026-10-30: American
+  plum, fruit; leaves, seeds and stems). A part in both lists (black cherry's fruit), or either list not named (a
+  dog's rating alone, an "Edible" tag with no part), waits for a person.
 - **`nativeShown`**: a plant the catalog calls exotic that Kew's checklist has native in some states: shown
   native there all the same, said as its species' ("Its species is native to New York": wild.mjs). Where Kew's only native area is a territory (lantana: Puerto Rico), it
   changes nothing in the 50 states. When the catalog's North America-wide native status comes from Kew, the
@@ -1049,7 +1053,8 @@ on a person into [catalog-review.md](catalog-review.md). The steps:
    that would make the record implausible (the app's `catalogWarnings`:
    inches read as feet, a zone or sun range backwards), which are held back,
    and "edible" on a plant rated toxic to dogs or seriously toxic to people,
-   unless a person decided it (`edible` in decisions.json, "Decisions").
+   unless a person decided it (`edible` in decisions.json, "Decisions"), or its
+   species, or NC State names its edible and poisonous parts with none in both.
    A nursery's report on a pair (the zones, the sun levels) is one
    nursery's whole range, kept only where both halves are written. It
    removes a value only where a person decided against it (an older,
