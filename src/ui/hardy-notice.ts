@@ -3,6 +3,7 @@
 // Once a go for each plant, and not over a crowding notice, which is said first (src/ui/crowd-notice.ts). Its badge
 // stays on the plan (src/canvas.ts), and its pane says so, with Dismiss (src/ui/role-sections.ts).
 
+import { dismissedForPlan } from '../dismissals';
 import { hardinessWarning, plantsById } from '../plants';
 import { state } from '../state';
 import type { Shape } from '../types';
@@ -14,7 +15,7 @@ export function hardyNotice(shape: Shape, takeBack: () => void) {
   if (state.placing.warnedHardy === shape.plantId || document.getElementById('toast-action')) return;
   const p = plantsById[shape.plantId];
   const w = p ? hardinessWarning(p) : null;
-  if (!w) return;
+  if (!w || dismissedForPlan('hardy', p!.id, w.line)) return; // (dismissed for this plant across the plan)
   state.placing.warnedHardy = shape.plantId;
   toastAction(`${w.cold ? '\u2744' : '\u2600'} ${w.line}.`, [
     { label: 'Leave it', run: () => {} },

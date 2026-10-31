@@ -20,7 +20,7 @@ export interface BackupFile { format: typeof BACKUP_FORMAT; version: number; exp
 function forExport(data: ProjectData): ProjectData {
   const bgImage = data.bgImage ? { ...data.bgImage } : null;
   if (bgImage) delete bgImage.imageId; // storage detail; a new id is assigned on import
-  return { shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {}, print: data.print, sizeMode: data.sizeMode, sunWarnings: data.sunWarnings, phases: data.phases, location: data.location, bgImage };
+  return { shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {}, print: data.print, sizeMode: data.sizeMode, sunWarnings: data.sunWarnings, ...(data.dismissed ? { dismissed: data.dismissed } : {}), phases: data.phases, location: data.location, bgImage };
 }
 async function exportedProject(id: string): Promise<ExportedProject | null> {
   const meta = state.projects.find((p) => p.id === id);
