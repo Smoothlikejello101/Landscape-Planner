@@ -85,6 +85,13 @@ export function fruitNeed(p: Plant, plan: Plant[], catalog: Plant[], hardy?: (q:
       if (same.some((q) => q.sex !== 'male')) return null;
       return need(`${name} is a male: it won't fruit itself, but pollinates females of its kind nearby`);
     }
+    // (A named cultivar its sources don't sex: one clone, male or female, so copies of it are all one sex. Others of
+    // its kind, two to likely get the other sex, or a known male. Round 3, Grace: 'Picturata' was told "at least 3".)
+    if (cultivarName(p)) {
+      const others = same.filter((q) => q.id !== p.id);
+      if (others.length >= 2 || others.some((q) => q.sex === 'male')) return null;
+      return need(`${name} is male or female (its sources don't say), and its copies are all the same: plant others of its kind nearby, or a named male, for fruit`);
+    }
     // (Unsexed: three, to likely get both; or a known male beside it.)
     if (same.length >= 3 || same.some((q) => q.sex === 'male')) return null;
     return need(`${name} has male and female plants: plant at least 3 to likely get both, or a named female and a male`);

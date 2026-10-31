@@ -18,13 +18,14 @@ describe('in-app questions', () => {
     const yes = ask('Delete 2 shapes?', { ok: 'Delete', danger: true });
     expect(dialog()!.getAttribute('aria-modal')).toBe('true');
     expect(dialog()!.textContent).toContain('Delete 2 shapes?');
-    expect(document.activeElement?.textContent).toBe('Delete');
+    expect(document.activeElement?.textContent).toBe('Cancel'); // (one in red starts on Cancel: round 3)
     expect(asking()).toBe(true);
     click('ask-ok');
     expect(await yes).toBe(true);
     expect(dialog()).toBeNull();
     expect(document.activeElement).toBe(opener);
     const no = ask('Again?');
+    expect(document.activeElement?.textContent).toBe('OK'); // (not in red: its main button)
     click('ask-cancel');
     expect(await no).toBe(false);
     const esc = ask('Esc?');

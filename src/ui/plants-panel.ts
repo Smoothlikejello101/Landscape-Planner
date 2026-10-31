@@ -17,10 +17,9 @@ import { openLocation } from './location-panel';
 import { render } from './render';
 import { plantDetails } from './plant-details';
 import { escapeHere, escapeShort, gardenStateName, lawShort, loadWild, regulatedHere } from '../wild';
-import { lookOf } from '../looks';
+import { plantDot } from '../plant-looks';
 
-/** A plant's dot in the lists: its flowers' color as its picture draws them, else its own color. */
-const dotColor = (p: Plant): string => lookOf(p, plantColor(p)).pal.fl ?? plantColor(p);
+const dotColor = plantDot;
 
 /** The open picker's list rebuild (in place: the search keeps the keyboard, opened rows stay open). */
 let refreshList: (() => void) | null = null;
@@ -31,6 +30,10 @@ let refreshList: (() => void) | null = null;
  */
 let setAside: { q: string; keys: (keyof PlantFilter)[]; names: string[] } | null = null;
 const searchKey = () => plantFilter.q.trim().toLowerCase();
+/** The picker just opened with last time's search in it (its first focus selects it). */
+let keptSearch = false;
+/** The picker just opened (src/ui/render.ts). */
+export function pickerOpened() { keptSearch = !!plantFilter.q; }
 /** `fn` with these filters off, the filters as they were after. */
 function withFiltersOff<T>(keys: (keyof PlantFilter)[], fn: () => T): T {
   const was = keys.map((k) => [k, plantFilter[k]] as const);
@@ -221,7 +224,10 @@ export function renderPlantsPanel() {
     const facts = el('div', { className: 'pmeta', 'data-testid': 'row-facts' }, [lines.size, lines.sun].filter(Boolean).join(' \u00b7 '));
     if (lines.hardy) {
       if (lines.size || lines.sun) facts.append(' \u00b7 ');
-      facts.appendChild(el('span', { className: lines.hardy.ok ? '' : 'hardy-no', 'data-testid': 'row-hardy' }, lines.hardy.text));
+      // (Listed under "Other sources say these are hardy here too": its row says both, not just "Too cold here".
+      // Round 3, Diego.)
+      const others = !lines.hardy.ok && reportedOnly.get(p.id)?.includes('hardiness zones');
+      facts.appendChild(el('span', { className: lines.hardy.ok ? '' : 'hardy-no', 'data-testid': 'row-hardy' }, others ? `${lines.hardy.text}, by its main sources; others say hardy` : lines.hardy.text));
     }
     const info = el('div', { className: 'pinfo' },
       el('div', { className: 'pname' }, headName(p)),
@@ -289,7 +295,8 @@ export function renderPlantsPanel() {
       title: mine ? 'Edit my plant' : 'Copy as my plant',
       'aria-label': (mine ? 'Edit ' : 'Copy as my plant: ') + p.common,
     });
-    side.addEventListener('click', () => openForm(mine ? { editId: p.id, place: false } : { copyFromId: p.id, place: false }));
+    // (Edited from here, back here: Cancel closed the whole picker, and the search with it. Round 3, Owen.)
+    side.addEventListener('click', () => openForm(mine ? { editId: p.id, place: false, back: 'plants' } : { copyFromId: p.id, place: false }));
     head.appendChild(side);
     if (mine) info.firstChild!.appendChild(el('span', { className: 'mine-badge' }, 'Mine'));
     // Now in the catalog too: offer its sourced facts (the person decides: src/ui/switch-plant.ts).
@@ -552,7 +559,8 @@ export function renderPlantsPanel() {
       if (hits.length || mine.length) listWrap.insertBefore(note, listWrap.firstChild); else listWrap.appendChild(note);
     }
     if (hits.length === 0 && mine.length === 0) {
-      if (!why || more <= 0) {
+      // (In a plan with nothing placed, "In this plan" says so above: no "loosen a filter" with none on. Round 3, Sam.)
+      if ((!why || more <= 0) && !(plantFilter.inPlan && !plantFilter.q.trim())) {
         listWrap.appendChild(el('div', { className: 'hint', style: { padding: '8px 0' } },
           'No matches. Add it as your own plant, or loosen a filter.'));
       }
@@ -584,13 +592,22 @@ export function renderPlantsPanel() {
       if (!filterOn(plantFilter, k)) continue;
       if (found.some((p) => reportedMatch(p, { ...base, [k]: plantFilter[k] }, inPlan) === null)) { names.push(name(plantFilter)); keys.push(k); }
     }
-    return names.length ? { n: found.length, names, keys } : null;
+    return names.length ? { n: found.length, names: oneEdible(keys, names), keys } : null;
+  }
+  /** "Edible fruit" says Edible already: one name for the two (round 3: "…, Edible, Edible fruit"). */
+  function oneEdible(keys: (keyof PlantFilter)[], names: string[]): string[] {
+    const e = keys.indexOf('edible');
+    if (e < 0 || !plantFilter.edibleParts.length) return names;
+    const out = [...names];
+    if (keys.includes('edibleParts')) out.splice(e, 1); else out[e] = FILTER_NAMES.edibleParts!(plantFilter);
+    return out;
   }
   /** The filters on that would hide this plant, by name. */
   function filtersHiding(p: Plant, keys: (keyof PlantFilter)[]): string[] {
     const inPlan = plantIdsInPlan();
     const base: PlantFilter = { ...PLANT_FILTER_DEFAULTS, q: plantFilter.q, withReported: plantFilter.withReported };
-    return keys.filter((k) => reportedMatch(p, { ...base, [k]: plantFilter[k] }, inPlan) === null).map((k) => FILTER_NAMES[k]!(plantFilter));
+    const hiding = keys.filter((k) => reportedMatch(p, { ...base, [k]: plantFilter[k] }, inPlan) === null);
+    return oneEdible(hiding, hiding.map((k) => FILTER_NAMES[k]!(plantFilter)));
   }
   /** How many more plants the list would show with what other sources say counted (while it's hidden). */
   function othersHidden(): number {
@@ -636,7 +653,14 @@ export function renderPlantsPanel() {
   const clearSearch = el('button', { className: 'search-clear', html: I.x, 'aria-label': 'Clear the search', 'data-testid': 'clear-search' });
   clearSearch.hidden = !plantFilter.q;
   clearSearch.addEventListener('click', () => { search.value = ''; plantFilter.q = ''; clearSearch.hidden = true; rebuildList(); search.focus(); });
-  search.addEventListener('input', () => { plantFilter.q = search.value; clearSearch.hidden = !search.value; rebuildList(); });
+  search.addEventListener('input', () => { keptSearch = false; plantFilter.q = search.value; clearSearch.hidden = !search.value; rebuildList(); });
+  // (A search kept from the last time: the first tap in it selects it, so typing starts a new one rather than adding
+  // to it: round 3, "coneflowerbee balm". After the tap, so the tap's own caret doesn't undo it.)
+  search.addEventListener('focus', () => {
+    if (!keptSearch) return;
+    keptSearch = false;
+    setTimeout(() => { if (document.activeElement === search) search.select(); }, 0);
+  });
 
   const enums = (PLANT_META && PLANT_META.enums) || {};
   type StringKey = { [K in keyof PlantFilter]: PlantFilter[K] extends string ? (string extends PlantFilter[K] ? K : never) : never }[keyof PlantFilter];

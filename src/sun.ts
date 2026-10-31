@@ -81,6 +81,7 @@ function insideOf(a: Shape, b: Shape): boolean {
 }
 
 export interface SunCheck { ok: boolean; message: string }
+const SUN_WORDS: Record<string, string> = { Full: 'full sun', Part: 'part shade', Shade: 'shade' };
 /**
  * Compare a plant's sun needs with the observed sun where it sits. Only
  * plants inside a shade area with sun recorded are checked: elsewhere the
@@ -96,9 +97,9 @@ export function checkPlantSun(plantShape: Shape, plant: Plant | undefined, shape
   const most = RANK[plant.sun_most as SunLevel], least = RANK[plant.sun_least as SunLevel];
   const name = plant.common;
   const where = `about ${formatHours(h)} of ${at.info.dappled ? 'filtered ' : ''}sun here`;
-  const wants = plant.sun_most === plant.sun_least
-    ? `${plant.sun_most.toLowerCase()} ${plant.sun_most === 'Shade' ? '' : 'sun'}`.trim()
-    : `${plant.sun_most.toLowerCase()} sun to ${plant.sun_least.toLowerCase()}${plant.sun_least === 'Shade' ? '' : ' sun'}`;
+  // (In the words its details use: "part shade to shade", not "part sun to shade". Round 3, Grace.)
+  const word = (v: string) => SUN_WORDS[v] ?? v.toLowerCase();
+  const wants = plant.sun_most === plant.sun_least ? word(plant.sun_most) : `${word(plant.sun_most)} to ${word(plant.sun_least)}`;
   if (RANK[level] < most) return { ok: false, message: `${name} gets ${where}; it prefers ${wants}.` };
   if (RANK[level] > least) return { ok: false, message: `${name} gets only ${where}; it wants ${wants}.` };
   const pm = afternoonHours(at.info);
@@ -108,7 +109,14 @@ export function checkPlantSun(plantShape: Shape, plant: Plant | undefined, shape
   return { ok: true, message: `${name} gets ${where}, which suits it (${wants}).` };
 }
 
+/**
+ * Whether a plant's sun warning is dismissed: in its current wording, or as it was worded before round 3 ("part sun"
+ * where it now says "part shade"), so a warning dismissed then stays dismissed.
+ */
+export function sunDismissedFor(check: SunCheck, s: Shape): boolean {
+  return !!s.sunDismissed && (s.sunDismissed === check.message || s.sunDismissed === check.message.replace(/part shade/g, 'part sun'));
+}
 /** A warning to show: not ok, not dismissed in its current wording, and warnings switched on. */
 export function sunWarningShown(check: SunCheck | null, s: Shape, warningsOn: boolean): boolean {
-  return !!check && !check.ok && warningsOn && s.sunDismissed !== check.message;
+  return !!check && !check.ok && warningsOn && !sunDismissedFor(check, s);
 }

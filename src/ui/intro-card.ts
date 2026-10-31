@@ -20,6 +20,7 @@ import {
   stepDone, type IntroRecord, type Snapshot, type StepId,
 } from '../intro';
 import { openLocation } from './location-panel';
+import { updateBgImage } from '../background';
 import { toast } from './toast';
 import { flushHistoryDebounce, pushHistory } from '../history';
 import { save as savePlan } from '../storage';
@@ -37,6 +38,8 @@ function save(): void {
   try { localStorage.setItem(KEY, JSON.stringify(rec)); } catch { /* no storage: it lasts this visit */ }
 }
 /** The card's choice of words where a mouse clicks what a finger taps. */
+/** Step 4b's "Fade it": the photo's opacity. */
+const FADED = 0.35;
 const tap = () => (hasKeyboard() ? 'click' : 'tap');
 const Tap = () => (hasKeyboard() ? 'Click' : 'Tap');
 
@@ -80,7 +83,9 @@ let choosing = false;
 export function showMeAround(): void {
   // (Under way already, or left part way: pick up there, or start over.)
   // (Kept as left until they pick: a reload meanwhile doesn't count what was done since against the old plan.)
-  if ((rec.status === 'exited' || rec.status === 'active') && resumeStep(rec, snapshot())) { choosing = true; rec.status = 'exited'; save(); return; }
+  // (Not where picking up is starting over: "Pick up at step 1" beside "Start over" read as the same thing. Round 3, Ruth.)
+  const at = rec.status === 'exited' || rec.status === 'active' ? resumeStep(rec, snapshot()) : null;
+  if (at && at !== 'zip') { choosing = true; rec.status = 'exited'; save(); return; }
   begin(null);
 }
 function exit(): void { if (rec.status === 'active') rec.status = 'exited'; choosing = false; save(); }
@@ -168,9 +173,10 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
       action: { label: 'Change it', run: () => openLocation() },
       done: 'Next',
     } : {
-      // (How to leave a panel, said once, at the first one (Jason, Oct 29: "do I need to save somehow?").)
-      text: `Your ZIP gives the garden's hardiness zone and frost dates. Only its first three digits leave your device. When you're done with a panel, ${tap()} the plan to close it: everything saves as you go.`,
-      short: state.location?.zip ? `Your zone and frost dates are below. ${Tap()} the plan to close this and go on.` : 'Enter your ZIP, then Look up.',
+      // (How to leave a panel, said once, at the first one (Jason, Oct 29: "do I need to save somehow?"). Its ×, not
+      // the plan: on a phone the panel covers all but a sliver of it (round 3: Ruth, Priya, Lena and Dana).)
+      text: `Your ZIP gives the garden's hardiness zone and frost dates. Only its first three digits leave your device. When you're done with a panel, close it with its ×: everything saves as you go.`,
+      short: state.location?.zip ? 'Your zone and frost dates are below. Close this with its × to go on.' : 'Enter your ZIP, then Look up.',
       action: { label: 'Enter your ZIP', run: () => openLocation() },
     };
     case 'photo': return rec.base?.scale != null && rec.base.scale !== UNSCALED ? {
@@ -206,13 +212,14 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
     }
     case 'fade': return {
       text: 'Photo making it busy? Fade it, or hide it. Background image in ⋮ brings it back any time.',
-      short: `Slide Opacity down, or Hide image. Then ${tap()} the plan to close this.`,
-      action: { label: 'Fade it', run: () => { state.panel = 'bg'; } },
+      short: 'Slide Opacity to suit, or Hide image. Then close this with its ×.',
+      // (It fades it, as it says, then opens the panel to fine-tune it: round 3, Dana tapped it and saw nothing change.)
+      action: { label: 'Fade it', run: () => { if (state.bgImage && state.bgImage.opacity > FADED) updateBgImage({ opacity: FADED }); state.panel = 'bg'; } },
       done: 'Done',
     };
     case 'sun': return {
       text: 'Where does it get shade? Draw that part, then show when direct sun reaches it.',
-      short: state.panel === 'add' ? `${Tap()} Sun exposure, then draw the shady part.` : `${Tap()} Record sun for this area, set when sun reaches it, then ${tap()} the plan to close this.`,
+      short: state.panel === 'add' ? `${Tap()} Sun exposure, then draw the shady part.` : `${Tap()} Record sun for this area, set when sun reaches it, then close this with its ×.`,
       action: { label: 'Draw the shade', run: () => startKind('sun') },
     };
     case 'who': return { text: "Kids, dogs, cats, horses? We'll hide plants that are a problem for them. Change it any time in Filters.", extra: whoChips(), done: 'Next' };
@@ -239,7 +246,11 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
       const placed = newestPlant();
       const ring = !!placed && fullRingRadius(placed) != null;
       return {
-        text: ring
+        // (No plant placed, the step before skipped: said of plants in general, not of an "it" that isn't there.
+        // Round 3, Diego.)
+        text: !placed
+          ? "A plant's circle is its typical size, with a dashed ring for how big it gets full-grown (one whose sources give one size has just its circle). Give plants room: plant two closer than usual and the app tells you."
+          : ring
           ? 'The circle is its typical size. The dashed ring is how big it gets full-grown. Give it room: plant two closer than usual and the app tells you.'
           : 'Its circle is how big it gets full-grown. (A plant whose size has a range shows its typical size, with a dashed ring for full-grown.) Give it room: when circles overlap, the app tells you.',
         done: 'Got it',

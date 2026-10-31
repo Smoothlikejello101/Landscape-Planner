@@ -1,6 +1,6 @@
 import { colorIn, FALL_HEX, FRUIT_HEX, lookOf, lookSvg, shade, type Look, type LookLevel, type LookMonth } from './looks';
 import { hereFor, monthLook } from './seasons';
-import { plantsById } from './plants';
+import { plantColor, plantsById, type Plant } from './plants';
 import { state } from './state';
 import type { CircleShape, Shape } from './types';
 
@@ -30,6 +30,13 @@ export function lookMonthOf(s: CircleShape, month = state.month): LookMonth | un
 }
 /** How a placed plant is drawn. */
 export const lookFor = (s: CircleShape): Look => lookOf(s.plantId ? plantsById[s.plantId] : undefined, s.color, !!s.colorSet, s.flowerColor);
+/** A plant's dot in lists and bars: its flowers' color as its picture draws them, else its own color. */
+export const plantDot = (p: Plant): string => lookOf(p, plantColor(p)).pal.fl ?? plantColor(p);
+/**
+ * A placed shape's dot in the selection bar: a plant drawn as its picture, its picture's flowers (as the picker's dot:
+ * round 3, Ruth saw every plant's dot purple, its shape's color); anything else, its own color.
+ */
+export const shapeDot = (s: Shape): string => (lookShown(s) ? lookFor(s as CircleShape).pal.fl ?? s.color : s.color);
 /**
  * A planned plant drawn as a picture: its dashed edge in the picture's dark leaf color (the month's, through the
  * year), not its shape's color. Drawn as a picture, a plain red strawberry's red edge read as a warning, as To
@@ -50,7 +57,11 @@ const cache = new Map<string, string>();
 export function lookMarkup(s: CircleShape, rPx: number, level: LookLevel): string {
   const r = Math.min(rPx, LOOK_MAX_R), k = rPx / r;
   const month = lookMonthOf(s);
-  const key = `${s.id}|${s.plantId}|${s.color}|${s.colorSet ? 1 : 0}|${s.flowerColor ?? ''}|${Math.round(r * 4)}|${level}|${month ? JSON.stringify(month) : ''}`;
+  // (A plant of the user's own can change under the same id: its bloom color edited, its copies kept their old flowers
+  // till a reload. Round 3, Lena, Owen. What it's drawn from is in the key.)
+  const own = s.plantId?.startsWith('u-') ? plantsById[s.plantId] : undefined;
+  const ownKey = own ? JSON.stringify([own.bloom, own.form, own.flower_color, own.leaf_color]) : '';
+  const key = `${s.id}|${s.plantId}|${s.color}|${s.colorSet ? 1 : 0}|${s.flowerColor ?? ''}|${Math.round(r * 4)}|${level}|${month ? JSON.stringify(month) : ''}|${ownKey}`;
   let out = cache.get(key);
   if (out == null) {
     if (cache.size > 3000) cache.clear(); // (zoomed through many sizes: start again)

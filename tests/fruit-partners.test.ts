@@ -35,6 +35,11 @@ describe('a partner for fruit (Jason, Oct 30)', () => {
     expect(fruitNeed(winterberry, [winterberry, winterberry], catalog)?.line).toBe('Winterberry holly has male and female plants: plant at least 3 to likely get both, or a named female and a male');
     expect(fruitNeed(winterberry, [winterberry, winterberry, winterberry], catalog)).toBeNull();
     expect(fruitNeed(winterberry, [winterberry, gentleman], catalog)).toBeNull();
+    // (A named cultivar not sexed is one clone: its copies don't count; two others of its kind, or a male, do. Round 3.)
+    const picturata: Plant = { id: 'aucuba-japonica-picturata', common: "Japanese laurel 'Picturata'", fruit_set: 'separate', parent: 'aucuba-japonica', fruit_color: ['red/burgundy'] };
+    expect(fruitNeed(picturata, [picturata, picturata, picturata], [...catalog, picturata])?.line).toBe("Japanese laurel 'Picturata' is male or female (its sources don't say), and its copies are all the same: plant others of its kind nearby, or a named male, for fruit");
+    const seedling: Plant = { id: 'aucuba-japonica', common: 'Japanese laurel', fruit_set: 'separate', fruit_color: ['red/burgundy'] };
+    expect(fruitNeed(picturata, [picturata, seedling, seedling], [...catalog, picturata, seedling])).toBeNull();
   });
   it('a second variety: another cultivar, or a second seedling; never a clone of it', () => {
     expect(fruitNeed(davis, [davis], catalog)?.line).toBe("Pawpaw 'Davis' needs a second, different variety nearby to fruit");

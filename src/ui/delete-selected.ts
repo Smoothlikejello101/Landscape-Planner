@@ -8,16 +8,19 @@ import { flushHistoryDebounce, undo } from '../history';
 import { render } from './render';
 import { toast, toastAction } from './toast';
 import { ask } from './ask';
+import { isTree } from '../trees';
 
 /** "6 plants, 1 boundary": what a set of shapes is, by role. */
-const NAMES: Record<RoleKey, [string, string]> = {
-  plant: ['plant', 'plants'], bed: ['bed', 'beds'], lawn: ['lawn', 'lawns'], path: ['path', 'paths'], water: ['water feature', 'water features'],
+const NAMES: Record<RoleKey | 'tree', [string, string]> = {
+  plant: ['plant', 'plants'], tree: ['tree', 'trees'], bed: ['bed', 'beds'], lawn: ['lawn', 'lawns'], path: ['path', 'paths'], water: ['water feature', 'water features'],
   shade: ['sun record', 'sun records'], building: ['building', 'buildings'], structure: ['garden structure', 'garden structures'], boundary: ['boundary', 'boundaries'], utility: ['utility', 'utilities'], other: ['note', 'notes'],
   unassigned: ['plain shape', 'plain shapes'],
 };
+/** What a shape is called in a count: a tree as a tree, not a plant (round 3, Sam: "12 plants" were 11 and a tree). */
+const countKey = (s: Shape): RoleKey | 'tree' => (s.role === 'plant' && isTree(s) ? 'tree' : roleKey(s));
 export function describeShapes(shapes: Shape[]): string {
-  const counts = new Map<RoleKey, number>();
-  for (const s of shapes) counts.set(roleKey(s), (counts.get(roleKey(s)) ?? 0) + 1);
+  const counts = new Map<RoleKey | 'tree', number>();
+  for (const s of shapes) counts.set(countKey(s), (counts.get(countKey(s)) ?? 0) + 1);
   return [...counts].sort((a, b) => b[1] - a[1]).map(([k, n]) => `${n} ${NAMES[k][n === 1 ? 0 : 1]}`).join(', ');
 }
 /** Shapes outside the part of the plan on screen. */
@@ -37,7 +40,7 @@ export async function deleteSelectedAsking(): Promise<void> {
   if (selected.length === 1) {
     // One shape, chosen on its own: deleted, unless it's locked (then asked).
     if (isLocked(selected[0])) {
-      if (!(await ask(`This ${NAMES[roleKey(selected[0])][0]} is locked. Delete it anyway?`, { ok: 'Delete', danger: true }))) return;
+      if (!(await ask(`This ${NAMES[countKey(selected[0])][0]} is locked. Delete it anyway?`, { ok: 'Delete', danger: true }))) return;
       if (!state.shapes.some((s) => s.id === selected[0].id)) return; // (gone meanwhile)
     }
     deleteShapesByIds([selected[0].id]);

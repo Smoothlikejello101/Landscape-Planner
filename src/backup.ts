@@ -33,7 +33,8 @@ async function exportedProject(id: string): Promise<ExportedProject | null> {
   return { name: meta.name, lastModified: meta.lastModified, data: forExport(data) };
 }
 export function safeFileName(name: string): string {
-  return (name.trim().replace(/[^a-z0-9-_ ]+/gi, '').replace(/\s+/g, '-').toLowerCase() || 'project').slice(0, 60);
+  // (A run of dashes is one: "Grace - shady oak yard" came out "grace---shady-oak-yard". Round 3, Grace.)
+  return (name.trim().replace(/[^a-z0-9-_ ]+/gi, '').replace(/\s+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'project').slice(0, 60);
 }
 export function stamp() { return new Date().toISOString().slice(0, 10); }
 
@@ -89,7 +90,14 @@ export function buildEmergencyBackup(): { filename: string; text: string; count:
 /** Parse a project or backup file. Throws an Error with a user-facing message. */
 export function parseImportFile(text: string): ExportedProject[] {
   let raw: unknown;
-  try { raw = JSON.parse(text); } catch { throw new Error("This file isn't a FullGrown project (it isn't valid JSON)."); }
+  try { raw = JSON.parse(text); } catch {
+    // (One that starts as ours and doesn't finish: a download cut short. Said so, not "isn't a FullGrown project".
+    // Round 3, Sam.)
+    if (/^\s*\{\s*"format"\s*:\s*"landscape-planner-(project|backup)"/.test(text.slice(0, 200))) {
+      throw new Error('This FullGrown file is damaged or cut short: it doesn\u2019t end as it should. If it was downloaded, try saving it again.');
+    }
+    throw new Error("This file isn't a FullGrown project (it isn't valid JSON).");
+  }
   if (!raw || typeof raw !== 'object') throw new Error("This file isn't a FullGrown project.");
   const f = raw as Record<string, unknown>;
   const version = typeof f.version === 'number' ? f.version : 0;

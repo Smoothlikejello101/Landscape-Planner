@@ -15,7 +15,12 @@ import { tell } from './ask';
 // Text and number fields update settings without re-rendering (Android
 // keyboard safety); buttons and checkboxes re-render.
 
-let result: { blob: Blob; filename: string; pages: number } | null = null;
+let result: { blob: Blob; filename: string; pages: number; of: string } | null = null;
+/**
+ * What a PDF was made of: the plan, its layers and what's shown. Changed since, the PDF made is let go, not offered as
+ * "Ready" (round 3, Tom: plants hidden, and Download gave the PDF with them).
+ */
+const printedFrom = () => JSON.stringify([state.currentProjectId, state.shapes, state.roleViews, state.viewFilter, state.sizeMode, state.bgImage?.dataUrl?.length ?? 0, state.bgImage?.opacity, state.bgImage?.visible, state.bgImage?.cx, state.bgImage?.cy, state.bgImage?.rotation, state.bgImage?.ftPerPx]);
 let busy = false;
 const localDate = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
@@ -48,7 +53,9 @@ export function printSummary(p: PrintSettings): string {
   if (!content.bounds) return 'Add something to the plan first.';
   const l = planLayout(p.paper, p.orientation, content.bounds);
   const ww = Math.round(l.window.maxX - l.window.minX), wh = Math.round(l.window.maxY - l.window.minY);
-  return `${l.orientation === 'landscape' ? 'Landscape' : 'Portrait'} · scale ${scaleText(l.ftPerIn)} · the sheet shows ${ww} × ${wh} ft`;
+  // (Which is which, said: "shows 31 × 29 ft" was read both ways, and a landscape sheet showing less width than height
+  // looked wrong, its legend taking the side. Round 3, Hank, Kim.)
+  return `${l.orientation === 'landscape' ? 'Landscape' : 'Portrait'} · scale ${scaleText(l.ftPerIn)} · the drawing shows ${ww} ft across, ${wh} ft down`;
 }
 
 export function renderPrintPanel() {
@@ -81,9 +88,14 @@ export function renderPrintPanel() {
     for (const x of state.phases) ph.appendChild(el('option', { value: x }, x));
     ph.value = p.phaseFilter;
     ph.addEventListener('change', () => set({ phaseFilter: ph.value }, true));
+    // (Filtered to none: said here, not found on the paper. Round 3, Dana: "Planted", with every plant planned, printed
+    // no plants and no list, and nothing said why.)
+    const shown = (p.statusFilter || p.phaseFilter)
+      ? printContent(state.shapes, null, false, { status: p.statusFilter, phase: p.phaseFilter, showGone: false }).shapes.filter((x) => x.role === 'plant').length : -1;
     body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Plants to show'),
       el('div', { style: { display: 'flex', gap: '8px' } }, st, ph),
-      el('div', { className: 'hint' }, 'Beds, paths and buildings always print. Gone plants never do.')));
+      shown === 0 ? el('div', { className: 'hint error', 'data-testid': 'print-none' }, 'No plants on the plan are in this status and phase: none will print.') : null,
+      el('div', { className: 'hint' }, 'Beds, paths and buildings always print, unless hidden in Layers. Gone plants never do.')));
   }
 
   const hasBg = !!state.bgImage?.visible;
@@ -114,7 +126,7 @@ export function renderPrintPanel() {
     try {
       const { buildPlanPdf } = await import('../print-pdf');
       const r = await buildPlanPdf(state.print, projectName, state.shapes, state.bgImage, state.sizeMode);
-      result = { blob: r.blob, pages: r.pages, filename: pdfName(state.print.title.trim() || projectName, localDate()) };
+      result = { blob: r.blob, pages: r.pages, filename: pdfName(state.print.title.trim() || projectName, localDate()), of: printedFrom() };
     } catch (e) {
       void tell("Couldn't make the PDF: " + errMsg(e));
     } finally {
@@ -127,6 +139,7 @@ export function renderPrintPanel() {
     }
   });
   const out = el('div', { 'data-testid': 'print-result', style: { display: 'flex', flexDirection: 'column', gap: '8px' } });
+  if (result && result.of !== printedFrom()) result = null;
   if (result) {
     const r = result;
     out.appendChild(el('div', { className: 'hint', 'data-testid': 'pdf-ready' }, `Ready: ${r.filename} · ${r.pages} page${r.pages === 1 ? '' : 's'} · ${Math.max(1, Math.round(r.blob.size / 1024))} KB`));

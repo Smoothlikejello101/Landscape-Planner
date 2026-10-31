@@ -18,7 +18,7 @@ import { getSelected, selectOnly, singleSelected } from '../selection';
 import { state } from '../state';
 import { render } from './render';
 import type { CircleShape, Corner, RoleKey, Shape } from '../types';
-import { formatSize, fullRingRadius, isMine, plantRadius, plantSpread, type Range } from '../my-plants';
+import { formatSize, fullRingRadius, isMine, MY_PREFIX, plantRadius, plantSpread, type Range } from '../my-plants';
 import { canLinkToPlant, formsOf, linkShapesToPlant, plantColor, plantFilter, plantsById, rowLines, unlinkedWithLabel, type Plant } from '../plants';
 import { plantDetails } from './plant-details';
 import { toast } from './toast';
@@ -184,6 +184,14 @@ const cap1 = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
 let leafColorOpen = false;
 /** The most a typed size can be (ft): about ten times anything real, a bed or a lawn, and a plant across (Jason, Oct 30). */
 const MAX_SIZE = 5000, MAX_SPREAD = 500;
+/**
+ * A number typed that the field couldn't take as it was: said when the field is left, not kept to in silence (round 3:
+ * Tom's 0 became 0.1 and 99999 became 5,000 with nothing said; Grace's and Jordan's likewise).
+ */
+function saidOutOfRange(typed: string, lo: number, hi: number, what: string) {
+  const n = parseFloat(typed.replace(',', '.'));
+  if (typed.trim() && !(n >= lo && n <= hi)) toast(`${what}: from ${lo.toLocaleString()} to ${hi.toLocaleString()} ft.`);
+}
 export function renderPropsPanelSingle(s: Shape) {
   const body = el('div', { className: 'sheet-body props-compact' });
   // Always in view: warnings, the name, and what it is.
@@ -242,7 +250,9 @@ export function renderPropsPanelSingle(s: Shape) {
     // it, and its facts as the picker shows them (Oct 29: bloom time without finding it in the picker), the garden's
     // zone checked on its Hardiness row. Folded until opened, like every section.
     const facts = p && !isMine(p);
-    const sum = p ? [p.common + (isMine(p) ? ' (mine)' : ''), facts ? rowLines(p).sun : ''].filter(Boolean).join(' · ') : s.plantId ? 'Details not on this device' : 'Not linked';
+    const sum = p ? [p.common + (isMine(p) ? ' (mine)' : ''), facts ? rowLines(p).sun : ''].filter(Boolean).join(' · ') : s.plantId
+      // (One of My plants deleted read "not on this device", though it was deleted here: round 3, Diego.)
+      ? (s.plantId.startsWith(MY_PREFIX) ? 'Not in My plants (deleted, or added on another device)' : 'Details not on this device') : 'Not linked';
     const parts: Node[] = [plantLinkSection(s)];
     if (facts) parts.push(el('div', { className: 'about-plant', 'data-testid': 'about-plant' }, plantDetails(p, undefined, { hardiness: zoneCheck(p, false) })));
     body.appendChild(section('plant', 'Plant', document.createTextNode(sum), parts));
@@ -259,11 +269,13 @@ export function renderPropsPanelSingle(s: Shape) {
   if (s.type === 'text') {
     const sizeInput = el('input', { type: 'number', step: '0.25', min: '0.25', value: s.fontSize });
     sizeInput.addEventListener('input', e => { updateSelectedSilent({ fontSize: Math.min(50, Math.max(0.25, parseFloat((e.target as HTMLInputElement).value) || 0)) }); refreshMeasure(); });
+    sizeInput.addEventListener('change', () => { saidOutOfRange(sizeInput.value, 0.25, 50, 'Text heights go'); sizeInput.value = String(s.fontSize); });
     sizeParts.push(el('div', { className: 'field' }, el('label', {}, 'Text height (ft)'), sizeInput,
       el('div', { className: 'hint' }, 'Sized in feet so it stays in proportion to the plan when zoomed or printed.')));
   } else if (s.type === 'circle') {
-    // Sized by width across, as tags and tape measures give it; the radius is only stored.
-    const dInput = el('input', { type: 'number', step: '0.5', min: '0.2', inputMode: 'decimal', value: round1(s.radius * 2), 'data-testid': 'circle-size' }) as HTMLInputElement;
+    // Sized by width across, as tags and tape measures give it; the radius is only stored. (Its arrows step by half
+    // feet from 0, not from the least it takes: 4.5 went to 4.7, then 4.2. Round 3, Alex. The size fields alike.)
+    const dInput = el('input', { type: 'number', step: '0.5', min: '0', inputMode: 'decimal', value: round1(s.radius * 2), 'data-testid': 'circle-size' }) as HTMLInputElement;
     dInput.addEventListener('input', () => {
       const d = parseFloat(dInput.value.replace(',', '.'));
       if (!(d >= 0.2) || d > MAX_SPREAD) return; // a passing "0" or empty field mustn't shrink it to nothing (nor 9999 grow it)
@@ -271,7 +283,17 @@ export function renderPropsPanelSingle(s: Shape) {
       updateSelectedSilent(s.plantId ? { radius: d / 2, sizeFrom: 'manual' } : { radius: d / 2 });
       refreshMeasure();
     });
-    dInput.addEventListener('change', () => { const d = parseFloat(dInput.value.replace(',', '.')); if (!(d >= 0.2) || d > MAX_SPREAD) dInput.value = String(round1(s.radius * 2)); });
+    // (Out of range once left: back to the size it had before the typing, not what a keystroke on the way left it at
+    // (99999 left a 99 ft circle: round 3, Grace), and said.)
+    let before = { radius: s.radius, sizeFrom: s.sizeFrom };
+    dInput.addEventListener('focus', () => { before = { radius: s.radius, sizeFrom: s.sizeFrom }; });
+    dInput.addEventListener('change', () => {
+      const d = parseFloat(dInput.value.replace(',', '.'));
+      if (d >= 0.2 && d <= MAX_SPREAD) return;
+      saidOutOfRange(dInput.value, 0.2, MAX_SPREAD, bySpread(s) ? 'A spread' : 'A diameter');
+      if (s.radius !== before.radius) { updateSelectedSilent({ radius: before.radius, sizeFrom: before.sizeFrom }); refreshMeasure(); }
+      dInput.value = String(round1(s.radius * 2));
+    });
     const what = bySpread(s) ? (s.canopy ? 'Spread, widest (ft)' : 'Spread (ft)') : 'Diameter (ft)';
     sizeParts.push(el('div', { className: 'field' }, el('label', {}, what), dInput,
       bySpread(s) ? el('div', { className: 'hint' }, 'How wide it\'s drawn, across. Plant tags call this its spread.') : '', bySpread(s) ? '' : measure));
@@ -310,12 +332,12 @@ export function renderPropsPanelSingle(s: Shape) {
     // (Within 0.1 and MAX_SIZE ft, and the box shows what was applied once it's left: Sam, Oct 30, made a bed
     // 99,999,999 ft long, and a typed 0 or −20 stayed in the box while the bed quietly became 0.1 ft.)
     const sized = (v: string) => Math.min(MAX_SIZE, Math.max(0.1, parseFloat(v) || 0));
-    const wInput = el('input', { type: 'number', step: '0.5', min: '0.1', max: String(MAX_SIZE), value: round1(size.w) }) as HTMLInputElement;
+    const wInput = el('input', { type: 'number', step: '0.5', min: '0', max: String(MAX_SIZE), value: round1(size.w) }) as HTMLInputElement;
     wInput.addEventListener('input', e => { resize(sized((e.target as HTMLInputElement).value), boxSize(s).h); refreshMeasure(); });
-    const hInput = el('input', { type: 'number', step: '0.5', min: '0.1', max: String(MAX_SIZE), value: round1(size.h) }) as HTMLInputElement;
+    const hInput = el('input', { type: 'number', step: '0.5', min: '0', max: String(MAX_SIZE), value: round1(size.h) }) as HTMLInputElement;
     hInput.addEventListener('input', e => { resize(boxSize(s).w, sized((e.target as HTMLInputElement).value)); refreshMeasure(); });
-    wInput.addEventListener('change', () => { wInput.value = String(round1(boxSize(s).w)); });
-    hInput.addEventListener('change', () => { hInput.value = String(round1(boxSize(s).h)); });
+    wInput.addEventListener('change', () => { saidOutOfRange(wInput.value, 0.1, MAX_SIZE, 'Sizes go'); wInput.value = String(round1(boxSize(s).w)); });
+    hInput.addEventListener('change', () => { saidOutOfRange(hInput.value, 0.1, MAX_SIZE, 'Sizes go'); hInput.value = String(round1(boxSize(s).h)); });
     // A perfectly straight line has no height (or width) to stretch.
     if (isPath && size.w === 0) wInput.disabled = true;
     if (isPath && size.h === 0) hInput.disabled = true;
@@ -371,10 +393,13 @@ export function renderPropsPanelSingle(s: Shape) {
   const posSum = document.createTextNode(positionSummary(s));
   const refreshPos = () => { posSum.textContent = positionSummary(s); };
   const placed = (v: string) => Math.min(MAX_SIZE, Math.max(-MAX_SIZE, parseFloat(v) || 0));
-  const xInput = el('input', { type: 'number', step: '0.5', value: s.x }) as HTMLInputElement;
+  const xInput = el('input', { type: 'number', step: '0.5', value: round1(s.x) }) as HTMLInputElement;
   xInput.addEventListener('input', e => { updateSelectedSilent({ x: placed((e.target as HTMLInputElement).value) }); refreshCrowd(); refreshPos(); });
-  const yInput = el('input', { type: 'number', step: '0.5', value: s.y }) as HTMLInputElement;
+  const yInput = el('input', { type: 'number', step: '0.5', value: round1(s.y) }) as HTMLInputElement;
   yInput.addEventListener('input', e => { updateSelectedSilent({ y: placed((e.target as HTMLInputElement).value) }); refreshCrowd(); refreshPos(); });
+  // (Left, each shows where it is: a typed 123456789 stayed in the box with the plant at 5,000. Round 3, Sam.)
+  xInput.addEventListener('change', () => { saidOutOfRange(xInput.value, -MAX_SIZE, MAX_SIZE, 'Positions go'); xInput.value = String(round1(s.x)); });
+  yInput.addEventListener('change', () => { saidOutOfRange(yInput.value, -MAX_SIZE, MAX_SIZE, 'Positions go'); yInput.value = String(round1(s.y)); });
   const posParts: Node[] = [el('div', { className: 'row-2' },
     el('div', { className: 'field' }, el('label', {}, 'X position (ft)'), xInput),
     el('div', { className: 'field' }, el('label', {}, 'Y position (ft)'), yInput))];

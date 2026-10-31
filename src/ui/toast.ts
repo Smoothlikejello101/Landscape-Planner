@@ -3,6 +3,8 @@ import { state } from '../state';
 // Brief, non-blocking status messages ("Backup saved").
 
 let timer: ReturnType<typeof setTimeout> | null = null;
+/** When the plain notice last went up. */
+let shownAt = 0;
 
 export function toast(message: string, ms = 3000) {
   let node = document.getElementById('toast');
@@ -14,6 +16,7 @@ export function toast(message: string, ms = 3000) {
     document.body.appendChild(node);
   }
   node.textContent = message;
+  shownAt = Date.now();
   placeToast(node);
   // (Again once this frame's drawing is done: a notice raised as a shape is selected comes before its chip.)
   const n = node;
@@ -22,6 +25,28 @@ export function toast(message: string, ms = 3000) {
   if (timer) clearTimeout(timer);
   // (Its words go with it: a screen reader, and the page's text, kept reading old notices long after: round 2, Oct 30.)
   timer = setTimeout(() => { n.classList.remove('show'); timer = setTimeout(() => { if (!n.classList.contains('show')) n.textContent = ''; }, 400); }, ms);
+}
+
+/**
+ * A plain notice raised before what just opened (a sheet, the ⋮ menu): put away, not left over its title or its rows
+ * (round 3: the tour's last notice sat on the Add sheet and the menu for Ruth, Lena, Grace and Bea). One raised as it
+ * opened stays.
+ */
+export function hideOldToast() {
+  const n = document.getElementById('toast');
+  if (!n?.classList.contains('show') || Date.now() - shownAt < 400) return;
+  n.classList.remove('show');
+  n.textContent = '';
+  if (timer) { clearTimeout(timer); timer = null; }
+}
+
+/** The plain notice put away if it says something now out of date (a hint already acted on). */
+export function hideToastSaying(re: RegExp) {
+  const n = document.getElementById('toast');
+  if (!n?.classList.contains('show') || !re.test(n.textContent ?? '')) return;
+  n.classList.remove('show');
+  n.textContent = '';
+  if (timer) { clearTimeout(timer); timer = null; }
 }
 
 /**

@@ -86,7 +86,7 @@ test('the arrow keys move through the More menu, not the plan behind it', async 
   expect(await zoomPct(page)).toBe(zoom);
 });
 
-test('the app asks its own questions: a locked shape deleted by key asks first, focus on its button; Esc keeps it', async ({ page }) => {
+test('the app asks its own questions: a locked shape deleted by key asks first, focus on Cancel (round 3: a stray Enter keeps it); Esc keeps it', async ({ page }) => {
   await openFresh(page);
   await oneRect(page);
   await page.locator('.sel-pill .edit').click();
@@ -95,7 +95,7 @@ test('the app asks its own questions: a locked shape deleted by key asks first, 
   await page.keyboard.press('Delete');
   const ask = page.locator('.ask-overlay [role=alertdialog]');
   await expect(ask).toContainText('is locked. Delete it anyway?');
-  await expect(ask.getByTestId('ask-ok')).toBeFocused();
+  await expect(ask.getByTestId('ask-cancel')).toBeFocused();
   await page.keyboard.press('Escape');
   await expect(ask).toHaveCount(0);
   expect(await shapeCount(page)).toBe(1);

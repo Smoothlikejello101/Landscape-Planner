@@ -62,8 +62,14 @@ describe('bloom by bed', () => {
   it('colors a row by its flowers\' sourced colors where it has them, else the earlier list\'s words', () => {
     const sourced = { ...plants, cone: { ...plants.cone, flower_color: ['insignificant', 'white'] } as Plant };
     const rows = bloomSummary(shapes.slice(2, 4), sourced).rows;
-    expect(rows[0]).toMatchObject({ colorText: 'white', color: '#e7e5e4' });
+    expect(rows[0]).toMatchObject({ colorText: 'white', color: '#f7f4ec' }); // (white, as the plan draws its flowers)
     expect(bloomSummary(shapes.slice(4, 5), plants).rows[0]).toMatchObject({ colorText: 'Blue-violet' });
+    // (In the color the plan draws its flowers: its lead color, not the first word found; one chosen for it, that.
+    // Round 3: a purple coneflower was red, a pink and white milkweed white.)
+    const cone = { ...plants, cone: { ...plants.cone, common: 'Purple coneflower', flower_color: ['purple', 'red'] } as Plant };
+    expect(bloomSummary(shapes.slice(2, 3), cone).rows[0].color).toBe('#8a62c9');
+    const chosen = [{ ...shapes[2], flowerColor: 'red' } as Shape];
+    expect(bloomSummary(chosen, cone).rows[0].color).toBe('#d7263d');
   });
   it('lists the plants with no bloom months by name, saying why, the person\'s own first', () => {
     const lib = {

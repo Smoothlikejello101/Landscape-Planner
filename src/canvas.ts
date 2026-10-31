@@ -902,11 +902,21 @@ function liftHidden(shapes: Element) {
         svgEl('circle', { cx, cy, r, fill: 'none', stroke: '#292524', 'stroke-width': 1.5, 'stroke-dasharray': '2 3', 'stroke-linecap': 'round', opacity: 0.8 }))
       : svgEl('g', { 'data-role': 'hidden-rim', 'data-rim-of': id, 'data-mark': 'pin' },
         svgEl('circle', { cx, cy, r: 4.5, fill: '#fff', opacity: 0.9 }), svgEl('circle', { cx, cy, r: 2.6, fill: '#292524' })));
+    // (Its pin, a finger wide, and its lifted name pick it: round 3, Hank couldn't pick a daffodil under a catmint.
+    // A tap there finds it in the stack too, for "tap again": src/gestures.ts shapesAt.)
+    const pinHit = svgEl('circle', { 'data-pin-of': id, 'data-role': 'pin-hit', cx, cy, r: 12, fill: 'transparent', 'pointer-events': 'all' });
+    pinHit.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
+    if (!outlined) rims.push(pinHit);
     const label = shapes.querySelector(`:scope > g[data-shape-group="${CSS.escape(id)}"] > [data-role=plant-label]`);
     // (Selected, its name shows whatever's around it.)
     if (label && hiddenUnnamed.has(id) && !state.selectedIds.includes(id)) label.remove();
     else if (label) {
       (label as SVGElement).dataset.labelOf = id;
+      if (!label.hasAttribute('data-tap')) {
+        label.setAttribute('data-tap', '');
+        label.setAttribute('pointer-events', 'all');
+        label.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
+      }
       const dy = hiddenShift.get(id);
       if (dy) label.setAttribute('transform', `translate(0 ${Math.round(dy * 10) / 10})`);
       top.appendChild(label);

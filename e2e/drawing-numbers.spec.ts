@@ -56,15 +56,25 @@ test("a rectangle from two typed sides: 10 ft, then 6 ft off it", async ({ page 
   await expect(field(page, 'Length (ft)')).toHaveValue('6');
 });
 
-test('a rectangle whose other side is typed is made with Enter (testers, Oct 30)', async ({ page }) => {
+test('a rectangle whose other side is typed: Enter makes it on a phone (testers, Oct 30); with a mouse, a click on its side does (round 3)', async ({ page, isMobile }) => {
   await openFresh(page);
   await addKind(page, 'building');
   await tapFt(page, 2, 10);
   await typed(page).fill('10');
   await tapFt(page, 14, 10.1);
+  // (Not a length: said so, and nothing made.)
+  await typed(page).fill('-5');
+  await typed(page).press('Enter');
+  await expect(page.locator('#toast')).toContainText('A length in feet, more than 0');
+  await expect(page.getByTestId('draw-bar')).toBeVisible();
   await typed(page).fill('6');
   await typed(page).press('Enter');
-  await expect(page.getByTestId('draw-bar')).toHaveCount(0); // (made: no tap on a side needed)
+  if (!isMobile) {
+    // (The side the mouse was last on, crossing to the field, isn't a choice: it waits for a click on the side.)
+    await expect(page.getByTestId('draw-bar')).toBeVisible();
+    await tapFt(page, 8, 13);
+  }
+  await expect(page.getByTestId('draw-bar')).toHaveCount(0); // (made)
   await page.locator('.sel-pill .edit').click(); await openSections(page);
   await expect(field(page, 'Width (ft)')).toHaveValue('10');
   await expect(field(page, 'Length (ft)')).toHaveValue('6');

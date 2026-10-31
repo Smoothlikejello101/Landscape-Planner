@@ -282,6 +282,21 @@ export const PLANT_FILTER_DEFAULTS = {
 };
 export type PlantFilter = typeof PLANT_FILTER_DEFAULTS;
 export const plantFilter: PlantFilter = { ...PLANT_FILTER_DEFAULTS };
+/** The filters as they were before the picker was opened on a plant's partners (its notice's "All 7…"). */
+let beforePartners: PlantFilter | null = null;
+/** The picker on just a plant's fruit partners (src/ui/fruit-notice.ts), the filters set aside till it closes. */
+export function showPartnersOf(id: string) {
+  beforePartners ??= structuredClone(plantFilter);
+  Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { partnersOf: id, hardyHere: plantFilter.hardyHere });
+}
+/**
+ * The picker closed (src/ui/render.ts): opened on a plant's partners, its filters as they were before. Left on, the
+ * partners filter hid every plant the next search looked for ("Nothing matches": round 3, Owen).
+ */
+export function partnersClosed() {
+  if (beforePartners) Object.assign(plantFilter, beforePartners);
+  beforePartners = null;
+}
 /** Whether a filter is on (set to something other than its default; a list filter, with anything in it). */
 export function filterOn(f: PlantFilter, k: keyof PlantFilter): boolean {
   const v = f[k];
@@ -858,8 +873,10 @@ export function linkShapesToPlant(shapeIds: string[], p: Plant): number {
       // Not a tree (a mislinked tree put right, too): the plant's size, and no trunk.
       s.tree = undefined;
       s.trunk = undefined;
-      setRadius(s, plantRadius(p, state.sizeMode));
-      s.sizeFrom = 'plant';
+      // (A plant with no size of its own (no spread or height known) keeps the size this one had: swapped for one,
+      // an 8 ft blueberry became a 2 ft dot, the size every unknown plant is drawn at. Round 3, Lena.)
+      if (!p.width && !p.height) s.sizeFrom = 'manual';
+      else { setRadius(s, plantRadius(p, state.sizeMode)); s.sizeFrom = 'plant'; }
     }
   }
   pushHistory();
