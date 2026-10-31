@@ -2,3 +2,5 @@
 /// <reference types="vite-plugin-pwa/vanillajs" />
 declare const __APP_VERSION__: string;
 declare const __BUILD_TIME__: string;
+/** 'release' or 'next' (src/channel.ts). */
+declare const __APP_CHANNEL__: string;

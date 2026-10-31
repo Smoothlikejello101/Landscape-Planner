@@ -14,6 +14,7 @@ import { openFeedback } from './feedback-sheet';
 import { MARK_SMALL } from '../brand';
 import { showMeAround } from './intro-card';
 import { openWhatsNew } from './whats-new-panel';
+import { CHANNEL } from '../channel';
 import { openPrint } from './print-panel';
 
 /** Select mode on or off (the lasso button on the top bar). */
@@ -115,7 +116,7 @@ export function renderMoreMenu() {
   menu.appendChild(el('div', { className: 'menu-divider' }));
   // The mark leads the version line (it has no text, so the line still reads "Version …").
   const version = el('div', { className: 'menu-version', html: MARK_SMALL });
-  version.append(`Version ${__APP_VERSION__} · ${__BUILD_TIME__}`);
+  version.append(`Version ${__APP_VERSION__}${CHANNEL === 'next' ? ' · Next (preview)' : ''} · ${__BUILD_TIME__}`);
   menu.appendChild(version);
   // (Up and down step through its items, as a menu's do; Home and End go to the ends.)
   menu.addEventListener('keydown', (e) => {

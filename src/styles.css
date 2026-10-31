@@ -297,6 +297,8 @@ a { color: inherit; }
 /* (A section's other lines, its checkboxes, hints and pickers, line up with its rows.) */
 .role-rows > :not(.role-row):not(.section-label) { padding-left: 16px; padding-right: 16px; }
 .section-label { font-size: calc(11px * var(--ts)); font-weight: 600; color: #78716c; text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 16px 4px; }
+/* Next, the preview copy of the app (src/channel.ts): an amber stripe along the top, so it's never taken for the real one. */
+body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 4px; background: #d97706; z-index: 100000; pointer-events: none; }
 /* What's new (src/ui/whats-new-panel.ts): each release's day, New where this device hadn't seen it, its lines. */
 .whats-new-date { display: flex; align-items: center; gap: 8px; padding-top: 14px; }
 .whats-new-fresh { background: #dcfce7; color: #166534; border-radius: 999px; padding: 1px 8px; text-transform: none; letter-spacing: 0; }

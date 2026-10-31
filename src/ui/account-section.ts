@@ -7,6 +7,7 @@ import { I } from '../icons';
 import { errMsg } from '../util';
 import { toast } from './toast';
 import { tell } from './ask';
+import { signInAllowed } from '../channel';
 
 // The Account section of the Projects panel. It's refreshed in place when the
 // account changes (signing in finishes, a plan loads), never by a full render,
@@ -51,6 +52,12 @@ export function refreshAccountSection() {
 }
 
 function fill(section: HTMLElement) {
+  // Next, the preview copy: no sign-in (it shares the real app's backend: src/channel.ts).
+  if (!signInAllowed()) {
+    section.appendChild(el('div', { className: 'status', 'data-testid': 'next-no-sign-in' },
+      'This is FullGrown Next, the preview of the next update. Sign-in and sync are off here, and its plans stay on this device, apart from the real app’s.'));
+    return;
+  }
   // A beta code's error shows beside its field (betaCodeBlock), where the keyboard can't hide it.
   if (account.error && !betaCodeShowing()) section.appendChild(errorLine());
   if (account.status === 'unknown') {
