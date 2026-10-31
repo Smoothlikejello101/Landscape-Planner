@@ -42,7 +42,10 @@ test("a color picked for a plant draws its picture's leaves, and Default color b
   await expect(look.locator('[fill="#6f9a4a"]').first()).toBeAttached();
   await expect(page.getByTestId('default-color')).toHaveCount(0);
   await page.locator('[data-section=look]').click();
-  await page.locator('.swatch').nth(8).click(); // #ef4444
+  // (Its leaf color behind a link: Jason, Oct 30, Look demoted for plants drawn as pictures; no opacity there.)
+  await expect(page.locator('.sheet .field', { hasText: 'Opacity' })).toHaveCount(0);
+  await page.getByTestId('leaf-color-toggle').click();
+  await page.locator('.sheet .swatches .swatch').nth(8).click(); // #ef4444
   await expect(look.locator('[fill="#ef4444"]').first()).toBeAttached();
   await expect(look.locator('[fill="#f7f4ec"]').first()).toBeAttached(); // (its blooms keep their color)
   await page.getByTestId('default-color').click();

@@ -295,7 +295,8 @@ export function render() {
   zIn.addEventListener('click', () => { zoomBy(1.25); render(); flashZoom(); });
   const zOut = el('button', { className: 'zoombtn', html: I.zoomOut, 'aria-label': 'Zoom out', title: 'Zoom out' });
   zOut.addEventListener('click', () => { zoomBy(0.8); render(); flashZoom(); });
-  zoomBtns.appendChild(zIn); zoomBtns.appendChild(zOut);
+  // (Off on a phone unless turned on in Layers: src/view-settings.ts.)
+  if (state.zoomButtons) { zoomBtns.appendChild(zIn); zoomBtns.appendChild(zOut); }
   // Everything in view (not on an empty plan with no photo: nothing to fit).
   if (planBounds()) {
     const zFit = el('button', { className: 'zoombtn', html: I.fit, 'aria-label': 'Fit the plan in view', title: 'Fit the plan in view (Shift+1)', 'data-testid': 'zoom-fit' });

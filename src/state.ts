@@ -56,6 +56,7 @@ export const state: AppState = {
   hardyWarnings: true,
   poisonWarnings: true,
   fruitWarnings: true,
+  zoomButtons: true,
   showNames: true,
   plantForm: null,
   pickerLinkId: null,

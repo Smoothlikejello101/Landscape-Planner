@@ -462,6 +462,8 @@ export interface AppState {
   poisonWarnings: boolean;
   /** A notice as a plant is placed that needs a partner to fruit, until the plan has one (src/fruit-partners.ts; on this device). */
   fruitWarnings: boolean;
+  /** The + and − zoom buttons shown (src/view-settings.ts): off on a phone unless turned on, on elsewhere. */
+  zoomButtons: boolean;
   /**
    * View: names on the plan, with line lengths, sun hours and the badges on plants (not saved). Off, the plan shows
    * its shapes alone, to step back and see it whole; a selected shape still shows its own.

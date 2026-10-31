@@ -140,7 +140,7 @@ test('turn a labeled circle into a plant, then edit the plant', async ({ page })
   await expect(page.getByTestId('pf-save')).toHaveText('Save and use for this circle');
   await page.getByTestId('pf-save').click();
   // The circle is now that plant, at its size, its properties open (as after picking from the list).
-  await expect(page.getByTestId('plant-link')).toContainText('Spread 5 ft');
+  await expect(page.getByTestId('plant-size-note')).toContainText('Its spread: 5 ft');
   await expect(field(page, 'Label')).toHaveValue('Ninebark');
   await expect(field(page, 'Spread (ft)')).toHaveValue('5');
 
@@ -155,7 +155,7 @@ test('turn a labeled circle into a plant, then edit the plant', async ({ page })
   await field(page, 'Spread (ft)').fill('6');
   await closeSheet(page);
   await page.locator('.sel-pill button.edit').click();
-  await page.getByTestId('plant-link').getByRole('button', { name: /Reset to plant size/ }).click();
+  await page.getByTestId('reset-size').click();
   await expect(field(page, 'Spread (ft)')).toHaveValue('8');
 });
 

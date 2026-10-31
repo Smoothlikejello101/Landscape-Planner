@@ -10,6 +10,11 @@ const FULL_RINGS = 'lp-full-rings', CROWDING = 'lp-crowding', CROWD_WARN = 'lp-c
 const HARDY_WARN = 'lp-warn-hardy', POISON_WARN = 'lp-warn-poison';
 // (Fruit partners, on unless turned off: Jason, Oct 30.)
 const FRUIT_WARN = 'lp-warn-fruit';
+// (The + and − zoom buttons: off on a phone, where a pinch zooms, unless turned on; on elsewhere. Jason, Oct 30: "clutter,
+// given pinch/scroll to zoom", kept a switch away for anyone zooming with one finger, as accessibility asks: WCAG 2.5.1.)
+const ZOOM_BTNS = 'lp-zoom-buttons';
+/** A phone or tablet: no hover, a finger to point with. */
+const touchOnly = (): boolean => { try { return matchMedia('(hover: none) and (pointer: coarse)').matches; } catch { return false; } };
 const read = (key: string, fallback: boolean): boolean => {
   try { const v = localStorage.getItem(key); return v == null ? fallback : v === 'on'; } catch { return fallback; }
 };
@@ -24,6 +29,7 @@ export function loadViewSettings() {
   state.hardyWarnings = read(HARDY_WARN, true);
   state.poisonWarnings = read(POISON_WARN, true);
   state.fruitWarnings = read(FRUIT_WARN, true);
+  state.zoomButtons = read(ZOOM_BTNS, !touchOnly());
 }
 export function setShowFullSize(on: boolean) { state.showFullSize = on; write(FULL_RINGS, on); }
 export function setShowCrowding(on: boolean) { state.showCrowding = on; write(CROWDING, on); }
@@ -32,3 +38,4 @@ export function setPlantLooks(on: boolean) { state.plantLooks = on; write(LOOKS,
 export function setHardyWarnings(on: boolean) { state.hardyWarnings = on; write(HARDY_WARN, on); }
 export function setPoisonWarnings(on: boolean) { state.poisonWarnings = on; write(POISON_WARN, on); }
 export function setFruitWarnings(on: boolean) { state.fruitWarnings = on; write(FRUIT_WARN, on); }
+export function setZoomButtons(on: boolean) { state.zoomButtons = on; write(ZOOM_BTNS, on); }

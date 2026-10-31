@@ -1,5 +1,5 @@
 import { DISMISS_WORDS, planDismissals, showAgainForPlan } from '../dismissals';
-import { setCrowdWarnings, setHardyWarnings, setFruitWarnings, setPoisonWarnings, setShowCrowding, setPlantLooks, setShowFullSize } from '../view-settings';
+import { setCrowdWarnings, setHardyWarnings, setFruitWarnings, setPoisonWarnings, setShowCrowding, setPlantLooks, setShowFullSize, setZoomButtons } from '../view-settings';
 import { household } from '../yard';
 import { el, svgEl, ts } from '../dom';
 import { setSnapOn, setSquareOn, snapOn, squareOn } from '../tidy';
@@ -194,6 +194,8 @@ function drawingSection(): HTMLElement {
   };
   check('snap-drawing', snapOn(), setSnapOn, 'Snap to nearby edges and corners');
   check('square-drawing', squareOn(), setSquareOn, 'Square nearly-square outlines');
+  // The + and − buttons: off on a phone to start (a pinch zooms), for zooming with one finger (src/view-settings.ts).
+  check('zoom-buttons', state.zoomButtons, (v) => { setZoomButtons(v); render(); }, 'Zoom buttons (+ and \u2212), to zoom with one finger');
   wrap.appendChild(el('div', { className: 'hint' },
     'A snapped point lights up the edge it\'s on, with an Unsnap; squaring says so after, with an Undo. Settings of this device.'));
   return wrap;
