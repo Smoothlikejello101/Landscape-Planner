@@ -321,16 +321,22 @@ export function nativeHere(p: { id: string; parent?: string }): NativeHere | nul
   if (!s) return null;
   return { status: s, stateName: STATE_NAMES[own.state] ?? own.state, state: own.state, species, source: own.sources.wcvp?.title ?? 'World Checklist of Vascular Plants (Kew)' };
 }
+/** The garden's state's file and the id its law names a plant by (a cultivar: its species'), where a law names it. */
+function lawFile(p: { id: string; parent?: string }): { own: WildFile & { regulated: Record<string, string[]>; rules: Record<string, RuleLine> }; id: string } | null {
+  if (!loaded || loaded.zip !== state.location?.zip || !loaded.county) return null;
+  const own = loaded.files.find((f) => f.fips === Math.floor(loaded!.county / 1000));
+  if (!own?.regulated || !own.rules) return null;
+  const id = own.regulated[p.id] ? p.id : p.parent && own.regulated[p.parent] ? p.parent : null;
+  return id ? { own: own as WildFile & { regulated: Record<string, string[]>; rules: Record<string, RuleLine> }, id } : null;
+}
 /**
  * What the law says of a plant (a cultivar: its species, which the law names) in the garden's state: its state's
  * list's line, then the federal list's. Empty where no list we've read names it (not "allowed": docs/regulated-plants.md).
  */
 export function regulatedHere(p: { id: string; parent?: string }): RuleHere[] {
-  if (!loaded || loaded.zip !== state.location?.zip || !loaded.county) return [];
-  const own = loaded.files.find((f) => f.fips === Math.floor(loaded!.county / 1000));
-  if (!own?.regulated || !own.rules) return [];
-  const id = own.regulated[p.id] ? p.id : p.parent && own.regulated[p.parent] ? p.parent : null;
-  if (!id) return [];
+  const got = lawFile(p);
+  if (!got) return [];
+  const { own, id } = got;
   // Native here, by Kew's checklist, and listed all the same: say why, or the two lines read as a contradiction.
   const native = nativeHere(p);
   return own.regulated[id].flatMap((k) => {
@@ -345,6 +351,18 @@ export function regulatedHere(p: { id: string; parent?: string }): RuleHere[] {
     const background = bg && typeof bg.note === 'string' && typeof bg.title === 'string' && bg.title && typeof bg.url === 'string' && bg.url.startsWith('https://') ? bg : undefined;
     return [{ ...r, tier, native: nativeAndListed(native, said, own.genusWide?.[id]?.[k], k.startsWith('US:')), nativeTo: native.stateName, ...(background ? { background } : {}) }];
   });
+}
+/**
+ * Banned by the garden's own state's law: a rule its file says is a ban (it forbids selling, planting or moving the
+ * plant). The picker's button for it is red and says so, and it's left out while browsing (a search finds it, to map
+ * one already in the yard). A listing with lighter duties isn't a ban, nor is a line from an older file that doesn't
+ * say, nor the federal list, which governs moving a plant into or between states, not growing it (Jason, 2026-10-31:
+ * the red button and the hiding follow the law of the gardener's own state).
+ */
+export function bannedHere(p: { id: string; parent?: string }): boolean {
+  const got = lawFile(p);
+  if (!got) return false;
+  return got.own.regulated[got.id].some((k) => !k.startsWith('US:') && got.own.rules[k]?.tier === 'ban' && typeof got.own.rules[k].url === 'string' && got.own.rules[k].url.startsWith('https://'));
 }
 /**
  * Why a law covers a plant native to the state: "Native to Arkansas, but this rule bans every Lythrum species,
@@ -412,6 +430,27 @@ export function escapeShort(e: EscapeHere): string {
   const rec = e.recordsSpecies ? 'its species is recorded wild' : 'recorded wild';
   return e.total === 1 ? `Not native; ${rec} there` : `Not native; ${rec} in ${e.count} of ${e.total} ${e.stateName} ${countyWord(e.stateFips, e.total)}`;
 }
+
+/**
+ * A plant's degree in USGS's register of introduced plants in the wild in the lower 48 (US-RIIS; its catalog fact
+ * `wild_us`), in words, with the meaning the register gives it: "Listed as widespread invasive in the lower 48: at
+ * least locally abundant, and harmful ecologically, economically or to health". `species`: it's its species' (a
+ * cultivar's).
+ */
+export function registerText(degree: 'established' | 'invasive' | 'widespread invasive', species = false): string {
+  const who = species ? 'Its species is' : '';
+  const said = degree === 'widespread invasive' ? 'listed as widespread invasive in the lower 48: at least locally abundant, and harmful ecologically, economically or to health'
+    : degree === 'invasive' ? 'listed as invasive in the lower 48: causing, or likely to cause, harm'
+    : 'not native anywhere in the lower 48, and established in the wild there: reproducing on its own';
+  return who ? `${who} ${said}` : said[0].toUpperCase() + said.slice(1);
+}
+/**
+ * Whether a botanical name is narrower than its species (a cultivar, "Hypericum androsaemum 'Matisse'"; a variety or
+ * subspecies): the register's line for it is its species'.
+ */
+export const narrowerThanSpecies = (botanical?: string): boolean => /['‘’"]|\s(?:var|subsp|ssp|f)\.?\s/.test(botanical ?? '');
+/** What the register's line doesn't say, under it: where. */
+export const REGISTER_WHERE = "The register covers the lower 48 as a whole; it doesn't say where.";
 
 /** Recorded wild in the garden's county or one bordering it (in any state). */
 export const wildNearby = (p: { id: string; parent?: string }) => { const w = wildHere(p); return !!w && w.where !== 'state'; };

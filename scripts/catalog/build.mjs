@@ -19,6 +19,7 @@ import { catalogText } from './convert-v1.mjs';
 import { applySplits, kewApart, linkCultivars } from './split.mjs';
 import { lockCatalogSrc, savedFile, savedPage } from './pages.mjs';
 import { ncsuDescription } from './prose.mjs';
+import { newestRegister } from './riis.mjs';
 import { rereadClaims } from './reclaim.mjs';
 import { sourceOf } from './web.mjs';
 import { reviewReport, termsUnsettled } from './report.mjs';
@@ -38,6 +39,8 @@ const stop = (why) => { console.error(why); process.exit(1); };
 // claims would drop every fact they give, and one without GBIF's downloads every bloom month and GBIF county.
 if (!existsSync(CLAIMS)) stop(`${CLAIMS} is missing: the web search's claims (search.mjs's output; docs/catalog-build.md). Without them the build would drop every fact they give.`);
 if (!existsSync(join(KEW, 'wcvp_names.csv')) || !existsSync(join(KEW, 'wcvp_distribution.csv'))) stop(`Kew's World Checklist isn't in ${KEW}/: download wcvp.zip from sftp.kew.org/pub/data-repositories/WCVP/ and unzip it there (docs/catalog-build.md).`);
+// (USGS's register of introduced plants in the lower 48: without it, the catalog would lose every plant's line.)
+if (!newestRegister(ROOT)) stop(`USGS's register (US-RIIS) isn't in ${ROOT}/riis/<date>/: download https://ipt.gbif.us/archive.do?r=l48riis and unzip it there (docs/catalog-build.md). Without it the catalog would lose every plant's line from it.`);
 for (const d of ['bloom', 'counties']) {
   // (The download's key and DOI in <d>.json, its rows in <d>.tsv: wild.mjs needs both.)
   let key = null;
@@ -209,6 +212,8 @@ if (!existsSync(atlasCounties) || statSync(atlasCounties).mtimeMs < statSync(atl
 }
 node('USDA counties', 'usda-counties.mjs', [path('combined.json')]);
 node('Kew native status', 'wcvp.mjs', [path('combined.json')]);
+// (After Kew's: it matches the register's names to a plant's older names too.)
+node("USGS's register", 'riis.mjs', []);
 // (Poison to people for a hybrid no source rates: its parents', by its name or Kew's formula: hybrids.mjs.)
 node('hybrid parents', 'hybrids.mjs', []);
 // (USA-NPN's download, by hand into usanpn/<date>/: summed up again when the newest one is newer than the summary, or

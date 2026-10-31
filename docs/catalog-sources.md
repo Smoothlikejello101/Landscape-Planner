@@ -163,6 +163,7 @@ It's an upper bound on pages we'd use.
 | **Virginia DCR Native Plant Finder** | About 1,600 natives with sun, moisture and pollinator flags, offered as CSV | not measured | Allowed. Copyright notice, with fair use granted and a request asked when in doubt (web@dcr.virginia.gov): a courtesy note before use. |
 | **Kew World Checklist of Vascular Plants** | Accepted names and native range worldwide; used for native status by US state ([wild-records.md](wild-records.md)) | all species (745 of the catalog's 771) | CC BY 3.0 (its README); the download (sftp.kew.org/pub/data-repositories/WCVP/wcvp.zip) has the distribution table, native or introduced by TDWG area. No robots.txt on that host. Cite Govaerts et al. 2021, doi:10.1038/s41597-021-00997-6. |
 | **GBIF Backbone Taxonomy** (api.gbif.org) | Its match for each species' name (for the downloads: [bloom-months.md](bloom-months.md)), and, for a plant added from NC State that USDA doesn't name, its English name (the record's `vernacularName`; [catalog-build.md](catalog-build.md), "Adding plants") | all species | CC BY 4.0 (the dataset's own record, checked 2026-10-24); cite doi:10.15468/39omei. 1 request every 2 s. A name identifies a record; it isn't a fact. |
+| **USGS US-RIIS** (United States Register of Introduced and Invasive Species, ver. 2.0, 2022: its list for the lower 48; Simpson, Sellers and Pagad, doi:10.5066/P9KFFTOD) | For each introduced plant reproducing in the wild in the lower 48, its degree: established, invasive or widespread invasive, as the register defines them (`wild_us`, [catalog-format.md](catalog-format.md)) | 707 species | Public domain, CC0 (its metadata). The Darwin Core archive from GBIF's US server (ipt.gbif.us/archive.do?r=l48riis), downloaded by hand into `catalog-src/riis/<date>/`; that server has no robots.txt. A federal register, not a council's list: for the lower 48 as a whole, so it says nothing of where. |
 | **Federal and state plant laws** (7 CFR 360; Arkansas, Texas, Mississippi, Missouri, Oklahoma, Louisiana and Tennessee rules) | Which plants a law regulates, and what it says of them ([regulated-plants.md](regulated-plants.md)) | 8 (2026-10-21) | Government text: public. Read only from the government's own host, where its robots.txt allows (the eCFR's API paths don't: the CFR's annual edition on GovInfo instead); a host that turns away non-browsers (Tennessee's) is read from a copy saved by hand in a browser. |
 
 ### Ask first
@@ -824,7 +825,7 @@ months ("MO" for MOBOT).
 | `bloom_season` | "Flower Bloom Time" | fallback ("Bloom Period") | Seasons, as each source writes them: NC State's spring, summer, fall, winter; USDA's finer "Mid Spring" or "Late Winter" kept as written (its "Indeterminate" says nothing). USDA's within NC State's season backs it ("late spring" in "spring"). Never months: those depend on place, and come from flowering records where the garden is (docs/bloom-months.md). A web page's bloom line counts for seasons only, and not at all from a site south of the equator (by its country's domain: .au, .nz, .za and the like), where spring is September to November. A cultivar takes its species'. The earlier list's months (`bloom`) stay, labeled unverified. A plant without flowers has none: one whose USDA group isn't Dicot or Monocot (conifers, cycads, ginkgo, ferns and their allies); where USDA doesn't say, one whose NC State family is a conifer's, cycad's, ginkgo's or fern's (a fir from abroad); else one the catalog calls a fern and nothing else. Sources do give them one (USDA a bloom period for junipers, NC State a flower color for blue spruce), but it's their pollen cones or spores, so those claims are left out (claims.mjs `flowerless`). |
 | `flower_color` | "Flower Color" | fallback ("Flower Color", and "Flower Conspicuous") | NC State's groups by their first color: Gold/Yellow → yellow, Purple/Lavender → purple, Red/Burgundy → red, Cream/Tan → cream, Brown/Copper → brown, Gray/Silver → silver; the rest by name. USDA's eight colors are among them. Another source's word goes to the group NC State puts it in (lavender, burgundy, gold, tan), violet to purple (a bluish purple). A value with a word in none of them (rose, magenta, coral, peach) isn't written at all: "Pink, Magenta" kept as pink, or "Violet, Red" as red, would say something its source didn't. NC State's "Insignificant", and USDA's "Flower Conspicuous: No", are `insignificant` (not showy). Sources agree where they share a color. A cultivar's only from a page for it. None for a plant without flowers (see `bloom_season`). |
 | `native` | — | decides (native status) | NC State's region of origin often comes from USDA, so it isn't independent. The Arkansas atlas decides for Arkansas. Waiting on a format change. |
-| `invasive` | — | invasive and noxious lists | Waiting on a format change and a sourced rule for "widely invasive". |
+| `wild_us` | — | — | USGS's register for the lower 48 (US-RIIS) decides, in its own terms: established, invasive, widespread invasive. A species record by its name or one of Kew's older names for it; a cultivar takes its species'. Shown, not acted on: what the law of the garden's state says hides a plant or turns its button red (decided with Jason, 2026-10-31; below). |
 | Toxicity to people | poison severity, poison part, contact dermatitis, and "Poisonous to Humans" among its problems | — | Written as `poison`, in NC State's own terms: its severity (low, medium, high), the parts it names, and whether it irritates skin; a plant it lists as poisonous to humans with nothing more is `{}`. Its bare "Poisonous" plant-type tag isn't about people alone (star jasmine has it, its page calling it non-toxic to pets), so it counts for nothing by itself. A page that says nothing of poison at all is `null` ("None listed"), unless the species is rated. Shown for every plant NC State rates (Jason, 2026-10-23: "Mark anything poisonous to people"), beside "Edible" where a plant is both. Internally the audit also reads it as High or Medium → `major`, Low → `minor`, contact dermatitis → `dermatitis`, for the edible check (Medium goes to `major` because erring toward harmless is the dangerous mistake). Authorities agree only on exactly the same values. |
 | Toxicity to dogs, cats, horses (`problem_for`) | "Problems": Problem for Dogs, Cats, Horses | — | Decided with Jason, 2026-10-25: the animals NC State lists it as a problem for. A warning only: a plant not listed isn't safe, and the app never says it is. (Its poison facts, about people, still don't stand in for pets.) |
 | `deer` | resistance list | — | Listed for deer → `Resistant`. Otherwise `null`. |
@@ -1014,12 +1015,25 @@ writes that fact.
   licenses and coverage not yet checked) before dropping pet toxicity.
 - **Native by state.** `native` is the first compendium's wording, not
   USDA's native status by state.
-- **Invasive.** "Widely invasive in the US" needs a rule built on sourced
-  state or federal lists.
+- **Invasive.** Decided with Jason, 2026-10-31: the first compendium's
+  `invasive` flag, which had no source, is gone. In its place:
+  - every plant on USGS's register for the lower 48 (US-RIIS) says so in its
+    details, in the register's terms and with the meaning it gives them,
+    and that the register doesn't say where (`wild_us`);
+  - what hides a plant while browsing and turns its Place button red is the
+    law of the garden's own state: a rule its file says is a ban
+    ([regulated-plants.md](regulated-plants.md)). Not a listing with
+    lighter duties, and not the federal list, which governs moving a plant
+    between states, not growing it;
+  - more states' laws are to be added, the states with the most catalog
+    plants first.
+  The register's "widespread invasive" takes in plants many gardens grow
+  (crape myrtle, Japanese maple, fig, common lilac): "at least locally"
+  harmful, somewhere in the lower 48. The app doesn't suggest one as the
+  intro's shrub, or reassure that one "doesn't run".
   Cultivars (agreed with Jason 2026-10-25): a cultivar takes its species'
-  invasive flag, unless an authority rates the cultivar itself differently
-  (a sterile or low-fruiting selection). Such a cultivar is offered, with a
-  warning that its species is invasive, citing the rating. None has one yet.
+  degree, unless an authority rates the cultivar itself differently (a
+  sterile or low-fruiting selection). None has one yet.
 - **Values by region.** One value per fact can't hold Minnesota's bloom
   months beside Arkansas's, or a water need that differs by climate. Facts
   that depend on place need a value per region, and the app shows the one

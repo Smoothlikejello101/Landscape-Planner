@@ -31,7 +31,12 @@ export const HABIT_SPREAD: Record<string, RootSpread> = {
 export const rootSpread = (habit: string | undefined): RootSpread | null => (habit ? HABIT_SPREAD[habit] ?? null : null);
 
 /** A plant's spreading, as far as the facts go. */
-export interface SpreadFacts { self_seed?: string; habit?: string; invasive?: boolean }
+export interface SpreadFacts { self_seed?: string; habit?: string; wild_us?: string }
+/**
+ * Listed invasive in USGS's register for the lower 48 (`wild_us` "invasive" or "widespread invasive": src/plants.ts):
+ * never reassured about ("Doesn't run", "Stays put"), whatever its habit says.
+ */
+const listedInvasive = (p: SpreadFacts): boolean => p.wild_us === 'invasive' || p.wild_us === 'widespread invasive';
 /**
  * The seed part, in words: "Self-sows freely", "Self-sows a little", "Self-sows, aggressiveness unknown" (its source
  * says it self-sows, not how freely: Jason, 2026-10-27), "Said not to set seed" (never stated as fact). Empty where it's
@@ -42,8 +47,8 @@ export function seedText(p: SpreadFacts): string {
 }
 /**
  * The underground part, in words, with the habit as given: "Spreads aggressively underground or by runners: Runner -
- * CONTAIN", "Doesn't run: Clumping". Empty where the habit says nothing of it, and for a plant listed invasive that
- * the habit calls clumping (no reassurance for an invasive plant).
+ * CONTAIN", "Doesn't run: Clumping". Empty where the habit says nothing of it, and for a plant USGS's register lists
+ * as invasive that the habit calls clumping (no reassurance for an invasive plant).
  */
 export function rootText(p: SpreadFacts): string {
   const r = rootSpread(p.habit), h = p.habit ?? '';
@@ -51,20 +56,21 @@ export function rootText(p: SpreadFacts): string {
   if (r === 'maybe') return `Spreads, maybe aggressively, underground or by runners: ${h.replace(/, maybe aggressive$/, '')}`;
   if (r === 'spreads') return `Spreads underground or by runners: ${h}`;
   if (r === 'slow') return `Spreads slowly underground or by runners: ${h}`;
-  if (r === 'stays') return p.invasive ? '' : `Doesn't run: ${h}`;
+  if (r === 'stays') return listedInvasive(p) ? '' : `Doesn't run: ${h}`;
   if (r === 'other') return h;
   return '';
 }
 /**
  * Whether a plant spreads as the picker's filter asks: 'stays' (doesn't run, and self-sows only a little or is said
- * to be sterile: a sterile value only ever comes with a source, Jason 2026-10-27; never a plant listed invasive),
+ * to be sterile: a sterile value only ever comes with a source, Jason 2026-10-27; never a plant the register lists
+ * as invasive),
  * 'seed' (self-sows freely, or self-sows and how freely isn't known: it may), 'runs' (spreads underground or by runners
  * at all, mats and naturalizing bulbs too), 'aggressive' (spreads aggressively underground or by runners, or maybe
  * does: counted as aggressive, as a self-sower whose freeness isn't known counts as free).
  */
 export function spreadsAs(p: SpreadFacts, how: string): boolean {
   const r = rootSpread(p.habit);
-  if (how === 'stays') return r === 'stays' && (p.self_seed === 'Modest' || p.self_seed === 'Sterile') && !p.invasive;
+  if (how === 'stays') return r === 'stays' && (p.self_seed === 'Modest' || p.self_seed === 'Sterile') && !listedInvasive(p);
   if (how === 'seed') return p.self_seed === 'Prolific' || p.self_seed === 'Unrated';
   // (Mats and naturalizing bulbs spread too: creeping thyme, fogfruit; a reseeding annual is the seed's.)
   if (how === 'runs') return r === 'aggressive' || r === 'maybe' || r === 'spreads' || r === 'slow' || (r === 'other' && p.habit !== 'Reseeding annual');

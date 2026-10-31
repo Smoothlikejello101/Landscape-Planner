@@ -113,7 +113,7 @@ export interface Provenance {
  */
 export const INHERITED = new Set([
   'form', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'humidity', 'tox', 'poison', 'dog', 'thorns', 'foliage', 'winter_leaves', 'needles',
-  'poison_parents', 'native', 'native_na', 'botanical_synonyms', 'host', 'hosts', 'host_genus', 'nectar', 'bird', 'deer', 'edible', 'edible_parts', 'fruit_set', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'invasive', 'bloom_season',
+  'poison_parents', 'native', 'native_na', 'botanical_synonyms', 'host', 'hosts', 'host_genus', 'nectar', 'bird', 'deer', 'edible', 'edible_parts', 'fruit_set', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'wild_us', 'bloom_season',
   'tolerates', 'problem_for', 'maintenance_level', 'bark', 'fruit_season', 'leaf_form', 'texture', 'climbs_by',
 ]);
 
@@ -309,7 +309,10 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
     && Number.isInteger(v.species) && (v.species as number) > 0,
   edible: (v) => typeof v === 'boolean', fall_color: (v) => typeof v === 'boolean', winter_interest: (v) => typeof v === 'boolean',
   clay_ok: (v) => typeof v === 'boolean', wet_feet: (v) => typeof v === 'boolean', dry_shade: (v) => typeof v === 'boolean',
-  taproot: (v) => typeof v === 'boolean', invasive: (v) => typeof v === 'boolean',
+  taproot: (v) => typeof v === 'boolean',
+  // A plant's degree in USGS's register of introduced plants reproducing in the wild in the lower 48, in its own terms
+  // (US-RIIS: scripts/catalog/riis.mjs). Stated in its details; never a reason to hide it (that's the state's law).
+  wild_us: (v) => v === 'widespread invasive' || v === 'invasive' || v === 'established',
   // A tree that keeps its branches to the ground (NC State's tags: docs/catalog-sources.md).
   low_branched: (v) => typeof v === 'boolean',
   // Leaves: their colors, whether they stay through winter, needles; fall colors; how fast it grows.

@@ -50,18 +50,24 @@ test('a sun record starts empty: a drag across the day draws the hours in sun (G
   await expect(page.locator('.tr-readout').first()).toHaveText('9 am – 1 pm');
 });
 
-test('an invasive plant, found by name, says so on its Place button, in red, and in its details (Kim; Jason\'s idea)', async ({ page }) => {
+test("a plant USGS's register lists as invasive says so in its details, and that the register doesn't say where (Kim; Jason, Oct 31)", async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Chinese privet');
-  const row = page.locator('.sheet .proj-row', { hasText: 'Chinese privet' }).first();
-  await expect(row.getByTestId('plant-place')).toHaveText('Place (invasive)');
-  await expect(row.getByTestId('plant-place')).toHaveClass(/invasive/);
-  await page.locator('.plant-item', { hasText: 'Chinese privet' }).first().getByTestId('plant-row').click();
-  await expect(page.getByTestId('invasive-here')).toContainText('Widely invasive in the US: not for planting');
-  // A plant that isn't: a plain Place.
+  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinese privet$/ }) });
+  // (No ZIP, so no state's law: a plain Place. The red one follows the law: tests/location.spec.ts.)
+  await expect(item.getByTestId('plant-place')).toHaveText('Place');
+  await item.getByTestId('plant-row').click();
+  const line = item.getByTestId('register-us');
+  await expect(line).toContainText('Listed as widespread invasive in the lower 48: at least locally abundant, and harmful ecologically, economically or to health');
+  await expect(line).toContainText("The register covers the lower 48 as a whole; it doesn't say where.");
+  await expect(line.locator('.details-src')).toContainText(/USGS|U\.S\. Geological Survey/);
+  // A plant not on it: no such line.
   await page.getByTestId('plant-search').fill('Buttonbush');
-  await expect(page.locator('.sheet .proj-row', { hasText: 'Buttonbush' }).first().getByTestId('plant-place')).toHaveText('Place');
+  const bush = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Buttonbush$/ }) });
+  await bush.getByTestId('plant-row').click();
+  await expect(bush.locator('.plant-details')).toBeVisible();
+  await expect(bush.getByTestId('register-us')).toHaveCount(0);
 });
 
 test('an existing tree is Existing, not Planted, and so is the next one drawn after it (Grace)', async ({ page }) => {

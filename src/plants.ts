@@ -15,7 +15,7 @@ import { setRadius } from './geometry';
 import { isLocked } from './roles';
 import { shownWith } from './status';
 import { hardyEnough, zoneFit, zoneRange } from './climate';
-import { gardenStateName, hostsHere, localBloom, nativeHere, nativeText, wildHere, wildNearby } from './wild';
+import { bannedHere, gardenStateName, hostsHere, localBloom, nativeHere, nativeText, wildHere, wildNearby } from './wild';
 import { bloomMonths } from './bloom';
 import { byMatch, matchPlant, readQuery, unsearchable } from './search';
 import { household, type Yard } from './yard';
@@ -129,8 +129,13 @@ export interface Plant {
   taproot?: boolean;
   /** A tree that keeps its branches to the ground (an evergreen screen): nothing grows under it. */
   low_branched?: boolean;
-  /** Widely invasive in the US: kept so existing ones can be mapped (and removed), never suggested. */
-  invasive?: boolean;
+  /**
+   * Its degree in USGS's register of introduced plants reproducing in the wild in the lower 48 (US-RIIS), in the
+   * register's terms: "established", reproducing in the wild; "invasive", causing or likely to cause harm; "widespread
+   * invasive", at least locally abundant and harmful. For the lower 48 as a whole: said in its details, never a reason
+   * to hide it (what the law of the garden's state says is: bannedHere, src/wild.ts).
+   */
+  wild_us?: 'established' | 'invasive' | 'widespread invasive';
   /** A shorter name for small circles on the plan ("'Haas' Halo' hydrangea"). */
   short?: string;
   /** Other names it goes by (its sources' other common names, or a name it had before: searched too). */
@@ -385,20 +390,25 @@ export function loadPlants(): Promise<void> {
 // ============================================================
 // PLANT PICKER
 // ============================================================
-/** Whether the picker leaves invasive plants out: while browsing. A search finds them by name, and "In this plan" shows those placed. */
-export const invasivesLeftOut = (f: Pick<PlantFilter, 'q' | 'inPlan'>): boolean => !readQuery(f.q) && !f.inPlan;
+/**
+ * Whether the picker leaves out the plants the law of the garden's state bans (bannedHere): while browsing. A search
+ * finds them by name (to map one already in the yard), and "In this plan" shows those placed.
+ */
+export const bannedLeftOut = (f: Pick<PlantFilter, 'q' | 'inPlan'>): boolean => !readQuery(f.q) && !f.inPlan;
 /** A count as the picker writes it: 3,622. */
 export const countWord = (n: number): string => n.toLocaleString('en-US');
 /**
- * The picker's count line: how many plants show, of how many it offers, and, while browsing, that the invasive
- * ones it leaves out turn up when searched for (so the gap never reads as a filter left on).
+ * The picker's count line: how many plants show, of how many it offers, and, while browsing, that the ones the
+ * state's law bans, left out, turn up when searched for (so the gap never reads as a filter left on). `where`: the
+ * state's name.
  */
-export function pickerCount(shown: number, offered: number, invasivesOut: number, invasivesShown = 0): string {
-  // (Out of the plants offered, the title's number, always: a search adds the invasives it finds by name beside it, not
-  // to the total (testers, Oct 30: "3,725" in the title, "of 3,747" once they searched).)
+export function pickerCount(shown: number, offered: number, bannedOut: number, bannedShown = 0, where = 'here'): string {
+  // (Out of the plants offered, the title's number, always: a search adds the banned ones it finds by name beside it,
+  // not to the total (testers, Oct 30: "3,725" in the title, "of 3,747" once they searched).)
   const head = shown === offered ? `All ${countWord(offered)} plants` : `${countWord(shown)} of ${countWord(offered)} plants match`;
-  const found = invasivesShown ? `, and ${countWord(invasivesShown)} invasive plant${invasivesShown === 1 ? '' : 's'} found by name` : '';
-  return head + found + (invasivesOut ? ` \u00b7 ${countWord(invasivesOut)} invasive plant${invasivesOut === 1 ? ' shows' : 's show'} only when searched by name` : '');
+  const banned = where === 'here' ? 'banned here' : `banned in ${where}`;
+  const found = bannedShown ? `, and ${countWord(bannedShown)} plant${bannedShown === 1 ? '' : 's'} ${banned} found by name` : '';
+  return head + found + (bannedOut ? ` \u00b7 ${countWord(bannedOut)} plant${bannedOut === 1 ? '' : 's'} ${banned} ${bannedOut === 1 ? 'shows' : 'show'} only when searched by name` : '');
 }
 /** While set, "up to N ft" goes by a plant's typical height, as it used to (byTypicalHeight). */
 let heightByTypical = false;
@@ -418,8 +428,8 @@ function partnersOfSet(of: string): Set<string> {
   return ids;
 }
 export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): boolean {
-  // Invasives are never suggested; they turn up when searched by name (to map one already in the yard).
-  if (p.invasive && invasivesLeftOut(f)) return false;
+  // What the state's law bans is never suggested; it turns up when searched by name (to map one already in the yard).
+  if (bannedLeftOut(f) && bannedHere(p)) return false;
   if (f.dogs === 'hideToxic' && toxicToDogs(p)) return false;
   if (f.dogs === 'nonToxic' && !nonToxicToDogs(p)) return false;
   if (f.cats && p.problem_for?.includes('cats')) return false;
@@ -561,7 +571,7 @@ export function plantIdsInPlan(): Set<string> {
 /**
  * The filters another source's value (a fact's `alt`) can count for, the
  * facts each reads, and what the flag calls them. Safety and status facts
- * (toxicity, invasive, native) have none: the catalog takes them from
+ * (toxicity, wild status, native) have none: the catalog takes them from
  * authorities only.
  */
 const FILTER_FACTS: [keyof PlantFilter, string[], string][] = [
@@ -1040,7 +1050,7 @@ export function householdFlags(p: Plant, y: Yard = household()): RowFlag[] {
 /** A short mark on a row: native here, or something to know before choosing it. */
 export interface RowFlag { text: string; kind: 'native' | 'warn' | 'bad' | 'check'; title?: string; testid: string }
 /**
- * The row's marks, only those that apply: native to the garden's state (Kew's checklist: "AR native"); invasive;
+ * The row's marks, only those that apply: native to the garden's state (Kew's checklist: "AR native");
  * irritates skin (a contact poison matters to anyone who handles it, unlike one that's eaten); and how far its
  * details are checked (Unverified, Partly checked). What the law says and an escape into the wild have lines of
  * their own (src/ui/plants-panel.ts).
@@ -1051,7 +1061,6 @@ export function rowFlags(p: Plant): RowFlag[] {
   // (A cultivar's is its species': "KY native species", not "KY native", on 'Fireworks'. Jason, Oct 31, from round 3:
   // Marcus, all three sessions; Ruth, Hank.)
   if (n?.status === 'N') out.push({ text: `${n.state} native${n.species ? ' species' : ''}`, kind: 'native', title: `${nativeText(n, p.common)} (${n.source})`, testid: 'row-native' });
-  if (p.invasive) out.push({ text: 'Invasive: not for planting', kind: 'bad', testid: 'row-invasive' });
   out.push(...householdFlags(p));
   if (poisonRating(p)?.skin) out.push({ text: 'Can irritate skin', kind: 'warn', title: `NC State lists ${p.poison ? 'it' : 'a parent'} as causing contact dermatitis`, testid: 'row-skin' });
   if (p.unverified) out.push({ text: 'Unverified', kind: 'check', title: "From an earlier list with no sources; it's being checked", testid: 'unverified-badge' });

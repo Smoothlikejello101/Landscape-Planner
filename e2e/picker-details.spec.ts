@@ -277,9 +277,9 @@ test('search matches word by word, in any order, and forgives a slip when nothin
   await expect(page.getByTestId('near-note')).toContainText('Nothing matches “viburnam” as typed. Close spellings:');
   await expect(rows.first()).toContainText(/viburnum/i);
   await expect(page.getByTestId('add-own-plant')).toBeVisible();
-  // A search of punctuation alone (the start of a cultivar's name) isn't a search: no invasives slip in.
+  // A search of punctuation alone (the start of a cultivar's name) isn't a search: the list is browsing again.
   await search.fill("'");
-  await expect(page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinese privet$/ }) })).toHaveCount(0);
+  await expect(page.getByTestId('picker-count')).toContainText(/^All \d,\d{3} plants/);
 });
 
 test('a plant poisonous to people says so, beside Edible, and the picker can keep only plants with none listed', async ({ page }) => {
