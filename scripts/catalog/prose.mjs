@@ -463,6 +463,15 @@ export function spreadWords(sentence, names = []) {
 }
 /** The habits `habitOf` gives (each in src/spread.ts's table). */
 export const PROSE_HABITS = ['Suckering thicket', 'Suckering colonizer', 'Suckering (slow)', 'Suckering', 'Aggressive rhizome', 'Slow-spreading rhizome', 'Spreading rhizome', 'Aggressive runner (stolons)', 'Runner (stolons)', 'Mat-forming', 'Clumping'];
+/** The habits that say it spreads aggressively. */
+export const AGGRESSIVE_HABITS = ['Suckering thicket', 'Suckering colonizer', 'Aggressive rhizome', 'Aggressive runner (stolons)'];
+/**
+ * Where a page's two readings agree it spreads that way and only one says aggressively (docs/second-reading.md), the
+ * shared part with "maybe aggressive" (Jason, 2026-10-30: "Spreads, maybe aggressively"). Written, never read.
+ */
+export const MAYBE_AGGRESSIVE = { 'Spreading rhizome': 'Spreading rhizome, maybe aggressive', 'Runner (stolons)': 'Runner (stolons), maybe aggressive', Suckering: 'Suckering, maybe aggressive' };
+/** Every habit the build writes from a page's text: the habits read, and the maybe-aggressive ones. */
+export const WRITTEN_HABITS = [...PROSE_HABITS, ...Object.values(MAYBE_AGGRESSIVE)];
 /**
  * A page's habit from its sentences' spreading words: suckers first (a suckering shrub that forms thickets), then
  * rhizomes, runners, mats; clumping only where nothing else is said. Thickets alone say nothing of how it spreads (a

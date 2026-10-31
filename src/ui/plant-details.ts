@@ -49,10 +49,11 @@ const orList = (l: string[]) => (l.length > 1 ? `${l.slice(0, -1).join(', ')} or
 const sun = (most?: unknown, least?: unknown) => (!most ? '' : cap(most === least || !least ? SUN_WORDS[most as string] ?? String(most) : `${SUN_WORDS[most as string] ?? most} to ${SUN_WORDS[least as string] ?? least}`));
 const yes = (v: unknown) => (v === true ? 'Yes' : v === false ? 'No' : '');
 /** Which parts are edible, as NC State marks them ("Fruit, flowers"), or Yes where none are said; with the poison note. */
-export function edibleText(p: Pick<Plant, 'edible' | 'edible_parts' | 'poison'>): string {
+export function edibleText(p: Pick<Plant, 'edible' | 'edible_parts' | 'poison' | 'poison_parents'>): string {
   if (p.edible !== true) return yes(p.edible);
   const what = p.edible_parts?.length ? cap(p.edible_parts.join(', ')) : 'Yes';
-  return p.poison ? `${what}, though it's also listed as poisonous to people (above)` : what;
+  if (p.poison) return `${what}, though it's also listed as poisonous to people (above)`;
+  return parentRated(p) ? `${what}, though a parent is listed as poisonous to people (above)` : what;
 }
 /**
  * What it takes to fruit (Jason, Oct 30: partner plants), with a cultivar's own sex where its page says: "A female:
@@ -519,7 +520,7 @@ export function groupSummary(id: string, p: Plant): string {
     if (p.growth_rate) parts.push(`${p.growth_rate} growth`);
     if (p.maintenance_level) parts.push(`${p.maintenance_level} upkeep`);
     const seed = seedText(p), roots = rootSpread(p.habit);
-    if (roots === 'aggressive' || roots === 'spreads') parts.push(roots === 'aggressive' ? 'spreads aggressively' : 'spreads by roots or runners');
+    if (roots === 'aggressive' || roots === 'maybe' || roots === 'spreads') parts.push(roots === 'aggressive' ? 'spreads aggressively' : roots === 'maybe' ? 'spreads, maybe aggressively' : 'spreads by roots or runners');
     else if (seed) parts.push(lower(seed));
   }
   return cap(parts.join(' · '));

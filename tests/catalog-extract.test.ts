@@ -237,6 +237,16 @@ describe('leaves: color, winter, fall color, growth rate', () => {
     expect(agrees('foliage', 'semi-evergreen', 'deciduous')).toBe(false);
     expect(combine([{ fact: 'foliage', v: 'semi-evergreen', src: 'ncsu', kind: 'authority' }, ...u]).foliage).toEqual({ v: 'semi-evergreen', src: ['ncsu'], check: 'single', kind: 'authority' });
   });
+  it("a habit only one reading called aggressive agrees with the part both share: a plain source backs it (Jason, Oct 30)", () => {
+    expect(agrees('habit', 'Spreading rhizome', 'Spreading rhizome, maybe aggressive')).toBe(true);
+    expect(agrees('habit', 'Aggressive rhizome', 'Spreading rhizome, maybe aggressive')).toBe(false);
+    expect(agrees('habit', 'Suckering', 'Spreading rhizome, maybe aggressive')).toBe(false);
+    // (The source that decides keeps its value; the other confirms it.)
+    const fern = [{ fact: 'habit', v: 'Spreading rhizome', src: 'ncsu', kind: 'authority' }, { fact: 'habit', v: 'Spreading rhizome, maybe aggressive', src: 'prairienursery.com', kind: 'nursery' }];
+    expect(combine(fern).habit).toMatchObject({ v: 'Spreading rhizome', src: ['ncsu', 'prairienursery.com'], check: 'confirmed' });
+    const maybe = [{ fact: 'habit', v: 'Suckering, maybe aggressive', src: 'ncsu', kind: 'authority' }, { fact: 'habit', v: 'Suckering', src: 'x.com', kind: 'nursery' }];
+    expect(combine(maybe).habit).toMatchObject({ v: 'Suckering, maybe aggressive', check: 'confirmed' });
+  });
   it('USDA\'s leaves in winter only of a tree or shrub: its No for an herb doesn\'t say it dies back', () => {
     const fol = (habit: string[], keeps: string) => usdaClaims({ 'Growth habit': habit, 'Leaf Retention': [keeps] }).find((x: { fact: string }) => x.fact === 'foliage')?.v;
     expect(fol(['Graminoid'], 'No')).toBeUndefined();

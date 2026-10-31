@@ -21,7 +21,7 @@ The audit's sources give different values, so the catalog keeps the value it had
 
 | Plant | Fact | What the sources say | Catalog now |
 | --- | --- | --- | --- |
-| Japanese forest grass 'All Gold' (`hakonechloa-macra`) | spreading | waltersgardens.com: Spreading rhizome · hortech.com: Clumping | Spreading rhizome |
+| Japanese forest grass 'All Gold' (`hakonechloa-macra`) | spreading | waltersgardens.com: Spreading rhizome, maybe aggressive · hortech.com: Clumping | Spreading rhizome |
 | Coneflower 'Magnus' (`echinacea-purpurea`) | flower_color | newmoonnursery.com: Violet, Red · bethchatto.co.uk: Pink, Purple | purple, red |
 | Winter aconite (`eranthis-hyemalis`) | spreading | onrockgarden.com: Mat-forming · davisla.wordpress.com: Clumping | Mat-forming |
 | Arrowhead (duck potato) (`sagittaria-latifolia`) | self-sowing | ncsu: Prolific · illinoiswildflowers.info: Unrated; pondinformer.com says Unrated | Prolific |
@@ -34,7 +34,7 @@ The audit's sources give different values, so the catalog keeps the value it had
 | Sharp-lobed hepatica (`hepatica-acutiloba`) | spacing | wildgingerwoodlands.com: 0.5 · keystonewildflowers.com: 0.17–0.25 | – |
 | Spotted jewelweed (`impatiens-capensis`) | self-sowing | ncsu: Prolific · wisc.edu: Unrated | Prolific |
 | Meadow blazing star (`liatris-ligulistylis`) | spacing | prairienursery.com: 0.5–1 · blazingstargardens.com: 1–2 | – |
-| Bradbury's beebalm (`monarda-bradburiana`) | spreading | newmoonnursery.com: Clumping · prairienursery.com: Slow-spreading rhizome; blazingstargardens.com: Spreading rhizome | Clumping |
+| Bradbury's beebalm (`monarda-bradburiana`) | spreading | newmoonnursery.com: Clumping · prairienursery.com: Slow-spreading rhizome; blazingstargardens.com: Spreading rhizome, maybe aggressive | Clumping |
 | Prairie sundrops (`oenothera-pilosella`) | spreading | mowildflowers.net: Aggressive rhizome · ancientrootsnativenursery.com: Mat-forming | Spreading rhizome |
 | Calico beardtongue (`penstemon-calycosus`) | flower_color | newmoonnursery.com: Lavender, White · bendystemfarm.com: Pink | purple, white |
 | Slender beardtongue (`penstemon-gracilis`) | flower_color | morningskygreenery.com: Lavender · ecoscapes1.com: Pink; bluethumb.org says Pink | – |
@@ -59,7 +59,7 @@ The audit's sources give different values, so the catalog keeps the value it had
 | Porcupine sedge (`carex-hystericina`) | flower_color | aquascapesunlimited.com: Yellow · bluethumb.org: Green | – |
 | Common lake sedge (`carex-lacustris`) | spreading | morningskygreenery.com: Aggressive rhizome · nvknurseries.com: Spreading rhizome | Aggressive rhizome |
 | Common tussock sedge (`carex-stricta`) | spreading | newmoonnursery.com: Spreading rhizome · bakerenvironmentalnursery.com: Slow-spreading rhizome; mowildflowers.net: Clumping | Spreading rhizome |
-| Brown fox sedge (`carex-vulpinoidea`) | spreading | newmoonnursery.com: Spreading rhizome · blazingstargardens.com: Clumping; nvknurseries.com: Slow-spreading rhizome; jerseyyards.org says Clumping | Clumping |
+| Brown fox sedge (`carex-vulpinoidea`) | spreading | newmoonnursery.com: Spreading rhizome, maybe aggressive · blazingstargardens.com: Clumping; nvknurseries.com: Slow-spreading rhizome; jerseyyards.org says Clumping | Clumping |
 | Rattlesnake master (`eryngium-yuccifolium`) | self-sowing | ncsu: Unrated · wisc.edu: Prolific | Unrated |
 | Creek sedge (`carex-amphibola`) | self-sowing | prairienursery.com: Prolific · newmoonnursery.com: Modest | Modest |
 | Tree of heaven (`ailanthus-altissima`) | bloom_season | ncsu, davisla.wordpress.com: summer · arizona.edu: spring; usda says late spring | – |
@@ -82,7 +82,7 @@ The audit's sources give different values, so the catalog keeps the value it had
 | European fan palm (`chamaerops-humilis`) | bloom_season | ncsu: spring · arizona.edu: summer | spring |
 | Spider plant (`chlorophytum-comosum`) | spreading | ncsu: Runner (stolons) · wisc.edu: Clumping | Runner (stolons) |
 | Chrysalidocarpus lutescens (`chrysalidocarpus-lutescens`) | flower_color | ncsu: Gold/Yellow · chicagobotanic.org: Green | yellow |
-| Sweet fern (`comptonia-peregrina`) | spreading | nvknurseries.com: Spreading rhizome · cropleysgardencenter.com: Runner (stolons) | – |
+| Sweet fern (`comptonia-peregrina`) | spreading | nvknurseries.com: Spreading rhizome · cropleysgardencenter.com: Runner (stolons), maybe aggressive | – |
 | White Dogwood (`cornus-alba`) | spreading | ncsu: Suckering colonizer · chicagobotanic.org: Suckering | Suckering colonizer |
 | Roughleaf dogwood (`cornus-drummondii`) | spreading | chicagobotanic.org, illinoiswildflowers.info: Suckering · ncsu: Suckering thicket | Suckering thicket |
 | Gray dogwood (`cornus-racemosa`) | spreading | ncsu: Suckering colonizer · illinoiswildflowers.info: Spreading rhizome; plantnative.org says Suckering thicket | Suckering colonizer |
@@ -115,7 +115,7 @@ The audit's sources give different values, so the catalog keeps the value it had
 | Needle palm (`rhapidophyllum-hystrix`) | spreading | ncsu: Suckering · ufl.edu: Suckering (slow) | Suckering |
 | Winged sumac (`rhus-copallinum`) | spreading | ncsu: Suckering colonizer · mtcubacenter.org: Suckering; flawildflowers.org says Suckering | Suckering colonizer |
 | Britton's Wild Petunia (`ruellia-simplex`) | bloom_season | ncsu: fall, summer · arizona.edu: spring | fall, summer |
-| Common sheep sorrel (`rumex-acetosella`) | spreading | ncsu: Aggressive rhizome · illinoiswildflowers.info: Spreading rhizome | Aggressive rhizome |
+| Common sheep sorrel (`rumex-acetosella`) | spreading | ncsu: Aggressive rhizome · illinoiswildflowers.info: Spreading rhizome, maybe aggressive | Aggressive rhizome |
 | Silver sage (`salvia-argentea`) | flower_color | ncsu: White · chicagobotanic.org: Pink | white |
 | Blood sage (`salvia-coccinea`) | self-sowing | ncsu: Prolific · wisc.edu: Unrated; centraltexasgardener.org says Unrated | Prolific |
 | Sassafras (`sassafras-albidum`) | spreading | ncsu, tennessee.edu: Suckering thicket · chicagobotanic.org: Suckering; plantnative.org says Suckering; dirtdoctor.com says Spreading rhizome | Suckering thicket |
@@ -123,7 +123,7 @@ The audit's sources give different values, so the catalog keeps the value it had
 | Burro's-tail (`sedum-morganianum`) | leaves in winter | ncsu: semi-evergreen · wisc.edu: evergreen | semi-evergreen |
 | Autumn Moor Grass (`sesleria-autumnalis`) | leaves in winter | newmoonnursery.com: evergreen · usperennials.com: semi-evergreen | – |
 | Crown-pink (`silene-coronaria`) | leaves in winter | ncsu: deciduous · wisc.edu: semi-evergreen | deciduous |
-| Wand goldenrod (`solidago-stricta`) | spreading | ncsu, flawildflowers.org: Spreading rhizome · mtcubacenter.org: Slow-spreading rhizome | Spreading rhizome |
+| Wand goldenrod (`solidago-stricta`) | spreading | ncsu, flawildflowers.org: Spreading rhizome, maybe aggressive · mtcubacenter.org: Slow-spreading rhizome | Spreading rhizome |
 | Aromatic aster (`symphyotrichum-oblongifolium-2`) | flower_color | ncsu, paddlecreekgardens.com: Purple/Lavender · mtcubacenter.org: Violet, Blue; mowildflowers.net says Blue | purple |
 | Boatlily (`tradescantia-spathacea`) | spreading | healthyhouseplants.com: Clumping · davisla.wordpress.com: Spreading rhizome | – |
 | Small-leaf arrowwood (`viburnum-obovatum`) | leaves in winter | ncsu, plantnative.org: semi-evergreen · unf.edu: evergreen | semi-evergreen |
@@ -282,7 +282,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Wild stonecrop (`sedum-ternatum`) | spreading | Spreading rhizome | Mat-forming | prairienursery.com | Mat-forming |
 | Blue-stemmed goldenrod (`solidago-caesia`) | deer | Resistant | Occasional | newmoonnursery.com | Resistant |
 | Zigzag goldenrod (`solidago-flexicaulis`) | spreading | Clumping | Spreading rhizome | newmoonnursery.com | Aggressive rhizome (the earlier list) |
-| Gray goldenrod (`solidago-nemoralis`) | spreading | Clumping | Spreading rhizome | illinoiswildflowers.info | Spreading rhizome |
+| Gray goldenrod (`solidago-nemoralis`) | spreading | Clumping | Spreading rhizome | illinoiswildflowers.info | Spreading rhizome, maybe aggressive |
 | Woundwort (`stachys-palustris`) | self-sowing | Unrated | nothing | first-nature.com | Modest (the earlier list) |
 | Celandine poppy (`stylophorum-diphyllum`) | leaves in winter | deciduous | nothing | harvesttotable.com | deciduous |
 | Celandine poppy (`stylophorum-diphyllum`) | spreading | Clumping | nothing | harvesttotable.com | Clumping |
@@ -377,8 +377,8 @@ A value the rules read from a page's text, which a second reading of the same te
 | Cedar-of-Lebanon (`cedrus-libani`) | spreading | Mat-forming | nothing | treesandshrubsonline.org | nothing |
 | Georgia hackberry (`celtis-tenuifolia`) | leaves in winter | semi-evergreen | deciduous | botanikks.com | semi-evergreen |
 | Dusty miller (`centaurea-cineraria`) | leaves in winter | semi-evergreen | nothing | plantcaretoday.com | nothing |
-| Perennial cornflower (`centaurea-montana`) | spreading | Clumping | Runner (stolons) | ncsu | Runner (stolons) |
-| Perennial cornflower (`centaurea-montana`) | spreading | Mat-forming | nothing | harvesttotable.com | Runner (stolons) |
+| Perennial cornflower (`centaurea-montana`) | spreading | Clumping | Runner (stolons) | ncsu | Runner (stolons), maybe aggressive |
+| Perennial cornflower (`centaurea-montana`) | spreading | Mat-forming | nothing | harvesttotable.com | Runner (stolons), maybe aggressive |
 | Desert willow (`chilopsis-linearis`) | leaves in winter | semi-evergreen | deciduous | harvesttotable.com | deciduous |
 | Maryland goldenaster (`chrysopsis-mariana`) | spreading | Clumping | nothing | flawildflowers.org | nothing |
 | Field thistle (`cirsium-discolor`) | spreading | Aggressive rhizome | nothing | illinoiswildflowers.info | nothing |
@@ -457,7 +457,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Sheep laurel (`kalmia-angustifolia`) | deer | Occasional | nothing | nativemainegardens.org | nothing |
 | Castor aralia (`kalopanax-septemlobus`) | leaves in winter | semi-evergreen | deciduous | harvesttotable.com | deciduous |
 | Japanese rose (`kerria-japonica`) | leaves in winter | semi-evergreen | deciduous | harvesttotable.com | deciduous |
-| Yellow Archangel (`lamium-galeobdolon`) | spreading | Clumping | Mat-forming | wisc.edu | Runner (stolons) |
+| Yellow Archangel (`lamium-galeobdolon`) | spreading | Clumping | Mat-forming | wisc.edu | Runner (stolons), maybe aggressive |
 | Spotted henbit (`lamium-maculatum`) | leaves in winter | evergreen | semi-evergreen | gardeningchannel.com | semi-evergreen |
 | Trailing shrubverbena (`lantana-montevidensis`) | self-sowing | Sterile | nothing | cvwatercounts.com | nothing |
 | European larch (`larix-decidua`) | self-sowing | Unrated | nothing | treesandshrubsonline.org | nothing |
@@ -487,7 +487,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Scarlet beebalm (`monarda-didyma-2`) | spreading | Aggressive runner (stolons) | Aggressive rhizome | ncsu | nothing |
 | Adanson's monstera (`monstera-adansonii`) | spreading | Runner (stolons) | nothing | hometoheather.com | nothing |
 | Muenchhusia coccinea (`muenchhusia-coccinea`) | leaves in winter | deciduous | semi-evergreen | sharonsflorida.com | deciduous |
-| Nimblewill (`muhlenbergia-schreberi`) | spreading | Mat-forming | Runner (stolons) | ncsu | Runner (stolons) |
+| Nimblewill (`muhlenbergia-schreberi`) | spreading | Mat-forming | Runner (stolons) | ncsu | Runner (stolons), maybe aggressive |
 | Edible banana (`musa-acuminata`) | leaves in winter | evergreen | semi-evergreen | palmiyemerkezi.com | semi-evergreen |
 | Banana (`musa-balbisiana`) | leaves in winter | semi-evergreen | nothing | monaconatureencyclopedia.com | evergreen |
 | Flowering banana (`musa-ornata`) | leaves in winter | deciduous | nothing | monaconatureencyclopedia.com | evergreen |
@@ -570,7 +570,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Redwood (`sequoia-sempervirens`) | spreading | Mat-forming | nothing | treesandshrubsonline.org | nothing |
 | Saw palmetto (`serenoa-repens`) | spreading | Clumping | nothing | ncsu | nothing |
 | Coral greenbrier (`smilax-walteri`) | first flower color | yellow | brown | ncsu | nothing |
-| Woolly hedgenettle (`stachys-byzantina`) | spreading | Aggressive runner (stolons) | nothing | chicagobotanic.org | Runner (stolons) |
+| Woolly hedgenettle (`stachys-byzantina`) | spreading | Aggressive runner (stolons) | nothing | chicagobotanic.org | Runner (stolons), maybe aggressive |
 | Stachys spathulata (`stachys-spathulata`) | leaves in winter | evergreen | semi-evergreen | odysseyplants.com | semi-evergreen |
 | Korean stewartia (`stewartia-pseudocamellia`) | leaves in winter | semi-evergreen | deciduous | pollyhillarboretum.org | deciduous |
 | Rice button aster (`symphyotrichum-dumosum`) | first flower color | purple | white | ncsu | nothing |

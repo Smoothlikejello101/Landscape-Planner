@@ -484,11 +484,15 @@ same text agrees (scripts/catalog/second-reading.mjs).
   found, and doesn't see them.
 - **Agreement.** Where the two match, the value is written. Where they differ
   only in degree, the part they share is: both say it spreads by rhizomes,
-  one "aggressively" (Spreading rhizome); both say deer eat it, one "often"
+  one "slowly" (Spreading rhizome); both say deer eat it, one "often"
   (Occasional); both say it self-sows, one "freely" (Self-sows,
-  aggressiveness unknown). Leaves in winter, a sterile plant, clumping and
-  mats agree only exactly. Otherwise nothing is written, and the review
-  lists it ("Read from text, but a second reading differs").
+  aggressiveness unknown). Where only one says it spreads aggressively, the
+  shared part keeps that it may: "Spreading rhizome, maybe aggressive"
+  (Jason, 2026-10-30; the app: "Spreads, maybe aggressively, underground or
+  by runners"), and another source's plain "Spreading rhizome" agrees with
+  it. Leaves in winter, a sterile plant, clumping and mats agree only
+  exactly. Otherwise nothing is written, and the review lists it ("Read from
+  text, but a second reading differs").
 - **A degree settled elsewhere.** Where a page's readings agreed only on the
   shared part and another source gives exactly the degree the rules read
   (its own readings agreeing, or its field), that degree stands for the page

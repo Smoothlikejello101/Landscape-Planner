@@ -2,7 +2,8 @@
 // value in seven read from text wrong or debatable). The rules (prose.mjs) read a page; a second reader, reading the same
 // sentences blind (it isn't told what the rules found), says what they say of each fact, in the same values. Only what
 // both readings agree on is written: where they differ only in degree, the part they share (both say it spreads by
-// rhizomes, one "aggressively": "Spreading rhizome"); otherwise nothing, and the review lists it.
+// rhizomes, one slowly: "Spreading rhizome"; one aggressively: "Spreading rhizome, maybe aggressive", Jason
+// 2026-10-30); otherwise nothing, and the review lists it.
 //
 // The second reader only ever gates: it never adds a value the rules didn't read, and it reads only the page's text (its
 // instructions forbid anything else). Its readings are kept in scripts/catalog/second-reading.json, by page, with a hash
@@ -11,7 +12,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { FRUIT_SET, LEAD_VALUES, PROSE_HABITS, SEXES } from './prose.mjs';
+import { AGGRESSIVE_HABITS, FRUIT_SET, LEAD_VALUES, MAYBE_AGGRESSIVE, PROSE_HABITS, SEXES } from './prose.mjs';
 
 export const READINGS = 'scripts/catalog/second-reading.json';
 /** The facts a second reading covers (a cleome's zones, read from text in two places, were checked by hand instead). */
@@ -33,7 +34,8 @@ const FAMILY = {
 };
 /**
  * What the two readings agree on, or null: the value where they match; where they differ only in degree, the part they
- * share (a rhizome's speed, deer's appetite, how freely it self-sows); otherwise null. Leaves in winter, a sterile plant,
+ * share (a rhizome's speed, deer's appetite, how freely it self-sows); otherwise null. A habit only one calls aggressive
+ * keeps that it may be ("Spreading rhizome, maybe aggressive": Jason, 2026-10-30). Leaves in winter, a sterile plant,
  * clumping and mats agree only exactly.
  */
 export function agreed(fact, rules, reader) {
@@ -45,7 +47,9 @@ export function agreed(fact, rules, reader) {
     return both.length ? both : null;
   }
   const fam = FAMILY[fact];
-  return fam && fam[rules] && fam[rules] === fam[reader] ? fam[rules] : null;
+  if (!fam || !fam[rules] || fam[rules] !== fam[reader]) return null;
+  if (fact === 'habit' && AGGRESSIVE_HABITS.includes(rules) !== AGGRESSIVE_HABITS.includes(reader)) return MAYBE_AGGRESSIVE[fam[rules]];
+  return fam[rules];
 }
 
 /**

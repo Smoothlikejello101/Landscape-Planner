@@ -3,10 +3,10 @@
 // and how, is this fixed table: a habit it doesn't know is listed by `catalog:check`, never guessed at.
 
 /** What a habit says of spreading underground or by runners. */
-export type RootSpread = 'aggressive' | 'spreads' | 'slow' | 'stays' | 'other' | 'shape';
+export type RootSpread = 'aggressive' | 'maybe' | 'spreads' | 'slow' | 'stays' | 'other' | 'shape';
 /**
- * Every habit in the catalog: 'aggressive', 'spreads', 'slow' (underground or by runners: rhizomes, stolons, suckers,
- * tubers); 'stays' (clumps, or a single stem: doesn't run); 'other' (about spreading, but not by runners: mats,
+ * Every habit in the catalog: 'aggressive', 'maybe' (aggressively, as one reading of its page says and the other
+ * doesn't: Jason, 2026-10-30), 'spreads', 'slow' (underground or by runners: rhizomes, stolons, suckers, tubers); 'stays' (clumps, or a single stem: doesn't run); 'other' (about spreading, but not by runners: mats,
  * naturalizing bulbs, a reseeding annual, shown as given); 'shape' (says nothing of spreading: multi-stemmed,
  * upright, a vine's way of climbing; keeps its own "Habit" row).
  */
@@ -14,6 +14,7 @@ export const HABIT_SPREAD: Record<string, RootSpread> = {
   'Aggressive rhizome': 'aggressive', 'Aggressive rhizomatous': 'aggressive', 'Runner - CONTAIN': 'aggressive',
   'Aggressive runner (stolons)': 'aggressive',
   'Suckering colonizer': 'aggressive', 'Suckering thicket': 'aggressive', 'Thicket-forming': 'aggressive',
+  'Spreading rhizome, maybe aggressive': 'maybe', 'Runner (stolons), maybe aggressive': 'maybe', 'Suckering, maybe aggressive': 'maybe',
   'Spreading rhizome': 'spreads', 'Rhizomatous': 'spreads', 'Runner (stolons)': 'spreads', 'Suckering': 'spreads',
   'Suckering (rhizome)': 'spreads', 'Suckering canes': 'spreads', 'Spreading (tubers)': 'spreads',
   'Suckering (slow)': 'slow', 'Slow-spreading rhizome': 'slow',
@@ -47,6 +48,7 @@ export function seedText(p: SpreadFacts): string {
 export function rootText(p: SpreadFacts): string {
   const r = rootSpread(p.habit), h = p.habit ?? '';
   if (r === 'aggressive') return `Spreads aggressively underground or by runners: ${h}`;
+  if (r === 'maybe') return `Spreads, maybe aggressively, underground or by runners: ${h.replace(/, maybe aggressive$/, '')}`;
   if (r === 'spreads') return `Spreads underground or by runners: ${h}`;
   if (r === 'slow') return `Spreads slowly underground or by runners: ${h}`;
   if (r === 'stays') return p.invasive ? '' : `Doesn't run: ${h}`;
@@ -57,15 +59,16 @@ export function rootText(p: SpreadFacts): string {
  * Whether a plant spreads as the picker's filter asks: 'stays' (doesn't run, and self-sows only a little or is said
  * to be sterile: a sterile value only ever comes with a source, Jason 2026-10-27; never a plant listed invasive),
  * 'seed' (self-sows freely, or self-sows and how freely isn't known: it may), 'runs' (spreads underground or by runners
- * at all, mats and naturalizing bulbs too), 'aggressive' (spreads aggressively underground or by runners).
+ * at all, mats and naturalizing bulbs too), 'aggressive' (spreads aggressively underground or by runners, or maybe
+ * does: counted as aggressive, as a self-sower whose freeness isn't known counts as free).
  */
 export function spreadsAs(p: SpreadFacts, how: string): boolean {
   const r = rootSpread(p.habit);
   if (how === 'stays') return r === 'stays' && (p.self_seed === 'Modest' || p.self_seed === 'Sterile') && !p.invasive;
   if (how === 'seed') return p.self_seed === 'Prolific' || p.self_seed === 'Unrated';
   // (Mats and naturalizing bulbs spread too: creeping thyme, fogfruit; a reseeding annual is the seed's.)
-  if (how === 'runs') return r === 'aggressive' || r === 'spreads' || r === 'slow' || (r === 'other' && p.habit !== 'Reseeding annual');
-  if (how === 'aggressive') return r === 'aggressive';
+  if (how === 'runs') return r === 'aggressive' || r === 'maybe' || r === 'spreads' || r === 'slow' || (r === 'other' && p.habit !== 'Reseeding annual');
+  if (how === 'aggressive') return r === 'aggressive' || r === 'maybe';
   return true;
 }
 /** The ways of spreading the picker offers, mildest first. */

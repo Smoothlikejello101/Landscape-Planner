@@ -985,8 +985,23 @@ export function rowLines(p: Plant): { names: string; size: string; sun: string; 
   const bot = p.botanical && p.botanical.trim() !== p.common.trim() ? p.botanical : '';
   return { names: [bot, forms].filter(Boolean).join(' \u00b7 '), size, sun: sunSaid(p.sun_most, p.sun_least), hardy: hardinessSaid(p) };
 }
-/** Poisonous to people if eaten (its parts or how bad, from its sources), not only to the skin. */
-export const poisonousToPeople = (p: Plant): boolean => !!p.poison && (!!p.poison.parts?.length || !!p.poison.severity);
+const SEVERITY = ['low', 'medium', 'high'] as const;
+/**
+ * Its rating for people: its own, or, for a hybrid no source rates, its rated parents' together (Jason, 2026-10-30, of
+ * the 'Illinois Everbearing' mulberry: no rating for this plant, but treat it as its parents are rated, for filters
+ * and flags): the worst severity, each part named, skin where either irritates it. Its details still say it isn't
+ * rated itself (src/ui/plant-details.ts parentsPoisonText).
+ */
+export function poisonRating(p: Pick<Plant, 'poison' | 'poison_parents'>): Plant['poison'] | undefined {
+  if (p.poison) return p.poison;
+  if (!parentRated(p)) return undefined;
+  const rated = p.poison_parents!.parents.flatMap((x) => (x.poison ? [x.poison] : []));
+  const worst = rated.reduce<typeof SEVERITY[number] | undefined>((w, r) => (r.severity && (!w || SEVERITY.indexOf(r.severity) > SEVERITY.indexOf(w)) ? r.severity : w), undefined);
+  const parts = [...new Set(rated.flatMap((r) => r.parts ?? []))];
+  return { ...(worst ? { severity: worst } : {}), ...(parts.length ? { parts } : {}), ...(rated.some((r) => r.skin) ? { skin: true as const } : {}) };
+}
+/** Poisonous to people if eaten (its parts or how bad, from its sources, or a hybrid's parents'), not only to the skin. */
+export const poisonousToPeople = (p: Plant): boolean => { const r = poisonRating(p); return !!r && (!!r.parts?.length || !!r.severity); };
 const andList = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs[0] ?? '');
 /**
  * What the household should know of a plant (Jason, Oct 30, from round 2: Dana, Priya and Ruth read an azalea, a
@@ -997,8 +1012,9 @@ export function householdFlags(p: Plant, y: Yard = household()): RowFlag[] {
   if (!state.poisonWarnings) return [];
   const out: RowFlag[] = [];
   if (y.kids && poisonousToPeople(p)) {
-    const how = [p.poison!.severity ? `${p.poison!.severity} severity` : '', p.poison!.parts?.length ? andList(p.poison!.parts.map((x) => x.toLowerCase())) : ''].filter(Boolean).join(': ');
-    out.push({ text: 'Poisonous to people', kind: 'bad', title: `Poisonous if eaten${how ? ` (${how})` : ''}`, testid: 'row-poison' });
+    const r = poisonRating(p)!;
+    const how = [r.severity ? `${r.severity} severity` : '', r.parts?.length ? andList(r.parts.map((x) => x.toLowerCase())) : ''].filter(Boolean).join(': ');
+    out.push({ text: 'Poisonous to people', kind: 'bad', title: `${p.poison ? 'Poisonous' : 'Not rated itself; a parent is poisonous'} if eaten${how ? ` (${how})` : ''}`, testid: 'row-poison' });
   }
   const pets = [y.dogs !== '' && toxicToDogs(p) ? 'dogs' : '', y.cats && p.problem_for?.includes('cats') ? 'cats' : '', y.horses && p.problem_for?.includes('horses') ? 'horses' : ''].filter(Boolean);
   if (pets.length) out.push({ text: `A problem for ${andList(pets)}`, kind: 'bad', testid: 'row-pets' });
@@ -1018,7 +1034,7 @@ export function rowFlags(p: Plant): RowFlag[] {
   if (n?.status === 'N') out.push({ text: `${n.state} native`, kind: 'native', title: `${nativeText(n)} (${n.source})`, testid: 'row-native' });
   if (p.invasive) out.push({ text: 'Invasive: not for planting', kind: 'bad', testid: 'row-invasive' });
   out.push(...householdFlags(p));
-  if (p.poison?.skin) out.push({ text: 'Can irritate skin', kind: 'warn', title: 'NC State lists it as causing contact dermatitis', testid: 'row-skin' });
+  if (poisonRating(p)?.skin) out.push({ text: 'Can irritate skin', kind: 'warn', title: `NC State lists ${p.poison ? 'it' : 'a parent'} as causing contact dermatitis`, testid: 'row-skin' });
   if (p.unverified) out.push({ text: 'Unverified', kind: 'check', title: "From an earlier list with no sources; it's being checked", testid: 'unverified-badge' });
   else if (p.partlyChecked) out.push({ text: 'Partly checked', kind: 'check', title: 'Some details are checked against sources; those marked "earlier list" in its details are not yet', testid: 'partly-badge' });
   return out;
