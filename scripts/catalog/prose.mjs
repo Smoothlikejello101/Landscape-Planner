@@ -698,10 +698,53 @@ export function flowerLeadFromProse(list, names = []) {
   return null;
 }
 
+// ---------- Its partners, named ----------
+//
+// The plants a page names as its plant's pollinizer (Jason, 2026-10-30: "named partners first", for the partner a
+// placed plant is offered): cultivars it names, in quotes, in a sentence about pollinating or pairing this plant ("A
+// good male plant to pair it with is 'Southern Gentleman'", "requiring two pollinating cultivars, like 'Stuart' or
+// 'Elliot'", "One male winterberry, such as the late-blooming cultivar 'Southern Gentleman', is necessary"). As
+// `partners`, the names as the page gives them. Not its own names; not where it came from (a cross's parents, open-
+// pollinated seed); not a cultivar said to fruit on its own; and not pollinators, the insects.
+
+/** A sentence about pollinating this plant, or pairing it: a pollinizer, a male plant, two pollinating cultivars. */
+const PARTNER_CTX = /\bpolliniz\w*|\bpollenizer\w*|\bpollinator\b|\bpollinat(?:e|es|ed|ing|ion)\b|\bpair (?:it )?with\b|\bmale (?:plants?|holl(?:y|ies)|winterberr(?:y|ies)|trees?|shrubs?|vines?|cultivars?|clones?|selections?|forms?)\b/i;
+/** Not a partner: a cross's parents, open-pollinated seed, the insects, a cultivar fruiting on its own, a reversion. */
+const NOT_PARTNER = /\bopen[- ]?pollinat\w*|\bcross[- ]?pollination of\b|\bparents?\b|\bpollinator[- ](?:gardens?|plants?|habitats?|friend\w*)|\bpollinators\b|\bbred\b|\bself[- ]?(?:pollinating|pollinated|fertile|fruitful)\b|\bparthenocarp\w*|\brevert\w*|\bwithout (?:a |any )?(?:male )?(?:pollinizer|pollinator|male)\b|\bis the (?:male|female) (?:clone|form|selection)\b/i;
+/** Names in quotes: 'Southern Gentleman'. */
+const QUOTED = /['‘’"“] ?([A-Z](?:[^'‘’"”]|['’](?=s\b)){1,40}?) ?['’"”](?![a-z])/g;
+/** A name as compared: letters and digits, lowercased, doubled letters as one ("Eliot" for 'Elliot'). */
+const bareName = (x) => String(x).toLowerCase().replace(/[^a-z0-9]/g, '').replace(/(.)\1+/g, '$1');
+
+/** The names one sentence gives as its plant's partners, or null. */
+export function partnersSaid(sentence, names = []) {
+  const s = String(sentence ?? '');
+  if (!PARTNER_CTX.test(s) || NOT_PARTNER.test(s) || aboutName(s) || QUESTION.test(s)) return null;
+  const own = names.map(bareName);
+  const out = [];
+  // (Not a synonym given beside a name: "'Stokes Dwarf' (syn. 'Schilling's Dwarf')".)
+  for (const m of s.replace(/\(\s*(?:syn\.?|synonym|also (?:sold|known) as|aka)\b[^)]*\)/gi, '').matchAll(QUOTED)) {
+    const n = m[1].trim(), b = bareName(n);
+    if (b.length < 2 || own.some((o) => o.includes(b)) || out.some((x) => bareName(x) === b)) continue;
+    out.push(n);
+  }
+  return out.length ? out : null;
+}
+/** The partners its description names, { v, says }, or null. */
+export function partnersFromProse(list, names = []) {
+  // (As splitQuoted, but not after an abbreviation: "(syn. 'Schilling's Dwarf')" stays in its sentence.)
+  const split = (list ?? []).flatMap((s) => String(s).split(/(?<=[.!?])(?<!\b(?:syn|cv|var|ssp|subsp|aka)\.)\s+(?=['‘’"“][A-Z])/i));
+  const said = split.map((s) => ({ s, v: partnersSaid(s, names) })).filter((x) => x.v);
+  if (!said.length) return null;
+  const v = [];
+  for (const x of said) for (const n of x.v) if (!v.some((y) => bareName(y) === bareName(n))) v.push(n);
+  return { v: v.slice(0, 8), says: said.slice(0, 3).map((x) => x.s).join(' … ') };
+}
+
 /** Claims read from NC State's description (an authority, like its fields). */
 export function ncsuProseClaims(html) {
   const list = ncsuDescription(html), names = ncsuNames(html);
-  const read = [['foliage', foliageFromProse], ['deer', deerFromProse], ['self_seed', seedFromProse], ['habit', habitFromProse], ['fruit_set', fruitSetFromProse], ['sex', sexFromProse], ['flower_lead', flowerLeadFromProse]];
+  const read = [['foliage', foliageFromProse], ['deer', deerFromProse], ['self_seed', seedFromProse], ['habit', habitFromProse], ['fruit_set', fruitSetFromProse], ['sex', sexFromProse], ['flower_lead', flowerLeadFromProse], ['partners', partnersFromProse]];
   return read.map(([fact, from]) => [fact, from(list, names)]).filter(([, r]) => r)
     .map(([fact, r]) => ({ fact, v: r.v, src: 'ncsu', kind: 'authority', says: r.says, prose: true }));
 }

@@ -8,6 +8,7 @@ import { toast } from './ui/toast';
 import type { CircleShape, Point, Shape } from './types';
 import { snap, uid } from './util';
 import { isDataSized, plantRadius } from './my-plants';
+import { partnerChoices, partnerKind } from './fruit-partners';
 import { currentForm, isCatalogV2, resolveCatalog, type Provenance } from './catalog';
 import { spreadsOnlyAs } from './spread';
 import { setRadius } from './geometry';
@@ -85,6 +86,8 @@ export interface Plant {
   fruit_set?: 'separate' | 'partner' | 'better' | 'self';
   /** A cultivar's own sex, where its page says (never inherited). */
   sex?: 'male' | 'female';
+  /** The cultivars its description names as its pollinizer, as named ('Southern Gentleman'; never inherited). */
+  partners?: string[];
   fall_color?: boolean;
   /** Its fall leaf colors (src/catalog.ts FALL_COLORS). */
   fall_colors?: string[];
@@ -269,6 +272,11 @@ export const PLANT_FILTER_DEFAULTS = {
   edibleParts: NONE,
   /** Rated for the plan's zone (when the plan has a location). */
   hardyHere: false,
+  /**
+   * Only the plants that would be this plant's partner for fruit (a catalog id; src/fruit-partners.ts partnerChoices):
+   * the fruit-partner notice's "All 7…" (Jason, Oct 30). Empty: any.
+   */
+  partnersOf: '',
   /** Let what other sources say count where it differs from the value shown (a match only by it is flagged). */
   withReported: true,
 };
@@ -385,6 +393,15 @@ export function byTypicalHeight<T>(fn: () => T): T {
   try { return fn(); } finally { heightByTypical = false; }
 }
 /** Whether a plant passes the picker's filters. `inPlan`: ids of plants placed in the open plan. */
+/** The plants that would be a plant's partner for fruit (the `partnersOf` filter), worked out once a catalog. */
+let partnersCache: { of: string; n: number; ids: Set<string> } | null = null;
+function partnersOfSet(of: string): Set<string> {
+  if (partnersCache?.of === of && partnersCache.n === PLANTS.length) return partnersCache.ids;
+  const p = plantsById[of];
+  const ids = new Set(p ? partnerChoices(p, PLANTS, partnerKind(p) ?? (() => false)).map((q) => q.id) : []);
+  partnersCache = { of, n: PLANTS.length, ids };
+  return ids;
+}
 export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): boolean {
   // Invasives are never suggested; they turn up when searched by name (to map one already in the yard).
   if (p.invasive && invasivesLeftOut(f)) return false;
@@ -403,6 +420,7 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
     const fit = zoneFit(p, state.location);
     if (!hardyEnough(fit) && !(fit === 'warm' && wildNearby(p))) return false;
   }
+  if (f.partnersOf && !partnersOfSet(f.partnersOf).has(p.id)) return false;
   if (f.form && !formsOf(p).includes(f.form)) return false;
   if (f.water && p.water !== f.water) return false;
   if (f.sun && !plantTakesSun(p, f.sun)) return false;

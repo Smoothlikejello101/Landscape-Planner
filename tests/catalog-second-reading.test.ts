@@ -24,6 +24,11 @@ describe('what two readings agree on', () => {
     expect(agreed('self_seed', 'Sterile', 'Modest')).toBe(null);
     expect(agreed('deer', 'Resistant', null)).toBe(null);
   });
+  it('partners: the names both readings give', () => {
+    expect(agreed('partners', ['Stuart', 'Elliot'], ['elliot', 'Stuart'])).toEqual(['Stuart', 'Elliot']);
+    expect(agreed('partners', ['Loch Raven', 'Jade'], ['Loch Raven'])).toEqual(['Loch Raven']);
+    expect(agreed('partners', ['Jade'], ['Ajax'])).toBe(null);
+  });
 });
 
 describe('the gate', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
-import { aboutAnother, annualZonesSaid, deerFromProse, deerSaid, ncsuDeer, foliageFromProse, foliageOf, foliageWords, habitFromProse, ncsuDescription, ncsuNames, ncsuProseClaims, ncsuZones, PROSE_HABITS, seedFromProse, seedSaid, sentences, fruitSetSaid, fruitSetFromProse, sexSaid, sexFromProse, flowerLeadSaid, flowerLeadFromProse } from '../scripts/catalog/prose.mjs';
+import { aboutAnother, annualZonesSaid, deerFromProse, deerSaid, ncsuDeer, foliageFromProse, foliageOf, foliageWords, habitFromProse, ncsuDescription, ncsuNames, ncsuProseClaims, ncsuZones, PROSE_HABITS, seedFromProse, seedSaid, sentences, fruitSetSaid, fruitSetFromProse, sexSaid, sexFromProse, flowerLeadSaid, flowerLeadFromProse, partnersSaid, partnersFromProse } from '../scripts/catalog/prose.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { combine } from '../scripts/catalog/claims.mjs';
 import { catalogErrors, resolveCatalog, type CatalogFile } from '../src/catalog';
@@ -396,6 +396,28 @@ describe("a cultivar's sex, from its own description", () => {
     expect(sexSaid('It is self-fertile and female trees fruit without a male.', stokes)).toBeNull();
     expect(sexSaid('The original selection was female.', stokes)).toBeNull();
     expect(sexFromProse(['It is a male cultivar.', 'It is a female cultivar.'], stokes)).toBeNull();
+  });
+});
+
+describe('the partners a description names (Jason, Oct 30: named partners offered first)', () => {
+  const red = ["Ilex verticillata 'Winter Red'", 'Winter Red Winterberry'];
+  it('reads the cultivars named as its pollinizer or partner', () => {
+    expect(partnersSaid("A good male plant to pair it with is 'Southern Gentleman'.", red)).toEqual(['Southern Gentleman']);
+    expect(partnersSaid("One male winterberry, such as the late-blooming cultivar ‘Southern Gentleman’, is necessary for every 6 to 10 female plants.", red)).toEqual(['Southern Gentleman']);
+    expect(partnersSaid("It is protandrous and precocious, requiring two pollinating cultivars, like 'Stuart' or 'Elliot' .", ["Carya illinoinensis 'Cape Fear'"])).toEqual(['Stuart', 'Elliot']);
+    expect(partnersSaid("'Emily Bruner' is a female plant; the 'James Swan' holly is the recommended male pollinizer.", ["Ilex 'Emily Bruner'"])).toEqual(['James Swan']);
+    expect(partnersFromProse(["A good male plant to pair it with is 'Southern Gentleman'.", "It works well in winter gardens."], red)?.v).toEqual(['Southern Gentleman']);
+    // (A name with an apostrophe in it; a synonym beside a name left out.)
+    expect(partnersFromProse(["Being a female variety, it requires a male selection of the same species growing nearby in order to set fruit such as 'Stokes Dwarf' (syn. 'Schilling's Dwarf') or 'Will Flemming'."], ["Ilex vomitoria 'Taylor's Rudolph'"])?.v).toEqual(['Stokes Dwarf', 'Will Flemming']);
+  });
+  it('not its own name (spelled loosely), its parents, open-pollinated seed, the insects, or one fruiting on its own', () => {
+    expect(partnersSaid("'Eliot' is a type II pollinator.", ["Carya illinoinensis 'Elliot'"])).toBeNull();
+    expect(partnersSaid("It originated from a cross pollination of C. hybrida 'Linde Armstrong' (the female parent).", ['Cleome'])).toBeNull();
+    expect(partnersSaid("It is the product of an open pollination of H. kalmianum 'Gemo' (seed parent).", ['Hypericum'])).toBeNull();
+    expect(partnersSaid("The cultivar 'Jeana' was selected for its floriferous habit and pollinator-friendliness.", ['Phlox paniculata'])).toBeNull();
+    expect(partnersSaid("'Cherry Ice' is self-fertile and does not require a pollinizer to set fruit.", ['Ilex chinensis'])).toBeNull();
+    expect(partnersSaid("Ilex × aquipernyi 'San Jose' is the female clone.", ['Ilex × aquipernyi'])).toBeNull();
+    expect(partnersSaid("'Southern Gentleman' is a vigorous shrub.", red)).toBeNull(); // (no pollinating)
   });
 });
 
