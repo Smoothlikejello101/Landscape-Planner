@@ -10,7 +10,7 @@ import { clearSelection, isSelected, selectOnly, toggleSelect } from './selectio
 import { gesture, state, tapTracker } from './state';
 import { save } from './storage';
 import type { Gesture, Point, Shape } from './types';
-import { drawnBySize, isSeeThrough, previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes } from './canvas';
+import { drawnBySize, isHidden, isSeeThrough, previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes } from './canvas';
 import { drawTap, editedShape, forgetLastTap, insertVertex, moveVertex, notePointer } from './draw';
 import { placeTap } from './place';
 import { afterMove, freeStrandedVines, saidFreed } from './ui/vine-offers';
@@ -490,12 +490,18 @@ export function onShapePointerDown(e: PointerEvent, shape: Shape) {
     return;
   }
 
-  // A plant drawn see-through over a shorter one (Jason, Oct 30: tallest on top): a press within that one goes to it, so
-  // what's planted under a shrub can still be picked; elsewhere, and once it's selected, the shrub.
-  // (Not a tree: its canopy lets presses through already, and one that reaches it is on its trunk.)
-  if (isSeeThrough(shape.id) && !isTree(shape) && !isSelected(shape.id) && !state.selectMode && !state.draw && !state.editPoints && !state.placing && !state.featurePlace) {
+  // A plant over a shorter one (Jason, Oct 30: tallest on top): a press goes to the one under it, so what's planted
+  // under a shrub can still be picked. Under a canopy (drawn see-through), anywhere within it; under a solid plant
+  // (its outline and name drawn over it), near its middle, where its name is, so the plant over it can be picked
+  // elsewhere. Once the one on top is selected, it keeps the press. (Not a tree: its canopy lets presses through
+  // already, and one that reaches it is on its trunk.)
+  const plantLike: boolean = drawnBySize(shape) && !isTree(shape as Shape); // (not narrowed: a circle that isn't a tree is still a circle)
+  if (plantLike && !isSelected(shape.id) && !state.selectMode && !state.draw && !state.editPoints && !state.placing && !state.featurePlace) {
     const here = shapesAt(e.clientX, e.clientY), at = here.findIndex((s) => s.id === shape.id);
-    const under = here.slice(at + 1).find((s) => drawnBySize(s) && s.status !== 'gone' && !isLocked(s) && shownWith(s, state.viewFilter));
+    const p = screenToFeet(e.clientX, e.clientY);
+    const nearMiddle = (s: Shape) => s.type === 'circle' && Math.hypot(p.x - s.x, p.y - s.y) <= s.radius * 0.5;
+    const under = here.slice(at + 1).find((s) => drawnBySize(s) && s.status !== 'gone' && !isLocked(s) && shownWith(s, state.viewFilter)
+      && (isSeeThrough(shape.id) || (isHidden(s.id) && nearMiddle(s))));
     if (under) { activePointers.delete(e.pointerId); onShapePointerDown(e, under); return; }
   }
   // Locked shapes are part of the ground: a press on one goes to what's on it, unlocked, under the finger (Jason,

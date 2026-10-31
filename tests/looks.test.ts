@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Plant } from '../src/plants';
-import { bandBlooms, bloomKind, coverBlooms, flowerChoices, flowerColorOf, levelOf, lookOf, lookSvg, nearestFlower, ownBloomColors } from '../src/looks';
+import { bandBlooms, bandLeaves, bloomKind, coverBlooms, flowerChoices, flowerColorOf, levelOf, lookOf, lookSvg, nearestFlower, ownBloomColors } from '../src/looks';
 import { LOOK_MAX_R, lookFor, lookMarkup, plannedEdge } from '../src/plant-looks';
 import { plantsById } from '../src/plants';
 import type { CircleShape } from '../src/types';
@@ -137,6 +137,24 @@ describe('a placed plant', () => {
     const radii = (svg: string) => [...svg.matchAll(/ r="([\d.]+)"/g)].map((m) => Number(m[1]));
     expect(Math.max(...radii(bandBlooms([{ x: 0, y: 0 }, { x: 200, y: 0 }], 40, look, 40)))).toBeLessThanOrEqual(40 * 0.18 + 0.05);
     expect(Math.max(...radii(coverBlooms([{ x: 0, y: 0 }, { x: 96, y: 0 }, { x: 96, y: 48 }, { x: 0, y: 48 }], look, 24)))).toBeLessThanOrEqual(24 * 0.18 + 0.05);
+  });
+  it("a climbing vine close up: its leaves along the band and its blooms in their shape, as every plant's (Jason, Oct 30: \"only color blobs\")", () => {
+    const look = lookOf(plant({ form: 'Vine', flower_color: ['white'], flower_form: 'Lacecap' } as Partial<Plant>), '#000');
+    const line = [{ x: 0, y: 0 }, { x: 120, y: 0 }, { x: 120, y: 60 }];
+    // (Blooms: built of petals, not the mid size's two discs; the same each time it's drawn.)
+    const close = bandBlooms(line, 24, look, 24, 'close', 'v1');
+    expect(count(close, 'path')).toBeGreaterThan(count(close, 'circle'));
+    expect(close).toBe(bandBlooms(line, 24, look, 24, 'close', 'v1'));
+    expect(count(bandBlooms(line, 24, look, 24, 'yard', 'v1'), 'path')).toBe(0);
+    // (Leaves: its stem and lanes of leaves close up; a mottle at mid; the band alone far out, or while it's bare.)
+    const leaves = bandLeaves(line, 24, look, 'close', 'v1');
+    expect(count(leaves, 'path')).toBeGreaterThan(60);
+    expect(count(bandLeaves(line, 24, look, 'mid', 'v1'), 'circle')).toBeGreaterThan(5);
+    expect(bandLeaves(line, 24, look, 'yard', 'v1')).toBe('');
+    expect(bandLeaves(line, 24, look, 'close', 'v1', { leaves: 'bare', bloom: 'no' })).toBe('');
+    // (All within the band: leaves of every plant's size, however wide it's drawn.)
+    const ys = [...bandLeaves([{ x: 0, y: 0 }, { x: 200, y: 0 }], 60, look, 'close', 'v2').matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)].map((m) => Number(m[2]));
+    expect(Math.max(...ys.map(Math.abs))).toBeLessThanOrEqual(30 + 1);
   });
 });
 

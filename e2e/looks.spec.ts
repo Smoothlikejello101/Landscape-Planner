@@ -51,7 +51,32 @@ test("a color picked for a plant draws its picture's leaves, and Default color b
   await expect(page.getByTestId('default-color')).toHaveCount(0);
 });
 
-test('the tallest plant is drawn on top, see-through over a plant growing under it (Jason, Oct 30)', async ({ page }) => {
+test('a plant under a shorter, solid one: outlined over it, with its name; a press near its middle picks it (Jason, Oct 30)', async ({ page }) => {
+  await openFresh(page);
+  const place = async (name: string, dx: number) => {
+    await page.locator('.tool-btn.plants').click();
+    await page.getByTestId('plant-search').fill(name);
+    await page.locator('.sheet .proj-row', { hasText: name }).first().locator('[data-testid=plant-place]').click();
+    await tapFromCenter(page, dx, 0);
+    await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
+    await page.keyboard.press('Escape');
+  };
+  await place('Creeping phlox', 0);
+  await place('Mountain mint', 0.5); // (3½ ft: solid, under the canopy height; its middle over the phlox's)
+  await expect(page.locator('#canvas-svg [data-see-through=true]')).toHaveCount(0);
+  const over = page.locator('#canvas-svg g[data-role=hidden-over]');
+  await expect(over.locator('[data-role=hidden-rim]')).toHaveCount(1);
+  await expect(over.locator('text')).toContainText('Creeping phlox');
+  await page.waitForTimeout(450); // (not a double tap)
+  await tapFromCenter(page, 0, 0);
+  await expect(page.locator('.sel-pill .name')).toHaveText('Creeping phlox');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(450);
+  await tapFromCenter(page, 1.5, 0);
+  await expect(page.locator('.sel-pill .name')).toHaveText('Mountain mint');
+});
+
+test('the tallest plant is drawn on top, see-through as a canopy over a plant growing under it (Jason, Oct 30)', async ({ page }) => {
   await openFresh(page);
   const place = async (name: string, dx: number) => {
     await page.locator('.tool-btn.plants').click();

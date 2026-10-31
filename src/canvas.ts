@@ -24,7 +24,7 @@ import { isArbor, isTrellis, LATTICE_STEP, latticePath, SLAT_STEP, slatsPath } f
 import type { CircleShape, Point, Shape, ShapeFilter, TextShape } from './types';
 import { groundcoverRadius, supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
 import { lookFor, lookMarkup, lookMonthOf, lookShown, plannedEdge } from './plant-looks';
-import { bandBlooms, colorIn, coverBlooms, levelOf } from './looks';
+import { bandBlooms, bandLeaves, colorIn, coverBlooms, levelOf } from './looks';
 
 // Canvas drawing. Everything here writes only into the <svg>, never into
 // panel DOM, so it is safe to call while an input has keyboard focus.
@@ -177,20 +177,32 @@ export function shapeGroup(s: Shape): SVGGElement {
     const look = lookShown(s) ? lookFor(s) : null;
     // (Through the year: its band in the month's color, bare twigs in winter; its blooms only in its months.)
     const inMonth = look ? lookMonthOf(s) : undefined;
-    const op = look ? (s.status === 'planned' ? 0.75 : 0.9) : s.status === 'planned' ? 0.5 * (s.opacity ?? 0.65) : s.opacity ?? 0.65;
+    // (As tall as a canopy, as most climbing vines are: see-through over what grows at its foot, as a canopy is.)
+    const thin = vineSeeThrough(s) ? 0.55 : 1;
+    const op = (look ? (s.status === 'planned' ? 0.75 : 0.9) : s.status === 'planned' ? 0.5 * (s.opacity ?? 0.65) : s.opacity ?? 0.65) * thin;
     const paint = { stroke: s.status === 'remove' ? '#dc2626' : look ? (inMonth ? colorIn(look, inMonth) : look.pal.base) : s.color, 'stroke-opacity': op, fill: 'none', 'pointer-events': 'none' };
     // (On an arbor, over its top, as far as its spread reaches: taps go through it to the arbor, the vine taking
     // them at its spot.)
     shapeEl = cover
       ? svgEl('polygon', { ...paint, 'data-role': 'vine-band', points: cover.map(toPx).join(' '), fill: paint.stroke, 'fill-opacity': paint['stroke-opacity'], 'stroke-width': 1.5, 'stroke-linejoin': 'round',
         opacity: s.status === 'gone' ? 0.35 : null })
-      : svgEl('polyline', { ...paint, 'data-role': 'vine-band', points: band.map(toPx).join(' '), 'stroke-width': bandW, 'stroke-linecap': 'round', 'stroke-linejoin': 'round',
+      // (Square ends: it stops where its spread does, or the support ends, not a rounded half-width past them.)
+      : svgEl('polyline', { ...paint, 'data-role': 'vine-band', points: band.map(toPx).join(' '), 'stroke-width': bandW, 'stroke-linecap': 'butt', 'stroke-linejoin': 'round',
         opacity: s.status === 'gone' ? 0.35 : null }); // (planned: lighter, as its stroke-opacity says; a dashed band reads as beads)
     g0.push(svgEl('polyline', { ...paint, 'data-role': 'vine-reach', points: connector.map(toPx).join(' '), 'stroke-width': Math.max(1.5, bandW / 3), 'stroke-linecap': 'round', opacity: s.status === 'gone' ? 0.35 : null }));
+    // (Its leaves and blooms as its plant's are drawn, by the band's width on the screen: close up, leaves and flowers
+    // in their shape, as every plant's (Jason, Oct 30: "only color blobs while everything else gets flowers").)
+    const drawAt = levelOf(bandW);
+    const px = (l: Point[]) => l.map((p) => ({ x: (p.x - state.offsetX) * ppf, y: (p.y - state.offsetY) * ppf }));
+    if (look && !cover && s.status !== 'remove') {
+      const leaves = svgEl('g', { 'data-role': 'vine-leaves', 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : (s.status === 'planned' ? 0.75 : 1) * thin < 1 ? Math.round((s.status === 'planned' ? 0.75 : 1) * thin * 100) / 100 : null,
+        'data-see-through': thin < 1 ? 'true' : null });
+      leaves.innerHTML = bandLeaves(px(band), bandW, look, drawAt, s.id, inMonth);
+      g0.push(leaves);
+    }
     if (look && inMonth?.bloom !== 'no') {
-      const blooms = svgEl('g', { 'data-role': 'vine-blooms', 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : inMonth?.bloom === 'around' ? 0.45 : null });
-      const px = (l: Point[]) => l.map((p) => ({ x: (p.x - state.offsetX) * ppf, y: (p.y - state.offsetY) * ppf }));
-      blooms.innerHTML = cover ? coverBlooms(px(cover), look, Math.max(10, 1 * ppf)) : bandBlooms(px(band), bandW, look, Math.max(10, 1 * ppf));
+      const blooms = svgEl('g', { 'data-role': 'vine-blooms', 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : (inMonth?.bloom === 'around' ? 0.45 : 1) * thin < 1 ? Math.round((inMonth?.bloom === 'around' ? 0.45 : 1) * thin * 100) / 100 : null });
+      blooms.innerHTML = cover ? coverBlooms(px(cover), look, Math.max(10, 1 * ppf), drawAt, s.id) : bandBlooms(px(band), bandW, look, Math.max(10, 1 * ppf), drawAt, s.id);
       g0.push(blooms);
     }
     g0.push(svgEl('circle', { 'data-role': 'vine-spot', cx, cy, r: vineDot, fill: look ? look.pal.dark : s.color, stroke: sel ? '#0f172a' : 'rgba(0,0,0,0.35)', 'stroke-width': sel ? 2 : 1, 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : null }));
@@ -514,8 +526,8 @@ export function paintOrder(shapes: Shape[], filter: ShapeFilter = state.viewFilt
   // (A vine on what it climbs, over it: a vine up a tree shows on its crown.)
   const k = (s: Shape) => tierOf(s) + (s.type === 'circle' && s.climbsOn ? 0.5 : 0);
   const out = shapes.filter((s) => shownWith(s, filter)).sort((a, b) => k(a) - k(b));
-  // Plants, shortest first, in the places plants hold: the tallest on top, as it is in the yard, and drawn see-through
-  // where something grows under it (seeThrough). Jason, Oct 30 afternoon: biggest first, that morning's order, put
+  // Plants, shortest first, in the places plants hold: the tallest on top, as it is in the yard; a canopy drawn
+  // see-through (seeThroughIds), and what's hidden under a solid one outlined over it (hiddenIds). Jason, Oct 30 afternoon: biggest first, that morning's order, put
   // the groundcover he'd planted under his shrubs on top of them. Equal heights: the bigger first; equal both, the
   // plan's order; everything else stays where it was.
   const slots = out.flatMap((s, i) => (drawnBySize(s) ? [i] : []));
@@ -532,22 +544,37 @@ export function drawnHeight(s: CircleShape): number {
   return bandOf(s, plantsById).band?.[1] ?? drawnRadius(s) * 2;
 }
 /**
- * The plants drawn see-through: those with a shorter plant under them, its middle within their circle (a groundcover
- * under a shrub, a shrub under a tree). Two that only touch at their edges stay solid. Gone plants count for nothing.
+ * From this height (feet), a plant is drawn see-through, a canopy over what's planted under it, always: every copy alike
+ * (Jason, Oct 30, choosing "a canopy rule, by plant", at 5 ft, from 6: until then a plant was see-through where a shorter
+ * one's middle was within it, so of three mountain mints one was pale and two solid). Shorter plants are drawn solid,
+ * and one whose middle a solid plant covers has its outline and name drawn over it (hiddenIds).
  */
+export const CANOPY_FT = 5;
+/** The plants drawn see-through: those CANOPY_FT or taller (by drawnHeight), and not gone. */
 export function seeThroughIds(shapes: Shape[], filter: ShapeFilter = state.viewFilter): Set<string> {
+  return new Set(shapes.filter((s) => shownWith(s, filter) && drawnBySize(s) && s.status !== 'gone' && drawnHeight(s) >= CANOPY_FT).map((s) => s.id));
+}
+/** Whether a climbing vine's band is drawn see-through: as tall as a canopy (src/vines.ts; most vines are). */
+export const vineSeeThrough = (s: CircleShape): boolean => s.status !== 'gone' && (bandOf(s, plantsById).band?.[1] ?? 0) >= CANOPY_FT;
+/**
+ * The plants hidden under a solid one: drawn before a plant shorter than a canopy whose circle holds their middle (a
+ * groundcover under a perennial). Their outline and name are drawn over the plants (liftHidden), so nothing planted
+ * is lost from sight. Gone plants count for nothing.
+ */
+export function hiddenIds(shapes: Shape[], filter: ShapeFilter = state.viewFilter, thin: Set<string> = seeThroughIds(shapes, filter)): Set<string> {
   const order = paintOrder(shapes, filter).filter(drawnBySize).filter((s) => s.status !== 'gone');
   const rank = new Map(order.map((s, i) => [s.id, i]));
   const byX = [...order].sort((a, b) => a.x - b.x);
   const out = new Set<string>();
   for (const u of order) {
+    if (thin.has(u.id)) continue;
     const r = drawnRadius(u), at = rank.get(u.id)!;
     // (The plants within its reach sideways, by a binary search on x: big plans stay quick.)
     let lo = 0, hi = byX.length;
     while (lo < hi) { const m = (lo + hi) >> 1; if (byX[m].x < u.x - r) lo = m + 1; else hi = m; }
     for (let k = lo; k < byX.length && byX[k].x <= u.x + r; k++) {
       const l = byX[k];
-      if (rank.get(l.id)! < at && Math.hypot(l.x - u.x, l.y - u.y) < r) { out.add(u.id); break; }
+      if (rank.get(l.id)! < at && Math.hypot(l.x - u.x, l.y - u.y) < r) out.add(l.id);
     }
   }
   return out;
@@ -584,6 +611,10 @@ const OVERFLOW_PX = 11;
  * gets every other name, rather than a pile of overlapping text.
  */
 let overflowLabels = new Set<string>();
+/** Plants hidden under a solid one whose name isn't clear of the names in sight: their outline alone (liftHidden). */
+let hiddenUnnamed = new Set<string>();
+/** Hidden plants' names moved down or up (px) to be clear of the names in sight (liftHidden). */
+let hiddenShift = new Map<string, number>();
 /** A run of one plant written once ("Creeping liriope ×12"), on the plant nearest its middle: its words and middle (feet). */
 let runLabels = new Map<string, { text: string; x: number; y: number }>();
 /** Plants in a run of their kind need this many to be named once (two side by side get one name already). */
@@ -617,12 +648,36 @@ export function labelRuns(plants: CircleShape[]): CircleShape[][] {
   }
   return out;
 }
+/** A name's room on the screen (px). */
+export interface LabelBox { x0: number; x1: number; y0: number; y1: number }
+const overlaps = (a: LabelBox, b: LabelBox) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+const boxAt = (p: Point, w: number, h: number, ppf: number): LabelBox => ({ x0: p.x * ppf - w / 2, x1: p.x * ppf + w / 2, y0: p.y * ppf - h / 2, y1: p.y * ppf + h / 2 });
+/**
+ * Where a run's name goes (feet), a name `w` × `h` px at `ppf`: the first spot clear of the names already placed. Its
+ * middle; then on each of its plants, the nearest the middle first; then beside the plant at its middle, across the
+ * run first (a column's name to its left or right, a row's above or below). Null: nowhere clear. (Jason, Oct 30: a
+ * 1.5 ft bed's name, at the middle of the column of liriope planted along it, left all twelve unnamed.)
+ */
+export function runLabelSpot(run: CircleShape[], w: number, h: number, ppf: number, placed: LabelBox[]): Point | null {
+  const mid = { x: run.reduce((n, s) => n + s.x, 0) / run.length, y: run.reduce((n, s) => n + s.y, 0) / run.length };
+  const near = [...run].sort((a, b) => Math.hypot(a.x - mid.x, a.y - mid.y) - Math.hypot(b.x - mid.x, b.y - mid.y));
+  const c = near[0];
+  const xs = run.map((s) => s.x), ys = run.map((s) => s.y);
+  const column = Math.max(...ys) - Math.min(...ys) > Math.max(...xs) - Math.min(...xs);
+  const dx = c.radius + (w / 2 + 4) / ppf, dy = c.radius + (h / 2 + 2) / ppf;
+  const sides = [{ x: c.x - dx, y: c.y }, { x: c.x + dx, y: c.y }], ends = [{ x: c.x, y: c.y - dy }, { x: c.x, y: c.y + dy }];
+  const spots = [mid, ...near.map((s) => ({ x: s.x, y: s.y })), ...(column ? [...sides, ...ends] : [...ends, ...sides])];
+  return spots.find((p) => !placed.some((q) => overlaps(q, boxAt(p, w, h, ppf)))) ?? null;
+}
 function refreshLabelLayout() {
   const ppf = pxPerFoot();
   overflowLabels = new Set();
   runLabels = new Map();
-  type Box = { x0: number; x1: number; y0: number; y1: number };
+  type Box = LabelBox;
   const placed: Box[] = [];
+  hiddenUnnamed = new Set();
+  hiddenShift = new Map();
+  const hiddenFits: { s: CircleShape; box: Box }[] = [];
   const waiting: { s: CircleShape; box: Box }[] = [];
   for (const s of paintOrder(state.shapes)) {
     // Names hidden: a name that isn't drawn keeps no room (a selected plant's shows beside it).
@@ -649,29 +704,46 @@ function refreshLabelLayout() {
     if (fit) {
       const w = Math.max(...fit.lines.map((l) => textWidth1(l))) * fit.fontSize;
       const h = fit.lines.length * fit.fontSize * LABEL_LINE_HEIGHT;
-      placed.push({ x0: cx - w / 2, x1: cx + w / 2, y0: cy + fit.dy - h / 2, y1: cy + fit.dy + h / 2 });
+      const box = { x0: cx - w / 2, x1: cx + w / 2, y0: cy + fit.dy - h / 2, y1: cy + fit.dy + h / 2 };
+      // (A plant hidden under a solid one: its name drawn over that plant, after the names in sight, where it's clear.)
+      if (hidden.has(s.id)) hiddenFits.push({ s, box }); else placed.push(box);
     } else if (fit === null) {
       const w = textWidth1(displayLabel(s)) * OVERFLOW_PX, h = OVERFLOW_PX * LABEL_LINE_HEIGHT;
       waiting.push({ s, box: { x0: cx - w / 2, x1: cx + w / 2, y0: cy - h / 2, y1: cy + h / 2 } });
     }
   }
-  // Runs of the same plant: one name each, at the run's middle, first (a run is named where a lone plant might not be).
+  // Hidden plants' names, drawn over the plant hiding them (liftHidden), where they're clear of the names in sight: at
+  // their middle, or just below their outline, or above it; in a crowd, the outline alone.
+  const tryHidden = (s: CircleShape, box: Box): boolean => {
+    const rpx = drawnRadius(s) * ppf, cy = s.y * ppf, h = box.y1 - box.y0, mid = (box.y0 + box.y1) / 2;
+    for (const dy of [0, cy + rpx + h / 2 + 2 - mid, cy - rpx - h / 2 - 2 - mid]) {
+      const b = { ...box, y0: box.y0 + dy, y1: box.y1 + dy };
+      if (placed.some((p) => overlaps(p, b))) continue;
+      placed.push(b);
+      if (dy) hiddenShift.set(s.id, dy);
+      return true;
+    }
+    return false;
+  };
+  for (const { s, box } of hiddenFits) if (!tryHidden(s, box)) hiddenUnnamed.add(s.id);
+  // Runs of the same plant: one name each, first (a run is named where a lone plant might not be): at its middle, or
+  // the nearest spot clear of other names (runLabelSpot). Nowhere clear, its plants are named as lone ones are.
   const inRun = new Set<string>();
   for (const run of labelRuns(waiting.map((w) => w.s))) {
-    for (const s of run) inRun.add(s.id);
-    const x = run.reduce((n, s) => n + s.x, 0) / run.length, y = run.reduce((n, s) => n + s.y, 0) / run.length;
     const text = `${displayLabel(run[0])} \u00d7${run.length}`;
     const w = textWidth1(text) * OVERFLOW_PX, h = OVERFLOW_PX * LABEL_LINE_HEIGHT;
-    const box = { x0: x * ppf - w / 2, x1: x * ppf + w / 2, y0: y * ppf - h / 2, y1: y * ppf + h / 2 };
-    if (placed.some((p) => p.x0 < box.x1 && box.x0 < p.x1 && p.y0 < box.y1 && box.y0 < p.y1)) continue;
-    placed.push(box);
-    // (Drawn with the plant nearest the middle, which every redraw of the run's plants keeps in step.)
-    const anchor = run.reduce((best, s) => (Math.hypot(s.x - x, s.y - y) < Math.hypot(best.x - x, best.y - y) ? s : best));
-    runLabels.set(anchor.id, { text, x, y });
+    const at = runLabelSpot(run, w, h, ppf, placed);
+    if (!at) continue;
+    for (const s of run) inRun.add(s.id);
+    placed.push(boxAt(at, w, h, ppf));
+    // (Drawn with the plant nearest its spot, which every redraw of the run's plants keeps in step.)
+    const anchor = run.reduce((best, s) => (Math.hypot(s.x - at.x, s.y - at.y) < Math.hypot(best.x - at.x, best.y - at.y) ? s : best));
+    runLabels.set(anchor.id, { text, x: at.x, y: at.y });
   }
   waiting.sort((a, b) => b.s.radius - a.s.radius);
   for (const { s, box } of waiting) {
     if (inRun.has(s.id)) continue;
+    if (hidden.has(s.id)) { if (tryHidden(s, box)) overflowLabels.add(s.id); continue; }
     if (placed.some((p) => p.x0 < box.x1 && box.x0 < p.x1 && p.y0 < box.y1 && box.y0 < p.y1)) continue;
     placed.push(box);
     overflowLabels.add(s.id);
@@ -692,10 +764,14 @@ function circleLabel(s: CircleShape, ppf: number): FittedLabel | null | undefine
 
 /** Plants ringed as close or crowded (Layers switch, and always while placing); refreshed on each redraw. */
 let crowded = new Map<string, CrowdLevel>();
-/** Plants with something growing under them, drawn see-through (seeThroughIds); refreshed on each redraw. */
+/** Plants as tall as a canopy, drawn see-through (seeThroughIds); refreshed on each redraw. */
 let seeThrough = new Set<string>();
-/** Whether a plant is drawn see-through now, over a shorter one. */
+/** Whether a plant is drawn see-through now (a canopy over what's under it). */
 export const isSeeThrough = (id: string) => seeThrough.has(id);
+/** Plants hidden under a solid one, their outline and name drawn over it (hiddenIds); refreshed on each redraw. */
+let hidden = new Set<string>();
+/** Whether a plant is hidden under a solid one now (its outline and name drawn over it). */
+export const isHidden = (id: string) => hidden.has(id);
 function refreshCrowding() {
   // (Not until the catalog is in: without plants' heights, plants that grow over and under each other look crowded.)
   crowded = (state.showCrowding || state.placing) && catalogReady() ? crowdLevels(state.shapes.filter((s) => shownWith(s, state.viewFilter)), plantsById, crowdOptions()) : new Map();
@@ -710,6 +786,7 @@ function refreshUtilities() {
 export function redrawCanvas() {
   refreshCrowding();
   seeThrough = seeThroughIds(state.shapes);
+  hidden = hiddenIds(state.shapes, state.viewFilter, seeThrough);
   refreshUtilities();
   refreshLabelLayout();
   const svg = canvasSvg();
@@ -728,6 +805,7 @@ export function redrawCanvas() {
   renderGrid(grid);
   const shapes = layer(svg, 'shapes');
   for (const s of paintOrder(state.shapes)) shapes.appendChild(shapeGroup(s));
+  liftHidden(shapes);
   liftTrunks(shapes);
   const mq = marqueeRect();
   if (mq) shapes.appendChild(mq);
@@ -768,10 +846,12 @@ export function redrawShapes(ids: string[]) {
     const changed = [...new Set([...before.keys(), ...crowded.keys()])].filter((id) => before.get(id) !== crowded.get(id));
     ids = [...new Set([...ids, ...changed])];
   }
-  // (A plant moved over or off another: those whose see-through changes are drawn again too.)
-  const wasThin = seeThrough;
+  // (A plant moved over or off another: those whose see-through or hiding changes are drawn again too.)
+  const wasThin = seeThrough, wasHidden = hidden;
   seeThrough = seeThroughIds(state.shapes);
-  ids = [...new Set([...ids, ...[...new Set([...wasThin, ...seeThrough])].filter((id) => wasThin.has(id) !== seeThrough.has(id))])];
+  hidden = hiddenIds(state.shapes, state.viewFilter, seeThrough);
+  const flipped = (a: Set<string>, b: Set<string>) => [...new Set([...a, ...b])].filter((id) => a.has(id) !== b.has(id));
+  ids = [...new Set([...ids, ...flipped(wasThin, seeThrough), ...flipped(wasHidden, hidden)])];
   // (A support dragged: the vines on it follow along.)
   const moving = new Set(ids);
   ids = [...ids, ...state.shapes.filter((v) => v.type === 'circle' && v.climbsOn && moving.has(v.climbsOn)).map((v) => v.id)];
@@ -780,10 +860,44 @@ export function redrawShapes(ids: string[]) {
     const old = shapes.querySelector(`:scope > g[data-shape-group="${CSS.escape(id)}"]`);
     if (s && old) {
       shapes.querySelector(`:scope > g[data-role=trunks] > [data-trunk-of="${CSS.escape(id)}"]`)?.remove();
+      shapes.querySelector(`:scope > g[data-role=hidden-over] > [data-label-of="${CSS.escape(id)}"]`)?.remove();
       old.replaceWith(shapeGroup(s));
     }
   }
+  liftHidden(shapes);
   liftTrunks(shapes);
+}
+/**
+ * The plants hidden under a solid one (hiddenIds), over every plant: a dotted outline, and their name moved up from
+ * their own group (Jason, Oct 30, option C: nothing planted is lost from sight under a solid plant). Outlines drawn
+ * afresh each time; a name stays up here until its plant is drawn again.
+ */
+function liftHidden(shapes: Element) {
+  let top = shapes.querySelector(':scope > g[data-role=hidden-over]');
+  if (!top) top = shapes.appendChild(svgEl('g', { 'data-role': 'hidden-over', 'pointer-events': 'none' }));
+  for (const r of top.querySelectorAll(':scope > [data-role=hidden-rim]')) r.remove();
+  for (const t of top.querySelectorAll(':scope > [data-label-of]')) if (!hidden.has((t as SVGElement).dataset.labelOf!)) t.remove();
+  const ppf = pxPerFoot();
+  const rims: SVGElement[] = [];
+  for (const id of hidden) {
+    const s = state.shapes.find((x) => x.id === id);
+    if (!s || s.type !== 'circle') continue;
+    const cx = (s.x - state.offsetX) * ppf, cy = (s.y - state.offsetY) * ppf, r = Math.max(2, drawnRadius(s) * ppf - 1);
+    rims.push(svgEl('g', { 'data-role': 'hidden-rim', 'data-rim-of': id },
+      svgEl('circle', { cx, cy, r, fill: 'none', stroke: 'rgba(255,255,255,0.75)', 'stroke-width': 3 }),
+      svgEl('circle', { cx, cy, r, fill: 'none', stroke: '#292524', 'stroke-width': 1.5, 'stroke-dasharray': '2 3', 'stroke-linecap': 'round', opacity: 0.8 })));
+    const label = shapes.querySelector(`:scope > g[data-shape-group="${CSS.escape(id)}"] > [data-role=plant-label]`);
+    // (Selected, its name shows whatever's around it.)
+    if (label && hiddenUnnamed.has(id) && !state.selectedIds.includes(id)) label.remove();
+    else if (label) {
+      (label as SVGElement).dataset.labelOf = id;
+      const dy = hiddenShift.get(id);
+      if (dy) label.setAttribute('transform', `translate(0 ${Math.round(dy * 10) / 10})`);
+      top.appendChild(label);
+    }
+  }
+  top.prepend(...rims); // (under the names)
+  shapes.appendChild(top);
 }
 /**
  * A tree's trunk, its tap target, over every shape (Jason, Oct 29: a tree dragged into a patch of groundcover

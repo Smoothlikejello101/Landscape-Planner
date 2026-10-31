@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { drawnHeight, labelRuns, paintOrder, seeThroughIds } from '../src/canvas';
+import { drawnHeight, hiddenIds, labelRuns, paintOrder, runLabelSpot, seeThroughIds } from '../src/canvas';
 import { plantsById, type Plant } from '../src/plants';
 import { setRoleForIds, setRoleView } from '../src/mutations';
 import { defaultLook, isLocked } from '../src/roles';
@@ -39,10 +39,21 @@ describe('drawing order', () => {
     expect(drawnHeight(state.shapes[0] as CircleShape)).toBe(12);
     expect(drawnHeight(state.shapes[4] as CircleShape)).toBe(6); // (3 ft radius, no height: its spread)
   });
-  it('draws a plant see-through where a shorter one grows under it (its middle within the circle), not where they only touch', () => {
+  it('draws a plant 5 ft or taller see-through, every copy alike; under a shorter, solid one, a plant whose middle it covers is outlined over it (Jason, Oct 30)', () => {
     const c = (id: string, x: number, radius: number, extra: Partial<Shape> = {}) => ({ id, type: 'circle', x, y: 0, radius, color: '#16a34a', label: id, opacity: 0.65, locked: false, role: 'plant', ...extra } as Shape);
-    state.shapes = [c('shrub', 0, 3), c('under', 1, 1), c('beside', 6.5, 3), c('far', 30, 2), c('gone', 30, 0.5, { status: 'gone' })];
-    expect([...seeThroughIds(state.shapes)].sort()).toEqual(['shrub']); // (beside touches shrub's edge; far has only a gone plant under it)
+    plantsById['t-hazel'] = { id: 't-hazel', common: 'Witch hazel', form: 'Shrub', height: { min: 10, max: 15, med: 12 } } as Plant;
+    plantsById['t-mint'] = { id: 't-mint', common: 'Mountain mint', form: 'Perennial', height: { min: 3, max: 4, med: 3.5 } } as Plant;
+    plantsById['t-ginger'] = { id: 't-ginger', common: 'Wild ginger', form: 'Perennial', height: { min: 0.3, max: 0.5, med: 0.4 } } as Plant;
+    const hazel = { plantId: 't-hazel' }, mint = { plantId: 't-mint' }, ginger = { plantId: 't-ginger' };
+    state.shapes = [
+      c('hazel', 0, 3, hazel), c('hazel2', 20, 3, hazel), c('underHazel', 1, 0.75, ginger), // (a canopy, with or without one under it)
+      c('mint', 40, 1.25, mint), c('underMint', 40.5, 0.75, ginger), c('besideMint', 42, 0.75, ginger), // (beside: its middle clear)
+      c('mint2', 60, 1.25, mint), c('goneUnder', 60, 0.5, { ...ginger, status: 'gone' }),
+      c('wide', 80, 3), // (no height known: its spread, 6 ft, stands in)
+    ];
+    expect([...seeThroughIds(state.shapes)].sort()).toEqual(['hazel', 'hazel2', 'wide']);
+    // (Under a canopy, seen through it; under the solid mint, outlined; a gone plant counts for nothing.)
+    expect([...hiddenIds(state.shapes)].sort()).toEqual(['underMint']);
   });
   it('names a run of the same plant once: twelve liriope in a column are one run; a gap, another name or two alone are not (Jason, Oct 30)', () => {
     const c = (id: string, label: string, x: number, y: number) => ({ id, type: 'circle', x, y, radius: 0.75, color: '#16a34a', label, opacity: 0.65, locked: false, role: 'plant' } as CircleShape);
@@ -52,6 +63,24 @@ describe('drawing order', () => {
     // (A gap twice their width splits it in two runs of six.)
     const split = column.map((s, i) => (i >= 6 ? { ...s, y: s.y + 3 } : s));
     expect(labelRuns(split).map((r) => r.length)).toEqual([6, 6]);
+  });
+  it("moves a run's name off another name: onto the plant nearest the middle that's clear, else beside it (Jason, Oct 30)", () => {
+    const c = (id: string, x: number, y: number) => ({ id, type: 'circle', x, y, radius: 0.75, color: '#16a34a', label: 'Creeping liriope', opacity: 0.65, locked: false, role: 'plant' } as CircleShape);
+    const column = Array.from({ length: 12 }, (_, i) => c('l' + i, 1, -27.5 + i * 1.5));
+    const ppf = 33, w = 110, h = 13;
+    // (Clear: its middle.)
+    expect(runLabelSpot(column, w, h, ppf, [])).toEqual({ x: 1, y: -19.25 });
+    // (The Carport bed's name, 1.5 ft wide, at the same middle: the plant just past it.)
+    const bed = { x0: 0.75 * ppf - 25, x1: 0.75 * ppf + 25, y0: -19.25 * ppf - 7, y1: -19.25 * ppf + 7 };
+    const at = runLabelSpot(column, w, h, ppf, [bed])!;
+    expect(at.x).toBe(1);
+    expect(Math.abs(at.y + 19.25)).toBe(0.75);
+    // (A name across the whole column: beside it, to the left, else the right.)
+    const across = { x0: 0, x1: 1.75 * ppf, y0: -30 * ppf, y1: -10 * ppf };
+    const beside = runLabelSpot(column, w, h, ppf, [across])!;
+    expect(beside.x).toBeGreaterThan(1.75 + w / 2 / ppf);
+    // (Nowhere clear: none.)
+    expect(runLabelSpot(column, w, h, ppf, [{ x0: -1e4, x1: 1e4, y0: -1e4, y1: 1e4 }])).toBeNull();
   });
   it('leaves hidden roles out', () => {
     state.shapes = [sh('a', { role: 'shade' }), sh('b', { role: 'bed' })];

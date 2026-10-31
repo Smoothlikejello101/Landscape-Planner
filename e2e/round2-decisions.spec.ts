@@ -53,6 +53,9 @@ test('a locked shape\'s size and position boxes are shut too, and say why (4A: A
   await page.locator('.sheet .lockbtn').click();
   await expect(field(page, 'Width')).toBeDisabled();
   await expect(page.getByTestId('locked-fields').first()).toContainText('unlock it to change this');
+  // (In the Size section, first, by the boxes it shuts: Jason, Oct 30, a locked plant's spread "not editable, but nothing
+  // tells you that".)
+  await expect(page.getByTestId('section-size').getByTestId('locked-fields')).toBeVisible();
   await page.locator('.sheet .lockbtn').click();
   await expect(field(page, 'Width')).toBeEnabled();
 });

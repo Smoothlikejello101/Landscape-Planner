@@ -367,6 +367,7 @@ a { color: inherit; }
 .list-heading { font-size: calc(11px * var(--ts)); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #78716c; padding: 10px 0 4px; }
 .add-own { width: 100%; margin: 8px 0; }
 .hint.error { color: #b91c1c; }
+.hint.locked-hint { color: #92400e; font-weight: 600; margin-bottom: 6px; }
 .label-error { color: #b91c1c; font-weight: 600; }
 .field input[aria-invalid="true"] { border-color: #b91c1c; }
 .sheet-body details summary { cursor: pointer; font-size: calc(14px * var(--ts)); font-weight: 500; color: #44403c; padding: 6px 0; }
