@@ -1048,7 +1048,9 @@ export interface RowFlag { text: string; kind: 'native' | 'warn' | 'bad' | 'chec
 export function rowFlags(p: Plant): RowFlag[] {
   const out: RowFlag[] = [];
   const n = nativeHere(p);
-  if (n?.status === 'N') out.push({ text: `${n.state} native`, kind: 'native', title: `${nativeText(n)} (${n.source})`, testid: 'row-native' });
+  // (A cultivar's is its species': "KY native species", not "KY native", on 'Fireworks'. Jason, Oct 31, from round 3:
+  // Marcus, all three sessions; Ruth, Hank.)
+  if (n?.status === 'N') out.push({ text: `${n.state} native${n.species ? ' species' : ''}`, kind: 'native', title: `${nativeText(n, p.common)} (${n.source})`, testid: 'row-native' });
   if (p.invasive) out.push({ text: 'Invasive: not for planting', kind: 'bad', testid: 'row-invasive' });
   out.push(...householdFlags(p));
   if (poisonRating(p)?.skin) out.push({ text: 'Can irritate skin', kind: 'warn', title: `NC State lists ${p.poison ? 'it' : 'a parent'} as causing contact dermatitis`, testid: 'row-skin' });

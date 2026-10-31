@@ -32,7 +32,8 @@ test('bloom calendar for a bed and for the whole plan', async ({ page }) => {
   const chart = page.getByTestId('bloom-chart');
   await expect(chart.locator('.bloom-name').nth(1)).toHaveText("Heuchera 'Autumn Bride' ×2");
   await expect(chart.locator('.bloom-cell.on').first()).toBeVisible();
-  await expect(page.getByTestId('bloom-gaps')).toContainText(/Nothing here blooms in .*\. The whole plan blooms /);
+  // (Gaps counted against what's drawn, the months by season too: Jason, Oct 31.)
+  await expect(page.getByTestId('bloom-gaps')).toContainText(/Nothing here blooms in .*\. The whole plan blooms |Something is in bloom every month/);
   await closeSheet(page);
 
   // The whole plan, bed by bed, from the menu.
@@ -60,8 +61,9 @@ test('plants with no bloom months are listed by name, saying why; one of mine ge
   await expect(none).toHaveCount(1);
   await expect(none).toContainText('No bloom months');
   await expect(page.locator('.bloom-name.none')).toHaveText('Backyard hosta');
-  // Catalog plants all have months here: no call for a ZIP.
-  await expect(page.getByTestId('bloom-zip')).toHaveCount(0);
+  // (Little bluestem's season, which its sources give, runs past the earlier list's months: those by season alone,
+  // where flowering records near a garden would decide, so the calendar offers a ZIP. Jason, Oct 31.)
+  await expect(page.getByTestId('bloom-zip')).toHaveCount(1);
   // Add: its form, then back to the calendar with it in bloom.
   await page.getByRole('button', { name: 'Add bloom months to Backyard hosta' }).click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Edit my plant');
@@ -79,11 +81,11 @@ test('catalog plants with a season and no months count by the season, said so; w
   await addPlant(page, 'Boxwood', 30);
   await page.locator('.iconbtn[title=More]').click();
   await page.locator('.menu-item', { hasText: 'Bloom calendar' }).click();
-  // (As the month slider has it: in bloom March to May, drawn faint, and counted.)
+  // (As the month slider has it: in bloom March to May, drawn faint, and counted apart, "+1": Jason, Oct 31.)
   await expect(page.getByTestId('bloom-none')).toHaveCount(0);
   await expect(page.locator('.bloom-cell.on.by-season')).toHaveCount(3);
   await expect(page.getByTestId('bloom-by-season')).toContainText(/Boxwood.*: spring/);
-  await expect(page.locator('.bloom-count[data-month="4"]')).toHaveText('1');
+  await expect(page.locator('.bloom-count[data-month="4"]')).toHaveText('+1');
   await page.getByTestId('bloom-zip').click();
   await page.locator('.sheet-header .iconbtn').click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Bloom calendar');

@@ -452,9 +452,12 @@ export function shapeGroup(s: Shape): SVGGElement {
     if (sunWarningShown(check, s, state.sunWarnings)) {
       const r = vineDot ?? (s.type === 'circle' ? s.radius * ppf : Math.min(boxSize(s).w, boxSize(s).h) * ppf / 2);
       const bx = labelX + r * 0.7, by = labelY - r * 0.7;
+      // (A warning triangle, as Warnings calls it, ⚠: each badge its own shape, told apart without color. Jason, Oct 31,
+      // from round 3: Alex, colorblind, saw this and the hardiness badge as one. Circle: hardiness; square: poison;
+      // diamond: utilities.)
       g.appendChild(svgEl('g', { 'data-role': 'sun-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },
-        svgEl('circle', { cx: bx, cy: by, r: 8, fill: '#f59e0b', stroke: '#fff', 'stroke-width': 1.5 }),
-        svgEl('text', { x: bx, y: by + 0.5, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#fff' }, '!')));
+        svgEl('path', { d: `M${bx},${by - 9.5}L${bx + 9.5},${by + 7}L${bx - 9.5},${by + 7}Z`, fill: '#d97706', stroke: '#fff', 'stroke-width': 1.5, 'stroke-linejoin': 'round' }),
+        svgEl('text', { x: bx, y: by + 2, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 10, 'font-weight': 700, fill: '#fff' }, '!')));
     }
   }
   // Too cold, or maybe too warm, where the garden is (Layers → Warnings; Jason, Oct 30): a badge low on the right, a
@@ -488,7 +491,7 @@ export function shapeGroup(s: Shape): SVGGElement {
       const r = vineDot ?? s.radius * ppf;
       const bx = labelX - r * 0.7, by = labelY + r * 0.7;
       g.appendChild(svgEl('g', { 'data-role': 'utility-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },
-        svgEl('circle', { cx: bx, cy: by, r: 8, fill: '#ea580c', stroke: '#fff', 'stroke-width': 1.5 }),
+        svgEl('path', { d: `M${bx},${by - 9.5}L${bx + 9.5},${by}L${bx},${by + 9.5}L${bx - 9.5},${by}Z`, fill: '#ea580c', stroke: '#fff', 'stroke-width': 1.5, 'stroke-linejoin': 'round' }),
         svgEl('text', { x: bx, y: by + 0.5, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#fff' }, '!')));
     }
   }

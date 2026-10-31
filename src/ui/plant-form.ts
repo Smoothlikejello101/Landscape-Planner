@@ -141,8 +141,25 @@ export function renderPlantForm() {
     showSpecies();
     return was;
   };
-  botanical.input.addEventListener('change', () => { recheckSpecies(); });
-  same.addEventListener('change', () => { sameNote.textContent = ''; untickedAt = 0; }); // (seen, and decided)
+  // Male or female, for a species with separate male and female plants (Jason, Oct 31, from round 3: Owen's own male
+  // winterberry 'Jim Dandy' couldn't be said to be one, so 'Winter Red' went on asking for a male). Shown in place,
+  // as the species is ticked or changes; a copy of a sexed cultivar starts as it is.
+  const sexSel = el('select', { 'data-testid': 'pf-sex', id: 'pf-sex' }) as HTMLSelectElement;
+  const ownSex = editing ? rawMyPlant(editing.id)?.sex ?? editing.sex : startedFrom?.sex;
+  for (const [v, label] of [['', 'Not known'], ['female', 'Female'], ['male', 'Male']] as const) {
+    const o = el('option', { value: v }, label) as HTMLOptionElement;
+    if ((ownSex ?? '') === v) o.selected = true;
+    sexSel.appendChild(o);
+  }
+  const sexField = el('div', { className: 'field', 'data-testid': 'pf-sex-field' }, el('label', { for: 'pf-sex' }, 'Male or female'), sexSel,
+    el('div', { className: 'hint' }, 'Its kind has male and female plants: a female fruits with a male of its kind nearby. Said here, the reminders about partners count this one.'));
+  // (The species it's said to be decides; with none offered, the plant it started from.)
+  const separate = () => (species ? same.checked && species.fruit_set === 'separate' : startedFrom?.fruit_set === 'separate');
+  const showSex = () => { sexField.hidden = !separate(); };
+  showSex();
+  body.appendChild(sexField);
+  botanical.input.addEventListener('change', () => { recheckSpecies(); showSex(); });
+  same.addEventListener('change', () => { sameNote.textContent = ''; untickedAt = 0; showSex(); }); // (seen, and decided)
 
   // Sizes: typed on the number pad, in feet or inches (most tags give feet for
   // shrubs, inches for perennials). Writing a unit ("36 in") also works. The
@@ -318,6 +335,7 @@ export function renderPlantForm() {
       // (Kept as the person left them: switched to the catalog's, or not that one.)
       ...(editing?.sameAs ? { sameAs: editing.sameAs } : editing?.notSame ? { notSame: editing.notSame } : {}),
       ...(same.checked && species ? { species: species.id } : {}),
+      ...(!sexField.hidden && (sexSel.value === 'male' || sexSel.value === 'female') ? { sex: sexSel.value } : {}),
     };
   };
 

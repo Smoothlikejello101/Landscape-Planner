@@ -299,6 +299,11 @@ export interface ProjectData {
   phases?: string[];
   /** Where the garden is (from its ZIP): hardiness zone and frost dates. Null: cleared; absent: never set. */
   location?: GardenLocation | null;
+  /**
+   * Layers → Show plants: the status and phase shown, kept with the plan on this device as its zoom is (Jason, Oct 31,
+   * from round 3: Jordan and Priya found it reset by a reload, while hidden layers stayed). Not synced. Absent: none.
+   */
+  viewFilter?: ShapeFilter;
   zoom: number;
   offsetX: number;
   offsetY: number;

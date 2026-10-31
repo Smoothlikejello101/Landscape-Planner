@@ -1,4 +1,4 @@
-import { backupAll, backupSaid, buildProjectFile, canShareFiles, downloadText, importProjects, parseImportFile, parseImportPlants } from '../backup';
+import { backupAll, backupSaid, buildProjectFile, canShareFiles, downloadText, importProjects, parseImportFile, parseImportPlants, uniqueName } from '../backup';
 import { mergeMyPlants } from '../my-plants';
 import { el } from '../dom';
 import { I } from '../icons';
@@ -86,13 +86,22 @@ function backupSection(): HTMLElement {
   return section;
 }
 
+/** The list's order as it opened, kept until it closes (src/ui/render.ts calls projectsClosed). */
+let shownOrder: string[] | null = null;
+export function projectsClosed() { shownOrder = null; }
+
 export function renderProjectsPanel() {
   const close = () => { state.panel = null; render(); };
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, 'Projects (' + state.projects.length + ')'),
     closeButton(close));
   const list = el('div', {});
-  const sorted = [...state.projects].sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0));
+  // (Newest change first, as it opens; then kept so while it's open, a rename and a trip back included: rows moved
+  // under the finger, and a tap meant for one opened another. Jason, Oct 31, from round 3: Sam. New plans on top.)
+  const byTime = [...state.projects].sort((a, b) => (b.lastModified || 0) - (a.lastModified || 0));
+  shownOrder ??= byTime.map((p) => p.id);
+  const rank = (id: string) => shownOrder!.indexOf(id);
+  const sorted = byTime.sort((a, b) => rank(a.id) - rank(b.id));
   for (const p of sorted) {
     const isCurrent = p.id === state.currentProjectId;
     const shapeCount = isCurrent ? state.shapes.length : (p.shapeCount ?? 0);
@@ -143,7 +152,8 @@ export function renderProjectsPanel() {
   newBtn.addEventListener('click', async () => {
     const name = await askText('Name for the new project', 'Untitled', { ok: 'Make it', label: 'Project name' });
     if (name === null) return;
-    await openProject(await createProject(name));
+    // (Two plans of one name couldn't be told apart: "(2)", as an import does. Round 3, Sam.)
+    await openProject(await createProject(uniqueName(name, state.projects.map((p) => p.name))));
   });
 
   const sheet = el('div', { className: 'sheet' }, header, list, newBtn);
@@ -171,7 +181,7 @@ export function renderRenamePanel() {
   const input = el('input', { type: 'text', value: args?.originalName || '' });
   setTimeout(() => { input.focus(); input.select(); }, 50);
   const doRename = async () => {
-    if (renamingId) await renameProject(renamingId, input.value);
+    if (renamingId) await renameProject(renamingId, uniqueName(input.value.trim() || 'Untitled', state.projects.filter((p) => p.id !== renamingId).map((p) => p.name)));
     finish();
   };
   const saveBtn = el('button', { className: 'btn primary' }, 'Save');

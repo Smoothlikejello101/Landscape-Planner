@@ -95,7 +95,7 @@ export function renderPrintPanel() {
     body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Plants to show'),
       el('div', { style: { display: 'flex', gap: '8px' } }, st, ph),
       shown === 0 ? el('div', { className: 'hint error', 'data-testid': 'print-none' }, 'No plants on the plan are in this status and phase: none will print.') : null,
-      el('div', { className: 'hint' }, 'Beds, paths and buildings always print, unless hidden in Layers. Gone plants never do.')));
+      el('div', { className: 'hint' }, 'Beds, paths and buildings print too, unless hidden in Layers or given another phase. Gone plants never do.')));
   }
 
   const hasBg = !!state.bgImage?.visible;

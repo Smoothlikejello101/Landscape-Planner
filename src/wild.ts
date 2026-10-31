@@ -367,10 +367,13 @@ export function lawShort(lines: RuleHere[]): string {
   return nativeTo ? `${short}, though native to ${nativeTo}` : short;
 }
 /** Native status in words: "Native to Arkansas", "Introduced in Arkansas (not native)". */
-export function nativeText(n: NativeHere): string {
+export function nativeText(n: NativeHere, name?: string): string {
   const who = n.species ? 'Its species is ' : '';
   const say = n.status === 'N' ? `native to ${n.stateName}` : `introduced in ${n.stateName} (not native there)`;
-  return who ? who + say : say[0].toUpperCase() + say.slice(1);
+  if (!who) return say[0].toUpperCase() + say.slice(1);
+  // (A cultivar, named: what that means said, "species" alone wasn't enough. Jason, Oct 31, from round 3: Marcus.)
+  const cultivar = name?.match(/(['‘’].+['‘’])/)?.[1];
+  return who + say + (cultivar ? `; ${cultivar} is a cultivar of it` : '');
 }
 
 /**

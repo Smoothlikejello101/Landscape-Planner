@@ -11,6 +11,7 @@ import { lookMonthOf } from '../plant-looks';
 import { plantsById } from '../plants';
 import { state } from '../state';
 import type { CircleShape } from '../types';
+import { showyFlowers } from '../seasons';
 import { render } from './render';
 
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -25,14 +26,18 @@ export function stepMonth(d: number) { state.month = (((state.month ?? thisMonth
 
 /** How many of the plan's plants are in bloom in `month`, and how many say so only "around" (a season word). */
 export function bloomCount(month: number): { n: number; around: number; of: number } {
-  let n = 0, around = 0, of = 0; // (around: kept for a fuller list later)
+  // (Counted in bloom: by its months, listed or recorded; by a season word only, "around", said apart; flowers its
+  // sources call insignificant, not at all. Jason, Oct 31, from round 3: Hank's catmint made March a bloom month by
+  // its season alone, and Grace's oaks bloomed.)
+  let n = 0, around = 0, of = 0;
   for (const s of state.shapes) {
     if (s.type !== 'circle' || s.role !== 'plant' || !s.plantId || s.status === 'gone') continue;
     const m = lookMonthOf(s as CircleShape, month);
     if (!m) continue;
     of++;
+    if (!showyFlowers(plantsById[s.plantId])) continue;
     if (m.bloom === 'yes') n++;
-    else if (m.bloom === 'around') { n++; around++; }
+    else if (m.bloom === 'around') around++;
   }
   return { n, around, of };
 }
@@ -46,7 +51,7 @@ export function inBloom(month: number): { name: string; n: number; around: boole
   for (const s of state.shapes) {
     if (s.type !== 'circle' || s.role !== 'plant' || !s.plantId || s.status === 'gone') continue;
     const m = lookMonthOf(s as CircleShape, month);
-    if (!m || m.bloom === 'no') continue;
+    if (!m || m.bloom === 'no' || !showyFlowers(plantsById[s.plantId])) continue;
     const name = s.label || plantsById[s.plantId]?.common || 'A plant';
     const row = out.get(name) ?? out.set(name, { name, n: 0, around: true }).get(name)!;
     row.n++;
@@ -57,10 +62,11 @@ export function inBloom(month: number): { name: string; n: number; around: boole
 /** Whether the list of what's in bloom is open (kept while the month changes; closed with the bar). */
 let listOpen = false;
 const bloomText = (month: number) => {
-  const { n, of } = bloomCount(month);
+  const { n, around, of } = bloomCount(month);
   if (!of) return 'No plants from the catalog yet';
-  // (Those only "around" in bloom are drawn faint; the count says no more, to fit a phone's bar.)
-  return n ? `${n} of ${of} in bloom` : 'Nothing in bloom';
+  // (Those only "around" in bloom, by a season word, drawn faint: said apart, short, to fit a phone's bar.)
+  const more = around ? ` \u00b7 ${around} by season` : '';
+  return n ? `${n} of ${of} in bloom${more}` : around ? `${around} of ${of} by season only` : 'Nothing in bloom';
 };
 
 /** The plan's button that opens it. */

@@ -1,3 +1,4 @@
+import { crowdLevelsOf, crowdNoticeAfterSwap } from './crowd-notice';
 import { el, type Child } from '../dom';
 import { saveHardy, saveYard, yardOf } from '../yard';
 import { I } from '../icons';
@@ -73,7 +74,12 @@ function setMyPlantsFolded(v: boolean) {
  */
 function pick(p: Plant) {
   if (state.pickerLinkId) {
+    // (Placed plants swapped for another: closer to a neighbor now, said, as placing says it. Jason, Oct 31.)
+    const ids = [state.pickerLinkId, ...state.pickerLinkAlso];
+    const swapping = ids.every((id) => { const s = state.shapes.find((x) => x.id === id); return !!s?.plantId && !!plantsById[s.plantId]; });
+    const before = swapping ? crowdLevelsOf(ids) : null;
     linkFromPicker(p);
+    if (before) crowdNoticeAfterSwap(ids, before);
     state.panel = 'props';
   } else if (state.pickerForTree) {
     startTreeDraw(p.id);

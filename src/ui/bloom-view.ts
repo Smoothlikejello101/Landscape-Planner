@@ -55,10 +55,10 @@ export function bloomChart(sum: BloomSummary, back: PanelName = 'bloom'): HTMLEl
     grid.appendChild(el('div', { className: 'bloom-name', title: r.label + (r.colorText ? ` (${r.colorText})` : '') + season },
       ...nameParts(r.label, r.count)));
     for (let m = 1; m <= 12; m++) {
-      const on = r.months.includes(m);
+      const on = r.months.includes(m), faint = on && !!r.faint?.includes(m);
       grid.appendChild(el('div', {
-        className: 'bloom-cell' + (on ? ' on' : '') + (on && r.bySeason ? ' by-season' : '') + (on && pale(r.color) ? ' pale' : ''), style: on ? { background: r.color } : undefined,
-        title: on ? `${r.label}: ${r.bySeason ? `in bloom around ${MONTH_NAMES[m - 1]}${season}` : `blooms in ${MONTH_NAMES[m - 1]}`}` : undefined,
+        className: 'bloom-cell' + (on ? ' on' : '') + (faint ? ' by-season' : '') + (on && pale(r.color) ? ' pale' : ''), style: on ? { background: r.color } : undefined,
+        title: on ? `${r.label}: ${faint ? `in bloom around ${MONTH_NAMES[m - 1]}${season}` : `blooms in ${MONTH_NAMES[m - 1]}`}${r.notShowy ? ' (flowers not showy: not counted)' : ''}` : undefined,
       }));
     }
   }
@@ -74,10 +74,15 @@ export function bloomChart(sum: BloomSummary, back: PanelName = 'bloom'): HTMLEl
   // How many are in bloom each month; empty months within the plan's blooming season are gaps.
   const season = planSeason();
   grid.appendChild(el('div', { className: 'bloom-name total' }, 'In bloom'));
-  sum.perMonth.forEach((n, i) => grid.appendChild(el('div', {
-    className: 'bloom-count' + (n === 0 && season.includes(i + 1) ? ' gap' : ''), 'data-month': i + 1,
-  }, n ? String(n) : '–')));
-  const gaps = bloomGaps(sum.perMonth, season);
+  // (By their months; "+3" more by season alone, faint, as the month bar says them apart. Jason, Oct 31.)
+  sum.perMonth.forEach((n, i) => {
+    const around = sum.perMonthAround[i];
+    grid.appendChild(el('div', {
+      className: 'bloom-count' + (n + around === 0 && season.includes(i + 1) ? ' gap' : ''), 'data-month': i + 1,
+      ...(around ? { title: `${n} in bloom by their months, ${around} more by season only` } : {}),
+    }, n ? String(n) : around ? '' : '–', around ? el('span', { className: 'by-season-count' }, `+${around}`) : ''));
+  });
+  const gaps = bloomGaps(sum.perMonth.map((n, i) => n + sum.perMonthAround[i]), season);
   if (season.length) {
     wrap.appendChild(el('div', { className: 'hint', 'data-testid': 'bloom-gaps' }, gaps
       // (Measured against the whole plan's season, so say it in two sentences: "here", then the plan.)
@@ -92,7 +97,7 @@ export function bloomChart(sum: BloomSummary, back: PanelName = 'bloom'): HTMLEl
  * climate. A bed is measured against the whole plan's season, so a bed with
  * nothing in March shows a gap when the rest of the garden blooms then.
  */
-function planSeason(): number[] { return bloomSeason(bloomSummary(state.shapes, plantsById).perMonth); }
+function planSeason(): number[] { const all = bloomSummary(state.shapes, plantsById); return bloomSeason(all.perMonth.map((n, i) => n + all.perMonthAround[i])); }
 const fullMonth = (m: number) => MONTH_NAMES[m - 1];
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 /** "from March to October", "all year". */
@@ -119,8 +124,9 @@ export function renderBloomPanel() {
   if (!groups.length) body.appendChild(el('div', { className: 'hint' }, 'Add plants to see when they bloom.'));
   if (groups.length > 1) {
     const all = bloomSummary(state.shapes, plantsById);
-    const season = bloomSeason(all.perMonth);
-    const gaps = bloomGaps(all.perMonth, season);
+    const drawn = all.perMonth.map((n, i) => n + all.perMonthAround[i]);
+    const season = bloomSeason(drawn);
+    const gaps = bloomGaps(drawn, season);
     body.appendChild(el('div', { className: 'banner', 'data-testid': 'plan-bloom-gaps' }, !season.length
       ? 'No bloom months are known for the plants in this plan yet.'
       : gaps

@@ -4,7 +4,7 @@
 // One line, amber or red, that opens to say how far apart they are and why it matters (2026-10-27: it got in the way);
 // a plant crowded by one half again its size is "too far under" it, buried, and is best moved out toward its edge. A
 // spring bulb under a deciduous plant, which doesn't count (src/crowding.ts), gets no notice at all.
-import { pushHistory } from '../history';
+import { pushHistory, undo } from '../history';
 import { crowdingOf, crowdPairs, crowdRelation } from '../crowding';
 import { crowdOptions } from '../crowd-here';
 import { plantsById } from '../plants';
@@ -46,6 +46,45 @@ export function crowdNotice(shape: Shape, moveIt: () => void) {
   ], 10000, TESTID, { detail, tone: crowded.length ? 'red' : 'amber' });
   const n = document.getElementById('toast-action');
   if (n) n.dataset.about = shape.id; // (gone with the plant: src/ui/toast.ts placeNotice)
+}
+
+/** Each plant's crowding, as levels by the plant it's close to (for telling what a swap changed). */
+export function crowdLevelsOf(ids: string[]): Map<string, Map<string, Crowd['level']>> {
+  const shapes = state.shapes.filter((x) => shownWith(x, state.viewFilter));
+  const opts = { ...crowdOptions(), close: true };
+  const out = new Map<string, Map<string, Crowd['level']>>();
+  for (const id of ids) {
+    const s = state.shapes.find((x) => x.id === id);
+    if (s) out.set(id, new Map(crowdingOf(s, shapes, plantsById, opts).map((c) => [c.other.id, c.level])));
+  }
+  return out;
+}
+/**
+ * Placed plants swapped for another: the notice, for the first now closer to another than it was (Jason, Oct 31, from
+ * round 3: Dana's two yaupons swapped for 7 ft hollies sat on her boxwoods, and nothing said so; a swap too cold for the
+ * garden did warn). `before`: their crowding before the swap (crowdLevelsOf). Undo takes the swap back.
+ */
+export function crowdNoticeAfterSwap(ids: string[], before: Map<string, Map<string, Crowd['level']>>) {
+  dismissCrowdNotice();
+  if (!state.crowdWarnings) return;
+  const shapes = state.shapes.filter((x) => shownWith(x, state.viewFilter));
+  const opts = { ...crowdOptions(), close: true };
+  const worse = (id: string, c: Crowd) => { const was = before.get(id)?.get(c.other.id); return !was || (was === 'close' && c.level === 'crowded'); };
+  for (const id of ids) {
+    const shape = state.shapes.find((x) => x.id === id);
+    if (!shape) continue;
+    const crowds = crowdingOf(shape, shapes, plantsById, opts).filter((c) => worse(id, c));
+    if (!crowds.length) continue;
+    const crowded = crowds.filter((c) => c.level === 'crowded');
+    const list = crowded.length ? crowded : crowds;
+    const { line, detail } = crowdWords(shape, list[0], list.length - 1, !!crowded.length);
+    toastAction(line, [
+      { label: 'Leave it', run: () => leaveClose(shape.id, list.map((c) => c.other.id)) },
+      { label: 'Undo', run: () => { undo(); render(); } },
+      { label: 'Settings', run: openCrowdingSettings },
+    ], 10000, TESTID, { detail, tone: crowded.length ? 'red' : 'amber' });
+    return;
+  }
 }
 
 /**

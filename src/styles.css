@@ -239,6 +239,12 @@ a { color: inherit; }
 #toast-action { touch-action: pan-y; }
 #toast-action.swiping { transition: none; }
 #toast-action.gone { transition: transform 0.18s ease-in, opacity 0.18s ease-in; opacity: 0; }
+/* Placing: above the place bar, the words and ✕ on one line, the buttons on one under it (src/ui/toast.ts placeNotice). */
+#toast-action.at-bottom > span, #toast-action.at-bottom > .notice-line { order: 1; }
+#toast-action.at-bottom > .notice-close { order: 2; }
+#toast-action.at-bottom > .notice-detail { order: 3; }
+#toast-action.at-bottom > .notice-buttons { order: 4; flex: 1 1 100%; flex-wrap: nowrap; margin-left: 0; }
+#toast-action.at-bottom > .notice-buttons button { flex: 1 1 0; min-width: 0; padding: 10px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #toast-action button.notice-close { background: transparent; color: #d6d3d1; font-weight: 400; font-size: calc(18px * var(--ts)); padding: 6px 10px; min-width: 44px; }
 /* A notice folded to one line that opens to say more (the crowding notice): the line is its own button, with a
    chevron; amber or red, as the rings on the plan are. */
@@ -404,6 +410,7 @@ a { color: inherit; }
 .bloom-cell.on.by-season { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.8) 0 3px, transparent 3px 6px); border-style: dashed; }
 .bloom-count { text-align: center; font-size: calc(11px * var(--ts)); color: #44403c; }
 .bloom-count.gap { background: #fee2e2; color: #b91c1c; border-radius: 3px; font-weight: 600; }
+.bloom-count .by-season-count { color: #78716c; font-size: calc(9px * var(--ts)); }
 .bloom-group { margin-bottom: 16px; }
 /* A plant with no bloom months: why, across the months; amber for the person's own (they can add them). */
 .bloom-name.none { color: #78716c; }

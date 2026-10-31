@@ -159,6 +159,15 @@ export function placeNotice() {
   if (node.dataset.about && !state.shapes.some((x) => x.id === node.dataset.about)) { node.remove(); return; }
   node.style.top = '';
   const sheet = document.querySelector('.sheet');
+  // (Placing: just above the place bar, by the thumb, its buttons in one row. At the top it covered the new plant and
+  // the hint, a third of a small phone at large text. Jason, Oct 31, from round 3: Bea.)
+  const bar = !sheet && state.placing ? document.querySelector<HTMLElement>('[data-testid=place-bar]') : null;
+  node.classList.toggle('at-bottom', !!bar);
+  if (bar) {
+    const h = node.getBoundingClientRect().height;
+    node.style.top = `${Math.max(8, Math.round(bar.getBoundingClientRect().top - h - 8))}px`;
+    return;
+  }
   if (!sheet) return;
   const sheetTop = sheet.getBoundingClientRect().top;
   const h = node.getBoundingClientRect().height;

@@ -2,7 +2,7 @@ import { bedOf, isBed, isPlant } from './beds';
 import type { Plant } from './plants';
 import type { CircleShape, Shape } from './types';
 import { lookOf } from './looks';
-import { seasonMonths } from './seasons';
+import { bloomWindow, showyFlowers } from './seasons';
 import { localBloom } from './wild';
 
 // When things bloom: month-by-month, per bed and for the whole plan, so gaps
@@ -48,7 +48,13 @@ export function bloomColor(text: string | undefined, fallback: string): string {
  * A row: a plant name, how many, the months it blooms, its color. `bySeason`: months from the season words its sources
  * give (spring: Mar–May), none giving months, as the month slider draws it (src/seasons.ts); shown faint.
  */
-export interface BloomRow { label: string; count: number; months: number[]; color: string; colorText: string; bySeason?: string[] }
+export interface BloomRow {
+  label: string; count: number; months: number[]; color: string; colorText: string; bySeason?: string[];
+  /** Months only by its season, drawn faint and not counted (Jason, Oct 31): all of them, or those its list doesn't name. */
+  faint?: number[];
+  /** Flowers its sources call insignificant: listed, not counted. */
+  notShowy?: boolean;
+}
 /**
  * A plant with no bloom months, and why: one of the person's own plants (they can add them), a catalog plant whose
  * sources give a season only (`season`: "mid summer") or nothing, a fern (it doesn't flower), or a circle not
@@ -56,7 +62,8 @@ export interface BloomRow { label: string; count: number; months: number[]; colo
  */
 export type NoBloomWhy = 'mine' | 'season' | 'catalog' | 'fern' | 'unlinked';
 export interface NoBloomRow { label: string; count: number; why: NoBloomWhy; plantId?: string; season?: string[] }
-export interface BloomSummary { rows: BloomRow[]; missing: NoBloomRow[]; noData: number; perMonth: number[] }
+/** `perMonth`: plants in bloom by their months, as the month bar counts them; `perMonthAround`: more by season only. */
+export interface BloomSummary { rows: BloomRow[]; missing: NoBloomRow[]; noData: number; perMonth: number[]; perMonthAround: number[] }
 
 const MY_PREFIX = 'u-'; // (src/my-plants.ts: imported from there, it would bring the whole library in)
 function noBloomWhy(data: Plant | undefined): NoBloomWhy {
@@ -75,14 +82,13 @@ export function bloomSummary(plants: Shape[], plantsById: Record<string, Plant |
     if (!isPlant(p) || p.status === 'gone') continue;
     const label = p.label.trim() || 'Unlabeled plant';
     const data = p.plantId ? plantsById[p.plantId] : undefined;
-    let months = bloomMonths(data);
-    // (No months, only a season: its months by the season, as the month slider counts it. Dana, Marcus, Lena,
-    // Oct 30: the calendar left these out, and said nothing bloomed in months the slider showed them in bloom.)
-    let bySeason: string[] | undefined;
-    if (!months.length && data?.bloom_season?.length) {
-      const m = [...new Set(data.bloom_season.flatMap(seasonMonths))].sort((a, b) => a - b);
-      if (m.length) { months = m; bySeason = data.bloom_season; }
-    }
+    // (Its months as the month slider has them (src/seasons.ts bloomWindow): by records near the garden, its listed
+    // months, or its season, which beats the earlier list's unverified months; those by season alone faint. Dana,
+    // Marcus, Lena, Oct 30: the calendar left season-only plants out. Jason, Oct 31: a season beats the list.)
+    const w = data ? bloomWindow(data, { bloom: localBloom(data) }) : null;
+    const months = w?.months ?? [];
+    const faint = w ? months.filter((m) => !w.sure.includes(m)) : [];
+    const bySeason = faint.length ? data!.bloom_season : undefined;
     if (!months.length) {
       // (One row per name and plant: two circles labeled alike but linked to different plants are two rows.)
       const key = label + '\n' + (p.plantId ?? '');
@@ -98,17 +104,21 @@ export function bloomSummary(plants: Shape[], plantsById: Record<string, Plant |
     // color word found, "purple, red" was red, "pink, white" white. Round 3: Marcus, Ruth.)
     const c = p as CircleShape;
     const drawn = data ? lookOf(data, p.color, !!c.colorSet, c.flowerColor).pal.fl : undefined;
-    const row = byName.get(label) ?? { label, count: 0, months, color: drawn ?? bloomColor(colorText, p.color), colorText, ...(bySeason ? { bySeason } : {}) };
+    const row = byName.get(label) ?? { label, count: 0, months, color: drawn ?? bloomColor(colorText, p.color), colorText,
+      ...(bySeason ? { bySeason, faint } : {}), ...(showyFlowers(data) ? {} : { notShowy: true }) };
     row.count++;
     byName.set(label, row);
   }
   const rows = [...byName.values()].sort((a, b) => a.months[0] - b.months[0] || a.label.localeCompare(b.label));
-  // (Plants in bloom, as the month slider counts them: "4 of 18 in bloom", not kinds.)
-  const perMonth = Array.from({ length: 12 }, (_, i) => rows.filter((r) => r.months.includes(i + 1)).reduce((n, r) => n + r.count, 0));
+  // (Plants in bloom, as the month slider counts them: "4 of 18 in bloom", not kinds; by its months, apart from those
+  // by season alone; insignificant flowers in neither.)
+  const counted = rows.filter((r) => !r.notShowy);
+  const perMonth = Array.from({ length: 12 }, (_, i) => counted.filter((r) => r.months.includes(i + 1) && !r.faint?.includes(i + 1)).reduce((n, r) => n + r.count, 0));
+  const perMonthAround = Array.from({ length: 12 }, (_, i) => counted.filter((r) => r.faint?.includes(i + 1)).reduce((n, r) => n + r.count, 0));
   // The person's own first (they can add months), then by name.
   const order: NoBloomWhy[] = ['mine', 'unlinked', 'season', 'catalog', 'fern'];
   const none = [...missing.values()].sort((a, b) => order.indexOf(a.why) - order.indexOf(b.why) || a.label.localeCompare(b.label));
-  return { rows, missing: none, noData: none.length, perMonth };
+  return { rows, missing: none, noData: none.length, perMonth, perMonthAround };
 }
 
 /** The same, grouped by the bed each plant sits in (beds by name, then plants in no bed). */

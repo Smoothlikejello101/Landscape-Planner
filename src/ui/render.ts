@@ -41,7 +41,7 @@ import { filterActive, filterText } from '../status';
 import { toast } from './toast';
 import { clearedNow, loadCleared } from '../storage';
 import { bringBackCleared } from '../mutations';
-import { renderProjectsPanel, renderRenamePanel } from './projects-panel';
+import { projectsClosed, renderProjectsPanel, renderRenamePanel } from './projects-panel';
 import { moreOfSame, renderArrangePanel, renderPropsPanel, resetKindChange, sheetTitle } from './props-panel';
 import { hintDue, hintShown } from '../hints';
 import { featureHost, finishFeaturePlace, flipLastAdded, lastAdded, setFeatureKind, undoFeaturePlace } from '../feature-edit';
@@ -483,6 +483,7 @@ export function render() {
   }
   // (The picker closed: its plants' detail groups fold again, Jason, 2026-10-29.)
   if (shownPanel === 'plants' && state.panel !== 'plants') { foldDetailGroups(); partnersClosed(); }
+  if (state.panel !== 'projects' && state.panel !== 'rename') projectsClosed();
   if ((state.panel && state.panel !== shownPanel) || (state.menu && state.menu !== shownMenu)) {
     hideOldToast();
     document.getElementById('zoom-flash')?.classList.remove('on'); // (the zoom badge too: it sat over ⋮'s Redo, round 3)

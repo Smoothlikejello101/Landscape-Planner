@@ -16,8 +16,10 @@
 //   a color (variegated alone: green, variegated). Coloring leaves carry the fall colors too, and how far through
 //   fall the month is (0 to 1).
 // - Flowers. The months it flowers where the garden is (GBIF's records), else the earlier list's months, else its
-//   bloom seasons (spring: Mar–May; early spring: Mar; mid: Apr; late: May; and so on). Colors: its flower colors,
-//   "insignificant" left out (and the flowers not showy where that's all there is).
+//   bloom seasons (spring: Mar–May; early spring: Mar; mid: Apr; late: May; and so on). A season its sources give
+//   beats the earlier list's unverified months: the season's months, those the list names among them sure, the rest
+//   "around" (Jason, Oct 31: pink muhly, Fall by two sources, was in bloom in October alone). Colors: its flower
+//   colors, "insignificant" left out (and the flowers not showy where that's all there is).
 // - Fruit. Its fruit seasons by the same months, and its fruit colors.
 import type { Plant } from './plants';
 import { localBloom, localLeafFall, localLeafOut, type LocalBloom, type LocalLeafFall, type LocalLeafOut } from './wild';
@@ -98,14 +100,24 @@ export function summerLeafColors(p: Pick<Plant, 'leaf_color' | 'fall_colors'>): 
   return { colors: colors.includes('green') ? ['green', ...colors.filter((c) => c !== 'green')] : colors, variegated };
 }
 
-/** The months it flowers in, and what places them (the rules above). */
-export function bloomWindow(p: Plant, here: Here = {}): { months: number[]; basis: Basis } {
+/**
+ * The months it flowers in, what places them (the rules above), and which are `sure`: by records or listed months,
+ * drawn in full and counted as in bloom; the rest by its season, drawn faint, "around now".
+ */
+export function bloomWindow(p: Plant, here: Here = {}): { months: number[]; basis: Basis; sure: number[] } {
   const b = here.bloom;
-  if (b) return { months: monthRange(b.start, b.end), basis: 'records' };
-  if (p.bloom?.start) return { months: monthRange(p.bloom.start, p.bloom.end || p.bloom.start), basis: 'source' };
+  if (b) { const months = monthRange(b.start, b.end); return { months, basis: 'records', sure: months }; }
   const fromSeasons = [...new Set((p.bloom_season ?? []).flatMap(seasonMonths))].sort((a, c) => a - c);
-  return fromSeasons.length ? { months: fromSeasons, basis: 'season' } : { months: [], basis: 'unknown' };
+  if (p.bloom?.start) {
+    const listed = monthRange(p.bloom.start, p.bloom.end || p.bloom.start);
+    // (A plant of the user's own: its months are theirs, not the earlier list's.)
+    if (!fromSeasons.length || p.id.startsWith('u-')) return { months: listed, basis: 'source', sure: listed };
+    return { months: fromSeasons, basis: 'season', sure: fromSeasons.filter((m) => listed.includes(m)) };
+  }
+  return fromSeasons.length ? { months: fromSeasons, basis: 'season', sure: [] } : { months: [], basis: 'unknown', sure: [] };
 }
+/** Whether its flowers are worth counting: not where its sources call them insignificant and nothing else. */
+export const showyFlowers = (p: Plant | undefined): boolean => { const w = p?.flower_color ?? []; return !(w.length && w.every((c) => c === 'insignificant')); };
 /** Months start to end, wrapping the year's end (Nov–Jan). */
 export function monthRange(start: number, end: number): number[] {
   const out: number[] = [];
@@ -160,7 +172,8 @@ function flowersIn(p: Plant, month: number, here: Here): MonthFlowers {
   const text = !words.length && p.bloom?.color ? { colorText: p.bloom.color } : {};
   const w = bloomWindow(p, here);
   if (w.basis === 'unknown') return { state: 'unknown', colors, ...text, showy, basis: 'unknown' };
-  return { state: w.months.includes(month) ? 'bloom' : 'none', colors, ...text, showy, basis: w.basis };
+  const basis: Basis = w.basis === 'season' && w.sure.includes(month) ? 'source' : w.basis;
+  return { state: w.months.includes(month) ? 'bloom' : 'none', colors, ...text, showy, basis };
 }
 
 function fruitIn(p: Plant, month: number): MonthFruit {

@@ -88,13 +88,22 @@ describe('leaves through the year', () => {
 describe('flowers and fruit', () => {
   it('bloom in the months recorded near the garden, else the listed months, else the seasons', () => {
     const p = plant({ bloom: { start: 3, end: 5 }, bloom_season: ['summer'], flower_color: ['pink'] });
-    expect(bloomWindow(p, { bloom: { start: 3, end: 4, peak: 3, n: 40, area: 'state', stateName: 'Arkansas', species: false, source: 'GBIF' } })).toEqual({ months: [3, 4], basis: 'records' });
-    expect(bloomWindow(p)).toEqual({ months: [3, 4, 5], basis: 'source' });
-    expect(bloomWindow(plant({ bloom_season: ['late spring', 'early summer'] }))).toEqual({ months: [5, 6], basis: 'season' });
+    expect(bloomWindow(p, { bloom: { start: 3, end: 4, peak: 3, n: 40, area: 'state', stateName: 'Arkansas', species: false, source: 'GBIF' } })).toEqual({ months: [3, 4], basis: 'records', sure: [3, 4] });
+    const listed = plant({ bloom: { start: 3, end: 5 }, flower_color: ['pink'] });
+    expect(bloomWindow(listed)).toEqual({ months: [3, 4, 5], basis: 'source', sure: [3, 4, 5] });
+    expect(bloomWindow(plant({ bloom_season: ['late spring', 'early summer'] }))).toEqual({ months: [5, 6], basis: 'season', sure: [] });
     expect(bloomWindow(plant({ bloom: { start: 11, end: 1 } })).months).toEqual([11, 12, 1]);
-    expect(bloomWindow(plant({}))).toEqual({ months: [], basis: 'unknown' });
-    expect(monthLook(p, 4).flowers).toEqual({ state: 'bloom', colors: ['pink'], showy: true, basis: 'source' });
-    expect(monthLook(p, 8).flowers.state).toBe('none');
+    expect(bloomWindow(plant({}))).toEqual({ months: [], basis: 'unknown', sure: [] });
+    expect(monthLook(listed, 4).flowers).toEqual({ state: 'bloom', colors: ['pink'], showy: true, basis: 'source' });
+    expect(monthLook(listed, 8).flowers.state).toBe('none');
+    // A season its sources give beats the earlier list's unverified months: the season's months, the list's among them
+    // sure (pink muhly: Fall by two sources, Oct by the list). Jason, Oct 31.
+    const muhly = plant({ bloom: { start: 10, end: 10 }, bloom_season: ['fall'] });
+    expect(bloomWindow(muhly)).toEqual({ months: [9, 10, 11], basis: 'season', sure: [10] });
+    expect([9, 10, 11].map((m) => monthLook(muhly, m).flowers.basis)).toEqual(['season', 'source', 'season']);
+    expect(bloomWindow(p)).toEqual({ months: [6, 7, 8], basis: 'season', sure: [] }); // (listed Mar-May, sourced summer)
+    // (One of the person's own: its months are theirs.)
+    expect(bloomWindow({ ...muhly, id: 'u-1' })).toEqual({ months: [10], basis: 'source', sure: [10] });
     expect(monthLook(plant({}), 8).flowers).toEqual({ state: 'unknown', colors: [], showy: true, basis: 'unknown' });
   });
   it('leave out insignificant flowers, and use the earlier list\'s color words only where there are no colors', () => {
