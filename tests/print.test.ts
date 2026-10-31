@@ -94,6 +94,36 @@ describe('legend and text', () => {
   });
 });
 
+describe('as the screen shows it (Jason, Oct 31: print and pictures start from the screen)', () => {
+  it('with names hidden, no names, lengths, sun hours or plant numbers; a note keeps its text', () => {
+    state.roleViews = {};
+    const fence = { ...base, id: 'f', type: 'line', x: 0, y: 0, points: [[0, 0], [12, 0]], rotation: 0, role: 'boundary', color: '#44403c', label: 'Fence', showLength: true } as Shape;
+    const sun = { ...bed('s', 'Front of house', 0, 2, 10, 8), role: 'shade', sun: { mode: 'hours', hours: 6 } } as Shape;
+    const note = { ...base, id: 'n', type: 'text', x: 2, y: 12, label: 'Rain barrel', fontSize: 1, rotation: 0, role: 'other' } as Shape;
+    const shapes = [bed('b', 'Front', 0, 2, 10, 10), fence, sun, note, plant('p1', 'Coneflower', 2, 4), plant('p2', 'Coneflower', 5, 4)];
+    const layout = planLayout('letter', 'auto', printContent(shapes, null, false).bounds!);
+    const opts = { includeBackground: false, includeGrid: false, includePlantList: true };
+    const shown = buildPlanSvg(layout, shapes, null, opts, 100).svg;
+    expect(shown).toContain('>Front<');
+    expect(shown).toContain('>1</text>');
+    expect(shown).toContain('6 h');
+    const hidden = buildPlanSvg(layout, shapes, null, { ...opts, names: false }, 100).svg;
+    for (const gone of ['>Front<', '>1</text>', '6 h', 'Fence', '12 ft']) expect(hidden).not.toContain(gone);
+    expect(hidden).toContain('Rain barrel');
+  });
+  it('says the month a picture is drawn in, with what Layers leaves out', () => {
+    state.shapes = [plant('p1', 'Aster', 0, 0)];
+    state.viewFilter = { status: 'planned', phase: '', showGone: false };
+    state.roleViews = {};
+    state.month = 2;
+    expect(exportCaption()).toBe('Showing planned plants only \u00b7 As in February');
+    state.month = null;
+    state.viewFilter = { status: '', phase: '', showGone: false };
+    expect(exportCaption()).toBe('');
+    state.shapes = [];
+  });
+});
+
 describe('the exported picture', () => {
   it('says what Layers leaves out of it, and nothing when it shows everything (Priya, Oct 30)', () => {
     state.shapes = [plant('p1', 'Aster', 0, 0), { ...bed('b', 'Front', 0, 0, 4, 4), role: 'lawn' } as Shape];
@@ -115,10 +145,10 @@ describe('the exported picture', () => {
     expect(svg).toContain('Big blue lilyturf \u00d710');
     state.shapes = [];
   });
-  it('marks a locked shape with a padlock, not a dashed edge; a sun area with its hours', () => {
+  it('draws a locked shape as it is, no padlock nor dashed edge (Jason, Oct 31); a sun area with its hours', () => {
     const house = { ...bed('h', 'House', 0, 0, 10, 8), role: 'building', locked: true } as Shape;
     const svg = shapeToSvgString(house, 0, 0, 10);
-    expect(svg).toContain('data-role="locked-badge"');
+    expect(svg).not.toContain('data-role="locked-badge"');
     expect(svg).not.toContain('stroke-dasharray');
     const sun = { ...bed('s', 'Front of house', 0, 0, 10, 8), role: 'shade', sun: { mode: 'hours', hours: 6 } } as Shape;
     expect(shapeToSvgString(sun, 0, 0, 10)).toContain('Front of house · ☀ 6 h');
