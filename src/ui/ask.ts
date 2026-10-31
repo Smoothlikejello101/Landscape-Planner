@@ -6,7 +6,7 @@
 // phone's keyboard, alone). Focus goes to its field or its main button (Cancel, for one in red), stays inside it (Tab wraps), and comes back
 // to where it was when it closes. Esc, or a tap outside it, answers Cancel; Enter answers OK. Keys pressed in it
 // belong to it, never to the plan's shortcuts.
-import { el } from '../dom';
+import { el, tapSaid } from '../dom';
 
 export interface AskOptions {
   /** The main button's words ("Delete", "Update them"); OK by default. */
@@ -95,7 +95,7 @@ function sheet<T>(build: (finish: (v: T) => void) => { body: Node[]; first: HTML
 export function ask(message: string, opts: AskOptions = {}): Promise<boolean> {
   return sheet<boolean>(() => {
     const okBtn = el('button', { className: 'btn ' + (opts.danger ? 'danger-solid' : 'primary'), 'data-testid': 'ask-ok' }, opts.ok ?? 'OK') as HTMLButtonElement;
-    return { body: [el('div', { className: 'ask-message' }, message)], first: okBtn, okBtn, ok: () => true };
+    return { body: [el('div', { className: 'ask-message' }, tapSaid(message))], first: okBtn, okBtn, ok: () => true };
   }, opts, false);
 }
 
@@ -103,7 +103,7 @@ export function ask(message: string, opts: AskOptions = {}): Promise<boolean> {
 export function tell(message: string, opts: AskOptions = {}): Promise<void> {
   return sheet<void>(() => {
     const okBtn = el('button', { className: 'btn primary', 'data-testid': 'ask-ok' }, opts.ok ?? 'OK') as HTMLButtonElement;
-    return { body: [el('div', { className: 'ask-message' }, message)], first: okBtn, okBtn, ok: () => undefined };
+    return { body: [el('div', { className: 'ask-message' }, tapSaid(message))], first: okBtn, okBtn, ok: () => undefined };
   }, { ...opts, noCancel: true }, undefined);
 }
 /** Ask for a line of text; the text (trimmed), or null for Cancel. OK waits for something typed. */
@@ -121,7 +121,7 @@ export function askText(message: string, value = '', opts: AskOptions & { placeh
     input.addEventListener('mouseup', (e) => { if (fresh && input.value === value) { e.preventDefault(); input.select(); } fresh = false; });
     input.addEventListener('input', () => { fresh = false; });
     return {
-      body: [el('label', { className: 'ask-message' }, message), input],
+      body: [el('label', { className: 'ask-message' }, tapSaid(message)), input],
       first: input, okBtn,
       ok: () => (input.value.trim() ? input.value.trim() : null),
     };

@@ -11,6 +11,20 @@ export function hasKeyboard(): boolean {
   return !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
 }
 
+/**
+ * Words for a touch, as the device does it: "Tap where the note goes" on a phone; "Click where the note goes" with a
+ * mouse or trackpad (round 3, Alex: prompts said "Tap" on a computer). Tap, taps, tapped, tapping; a double tap is a
+ * double-click.
+ */
+export function tapSaid(text: string, mouse = hasKeyboard()): string {
+  if (!mouse) return text;
+  return text.replace(/\b([Dd]ouble[ -])?([Tt])ap(s|ped|ping)?\b/g, (_m, dbl: string | undefined, t: string, end: string | undefined) => {
+    const word = 'lick' + (end === 'ped' ? 'ed' : end === 'ping' ? 'ing' : end ?? '');
+    if (dbl) return (dbl[0] === 'D' ? 'Double-c' : 'double-c') + word;
+    return (t === 'T' ? 'C' : 'c') + word;
+  });
+}
+
 export function escapeHtml(s: unknown): string {
   return String(s).replace(/[<>&"']/g, (c) => ESCAPES[c]);
 }

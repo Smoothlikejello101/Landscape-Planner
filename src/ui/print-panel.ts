@@ -163,6 +163,9 @@ export function renderPrintPanel() {
   const create = el('button', { className: 'btn primary', 'data-testid': 'create-pdf' }, busy ? 'Making the PDF…' : 'Create PDF');
   create.disabled = busy || !printContent(state.shapes, state.bgImage, false).bounds;
   create.addEventListener('click', async () => {
+    // (Scrolled to the end, it stays there once the result has grown the bar: the last options aren't left under it.
+    // Round 3, Kim: "the footer covers the bottom checkboxes after Create".)
+    const at = printSheet(), atEnd = !!at && at.scrollTop + at.clientHeight >= at.scrollHeight - 8;
     busy = true; result = null; render();
     try {
       const { buildPlanPdf } = await import('../print-pdf');
@@ -175,7 +178,9 @@ export function renderPrintPanel() {
       if (state.panel === 'print') {
         render();
         // (The result where it can be seen: the bar it's in stays at the bottom of the sheet.)
-        document.querySelector('[data-testid=print-result]')?.scrollIntoView({ block: 'nearest' });
+        const sheet = printSheet();
+        if (sheet && atEnd) sheet.scrollTop = sheet.scrollHeight;
+        else document.querySelector('[data-testid=print-result]')?.scrollIntoView({ block: 'nearest' });
       }
     }
   });
@@ -208,6 +213,8 @@ export function renderPrintPanel() {
   overlay.addEventListener('click', (e) => { if (e.target === overlay) { state.panel = null; render(); } });
   return overlay;
 }
+/** The print sheet, as it's drawn now (each render draws it anew). */
+const printSheet = () => document.querySelector<HTMLElement>('[data-testid=create-pdf]')?.closest<HTMLElement>('.sheet') ?? null;
 /** "Back yard-plan-2026-10-25.pdf"; a title already ending in "plan" isn't given another ("My plan-2026-10-25.pdf"). */
 export function pdfName(title: string, date: string): string {
   const base = safeFileName(title);

@@ -226,7 +226,11 @@ function warningList(): HTMLElement {
 }
 
 /** Its plants selected and in view, shown if hidden or filtered out (as a Layers row does). */
-function showOnPlan(ids: string[]) {
+/**
+ * Select these shapes on the plan and bring the first into view, showing any a layer or the plants shown hid; the
+ * sheet closes (a warning's row; a row of what's in bloom, src/ui/year-bar.ts, where the month stays).
+ */
+export function showOnPlan(ids: string[]) {
   const shapes = ids.map((id) => state.shapes.find((s) => s.id === id)).filter((s) => !!s);
   if (!shapes.length) return;
   for (const s of shapes) {

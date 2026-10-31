@@ -221,7 +221,7 @@ export function renderPlantForm() {
     });
     sunRow.appendChild(b);
   }
-  body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Sun (tap all that apply)'), sunRow));
+  body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Sun (choose all that apply)'), sunRow));
 
   // Hardiness zones and water needs, from the tag (optional, Oct 30): with the species ticked, its own stand over the
   // species'. (Read as typed: the hint shows how.)

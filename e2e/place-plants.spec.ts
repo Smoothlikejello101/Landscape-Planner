@@ -14,11 +14,11 @@ test('pick a plant once, tap each spot, Undo the last, Done leaves the batch sel
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await pick(page, 'Tennessee coneflower');
-  await expect(banner(page)).toHaveText('Tap to place Tennessee coneflower · 0 placed');
+  await expect(banner(page)).toHaveText(/^(Tap|Click) to place Tennessee coneflower · 0 placed$/);
   await expect(bar(page).getByTestId('place-switch')).toContainText('Tennessee coneflower');
   await expect(page.locator('.bottom-toolbar .tool-btn')).toHaveCount(0);
   for (const x of [-4, -1, 2]) await tapFromCenter(page, x, 0);
-  await expect(banner(page)).toHaveText('Tap to place Tennessee coneflower · 3 placed');
+  await expect(banner(page)).toHaveText(/^(Tap|Click) to place Tennessee coneflower · 3 placed$/);
   expect(await shapeCount(page)).toBe(3);
   await bar(page).getByRole('button', { name: 'Undo' }).click();
   expect(await shapeCount(page)).toBe(2);
@@ -48,9 +48,9 @@ test('recent plants are one tap; the plant in hand can be switched; Place more f
   await bar(page).getByTestId('place-switch').click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Switch plant');
   await pick(page, 'Black-eyed Susan');
-  await expect(banner(page)).toHaveText(/Tap to place Black-eyed Susan.* · 0 placed/); // (its own count: the coneflower's isn't carried over)
+  await expect(banner(page)).toHaveText(/(Tap|Click) to place Black-eyed Susan.* · 0 placed/); // (its own count: the coneflower's isn't carried over)
   await tapFromCenter(page, 4, 0);
-  await expect(banner(page)).toHaveText(/Tap to place Black-eyed Susan.* · 1 placed/);
+  await expect(banner(page)).toHaveText(/(Tap|Click) to place Black-eyed Susan.* · 1 placed/);
   await bar(page).getByRole('button', { name: 'Done' }).click();
   expect(await shapeCount(page)).toBe(2);
 
@@ -102,7 +102,7 @@ test('an existing tree: pick which, or draw an unknown one, by trunk and canopy 
   await expect(page.getByTestId('unverified-note')).toBeVisible();
   await expect(page.getByTestId('partly-badge').first()).toBeAttached();
   await first.locator('[data-testid=plant-place]').click();
-  await expect(page.getByTestId('draw-banner')).toContainText('Tap the trunk');
+  await expect(page.getByTestId('draw-banner')).toContainText(/(Tap|Click) the trunk/);
   await tapFromCenter(page, 0, 0);
   await tapFromCenter(page, 5, 0);
   await expect(page.locator('.sel-pill .name')).toHaveText(name);

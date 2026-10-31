@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, openFresh, shapeCount, tapFromCenter } from './helpers';
+import { addKind, openFresh, shapeCount, tapFromCenter, tapping } from './helpers';
 
 // Adding more of the same, the plant search, and property lines.
 
@@ -29,7 +29,7 @@ test('More draws another of the same tree, or another of a drawn thing', async (
   await page.getByTestId('unknown-tree').click();
   await tapFromCenter(page, -4, 0); await tapFromCenter(page, -4, 3);
   await page.getByTestId('pill-place-more').click();
-  await expect(drawBanner(page)).toHaveText('Existing tree: Tap the trunk'); // drawn, not a default-size circle
+  await expect(drawBanner(page)).toHaveText(tapping('Existing tree: Tap the trunk', true)); // drawn, not a default-size circle
   await expect(page.getByTestId('place-bar')).toHaveCount(0);
   await tapFromCenter(page, 4, 0); await tapFromCenter(page, 4, 2);
   expect(await shapeCount(page)).toBe(2);

@@ -1,5 +1,17 @@
 [
   {
+    "id": 2,
+    "date": "next",
+    "items": [
+      "On a computer, the app’s instructions now speak of the mouse, not of a touch screen.",
+      "Through the year: a plant in the list of what’s in bloom selects those plants on the plan, and the month stays.",
+      "Print: after Create, its last options are no longer hidden under the bar at the bottom.",
+      "Several plants selected on a small phone: the bar fits, its buttons shown as icons when space is short.",
+      "Layers counts every locked shape, locked on its own or with its layer, and a layer’s row says “1 locked shape” when a shape is locked on its own.",
+      "A vine on a fence or trellis: hiding that layer hides the vine’s band along it too; its planting spot and name stay."
+    ]
+  },
+  {
     "id": 1,
     "date": "2026-10-31",
     "items": [

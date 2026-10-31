@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, canvasBox, closeSheet, drag, field, openFresh, shapeCount, addPlainShape, setRole, openSections, openSettings } from './helpers';
+import { addKind, canvasBox, closeSheet, drag, field, openFresh, shapeCount, addPlainShape, setRole, openSections, openSettings, tapping } from './helpers';
 
 // At the starting view (zoom 100%, 24 px per foot, view starting at -10 ft),
 // canvas pixel 24*k is k-10 ft: tapping at multiples of 24 px lands on the grid.
@@ -14,7 +14,7 @@ const shapePath = (page: Page) => page.locator('#canvas-svg polygon[data-shape-i
 
 async function drawL(page: Page) {
   await addKind(page, 'plain', 'poly');
-  await expect(page.getByTestId('draw-banner')).toContainText('Plain shape: Tap each corner');
+  await expect(page.getByTestId('draw-banner')).toContainText(tapping('Plain shape: Tap each corner'));
   for (const [x, y] of [[2, 2], [12, 2], [12, 6], [6, 6], [6, 12], [2, 12]]) await tapFt(page, x, y);
   await expect(drawPoints(page)).toHaveCount(6);
   await expect(page.getByTestId('draw-banner')).toContainText('first point');
@@ -184,7 +184,7 @@ test('measure two points, keep it as a dimension line', async ({ page }) => {
 test('text notes: multi-line, sized in feet, scale with zoom', async ({ page }) => {
   await openFresh(page);
   await addKind(page, 'note');
-  await expect(page.getByTestId('draw-banner')).toContainText('Tap where the note goes');
+  await expect(page.getByTestId('draw-banner')).toContainText(/(Tap|Click) where the note goes/);
   await tapFt(page, 4, 4);
   await expect(page.locator('.sheet-header .title')).toHaveText('Note'); // a note opens on its text
   await openSections(page);
