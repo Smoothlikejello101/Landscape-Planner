@@ -30,7 +30,10 @@ import { flushSave, initStorage, refreshClipboard, requestPersistence, save, set
 import { flashZoom, render } from './ui/render';
 import { dismissToastAction, toast } from './ui/toast';
 import { closeYear, stepMonth } from './ui/year-bar';
-import { noteVisit } from './hints';
+import { noteVisit, visitedBefore } from './hints';
+import { newsAtStart } from './whats-new';
+import { tellWhatsNew } from './ui/whats-new-panel';
+import { introActive } from './ui/intro-card';
 import { installErrorLog } from './error-log';
 import { pxPerFoot } from './geometry';
 import { asking, dismissAsk, tell } from './ui/ask';
@@ -308,6 +311,9 @@ async function start() {
     if (e instanceof StorageUnavailableError) { showStorageError(); return; }
     throw e;
   }
+  // What's new since this device last opened the app (src/whats-new.ts): read before the visit is noted, which is how
+  // a device used before the list existed is told from a new one.
+  const news = newsAtStart(visitedBefore());
   noteVisit(); // (before the first render: a hint may be due again)
   loadMyPlants();
   loadViewSettings(); // (full-size rings and crowding outlines, as left on this device)
@@ -317,6 +323,8 @@ async function start() {
   setSaveStateListener(updateSaveState);
   pushHistory(); // seed undo history with the loaded state
   render();
+  // (Said once, after the first render; not over the guided introduction's card, though its list still marks them New.)
+  tellWhatsNew(news, !introActive());
   if (migrationError) {
     void tell("Some projects from the previous version couldn't be copied (" + migrationError + "). They are still stored on this device; the app will try again next time it opens.");
   }

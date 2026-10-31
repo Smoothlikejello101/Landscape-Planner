@@ -13,6 +13,7 @@ import { openLocation } from './location-panel';
 import { openFeedback } from './feedback-sheet';
 import { MARK_SMALL } from '../brand';
 import { showMeAround } from './intro-card';
+import { openWhatsNew } from './whats-new-panel';
 import { openPrint } from './print-panel';
 
 /** Select mode on or off (the lasso button on the top bar). */
@@ -93,6 +94,8 @@ export function renderMoreMenu() {
     icon: I.help, label: 'Show me around', testid: 'menu-intro',
     onClick: () => { state.menu = null; showMeAround(); render(); },
   });
+  // What changed in each update, newest first (src/whats-new.ts; Jason, Oct 31: for the beta's testers).
+  items.push({ icon: I.news, label: 'What\u2019s new', testid: 'menu-whats-new', onClick: openWhatsNew });
   items.push({
     icon: I.mail,
     label: 'Send feedback',
