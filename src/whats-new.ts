@@ -59,10 +59,13 @@ export function newsAtStart(usedBefore: boolean, releases: Release[] = RELEASES)
   return news;
 }
 
-/** "Oct 31, 2026"; the release not yet out: in Next, "Coming in the next update", in a release build, its build day. */
+/**
+ * "Oct 31, 2026"; the release not yet out: in Next, "Not released yet" (Jason, Oct 31: its changes are already running
+ * there; what they await is the testers' app), in a release build, its build day.
+ */
 export function releaseDate(date: string, channel: Channel = CHANNEL, built = typeof __BUILD_TIME__ === 'string' ? __BUILD_TIME__ : ''): string {
   if (date === 'next') {
-    if (channel === 'next' || !built) return 'Coming in the next update';
+    if (channel === 'next' || !built) return 'Not released yet';
     date = built;
   }
   const [y, m, d] = date.split('-').map(Number);
