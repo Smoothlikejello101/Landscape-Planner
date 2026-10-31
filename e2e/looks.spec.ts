@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { openFresh, tapFromCenter } from './helpers';
+import { openFresh, tapFromCenter, zoomPct } from './helpers';
 
 // Plants drawn as pictures (src/looks.ts; Jason, Oct 27–29: R5c, every plant in bloom), or as plain circles from
 // Layers, on this device.
@@ -79,6 +79,40 @@ test('a plant under a shorter, solid one: a pin and its name over it, outlined w
   await expect(page.locator('.sel-pill .name')).toHaveText('Mountain mint');
   // (The mint selected: the phlox under it outlined, to see how far it reaches.)
   await expect(over.locator('[data-role=hidden-rim][data-mark=outline]')).toHaveCount(1);
+});
+
+test("a hidden plant's pin shrinks as the plan zooms out, and goes below 30%; zoomed back in, it's back (Jason, Oct 31)", async ({ page }) => {
+  await openFresh(page);
+  const place = async (name: string, dx: number) => {
+    await page.locator('.tool-btn.plants').click();
+    await page.getByTestId('plant-search').fill(name);
+    await page.locator('.sheet .proj-row', { hasText: name }).first().locator('[data-testid=plant-place]').click();
+    await tapFromCenter(page, dx, 0);
+    await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
+    await page.keyboard.press('Escape');
+  };
+  await place('Creeping phlox', 0);
+  await place('Mountain mint', 0.5);
+  const pins = page.locator('#canvas-svg g[data-role=hidden-over] [data-role=hidden-rim][data-mark=pin]');
+  await expect(pins).toHaveCount(1);
+  const radius = async () => Number(await pins.locator('circle').first().getAttribute('r'));
+  let last = await radius();
+  expect(last).toBe(4.5);
+  const zoomOut = page.getByRole('button', { name: 'Zoom out' });
+  // (Smaller with each step out, until the plant's a speck or the plan's below 30%: then none.)
+  for (let i = 0; i < 20 && (await zoomPct(page)) >= 30; i++) {
+    await zoomOut.click();
+    if (!(await pins.count())) break;
+    const r = await radius();
+    expect(r).toBeLessThanOrEqual(last);
+    last = r;
+  }
+  expect(last).toBeLessThan(4.5); // (smaller before it went)
+  for (let i = 0; i < 20 && (await zoomPct(page)) >= 30; i++) await zoomOut.click();
+  await expect(pins).toHaveCount(0);
+  await expect(page.locator('#canvas-svg [data-role=pin-hit]')).toHaveCount(0);
+  for (let i = 0; i < 20 && (await zoomPct(page)) < 60; i++) await page.getByRole('button', { name: 'Zoom in' }).click();
+  await expect(pins).toHaveCount(1);
 });
 
 test('the tallest plant is drawn on top, see-through as a canopy over a plant growing under it (Jason, Oct 30)', async ({ page }) => {

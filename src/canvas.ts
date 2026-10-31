@@ -25,6 +25,7 @@ import { state } from './state';
 import { isArbor, isTrellis, LATTICE_STEP, latticePath, SLAT_STEP, slatsPath } from './structures';
 import type { CircleShape, Point, Shape, ShapeFilter, TextShape } from './types';
 import { groundcoverRadius, supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
+import { pinRadius } from './pins';
 import { lookFor, lookMarkup, lookMonthOf, lookShown, plannedEdge } from './plant-looks';
 import { bandBlooms, bandLeaves, colorIn, coverBlooms, levelOf } from './looks';
 
@@ -906,17 +907,21 @@ function liftHidden(shapes: Element) {
     if (!s || s.type !== 'circle') continue;
     const cx = (s.x - state.offsetX) * ppf, cy = (s.y - state.offsetY) * ppf, r = Math.max(2, drawnRadius(s) * ppf - 1);
     const outlined = state.selectedIds.includes(id) || (hiddenBy.get(id) ?? []).some((c) => state.selectedIds.includes(c));
-    rims.push(outlined
-      ? svgEl('g', { 'data-role': 'hidden-rim', 'data-rim-of': id, 'data-mark': 'outline' },
-        svgEl('circle', { cx, cy, r, fill: 'none', stroke: 'rgba(255,255,255,0.75)', 'stroke-width': 3 }),
-        svgEl('circle', { cx, cy, r, fill: 'none', stroke: '#292524', 'stroke-width': 1.5, 'stroke-dasharray': '2 3', 'stroke-linecap': 'round', opacity: 0.8 }))
-      : svgEl('g', { 'data-role': 'hidden-rim', 'data-rim-of': id, 'data-mark': 'pin' },
-        svgEl('circle', { cx, cy, r: 4.5, fill: '#fff', opacity: 0.9 }), svgEl('circle', { cx, cy, r: 2.6, fill: '#292524' })));
+    // (Its pin sized by the plant as drawn, none where it's a speck or the plan is zoomed far out: src/pins.ts.)
+    const pin = outlined ? null : pinRadius(r, state.zoom);
+    if (outlined) rims.push(svgEl('g', { 'data-role': 'hidden-rim', 'data-rim-of': id, 'data-mark': 'outline' },
+      svgEl('circle', { cx, cy, r, fill: 'none', stroke: 'rgba(255,255,255,0.75)', 'stroke-width': 3 }),
+      svgEl('circle', { cx, cy, r, fill: 'none', stroke: '#292524', 'stroke-width': 1.5, 'stroke-dasharray': '2 3', 'stroke-linecap': 'round', opacity: 0.8 })));
+    else if (pin) rims.push(svgEl('g', { 'data-role': 'hidden-rim', 'data-rim-of': id, 'data-mark': 'pin' },
+      svgEl('circle', { cx, cy, r: pin, fill: '#fff', opacity: 0.9 }), svgEl('circle', { cx, cy, r: Math.round(pin * 0.58 * 10) / 10, fill: '#292524' })));
     // (Its pin, a finger wide, and its lifted name pick it: round 3, Hank couldn't pick a daffodil under a catmint.
-    // A tap there finds it in the stack too, for "tap again": src/gestures.ts shapesAt.)
-    const pinHit = svgEl('circle', { 'data-pin-of': id, 'data-role': 'pin-hit', cx, cy, r: 12, fill: 'transparent', 'pointer-events': 'all' });
-    pinHit.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
-    if (!outlined) rims.push(pinHit);
+    // A tap there finds it in the stack too, for "tap again": src/gestures.ts shapesAt. No pin, no target: zoomed in,
+    // it's back.)
+    if (pin) {
+      const pinHit = svgEl('circle', { 'data-pin-of': id, 'data-role': 'pin-hit', cx, cy, r: 12, fill: 'transparent', 'pointer-events': 'all' });
+      pinHit.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
+      rims.push(pinHit);
+    }
     const label = shapes.querySelector(`:scope > g[data-shape-group="${CSS.escape(id)}"] > [data-role=plant-label]`);
     // (Selected, its name shows whatever's around it.)
     if (label && hiddenUnnamed.has(id) && !state.selectedIds.includes(id)) label.remove();
