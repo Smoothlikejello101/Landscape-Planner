@@ -25,6 +25,7 @@ import { currentProject, storageIsDurable } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
 import { renderSettingsPanel } from './settings-panel';
+import { renderWhatsNewPanel } from './whats-new-panel';
 import { snapOn } from '../tidy';
 import { dismissToastAction, hideOldToast, placeNotice, toastAction } from './toast';
 import { renderMoreMenu, toggleSelectMode } from './menu';
@@ -495,6 +496,7 @@ export function render() {
   else if (state.panel === 'switchPlant') panelNode = renderSwitchPanel();
   else if (state.panel === 'feedback') panelNode = renderFeedbackSheet();
   else if (state.panel === 'settings') panelNode = renderSettingsPanel();
+  else if (state.panel === 'whatsNew') panelNode = renderWhatsNewPanel();
   if (panelNode) {
     root.appendChild(panelNode);
     const sheet = scrolled ? panelNode.querySelector<HTMLElement>('.sheet') ?? (panelNode.classList.contains('sheet') ? panelNode : null) : null;

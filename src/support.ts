@@ -23,7 +23,7 @@ export const SETTING_KEYS = [
   'lp-current', 'lp-idb-in-use', 'lp-text-size', 'lp-text-size-2', 'lp-yard', 'lp-hardy-here', 'lp-square', 'lp-snap', 'lp-tidy', 'lp-kind-prefs',
   'lp-recent-plants', 'lp-full-rings', 'lp-crowding', 'lp-crowd-warn', 'lp-warn-hardy', 'lp-warn-poison', 'lp-warn-fruit', 'lp-zoom-buttons', 'lp-plant-looks', 'lp-label-size', 'lp-filters-open', 'lp-my-plants-folded', 'lp-sync-device',
   'lp-zip-county', 'lp-zip-prompt-dismissed', 'lp-intro', 'lp-last-visit', 'lp-returned', 'lp-hint-full-size', 'lp-canopy-hint',
-  'lp-hint-tap-under', 'lp-hint-drag-pans', 'lp-tap-guard',
+  'lp-hint-tap-under', 'lp-hint-drag-pans', 'lp-tap-guard', 'lp-whats-new',
 ];
 /** Data, by name and size: exact keys, and prefixes (a project per key, an unsaved-edits journal per project). */
 export const DATA_KEYS = ['lp-projects', 'lp-clipboard', ERROR_LOG_KEY];

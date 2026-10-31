@@ -16,6 +16,9 @@ function put(key: string, v: number): void {
   try { localStorage.setItem(key, String(v)); } catch { /* no storage: nothing kept */ }
 }
 
+/** Whether the app has been open on this device before (a last visit kept): read before noteVisit at start. */
+export const visitedBefore = (): boolean => num(VISIT_KEY) > 0;
+
 /** The app was opened, brought back or left. Opened after AWAY_DAYS or more away: the person is back. */
 export function noteVisit(now = Date.now()): void {
   const last = num(VISIT_KEY);

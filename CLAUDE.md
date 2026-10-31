@@ -14,6 +14,9 @@
 - Storage changes need a migration path and a test in tests/storage.test.ts.
 - Service worker updates are user-confirmed (src/pwa.ts); don't add
   automatic reloads.
+- A change people will notice adds a line to src/whats-new.ts, in the PR
+  that makes it: what they'll see, in plain words (the app tells them after
+  the update).
 - Commits: end messages with the Co-Authored-By line.
 - Plant catalog (public/plants.json) is version 2, sourced facts: see
   docs/catalog-format.md; which sources may be used: docs/catalog-sources.md.
