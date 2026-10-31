@@ -508,6 +508,8 @@ describe('how a plant spreads: by seed, and underground or by runners: two facts
     expect(rootText(p(undefined, 'Clumping'))).toBe("Doesn't run: Clumping");
     expect(rootText(p(undefined, 'Clumping', true))).toBe(''); // (an invasive plant)
     expect([rootText(p(undefined, 'Naturalizing')), rootText(p(undefined, 'Twining vine'))]).toEqual(['Naturalizing', '']);
+    // (One reading of its page says aggressively, the other not: Jason, Oct 30.)
+    expect(rootText(p(undefined, 'Spreading rhizome, maybe aggressive'))).toBe('Spreads, maybe aggressively, underground or by runners: Spreading rhizome');
   });
   it('filters: stays put (doesn\'t run, self-sows only a little or is sterile, not invasive), self-sows freely, runs, runs aggressively', () => {
     // (Sterile counts: it only ever comes with a source. Jason, 2026-10-27.)
@@ -518,6 +520,9 @@ describe('how a plant spreads: by seed, and underground or by runners: two facts
     expect([spreadsAs(p('Prolific', 'Clumping'), 'seed'), spreadsAs(p('Unrated', 'Clumping'), 'seed'), spreadsAs(p('Modest', 'Clumping'), 'seed')]).toEqual([true, true, false]);
     expect([spreadsAs(p('Modest', 'Suckering (slow)'), 'runs'), spreadsAs(p('Modest', 'Suckering (slow)'), 'aggressive')]).toEqual([true, false]);
     expect([spreadsAs(p('Modest', 'Runner - CONTAIN'), 'aggressive'), spreadsAs(p('Prolific', 'Clumping'), 'aggressive')]).toEqual([true, false]);
+    // (Maybe aggressive counts as aggressive, as self-sowing of unknown freeness counts as free.)
+    expect([spreadsAs(p('Modest', 'Suckering, maybe aggressive'), 'runs'), spreadsAs(p('Modest', 'Suckering, maybe aggressive'), 'aggressive')]).toEqual([true, true]);
+    expect(spreadWays(p('Modest', 'Runner (stolons), maybe aggressive'))).toEqual(['aggressive']);
     expect([spreadsAs(p('Modest', 'Mat-forming'), 'runs'), spreadsAs(p('Modest', 'Naturalizing'), 'runs'), spreadsAs(p('Prolific', 'Reseeding annual'), 'runs')]).toEqual([true, true, false]);
     expect(plantMatches(p('Modest', 'Clumping'), { ...PLANT_FILTER_DEFAULTS, spread: ['runs'] })).toBe(false);
   });

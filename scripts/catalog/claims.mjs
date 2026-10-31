@@ -480,6 +480,9 @@ export function agrees(fact, a, b) {
     const wb = words(b);
     return [...words(a)].some((x) => wb.has(x));
   }
+  // (A habit only one reading of its page calls aggressive, "Spreading rhizome, maybe aggressive" (second-reading.mjs),
+  // agrees with the part both readings share: another source's plain "Spreading rhizome" backs it, and it backs that.)
+  if (fact === 'habit' && typeof a === 'string' && typeof b === 'string') return a.replace(/, maybe aggressive$/, '') === b.replace(/, maybe aggressive$/, '');
   return a === b;
 }
 

@@ -7,7 +7,7 @@
 // backwards).
 
 import { ATTRACTS, BARK, BARK_COLORS, bloomSeasons, CLIMBING, EDIBLE_PARTS, flowerColors, FORM_WORDS, HABIT_FORMS, ncsuNoPoison, PART_COLORS, PETS, SEASONS, TEXTURES, TOLERATES } from './claims.mjs';
-import { FRUIT_SET, PROSE_HABITS, SEXES } from './prose.mjs';
+import { FRUIT_SET, SEXES, WRITTEN_HABITS } from './prose.mjs';
 
 /** The checks the app takes (src/catalog.ts): disputed facts aren't written. */
 const SETTLED = new Set(['confirmed', 'single', 'likely', 'reported']);
@@ -81,7 +81,7 @@ const FACTS = {
   // How it spreads, read from NC State's description (prose.mjs): by seed, and underground or by runners (a habit
   // src/spread.ts knows).
   self_seed: ['self_seed', (v, enums) => (enums.self_seed?.includes(v) ? v : undefined)],
-  habit: ['habit', oneOf(PROSE_HABITS)],
+  habit: ['habit', oneOf(WRITTEN_HABITS)],
   fruit_set: ['fruit_set', oneOf(FRUIT_SET)],
   sex: ['sex', oneOf(SEXES)],
   // The cultivars its description names as its pollinizer (prose.mjs partnersFromProse), as it names them.

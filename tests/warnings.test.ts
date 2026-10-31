@@ -19,6 +19,18 @@ describe('a household with kids or pets', () => {
     expect(householdFlags(milkweed, NO_YARD)).toEqual([]);
     expect(householdFlags(rose, { ...NO_YARD, kids: true })).toEqual([]); // (thorns: no parts, no severity)
   });
+  it("flags a hybrid none rates as its parents are rated, and says it isn't rated itself (Jason, Oct 30: the 'Illinois Everbearing' mulberry)", () => {
+    const mulberry = { id: 'mul', common: "Mulberry 'Illinois Everbearing'", form: 'Tree', poison: null, poison_parents: { via: 'name', parents: [
+      { name: 'Morus alba', poison: { severity: 'low', parts: ['fruits', 'leaves', 'sap', 'stems'] } },
+      { name: 'Morus rubra', id: 'morus-rubra', common: 'Red mulberry', poison: { severity: 'low', parts: ['sap'], skin: true } }] } } as unknown as Plant;
+    const kids = householdFlags(mulberry, { ...NO_YARD, kids: true });
+    expect(kids.map((f) => [f.text, f.title])).toEqual([['Poisonous to people', 'Not rated itself; a parent is poisonous if eaten (low severity: fruits, leaves, sap and stems)']]);
+    expect(rowFlags(mulberry).find((f) => f.testid === 'row-skin')?.title).toBe('NC State lists a parent as causing contact dermatitis');
+    // (A parent rated only for the skin: no flag for eating it; one listing none, or not rated: nothing.)
+    const skinOnly = { ...mulberry, poison_parents: { via: 'name', parents: [{ name: 'Morus alba', poison: null }, { name: 'Morus rubra', poison: { skin: true } }] } } as unknown as Plant;
+    expect(householdFlags(skinOnly, { ...NO_YARD, kids: true })).toEqual([]);
+    expect(householdFlags({ ...mulberry, poison_parents: undefined } as Plant, { ...NO_YARD, kids: true })).toEqual([]);
+  });
   it('says nothing with the warning turned off in Warnings', () => {
     state.poisonWarnings = false;
     expect(householdFlags(milkweed, { ...NO_YARD, kids: true, dogs: 'hideToxic' })).toEqual([]);

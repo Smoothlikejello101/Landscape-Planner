@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
-import { aboutAnother, annualZonesSaid, deerFromProse, deerSaid, ncsuDeer, foliageFromProse, foliageOf, foliageWords, habitFromProse, ncsuDescription, ncsuNames, ncsuProseClaims, ncsuZones, PROSE_HABITS, seedFromProse, seedSaid, sentences, fruitSetSaid, fruitSetFromProse, sexSaid, sexFromProse, flowerLeadSaid, flowerLeadFromProse, partnersSaid, partnersFromProse } from '../scripts/catalog/prose.mjs';
+import { aboutAnother, annualZonesSaid, deerFromProse, deerSaid, ncsuDeer, foliageFromProse, foliageOf, foliageWords, habitFromProse, ncsuDescription, ncsuNames, ncsuProseClaims, ncsuZones, seedFromProse, seedSaid, sentences, fruitSetSaid, fruitSetFromProse, sexSaid, sexFromProse, flowerLeadSaid, flowerLeadFromProse, partnersSaid, partnersFromProse, WRITTEN_HABITS } from '../scripts/catalog/prose.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { combine } from '../scripts/catalog/claims.mjs';
 import { catalogErrors, resolveCatalog, type CatalogFile } from '../src/catalog';
@@ -296,7 +296,7 @@ describe('spreading underground or by runners, from a description', () => {
     expect(habit('Bearded iris is clump-forming.', ['Iris sibirica', 'Siberian iris'])).toBe(null);
   });
   it('gives only habits the app\'s spreading table knows', () => {
-    for (const h of PROSE_HABITS) expect(HABIT_SPREAD[h], h).toBeTruthy();
+    for (const h of WRITTEN_HABITS) expect(HABIT_SPREAD[h], h).toBeTruthy(); // (the maybe-aggressive ones too)
   });
   it('a cultivar takes its habit and self-sowing only from a page for it', () => {
     const species = [{ fact: 'habit', v: 'Spreading rhizome', src: 'ncsu', kind: 'authority', cultivarPage: false }, { fact: 'self_seed', v: 'Prolific', src: 'ncsu', kind: 'authority', cultivarPage: false }];

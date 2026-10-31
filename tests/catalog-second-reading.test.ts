@@ -9,10 +9,14 @@ describe('what two readings agree on', () => {
     expect(agreed('foliage', 'deciduous', 'deciduous')).toBe('deciduous');
     expect(agreed('habit', 'Clumping', 'Clumping')).toBe('Clumping');
   });
-  it('the part they share where they differ only in degree', () => {
-    expect(agreed('habit', 'Aggressive rhizome', 'Slow-spreading rhizome')).toBe('Spreading rhizome');
-    expect(agreed('habit', 'Suckering thicket', 'Suckering')).toBe('Suckering');
-    expect(agreed('habit', 'Aggressive runner (stolons)', 'Runner (stolons)')).toBe('Runner (stolons)');
+  it('the part they share where they differ only in degree; where only one says aggressively, that it may (Jason, Oct 30)', () => {
+    expect(agreed('habit', 'Slow-spreading rhizome', 'Spreading rhizome')).toBe('Spreading rhizome');
+    expect(agreed('habit', 'Aggressive rhizome', 'Slow-spreading rhizome')).toBe('Spreading rhizome, maybe aggressive');
+    expect(agreed('habit', 'Spreading rhizome', 'Aggressive rhizome')).toBe('Spreading rhizome, maybe aggressive');
+    expect(agreed('habit', 'Suckering thicket', 'Suckering')).toBe('Suckering, maybe aggressive');
+    expect(agreed('habit', 'Suckering (slow)', 'Suckering colonizer')).toBe('Suckering, maybe aggressive');
+    expect(agreed('habit', 'Aggressive runner (stolons)', 'Runner (stolons)')).toBe('Runner (stolons), maybe aggressive');
+    expect(agreed('habit', 'Suckering (slow)', 'Suckering')).toBe('Suckering');
     expect(agreed('deer', 'Candy', 'Occasional')).toBe('Occasional');
     expect(agreed('self_seed', 'Prolific', 'Modest')).toBe('Unrated'); // (it self-sows; how freely, unsettled)
   });
@@ -44,10 +48,10 @@ describe('the gate', () => {
     expect(g.held.map((h: { fact: string; why: string }) => [h.fact, h.why])).toEqual([['habit', 'unread'], ['deer', 'unread']]);
     expect([...g.tasks.values()]).toEqual([{ key: page.key, names: page.names, sentences: page.sentences, text: textHash(page.sentences), facts: ['habit', 'deer'] }]);
   });
-  it('writes what agrees (the shared part where only the degree differs), holds what differs, and reads again a changed page', () => {
+  it('writes what agrees (the shared part where only the degree differs, maybe aggressive where only one says so), holds what differs, and reads again a changed page', () => {
     const readings = { [page.key]: { text: textHash(page.sentences), read: { habit: 'Spreading rhizome', deer: 'Occasional' } } };
     const g = gateProse(claims, readings);
-    expect(g.claims.map((c: { fact: string; v: unknown; read?: unknown; page?: unknown; pageKey?: string }) => [c.fact, c.v, c.read, c.page, c.pageKey])).toEqual([['habit', 'Spreading rhizome', 'Aggressive rhizome', undefined, page.key], ['height', { min: 3, max: 5 }, undefined, undefined, undefined]]);
+    expect(g.claims.map((c: { fact: string; v: unknown; read?: unknown; page?: unknown; pageKey?: string }) => [c.fact, c.v, c.read, c.page, c.pageKey])).toEqual([['habit', 'Spreading rhizome, maybe aggressive', 'Aggressive rhizome', undefined, page.key], ['height', { min: 3, max: 5 }, undefined, undefined, undefined]]);
     expect(g.held).toEqual([{ fact: 'deer', src: 'example.com', rules: 'Resistant', reader: 'Occasional', why: 'disagree' }]);
     expect(g.tasks.size).toBe(0);
     const changed = { [page.key]: { ...readings[page.key], text: 'something else' } };
