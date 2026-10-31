@@ -8,7 +8,8 @@
       "Print: after Create, its last options are no longer hidden under the bar at the bottom.",
       "Several plants selected on a small phone: the bar fits, its buttons shown as icons when space is short.",
       "Layers counts every locked shape, locked on its own or with its layer, and a layer’s row says “1 locked shape” when a shape is locked on its own.",
-      "A vine on a fence or trellis: hiding that layer hides the vine’s band along it too; its planting spot and name stay."
+      "A vine on a fence or trellis: hiding that layer hides the vine’s band along it too; its planting spot and name stay.",
+      "The pins marking plants hidden under bigger ones shrink as you zoom out, and go away when you’re zoomed far out (below 30%) or the plant is only a speck; zoom in and they’re back."
     ]
   },
   {
