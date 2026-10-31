@@ -15,7 +15,7 @@ import { FRUIT_SET, LEAD_VALUES, PROSE_HABITS, SEXES } from './prose.mjs';
 
 export const READINGS = 'scripts/catalog/second-reading.json';
 /** The facts a second reading covers (a cleome's zones, read from text in two places, were checked by hand instead). */
-export const GATED = new Set(['foliage', 'deer', 'self_seed', 'habit', 'fruit_set', 'sex', 'flower_lead']);
+export const GATED = new Set(['foliage', 'deer', 'self_seed', 'habit', 'fruit_set', 'sex', 'flower_lead', 'partners']);
 
 /** The text a reading is of, as a short hash: its sentences, in order. */
 export const textHash = (sentences) => createHash('sha256').update((sentences ?? []).join('\n')).digest('hex').slice(0, 16);
@@ -39,6 +39,11 @@ const FAMILY = {
 export function agreed(fact, rules, reader) {
   if (reader == null || rules == null) return null;
   if (JSON.stringify(rules) === JSON.stringify(reader)) return rules;
+  // (Partners named: the names both readings give, in the rules' order.)
+  if (fact === 'partners' && Array.isArray(rules) && Array.isArray(reader)) {
+    const both = rules.filter((n) => reader.some((m) => sameName(n, m)));
+    return both.length ? both : null;
+  }
   const fam = FAMILY[fact];
   return fam && fam[rules] && fam[rules] === fam[reader] ? fam[rules] : null;
 }
@@ -97,7 +102,11 @@ export function settleDegree(claims) {
   });
 }
 
-/** The values a reading may give, by fact (docs/second-reading.md). */
+/** Two names as the same cultivar's: letters and digits alike, case aside ("Southern Gentleman", "southern gentleman"). */
+const sameName = (a, b) => String(a).toLowerCase().replace(/[^a-z0-9]/g, '') === String(b).toLowerCase().replace(/[^a-z0-9]/g, '');
+/** A partners reading: names, one to eight, each a few words. */
+const partnerNames = (v) => Array.isArray(v) && v.length >= 1 && v.length <= 8 && v.every((x) => typeof x === 'string' && x.trim().length >= 2 && x.length <= 40);
+/** The values a reading may give, by fact (docs/second-reading.md): a list of values, or a check. */
 export const READ_VALUES = {
   foliage: ['evergreen', 'deciduous', 'semi-evergreen'],
   deer: ['Resistant', 'Occasional', 'Candy'],
@@ -106,7 +115,9 @@ export const READ_VALUES = {
   fruit_set: FRUIT_SET,
   sex: SEXES,
   flower_lead: LEAD_VALUES,
+  partners: partnerNames,
 };
+const allowed = (fact, v) => { const r = READ_VALUES[fact]; return typeof r === 'function' ? r(v) : !!r?.includes(v); };
 /**
  * A reader's answers ([{ key, text, read }], docs/second-reading.md) merged into the readings, each checked against its
  * task: a task's page, the same text, exactly the facts asked, only the values allowed (or null). An answer that fails
@@ -125,7 +136,7 @@ export function mergeReadings(readings, tasks, answers, at) {
     const read = a.read ?? {};
     const facts = Object.keys(read);
     if (facts.length !== t.facts.length || !t.facts.every((f) => facts.includes(f))) { problems.push(`${a.key}: answered ${facts.join(', ')}, asked ${t.facts.join(', ')}`); continue; }
-    const bad = facts.filter((f) => read[f] !== null && !READ_VALUES[f]?.includes(read[f]));
+    const bad = facts.filter((f) => read[f] !== null && !allowed(f, read[f]));
     if (bad.length) { problems.push(`${a.key}: values not allowed (${bad.map((f) => `${f}: ${JSON.stringify(read[f])}`).join(', ')})`); continue; }
     // (A page read before for other facts, its text the same, keeps those readings: a new fact adds to them.)
     const had = readings[a.key]?.text === t.text ? readings[a.key].read : {};

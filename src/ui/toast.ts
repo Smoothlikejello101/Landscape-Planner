@@ -53,7 +53,7 @@ export function placeToast(node: HTMLElement) {
  * replaces it. With `detail`, the message is one short line that opens to say more (Jason, 2026-10-27: a notice
  * mustn't get in the way); opened, it stays up while it's read. `tone` marks it amber or red.
  */
-export function toastAction(message: string, actions: { label: string; run: () => void; keep?: boolean }[], ms = 10000, testid?: string,
+export function toastAction(message: string, actions: { label: string; run: () => void; keep?: boolean; className?: string }[], ms = 10000, testid?: string,
   opts: { detail?: string; tone?: 'amber' | 'red' } = {}) {
   toast('', 1); // (clears a plain toast)
   document.getElementById('toast-action')?.remove();
@@ -97,6 +97,7 @@ export function toastAction(message: string, actions: { label: string; run: () =
   for (const a of actions) {
     const b = document.createElement('button');
     b.textContent = a.label;
+    if (a.className) b.className = a.className;
     b.addEventListener('click', () => { if (a.keep) b.remove(); else node.remove(); a.run(); });
     buttons.appendChild(b);
   }

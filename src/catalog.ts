@@ -329,6 +329,8 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
   edible_parts: wordsOf(EDIBLE_PARTS),
   // What it takes to fruit (separate sexes, a partner needed, better with one, on its own); a cultivar's own sex.
   fruit_set: (v) => FRUIT_SET.includes(v as string), sex: (v) => SEXES.includes(v as string),
+  // The cultivars its description names as its pollinizer, as named (a cultivar's own: never inherited).
+  partners: (v) => Array.isArray(v) && v.length > 0 && v.length <= 8 && v.every((x) => typeof x === 'string' && x.length >= 2 && x.length <= 40),
   // Flowers: when (seasons; a bloom's months are `bloom`, the earlier list's) and their colors.
   bloom_season: wordsOf(BLOOM_SEASONS), flower_color: wordsOf(FLOWER_COLORS),
 };

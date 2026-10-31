@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fruitMatters, fruitNeed, speciesKey } from '../src/fruit-partners';
+import { fruitMatters, fruitNeed, partnerChoices, partnerKind, speciesKey } from '../src/fruit-partners';
 import type { Plant } from '../src/plants';
 
 // Partners for fruit, as Jason set them (Oct 30): plants of separate sexes, unsexed, at least 3; a male or female
@@ -48,3 +48,30 @@ describe('a partner for fruit (Jason, Oct 30)', () => {
     expect(fruitNeed({ id: 'tiarella', common: 'Foamflower', fruit_set: 'partner' }, [], catalog)).toBeNull();
   });
 });
+
+describe('which partners, first (Jason, Oct 30: "named partners first", then hardy ones; the rest a tap away)', () => {
+  const holly = (id: string, name: string, extra: Partial<Plant> = {}): Plant =>
+    ({ ...winterberry, id: `ilex-verticillata-${id}`, common: `Winterberry holly '${name}'`, botanical: `Ilex verticillata '${name}'`, parent: 'ilex-verticillata', ...extra });
+  const gold = holly('winter-gold', 'Winter Gold', { sex: 'female' }), red = holly('winter-red', 'Winter Red', { sex: 'female', partners: ['Southern Gentleman'] });
+  const berry = holly('berry-heavy', 'Berry Heavy', { sex: 'female' }), sparkle = holly('sparkleberry', 'Sparkleberry', { sex: 'female' });
+  const sg = holly('southern-gentleman', 'Southern Gentleman', { sex: 'male' }), jim = holly('jim-dandy', 'Jim Dandy', { sex: 'male' });
+  const all = [winterberry, gold, berry, sparkle, red, jim, sg];
+  it('a male: the females whose sources name it first, then the rest in the catalog\'s order, two offered, all of them listed', () => {
+    const need = fruitNeed(sg, [sg], all);
+    expect(need?.offer.map((p) => p.common)).toEqual(["Winterberry holly 'Winter Red'", "Winterberry holly 'Winter Gold'"]);
+    expect(need?.all.length).toBe(4);
+  });
+  it('those its own sources name first; then those hardy here', () => {
+    const picky = holly('picky', 'Picky', { sex: 'female', partners: ['Southern Gentleman'] });
+    expect(partnerChoices(picky, all, partnerKind(picky)!).map((p) => p.id)).toEqual([sg.id, jim.id]);
+    const notGold = (q: Plant) => q.id !== gold.id;
+    expect(partnerChoices(jim, all, partnerKind(jim)!, notGold).map((p) => p.id)).toEqual([berry.id, sparkle.id, red.id, gold.id]);
+  });
+  it('one its sources name that the catalog lacks is said; one named, planted, is a partner whatever its kind', () => {
+    const emily = holly('emily', 'Emily', { sex: 'female', partners: ['James Swan'] });
+    expect(fruitNeed(emily, [emily], all)?.line).toBe("Winterberry holly 'Emily' is a female: it needs a male of its kind nearby to fruit; NC State suggests 'James Swan'");
+    const named = holly('named', 'Named', { sex: 'female', partners: ['Sparkleberry'] });
+    expect(fruitNeed(named, [named, sparkle], all)).toBeNull();
+  });
+});
+

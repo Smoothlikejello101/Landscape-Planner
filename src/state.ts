@@ -45,6 +45,7 @@ export const state: AppState = {
   print: { ...DEFAULT_PRINT },
   sizeMode: 'typical',
   sunWarnings: true,
+  dismissed: undefined,
   phases: [],
   viewFilter: { status: '', phase: '', showGone: false },
   showFullSize: false,

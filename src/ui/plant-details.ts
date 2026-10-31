@@ -58,7 +58,12 @@ export function edibleText(p: Pick<Plant, 'edible' | 'edible_parts' | 'poison'>)
  * What it takes to fruit (Jason, Oct 30: partner plants), with a cultivar's own sex where its page says: "A female:
  * fruits with a male of its kind nearby".
  */
-export function fruitSetText(p: Pick<Plant, 'fruit_set' | 'sex'>): string {
+export function fruitSetText(p: Pick<Plant, 'fruit_set' | 'sex' | 'partners'>): string {
+  // (The partners its description names: "; pair with 'Southern Gentleman'".)
+  const with_ = p.partners?.length ? `; pair with ${p.partners.slice(0, 3).map((n) => `'${n}'`).join(', ').replace(/, ([^,]*)$/, ' or $1')}` : '';
+  return fruitSetWords(p) + (fruitSetWords(p) ? with_ : '');
+}
+function fruitSetWords(p: Pick<Plant, 'fruit_set' | 'sex'>): string {
   if (p.fruit_set === 'self') return p.sex === 'female' ? 'Sets fruit on its own, without a male' : 'Sets fruit on its own';
   if (p.sex === 'female') return 'A female: fruits with a male of its kind nearby';
   if (p.sex === 'male') return 'A male: no fruit itself; it pollinates females of its kind';
@@ -283,7 +288,7 @@ function rows(p: Plant): Row[] {
     ['Poisonous to people', poisonRow(p), parentRated(p) ? ['poison_parents'] : ['poison']],
     ['Edible', edibleText(p), ['edible', 'edible_parts']],
     // (Read from its description: separate sexes, a partner needed or helping, or on its own; a cultivar's sex.)
-    ['Fruit set', fruitSetText(p), ['fruit_set', 'sex']],
+    ['Fruit set', fruitSetText(p), ['fruit_set', 'sex', 'partners']],
     ['Thorns', yes(p.thorns), ['thorns']],
     // (As its source lists them: NC State's take in the seasons and the undersides.)
     ['Leaf colors', leafText(p.leaf_color), ['leaf_color']],

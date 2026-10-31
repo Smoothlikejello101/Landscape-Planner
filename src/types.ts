@@ -40,6 +40,8 @@ interface ShapeBase {
   sunDismissed?: string;
   /** A hardiness warning dismissed for this plant (its words, src/plants.ts hardinessWarning): back if they change. */
   hardyDismissed?: string;
+  /** The poison warning this copy was dismissed for (what it said: it comes back if who's in the yard changes); src/dismissals.ts. */
+  poisonDismissed?: string;
   /**
    * What it was added as (src/kinds.ts KindKey: "path", "patio"…), kept when it's renamed; dropped when what it is
    * changes. Shapes from before Oct 30 have none: their kind is worked out (kindOfShape).
@@ -275,6 +277,14 @@ export interface PrintSettings {
   phaseFilter: string;
 }
 /** Everything stored for one project. */
+/**
+ * Warnings dismissed for a plant across the plan (Jason, Oct 30: dismissed for one, it's dismissed for its other copies
+ * and the ones added later): by kind, catalog plant id → what the warning said when dismissed, so it comes back if that
+ * changes (a new ZIP, someone new in the yard).
+ */
+export type PlanDismissals = Partial<Record<DismissKind, Record<string, string>>>;
+export type DismissKind = 'hardy' | 'poison' | 'fruit';
+
 export interface ProjectData {
   shapes: Shape[];
   /** Hidden/locked state per role. */
@@ -283,6 +293,8 @@ export interface ProjectData {
   sizeMode?: SizeMode;
   /** Sun warning badges on plants (default on). */
   sunWarnings?: boolean;
+  /** Hardiness, poison and fruit-partner warnings dismissed for a plant, all its copies (absent: never any; then kept, if empty). */
+  dismissed?: PlanDismissals;
   /** Phases of the project, in order ("Fall 2026", "Spring 2027"). */
   phases?: string[];
   /** Where the garden is (from its ZIP): hardiness zone and frost dates. Null: cleared; absent: never set. */
@@ -429,6 +441,8 @@ export interface AppState {
   print: PrintSettings;
   sizeMode: SizeMode;
   sunWarnings: boolean;
+  /** The open plan's warnings dismissed for a plant, all its copies (src/dismissals.ts); undefined while it never had any. */
+  dismissed: PlanDismissals | undefined;
   phases: string[];
   /** View: which plants show (not saved). */
   viewFilter: ShapeFilter;

@@ -10,7 +10,8 @@ import { renderPlaceOverlay } from './place';
 import { renderShapeHandles } from './handles';
 import { onFeaturePointerDown, onShapePointerDown } from './gestures';
 import { featureHitPart, featureParts, knownFeatures } from './features';
-import { catalogReady, hardinessWarning, householdFlags, plantsById } from './plants';
+import { catalogReady, hardinessWarning, plantsById } from './plants';
+import { dismissedForPlan, poisonSaid } from './dismissals';
 import { plantLabelFit, LABEL_LINE_HEIGHT, textWidth1, type FittedLabel } from './labels';
 import { canopyInnerRadius, canopyPoints, isTree, trunkParts, trunkReachPx } from './trees';
 import { trunkHitPx } from './canopy';
@@ -461,7 +462,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   const living = s.status !== 'gone' && s.status !== 'remove' && !(s.type === 'circle' && s.tree);
   const data = s.role === 'plant' && s.plantId ? plantsById[s.plantId] : undefined;
   const hardy = data && named && living && state.hardyWarnings ? hardinessWarning(data) : null;
-  if (hardy && s.hardyDismissed !== hardy.line) {
+  if (hardy && s.hardyDismissed !== hardy.line && !dismissedForPlan('hardy', s.plantId, hardy.line)) {
     const r = vineDot ?? (s.type === 'circle' ? s.radius * ppf : Math.min(boxSize(s).w, boxSize(s).h) * ppf / 2);
     const bx = labelX + r * 0.7, by = labelY + r * 0.7;
     g.appendChild(svgEl('g', { 'data-role': 'hardy-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },
@@ -470,7 +471,9 @@ export function shapeGroup(s: Shape): SVGGElement {
   }
   // Poisonous to the people or pets in the yard (src/yard.ts): a badge high on the left, a square (not a circle like
   // the others: told apart without color).
-  if (data && named && living && householdFlags(data).length) {
+  // (Dismissed for this copy, or for the plant across the plan: src/dismissals.ts. Its details still say so.)
+  const poison = data && named && living ? poisonSaid(data) : '';
+  if (poison && s.poisonDismissed !== poison && !dismissedForPlan('poison', s.plantId, poison)) {
     const r = vineDot ?? (s.type === 'circle' ? s.radius * ppf : Math.min(boxSize(s).w, boxSize(s).h) * ppf / 2);
     const bx = labelX - r * 0.7, by = labelY - r * 0.7;
     g.appendChild(svgEl('g', { 'data-role': 'poison-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },

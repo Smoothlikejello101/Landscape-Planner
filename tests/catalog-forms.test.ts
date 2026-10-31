@@ -106,5 +106,8 @@ describe('edible parts and fruit set, in a plant\'s details (Jason, Oct 30)', ()
     expect(fruitSetText({ fruit_set: 'better' })).toBe('Fruits on its own; more with a second variety nearby');
     expect(fruitSetText({ fruit_set: 'self', sex: 'female' })).toBe('Sets fruit on its own, without a male');
     expect(fruitSetText({})).toBe('');
+    // (The partners its description names: Jason, Oct 30.)
+    expect(fruitSetText({ fruit_set: 'separate', sex: 'female', partners: ['Southern Gentleman'] })).toBe("A female: fruits with a male of its kind nearby; pair with 'Southern Gentleman'");
+    expect(fruitSetText({ fruit_set: 'partner', partners: ['Stuart', 'Elliot'] })).toBe("Needs a second, different variety nearby to fruit; pair with 'Stuart' or 'Elliot'");
   });
 });

@@ -77,6 +77,10 @@ Answer each fact listed. Use exactly one of its values below, or `null`.
 - `sex`, the plant's own sex, for a cultivar:
   - `"male"` or `"female"`: the text says this plant is male or female ("a female cultivar", "a male clone", "this cultivar is male"). Its group having separate sexes, or a male of another cultivar suggested as its pollinizer, is `null`.
 
+- `partners`, the plants the text names as this plant's pollinizer or partner for fruit: a list of their names as the text gives them, without quotes (`["Southern Gentleman"]`).
+  - A cultivar named as a male to plant with it, a pollinizer for it, or a cultivar to pair or cross-pollinate it with ("A good male plant to pair it with is 'Southern Gentleman'", "requiring two pollinating cultivars, like 'Stuart' or 'Elliot'").
+  - Not the plant's own name, its parents or where it came from ("a cross of 'Gemo' and…", "open-pollinated seed of…"), a cultivar the text says fruits on its own, or a plant named for any other reason. A species named without a cultivar's quoted name ("Ilex cornuta") doesn't count. If the text names none, `null`.
+
 Where the text says two things (a summary and an FAQ that differ), give the
 reading the text as a whole supports. If it truly can't be settled, give
 `null`.
