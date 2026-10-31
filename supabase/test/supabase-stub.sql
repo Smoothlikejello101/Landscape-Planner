@@ -33,3 +33,14 @@ grant all on storage.objects to authenticated;
 -- grant (05-grants.sql). The stub does as Supabase now does, so a missing grant fails here first.
 grant usage on schema public to anon, authenticated;
 alter default privileges in schema public grant all on functions to anon, authenticated;
+
+-- pg_net and Vault (07-signup-alerts.sql): a request is kept, not sent; a secret is read back as stored.
+create schema if not exists net;
+create table if not exists net.requests (id bigserial primary key, url text, body jsonb, headers jsonb);
+create or replace function net.http_post(url text, body jsonb default '{}', params jsonb default '{}',
+  headers jsonb default '{}', timeout_milliseconds integer default 5000) returns bigint language sql as $$
+  insert into net.requests (url, body, headers) values (url, body, headers) returning id
+$$;
+create schema if not exists vault;
+create table if not exists vault.secrets (name text primary key, secret text not null);
+create or replace view vault.decrypted_secrets as select name, secret as decrypted_secret from vault.secrets;
