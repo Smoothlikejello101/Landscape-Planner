@@ -94,9 +94,17 @@ export function renderYearBar(): HTMLElement {
   fill(month);
   const slider = el('input', { type: 'range', min: '1', max: '12', step: '1', value: String(month), 'aria-label': 'Month', 'data-testid': 'year-slider' }) as HTMLInputElement;
   // (Slid: the plan redraws, and the words beside it change, without rebuilding the bar: the slider keeps its place.)
+  // (Cut to "Septembe" on a small phone, or with large text: the short name where the whole one won't fit. Round 3,
+  // Bea, Ruth.)
+  const fitName = () => {
+    const full = MONTHS[(state.month ?? month) - 1];
+    name.textContent = full;
+    if (name.isConnected && name.scrollWidth > name.clientWidth + 1) name.textContent = full.slice(0, 3);
+  };
+  requestAnimationFrame(fitName);
   const show = (m: number) => {
     state.month = m;
-    name.textContent = MONTHS[m - 1];
+    fitName();
     count.textContent = bloomText(m);
     fill(m);
     slider.value = String(m);

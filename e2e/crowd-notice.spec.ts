@@ -137,7 +137,7 @@ test('Crowding settings… opens Layers at its crowding switches; with warnings 
   await tapFromCenter(page, 2, 0);
   await notice(page).getByRole('button', { name: 'Settings' }).click();
   await expect(page.getByTestId('crowding-settings')).toBeVisible();
-  await expect(page.getByTestId('crowding-settings')).toContainText('(0 close, 2 crowded now)');
+  await expect(page.getByTestId('crowding-settings')).toContainText('(plants now: 0 close, 2 crowded)');
   await page.getByTestId('crowd-warnings').uncheck();
   await closeSheet(page);
   await tapFromCenter(page, 4, 0);

@@ -119,7 +119,7 @@ export const OTHER_SHORTCUTS: [string, string][] = [
   ['Shift / Ctrl + click', 'Add to the selection, or take out (drag: add what a box touches)'],
   ['Ctrl+A', 'Select everything on the plan'],
   ['Delete', 'Delete what is selected'],
-  ['Ctrl+Z / Ctrl+Y', 'Undo / redo'],
+  ['Ctrl+Z / Ctrl+Y (or Ctrl+Shift+Z)', 'Undo / redo'],
   ['Ctrl+X / Ctrl+C / Ctrl+V / Ctrl+D', 'Cut / copy / paste / duplicate'],
   ['Arrow keys', 'Move what is selected half a foot (Shift: 5 ft); with nothing selected, move around the plan'],
   ['Ctrl + / Ctrl \u2212', 'Zoom the plan in / out'],

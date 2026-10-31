@@ -5,7 +5,7 @@ import { updateSelected, updateSelectedSilent } from '../mutations';
 import { hardinessWarning, householdFlags, plantsById } from '../plants';
 import { household } from '../yard';
 import { state } from '../state';
-import { checkPlantSun, formatHours, formatTime, newSunInfo, sunHours, sunLevel } from '../sun';
+import { checkPlantSun, formatHours, formatTime, newSunInfo, sunDismissedFor, sunHours, sunLevel } from '../sun';
 import type { DismissKind, Shape, SunInfo } from '../types';
 import { render } from './render';
 import { toastAction } from './toast';
@@ -58,7 +58,7 @@ export function plantSunBanner(s: Shape): HTMLElement | null {
   if (!check) return null;
   if (check.ok) return el('div', { className: 'check-banner ok', 'data-testid': 'sun-check' }, '☀ ' + check.message);
   // A warning can be dismissed for this plant; it comes back if the plant moves or the sun changes.
-  const dismissed = s.sunDismissed === check.message;
+  const dismissed = sunDismissedFor(check, s);
   const btn = el('button', { className: 'link-reset', 'data-testid': 'sun-dismiss' }, dismissed ? 'Show the warning again' : 'Dismiss for this plant');
   btn.addEventListener('click', () => {
     if (dismissed) updateSelected({ sunDismissed: undefined }); else updateSelected({ sunDismissed: check.message });
@@ -118,7 +118,7 @@ export function plantPoisonBanner(s: Shape): HTMLElement | null {
   btn.addEventListener('click', () => { if (dismissed) { showAgainForPlan('poison', p!.id); render(); } else dismissAcross('poison', p!.id, key); });
   const note = across ? ' Dismissed for every one in this plan: no badge, though its details still say so.' : dismissed ? ' Dismissed for this one: no badge on the plan.' : '';
   return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'poison-check' },
-    el('div', {}, `\u26a0 ${said}. You said ${whoSaid} are in the yard; its sources are under About this plant \u2192 Safety.${note}`),
+    el('div', {}, `\u26a0 ${said}. You said ${whoSaid} are in the yard; its sources are under Plant \u2192 Safety (below).${note}`),
     el('div', { style: { marginTop: '4px' } }, btn));
 }
 

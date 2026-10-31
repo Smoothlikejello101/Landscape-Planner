@@ -27,7 +27,8 @@ async function zip(page: Page) {
   await page.getByTestId('zip').fill('71923');
   await page.getByTestId('zip-lookup').click();
   // (The zone stays to be read: step 2 waits for the sheet to close (testers, Oct 30).)
-  await expect(page.getByTestId('intro-text')).toContainText('Your zone and frost dates are below.');
+  // (Closed with its ×: on a phone the sheet hides all but a sliver of the plan (round 3).)
+  await expect(page.getByTestId('intro-text')).toContainText('Your zone and frost dates are below. Close this with its × to go on.');
   await expect(step(page)).toHaveText('Step 1 of 8');
   await closeSheet(page);
 }

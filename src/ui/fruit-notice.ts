@@ -7,7 +7,7 @@
 import { dismissedForPlan, dismissForPlan, warnForNewOnes } from '../dismissals';
 import { hardyHere } from '../crowd-here';
 import { fruitNeed } from '../fruit-partners';
-import { PLANT_FILTER_DEFAULTS, plantFilter, PLANTS, plantsById, type Plant } from '../plants';
+import { PLANTS, plantsById, showPartnersOf, type Plant } from '../plants';
 import { state } from '../state';
 import type { Shape } from '../types';
 import { openWarningsAt } from './layers-panel';
@@ -33,7 +33,7 @@ export function fruitNotice(shape: Shape, place: (p: Plant) => void) {
     ...need.offer.map((q) => ({ label: `Add ${offerName(q)}`, run: () => place(q), className: 'notice-choice' })),
     // (More than two: the picker, showing only them, to compare in its details.)
     ...(need.all.length > need.offer.length ? [{ label: `All ${need.all.length}\u2026`, run: () => {
-      Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { partnersOf: id, hardyHere: plantFilter.hardyHere });
+      showPartnersOf(id);
       state.panel = 'plants';
       render();
     } }] : []),

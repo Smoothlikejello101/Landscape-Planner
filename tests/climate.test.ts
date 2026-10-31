@@ -99,6 +99,9 @@ describe('looking up a ZIP', () => {
     expect(await lookUpZip('71900', fetcher)).toEqual({ ok: false, why: 'unknown' });
     expect(await lookUpZip('10001', fetcher)).toEqual({ ok: false, why: 'unknown' });
     expect(await lookUpZip('71923', (async () => { throw new TypeError('Failed to fetch'); }) as typeof fetch)).toEqual({ ok: false, why: 'offline' });
+    // (A prefix with no table: the host answers with its page. Round 3: 00000 said "no connection".)
+    const page = (async () => new Response('<!doctype html><title>FullGrown</title>', { headers: { 'content-type': 'text/html' } })) as typeof fetch;
+    expect(await lookUpZip('00000', page)).toEqual({ ok: false, why: 'unknown' });
   });
 });
 

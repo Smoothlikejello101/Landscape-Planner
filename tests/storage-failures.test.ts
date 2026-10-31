@@ -11,7 +11,7 @@ import {
   _resetStorageForTests, createProject, flushSave, initStorage, readProject, sanitizeProjectData,
   save, saveIsFailing, StorageUnavailableError, switchProject, writeJournalIfDirty,
 } from '../src/storage';
-import { parseImportFile } from '../src/backup';
+import { parseImportFile, safeFileName } from '../src/backup';
 import type { BgImage } from '../src/types';
 
 const IMG_A = 'data:image/jpeg;base64,' + 'A'.repeat(64);
@@ -138,6 +138,15 @@ describe('undo and redo around a background image', () => {
 });
 
 describe('imported files', () => {
+  it('says a file cut short is damaged, not that it isn\'t ours (round 3, Sam)', () => {
+    const whole = JSON.stringify({ format: 'landscape-planner-project', version: 1, project: { name: 'x', data: { shapes: [] } } });
+    expect(() => parseImportFile(whole.slice(0, 60))).toThrow(/damaged or cut short/);
+    expect(() => parseImportFile('\u0089PNG...')).toThrow(/isn't valid JSON/);
+  });
+  it('names files without runs of dashes (round 3, Grace)', () => {
+    expect(safeFileName('Grace - shady oak yard')).toBe('grace-shady-oak-yard');
+    expect(safeFileName('  -- ')).toBe('project');
+  });
   it('cannot inject markup through colors or load remote images', () => {
     const f = { format: 'landscape-planner-project', version: 1, project: { name: 'x', data: {
       shapes: [{ type: 'triangle', color: '"/><img src=x onerror=alert(1)>' }, { type: 'circle', color: '#a855F7' }],

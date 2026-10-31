@@ -24,7 +24,7 @@ test('plants planted too close are flagged, and ringed on the plan unless that\'
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);
   await page.locator('button[title=Layers]').click();
   await openWarnings(page);
-  await expect(page.getByTestId('crowding-settings')).toContainText('(0 close, 2 crowded now)');
+  await expect(page.getByTestId('crowding-settings')).toContainText('(plants now: 0 close, 2 crowded)');
   await page.getByTestId('show-crowding').uncheck();
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(0);

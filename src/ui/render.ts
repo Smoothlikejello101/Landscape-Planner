@@ -20,17 +20,18 @@ import { parseTypedLength } from '../draw-numbers';
 import { kindDef, METHOD_LABELS, nextTapPrompt, type KindKey } from '../kinds';
 import { methodIcon, renderAddSheet, renderShortcutsPanel, withKey } from './add-sheet';
 import { finishPlacing, hasPlaceHover, placingPlant, selectionJustPlaced, setPlaceHover, undoPlace } from '../place';
-import { plantColor } from '../plants';
+import { partnersClosed, plantColor } from '../plants';
 import { currentProject, storageIsDurable } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
 import { snapOn } from '../tidy';
-import { dismissToastAction, placeNotice, toastAction } from './toast';
+import { dismissToastAction, hideOldToast, placeNotice, toastAction } from './toast';
 import { renderMoreMenu, toggleSelectMode } from './menu';
 import { foldDetailGroups } from './plant-details';
 import { renderFeedbackSheet } from './feedback-sheet';
 import { renderExportModal, renderPreviewModal, renderResetModal } from './modals';
-import { renderPlantsPanel } from './plants-panel';
+import { pickerOpened, renderPlantsPanel } from './plants-panel';
+import { plantDot, shapeDot } from '../plant-looks';
 import { renderPrintPanel } from './print-panel';
 import { renderPlantForm } from './plant-form';
 import { renderBloomPanel } from './bloom-view';
@@ -92,6 +93,8 @@ export function flashZoom() {
 let shownPanel: typeof state.panel = null;
 /** What was selected when the app last drew: an open sheet keeps its place only while it shows the same things. */
 let shownSelection = '';
+/** The menu open when the app last drew. */
+let shownMenu: typeof state.menu = null;
 export function render() {
   const root = document.getElementById('root')!;
   // (Typing in the picker's search when the whole app redraws: the cursor goes back where it was.)
@@ -303,8 +306,12 @@ export function render() {
     zFit.addEventListener('click', () => { zoomToFit(); render(); flashZoom(); });
     zoomBtns.appendChild(zFit);
   }
-  zoomBtns.appendChild(yearButton());
-  zoomBtns.appendChild(namesButton());
+  // (Not while drawing, placing or setting a photo's scale: they're for looking, and a corner tapped near the plan's
+  // right edge landed on them instead, silently. Round 3: Lena, Grace and Owen.)
+  if (!state.draw && !state.placing && !state.bgCalibrate) {
+    zoomBtns.appendChild(yearButton());
+    zoomBtns.appendChild(namesButton());
+  }
   canvasWrap.appendChild(zoomBtns);
 
   // Empty hint
@@ -385,7 +392,7 @@ export function render() {
     const s = singleSelected();
     if (s) {
       const pill = el('div', { className: 'sel-pill' });
-      pill.appendChild(el('div', { className: 'sw', style: { background: s.color } }));
+      pill.appendChild(el('div', { className: 'sw', style: { background: shapeDot(s) } }));
       // (Unnamed: what it is, "Path", not how it was drawn. Jason, Oct 30.)
       pill.appendChild(el('div', { className: 'name' }, s.label || sheetTitle(s)));
       const editBtn = el('button', { className: 'edit' });
@@ -469,13 +476,19 @@ export function render() {
   }
   // The picker just opened, with a keyboard: the cursor in its search, to start typing (not with a pop-up keyboard,
   // which would cover the list).
+  if (state.panel === 'plants' && shownPanel !== 'plants') pickerOpened();
   if (state.panel === 'plants' && ((shownPanel !== 'plants' && hasKeyboard()) || typing != null)) {
     const search = root.querySelector<HTMLInputElement>('[data-testid=plant-search]');
     if (search) { search.focus(); if (typing != null) search.setSelectionRange(typing, typing); }
   }
   // (The picker closed: its plants' detail groups fold again, Jason, 2026-10-29.)
-  if (shownPanel === 'plants' && state.panel !== 'plants') foldDetailGroups();
+  if (shownPanel === 'plants' && state.panel !== 'plants') { foldDetailGroups(); partnersClosed(); }
+  if ((state.panel && state.panel !== shownPanel) || (state.menu && state.menu !== shownMenu)) {
+    hideOldToast();
+    document.getElementById('zoom-flash')?.classList.remove('on'); // (the zoom badge too: it sat over ⋮'s Redo, round 3)
+  }
   shownPanel = state.panel;
+  shownMenu = state.menu;
   shownSelection = state.selectedIds.join();
   if (state.menu === 'more') root.appendChild(renderMoreMenu());
 
@@ -495,7 +508,7 @@ function renderPlaceBar(): HTMLElement {
   const bar = el('div', { className: 'bottom-toolbar draw-bar place-bar', 'data-testid': 'place-bar' });
   const p = placingPlant();
   const pick = el('button', { className: 'draw-btn place-plant', 'data-testid': 'place-switch', title: 'Switch plant' },
-    el('span', { className: 'sw-dot', style: { background: plantColor(p ?? undefined) } }),
+    el('span', { className: 'sw-dot', style: { background: p ? plantDot(p) : plantColor(undefined) } }),
     el('span', { className: 'place-name' }, p?.common ?? ''), el('span', { html: I.chevronDown, style: { display: 'flex' } }));
   pick.addEventListener('click', () => { state.panel = 'plants'; render(); });
   const undoB = el('button', { className: 'draw-btn' }, 'Undo');
@@ -555,7 +568,8 @@ function renderDrawBar(): HTMLElement {
   const snapped = d ? lastSnap() : vertexSnap();
   // The chip's place in the bar, kept while snapping is on (empty when nothing snapped): it never moves the
   // plan's edge, and never sits over the plan where the next tap goes.
-  const chipRow = (unsnap: () => void) => (snapOn() ? el('div', { className: 'snap-chip-row' }, snapped ? snapChip(snapped, unsnap) : '') : null);
+  // (Empty, it says what it's for: a blank band there read as plan, and taps on it were lost. Round 3: Tom, Kim.)
+  const chipRow = (unsnap: () => void) => (snapOn() ? el('div', { className: 'snap-chip-row' }, snapped ? snapChip(snapped, unsnap) : el('span', { className: 'snap-idle', 'data-testid': 'snap-idle' }, `${hasKeyboard() ? 'Clicks' : 'Taps'} snap to corners and edges nearby`)) : null);
   const addChipRow = (to: HTMLElement, unsnap: () => void) => { const r = chipRow(unsnap); if (r) to.appendChild(r); };
   if (d && d.kind === 'measure') {
     addChipRow(bar, unsnapLast);
@@ -606,7 +620,15 @@ function renderDrawBar(): HTMLElement {
       t.addEventListener('input', () => { setTypedLength(parseTypedLength(t.value)); redrawHandles(); });
       // (Enter or Done puts the keyboard away, so the plan is there to tap; a rectangle's other side, typed, is made then,
       // on the side the mouse was on, or facing the middle of the screen: src/draw.ts finishTypedRect.)
-      t.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); t.blur(); if (finishTypedRect()) render(); } });
+      // (With a mouse, Enter waits for a click on the side it goes on: the side the mouse was last on, crossing to this
+      // field, put a patio on the house. Round 3, Jordan. A length that isn't one says so, not nothing: his −5.)
+      t.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        if (t.value.trim() && parseTypedLength(t.value) == null) { toast('A length in feet, more than 0 and up to 1,000.'); return; }
+        t.blur();
+        if (!hasKeyboard() && finishTypedRect()) render();
+      });
       const typed = el('label', { className: 'draw-width typed-length' }, el('span', {}, typedLabel(d)), t, el('span', {}, 'ft'));
       if (d.kind === 'path') {
         // (Beside a path's width the row would push Done off a narrow phone: the two fields get a row of their own.)
@@ -688,7 +710,8 @@ function namesButton(): HTMLElement {
   const hidden = !state.showNames;
   const b = el('button', {
     className: 'zoombtn' + (hidden ? ' on' : ''), html: hidden ? I.tagOff : I.tag, 'data-testid': 'toggle-names',
-    title: 'Hide names and badges', 'aria-label': 'Hide names and badges', 'aria-pressed': String(hidden),
+    // (Its pressed look alone said they were hidden: its tip says so, and how to get them back. Round 3, Ruth, Jordan.)
+    title: hidden ? 'Names and badges hidden: show them' : 'Hide names and badges', 'aria-label': 'Hide names and badges', 'aria-pressed': String(hidden),
   });
   b.addEventListener('click', () => {
     state.showNames = !state.showNames;

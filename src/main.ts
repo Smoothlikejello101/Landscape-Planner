@@ -125,6 +125,15 @@ function onKey(e: KeyboardEvent) {
   // In any other sheet, Esc closes it from a button, a checkbox or a slider: only typing would be lost (Alex, Tom,
   // Oct 30: Esc did nothing in Layers with a padlock focused, nor in a sun record with its slider focused).
   if (e.key === 'Escape' && target?.closest?.('.overlay') && !holdsTyping(target)) { e.preventDefault(); if (closeOne()) render(); return; }
+  // In a field that holds typing, Esc leaves the field for the sheet's ×: a second Esc closes the sheet. (Round 3,
+  // Alex: Esc in a number field did nothing, twice, and a keyboard user was stuck there.) Nothing typed is lost: a
+  // field's value is used as it's typed, or read at Save.
+  if (e.key === 'Escape' && target?.closest?.('.overlay') && holdsTyping(target) && !(target instanceof HTMLSelectElement)) {
+    e.preventDefault();
+    (target as HTMLElement).blur();
+    target.closest('.overlay')?.querySelector<HTMLElement>('.sheet-header .iconbtn[aria-label=Close], .sheet-header button')?.focus();
+    return;
+  }
   // Esc from the month's slider (or another box or slider on the plan's bars): what Esc does anywhere (Alex, Oct 30:
   // with the slider focused, Esc left the month bar open).
   if (e.key === 'Escape' && target && tag === 'input' && !holdsTyping(target)) { e.preventDefault(); if (closeOne()) render(); return; }
@@ -151,6 +160,9 @@ function onKey(e: KeyboardEvent) {
   if (state.month != null && !state.panel && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
     e.preventDefault(); stepMonth(e.key === 'ArrowLeft' ? -1 : 1); render(); return;
   }
+  // (A sheet open, with the focus outside it: the arrow keys are never the plan's behind it. Round 3, Kim: two presses
+  // with the Edit sheet up moved the plant a foot, unseen; in Print, they panned the plan.)
+  if (ARROWS[e.key] && document.querySelector('.overlay:not(.top)')) { e.preventDefault(); return; }
   if (ARROWS[e.key] && !e.ctrlKey && !e.metaKey && !e.altKey) { onArrow(e, ARROWS[e.key]); return; }
   if (state.placing && (e.ctrlKey || e.metaKey)) {
     // While placing, undo takes back the last plant; other edits wait until Done.
@@ -223,6 +235,8 @@ function closeOne(): boolean {
   else if (state.bgCalibrate) state.bgCalibrate = null;
   else if (state.bgEditMode) state.bgEditMode = false;
   else if (state.selectedIds.length) clearSelection();
+  // (Select several: Esc leaves it once nothing's selected, as its × does. Round 3: Tom, Alex.)
+  else if (state.selectMode) state.selectMode = false;
   else if (state.month != null) closeYear();
   else return false;
   return true;

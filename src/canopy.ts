@@ -5,7 +5,7 @@ import { isTree, trunkReachPx } from './trees';
 import { shownWith } from './status';
 import { pointInShape } from './geometry';
 import { state } from './state';
-import { toast } from './ui/toast';
+import { hideToastSaying, toast } from './ui/toast';
 import { hintDue, hintShown } from './hints';
 import type { CircleShape, Point, Shape } from './types';
 
@@ -39,6 +39,11 @@ export const HINT_TIMES = 3;
  * first few times on this device, and once after a long time away.
  */
 export function canopyHint(p: Point, shapes: Shape[], ppf: number, picked?: string | null): void {
+  // (Not when the tap picked a plant growing under it, what it was for; and once a tree is picked by its trunk, the
+  // hint, if still up, goes. Round 3: Grace and Owen read "to pick the tree" over the shrub they'd picked.)
+  const got = picked ? shapes.find((s) => s.id === picked) : undefined;
+  if (got && isTree(got)) { hideToastSaying(/canopy\. To pick the tree/); return; }
+  if (got?.role === 'plant') return;
   if (!hintDue(HINT_KEY, HINT_TIMES)) return;
   const tree = canopiesAt(p, shapes, ppf).find((t) => t.id !== picked);
   if (!tree) return;

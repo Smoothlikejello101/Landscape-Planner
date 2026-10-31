@@ -34,6 +34,7 @@ test('a tap under a canopy picks what\'s under it, locked tree or not; the trunk
   const trunk = await centerOf(page, '#canvas-svg [data-role=trunk-hit]');
   await page.mouse.click(trunk.x, trunk.y);
   await expect(name).toHaveText('Big oak');
+  await expect(page.locator('#toast')).not.toContainText('To pick the tree'); // (done with: round 3)
   // Locked, the same: the rectangle under it is still reachable.
   await page.locator('.sel-pill button.edit').click(); await openSections(page);
   await page.getByRole('button', { name: 'Unlocked' }).click();

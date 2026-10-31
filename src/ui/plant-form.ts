@@ -255,15 +255,27 @@ export function renderPlantForm() {
   };
   const bloomStart = monthSel(source?.bloom?.start), bloomEnd = monthSel(source?.bloom?.end);
   const bloomColor = el('input', { type: 'text', value: source?.bloom?.color ?? '', placeholder: 'e.g. white aging to pink' }) as HTMLInputElement;
+  const bloomHint = el('div', { className: 'hint', 'data-testid': 'pf-bloom-hint' });
   const notes = el('textarea', { rows: 3, placeholder: 'Where you bought it, care notes, what to watch for' }) as HTMLTextAreaElement;
   notes.value = typeof source?.notes === 'string' && editing ? source.notes : '';
   const more = el('details', { open: !!(source?.bloom || (editing && editing.notes)) },
     el('summary', {}, 'Bloom and notes (optional)'),
     el('div', { className: 'field' }, el('label', {}, 'Blooms from / to'),
       el('div', { style: { display: 'flex', gap: '8px' } }, bloomStart, bloomEnd)),
-    el('div', { className: 'field' }, el('label', {}, 'Bloom color'), bloomColor),
+    el('div', { className: 'field' }, el('label', {}, 'Bloom color'), bloomColor, bloomHint),
     el('div', { className: 'field' }, el('label', {}, 'Notes'), notes));
   body.appendChild(more);
+  // (A color with no months was never drawn, nor counted in bloom, and nothing said why: round 3, Diego. Said in
+  // place as it's typed, no re-render.)
+  const showBloomHint = () => {
+    bloomHint.classList.remove('error');
+    bloomHint.textContent = bloomColor.value.trim() && !bloomStart.value
+      ? 'Give its bloom months too: the flowers show on the plan, and count as in bloom, only in those.' : '';
+  };
+  bloomColor.addEventListener('input', showBloomHint);
+  bloomStart.addEventListener('change', showBloomHint);
+  bloomEnd.addEventListener('change', showBloomHint);
+  showBloomHint();
 
   const error = el('div', { className: 'hint error', 'data-testid': 'pf-error' });
   body.appendChild(error);
@@ -282,6 +294,14 @@ export function renderPlantForm() {
     recheckSpecies();
     if (Date.now() - untickedAt < 1500) { untickedAt = 0; sameNote.scrollIntoView({ block: 'nearest' }); return null; }
     const start = Number(bloomStart.value) || undefined, end = Number(bloomEnd.value) || start;
+    // (A bloom color with no months was dropped without a word: asked for, as a missing size is.)
+    if (bloomColor.value.trim() && !start) {
+      more.open = true;
+      bloomHint.textContent = 'Give the month it starts blooming, or clear the color: a color alone isn\u2019t kept.';
+      bloomHint.classList.add('error');
+      bloomHint.scrollIntoView({ block: 'nearest' });
+      return null;
+    }
     return {
       id: editing?.id ?? newMyPlantId(),
       common, width,
@@ -369,6 +389,16 @@ export function renderPlantForm() {
     (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', () => close(null)); return b; })());
   const sheet = el('div', { className: 'sheet' }, header, body);
   const overlay = el('div', { className: 'overlay' }, sheet);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(null); });
+  // (A tap beside the form, on a phone easily made by mistake, threw away all that was typed: asked first, once
+  // anything is. Round 3, Diego. Cancel and the ×, made on purpose, close at once.)
+  let typed = false;
+  sheet.addEventListener('input', () => { typed = true; });
+  sheet.addEventListener('change', () => { typed = true; });
+  overlay.addEventListener('click', async (e) => {
+    if (e.target !== overlay) return;
+    if (typed && !(await ask(editing ? `Leave without saving your changes to ${editing.common}?` : 'Leave without saving this plant?',
+      { ok: 'Leave', cancel: 'Keep editing', danger: true }))) return;
+    if (state.panel === 'plantForm') close(null);
+  });
   return overlay;
 }

@@ -8,6 +8,10 @@ import type { PanelName, Shape } from '../types';
 import { render } from './render';
 import { openLocation } from './location-panel';
 
+/** A row's name, cut short where it must, and how many, never cut (round 3: "Boxwood 'Green V…" lost its ×2). */
+const nameParts = (label: string, count: number): Node[] =>
+  [el('span', { className: 'bloom-label' }, label), ...(count > 1 ? [el('span', { className: 'bloom-x' }, `\u00a0\u00d7${count}`)] : [])];
+
 // Bloom calendar: a row per plant, a column per month, filled where it
 // blooms, and a bottom row counting what's in bloom, with growing-season
 // gaps called out. Plants with no bloom months are listed too, by name, so
@@ -24,7 +28,7 @@ const NO_BLOOM_SAYS: Record<NoBloomRow['why'], string> = {
 const seasonSays = (season: string[]) => { const t = season.join(', '); return t.charAt(0).toUpperCase() + t.slice(1) + ' (no months)'; };
 /** A plant with no bloom months: its name, then why, across the months (the person's own: Add). */
 function noBloomRow(r: NoBloomRow, back: PanelName): HTMLElement[] {
-  const name = el('div', { className: 'bloom-name none', title: r.label }, r.label + (r.count > 1 ? ` ×${r.count}` : ''));
+  const name = el('div', { className: 'bloom-name none', title: r.label }, ...nameParts(r.label, r.count));
   const says = el('div', { className: 'bloom-none ' + r.why, 'data-testid': 'bloom-none' }, el('span', {}, r.season ? seasonSays(r.season) : NO_BLOOM_SAYS[r.why]));
   if (r.why === 'mine' && r.plantId) {
     const add = el('button', { className: 'link-btn', 'data-testid': 'bloom-add', 'aria-label': `Add bloom months to ${r.label}` }, 'Add');
@@ -41,17 +45,19 @@ export function bloomChart(sum: BloomSummary, back: PanelName = 'bloom'): HTMLEl
     wrap.appendChild(el('div', { className: 'hint' }, 'No plants here yet.'));
     return wrap;
   }
+  // (White and cream flowers, nearly the page's color: a darker edge, so the month reads filled. Round 3, Marcus.)
+  const pale = (hex: string) => { const m = /^#([0-9a-f]{6})$/i.exec(hex); if (!m) return false; const n = parseInt(m[1], 16); return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 215; };
   const grid = el('div', { className: 'bloom-grid', role: 'table', 'aria-label': 'Bloom months' });
   grid.appendChild(el('div', { className: 'bloom-name head' }));
   MONTH_LETTERS.forEach((m, i) => grid.appendChild(el('div', { className: 'bloom-head', title: MONTH_NAMES[i] }, m)));
   for (const r of sum.rows) {
     const season = r.bySeason ? ` (by season: ${r.bySeason.join(', ')})` : '';
     grid.appendChild(el('div', { className: 'bloom-name', title: r.label + (r.colorText ? ` (${r.colorText})` : '') + season },
-      r.label + (r.count > 1 ? ` ×${r.count}` : '')));
+      ...nameParts(r.label, r.count)));
     for (let m = 1; m <= 12; m++) {
       const on = r.months.includes(m);
       grid.appendChild(el('div', {
-        className: 'bloom-cell' + (on ? ' on' : '') + (on && r.bySeason ? ' by-season' : ''), style: on ? { background: r.color } : undefined,
+        className: 'bloom-cell' + (on ? ' on' : '') + (on && r.bySeason ? ' by-season' : '') + (on && pale(r.color) ? ' pale' : ''), style: on ? { background: r.color } : undefined,
         title: on ? `${r.label}: ${r.bySeason ? `in bloom around ${MONTH_NAMES[m - 1]}${season}` : `blooms in ${MONTH_NAMES[m - 1]}`}` : undefined,
       }));
     }
@@ -62,7 +68,7 @@ export function bloomChart(sum: BloomSummary, back: PanelName = 'bloom'): HTMLEl
   const seasonal = sum.rows.filter((r) => r.bySeason);
   if (seasonal.length) {
     wrap.appendChild(el('div', { className: 'hint', 'data-testid': 'bloom-by-season' },
-      `Faint: months from the season its sources give, none giving months (${seasonal.map((r) => `${r.label}: ${r.bySeason!.join(', ')}`).join('; ')}).`));
+      `Striped: months from the season its sources give, none giving months (${seasonal.map((r) => `${r.label}: ${r.bySeason!.join(', ')}`).join('; ')}).`));
   }
   if (!sum.rows.length) return wrap; // (nothing known to bloom here: no count, no gaps)
   // How many are in bloom each month; empty months within the plan's blooming season are gaps.

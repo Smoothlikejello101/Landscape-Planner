@@ -1,6 +1,7 @@
 import { bedOf, isBed, isPlant } from './beds';
 import type { Plant } from './plants';
-import type { Shape } from './types';
+import type { CircleShape, Shape } from './types';
+import { lookOf } from './looks';
 import { seasonMonths } from './seasons';
 import { localBloom } from './wild';
 
@@ -93,7 +94,11 @@ export function bloomSummary(plants: Shape[], plantsById: Record<string, Plant |
     }
     // (Its flowers' colors as its sources say, else the earlier list's words; "not showy" isn't a color.)
     const colorText = data?.flower_color?.filter((c) => c !== 'insignificant').join(', ') || data?.bloom?.color || '';
-    const row = byName.get(label) ?? { label, count: 0, months, color: bloomColor(colorText, p.color), colorText, ...(bySeason ? { bySeason } : {}) };
+    // (In the color its picture's flowers are drawn on the plan, a color chosen for this plant included: the first
+    // color word found, "purple, red" was red, "pink, white" white. Round 3: Marcus, Ruth.)
+    const c = p as CircleShape;
+    const drawn = data ? lookOf(data, p.color, !!c.colorSet, c.flowerColor).pal.fl : undefined;
+    const row = byName.get(label) ?? { label, count: 0, months, color: drawn ?? bloomColor(colorText, p.color), colorText, ...(bySeason ? { bySeason } : {}) };
     row.count++;
     byName.set(label, row);
   }

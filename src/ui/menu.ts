@@ -13,6 +13,7 @@ import { openLocation } from './location-panel';
 import { openFeedback } from './feedback-sheet';
 import { MARK_SMALL } from '../brand';
 import { showMeAround } from './intro-card';
+import { setZoomButtons } from '../view-settings';
 
 /** Select mode on or off (the lasso button on the top bar). */
 export function toggleSelectMode() {
@@ -75,17 +76,18 @@ export function renderMoreMenu() {
   });
   // Only where there's a keyboard (a laptop or desktop).
   if (hasKeyboard()) {
-    items.push({ icon: I.text, label: 'Keyboard shortcuts (?)', onClick: () => { state.panel = 'shortcuts'; state.menu = null; render(); } });
+    items.push({ icon: I.keyboard, label: 'Keyboard shortcuts (?)', onClick: () => { state.panel = 'shortcuts'; state.menu = null; render(); } });
   }
   items.push({
-    icon: I.reset,
+    // (A bin, not the Undo arrow it used to share: round 3, Marcus and Tom read it as Undo.)
+    icon: I.trash,
     label: 'Clear all shapes in project',
     onClick: () => { state.panel = 'reset'; state.menu = null; render(); }
   });
   items.push({ divider: true });
   // The guided introduction, any time: from the start, or (left part way) pick up where they left (src/ui/intro-card.ts).
   items.push({
-    icon: I.leaf, label: 'Show me around', testid: 'menu-intro',
+    icon: I.help, label: 'Show me around', testid: 'menu-intro',
     onClick: () => { state.menu = null; showMeAround(); render(); },
   });
   items.push({
@@ -113,6 +115,12 @@ export function renderMoreMenu() {
   }
   menu.appendChild(el('div', { className: 'menu-divider' }));
   menu.appendChild(el('div', { className: 'text-size-row', 'data-testid': 'text-size' }, el('span', {}, 'Text size'), seg));
+  // Zoom buttons, beside Text size (round 3: Ruth and Bea, who zoom with one finger, didn't find the switch at the end
+  // of Layers, where it is too). Off on a phone till turned on (src/view-settings.ts).
+  const zoomCheck = el('input', { type: 'checkbox', 'data-testid': 'menu-zoom-buttons' }) as HTMLInputElement;
+  zoomCheck.checked = state.zoomButtons;
+  zoomCheck.addEventListener('change', () => { setZoomButtons(zoomCheck.checked); render(); });
+  menu.appendChild(el('label', { className: 'text-size-row zoom-row' }, el('span', {}, 'Zoom buttons (+ and \u2212)'), zoomCheck));
   // The mark leads the version line (it has no text, so the line still reads "Version …").
   const version = el('div', { className: 'menu-version', html: MARK_SMALL });
   version.append(`Version ${__APP_VERSION__} · ${__BUILD_TIME__}`);

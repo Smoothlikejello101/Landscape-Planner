@@ -8,7 +8,7 @@ import { isArbor, isTrellis, LATTICE_STEP, latticePath, SLAT_STEP, slatsPath } f
 import { currentProject } from './storage';
 import type { Bounds, CircleShape, Shape } from './types';
 import { render } from './ui/render';
-import { hiddenIds, paintOrder, seeThroughIds } from './canvas';
+import { hiddenIds, labelRuns, paintOrder, seeThroughIds } from './canvas';
 import { roleDef, roleKey, roleLabel, ROLES } from './roles';
 import { filterText } from './status';
 import { formatHours, shadeOpacity, sunHours } from './sun';
@@ -75,6 +75,24 @@ function withSunHours(s: Shape, label: string): string {
   if (s.role !== 'shade' || !s.sun) return label;
   const hours = '\u2600 ' + formatHours(sunHours(s.sun));
   return label ? `${label} \u00b7 ${hours}` : hours;
+}
+/**
+ * Runs of one plant too small for its name, named once at their middle ("Big blue lilyturf ×10"), as the plan does
+ * (src/canvas.ts labelRuns): each plant's id, with the run's name and middle (feet) on one, null on the others.
+ */
+let exportRuns: Map<string, { text: string; x: number; y: number } | null> | null = null;
+function runsOf(shapes: Shape[], scale: number): Map<string, { text: string; x: number; y: number } | null> {
+  const unfit = shapes.filter((s): s is CircleShape => s.type === 'circle' && s.role === 'plant').filter((s) => {
+    const plant = s.plantId ? plantsById[s.plantId] : undefined;
+    return !isTree(s) && !!displayLabel(s) && !plantLabelFit(displayLabel(s), canopyInnerRadius(s) * scale, {}, plant);
+  });
+  const out = new Map<string, { text: string; x: number; y: number } | null>();
+  for (const run of labelRuns(unfit)) {
+    const x = run.reduce((n, s) => n + s.x, 0) / run.length, y = run.reduce((n, s) => n + s.y, 0) / run.length;
+    const anchor = run.reduce((best, s) => (Math.hypot(s.x - x, s.y - y) < Math.hypot(best.x - x, best.y - y) ? s : best));
+    for (const s of run) out.set(s.id, s === anchor ? { text: `${displayLabel(s)} \u00d7${run.length}`, x, y } : null);
+  }
+  return out;
 }
 /**
  * Plants hidden under a solid one (src/canvas.ts hiddenIds): a pin at its middle over the plants, as on the plan, in
@@ -157,8 +175,14 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
     if (ground != null && ground < s.radius - 0.05) out += `<circle cx="${cx}" cy="${cy}" r="${s.radius * scale}" fill="none" stroke="${s.color}" stroke-opacity="0.45" stroke-width="${1.5 * k}" stroke-dasharray="${k} ${6 * k}" stroke-linecap="round"/>`;
     const tree = isTree(s);
     if (tree) out += partsToSvg(trunkParts(s, cx, cy, scale, false, k));
-    const name = displayLabel(s);
-    if (name) {
+    // (A round sun area's name with its hours, as a drawn one's: its circle printed "East lawn" without them. Round 3, Tom.)
+    const name = withSunHours(s, displayLabel(s));
+    // (A run of one plant, named once, as on the plan: a picture wrote "Big blue lilyturf" ten times over itself.
+    // Round 3, Jordan. exportRuns, set while a picture is made.)
+    const run = exportRuns?.get(s.id);
+    if (run !== undefined) {
+      if (run) out += text((run.x - originX) * scale, (run.y - originY) * scale, Math.max(10, Math.min(14, (r / k) * 0.4)), run.text);
+    } else if (name) {
       // Plants: the name fitted inside, as on screen (sizes in screen px, scaled by k for print).
       const plant = s.role === 'plant' && s.plantId ? plantsById[s.plantId] : undefined;
       const fit = plantLabelFit(name, (canopyInnerRadius(s) * scale) / k, tree ? { below: trunkReachPx(s, scale / k) + 1 } : {}, plant);
@@ -280,7 +304,9 @@ export function buildExportSVG(): { svg: string; widthPx: number; heightPx: numb
   const sorted = paintOrder(state.shapes);
   let shapesSvg = '';
   const thin = seeThroughIds(state.shapes);
-  withSeeThrough(thin, () => { for (const s of sorted) shapesSvg += shapeToSvgString(s, minX, minY, scale); });
+  exportRuns = runsOf(sorted, scale);
+  try { withSeeThrough(thin, () => { for (const s of sorted) shapesSvg += shapeToSvgString(s, minX, minY, scale); }); }
+  finally { exportRuns = null; }
   shapesSvg += hiddenRimsSvg(state.shapes, hiddenIds(state.shapes, state.viewFilter, thin), minX, minY, scale);
   // Optional bg image, sits above grid, below shapes (matches on-screen order)
   let bgSvg = '';

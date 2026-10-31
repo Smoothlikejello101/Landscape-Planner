@@ -1,4 +1,4 @@
-import { el, ts } from '../dom';
+import { el, hasKeyboard, ts } from '../dom';
 import { copySvg, doExport } from '../export';
 import { I } from '../icons';
 import { resetCurrentProject } from '../mutations';
@@ -48,9 +48,9 @@ export function renderPreviewModal() {
   buttons.appendChild(doneBtn);
   const body = el('div', { className: 'sheet-body' },
     el('div', { style: { fontSize: ts(13), color: '#57534e', lineHeight: '1.5' } },
-      el('b', {}, 'On phone:'), ' long-press the image, then choose "Save to Photos" or "Download Image."',
-      el('br'), el('br'),
-      el('b', {}, 'On desktop:'), ' right-click the image and choose "Save image as...", or tap the Download button.'),
+      // (The one that applies here: a laptop was told "On phone: long-press the image". Round 3, Jordan.)
+      hasKeyboard() ? 'Click the Download button, or right-click the image and choose "Save image as..."'
+        : 'Tap the Download button, or long-press the image and choose "Save to Photos" or "Download Image."'),
     previewWrap,
     buttons
   );

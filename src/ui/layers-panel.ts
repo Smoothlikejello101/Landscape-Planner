@@ -1,4 +1,5 @@
 import { DISMISS_WORDS, planDismissals, showAgainForPlan } from '../dismissals';
+import { lookShown, shapeDot } from '../plant-looks';
 import { setCrowdWarnings, setHardyWarnings, setFruitWarnings, setPoisonWarnings, setShowCrowding, setPlantLooks, setShowFullSize, setZoomButtons } from '../view-settings';
 import { household } from '../yard';
 import { el, svgEl, ts } from '../dom';
@@ -72,12 +73,13 @@ export function renderLayersPanel() {
         (s.role === 'shade' && s.sun ? sunListText(s.sun) + ' · '
         : s.role === 'bed' ? plantsInBed(s, state.shapes).filter((p) => p.status !== 'gone').length + ' plants · ' : '');
       const meta = extra + dims + ' · at (' + s.x + ', ' + s.y + ') ft' +
-        (opacity < 1 ? ' · ' + Math.round(opacity * 100) + '% opacity' : '') +
+        (opacity < 1 && !lookShown(s) ? ' · ' + Math.round(opacity * 100) + '% opacity' : '') + // (a plant drawn as its picture has none: round 3, Hank)
         (s.rotation ? ' · ' + s.rotation + '°' : '');
       // Visual swatch matches shape type
       let swatch;
       if (s.type === 'circle') {
-        swatch = el('div', { className: 'layer-sw circle', style: { background: s.color, opacity: opacity } });
+        // (A plant drawn as its picture: its flowers' color, as the picker's dot: round 3, Grace and Bea.)
+        swatch = lookShown(s) ? el('div', { className: 'layer-sw circle', style: { background: shapeDot(s) } }) : el('div', { className: 'layer-sw circle', style: { background: s.color, opacity: opacity } });
       } else if (s.type === 'rect') {
         swatch = el('div', { className: 'layer-sw rect', style: { background: s.color, opacity: opacity } });
       } else if (s.type === 'oval') {
@@ -208,12 +210,14 @@ function drawingSection(): HTMLElement {
 function crowdingSettings(): HTMLElement {
   const wrap = el('div', { 'data-testid': 'crowding-settings', className: 'crowding-settings' });
   const levels = [...crowdLevels(state.shapes.filter((x) => shownWith(x, state.viewFilter)), plantsById, crowdOptions()).values()];
+  // (Plants counted, said so: beside "Leave all flagged now (2 pairs)", "3 close" read as a count of the same thing.
+  // Round 3: Alex, Dana, Bea.)
   const nClose = levels.filter((l) => l === 'close').length, nCrowded = levels.filter((l) => l === 'crowded').length;
   const show = el('input', { type: 'checkbox', 'data-testid': 'show-crowding' }) as HTMLInputElement;
   show.checked = state.showCrowding;
   show.addEventListener('change', () => { setShowCrowding(show.checked); render(); });
   wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, show,
-    el('span', {}, `Show crowding on the plan: amber rings where plants are close, red where they're crowded (${nClose} close, ${nCrowded} crowded now)`)));
+    el('span', {}, `Show crowding on the plan: amber rings where plants are close, red where they're crowded (${nClose + nCrowded ? `plants now: ${nClose} close, ${nCrowded} crowded` : 'none now'})`)));
   const warn = el('input', { type: 'checkbox', 'data-testid': 'crowd-warnings' }) as HTMLInputElement;
   warn.checked = state.crowdWarnings;
   warn.addEventListener('change', () => { setCrowdWarnings(warn.checked); render(); });

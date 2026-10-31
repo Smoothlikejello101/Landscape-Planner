@@ -96,7 +96,7 @@ test('a plant in the wrong light gets a warning', async ({ page }) => {
   await addPlant(page, 'Turkey corn'); // part sun (NC State, Chicago Botanic Garden)
   await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(1);
   await page.locator('.sel-pill button.edit').click(); await openSections(page);
-  await expect(page.locator('[data-testid=sun-check]')).toContainText('prefers part sun');
+  await expect(page.locator('[data-testid=sun-check]')).toContainText('prefers part shade'); // (as its details say it: round 3)
 
   // Dismiss it for this plant: the badge goes, the note stays in properties.
   await page.getByTestId('sun-dismiss').click();

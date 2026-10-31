@@ -20,7 +20,7 @@ import { canopyHint } from './canopy';
 import { hintDue, hintShown } from './hints';
 import { kindDef, kindOfShape } from './kinds';
 import { plantsById } from './plants';
-import { toast } from './ui/toast';
+import { hideToastSaying, toast } from './ui/toast';
 import { applyHandleDrag, handleDragChanged, handleDragLive, startHandleDrag } from './handles';
 import { featureSpot, nearestOnEdge } from './features';
 import { featureTap } from './feature-edit';
@@ -298,8 +298,8 @@ export function shapesAt(clientX: number, clientY: number): Shape[] {
   const ids: string[] = [];
   for (const el of document.elementsFromPoint(clientX, clientY)) {
     if (el.closest('[data-layer="handles"]')) continue;
-    const owner = el.closest('[data-shape-id],[data-trunk-of],[data-feature-of],[data-outline-of]') as SVGElement | HTMLElement | null;
-    const id = owner?.dataset.shapeId ?? owner?.dataset.trunkOf ?? owner?.dataset.featureOf ?? owner?.dataset.outlineOf;
+    const owner = el.closest('[data-shape-id],[data-trunk-of],[data-feature-of],[data-outline-of],[data-pin-of],[data-label-of]') as SVGElement | HTMLElement | null;
+    const id = owner?.dataset.shapeId ?? owner?.dataset.trunkOf ?? owner?.dataset.featureOf ?? owner?.dataset.outlineOf ?? owner?.dataset.pinOf ?? owner?.dataset.labelOf;
     if (id && !ids.includes(id)) ids.push(id);
   }
   return ids.map((id) => state.shapes.find((s) => s.id === id)).filter((s): s is Shape => !!s);
@@ -322,8 +322,10 @@ let cycledFrom: string | null = null;
 function handleShapeTap(shape: Shape, at?: { x: number; y: number }) {
   if (state.selectMode) { toggleSelect(shape.id); return; }
   const t = now();
-  const stack = at ? shapesAt(at.x, at.y).filter((s) => shownWith(s, state.viewFilter)) : [];
-  if (!stack.some((s) => s.id === shape.id)) stack.unshift(shape);
+  // (The one the press went to first, then the other plants there, then the ground: a bed or a sun area. From a plant
+  // picked under another, the next tap went on down to the bed before the plant over it: round 3, Dana, Grace, Hank.)
+  const under = at ? shapesAt(at.x, at.y).filter((s) => s.id !== shape.id && shownWith(s, state.viewFilter)) : [];
+  const stack = [shape, ...under.filter((s) => s.role === 'plant'), ...under.filter((s) => s.role !== 'plant')];
   if (tapTracker.id && stack.some((s) => s.id === tapTracker.id) && t - tapTracker.time < DOUBLE_TAP_MS) {
     // (A double tap on the one selected: its pane, though its first tap went on down the stack.)
     selectOnly(cycledFrom ?? tapTracker.id);
@@ -333,6 +335,8 @@ function handleShapeTap(shape: Shape, at?: { x: number; y: number }) {
   }
   const sel = state.selectedIds.length === 1 ? stack.findIndex((s) => s.id === state.selectedIds[0]) : -1;
   const pick = sel >= 0 ? stack[(sel + 1) % stack.length] : shape;
+  // (Gone down the stack: "Tap again for … under it" is done with. Round 3, Grace: it stayed over what it named.)
+  if (sel >= 0) hideToastSaying(/^Tap again for /);
   cycledFrom = sel >= 0 && pick.id !== state.selectedIds[0] ? state.selectedIds[0] : null;
   selectOnly(pick.id);
   tapTracker.id = pick.id; tapTracker.time = t;
@@ -461,7 +465,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
  */
 function tapThroughHandle(clientX: number, clientY: number) {
   const under = document.elementsFromPoint(clientX, clientY).find((el) => !el.closest('[data-layer="handles"]')) as SVGElement | HTMLElement | undefined;
-  const id = under?.dataset?.shapeId ?? under?.dataset?.trunkOf ?? under?.dataset?.featureOf ?? under?.dataset?.outlineOf;
+  const id = under?.dataset?.shapeId ?? under?.dataset?.trunkOf ?? under?.dataset?.featureOf ?? under?.dataset?.outlineOf ?? under?.dataset?.pinOf ?? under?.dataset?.labelOf;
   const shape = id ? state.shapes.find((s) => s.id === id) : undefined;
   if (shape) handleShapeTap(shape, { x: clientX, y: clientY });
   else { clearSelection(); state.panel = null; tapTracker.id = null; tapTracker.time = 0; }
@@ -490,6 +494,13 @@ export function onShapePointerDown(e: PointerEvent, shape: Shape) {
     return;
   }
 
+  // A vine's band over the support it climbs, the support selected: a press there is on the support, so a drag moves
+  // it, not the vine (round 3, Kim: dragging her trellis tore its hydrangea off instead).
+  if (shape.type === 'circle' && shape.climbsOn && state.selectedIds.length === 1 && state.selectedIds[0] === shape.climbsOn
+    && !state.selectMode && !state.draw && !state.editPoints && !state.placing && !state.featurePlace) {
+    const support = shapesAt(e.clientX, e.clientY).find((s) => s.id === shape.climbsOn);
+    if (support) { activePointers.delete(e.pointerId); onShapePointerDown(e, support); return; }
+  }
   // A plant over a shorter one (Jason, Oct 30: tallest on top): a press goes to the one under it, so what's planted
   // under a shrub can still be picked. Under a canopy (drawn see-through), anywhere within it; under a solid plant
   // (its outline and name drawn over it), near its middle, where its name is, so the plant over it can be picked

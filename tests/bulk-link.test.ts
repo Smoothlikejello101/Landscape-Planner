@@ -46,6 +46,13 @@ describe('linking many circles to a plant', () => {
     undo();
     expect(state.shapes.map((s) => s.label)).toEqual(['Bergamot', 'bergamot', 'Bergamot']);
   });
+  it("swapped for a plant with no size known, it keeps its own (round 3: an 8 ft blueberry became a 2 ft dot)", () => {
+    state.shapes = [circle('b', 'Highbush blueberry', { radius: 4, plantId: bergamot.id, role: 'plant', sizeFrom: 'plant' } as Partial<Shape>)];
+    plantsById[bergamot.id] = bergamot;
+    const climax = { id: 'vaccinium-virgatum-climax', common: "Rabbiteye blueberry 'Climax'", form: 'Shrub' } as Plant;
+    linkShapesToPlant(['b'], climax);
+    expect(state.shapes[0]).toMatchObject({ plantId: climax.id, radius: 4, sizeFrom: 'manual' });
+  });
   it('a circle linked to a tree keeps its drawn size as an existing tree; relinked to a shrub, it takes the shrub\'s size', () => {
     const oak = { id: 'quercus-rubra', common: 'Northern red oak', form: 'Tree', width: { min: 40, max: 60, med: 50 } } as Plant;
     const holly = { id: 'ilex-glabra', common: 'Inkberry', form: 'Shrub', width: { min: 4, max: 6, med: 5 } } as Plant;

@@ -3,7 +3,7 @@ import {
   buildPlanSvg, gridStep, legendEntries, pdfSafe, planLayout, plantKeys, plantSchedule, printContent, scaleBarFeet, scaleText,
 } from '../src/print';
 import type { Plant } from '../src/plants';
-import { exportCaption, shapeToSvgString } from '../src/export';
+import { buildExportSVG, exportCaption, shapeToSvgString } from '../src/export';
 import { state } from '../src/state';
 import type { Shape } from '../src/types';
 
@@ -67,6 +67,10 @@ describe('plant list', () => {
     expect(svg.match(/>1<\/text>/g)).toHaveLength(3); // three coneflowers
     expect(svg).not.toContain('>Coneflower<');
   });
+  it('groups plants by their beds even when the beds themselves are left out (hidden in Layers: round 3, Jordan)', () => {
+    const groups = plantSchedule(shapes.filter((s) => s.role !== 'bed'), plants, shapes);
+    expect(groups.map((g) => [g.bed, g.total])).toEqual([['Front', 2], ['Unnamed bed 1', 1], ['Not in a bed', 2]]);
+  });
   it('is empty without plants', () => {
     expect(plantSchedule([bed('b', 'B', 0, 0, 1, 1)], {})).toEqual([]);
   });
@@ -102,6 +106,15 @@ describe('the exported picture', () => {
     state.viewFilter = { status: '', phase: '', showGone: false };
     state.roleViews = {};
   });
+  it('names a run of one small plant once, as the plan does (round 3, Jordan: ten names over each other)', () => {
+    state.viewFilter = { status: '', phase: '', showGone: false };
+    state.roleViews = {};
+    state.shapes = Array.from({ length: 10 }, (_, i) => ({ ...plant(`l${i}`, 'Big blue lilyturf', i * 1.2, 0), radius: 0.6 } as Shape));
+    const svg = buildExportSVG()!.svg;
+    expect(svg.match(/Big blue lilyturf/g)).toHaveLength(1);
+    expect(svg).toContain('Big blue lilyturf \u00d710');
+    state.shapes = [];
+  });
   it('marks a locked shape with a padlock, not a dashed edge; a sun area with its hours', () => {
     const house = { ...bed('h', 'House', 0, 0, 10, 8), role: 'building', locked: true } as Shape;
     const svg = shapeToSvgString(house, 0, 0, 10);
@@ -109,5 +122,8 @@ describe('the exported picture', () => {
     expect(svg).not.toContain('stroke-dasharray');
     const sun = { ...bed('s', 'Front of house', 0, 0, 10, 8), role: 'shade', sun: { mode: 'hours', hours: 6 } } as Shape;
     expect(shapeToSvgString(sun, 0, 0, 10)).toContain('Front of house · ☀ 6 h');
+    // (A round one too: round 3, Tom's "East lawn" printed without its hours.)
+    const round = { id: 'c', type: 'circle', x: 20, y: 20, radius: 13, color: '#64748b', opacity: 0.3, locked: false, label: 'East lawn', role: 'shade', sun: { mode: 'hours', hours: 6 } } as Shape;
+    expect(shapeToSvgString(round, 0, 0, 10)).toContain('East lawn · ☀ 6 h');
   });
 });

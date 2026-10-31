@@ -87,7 +87,9 @@ export async function lookUpZip(zip: string, fetcher: typeof fetch = fetch): Pro
     const res = await fetcher(`climate/${z.slice(0, 3)}.json`);
     if (res.status === 404) return { ok: false, why: 'unknown' };
     if (!res.ok) return { ok: false, why: 'offline' };
-    file = await res.json() as ClimateFile;
+    // (A prefix with no table, 000, gets the site's page, not a 404: no such ZIP, not "no connection". Round 3, Sam.)
+    if ((res.headers.get('content-type') ?? '').includes('text/html')) return { ok: false, why: 'unknown' };
+    try { file = await res.json() as ClimateFile; } catch { return { ok: false, why: 'unknown' }; }
   } catch {
     return { ok: false, why: 'offline' };
   }

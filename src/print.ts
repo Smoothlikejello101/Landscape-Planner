@@ -110,14 +110,17 @@ export interface ScheduleGroup { bed: string; rows: ScheduleRow[]; total: number
 export function plantSchedule(shapes: Shape[], plantsById: Record<string, Plant | undefined>, order: Shape[] = shapes): ScheduleGroup[] {
   const plants = shapes.filter(isPlant);
   if (!plants.length) return [];
-  const beds = shapes.filter(isBed);
+  // (Grouped by every bed on the plan, the ones hidden in Layers too: with Bed hidden, all 19 plants were listed as
+  // "Not in a bed". Round 3, Jordan. `order` is the whole plan.)
+  const all = order.length >= shapes.length ? order : shapes;
+  const beds = all.filter(isBed);
   const bedName = new Map<Shape, string>();
   let unnamed = 0;
   for (const b of beds) bedName.set(b, b.label.trim() || `Unnamed bed ${++unnamed}`);
   const groups = new Map<string, Map<string, ScheduleRow>>();
   const NONE = 'Not in a bed';
   for (const p of plants) {
-    const bed = bedOf(p, shapes);
+    const bed = bedOf(p, all);
     const g = bed ? bedName.get(bed)! : NONE;
     if (!groups.has(g)) groups.set(g, new Map());
     const label = p.label.trim() || 'Unlabeled plant';
@@ -231,8 +234,16 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
     const fs = 11 * k;
     out += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${fs}" font-weight="700" fill="#0f172a" font-family="sans-serif" stroke="#ffffff" stroke-width="${2.5 * k}" paint-order="stroke" stroke-linejoin="round">${key}</text>`;
     return out;
-  })()).join('')) + hiddenRimsSvg(shapes, hiddenIds(shapes, NO_FILTER, thin), win.minX, win.minY, pxPerFt, k);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" fill="#ffffff"/>${grid}${bgSvg}${body}</svg>`;
+  })()).join(''));
+  // Plants hidden under a solid one: a pin over it, as on the plan, and its number beside the pin (round 3, Hank: four
+  // of six daffodils were white dots the list and legend didn't explain; their numbers were under the catmint).
+  const hidden = hiddenIds(shapes, NO_FILTER, thin);
+  const pins = hiddenRimsSvg(shapes, hidden, win.minX, win.minY, pxPerFt, k) + (keys ? shapes.filter((s) => hidden.has(s.id) && isPlant(s)).map((s) => {
+    const key = keys.get(s.label.trim() || 'Unlabeled plant');
+    const cx = (s.x - win.minX) * pxPerFt + 6 * k, cy = (s.y - win.minY) * pxPerFt;
+    return `<text x="${cx}" y="${cy}" dominant-baseline="central" font-size="${9 * k}" font-weight="700" fill="#0f172a" font-family="sans-serif" stroke="#ffffff" stroke-width="${2.5 * k}" paint-order="stroke" stroke-linejoin="round">${key}</text>`;
+  }).join('') : '');
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" fill="#ffffff"/>${grid}${bgSvg}${body}${pins}</svg>`;
   return { svg, w, h };
 }
 

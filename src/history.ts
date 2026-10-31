@@ -45,6 +45,10 @@ function applySnapshot(snap: HistorySnapshot) {
   if (state.bgImage) { if (keep) state.bgImage.deviceOnly = true; else delete state.bgImage.deviceOnly; }
   state.photoElsewhere = snap.photoElsewhere ?? null;
   state.selectedIds = state.selectedIds.filter((id) => state.shapes.some((s) => s.id === id));
+  // (A phase brought back onto its shapes is back in the list too: removed, then undone, it was missing from the
+  // filters until a reload. Round 3, Priya.)
+  const missing = [...new Set(state.shapes.flatMap((s) => (s.phase && !state.phases.includes(s.phase) ? [s.phase] : [])))];
+  if (missing.length) state.phases = [...state.phases, ...missing];
 }
 export function undo() {
   flushHistoryDebounce();

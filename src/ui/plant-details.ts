@@ -11,6 +11,8 @@ import { zoneRange } from '../climate';
 import type { Provenance } from '../catalog';
 /** "1 kind", "12 kinds" (Priya, Alex, Oct 30: "1 kinds of caterpillars"). */
 const kinds = (n: number) => `${countWords(n)} kind${n === 1 ? '' : 's'}`;
+/** "1 kind of caterpillar", "14 kinds of caterpillars" (round 3: Diego's "1 kind of caterpillars"). */
+const kindsOf = (n: number, what: string) => `${kinds(n)} of ${what}${n === 1 ? '' : 's'}`;
 import { dayOfYear, escapeHere, escapeText, hostsHere, localBloom, localLeafOut, nativeHere, nativeText, regulatedHere, wildHere, wildText } from '../wild';
 
 const SURE: Record<string, string> = {
@@ -407,9 +409,9 @@ function hostRow(p: Plant): HTMLElement | null {
   if (p.host_genus) {
     const here = hostsHere(p), g = p.host_genus;
     const text = here
-      ? `Its genus, ${g.genus}: ${kinds(here.n)} of native caterpillars in ${here.stateName} (${countWords(g.species)} in North America)`
+      ? `Its genus, ${g.genus}: ${kindsOf(here.n, 'native caterpillar')} in ${here.stateName} (${countWords(g.species)} in North America)`
         + (here.butterflies.length ? `. Butterflies among them: ${commonNames(here.butterflies)}` : '')
-      : `Its genus, ${g.genus}: ${kinds(g.species)} of native caterpillars in North America`;
+      : `Its genus, ${g.genus}: ${kindsOf(g.species, 'native caterpillar')} in North America`;
     parts.push([text, [here?.source ?? sourceLine(p.prov?.host_genus), 'counted for the genus'].filter(Boolean).join(' \u00b7 '), 'hosts-genus']);
   }
   if (!p.hosts?.length && p.host) parts.push([butterflyCaps(p.host), sourceLine(p.prov?.host), 'hosts-earlier']);
@@ -502,15 +504,15 @@ export function groupSummary(id: string, p: Plant): string {
   } else if (id === 'wildlife') {
     if (p.attracts?.length) parts.push(p.attracts.join(', '));
     const here = p.host_genus ? hostsHere(p) : null;
-    if (here) parts.push(`its genus hosts ${kinds(here.n)} of caterpillars here`);
-    else if (p.host_genus) parts.push(`its genus hosts ${kinds(p.host_genus.species)} of caterpillars`);
+    if (here) parts.push(`its genus hosts ${kindsOf(here.n, 'caterpillar')} here`);
+    else if (p.host_genus) parts.push(`its genus hosts ${kindsOf(p.host_genus.species, 'caterpillar')}`);
     else if (p.hosts?.length || p.host) parts.push('a caterpillar host');
   } else if (id === 'safety') {
     const warn = safetyWarnings(p);
     if (warn.length) return cap(warn.join(' · '));
     if (p.prov?.poison?.unknown || p.poison === null) parts.push('not listed as poisonous to people');
     const t = toxRow(p);
-    if (t) parts.push(t.value.startsWith('Not listed') ? 'not listed as a problem for pets' : t.value.startsWith('Not rated') ? 'not rated for pets' : t.value.toLowerCase() + (t.line.startsWith('earlier list') ? ' (earlier list)' : ''));
+    if (t) parts.push(t.value.startsWith('Not listed') ? 'not listed as a problem for pets' : t.value.startsWith('Not rated') ? 'not rated for pets' : t.value.toLowerCase().replace(/\bgi\b/g, 'GI') + (t.line.startsWith('earlier list') ? ' (earlier list)' : ''));
     if (p.edible === true) parts.push('edible');
     if (p.thorns) parts.push('thorns');
   } else if (id === 'growing') {

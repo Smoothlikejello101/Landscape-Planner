@@ -3,7 +3,7 @@
 // look like a warning from the browser, and screen readers and the tap guard can't tell them from the app's own).
 //
 // Each is a small sheet over the app, outside what render() redraws (so a redraw while it's up leaves it, and the
-// phone's keyboard, alone). Focus goes to its field or its main button, stays inside it (Tab wraps), and comes back
+// phone's keyboard, alone). Focus goes to its field or its main button (Cancel, for one in red), stays inside it (Tab wraps), and comes back
 // to where it was when it closes. Esc, or a tap outside it, answers Cancel; Enter answers OK. Keys pressed in it
 // belong to it, never to the plan's shortcuts.
 import { el } from '../dom';
@@ -81,11 +81,13 @@ function sheet<T>(build: (finish: (v: T) => void) => { body: Node[]; first: HTML
     // (Its keys' releases too: the app acts on an Esc release whose press it never saw, src/main.ts.)
     dialog.addEventListener('keyup', (e) => e.stopPropagation());
     // (Focus that wanders out, a tap on the plan behind say, comes back in.)
-    const keepFocus = (e: FocusEvent) => { if (!dialog.contains(e.target as Node)) parts.first.focus({ preventScroll: true }); };
+    // (A question in red starts on Cancel, so a stray Enter doesn't delete: round 3, Tom.)
+    const first = opts.danger && !opts.noCancel ? cancelBtn : parts.first;
+    const keepFocus = (e: FocusEvent) => { if (!dialog.contains(e.target as Node)) first.focus({ preventScroll: true }); };
     document.addEventListener('focusin', keepFocus, true);
     document.body.appendChild(overlay);
     open = { cancel: () => finish(none) };
-    parts.first.focus({ preventScroll: true });
+    first.focus({ preventScroll: true });
   });
 }
 
@@ -113,6 +115,11 @@ export function askText(message: string, value = '', opts: AskOptions & { placeh
     input.addEventListener('input', sync);
     sync();
     setTimeout(() => input.select(), 0);
+    // (A first click in the box put the cursor after the suggestion: "UntitledImport test". It selects it all again,
+    // to type over, as long as it's untouched. Round 3, Alex.)
+    let fresh = true;
+    input.addEventListener('mouseup', (e) => { if (fresh && input.value === value) { e.preventDefault(); input.select(); } fresh = false; });
+    input.addEventListener('input', () => { fresh = false; });
     return {
       body: [el('label', { className: 'ask-message' }, message), input],
       first: input, okBtn,
