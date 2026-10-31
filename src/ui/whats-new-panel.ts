@@ -1,6 +1,7 @@
 // What's new: each update's changes, newest first (src/whats-new.ts). From ⋮ → What's new, and from the notice an
 // update brings. The releases this device hadn't seen when the app opened are marked New.
 
+import { CHANNEL } from '../channel';
 import { el } from '../dom';
 import { I } from '../icons';
 import { state } from '../state';
@@ -39,7 +40,7 @@ export function renderWhatsNewPanel(): HTMLElement {
     body.appendChild(el('section', { 'data-testid': `release-${r.id}` }, head, list));
   }
   body.appendChild(el('div', { className: 'hint', style: { padding: '6px 16px 16px' } },
-    `Version ${__APP_VERSION__} · ${__BUILD_TIME__}. Something not right, or an idea? ⋮ → Send feedback.`));
+    `Version ${__APP_VERSION__}${CHANNEL === 'next' ? ' · Next (preview)' : ''} · ${__BUILD_TIME__}. Something not right, or an idea? ⋮ → Send feedback.`));
   const sheet = el('div', { className: 'sheet' }, header, body);
   const overlay = el('div', { className: 'overlay' }, sheet);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) { state.panel = null; render(); } });

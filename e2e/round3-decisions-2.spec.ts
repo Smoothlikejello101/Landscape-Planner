@@ -23,8 +23,8 @@ test('after an undo, Redo floats out under Undo, nothing in the bar moving; gone
   const redo = page.getByTestId('float-redo');
   await expect(redo).toBeVisible();
   expect(await undo.boundingBox()).toEqual(before);
-  const at = (await redo.boundingBox())!;
-  expect(at.y).toBeGreaterThanOrEqual(before.y + before.height - 1); // (under it)
+  // (Under it, once it has slid out: read mid-slide, it can still be a pixel short.)
+  await expect.poll(async () => (await redo.boundingBox())!.y).toBeGreaterThanOrEqual(before.y + before.height - 1);
   await redo.click();
   expect(await shapeCount(page)).toBe(1);
   await expect(redo).toHaveCount(0);

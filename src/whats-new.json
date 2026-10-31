@@ -1,0 +1,15 @@
+[
+  {
+    "id": 1,
+    "date": "2026-10-31",
+    "items": [
+      "Settings has a sheet of its own: ⋮ → Settings. Text size, the size of names on the plan, drawing aids and warnings are all there.",
+      "Settings → Warnings → “In this plan now” lists every warning in the open plan, and can show again ones you dismissed.",
+      "Print starts from what the screen shows: the plants shown or hidden, names on or off, the month.",
+      "A plant’s details say when the U.S. Geological Survey lists it as invasive in the lower 48. A plant your state’s law bans is left out while you browse; a search still finds it, with a red “Place (banned)”.",
+      "Redo is easier to find: after an undo, it shows next to Undo.",
+      "A tree you draw that’s already in the yard is marked Existing, not Planted.",
+      "This list: after an update, a notice says what’s new; ⋮ → What’s new shows it any time."
+    ]
+  }
+]
