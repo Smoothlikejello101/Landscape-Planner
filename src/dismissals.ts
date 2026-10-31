@@ -3,7 +3,7 @@
 // to warn again for new ones. Fruit-partner reminders too. Per plan: another plan, another yard, warns again. Each is
 // kept with what the warning said when it was dismissed, so it comes back if that changes (a new ZIP; someone new in
 // the yard). Sun and crowding stay a copy's own: they depend on where it stands. Shown again from the plant's pane or
-// Layers → Warnings, "Dismissed in this plan".
+// Settings → Warnings, "In this plan now" (src/warnings-list.ts).
 
 import { pushHistory } from './history';
 import { householdFlags, plantsById, type Plant } from './plants';
@@ -70,7 +70,7 @@ function dropPlanEntry(kind: DismissKind, plantId: string) {
   state.dismissed = next; // (kept, even empty, once the plan has had any: so showing them all again syncs too)
 }
 
-/** Everything dismissed across the plan, by plant name: for Layers → Warnings. */
+/** Everything dismissed across the plan, by plant name, current or not (Settings lists only those still in force). */
 export function planDismissals(): { kind: DismissKind; plantId: string; name: string }[] {
   const out: { kind: DismissKind; plantId: string; name: string }[] = [];
   for (const kind of ['hardy', 'poison', 'fruit'] as const) {

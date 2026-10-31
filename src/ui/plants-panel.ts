@@ -291,7 +291,12 @@ export function renderPlantsPanel() {
     const toggle = el('button', { className: 'row-toggle', 'aria-expanded': 'false', 'data-testid': 'plant-row' }, dot, info, chev);
     const head = el('div', { className: 'proj-row', style: { alignItems: 'center' } }, toggle);
     const verb = swapping ? 'Swap' : linking ? 'Link' : forTree ? 'Pick' : state.placing ? 'Switch' : 'Place';
-    const place = el('button', { className: 'btn place-btn', 'data-testid': 'plant-place', 'aria-label': `${verb === 'Link' ? 'Link to' : verb === 'Switch' ? 'Switch to' : verb === 'Swap' ? 'Swap for' : verb} ${p.common}` }, verb);
+    // (An invasive plant, found by name: the button says so, in red, as it's about to go on the plan. No notice
+    // afterwards, nor any on the ones already there: Jason, Oct 31, from round 3: Kim swapped one in unwarned.)
+    const bad = !!p.invasive && verb !== 'Link';
+    const place = el('button', { className: 'btn place-btn' + (bad ? ' invasive' : ''), 'data-testid': 'plant-place',
+      'aria-label': `${verb === 'Link' ? 'Link to' : verb === 'Switch' ? 'Switch to' : verb === 'Swap' ? 'Swap for' : verb} ${p.common}${bad ? ' (invasive)' : ''}` },
+      bad ? `${verb} (invasive)` : verb);
     place.addEventListener('click', () => pick(p));
     head.appendChild(place);
     // Mine: edit. Catalog: copy as my own (a cultivar of it, say).

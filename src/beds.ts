@@ -22,6 +22,15 @@ export function bedOf(plant: Shape, shapes: Shape[]): Shape | null {
 export function plantsInBed(bed: Shape, shapes: Shape[]): Shape[] {
   return shapes.filter((s) => isPlant(s) && bedOf(s, shapes) === bed);
 }
+/**
+ * The ids that move with a selection: what's selected, and, only when no plant is among it, the plants its beds carry
+ * (Jason, Oct 31, from round 3: Hank's lasso took in a bed's edge with three plants, and moving them moved the bed and
+ * all 27 in it. A bed, or beds, moved on their own still bring their plants.)
+ */
+export function movedWith(selected: Shape[], shapes: Shape[]): string[] {
+  if (selected.some(isPlant)) return selected.map((s) => s.id);
+  return [...new Set(selected.flatMap((s) => [s.id, ...attachedPlants(s, shapes).map((p) => p.id)]))];
+}
 /** Plants that should move with `bed` right now (unlocked members, if the bed carries plants). */
 export function attachedPlants(bed: Shape, shapes: Shape[]): Shape[] {
   return carriesPlants(bed) ? plantsInBed(bed, shapes).filter((p) => !isLocked(p)) : [];

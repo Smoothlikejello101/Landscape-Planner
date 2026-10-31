@@ -11,6 +11,7 @@ import type { Shape, ShapeFilter, Status } from './types';
 export const STATUSES: { key: Status; label: string }[] = [
   { key: 'planned', label: 'Planned' },
   { key: 'planted', label: 'Planted' },
+  { key: 'existing', label: 'Existing' },
   { key: 'move', label: 'To move' },
   { key: 'remove', label: 'To remove' },
   { key: 'gone', label: 'Gone' },
@@ -19,15 +20,13 @@ const KEYS = new Set<string>(STATUSES.map((s) => s.key));
 export const isStatus = (v: unknown): v is Status => typeof v === 'string' && KEYS.has(v);
 export const statusLabel = (k: Status | undefined) => STATUSES.find((s) => s.key === k)?.label ?? 'Not set';
 /**
- * Statuses that make sense for these shapes. A house isn't "planted": for
- * anything that isn't a plant, 'planted' reads "Existing" (it's there), and
- * "To move" is left out. A mix of plants and other things gets both words.
+ * Statuses that make sense for these shapes. A house isn't planted, nor moved: anything that isn't a plant is Planned,
+ * Existing, To remove or Gone. A mix of plants and other things gets every one.
  */
 export function statusesFor(shapes: Pick<Shape, 'role'>[]): { key: Status; label: string }[] {
   const plants = shapes.filter((s) => s.role === 'plant').length;
-  if (plants === shapes.length) return STATUSES;
-  const planted = plants ? 'Planted / existing' : 'Existing';
-  return STATUSES.filter((s) => plants || s.key !== 'move').map((s) => (s.key === 'planted' ? { ...s, label: planted } : s));
+  if (plants) return STATUSES;
+  return STATUSES.filter((s) => s.key !== 'move' && s.key !== 'planted');
 }
 /** A shape's status in words that fit it ("Existing" for a house). */
 export function statusLabelFor(s: Pick<Shape, 'role' | 'status'>): string {
@@ -106,3 +105,10 @@ export function statusPatch(s: Shape, status: Status | undefined): Partial<Shape
 
 export const MAX_PHASES = 50;
 export function cleanPhaseName(v: string): string { return v.trim().replace(/\s+/g, ' ').slice(0, 40); }
+
+/**
+ * A plant already in the yard before the plan: a tree drawn as one, or one marked Existing. It gets no crowding, sun
+ * or hardiness warning of its own (it's there, and doing what it does); plants placed near it still do. (Jason, Oct 30
+ * and 31: Grace's three old oaks.)
+ */
+export const alreadyThere = (s: Shape): boolean => (s.type === 'circle' && !!s.tree) || s.status === 'existing';

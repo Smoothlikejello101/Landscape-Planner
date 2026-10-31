@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { answerAsk, openFresh, openSections, tapFromCenter } from './helpers';
+import { answerAsk, openFresh, openSections, tapFromCenter, openSettings } from './helpers';
 
 // Round 3 of persona testing (Oct 31): the smaller fixes, each as a tester met it.
 
@@ -52,10 +52,10 @@ test('an empty plan\'s "In this plan" says so, without "loosen a filter" (Sam)',
   await expect(page.locator('.sheet')).not.toContainText('loosen a filter');
 });
 
-test('the zoom buttons switch is in the ⋮ menu too (Ruth, Bea)', async ({ page }) => {
+test('the zoom buttons switch is in Settings, from the ⋮ menu (Ruth, Bea)', async ({ page }) => {
   await openFresh(page);
-  await page.locator('button[title=More]').click();
-  const check = page.getByTestId('menu-zoom-buttons');
+  await openSettings(page);
+  const check = page.getByTestId('zoom-buttons');
   const on = await check.isChecked();
   await check.click();
   await expect(page.locator('.zoombtn[aria-label="Zoom in"]')).toHaveCount(on ? 0 : 1);

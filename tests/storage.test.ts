@@ -318,6 +318,21 @@ describe('printable-plan settings', () => {
   });
 });
 
+describe('Existing, a status of its own (Jason, Oct 31)', () => {
+  it('reads what was "planted" but already there as Existing: anything not a plant, a tree drawn as one with no planting date', () => {
+    const d = sanitizeProjectData({ shapes: [
+      { id: 'house', type: 'rect', x: 0, y: 0, width: 10, height: 8, role: 'building', status: 'planted' },
+      { id: 'oak', type: 'circle', x: 0, y: 0, radius: 12, role: 'plant', tree: true, status: 'planted' },
+      { id: 'maple', type: 'circle', x: 0, y: 0, radius: 8, role: 'plant', tree: true, status: 'planted', plantedOn: '2024-04-01' },
+      { id: 'aster', type: 'circle', x: 0, y: 0, radius: 1, role: 'plant', status: 'planted', plantedOn: '2025-05-01' },
+      { id: 'shed', type: 'rect', x: 0, y: 0, width: 4, height: 4, role: 'building', status: 'remove' },
+    ] });
+    expect(d.shapes.map((s) => [s.id, s.status])).toEqual([['house', 'existing'], ['oak', 'existing'], ['maple', 'planted'], ['aster', 'planted'], ['shed', 'remove']]);
+    // (And as it now is, kept.)
+    expect(sanitizeProjectData({ shapes: [{ id: 'oak', type: 'circle', x: 0, y: 0, radius: 12, role: 'plant', status: 'existing' }] }).shapes[0].status).toBe('existing');
+  });
+});
+
 describe('a plant of my own, male or female (Jason, Oct 31)', () => {
   it('keeps its sex when said, none for older plants or odd values', () => {
     const base = { id: 'u-abc', common: "Winterberry 'Jim Dandy'", width: { min: 6, max: 8, med: 7 } };

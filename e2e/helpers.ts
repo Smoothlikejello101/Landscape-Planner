@@ -165,8 +165,14 @@ export async function openFilters(page: Page) {
   if ((await b.getAttribute('aria-expanded')) !== 'true') await b.click();
 }
 
-/** Layers → Warnings, opened if it's folded (Layers already open). */
+/** ⋮ → Settings (text and label size, drawing, warnings: Jason, Oct 31). */
+export async function openSettings(page: Page) {
+  await page.locator('button[title=More]').click();
+  await page.getByTestId('menu-settings').click();
+}
+
+/** Settings → Warnings, opened if it's folded (Settings already open). */
 export async function openWarnings(page: Page) {
   const fold = page.getByTestId('warnings');
-  if ((await fold.getAttribute('open')) === null) await fold.locator('summary').click();
+  if ((await fold.getAttribute('open')) === null) await fold.locator(':scope > summary').click();
 }

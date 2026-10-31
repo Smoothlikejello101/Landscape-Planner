@@ -1,6 +1,7 @@
 import { drawnOutline, pointInShape, shapeArea, shapeCenter } from './geometry';
 import type { Plant } from './plants';
 import type { Shape, SunInfo } from './types';
+import { alreadyThere } from './status';
 
 // Observed sun on shade areas, and the check of plants against it.
 // Thresholds follow common nursery usage: full sun = 6+ hours of direct
@@ -89,7 +90,7 @@ const SUN_WORDS: Record<string, string> = { Full: 'full sun', Part: 'part shade'
  */
 export function checkPlantSun(plantShape: Shape, plant: Plant | undefined, shapes: Shape[]): SunCheck | null {
   // (A tree already there: it makes the shade, and isn't being planted. Jason, Oct 30.)
-  if (plantShape.type === 'circle' && plantShape.tree) return null;
+  if (alreadyThere(plantShape)) return null;
   if (!plant || !plant.sun_most || !plant.sun_least) return null;
   const at = sunAt(shapeCenter(plantShape), shapes);
   if (!at) return null;

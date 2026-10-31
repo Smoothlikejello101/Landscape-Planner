@@ -3,6 +3,7 @@ import { plantSpread } from './my-plants';
 import type { Plant } from './plants';
 import { isTree } from './trees';
 import type { CircleShape, Shape } from './types';
+import { alreadyThere } from './status';
 
 // Crowding (task C2): two plants are crowded when their centers are closer
 // than CROWD_FACTOR of the usual spacing, which is half of each plant's
@@ -157,7 +158,7 @@ function pairLevel(a: Shape, b: Shape, ra: number, rb: number, share: number, by
 export function crowdingOf(s: Shape, shapes: Shape[], byId: Record<string, Plant | undefined>, opts: CrowdOptions & { close?: boolean } = {}): Crowd[] {
   // A tree already in the yard gets no crowding warning of its own; plants near it still do (Jason, Oct 30, from
   // Grace's three old oaks, each 'close to' the next).
-  if (s.type === 'circle' && s.tree) return [];
+  if (alreadyThere(s)) return [];
   const vines = climbingIn(shapes, byId);
   const r = typicalRadius(s, byId, vines);
   if (r == null || s.type !== 'circle') return [];
@@ -207,7 +208,7 @@ export function crowdPairs(shapes: Shape[], byId: Record<string, Plant | undefin
       const j = order[b];
       if (plants[j].x - plants[i].x >= radii[i] + maxR) break;
       if (leftClose(plants[i], plants[j])) continue;
-      if (plants[i].tree && plants[j].tree) continue; // (two trees already there: nothing to plan)
+      if (alreadyThere(plants[i]) && alreadyThere(plants[j])) continue; // (two already there: nothing to plan)
       const pair = pairLevel(plants[i], plants[j], radii[i], radii[j], sharedHeight(bands[i], bands[j]), byId, hardy);
       if (pair) out.push({ a: plants[i], b: plants[j], level: pair.level });
     }
@@ -219,8 +220,8 @@ export function crowdLevels(shapes: Shape[], byId: Record<string, Plant | undefi
   const out = new Map<string, CrowdLevel>();
   const mark = (id: string, level: CrowdLevel) => { if (out.get(id) !== 'crowded') out.set(id, level); };
   for (const p of crowdPairs(shapes, byId, opts)) {
-    if (!(p.a.type === 'circle' && p.a.tree)) mark(p.a.id, p.level);
-    if (!(p.b.type === 'circle' && p.b.tree)) mark(p.b.id, p.level);
+    if (!alreadyThere(p.a)) mark(p.a.id, p.level);
+    if (!alreadyThere(p.b)) mark(p.b.id, p.level);
   }
   return out;
 }

@@ -1,6 +1,6 @@
 import { el, hasKeyboard } from '../dom';
 import { canRedo, redo } from '../history';
-import { roomyText, setTextSize, textSize, TEXT_SIZES } from '../text-size';
+import { roomyText } from '../text-size';
 import { dismissToastAction } from './toast';
 import { I } from '../icons';
 import { paste } from '../mutations';
@@ -13,7 +13,6 @@ import { openLocation } from './location-panel';
 import { openFeedback } from './feedback-sheet';
 import { MARK_SMALL } from '../brand';
 import { showMeAround } from './intro-card';
-import { setZoomButtons } from '../view-settings';
 import { openPrint } from './print-panel';
 
 /** Select mode on or off (the lasso button on the top bar). */
@@ -86,6 +85,9 @@ export function renderMoreMenu() {
     onClick: () => { state.panel = 'reset'; state.menu = null; render(); }
   });
   items.push({ divider: true });
+  // Every setting of this device in one sheet: text and label size, drawing, warnings (Jason, Oct 31, from round 3:
+  // Bea found them scattered between Layers and the foot of this menu).
+  items.push({ icon: I.settings, label: 'Settings\u2026', testid: 'menu-settings', onClick: () => { state.panel = 'settings'; state.menu = null; render(); } });
   // The guided introduction, any time: from the start, or (left part way) pick up where they left (src/ui/intro-card.ts).
   items.push({
     icon: I.help, label: 'Show me around', testid: 'menu-intro',
@@ -107,21 +109,7 @@ export function renderMoreMenu() {
     btn.addEventListener('click', it.onClick);
     menu.appendChild(btn);
   }
-  // Text size: four A's, each at its size. A change shows at once; the menu stays open to try another.
-  const seg = el('div', { className: 'seg', role: 'group', 'aria-label': 'Text size' });
-  for (const s of TEXT_SIZES) {
-    const b = el('button', { 'aria-pressed': String(textSize() === s.key), 'aria-label': s.name, title: s.name, 'data-testid': `text-size-${s.key}`, style: { fontSize: `${14 * s.scale}px` } }, 'A');
-    b.addEventListener('click', () => { setTextSize(s.key); render(); });
-    seg.appendChild(b);
-  }
   menu.appendChild(el('div', { className: 'menu-divider' }));
-  menu.appendChild(el('div', { className: 'text-size-row', 'data-testid': 'text-size' }, el('span', {}, 'Text size'), seg));
-  // Zoom buttons, beside Text size (round 3: Ruth and Bea, who zoom with one finger, didn't find the switch at the end
-  // of Layers, where it is too). Off on a phone till turned on (src/view-settings.ts).
-  const zoomCheck = el('input', { type: 'checkbox', 'data-testid': 'menu-zoom-buttons' }) as HTMLInputElement;
-  zoomCheck.checked = state.zoomButtons;
-  zoomCheck.addEventListener('change', () => { setZoomButtons(zoomCheck.checked); render(); });
-  menu.appendChild(el('label', { className: 'text-size-row zoom-row' }, el('span', {}, 'Zoom buttons (+ and \u2212)'), zoomCheck));
   // The mark leads the version line (it has no text, so the line still reads "Version …").
   const version = el('div', { className: 'menu-version', html: MARK_SMALL });
   version.append(`Version ${__APP_VERSION__} · ${__BUILD_TIME__}`);

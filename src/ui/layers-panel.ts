@@ -1,18 +1,10 @@
-import { DISMISS_WORDS, planDismissals, showAgainForPlan } from '../dismissals';
 import { lookShown, shapeDot } from '../plant-looks';
-import { setCrowdWarnings, setHardyWarnings, setFruitWarnings, setPoisonWarnings, setShowCrowding, setPlantLooks, setShowFullSize, setZoomButtons } from '../view-settings';
-import { household } from '../yard';
+import { setPlantLooks, setShowFullSize } from '../view-settings';
 import { el, svgEl, ts } from '../dom';
-import { setSnapOn, setSquareOn, snapOn, squareOn } from '../tidy';
-import { flushHistoryDebounce, pushHistory, undo } from '../history';
+import { flushHistoryDebounce, pushHistory } from '../history';
 import { I } from '../icons';
 import { centerOnShape, deletePhase, setRoleView, setViewFilter } from '../mutations';
-import { passesFilter, shownWith, STATUSES, statusLabelFor } from '../status';
-import { BULB_PARTNER_MIN_HEIGHT, crowdLevels, crowdPairs } from '../crowding';
-import { leaveAllClose } from './crowd-notice';
-import { toastAction } from './toast';
-import { crowdOptions } from '../crowd-here';
-import { plantsById } from '../plants';
+import { passesFilter, STATUSES, statusLabelFor } from '../status';
 import { ROLES, roleHidden, roleKey, roleLabel } from '../roles';
 import type { RoleKey, ShapeFilter } from '../types';
 import { isSelected, selectOnly } from '../selection';
@@ -27,6 +19,7 @@ import { typeName } from '../util';
 import { updateBgImageSilent } from '../background';
 import { ask } from './ask';
 import { sheetTitle } from './props-panel';
+import { settingsLink } from './settings-panel';
 
 const fmtFt = (v: number) => String(Math.round(v * 10) / 10);
 
@@ -50,9 +43,10 @@ export function renderLayersPanel() {
         : 'This plan’s background photo hasn’t come down to this device yet. It will at the next sync.')));
   }
   if (state.shapes.length) list.appendChild(roleSection());
-  if (state.shapes.some((s) => s.plantId)) { list.appendChild(plantSizeSection()); list.appendChild(warningsSection()); }
+  if (state.shapes.some((s) => s.plantId)) list.appendChild(plantSizeSection());
   if (state.shapes.some((s) => s.role === 'plant' || s.status || s.phase) || state.phases.length) list.appendChild(showSection());
-  list.appendChild(drawingSection());
+  // (Warnings, drawing and text size moved to Settings, in ⋮: Jason, Oct 31, from round 3. A line here says where.)
+  list.appendChild(settingsLink());
   if (state.shapes.length === 0) {
     list.appendChild(el('div', { style: { padding: '32px', textAlign: 'center', color: '#78716c', fontSize: ts(14) } }, 'No shapes yet.'));
   } else {
@@ -185,71 +179,6 @@ function showSection(): HTMLElement {
   return wrap;
 }
 
-/** Drawing: tidying what's drawn (src/tidy.ts), a setting of this device, not the plan. */
-function drawingSection(): HTMLElement {
-  const wrap = el('div', { className: 'role-rows', 'data-testid': 'drawing-settings' }, el('div', { className: 'section-label' }, 'Drawing'));
-  const check = (testid: string, on: boolean, set: (v: boolean) => void, text: string) => {
-    const box = el('input', { type: 'checkbox', 'data-testid': testid }) as HTMLInputElement;
-    box.checked = on;
-    box.addEventListener('change', () => set(box.checked));
-    wrap.appendChild(el('label', { className: 'check-row' }, box, el('span', {}, text)));
-  };
-  check('snap-drawing', snapOn(), setSnapOn, 'Snap to nearby edges and corners');
-  check('square-drawing', squareOn(), setSquareOn, 'Square nearly-square outlines');
-  // The + and − buttons: off on a phone to start (a pinch zooms), for zooming with one finger (src/view-settings.ts).
-  check('zoom-buttons', state.zoomButtons, (v) => { setZoomButtons(v); render(); }, 'Zoom buttons (+ and \u2212), to zoom with one finger');
-  wrap.appendChild(el('div', { className: 'hint' },
-    'A snapped point lights up the edge it\'s on, with an Unsnap; squaring says so after, with an Undo. Settings of this device.'));
-  return wrap;
-}
-/**
- * Crowding (decided with Jason, 2026-10-25): rings on the plan, amber where plants are close (their typical spreads
- * touch) and red where they're crowded; a notice as one is placed too close; the pairs left close on purpose.
- * Settings of this device; a crowding notice's "Crowding settings…" opens here.
- */
-function crowdingSettings(): HTMLElement {
-  const wrap = el('div', { 'data-testid': 'crowding-settings', className: 'crowding-settings' });
-  const levels = [...crowdLevels(state.shapes.filter((x) => shownWith(x, state.viewFilter)), plantsById, crowdOptions()).values()];
-  // (Plants counted, said so: beside "Leave all flagged now (2 pairs)", "3 close" read as a count of the same thing.
-  // Round 3: Alex, Dana, Bea.)
-  const nClose = levels.filter((l) => l === 'close').length, nCrowded = levels.filter((l) => l === 'crowded').length;
-  const show = el('input', { type: 'checkbox', 'data-testid': 'show-crowding' }) as HTMLInputElement;
-  show.checked = state.showCrowding;
-  show.addEventListener('change', () => { setShowCrowding(show.checked); render(); });
-  wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, show,
-    el('span', {}, `Show crowding on the plan: amber rings where plants are close, red where they're crowded (${nClose + nCrowded ? `plants now: ${nClose} close, ${nCrowded} crowded` : 'none now'})`)));
-  const warn = el('input', { type: 'checkbox', 'data-testid': 'crowd-warnings' }) as HTMLInputElement;
-  warn.checked = state.crowdWarnings;
-  warn.addEventListener('change', () => { setCrowdWarnings(warn.checked); render(); });
-  wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, warn,
-    el('span', {}, 'Warn me as I place a plant close to another')));
-  // Everything flagged now, left close at once (a plan drawn before the warnings: Jason, 2026-10-27).
-  const flagged = crowdPairs(state.shapes.filter((x) => shownWith(x, state.viewFilter)), plantsById, crowdOptions()).length;
-  if (flagged) {
-    const leave = el('button', { className: 'btn', 'data-testid': 'leave-all-close' }, `Leave all flagged now (${flagged} pair${flagged === 1 ? '' : 's'})`);
-    leave.addEventListener('click', () => {
-      const n = leaveAllClose();
-      render();
-      if (n) toastAction(`Left ${n} pair${n === 1 ? '' : 's'} close on purpose. Plants placed from now on are still flagged.`, [{ label: 'Undo', run: () => { undo(); render(); } }]);
-    });
-    wrap.appendChild(el('div', { className: 'check-row', style: { marginTop: '6px', gap: '10px' } }, leave));
-  }
-  // Pairs left close on purpose (Leave it), and a way to have them flagged again.
-  const pairs = state.shapes.reduce((n, s) => n + (s.type === 'circle' ? s.crowdOk?.length ?? 0 : 0), 0);
-  if (pairs) {
-    const again = el('button', { className: 'btn', 'data-testid': 'flag-all-again' }, 'Flag them again');
-    again.addEventListener('click', () => {
-      for (const s of state.shapes) if (s.type === 'circle') delete s.crowdOk;
-      pushHistory(); save(); render();
-    });
-    wrap.appendChild(el('div', { className: 'check-row', style: { marginTop: '6px', gap: '10px' } },
-      el('span', {}, `${pairs} pair${pairs === 1 ? '' : 's'} left close on purpose`), again));
-  }
-  wrap.appendChild(el('div', { className: 'hint' },
-    'Usual spacing is half of each plant\'s typical spread added together, less where one grows under a tree whose lower limbs can be taken up. ' +
-    `Close is where their typical spreads touch; crowded, closer than three quarters of that. Spring bulbs under a deciduous plant ${BULB_PARTNER_MIN_HEIGHT} ft or taller don't count, except right at its base. Settings of this device.`));
-  return wrap;
-}
 /** Plan-wide plant size: typical or full, and full-size rings for every plant. */
 function plantSizeSection(): HTMLElement {
   const wrap = el('div', { className: 'role-rows', 'data-testid': 'plant-size' }, el('div', { className: 'section-label' }, 'Plants'));
@@ -282,65 +211,6 @@ function plantSizeSection(): HTMLElement {
   wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, looks,
     el('span', {}, 'Draw plants as pictures, in bloom (off: plain colored circles)')));
   return wrap;
-}
-
-/** Whether Layers → Warnings is open: kept while the app is open; a notice's Settings opens it (openWarningsAt). */
-let warningsOpen = false;
-/** Layers, at Warnings, open, with one of its settings in view and flashed (`testid`): a notice's Settings. */
-export function openWarningsAt(testid: string) {
-  warningsOpen = true;
-  state.panel = 'layers';
-  render();
-  requestAnimationFrame(() => {
-    const n = document.querySelector(`[data-testid=${testid}]`);
-    n?.scrollIntoView({ block: 'center' });
-    n?.classList.add('flash');
-  });
-}
-/**
- * Every kind of warning in one place, folded (Jason, Oct 30: "a 'warning settings' panel/collapsed section to house
- * everything to do with warnings", a switch for each): crowding, sun, hardiness, poison to who's in the yard, fruit partners.
- */
-function warningsSection(): HTMLElement {
-  const d = el('details', { className: 'role-rows warnings-fold', 'data-testid': 'warnings' }) as HTMLDetailsElement;
-  d.open = warningsOpen;
-  d.addEventListener('toggle', () => { warningsOpen = d.open; });
-  const kinds = [state.showCrowding || state.crowdWarnings, state.sunWarnings, state.hardyWarnings, state.poisonWarnings, state.fruitWarnings];
-  const on = kinds.filter(Boolean).length;
-  d.appendChild(el('summary', { className: 'section-label' }, 'Warnings',
-    el('span', { className: 'count' }, on === kinds.length ? ' \u00b7 all on' : ` \u00b7 ${on} of ${kinds.length} kinds on`)));
-  d.appendChild(crowdingSettings());
-  const row = (testid: string, checked: boolean, set: (on: boolean) => void, text: string) => {
-    const cb = el('input', { type: 'checkbox', 'data-testid': testid }) as HTMLInputElement;
-    cb.checked = checked;
-    cb.addEventListener('change', () => { set(cb.checked); render(); });
-    return el('label', { className: 'check-row', style: { marginTop: '8px' } }, cb, el('span', {}, text));
-  };
-  d.appendChild(row('sun-warnings', state.sunWarnings, (v) => { state.sunWarnings = v; save(); },
-    'Sun: a \u26a0 triangle badge where a plant gets more or less sun than it wants (in a sun area you recorded; this plan)'));
-  d.appendChild(row('hardy-warnings', state.hardyWarnings, setHardyWarnings,
-    state.location ? `Hardiness: a warning as I place a plant too cold or too warm for zone ${state.location.zone}, and a round \u2744 or \u2600 badge on it`
-      : 'Hardiness: a warning as I place a plant too cold or too warm where the garden is, and a badge on it (once a ZIP is set)'));
-  const y = household();
-  const who = [y.kids ? 'kids' : '', y.dogs ? 'dogs' : '', y.cats ? 'cats' : '', y.horses ? 'horses' : ''].filter(Boolean);
-  d.appendChild(row('poison-warnings', state.poisonWarnings, setPoisonWarnings,
-    who.length ? `Poison: a square badge on plants that are a problem for the ${who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0]} in the yard, in lists and on the plan`
-      : "Poison: badges on plants that are a problem for who's in the yard (set in the plant picker's Filters, Poison & pets)"));
-  d.appendChild(row('fruit-warnings', state.fruitWarnings, setFruitWarnings,
-    'Fruit partners: a notice as I place a plant that needs a partner to fruit (male and female plants, or a second variety), until the plan has one'));
-  d.appendChild(el('div', { className: 'hint' }, 'Crowding, hardiness, poison and fruit partners are settings of this device; sun is kept with the plan.'));
-  // Warnings dismissed for a plant across this plan (src/dismissals.ts), each to show again (Jason, Oct 30).
-  const gone = planDismissals();
-  if (gone.length) {
-    const list = el('div', { className: 'dismissed-list', 'data-testid': 'dismissed-list' }, el('div', { className: 'section-label', style: { marginTop: '12px' } }, 'Dismissed in this plan'));
-    for (const g of gone) {
-      const again = el('button', { className: 'link-btn' }, 'Show again');
-      again.addEventListener('click', () => { showAgainForPlan(g.kind, g.plantId); render(); });
-      list.appendChild(el('div', { className: 'dismissed-row', 'data-testid': 'dismissed-row' }, el('span', {}, `${g.name}: ${DISMISS_WORDS[g.kind]}`), again));
-    }
-    d.appendChild(list);
-  }
-  return d;
 }
 
 /** The background image: shown or hidden, and how faint, beside the layers' own (the rest is in ⋮ → Background image). */

@@ -84,7 +84,7 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await page.getByTestId('intro-go').click();
   await drawBar(page).locator('[data-method=circle]').click();
   await tapFromCenter(page, 3, 3); await tapFromCenter(page, 5, 3);
-  await expect(page.getByTestId('record-sun')).toHaveClass(/intro-pulse/);
+  await expect(page.getByTestId('sun-empty')).toHaveClass(/intro-pulse/);
   await page.getByTestId('record-sun').click();
   await expect(step(page)).toHaveText('Step 5 of 8'); // (not until the sheet is closed)
   await closeSheet(page);

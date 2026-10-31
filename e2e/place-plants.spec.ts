@@ -108,7 +108,7 @@ test('an existing tree: pick which, or draw an unknown one, by trunk and canopy 
   await expect(page.locator('.sel-pill .name')).toHaveText(name);
   await page.locator('.sel-pill .edit').click();
   await expect(page.locator('.sheet [data-section=size]')).toContainText('10 ft spread');
-  await expect(page.locator('.sheet [data-section=status]')).toContainText('Planted'); // it's already there
+  await expect(page.locator('.sheet [data-section=status]')).toContainText('Existing'); // it's already there (Jason, Oct 31)
   await page.locator('.sheet-header button.iconbtn').last().click();
 
   await addKind(page, 'tree');

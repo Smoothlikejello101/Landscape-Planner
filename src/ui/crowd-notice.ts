@@ -14,7 +14,7 @@ import { save } from '../storage';
 import type { Crowd } from '../crowding';
 import type { Shape } from '../types';
 import { render } from './render';
-import { openWarningsAt } from './layers-panel';
+import { openWarningsAt } from './settings-panel';
 import { toast, toastAction } from './toast';
 
 const TESTID = 'crowd-notice';

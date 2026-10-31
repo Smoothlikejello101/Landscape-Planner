@@ -7,7 +7,7 @@ import { dismissedForPlan } from '../dismissals';
 import { hardinessWarning, plantsById } from '../plants';
 import { state } from '../state';
 import type { Shape } from '../types';
-import { openWarningsAt } from './layers-panel';
+import { openWarningsAt } from './settings-panel';
 import { toastAction } from './toast';
 
 export function hardyNotice(shape: Shape, takeBack: () => void) {

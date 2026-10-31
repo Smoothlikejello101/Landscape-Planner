@@ -50,7 +50,7 @@ export function shapeToSvgString(shape: Shape, originX: number, originY: number,
   // (No padlock on a locked shape: a lock is how it's edited, not part of the yard, and it puzzled whoever read the
   // paper. Jason, Oct 31, from round 3: Dana, Priya, Jordan.)
   const body = shapeBodySvg(s, originX, originY, scale, k) + subs;
-  if (!s.status || s.status === 'planted' || s.status === 'planned') return body;
+  if (!s.status || s.status === 'planted' || s.status === 'existing' || s.status === 'planned') return body;
   if (s.status === 'gone') return `<g opacity="0.35">${body}</g>`;
   // To remove: a red cross; to move: a blue arrow badge (as on screen).
   const b = shapeBBox(s);

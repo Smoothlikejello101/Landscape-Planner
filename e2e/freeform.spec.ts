@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, canvasBox, closeSheet, drag, field, openFresh, shapeCount, addPlainShape, setRole, openSections } from './helpers';
+import { addKind, canvasBox, closeSheet, drag, field, openFresh, shapeCount, addPlainShape, setRole, openSections, openSettings } from './helpers';
 
 // At the starting view (zoom 100%, 24 px per foot, view starting at -10 ft),
 // canvas pixel 24*k is k-10 ft: tapping at multiples of 24 px lands on the grid.
@@ -249,9 +249,9 @@ test('a bed drawn against an off-grid wall: each snap shown as it lands, with Un
   const [w, a] = await area();
   expect(w).toBe('3.7'); // (still from the wall)
   expect(a).not.toContain('14.8');
-  // Both off (in Layers): the next lands on the grid, as drawn, nothing said. A setting of this device.
+  // Both off (in Settings): the next lands on the grid, as drawn, nothing said. A setting of this device.
   await page.locator('button[title=Undo]').click(); // (that bed gone)
-  await page.locator('button[title=Layers]').click();
+  await openSettings(page);
   await page.getByTestId('snap-drawing').uncheck();
   await page.getByTestId('square-drawing').uncheck();
   await closeSheet(page);
@@ -264,7 +264,7 @@ test('a bed drawn against an off-grid wall: each snap shown as it lands, with Un
   expect((await area())[0]).toBe('3.5');
   await page.waitForTimeout(600);
   await page.reload();
-  await page.locator('button[title=Layers]').click();
+  await openSettings(page);
   await expect(page.getByTestId('snap-drawing')).not.toBeChecked();
   await expect(page.getByTestId('square-drawing')).not.toBeChecked();
 });

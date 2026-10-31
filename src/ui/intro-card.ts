@@ -219,7 +219,7 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
     };
     case 'sun': return {
       text: 'Where does it get shade? Draw that part, then show when direct sun reaches it.',
-      short: state.panel === 'add' ? `${Tap()} Sun exposure, then draw the shady part.` : `${Tap()} Record sun for this area, set when sun reaches it, then close this with its ×.`,
+      short: state.panel === 'add' ? `${Tap()} Sun exposure, then draw the shady part.` : `Drag across the hours it gets sun, then close this with its ×.`,
       action: { label: 'Draw the shade', run: () => startKind('sun') },
     };
     case 'who': return { text: "Kids, dogs, cats, horses? We'll hide plants that are a problem for them. Change it any time in Filters.", extra: whoChips(), done: 'Next' };
@@ -296,7 +296,7 @@ function pulseTarget(step: StepId): string | null {
     case 'house': return p === 'add' ? '.kind-chip[data-kind=building]' : null;
     case 'bed': return !p && !state.draw ? '.tool-btn.bed' : null;
     case 'fade': return p === 'bg' ? '[data-testid=bg-opacity]' : null;
-    case 'sun': return p === 'add' ? '.kind-chip[data-kind=sun]' : p === 'props' ? '[data-testid=record-sun]' : null;
+    case 'sun': return p === 'add' ? '.kind-chip[data-kind=sun]' : p === 'props' ? '[data-testid=sun-empty]' : null;
     case 'plant': return p === 'plants' ? '[data-testid=plant-search]' : null;
     default: return null;
   }

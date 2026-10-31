@@ -115,6 +115,6 @@ describe('placing plants by tapping', () => {
     startTreeDraw('u-oak');
     state.draw!.points.push({ x: 10, y: 10 }, { x: 10, y: 22 });
     expect(canFinishDraw()).toBe(true);
-    expect(finishDraw()).toMatchObject({ label: 'White Oak', plantId: 'u-oak', radius: 12, sizeFrom: 'manual', status: 'planted' });
+    expect(finishDraw()).toMatchObject({ label: 'White Oak', plantId: 'u-oak', radius: 12, sizeFrom: 'manual', status: 'existing' });
   });
 });
