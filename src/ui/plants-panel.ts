@@ -4,7 +4,7 @@ import { saveHardy, saveYard, yardOf } from '../yard';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery, unsearchable } from '../search';
-import { byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, invasivesLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById } from '../plants';
+import { byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { SPREAD_WAYS, spreadWays } from '../spread';
@@ -17,7 +17,7 @@ import { ZONE_SOURCE_SHORT } from '../climate';
 import { openLocation } from './location-panel';
 import { render } from './render';
 import { plantDetails } from './plant-details';
-import { escapeHere, escapeShort, gardenStateName, lawShort, loadWild, regulatedHere } from '../wild';
+import { bannedHere, escapeHere, escapeShort, gardenStateName, lawShort, loadWild, regulatedHere } from '../wild';
 import { plantDot } from '../plant-looks';
 
 const dotColor = plantDot;
@@ -158,7 +158,7 @@ export function renderPlantsPanel() {
   // (Placed plants to swap for another: Jason, Oct 30.)
   const swapping = linking && [state.pickerLinkId!, ...state.pickerLinkAlso].every((id) => { const s = state.shapes.find((x) => x.id === id); return !!s?.plantId && !!plantsById[s.plantId]; });
   const forTree = !linking && state.pickerForTree;
-  const title = swapping ? 'Swap for another plant' : linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker' + (PLANTS.length ? ' (' + countWord(PLANTS.filter((p) => !p.invasive).length + activeMyPlants().length) + ')' : '');
+  const title = swapping ? 'Swap for another plant' : linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker' + (PLANTS.length ? ' (' + countWord(PLANTS.filter((p) => !bannedHere(p)).length + activeMyPlants().length) + ')' : '');
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, title),
     (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', closePicker); return b; })()
@@ -291,12 +291,14 @@ export function renderPlantsPanel() {
     const toggle = el('button', { className: 'row-toggle', 'aria-expanded': 'false', 'data-testid': 'plant-row' }, dot, info, chev);
     const head = el('div', { className: 'proj-row', style: { alignItems: 'center' } }, toggle);
     const verb = swapping ? 'Swap' : linking ? 'Link' : forTree ? 'Pick' : state.placing ? 'Switch' : 'Place';
-    // (An invasive plant, found by name: the button says so, in red, as it's about to go on the plan. No notice
-    // afterwards, nor any on the ones already there: Jason, Oct 31, from round 3: Kim swapped one in unwarned.)
-    const bad = !!p.invasive && verb !== 'Link';
-    const place = el('button', { className: 'btn place-btn' + (bad ? ' invasive' : ''), 'data-testid': 'plant-place',
-      'aria-label': `${verb === 'Link' ? 'Link to' : verb === 'Switch' ? 'Switch to' : verb === 'Swap' ? 'Swap for' : verb} ${p.common}${bad ? ' (invasive)' : ''}` },
-      bad ? `${verb} (invasive)` : verb);
+    // (A plant the law of the garden's state bans, found by name: the button says so, in red, as it's about to go on
+    // the plan. No notice afterwards, nor any on the ones already there: Jason, Oct 31, from round 3: Kim swapped one
+    // in unwarned. The law, not a national list: Jason, Oct 31.)
+    const bad = bannedHere(p) && verb !== 'Link';
+    const place = el('button', { className: 'btn place-btn' + (bad ? ' banned' : ''), 'data-testid': 'plant-place',
+      'aria-label': `${verb === 'Link' ? 'Link to' : verb === 'Switch' ? 'Switch to' : verb === 'Swap' ? 'Swap for' : verb} ${p.common}${bad ? ' (banned here)' : ''}` },
+      // (Short on the button, which shares the row with the name on a phone; the row's law line says where.)
+      bad ? `${verb} (banned)` : verb);
     place.addEventListener('click', () => pick(p));
     head.appendChild(place);
     // Mine: edit. Catalog: copy as my own (a cultivar of it, say).
@@ -379,17 +381,17 @@ export function renderPlantsPanel() {
     // (Swapping: not the plant it is now. Priya, Oct 30: "Arkansas bluestar [Swap]" offered for itself.)
     const now = swapping ? new Set([state.pickerLinkId!, ...state.pickerLinkAlso].map((id) => state.shapes.find((x) => x.id === id)?.plantId)) : null;
     hits = hits.filter((p) => (!forTree || isTree(p)) && !now?.has(p.id));
-    // (While browsing, the invasives aren't offered: not counted, and said so; a search counts them.)
-    const invasives = PLANTS.filter((p) => p.invasive);
-    const out = invasivesLeftOut(plantFilter) ? invasives : [];
-    const foundInvasive = hits.filter((p) => p.invasive).length;
-    const n = hits.length + mine.length - foundInvasive, all = PLANTS.length + activeMyPlants().length - invasives.length;
+    // (While browsing, what the state's law bans isn't offered: not counted, and said so; a search counts them.)
+    const banned = PLANTS.filter(bannedHere);
+    const out = bannedLeftOut(plantFilter) ? banned : [];
+    const foundBanned = hits.filter(bannedHere).length;
+    const n = hits.length + mine.length - foundBanned, all = PLANTS.length + activeMyPlants().length - banned.length;
     // (Nothing matched as typed, only close spellings: said so, not counted as matches (Lena, Oct 30).)
     // ("In this plan": the plan's kinds, not a share of the catalog (Dana, Oct 30: "6 of 3,725 plants match").)
     const found = hits.length + mine.length;
     countLine.textContent = (near ? `Nothing matches as typed${found ? ` \u00b7 ${countWord(found)} close spelling${found === 1 ? '' : 's'}` : ''}`
       : plantFilter.inPlan ? (found ? `${countWord(found)} kind${found === 1 ? '' : 's'} of plant in this plan${q ? ` match \u201c${plantFilter.q.trim()}\u201d` : ''}` : q ? `No plant in this plan matches \u201c${plantFilter.q.trim()}\u201d` : 'No plants placed in this plan yet')
-      : pickerCount(n, all, out.filter((p) => !forTree || isTree(p)).length, foundInvasive)) +
+      : pickerCount(n, all, out.filter((p) => !forTree || isTree(p)).length, foundBanned, gardenStateName() ?? 'here')) +
       (swapping ? ' \u00b7 Pick the plant to swap in' : linking ? ' \u00b7 Link the plant this circle stands for' : forTree ? ' \u00b7 trees only' : ' \u00b7 Place a plant, then tap the plan where it goes; tap a plant for its details');
     if (mine.length) {
       // My plants fold away (remembered on this device); a search always shows its matches.
@@ -439,13 +441,13 @@ export function renderPlantsPanel() {
      * What a head's fold holds, or null for none. Matching (or a group, which no search finds itself): the cultivars
      * the list has. Browsing or a search alone: a species' every cultivar (the search found the species; its
      * cultivars are what it comes as). Never one the list leaves out whatever the search (not a tree while picking
-     * one, an invasive while browsing), nor one on a row of its own. Fewer than MIN_FOLD isn't a fold: they're rows
+     * one, one the state's law bans while browsing), nor one on a row of its own. Fewer than MIN_FOLD isn't a fold: they're rows
      * of their own (Jason, 2026-10-26: "Roses (2) should have just been in the list").
      */
     const foldMemo = new Map<string, { all: Plant[]; kids: Plant[] } | null>();
     const foldFor = (head: Plant) => {
       if (!foldMemo.has(head.id)) {
-        const all = cultivarsOf(head).filter((c) => !alone.has(c.id) && (!forTree || isTree(c)) && !(c.invasive && invasivesLeftOut(plantFilter)));
+        const all = cultivarsOf(head).filter((c) => !alone.has(c.id) && (!forTree || isTree(c)) && !(bannedLeftOut(plantFilter) && bannedHere(c)));
         // (In the list's order: best matches, else by name; any the search didn't find after them.)
         const kids = filtering || isGroupHead(head) ? folded.get(head.id) ?? []
           : [...all].sort((a, b) => (at.get(a.id) ?? Infinity) - (at.get(b.id) ?? Infinity) || a.common.localeCompare(b.common));

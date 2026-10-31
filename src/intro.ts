@@ -154,7 +154,7 @@ export interface ShrubCheck {
   takesSun: (id: string) => boolean | null;
   /** Native to their state (Kew's checklist). */
   native: (id: string) => boolean;
-  /** Flagged invasive, or named by a law in their state. */
+  /** Listed invasive in the lower 48 (USGS's register), or named by a law in their state. */
   flagged: (id: string) => boolean;
   /** Not hidden by the yard's filters (kids, dogs, cats, horses). */
   yardOk: (id: string) => boolean;

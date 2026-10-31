@@ -169,9 +169,16 @@ test('a plant the garden\'s state prohibits says so, with the rule', async ({ pa
   await expect(page.getByTestId('location-result')).toContainText('Zone 8a');
   await page.locator('.sheet-header .iconbtn').click();
   await page.locator('.tool-btn.plants').click();
+  // What Arkansas bans isn't offered while browsing, and the count says where it went.
+  await expect(page.getByTestId('picker-count')).toContainText(/^All \d,\d{3} plants · \d+ plants? banned in Arkansas shows? only when searched by name/);
   await page.getByTestId('plant-search').fill('Winged loosestrife');
   const plant = page.locator('.plant-item', { hasText: 'Winged loosestrife' });
   await expect(plant.getByTestId('row-law')).toHaveText('Prohibited in Arkansas, though native to Arkansas'); // (in its row, before it's opened)
+  // Found by name: its button says so, in red (Kim; Jason, Oct 31: the law of the gardener's own state).
+  await expect(plant.getByTestId('plant-place')).toHaveText('Place (banned)');
+  await expect(plant.getByTestId('plant-place')).toHaveAttribute('aria-label', 'Place Winged loosestrife (banned here)');
+  await expect(plant.getByTestId('plant-place')).toHaveClass(/banned/);
+  await expect(page.getByTestId('picker-count')).toContainText(/and 1 plant banned in Arkansas found by name/);
   await plant.getByTestId('plant-row').click();
   const law = plant.getByTestId('regulated-here');
   await expect(law).toContainText('Prohibited in Arkansas: no Lythrum may be planted, sold, bought or moved (2 CAR §50-709)');
@@ -184,6 +191,7 @@ test('a plant the garden\'s state prohibits says so, with the rule', async ({ pa
   await page.getByTestId('plant-search').fill('rattlebox');
   const rattlebox = page.locator('.plant-item', { hasText: /rattlebox/i }).first();
   await expect(rattlebox.getByTestId('row-law')).toHaveClass(/listed/);
+  await expect(rattlebox.getByTestId('plant-place')).toHaveText('Place'); // (listed, not banned)
   await rattlebox.getByTestId('plant-row').click();
   await expect(rattlebox.getByTestId('regulated-here')).toHaveClass(/listed/);
   await expect(rattlebox.getByTestId('law-native')).toHaveText('Native to Arkansas, but this rule lists every Crotalaria species, natives included.');
@@ -197,6 +205,9 @@ test('a plant the garden\'s state prohibits says so, with the rule', async ({ pa
   await expect(chinaberry.locator('.plant-details')).toBeVisible();
   await expect(chinaberry.getByTestId('regulated-here')).toHaveCount(0);
   await expect(chinaberry.getByTestId('row-law')).toHaveCount(0);
+  await expect(chinaberry.getByTestId('plant-place')).toHaveText('Place');
+  // (USGS's register lists it, for the lower 48: said in its details, not acted on.)
+  await expect(chinaberry.getByTestId('register-us')).toContainText('Listed as widespread invasive in the lower 48');
 });
 
 test('a plant not native here that is recorded growing wild here says so, with its counties', async ({ page }) => {

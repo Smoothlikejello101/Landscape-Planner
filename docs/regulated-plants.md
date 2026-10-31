@@ -22,6 +22,13 @@ federal list governs moving a plant into or between states, so its line says "an
 line from an older file, with no tier, is shown red but said as "covered", never "banned". The picker's row adds,
 once: ", though native to Arkansas".
 
+**What it does in the picker.** A plant the garden's own state bans (a rule its file says is a ban; not a listing,
+not an older file's line with no tier, and not the federal list, which governs moving a plant between states, not
+growing it) isn't offered while browsing: a search finds it by name, to map one already in the yard, and its Place
+button is red and says "Place (banned)" (to a screen reader, "banned here"). The count line says how many are left out ("2 plants banned in
+Arkansas show only when searched by name"). Decided with Jason, 2026-10-31: the law of the gardener's own state, not
+a national list, which is shown in a plant's details instead (USGS's register: `wild_us`, catalog-format.md).
+
 Only law. A council's invasive list (Cal-IPC, the Florida Invasive Species Council, TexasInvasives.org) is an
 advisory judgment, and is never shown as law; if one is used, it gets its own line, in its own words.
 

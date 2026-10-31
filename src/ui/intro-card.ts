@@ -148,7 +148,7 @@ function bedSun(): SunLevel | null {
   const at = sunAt(shapeCenter(bed), state.shapes);
   return at ? sunLevel(at.info) : null;
 }
-/** Step 7's shrub, for this garden: hardy here, takes the bed's sun, not flagged in the state; a native first. */
+/** Step 7's shrub, for this garden: hardy here, takes the bed's sun, not listed invasive or named by a law in the state; a native first. */
 function shrubForGarden() {
   const loc = state.location;
   const sun = bedSun();
@@ -157,7 +157,9 @@ function shrubForGarden() {
     hardy: (id) => { const p = plantsById[id]; return loc && p ? hardyEnough(zoneFit(p, loc)) : null; },
     takesSun: (id) => { const p = plantsById[id]; return sun && p ? plantTakesSun(p, sun) : null; },
     native: (id) => { const p = plantsById[id]; return !!p && nativeHere(p)?.status === 'N'; },
-    flagged: (id) => { const p = plantsById[id]; return !p || !!p.invasive || regulatedHere(p).length > 0; },
+    // (Not one USGS's register lists as invasive in the lower 48, though the picker offers it: this is the app's own
+    // suggestion.)
+    flagged: (id) => { const p = plantsById[id]; return !p || p.wild_us === 'invasive' || p.wild_us === 'widespread invasive' || regulatedHere(p).length > 0; },
     // (Not one the yard's own filters hide: no hydrangea to find with kids or dogs in it.)
     yardOk: (id) => { const p = plantsById[id]; return !!p && plantMatches(p, yardOnly); },
   });

@@ -42,14 +42,14 @@ written, and a build after the fix makes the rest match.
 | 6 | Write the settled facts into the catalog; then keep only the new plants that ship, and the page each was found on | `write-cli.ts` (`catalog:write`), `additions.mjs` | `public/plants.json`, `build/review.json`, `build/additions.json`, `scripts/catalog/added-plants.json` |
 | 7 | Counties, made once; the atlas's county maps, made again when the atlas PDF is newer | `counties.mjs`, `atlas_counties.py` | `counties.json`, `arkatlas/counties.json` |
 | 8 | USDA's county records, placed | `usda-counties.mjs` | `usda-counties.json` |
-| 9 | Native status by state, from Kew's checklist, and named hybrids' parents (its hybrid formulas); then poison to people for a hybrid no source rates, by its parents' ratings (`poison_parents`, catalog-format.md), written into the catalog | `wcvp.mjs`, `hybrids.mjs` | `wcvp-native.json`, `wcvp-regulated.json`, `wcvp-review.json`, `wcvp-hybrids.json`, `public/plants.json` |
+| 9 | Native status by state, from Kew's checklist, and named hybrids' parents (its hybrid formulas); then each plant's degree in USGS's register for the lower 48 (`wild_us`: by its name or one of Kew's older names for it); then poison to people for a hybrid no source rates, by its parents' ratings (`poison_parents`, catalog-format.md), written into the catalog | `wcvp.mjs`, `riis.mjs`, `hybrids.mjs` | `wcvp-native.json`, `wcvp-regulated.json`, `wcvp-review.json`, `wcvp-hybrids.json`, `public/plants.json` |
 | 10 | USA-NPN's download summed up, when a newer one is in `usanpn/<date>/` ([leaf-out.md](leaf-out.md)); then the wild records: counties, native status, the law's lines, bloom months, leaf-out days ([wild-records.md](wild-records.md)) | `npn.mjs`, `wild.mjs` | `usanpn/leafout.json`, `public/wild/1/`, `native-review.json`, `bloom-review.json` |
 | 11 | The catalog's checks, then the report | `check.ts`, `report.mjs` | `docs/catalog-review.md` |
 
 Paths without a folder are in `catalog-src/`. The order matters:
 - Every fetch comes before the write, so a network failure leaves the catalog as it was.
 - `sample.mjs` reads the catalog as it stands, for the older values it keeps and the form order it prefers.
-- Steps 7 to 10 read the catalog after the write (and step 9 adds the hybrids' parents to it).
+- Steps 7 to 10 read the catalog after the write (and step 9 adds the register's degrees and the hybrids' parents to it).
 - From the write on, the build holds `catalog-src/.lock`, so no fetch or search can change the pages under it.
 - Until the write, `public/plants.json` holds the new plants' names for the steps to read. A build that stops
   before then puts it back as it was.
@@ -78,6 +78,9 @@ missing:
   build would drop every fact the web gives.
 - **Kew's World Checklist** (`kew-wcvp/`): wcvp.zip from sftp.kew.org/pub/data-repositories/WCVP/, unzipped by
   hand.
+- **USGS's register for the lower 48** (`riis/<date>/`: `taxon.txt`, `distribution.txt`): the Darwin Core archive
+  from https://ipt.gbif.us/archive.do?r=l48riis, unzipped by hand into a folder named for the day (the newest is
+  read). Without it the catalog would lose every plant's line from it.
 - **GBIF's downloads** (`gbif-downloads/bloom.tsv`, `counties.tsv`): requested with the account, and fetched
   without one, by `gbif-download.mjs` ([bloom-months.md](bloom-months.md)). Without them the wild records would
   lose every bloom month and every GBIF county.
@@ -89,7 +92,7 @@ missing:
   before any of its pages are used. A plant it hasn't searched yet is named in the report. Its claims are added
   to `catalog-src/web-claims.json`.
 - **GBIF download requests** (the account).
-- **Kew's download.**
+- **Kew's download**, and **USGS's register's**.
 
 ## The plant list
 

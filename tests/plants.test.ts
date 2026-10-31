@@ -62,8 +62,9 @@ describe('plant filters', () => {
     // Facts nurseries aren't taken for never count, even if a record carried them.
     const dog = { id: 'd', common: 'D', tox: { dog: 'toxic' }, reported: { tox: { dog: 'nontoxic' } } } as unknown as Plant;
     expect(reportedMatch(dog, fs({ dogs: 'nonToxic' }))).toBeNull();
-    const inv = { id: 'i', common: 'I', invasive: true, reported: { invasive: false } } as unknown as Plant;
-    expect(reportedMatch(inv, fs({}))).toBeNull();
+    // (Nor the register's degree, which no filter reads: it matches, with nothing reported counted.)
+    const inv = { id: 'i', common: 'I', wild_us: 'invasive', reported: { wild_us: 'established' } } as unknown as Plant;
+    expect(reportedMatch(inv, fs({}))).toEqual([]);
   });
   it('match a plant under each of its forms', () => {
     const redbud = { id: 'r', common: 'Redbud', form: 'Tree', forms: ['Tree', 'Shrub'] } as Plant;
@@ -213,18 +214,17 @@ describe('plant filters', () => {
     expect(fallText({ ...heuchera, fall_colors: ['gold'] })).toBe('Gold');
     expect(fallText(heuchera)).toBe('');
   });
-  it('never suggests invasives, but finds them by name', () => {
-    const privet: Plant = { id: 'p', common: 'Chinese privet', botanical: 'Ligustrum sinense', invasive: true };
-    expect(plantMatches(privet, f())).toBe(false);
-    expect(plantMatches(privet, f({ q: 'privet' }))).toBe(true);
-    expect(plantMatches(privet, f({ inPlan: true }), new Set(['p']))).toBe(true);
+  it('offers a plant USGS\'s register lists as invasive while browsing: what the state\'s law bans is left out (tests/wild.test.ts)', () => {
+    const privet = { id: 'p', common: 'Chinese privet', botanical: 'Ligustrum sinense', wild_us: 'widespread invasive' } as Plant;
+    expect(plantMatches(privet, f())).toBe(true);
   });
-  it('counts what it offers, and says where the invasives went (so the gap never reads as a filter left on)', () => {
-    expect(pickerCount(3622, 3622, 22)).toBe('All 3,622 plants \u00b7 22 invasive plants show only when searched by name');
-    expect(pickerCount(140, 3622, 22)).toBe('140 of 3,622 plants match \u00b7 22 invasive plants show only when searched by name');
-    expect(pickerCount(1, 3622, 1)).toContain('1 invasive plant shows only');
+  it('counts what it offers, and says where the banned ones went (so the gap never reads as a filter left on)', () => {
+    expect(pickerCount(3622, 3622, 2, 0, 'Arkansas')).toBe('All 3,622 plants \u00b7 2 plants banned in Arkansas show only when searched by name');
+    expect(pickerCount(140, 3622, 2, 0, 'Arkansas')).toBe('140 of 3,622 plants match \u00b7 2 plants banned in Arkansas show only when searched by name');
+    expect(pickerCount(1, 3622, 1, 0, 'Tennessee')).toContain('1 plant banned in Tennessee shows only');
     expect(pickerCount(12, 3622, 0)).toBe('12 of 3,622 plants match'); // (a search: out of the same total as the title)
-    expect(pickerCount(11, 3622, 0, 1)).toBe('11 of 3,622 plants match, and 1 invasive plant found by name');
+    expect(pickerCount(11, 3622, 0, 1, 'Arkansas')).toBe('11 of 3,622 plants match, and 1 plant banned in Arkansas found by name');
+    expect(pickerCount(11, 3622, 0, 1)).toBe('11 of 3,622 plants match, and 1 plant banned here found by name');
   });
   it('can show only plants already placed in the open plan', () => {
     expect(plantMatches(heuchera, f({ inPlan: true }), new Set(['h']))).toBe(true);
@@ -311,8 +311,6 @@ describe('plant filters', () => {
     expect(searchRank({ id: 'm', common: 'Pink muhly grass' }, 'grasses')).toBe(0);
     expect(readQuery("'")).toBe(null); // (starting a cultivar name: not yet a search)
     expect(readQuery(' - / ')).toBe(null);
-    const privet: Plant = { id: 'pr', common: 'Chinese privet', invasive: true };
-    expect(plantMatches(privet, f({ q: "'" }))).toBe(false); // (invasives stay out: it isn't a search for one)
     // Something that isn't searched, and nothing that is: nothing found (Dana searched "🌸", Oct 30, and got everything).
     expect([plantMatches(aster, f({ q: '🌸' })), plantMatches(aster, f({ q: '玫瑰' })), plantMatches(aster, f({ q: "'" }))]).toEqual([false, false, true]);
   });
@@ -449,10 +447,10 @@ describe('a picker row', () => {
     expect(rowLines({ id: 'a', common: 'Adiantum × mairisii', botanical: 'Adiantum × mairisii', form: 'Fern', height: { med: 1.25 } })).toMatchObject({ names: 'Fern', size: '1.3 ft tall' });
     expect([sunSaid('Full', 'Full'), sunSaid('Full', 'Shade'), sunSaid()]).toEqual(['Full sun', 'Full sun to shade', '']);
   });
-  it('marks only what applies: skin irritation (not poison that\'s eaten), invasive, how far it\'s checked', () => {
+  it('marks only what applies: skin irritation (not poison that\'s eaten), how far it\'s checked; the register\'s degree is its details\'', () => {
     expect(rowFlags(heuchera)).toEqual([]);
     expect(rowFlags({ ...heuchera, poison: { severity: 'high', parts: ['leaves'] } })).toEqual([]);
-    expect(rowFlags({ ...heuchera, poison: { skin: true }, invasive: true, unverified: true }).map((x) => x.text)).toEqual(['Invasive: not for planting', 'Can irritate skin', 'Unverified']);
+    expect(rowFlags({ ...heuchera, poison: { skin: true }, wild_us: 'widespread invasive', unverified: true }).map((x) => x.text)).toEqual(['Can irritate skin', 'Unverified']);
     expect(rowFlags({ ...heuchera, partlyChecked: true }).map((x) => x.testid)).toEqual(['partly-badge']);
   });
   it('puts a match resting only on the earlier list below its own divider, naming the filter', () => {
@@ -484,7 +482,7 @@ describe('a picker row', () => {
 });
 
 describe('how a plant spreads: by seed, and underground or by runners: two facts under one question', () => {
-  const p = (self_seed: string | undefined, habit: string | undefined, invasive = false) => ({ id: 'x', common: 'x', self_seed, habit, invasive }) as Plant;
+  const p = (self_seed: string | undefined, habit: string | undefined, wild_us?: string) => ({ id: 'x', common: 'x', self_seed, habit, wild_us }) as Plant;
   it('reads what a habit says of spreading from a fixed table, and knows every habit in the catalog', () => {
     expect(['Aggressive rhizome', 'Runner - CONTAIN', 'Thicket-forming'].map(rootSpread)).toEqual(Array(3).fill('aggressive'));
     expect(['Spreading rhizome', 'Runner (stolons)', 'Suckering', 'Spreading (tubers)'].map(rootSpread)).toEqual(Array(4).fill('spreads'));
@@ -506,7 +504,9 @@ describe('how a plant spreads: by seed, and underground or by runners: two facts
     expect(rootText(p(undefined, 'Runner - CONTAIN'))).toBe('Spreads aggressively underground or by runners: Runner - CONTAIN');
     expect(rootText(p(undefined, 'Suckering (slow)'))).toBe('Spreads slowly underground or by runners: Suckering (slow)');
     expect(rootText(p(undefined, 'Clumping'))).toBe("Doesn't run: Clumping");
-    expect(rootText(p(undefined, 'Clumping', true))).toBe(''); // (an invasive plant)
+    expect(rootText(p(undefined, 'Clumping', 'widespread invasive'))).toBe(''); // (listed invasive in USGS's register)
+    expect(rootText(p(undefined, 'Clumping', 'invasive'))).toBe('');
+    expect(rootText(p(undefined, 'Clumping', 'established'))).toBe("Doesn't run: Clumping"); // (reproducing in the wild: not called harmful)
     expect([rootText(p(undefined, 'Naturalizing')), rootText(p(undefined, 'Twining vine'))]).toEqual(['Naturalizing', '']);
     // (One reading of its page says aggressively, the other not: Jason, Oct 30.)
     expect(rootText(p(undefined, 'Spreading rhizome, maybe aggressive'))).toBe('Spreads, maybe aggressively, underground or by runners: Spreading rhizome');
@@ -515,7 +515,7 @@ describe('how a plant spreads: by seed, and underground or by runners: two facts
     // (Sterile counts: it only ever comes with a source. Jason, 2026-10-27.)
     expect([spreadsAs(p('Modest', 'Clumping'), 'stays'), spreadsAs(p('Sterile', 'Clumping'), 'stays')]).toEqual([true, true]);
     expect([spreadsAs(p('Prolific', 'Clumping'), 'stays'), spreadsAs(p('Unrated', 'Clumping'), 'stays'), spreadsAs(p(undefined, 'Clumping'), 'stays'),
-      spreadsAs(p('Modest', 'Clumping', true), 'stays'), spreadsAs(p('Sterile', 'Clumping', true), 'stays'), spreadsAs(p('Modest', 'Multi-stem'), 'stays')]).toEqual([false, false, false, false, false, false]);
+      spreadsAs(p('Modest', 'Clumping', 'invasive'), 'stays'), spreadsAs(p('Sterile', 'Clumping', 'widespread invasive'), 'stays'), spreadsAs(p('Modest', 'Multi-stem'), 'stays')]).toEqual([false, false, false, false, false, false]);
     // (Self-sows, how freely unknown: it may self-sow freely, so it's counted as that.)
     expect([spreadsAs(p('Prolific', 'Clumping'), 'seed'), spreadsAs(p('Unrated', 'Clumping'), 'seed'), spreadsAs(p('Modest', 'Clumping'), 'seed')]).toEqual([true, true, false]);
     expect([spreadsAs(p('Modest', 'Suckering (slow)'), 'runs'), spreadsAs(p('Modest', 'Suckering (slow)'), 'aggressive')]).toEqual([true, false]);

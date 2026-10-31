@@ -6,8 +6,9 @@ import { atlasRecords, curatedNear, gadmCounties, gbifRecords, nativeStatus, SOU
 import { canonical, placer, twoTaxa, usdaRecords } from '../scripts/catalog/usda-counties.mjs';
 // @ts-expect-error (a plain .mjs script)
 import { acceptedTaxon, nativeToNorthAmerica, northAmericaFacts, oldNameFacts, stateStatus } from '../scripts/catalog/wcvp.mjs';
-import { countyName, countyWord, escapeHere, escapeShort, escapeText, gardenStateName, lawShort, loadWild, nativeHere, nativeText, nativeAndListed, regulatedHere, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
+import { bannedHere, countyName, countyWord, escapeHere, escapeShort, escapeText, gardenStateName, lawShort, loadWild, nativeHere, nativeText, nativeAndListed, regulatedHere, shortCountyName, resetWild, wildHere, wildNearby, wildText, type WildFile } from '../src/wild';
 import { plantMatches, PLANT_FILTER_DEFAULTS, zoneNote, type Plant } from '../src/plants';
+import { narrowerThanSpecies, REGISTER_WHERE, registerText } from '../src/wild';
 import { state } from '../src/state';
 
 // Where a plant grows wild near the garden: the ZIP's county, and the county records of its state and of
@@ -47,7 +48,8 @@ const usda = {
   'lonicera-japonica': { counties: [5019, 5059], species: false },
 };
 const file: WildFile = { ...stateFile({ fips: 5, code: 'AR' }, { arkatlas: atlas, usda }, SOURCES, counties), native: { 'quercus-muehlenbergii': 'N', 'viola-sororia': 'N', 'lonicera-japonica': 'I', 'rosmarinus': 'I', 'allium-canadense-var-lavendulare': 'N', 'lythrum-alatum': 'N', 'crotalaria-sagittalis': 'N', 'allium-canadense': 'N' }, nativeSpecies: ['allium-canadense-var-lavendulare'],
-  regulated: { 'lythrum-alatum': ['AR:lythrum'], 'imperata-cylindrica': ['AR:prohibited', 'US:noxious'], 'stray': ['AR:gone'], 'crotalaria-sagittalis': ['AR:noxious'], 'allium-canadense': ['AR:noxious'] },
+  regulated: { 'lythrum-alatum': ['AR:lythrum'], 'imperata-cylindrica': ['AR:prohibited', 'US:noxious'], 'stray': ['AR:gone'], 'crotalaria-sagittalis': ['AR:noxious'], 'allium-canadense': ['AR:noxious'],
+    'ligustrum-sinense': ['AR:banned'], 'striga-asiatica': ['US:noxious'], 'unsafe-link': ['AR:unsafe'] },
   genusWide: { 'lythrum-alatum': { 'AR:lythrum': 'Lythrum' }, 'crotalaria-sagittalis': { 'AR:noxious': 'Crotalaria' } },
   background: {
     'crotalaria-sagittalis': { 'AR:noxious': { note: 'Background: some rattleboxes are toxic to livestock.', title: 'A page', url: 'https://example.gov/c' } },
@@ -59,6 +61,8 @@ const file: WildFile = { ...stateFile({ fips: 5, code: 'AR' }, { arkatlas: atlas
     'AR:lythrum': { says: 'Prohibited in Arkansas: no Lythrum may be planted', title: 'Arkansas rules', url: 'https://example.gov/ar.pdf', edition: '2026', read: '2026-10-21' },
     'AR:prohibited': { says: 'Prohibited in Arkansas: may not be sold or planted', title: 'Arkansas rules', url: 'https://example.gov/ar.pdf', edition: '2026', read: '2026-10-21' },
     'US:noxious': { says: 'Federal noxious weed', title: '7 CFR 360.200', url: 'https://example.gov/cfr.pdf', edition: '2025', read: '2026-10-21' },
+    'AR:banned': { says: 'Prohibited in Arkansas: may not be sold or planted', tier: 'ban', title: 'Arkansas rules', url: 'https://example.gov/ar.pdf', edition: '2026', read: '2026-10-21' },
+    'AR:unsafe': { says: 'Prohibited in Arkansas', tier: 'ban', title: 'x', url: 'javascript:alert(1)', edition: '2026', read: '2026-10-21' },
   } };
 const tx: WildFile = stateFile({ fips: 48, code: 'TX' }, { arkatlas: atlas, usda }, SOURCES, counties);
 const index = wildIndex([file, tx]);
@@ -227,6 +231,37 @@ describe('wild records near the garden', () => {
     expect(nativeAndListed({ ...ar, species: true }, 'listed')).toBe('Its species is native to Arkansas, and still listed by this rule.');
     // Two lines on a native plant: "though native" once, naming the state.
     expect(lawShort([{ ...loosestrife }, { ...loosestrife, says: 'Federal noxious weed: …', nativeTo: 'Arkansas' }])).toBe('Prohibited in Arkansas; Federal noxious weed, though native to Arkansas');
+  });
+  it("say a plant is banned only where the garden's own state's law says it bans it: not a listing, an older file's line that doesn't say, or the federal list", async () => {
+    await loadWild(undefined, fetcher);
+    expect(bannedHere({ id: 'ligustrum-sinense' })).toBe(true);
+    expect(bannedHere({ id: 'ligustrum-sinense-variegatum', parent: 'ligustrum-sinense' })).toBe(true); // (a cultivar: its species')
+    expect(bannedHere({ id: 'crotalaria-sagittalis' })).toBe(false); // (listed, with lighter duties)
+    expect(bannedHere({ id: 'lythrum-alatum' })).toBe(false); // (an older file's line, with no tier: never said to be a ban)
+    expect(bannedHere({ id: 'striga-asiatica' })).toBe(false); // (the federal list governs moving a plant, not growing it)
+    expect(bannedHere({ id: 'unsafe-link' })).toBe(false);
+    expect(bannedHere({ id: 'quercus-muehlenbergii' })).toBe(false);
+    // Left out while browsing; found by name (to map one already in the yard), and shown when placed.
+    const privet = { id: 'ligustrum-sinense', common: 'Chinese privet', botanical: 'Ligustrum sinense' } as Plant;
+    expect(plantMatches(privet, PLANT_FILTER_DEFAULTS)).toBe(false);
+    expect(plantMatches(privet, { ...PLANT_FILTER_DEFAULTS, q: 'privet' })).toBe(true);
+    expect(plantMatches(privet, { ...PLANT_FILTER_DEFAULTS, inPlan: true }, new Set(['ligustrum-sinense']))).toBe(true);
+    expect(plantMatches(privet, { ...PLANT_FILTER_DEFAULTS, q: "'" })).toBe(false); // (not yet a search: it stays out)
+    // Arkansas's law, read from a Texas garden: not here.
+    state.location = { zip: '75501', zone: '8a' };
+    await loadWild(undefined, fetcher);
+    expect(bannedHere({ id: 'ligustrum-sinense' })).toBe(false);
+    expect(plantMatches(privet, PLANT_FILTER_DEFAULTS)).toBe(true);
+  });
+  it("say a plant's degree in USGS's register for the lower 48 in the register's terms, with the meaning it gives them, and not where", () => {
+    expect(registerText('widespread invasive')).toBe('Listed as widespread invasive in the lower 48: at least locally abundant, and harmful ecologically, economically or to health');
+    expect(registerText('invasive')).toBe('Listed as invasive in the lower 48: causing, or likely to cause, harm');
+    expect(registerText('established')).toBe('Not native anywhere in the lower 48, and established in the wild there: reproducing on its own');
+    expect(registerText('invasive', true)).toBe('Its species is listed as invasive in the lower 48: causing, or likely to cause, harm');
+    expect(REGISTER_WHERE).toContain("doesn't say where");
+    // (A record for a cultivar or a variety, with no species record above it: the line is its species'.)
+    expect([narrowerThanSpecies("Imperata cylindrica 'Rubra'"), narrowerThanSpecies('Arrhenatherum elatius subsp bulbosum'), narrowerThanSpecies('Ligustrum sinense var. stauntonii'),
+      narrowerThanSpecies('Ligustrum sinense'), narrowerThanSpecies('Abelia × grandiflora'), narrowerThanSpecies(undefined)]).toEqual([true, true, true, false, false, false]);
   });
   it('say when a plant not native here grows wild here all the same (it escapes gardens), with its counties', async () => {
     await loadWild(undefined, fetcher);

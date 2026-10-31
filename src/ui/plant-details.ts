@@ -13,7 +13,7 @@ import type { Provenance } from '../catalog';
 const kinds = (n: number) => `${countWords(n)} kind${n === 1 ? '' : 's'}`;
 /** "1 kind of caterpillar", "14 kinds of caterpillars" (round 3: Diego's "1 kind of caterpillars"). */
 const kindsOf = (n: number, what: string) => `${kinds(n)} of ${what}${n === 1 ? '' : 's'}`;
-import { dayOfYear, escapeHere, escapeText, hostsHere, localBloom, localLeafOut, nativeHere, nativeText, regulatedHere, wildHere, wildText } from '../wild';
+import { dayOfYear, escapeHere, escapeText, hostsHere, localBloom, localLeafOut, nativeHere, narrowerThanSpecies, nativeText, REGISTER_WHERE, registerText, regulatedHere, wildHere, wildText } from '../wild';
 
 const SURE: Record<string, string> = {
   agree: 'confirmed', confirmed: 'confirmed', single: 'one source', likely: 'nurseries agree', reported: 'one nursery', disputed: 'sources disagree',
@@ -605,15 +605,6 @@ export function plantDetails(p: Plant, flagged: string[] | undefined, opts: { ha
   const top = el('dl', { className: 'details-list' });
   // What the law says of it where the garden is (a state's list, the federal one), each with its rule: first,
   // above the catalog's facts, where it can't be missed.
-  // (Invasive: said in its own details too, not only on its picker row. Jason, Oct 31, from round 3: Kim looked for it
-  // in a placed wisteria's pane and found nothing.)
-  if (p.invasive) {
-    const dd = el('dd', { className: 'details-law', 'data-testid': 'invasive-here' },
-      'Widely invasive in the US: not for planting. In the catalog so one already in the yard can be mapped, and taken out.');
-    const src = sourceLine(p.prov?.invasive);
-    if (src) dd.appendChild(el('span', { className: 'details-src' }, src));
-    top.append(el('dt', {}, 'Invasive'), dd);
-  }
   const notesShown = new Set<string>();
   for (const rule of regulatedHere(p)) {
     const dd = el('dd', { 'data-testid': 'regulated-here', className: `details-law${rule.tier === 'listed' ? ' listed' : ''}` }, rule.says);
@@ -648,6 +639,18 @@ export function plantDetails(p: Plant, flagged: string[] | undefined, opts: { ha
     }
     if (wild) dd.appendChild(el('span', { className: 'details-part', 'data-testid': 'wild-here' }, wildText(wild), el('span', { className: 'details-src' }, wild.sources.join('; '))));
     top.append(el('dt', {}, native ? `In ${native.stateName}` : 'Wild near you'), dd);
+  }
+  // Its degree in USGS's register of introduced plants in the wild in the lower 48, in the register's terms and with
+  // the meaning it gives them; and that it doesn't say where. Stated, not acted on: what hides a plant or turns its
+  // button red is the law of the garden's state (Jason, 2026-10-31). (Said in its own details, not only on a row:
+  // Jason, Oct 31, from round 3: Kim looked for it in a placed wisteria's pane and found nothing.)
+  if (p.wild_us) {
+    const dd = el('dd', { 'data-testid': 'register-us', ...(p.wild_us !== 'established' ? { className: 'details-introduced' } : {}) },
+      registerText(p.wild_us, !!p.prov?.wild_us?.inherited || narrowerThanSpecies(p.botanical)));
+    dd.appendChild(el('span', { className: 'details-part details-where' }, REGISTER_WHERE));
+    const src = sourceLine(p.prov?.wild_us);
+    if (src) dd.appendChild(el('span', { className: 'details-src' }, src));
+    top.append(el('dt', {}, 'Lower 48'), dd);
   }
   for (const label of GLANCE) { const r = drawn.get(label); if (r) top.append(...r); }
   box.appendChild(top);
@@ -687,7 +690,7 @@ export function plantDetails(p: Plant, flagged: string[] | undefined, opts: { ha
 }
 
 /** A source's short name in a citation cut to a line ("NC State" for NC State Extension Gardener Plant Toolbox). */
-const CITE_SHORT: Record<string, string> = { ncsu: 'NC State', usda: 'USDA', arkatlas: 'Arkansas atlas', mnwild: 'Minnesota Wildflowers' };
+const CITE_SHORT: Record<string, string> = { ncsu: 'NC State', usda: 'USDA', arkatlas: 'Arkansas atlas', mnwild: 'Minnesota Wildflowers', riis: 'USGS US-RIIS' };
 /** A citation with each source it names by its short name. */
 export function shortSources(text: string): string {
   let out = text;
