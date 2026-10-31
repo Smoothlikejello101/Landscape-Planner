@@ -6,8 +6,8 @@
 // as does a value that would make the record implausible (the app's catalogWarnings: 1 in tall, zones
 // backwards).
 
-import { ATTRACTS, BARK, BARK_COLORS, bloomSeasons, CLIMBING, flowerColors, FORM_WORDS, HABIT_FORMS, ncsuNoPoison, PART_COLORS, PETS, SEASONS, TEXTURES, TOLERATES } from './claims.mjs';
-import { PROSE_HABITS } from './prose.mjs';
+import { ATTRACTS, BARK, BARK_COLORS, bloomSeasons, CLIMBING, EDIBLE_PARTS, flowerColors, FORM_WORDS, HABIT_FORMS, ncsuNoPoison, PART_COLORS, PETS, SEASONS, TEXTURES, TOLERATES } from './claims.mjs';
+import { FRUIT_SET, PROSE_HABITS, SEXES } from './prose.mjs';
 
 /** The checks the app takes (src/catalog.ts): disputed facts aren't written. */
 const SETTLED = new Set(['confirmed', 'single', 'likely', 'reported']);
@@ -36,6 +36,11 @@ const LEVELS = ['low', 'medium', 'high'];
 /** A list of words from `words`, each once, in the order given (undefined if empty or any isn't one). */
 const listOf = (words) => (v) => (Array.isArray(v) && v.length && v.every((x) => words.includes(x)) ? [...new Set(v)] : undefined);
 const oneOf = (words) => (v) => (words.includes(v) ? v : undefined);
+/** Whether the parts NC State calls edible and those it calls poisonous are both named, and none is in both ("fruit" is its "fruits"). */
+export const partsApart = (edible, poisonous) => {
+  const as = { fruit: 'fruits', flowers: 'flowers', leaves: 'leaves' };
+  return edible?.length > 0 && poisonous?.length > 0 && !edible.some((p) => poisonous.includes(as[p] ?? p));
+};
 /** { part: [words] } with each part's words from `parts` (undefined if empty, or any part or word isn't one). */
 const formWords = (parts) => (v) => {
   if (!v || typeof v !== 'object' || Array.isArray(v) || !Object.keys(v).length) return undefined;
@@ -77,9 +82,12 @@ const FACTS = {
   // src/spread.ts knows).
   self_seed: ['self_seed', (v, enums) => (enums.self_seed?.includes(v) ? v : undefined)],
   habit: ['habit', oneOf(PROSE_HABITS)],
+  fruit_set: ['fruit_set', oneOf(FRUIT_SET)],
+  sex: ['sex', oneOf(SEXES)],
   clay_ok: ['clay_ok', yes],
   wet_feet: ['wet_feet', yes],
   edible: ['edible', yes],
+  edible_parts: ['edible_parts', listOf(EDIBLE_PARTS)],
   // (Yes, or no where NC State calls its fall color "Insignificant": a source saying so, not silence.)
   fall_color: ['fall_color', (v) => (typeof v === 'boolean' ? v : undefined)],
   fall_colors: ['fall_colors', listOf(FALL_COLORS)],
@@ -190,6 +198,8 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
         continue;
       }
       if (f.v == null || !SETTLED.has(f.check)) continue;
+      // (A sex is a cultivar's own: a species has both.)
+      if (key === 'sex' && !rec.parent && !/['‘’]/.test(`${rec.botanical ?? ''} ${rec.common ?? ''}`)) continue;
       const v = conv(f.v, enums, f);
       // (The sources can't say Wetland yet: it waits on USDA's wetland list. A plant the catalog calls a wetland
       // plant keeps that until then, rather than becoming merely "High".)
@@ -203,11 +213,14 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
       // "Edible" beside a toxic rating (mayapple's ripe fruit; a plant whose other parts poison): for a person to
       // word, not a flag to set. (Toxic to dogs on the older list, or seriously toxic to people by the audit.)
       // A person's decision (scripts/catalog/decisions.json `edible`) settles it: written, its poisonous parts shown
-      // beside it from the same source (poison); or left unmarked.
+      // beside it from the same source (poison); or left unmarked. A species' decision covers its cultivars (Jason, Oct 30).
+      // Without one: where NC State names the parts that are edible and the parts that are poisonous, and none is in both
+      // (a plum's fruit; its leaves, seeds and stems), it's edible, the poisonous parts shown beside it (Jason, Oct 30). A
+      // part in both, or either list not named (a dog's rating, a severity alone), is for a person.
       if (key === 'edible' && (/toxic|hard no/i.test(String(rated('dog') ?? '')) || [auditSays('tox_people')].flat().includes('major'))) {
-        const chose = decisions.edible?.[rec.id];
-        if (!chose) { review.push({ id: rec.id, fact: key, note: 'edible, but rated toxic' }); continue; }
-        if (chose.v !== true) { if (valueOf(facts.edible) === true) { delete facts.edible; unmarked = true; } continue; }
+        const chose = decisions.edible?.[rec.id] ?? (rec.parent ? decisions.edible?.[rec.parent] : undefined);
+        if (!chose && !partsApart([auditSays('edible_parts')].flat().filter(Boolean), (auditSays('poison') ?? rated('poison'))?.parts)) { review.push({ id: rec.id, fact: key, note: 'edible, but rated toxic' }); continue; }
+        if (chose && chose.v !== true) { if (valueOf(facts.edible) === true) { delete facts.edible; unmarked = true; } continue; }
       }
       if (v === undefined) { review.push({ id: rec.id, fact: key, note: `value the catalog can't take: ${JSON.stringify(f.v)}` }); continue; }
       const out = { v, src: f.src, check: f.check };
@@ -221,6 +234,8 @@ export function writeAudit(catalog, audit, date, warnings = () => [], decisions 
       facts[to] = out;
       written.add(to);
     }
+    // Its edible parts only beside "edible" (a plant rated toxic and left unmarked, or waiting on a person, lists none).
+    if (facts.edible_parts && valueOf(facts.edible) !== true && valueOf(parent?.facts.edible) !== true) { delete facts.edible_parts; written.delete('edible_parts'); }
     // Values that make the record implausible (new warnings, not the kinds it had: "40 ft is tall for a shrub"
     // becoming "50 ft …" is the same doubt, about its form) go back, for review.
     // (Of a kind it had, a height that's grown past double is a new doubt: 40 ft for a shrub becoming 400 ft.)

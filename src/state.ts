@@ -54,6 +54,7 @@ export const state: AppState = {
   crowdWarnings: true,
   hardyWarnings: true,
   poisonWarnings: true,
+  fruitWarnings: true,
   showNames: true,
   plantForm: null,
   pickerLinkId: null,

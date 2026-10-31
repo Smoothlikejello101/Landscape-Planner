@@ -199,7 +199,11 @@ function syncBlock(): HTMLElement {
   cb.addEventListener('change', () => setSyncOnThisDevice(cb.checked));
   box.appendChild(el('label', { className: 'check-row', 'data-testid': 'sync-device' }, cb, el('span', {}, 'Sync on this device')));
   if (sync.trash.length) {
-    const list = el('div', { className: 'trash-list', 'data-testid': 'trash' }, el('div', { className: 'hint' }, 'Recently deleted (kept 30 days):'));
+    // (Folded to one line, opened as it was left while the app's open: Jason, Oct 30, "it takes up a lot of space between
+    // Account and Sign out".)
+    const list = el('details', { className: 'trash-list', 'data-testid': 'trash' }, el('summary', {}, `Recently deleted (${sync.trash.length}), kept 30 days`)) as HTMLDetailsElement;
+    list.open = trashOpen;
+    list.addEventListener('toggle', () => { trashOpen = list.open; });
     for (const t of sync.trash) {
       const restore = el('button', { className: 'link-btn' }, 'Restore');
       restore.addEventListener('click', () => { void restoreFromTrash(t.id); });
@@ -209,6 +213,9 @@ function syncBlock(): HTMLElement {
   }
   return box;
 }
+
+/** Whether Recently deleted is open: folded to start, then as left while the app's open. */
+let trashOpen = false;
 
 /** Delete the account: say exactly what goes and what stays, offer a backup, then ask once more. */
 function deleteConfirmation(): HTMLElement {

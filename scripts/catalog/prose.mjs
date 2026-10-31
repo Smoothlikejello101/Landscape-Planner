@@ -504,10 +504,204 @@ export function ncsuDeer(claims, html) {
   return claims.map((c) => (c === field ? { ...c, v: 'Occasional', says: eaten.slice(0, 3).join(' … '), prose: true, fallback: field } : c));
 }
 
+// ---------- Fruit set ----------
+//
+// What it takes for the plant to fruit (Jason, 2026-10-30: "partner plants required for fruit set"), as `fruit_set`:
+// `separate`, male and female plants (dioecious: a female fruits only with a male near); `partner`, it needs another
+// plant, of a different cultivar or seedling, to fruit (self-incompatible); `better`, it fruits alone and better with
+// a partner; `self`, it fruits alone. And a cultivar's sex, said on its own page ("a female cultivar"), as `sex`.
+// Sentences about the plant's group count ("Hollies are dioecious", "Like all persimmons"); those naming another
+// plant as their subject ("'Blue Prince' is the male") don't. Each sentence gives its strongest word, each page its
+// most particular: fruiting alone said outright ("sets fruit without pollination", a cultivar's own) over separate
+// sexes (a cultivar said to be male or female: its plant has separate sexes), over needing a partner, over doing better
+// with one, over a bare "self-fertile".
+
+/** The values: fruit set, and a cultivar's sex. */
+export const FRUIT_SET = ['separate', 'partner', 'better', 'self'];
+export const SEXES = ['male', 'female'];
+/** Fruiting with no partner, said outright: without a pollinizer, needing none, parthenocarpic. */
+const ALONE = /\bwithout (?:the need (?:for|of) )?(?:a |any )?(?:nearby )?(?:male |second |another |other )?(?:pollinat\w*|polliniz\w*|fertiliz\w*|cross[- ]?pollinat\w*|male\b|partner)|\b(?:does not|doesn't|do not|don't|will not|won't|never) (?:need|require) (?:a |any |another |an? other |second )?(?:\w+\s+)?(?:pollinat\w*|polliniz\w*|partner|male|tree|plant|cultivar|variety)\b|\bunnecessary to plant\b|\bparthenocarp\w*|\bonly one (?:tree|plant|shrub|vine) is needed\b|\bsets? (?:its )?fruit without\b/i;
+/** Sexes on separate plants: dioecious; a male needed for a female's fruit; only females fruit. */
+const SEPARATE = new RegExp([
+  String.raw`\bdioecious\b`,
+  String.raw`\bseparate (?:male and female|female and male) (?:plants|trees|shrubs|vines|individuals|specimens|forms)\b`,
+  String.raw`\b(?:male and female|female and male)\b[^.;]{0,40}?\b(?:on|in|form on|borne on|are on|occur on|produced on|found on) separate (?:plants|trees|shrubs|vines|individuals)\b`,
+  String.raw`\bonly one sex\b`, String.raw`\bindividual plants are either (?:male or female|female or male)\b`, String.raw`\bplants are either (?:male or female|female or male)\b`,
+  String.raw`\bmale and (?:a )?female (?:plants?|trees?|shrubs?|vines?|specimens?|forms?)\b[^.;]{0,30}?\b(?:are |is |must be |be )?(?:needed|required|necessary|must|planted together)\b`,
+  String.raw`\b(?:needs?|needed|requires?|required|must have|need) (?:both )?(?:a |an? )?male and (?:a )?female\b`,
+  String.raw`\b(?:needs?|needed|needing|requires?|required|must have|will need) (?:a |at least one |one |the )?(?:nearby |compatible )?male\b`,
+  String.raw`\b(?:a |one |at least one |the )?male (?:plant|tree|shrub|vine|pollinizer|pollinator|specimen|selection|holly|winterberry|clone)s? (?:\w+\s+){0,4}?(?:is |are |would be |will be |must be )?(?:needed|required|necessary|helpful|present)\b`,
+  String.raw`\bboth (?:a )?males? and (?:a )?females?(?!\s+(?:parts|organs|flowers|reproductive|catkins|cones))\b[^.;]{0,40}?\b(?:needed|required|necessary|must|present)\b`,
+  String.raw`\bboth sexes\b`, String.raw`\bwhen (?:a )?male (?:pollinizers?|pollinators?|plants?)\b[^.;]{0,20}?\b(?:present|nearby|near)\b`,
+  String.raw`\bonly (?:the )?female (?:plants?|trees?|shrubs?|ones)\b[^.;]{0,30}?\b(?:bear|produce|form|develop|set|fruit)`,
+  String.raw`\b(?:fruits?|berries|drupes|seeds?) (?:\w+\s+){0,4}?only (?:on|by) (?:the )?female\b`, String.raw`\bonly the female bearing\b`,
+  String.raw`\bfunctionally (?:unisexual|dioecious)\b`,
+  // (A male pollinizer, or one male to so many females: a plant of separate sexes.)
+  String.raw`\bmale (?:pollinizers?|pollinators?|pollenizers?)\b`, String.raw`\bone male (?:\w+\s+){0,2}(?:per|for every|to every|for each)\b`,
+  String.raw`\bmale (?:plants?|trees?|shrubs?) (?:\w+\s+){0,4}?(?:do not|don't|does not|will not|never) (?:produce|bear|set|form) (?:\w+\s+)?(?:fruits?|seeds?|berries|pods)\b`,
+].join('|'), 'i');
+/** Needing another plant to fruit: self-incompatible, not self-fertile, another genetic strain. */
+const PARTNER = /\bself[- ]?(?:incompatible|sterile|unfruitful|infertile)\b|\bnot self[- ]?(?:fertile|fruitful|pollinating|pollinated)\b|\b(?:cannot|can't|unable to) self[- ]?pollinate\b|\bmore than one genetic strain\b|\bgenetically different\b/i;
+/** Or another plant needed, for its pollen or its fruit (POLLEN): a pollinizer, another variety, two cultivars. */
+const PARTNER_NEEDED = /\b(?:needs?|needed|requires?|required|must|necessary|will need)\b[^.;]{0,60}?\b(?:polliniz\w*|pollen donor|another (?:\w+\s+){0,3}?(?:variety|cultivar|tree|plant|specimen|individual|clone|colony|selection|type)|(?:an? )?other (?:\w+\s+)?(?:varieties|cultivars|clones|trees|plants)|(?:at least )?(?:two|2) (?:different )?(?:cultivars|varieties|plants|trees|clones)|more than one|genetically different|cross[- ]?pollinat\w*|reciprocal pollinizer|type-?\d trees)|\b(?:polliniz\w*|pollen donor)\b[^.;]{0,30}?\b(?:is |are )?(?:needed|required|necessary)\b/i;
+const POLLEN = /\bpollinat\w*|\bpolliniz\w*|\bpollen\b|\bfruit[- ]set\b|\bset (?:its )?fruit\b|\bto fruit\b|\b(?:to|for|in order to) (?:produce|bear|set|get|enjoy) (?:\w+\s+){0,3}?(?:fruits?|berries|nuts|seeds?)\b|\bfor (?:\w+\s+){0,2}(?:fruit|berry|nut) production\b/i;
+/** A partner said to help, not needed: words for a partner planted with it (or pollination), for a gain, and for the crop. */
+const FRUIT_PARTNERS = /\b(?:another|other|two|three|multiple|several|more than one|second|different (?:\w+\s+)?(?:cultivars?|variet\w+)|in groups|groups|masses|mass plantings|multiples|a nearby pollinator|pollinizers?|male and (?:a )?female)\b/i;
+const PLANTED_WITH = /\b(?:plant|plants|planting|planted|having|have|grow|growing|sow)\b[^.;]{0,50}?\b(?:another|two|three|more than one|multiple|several|different|in groups|groups|masses|multiples|a group|other (?:\w+\s+)?(?:varieties|cultivars|apples|pears|trees))\b|\bpollinat\w*|\bpolliniz\w*/i;
+const RECOMMEND = /\b(?:recommend\w*|good to have|advisable|beneficial)\b/i;
+const GAIN = /\b(?:better|best|improv\w*|increase\w*|larger|higher|more abundant|optimum|optimal|heavier|bigger|adequate|ensure)\b/i;
+const CROP = /\b(?:fruit\w*|berr(?:y|ies)|crops?|yields?|nuts?|production|pollination|seeds?)\b/i;
+/** Fruiting alone, by its words ("self-fertile", "self-pollinating"). */
+const SELF = /\bself[- ]?(?:fertile|fruitful|pollinat\w*|fertiliz\w*)\b|\bcan self[- ]?(?:pollinate|fertilize)\b/i;
+/** Said not to: "not self-fertile" is PARTNER's. */
+const SELF_NOT = /\b(?:not|never|no|isn't|aren't|cannot|can't|nor|unable to|not great at|poor at)\s+(?:\w+\s+){0,1}self/i;
+/** Some of it only, or flowers of another kind: "lower flowers are self-fertile", cleistogamous flowers, "this species
+ * which sometimes has" among others that don't. */
+const SELF_SOME = /\b(?:lower|cleistogamous|non-opening|bud-like|closed|some|few) (?:\w+\s+)?flowers\b|\bcleistogam\w*|\bremain closed\b|\bexcept (?:for )?this species\b/i;
+/** Fruiting, partly: "some fruits without", "a small number", "partially self-fertile". */
+const FRUIT_PARTLY = /\b(?:some|a few|a small number of|partially|partly|modest\w*|rarely|occasionally|infrequently|reduced|lighter|light crop|less)\b/i;
+/** Maybe, or in general: "can be monoecious or dioecious", "a few have separate", "most species of the genus". */
+const UNSETTLED = /\bmonoecious or dioecious\b|\bdioecious or monoecious\b|\b(?:a few|some|several|many) (?:\w+\s+){0,2}(?:have|are|species|figs|members) (?:\w+\s+){0,2}(?:separate|dioecious)\b|\bmost species of\b|\bmay appear on the same or\b|\bon the same (?:plant|tree|branch|spike|stem|shrub)\b|\bcross[- ]?pollinat\w* (?:with|by) (?:other|insects)|\bhybridi[sz]\w*|\brevert\w*|\bchange sex\b/i;
+/** Other plants as subject: "Most apple cultivars …" says what most do, not this one. */
+const MOST = /^(?:most|many|some)\b/i;
+
+/** A page's sentences, split again where one starts with a quoted name ("… Plant Delights Nursery. 'Cherry Ice' is …"). */
+const splitQuoted = (list) => (list ?? []).flatMap((s) => String(s).split(/(?<=[.!?])\s+(?=['‘’"“][A-Z])/));
+/** A sentence opening with a quoted name that isn't one of the page's: another cultivar ("'Cherry Ice' is self-fertile" on
+ * its species' page). */
+const anotherQuoted = (s, names) => {
+  const q = /^['‘’"“]([^'‘’"”]{2,40})['’"”]/.exec(String(s).trim());
+  const bare = (x) => String(x).toLowerCase().replace(/[^a-z0-9]/g, '');
+  return !!q && !names.some((n) => bare(n).includes(bare(q[1])));
+};
+/** Its names, also as plurals, for sentences about its group ("Hollies are …" on an American holly's page). */
+const withPlurals = (names) => [...names, ...names.map((n) => String(n).replace(/y$/i, 'ies').replace(/([^s])$/i, '$1s'))];
+
+/**
+ * What one sentence says of fruit set: { v, rule }, v one of 'alone' (fruiting alone, said outright), 'separate',
+ * 'partner', 'better' or 'self' (by its words); or null.
+ */
+export function fruitSetSaid(sentence, names = []) {
+  const s = String(sentence ?? '');
+  // ("Most of the varieties are …": its kind, as a rule, not another plant.)
+  if (aboutName(s) || QUESTION.test(s) || (!MOST.test(s.trim()) && aboutAnother(s, withPlurals(names))) || anotherQuoted(s, names)) return null;
+  // ("Its flowers can be on the same plant; however, they are not self-fertile": said outright, whatever else the sentence says.)
+  if (UNSETTLED.test(s)) return /\bnot self[- ]?(?:fertile|fruitful)\b|\bself[- ]?(?:incompatible|unfruitful)\b/i.test(s) && !/\bhybridi[sz]|\brevert/i.test(s) ? { v: 'partner', rule: 'partner' } : null;
+  const need = /\b(?:needs?|needed|requires?|required|must|necessary)\b/i.test(s) && !/\b(?:may|might|can)\s+(?:\w+\s+)?(?:be )?(?:needed|required|necessary)\b/i.test(s);
+  // (A gain from planting a partner, for the crop; or other cultivars recommended.)
+  const gain = FRUIT_PARTNERS.test(s) && ((PLANTED_WITH.test(s) && GAIN.test(s) && CROP.test(s))
+    || (RECOMMEND.test(s) && (CROP.test(s) || SELF.test(s)) && /\b(?:two|three|several|multiple|different|more than one|another)\s+(?:\w+\s+)?(?:cultivars?|variet(?:y|ies))\b/i.test(s)));
+  if (ALONE.test(s)) {
+    // ("Sets fruit without pollination, but two cultivars are recommended for a better crop"; "some fruits without a
+    // male": alone, and better with one.)
+    if (gain || FRUIT_PARTLY.test(s.slice(0, ALONE.exec(s).index))) return { v: 'better', rule: 'alone-but' };
+    return { v: 'alone', rule: 'alone' };
+  }
+  if (SEPARATE.test(s)) return { v: 'separate', rule: 'separate' };
+  const needed = !/\bif (?:they|it|you) (?:need|require)/i.test(s) && PARTNER_NEEDED.test(s) && POLLEN.test(s);
+  if ((PARTNER.test(s) || needed) && !SELF_SOME.test(s)) {
+    // ("Requires another variety for the best crop": needed. "Partially self-fertile": better.)
+    if (/\bpartial(?:ly)? self/i.test(s)) return { v: 'better', rule: 'partly' };
+    return need || /\bself[- ]?(?:incompatible|sterile|unfruitful|infertile)\b|\bnot self|\bcannot|\bcan't|\bunable/i.test(s) ? { v: 'partner', rule: 'partner' } : { v: 'better', rule: 'partner-helps' };
+  }
+  if (gain || /\bpartial(?:ly)? self[- ]?(?:fertile|fruitful|pollinat\w*)\b|\bnot great at self|\bfruits? may not form\b|\bcross[- ]?pollinat\w* may be needed\b/i.test(s)) return { v: 'better', rule: 'better' };
+  if (SELF.test(s) && !SELF_NOT.test(s) && !SELF_SOME.test(s)) {
+    // ("It is self-pollinating": said of it, outright. "Most of the varieties are self-pollinating": its words only.)
+    return MOST.test(s.trim()) || /\bmost of\b|\bclassed as\b/i.test(s) ? { v: 'self', rule: 'self-most' } : { v: 'alone', rule: 'self' };
+  }
+  return null;
+}
+/**
+ * What a page's sentences say of its fruit set, { v, says }, or null: fruiting alone said outright, unless a sentence
+ * says a partner helps (better); else separate sexes; else a partner needed; else better with one; else self.
+ */
+export function fruitSetFromProse(list, names = []) {
+  list = splitQuoted(list);
+  const said = list.map((s) => ({ s, d: fruitSetSaid(s, names) })).filter((x) => x.d);
+  if (!said.length && !sexFromProse(list, names)) return null;
+  const has = (k) => said.some((x) => x.d.v === k);
+  // (A male or a female cultivar is of a plant with separate sexes, whatever else its page says of pollinizers.)
+  const sexed = !has('alone') && sexFromProse(list, names);
+  const v = sexed ? 'separate' : has('alone') ? (has('better') ? 'better' : 'self') : ['separate', 'partner', 'better', 'self'].find(has);
+  const by = v === 'self' && has('alone') ? 'alone' : v;
+  const says = said.filter((x) => x.d.v === by || (v === 'better' && x.d.v === 'alone')).slice(0, 3).map((x) => x.s).join(' … ');
+  return { v, says: says || sexed.says };
+}
+
+/** Its sex said of it ("It is a female cultivar", "'Stokes' is a male plant", "As a female cultivar, it …"). */
+const SEX = /^(?:(?:it|this(?: \w+)?|[^,;]{1,60}?)\s+(?:is|was)\s+(?:(?:an?|the)\s+)?(?:(?!(?:and|or|with|both|that|to|for|by|of|in|on|not|recommended|applied|planted|used|sold|grown|known|said)\b)[\w'’-]+[\s,]+){0,3}?|(?:being|as) an? |as (?:this|the) (?:cultivar|selection|clone|plant|tree|shrub) is |(?:this|the) (?:cultivar|selection|clone) is )(all-)?(male|female)\b(?!\s+(?:flowers?|parts?|organs?|cones?|catkins?|spikes?|reproductive))/i;
+/** What one sentence says of its sex: 'male', 'female', or null. */
+export function sexSaid(sentence, names = []) {
+  const first = String(sentence ?? '').split(/;|,\s+(?:although|though|but|while|and)\b|\s+(?:although|though|but|while|whereas)\s+/i)[0].replace(/\s*\([^)]*\)/g, '').trim();
+  // (Both sexes, or once: "applied to both male and female plants", "the original was female".)
+  if (aboutName(first) || aboutAnother(first, names) || /\bmale and female\b|\bfemale and male\b|\bboth\b|\boriginal\b|\bone sex\b/i.test(first)) return null;
+  const lead = /^(?:it|this|these|its|being|as|because|since|the cultivar|the selection)\b/i.test(first) || names.some((n) => first.toLowerCase().includes(String(n).toLowerCase().replace(/^.*?['‘]/, "'")));
+  // ("Female clone, dwarf, dense …": a field-like line on the page.)
+  const clone = /^(all-)?(male|female) (?:clone|cultivar|selection)\b/i.exec(first);
+  if (clone) return clone[2].toLowerCase();
+  const m = lead ? SEX.exec(first.replace(/^because\s+|^since\s+/i, '')) : null;
+  return m ? m[2].toLowerCase() : null;
+}
+/** Its sex, { v, says }, where its sentences say one and never the other. */
+export function sexFromProse(list, names = []) {
+  const said = splitQuoted(list).map((s) => ({ s, v: sexSaid(s, names) })).filter((x) => x.v);
+  const vs = new Set(said.map((x) => x.v));
+  return vs.size === 1 ? { v: [...vs][0], says: said.slice(0, 2).map((x) => x.s).join(' … ') } : null;
+}
+
+// ---------- The color its flowers are, first ----------
+//
+// Which of its flower colors leads (Jason, 2026-10-30: "agreed on the color read"): where one source lists several (NC
+// State lists "Gold/Yellow, Pink, Red/Burgundy, White" for a camellia, in its own order), the color its description first
+// gives its flowers goes first, the one the plan draws it in. A color word just before a word for its flowers ("deep red
+// flowers", "white, fragrant blooms", "pink to white flowers": pink), or after one ("flowers are pale blue"). A two-color
+// word counts as its last ("creamy-white": white; "greenish-yellow": yellow). Not a disk's or an eye's color, a color of
+// cultivars or other plants it names, or a fruit's or a leaf's. It only orders: never adds a color its source didn't list.
+
+/** Color words, in the catalog's flower colors (claims.mjs FLOWER_WORDS, and a few more of the same groups). */
+const LEAD_COLORS = {
+  white: 'white', yellow: 'yellow', gold: 'yellow', golden: 'yellow', pink: 'pink', purple: 'purple', lavender: 'purple', violet: 'purple', lilac: 'purple',
+  red: 'red', scarlet: 'red', crimson: 'red', burgundy: 'red', maroon: 'red', orange: 'orange', blue: 'blue', green: 'green', cream: 'cream', creamy: 'cream',
+  tan: 'cream', brown: 'brown', copper: 'brown', silver: 'silver', gray: 'silver', grey: 'silver', black: 'black',
+};
+export const LEAD_VALUES = [...new Set(Object.values(LEAD_COLORS))];
+const COLOR = String.raw`(?:(?:[a-z]+(?:ish)?-)?(?:${Object.keys(LEAD_COLORS).join('|')}))`;
+const FLOWER_NOUN = String.raw`(?:flowers?|blooms?|blossoms?|florets?|petals|ray flowers|rays|corollas?|bracts|spathes?|inflorescences?|flower (?:heads?|clusters|spikes|panicles))`;
+/** A color, then up to three words for its look or size, then its flowers: "small, white, star-shaped flowers". */
+const BEFORE = new RegExp(String.raw`\b(${COLOR})(?:\s+(?:to|or|and)\s+${COLOR})?(?:[\s,]+(?!(?:fruits?|berries|leaves|foliage|stems?|bark|seeds?|centers?|eyes?|disks?|discs?|throats?|anthers|stamens|veins|markings|spots|and|with)\b)[a-z-]+){0,3}?[\s,]+${FLOWER_NOUN}\b`, 'gi');
+/** Its flowers, then a color: "the flowers are pale blue", "blooms in shades of pink". */
+const AFTER = new RegExp(String.raw`\b${FLOWER_NOUN}\s+(?:are|is|appear|range|come|open|bloom|vary)\s+(?:\w+\s+){0,3}?(${COLOR})\b|\b(?:flower|bloom|blossom|petal)s?\s+colou?rs?\s+(?:is|are|ranges?|varies|vary|includes?)\s+(?:\w+\s+){0,3}?(${COLOR})\b`, 'gi');
+/** A color that's a disk's, an eye's or a center's ("yellow-centered", "a yellow disk"), or before another plant's flowers. */
+const NOT_ITS = /\b(?:disk|disc|center|centre|eye|throat)\b/i;
+const OTHERS_COLORS = /\b(?:cultivars?|varieties|variety|selections?|forms?|hybrids?|species|relatives?|cousins?)\b[^.;]{0,40}\b(?:available|include|includes|such as|offer|with|have|bear|come|there are)\b|\b(?:unlike|compared|similar to|resembles?|instead of|rather than|other)\b/i;
+const colorOf = (w) => LEAD_COLORS[String(w).toLowerCase().split('-').pop().replace(/ish$/, '')] ?? null;
+
+/** The color one sentence first gives its flowers, or null. */
+export function flowerLeadSaid(sentence, names = []) {
+  const s = String(sentence ?? '');
+  if (aboutName(s) || QUESTION.test(s) || aboutAnother(s, names) || anotherQuoted(s, names)) return null;
+  for (const part of clauses(s)) {
+    if (OTHERS_COLORS.test(part) || OTHER_PLANT.test(part)) continue;
+    const found = [...part.matchAll(BEFORE), ...part.matchAll(AFTER)].sort((a, b) => a.index - b.index);
+    for (const m of found) {
+      const around = part.slice(Math.max(0, m.index - 12), m.index + m[0].length);
+      if (NOT_ITS.test(m[0]) || /\b(?:yellow|white|dark|brown|purple)-centered\b/i.test(around)) continue;
+      const c = colorOf(m[1] ?? m[2]);
+      if (c) return c;
+    }
+  }
+  return null;
+}
+/** The color its description first gives its flowers, { v, says }, or null. */
+export function flowerLeadFromProse(list, names = []) {
+  for (const s of splitQuoted(list)) { const v = flowerLeadSaid(s, names); if (v) return { v, says: s }; }
+  return null;
+}
+
 /** Claims read from NC State's description (an authority, like its fields). */
 export function ncsuProseClaims(html) {
   const list = ncsuDescription(html), names = ncsuNames(html);
-  const read = [['foliage', foliageFromProse], ['deer', deerFromProse], ['self_seed', seedFromProse], ['habit', habitFromProse]];
+  const read = [['foliage', foliageFromProse], ['deer', deerFromProse], ['self_seed', seedFromProse], ['habit', habitFromProse], ['fruit_set', fruitSetFromProse], ['sex', sexFromProse], ['flower_lead', flowerLeadFromProse]];
   return read.map(([fact, from]) => [fact, from(list, names)]).filter(([, r]) => r)
     .map(([fact, r]) => ({ fact, v: r.v, src: 'ncsu', kind: 'authority', says: r.says, prose: true }));
 }

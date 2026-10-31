@@ -76,6 +76,13 @@ describe("merging a reader's answers", () => {
     expect(readings).toEqual({ 'ncsu:old': { text: 'h0', read: { deer: 'Resistant' }, at: '2026-10-01' }, 'ncsu:a': { text: 'h1', read: { deer: null, habit: 'Clumping' }, at: '2026-10-27' } });
     expect(problems).toEqual(['ncsu:b: read another text', 'ncsu:c: values not allowed (self_seed: "Lots")', 'ncsu:x: not a page to read', 'ncsu:d: no answer']);
   });
+  it('keeps a page\'s earlier readings when a new fact is read of the same text, not of a changed one (fruit set, Oct 30)', () => {
+    const had = { 'ncsu:h': { text: 'h5', read: { deer: 'Resistant' }, at: '2026-10-27' }, 'ncsu:k': { text: 'old', read: { deer: 'Candy' }, at: '2026-10-27' } };
+    const asked = [{ key: 'ncsu:h', names: ['H'], sentences: ['v'], text: 'h5', facts: ['fruit_set'] }, { key: 'ncsu:k', names: ['K'], sentences: ['u'], text: 'new', facts: ['sex'] }];
+    const { readings } = mergeReadings(had, asked, [{ key: 'ncsu:h', text: 'h5', read: { fruit_set: 'separate' } }, { key: 'ncsu:k', text: 'new', read: { sex: 'female' } }], '2026-10-30');
+    expect(readings['ncsu:h']).toEqual({ text: 'h5', read: { deer: 'Resistant', fruit_set: 'separate' }, at: '2026-10-30' });
+    expect(readings['ncsu:k']).toEqual({ text: 'new', read: { sex: 'female' }, at: '2026-10-30' });
+  });
 });
 
 describe('a degree left open, settled by another source', () => {

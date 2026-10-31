@@ -105,11 +105,13 @@ const SWATCHES: Record<string, string> = {
   pink: '#ec4899', purple: '#9333ea', blue: '#3b82f6', green: '#16a34a', brown: '#78350f', silver: '#a8a29e', black: '#1c1917',
   variegated: 'linear-gradient(135deg, #16a34a 50%, #fef3c7 50%)',
 };
-type ListKey = 'flowerColors' | 'leafColors' | 'attracts' | 'spread';
+type ListKey = 'flowerColors' | 'leafColors' | 'attracts' | 'spread' | 'edibleParts';
+/** The parts a plant can be edible for, as chips under Edible (Jason, Oct 30). */
+const EDIBLE_PART_CHOICES: [string, string][] = [['fruit', 'Fruit'], ['leaves', 'Leaves'], ['flowers', 'Flowers']];
 /** One value of a list filter, as its chip says it ("Red flowers", "Attracts bees"). */
 const LIST_ONE: Record<ListKey, (v: string) => string> = {
   flowerColors: (v) => `${cap(v)} flowers`, leafColors: (v) => `${cap(v)} leaves`, attracts: (v) => `Attracts ${v}`,
-  spread: (v) => `Spreading OK: ${SPREADS[v]?.toLowerCase() ?? v}`,
+  spread: (v) => `Spreading OK: ${SPREADS[v]?.toLowerCase() ?? v}`, edibleParts: (v) => `Edible ${v}`,
 };
 /**
  * Each filter by name, as its chip and "hidden by" say it, with its setting. Not the search, the folds, or whether
@@ -127,6 +129,7 @@ const FILTER_NAMES: Partial<Record<keyof PlantFilter, (f: PlantFilter) => string
   growth: (f) => `Growth rate: ${f.growth}`, height: (f) => `Height: ${heightLabel(f.height).replace(/^Up/, 'up')}`,
   lowMaintenance: () => 'Low maintenance', drought: () => 'Drought tolerant', wetFeet: () => 'Takes wet soil', clayOk: () => 'Clay OK',
   deerResistant: () => 'Deer resistant', noThorns: () => 'No thorns listed', spread: (f) => `Spreading OK: ${joined(f.spread.map((v) => SPREADS[v]?.toLowerCase() ?? v), 'or')}`, edible: () => 'Edible',
+  edibleParts: (f) => `Edible ${joined(f.edibleParts, 'or')}`,
   inPlan: () => 'In this plan',
 };
 /**
@@ -615,6 +618,8 @@ export function renderPlantsPanel() {
       // (Not "In this plan", beside the search, nor "Hardy in zone N", beside Filters: each shows as its own box.)
       if (k === 'inPlan' || k === 'hardyHere' || !filterOn(plantFilter, k)) continue;
       if (k === 'native' && plantFilter.native === '@here' && !gardenStateName()) continue;
+      // ("Edible fruit" says Edible already.)
+      if (k === 'edible' && plantFilter.edibleParts.length) continue;
       const v = plantFilter[k];
       if (Array.isArray(v)) {
         const lk = k as ListKey;
@@ -756,6 +761,22 @@ export function renderPlantsPanel() {
       el('div', { className: 'hint' }, "NC State's warnings. A plant it doesn't list stays, which isn't the same as safe."));
   })();
 
+  // ---- Edible, and which part ----
+  // (The part chips show once Edible is ticked; unticking it takes them off too.)
+  const edibleCheck = mkCheck('Edible', 'edible', 'edible-filter');
+  const edibleParts = el('div', { className: 'color-chips edible-parts', role: 'group', 'aria-label': 'Edible part', 'data-testid': 'edible-parts', hidden: !plantFilter.edible },
+    el('span', { className: 'chips-label' }, 'Which part'),
+    EDIBLE_PART_CHOICES.map(([v, t]) => listToggle('edibleParts', v, t, 'color-chip')));
+  edibleCheck.querySelector('input')!.addEventListener('change', (e) => {
+    const on = (e.target as HTMLInputElement).checked;
+    edibleParts.hidden = !on;
+    if (!on && plantFilter.edibleParts.length) {
+      plantFilter.edibleParts = PLANT_FILTER_DEFAULTS.edibleParts;
+      for (const cb of edibleParts.querySelectorAll('input')) { cb.checked = false; cb.parentElement?.classList.remove('on'); }
+      rebuildList();
+    }
+  });
+
   // ---- THE REST ----
   // (Mature height: the readout follows a handle as it moves; the list changes when it's let go.)
   const heightReadout = el('span', { 'data-testid': 'height-readout' }, heightLabel(plantFilter.height));
@@ -777,7 +798,9 @@ export function renderPlantsPanel() {
       heightRange(plantFilter.height, (v) => { heightReadout.textContent = heightLabel(v); }, (v) => { plantFilter.height = v; heightReadout.textContent = heightLabel(v); rebuildList(); })),
     groupHead('Site & care'),
     checks(mkCheck('Low maintenance', 'lowMaintenance'), mkCheck('Drought tolerant', 'drought'), mkCheck('Takes wet soil', 'wetFeet'),
-      mkCheck('Clay OK', 'clayOk'), mkCheck('Deer resistant', 'deerResistant'), mkCheck('Hide plants with thorns', 'noThorns'), mkCheck('Edible', 'edible')),
+      mkCheck('Clay OK', 'clayOk'), mkCheck('Deer resistant', 'deerResistant'), mkCheck('Hide plants with thorns', 'noThorns'), edibleCheck),
+    // (Which part, as chips under Edible, shown once it's ticked: any one will do. Jason, Oct 30.)
+    edibleParts,
     el('div', { className: 'hint' }, 'For dry shade: Drought tolerant, with Shade under Sun.'),
     // (Says unverified while any plant it judges goes by the earlier list for either fact, as the dog filter does.)
     anyOf(spreadUnverified ? 'Spreading you\u2019re OK with (unverified)' : 'Spreading you\u2019re OK with', 'spread-filter',

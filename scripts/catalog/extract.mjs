@@ -24,6 +24,8 @@ export const NCSU_FIELDS = [
   'Flower Inflorescence', 'Flower Shape', 'Flower Petals', 'Flower Size', 'Leaf Shape', 'Leaf Arrangement', 'Leaf Margin', 'Leaf Length', 'Texture',
   // (How a vine climbs: for what it can climb. Jason, 2026-10-29.)
   'Climbing Method',
+  // (Which parts are edible: "Fruit Value To Gardener: Edible". Jason, 2026-10-30.)
+  'Fruit Value To Gardener', 'Flower Value To Gardener', 'Leaf Value To Gardener',
 ];
 /** NC State's free-text fields the audit reads one fact out of, never keeping the text. */
 const NCSU_TEXT = ['Wildlife Value'];

@@ -446,6 +446,8 @@ export interface AppState {
   hardyWarnings: boolean;
   /** Warnings for plants poisonous to the people and pets in the yard (src/yard.ts): rows, the plan, the plant (on this device). */
   poisonWarnings: boolean;
+  /** A notice as a plant is placed that needs a partner to fruit, until the plan has one (src/fruit-partners.ts; on this device). */
+  fruitWarnings: boolean;
   /**
    * View: names on the plan, with line lengths, sun hours and the badges on plants (not saved). Off, the plan shows
    * its shapes alone, to step back and see it whole; a selected shape still shows its own.
@@ -466,7 +468,7 @@ export interface AppState {
   /** Picker opened from Add, Existing tree: pick the tree (or an unknown one), then draw its canopy. */
   pickerForTree: boolean;
   /** Placing a plant by tapping: the plant in hand and what's been placed so far (not saved). */
-  placing: { plantId: string; placed: { id: string; snap: HistorySnapshot }[]; warnedClose?: boolean; warnedHardy?: string } | null;
+  placing: { plantId: string; placed: { id: string; snap: HistorySnapshot }[]; warnedClose?: boolean; warnedHardy?: string; warnedFruit?: string } | null;
   bgEditMode: boolean;
   bgCalibrate: Calibration | null;
   draw: DrawState | null;

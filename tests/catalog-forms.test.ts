@@ -6,7 +6,7 @@ import { CLIMBING as BUILD_CLIMBING, FORM_WORDS, HABIT_FORMS as BUILD_HABIT_FORM
 // @ts-expect-error (plain JavaScript build script)
 import { writeAudit } from '../scripts/catalog/write.mjs';
 import { catalogErrors, CLIMBING, FLOWER_FORM, HABIT_FORMS, LEAF_FORM, TEXTURES, type CatalogFile } from '../src/catalog';
-import { flowerFormText, habitText, leafFormText } from '../src/ui/plant-details';
+import { edibleText, flowerFormText, fruitSetText, habitText, leafFormText } from '../src/ui/plant-details';
 
 // What its flowers and leaves look like, its texture and shape: NC State's fields, for drawing each plant its own way
 // (Jason, 2026-10-29).
@@ -88,5 +88,23 @@ describe("a plant's flowers, leaves and shape", () => {
     expect(catalogErrors(file({ habit_form: { v: ['floppy'], src: ['ncsu'] } })).some((e) => /habit_form/.test(e))).toBe(true);
     expect(catalogErrors(file({ climbs_by: { v: ['twining'], src: ['ncsu'] } })).filter((e) => /climbs_by/.test(e))).toEqual([]);
     expect(catalogErrors(file({ climbs_by: { v: ['hooks'], src: ['ncsu'] } })).some((e) => /climbs_by/.test(e))).toBe(true);
+  });
+});
+
+describe('edible parts and fruit set, in a plant\'s details (Jason, Oct 30)', () => {
+  it('says which parts are edible, and the poison note beside them', () => {
+    expect(edibleText({ edible: true, edible_parts: ['fruit', 'flowers'] })).toBe('Fruit, flowers');
+    expect(edibleText({ edible: true })).toBe('Yes');
+    expect(edibleText({ edible: true, edible_parts: ['fruit'], poison: { severity: 'low', parts: ['seeds'] } })).toBe('Fruit, though it\'s also listed as poisonous to people (above)');
+    expect(edibleText({})).toBe('');
+  });
+  it('says what it takes to fruit, a cultivar\'s sex first', () => {
+    expect(fruitSetText({ fruit_set: 'separate' })).toBe('Male and female plants: a female fruits only with a male nearby');
+    expect(fruitSetText({ fruit_set: 'separate', sex: 'female' })).toBe('A female: fruits with a male of its kind nearby');
+    expect(fruitSetText({ fruit_set: 'separate', sex: 'male' })).toBe('A male: no fruit itself; it pollinates females of its kind');
+    expect(fruitSetText({ fruit_set: 'partner' })).toBe('Needs a second, different variety nearby to fruit');
+    expect(fruitSetText({ fruit_set: 'better' })).toBe('Fruits on its own; more with a second variety nearby');
+    expect(fruitSetText({ fruit_set: 'self', sex: 'female' })).toBe('Sets fruit on its own, without a male');
+    expect(fruitSetText({})).toBe('');
   });
 });

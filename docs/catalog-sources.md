@@ -826,7 +826,10 @@ months ("MO" for MOBOT).
 | `deer` | resistance list | — | Listed for deer → `Resistant`. Otherwise `null`. |
 | `nectar`, `bird` | — | — | `null`: no source gives a level. |
 | `host` | "Wildlife Value" and its sentences | — | Only where a source says the plant is a larval host. Stored as the names it gives, never its sentence, and only names whose genus the Tallamy data lists as a butterfly or moth. Confirmed only where two sources name the same one. |
-| `edible` | "Plant Type" tag Edible | — | The tag, not the free-text "Edibility" note. |
+| `edible` | "Plant Type" tag Edible, or a part marked Edible (below) | — | The tag or the part fields, not the free-text "Edibility" note. |
+| `edible_parts` | "Fruit Value To Gardener", "Flower Value To Gardener", "Leaf Value To Gardener": Edible | — | Asked for by Jason, 2026-10-30 (which part is edible). `fruit`, `flowers`, `leaves`, as each field marks it. Written only where `edible` is (a plant rated toxic waits on the same decision). |
+| `flower_color`'s order | The description (prose.mjs `flowerLeadFromProse`) | — | Agreed with Jason, 2026-10-30: where the sources back several colors equally (most often one source listing several, in its own order: NC State lists a camellia's "Gold/Yellow" first), the color its description first gives its flowers goes first ("large red flowers"), the one the app draws it in. With a second reading (`flower_lead`). It only orders: a color no source lists is never added. |
+| `fruit_set`, `sex` | The description (prose.mjs `fruitSetFromProse`, `sexFromProse`) | — | Asked for by Jason, 2026-10-30 (partner plants for fruit set: "some viburnum needs a partner"). By rule, with a second reading: separate sexes ("dioecious", "a male pollinizer is needed"), a partner needed ("self-incompatible", "needs another variety for pollination"), better with one ("self-fertile, but two cultivars are recommended"), or on its own ("self-pollinating", "sets fruit without pollination"); a cultivar's sex where its page says it's male or female. Sentences about the plant's group count ("Hollies are dioecious"); one opening with another cultivar's name doesn't. |
 | `fall_color`, `fall_colors` | "Deciduous Leaf Fall Color" | — | The colors it lists. "Insignificant" alone is no fall color (`fall_color` no, since 2026-10-24; before, any value counted as yes); colors beside it are fall color. A word not mapped here says neither (nothing is read). A cultivar's colors only from a page for it: cultivars are bred for them ('Shenandoah' switchgrass). USDA's "Fall Conspicuous" is about the plant overall in fall, not leaf color. |
 | `leaf_color` | "Leaf Color" | fallback ("Foliage Color") | Each color it lists, in the catalog's words: Gray/Silver → silver, Gold/Yellow → gold, Purple/Lavender → purple, Red/Burgundy → red, Brown/Copper → copper, Cream/Tan → cream; the rest by name. USDA's Gray-Green and White-Gray are silver, its Dark Green and Yellow-Green green. NC State's list takes in the seasons and the leaves' undersides, so it isn't read as the summer color (no filter rests on it). A cultivar's only from a page for it. |
 | `foliage` | "Woody Plant Leaf Characteristics" | fallback ("Leaf Retention", of a tree or shrub) | Broadleaf or Needled Evergreen → evergreen; Semi-evergreen, or both an evergreen and Deciduous → semi-evergreen; Deciduous → deciduous. NC State gives it for woody plants and some herbs. USDA's Yes is evergreen, its No deciduous, read only where its growth habit is a tree, shrub or subshrub: it says No of every herb here, those NC State calls evergreen too, and No of English ivy (a vine). Of a plant NC State calls semi-evergreen, USDA's yes or no is set aside: it can neither back that nor contradict it. A cultivar takes its species'. |
@@ -871,7 +874,11 @@ listed). The kinds the build applies:
 - **`edible`**: a plant a source calls edible that's rated toxic (to dogs on the older list, or seriously
   toxic to people): true writes the source's "edible", with what the source lists as poisonous shown beside it
   (`poison`), where it lists any (Japanese plum's rating is the older list's, for dogs); false leaves edible as it
-  was, taking out an older unsourced "yes".
+  was, taking out an older unsourced "yes". A species' decision covers its cultivars (Jason, 2026-10-30: the
+  peaches). Without a decision, a plant whose NC State page names the parts that are edible and the parts that
+  are poisonous, with none in both, is written edible, its poisonous parts beside it (Jason, 2026-10-30: American
+  plum, fruit; leaves, seeds and stems). A part in both lists (black cherry's fruit), or either list not named (a
+  dog's rating alone, an "Edible" tag with no part), waits for a person.
 - **`nativeShown`**: a plant the catalog calls exotic that Kew's checklist has native in some states: shown
   native there all the same, said as its species' ("Its species is native to New York": wild.mjs). Where Kew's only native area is a territory (lantana: Puerto Rico), it
   changes nothing in the 50 states. When the catalog's North America-wide native status comes from Kew, the
@@ -1046,7 +1053,8 @@ on a person into [catalog-review.md](catalog-review.md). The steps:
    that would make the record implausible (the app's `catalogWarnings`:
    inches read as feet, a zone or sun range backwards), which are held back,
    and "edible" on a plant rated toxic to dogs or seriously toxic to people,
-   unless a person decided it (`edible` in decisions.json, "Decisions").
+   unless a person decided it (`edible` in decisions.json, "Decisions"), or its
+   species, or NC State names its edible and poisonous parts with none in both.
    A nursery's report on a pair (the zones, the sun levels) is one
    nursery's whole range, kept only where both halves are written. It
    removes a value only where a person decided against it (an older,

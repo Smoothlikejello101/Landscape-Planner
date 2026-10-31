@@ -111,10 +111,10 @@ test('one Warnings fold in Layers, a switch for each kind; poison follows the ho
   await page.locator('button[title=Layers]').click();
   await expect(page.getByTestId('warnings').locator('summary')).toContainText('all on');
   await openWarnings(page);
-  for (const id of ['crowding-settings', 'sun-warnings', 'hardy-warnings', 'poison-warnings']) await expect(page.getByTestId(id)).toBeVisible();
+  for (const id of ['crowding-settings', 'sun-warnings', 'hardy-warnings', 'poison-warnings', 'fruit-warnings']) await expect(page.getByTestId(id)).toBeVisible();
   await expect(page.getByTestId('warnings')).toContainText('a problem for the kids in the yard');
   await page.getByTestId('poison-warnings').uncheck();
-  await expect(page.getByTestId('warnings').locator('summary')).toContainText('3 of 4 kinds on');
+  await expect(page.getByTestId('warnings').locator('summary')).toContainText('4 of 5 kinds on');
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=poison-warning]')).toHaveCount(0);
   await page.locator('.tool-btn.plants').click();

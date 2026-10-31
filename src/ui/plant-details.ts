@@ -48,6 +48,24 @@ const andList = (l: string[]) => (l.length > 1 ? `${l.slice(0, -1).join(', ')} a
 const orList = (l: string[]) => (l.length > 1 ? `${l.slice(0, -1).join(', ')} or ${l.at(-1)}` : l[0] ?? '');
 const sun = (most?: unknown, least?: unknown) => (!most ? '' : cap(most === least || !least ? SUN_WORDS[most as string] ?? String(most) : `${SUN_WORDS[most as string] ?? most} to ${SUN_WORDS[least as string] ?? least}`));
 const yes = (v: unknown) => (v === true ? 'Yes' : v === false ? 'No' : '');
+/** Which parts are edible, as NC State marks them ("Fruit, flowers"), or Yes where none are said; with the poison note. */
+export function edibleText(p: Pick<Plant, 'edible' | 'edible_parts' | 'poison'>): string {
+  if (p.edible !== true) return yes(p.edible);
+  const what = p.edible_parts?.length ? cap(p.edible_parts.join(', ')) : 'Yes';
+  return p.poison ? `${what}, though it's also listed as poisonous to people (above)` : what;
+}
+/**
+ * What it takes to fruit (Jason, Oct 30: partner plants), with a cultivar's own sex where its page says: "A female:
+ * fruits with a male of its kind nearby".
+ */
+export function fruitSetText(p: Pick<Plant, 'fruit_set' | 'sex'>): string {
+  if (p.fruit_set === 'self') return p.sex === 'female' ? 'Sets fruit on its own, without a male' : 'Sets fruit on its own';
+  if (p.sex === 'female') return 'A female: fruits with a male of its kind nearby';
+  if (p.sex === 'male') return 'A male: no fruit itself; it pollinates females of its kind';
+  return p.fruit_set === 'separate' ? 'Male and female plants: a female fruits only with a male nearby'
+    : p.fruit_set === 'partner' ? 'Needs a second, different variety nearby to fruit'
+      : p.fruit_set === 'better' ? 'Fruits on its own; more with a second variety nearby' : '';
+}
 /** "Apr–Jun"; "May". */
 const months = (b: { start?: number; end?: number }) => (b.start ? `${MONTH_NAMES[b.start]}${b.end && b.end !== b.start ? `–${MONTH_NAMES[b.end]}` : ''}` : '');
 /** "Spring, summer"; "Mid spring" (USDA's finer seasons, as it writes them). */
@@ -263,7 +281,9 @@ function rows(p: Plant): Row[] {
     ['Toxicity', '', ['tox', 'dog']],
     // (Beside Edible: a plant can be both, its fruit eaten and its seeds poisonous.)
     ['Poisonous to people', poisonRow(p), parentRated(p) ? ['poison_parents'] : ['poison']],
-    ['Edible', p.edible === true && p.poison ? 'Yes, though it\'s also listed as poisonous to people (above)' : yes(p.edible), ['edible']],
+    ['Edible', edibleText(p), ['edible', 'edible_parts']],
+    // (Read from its description: separate sexes, a partner needed or helping, or on its own; a cultivar's sex.)
+    ['Fruit set', fruitSetText(p), ['fruit_set', 'sex']],
     ['Thorns', yes(p.thorns), ['thorns']],
     // (As its source lists them: NC State's take in the seasons and the undersides.)
     ['Leaf colors', leafText(p.leaf_color), ['leaf_color']],
@@ -440,7 +460,7 @@ export const DETAIL_GROUPS: { id: string; title: string; labels: string[] }[] = 
   { id: 'looks', title: 'Flowers and leaves', labels: ['Flower color', 'Leaf colors', 'Leafs out', 'Fall color', 'In winter', 'Bark'] },
   { id: 'wildlife', title: 'Wildlife', labels: ['Native', 'Nectar for pollinators', 'For birds', 'Attracts', 'Caterpillar host', 'Nativar'] },
   { id: 'safety', title: 'Safety', labels: ['Poisonous to people', 'Toxicity', 'Edible', 'Thorns'] },
-  { id: 'growing', title: 'Growing', labels: ['Spacing', 'Deer', 'Tolerates', 'Growth rate', 'Takes clay', 'Takes wet feet', 'Takes dry shade', 'How it spreads', 'Maintenance',
+  { id: 'growing', title: 'Growing', labels: ['Spacing', 'Fruit set', 'Deer', 'Tolerates', 'Growth rate', 'Takes clay', 'Takes wet feet', 'Takes dry shade', 'How it spreads', 'Maintenance',
     'Taproot (hard to move)', 'Humidity', 'Habit', 'Trunk'] },
 ];
 /** The groups opened while the picker is open (Jason: they stay open until it closes, then fold again). */

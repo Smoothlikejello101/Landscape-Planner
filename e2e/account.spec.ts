@@ -202,6 +202,11 @@ test('beta: sync runs by itself, uploads this device’s plans, and brings anoth
   expect(asked).not.toContain('cannot be undone');
   await account.getByTestId('sync-now').click();
   await expect(account.getByTestId('trash')).toContainText('Cabin');
+  // (Folded to a line, Jason, Oct 30: it opens to restore.)
+  await expect(account.getByTestId('trash').locator('summary')).toHaveText('Recently deleted (1), kept 30 days');
+  await expect(account.getByTestId('trash').getByRole('button', { name: 'Restore' })).toBeHidden();
+  await account.getByTestId('trash').locator('summary').click();
+  await expect(account.getByTestId('trash').getByRole('button', { name: 'Restore' })).toBeVisible();
   // Switched off on this device: nothing more is sent.
   await account.getByTestId('sync-device').locator('input').uncheck();
   await expect(account.getByTestId('sync-status')).toHaveText('Sync is off on this device');
