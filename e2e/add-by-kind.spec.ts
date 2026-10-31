@@ -71,7 +71,7 @@ test('the drawing method is a choice with pictures, remembered per kind', async 
   await tapFt(page, 14, 16); // 10 ft across, centered between the taps
   await page.locator('.sel-pill .edit').click(); await openSections(page);
   await expect(field(page, 'Diameter (ft)')).toHaveValue('10');
-  await expect(page.getByTestId('section-size').locator('.prop-summary')).toHaveText('10 ft across · 79 sq ft');
+  await expect(page.getByTestId('section-size').locator('.prop-summary')).toContainText('10 ft across · 79 sq ft');
   await expect(field(page, 'X position (ft)')).toHaveValue('0'); // canvas 10 ft = 0 ft
   await expect(field(page, 'Y position (ft)')).toHaveValue('3');
   await expect(page.getByTestId('what-it-is')).toContainText('Bed');

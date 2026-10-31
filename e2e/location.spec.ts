@@ -64,7 +64,7 @@ test('a ZIP gives the zone and frost dates; the plant picker can show only plant
   await edge.locator('[data-testid=plant-place]').click();
   await placeOnceAtCenter(page);
   await page.locator('.sel-pill button.edit').click(); await openSections(page);
-  await expect(page.getByTestId('plant-zones')).toHaveText('Hardy in zones 8–10. Zone 8a is at the cold edge of its range: give it a sheltered spot and mulch its roots for winter.');
+  await expect(page.getByTestId('plant-zones')).toHaveText('Zone 8a is at the cold edge of its range: give it a sheltered spot and mulch its roots for winter.'); // (on its Hardiness row)
 });
 
 test('at the warm edge of a plant\'s range: shade, and water unless it wants little', async ({ page }) => {
@@ -82,7 +82,7 @@ test('at the warm edge of a plant\'s range: shade, and water unless it wants lit
   await lead.locator('[data-testid=plant-place]').click();
   await placeOnceAtCenter(page);
   await page.locator('.sel-pill button.edit').click(); await openSections(page);
-  await expect(page.getByTestId('plant-zones')).toHaveText('Hardy in zones 3–8. Zone 8b is at the warm edge of its range: give it afternoon shade in summer.');
+  await expect(page.getByTestId('plant-zones')).toHaveText('Zone 8b is at the warm edge of its range: give it afternoon shade in summer.');
 });
 
 test('"Hardy in your zone" with no ZIP asks for one, and comes back with only plants hardy there, the other filters kept', async ({ page }) => {

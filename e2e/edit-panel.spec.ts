@@ -20,7 +20,7 @@ test('properties show one row per group with its current state; a tap opens it',
   await expect(head(page, 'status')).toContainText('Planned'); // a new bed is a plan
   await expect(head(page, 'bed')).toContainText('None yet');
   await expect(head(page, 'size')).toContainText('10 × 4 ft · 40 sq ft');
-  await expect(head(page, 'position')).toContainText('x -8, y -8');
+  await expect(head(page, 'size')).toContainText('x -8, y -8'); // (Size and position, one section: Jason, Oct 30)
   await expect(page.locator('.sheet .prop-section.open')).toHaveCount(0);
   await expect(page.locator('.sheet input[type=number]:visible')).toHaveCount(0); // nothing to wade through
   await head(page, 'size').click();

@@ -30,6 +30,7 @@ import { MAX_TREE_HEIGHT, MAX_TRUNK, MIN_TRUNK } from '../constants';
 import { statusSection, statusSummary } from './status-section';
 import { drawnBySize } from '../canvas';
 import { flowerChoices, flowerHex } from '../looks';
+import { lookShown } from '../plant-looks';
 import { hasStatus, shownWith } from '../status';
 import { plantsInBed } from '../beds';
 import { startPlacing } from '../place';
@@ -179,6 +180,8 @@ function vinesOnIt(s: Shape): HTMLElement | null {
   return box;
 }
 const cap1 = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
+/** Whether a pictured plant's leaf color is open (Look): kept while the app is open. */
+let leafColorOpen = false;
 /** The most a typed size can be (ft): about ten times anything real, a bed or a lawn, and a plant across (Jason, Oct 30). */
 const MAX_SIZE = 5000, MAX_SPREAD = 500;
 export function renderPropsPanelSingle(s: Shape) {
@@ -235,13 +238,14 @@ export function renderPropsPanelSingle(s: Shape) {
   }
   if (s.type === 'circle' && (s.plantId || !s.role || s.role === 'plant' || s.role === 'other')) {
     const p = s.plantId ? plantsById[s.plantId] : undefined;
-    body.appendChild(section('plant', 'Plant', document.createTextNode(p ? p.common + (isMine(p) ? ' (mine)' : '') : s.plantId ? 'Details not on this device' : 'Not linked'), [plantLinkSection(s)]));
-    // Its facts, as the picker shows them (Jason, Oct 29: "a way of seeing a plant's facts from its edit pane"):
-    // bloom time and the rest without finding it in the picker. Folded until opened, like every section.
-    if (p && !isMine(p)) {
-      const sun = rowLines(p).sun;
-      body.appendChild(section('about', 'About this plant', document.createTextNode([sun, 'bloom, safety and more'].filter(Boolean).join(' · ')), [el('div', { className: 'about-plant', 'data-testid': 'about-plant' }, plantDetails(p, undefined))]));
-    }
+    // One section for the plant (Jason, Oct 30: "Plant" and "About this plant" were two about the same plant): linking
+    // it, and its facts as the picker shows them (Oct 29: bloom time without finding it in the picker), the garden's
+    // zone checked on its Hardiness row. Folded until opened, like every section.
+    const facts = p && !isMine(p);
+    const sum = p ? [p.common + (isMine(p) ? ' (mine)' : ''), facts ? rowLines(p).sun : ''].filter(Boolean).join(' · ') : s.plantId ? 'Details not on this device' : 'Not linked';
+    const parts: Node[] = [plantLinkSection(s)];
+    if (facts) parts.push(el('div', { className: 'about-plant', 'data-testid': 'about-plant' }, plantDetails(p, undefined, { hardiness: zoneCheck(p, false) })));
+    body.appendChild(section('plant', 'Plant', document.createTextNode(sum), parts));
   }
   if (hasStatus(s)) body.appendChild(section('status', 'Status', document.createTextNode(statusSummary([s])), [statusSection([s])]));
   // What sits on its edges: a building's doors and windows, a fence's gates, a deck's steps.
@@ -271,6 +275,8 @@ export function renderPropsPanelSingle(s: Shape) {
     const what = bySpread(s) ? (s.canopy ? 'Spread, widest (ft)' : 'Spread (ft)') : 'Diameter (ft)';
     sizeParts.push(el('div', { className: 'field' }, el('label', {}, what), dInput,
       bySpread(s) ? el('div', { className: 'hint' }, 'How wide it\'s drawn, across. Plant tags call this its spread.') : '', bySpread(s) ? '' : measure));
+    // (A linked plant: how it's drawn, by its plant's spread or by hand, and the way back to its plant's size.)
+    sizeParts.push(...plantSizeParts(s));
     // Trees drawn before trunks existed (or a plant of my own that's a tree): say so here. Only for what could be a
     // tree: a shrub, a plant of my own, one not linked or whose details aren't here. Never a vine, a perennial or a grass
     // (Jason, Oct 29: a jessamine ticked by a fat finger became a tree); one ticked already can be unticked.
@@ -359,8 +365,7 @@ export function renderPropsPanelSingle(s: Shape) {
       sizeParts.push(el('div', { className: 'field' }, el('label', {}, 'Right angle corner'), grid));
     }
   }
-  if (isLocked(s)) shutLocked(sizeParts);
-  body.appendChild(section('size', 'Size', sizeSum, sizeParts));
+  // (Size and position in one section, below: Jason, Oct 30.)
 
   // ----- Position and rotation -----
   const posSum = document.createTextNode(positionSummary(s));
@@ -400,11 +405,21 @@ export function renderPropsPanelSingle(s: Shape) {
         el('label', {}, 'Rotation (degrees, around center)'), rotPct),
       rotInput, quickBtns, el('div', { style: { marginTop: '6px' } }, resetBtn)));
   }
-  if (isLocked(s)) shutLocked(posParts);
-  body.appendChild(section('position', 'Position', posSum, posParts));
+  // Size and position, one section (Jason, Oct 30): "10 × 4 ft · 40 sq ft · x -8, y -8", each part refreshed as typed.
+  const sizePos = [...sizeParts, ...posParts];
+  if (isLocked(s)) shutLocked(sizePos);
+  body.appendChild(section('size', 'Size and position', el('span', {}, sizeSum, ' \u00b7 ', posSum), sizePos));
 
   // ----- Look: color, and opacity for filled shapes -----
-  const lookSum = lookSummary(s);
+  // A plant drawn as a picture (Jason, Oct 30: demoted, and smaller, "given the way we're drawing plants"): its flowers'
+  // color first, its leaves' color a tap away, and no opacity (a picture's paleness is its status and the canopy rule).
+  const asPicture = s.type === 'circle' && lookShown(s);
+  const pictured = s.type === 'circle' && s.role === 'plant' && !!s.plantId && !!plantsById[s.plantId] && !isMine(plantsById[s.plantId]);
+  const choices = pictured && s.type === 'circle' ? flowerChoices(plantsById[s.plantId!]) : { colors: [] as string[] };
+  const curFlower = s.type === 'circle' && choices.colors.length ? (s.flowerColor && choices.colors.includes(s.flowerColor) ? s.flowerColor : choices.usual) : undefined;
+  const lookSum = asPicture
+    ? el('span', { className: 'look-sum' }, [curFlower ? `${cap1(curFlower)} flowers` : 'Its own colors', s.type === 'circle' && s.colorSet ? 'leaves recolored' : ''].filter(Boolean).join(' \u00b7 '))
+    : lookSummary(s);
   const swatches = el('div', { className: 'swatches' });
   for (const c of SWATCHES) {
     const btn = el('button', { className: 'swatch' + (s.color === c ? ' sel' : ''), style: { background: c }, 'aria-label': SWATCH_NAMES[c] ?? c, 'aria-pressed': String(s.color === c) });
@@ -414,28 +429,26 @@ export function renderPropsPanelSingle(s: Shape) {
   const colorInput = el('input', { type: 'color', value: s.color });
   colorInput.addEventListener('input', e => {
     updateSelectedSilent(colorPatch(s, (e.target as HTMLInputElement).value));
-    (lookSum.firstChild as HTMLElement).style.background = s.color;
+    if (!asPicture) (lookSum.firstChild as HTMLElement).style.background = s.color;
   });
   // Back to the color it started with (Jason, Oct 29): for a catalog plant, its picture's own colors again.
   const def = defaultColorOf(s);
   const isDefault = s.color.toLowerCase() === def.toLowerCase() && !(s.type === 'circle' && s.colorSet);
   const resetColor = el('button', { className: 'link-btn', 'data-testid': 'default-color' }, 'Default color');
   resetColor.addEventListener('click', () => updateSelected({ color: def, ...(s.type === 'circle' ? { colorSet: undefined } : {}) }));
-  const pictured = s.type === 'circle' && s.role === 'plant' && !!s.plantId && !!plantsById[s.plantId] && !isMine(plantsById[s.plantId]);
-  const lookParts: Node[] = [el('div', { className: 'field' }, el('label', {}, 'Color'), swatches,
+  const colorField = el('div', { className: 'field' }, el('label', {}, asPicture ? 'Leaf color' : 'Color'), swatches,
     el('div', { style: { marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' } },
       el('label', { style: { fontSize: ts(12), color: '#57534e' } }, 'Custom:'), colorInput, isDefault ? '' : resetColor),
     pictured && state.plantLooks ? el('div', { className: 'hint' }, s.colorSet
       ? 'Its picture\'s leaves are drawn in this color. Default color brings back its own colors.'
-      : 'Its picture is drawn in its own colors. A color you pick here draws its leaves.') : '')];
+      : 'Its picture is drawn in its own colors. A color you pick here draws its leaves.') : '');
+  const lookParts: Node[] = [];
   // Its flowers' color, among those its sources list (Jason, Oct 30): a cultivar the catalog doesn't have, or a
   // species that comes in several. (The one its sources give most, until another is picked.)
-  const choices = pictured && s.type === 'circle' ? flowerChoices(plantsById[s.plantId!]) : { colors: [] as string[] };
   if (s.type === 'circle' && choices.colors.length >= 2) {
-    const cur = s.flowerColor && choices.colors.includes(s.flowerColor) ? s.flowerColor : choices.usual;
     const row = el('div', { className: 'color-chips', role: 'group', 'aria-label': 'Flower color' });
     for (const c of choices.colors) {
-      const on = c === cur;
+      const on = c === curFlower;
       const b = el('button', { className: 'color-chip' + (on ? ' on' : ''), 'aria-pressed': String(on), 'data-testid': 'flower-chip' },
         el('span', { className: 'swatch', style: { background: flowerHex(c) ?? '#d6d3d1' } }), c[0].toUpperCase() + c.slice(1));
       b.addEventListener('click', () => updateSelected({ flowerColor: c === choices.usual ? undefined : c }));
@@ -444,8 +457,22 @@ export function renderPropsPanelSingle(s: Shape) {
     lookParts.push(el('div', { className: 'field', 'data-testid': 'flower-colors' }, el('label', {}, 'Flower color'), row,
       el('div', { className: 'hint' }, 'The colors its sources list. Its picture\'s flowers are drawn in the one picked.')));
   }
-  // Opacity (not for outlines; sun exposure with a record is shaded by its sun hours)
-  if (!(s.role === 'boundary' || (s.type === 'line' && !s.pathWidth) || s.type === 'text' || (s.role === 'shade' && s.sun))) {
+  if (asPicture) {
+    // (Its leaves' color, rarely wanted: behind a link, open while a color's been picked, so Default color is in sight.)
+    const open = leafColorOpen || (s.type === 'circle' && !!s.colorSet);
+    colorField.hidden = !open;
+    const toggle = el('button', { className: 'link-btn', 'data-testid': 'leaf-color-toggle', 'aria-expanded': String(open) }, open ? 'Hide leaf color' : 'Change leaf color\u2026');
+    toggle.addEventListener('click', () => {
+      leafColorOpen = colorField.hidden;
+      colorField.hidden = !leafColorOpen;
+      toggle.setAttribute('aria-expanded', String(leafColorOpen));
+      toggle.textContent = leafColorOpen ? 'Hide leaf color' : 'Change leaf color\u2026';
+    });
+    lookParts.push(toggle, colorField);
+  } else lookParts.push(colorField);
+  // Opacity (not for outlines; sun exposure with a record is shaded by its sun hours; not a picture, whose paleness is its
+  // status and the canopy rule, so the slider did nothing there: Jason, Oct 30)
+  if (!asPicture && !(s.role === 'boundary' || (s.type === 'line' && !s.pathWidth) || s.type === 'text' || (s.role === 'shade' && s.sun))) {
     const opacityVal = s.opacity !== undefined ? s.opacity : 0.65;
     const rangeInput = el('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: opacityVal });
     const opacityPct = el('span', { style: { fontSize: ts(12), color: '#78716c' } }, Math.round(opacityVal * 100) + '%');
@@ -585,6 +612,39 @@ function makeRoundField(s: CircleShape): HTMLElement {
 }
 
 /** For circles: which plant this is (size range, reset, edit), or a way to make it one. */
+/**
+ * Its zones, checked against the garden's (`full`: with "Hardy in zones 8–10." first, for a plant of my own; a catalog
+ * plant's Hardiness row says its zones already), or null with none on record.
+ */
+function zoneCheck(p: Plant, full: boolean): HTMLElement | null {
+  const zones = zoneRange(p);
+  if (!zones) return null;
+  const fit = zoneFit(p, state.location);
+  const z = state.location?.zone;
+  const said = !state.location ? '(Set the garden’s ZIP in ⋮ → Garden location to check.)'
+    : fit === 'fits' ? `Fine for zone ${z}.`
+    : fit === 'edge-cold' ? `Zone ${z} is at the cold edge of its range: give it a sheltered spot and mulch its roots for winter.`
+    : fit === 'edge-warm' ? `Zone ${z} is at the warm edge of its range: give it afternoon shade${p.water === 'Low' ? '' : ' and steady water'} in summer.`
+    : fit === 'cold' ? `Zone ${z} winters are colder than it’s rated for.`
+    : `Zone ${z} is warmer than it’s rated for: it may lack the winter chill or cool summers it needs.`;
+  return el(full ? 'div' : 'span', { className: (full ? 'hint' : 'details-alt zone-check') + (fit && fit !== 'fits' ? ' zone-warn' : ''), 'data-testid': 'plant-zones' }, full ? `Hardy in ${zones}. ${said}` : said);
+}
+/** How a placed plant is drawn, by its catalog spread or by hand, and the way back to its plant's size: in Size and position. */
+function plantSizeParts(s: CircleShape): Node[] {
+  const p = s.plantId ? plantsById[s.plantId] : undefined;
+  if (!p) return [];
+  const sizes = `Its spread: ${formatSize(p.width as Range | undefined) || 'unknown'}. ` + (s.sizeFrom === 'manual'
+    ? 'Drawn at the size it was given' + (s.tree ? ' (a tree as it is now)' : '') + (fullRingRadius(s) ? '; the dashed ring, when it\u2019s selected, is its full size.' : '.')
+    : `Drawn at ${state.sizeMode === 'full' ? 'full' : 'typical'} size (change in Layers).`);
+  const out: Node[] = [el('div', { className: 'hint', 'data-testid': 'plant-size-note', style: { marginTop: '6px', marginBottom: '10px' } }, sizes)];
+  const target = plantRadius(p, state.sizeMode);
+  if (s.radius !== target) {
+    const reset = el('button', { className: 'btn ghost', 'data-testid': 'reset-size', style: { marginTop: '6px' } }, `Reset to plant size (${fmt1(target * 2)} ft spread)`);
+    reset.addEventListener('click', () => updateSelected({ radius: target, sizeFrom: 'plant' }));
+    out.push(reset);
+  }
+  return out;
+}
 function plantLinkSection(s: CircleShape): HTMLElement {
   const wrap = el('div', { className: 'field', 'data-testid': 'plant-link' });
   const p = s.plantId ? plantsById[s.plantId] : undefined;
@@ -638,30 +698,10 @@ function plantLinkSection(s: CircleShape): HTMLElement {
       wrap.appendChild(box);
     }
   }
-  const sizes = `Spread ${formatSize(p.width as Range | undefined) || 'unknown'}. ` + (s.sizeFrom === 'manual'
-    ? 'Drawn at the size it was given' + (s.tree ? ' (a tree as it is now)' : '') + (fullRingRadius(s) ? '; the dashed ring, when it\u2019s selected, is its full size.' : '.')
-    : `Drawn at ${state.sizeMode === 'full' ? 'full' : 'typical'} size (change in Layers).`);
-  wrap.appendChild(el('div', { className: 'hint' }, sizes));
-  const zones = zoneRange(p);
-  if (zones) {
-    const fit = zoneFit(p, state.location);
-    const z = state.location?.zone;
-    wrap.appendChild(el('div', { className: 'hint' + (fit && fit !== 'fits' ? ' zone-warn' : ''), 'data-testid': 'plant-zones' },
-      `Hardy in ${zones}.` + (!state.location ? ' (Set the garden’s ZIP in ⋮ → Garden location to check.)'
-        : fit === 'fits' ? ` Fine for zone ${z}.`
-        : fit === 'edge-cold' ? ` Zone ${z} is at the cold edge of its range: give it a sheltered spot and mulch its roots for winter.`
-        : fit === 'edge-warm' ? ` Zone ${z} is at the warm edge of its range: give it afternoon shade${p.water === 'Low' ? '' : ' and steady water'} in summer.`
-        : fit === 'cold' ? ` Zone ${z} winters are colder than it’s rated for.`
-        : ` Zone ${z} is warmer than it’s rated for: it may lack the winter chill or cool summers it needs.`)));
-  }
+  // (A plant of my own has no fact sheet: its zones, checked, here. A catalog plant's are on its Hardiness row.)
+  if (isMine(p)) { const z = zoneCheck(p, true); if (z) wrap.appendChild(z); }
   if (p.unverified) wrap.appendChild(el('div', { className: 'hint', 'data-testid': 'plant-unverified' }, "Unverified: this plant's details come from an earlier list with no sources, and haven't been checked yet."));
   const row = el('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '6px' } });
-  const target = plantRadius(p, state.sizeMode);
-  if (s.radius !== target) {
-    const reset = el('button', { className: 'btn ghost', style: { flex: '1' } }, `Reset to plant size (${fmt1(target * 2)} ft spread)`);
-    reset.addEventListener('click', () => updateSelected({ radius: target, sizeFrom: 'plant' }));
-    row.appendChild(reset);
-  }
   if (isMine(p)) {
     const edit = el('button', { className: 'btn ghost', style: { flex: '1' } }, `Edit "${p.common}" in My plants`);
     edit.addEventListener('click', () => { state.plantForm = { editId: p.id, place: false }; state.panel = 'plantForm'; render(); });

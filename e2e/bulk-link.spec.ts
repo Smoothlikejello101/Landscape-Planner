@@ -102,7 +102,7 @@ test('the offer is checked again: a circle relabeled since, or undone, drops out
   await page.locator('circle[data-shape-id=a]').click();
   const edit = page.locator('.sel-pill .edit');
   if (await edit.isVisible()) await edit.click(); // (a second tap on the selected circle opens its properties itself)
-  await expect(page.getByTestId('plant-link')).toBeVisible();
+  await expect(page.getByTestId('section-plant')).toBeVisible(); // (its pane, open on the plant)
   await expect(page.getByTestId('link-offer')).toHaveCount(0);
 });
 
@@ -139,7 +139,7 @@ test('linking a circle to a tree keeps it the size it was drawn, as an existing 
   await page.locator('.proj-row', { hasText: 'Quercus rubra' }).first().locator('[data-testid=plant-place]').click();
   await expect(page.locator('circle[data-shape-id=t]')).toHaveAttribute('r', '72'); // (3 ft at 24 px a foot: as drawn)
   await expect(page.locator('#canvas-svg [data-role=full-ring]')).toHaveCount(1);
-  await expect(page.getByTestId('plant-link')).toContainText('the dashed ring');
+  await expect(page.getByTestId('plant-size-note')).toContainText('the dashed ring'); // (in Size and position since Oct 30)
   // The other "Big oak" is locked: asked about, not linked unless chosen.
   await expect(page.getByTestId('link-offer')).toContainText('and it’s locked');
   await expect(page.getByTestId('link-offer-yes')).toHaveCount(0);

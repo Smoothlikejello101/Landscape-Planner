@@ -533,7 +533,11 @@ const CHEVRON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6
  * The opened row. `flagged`: what this plant matches the filters on only by
  * what other sources say (said first, in words).
  */
-export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLElement {
+/**
+ * A plant's details, as the picker shows them. `hardiness`: a line for its Hardiness row, the garden's zone checked (a
+ * placed plant's edit pane: Jason, Oct 30, one Plant section with the zone check where the zones are).
+ */
+export function plantDetails(p: Plant, flagged: string[] | undefined, opts: { hardiness?: HTMLElement | null } = {}): HTMLElement {
   const box = el('div', { className: 'plant-details', 'data-testid': 'plant-details' });
   if (flagged?.length) {
     box.appendChild(el('div', { className: 'details-flag', 'data-testid': 'reported-flag' },
@@ -587,6 +591,7 @@ export function plantDetails(p: Plant, flagged: string[] | undefined): HTMLEleme
       const alt = facts.map((f) => p.prov?.[f]?.alt).find(Boolean);
       dd.appendChild(el('span', { className: 'details-alt' }, alt ? otherValue(alt.src, reported) : `Also reported: ${reported}`));
     }
+    if (label === 'Hardiness' && opts.hardiness) dd.appendChild(opts.hardiness);
     put(label, dd);
   }
   const top = el('dl', { className: 'details-list' });
