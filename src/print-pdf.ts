@@ -6,6 +6,8 @@ import {
 } from './print';
 import type { BgImage, PrintSettings, Shape, SizeMode, Status } from './types';
 import { filterText } from './status';
+import { shownCaption } from './export';
+import { state } from './state';
 
 // Writes the printable plan as a PDF (browser only). Layout and content come
 // from print.ts; this file only draws them.
@@ -48,8 +50,15 @@ function onPaper(hex: string, alpha: number): string {
   return '#' + mix((n >> 16) & 255) + mix((n >> 8) & 255) + mix(n & 255);
 }
 
+/**
+ * How the plan is drawn, as the screen shows it unless changed in the dialog (Jason, Oct 31): names, numbers, lengths
+ * and sun hours, or none; the month Through the year shows, or none (every plant in leaf and bloom).
+ */
+export interface PrintView { names: boolean; month: number | null }
+
 export async function buildPlanPdf(
   settings: PrintSettings, projectName: string, shapes: Shape[], bg: BgImage | null, sizeMode: SizeMode = 'typical',
+  view: PrintView = { names: true, month: null },
 ): Promise<PdfResult> {
   const filter = { status: settings.statusFilter, phase: settings.phaseFilter, showGone: false };
   const content = printContent(shapes, bg, settings.includeBackground, filter);
@@ -61,7 +70,12 @@ export async function buildPlanPdf(
 
   // The drawing.
   const pxPerIn = Math.min(200, Math.sqrt(MAX_PIXELS / (layout.plan.w * layout.plan.h)));
-  const plan = buildPlanSvg(layout, content.shapes, bg, { ...settings, order: shapes }, pxPerIn);
+  // (In the month asked for: the plants' pictures read it from the state, set while the drawing is made.)
+  const wasMonth = state.month;
+  state.month = view.month;
+  let plan: ReturnType<typeof buildPlanSvg>;
+  try { plan = buildPlanSvg(layout, content.shapes, bg, { ...settings, order: shapes, names: view.names }, pxPerIn); }
+  finally { state.month = wasMonth; }
   const jpeg = await rasterize(plan.svg, plan.w, plan.h);
   const { x, y, w, h } = layout.plan;
   doc.addImage(jpeg, 'JPEG', x, y, w, h, undefined, 'FAST');
@@ -73,7 +87,7 @@ export async function buildPlanPdf(
   const cols: Box[] = layout.sideAt === 'right'
     ? [side]
     : [{ x: side.x, y: side.y, w: side.w * 0.42, h: side.h }, { x: side.x + side.w * 0.42 + 0.25, y: side.y, w: side.w * 0.58 - 0.25, h: side.h }];
-  let cy = titleBlock(doc, cols[0], settings, projectName, layout);
+  let cy = titleBlock(doc, cols[0], settings, projectName, layout, shownCaption(filter, view.month));
   cy = legend(doc, cols[0], cy, legendEntries(content.shapes, sizeMode, settings.includeFullRings && sizeMode === 'typical'));
   cy = statusLegend(doc, cols[0], cy, new Set(content.shapes.map((s) => s.status).filter((x): x is Status => !!x)));
   const schedule = settings.includePlantList ? plantSchedule(content.shapes, plantsById, shapes) : [];
@@ -82,13 +96,13 @@ export async function buildPlanPdf(
     const first: Box[] = layout.sideAt === 'right'
       ? [{ x: side.x, y: cy + 0.15, w: side.w, h: side.y + side.h - cy - 0.15 }]
       : [cols[1]];
-    pages = plantList(doc, schedule, first, layout, filterText(filter));
+    pages = plantList(doc, schedule, first, layout, filterText(filter), view.names);
   }
   footer(doc, layout, 1, pages);
   return { blob: doc.output('blob'), pages, layout };
 }
 
-function titleBlock(doc: JsPDF, box: Box, s: PrintSettings, projectName: string, layout: PrintLayout): number {
+function titleBlock(doc: JsPDF, box: Box, s: PrintSettings, projectName: string, layout: PrintLayout, caption = ''): number {
   let y = box.y;
   doc.setTextColor('#1c1917');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
@@ -105,6 +119,14 @@ function titleBlock(doc: JsPDF, box: Box, s: PrintSettings, projectName: string,
   const date = new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
   doc.text(pdfSafe(date), box.x, y + pt(4), { baseline: 'top' });
   y += pt(4) + pt(12);
+  // What the sheet leaves out, or shows as it isn't always ("Showing planned plants in Phase 1 only · As in February"):
+  // a partial plan doesn't pass for the whole one.
+  if (caption) {
+    doc.setFont('helvetica', 'italic'); doc.setFontSize(8);
+    const lines = doc.splitTextToSize(pdfSafe(caption), box.w) as string[];
+    doc.text(lines.slice(0, 3), box.x, y, { baseline: 'top' });
+    y += pt(10) * Math.min(3, lines.length) + pt(2);
+  }
 
   // Scale bar and north arrow.
   y += 0.12;
@@ -194,12 +216,13 @@ function statusLegend(doc: JsPDF, box: Box, y: number, present: Set<Status>): nu
 }
 
 /** Fill boxes with the plant list, adding continuation pages as needed. Returns the page count. */
-function plantList(doc: JsPDF, groups: ScheduleGroup[], firstBoxes: Box[], layout: PrintLayout, which = ''): number {
+function plantList(doc: JsPDF, groups: ScheduleGroup[], firstBoxes: Box[], layout: PrintLayout, which = '', numbered = true): number {
   type Item = { kind: 'head'; text: string } | { kind: 'note'; text: string } | { kind: 'group'; text: string; total: number } | { kind: 'row'; key: number; count: number; label: string; botanical: string };
   const total = groups.reduce((n, g) => n + g.total, 0);
   const items: Item[] = [
     { kind: 'head', text: `Plant list${which ? ': ' + which : ''} (${total})` },
-    { kind: 'note', text: 'Numbers match the numbers in the circles on the plan.' },
+    // (Names hidden, the plan has no numbers: the list has none either.)
+    ...(numbered ? [{ kind: 'note' as const, text: 'Numbers match the numbers in the circles on the plan.' }] : []),
   ];
   for (const g of groups) {
     items.push({ kind: 'group', text: g.bed, total: g.total });
@@ -245,7 +268,7 @@ function plantList(doc: JsPDF, groups: ScheduleGroup[], firstBoxes: Box[], layou
     } else {
       // Key (as printed in the circles), then quantity, then the name.
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
-      doc.text(String(it.key), box.x + 0.2, y, { baseline: 'top', align: 'right' });
+      if (numbered) doc.text(String(it.key), box.x + 0.2, y, { baseline: 'top', align: 'right' });
       doc.setFont('helvetica', 'normal');
       doc.text('×' + it.count, box.x + 0.28, y, { baseline: 'top' });
       const nameX = box.x + 0.62, room = box.w - 0.62;

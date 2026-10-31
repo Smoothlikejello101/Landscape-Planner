@@ -6,7 +6,7 @@ import { alongLabel, boxLabelAngle, boxSize, displayLabel, LINE_HEIGHT, pathLabe
 import { state } from './state';
 import { isArbor, isTrellis, LATTICE_STEP, latticePath, SLAT_STEP, slatsPath } from './structures';
 import { currentProject } from './storage';
-import type { Bounds, CircleShape, Shape } from './types';
+import type { Bounds, CircleShape, Shape, ShapeFilter } from './types';
 import { render } from './ui/render';
 import { hiddenIds, labelRuns, paintOrder, seeThroughIds } from './canvas';
 import { roleDef, roleKey, roleLabel, ROLES } from './roles';
@@ -40,12 +40,16 @@ export function computeAllBBox(): Bounds | null {
  * label text (labels and lines are sized for the screen, so a high-resolution
  * print needs them bigger to read at the same physical size).
  */
-export function shapeToSvgString(s: Shape, originX: number, originY: number, scale: number, k = 1): string {
+export function shapeToSvgString(shape: Shape, originX: number, originY: number, scale: number, k = 1): string {
+  // (Names hidden, as on the screen: no names or lengths; a note's text is what it is, and stays.)
+  const s: Shape = exportNames || shape.type === 'text' ? shape : ({ ...shape, label: '', ...(shape.type === 'line' ? { showLength: false } : {}) } as Shape);
   // (Its doors, windows, gates and the like, as on the plan: src/features.ts.)
   const subs = s.type !== 'circle' && s.type !== 'text' && s.features?.length
     ? s.features.map((f) => featurePartsSvg(featureParts(s, f, (p) => ({ x: (p.x - originX) * scale, y: (p.y - originY) * scale }), scale, k))).join('')
     : '';
-  const body = shapeBodySvg(s, originX, originY, scale, k) + subs + (s.locked && s.type !== 'text' ? padlockSvg(s, originX, originY, scale, k) : '');
+  // (No padlock on a locked shape: a lock is how it's edited, not part of the yard, and it puzzled whoever read the
+  // paper. Jason, Oct 31, from round 3: Dana, Priya, Jordan.)
+  const body = shapeBodySvg(s, originX, originY, scale, k) + subs;
   if (!s.status || s.status === 'planted' || s.status === 'planned') return body;
   if (s.status === 'gone') return `<g opacity="0.35">${body}</g>`;
   // To remove: a red cross; to move: a blue arrow badge (as on screen).
@@ -59,22 +63,25 @@ export function shapeToSvgString(s: Shape, originX: number, originY: number, sca
   return body + `<circle cx="${bx}" cy="${by}" r="${9 * u}" fill="#2563eb" stroke="#fff" stroke-width="${1.5 * u}"/>` +
     `<path d="M${bx - 4.5 * u},${by}h${9 * u}M${bx + 1.5 * u},${by - 3 * u}l${3 * u},${3 * u}l${-3 * u},${3 * u}M${bx - 1.5 * u},${by - 3 * u}l${-3 * u},${3 * u}l${3 * u},${3 * u}" stroke="#fff" stroke-width="${1.4 * u}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
 }
-/** A locked shape's padlock, small, at its top right corner (as a lock's mark, not an edge style). */
-function padlockSvg(s: Shape, originX: number, originY: number, scale: number, k: number): string {
-  const b = shapeBBox(s);
-  const x = (b.maxX - originX) * scale - 9 * k, y = (b.minY - originY) * scale + 9 * k, u = k;
-  return `<g data-role="locked-badge"><circle cx="${x}" cy="${y}" r="${8 * u}" fill="#ffffff" fill-opacity="0.9" stroke="#57534e" stroke-width="${u}"/>`
-    + `<rect x="${x - 3.5 * u}" y="${y - 0.5 * u}" width="${7 * u}" height="${5 * u}" rx="${u}" fill="#57534e"/>`
-    + `<path d="M${x - 2.2 * u},${y - 0.5 * u}v${-1.8 * u}a${2.2 * u},${2.2 * u} 0 0 1 ${4.4 * u},0v${1.8 * u}" fill="none" stroke="#57534e" stroke-width="${1.3 * u}"/></g>`;
-}
 /**
  * A sun area's name with its hours, as the plan shows them ("Front of house · ☀ 6 h"): exported and printed, the sun
  * areas could otherwise be told apart only by how dark they're shaded (Marcus, Oct 30).
  */
 function withSunHours(s: Shape, label: string): string {
-  if (s.role !== 'shade' || !s.sun) return label;
+  if (!exportNames || s.role !== 'shade' || !s.sun) return label;
   const hours = '\u2600 ' + formatHours(sunHours(s.sun));
   return label ? `${label} \u00b7 ${hours}` : hours;
+}
+/**
+ * Names, lengths and sun hours drawn: the screen's "Hide names and badges" off, none (Jason, Oct 31: what's printed
+ * and exported starts from what the screen shows). Set while a picture or a printout is made.
+ */
+let exportNames = true;
+/** `fn` with names drawn or not. */
+export function withNames<T>(on: boolean, fn: () => T): T {
+  const was = exportNames;
+  exportNames = on;
+  try { return fn(); } finally { exportNames = was; }
 }
 /**
  * Runs of one plant too small for its name, named once at their middle ("Big blue lilyturf ×10"), as the plan does
@@ -82,6 +89,7 @@ function withSunHours(s: Shape, label: string): string {
  */
 let exportRuns: Map<string, { text: string; x: number; y: number } | null> | null = null;
 function runsOf(shapes: Shape[], scale: number): Map<string, { text: string; x: number; y: number } | null> {
+  if (!exportNames) return new Map();
   const unfit = shapes.filter((s): s is CircleShape => s.type === 'circle' && s.role === 'plant').filter((s) => {
     const plant = s.plantId ? plantsById[s.plantId] : undefined;
     return !isTree(s) && !!displayLabel(s) && !plantLabelFit(displayLabel(s), canopyInnerRadius(s) * scale, {}, plant);
@@ -261,9 +269,18 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
  * areas"); '' when it shows everything.
  */
 export function exportCaption(): string {
-  const shown = filterText(state.viewFilter);
+  return shownCaption(state.viewFilter, state.month);
+}
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+/**
+ * What a picture or printout of the plan leaves out, or shows as it isn't always: only some plants, roles hidden in
+ * Layers, a month (Through the year). Said on it, so it doesn't pass for the whole plan as it stands.
+ */
+export function shownCaption(filter: Pick<ShapeFilter, 'status' | 'phase'>, month: number | null): string {
+  const shown = filterText(filter);
   const hidden = ROLES.filter((r) => state.roleViews[r.key]?.hidden && state.shapes.some((s) => roleKey(s) === r.key)).map((r) => roleLabel(r.key));
-  const parts = [shown ? `Showing ${shown.charAt(0).toLowerCase()}${shown.slice(1)} only` : '', hidden.length ? `Hidden in Layers: ${hidden.join(', ')}` : ''];
+  const parts = [shown ? `Showing ${shown.charAt(0).toLowerCase()}${shown.slice(1)} only` : '', hidden.length ? `Hidden in Layers: ${hidden.join(', ')}` : '',
+    month != null ? `As in ${MONTH_NAMES[month - 1]}` : ''];
   return parts.filter(Boolean).join(' \u00b7 ');
 }
 export function buildExportSVG(): { svg: string; widthPx: number; heightPx: number } | null {
@@ -304,9 +321,12 @@ export function buildExportSVG(): { svg: string; widthPx: number; heightPx: numb
   const sorted = paintOrder(state.shapes);
   let shapesSvg = '';
   const thin = seeThroughIds(state.shapes);
-  exportRuns = runsOf(sorted, scale);
-  try { withSeeThrough(thin, () => { for (const s of sorted) shapesSvg += shapeToSvgString(s, minX, minY, scale); }); }
-  finally { exportRuns = null; }
+  // (Names as the screen has them: Jordan hid them for a client's picture, and it printed every one. Round 3.)
+  withNames(state.showNames, () => {
+    exportRuns = runsOf(sorted, scale);
+    try { withSeeThrough(thin, () => { for (const s of sorted) shapesSvg += shapeToSvgString(s, minX, minY, scale); }); }
+    finally { exportRuns = null; }
+  });
   shapesSvg += hiddenRimsSvg(state.shapes, hiddenIds(state.shapes, state.viewFilter, thin), minX, minY, scale);
   // Optional bg image, sits above grid, below shapes (matches on-screen order)
   let bgSvg = '';

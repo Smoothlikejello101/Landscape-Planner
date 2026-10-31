@@ -14,6 +14,7 @@ import { openFeedback } from './feedback-sheet';
 import { MARK_SMALL } from '../brand';
 import { showMeAround } from './intro-card';
 import { setZoomButtons } from '../view-settings';
+import { openPrint } from './print-panel';
 
 /** Select mode on or off (the lasso button on the top bar). */
 export function toggleSelectMode() {
@@ -60,7 +61,7 @@ export function renderMoreMenu() {
   });
   if (state.shapes.length) {
     // (Its own item: people look for "print", not for it under Export.)
-    items.push({ icon: I.print, label: 'Print or save as PDF…', onClick: () => { state.panel = 'print'; state.menu = null; render(); } });
+    items.push({ icon: I.print, label: 'Print or save as PDF…', onClick: () => { openPrint(); state.menu = null; render(); } });
     items.push({ icon: I.download, label: 'Export image…', onClick: () => { state.panel = 'export'; state.menu = null; render(); } });
   }
   items.push({ divider: true });

@@ -2,7 +2,7 @@ import { bedOf, isBed, isPlant } from './beds';
 import { utilityLabel } from './utility-kinds';
 import { hiddenIds, paintOrder, seeThroughIds } from './canvas';
 import { escapeHtml } from './dom';
-import { hiddenRimsSvg, shapeToSvgString, withSeeThrough } from './export';
+import { hiddenRimsSvg, shapeToSvgString, withNames, withSeeThrough } from './export';
 import { rotatedBoxBounds, shapeBBox, unionBounds } from './geometry';
 import type { Plant } from './plants';
 import { ROLES, roleKey, roleLabel } from './roles';
@@ -192,7 +192,9 @@ export function gridStep(ftPerIn: number): number {
   return [1, 2, 5, 10, 20, 50, 100, 200, 500].find((s) => s / ftPerIn >= 0.1) ?? 1000;
 }
 /** SVG of the yard window at `pxPerIn` (shapes, optional grid and background). */
-export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage | null, opts: Pick<PrintSettings, 'includeBackground' | 'includeGrid' | 'includePlantList'> & { includeFullRings?: boolean; order?: Shape[] }, pxPerIn: number): { svg: string; w: number; h: number } {
+export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage | null, opts: Pick<PrintSettings, 'includeBackground' | 'includeGrid' | 'includePlantList'> & { includeFullRings?: boolean; order?: Shape[]; names?: boolean }, pxPerIn: number): { svg: string; w: number; h: number } {
+  // (Names hidden, as on the screen: no names, lengths, sun hours or plant numbers. Jason, Oct 31.)
+  const names = opts.names !== false;
   const { window: win, ftPerIn } = layout;
   const pxPerFt = pxPerIn / ftPerIn;
   const w = Math.round(layout.plan.w * pxPerIn), h = Math.round(layout.plan.h * pxPerIn);
@@ -219,13 +221,13 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
     bgSvg = `<image x="${cx - (wFt * pxPerFt) / 2}" y="${cy - (hFt * pxPerFt) / 2}" width="${wFt * pxPerFt}" height="${hFt * pxPerFt}" opacity="${bg.opacity}" preserveAspectRatio="none" href="${escapeHtml(bg.dataUrl)}"${rot}/>`;
   }
   // Plants show their key number (see the plant list) rather than their name.
-  const keys = opts.includePlantList ? plantKeys(shapes, opts.order) : null;
+  const keys = opts.includePlantList && names ? plantKeys(shapes, opts.order) : null;
   const ring = (s: Shape) => {
     const r = opts.includeFullRings && s.type === 'circle' ? fullRingRadius(s) : null;
     return r ? `<circle cx="${(s.x - win.minX) * pxPerFt}" cy="${(s.y - win.minY) * pxPerFt}" r="${r * pxPerFt}" fill="none" stroke="${s.color}" stroke-width="${1.2 * k}" stroke-dasharray="${5 * k} ${4 * k}"/>` : '';
   };
   const thin = seeThroughIds(shapes, NO_FILTER);
-  const body = withSeeThrough(thin, () => shapes.map((s) => ring(s) + (() => {
+  const body = withNames(names, () => withSeeThrough(thin, () => shapes.map((s) => ring(s) + (() => {
     if (!keys || !isPlant(s)) return shapeToSvgString(s, win.minX, win.minY, pxPerFt, k);
     const key = keys.get(s.label.trim() || 'Unlabeled plant');
     let out = shapeToSvgString({ ...s, label: '' }, win.minX, win.minY, pxPerFt, k);
@@ -234,7 +236,7 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
     const fs = 11 * k;
     out += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${fs}" font-weight="700" fill="#0f172a" font-family="sans-serif" stroke="#ffffff" stroke-width="${2.5 * k}" paint-order="stroke" stroke-linejoin="round">${key}</text>`;
     return out;
-  })()).join(''));
+  })()).join('')));
   // Plants hidden under a solid one: a pin over it, as on the plan, and its number beside the pin (round 3, Hank: four
   // of six daffodils were white dots the list and legend didn't explain; their numbers were under the catmint).
   const hidden = hiddenIds(shapes, NO_FILTER, thin);
