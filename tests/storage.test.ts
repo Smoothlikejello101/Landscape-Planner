@@ -6,7 +6,7 @@ import { openKV, put } from '../src/db';
 import { state } from '../src/state';
 import {
   _resetStorageForTests, clearedNow, createProject, deleteProject, flushSave, getClipboard, initStorage, keepCleared, loadCleared,
-  readProject, sanitizeProjectData, save, switchProject, writeJournalIfDirty, migrateBgImage, photoRefOf, sanitizePhotoRef } from '../src/storage';
+  readProject, sanitizeProjectData, save, switchProject, writeJournalIfDirty, migrateBgImage, photoRefOf, sanitizePhotoRef, sanitizeDismissed, syncedContent } from '../src/storage';
 import { allExportedProjects, buildBackupFile, importProjects, parseImportFile, uniqueName } from '../src/backup';
 import { buildSupportFile } from '../src/support';
 import { ERROR_LOG_KEY, readErrors, recordError } from '../src/error-log';
@@ -615,6 +615,30 @@ describe('trees with a trunk and a shaped canopy', () => {
     const d = sanitizeProjectData({ shapes: [tree({ id: 'a', hardyDismissed: "Too cold for zone 8a: it's rated for zones 9–11" }), tree({ id: 'b', hardyDismissed: 7 })] });
     expect(d.shapes[0]).toMatchObject({ hardyDismissed: "Too cold for zone 8a: it's rated for zones 9–11" });
     expect('hardyDismissed' in d.shapes[1]).toBe(false);
+  });
+  it('keep warnings dismissed for a plant across the plan (Oct 30); a plan that never had any reads, and syncs, as before', async () => {
+    const said = "Too cold for zone 8a: it's rated for zones 9–11";
+    // (An older plan: none, and nothing new in what it syncs.)
+    const old = sanitizeProjectData({ shapes: [tree({ id: 'a' })] });
+    expect(old.dismissed).toBeUndefined();
+    expect('dismissed' in syncedContent(old)).toBe(false);
+    // Kinds known, plant ids and what was said; the rest dropped.
+    expect(sanitizeDismissed({ hardy: { 'ficus-carica': said, 'bad id!': 'x', ok: 7 }, poison: { lantana: 'Poisonous to people' }, sun: { x: 'y' } }))
+      .toEqual({ hardy: { 'ficus-carica': said }, poison: { lantana: 'Poisonous to people' } });
+    expect([sanitizeDismissed('no'), sanitizeDismissed([1]), sanitizeDismissed({})]).toEqual([undefined, undefined, {}]);
+    // (Once it's had any, kept and synced even empty: showing them all again reaches other devices.)
+    expect(syncedContent(sanitizeProjectData({ shapes: [], dismissed: {} })).dismissed).toEqual({});
+    // A copy's own poison dismissal is kept; an odd one dropped.
+    const d = sanitizeProjectData({ shapes: [tree({ id: 'p', poisonDismissed: 'Poisonous to people' }), tree({ id: 'q', poisonDismissed: 3 })] });
+    expect(d.shapes[0]).toMatchObject({ poisonDismissed: 'Poisonous to people' });
+    expect('poisonDismissed' in d.shapes[1]).toBe(false);
+    // Saved with the plan, and back when it's opened again.
+    await freshStorage();
+    const id = state.currentProjectId!;
+    state.dismissed = { hardy: { 'ficus-carica': said } };
+    save();
+    await flushSave();
+    expect((await readProject(id))?.dismissed).toEqual({ hardy: { 'ficus-carica': said } });
   });
   it('keep a color chosen by hand (a picture draws its leaves in it); older circles have none, and odd values are dropped', async () => {
     await freshStorage();

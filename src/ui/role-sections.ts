@@ -6,7 +6,10 @@ import { hardinessWarning, householdFlags, plantsById } from '../plants';
 import { household } from '../yard';
 import { state } from '../state';
 import { checkPlantSun, formatHours, formatTime, newSunInfo, sunHours, sunLevel } from '../sun';
-import type { Shape, SunInfo } from '../types';
+import type { DismissKind, Shape, SunInfo } from '../types';
+import { render } from './render';
+import { toastAction } from './toast';
+import { copiesSaid, dismissedForPlan, dismissForPlan, poisonSaid, showAgainForPlan, warnForNewOnes } from '../dismissals';
 import { BULB_PARTNER_MIN_HEIGHT, crowdingOf, crowdRelation } from '../crowding';
 import { I } from '../icons';
 import { crowdOptions } from '../crowd-here';
@@ -65,6 +68,19 @@ export function plantSunBanner(s: Shape): HTMLElement | null {
     el('div', {}, '⚠ ' + check.message + note), el('div', { style: { marginTop: '4px' } }, btn));
 }
 
+/**
+ * Dismissed for the plant across the plan (its copies, and new ones), with a toast that says so and offers to warn again
+ * for new ones (Jason, Oct 30).
+ */
+function dismissAcross(kind: DismissKind, plantId: string, said: string) {
+  const who = copiesSaid(plantId);
+  dismissForPlan(kind, plantId, said);
+  render();
+  toastAction(`${kind === 'hardy' ? 'Hardiness' : 'Poison'} warning dismissed for ${who} in this plan, and any you add later.`, [
+    { label: 'Warn me for new ones', run: () => { warnForNewOnes(kind, plantId, said); render(); } },
+    { label: 'OK', run: () => {} },
+  ], 10000, 'dismiss-notice');
+}
 /** Whether a plant is one the warnings are for: not a tree already there, nor one gone or coming out. */
 const warnedFor = (s: Shape) => s.role === 'plant' && !!s.plantId && !(s.type === 'circle' && s.tree) && s.status !== 'gone' && s.status !== 'remove';
 /**
@@ -76,10 +92,13 @@ export function plantHardyBanner(s: Shape): HTMLElement | null {
   const p = plantsById[s.plantId!];
   const w = p ? hardinessWarning(p) : null;
   if (!w) return null;
-  const dismissed = s.hardyDismissed === w.line;
-  const btn = el('button', { className: 'link-reset', 'data-testid': 'hardy-dismiss' }, dismissed ? 'Show the warning again' : 'Dismiss for this plant');
-  btn.addEventListener('click', () => updateSelected({ hardyDismissed: dismissed ? undefined : w.line }));
-  const note = dismissed ? ' (dismissed: no badge on the plan)' : !state.hardyWarnings ? ' (badges are off in Layers \u2192 Warnings)' : '';
+  // (Dismissed for the plant across the plan, its other copies and new ones: Jason, Oct 30. Or, after "Warn me for new
+  // ones", for this copy alone.)
+  const across = dismissedForPlan('hardy', p!.id, w.line), dismissed = across || s.hardyDismissed === w.line;
+  const btn = el('button', { className: 'link-reset', 'data-testid': 'hardy-dismiss' }, dismissed ? 'Show the warning again' : 'Dismiss');
+  btn.addEventListener('click', () => { if (dismissed) { showAgainForPlan('hardy', p!.id); render(); } else dismissAcross('hardy', p!.id, w.line); });
+  const note = across ? ' (dismissed for every one in this plan: no badge)' : dismissed ? ' (dismissed for this one: no badge on the plan)'
+    : !state.hardyWarnings ? ' (badges are off in Layers \u2192 Warnings)' : '';
   return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'hardy-check' },
     el('div', {}, `${w.cold ? '\u2744' : '\u2600'} ${w.line}.${note}`), el('div', { style: { marginTop: '4px' } }, btn));
 }
@@ -93,8 +112,14 @@ export function plantPoisonBanner(s: Shape): HTMLElement | null {
   const who = [y.kids ? 'kids' : '', y.dogs ? 'dogs' : '', y.cats ? 'cats' : '', y.horses ? 'horses' : ''].filter(Boolean);
   const said = flags.map((f, i) => { const t = f.testid === 'row-poison' ? f.title ?? f.text : f.text; return i ? t.charAt(0).toLowerCase() + t.slice(1) : t; }).join('; ');
   const whoSaid = who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0];
-  return el('div', { className: 'check-banner warn', 'data-testid': 'poison-check' },
-    `\u26a0 ${said}. You said ${whoSaid} are in the yard; its sources are under About this plant \u2192 Safety.`);
+  // (Dismissed, the badge goes, for every one in the plan: never what its details and the picker say. Jason, Oct 30.)
+  const key = poisonSaid(p!), across = dismissedForPlan('poison', p!.id, key), dismissed = across || s.poisonDismissed === key;
+  const btn = el('button', { className: 'link-reset', 'data-testid': 'poison-dismiss' }, dismissed ? 'Show the warning again' : 'Dismiss');
+  btn.addEventListener('click', () => { if (dismissed) { showAgainForPlan('poison', p!.id); render(); } else dismissAcross('poison', p!.id, key); });
+  const note = across ? ' Dismissed for every one in this plan: no badge, though its details still say so.' : dismissed ? ' Dismissed for this one: no badge on the plan.' : '';
+  return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'poison-check' },
+    el('div', {}, `\u26a0 ${said}. You said ${whoSaid} are in the yard; its sources are under About this plant \u2192 Safety.${note}`),
+    el('div', { style: { marginTop: '4px' } }, btn));
 }
 
 function summaryText(info: SunInfo): string {

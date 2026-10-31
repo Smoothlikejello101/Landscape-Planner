@@ -1,3 +1,4 @@
+import { DISMISS_WORDS, planDismissals, showAgainForPlan } from '../dismissals';
 import { setCrowdWarnings, setHardyWarnings, setFruitWarnings, setPoisonWarnings, setShowCrowding, setPlantLooks, setShowFullSize } from '../view-settings';
 import { household } from '../yard';
 import { el, svgEl, ts } from '../dom';
@@ -322,6 +323,17 @@ function warningsSection(): HTMLElement {
   d.appendChild(row('fruit-warnings', state.fruitWarnings, setFruitWarnings,
     'Fruit partners: a notice as I place a plant that needs a partner to fruit (male and female plants, or a second variety), until the plan has one'));
   d.appendChild(el('div', { className: 'hint' }, 'Crowding, hardiness, poison and fruit partners are settings of this device; sun is kept with the plan.'));
+  // Warnings dismissed for a plant across this plan (src/dismissals.ts), each to show again (Jason, Oct 30).
+  const gone = planDismissals();
+  if (gone.length) {
+    const list = el('div', { className: 'dismissed-list', 'data-testid': 'dismissed-list' }, el('div', { className: 'section-label', style: { marginTop: '12px' } }, 'Dismissed in this plan'));
+    for (const g of gone) {
+      const again = el('button', { className: 'link-btn' }, 'Show again');
+      again.addEventListener('click', () => { showAgainForPlan(g.kind, g.plantId); render(); });
+      list.appendChild(el('div', { className: 'dismissed-row', 'data-testid': 'dismissed-row' }, el('span', {}, `${g.name}: ${DISMISS_WORDS[g.kind]}`), again));
+    }
+    d.appendChild(list);
+  }
   return d;
 }
 

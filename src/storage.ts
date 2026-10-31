@@ -7,7 +7,7 @@ import { cancelHistoryDebounce } from './history';
 import { DEFAULT_PRINT, state } from './state';
 import { isRole } from './roles';
 import { cleanPhaseName, isStatus, MAX_PHASES } from './status';
-import type { BgImage, Clipboard, PathShape, PhotoRef, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, SunInfo, UtilityKind } from './types';
+import type { BgImage, Clipboard, PathShape, PhotoRef, PlanDismissals, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, SunInfo, UtilityKind } from './types';
 import { setWorldPoints } from './geometry';
 import { now, uid } from './util';
 import { photoFingerprint } from './sync/photo';
@@ -116,6 +116,7 @@ export function migrateShape(raw: unknown): Shape | null {
     ...(sanitizeSun(s.sun) ? { sun: sanitizeSun(s.sun)! } : {}),
     ...(typeof s.sunDismissed === 'string' && s.sunDismissed ? { sunDismissed: s.sunDismissed.slice(0, 300) } : {}),
     ...(typeof s.hardyDismissed === 'string' && s.hardyDismissed ? { hardyDismissed: s.hardyDismissed.slice(0, 300) } : {}),
+    ...(typeof s.poisonDismissed === 'string' && s.poisonDismissed ? { poisonDismissed: s.poisonDismissed.slice(0, 300) } : {}),
     // (What it was added as; older shapes have none. A word only: src/kinds.ts reads it, and ignores one it doesn't know.)
     ...(typeof s.kind === 'string' && /^[a-z]{2,12}$/.test(s.kind) ? { kind: s.kind } : {}),
     // (A utility's kind: a power line, a buried line, a septic field; kept on one made something else since, which is
@@ -261,6 +262,23 @@ export function sanitizeSun(raw: unknown): SunInfo | null {
     ...(typeof o.note === 'string' && o.note ? { note: o.note.slice(0, 500) } : {}),
   };
 }
+/**
+ * Warnings dismissed for a plant across the plan: kinds known, plant ids and what was said as short strings. Undefined
+ * for a plan that never had any (it reads, and syncs, as before they existed); an object, empty or not, once it has.
+ */
+export function sanitizeDismissed(raw: unknown): PlanDismissals | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const out: PlanDismissals = {};
+  for (const kind of ['hardy', 'poison', 'fruit'] as const) {
+    const m = (raw as Record<string, unknown>)[kind];
+    if (!m || typeof m !== 'object') continue;
+    const kept = Object.entries(m as Record<string, unknown>)
+      .filter(([id, said]) => /^[\w:.-]{1,120}$/.test(id) && typeof said === 'string' && said.length > 0 && said.length <= 300)
+      .slice(0, 500) as [string, string][];
+    if (kept.length) out[kind] = Object.fromEntries(kept);
+  }
+  return out;
+}
 function sanitizeRoleViews(raw: unknown): RoleViews {
   const out: RoleViews = {};
   if (!raw || typeof raw !== 'object') return out;
@@ -307,7 +325,7 @@ export function currentProjectData(): ProjectData {
   return {
     shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY,
     roleViews: state.roleViews, print: state.print, sizeMode: state.sizeMode, sunWarnings: state.sunWarnings, phases: state.phases, bgImage: state.bgImage,
-    photoElsewhere: state.photoElsewhere, location: state.location,
+    photoElsewhere: state.photoElsewhere, location: state.location, dismissed: state.dismissed,
   };
 }
 /** Normalize project data from storage, an old version, or an imported file. */
@@ -324,6 +342,7 @@ export function sanitizeProjectData(raw: unknown): ProjectData {
     print: sanitizePrint(d.print),
     sizeMode: d.sizeMode === 'full' ? 'full' : 'typical',
     sunWarnings: d.sunWarnings !== false,
+    dismissed: sanitizeDismissed(d.dismissed),
     phases: sanitizePhases(d.phases, shapes),
     bgImage: bg && bg.dataUrl ? bg : null,
     photoElsewhere: bg && bg.dataUrl ? null : sanitizePhotoRef(d.photoElsewhere),
@@ -352,6 +371,7 @@ function projectWriteOps(id: string, data: ProjectData, knownImageKeys?: Set<str
     print: data.print ?? { ...DEFAULT_PRINT }, sizeMode: data.sizeMode ?? 'typical', sunWarnings: data.sunWarnings !== false, phases: data.phases ?? [], bgImage: storedBg,
     photoElsewhere: storedBg ? null : data.photoElsewhere ?? null,
     location: data.location,
+    ...(data.dismissed ? { dismissed: data.dismissed } : {}),
   };
   ops.push(put('projects', id, stored));
   return ops;
@@ -591,6 +611,7 @@ export async function switchProject(id: string): Promise<boolean> {
   state.print = data.print ?? { ...DEFAULT_PRINT };
   state.sizeMode = data.sizeMode ?? 'typical';
   state.sunWarnings = data.sunWarnings !== false;
+  state.dismissed = data.dismissed;
   state.phases = data.phases ?? [];
   state.viewFilter = { status: '', phase: '', showGone: false };
   state.bgImage = data.bgImage ?? null;
@@ -749,11 +770,13 @@ export async function installId(): Promise<string> {
   return id;
 }
 /** The parts of a project that sync: everything but the view (zoom, scroll) and the background photo (synced on its own). */
-export type SyncedContent = Pick<ProjectData, 'shapes' | 'roleViews' | 'print' | 'sizeMode' | 'sunWarnings' | 'phases' | 'location'>;
+export type SyncedContent = Pick<ProjectData, 'shapes' | 'roleViews' | 'print' | 'sizeMode' | 'sunWarnings' | 'phases' | 'location' | 'dismissed'>;
 export function syncedContent(d: ProjectData): SyncedContent {
   const out: SyncedContent = { shapes: d.shapes, roleViews: d.roleViews ?? {}, print: d.print ?? { ...DEFAULT_PRINT }, sizeMode: d.sizeMode ?? 'typical', sunWarnings: d.sunWarnings !== false, phases: d.phases ?? [] };
   // (Only once set or cleared: plans that never had one read exactly as before this existed, so nothing looks changed.)
   if (d.location !== undefined) out.location = d.location;
+  // (Likewise warnings dismissed for a plant: once it's had any, even if all are shown again since, so that syncs too.)
+  if (d.dismissed) out.dismissed = d.dismissed;
   return out;
 }
 /**
@@ -784,6 +807,8 @@ export async function replaceProjectContent(
   const data: ProjectData = { ...base, ...syncedContent(incoming), ...placed };
   // A plan from a version before locations synced says nothing about one: the location here stays.
   if (!(content && typeof content === 'object' && 'location' in content)) data.location = base.location;
+  // (Nor, before dismissals synced, or from a plan that never had any, about those: the ones here stay.)
+  if (!(content && typeof content === 'object' && 'dismissed' in content)) data.dismissed = base.dismissed;
   const metaNext = { ...meta, name: name.trim() || 'Untitled', lastModified: now(), shapeCount: data.shapes.length };
   bumpChange(id);
   // The write is queued before any later save's (and any read by a switch to this project), so they see it.
@@ -796,6 +821,7 @@ export async function replaceProjectContent(
     state.print = data.print ?? { ...DEFAULT_PRINT };
     state.sizeMode = data.sizeMode ?? 'typical';
     state.sunWarnings = data.sunWarnings !== false;
+    state.dismissed = data.dismissed;
     state.phases = data.phases ?? [];
     state.location = data.location;
     if (state.bgImage !== data.bgImage) { state.bgImage = data.bgImage ?? null; if (!state.bgImage) state.bgEditMode = false; }
