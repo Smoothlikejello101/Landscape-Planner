@@ -57,6 +57,11 @@ against the release branch's copy:
 
 ## One-time setup (Jason)
 
+0. **Verify fullgrown.garden with GitHub**, if it isn't already: your GitHub Settings → Pages → Verified domains → Add
+   a domain, put the TXT record it gives into fullgrown.garden's DNS, then Verify. A CNAME to
+   `smoothlikejello101.github.io` only sends that one name to GitHub's Pages servers, and GitHub serves whichever repo
+   claims it. Until a repo does, someone else's could ("subdomain takeover"). Verifying stops that for every
+   fullgrown.garden name, app.fullgrown.garden's too.
 1. **The Next site's repo.** On GitHub, create a public repository, `Smoothlikejello101/fullgrown-next`, with a README
    (so it has a branch). Its Pages site will serve the `gh-pages` branch CI pushes.
 2. **The address.** Where fullgrown.garden's DNS is managed, add a CNAME record: `next` →
