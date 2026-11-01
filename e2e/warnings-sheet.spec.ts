@@ -106,16 +106,18 @@ test('the ways in: the button, ⋮ "Warnings (12)…", Settings\' one row, a not
   await expect(page.getByTestId('settings')).toHaveCount(0);
   await expect(page.getByTestId('warnings-head')).toHaveText('10 to look at');
   await closeSheet(page);
-  // A hardiness notice's Settings: Warnings at Hardiness, opened. (The notice has no "Leave it": its ✕.)
+  // A notice's Settings: Warnings at its kind, opened, its switch in view. (A spicebush placed on another: crowded.)
+  await page.getByTestId('zoom-fit').click();
+  const s1 = (await page.locator('#canvas-svg [data-shape-id=s1]').first().boundingBox())!;
   await page.locator('.tool-btn.plants').click();
-  await page.getByTestId('plant-search').fill('Barbados aloe');
-  await page.locator('.sheet .proj-row', { hasText: 'Barbados aloe' }).first().locator('[data-testid=plant-place]').click();
-  await page.locator('#canvas-svg').click({ position: { x: 60, y: 300 } });
-  const notice = page.getByTestId('hardy-notice');
-  await expect(notice.getByRole('button')).toHaveText(['Undo', 'Settings', '✕']);
+  await page.getByTestId('plant-search').fill('Spicebush');
+  await page.locator('.sheet .proj-row', { hasText: 'Spicebush' }).first().locator('[data-testid=plant-place]').click();
+  await page.mouse.click(s1.x + s1.width / 2, s1.y + s1.height * 0.9);
+  const notice = page.getByTestId('crowd-notice');
   await notice.getByRole('button', { name: 'Settings' }).click();
-  await expect(head(page, 'hardy')).toHaveAttribute('aria-expanded', 'true');
-  await expect(page.getByTestId('hardy-warnings')).toBeInViewport();
+  await expect(head(page, 'crowding')).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByTestId('crowd-warnings')).toBeInViewport();
+  await openKind(page, 'hardy');
   // The ZIP's Change: the garden's location, and back.
   await expect(page.getByTestId('warnings-switch-hardy')).toContainText('Plants too cold or too warm for zone 8a');
   await expect(page.getByTestId('warnings-switch-hardy')).toContainText('ZIP 71923 ·');
@@ -271,4 +273,31 @@ test('on a computer, Warnings stays open beside the plan while its rows select p
   await expect(side).toHaveCount(0);
   await expect.poll(async () => (await page.locator('#canvas-svg').boundingBox())!.width).toBeGreaterThan(planW - 2);
   await expect(button(page)).not.toHaveAttribute('aria-pressed', 'true');
+});
+
+test('a plant\'s details: "Dismiss for this one" or "Dismiss for every Barbados aloe", and Show again, as Warnings says it', async ({ page }) => {
+  await openPlan(page, [plant('al', 'aloe-vera', 'Barbados aloe', 0, 0), plant('al2', 'aloe-vera', 'Barbados aloe', 6, 0)], { zone: true });
+  const badges = page.locator('#canvas-svg [data-role=hardy-warning]');
+  await expect(badges).toHaveCount(2);
+  await page.getByTestId('zoom-fit').click();
+  await page.locator('#canvas-svg [data-shape-id=al]').first().click();
+  await page.locator('.sel-pill .edit').click();
+  const banner = page.getByTestId('hardy-check');
+  await expect(banner.getByRole('button')).toHaveText(['Dismiss for this one', 'Dismiss for every Barbados aloe']);
+  await banner.getByRole('button', { name: 'Dismiss for this one' }).click();
+  await expect(banner).toContainText('(dismissed for this one: no badge on the plan)');
+  await expect(banner.getByRole('button')).toHaveText(['Show again']);
+  await closeSheet(page);
+  await expect(badges).toHaveCount(1);
+  await openWarnings(page, 'hardy');
+  const rows = kind(page, 'hardy').getByTestId('warning-row');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.last().getByTestId('warning-scope')).toHaveText('Dismissed for this one');
+  await expect(rows.first()).toHaveAttribute('data-dismissed', 'false');
+  // Shown again from the list: that one alone.
+  await rows.last().getByTestId('warning-again').click();
+  await expect(rows).toHaveCount(1);
+  await expect(rows.first().getByTestId('warning-select')).toContainText('Barbados aloe ×2');
+  await closeSheet(page);
+  await expect(badges).toHaveCount(2);
 });

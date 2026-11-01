@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { closeSheet, openFresh, openSections, openWarnings, shapeCount, tapFromCenter } from './helpers';
 
 // A warning dismissed for one copy of a plant is dismissed for its other copies and the ones added later, in this plan,
-// with a toast that says so (Jason, Oct 30). Shown again from Settings → Warnings, and dismissed there too, one at a
+// with a toast that says so (Jason, Oct 30). Shown again from Warnings, and dismissed there too, one at a
 // time or a kind all at once (Jason, Nov 1).
 
 const TABLE = {

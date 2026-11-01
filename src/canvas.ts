@@ -468,7 +468,7 @@ export function shapeGroup(s: Shape): SVGGElement {
         svgEl('text', { x: bx, y: by + 2, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 10, 'font-weight': 700, fill: '#fff' }, '!')));
     }
   }
-  // Too cold, or maybe too warm, where the garden is (Settings → Warnings; Jason, Oct 30): a badge low on the right, a
+  // Too cold, or maybe too warm, where the garden is (Warnings, at Hardiness; Jason, Oct 30): a badge low on the right, a
   // snowflake on blue or a sun on red. Not a tree already there, nor one coming out.
   const living = s.status !== 'gone' && s.status !== 'remove' && !(s.type === 'circle' && s.tree);
   const data = s.role === 'plant' && s.plantId ? plantsById[s.plantId] : undefined;

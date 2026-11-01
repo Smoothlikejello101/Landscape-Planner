@@ -297,7 +297,8 @@ function kindFold(st: KindState, rows: WarningRow[]): HTMLElement {
     sub ? el('span', { className: 'wk-sub', 'data-testid': 'kind-sub' }, sub) : null,
     el('span', { className: 'wk-chev', 'aria-hidden': 'true' }, open ? '▾' : '›'));
   toggle.addEventListener('click', () => { if (open) kindsOpen.delete(kind); else kindsOpen.add(kind); render(); });
-  const head = el('div', { className: 'warn-kind-head' }, toggle);
+  // (Each kind a heading under Warnings, so a screen reader can go kind by kind: the review found the order upside down.)
+  const head = el('div', { className: 'warn-kind-head' }, el('h3', { className: 'wk-h' }, toggle));
   const fixSaid = st.cantRun ? CANT[st.cantRun].fix : undefined;
   if (st.cantRun && fixSaid) {
     const b = el('button', { className: 'warn-fix', 'data-testid': `warnings-fix-${kind}` }, fixSaid);
@@ -400,8 +401,8 @@ function yardChips(): HTMLElement {
     const b = el('button', { className: 'color-chip protect-chip' + (on ? ' on' : ''), 'aria-pressed': String(on), 'data-testid': `warnings-yard-${k}` }, label);
     b.addEventListener('click', () => {
       const next = toggleYard({ kids: y.kids, dogs: y.dogs, cats: y.cats, horses: y.horses }, k);
-      applyYard(plantFilter, next); // (the picker's filters follow, as its own chips do)
-      saveYard(next);
+      saveYard(next, k); // (only the one changed, as the picker's own chips do: another device's change to the rest stands)
+      applyYard(plantFilter, household()); // (the picker's filters follow)
       render();
     });
     row.appendChild(b);
@@ -505,7 +506,7 @@ function zoomTo(r: WarningRow) {
   const bw = Math.max(10, w + 2 * pad), bh = Math.max(10, h + 2 * pad);
   const cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2;
   // (Clear of the side buttons at the right; on a phone, of the chip at the foot.)
-  const left = 12, right = 68, top = 12, bottom = wideNow() ? 16 : 96;
+  const left = 12, right = 68, top = 12, bottom = wideNow() ? 16 : 136;
   const fit = Math.min((W - left - right) / (bw * PX_PER_FOOT_BASE), (H - top - bottom) / (bh * PX_PER_FOOT_BASE));
   state.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, fit));
   const ppf = PX_PER_FOOT_BASE * state.zoom;

@@ -79,7 +79,7 @@ describe('the warnings in the plan now', () => {
   });
 });
 
-// Dismissed from Settings → Warnings, one at a time or a kind all at once, and shown all again (Jason, Nov 1): each as
+// Dismissed from Warnings, one at a time or a kind all at once, and shown all again (Jason, Nov 1): each as
 // the plan's own dismissal for its kind does it, one step, with a way to take it back.
 describe('dismissing warnings from the list', () => {
   const partShade = { id: 'wl-shade', common: 'Wild ginger', form: 'Perennial', width: { min: 1, max: 2, med: 1.5 }, sun_most: 'Part', sun_least: 'Shade' } as Plant;
