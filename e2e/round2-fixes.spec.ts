@@ -10,7 +10,7 @@ async function oneRect(page: Page, dx = 0) {
 }
 const rects = (page: Page) => page.locator('#canvas-svg rect[data-shape-id]');
 
-test('Undo lights up straight after an arrow nudge (Alex: it stayed grey, though Ctrl+Z undid it)', async ({ page }) => {
+test('Undo lights up straight after an arrow nudge (Alex: it stayed gray, though Ctrl+Z undid it)', async ({ page }) => {
   await openFresh(page);
   await oneRect(page);
   await page.keyboard.press('Escape');

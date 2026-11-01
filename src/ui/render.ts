@@ -153,9 +153,9 @@ export function render() {
   projBtn.addEventListener('click', () => { state.panel = 'projects'; render(); });
   topbar.appendChild(projBtn);
 
-  // While a sheet is open, Undo and Redo are greyed, and sit above its dimming, so a tap on them is a tap on nothing (the
+  // While a sheet is open, Undo and Redo are grayed, and sit above its dimming, so a tap on them is a tap on nothing (the
   // UI review, 2026-11-01: under the dimming Undo looked live, and a tap on it only closed the sheet, the 11 plants just
-  // set to Planted left Planted, taken for undone). Greyed rather than working behind the sheet: Jason's choice. The
+  // set to Planted left Planted, taken for undone). Grayed rather than working behind the sheet: Jason's choice. The
   // sheet closed, they're back.
   const sheetUp = !!state.panel;
   // Undo

@@ -17,7 +17,7 @@ test('projects made in the previous version migrate intact', async ({ page }) =>
   await page.goto('/legacy/index.html');
   await expect(page.locator('.project-btn .pname')).toHaveText('My Garden');
 
-  // Project 1: labelled circle and a rotated rectangle, plus a background image.
+  // Project 1: labeled circle and a rotated rectangle, plus a background image.
   await page.locator('.tool-btn.circle').click(); // the previous version's toolbar
   await field(page, 'Label').fill('Old oak');
   await closeSheet(page);

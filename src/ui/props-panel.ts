@@ -77,7 +77,7 @@ const sectionOpen = new Map<string, boolean>();
  */
 /**
  * Locked: its size, place and turn can't be typed either (Jason, Oct 30, from Tom's to-scale house: the lock kept
- * drags and arrow keys off it, but Width 42 typed in here changed it). Its fields greyed, and first in the section,
+ * drags and arrow keys off it, but Width 42 typed in here changed it). Its fields grayed, and first in the section,
  * why (Jason, Oct 30: a locked plant's spread "not editable, but nothing tells you that").
  */
 function shutLocked(parts: Node[]) {

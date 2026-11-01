@@ -118,7 +118,7 @@ async function placeTwo(page: Page, name: string, y = 0): Promise<string> {
   return common;
 }
 
-test("while a sheet is open, the top bar's Undo and Redo are greyed, and a tap there leaves the sheet as it is; closed, Undo takes the change back (the UI review, 2026-11-01)", async ({ page }) => {
+test("while a sheet is open, the top bar's Undo and Redo are grayed, and a tap there leaves the sheet as it is; closed, Undo takes the change back (the UI review, 2026-11-01)", async ({ page }) => {
   await openFresh(page);
   await placeTwo(page, 'Buttonbush');
   await page.locator('.multi-bar button[title=Edit]').click(); await openSections(page);
@@ -136,7 +136,7 @@ test("while a sheet is open, the top bar's Undo and Redo are greyed, and a tap t
   await expect(plantShapes(page).first()).not.toHaveAttribute('stroke-dasharray', '6 4'); // (planted: no planned edge)
   await undo.click();
   await expect(plantShapes(page).first()).toHaveAttribute('stroke-dasharray', '6 4'); // (planned again)
-  // Redo greyed (or, at Medium text and up, not floating) over a sheet too: Layers here.
+  // Redo grayed (or, at Medium text and up, not floating) over a sheet too: Layers here.
   await page.locator('button[title=Layers]').click();
   await expect(undo).toBeDisabled();
   await expect(page.locator('button[title=Redo]:enabled')).toHaveCount(0);

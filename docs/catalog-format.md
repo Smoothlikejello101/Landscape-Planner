@@ -112,7 +112,7 @@ placed from the old record keeps its id in the plan, and the app shows it with t
     a form where sources differ keeps both forms instead. A pair (the two
     zones, the two sun levels) takes its `alt` from sources that give both
     halves, on each half where it differs from the value shown. The app shows it in the plant's details,
-    labelled with who says it ("Nurseries report: …", "NC State lists:
+    labeled with who says it ("Nurseries report: …", "NC State lists:
     …"), and its filters let it count unless the user turns "Include where
     sources differ" off; a plant shown only because of it is marked.
 

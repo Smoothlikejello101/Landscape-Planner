@@ -163,7 +163,7 @@ export function canShareFiles(type = 'application/json', name = 'x.json'): boole
       navigator.canShare({ files: [new File(['{}'], name, { type })] });
   } catch { return false; }
 }
-/** Hand a file to the system share sheet. False if the user cancelled. */
+/** Hand a file to the system share sheet. False if the user canceled. */
 export async function shareBlob(filename: string, blob: Blob): Promise<boolean> {
   try {
     await navigator.share({ files: [new File([blob], filename, { type: blob.type })], title: filename });
@@ -178,11 +178,11 @@ export async function shareText(filename: string, text: string): Promise<boolean
     await navigator.share({ files: [new File([text], filename, { type: 'application/json' })], title: filename });
     return true;
   } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') return false; // user cancelled
+    if (e instanceof DOMException && e.name === 'AbortError') return false; // user canceled
     throw e;
   }
 }
-/** Save a full backup and record when it happened: how many projects, the file, and whether it was downloaded or shared (null: cancelled). */
+/** Save a full backup and record when it happened: how many projects, the file, and whether it was downloaded or shared (null: canceled). */
 export async function backupAll(via: 'download' | 'share'): Promise<{ count: number; filename: string; via: 'download' | 'share' } | null> {
   const { filename, text, count } = await buildBackupFile();
   let went = via;
