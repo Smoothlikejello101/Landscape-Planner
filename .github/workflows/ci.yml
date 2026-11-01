@@ -1,13 +1,17 @@
 name: Test and deploy
 
 # Three places a commit can go (docs/releasing.md):
-# - every branch and pull request: tested;
+# - a pull request: tested as it would merge (GitHub's merge of it into its base);
 # - main (each merged pull request): tested, then built as Next, the preview copy at next.fullgrown.garden;
 # - release (a release pull request from main, merged by Jason): tested, then deployed to app.fullgrown.garden, the
 #   app testers use.
+# A branch's own pushes aren't tested apart from its pull request's: that run covers them, merged with main (2026-11-01;
+# before, each push ran twice).
+# Two jobs: `test` (types, unit tests, What's new, the build) and `e2e` (the end-to-end tests, in four parts at once).
 
 on:
   push:
+    branches: [main, release]
   pull_request:
   workflow_dispatch:
 
@@ -20,10 +24,9 @@ concurrency:
 
 jobs:
   test:
-    # Pinned: ubuntu-latest moves to 26.04 by Nov 19, 2026, where Playwright 1.56 can't install a browser. Move
-    # on purpose, with a Playwright upgrade.
+    # Pinned, like e2e's: move on purpose.
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -34,26 +37,16 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       # What's new, against the release branch's (what testers have): a release that's out keeps its lines, and in a
-      # pull request into main it has its date written in (scripts/release/whats-new-check.mjs).
+      # pull request into main it has its date written in (scripts/release/whats-new-check.mjs, which reads the lines
+      # waiting in src/whats-new/next/ too, here and at the release branch's commit).
       - name: What's new check
         if: github.ref != 'refs/heads/release' && github.base_ref != 'release'
         env:
           PR_FLAG: ${{ github.event_name == 'pull_request' && '--pr' || '' }}
         run: |
-          if git fetch -q --depth=1 origin release 2>/dev/null; then git show FETCH_HEAD:src/whats-new.json > "$RUNNER_TEMP/released.json" 2>/dev/null || : > "$RUNNER_TEMP/released.json"; else : > "$RUNNER_TEMP/released.json"; fi
-          node scripts/release/whats-new-check.mjs "$RUNNER_TEMP/released.json" $PR_FLAG
-      # The headless browser alone (the tests run headless), without --with-deps: the system libraries it needs are
-      # on the runner already (its image has Chrome), and fetching them from Ubuntu's mirror sometimes crawled, from
-      # 20 seconds to 13 minutes. The browser itself downloads in seconds.
-      - run: npx playwright install --only-shell chromium
-        timeout-minutes: 5
-      - run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: playwright-results
-          path: test-results/
-          retention-days: 7
+          ref=
+          if git fetch -q --depth=1 origin release 2>/dev/null; then ref=FETCH_HEAD; fi
+          node scripts/release/whats-new-check.mjs $ref $PR_FLAG
       # The version shown in the app's menu: package.json's major.minor and the pull request's number
       # (0.2.049 for #49), from the event, or from main's merge commit ("Merge pull request #49 …", or a
       # squash's "… (#49)"). Anything else keeps package.json's.
@@ -73,11 +66,44 @@ jobs:
         with:
           path: dist
 
+  e2e:
+    # The end-to-end tests in four parts at once, each a quarter of them (Playwright's --shard, which splits them
+    # test by test) against its own build of the app: about a quarter of the time one runner took.
+    # Pinned: ubuntu-latest moves to 26.04 by Nov 19, 2026, where Playwright 1.56 can't install a browser. Move
+    # on purpose, with a Playwright upgrade.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      # (Every part runs to the end, so one run shows every failure.)
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3, 4]
+    name: e2e (${{ matrix.part }} of 4)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # The headless browser alone (the tests run headless), without --with-deps: the system libraries it needs are
+      # on the runner already (its image has Chrome), and fetching them from Ubuntu's mirror sometimes crawled, from
+      # 20 seconds to 13 minutes. The browser itself downloads in seconds.
+      - run: npx playwright install --only-shell chromium
+        timeout-minutes: 5
+      - run: npm run test:e2e -- --shard=${{ matrix.part }}/4
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results-${{ matrix.part }}
+          path: test-results/
+          retention-days: 7
+
   deploy:
     # Publishes the release branch to GitHub Pages: app.fullgrown.garden, what testers use. Requires Settings → Pages →
     # Source: "GitHub Actions", and the github-pages environment allowing the release branch (docs/releasing.md).
     if: github.ref == 'refs/heads/release' && github.event_name != 'pull_request'
-    needs: test
+    needs: [test, e2e]
     runs-on: ubuntu-latest
     permissions:
       pages: write
@@ -94,7 +120,7 @@ jobs:
     # (src/channel.ts: its own name, an amber stripe, no sign-in) and pushed to the fullgrown-next repo's gh-pages
     # branch, which GitHub Pages serves. Its own web address, so its plans never mix with the real app's.
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: test
+    needs: [test, e2e]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
