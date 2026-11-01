@@ -251,6 +251,21 @@ export function zoomToBounds(b: Bounds, marginPx = 28) {
   state.offsetY = (b.minY + b.maxY) / 2 - H / ppf / 2;
   save();
 }
+/**
+ * `b` (feet) brought into view if any of it is out of view: to the middle of the plan, zoomed out as far as it takes
+ * to fit with a margin all round, never in. `viewH`: the plan's height to fit it in (px).
+ */
+export function bringIntoView(b: Bounds, viewH = state.canvasH, marginPx = 28) {
+  const W = canvasRect().width || state.canvasW, ppf = pxPerFoot();
+  if (b.minX >= state.offsetX && b.minY >= state.offsetY && b.maxX <= state.offsetX + W / ppf && b.maxY <= state.offsetY + viewH / ppf) return;
+  const w = Math.max(b.maxX - b.minX, 1), h = Math.max(b.maxY - b.minY, 1);
+  const fit = Math.min((W - 2 * marginPx) / (w * PX_PER_FOOT_BASE), (viewH - 2 * marginPx) / (h * PX_PER_FOOT_BASE));
+  state.zoom = Math.max(MIN_ZOOM, Math.min(state.zoom, fit));
+  const p = PX_PER_FOOT_BASE * state.zoom;
+  state.offsetX = (b.minX + b.maxX) / 2 - W / p / 2;
+  state.offsetY = (b.minY + b.maxY) / 2 - viewH / p / 2;
+  save();
+}
 /** Everything in view (the zoom buttons' Fit, Shift+1). False when there's nothing on the plan to fit. */
 export function zoomToFit(): boolean {
   const b = planBounds();
