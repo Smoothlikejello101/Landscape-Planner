@@ -120,6 +120,25 @@ A fact that is `null` is known to be unknown: the sources were checked and
 none say (the app keeps that, without a value). A missing fact simply
 hasn't been looked up.
 
+## Names
+
+Quotes in a record's name are only for a named cultivar: "Hydrangea
+'Limelight'" (the order of the words: [catalog-build.md](catalog-build.md),
+"Cultivar names"). A seed strain or an ecotype isn't a cultivar: it's named
+"Common name (strain)", "Butterfly weed (clay strain)", not "Butterfly weed
+'for Clay'" (Jason, from the UI review, 2026-11-01). A botanical name has no
+parentheses; `catalog:check` lists one that has (the earlier list's strains,
+groups and notes: "Asclepias tuberosa (clay strain)", "Iris (aquatic
+spp.)"), for a person to look at.
+
+Butterfly weed 'for Clay' keeps its quotes for now: the build reads a record
+as a cultivar, and its nursery pages as its own, by the quotes in its names
+(`recordCultivars` in scripts/catalog/ncsu-page.mjs, `cultivarOf` in
+reclaim.mjs). Renamed, the next build would stop reading Prairie Nursery's
+page for it and read NC State's page for the species as its own instead.
+Renaming it needs a decision that also tells the build what its sources call
+it.
+
 ## Facts
 
 | Fact | Value |
@@ -184,4 +203,4 @@ a value of the wrong type or outside its enum.
 `npm run catalog:check` (scripts/catalog/check.ts) lists the softer problems
 for the audit to look at: sizes implausible for the form, zones backwards, a
 cultivar with no species in the catalog, a cultivar whose botanical name
-doesn't name it.
+doesn't name it, a botanical name with parentheses ("Names", above).

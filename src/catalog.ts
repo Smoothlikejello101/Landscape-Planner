@@ -437,6 +437,10 @@ export function catalogWarnings(file: CatalogFile): string[] {
       out.push(`${r.id}: a cultivar with ${byBotanical.has(species) ? 'a species record it could point to' : 'no species record in the catalog'}`);
     }
     if (/['‘’].+['‘’]/.test(r.common) && !/['‘’]/.test(r.botanical ?? '')) out.push(`${r.id}: named as a cultivar, but its botanical name doesn't say which`);
+    // (A botanical name has no parentheses: a strain, a group or a note in them is the earlier list's way of writing
+    // what the naming rules put otherwise, docs/catalog-format.md "Names". Worded the same for each, so the review
+    // lists them together. Jason, from the UI review, 2026-11-01.)
+    if (/[()]/.test(r.botanical ?? '')) out.push(`${r.id}: parentheses in its botanical name: a cultivar is quoted; a seed strain or ecotype is named "Common name (strain)"`);
     if (!v('width') && !(r.inherits?.includes('width') && r.parent && byIdW.get(r.parent) && factOf(byIdW.get(r.parent)!, 'width'))) out.push(`${r.id}: no spread`);
   }
   return out;
