@@ -15,7 +15,7 @@ const list = (code: string, plants: object[], classes: Record<string, string> = 
 describe('the regulated lists', () => {
   it('are well formed: each entry a species, variety or genus, of a class its list says, each list cited', () => {
     expect(problems(real)).toEqual([]);
-    expect(real.jurisdictions.map((j: { code: string }) => j.code)).toEqual(['US', 'AR', 'TX', 'MS', 'MO', 'OK', 'LA', 'TN', 'VA', 'GA', 'PA', 'KY', 'NC', 'OH', 'IN', 'IL']);
+    expect(real.jurisdictions.map((j: { code: string }) => j.code)).toEqual(['US', 'AR', 'TX', 'MS', 'MO', 'OK', 'LA', 'TN', 'VA', 'GA', 'PA', 'KY', 'NC', 'OH', 'IN', 'IL', 'WV', 'AL', 'MI', 'NJ']);
     expect(problems({ v: 1, jurisdictions: [list('XX', [{ name: 'Melia', class: 'noxious' }, { name: 'Melia azedarach', class: 'banned' },
       { genus: 'Cuscuta', except: ['Lythrum alatum'], class: 'noxious' }, { name: 'Melia azedarach', kew: 'Melia', class: 'noxious' },
       { name: 'Melia azedarach', accepted: 'Melia', also: ['x'], notKew: 'Ophiuros', class: 'noxious' }])] }))
@@ -235,6 +235,23 @@ describe('matching the lists to catalog plants', () => {
     const tier = (code: string, cls: string) => real.jurisdictions.find((x: { code: string }) => x.code === code).tiers[cls];
     expect([tier('OH', 'invasive'), tier('OH', 'noxious'), tier('IN', 'lythrum'), tier('IN', 'detrimental'), tier('IL', 'exotic'), tier('IL', 'exotic2028'), tier('IL', 'noxious')])
       .toEqual(['ban', 'listed', 'ban', 'listed', 'ban', 'listed', 'listed']);
+  });
+  it("match West Virginia's, Alabama's, Michigan's and New Jersey's: a law not yet in force a listing, its start in its line", () => {
+    const r = regulatedPlants(real, [
+      { id: 'star-of-bethlehem', botanical: 'Ornithogalum umbellatum', binomial: 'Ornithogalum umbellatum' },
+      { id: 'autumn-olive', botanical: 'Elaeagnus umbellata', binomial: 'Elaeagnus umbellata' },
+      { id: 'norway-maple', botanical: "Acer platanoides 'Crimson King'", binomial: 'Acer platanoides' },
+      { id: 'multiflora', botanical: 'Rosa multiflora', binomial: 'Rosa multiflora' },
+      { id: 'barberry', botanical: 'Berberis thunbergii', binomial: 'Berberis thunbergii' },
+      { id: 'mahonia', botanical: 'Berberis bealei', binomial: 'Berberis bealei' },
+    ], {});
+    expect(r.AL).toEqual({ 'star-of-bethlehem': 'classC', multiflora: 'classC' });
+    expect(r.MI).toEqual({ 'autumn-olive': 'restricted' });
+    expect(r.WV).toEqual({ 'autumn-olive': 'noxious', multiflora: 'multiflora', barberry: 'barberry' }); // (not every Berberis: its rust quarantine's left out)
+    expect(r.NJ).toEqual({ 'autumn-olive': 'prohibited', 'norway-maple': 'prohibited', multiflora: 'prohibited', barberry: 'prohibited' });
+    const j = (code: string) => real.jurisdictions.find((x: { code: string }) => x.code === code);
+    expect([j('NJ').tiers.prohibited, j('MI').tiers.restricted, j('MI').tiers.noxious, j('AL').tiers.aquatic]).toEqual(['listed', 'ban', 'listed', 'listed']);
+    expect(j('NJ').classes.prohibited).toMatch(/^Prohibited invasive species in New Jersey: from early 2027 /);
     // (Indiana's shattercane is the weedy subspecies its statute prints: never grain sorghum.)
     expect(regulatedPlants(real, [{ id: 'sorghum', botanical: 'Sorghum bicolor', binomial: 'Sorghum bicolor' }], {}).IN).toBeUndefined();
   });
