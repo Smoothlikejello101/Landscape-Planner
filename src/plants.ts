@@ -290,20 +290,33 @@ export const PLANT_FILTER_DEFAULTS = {
 };
 export type PlantFilter = typeof PLANT_FILTER_DEFAULTS;
 export const plantFilter: PlantFilter = { ...PLANT_FILTER_DEFAULTS };
-/** The filters as they were before the picker was opened on a plant's partners (its notice's "All 7…"). */
-let beforePartners: PlantFilter | null = null;
+/**
+ * The filters as they were before the picker was opened on a plant's partners (its notice's "All 7…"), or to name a
+ * tree already in the yard.
+ */
+let beforeAside: PlantFilter | null = null;
 /** The picker on just a plant's fruit partners (src/ui/fruit-notice.ts), the filters set aside till it closes. */
 export function showPartnersOf(id: string) {
-  beforePartners ??= structuredClone(plantFilter);
+  beforeAside ??= structuredClone(plantFilter);
   Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { partnersOf: id, hardyHere: plantFilter.hardyHere });
 }
 /**
- * The picker closed (src/ui/render.ts): opened on a plant's partners, its filters as they were before. Left on, the
- * partners filter hid every plant the next search looked for ("Nothing matches": round 3, Owen).
+ * "Which tree?" (Add → Existing tree): naming a tree that's already there, not shopping for one, so it starts with no
+ * filters, the shopping ones set aside till the picker closes (the UI review, 2026-11-01: Shrub, Evergreen and Native,
+ * left on from shopping, hid every maple). Filters set while naming it stay till then. The search is kept.
+ */
+export function treeFiltersAside() {
+  if (beforeAside) return;
+  beforeAside = structuredClone(plantFilter);
+  Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { q: plantFilter.q });
+}
+/**
+ * The picker closed (src/ui/render.ts): opened on a plant's partners, or for a tree, its filters as they were before.
+ * Left on, the partners filter hid every plant the next search looked for ("Nothing matches": round 3, Owen).
  */
 export function partnersClosed() {
-  if (beforePartners) Object.assign(plantFilter, beforePartners);
-  beforePartners = null;
+  if (beforeAside) Object.assign(plantFilter, beforeAside);
+  beforeAside = null;
 }
 /** Whether a filter is on (set to something other than its default; a list filter, with anything in it). */
 export function filterOn(f: PlantFilter, k: keyof PlantFilter): boolean {

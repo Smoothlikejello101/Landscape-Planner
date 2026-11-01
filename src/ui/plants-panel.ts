@@ -4,7 +4,7 @@ import { saveHardy, saveYard, yardOf } from '../yard';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery, unsearchable } from '../search';
-import { byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById } from '../plants';
+import { byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById, treeFiltersAside } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { SPREAD_WAYS, spreadWays } from '../spread';
@@ -166,6 +166,7 @@ export function renderPlantsPanel() {
   // (Placed plants to swap for another: Jason, Oct 30.)
   const swapping = linking && [state.pickerLinkId!, ...state.pickerLinkAlso].every((id) => { const s = state.shapes.find((x) => x.id === id); return !!s?.plantId && !!plantsById[s.plantId]; });
   const forTree = !linking && state.pickerForTree;
+  if (forTree) treeFiltersAside(); // (naming a tree in the yard: no shopping filters, src/plants.ts)
   const title = swapping ? 'Swap for another plant' : linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker' + (PLANTS.length ? ' (' + countWord(PLANTS.filter((p) => !bannedHere(p)).length + activeMyPlants().length) + ')' : '');
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, title),

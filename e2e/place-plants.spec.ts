@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, canvasBox, drag, openFresh, shapeCount, tapFromCenter } from './helpers';
+import { addKind, canvasBox, drag, openFilters, openFresh, shapeCount, tapFromCenter } from './helpers';
 
 // Placing plants: pick once, tap each spot, Done.
 
@@ -116,6 +116,30 @@ test('an existing tree: pick which, or draw an unknown one, by trunk and canopy 
   await tapFromCenter(page, -8, 6);
   await tapFromCenter(page, -4, 6);
   await expect(page.locator('.sel-pill .name')).toHaveText('Tree');
+});
+
+test('"Which tree?" starts with no filters, the shopping ones back after (the UI review)', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await openFilters(page);
+  await page.locator('.sheet select[aria-label=Form]').selectOption('Shrub');
+  await page.locator('.sheet label', { hasText: 'Evergreen' }).locator('input').check();
+  await page.getByTestId('native-filter').selectOption('@na');
+  await expect(page.getByTestId('active-chip')).toHaveCount(3);
+  await page.locator('.sheet-header .iconbtn[aria-label=Close]').click();
+  // Naming a tree that's already there, not shopping: every maple, no filters on.
+  await addKind(page, 'tree');
+  await expect(page.locator('.sheet-header .title')).toHaveText('Which tree?');
+  await expect(page.getByTestId('active-chip')).toHaveCount(0);
+  await expect(page.getByTestId('filters')).toHaveText('Filters');
+  await page.getByTestId('plant-search').fill('maple');
+  await expect(page.locator('.sheet .plant-item .pname', { hasText: /maple/i }).first()).toBeVisible();
+  await expect(page.getByTestId('hidden-by')).toHaveCount(0);
+  await page.locator('.sheet-header .iconbtn[aria-label=Close]').click();
+  // Shopping again: as they were.
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.getByTestId('active-chip')).toHaveCount(3);
+  await expect(page.locator('.sheet select[aria-label=Form]')).toHaveValue('Shrub');
 });
 
 test.describe('with a keyboard and mouse', () => {
