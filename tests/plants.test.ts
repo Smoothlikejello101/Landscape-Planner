@@ -100,6 +100,13 @@ describe('plant filters', () => {
     expect(plantMatches(cone, f({ flowerColors: ['red', 'white'] }))).toBe(true);
     expect(plantMatches(cone, f({ flowerColors: ['white'] }))).toBe(false);
     expect(plantMatches({ ...cone, flower_color: ['insignificant'] }, f({ flowerColors: ['green'] }))).toBe(false);
+    // Has flowers (Jason, Nov 1, from the UI review: a search's "shade flowers"): showy ones on record, as a row's spot
+    // draws them; not catkins, not flowers its sources call insignificant, not a plant with no flower color on record.
+    expect(plantMatches(cone, f({ flowers: true }))).toBe(true);
+    expect(plantMatches({ ...cone, flower_color: ['insignificant'] }, f({ flowers: true }))).toBe(false);
+    expect(plantMatches({ ...cone, flower_form: { inflorescence: ['catkin'] } } as Plant, f({ flowers: true }))).toBe(false);
+    expect(plantMatches({ id: 'f', common: 'Christmas fern' } as Plant, f({ flowers: true }))).toBe(false);
+    expect(filterOn(f({ flowers: true }), 'flowers')).toBe(true);
     expect(trueToColor(cone)).toBe(false);
     expect(trueToColor({ ...cone, common: "Coneflower 'Tomato Soup'" })).toBe(true);
     expect(trueToColor({ ...cone, parent: 'echinacea-purpurea' })).toBe(true);
@@ -442,7 +449,10 @@ describe('plant filters', () => {
 describe('a picker row', () => {
   it('says its names and forms, then its size as its sources give it, its sun and its zones', () => {
     const r = rowLines({ ...heuchera, height: { min: 1.5, max: 2, med: 1.75 }, width: { min: 0.67, max: 1.5, med: 1.08 }, zone_min: 4, zone_max: 9.5 });
-    expect(r).toEqual({ names: "Heuchera villosa \u00b7 Perennial", size: '1.5\u20132 ft tall, 8 in\u20131.5 ft wide', sun: 'Part shade to shade', hardy: { text: 'Zones 4\u20139', ok: true } });
+    expect(r).toEqual({ names: "Heuchera villosa \u00b7 Perennial", size: '1.5\u20132 ft tall, 8 in\u20131.5 ft wide', sun: 'Part shade to shade', hardy: { text: 'Zones 4\u20139', ok: true }, bloom: 'Sep\u2013Oct' });
+    // Its bloom months, short, where it has them (Jason, Nov 1): none for a season alone.
+    expect(rowLines({ ...heuchera, bloom: { start: 5, end: 7 } }).bloom).toBe('May\u2013Jul');
+    expect(rowLines({ ...heuchera, bloom: { start: 5, end: 7 }, bloom_season: ['summer'] }).bloom).toBe('');
     // (A botanical name that is its name isn't said twice; one size alone.)
     expect(rowLines({ id: 'a', common: 'Adiantum × mairisii', botanical: 'Adiantum × mairisii', form: 'Fern', height: { med: 1.25 } })).toMatchObject({ names: 'Fern', size: '1.3 ft tall' });
     expect([sunSaid('Full', 'Full'), sunSaid('Full', 'Shade'), sunSaid()]).toEqual(['Full sun', 'Full sun to shade', '']);

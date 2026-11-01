@@ -17,6 +17,7 @@ import { openWhatsNew } from './whats-new-panel';
 import { CHANNEL } from '../channel';
 import { openPrint } from './print-panel';
 import { openWarnings, warningsMenuLabel } from './warnings-sheet';
+import { openPlantList } from './plant-list-panel';
 import { checkForUpdate, onUpdateWaiting, updateNow, updateWaiting } from '../pwa';
 
 /** Select mode on or off (the lasso button on the top bar). */
@@ -51,6 +52,8 @@ export function renderMoreMenu() {
   if (state.shapes.some((s) => s.role === 'plant')) {
     items.push({ icon: I.warn, label: warningsMenuLabel(), testid: 'menu-warnings', onClick: () => openWarnings() });
   }
+  // (What to buy, what's planted: also a button on the plan, beside Through the year. Jason, Nov 1, from the UI review.)
+  items.push({ icon: I.list, label: 'Plant list', testid: 'menu-plant-list', onClick: () => { openPlantList(); render(); } });
   items.push({
     icon: I.leaf,
     label: 'Bloom calendar',

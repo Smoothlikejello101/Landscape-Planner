@@ -51,10 +51,10 @@ test('a species\' cultivars fold under it, a tap to open; a search naming one sh
     'Pecan', 'Rose of Sharon', 'Roses', 'Smooth hydrangea', 'White oak', 'Zinnia']);
   const pecans = foldOf(page, 'Pecan');
   await expect(pecans.getByTestId('cultivar-fold')).toHaveText('4 cultivars');
-  // One entry with its species (no line between them); its arrow where the rows' color dots are, to catch the eye.
+  // One entry with its species (no line between them); its arrow where the rows' color spots are, to catch the eye.
   const pecan = page.locator('.plant-item', { has: page.locator('.pname', { hasText: /^Pecan$/ }) });
   expect(await pecan.evaluate((e) => getComputedStyle(e).borderBottomWidth)).toBe('0px');
-  const dot = (await pecan.locator('.row-toggle > div').first().boundingBox())!;
+  const dot = (await pecan.getByTestId('row-dot').boundingBox())!;
   const arrow = (await pecans.locator('.fold-chev svg').boundingBox())!;
   expect(Math.abs(arrow.x + arrow.width / 2 - (dot.x + dot.width / 2))).toBeLessThan(2);
   await expect(pecans.getByTestId('cultivar-fold')).toHaveAttribute('aria-expanded', 'false');
@@ -114,6 +114,7 @@ test('filters look inside a fold, and open it to the cultivars that match; a spe
   // Fewer than four match: rows of their own (one purple one here), the species below the divider.
   await page.getByTestId('plant-search').fill('');
   await expect(page.getByTestId('picker-count')).toContainText(/^14 of 29 plants match/);
+  await openFilters(page); // (the search folded them: Jason, Nov 1)
   await page.locator('[data-testid=flower-colors] label', { hasText: 'Pink' }).click();
   await page.locator('[data-testid=flower-colors] label', { hasText: 'Purple' }).click();
   await expect(page.locator('.plant-item .pname, [data-testid=comes-in-divider]')).toHaveText(["Rose of Sharon 'Minerva'", 'Also comes in purple, depending on the plant you buy', 'Rose of Sharon']);

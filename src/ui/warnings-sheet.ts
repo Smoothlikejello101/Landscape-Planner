@@ -142,7 +142,7 @@ export function warningsButton(): HTMLElement | null {
   const amber = w.active > 0;
   const open = sideOpen && wideNow();
   const b = el('button', {
-    className: 'zoombtn warnings-btn' + (amber ? ' some' : ' none') + (open ? ' open' : ''), html: amber ? I.warn : I.check,
+    className: 'zoombtn warnings-btn' + (amber ? ' some' : ' none') + (open ? ' open' : ''), html: amber ? I.warn : I.allClear,
     'aria-label': buttonSaid(w), title: buttonSaid(w), 'data-testid': 'warnings-btn', 'data-state': amber ? 'some' : w.cantRun ? 'cant-run' : w.hidden ? 'hidden' : 'clear',
     ...(open ? { 'aria-pressed': 'true' } : {}),
   });

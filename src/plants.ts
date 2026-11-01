@@ -17,6 +17,7 @@ import { shownWith } from './status';
 import { hardyEnough, zoneFit, zoneRange } from './climate';
 import { bannedHere, gardenStateName, hostsHere, localBloom, nativeHere, nativeText, wildHere, wildNearby } from './wild';
 import { bloomMonths } from './bloom';
+import { bloomWindow, showyFlowers } from './seasons';
 import { byMatch, matchPlant, readQuery, unsearchable } from './search';
 import { applyYard, household, type Yard } from './yard';
 import { noteRecentPlant } from './place';
@@ -275,6 +276,11 @@ export const PLANT_FILTER_DEFAULTS = {
   hostOnly: false, fallColor: false, winterInterest: false,
   /** Keeps its leaves through winter (evergreen; not semi-evergreen, which depends on the winter, nor a tender shrub, `tenderWoody`). */
   evergreen: false,
+  /**
+   * Has flowers: showy ones on record (hasFlowers), the ones a picker row's spot draws. Jason, Nov 1, from the UI
+   * review: "shade flowers" in the search is Part shade and Has flowers (src/search-needs.ts).
+   */
+  flowers: false,
   edible: false, inPlan: false,
   /** Which parts must be edible (any of them: 'fruit', 'leaves', 'flowers'), chips under Edible (Jason, Oct 30). Empty: any. */
   edibleParts: NONE,
@@ -327,6 +333,13 @@ export function filterOn(f: PlantFilter, k: keyof PlantFilter): boolean {
 // ---------- Flower colors ----------
 /** A plant's flower colors, the showy ones ("insignificant": not showy). */
 export const showyColors = (p: Plant): string[] => (p.flower_color ?? []).filter((c) => c !== 'insignificant');
+/**
+ * Whether it has flowers worth the name (the picker's "Has flowers"): a showy color on record, and not catkins or
+ * flowers its sources call insignificant, as a row's spot and its picture draw them (src/looks.ts). One with no
+ * flower color on record is left out, as the flower colors leave it out.
+ */
+export const hasFlowers = (p: Plant): boolean =>
+  showyColors(p).length > 0 && !(p.flower_form?.inflorescence ?? []).some((x) => x === 'insignificant' || x === 'catkin');
 /**
  * Whether its flower color says what you'll get (decided with Jason, 2026-10-25): a cultivar's record, or a species
  * listing one color (white and cream count as one). A species listing several comes in them, depending on the plant
@@ -487,6 +500,7 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (f.spread.length && !spreadsOnlyAs(p, f.spread)) return false;
   // (Any of the colors, or of who it attracts: a plant that comes in red or pink, one that draws bees or butterflies.)
   if (f.flowerColors.length && !showyColors(p).some((c) => f.flowerColors.includes(c))) return false;
+  if (f.flowers && !hasFlowers(p)) return false;
   if (f.leafColors.length && !(p.leaf_color ?? []).some((c) => f.leafColors.includes(c))) return false;
   // (Bees take in NC State's "specialized bees": bees too.)
   const attracts = f.attracts.includes('bees') ? [...f.attracts, 'specialized bees'] : f.attracts;
@@ -589,7 +603,13 @@ export function matchedBy(p: Plant, query: string): MatchedBy | null {
 }
 /** Plants placed in the open plan (not counting ones marked gone). */
 export function plantIdsInPlan(): Set<string> {
-  return new Set(state.shapes.filter((s) => s.status !== 'gone').map((s) => s.plantId).filter((id): id is string => !!id).map((id) => movedIds[id] ?? id));
+  return new Set(planCounts().keys());
+}
+/** How many of each plant are in the plan (not gone), by the id the picker lists it under ("In this plan": × 4). */
+export function planCounts(): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const s of state.shapes) if (s.status !== 'gone' && s.plantId) { const id = movedIds[s.plantId] ?? s.plantId; out.set(id, (out.get(id) ?? 0) + 1); }
+  return out;
 }
 /**
  * The filters another source's value (a fact's `alt`) can count for, the
@@ -1032,15 +1052,33 @@ export function hardinessWarning(p: Plant): { cold: boolean; line: string } | nu
 }
 /**
  * A picker row's lines (decided with Jason, 2026-10-25): its botanical name and forms; then its typical size, sun
- * and hardiness. Bloom time, toxicity to animals and poison to people are left to the filters and the details.
+ * and hardiness, and its bloom months (Jason, Nov 1, from the UI review: "bloom months on the row"). Toxicity to
+ * animals and poison to people are left to the filters and the details.
  */
-export function rowLines(p: Plant): { names: string; size: string; sun: string; hardy: { text: string; ok: boolean } | null } {
-  const forms = formsOf(p).join(' / ');
+/** "3–5 ft tall, 3–6 ft wide" (either part only where it's known). */
+export function sizeLine(p: Pick<Plant, 'height' | 'width'>): string {
   const h = sizeSaid(p.height), w = sizeSaid(p.width);
-  const size = [h && `${h} tall`, w && `${w} wide`].filter(Boolean).join(', ');
+  return [h && `${h} tall`, w && `${w} wide`].filter(Boolean).join(', ');
+}
+export function rowLines(p: Plant): { names: string; size: string; sun: string; hardy: { text: string; ok: boolean } | null; bloom: string } {
+  const forms = formsOf(p).join(' / ');
+  const size = sizeLine(p);
   // (Its botanical name, unless that's the name it goes by: "Adiantum × mairisii".)
   const bot = p.botanical && p.botanical.trim() !== p.common.trim() ? p.botanical : '';
-  return { names: [bot, forms].filter(Boolean).join(' \u00b7 '), size, sun: sunSaid(p.sun_most, p.sun_least), hardy: hardinessSaid(p) };
+  return { names: [bot, forms].filter(Boolean).join(' \u00b7 '), size, sun: sunSaid(p.sun_most, p.sun_least), hardy: hardinessSaid(p), bloom: bloomSaid(p) };
+}
+/**
+ * Its bloom months, short: "Apr–May", "Jun", "All year". Months only, as "Blooming in" a month counts them (and the
+ * plan through the year draws them: src/seasons.ts bloomWindow): from flowering records where the garden is; else the
+ * months its record lists, where its sources give no season instead. A season isn't months (its months shift with
+ * place), and flowers its sources call not showy aren't counted: '' for either.
+ */
+export function bloomSaid(p: Plant): string {
+  const w = bloomWindow(p, { bloom: localBloom(p) });
+  if ((w.basis !== 'records' && w.basis !== 'source') || !w.months.length || !showyFlowers(p)) return '';
+  if (w.months.length === 12) return 'All year';
+  const a = MONTH_NAMES[w.months[0]], b = MONTH_NAMES[w.months[w.months.length - 1]];
+  return a === b ? a : `${a}\u2013${b}`;
 }
 const SEVERITY = ['low', 'medium', 'high'] as const;
 /**

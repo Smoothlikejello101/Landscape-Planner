@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Plant } from '../src/plants';
 import { bandBlooms, bandLeaves, bloomKind, coverBlooms, flowerChoices, flowerColorOf, levelOf, lookOf, lookSvg, nearestFlower, ownBloomColors } from '../src/looks';
-import { LOOK_MAX_R, lookFor, lookMarkup, plannedEdge } from '../src/plant-looks';
+import { LOOK_MAX_R, lookFor, lookMarkup, plannedEdge, plantSpot } from '../src/plant-looks';
 import { plantsById } from '../src/plants';
 import type { CircleShape } from '../src/types';
 import { withLocalParts } from '../src/sync/engine';
@@ -211,5 +211,24 @@ describe('a plant in a month', () => {
   it('fruit where it shows, and a winter not known drawn faint', () => {
     expect(lookSvg(shrub, 40, 'a', 'close', { leaves: 'bare', bloom: 'no', fruit: '#b3202e' })).toContain('#b3202e');
     expect(lookSvg(shrub, 40, 'a', 'close', { leaves: 'unknown', bloom: 'no' })).toMatch(/^<g opacity="0.55">/);
+  });
+});
+
+describe("a picker row's spot: a flower in a circle of its leaves' color (Jason, Nov 1, from the UI review)", () => {
+  it('its flowers\' color as its picture draws them, in a circle of its leaves\', said in words', () => {
+    const s = plantSpot(plant({ flower_color: ['blue'], leaf_color: ['green'] }));
+    expect(s.said).toBe('blue flowers, green leaves');
+    expect(s.svg).toContain('<circle cx="10" cy="10" r="9.5" fill="#6f9a4a"');
+    expect(s.svg).toContain('<g fill="#5b7fd6"');
+    expect(count(s.svg, 'circle')).toBe(7); // (the leaf circle, five petals, the flower's center)
+    expect(plantSpot(plant({ flower_color: ['white'], leaf_color: ['purple'] })).said).toBe('white flowers, purple leaves');
+    expect(plantSpot(plant({ flower_color: ['pink'], leaf_color: ['variegated', 'green'] })).said).toBe('pink flowers, variegated green leaves');
+  });
+  it('no showy flowers, or none on record: the circle alone', () => {
+    const s = plantSpot(plant({ flower_color: ['insignificant'], leaf_color: ['silver'] }));
+    expect(s.said).toBe('silver leaves');
+    expect(count(s.svg, 'circle')).toBe(1);
+    expect(plantSpot(plant({})).said).toBe('green leaves');
+    expect(plantSpot(plant({ flower_color: ['red'], flower_form: { inflorescence: ['catkin'] } })).said).toBe('green leaves');
   });
 });

@@ -64,6 +64,7 @@ test("the picker's Edible filter has chips for the part: fruit, leaves, flowers"
   await expect(page.getByTestId('active-chip')).toHaveText(['Edible leaves']);
   await page.getByTestId('plant-search').fill("Pawpaw 'Davis'");
   await expect(page.locator('.plant-item', { hasText: "Pawpaw 'Davis'" })).toHaveCount(0); // (its fruit, not its leaves)
+  await openFilters(page); // (the search folded them: Jason, Nov 1)
   await parts.locator('label', { hasText: 'Fruit' }).click();
   await expect(page.locator('.plant-item', { hasText: "Pawpaw 'Davis'" })).toHaveCount(1);
   // Edible unticked: the parts go with it.
