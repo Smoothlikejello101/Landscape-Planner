@@ -1,6 +1,7 @@
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from './constants';
 import { escapeHtml } from './dom';
 import { errMsg } from './util';
+import { stamp } from './backup';
 import { featureParts, featurePartsSvg } from './features';
 import { alongLabel, boxLabelAngle, boxSize, displayLabel, LINE_HEIGHT, pathLabelPoint, textLines, textSize, rotatedBoxBounds, shapeBBox, trianglePoints, unionBounds, worldPoints } from './geometry';
 import { state } from './state';
@@ -13,7 +14,8 @@ import { roleDef, roleKey, roleLabel, ROLES } from './roles';
 import { filterText } from './status';
 import { formatHours, shadeOpacity, sunHours } from './sun';
 import { plantsById } from './plants';
-import { LABEL_LINE_HEIGHT, plantLabelFit } from './labels';
+import { LABEL_LINE_HEIGHT, plantLabelFit, textWidth1 } from './labels';
+import { isBed, isPlant } from './beds';
 import { canopyInnerRadius, canopyPoints, isTree, partsToSvg, trunkParts, trunkReachPx } from './trees';
 import { groundcoverRadius, supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
 import { bandBlooms, bandLeaves, colorIn, coverBlooms, levelOf } from './looks';
@@ -120,6 +122,69 @@ export function withSeeThrough<T>(ids: Set<string>, fn: () => T): T {
   exportThin = ids;
   try { return fn(); } finally { exportThin = was; }
 }
+/** A name in a picture or printout: `fs` its size in the page's px, `k` for the halo. */
+function nameSvg(x: number, y: number, fs: number, label: string, extra: string, k: number): string {
+  return `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" fill="#0f172a" font-family="sans-serif" stroke="rgba(255,255,255,0.7)" stroke-width="${2 * k}" paint-order="stroke" stroke-linejoin="round"${extra}>${escapeHtml(label)}</text>`;
+}
+/**
+ * The name of one of the yard's areas (a bed, the lawn, the house, a path) in a picture or printout, where its shape
+ * puts it (page px, `fs` its size there), gathered to be placed over all the shapes (areaNamesSvg). `around`: its
+ * shape's box; `fixed`: a path's or a turned name, which stays where it is; `gone`: faint, as its shape.
+ */
+export interface AreaName { label: string; x: number; y: number; fs: number; angle: number; bed: boolean; size: number; fixed: boolean; gone: boolean; around: PxBox }
+type PxBox = { x0: number; y0: number; x1: number; y1: number };
+/**
+ * Names of areas gathered while a picture or printout is drawn, rather than drawn with each shape: there a bed's name
+ * went under its plants, and "Driveway" and "Driveway flower bed" printed over each other (the UI review, 2026-11-01).
+ */
+let areaNames: AreaName[] | null = null;
+/** `fn` (drawing shapes) with the areas' names gathered, not drawn: place them with areaNamesSvg. */
+export function gatherAreaNames<T>(fn: () => T): { out: T; names: AreaName[] } {
+  const was = areaNames, names: AreaName[] = [];
+  areaNames = names;
+  try { return { out: fn(), names }; } finally { areaNames = was; }
+}
+function areaName(s: Shape, label: string, x: number, y: number, fs: number, angle: number, originX: number, originY: number, scale: number): AreaName {
+  const b = shapeBBox(s);
+  return {
+    label, x, y, fs, angle, bed: isBed(s), size: (b.maxX - b.minX) * (b.maxY - b.minY), fixed: !!angle || s.type === 'line', gone: s.status === 'gone',
+    around: { x0: (b.minX - originX) * scale, y0: (b.minY - originY) * scale, x1: (b.maxX - originX) * scale, y1: (b.maxY - originY) * scale },
+  };
+}
+/** Plants' circles in a picture's px (`scale` px a foot from the origin), for the areas' names to keep off. */
+export function plantCircles(shapes: Shape[], originX: number, originY: number, scale: number): { x: number; y: number; r: number }[] {
+  return shapes.filter((s): s is CircleShape => s.type === 'circle' && isPlant(s))
+    .map((s) => ({ x: (s.x - originX) * scale, y: (s.y - originY) * scale, r: (groundcoverRadius(s) ?? s.radius) * scale }));
+}
+/**
+ * The areas' names, over every shape (never under a plant), each in the first spot clear of the names already placed
+ * and of the plants: where its shape puts it, then just above its shape, below it, to its right, to its left. With no
+ * spot clear of the plants, the first clear of the other names (over the plants, but readable); with none clear of
+ * them, it's left off. Beds' names are placed first (the printed plant list goes by them), then the bigger areas':
+ * the name left off is a smaller area's (a w × h px picture; `k` as for shapes).
+ */
+export function areaNamesSvg(names: AreaName[], plants: { x: number; y: number; r: number }[], w: number, h: number, k = 1): string {
+  const meets = (a: PxBox, b: PxBox) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+  const onPlant = (b: PxBox) => plants.some((c) => Math.hypot(Math.max(b.x0, Math.min(c.x, b.x1)) - c.x, Math.max(b.y0, Math.min(c.y, b.y1)) - c.y) < c.r);
+  const placed: PxBox[] = [];
+  let out = '';
+  for (const n of [...names].sort((a, b) => Number(b.bed) - Number(a.bed) || b.size - a.size)) {
+    const tw = textWidth1(n.label) * n.fs, th = n.fs * 1.2, gap = 3 * k, rad = (n.angle * Math.PI) / 180;
+    const bw = Math.abs(tw * Math.cos(rad)) + Math.abs(th * Math.sin(rad)), bh = Math.abs(tw * Math.sin(rad)) + Math.abs(th * Math.cos(rad));
+    const { x0, y0, x1, y1 } = n.around, mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
+    const spots = [{ x: n.x, y: n.y }, ...(n.fixed ? [] : [
+      { x: mx, y: y0 - gap - bh / 2 }, { x: mx, y: y1 + gap + bh / 2 }, { x: x1 + gap + bw / 2, y: my }, { x: x0 - gap - bw / 2, y: my }])]
+      .map((p) => ({ ...p, box: { x0: p.x - bw / 2, x1: p.x + bw / 2, y0: p.y - bh / 2, y1: p.y + bh / 2 } }))
+      .filter((p, i) => i === 0 || (p.box.x0 >= 0 && p.box.y0 >= 0 && p.box.x1 <= w && p.box.y1 <= h)); // (moved: inside the picture)
+    const clear = spots.filter((p) => !placed.some((q) => meets(q, p.box)));
+    const at = clear.find((p) => !onPlant(p.box)) ?? clear[0];
+    if (!at) continue;
+    placed.push(at.box);
+    const name = nameSvg(at.x, at.y, n.fs, n.label, n.angle ? ` transform="rotate(${n.angle} ${at.x} ${at.y})"` : '', k);
+    out += n.gone ? `<g opacity="0.35">${name}</g>` : name;
+  }
+  return out;
+}
 function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number, k: number): string {
   // (A buried line dashed, as on the plan.)
   const dashed = (s.role ? !!roleDef(s.role).outline : false) || (s.role === 'utility' && s.utility === 'buried');
@@ -133,8 +198,7 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
   const arbor = isArbor(s);
   const stroke = s.status === 'remove' && !outline ? '#dc2626' : outline || planned || arbor ? s.color : 'rgba(0,0,0,0.3)';
   const strokeWidth = (outline ? 2.5 : planned || arbor || s.status === 'remove' ? 2 : 1) * k;
-  const text = (x: number, y: number, fs: number, label: string, extra = '') =>
-    `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="${fs * k}" fill="#0f172a" font-family="sans-serif" stroke="rgba(255,255,255,0.7)" stroke-width="${2 * k}" paint-order="stroke" stroke-linejoin="round"${extra}>${escapeHtml(label)}</text>`;
+  const text = (x: number, y: number, fs: number, label: string, extra = '') => nameSvg(x, y, fs * k, label, extra, k);
   const vine = s.type === 'circle' ? supportOf(s, state.shapes) : null;
   if (s.type === 'circle' && vine) {
     // A vine on what it climbs, as on the plan (src/vines.ts): its spot, and a band along its support.
@@ -230,7 +294,8 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
       const { w, h } = boxSize(s);
       const fs = s.type === 'line' ? 12 : Math.max(10, Math.min(14, (Math.min(w, h) * scale * 0.2) / k));
       const ly = (lp.y - originY) * scale - (s.type === 'line' && !band ? 10 * k : 0);
-      out += text((lp.x - originX) * scale, ly, fs, label);
+      if (areaNames) areaNames.push(areaName(s, label, (lp.x - originX) * scale, ly, fs * k, 0, originX, originY, scale));
+      else out += text((lp.x - originX) * scale, ly, fs, label);
     }
     return out;
   }
@@ -259,8 +324,9 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
   const boxLabel = withSunHours(s, s.label);
   if (boxLabel) {
     // Its name reads as upright as it can, as on the plan (geometry.ts, boxLabelAngle).
-    const angle = boxLabelAngle(s.rotation || 0);
-    out += text(cx, cy, Math.max(10, Math.min(14, (Math.min(w, h) / k) * 0.2)), boxLabel, angle ? ` transform="rotate(${angle} ${cx} ${cy})"` : '');
+    const angle = boxLabelAngle(s.rotation || 0), fs = Math.max(10, Math.min(14, (Math.min(w, h) / k) * 0.2));
+    if (areaNames) areaNames.push(areaName(s, boxLabel, cx, cy, fs * k, angle, originX, originY, scale));
+    else out += text(cx, cy, fs, boxLabel, angle ? ` transform="rotate(${angle} ${cx} ${cy})"` : '');
   }
   return out;
 }
@@ -322,12 +388,14 @@ export function buildExportSVG(): { svg: string; widthPx: number; heightPx: numb
   let shapesSvg = '';
   const thin = seeThroughIds(state.shapes);
   // (Names as the screen has them: Jordan hid them for a client's picture, and it printed every one. Round 3.)
-  withNames(state.showNames, () => {
+  const { names } = gatherAreaNames(() => withNames(state.showNames, () => {
     exportRuns = runsOf(sorted, scale);
     try { withSeeThrough(thin, () => { for (const s of sorted) shapesSvg += shapeToSvgString(s, minX, minY, scale); }); }
     finally { exportRuns = null; }
-  });
+  }));
   shapesSvg += hiddenRimsSvg(state.shapes, hiddenIds(state.shapes, state.viewFilter, thin), minX, minY, scale);
+  // (The beds', paths' and buildings' names over every shape, clear of each other and of the plants: areaNamesSvg.)
+  shapesSvg += areaNamesSvg(names, plantCircles(sorted, minX, minY, scale), widthPx, heightPx);
   // Optional bg image, sits above grid, below shapes (matches on-screen order)
   let bgSvg = '';
   const bg = state.bgImage;
@@ -388,7 +456,7 @@ export async function doExport(format: 'png' | 'svg') {
   const { svg, widthPx, heightPx } = result;
   const proj = currentProject();
   const safeName = (proj && proj.name ? proj.name : 'fullgrown').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
-  const stamp = new Date().toISOString().slice(0, 10);
+  const date = stamp(); // (the person's date, as every file's: src/backup.ts)
   try {
     let dataUrl: string;
     if (format === 'svg') {
@@ -396,7 +464,7 @@ export async function doExport(format: 'png' | 'svg') {
     } else {
       dataUrl = await svgToPngDataUrl(svg, widthPx, heightPx, 2);
     }
-    state.exportPreview = { format, dataUrl, svgText: svg, filename: `${safeName}-${stamp}.${format}` };
+    state.exportPreview = { format, dataUrl, svgText: svg, filename: `${safeName}-${date}.${format}` };
     state.panel = 'preview';
     render();
   } catch (e) {

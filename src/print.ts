@@ -2,7 +2,7 @@ import { bedOf, isBed, isPlant } from './beds';
 import { utilityLabel } from './utility-kinds';
 import { hiddenIds, paintOrder, seeThroughIds } from './canvas';
 import { escapeHtml } from './dom';
-import { hiddenRimsSvg, shapeToSvgString, withNames, withSeeThrough } from './export';
+import { areaNamesSvg, gatherAreaNames, hiddenRimsSvg, plantCircles, shapeToSvgString, withNames, withSeeThrough } from './export';
 import { rotatedBoxBounds, shapeBBox, unionBounds } from './geometry';
 import type { Plant } from './plants';
 import { ROLES, roleKey, roleLabel } from './roles';
@@ -227,7 +227,7 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
     return r ? `<circle cx="${(s.x - win.minX) * pxPerFt}" cy="${(s.y - win.minY) * pxPerFt}" r="${r * pxPerFt}" fill="none" stroke="${s.color}" stroke-width="${1.2 * k}" stroke-dasharray="${5 * k} ${4 * k}"/>` : '';
   };
   const thin = seeThroughIds(shapes, NO_FILTER);
-  const body = withNames(names, () => withSeeThrough(thin, () => shapes.map((s) => ring(s) + (() => {
+  const { out: body, names: areas } = gatherAreaNames(() => withNames(names, () => withSeeThrough(thin, () => shapes.map((s) => ring(s) + (() => {
     if (!keys || !isPlant(s)) return shapeToSvgString(s, win.minX, win.minY, pxPerFt, k);
     const key = keys.get(s.label.trim() || 'Unlabeled plant');
     let out = shapeToSvgString({ ...s, label: '' }, win.minX, win.minY, pxPerFt, k);
@@ -236,7 +236,7 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
     const fs = 11 * k;
     out += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${fs}" font-weight="700" fill="#0f172a" font-family="sans-serif" stroke="#ffffff" stroke-width="${2.5 * k}" paint-order="stroke" stroke-linejoin="round">${key}</text>`;
     return out;
-  })()).join('')));
+  })()).join(''))));
   // Plants hidden under a solid one: a pin over it, as on the plan, and its number beside the pin (round 3, Hank: four
   // of six daffodils were white dots the list and legend didn't explain; their numbers were under the catmint).
   const hidden = hiddenIds(shapes, NO_FILTER, thin);
@@ -245,7 +245,10 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
     const cx = (s.x - win.minX) * pxPerFt + 6 * k, cy = (s.y - win.minY) * pxPerFt;
     return `<text x="${cx}" y="${cy}" dominant-baseline="central" font-size="${9 * k}" font-weight="700" fill="#0f172a" font-family="sans-serif" stroke="#ffffff" stroke-width="${2.5 * k}" paint-order="stroke" stroke-linejoin="round">${key}</text>`;
   }).join('') : '');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" fill="#ffffff"/>${grid}${bgSvg}${body}${pins}</svg>`;
+  // The beds', paths' and buildings' names last, clear of each other and of the plants (src/export.ts areaNamesSvg):
+  // "Driveway" printed over "Driveway flower bed", beside it (the UI review, 2026-11-01).
+  const areaSvg = areaNamesSvg(areas, plantCircles(shapes, win.minX, win.minY, pxPerFt), w, h, k);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" fill="#ffffff"/>${grid}${bgSvg}${body}${pins}${areaSvg}</svg>`;
   return { svg, w, h };
 }
 

@@ -8,7 +8,7 @@ import { isLocked } from './roles';
 import { shownWith } from './status';
 import { clearSelection, isSelected, selectOnly, toggleSelect } from './selection';
 import { gesture, state, tapTracker } from './state';
-import { save } from './storage';
+import { save, saveView } from './storage';
 import type { Gesture, Point, Shape } from './types';
 import { drawnBySize, isHidden, isSeeThrough, previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes } from './canvas';
 import { drawTap, editedShape, forgetLastTap, insertVertex, moveVertex, notePointer } from './draw';
@@ -366,7 +366,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
           moved: true // never treat the end of a pinch as a tap
         };
       } else {
-        save();
+        saveView(); // (where it's looked at from, not a change to the plan: src/storage.ts)
         render(); // full redraw replaces the gesture preview
       }
     }
@@ -385,7 +385,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
       return;
     case 'bg-calibrate-tap':
       if (!g.moved) bgCalibrationTap(g.startX, g.startY);
-      else { save(); render(); }
+      else { saveView(); render(); }
       return;
     case 'drag-shape':
       if (g.moved) {
@@ -421,7 +421,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
       return;
     case 'pan':
       if (g.moved) {
-        save(); forgetLastTap(); // (the plan moved: the same spot on screen is another place)
+        saveView(); forgetLastTap(); // (the plan moved: the same spot on screen is another place)
         // (The first few times a drag over a shape pans, on this device: how to move it.)
         if (g.overShape && hintDue(DRAG_HINT, 3)) { toast('That moved the plan. To move a shape, tap it first, then drag it.', 4000); hintShown(DRAG_HINT); }
       }
@@ -651,7 +651,7 @@ export function onWheel(e: WheelEvent) {
     const dx = (e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX) * line, dy = e.shiftKey && !e.deltaX ? 0 : e.deltaY * line;
     state.offsetX += dx / ppf;
     state.offsetY += dy / ppf;
-    save();
+    saveView();
   }
   previewView();
   if (wheelSettle) clearTimeout(wheelSettle);

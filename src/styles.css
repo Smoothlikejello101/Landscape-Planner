@@ -419,13 +419,15 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .bloom-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 6px; color: #292524; display: flex; min-width: 0; }
 .bloom-name .bloom-label { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .bloom-name .bloom-x { flex: none; }
-.bloom-name.total { font-weight: 600; }
+.bloom-name.total { font-weight: 600; align-self: start; } /* (level with the counts' first line) */
 .bloom-cell { height: 14px; border-radius: 3px; background: #f5f5f4; }
 .bloom-cell.on { border: 1px solid rgba(0,0,0,0.15); }
 /* Months from a season word only: striped, with a dashed edge (not by color alone; faint, a purple still read as
    solid: round 3, Lena). */
 .bloom-cell.on.by-season { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.8) 0 3px, transparent 3px 6px); border-style: dashed; }
-.bloom-count { text-align: center; font-size: calc(11px * var(--ts)); color: #44403c; }
+/* The "+3" by season under its month's count, not beside it: side by side, "10+9" ran into the next month's count
+   (the UI review, 2026-11-01). */
+.bloom-count { display: flex; flex-direction: column; align-items: center; align-self: start; line-height: 1.2; font-size: calc(11px * var(--ts)); color: #44403c; }
 .bloom-count.gap { background: #fee2e2; color: #b91c1c; border-radius: 3px; font-weight: 600; }
 .bloom-count .by-season-count { color: #78716c; font-size: calc(9px * var(--ts)); }
 .bloom-group { margin-bottom: 16px; }

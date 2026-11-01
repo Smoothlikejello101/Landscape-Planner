@@ -27,7 +27,7 @@ import { notePageZoom } from './page-zoom';
 import { loadViewSettings } from './view-settings';
 import { applyTextSize } from './text-size';
 import { updateSaveWarning, updateSaveState } from './ui/save-warning';
-import { flushSave, initStorage, refreshClipboard, requestPersistence, save, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
+import { flushSave, initStorage, refreshClipboard, requestPersistence, saveView, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
 import { flashZoom, render } from './ui/render';
 import { dismissToastAction, toast } from './ui/toast';
 import { closeYear, stepMonth } from './ui/year-bar';
@@ -107,7 +107,7 @@ function onArrow(e: KeyboardEvent, [ax, ay]: [number, number]) {
   const part = e.shiftKey ? 0.5 : 0.1, ppf = pxPerFoot();
   state.offsetX += ax * part * state.canvasW / ppf;
   state.offsetY += ay * part * state.canvasH / ppf;
-  save();
+  saveView();
   render();
 }
 /** A field that holds typing (text, a number, a choice being made), not a button, box or slider. */
