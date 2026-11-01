@@ -89,11 +89,14 @@ was read narrower than printed or left out, and why.
 | IL | 525 ILCS 10/4; 17 Ill. Adm. Code 1100.30; 505 ILCS 100; 8 Ill. Adm. Code 220.60 | The General Assembly's site (exotic weed rule effective 2025-10-01) | 43 | Exotic weeds: not bought, sold, distributed or planted without a permit (Callery pear from 2028-01-01). Noxious weeds: landowners must control them (no ban on sale) |
 | WV | 61CSR14A; W. Va. Code §§19-12-14, 19-12D | The Secretary of State's code of rules (effective 2023-05-01); the Legislature's code | 129 | Noxious weeds (and the federal list as of 2010, its appendix): not sold or moved without a permit. Multiflora rose: never. European black currant: not moved (blister rust quarantine) |
 | AL | Ala. Admin. Code r. 80-10-14; r. 220-2-.124 | The Legislative Services Agency's administrative code | 34, and the federal list's | Class A, B and C noxious weeds: not moved into or within the state. Aquatic plants: not put into public waters (no ban on sale) |
-| MI | MCL 324.41301–41309; MCL 247.62, 247.64 | The Legislature's compiled laws | 28 | Prohibited and restricted species: not possessed alive, planted or sold, but under a permit. Noxious weeds: landowners destroy them before they seed (no ban on sale) |
+| MI | MCL 324.41301–41309; MCL 247.62, 247.64; Invasive Species Order Amendment No. 1 of 2026 | The Legislature's compiled laws; the Commission's order, saved by hand from michigan.gov | 34 | Prohibited and restricted species: not possessed alive, planted or sold, but under a permit (four more restricted from 2028-01-01: listed until then). Noxious weeds: landowners destroy them before they seed (no ban on sale) |
 | NJ | N.J.S.A. 23:2A-20 (P.L.2025, c.290); N.J.A.C. 2:20-2 | The Legislature's chapter law; the Department of Agriculture's rule | 31 | Prohibited invasive species: no propagating or importing from early 2027, no selling from early 2030 (listed until then). European black currant: only under a permit |
+| SC | S.C. Code Regs. 27-135; S.C. Code §50-13-1415 | Clemson's State Plant Pest List page (the rule's official listing); the Legislature's code | 101 | Plant pests: by the agency's reading, not sold or moved within the state (the rule's text: nursery stock must be free of plant pests). Prohibited aquatic plants: not possessed, sold or imported, but under a permit |
+| NY | 6 NYCRR Part 575; 6 NYCRR 192.1 | The Department of State's site, saved by hand | 75 | Prohibited: not sold, imported, bought, transported, introduced or propagated. Regulated: may be sold, but not introduced into the wild (no ban on sale). Black currant: not planted or sold, but rust-resistant cultivars |
+| MA | MDAR Prohibited Plant List; M.G.L. c. 128, §20A | The Department's list and its 2025 and 2026 decisions, saved by hand from mass.gov; the Legislature's site | 148 | Prohibited: nursery agents and growers may not receive, grow or sell it. Newly added plants: existing stock may be sold through a phase-out (listed until it ends). Water chestnut: never planted or moved, by statute |
 | NC | 02 NCAC 48A .1702, .1703; 15A NCAC 02G .0602 | The North Carolina Register's printing of the rules (effective 2011-10-01); the environment department's copy of .0602 | 27, and the federal list's | Class A and B: no sale or distribution, nor moving into the state (A: nor within it). Class C: not into the state, nor sold outside a regulated area. Aquatic: the state may remove it from its waters (no ban on sale) |
 
-Arkansas to Tennessee read 2026-10-21, Virginia to New Jersey 2026-10-31, each from the government's own text, saved
+Arkansas to Tennessee read 2026-10-21, Virginia to Massachusetts 2026-10-31, each from the government's own text, saved
 in `catalog-src/legal/` (not committed).
 Tennessee's PDF was saved by hand in a browser: the Secretary of State's file host turns away clients that
 aren't browsers, and we don't pretend to be one. Texas has one gap: the
@@ -117,10 +120,13 @@ SHA-256 hash the browser computed from it. Illinois's legislature site sends an 
 missing intermediate was fetched from its issuer (Sectigo), as browsers do, and every request verified against it.
 Pennsylvania's Bulletin notices (its sales phase-in dates) are still unread; its site's robots.txt names AI
 readers. Sites that refuse automated readers outright (a 403, a bot check) are never got around, by any tool: Jason
-saves those pages by hand. Waiting on that: Massachusetts's prohibited plant list, Michigan's 2026 order and New
-York's 6 NYCRR Part 575. Wisconsin's legislature site was dropping connections; South Carolina waits on Jason's
-call (its plant pest list's rule doesn't say the plants can't be sold; Clemson, which runs it, says it does). The
-rest of the states: not yet.
+saves those pages by hand, as he did Massachusetts's prohibited plant list and the Department's decisions,
+Michigan's 2026 order, and New York's 6 NYCRR Part 575 and 192.1. Still to save: the Massachusetts list page's own
+statement of what the list forbids, and the Department's November 2022 update (Callery pear's phase-out dates).
+South Carolina's plant pest rule doesn't itself say the plants can't be sold; Clemson, which keeps the list, says it
+does, and Jason's call (2026-10-31) was to show them as banned, the line saying it's the agency's reading.
+Wisconsin's legislature site drops every connection from here (its rule, NR 40, is unread). The rest of the
+states: not yet.
 
 **Read narrower than printed, or left out:**
 - **Seed-law lists.** Louisiana's noxious weed list (LAC 7:XIII.109), like most states' seed lists, limits weed
@@ -165,8 +171,22 @@ rest of the states: not yet.
   Ribes, New Jersey's protective area) or except plants the rule doesn't name (West Virginia's barberry and mahonia
   quarantine, which spares those the USDA designates rust-resistant).
 - **Michigan:** "Mustards (charlock, black mustard, and Indian mustard…)" (named by common name only) and "wild carrot
-  (Daucus carota)" (the species takes in the garden carrot) are left out, as are its Commission's 2026 order's
-  additions, unread (michigan.gov refuses automated readers).
+  (Daucus carota)" (the species takes in the garden carrot) are left out. The Commission's 2026 order makes water
+  hyacinth and water lettuce prohibited, and Japanese barberry, glossy and common buckthorn and Callery pear
+  restricted from 2028-01-01 (listed until then); the standing order it amends wasn't read.
+- **South Carolina:** rice (*Oryza sativa*, printed "Red Rice and Asian rice") and Satsuma (*Citrus reticulata* var.
+  *unshu*) are left out: crops whose listing the list doesn't explain, which read whole would mark rice and
+  satsumas banned. Currants and ornamental cotton are named by common name only.
+- **New York:** Japanese barberry's exempt cultivars ('Aurea', Crimson Cutie, Lemon Cutie, Lemon Glow, Mr. Green
+  Genes) are named in its line (`prohibitedBarberry`). Left out: the white pine blister rust districts (192.4),
+  limited to named counties and towns.
+- **Massachusetts:** newly added plants (black alder, maiden grass, jetbead, sapphire berry, Japanese angelica tree)
+  may be sold from existing stock until their phase-outs end: listed until then, each line naming the date. Callery
+  pear is marked as being phased out, its dates unread: listed. Japanese black pine's bonsai exception and water
+  spinach's permit are said in their lines. Left out: "Non-native Orobanche spp." and "Non-native Cuscuta spp.",
+  which name neither the natives spared nor the others (the federal list's dodders and broomrapes cover them);
+  Cape tulip, printed "Homeria spp.; Moraea spp." (the whole of *Moraea* would take in garden species; the federal
+  list names the Cape tulips); *Caulerpa taxifolia*, an alga.
 - **New Jersey:** its Act's prohibitions start "the first day of the 13th month" and "of the 49th month" after
   January 20, 2026 (February 1, 2027 and 2030 by that count; the Department of Agriculture says January 1): listed
   until then, the line giving the years.
@@ -244,8 +264,15 @@ As of 2026-10-31:
 - **Georgia:** Japanese blood grass, through the federal list. **Kentucky:** none of the catalog's plants.
 - **New Jersey** (from 2027 and 2030): Callery pear, Norway maple, mimosa, Chinese wisteria, English ivy, maiden
   grass, Japanese barberry, burning bush, jetbead and others. **Alabama:** star-of-Bethlehem (*Ornithogalum
-  umbellatum*), a Class C noxious weed. **Michigan:** autumn olive (restricted); poison ivy and field bindweed as
-  noxious weeds. **West Virginia:** autumn olive, tree of heaven, Japanese barberry, multiflora rose.
+  umbellatum*), a Class C noxious weed. **Michigan:** autumn olive (restricted); Callery pear, Japanese barberry and the
+  buckthorns from 2028; poison ivy and field bindweed as noxious weeds. **West Virginia:** autumn olive, tree of heaven, Japanese barberry, multiflora rose.
+- **South Carolina:** Callery pear, autumn, Russian and thorny olive, water lettuce, Japanese blood grass.
+- **New York:** cup plant (*Silphium perfoliatum*), Japanese barberry, the honeysuckles, autumn olive, sycamore
+  maple, Japanese angelica tree, the buckthorns, beach vitex, Japanese blood grass; Norway maple, burning bush,
+  wintercreeper, maiden grass and black locust are regulated (sold, not planted in the wild).
+- **Massachusetts:** Norway and sycamore maple, Japanese barberry, burning bush, the honeysuckles, Scotch broom,
+  dame's rocket, moneywort, Japanese black pine, ribbon grass and others; maiden grass (until the end of 2026),
+  jetbead, black alder, sapphire berry, Japanese angelica tree and Callery pear while their phase-outs run.
 
 ## What the line doesn't say
 
