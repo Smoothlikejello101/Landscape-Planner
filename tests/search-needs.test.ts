@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { FILLER, NEED_WORDS, nameIndex, readNeeds, wordKey, type NeedSet } from '../src/search-needs';
 import { FLOWER_CHOICES } from '../src/flower-colors';
+import { PLANT_FILTER_DEFAULTS } from '../src/plants';
 
-// Words of need in the picker's search (Jason, Nov 1, from the UI review): "shade flowers" is Part shade, and a search
-// for "flowers".
+// Words of need in the picker's search (Jason, Nov 1, from the UI review): "shade flowers" is Part shade and Has
+// flowers.
 
 /** Names as the catalog and My plants might have them. */
 const NAMES = nameIndex([
@@ -14,9 +15,21 @@ const read = (text: string, o: { caret?: number; final?: boolean; can?: (s: Need
 const PART: NeedSet = { key: 'sun', value: 'Part' };
 
 describe('words of need in the picker\'s search', () => {
-  it('"shade flowers": Part shade, the rest the search ("flowers" has no filter of its own)', () => {
+  it('"shade flowers": Part shade and Has flowers', () => {
+    const FLOWERS: NeedSet = { key: 'flowers', value: true };
+    expect(read('shade flowers', { final: true })).toEqual({ text: '', caret: 0, sets: [PART, FLOWERS], taken: ['shade', 'flowers'] });
+    // (Typing still: "flowers" may be "flowers…" yet, the search till it's finished.)
     expect(read('shade flowers')).toEqual({ text: 'flowers', caret: 7, sets: [PART], taken: ['shade'] });
-    expect(read('flowers', { final: true })).toBeNull();
+    expect(read('shade flowers ')).toMatchObject({ text: '', sets: [PART, FLOWERS] });
+    expect(read('flowering shrubs', { final: true })?.sets).toEqual([FLOWERS, { key: 'form', value: 'Shrub' }]);
+    expect(read('shade aster', { final: true })).toMatchObject({ text: 'aster', sets: [PART] });
+  });
+  it('"flower" in a plant\'s name stays the search: Cardinal flower, Flowering dogwood, Coneflower', () => {
+    const names = nameIndex(['Cardinal flower', 'Flowering dogwood', 'Purple coneflower', 'Flower-of-an-hour']);
+    for (const t of ['cardinal flower', 'flowering dogwood', 'coneflower', 'cone flower', 'flower of an hour']) expect(readNeeds(t, names, { final: true }), t).toBeNull();
+    expect(readNeeds('flowering ', names)).toBeNull(); // ("Flowering dogwood"?)
+    expect(readNeeds('flower ', names)).toBeNull(); // ("Flower-of-an-hour"?)
+    expect(readNeeds('flowers', names, { final: true })?.sets).toEqual([{ key: 'flowers', value: true }]);
   });
   it('a word that is part of a plant\'s name stays the search: "Sweet shade", run together or not', () => {
     for (const t of ['sweet shade', 'sweet shade ', 'Sweet Shade', 'sweet shades']) {
@@ -118,7 +131,8 @@ describe('words of need in the picker\'s search', () => {
   });
   it('the table: only the picker\'s own filters, each word once', () => {
     const keys = new Set(NEED_WORDS.flatMap((n) => n.sets.map((s) => s.key)));
-    expect([...keys].sort()).toEqual(['clayOk', 'deerResistant', 'drought', 'evergreen', 'flowerColors', 'form', 'native', 'sun', 'wetFeet']);
+    expect([...keys].sort()).toEqual(['clayOk', 'deerResistant', 'drought', 'evergreen', 'flowerColors', 'flowers', 'form', 'native', 'sun', 'wetFeet']);
+    for (const k of keys) expect(PLANT_FILTER_DEFAULTS, k).toHaveProperty(k); // (never a filter the picker hasn't)
     const says = NEED_WORDS.flatMap((n) => n.says);
     expect(new Set(says).size).toBe(says.length);
     for (const c of FLOWER_CHOICES) expect(says).toContain(`${c} flowers`);

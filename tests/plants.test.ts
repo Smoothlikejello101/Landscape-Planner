@@ -100,6 +100,13 @@ describe('plant filters', () => {
     expect(plantMatches(cone, f({ flowerColors: ['red', 'white'] }))).toBe(true);
     expect(plantMatches(cone, f({ flowerColors: ['white'] }))).toBe(false);
     expect(plantMatches({ ...cone, flower_color: ['insignificant'] }, f({ flowerColors: ['green'] }))).toBe(false);
+    // Has flowers (Jason, Nov 1, from the UI review: a search's "shade flowers"): showy ones on record, as a row's spot
+    // draws them; not catkins, not flowers its sources call insignificant, not a plant with no flower color on record.
+    expect(plantMatches(cone, f({ flowers: true }))).toBe(true);
+    expect(plantMatches({ ...cone, flower_color: ['insignificant'] }, f({ flowers: true }))).toBe(false);
+    expect(plantMatches({ ...cone, flower_form: { inflorescence: ['catkin'] } } as Plant, f({ flowers: true }))).toBe(false);
+    expect(plantMatches({ id: 'f', common: 'Christmas fern' } as Plant, f({ flowers: true }))).toBe(false);
+    expect(filterOn(f({ flowers: true }), 'flowers')).toBe(true);
     expect(trueToColor(cone)).toBe(false);
     expect(trueToColor({ ...cone, common: "Coneflower 'Tomato Soup'" })).toBe(true);
     expect(trueToColor({ ...cone, parent: 'echinacea-purpurea' })).toBe(true);

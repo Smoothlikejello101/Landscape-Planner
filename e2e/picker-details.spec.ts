@@ -535,16 +535,24 @@ test('typing a search folds the open filters, the results in view; Add as my pla
   if (isMobile) await expect(page.getByTestId('plant-search')).toBeFocused();
 });
 
-test('words of need become filters: "shade flowers" is Part shade and a search for "flowers"; a word of a plant\'s name stays the search (Jason, Nov 1)', async ({ page }) => {
+test('words of need become filters: "shade flowers" is Part shade and Has flowers; a word of a plant\'s name stays the search (Jason, Nov 1)', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   const search = page.getByTestId('plant-search');
   const chips = page.getByTestId('active-chip');
   await search.fill('shade flowers');
+  // (Its last word still being typed, "flowers…" perhaps: the search till it's finished.)
   await expect(search).toHaveValue('flowers');
   await expect(search).toBeFocused(); // (the keyboard kept: nothing redrawn but the list)
   await expect(chips).toHaveText(['Part shade']);
   await expect(page.locator('.sheet select[aria-label=Sun]')).toHaveValue('Part'); // (its control says so too)
+  // Finished (Enter): Has flowers too, its box ticked, the search empty.
+  await search.press('Enter');
+  await expect(search).toHaveValue('');
+  await expect(chips).toHaveText(['Part shade', 'Has flowers']);
+  await expect(page.locator('.sheet label', { hasText: 'Has flowers' }).locator('input')).toBeChecked();
+  await expect(page.locator('.plant-item').first()).toBeVisible();
+  await chips.first().click();
   await chips.first().click();
   await expect(chips).toHaveCount(0);
   // Typed a letter at a time: a word becomes its filter once the next one starts; Enter takes the last.
