@@ -12,7 +12,7 @@ import { render } from './render';
 import { accountSection } from './account-section';
 import { deleteNote } from '../sync/sync';
 import { toast } from './toast';
-import { ask, askText, tell } from './ask';
+import { askChoice, askText, tell } from './ask';
 
 function closeButton(onClick: () => void) {
   const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' });
@@ -133,10 +133,25 @@ export function renderProjectsPanel() {
       const delBtn = el('button', { className: 'iconbtn', html: I.trash, title: 'Delete', 'aria-label': 'Delete ' + p.name });
       delBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        if (await ask('Delete project \u201c' + p.name + '\u201d? ' + deleteNote(p.id), { ok: 'Delete', danger: true, testid: 'ask-delete-project' })) {
-          await deleteProject(p.id);
-          render();
+        // (A copy first, as a file, offered beside Delete: the UI review, 2026-11-01. Saved as the row's "Save as a
+        // file" saves it, and only then deleted.)
+        const choice = await askChoice<'copy' | 'delete'>('Delete project \u201c' + p.name + '\u201d? ' + deleteNote(p.id), [
+          { label: 'Save a copy first, then delete', value: 'copy', testid: 'ask-save-first' },
+          { label: 'Delete', value: 'delete', danger: true },
+        ], { danger: true, testid: 'ask-delete-project' });
+        if (!choice || !state.projects.some((x) => x.id === p.id)) return; // (Cancel, or deleted meanwhile by sync)
+        let saved = '';
+        if (choice === 'copy') {
+          try {
+            const file = await buildProjectFile(p.id);
+            if (!file) throw new Error('the project couldn\u2019t be read');
+            downloadText(file.filename, file.text);
+            saved = file.filename;
+          } catch (err) { void tell('Couldn\u2019t save the copy, so the project wasn\u2019t deleted: ' + errMsg(err)); return; }
         }
+        await deleteProject(p.id);
+        render();
+        if (saved) toast(`Saved ${saved} to your Downloads, then deleted \u201c${p.name}\u201d. To bring it back, open Projects and tap Import from file.`, 10000);
       });
       actions.appendChild(delBtn);
     }

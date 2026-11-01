@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { openFresh, autoDialogs, shapeCount, clickRedo, closeSheet, field, addPlainShape, openExport } from './helpers';
+import { openFresh, autoDialogs, shapeCount, clickRedo, closeSheet, field, addPlainShape, openExport, answerAsk } from './helpers';
 
 test('an edit survives an immediate reload (saved when the page hides)', async ({ page }) => {
   await openFresh(page);
@@ -82,6 +82,36 @@ test('a single project file imports and opens', async ({ page, browser }) => {
   await expect(fresh.locator('#canvas-svg text', { hasText: 'Pond' })).toHaveCount(1);
   expect(await shapeCount(fresh)).toBe(1);
   await ctx.close();
+});
+
+test('deleting a project offers to save a copy first: its file saved, as Save as a file does, then the project deleted (the UI review, 2026-11-01)', async ({ page }) => {
+  await openFresh(page);
+  await addPlainShape(page, 'oval');
+  await field(page, 'Label').fill('Pond');
+  await closeSheet(page);
+  await page.locator('.project-btn').click();
+  await page.locator('button', { hasText: 'New project' }).click();
+  await answerAsk(page, true, 'Back yard');
+  await page.locator('.project-btn').click();
+  await page.getByRole('button', { name: 'Delete My Garden' }).click();
+  const ask = page.getByTestId('ask-delete-project');
+  await expect(ask.locator('.ask-message')).toHaveText('Delete project \u201cMy Garden\u201d? This cannot be undone.');
+  await expect(ask.locator('button')).toHaveText(['Save a copy first, then delete', 'Delete', 'Cancel']);
+  // Cancel keeps it.
+  await ask.getByTestId('ask-cancel').click();
+  await expect(page.locator('.proj-row')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Delete My Garden' }).click();
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    ask.getByTestId('ask-save-first').click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/^my-garden-\d{4}-\d{2}-\d{2}\.fullgrown\.json$/);
+  await expect(page.locator('.proj-row')).toHaveCount(1);
+  await expect(page.locator('#toast')).toContainText(`Saved ${download.suggestedFilename()} to your Downloads, then deleted \u201cMy Garden\u201d.`);
+  // The copy brings it back.
+  await page.locator('[data-testid=import-file]').setInputFiles({ name: 'p.json', mimeType: 'application/json', buffer: readFileSync((await download.path())!) });
+  await expect(page.locator('.project-btn .pname')).toHaveText('My Garden');
+  await expect(page.locator('#canvas-svg text', { hasText: 'Pond' })).toHaveCount(1);
 });
 
 test.describe('late in the evening in Arkansas', () => {
