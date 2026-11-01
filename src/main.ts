@@ -1,6 +1,7 @@
 import './styles.css';
 import { finishFeaturePlace, undoFeaturePlace } from './feature-edit';
 import { resizeCanvas } from './canvas';
+import { fitToWindow, installAppHeight } from './app-height';
 import { fitAboveKeyboard } from './keyboard';
 import { cancelGestures, onCanvasPointerMove, onCanvasPointerUp } from './gestures';
 import { installTapGuard } from './tap-guard';
@@ -46,16 +47,19 @@ installErrorLog();
 // The page at this device's text size, before anything is drawn (src/text-size.ts).
 applyTextSize();
 
+// The app's height, the window's own, measured now and again whenever it may have changed (src/app-height.ts).
+installAppHeight();
+
 // ============================================================
 // EVENT LISTENERS
 // ============================================================
 // IMPORTANT: window resize calls resizeCanvas ONLY, never render().
 // Android keyboard appearing fires a viewport resize; a full render()
 // destroys focused inputs.
-window.addEventListener('resize', () => { fitAboveKeyboard(); resizeCanvas(); });
+window.addEventListener('resize', () => { fitToWindow(); resizeCanvas(); });
 // Same goes for visualViewport resize (covers iOS keyboard + zoom)
 if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', () => { fitAboveKeyboard(); resizeCanvas(); notePageZoom(); });
+  window.visualViewport.addEventListener('resize', () => { fitToWindow(); resizeCanvas(); notePageZoom(); });
   // iOS pans the visual viewport (scroll, not resize) after its keyboard opens: re-measure (CSS only).
   window.visualViewport.addEventListener('scroll', () => { fitAboveKeyboard(); });
 }

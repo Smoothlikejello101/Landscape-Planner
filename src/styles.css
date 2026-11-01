@@ -17,7 +17,7 @@ input, textarea, button, select { font-family: inherit; font-size: inherit; }
 input[type="checkbox"], input[type="radio"] { width: calc(13px * var(--ts)); height: calc(13px * var(--ts)); }
 input[type="text"], input[type="number"] { font-size: calc(16px * var(--ts)); min-height: var(--tap); }
 button { cursor: pointer; border: none; background: none; padding: 0; color: inherit; }
-.app { height: 100vh; height: calc(100dvh - var(--kb, 0px)); width: 100vw; display: flex; flex-direction: column; background: #f5f5f4; overflow: hidden; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+.app { height: 100vh; height: calc(100dvh - var(--kb, 0px)); height: calc(var(--app-h, 100dvh) - var(--kb, 0px)); width: 100vw; display: flex; flex-direction: column; background: #f5f5f4; overflow: hidden; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
 /* Top bar */
 .topbar { display: flex; align-items: center; padding: 6px 8px; background: #fff; border-bottom: 1px solid #e7e5e4; flex-shrink: 0; gap: 4px; min-height: 44px; }
 /* The plan's name and its ▾: a button that opens the plans, drawn as one, with a light outline and tint as the app's
@@ -112,7 +112,11 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .tool-btn.plants { background: #365314; }
 .tool-btn.plants:active { background: #1a2e05; }
 /* Modal/sheet common */
-.overlay { position: absolute; inset: 0 0 var(--kb, 0px) 0; background: rgba(0,0,0,0.4); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
+/* The overlays clip what they hold (overflow: clip, hidden where a browser lacks it): a screen-reader-only span
+   placed absolutely deep in a sheet otherwise counted toward the page's own scroll height, so bringing it into view
+   scrolled the page itself, and the screen went blank but for the bar at the bottom, at its top (UI review,
+   2026-11-01). src/app-height.ts puts back a page scrolled anyway. */
+.overlay { position: absolute; inset: 0 0 var(--kb, 0px) 0; overflow: hidden; overflow: clip; background: rgba(0,0,0,0.4); z-index: 20; display: flex; align-items: flex-end; justify-content: center; }
 .overlay.center { align-items: center; padding: 12px; }
 .overlay.top { align-items: flex-start; padding-top: 60px; }
 /* (On a wide screen a sheet keeps to a readable width, so what's at its right edge, Place or a readout, stays near
@@ -123,7 +127,7 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .sheet { background: #fff; width: 100%; max-height: 85vh; max-height: calc(85dvh - var(--kb, 0px)); border-radius: 16px 16px 0 0; overflow-y: auto; box-shadow: 0 -4px 16px rgba(0,0,0,0.1); }
 .modal { background: #fff; border-radius: 8px; max-width: 400px; width: 100%; box-shadow: 0 4px 16px rgba(0,0,0,0.2); max-height: 90vh; max-height: calc(90dvh - var(--kb, 0px)); display: flex; flex-direction: column; overflow: hidden; }
 /* In-app questions (src/ui/ask.ts): over everything, the tour's card included, centered, above the phone's keyboard. */
-.ask-overlay { position: fixed; inset: 0 0 var(--kb, 0px) 0; background: rgba(0,0,0,0.4); z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.ask-overlay { position: fixed; inset: 0 0 var(--kb, 0px) 0; overflow: hidden; overflow: clip; background: rgba(0,0,0,0.4); z-index: 60; display: flex; align-items: center; justify-content: center; padding: 16px; }
 .modal.ask .sheet-body { padding: 16px; }
 .ask-title { font-weight: 600; color: #292524; margin-bottom: 8px; font-size: calc(15px * var(--ts)); }
 .ask-message { display: block; font-size: calc(14px * var(--ts)); color: #44403c; margin-bottom: 14px; white-space: pre-line; line-height: 1.45; }
@@ -620,7 +624,7 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .details-form { display: block; font-size: calc(12px * var(--ts)); color: #57534e; margin-top: 1px; } /* (what its flowers or leaves look like, under their colors) */
 /* A citation longer than a line: one line, "…", opened with a tap (src/ui/plant-details.ts clipCitations). */
 .details-src.one-line, .details-src.clipped[aria-expanded="false"] { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.details-src.clipped { cursor: pointer; }
+.details-src.clipped { cursor: pointer; position: relative; }
 .details-src.clipped[data-short][aria-expanded="false"]::before { content: attr(data-short); }
 .details-src.clipped[data-short][aria-expanded="false"] .cite-full { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .details-src.clipped:focus-visible { outline: 2px solid #0f766e; outline-offset: 1px; }

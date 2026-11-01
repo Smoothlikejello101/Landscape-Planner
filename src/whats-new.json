@@ -4,14 +4,21 @@
     "date": "next",
     "items": [
       "A plant’s details now say what the law says of it in South Carolina, New York and Massachusetts too, and Michigan’s 2026 additions are in: Callery pear, Japanese barberry and two buckthorns, which Michigan restricts from 2028.",
-      "Closing Swap, Add a plant or the ZIP box opened from the plant list now takes you back where you were, instead of out to the plan.",
-      "While a sheet is open, Undo and Redo at the top are grayed out, and tapping them no longer closes the sheet with your change still in place: close it first, then Undo.",
-      "A sun exposure area no longer catches taps meant for what’s on it: a tap picks the plant, then the bed, then the sun area.",
-      "Typing a building’s sides on a phone: the second side goes toward the middle of the screen, the building stays in view, and the typed length shows by its corner with what to tap next.",
-      "Zooming, moving around the plan or tapping Fit no longer counts as a change, so Projects shows when you last changed the plan itself.",
+      "The bar at the bottom should no longer end up partly off the screen after an update (the app now measures the screen when it starts and whenever you come back to it), and a rare blank screen while reading a plant’s details is fixed.",
+      "Closing Swap, Add a plant or the ZIP box opened from the plant list now takes you back where you were, instead of out to the plan, and its ← in place of × says so.",
+      "While a sheet is open, Undo and Redo at the top are grayed out and do nothing; before, they closed the sheet with your change still in place. Close it first, then Undo.",
+      "Deleting a bed with plants in it asks whether its plants go too or stay, and deleting a project offers to save a copy first.",
+      "The plan’s name at the top now looks like the button it is (it opens your plans), with Saved under it; ⋮ also has Plans and backup….",
+      "⋮ → the version line has Check for updates: if a new version is ready, it says so, and Update now switches to it, your work saved first.",
+      "A sun exposure area no longer gets in the way of what’s on it: a plant is picked first, then the bed, then the sun area.",
+      "Typing a building’s sides on a phone: the second side goes toward the middle of the screen, the building stays in view, and the typed length shows by its corner with what to do next.",
+      "Copy as my plant starts with the name empty and no flower colors picked, for you to fill in; size, sun, type and bloom come from the catalog plant.",
+      "A new plan can start with your garden’s location: New project offers “Same garden (ZIP …)?”, already ticked.",
+      "Zooming, moving around the plan or Fit no longer counts as a change, so Projects shows when you last changed the plan itself.",
       "Files you save (backups, plan files, pictures, the PDF) are dated by your own calendar: late in the evening they no longer carry tomorrow’s date.",
-      "In the printable plan and the picture, bed names are no longer hidden under plants or printed over another name.",
-      "Smaller fixes: “Which tree?” starts with no filters; a plant you swap in shows first under Recent; the plant list’s title and count agree; a plant copied from the catalog isn’t flagged as “now in the catalog”; several plants selected are named as plants; the dashed ring around a plant is explained as its full size; the new-version message sits under the top bar instead of over the plan’s buttons; an old message clears when you start drawing; a bed’s bloom chart no longer runs its numbers together; and on a computer the ZIP box opens with the cursor in it."
+      "Printing and pictures: bed names are no longer hidden under plants or printed over another name, and a picture of the plan has Download and, where your device can, Share….",
+      "On a computer, point at Undo or Redo to see what it would do: “Undo: delete Front bed”.",
+      "Smaller fixes: “Which tree?” starts with no filters; a plant you swap in shows first under Recent; the plant list’s title and count agree; a plant copied from the catalog isn’t flagged as “now in the catalog”; several plants selected are named as plants; the dashed ring around a plant is explained as its full size; the new-version message sits under the top bar instead of over the plan’s buttons; an old message clears when you start drawing; a bed’s bloom chart no longer runs its numbers together; back on a plan after another, Redo no longer offers a change undone before you left; and on a computer the ZIP box opens with the cursor in it."
     ]
   },
   {
@@ -25,7 +32,7 @@
       "Layers counts every locked shape, locked on its own or with its layer, and a layer’s row says “1 locked shape” when a shape is locked on its own.",
       "A vine on a fence or trellis: hiding that layer hides the vine’s band along it too; its planting spot and name stay.",
       "The pins marking plants hidden under bigger ones shrink as you zoom out, and go away when you’re zoomed far out (below 30%) or the plant is only a speck; zoom in and they’re back.",
-"A plant’s details now say what the law says of it in twelve more states, Virginia, Pennsylvania, Ohio, Illinois, North Carolina, Georgia, Indiana, Kentucky, Michigan, New Jersey, Alabama and West Virginia, read from each state’s own legal text. A plant your state bans is left out while you browse, as before.",
+      "A plant’s details now say what the law says of it in twelve more states, Virginia, Pennsylvania, Ohio, Illinois, North Carolina, Georgia, Indiana, Kentucky, Michigan, New Jersey, Alabama and West Virginia, read from each state’s own legal text. A plant your state bans is left out while you browse, as before.",
       "A plant of your own: choose its flower colors as chips in its form, kept even without bloom months; its flowers are drawn in the first one chosen.",
       "The plant picker’s filters have a Mature width slider beside Mature height: “up to 3 ft” finds plants that fit a narrow spot, with those that typically fit but can grow wider listed below them."
     ]
