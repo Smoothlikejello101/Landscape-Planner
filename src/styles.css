@@ -414,7 +414,7 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .animal-name { font-size: calc(13px * var(--ts)); font-weight: 600; color: #44403c; margin: 2px 0; }
 .animal-rows .check-row { min-height: 40px; }
 .list-heading { font-size: calc(11px * var(--ts)); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #78716c; padding: 10px 0 4px; }
-.add-own { width: 100%; margin: 8px 0; }
+.add-own { padding: 2px 0 8px; }
 .hint.error { color: #b91c1c; }
 .hint.locked-hint { color: #92400e; font-weight: 600; margin-bottom: 6px; }
 .label-error { color: #b91c1c; font-weight: 600; }
@@ -551,6 +551,30 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .method-seg button { flex: 1 1 0; min-width: 0; padding: 4px 2px; }
 .overlay.center > .sheet { max-width: 520px; border-radius: 16px; }
 
+/* The first screen (src/ui/render.ts, Jason, Nov 1, from the UI review): what FullGrown does, the garden's ZIP, the
+   tour, a photo, a backup. On a phone its first lines are narrow enough to sit beside the zoom buttons' column, and
+   above Medium text the photo's note, the "or" and the grid's note give way (at Extra large, "Tap a button below"
+   too, over the bar it means), so it all fits a 360 × 640 screen. */
+.empty-hint > * { flex-shrink: 0; }
+.first-line { max-width: 30em; margin-bottom: 8px; font-size: calc(14px * var(--ts)); font-weight: 600; line-height: 1.35; color: #44403c; }
+.first-zip { margin-bottom: 12px; }
+.first-zip-row { pointer-events: auto; display: flex; gap: 8px; justify-content: center; margin: 0 auto; }
+.first-zip-row input { width: 5.6em; padding: 4px; border: 1px solid #a8a29e; border-radius: 6px; background: #fff; text-align: center; color: #292524; }
+.first-zip-row input:focus { outline: none; border-color: #059669; box-shadow: 0 0 0 2px rgba(5, 150, 105, 0.2); }
+.first-zip-row .btn { padding: 4px 12px; white-space: nowrap; }
+.first-zip-note { max-width: 24em; margin: 4px auto 0; font-size: calc(12px * var(--ts)); line-height: 1.4; }
+@media (max-width: 599px) {
+  .empty-hint { padding: 12px 16px; justify-content: safe center; line-height: 1.45; }
+  .empty-hint .first-line, .empty-hint .first-zip-row { max-width: 240px; }
+}
+html[data-text="large"] .empty-hint .empty-sub, html[data-text="xlarge"] .empty-hint .empty-sub,
+html[data-text="large"] .empty-hint .empty-or, html[data-text="xlarge"] .empty-hint .empty-or,
+html[data-text="large"] .empty-hint .empty-grid, html[data-text="xlarge"] .empty-hint .empty-grid,
+html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
+.first-zip .status { pointer-events: auto; margin-top: 6px; text-align: left; }
+.empty-hint .first-zone { pointer-events: auto; margin: -8px 0 6px; font-size: calc(13px * var(--ts)); }
+.first-restore { margin-top: 4px; line-height: 1.3; }
+.first-restore .link-btn { pointer-events: auto; font-size: inherit; padding: 4px; min-height: var(--tap); }
 .empty-photo-btn { pointer-events: auto; display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px; min-height: 48px; border-radius: 999px; background: #0f766e; color: #fff; font-size: calc(15px * var(--ts)); font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
 .empty-photo-btn .icon { stroke: #fff; }
 .empty-sub { margin-top: 6px; font-size: calc(12px * var(--ts)); }
@@ -699,7 +723,7 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
    do, 16 px in, 14 px wide, centered at 23 px, so it catches the eye down the list (Jason, 2026-10-26).) */
 .plant-item:has(+ .cultivars) { border-bottom: 0; }
 .cultivars { border-bottom: 1px solid #f5f5f4; }
-.cultivar-fold { display: flex; align-items: center; gap: 6px; width: 100%; min-height: var(--tap); padding: 0 8px 0 calc(23px - 8px * var(--ts)); background: none; border: 0; text-align: left; font: inherit; font-size: calc(13px * var(--ts)); font-weight: 600; color: #047857; cursor: pointer; }
+.cultivar-fold { display: flex; align-items: center; gap: 6px; width: 100%; min-height: var(--tap); padding: 0 8px 0 calc(26px - 8px * var(--ts)); background: none; border: 0; text-align: left; font: inherit; font-size: calc(13px * var(--ts)); font-weight: 600; color: #047857; cursor: pointer; }
 .cultivar-fold:focus-visible { outline: 2px solid #059669; outline-offset: -2px; border-radius: 4px; }
 .cultivar-fold .fold-chev { display: flex; transition: transform 0.15s; }
 .cultivar-fold[aria-expanded=false] .fold-chev { transform: rotate(-90deg); }
@@ -719,6 +743,10 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .list-divider { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 10px 0 2px; padding: 8px 0 4px; border-top: 1px solid #e7e5e4; font-size: calc(12px * var(--ts)); font-weight: 600; color: #57534e; }
 .list-divider .link-btn { flex: none; font-size: calc(12px * var(--ts)); }
 .list-divider.earlier { color: #78716c; font-weight: 500; }
+.season-fold { width: 100%; justify-content: flex-start; align-items: center; gap: 6px; min-height: var(--tap); border-width: 1px 0 0; border-style: solid; border-color: #e7e5e4; background: none; text-align: left; font: inherit; font-size: calc(12px * var(--ts)); font-weight: 600; color: #57534e; cursor: pointer; }
+.season-fold .fold-chev { display: flex; transition: transform 0.15s; }
+.season-fold[aria-expanded=false] .fold-chev { transform: rotate(-90deg); }
+.season-fold + .list-note { padding: 0 0 6px; }
 .list-note { padding: 6px 0; }
 .details-law, .plaw { color: #b91c1c; font-weight: 600; }
 /* (A listing with lighter duties than a ban: amber, the same weight.) */
@@ -731,6 +759,13 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .details-law .details-src a { color: inherit; }
 .details-notes { margin-top: 8px; white-space: pre-wrap; }
 .plant-item .row-toggle { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; background: none; border: 0; padding: 0; margin: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+/* A row's spot: a small flower in a circle of the plant's leaf color (src/plant-looks.ts plantSpot). Drawn first, read
+   after the name; as wide, with its space, as the dot it replaced. */
+.plant-item .row-spot { order: -1; flex: none; display: flex; width: 20px; height: 20px; margin-right: 4px; }
+/* (A cultivar fold's arrow sits under the spot's middle, 3 px right of where the dot's was: .cultivar-fold's padding.) */
+.row-bloom { white-space: nowrap; }
+.row-bloom-icon { display: inline-block; width: 1em; height: 1em; margin-right: 2px; vertical-align: -0.15em; }
+.row-bloom-icon svg { display: block; }
 .plant-item .row-toggle:focus-visible { outline: 2px solid #059669; outline-offset: 2px; border-radius: 4px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .details-unknown { color: #6b6560; font-style: italic; }
@@ -880,7 +915,7 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .intro-chip { min-height: var(--tap); padding: 6px 16px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; color: #44403c; font-size: calc(14px * var(--ts)); font-weight: 500; }
 .intro-chip.on { background: #ccfbf1; border-color: #0f766e; color: #115e59; font-weight: 600; }
 .intro-note { margin-bottom: 8px; font-size: calc(12px * var(--ts)); color: #78716c; }
-.empty-intro { pointer-events: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-bottom: 18px; }
+.empty-intro { pointer-events: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; margin-bottom: 12px; }
 .empty-intro .btn { padding: 10px 18px; }
 .intro-pulse { animation: intro-pulse 1.6s ease-in-out infinite; }
 @keyframes intro-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(4, 120, 87, 0.6); } 50% { box-shadow: 0 0 0 7px rgba(4, 120, 87, 0); } }

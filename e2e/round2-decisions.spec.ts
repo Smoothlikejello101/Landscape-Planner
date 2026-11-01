@@ -193,7 +193,9 @@ test('a plant\'s dot in the picker is its flowers\' color; a placed one can be d
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Butterfly milkweed');
   const row = page.locator('.plant-item', { hasText: 'Butterfly milkweed' }).first();
-  await expect(row.getByTestId('row-dot')).toHaveCSS('background-color', 'rgb(240, 138, 36)'); // (orange: most of its sources)
+  // (Orange, most of its sources' color: a flower in a circle of its leaves' color since the UI review, Nov 1.)
+  await expect(row.getByTestId('row-dot').getByTestId('spot-flower')).toHaveAttribute('fill', '#f08a24');
+  await expect(row.getByTestId('row-dot')).toHaveAttribute('aria-label', 'orange flowers, green leaves');
   await closeSheet(page);
   await placeOne(page, 'Butterfly milkweed');
   const look = page.locator('#canvas-svg [data-role=plant-look]');

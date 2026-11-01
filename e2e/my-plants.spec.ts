@@ -10,7 +10,7 @@ test('add a plant from its tag, place it, and switch to full size', async ({ pag
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Limelight');
   const add = page.getByTestId('add-own-plant');
-  await expect(add).toHaveText('+ Add “Limelight” as my plant');
+  await expect(add).toHaveText('Add “Limelight” as my plant');
   await add.click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Add a plant');
   await expect(page.getByTestId('pf-name')).toHaveValue('Limelight');
@@ -207,12 +207,12 @@ test('a plant copied from the catalog isn\'t offered as "now in the catalog" as 
 test('closing Add a plant or a copy with its × goes back to the picker, the search as it was (the UI review; Owen)', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
-  await page.getByTestId('plant-search').fill('shade flowers');
+  await page.getByTestId('plant-search').fill('Aunt Lou’s keeper'); // (no plant's name, nor words of need)
   await page.getByTestId('add-own-plant').click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Add a plant');
   await page.locator('.sheet-header').getByRole('button', { name: 'Back to the plant list' }).click();
   await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker');
-  await expect(page.getByTestId('plant-search')).toHaveValue('shade flowers');
+  await expect(page.getByTestId('plant-search')).toHaveValue('Aunt Lou’s keeper');
   await expect(page.getByTestId('add-own-plant')).toBeVisible();
   // A copy of a catalog plant, likewise.
   await page.getByTestId('plant-search').fill('Buttonbush');
