@@ -27,6 +27,8 @@ export function describeShapes(shapes: Shape[]): string {
 /** "11 plants", "10 plants and 1 tree": a count said in a sentence. */
 const named = (shapes: Shape[]) => describeShapes(shapes).replace(/, ([^,]*)$/, ' and $1');
 const stay = (shapes: Shape[]) => (shapes.length === 1 ? 'stays' : 'stay');
+/** "2 locked plants and 1 locked tree": a count with a word before each kind. */
+const namedAs = (shapes: Shape[], word: string) => named(shapes).replace(/(\d+) /g, `$1 ${word} `);
 /**
  * The plants in these beds a delete would leave on the lawn: in one of them (src/beds.ts), not gone (a bed's count
  * leaves those out), not locked (a lock keeps a shape through any delete), and not already among `chosen`.
@@ -50,7 +52,7 @@ function outOfView(shapes: Shape[]): Shape[] {
 export async function deleteSelectedAsking(): Promise<void> {
   const selected = getSelected();
   if (!selected.length) return;
-  if (selected.length === 1 && isBed(selected[0]) && plantsLeftIn(selected, selected).length) {
+  if (selected.length === 1 && isBed(selected[0]) && plantsOf(selected[0]).length) {
     await deleteBedAsking(selected[0]);
     return;
   }
@@ -100,27 +102,38 @@ export async function deleteSelectedAsking(): Promise<void> {
   undoNotice(`Deleted ${describeShapes(gone)}` + (left.length && !alsoLeft ? `; the other ${named(left)} in ${inBeds} ${stay(left)}` : '') +
     (kept ? `; ${kept} locked ${kept === 1 ? 'shape' : 'shapes'} kept` : ''));
 }
+/** The plants in a bed (src/beds.ts), locked or not, leaving out those marked gone (a bed's count leaves them out). */
+const plantsOf = (bed: Shape): Shape[] => plantsInBed(bed, state.shapes).filter((p) => p.status !== 'gone');
 /**
  * A bed with plants in it, on its own: the bed only, or its plants too (the UI review, 2026-11-01: "Its 11 plants are
- * left on the lawn, with no question asked"). Either way, one step that Undo brings back. Locked plants stay, as a
- * lock keeps a shape through any delete; a locked bed says so, in place of asking about the lock on its own.
+ * left on the lawn, with no question asked"). Either way, one step that Undo brings back. With locked plants in it,
+ * three answers: the bed and everything in it, the bed and its unlocked plants, or the bed only (Jason, Nov 1: a bed
+ * can be deleted though it's locked, so its locked plants can go with it too, but taking only the unlocked ones is
+ * worth keeping). A locked bed says so, in place of asking about the lock on its own.
  */
 async function deleteBedAsking(bed: Shape): Promise<void> {
-  const plants = plantsLeftIn([bed], [bed]);
-  const held = plantsInBed(bed, state.shapes).filter((p) => p.status !== 'gone' && isLocked(p)).length;
-  const what = named(plants);
-  const msg = `${bed.label ? `“${bed.label}”` : 'This bed'} ${isLocked(bed) ? 'is locked, and has' : 'has'} ${what} in it` +
-    (held ? ` (and ${held} locked, which ${held === 1 ? 'stays' : 'stay'})` : '') + '.';
-  const choice = await askChoice<'bed' | 'all'>(msg, [
-    { label: `Delete the bed only (its ${what} ${stay(plants)})`, value: 'bed', danger: true, testid: 'ask-bed-only' },
-    { label: `Delete the bed and its ${what}`, value: 'all', danger: true },
-  ], { danger: true, testid: 'ask-delete-bed' });
+  const all = plantsOf(bed);
+  const locked = all.filter(isLocked), free = all.filter((p) => !isLocked(p));
+  const what = named(all);
+  const which = !locked.length ? '' : locked.length === all.length ? (all.length === 1 ? ', locked' : ', all locked') : `, ${locked.length} of them locked`;
+  const msg = `${bed.label ? `“${bed.label}”` : 'This bed'} ${isLocked(bed) ? 'is locked, and has' : 'has'} ${what} in it${which}.`;
+  type Choice = 'bed' | 'free' | 'all';
+  const choices: { label: string; value: Choice; danger: boolean; testid?: string }[] = [
+    { label: `Delete the bed only (its ${what} ${stay(all)})`, value: 'bed', danger: true, testid: 'ask-bed-only' },
+  ];
+  if (locked.length && free.length) {
+    choices.push({ label: `Delete the bed and its ${namedAs(free, 'unlocked')} (the ${namedAs(locked, 'locked')} ${stay(locked)})`, value: 'free', danger: true, testid: 'ask-bed-unlocked' });
+  }
+  choices.push({ label: !locked.length ? `Delete the bed and its ${what}` : !free.length ? `Delete the bed and its ${namedAs(locked, 'locked')}` : `Delete the bed and all ${what}, the ${namedAs(locked, 'locked')} too`, value: 'all', danger: true });
+  const choice = await askChoice<Choice>(msg, choices, { danger: true, testid: 'ask-delete-bed' });
   if (!choice || !state.shapes.some((s) => s.id === bed.id)) return; // (Cancel, or gone meanwhile)
-  const ids = choice === 'all' ? [bed.id, ...plants.map((p) => p.id)] : [bed.id];
-  deleteShapesByIds(ids.filter((id) => state.shapes.some((s) => s.id === id)));
+  const going = choice === 'all' ? all : choice === 'free' ? free : [];
+  deleteShapesByIds([bed.id, ...going.map((p) => p.id)].filter((id) => state.shapes.some((s) => s.id === id)));
   state.panel = null;
   const name = bed.label || 'the bed';
-  undoNotice(choice === 'all' ? `Deleted ${name} and its ${what}` : `Deleted ${name}; its ${what} ${stay(plants)}`);
+  undoNotice(choice === 'all' ? `Deleted ${name} and its ${what}`
+    : choice === 'free' ? `Deleted ${name} and its ${namedAs(free, 'unlocked')}; the ${namedAs(locked, 'locked')} ${stay(locked)}`
+    : `Deleted ${name}; its ${what} ${stay(all)}`);
   render();
 }
 /**

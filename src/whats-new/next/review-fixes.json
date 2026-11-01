@@ -1,7 +1,7 @@
 [
   "Closing Swap, Add a plant or the ZIP box opened from the plant list now takes you back where you were, instead of out to the plan, and its ← in place of × says so.",
   "While a sheet is open, Undo and Redo at the top are grayed out and do nothing; before, they closed the sheet with your change still in place. Close it first, then Undo.",
-  "Deleting a bed with plants in it asks whether its plants go too or stay, and deleting a project offers to save a copy first.",
+  "Deleting a bed with plants in it asks whether its plants go too or stay (with locked plants in it: all of them, only the unlocked ones, or none), and deleting a project offers to save a copy first.",
   "The plan’s name at the top now looks like the button it is (it opens your plans), with Saved under it; ⋮ also has Plans and backup….",
   "⋮ → the version line has Check for updates: if a new version is ready, it says so, and Update now switches to it, your work saved first.",
   "A sun exposure area no longer gets in the way of what’s on it: a plant is picked first, then the bed, then the sun area.",
