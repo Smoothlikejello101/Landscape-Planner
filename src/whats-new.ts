@@ -2,25 +2,26 @@
 // beta invites go out, testers should be able to see what changed in a new version). After an update, a notice says
 // so once and opens the list; ⋮ → What's new opens it any time (src/ui/whats-new-panel.ts).
 //
-// The releases are in src/whats-new.json. A change people will notice adds a line there, in the pull request that
-// makes it, to the release not yet out: the top one, dated "next" (the next id, dated "next", if the top one has
-// shipped). Its date is written in once it's out (docs/releasing.md). Say what they'll see, not how it was built; no
-// "tap" or "click" (a phone and a computer both read it).
+// The releases are in src/whats-new.json. A change people will notice adds its lines in the pull request that makes
+// it, as a file of its own, src/whats-new/next/<branch>.json (a JSON list of lines: src/whats-new-pending.ts); they
+// join the release not yet out (the top one, dated "next", or a new one). Right after a release, they’re moved into
+// src/whats-new.json with its date (docs/releasing.md). Say what they'll see, not how it was built; no "tap" or
+// "click" (a phone and a computer both read it).
 
-import releases from './whats-new.json';
+import dated from './whats-new.json';
+import { withPending, type Release } from './whats-new-pending';
 import { CHANNEL, type Channel } from './channel';
 
-export interface Release {
-  /** One more than the release below it: what this device has seen is kept by it. */
-  id: number;
-  /** The day it shipped, YYYY-MM-DD; "next" for the one not yet out (a release build shows its build day). */
-  date: string;
-  /** What's new, a line each. */
-  items: string[];
-}
+export type { Release };
 
-/** Newest first (src/whats-new.json: data, so CI can compare it with the release branch's: scripts/whats-new-check.mjs). */
-export const RELEASES: Release[] = releases;
+/** The lines waiting for the release not yet out, a file a pull request (none: the folder holds only its README). */
+const waiting = import.meta.glob<string[]>('./whats-new/next/*.json', { eager: true, import: 'default' });
+
+/**
+ * Newest first: src/whats-new.json's releases, with the waiting lines (data, so CI can compare them with the release
+ * branch's: scripts/release/whats-new-check.mjs).
+ */
+export const RELEASES: Release[] = withPending(dated, Object.entries(waiting).map(([path, lines]) => [path.slice(path.lastIndexOf('/') + 1), lines]));
 
 const KEY = 'lp-whats-new';
 

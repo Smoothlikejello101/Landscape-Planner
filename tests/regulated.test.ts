@@ -275,6 +275,9 @@ describe('matching the lists to catalog plants', () => {
     expect(j('SC').classes.pest).toMatch(/^Plant pest in South Carolina: by its agency's reading \(Clemson University's Department of Plant Industry/);
     expect(j('NY').classes.prohibitedBarberry).toMatch(/Crimson Cutie/);
     expect(j('MA').classes.phaseout2026).toMatch(/^Prohibited plant in Massachusetts after December 31, 2026: /);
+    // (From the list page Jason saved, 2026-11-01: what the list forbids, and Callery pear's phase-out dates.)
+    expect(j('MA').classes.prohibited).toContain('"sale, import, trade, purchase, distribution, propagation, and related activities are currently prohibited" in the state, its cultivars, varieties and hybrids included');
+    expect(j('MA').classes.phaseoutPear).toMatch(/^Prohibited plant in Massachusetts after December 31, 2028: since September 19, 2024 .*"with limited exceptions in orchards"/);
   });
 });
 

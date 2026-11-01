@@ -22,22 +22,27 @@ Next (`src/channel.ts`, `APP_CHANNEL=next`) is the same app with:
 
 ## Day to day
 
-1. Each change is built on its own branch, `npm run check` passes, and a pull request into `main` is opened, as
-   before. A change people will notice adds its What's new lines in that pull request (below).
+1. Each change is built on its own branch, `npm run check` passes, and a pull request into `main` is opened. A change
+   people will notice adds its What's new lines in that pull request (below). Later pushes to it, such as a merge of
+   main or a small fix, may rely on CI, which runs every test on the pull request as it would merge into main; a pull
+   request is ready to merge once CI passes.
 2. Jason merges pull requests whenever he likes. Merging updates Next only.
 3. Jason tries Next when he has a few minutes: it's installed on his phone beside the real app.
 
 ## A release
 
 When Jason says "release":
-1. I check the release not yet out in `src/whats-new.json` (the top one, dated `"next"`) covers every change people
-   will notice since the last release, and open a pull request from `main` into `release`, titled
-   "Release N: <what's in it>", listing its What's new lines and the pull requests it carries.
+1. I check the release not yet out (the top one in `src/whats-new.json` dated `"next"`, with the lines waiting in
+   `src/whats-new/next/`) covers every change people will notice since the last release, and open a pull request from
+   `main` into `release`, titled "Release N: <what's in it>", listing its What's new lines and the pull requests it
+   carries. If the lines want putting in order first (the most noticeable first), a pull request runs
+   `node scripts/release/whats-new-fold.mjs` (no date), which moves them into `src/whats-new.json`, still `"next"`.
 2. Jason merges it. CI tests it and deploys app.fullgrown.garden. Testers get one "A new version of the app is ready"
    banner, then, once they update, one What's new notice.
-3. Right after it merges, I open a small pull request into main that writes in the day release N went out in place
-   of `"next"`, so Next stops calling those changes "Not released yet". CI on any other pull request fails until
-   that's done (`scripts/release/whats-new-check.mjs`).
+3. Right after it merges, I open a small pull request into main that runs
+   `node scripts/release/whats-new-fold.mjs <the day release N went out>`: the waiting lines move into
+   `src/whats-new.json` and its date replaces `"next"`, so Next stops calling those changes "Not released yet". CI on
+   any other pull request fails until that's done (`scripts/release/whats-new-check.mjs`).
 
 A release every day or two is plenty in the beta. If changes wait on Next more than a few days, I say what's ready.
 I don't release on my own, and never push to `release` directly.
@@ -48,10 +53,15 @@ back into main by a pull request from `release`.
 
 ## What's new
 
-`src/whats-new.json`, newest first, each release an `id` (counting up), a `date`, and its lines. The rules, checked by CI
-against the release branch's copy:
-- A new line goes in the release not yet out: the top one, dated `"next"`. If the top one is out, start the next id,
-  dated `"next"`. A release that's out never gets new lines: devices that saw it would never be shown them.
+`src/whats-new.json`, newest first, each release an `id` (counting up), a `date`, and its lines; and the lines waiting
+for the release not yet out, a file a pull request in `src/whats-new/next/` (named like the branch,
+`pins-sooner.json`, a JSON list of lines). The app adds the waiting lines to the top release if it's dated `"next"`,
+after its own, else to a new one dated `"next"` (`src/whats-new-pending.ts`). A file a pull request means pull requests
+open side by side never change the same lines, so merging main into one doesn't stop on What's new. The rules,
+checked by CI against the release branch's copy (its waiting lines included):
+- A pull request's new lines go in a file of its own in `src/whats-new/next/`. A release that's out never gets new
+  lines: devices that saw it would never be shown them. Right after a release, until its date is written in, new
+  lines would join it, so CI refuses them until then.
 - Only the top release may be dated `"next"`. In Next it shows as "Not released yet"; a release build shows its
   build day until the real date is written in.
 - Lines say what people will see, in plain words, with no "tap" or "click".
