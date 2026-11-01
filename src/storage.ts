@@ -640,7 +640,9 @@ export async function switchProject(id: string): Promise<boolean> {
   cancelHistoryDebounce();
   // This plan's undo steps, kept while the app is open: back to it, they're back (Sam, Oct 30: Clear all, another
   // plan, and back, and the shapes couldn't be had again), unless it has changed since (sync): then they'd undo that.
-  if (state.currentProjectId) undoKept.set(state.currentProjectId, { history: state.history, index: state.historyIndex, token: changeToken(state.currentProjectId) });
+  // Only the steps to undo are kept, not the ones undone: back on the plan, no Redo for a change made before leaving
+  // it (the UI review, 2026-11-01; Jason: "Agree on not showing it after a switch").
+  if (state.currentProjectId) undoKept.set(state.currentProjectId, { history: state.history.slice(0, state.historyIndex + 1), index: state.historyIndex, token: changeToken(state.currentProjectId) });
   const kept = undoKept.get(id);
   undoKept.delete(id);
   const prev = state.currentProjectId;

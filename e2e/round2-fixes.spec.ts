@@ -73,6 +73,32 @@ test('switching plans and back keeps the undo steps (Sam: Clear all, another pla
   await expect.poll(() => shapeCount(page)).toBe(0);
 });
 
+test('switching plans and back keeps the steps to undo, but not one undone: no Redo there (the UI review, 2026-11-01)', async ({ page }) => {
+  await openFresh(page);
+  await oneRect(page, -4);
+  await oneRect(page, 4);
+  await page.keyboard.press('Escape');
+  await page.locator('button[title=Undo]').click();
+  await expect.poll(() => shapeCount(page)).toBe(1);
+  await expect(page.getByTestId('float-redo')).toBeVisible();
+  await page.locator('.project-btn').click();
+  await page.getByRole('button', { name: /New project/ }).click();
+  await answerAsk(page, true, 'Second');
+  await expect(page.locator('.project-btn .pname')).toHaveText('Second');
+  await page.locator('.project-btn').click();
+  await page.locator('.proj-row', { hasText: 'My Garden' }).first().click();
+  await expect(page.locator('.project-btn .pname')).toHaveText('My Garden');
+  await expect.poll(() => shapeCount(page)).toBe(1);
+  await expect(page.getByTestId('float-redo')).toHaveCount(0);
+  await page.keyboard.press('Control+y');
+  await page.keyboard.press('Control+Shift+z');
+  expect(await shapeCount(page)).toBe(1);
+  // The step before it is still there to undo.
+  await expect(page.locator('button[title=Undo]')).toBeEnabled();
+  await page.locator('button[title=Undo]').click();
+  await expect.poll(() => shapeCount(page)).toBe(0);
+});
+
 test('"In this plan" lists every plant in the plan, saying which the filters would hide (Ruth, Dana)', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
