@@ -288,11 +288,16 @@ function whoChips(): HTMLElement {
   return el('div', {}, row, note);
 }
 
+/**
+ * Whether the ZIP sheet's field holds a whole ZIP. Till it does, the field pulses, then Look up (the UI review,
+ * 2026-11-01: Look up pulsing over an empty field read as the focus being there).
+ */
+const zipTyped = () => /^\d{5}$/.test(document.querySelector<HTMLInputElement>('[data-testid=zip]')?.value ?? '');
 /** What to pulse, for the step and what's open now. */
 function pulseTarget(step: StepId): string | null {
   const p = state.panel;
   switch (step) {
-    case 'zip': return p === 'location' ? '[data-testid=zip-lookup]' : null;
+    case 'zip': return p === 'location' ? (zipTyped() ? '[data-testid=zip-lookup]' : '[data-testid=zip]') : null;
     case 'photo': return p === 'bg' && !state.bgImage ? '[data-testid=bg-choose]' : null;
     case 'turn': return p === 'bg' ? '[data-testid=bg-edit]' : null;
     case 'house': return p === 'add' ? '.kind-chip[data-kind=building]' : null;
@@ -334,6 +339,11 @@ function drawIntro(root: HTMLElement): void {
   const sel = step && !choosing ? pulseTarget(step) : null;
   const target = sel ? root.querySelector<HTMLElement>(sel) : null;
   target?.classList.add('intro-pulse');
+  // (The ZIP typed: the pulse moves on to Look up there and then, without a redraw, which typing never makes.)
+  if (target?.dataset.testid === 'zip') target.addEventListener('input', () => {
+    target.classList.toggle('intro-pulse', !zipTyped());
+    root.querySelector('[data-testid=zip-lookup]')?.classList.toggle('intro-pulse', zipTyped());
+  });
 }
 
 /**

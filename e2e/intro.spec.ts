@@ -22,9 +22,14 @@ async function start(page: Page) {
 /** Step 1: the ZIP, through the card's own button. */
 async function zip(page: Page) {
   await page.getByTestId('intro-go').click();
-  await expect(page.getByTestId('zip-lookup')).toHaveClass(/intro-pulse/);
+  // The field pulses till a ZIP is in it, then Look up (the UI review: Look up pulsing over an empty field read as
+  // the focus being there).
+  await expect(page.getByTestId('zip')).toHaveClass(/intro-pulse/);
+  await expect(page.getByTestId('zip-lookup')).not.toHaveClass(/intro-pulse/);
   await expect(card(page)).toHaveClass(/at-top/); // (clear of the sheet)
   await page.getByTestId('zip').fill('71923');
+  await expect(page.getByTestId('zip-lookup')).toHaveClass(/intro-pulse/);
+  await expect(page.getByTestId('zip')).not.toHaveClass(/intro-pulse/);
   await page.getByTestId('zip-lookup').click();
   // (The zone stays to be read: step 2 waits for the sheet to close (testers, Oct 30).)
   // (Closed with its ×: on a phone the sheet hides all but a sliver of the plan (round 3).)

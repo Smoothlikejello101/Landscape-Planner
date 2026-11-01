@@ -123,6 +123,29 @@ test('closing the ZIP sheet opened from the picker goes back to the picker as it
   await expect(page.getByTestId('hardy-here')).not.toBeChecked();
 });
 
+test('the ZIP sheet opens with the cursor in its field, with a keyboard; on a phone, no keyboard comes up unasked (the UI review)', async ({ page }, info) => {
+  await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TABLE) }));
+  await openFresh(page);
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Garden location' }).click();
+  const zip = page.getByTestId('zip');
+  await expect(zip).toBeVisible();
+  if (info.project.name === 'phone') {
+    await expect(zip).not.toBeFocused(); // (a tap on it brings the keyboard)
+    return;
+  }
+  await expect(zip).toBeFocused();
+  await page.keyboard.type('71923');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('location-result')).toContainText('Zone 8a');
+  await page.locator('.sheet-header .iconbtn[aria-label=Close]').click();
+  // Opened again, with its ZIP set (to read the frost dates, likely): not put in the field.
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Garden location' }).click();
+  await expect(page.getByTestId('location-result')).toBeVisible();
+  await expect(zip).not.toBeFocused();
+});
+
 test('the ZIP from the picker: its sheet shows the zone, and closing it goes back to the picker, hardy plants only (the UI review)', async ({ page }) => {
   await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TABLE) }));
   await openFresh(page);

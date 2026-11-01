@@ -105,6 +105,7 @@ export function render() {
   // (Typing in the picker's search when the whole app redraws: the cursor goes back where it was.)
   const typing = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.testid === 'plant-search'
     ? document.activeElement.selectionStart : null;
+  const inZip = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.testid === 'zip';
   // (A change made in an open sheet, a door's ⇄ say, redraws it: it stays where it was scrolled to, not back at the
   // top. Jason, 2026-10-28. A different sheet, or the same one for something else, opens at the top.)
   const scrolled = state.panel && state.panel === shownPanel && state.selectedIds.join() === shownSelection
@@ -521,6 +522,14 @@ export function render() {
   if (state.panel === 'plants' && ((shownPanel !== 'plants' && hasKeyboard()) || typing != null)) {
     const search = root.querySelector<HTMLInputElement>('[data-testid=plant-search]');
     if (search) { search.focus(); if (typing != null) search.setSelectionRange(typing, typing); }
+  }
+  // The garden's location just opened with no ZIP yet, with a keyboard: the cursor in the ZIP field, to type it, and
+  // kept there through the sheet's redraws (the tour's, "Looking up…"). Not with a pop-up keyboard, which would come up
+  // over the sheet unasked for: a tap on the field brings it. (The UI review, 2026-11-01, and round 3's Alex and Tom:
+  // focus went to the sheet's ×, or nowhere, and typing was lost.)
+  if (state.panel === 'location' && hasKeyboard() && ((shownPanel !== 'location' && !state.location) || inZip)) {
+    const zip = root.querySelector<HTMLInputElement>('[data-testid=zip]');
+    if (zip) { zip.focus(); zip.setSelectionRange(zip.value.length, zip.value.length); }
   }
   // (The picker closed: its plants' detail groups fold again, Jason, 2026-10-29.)
   if (shownPanel === 'plants' && state.panel !== 'plants') { foldDetailGroups(); partnersClosed(); }
