@@ -414,7 +414,7 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .animal-name { font-size: calc(13px * var(--ts)); font-weight: 600; color: #44403c; margin: 2px 0; }
 .animal-rows .check-row { min-height: 40px; }
 .list-heading { font-size: calc(11px * var(--ts)); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #78716c; padding: 10px 0 4px; }
-.add-own { width: 100%; margin: 8px 0; }
+.add-own { padding: 2px 0 8px; }
 .hint.error { color: #b91c1c; }
 .hint.locked-hint { color: #92400e; font-weight: 600; margin-bottom: 6px; }
 .label-error { color: #b91c1c; font-weight: 600; }
@@ -698,6 +698,10 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .list-divider { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 10px 0 2px; padding: 8px 0 4px; border-top: 1px solid #e7e5e4; font-size: calc(12px * var(--ts)); font-weight: 600; color: #57534e; }
 .list-divider .link-btn { flex: none; font-size: calc(12px * var(--ts)); }
 .list-divider.earlier { color: #78716c; font-weight: 500; }
+.season-fold { width: 100%; justify-content: flex-start; align-items: center; gap: 6px; min-height: var(--tap); border-width: 1px 0 0; border-style: solid; border-color: #e7e5e4; background: none; text-align: left; font: inherit; font-size: calc(12px * var(--ts)); font-weight: 600; color: #57534e; cursor: pointer; }
+.season-fold .fold-chev { display: flex; transition: transform 0.15s; }
+.season-fold[aria-expanded=false] .fold-chev { transform: rotate(-90deg); }
+.season-fold + .list-note { padding: 0 0 6px; }
 .list-note { padding: 6px 0; }
 .details-law, .plaw { color: #b91c1c; font-weight: 600; }
 /* (A listing with lighter duties than a ban: amber, the same weight.) */

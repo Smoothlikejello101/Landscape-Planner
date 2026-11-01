@@ -354,6 +354,7 @@ test('animal toxicity: dogs three ways, and a warning given for one record of a 
   await page.getByTestId('plant-search').fill('Butterfly milkweed');
   const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly milkweed$/ }) });
   await expect(item).toHaveCount(0);
+  await openFilters(page); // (typing a search folds them: Jason, Nov 1)
   await page.getByTestId('dogs-any').check();
   await expect(item).toHaveCount(1);
   await item.getByRole('button', { name: /Butterfly milkweed/ }).first().click();
@@ -364,6 +365,7 @@ test('animal toxicity: dogs three ways, and a warning given for one record of a 
   await page.getByTestId('plant-search').fill('Yaupon');
   const yaupon = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Yaupon$/ }) });
   await expect(yaupon).toHaveCount(0);
+  await openFilters(page);
   await page.getByTestId('dogs-any').check();
   await expect(yaupon).toHaveCount(1);
   await yaupon.getByRole('button', { name: /Yaupon/ }).first().click();
@@ -374,12 +376,15 @@ test('animal toxicity: dogs three ways, and a warning given for one record of a 
   await unrated.getByRole('button', { name: /Acapulco Orange/ }).first().click();
   await expect(unrated.getByTestId('tox-row')).toContainText(/^(Not rated for pets|Not listed as a problem for dogs, cats or horses)/);
   // Cats and horses: NC State's warnings hide it.
+  await openFilters(page);
   await page.getByTestId('dogs-any').check();
   await page.getByTestId('plant-search').fill('Butterfly milkweed');
+  await openFilters(page);
   await page.locator('label', { hasText: 'Hide plants that are a problem for horses' }).locator('input').check();
   await expect(item).toHaveCount(0);
   await page.getByTestId('plant-search').fill("'Acapulco Orange'");
   // Clearing the filters keeps the search and the open section.
+  await openFilters(page);
   await page.getByTestId('dogs-nonToxic').check();
   await page.getByTestId('reset-filters').click();
   await expect(page.getByTestId('dogs-any')).toBeChecked();
@@ -410,11 +415,13 @@ test('the search clears in one tap, and a search the filters empty says which fi
   await expect(page.getByTestId('plant-search')).toHaveValue('Autumn Bride'); // (the search stays)
   // Set aside for this search only: every filter stays on, said so, and they're back for the next search.
   await expect(page.getByTestId('set-aside')).toContainText('Showing what your filters hid for “Autumn Bride” (Takes wet soil)');
+  await openFilters(page); // (typing the search folded them: Jason, Nov 1)
   await expect(page.getByRole('checkbox', { name: 'Clay OK', exact: true })).toBeChecked();
   await expect(page.getByRole('checkbox', { name: 'Takes wet soil', exact: true })).toBeChecked();
   await search.fill('Autumn Brid');
   await expect(page.getByTestId('set-aside')).toHaveCount(0);
   await expect(page.getByTestId('hidden-by')).toContainText('hidden by your filters: Takes wet soil');
+  await openFilters(page);
   await page.getByRole('checkbox', { name: 'Takes wet soil', exact: true }).click();
   await page.getByRole('checkbox', { name: 'Clay OK', exact: true }).click();
   // Some found, more hidden: said above them (Ruth, Oct 30: "milkweed" with "Not poisonous" on found two).
@@ -469,6 +476,7 @@ test('the filters say what they\'re set to: a dropdown names itself, a month met
   const weigela = page.locator('.plant-item', { hasText: "Weigela 'Red Prince'" });
   await expect(weigela.getByTestId('by-season')).toHaveText(/^By season/);
   await expect(weigela.getByTestId('by-season')).toHaveAttribute('title', 'Blooms in spring and summer: counted for June by its season');
+  await openFilters(page); // (typing the search folded them)
   await bloom.selectOption('summer');
   await expect(weigela).toHaveCount(1);
   await expect(weigela.getByTestId('by-season')).toHaveCount(0); // (a season asked for: no reading of ours)
@@ -486,6 +494,114 @@ test('the filters say what they\'re set to: a dropdown names itself, a month met
   await page.getByTestId('in-plan').click();
   await expect(page.getByTestId('in-plan')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('picker-count')).toContainText(/^No plants placed in this plan yet/);
+});
+
+test('typing a search folds the open filters, the results in view; Add as my plant is a plain link below them (Jason, Nov 1)', async ({ page, isMobile }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await openFilters(page);
+  await expect(page.getByTestId('all-filters')).toBeVisible();
+  const search = page.getByTestId('plant-search');
+  await search.fill('aster');
+  await expect(page.getByTestId('all-filters')).toBeHidden();
+  await expect(page.getByTestId('filters')).toHaveAttribute('aria-expanded', 'false');
+  await expect(search).toBeFocused();
+  await expect(page.locator('.plant-item').first()).toBeInViewport();
+  // The link, after the last result.
+  const add = page.getByTestId('add-own-plant');
+  await expect(add).toHaveText('Add “aster” as my plant');
+  await expect(add).toHaveClass(/link-btn/);
+  expect(await add.evaluate((a) => [...document.querySelectorAll('.plant-item')].every((r) => r.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
+  // Opened again by hand, they stay open while the filters change; the next search folds them again.
+  await openFilters(page);
+  await page.locator('.sheet label', { hasText: 'Evergreen' }).locator('input').check();
+  await expect(page.getByTestId('all-filters')).toBeVisible();
+  await search.fill('holly');
+  await expect(page.getByTestId('all-filters')).toBeHidden();
+  await page.getByTestId('reset-filters').click();
+  // Nothing found: the link below the note that says so.
+  await search.fill('Aunt Lou’s keeper');
+  await expect(page.locator('.sheet-body')).toContainText('No matches. Add it as your own plant, or loosen a filter.');
+  await expect(add).toHaveText('Add “Aunt Lou’s keeper” as my plant');
+  // Switch plant, while placing: the same.
+  await search.fill('Black-eyed Susan');
+  await page.locator('.plant-item', { hasText: 'Black-eyed Susan' }).first().getByTestId('plant-place').click();
+  await page.getByTestId('place-switch').click();
+  await expect(page.locator('.sheet-header .title')).toHaveText('Switch plant');
+  await openFilters(page);
+  await page.getByTestId('plant-search').fill('coneflower');
+  await expect(page.getByTestId('all-filters')).toBeHidden();
+  await expect(page.locator('.plant-item').first()).toBeInViewport();
+  if (isMobile) await expect(page.getByTestId('plant-search')).toBeFocused();
+});
+
+test('words of need become filters: "shade flowers" is Part shade and a search for "flowers"; a word of a plant\'s name stays the search (Jason, Nov 1)', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  const search = page.getByTestId('plant-search');
+  const chips = page.getByTestId('active-chip');
+  await search.fill('shade flowers');
+  await expect(search).toHaveValue('flowers');
+  await expect(search).toBeFocused(); // (the keyboard kept: nothing redrawn but the list)
+  await expect(chips).toHaveText(['Part shade']);
+  await expect(page.locator('.sheet select[aria-label=Sun]')).toHaveValue('Part'); // (its control says so too)
+  await chips.first().click();
+  await expect(chips).toHaveCount(0);
+  // Typed a letter at a time: a word becomes its filter once the next one starts; Enter takes the last.
+  await search.fill('');
+  await search.pressSequentially('evergreen ho');
+  await expect(chips).toHaveText(['Evergreen']);
+  await expect(search).toHaveValue('ho');
+  await search.pressSequentially('lly shrubs');
+  await expect(search).toHaveValue('holly shrubs');
+  await search.press('Enter');
+  await expect(search).toHaveValue('holly');
+  await expect(chips).toHaveText(['Shrub', 'Evergreen']);
+  await expect(page.locator('.sheet select[aria-label=Form]')).toHaveValue('Shrub');
+  await page.getByTestId('reset-filters').click();
+  // Part of a plant's name: stays the search, no filter ("Deer fern"; "Native azaleas"; "Butterfly weed (clay strain)").
+  for (const name of ['Deer fern', 'Native azaleas', 'Butterfly weed clay']) {
+    await page.getByTestId('plant-search').fill(name);
+    await page.getByTestId('plant-search').press('Enter');
+    await expect(page.getByTestId('plant-search')).toHaveValue(name);
+    await expect(chips).toHaveCount(0);
+  }
+  await expect(page.locator('.plant-item .pname').first()).toContainText('Butterfly weed (clay strain)');
+  // Several at once, with the little words between them; native to North America with no ZIP yet.
+  await page.getByTestId('plant-search').fill('native shrubs for wet clay soil ');
+  await expect(page.getByTestId('plant-search')).toHaveValue('');
+  await expect(chips).toHaveText(['Shrub', 'Native to North America', 'Takes wet soil', 'Clay OK']);
+  await expect(page.locator('.sheet-body')).not.toContainText('No matches');
+});
+
+test('Blooming in a month: plants with months for it first, those known only by season folded below, saying why (Jason, Nov 1)', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await openFilters(page);
+  await page.locator('.sheet select[aria-label="Blooming in"]').selectOption('3');
+  const fold = page.getByTestId('season-fold');
+  // No ZIP: hardly a plant has months for March, and the note says what a ZIP adds.
+  await expect(page.getByTestId('season-why')).toHaveText('Their sources give a season, not months, and we count March as spring. Your ZIP adds months from flowering records near the garden, where there are enough.');
+  await closeSheet(page);
+  await page.getByTestId('first-zip').fill('71923');
+  await page.getByTestId('first-zip-lookup').click();
+  await expect(page.getByTestId('location-result')).toContainText('Zone');
+  await closeSheet(page);
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.getByTestId('season-why')).toHaveText('Their sources give a season, not months, and we count March as spring. There aren’t enough flowering records near the garden to give their months.');
+  // Months from flowering records near the garden first; by season after every one of them, folded.
+  await expect(fold).toHaveAttribute('aria-expanded', 'false');
+  await expect(fold).toHaveText(/^By season only: [\d,]+ more$/);
+  await expect(page.locator('.plant-item').first()).toBeVisible();
+  const above = page.locator('.sheet-body .plant-item:not(.cultivar-list .plant-item)'); // (a genus's own fold aside)
+  expect(await above.count()).toBeGreaterThan(0);
+  await expect(above.getByTestId('by-season')).toHaveCount(0);
+  expect(await fold.evaluate((f) => [...document.querySelectorAll('.plant-item')].every((r) => r.compareDocumentPosition(f) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
+  // Opened: each marked by season, and why on its own row.
+  await fold.click();
+  await expect(fold).toHaveAttribute('aria-expanded', 'true');
+  const inFold = page.getByTestId('season-list').locator('.plant-item');
+  await expect(inFold.first().getByTestId('by-season')).toHaveAttribute('title', /counted for March by its season/);
 });
 
 test('what makes a plant\'s winter interest, each part with its source: showy bark, fruit into winter', async ({ page }) => {

@@ -1,11 +1,13 @@
 import { crowdLevelsOf, crowdNoticeAfterSwap } from './crowd-notice';
-import { el, sheetCloseButton, tapSaid, type Child } from '../dom';
+import { el, hasKeyboard, sheetCloseButton, tapSaid, type Child } from '../dom';
+import { nameIndex, readNeeds, type NameIndex, type NeedSet } from '../search-needs';
+import { FLOWER_CHOICES } from '../flower-colors';
 import { applyYard, askAtTop, dismissAsked, household, introAnswered, loadAsked, saveHardy, saveYard, toggleYard, yardOf, type Yard } from '../yard';
 import { toast } from './toast';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery, unsearchable } from '../search';
-import { byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById, treeFiltersAside } from '../plants';
+import { seasonMonths, byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById, treeFiltersAside } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { SPREAD_WAYS, spreadWays } from '../spread';
@@ -49,6 +51,19 @@ function withFiltersOff<T>(keys: (keyof PlantFilter)[], fn: () => T): T {
   const was = keys.map((k) => [k, plantFilter[k]] as const);
   for (const k of keys) Object.assign(plantFilter, { [k]: PLANT_FILTER_DEFAULTS[k] });
   try { return fn(); } finally { for (const [k, v] of was) Object.assign(plantFilter, { [k]: v }); }
+}
+/**
+ * The plants' names, as words of need see them (src/search-needs.ts): the catalog's names and other names, and My
+ * plants'. Made the first time it's wanted, and again for another catalog or a change in My plants.
+ */
+let needNames: { plants: Plant[]; mine: string; ix: NameIndex } | null = null;
+function namesForNeeds(): NameIndex {
+  const mine = activeMyPlants();
+  const said = mine.map((p) => p.common).join('\n');
+  if (needNames?.plants !== PLANTS || needNames.mine !== said) {
+    needNames = { plants: PLANTS, mine: said, ix: nameIndex([...PLANTS, ...mine].flatMap((p) => [p.common, ...(p.synonyms ?? [])])) };
+  }
+  return needNames.ix;
 }
 /** Once the garden's wild records are in, show them in the list. */
 function afterWild() { if (state.panel === 'plants') { addNativeHereOption(); refreshList?.(); } }
@@ -122,8 +137,7 @@ const SUN_NAMES: Record<string, string> = { Full: 'Full sun', Part: 'Part shade'
 const WATER: [string, string, string][] = [['Low', 'Low (drought tolerant)', 'low'], ['Moderate', 'Moderate', 'moderate'], ['High', 'High', 'high'], ['Wetland', 'Wet soil or standing water', 'wet']];
 const GROWTH: [string, string][] = [['slow', 'Slow'], ['medium', 'Medium'], ['fast', 'Fast']];
 const SPREADS: Record<string, string> = { stays: 'Stays put', runs: 'Spreads by runners or underground', aggressive: 'Spreads aggressively by runners or underground', seed: 'Self-sows freely' };
-/** The colors offered, most plants first (the catalog's words: src/catalog.ts). Leaf color includes green (Jason, 2026-10-25). */
-const FLOWER_CHOICES = ['white', 'yellow', 'pink', 'purple', 'red', 'orange', 'blue', 'green', 'cream', 'brown', 'silver', 'black'];
+/** The leaf colors offered (flower colors: src/flower-colors.ts). Leaf color includes green (Jason, 2026-10-25). */
 const LEAF_CHOICES = ['green', 'silver', 'gold', 'blue', 'purple', 'red', 'white', 'variegated', 'copper', 'orange', 'pink', 'cream', 'black'];
 /** Who a plant attracts, as NC State says it (its "specialized bees" count as bees: src/plants.ts). */
 const ATTRACT_CHOICES: [string, string][] = [['butterflies', 'Butterflies'], ['bees', 'Bees'], ['hummingbirds', 'Hummingbirds'], ['songbirds', 'Songbirds'], ['moths', 'Moths'], ['pollinators', 'Pollinators']];
@@ -242,6 +256,8 @@ export function renderPlantsPanel() {
   // Species whose cultivars were opened or closed by hand (kept likewise; otherwise a fold opens when filters keep
   // only some of its cultivars).
   const foldOpen = new Map<string, boolean>();
+  // The by-season fold of "Blooming in" a month, opened or closed by hand (kept likewise, by month).
+  const seasonOpen = new Map<string, boolean>();
   /** In "In this plan", the plants the filters would hide, and which filters. */
   const hiddenInPlan = new Map<string, string[]>();
   /**
@@ -373,12 +389,13 @@ export function renderPlantsPanel() {
     const hits = shown.flatMap((plant) => { const hit = matchPlant(plant, q, near) ?? (inNotes(plant, q) ? { rank: 3, order: 4 } : null); return hit ? [{ plant, hit }] : []; });
     return hits.sort(byMatch).map((x) => x.plant);
   }
-  function addButton(): HTMLElement {
+  /** A plain link, below the results (Jason, Nov 1, from the UI review: as a button among them it read as a result). */
+  function addLink(): HTMLElement {
     const q = readQuery(plantFilter.q) ? plantFilter.q.trim() : ''; // ("'" alone isn't a name)
-    const b = el('button', { className: 'btn secondary add-own', 'data-testid': 'add-own-plant' },
-      q ? `+ Add \u201c${q}\u201d as my plant` : '+ Add your own plant');
+    const b = el('button', { className: 'link-btn', 'data-testid': 'add-own-plant' },
+      q ? `Add \u201c${q}\u201d as my plant` : 'Add your own plant');
     b.addEventListener('click', () => openForm({ name: q, place: true }));
-    return b;
+    return el('div', { className: 'add-own' }, b);
   }
   refreshList = () => { if (listWrap.isConnected) rebuildList(); };
   /**
@@ -450,7 +467,11 @@ export function renderPlantsPanel() {
     // of a species' cultivars opens it to them ("2 of 14 cultivars match your filters"), the species shown even where
     // it doesn't match itself. A species shows once, in the first group it or a cultivar of it is in. A fold that's
     // the only thing found opens (Jason, 2026-10-26).
-    const groups = [0, 1, 2, 3].map((g) => hits.filter((p) => groupOf(p) === g));
+    // Blooming in a month: the plants with months for it, in those groups, first; the ones it counts only by their
+    // season after them all, in a fold that says why (Jason, Nov 1, from the UI review). Their rows say what their group
+    // would have (buildRow), as a species shown above its divider does.
+    const groups = [0, 1, 2, 3].map((g) => hits.filter((p) => groupOf(p) === g && !bySeason.has(p.id)));
+    const bySeasonOnly = hits.filter((p) => bySeason.has(p.id));
     const filtering = activeChips().length > 0 || plantFilter.inPlan || (plantFilter.hardyHere && !!state.location);
     const hitIds = new Set(hits.map((p) => p.id));
     const at = new Map(hits.map((p, i) => [p.id, i]));
@@ -486,7 +507,7 @@ export function renderPlantsPanel() {
       return foldMemo.get(head.id)!;
     };
     const placed = new Set<string>();
-    const [sourced, species, others, earlier] = groups.map((g) => {
+    const [sourced, species, others, earlier, seasonal] = [...groups, bySeasonOnly].map((g) => {
       const out = g.flatMap((p) => {
         const head = foldHeadOf(p);
         const row = head && !alone.has(p.id) && foldFor(head)?.kids.includes(p) ? head : p;
@@ -499,7 +520,8 @@ export function renderPlantsPanel() {
     });
     // (The only thing found, a fold: open, unless it was closed by hand.)
     const shownMine = mine.length && (!!q || !myPlantsFolded) ? mine.length : 0;
-    const sole = sourced.length + species.length + others.length + earlier.length + shownMine === 1;
+    const above = sourced.length + species.length + others.length + earlier.length + shownMine;
+    const sole = above + seasonal.length === 1;
     /** The fold's line, and its cultivars under it when open. `say`: what the line says; `toggle`: the button. */
     const foldBlock = (head: Plant, g: number, kids: Plant[], toggle: HTMLElement, open: boolean) => {
       const list = el('div', { className: 'cultivar-list', 'data-testid': 'cultivar-list' });
@@ -570,6 +592,29 @@ export function renderPlantsPanel() {
         el('span', {}, `These match on ${on.length > 1 ? `${on.slice(0, -1).join(', ')} and ${on[on.length - 1]}` : on[0]} only by the earlier list (unverified). No source we've read says so yet.`)));
       rows(earlier, 3);
     }
+    if (seasonal.length) {
+      // (Folded, unless nothing is above it, or it was opened by hand for this month.)
+      const month = plantFilter.bloomMonth, m = bloomName(month), season = SEASONS.find((s) => seasonMonths(s).includes(Number(month))) ?? '';
+      const n = bySeasonOnly.length;
+      const toggle = el('button', { className: 'list-divider season-fold', 'aria-expanded': 'false', 'data-testid': 'season-fold' },
+        el('span', { className: 'fold-chev', html: I.chevronDown }), el('span', {}, `By season only: ${countWord(n)} more`));
+      const why = el('div', { className: 'hint list-note', 'data-testid': 'season-why' },
+        `Their sources give a season, not months, and we count ${m} as ${season}. ` + (state.location
+          ? 'There aren’t enough flowering records near the garden to give their months.'
+          : 'Your ZIP adds months from flowering records near the garden, where there are enough.'));
+      const list = el('div', { 'data-testid': 'season-list' });
+      const show = (o: boolean) => {
+        toggle.setAttribute('aria-expanded', String(o));
+        list.replaceChildren();
+        if (!o) return;
+        const from = listWrap.childNodes.length;
+        rows(seasonal, 0);
+        list.append(...[...listWrap.childNodes].slice(from));
+      };
+      toggle.addEventListener('click', () => { const o = toggle.getAttribute('aria-expanded') !== 'true'; seasonOpen.set(month, o); show(o); });
+      listWrap.append(toggle, why, list);
+      show(seasonOpen.get(month) ?? above === 0);
+    }
     // Typically within "up to N ft", but able to grow past it: below the rest, said so (Jason, Oct 30). Height and
     // width alike (Oct 31).
     const ceiling = aside?.keys.includes('height') ? undefined : plantFilter.height.split('-')[1];
@@ -611,15 +656,14 @@ export function renderPlantsPanel() {
           'No matches. Add it as your own plant, or loosen a filter.'));
       }
     }
-    // Always offer to add a plant; right under the search when nothing matched as typed (close spellings are guesses:
-    // say so above them).
+    // Always offer to add a plant, below the results; right under the search when nothing matched as typed (close
+    // spellings are guesses: say so above them).
     // (Below the note that the filters hid some: that's the answer, not a plant of one's own (Ruth, Oct 30).)
-    if (hits.length === 0 && mine.length === 0) { if (why && more > 0) listWrap.appendChild(addButton()); else listWrap.insertBefore(addButton(), listWrap.firstChild); }
-    else if (near) {
+    if (near && hits.length + mine.length) {
       listWrap.insertBefore(el('div', { className: 'hint', style: { padding: '0 0 6px' }, 'data-testid': 'near-note' },
         `Nothing matches \u201c${plantFilter.q.trim()}\u201d as typed. Close spellings:`), listWrap.firstChild);
-      listWrap.insertBefore(addButton(), listWrap.firstChild);
-    } else listWrap.appendChild(addButton());
+      listWrap.insertBefore(addLink(), listWrap.firstChild);
+    } else listWrap.appendChild(addLink());
     syncActive();
   }
 
@@ -699,7 +743,62 @@ export function renderPlantsPanel() {
   const clearSearch = el('button', { className: 'search-clear', html: I.x, 'aria-label': 'Clear the search', 'data-testid': 'clear-search' });
   clearSearch.hidden = !plantFilter.q;
   clearSearch.addEventListener('click', () => { search.value = ''; plantFilter.q = ''; clearSearch.hidden = true; rebuildList(); search.focus(); });
-  search.addEventListener('input', () => { keptSearch = false; plantFilter.q = search.value; clearSearch.hidden = !search.value; rebuildList(); });
+  search.addEventListener('input', (e) => {
+    keptSearch = false;
+    const typed = !!search.value.trim();
+    // (Not while a phone's keyboard is still composing the word: what it's composing is left as it is.)
+    if (!(e as InputEvent).isComposing) takeNeeds(false);
+    plantFilter.q = search.value; clearSearch.hidden = !search.value;
+    if (typed) foldForSearch();
+    rebuildList();
+  });
+  // (A word finished by picking it from a phone keyboard's suggestions.)
+  search.addEventListener('compositionend', () => { if (takeNeeds(false)) { plantFilter.q = search.value; rebuildList(); } });
+  // Enter: the search is done, its last word too. On a phone the keyboard goes, for the results.
+  search.enterKeyHint = 'search';
+  search.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    e.preventDefault();
+    if (takeNeeds(true)) { plantFilter.q = search.value; clearSearch.hidden = !search.value; rebuildList(); }
+    if (!hasKeyboard()) search.blur();
+  });
+  /**
+   * Words of need in the search, made filters (src/search-needs.ts: Jason, Nov 1, from the UI review): "shade flowers"
+   * is Part shade, its chip with the other filters', and "flowers" left as the search. The field keeps the keyboard:
+   * its text and its filters' controls change in place. `final`: Enter, so its last word counts as finished.
+   */
+  function takeNeeds(final: boolean): boolean {
+    const forms = (PLANT_META?.enums?.form ?? []) as string[];
+    const r = readNeeds(search.value, namesForNeeds(), {
+      caret: search.selectionStart ?? undefined, final,
+      can: (s) => s.key !== 'form' || forms.includes(s.value), // (a form the catalog has)
+    });
+    if (!r) return false;
+    for (const s of r.sets) setNeed(s);
+    const focused = document.activeElement === search;
+    search.value = r.text;
+    if (focused) search.setSelectionRange(r.caret, r.caret);
+    clearSearch.hidden = !search.value;
+    syncControls();
+    return true;
+  }
+  function setNeed(s: NeedSet) {
+    if (s.key === 'flowerColors') { if (!plantFilter.flowerColors.includes(s.add)) plantFilter.flowerColors = [...plantFilter.flowerColors, s.add]; }
+    // (Native to the garden's state where its ZIP is known: Kew's checklist. Without, the earlier list's North America.)
+    else if (s.key === 'native') plantFilter.native = gardenStateName() ? '@here' : '@na';
+    else Object.assign(plantFilter, { [s.key]: s.value });
+  }
+  /**
+   * Typing a search: open filters fold, so its results are what's in view (Jason, Nov 1, from the UI review: on a
+   * phone they took the screen while the list changed out of sight). Kept folded, as a fold closed by hand is; the
+   * filters' chips stay above the list.
+   */
+  function foldForSearch() {
+    if (!filtersOpen) return;
+    setFiltersOpen(false);
+    filtersBtn.setAttribute('aria-expanded', 'false');
+    all.hidden = true;
+  }
   // (A search kept from the last time: the first tap in it selects it, so typing starts a new one rather than adding
   // to it: round 3, "coneflowerbee balm". After the tap, so the tap's own caret doesn't undo it.)
   search.addEventListener('focus', () => {
@@ -712,6 +811,9 @@ export function renderPlantsPanel() {
   type StringKey = { [K in keyof PlantFilter]: PlantFilter[K] extends string ? (string extends PlantFilter[K] ? K : never) : never }[keyof PlantFilter];
   type BoolKey = { [K in keyof PlantFilter]: PlantFilter[K] extends boolean ? K : never }[keyof PlantFilter];
   type Opt = [value: string, text: string];
+  /** Each control, set again from the filters as they now are: a word of need in the search set one (takeNeeds). */
+  const syncers: (() => void)[] = [];
+  const syncControls = () => { for (const f of syncers) f(); };
   /**
    * A dropdown, its first option the unset one ("Any form"). `name` says what it filters, for screen readers; set, it
    * names itself where its value alone wouldn't ("Water needs: low"): `selected` words the chosen option.
@@ -731,12 +833,14 @@ export function renderPlantsPanel() {
     const relabel = () => { for (const opt of all) opt.textContent = opt.selected && opt.value && o.selected ? o.selected(opt.value, opt.dataset.text!) : opt.dataset.text!; };
     relabel();
     sel.addEventListener('change', () => { plantFilter[key] = sel.value; relabel(); rebuildList(); });
+    syncers.push(() => { sel.value = String(plantFilter[key]); relabel(); });
     return el('div', { className: 'field', style: { flex: '1', minWidth: '0' } }, sel);
   }
   function mkCheck(label: Child, key: BoolKey, testid?: string) {
     const cb = el('input', { type: 'checkbox', 'data-testid': testid });
     if (key === 'withReported') reportedCheck = cb;
     cb.checked = !!plantFilter[key];
+    syncers.push(() => { cb.checked = !!plantFilter[key]; });
     cb.addEventListener('change', () => { plantFilter[key] = cb.checked; keepYard(key); rebuildList(); });
     return el('label', { className: 'filter-check' }, cb, label);
   }
@@ -745,6 +849,7 @@ export function renderPlantsPanel() {
     const cb = el('input', { type: 'checkbox', value });
     cb.checked = plantFilter[key].includes(value);
     const box = el('label', { className: className + (cb.checked ? ' on' : '') }, cb, label);
+    syncers.push(() => { cb.checked = plantFilter[key].includes(value); box.classList.toggle('on', cb.checked); });
     cb.addEventListener('change', () => {
       plantFilter[key] = cb.checked ? [...plantFilter[key], value] : plantFilter[key].filter((v) => v !== value);
       box.classList.toggle('on', cb.checked);
@@ -995,11 +1100,15 @@ export function renderPlantsPanel() {
   // (Its full height whatever the list holds: a shorter list moved its top, and the search box and filters with it,
   // between a click and the next. Marcus, Diego, Tom, Oct 30.)
   const sheet = el('div', { className: 'sheet picker-sheet' }, el('div', { className: 'sheet-top' }, header, searchBar), body);
-  // Typing far down the list: bring the start of the results back into view (scrolling only; the keyboard stays).
+  // Typing: the start of the results in view, under the search (scrolling only; the keyboard stays). Back up to it from
+  // far down the list; or down to it, past what's above it, where the first result is out of sight below (Jason, Nov
+  // 1, from the UI review). The filters' chips, a word of need's among them, stay in view above it.
   search.addEventListener('input', () => {
     const top = sheet.querySelector<HTMLElement>('.sheet-top')!.offsetHeight;
-    const y = countLine.getBoundingClientRect().top - sheet.getBoundingClientRect().top;
-    if (y < top) sheet.scrollTop += y - top - 4;
+    const lead = activeRow.hidden ? countLine : activeRow;
+    const y = lead.getBoundingClientRect().top - sheet.getBoundingClientRect().top;
+    const first = listWrap.firstElementChild?.getBoundingClientRect();
+    if (y < top || (first && first.top + 32 > sheet.getBoundingClientRect().bottom)) sheet.scrollTop += y - top - 4;
   });
   const overlay = el('div', { className: 'overlay' }, sheet);
   overlay.addEventListener('click', e => { if (e.target === overlay) closePicker(); });
