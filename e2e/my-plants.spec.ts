@@ -210,3 +210,37 @@ test('a plant of mine the catalog now has: compare, switch (placed plants follow
   await page.locator('#toast-action').getByRole('button', { name: 'Undo' }).click();
   await expect(page.locator('.proj-row .mine-badge')).toHaveCount(1);
 });
+
+test('a plant of mine: its flower colors as chips, kept without bloom months, the first chosen drawn (Jason, Oct 30)', async ({ page }) => {
+  autoDialogs(page);
+  await openFresh(page);
+  await addPlainShape(page, 'circle');
+  await page.getByTestId('plant-link').getByRole('button', { name: 'Link to a plant…' }).click();
+  await page.getByTestId('plant-search').fill('Mystery rose');
+  await page.getByTestId('add-own-plant').click();
+  const chip = (c: string) => page.locator(`[data-testid=pf-flower][data-color=${c}]`);
+  const hint = page.getByTestId('pf-flowers-hint');
+  await expect(page.getByTestId('pf-flowers').locator('.color-chip.on')).toHaveCount(0);
+  await chip('pink').click();
+  await chip('white').click();
+  await expect(chip('pink')).toHaveAttribute('aria-pressed', 'true');
+  // (No bloom months yet: said beside the chips, and saved all the same.)
+  await expect(hint).toContainText('only in its bloom months');
+  await page.getByTestId('pf-save').click();
+  await expect(page.locator('.sheet-header .title')).not.toHaveText('Add a plant');
+
+  // Edited again: both kept; with a bloom month, the hint says which is drawn.
+  await page.getByRole('button', { name: 'Edit "Mystery rose" in My plants' }).click();
+  await expect(chip('pink')).toHaveAttribute('aria-pressed', 'true');
+  await expect(chip('white')).toHaveAttribute('aria-pressed', 'true');
+  await expect(chip('blue')).toHaveAttribute('aria-pressed', 'false');
+  await page.locator('.sheet details summary', { hasText: 'Bloom and notes' }).click();
+  await page.locator('.sheet details select').first().selectOption('5');
+  await expect(hint).toContainText('Drawn in pink, the first chosen');
+  await chip('pink').click(); // (off: white is the one drawn)
+  await expect(hint).toHaveText('');
+  await page.getByTestId('pf-save').click();
+  await page.locator('.sel-pill button.edit').click();
+  await page.getByRole('button', { name: 'Edit "Mystery rose" in My plants' }).click();
+  await expect(page.getByTestId('pf-flowers').locator('.color-chip.on')).toHaveText(['White']);
+});
