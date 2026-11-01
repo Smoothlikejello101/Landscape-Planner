@@ -1,5 +1,4 @@
-import { el } from '../dom';
-import { I } from '../icons';
+import { el, sheetCloseButton } from '../dom';
 import {
   activeMyPlants, deleteMyPlant, formatSize, isDataSized, isMine, MY_FLOWER_COLORS, MY_WATER, newMyPlantId, parseSize, parseZones, placedUsing, rawMyPlant, recolorPlaced,
   renamePlaced, resizePlaced, saveMyPlant, speciesLinkFor, speciesRecordFor, sunLevels, sunRange, zonesText, type Range,
@@ -440,7 +439,7 @@ export function renderPlantForm() {
 
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, editing ? 'Edit my plant' : 'Add a plant'),
-    (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', () => close(null)); return b; })());
+    sheetCloseButton(() => close(null), args.back)); // (← back where it was opened from: close)
   const sheet = el('div', { className: 'sheet' }, header, body);
   const overlay = el('div', { className: 'overlay' }, sheet);
   // (A tap beside the form, on a phone easily made by mistake, threw away all that was typed: asked first, once

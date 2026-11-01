@@ -69,7 +69,7 @@ test('closing the swap picker goes back to the plant\'s sheet; the plant swapped
   await page.locator('.sel-pill button.edit').click();
   await page.getByTestId('swap-plant').click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Swap for another plant');
-  await page.locator('.sheet .iconbtn[aria-label=Close]').click();
+  await page.locator('.sheet-header').getByRole('button', { name: 'Back to properties' }).click();
   // Its sheet, as it was before Swap: nothing swapped.
   await expect(page.getByTestId('swap-plant')).toBeVisible();
   await expect(page.locator('.sheet .title')).toContainText('Turkey corn');
@@ -81,6 +81,46 @@ test('closing the swap picker goes back to the plant\'s sheet; the plant swapped
   await page.locator('.sheet .iconbtn[aria-label=Close]').click();
   await page.locator('.tool-btn.plants').click();
   await expect(page.getByTestId('recent-plants').locator('.recent-plant').first()).toContainText('Buttonbush');
+});
+
+test('a sheet opened from another has ← where its × was, saying where it goes back to; opened on its own, × (the UI review, 2026-11-01)', async ({ page }) => {
+  await openFresh(page);
+  const header = page.locator('.sheet-header');
+  const close = header.getByRole('button', { name: 'Close', exact: true });
+  // The picker on its own: ×.
+  await page.locator('.tool-btn.plants').click();
+  await expect(close).toBeVisible();
+  await expect(header.getByTestId('sheet-back')).toHaveCount(0);
+  // Add a plant from it: ← back to the picker.
+  await page.getByTestId('add-own-plant').click();
+  await expect(header.locator('.title')).toHaveText('Add a plant');
+  await expect(close).toHaveCount(0);
+  await expect(header.getByTestId('sheet-back')).toHaveAttribute('title', 'Back to the plant list');
+  await header.getByRole('button', { name: 'Back to the plant list' }).click();
+  // The ZIP from it: likewise.
+  await page.getByTestId('hardy-here').click();
+  await expect(page.getByTestId('zip')).toBeVisible();
+  await expect(close).toHaveCount(0);
+  await header.getByRole('button', { name: 'Back to the plant list' }).click();
+  await expect(page.getByTestId('plant-search')).toBeVisible();
+  // Placed, and swapped from its sheet: ← back to it.
+  await page.getByTestId('plant-search').fill('Turkey corn');
+  await page.locator('.sheet .proj-row', { hasText: 'Turkey corn' }).first().locator('[data-testid=plant-place]').click();
+  await tapFromCenter(page, 0, 0);
+  await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
+  await page.locator('.sel-pill button.edit').click();
+  await expect(close).toBeVisible(); // (the plant's own sheet)
+  await page.getByTestId('swap-plant').click();
+  await expect(close).toHaveCount(0);
+  await header.getByRole('button', { name: 'Back to properties' }).click();
+  await expect(page.getByTestId('swap-plant')).toBeVisible();
+  // The ZIP from ⋮: ×.
+  await close.click();
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Garden location' }).click();
+  await expect(page.getByTestId('zip')).toBeVisible();
+  await expect(close).toBeVisible();
+  await expect(header.getByTestId('sheet-back')).toHaveCount(0);
 });
 
 test("a species whose cultivars go by its genus is named with it in the picker: Cape jasmine (Gardenia)", async ({ page }) => {

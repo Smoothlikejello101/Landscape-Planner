@@ -148,7 +148,7 @@ test('closing Add a plant or a copy with its × goes back to the picker, the sea
   await page.getByTestId('plant-search').fill('shade flowers');
   await page.getByTestId('add-own-plant').click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Add a plant');
-  await page.locator('.sheet-header .iconbtn[aria-label=Close]').click();
+  await page.locator('.sheet-header').getByRole('button', { name: 'Back to the plant list' }).click();
   await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker');
   await expect(page.getByTestId('plant-search')).toHaveValue('shade flowers');
   await expect(page.getByTestId('add-own-plant')).toBeVisible();
@@ -156,7 +156,7 @@ test('closing Add a plant or a copy with its × goes back to the picker, the sea
   await page.getByTestId('plant-search').fill('Buttonbush');
   await page.locator('.proj-row', { hasText: 'Buttonbush' }).first().getByRole('button', { name: /Copy as my plant/ }).click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Add a plant');
-  await page.locator('.sheet-header .iconbtn[aria-label=Close]').click();
+  await page.locator('.sheet-header').getByRole('button', { name: 'Back to the plant list' }).click();
   await expect(page.getByTestId('plant-search')).toHaveValue('Buttonbush');
 });
 

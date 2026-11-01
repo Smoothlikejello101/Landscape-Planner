@@ -1,6 +1,8 @@
 // Tiny DOM builders. `el` and `svgEl` create elements with attributes and
 // children in one call so panels can be written declaratively.
 
+import { I } from './icons';
+
 export type Child = Node | string | number | null | undefined | false | Child[];
 type StyleObject = { [K in keyof CSSStyleDeclaration]?: string | number };
 export type Attrs = { [key: string]: unknown; style?: StyleObject | string; className?: string; html?: string };
@@ -67,6 +69,20 @@ export function svgEl<K extends keyof SVGElementTagNameMap>(tag: K, attrs?: Attr
   }
   appendChildren(e, children);
   return e;
+}
+
+/** The sheets one opened from them goes back to, as its ← names them. */
+const SHEET_NAMES: Record<string, string> = { plants: 'the plant list', props: 'properties', bloom: 'the bloom calendar' };
+/**
+ * A sheet's header button, where its × goes: × to close it; or, on a sheet opened from another that it goes back to
+ * (the picker from a plant's sheet, Add a plant from the picker, the ZIP from the picker), ← "Back to the plant list",
+ * so it's plain that it goes back, not out (the UI review, 2026-11-01). `backTo`: the sheet it goes back to, if any.
+ */
+export function sheetCloseButton(onClick: () => void, backTo?: string | null): HTMLButtonElement {
+  const said = backTo ? `Back to ${SHEET_NAMES[backTo] ?? 'the sheet before'}` : 'Close';
+  const b = el('button', { className: 'iconbtn', html: backTo ? I.back : I.x, 'aria-label': said, title: backTo ? said : null, 'data-testid': backTo ? 'sheet-back' : null });
+  b.addEventListener('click', onClick);
+  return b;
 }
 
 /** A text size in an element's style: `px` at Small, scaled with the text size like every size in styles.css. */

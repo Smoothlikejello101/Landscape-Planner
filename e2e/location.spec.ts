@@ -157,7 +157,7 @@ test('the ZIP from the picker: its sheet shows the zone, and closing it goes bac
   // (Not straight back, a toast over the picker's title, where the × meant for this sheet closed the picker.)
   await expect(page.getByTestId('location-result')).toContainText('Last spring frost: about Mar 24');
   await expect(page.getByTestId('location-to-plants')).toHaveText('Show plants hardy in zone 8a');
-  await page.locator('.sheet-header .iconbtn[aria-label=Close]').click();
+  await page.locator('.sheet-header').getByRole('button', { name: 'Back to the plant list' }).click();
   await expect(page.getByTestId('plant-search')).toHaveValue('aster');
   await expect(page.getByTestId('hardy-here')).toBeChecked();
   await expect(page.locator('.sheet label', { hasText: 'Hardy in zone 8a' })).toBeVisible();
