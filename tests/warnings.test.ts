@@ -64,4 +64,15 @@ describe('"up to N ft" by the tallest it grows', () => {
     expect(byTypicalHeight(() => [viburnum, short].map((p) => plantMatches(p, f)))).toEqual([true, true]);
     expect(plantMatches(viburnum, f)).toBe(false); // (and back to the tallest afterwards)
   });
+  it('width the same way: "up to N ft" by its widest, "N ft and wider" by its typical spread; none known, no fit (Jason, Oct 31)', () => {
+    const w = (width: string) => ({ ...PLANT_FILTER_DEFAULTS, width });
+    const azalea = { id: 'a', common: 'Azalea', form: 'Shrub', width: { min: 2, max: 6, med: 4 } } as Plant;
+    const boxwood = { id: 'b', common: 'Boxwood', form: 'Shrub', width: { min: 2, max: 3, med: 2.5 } } as Plant;
+    expect([azalea, boxwood].map((p) => plantMatches(p, w('-4')))).toEqual([false, true]);
+    expect(byTypicalHeight(() => [azalea, boxwood].map((p) => plantMatches(p, w('-4'))))).toEqual([true, true]);
+    expect([azalea, boxwood].map((p) => plantMatches(p, w('3-')))).toEqual([true, false]);
+    expect(plantMatches({ id: 'x', common: 'X', form: 'Shrub' } as Plant, w('-4'))).toBe(false);
+    // (With height too: each its own.)
+    expect(plantMatches({ ...boxwood, height: { min: 8, max: 10, med: 9 } }, { ...w('-4'), height: '-6' })).toBe(false);
+  });
 });

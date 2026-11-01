@@ -257,6 +257,8 @@ export const PLANT_FILTER_DEFAULTS = {
   spread: NONE,
   /** Mature height (typical), "lo-hi" in feet, either end empty when open: src/ui/height-range.ts. */
   height: '',
+  /** Mature width (spread), the same way (Jason, Oct 31: as height, "something you'd expect"). */
+  width: '',
   /** Toxic to dogs: '' any; 'hideToxic' leaves out plants with a warning (unrated ones stay); 'nonToxic' only plants rated non-toxic. */
   dogs: '' as DogFilter,
   /** Leaves out plants NC State lists as a problem for cats, for horses (one not listed stays: not "safe", just not flagged). */
@@ -410,12 +412,22 @@ export function pickerCount(shown: number, offered: number, bannedOut: number, b
   const found = bannedShown ? `, and ${countWord(bannedShown)} plant${bannedShown === 1 ? '' : 's'} ${banned} found by name` : '';
   return head + found + (bannedOut ? ` \u00b7 ${countWord(bannedOut)} plant${bannedOut === 1 ? '' : 's'} ${banned} ${bannedOut === 1 ? 'shows' : 'show'} only when searched by name` : '');
 }
-/** While set, "up to N ft" goes by a plant's typical height, as it used to (byTypicalHeight). */
-let heightByTypical = false;
-/** `fn` with "up to N ft" judged by typical height: what fits typically, though it may grow taller. */
+/** While set, "up to N ft" goes by a plant's typical height and width, as it used to (byTypicalHeight). */
+let sizeByTypical = false;
+/** `fn` with "up to N ft" judged by typical height and width: what fits typically, though it may grow taller or wider. */
 export function byTypicalHeight<T>(fn: () => T): T {
-  heightByTypical = true;
-  try { return fn(); } finally { heightByTypical = false; }
+  sizeByTypical = true;
+  try { return fn(); } finally { sizeByTypical = false; }
+}
+/**
+ * Whether a size range fits a size filter's "lo-hi": "up to N ft" a ceiling, by its largest listed size (Jason, Oct
+ * 30, from round 2: a 2–6 ft azalea passed "up to 4 ft"; by its typical size under byTypicalHeight); "N ft and up"
+ * by its typical size (a plant of 2 to 4 ft is a 3 ft plant). No size known: no fit.
+ */
+function sizeFits(r: { min?: number; max?: number; med?: number } | undefined, filter: string): boolean {
+  const med = r?.med, [lo, hi] = filter.split('-');
+  const top = sizeByTypical ? med : r?.max ?? med;
+  return !(med == null || (lo && med < Number(lo)) || (hi && top != null && top > Number(hi)));
 }
 /** Whether a plant passes the picker's filters. `inPlan`: ids of plants placed in the open plan. */
 /** The plants that would be a plant's partner for fruit (the `partnersOf` filter), worked out once a catalog. */
@@ -465,14 +477,10 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   const attracts = f.attracts.includes('bees') ? [...f.attracts, 'specialized bees'] : f.attracts;
   if (attracts.length && !(p.attracts ?? []).some((a) => attracts.includes(a))) return false;
   if (f.growth && p.growth_rate !== f.growth) return false;
-  if (f.height) {
-    // "Up to N ft" is a ceiling: by its tallest listed height (Jason, Oct 30, from round 2: a 2–6 ft azalea passed
-    // "up to 4 ft"). "N ft and up" by its typical height (a plant of 2 to 4 ft is a 3 ft plant), as before. The
-    // picker lists those typically under the ceiling that can grow past it apart (byTypicalHeight).
-    const med = p.height?.med, [lo, hi] = f.height.split('-');
-    const top = heightByTypical ? med : p.height?.max ?? med;
-    if (med == null || (lo && med < Number(lo)) || (hi && top != null && top > Number(hi))) return false;
-  }
+  // (Height and width alike (sizeFits). The picker lists those typically under a ceiling that can grow past it apart:
+  // byTypicalHeight.)
+  if (f.height && !sizeFits(p.height, f.height)) return false;
+  if (f.width && !sizeFits(p.width, f.width)) return false;
   if (f.wetFeet && !p.wet_feet) return false;
   if (f.clayOk && !p.clay_ok) return false;
   if (f.hostOnly && !hostPlant(p)) return false;
@@ -576,7 +584,8 @@ export function plantIdsInPlan(): Set<string> {
  */
 const FILTER_FACTS: [keyof PlantFilter, string[], string][] = [
   ['sun', ['sun_most', 'sun_least'], 'sun'], ['hardyHere', ['zone_min', 'zone_max'], 'hardiness zones'], ['water', ['water'], 'water'],
-  ['deerResistant', ['deer'], 'deer resistance'], ['height', ['height'], 'height'], ['bloomMonth', ['bloom'], 'bloom time'], ['form', ['form'], 'form'],
+  ['deerResistant', ['deer'], 'deer resistance'], ['height', ['height'], 'height'], ['width', ['width'], 'width'], ['bloomMonth', ['bloom'], 'bloom time'],
+  ['form', ['form'], 'form'],
 ];
 /** The plant as the other sources describe these facts (each pair as a whole: one source's sun range, not half of one). */
 function asReported(p: Plant, facts: string[]): Plant {
@@ -621,6 +630,7 @@ const FILTER_READS: [keyof PlantFilter, (p: Plant, f: PlantFilter) => string[], 
   // (Months where the garden is come from flowering records; a native filter for the garden's state, from Kew's checklist.)
   ['bloomMonth', (p, f) => (bloomMatch(p, f.bloomMonth) === 'earlier' ? ['bloom'] : []), 'bloom time'], ['native', (_p, f) => (f.native === '@here' ? [] : ['native']), 'native status'],
   ['deerResistant', () => ['deer'], 'deer resistance'], ['spread', () => ['self_seed', 'habit'], 'how it spreads'], ['height', () => ['height'], 'height'],
+  ['width', () => ['width'], 'width'],
   ['wetFeet', () => ['wet_feet'], 'wet feet'], ['clayOk', () => ['clay_ok'], 'clay'],
   ['hostOnly', (p) => (hostPlant(p) === 'earlier' ? ['host'] : []), 'host plant'], ['fallColor', () => ['fall_color'], 'fall color'], ['evergreen', () => ['foliage'], 'evergreen'],
   ['winterInterest', () => ['winter_interest'], 'winter interest'], ['edible', () => ['edible'], 'edible'],
@@ -757,7 +767,7 @@ export function reportedPhrase(labels: Iterable<string>, f: PlantFilter): string
   const FORMS: Record<string, string> = { Tree: 'trees', Shrub: 'shrubs', Perennial: 'perennials', 'Grass/Sedge': 'grasses or sedges', Vine: 'vines', Bulb: 'bulbs', Fern: 'ferns', Annual: 'annuals', 'Aquatic/Emergent': 'water plants', Cactus: 'cacti or succulents' };
   const say: Record<string, string> = {
     sun: `take ${SUN_SAID[f.sun] ?? f.sun.toLowerCase()}`, 'hardiness zones': 'are hardy here', water: `fit \u201cWater: ${f.water}\u201d`,
-    'deer resistance': 'are deer resistant', height: 'fit the height range', 'bloom time': `bloom in ${bloomWhen(f.bloomMonth)}`,
+    'deer resistance': 'are deer resistant', height: 'fit the height range', width: 'fit the width range', 'bloom time': `bloom in ${bloomWhen(f.bloomMonth)}`,
     form: `are ${FORMS[f.form] ?? f.form.toLowerCase()}`,
   };
   const parts = [...new Set(labels)].map((l) => say[l] ?? `fit on ${l}`);

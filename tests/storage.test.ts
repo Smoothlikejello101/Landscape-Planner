@@ -342,6 +342,25 @@ describe('a plant of my own, male or female (Jason, Oct 31)', () => {
   });
 });
 
+describe("a plant of my own's flower colors, chosen as chips (Jason, Oct 30)", () => {
+  const base = { id: 'u-abc', common: "Strawberry 'Albion'", width: { min: 1, max: 2, med: 1.5 } };
+  it('keeps them with or without bloom months, in the order chosen, each once; only colors the chips offer', () => {
+    expect(sanitizeMyPlant({ ...base, flower_color: ['pink', 'white'] })).toMatchObject({ flower_color: ['pink', 'white'] });
+    expect(sanitizeMyPlant({ ...base, flower_color: ['pink', 'white'] })).not.toHaveProperty('bloom'); // (no months: kept all the same)
+    expect(sanitizeMyPlant({ ...base, flower_color: ['white', 'white', 'chartreuse', 3, 'blue'] })?.flower_color).toEqual(['white', 'blue']);
+    expect(sanitizeMyPlant({ ...base, flower_color: ['insignificant'] })).not.toHaveProperty('flower_color');
+    expect(sanitizeMyPlant({ ...base, flower_color: 'pink' })).not.toHaveProperty('flower_color');
+  });
+  it("an older plant, from before the chips: read as it was stored, its words left as they were (read for its color when drawn)", () => {
+    const old = { ...base, bloom: { start: 3, end: 4, color: 'White aging to pink' } };
+    const p = sanitizeMyPlant(old)!;
+    expect(p).not.toHaveProperty('flower_color'); // (nothing added on reading: a synced plant reads the same on every version)
+    expect(p.bloom).toEqual({ start: 3, end: 4, color: 'White aging to pink' });
+    // (And one saved by a later version, read here again, keeps both.)
+    expect(sanitizeMyPlant({ ...old, flower_color: ['white', 'pink'] })).toMatchObject({ flower_color: ['white', 'pink'], bloom: { color: 'White aging to pink' } });
+  });
+});
+
 describe('the Show plants filter (Jason, Oct 31: kept with the plan, not synced)', () => {
   it('is none for older plans, keeps a valid one, drops odd values, round-trips on this device and stays out of sync', async () => {
     expect(sanitizeProjectData({ shapes: [] }).viewFilter).toBeUndefined();
