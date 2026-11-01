@@ -280,6 +280,14 @@ describe('the same species as a catalog plant', () => {
     expect(seen.prov).not.toHaveProperty('sun_most');
     expect(withSpecies(mine({}), undefined)).toEqual(mine({})); // (its species not loaded yet: as it is)
   });
+  it('looks like its species through the year where its own form doesn\'t say: evergreen, needles or scales (Jason, Nov 1)', async () => {
+    const { withSpecies } = await import('../src/my-plants');
+    const cypress = { id: 'chamaecyparis-pisifera', common: 'Sawara cypress', botanical: 'Chamaecyparis pisifera', form: 'Tree', foliage: 'evergreen', needles: true, leaf_form: { type: ['scale'] } } as unknown as Plant;
+    const own = { id: 'u-fc', common: 'False cypress', form: 'Shrub', species: cypress.id, width: { min: 3, max: 5, med: 4 } } as Plant;
+    expect(withSpecies(own, cypress)).toMatchObject({ foliage: 'evergreen', needles: true, leaf_form: { type: ['scale'] }, form: 'Shrub' });
+    // (Its own, where it has them, stand.)
+    expect(withSpecies({ ...own, foliage: 'deciduous' } as Plant, cypress).foliage).toBe('deciduous');
+  });
   it('is found for a botanical name, and for a plant to start from', async () => {
     const { speciesLinkFor, speciesRecordFor } = await import('../src/my-plants');
     const catalog = [species, cultivar];

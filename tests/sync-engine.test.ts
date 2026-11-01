@@ -40,7 +40,9 @@ class FakeDevice implements Local {
     this.bump(id);
   }
   /** Deleted here (as the app does: a synced one leaves a tombstone; one sync is still uploading gets it when the upload lands). */
-  del(id: string) { if (this.recs[id]) this.tombs[id] = this.recs[id].revision; delete this.recs[id]; this.projectsById.delete(id); }
+  /** The records of projects deleted here, as the app keeps them with their tombstones. */
+  deleted: Record<string, SyncRecord> = {};
+  del(id: string) { if (this.recs[id]) { this.tombs[id] = this.recs[id].revision; this.deleted[id] = this.recs[id]; } delete this.recs[id]; this.projectsById.delete(id); }
   names() { return [...this.projectsById.values()].map((p) => p.name).sort(); }
   byName(n: string) { return [...this.projectsById.values()].find((p) => p.name === n)!; }
   shapes(id: string) { return this.projectsById.get(id)!.content.shapes; }
@@ -54,11 +56,12 @@ class FakeDevice implements Local {
   }
   records() { return { ...this.recs }; }
   async setRecord(id: string, rec: SyncRecord | null) {
-    if (rec && !this.projectsById.has(id)) { this.tombs[id] = rec.revision; delete this.recs[id]; return; }
+    if (rec && !this.projectsById.has(id)) { this.tombs[id] = rec.revision; this.deleted[id] = rec; delete this.recs[id]; return; }
     if (rec) this.recs[id] = rec; else delete this.recs[id];
   }
   tombstones() { return { ...this.tombs }; }
-  async clearTombstone(id: string) { delete this.tombs[id]; }
+  deletedRecord(id: string) { return this.deleted[id]; }
+  async clearTombstone(id: string) { delete this.tombs[id]; delete this.deleted[id]; }
   /** As the app does: a photo arrives with its bytes, or waits; content saying nothing about a photo keeps this one. */
   private place(id: string, prev: ProjectContent | undefined, content: ProjectContent, bytes?: string): ProjectContent {
     const n = this.normalize('x', content).content;
@@ -777,6 +780,139 @@ describe('the warning switches on two devices', () => {
   it("a plan's core leaves out its switches too", () => {
     const c = { shapes: [1], phases: [] };
     expect(coreHash('X', { ...c, switches: taken(all) })).toBe(planHash('X', c));
+  });
+});
+
+// A device that synced while still on the version before plans kept their ticks, yard and switches, then updates (the
+// review of the storage change, Nov 1). That version stored a download without those parts and recorded it without
+// them, so the server's are unknown to it: its first upload after the update must settle with them, not replace them.
+const PARTS = ['bought', 'household', 'switches'];
+/** A device on the version before, until `update()`: it drops the parts it doesn't know, and records as that version did. */
+class OlderDevice extends FakeDevice {
+  old = true;
+  update() { this.old = false; }
+  normalize(name: string, content: ProjectContent) {
+    const r = super.normalize(name, content);
+    if (this.old) for (const k of PARTS) delete r.content[k];
+    return r;
+  }
+  async setRecord(id: string, rec: SyncRecord | null) {
+    // (That version's records had no core, nor the parts.)
+    await super.setRecord(id, rec && this.old ? { revision: rec.revision, hash: rec.hash, ...(rec.photo ? { photo: rec.photo } : {}) } : rec);
+  }
+}
+describe('a device that synced on the version before, then updates', () => {
+  const none = { kids: false, dogs: '', cats: false, horses: false, answered: false };
+  const taken = (on: Record<string, boolean>) => Object.fromEntries(Object.entries(on).map(([k, v]) => [k, { on: v }]));
+  const all = { showCrowding: true, crowdWarnings: true, hardyWarnings: true, poisonWarnings: true, fruitWarnings: true };
+  /** A plan on both, the phone updated with what it had (a dog; crowding rings off), the laptop synced since on the old version. */
+  async function phoneFirst() {
+    const server = new FakeServer(), phone = new FakeDevice('phone'), laptop = new OlderDevice('laptop');
+    const id = phone.add('Back Yard', [1]);
+    await sync(phone, server); await sync(laptop, server);
+    phone.setPart(id, 'household', { ...none, dogs: 'hideToxic', answered: true });
+    phone.setPart(id, 'switches', taken({ ...all, showCrowding: false }));
+    await sync(phone, server);
+    await sync(laptop, server);
+    expect(laptop.recs[id]).not.toHaveProperty('parts'); // (that version's record: the server's parts unknown to it)
+    return { server, phone, laptop, id };
+  }
+  it("its yard and switches, carried over, settle with the other device's: no copy, a dog either had stays, crowding rings either had off stay off", async () => {
+    const { server, phone, laptop, id } = await phoneFirst();
+    laptop.update(); // (its plans take what it had: no one in the yard, every warning on)
+    laptop.setPart(id, 'household', { ...none });
+    laptop.setPart(id, 'switches', taken(all));
+    expect((await sync(laptop, server)).conflicts).toEqual([]);
+    await sync(phone, server); await sync(laptop, server);
+    const yard = { ...none, dogs: 'hideToxic', answered: true }, sw = taken({ ...all, showCrowding: false });
+    for (const c of [server.rows.get(id)!.content, phone.projectsById.get(id)!.content, laptop.projectsById.get(id)!.content]) {
+      expect(c.household).toEqual(yard);
+      expect(c.switches).toEqual(sw);
+    }
+    expect([phone.names(), laptop.names()]).toEqual([['Back Yard'], ['Back Yard']]);
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 0, downloaded: 0 });
+  });
+  it("the other device's ticks aren't lost: the updated device's first upload settles, and its own ticks join them", async () => {
+    for (const tickFirst of [false, true]) {
+      const server = new FakeServer(), phone = new FakeDevice('phone'), laptop = new OlderDevice('laptop');
+      const id = phone.add('Back Yard', [1]);
+      await sync(phone, server); await sync(laptop, server);
+      phone.setPart(id, 'bought', { yaupon: { n: 3, at: 100 } });
+      await sync(phone, server);
+      await sync(laptop, server); // (on the old version: the ticks dropped)
+      laptop.update();
+      laptop.setPart(id, 'household', { ...none }); laptop.setPart(id, 'switches', taken(all));
+      if (tickFirst) laptop.setPart(id, 'bought', { aster: { n: 1, at: 200 } }); // (ticked before its first sync since)
+      await sync(laptop, server);
+      if (!tickFirst) { laptop.setPart(id, 'bought', { ...(laptop.part(id, 'bought') as object), aster: { n: 1, at: 200 } }); await sync(laptop, server); }
+      await sync(phone, server);
+      const both = { yaupon: { n: 3, at: 100 }, aster: { n: 1, at: 200 } };
+      expect({ tickFirst, phone: phone.part(id, 'bought'), laptop: laptop.part(id, 'bought'), server: server.rows.get(id)!.content.bought })
+        .toEqual({ tickFirst, phone: both, laptop: both, server: both });
+    }
+  });
+  it('the yard set on the other device in the meantime wins over what this one carried over', async () => {
+    const { server, phone, laptop, id } = await phoneFirst();
+    phone.setPart(id, 'household', { ...none, cats: true, answered: true, at: 700 });
+    await sync(phone, server);
+    await sync(laptop, server); // (still old)
+    laptop.update();
+    laptop.setPart(id, 'household', { ...none, kids: true, answered: true });
+    laptop.setPart(id, 'switches', taken(all));
+    await sync(laptop, server); await sync(phone, server);
+    for (const d of [phone, laptop]) expect(d.part(id, 'household')).toEqual({ ...none, cats: true, answered: true, at: 700 });
+  });
+  it('parts this device lost to a version before it, saving the plan here after the update, come back as they were before going up', async () => {
+    const server = new FakeServer(), phone = new FakeDevice('phone'), laptop = new FakeDevice('laptop');
+    const id = laptop.add('Back Yard', [1]);
+    laptop.setPart(id, 'household', { ...none, kids: true, answered: true, at: 500 });
+    laptop.setPart(id, 'switches', { ...taken(all), poisonWarnings: { on: false, at: 510 } });
+    laptop.setPart(id, 'bought', { yaupon: { n: 2, at: 520 } });
+    await sync(laptop, server); await sync(phone, server);
+    // An older version open on the laptop saved the plan without them; this version filled in what the device had.
+    laptop.setPart(id, 'household', { ...none });
+    laptop.setPart(id, 'switches', taken(all));
+    laptop.setPart(id, 'bought', undefined);
+    laptop.edit(id, [1, 'a new bed']);
+    await sync(laptop, server); await sync(phone, server);
+    for (const c of [server.rows.get(id)!.content, laptop.projectsById.get(id)!.content, phone.projectsById.get(id)!.content]) {
+      expect(c.shapes).toEqual([1, 'a new bed']);
+      expect(c.household).toEqual({ ...none, kids: true, answered: true, at: 500 });
+      expect((c.switches as Record<string, unknown>).poisonWarnings).toEqual({ on: false, at: 510 });
+      expect(c.bought).toEqual({ yaupon: { n: 2, at: 520 } });
+    }
+  });
+  it("a plan deleted here before another device's update reached the server stays deleted: carried-over parts aren't an edit", async () => {
+    for (const edit of ['none', 'tick', 'shapes'] as const) {
+      const server = new FakeServer(), phone = new FakeDevice('phone'), laptop = new FakeDevice('laptop');
+      const id = phone.add('Old plan', [1]);
+      await sync(phone, server); await sync(laptop, server);
+      // The laptop updated: the plan goes up with what it took (or with an edit made there too).
+      laptop.setPart(id, 'household', { ...none });
+      laptop.setPart(id, 'switches', taken(all));
+      if (edit === 'tick') laptop.setPart(id, 'bought', { aster: { n: 1, at: 300 } });
+      if (edit === 'shapes') laptop.edit(id, [1, 2]);
+      await sync(laptop, server);
+      phone.del(id); // (before the phone's next sync)
+      const r = await sync(phone, server);
+      expect({ edit, undeleted: r.undeleted, names: phone.names(), deleted: server.rows.get(id)!.deleted })
+        .toEqual(edit === 'none' ? { edit, undeleted: [], names: [], deleted: true } : { edit, undeleted: ['Old plan'], names: ['Old plan'], deleted: false });
+    }
+  });
+  it("a plan deleted elsewhere doesn't come back for a carried-over yard that changed here since this version recorded it; a set one brings it back", async () => {
+    for (const set of [false, true]) {
+      const server = new FakeServer(), phone = new FakeDevice('phone'), laptop = new FakeDevice('laptop');
+      const id = phone.add('Old plan', [1]);
+      await sync(phone, server); await sync(laptop, server);
+      laptop.setPart(id, 'household', { ...none, answered: true });
+      laptop.setPart(id, 'switches', taken(all));
+      await sync(laptop, server); await sync(phone, server);
+      expect(laptop.recs[id].parts).toBeTruthy(); // (this version's record, with the parts it had)
+      phone.del(id); await sync(phone, server);
+      laptop.setPart(id, 'household', { ...none, answered: false, ...(set ? { at: 900 } : {}) });
+      const r = await sync(laptop, server);
+      expect({ set, removed: r.removed, restored: r.restored }).toEqual(set ? { set, removed: [], restored: ['Old plan'] } : { set, removed: ['Old plan'], restored: [] });
+    }
   });
 });
 

@@ -64,12 +64,15 @@ export function planSwitches(): Required<PlanSwitches> {
     return [k, at === undefined ? { on: state[k] } : { on: state[k], at }];
   })) as Required<PlanSwitches>;
 }
-/** Put a plan's switches in place (one opened, or sync's copy): any it doesn't have, as this device has them. */
-export function applySwitches(sw: PlanSwitches | undefined) {
+/**
+ * Put a plan's switches in place (one opened, or sync's copy): any it doesn't have, from `fallback` (src/storage.ts: as
+ * the plans here took them from this device at the update), else as this device has them.
+ */
+export function applySwitches(sw: PlanSwitches | undefined, fallback: PlanSwitches = {}) {
   const device = switchesFromDevice();
   const at: Partial<Record<WarningSwitch, number>> = {};
   for (const k of SWITCHES) {
-    const s = sw?.[k] ?? device[k];
+    const s = sw?.[k] ?? fallback[k] ?? device[k];
     state[k] = s.on;
     if (s.at !== undefined) at[k] = s.at;
   }

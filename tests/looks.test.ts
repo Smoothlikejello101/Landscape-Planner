@@ -99,12 +99,17 @@ describe('a plant drawn from its catalog facts', () => {
     const mine = { id: 'u-abc', common: "Strawberry 'Albion'", form: 'Perennial', bloom: { start: 3, end: 4, color: 'White' }, color: '#ff0000' } as Plant;
     expect(lookOf(mine, '#ff0000').pal.fl).toBe('#f7f4ec');
     expect(lookOf({ ...mine, bloom: { color: 'Pale lavender' } }, '#ff0000').pal.fl).toBe('#8a62c9');
-    // (No bloom color: the color picked for it on the plan, as the nearest flower color; none picked, no flowers.)
-    expect(lookOf({ ...mine, bloom: undefined }, '#ff0000').pal.fl).toBe('#d7263d');
-    expect(lookOf({ ...mine, bloom: undefined, color: '#ffff00' }, '#ffff00').pal.fl).toBe('#f2c230');
-    expect(lookOf({ ...mine, bloom: undefined, color: '#f6f5f4' }, '#f6f5f4').pal.fl).toBe('#f7f4ec');
-    expect(lookOf({ ...mine, bloom: undefined, color: '#ff00ff' }, '#ff00ff').pal.fl).toBe('#e0679f');
-    expect(lookOf({ ...mine, bloom: undefined, color: undefined }, '#16a34a').pal.fl).toBeUndefined();
+    // (Bloom months and no bloom color: the color picked for it on the plan, as the nearest flower color; none picked,
+    // no flowers.)
+    const months = { start: 3, end: 4 };
+    expect(lookOf({ ...mine, bloom: months }, '#ff0000').pal.fl).toBe('#d7263d');
+    expect(lookOf({ ...mine, bloom: months, color: '#ffff00' }, '#ffff00').pal.fl).toBe('#f2c230');
+    expect(lookOf({ ...mine, bloom: months, color: '#f6f5f4' }, '#f6f5f4').pal.fl).toBe('#f7f4ec');
+    expect(lookOf({ ...mine, bloom: months, color: '#ff00ff' }, '#ff00ff').pal.fl).toBe('#e0679f');
+    expect(lookOf({ ...mine, bloom: months, color: undefined }, '#16a34a').pal.fl).toBeUndefined();
+    // (No flower colors and no bloom months: no flowers at all, its plan color aside. Jason, Nov 1: a false cypress of
+    // his own was drawn in yellow flowers.)
+    expect(lookOf({ ...mine, bloom: undefined, color: '#ffff00' }, '#ffff00').pal.fl).toBeUndefined();
     // (A catalog plant: its sources' color; with none, the earlier list's words; never its plan color.)
     expect(lookOf(plant({ bloom: { start: 5, end: 10, color: 'Red' } }), '#000').pal.fl).toBe('#d7263d');
     expect(lookOf(plant({ bloom: { color: 'Hot pink fringe' } }), '#000').pal.fl).toBe('#e0679f');

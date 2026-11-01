@@ -1,6 +1,6 @@
 import { crowdLevelsOf, crowdNoticeAfterSwap } from './crowd-notice';
 import { el, sheetCloseButton, tapSaid, type Child } from '../dom';
-import { applyYard, askAtTop, askDismissed, dismissAsked, household, saveHardy, saveYard, toggleYard, yardOf, type Yard } from '../yard';
+import { applyYard, askAtTop, askDismissed, dismissAsked, household, saveHardy, saveYard, toggleYard, yardKeyOf, yardOf, type Yard } from '../yard';
 import { toast } from './toast';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
@@ -337,8 +337,10 @@ export function renderPlantsPanel() {
       title: mine ? 'Edit my plant' : 'Copy as my plant',
       'aria-label': (mine ? 'Edit ' : 'Copy as my plant: ') + p.common,
     });
-    // (Edited or copied from here, back here: openForm.)
-    side.addEventListener('click', () => openForm(mine ? { editId: p.id, place: false } : { copyFromId: p.id, place: false }));
+    // (Edited or copied from here, back here: openForm. A copy, once saved, goes where the picker was going, as a plant
+    // added here does: in hand to place, the plant switched to while placing, or linked. Jason, Nov 1, on his own plan:
+    // a copy made in Switch plant came back to a search it wasn't even in.)
+    side.addEventListener('click', () => openForm(mine ? { editId: p.id, place: false } : { copyFromId: p.id, place: true }));
     head.appendChild(side);
     if (mine) info.firstChild!.appendChild(el('span', { className: 'mine-badge' }, 'Mine'));
     // Now in the catalog too: offer its sourced facts (the person decides: src/ui/switch-plant.ts).
@@ -386,7 +388,8 @@ export function renderPlantsPanel() {
    * does. Not "Clear filters" or "Show them": those are for the search at hand.
    */
   function keepYard(key: keyof PlantFilter) {
-    if (key === 'noPoison' || key === 'dogs' || key === 'cats' || key === 'horses') { saveYard(yardOf(plantFilter)); syncYard(); }
+    const k = yardKeyOf(key);
+    if (k) { saveYard(yardOf(plantFilter), k); syncYard(); }
   }
   function rebuildList() {
     while (listWrap.firstChild) listWrap.removeChild(listWrap.firstChild);
@@ -870,7 +873,7 @@ export function renderPlantsPanel() {
       b.addEventListener('click', () => {
         const y = toggleYard(yardOf(plantFilter), k);
         applyYard(plantFilter, y);
-        saveYard(y);
+        saveYard(y, k);
         syncYard();
         rebuildList();
       });

@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { openKV, put } from '../src/db';
+import { MemoryKV, openKV, put } from '../src/db';
 import { state } from '../src/state';
 import {
   _resetStorageForTests, clearedNow, createProject, deleteProject, emptyProjectData, flushSave, getClipboard, initStorage, keepCleared, loadCleared,
@@ -966,6 +966,30 @@ describe('sync state on the device', () => {
     expect(await installId()).toBe(install); // the same install, after a restart
   });
 
+  it("keeps a record's parts (the ticks, yard and switches the server had) and a deleted plan's record, checked; clears them with its tombstone", async () => {
+    const { setSyncRecord, getSyncRecords, getSyncTombstones, getSyncDeletedRecord, deleteProject, createProject, clearSyncTombstone, resetSyncState } = await import('../src/storage');
+    const kv = await freshStorage();
+    const parts = { household: { ...NO_YARD, dogs: 'hideToxic', answered: true, at: 5 }, switches: { poisonWarnings: { on: false } }, bought: { yaupon: { n: 2, at: 9 } } };
+    const id = await createProject('Synced one'), gone = await createProject('Gone');
+    await setSyncRecord(id, { revision: 4, hash: 'a1:b', core: 'c2:d', parts });
+    await setSyncRecord(gone, { revision: 2, hash: 'e3:f', core: 'g4:h', parts });
+    await deleteProject(gone);
+    expect(getSyncDeletedRecord(gone)).toEqual({ revision: 2, hash: 'e3:f', core: 'g4:h', parts });
+    // Odd parts are dropped, as a plan's are; a deleted plan's record goes once its tombstone does (an older version cleared it).
+    await kv.write([put('kv', 'syncRecords', { [id]: { revision: 4, hash: 'a1:b', parts: { ...parts, household: 'kids', switches: { odd: 1 } } }, none: { revision: 1, hash: 'x', parts: 'no' } }),
+      put('kv', 'syncDeleted', { [gone]: { revision: 2, hash: 'e3:f', parts }, stale: { revision: 1, hash: 'y' } })]);
+    _resetStorageForTests();
+    await initStorage(kv);
+    expect(getSyncRecords()).toEqual({ [id]: { revision: 4, hash: 'a1:b', parts: { bought: parts.bought, switches: {} } }, none: { revision: 1, hash: 'x' } });
+    expect([getSyncDeletedRecord(gone), getSyncDeletedRecord('stale')]).toEqual([{ revision: 2, hash: 'e3:f', parts }, undefined]);
+    await clearSyncTombstone(gone);
+    expect([getSyncTombstones(), getSyncDeletedRecord(gone), await kv.get('kv', 'syncDeleted')]).toEqual([{}, undefined, {}]);
+    await setSyncRecord('deleted-meanwhile', { revision: 3, hash: 'x' }); // (deleted while uploading: its record too)
+    expect(getSyncDeletedRecord('deleted-meanwhile')).toEqual({ revision: 3, hash: 'x' });
+    await resetSyncState('someone-else');
+    expect([getSyncDeletedRecord('deleted-meanwhile'), await kv.get('kv', 'syncDeleted')]).toEqual([undefined, {}]);
+  });
+
   it('a project deleted while sync uploaded it gets a tombstone for the uploaded revision, not a record', async () => {
     const { setSyncRecord, getSyncRecords, getSyncTombstones } = await import('../src/storage');
     await freshStorage();
@@ -1235,10 +1259,10 @@ describe('plans on the device at the update take its yard and warnings then, onc
     expect(state.fruitWarnings).toBe(false);
     expect((await readProject('p2'))!.household).toEqual({ ...NO_YARD, answered: true });
   });
-  it('a plan that came later from before (a file, another device on an older version) takes them as it opens', async () => {
-    const kv = await freshStorage();
+  it('a plan that came later from before (a file, another device on an older version) takes what was taken at the update, every time it is read', async () => {
     localStorage.setItem('lp-yard', JSON.stringify({ ...NO_YARD, horses: true }));
     localStorage.setItem('lp-warn-hardy', 'off');
+    const kv = await freshStorage(); // (the update: its first start)
     await kv.write([put('projects', 'later', { shapes: [], zoom: 1, offsetX: 0, offsetY: 0 }), put('meta', 'later', { id: 'later', name: 'Later', lastModified: 5, shapeCount: 0 })]);
     _resetStorageForTests();
     await initStorage(kv);
@@ -1246,6 +1270,88 @@ describe('plans on the device at the update take its yard and warnings then, onc
     const d = (await readProject('later'))!;
     expect(d.household).toEqual({ ...NO_YARD, horses: true, answered: true });
     expect(d.switches!.hardyWarnings).toEqual({ on: false });
+    // What the device's keys say now doesn't move it: the question's × (the introduction run again likewise), or an
+    // older version writing 'lp-yard' meanwhile. Read again, after a restart too, it's the same, so it doesn't go up again.
+    localStorage.setItem('lp-protect-line', 'dismissed');
+    localStorage.setItem('lp-yard', JSON.stringify({ ...NO_YARD, cats: true }));
+    _resetStorageForTests();
+    await initStorage(kv);
+    expect((await readProject('later'))!.household).toEqual({ ...NO_YARD, horses: true, answered: true });
+    await switchProject('later');
+    expect(household()).toEqual({ ...NO_YARD, horses: true, answered: true });
+    expect(state.hardyWarnings).toBe(false);
+  });
+  it('the update is one transaction: a plan saved meanwhile (another tab) is never put back as it was read; once only', async () => {
+    for (const kv of [await openKV('test-' + ++dbCount), new MemoryKV()]) {
+      await kv.write([put('projects', 'a', { n: 1 }), put('projects', 'b', { n: 1 })]);
+      const pass = kv.changeAllOnce('flag', 'done', 'projects', (v) => ({ ...(v as object), took: true }));
+      const meanwhile = kv.write([put('projects', 'a', { n: 2 })]);
+      expect(await pass).toBeUndefined();
+      await meanwhile;
+      expect(await kv.get('projects', 'a')).toMatchObject({ n: 2 });
+      expect(await kv.get('projects', 'b')).toEqual({ n: 1, took: true });
+      // (Done: the flag's value, and nothing changed.)
+      expect(await kv.changeAllOnce('flag', 'again', 'projects', () => ({ x: 1 }))).toBe('done');
+      expect(await kv.get('projects', 'b')).toEqual({ n: 1, took: true });
+    }
+  });
+  it('what was taken is kept with the flag; a test build\'s flag (a time) takes what the device has now, kept from then on', async () => {
+    localStorage.setItem('lp-warn-poison', 'off');
+    const kv = await storageFromBefore([{ id: 'p1', name: 'Back Yard', data: { shapes: [circle('oak')] } }]);
+    expect(await kv.get('kv', 'tookFromDevice')).toMatchObject({ at: expect.any(Number), household: { ...NO_YARD, answered: false }, switches: { poisonWarnings: { on: false } } });
+    // A flag from a build of this branch before it kept what it took: what this device has now is kept from here on.
+    await kv.write([put('kv', 'tookFromDevice', 12345)]);
+    localStorage.setItem('lp-yard', JSON.stringify({ ...NO_YARD, kids: true }));
+    _resetStorageForTests();
+    await initStorage(kv);
+    expect(await kv.get('kv', 'tookFromDevice')).toMatchObject({ household: { ...NO_YARD, kids: true, answered: true } });
+  });
+});
+
+// From storage as the current release writes it (src/storage.ts on `release`): plans with none of the three parts, sync
+// records of revision and fingerprints only, a deletion still to send. The review of the storage change (Nov 1) asked
+// for a start from the release itself, with sync records; this is that release's storage, written as it writes it.
+describe("from the current release's storage, with sync records", () => {
+  it("each plan takes this device's yard and switches, nothing else changes, and sync's records and tombstone are left for sync to settle", async () => {
+    localStorage.setItem('lp-yard', JSON.stringify({ ...NO_YARD, dogs: 'nonToxic' }));
+    localStorage.setItem('lp-crowding', 'off');
+    _resetStorageForTests();
+    const kv = await openKV('test-' + ++dbCount);
+    const plan = (shapes: unknown[]) => ({ shapes, zoom: 1, offsetX: 0, offsetY: 0, roleViews: {}, print: { includeLegend: true }, sizeMode: 'typical', sunWarnings: true, phases: [], bgImage: null, photoElsewhere: null });
+    await kv.write([
+      put('meta', 'synced', { id: 'synced', name: 'Back Yard', lastModified: 1000, shapeCount: 1 }), put('projects', 'synced', plan([circle('oak')])),
+      put('meta', 'local', { id: 'local', name: 'Sketch', lastModified: 1001, shapeCount: 0 }), put('projects', 'local', plan([])),
+      put('kv', 'syncRecords', { synced: { revision: 7, hash: 'a1:b', photo: 'none' } }), put('kv', 'syncTombstones', { trashed: 3 }), put('kv', 'syncUser', 'u1'),
+    ]);
+    await initStorage(kv);
+    const { getSyncRecords, getSyncTombstones, getSyncDeletedRecord, getSyncUser } = await import('../src/storage');
+    for (const id of ['synced', 'local']) {
+      expect(await stored(kv, id)).toMatchObject({ household: { ...NO_YARD, dogs: 'nonToxic', answered: true }, switches: { showCrowding: { on: false }, poisonWarnings: { on: true } } });
+      expect('bought' in (await stored(kv, id))).toBe(false);
+    }
+    expect([await lastChanged(kv, 'synced'), await lastChanged(kv, 'local')]).toEqual([1000, 1001]);
+    // (Left as that version wrote them: a record without the parts sends the plan the long way, settling with the server's:
+    // tests/sync-local.test.ts. The tombstone goes as before, without a record to tell carried-over parts by.)
+    expect(getSyncRecords()).toEqual({ synced: { revision: 7, hash: 'a1:b', photo: 'none' } });
+    expect([getSyncTombstones(), getSyncDeletedRecord('trashed'), getSyncUser()]).toEqual([{ trashed: 3 }, undefined, 'u1']);
+  });
+  it("the update's pass failing (a full disk) leaves every plan as it was, filled as each is read, and runs at the next start", async () => {
+    localStorage.setItem('lp-yard', JSON.stringify({ ...NO_YARD, kids: true }));
+    _resetStorageForTests();
+    const inner = await openKV('test-' + ++dbCount);
+    await inner.write([put('meta', 'p1', { id: 'p1', name: 'Back Yard', lastModified: 1000, shapeCount: 0 }), put('projects', 'p1', { shapes: [], zoom: 1, offsetX: 0, offsetY: 0 })]);
+    let fail = true;
+    const flaky = Object.assign(Object.create(inner) as typeof inner, {
+      changeAllOnce: (...a: Parameters<typeof inner.changeAllOnce>) => (fail ? Promise.reject(new DOMException('full', 'QuotaExceededError')) : inner.changeAllOnce(...a)),
+    });
+    await initStorage(flaky);
+    expect(household()).toEqual({ ...NO_YARD, kids: true, answered: true }); // (read as it is, all the same)
+    expect([await inner.get('kv', 'tookFromDevice'), 'household' in (await stored(inner, 'p1'))]).toEqual([undefined, false]);
+    fail = false;
+    _resetStorageForTests();
+    await initStorage(flaky);
+    expect(await stored(inner, 'p1')).toMatchObject({ household: { ...NO_YARD, kids: true, answered: true } });
+    expect(await inner.get('kv', 'tookFromDevice')).toMatchObject({ household: { ...NO_YARD, kids: true, answered: true } });
   });
 });
 
