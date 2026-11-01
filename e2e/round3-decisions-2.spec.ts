@@ -152,7 +152,7 @@ test('Settings → Warnings lists every warning in the plan, by kind past a hand
   // Left close on purpose from Settings: listed as dismissed, below, folds kept open.
   await page.keyboard.press('Escape');
   await openSettings(page);
-  await page.getByTestId('leave-all-close').click();
+  await crowding.getByRole('button', { name: 'Dismiss all 6' }).click();
   await expect(crowding.locator(':scope > summary')).toHaveText('Crowding · 6 dismissed');
   await expect(rows.first()).toHaveAttribute('data-dismissed', 'true');
   await rows.first().getByTestId('warning-again').click();

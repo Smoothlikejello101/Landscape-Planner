@@ -80,6 +80,10 @@ export async function deleteSelectedAsking(): Promise<void> {
   const beds = going.filter(isBed);
   const left = plantsLeftIn(beds, selected);
   const inBeds = beds.length === 1 ? 'the bed' : 'the beds';
+  // Locked plants in those beds, not selected: they stay, as a lock keeps a shape through any delete; said, so they
+  // aren't a surprise left on the lawn (Jason, Nov 1).
+  const chosen = new Set(selected.map((s) => s.id));
+  const lockedIn = beds.flatMap((b) => plantsOf(b)).filter((p) => isLocked(p) && !chosen.has(p.id));
   let alsoLeft = false;
   if (notPlants.length || away.length) {
     const msg = `Delete ${going.length} shape${going.length === 1 ? '' : 's'}: ${describeShapes(going)}?` +
@@ -100,7 +104,8 @@ export async function deleteSelectedAsking(): Promise<void> {
   state.panel = null;
   render();
   undoNotice(`Deleted ${describeShapes(gone)}` + (left.length && !alsoLeft ? `; the other ${named(left)} in ${inBeds} ${stay(left)}` : '') +
-    (kept ? `; ${kept} locked ${kept === 1 ? 'shape' : 'shapes'} kept` : ''));
+    (kept ? `; ${kept} locked ${kept === 1 ? 'shape' : 'shapes'} kept` : '') +
+    (lockedIn.length ? `; the ${namedAs(lockedIn, 'locked')} in ${inBeds} ${stay(lockedIn)}` : ''));
 }
 /** The plants in a bed (src/beds.ts), locked or not, leaving out those marked gone (a bed's count leaves them out). */
 const plantsOf = (bed: Shape): Shape[] => plantsInBed(bed, state.shapes).filter((p) => p.status !== 'gone');
@@ -137,10 +142,6 @@ async function deleteBedAsking(bed: Shape): Promise<void> {
   render();
 }
 /**
- * "Deleted 3 plants · Undo": every delete says what went, with an Undo of that step (while nothing has changed
- * since; after that, the top bar's Undo).
- */
-/**
  * Cut (Ctrl+X): what's selected goes to the clipboard and off the plan, with Undo; nothing asked, since Paste or Undo
  * brings it back. Locked shapes stay, and stay off the clipboard.
  */
@@ -155,11 +156,18 @@ export function cutSelected() {
   state.panel = null;
   undoNotice(`Cut ${going.length === 1 ? going[0].label || describeShapes(going) : describeShapes(going)}` + (kept ? `; ${kept} locked ${kept === 1 ? 'shape' : 'shapes'} kept` : ''));
 }
-export function undoNotice(said: string) {
+/**
+ * "Deleted 3 plants · Undo": every delete says what went, with an Undo of that step (while nothing has changed
+ * since; after that, the top bar's Undo). `takeBack`, for a change that isn't only a step to undo (warnings dismissed
+ * for a plant across the plan aren't in the undo history: src/warnings-list.ts setDismissed): it takes it back its own
+ * way, false if it has changed since.
+ */
+export function undoNotice(said: string, takeBack?: () => boolean) {
   const step = state.history[state.historyIndex];
   toastAction(said, [{ label: 'Undo', run: () => {
     flushHistoryDebounce();
-    if (state.history[state.historyIndex] !== step) { toast('It has changed since, so it was left as it is.'); return; }
-    undo(); render();
+    if (takeBack ? !takeBack() : state.history[state.historyIndex] !== step) { toast('It has changed since, so it was left as it is.'); return; }
+    if (!takeBack) undo();
+    render();
   } }], 8000);
 }

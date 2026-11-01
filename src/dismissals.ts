@@ -3,7 +3,7 @@
 // to warn again for new ones. Fruit-partner reminders too. Per plan: another plan, another yard, warns again. Each is
 // kept with what the warning said when it was dismissed, so it comes back if that changes (a new ZIP; someone new in
 // the yard). Sun and crowding stay a copy's own: they depend on where it stands. Shown again from the plant's pane or
-// Settings → Warnings, "In this plan now" (src/warnings-list.ts).
+// Settings → Warnings, "In this plan now" (src/warnings-list.ts), where they can be dismissed too (Jason, Nov 1).
 
 import { pushHistory } from './history';
 import { householdFlags, plantsById, type Plant } from './plants';
@@ -36,14 +36,19 @@ export function dismissForPlan(kind: DismissKind, plantId: string, said: string)
  * "Warn me for new ones": those go as well). Saved.
  */
 export function showAgainForPlan(kind: DismissKind, plantId: string) {
+  if (clearForPlan(kind, plantId)) pushHistory();
+  save();
+}
+/**
+ * What showAgainForPlan changes, without its step or save (Settings → Warnings shows a kind's all again as one step:
+ * Jason, Nov 1). Whether a copy changed.
+ */
+export function clearForPlan(kind: DismissKind, plantId: string): boolean {
   dropPlanEntry(kind, plantId);
   const field = kind === 'hardy' ? 'hardyDismissed' : kind === 'poison' ? 'poisonDismissed' : null;
   const copies = field ? copiesOf(plantId).filter((s) => s[field] !== undefined) : [];
-  if (copies.length) {
-    for (const s of copies) delete s[field!];
-    pushHistory();
-  }
-  save();
+  for (const s of copies) delete s[field!];
+  return copies.length > 0;
 }
 
 /**
