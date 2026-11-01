@@ -907,8 +907,9 @@ function liftHidden(shapes: Element) {
     if (!s || s.type !== 'circle') continue;
     const cx = (s.x - state.offsetX) * ppf, cy = (s.y - state.offsetY) * ppf, r = Math.max(2, drawnRadius(s) * ppf - 1);
     const outlined = state.selectedIds.includes(id) || (hiddenBy.get(id) ?? []).some((c) => state.selectedIds.includes(c));
-    // (Its pin sized by the plant as drawn, none where it's a speck or the plan is zoomed far out: src/pins.ts.)
-    const pin = outlined ? null : pinRadius(r, state.zoom);
+    // (Its pin sized by the plant as drawn and the zoom; none where it's a speck, below 85%, or with names hidden:
+    // src/pins.ts.)
+    const pin = outlined ? null : pinRadius(r, state.zoom, state.showNames);
     if (outlined) rims.push(svgEl('g', { 'data-role': 'hidden-rim', 'data-rim-of': id, 'data-mark': 'outline' },
       svgEl('circle', { cx, cy, r, fill: 'none', stroke: 'rgba(255,255,255,0.75)', 'stroke-width': 3 }),
       svgEl('circle', { cx, cy, r, fill: 'none', stroke: '#292524', 'stroke-width': 1.5, 'stroke-dasharray': '2 3', 'stroke-linecap': 'round', opacity: 0.8 })));
