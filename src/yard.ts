@@ -8,7 +8,9 @@
 //
 // Before Nov 1 it was kept per device, in 'lp-yard' (chosen Oct 28 with the introduction, not by Jason). A plan from
 // before takes what this device had there (householdFromDevice), so nobody's setting changes with the update; 'lp-yard'
-// is only read for that now, and left in place for an older version of the app.
+// is only read for that now, and left in place for an older version of the app. It's read once, at the update, with
+// whether the question was answered here (src/storage.ts takeFromDevice): 'lp-protect-line' and 'lp-intro' still change
+// after it (the ×, the introduction run again), and a plan from before read later takes what was taken then.
 
 import type { DogFilter, PlantFilter } from './plants';
 import type { PlanHousehold } from './types';

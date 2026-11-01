@@ -11,6 +11,7 @@ import type { BgImage, Clipboard, PathShape, PhotoRef, PlanBought, PlanDismissal
 import { setWorldPoints } from './geometry';
 import { now, uid } from './util';
 import { photoFingerprint } from './sync/photo';
+import { canonical, coreHash } from './sync/engine';
 import { sanitizeLocation } from './climate';
 import { householdFromDevice } from './yard';
 import { applySwitches, planSwitches, switchesAllOn, switchesFromDevice, WARNING_SWITCHES } from './view-settings';
@@ -21,7 +22,8 @@ import { applySwitches, planSwitches, switchesAllOn, switchesFromDevice, WARNING
 //   images/<projectId>/<id>   { dataUrl } for the background image
 //   kv/current, kv/clipboard, kv/lastBackupAt, kv/migratedFromLocalStorage,
 //   kv/myPlants (the user's plant library), kv/myPlantSync (its sync state), kv/lastSizeMode,
-//   kv/tookFromDevice (when the plans here took this device's yard and warning switches: takeFromDevice),
+//   kv/tookFromDevice (the yard and warning switches the plans here took from this device, and when: takeFromDevice),
+//   kv/syncDeleted (the sync records of synced projects deleted here, until the server's trash has them),
 //   kv/cleared/<projectId>    what Clear all took from that project, until something new is drawn there
 // The current project is held in `state`; saves are debounced and also
 // flushed when the page is hidden so a quick app switch can't lose an edit.
@@ -667,8 +669,8 @@ export async function readProject(id: string): Promise<ProjectData | null> {
   // (A plan from before plans kept who's in the yard and the warning switches, come since the update (an older file,
   // a version before on another device): as this device has them, from before too. Written with its next save. The
   // plans here at the update took them then: takeFromDevice.)
-  data.household ??= householdFromDevice();
-  data.switches ??= switchesFromDevice();
+  data.household ??= takenHousehold();
+  data.switches ??= takenSwitches();
   // The image bytes are missing, but sync knows the photo: it can bring it back.
   if (!bgImage && stored.bgImage && !data.photoElsewhere) {
     const bg = migrateBgImage({ ...stored.bgImage, dataUrl: '' });
@@ -715,8 +717,8 @@ export async function switchProject(id: string): Promise<boolean> {
   state.sunWarnings = data.sunWarnings !== false;
   state.dismissed = data.dismissed;
   state.bought = data.bought;
-  state.household = data.household ?? householdFromDevice();
-  applySwitches(data.switches);
+  state.household = data.household ?? takenHousehold();
+  applySwitches(data.switches, takenSwitches());
   state.phases = data.phases ?? [];
   state.viewFilter = data.viewFilter ? { ...data.viewFilter } : { status: '', phase: '', showGone: false };
   state.bgImage = data.bgImage ?? null;
@@ -796,8 +798,8 @@ export async function deleteProject(id: string, bySync = false, token?: number):
     const records = { ...syncRecords };
     delete records[id];
     syncRecords = records;
-    if (!bySync) syncTombstones = { ...syncTombstones, [id]: rec.revision };
-    ops.push(put('kv', 'syncRecords', syncRecords), put('kv', 'syncTombstones', syncTombstones));
+    if (!bySync) { syncTombstones = { ...syncTombstones, [id]: rec.revision }; syncDeleted = { ...syncDeleted, [id]: rec }; }
+    ops.push(put('kv', 'syncRecords', syncRecords), put('kv', 'syncTombstones', syncTombstones), put('kv', 'syncDeleted', syncDeleted));
   }
   bumpChange(id);
   state.projects = state.projects.filter((p) => p.id !== id);
@@ -822,12 +824,19 @@ export async function renameProject(id: string, name: string) {
  * fingerprint of its content then (without the photo), and which photo it had
  * ('none', 'kept' on one device, or the photo's fingerprint; absent if unknown,
  * as for projects synced before photos did); `core`, the fingerprint without the
- * Plant list's ticks, who's in the yard and the warning switches too (absent from before them).
+ * Plant list's ticks, who's in the yard and the warning switches too, and `parts`, those
+ * three as the server had them (both absent from before them).
  */
-export interface SyncRecord { revision: number; hash: string; photo?: string; held?: 'room' | 'refused'; core?: string }
+export interface SyncRecord { revision: number; hash: string; photo?: string; held?: 'room' | 'refused'; core?: string; parts?: Record<string, unknown> }
 let syncRecords: Record<string, SyncRecord> = {};
 /** Synced projects deleted here, still to be moved to the server's trash: id → revision. */
 let syncTombstones: Record<string, number> = {};
+/**
+ * The record each of those had as it was deleted (its revision, fingerprints, and the ticks, yard and switches the
+ * server had then), so the next sync can tell another device's edit since from the parts it carried over when plans got
+ * their own (src/sync/engine.ts). Kept apart from the tombstones, which an older version reads as numbers.
+ */
+let syncDeleted: Record<string, SyncRecord> = {};
 /** The account this device's sync state belongs to. */
 let syncUserId: string | null = null;
 /**
@@ -846,6 +855,8 @@ let afterSave: (() => void) | null = null;
 export function setSyncHooks(onSave: () => void, onProjects: () => void) { afterSave = onSave; afterProjectsChange = onProjects; }
 export function getSyncRecords(): Record<string, SyncRecord> { return { ...syncRecords }; }
 export function getSyncTombstones(): Record<string, number> { return { ...syncTombstones }; }
+/** The record a synced project deleted here had, if kept (src/sync/engine.ts Local.deletedRecord). */
+export function getSyncDeletedRecord(id: string): SyncRecord | undefined { return syncDeleted[id]; }
 /**
  * Note a project's sync state. A project deleted here while sync uploaded it
  * gets a tombstone for that revision instead, so the next sync trashes it on
@@ -857,7 +868,8 @@ export async function setSyncRecord(id: string, rec: SyncRecord | null) {
     delete next[id];
     syncRecords = next;
     syncTombstones = { ...syncTombstones, [id]: rec.revision };
-    await db().write([put('kv', 'syncRecords', syncRecords), put('kv', 'syncTombstones', syncTombstones)]);
+    syncDeleted = { ...syncDeleted, [id]: rec };
+    await db().write([put('kv', 'syncRecords', syncRecords), put('kv', 'syncTombstones', syncTombstones), put('kv', 'syncDeleted', syncDeleted)]);
     return;
   }
   const next = { ...syncRecords };
@@ -866,18 +878,20 @@ export async function setSyncRecord(id: string, rec: SyncRecord | null) {
   await db().write([put('kv', 'syncRecords', next)]);
 }
 export async function clearSyncTombstone(id: string) {
-  const next = { ...syncTombstones };
+  const next = { ...syncTombstones }, deleted = { ...syncDeleted };
   delete next[id];
+  delete deleted[id];
   syncTombstones = next;
-  await db().write([put('kv', 'syncTombstones', next)]);
+  syncDeleted = deleted;
+  await db().write([put('kv', 'syncTombstones', next), put('kv', 'syncDeleted', deleted)]);
 }
 /** The account this device last synced with (null: none). */
 export function getSyncUser(): string | null { return syncUserId; }
 /** Forget all sync state and note whose it is now (a different account signed in on this device). Edit times stay. */
 export async function resetSyncState(userId: string | null) {
-  syncRecords = {}; syncTombstones = {}; syncUserId = userId;
+  syncRecords = {}; syncTombstones = {}; syncDeleted = {}; syncUserId = userId;
   plantSync = { records: {}, edited: plantSync.edited };
-  await db().write([put('kv', 'syncRecords', {}), put('kv', 'syncTombstones', {}), put('kv', 'syncUser', userId), put('kv', 'myPlantSync', plantSync)]);
+  await db().write([put('kv', 'syncRecords', {}), put('kv', 'syncTombstones', {}), put('kv', 'syncDeleted', {}), put('kv', 'syncUser', userId), put('kv', 'myPlantSync', plantSync)]);
 }
 /** This app install's random id, made on first use and kept with the plans (trials count once per install). */
 export async function installId(): Promise<string> {
@@ -937,7 +951,13 @@ export async function replaceProjectContent(
   if (!(content && typeof content === 'object' && 'bought' in content)) data.bought = base.bought;
   if (!data.household) data.household = base.household;
   if (!data.switches) data.switches = base.switches;
-  const metaNext = { ...meta, name: name.trim() || 'Untitled', lastModified: now(), shapeCount: data.shapes.length };
+  // (When only the ticks, the yard or the warning switches came, the plan keeps when it was last modified: what another
+  // device carried over when plans got their own mustn't make every plan here "modified just now", and re-sort the list,
+  // the day the first device updates. The review of the storage change, Nov 1.)
+  const newName = name.trim() || 'Untitled';
+  const onlyParts = newName === meta.name && coreHash('', syncedContent(base) as unknown as Record<string, unknown>) === coreHash('', syncedContent(data) as unknown as Record<string, unknown>)
+    && samePhoto(base, data);
+  const metaNext = { ...meta, name: newName, lastModified: onlyParts ? meta.lastModified : now(), shapeCount: data.shapes.length };
   bumpChange(id);
   // The write is queued before any later save's (and any read by a switch to this project), so they see it.
   const ops = [...projectWriteOps(id, data, isOpen ? storedImageKeys : undefined), put('meta', id, metaNext)];
@@ -952,7 +972,7 @@ export async function replaceProjectContent(
     state.dismissed = data.dismissed;
     state.bought = data.bought;
     state.household = data.household ?? state.household;
-    if (data.switches) applySwitches(data.switches);
+    if (data.switches) applySwitches(data.switches, takenSwitches());
     state.phases = data.phases ?? [];
     state.location = data.location;
     if (state.bgImage !== data.bgImage) { state.bgImage = data.bgImage ?? null; if (!state.bgImage) state.bgEditMode = false; }
@@ -971,6 +991,16 @@ export async function replaceProjectContent(
     throw e;
   }
   return true;
+}
+/** Whether two versions of a plan show the same photo, placed the same (its bytes and placement; not storage details). */
+function samePhoto(a: ProjectData, b: ProjectData): boolean {
+  const placed = (bg: BgImage | null | undefined) => {
+    if (!bg) return 'none';
+    const { dataUrl: _d, imageId: _i, fingerprint: _f, ...placement } = bg;
+    return canonical(placement);
+  };
+  return (a.bgImage?.dataUrl ?? '') === (b.bgImage?.dataUrl ?? '') && placed(a.bgImage) === placed(b.bgImage)
+    && canonical(a.photoElsewhere ?? null) === canonical(b.photoElsewhere ?? null);
 }
 /**
  * Note a background photo's fingerprint with its project (not an edit), so a
@@ -1243,6 +1273,9 @@ export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: s
   const tombs = await kv.get<unknown>('kv', 'syncTombstones');
   syncTombstones = {};
   if (tombs && typeof tombs === 'object') for (const [k, v] of Object.entries(tombs)) if (typeof v === 'number' && Number.isFinite(v)) syncTombstones[k] = v;
+  // (Only for a tombstone still there: one an older version cleared since is gone.)
+  const deleted = sanitizeSyncRecords(await kv.get<unknown>('kv', 'syncDeleted'));
+  syncDeleted = Object.fromEntries(Object.entries(deleted).filter(([k]) => k in syncTombstones));
   const su = await kv.get<unknown>('kv', 'syncUser');
   syncUserId = typeof su === 'string' ? su : null;
   if (state.projects.length === 0) await createProject('My Garden');
@@ -1256,27 +1289,56 @@ export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: s
  * Once, on the first start of the version that keeps who's in the yard and the warning switches with each plan (Nov 1):
  * every plan on this device takes this device's, as they are now (src/yard.ts householdFromDevice, src/view-settings.ts
  * switchesFromDevice), added to what's stored and nothing else changed, not even when it last changed. At once rather
- * than as each plan is next opened, so a plan opened months later still takes them as they were at the update: the ×
- * on "Anyone you need to protect?", or the guided introduction done for a new plan, would change what it took. One
- * write: every plan, or none and again next time.
+ * than as each plan is next opened, so a plan opened months later still takes them as they were at the update.
+ *
+ * What was taken is kept too (`fromDevice`): a plan that comes later without them (an older file, an older version on
+ * another device or this one) takes the same, every time it's read. Read live, they'd move: the × on "Anyone you need to
+ * protect?" turns 'answered' into 'dismissed', and the guided introduction run again changes 'lp-intro', so the same
+ * plan would read differently and go up again, changed, to the other devices.
+ *
+ * One transaction: every plan or none (tried again next time), and nothing another tab saves meanwhile is put back.
  */
 async function takeFromDevice(k: KV) {
-  if ((await k.get<unknown>('kv', TOOK_FROM_DEVICE)) !== undefined) return;
-  const household = householdFromDevice(), switches = switchesFromDevice();
-  const ops: WriteOp[] = [];
-  for (const id of await k.keys('projects')) {
-    const stored = await k.get<Record<string, unknown>>('projects', id);
-    if (!stored || typeof stored !== 'object') continue;
+  const taking: TakenFromDevice = { at: now(), household: householdFromDevice(), switches: switchesFromDevice() };
+  const was = await k.changeAllOnce(TOOK_FROM_DEVICE, taking, 'projects', (v) => {
+    if (!v || typeof v !== 'object') return undefined;
+    const stored = v as Record<string, unknown>;
     const needs = { household: !sanitizeHousehold(stored.household), switches: !sanitizeSwitches(stored.switches) };
-    if (!needs.household && !needs.switches) continue;
-    ops.push(put('projects', id, { ...stored, ...(needs.household ? { household: { ...household } } : {}), ...(needs.switches ? { switches: deepCopy(switches) } : {}) }));
-  }
-  ops.push(put('kv', TOOK_FROM_DEVICE, now()));
-  await k.write(ops);
+    if (!needs.household && !needs.switches) return undefined;
+    return { ...stored, ...(needs.household ? { household: { ...taking.household } } : {}), ...(needs.switches ? { switches: deepCopy(taking.switches) } : {}) };
+  });
+  if (was === undefined) { fromDevice = taking; return; }
+  // (Taken at an earlier start: as it was then. A test build of this branch kept only the time: what it would take now,
+  // kept from here on.)
+  fromDevice = sanitizeTaken(was);
+  if (!fromDevice) { fromDevice = taking; await k.write([put('kv', TOOK_FROM_DEVICE, taking)]); }
 }
 const TOOK_FROM_DEVICE = 'tookFromDevice';
+interface TakenFromDevice { at: number; household: PlanHousehold; switches: PlanSwitches }
+/** What the plans here took from this device at the update (takeFromDevice); null until then, or if it couldn't be done. */
+let fromDevice: TakenFromDevice | null = null;
+function sanitizeTaken(raw: unknown): TakenFromDevice | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const o = raw as Record<string, unknown>;
+  const household = sanitizeHousehold(o.household), switches = sanitizeSwitches(o.switches);
+  return household && switches ? { at: num(o.at, 0), household, switches } : null;
+}
+/** Who's in the yard for a plan that comes without (from before plans kept it): as the plans here took it at the update. */
+function takenHousehold(): PlanHousehold { return { ...(fromDevice?.household ?? householdFromDevice()) }; }
+/** Likewise the warning switches (any the update didn't know: as this device had them). */
+function takenSwitches(): PlanSwitches { return { ...switchesFromDevice(), ...deepCopy(fromDevice?.switches ?? {}) }; }
 const deepCopy = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
+/** A sync record's parts (the ticks, the yard, the switches), as a plan's are checked; null if none. */
+function sanitizeRecordParts(raw: unknown): Record<string, unknown> | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const o = raw as Record<string, unknown>, out: Record<string, unknown> = {};
+  const bought = sanitizeBought(o.bought), household = sanitizeHousehold(o.household), switches = sanitizeSwitches(o.switches);
+  if (bought) out.bought = bought;
+  if (household) out.household = household;
+  if (switches) out.switches = switches;
+  return Object.keys(out).length ? out : null;
+}
 function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
   const out: Record<string, SyncRecord> = {};
   if (raw && typeof raw === 'object') {
@@ -1287,6 +1349,9 @@ function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
         // (The plan's fingerprint without the parts that settle on their own, src/sync/engine.ts coreHash; records from
         // before have none.)
         if (typeof r.core === 'string' && /^[0-9a-z]+:[0-9a-z]+$/.test(r.core)) out[k].core = r.core;
+        // (The ticks, yard and switches as the server had them then, src/sync/engine.ts SyncRecord.parts.)
+        const parts = sanitizeRecordParts(r.parts);
+        if (parts) out[k].parts = parts;
         if (typeof r.photo === 'string' && /^(none|kept|[0-9a-f]{64}@[0-9a-z]+:[0-9a-z]+)$/.test(r.photo)) out[k].photo = r.photo;
         if (r.held === 'room' || r.held === 'refused') out[k].held = r.held;
         else if ((r.held as unknown) === true) out[k].held = 'room'; // (an early test build stored true)
@@ -1299,7 +1364,8 @@ function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
 export function _resetStorageForTests() {
   kv = null; clipboardCache = null; storedImageKeys = new Set(); committedImageKeys = new Set(); cleared.clear();
   quotaWarned = false; lastBackupAt = null; myPlantsRaw = []; lastSizeMode = 'typical'; editSeq = 0; savedSeq = 0; planSeq = 0; savedPlanSeq = 0; saveFailing = false;
-  lastFailureJournalAt = 0; unreplayed.clear(); syncRecords = {}; syncTombstones = {}; syncUserId = null; changeCounts.clear(); plantSync = { records: {}, edited: {} };
+  lastFailureJournalAt = 0; unreplayed.clear(); syncRecords = {}; syncTombstones = {}; syncDeleted = {}; syncUserId = null; changeCounts.clear(); plantSync = { records: {}, edited: {} };
+  fromDevice = null;
   saveChain = Promise.resolve(true);
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = null;

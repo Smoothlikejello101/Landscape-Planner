@@ -15,7 +15,10 @@
 // - Parts of a plan never conflict (Jason, Nov 1): the Plant list's ticks,
 //   who's in the yard and the warning switches settle on their own, whichever
 //   devices changed them (settleParts); a conflict is the rest of the plan
-//   changed on both.
+//   changed on both. An upload never replaces the server's parts with ones
+//   this device didn't know: a record keeps the parts as the server had
+//   them, and one from a version before them makes the upload settle with
+//   the server first.
 // - Sync never removes a project that has changes here. A project deleted
 //   elsewhere leaves this device only if it hasn't changed here; if it has,
 //   it comes back out of the trash with this device's version.
@@ -46,6 +49,12 @@ export interface SyncRecord {
    * them: its plan had neither part then, so `hash` is that.
    */
   core?: string;
+  /**
+   * The parts that settle on their own (`bought`, `household`, `switches`) as the server had them at `revision`, where
+   * it had any. Absent in a record from before them: a version that didn't know them left them out of what it stored,
+   * so what the server has of them isn't known here (an upload settles with the server first).
+   */
+  parts?: ProjectContent;
 }
 export interface ServerProject { id: string; name: string; revision: number; updated_by: string | null; updated_at: string; deleted_at: string | null }
 export type PushResult =
@@ -63,6 +72,11 @@ export interface Local {
   setRecord(id: string, rec: SyncRecord | null): Promise<void>;
   /** Synced projects deleted here, to move to the server's trash: id → the revision deleted. */
   tombstones(): Record<string, number>;
+  /**
+   * The record a project deleted here had (its sync state as it was deleted), if kept: a deletion is undone only by a
+   * change made elsewhere since, not by the parts another device took from what it had when plans got their own.
+   */
+  deletedRecord?(id: string): SyncRecord | undefined;
   clearTombstone(id: string): Promise<void>;
   /**
    * Replace a project's content and name, if unchanged since `token` (else
@@ -181,6 +195,12 @@ function coreOf(c: ProjectContent): ProjectContent {
   for (const k of OWN_PARTS) delete out[k];
   return out;
 }
+/** The parts of a plan that settle on their own, those it has (a copy). */
+function partsOf(c: ProjectContent): ProjectContent {
+  const out: ProjectContent = {};
+  for (const k of OWN_PARTS) if (c[k] !== undefined) out[k] = JSON.parse(JSON.stringify(c[k]));
+  return out;
+}
 /** Fingerprint of the name and the plan's core (coreOf). */
 export const coreHash = (name: string, c: ProjectContent) => fingerprint(name, coreOf(c));
 /** A record's core fingerprint; one from before the parts that settle on their own had none, its plan neither part. */
@@ -209,6 +229,8 @@ export function photoFp(c: ProjectContent): string | undefined {
 const recordFor = (name: string, c: ProjectContent, revision: number): SyncRecord => {
   const photo = photoKey(c);
   const rec: SyncRecord = { revision, hash: planHash(name, c), core: coreHash(name, c) };
+  const parts = partsOf(c);
+  if (Object.keys(parts).length) rec.parts = parts;
   return photo === undefined ? rec : { ...rec, photo };
 };
 /** Size in bytes of a data URL's contents. */
@@ -427,17 +449,56 @@ export function settleParts(mine: ProjectContent, theirs: ProjectContent): Proje
   if (switches) out.switches = switches;
   return out;
 }
+/** Has a time it was set in the plan: someone set it, rather than a device carrying over what it had. */
+const setInPlan = (v: unknown): boolean => isObject(v) && typeof v.at === 'number';
+/**
+ * Whether `now`'s parts differ from `was`'s only by values carried over from a device, never set in the plan (no `at`):
+ * the ticks the same, and who's in the yard and each warning switch the same or carried over. (Every change a person
+ * makes is stamped with when; only the update, or a version before it leaving them out, gives a value without one.)
+ */
+function onlyCarriedOver(now: ProjectContent, was: ProjectContent): boolean {
+  if (canonical(now.bought ?? null) !== canonical(was.bought ?? null)) return false;
+  if (canonical(now.household ?? null) !== canonical(was.household ?? null) && setInPlan(now.household)) return false;
+  const a = isObject(now.switches) ? now.switches : {}, b = isObject(was.switches) ? was.switches : {};
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) if (canonical(a[k] ?? null) !== canonical(b[k] ?? null) && setInPlan(a[k])) return false;
+  return true;
+}
 /**
  * Changed here only by taking this device's household and warning switches when plans got their own (no `at`: never
- * set in the plan), the photo as it was: not an edit, so no reason to bring back a plan deleted elsewhere.
+ * set in the plan), the photo as it was: not an edit, so no reason to bring back a plan deleted elsewhere. Judged on
+ * the record's core and parts where it has them (a record of this version), else, a record from before the parts, on
+ * the rest of the plan as that record has it.
  */
 function onlyTakenFromDevice(p: LocalProject, rec: SyncRecord | undefined): boolean {
   if (!rec || (photoKey(p.content) ?? 'none') !== (rec.photo ?? 'none')) return false;
+  if (rec.parts) return coreHash(p.name, p.content) === coreOfRecord(rec) && onlyCarriedOver(p.content, rec.parts);
   const { household: h, switches: sw, ...rest } = p.content;
   const taken = (h === undefined || (householdOk(h) && typeof h.at !== 'number'))
     && (sw === undefined || (isObject(sw) && Object.values(sw).every((v) => switchOk(v) && v.at === undefined)));
   if (!taken || (h === undefined && sw === undefined)) return false;
   return planHash(p.name, rest) === rec.hash;
+}
+/**
+ * Parts this device had at its last sync (`was`, as the server had them) that its plan has since lost to values carried
+ * over from the device, or to nothing: a version before them on this device saved the plan without them, and the
+ * update filled them in again. Each comes back as it was; a change made here since (stamped with when) stays. Null when
+ * nothing was lost.
+ */
+function lostParts(mine: ProjectContent, was: ProjectContent): ProjectContent | null {
+  const out: ProjectContent = {};
+  // (Ticks are never taken away here, only set to 0: any missing were dropped.)
+  if (isObject(was.bought)) {
+    const here = isObject(mine.bought) ? mine.bought : {};
+    const missing = Object.keys(was.bought).filter((k) => !(k in here));
+    if (missing.length) out.bought = { ...here, ...Object.fromEntries(missing.map((k) => [k, (was.bought as Record<string, unknown>)[k]])) };
+  }
+  if (setInPlan(was.household) && !setInPlan(mine.household)) out.household = was.household;
+  if (isObject(was.switches)) {
+    const here = isObject(mine.switches) ? mine.switches : {};
+    const back = Object.keys(was.switches).filter((k) => setInPlan((was.switches as Record<string, unknown>)[k]) && !setInPlan(here[k]));
+    if (back.length) out.switches = { ...here, ...Object.fromEntries(back.map((k) => [k, (was.switches as Record<string, unknown>)[k]])) };
+  }
+  return Object.keys(out).length ? out : null;
 }
 const isEmpty = (c: ProjectContent) => Array.isArray(c.shapes) && c.shapes.length === 0 && (photoKey(c) ?? 'none') === 'none';
 /** After this many failures in a row, the trouble is likely the connection: end the pass. */
@@ -461,7 +522,17 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
   const undeleted = new Set<string>();
   for (const [id, rev] of Object.entries(local.tombstones())) {
     await attempt('a deleted project', async () => {
-      const answer = await remote.trash(id, rev);
+      let answer = await remote.trash(id, rev);
+      // Changed on the server since: by an edit there, it comes back here. Only by what another device carried over
+      // when plans got their own (the yard and the warning switches it had, never set in the plan), it was still the plan
+      // deleted here: trashed after all, at the server's revision.
+      const was = answer === 'changed' ? local.deletedRecord?.(id) : undefined;
+      if (was) {
+        const got = (await remote.fetch([id]))[id];
+        const n = got ? local.normalize(got.name, got.content) : undefined;
+        if (got && n && (photoKey(n.content) ?? was.photo ?? 'none') === (was.photo ?? 'none') && coreHash(n.name, n.content) === coreOfRecord(was)
+          && onlyCarriedOver(n.content, was.parts ?? {})) answer = await remote.trash(id, got.revision);
+      }
       if (answer === 'paused') { report.paused = true; return; }
       if (answer === 'changed') undeleted.add(id);
       await local.clearTombstone(id);
@@ -651,9 +722,21 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
         } else if (await local.remove(p.id, p.token)) {
           report.removed.push(p.name);
         }
-      } else if (rec && rec.revision === s.revision) {
-        if (changed) await upload(p, rec.revision);
-        else if (rec.held === 'room' && (await sendPhoto(p)) === 'ok') await upload(p, rec.revision); // room for it now
+      } else if (rec && rec.revision === s.revision && !(changed && !rec.parts && OWN_PARTS.some((k) => p.content[k] !== undefined))) {
+        // (The server as this device last saw it. A record that doesn't say which parts the server had (a version before
+        // them recorded it, leaving them out of what it stored) goes the long way instead: fetched and settled, below, so
+        // the yard, switches and ticks another device sent aren't replaced by what this one carried over.)
+        if (changed) {
+          // Parts lost here since (a version before them saved the plan on this device): back as they were, then up.
+          const lost = rec.parts ? lostParts(p.content, rec.parts) : null;
+          let q = p;
+          if (lost) {
+            const content = { ...p.content, ...lost };
+            if (!(await local.replace(p.id, p.name, content, p.token))) return; // (edited meanwhile: next time)
+            q = { ...p, content, token: -1 };
+          }
+          await upload(q, rec.revision);
+        } else if (rec.held === 'room' && (await sendPhoto(p)) === 'ok') await upload(p, rec.revision); // room for it now
       } else if (rec && !changed) {
         toDownload.push(p.id); // changed elsewhere only
       } else {
