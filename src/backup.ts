@@ -20,11 +20,13 @@ export interface BackupFile { format: typeof BACKUP_FORMAT; version: number; exp
 function forExport(data: ProjectData): ProjectData {
   const bgImage = data.bgImage ? { ...data.bgImage } : null;
   if (bgImage) delete bgImage.imageId; // storage detail; a new id is assigned on import
-  // (The Plant list's ticks and who's in the yard go with the plan, Jason, Nov 1. A file from before has neither: it
-  // opens with nothing ticked, and the yard as the device opening it had it: src/yard.ts householdFromDevice.)
+  // (The Plant list's ticks, who's in the yard and the warning switches go with the plan, Jason, Nov 1. A file from
+  // before has none of them: it opens with nothing ticked, and the yard and the switches as the device opening it had
+  // them: src/yard.ts householdFromDevice, src/view-settings.ts switchesFromDevice.)
   return {
     shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {}, print: data.print, sizeMode: data.sizeMode, sunWarnings: data.sunWarnings,
     ...(data.dismissed ? { dismissed: data.dismissed } : {}), ...(data.bought ? { bought: data.bought } : {}), ...(data.household ? { household: data.household } : {}),
+    ...(data.switches ? { switches: data.switches } : {}),
     phases: data.phases, location: data.location, bgImage,
   };
 }

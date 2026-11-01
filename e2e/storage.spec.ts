@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { openFresh, autoDialogs, shapeCount, clickRedo, closeSheet, field, addPlainShape, openExport, answerAsk } from './helpers';
+import { openFresh, autoDialogs, shapeCount, clickRedo, closeSheet, field, addPlainShape, openExport, answerAsk, openSettings, openWarnings } from './helpers';
 
 test('an edit survives an immediate reload (saved when the page hides)', async ({ page }) => {
   await openFresh(page);
@@ -59,6 +59,57 @@ test('backup all projects, then restore them on a fresh device', async ({ page, 
   await fresh.locator('.project-btn').click();
   await fresh.locator('.proj-row', { hasText: 'My Garden (2)' }).click();
   await expect(fresh.locator('#canvas-svg text', { hasText: 'Garden oak' })).toHaveCount(1);
+  await ctx.close();
+});
+
+// Settings → Warnings' switches go with the plan (Jason, Nov 1: "What's checked (and dismissed) goes with this plan, on
+// all your devices"): a new plan starts with every warning on, "Same garden?" copies them, and a backup carries them.
+test('the warning switches go with the plan: a new one starts all on, "Same garden?" copies them, a backup carries them (Jason, Nov 1)', async ({ page, browser }) => {
+  await openFresh(page);
+  const ids = ['show-crowding', 'crowd-warnings', 'sun-warnings', 'hardy-warnings', 'poison-warnings', 'fruit-warnings'];
+  const switches = async (p = page) => {
+    await openSettings(p);
+    await openWarnings(p);
+    const out = await Promise.all(ids.map((t) => p.getByTestId(t).isChecked()));
+    await closeSheet(p);
+    return out;
+  };
+  await openSettings(page);
+  await openWarnings(page);
+  await page.getByTestId('poison-warnings').uncheck();
+  await page.getByTestId('sun-warnings').uncheck();
+  await expect(page.getByTestId('settings')).toContainText('Under Warnings, what’s checked (and dismissed) goes with this plan, on all your devices.');
+  await closeSheet(page);
+  const newPlan = async (name: string, same: boolean) => {
+    await page.locator('.project-btn').click();
+    await page.getByRole('button', { name: /New project/ }).click();
+    const check = page.locator('.ask-overlay label', { hasText: 'Same garden?' }).locator('input');
+    await expect(check).toBeChecked(); // (no ZIP, no one in the yard: offered for the warnings)
+    if (!same) await check.uncheck();
+    await page.getByTestId('ask-input').fill(name);
+    await page.getByTestId('ask-ok').click();
+    await expect(page.locator('.project-btn .pname')).toHaveText(name);
+  };
+  await newPlan('Back corner', true);
+  expect(await switches()).toEqual([true, true, false, true, false, true]);
+  await newPlan('Elsewhere', false);
+  expect(await switches()).toEqual([true, true, true, true, true, true]);
+
+  await page.locator('.project-btn').click();
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('.backup-section button', { hasText: 'Back up all projects' }).click(),
+  ]);
+  const file = await download.path();
+  const ctx = await browser.newContext();
+  const fresh = await ctx.newPage();
+  await openFresh(fresh);
+  await fresh.locator('.project-btn').click();
+  await fresh.locator('[data-testid=import-file]').setInputFiles({ name: 'backup.json', mimeType: 'application/json', buffer: readFileSync(file) });
+  await expect(fresh.locator('#toast')).toContainText('Imported 3 projects');
+  await fresh.locator('.proj-row', { hasText: 'Back corner' }).click();
+  await expect(fresh.locator('.project-btn .pname')).toHaveText('Back corner');
+  expect(await switches(fresh)).toEqual([true, true, false, true, false, true]);
   await ctx.close();
 });
 

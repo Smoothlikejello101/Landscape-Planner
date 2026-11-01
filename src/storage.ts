@@ -7,12 +7,13 @@ import { cancelHistoryDebounce } from './history';
 import { DEFAULT_PRINT, state } from './state';
 import { isRole } from './roles';
 import { cleanPhaseName, filterActive, isStatus, MAX_PHASES } from './status';
-import type { BgImage, Clipboard, PathShape, PhotoRef, PlanBought, PlanDismissals, PlanHousehold, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, ShapeFilter, SunInfo, UtilityKind } from './types';
+import type { BgImage, Clipboard, PathShape, PhotoRef, PlanBought, PlanDismissals, PlanHousehold, PlanSwitches, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, ShapeFilter, SunInfo, UtilityKind, WarningSwitch } from './types';
 import { setWorldPoints } from './geometry';
 import { now, uid } from './util';
 import { photoFingerprint } from './sync/photo';
 import { sanitizeLocation } from './climate';
 import { householdFromDevice } from './yard';
+import { applySwitches, planSwitches, switchesAllOn, switchesFromDevice, WARNING_SWITCHES } from './view-settings';
 
 // Persistence. Projects live in IndexedDB:
 //   meta/<projectId>          ProjectMeta (name, dates, shape count)
@@ -20,6 +21,7 @@ import { householdFromDevice } from './yard';
 //   images/<projectId>/<id>   { dataUrl } for the background image
 //   kv/current, kv/clipboard, kv/lastBackupAt, kv/migratedFromLocalStorage,
 //   kv/myPlants (the user's plant library), kv/myPlantSync (its sync state), kv/lastSizeMode,
+//   kv/tookFromDevice (when the plans here took this device's yard and warning switches: takeFromDevice),
 //   kv/cleared/<projectId>    what Clear all took from that project, until something new is drawn there
 // The current project is held in `state`; saves are debounced and also
 // flushed when the page is hidden so a quick app switch can't lose an edit.
@@ -316,6 +318,21 @@ export function sanitizeHousehold(raw: unknown): PlanHousehold | undefined {
     ...(typeof o.at === 'number' && Number.isFinite(o.at) && o.at >= 0 ? { at: o.at } : {}),
   };
 }
+/**
+ * A plan's warning switches (src/view-settings.ts): the ones this version knows, each on or off, with when it was
+ * switched in the plan if it was. Undefined if absent or not an object (then they're read as this device had them).
+ */
+export function sanitizeSwitches(raw: unknown): PlanSwitches | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const o = raw as Record<string, unknown>;
+  const out: PlanSwitches = {};
+  for (const k of Object.keys(WARNING_SWITCHES) as WarningSwitch[]) {
+    const v = o[k] as Record<string, unknown> | undefined;
+    if (!v || typeof v !== 'object' || typeof v.on !== 'boolean') continue;
+    out[k] = typeof v.at === 'number' && Number.isFinite(v.at) && v.at >= 0 ? { on: v.on, at: v.at } : { on: v.on };
+  }
+  return out;
+}
 function sanitizeRoleViews(raw: unknown): RoleViews {
   const out: RoleViews = {};
   if (!raw || typeof raw !== 'object') return out;
@@ -363,6 +380,7 @@ export function currentProjectData(): ProjectData {
     shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY,
     roleViews: state.roleViews, print: state.print, sizeMode: state.sizeMode, sunWarnings: state.sunWarnings, phases: state.phases, bgImage: state.bgImage,
     photoElsewhere: state.photoElsewhere, location: state.location, dismissed: state.dismissed, bought: state.bought, household: state.household,
+    switches: planSwitches(),
     ...(filterActive(state.viewFilter) ? { viewFilter: state.viewFilter } : {}),
   };
 }
@@ -384,6 +402,7 @@ export function sanitizeProjectData(raw: unknown): ProjectData {
     dismissed: sanitizeDismissed(d.dismissed),
     bought: sanitizeBought(d.bought),
     household: sanitizeHousehold(d.household),
+    switches: sanitizeSwitches(d.switches),
     phases,
     bgImage: bg && bg.dataUrl ? bg : null,
     photoElsewhere: bg && bg.dataUrl ? null : sanitizePhotoRef(d.photoElsewhere),
@@ -430,6 +449,7 @@ function projectWriteOps(id: string, data: ProjectData, knownImageKeys?: Set<str
     ...(data.dismissed ? { dismissed: data.dismissed } : {}),
     ...(data.bought ? { bought: data.bought } : {}),
     ...(data.household ? { household: data.household } : {}),
+    ...(data.switches ? { switches: data.switches } : {}),
     ...(data.viewFilter ? { viewFilter: data.viewFilter } : {}),
   };
   ops.push(put('projects', id, stored));
@@ -644,8 +664,11 @@ export async function readProject(id: string): Promise<ProjectData | null> {
     else console.warn('background image missing for project', id);
   }
   const data = sanitizeProjectData({ ...stored, bgImage });
-  // (A plan from before plans kept who's in the yard: as this device had it then. Written with its next save.)
+  // (A plan from before plans kept who's in the yard and the warning switches, come since the update (an older file,
+  // a version before on another device): as this device has them, from before too. Written with its next save. The
+  // plans here at the update took them then: takeFromDevice.)
   data.household ??= householdFromDevice();
+  data.switches ??= switchesFromDevice();
   // The image bytes are missing, but sync knows the photo: it can bring it back.
   if (!bgImage && stored.bgImage && !data.photoElsewhere) {
     const bg = migrateBgImage({ ...stored.bgImage, dataUrl: '' });
@@ -693,6 +716,7 @@ export async function switchProject(id: string): Promise<boolean> {
   state.dismissed = data.dismissed;
   state.bought = data.bought;
   state.household = data.household ?? householdFromDevice();
+  applySwitches(data.switches);
   state.phases = data.phases ?? [];
   state.viewFilter = data.viewFilter ? { ...data.viewFilter } : { status: '', phase: '', showGone: false };
   state.bgImage = data.bgImage ?? null;
@@ -737,10 +761,11 @@ async function collectImageGarbage(projectId: string, keep: Set<string>) {
 }
 /**
  * A new plan's data: empty, at the size mode last chosen, with no one in the yard and "Anyone you need to protect?"
- * still to ask (Jason, Nov 1: a new plan may be another yard; New project's "Same garden?" copies the open plan's).
+ * still to ask (Jason, Nov 1: a new plan may be another yard; New project's "Same garden?" copies the open plan's),
+ * and every warning on (Jason, Nov 1; "Same garden?" copies those too).
  */
 export function emptyProjectData(): ProjectData {
-  return { ...sanitizeProjectData({}), sizeMode: lastSizeMode, household: { kids: false, dogs: '', cats: false, horses: false, answered: false, at: now() } };
+  return { ...sanitizeProjectData({}), sizeMode: lastSizeMode, household: { kids: false, dogs: '', cats: false, horses: false, answered: false, at: now() }, switches: switchesAllOn() };
 }
 /** Create a project (empty, or from given data). Does not open it. `id`: one the server already knows (sync). */
 export async function createProject(name: string, data?: ProjectData, id = uid()): Promise<string> {
@@ -797,7 +822,7 @@ export async function renameProject(id: string, name: string) {
  * fingerprint of its content then (without the photo), and which photo it had
  * ('none', 'kept' on one device, or the photo's fingerprint; absent if unknown,
  * as for projects synced before photos did); `core`, the fingerprint without the
- * Plant list's ticks and who's in the yard too (absent from before them).
+ * Plant list's ticks, who's in the yard and the warning switches too (absent from before them).
  */
 export interface SyncRecord { revision: number; hash: string; photo?: string; held?: 'room' | 'refused'; core?: string }
 let syncRecords: Record<string, SyncRecord> = {};
@@ -864,17 +889,18 @@ export async function installId(): Promise<string> {
   return id;
 }
 /** The parts of a project that sync: everything but the view (zoom, scroll) and the background photo (synced on its own). */
-export type SyncedContent = Pick<ProjectData, 'shapes' | 'roleViews' | 'print' | 'sizeMode' | 'sunWarnings' | 'phases' | 'location' | 'dismissed' | 'bought' | 'household'>;
+export type SyncedContent = Pick<ProjectData, 'shapes' | 'roleViews' | 'print' | 'sizeMode' | 'sunWarnings' | 'phases' | 'location' | 'dismissed' | 'bought' | 'household' | 'switches'>;
 export function syncedContent(d: ProjectData): SyncedContent {
   const out: SyncedContent = { shapes: d.shapes, roleViews: d.roleViews ?? {}, print: d.print ?? { ...DEFAULT_PRINT }, sizeMode: d.sizeMode ?? 'typical', sunWarnings: d.sunWarnings !== false, phases: d.phases ?? [] };
   // (Only once set or cleared: plans that never had one read exactly as before this existed, so nothing looks changed.)
   if (d.location !== undefined) out.location = d.location;
   // (Likewise warnings dismissed for a plant: once it's had any, even if all are shown again since, so that syncs too.)
   if (d.dismissed) out.dismissed = d.dismissed;
-  // (And the Plant list's ticks, and who's in the yard: each part settles on its own when two devices change it,
-  // src/sync/engine.ts settleParts.)
+  // (And the Plant list's ticks, who's in the yard and the warning switches: each part settles on its own when two
+  // devices change it, src/sync/engine.ts settleParts.)
   if (d.bought) out.bought = d.bought;
   if (d.household) out.household = d.household;
+  if (d.switches) out.switches = d.switches;
   return out;
 }
 /**
@@ -907,9 +933,10 @@ export async function replaceProjectContent(
   if (!(content && typeof content === 'object' && 'location' in content)) data.location = base.location;
   // (Nor, before dismissals synced, or from a plan that never had any, about those: the ones here stay.)
   if (!(content && typeof content === 'object' && 'dismissed' in content)) data.dismissed = base.dismissed;
-  // (Nor, from a version before them, about the Plant list's ticks or who's in the yard.)
+  // (Nor, from a version before them, about the Plant list's ticks, who's in the yard or the warning switches.)
   if (!(content && typeof content === 'object' && 'bought' in content)) data.bought = base.bought;
   if (!data.household) data.household = base.household;
+  if (!data.switches) data.switches = base.switches;
   const metaNext = { ...meta, name: name.trim() || 'Untitled', lastModified: now(), shapeCount: data.shapes.length };
   bumpChange(id);
   // The write is queued before any later save's (and any read by a switch to this project), so they see it.
@@ -925,6 +952,7 @@ export async function replaceProjectContent(
     state.dismissed = data.dismissed;
     state.bought = data.bought;
     state.household = data.household ?? state.household;
+    if (data.switches) applySwitches(data.switches);
     state.phases = data.phases ?? [];
     state.location = data.location;
     if (state.bgImage !== data.bgImage) { state.bgImage = data.bgImage ?? null; if (!state.bgImage) state.bgEditMode = false; }
@@ -1197,6 +1225,12 @@ export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: s
   } catch (e) {
     console.error('replaying unsaved edits failed', e); recordError(e, 'unsaved edits');
   }
+  try {
+    await takeFromDevice(kv);
+  } catch (e) {
+    // (Not taken now: tried again next time. Meanwhile each plan takes them as it's read: readProject.)
+    console.error('plans could not take the yard and warnings', e); recordError(e, 'yard and warnings');
+  }
   state.projects = (await kv.getAll<ProjectMeta>('meta')).sort((a, b) => b.lastModified - a.lastModified);
   clipboardCache = (await kv.get<Clipboard>('kv', 'clipboard')) ?? null;
   lastBackupAt = (await kv.get<number>('kv', 'lastBackupAt')) ?? null;
@@ -1218,6 +1252,31 @@ export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: s
   return { migrationError };
 }
 
+/**
+ * Once, on the first start of the version that keeps who's in the yard and the warning switches with each plan (Nov 1):
+ * every plan on this device takes this device's, as they are now (src/yard.ts householdFromDevice, src/view-settings.ts
+ * switchesFromDevice), added to what's stored and nothing else changed, not even when it last changed. At once rather
+ * than as each plan is next opened, so a plan opened months later still takes them as they were at the update: the ×
+ * on "Anyone you need to protect?", or the guided introduction done for a new plan, would change what it took. One
+ * write: every plan, or none and again next time.
+ */
+async function takeFromDevice(k: KV) {
+  if ((await k.get<unknown>('kv', TOOK_FROM_DEVICE)) !== undefined) return;
+  const household = householdFromDevice(), switches = switchesFromDevice();
+  const ops: WriteOp[] = [];
+  for (const id of await k.keys('projects')) {
+    const stored = await k.get<Record<string, unknown>>('projects', id);
+    if (!stored || typeof stored !== 'object') continue;
+    const needs = { household: !sanitizeHousehold(stored.household), switches: !sanitizeSwitches(stored.switches) };
+    if (!needs.household && !needs.switches) continue;
+    ops.push(put('projects', id, { ...stored, ...(needs.household ? { household: { ...household } } : {}), ...(needs.switches ? { switches: deepCopy(switches) } : {}) }));
+  }
+  ops.push(put('kv', TOOK_FROM_DEVICE, now()));
+  await k.write(ops);
+}
+const TOOK_FROM_DEVICE = 'tookFromDevice';
+const deepCopy = <T>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+
 function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
   const out: Record<string, SyncRecord> = {};
   if (raw && typeof raw === 'object') {
@@ -1225,7 +1284,8 @@ function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
       const r = v as Partial<SyncRecord> | null;
       if (r && typeof r.revision === 'number' && Number.isFinite(r.revision) && typeof r.hash === 'string') {
         out[k] = { revision: r.revision, hash: r.hash };
-        // (The plan's fingerprint without its ticks and yard, src/sync/engine.ts coreHash; records from before have none.)
+        // (The plan's fingerprint without the parts that settle on their own, src/sync/engine.ts coreHash; records from
+        // before have none.)
         if (typeof r.core === 'string' && /^[0-9a-z]+:[0-9a-z]+$/.test(r.core)) out[k].core = r.core;
         if (typeof r.photo === 'string' && /^(none|kept|[0-9a-f]{64}@[0-9a-z]+:[0-9a-z]+)$/.test(r.photo)) out[k].photo = r.photo;
         if (r.held === 'room' || r.held === 'refused') out[k].held = r.held;

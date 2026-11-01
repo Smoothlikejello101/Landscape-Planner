@@ -1,7 +1,8 @@
-// Settings: every setting of this device in one sheet, from ⋮ (Jason, Oct 31, from round 3: Bea found them
-// scattered, zoom buttons and drawing in Layers, text size at the foot of ⋮). Text size and the plan's label size;
-// drawing (snap, square, zoom buttons); warnings, with every warning in the plan now. Layers keeps the plan's own
-// view: background, layers shown and locked, plant size, which plants show, the shapes.
+// Settings: every setting in one sheet, from ⋮ (Jason, Oct 31, from round 3: Bea found them scattered, zoom buttons
+// and drawing in Layers, text size at the foot of ⋮). Text size and the plan's label size; drawing (snap, square, zoom
+// buttons): this device's own. Warnings, with every warning in the plan now: the plan's, on all its devices, since
+// Nov 1 (src/view-settings.ts). Layers keeps the plan's own view: background, layers shown and locked, plant size, which
+// plants show, the shapes.
 //
 // A notice's "Settings" opens here, at Warnings, its switch in view (openWarningsAt).
 
@@ -51,7 +52,9 @@ export function renderSettingsPanel() {
   const header = el('div', { className: 'sheet-header' }, el('div', { className: 'title' }, 'Settings'), close);
   const body = el('div', { 'data-testid': 'settings' }, textSection(), drawingSection(), warningsSection(),
     el('div', { className: 'hint', style: { padding: '10px 16px 16px' } },
-      'Settings of this device: a phone and a computer can differ. Sun warnings, and the warnings left or dismissed, are kept with the plan.'));
+      // (Since Nov 1 every warning switch is the plan's: Jason approved "What's checked (and dismissed) goes with this
+      // plan, on all your devices", said here in his words.)
+      'Text and Drawing are this device’s own: a phone and a computer can differ. Under Warnings, what’s checked (and dismissed) goes with this plan, on all your devices.'));
   const sheet = el('div', { className: 'sheet' }, header, body);
   const overlay = el('div', { className: 'overlay' }, sheet);
   overlay.addEventListener('click', (e) => { if (e.target === overlay) { state.panel = null; render(); } });
@@ -184,7 +187,7 @@ function warningsSection(): HTMLElement {
     return el('label', { className: 'check-row', style: { marginTop: '8px' } }, cb, el('span', {}, text));
   };
   d.appendChild(row('sun-warnings', state.sunWarnings, (v) => { state.sunWarnings = v; save(); },
-    'Sun: a ⚠ triangle badge where a plant gets more or less sun than it wants (in a sun area you recorded; this plan)'));
+    'Sun: a ⚠ triangle badge where a plant gets more or less sun than it wants (in a sun area you recorded)'));
   d.appendChild(row('hardy-warnings', state.hardyWarnings, setHardyWarnings,
     state.location ? `Hardiness: a warning as I place a plant too cold or too warm for zone ${state.location.zone}, and a round ❄ or ☀ badge on it`
       : 'Hardiness: a warning as I place a plant too cold or too warm where the garden is, and a badge on it (once a ZIP is set)'));

@@ -323,7 +323,7 @@ async function start() {
   // Next, the preview copy of the app, is marked so it's never taken for the real one (a stripe along the top).
   document.body.classList.toggle('channel-next', CHANNEL === 'next');
   loadMyPlants();
-  loadViewSettings(); // (full-size rings and crowding outlines, as left on this device)
+  loadViewSettings(); // (full-size rings, plant pictures and the zoom buttons, as left on this device; the warning switches came with the plan)
   // (Kids and pets in the open plan's yard: the picker's filters for them, and again whenever another plan, or sync's
   // copy of this one, is put in place.)
   applyYard(plantFilter, household());
