@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, answerAsk, openFilters, openFresh, shapeCount, tapFromCenter } from './helpers';
+import { addKind, addPlainShape, answerAsk, closeSheet, field, openFilters, openFresh, shapeCount, tapFromCenter } from './helpers';
 
 // Round 2 of persona testing (Oct 30): the smaller fixes, each as a tester met it.
 
@@ -97,6 +97,30 @@ test('switching plans and back keeps the steps to undo, but not one undone: no R
   await expect(page.locator('button[title=Undo]')).toBeEnabled();
   await page.locator('button[title=Undo]').click();
   await expect.poll(() => shapeCount(page)).toBe(0);
+});
+
+test('on a computer, Undo and Redo say what they would do: "Undo: delete Front bed"; a step that doesn\'t say, a plain Undo (the UI review, 2026-11-01)', async ({ page }) => {
+  await openFresh(page);
+  await addPlainShape(page, 'rect');
+  await expect(page.locator('.sheet')).toBeVisible();
+  await field(page, 'Label').fill('Front bed');
+  await closeSheet(page);
+  const undo = page.locator('button[title=Undo]');
+  // (The name typed: a step that doesn't say. The button is "Undo" by name either way.)
+  await expect(undo).toBeEnabled();
+  await expect(page.getByTestId('undo-says')).toHaveCount(0);
+  await expect(page.locator('.topbar').getByRole('button', { name: 'Undo', exact: true })).toBeVisible();
+  await page.keyboard.press('Delete');
+  await expect.poll(() => shapeCount(page)).toBe(0);
+  await expect(page.getByTestId('undo-says')).toHaveAttribute('title', 'Undo: delete Front bed');
+  await expect(page.locator('.topbar').getByRole('button', { name: 'Undo', exact: true })).toBeVisible();
+  await undo.click();
+  await expect.poll(() => shapeCount(page)).toBe(1);
+  await expect(page.getByTestId('redo-says')).toHaveAttribute('title', 'Redo: delete Front bed');
+  await expect(page.getByTestId('undo-says')).toHaveCount(0); // (the name typed, again)
+  // Another drawn: what it is.
+  await oneRect(page, 6);
+  await expect(page.getByTestId('undo-says')).toHaveAttribute('title', 'Undo: add a plain shape');
 });
 
 test('"In this plan" lists every plant in the plan, saying which the filters would hide (Ruth, Dana)', async ({ page }) => {

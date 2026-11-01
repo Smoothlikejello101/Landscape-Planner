@@ -1,6 +1,6 @@
 import { recordError } from './error-log';
 import { redrawCanvas } from './canvas';
-import { flushHistoryDebounce, pushHistory } from './history';
+import { flushHistoryDebounce, pushHistory, stepNamed } from './history';
 import { state } from './state';
 import { save } from './storage';
 import { render } from './ui/render';
@@ -889,6 +889,9 @@ export function linkShapesToPlant(shapeIds: string[], p: Plant): number {
   if (!circles.length) return 0;
   const asTree = !!formsOf(p)[0]?.startsWith('Tree');
   flushHistoryDebounce();
+  // (What Undo says it takes back: plants swapped for this one, or circles made it.)
+  const swap = circles.every((s) => s.type === 'circle' && s.plantId);
+  const said = swap ? `swap ${stepNamed(circles)} for ${p.common}` : `make ${stepNamed(circles)} ${p.common}`;
   for (const s of circles) {
     if (s.type !== 'circle') continue;
     // (Sized from the plant it was linked to before: that size says nothing about this one as it stands.)
@@ -913,7 +916,7 @@ export function linkShapesToPlant(shapeIds: string[], p: Plant): number {
       else { setRadius(s, plantRadius(p, state.sizeMode)); s.sizeFrom = 'plant'; }
     }
   }
-  pushHistory();
+  pushHistory(said);
   save();
   return circles.length;
 }

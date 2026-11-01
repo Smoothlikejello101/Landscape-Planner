@@ -6,7 +6,7 @@ import { saveStateWord } from './save-warning';
 import { resizeCanvas } from '../canvas';
 import { el, hasKeyboard, svgEl, tapSaid } from '../dom';
 import { onCanvasPointerDown, onWheel } from '../gestures';
-import { canRedo, canUndo, redo, undo } from '../history';
+import { canRedo, canUndo, redo, redoLabel, undo, undoLabel } from '../history';
 import { I } from '../icons';
 import { copySelected, planBounds, setViewFilter, updateSelectedSilent, zoomBy, zoomToFit } from '../mutations';
 import { deleteSelectedAsking } from './delete-selected';
@@ -91,6 +91,17 @@ export function flashZoom() {
   zoomFlashTimer = setTimeout(() => node!.classList.remove('on'), 1200);
 }
 
+/**
+ * Undo and Redo say what they'd do, when the pointer is on them on a computer: "Undo: delete Front bed" (the UI review,
+ * 2026-11-01). The words are on a layer over the button's icon, so the button itself is still "Undo" (its name to a
+ * screen reader, and its title); a step that doesn't say leaves it a plain "Undo".
+ */
+function saysStep(btn: HTMLElement, word: string, label: string) {
+  if (!label) return;
+  const tip = el('span', { className: 'step-tip', title: `${word}: ${label}`, 'data-testid': `${word.toLowerCase()}-says` });
+  while (btn.firstChild) tip.appendChild(btn.firstChild);
+  btn.appendChild(tip);
+}
 /** The panel the last render showed (to tell a panel just opened from one redrawn). */
 let shownPanel: typeof state.panel = null;
 /** Whether the floating Redo was up at the last render (it slides out only as it first appears). */
@@ -145,11 +156,12 @@ export function render() {
   // sheet closed, they're back.
   const sheetUp = !!state.panel;
   // Undo
-  const undoBtn = el('button', { className: 'iconbtn' + (sheetUp ? ' over-sheet' : ''), html: I.undo, title: 'Undo' });
+  const undoBtn = el('button', { className: 'iconbtn' + (sheetUp ? ' over-sheet' : ''), html: I.undo, title: 'Undo', 'aria-label': 'Undo' });
   // While placing, it takes back the last plant placed; while drawing, the last point: as the bar's Undo does.
   // (A notice's Undo is the same step: after either, it's gone.)
   // (And while adding doors and windows, the last one added.)
   undoBtn.disabled = sheetUp || (state.placing ? !state.placing.placed.length : state.draw ? !state.draw.points.length : state.featurePlace ? !state.featurePlace.added.length : !canUndo());
+  if (!undoBtn.disabled && !state.placing && !state.draw && !state.featurePlace) saysStep(undoBtn, 'Undo', undoLabel());
   undoBtn.addEventListener('click', () => {
     dismissToastAction();
     if (state.placing) undoPlace(); else if (state.draw) undoDrawPoint(); else if (state.featurePlace) undoFeaturePlace(); else undo();
@@ -163,12 +175,14 @@ export function render() {
   let floatRedo: HTMLElement | null = null;
   if (!(canRedo() && roomyText())) floatRedoUp = false;
   if (!roomyText()) {
-    const redoBtn = el('button', { className: 'iconbtn' + (sheetUp ? ' over-sheet' : ''), html: I.redo, title: 'Redo' });
+    const redoBtn = el('button', { className: 'iconbtn' + (sheetUp ? ' over-sheet' : ''), html: I.redo, title: 'Redo', 'aria-label': 'Redo' });
     redoBtn.disabled = sheetUp || !canRedo() || !!state.draw || !!state.placing || !!state.featurePlace;
+    if (!redoBtn.disabled) saysStep(redoBtn, 'Redo', redoLabel());
     redoBtn.addEventListener('click', () => { dismissToastAction(); redo(); render(); });
     topbar.appendChild(redoBtn);
   } else if (canRedo() && !state.draw && !state.placing && !state.featurePlace && !state.panel && !state.menu) {
     floatRedo = el('button', { className: 'float-redo', html: I.redo + '<span>Redo</span>', title: 'Redo', 'data-testid': 'float-redo' });
+    saysStep(floatRedo, 'Redo', redoLabel());
     floatRedo.addEventListener('click', () => { dismissToastAction(); redo(); render(); });
   }
 

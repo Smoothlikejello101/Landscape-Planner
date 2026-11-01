@@ -1,5 +1,5 @@
 import { el, hasKeyboard } from '../dom';
-import { canRedo, redo } from '../history';
+import { canRedo, redo, redoLabel } from '../history';
 import { roomyText } from '../text-size';
 import { dismissToastAction } from './toast';
 import { I } from '../icons';
@@ -26,11 +26,11 @@ export function toggleSelectMode() {
   state.menu = null;
 }
 export function renderMoreMenu() {
-  const items: { icon?: string; label?: string; onClick?: () => void; disabled?: boolean; divider?: boolean; testid?: string }[] = [];
+  const items: { icon?: string; label?: string; onClick?: () => void; disabled?: boolean; divider?: boolean; testid?: string; title?: string }[] = [];
   // Redo, at Medium and Large text (the top bar keeps room for the plan's name; Jason, 2026-10-25).
   if (roomyText()) {
     items.push({
-      icon: I.redo, label: 'Redo', testid: 'menu-redo',
+      icon: I.redo, label: 'Redo', testid: 'menu-redo', title: redoLabel() ? `Redo: ${redoLabel()}` : undefined,
       disabled: !canRedo() || !!state.draw || !!state.placing || !!state.featurePlace,
       onClick: () => { dismissToastAction(); redo(); state.menu = null; render(); },
     });
@@ -107,7 +107,7 @@ export function renderMoreMenu() {
   const menu = el('div', { className: 'menu' });
   for (const it of items) {
     if (!it.onClick) { menu.appendChild(el('div', { className: 'menu-divider' })); continue; }
-    const btn = el('button', { className: 'menu-item', ...(it.testid ? { 'data-testid': it.testid } : {}) });
+    const btn = el('button', { className: 'menu-item', ...(it.testid ? { 'data-testid': it.testid } : {}), ...(it.title ? { title: it.title } : {}) });
     btn.innerHTML = it.icon + '<span>' + it.label + '</span>';
     btn.disabled = !!it.disabled;
     btn.addEventListener('click', it.onClick);
