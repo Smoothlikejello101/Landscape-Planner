@@ -1,10 +1,11 @@
 import { FLOWER_CHOICES } from './flower-colors';
 import { searchText } from './search';
 
-// Words of need in the picker's search (Jason, Nov 1, from the UI review): "shade flowers" asks for plants that take
-// shade, not for a plant named so. A word that says what one of the picker's own filters asks about becomes that
+// Words of need in the picker's search (Jason, Nov 1, from the UI review): "shade flowers" asks for flowering plants
+// that take shade, not for a plant named so. A word that says what one of the picker's own filters asks about becomes that
 // filter, its chip shown with the others, and the rest of the text stays the search: "shade flowers" is Part shade and
-// a search for "flowers". The words are a small table, kept by hand, and only of filters the picker has.
+// Has flowers; "shade aster" is Part shade and a search for "aster". The words are a small table, kept by hand, and
+// only of filters the picker has.
 //
 // A word that's part of a plant's name stays in the search: "Deer fern", "Native azaleas", "Evergreen wisteria", by
 // the catalog's names and other names and the gardener's own plants'. A word becomes a filter once it's finished:
@@ -17,12 +18,12 @@ export type NeedSet =
   | { key: 'form'; value: string }
   /** Native to the garden's state where its ZIP is known, else to North America (the picker's native filter). */
   | { key: 'native'; value: 'here' }
-  | { key: 'evergreen' | 'deerResistant' | 'wetFeet' | 'drought' | 'clayOk'; value: true }
+  | { key: 'evergreen' | 'deerResistant' | 'wetFeet' | 'drought' | 'clayOk' | 'flowers'; value: true }
   | { key: 'flowerColors'; add: string };
 
 const SUN = (value: 'Full' | 'Part' | 'Shade'): NeedSet => ({ key: 'sun', value });
 const FORM = (value: string): NeedSet => ({ key: 'form', value });
-const ON = (key: 'evergreen' | 'deerResistant' | 'wetFeet' | 'drought' | 'clayOk'): NeedSet => ({ key, value: true });
+const ON = (key: 'evergreen' | 'deerResistant' | 'wetFeet' | 'drought' | 'clayOk' | 'flowers'): NeedSet => ({ key, value: true });
 
 /** The words, as searched (lower case, no punctuation: "deer-resistant" is "deer resistant"), and what each sets. */
 export const NEED_WORDS: { says: string[]; sets: NeedSet[] }[] = [
@@ -48,7 +49,9 @@ export const NEED_WORDS: { says: string[]; sets: NeedSet[] }[] = [
   { says: ['grass', 'grasses', 'sedge', 'sedges'], sets: [FORM('Grass/Sedge')] },
   { says: ['bulb', 'bulbs'], sets: [FORM('Bulb')] },
   { says: ['cactus', 'cacti'], sets: [FORM('Cactus')] },
-  // Flowers of a color, as the color chips ask. ("Flowers" alone has no filter to become: it stays in the search.)
+  // Flowers: Has flowers (showy ones on record), as the review has it ("shade flowers": Part shade and Has flowers). Of
+  // a color, as the color chips ask ("blue flowers"), which says it has them.
+  { says: ['flowers', 'flower', 'flowering'], sets: [ON('flowers')] },
   ...FLOWER_CHOICES.map((c) => ({ says: [`${c} flowers`, `${c} flower`], sets: [{ key: 'flowerColors' as const, add: c }] })),
 ];
 /**
@@ -73,13 +76,13 @@ const NEED_VOCAB = [...new Set(PHRASES.flatMap((p) => p.words).map(wordKey))];
 /** Every word the table and the little words use (as keys): the only names indexed are those holding one. */
 const VOCAB = new Set([...NEED_VOCAB, ...FILLER.map(wordKey)]);
 const LONGEST = Math.max(...PHRASES.map((p) => p.words.length));
-/** A name's word holding a need's word: the word itself, or one run together with it ("Sweetshade", "Groundcover"). */
+/** A name's word holding a need's word: the word itself, or one run together with it ("Sweetshade", "Nightshade"). */
 const holdsVocab = (w: string) => VOCAB.has(w) || NEED_VOCAB.some((v) => v.length >= 3 && w.length > v.length && (w.startsWith(v) || w.endsWith(v)));
 
 /**
  * Plant names, as far as words of need are concerned: each run of up to five words of a name that holds one of the
- * table's words, joined (as keys, without spaces, so "Sweetshade" and "Sweet shade" are the same); and the start of
- * each such name, to as far as it goes on after (a need's word that may be starting a name: "Deer fern").
+ * table's words, joined (as keys, without spaces, so "Sweetshade" and "Sweet shade" are the same); and each such
+ * name's first words, up to all but its last, as `leads` (a need's word that may be starting a name: "Deer fern").
  */
 export interface NameIndex { runs: Set<string>; leads: Set<string>; sorted: string[] }
 export function nameIndex(names: Iterable<string>): NameIndex {

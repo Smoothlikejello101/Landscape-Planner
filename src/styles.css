@@ -678,7 +678,7 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
    do, 16 px in, 14 px wide, centered at 23 px, so it catches the eye down the list (Jason, 2026-10-26).) */
 .plant-item:has(+ .cultivars) { border-bottom: 0; }
 .cultivars { border-bottom: 1px solid #f5f5f4; }
-.cultivar-fold { display: flex; align-items: center; gap: 6px; width: 100%; min-height: var(--tap); padding: 0 8px 0 calc(23px - 8px * var(--ts)); background: none; border: 0; text-align: left; font: inherit; font-size: calc(13px * var(--ts)); font-weight: 600; color: #047857; cursor: pointer; }
+.cultivar-fold { display: flex; align-items: center; gap: 6px; width: 100%; min-height: var(--tap); padding: 0 8px 0 calc(26px - 8px * var(--ts)); background: none; border: 0; text-align: left; font: inherit; font-size: calc(13px * var(--ts)); font-weight: 600; color: #047857; cursor: pointer; }
 .cultivar-fold:focus-visible { outline: 2px solid #059669; outline-offset: -2px; border-radius: 4px; }
 .cultivar-fold .fold-chev { display: flex; transition: transform 0.15s; }
 .cultivar-fold[aria-expanded=false] .fold-chev { transform: rotate(-90deg); }
@@ -717,6 +717,7 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 /* A row's spot: a small flower in a circle of the plant's leaf color (src/plant-looks.ts plantSpot). Drawn first, read
    after the name; as wide, with its space, as the dot it replaced. */
 .plant-item .row-spot { order: -1; flex: none; display: flex; width: 20px; height: 20px; margin-right: 4px; }
+/* (A cultivar fold's arrow sits under the spot's middle, 3 px right of where the dot's was: .cultivar-fold's padding.) */
 .row-bloom { white-space: nowrap; }
 .row-bloom-icon { display: inline-block; width: 1em; height: 1em; margin-right: 2px; vertical-align: -0.15em; }
 .row-bloom-icon svg { display: block; }

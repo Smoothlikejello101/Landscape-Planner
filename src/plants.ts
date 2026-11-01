@@ -276,6 +276,11 @@ export const PLANT_FILTER_DEFAULTS = {
   hostOnly: false, fallColor: false, winterInterest: false,
   /** Keeps its leaves through winter (evergreen; not semi-evergreen, which depends on the winter, nor a tender shrub, `tenderWoody`). */
   evergreen: false,
+  /**
+   * Has flowers: showy ones on record (hasFlowers), the ones a picker row's spot draws. Jason, Nov 1, from the UI
+   * review: "shade flowers" in the search is Part shade and Has flowers (src/search-needs.ts).
+   */
+  flowers: false,
   edible: false, inPlan: false,
   /** Which parts must be edible (any of them: 'fruit', 'leaves', 'flowers'), chips under Edible (Jason, Oct 30). Empty: any. */
   edibleParts: NONE,
@@ -327,6 +332,13 @@ export function filterOn(f: PlantFilter, k: keyof PlantFilter): boolean {
 // ---------- Flower colors ----------
 /** A plant's flower colors, the showy ones ("insignificant": not showy). */
 export const showyColors = (p: Plant): string[] => (p.flower_color ?? []).filter((c) => c !== 'insignificant');
+/**
+ * Whether it has flowers worth the name (the picker's "Has flowers"): a showy color on record, and not catkins or
+ * flowers its sources call insignificant, as a row's spot and its picture draw them (src/looks.ts). One with no
+ * flower color on record is left out, as the flower colors leave it out.
+ */
+export const hasFlowers = (p: Plant): boolean =>
+  showyColors(p).length > 0 && !(p.flower_form?.inflorescence ?? []).some((x) => x === 'insignificant' || x === 'catkin');
 /**
  * Whether its flower color says what you'll get (decided with Jason, 2026-10-25): a cultivar's record, or a species
  * listing one color (white and cream count as one). A species listing several comes in them, depending on the plant
@@ -487,6 +499,7 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (f.spread.length && !spreadsOnlyAs(p, f.spread)) return false;
   // (Any of the colors, or of who it attracts: a plant that comes in red or pink, one that draws bees or butterflies.)
   if (f.flowerColors.length && !showyColors(p).some((c) => f.flowerColors.includes(c))) return false;
+  if (f.flowers && !hasFlowers(p)) return false;
   if (f.leafColors.length && !(p.leaf_color ?? []).some((c) => f.leafColors.includes(c))) return false;
   // (Bees take in NC State's "specialized bees": bees too.)
   const attracts = f.attracts.includes('bees') ? [...f.attracts, 'specialized bees'] : f.attracts;

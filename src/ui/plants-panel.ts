@@ -168,6 +168,7 @@ const LIST_ONE: Record<ListKey, (v: string) => string> = {
 const FILTER_NAMES: Partial<Record<keyof PlantFilter, (f: PlantFilter) => string>> = {
   form: (f) => f.form, sun: (f) => SUN_NAMES[f.sun] ?? f.sun, water: (f) => `Water needs: ${WATER.find(([v]) => v === f.water)?.[2] ?? f.water}`,
   bloomMonth: (f) => `Blooming in ${bloomName(f.bloomMonth)}`, flowerColors: (f) => `${cap(joined(f.flowerColors, 'or'))} flowers`,
+  flowers: () => 'Has flowers',
   hardyHere: () => (state.location ? `Hardy in zone ${state.location.zone}` : 'Hardy in your zone'),
   noPoison: () => 'Not listed as poisonous to people', dogs: (f) => (f.dogs === 'hideToxic' ? 'No dog warnings' : 'Rated safe for dogs'),
   cats: () => 'No cat warnings', horses: () => 'No horse warnings',
@@ -551,7 +552,8 @@ export function renderPlantsPanel() {
         const count = narrowed ? `${countWord(kids.length)} of ${countWord(all.length)} cultivars match${filtering ? ' your filters' : ''}` : `${countWord(kids.length)} cultivars`;
         // (Not a plant: nothing to place. The whole heading opens and closes it.)
         const toggle = el('button', { className: 'row-toggle group-head', 'aria-expanded': 'false', 'data-testid': 'group-head' },
-          el('div', { style: { width: '14px', height: '14px', borderRadius: '50%', flex: 'none', background: plantColor(kids[0]), marginRight: '10px' } }),
+          // (Its dot in the middle of where a plant's spot is, so the column lines up: 20 px and its space.)
+          el('div', { style: { width: '14px', height: '14px', borderRadius: '50%', flex: 'none', background: plantColor(kids[0]), margin: '0 7px 0 3px' } }),
           el('div', { className: 'pinfo' }, el('div', { className: 'pname' }, p.common), el('div', { className: 'pmeta', 'data-testid': 'group-count' }, `${p.botanical} \u00b7 ${count}`)),
           el('span', { className: 'row-open' }, el('span', { className: 'fold-chev', html: I.chevronDown })));
         const item = el('div', { className: 'plant-item group-item' }, el('div', { className: 'proj-row', style: { alignItems: 'center' } }, toggle));
@@ -772,8 +774,9 @@ export function renderPlantsPanel() {
   });
   /**
    * Words of need in the search, made filters (src/search-needs.ts: Jason, Nov 1, from the UI review): "shade flowers"
-   * is Part shade, its chip with the other filters', and "flowers" left as the search. The field keeps the keyboard:
-   * its text and its filters' controls change in place. `final`: Enter, so its last word counts as finished.
+   * is Part shade and Has flowers, their chips with the other filters', and the words gone from the search. The field
+   * keeps the keyboard: its text and its filters' controls change in place. `final`: Enter, so its last word counts as
+   * finished.
    */
   function takeNeeds(final: boolean): boolean {
     const forms = (PLANT_META?.enums?.form ?? []) as string[];
@@ -1044,7 +1047,8 @@ export function renderPlantsPanel() {
       { name: 'Native status', testid: 'native-filter' })),
     groupHead('Looks'),
     colorChips('leafColors', LEAF_CHOICES, 'Leaf color', 'leaf-colors'),
-    checks(mkCheck('Fall color', 'fallColor'), mkCheck('Evergreen', 'evergreen'), mkCheck('Winter interest', 'winterInterest')),
+    // (Has flowers: showy ones on record. A search's "shade flowers" sets it: Jason, Nov 1, from the UI review.)
+    checks(mkCheck('Has flowers', 'flowers'), mkCheck('Fall color', 'fallColor'), mkCheck('Evergreen', 'evergreen'), mkCheck('Winter interest', 'winterInterest')),
     row(mkSelect('growth', 'Any growth rate', GROWTH, { name: 'Growth rate', selected: (_v, t) => `Growth rate: ${t}` })),
     el('div', { className: 'field', style: { marginTop: '8px' } },
       el('div', { className: 'hint', style: { display: 'flex', justifyContent: 'space-between' } }, el('span', {}, 'Mature height'), heightReadout),
