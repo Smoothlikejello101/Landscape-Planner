@@ -95,7 +95,9 @@ function pick(p: Plant) {
   }
   render();
 }
-function openForm(args: PlantFormArgs) { state.plantForm = args; state.panel = 'plantForm'; render(); }
+// (Its ×, Cancel or a tap beside it: back here, the search as it was. Round 3, Owen, for Edit; the UI review,
+// 2026-11-01, for Add and Copy: their × closed the whole picker, and the search with it.)
+function openForm(args: PlantFormArgs) { state.plantForm = { ...args, back: 'plants' }; state.panel = 'plantForm'; render(); }
 
 const cap = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
 /** The fewest cultivars a fold holds (Jason, 2026-10-26): fewer are rows of their own. */
@@ -314,8 +316,8 @@ export function renderPlantsPanel() {
       title: mine ? 'Edit my plant' : 'Copy as my plant',
       'aria-label': (mine ? 'Edit ' : 'Copy as my plant: ') + p.common,
     });
-    // (Edited from here, back here: Cancel closed the whole picker, and the search with it. Round 3, Owen.)
-    side.addEventListener('click', () => openForm(mine ? { editId: p.id, place: false, back: 'plants' } : { copyFromId: p.id, place: false }));
+    // (Edited or copied from here, back here: openForm.)
+    side.addEventListener('click', () => openForm(mine ? { editId: p.id, place: false } : { copyFromId: p.id, place: false }));
     head.appendChild(side);
     if (mine) info.firstChild!.appendChild(el('span', { className: 'mine-badge' }, 'Mine'));
     // Now in the catalog too: offer its sourced facts (the person decides: src/ui/switch-plant.ts).

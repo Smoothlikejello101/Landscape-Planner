@@ -124,6 +124,24 @@ test('copy a catalog plant as your own cultivar', async ({ page }) => {
   await expect(page.locator('.sel-pill .name')).toHaveText("Heuchera 'Caramel'");
 });
 
+test('closing Add a plant or a copy with its × goes back to the picker, the search as it was (the UI review; Owen)', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('shade flowers');
+  await page.getByTestId('add-own-plant').click();
+  await expect(page.locator('.sheet-header .title')).toHaveText('Add a plant');
+  await page.locator('.sheet-header .iconbtn[aria-label=Close]').click();
+  await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker');
+  await expect(page.getByTestId('plant-search')).toHaveValue('shade flowers');
+  await expect(page.getByTestId('add-own-plant')).toBeVisible();
+  // A copy of a catalog plant, likewise.
+  await page.getByTestId('plant-search').fill('Buttonbush');
+  await page.locator('.proj-row', { hasText: 'Buttonbush' }).first().getByRole('button', { name: /Copy as my plant/ }).click();
+  await expect(page.locator('.sheet-header .title')).toHaveText('Add a plant');
+  await page.locator('.sheet-header .iconbtn[aria-label=Close]').click();
+  await expect(page.getByTestId('plant-search')).toHaveValue('Buttonbush');
+});
+
 test('turn a labeled circle into a plant, then edit the plant', async ({ page }) => {
   autoDialogs(page);
   await openFresh(page);
