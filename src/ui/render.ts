@@ -112,6 +112,7 @@ export function render() {
   const scrolled = state.panel && state.panel === shownPanel && state.selectedIds.join() === shownSelection
     ? root.querySelector<HTMLElement>('.overlay .sheet')?.scrollTop ?? 0 : 0;
   focusBeforeRender(root); // (with a keyboard: what has focus, found again after: src/ui/focus.ts)
+  const updateBanner = document.getElementById('update-banner'); // (kept as it is, Updating… say: put back below)
   // Clear root
   while (root.firstChild) root.removeChild(root.firstChild);
   // (Checked on every redraw, so a selection changed and changed back by hand isn't "just placed" again.)
@@ -186,6 +187,8 @@ export function render() {
   topbar.appendChild(moreBtn);
 
   app.appendChild(topbar);
+  // (An update waiting: its banner under the top bar, the plan shortened by it, not covered: src/pwa.ts.)
+  if (updateBanner) app.appendChild(updateBanner);
   if (floatRedo) {
     // (Under Undo, wherever the bar puts it: measured once it's on the page. It slides out the first time only.)
     const btn = floatRedo;

@@ -1,4 +1,5 @@
 import { registerSW } from 'virtual:pwa-register';
+import { resizeCanvas } from './canvas';
 import { flushSave } from './storage';
 
 // Offline support and updates. A new version never reloads the app on its
@@ -6,8 +7,22 @@ import { flushSave } from './storage';
 
 let applyUpdate: ((reload?: boolean) => Promise<void>) | null = null;
 
+/**
+ * The banner, while an update waits: a bar under the top bar, in the page's flow, so the plan is shortened by it rather
+ * than covered (the UI review, 2026-11-01: floating over the plan, it covered the Fit and Through-the-year buttons).
+ * Each redraw puts it back under the top bar (src/ui/render.ts).
+ */
+let banner: HTMLElement | null = null;
+/** The banner put under the top bar now, or taken away, and the plan sized to what's left. */
+function placeBanner() {
+  const topbar = document.querySelector('.app > .topbar');
+  // (No app drawn yet: kept on the page for the first drawing to find and put in its place.)
+  if (banner && banner.previousElementSibling !== topbar) { if (topbar) topbar.after(banner); else document.body.appendChild(banner); }
+  resizeCanvas();
+}
+
 function showUpdateBanner() {
-  if (document.getElementById('update-banner')) return;
+  if (banner) return;
   const bar = document.createElement('div');
   bar.id = 'update-banner';
   bar.setAttribute('role', 'status');
@@ -26,9 +41,10 @@ function showUpdateBanner() {
   const later = document.createElement('button');
   later.className = 'later';
   later.textContent = 'Later';
-  later.addEventListener('click', () => bar.remove());
+  later.addEventListener('click', () => { bar.remove(); banner = null; placeBanner(); });
   bar.append(text, btn, later);
-  document.body.appendChild(bar);
+  banner = bar;
+  placeBanner();
 }
 
 export function setupServiceWorker() {
