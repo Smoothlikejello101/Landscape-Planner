@@ -22,7 +22,7 @@ import { formatSize, fullRingRadius, isMine, MY_PREFIX, plantRadius, plantSpread
 import { canLinkToPlant, formsOf, linkShapesToPlant, plantColor, plantFilter, plantsById, rowLines, unlinkedWithLabel, type Plant } from '../plants';
 import { plantDetails } from './plant-details';
 import { toast } from './toast';
-import { deleteSelectedAsking } from './delete-selected';
+import { deleteSelectedAsking, describeShapes } from './delete-selected';
 import { zoneFit, zoneRange } from '../climate';
 import { isTree, trunkDiameter } from '../trees';
 import { treeBranches } from '../crowding';
@@ -771,10 +771,21 @@ function plantActions(s: Shape): HTMLElement | null {
   return row;
 }
 
+/**
+ * Several selected, as people call them: "3 Arkansas bluestar" all one plant; "11 plants" all plants ("10 plants, 1
+ * tree" with a tree among them, as Delete says); else "5 shapes". The UI review, 2026-11-01: "11 shapes selected" for
+ * 11 plants.
+ */
+export function severalSaid(selected: Shape[]): string {
+  const kinds = new Set(selected.map((s) => s.plantId));
+  const p = allPlants(selected) && kinds.size === 1 ? plantsById[[...kinds][0]!] : undefined;
+  if (p) return `${selected.length} ${p.common}`;
+  return selected.every((s) => s.role === 'plant') ? describeShapes(selected) : `${selected.length} shapes`;
+}
 export function renderPropsPanelMulti(selected: Shape[]) {
   const body = el('div', { className: 'sheet-body' });
   body.appendChild(el('div', { className: 'banner' },
-    selected.length + ' shapes selected. Use the buttons below to act on all of them. Edit individual properties one at a time.'));
+    severalSaid(selected) + ' selected. Use the buttons below to act on all of them. Edit individual properties one at a time.'));
 
   const roles = new Set(selected.map(roleKey));
   body.appendChild(whatItIs(state.selectedIds.slice(), roles.size === 1 ? [...roles][0] : null, true));
@@ -826,7 +837,7 @@ export function renderPropsPanelMulti(selected: Shape[]) {
   const dupBtn = el('button', { className: 'btn ghost', html: I.copy + '<span style="margin-left:6px">Duplicate</span>' });
   dupBtn.addEventListener('click', () => { duplicateSelected(); render(); });
   const copyBtn = el('button', { className: 'btn ghost', html: I.copy + '<span style="margin-left:6px">Copy to clipboard</span>' });
-  copyBtn.addEventListener('click', () => { copySelected(); toast(selected.length + ' shapes copied. Use Paste in any project to bring them in.', 5000); });
+  copyBtn.addEventListener('click', () => { copySelected(); toast(severalSaid(selected) + ' copied. Use Paste in any project to bring them in.', 5000); });
   const delBtn = el('button', { className: 'btn danger', html: I.trash + '<span style="margin-left:6px">Delete all</span>' });
   delBtn.addEventListener('click', () => { void deleteSelectedAsking(); });
   body.appendChild(dupBtn);
@@ -854,7 +865,7 @@ export function renderPropsPanel() {
   const selected = getSelected();
   if (selected.length === 0) return null;
   const single = selected.length === 1 ? selected[0] : null;
-  const title = single ? sheetTitle(single) : selected.length + ' shapes selected';
+  const title = single ? sheetTitle(single) : severalSaid(selected) + ' selected';
 
   // Header
   const header = el('div', { className: 'sheet-header' });

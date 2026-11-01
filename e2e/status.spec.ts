@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { autoDialogs, clickRedo, closeSheet, field, openFresh, shapeCount, openSections, placeOnceAtCenter, openExport, tapFromCenter } from './helpers';
+import { addKind, autoDialogs, clickRedo, closeSheet, field, openFresh, shapeCount, openSections, placeOnceAtCenter, openExport, tapFromCenter } from './helpers';
 
 async function addPlant(page: Page, name: string, x: number) {
   await page.locator('.tool-btn.plants').click();
@@ -143,6 +143,27 @@ test("while a sheet is open, the top bar's Undo and Redo are greyed, and a tap t
   await closeSheet(page);
   await clickRedo(page);
   await expect(plantShapes(page).first()).not.toHaveAttribute('stroke-dasharray', '6 4');
+});
+
+test('several plants selected are named as plants, one kind by its name (the UI review, 2026-11-01: "11 shapes selected")', async ({ page }) => {
+  await openFresh(page);
+  const bush = await placeTwo(page, 'Buttonbush');
+  await page.locator('.multi-bar button[title=Edit]').click();
+  await expect(page.locator('.sheet-header .title')).toHaveText(`2 ${bush} selected`);
+  await expect(page.locator('.sheet .banner').first()).toContainText(`2 ${bush} selected.`);
+  await closeSheet(page);
+  await placeTwo(page, 'Little bluestem', 4);
+  await page.keyboard.press('Control+a');
+  await page.locator('.multi-bar button[title=Edit]').click();
+  await expect(page.locator('.sheet-header .title')).toHaveText('4 plants selected');
+  await closeSheet(page);
+  // With a bed among them: shapes.
+  await addKind(page, 'bed', 'rect');
+  for (const [x, y] of [[-8, 6], [8, 6], [8, 9]]) await tapFromCenter(page, x, y);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Control+a');
+  await page.locator('.multi-bar button[title=Edit]').click();
+  await expect(page.locator('.sheet-header .title')).toHaveText('5 shapes selected');
 });
 
 test('setting several at once asks before unmarking one marked to remove', async ({ page }) => {
