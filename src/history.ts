@@ -1,41 +1,58 @@
 import { HISTORY_DEBOUNCE_MS, MAX_HISTORY } from './constants';
 import { state } from './state';
 import { save } from './storage';
-import type { HistorySnapshot } from './types';
+import type { HistorySnapshot, Shape } from './types';
 import { deepClone } from './util';
+import { describeShapes } from './ui/delete-selected';
 
 // Undo/redo: in-memory snapshots of shapes + background image, per project.
 // The background's dataUrl string is shared between snapshots (strings are
 // immutable), so 50 snapshots cost little extra memory.
 
 let historyTimer: ReturnType<typeof setTimeout> | null = null;
+/** What the step being gathered did, while all of it was one thing (a run of nudges: "move Front bed"). */
+let pendingLabel: string | undefined;
 
-export function pushHistory() {
+/**
+ * A step to undo. `label`, where the step says what it did ("delete Front bed"), is what Undo and Redo say on a
+ * computer, when the pointer is on them (the UI review, 2026-11-01): the commonest steps say (add, delete, move, swap,
+ * status, Clear all); the rest are a plain "Undo".
+ */
+export function pushHistory(label?: string) {
   state.history = state.history.slice(0, state.historyIndex + 1); // drop redo branch
   state.history.push({
     shapes: deepClone(state.shapes),
     bgImage: state.bgImage ? { ...state.bgImage } : null,
     photoElsewhere: state.photoElsewhere,
+    ...(label ? { label } : {}),
   });
   if (state.history.length > MAX_HISTORY) state.history.shift();
   else state.historyIndex++;
 }
 /** Coalesce rapid edits (typing, sliders) into one undo step. */
-export function pushHistoryDebounced() {
+export function pushHistoryDebounced(label?: string) {
+  // (Steps of different kinds run together are one step: then it doesn't say which.)
+  pendingLabel = historyTimer && pendingLabel !== label ? undefined : label;
   if (historyTimer) clearTimeout(historyTimer);
-  historyTimer = setTimeout(() => { historyTimer = null; pushHistory(); }, HISTORY_DEBOUNCE_MS);
+  historyTimer = setTimeout(() => { historyTimer = null; pushHistory(pendingLabel); }, HISTORY_DEBOUNCE_MS);
 }
 export function flushHistoryDebounce() {
   if (historyTimer) {
     clearTimeout(historyTimer);
     historyTimer = null;
-    pushHistory();
+    pushHistory(pendingLabel);
   }
 }
 /** Forget pending debounced history (used when switching projects). */
 export function cancelHistoryDebounce() {
   if (historyTimer) clearTimeout(historyTimer);
   historyTimer = null;
+}
+/** What a step did it to, for its label: one shape by its name ("Front bed"), several by what they are ("3 plants"). */
+export function stepNamed(shapes: Shape[]): string {
+  const one = shapes.length === 1 ? shapes[0].label?.trim().replace(/\s+/g, ' ') : '';
+  if (one) return one.length > 30 ? one.slice(0, 29).trimEnd() + '\u2026' : one; // (a note's text can be long)
+  return describeShapes(shapes).replace(/^1 /, 'a ');
 }
 function applySnapshot(snap: HistorySnapshot) {
   state.shapes = deepClone(snap.shapes);
@@ -70,7 +87,14 @@ export function redo() {
 }
 /**
  * Whether there's a step to undo: one taken, or one still being gathered (a run of arrow nudges, typing in a field),
- * which Undo takes first (Alex, Sam, Oct 30: the button stayed grey after a nudge, though Ctrl+Z undid it).
+ * which Undo takes first (Alex, Sam, Oct 30: the button stayed gray after a nudge, though Ctrl+Z undid it).
  */
 export function canUndo(): boolean { return state.historyIndex > 0 || historyTimer !== null; }
 export function canRedo(): boolean { return state.historyIndex < state.history.length - 1; }
+/** What Undo would take back ("delete Front bed"), when its step says; else ''. */
+export function undoLabel(): string {
+  if (historyTimer) return pendingLabel ?? '';
+  return state.historyIndex > 0 ? state.history[state.historyIndex]?.label ?? '' : '';
+}
+/** What Redo would do again, when its step says; else ''. */
+export function redoLabel(): string { return canRedo() ? state.history[state.historyIndex + 1]?.label ?? '' : ''; }

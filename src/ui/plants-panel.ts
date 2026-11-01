@@ -1,10 +1,10 @@
 import { crowdLevelsOf, crowdNoticeAfterSwap } from './crowd-notice';
-import { el, tapSaid, type Child } from '../dom';
+import { el, sheetCloseButton, tapSaid, type Child } from '../dom';
 import { saveHardy, saveYard, yardOf } from '../yard';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery, unsearchable } from '../search';
-import { byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById } from '../plants';
+import { byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById, treeFiltersAside } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { SPREAD_WAYS, spreadWays } from '../spread';
@@ -56,7 +56,14 @@ function addNativeHereOption() {
   sel.insertBefore(o, sel.options[1] ?? null);
 }
 
-function closePicker() { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; state.pickerForTree = false; render(); }
+/** Opened from a plant's sheet to swap it, or from a circle's to link it. */
+const pickerFromSheet = () => !!state.pickerLinkId && state.selectedIds.length > 0;
+function closePicker() {
+  // (Opened from a sheet: closed, back on that sheet, as picking a plant brings you back there. The UI review,
+  // 2026-11-01: it closed the sheet too.)
+  const fromSheet = pickerFromSheet();
+  state.panel = fromSheet ? 'props' : null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; state.pickerForTree = false; render();
+}
 // (A tree among its forms: a shrub that grows into a tree, mimosa or wax myrtle, can be the tree in the yard.)
 const isTree = (p: Plant) => formsOf(p).includes('Tree');
 // My plants folded away in the picker: kept here, and remembered on this device when storage allows. Folded until
@@ -90,7 +97,9 @@ function pick(p: Plant) {
   }
   render();
 }
-function openForm(args: PlantFormArgs) { state.plantForm = args; state.panel = 'plantForm'; render(); }
+// (Its ×, Cancel or a tap beside it: back here, the search as it was. Round 3, Owen, for Edit; the UI review,
+// 2026-11-01, for Add and Copy: their × closed the whole picker, and the search with it.)
+function openForm(args: PlantFormArgs) { state.plantForm = { ...args, back: 'plants' }; state.panel = 'plantForm'; render(); }
 
 const cap = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
 /** The fewest cultivars a fold holds (Jason, 2026-10-26): fewer are rows of their own. */
@@ -159,10 +168,15 @@ export function renderPlantsPanel() {
   // (Placed plants to swap for another: Jason, Oct 30.)
   const swapping = linking && [state.pickerLinkId!, ...state.pickerLinkAlso].every((id) => { const s = state.shapes.find((x) => x.id === id); return !!s?.plantId && !!plantsById[s.plantId]; });
   const forTree = !linking && state.pickerForTree;
-  const title = swapping ? 'Swap for another plant' : linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker' + (PLANTS.length ? ' (' + countWord(PLANTS.filter((p) => !bannedHere(p)).length + activeMyPlants().length) + ')' : '');
+  if (forTree) treeFiltersAside(); // (naming a tree in the yard: no shopping filters, src/plants.ts)
+  const browsing = !swapping && !linking && !forTree && !state.placing;
+  const title = swapping ? 'Swap for another plant' : linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker';
+  // (The plain picker's count, of the plants it offers: written with the count line, from the same numbers. The UI
+  // review, 2026-11-01: drawn before the garden's state's law came in, it said 3,747 beside "of 3,745".)
+  const titleNode = el('div', { className: 'title' }, title);
   const header = el('div', { className: 'sheet-header' },
-    el('div', { className: 'title' }, title),
-    (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', closePicker); return b; })()
+    titleNode,
+    sheetCloseButton(closePicker, pickerFromSheet() ? 'props' : null) // (← back to the plant's sheet: closePicker)
   );
 
   const body = el('div', { className: 'sheet-body' });
@@ -309,8 +323,8 @@ export function renderPlantsPanel() {
       title: mine ? 'Edit my plant' : 'Copy as my plant',
       'aria-label': (mine ? 'Edit ' : 'Copy as my plant: ') + p.common,
     });
-    // (Edited from here, back here: Cancel closed the whole picker, and the search with it. Round 3, Owen.)
-    side.addEventListener('click', () => openForm(mine ? { editId: p.id, place: false, back: 'plants' } : { copyFromId: p.id, place: false }));
+    // (Edited or copied from here, back here: openForm.)
+    side.addEventListener('click', () => openForm(mine ? { editId: p.id, place: false } : { copyFromId: p.id, place: false }));
     head.appendChild(side);
     if (mine) info.firstChild!.appendChild(el('span', { className: 'mine-badge' }, 'Mine'));
     // Now in the catalog too: offer its sourced facts (the person decides: src/ui/switch-plant.ts).
@@ -387,6 +401,7 @@ export function renderPlantsPanel() {
     const out = bannedLeftOut(plantFilter) ? banned : [];
     const foundBanned = hits.filter(bannedHere).length;
     const n = hits.length + mine.length - foundBanned, all = PLANTS.length + activeMyPlants().length - banned.length;
+    if (browsing) titleNode.textContent = 'Plant Picker' + (PLANTS.length ? ` (${countWord(all)})` : '');
     // (Nothing matched as typed, only close spellings: said so, not counted as matches (Lena, Oct 30).)
     // ("In this plan": the plan's kinds, not a share of the catalog (Dana, Oct 30: "6 of 3,725 plants match").)
     const found = hits.length + mine.length;

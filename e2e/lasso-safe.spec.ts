@@ -59,6 +59,58 @@ test('deleting several keeps locked shapes, and asks first when it would take mo
   await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(3);
 });
 
+test('deleting a bed with some of its plants selected asks about the others: those selected go, the rest as chosen (the UI review, 2026-11-01)', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    const base = { color: '#16a34a', opacity: 0.65 };
+    localStorage.setItem('landscape-planner-v1', JSON.stringify({
+      shapes: [
+        { ...base, id: 'bed', type: 'rect', x: 0, y: 0, width: 10, height: 6, rotation: 0, label: 'Bed', role: 'bed' },
+        { ...base, id: 'p1', type: 'circle', x: 2, y: 2, radius: 1, label: 'One', role: 'plant' },
+        { ...base, id: 'p2', type: 'circle', x: 8, y: 2, radius: 1, label: 'Two', role: 'plant' },
+        { ...base, id: 'p3', type: 'circle', x: 5, y: 5, radius: 1, label: 'Three', role: 'plant' },
+        { ...base, id: 'lawn', type: 'circle', x: -2, y: 2, radius: 1, label: 'On the lawn', role: 'plant' },
+      ],
+      zoom: 1, offsetX: -4, offsetY: -6,
+    }));
+  });
+  await page.goto('./');
+  await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(5);
+  const pick = async () => {
+    await page.keyboard.press('Escape'); // (nothing selected)
+    if ((await page.getByTestId('select-mode').getAttribute('aria-pressed')) !== 'true') await page.getByTestId('select-mode').click();
+    await page.locator('#canvas-svg [data-shape-id=p1]').click();
+    await page.locator('#canvas-svg [data-shape-id=bed]').click();
+    await expect(page.locator('.multi-bar .count')).toHaveText('2 selected');
+    await page.locator('.multi-bar button[title=Delete]').click();
+  };
+  const ask = page.locator('.ask-overlay [role=alertdialog]');
+  await pick();
+  await expect(ask.locator('.ask-message')).toContainText('Delete 2 shapes: 1 plant, 1 bed?');
+  await expect(ask.locator('.ask-message')).toContainText('The bed has 2 plants in it that aren\u2019t selected.');
+  await expect(ask.locator('button')).toHaveText(['Delete only the 2 selected (the other 2 plants in the bed stay)', 'Delete the 2 selected and the other 2 plants in the bed', 'Cancel']);
+  // Only those selected: the bed and the one plant; the other two stay.
+  await ask.getByTestId('ask-selected-only').click();
+  await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(3);
+  await expect(page.locator('#canvas-svg [data-shape-id=p2]')).toHaveCount(1);
+  await expect(page.locator('#toast-action')).toContainText('Deleted 1 plant, 1 bed; the other 2 plants in the bed stay');
+  await page.locator('#toast-action').getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(5);
+  // The others too: the bed and all three of its plants, one step to undo; the plant on the lawn stays.
+  await pick();
+  await ask.getByTestId('ask-ok').click();
+  await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(1);
+  await expect(page.locator('#canvas-svg [data-shape-id=lawn]')).toHaveCount(1);
+  await expect(page.locator('#toast-action')).toContainText('Deleted 3 plants, 1 bed');
+  await page.locator('button[title=Undo]').click();
+  await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(5);
+  // Cancel: nothing goes.
+  await pick();
+  await ask.getByTestId('ask-cancel').click();
+  await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(5);
+});
+
 test('a plain shape from an older plan (a property line with no role) is asked about too', async ({ page }) => {
   await page.addInitScript(() => {
     if (sessionStorage.getItem('seeded')) return;

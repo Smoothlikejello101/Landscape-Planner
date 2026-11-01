@@ -36,7 +36,14 @@ export function safeFileName(name: string): string {
   // (A run of dashes is one: "Grace - shady oak yard" came out "grace---shady-oak-yard". Round 3, Grace.)
   return (name.trim().replace(/[^a-z0-9-_ ]+/gi, '').replace(/\s+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'project').slice(0, 60);
 }
-export function stamp() { return new Date().toISOString().slice(0, 10); }
+/**
+ * The date in a file's name, as the person's own calendar has it: in UTC, a backup and a picture made at 11:25 PM in
+ * Arkansas were dated the next day, beside a PDF dated that day (the UI review, 2026-11-01). Every file the app
+ * names (backups, plan files, the PDF, pictures, the support file) takes its date from here.
+ */
+export function stamp(d = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
 
 export async function buildProjectFile(id: string): Promise<{ filename: string; text: string } | null> {
   const project = await exportedProject(id);
@@ -156,7 +163,7 @@ export function canShareFiles(type = 'application/json', name = 'x.json'): boole
       navigator.canShare({ files: [new File(['{}'], name, { type })] });
   } catch { return false; }
 }
-/** Hand a file to the system share sheet. False if the user cancelled. */
+/** Hand a file to the system share sheet. False if the user canceled. */
 export async function shareBlob(filename: string, blob: Blob): Promise<boolean> {
   try {
     await navigator.share({ files: [new File([blob], filename, { type: blob.type })], title: filename });
@@ -171,11 +178,11 @@ export async function shareText(filename: string, text: string): Promise<boolean
     await navigator.share({ files: [new File([text], filename, { type: 'application/json' })], title: filename });
     return true;
   } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') return false; // user cancelled
+    if (e instanceof DOMException && e.name === 'AbortError') return false; // user canceled
     throw e;
   }
 }
-/** Save a full backup and record when it happened: how many projects, the file, and whether it was downloaded or shared (null: cancelled). */
+/** Save a full backup and record when it happened: how many projects, the file, and whether it was downloaded or shared (null: canceled). */
 export async function backupAll(via: 'download' | 'share'): Promise<{ count: number; filename: string; via: 'download' | 'share' } | null> {
   const { filename, text, count } = await buildBackupFile();
   let went = via;

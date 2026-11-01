@@ -11,7 +11,8 @@ import {
   _resetStorageForTests, createProject, flushSave, initStorage, readProject, sanitizeProjectData,
   save, saveIsFailing, StorageUnavailableError, switchProject, writeJournalIfDirty,
 } from '../src/storage';
-import { parseImportFile, safeFileName } from '../src/backup';
+import { buildBackupFile, buildProjectFile, parseImportFile, safeFileName, stamp } from '../src/backup';
+import { pdfName } from '../src/ui/print-panel';
 import type { BgImage } from '../src/types';
 
 const IMG_A = 'data:image/jpeg;base64,' + 'A'.repeat(64);
@@ -146,6 +147,23 @@ describe('imported files', () => {
   it('names files without runs of dashes (round 3, Grace)', () => {
     expect(safeFileName('Grace - shady oak yard')).toBe('grace-shady-oak-yard');
     expect(safeFileName('  -- ')).toBe('project');
+  });
+  it('dates every file by the person\'s calendar, not UTC: at 11:25 PM in Arkansas, the 31st (the UI review, 2026-11-01)', async () => {
+    const was = process.env.TZ;
+    process.env.TZ = 'America/Chicago';
+    try {
+      const late = new Date('2026-11-01T04:25:00Z'); // 11:25 PM on Oct 31 in Arkansas; Nov 1 in UTC
+      expect(stamp(late)).toBe('2026-10-31');
+      expect(stamp(new Date('2026-11-01T05:05:00Z'))).toBe('2026-11-01'); // (just past midnight there)
+      await fresh();
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(late);
+      expect((await buildBackupFile()).filename).toBe('fullgrown-backup-2026-10-31.fullgrown.json');
+      expect((await buildProjectFile(state.currentProjectId!))?.filename).toBe('my-garden-2026-10-31.fullgrown.json');
+      expect(pdfName('Back yard', stamp())).toBe('back-yard-plan-2026-10-31.pdf');
+    } finally {
+      if (was === undefined) delete process.env.TZ; else process.env.TZ = was;
+    }
   });
   it('cannot inject markup through colors or load remote images', () => {
     const f = { format: 'landscape-planner-project', version: 1, project: { name: 'x', data: {

@@ -1,18 +1,18 @@
 import { bgCalibrationTap, bgCenterClient } from './background';
 import { DOUBLE_TAP_MS, DRAG_THRESHOLD_PX, MAX_ZOOM, MIN_ZOOM, PX_PER_FOOT_BASE } from './constants';
 import { canvasRect, lassoTouches, pxPerFoot, screenToFeet } from './geometry';
-import { flushHistoryDebounce, pushHistory } from './history';
+import { flushHistoryDebounce, pushHistory, stepNamed } from './history';
 import { zoomBy } from './mutations';
 import { movedWith } from './beds';
 import { isLocked } from './roles';
 import { shownWith } from './status';
 import { clearSelection, isSelected, selectOnly, toggleSelect } from './selection';
 import { gesture, state, tapTracker } from './state';
-import { save } from './storage';
+import { save, saveView } from './storage';
 import type { Gesture, Point, Shape } from './types';
 import { drawnBySize, isHidden, isSeeThrough, previewView, redrawBackground, redrawHandles, redrawMarquee, redrawShapes } from './canvas';
 import { drawTap, editedShape, forgetLastTap, insertVertex, moveVertex, notePointer } from './draw';
-import { placeTap } from './place';
+import { notJustPlaced, placeTap, selectionJustPlaced } from './place';
 import { afterMove, freeStrandedVines, saidFreed } from './ui/vine-offers';
 import { render, updateStatusReadout } from './ui/render';
 import { now, snap } from './util';
@@ -312,6 +312,19 @@ function theName(s: Shape): string {
 }
 const STACK_HINT = 'lp-hint-tap-under';
 const DRAG_HINT = 'lp-hint-drag-pans';
+/**
+ * A tap's stack with its sun areas after the plants and the unlocked ground under them (a bed, a lawn, a path), though
+ * they're drawn over the ground: a sun area records the light on a bed, it isn't a thing in it (the UI review,
+ * 2026-11-01: a tap on a plant, then one on the bed's name, picked the sun area over them). Locked shapes stay the
+ * ground under it all, after it (Jason, Oct 29).
+ */
+function sunAreasLast(stack: Shape[]): Shape[] {
+  const sun = stack.filter((s) => s.role === 'shade' && !isLocked(s));
+  if (!sun.length) return stack;
+  const rest = stack.filter((s) => !sun.includes(s));
+  const after = rest.findLastIndex((s) => s.role === 'plant' || !isLocked(s));
+  return [...rest.slice(0, after + 1), ...sun, ...rest.slice(after + 1)];
+}
 /** What the last tap moved down the stack from, if it did: a quick second tap (a double tap) opens that one's pane. */
 let cycledFrom: string | null = null;
 /**
@@ -325,7 +338,7 @@ function handleShapeTap(shape: Shape, at?: { x: number; y: number }) {
   // (The one the press went to first, then the other plants there, then the ground: a bed or a sun area. From a plant
   // picked under another, the next tap went on down to the bed before the plant over it: round 3, Dana, Grace, Hank.)
   const under = at ? shapesAt(at.x, at.y).filter((s) => s.id !== shape.id && shownWith(s, state.viewFilter)) : [];
-  const stack = [shape, ...under.filter((s) => s.role === 'plant'), ...under.filter((s) => s.role !== 'plant')];
+  const stack = sunAreasLast([shape, ...under.filter((s) => s.role === 'plant'), ...under.filter((s) => s.role !== 'plant')]);
   if (tapTracker.id && stack.some((s) => s.id === tapTracker.id) && t - tapTracker.time < DOUBLE_TAP_MS) {
     // (A double tap on the one selected: its pane, though its first tap went on down the stack.)
     selectOnly(cycledFrom ?? tapTracker.id);
@@ -333,8 +346,12 @@ function handleShapeTap(shape: Shape, at?: { x: number; y: number }) {
     tapTracker.id = null; tapTracker.time = 0; cycledFrom = null;
     return;
   }
-  const sel = state.selectedIds.length === 1 ? stack.findIndex((s) => s.id === state.selectedIds[0]) : -1;
-  const pick = sel >= 0 ? stack[(sel + 1) % stack.length] : shape;
+  // (Plants Done just left selected weren't picked by a tap: a tap on one picks it, not what's under it. The UI review,
+  // 2026-11-01: the first tap on a plant just placed picked the sun area under it.)
+  const placedNow = selectionJustPlaced();
+  if (placedNow) notJustPlaced();
+  const sel = state.selectedIds.length === 1 && !placedNow ? stack.findIndex((s) => s.id === state.selectedIds[0]) : -1;
+  const pick = sel >= 0 ? stack[(sel + 1) % stack.length] : stack[0];
   // (Gone down the stack: "Tap again for … under it" is done with. Round 3, Grace: it stayed over what it named.)
   if (sel >= 0) hideToastSaying(/^(Tap|Click) again for /);
   cycledFrom = sel >= 0 && pick.id !== state.selectedIds[0] ? state.selectedIds[0] : null;
@@ -366,7 +383,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
           moved: true // never treat the end of a pinch as a tap
         };
       } else {
-        save();
+        saveView(); // (where it's looked at from, not a change to the plan: src/storage.ts)
         render(); // full redraw replaces the gesture preview
       }
     }
@@ -385,13 +402,14 @@ export function onCanvasPointerUp(e: PointerEvent) {
       return;
     case 'bg-calibrate-tap':
       if (!g.moved) bgCalibrationTap(g.startX, g.startY);
-      else { save(); render(); }
+      else { saveView(); render(); }
       return;
     case 'drag-shape':
       if (g.moved) {
         // (A vine whose support moved out of its reach is a groundcover again, in the same step: src/vines.ts.)
         const freed = freeStrandedVines();
-        flushHistoryDebounce(); pushHistory(); save();
+        const moved = state.selectedIds.length > 1 && state.selectedIds.includes(g.id) ? state.selectedIds : [g.id];
+        flushHistoryDebounce(); pushHistory('move ' + stepNamed(state.shapes.filter((s) => moved.includes(s.id)))); save();
         if (freed.length) saidFreed(freed); else afterMove(g.ids);
       }
       else {
@@ -421,7 +439,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
       return;
     case 'pan':
       if (g.moved) {
-        save(); forgetLastTap(); // (the plan moved: the same spot on screen is another place)
+        saveView(); forgetLastTap(); // (the plan moved: the same spot on screen is another place)
         // (The first few times a drag over a shape pans, on this device: how to move it.)
         if (g.overShape && hintDue(DRAG_HINT, 3)) { toast('That moved the plan. To move a shape, tap it first, then drag it.', 4000); hintShown(DRAG_HINT); }
       }
@@ -514,6 +532,13 @@ export function onShapePointerDown(e: PointerEvent, shape: Shape) {
     const under = here.slice(at + 1).find((s) => drawnBySize(s) && s.status !== 'gone' && !isLocked(s) && shownWith(s, state.viewFilter)
       && (isSeeThrough(shape.id) || (isHidden(s.id) && nearMiddle(s))));
     if (under) { activePointers.delete(e.pointerId); onShapePointerDown(e, under); return; }
+  }
+  // A sun area over a bed (or a lawn, a path): a press there is on the bed, unless the sun area is selected, so a tap
+  // picks the bed and a drag moves it, its plants with it; the sun area is the next tap (sunAreasLast). The UI review,
+  // 2026-11-01. (One that's locked is ground itself: below, a press on it goes to what's on it.)
+  if (shape.role === 'shade' && !isLocked(shape) && !isSelected(shape.id) && !state.selectMode && !state.draw && !state.editPoints && !state.placing && !state.featurePlace) {
+    const ground = shapesAt(e.clientX, e.clientY).find((s) => s.id !== shape.id && s.role !== 'shade' && !isLocked(s) && shownWith(s, state.viewFilter));
+    if (ground) { activePointers.delete(e.pointerId); onShapePointerDown(e, ground); return; }
   }
   // Locked shapes are part of the ground: a press on one goes to what's on it, unlocked, under the finger (Jason,
   // Oct 29: a bed drawn under a locked house); with nothing there, dragging pans (or lassos in select mode), and a
@@ -651,7 +676,7 @@ export function onWheel(e: WheelEvent) {
     const dx = (e.shiftKey && !e.deltaX ? e.deltaY : e.deltaX) * line, dy = e.shiftKey && !e.deltaX ? 0 : e.deltaY * line;
     state.offsetX += dx / ppf;
     state.offsetY += dy / ppf;
-    save();
+    saveView();
   }
   previewView();
   if (wheelSettle) clearTimeout(wheelSettle);

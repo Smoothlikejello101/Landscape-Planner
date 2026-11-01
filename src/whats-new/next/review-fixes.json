@@ -1,0 +1,16 @@
+[
+  "Closing Swap, Add a plant or the ZIP box opened from the plant list now takes you back where you were, instead of out to the plan, and its ← in place of × says so.",
+  "While a sheet is open, Undo and Redo at the top are grayed out and do nothing; before, they closed the sheet with your change still in place. Close it first, then Undo.",
+  "Deleting a bed with plants in it asks whether its plants go too or stay, and deleting a project offers to save a copy first.",
+  "The plan’s name at the top now looks like the button it is (it opens your plans), with Saved under it; ⋮ also has Plans and backup….",
+  "⋮ → the version line has Check for updates: if a new version is ready, it says so, and Update now switches to it, your work saved first.",
+  "A sun exposure area no longer gets in the way of what’s on it: a plant is picked first, then the bed, then the sun area.",
+  "Typing a building’s sides on a phone: the second side goes toward the middle of the screen, the building stays in view, and the typed length shows by its corner with what to do next.",
+  "Copy as my plant starts with the name empty and no flower colors picked, for you to fill in; size, sun, type and bloom come from the catalog plant.",
+  "A new plan can start with your garden’s location: New project offers “Same garden (ZIP …)?”, already ticked.",
+  "Zooming, moving around the plan or Fit no longer counts as a change, so Projects shows when you last changed the plan itself.",
+  "Files you save (backups, plan files, pictures, the PDF) are dated by your own calendar: late in the evening they no longer carry tomorrow’s date.",
+  "Printing and pictures: bed names are no longer hidden under plants or printed over another name, and a picture of the plan has Download and, where your device can, Share….",
+  "On a computer, point at Undo or Redo to see what it would do: “Undo: delete Front bed”.",
+  "Smaller fixes: “Which tree?” starts with no filters; a plant you swap in shows first under Recent; the plant list’s title and count agree; a plant copied from the catalog isn’t flagged as “now in the catalog”; several plants selected are named as plants; the dashed ring around a plant is explained as its full size; the new-version message sits under the top bar instead of over the plan’s buttons; an old message clears when you start drawing; a bed’s bloom chart no longer runs its numbers together; back on a plan after another, Redo no longer offers a change undone before you left; and on a computer the ZIP box opens with the cursor in it."
+]

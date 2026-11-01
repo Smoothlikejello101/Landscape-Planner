@@ -30,6 +30,23 @@ test('a sheet opened by key takes focus; Tab stays inside it; Esc closes it', as
   await expect(page.getByTestId('add-sheet')).toHaveCount(0);
 });
 
+test('the ZIP sheet, opened by key from ⋮ or the tour, has the cursor in its field, not on its × (the UI review; Alex, Tom)', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('button[title=More]').focus();
+  await page.keyboard.press('Enter');
+  await page.locator('.menu-item', { hasText: 'Garden location' }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('zip')).toBeFocused();
+  await page.keyboard.type('719');
+  await expect(page.getByTestId('zip')).toHaveValue('719');
+  await page.locator('.sheet-header .iconbtn[aria-label=Close]').click();
+  // The tour's "Enter your ZIP" (it draws the sheet twice: the cursor stays).
+  await page.getByTestId('intro-start').click();
+  await page.getByTestId('intro-go').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('zip')).toBeFocused();
+});
+
 test('a choice in the properties sheet keeps focus on it, not back at the page', async ({ page }) => {
   await openFresh(page);
   await oneRect(page);

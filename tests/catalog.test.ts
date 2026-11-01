@@ -250,6 +250,13 @@ describe('records', () => {
       "p: named as a cultivar, but its botanical name doesn't say which",
       'p: no spread',
     ]);
+    // A botanical name with parentheses: a strain, a group or a note, for the review (the UI review, 2026-11-01).
+    const strain = catalogWarnings({ meta, plants: [rec({ id: 's', common: 'Butterfly weed (clay strain)', botanical: 'Asclepias tuberosa (clay strain)', facts: { width: { min: 1, max: 2 } } })] });
+    expect(strain).toEqual(['s: parentheses in its botanical name: a cultivar is quoted; a seed strain or ecotype is named "Common name (strain)"']);
+  });
+  it('list every botanical name with parentheses in the shipped catalog: the clay strain, and the three left as they are', () => {
+    const listed = catalogWarnings(shipped).filter((w) => w.includes('parentheses in its botanical name')).map((w) => w.split(':')[0]);
+    expect(listed.sort()).toEqual(['asclepias-tuberosa-clay-strain', 'asparagus-officinalis-jersey-millennium', 'iris-aquatic-spp', 'vernonia-hybrid-mt-cuba']);
   });
 });
 

@@ -325,6 +325,8 @@ export interface HistorySnapshot {
   bgImage: BgImage | null;
   /** The synced photo not on this device at that step (so undo never makes it look removed). */
   photoElsewhere?: PhotoRef | null;
+  /** What the step did, when it says ("delete Front bed"): src/history.ts. Never stored. */
+  label?: string;
 }
 
 export interface Clipboard {

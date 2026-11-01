@@ -170,6 +170,9 @@ export function placeNotice() {
     node.style.top = `${Math.max(8, Math.round(bar.getBoundingClientRect().top - h - 8))}px`;
     return;
   }
+  // (An update's banner under the top bar, src/pwa.ts: the notice just below it, not over its Update.)
+  const update = !sheet ? document.getElementById('update-banner') : null;
+  if (update?.closest('.app')) { node.style.top = `${Math.round(update.getBoundingClientRect().bottom + 8)}px`; return; }
   if (!sheet) return;
   const sheetTop = sheet.getBoundingClientRect().top;
   const h = node.getBoundingClientRect().height;

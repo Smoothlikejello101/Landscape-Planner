@@ -6,7 +6,7 @@ import { openKV, put } from '../src/db';
 import { state } from '../src/state';
 import {
   _resetStorageForTests, clearedNow, createProject, deleteProject, flushSave, getClipboard, initStorage, keepCleared, loadCleared,
-  readProject, sanitizeProjectData, save, switchProject, writeJournalIfDirty, migrateBgImage, photoRefOf, sanitizePhotoRef, sanitizeDismissed, syncedContent } from '../src/storage';
+  readProject, sanitizeProjectData, save, saveView, switchProject, writeJournalIfDirty, migrateBgImage, photoRefOf, sanitizePhotoRef, sanitizeDismissed, syncedContent } from '../src/storage';
 import { allExportedProjects, buildBackupFile, importProjects, parseImportFile, uniqueName } from '../src/backup';
 import { sanitizeMyPlant } from '../src/my-plants';
 import { buildSupportFile } from '../src/support';
@@ -397,6 +397,33 @@ describe('sun warning settings', () => {
   });
 });
 
+describe('last modified', () => {
+  it('is a change to the plan, not the app opening it again after an update, nor a zoom, pan or Fit (the UI review, 2026-11-01)', async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [circle('oak')] }).shapes; save(); await flushSave();
+    const edited = state.projects[0].lastModified;
+    const stored = async () => (await kv.get<{ lastModified: number }>('meta', id))!.lastModified;
+    // The app updates: it opens again on the same storage, a minute later.
+    laterBy(60_000);
+    _resetStorageForTests();
+    await initStorage(kv);
+    await flushSave();
+    expect(await stored()).toBe(edited);
+    // Fit, a zoom, a pan: saved, so the plan opens where it was left, but nothing in it changed.
+    laterBy(60_000);
+    state.zoom = 2.5; state.offsetX = 7; saveView(); await flushSave();
+    expect((await readProject(id))!.zoom).toBe(2.5);
+    expect(state.projects[0].lastModified).toBe(edited);
+    expect(await stored()).toBe(edited);
+    // An edit is a change.
+    laterBy(60_000);
+    state.shapes = sanitizeProjectData({ shapes: [circle('oak'), circle('ash')] }).shapes; save(); await flushSave();
+    expect(await stored()).toBeGreaterThanOrEqual(edited + 180_000);
+    expect(state.projects[0].lastModified).toBe(await stored());
+  });
+});
+
 describe('unsaved-edit journal', () => {
   it('recovers edits whose async save never finished', async () => {
     const kv = await freshStorage();
@@ -433,6 +460,16 @@ describe('unsaved-edit journal', () => {
     await freshStorage();
     writeJournalIfDirty();
     expect(journals()).toBe('');
+  });
+
+  it('keeps no journal for a new view alone: replayed, it would make the plan "last modified" (the UI review, 2026-11-01)', async () => {
+    await freshStorage();
+    state.zoom = 3; saveView();
+    writeJournalIfDirty();
+    expect(journals()).toBe('');
+    state.shapes = sanitizeProjectData({ shapes: [circle('new')] }).shapes; save();
+    writeJournalIfDirty();
+    expect(journals()).toContain('"new"');
   });
 
   it('ignores a journal older than the saved project', async () => {
