@@ -199,10 +199,13 @@ function warningList(): HTMLElement {
   const activeFirst = (r: WarningRow[]) => [...r.filter((x) => !x.dismissed), ...r.filter((x) => x.dismissed)];
   if (rows.length <= HANDFUL) {
     for (const r of activeFirst(rows)) d.appendChild(warningRow(r));
+    // (Set apart from the rows by a rule, so they don't read as the last row's: Jason, Nov 1, on the mock-ups.)
+    const block = el('div', { className: 'warnings-all-block' });
     for (const { kind, name } of WARNING_KINDS) {
       const all = kindButtons(kind, rows.filter((r) => r.kind === kind));
-      if (all) d.appendChild(el('div', { className: 'warnings-all', 'data-testid': `warnings-all-${kind}` }, el('span', { className: 'warnings-all-name' }, `${name}:`), ...all));
+      if (all) block.appendChild(el('div', { className: 'warnings-all', 'data-testid': `warnings-all-${kind}` }, el('span', { className: 'warnings-all-name' }, `${name}:`), ...all));
     }
+    if (block.firstChild) d.appendChild(block);
     return d;
   }
   for (const { kind, name } of WARNING_KINDS) {
@@ -211,7 +214,12 @@ function warningList(): HTMLElement {
     const k = fold('warnings-kind', `warnings-kind-${kind}`, kindsOpen.has(kind), (v) => { if (v) kindsOpen.add(kind); else kindsOpen.delete(kind); }, '', name, el('span', { className: 'count' }, ` · ${countSaid(these)}`));
     for (const r of activeFirst(these)) k.appendChild(warningRow(r));
     const all = kindButtons(kind, these);
-    if (all) k.appendChild(el('div', { className: 'warnings-all', 'data-testid': `warnings-all-${kind}`, role: 'group', 'aria-label': `All ${KIND_WORDS[kind]} warnings` }, ...all));
+    // (Under a rule and a heading, "All 3 hardiness warnings", so they don't read as the last row's: Jason, Nov 1, on
+    // the mock-ups.)
+    if (all) {
+      k.appendChild(el('div', { className: 'warnings-all under', 'data-testid': `warnings-all-${kind}`, role: 'group', 'aria-label': `All ${KIND_WORDS[kind]} warnings` },
+        el('span', { className: 'warnings-all-head', 'aria-hidden': 'true' }, `All ${these.length} ${KIND_WORDS[kind]} warnings`), ...all));
+    }
     d.appendChild(k);
   }
   return d;
