@@ -7,6 +7,7 @@
 // to where it was when it closes. Esc, or a tap outside it, answers Cancel; Enter answers OK. Keys pressed in it
 // belong to it, never to the plan's shortcuts.
 import { el, tapSaid } from '../dom';
+import { panelOpened } from '../tap-guard';
 
 export interface AskOptions {
   /** The main button's words ("Delete", "Update them"); OK by default. */
@@ -96,6 +97,7 @@ function sheet<T>(build: (finish: (v: T) => void) => SheetParts<T>, opts: AskOpt
     const keepFocus = (e: FocusEvent) => { if (!dialog.contains(e.target as Node)) first.focus({ preventScroll: true }); };
     document.addEventListener('focusin', keepFocus, true);
     document.body.appendChild(overlay);
+    panelOpened(); // (a double tap on Delete doesn't answer the question that comes up under it: src/tap-guard.ts)
     open = { cancel: () => finish(none) };
     first.focus({ preventScroll: true });
   });
