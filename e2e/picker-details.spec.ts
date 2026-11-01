@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test';
-import { addPlainShape, field, openFilters, openFresh } from './helpers';
+import { test, expect, type Page } from '@playwright/test';
+import { addPlainShape, autoDialogs, closeSheet, field, openFilters, openFresh } from './helpers';
 
 // Plant picker rows open to show a plant's details; Place uses it.
 
@@ -594,4 +594,155 @@ test("a winter no source gives: as its species' USA-NPN records show it, or as e
   const grama = await winter('Sideoats grama');
   await expect(grama).toContainText('Goes dormant in winter');
   await expect(grama).toContainText(/USA-NPN observers recorded it bare: \d+ plant-years/);
+});
+
+// "Anyone you need to protect?" (Jason, Nov 1, from the UI review: a tester saw "Can irritate skin" on rows but nothing on
+// a plant highly poisonous to people, and never learned the picker screens for kids and pets without opening Filters).
+// First among the filters until it's answered or dismissed; then under Filters, Poison & pets. Kept on this device.
+const protect = (page: Page) => page.getByTestId('protect-line');
+/** The line first among the picker's filters, not under Poison & pets. */
+const protectAtTop = (page: Page) => page.locator('.picker-filters > [data-testid=protect-line]:first-child');
+const protectInGroup = (page: Page) => page.getByTestId('animal-toxicity').getByTestId('protect-line');
+
+test('"Anyone you need to protect?" comes first on a fresh device: Kids, Dogs, Cats and Horses, and why skin irritants are marked for all (Jason, Nov 1)', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await expect(protectAtTop(page)).toBeVisible();
+  await expect(protect(page)).toHaveCount(1); // (not under Poison & pets too)
+  await expect(protect(page).locator('.protect-title')).toHaveText('Anyone you need to protect?');
+  await expect(protect(page).locator('.protect-chip')).toHaveText(['Kids', 'Dogs', 'Cats', 'Horses']);
+  for (const k of ['kids', 'dogs', 'cats', 'horses']) await expect(page.getByTestId(`protect-${k}`)).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('protect-note')).toHaveText("Skin irritants are marked for all: anyone can brush them. Poison if eaten goes by who's in the yard.");
+  await expect(protect(page)).not.toContainText(/\b(tap|click)/i);
+  await expect(page.getByTestId('protect-dismiss')).toHaveAttribute('aria-label', /^Dismiss/);
+  // Above the Filters button, which is folded.
+  const line = (await protect(page).boundingBox())!, fold = (await page.getByTestId('filters').boundingBox())!;
+  expect(line.y + line.height).toBeLessThanOrEqual(fold.y);
+  await expect(page.getByTestId('filters')).toHaveAttribute('aria-expanded', 'false');
+  // As the note says: with no one in the yard, a plant poisonous to eat that irritates skin is marked for the skin only.
+  await page.getByTestId('plant-search').fill('Mayapple');
+  const mayapple = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Mayapple$/ }) });
+  await expect(mayapple.getByTestId('row-skin')).toHaveText('Can irritate skin');
+  await expect(mayapple.getByTestId('row-poison')).toHaveCount(0);
+});
+
+test('"Anyone you need to protect?": Kids hides plants poisonous to people and is kept; it stays till the picker closes, then it\'s under Poison & pets, after a reload too', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('protect-kids').click();
+  await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('active-chip')).toHaveText(['Not listed as poisonous to people']);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('lp-yard') ?? 'null'))).toEqual({ kids: true, dogs: '', cats: false, horses: false });
+  // Mayapple hidden; shown anyway, it's marked poisonous to people now, and still for the skin.
+  await page.getByTestId('plant-search').fill('Mayapple');
+  const mayapple = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Mayapple$/ }) });
+  await expect(mayapple).toHaveCount(0);
+  await page.getByTestId('show-hidden').click();
+  await expect(mayapple.getByTestId('row-poison')).toHaveText('Poisonous to people');
+  await expect(mayapple.getByTestId('row-skin')).toHaveText('Can irritate skin');
+  await page.getByTestId('filters-back').click();
+  // In step with Poison & pets, both ways. Dogs is Poison & pets' first dog setting: no dog warnings.
+  await expect(protectAtTop(page)).toBeVisible(); // (answered: it stays for now, to see what was set)
+  await openFilters(page);
+  await expect(page.getByRole('checkbox', { name: 'Not listed as poisonous to people' })).toBeChecked();
+  await page.getByTestId('protect-dogs').click();
+  await expect(page.getByTestId('dogs-hideToxic')).toBeChecked();
+  await page.getByTestId('dogs-any').check();
+  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'false');
+  await page.getByRole('checkbox', { name: 'Hide plants that are a problem for cats' }).check();
+  await expect(page.getByTestId('protect-cats')).toHaveAttribute('aria-pressed', 'true');
+  await expect(protectAtTop(page)).toBeVisible();
+  // Closed and opened again: under Poison & pets, as set.
+  await closeSheet(page);
+  await page.locator('.tool-btn.plants').click();
+  await expect(protectAtTop(page)).toHaveCount(0);
+  await expect(protectInGroup(page)).toBeVisible(); // (Filters left open)
+  await expect(protectInGroup(page).getByTestId('protect-dismiss')).toHaveCount(0);
+  await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('protect-cats')).toHaveAttribute('aria-pressed', 'true');
+  // After a reload too, the Filters fold shut.
+  await page.getByTestId('filters').click();
+  await page.reload();
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.getByTestId('picker-count')).toBeVisible();
+  await expect(protectAtTop(page)).toHaveCount(0);
+  await expect(protect(page)).toBeHidden();
+  await openFilters(page);
+  await expect(protectInGroup(page)).toBeVisible();
+  await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'true');
+  expect(await page.evaluate(() => localStorage.getItem('lp-protect-line'))).toBe('answered');
+});
+
+test('"Anyone you need to protect?" dismissed: under Poison & pets at once, a notice says so, and it stays there after a reload', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('aster');
+  await page.getByTestId('protect-dismiss').click();
+  await expect(page.locator('#toast')).toHaveText("It's under Filters → Poison & pets.");
+  await expect(protectAtTop(page)).toHaveCount(0);
+  await expect(page.getByTestId('plant-search')).toHaveValue('aster'); // (moved in place: the search as it was)
+  await openFilters(page);
+  await expect(protectInGroup(page)).toBeVisible();
+  // Who's in the yard is left as it was: no one.
+  expect(await page.evaluate(() => [localStorage.getItem('lp-protect-line'), localStorage.getItem('lp-yard')])).toEqual(['dismissed', null]);
+  await page.reload();
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.getByTestId('picker-count')).toBeVisible();
+  await expect(protectAtTop(page)).toHaveCount(0);
+  await expect(protectInGroup(page)).toBeVisible(); // (the Filters fold left open)
+});
+
+test('"Anyone you need to protect?" isn\'t asked first on a device that answered step 6 of the introduction, with none ticked', async ({ page }) => {
+  autoDialogs(page);
+  await openFresh(page);
+  await page.getByTestId('intro-start').click();
+  for (let n = 1; n <= 5; n++) {
+    await expect(page.getByTestId('intro-step')).toHaveText(`Step ${n} of 8`);
+    await page.getByTestId('intro-skip').click();
+  }
+  await expect(page.getByTestId('intro-step')).toHaveText('Step 6 of 8');
+  await page.getByTestId('intro-done').click(); // (none of the four)
+  await expect(page.getByTestId('intro-step')).toHaveText('Step 7 of 8');
+  await page.getByTestId('intro-exit').click();
+  await page.reload();
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.getByTestId('picker-count')).toBeVisible();
+  await expect(protectAtTop(page)).toHaveCount(0);
+  await openFilters(page);
+  await expect(protectInGroup(page)).toBeVisible();
+  for (const k of ['kids', 'dogs', 'cats', 'horses']) await expect(page.getByTestId(`protect-${k}`)).toHaveAttribute('aria-pressed', 'false');
+  expect(await page.evaluate(() => [localStorage.getItem('lp-protect-line'), localStorage.getItem('lp-yard')])).toEqual(['answered', null]);
+});
+
+test('"Anyone you need to protect?" fits a 360 px phone at every text size: one row of chips, the list still on screen', async ({ page }) => {
+  // (360 × 740, a 360-wide phone's screen. At 360 × 640, Extra large starts the first plant just below the screen.)
+  await page.setViewportSize({ width: 360, height: 740 });
+  await openFresh(page);
+  for (const size of ['small', 'medium', 'large', 'xlarge']) {
+    await page.evaluate((s) => localStorage.setItem('lp-text-size-2', s), size);
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-text', size);
+    await page.locator('.tool-btn.plants').click();
+    await expect(protectAtTop(page)).toBeVisible();
+    const sheet = page.locator('.picker-sheet');
+    expect(await sheet.evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
+    const box = (await sheet.boundingBox())!, line = (await protect(page).boundingBox())!;
+    expect(line.x).toBeGreaterThanOrEqual(box.x);
+    expect(line.x + line.width).toBeLessThanOrEqual(box.x + box.width);
+    // One row of chips, inside the line; the × clear of the title.
+    const chips = await Promise.all((await protect(page).locator('.protect-chip').all()).map(async (c) => (await c.boundingBox())!));
+    for (const c of chips) { expect(c.y).toBeCloseTo(chips[0].y, 0); expect(c.x + c.width).toBeLessThanOrEqual(line.x + line.width); }
+    const x = (await page.getByTestId('protect-dismiss').boundingBox())!;
+    expect(Math.min(x.width, x.height)).toBeGreaterThanOrEqual(40);
+    const title = await protect(page).locator('.protect-title').evaluate((e) => {
+      const r = document.createRange(); r.selectNodeContents(e);
+      const rects = [...r.getClientRects()];
+      return { lines: new Set(rects.map((b) => Math.round(b.top))).size, right: Math.max(...rects.map((b) => b.right)) };
+    });
+    expect(title.lines).toBe(1);
+    expect(title.right).toBeLessThanOrEqual(x.x);
+    // The list still starts on the screen.
+    const first = (await page.getByTestId('plant-row').first().boundingBox())!;
+    expect(first.y).toBeLessThan(740);
+  }
 });

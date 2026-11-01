@@ -20,7 +20,7 @@ export const SUPPORT_VERSION = 1;
  * value. (A test checks that every 'lp-' key in src/ is listed here.)
  */
 export const SETTING_KEYS = [
-  'lp-current', 'lp-idb-in-use', 'lp-text-size', 'lp-text-size-2', 'lp-yard', 'lp-hardy-here', 'lp-square', 'lp-snap', 'lp-tidy', 'lp-kind-prefs',
+  'lp-current', 'lp-idb-in-use', 'lp-text-size', 'lp-text-size-2', 'lp-yard', 'lp-protect-line', 'lp-hardy-here', 'lp-square', 'lp-snap', 'lp-tidy', 'lp-kind-prefs',
   'lp-recent-plants', 'lp-full-rings', 'lp-crowding', 'lp-crowd-warn', 'lp-warn-hardy', 'lp-warn-poison', 'lp-warn-fruit', 'lp-zoom-buttons', 'lp-plant-looks', 'lp-label-size', 'lp-filters-open', 'lp-my-plants-folded', 'lp-sync-device',
   'lp-zip-county', 'lp-zip-prompt-dismissed', 'lp-intro', 'lp-last-visit', 'lp-returned', 'lp-hint-full-size', 'lp-canopy-hint',
   'lp-hint-tap-under', 'lp-hint-drag-pans', 'lp-tap-guard', 'lp-whats-new',

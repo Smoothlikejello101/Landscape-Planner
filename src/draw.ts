@@ -1,9 +1,11 @@
 import { MAX_POINTS, MIN_POINTS } from './constants';
 import { afterPointAdded, afterPointDeleted, kindsFor } from './features';
 import { startFeaturePlace } from './feature-edit';
-import { svgEl } from './dom';
-import { bakeRotation, canvasRect, fmtFeet, outlineOf, pathPoints, pxPerFoot, rotate, screenToFeet, setWorldPoints } from './geometry';
-import { flushHistoryDebounce, pushHistory, undo } from './history';
+import { hasKeyboard, svgEl, tapSaid } from './dom';
+import { bakeRotation, canvasRect, fmtFeet, outlineOf, pathPoints, pxPerFoot, rotate, screenToFeet, setWorldPoints, shapeBBox } from './geometry';
+import { restingCanvasH } from './canvas';
+import { bringIntoView } from './mutations';
+import { flushHistoryDebounce, pushHistory, stepNamed, undo } from './history';
 import { gesture, state } from './state';
 import { save } from './storage';
 import { buildShape, CANOPY_MIN_TAPS, isKindKey, kindDef, tapAccepted, TAPS_TO_FINISH, type KindKey, type Method } from './kinds';
@@ -278,7 +280,7 @@ export function finishDraw(): Shape | null {
   // Most things stay closed so the plan stays in view; a note needs its text, sun exposure its sun record.
   state.panel = kind.openProps ? 'props' : null;
   noteRecentKind(kind.key);
-  pushHistory();
+  pushHistory('add ' + stepNamed([shape]));
   // (A fence or a building drawn by a vine: offered to it, src/ui/vine-offers.ts.)
   offerToVines(shape);
   // Asked for while drawing: on to its doors and windows, gates or steps, tapped onto its edges.
@@ -289,7 +291,7 @@ export function finishDraw(): Shape | null {
     finishNew(after, d);
     const i = state.shapes.findIndex((x) => x.id === shape.id);
     state.shapes[i] = { ...after, label: shape.label } as Shape;
-    pushHistory();
+    pushHistory(said.startsWith('Squared') ? 'square the corners' : 'move the last point');
     const step = state.history[state.historyIndex];
     const isSquare = method === 'poly';
     toastAction(said, [
@@ -303,8 +305,12 @@ export function finishDraw(): Shape | null {
         : { label: 'Stop snapping', keep: true, run: () => { setSnapOn(false); toast('Snapping is off: turn it back on in \u22ee \u2192 Settings.', 4000); } },
     ], 10000);
   }
+  const made = state.shapes.find((x) => x.id === shape.id) ?? shape;
+  // A side typed, not tapped, can run off the screen: what it made brought into view if it has (the UI review,
+  // 2026-11-01: a house typed 50 by 30 ft at 360 \u00d7 640 was found only with Fit).
+  if (d.exact?.some(Boolean)) bringIntoView(shapeBBox(made), restingCanvasH());
   save();
-  return state.shapes.find((x) => x.id === shape.id) ?? shape;
+  return made;
 }
 /** The shape a snap landed on, by name: "House", or "another shape". */
 export function shapeName(id: string): string { return state.shapes.find((x) => x.id === id)?.label || 'another shape'; }
@@ -395,8 +401,13 @@ export function finishTypedRect(): boolean {
   const d = state.draw;
   if (!d || d.kind !== 'rect' || d.points.length !== 2 || !d.typed) return false;
   const [a, b] = d.points, r = canvasRect(), ppf = pxPerFoot();
-  const mid = screenToFeet(r.left + r.width / 2, r.top + r.height / 2);
-  let toward = hoverRaw ?? mid;
+  // (The middle of the plan with the keyboard put away: on a small phone, the sliver of plan left above it can end above
+  // the first side.)
+  const mid = screenToFeet(r.left + r.width / 2, r.top + restingCanvasH() / 2);
+  // (Where the pointer is counts only for a mouse that hovers. Without one, it's where the last tap was, the first
+  // side's direction, not a side to put the house on: the UI review, 2026-11-01, at 360 × 640, tapped a hair above a
+  // 50 ft side, and the 30 ft other side went up, off the screen.)
+  let toward = (hasKeyboard() ? hoverRaw : null) ?? mid;
   if (!typedFarSide(a, b, toward, d.typed)) toward = { x: (a.x + b.x) / 2 - (b.y - a.y), y: (a.y + b.y) / 2 + (b.x - a.x) }; // (on the line: either side)
   return drawTap(r.left + (toward.x - state.offsetX) * ppf, r.top + (toward.y - state.offsetY) * ppf);
 }
@@ -439,7 +450,7 @@ function keepMeasurement(): Shape | null {
   setWorldPoints(shape, d.points.slice(0, 2));
   state.shapes.push(shape);
   d.points = []; d.snaps = []; delete d.lastTap;
-  pushHistory();
+  pushHistory('add a measurement');
   save();
   return shape;
 }
@@ -758,7 +769,11 @@ function drawNumbers(g: SVGElement, d: DrawState, shown: Point[], preview: Shape
 function typedGuide(g: SVGElement, d: DrawState) {
   if (!d.typed || !typedApplies(d)) return;
   const ppf = pxPerFoot(), pts = d.points, guide = { 'data-role': 'typed-guide', 'pointer-events': 'none', fill: 'none', stroke: INK, 'stroke-width': 1.5, 'stroke-dasharray': '4 4', 'stroke-opacity': 0.8 };
-  if (d.kind === 'rect' && pts.length === 2) {
+  // (On a phone, nothing follows a pointer to show the side: the length by the last point, and what the next tap does.
+  // A long side's ring is off the screen, and the UI review, 2026-11-01, typed 50 and saw nothing change.)
+  const last = toScreen(pts.at(-1)!), across = d.kind === 'rect' && pts.length === 2;
+  if (!hasKeyboard()) numberPill(g, { x: last.x, y: last.y - 24 }, `${lengthText(d.typed)}: ${tapSaid(across ? 'tap which side' : 'tap which way')}`, 'typed-note');
+  if (across) {
     const [a, b] = pts, n = rotate(0, 1, (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI);
     for (const k of [1, -1]) {
       const A = toScreen({ x: a.x + n.x * d.typed * k, y: a.y + n.y * d.typed * k }), B = toScreen({ x: b.x + n.x * d.typed * k, y: b.y + n.y * d.typed * k });
@@ -766,8 +781,7 @@ function typedGuide(g: SVGElement, d: DrawState) {
     }
     return;
   }
-  const c = toScreen(pts.at(-1)!);
-  g.appendChild(svgEl('circle', { ...guide, cx: c.x, cy: c.y, r: d.typed * ppf }));
+  g.appendChild(svgEl('circle', { ...guide, cx: last.x, cy: last.y, r: d.typed * ppf }));
 }
 /** Editing points: each side's length, and the angle at the selected point. */
 function editNumbers(g: SVGElement, s: PathShape, sel: number | null) {

@@ -2,15 +2,15 @@ import { carriesPlants, movedWith, patchBedCarryingPlants } from './beds';
 import { redrawCanvas, tierOf } from './canvas';
 import { MAX_ZOOM, MIN_ZOOM, PX_PER_FOOT_BASE } from './constants';
 import { canvasRect, pxPerFoot, rotatedBoxBounds, shapeBBox, shapeCenter, unionBounds, viewCenterFeet } from './geometry';
-import { flushHistoryDebounce, pushHistory, pushHistoryDebounced } from './history';
+import { flushHistoryDebounce, pushHistory, pushHistoryDebounced, stepNamed } from './history';
 import { getSelected, singleSelected } from './selection';
 import { state } from './state';
-import { forgetCleared, getClipboard, keepCleared, migrateShape, save, setClipboard, type ClearedPlan } from './storage';
+import { forgetCleared, getClipboard, keepCleared, migrateShape, save, saveView, setClipboard, type ClearedPlan } from './storage';
 import { toast } from './ui/toast';
 import { defaultLook, isLocked, roleKey } from './roles';
 import { isUtilityKind, utilityLook } from './utility-kinds';
 import type { Bounds, Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapeFilter, ShapePatch, Status } from './types';
-import { cleanPhaseName, MAX_PHASES, shownWith, statusPatch } from './status';
+import { cleanPhaseName, MAX_PHASES, shownWith, statusLabel, statusPatch } from './status';
 import { render } from './ui/render';
 import { deepClone, now, snap, uid } from './util';
 import { setRadius } from './trees';
@@ -53,11 +53,12 @@ export function updateSelectedSilent(patch: ShapePatch) {
 export function deleteShapesByIds(ids: string[]) {
   flushHistoryDebounce();
   if (!ids.length) return;
+  const said = 'delete ' + stepNamed(state.shapes.filter((s) => ids.includes(s.id)));
   state.shapes = state.shapes.filter((s) => !ids.includes(s.id));
   // (A vine on what was deleted: a groundcover again, in the same step.)
   for (const v of state.shapes) if (v.type === 'circle' && v.climbsOn && ids.includes(v.climbsOn)) delete v.climbsOn;
   state.selectedIds = state.selectedIds.filter((id) => !ids.includes(id));
-  pushHistory();
+  pushHistory(said);
   save();
 }
 export function deleteSelected() {
@@ -76,7 +77,7 @@ export function duplicateShapesByIds(ids: string[], offset: Point = { x: 1, y: 1
     newIds.push(copy.id);
   }
   state.selectedIds = newIds;
-  pushHistory();
+  pushHistory('duplicate ' + stepNamed(state.shapes.filter((s) => newIds.includes(s.id))));
   save();
   return newIds;
 }
@@ -130,7 +131,7 @@ export function paste(): boolean {
     state.shapes.push(s);
   }
   state.selectedIds = incoming.map((s) => s.id);
-  pushHistory();
+  pushHistory('paste ' + stepNamed(incoming));
   save();
   return true;
 }
@@ -156,7 +157,7 @@ export function nudgeSelected(dx: number, dy: number): string[] | null {
     s.y = snap(s.y + dy);
   }
   save();
-  pushHistoryDebounced();
+  pushHistoryDebounced('move ' + stepNamed(free));
   return ids;
 }
 export function setLockedForIds(ids: string[], locked: boolean) {
@@ -213,7 +214,7 @@ export function centerOnShape(id: string) {
   const c = shapeCenter(s);
   state.offsetX = c.x - state.canvasW / pxPerFoot() / 2;
   state.offsetY = c.y - state.canvasH / pxPerFoot() / 2;
-  save();
+  saveView();
 }
 /** Zoom by `factor`, keeping the point under (screenX, screenY) fixed (default: canvas center). */
 export function zoomBy(factor: number, anchorScreenX?: number, anchorScreenY?: number) {
@@ -227,7 +228,7 @@ export function zoomBy(factor: number, anchorScreenX?: number, anchorScreenY?: n
   state.offsetX = feetAtAnchor.x - ax / newPxPerFoot;
   state.offsetY = feetAtAnchor.y - ay / newPxPerFoot;
   state.zoom = newZoom;
-  save();
+  saveView(); // (a new view of the plan, not a change to it: src/storage.ts)
 }
 /**
  * The whole plan as shown: every shape in view, and the photo while it shows (feet). Null when nothing shows.
@@ -249,6 +250,21 @@ export function zoomToBounds(b: Bounds, marginPx = 28) {
   const ppf = PX_PER_FOOT_BASE * state.zoom;
   state.offsetX = (b.minX + b.maxX) / 2 - W / ppf / 2;
   state.offsetY = (b.minY + b.maxY) / 2 - H / ppf / 2;
+  saveView();
+}
+/**
+ * `b` (feet) brought into view if any of it is out of view: to the middle of the plan, zoomed out as far as it takes
+ * to fit with a margin all round, never in. `viewH`: the plan's height to fit it in (px).
+ */
+export function bringIntoView(b: Bounds, viewH = state.canvasH, marginPx = 28) {
+  const W = canvasRect().width || state.canvasW, ppf = pxPerFoot();
+  if (b.minX >= state.offsetX && b.minY >= state.offsetY && b.maxX <= state.offsetX + W / ppf && b.maxY <= state.offsetY + viewH / ppf) return;
+  const w = Math.max(b.maxX - b.minX, 1), h = Math.max(b.maxY - b.minY, 1);
+  const fit = Math.min((W - 2 * marginPx) / (w * PX_PER_FOOT_BASE), (viewH - 2 * marginPx) / (h * PX_PER_FOOT_BASE));
+  state.zoom = Math.max(MIN_ZOOM, Math.min(state.zoom, fit));
+  const p = PX_PER_FOOT_BASE * state.zoom;
+  state.offsetX = (b.minX + b.maxX) / 2 - W / p / 2;
+  state.offsetY = (b.minY + b.maxY) / 2 - viewH / p / 2;
   save();
 }
 /** Everything in view (the zoom buttons' Fit, Shift+1). False when there's nothing on the plan to fit. */
@@ -275,7 +291,7 @@ export function resetCurrentProject() {
   state.draw = null;
   state.editPoints = null;
   state.featurePlace = null;
-  pushHistory();
+  pushHistory('Clear all');
   save();
 }
 
@@ -352,7 +368,8 @@ export function setStatusForIds(ids: string[], status: Status | undefined) {
   }
   // Gone shapes leave the view (unless gone ones are shown): don't keep them selected.
   if (status === 'gone' && !state.viewFilter.showGone) state.selectedIds = state.selectedIds.filter((id) => !ids.includes(id));
-  pushHistory();
+  const set = state.shapes.filter((s) => ids.includes(s.id));
+  pushHistory(set.length ? (status ? `set ${stepNamed(set)} to ${statusLabel(status)}` : `clear the status of ${stepNamed(set)}`) : undefined);
   save();
 }
 export function setPhaseForIds(ids: string[], phase: string) {

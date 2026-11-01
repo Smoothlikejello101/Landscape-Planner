@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, canvasBox, drag, openFresh, shapeCount, tapFromCenter } from './helpers';
+import { addKind, canvasBox, closeSheet, drag, openFilters, openFresh, openSections, shapeCount, tapFromCenter } from './helpers';
 
 // Placing plants: pick once, tap each spot, Done.
 
@@ -92,6 +92,21 @@ test('while placing, plants of the same kind show their full spread and crowding
   await expect(page.locator('#canvas-svg [data-role=full-ring]')).toHaveCount(0);
 });
 
+test("the dashed ring round a plant is said: in its sheet, its full size, and in Layers, what a full-size ring looks like (the UI review, 2026-11-01)", async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await pick(page, 'Buttonbush'); // (drawn at its typical spread, smaller than its full)
+  await tapFromCenter(page, 0, 0);
+  await bar(page).getByRole('button', { name: 'Done' }).click();
+  await expect(page.locator('#canvas-svg [data-role=full-ring]')).toHaveCount(1);
+  await page.locator('.sel-pill .edit').click();
+  await openSections(page);
+  await expect(page.getByTestId('plant-size-note')).toContainText(/Drawn at typical size \(change in Layers\); the dashed ring around it is its full size, [\d.]+ ft across\./);
+  await closeSheet(page);
+  await page.locator('button[title=Layers]').click();
+  await expect(page.getByTestId('full-ring-hint')).toContainText('A full-size ring is the dashed ring around a plant drawn smaller than it grows');
+});
+
 test('an existing tree: pick which, or draw an unknown one, by trunk and canopy edge', async ({ page }) => {
   await openFresh(page);
   await addKind(page, 'tree');
@@ -116,6 +131,30 @@ test('an existing tree: pick which, or draw an unknown one, by trunk and canopy 
   await tapFromCenter(page, -8, 6);
   await tapFromCenter(page, -4, 6);
   await expect(page.locator('.sel-pill .name')).toHaveText('Tree');
+});
+
+test('"Which tree?" starts with no filters, the shopping ones back after (the UI review)', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await openFilters(page);
+  await page.locator('.sheet select[aria-label=Form]').selectOption('Shrub');
+  await page.locator('.sheet label', { hasText: 'Evergreen' }).locator('input').check();
+  await page.getByTestId('native-filter').selectOption('@na');
+  await expect(page.getByTestId('active-chip')).toHaveCount(3);
+  await page.locator('.sheet-header .iconbtn[aria-label=Close]').click();
+  // Naming a tree that's already there, not shopping: every maple, no filters on.
+  await addKind(page, 'tree');
+  await expect(page.locator('.sheet-header .title')).toHaveText('Which tree?');
+  await expect(page.getByTestId('active-chip')).toHaveCount(0);
+  await expect(page.getByTestId('filters')).toHaveText('Filters');
+  await page.getByTestId('plant-search').fill('maple');
+  await expect(page.locator('.sheet .plant-item .pname', { hasText: /maple/i }).first()).toBeVisible();
+  await expect(page.getByTestId('hidden-by')).toHaveCount(0);
+  await page.locator('.sheet-header .iconbtn[aria-label=Close]').click();
+  // Shopping again: as they were.
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.getByTestId('active-chip')).toHaveCount(3);
+  await expect(page.locator('.sheet select[aria-label=Form]')).toHaveValue('Shrub');
 });
 
 test.describe('with a keyboard and mouse', () => {

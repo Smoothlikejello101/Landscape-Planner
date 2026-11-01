@@ -1,6 +1,6 @@
 import { recordError } from './error-log';
 import { redrawCanvas } from './canvas';
-import { flushHistoryDebounce, pushHistory } from './history';
+import { flushHistoryDebounce, pushHistory, stepNamed } from './history';
 import { state } from './state';
 import { save } from './storage';
 import { render } from './ui/render';
@@ -19,6 +19,7 @@ import { bannedHere, gardenStateName, hostsHere, localBloom, nativeHere, nativeT
 import { bloomMonths } from './bloom';
 import { byMatch, matchPlant, readQuery, unsearchable } from './search';
 import { household, type Yard } from './yard';
+import { noteRecentPlant } from './place';
 
 /**
  * One plant: a row of the catalog (plants.json), or one of the user's own
@@ -289,20 +290,33 @@ export const PLANT_FILTER_DEFAULTS = {
 };
 export type PlantFilter = typeof PLANT_FILTER_DEFAULTS;
 export const plantFilter: PlantFilter = { ...PLANT_FILTER_DEFAULTS };
-/** The filters as they were before the picker was opened on a plant's partners (its notice's "All 7…"). */
-let beforePartners: PlantFilter | null = null;
+/**
+ * The filters as they were before the picker was opened on a plant's partners (its notice's "All 7…"), or to name a
+ * tree already in the yard.
+ */
+let beforeAside: PlantFilter | null = null;
 /** The picker on just a plant's fruit partners (src/ui/fruit-notice.ts), the filters set aside till it closes. */
 export function showPartnersOf(id: string) {
-  beforePartners ??= structuredClone(plantFilter);
+  beforeAside ??= structuredClone(plantFilter);
   Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { partnersOf: id, hardyHere: plantFilter.hardyHere });
 }
 /**
- * The picker closed (src/ui/render.ts): opened on a plant's partners, its filters as they were before. Left on, the
- * partners filter hid every plant the next search looked for ("Nothing matches": round 3, Owen).
+ * "Which tree?" (Add → Existing tree): naming a tree that's already there, not shopping for one, so it starts with no
+ * filters, the shopping ones set aside till the picker closes (the UI review, 2026-11-01: Shrub, Evergreen and Native,
+ * left on from shopping, hid every maple). Filters set while naming it stay till then. The search is kept.
+ */
+export function treeFiltersAside() {
+  if (beforeAside) return;
+  beforeAside = structuredClone(plantFilter);
+  Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { q: plantFilter.q });
+}
+/**
+ * The picker closed (src/ui/render.ts): opened on a plant's partners, or for a tree, its filters as they were before.
+ * Left on, the partners filter hid every plant the next search looked for ("Nothing matches": round 3, Owen).
  */
 export function partnersClosed() {
-  if (beforePartners) Object.assign(plantFilter, beforePartners);
-  beforePartners = null;
+  if (beforeAside) Object.assign(plantFilter, beforeAside);
+  beforeAside = null;
 }
 /** Whether a filter is on (set to something other than its default; a list filter, with anything in it). */
 export function filterOn(f: PlantFilter, k: keyof PlantFilter): boolean {
@@ -875,6 +889,9 @@ export function linkShapesToPlant(shapeIds: string[], p: Plant): number {
   if (!circles.length) return 0;
   const asTree = !!formsOf(p)[0]?.startsWith('Tree');
   flushHistoryDebounce();
+  // (What Undo says it takes back: plants swapped for this one, or circles made it.)
+  const swap = circles.every((s) => s.type === 'circle' && s.plantId);
+  const said = swap ? `swap ${stepNamed(circles)} for ${p.common}` : `make ${stepNamed(circles)} ${p.common}`;
   for (const s of circles) {
     if (s.type !== 'circle') continue;
     // (Sized from the plant it was linked to before: that size says nothing about this one as it stands.)
@@ -899,7 +916,7 @@ export function linkShapesToPlant(shapeIds: string[], p: Plant): number {
       else { setRadius(s, plantRadius(p, state.sizeMode)); s.sizeFrom = 'plant'; }
     }
   }
-  pushHistory();
+  pushHistory(said);
   save();
   return circles.length;
 }
@@ -926,7 +943,9 @@ export function linkFromPicker(p: Plant) {
   const swapping = ids.every((id) => { const s = state.shapes.find((x) => x.id === id); return !!s?.plantId && !!plantsById[s.plantId]; });
   const n = linkShapesToPlant(ids, p);
   state.selectedIds = ids;
-  if (swapping) { state.linkOffer = null; toast(`${n === 1 ? 'Swapped' : `${n} swapped`} for ${p.common}.`); return; }
+  // (Swapped in, it's placed: first in Recent, as a plant placed by tapping is. The UI review, 2026-11-01: Recent kept
+  // the plant swapped out, not the one swapped in.)
+  if (swapping) { noteRecentPlant(p.id); state.linkOffer = null; toast(`${n === 1 ? 'Swapped' : `${n} swapped`} for ${p.common}.`); return; }
   if (several) { state.linkOffer = null; toast(`${n} circle${n === 1 ? '' : 's'} linked to ${p.common}.`); return; }
   const same = unlinkedWithLabel(label, ids), locked = unlinkedWithLabel(label, ids, { locked: true });
   state.linkOffer = same.length || locked.length ? { fromId: ids[0], plantId: p.id, label: label!.trim(), ids: same, locked } : null;

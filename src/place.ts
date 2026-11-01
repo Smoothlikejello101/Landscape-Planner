@@ -58,7 +58,7 @@ export function placeTap(clientX: number, clientY: number) {
   lastPlaced = { t, x: clientX, y: clientY, id: p.id };
   const shape = plantShapeAt(p, screenToFeet(clientX, clientY));
   state.shapes.push(shape);
-  pushHistory();
+  pushHistory('place ' + p.common);
   state.placing.placed.push({ id: shape.id, snap: state.history[state.historyIndex] });
   noteRecentPlant(p.id); // what's actually placed, not just picked
   save();
@@ -121,6 +121,8 @@ export function selectionJustPlaced(): boolean {
   if (justPlaced && state.selectedIds.join() !== justPlaced) justPlaced = '';
   return !!justPlaced;
 }
+/** The batch picked by a tap since (one plant placed, tapped): just selected now (src/gestures.ts handleShapeTap). */
+export function notJustPlaced() { justPlaced = ''; }
 
 // ---------- Recently placed plants (this device) ----------
 const RECENT_KEY = 'lp-recent-plants';
@@ -131,7 +133,8 @@ function loadRecent(): string[] {
     return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
   } catch { return []; }
 }
-function noteRecentPlant(id: string) {
+/** A plant just placed (by a tap, or swapped in for another: src/plants.ts linkFromPicker), first in Recent. */
+export function noteRecentPlant(id: string) {
   try { localStorage.setItem(RECENT_KEY, JSON.stringify([id, ...loadRecent().filter((x) => x !== id)].slice(0, 20))); } catch { /* not remembered */ }
 }
 /** The last plants placed, newest first (ones no longer known are skipped). */

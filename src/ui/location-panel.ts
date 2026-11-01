@@ -1,12 +1,10 @@
 import { saveHardy } from '../yard';
 import { CLIMATE_ACCESSED, FROST_SOURCE, formatMonthDay, lookUpZip, ZONE_SOURCE, type GardenLocation } from '../climate';
-import { el } from '../dom';
-import { I } from '../icons';
+import { el, sheetCloseButton } from '../dom';
 import { state } from '../state';
 import { save } from '../storage';
 import { plantFilter } from '../plants';
 import type { PanelName } from '../types';
-import { toast } from './toast';
 import { render } from './render';
 import { loadWild } from '../wild';
 
@@ -37,8 +35,7 @@ function closePanel() { state.panel = returnTo; returnTo = null; problem = ''; t
 
 export function renderLocationPanel(): HTMLElement {
   const loc = state.location ?? null;
-  const close = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' });
-  close.addEventListener('click', closePanel);
+  const close = sheetCloseButton(closePanel, returnTo); // (← back to the picker or the bloom calendar it was opened from)
   const header = el('div', { className: 'sheet-header' }, el('div', { className: 'title' }, 'Garden location'), close);
   const body = el('div', { className: 'sheet-body', 'data-testid': 'location' });
 
@@ -61,13 +58,11 @@ export function renderLocationPanel(): HTMLElement {
     }
     if (r.ok) {
       typed = ''; setLocation(r.location);
-      if (returnTo === 'plants') {
-        // Asked from the plant picker: straight back, showing what's hardy here.
-        plantFilter.hardyHere = true; saveHardy(true);
-        toast(`Zone ${r.location.zone}: showing plants hardy there. Untick “Hardy in zone ${r.location.zone}” to see them all. Frost dates are in ⋮ → Garden location.`, 7000);
-        closePanel();
-        return;
-      }
+      // Asked from the plant picker: what's hardy here shown there. The sheet stays, with the zone and frost dates, till
+      // it's closed or "Show plants hardy in zone 8a" is tapped: either goes back to the picker. (The UI review,
+      // 2026-11-01: it went straight back, a toast over the picker's title, and the × meant for this sheet closed the
+      // picker.)
+      if (returnTo === 'plants') { plantFilter.hardyHere = true; saveHardy(true); }
     }
     else problem = r.why === 'format' ? 'A ZIP code is five digits.'
       : r.why === 'unknown' ? 'That ZIP isn’t in the zone tables (they cover the 50 states and Puerto Rico).'
@@ -110,6 +105,11 @@ export function renderLocationPanel(): HTMLElement {
         : 'No weather station with frost records is near enough to give frost dates here.'));
     }
     body.appendChild(card);
+    if (returnTo === 'plants') {
+      const back = el('button', { className: 'btn primary', 'data-testid': 'location-to-plants' }, `Show plants hardy in zone ${loc.zone}`);
+      back.addEventListener('click', closePanel);
+      body.appendChild(back);
+    }
     const clear = el('button', { className: 'btn ghost', 'data-testid': 'location-clear' }, 'Remove the location from this plan');
     clear.addEventListener('click', () => { setLocation(null); typed = ''; render(); });
     body.appendChild(clear);

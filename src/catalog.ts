@@ -36,7 +36,7 @@ export const currentForm = (f: string): string => LEGACY_FORMS[f] ?? f;
 export const WIRE_FORMS: Record<string, string> = { Tree: 'Tree (canopy)' };
 export const wirePlant = (p: Plant): Plant => (p.form && WIRE_FORMS[p.form] ? { ...p, form: WIRE_FORMS[p.form] } : p);
 /**
- * What other sources say where they differ from the value shown (shown beside it, labelled with who says it,
+ * What other sources say where they differ from the value shown (shown beside it, labeled with who says it,
  * and usable in filters by the user's choice): the side that didn't lead (docs/catalog-sources.md, "Where
  * sources disagree"). Only for the garden facts decided that way; never toxicity, invasiveness or native
  * status (a form where sources differ keeps both forms instead). A pair (sun_most and sun_least, zone_min and

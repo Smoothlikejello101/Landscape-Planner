@@ -20,15 +20,25 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .app { height: 100vh; height: calc(100dvh - var(--kb, 0px)); height: calc(var(--app-h, 100dvh) - var(--kb, 0px)); width: 100vw; display: flex; flex-direction: column; background: #f5f5f4; overflow: hidden; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
 /* Top bar */
 .topbar { display: flex; align-items: center; padding: 6px 8px; background: #fff; border-bottom: 1px solid #e7e5e4; flex-shrink: 0; gap: 4px; min-height: 44px; }
-.project-btn { flex: 1; min-width: 0; min-height: var(--tap); display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-radius: 6px; }
-.project-btn:hover { background: #f5f5f4; }
-.project-btn .pname { font-weight: 600; font-size: calc(14px * var(--ts)); color: #292524; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.project-btn .pinfo { font-size: calc(11px * var(--ts)); color: #78716c; white-space: nowrap; flex-shrink: 0; }
+/* The plan's name and its ▾: a button that opens the plans, drawn as one, with a light outline and tint as the app's
+   other buttons (Jason, from the UI review, 2026-11-01: it read as a title). The name on its own line, whether it's
+   saved under it (src/ui/render.ts). */
+.project-btn { flex: 1; min-width: 0; min-height: var(--tap); display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: 2px 12px 2px 14px; border: 1px solid #e7e5e4; border-radius: 999px; background: #fafaf9; text-align: left; }
+.project-btn:hover { background: #f5f5f4; border-color: #d6d3d1; }
+.project-btn .pname-row { display: flex; align-items: center; gap: 2px; max-width: 100%; min-width: 0; }
+.project-btn .pchev { display: flex; color: #78716c; flex-shrink: 0; }
+.project-btn .pname { font-weight: 600; font-size: calc(14px * var(--ts)); line-height: 1.2; color: #292524; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.project-btn .pinfo { font-size: calc(11px * var(--ts)); line-height: 1.2; color: #78716c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .project-btn .save-state.bad { color: #b91c1c; font-weight: 600; }
 .iconbtn { width: var(--tap); height: var(--tap); display: flex; align-items: center; justify-content: center; border-radius: 6px; color: #57534e; flex-shrink: 0; position: relative; }
 .iconbtn:hover { background: #f5f5f4; }
 .iconbtn:disabled { opacity: 0.3; cursor: not-allowed; }
+/* Undo and Redo while a sheet is open: grayed, above its dimming, so a tap on them isn't the dimming's (src/ui/render.ts). */
+.iconbtn.over-sheet { z-index: 21; }
+.iconbtn.over-sheet:hover { background: none; }
 .iconbtn.active { background: #fef3c7; color: #92400e; }
+/* (What Undo and Redo would do, as the pointer's tooltip: over the whole button. src/ui/render.ts) */
+.iconbtn .step-tip { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
 .iconbtn .dot { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; background: #dc2626; border-radius: 50%; }
 /* Canvas */
 .canvas-wrap { flex: 1; position: relative; overflow: hidden; touch-action: none; min-height: 0; }
@@ -45,7 +55,7 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .banner-close { width: 44px; height: 44px; margin: -12px -12px -12px -4px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; color: inherit; border-radius: 999px; }
 .mode-banner { position: absolute; top: 8px; left: 8px; max-width: calc(100% - 64px); background: #fef3c7; border: 1px solid #fde68a; color: #92400e; padding: 6px 12px; border-radius: 999px; font-size: calc(12px * var(--ts)); font-weight: 500; z-index: 5; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
 .sel-pill { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); background: #fff; border: 1px solid #d6d3d1; border-radius: 999px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); padding: 6px 10px; display: flex; align-items: center; gap: 8px; font-size: calc(12px * var(--ts)); z-index: 5; width: max-content; max-width: calc(100% - 16px); }
-/* (Centred by left 50%, a chip would otherwise shrink to half the screen and squeeze its name out.) */
+/* (Centered by left 50%, a chip would otherwise shrink to half the screen and squeeze its name out.) */
 .sel-pill .sw { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #d6d3d1; flex-shrink: 0; }
 .sel-pill .name { color: #44403c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 3em; }
 .sel-pill button.edit { background: #1c1917; color: #fff; border-radius: 999px; padding: 4px 14px; min-height: 40px; font-size: calc(13px * var(--ts)); font-weight: 500; display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
@@ -124,6 +134,7 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .modal.ask input[type=text] { width: 100%; box-sizing: border-box; margin: -6px 0 14px; }
 .ask-buttons { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 .ask-buttons .btn { min-height: 44px; }
+.ask-buttons.stacked { flex-direction: column; align-items: stretch; }
 .menu { background: #fff; border-radius: 8px; max-width: calc(240px * var(--ts)); width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.18); max-height: 80vh; max-height: calc(80dvh - var(--kb, 0px)); overflow-y: auto; }
 .menu-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; font-size: calc(14px * var(--ts)); color: #292524; cursor: pointer; width: 100%; text-align: left; }
 .menu-item:hover { background: #f5f5f4; }
@@ -217,7 +228,7 @@ a { color: inherit; }
 .rot-quick button { flex: 1; padding: 6px 4px; background: #f5f5f4; border: 1px solid #d6d3d1; border-radius: 4px; font-size: calc(11px * var(--ts)); }
 .rot-quick button:hover { background: #e7e5e4; }
 .rot-quick button.sel { background: #1c1917; color: #fff; border-color: #1c1917; }
-/* (Shut by a lock: greyed like the fields beside them, round 3: Tom read them as working.) */
+/* (Shut by a lock: grayed like the fields beside them, round 3: Tom read them as working.) */
 .rot-quick button:disabled, .prop-body .link-reset:disabled { opacity: 0.45; cursor: not-allowed; }
 .rot-quick button:disabled:hover { background: #f5f5f4; }
 .seg { flex-wrap: wrap; }
@@ -278,12 +289,19 @@ a { color: inherit; }
 .account-section .status.warn, .backup-section .status.warn { color: #92400e; }
 .storage-warning { background: #fef2f2; border-bottom: 1px solid #fecaca; color: #991b1b; font-size: calc(12px * var(--ts)); padding: 6px 12px; text-align: center; flex-shrink: 0; }
 /* Update available */
-#update-banner { position: fixed; left: 8px; right: 8px; top: calc(52px + env(safe-area-inset-top)); z-index: 90; display: flex; align-items: center; gap: 8px; background: #1c1917; color: #fff; padding: 8px 8px 8px 14px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); font-size: calc(13px * var(--ts)); max-width: 480px; margin: 0 auto; }
+/* (A bar under the top bar, in the page's flow: the plan is shortened by it, nothing on it covered. The UI review,
+   2026-11-01: floating, it covered the Fit and Through-the-year buttons. On a wide screen its words and buttons keep
+   to the middle 480 px.) */
+#update-banner { flex-shrink: 0; display: flex; align-items: center; gap: 8px; background: #1c1917; color: #fff; padding: 6px max(8px, calc((100% - 480px) / 2)) 6px max(14px, calc((100% - 480px) / 2)); font-size: calc(13px * var(--ts)); }
 #update-banner span { flex: 1; }
 #update-banner button { background: #047857; color: #fff; border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: calc(13px * var(--ts)); }
 #update-banner button.later { background: transparent; color: #d6d3d1; font-weight: 500; }
 .menu-version { font-size: calc(11px * var(--ts)); color: #78716c; padding: 8px 14px 10px; border-top: 1px solid #e7e5e4; display: flex; align-items: center; gap: 6px; }
 .menu-version .brand-mark { width: calc(16px * var(--ts)); height: calc(16px * var(--ts)); flex: none; color: #2f5d3a; }
+/* "Check for updates" under the version: its own line, a finger's height to tap (src/ui/menu.ts). */
+.menu-version { flex-wrap: wrap; }
+.menu-version .update-check { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; min-height: 36px; }
+.menu-version .update-check .link-btn { font-size: calc(12px * var(--ts)); min-height: 36px; padding: 4px 0; }
 .storage-warning .link-btn { color: inherit; text-decoration: underline; font-weight: 600; font-size: inherit; }
 .fatal { max-width: 420px; margin: 15vh auto 0; padding: 24px; text-align: center; color: #292524; }
 .fatal h1 { font-size: calc(18px * var(--ts)); margin: 0 0 12px; }
@@ -423,13 +441,15 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .bloom-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 6px; color: #292524; display: flex; min-width: 0; }
 .bloom-name .bloom-label { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .bloom-name .bloom-x { flex: none; }
-.bloom-name.total { font-weight: 600; }
+.bloom-name.total { font-weight: 600; align-self: start; } /* (level with the counts' first line) */
 .bloom-cell { height: 14px; border-radius: 3px; background: #f5f5f4; }
 .bloom-cell.on { border: 1px solid rgba(0,0,0,0.15); }
 /* Months from a season word only: striped, with a dashed edge (not by color alone; faint, a purple still read as
    solid: round 3, Lena). */
 .bloom-cell.on.by-season { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,0.8) 0 3px, transparent 3px 6px); border-style: dashed; }
-.bloom-count { text-align: center; font-size: calc(11px * var(--ts)); color: #44403c; }
+/* The "+3" by season under its month's count, not beside it: side by side, "10+9" ran into the next month's count
+   (the UI review, 2026-11-01). */
+.bloom-count { display: flex; flex-direction: column; align-items: center; align-self: start; line-height: 1.2; font-size: calc(11px * var(--ts)); color: #44403c; }
 .bloom-count.gap { background: #fee2e2; color: #b91c1c; border-radius: 3px; font-weight: 600; }
 .bloom-count .by-season-count { color: #78716c; font-size: calc(9px * var(--ts)); }
 .bloom-group { margin-bottom: 16px; }
@@ -630,8 +650,8 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 /* (A picker row's name wraps: a cultivar's name is what tells it apart.) */
 .plant-item .pname { white-space: normal; overflow-wrap: anywhere; }
 /* A species' cultivars, folded under its row (indented, so they read as its). */
-/* (No line between a species and its fold: they're one entry. The fold's arrow sits where the rows' colour dots
-   do, 16 px in, 14 px wide, centred at 23 px, so it catches the eye down the list (Jason, 2026-10-26).) */
+/* (No line between a species and its fold: they're one entry. The fold's arrow sits where the rows' color dots
+   do, 16 px in, 14 px wide, centered at 23 px, so it catches the eye down the list (Jason, 2026-10-26).) */
 .plant-item:has(+ .cultivars) { border-bottom: 0; }
 .cultivars { border-bottom: 1px solid #f5f5f4; }
 .cultivar-fold { display: flex; align-items: center; gap: 6px; width: 100%; min-height: var(--tap); padding: 0 8px 0 calc(23px - 8px * var(--ts)); background: none; border: 0; text-align: left; font: inherit; font-size: calc(13px * var(--ts)); font-weight: 600; color: #047857; cursor: pointer; }
@@ -717,6 +737,18 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .filter-set { border: 1px solid #d6d3d1; border-radius: 8px; background: #fafaf9; margin: 4px 0 8px; padding: 2px 10px 6px; min-width: 0; }
 .filter-set legend { font-size: calc(12px * var(--ts)); font-weight: 600; color: #44403c; padding: 0 4px; }
 .filter-set .hint { font-size: calc(11px * var(--ts)); }
+/* "Anyone you need to protect?" (Jason, Nov 1, from the UI review): first among the filters until it's answered or
+   dismissed, then at the head of Poison & pets. A title, one row of chips, a line of note: it fits a 360 px phone at
+   every text size, and leaves the list on screen. */
+.protect-line { position: relative; margin: 0 0 6px; }
+.protect-line.at-top { padding: 4px 8px 6px; border: 1px solid #99f6e4; border-radius: 10px; background: #f0fdfa; }
+.protect-title { font-size: calc(13px * var(--ts)); font-weight: 600; color: #134e4a; line-height: 1.3; }
+.protect-line.at-top .protect-title { padding: 4px 36px 0 2px; }
+.protect-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.protect-chip { padding: 4px 10px; }
+.protect-note { font-size: calc(11px * var(--ts)); color: #57534e; line-height: 1.35; padding: 0 2px; text-wrap: pretty; }
+.protect-x { position: absolute; top: 0; right: 0; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: #57534e; border-radius: 10px; }
+.protect-x:focus-visible { outline: 2px solid #0f766e; outline-offset: -2px; }
 .active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
 .active-filters[hidden] { display: none; }
 .active-chip { display: inline-flex; align-items: center; gap: 2px; min-height: 32px; padding: 2px 4px 2px 10px; border-radius: 999px; border: 1px solid #bbf7d0; background: #f0fdf4; color: #166534; font-size: calc(12px * var(--ts)); cursor: pointer; }
@@ -852,6 +884,7 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .float-redo.shown { opacity: 1; transform: none; }
 .float-redo.still { transition: none; }
 .float-redo svg { width: 20px; height: 20px; }
+.float-redo .step-tip { display: flex; align-items: center; gap: 6px; align-self: stretch; margin: 0 -14px 0 -10px; padding: 0 14px 0 10px; }
 /* A day with no sun recorded yet: an empty bar that says what to do (src/ui/time-range.ts emptyTimeline). */
 .time-range.empty { display: block; width: 100%; height: 56px; padding: 0; border: 0; background: none; cursor: crosshair; touch-action: none; font: inherit; }
 .time-range.empty .tr-track { top: 6px; height: 24px; border-radius: 6px; background: repeating-linear-gradient(90deg, #f5f5f4 0 12px, #e7e5e4 12px 13px); border: 1px dashed #a8a29e; }

@@ -90,3 +90,31 @@ test('catalog plants with a season and no months count by the season, said so; w
   await page.locator('.sheet-header .iconbtn').click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Bloom calendar');
 });
+
+test("a bed's In bloom counts stay in their own months, on a computer and on a phone (the UI review, 2026-11-01)", async ({ page }) => {
+  // A bed of 12 Golden Alexanders (months known) and 12 boxwood (by season only): a spring month counts "12" and "+12".
+  const plants = [['zizia-aurea', 'Golden Alexanders'], ['buxus-green-velvet-microphylla-types', "Boxwood 'Green Velvet'"]].flatMap(([plantId, label], row) =>
+    Array.from({ length: 12 }, (_, i) => ({
+      id: `${plantId}-${i}`, type: 'circle', x: 1.5 + i * 2.5, y: 2 + row * 3, radius: 1, color: '#16a34a', label, opacity: 0.65, locked: false, role: 'plant', plantId,
+    })));
+  const bed = { id: 'bed', type: 'rect', x: 0, y: 0, width: 31, height: 7, rotation: 0, color: '#92400e', label: 'Long bed', opacity: 0.65, locked: false, role: 'bed' };
+  const file = { format: 'landscape-planner-project', version: 1, project: { name: 'Spring bed', lastModified: 1, data: { shapes: [bed, ...plants] } } };
+  await openFresh(page);
+  await page.locator('.project-btn').click();
+  await page.locator('[data-testid=import-file]').setInputFiles({ name: 'bed.fullgrown.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(file)) });
+  await expect(page.locator('.project-btn .pname')).toHaveText('Spring bed');
+  await page.locator('button[title=Layers]').click();
+  await page.locator('.layer-row', { hasText: 'Long bed' }).click();
+  await page.locator('.sel-pill button.edit').click(); await openSections(page);
+  const counts = page.getByTestId('bloom-chart').locator('.bloom-count');
+  await expect(counts).toHaveCount(12);
+  await expect(counts.filter({ hasText: /^12\+12$/ }).first()).toBeVisible();
+  // Each month's count, and its "+12" by season, clear of the next month's: none runs into another.
+  const boxes = await counts.evaluateAll((cells) => cells.map((c) => {
+    const r = document.createRange(); r.selectNodeContents(c);
+    const b = r.getBoundingClientRect();
+    return { text: c.textContent, left: b.left, right: b.right };
+  }));
+  const touching = boxes.slice(1).flatMap((b, i) => (b.left < boxes[i].right + 1 ? [`${boxes[i].text} | ${b.text}`] : []));
+  expect(touching).toEqual([]);
+});

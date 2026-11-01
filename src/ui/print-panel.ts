@@ -1,4 +1,4 @@
-import { canShareFiles, downloadBlob, safeFileName, shareBlob } from '../backup';
+import { canShareFiles, downloadBlob, safeFileName, shareBlob, stamp } from '../backup';
 import { el } from '../dom';
 import { I } from '../icons';
 import { PAPER, planLayout, printContent, scaleText } from '../print';
@@ -56,7 +56,6 @@ export function fromScreenText(): string {
  */
 const printedFrom = () => JSON.stringify([state.currentProjectId, state.shapes, state.roleViews, state.viewFilter, state.sizeMode, printNames, printMonth, state.bgImage?.dataUrl?.length ?? 0, state.bgImage?.opacity, state.bgImage?.visible, state.bgImage?.cx, state.bgImage?.cy, state.bgImage?.rotation, state.bgImage?.ftPerPx]);
 let busy = false;
-const localDate = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
 function set(patch: Partial<PrintSettings>, rerender: boolean) {
   state.print = { ...state.print, ...patch };
@@ -170,7 +169,7 @@ export function renderPrintPanel() {
     try {
       const { buildPlanPdf } = await import('../print-pdf');
       const r = await buildPlanPdf(state.print, projectName, state.shapes, state.bgImage, state.sizeMode, { names: printNames, month: printMonth });
-      result = { blob: r.blob, pages: r.pages, filename: pdfName(state.print.title.trim() || projectName, localDate()), of: printedFrom() };
+      result = { blob: r.blob, pages: r.pages, filename: pdfName(state.print.title.trim() || projectName, stamp()), of: printedFrom() };
     } catch (e) {
       void tell("Couldn't make the PDF: " + errMsg(e));
     } finally {

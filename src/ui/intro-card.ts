@@ -10,11 +10,11 @@ import { I } from '../icons';
 import { startKind } from '../draw';
 import { shapeCenter } from '../geometry';
 import { hintShown } from '../hints';
-import { PLANT_FILTER_DEFAULTS, plantFilter, plantMatches, plantsById, plantTakesSun, type DogFilter } from '../plants';
+import { PLANT_FILTER_DEFAULTS, plantFilter, plantMatches, plantsById, plantTakesSun } from '../plants';
 import { hardyEnough, zoneFit } from '../climate';
 import { nativeHere, regulatedHere } from '../wild';
 import { sunAt, sunLevel } from '../sun';
-import { applyYard, saveHardy, saveYard, yardFilter, yardOf, type Yard } from '../yard';
+import { applyYard, noteAsked, saveHardy, saveYard, toggleYard, yardFilter, yardOf, type Yard } from '../yard';
 import {
   NEW_RECORD, STEP_NUMBER, STEP_TITLE, UNSCALED, applies, nextStep, parseIntroRecord, plantCardText, prevStep, resumeStep, shrubToFind,
   stepDone, type IntroRecord, type Snapshot, type StepId,
@@ -264,7 +264,6 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
  * Step 6's choices: each a toggle that sets the picker's filter for it at once and keeps it on this device
  * (src/yard.ts); read from the filters each time, so a change made in Filters meanwhile shows.
  */
-let lastDogs: DogFilter = 'hideToxic';
 function whoChips(): HTMLElement {
   const row = el('div', { className: 'intro-chips', role: 'group', 'aria-label': "Who's in your yard" });
   const chips: [keyof Yard, string][] = [['kids', 'Kids'], ['dogs', 'Dogs'], ['cats', 'Cats'], ['horses', 'Horses']];
@@ -272,9 +271,9 @@ function whoChips(): HTMLElement {
   for (const [k, label] of chips) {
     const b = el('button', { className: 'intro-chip' + (isOn(k) ? ' on' : ''), 'aria-pressed': String(isOn(k)), 'data-testid': `intro-${k}` }, label);
     b.addEventListener('click', () => {
-      const y = yardOf(plantFilter);
-      // (Dogs back on: as it was set before, "only plants rated safe" kept if that's what it was.)
-      if (k === 'dogs') { if (y.dogs) lastDogs = y.dogs; y.dogs = y.dogs ? '' : lastDogs; } else y[k] = !y[k];
+      // (Dogs back on: as it was set before, "only plants rated safe" kept if that's what it was. The picker's "Anyone
+      // you need to protect?" does the same: src/yard.ts toggleYard.)
+      const y = toggleYard(yardOf(plantFilter), k);
       applyYard(plantFilter, y);
       saveYard(y);
       b.classList.toggle('on', isOn(k)); b.setAttribute('aria-pressed', String(isOn(k)));
@@ -288,11 +287,16 @@ function whoChips(): HTMLElement {
   return el('div', {}, row, note);
 }
 
+/**
+ * Whether the ZIP sheet's field holds a whole ZIP. Till it does, the field pulses, then Look up (the UI review,
+ * 2026-11-01: Look up pulsing over an empty field read as the focus being there).
+ */
+const zipTyped = () => /^\d{5}$/.test(document.querySelector<HTMLInputElement>('[data-testid=zip]')?.value ?? '');
 /** What to pulse, for the step and what's open now. */
 function pulseTarget(step: StepId): string | null {
   const p = state.panel;
   switch (step) {
-    case 'zip': return p === 'location' ? '[data-testid=zip-lookup]' : null;
+    case 'zip': return p === 'location' ? (zipTyped() ? '[data-testid=zip-lookup]' : '[data-testid=zip]') : null;
     case 'photo': return p === 'bg' && !state.bgImage ? '[data-testid=bg-choose]' : null;
     case 'turn': return p === 'bg' ? '[data-testid=bg-edit]' : null;
     case 'house': return p === 'add' ? '.kind-chip[data-kind=building]' : null;
@@ -334,6 +338,11 @@ function drawIntro(root: HTMLElement): void {
   const sel = step && !choosing ? pulseTarget(step) : null;
   const target = sel ? root.querySelector<HTMLElement>(sel) : null;
   target?.classList.add('intro-pulse');
+  // (The ZIP typed: the pulse moves on to Look up there and then, without a redraw, which typing never makes.)
+  if (target?.dataset.testid === 'zip') target.addEventListener('input', () => {
+    target.classList.toggle('intro-pulse', !zipTyped());
+    root.querySelector('[data-testid=zip-lookup]')?.classList.toggle('intro-pulse', zipTyped());
+  });
 }
 
 /**
@@ -402,7 +411,13 @@ function stepCard(): HTMLElement {
   if (c.done) {
     const b = el('button', { className: 'btn primary', 'data-testid': 'intro-done' }, c.done);
     b.addEventListener('click', () => {
-      if (step === 'who') { const y = yardOf(plantFilter); rec.who = { kids: y.kids, dogs: y.dogs !== '', cats: y.cats, horses: y.horses }; }
+      if (step === 'who') {
+        const y = yardOf(plantFilter);
+        rec.who = { kids: y.kids, dogs: y.dogs !== '', cats: y.cats, horses: y.horses };
+        // (Answered, even with none ticked: the picker doesn't ask "Anyone you need to protect?" again at its top.
+        // Jason, Nov 1, from the UI review. Kept apart from this record, which Back and Start over clear.)
+        noteAsked();
+      }
       if (step === 'turn') state.bgEditMode = false;
       advance('done');
       render();

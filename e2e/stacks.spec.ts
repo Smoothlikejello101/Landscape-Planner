@@ -81,3 +81,54 @@ test('a press on a locked house goes to the bed drawn on it: a tap picks the bed
   expect((await house.boundingBox())!.x).toBeCloseTo(h.b.x, 0);
   expect((await bed.boundingBox())!.x).toBeCloseTo(m.b.x + 3 * ppf, -1);
 });
+
+test('a sun area over a bed is the last a tap picks: the plant, then the bed, then the sun area (the UI review, 2026-11-01)', async ({ page }) => {
+  await openFresh(page);
+  await addKind(page, 'bed', 'rect');
+  for (const [x, y] of [[-6, -4], [6, -4], [6, 4]]) await tapFromCenter(page, x, y);
+  // (Where the bed is now: the plan grows taller once the drawing bar goes.)
+  const bed = page.locator('#canvas-svg rect[data-shape-id]').first();
+  const b = (await bed.boundingBox())!;
+  await addKind(page, 'sun', 'poly');
+  for (const [fx, fy] of [[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]) await page.mouse.click(b.x + fx * b.width, b.y + fy * b.height);
+  await closeSheet(page); // (its sun record: the sheet a new sun area opens)
+  await expect(page.locator('#canvas-svg polygon[data-shape-id]')).toHaveCount(1);
+  const middle = (await bed.boundingBox())!;
+  const at = { x: middle.x + middle.width / 2, y: middle.y + middle.height / 2 };
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Buttonbush');
+  await page.locator('.sheet .proj-row', { hasText: 'Buttonbush' }).first().locator('[data-testid=plant-place]').click();
+  await page.mouse.click(at.x, at.y);
+  await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
+  const tap = async (p: { x: number; y: number }) => { await page.waitForTimeout(450); await page.mouse.click(p.x, p.y); };
+  // The plant Done left selected: a tap on it picks it, not what's under it; then the bed, then the sun area.
+  await tap(at);
+  await expect(name(page)).toHaveText('Buttonbush');
+  await tap(at);
+  await expect(name(page)).toHaveText('Bed');
+  await tap(at);
+  await expect(name(page)).toHaveText('Sun exposure');
+  // Beside the plant, on the bed: the bed first, the sun area next.
+  const m = (await bed.boundingBox())!;
+  const beside = { x: m.x + m.width * 0.1, y: m.y + m.height * 0.85 };
+  await page.keyboard.press('Escape');
+  await tap(beside);
+  await expect(name(page)).toHaveText('Bed');
+  await expect(page.locator('#toast')).toContainText(/(Tap|Click) again for the sun exposure under it\./);
+  await tap(beside);
+  await expect(name(page)).toHaveText('Sun exposure');
+  // With the bed selected, a drag there moves the bed, its plant with it; the sun area stays.
+  await page.keyboard.press('Escape');
+  await tap(beside);
+  await expect(name(page)).toHaveText('Bed');
+  const plant = page.locator('#canvas-svg circle[data-shape-id]').first();
+  const sun = page.locator('#canvas-svg polygon[data-shape-id]').first();
+  const before = (await plant.boundingBox())!, sunBefore = (await sun.boundingBox())!;
+  const ppf = m.width / 12;
+  await page.mouse.move(beside.x, beside.y);
+  await page.mouse.down();
+  for (let i = 1; i <= 8; i++) await page.mouse.move(beside.x + (i * 4 * ppf) / 8, beside.y);
+  await page.mouse.up();
+  await expect.poll(async () => (await plant.boundingBox())!.x).toBeCloseTo(before.x + 4 * ppf, -1);
+  expect((await sun.boundingBox())!.x).toBeCloseTo(sunBefore.x, 0);
+});

@@ -1,4 +1,5 @@
 // jsPDF can load html2canvas, DOMPurify and canvg for its HTML and SVG import
 // features. The app doesn't use those, so the build points them here instead
-// of shipping (and caching offline) ~400 KB of unused code.
+// of shipping (and caching offline) ~400 KB of unused code. The unit tests
+// point the PWA plugin's virtual module here too (vitest.config.ts).
 export default {};

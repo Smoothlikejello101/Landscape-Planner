@@ -330,6 +330,49 @@ test.describe('plants, background, export', () => {
     await page.locator('button', { hasText: 'Download PNG' }).click();
     await expect(page.locator('.preview-img')).toHaveAttribute('src', /^data:image\/png;base64,/);
   });
+
+  test('the picture says Download, as the PDF does, and has Share… where the device can share a file (the UI review, 2026-11-01)', async ({ page }) => {
+    // A device that can share files (unless told not to), keeping what it was handed.
+    type Shared = { name: string; type: string; head: number[] };
+    await page.addInitScript(() => {
+      const w = window as unknown as { shared: Shared[]; noShare?: boolean };
+      w.shared = [];
+      Object.defineProperty(navigator, 'canShare', { configurable: true, value: (d: { files?: File[] }) => !w.noShare && !!d.files?.length });
+      Object.defineProperty(navigator, 'share', { configurable: true, value: async (d: { files: File[] }) => {
+        for (const f of d.files) w.shared.push({ name: f.name, type: f.type, head: [...new Uint8Array(await f.slice(0, 4).arrayBuffer())] });
+      } });
+    });
+    await openFresh(page);
+    await addShape(page, 'circle');
+    await closeSheet(page);
+    const preview = page.locator('.modal', { has: page.locator('.preview-img') });
+    const shared = () => page.evaluate(() => (window as unknown as { shared: Shared[] }).shared);
+    // Where it can't share: Download alone, and no iPhone words.
+    await page.evaluate(() => { (window as unknown as { noShare: boolean }).noShare = true; });
+    await openExport(page);
+    await page.locator('button', { hasText: 'Download PNG' }).click();
+    await expect(page.getByTestId('download-picture')).toHaveText('Download PNG');
+    await expect(page.getByTestId('share-picture')).toHaveCount(0);
+    await expect(preview).not.toContainText('Save to Photos');
+    await expect(preview).not.toContainText('Share');
+    // Download saves it and says where, as the PDF's does.
+    const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('download-picture').click()]);
+    expect(download.suggestedFilename()).toMatch(/-\d{4}-\d{2}-\d{2}\.png$/);
+    await expect(page.locator('#toast')).toHaveText(`Saved ${download.suggestedFilename()} to your Downloads`);
+    await preview.getByRole('button', { name: 'Done' }).click();
+    // Where it can: Share… hands over the picture itself, a PNG (or an SVG).
+    await page.evaluate(() => { (window as unknown as { noShare: boolean }).noShare = false; });
+    await openExport(page);
+    await page.locator('button', { hasText: 'Download PNG' }).click();
+    await page.getByTestId('share-picture').click();
+    await expect.poll(shared).toEqual([{ name: download.suggestedFilename(), type: 'image/png', head: [0x89, 0x50, 0x4e, 0x47] }]);
+    await preview.getByRole('button', { name: 'Done' }).click();
+    await openExport(page);
+    await page.locator('button', { hasText: 'Download SVG' }).click();
+    await expect(page.getByTestId('download-picture')).toHaveText('Download SVG');
+    await page.getByTestId('share-picture').click();
+    await expect.poll(async () => (await shared())[1]).toEqual({ name: download.suggestedFilename().replace(/png$/, 'svg'), type: 'image/svg+xml', head: [...Buffer.from('<?xm')] });
+  });
 });
 
 test('Backspace in a panel never deletes the selected shape', async ({ page }) => {

@@ -22,9 +22,14 @@ async function start(page: Page) {
 /** Step 1: the ZIP, through the card's own button. */
 async function zip(page: Page) {
   await page.getByTestId('intro-go').click();
-  await expect(page.getByTestId('zip-lookup')).toHaveClass(/intro-pulse/);
+  // The field pulses till a ZIP is in it, then Look up (the UI review: Look up pulsing over an empty field read as
+  // the focus being there).
+  await expect(page.getByTestId('zip')).toHaveClass(/intro-pulse/);
+  await expect(page.getByTestId('zip-lookup')).not.toHaveClass(/intro-pulse/);
   await expect(card(page)).toHaveClass(/at-top/); // (clear of the sheet)
   await page.getByTestId('zip').fill('71923');
+  await expect(page.getByTestId('zip-lookup')).toHaveClass(/intro-pulse/);
+  await expect(page.getByTestId('zip')).not.toHaveClass(/intro-pulse/);
   await page.getByTestId('zip-lookup').click();
   // (The zone stays to be read: step 2 waits for the sheet to close (testers, Oct 30).)
   // (Closed with its ×: on a phone the sheet hides all but a sliver of the plan (round 3).)
@@ -40,9 +45,9 @@ async function house(page: Page) {
   await expect(card(page)).toHaveClass(/compact/); // (drawing: the plan's own banner says what to tap)
   await tapFromCenter(page, -4, -6); await tapFromCenter(page, 4, -6); await tapFromCenter(page, 4, -2);
 }
-/** Step 4: a bed, an outline of four corners. */
-async function bed(page: Page) {
-  await page.getByTestId('intro-go').click();
+/** Step 4: a bed, an outline of four corners (`go`: the card's button opens the bed tool; false, it's open). */
+async function bed(page: Page, go = true) {
+  if (go) await page.getByTestId('intro-go').click();
   await expect(drawBar(page)).toBeVisible();
   const outline = drawBar(page).locator('[data-method=poly]');
   if (await outline.count()) await outline.click();
@@ -78,7 +83,13 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await page.getByTestId('intro-lock-house').click();
   await expect(page.locator('#toast')).toContainText('Locked: it stays put.');
   await expect(page.getByTestId('intro-text')).not.toContainText('Lock your house');
-  await bed(page);
+  // Read, then the bed tool opened: the notice goes, off the house's front wall where the bed's corners go (the UI
+  // review, 2026-11-01).
+  await page.waitForTimeout(450);
+  await page.getByTestId('intro-go').click();
+  await expect(drawBar(page)).toBeVisible();
+  await expect(page.locator('#toast')).not.toHaveClass(/show/);
+  await bed(page, false);
   await expect(step(page)).toHaveText('Step 5 of 8'); // (no photo: no fading it)
   // Sun and shade: a circle of shade, sun recorded on it, the sheet closed.
   await page.getByTestId('intro-go').click();

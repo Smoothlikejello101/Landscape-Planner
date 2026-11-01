@@ -1,10 +1,11 @@
 import { crowdLevelsOf, crowdNoticeAfterSwap } from './crowd-notice';
-import { el, tapSaid, type Child } from '../dom';
-import { saveHardy, saveYard, yardOf } from '../yard';
+import { el, sheetCloseButton, tapSaid, type Child } from '../dom';
+import { applyYard, askAtTop, dismissAsked, household, introAnswered, loadAsked, saveHardy, saveYard, toggleYard, yardOf, type Yard } from '../yard';
+import { toast } from './toast';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery, unsearchable } from '../search';
-import { byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById } from '../plants';
+import { byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById, treeFiltersAside } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { SPREAD_WAYS, spreadWays } from '../spread';
@@ -35,6 +36,14 @@ const searchKey = () => plantFilter.q.trim().toLowerCase();
 let keptSearch = false;
 /** The picker just opened (src/ui/render.ts). */
 export function pickerOpened() { keptSearch = !!plantFilter.q; }
+/**
+ * Whether "Anyone you need to protect?" is first among the filters while the picker is open: decided as it opens
+ * (src/yard.ts askAtTop), so an answer given in it stays in view to see (Jason, Nov 1, from the UI review); a
+ * dismissal moves it at once. Null with the picker closed.
+ */
+let askingAtTop: boolean | null = null;
+/** The picker closed (src/ui/render.ts): asked again or not by what's kept, the next time it opens. */
+export function pickerClosed() { askingAtTop = null; }
 /** `fn` with these filters off, the filters as they were after. */
 function withFiltersOff<T>(keys: (keyof PlantFilter)[], fn: () => T): T {
   const was = keys.map((k) => [k, plantFilter[k]] as const);
@@ -56,7 +65,14 @@ function addNativeHereOption() {
   sel.insertBefore(o, sel.options[1] ?? null);
 }
 
-function closePicker() { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; state.pickerForTree = false; render(); }
+/** Opened from a plant's sheet to swap it, or from a circle's to link it. */
+const pickerFromSheet = () => !!state.pickerLinkId && state.selectedIds.length > 0;
+function closePicker() {
+  // (Opened from a sheet: closed, back on that sheet, as picking a plant brings you back there. The UI review,
+  // 2026-11-01: it closed the sheet too.)
+  const fromSheet = pickerFromSheet();
+  state.panel = fromSheet ? 'props' : null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; state.pickerForTree = false; render();
+}
 // (A tree among its forms: a shrub that grows into a tree, mimosa or wax myrtle, can be the tree in the yard.)
 const isTree = (p: Plant) => formsOf(p).includes('Tree');
 // My plants folded away in the picker: kept here, and remembered on this device when storage allows. Folded until
@@ -90,7 +106,9 @@ function pick(p: Plant) {
   }
   render();
 }
-function openForm(args: PlantFormArgs) { state.plantForm = args; state.panel = 'plantForm'; render(); }
+// (Its ×, Cancel or a tap beside it: back here, the search as it was. Round 3, Owen, for Edit; the UI review,
+// 2026-11-01, for Add and Copy: their × closed the whole picker, and the search with it.)
+function openForm(args: PlantFormArgs) { state.plantForm = { ...args, back: 'plants' }; state.panel = 'plantForm'; render(); }
 
 const cap = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
 /** The fewest cultivars a fold holds (Jason, 2026-10-26): fewer are rows of their own. */
@@ -115,6 +133,11 @@ const SWATCHES: Record<string, string> = {
   variegated: 'linear-gradient(135deg, #16a34a 50%, #fef3c7 50%)',
 };
 type ListKey = 'flowerColors' | 'leafColors' | 'attracts' | 'spread' | 'edibleParts';
+/**
+ * "Anyone you need to protect?"'s note: a plant that can irritate skin is marked on its row whoever's in the yard, since
+ * anyone walking past can brush it; poison only matters to someone who'd put the plant in their mouth (Jason, Nov 1).
+ */
+const PROTECT_NOTE = "Skin irritants are marked for all: anyone can brush them. Poison if eaten goes by who's in the yard.";
 /** The parts a plant can be edible for, as chips under Edible (Jason, Oct 30). */
 const EDIBLE_PART_CHOICES: [string, string][] = [['fruit', 'Fruit'], ['leaves', 'Leaves'], ['flowers', 'Flowers']];
 /** One value of a list filter, as its chip says it ("Red flowers", "Attracts bees"). */
@@ -159,10 +182,15 @@ export function renderPlantsPanel() {
   // (Placed plants to swap for another: Jason, Oct 30.)
   const swapping = linking && [state.pickerLinkId!, ...state.pickerLinkAlso].every((id) => { const s = state.shapes.find((x) => x.id === id); return !!s?.plantId && !!plantsById[s.plantId]; });
   const forTree = !linking && state.pickerForTree;
-  const title = swapping ? 'Swap for another plant' : linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker' + (PLANTS.length ? ' (' + countWord(PLANTS.filter((p) => !bannedHere(p)).length + activeMyPlants().length) + ')' : '');
+  if (forTree) treeFiltersAside(); // (naming a tree in the yard: no shopping filters, src/plants.ts)
+  const browsing = !swapping && !linking && !forTree && !state.placing;
+  const title = swapping ? 'Swap for another plant' : linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker';
+  // (The plain picker's count, of the plants it offers: written with the count line, from the same numbers. The UI
+  // review, 2026-11-01: drawn before the garden's state's law came in, it said 3,747 beside "of 3,745".)
+  const titleNode = el('div', { className: 'title' }, title);
   const header = el('div', { className: 'sheet-header' },
-    el('div', { className: 'title' }, title),
-    (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', closePicker); return b; })()
+    titleNode,
+    sheetCloseButton(closePicker, pickerFromSheet() ? 'props' : null) // (← back to the plant's sheet: closePicker)
   );
 
   const body = el('div', { className: 'sheet-body' });
@@ -309,8 +337,8 @@ export function renderPlantsPanel() {
       title: mine ? 'Edit my plant' : 'Copy as my plant',
       'aria-label': (mine ? 'Edit ' : 'Copy as my plant: ') + p.common,
     });
-    // (Edited from here, back here: Cancel closed the whole picker, and the search with it. Round 3, Owen.)
-    side.addEventListener('click', () => openForm(mine ? { editId: p.id, place: false, back: 'plants' } : { copyFromId: p.id, place: false }));
+    // (Edited or copied from here, back here: openForm.)
+    side.addEventListener('click', () => openForm(mine ? { editId: p.id, place: false } : { copyFromId: p.id, place: false }));
     head.appendChild(side);
     if (mine) info.firstChild!.appendChild(el('span', { className: 'mine-badge' }, 'Mine'));
     // Now in the catalog too: offer its sourced facts (the person decides: src/ui/switch-plant.ts).
@@ -358,7 +386,7 @@ export function renderPlantsPanel() {
    * does. Not "Clear filters" or "Show them": those are for the search at hand.
    */
   function keepYard(key: keyof PlantFilter) {
-    if (key === 'noPoison' || key === 'dogs' || key === 'cats' || key === 'horses') saveYard(yardOf(plantFilter));
+    if (key === 'noPoison' || key === 'dogs' || key === 'cats' || key === 'horses') { saveYard(yardOf(plantFilter)); syncYard(); }
   }
   function rebuildList() {
     while (listWrap.firstChild) listWrap.removeChild(listWrap.firstChild);
@@ -387,6 +415,7 @@ export function renderPlantsPanel() {
     const out = bannedLeftOut(plantFilter) ? banned : [];
     const foundBanned = hits.filter(bannedHere).length;
     const n = hits.length + mine.length - foundBanned, all = PLANTS.length + activeMyPlants().length - banned.length;
+    if (browsing) titleNode.textContent = 'Plant Picker' + (PLANTS.length ? ` (${countWord(all)})` : '');
     // (Nothing matched as typed, only close spellings: said so, not counted as matches (Lena, Oct 30).)
     // ("In this plan": the plan's kinds, not a share of the catalog (Dana, Oct 30: "6 of 3,725 plants match").)
     const found = hits.length + mine.length;
@@ -786,22 +815,90 @@ export function renderPlantsPanel() {
     };
     sayNote();
     const group = el('div', { role: 'radiogroup', 'aria-label': 'Dogs', className: 'animal-rows' });
+    const radios: HTMLInputElement[] = [];
     for (const [value, text] of DOGS) {
       const r = el('input', { type: 'radio', name: 'dogs-filter', value, 'data-testid': `dogs-${value || 'any'}` });
       r.checked = plantFilter.dogs === value;
       r.addEventListener('change', () => { if (!r.checked) return; plantFilter.dogs = value; keepYard('dogs'); sayNote(); rebuildList(); });
+      radios.push(r);
       group.appendChild(el('label', { className: 'check-row' }, r, el('span', {}, text)));
     }
-    return el('div', { id: 'poison-filters', 'data-testid': 'animal-toxicity' }, groupHead('Poison & pets'),
-      // (Only plants whose NC State page was read and lists no poison: one it doesn't rate isn't called safe.)
-      mkCheck('Not listed as poisonous to people', 'noPoison'),
+    // (Only plants whose NC State page was read and lists no poison: one it doesn't rate isn't called safe.)
+    const kids = mkCheck('Not listed as poisonous to people', 'noPoison');
+    const cats = mkCheck('Hide plants that are a problem for cats', 'cats');
+    const horses = mkCheck('Hide plants that are a problem for horses', 'horses');
+    const head = groupHead('Poison & pets');
+    const box = el('div', { id: 'poison-filters', 'data-testid': 'animal-toxicity' }, head,
+      kids,
       el('div', { className: 'hint' }, "By NC State: a plant it doesn't rate is left out too."),
       el('div', { className: 'animal-name' }, 'Dogs'), group, note,
       el('div', { className: 'animal-name' }, 'Cats and horses'),
-      mkCheck('Hide plants that are a problem for cats', 'cats'),
-      mkCheck('Hide plants that are a problem for horses', 'horses'),
+      cats,
+      horses,
       el('div', { className: 'hint' }, "NC State's warnings. A plant it doesn't list stays, which isn't the same as safe."));
+    const tick = (label: HTMLElement, on: boolean) => { label.querySelector('input')!.checked = on; };
+    return {
+      box,
+      /** "Anyone you need to protect?" at the head of the group, once it's no longer first among the filters. */
+      hold: (line: HTMLElement) => head.after(line),
+      /** The controls as the filters now stand (set from the line's chips). */
+      sync: () => {
+        tick(kids, plantFilter.noPoison); tick(cats, plantFilter.cats); tick(horses, plantFilter.horses);
+        for (const r of radios) r.checked = r.value === plantFilter.dogs;
+        sayNote();
+      },
+    };
   })();
+
+  // ---- "Anyone you need to protect?" (Jason, Nov 1, from the UI review) ----
+  // Poison & pets' four as a chip each, kept in step with its controls and this device's yard (src/yard.ts). First
+  // among the filters, with a ×, until it's answered or dismissed (askingAtTop); then at the head of Poison & pets.
+  // Skin irritants are marked on rows for everyone (src/plants.ts rowFlags): anyone walking past can brush one. Poison
+  // when eaten is marked, and filtered, by who's in the yard.
+  const YARD_CHIPS: [keyof Yard, string][] = [['kids', 'Kids'], ['dogs', 'Dogs'], ['cats', 'Cats'], ['horses', 'Horses']];
+  let yardChips: [keyof Yard, HTMLButtonElement][] = [];
+  const yardOn = (k: keyof Yard) => { const y = yardOf(plantFilter); return k === 'dogs' ? y.dogs !== '' : !!y[k]; };
+  /** The line's chips and Poison & pets' controls as the filters now stand. */
+  function syncYard() {
+    for (const [k, b] of yardChips) { b.classList.toggle('on', yardOn(k)); b.setAttribute('aria-pressed', String(yardOn(k))); }
+    poison.sync();
+  }
+  function protectLine(top: boolean): HTMLElement {
+    yardChips = YARD_CHIPS.map(([k, label]) => {
+      const b = el('button', { className: 'color-chip protect-chip' + (yardOn(k) ? ' on' : ''), 'aria-pressed': String(yardOn(k)), 'data-testid': `protect-${k}` }, label);
+      b.addEventListener('click', () => {
+        const y = toggleYard(yardOf(plantFilter), k);
+        applyYard(plantFilter, y);
+        saveYard(y);
+        syncYard();
+        rebuildList();
+      });
+      return [k, b];
+    });
+    const line = el('div', { className: 'protect-line' + (top ? ' at-top' : ''), role: 'group', 'aria-labelledby': 'protect-title', 'data-testid': 'protect-line' },
+      el('div', { className: 'protect-title', id: 'protect-title' }, 'Anyone you need to protect?'),
+      el('div', { className: 'protect-chips' }, yardChips.map(([, b]) => b)),
+      el('div', { className: 'protect-note', 'data-testid': 'protect-note' }, PROTECT_NOTE));
+    if (top) {
+      const x = el('button', { className: 'protect-x', html: I.x, 'aria-label': 'Dismiss this question (it moves to Filters, Poison & pets)', title: 'Dismiss', 'data-testid': 'protect-dismiss' });
+      x.addEventListener('click', () => {
+        // (Moved at once, in place: the list and the search as they were. Said where it went.)
+        const focused = document.activeElement === x;
+        dismissAsked();
+        askingAtTop = false;
+        line.remove();
+        poison.hold(protectLine(false));
+        toast("It's under Filters → Poison & pets.", 5000);
+        if (focused) filtersBtn.focus(); // (the × gone: keyboards and screen readers kept by what holds it now)
+      });
+      line.prepend(x);
+    }
+    return line;
+  }
+  // (Not while naming a tree already in the yard: its filters start cleared, the yard's with them: treeFiltersAside.)
+  const askTop = !forTree && (askingAtTop ??= askAtTop({ asked: loadAsked(), yard: household(), intro: introAnswered() }));
+  const topLine = askTop ? protectLine(true) : null;
+  if (!askTop && !forTree) poison.hold(protectLine(false));
 
   // ---- Edible, and which part ----
   // (The part chips show once Edible is ticked; unticking it takes them off too.)
@@ -857,7 +954,7 @@ export function renderPlantsPanel() {
     el('div', { className: 'hint' }, 'A plant shows the value more sources give (on a tie, the cautious one), with the other beside it. One shown only because of the other is marked !.'));
 
   // ---- One fold for them all, its button saying how many are on; "Hardy in zone 8a" beside it ----
-  const all = el('div', { className: 'filter-box', id: 'all-filters', hidden: !filtersOpen, 'data-testid': 'all-filters' }, primary, poison, adv);
+  const all = el('div', { className: 'filter-box', id: 'all-filters', hidden: !filtersOpen, 'data-testid': 'all-filters' }, primary, poison.box, adv);
   const filtersLabel = el('span', {});
   const filtersBtn = el('button', { className: 'btn ghost fold-btn', 'aria-expanded': String(filtersOpen), 'aria-controls': 'all-filters', 'data-testid': 'filters' },
     el('span', { className: 'fold-icon', html: I.filter }), filtersLabel, el('span', { className: 'fold-chev', html: I.chevronDown }));
@@ -889,8 +986,8 @@ export function renderPlantsPanel() {
   const planToggle = el('button', { className: 'plan-toggle', 'aria-pressed': String(plantFilter.inPlan), 'data-testid': 'in-plan', title: 'Only the plants placed in this plan' }, 'In this plan');
   planToggle.addEventListener('click', () => { plantFilter.inPlan = !plantFilter.inPlan; planToggle.setAttribute('aria-pressed', String(plantFilter.inPlan)); rebuildList(); });
   const searchBar = el('div', { className: 'picker-search field' }, el('div', { className: 'search-row' }, el('div', { className: 'search-wrap' }, search, clearSearch), planToggle));
-  // (One block, so its spacing is its own: the sheet spaces its parts widely.)
-  body.appendChild(el('div', { className: 'picker-filters' }, foldRow, hardy.source, all, activeRow));
+  // (One block, so its spacing is its own: the sheet spaces its parts widely. "Anyone you need to protect?" first.)
+  body.appendChild(el('div', { className: 'picker-filters' }, topLine, foldRow, hardy.source, all, activeRow));
   body.appendChild(countLine);
   body.appendChild(listWrap);
   rebuildList();

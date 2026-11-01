@@ -51,7 +51,7 @@ test('a species\' cultivars fold under it, a tap to open; a search naming one sh
     'Pecan', 'Rose of Sharon', 'Roses', 'Smooth hydrangea', 'White oak', 'Zinnia']);
   const pecans = foldOf(page, 'Pecan');
   await expect(pecans.getByTestId('cultivar-fold')).toHaveText('4 cultivars');
-  // One entry with its species (no line between them); its arrow where the rows' colour dots are, to catch the eye.
+  // One entry with its species (no line between them); its arrow where the rows' color dots are, to catch the eye.
   const pecan = page.locator('.plant-item', { has: page.locator('.pname', { hasText: /^Pecan$/ }) });
   expect(await pecan.evaluate((e) => getComputedStyle(e).borderBottomWidth)).toBe('0px');
   const dot = (await pecan.locator('.row-toggle > div').first().boundingBox())!;

@@ -6,7 +6,7 @@ import { saveStateWord } from './save-warning';
 import { resizeCanvas } from '../canvas';
 import { el, hasKeyboard, svgEl, tapSaid } from '../dom';
 import { onCanvasPointerDown, onWheel } from '../gestures';
-import { canRedo, canUndo, redo, undo } from '../history';
+import { canRedo, canUndo, redo, redoLabel, undo, undoLabel } from '../history';
 import { I } from '../icons';
 import { copySelected, planBounds, setViewFilter, updateSelectedSilent, zoomBy, zoomToFit } from '../mutations';
 import { deleteSelectedAsking } from './delete-selected';
@@ -32,7 +32,7 @@ import { renderMoreMenu, toggleSelectMode } from './menu';
 import { foldDetailGroups } from './plant-details';
 import { renderFeedbackSheet } from './feedback-sheet';
 import { renderExportModal, renderPreviewModal, renderResetModal } from './modals';
-import { pickerOpened, renderPlantsPanel } from './plants-panel';
+import { pickerClosed, pickerOpened, renderPlantsPanel } from './plants-panel';
 import { plantDot, shapeDot } from '../plant-looks';
 import { renderPrintPanel } from './print-panel';
 import { renderPlantForm } from './plant-form';
@@ -91,6 +91,17 @@ export function flashZoom() {
   zoomFlashTimer = setTimeout(() => node!.classList.remove('on'), 1200);
 }
 
+/**
+ * Undo and Redo say what they'd do, when the pointer is on them on a computer: "Undo: delete Front bed" (the UI review,
+ * 2026-11-01). The words are on a layer over the button's icon, so the button itself is still "Undo" (its name to a
+ * screen reader, and its title); a step that doesn't say leaves it a plain "Undo".
+ */
+function saysStep(btn: HTMLElement, word: string, label: string) {
+  if (!label) return;
+  const tip = el('span', { className: 'step-tip', title: `${word}: ${label}`, 'data-testid': `${word.toLowerCase()}-says` });
+  while (btn.firstChild) tip.appendChild(btn.firstChild);
+  btn.appendChild(tip);
+}
 /** The panel the last render showed (to tell a panel just opened from one redrawn). */
 let shownPanel: typeof state.panel = null;
 /** Whether the floating Redo was up at the last render (it slides out only as it first appears). */
@@ -100,16 +111,20 @@ let floatRedoAt: { top: string; left: string } | null = null;
 let shownSelection = '';
 /** The menu open when the app last drew. */
 let shownMenu: typeof state.menu = null;
+/** The drawing, placing or adding of doors under way when the app last drew (each a new object as it starts). */
+let shownTool: object | null = null;
 export function render() {
   const root = document.getElementById('root')!;
   // (Typing in the picker's search when the whole app redraws: the cursor goes back where it was.)
   const typing = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.testid === 'plant-search'
     ? document.activeElement.selectionStart : null;
+  const inZip = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.testid === 'zip';
   // (A change made in an open sheet, a door's ⇄ say, redraws it: it stays where it was scrolled to, not back at the
   // top. Jason, 2026-10-28. A different sheet, or the same one for something else, opens at the top.)
   const scrolled = state.panel && state.panel === shownPanel && state.selectedIds.join() === shownSelection
     ? root.querySelector<HTMLElement>('.overlay .sheet')?.scrollTop ?? 0 : 0;
   focusBeforeRender(root); // (with a keyboard: what has focus, found again after: src/ui/focus.ts)
+  const updateBanner = document.getElementById('update-banner'); // (kept as it is, Updating… say: put back below)
   // Clear root
   while (root.firstChild) root.removeChild(root.firstChild);
   // (Checked on every redraw, so a selection changed and changed back by hand isn't "just placed" again.)
@@ -125,9 +140,12 @@ export function render() {
   const topbar = el('div', { className: 'topbar' });
   const proj = currentProject();
   const projName = proj ? proj.name : 'Untitled';
+  // (The name and its ▾ on a line of their own, whether it's saved under them: at 360 px, beside them, it left the
+  // name a letter or two, none at all at Small text. The UI review, 2026-11-01, when it became a button to look at.)
   const projBtn = el('button', { className: 'project-btn' },
-    el('div', { className: 'pname' }, projName),
-    el('div', { html: I.chevronDown, style: { display: 'flex', color: '#78716c' } }),
+    el('div', { className: 'pname-row' },
+      el('div', { className: 'pname' }, projName),
+      el('div', { className: 'pchev', html: I.chevronDown })),
     // (At Medium and Large text, only whether it's saved, small: room for the name. The zoom shows while it changes.)
     el('div', { className: 'pinfo' }, ...(roomyText() ? [] : [el('span', { className: 'pcount' }, statusText()), ' \u00b7 ']),
       (() => { const s = saveStateWord(); return el('span', { className: 'save-state' + (s.bad ? ' bad' : ''), title: s.title, 'data-testid': 'save-state' }, s.word); })())
@@ -135,12 +153,18 @@ export function render() {
   projBtn.addEventListener('click', () => { state.panel = 'projects'; render(); });
   topbar.appendChild(projBtn);
 
+  // While a sheet is open, Undo and Redo are grayed, and sit above its dimming, so a tap on them is a tap on nothing (the
+  // UI review, 2026-11-01: under the dimming Undo looked live, and a tap on it only closed the sheet, the 11 plants just
+  // set to Planted left Planted, taken for undone). Grayed rather than working behind the sheet: Jason's choice. The
+  // sheet closed, they're back.
+  const sheetUp = !!state.panel;
   // Undo
-  const undoBtn = el('button', { className: 'iconbtn', html: I.undo, title: 'Undo' });
+  const undoBtn = el('button', { className: 'iconbtn' + (sheetUp ? ' over-sheet' : ''), html: I.undo, title: 'Undo', 'aria-label': 'Undo' });
   // While placing, it takes back the last plant placed; while drawing, the last point: as the bar's Undo does.
   // (A notice's Undo is the same step: after either, it's gone.)
   // (And while adding doors and windows, the last one added.)
-  undoBtn.disabled = state.placing ? !state.placing.placed.length : state.draw ? !state.draw.points.length : state.featurePlace ? !state.featurePlace.added.length : !canUndo();
+  undoBtn.disabled = sheetUp || (state.placing ? !state.placing.placed.length : state.draw ? !state.draw.points.length : state.featurePlace ? !state.featurePlace.added.length : !canUndo());
+  if (!undoBtn.disabled && !state.placing && !state.draw && !state.featurePlace) saysStep(undoBtn, 'Undo', undoLabel());
   undoBtn.addEventListener('click', () => {
     dismissToastAction();
     if (state.placing) undoPlace(); else if (state.draw) undoDrawPoint(); else if (state.featurePlace) undoFeaturePlace(); else undo();
@@ -154,12 +178,14 @@ export function render() {
   let floatRedo: HTMLElement | null = null;
   if (!(canRedo() && roomyText())) floatRedoUp = false;
   if (!roomyText()) {
-    const redoBtn = el('button', { className: 'iconbtn', html: I.redo, title: 'Redo' });
-    redoBtn.disabled = !canRedo() || !!state.draw || !!state.placing || !!state.featurePlace;
+    const redoBtn = el('button', { className: 'iconbtn' + (sheetUp ? ' over-sheet' : ''), html: I.redo, title: 'Redo', 'aria-label': 'Redo' });
+    redoBtn.disabled = sheetUp || !canRedo() || !!state.draw || !!state.placing || !!state.featurePlace;
+    if (!redoBtn.disabled) saysStep(redoBtn, 'Redo', redoLabel());
     redoBtn.addEventListener('click', () => { dismissToastAction(); redo(); render(); });
     topbar.appendChild(redoBtn);
   } else if (canRedo() && !state.draw && !state.placing && !state.featurePlace && !state.panel && !state.menu) {
     floatRedo = el('button', { className: 'float-redo', html: I.redo + '<span>Redo</span>', title: 'Redo', 'data-testid': 'float-redo' });
+    saysStep(floatRedo, 'Redo', redoLabel());
     floatRedo.addEventListener('click', () => { dismissToastAction(); redo(); render(); });
   }
 
@@ -179,6 +205,8 @@ export function render() {
   topbar.appendChild(moreBtn);
 
   app.appendChild(topbar);
+  // (An update waiting: its banner under the top bar, the plan shortened by it, not covered: src/pwa.ts.)
+  if (updateBanner) app.appendChild(updateBanner);
   if (floatRedo) {
     // (Under Undo, wherever the bar puts it: measured once it's on the page. It slides out the first time only.)
     const btn = floatRedo;
@@ -522,13 +550,28 @@ export function render() {
     const search = root.querySelector<HTMLInputElement>('[data-testid=plant-search]');
     if (search) { search.focus(); if (typing != null) search.setSelectionRange(typing, typing); }
   }
+  // The garden's location just opened with no ZIP yet, with a keyboard: the cursor in the ZIP field, to type it, and
+  // kept there through the sheet's redraws (the tour's, "Looking up…"). Not with a pop-up keyboard, which would come up
+  // over the sheet unasked for: a tap on the field brings it. (The UI review, 2026-11-01, and round 3's Alex and Tom:
+  // focus went to the sheet's ×, or nowhere, and typing was lost.)
+  if (state.panel === 'location' && hasKeyboard() && ((shownPanel !== 'location' && !state.location) || inZip)) {
+    const zip = root.querySelector<HTMLInputElement>('[data-testid=zip]');
+    if (zip) { zip.focus(); zip.setSelectionRange(zip.value.length, zip.value.length); }
+  }
   // (The picker closed: its plants' detail groups fold again, Jason, 2026-10-29.)
-  if (shownPanel === 'plants' && state.panel !== 'plants') { foldDetailGroups(); partnersClosed(); }
+  // (And "Anyone you need to protect?", answered in it, goes under Poison & pets for next time: src/ui/plants-panel.ts.)
+  if (shownPanel === 'plants' && state.panel !== 'plants') { foldDetailGroups(); partnersClosed(); pickerClosed(); }
   if (state.panel !== 'projects' && state.panel !== 'rename') projectsClosed();
   if ((state.panel && state.panel !== shownPanel) || (state.menu && state.menu !== shownMenu)) {
     hideOldToast();
     document.getElementById('zoom-flash')?.classList.remove('on'); // (the zoom badge too: it sat over ⋮'s Redo, round 3)
   }
+  // A drawing or placing tool just started: a plain notice from before it goes too, off the plan where the next tap
+  // goes (the UI review, 2026-11-01: "Locked: it stays put…" sat on the house's front wall as the bed tool opened).
+  // A notice with buttons, an Undo say, is left be (a new drawing puts away only one about the last: startDraw).
+  const tool = state.draw ?? state.placing ?? state.featurePlace ?? null;
+  if (tool && tool !== shownTool) hideOldToast();
+  shownTool = tool;
   shownPanel = state.panel;
   shownMenu = state.menu;
   shownSelection = state.selectedIds.join();

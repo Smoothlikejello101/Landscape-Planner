@@ -1008,7 +1008,19 @@ export function resizeCanvas() {
   measuredW = w;
   state.canvasW = w;
   state.canvasH = Math.max(100, Math.round(rect.height));
+  if (!typingNow()) restingH = state.canvasH;
   svg.setAttribute('width', String(state.canvasW));
   svg.setAttribute('height', String(state.canvasH));
   redrawCanvas();
 }
+/** The plan's height when last measured with nothing being typed in: on a phone, as it is with its keyboard away. */
+let restingH = 0;
+const typingNow = () => {
+  const a = document.activeElement;
+  return a instanceof HTMLTextAreaElement || (a instanceof HTMLInputElement && !['range', 'checkbox', 'radio', 'button', 'submit', 'color', 'file'].includes(a.type));
+};
+/**
+ * The plan's height (px) once the phone's keyboard is put away: a small phone's keyboard can leave a sliver of plan
+ * above it, whose middle is no guide to where the plan's middle is (src/draw.ts finishTypedRect).
+ */
+export function restingCanvasH(): number { return Math.max(state.canvasH, restingH); }
