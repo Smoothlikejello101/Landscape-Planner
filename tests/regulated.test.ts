@@ -15,7 +15,7 @@ const list = (code: string, plants: object[], classes: Record<string, string> = 
 describe('the regulated lists', () => {
   it('are well formed: each entry a species, variety or genus, of a class its list says, each list cited', () => {
     expect(problems(real)).toEqual([]);
-    expect(real.jurisdictions.map((j: { code: string }) => j.code)).toEqual(['US', 'AR', 'TX', 'MS', 'MO', 'OK', 'LA', 'TN', 'VA', 'GA', 'PA', 'KY', 'NC', 'OH', 'IN', 'IL', 'WV', 'AL', 'MI', 'NJ']);
+    expect(real.jurisdictions.map((j: { code: string }) => j.code)).toEqual(['US', 'AR', 'TX', 'MS', 'MO', 'OK', 'LA', 'TN', 'VA', 'GA', 'PA', 'KY', 'NC', 'OH', 'IN', 'IL', 'WV', 'AL', 'MI', 'NJ', 'SC', 'NY', 'MA']);
     expect(problems({ v: 1, jurisdictions: [list('XX', [{ name: 'Melia', class: 'noxious' }, { name: 'Melia azedarach', class: 'banned' },
       { genus: 'Cuscuta', except: ['Lythrum alatum'], class: 'noxious' }, { name: 'Melia azedarach', kew: 'Melia', class: 'noxious' },
       { name: 'Melia azedarach', accepted: 'Melia', also: ['x'], notKew: 'Ophiuros', class: 'noxious' }])] }))
@@ -246,7 +246,7 @@ describe('matching the lists to catalog plants', () => {
       { id: 'mahonia', botanical: 'Berberis bealei', binomial: 'Berberis bealei' },
     ], {});
     expect(r.AL).toEqual({ 'star-of-bethlehem': 'classC', multiflora: 'classC' });
-    expect(r.MI).toEqual({ 'autumn-olive': 'restricted' });
+    expect(r.MI).toEqual({ 'autumn-olive': 'restricted', barberry: 'restricted2028' }); // (the Commission's 2026 order: from 2028)
     expect(r.WV).toEqual({ 'autumn-olive': 'noxious', multiflora: 'multiflora', barberry: 'barberry' }); // (not every Berberis: its rust quarantine's left out)
     expect(r.NJ).toEqual({ 'autumn-olive': 'prohibited', 'norway-maple': 'prohibited', multiflora: 'prohibited', barberry: 'prohibited' });
     const j = (code: string) => real.jurisdictions.find((x: { code: string }) => x.code === code);
@@ -254,6 +254,27 @@ describe('matching the lists to catalog plants', () => {
     expect(j('NJ').classes.prohibited).toMatch(/^Prohibited invasive species in New Jersey: from early 2027 /);
     // (Indiana's shattercane is the weedy subspecies its statute prints: never grain sorghum.)
     expect(regulatedPlants(real, [{ id: 'sorghum', botanical: 'Sorghum bicolor', binomial: 'Sorghum bicolor' }], {}).IN).toBeUndefined();
+  });
+  it("match South Carolina's, New York's and Massachusetts's: an agency's reading said as such, exempt cultivars named, phase-outs listings until they end", () => {
+    const r = regulatedPlants(real, [
+      { id: 'callery-pear', botanical: 'Pyrus calleryana', binomial: 'Pyrus calleryana' },
+      { id: 'barberry', botanical: 'Berberis thunbergii', binomial: 'Berberis thunbergii' },
+      { id: 'norway-maple', botanical: "Acer platanoides 'Crimson King'", binomial: 'Acer platanoides' },
+      { id: 'maiden-grass', botanical: "Miscanthus sinensis 'Gracillimus'", binomial: 'Miscanthus sinensis' },
+      { id: 'cup-plant', botanical: 'Silphium perfoliatum', binomial: 'Silphium perfoliatum' },
+      { id: 'black-currant', botanical: 'Ribes nigrum', binomial: 'Ribes nigrum' },
+      { id: 'water-chestnut', botanical: 'Trapa natans', binomial: 'Trapa natans' },
+      { id: 'rice', botanical: 'Oryza sativa', binomial: 'Oryza sativa' },
+      { id: 'satsuma', botanical: "Citrus reticulata 'Owari'", binomial: 'Citrus reticulata' },
+    ], {});
+    expect(r.SC).toEqual({ 'callery-pear': 'pest', 'water-chestnut': 'pest' }); // (not rice or satsumas: crops the list doesn't explain)
+    expect(r.NY).toEqual({ barberry: 'prohibitedBarberry', 'norway-maple': 'regulated', 'maiden-grass': 'regulated', 'cup-plant': 'prohibited', 'black-currant': 'blackCurrant', 'water-chestnut': 'prohibited' });
+    expect(r.MA).toEqual({ 'callery-pear': 'phaseoutPear', barberry: 'prohibited', 'norway-maple': 'prohibited', 'maiden-grass': 'phaseout2026', 'water-chestnut': 'trapa' });
+    const j = (code: string) => real.jurisdictions.find((x: { code: string }) => x.code === code);
+    expect([j('SC').tiers.pest, j('NY').tiers.prohibited, j('NY').tiers.regulated, j('MA').tiers.prohibited, j('MA').tiers.phaseout2026, j('MA').tiers.trapa]).toEqual(['ban', 'ban', 'listed', 'ban', 'listed', 'ban']);
+    expect(j('SC').classes.pest).toMatch(/^Plant pest in South Carolina: by its agency's reading \(Clemson University's Department of Plant Industry/);
+    expect(j('NY').classes.prohibitedBarberry).toMatch(/Crimson Cutie/);
+    expect(j('MA').classes.phaseout2026).toMatch(/^Prohibited plant in Massachusetts after December 31, 2026: /);
   });
 });
 
