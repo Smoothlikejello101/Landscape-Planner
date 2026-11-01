@@ -1,6 +1,7 @@
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from './constants';
 import { escapeHtml } from './dom';
 import { errMsg } from './util';
+import { stamp } from './backup';
 import { featureParts, featurePartsSvg } from './features';
 import { alongLabel, boxLabelAngle, boxSize, displayLabel, LINE_HEIGHT, pathLabelPoint, textLines, textSize, rotatedBoxBounds, shapeBBox, trianglePoints, unionBounds, worldPoints } from './geometry';
 import { state } from './state';
@@ -388,7 +389,7 @@ export async function doExport(format: 'png' | 'svg') {
   const { svg, widthPx, heightPx } = result;
   const proj = currentProject();
   const safeName = (proj && proj.name ? proj.name : 'fullgrown').replace(/[^a-z0-9-_]+/gi, '-').toLowerCase();
-  const stamp = new Date().toISOString().slice(0, 10);
+  const date = stamp(); // (the person's date, as every file's: src/backup.ts)
   try {
     let dataUrl: string;
     if (format === 'svg') {
@@ -396,7 +397,7 @@ export async function doExport(format: 'png' | 'svg') {
     } else {
       dataUrl = await svgToPngDataUrl(svg, widthPx, heightPx, 2);
     }
-    state.exportPreview = { format, dataUrl, svgText: svg, filename: `${safeName}-${stamp}.${format}` };
+    state.exportPreview = { format, dataUrl, svgText: svg, filename: `${safeName}-${date}.${format}` };
     state.panel = 'preview';
     render();
   } catch (e) {

@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { openFresh, autoDialogs, shapeCount, clickRedo, closeSheet, field, addPlainShape } from './helpers';
+import { openFresh, autoDialogs, shapeCount, clickRedo, closeSheet, field, addPlainShape, openExport } from './helpers';
 
 test('an edit survives an immediate reload (saved when the page hides)', async ({ page }) => {
   await openFresh(page);
@@ -82,6 +82,39 @@ test('a single project file imports and opens', async ({ page, browser }) => {
   await expect(fresh.locator('#canvas-svg text', { hasText: 'Pond' })).toHaveCount(1);
   expect(await shapeCount(fresh)).toBe(1);
   await ctx.close();
+});
+
+test.describe('late in the evening in Arkansas', () => {
+  test.use({ timezoneId: 'America/Chicago' });
+  test('every file the app names is dated that day, not the next as in UTC (the UI review, 2026-11-01)', async ({ page }) => {
+    await page.clock.install({ time: new Date('2026-11-01T04:25:00Z') }); // 11:25 PM on Oct 31 there
+    await openFresh(page);
+    await addPlainShape(page, 'rect');
+    await closeSheet(page);
+    // The picture.
+    await openExport(page);
+    await page.getByRole('button', { name: 'Download SVG' }).click();
+    await expect(page.locator('.dl-link')).toHaveAttribute('download', /-2026-10-31\.svg$/);
+    await page.getByRole('button', { name: 'Done' }).click();
+    // The printable plan.
+    await page.locator('button[title=More]').click();
+    await page.locator('.menu-item', { hasText: 'Print or save as PDF' }).click();
+    await page.getByTestId('create-pdf').click();
+    await expect(page.getByTestId('pdf-ready')).toContainText('-2026-10-31.pdf');
+    await page.locator('.sheet-header .iconbtn[aria-label=Close]').click();
+    // The backup, and the plan's own file.
+    await page.locator('.project-btn').click();
+    const [backup] = await Promise.all([
+      page.waitForEvent('download'),
+      page.locator('.backup-section button', { hasText: 'Back up all projects' }).click(),
+    ]);
+    expect(backup.suggestedFilename()).toBe('fullgrown-backup-2026-10-31.fullgrown.json');
+    const [file] = await Promise.all([
+      page.waitForEvent('download'),
+      page.locator('.proj-row .iconbtn[title="Save project file"]').click(),
+    ]);
+    expect(file.suggestedFilename()).toBe('my-garden-2026-10-31.fullgrown.json');
+  });
 });
 
 test('importing a file that is not a project shows an error', async ({ page }) => {
