@@ -31,7 +31,12 @@ export interface LookPalette {
   /** A variegated plant: its leaves in its light tone more often. */
   variegated?: boolean;
 }
-export interface Look { form: LookForm; pal: LookPalette }
+/**
+ * A look, and the words for its colors (a catalog plant, or one of the user's own): its flowers' color as drawn, where
+ * they're drawn; its leaves' (summer's leading color, else green), and whether they're variegated. None for a shape
+ * drawn in its own color.
+ */
+export interface Look { form: LookForm; pal: LookPalette; said?: { flower?: string; leaf: string; variegated: boolean } }
 /**
  * A plant in one month, as drawn (src/plant-looks.ts lookMonthOf, from src/seasons.ts monthLook): its leaves (on,
  * coming out, coloring with its fall color `fall` and how far through fall `progress`, bare twigs, died back, or not
@@ -205,7 +210,8 @@ export function lookOf(p: Plant | undefined, shapeColor: string, chosen = false,
     }
   })();
   if (form === 'conifer') pal.scale = (p?.leaf_form?.type ?? []).includes('sheath') ? false : !(p?.leaf_form?.type ?? []).includes('needles');
-  return { form, pal };
+  const said = p && !chosen ? { ...(fl ? { flower: color } : {}), leaf: first && first !== 'green' && LEAF_HEX[first] ? first : 'green', variegated } : undefined;
+  return { form, pal, ...(said ? { said } : {}) };
 }
 
 // ---------- marks (in pixels) ----------

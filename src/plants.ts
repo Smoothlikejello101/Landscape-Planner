@@ -17,6 +17,7 @@ import { shownWith } from './status';
 import { hardyEnough, zoneFit, zoneRange } from './climate';
 import { bannedHere, gardenStateName, hostsHere, localBloom, nativeHere, nativeText, wildHere, wildNearby } from './wild';
 import { bloomMonths } from './bloom';
+import { bloomWindow, showyFlowers } from './seasons';
 import { byMatch, matchPlant, readQuery, unsearchable } from './search';
 import { household, type Yard } from './yard';
 import { noteRecentPlant } from './place';
@@ -1031,15 +1032,29 @@ export function hardinessWarning(p: Plant): { cold: boolean; line: string } | nu
 }
 /**
  * A picker row's lines (decided with Jason, 2026-10-25): its botanical name and forms; then its typical size, sun
- * and hardiness. Bloom time, toxicity to animals and poison to people are left to the filters and the details.
+ * and hardiness, and its bloom months (Jason, Nov 1, from the UI review: "bloom months on the row"). Toxicity to
+ * animals and poison to people are left to the filters and the details.
  */
-export function rowLines(p: Plant): { names: string; size: string; sun: string; hardy: { text: string; ok: boolean } | null } {
+export function rowLines(p: Plant): { names: string; size: string; sun: string; hardy: { text: string; ok: boolean } | null; bloom: string } {
   const forms = formsOf(p).join(' / ');
   const h = sizeSaid(p.height), w = sizeSaid(p.width);
   const size = [h && `${h} tall`, w && `${w} wide`].filter(Boolean).join(', ');
   // (Its botanical name, unless that's the name it goes by: "Adiantum × mairisii".)
   const bot = p.botanical && p.botanical.trim() !== p.common.trim() ? p.botanical : '';
-  return { names: [bot, forms].filter(Boolean).join(' \u00b7 '), size, sun: sunSaid(p.sun_most, p.sun_least), hardy: hardinessSaid(p) };
+  return { names: [bot, forms].filter(Boolean).join(' \u00b7 '), size, sun: sunSaid(p.sun_most, p.sun_least), hardy: hardinessSaid(p), bloom: bloomSaid(p) };
+}
+/**
+ * Its bloom months, short: "Apr–May", "Jun", "All year". Months only, as "Blooming in" a month counts them (and the
+ * plan through the year draws them: src/seasons.ts bloomWindow): from flowering records where the garden is; else the
+ * months its record lists, where its sources give no season instead. A season isn't months (its months shift with
+ * place), and flowers its sources call not showy aren't counted: '' for either.
+ */
+export function bloomSaid(p: Plant): string {
+  const w = bloomWindow(p, { bloom: localBloom(p) });
+  if ((w.basis !== 'records' && w.basis !== 'source') || !w.months.length || !showyFlowers(p)) return '';
+  if (w.months.length === 12) return 'All year';
+  const a = MONTH_NAMES[w.months[0]], b = MONTH_NAMES[w.months[w.months.length - 1]];
+  return a === b ? a : `${a}\u2013${b}`;
 }
 const SEVERITY = ['low', 'medium', 'high'] as const;
 /**

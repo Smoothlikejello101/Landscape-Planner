@@ -21,9 +21,11 @@ import { openLocation } from './location-panel';
 import { render } from './render';
 import { plantDetails } from './plant-details';
 import { bannedHere, escapeHere, escapeShort, gardenStateName, lawShort, loadWild, regulatedHere } from '../wild';
-import { plantDot } from '../plant-looks';
+import { plantDot, plantSpot } from '../plant-looks';
 
 const dotColor = plantDot;
+/** The small flower before a row's bloom months, in the text's own color. */
+const FLOWER_GLYPH = '<svg viewBox="0 0 20 20" width="1em" height="1em" fill="currentColor"><circle cx="10" cy="5.6" r="3.4"/><circle cx="14.2" cy="8.6" r="3.4"/><circle cx="12.6" cy="13.6" r="3.4"/><circle cx="7.4" cy="13.6" r="3.4"/><circle cx="5.8" cy="8.6" r="3.4"/><circle cx="10" cy="10" r="2.2" fill="#fff"/></svg>';
 
 /** The open picker's list rebuild (in place: the search keeps the keyboard, opened rows stay open). */
 let refreshList: (() => void) | null = null;
@@ -280,6 +282,12 @@ export function renderPlantsPanel() {
       const others = !lines.hardy.ok && reportedOnly.get(p.id)?.includes('hardiness zones');
       facts.appendChild(el('span', { className: lines.hardy.ok ? '' : 'hardy-no', 'data-testid': 'row-hardy' }, others ? `${lines.hardy.text}, by its main sources; others say hardy` : lines.hardy.text));
     }
+    // Its bloom months, short, behind a small flower (Jason, Nov 1, from the UI review); "Blooms" for screen readers.
+    if (lines.bloom) {
+      if (facts.childNodes.length) facts.append(' \u00b7 ');
+      facts.appendChild(el('span', { className: 'row-bloom', 'data-testid': 'row-bloom' },
+        el('span', { className: 'row-bloom-icon', 'aria-hidden': 'true', html: FLOWER_GLYPH }), el('span', { className: 'sr-only' }, 'Blooms '), lines.bloom));
+    }
     const info = el('div', { className: 'pinfo' },
       el('div', { className: 'pname' }, headName(p)),
       lines.names ? el('div', { className: 'pmeta', 'data-testid': 'row-names' }, lines.names) : null,
@@ -321,11 +329,11 @@ export function renderPlantsPanel() {
     // Not native here, and recorded growing wild here all the same: seen without opening it too.
     const escape = escapeHere(p);
     if (escape) info.appendChild(el('div', { className: 'pescape', 'data-testid': 'row-escape' }, escapeShort(escape)));
-    // (Its flowers' color, as its picture draws them (Jason, Oct 30); a plant whose flowers don't show, its own color.)
-    const dot = el('div', { 'data-testid': 'row-dot', style: {
-      width: '14px', height: '14px', borderRadius: '50%', flex: 'none', boxSizing: 'border-box', border: '1px solid rgba(0, 0, 0, 0.18)',
-      background: dotColor(p), marginRight: '10px'
-    } });
+    // (A small flower in its flowers' color, as its picture draws them (Jason, Oct 30), in a circle of its leaves'; a
+    // plant whose flowers don't show, the circle alone (Jason, Nov 1, from the UI review). After its name and facts,
+    // for a screen reader, though it's drawn first.)
+    const spot = plantSpot(p);
+    const dot = el('span', { className: 'row-spot', role: 'img', 'aria-label': spot.said, 'data-testid': 'row-dot', html: spot.svg });
     const flagged = reportedOnly.get(p.id);
     const chev = el('span', { className: 'row-open' + (flagged ? ' flagged' : '') },
       flagged ? el('span', { className: 'row-flag', 'data-testid': 'row-flag', title: 'Shown because of what other sources say' }, '!',
@@ -333,7 +341,7 @@ export function renderPlantsPanel() {
       el('span', { className: 'fold-chev', html: I.chevronDown }));
     // The plant itself is the button that opens its details (its name and summary are what a screen reader says);
     // Place and copy or edit sit beside it, not inside it.
-    const toggle = el('button', { className: 'row-toggle', 'aria-expanded': 'false', 'data-testid': 'plant-row' }, dot, info, chev);
+    const toggle = el('button', { className: 'row-toggle', 'aria-expanded': 'false', 'data-testid': 'plant-row' }, info, dot, chev);
     const head = el('div', { className: 'proj-row', style: { alignItems: 'center' } }, toggle);
     const verb = swapping ? 'Swap' : linking ? 'Link' : forTree ? 'Pick' : state.placing ? 'Switch' : 'Place';
     // (A plant the law of the garden's state bans, found by name: the button says so, in red, as it's about to go on

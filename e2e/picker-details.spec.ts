@@ -604,6 +604,66 @@ test('Blooming in a month: plants with months for it first, those known only by 
   await expect(inFold.first().getByTestId('by-season')).toHaveAttribute('title', /counted for March by its season/);
 });
 
+test('a row: its bloom months, and a small flower in its flowers\' color in a circle of its leaves\' (Jason, Nov 1, from the UI review)', async ({ page }) => {
+  await openFresh(page);
+  await page.getByTestId('first-zip').fill('71923');
+  await page.getByTestId('first-zip-lookup').click();
+  await expect(page.getByTestId('location-result')).toContainText('Zone');
+  await closeSheet(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Butterfly milkweed');
+  const row = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly milkweed$/ }) });
+  const spot = row.getByTestId('row-dot');
+  await expect(spot).toHaveAttribute('role', 'img');
+  await expect(spot).toHaveAttribute('aria-label', 'orange flowers, green leaves');
+  await expect(spot.getByTestId('spot-flower')).toHaveAttribute('fill', '#f08a24');
+  // Its months where the garden is, short, as its details give them; "Blooms" said to a screen reader.
+  const months = row.getByTestId('row-bloom');
+  await expect(months).toHaveText(/^Blooms [A-Z][a-z]{2}(–[A-Z][a-z]{2})?$/);
+  const said = (await months.textContent())!.replace('Blooms ', '');
+  await expect(row.getByTestId('plant-row')).toHaveAccessibleName(/^Butterfly milkweed .*Blooms .* orange flowers, green leaves$/);
+  await row.getByTestId('plant-row').click();
+  await expect(row.getByTestId('plant-details')).toContainText(`${said}, peak`);
+  // No showy flowers on record: the circle alone, and no months.
+  await page.getByTestId('plant-search').fill('Christmas fern');
+  const fern = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Christmas fern$/ }) });
+  await expect(fern.getByTestId('row-dot')).toHaveAttribute('aria-label', /^[a-z ]+ leaves$/);
+  await expect(fern.getByTestId('row-dot').getByTestId('spot-flower')).toHaveCount(0);
+  await expect(fern.getByTestId('row-bloom')).toHaveCount(0);
+});
+
+test('a row fits 360 px at every text size: its name, spot, months, Place and copy, nothing pushed off (Jason, Nov 1)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await openFresh(page);
+  await page.getByTestId('first-zip').fill('71923');
+  await page.getByTestId('first-zip-lookup').click();
+  await expect(page.getByTestId('location-result')).toContainText('Zone');
+  await closeSheet(page);
+  for (const size of ['small', 'medium', 'large', 'xlarge']) {
+    await page.evaluate((s) => localStorage.setItem('lp-text-size-2', s), size);
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-text', size);
+    await page.locator('.tool-btn.plants').click();
+    await page.getByTestId('plant-search').fill('Purple coneflower');
+    const row = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Purple coneflower/ }) }).first();
+    await row.scrollIntoViewIfNeeded();
+    const box = async (l: ReturnType<typeof row.locator>) => (await l.boundingBox())!;
+    const spot = await box(row.getByTestId('row-dot')), name = await box(row.locator('.pname'));
+    const place = await box(row.getByTestId('plant-place')), copy = await box(row.locator('.proj-row > .iconbtn'));
+    expect([Math.round(spot.width), Math.round(spot.height)], size).toEqual([20, 20]);
+    expect(spot.x + spot.width, size).toBeLessThanOrEqual(name.x); // (drawn first, though read last)
+    expect(name.width, `${size}: the name keeps the room it had`).toBeGreaterThan(100);
+    expect(copy.x + copy.width, size).toBeLessThanOrEqual(360);
+    expect(place.x + place.width, size).toBeLessThanOrEqual(copy.x);
+    await expect(row.getByTestId('row-bloom')).toBeVisible();
+    expect(await row.evaluate((e) => e.scrollWidth <= e.clientWidth), size).toBe(true);
+    // The months and their flower kept together on one line.
+    const bloom = await box(row.getByTestId('row-bloom'));
+    expect(bloom.height, size).toBeLessThan(40);
+    await closeSheet(page);
+  }
+});
+
 test('what makes a plant\'s winter interest, each part with its source: showy bark, fruit into winter', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
