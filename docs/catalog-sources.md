@@ -906,6 +906,10 @@ listed). The kinds the build applies:
   goes with each cultivar split from it, its note saying so.
 - **`cultivar`**: a record naming one cultivar beside its species ("Aucuba japonica ('Gold Dust')"), renamed for
   it ("Aucuba 'Gold Dust'") and put under its species, as a split's kept record is.
+- **`rename`**: a record renamed by the naming rule where no other kind fits (docs/catalog-format.md, "Names"): a
+  seed strain, "Butterfly weed (clay strain)" for Butterfly weed 'for Clay' (Jason, 2026-11-01). Only its names
+  change, its old name kept as a synonym. `soldAs`, the name its sources sell it under, is read as a quoted
+  cultivar's is, so their pages stay its own and its facts don't change.
 - **`kewSpecies`**: a cultivar NC State files under a species Kew keeps apart from its own, put under Kew's (below).
 - **`parent`**: a cultivar put under a species its own name doesn't give, where its page names it: 'Edward Goucher'
   glossy abelia, a cross of Abelia × grandiflora and A. schumannii that NC State names by the genus alone. It takes

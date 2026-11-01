@@ -1,5 +1,6 @@
 // Which plant an NC State Plant Toolbox page is about, and whether a record may read it (sample.mjs;
 // docs/catalog-build.md, "The plant list").
+import { readFileSync } from 'node:fs';
 
 const ENTITIES = { '&#x27;': "'", '&#39;': "'", '&apos;': "'", '&#8216;': "'", '&#8217;': "'", '&lsquo;': "'", '&rsquo;': "'", '&quot;': '"', '&amp;': '&', '&nbsp;': ' ' };
 /** Curly quotes as straight ones, so "‘Green Giant’" and "'Green Giant'" are one name. */
@@ -41,8 +42,17 @@ export function acceptsPage(entry, name, genus) {
   return (!!entry.ncsuName && name === entry.ncsuName) || sameName(name, entry.species) || (!!entry.genusOnly && genus === entry.species.split(' ')[0]);
 }
 
-/** The cultivars a record names ("Thuja 'Green Giant'", "Lagerstroemia ('Natchez' / 'Muskogee')"), once each. */
-export const recordCultivars = (rec) => [...new Set([...quotedCultivars(rec?.botanical), ...quotedCultivars(rec?.common)])];
+/**
+ * The name a record's sources sell it under, where a person renamed it so that its own names don't quote it
+ * (decisions.json `rename`, `soldAs`), or null. A seed strain isn't a cultivar, so it's named "Butterfly weed (clay
+ * strain)", but Prairie Nursery sells it as Butterfly Weed for Clay, and its page is the strain's own (Jason,
+ * 2026-11-01). The build reads that name as it reads a quoted cultivar, so the rename changes none of its facts.
+ */
+const SOLD_AS = new Map(Object.entries(JSON.parse(readFileSync(new URL('./decisions.json', import.meta.url), 'utf8')).rename ?? {})
+  .filter(([id, d]) => id !== 'about' && d?.soldAs).map(([id, d]) => [id, d.soldAs]));
+export const soldAs = (rec) => SOLD_AS.get(rec?.id) ?? null;
+/** The cultivars a record names ("Thuja 'Green Giant'", "Lagerstroemia ('Natchez' / 'Muskogee')"), once each; and what it's sold as. */
+export const recordCultivars = (rec) => [...new Set([...quotedCultivars(rec?.botanical), ...quotedCultivars(rec?.common), ...(soldAs(rec) ? [soldAs(rec)] : [])])];
 
 /**
  * Whether a genus or group record reads the page as its own cultivar's, so the page's size, form and color are

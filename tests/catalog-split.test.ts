@@ -1,6 +1,13 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 // @ts-expect-error (a plain .mjs script)
 import { applySplits, kewApart, linkCultivars } from '../scripts/catalog/split.mjs';
+// @ts-expect-error (a plain .mjs script)
+import { recordCultivars } from '../scripts/catalog/ncsu-page.mjs';
+// @ts-expect-error (a plain .mjs script)
+import { cultivarOf } from '../scripts/catalog/reclaim.mjs';
+// @ts-expect-error (a plain .mjs script)
+import { webClaims } from '../scripts/catalog/web.mjs';
 import { catalogErrors, catalogWarnings, resolveCatalog, type CatalogFile } from '../src/catalog';
 
 // A record of several cultivars, made one record per cultivar (decided with Jason, 2026-10-25).
@@ -155,6 +162,36 @@ describe('the names a person decided', () => {
     expect(applySplits(f, decided, names)).toEqual([]); // (twice: nothing more)
     // The catalog's checks: a moved id is no record's, and stands for one that's there.
     expect(catalogErrors({ ...f, meta: { ...f.meta, moved: { aucuba: 'salvia-officinalis', gone: 'nowhere' } } })).toEqual(['meta.moved: aucuba is still a record', "meta.moved: gone stands for nowhere, which isn't a record"]);
+  });
+  it('renames a seed strain by the naming rule, its old name kept, and still reads the pages that sell it as its own (soldAs)', () => {
+    // (Jason, 2026-11-01: a seed strain isn't a cultivar, so "Butterfly weed (clay strain)"; its facts kept. The
+    // decision as shipped: what its sources sell it as is read by the record's id.)
+    const ID = 'asclepias-tuberosa-clay-strain';
+    const rename = { [ID]: JSON.parse(readFileSync(new URL('../scripts/catalog/decisions.json', import.meta.url), 'utf8')).rename[ID] };
+    const f: CatalogFile = { meta: file().meta, plants: [
+      rec(ID, "Butterfly weed 'for Clay'", 'Asclepias tuberosa (clay strain)', { facts: { width: { min: 1, max: 2, med: 1.5 }, height: { v: { min: 2, max: 2, med: 2 }, src: ['compendium'] } } }),
+      rec('asclepias-tuberosa', 'Butterfly milkweed', 'Asclepias tuberosa', { src: ['ncsu'] }),
+    ] };
+    const was = { cultivars: recordCultivars(f.plants[0]), cultivar: cultivarOf(f.plants[0]), facts: structuredClone(f.plants[0].facts) };
+    expect(applySplits(f, { rename })).toEqual([`${ID}: now Butterfly weed (clay strain), Asclepias tuberosa clay strain`]);
+    expect(f.plants[0]).toEqual({ id: ID, common: 'Butterfly weed (clay strain)', botanical: 'Asclepias tuberosa clay strain', synonyms: ["Butterfly weed 'for Clay'"], src: ['compendium'], audited: '2026-10-25', facts: was.facts });
+    expect(applySplits(f, { rename })).toEqual([]); // (twice: nothing more)
+    // Read as before: the selection its sources sell, not its species.
+    const strain = f.plants[0];
+    expect([recordCultivars(strain), cultivarOf(strain)]).toEqual([['for Clay'], 'for Clay']);
+    expect([recordCultivars(strain), cultivarOf(strain)]).toEqual([was.cultivars, was.cultivar]);
+    // The nursery's page for it (as Prairie Nursery titles it) is its own; under the same names with no decision, it
+    // would be no one's, and the strain would read its species' pages as its own.
+    const page = `<html><head><title>Butterfly Weed for Clay - Asclepias tuberosa var. clay | Prairie Nursery</title></head><body>
+      <h1>Butterfly Weed for Clay</h1><p>Asclepias tuberosa var. clay</p><p>Height: 2 ft</p></body></html>`;
+    const read = (r: typeof strain) => webClaims('https://www.prairienursery.com/butterflyweed-for-clay.html', page, { species: 'Asclepias tuberosa', cultivar: cultivarOf(r), common: r.common });
+    expect(read(strain).map((c: { fact: string; v: unknown; cultivarPage: boolean }) => [c.fact, c.v, c.cultivarPage])).toEqual([['height', { min: 2, max: 2 }, true]]);
+    const unnamed = { ...strain, id: 'not-decided' };
+    expect([recordCultivars(unnamed), cultivarOf(unnamed), read(unnamed)]).toEqual([[], null, []]);
+    // Not linked to its species, nor taken for it: Butterfly milkweed is still the record of that name.
+    expect(linkCultivars(f)).toEqual([]);
+    expect(catalogErrors(f)).toEqual([]);
+    expect(catalogWarnings(f).filter((w) => w.startsWith(`${ID}:`))).toEqual([]); // (no parentheses left to list)
   });
   it('lists cultivars NC State files under a species Kew keeps apart, where their pages say so', () => {
     const f = cat();
