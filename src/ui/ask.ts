@@ -36,7 +36,15 @@ function swallowEscRelease() {
   window.addEventListener('keyup', eat, true);
 }
 
-function sheet<T>(build: (finish: (v: T) => void) => { body: Node[]; first: HTMLElement; okBtn: HTMLButtonElement; ok: () => T }, opts: AskOptions, none: T): Promise<T> {
+interface SheetParts<T> {
+  body: Node[];
+  first: HTMLElement;
+  okBtn: HTMLButtonElement;
+  ok: () => T;
+  /** More buttons, each answering for itself (askChoice): stacked above Cancel. */
+  more?: HTMLButtonElement[];
+}
+function sheet<T>(build: (finish: (v: T) => void) => SheetParts<T>, opts: AskOptions, none: T): Promise<T> {
   // (One at a time: a second question answers the first with its "no".)
   open?.cancel();
   const before = document.activeElement as HTMLElement | null;
@@ -60,7 +68,9 @@ function sheet<T>(build: (finish: (v: T) => void) => { body: Node[]; first: HTML
       el('div', { className: 'sheet-body' },
         el('div', { id: titleId, className: 'ask-title' }, opts.title ?? ''),
         ...parts.body,
-        el('div', { className: 'ask-buttons' }, opts.noCancel ? '' : cancelBtn, parts.okBtn)));
+        parts.more
+          ? el('div', { className: 'ask-buttons stacked' }, ...parts.more, parts.okBtn, cancelBtn)
+          : el('div', { className: 'ask-buttons' }, opts.noCancel ? '' : cancelBtn, parts.okBtn)));
     // (Named by its title, or with none, by its message.)
     dialog.querySelector('.ask-message')?.setAttribute('id', titleId + '-m');
     if (!opts.title) { dialog.querySelector('.ask-title')!.remove(); dialog.setAttribute('aria-labelledby', titleId + '-m'); }
@@ -97,6 +107,35 @@ export function ask(message: string, opts: AskOptions = {}): Promise<boolean> {
     const okBtn = el('button', { className: 'btn ' + (opts.danger ? 'danger-solid' : 'primary'), 'data-testid': 'ask-ok' }, opts.ok ?? 'OK') as HTMLButtonElement;
     return { body: [el('div', { className: 'ask-message' }, tapSaid(message))], first: okBtn, okBtn, ok: () => true };
   }, opts, false);
+}
+
+/** One of askChoice's answers. */
+export interface AskChoice<T> {
+  label: string;
+  value: T;
+  /** In red: it deletes something. */
+  danger?: boolean;
+  testid?: string;
+}
+/**
+ * Ask which of several things to do: a button each, stacked, the last of them the main one (Enter, and `ask-ok` for
+ * tests), then Cancel. The choice's value, or null for Cancel (Esc, a tap outside, Back). For a question with more
+ * than yes or no: "Delete the bed only" or "Delete the bed and its plants" (the UI review, 2026-11-01).
+ */
+export function askChoice<T>(message: string, choices: AskChoice<T>[], opts: AskOptions = {}): Promise<T | null> {
+  return sheet<T | null>((finish) => {
+    const main = choices[choices.length - 1];
+    // (In red: the main one solid, others pale.)
+    const button = (c: AskChoice<T>, testid: string) =>
+      el('button', { className: 'btn ' + (c.danger ? (c === main ? 'danger-solid' : 'danger') : 'ghost'), 'data-testid': c.testid ?? testid }, c.label) as HTMLButtonElement;
+    const more = choices.slice(0, -1).map((c, i) => {
+      const b = button(c, 'ask-choice-' + i);
+      b.addEventListener('click', () => finish(c.value));
+      return b;
+    });
+    const okBtn = button(main, 'ask-ok');
+    return { body: [el('div', { className: 'ask-message' }, tapSaid(message))], first: okBtn, okBtn, ok: () => main.value, more };
+  }, opts, null);
 }
 
 /** Say something the person must read (an error that stopped what they asked for); resolves when it's put away. */

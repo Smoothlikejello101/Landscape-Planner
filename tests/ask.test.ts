@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { ask, askText, asking, dismissAsk, tell } from '../src/ui/ask';
+import { ask, askChoice, askText, asking, dismissAsk, tell } from '../src/ui/ask';
 
 // The app's own questions, in place of the browser's confirm(), prompt() and alert() (Oct 30, from round 2).
 
@@ -78,5 +78,24 @@ describe('in-app questions', () => {
     click('ask-ok');
     await told;
     expect(asking()).toBe(false);
+  });
+  it('askChoice: a button for each answer, stacked, Cancel last; each answers its own value, Cancel and Esc null (the UI review, 2026-11-01)', async () => {
+    const choices = [{ label: 'Delete the bed only', value: 'bed', danger: true, testid: 'ask-bed-only' }, { label: 'Delete the bed and its 3 plants', value: 'all', danger: true }];
+    const q = askChoice('“Front bed” has 3 plants in it.', choices, { danger: true });
+    const row = dialog()!.querySelector('.ask-buttons')!;
+    expect(row.classList.contains('stacked')).toBe(true);
+    expect([...row.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Delete the bed only', 'Delete the bed and its 3 plants', 'Cancel']);
+    expect(document.activeElement?.textContent).toBe('Cancel'); // (in red: starts on Cancel)
+    click('ask-bed-only');
+    expect(await q).toBe('bed');
+    const q2 = askChoice('Again?', choices, { danger: true });
+    click('ask-ok'); // (the last answer is the main one)
+    expect(await q2).toBe('all');
+    const q3 = askChoice('Again?', choices);
+    click('ask-cancel');
+    expect(await q3).toBeNull();
+    const q4 = askChoice('Again?', choices);
+    key('Escape');
+    expect(await q4).toBeNull();
   });
 });
