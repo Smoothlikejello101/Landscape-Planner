@@ -1273,9 +1273,10 @@ export async function initStorage(kvOverride?: KV): Promise<{ migrationError?: s
   const tombs = await kv.get<unknown>('kv', 'syncTombstones');
   syncTombstones = {};
   if (tombs && typeof tombs === 'object') for (const [k, v] of Object.entries(tombs)) if (typeof v === 'number' && Number.isFinite(v)) syncTombstones[k] = v;
-  // (Only for a tombstone still there: one an older version cleared since is gone.)
+  // (Only for a tombstone still there, of the same deletion: one an older version cleared since is gone, and one it
+  // made again for the plan, later, isn't the record's.)
   const deleted = sanitizeSyncRecords(await kv.get<unknown>('kv', 'syncDeleted'));
-  syncDeleted = Object.fromEntries(Object.entries(deleted).filter(([k]) => k in syncTombstones));
+  syncDeleted = Object.fromEntries(Object.entries(deleted).filter(([k, r]) => syncTombstones[k] === r.revision));
   const su = await kv.get<unknown>('kv', 'syncUser');
   syncUserId = typeof su === 'string' ? su : null;
   if (state.projects.length === 0) await createProject('My Garden');
