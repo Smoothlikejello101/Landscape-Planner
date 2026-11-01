@@ -43,10 +43,10 @@ describe("what's new", () => {
     expect(seenRelease()).toBeNull();
     expect(newsAtStart(false, three)).toEqual([]);
   });
-  it('dates a release as people write it; the one not yet out is "coming" in Next, and its build day in a release', () => {
+  it('dates a release as people write it; the one not yet out is "Not released yet" in Next, and its build day in a release', () => {
     expect(releaseDate('2026-10-31')).toBe('Oct 31, 2026');
     expect(releaseDate('2027-01-02')).toBe('Jan 2, 2027');
-    expect(releaseDate('next', 'next', '2026-11-02')).toBe('Coming in the next update');
+    expect(releaseDate('next', 'next', '2026-11-02')).toBe('Not released yet');
     expect(releaseDate('next', 'release', '2026-11-02')).toBe('Nov 2, 2026');
   });
 });

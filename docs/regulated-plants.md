@@ -9,10 +9,13 @@ plant's row in the picker says it in short ("Prohibited in Arkansas") before it'
 > *Arkansas Plant Board rules (2 CAR §50-101, §50-709); Code of Arkansas Rules, printed 2026-03-22; read 2026-10-21*
 
 **Two tiers,** set per class in the list (`tiers`): a **ban** (the rule forbids selling, planting or moving the
-plant: Arkansas's §50-101(f) and §50-709, Texas, Mississippi, Missouri's sale ban, Tennessee, the federal permit
-rule) is shown in red; a **listing** with lighter duties (Arkansas's noxious weed list, where nursery stock must be
-reasonably free of it; Oklahoma's duty to control thistles; Louisiana's Chinese tallow statute) in amber, in the
-same words. A rattlebox shouldn't look as forbidden as cogongrass.
+plant: Arkansas's §50-101(f) and §50-709, Texas, Mississippi, Missouri's sale ban, Tennessee, Virginia's three
+tiers of noxious weeds, Georgia, Pennsylvania, North Carolina's noxious weeds, Ohio's and Indiana's invasive plants,
+Illinois's exotic weeds, the federal permit rule) is shown in red; a **listing** with lighter
+duties (Arkansas's noxious weed list, where nursery stock must be reasonably free of it; Oklahoma's duty to control
+thistles; Louisiana's Chinese tallow statute; Virginia's store-sign law; Kentucky's highway rights-of-way law; North Carolina's aquatic weeds, which the state
+may remove from its waters; Ohio's and Illinois's noxious weeds and Indiana's detrimental plants, which landowners must control) in
+amber, in the same words. A rattlebox shouldn't look as forbidden as cogongrass.
 
 **Native, and covered anyway.** Where Kew's checklist has the plant native to the state and a rule covers it all
 the same, the line says why, or the two read as a contradiction: "Native to Arkansas, but this rule bans every
@@ -77,13 +80,39 @@ was read narrower than printed or left out, and why.
 | OK | 2 O.S. §3-220 | ODAFF's print of the law and OAC 35:30-34 | 3 | Landowners must control it (no ban on sale) |
 | LA | La. R.S. 3:1791 | Louisiana legislature | 1 | Chinese tallow: a noxious plant, may be destroyed wherever found |
 | TN | Tenn. Comp. R. & Regs. 0080-06-24 | The Secretary of State's PDF, revised April 2009 | 14 | Pest plant: may not be sold, offered for sale or released in the state, nor propagated without a permit from the commissioner |
+| VA | 2VAC5-317-20, -30; Code of Virginia §3.2-3801.1 | Virginia's Legislative Information System (rule as amended 2024-07-04; statute in force 2027-01-01) | 65 | Tiers 1 to 3: not to be moved (shipped, carried or otherwise transported) without a certificate or permit. Invasive: from 2027-01-01, a store may sell it for outdoor use only with a sign near it saying it's invasive |
+| GA | Ga. Comp. R. & Regs. 40-4-9-.07 | The Secretary of State's rules site, through rules filed 2026-10-22 | the federal list's | "The sale or distribution of any plant listed on the Federal Noxious Weed list … is prohibited" |
+| PA | 3 Pa.C.S. §§1502, 1515, 1519 | The Department of Agriculture's list page; the General Assembly's text of the act | 57, and the federal list's | Class A, B and C noxious weeds: may not be sold, given away, imported, transported, grown or propagated, but under a permit for research or education |
+| KY | KRS 176.051; 603 KAR 3:100 | The Legislative Research Commission (rule effective 2022-01-25) | 3 | The Department of Highways must keep state rights-of-way free of it (no ban on sale) |
+| OH | OAC 901:5-30-01; 901:5-37-01 with ORC 5579.04, .05 | codes.ohio.gov (invasive rule effective 2023-02-13; noxious rule 2025-02-16) | 91 | Invasive: no one may sell, offer for sale, propagate, distribute, import or spread it. Noxious: cut or destroyed on a township's notice, and along roads (no ban on sale) |
+| IN | 312 IAC 18-3-13, -16, -23, -25; IC 15-16-8 | The Indiana Register's and General Assembly's sites, read in a browser (rules readopted 2025) | 88 | Prohibited invasive plants: no selling, giving, distributing, moving or introducing them. Every Lythrum: not sold or given away (natives only under a permit). Multiflora rose: not planted. Kudzu: not sold or planted. Detrimental plants: landowners must destroy them before they mature (no ban on sale) |
+| IL | 525 ILCS 10/4; 17 Ill. Adm. Code 1100.30; 505 ILCS 100; 8 Ill. Adm. Code 220.60 | The General Assembly's site (exotic weed rule effective 2025-10-01) | 43 | Exotic weeds: not bought, sold, distributed or planted without a permit (Callery pear from 2028-01-01). Noxious weeds: landowners must control them (no ban on sale) |
+| NC | 02 NCAC 48A .1702, .1703; 15A NCAC 02G .0602 | The North Carolina Register's printing of the rules (effective 2011-10-01); the environment department's copy of .0602 | 27, and the federal list's | Class A and B: no sale or distribution, nor moving into the state (A: nor within it). Class C: not into the state, nor sold outside a regulated area. Aquatic: the state may remove it from its waters (no ban on sale) |
 
-Read 2026-10-21, each from the government's own text, saved in `catalog-src/legal/` (not committed).
+Arkansas to Tennessee read 2026-10-21, Virginia to Illinois 2026-10-31, each from the government's own text, saved
+in `catalog-src/legal/` (not committed).
 Tennessee's PDF was saved by hand in a browser: the Secretary of State's file host turns away clients that
 aren't browsers, and we don't pretend to be one. Texas has one gap: the
 offense is Agriculture Code §71.152's, read from the Legislature's site; "in any live form" and "unless permitted" are the rule's,
 §19.300(b), read through Cornell LII's copy of the rule until the Secretary of State's site can be read.
-Not yet: the other states.
+Pennsylvania's lists are read from its Department of Agriculture's page: the committee adds plants by notices in
+the Pennsylvania Bulletin, whose site (pacodeandbulletin.gov) turns away automated readers in its robots.txt, so
+any sales phase-in dates those notices set are unread. Georgia's single-rule pages are closed the same way; its
+rule was read from the chapter's page on the same site. Kentucky has no law against selling or planting a named
+plant: the one list beyond seed law is the highway department's (checked: KRS chapter 249, whose thistle laws were
+repealed in 2022; 302 KAR; 301 KAR 1:122, which names no plant). North Carolina's Administrative Code site answers only
+over http, which can't be read from here: its rules are read in the North Carolina Register's printing of them as
+approved (26:09, 2011), which the Office of Administrative Hearings' 2019 review still gives as their last
+amendment; its definitions and permit rules (.1701, .1704 to .1708) are unread.
+
+Ohio's code site turns away every automated reader in its robots.txt: with Jason's OK (2026-10-31), official
+legal-code sites are read anyway, only the pages named, with our own user agent and a slow pace, never past an
+actual block. Indiana's code site shows its text only in a browser, and its data service refuses other readers: it
+was read in Jason's own Chrome (Claude in Chrome), each section's text copied from the page and checked against a
+SHA-256 hash the browser computed from it. Illinois's legislature site sends an incomplete certificate chain: the
+missing intermediate was fetched from its issuer (Sectigo), as browsers do, and every request verified against it.
+Pennsylvania's Bulletin notices (its sales phase-in dates) are still unread; its site's robots.txt names AI
+readers. The rest of the states: not yet.
 
 **Read narrower than printed, or left out:**
 - **Seed-law lists.** Louisiana's noxious weed list (LAC 7:XIII.109), like most states' seed lists, limits weed
@@ -97,6 +126,34 @@ Not yet: the other states.
   a noxious weed; the thistle entry's "and other genera", which names none; red rice, "Oryza sativa var.",
   which names no variety (the species is rice). These are judgment calls, written down: each can be revisited.
 - **Caulerpa taxifolia** (federal): an alga.
+- **Virginia:** "Oplismenus hirtellus spp. undulatifolius" is read as the subspecies. Its store-sign law
+  (§3.2-3801.1) isn't in force until 2027-01-01, and its line says so. Left out: the conservation department's
+  invasive list (§10.1-104.6:2), which binds only state agencies, and the box tree moth quarantine (2VAC5-332), on
+  boxwood leaving three named localities.
+- **Pennsylvania:** left out, "Cuscuta spp." and "Orobanche spp." "except for native species" (the natives aren't
+  named; the federal dodders and broomrapes come in through Class C); "Sorghum bicolor (shattercane)", which read
+  whole would make grain sorghum a noxious weed; "Pastinaca sativa (except for non-wild cultivated varieties)",
+  since a species name can't tell wild parsnip from the garden parsnip it excepts; starry stonewort, an alga.
+  Japanese blood grass ('Red Baron', Class A) is a cultivar the list can't name: the whole species is on the
+  federal list, so it's Class C here. The department's exempted cultivars of Japanese barberry, glossy buckthorn
+  and European privet are named in their species' lines (`classBBarberry` and the like), since the list format
+  names no cultivar; a cultivar record takes its species' line, exemption named.
+- **North Carolina:** Class B's "any Lythrum species not native to North Carolina" names no species, and is read
+  as purple loosestrife (*Lythrum salicaria*), which the aquatic list names; a whole-genus entry would take in
+  the state's native Lythrum, which the rule excepts without naming. "Trappa spp." is the genus *Trapa*. The
+  aquatic list's plants already on the federal list or 02 NCAC 48A are left out of it (their ban comes first).
+- **Ohio:** left out, grapevines (*Vitis* spp.) and yellow groove bamboo, noxious only when unkept (a hundred
+  unpruned vines; bamboo spread beyond where it was planted), and shattercane and wild parsnip, as in
+  Pennsylvania. The phase-ins for Callery pear (2023) and common privet (2026-01-01) have passed.
+- **Indiana:** "any species of Lythrum" is the genus, natives included: the rule lets native ones be sold only
+  under a permit. Multiflora rose's rule bars planting it, not selling it. Its detrimental plants (IC 15-16-8-1),
+  which every landowner must destroy, are the statute's own list; shattercane is printed as *Sorghum bicolor*
+  subsp. *drummondii*, the weedy subspecies, so it's taken as printed.
+- **Illinois:** Callery pear is an exotic weed only from 2028-01-01: listed (amber) until then. "Perennial members
+  of the sorghum genus" is read as Johnson grass and *Sorghum × almum*, not the genus, which would take in grain
+  sorghum. Giant and common ragweed are noxious only inside city, village and town limits.
+- **Kentucky:** the entries named only by a common name (multiflora rose, kudzu, poison hemlock, marestail, Amur
+  honeysuckle, Japanese knotweed, common teasel, spotted knapweed, cutleaf teasel) are left out.
 
 ## Matching
 
@@ -134,6 +191,11 @@ Not yet: the other states.
   species (*L. alatum* × *virgatum*, 'Morden Gleam').
 - **A plant on two lines of one list** takes the first (Texas's noxious line before its invasive one; Arkansas's
   Lythrum line, which says the most, first).
+- **A list that adopts another's** (`adopts: { code, class }`) takes that list's entries in a class of its own, by
+  reference, as its rule does, so the two never drift apart: Georgia's rule bans selling "any plant listed on the
+  Federal Noxious Weed list"; Pennsylvania's makes every federal noxious weed a Class C noxious weed, and North
+  Carolina's a Class A one. Its own
+  entries come first. A plant there gets both lines: the state's ban, then the federal permit rule.
 
 Each run prints the matches. As of 2026-10-21:
 - **Winged loosestrife** (*Lythrum alatum*), prohibited in Arkansas. It's a native wildflower, and §50-709 takes in
@@ -143,6 +205,25 @@ Each run prints the matches. As of 2026-10-21:
 - **Chinaberry** (*Melia azedarach*), on Texas's invasive list: selling it in Texas is a misdemeanor.
 - **Chinese privet** (*Ligustrum sinense*), **Amur honeysuckle** (*Lonicera maackii*) and **autumn olive**
   (*Elaeagnus umbellata*), pest plants in Tennessee: not to be sold, offered for sale or released there.
+
+As of 2026-10-31:
+- **Virginia, Tier 3** (not to be moved without a permit): Japanese honeysuckle, Amur honeysuckle, autumn olive,
+  tree of heaven, Siberian elm and bicolor lespedeza; **Tier 2**: beach vitex and Japanese blood grass. Its
+  store-sign law takes in 26 more catalog plants, among them periwinkle (*Vinca minor*), English ivy, nandina,
+  Japanese barberry, burning bush, Callery pear, mimosa, Chinese wisteria, Japanese spiraea and fountain grass
+  (*Cenchrus purpurascens*, Kew's *C. alopecuroides*).
+- **Pennsylvania:** Callery pear, Japanese barberry, burning bush, Chinese and Japanese privet, Amur honeysuckle,
+  glossy and common buckthorn, tree of heaven, Japanese angelica tree, chocolate vine, Ravenna grass, parrot
+  feather and the multiflora rose's variety *cathayensis*; Japanese blood grass through the federal list.
+- **North Carolina:** beach vitex (Class B), and Japanese blood grass through the federal list (Class A); parrot
+  feather and water lettuce, as aquatic weeds.
+- **Ohio:** Callery pear, Japanese and Amur honeysuckle, tree of heaven, autumn and Russian olive, common
+  buckthorn, dame's rocket, Siberian elm, ribbon grass (*Phalaris arundinacea*) and narrowleaf cattail; field
+  bindweed, cypress spurge and kochia as noxious weeds.
+- **Indiana:** winged loosestrife (*Lythrum alatum*, native: every Lythrum), Japanese barberry, wintercreeper,
+  black alder, Amur cork tree, ribbon grass and much of Ohio's list; multiflora rose may not be planted.
+- **Illinois:** thorny olive, Amur cork tree and the honeysuckles, olives and buckthorns; Callery pear from 2028.
+- **Georgia:** Japanese blood grass, through the federal list. **Kentucky:** none of the catalog's plants.
 
 ## What the line doesn't say
 

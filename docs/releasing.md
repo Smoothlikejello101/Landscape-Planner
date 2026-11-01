@@ -35,8 +35,9 @@ When Jason says "release":
    "Release N: <what's in it>", listing its What's new lines and the pull requests it carries.
 2. Jason merges it. CI tests it and deploys app.fullgrown.garden. Testers get one "A new version of the app is ready"
    banner, then, once they update, one What's new notice.
-3. In my next pull request into main, I write in the day release N went out in place of `"next"`. CI on a pull request
-   fails until that's done (`scripts/release/whats-new-check.mjs`).
+3. Right after it merges, I open a small pull request into main that writes in the day release N went out in place
+   of `"next"`, so Next stops calling those changes "Not released yet". CI on any other pull request fails until
+   that's done (`scripts/release/whats-new-check.mjs`).
 
 A release every day or two is plenty in the beta. If changes wait on Next more than a few days, I say what's ready.
 I don't release on my own, and never push to `release` directly.
@@ -51,7 +52,7 @@ back into main by a pull request from `release`.
 against the release branch's copy:
 - A new line goes in the release not yet out: the top one, dated `"next"`. If the top one is out, start the next id,
   dated `"next"`. A release that's out never gets new lines: devices that saw it would never be shown them.
-- Only the top release may be dated `"next"`. In Next it shows as "Coming in the next update"; a release build shows its
+- Only the top release may be dated `"next"`. In Next it shows as "Not released yet"; a release build shows its
   build day until the real date is written in.
 - Lines say what people will see, in plain words, with no "tap" or "click".
 
