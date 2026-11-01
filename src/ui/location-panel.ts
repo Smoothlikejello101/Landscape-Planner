@@ -33,16 +33,20 @@ export function setLocation(loc: GardenLocation | null) {
 
 function closePanel() { state.panel = returnTo; returnTo = null; problem = ''; typed = ''; render(); }
 
-export function renderLocationPanel(): HTMLElement {
+/**
+ * The ZIP field and its Look up, for this sheet and for the first screen of an empty plan (src/ui/render.ts: Jason,
+ * Nov 1, from the UI review), one lookup for both. What's typed, a lookup under way and what went wrong are kept
+ * across redraws, whichever of the two shows them. Looked up from the first screen, the zone and frost dates, with
+ * their sources, are shown in this sheet.
+ */
+export function zipEntry(where: 'sheet' | 'first'): { input: HTMLInputElement; go: HTMLButtonElement; problem: HTMLElement | null } {
+  const first = where === 'first';
   const loc = state.location ?? null;
-  const close = sheetCloseButton(closePanel, returnTo); // (← back to the picker or the bloom calendar it was opened from)
-  const header = el('div', { className: 'sheet-header' }, el('div', { className: 'title' }, 'Garden location'), close);
-  const body = el('div', { className: 'sheet-body', 'data-testid': 'location' });
-
-  const input = el('input', { type: 'text', inputMode: 'numeric', autocomplete: 'postal-code', maxLength: 5, placeholder: 'ZIP code', value: typed || loc?.zip || '', 'data-testid': 'zip' }) as HTMLInputElement;
+  const input = el('input', { type: 'text', inputMode: 'numeric', autocomplete: 'postal-code', maxLength: 5, placeholder: 'ZIP code', value: typed || loc?.zip || '', 'data-testid': first ? 'first-zip' : 'zip',
+    ...(first ? { 'aria-label': 'Your garden’s ZIP code', enterKeyHint: 'go' } : {}) }) as HTMLInputElement;
   // (Keyboard safety: typing changes nothing else on screen.)
   input.addEventListener('input', () => { typed = input.value.replace(/\D/g, '').slice(0, 5); if (input.value !== typed) input.value = typed; });
-  const go = el('button', { className: 'btn primary', 'data-testid': 'zip-lookup' }, busy ? 'Looking up…' : 'Look up') as HTMLButtonElement;
+  const go = el('button', { className: 'btn primary', 'data-testid': first ? 'first-zip-lookup' : 'zip-lookup' }, busy ? 'Looking up…' : 'Look up') as HTMLButtonElement;
   go.disabled = busy;
   const lookUp = async () => {
     if (busy) return;
@@ -51,9 +55,11 @@ export function renderLocationPanel(): HTMLElement {
     busy = true; problem = ''; render();
     const r = await lookUpZip(zip);
     busy = false;
-    // Answered for the plan it was asked for, while its sheet is still open.
-    if (state.currentProjectId !== plan || state.panel !== 'location') {
-      if (state.panel === 'location') render(); // (else leave the screen alone: something else may have the keyboard)
+    // Answered for the plan it was asked for, while what asked is still showing: its sheet, or the first screen with
+    // no sheet over it.
+    const showing = first ? !!document.querySelector('[data-testid=first-zip-lookup]') : state.panel === 'location';
+    if (state.currentProjectId !== plan || !showing) {
+      if (showing) render(); // (else leave the screen alone: something else may have the keyboard)
       return;
     }
     if (r.ok) {
@@ -63,6 +69,8 @@ export function renderLocationPanel(): HTMLElement {
       // 2026-11-01: it went straight back, a toast over the picker's title, and the × meant for this sheet closed the
       // picker.)
       if (returnTo === 'plants') { plantFilter.hardyHere = true; saveHardy(true); }
+      // Asked from the first screen: the answer, and where it comes from, in this sheet.
+      if (first) { openLocation(); return; }
     }
     else problem = r.why === 'format' ? 'A ZIP code is five digits.'
       : r.why === 'unknown' ? 'That ZIP isn’t in the zone tables (they cover the 50 states and Puerto Rico).'
@@ -71,9 +79,19 @@ export function renderLocationPanel(): HTMLElement {
   };
   go.addEventListener('click', () => { void lookUp(); });
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); void lookUp(); } });
+  return { input, go, problem: problem ? el('div', { className: 'status warn', 'data-testid': first ? 'first-zip-problem' : 'zip-problem' }, problem) : null };
+}
+
+export function renderLocationPanel(): HTMLElement {
+  const loc = state.location ?? null;
+  const close = sheetCloseButton(closePanel, returnTo); // (← back to the picker or the bloom calendar it was opened from)
+  const header = el('div', { className: 'sheet-header' }, el('div', { className: 'title' }, 'Garden location'), close);
+  const body = el('div', { className: 'sheet-body', 'data-testid': 'location' });
+
+  const { input, go, problem: said } = zipEntry('sheet');
   body.appendChild(el('div', { className: 'hint' }, 'The garden’s ZIP code gives its USDA hardiness zone and typical frost dates. Only its first three digits are fetched (a table from this app’s own site); the full ZIP isn’t sent anywhere.'));
   body.appendChild(el('div', { className: 'row-2', style: { alignItems: 'end' } }, el('div', { className: 'field' }, el('label', {}, 'ZIP code'), input), go));
-  if (problem) body.appendChild(el('div', { className: 'status warn', 'data-testid': 'zip-problem' }, problem));
+  if (said) body.appendChild(said);
 
   if (loc) {
     const card = el('div', { className: 'location-card', 'data-testid': 'location-result' },

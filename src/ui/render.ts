@@ -37,13 +37,14 @@ import { plantDot, shapeDot } from '../plant-looks';
 import { renderPrintPanel } from './print-panel';
 import { renderPlantForm } from './plant-form';
 import { renderBloomPanel } from './bloom-view';
-import { renderLocationPanel } from './location-panel';
+import { openLocation, renderLocationPanel, zipEntry } from './location-panel';
+import type { GardenLocation } from '../climate';
 import { fullRingRadius } from '../my-plants';
 import { filterActive, filterText } from '../status';
 import { toast } from './toast';
 import { clearedNow, loadCleared } from '../storage';
 import { bringBackCleared } from '../mutations';
-import { projectsClosed, renderProjectsPanel, renderRenamePanel } from './projects-panel';
+import { fileImport, projectsClosed, renderProjectsPanel, renderRenamePanel } from './projects-panel';
 import { moreOfSame, renderArrangePanel, renderPropsPanel, resetKindChange, sheetTitle } from './props-panel';
 import { hintDue, hintShown } from '../hints';
 import { featureHost, finishFeaturePlace, flipLastAdded, lastAdded, setFeatureKind, undoFeaturePlace } from '../feature-edit';
@@ -119,6 +120,7 @@ export function render() {
   const typing = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.testid === 'plant-search'
     ? document.activeElement.selectionStart : null;
   const inZip = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.testid === 'zip';
+  const inFirstZip = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.testid === 'first-zip';
   // (A change made in an open sheet, a door's ⇄ say, redraws it: it stays where it was scrolled to, not back at the
   // top. Jason, 2026-10-28. A different sheet, or the same one for something else, opens at the top.)
   const scrolled = state.panel && state.panel === shownPanel && state.selectedIds.join() === shownSelection
@@ -368,9 +370,11 @@ export function render() {
   }
   canvasWrap.appendChild(zoomBtns);
 
-  // Empty hint
+  // Empty hint, the first screen: what FullGrown does, where the garden is, the tour, a photo to start from, and a way
+  // back in with a backup (Jason, Nov 1, from the UI review: a first look showed tools, not the job; the ZIP that
+  // gives hardiness, frost dates and the state's plant laws was in ⋮; a backup from another device had no way in).
   if (state.shapes.length === 0 && !state.draw && !state.placing && !state.bgCalibrate && !state.bgEditMode && !introActive()) {
-    const hint = el('div', { className: 'empty-hint' });
+    const hint = el('div', { className: 'empty-hint', 'data-testid': 'first-screen' });
     // Cleared with Clear all: what it took, offered back until something new is drawn, across reloads (Jason, Oct 30).
     if (state.currentProjectId) void loadCleared(state.currentProjectId, render);
     const was = clearedNow();
@@ -381,6 +385,11 @@ export function render() {
       back.addEventListener('click', () => { bringBackCleared(was); render(); });
       hint.append(el('div', { className: 'empty-intro' }, back));
     }
+    // (While it's the only plan on the device: a second plan, empty, needs no introducing.)
+    const onlyPlan = state.projects.length <= 1;
+    if (onlyPlan) hint.append(el('div', { className: 'first-line', 'data-testid': 'first-line' }, 'Plan your garden to scale, with plants that suit it.'));
+    // Where the garden is, typed here; its zone once it's known. (Not under a sheet: the ZIP sheet has its own field.)
+    if (!state.panel) hint.append(state.location ? firstZone(state.location) : firstZip());
     // New here: the guided introduction, offered once (it stays in ⋮ as "Show me around").
     if (introOffered()) {
       const go = el('button', { className: 'btn primary empty-intro-btn', 'data-testid': 'intro-start' }, 'New here? Show me around');
@@ -398,8 +407,9 @@ export function render() {
     // (Drawing by hand starts in the opening view, about 17 ft across: pinch to see more. The yard's width once asked
     // here only zoomed, and was dropped (Jason, Oct 29).)
     hint.append(
-      el('div', {}, tapSaid('Tap a button below to add something.')),
-      el('div', {}, 'Grid lines are ', el('b', {}, '1 ft'), ' apart; bold lines every ', el('b', {}, '10 ft'), '.'));
+      el('div', { className: 'empty-tap' }, tapSaid('Tap a button below to add something.')),
+      el('div', { className: 'empty-grid' }, 'Grid lines are ', el('b', {}, '1 ft'), ' apart; bold lines every ', el('b', {}, '10 ft'), '.'));
+    if (onlyPlan) hint.append(restoreLine());
     canvasWrap.appendChild(hint);
   }
 
@@ -556,6 +566,11 @@ export function render() {
   // focus went to the sheet's ×, or nowhere, and typing was lost.)
   if (state.panel === 'location' && hasKeyboard() && ((shownPanel !== 'location' && !state.location) || inZip)) {
     const zip = root.querySelector<HTMLInputElement>('[data-testid=zip]');
+    if (zip) { zip.focus(); zip.setSelectionRange(zip.value.length, zip.value.length); }
+  }
+  // (The first screen's ZIP likewise, with a keyboard: "Looking up…", or a ZIP that isn't one, keeps the cursor there.)
+  if (inFirstZip && hasKeyboard()) {
+    const zip = root.querySelector<HTMLInputElement>('[data-testid=first-zip]');
     if (zip) { zip.focus(); zip.setSelectionRange(zip.value.length, zip.value.length); }
   }
   // (The picker closed: its plants' detail groups fold again, Jason, 2026-10-29.)
@@ -762,7 +777,32 @@ function snapChip(s: TapSnap, unsnap: () => void): HTMLElement {
   chip.appendChild(b);
   return chip;
 }
-/** The first time a plant with a full-size ring is selected, say what the ring is (once per device; src/hints.ts). */
+/**
+ * The first screen's ZIP: the location sheet's own lookup (src/ui/location-panel.ts zipEntry), and what it gives. Never
+ * focused by itself, as the ZIP sheet's field isn't with a pop-up keyboard (render, above): on a phone the keyboard
+ * would come up over this screen unasked for, and with a keyboard the plan's one-key shortcuts (B for a bed) would go
+ * into it. A tap or a click on it is the asking.
+ */
+function firstZip(): HTMLElement {
+  const { input, go, problem } = zipEntry('first');
+  return el('div', { className: 'first-zip', 'data-testid': 'first-zip-box' },
+    el('div', { className: 'first-zip-row' }, input, go),
+    el('div', { className: 'first-zip-note' }, 'Your ZIP gives its hardiness zone, frost dates and your state’s plant laws.'),
+    problem);
+}
+/** The garden's zone, once its ZIP is in: the location sheet, for its frost dates or another ZIP. */
+function firstZone(loc: GardenLocation): HTMLElement {
+  const b = el('button', { className: 'link-btn first-zone', 'data-testid': 'first-zone' }, `Your garden: zone ${loc.zone}, ZIP ${loc.zip}`);
+  b.addEventListener('click', () => openLocation());
+  return b;
+}
+/** "Already have a plan? Restore a backup": Projects' Import from file, from here (src/ui/projects-panel.ts fileImport). */
+function restoreLine(): HTMLElement {
+  const { input, choose } = fileImport('restore-file');
+  const b = el('button', { className: 'link-btn', 'data-testid': 'restore-backup' }, 'Restore a backup');
+  b.addEventListener('click', choose);
+  return el('div', { className: 'first-restore' }, 'Already have a plan? ', b, input);
+}
 /**
  * A plan opened with its photo not to scale yet (calibrating it was left part way: Grace, Oct 30, after a reload): said
  * once, as the plan is first shown this session, with Calibrate. Not again that session, nor while calibrating.
@@ -778,6 +818,7 @@ function calibrationNotice() {
 }
 /** Not said for a photo just added: calibrating it starts at once. */
 export function calibrationSeen() { if (state.currentProjectId) calibrationSaid.add(state.currentProjectId); }
+/** The first time a plant with a full-size ring is selected, say what the ring is (once per device; src/hints.ts). */
 function maybeExplainFullSize() {
   const s = singleSelected();
   if (!s || state.panel || !fullRingRadius(s) || introActive()) return; // (the introduction's last step says it)

@@ -64,10 +64,24 @@ function backupSection(): HTMLElement {
     section.appendChild(share);
   }
 
-  const fileInput = el('input', { type: 'file', accept: '.json,application/json', style: { display: 'none' }, 'data-testid': 'import-file' });
-  fileInput.addEventListener('change', async () => {
-    const f = fileInput.files?.[0];
-    fileInput.value = '';
+  const { input: fileInput, choose } = fileImport('import-file');
+  const imp = el('button', { className: 'btn ghost', html: I.upload + '<span>Import from file</span>' });
+  imp.addEventListener('click', choose);
+  section.appendChild(fileInput);
+  section.appendChild(imp);
+  return section;
+}
+
+/**
+ * Bringing back projects from a file, a backup or one plan's: Import from file here, and the first screen's "Restore a
+ * backup" (src/ui/render.ts: Jason, Nov 1, from the UI review). One project opens. Several stay listed here, and from
+ * the first screen this list opens on them, to choose from. The file input is the caller's to put on the page.
+ */
+export function fileImport(testid: string): { input: HTMLInputElement; choose: () => void } {
+  const input = el('input', { type: 'file', accept: '.json,application/json', style: { display: 'none' }, 'data-testid': testid }) as HTMLInputElement;
+  input.addEventListener('change', async () => {
+    const f = input.files?.[0];
+    input.value = '';
     if (!f) return;
     try {
       const text = await f.text();
@@ -76,14 +90,10 @@ function backupSection(): HTMLElement {
       const ids = await importProjects(list);
       toast(`Imported ${ids.length} project${ids.length === 1 ? '' : 's'}` + (added ? ` and ${added} of your plants` : ''));
       if (ids.length === 1) await openProject(ids[0]);
-      else render();
+      else { if (ids.length && !state.panel) state.panel = 'projects'; render(); }
     } catch (e) { void tell(errMsg(e)); }
   });
-  const imp = el('button', { className: 'btn ghost', html: I.upload + '<span>Import from file</span>' });
-  imp.addEventListener('click', () => fileInput.click());
-  section.appendChild(fileInput);
-  section.appendChild(imp);
-  return section;
+  return { input, choose: () => input.click() };
 }
 
 /** The list's order as it opened, kept until it closes (src/ui/render.ts calls projectsClosed). */
