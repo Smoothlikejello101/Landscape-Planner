@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addPlainShape, closeSheet, drag, field, openFresh, openSections, openWarnings, placeOnceAtCenter, setRole, shapeCount, openSettings } from './helpers';
+import { addPlainShape, closeSheet, drag, field, openFresh, openSections, openWarnings, placeOnceAtCenter, setRole, shapeCount } from './helpers';
 
 async function addRect(page: Page, label: string, role: string, size?: [number, number]) {
   await addPlainShape(page, 'rect');
@@ -174,9 +174,11 @@ test('a plant in the wrong light gets a warning', async ({ page }) => {
   await expect(page.locator('[data-testid=sun-check]')).toContainText('prefers part shade'); // (as its details say it: round 3)
 
   // Dismiss it for this plant: the badge goes, the note stays in properties.
+  await expect(page.getByTestId('sun-dismiss')).toHaveText('Dismiss for this one');
   await page.getByTestId('sun-dismiss').click();
   await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(0);
-  await expect(page.locator('[data-testid=sun-check]')).toContainText('dismissed');
+  await expect(page.locator('[data-testid=sun-check]')).toContainText('dismissed for this one');
+  await expect(page.getByTestId('sun-dismiss')).toHaveText('Show again');
   await page.getByTestId('sun-dismiss').click(); // and back
   await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(1);
   await page.getByTestId('sun-dismiss').click();
@@ -190,10 +192,12 @@ test('a plant in the wrong light gets a warning', async ({ page }) => {
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(1);
 
-  // Or turn badges off for the whole plan.
-  await openSettings(page);
-  await openWarnings(page);
+  // Or turn badges off for the whole plan, in Warnings: Sun names the sun area in its row.
+  await openWarnings(page, 'sun');
+  await expect(page.getByTestId('warnings-kind-sun').getByTestId('warning-row')).toContainText('Gets about 7 h of sun in Sunny strip; it prefers part shade');
+  await expect(page.getByTestId('warnings-switch-sun')).toContainText('In the sun area you recorded');
   await page.getByTestId('sun-warnings').uncheck();
+  await expect(page.getByTestId('warnings-kind-head-sun')).toHaveAttribute('aria-label', 'Sun, Off');
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(0);
 });

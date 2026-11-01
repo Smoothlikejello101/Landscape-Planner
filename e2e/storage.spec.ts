@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
-import { openFresh, autoDialogs, shapeCount, clickRedo, closeSheet, field, addPlainShape, openExport, answerAsk, openSettings, openWarnings } from './helpers';
+import { openFresh, autoDialogs, shapeCount, clickRedo, closeSheet, field, addPlainShape, openExport, answerAsk, openWarnings } from './helpers';
 
 test('an edit survives an immediate reload (saved when the page hides)', async ({ page }) => {
   await openFresh(page);
@@ -68,17 +68,15 @@ test('the warning switches go with the plan: a new one starts all on, "Same gard
   await openFresh(page);
   const ids = ['show-crowding', 'crowd-warnings', 'sun-warnings', 'hardy-warnings', 'poison-warnings', 'fruit-warnings'];
   const switches = async (p = page) => {
-    await openSettings(p);
-    await openWarnings(p);
+    await openWarnings(p, 'crowding', 'sun', 'hardy', 'poison', 'fruit');
     const out = await Promise.all(ids.map((t) => p.getByTestId(t).isChecked()));
     await closeSheet(p);
     return out;
   };
-  await openSettings(page);
-  await openWarnings(page);
+  await openWarnings(page, 'poison', 'sun');
   await page.getByTestId('poison-warnings').uncheck();
   await page.getByTestId('sun-warnings').uncheck();
-  await expect(page.getByTestId('settings')).toContainText('Under Warnings, what’s checked (and dismissed) goes with this plan, on all your devices.');
+  await expect(page.getByTestId('warnings')).toContainText('What’s checked (and dismissed) goes with this plan, on all your devices.');
   await closeSheet(page);
   const newPlan = async (name: string, same: boolean) => {
     await page.locator('.project-btn').click();

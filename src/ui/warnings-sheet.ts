@@ -251,9 +251,9 @@ function hiddenNote(h: NonNullable<WarningsSummary['hidden']>): HTMLElement {
 const NAMES = Object.fromEntries(WARNING_KINDS.map((k) => [k.kind, k.name])) as Record<WarningKind, string>;
 /** Each kind's mark, as its badge on the plan is drawn: told apart by shape, not only color (Jason, Oct 31). */
 const MARKS: Record<WarningKind, string> = {
-  poison: '<svg viewBox="0 0 20 20" width="20" height="20"><rect x="1" y="1" width="18" height="18" rx="4" fill="#7c2d12"/><text x="10" y="14.5" text-anchor="middle" font-size="13" font-weight="800" fill="#fff">!</text></svg>',
+  poison: '<svg viewBox="0 0 20 20" width="20" height="20"><rect x="1" y="1" width="18" height="18" rx="4" fill="#7c2d12"/><path d="M10 5v6" stroke="#fff" stroke-width="2.6" stroke-linecap="round"/><circle cx="10" cy="14.6" r="1.5" fill="#fff"/></svg>',
   utility: '<svg viewBox="0 0 20 20" width="20" height="20"><path d="M10 1 19 10 10 19 1 10Z" fill="#ea580c"/></svg>',
-  hardy: '<svg viewBox="0 0 20 20" width="20" height="20"><circle cx="10" cy="10" r="9.5" fill="#2563eb"/><text x="10" y="14" text-anchor="middle" font-size="11" fill="#fff">❄</text></svg>',
+  hardy: '<svg viewBox="0 0 20 20" width="20" height="20"><circle cx="10" cy="10" r="9.5" fill="#2563eb"/><path d="M10 4.5v11M5.2 7.25l9.6 5.5M5.2 12.75l9.6-5.5" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/></svg>',
   sun: '<svg viewBox="0 0 20 20" width="20" height="20"><path d="M10 1.5 19.5 18H.5Z" fill="#f59e0b"/></svg>',
   crowding: '<svg viewBox="0 0 20 20" width="20" height="20"><circle cx="10" cy="10" r="8" fill="none" stroke="#dc2626" stroke-width="3"/></svg>',
   // (A heart: Jason, "looking for love".)
@@ -500,9 +500,9 @@ function zoomTo(r: WarningRow) {
   try { rect = canvasRect(); } catch { return; }
   const W = rect.width || state.canvasW, H = rect.height || state.canvasH;
   const w = b.maxX - b.minX, h = b.maxY - b.minY;
-  const pad = Math.max(3, r.pad ?? 0, 0.3 * Math.max(w, h));
-  // (At least 16 ft across: a small plant alone is shown among its neighbors, not filling the screen.)
-  const bw = Math.max(16, w + 2 * pad), bh = Math.max(16, h + 2 * pad);
+  const pad = Math.max(2, r.pad ?? 0, 0.3 * Math.max(w, h));
+  // (At least 10 ft across: a small plant alone is shown among its neighbors, not filling the screen.)
+  const bw = Math.max(10, w + 2 * pad), bh = Math.max(10, h + 2 * pad);
   const cx = (b.minX + b.maxX) / 2, cy = (b.minY + b.maxY) / 2;
   // (Clear of the side buttons at the right; on a phone, of the chip at the foot.)
   const left = 12, right = 68, top = 12, bottom = wideNow() ? 16 : 96;

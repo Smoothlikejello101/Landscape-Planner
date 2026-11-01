@@ -66,7 +66,7 @@ test('a new photo is shown whole to calibrate on; left uncalibrated, it says so 
   await expect(page.getByTestId('calibrate-notice')).toHaveCount(0); // (just added: the banner asked)
   await page.reload();
   await expect(page.getByTestId('calibrate-notice')).toContainText('isn’t to scale yet');
-  await page.getByTestId('calibrate-notice').getByRole('button', { name: 'Dismiss' }).click();
+  await page.getByTestId('calibrate-notice').getByRole('button', { name: 'Close' }).click(); // (its ✕: "Close", since Dismiss is a warning's)
   await page.locator('button[title=More]').click();
   await page.locator('.menu-item', { hasText: 'background image' }).click();
   await expect(page.getByTestId('bg-uncalibrated')).toContainText('Not to scale yet');

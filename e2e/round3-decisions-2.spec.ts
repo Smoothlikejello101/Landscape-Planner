@@ -122,11 +122,11 @@ test('Settings, from ⋮: names on the plan sized apart from the text, kept on t
   await expect(page.getByTestId('settings')).toBeVisible();
 });
 
-test('Settings → Warnings lists every warning in the plan, by kind past a handful; a tap selects the plants (Owen; Jason)', async ({ page }) => {
+test('Warnings lists every warning in the plan, by kind; a row selects the plants (Owen; Jason)', async ({ page }) => {
   await openFresh(page);
-  // (Placed without crowding notices, to tap where they'd be; still ringed, and listed.)
-  await openSettings(page);
-  await openWarnings(page);
+  // (Placed without crowding notices, to tap where they'd be; still ringed, and listed. With no plants yet, Warnings is
+  // reached from Settings' row.)
+  await openWarnings(page, 'crowding');
   await page.getByTestId('crowd-warnings').uncheck();
   await closeSheet(page);
   // Six crowded pairs of snowberry (4½ ft spread), 2 ft apart, each pair 6 ft from the next.
@@ -134,28 +134,24 @@ test('Settings → Warnings lists every warning in the plan, by kind past a hand
   for (const y of [-6, 0, 6]) for (const x0 of [-6, 2]) spots.push([x0, y], [x0 + 2, y]);
   await place(page, 'Snowberry', spots);
   await page.keyboard.press('Escape');
-  await openSettings(page);
+  await expect(page.getByTestId('warnings-btn')).toHaveAttribute('aria-label', 'Warnings: 6 to look at');
   await openWarnings(page);
-  const now = page.getByTestId('warnings-now');
-  await expect(now.locator(':scope > summary')).toHaveText('In this plan now · 6 active');
-  await now.locator(':scope > summary').click();
+  await expect(page.getByTestId('warnings-head')).toHaveText('6 to look at');
   const crowding = page.getByTestId('warnings-kind-crowding');
-  await expect(crowding.locator(':scope > summary')).toHaveText('Crowding · 6 active');
-  await crowding.locator(':scope > summary').click();
+  await expect(page.getByTestId('warnings-kind-head-crowding')).toHaveAttribute('aria-label', 'Crowding, 6 to look at');
   const rows = crowding.getByTestId('warning-row');
   await expect(rows).toHaveCount(6);
-  await expect(rows.first()).toContainText('Snowberry and Snowberry: crowded, 2 ft apart');
-  // A tap: the pair selected on the plan, the sheet put away.
+  await expect(rows.first().getByTestId('warning-select')).toHaveText('2 Snowberry, 2 ft apartCrowded: they’ll grow into each other ›');
+  // A row: the pair selected on the plan; on a phone the sheet makes way for the walk's chip.
   await rows.first().getByTestId('warning-select').click();
-  await expect(page.getByTestId('settings')).toHaveCount(0);
-  await expect(page.locator('.multi-bar .count')).toHaveText('2 selected');
-  // Left close on purpose from Settings: listed as dismissed, below, folds kept open.
+  await expect(page.locator('.multi-bar .count, [data-testid=walk-chip]')).toHaveText(/^(2 selected|.*Warnings · 1 of 6.*)$/);
+  // Dismissed all at once: listed as dismissed, below, the kind kept open.
   await page.keyboard.press('Escape');
-  await openSettings(page);
+  await openWarnings(page);
   await crowding.getByRole('button', { name: 'Dismiss all 6' }).click();
-  await expect(crowding.locator(':scope > summary')).toHaveText('Crowding · 6 dismissed');
+  await expect(page.getByTestId('warnings-kind-head-crowding')).toHaveAttribute('aria-label', 'Crowding, 6 dismissed');
   await expect(rows.first()).toHaveAttribute('data-dismissed', 'true');
   await rows.first().getByTestId('warning-again').click();
-  await expect(crowding.locator(':scope > summary')).toHaveText('Crowding · 1 active, 5 dismissed');
+  await expect(page.getByTestId('warnings-kind-head-crowding')).toHaveAttribute('aria-label', 'Crowding, 1 to look at, 5 dismissed');
   await expect(rows.first()).toHaveAttribute('data-dismissed', 'false');
 });

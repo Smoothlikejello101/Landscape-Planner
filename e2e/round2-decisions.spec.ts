@@ -98,7 +98,7 @@ test('Clear all keeps what it took: the empty plan offers it back, after a reloa
   await expect(page.getByTestId('bring-back')).toHaveCount(0);
 });
 
-test('one Warnings fold in Settings, a switch for each kind; poison follows the household (2A, and Jason\'s warning settings)', async ({ page }) => {
+test('Warnings, one place for every kind, a switch for each; poison follows the household (2A, and Jason\'s warning settings)', async ({ page }) => {
   await openFresh(page);
   await placeOne(page, 'Butterfly milkweed');
   await expect(page.locator('#canvas-svg [data-role=poison-warning]')).toHaveCount(0); // (no one in the yard yet)
@@ -111,13 +111,17 @@ test('one Warnings fold in Settings, a switch for each kind; poison follows the 
   await expect(page.locator('.plant-item', { hasText: 'Butterfly milkweed' }).first().getByTestId('row-poison')).toHaveText('Poisonous to people');
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=poison-warning]')).toHaveCount(1);
+  // (Settings keeps one row to it; the header counts warnings, not switches: the review, Nov 1.)
   await openSettings(page);
-  await expect(page.getByTestId('warnings').locator(':scope > summary')).toContainText('all on');
-  await openWarnings(page);
-  for (const id of ['crowding-settings', 'sun-warnings', 'hardy-warnings', 'poison-warnings', 'fruit-warnings']) await expect(page.getByTestId(id)).toBeVisible();
-  await expect(page.getByTestId('warnings')).toContainText('a problem for the kids in the yard');
+  await expect(page.getByTestId('settings-warnings')).toHaveText('Warnings: what’s checked→');
+  await openWarnings(page, 'poison', 'utility', 'hardy', 'sun', 'crowding', 'fruit');
+  await expect(page.getByTestId('warnings-head')).toHaveText(/^1 to look at$/);
+  for (const id of ['show-crowding', 'crowd-warnings', 'sun-warnings', 'hardy-warnings', 'poison-warnings', 'fruit-warnings']) await expect(page.getByTestId(id)).toBeChecked();
+  await expect(page.getByTestId('warnings-switch-poison')).toContainText('Plants poisonous to the kids in the yard');
+  await expect(page.getByTestId('warnings-yard-kids')).toHaveAttribute('aria-pressed', 'true');
   await page.getByTestId('poison-warnings').uncheck();
-  await expect(page.getByTestId('warnings').locator(':scope > summary')).toContainText('4 of 5 kinds on');
+  await expect(page.getByTestId('warnings-kind-head-poison')).toHaveAttribute('aria-label', 'Poison, Off');
+  await expect(page.getByTestId('warnings-head')).toHaveText(/^Nothing to look at yet · \d checks? can’t run$/);
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=poison-warning]')).toHaveCount(0);
   await page.locator('.tool-btn.plants').click();
@@ -125,8 +129,7 @@ test('one Warnings fold in Settings, a switch for each kind; poison follows the 
   await expect(page.locator('.plant-item', { hasText: 'Butterfly milkweed' }).first().getByTestId('row-poison')).toHaveCount(0);
   // (Kept: a reload shows it off still.)
   await page.reload();
-  await openSettings(page);
-  await openWarnings(page);
+  await openWarnings(page, 'poison');
   await expect(page.getByTestId('poison-warnings')).not.toBeChecked();
 });
 
@@ -175,10 +178,9 @@ test('a plant too cold for the garden: a warning as it\'s placed, with Undo, and
   await page.getByTestId('hardy-notice').getByRole('button', { name: 'Undo' }).click(); // (after Done: deleted)
   await expect.poll(() => shapeCount(page)).toBe(0);
   await placeOne(page, 'Barbados aloe');
-  await page.getByTestId('hardy-notice').getByRole('button', { name: 'Leave it' }).click();
+  await page.getByTestId('hardy-notice').getByTestId('notice-close').click();
   // Turned off in Warnings: its badge goes, and the next is placed without a word.
-  await openSettings(page);
-  await openWarnings(page);
+  await openWarnings(page, 'hardy');
   await page.getByTestId('hardy-warnings').uncheck();
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=hardy-warning]')).toHaveCount(0);

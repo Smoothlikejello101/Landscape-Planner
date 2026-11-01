@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { autoDialogs, canvasBox, closeSheet, drag, field, openFilters, openSettings, openWarnings } from './helpers';
+import { autoDialogs, canvasBox, closeSheet, drag, field, openFilters, openWarnings } from './helpers';
 
 /** Each plan's stored "last modified" time, by name. */
 const modifiedTimes = (page: Page) => page.evaluate(() => new Promise<Record<string, number>>((resolve) => {
@@ -178,8 +178,7 @@ test("plans from before take this device's warning switches, each plan its own a
   await page.goto('/');
   await expect(page.locator('.project-btn .pname')).toHaveText('Front Yard');
   const switches = async () => {
-    await openSettings(page);
-    await openWarnings(page);
+    await openWarnings(page, 'poison', 'hardy', 'crowding', 'fruit');
     const out = await Promise.all(['show-crowding', 'crowd-warnings', 'hardy-warnings', 'poison-warnings', 'fruit-warnings'].map((t) => page.getByTestId(t).isChecked()));
     return out;
   };
@@ -191,8 +190,7 @@ test("plans from before take this device's warning switches, each plan its own a
   for (const name of ['My Garden', 'Front Yard']) expect(plans[name].switches).toEqual(DEVICE);
   expect(await modifiedTimes(page)).toEqual(legacyTimes);
   // Switched in one plan, it's that plan's.
-  await openSettings(page);
-  await openWarnings(page);
+  await openWarnings(page, 'poison');
   await page.getByTestId('poison-warnings').check();
   await closeSheet(page);
   await page.locator('.project-btn').click();
