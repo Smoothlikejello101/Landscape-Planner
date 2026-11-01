@@ -120,7 +120,8 @@
   "clematis-jackmanii-viticella-types": {"into": "clematis-x-jackmanii", "note": "Clematis viticella has its own record too.", "decided": "2026-10-27", "by": "Jason"},
   "prunus-laurocerasus-caroliniana": {"into": "prunus-laurocerasus", "note": "Prunus caroliniana has its own record too.", "decided": "2026-10-27", "by": "Jason"},
   "prunus-x-yedoensis-kwanzan": {"into": "prunus-x-yedoensis", "note": "'Kanzan' has its own record too.", "decided": "2026-10-27", "by": "Jason"},
-  "salvia-officinalis-origanum-vulgare": {"into": "salvia-officinalis", "note": "Oregano has its own record too.", "decided": "2026-10-27", "by": "Jason"}
+  "salvia-officinalis-origanum-vulgare": {"into": "salvia-officinalis", "note": "Oregano has its own record too.", "decided": "2026-10-27", "by": "Jason"},
+  "iris-aquatic-spp": {"into": "iris-virginica", "note": "The earlier list's Water iris, \"Iris (aquatic spp.)\": several species, no one plant. Blue flag iris, and the other water irises, have records of their own.", "decided": "2026-11-01", "by": "Jason"}
  },
  "group": {
   "asparagus-officinalis-jersey-millennium": {"decided": "2026-10-27", "by": "Jason", "note": "One record for 'Jersey' and 'Millennium', read from NC State's species page, its size included."}
