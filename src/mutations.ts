@@ -10,7 +10,7 @@ import { toast } from './ui/toast';
 import { defaultLook, isLocked, roleKey } from './roles';
 import { isUtilityKind, utilityLook } from './utility-kinds';
 import type { Bounds, Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapeFilter, ShapePatch, Status } from './types';
-import { cleanPhaseName, MAX_PHASES, shownWith, statusLabel, statusPatch } from './status';
+import { cleanPhaseName, MAX_PHASES, shownWith, statusLabel, statusPatch, today } from './status';
 import { render } from './ui/render';
 import { deepClone, now, snap, uid } from './util';
 import { setRadius } from './trees';
@@ -370,6 +370,24 @@ export function setStatusForIds(ids: string[], status: Status | undefined) {
   if (status === 'gone' && !state.viewFilter.showGone) state.selectedIds = state.selectedIds.filter((id) => !ids.includes(id));
   const set = state.shapes.filter((s) => ids.includes(s.id));
   pushHistory(set.length ? (status ? `set ${stepNamed(set)} to ${statusLabel(status)}` : `clear the status of ${stepNamed(set)}`) : undefined);
+  save();
+}
+/**
+ * Mark plants planted today, from the Plant list (Jason, Nov 1): status Planted and today's date, a date set before
+ * included (planted again, it's today's), as one step to undo.
+ */
+export function markPlantedToday(ids: string[]) {
+  flushHistoryDebounce();
+  const day = today();
+  const set = state.shapes.filter((s) => ids.includes(s.id));
+  for (const s of set) {
+    for (const [k, v] of Object.entries(statusPatch(s, 'planted'))) {
+      if (v === undefined) delete (s as unknown as Record<string, unknown>)[k];
+      else (s as unknown as Record<string, unknown>)[k] = v;
+    }
+    s.plantedOn = day;
+  }
+  pushHistory(set.length ? `set ${stepNamed(set)} to Planted` : undefined);
   save();
 }
 export function setPhaseForIds(ids: string[], phase: string) {

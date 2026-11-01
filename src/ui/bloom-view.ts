@@ -8,7 +8,7 @@ import type { PanelName, Shape } from '../types';
 import { render } from './render';
 import { openLocation } from './location-panel';
 
-/** A row's name, cut short where it must, and how many, never cut (round 3: "Boxwood 'Green V…" lost its ×2). */
+/** A row's whole name, wrapped, never cut (the UI review, 2026-11-01), and how many (round 3: "Boxwood 'Green V…" lost its ×2). */
 const nameParts = (label: string, count: number): Node[] =>
   [el('span', { className: 'bloom-label' }, label), ...(count > 1 ? [el('span', { className: 'bloom-x' }, `\u00a0\u00d7${count}`)] : [])];
 

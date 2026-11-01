@@ -589,7 +589,13 @@ export function matchedBy(p: Plant, query: string): MatchedBy | null {
 }
 /** Plants placed in the open plan (not counting ones marked gone). */
 export function plantIdsInPlan(): Set<string> {
-  return new Set(state.shapes.filter((s) => s.status !== 'gone').map((s) => s.plantId).filter((id): id is string => !!id).map((id) => movedIds[id] ?? id));
+  return new Set(planCounts().keys());
+}
+/** How many of each plant are in the plan (not gone), by the id the picker lists it under ("In this plan": × 4). */
+export function planCounts(): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const s of state.shapes) if (s.status !== 'gone' && s.plantId) { const id = movedIds[s.plantId] ?? s.plantId; out.set(id, (out.get(id) ?? 0) + 1); }
+  return out;
 }
 /**
  * The filters another source's value (a fact's `alt`) can count for, the
@@ -1034,10 +1040,14 @@ export function hardinessWarning(p: Plant): { cold: boolean; line: string } | nu
  * A picker row's lines (decided with Jason, 2026-10-25): its botanical name and forms; then its typical size, sun
  * and hardiness. Bloom time, toxicity to animals and poison to people are left to the filters and the details.
  */
+/** "3–5 ft tall, 3–6 ft wide" (either part only where it's known). */
+export function sizeLine(p: Pick<Plant, 'height' | 'width'>): string {
+  const h = sizeSaid(p.height), w = sizeSaid(p.width);
+  return [h && `${h} tall`, w && `${w} wide`].filter(Boolean).join(', ');
+}
 export function rowLines(p: Plant): { names: string; size: string; sun: string; hardy: { text: string; ok: boolean } | null } {
   const forms = formsOf(p).join(' / ');
-  const h = sizeSaid(p.height), w = sizeSaid(p.width);
-  const size = [h && `${h} tall`, w && `${w} wide`].filter(Boolean).join(', ');
+  const size = sizeLine(p);
   // (Its botanical name, unless that's the name it goes by: "Adiantum × mairisii".)
   const bot = p.botanical && p.botanical.trim() !== p.common.trim() ? p.botanical : '';
   return { names: [bot, forms].filter(Boolean).join(' \u00b7 '), size, sun: sunSaid(p.sun_most, p.sun_least), hardy: hardinessSaid(p) };
