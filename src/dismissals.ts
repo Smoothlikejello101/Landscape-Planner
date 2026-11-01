@@ -13,6 +13,13 @@ import type { DismissKind, Shape } from './types';
 
 /** What a plant's poison warning says, for who's in the yard now ("Poisonous to people; A problem for dogs"): its key. */
 export const poisonSaid = (p: Plant): string => householdFlags(p).map((f) => f.text).join('; ');
+/**
+ * The same warning in the words its details use, with its severity and parts: "Poisonous if eaten (high severity:
+ * leaves and seeds); a problem for dogs" (its details' banner; a row in Warnings: the review, Nov 1, every poison row
+ * read "Poisonous to people; A problem for dogs" whatever the severity).
+ */
+export const poisonLine = (p: Plant): string =>
+  householdFlags(p).map((f, i) => { const t = f.testid === 'row-poison' ? f.title ?? f.text : f.text; return i ? t.charAt(0).toLowerCase() + t.slice(1) : t; }).join('; ');
 
 /** Each kind as a person reads it ("Fig: hardiness"). */
 export const DISMISS_WORDS: Record<DismissKind, string> = { hardy: 'hardiness', poison: 'poison', fruit: 'fruit partner' };

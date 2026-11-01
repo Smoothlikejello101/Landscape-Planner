@@ -25,6 +25,7 @@ import { currentProject, storageIsDurable } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
 import { renderSettingsPanel } from './settings-panel';
+import { refreshWarnings, renderWarningsSheet, renderWarningsSide, walkChip, warningsButton, warningsSheetShown, warningsSideShown } from './warnings-sheet';
 import { renderWhatsNewPanel } from './whats-new-panel';
 import { snapOn } from '../tidy';
 import { dismissToastAction, hideOldToast, placeNotice, toastAction } from './toast';
@@ -116,6 +117,7 @@ let shownMenu: typeof state.menu = null;
 let shownTool: object | null = null;
 export function render() {
   const root = document.getElementById('root')!;
+  refreshWarnings(); // (the plan's warnings, worked out once for this drawing: src/ui/warnings-sheet.ts)
   // (Typing in the picker's search when the whole app redraws: the cursor goes back where it was.)
   const typing = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.testid === 'plant-search'
     ? document.activeElement.selectionStart : null;
@@ -366,6 +368,9 @@ export function render() {
   if (!state.draw && !state.placing && !state.bgCalibrate) {
     zoomBtns.appendChild(yearButton());
     zoomBtns.appendChild(namesButton());
+    // Warnings, first among them, with its count (Jason approved the mock-ups, Nov 1: a plan tool, not a setting).
+    const warn = warningsButton();
+    if (warn) zoomBtns.prepend(warn);
   }
   canvasWrap.appendChild(zoomBtns);
 
@@ -404,9 +409,13 @@ export function render() {
     canvasWrap.appendChild(hint);
   }
 
+  // Working through the warnings on a phone: "‹ Warnings · 3 of 12 ›", in place of the selection's own chip or bar.
+  const walking = walkChip();
+  if (walking) canvasWrap.appendChild(walking);
+
   // Multi-select action bar (floating, only when 2+ selected and no panel open)
   const drawing = !!state.draw || !!state.editPoints || !!state.placing || !!state.featurePlace;
-  if (state.selectedIds.length >= 2 && !state.panel && !drawing) {
+  if (state.selectedIds.length >= 2 && !state.panel && !drawing && !walking) {
     const bar = el('div', { className: 'multi-bar', 'data-testid': 'multi-bar' });
     const count = el('div', { className: 'count' }, state.selectedIds.length + (justPlaced ? ' just placed' : ' selected'));
     bar.appendChild(count);
@@ -456,7 +465,7 @@ export function render() {
   }
 
   // Single-select pill (only when exactly 1 selected, no panel open, no multi-bar)
-  if (state.selectedIds.length === 1 && !state.panel && !drawing) {
+  if (state.selectedIds.length === 1 && !state.panel && !drawing && !walking) {
     const s = singleSelected();
     if (s) {
       const pill = el('div', { className: 'sel-pill' });
@@ -490,7 +499,8 @@ export function render() {
     }
   }
 
-  app.appendChild(canvasWrap);
+  // (On a computer, Warnings stays open beside the plan, and the plan makes room: src/ui/warnings-sheet.ts.)
+  app.appendChild(el('div', { className: 'plan-row' }, canvasWrap, renderWarningsSide()));
 
   // ===== BOTTOM TOOLBAR =====
   // Named by what gets added, not by shape: the three most common things, and Add for the rest.
@@ -539,10 +549,13 @@ export function render() {
   else if (state.panel === 'feedback') panelNode = renderFeedbackSheet();
   else if (state.panel === 'settings') panelNode = renderSettingsPanel();
   else if (state.panel === 'whatsNew') panelNode = renderWhatsNewPanel();
+  else if (state.panel === 'warnings') panelNode = renderWarningsSheet();
+  warningsSideShown(root); // (the panel beside the plan, where it was scrolled to)
   if (panelNode) {
     root.appendChild(panelNode);
     const sheet = scrolled ? panelNode.querySelector<HTMLElement>('.sheet') ?? (panelNode.classList.contains('sheet') ? panelNode : null) : null;
     if (sheet) sheet.scrollTop = scrolled;
+    if (state.panel === 'warnings') warningsSheetShown(panelNode, shownPanel !== 'warnings');
   }
   // The picker just opened, with a keyboard: the cursor in its search, to start typing (not with a pop-up keyboard,
   // which would cover the list).
@@ -802,7 +815,8 @@ function namesButton(): HTMLElement {
   });
   b.addEventListener('click', () => {
     state.showNames = !state.showNames;
-    if (!state.showNames) toast('Names and badges hidden. Select a shape to see its own.');
+    // (Warning badges too, said: the review, Nov 1. Warnings still lists them.)
+    if (!state.showNames) toast('Names and badges hidden, warning badges too. Select a shape to see its own.');
     render();
   });
   return b;

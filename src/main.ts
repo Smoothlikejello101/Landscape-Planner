@@ -32,6 +32,7 @@ import { flushSave, initStorage, refreshClipboard, requestPersistence, saveView,
 import { flashZoom, render } from './ui/render';
 import { dismissToastAction, toast } from './ui/toast';
 import { closeYear, stepMonth } from './ui/year-bar';
+import { closeWarningsSide, warningsSideOpen } from './ui/warnings-sheet';
 import { noteVisit, visitedBefore } from './hints';
 import { newsAtStart } from './whats-new';
 import { tellWhatsNew } from './ui/whats-new-panel';
@@ -130,6 +131,8 @@ function onKey(e: KeyboardEvent) {
     e.preventDefault(); state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; render(); return;
   }
   if (e.key === 'Escape' && state.menu && target?.closest?.('.menu')) { e.preventDefault(); state.menu = null; render(); return; }
+  // (Warnings beside the plan, on a computer: Esc from inside it closes it.)
+  if (e.key === 'Escape' && target?.closest?.('.warnings-side') && !state.panel) { e.preventDefault(); closeWarningsSide(); render(); return; }
   // In any other sheet, Esc closes it from a button, a checkbox or a slider: only typing would be lost (Alex, Tom,
   // Oct 30: Esc did nothing in Layers with a padlock focused, nor in a sun record with its slider focused).
   if (e.key === 'Escape' && target?.closest?.('.overlay') && !holdsTyping(target)) { e.preventDefault(); if (closeOne()) render(); return; }
@@ -146,8 +149,8 @@ function onKey(e: KeyboardEvent) {
   // with the slider focused, Esc left the month bar open).
   if (e.key === 'Escape' && target && tag === 'input' && !holdsTyping(target)) { e.preventDefault(); if (closeOne()) render(); return; }
   if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
-  // Keys pressed while a panel has focus (a chip, a menu) belong to the panel, never the plan.
-  if (target?.closest?.('.overlay, .menu')) return;
+  // Keys pressed while a panel has focus (a chip, a menu, Warnings beside the plan) belong to the panel, never the plan.
+  if (target?.closest?.('.overlay, .menu, .warnings-side')) return;
   // Ctrl or Cmd with + or − zooms the plan, not the page, whatever is going on (Jason, 2026-10-25). With a sheet's field
   // or button focused, the keys never get here: the page zooms, for reading.
   if ((e.ctrlKey || e.metaKey) && !e.altKey && ['=', '+', '-', '_'].includes(e.key)) {
@@ -245,6 +248,7 @@ function closeOne(): boolean {
   else if (state.selectedIds.length) clearSelection();
   // (Select several: Esc leaves it once nothing's selected, as its × does. Round 3: Tom, Alex.)
   else if (state.selectMode) state.selectMode = false;
+  else if (warningsSideOpen()) closeWarningsSide();
   else if (state.month != null) closeYear();
   else return false;
   return true;

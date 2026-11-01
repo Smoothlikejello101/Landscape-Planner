@@ -46,6 +46,8 @@ export interface UtilityIssue {
 }
 
 const f = (v: number) => (Math.round(v * 10) / 10).toString();
+/** A height, in whole feet: a typical mature height is no closer than that ("Grows to 54 ft", not 53.8: the review, Nov 1). */
+const ft = (v: number) => String(Math.round(v));
 const formsOf = (p: Plant | undefined) => (p?.forms?.length ? p.forms : p?.form ? [p.form] : []);
 
 /** A plant's typical mature height (feet), where a source or the person gave one; null where only a guess. */
@@ -115,7 +117,7 @@ export function utilityIssues(s: Shape, utils: PreparedUtility[], byId: Record<s
     const kind = u.kind, d = distanceToUtility(u, s);
     if (kind === 'overhead' && h != null && ((d < NEAR_LINE && h > SMALL_TREE) || (d < CLEAR_OF_LINE && h >= MEDIUM_TREE))) {
       out.push({
-        kind, rule: d < NEAR_LINE ? 'near' : 'mid', other: u.shape, distance: d, line: `Grows to ${f(h)} ft, ${f(d)} ft from a power line`,
+        kind, rule: d < NEAR_LINE ? 'near' : 'mid', other: u.shape, distance: d, line: `Grows to ${ft(h)} ft, ${f(d)} ft from a power line`,
         detail: `Within ${NEAR_LINE} ft of an overhead line, a tree should top out at ${SMALL_TREE} ft or less; ${NEAR_LINE} to ${CLEAR_OF_LINE} ft away, under ${MEDIUM_TREE} ft; taller trees ${CLEAR_OF_LINE} ft or more away (UF/IFAS Extension). Many utilities also keep a strip under their lines clear of trees: ask yours before planting.`,
       });
     } else if (kind === 'buried' && d < BURIED_CLEAR) {
@@ -125,7 +127,7 @@ export function utilityIssues(s: Shape, utils: PreparedUtility[], byId: Record<s
       });
     } else if (kind === 'septic' && (d === 0 || (h != null && d < h))) {
       out.push({
-        kind, rule: d === 0 ? 'on' : 'field', other: u.shape, distance: d, line: d === 0 ? 'On the septic field' : `${f(d)} ft from the septic field${h != null ? `, ${f(h)} ft tall` : ''}`,
+        kind, rule: d === 0 ? 'on' : 'field', other: u.shape, distance: d, line: d === 0 ? 'On the septic field' : `${f(d)} ft from the septic field${h != null ? `, ${ft(h)} ft tall` : ''}`,
         detail: `Tree and shrub roots can clog a drainfield's lines. Plant a tree or shrub at least as far from the field as it grows tall, farther if you can (UGA Extension). Grass and shallow-rooted perennials suit the field itself.`,
       });
     }

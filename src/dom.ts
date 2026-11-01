@@ -72,7 +72,7 @@ export function svgEl<K extends keyof SVGElementTagNameMap>(tag: K, attrs?: Attr
 }
 
 /** The sheets one opened from them goes back to, as its ← names them. */
-const SHEET_NAMES: Record<string, string> = { plants: 'the plant list', props: 'properties', bloom: 'the bloom calendar' };
+const SHEET_NAMES: Record<string, string> = { plants: 'the plant list', props: 'properties', bloom: 'the bloom calendar', warnings: 'Warnings' };
 /**
  * A sheet's header button, where its × goes: × to close it; or, on a sheet opened from another that it goes back to
  * (the picker from a plant's sheet, Add a plant from the picker, the ZIP from the picker), ← "Back to the plant list",

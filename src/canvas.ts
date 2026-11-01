@@ -496,7 +496,8 @@ export function shapeGroup(s: Shape): SVGGElement {
   if (s.role === 'plant' && s.type === 'circle' && named && shownUtilities.length) {
     const issues = utilityIssues(s, shownUtilities, plantsById);
     if (utilityWarningShown(s, issues)) {
-      const r = vineDot ?? s.radius * ppf;
+      // (A tree's by its trunk, not out at its canopy's edge, where it sat on other plants' badges: the review, Nov 1.)
+      const r = vineDot ?? Math.min(s.radius * ppf, isTree(s, plantsById) ? 22 : Infinity);
       const bx = labelX - r * 0.7, by = labelY + r * 0.7;
       g.appendChild(svgEl('g', { 'data-role': 'utility-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },
         svgEl('path', { d: `M${bx},${by - 9.5}L${bx + 9.5},${by}L${bx},${by + 9.5}L${bx - 9.5},${by}Z`, fill: '#ea580c', stroke: '#fff', 'stroke-width': 1.5, 'stroke-linejoin': 'round' }),

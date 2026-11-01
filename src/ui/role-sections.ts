@@ -9,7 +9,7 @@ import { checkPlantSun, formatHours, formatTime, newSunInfo, sunDismissedFor, su
 import type { Shape, SunInfo } from '../types';
 import { render } from './render';
 import { toastAction } from './toast';
-import { copiesSaid, dismissedForPlan, dismissForPlan, poisonSaid, showAgainForPlan, warnForNewOnes } from '../dismissals';
+import { copiesOf, copiesSaid, dismissedForPlan, dismissForPlan, poisonSaid, showAgainForPlan, warnForNewOnes } from '../dismissals';
 import { BULB_PARTNER_MIN_HEIGHT, crowdingOf, crowdRelation } from '../crowding';
 import { alreadyThere } from '../status';
 import { I } from '../icons';
@@ -60,27 +60,52 @@ export function plantSunBanner(s: Shape): HTMLElement | null {
   if (check.ok) return el('div', { className: 'check-banner ok', 'data-testid': 'sun-check' }, '☀ ' + check.message);
   // A warning can be dismissed for this plant; it comes back if the plant moves or the sun changes.
   const dismissed = sunDismissedFor(check, s);
-  const btn = el('button', { className: 'link-reset', 'data-testid': 'sun-dismiss' }, dismissed ? 'Show the warning again' : 'Dismiss for this plant');
+  // (One vocabulary, Dismiss and Show again, saying who for: the review of Settings → Warnings, Nov 1.)
+  const btn = el('button', { className: 'link-reset', 'data-testid': 'sun-dismiss' }, dismissed ? 'Show again' : 'Dismiss for this one');
   btn.addEventListener('click', () => {
     if (dismissed) updateSelected({ sunDismissed: undefined }); else updateSelected({ sunDismissed: check.message });
   });
-  const note = dismissed ? ' (dismissed: no badge on the plan)' : !state.sunWarnings ? ' (badges are off in Settings \u2192 Warnings)' : '';
+  const note = dismissed ? ' (dismissed for this one: no badge on the plan)' : !state.sunWarnings ? ' (Sun is off in Warnings: no badges)' : '';
   return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'sun-check' },
     el('div', {}, '⚠ ' + check.message + note), el('div', { style: { marginTop: '4px' } }, btn));
 }
 
 /**
- * Dismissed for the plant across the plan (its copies, and new ones), with a toast that says so and offers to warn again
- * for new ones (Jason, Oct 30). Also a hardiness or poison row's Dismiss in Settings → Warnings (Jason, Nov 1).
+ * Dismissed for the plant across the plan (its copies, and new ones), with a toast that says so and offers to keep it
+ * to the copies there now (Jason, Oct 30). Also a hardiness or poison row's Dismiss in Warnings (Jason, Nov 1). "Just
+ * these 2", not "Warn me for new ones" (the review, Nov 1: one vocabulary, and it was cut off at 412 px wide).
  */
 export function dismissAcross(kind: 'hardy' | 'poison', plantId: string, said: string) {
-  const who = copiesSaid(plantId);
+  const who = copiesSaid(plantId), n = copiesOf(plantId).length;
   dismissForPlan(kind, plantId, said);
   render();
   toastAction(`${kind === 'hardy' ? 'Hardiness' : 'Poison'} warning dismissed for ${who} in this plan, and any you add later.`, [
-    { label: 'Warn me for new ones', run: () => { warnForNewOnes(kind, plantId, said); render(); } },
+    { label: n > 1 ? `Just these ${n}` : 'Just this one', run: () => { warnForNewOnes(kind, plantId, said); render(); } },
     { label: 'OK', run: () => {} },
   ], 10000, 'dismiss-notice');
+}
+/**
+ * A hardiness or poison warning's buttons in a plant's details (the review, Nov 1: "Dismiss" beside "Dismiss for this
+ * plant", neither saying who for): "Dismiss for this one" and "Dismiss for every Barbados aloe"; dismissed, "Show again",
+ * for this one alone where only it was dismissed.
+ */
+function plantDismissButtons(kind: 'hardy' | 'poison', plantId: string, key: string, across: boolean, mine: boolean): HTMLElement {
+  const field = kind === 'hardy' ? 'hardyDismissed' : 'poisonDismissed';
+  const row = el('div', { className: 'dismiss-row' });
+  if (across || mine) {
+    const again = el('button', { className: 'link-reset', 'data-testid': `${kind}-dismiss` }, 'Show again');
+    again.addEventListener('click', () => {
+      if (across) { showAgainForPlan(kind, plantId); render(); } else updateSelected({ [field]: undefined });
+    });
+    row.appendChild(again);
+    return row;
+  }
+  const one = el('button', { className: 'link-reset', 'data-testid': `${kind}-dismiss-one` }, 'Dismiss for this one');
+  one.addEventListener('click', () => updateSelected({ [field]: key }));
+  const every = el('button', { className: 'link-reset', 'data-testid': `${kind}-dismiss` }, `Dismiss for every ${plantsById[plantId]?.common ?? 'one'}`);
+  every.addEventListener('click', () => dismissAcross(kind, plantId, key));
+  row.append(one, every);
+  return row;
 }
 /** Whether a plant is one the warnings are for: not a tree already there, nor one gone or coming out. */
 const warnedFor = (s: Shape) => s.role === 'plant' && !!s.plantId && !(s.type === 'circle' && s.tree) && s.status !== 'gone' && s.status !== 'remove';
@@ -95,13 +120,11 @@ export function plantHardyBanner(s: Shape): HTMLElement | null {
   if (!w) return null;
   // (Dismissed for the plant across the plan, its other copies and new ones: Jason, Oct 30. Or, after "Warn me for new
   // ones", for this copy alone.)
-  const across = dismissedForPlan('hardy', p!.id, w.line), dismissed = across || s.hardyDismissed === w.line;
-  const btn = el('button', { className: 'link-reset', 'data-testid': 'hardy-dismiss' }, dismissed ? 'Show the warning again' : 'Dismiss');
-  btn.addEventListener('click', () => { if (dismissed) { showAgainForPlan('hardy', p!.id); render(); } else dismissAcross('hardy', p!.id, w.line); });
+  const across = dismissedForPlan('hardy', p!.id, w.line), mine = !across && s.hardyDismissed === w.line, dismissed = across || mine;
   const note = across ? ' (dismissed for every one in this plan: no badge)' : dismissed ? ' (dismissed for this one: no badge on the plan)'
-    : !state.hardyWarnings ? ' (badges are off in Settings \u2192 Warnings)' : '';
+    : !state.hardyWarnings ? ' (Hardiness is off in Warnings: no badges)' : '';
   return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'hardy-check' },
-    el('div', {}, `${w.cold ? '\u2744' : '\u2600'} ${w.line}.${note}`), el('div', { style: { marginTop: '4px' } }, btn));
+    el('div', {}, `${w.cold ? '\u2744' : '\u2600'} ${w.line}.${note}`), plantDismissButtons('hardy', p!.id, w.line, across, mine));
 }
 /** Poisonous to the people or pets in the yard (src/plants.ts householdFlags): said at the top of its pane. */
 export function plantPoisonBanner(s: Shape): HTMLElement | null {
@@ -114,13 +137,11 @@ export function plantPoisonBanner(s: Shape): HTMLElement | null {
   const said = flags.map((f, i) => { const t = f.testid === 'row-poison' ? f.title ?? f.text : f.text; return i ? t.charAt(0).toLowerCase() + t.slice(1) : t; }).join('; ');
   const whoSaid = who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0];
   // (Dismissed, the badge goes, for every one in the plan: never what its details and the picker say. Jason, Oct 30.)
-  const key = poisonSaid(p!), across = dismissedForPlan('poison', p!.id, key), dismissed = across || s.poisonDismissed === key;
-  const btn = el('button', { className: 'link-reset', 'data-testid': 'poison-dismiss' }, dismissed ? 'Show the warning again' : 'Dismiss');
-  btn.addEventListener('click', () => { if (dismissed) { showAgainForPlan('poison', p!.id); render(); } else dismissAcross('poison', p!.id, key); });
+  const key = poisonSaid(p!), across = dismissedForPlan('poison', p!.id, key), mine = !across && s.poisonDismissed === key, dismissed = across || mine;
   const note = across ? ' Dismissed for every one in this plan: no badge, though its details still say so.' : dismissed ? ' Dismissed for this one: no badge on the plan.' : '';
   return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'poison-check' },
     el('div', {}, `\u26a0 ${said}. You said ${whoSaid} are in the yard; its sources are under Plant \u2192 Safety (below).${note}`),
-    el('div', { style: { marginTop: '4px' } }, btn));
+    plantDismissButtons('poison', p!.id, key, across, mine));
 }
 
 function summaryText(info: SunInfo): string {
@@ -226,7 +247,7 @@ const crowdNoteOpen = new Set<string>();
 /**
  * A plant close to its neighbors or crowding them: one line ("Planted closer than usual to 2 neighbors · close to 1"),
  * red or amber, that opens to who, how far apart, the usual spacing and why; crowded first, then close (their typical
- * spreads touch). Those left close on purpose are said so, with Flag again.
+ * spreads touch). Those dismissed (left close on purpose) are said so, with Show again.
  */
 export function crowdingNote(s: Shape): HTMLElement | null {
   if (s.role !== 'plant' || s.type !== 'circle') return null;
@@ -244,10 +265,12 @@ export function crowdingNote(s: Shape): HTMLElement | null {
     return el('div', { style: { marginLeft: '12px' } }, '• ' + `${c.other.label || 'a plant'}: ${f(c.distance)} ft apart, about ${f(c.recommended)} ft is usual${why}`);
   };
   const box = el('div', { className: 'check-banner warn' + (crowded.length ? ' crowded' : ' close'), 'data-testid': 'crowding' });
+  // (Dismiss and Show again, as everywhere else: the review of Settings → Warnings, Nov 1, found "Leave these close",
+  // "left close on purpose" and "Flag again" here.)
   const flagAgainRow = () => {
-    const again = el('button', { className: 'btn', 'data-testid': 'flag-again', style: { marginLeft: '8px' } }, 'Flag again');
+    const again = el('button', { className: 'btn', 'data-testid': 'flag-again', style: { marginLeft: '8px' } }, 'Show again');
     again.addEventListener('click', () => flagAgain(s.id));
-    return el('div', { style: { marginTop: crowds.length ? '4px' : '0' } }, `Left close on purpose: ${left.map((c) => c.other.label || 'a plant').join(', ')}`, again);
+    return el('div', { style: { marginTop: crowds.length ? '4px' : '0' } }, `Dismissed for ${left.length === 1 ? 'this pair' : 'these pairs'}: ${left.map((c) => c.other.label || 'a plant').join(', ')}`, again);
   };
   // (Only pairs left close on purpose: one quiet line, folded to start, that opens to who, with Flag again: Jason,
   // 2026-10-27.)
@@ -255,7 +278,7 @@ export function crowdingNote(s: Shape): HTMLElement | null {
     box.className = 'check-banner left-close';
     const open = crowdNoteOpen.has(s.id);
     const toggle = el('button', { className: 'crowd-line', 'aria-expanded': String(open), 'data-testid': 'left-close-line' },
-      el('span', {}, `Left close to ${n(left.length)} on purpose`), el('span', { className: 'fold-chev', html: I.chevronDown }));
+      el('span', {}, `Crowding dismissed for ${n(left.length)}`), el('span', { className: 'fold-chev', html: I.chevronDown }));
     const body = el('div', { 'data-testid': 'left-close-detail' }, flagAgainRow());
     body.hidden = !open;
     toggle.addEventListener('click', () => {
@@ -281,8 +304,8 @@ export function crowdingNote(s: Shape): HTMLElement | null {
   });
   if (crowded.length) body.append(el('div', {}, `Planted closer than usual to ${n(crowded.length)}:`), ...crowded.slice(0, 3).map(line));
   if (close.length) body.append(el('div', { style: crowded.length ? { marginTop: '4px' } : {} }, `Close to ${n(close.length)}: they may quickly grow into one another.`), ...close.slice(0, 3).map(line));
-  // Left close after the fact, as Leave it does as a plant is placed (Jason, 2026-10-27); Flag again takes it back.
-  const leave = el('button', { className: 'btn', 'data-testid': 'leave-close', style: { marginTop: '6px' } }, crowds.length === 1 ? 'Leave this close' : 'Leave these close');
+  // Dismissed after the fact, as the notice's Dismiss does as a plant is placed (Jason, 2026-10-27); Show again takes it back.
+  const leave = el('button', { className: 'btn', 'data-testid': 'leave-close', style: { marginTop: '6px' } }, crowds.length === 1 ? 'Dismiss for this pair' : `Dismiss for these ${crowds.length} pairs`);
   leave.addEventListener('click', () => leaveClose(s.id, crowds.map((c) => c.other.id)));
   body.append(el('div', {}, leave));
   if (left.length) body.append(flagAgainRow());
@@ -307,7 +330,7 @@ export function utilityBanner(s: Shape): HTMLElement | null {
   const more = issues.length > 1 ? ` (+${issues.length - 1} more)` : '';
   const open = utilityOpen.has(s.id);
   const toggle = el('button', { className: 'site-line', 'aria-expanded': String(open), 'data-testid': 'utility-line' },
-    el('span', {}, `⚠ ${issues[0].line}${more}${dismissed ? ' (dismissed: no badge on the plan)' : ''}`), el('span', { className: 'fold-chev', html: I.chevronDown }));
+    el('span', {}, `⚠ ${issues[0].line}${more}${dismissed ? ' (dismissed for this one: no badge on the plan)' : ''}`), el('span', { className: 'fold-chev', html: I.chevronDown }));
   const body = el('div', { 'data-testid': 'utility-detail' });
   body.hidden = !open;
   toggle.addEventListener('click', () => {
@@ -316,7 +339,7 @@ export function utilityBanner(s: Shape): HTMLElement | null {
     if (body.hidden) utilityOpen.delete(s.id); else utilityOpen.add(s.id);
   });
   for (const i of issues) body.append(el('div', { style: { marginTop: '4px' } }, issues.length > 1 ? el('b', {}, i.line + ': ') : '', i.detail));
-  const btn = el('button', { className: 'link-reset', 'data-testid': 'utility-dismiss', style: { marginTop: '4px' } }, dismissed ? 'Show the warning again' : 'Dismiss for this plant');
+  const btn = el('button', { className: 'link-reset', 'data-testid': 'utility-dismiss', style: { marginTop: '4px' } }, dismissed ? 'Show again' : 'Dismiss for this one');
   btn.addEventListener('click', () => updateSelected({ utilityDismissed: dismissed ? '' : key }));
   body.append(el('div', {}, btn));
   return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'utility-check' }, toggle, body);
