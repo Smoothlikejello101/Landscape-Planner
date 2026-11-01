@@ -56,7 +56,12 @@ function addNativeHereOption() {
   sel.insertBefore(o, sel.options[1] ?? null);
 }
 
-function closePicker() { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; state.pickerForTree = false; render(); }
+function closePicker() {
+  // (Opened from a plant's sheet to swap it, or from a circle's to link it: closed, back on that sheet, as picking a
+  // plant brings you back there. The UI review, 2026-11-01: it closed the sheet too.)
+  const fromSheet = !!state.pickerLinkId && state.selectedIds.length > 0;
+  state.panel = fromSheet ? 'props' : null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; state.pickerForTree = false; render();
+}
 // (A tree among its forms: a shrub that grows into a tree, mimosa or wax myrtle, can be the tree in the yard.)
 const isTree = (p: Plant) => formsOf(p).includes('Tree');
 // My plants folded away in the picker: kept here, and remembered on this device when storage allows. Folded until

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 import { finishPlacing, placeTap, recentPlants, startPlacing, switchPlacingPlant, undoPlace } from '../src/place';
-import { plantsById, type Plant } from '../src/plants';
+import { linkFromPicker, plantsById, type Plant } from '../src/plants';
 import { canFinishDraw, finishDraw, startTreeDraw } from '../src/draw';
 import { state } from '../src/state';
 import { pushHistory, redo, undo } from '../src/history';
@@ -9,6 +9,7 @@ import type { CircleShape } from '../src/types';
 
 const cone: Plant = { id: 'u-cone', common: 'Coneflower', width: { min: 1.5, max: 2, med: 1.75 }, form: 'Perennial' };
 const oak: Plant = { id: 'u-oak', common: 'White Oak', width: { min: 50, max: 80, med: 65 }, form: 'Tree' };
+const aster: Plant = { id: 'u-aster', common: 'Aromatic aster', width: { min: 1, max: 3, med: 2 }, form: 'Perennial' };
 const PPF = 24; // px per foot at zoom 1
 
 beforeEach(() => {
@@ -16,7 +17,7 @@ beforeEach(() => {
   state.history = []; state.historyIndex = -1;
   state.zoom = 1; state.offsetX = 0; state.offsetY = 0; state.sizeMode = 'typical';
   state.viewFilter = { status: '', phase: '', showGone: false };
-  plantsById[cone.id] = cone; plantsById[oak.id] = oak;
+  plantsById[cone.id] = cone; plantsById[oak.id] = oak; plantsById[aster.id] = aster;
   pushHistory(); // the plan as opened is the first undo step, as in the app
   localStorage.clear();
   document.body.innerHTML = '<svg id="canvas-svg"></svg>';
@@ -110,6 +111,18 @@ describe('placing plants by tapping', () => {
     startPlacing(cone); tapFt(3, 1); finishPlacing();
     startPlacing(oak); finishPlacing(); // picked, nothing placed
     expect(recentPlants().map((p) => p.id)).toEqual(['u-cone', 'u-oak']);
+  });
+  it('counts a plant swapped in as placed: first in Recent (the UI review, 2026-11-01)', () => {
+    startPlacing(cone); tapFt(1, 1); finishPlacing();
+    state.pickerLinkId = state.shapes[0].id; state.pickerLinkAlso = []; // (its sheet's "Swap for another plant…")
+    linkFromPicker(aster);
+    expect(state.shapes[0]).toMatchObject({ plantId: 'u-aster' });
+    expect(recentPlants().map((p) => p.id)).toEqual(['u-aster', 'u-cone']);
+    // (Linked, a circle drawn before the catalog isn't placed: Recent as it was.)
+    state.shapes.push({ ...state.shapes[0], id: 'drawn', plantId: undefined, label: 'Oak' } as CircleShape);
+    state.pickerLinkId = 'drawn';
+    linkFromPicker(oak);
+    expect(recentPlants().map((p) => p.id)).toEqual(['u-aster', 'u-cone']);
   });
   it('draws a picked existing tree at the size tapped, named for the plant', () => {
     startTreeDraw('u-oak');

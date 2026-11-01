@@ -19,6 +19,7 @@ import { bannedHere, gardenStateName, hostsHere, localBloom, nativeHere, nativeT
 import { bloomMonths } from './bloom';
 import { byMatch, matchPlant, readQuery, unsearchable } from './search';
 import { household, type Yard } from './yard';
+import { noteRecentPlant } from './place';
 
 /**
  * One plant: a row of the catalog (plants.json), or one of the user's own
@@ -926,7 +927,9 @@ export function linkFromPicker(p: Plant) {
   const swapping = ids.every((id) => { const s = state.shapes.find((x) => x.id === id); return !!s?.plantId && !!plantsById[s.plantId]; });
   const n = linkShapesToPlant(ids, p);
   state.selectedIds = ids;
-  if (swapping) { state.linkOffer = null; toast(`${n === 1 ? 'Swapped' : `${n} swapped`} for ${p.common}.`); return; }
+  // (Swapped in, it's placed: first in Recent, as a plant placed by tapping is. The UI review, 2026-11-01: Recent kept
+  // the plant swapped out, not the one swapped in.)
+  if (swapping) { noteRecentPlant(p.id); state.linkOffer = null; toast(`${n === 1 ? 'Swapped' : `${n} swapped`} for ${p.common}.`); return; }
   if (several) { state.linkOffer = null; toast(`${n} circle${n === 1 ? '' : 's'} linked to ${p.common}.`); return; }
   const same = unlinkedWithLabel(label, ids), locked = unlinkedWithLabel(label, ids, { locked: true });
   state.linkOffer = same.length || locked.length ? { fromId: ids[0], plantId: p.id, label: label!.trim(), ids: same, locked } : null;

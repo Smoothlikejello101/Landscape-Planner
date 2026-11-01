@@ -61,6 +61,28 @@ test('the selection pill deselects; a plant selects all of it on view, and swaps
   await expect(page.locator('.sheet .title')).toContainText('Turkey corn');
 });
 
+test('closing the swap picker goes back to the plant\'s sheet; the plant swapped in comes first in Recent (the UI review)', async ({ page }) => {
+  await openFresh(page);
+  await pickToPlace(page, 'Turkey corn');
+  await tapFromCenter(page, 0, 0);
+  await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
+  await page.locator('.sel-pill button.edit').click();
+  await page.getByTestId('swap-plant').click();
+  await expect(page.locator('.sheet-header .title')).toHaveText('Swap for another plant');
+  await page.locator('.sheet .iconbtn[aria-label=Close]').click();
+  // Its sheet, as it was before Swap: nothing swapped.
+  await expect(page.getByTestId('swap-plant')).toBeVisible();
+  await expect(page.locator('.sheet .title')).toContainText('Turkey corn');
+  // Swapped, the plant swapped in is the newest in Recent.
+  await page.getByTestId('swap-plant').click();
+  await page.getByTestId('plant-search').fill('Buttonbush');
+  await page.locator('.sheet .proj-row', { hasText: 'Buttonbush' }).first().getByTestId('plant-place').click();
+  await expect(page.locator('#toast, [data-testid=crowd-notice]').filter({ hasText: 'Buttonbush' })).toHaveCount(1);
+  await page.locator('.sheet .iconbtn[aria-label=Close]').click();
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.getByTestId('recent-plants').locator('.recent-plant').first()).toContainText('Buttonbush');
+});
+
 test("a species whose cultivars go by its genus is named with it in the picker: Cape jasmine (Gardenia)", async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();

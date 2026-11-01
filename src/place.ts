@@ -131,7 +131,8 @@ function loadRecent(): string[] {
     return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
   } catch { return []; }
 }
-function noteRecentPlant(id: string) {
+/** A plant just placed (by a tap, or swapped in for another: src/plants.ts linkFromPicker), first in Recent. */
+export function noteRecentPlant(id: string) {
   try { localStorage.setItem(RECENT_KEY, JSON.stringify([id, ...loadRecent().filter((x) => x !== id)].slice(0, 20))); } catch { /* not remembered */ }
 }
 /** The last plants placed, newest first (ones no longer known are skipped). */
