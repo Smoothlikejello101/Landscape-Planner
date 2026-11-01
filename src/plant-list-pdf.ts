@@ -4,12 +4,18 @@ import { listTotals, rowFacts, totalsText, type ListRow, type PlantList } from '
 
 // The Plant list on paper (Jason, Nov 1, from the UI review: "one page, big type"), to take to the nursery: the plan's
 // name and the date, the totals, then a box to tick for each kind to buy, its count first. Only what's to buy: planted
-// and existing plants are on the screen and in Share as text. The type is as big as fits on one Letter page, down to
-// two thirds of its size; a list longer than that goes on to another page. A kind bought already has its box ticked.
+// and existing plants are on the screen and in Share as text. The type is as big as fits on one Letter page, from half
+// again as big down to two thirds of its size; a list longer than that goes on to another page. A kind bought already
+// has its box ticked.
 
 const PAGE_W = 8.5, PAGE_H = 11, MARGIN = 0.6;
 const pt = (n: number) => n / 72;
 const NAME = 20, SMALL = 13; // (points, at full size)
+/**
+ * A short list is printed bigger, up to half as big again (names at 30 pt), so the page is read at arm's length in the
+ * nursery's aisles rather than left mostly empty; a longer one shrinks to fit, down to two thirds.
+ */
+const BIGGEST = 1.5, SMALLEST = 0.66;
 
 /** A row laid out: its name's lines; its botanical name's (italic) and its facts'; or those two on one line (`oneLine`). */
 interface Laid { r: ListRow; head: string[]; bot: string[]; facts: string[]; oneLine: boolean; h: number }
@@ -57,10 +63,10 @@ export async function buildListPdf(planName: string, list: PlantList, when = new
   y += pt(12);
   const also = [t.planted ? `${t.planted} planted` : '', t.existing ? `${t.existing} existing` : ''].filter(Boolean).join(', ');
   const foot = also ? pt(12 * 1.4) + pt(8) : 0;
-  // As big as fits on this page (with the line at its foot), down to two thirds.
-  let f = 1, laid = list.buy.map((r) => lay(doc, r, f, w));
+  // As big as fits on this page (with the line at its foot), from half again as big down to two thirds.
+  let f = BIGGEST, laid = list.buy.map((r) => lay(doc, r, f, w));
   const tall = (rows: Laid[]) => rows.reduce((n, x) => n + x.h, 0);
-  while (f > 0.67 && y + tall(laid) + foot > bottom) { f = Math.max(0.66, f - 0.04); laid = list.buy.map((r) => lay(doc, r, f, w)); }
+  while (f > SMALLEST && y + tall(laid) + foot > bottom) { f = Math.max(SMALLEST, f - 0.04); laid = list.buy.map((r) => lay(doc, r, f, w)); }
   for (const x of laid) {
     if (y + x.h > bottom && y > MARGIN + 0.01) { doc.addPage(); y = MARGIN; }
     const box = pt(20 * f), done = x.r.bought >= x.r.count;
