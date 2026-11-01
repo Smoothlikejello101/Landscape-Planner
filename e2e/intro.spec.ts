@@ -134,7 +134,7 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await page.locator('.tool-btn.plants').click();
   await expect(page.locator('.sheet')).toContainText('Not listed as poisonous to people');
   await expect(page.locator('.sheet')).toContainText('No dog warnings');
-  // "Clear filters" is for the search at hand: the yard is still kept on this device.
+  // "Clear filters" is for the search at hand: the yard is still kept with the plan.
   await page.locator('.sheet').getByText('Clear filters').click();
   await expect(page.locator('.sheet')).not.toContainText('No dog warnings');
   await page.reload();

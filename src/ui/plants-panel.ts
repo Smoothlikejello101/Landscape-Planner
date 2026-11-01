@@ -1,6 +1,6 @@
 import { crowdLevelsOf, crowdNoticeAfterSwap } from './crowd-notice';
 import { el, sheetCloseButton, tapSaid, type Child } from '../dom';
-import { applyYard, askAtTop, askDismissed, dismissAsked, household, saveHardy, saveYard, toggleYard, yardOf, type Yard } from '../yard';
+import { applyYard, askAtTop, askDismissed, dismissAsked, household, saveHardy, saveYard, toggleYard, yardKeyOf, yardOf, type Yard } from '../yard';
 import { toast } from './toast';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
@@ -386,7 +386,8 @@ export function renderPlantsPanel() {
    * does. Not "Clear filters" or "Show them": those are for the search at hand.
    */
   function keepYard(key: keyof PlantFilter) {
-    if (key === 'noPoison' || key === 'dogs' || key === 'cats' || key === 'horses') { saveYard(yardOf(plantFilter)); syncYard(); }
+    const k = yardKeyOf(key);
+    if (k) { saveYard(yardOf(plantFilter), k); syncYard(); }
   }
   function rebuildList() {
     while (listWrap.firstChild) listWrap.removeChild(listWrap.firstChild);
@@ -870,7 +871,7 @@ export function renderPlantsPanel() {
       b.addEventListener('click', () => {
         const y = toggleYard(yardOf(plantFilter), k);
         applyYard(plantFilter, y);
-        saveYard(y);
+        saveYard(y, k);
         syncYard();
         rebuildList();
       });
