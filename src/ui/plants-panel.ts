@@ -8,7 +8,7 @@ import { byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn,
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { SPREAD_WAYS, spreadWays } from '../spread';
-import { heightLabel, heightRange } from './height-range';
+import { heightLabel, heightRange, sizeLabel } from './height-range';
 import { activeMyPlants, catalogMatchFor, isMine } from '../my-plants';
 import { openSwitch } from './switch-plant';
 import type { PlantFormArgs } from '../types';
@@ -136,6 +136,7 @@ const FILTER_NAMES: Partial<Record<keyof PlantFilter, (f: PlantFilter) => string
   native: (f) => (f.native === '@here' ? `Native to ${gardenStateName() ?? 'your state'}` : 'Native to North America'),
   leafColors: (f) => `${cap(joined(f.leafColors, 'or'))} leaves`, fallColor: () => 'Fall color', evergreen: () => 'Evergreen', winterInterest: () => 'Winter interest',
   growth: (f) => `Growth rate: ${f.growth}`, height: (f) => `Height: ${heightLabel(f.height).replace(/^Up/, 'up')}`,
+  width: (f) => `Width: ${sizeLabel(f.width, 'width').replace(/^Up/, 'up')}`,
   lowMaintenance: () => 'Low maintenance', drought: () => 'Drought tolerant', wetFeet: () => 'Takes wet soil', clayOk: () => 'Clay OK',
   deerResistant: () => 'Deer resistant', noThorns: () => 'No thorns listed', spread: (f) => `Spreading OK: ${joined(f.spread.map((v) => SPREADS[v]?.toLowerCase() ?? v), 'or')}`, edible: () => 'Edible',
   edibleParts: (f) => `Edible ${joined(f.edibleParts, 'or')}`,
@@ -540,15 +541,18 @@ export function renderPlantsPanel() {
         el('span', {}, `These match on ${on.length > 1 ? `${on.slice(0, -1).join(', ')} and ${on[on.length - 1]}` : on[0]} only by the earlier list (unverified). No source we've read says so yet.`)));
       rows(earlier, 3);
     }
-    // Typically within "up to N ft", but able to grow past it: below the rest, said so (Jason, Oct 30).
-    const ceiling = plantFilter.height.split('-')[1];
-    if (ceiling && !plantFilter.inPlan && !aside?.keys.includes('height')) {
+    // Typically within "up to N ft", but able to grow past it: below the rest, said so (Jason, Oct 30). Height and
+    // width alike (Oct 31).
+    const ceiling = aside?.keys.includes('height') ? undefined : plantFilter.height.split('-')[1];
+    const across = aside?.keys.includes('width') ? undefined : plantFilter.width.split('-')[1];
+    if ((ceiling || across) && !plantFilter.inPlan) {
       const shown = new Set(hits.map((p) => p.id));
       const run = () => (aside ? withFiltersOff(aside.keys, () => filteredPlants(near)) : filteredPlants(near));
       const taller = byTypicalHeight(run).filter((p) => !shown.has(p.id) && (!forTree || isTree(p)) && !now?.has(p.id));
       if (taller.length) {
         listWrap.appendChild(el('div', { className: 'list-divider', 'data-testid': 'taller-divider' },
-          el('span', {}, `Typically ${ceiling} ft or less, but they can grow taller`)));
+          el('span', {}, ceiling && across ? `Typically up to ${ceiling} ft tall and ${across} ft wide, but they can grow larger`
+            : ceiling ? `Typically ${ceiling} ft or less, but they can grow taller` : `Typically ${across} ft wide or less, but they can grow wider`)));
         for (const p of taller.slice(0, 60)) listWrap.appendChild(buildRow(p, 0));
       }
       run(); // (the list above's notes, as they were)
@@ -816,8 +820,9 @@ export function renderPlantsPanel() {
   });
 
   // ---- THE REST ----
-  // (Mature height: the readout follows a handle as it moves; the list changes when it's let go.)
+  // (Mature height and width: the readout follows a handle as it moves; the list changes when it's let go.)
   const heightReadout = el('span', { 'data-testid': 'height-readout' }, heightLabel(plantFilter.height));
+  const widthReadout = el('span', { 'data-testid': 'width-readout' }, sizeLabel(plantFilter.width, 'width'));
   const here = gardenStateName();
   const adv = el('div', { id: 'more-filters' },
     groupHead('Wildlife'),
@@ -834,6 +839,9 @@ export function renderPlantsPanel() {
     el('div', { className: 'field', style: { marginTop: '8px' } },
       el('div', { className: 'hint', style: { display: 'flex', justifyContent: 'space-between' } }, el('span', {}, 'Mature height'), heightReadout),
       heightRange(plantFilter.height, (v) => { heightReadout.textContent = heightLabel(v); }, (v) => { plantFilter.height = v; heightReadout.textContent = heightLabel(v); rebuildList(); })),
+    el('div', { className: 'field', style: { marginTop: '8px' } },
+      el('div', { className: 'hint', style: { display: 'flex', justifyContent: 'space-between' } }, el('span', {}, 'Mature width'), widthReadout),
+      heightRange(plantFilter.width, (v) => { widthReadout.textContent = sizeLabel(v, 'width'); }, (v) => { plantFilter.width = v; widthReadout.textContent = sizeLabel(v, 'width'); rebuildList(); }, 'width')),
     groupHead('Site & care'),
     checks(mkCheck('Low maintenance', 'lowMaintenance'), mkCheck('Drought tolerant', 'drought'), mkCheck('Takes wet soil', 'wetFeet'),
       mkCheck('Clay OK', 'clayOk'), mkCheck('Deer resistant', 'deerResistant'), mkCheck('Hide plants with thorns', 'noThorns'), edibleCheck),
