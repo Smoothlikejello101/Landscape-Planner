@@ -107,9 +107,19 @@ export function tell(message: string, opts: AskOptions = {}): Promise<void> {
   }, { ...opts, noCancel: true }, undefined);
 }
 /** Ask for a line of text; the text (trimmed), or null for Cancel. OK waits for something typed. */
-export function askText(message: string, value = '', opts: AskOptions & { placeholder?: string; label?: string } = {}): Promise<string | null> {
-  return sheet<string | null>(() => {
+export async function askText(message: string, value = '', opts: AskOptions & { placeholder?: string; label?: string } = {}): Promise<string | null> {
+  return (await askTextAnd(message, value, opts))?.text ?? null;
+}
+/**
+ * Ask for a line of text, with a box to tick under it (`check`: its words, and whether it starts ticked): the text
+ * (trimmed) and whether the box was ticked, or null for Cancel. (A new plan's name, and "Same garden?": Jason, from
+ * the UI review, 2026-11-01.)
+ */
+export function askTextAnd(message: string, value = '', opts: AskOptions & { placeholder?: string; label?: string; check?: { label: string; checked: boolean } } = {}): Promise<{ text: string; checked: boolean } | null> {
+  return sheet<{ text: string; checked: boolean } | null>(() => {
     const input = el('input', { type: 'text', value, placeholder: opts.placeholder ?? '', 'data-testid': 'ask-input', 'aria-label': opts.label ?? message, autocomplete: 'off' }) as HTMLInputElement;
+    const box = opts.check ? el('input', { type: 'checkbox', 'data-testid': 'ask-check' }) as HTMLInputElement : null;
+    if (box) box.checked = opts.check!.checked;
     const okBtn = el('button', { className: 'btn primary', 'data-testid': 'ask-ok' }, opts.ok ?? 'OK') as HTMLButtonElement;
     const sync = () => { okBtn.disabled = !input.value.trim(); };
     input.addEventListener('input', sync);
@@ -121,9 +131,9 @@ export function askText(message: string, value = '', opts: AskOptions & { placeh
     input.addEventListener('mouseup', (e) => { if (fresh && input.value === value) { e.preventDefault(); input.select(); } fresh = false; });
     input.addEventListener('input', () => { fresh = false; });
     return {
-      body: [el('label', { className: 'ask-message' }, tapSaid(message)), input],
+      body: [el('label', { className: 'ask-message' }, tapSaid(message)), input, ...(box ? [el('label', { className: 'check-row' }, box, el('span', {}, opts.check!.label))] : [])],
       first: input, okBtn,
-      ok: () => (input.value.trim() ? input.value.trim() : null),
+      ok: () => (input.value.trim() ? { text: input.value.trim(), checked: !!box?.checked } : null),
     };
   }, opts, null);
 }

@@ -694,9 +694,11 @@ async function collectImageGarbage(projectId: string, keep: Set<string>) {
     if (stale.length) await db().write(stale.map((k) => del('images', k)));
   } catch (e) { console.warn('image cleanup failed', e); }
 }
+/** A new plan's data: empty, at the size mode last chosen. */
+export function emptyProjectData(): ProjectData { return { ...sanitizeProjectData({}), sizeMode: lastSizeMode }; }
 /** Create a project (empty, or from given data). Does not open it. `id`: one the server already knows (sync). */
 export async function createProject(name: string, data?: ProjectData, id = uid()): Promise<string> {
-  const projectData = data ?? { ...sanitizeProjectData({}), sizeMode: lastSizeMode };
+  const projectData = data ?? emptyProjectData();
   const meta: ProjectMeta = { id, name: name.trim() || 'Untitled', lastModified: now(), shapeCount: projectData.shapes.length };
   await db().write([...projectWriteOps(id, projectData), put('meta', id, meta)]);
   state.projects.unshift(meta);

@@ -112,6 +112,53 @@ test('"Hardy in your zone" with no ZIP asks for one, and comes back with only pl
   await expect(page.getByTestId('active-chip')).toHaveText(['Shrub', 'White flowers']);
 });
 
+test('a new plan offers the open plan\'s location, ticked: "Same garden (ZIP 71923)?"; unticked, the new plan has none (Jason, the UI review, 2026-11-01)', async ({ page }) => {
+  await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TABLE) }));
+  await openFresh(page);
+  // No location yet: nothing offered.
+  await page.locator('.project-btn').click();
+  await page.getByRole('button', { name: /New project/ }).click();
+  await expect(page.getByTestId('ask-input')).toBeVisible();
+  await expect(page.getByTestId('ask-check')).toHaveCount(0);
+  await page.getByTestId('ask-cancel').click();
+  await page.locator('.sheet-header .iconbtn').click();
+  // With one: offered, ticked, and the new plan has it.
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Garden location' }).click();
+  await page.getByTestId('zip').fill('71923');
+  await page.getByTestId('zip-lookup').click();
+  await expect(page.getByTestId('location-result')).toContainText('Zone 8a');
+  await page.locator('.sheet-header .iconbtn').click();
+  await page.locator('.project-btn').click();
+  await page.getByRole('button', { name: /New project/ }).click();
+  const same = page.locator('.ask-overlay label', { hasText: 'Same garden (ZIP 71923)?' }).locator('input');
+  await expect(same).toBeChecked();
+  await page.getByTestId('ask-input').fill('Front yard');
+  await page.getByTestId('ask-ok').click();
+  await expect(page.locator('.project-btn .pname')).toHaveText('Front yard');
+  await page.locator('button[title=More]').click();
+  await expect(page.locator('.menu-item', { hasText: 'Garden location (zone 8a)' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  // Unticked: none.
+  await page.locator('.project-btn').click();
+  await page.getByRole('button', { name: /New project/ }).click();
+  await same.uncheck();
+  await page.getByTestId('ask-input').fill('Grandma’s');
+  await page.getByTestId('ask-ok').click();
+  await expect(page.locator('.project-btn .pname')).toHaveText('Grandma’s');
+  await page.locator('button[title=More]').click();
+  await expect(page.locator('.menu-item', { hasText: /^Garden location…$/ })).toBeVisible();
+  // Kept with the plan it was given to, across a reload.
+  await page.keyboard.press('Escape');
+  await page.locator('.project-btn').click();
+  await page.locator('.proj-row', { hasText: 'Front yard' }).first().click();
+  await expect(page.locator('.project-btn .pname')).toHaveText('Front yard');
+  await page.reload();
+  await expect(page.locator('.project-btn .pname')).toHaveText('Front yard');
+  await page.locator('button[title=More]').click();
+  await expect(page.locator('.menu-item', { hasText: 'Garden location (zone 8a)' })).toBeVisible();
+});
+
 test('closing the ZIP sheet opened from the picker goes back to the picker as it was, the filter left off', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();

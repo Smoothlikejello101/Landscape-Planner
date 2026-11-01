@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { ask, askText, asking, dismissAsk, tell } from '../src/ui/ask';
+import { ask, askText, askTextAnd, asking, dismissAsk, tell } from '../src/ui/ask';
 
 // The app's own questions, in place of the browser's confirm(), prompt() and alert() (Oct 30, from round 2).
 
@@ -64,6 +64,19 @@ describe('in-app questions', () => {
     expect(dialog()).not.toBeNull();
     click('ask-cancel');
     expect(await empty).toBeNull();
+  });
+  it('askTextAnd: the text and its box, ticked or not; no box unless asked for (a new plan\'s "Same garden?", the UI review)', async () => {
+    const asked = askTextAnd('Name for the new project', 'Untitled', { check: { label: 'Same garden (ZIP 71923)?', checked: true } });
+    const box = dialog()!.querySelector<HTMLInputElement>('[data-testid=ask-check]')!;
+    expect(box.checked).toBe(true);
+    expect(box.closest('label')!.textContent).toBe('Same garden (ZIP 71923)?');
+    box.checked = false;
+    click('ask-ok');
+    expect(await asked).toEqual({ text: 'Untitled', checked: false });
+    const plain = askTextAnd('Name?', 'Back yard');
+    expect(dialog()!.querySelector('[data-testid=ask-check]')).toBeNull();
+    click('ask-ok');
+    expect(await plain).toEqual({ text: 'Back yard', checked: false });
   });
   it('one at a time: a second question answers the first no; Back (dismissAsk) answers no; tell has only OK', async () => {
     const first = ask('First?');
