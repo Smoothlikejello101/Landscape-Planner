@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { dismissForPlan } from '../src/dismissals';
+import { dismissedForPlan, dismissForPlan } from '../src/dismissals';
+import { pushHistory } from '../src/history';
 import { fitInCircle } from '../src/labels';
 import { plantsById, type Plant } from '../src/plants';
 import { state } from '../src/state';
 import type { Shape } from '../src/types';
-import { countSaid, planWarnings } from '../src/warnings-list';
+import { countSaid, planWarnings, setDismissed, type WarningKind } from '../src/warnings-list';
 
 // Every warning in the plan now, for Settings → Warnings (Jason, Oct 31, from round 3): active and dismissed, each
 // worked out as the plan works it out.
@@ -31,7 +32,7 @@ describe('the warnings in the plan now', () => {
     // Two 4-ft shrubs 2 ft apart are crowded; 'c' and 'd' too, left close on purpose.
     state.shapes = [at('a', shrub.id, 0), at('b', shrub.id, 2), at('c', shrub.id, 40, { crowdOk: ['d'] } as Partial<Shape>), at('d', shrub.id, 42)];
     const rows = planWarnings().filter((r) => r.kind === 'crowding');
-    expect(rows.map((r) => [r.ids.join('+'), r.said, r.dismissed])).toEqual([['a+b', 'crowded, 2 ft apart', false], ['c+d', 'crowded, 2 ft apart, left close on purpose', true]]);
+    expect(rows.map((r) => [r.ids.join('+'), r.said, r.dismissed, r.scope])).toEqual([['a+b', 'crowded, 2 ft apart', false, undefined], ['c+d', 'crowded, 2 ft apart', true, 'for this pair, left close on purpose']]);
     expect(rows[0].name).toBe('Spicebush and Spicebush');
     rows[1].again!();
     expect(state.shapes.find((s) => s.id === 'c')).not.toHaveProperty('crowdOk');
@@ -51,10 +52,10 @@ describe('the warnings in the plan now', () => {
     const line = rows[0].said;
     state.shapes[2].hardyDismissed = line;
     rows = planWarnings().filter((r) => r.kind === 'hardy');
-    expect(rows.map((r) => [r.name, r.ids.join(','), r.dismissed])).toEqual([['Bougainvillea ×2', 'x,y', false], ['Bougainvillea', 'z', true]]);
+    expect(rows.map((r) => [r.name, r.ids.join(','), r.dismissed, r.scope])).toEqual([['Bougainvillea ×2', 'x,y', false, undefined], ['Bougainvillea', 'z', true, 'for this one']]);
     dismissForPlan('hardy', tropical.id, line);
     rows = planWarnings().filter((r) => r.kind === 'hardy');
-    expect(rows.map((r) => [r.ids.join(','), r.dismissed])).toEqual([['x,y,z', true]]);
+    expect(rows.map((r) => [r.ids.join(','), r.dismissed, r.scope])).toEqual([['x,y,z', true, 'for every Bougainvillea in this plan']]);
     rows[0].again!();
     expect(planWarnings().filter((r) => r.kind === 'hardy').map((r) => [r.ids.join(','), r.dismissed])).toEqual([['x,y,z', false]]);
   });
@@ -74,6 +75,123 @@ describe('the warnings in the plan now', () => {
     expect(countSaid([row(false), row(false), row(true)])).toBe('2 active, 1 dismissed');
     expect(countSaid([row(true)])).toBe('1 dismissed');
     expect(countSaid([])).toBe('none');
+  });
+});
+
+// Dismissed from Settings → Warnings, one at a time or a kind all at once, and shown all again (Jason, Nov 1): each as
+// the plan's own dismissal for its kind does it, one step, with a way to take it back.
+describe('dismissing warnings from the list', () => {
+  const partShade = { id: 'wl-shade', common: 'Wild ginger', form: 'Perennial', width: { min: 1, max: 2, med: 1.5 }, sun_most: 'Part', sun_least: 'Shade' } as Plant;
+  const tall = { id: 'wl-oak', common: 'White oak', form: 'Tree', width: { min: 4, max: 5, med: 4.5 }, height: { min: 50, max: 70, med: 60 } } as Plant;
+  const holly = { id: 'wl-holly', common: "Holly 'Red'", form: 'Shrub', width: { min: 1, max: 2, med: 1.5 }, fruit_set: 'separate', fruit_color: ['red/burgundy'], sex: 'female', parent: 'wl-holly-sp' } as Plant;
+  const sunny: Shape = { id: 'sunny', type: 'rect', role: 'shade', x: 100, y: -10, width: 40, height: 20, rotation: 0, color: '#facc15', opacity: 0.3, label: '', locked: false, sun: { mode: 'hours', hours: 8, periods: [], dappled: false } } as Shape;
+  const wire: Shape = { id: 'wire', type: 'line', role: 'utility', utility: 'overhead', x: 200, y: 0, rotation: 0, points: [[0, 0], [100, 0]], color: '#ea580c', opacity: 1 } as Shape;
+  const of = (kind: WarningKind) => planWarnings().filter((r) => r.kind === kind);
+  const shape = (id: string) => state.shapes.find((s) => s.id === id)!;
+  const leftWith = (id: string) => (shape(id) as { crowdOk?: string[] }).crowdOk;
+
+  beforeEach(() => {
+    for (const p of [shrub, tropical, partShade, tall, holly]) plantsById[p.id] = p;
+    Object.assign(state, { showCrowding: true, crowdWarnings: true, sunWarnings: true, hardyWarnings: true, poisonWarnings: true, fruitWarnings: true });
+    state.viewFilter = { status: '', phase: '', showGone: false };
+    state.roleViews = {};
+    state.dismissed = undefined;
+    state.location = { zip: '71923', zone: '8a' };
+    // Two crowded pairs; two wild gingers in 8 h of sun; two bougainvilleas, too cold; an oak 10 ft under a power line;
+    // a female holly with no male.
+    state.shapes = [at('a', shrub.id, 0), at('b', shrub.id, 2), at('c', shrub.id, 40), at('d', shrub.id, 42),
+      sunny, at('g1', partShade.id, 110, { radius: 0.75 }), at('g2', partShade.id, 130, { radius: 0.75 }),
+      at('t1', tropical.id, 60), at('t2', tropical.id, 80),
+      wire, at('oak', tall.id, 250, { y: 10, radius: 2 } as Partial<Shape>),
+      at('h', holly.id, -40)];
+    state.history = []; state.historyIndex = -1;
+    pushHistory();
+  });
+  afterEach(() => { state.shapes = []; state.location = null; state.history = []; state.historyIndex = -1; });
+
+  it('every kind has a Dismiss on its active rows, and a Show again on its dismissed ones', () => {
+    for (const kind of ['crowding', 'sun', 'hardy', 'utility', 'fruit'] as const) {
+      const rows = of(kind);
+      expect(rows.length, kind).toBeGreaterThan(0);
+      for (const r of rows) expect([!!r.dismiss, !!r.again], kind).toEqual([!r.dismissed, r.dismissed]);
+    }
+  });
+
+  it('a row is dismissed as the plan dismisses it: the pair left close, the copy where it stands, the plant across the plan', () => {
+    const steps = state.historyIndex;
+    setDismissed([of('crowding')[0]], true);
+    expect(leftWith('a')).toEqual(['b']); // (as Leave it does)
+    expect(of('crowding').map((r) => [r.ids.join('+'), r.dismissed])).toEqual([['c+d', false], ['a+b', true]]);
+    const sun = of('sun')[0];
+    setDismissed([sun], true);
+    expect(shape('g1').sunDismissed).toBe(sun.said);
+    expect(shape('g2').sunDismissed).toBeUndefined(); // (only that copy)
+    expect(of('sun').filter((r) => r.dismissed).map((r) => [r.ids.join(), r.scope])).toEqual([['g1', 'for this one']]);
+    const util = of('utility')[0];
+    setDismissed([util], true);
+    expect(shape('oak').utilityDismissed).toBe('wire:near'); // (which utilities and rules: src/utilities.ts issuesKey)
+    expect(of('utility').map((r) => [r.dismissed, r.scope])).toEqual([[true, 'for this one']]);
+    expect(state.historyIndex).toBe(steps + 3); // (each a step)
+    const hardy = of('hardy')[0];
+    setDismissed([hardy], true);
+    expect(dismissedForPlan('hardy', tropical.id, hardy.said)).toBe(true); // (the plant, every copy and new ones)
+    expect(of('hardy').map((r) => [r.ids.join(','), r.dismissed])).toEqual([['t1,t2', true]]);
+    const fruit = of('fruit')[0];
+    setDismissed([fruit], true);
+    expect(dismissedForPlan('fruit', holly.id, fruit.said)).toBe(true);
+    expect(of('fruit').map((r) => [r.dismissed, r.scope])).toEqual([[true, "for every Holly 'Red' in this plan"]]);
+    expect(state.historyIndex).toBe(steps + 3); // (across the plan: no shape changed, no step)
+  });
+
+  it('a kind dismissed all at once is one step, and taken back in one', () => {
+    const steps = state.historyIndex;
+    const { n, takeBack } = setDismissed(of('crowding'), true);
+    expect(n).toBe(2);
+    expect(state.historyIndex).toBe(steps + 1);
+    expect(state.history[state.historyIndex].label).toBe('dismiss 2 crowding warnings');
+    expect(of('crowding').every((r) => r.dismissed)).toBe(true);
+    expect(takeBack()).toBe(true);
+    expect(state.historyIndex).toBe(steps);
+    expect(of('crowding').map((r) => r.dismissed)).toEqual([false, false]);
+  });
+
+  it('dismissed across the plan, taken back as it was though no step was taken; not once the plan has changed since', () => {
+    state.dismissed = { poison: { other: 'Poisonous to people' } };
+    const steps = state.historyIndex;
+    const { n, takeBack } = setDismissed(of('hardy'), true);
+    expect([n, state.historyIndex]).toEqual([1, steps]);
+    expect(takeBack()).toBe(true);
+    expect(state.dismissed).toEqual({ poison: { other: 'Poisonous to people' } });
+    expect(of('hardy').map((r) => r.dismissed)).toEqual([false]);
+    // Changed since: left as it is.
+    const again = setDismissed(of('hardy'), true);
+    dismissForPlan('fruit', holly.id, of('fruit')[0].said);
+    expect(again.takeBack()).toBe(false);
+    expect(of('hardy').map((r) => r.dismissed)).toEqual([true]);
+    // A first ever, taken back: kept, empty, so that syncs too.
+    state.dismissed = undefined;
+    expect(setDismissed(of('fruit'), true).takeBack()).toBe(true);
+    expect(state.dismissed).toEqual({});
+  });
+
+  it('shown all again: each as its Show again does, a utility\'s left empty so sync keeps it shown', () => {
+    setDismissed(of('sun'), true);
+    setDismissed(of('utility'), true);
+    setDismissed(of('crowding'), true);
+    expect(of('sun').every((r) => r.dismissed)).toBe(true);
+    const steps = state.historyIndex;
+    const { n } = setDismissed(of('sun'), false);
+    expect(n).toBe(2);
+    expect([shape('g1').sunDismissed, shape('g2').sunDismissed]).toEqual([undefined, undefined]);
+    setDismissed(of('utility'), false);
+    expect(shape('oak').utilityDismissed).toBe('');
+    expect(of('utility').map((r) => r.dismissed)).toEqual([false]);
+    setDismissed(of('crowding'), false);
+    expect(['a', 'b', 'c', 'd'].map(leftWith)).toEqual([undefined, undefined, undefined, undefined]);
+    expect(state.historyIndex).toBe(steps + 3);
+    // Nothing to do: no step.
+    expect(setDismissed(of('sun'), false).n).toBe(0);
+    expect(state.historyIndex).toBe(steps + 3);
   });
 });
 

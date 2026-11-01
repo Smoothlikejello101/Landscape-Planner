@@ -12,9 +12,10 @@
 //   (the plan, or its photo) are a conflict.
 // - A conflict keeps both: the server's version takes the project's place
 //   and this device's version becomes a copy beside it. Nothing is lost.
-// - Two parts of a plan never conflict (Jason, Nov 1): the Plant list's ticks
-//   and who's in the yard settle on their own, whichever devices changed
-//   them (settleParts); a conflict is the rest of the plan changed on both.
+// - Parts of a plan never conflict (Jason, Nov 1): the Plant list's ticks,
+//   who's in the yard and the warning switches settle on their own, whichever
+//   devices changed them (settleParts); a conflict is the rest of the plan
+//   changed on both.
 // - Sync never removes a project that has changes here. A project deleted
 //   elsewhere leaves this device only if it hasn't changed here; if it has,
 //   it comes back out of the trash with this device's version.
@@ -173,7 +174,7 @@ export function planOf(c: ProjectContent): ProjectContent {
 /** Fingerprint of the name and plan (the photo apart). Records made before photos synced hold exactly this. */
 export const planHash = (name: string, c: ProjectContent) => fingerprint(name, planOf(c));
 /** Parts of a plan that settle on their own when two devices change them (settleParts), not a conflict. */
-const OWN_PARTS = ['bought', 'household'] as const;
+const OWN_PARTS = ['bought', 'household', 'switches'] as const;
 /** The plan without its photo and the parts that settle on their own: what two devices changing is a conflict. */
 function coreOf(c: ProjectContent): ProjectContent {
   const out = { ...planOf(c) };
@@ -391,6 +392,30 @@ export function settleHousehold(a: unknown, b: unknown): Household | undefined {
   const dogs = DOG_STRICTNESS[Math.max(DOG_STRICTNESS.indexOf(x.dogs), DOG_STRICTNESS.indexOf(y.dogs), 0)];
   return { kids: x.kids || y.kids, dogs, cats: x.cats || y.cats, horses: x.horses || y.horses, answered: x.answered === true || y.answered === true || x.kids || y.kids || dogs !== '' || x.cats || y.cats || x.horses || y.horses };
 }
+type Switch = { on: boolean; at?: number };
+const switchOk = (v: unknown): v is Switch => isObject(v) && typeof v.on === 'boolean' && (v.at === undefined || (typeof v.at === 'number' && Number.isFinite(v.at)));
+/**
+ * Two devices' warning switches, one by one: the one switched in the plan more lately (`at`); one switched in the plan
+ * over one a device only took from what it had when plans got their own; and two taken that way, or switched at the
+ * same moment, off if either is off. (A device's "on" taken that way is almost always only the default, never
+ * touched; its "off" was always someone's choice, so the update doesn't switch back on a warning anyone turned off.
+ * As with who's in the yard: a device that never set it doesn't override one that did.) Either way round, the same
+ * answer.
+ */
+export function settleSwitches(a: unknown, b: unknown): Record<string, Switch> | undefined {
+  if (!isObject(a) && !isObject(b)) return undefined;
+  const x = isObject(a) ? a : {}, y = isObject(b) ? b : {};
+  const out: Record<string, Switch> = {};
+  for (const k of new Set([...Object.keys(x), ...Object.keys(y)])) {
+    const p = switchOk(x[k]) ? x[k] : undefined, q = switchOk(y[k]) ? y[k] : undefined;
+    if (!p || !q) { const one = p ?? q; if (one) out[k] = { ...one }; continue; }
+    const pa = p.at, qa = q.at;
+    if (pa !== undefined && (qa === undefined || pa > qa)) out[k] = { ...p };
+    else if (qa !== undefined && (pa === undefined || qa > pa)) out[k] = { ...q };
+    else out[k] = pa === undefined ? { on: p.on && q.on } : { on: p.on && q.on, at: pa };
+  }
+  return out;
+}
 /** The parts that settle on their own, as they come out of this device's content and the server's. */
 export function settleParts(mine: ProjectContent, theirs: ProjectContent): ProjectContent {
   const out: ProjectContent = {};
@@ -398,16 +423,20 @@ export function settleParts(mine: ProjectContent, theirs: ProjectContent): Proje
   if (bought) out.bought = bought;
   const household = settleHousehold(mine.household, theirs.household);
   if (household) out.household = household;
+  const switches = settleSwitches(mine.switches, theirs.switches);
+  if (switches) out.switches = switches;
   return out;
 }
 /**
- * Changed here only by taking this device's household when plans got their own (no `at`: never set in the plan), the
- * photo as it was: not an edit, so no reason to bring back a plan deleted elsewhere.
+ * Changed here only by taking this device's household and warning switches when plans got their own (no `at`: never
+ * set in the plan), the photo as it was: not an edit, so no reason to bring back a plan deleted elsewhere.
  */
-function onlyHouseholdTaken(p: LocalProject, rec: SyncRecord | undefined): boolean {
-  const h = p.content.household;
-  if (!rec || !householdOk(h) || typeof h.at === 'number' || (photoKey(p.content) ?? 'none') !== (rec.photo ?? 'none')) return false;
-  const { household: _h, ...rest } = p.content;
+function onlyTakenFromDevice(p: LocalProject, rec: SyncRecord | undefined): boolean {
+  if (!rec || (photoKey(p.content) ?? 'none') !== (rec.photo ?? 'none')) return false;
+  const { household: h, switches: sw, ...rest } = p.content;
+  const taken = (h === undefined || (householdOk(h) && typeof h.at !== 'number'))
+    && (sw === undefined || (isObject(sw) && Object.values(sw).every((v) => switchOk(v) && v.at === undefined)));
+  if (!taken || (h === undefined && sw === undefined)) return false;
   return planHash(p.name, rest) === rec.hash;
 }
 const isEmpty = (c: ProjectContent) => Array.isArray(c.shapes) && c.shapes.length === 0 && (photoKey(c) ?? 'none') === 'none';
@@ -553,8 +582,8 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     const rawContent = withLocalParts(sent, p.content); // (for telling what changed where)
     const serverContent = asSeenHere(rawContent, rec);
     const n = local.normalize(serverName, serverContent);
-    // The Plant list's ticks and who's in the yard settle on their own, the same on both sides (settleParts); what's
-    // compared for a conflict is the rest of the plan, its core.
+    // The Plant list's ticks, who's in the yard and the warning switches settle on their own, the same on both sides
+    // (settleParts); what's compared for a conflict is the rest of the plan, its core.
     const parts = settleParts(p.content, n.content);
     const mine = { ...p.content, ...parts }, theirs = { ...n.content, ...parts };
     const basePhoto = rec?.photo ?? 'none';
@@ -579,7 +608,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     };
     const photoSource = photoFromServer ? n.content : p.content;
     if ('photo' in photoSource) merged.content.photo = photoSource.photo;
-    // (Ticks or the yard taken from the server change the plan here too, with nothing else from there.)
+    // (Ticks, the yard or the switches taken from the server change the plan here too, with nothing else from there.)
     const partsFromServer = planHash(merged.name, merged.content) !== planHash(p.name, p.content);
     if (planFromServer || photoFromServer || partsFromServer) {
       const bytes = photoFromServer ? await photoFor(p.id, n.content) : undefined;
@@ -615,7 +644,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
         }
         if (!report.full) await upload(p, null);
       } else if (s.deleted_at) {
-        if (changed && !onlyHouseholdTaken(p, rec)) {
+        if (changed && !onlyTakenFromDevice(p, rec)) {
           const rev = await remote.restore(p.id);
           if (rev != null) { report.restored.push(p.name); restoredIds.add(p.id); }
           await upload(p, rev);

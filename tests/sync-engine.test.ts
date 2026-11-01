@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canonical, coreHash, fingerprint, planHash, settleBought, settleHousehold, syncOnce, type Local, type LocalProject, type ProjectContent, type Remote, type SyncRecord } from '../src/sync/engine';
+import { canonical, coreHash, fingerprint, planHash, settleBought, settleHousehold, settleSwitches, syncOnce, type Local, type LocalProject, type ProjectContent, type Remote, type SyncRecord } from '../src/sync/engine';
 import { FakeServer } from './fake-sync-server';
 
 // The sync engine against a stand-in server (the same rules as
@@ -703,6 +703,80 @@ describe("who's in the yard on two devices", () => {
     expect(coreHash('X', c)).toBe(planHash('X', c));
     expect(coreHash('X', { ...c, bought: { a: { n: 1, at: 1 } }, household: none, photo: null })).toBe(planHash('X', c));
     expect(coreHash('X', { ...c, shapes: [2] })).not.toBe(coreHash('X', c));
+  });
+});
+
+// The warning switches (Jason, Nov 1: "What's checked (and dismissed) goes with this plan, on all your devices"): they
+// settle on their own, one by one, never a conflict copy. The one switched in the plan more lately; one switched in the
+// plan over one a device only took with the update; two taken that way, off if either was (a device's "on" is mostly
+// the default, never touched; its "off" was someone's choice).
+describe('the warning switches on two devices', () => {
+  const taken = (on: Record<string, boolean>) => Object.fromEntries(Object.entries(on).map(([k, v]) => [k, { on: v }]));
+  const all = { showCrowding: true, crowdWarnings: true, hardyWarnings: true, poisonWarnings: true, fruitWarnings: true };
+  it("two devices update, each taking what it had: no copy, and a warning either had off stays off on both", async () => {
+    for (const order of ['phone first', 'laptop first'] as const) {
+      const server = new FakeServer(), phone = new FakeDevice('phone'), laptop = new FakeDevice('laptop');
+      const id = phone.add('Back Yard', [1]);
+      await sync(phone, server); await sync(laptop, server);
+      phone.setPart(id, 'switches', taken({ ...all, showCrowding: false }));
+      laptop.setPart(id, 'switches', taken({ ...all, poisonWarnings: false }));
+      const first = order === 'phone first' ? [phone, laptop] : [laptop, phone];
+      for (const d of [...first, ...first]) expect((await sync(d, server)).conflicts).toEqual([]);
+      for (const d of [phone, laptop]) expect(d.part(id, 'switches')).toEqual(taken({ ...all, showCrowding: false, poisonWarnings: false }));
+      expect(phone.names()).toEqual(['Back Yard']);
+      expect(await sync(phone, server)).toMatchObject({ uploaded: 0, downloaded: 0 });
+    }
+  });
+  it('one switched in the plan wins over one only taken, and the later of two switched wins, switch by switch', async () => {
+    const server = new FakeServer(), phone = new FakeDevice('phone'), laptop = new FakeDevice('laptop');
+    const id = phone.add('Back Yard', [1]);
+    await sync(phone, server); await sync(laptop, server);
+    phone.setPart(id, 'switches', taken({ ...all, hardyWarnings: false })); // (taken with the update)
+    laptop.setPart(id, 'switches', { ...taken(all), hardyWarnings: { on: true, at: 500 } }); // (switched back on in the plan)
+    for (const d of [phone, laptop, phone, laptop]) expect((await sync(d, server)).conflicts).toEqual([]);
+    for (const d of [phone, laptop]) expect(d.part(id, 'switches')).toEqual({ ...taken(all), hardyWarnings: { on: true, at: 500 } });
+    // Each switched on its own device, at once: each switch the later of its two.
+    phone.setPart(id, 'switches', { ...taken(all), hardyWarnings: { on: false, at: 700 }, fruitWarnings: { on: false, at: 650 } });
+    laptop.setPart(id, 'switches', { ...taken(all), hardyWarnings: { on: true, at: 600 }, fruitWarnings: { on: true, at: 900 } });
+    for (const d of [laptop, phone, laptop]) expect((await sync(d, server)).conflicts).toEqual([]);
+    for (const d of [phone, laptop]) expect(d.part(id, 'switches')).toEqual({ ...taken(all), hardyWarnings: { on: false, at: 700 }, fruitWarnings: { on: true, at: 900 } });
+  });
+  it('switched on one device while the plan is edited on another: both kept, no copy', async () => {
+    const server = new FakeServer(), phone = new FakeDevice('phone'), laptop = new FakeDevice('laptop');
+    const id = phone.add('Back Yard', [1]);
+    await sync(phone, server); await sync(laptop, server);
+    phone.setPart(id, 'switches', { poisonWarnings: { on: false, at: 100 } });
+    laptop.edit(id, [1, 'a new bed']);
+    for (const d of [laptop, phone, laptop, phone]) expect((await sync(d, server)).conflicts).toEqual([]);
+    for (const d of [phone, laptop]) {
+      expect(d.shapes(id)).toEqual([1, 'a new bed']);
+      expect(d.part(id, 'switches')).toEqual({ poisonWarnings: { on: false, at: 100 } });
+    }
+  });
+  it("a plan deleted on another device doesn't come back for what this one only took (the yard, the switches); one switched in the plan keeps it", async () => {
+    for (const set of [false, true]) {
+      const server = new FakeServer(), phone = new FakeDevice('phone'), laptop = new FakeDevice('laptop');
+      const id = phone.add('Old plan', [1]);
+      await sync(phone, server); await sync(laptop, server);
+      laptop.del(id); await sync(laptop, server);
+      phone.setPart(id, 'household', { kids: false, dogs: '', cats: false, horses: false, answered: false });
+      phone.setPart(id, 'switches', set ? { ...taken(all), poisonWarnings: { on: false, at: 5 } } : taken(all));
+      const r = await sync(phone, server);
+      expect({ set, removed: r.removed, restored: r.restored }).toEqual(set ? { set, removed: [], restored: ['Old plan'] } : { set, removed: ['Old plan'], restored: [] });
+    }
+  });
+  it('settle the same either way round', () => {
+    const a = { showCrowding: { on: false }, hardyWarnings: { on: true, at: 5 }, crowdWarnings: { on: true, at: 9 }, fruitWarnings: { on: true } };
+    const b = { showCrowding: { on: true }, hardyWarnings: { on: false }, crowdWarnings: { on: false, at: 9 }, poisonWarnings: { on: false, at: 1 }, odd: { on: 'x' } };
+    expect(settleSwitches(a, b)).toEqual(settleSwitches(b, a));
+    expect(settleSwitches(a, b)).toEqual({
+      showCrowding: { on: false }, hardyWarnings: { on: true, at: 5 }, crowdWarnings: { on: false, at: 9 }, fruitWarnings: { on: true }, poisonWarnings: { on: false, at: 1 },
+    });
+    expect([settleSwitches(undefined, undefined), settleSwitches(a, 'x')]).toEqual([undefined, a]);
+  });
+  it("a plan's core leaves out its switches too", () => {
+    const c = { shapes: [1], phases: [] };
+    expect(coreHash('X', { ...c, switches: taken(all) })).toBe(planHash('X', c));
   });
 });
 

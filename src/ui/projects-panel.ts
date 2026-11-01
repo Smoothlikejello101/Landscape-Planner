@@ -14,6 +14,7 @@ import { deleteNote } from '../sync/sync';
 import { toast } from './toast';
 import { askChoice, askTextAnd, tell } from './ask';
 import { householdCopy, yardSet } from '../yard';
+import { allSwitchesOn, switchesCopy } from '../view-settings';
 
 function closeButton(onClick: () => void) {
   const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' });
@@ -167,17 +168,19 @@ export function renderProjectsPanel() {
   const newBtn = el('button', { className: 'btn primary', style: { margin: '16px' }, html: I.plus + '<span>New project</span>' });
   newBtn.addEventListener('click', async () => {
     // (The plan open has a location: offered for the new one, ticked, most new plans being of the same garden. Jason,
-    // from the UI review, 2026-11-01. Who's in the yard goes with it, answered or not (Jason, Nov 1); unticked, the new
-    // plan asks "Anyone you need to protect?". With no location, it's offered for the yard alone, once answered.)
-    const here = state.location, yard = state.household.answered || yardSet(state.household);
+    // from the UI review, 2026-11-01. Who's in the yard goes with it, answered or not, and the warning switches, Sun's
+    // too (Jason, Nov 1); unticked, the new plan asks "Anyone you need to protect?", with every warning on. With no
+    // location, it's offered for the yard and the switches alone, once the yard's answered or a warning is off.)
+    const here = state.location, yard = state.household.answered || yardSet(state.household), switched = !allSwitchesOn() || !state.sunWarnings;
     const said = await askTextAnd('Name for the new project', 'Untitled', {
-      ok: 'Make it', label: 'Project name', check: here || yard ? { label: here ? `Same garden (ZIP ${here.zip})?` : 'Same garden?', checked: true } : undefined,
+      ok: 'Make it', label: 'Project name', check: here || yard || switched ? { label: here ? `Same garden (ZIP ${here.zip})?` : 'Same garden?', checked: true } : undefined,
     });
     if (said === null) return;
     // (Two plans of one name couldn't be told apart: "(2)", as an import does. Round 3, Sam.)
     const name = uniqueName(said.text, state.projects.map((p) => p.name));
-    const same = (here || yard) && said.checked;
-    await openProject(await createProject(name, same ? { ...emptyProjectData(), ...(here ? { location: deepClone(here) } : {}), household: householdCopy() } : undefined));
+    const same = (here || yard || switched) && said.checked;
+    await openProject(await createProject(name, same
+      ? { ...emptyProjectData(), ...(here ? { location: deepClone(here) } : {}), household: householdCopy(), switches: switchesCopy(), sunWarnings: state.sunWarnings } : undefined));
   });
 
   const sheet = el('div', { className: 'sheet' }, header, list, newBtn);

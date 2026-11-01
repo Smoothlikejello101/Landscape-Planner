@@ -14,6 +14,7 @@ import { photoFingerprint } from '../src/sync/photo';
 import { loadMyPlants, mergeMyPlants, myPlants, saveMyPlant, deleteMyPlant } from '../src/my-plants';
 import { FakePlantServer, FakeServer } from './fake-sync-server';
 import type { Shape } from '../src/types';
+import { setHardyWarnings } from '../src/view-settings';
 
 // Sync against this device's real storage (in a stand-in IndexedDB) and a stand-in server.
 
@@ -575,6 +576,33 @@ describe("the Plant list's ticks and the yard with this device's storage", () =>
     expect(state.projects).toHaveLength(1);
     await restart();
     expect(await syncOnce(local(), server.remoteFor('phone'), 'phone')).toMatchObject({ uploaded: 0, downloaded: 0 });
+  });
+});
+
+// The warning switches through this device's storage (Jason, Nov 1): switched here and on another device, they settle
+// on their own, the open plan shows the result at once, and after a restart nothing looks changed.
+describe("the warning switches with this device's storage", () => {
+  it('switched here and on another device: no copy, the open plan shows both, stored, and nothing moves after a restart', async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.shapes = [bed('b1', 'A')]; save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    setHardyWarnings(false); await flushSave();
+    const row = server.rows.get(id)!;
+    const theirs = row.content.switches as Record<string, { on: boolean; at?: number }>;
+    row.content = { ...row.content, shapes: [bed('b1', 'B')], switches: { ...theirs, poisonWarnings: { on: false, at: Date.now() + 1000 } } }; row.revision++; row.updated_by = 'laptop';
+    const r = await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    expect(r.conflicts).toEqual([]);
+    expect([state.hardyWarnings, state.poisonWarnings, state.crowdWarnings]).toEqual([false, false, true]);
+    expect(state.shapes.map((x) => x.label)).toEqual(['B']);
+    const both = server.rows.get(id)!.content.switches as Record<string, { on: boolean }>;
+    expect([both.hardyWarnings.on, both.poisonWarnings.on, both.crowdWarnings.on]).toEqual([false, false, true]);
+    expect((await readProject(id))!.switches).toEqual(both);
+    await restart();
+    expect([state.hardyWarnings, state.poisonWarnings]).toEqual([false, false]);
+    expect(await syncOnce(local(), server.remoteFor('phone'), 'phone')).toMatchObject({ uploaded: 0, downloaded: 0 });
+    for (const k of ['hardyWarnings', 'poisonWarnings'] as const) state[k] = true;
+    state.switchedAt = {};
   });
 });
 

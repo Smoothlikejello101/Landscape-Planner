@@ -111,6 +111,47 @@ test('deleting a bed with some of its plants selected asks about the others: tho
   await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(5);
 });
 
+test('deleting a bed with other shapes leaves its locked plants, and the notice says so (Jason, Nov 1)', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    const base = { color: '#16a34a', opacity: 0.65 };
+    localStorage.setItem('landscape-planner-v1', JSON.stringify({
+      shapes: [
+        { ...base, id: 'bed', type: 'rect', x: 0, y: 0, width: 10, height: 6, rotation: 0, label: 'Bed', role: 'bed' },
+        { ...base, id: 'p1', type: 'circle', x: 2, y: 2, radius: 1, label: 'One', role: 'plant' },
+        { ...base, id: 'p2', type: 'circle', x: 8, y: 2, radius: 1, label: 'Two', role: 'plant' },
+        { ...base, id: 'p3', type: 'circle', x: 5, y: 5, radius: 1, label: 'Three', role: 'plant', locked: true },
+      ],
+      zoom: 1, offsetX: -4, offsetY: -6,
+    }));
+  });
+  await page.goto('./');
+  await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(4);
+  const pick = async () => {
+    await page.keyboard.press('Escape'); // (nothing selected)
+    if ((await page.getByTestId('select-mode').getAttribute('aria-pressed')) !== 'true') await page.getByTestId('select-mode').click();
+    await page.locator('#canvas-svg [data-shape-id=p1]').click();
+    await page.locator('#canvas-svg [data-shape-id=bed]').click();
+    await expect(page.locator('.multi-bar .count')).toHaveText('2 selected');
+    await page.locator('.multi-bar button[title=Delete]').click();
+  };
+  const ask = page.locator('.ask-overlay [role=alertdialog]');
+  // Only those selected: the unlocked one left is said, and so is the locked one.
+  await pick();
+  await ask.getByTestId('ask-selected-only').click();
+  await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(2);
+  await expect(page.locator('#toast-action')).toContainText('Deleted 1 plant, 1 bed; the other 1 plant in the bed stays; the 1 locked plant in the bed stays');
+  await page.locator('#toast-action').getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(4);
+  // The others too: the locked one still stays, and the notice says so.
+  await pick();
+  await ask.getByTestId('ask-ok').click();
+  await expect(page.locator('#canvas-svg [data-shape-id]')).toHaveCount(1);
+  await expect(page.locator('#canvas-svg [data-shape-id=p3]')).toHaveCount(1);
+  await expect(page.locator('#toast-action')).toContainText('Deleted 2 plants, 1 bed; the 1 locked plant in the bed stays');
+});
+
 test('a plain shape from an older plan (a property line with no role) is asked about too', async ({ page }) => {
   await page.addInitScript(() => {
     if (sessionStorage.getItem('seeded')) return;
