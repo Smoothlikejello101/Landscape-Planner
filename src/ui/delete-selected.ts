@@ -80,6 +80,10 @@ export async function deleteSelectedAsking(): Promise<void> {
   const beds = going.filter(isBed);
   const left = plantsLeftIn(beds, selected);
   const inBeds = beds.length === 1 ? 'the bed' : 'the beds';
+  // Locked plants in those beds, not selected: they stay, as a lock keeps a shape through any delete; said, so they
+  // aren't a surprise left on the lawn (Jason, Nov 1).
+  const chosen = new Set(selected.map((s) => s.id));
+  const lockedIn = beds.flatMap((b) => plantsOf(b)).filter((p) => isLocked(p) && !chosen.has(p.id));
   let alsoLeft = false;
   if (notPlants.length || away.length) {
     const msg = `Delete ${going.length} shape${going.length === 1 ? '' : 's'}: ${describeShapes(going)}?` +
@@ -100,7 +104,8 @@ export async function deleteSelectedAsking(): Promise<void> {
   state.panel = null;
   render();
   undoNotice(`Deleted ${describeShapes(gone)}` + (left.length && !alsoLeft ? `; the other ${named(left)} in ${inBeds} ${stay(left)}` : '') +
-    (kept ? `; ${kept} locked ${kept === 1 ? 'shape' : 'shapes'} kept` : ''));
+    (kept ? `; ${kept} locked ${kept === 1 ? 'shape' : 'shapes'} kept` : '') +
+    (lockedIn.length ? `; the ${namedAs(lockedIn, 'locked')} in ${inBeds} ${stay(lockedIn)}` : ''));
 }
 /** The plants in a bed (src/beds.ts), locked or not, leaving out those marked gone (a bed's count leaves them out). */
 const plantsOf = (bed: Shape): Shape[] => plantsInBed(bed, state.shapes).filter((p) => p.status !== 'gone');
