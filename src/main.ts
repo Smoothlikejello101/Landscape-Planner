@@ -16,6 +16,7 @@ import { loadPlants, plantFilter } from './plants';
 import { applyYard, loadHardy, loadYard } from './yard';
 import { loadWild } from './wild';
 import { initAccount, restoreCodeSent, setAccountListener } from './account';
+import { CHANNEL, signInAllowed } from './channel';
 import { onAccountChange, setSyncUi, startSyncTriggers } from './sync/sync';
 import { refreshAfterSync, screenBusy, showSyncResults } from './ui/sync-results';
 import { refreshAccountSection } from './ui/account-section';
@@ -315,6 +316,8 @@ async function start() {
   // a device used before the list existed is told from a new one.
   const news = newsAtStart(visitedBefore());
   noteVisit(); // (before the first render: a hint may be due again)
+  // Next, the preview copy of the app, is marked so it's never taken for the real one (a stripe along the top).
+  document.body.classList.toggle('channel-next', CHANNEL === 'next');
   loadMyPlants();
   loadViewSettings(); // (full-size rings and crowding outlines, as left on this device)
   applyYard(plantFilter, loadYard()); // (kids and pets in the yard: the picker's filters for them, as left on this device)
@@ -339,9 +342,12 @@ async function start() {
     busy: screenBusy,
     showOpen: () => { pushHistory(); refreshAfterSync(); },
   });
-  startSyncTriggers();
-  restoreCodeSent();
-  void initAccount();
+  // (Not in Next, the preview copy: it shares the backend, so it never signs in or syncs. src/channel.ts.)
+  if (signInAllowed()) {
+    startSyncTriggers();
+    restoreCodeSent();
+    void initAccount();
+  }
   void requestPersistence();
   setupServiceWorker();
 }

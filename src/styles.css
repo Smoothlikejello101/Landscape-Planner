@@ -66,6 +66,13 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .multi-bar button:active { background: rgba(255,255,255,0.1); }
 /* (Delete apart from the rest, past a divider: never a slip from Copy or Deselect.) */
 .multi-bar .bar-gap { width: 1px; align-self: stretch; margin: 8px 10px; background: rgba(255,255,255,0.3); }
+/* Too wide for the screen (src/ui/render.ts): words on one line; then closer; then the buttons' words for screen readers only. */
+.multi-bar button span { white-space: nowrap; }
+.multi-bar > button, .multi-bar > .count { flex-shrink: 0; }
+.multi-bar.tight button { padding: 8px 6px; }
+.multi-bar.tight .count { padding: 6px 8px; }
+.multi-bar.tight .bar-gap { margin: 8px 4px; }
+.multi-bar.icons button span, .multi-bar.icons-more [data-testid=bar-place-more] span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .multi-bar button.danger { color: #fecaca; }
 /* Bottom toolbar */
 .bottom-toolbar { display: flex; align-items: center; justify-content: space-around; padding: 6px 4px; background: #fff; border-top: 1px solid #e7e5e4; flex-shrink: 0; gap: 4px; }
@@ -297,6 +304,8 @@ a { color: inherit; }
 /* (A section's other lines, its checkboxes, hints and pickers, line up with its rows.) */
 .role-rows > :not(.role-row):not(.section-label) { padding-left: 16px; padding-right: 16px; }
 .section-label { font-size: calc(11px * var(--ts)); font-weight: 600; color: #78716c; text-transform: uppercase; letter-spacing: 0.04em; padding: 10px 16px 4px; }
+/* Next, the preview copy of the app (src/channel.ts): an amber stripe along the top, so it's never taken for the real one. */
+body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right: 0; height: 4px; background: #d97706; z-index: 100000; pointer-events: none; }
 /* What's new (src/ui/whats-new-panel.ts): each release's day, New where this device hadn't seen it, its lines. */
 .whats-new-date { display: flex; align-items: center; gap: 8px; padding-top: 14px; }
 .whats-new-fresh { background: #dcfce7; color: #166534; border-radius: 999px; padding: 1px 8px; text-transform: none; letter-spacing: 0; }
@@ -457,7 +466,8 @@ a { color: inherit; }
 .year-count { display: block; max-width: 100%; margin: 0 auto; padding: 0 6px; min-height: 24px; border: 0; background: none; font: inherit; font-size: calc(12px * var(--ts)); color: #047857; text-decoration: underline; text-underline-offset: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
 .year-count:disabled { color: #57534e; text-decoration: none; cursor: default; }
 .year-list { max-height: 30vh; overflow-y: auto; padding: 6px 12px 8px; border-bottom: 1px solid #e7e5e4; font-size: calc(14px * var(--ts)); color: #292524; }
-.year-list-row { padding: 3px 0; }
+.year-list-row { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 6px 0; font: inherit; color: inherit; cursor: pointer; }
+@media (hover: hover) { .year-list-row:hover { background: #f5f5f4; } }
 .year-list-row.around { color: #78716c; }
 .year-list-row .count { color: #78716c; }
 .year-slide { display: flex; flex-direction: column; gap: 0; padding: 0 6px; }
@@ -678,6 +688,8 @@ a { color: inherit; }
 .zone-source { font-size: calc(11px * var(--ts)); }
 .color-chips { display: flex; align-items: center; gap: 6px; overflow-x: auto; margin-top: 8px; padding: 2px 0 4px; scrollbar-width: thin; }
 .color-chips[hidden] { display: none; }
+/* Chips that wrap onto more lines instead of scrolling (a plant's flower colors in its form). */
+.color-chips.wrap { flex-wrap: wrap; overflow-x: visible; }
 .chips-label { flex: none; font-size: calc(12px * var(--ts)); color: #78716c; margin-right: 2px; }
 .color-chip { flex: none; position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 10px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; font-size: calc(13px * var(--ts)); color: #292524; white-space: nowrap; cursor: pointer; }
 .color-chip input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }

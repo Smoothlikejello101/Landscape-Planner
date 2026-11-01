@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, closeSheet, field, openFilters, openFresh, openSections, openWarnings, shapeCount, tapFromCenter, openSettings } from './helpers';
+import { addKind, closeSheet, field, openFilters, openFresh, openSections, openWarnings, shapeCount, tapFromCenter, openSettings, tapping } from './helpers';
 
 // Round 2's decisions (Jason, Oct 30, in the findings doc): each as a tester met what it changes.
 
@@ -41,7 +41,7 @@ test('by touch, dragging a shape that isn\'t selected moves the plan, and says h
   const after = await Promise.all([0, 1].map(async (i) => (await rects(page).nth(i).boundingBox())!));
   expect(Math.round(after[0].x - before[0].x)).toBe(80);
   expect(Math.round(after[1].x - before[1].x)).toBe(80);
-  await expect(page.locator('#toast')).toContainText('To move a shape, tap it first, then drag it');
+  await expect(page.locator('#toast')).toContainText(tapping('To move a shape, tap it first, then drag it'));
   await expect(page.locator('.sel-pill')).toHaveCount(0);
 });
 
@@ -142,6 +142,16 @@ test('the picker\'s "up to N ft" goes by the tallest a plant grows; those that t
   });
   await expect(page.getByTestId('height-readout')).toHaveText('Up to 6 ft');
   await expect(page.getByTestId('taller-divider')).toContainText('Typically 6 ft or less, but they can grow taller');
+  // Width the same way, below it (Jason, Oct 31); with both, the divider says both.
+  await page.getByTestId('width-max').evaluate((el) => {
+    const input = el as HTMLInputElement;
+    input.value = '3'; // (3 ft)
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await expect(page.getByTestId('width-readout')).toHaveText('Up to 3 ft');
+  await expect(page.getByTestId('taller-divider')).toContainText('Typically up to 6 ft tall and 3 ft wide, but they can grow larger');
+  await expect(page.getByTestId('active-filters')).toContainText('Width: up to 3 ft');
 });
 
 const TABLE = {

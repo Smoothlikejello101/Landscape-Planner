@@ -5,7 +5,7 @@ import { flushHistoryDebounce, pushHistory } from '../history';
 import { I } from '../icons';
 import { centerOnShape, deletePhase, setRoleView, setViewFilter } from '../mutations';
 import { passesFilter, STATUSES, statusLabelFor } from '../status';
-import { ROLES, roleHidden, roleKey, roleLabel } from '../roles';
+import { isLocked, ROLES, roleHidden, roleKey, roleLabel } from '../roles';
 import type { RoleKey, ShapeFilter } from '../types';
 import { isSelected, selectOnly } from '../selection';
 import { state } from '../state';
@@ -24,7 +24,9 @@ import { settingsLink } from './settings-panel';
 const fmtFt = (v: number) => String(Math.round(v * 10) / 10);
 
 export function renderLayersPanel() {
-  const lockedCount = state.shapes.filter(s => s.locked).length;
+  // (Locked either way, by itself or with its layer: round 3, Jordan and Alex read "2 locked" with the whole Plant
+  // layer locked as a contradiction.)
+  const lockedCount = state.shapes.filter(isLocked).length;
   // (The name on its button: Layers.)
   const n = state.shapes.length;
   const headerTitle = `Layers · ${n} shape${n === 1 ? '' : 's'}${lockedCount ? ', ' + lockedCount + ' locked' : ''}`;
@@ -258,12 +260,14 @@ function roleSection(): HTMLElement {
   names.addEventListener('change', () => { state.showNames = names.checked; render(); });
   wrap.appendChild(el('label', { className: 'check-row', style: { padding: '0 16px 6px' } }, names,
     el('span', {}, 'Show names, lengths, sun hours and plant badges')));
-  // A shape locked by itself (a house) while its role isn't: the row says so, beside its open lock (round 2, Oct 30:
-  // "1 locked" in the header and an open padlock on Building read as "the house is unlocked").
+  // A shape locked by itself (a house) while its layer isn't: the row says so, beside the layer's open lock, as a
+  // shape's lock, not the layer's (round 2, Oct 30: "1 locked" in the header and an open padlock on Building read as
+  // "the house is unlocked"; round 3, Alex and Jordan: "Building · 1, locked" beside an open padlock read as a
+  // contradiction).
   const shapeLocks = (k: RoleKey, roleLocked?: boolean) => {
     if (roleLocked) return '';
     const n = state.shapes.filter((s) => roleKey(s) === k && s.locked).length;
-    return n ? `, ${n === counts.get(k) ? (n === 1 ? 'locked' : 'all locked') : `${n} locked`}` : '';
+    return n ? ` \u00b7 ${n} locked shape${n === 1 ? '' : 's'}` : '';
   };
   for (const k of keys) {
     const v = state.roleViews[k] ?? {};

@@ -2,35 +2,25 @@
 // beta invites go out, testers should be able to see what changed in a new version). After an update, a notice says
 // so once and opens the list; ⋮ → What's new opens it any time (src/ui/whats-new-panel.ts).
 //
-// A change people will notice adds a line here, in the pull request that makes it: to a new release at the top
-// (the next id), or to the top one if it hasn't shipped yet. Say what they'll see, not how it was built; no "tap"
-// or "click" (a phone and a computer both read it).
+// The releases are in src/whats-new.json. A change people will notice adds a line there, in the pull request that
+// makes it, to the release not yet out: the top one, dated "next" (the next id, dated "next", if the top one has
+// shipped). Its date is written in once it's out (docs/releasing.md). Say what they'll see, not how it was built; no
+// "tap" or "click" (a phone and a computer both read it).
+
+import releases from './whats-new.json';
+import { CHANNEL, type Channel } from './channel';
 
 export interface Release {
   /** One more than the release below it: what this device has seen is kept by it. */
   id: number;
-  /** The day it shipped, YYYY-MM-DD. */
+  /** The day it shipped, YYYY-MM-DD; "next" for the one not yet out (a release build shows its build day). */
   date: string;
   /** What's new, a line each. */
   items: string[];
 }
 
-/** Newest first. */
-export const RELEASES: Release[] = [
-  {
-    id: 1,
-    date: '2026-10-31',
-    items: [
-      'Settings has a sheet of its own: ⋮ → Settings. Text size, the size of names on the plan, drawing aids and warnings are all there.',
-      'Settings → Warnings → “In this plan now” lists every warning in the open plan, and can show again ones you dismissed.',
-      'Print starts from what the screen shows: the plants shown or hidden, names on or off, the month.',
-      'A plant’s details say when the U.S. Geological Survey lists it as invasive in the lower 48. A plant your state’s law bans is left out while you browse; a search still finds it, with a red “Place (banned)”.',
-      'Redo is easier to find: after an undo, it shows next to Undo.',
-      'A tree you draw that’s already in the yard is marked Existing, not Planted.',
-      'This list: after an update, a notice says what’s new; ⋮ → What’s new shows it any time.',
-    ],
-  },
-];
+/** Newest first (src/whats-new.json: data, so CI can compare it with the release branch's: scripts/whats-new-check.mjs). */
+export const RELEASES: Release[] = releases;
 
 const KEY = 'lp-whats-new';
 
@@ -69,8 +59,15 @@ export function newsAtStart(usedBefore: boolean, releases: Release[] = RELEASES)
   return news;
 }
 
-/** "Oct 31, 2026". */
-export function releaseDate(date: string): string {
+/**
+ * "Oct 31, 2026"; the release not yet out: in Next, "Not released yet" (Jason, Oct 31: its changes are already running
+ * there; what they await is the testers' app), in a release build, its build day.
+ */
+export function releaseDate(date: string, channel: Channel = CHANNEL, built = typeof __BUILD_TIME__ === 'string' ? __BUILD_TIME__ : ''): string {
+  if (date === 'next') {
+    if (channel === 'next' || !built) return 'Not released yet';
+    date = built;
+  }
   const [y, m, d] = date.split('-').map(Number);
   const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1];
   return month && d ? `${month} ${d}, ${y}` : date;

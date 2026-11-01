@@ -43,7 +43,7 @@ test('backup all projects, then restore them on a fresh device', async ({ page, 
   ]);
   expect(download.suggestedFilename()).toMatch(/^fullgrown-backup-\d{4}-\d{2}-\d{2}\.fullgrown\.json$/);
   const file = await download.path();
-  await expect(page.locator('#toast')).toContainText(/Backed up 2 projects to your Downloads: fullgrown-backup-.*To bring them back, open Projects and tap Import from file/);
+  await expect(page.locator('#toast')).toContainText(/Backed up 2 projects to your Downloads: fullgrown-backup-.*To bring them back, open Projects and (tap|click) Import from file/);
   await expect(page.locator('.backup-section')).not.toContainText('never');
 
   // A brand-new browser profile = empty storage.

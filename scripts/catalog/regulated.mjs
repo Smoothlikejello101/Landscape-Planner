@@ -22,7 +22,19 @@ export function readRegulated(path = PATH) {
   const data = JSON.parse(readFileSync(path, 'utf8'));
   const bad = problems(data);
   if (bad.length) throw new Error(`${path}: ${bad.join('; ')}`);
-  return data;
+  return withAdopted(data);
+}
+/**
+ * A list that names no plants of its own, but another list's (Georgia's rule bans selling "any plant listed on the
+ * Federal Noxious Weed list"): `adopts: { code, class }`. It takes that list's entries, each in its own class, as
+ * the rule does: by reference, so the two never drift apart.
+ */
+export function withAdopted(data) {
+  return { ...data, jurisdictions: data.jurisdictions.map((j) => {
+    if (!j.adopts) return j;
+    const from = data.jurisdictions.find((x) => x.code === j.adopts.code);
+    return { ...j, plants: [...(j.plants ?? []), ...(from?.plants ?? []).map((p) => ({ ...p, class: j.adopts.class }))] };
+  }) };
 }
 /** What's wrong with the lists (none: []). */
 export function problems(data) {
@@ -38,6 +50,11 @@ export function problems(data) {
     // (Each class's tier: "ban", the rule forbids selling, planting or moving it; "listed", it lists the plant with
     // lighter duties: a nursery inspection, a landowner's duty to control it. The app shows a ban in red.)
     for (const c of Object.keys(j.classes ?? {})) if (!['ban', 'listed'].includes(j.tiers?.[c])) out.push(`${j.code} ${c}: no tier (ban or listed)`);
+    if (j.adopts != null) {
+      const from = data.jurisdictions.find((x) => x.code === j.adopts.code);
+      if (!from || from === j || from.adopts) out.push(`${j.code}: adopts no list of plants of its own`);
+      if (!j.classes?.[j.adopts.class]) out.push(`${j.code}: adopts into class "${j.adopts.class}", not in its list's classes`);
+    }
     for (const p of j.plants ?? []) {
       const what = p.name ?? p.genus;
       if (!j.classes?.[p.class]) out.push(`${j.code} ${what}: class "${p.class}" not in its list's classes`);

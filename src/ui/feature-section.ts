@@ -1,4 +1,4 @@
-import { el } from '../dom';
+import { el, tapSaid } from '../dom';
 import { startFeaturePlace } from '../feature-edit';
 import { flipHinge, flipSwing, kindsFor, knownFeatures, SUB_FEATURES, swings } from '../features';
 import { updateSelected, updateSelectedSilent } from '../mutations';
@@ -111,6 +111,6 @@ export function featuresSection(s: Shape): HTMLElement {
     ? 'Unlock it to add or change these.'
     : !kindsFor(s).length
       ? 'Left from what it was before: take off any it doesn\'t have.'
-      : 'Tap one to add it, then tap where it goes on the plan. Drag one along the edge to move it.'));
+      : tapSaid('Tap one to add it, then tap where it goes on the plan. Drag one along the edge to move it.')));
   return wrap;
 }

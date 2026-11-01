@@ -3,7 +3,7 @@ import { byMatch, closeMatchIn, inNotes, matchPlant, nearShows, readQuery } from
 import { bloomMatch, groupKey, groupName, headName, pluralName, earlierOnly, filterOn, matchedBy, seasonMonths, trueToColor, nonToxicToDogs, PLANT_FILTER_DEFAULTS, pickerCount, plantMatches, reportedPhrase, rowFlags, rowLines, shareDogWarnings, speciesOf, sunSaid, toxicToDogs, plantTakesSun, reportedMatch, searchRank, type Plant } from '../src/plants';
 import { HABIT_SPREAD, rootSpread, rootText, seedText, spreadsAs, spreadWays } from '../src/spread';
 import { readFileSync } from 'node:fs';
-import { HEIGHT_STOPS, heightLabel, heightStops, heightValue } from '../src/ui/height-range';
+import { HEIGHT_STOPS, heightLabel, heightStops, heightValue, sizeLabel } from '../src/ui/height-range';
 import { barkText, fallText, poisonRow, poisonText, toxRow, winterParts, winterText } from '../src/ui/plant-details';
 
 const heuchera: Plant = {
@@ -546,6 +546,8 @@ describe('the mature-height slider', () => {
     expect([heightValue(0, last), heightValue(0, 7), heightValue(9, last), heightValue(4, 7)]).toEqual(['', '-10', '20-', '4-10']);
     expect(['', '-10', '20-', '4-10'].map(heightLabel)).toEqual(['Any height', 'Up to 10 ft', '20 ft and taller', '4–10 ft']);
     expect([heightStops(''), heightStops('4-10'), heightStops('-10'), heightStops('24-')]).toEqual([[0, last], [4, 7], [0, 7], [9, last]]); // (24 ft: the nearest stop, 20)
+    // (The width slider, the same stops, in its own words: Jason, Oct 31.)
+    expect(['', '-3', '20-', '4-10'].map((v) => sizeLabel(v, 'width'))).toEqual(['Any width', 'Up to 3 ft', '20 ft and wider', '4–10 ft']);
   });
 });
 

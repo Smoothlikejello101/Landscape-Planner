@@ -150,8 +150,8 @@ export function flowerColorOf(common: string, listed: string[]): string | undefi
 }
 /**
  * The flower colors a placed plant may be drawn in, chosen on the plan: its sources' petal colors (not a center's or
- * dull parts'), and the one it's drawn in unless another is chosen. None for a plant whose flowers don't show, or a
- * plant of the user's own (their own bloom color says it).
+ * dull parts'), and the one it's drawn in unless another is chosen; a plant of the user's own, the colors they gave
+ * it (src/my-plants.ts MY_FLOWER_COLORS). None for a plant whose flowers don't show.
  */
 export function flowerChoices(p: Plant | undefined): { colors: string[]; usual?: string } {
   const listed = (p?.flower_color ?? []).filter((c) => c !== 'insignificant' && FLOWER_HEX[c] && !NOT_PETALS.has(c));

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, addPlainShape, closeSheet, field, openFresh, openSections } from './helpers';
+import { addKind, addPlainShape, closeSheet, field, openFresh, openSections, tapping } from './helpers';
 
 // A tree's canopy is drawn over what's under it, but taps go through it; the trunk picks the tree.
 
@@ -29,7 +29,7 @@ test('a tap under a canopy picks what\'s under it, locked tree or not; the trunk
   const onRect = await centerOf(page, '#canvas-svg rect[data-shape-id]');
   await page.mouse.click(onRect.x, onRect.y);
   await expect(name).toHaveText('Rectangle'); // (unnamed: what it is; a plain shape, its shape)
-  await expect(page.locator('#toast')).toContainText('Under Big oak’s canopy. To pick the tree, tap its trunk.');
+  await expect(page.locator('#toast')).toContainText(tapping('Under Big oak’s canopy. To pick the tree, tap its trunk.'));
   // The trunk: the tree.
   const trunk = await centerOf(page, '#canvas-svg [data-role=trunk-hit]');
   await page.mouse.click(trunk.x, trunk.y);

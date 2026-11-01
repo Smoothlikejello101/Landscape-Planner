@@ -1,5 +1,5 @@
 import { finishBgCalibration, handleBgImageFile, removeBgImage, setPhotoDeviceOnly, startBgCalibration, updateBgImage, updateBgImageSilent } from '../background';
-import { el, ts } from '../dom';
+import { el, tapSaid, ts } from '../dom';
 import { I } from '../icons';
 import { account } from '../account';
 import { state } from '../state';
@@ -66,7 +66,7 @@ export function renderBgPanel() {
   const hFt = bg.naturalHeight * bg.ftPerPx;
   body.appendChild(bg.uncalibrated
     ? el('div', { className: 'banner', 'data-testid': 'bg-uncalibrated' },
-      'Not to scale yet: its size on the plan is a guess. Calibrate it: tap two points on the photo you know the distance between.')
+      tapSaid('Not to scale yet: its size on the plan is a guess. Calibrate it: tap two points on the photo you know the distance between.'))
     : el('div', { style: { fontSize: ts(12), color: '#57534e' } },
       'Current scale: ' + (1 / bg.ftPerPx).toFixed(1) + ' pixels per foot',
       el('br'),
@@ -74,14 +74,14 @@ export function renderBgPanel() {
     ));
 
   // Calibrate button
-  const calBtn = el('button', { className: 'btn primary', html: I.target + '<span style="margin-left:6px">Calibrate scale (tap 2 known points)</span>' });
+  const calBtn = el('button', { className: 'btn primary', html: I.target + `<span style="margin-left:6px">${tapSaid('Calibrate scale (tap 2 known points)')}</span>` });
   calBtn.addEventListener('click', () => startBgCalibration());
   body.appendChild(calBtn);
 
   // Edit mode toggle
   const editBtn = el('button', {
     className: 'btn ' + (state.bgEditMode ? 'secondary' : 'ghost'), 'data-testid': 'bg-edit',
-    html: I.move + '<span style="margin-left:6px">' + (state.bgEditMode ? 'Editing position — tap to finish' : 'Edit position & rotation') + '</span>'
+    html: I.move + '<span style="margin-left:6px">' + (state.bgEditMode ? tapSaid('Editing position — tap to finish') : 'Edit position & rotation') + '</span>'
   });
   editBtn.addEventListener('click', () => {
     state.bgEditMode = !state.bgEditMode;
@@ -212,7 +212,7 @@ export function renderBgDistanceModal() {
     ),
     el('div', { className: 'sheet-body' },
       el('div', { style: { fontSize: ts(13), color: '#57534e' } },
-        'How far apart are the two points you just tapped, in feet? Enter the real distance between them.'),
+        tapSaid('How far apart are the two points you just tapped, in feet? Enter the real distance between them.')),
       el('div', { className: 'field' },
         el('label', {}, 'Distance (ft)'),
         input

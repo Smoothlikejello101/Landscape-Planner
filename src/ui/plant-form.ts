@@ -1,11 +1,12 @@
 import { el } from '../dom';
 import { I } from '../icons';
 import {
-  activeMyPlants, deleteMyPlant, formatSize, isDataSized, isMine, MY_WATER, newMyPlantId, parseSize, parseZones, placedUsing, rawMyPlant, recolorPlaced,
+  activeMyPlants, deleteMyPlant, formatSize, isDataSized, isMine, MY_FLOWER_COLORS, MY_WATER, newMyPlantId, parseSize, parseZones, placedUsing, rawMyPlant, recolorPlaced,
   renamePlaced, resizePlaced, saveMyPlant, speciesLinkFor, speciesRecordFor, sunLevels, sunRange, zonesText, type Range,
 } from '../my-plants';
 import { FORM_COLORS, linkFromPicker, MONTH_NAMES, PLANTS, plantColor, plantColors, plantsById, speciesOf, type Plant } from '../plants';
 import { byMatch, matchPlant, readQuery } from '../search';
+import { flowerHex, ownBloomColors } from '../looks';
 import { state } from '../state';
 import type { Shape } from '../types';
 import { finishPlacing, startPlacing, switchPlacingPlant } from '../place';
@@ -221,7 +222,7 @@ export function renderPlantForm() {
     });
     sunRow.appendChild(b);
   }
-  body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Sun (tap all that apply)'), sunRow));
+  body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Sun (choose all that apply)'), sunRow));
 
   // Hardiness zones and water needs, from the tag (optional, Oct 30): with the species ticked, its own stand over the
   // species'. (Read as typed: the hint shows how.)
@@ -259,6 +260,28 @@ export function renderPlantForm() {
   body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Type and color on the plan'),
     el('div', { className: 'form-color-row' }, form, color)));
 
+  // Its flowers' colors, as chips below its color on the plan (Jason, Oct 30), the first chosen the one drawn; kept
+  // with or without bloom months. A plant from before them starts with its bloom color's words read as chips, one
+  // started from a catalog plant with that plant's colors. (Toggled in place: no re-render.)
+  const flowers: string[] = [...new Set((source?.flower_color?.length ? source.flower_color : ownBloomColors(source?.bloom?.color))
+    .filter((c) => (MY_FLOWER_COLORS as readonly string[]).includes(c)))];
+  const flowerRow = el('div', { className: 'color-chips wrap', role: 'group', 'aria-label': 'Flower color', 'data-testid': 'pf-flowers' });
+  const flowerHint = el('div', { className: 'hint', 'data-testid': 'pf-flowers-hint' });
+  for (const c of MY_FLOWER_COLORS) {
+    const b = el('button', { className: 'color-chip' + (flowers.includes(c) ? ' on' : ''), 'aria-pressed': String(flowers.includes(c)), 'data-testid': 'pf-flower', 'data-color': c },
+      el('span', { className: 'swatch', style: { background: flowerHex(c) ?? '#d6d3d1' } }), c[0].toUpperCase() + c.slice(1));
+    b.addEventListener('click', () => {
+      const i = flowers.indexOf(c);
+      if (i >= 0) flowers.splice(i, 1); else flowers.push(c);
+      b.classList.toggle('on', i < 0);
+      b.setAttribute('aria-pressed', String(i < 0));
+      b.dispatchEvent(new Event('change', { bubbles: true })); // (something's changed: a tap beside the form asks first)
+      showFlowerHint();
+    });
+    flowerRow.appendChild(b);
+  }
+  body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Flower color (optional)'), flowerRow, flowerHint));
+
   // Bloom and notes: optional, folded away.
   const monthSel = (value?: number) => {
     const sel = el('select', {}) as HTMLSelectElement;
@@ -279,7 +302,7 @@ export function renderPlantForm() {
     el('summary', {}, 'Bloom and notes (optional)'),
     el('div', { className: 'field' }, el('label', {}, 'Blooms from / to'),
       el('div', { style: { display: 'flex', gap: '8px' } }, bloomStart, bloomEnd)),
-    el('div', { className: 'field' }, el('label', {}, 'Bloom color'), bloomColor, bloomHint),
+    el('div', { className: 'field' }, el('label', {}, 'Bloom color, in words'), bloomColor, bloomHint),
     el('div', { className: 'field' }, el('label', {}, 'Notes'), notes));
   body.appendChild(more);
   // (A color with no months was never drawn, nor counted in bloom, and nothing said why: round 3, Diego. Said in
@@ -293,6 +316,14 @@ export function renderPlantForm() {
   bloomStart.addEventListener('change', showBloomHint);
   bloomEnd.addEventListener('change', showBloomHint);
   showBloomHint();
+  // (The chips' hint: what they do, and that the flowers show only in its bloom months, given below.)
+  function showFlowerHint() {
+    flowerHint.textContent = !flowers.length ? 'The color its flowers are drawn in on the plan while it blooms.'
+      : !bloomStart.value ? 'Its flowers show on the plan only in its bloom months: give them under Bloom and notes.'
+        : flowers.length > 1 ? `Drawn in ${flowers[0]}, the first chosen; each plant on the plan can be switched to another of these.` : '';
+  }
+  bloomStart.addEventListener('change', showFlowerHint);
+  showFlowerHint();
 
   const error = el('div', { className: 'hint error', 'data-testid': 'pf-error' });
   body.appendChild(error);
@@ -311,10 +342,11 @@ export function renderPlantForm() {
     recheckSpecies();
     if (Date.now() - untickedAt < 1500) { untickedAt = 0; sameNote.scrollIntoView({ block: 'nearest' }); return null; }
     const start = Number(bloomStart.value) || undefined, end = Number(bloomEnd.value) || start;
-    // (A bloom color with no months was dropped without a word: asked for, as a missing size is.)
+    // (A bloom color in words with no months was dropped without a word: asked for, as a missing size is. The chips
+    // are kept either way.)
     if (bloomColor.value.trim() && !start) {
       more.open = true;
-      bloomHint.textContent = 'Give the month it starts blooming, or clear the color: a color alone isn\u2019t kept.';
+      bloomHint.textContent = 'Give the month it starts blooming, or clear the words: they\u2019re kept with its bloom months. (The color chips above are kept either way.)';
       bloomHint.classList.add('error');
       bloomHint.scrollIntoView({ block: 'nearest' });
       return null;
@@ -331,6 +363,7 @@ export function renderPlantForm() {
       // Stored only when it differs from the type's color, so changing the type later still recolors it.
       ...(color.value.toLowerCase() !== plantColor({ id: '', common: '', form: form.value || undefined }) ? { color: color.value.toLowerCase() } : {}),
       ...(start ? { bloom: { start, end, ...(bloomColor.value.trim() ? { color: bloomColor.value.trim() } : {}) } } : {}),
+      ...(flowers.length ? { flower_color: [...flowers] } : {}),
       ...(notes.value.trim() ? { notes: notes.value.trim() } : {}),
       // (Kept as the person left them: switched to the catalog's, or not that one.)
       ...(editing?.sameAs ? { sameAs: editing.sameAs } : editing?.notSame ? { notSame: editing.notSame } : {}),

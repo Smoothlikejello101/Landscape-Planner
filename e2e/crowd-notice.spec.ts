@@ -31,7 +31,7 @@ test('placing too close: a notice says which plant and why; Move it takes it bac
   // Move it: that one goes, to be tapped again.
   await notice(page).getByRole('button', { name: 'Move it' }).click();
   expect(await shapeCount(page)).toBe(1);
-  await expect(page.locator('#toast')).toContainText('Tap where it should go.');
+  await expect(page.locator('#toast')).toContainText(/(Tap|Click) where it should go\./);
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(0);
   // 4 ft away: close (their typical spreads touch). Amber, and the words Jason asked for.
   await tapFromCenter(page, -2, 0);

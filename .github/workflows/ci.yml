@@ -1,5 +1,11 @@
 name: Test and deploy
 
+# Three places a commit can go (docs/releasing.md):
+# - every branch and pull request: tested;
+# - main (each merged pull request): tested, then built as Next, the preview copy at next.fullgrown.garden;
+# - release (a release pull request from main, merged by Jason): tested, then deployed to app.fullgrown.garden, the
+#   app testers use.
+
 on:
   push:
   pull_request:
@@ -27,6 +33,15 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      # What's new, against the release branch's (what testers have): a release that's out keeps its lines, and in a
+      # pull request into main it has its date written in (scripts/release/whats-new-check.mjs).
+      - name: What's new check
+        if: github.ref != 'refs/heads/release' && github.base_ref != 'release'
+        env:
+          PR_FLAG: ${{ github.event_name == 'pull_request' && '--pr' || '' }}
+        run: |
+          if git fetch -q --depth=1 origin release 2>/dev/null; then git show FETCH_HEAD:src/whats-new.json > "$RUNNER_TEMP/released.json" 2>/dev/null || : > "$RUNNER_TEMP/released.json"; else : > "$RUNNER_TEMP/released.json"; fi
+          node scripts/release/whats-new-check.mjs "$RUNNER_TEMP/released.json" $PR_FLAG
       # The headless browser alone (the tests run headless), without --with-deps: the system libraries it needs are
       # on the runner already (its image has Chrome), and fetching them from Ubuntu's mirror sometimes crawled, from
       # 20 seconds to 13 minutes. The browser itself downloads in seconds.
@@ -54,13 +69,14 @@ jobs:
           echo "Version: ${APP_VERSION:-from package.json}"
           npm run build
       - uses: actions/upload-pages-artifact@v3
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        if: github.ref == 'refs/heads/release' && github.event_name != 'pull_request'
         with:
           path: dist
 
   deploy:
-    # Publishes to GitHub Pages. Requires Settings → Pages → Source: "GitHub Actions".
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    # Publishes the release branch to GitHub Pages: app.fullgrown.garden, what testers use. Requires Settings → Pages →
+    # Source: "GitHub Actions", and the github-pages environment allowing the release branch (docs/releasing.md).
+    if: github.ref == 'refs/heads/release' && github.event_name != 'pull_request'
     needs: test
     runs-on: ubuntu-latest
     permissions:
@@ -72,3 +88,46 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  next:
+    # Next, the preview copy at next.fullgrown.garden: main as of each merge, once its tests pass, built as Next
+    # (src/channel.ts: its own name, an amber stripe, no sign-in) and pushed to the fullgrown-next repo's gh-pages
+    # branch, which GitHub Pages serves. Its own web address, so its plans never mix with the real app's.
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Build Next
+        env:
+          APP_CHANNEL: next
+          VERSION_SUFFIX: -next
+        run: |
+          # (The version as the test job's build reads it: the merged pull request's number.)
+          n=$(git log -1 --format=%s | sed -n -e 's/^Merge pull request #\([0-9][0-9]*\).*/\1/p' -e 's/.*(#\([0-9][0-9]*\))$/\1/p' | head -1)
+          if [ -n "$n" ]; then
+            export APP_VERSION="$(node -p "require('./package.json').version.split('.').slice(0, 2).join('.')").$(printf %03d "$((10#$n))")"
+          fi
+          node scripts/release/next-channel.mjs before
+          npm run build
+          node scripts/release/next-channel.mjs after
+      - name: Publish Next
+        env:
+          # A fine-grained token with write access to Smoothlikejello101/fullgrown-next's contents only.
+          TOKEN: ${{ secrets.NEXT_DEPLOY_TOKEN }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$TOKEN" ]; then echo "NEXT_DEPLOY_TOKEN isn't set, so Next wasn't published (docs/releasing.md, one-time setup)."; exit 0; fi
+          cd dist
+          git init -q -b gh-pages
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "Next: main at $SHA"
+          # (A deploy branch holding one build: replaced each time, so its history doesn't grow by a catalog a merge.)
+          git push -q --force "https://x-access-token:${TOKEN}@github.com/Smoothlikejello101/fullgrown-next.git" gh-pages
+          echo "Next published: main at $SHA"

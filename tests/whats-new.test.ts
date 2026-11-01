@@ -16,7 +16,8 @@ describe("what's new", () => {
   it('lists releases newest first, each one more than the last, dated, every line in plain words for a phone or a computer', () => {
     RELEASES.forEach((r, i) => {
       expect(r.id).toBe(RELEASES.length - i);
-      expect(r.date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      // (Dated the day it went out; only the top one, not yet out, may be "next".)
+      expect(r.date).toMatch(i === 0 ? /^(\d{4}-\d{2}-\d{2}|next)$/ : /^\d{4}-\d{2}-\d{2}$/);
       expect(r.items.length).toBeGreaterThan(0);
       for (const line of r.items) expect(line).not.toMatch(/\b(tap|click)/i);
     });
@@ -42,8 +43,10 @@ describe("what's new", () => {
     expect(seenRelease()).toBeNull();
     expect(newsAtStart(false, three)).toEqual([]);
   });
-  it('dates a release as people write it', () => {
+  it('dates a release as people write it; the one not yet out is "Not released yet" in Next, and its build day in a release', () => {
     expect(releaseDate('2026-10-31')).toBe('Oct 31, 2026');
     expect(releaseDate('2027-01-02')).toBe('Jan 2, 2027');
+    expect(releaseDate('next', 'next', '2026-11-02')).toBe('Not released yet');
+    expect(releaseDate('next', 'release', '2026-11-02')).toBe('Nov 2, 2026');
   });
 });

@@ -16,7 +16,7 @@ import { plantLabelFit, LABEL_LINE_HEIGHT, textWidth1, type FittedLabel } from '
 import { labelScale } from './label-size';
 import { canopyInnerRadius, canopyPoints, isTree, trunkParts, trunkReachPx } from './trees';
 import { trunkHitPx } from './canopy';
-import { isLocked, roleDef, roleKey, roleRank } from './roles';
+import { isLocked, roleDef, roleHidden, roleKey, roleRank } from './roles';
 import { shownWith } from './status';
 import { checkPlantSun, formatHours, shadeOpacity, sunHours, sunWarningShown } from './sun';
 import { prepareUtilities, utilityIssues, utilityWarningShown, type PreparedUtility } from './utilities';
@@ -25,6 +25,7 @@ import { state } from './state';
 import { isArbor, isTrellis, LATTICE_STEP, latticePath, SLAT_STEP, slatsPath } from './structures';
 import type { CircleShape, Point, Shape, ShapeFilter, TextShape } from './types';
 import { groundcoverRadius, supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
+import { pinRadius } from './pins';
 import { lookFor, lookMarkup, lookMonthOf, lookShown, plannedEdge } from './plant-looks';
 import { bandBlooms, bandLeaves, colorIn, coverBlooms, levelOf } from './looks';
 
@@ -174,6 +175,9 @@ export function shapeGroup(s: Shape): SVGGElement {
     // crown, as long as its spread. The spot and the band take taps; its name sits over the spot.
     const toPx = (p: Point) => `${(p.x - state.offsetX) * ppf},${(p.y - state.offsetY) * ppf}`;
     const { band, connector, cover } = vineBand(s, vine);
+    // (What it climbs hidden with its layer (Garden structure, say): the band along it goes too, its spot and name
+    // stay. Round 3, Kim: bands were left along fences that weren't there.)
+    const bandHidden = roleHidden(vine.shape);
     const cx = (s.x - state.offsetX) * ppf, cy = (s.y - state.offsetY) * ppf;
     vineDot = Math.max(4, VINE_DOT_RADIUS * ppf);
     const bandW = Math.max(4, VINE_BAND_WIDTH * ppf);
@@ -187,24 +191,25 @@ export function shapeGroup(s: Shape): SVGGElement {
     const paint = { stroke: s.status === 'remove' ? '#dc2626' : look ? (inMonth ? colorIn(look, inMonth) : look.pal.base) : s.color, 'stroke-opacity': op, fill: 'none', 'pointer-events': 'none' };
     // (On an arbor, over its top, as far as its spread reaches: taps go through it to the arbor, the vine taking
     // them at its spot.)
-    shapeEl = cover
+    shapeEl = bandHidden ? svgEl('g', { 'data-role': 'vine-band-hidden' })
+      : cover
       ? svgEl('polygon', { ...paint, 'data-role': 'vine-band', points: cover.map(toPx).join(' '), fill: paint.stroke, 'fill-opacity': paint['stroke-opacity'], 'stroke-width': 1.5, 'stroke-linejoin': 'round',
         opacity: s.status === 'gone' ? 0.35 : null })
       // (Square ends: it stops where its spread does, or the support ends, not a rounded half-width past them.)
       : svgEl('polyline', { ...paint, 'data-role': 'vine-band', points: band.map(toPx).join(' '), 'stroke-width': bandW, 'stroke-linecap': 'butt', 'stroke-linejoin': 'round',
         opacity: s.status === 'gone' ? 0.35 : null }); // (planned: lighter, as its stroke-opacity says; a dashed band reads as beads)
-    g0.push(svgEl('polyline', { ...paint, 'data-role': 'vine-reach', points: connector.map(toPx).join(' '), 'stroke-width': Math.max(1.5, bandW / 3), 'stroke-linecap': 'round', opacity: s.status === 'gone' ? 0.35 : null }));
+    if (!bandHidden) g0.push(svgEl('polyline', { ...paint, 'data-role': 'vine-reach', points: connector.map(toPx).join(' '), 'stroke-width': Math.max(1.5, bandW / 3), 'stroke-linecap': 'round', opacity: s.status === 'gone' ? 0.35 : null }));
     // (Its leaves and blooms as its plant's are drawn, by the band's width on the screen: close up, leaves and flowers
     // in their shape, as every plant's (Jason, Oct 30: "only color blobs while everything else gets flowers").)
     const drawAt = levelOf(bandW);
     const px = (l: Point[]) => l.map((p) => ({ x: (p.x - state.offsetX) * ppf, y: (p.y - state.offsetY) * ppf }));
-    if (look && !cover && s.status !== 'remove') {
+    if (look && !cover && !bandHidden && s.status !== 'remove') {
       const leaves = svgEl('g', { 'data-role': 'vine-leaves', 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : (s.status === 'planned' ? 0.75 : 1) * thin < 1 ? Math.round((s.status === 'planned' ? 0.75 : 1) * thin * 100) / 100 : null,
         'data-see-through': thin < 1 ? 'true' : null });
       leaves.innerHTML = bandLeaves(px(band), bandW, look, drawAt, s.id, inMonth);
       g0.push(leaves);
     }
-    if (look && inMonth?.bloom !== 'no') {
+    if (look && inMonth?.bloom !== 'no' && !bandHidden) {
       const blooms = svgEl('g', { 'data-role': 'vine-blooms', 'pointer-events': 'none', opacity: s.status === 'gone' ? 0.35 : (inMonth?.bloom === 'around' ? 0.45 : 1) * thin < 1 ? Math.round((inMonth?.bloom === 'around' ? 0.45 : 1) * thin * 100) / 100 : null });
       blooms.innerHTML = cover ? coverBlooms(px(cover), look, Math.max(10, 1 * ppf), drawAt, s.id) : bandBlooms(px(band), bandW, look, Math.max(10, 1 * ppf), drawAt, s.id);
       g0.push(blooms);
@@ -213,7 +218,7 @@ export function shapeGroup(s: Shape): SVGGElement {
     const level = crowded.get(s.id);
     if (level) g0.push(svgEl('circle', { 'data-role': level, cx, cy, r: vineDot + 4, fill: 'none', stroke: level === 'crowded' ? '#dc2626' : '#d97706', 'stroke-width': 2, 'stroke-dasharray': level === 'close' ? '6 4' : null, 'pointer-events': 'none' }));
     hitEl = svgEl('g', { 'data-shape-id': s.id, 'data-role': 'vine-hit', style: common.style, 'pointer-events': inert ? 'none' : null },
-      svgEl('polyline', { points: (cover ? connector : band).map(toPx).join(' '), fill: 'none', stroke: 'transparent', 'stroke-width': Math.max(hitBand(ppf), cover ? 0 : bandW), 'stroke-linecap': 'round', 'pointer-events': inert ? 'none' : 'stroke' }),
+      bandHidden ? null : svgEl('polyline', { points: (cover ? connector : band).map(toPx).join(' '), fill: 'none', stroke: 'transparent', 'stroke-width': Math.max(hitBand(ppf), cover ? 0 : bandW), 'stroke-linecap': 'round', 'pointer-events': inert ? 'none' : 'stroke' }),
       svgEl('circle', { cx, cy, r: Math.max(vineDot, 12), fill: 'transparent', 'pointer-events': inert ? 'none' : 'all' }));
     labelX = cx; labelY = cy - vineDot - 9 * lk;
     fs = 12 * lk;
@@ -902,17 +907,21 @@ function liftHidden(shapes: Element) {
     if (!s || s.type !== 'circle') continue;
     const cx = (s.x - state.offsetX) * ppf, cy = (s.y - state.offsetY) * ppf, r = Math.max(2, drawnRadius(s) * ppf - 1);
     const outlined = state.selectedIds.includes(id) || (hiddenBy.get(id) ?? []).some((c) => state.selectedIds.includes(c));
-    rims.push(outlined
-      ? svgEl('g', { 'data-role': 'hidden-rim', 'data-rim-of': id, 'data-mark': 'outline' },
-        svgEl('circle', { cx, cy, r, fill: 'none', stroke: 'rgba(255,255,255,0.75)', 'stroke-width': 3 }),
-        svgEl('circle', { cx, cy, r, fill: 'none', stroke: '#292524', 'stroke-width': 1.5, 'stroke-dasharray': '2 3', 'stroke-linecap': 'round', opacity: 0.8 }))
-      : svgEl('g', { 'data-role': 'hidden-rim', 'data-rim-of': id, 'data-mark': 'pin' },
-        svgEl('circle', { cx, cy, r: 4.5, fill: '#fff', opacity: 0.9 }), svgEl('circle', { cx, cy, r: 2.6, fill: '#292524' })));
+    // (Its pin sized by the plant as drawn, none where it's a speck or the plan is zoomed far out: src/pins.ts.)
+    const pin = outlined ? null : pinRadius(r, state.zoom);
+    if (outlined) rims.push(svgEl('g', { 'data-role': 'hidden-rim', 'data-rim-of': id, 'data-mark': 'outline' },
+      svgEl('circle', { cx, cy, r, fill: 'none', stroke: 'rgba(255,255,255,0.75)', 'stroke-width': 3 }),
+      svgEl('circle', { cx, cy, r, fill: 'none', stroke: '#292524', 'stroke-width': 1.5, 'stroke-dasharray': '2 3', 'stroke-linecap': 'round', opacity: 0.8 })));
+    else if (pin) rims.push(svgEl('g', { 'data-role': 'hidden-rim', 'data-rim-of': id, 'data-mark': 'pin' },
+      svgEl('circle', { cx, cy, r: pin, fill: '#fff', opacity: 0.9 }), svgEl('circle', { cx, cy, r: Math.round(pin * 0.58 * 10) / 10, fill: '#292524' })));
     // (Its pin, a finger wide, and its lifted name pick it: round 3, Hank couldn't pick a daffodil under a catmint.
-    // A tap there finds it in the stack too, for "tap again": src/gestures.ts shapesAt.)
-    const pinHit = svgEl('circle', { 'data-pin-of': id, 'data-role': 'pin-hit', cx, cy, r: 12, fill: 'transparent', 'pointer-events': 'all' });
-    pinHit.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
-    if (!outlined) rims.push(pinHit);
+    // A tap there finds it in the stack too, for "tap again": src/gestures.ts shapesAt. No pin, no target: zoomed in,
+    // it's back.)
+    if (pin) {
+      const pinHit = svgEl('circle', { 'data-pin-of': id, 'data-role': 'pin-hit', cx, cy, r: 12, fill: 'transparent', 'pointer-events': 'all' });
+      pinHit.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
+      rims.push(pinHit);
+    }
     const label = shapes.querySelector(`:scope > g[data-shape-group="${CSS.escape(id)}"] > [data-role=plant-label]`);
     // (Selected, its name shows whatever's around it.)
     if (label && hiddenUnnamed.has(id) && !state.selectedIds.includes(id)) label.remove();

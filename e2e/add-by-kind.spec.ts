@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, closeSheet, field, openFresh, shapeCount, openSections, tapFromCenter } from './helpers';
+import { addKind, closeSheet, field, openFresh, shapeCount, openSections, tapFromCenter, tapping } from './helpers';
 
 // Adding things by what they are: the bottom bar, the Add sheet, and drawing
 // each kind by tapping.
@@ -31,11 +31,11 @@ test('a building from three taps: tilted to follow the first side, labeled House
   await openFresh(page);
   await addKind(page, 'building');
   await expect(bar(page).locator('[data-method].on')).toHaveAttribute('data-method', 'rect');
-  await expect(banner(page)).toHaveText('Building: Tap a corner');
+  await expect(banner(page)).toHaveText(tapping('Building: Tap a corner', true));
   await tapFt(page, 2, 10);
-  await expect(banner(page)).toHaveText('Building: Tap the next corner along the same side');
+  await expect(banner(page)).toHaveText(tapping('Building: Tap the next corner along the same side', true));
   await tapFt(page, 10, 4); // a side 10 ft long, (8, -6) ft
-  await expect(banner(page)).toHaveText('Building: Tap anywhere on the opposite side');
+  await expect(banner(page)).toHaveText(tapping('Building: Tap anywhere on the opposite side', true));
   await tapFt(page, 12, 10); // a point 6 ft out from that side
   await expect(bar(page)).toHaveCount(0); // finished by itself
   await expect(page.locator('.sheet')).toHaveCount(0); // properties stay closed
@@ -65,9 +65,9 @@ test('the drawing method is a choice with pictures, remembered per kind', async 
   await expect(methods.first().locator('svg.method-icon .m-dot')).toHaveCount(5); // the taps it takes
   await expect(bar(page).locator('[data-method=rect] .m-dot')).toHaveCount(3);
   await bar(page).locator('[data-method=circle]').click();
-  await expect(banner(page)).toHaveText('Bed: Tap one edge');
+  await expect(banner(page)).toHaveText(tapping('Bed: Tap one edge', true));
   await tapFt(page, 6, 10);
-  await expect(banner(page)).toHaveText('Bed: Tap the opposite edge');
+  await expect(banner(page)).toHaveText(tapping('Bed: Tap the opposite edge', true));
   await tapFt(page, 14, 16); // 10 ft across, centered between the taps
   await page.locator('.sel-pill .edit').click(); await openSections(page);
   await expect(field(page, 'Diameter (ft)')).toHaveValue('10');
@@ -111,9 +111,9 @@ test('an existing tree: the trunk, then the canopy edge; spread by hand, trunk i
   await addKind(page, 'tree');
   await page.getByTestId('unknown-tree').click();
   await expect(bar(page).locator('[data-method]')).toHaveText(['Round canopy', 'Shaped canopy']);
-  await expect(banner(page)).toHaveText('Existing tree: Tap the trunk');
+  await expect(banner(page)).toHaveText(tapping('Existing tree: Tap the trunk', true));
   await tapFt(page, 10, 10);
-  await expect(banner(page)).toHaveText('Existing tree: Tap the edge of the canopy');
+  await expect(banner(page)).toHaveText(tapping('Existing tree: Tap the edge of the canopy', true));
   await tapFt(page, 10, 18);
   await expect(page.locator('.sel-pill .name')).toHaveText('Tree');
   // Drawn with its trunk: 16 ft spread → 0.75 ft trunk (a twentieth, to the quarter foot).
@@ -141,7 +141,7 @@ test('a tree pruned into a shape: the trunk, then its outline', async ({ page })
   await page.getByTestId('unknown-tree').click();
   await bar(page).locator('[data-method=canopy]').click();
   await tapFt(page, 10, 10); // trunk
-  await expect(banner(page)).toHaveText('Existing tree: Tap around the edge of the canopy');
+  await expect(banner(page)).toHaveText(tapping('Existing tree: Tap around the edge of the canopy', true));
   await tapFt(page, 6, 8); await tapFt(page, 14, 8); await tapFt(page, 14, 13); await tapFt(page, 6, 13);
   await tapFt(page, 6, 8); // back on the first edge point: done
   await expect(bar(page)).toHaveCount(0);
@@ -197,7 +197,7 @@ test.describe('with a keyboard', () => {
     await openFresh(page);
     await expect(page.locator('.tool-btn.bed')).toHaveAttribute('title', 'Bed (B)');
     await page.keyboard.press('b');
-    await expect(banner(page)).toHaveText('Bed: Tap each corner');
+    await expect(banner(page)).toHaveText(tapping('Bed: Tap each corner', true));
     await tapFt(page, 2, 2); await tapFt(page, 8, 2); await tapFt(page, 8, 8);
     const box = (await page.locator('#canvas-svg').boundingBox())!;
     await page.mouse.move(box.x + 2 * FT, box.y + 9 * FT);

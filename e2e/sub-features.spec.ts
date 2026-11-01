@@ -14,7 +14,7 @@ test('a building drawn, then its door and windows tapped onto its walls; moved, 
   await expect(page.getByTestId('then-features')).toHaveAttribute('aria-checked', 'true');
   for (const [x, y] of [[-6, -4], [6, -4], [0, 4]]) await tapFromCenter(page, x, y); // a 12 × 8 ft house
   // Straight on to its doors and windows.
-  await expect(page.getByTestId('feature-banner')).toContainText('Tap a wall where the door goes');
+  await expect(page.getByTestId('feature-banner')).toContainText(/(Tap|Click) a wall where the door goes/);
   // (Where the house is now: the bar below grew, so the plan's middle moved on screen.)
   const k0 = await ppf(page);
   const h = (await page.locator('#canvas-svg [data-shape-id]').first().boundingBox())!;
@@ -31,7 +31,7 @@ test('a building drawn, then its door and windows tapped onto its walls; moved, 
   await page.mouse.click(h.x + 9 * k0, h.y + 0.1 * k0);
   await expect(page.getByTestId('feature-last')).toHaveCount(0); // (a window doesn't open)
   await page.mouse.click(h.x + h.width / 2, h.y + h.height / 2); // the middle of the house: not a wall
-  await expect(page.locator('#toast')).toContainText('Tap on an edge of it');
+  await expect(page.locator('#toast')).toContainText(/(Tap|Click) on an edge of it/);
   await expect(page.getByTestId('feature-banner')).toContainText('2 added');
   // The top bar's Undo takes back the last one, as the bar's does; a third tapped on again.
   await page.locator('button[title=Undo]').click();
@@ -109,7 +109,7 @@ test('a gate in a fence, added from its properties; a plain bed takes none', asy
   await editSelected(page);
   await expect(page.getByTestId('section-features').locator('.prop-title')).toHaveText('Gates');
   await page.locator('[data-testid=feature-add][data-feature=gate]').click();
-  await expect(page.getByTestId('feature-banner')).toContainText('Tap the line where the gate goes');
+  await expect(page.getByTestId('feature-banner')).toContainText(/(Tap|Click) the line where the gate goes/);
   // (Opening its properties brought the fence into view: tap it where it is now, a little off the line.)
   const line = (await page.locator('#canvas-svg [data-role=line-hit]').boundingBox())!;
   await page.mouse.click(line.x + line.width / 2 + 24, line.y + line.height / 2 + 4);

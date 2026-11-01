@@ -4,7 +4,7 @@ import { labelFields } from './a11y';
 import { pageZoomed, syncPageZoom } from '../page-zoom';
 import { saveStateWord } from './save-warning';
 import { resizeCanvas } from '../canvas';
-import { el, hasKeyboard, svgEl } from '../dom';
+import { el, hasKeyboard, svgEl, tapSaid } from '../dom';
 import { onCanvasPointerDown, onWheel } from '../gestures';
 import { canRedo, canUndo, redo, undo } from '../history';
 import { I } from '../icons';
@@ -228,7 +228,7 @@ export function render() {
   // Mode banner (when select mode is on)
   if (state.selectMode) {
     const banner = el('div', { className: 'mode-banner' });
-    banner.innerHTML = I.lasso + '<span>Select mode — drag to lasso, tap to toggle</span>';
+    banner.innerHTML = I.lasso + `<span>${tapSaid('Select mode — drag to lasso, tap to toggle')}</span>`;
     const closeX = el('button', { className: 'banner-close', html: I.x, 'aria-label': 'Leave select mode' });
     closeX.addEventListener('click', () => {
       state.selectMode = false;
@@ -255,7 +255,7 @@ export function render() {
     const msg = state.bgCalibrate.step === 'point1' ? 'Tap the first known point on the image (A)'
       : state.bgCalibrate.step === 'point2' ? 'Tap the second known point (B)'
       : 'Enter the real distance between A and B';
-    banner.innerHTML = I.target + '<span>Calibrating — ' + msg + '</span>';
+    banner.innerHTML = I.target + '<span>Calibrating — ' + tapSaid(msg) + '</span>';
     const cancelBtn = el('button', { className: 'banner-close', html: I.x, 'aria-label': 'Cancel setting the scale' });
     cancelBtn.addEventListener('click', () => {
       state.bgCalibrate = null;
@@ -279,7 +279,7 @@ export function render() {
       : state.editPoints!.vertex != null ? 'Point selected — drag it, or Delete point below' : 'Drag a point to move it · tap + to add one';
     const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'draw-banner' });
     banner.innerHTML = I.draw + '<span></span>';
-    banner.querySelector('span')!.textContent = msg;
+    banner.querySelector('span')!.textContent = tapSaid(msg);
     canvasWrap.appendChild(banner);
   }
 
@@ -290,7 +290,7 @@ export function render() {
     const where = host.role === 'boundary' ? 'the line' : host.role === 'building' ? 'a wall' : 'an edge';
     const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'feature-banner' });
     banner.innerHTML = I.draw + '<span></span>';
-    banner.querySelector('span')!.textContent = `Tap ${where} where the ${what} goes · ${state.featurePlace.added.length} added`;
+    banner.querySelector('span')!.textContent = tapSaid(`Tap ${where} where the ${what} goes · ${state.featurePlace.added.length} added`);
     canvasWrap.appendChild(banner);
   }
 
@@ -302,7 +302,7 @@ export function render() {
     const n = state.placing.placed.filter((x) => state.shapes.find((s) => s.id === x.id)?.plantId === placing.id).length;
     const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'place-banner' });
     banner.innerHTML = I.leaf + '<span></span>';
-    banner.querySelector('span')!.textContent = `Tap to place ${placing.common} · ${n} placed`;
+    banner.querySelector('span')!.textContent = `${tapSaid('Tap')} to place ${placing.common} · ${n} placed`;
     canvasWrap.appendChild(banner);
   }
 
@@ -370,7 +370,7 @@ export function render() {
     // (Drawing by hand starts in the opening view, about 17 ft across: pinch to see more. The yard's width once asked
     // here only zoomed, and was dropped (Jason, Oct 29).)
     hint.append(
-      el('div', {}, 'Tap a button below to add something.'),
+      el('div', {}, tapSaid('Tap a button below to add something.')),
       el('div', {}, 'Grid lines are ', el('b', {}, '1 ft'), ' apart; bold lines every ', el('b', {}, '10 ft'), '.'));
     canvasWrap.appendChild(hint);
   }
@@ -378,8 +378,9 @@ export function render() {
   // Multi-select action bar (floating, only when 2+ selected and no panel open)
   const drawing = !!state.draw || !!state.editPoints || !!state.placing || !!state.featurePlace;
   if (state.selectedIds.length >= 2 && !state.panel && !drawing) {
-    const bar = el('div', { className: 'multi-bar' });
-    bar.appendChild(el('div', { className: 'count' }, state.selectedIds.length + (justPlaced ? ' just placed' : ' selected')));
+    const bar = el('div', { className: 'multi-bar', 'data-testid': 'multi-bar' });
+    const count = el('div', { className: 'count' }, state.selectedIds.length + (justPlaced ? ' just placed' : ' selected'));
+    bar.appendChild(count);
     const editAllBtn = el('button', { title: 'Edit' });
     editAllBtn.innerHTML = I.edit + '<span>Edit</span>';
     editAllBtn.addEventListener('click', () => { state.panel = 'props'; render(); });
@@ -411,6 +412,18 @@ export function render() {
     bar.appendChild(el('span', { className: 'bar-gap', 'aria-hidden': 'true' }));
     bar.appendChild(delBtn);
     canvasWrap.appendChild(bar);
+    // Too wide for the screen (a small phone at Medium text, round 3: "Edit" squeezed against "Place more"): closer
+    // buttons, then Place more's words, then "3 placed" for "3 just placed", then Edit's words (words for screen
+    // readers only), until it fits.
+    const n = state.selectedIds.length;
+    requestAnimationFrame(() => {
+      const steps = [() => bar.classList.add('tight'), () => bar.classList.add('icons-more'),
+        () => { if (justPlaced) count.textContent = `${n} placed`; }, () => bar.classList.add('icons')];
+      for (const step of steps) {
+        if (!bar.isConnected || bar.scrollWidth <= bar.clientWidth + 1) break;
+        step();
+      }
+    });
   }
 
   // Single-select pill (only when exactly 1 selected, no panel open, no multi-bar)

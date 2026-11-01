@@ -15,7 +15,7 @@ const list = (code: string, plants: object[], classes: Record<string, string> = 
 describe('the regulated lists', () => {
   it('are well formed: each entry a species, variety or genus, of a class its list says, each list cited', () => {
     expect(problems(real)).toEqual([]);
-    expect(real.jurisdictions.map((j: { code: string }) => j.code)).toEqual(['US', 'AR', 'TX', 'MS', 'MO', 'OK', 'LA', 'TN']);
+    expect(real.jurisdictions.map((j: { code: string }) => j.code)).toEqual(['US', 'AR', 'TX', 'MS', 'MO', 'OK', 'LA', 'TN', 'VA', 'GA', 'PA', 'KY', 'NC', 'OH', 'IN', 'IL', 'WV', 'AL', 'MI', 'NJ']);
     expect(problems({ v: 1, jurisdictions: [list('XX', [{ name: 'Melia', class: 'noxious' }, { name: 'Melia azedarach', class: 'banned' },
       { genus: 'Cuscuta', except: ['Lythrum alatum'], class: 'noxious' }, { name: 'Melia azedarach', kew: 'Melia', class: 'noxious' },
       { name: 'Melia azedarach', accepted: 'Melia', also: ['x'], notKew: 'Ophiuros', class: 'noxious' }])] }))
@@ -24,6 +24,11 @@ describe('the regulated lists', () => {
         'XX Melia azedarach: bad notKew', 'XX Melia azedarach: bad other names']);
     expect(problems({ v: 1, jurisdictions: [{ ...list('XX', []), url: 'http://example.gov' }] })).toEqual(['XX: url not https']);
     expect(problems({ v: 1, jurisdictions: [{ ...list('XX', []), tiers: { noxious: 'severe' } }] })).toEqual(['XX noxious: no tier (ban or listed)']);
+    // A list that adopts another's plants: a list that has some of its own, into a class it has.
+    expect(problems({ v: 1, jurisdictions: [list('US', []), { ...list('XX', []), adopts: { code: 'US', class: 'noxious' } }] })).toEqual([]);
+    expect(problems({ v: 1, jurisdictions: [list('US', []), { ...list('XX', []), adopts: { code: 'ZZ', class: 'federal' } },
+      { ...list('YY', []), adopts: { code: 'XX', class: 'noxious' } }] }))
+      .toEqual(['XX: adopts no list of plants of its own', 'XX: adopts into class "federal", not in its list\'s classes', 'YY: adopts no list of plants of its own']);
     // A background note: "Background: …", a source with an https link, the date it was checked.
     const bg = { note: 'Background: some are toxic to livestock.', source: { title: 'A page', url: 'https://example.gov/p' }, checked: '2026-10-21' };
     expect(problems({ v: 1, jurisdictions: [list('XX', [{ genus: 'Crotalaria', class: 'noxious', background: bg }])] })).toEqual([]);
@@ -163,6 +168,92 @@ describe('matching the lists to catalog plants', () => {
     expect(r.AR).toEqual({ 'lythrum-alatum': 'lythrum', 'imperata-red-baron': 'prohibited' });
     expect(r.TX).toEqual({ 'melia-azedarach': 'invasive' });
     expect(r.US).toEqual({ 'imperata-red-baron': 'noxious' });
+  });
+  it("match Virginia's tiers and its store-sign list: kudzu's variety by its species, a sign law in amber", () => {
+    const r = regulatedPlants(real, [
+      { id: 'japanese-honeysuckle', botanical: "Lonicera japonica 'Halliana'", binomial: 'Lonicera japonica' },
+      { id: 'kudzu', botanical: 'Pueraria montana var. lobata', binomial: 'Pueraria montana' },
+      { id: 'nandina', botanical: "Nandina domestica 'Firepower'", binomial: 'Nandina domestica' },
+      { id: 'coral-honeysuckle', botanical: 'Lonicera sempervirens', binomial: 'Lonicera sempervirens' },
+    ], {});
+    expect(r.VA).toEqual({ 'japanese-honeysuckle': 'tier3', kudzu: 'tier3', nandina: 'invasive' });
+    const j = real.jurisdictions.find((x: { code: string }) => x.code === 'VA');
+    expect([j.tiers.tier3, j.tiers.invasive]).toEqual(['ban', 'listed']);
+    expect(j.classes.invasive).toMatch(/^Invasive plant in Virginia: from January 1, 2027, a store may sell it/);
+  });
+  it("give Georgia the federal list's plants, by reference, in its own class: a ban on selling them", () => {
+    const ga = real.jurisdictions.find((x: { code: string }) => x.code === 'GA');
+    const us = real.jurisdictions.find((x: { code: string }) => x.code === 'US');
+    expect(ga.plants).toEqual(us.plants.map((p: object) => ({ ...p, class: 'federal' })));
+    expect(ga.tiers.federal).toBe('ban');
+    const r = regulatedPlants(real, [
+      { id: 'japanese-dodder', botanical: 'Cuscuta japonica', binomial: 'Cuscuta japonica' },
+      { id: 'dodder', botanical: 'Cuscuta gronovii', binomial: 'Cuscuta gronovii' },
+    ], {});
+    expect(r.GA).toEqual({ 'japanese-dodder': 'federal' }); // (the federal list's exceptions too)
+    expect(stateRegulated(real, r, 'GA').regulated['japanese-dodder']).toEqual(['GA:federal', 'US:noxious']);
+  });
+  it("match Pennsylvania's classes, its own first, then the federal list as Class C; a species' exempted cultivars said in its line", () => {
+    const r = regulatedPlants(real, [
+      { id: 'blood-grass', botanical: "Imperata cylindrica 'Rubra'", binomial: 'Imperata cylindrica' },
+      { id: 'callery-pear', botanical: 'Pyrus calleryana', binomial: 'Pyrus calleryana' },
+      { id: 'barberry', botanical: 'Berberis thunbergii', binomial: 'Berberis thunbergii' },
+      { id: 'glossy-buckthorn', botanical: 'Frangula alnus', binomial: 'Frangula alnus' },
+      { id: 'japanese-hops', botanical: 'Humulus scandens', binomial: 'Humulus scandens' },
+    ], { 'glossy-buckthorn': 'Frangula alnus', 'japanese-hops': 'Humulus scandens' });
+    expect(r.PA).toEqual({ 'blood-grass': 'classC', 'callery-pear': 'classB', barberry: 'classBBarberry', 'glossy-buckthorn': 'classBBuckthorn', 'japanese-hops': 'classB' });
+    const j = real.jurisdictions.find((x: { code: string }) => x.code === 'PA');
+    expect(Object.values(j.tiers).every((t) => t === 'ban')).toBe(true);
+    expect(j.classes.classBBarberry).toMatch(/^Class B noxious weed in Pennsylvania: .*; the Department of Agriculture exempts six cultivars: Crimson Cutie, .*Sunjoy Mini-Maroon \(/);
+    // (Kentucky's only plant law: the highway department keeps state rights-of-way clear of them. A listing.)
+    expect(real.jurisdictions.find((x: { code: string }) => x.code === 'KY').tiers).toEqual({ rightofway: 'listed' });
+  });
+  it("match North Carolina's: the federal list as Class A, after its own; its aquatic weeds a listing, not a ban", () => {
+    const r = regulatedPlants(real, [
+      { id: 'beach-vitex', botanical: 'Vitex rotundifolia', binomial: 'Vitex rotundifolia' },
+      { id: 'water-lettuce', botanical: 'Pistia stratiotes', binomial: 'Pistia stratiotes' },
+      { id: 'blood-grass', botanical: "Imperata cylindrica 'Rubra'", binomial: 'Imperata cylindrica' },
+      { id: 'mosquito-fern', botanical: 'Salvinia minima', binomial: 'Salvinia minima' },
+      { id: 'winged-loosestrife', botanical: 'Lythrum alatum', binomial: 'Lythrum alatum' },
+    ], {});
+    expect(r.NC).toEqual({ 'beach-vitex': 'classB', 'water-lettuce': 'aquatic', 'blood-grass': 'classA' });
+    const j = real.jurisdictions.find((x: { code: string }) => x.code === 'NC');
+    expect([j.tiers.classA, j.tiers.classB, j.tiers.aquatic]).toEqual(['ban', 'ban', 'listed']);
+  });
+  it("match Ohio's, Indiana's and Illinois's: Indiana's Lythrum rule natives included, a ban that starts later a listing until then", () => {
+    const r = regulatedPlants(real, [
+      { id: 'winged-loosestrife', botanical: 'Lythrum alatum', binomial: 'Lythrum alatum' },
+      { id: 'callery-pear', botanical: 'Pyrus calleryana', binomial: 'Pyrus calleryana' },
+      { id: 'ribbon-grass', botanical: "Phalaris arundinacea 'Picta'", binomial: 'Phalaris arundinacea' },
+      { id: 'field-bindweed', botanical: 'Convolvulus arvensis', binomial: 'Convolvulus arvensis' },
+      { id: 'multiflora', botanical: 'Rosa multiflora', binomial: 'Rosa multiflora' },
+      { id: 'bamboo', botanical: 'Phyllostachys aureosulcata', binomial: 'Phyllostachys aureosulcata' },
+    ], {});
+    expect(r.IN).toEqual({ 'winged-loosestrife': 'lythrum', 'ribbon-grass': 'terrestrial', 'field-bindweed': 'terrestrial', multiflora: 'multiflora' });
+    expect(r.OH).toEqual({ 'callery-pear': 'invasive', 'ribbon-grass': 'invasive', 'field-bindweed': 'noxious', multiflora: 'invasive' }); // (not the bamboo: listed only once escaped)
+    expect(r.IL).toEqual({ 'callery-pear': 'exotic2028', multiflora: 'exotic' });
+    const tier = (code: string, cls: string) => real.jurisdictions.find((x: { code: string }) => x.code === code).tiers[cls];
+    expect([tier('OH', 'invasive'), tier('OH', 'noxious'), tier('IN', 'lythrum'), tier('IN', 'detrimental'), tier('IL', 'exotic'), tier('IL', 'exotic2028'), tier('IL', 'noxious')])
+      .toEqual(['ban', 'listed', 'ban', 'listed', 'ban', 'listed', 'listed']);
+  });
+  it("match West Virginia's, Alabama's, Michigan's and New Jersey's: a law not yet in force a listing, its start in its line", () => {
+    const r = regulatedPlants(real, [
+      { id: 'star-of-bethlehem', botanical: 'Ornithogalum umbellatum', binomial: 'Ornithogalum umbellatum' },
+      { id: 'autumn-olive', botanical: 'Elaeagnus umbellata', binomial: 'Elaeagnus umbellata' },
+      { id: 'norway-maple', botanical: "Acer platanoides 'Crimson King'", binomial: 'Acer platanoides' },
+      { id: 'multiflora', botanical: 'Rosa multiflora', binomial: 'Rosa multiflora' },
+      { id: 'barberry', botanical: 'Berberis thunbergii', binomial: 'Berberis thunbergii' },
+      { id: 'mahonia', botanical: 'Berberis bealei', binomial: 'Berberis bealei' },
+    ], {});
+    expect(r.AL).toEqual({ 'star-of-bethlehem': 'classC', multiflora: 'classC' });
+    expect(r.MI).toEqual({ 'autumn-olive': 'restricted' });
+    expect(r.WV).toEqual({ 'autumn-olive': 'noxious', multiflora: 'multiflora', barberry: 'barberry' }); // (not every Berberis: its rust quarantine's left out)
+    expect(r.NJ).toEqual({ 'autumn-olive': 'prohibited', 'norway-maple': 'prohibited', multiflora: 'prohibited', barberry: 'prohibited' });
+    const j = (code: string) => real.jurisdictions.find((x: { code: string }) => x.code === code);
+    expect([j('NJ').tiers.prohibited, j('MI').tiers.restricted, j('MI').tiers.noxious, j('AL').tiers.aquatic]).toEqual(['listed', 'ban', 'listed', 'listed']);
+    expect(j('NJ').classes.prohibited).toMatch(/^Prohibited invasive species in New Jersey: from early 2027 /);
+    // (Indiana's shattercane is the weedy subspecies its statute prints: never grain sorghum.)
+    expect(regulatedPlants(real, [{ id: 'sorghum', botanical: 'Sorghum bicolor', binomial: 'Sorghum bicolor' }], {}).IN).toBeUndefined();
   });
 });
 

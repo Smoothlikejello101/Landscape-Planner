@@ -13,6 +13,7 @@ import { state } from '../state';
 import type { CircleShape } from '../types';
 import { showyFlowers } from '../seasons';
 import { render } from './render';
+import { showOnPlan } from './settings-panel';
 
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 /** This month, 1–12. */
@@ -46,15 +47,16 @@ export function bloomCount(month: number): { n: number; around: number; of: numb
  * word, drawn faint), in the order they're on the plan. (Jason, Oct 30: "a button or expandable panel to see which
  * plants are in bloom".)
  */
-export function inBloom(month: number): { name: string; n: number; around: boolean }[] {
-  const out = new Map<string, { name: string; n: number; around: boolean }>();
+export function inBloom(month: number): { name: string; n: number; around: boolean; ids: string[] }[] {
+  const out = new Map<string, { name: string; n: number; around: boolean; ids: string[] }>();
   for (const s of state.shapes) {
     if (s.type !== 'circle' || s.role !== 'plant' || !s.plantId || s.status === 'gone') continue;
     const m = lookMonthOf(s as CircleShape, month);
     if (!m || m.bloom === 'no' || !showyFlowers(plantsById[s.plantId])) continue;
     const name = s.label || plantsById[s.plantId]?.common || 'A plant';
-    const row = out.get(name) ?? out.set(name, { name, n: 0, around: true }).get(name)!;
+    const row = out.get(name) ?? out.set(name, { name, n: 0, around: true, ids: [] }).get(name)!;
     row.n++;
+    row.ids.push(s.id);
     if (m.bloom === 'yes') row.around = false;
   }
   return [...out.values()];
@@ -92,9 +94,15 @@ export function renderYearBar(): HTMLElement {
     const rows = inBloom(m);
     count.disabled = !rows.length;
     list.hidden = !listOpen || !rows.length;
-    list.replaceChildren(...rows.map((r) => el('div', { className: 'year-list-row' + (r.around ? ' around' : '') },
-      el('span', {}, r.name), r.n > 1 ? el('span', { className: 'count' }, ` \u00d7${r.n}`) : '',
-      r.around ? el('span', { className: 'count' }, ' (around now, by its season)') : '')));
+    // (A row selects its plants on the plan, the month kept: round 3, Bea tried to.)
+    list.replaceChildren(...rows.map((r) => {
+      const b = el('button', { type: 'button', className: 'year-list-row' + (r.around ? ' around' : ''), 'data-testid': 'year-list-row',
+        'aria-label': `${r.name}${r.n > 1 ? `, ${r.n}` : ''}${r.around ? ', around now by its season' : ''}. Select on the plan` },
+        el('span', {}, r.name), r.n > 1 ? el('span', { className: 'count' }, ` \u00d7${r.n}`) : '',
+        r.around ? el('span', { className: 'count' }, ' (around now, by its season)') : '');
+      b.addEventListener('click', () => showOnPlan(r.ids));
+      return b;
+    }));
   };
   count.addEventListener('click', () => { listOpen = !listOpen; count.setAttribute('aria-expanded', String(listOpen)); fill(state.month ?? month); });
   fill(month);

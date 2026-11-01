@@ -24,7 +24,7 @@ test('a second tap picks what\'s under it, round the stack, said the first time;
   await page.keyboard.press('Escape');
   await slowTap(page, 0, 0);
   await expect(name(page)).toHaveText('Buttonbush');
-  await expect(page.locator('#toast')).toContainText('Tap again for the bed under it.');
+  await expect(page.locator('#toast')).toContainText(/(Tap|Click) again for the bed under it\./);
   await slowTap(page, 0, 0);
   await expect(name(page)).toHaveText('Bed');
   await slowTap(page, 0, 0);

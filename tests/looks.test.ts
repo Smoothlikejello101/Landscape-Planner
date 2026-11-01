@@ -111,6 +111,10 @@ describe('a plant drawn from its catalog facts', () => {
     expect(lookOf(plant({ flower_color: ['white'], bloom: { color: 'Red' } }), '#000').pal.fl).toBe('#f7f4ec');
     expect(lookOf(plant({ bloom: { color: 'Tan seed heads' }, color: '#ff0000' }), '#ff0000').pal.fl).toBeUndefined();
     expect(ownBloomColors('Red and gold')).toEqual(['red', 'yellow']);
+    // (Its chips, once chosen (Oct 31): drawn in the first, its words aside; several, each placed plant can take another.)
+    expect(lookOf({ ...mine, flower_color: ['pink', 'white'] }, '#ff0000').pal.fl).toBe('#e0679f');
+    expect(lookOf({ ...mine, flower_color: ['pink', 'white'] }, '#ff0000', false, 'white').pal.fl).toBe('#f7f4ec');
+    expect(flowerChoices({ ...mine, flower_color: ['pink', 'white'] })).toEqual({ colors: ['pink', 'white'], usual: 'pink' });
     expect(nearestFlower('#d463b4')).toBe('pink');
   });
 });

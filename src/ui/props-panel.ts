@@ -2,7 +2,7 @@ import { groundcoverRadius, isVine, supportOf, supportsNear, vineSpacing } from 
 import { supportName } from './vine-offers';
 import { SWATCH_NAMES } from './a11y';
 import { SWATCHES } from '../constants';
-import { el, escapeHtml, ts } from '../dom';
+import { el, escapeHtml, tapSaid, ts } from '../dom';
 import { I } from '../icons';
 import { defaultLook, isLocked, roleKey, roleLabel, roleLocked } from '../roles';
 import { convertToOutline, startEditPoints, startKind, startTreeDraw } from '../draw';
@@ -197,7 +197,7 @@ export function renderPropsPanelSingle(s: Shape) {
   // Always in view: warnings, the name, and what it is.
   if (s.locked) {
     body.appendChild(el('div', { className: 'banner' },
-      "This shape is locked: it can't be dragged, and dragging on it pans the plan. Tap Unlock above to move it."));
+      tapSaid("This shape is locked: it can't be dragged, and dragging on it pans the plan. Tap Unlock above to move it.")));
   } else if (roleLocked(s)) {
     body.appendChild(el('div', { className: 'banner' },
       `All ${roleLabel(roleKey(s)).toLowerCase()} shapes are locked. Unlock them in the Layers panel to move this one.`));
@@ -480,7 +480,7 @@ export function renderPropsPanelSingle(s: Shape) {
       row.appendChild(b);
     }
     lookParts.push(el('div', { className: 'field', 'data-testid': 'flower-colors' }, el('label', {}, 'Flower color'), row,
-      el('div', { className: 'hint' }, 'The colors its sources list. Its picture\'s flowers are drawn in the one picked.')));
+      el('div', { className: 'hint' }, `${s.plantId?.startsWith(MY_PREFIX) ? 'The colors you gave it' : 'The colors its sources list'}. Its picture's flowers are drawn in the one picked.`)));
   }
   if (asPicture) {
     // (Its leaves' color, rarely wanted: behind a link, open while a color's been picked, so Default color is in sight.)
