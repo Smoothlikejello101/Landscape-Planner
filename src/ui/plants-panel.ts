@@ -2,7 +2,7 @@ import { crowdLevelsOf, crowdNoticeAfterSwap } from './crowd-notice';
 import { el, hasKeyboard, sheetCloseButton, tapSaid, type Child } from '../dom';
 import { nameIndex, readNeeds, type NameIndex, type NeedSet } from '../search-needs';
 import { FLOWER_CHOICES } from '../flower-colors';
-import { applyYard, askAtTop, dismissAsked, household, introAnswered, loadAsked, saveHardy, saveYard, toggleYard, yardOf, type Yard } from '../yard';
+import { applyYard, askAtTop, askDismissed, dismissAsked, household, saveHardy, saveYard, toggleYard, yardKeyOf, yardOf, type Yard } from '../yard';
 import { toast } from './toast';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
@@ -362,8 +362,10 @@ export function renderPlantsPanel() {
       title: mine ? 'Edit my plant' : 'Copy as my plant',
       'aria-label': (mine ? 'Edit ' : 'Copy as my plant: ') + p.common,
     });
-    // (Edited or copied from here, back here: openForm.)
-    side.addEventListener('click', () => openForm(mine ? { editId: p.id, place: false } : { copyFromId: p.id, place: false }));
+    // (Edited or copied from here, back here: openForm. A copy, once saved, goes where the picker was going, as a plant
+    // added here does: in hand to place, the plant switched to while placing, or linked. Jason, Nov 1, on his own plan:
+    // a copy made in Switch plant came back to a search it wasn't even in.)
+    side.addEventListener('click', () => openForm(mine ? { editId: p.id, place: false } : { copyFromId: p.id, place: true }));
     head.appendChild(side);
     if (mine) info.firstChild!.appendChild(el('span', { className: 'mine-badge' }, 'Mine'));
     // Now in the catalog too: offer its sourced facts (the person decides: src/ui/switch-plant.ts).
@@ -408,11 +410,12 @@ export function renderPlantsPanel() {
   }
   refreshList = () => { if (listWrap.isConnected) rebuildList(); };
   /**
-   * Kids and pets, as set by their own controls: kept on this device (src/yard.ts), as the guided introduction's step 6
+   * Kids and pets, as set by their own controls: kept with the plan (src/yard.ts), as the guided introduction's step 6
    * does. Not "Clear filters" or "Show them": those are for the search at hand.
    */
   function keepYard(key: keyof PlantFilter) {
-    if (key === 'noPoison' || key === 'dogs' || key === 'cats' || key === 'horses') { saveYard(yardOf(plantFilter)); syncYard(); }
+    const k = yardKeyOf(key);
+    if (k) { saveYard(yardOf(plantFilter), k); syncYard(); }
   }
   function rebuildList() {
     while (listWrap.firstChild) listWrap.removeChild(listWrap.firstChild);
@@ -967,8 +970,9 @@ export function renderPlantsPanel() {
   })();
 
   // ---- "Anyone you need to protect?" (Jason, Nov 1, from the UI review) ----
-  // Poison & pets' four as a chip each, kept in step with its controls and this device's yard (src/yard.ts). First
-  // among the filters, with a ×, until it's answered or dismissed (askingAtTop); then at the head of Poison & pets.
+  // Poison & pets' four as a chip each, kept in step with its controls and the plan's yard (src/yard.ts). First
+  // among the filters, with a ×, until it's answered for the plan or dismissed on this device (askingAtTop); then at
+  // the head of Poison & pets.
   // Skin irritants are marked on rows for everyone (src/plants.ts rowFlags): anyone walking past can brush one. Poison
   // when eaten is marked, and filtered, by who's in the yard.
   const YARD_CHIPS: [keyof Yard, string][] = [['kids', 'Kids'], ['dogs', 'Dogs'], ['cats', 'Cats'], ['horses', 'Horses']];
@@ -985,7 +989,7 @@ export function renderPlantsPanel() {
       b.addEventListener('click', () => {
         const y = toggleYard(yardOf(plantFilter), k);
         applyYard(plantFilter, y);
-        saveYard(y);
+        saveYard(y, k);
         syncYard();
         rebuildList();
       });
@@ -1012,7 +1016,7 @@ export function renderPlantsPanel() {
     return line;
   }
   // (Not while naming a tree already in the yard: its filters start cleared, the yard's with them: treeFiltersAside.)
-  const askTop = !forTree && (askingAtTop ??= askAtTop({ asked: loadAsked(), yard: household(), intro: introAnswered() }));
+  const askTop = !forTree && (askingAtTop ??= askAtTop({ dismissed: askDismissed(), household: household() }));
   const topLine = askTop ? protectLine(true) : null;
   if (!askTop && !forTree) poison.hold(protectLine(false));
 

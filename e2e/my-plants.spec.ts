@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addPlainShape, autoDialogs, closeSheet, field, openFilters, openFresh, placeOnceAtCenter } from './helpers';
+import { addPlainShape, autoDialogs, closeSheet, field, openFilters, openFresh, placeOnceAtCenter, shapeCount, tapFromCenter } from './helpers';
 
 const circleR = async (page: Page, label: string) =>
   Number(await page.locator('[data-shape-group]', { has: page.locator('text', { hasText: label }) }).locator('circle[data-shape-id]').getAttribute('r'));
@@ -117,11 +117,37 @@ test('copy a catalog plant as your own cultivar', async ({ page }) => {
   await expect(page.getByTestId('pf-spread')).not.toHaveValue('');
   await page.getByTestId('pf-name').fill("Heuchera 'Caramel'");
   await page.getByTestId('pf-save').click();
-  await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker');
-  await page.getByTestId('plant-search').fill('Caramel');
-  await page.locator('.proj-row', { hasText: 'Caramel' }).locator('[data-testid=plant-place]').click();
+  // Saved, it's in hand to place, as a plant added from the picker is (Jason, Nov 1).
   await placeOnceAtCenter(page);
   await expect(page.locator('.sel-pill .name')).toHaveText("Heuchera 'Caramel'");
+});
+
+test('a plant copied, or added, in Switch plant is the plant in hand once saved; what was placed stays (Jason, Nov 1, on his own plan)', async ({ page }) => {
+  await openFresh(page);
+  const bar = page.getByTestId('place-bar'), banner = page.getByTestId('place-banner');
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Tennessee coneflower');
+  await page.locator('.sheet .proj-row', { hasText: 'Tennessee coneflower' }).first().locator('[data-testid=plant-place]').click();
+  await tapFromCenter(page, 0, 0);
+  // Copied.
+  await bar.getByTestId('place-switch').click();
+  await expect(page.locator('.sheet-header .title')).toHaveText('Switch plant');
+  await page.getByTestId('plant-search').fill('Sawara-cypress');
+  await page.locator('.proj-row', { hasText: 'Sawara-cypress' }).first().getByRole('button', { name: /Copy as my plant/ }).click();
+  await page.getByTestId('pf-name').fill('False cypress');
+  await page.getByTestId('pf-save').click();
+  await expect(banner).toHaveText(/(Tap|Click) to place False cypress · 0 placed/);
+  await tapFromCenter(page, 3, 0);
+  // Added.
+  await bar.getByTestId('place-switch').click();
+  await page.getByTestId('plant-search').fill('Grandma’s peony');
+  await page.getByTestId('add-own-plant').click();
+  await page.getByTestId('pf-spread').fill('3');
+  await page.getByTestId('pf-save').click();
+  await expect(banner).toHaveText(/(Tap|Click) to place Grandma’s peony · 0 placed/);
+  await tapFromCenter(page, -3, 0);
+  await bar.getByRole('button', { name: 'Done' }).click();
+  expect(await shapeCount(page)).toBe(3);
 });
 
 test("a copy of a catalog plant starts with its name empty and no flower colors, ticked or in words, its size, sun, type and bloom filled in; one of your own copied, or edited, as it was (Jason, Nov 1, the UI review)", async ({ page }) => {
@@ -142,6 +168,8 @@ test("a copy of a catalog plant starts with its name empty and no flower colors,
   await name.fill("Heuchera 'Caramel'");
   await page.locator('[data-testid=pf-flower][data-color=pink]').click();
   await page.getByTestId('pf-save').click();
+  await placeOnceAtCenter(page); // (saved, it's in hand to place)
+  await page.locator('.tool-btn.plants').click();
   await page.getByTestId('add-own-plant').click();
   await name.fill(''); // (the picker's search, put in as its name)
   await page.getByTestId('pf-from').fill('Caramel');
@@ -164,7 +192,8 @@ test('a plant copied from the catalog isn\'t offered as "now in the catalog" as 
   await expect(page.getByTestId('pf-name')).toHaveValue('');
   await page.getByTestId('pf-name').fill('Paeonia – Herbaceous Types');
   await page.getByTestId('pf-save').click();
-  await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker');
+  await placeOnceAtCenter(page); // (saved, it's in hand to place)
+  await page.locator('.tool-btn.plants').click();
   const mine = page.locator('.proj-row', { hasText: 'Paeonia – Herbaceous Types' }).filter({ has: page.locator('.mine-badge') });
   for (const reload of [false, true]) {
     if (reload) { await page.waitForTimeout(600); await page.reload(); await page.locator('.tool-btn.plants').click(); } // (kept with the plant)

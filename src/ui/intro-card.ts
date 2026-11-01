@@ -261,7 +261,7 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
   }
 }
 /**
- * Step 6's choices: each a toggle that sets the picker's filter for it at once and keeps it on this device
+ * Step 6's choices: each a toggle that sets the picker's filter for it at once and keeps it with the plan
  * (src/yard.ts); read from the filters each time, so a change made in Filters meanwhile shows.
  */
 function whoChips(): HTMLElement {
@@ -275,7 +275,7 @@ function whoChips(): HTMLElement {
       // you need to protect?" does the same: src/yard.ts toggleYard.)
       const y = toggleYard(yardOf(plantFilter), k);
       applyYard(plantFilter, y);
-      saveYard(y);
+      saveYard(y, k);
       b.classList.toggle('on', isOn(k)); b.setAttribute('aria-pressed', String(isOn(k)));
       note.hidden = !isOn('dogs');
     });
@@ -415,7 +415,7 @@ function stepCard(): HTMLElement {
         const y = yardOf(plantFilter);
         rec.who = { kids: y.kids, dogs: y.dogs !== '', cats: y.cats, horses: y.horses };
         // (Answered, even with none ticked: the picker doesn't ask "Anyone you need to protect?" again at its top.
-        // Jason, Nov 1, from the UI review. Kept apart from this record, which Back and Start over clear.)
+        // Jason, Nov 1, from the UI review. Kept with the plan, apart from this record, which Back and Start over clear.)
         noteAsked();
       }
       if (step === 'turn') state.bgEditMode = false;

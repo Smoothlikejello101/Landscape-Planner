@@ -782,8 +782,24 @@ test("a winter no source gives: as its species' USA-NPN records show it, or as e
 
 // "Anyone you need to protect?" (Jason, Nov 1, from the UI review: a tester saw "Can irritate skin" on rows but nothing on
 // a plant highly poisonous to people, and never learned the picker screens for kids and pets without opening Filters).
-// First among the filters until it's answered or dismissed; then under Filters, Poison & pets. Kept on this device.
+// First among the filters until it's answered for the plan or dismissed on this device; then under Filters, Poison &
+// pets. Who's in the yard, and the answer, are kept with the plan (Jason, Nov 1); the × is the device's.
 const protect = (page: Page) => page.getByTestId('protect-line');
+/** Who's in the open plan's yard, as stored with it (its time left out). */
+const planHousehold = (page: Page) => page.evaluate(() => new Promise<unknown>((resolve) => {
+  const open = indexedDB.open('landscape-planner');
+  open.onsuccess = () => {
+    const db = open.result;
+    const cur = db.transaction('kv').objectStore('kv').get('current');
+    cur.onsuccess = () => {
+      const req = db.transaction('projects').objectStore('projects').get(cur.result as string);
+      req.onsuccess = () => { const h = req.result?.household; if (h) delete h.at; resolve(h ?? null); db.close(); };
+    };
+  };
+}));
+/** What the device keeps of it: the × ('lp-protect-line'), and who was in the yard before plans kept it ('lp-yard'). */
+const deviceKept = (page: Page) => page.evaluate(() => [localStorage.getItem('lp-protect-line'), localStorage.getItem('lp-yard')]);
+const NONE = { kids: false, dogs: '', cats: false, horses: false };
 /** The line first among the picker's filters, not under Poison & pets. */
 const protectAtTop = (page: Page) => page.locator('.picker-filters > [data-testid=protect-line]:first-child');
 const protectInGroup = (page: Page) => page.getByTestId('animal-toxicity').getByTestId('protect-line');
@@ -816,7 +832,8 @@ test('"Anyone you need to protect?": Kids hides plants poisonous to people and i
   await page.getByTestId('protect-kids').click();
   await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByTestId('active-chip')).toHaveText(['Not listed as poisonous to people']);
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('lp-yard') ?? 'null'))).toEqual({ kids: true, dogs: '', cats: false, horses: false });
+  await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, kids: true, answered: true });
+  expect(await deviceKept(page)).toEqual([null, null]); // (with the plan, not the device)
   // Mayapple hidden; shown anyway, it's marked poisonous to people now, and still for the skin.
   await page.getByTestId('plant-search').fill('Mayapple');
   const mayapple = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Mayapple$/ }) });
@@ -854,7 +871,7 @@ test('"Anyone you need to protect?": Kids hides plants poisonous to people and i
   await openFilters(page);
   await expect(protectInGroup(page)).toBeVisible();
   await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'true');
-  expect(await page.evaluate(() => localStorage.getItem('lp-protect-line'))).toBe('answered');
+  expect(await planHousehold(page)).toEqual({ ...NONE, kids: true, cats: true, answered: true });
 });
 
 test('"Anyone you need to protect?" dismissed: under Poison & pets at once, a notice says so, and it stays there after a reload', async ({ page }) => {
@@ -867,8 +884,10 @@ test('"Anyone you need to protect?" dismissed: under Poison & pets at once, a no
   await expect(page.getByTestId('plant-search')).toHaveValue('aster'); // (moved in place: the search as it was)
   await openFilters(page);
   await expect(protectInGroup(page)).toBeVisible();
-  // Who's in the yard is left as it was: no one.
-  expect(await page.evaluate(() => [localStorage.getItem('lp-protect-line'), localStorage.getItem('lp-yard')])).toEqual(['dismissed', null]);
+  // Who's in the yard is left as it was: no one, not answered. Dismissed on this device.
+  await page.waitForTimeout(400); // (a save would have happened)
+  expect(await planHousehold(page)).toEqual({ ...NONE, answered: false });
+  expect(await deviceKept(page)).toEqual(['dismissed', null]);
   await page.reload();
   await page.locator('.tool-btn.plants').click();
   await expect(page.getByTestId('picker-count')).toBeVisible();
@@ -895,7 +914,82 @@ test('"Anyone you need to protect?" isn\'t asked first on a device that answered
   await openFilters(page);
   await expect(protectInGroup(page)).toBeVisible();
   for (const k of ['kids', 'dogs', 'cats', 'horses']) await expect(page.getByTestId(`protect-${k}`)).toHaveAttribute('aria-pressed', 'false');
-  expect(await page.evaluate(() => [localStorage.getItem('lp-protect-line'), localStorage.getItem('lp-yard')])).toEqual(['answered', null]);
+  expect(await planHousehold(page)).toEqual({ ...NONE, answered: true });
+  expect(await deviceKept(page)).toEqual([null, null]);
+});
+
+// One of the four set after Clear filters (the filters are for the search at hand; the yard stays) changes that one
+// alone: Cats ticked after clearing kids' and the dog's filters keeps the kids and the dog in the yard (the review of the
+// storage change, Nov 1: taken whole from the filters, the yard lost them, on every device).
+test("one of the four set after Clear filters keeps the others in the yard: Cats joins the kids and the dog", async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('protect-kids').click();
+  await page.getByTestId('protect-dogs').click();
+  await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, kids: true, dogs: 'hideToxic', answered: true });
+  await openFilters(page);
+  await page.getByTestId('reset-filters').click();
+  await expect(page.getByTestId('active-chip')).toHaveCount(0);
+  await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'false'); // (the filters cleared)
+  await page.waitForTimeout(400); // (a save would have happened)
+  expect(await planHousehold(page)).toEqual({ ...NONE, kids: true, dogs: 'hideToxic', answered: true });
+  await page.getByTestId('protect-cats').click();
+  await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, kids: true, dogs: 'hideToxic', cats: true, answered: true });
+  // After a reload, the picker's filters are the plan's yard: all three.
+  await page.reload();
+  await page.locator('.tool-btn.plants').click();
+  await openFilters(page);
+  for (const k of ['kids', 'dogs', 'cats']) await expect(page.getByTestId(`protect-${k}`)).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('protect-horses')).toHaveAttribute('aria-pressed', 'false');
+});
+
+test("who's in the yard is the plan's: a new plan asks again, \"Same garden?\" copies it, and each plan keeps its own (Jason, Nov 1)", async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('protect-dogs').click();
+  await closeSheet(page);
+  const newPlan = async (name: string, same: boolean | null) => {
+    await page.locator('.project-btn').click();
+    await page.getByRole('button', { name: /New project/ }).click();
+    const check = page.locator('.ask-overlay label', { hasText: 'Same garden?' }).locator('input');
+    if (same === null) await expect(page.getByTestId('ask-check')).toHaveCount(0);
+    else { await expect(check).toBeChecked(); if (!same) await check.uncheck(); }
+    await page.getByTestId('ask-input').fill(name);
+    await page.getByTestId('ask-ok').click();
+    await expect(page.locator('.project-btn .pname')).toHaveText(name);
+  };
+  // Another yard: asked again, no one in it, and no dog filter in the picker.
+  await newPlan('Grandma’s', false);
+  await page.locator('.tool-btn.plants').click();
+  await expect(protectAtTop(page)).toBeVisible();
+  for (const k of ['kids', 'dogs', 'cats', 'horses']) await expect(page.getByTestId(`protect-${k}`)).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('active-chip')).toHaveCount(0);
+  await closeSheet(page);
+  // (Not answered here, and no ZIP: nothing to offer for the next one.)
+  await newPlan('Lot 2', null);
+  // Back on the first plan: its dog, in the picker's filters too.
+  await page.locator('.project-btn').click();
+  await page.locator('.proj-row', { hasText: 'My Garden' }).click();
+  await expect(page.locator('.project-btn .pname')).toHaveText('My Garden');
+  await page.locator('.tool-btn.plants').click();
+  await expect(protectAtTop(page)).toHaveCount(0);
+  await openFilters(page);
+  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('dogs-hideToxic')).toBeChecked();
+  await closeSheet(page);
+  // The same garden: its dog comes along, answered.
+  await newPlan('Back corner', true);
+  await page.locator('.tool-btn.plants').click();
+  await expect(protectAtTop(page)).toHaveCount(0);
+  await expect(page.getByTestId('dogs-hideToxic')).toBeChecked();
+  await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, dogs: 'hideToxic', answered: true });
+  // After a reload, each as it was.
+  await page.reload();
+  await page.locator('.project-btn').click();
+  await page.locator('.proj-row', { hasText: 'Grandma’s' }).click();
+  await page.locator('.tool-btn.plants').click();
+  await expect(protectAtTop(page)).toBeVisible();
+  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('"Anyone you need to protect?" fits a 360 px phone at every text size: one row of chips, the list still on screen', async ({ page }) => {
