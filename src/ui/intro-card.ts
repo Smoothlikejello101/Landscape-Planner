@@ -275,7 +275,7 @@ function whoChips(): HTMLElement {
       // you need to protect?" does the same: src/yard.ts toggleYard.)
       const y = toggleYard(yardOf(plantFilter), k);
       applyYard(plantFilter, y);
-      saveYard(y);
+      saveYard(y, k);
       b.classList.toggle('on', isOn(k)); b.setAttribute('aria-pressed', String(isOn(k)));
       note.hidden = !isOn('dogs');
     });

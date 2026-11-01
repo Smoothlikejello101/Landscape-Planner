@@ -8,7 +8,9 @@
 //
 // Before Nov 1 it was kept per device, in 'lp-yard' (chosen Oct 28 with the introduction, not by Jason). A plan from
 // before takes what this device had there (householdFromDevice), so nobody's setting changes with the update; 'lp-yard'
-// is only read for that now, and left in place for an older version of the app.
+// is only read for that now, and left in place for an older version of the app. It's read once, at the update, with
+// whether the question was answered here (src/storage.ts takeFromDevice): 'lp-protect-line' and 'lp-intro' still change
+// after it (the ×, the introduction run again), and a plan from before read later takes what was taken then.
 
 import type { DogFilter, PlantFilter } from './plants';
 import type { PlanHousehold } from './types';
@@ -41,12 +43,23 @@ export function householdFromDevice(): PlanHousehold {
 }
 /** Who's in the open plan's yard. */
 export function household(): PlanHousehold { return state.household; }
-/** Keep who's in the yard with the open plan; set by the person (any control for the four), so the question is answered too. */
-export function saveYard(y: Yard): void {
+/**
+ * Keep who's in the yard with the open plan; set by the person (any control for the four), so the question is answered
+ * too. `only`: the one a control set, the others as the plan has them. The picker's filters for the other three may be
+ * off for the search at hand ("Clear filters", or set aside while naming a tree) with them still in the yard: taken
+ * whole from the filters, one tick of Cats would have dropped the kids and the dog (the review of the storage change,
+ * Nov 1). Every control passes its own; without one, all four.
+ */
+export function saveYard(y: Yard, only?: keyof Yard): void {
   const h = state.household;
-  if (h.answered && h.kids === y.kids && h.dogs === y.dogs && h.cats === y.cats && h.horses === y.horses) return;
-  state.household = { kids: y.kids, dogs: y.dogs, cats: y.cats, horses: y.horses, answered: true, at: now() };
+  const next: Yard = only ? { kids: h.kids, dogs: h.dogs, cats: h.cats, horses: h.horses, [only]: y[only] } : y;
+  if (h.answered && h.kids === next.kids && h.dogs === next.dogs && h.cats === next.cats && h.horses === next.horses) return;
+  state.household = { kids: next.kids, dogs: next.dogs, cats: next.cats, horses: next.horses, answered: true, at: now() };
   save();
+}
+/** The yard member a picker filter stands for (Kids is "Not listed as poisonous to people"); null for another filter. */
+export function yardKeyOf(filter: string): keyof Yard | null {
+  return filter === 'noPoison' ? 'kids' : filter === 'dogs' || filter === 'cats' || filter === 'horses' ? filter : null;
 }
 /** The open plan's household for a new plan of the same garden (New project's "Same garden?"), answered or not, as it is. */
 export function householdCopy(): PlanHousehold { return { ...state.household, at: now() }; }

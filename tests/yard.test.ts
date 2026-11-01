@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { NEW_RECORD } from '../src/intro';
 import { state } from '../src/state';
 import type { PlanHousehold } from '../src/types';
-import { askAtTop, askDismissed, dismissAsked, household, householdCopy, householdFromDevice, introAnswered, loadAsked, loadYard, NO_YARD, noteAsked, saveYard, toggleYard } from '../src/yard';
+import { askAtTop, askDismissed, dismissAsked, household, householdCopy, householdFromDevice, introAnswered, loadAsked, loadYard, NO_YARD, noteAsked, saveYard, toggleYard, yardKeyOf } from '../src/yard';
 
 // "Anyone you need to protect?" (Jason, Nov 1, from the UI review): first among the picker's filters until it's
 // answered for the plan or dismissed on this device, then under Filters, Poison & pets. Who's in the yard, and whether
@@ -38,6 +38,16 @@ describe('what the plan keeps of it, and what the device keeps', () => {
     expect(household()).toMatchObject({ ...NO_YARD, answered: true });
     // (Kept with the plan, not on the device: 'lp-yard' and 'lp-protect-line' aren't written.)
     expect([localStorage.getItem('lp-yard'), localStorage.getItem('lp-protect-line')]).toEqual([null, null]);
+  });
+  it("one control's change is that one alone: the others as the plan has them, though the filters for them are off for the search at hand (the review, Nov 1)", () => {
+    state.household = { ...NO_YARD, kids: true, dogs: 'hideToxic', answered: true, at: 5 };
+    // ("Clear filters", or the filters set aside while naming a tree: kids and dogs off in the picker, still in the yard.)
+    const filters = { ...NO_YARD, cats: true };
+    saveYard(filters, 'cats');
+    expect(household()).toEqual({ ...NO_YARD, kids: true, dogs: 'hideToxic', cats: true, answered: true, at: expect.any(Number) });
+    saveYard({ ...NO_YARD }, 'dogs'); // (the dog control turned off: only the dog goes)
+    expect(household()).toMatchObject({ kids: true, dogs: '', cats: true });
+    expect([yardKeyOf('noPoison'), yardKeyOf('dogs'), yardKeyOf('cats'), yardKeyOf('horses'), yardKeyOf('q')]).toEqual(['kids', 'dogs', 'cats', 'horses', null]);
   });
   it('answered alone leaves the yard as it was (step 6 done with none ticked)', () => {
     noteAsked();

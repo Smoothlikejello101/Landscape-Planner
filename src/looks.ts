@@ -179,7 +179,9 @@ export function lookOf(p: Plant | undefined, shapeColor: string, chosen = false,
   // (Jason, Oct 30: "use the old list color if available, plan color if not").)
   const sourced = p?.flower_color ?? [];
   const words = sourced.length ? [] : ownBloomColors(p?.bloom?.color);
-  const picked = !sourced.length && !words.length && p?.id?.startsWith(MY_PREFIX) && p.color ? [nearestFlower(p.color)] : [];
+  // (The plan color only for one that blooms, by its months: one with no flower colors and no bloom months has no
+  // flowers to draw. Jason, Nov 1: a false cypress of his own, copied from Sawara cypress, was drawn in yellow flowers.)
+  const picked = !sourced.length && !words.length && p?.id?.startsWith(MY_PREFIX) && p.color && p.bloom?.start != null ? [nearestFlower(p.color)] : [];
   const listed = (sourced.length ? sourced : words.length ? words : picked).filter((c) => c !== 'insignificant' && FLOWER_HEX[c]);
   const insignificant = !!p && (!listed.length || (p.flower_form?.inflorescence ?? []).some((x) => x === 'insignificant' || x === 'catkin'));
   // (A color its sources list, chosen for this one plant on the plan (Jason, Oct 30): a cultivar not in the catalog.)

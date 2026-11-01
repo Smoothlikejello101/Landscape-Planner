@@ -734,6 +734,31 @@ test('"Anyone you need to protect?" isn\'t asked first on a device that answered
   expect(await deviceKept(page)).toEqual([null, null]);
 });
 
+// One of the four set after Clear filters (the filters are for the search at hand; the yard stays) changes that one
+// alone: Cats ticked after clearing kids' and the dog's filters keeps the kids and the dog in the yard (the review of the
+// storage change, Nov 1: taken whole from the filters, the yard lost them, on every device).
+test("one of the four set after Clear filters keeps the others in the yard: Cats joins the kids and the dog", async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('protect-kids').click();
+  await page.getByTestId('protect-dogs').click();
+  await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, kids: true, dogs: 'hideToxic', answered: true });
+  await openFilters(page);
+  await page.getByTestId('reset-filters').click();
+  await expect(page.getByTestId('active-chip')).toHaveCount(0);
+  await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'false'); // (the filters cleared)
+  await page.waitForTimeout(400); // (a save would have happened)
+  expect(await planHousehold(page)).toEqual({ ...NONE, kids: true, dogs: 'hideToxic', answered: true });
+  await page.getByTestId('protect-cats').click();
+  await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, kids: true, dogs: 'hideToxic', cats: true, answered: true });
+  // After a reload, the picker's filters are the plan's yard: all three.
+  await page.reload();
+  await page.locator('.tool-btn.plants').click();
+  await openFilters(page);
+  for (const k of ['kids', 'dogs', 'cats']) await expect(page.getByTestId(`protect-${k}`)).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('protect-horses')).toHaveAttribute('aria-pressed', 'false');
+});
+
 test("who's in the yard is the plan's: a new plan asks again, \"Same garden?\" copies it, and each plan keeps its own (Jason, Nov 1)", async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
