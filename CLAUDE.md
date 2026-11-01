@@ -2,11 +2,13 @@
 
 - Owner: Jason. He uses it on Android (installed PWA) for real garden plans;
   never risk his data. Test migrations against e2e/fixtures/legacy-app.
-- Run `npm run check` before opening a pull request; all tests must pass.
-  Later pushes to it (a merge of main, a small fix) may rely on CI, which
-  runs every test on the pull request as it would merge. Never ask Jason to
-  merge before CI passes. Never run a full check while another test run is
-  going: the load makes tests time out.
+- Before opening a pull request, or pushing to one: `npm run typecheck`,
+  `npm test`, and the end-to-end specs that cover the change. CI is the full
+  check (Jason, Nov 1): it runs every test on the pull request as it would
+  merge, in about 3 minutes; `npm run check` takes 20–35 minutes on this
+  workspace's 2 cores. Never ask Jason to merge before CI passes. Never run
+  a full check while another test run is going: the load makes tests time
+  out.
 - Keyboard safety (Android): text/number/range/color inputs must update via
   the *Silent* functions (`updateSelectedSilent`, `updateBgImageSilent`) that
   redraw only the canvas. Window resize must call `resizeCanvas()`, never

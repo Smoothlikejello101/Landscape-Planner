@@ -22,10 +22,10 @@ Next (`src/channel.ts`, `APP_CHANNEL=next`) is the same app with:
 
 ## Day to day
 
-1. Each change is built on its own branch, `npm run check` passes, and a pull request into `main` is opened. A change
-   people will notice adds its What's new lines in that pull request (below). Later pushes to it, such as a merge of
-   main or a small fix, may rely on CI, which runs every test on the pull request as it would merge into main; a pull
-   request is ready to merge once CI passes.
+1. Each change is built on its own branch; the type check, the unit tests and the end-to-end tests that cover it pass,
+   and a pull request into `main` is opened. A change people will notice adds its What's new lines in that pull
+   request (below). CI is the full check (Jason, Nov 1): it runs every test on the pull request as it would merge into
+   main, in about 3 minutes, and a pull request is ready to merge once it passes.
 2. Jason merges pull requests whenever he likes. Merging updates Next only.
 3. Jason tries Next when he has a few minutes: it's installed on his phone beside the real app.
 
