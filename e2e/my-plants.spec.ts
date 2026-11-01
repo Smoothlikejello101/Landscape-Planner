@@ -124,7 +124,7 @@ test('copy a catalog plant as your own cultivar', async ({ page }) => {
   await expect(page.locator('.sel-pill .name')).toHaveText("Heuchera 'Caramel'");
 });
 
-test("a copy of a catalog plant starts with its name empty and no flower colors ticked, its size, sun, type and bloom filled in; one of your own copied, or edited, as it was (Jason, Nov 1, the UI review)", async ({ page }) => {
+test("a copy of a catalog plant starts with its name empty and no flower colors, ticked or in words, its size, sun, type and bloom filled in; one of your own copied, or edited, as it was (Jason, Nov 1, the UI review)", async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill("Heuchera 'Autumn Bride'"); // (white flowers, September to October)
@@ -137,6 +137,7 @@ test("a copy of a catalog plant starts with its name empty and no flower colors 
   await expect(page.getByTestId('pf-spread')).not.toHaveValue('');
   await expect(page.getByTestId('pf-form')).toHaveValue('Perennial');
   await expect(page.locator('.sheet details select').first()).toHaveValue('9');
+  await expect(page.locator('.sheet .field', { hasText: 'Bloom color, in words' }).locator('input')).toHaveValue(''); // (nor its color in words)
   // Named and given a color, it's the person's own: copied, or edited, both kept.
   await name.fill("Heuchera 'Caramel'");
   await page.locator('[data-testid=pf-flower][data-color=pink]').click();

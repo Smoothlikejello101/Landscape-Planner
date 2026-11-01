@@ -22,7 +22,7 @@ import { ask } from './ask';
 //
 // A new plant can start from another, from the catalog or the person's own (asked for by Jason, 2026-10-25): its
 // size, sun, type and bloom are filled in, to change what differs. Started from one of the person's own, its name and
-// flower colors are too. Copied from a catalog plant, its name starts empty and no flower colors are ticked: it's a
+// flower colors are too. Copied from a catalog plant, its name starts empty, no flower colors are ticked and its bloom color in words is empty: it's a
 // plant of the person's own (Grandma's peony, a cultivar the catalog hasn't), for them to name and say the colors of
 // (Jason, Nov 1, from the UI review). And a plant can be the same species as a catalog plant: then it has what holds
 // for the whole species (src/my-plants.ts, withSpecies).
@@ -301,7 +301,9 @@ export function renderPlantForm() {
     return sel;
   };
   const bloomStart = monthSel(source?.bloom?.start), bloomEnd = monthSel(source?.bloom?.end);
-  const bloomColor = el('input', { type: 'text', value: source?.bloom?.color ?? '', placeholder: 'e.g. white aging to pink' }) as HTMLInputElement;
+  // (Copied from a catalog plant, its color in words starts empty too, like its chips: an unticked copy was drawn in
+  // the catalog plant's words. Jason, Nov 1.)
+  const bloomColor = el('input', { type: 'text', value: fromCatalog ? '' : source?.bloom?.color ?? '', placeholder: 'e.g. white aging to pink' }) as HTMLInputElement;
   const bloomHint = el('div', { className: 'hint', 'data-testid': 'pf-bloom-hint' });
   const notes = el('textarea', { rows: 3, placeholder: 'Where you bought it, care notes, what to watch for' }) as HTMLTextAreaElement;
   notes.value = typeof source?.notes === 'string' && editing ? source.notes : '';
