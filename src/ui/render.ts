@@ -135,12 +135,17 @@ export function render() {
   projBtn.addEventListener('click', () => { state.panel = 'projects'; render(); });
   topbar.appendChild(projBtn);
 
+  // While a sheet is open, Undo and Redo are greyed, and sit above its dimming, so a tap on them is a tap on nothing (the
+  // UI review, 2026-11-01: under the dimming Undo looked live, and a tap on it only closed the sheet, the 11 plants just
+  // set to Planted left Planted, taken for undone). Greyed rather than working behind the sheet: Jason's choice. The
+  // sheet closed, they're back.
+  const sheetUp = !!state.panel;
   // Undo
-  const undoBtn = el('button', { className: 'iconbtn', html: I.undo, title: 'Undo' });
+  const undoBtn = el('button', { className: 'iconbtn' + (sheetUp ? ' over-sheet' : ''), html: I.undo, title: 'Undo' });
   // While placing, it takes back the last plant placed; while drawing, the last point: as the bar's Undo does.
   // (A notice's Undo is the same step: after either, it's gone.)
   // (And while adding doors and windows, the last one added.)
-  undoBtn.disabled = state.placing ? !state.placing.placed.length : state.draw ? !state.draw.points.length : state.featurePlace ? !state.featurePlace.added.length : !canUndo();
+  undoBtn.disabled = sheetUp || (state.placing ? !state.placing.placed.length : state.draw ? !state.draw.points.length : state.featurePlace ? !state.featurePlace.added.length : !canUndo());
   undoBtn.addEventListener('click', () => {
     dismissToastAction();
     if (state.placing) undoPlace(); else if (state.draw) undoDrawPoint(); else if (state.featurePlace) undoFeaturePlace(); else undo();
@@ -154,8 +159,8 @@ export function render() {
   let floatRedo: HTMLElement | null = null;
   if (!(canRedo() && roomyText())) floatRedoUp = false;
   if (!roomyText()) {
-    const redoBtn = el('button', { className: 'iconbtn', html: I.redo, title: 'Redo' });
-    redoBtn.disabled = !canRedo() || !!state.draw || !!state.placing || !!state.featurePlace;
+    const redoBtn = el('button', { className: 'iconbtn' + (sheetUp ? ' over-sheet' : ''), html: I.redo, title: 'Redo' });
+    redoBtn.disabled = sheetUp || !canRedo() || !!state.draw || !!state.placing || !!state.featurePlace;
     redoBtn.addEventListener('click', () => { dismissToastAction(); redo(); render(); });
     topbar.appendChild(redoBtn);
   } else if (canRedo() && !state.draw && !state.placing && !state.featurePlace && !state.panel && !state.menu) {

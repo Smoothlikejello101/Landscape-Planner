@@ -28,6 +28,9 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .iconbtn { width: var(--tap); height: var(--tap); display: flex; align-items: center; justify-content: center; border-radius: 6px; color: #57534e; flex-shrink: 0; position: relative; }
 .iconbtn:hover { background: #f5f5f4; }
 .iconbtn:disabled { opacity: 0.3; cursor: not-allowed; }
+/* Undo and Redo while a sheet is open: greyed, above its dimming, so a tap on them isn't the dimming's (src/ui/render.ts). */
+.iconbtn.over-sheet { z-index: 21; }
+.iconbtn.over-sheet:hover { background: none; }
 .iconbtn.active { background: #fef3c7; color: #92400e; }
 .iconbtn .dot { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; background: #dc2626; border-radius: 50%; }
 /* Canvas */
