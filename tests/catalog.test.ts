@@ -262,9 +262,9 @@ describe('records', () => {
     const strain = catalogWarnings({ meta, plants: [rec({ id: 's', common: 'Butterfly weed (clay strain)', botanical: 'Asclepias tuberosa (clay strain)', facts: { width: { min: 1, max: 2 } } })] });
     expect(strain).toEqual(['s: parentheses in its botanical name: a cultivar is quoted; a seed strain or ecotype is named "Common name (strain)"']);
   });
-  it('list every botanical name with parentheses in the shipped catalog: the one left as it is (the clay strain and asparagus renamed, Water iris folded)', () => {
+  it('list no botanical name with parentheses in the shipped catalog: the earlier list\'s four renamed or folded (Jason, 2026-11-01)', () => {
     const listed = catalogWarnings(shipped).filter((w) => w.includes('parentheses in its botanical name')).map((w) => w.split(':')[0]);
-    expect(listed.sort()).toEqual(['vernonia-hybrid-mt-cuba']);
+    expect(listed).toEqual([]);
   });
 });
 

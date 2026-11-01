@@ -102,7 +102,8 @@
   "lantana-camara-miss-huff-hardy": {"cultivar": "Miss Huff", "common": "Lantana 'Miss Huff'", "decided": "2026-10-27", "by": "Jason"},
   "chaenomeles-double-take-series": {"cultivar": "Double Take series", "common": "Flowering quince Double Take series", "note": "Under a species once a source names one.", "decided": "2026-10-27", "by": "Jason"},
   "buxus-green-velvet-microphylla-types": {"cultivar": "Green Velvet", "common": "Boxwood 'Green Velvet'", "note": "Littleleaf boxwood is the catalog's record for the microphylla types.", "decided": "2026-10-27", "by": "Jason"},
-  "paeonia-lactiflora-festiva-maxima-early-cvs": {"cultivar": "Festiva Maxima", "common": "Peony 'Festiva Maxima'", "decided": "2026-10-27", "by": "Jason"}
+  "paeonia-lactiflora-festiva-maxima-early-cvs": {"cultivar": "Festiva Maxima", "common": "Peony 'Festiva Maxima'", "decided": "2026-10-27", "by": "Jason"},
+  "vernonia-hybrid-mt-cuba": {"cultivar": "Prairie Princess", "common": "Ironweed 'Prairie Princess'", "note": "The earlier list's \"Vernonia hybrid (Mt. Cuba)\": its one source sells it as Vernonia 'Prairie Princess'. Under a species once a source names one.", "decided": "2026-11-01", "by": "Jason"}
  },
  "rename": {
   "asclepias-tuberosa-clay-strain": {"common": "Butterfly weed (clay strain)", "botanical": "Asclepias tuberosa clay strain", "soldAs": "for Clay", "decided": "2026-11-01", "by": "Jason", "note": "A seed strain, not a cultivar: named by the rule for strains (docs/catalog-format.md, \"Names\"), its facts kept. Prairie Nursery sells it as Butterfly Weed for Clay. Its botanical name isn't the species' alone, which the app and the build would take for Butterfly milkweed's record."},

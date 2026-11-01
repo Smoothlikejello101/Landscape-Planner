@@ -127,9 +127,13 @@ Quotes in a record's name are only for a named cultivar: "Hydrangea
 "Cultivar names"). A seed strain or an ecotype isn't a cultivar: it's named
 "Common name (strain)", "Butterfly weed (clay strain)", not "Butterfly weed
 'for Clay'" (Jason, from the UI review, 2026-11-01). A botanical name has no
-parentheses; `catalog:check` lists one that has (the earlier list's strains,
-groups and notes: "Asclepias tuberosa (clay strain)", "Iris (aquatic
-spp.)"), for a person to look at.
+parentheses; `catalog:check` lists one that has, for a person to look at.
+The earlier list had four, its way of writing a strain, a group or a note,
+and none is left (Jason, 2026-11-01): the clay strain renamed (below); "Iris
+(aquatic spp.)", several water irises, folded into Blue flag iris (`fold`);
+"Asparagus officinalis ('Jersey' / 'Millennium')" named as its species
+(`rename`); "Vernonia hybrid (Mt. Cuba)" named for its cultivar, "Vernonia
+'Prairie Princess'" (`cultivar`).
 
 A strain is renamed by a decision (`rename` in scripts/catalog/decisions.json),
 its old name kept as a synonym: Butterfly weed 'for Clay' is "Butterfly weed
