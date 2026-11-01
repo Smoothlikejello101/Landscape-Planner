@@ -337,8 +337,10 @@ export function renderPlantsPanel() {
       title: mine ? 'Edit my plant' : 'Copy as my plant',
       'aria-label': (mine ? 'Edit ' : 'Copy as my plant: ') + p.common,
     });
-    // (Edited or copied from here, back here: openForm.)
-    side.addEventListener('click', () => openForm(mine ? { editId: p.id, place: false } : { copyFromId: p.id, place: false }));
+    // (Edited or copied from here, back here: openForm. A copy, once saved, goes where the picker was going, as a plant
+    // added here does: in hand to place, the plant switched to while placing, or linked. Jason, Nov 1, on his own plan:
+    // a copy made in Switch plant came back to a search it wasn't even in.)
+    side.addEventListener('click', () => openForm(mine ? { editId: p.id, place: false } : { copyFromId: p.id, place: true }));
     head.appendChild(side);
     if (mine) info.firstChild!.appendChild(el('span', { className: 'mine-badge' }, 'Mine'));
     // Now in the catalog too: offer its sourced facts (the person decides: src/ui/switch-plant.ts).
