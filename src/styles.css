@@ -688,6 +688,8 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .zone-source { font-size: calc(11px * var(--ts)); }
 .color-chips { display: flex; align-items: center; gap: 6px; overflow-x: auto; margin-top: 8px; padding: 2px 0 4px; scrollbar-width: thin; }
 .color-chips[hidden] { display: none; }
+/* Chips that wrap onto more lines instead of scrolling (a plant's flower colors in its form). */
+.color-chips.wrap { flex-wrap: wrap; overflow-x: visible; }
 .chips-label { flex: none; font-size: calc(12px * var(--ts)); color: #78716c; margin-right: 2px; }
 .color-chip { flex: none; position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 10px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; font-size: calc(13px * var(--ts)); color: #292524; white-space: nowrap; cursor: pointer; }
 .color-chip input { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; pointer-events: none; }

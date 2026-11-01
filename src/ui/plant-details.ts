@@ -273,8 +273,10 @@ function rows(p: Plant): Row[] {
     ['Water', p.water ?? '', ['water'], (r) => String(r.water ?? '')],
     // (Its months here, its season and the earlier list's months, each with its source: drawn by bloomRow.)
     ['Bloom', '', ['bloom_season', 'bloom']],
-    // (Its sources' colors; else the earlier list's, or a plant of mine's own words.)
-    ['Flower color', flowerText(p.flower_color) || p.bloom?.color || '', p.flower_color?.length ? ['flower_color'] : ['bloom']],
+    // (Its sources' colors; else the earlier list's, or a plant of mine's own words. A plant of mine's chips, with its
+    // words after them, Oct 31.)
+    ['Flower color', flowerText(p.flower_color) ? flowerText(p.flower_color) + (isMine(p) && p.bloom?.color ? ` (${p.bloom.color})` : '') : p.bloom?.color || '',
+      p.flower_color?.length ? ['flower_color'] : ['bloom']],
     ['Native', p.native ?? '', ['native']],
     ['Nectar for pollinators', p.nectar ?? '', ['nectar']],
     ['For birds', p.bird ?? '', ['bird']],

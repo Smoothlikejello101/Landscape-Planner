@@ -480,7 +480,7 @@ export function renderPropsPanelSingle(s: Shape) {
       row.appendChild(b);
     }
     lookParts.push(el('div', { className: 'field', 'data-testid': 'flower-colors' }, el('label', {}, 'Flower color'), row,
-      el('div', { className: 'hint' }, 'The colors its sources list. Its picture\'s flowers are drawn in the one picked.')));
+      el('div', { className: 'hint' }, `${s.plantId?.startsWith(MY_PREFIX) ? 'The colors you gave it' : 'The colors its sources list'}. Its picture's flowers are drawn in the one picked.`)));
   }
   if (asPicture) {
     // (Its leaves' color, rarely wanted: behind a link, open while a color's been picked, so Default color is in sight.)

@@ -10,7 +10,8 @@
       "Layers counts every locked shape, locked on its own or with its layer, and a layer’s row says “1 locked shape” when a shape is locked on its own.",
       "A vine on a fence or trellis: hiding that layer hides the vine’s band along it too; its planting spot and name stay.",
       "The pins marking plants hidden under bigger ones shrink as you zoom out, and go away when you’re zoomed far out (below 30%) or the plant is only a speck; zoom in and they’re back.",
-      "A plant’s details now say what the law says of it in eight more states, Virginia, Pennsylvania, Ohio, Illinois, North Carolina, Georgia, Indiana and Kentucky, read from each state’s own legal text. A plant your state bans is left out while you browse, as before."
+      "A plant’s details now say what the law says of it in eight more states, Virginia, Pennsylvania, Ohio, Illinois, North Carolina, Georgia, Indiana and Kentucky, read from each state’s own legal text. A plant your state bans is left out while you browse, as before.",
+      "A plant of your own: choose its flower colors as chips in its form, kept even without bloom months; its flowers are drawn in the first one chosen."
     ]
   },
   {

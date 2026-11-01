@@ -55,6 +55,13 @@ export function zonesText(p: { zone_min?: number; zone_max?: number }): string {
 }
 /** Water needs a plant of mine can be given: the catalog's words. */
 export const MY_WATER = ['Low', 'Moderate', 'High', 'Wetland'] as const;
+/**
+ * Flower colors a plant of mine can be given, as chips (Jason, Oct 30): the catalog's petal colors, drawn as the
+ * catalog's are (src/looks.ts). Stored as `flower_color`, the catalog's own field, in the order chosen: the first is
+ * the one drawn. Kept with or without bloom months; older plants have none, and their bloom color's words are read
+ * for it (looks.ts ownBloomColors) until it's saved again.
+ */
+export const MY_FLOWER_COLORS = ['white', 'cream', 'yellow', 'orange', 'red', 'pink', 'purple', 'blue', 'green'] as const;
 const FRACTIONS: Record<string, number> = { '½': 0.5, '¼': 0.25, '¾': 0.75, '⅓': 1 / 3, '⅔': 2 / 3 };
 export function parseSize(text: string, defaultUnit: 'ft' | 'in' = 'ft'): Range | null {
   const t = text.trim().toLowerCase().replace(/[–—]/g, '-').replace(/\s+to\s+/g, '-').replace(/,/g, '.')
@@ -169,6 +176,11 @@ export function sanitizeMyPlant(raw: unknown): Plant | null {
   if (most && least) { p.sun_most = most; p.sun_least = least; }
   if (form) p.form = form;
   if (bs != null) p.bloom = { start: bs, end: be ?? bs, ...(bloomColor ? { color: bloomColor } : {}) };
+  // (Its flower colors, chosen as chips (Oct 31): each once, in the order chosen; older plants have none.)
+  if (Array.isArray(o.flower_color)) {
+    const colors = [...new Set(o.flower_color.filter((c): c is string => (MY_FLOWER_COLORS as readonly unknown[]).includes(c)))];
+    if (colors.length) p.flower_color = colors;
+  }
   if (notes) p.notes = notes;
   // (Zones and water needs, given by hand (Oct 30); older plants have neither.)
   const half = (v: unknown) => (typeof v === 'number' && v >= 1 && v <= 13.5 && Number.isInteger(v * 2) ? v : undefined);
