@@ -14,7 +14,7 @@ import { kindForShortcut } from './kinds';
 import { finishPlacing, undoPlace } from './place';
 import { state } from './state';
 import { loadPlants, plantFilter } from './plants';
-import { applyYard, loadHardy, loadYard } from './yard';
+import { applyYard, household, loadHardy } from './yard';
 import { loadWild } from './wild';
 import { initAccount, restoreCodeSent, setAccountListener } from './account';
 import { CHANNEL, signInAllowed } from './channel';
@@ -28,7 +28,7 @@ import { notePageZoom } from './page-zoom';
 import { loadViewSettings } from './view-settings';
 import { applyTextSize } from './text-size';
 import { updateSaveWarning, updateSaveState } from './ui/save-warning';
-import { flushSave, initStorage, refreshClipboard, requestPersistence, saveView, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
+import { flushSave, initStorage, refreshClipboard, requestPersistence, saveView, setHouseholdListener, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
 import { flashZoom, render } from './ui/render';
 import { dismissToastAction, toast } from './ui/toast';
 import { closeYear, stepMonth } from './ui/year-bar';
@@ -324,7 +324,10 @@ async function start() {
   document.body.classList.toggle('channel-next', CHANNEL === 'next');
   loadMyPlants();
   loadViewSettings(); // (full-size rings and crowding outlines, as left on this device)
-  applyYard(plantFilter, loadYard()); // (kids and pets in the yard: the picker's filters for them, as left on this device)
+  // (Kids and pets in the open plan's yard: the picker's filters for them, and again whenever another plan, or sync's
+  // copy of this one, is put in place.)
+  applyYard(plantFilter, household());
+  setHouseholdListener(() => applyYard(plantFilter, household()));
   plantFilter.hardyHere = loadHardy(); // (hardy in the garden's zone: as left on this device, on to start)
   setSaveStatusListener(updateSaveWarning);
   setSaveStateListener(updateSaveState);

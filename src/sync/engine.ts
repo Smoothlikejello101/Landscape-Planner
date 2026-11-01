@@ -12,6 +12,9 @@
 //   (the plan, or its photo) are a conflict.
 // - A conflict keeps both: the server's version takes the project's place
 //   and this device's version becomes a copy beside it. Nothing is lost.
+// - Two parts of a plan never conflict (Jason, Nov 1): the Plant list's ticks
+//   and who's in the yard settle on their own, whichever devices changed
+//   them (settleParts); a conflict is the rest of the plan changed on both.
 // - Sync never removes a project that has changes here. A project deleted
 //   elsewhere leaves this device only if it hasn't changed here; if it has,
 //   it comes back out of the trash with this device's version.
@@ -35,7 +38,14 @@ export interface LocalProject {
  * server's plan says it's kept here: 'room' (the account's photo space was
  * full: tried again later) or 'refused' (too large, or a kind of image storage won't take).
  */
-export interface SyncRecord { revision: number; hash: string; photo?: string; held?: 'room' | 'refused' }
+export interface SyncRecord {
+  revision: number; hash: string; photo?: string; held?: 'room' | 'refused';
+  /**
+   * The fingerprint of the plan without the parts that settle on their own (coreHash). Absent in a record from before
+   * them: its plan had neither part then, so `hash` is that.
+   */
+  core?: string;
+}
 export interface ServerProject { id: string; name: string; revision: number; updated_by: string | null; updated_at: string; deleted_at: string | null }
 export type PushResult =
   | { status: 'ok'; revision: number }
@@ -162,6 +172,18 @@ export function planOf(c: ProjectContent): ProjectContent {
 }
 /** Fingerprint of the name and plan (the photo apart). Records made before photos synced hold exactly this. */
 export const planHash = (name: string, c: ProjectContent) => fingerprint(name, planOf(c));
+/** Parts of a plan that settle on their own when two devices change them (settleParts), not a conflict. */
+const OWN_PARTS = ['bought', 'household'] as const;
+/** The plan without its photo and the parts that settle on their own: what two devices changing is a conflict. */
+function coreOf(c: ProjectContent): ProjectContent {
+  const out = { ...planOf(c) };
+  for (const k of OWN_PARTS) delete out[k];
+  return out;
+}
+/** Fingerprint of the name and the plan's core (coreOf). */
+export const coreHash = (name: string, c: ProjectContent) => fingerprint(name, coreOf(c));
+/** A record's core fingerprint; one from before the parts that settle on their own had none, its plan neither part. */
+const coreOfRecord = (rec: SyncRecord) => rec.core ?? rec.hash;
 /**
  * Which photo content shows, and how it's placed: 'none', 'kept' (on one
  * device only), or "<photo fingerprint>@<placement fingerprint>". Undefined
@@ -185,7 +207,8 @@ export function photoFp(c: ProjectContent): string | undefined {
 /** The record for content as the server has it at `revision`. */
 const recordFor = (name: string, c: ProjectContent, revision: number): SyncRecord => {
   const photo = photoKey(c);
-  return photo === undefined ? { revision, hash: planHash(name, c) } : { revision, hash: planHash(name, c), photo };
+  const rec: SyncRecord = { revision, hash: planHash(name, c), core: coreHash(name, c) };
+  return photo === undefined ? rec : { ...rec, photo };
 };
 /** Size in bytes of a data URL's contents. */
 const byteSize = (dataUrl: string) => { const b64 = dataUrl.slice(dataUrl.indexOf(',') + 1); return Math.floor((b64.length * 3) / 4) - (b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0); };
@@ -195,7 +218,7 @@ const byteSize = (dataUrl: string) => { const b64 = dataUrl.slice(dataUrl.indexO
 const isRefusal = (e: unknown) => /mime|content.?type|not supported|too large|maximum allowed size|payload|413|415/i.test(`${e instanceof Error ? e.message : String(e)} ${(e as { statusCode?: unknown })?.statusCode ?? ''}`);
 const isConnectionTrouble = (e: unknown) => e instanceof TypeError || /fetch|network|load failed|timed? ?out/i.test(e instanceof Error ? e.message : String(e));
 /** Parts of a plan an older app version doesn't know about, so leaves out of what it sends. */
-const NEWER_PARTS = ['location'];
+const NEWER_PARTS = ['location', ...OWN_PARTS];
 /** The server's content with the parts it says nothing about kept as they are here (so they don't look changed, or get lost). */
 export function withLocalParts(server: ProjectContent, mine: ProjectContent | undefined): ProjectContent {
   if (!mine) return server;
@@ -325,6 +348,67 @@ function withGoneDates(server: ProjectContent, mine: ProjectContent): ProjectCon
     return { ...s, goneOn: dates.get(s.id) };
   });
   return filled ? { ...server, shapes } : server;
+}
+// ---------- The parts that settle on their own ----------
+type Bought = Record<string, { n: number; at: number }>;
+const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+const tickOk = (v: unknown): v is { n: number; at: number } => isObject(v) && typeof v.n === 'number' && Number.isFinite(v.n) && typeof v.at === 'number' && Number.isFinite(v.at);
+/**
+ * Two devices' Plant list ticks, kind by kind: the later change to each (an untick is a change: 0 bought); the same
+ * moment, the more bought. Either way round, the same answer, so both devices end with the same list.
+ */
+export function settleBought(a: unknown, b: unknown): Bought | undefined {
+  if (!isObject(a) && !isObject(b)) return undefined;
+  const out: Bought = {};
+  for (const side of [a, b]) {
+    if (!isObject(side)) continue;
+    for (const [id, v] of Object.entries(side)) {
+      if (!tickOk(v)) continue;
+      const was = out[id];
+      if (!was || v.at > was.at || (v.at === was.at && v.n > was.n)) out[id] = { n: v.n, at: v.at };
+    }
+  }
+  return out;
+}
+type Household = { kids: boolean; dogs: string; cats: boolean; horses: boolean; answered: boolean; at?: number };
+const householdOk = (v: unknown): v is Household => isObject(v) && typeof v.kids === 'boolean' && typeof v.cats === 'boolean' && typeof v.horses === 'boolean' && typeof v.dogs === 'string';
+const DOG_STRICTNESS = ['', 'hideToxic', 'nonToxic'];
+/**
+ * Two devices' "who's in the yard": the one set in the plan more lately (`at`); one set in the plan over one a device
+ * only took from what it had when plans got their own; and two taken that way, everyone either had (Jason, Nov 1:
+ * nobody's setting changes with the update, and a dog kept on one phone isn't dropped by a computer that never asked),
+ * answered if either was. Either way round, the same answer.
+ */
+export function settleHousehold(a: unknown, b: unknown): Household | undefined {
+  const x = householdOk(a) ? a : undefined, y = householdOk(b) ? b : undefined;
+  if (!x || !y) return x ?? y;
+  const xa = typeof x.at === 'number' ? x.at : undefined, ya = typeof y.at === 'number' ? y.at : undefined;
+  if (xa !== undefined || ya !== undefined) {
+    if (ya === undefined || (xa !== undefined && xa > ya)) return x;
+    if (xa === undefined || ya > xa) return y;
+    return canonical(x) >= canonical(y) ? x : y; // (the same moment: either, so long as it's the same on both)
+  }
+  const dogs = DOG_STRICTNESS[Math.max(DOG_STRICTNESS.indexOf(x.dogs), DOG_STRICTNESS.indexOf(y.dogs), 0)];
+  return { kids: x.kids || y.kids, dogs, cats: x.cats || y.cats, horses: x.horses || y.horses, answered: x.answered === true || y.answered === true || x.kids || y.kids || dogs !== '' || x.cats || y.cats || x.horses || y.horses };
+}
+/** The parts that settle on their own, as they come out of this device's content and the server's. */
+export function settleParts(mine: ProjectContent, theirs: ProjectContent): ProjectContent {
+  const out: ProjectContent = {};
+  const bought = settleBought(mine.bought, theirs.bought);
+  if (bought) out.bought = bought;
+  const household = settleHousehold(mine.household, theirs.household);
+  if (household) out.household = household;
+  return out;
+}
+/**
+ * Changed here only by taking this device's household when plans got their own (no `at`: never set in the plan), the
+ * photo as it was: not an edit, so no reason to bring back a plan deleted elsewhere.
+ */
+function onlyHouseholdTaken(p: LocalProject, rec: SyncRecord | undefined): boolean {
+  const h = p.content.household;
+  if (!rec || !householdOk(h) || typeof h.at === 'number' || (photoKey(p.content) ?? 'none') !== (rec.photo ?? 'none')) return false;
+  const { household: _h, ...rest } = p.content;
+  return planHash(p.name, rest) === rec.hash;
 }
 const isEmpty = (c: ProjectContent) => Array.isArray(c.shapes) && c.shapes.length === 0 && (photoKey(c) ?? 'none') === 'none';
 /** After this many failures in a row, the trouble is likely the connection: end the pass. */
@@ -469,16 +553,21 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     const rawContent = withLocalParts(sent, p.content); // (for telling what changed where)
     const serverContent = asSeenHere(rawContent, rec);
     const n = local.normalize(serverName, serverContent);
+    // The Plant list's ticks and who's in the yard settle on their own, the same on both sides (settleParts); what's
+    // compared for a conflict is the rest of the plan, its core.
+    const parts = settleParts(p.content, n.content);
+    const mine = { ...p.content, ...parts }, theirs = { ...n.content, ...parts };
     const basePhoto = rec?.photo ?? 'none';
-    const localPlan = planHash(p.name, p.content), serverPlan = planHash(n.name, n.content);
+    const localPlan = coreHash(p.name, p.content), serverPlan = coreHash(n.name, n.content);
     const localPhoto = photoKey(p.content) ?? 'none', serverPhoto = photoKey(n.content);
-    const planHere = !rec || rec.hash !== localPlan, planThere = !rec || rec.hash !== serverPlan;
+    const planHere = !rec || coreOfRecord(rec) !== localPlan, planThere = !rec || coreOfRecord(rec) !== serverPlan;
     const photoHere = localPhoto !== basePhoto, photoThere = serverPhoto !== undefined && serverPhoto !== basePhoto;
     const photoClash = photoHere && photoThere && localPhoto !== serverPhoto;
     if ((planHere && planThere && localPlan !== serverPlan) || photoClash) {
-      // The original takes the server's plan; its photo follows the usual rule unless the photos clash too.
+      // The original takes the server's plan, with the settled parts; its photo follows the usual rule unless the
+      // photos clash too. (The copy keeps this device's version whole.)
       const photoSource = !photoClash && (photoHere || !photoThere) ? p.content : serverContent;
-      const original = { ...planOf(serverContent), ...('photo' in photoSource ? { photo: photoSource.photo } : {}) };
+      const original = { ...planOf(theirs), ...('photo' in photoSource ? { photo: photoSource.photo } : {}) };
       return conflict(p, serverName, serverRev, original, by, sent); // (recorded as the server really has it)
     }
     const planFromServer = !planHere && localPlan !== serverPlan;
@@ -486,11 +575,13 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     const merged: LocalProject = {
       ...p,
       name: planFromServer ? n.name : p.name,
-      content: { ...(planFromServer ? planOf(n.content) : planOf(p.content)) },
+      content: { ...(planFromServer ? planOf(theirs) : planOf(mine)) },
     };
     const photoSource = photoFromServer ? n.content : p.content;
     if ('photo' in photoSource) merged.content.photo = photoSource.photo;
-    if (planFromServer || photoFromServer) {
+    // (Ticks or the yard taken from the server change the plan here too, with nothing else from there.)
+    const partsFromServer = planHash(merged.name, merged.content) !== planHash(p.name, p.content);
+    if (planFromServer || photoFromServer || partsFromServer) {
       const bytes = photoFromServer ? await photoFor(p.id, n.content) : undefined;
       if (!(await local.replace(p.id, merged.name, merged.content, p.token, bytes))) return; // edited meanwhile: next time
       merged.token = -1; // (it moved on: nothing more is replaced this pass)
@@ -524,7 +615,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
         }
         if (!report.full) await upload(p, null);
       } else if (s.deleted_at) {
-        if (changed) {
+        if (changed && !onlyHouseholdTaken(p, rec)) {
           const rev = await remote.restore(p.id);
           if (rev != null) { report.restored.push(p.name); restoredIds.add(p.id); }
           await upload(p, rev);

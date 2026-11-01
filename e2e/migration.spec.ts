@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { autoDialogs, canvasBox, closeSheet, drag, field } from './helpers';
+import { autoDialogs, canvasBox, closeSheet, drag, field, openFilters } from './helpers';
 
 /** Each plan's stored "last modified" time, by name. */
 const modifiedTimes = (page: Page) => page.evaluate(() => new Promise<Record<string, number>>((resolve) => {
@@ -67,4 +67,88 @@ test('projects made in the previous version migrate intact', async ({ page }) =>
   await page.reload();
   await page.locator('.project-btn').click();
   await expect(page.locator('.proj-row')).toHaveCount(2);
+});
+
+/** Each plan's stored data, by name: the parts this test looks at. */
+const storedPlans = (page: Page) => page.evaluate(() => new Promise<Record<string, Record<string, unknown>>>((resolve) => {
+  const open = indexedDB.open('landscape-planner');
+  open.onsuccess = () => {
+    const db = open.result;
+    const metas = db.transaction('meta').objectStore('meta').getAll();
+    metas.onsuccess = () => {
+      const req = db.transaction('projects').objectStore('projects').getAll();
+      req.onsuccess = () => {
+        const keys = db.transaction('projects').objectStore('projects').getAllKeys();
+        keys.onsuccess = () => {
+          const byId = Object.fromEntries((keys.result as string[]).map((k, i) => [k, req.result[i] as Record<string, unknown>]));
+          resolve(Object.fromEntries((metas.result as { id: string; name: string }[]).map((m) => [m.name, byId[m.id]])));
+          db.close();
+        };
+      };
+    };
+  };
+}));
+
+// The Plant list's ticks and who's in the yard are kept with the plan from Nov 1 (Jason). Plans made by the previous
+// version open with nothing ticked, nothing else changed, and the yard this device had: here, kids and a dog, as a
+// device that ran the guided introduction (Oct 28 on) kept them in 'lp-yard'.
+test("plans from before open with nothing ticked and with who was in this device's yard, each plan its own after (Jason, Nov 1)", async ({ page }) => {
+  autoDialogs(page, 'Front Yard');
+  await page.goto('/legacy/index.html');
+  await expect(page.locator('.project-btn .pname')).toHaveText('My Garden');
+  await page.locator('.tool-btn.circle').click(); // the previous version's toolbar
+  await field(page, 'Label').fill('Old oak');
+  await closeSheet(page);
+  await page.locator('.project-btn').click();
+  await page.locator('button', { hasText: 'New project' }).click();
+  await page.locator('.tool-btn.oval').click();
+  await field(page, 'Label').fill('Old pond');
+  await closeSheet(page);
+  await page.waitForTimeout(600); // old version saves on a 250 ms debounce
+  // (What this device kept per device before Nov 1.)
+  await page.evaluate(() => {
+    localStorage.setItem('lp-yard', JSON.stringify({ kids: true, dogs: 'hideToxic', cats: false, horses: false }));
+    localStorage.setItem('lp-protect-line', 'answered');
+  });
+  const legacyTimes = await page.evaluate(() =>
+    Object.fromEntries((JSON.parse(localStorage.getItem('lp-projects')!) as { name: string; lastModified: number }[]).map((p) => [p.name, p.lastModified])));
+
+  await page.goto('/');
+  await expect(page.locator('.project-btn .pname')).toHaveText('Front Yard');
+  await expect(page.locator('#canvas-svg text', { hasText: 'Old pond' })).toHaveCount(1);
+  // The yard this device had, in the picker's filters and its question answered.
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.getByTestId('picker-count')).toBeVisible();
+  await expect(page.locator('.picker-filters > [data-testid=protect-line]:first-child')).toHaveCount(0);
+  await openFilters(page);
+  await expect(page.getByTestId('protect-kids')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('dogs-hideToxic')).toBeChecked();
+  await closeSheet(page);
+  await page.waitForTimeout(600);
+  // Nothing ticked, nothing else changed: not even when each plan last changed.
+  expect(await modifiedTimes(page)).toEqual(legacyTimes);
+  let plans = await storedPlans(page);
+  for (const name of ['My Garden', 'Front Yard']) expect('bought' in plans[name]).toBe(false);
+  // The other plan has it too.
+  await page.locator('.project-btn').click();
+  await page.locator('.proj-row', { hasText: 'My Garden' }).click();
+  await expect(page.locator('#canvas-svg text', { hasText: 'Old oak' })).toHaveCount(1);
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'true');
+  // Changed in one plan, it's that plan's: the other keeps its own, and the device's old record is left as it was.
+  await page.getByTestId('protect-dogs').click();
+  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'false');
+  await closeSheet(page);
+  await page.locator('.project-btn').click();
+  await page.locator('.proj-row', { hasText: 'Front Yard' }).click();
+  await expect(page.locator('.project-btn .pname')).toHaveText('Front Yard');
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.getByTestId('protect-dogs')).toHaveAttribute('aria-pressed', 'true');
+  await closeSheet(page);
+  await page.waitForTimeout(600);
+  plans = await storedPlans(page);
+  expect(plans['Front Yard'].household).toEqual({ kids: true, dogs: 'hideToxic', cats: false, horses: false, answered: true }); // (taken: no time)
+  expect(plans['My Garden'].household).toEqual({ kids: true, dogs: '', cats: false, horses: false, answered: true, at: expect.any(Number) });
+  expect(await page.evaluate(() => localStorage.getItem('lp-yard'))).toBe(JSON.stringify({ kids: true, dogs: 'hideToxic', cats: false, horses: false }));
 });

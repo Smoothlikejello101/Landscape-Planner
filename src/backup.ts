@@ -20,7 +20,13 @@ export interface BackupFile { format: typeof BACKUP_FORMAT; version: number; exp
 function forExport(data: ProjectData): ProjectData {
   const bgImage = data.bgImage ? { ...data.bgImage } : null;
   if (bgImage) delete bgImage.imageId; // storage detail; a new id is assigned on import
-  return { shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {}, print: data.print, sizeMode: data.sizeMode, sunWarnings: data.sunWarnings, ...(data.dismissed ? { dismissed: data.dismissed } : {}), phases: data.phases, location: data.location, bgImage };
+  // (The Plant list's ticks and who's in the yard go with the plan, Jason, Nov 1. A file from before has neither: it
+  // opens with nothing ticked, and the yard as the device opening it had it: src/yard.ts householdFromDevice.)
+  return {
+    shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {}, print: data.print, sizeMode: data.sizeMode, sunWarnings: data.sunWarnings,
+    ...(data.dismissed ? { dismissed: data.dismissed } : {}), ...(data.bought ? { bought: data.bought } : {}), ...(data.household ? { household: data.household } : {}),
+    phases: data.phases, location: data.location, bgImage,
+  };
 }
 async function exportedProject(id: string): Promise<ExportedProject | null> {
   const meta = state.projects.find((p) => p.id === id);

@@ -7,11 +7,12 @@ import { cancelHistoryDebounce } from './history';
 import { DEFAULT_PRINT, state } from './state';
 import { isRole } from './roles';
 import { cleanPhaseName, filterActive, isStatus, MAX_PHASES } from './status';
-import type { BgImage, Clipboard, PathShape, PhotoRef, PlanDismissals, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, ShapeFilter, SunInfo, UtilityKind } from './types';
+import type { BgImage, Clipboard, PathShape, PhotoRef, PlanBought, PlanDismissals, PlanHousehold, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, ShapeFilter, SunInfo, UtilityKind } from './types';
 import { setWorldPoints } from './geometry';
 import { now, uid } from './util';
 import { photoFingerprint } from './sync/photo';
 import { sanitizeLocation } from './climate';
+import { householdFromDevice } from './yard';
 
 // Persistence. Projects live in IndexedDB:
 //   meta/<projectId>          ProjectMeta (name, dates, shape count)
@@ -287,6 +288,34 @@ export function sanitizeDismissed(raw: unknown): PlanDismissals | undefined {
   }
   return out;
 }
+/** The most kinds a plan's ticks keep (the newest changes, if ever more). */
+const MAX_BOUGHT = 2000;
+/**
+ * The Plant list's ticks: kinds by id, each a whole number bought (0, unticked, kept: it syncs) and when it changed.
+ * Undefined for a plan that never had any (it reads, and syncs, as before they existed); an object once it has.
+ */
+export function sanitizeBought(raw: unknown): PlanBought | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const kept: [string, { n: number; at: number }][] = [];
+  for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+    if (!/^[\w:.-]{1,120}$/.test(id) || !v || typeof v !== 'object') continue;
+    const o = v as Record<string, unknown>;
+    if (typeof o.n !== 'number' || !Number.isFinite(o.n) || typeof o.at !== 'number' || !Number.isFinite(o.at) || o.at < 0) continue;
+    kept.push([id, { n: Math.min(9999, Math.max(0, Math.floor(o.n))), at: o.at }]);
+  }
+  if (kept.length > MAX_BOUGHT) kept.sort((a, b) => b[1].at - a[1].at).splice(MAX_BOUGHT);
+  return Object.fromEntries(kept);
+}
+/** Who's in a plan's yard; undefined if absent or not an object (then it's read as this device had it: src/yard.ts). */
+export function sanitizeHousehold(raw: unknown): PlanHousehold | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const o = raw as Record<string, unknown>;
+  return {
+    kids: o.kids === true, dogs: o.dogs === 'hideToxic' || o.dogs === 'nonToxic' ? o.dogs : '', cats: o.cats === true, horses: o.horses === true,
+    answered: o.answered === true,
+    ...(typeof o.at === 'number' && Number.isFinite(o.at) && o.at >= 0 ? { at: o.at } : {}),
+  };
+}
 function sanitizeRoleViews(raw: unknown): RoleViews {
   const out: RoleViews = {};
   if (!raw || typeof raw !== 'object') return out;
@@ -333,7 +362,7 @@ export function currentProjectData(): ProjectData {
   return {
     shapes: state.shapes, zoom: state.zoom, offsetX: state.offsetX, offsetY: state.offsetY,
     roleViews: state.roleViews, print: state.print, sizeMode: state.sizeMode, sunWarnings: state.sunWarnings, phases: state.phases, bgImage: state.bgImage,
-    photoElsewhere: state.photoElsewhere, location: state.location, dismissed: state.dismissed,
+    photoElsewhere: state.photoElsewhere, location: state.location, dismissed: state.dismissed, bought: state.bought, household: state.household,
     ...(filterActive(state.viewFilter) ? { viewFilter: state.viewFilter } : {}),
   };
 }
@@ -353,6 +382,8 @@ export function sanitizeProjectData(raw: unknown): ProjectData {
     sizeMode: d.sizeMode === 'full' ? 'full' : 'typical',
     sunWarnings: d.sunWarnings !== false,
     dismissed: sanitizeDismissed(d.dismissed),
+    bought: sanitizeBought(d.bought),
+    household: sanitizeHousehold(d.household),
     phases,
     bgImage: bg && bg.dataUrl ? bg : null,
     photoElsewhere: bg && bg.dataUrl ? null : sanitizePhotoRef(d.photoElsewhere),
@@ -397,6 +428,8 @@ function projectWriteOps(id: string, data: ProjectData, knownImageKeys?: Set<str
     photoElsewhere: storedBg ? null : data.photoElsewhere ?? null,
     location: data.location,
     ...(data.dismissed ? { dismissed: data.dismissed } : {}),
+    ...(data.bought ? { bought: data.bought } : {}),
+    ...(data.household ? { household: data.household } : {}),
     ...(data.viewFilter ? { viewFilter: data.viewFilter } : {}),
   };
   ops.push(put('projects', id, stored));
@@ -611,6 +644,8 @@ export async function readProject(id: string): Promise<ProjectData | null> {
     else console.warn('background image missing for project', id);
   }
   const data = sanitizeProjectData({ ...stored, bgImage });
+  // (A plan from before plans kept who's in the yard: as this device had it then. Written with its next save.)
+  data.household ??= householdFromDevice();
   // The image bytes are missing, but sync knows the photo: it can bring it back.
   if (!bgImage && stored.bgImage && !data.photoElsewhere) {
     const bg = migrateBgImage({ ...stored.bgImage, dataUrl: '' });
@@ -656,6 +691,8 @@ export async function switchProject(id: string): Promise<boolean> {
   state.sizeMode = data.sizeMode ?? 'typical';
   state.sunWarnings = data.sunWarnings !== false;
   state.dismissed = data.dismissed;
+  state.bought = data.bought;
+  state.household = data.household ?? householdFromDevice();
   state.phases = data.phases ?? [];
   state.viewFilter = data.viewFilter ? { ...data.viewFilter } : { status: '', phase: '', showGone: false };
   state.bgImage = data.bgImage ?? null;
@@ -679,8 +716,12 @@ export async function switchProject(id: string): Promise<boolean> {
   savedPlanSeq = planSeq;
   try { await db().write([put('kv', 'current', id)]); } catch (e) { console.warn('could not remember open project', e); }
   void collectImageGarbage(id, storedImageKeys);
+  onHousehold?.();
   return true;
 }
+let onHousehold: (() => void) | null = null;
+/** Called when the open plan's household is put in place from storage (another plan opened, or sync's copy): the picker's filters follow it. */
+export function setHouseholdListener(fn: () => void) { onHousehold = fn; }
 /** Delete stored images of a project that its saved state no longer uses. */
 async function collectImageGarbage(projectId: string, keep: Set<string>) {
   try {
@@ -694,8 +735,13 @@ async function collectImageGarbage(projectId: string, keep: Set<string>) {
     if (stale.length) await db().write(stale.map((k) => del('images', k)));
   } catch (e) { console.warn('image cleanup failed', e); }
 }
-/** A new plan's data: empty, at the size mode last chosen. */
-export function emptyProjectData(): ProjectData { return { ...sanitizeProjectData({}), sizeMode: lastSizeMode }; }
+/**
+ * A new plan's data: empty, at the size mode last chosen, with no one in the yard and "Anyone you need to protect?"
+ * still to ask (Jason, Nov 1: a new plan may be another yard; New project's "Same garden?" copies the open plan's).
+ */
+export function emptyProjectData(): ProjectData {
+  return { ...sanitizeProjectData({}), sizeMode: lastSizeMode, household: { kids: false, dogs: '', cats: false, horses: false, answered: false, at: now() } };
+}
 /** Create a project (empty, or from given data). Does not open it. `id`: one the server already knows (sync). */
 export async function createProject(name: string, data?: ProjectData, id = uid()): Promise<string> {
   const projectData = data ?? emptyProjectData();
@@ -750,9 +796,10 @@ export async function renameProject(id: string, name: string) {
  * What a synced project was at its last sync: the server's revision, a
  * fingerprint of its content then (without the photo), and which photo it had
  * ('none', 'kept' on one device, or the photo's fingerprint; absent if unknown,
- * as for projects synced before photos did).
+ * as for projects synced before photos did); `core`, the fingerprint without the
+ * Plant list's ticks and who's in the yard too (absent from before them).
  */
-export interface SyncRecord { revision: number; hash: string; photo?: string; held?: 'room' | 'refused' }
+export interface SyncRecord { revision: number; hash: string; photo?: string; held?: 'room' | 'refused'; core?: string }
 let syncRecords: Record<string, SyncRecord> = {};
 /** Synced projects deleted here, still to be moved to the server's trash: id → revision. */
 let syncTombstones: Record<string, number> = {};
@@ -817,13 +864,17 @@ export async function installId(): Promise<string> {
   return id;
 }
 /** The parts of a project that sync: everything but the view (zoom, scroll) and the background photo (synced on its own). */
-export type SyncedContent = Pick<ProjectData, 'shapes' | 'roleViews' | 'print' | 'sizeMode' | 'sunWarnings' | 'phases' | 'location' | 'dismissed'>;
+export type SyncedContent = Pick<ProjectData, 'shapes' | 'roleViews' | 'print' | 'sizeMode' | 'sunWarnings' | 'phases' | 'location' | 'dismissed' | 'bought' | 'household'>;
 export function syncedContent(d: ProjectData): SyncedContent {
   const out: SyncedContent = { shapes: d.shapes, roleViews: d.roleViews ?? {}, print: d.print ?? { ...DEFAULT_PRINT }, sizeMode: d.sizeMode ?? 'typical', sunWarnings: d.sunWarnings !== false, phases: d.phases ?? [] };
   // (Only once set or cleared: plans that never had one read exactly as before this existed, so nothing looks changed.)
   if (d.location !== undefined) out.location = d.location;
   // (Likewise warnings dismissed for a plant: once it's had any, even if all are shown again since, so that syncs too.)
   if (d.dismissed) out.dismissed = d.dismissed;
+  // (And the Plant list's ticks, and who's in the yard: each part settles on its own when two devices change it,
+  // src/sync/engine.ts settleParts.)
+  if (d.bought) out.bought = d.bought;
+  if (d.household) out.household = d.household;
   return out;
 }
 /**
@@ -856,6 +907,9 @@ export async function replaceProjectContent(
   if (!(content && typeof content === 'object' && 'location' in content)) data.location = base.location;
   // (Nor, before dismissals synced, or from a plan that never had any, about those: the ones here stay.)
   if (!(content && typeof content === 'object' && 'dismissed' in content)) data.dismissed = base.dismissed;
+  // (Nor, from a version before them, about the Plant list's ticks or who's in the yard.)
+  if (!(content && typeof content === 'object' && 'bought' in content)) data.bought = base.bought;
+  if (!data.household) data.household = base.household;
   const metaNext = { ...meta, name: name.trim() || 'Untitled', lastModified: now(), shapeCount: data.shapes.length };
   bumpChange(id);
   // The write is queued before any later save's (and any read by a switch to this project), so they see it.
@@ -869,6 +923,8 @@ export async function replaceProjectContent(
     state.sizeMode = data.sizeMode ?? 'typical';
     state.sunWarnings = data.sunWarnings !== false;
     state.dismissed = data.dismissed;
+    state.bought = data.bought;
+    state.household = data.household ?? state.household;
     state.phases = data.phases ?? [];
     state.location = data.location;
     if (state.bgImage !== data.bgImage) { state.bgImage = data.bgImage ?? null; if (!state.bgImage) state.bgEditMode = false; }
@@ -876,6 +932,7 @@ export async function replaceProjectContent(
     state.selectedIds = state.selectedIds.filter((sid) => data.shapes.some((s) => s.id === sid));
     state.history = [];
     state.historyIndex = -1;
+    onHousehold?.();
   }
   try {
     await written;
@@ -1168,6 +1225,8 @@ function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
       const r = v as Partial<SyncRecord> | null;
       if (r && typeof r.revision === 'number' && Number.isFinite(r.revision) && typeof r.hash === 'string') {
         out[k] = { revision: r.revision, hash: r.hash };
+        // (The plan's fingerprint without its ticks and yard, src/sync/engine.ts coreHash; records from before have none.)
+        if (typeof r.core === 'string' && /^[0-9a-z]+:[0-9a-z]+$/.test(r.core)) out[k].core = r.core;
         if (typeof r.photo === 'string' && /^(none|kept|[0-9a-f]{64}@[0-9a-z]+:[0-9a-z]+)$/.test(r.photo)) out[k].photo = r.photo;
         if (r.held === 'room' || r.held === 'refused') out[k].held = r.held;
         else if ((r.held as unknown) === true) out[k].held = 'room'; // (an early test build stored true)

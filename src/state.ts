@@ -46,6 +46,8 @@ export const state: AppState = {
   sizeMode: 'typical',
   sunWarnings: true,
   dismissed: undefined,
+  bought: undefined,
+  household: { kids: false, dogs: '', cats: false, horses: false, answered: false },
   phases: [],
   viewFilter: { status: '', phase: '', showGone: false },
   showFullSize: false,

@@ -18,7 +18,7 @@ import { hardyEnough, zoneFit, zoneRange } from './climate';
 import { bannedHere, gardenStateName, hostsHere, localBloom, nativeHere, nativeText, wildHere, wildNearby } from './wild';
 import { bloomMonths } from './bloom';
 import { byMatch, matchPlant, readQuery, unsearchable } from './search';
-import { household, type Yard } from './yard';
+import { applyYard, household, type Yard } from './yard';
 import { noteRecentPlant } from './place';
 
 /**
@@ -317,6 +317,7 @@ export function treeFiltersAside() {
 export function partnersClosed() {
   if (beforeAside) Object.assign(plantFilter, beforeAside);
   beforeAside = null;
+  applyYard(plantFilter, household()); // (who's in the yard as the plan has it now: set while naming a tree, it's kept)
 }
 /** Whether a filter is on (set to something other than its default; a list filter, with anything in it). */
 export function filterOn(f: PlantFilter, k: keyof PlantFilter): boolean {

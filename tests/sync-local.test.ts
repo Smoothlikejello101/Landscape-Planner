@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { openKV } from '../src/db';
+import { openKV, put } from '../src/db';
 import { state } from '../src/state';
 import { undo } from '../src/history';
 import { pushHistory } from '../src/history';
@@ -108,6 +108,10 @@ describe('sync with this device’s storage', () => {
     expect(got!.phases).toEqual(['Spring 2027']);
     expect(getSyncRecords()['far-away']).toMatchObject({ revision: 3 });
     await switchProject('far-away');
+    // (From a version before plans kept who's in the yard: it takes this device's, which goes up once, so another
+    // device that updates settles with it: src/yard.ts householdFromDevice. Then nothing moves.)
+    expect(await syncOnce(local(), server.remoteFor('phone'), 'phone')).toMatchObject({ uploaded: 1, downloaded: 0 });
+    expect(server.rows.get('far-away')!.content.household).toEqual({ kids: false, dogs: '', cats: false, horses: false, answered: false });
     expect(await syncOnce(local(), server.remoteFor('phone'), 'phone')).toMatchObject({ uploaded: 0, downloaded: 0 });
   });
 });
@@ -527,3 +531,57 @@ describe('a gone date and an older app version', () => {
     expect(state.shapes[0].goneOn).toBe('');
   });
 });
+
+// The Plant list's ticks and who's in the yard, through this device's storage (Jason, Nov 1): they settle with another
+// device's on their own, and what's settled stays settled after a restart.
+describe("the Plant list's ticks and the yard with this device's storage", () => {
+  it('ticks here and on another device settle with no copy, are stored, and after a restart nothing looks changed', async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.shapes = [bed('b1', 'A')]; save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    state.bought = { yaupon: { n: 2, at: 100 } }; save(); await flushSave();
+    const row = server.rows.get(id)!;
+    row.content = { ...row.content, shapes: [bed('b1', 'B')], bought: { aster: { n: 3, at: 110 } } }; row.revision++; row.updated_by = 'partner';
+    const r = await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    expect(r.conflicts).toEqual([]);
+    const both = { yaupon: { n: 2, at: 100 }, aster: { n: 3, at: 110 } };
+    expect(state.bought).toEqual(both);
+    expect(state.shapes.map((s) => s.label)).toEqual(['B']);
+    expect((await readProject(id))!.bought).toEqual(both);
+    expect(server.rows.get(id)!.content.bought).toEqual(both);
+    await restart();
+    expect(await syncOnce(local(), server.remoteFor('phone'), 'phone')).toMatchObject({ uploaded: 0, downloaded: 0 });
+  });
+  it("a plan synced before the update takes this device's yard, which goes up once; a second device that updates keeps its own too", async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    // (As the version before synced it: no yard in the plan, and none on the server.)
+    state.shapes = [bed('b1', 'A')]; save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    const row = server.rows.get(id)!;
+    delete row.content.household;
+    const { household: _h, ...plan } = (await readProject(id))!;
+    await createProjectFromBefore(id, plan);
+    localStorage.setItem('lp-yard', JSON.stringify({ kids: false, dogs: 'hideToxic', cats: false, horses: false }));
+    await restart(); // (the update)
+    expect(state.household).toEqual({ kids: false, dogs: 'hideToxic', cats: false, horses: false, answered: true });
+    // Meanwhile another device, also updated, sent the one it had.
+    row.content = { ...row.content, household: { kids: true, dogs: '', cats: false, horses: false, answered: true } }; row.revision++; row.updated_by = 'laptop';
+    expect((await syncOnce(local(), server.remoteFor('phone'), 'phone')).conflicts).toEqual([]);
+    const both = { kids: true, dogs: 'hideToxic', cats: false, horses: false, answered: true };
+    expect(state.household).toEqual(both);
+    expect(server.rows.get(id)!.content.household).toEqual(both);
+    expect(state.projects).toHaveLength(1);
+    await restart();
+    expect(await syncOnce(local(), server.remoteFor('phone'), 'phone')).toMatchObject({ uploaded: 0, downloaded: 0 });
+  });
+});
+
+/** Store a plan as the version before wrote it (no yard of its own), keeping its sync record. */
+async function createProjectFromBefore(id: string, data: Record<string, unknown>) {
+  const kv = await openKV('sync-' + n);
+  const stored: Record<string, unknown> = { ...data, bgImage: null, photoElsewhere: null };
+  delete stored.household;
+  await kv.write([put('projects', id, stored)]);
+}

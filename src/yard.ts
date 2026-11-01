@@ -1,17 +1,28 @@
 // Who's in the yard (the guided introduction's step 6, Oct 25: "Kids · Dogs · Cats · Horses" sets the picker's
 // filters; since Oct 30 (Jason, from round 2) it also puts warnings on rows, the plan and the plant: src/plants.ts
-// householdFlags). Kept per device, like the hints, so the answer outlasts a reload: the other
-// filters are for the search at hand and reset, but kids and pets don't change between visits. The picker's own
-// controls for the same four filters keep it up to date (src/ui/plants-panel.ts).
+// householdFlags). Kept with the plan since Nov 1 (Jason: it's the yard's, not the device's, and later maybe an area's
+// within a plan), so it's synced and in backups and plan files, and the plan keeps whether "Anyone you need to
+// protect?" was answered for it. The other filters are for the search at hand and reset, but kids and pets don't
+// change between visits. The picker's own controls for the same four keep it up to date (src/ui/plants-panel.ts), and
+// its filters follow the plan that's open (src/main.ts, setHouseholdListener).
+//
+// Before Nov 1 it was kept per device, in 'lp-yard' (chosen Oct 28 with the introduction, not by Jason). A plan from
+// before takes what this device had there (householdFromDevice), so nobody's setting changes with the update; 'lp-yard'
+// is only read for that now, and left in place for an older version of the app.
 
 import type { DogFilter, PlantFilter } from './plants';
+import type { PlanHousehold } from './types';
 import { parseIntroRecord } from './intro';
+import { state } from './state';
+import { save } from './storage';
+import { now } from './util';
 
 export interface Yard { kids: boolean; dogs: DogFilter; cats: boolean; horses: boolean }
 export const NO_YARD: Yard = { kids: false, dogs: '', cats: false, horses: false };
 const KEY = 'lp-yard';
 const DOGS: DogFilter[] = ['', 'hideToxic', 'nonToxic'];
 
+/** Who was in the yard as this device kept it before plans kept their own (read for plans from before only). */
 export function loadYard(): Yard {
   try {
     const v = JSON.parse(localStorage.getItem(KEY) ?? 'null');
@@ -19,16 +30,26 @@ export function loadYard(): Yard {
     return { kids: !!v.kids, dogs: DOGS.includes(v.dogs) ? v.dogs : '', cats: !!v.cats, horses: !!v.horses };
   } catch { return { ...NO_YARD }; }
 }
-/** Who's in the yard, as last kept (read once, then kept up to date by saveYard). */
-let kept: Yard | null = null;
-export function household(): Yard { return (kept ??= loadYard()); }
-/** Keep who's in the yard; set by the person (any control for the four), so the picker's question is answered too. */
-export function saveYard(y: Yard): void {
-  kept = { ...y };
-  const v = JSON.stringify(y);
-  try { if (localStorage.getItem(KEY) !== v) localStorage.setItem(KEY, v); } catch { /* no storage: nothing kept */ }
-  noteAsked();
+/**
+ * A plan from before plans kept who's in the yard: as this device had it, and answered if it had anyone, or the
+ * question was answered here ("Anyone you need to protect?", or step 6 of the introduction). No `at`: it was never set
+ * in the plan, so another device's, set there or taken the same way, settles with it (src/sync/engine.ts).
+ */
+export function householdFromDevice(): PlanHousehold {
+  const y = loadYard();
+  return { ...y, answered: yardSet(y) || loadAsked() === 'answered' || introAnswered() };
 }
+/** Who's in the open plan's yard. */
+export function household(): PlanHousehold { return state.household; }
+/** Keep who's in the yard with the open plan; set by the person (any control for the four), so the question is answered too. */
+export function saveYard(y: Yard): void {
+  const h = state.household;
+  if (h.answered && h.kids === y.kids && h.dogs === y.dogs && h.cats === y.cats && h.horses === y.horses) return;
+  state.household = { kids: y.kids, dogs: y.dogs, cats: y.cats, horses: y.horses, answered: true, at: now() };
+  save();
+}
+/** The open plan's household for a new plan of the same garden (New project's "Same garden?"), answered or not, as it is. */
+export function householdCopy(): PlanHousehold { return { ...state.household, at: now() }; }
 /**
  * One of the four turned on or off, as a chip does it (the guided introduction's step 6; the picker's "Anyone you need
  * to protect?"). Dogs on is "no dog warnings", the Poison & pets dog control's first setting (decided Oct 28), or what
@@ -63,37 +84,43 @@ export const yardSet = (y: Yard): boolean => y.kids || y.dogs !== '' || y.cats |
 
 // "Anyone you need to protect?" (Jason, Nov 1, from the UI review: a tester saw "Can irritate skin" on rows but nothing
 // on a plant highly poisonous to people, and never learned the picker can screen for kids and pets without opening
-// Filters). The picker asks it first, at the top of its filters, until it's answered or dismissed; then it lives under
-// Filters, Poison & pets (src/ui/plants-panel.ts). Kept per device, as the yard is: 'answered' or 'dismissed'.
-// Answered is any of the four set anywhere (saveYard), or step 6 of the guided introduction done, even with none
-// ticked; the yard itself is left as it was.
+// Filters). The picker asks it first, at the top of its filters, until it's answered for the plan or dismissed on this
+// device; then it lives under Filters, Poison & pets (src/ui/plants-panel.ts). Answered is any of the four set
+// anywhere (saveYard), or step 6 of the guided introduction done, even with none ticked; kept with the plan (Jason,
+// Nov 1). Dismissed with its × stays per device in 'lp-protect-line' (a person's wish not to be asked, as the hints
+// are: it holds across plans). That key once said 'answered' too: read now for plans from before only.
 const ASKED_KEY = 'lp-protect-line';
 export type Asked = 'answered' | 'dismissed' | null;
+/** What this device kept: 'dismissed' (the ×), or 'answered' as it was kept before plans kept it. */
 export function loadAsked(): Asked {
   try { const v = localStorage.getItem(ASKED_KEY); return v === 'answered' || v === 'dismissed' ? v : null; } catch { return null; }
 }
-/** The question answered (a dismissal stays one: it says how it left the top). */
+/** The question answered for the open plan, the yard left as it was (step 6 done with none ticked). */
 export function noteAsked(): void {
-  try { if (!localStorage.getItem(ASKED_KEY)) localStorage.setItem(ASKED_KEY, 'answered'); } catch { /* no storage: asked again next time */ }
+  if (state.household.answered) return;
+  state.household = { ...state.household, answered: true, at: now() };
+  save();
 }
-/** Dismissed with its ×. */
+/** Dismissed with its ×: on this device, for every plan. */
 export function dismissAsked(): void {
   try { localStorage.setItem(ASKED_KEY, 'dismissed'); } catch { /* no storage: asked again next time */ }
 }
+/** Whether this device dismissed the question with its ×. */
+export const askDismissed = (): boolean => loadAsked() === 'dismissed';
 /**
- * Whether step 6 ("Who's in your yard?") was done on this device before the question was kept here: its Next counts,
- * with nothing ticked too (src/intro.ts keeps it in 'lp-intro').
+ * Whether step 6 ("Who's in your yard?") was done on this device before the question was kept: its Next counts, with
+ * nothing ticked too (src/intro.ts keeps it in 'lp-intro'). Read for plans from before plans kept it.
  */
 export function introAnswered(): boolean {
   try { return parseIntroRecord(localStorage.getItem('lp-intro')).done.includes('who'); } catch { return false; }
 }
 /**
- * Whether the picker asks it at the top of its filters, as it opens: not once it's been answered (kept, anyone in the
- * yard, or step 6 done) or dismissed. Decided as the picker opens and kept till it closes, so an answer given there
- * stays in view to see (only a dismissal moves it at once).
+ * Whether the picker asks it at the top of its filters, as it opens: not once it's been answered for the plan (or it
+ * has anyone in its yard) or dismissed on this device. Decided as the picker opens and kept till it closes, so an
+ * answer given there stays in view to see (only a dismissal moves it at once).
  */
-export function askAtTop(o: { asked: Asked; yard: Yard; intro: boolean }): boolean {
-  return o.asked === null && !yardSet(o.yard) && !o.intro;
+export function askAtTop(o: { dismissed: boolean; household: PlanHousehold }): boolean {
+  return !o.dismissed && !o.household.answered && !yardSet(o.household);
 }
 
 // "Hardy in zone N" (beside the picker's Filters, decided with Jason, Oct 25) is about the garden, as kids and pets

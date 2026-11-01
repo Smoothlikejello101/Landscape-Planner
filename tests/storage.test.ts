@@ -5,14 +5,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { openKV, put } from '../src/db';
 import { state } from '../src/state';
 import {
-  _resetStorageForTests, clearedNow, createProject, deleteProject, flushSave, getClipboard, initStorage, keepCleared, loadCleared,
-  readProject, sanitizeProjectData, save, saveView, switchProject, writeJournalIfDirty, migrateBgImage, photoRefOf, sanitizePhotoRef, sanitizeDismissed, syncedContent } from '../src/storage';
+  _resetStorageForTests, clearedNow, createProject, deleteProject, emptyProjectData, flushSave, getClipboard, initStorage, keepCleared, loadCleared,
+  readProject, sanitizeBought, sanitizeHousehold, sanitizeProjectData, save, saveView, setHouseholdListener, switchProject, writeJournalIfDirty, migrateBgImage,
+  photoRefOf, sanitizePhotoRef, sanitizeDismissed, syncedContent } from '../src/storage';
 import { allExportedProjects, buildBackupFile, importProjects, parseImportFile, uniqueName } from '../src/backup';
 import { sanitizeMyPlant } from '../src/my-plants';
 import { buildSupportFile } from '../src/support';
 import { ERROR_LOG_KEY, readErrors, recordError } from '../src/error-log';
 import { NEW_RECORD, parseIntroRecord } from '../src/intro';
-import { NO_YARD, loadYard } from '../src/yard';
+import { NO_YARD, applyYard, household, householdCopy, loadYard, saveYard } from '../src/yard';
+import { PLANT_FILTER_DEFAULTS, plantFilter } from '../src/plants';
 
 const IMG = 'data:image/jpeg;base64,' + 'A'.repeat(64);
 const circle = (label: string) => ({ id: label, type: 'circle', x: 1, y: 2, radius: 3, color: '#000', label, opacity: 0.5, locked: false });
@@ -951,10 +953,11 @@ describe('sync state on the device', () => {
     await deleteProject(id);
     expect(getSyncTombstones()).toEqual({ [id]: 4 }); // to move to the server's trash
     expect(getSyncRecords()).toEqual({});
-    await kv.write([put('kv', 'syncRecords', { ok: { revision: 2, hash: 'h' }, bad: { revision: 'x' }, worse: null })]);
+    await kv.write([put('kv', 'syncRecords', { ok: { revision: 2, hash: 'h' }, bad: { revision: 'x' }, worse: null, core: { revision: 3, hash: 'a1:b', core: 'c2:d' }, oddCore: { revision: 3, hash: 'h', core: 'not one!' } })]);
     _resetStorageForTests();
     await initStorage(kv);
-    expect(getSyncRecords()).toEqual({ ok: { revision: 2, hash: 'h' } });
+    // (The plan's fingerprint without its ticks and yard is kept with the rest: src/sync/engine.ts coreHash.)
+    expect(getSyncRecords()).toEqual({ ok: { revision: 2, hash: 'h' }, core: { revision: 3, hash: 'a1:b', core: 'c2:d' }, oddCore: { revision: 3, hash: 'h' } });
     expect(getSyncTombstones()).toEqual({ [id]: 4 });
     expect(await installId()).toBe(install); // the same install, after a restart
   });
@@ -1043,6 +1046,163 @@ describe('the guided introduction and the yard, as kept on this device', () => {
     localStorage.setItem('lp-yard', '[');
     expect(loadYard()).toEqual(NO_YARD);
     localStorage.removeItem('lp-yard');
+  });
+});
+
+/** Storage as the version before the Plant list's ticks and the plan's own household left it: these plans, saved then. */
+async function storageFromBefore(plans: { id: string; name: string; data: Record<string, unknown> }[]) {
+  _resetStorageForTests();
+  const kv = await openKV('test-' + ++dbCount);
+  await kv.write(plans.flatMap((p, i) => [
+    put('meta', p.id, { id: p.id, name: p.name, lastModified: 1000 + i, shapeCount: 1 }),
+    put('projects', p.id, { zoom: 1, offsetX: 0, offsetY: 0, roleViews: {}, sizeMode: 'typical', sunWarnings: true, phases: [], bgImage: null, photoElsewhere: null, ...p.data }),
+  ]));
+  await initStorage(kv);
+  return kv;
+}
+const stored = async (kv: Awaited<ReturnType<typeof openKV>>, id: string) => (await kv.get<Record<string, unknown>>('projects', id))!;
+const lastChanged = async (kv: Awaited<ReturnType<typeof openKV>>, id: string) => (await kv.get<{ lastModified: number }>('meta', id))!.lastModified;
+
+// The Plant list's ticks (Jason, Nov 1: kept with the plan, so plants bought online at the computer, the rest at the
+// nursery, and a partner's phone all tick one list): by kind, how many are bought and when that changed.
+describe("the Plant list's ticks, kept with the plan (Jason, Nov 1)", () => {
+  it('a plan from before has none: it opens with nothing ticked, and saves and syncs as before', async () => {
+    const kv = await storageFromBefore([{ id: 'p1', name: 'Back Yard', data: { shapes: [circle('oak')] } }]);
+    expect(state.bought).toBeUndefined();
+    expect((await readProject('p1'))!.bought).toBeUndefined();
+    expect('bought' in syncedContent((await readProject('p1'))!)).toBe(false);
+    saveView(); await flushSave(); // (written again, as the app does when it's looked at)
+    expect('bought' in (await stored(kv, 'p1'))).toBe(false);
+    expect(await lastChanged(kv, 'p1')).toBe(1000);
+  });
+  it('keep kinds by id, a whole number bought and when; drop the rest', () => {
+    expect(sanitizeBought({
+      'ilex-vomitoria-2': { n: 3, at: 5 }, 'u-abc12345': { n: 2.7, at: 6 }, gone: { n: -4, at: 7 }, lots: { n: 1e9, at: 8 },
+      'bad id!': { n: 1, at: 1 }, words: { n: 'two', at: 1 }, when: { n: 1 }, before: { n: 1, at: -1 }, odd: 7,
+    })).toEqual({ 'ilex-vomitoria-2': { n: 3, at: 5 }, 'u-abc12345': { n: 2, at: 6 }, gone: { n: 0, at: 7 }, lots: { n: 9999, at: 8 } });
+    expect([sanitizeBought('no'), sanitizeBought([1]), sanitizeBought(null), sanitizeBought({})]).toEqual([undefined, undefined, undefined, {}]);
+    // (Ever more than 2,000 kinds: the latest changes kept.)
+    const many = Object.fromEntries(Array.from({ length: 2005 }, (_, i) => [`k${i}`, { n: 1, at: i }]));
+    const kept = sanitizeBought(many)!;
+    expect(Object.keys(kept)).toHaveLength(2000);
+    expect(kept.k0).toBeUndefined();
+    expect(kept.k2004).toEqual({ n: 1, at: 2004 });
+  });
+  it('are saved with the plan, unticked ones too, each plan its own, and back when it opens again', async () => {
+    const kv = await freshStorage();
+    const a = state.currentProjectId!;
+    state.bought = { 'ilex-vomitoria': { n: 2, at: 10 }, 'salvia-greggii': { n: 0, at: 11 } };
+    save(); await flushSave();
+    expect((await stored(kv, a)).bought).toEqual(state.bought);
+    const b = await createProject('Front');
+    await switchProject(b);
+    expect(state.bought).toBeUndefined();
+    await switchProject(a);
+    expect(state.bought).toEqual({ 'ilex-vomitoria': { n: 2, at: 10 }, 'salvia-greggii': { n: 0, at: 11 } });
+    _resetStorageForTests();
+    await initStorage(kv);
+    expect(state.bought).toEqual({ 'ilex-vomitoria': { n: 2, at: 10 }, 'salvia-greggii': { n: 0, at: 11 } });
+    // (Kept, and synced, even with every kind unticked: so unticking reaches the other devices.)
+    expect(syncedContent(sanitizeProjectData({ shapes: [], bought: {} })).bought).toEqual({});
+  });
+  it('go with the plan in backups and plan files; a backup from before restores with nothing ticked', async () => {
+    await freshStorage();
+    state.shapes = sanitizeProjectData({ shapes: [circle('one')] }).shapes;
+    state.bought = { 'ilex-vomitoria': { n: 2, at: 10 } };
+    const { text } = await buildBackupFile();
+    expect(JSON.parse(text).projects[0].data.bought).toEqual({ 'ilex-vomitoria': { n: 2, at: 10 } });
+    await freshStorage();
+    const [id] = await importProjects(parseImportFile(text));
+    expect((await readProject(id))!.bought).toEqual({ 'ilex-vomitoria': { n: 2, at: 10 } });
+    // A backup made by the version before: the same file, with no ticks in it.
+    const old = JSON.parse(text);
+    delete old.projects[0].data.bought;
+    const [oldId] = await importProjects(parseImportFile(JSON.stringify(old)));
+    const restored = (await readProject(oldId))!;
+    expect(restored.bought).toBeUndefined();
+    expect(restored.shapes.map((x) => x.label)).toEqual(['one']);
+  });
+});
+
+// Who's in the yard, kept with the plan (Jason, Nov 1: it's the yard's, not the device's), with whether "Anyone you need
+// to protect?" was answered for it. Before, it was kept per device ('lp-yard'): a plan from before takes that.
+describe("who's in the yard, kept with the plan (Jason, Nov 1)", () => {
+  const dogsAndKids = { kids: true, dogs: 'hideToxic' as const, cats: false, horses: false };
+  afterEach(() => { setHouseholdListener(() => {}); Object.assign(plantFilter, PLANT_FILTER_DEFAULTS); });
+  it("a plan from before takes this device's, never set in the plan: the update changes nobody's setting, nor when the plan last changed", async () => {
+    localStorage.setItem('lp-yard', JSON.stringify(dogsAndKids));
+    const kv = await storageFromBefore([
+      { id: 'p1', name: 'Back Yard', data: { shapes: [circle('oak')] } },
+      { id: 'p2', name: 'Front', data: { shapes: [circle('ash')] } },
+    ]);
+    expect(state.currentProjectId).toBe('p2'); // (the one changed last)
+    expect(household()).toEqual({ ...dogsAndKids, answered: true }); // (no time: never set in the plan)
+    expect((await readProject('p1'))!.household).toEqual({ ...dogsAndKids, answered: true });
+    expect(syncedContent((await readProject('p1'))!).household).toEqual({ ...dogsAndKids, answered: true });
+    saveView(); await flushSave();
+    expect((await stored(kv, 'p2')).household).toEqual({ ...dogsAndKids, answered: true }); // (written with the next save)
+    expect([await lastChanged(kv, 'p1'), await lastChanged(kv, 'p2')]).toEqual([1000, 1001]);
+    // 'lp-yard' is left as it was, for an older version of the app; nothing writes it now.
+    saveYard({ ...NO_YARD, cats: true });
+    expect(loadYard()).toEqual(dogsAndKids);
+  });
+  it("a plan from before on a device that answered with no one, or dismissed the question: answered, or still to ask (the × is the device's)", async () => {
+    localStorage.setItem('lp-protect-line', 'answered');
+    await storageFromBefore([{ id: 'p1', name: 'Back Yard', data: { shapes: [] } }]);
+    expect(household()).toEqual({ ...NO_YARD, answered: true });
+    localStorage.setItem('lp-protect-line', 'dismissed');
+    await storageFromBefore([{ id: 'p1', name: 'Back Yard', data: { shapes: [] } }]);
+    expect(household()).toEqual({ ...NO_YARD, answered: false });
+  });
+  it("each plan its own: opening another switches who's in the yard, and the picker's filters follow; kept across a restart", async () => {
+    localStorage.setItem('lp-yard', JSON.stringify({ ...NO_YARD, dogs: 'nonToxic' }));
+    const kv = await storageFromBefore([
+      { id: 'p1', name: 'Back Yard', data: { shapes: [] } },
+      { id: 'p2', name: 'Front', data: { shapes: [] } },
+    ]);
+    setHouseholdListener(() => applyYard(plantFilter, household()));
+    await switchProject('p1');
+    saveYard({ ...NO_YARD, kids: true });
+    expect(household()).toEqual({ ...NO_YARD, kids: true, answered: true, at: expect.any(Number) });
+    await switchProject('p2');
+    expect(household()).toEqual({ ...NO_YARD, dogs: 'nonToxic', answered: true });
+    expect([plantFilter.noPoison, plantFilter.dogs]).toEqual([false, 'nonToxic']);
+    await switchProject('p1');
+    expect([plantFilter.noPoison, plantFilter.dogs]).toEqual([true, '']);
+    _resetStorageForTests();
+    await initStorage(kv);
+    expect(state.currentProjectId).toBe('p1');
+    expect(household()).toMatchObject({ ...NO_YARD, kids: true, answered: true });
+    expect((await readProject('p2'))!.household).toEqual({ ...NO_YARD, dogs: 'nonToxic', answered: true });
+  });
+  it('a new plan has no one in its yard and asks; one of the same garden copies it, answered or not', async () => {
+    await freshStorage();
+    expect(household()).toEqual({ ...NO_YARD, answered: false, at: expect.any(Number) }); // (a new device's first plan)
+    expect(emptyProjectData().household).toEqual({ ...NO_YARD, answered: false, at: expect.any(Number) });
+    saveYard({ ...NO_YARD, horses: true });
+    const same = await createProject('Same garden', { ...emptyProjectData(), household: householdCopy() });
+    const other = await createProject('Somewhere else');
+    expect((await readProject(same))!.household).toEqual({ ...NO_YARD, horses: true, answered: true, at: expect.any(Number) });
+    expect((await readProject(other))!.household).toEqual({ ...NO_YARD, answered: false, at: expect.any(Number) });
+    // (Answered with no one: the copy is answered too, so it doesn't ask.)
+    state.household = { ...NO_YARD, answered: true, at: 5 };
+    const answered = await createProject('Same, no one', { ...emptyProjectData(), household: householdCopy() });
+    expect((await readProject(answered))!.household).toMatchObject({ ...NO_YARD, answered: true });
+  });
+  it("goes with the plan in backups and plan files; a file from before restores with this device's; odd values read as no one", async () => {
+    await freshStorage();
+    saveYard(dogsAndKids);
+    const { text } = await buildBackupFile();
+    localStorage.setItem('lp-yard', JSON.stringify({ ...NO_YARD, cats: true })); // (the device it's restored on)
+    await freshStorage();
+    const [id] = await importProjects(parseImportFile(text));
+    expect((await readProject(id))!.household).toEqual({ ...dogsAndKids, answered: true, at: expect.any(Number) });
+    const old = JSON.parse(text);
+    delete old.projects[0].data.household;
+    const [oldId] = await importProjects(parseImportFile(JSON.stringify(old)));
+    expect((await readProject(oldId))!.household).toEqual({ ...NO_YARD, cats: true, answered: true });
+    expect(sanitizeHousehold({ kids: 'yes', dogs: 'wolves', cats: true, horses: 1, answered: 'no', at: -3 })).toEqual({ ...NO_YARD, cats: true, answered: false });
+    expect([sanitizeHousehold('kids'), sanitizeHousehold([true])]).toEqual([undefined, undefined]);
   });
 });
 

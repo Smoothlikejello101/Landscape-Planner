@@ -191,8 +191,8 @@ function warningsSection(): HTMLElement {
   const y = household();
   const who = [y.kids ? 'kids' : '', y.dogs ? 'dogs' : '', y.cats ? 'cats' : '', y.horses ? 'horses' : ''].filter(Boolean);
   d.appendChild(row('poison-warnings', state.poisonWarnings, setPoisonWarnings,
-    who.length ? `Poison: a square badge on plants that are a problem for the ${who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0]} in the yard, in lists and on the plan`
-      : "Poison: badges on plants that are a problem for who's in the yard (set in the plant picker's Filters, Poison & pets)"));
+    who.length ? `Poison: a square badge on plants that are a problem for the ${who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0]} in the yard (this plan), in lists and on the plan`
+      : "Poison: badges on plants that are a problem for who's in the yard (this plan; set in the plant picker's Filters, Poison & pets)"));
   d.appendChild(row('fruit-warnings', state.fruitWarnings, setFruitWarnings,
     'Fruit partners: a notice as I place a plant that needs a partner to fruit (male and female plants, or a second variety), until the plan has one'));
   return d;

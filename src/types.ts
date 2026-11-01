@@ -289,6 +289,20 @@ export interface PrintSettings {
  */
 export type PlanDismissals = Partial<Record<DismissKind, Record<string, string>>>;
 export type DismissKind = 'hardy' | 'poison' | 'fruit';
+/**
+ * What's been bought, for the Plant list's ticks (Jason, Nov 1: kept with the plan, so plants bought online at the
+ * computer, the rest at the nursery, and a partner's phone all tick the same list). By kind (a catalog plant's id, or
+ * one of my plants'): how many are bought, and when that last changed (ms), so two devices' ticks settle kind by kind
+ * (src/sync/engine.ts settleParts). How many there are to buy is the plan's own plants: not kept here. An untick is
+ * kept as 0, so it reaches the other devices too.
+ */
+export type PlanBought = Record<string, { n: number; at: number }>;
+/**
+ * Who's in the yard (src/yard.ts), for this plan (Jason, Nov 1: it's the yard's, not the device's), and whether
+ * "Anyone you need to protect?" has been answered for it (with none of the four, too). `at`: when it was last set in
+ * the plan (ms). Absent: taken, when plans got their own, from what this device had (and not set since).
+ */
+export interface PlanHousehold { kids: boolean; dogs: '' | 'hideToxic' | 'nonToxic'; cats: boolean; horses: boolean; answered: boolean; at?: number }
 
 export interface ProjectData {
   shapes: Shape[];
@@ -300,6 +314,10 @@ export interface ProjectData {
   sunWarnings?: boolean;
   /** Hardiness, poison and fruit-partner warnings dismissed for a plant, all its copies (absent: never any; then kept, if empty). */
   dismissed?: PlanDismissals;
+  /** The Plant list's ticks: how many of each kind are bought (absent: never any; then kept, all unticked too). */
+  bought?: PlanBought;
+  /** Who's in the yard (absent: a plan from before plans kept one; read as this device had it: src/yard.ts). */
+  household?: PlanHousehold;
   /** Phases of the project, in order ("Fall 2026", "Spring 2027"). */
   phases?: string[];
   /** Where the garden is (from its ZIP): hardiness zone and frost dates. Null: cleared; absent: never set. */
@@ -455,6 +473,10 @@ export interface AppState {
   sunWarnings: boolean;
   /** The open plan's warnings dismissed for a plant, all its copies (src/dismissals.ts); undefined while it never had any. */
   dismissed: PlanDismissals | undefined;
+  /** The open plan's Plant list ticks (see ProjectData); undefined while it never had any. */
+  bought: PlanBought | undefined;
+  /** Who's in the open plan's yard (src/yard.ts household). */
+  household: PlanHousehold;
   phases: string[];
   /** View: which plants show (not saved). */
   viewFilter: ShapeFilter;
