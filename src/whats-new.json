@@ -3,7 +3,15 @@
     "id": 3,
     "date": "next",
     "items": [
-      "A plant’s details now say what the law says of it in South Carolina, New York and Massachusetts too, and Michigan’s 2026 additions are in: Callery pear, Japanese barberry and two buckthorns, which Michigan restricts from 2028."
+      "A plant’s details now say what the law says of it in South Carolina, New York and Massachusetts too, and Michigan’s 2026 additions are in: Callery pear, Japanese barberry and two buckthorns, which Michigan restricts from 2028.",
+      "Closing Swap, Add a plant or the ZIP box opened from the plant list now takes you back where you were, instead of out to the plan.",
+      "While a sheet is open, Undo and Redo at the top are grayed out, and tapping them no longer closes the sheet with your change still in place: close it first, then Undo.",
+      "A sun exposure area no longer catches taps meant for what’s on it: a tap picks the plant, then the bed, then the sun area.",
+      "Typing a building’s sides on a phone: the second side goes toward the middle of the screen, the building stays in view, and the typed length shows by its corner with what to tap next.",
+      "Zooming, moving around the plan or tapping Fit no longer counts as a change, so Projects shows when you last changed the plan itself.",
+      "Files you save (backups, plan files, pictures, the PDF) are dated by your own calendar: late in the evening they no longer carry tomorrow’s date.",
+      "In the printable plan and the picture, bed names are no longer hidden under plants or printed over another name.",
+      "Smaller fixes: “Which tree?” starts with no filters; a plant you swap in shows first under Recent; the plant list’s title and count agree; a plant copied from the catalog isn’t flagged as “now in the catalog”; several plants selected are named as plants; the dashed ring around a plant is explained as its full size; the new-version message sits under the top bar instead of over the plan’s buttons; an old message clears when you start drawing; a bed’s bloom chart no longer runs its numbers together; and on a computer the ZIP box opens with the cursor in it."
     ]
   },
   {
