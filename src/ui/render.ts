@@ -100,6 +100,8 @@ let floatRedoAt: { top: string; left: string } | null = null;
 let shownSelection = '';
 /** The menu open when the app last drew. */
 let shownMenu: typeof state.menu = null;
+/** The drawing, placing or adding of doors under way when the app last drew (each a new object as it starts). */
+let shownTool: object | null = null;
 export function render() {
   const root = document.getElementById('root')!;
   // (Typing in the picker's search when the whole app redraws: the cursor goes back where it was.)
@@ -534,6 +536,12 @@ export function render() {
     hideOldToast();
     document.getElementById('zoom-flash')?.classList.remove('on'); // (the zoom badge too: it sat over ⋮'s Redo, round 3)
   }
+  // A drawing or placing tool just started: a plain notice from before it goes too, off the plan where the next tap
+  // goes (the UI review, 2026-11-01: "Locked: it stays put…" sat on the house's front wall as the bed tool opened).
+  // A notice with buttons, an Undo say, is left be (a new drawing puts away only one about the last: startDraw).
+  const tool = state.draw ?? state.placing ?? state.featurePlace ?? null;
+  if (tool && tool !== shownTool) hideOldToast();
+  shownTool = tool;
   shownPanel = state.panel;
   shownMenu = state.menu;
   shownSelection = state.selectedIds.join();
