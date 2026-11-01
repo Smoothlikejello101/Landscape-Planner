@@ -12,6 +12,13 @@
 //   (the plan, or its photo) are a conflict.
 // - A conflict keeps both: the server's version takes the project's place
 //   and this device's version becomes a copy beside it. Nothing is lost.
+// - Parts of a plan never conflict (Jason, Nov 1): the Plant list's ticks,
+//   who's in the yard and the warning switches settle on their own, whichever
+//   devices changed them (settleParts); a conflict is the rest of the plan
+//   changed on both. An upload never replaces the server's parts with ones
+//   this device didn't know: a record keeps the parts as the server had
+//   them, and one from a version before them makes the upload settle with
+//   the server first.
 // - Sync never removes a project that has changes here. A project deleted
 //   elsewhere leaves this device only if it hasn't changed here; if it has,
 //   it comes back out of the trash with this device's version.
@@ -35,7 +42,20 @@ export interface LocalProject {
  * server's plan says it's kept here: 'room' (the account's photo space was
  * full: tried again later) or 'refused' (too large, or a kind of image storage won't take).
  */
-export interface SyncRecord { revision: number; hash: string; photo?: string; held?: 'room' | 'refused' }
+export interface SyncRecord {
+  revision: number; hash: string; photo?: string; held?: 'room' | 'refused';
+  /**
+   * The fingerprint of the plan without the parts that settle on their own (coreHash). Absent in a record from before
+   * them: its plan had neither part then, so `hash` is that.
+   */
+  core?: string;
+  /**
+   * The parts that settle on their own (`bought`, `household`, `switches`) as the server had them at `revision`, where
+   * it had any. Absent in a record from before them: a version that didn't know them left them out of what it stored,
+   * so what the server has of them isn't known here (an upload settles with the server first).
+   */
+  parts?: ProjectContent;
+}
 export interface ServerProject { id: string; name: string; revision: number; updated_by: string | null; updated_at: string; deleted_at: string | null }
 export type PushResult =
   | { status: 'ok'; revision: number }
@@ -52,6 +72,11 @@ export interface Local {
   setRecord(id: string, rec: SyncRecord | null): Promise<void>;
   /** Synced projects deleted here, to move to the server's trash: id → the revision deleted. */
   tombstones(): Record<string, number>;
+  /**
+   * The record a project deleted here had (its sync state as it was deleted), if kept: a deletion is undone only by a
+   * change made elsewhere since, not by the parts another device took from what it had when plans got their own.
+   */
+  deletedRecord?(id: string): SyncRecord | undefined;
   clearTombstone(id: string): Promise<void>;
   /**
    * Replace a project's content and name, if unchanged since `token` (else
@@ -162,6 +187,38 @@ export function planOf(c: ProjectContent): ProjectContent {
 }
 /** Fingerprint of the name and plan (the photo apart). Records made before photos synced hold exactly this. */
 export const planHash = (name: string, c: ProjectContent) => fingerprint(name, planOf(c));
+/** Parts of a plan that settle on their own when two devices change them (settleParts), not a conflict. */
+const OWN_PARTS = ['bought', 'household', 'switches'] as const;
+/** The plan without its photo and the parts that settle on their own: what two devices changing is a conflict. */
+function coreOf(c: ProjectContent): ProjectContent {
+  const out = { ...planOf(c) };
+  for (const k of OWN_PARTS) delete out[k];
+  return out;
+}
+/** The parts of a plan that settle on their own, those it has (a copy). */
+function partsOf(c: ProjectContent): ProjectContent {
+  const out: ProjectContent = {};
+  for (const k of OWN_PARTS) if (c[k] !== undefined) out[k] = JSON.parse(JSON.stringify(c[k]));
+  return out;
+}
+/** Fingerprint of the name and the plan's core (coreOf). */
+export const coreHash = (name: string, c: ProjectContent) => fingerprint(name, coreOf(c));
+/** A record's core fingerprint; one from before the parts that settle on their own had none, its plan neither part. */
+const coreOfRecord = (rec: SyncRecord) => rec.core ?? rec.hash;
+/**
+ * Whether a plan's core (`c`, named `name`) is as the record has it. A record without `core` holds the whole plan's
+ * fingerprint: one from a version before the parts (the plan had none, so that's its core), or one of this version's
+ * that an older version open on this device wrote back without its core and parts (it keeps a record's revision and
+ * hash only). Then the fingerprint is the core with the parts as they were, which are still this plan's, or the other
+ * side's (`other`), unless both changed them since: so a tick here and an edit there aren't taken for a conflict (the
+ * second review of the storage change, Nov 1).
+ */
+function coreAsRecorded(rec: SyncRecord, name: string, c: ProjectContent, other: ProjectContent): boolean {
+  const core = coreHash(name, c);
+  if (rec.core !== undefined || rec.hash === core) return coreOfRecord(rec) === core;
+  const bare = coreOf(c);
+  return rec.hash === planHash(name, { ...bare, ...partsOf(c) }) || rec.hash === planHash(name, { ...bare, ...partsOf(other) });
+}
 /**
  * Which photo content shows, and how it's placed: 'none', 'kept' (on one
  * device only), or "<photo fingerprint>@<placement fingerprint>". Undefined
@@ -185,7 +242,10 @@ export function photoFp(c: ProjectContent): string | undefined {
 /** The record for content as the server has it at `revision`. */
 const recordFor = (name: string, c: ProjectContent, revision: number): SyncRecord => {
   const photo = photoKey(c);
-  return photo === undefined ? { revision, hash: planHash(name, c) } : { revision, hash: planHash(name, c), photo };
+  const rec: SyncRecord = { revision, hash: planHash(name, c), core: coreHash(name, c) };
+  const parts = partsOf(c);
+  if (Object.keys(parts).length) rec.parts = parts;
+  return photo === undefined ? rec : { ...rec, photo };
 };
 /** Size in bytes of a data URL's contents. */
 const byteSize = (dataUrl: string) => { const b64 = dataUrl.slice(dataUrl.indexOf(',') + 1); return Math.floor((b64.length * 3) / 4) - (b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0); };
@@ -195,7 +255,7 @@ const byteSize = (dataUrl: string) => { const b64 = dataUrl.slice(dataUrl.indexO
 const isRefusal = (e: unknown) => /mime|content.?type|not supported|too large|maximum allowed size|payload|413|415/i.test(`${e instanceof Error ? e.message : String(e)} ${(e as { statusCode?: unknown })?.statusCode ?? ''}`);
 const isConnectionTrouble = (e: unknown) => e instanceof TypeError || /fetch|network|load failed|timed? ?out/i.test(e instanceof Error ? e.message : String(e));
 /** Parts of a plan an older app version doesn't know about, so leaves out of what it sends. */
-const NEWER_PARTS = ['location'];
+const NEWER_PARTS = ['location', ...OWN_PARTS];
 /** The server's content with the parts it says nothing about kept as they are here (so they don't look changed, or get lost). */
 export function withLocalParts(server: ProjectContent, mine: ProjectContent | undefined): ProjectContent {
   if (!mine) return server;
@@ -326,6 +386,112 @@ function withGoneDates(server: ProjectContent, mine: ProjectContent): ProjectCon
   });
   return filled ? { ...server, shapes } : server;
 }
+// ---------- The parts that settle on their own ----------
+type Bought = Record<string, { n: number; at: number }>;
+const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+const tickOk = (v: unknown): v is { n: number; at: number } => isObject(v) && typeof v.n === 'number' && Number.isFinite(v.n) && typeof v.at === 'number' && Number.isFinite(v.at);
+/**
+ * Two devices' Plant list ticks, kind by kind: the later change to each (an untick is a change: 0 bought); the same
+ * moment, the more bought. Either way round, the same answer, so both devices end with the same list.
+ */
+export function settleBought(a: unknown, b: unknown): Bought | undefined {
+  if (!isObject(a) && !isObject(b)) return undefined;
+  const out: Bought = {};
+  for (const side of [a, b]) {
+    if (!isObject(side)) continue;
+    for (const [id, v] of Object.entries(side)) {
+      if (!tickOk(v)) continue;
+      const was = out[id];
+      if (!was || v.at > was.at || (v.at === was.at && v.n > was.n)) out[id] = { n: v.n, at: v.at };
+    }
+  }
+  return out;
+}
+type Household = { kids: boolean; dogs: string; cats: boolean; horses: boolean; answered: boolean; at?: number };
+const householdOk = (v: unknown): v is Household => isObject(v) && typeof v.kids === 'boolean' && typeof v.cats === 'boolean' && typeof v.horses === 'boolean' && typeof v.dogs === 'string';
+const DOG_STRICTNESS = ['', 'hideToxic', 'nonToxic'];
+/**
+ * Two devices' "who's in the yard": the one set in the plan more lately (`at`); one set in the plan over one a device
+ * only took from what it had when plans got their own; and two taken that way, everyone either had (Jason, Nov 1:
+ * nobody's setting changes with the update, and a dog kept on one phone isn't dropped by a computer that never asked),
+ * answered if either was. Either way round, the same answer.
+ */
+export function settleHousehold(a: unknown, b: unknown): Household | undefined {
+  const x = householdOk(a) ? a : undefined, y = householdOk(b) ? b : undefined;
+  if (!x || !y) return x ?? y;
+  const xa = typeof x.at === 'number' ? x.at : undefined, ya = typeof y.at === 'number' ? y.at : undefined;
+  if (xa !== undefined || ya !== undefined) {
+    if (ya === undefined || (xa !== undefined && xa > ya)) return x;
+    if (xa === undefined || ya > xa) return y;
+    return canonical(x) >= canonical(y) ? x : y; // (the same moment: either, so long as it's the same on both)
+  }
+  const dogs = DOG_STRICTNESS[Math.max(DOG_STRICTNESS.indexOf(x.dogs), DOG_STRICTNESS.indexOf(y.dogs), 0)];
+  return { kids: x.kids || y.kids, dogs, cats: x.cats || y.cats, horses: x.horses || y.horses, answered: x.answered === true || y.answered === true || x.kids || y.kids || dogs !== '' || x.cats || y.cats || x.horses || y.horses };
+}
+type Switch = { on: boolean; at?: number };
+const switchOk = (v: unknown): v is Switch => isObject(v) && typeof v.on === 'boolean' && (v.at === undefined || (typeof v.at === 'number' && Number.isFinite(v.at)));
+/**
+ * Two devices' warning switches, one by one: the one switched in the plan more lately (`at`); one switched in the plan
+ * over one a device only took from what it had when plans got their own; and two taken that way, or switched at the
+ * same moment, off if either is off. (A device's "on" taken that way is almost always only the default, never
+ * touched; its "off" was always someone's choice, so the update doesn't switch back on a warning anyone turned off.
+ * As with who's in the yard: a device that never set it doesn't override one that did.) Either way round, the same
+ * answer.
+ */
+export function settleSwitches(a: unknown, b: unknown): Record<string, Switch> | undefined {
+  if (!isObject(a) && !isObject(b)) return undefined;
+  const x = isObject(a) ? a : {}, y = isObject(b) ? b : {};
+  const out: Record<string, Switch> = {};
+  for (const k of new Set([...Object.keys(x), ...Object.keys(y)])) {
+    const p = switchOk(x[k]) ? x[k] : undefined, q = switchOk(y[k]) ? y[k] : undefined;
+    if (!p || !q) { const one = p ?? q; if (one) out[k] = { ...one }; continue; }
+    const pa = p.at, qa = q.at;
+    if (pa !== undefined && (qa === undefined || pa > qa)) out[k] = { ...p };
+    else if (qa !== undefined && (pa === undefined || qa > pa)) out[k] = { ...q };
+    else out[k] = pa === undefined ? { on: p.on && q.on } : { on: p.on && q.on, at: pa };
+  }
+  return out;
+}
+/** The parts that settle on their own, as they come out of this device's content and the server's. */
+export function settleParts(mine: ProjectContent, theirs: ProjectContent): ProjectContent {
+  const out: ProjectContent = {};
+  const bought = settleBought(mine.bought, theirs.bought);
+  if (bought) out.bought = bought;
+  const household = settleHousehold(mine.household, theirs.household);
+  if (household) out.household = household;
+  const switches = settleSwitches(mine.switches, theirs.switches);
+  if (switches) out.switches = switches;
+  return out;
+}
+/** Has a time it was set in the plan: someone set it, rather than a device carrying over what it had. */
+const setInPlan = (v: unknown): boolean => isObject(v) && typeof v.at === 'number';
+/**
+ * Whether `now`'s parts differ from `was`'s only by values carried over from a device, never set in the plan (no `at`):
+ * the ticks the same, and who's in the yard and each warning switch the same or carried over. (Every change a person
+ * makes is stamped with when; only the update, or a version before it leaving them out, gives a value without one.)
+ */
+function onlyCarriedOver(now: ProjectContent, was: ProjectContent): boolean {
+  if (canonical(now.bought ?? null) !== canonical(was.bought ?? null)) return false;
+  if (canonical(now.household ?? null) !== canonical(was.household ?? null) && setInPlan(now.household)) return false;
+  const a = isObject(now.switches) ? now.switches : {}, b = isObject(was.switches) ? was.switches : {};
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) if (canonical(a[k] ?? null) !== canonical(b[k] ?? null) && setInPlan(a[k])) return false;
+  return true;
+}
+/**
+ * Changed here only by taking this device's household and warning switches when plans got their own (no `at`: never
+ * set in the plan), the photo as it was: not an edit, so no reason to bring back a plan deleted elsewhere. Judged on
+ * the record's core and parts where it has them (a record of this version), else, a record from before the parts, on
+ * the rest of the plan as that record has it.
+ */
+function onlyTakenFromDevice(p: LocalProject, rec: SyncRecord | undefined): boolean {
+  if (!rec || (photoKey(p.content) ?? 'none') !== (rec.photo ?? 'none')) return false;
+  if (rec.parts) return coreHash(p.name, p.content) === coreOfRecord(rec) && onlyCarriedOver(p.content, rec.parts);
+  const { household: h, switches: sw, ...rest } = p.content;
+  const taken = (h === undefined || (householdOk(h) && typeof h.at !== 'number'))
+    && (sw === undefined || (isObject(sw) && Object.values(sw).every((v) => switchOk(v) && v.at === undefined)));
+  if (!taken || (h === undefined && sw === undefined)) return false;
+  return planHash(p.name, rest) === rec.hash;
+}
 const isEmpty = (c: ProjectContent) => Array.isArray(c.shapes) && c.shapes.length === 0 && (photoKey(c) ?? 'none') === 'none';
 /** After this many failures in a row, the trouble is likely the connection: end the pass. */
 const FAILS_IN_A_ROW = 3;
@@ -348,7 +514,22 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
   const undeleted = new Set<string>();
   for (const [id, rev] of Object.entries(local.tombstones())) {
     await attempt('a deleted project', async () => {
-      const answer = await remote.trash(id, rev);
+      let answer = await remote.trash(id, rev);
+      // Changed on the server since: by an edit there, it comes back here. Only by what another device carried over
+      // when plans got their own (the yard and the warning switches it had, never set in the plan), it was still the plan
+      // deleted here: trashed after all, at the server's revision. Judged by the record it had as it was deleted, that
+      // deletion's (an older version can clear a tombstone and delete the plan again, leaving the first one's record).
+      const was = answer === 'changed' ? local.deletedRecord?.(id) : undefined;
+      if (was && was.revision === rev) {
+        const got = (await remote.fetch([id]))[id];
+        const n = got ? local.normalize(got.name, got.content) : undefined;
+        // (Only what this version can see: tidying it as stored here must leave it whole. A part of the plan, or of a
+        // shape, that only a later version knows is left out by that, so an edit to it there would go unseen, into the
+        // trash: then it comes back, as before. The second review of the storage change, Nov 1.)
+        const whole = !!got && !!n && got.name === n.name && canonical(planOf(got.content)) === canonical(planOf(n.content));
+        if (got && n && whole && (photoKey(n.content) ?? was.photo ?? 'none') === (was.photo ?? 'none') && coreHash(n.name, n.content) === coreOfRecord(was)
+          && onlyCarriedOver(n.content, was.parts ?? {})) answer = await remote.trash(id, got.revision);
+      }
       if (answer === 'paused') { report.paused = true; return; }
       if (answer === 'changed') undeleted.add(id);
       await local.clearTombstone(id);
@@ -469,16 +650,23 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     const rawContent = withLocalParts(sent, p.content); // (for telling what changed where)
     const serverContent = asSeenHere(rawContent, rec);
     const n = local.normalize(serverName, serverContent);
+    // The Plant list's ticks, who's in the yard and the warning switches settle on their own, the same on both sides
+    // (settleParts); what's compared for a conflict is the rest of the plan, its core.
+    const parts = settleParts(p.content, n.content);
+    const mine = { ...p.content, ...parts }, theirs = { ...n.content, ...parts };
     const basePhoto = rec?.photo ?? 'none';
-    const localPlan = planHash(p.name, p.content), serverPlan = planHash(n.name, n.content);
+    const localPlan = coreHash(p.name, p.content), serverPlan = coreHash(n.name, n.content);
     const localPhoto = photoKey(p.content) ?? 'none', serverPhoto = photoKey(n.content);
-    const planHere = !rec || rec.hash !== localPlan, planThere = !rec || rec.hash !== serverPlan;
+    // (The other side's parts as each has them: the server's as it sent them, without this device's filled in.)
+    const sentHere = local.normalize(serverName, sent).content;
+    const planHere = !rec || !coreAsRecorded(rec, p.name, p.content, sentHere), planThere = !rec || !coreAsRecorded(rec, n.name, n.content, p.content);
     const photoHere = localPhoto !== basePhoto, photoThere = serverPhoto !== undefined && serverPhoto !== basePhoto;
     const photoClash = photoHere && photoThere && localPhoto !== serverPhoto;
     if ((planHere && planThere && localPlan !== serverPlan) || photoClash) {
-      // The original takes the server's plan; its photo follows the usual rule unless the photos clash too.
+      // The original takes the server's plan, with the settled parts; its photo follows the usual rule unless the
+      // photos clash too. (The copy keeps this device's version whole.)
       const photoSource = !photoClash && (photoHere || !photoThere) ? p.content : serverContent;
-      const original = { ...planOf(serverContent), ...('photo' in photoSource ? { photo: photoSource.photo } : {}) };
+      const original = { ...planOf(theirs), ...('photo' in photoSource ? { photo: photoSource.photo } : {}) };
       return conflict(p, serverName, serverRev, original, by, sent); // (recorded as the server really has it)
     }
     const planFromServer = !planHere && localPlan !== serverPlan;
@@ -486,11 +674,13 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     const merged: LocalProject = {
       ...p,
       name: planFromServer ? n.name : p.name,
-      content: { ...(planFromServer ? planOf(n.content) : planOf(p.content)) },
+      content: { ...(planFromServer ? planOf(theirs) : planOf(mine)) },
     };
     const photoSource = photoFromServer ? n.content : p.content;
     if ('photo' in photoSource) merged.content.photo = photoSource.photo;
-    if (planFromServer || photoFromServer) {
+    // (Ticks, the yard or the switches taken from the server change the plan here too, with nothing else from there.)
+    const partsFromServer = planHash(merged.name, merged.content) !== planHash(p.name, p.content);
+    if (planFromServer || photoFromServer || partsFromServer) {
       const bytes = photoFromServer ? await photoFor(p.id, n.content) : undefined;
       if (!(await local.replace(p.id, merged.name, merged.content, p.token, bytes))) return; // edited meanwhile: next time
       merged.token = -1; // (it moved on: nothing more is replaced this pass)
@@ -524,16 +714,29 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
         }
         if (!report.full) await upload(p, null);
       } else if (s.deleted_at) {
-        if (changed) {
+        if (changed && !onlyTakenFromDevice(p, rec)) {
           const rev = await remote.restore(p.id);
           if (rev != null) { report.restored.push(p.name); restoredIds.add(p.id); }
           await upload(p, rev);
         } else if (await local.remove(p.id, p.token)) {
           report.removed.push(p.name);
         }
-      } else if (rec && rec.revision === s.revision) {
-        if (changed) await upload(p, rec.revision);
-        else if (rec.held === 'room' && (await sendPhoto(p)) === 'ok') await upload(p, rec.revision); // room for it now
+      } else if (rec && rec.revision === s.revision && !(changed && !rec.parts && OWN_PARTS.some((k) => p.content[k] !== undefined))) {
+        // (The server as this device last saw it. A record that doesn't say which parts the server had (a version before
+        // them recorded it, leaving them out of what it stored) goes the long way instead: fetched and settled, below, so
+        // the yard, switches and ticks another device sent aren't replaced by what this one carried over.)
+        if (changed) {
+          // The parts settled with the server's as recorded, before going up: a change made here since is stamped later
+          // and stays; any part lost here since, or put back older (a version before them saving the plan on this device,
+          // an unsaved copy of it replayed late), comes back as the server has it.
+          const content = { ...p.content, ...settleParts(p.content, rec.parts ?? {}) };
+          let q = p;
+          if (planHash(p.name, content) !== planHash(p.name, p.content)) {
+            if (!(await local.replace(p.id, p.name, content, p.token))) return; // (edited meanwhile: next time)
+            q = { ...p, content, token: -1 };
+          }
+          await upload(q, rec.revision);
+        } else if (rec.held === 'room' && (await sendPhoto(p)) === 'ok') await upload(p, rec.revision); // room for it now
       } else if (rec && !changed) {
         toDownload.push(p.id); // changed elsewhere only
       } else {

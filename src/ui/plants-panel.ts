@@ -1,6 +1,6 @@
 import { crowdLevelsOf, crowdNoticeAfterSwap } from './crowd-notice';
 import { el, sheetCloseButton, tapSaid, type Child } from '../dom';
-import { applyYard, askAtTop, dismissAsked, household, introAnswered, loadAsked, saveHardy, saveYard, toggleYard, yardOf, type Yard } from '../yard';
+import { applyYard, askAtTop, askDismissed, dismissAsked, household, saveHardy, saveYard, toggleYard, yardKeyOf, yardOf, type Yard } from '../yard';
 import { toast } from './toast';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
@@ -384,11 +384,12 @@ export function renderPlantsPanel() {
   }
   refreshList = () => { if (listWrap.isConnected) rebuildList(); };
   /**
-   * Kids and pets, as set by their own controls: kept on this device (src/yard.ts), as the guided introduction's step 6
+   * Kids and pets, as set by their own controls: kept with the plan (src/yard.ts), as the guided introduction's step 6
    * does. Not "Clear filters" or "Show them": those are for the search at hand.
    */
   function keepYard(key: keyof PlantFilter) {
-    if (key === 'noPoison' || key === 'dogs' || key === 'cats' || key === 'horses') { saveYard(yardOf(plantFilter)); syncYard(); }
+    const k = yardKeyOf(key);
+    if (k) { saveYard(yardOf(plantFilter), k); syncYard(); }
   }
   function rebuildList() {
     while (listWrap.firstChild) listWrap.removeChild(listWrap.firstChild);
@@ -853,8 +854,9 @@ export function renderPlantsPanel() {
   })();
 
   // ---- "Anyone you need to protect?" (Jason, Nov 1, from the UI review) ----
-  // Poison & pets' four as a chip each, kept in step with its controls and this device's yard (src/yard.ts). First
-  // among the filters, with a ×, until it's answered or dismissed (askingAtTop); then at the head of Poison & pets.
+  // Poison & pets' four as a chip each, kept in step with its controls and the plan's yard (src/yard.ts). First
+  // among the filters, with a ×, until it's answered for the plan or dismissed on this device (askingAtTop); then at
+  // the head of Poison & pets.
   // Skin irritants are marked on rows for everyone (src/plants.ts rowFlags): anyone walking past can brush one. Poison
   // when eaten is marked, and filtered, by who's in the yard.
   const YARD_CHIPS: [keyof Yard, string][] = [['kids', 'Kids'], ['dogs', 'Dogs'], ['cats', 'Cats'], ['horses', 'Horses']];
@@ -871,7 +873,7 @@ export function renderPlantsPanel() {
       b.addEventListener('click', () => {
         const y = toggleYard(yardOf(plantFilter), k);
         applyYard(plantFilter, y);
-        saveYard(y);
+        saveYard(y, k);
         syncYard();
         rebuildList();
       });
@@ -898,7 +900,7 @@ export function renderPlantsPanel() {
     return line;
   }
   // (Not while naming a tree already in the yard: its filters start cleared, the yard's with them: treeFiltersAside.)
-  const askTop = !forTree && (askingAtTop ??= askAtTop({ asked: loadAsked(), yard: household(), intro: introAnswered() }));
+  const askTop = !forTree && (askingAtTop ??= askAtTop({ dismissed: askDismissed(), household: household() }));
   const topLine = askTop ? protectLine(true) : null;
   if (!askTop && !forTree) poison.hold(protectLine(false));
 

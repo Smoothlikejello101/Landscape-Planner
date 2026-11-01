@@ -148,7 +148,7 @@ test('Crowding settings… opens Settings at its crowding switches; with warning
   await tapFromCenter(page, 4, 0);
   expect(await shapeCount(page)).toBe(3);
   await expect(notice(page)).toHaveCount(0);
-  // Kept on this device.
+  // Kept with the plan (Jason, Nov 1).
   await page.reload();
   await openSettings(page);
   await openWarnings(page);

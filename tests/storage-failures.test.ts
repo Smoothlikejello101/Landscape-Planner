@@ -34,6 +34,10 @@ class FlakyKV implements KV {
     if (this.failWrites) return Promise.reject(new DOMException('disk full', 'UnknownError'));
     return this.inner.write(ops);
   }
+  changeAllOnce(...a: Parameters<KV['changeAllOnce']>) {
+    if (this.failWrites) return Promise.reject(new DOMException('disk full', 'UnknownError'));
+    return this.inner.changeAllOnce(...a);
+  }
 }
 
 let n = 0;
