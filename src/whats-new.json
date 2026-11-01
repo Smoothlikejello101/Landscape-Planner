@@ -1,5 +1,12 @@
 [
   {
+    "id": 3,
+    "date": "next",
+    "items": [
+      "The bar at the bottom should no longer end up partly off the screen after an update (the app now measures the screen when it starts and whenever you come back to it), and a rare blank screen while reading a plant’s details is fixed."
+    ]
+  },
+  {
     "id": 2,
     "date": "2026-10-31",
     "items": [
