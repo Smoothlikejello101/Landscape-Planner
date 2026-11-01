@@ -93,7 +93,7 @@ was read narrower than printed or left out, and why.
 | NJ | N.J.S.A. 23:2A-20 (P.L.2025, c.290); N.J.A.C. 2:20-2 | The Legislature's chapter law; the Department of Agriculture's rule | 31 | Prohibited invasive species: no propagating or importing from early 2027, no selling from early 2030 (listed until then). European black currant: only under a permit |
 | SC | S.C. Code Regs. 27-135; S.C. Code §50-13-1415 | Clemson's State Plant Pest List page (the rule's official listing); the Legislature's code | 101 | Plant pests: by the agency's reading, not sold or moved within the state (the rule's text: nursery stock must be free of plant pests). Prohibited aquatic plants: not possessed, sold or imported, but under a permit |
 | NY | 6 NYCRR Part 575; 6 NYCRR 192.1 | The Department of State's site, saved by hand | 75 | Prohibited: not sold, imported, bought, transported, introduced or propagated. Regulated: may be sold, but not introduced into the wild (no ban on sale). Black currant: not planted or sold, but rust-resistant cultivars |
-| MA | MDAR Prohibited Plant List; M.G.L. c. 128, §20A | The Department's list and its 2025 and 2026 decisions, saved by hand from mass.gov; the Legislature's site | 148 | Prohibited: nursery agents and growers may not receive, grow or sell it. Newly added plants: existing stock may be sold through a phase-out (listed until it ends). Water chestnut: never planted or moved, by statute |
+| MA | MDAR Prohibited Plant List; M.G.L. c. 128, §20A | The Department's list page and its 2025 and 2026 decisions, saved by hand from mass.gov; the Legislature's site | 148 | Prohibited: its "sale, import, trade, purchase, distribution, propagation, and related activities", cultivars, varieties and hybrids included. Newly added plants: existing stock may be sold through a phase-out (listed until it ends). Water chestnut: never planted or moved, by statute |
 | NC | 02 NCAC 48A .1702, .1703; 15A NCAC 02G .0602 | The North Carolina Register's printing of the rules (effective 2011-10-01); the environment department's copy of .0602 | 27, and the federal list's | Class A and B: no sale or distribution, nor moving into the state (A: nor within it). Class C: not into the state, nor sold outside a regulated area. Aquatic: the state may remove it from its waters (no ban on sale) |
 
 Arkansas to Tennessee read 2026-10-21, Virginia to Massachusetts 2026-10-31, each from the government's own text, saved
@@ -121,8 +121,8 @@ missing intermediate was fetched from its issuer (Sectigo), as browsers do, and 
 Pennsylvania's Bulletin notices (its sales phase-in dates) are still unread; its site's robots.txt names AI
 readers. Sites that refuse automated readers outright (a 403, a bot check) are never got around, by any tool: Jason
 saves those pages by hand, as he did Massachusetts's prohibited plant list and the Department's decisions,
-Michigan's 2026 order, and New York's 6 NYCRR Part 575 and 192.1. Still to save: the Massachusetts list page's own
-statement of what the list forbids, and the Department's November 2022 update (Callery pear's phase-out dates).
+Michigan's 2026 order, and New York's 6 NYCRR Part 575 and 192.1 (the Massachusetts list page itself, with what the
+list forbids and its phase-out table, on 2026-11-01).
 South Carolina's plant pest rule doesn't itself say the plants can't be sold; Clemson, which keeps the list, says it
 does, and Jason's call (2026-10-31) was to show them as banned, the line saying it's the agency's reading.
 Wisconsin's legislature site drops every connection from here (its rule, NR 40, is unread). The rest of the
@@ -182,7 +182,7 @@ states: not yet.
   limited to named counties and towns.
 - **Massachusetts:** newly added plants (black alder, maiden grass, jetbead, sapphire berry, Japanese angelica tree)
   may be sold from existing stock until their phase-outs end: listed until then, each line naming the date. Callery
-  pear is marked as being phased out, its dates unread: listed. Japanese black pine's bonsai exception and water
+  pear's sales end December 31, 2028, with limited exceptions in orchards: listed until then. Japanese black pine's bonsai exception and water
   spinach's permit are said in their lines. Left out: "Non-native Orobanche spp." and "Non-native Cuscuta spp.",
   which name neither the natives spared nor the others (the federal list's dodders and broomrapes cover them);
   Cape tulip, printed "Homeria spp.; Moraea spp." (the whole of *Moraea* would take in garden species; the federal
