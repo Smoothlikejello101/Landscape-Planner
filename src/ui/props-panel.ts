@@ -658,9 +658,12 @@ function zoneCheck(p: Plant, full: boolean): HTMLElement | null {
 function plantSizeParts(s: CircleShape): Node[] {
   const p = s.plantId ? plantsById[s.plantId] : undefined;
   if (!p) return [];
+  // (Drawn smaller than it grows: the dashed ring around it said, here where a person looks first. The UI review,
+  // 2026-11-01: rings round 8 of 11 perennials, from Layers' "full-size rings on every plant", explained nowhere seen.)
+  const ring = fullRingRadius(s);
   const sizes = `Its spread: ${formatSize(p.width as Range | undefined) || 'unknown'}. ` + (s.sizeFrom === 'manual'
-    ? 'Drawn at the size it was given' + (s.tree ? ' (a tree as it is now)' : '') + (fullRingRadius(s) ? '; the dashed ring, when it\u2019s selected, is its full size.' : '.')
-    : `Drawn at ${state.sizeMode === 'full' ? 'full' : 'typical'} size (change in Layers).`);
+    ? 'Drawn at the size it was given' + (s.tree ? ' (a tree as it is now)' : '') + (ring ? '; the dashed ring, when it\u2019s selected, is its full size.' : '.')
+    : `Drawn at ${state.sizeMode === 'full' ? 'full' : 'typical'} size (change in Layers)` + (ring ? `; the dashed ring around it is its full size, ${fmt1(ring * 2)} ft across.` : '.'));
   const out: Node[] = [el('div', { className: 'hint', 'data-testid': 'plant-size-note', style: { marginTop: '6px', marginBottom: '10px' } }, sizes)];
   const target = plantRadius(p, state.sizeMode);
   if (s.radius !== target) {

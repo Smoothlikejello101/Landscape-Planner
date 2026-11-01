@@ -205,7 +205,9 @@ function plantSizeSection(): HTMLElement {
   cb.addEventListener('change', () => { setShowFullSize(cb.checked); render(); });
   wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, cb,
     el('span', {}, 'Show full-size rings on every plant (check for crowding)')));
-  wrap.appendChild(el('div', { className: 'hint' }, 'Typical is the size its sources point to, within its range; full is the top of the range. Selected plants always show their full-size ring.'));
+  // (What the rings look like, said: the UI review, 2026-11-01, saw dashed rings round its perennials, and nothing here
+  // said that's what they were.)
+  wrap.appendChild(el('div', { className: 'hint', 'data-testid': 'full-ring-hint' }, 'Typical is the size its sources point to, within its range; full is the top of the range. A full-size ring is the dashed ring around a plant drawn smaller than it grows; selected plants always show theirs.'));
   // Drawn as illustrations, or as plain circles (src/looks.ts): on this device.
   const looks = el('input', { type: 'checkbox', 'data-testid': 'plant-looks' }) as HTMLInputElement;
   looks.checked = state.plantLooks;
