@@ -662,6 +662,26 @@ describe('updating after syncing on the version before, with this device\'s stor
     await syncOnce(local(), server.remoteFor('laptop'), 'laptop');
     expect(when().Front).toBeGreaterThan(before.Front);
   });
+  it('a plan deleted here comes back for an edit only a later version can see, of the plan or a shape, carried-over parts with it: not into the trash', async () => {
+    for (const edit of ['plan', 'shape'] as const) {
+      const server = new FakeServer(); await device();
+      const id = state.currentProjectId!;
+      state.shapes = [bed('b1', 'A')]; save(); await flushSave();
+      const keep = await createProject('Front');
+      await syncOnce(local(), server.remoteFor('phone'), 'phone');
+      await switchProject(keep);
+      await deleteProject(id);
+      const row = server.rows.get(id)!;
+      const shapes = row.content.shapes as Record<string, unknown>[];
+      row.content = { ...row.content, household: { ...dog, dogs: '', answered: false },
+        ...(edit === 'plan' ? { notes: 'Gus dug here: replant in spring' } : { shapes: [{ ...shapes[0], mood: 'thriving' }] }) };
+      row.revision++; row.updated_by = 'laptop';
+      const r = await syncOnce(local(), server.remoteFor('phone'), 'phone');
+      expect({ edit, undeleted: r.undeleted, deleted: server.rows.get(id)!.deleted }).toEqual({ edit, undeleted: ['My Garden'], deleted: false });
+      expect(edit === 'plan' ? server.rows.get(id)!.content.notes : (server.rows.get(id)!.content.shapes as Record<string, unknown>[])[0].mood)
+        .toBe(edit === 'plan' ? 'Gus dug here: replant in spring' : 'thriving');
+    }
+  });
   it('a plan deleted here stays deleted when the other device only sent what it carried over; its record is kept with the tombstone, across a restart', async () => {
     const server = new FakeServer(); await device();
     const id = state.currentProjectId!;
