@@ -5,7 +5,7 @@ import { hasKeyboard, svgEl, tapSaid } from './dom';
 import { bakeRotation, canvasRect, fmtFeet, outlineOf, pathPoints, pxPerFoot, rotate, screenToFeet, setWorldPoints, shapeBBox } from './geometry';
 import { restingCanvasH } from './canvas';
 import { bringIntoView } from './mutations';
-import { flushHistoryDebounce, pushHistory, undo } from './history';
+import { flushHistoryDebounce, pushHistory, stepNamed, undo } from './history';
 import { gesture, state } from './state';
 import { save } from './storage';
 import { buildShape, CANOPY_MIN_TAPS, isKindKey, kindDef, tapAccepted, TAPS_TO_FINISH, type KindKey, type Method } from './kinds';
@@ -280,7 +280,7 @@ export function finishDraw(): Shape | null {
   // Most things stay closed so the plan stays in view; a note needs its text, sun exposure its sun record.
   state.panel = kind.openProps ? 'props' : null;
   noteRecentKind(kind.key);
-  pushHistory();
+  pushHistory('add ' + stepNamed([shape]));
   // (A fence or a building drawn by a vine: offered to it, src/ui/vine-offers.ts.)
   offerToVines(shape);
   // Asked for while drawing: on to its doors and windows, gates or steps, tapped onto its edges.
@@ -291,7 +291,7 @@ export function finishDraw(): Shape | null {
     finishNew(after, d);
     const i = state.shapes.findIndex((x) => x.id === shape.id);
     state.shapes[i] = { ...after, label: shape.label } as Shape;
-    pushHistory();
+    pushHistory(said.startsWith('Squared') ? 'square the corners' : 'move the last point');
     const step = state.history[state.historyIndex];
     const isSquare = method === 'poly';
     toastAction(said, [
@@ -450,7 +450,7 @@ function keepMeasurement(): Shape | null {
   setWorldPoints(shape, d.points.slice(0, 2));
   state.shapes.push(shape);
   d.points = []; d.snaps = []; delete d.lastTap;
-  pushHistory();
+  pushHistory('add a measurement');
   save();
   return shape;
 }

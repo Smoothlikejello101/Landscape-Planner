@@ -124,12 +124,44 @@ test('copy a catalog plant as your own cultivar', async ({ page }) => {
   await expect(page.locator('.sel-pill .name')).toHaveText("Heuchera 'Caramel'");
 });
 
+test("a copy of a catalog plant starts with its name empty and no flower colors ticked, its size, sun, type and bloom filled in; one of your own copied, or edited, as it was (Jason, Nov 1, the UI review)", async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill("Heuchera 'Autumn Bride'"); // (white flowers, September to October)
+  await page.locator('.proj-row', { hasText: "Heuchera 'Autumn Bride'" }).first().getByRole('button', { name: /Copy as my plant/ }).click();
+  const name = page.getByTestId('pf-name');
+  await expect(name).toHaveValue('');
+  await expect(name).toHaveAttribute('placeholder', 'e.g. Grandma’s peony');
+  await expect(page.getByTestId('pf-from-banner')).toContainText('Name it, and change what differs');
+  await expect(page.locator('[data-testid=pf-flower].on')).toHaveCount(0);
+  await expect(page.getByTestId('pf-spread')).not.toHaveValue('');
+  await expect(page.getByTestId('pf-form')).toHaveValue('Perennial');
+  await expect(page.locator('.sheet details select').first()).toHaveValue('9');
+  // Named and given a color, it's the person's own: copied, or edited, both kept.
+  await name.fill("Heuchera 'Caramel'");
+  await page.locator('[data-testid=pf-flower][data-color=pink]').click();
+  await page.getByTestId('pf-save').click();
+  await page.getByTestId('add-own-plant').click();
+  await name.fill(''); // (the picker's search, put in as its name)
+  await page.getByTestId('pf-from').fill('Caramel');
+  await page.getByTestId('pf-from-hit').filter({ hasText: 'Mine' }).first().click();
+  await expect(name).toHaveValue("Heuchera 'Caramel'");
+  await expect(page.locator('[data-testid=pf-flower].on')).toHaveAttribute('data-color', 'pink');
+  await page.locator('.sheet-header').getByRole('button', { name: 'Back to the plant list' }).click();
+  await page.getByTestId('plant-search').fill('Caramel');
+  await page.locator('.proj-row', { hasText: 'Caramel' }).first().getByRole('button', { name: /Edit/ }).click();
+  await expect(name).toHaveValue("Heuchera 'Caramel'");
+  await expect(page.locator('[data-testid=pf-flower].on')).toHaveAttribute('data-color', 'pink');
+});
+
 test('a plant copied from the catalog isn\'t offered as "now in the catalog" as the plant it came from (the UI review)', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('peony');
   await page.locator('.proj-row', { hasText: 'Paeonia – Herbaceous Types' }).first().getByRole('button', { name: /Copy as my plant/ }).click();
-  await expect(page.getByTestId('pf-name')).toHaveValue('Paeonia – Herbaceous Types'); // (to change what differs)
+  // (Its name starts empty, to type: here, the catalog's own, as someone might.)
+  await expect(page.getByTestId('pf-name')).toHaveValue('');
+  await page.getByTestId('pf-name').fill('Paeonia – Herbaceous Types');
   await page.getByTestId('pf-save').click();
   await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker');
   const mine = page.locator('.proj-row', { hasText: 'Paeonia – Herbaceous Types' }).filter({ has: page.locator('.mine-badge') });
@@ -148,7 +180,7 @@ test('closing Add a plant or a copy with its × goes back to the picker, the sea
   await page.getByTestId('plant-search').fill('shade flowers');
   await page.getByTestId('add-own-plant').click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Add a plant');
-  await page.locator('.sheet-header .iconbtn[aria-label=Close]').click();
+  await page.locator('.sheet-header').getByRole('button', { name: 'Back to the plant list' }).click();
   await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker');
   await expect(page.getByTestId('plant-search')).toHaveValue('shade flowers');
   await expect(page.getByTestId('add-own-plant')).toBeVisible();
@@ -156,7 +188,7 @@ test('closing Add a plant or a copy with its × goes back to the picker, the sea
   await page.getByTestId('plant-search').fill('Buttonbush');
   await page.locator('.proj-row', { hasText: 'Buttonbush' }).first().getByRole('button', { name: /Copy as my plant/ }).click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Add a plant');
-  await page.locator('.sheet-header .iconbtn[aria-label=Close]').click();
+  await page.locator('.sheet-header').getByRole('button', { name: 'Back to the plant list' }).click();
   await expect(page.getByTestId('plant-search')).toHaveValue('Buttonbush');
 });
 

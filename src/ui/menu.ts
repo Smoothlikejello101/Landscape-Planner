@@ -1,5 +1,5 @@
 import { el, hasKeyboard } from '../dom';
-import { canRedo, redo } from '../history';
+import { canRedo, redo, redoLabel } from '../history';
 import { roomyText } from '../text-size';
 import { dismissToastAction } from './toast';
 import { I } from '../icons';
@@ -16,6 +16,7 @@ import { showMeAround } from './intro-card';
 import { openWhatsNew } from './whats-new-panel';
 import { CHANNEL } from '../channel';
 import { openPrint } from './print-panel';
+import { checkForUpdate, onUpdateWaiting, updateNow, updateWaiting } from '../pwa';
 
 /** Select mode on or off (the lasso button on the top bar). */
 export function toggleSelectMode() {
@@ -26,11 +27,11 @@ export function toggleSelectMode() {
   state.menu = null;
 }
 export function renderMoreMenu() {
-  const items: { icon?: string; label?: string; onClick?: () => void; disabled?: boolean; divider?: boolean; testid?: string }[] = [];
+  const items: { icon?: string; label?: string; onClick?: () => void; disabled?: boolean; divider?: boolean; testid?: string; title?: string }[] = [];
   // Redo, at Medium and Large text (the top bar keeps room for the plan's name; Jason, 2026-10-25).
   if (roomyText()) {
     items.push({
-      icon: I.redo, label: 'Redo', testid: 'menu-redo',
+      icon: I.redo, label: 'Redo', testid: 'menu-redo', title: redoLabel() ? `Redo: ${redoLabel()}` : undefined,
       disabled: !canRedo() || !!state.draw || !!state.placing || !!state.featurePlace,
       onClick: () => { dismissToastAction(); redo(); state.menu = null; render(); },
     });
@@ -66,6 +67,9 @@ export function renderMoreMenu() {
     items.push({ icon: I.download, label: 'Export image…', onClick: () => { state.panel = 'export'; state.menu = null; render(); } });
   }
   items.push({ divider: true });
+  // The plans, and backing them up: the pane the plan's name opens, from here too (Jason, from the UI review,
+  // 2026-11-01: people looked for backup in ⋮).
+  items.push({ icon: I.folder, label: 'Plans and backup\u2026', testid: 'menu-plans', onClick: () => { state.panel = 'projects'; state.menu = null; render(); } });
   items.push({
     icon: I.edit,
     label: 'Rename current project',
@@ -107,7 +111,7 @@ export function renderMoreMenu() {
   const menu = el('div', { className: 'menu' });
   for (const it of items) {
     if (!it.onClick) { menu.appendChild(el('div', { className: 'menu-divider' })); continue; }
-    const btn = el('button', { className: 'menu-item', ...(it.testid ? { 'data-testid': it.testid } : {}) });
+    const btn = el('button', { className: 'menu-item', ...(it.testid ? { 'data-testid': it.testid } : {}), ...(it.title ? { title: it.title } : {}) });
     btn.innerHTML = it.icon + '<span>' + it.label + '</span>';
     btn.disabled = !!it.disabled;
     btn.addEventListener('click', it.onClick);
@@ -116,7 +120,7 @@ export function renderMoreMenu() {
   menu.appendChild(el('div', { className: 'menu-divider' }));
   // The mark leads the version line (it has no text, so the line still reads "Version …").
   const version = el('div', { className: 'menu-version', html: MARK_SMALL });
-  version.append(`Version ${__APP_VERSION__}${CHANNEL === 'next' ? ' · Next (preview)' : ''} · ${__BUILD_TIME__}`);
+  version.append(el('span', {}, `Version ${__APP_VERSION__}${CHANNEL === 'next' ? ' · Next (preview)' : ''} · ${__BUILD_TIME__}`), updateCheck());
   menu.appendChild(version);
   // (Up and down step through its items, as a menu's do; Home and End go to the ends.)
   menu.addEventListener('keydown', (e) => {
@@ -131,6 +135,54 @@ export function renderMoreMenu() {
   const overlay = el('div', { className: 'overlay top' }, el('div', { style: { paddingRight: '8px', paddingTop: '4px' } }, menu));
   overlay.addEventListener('click', e => { if (e.target === overlay) { state.menu = null; render(); } });
   return overlay;
+}
+
+/**
+ * "Check for updates", under the version (Jason, from the UI review, 2026-11-01): asks the app's service worker to look
+ * now, not at the next hourly check. A new version found says so and offers Update now, which does what the update
+ * banner's Update does (saves, then switches); nothing switches without that tap (CLAUDE.md). None: "You're up to
+ * date", for a moment. What it found is kept while the app is open; the line is redrawn in place, not the app.
+ */
+type CheckSaid = 'idle' | 'checking' | 'ready' | 'none' | 'failed' | 'unavailable' | 'updating';
+let checkSaid: CheckSaid = 'idle';
+let checkTimer: ReturnType<typeof setTimeout> | null = null;
+/** The version line's update check on the page now, to redraw (the menu is drawn afresh with each render). */
+let checkShown: (() => void) | null = null;
+const repaintCheck = () => checkShown?.();
+onUpdateWaiting(repaintCheck); // (found by the hourly check, or this one, while ⋮ is open)
+async function runCheck() {
+  if (checkTimer) clearTimeout(checkTimer);
+  checkSaid = 'checking'; repaintCheck();
+  checkSaid = await checkForUpdate();
+  repaintCheck();
+  if (checkSaid === 'none' || checkSaid === 'unavailable') {
+    checkTimer = setTimeout(() => { checkTimer = null; checkSaid = 'idle'; repaintCheck(); }, 4000);
+  }
+}
+function updateCheck(): HTMLElement {
+  const box = el('div', { className: 'update-check', 'data-testid': 'update-check', 'aria-live': 'polite', tabindex: '-1' });
+  const button = (label: string, testid: string, run: () => void) => {
+    const b = el('button', { className: 'link-btn', 'data-testid': testid }, label);
+    b.addEventListener('click', run);
+    return b;
+  };
+  const paint = () => {
+    if (!box.isConnected && checkShown !== paint) return;
+    const said = updateWaiting() && checkSaid !== 'updating' ? 'ready' : checkSaid;
+    const focused = box.contains(document.activeElement); // (with a keyboard: kept in the line as it changes)
+    box.replaceChildren(...(said === 'idle' ? [button('Check for updates', 'check-updates', () => void runCheck())]
+      : said === 'checking' ? [el('span', {}, 'Checking for updates\u2026')]
+      : said === 'ready' ? [el('span', {}, 'A new version is ready.'), button('Update now', 'update-now', () => { checkSaid = 'updating'; paint(); void updateNow(); })]
+      : said === 'updating' ? [el('span', {}, 'Updating\u2026')]
+      : said === 'none' ? [el('span', {}, 'You\u2019re up to date.')]
+      : said === 'failed' ? [el('span', {}, 'Couldn\u2019t check just now (no connection?).'), button('Try again', 'check-updates', () => void runCheck())]
+      // (No service worker here, a browser that won't run one: each opening of the app is its newest version.)
+      : [el('span', {}, 'Nothing to check here: the app opens at its newest version.')]));
+    if (focused) (box.querySelector('button') ?? box).focus();
+  };
+  checkShown = paint;
+  paint();
+  return box;
 }
 
 // ============================================================

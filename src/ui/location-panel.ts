@@ -1,7 +1,6 @@
 import { saveHardy } from '../yard';
 import { CLIMATE_ACCESSED, FROST_SOURCE, formatMonthDay, lookUpZip, ZONE_SOURCE, type GardenLocation } from '../climate';
-import { el } from '../dom';
-import { I } from '../icons';
+import { el, sheetCloseButton } from '../dom';
 import { state } from '../state';
 import { save } from '../storage';
 import { plantFilter } from '../plants';
@@ -36,8 +35,7 @@ function closePanel() { state.panel = returnTo; returnTo = null; problem = ''; t
 
 export function renderLocationPanel(): HTMLElement {
   const loc = state.location ?? null;
-  const close = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' });
-  close.addEventListener('click', closePanel);
+  const close = sheetCloseButton(closePanel, returnTo); // (← back to the picker or the bloom calendar it was opened from)
   const header = el('div', { className: 'sheet-header' }, el('div', { className: 'title' }, 'Garden location'), close);
   const body = el('div', { className: 'sheet-body', 'data-testid': 'location' });
 

@@ -640,7 +640,9 @@ export async function switchProject(id: string): Promise<boolean> {
   cancelHistoryDebounce();
   // This plan's undo steps, kept while the app is open: back to it, they're back (Sam, Oct 30: Clear all, another
   // plan, and back, and the shapes couldn't be had again), unless it has changed since (sync): then they'd undo that.
-  if (state.currentProjectId) undoKept.set(state.currentProjectId, { history: state.history, index: state.historyIndex, token: changeToken(state.currentProjectId) });
+  // Only the steps to undo are kept, not the ones undone: back on the plan, no Redo for a change made before leaving
+  // it (the UI review, 2026-11-01; Jason: "Agree on not showing it after a switch").
+  if (state.currentProjectId) undoKept.set(state.currentProjectId, { history: state.history.slice(0, state.historyIndex + 1), index: state.historyIndex, token: changeToken(state.currentProjectId) });
   const kept = undoKept.get(id);
   undoKept.delete(id);
   const prev = state.currentProjectId;
@@ -692,9 +694,11 @@ async function collectImageGarbage(projectId: string, keep: Set<string>) {
     if (stale.length) await db().write(stale.map((k) => del('images', k)));
   } catch (e) { console.warn('image cleanup failed', e); }
 }
+/** A new plan's data: empty, at the size mode last chosen. */
+export function emptyProjectData(): ProjectData { return { ...sanitizeProjectData({}), sizeMode: lastSizeMode }; }
 /** Create a project (empty, or from given data). Does not open it. `id`: one the server already knows (sync). */
 export async function createProject(name: string, data?: ProjectData, id = uid()): Promise<string> {
-  const projectData = data ?? { ...sanitizeProjectData({}), sizeMode: lastSizeMode };
+  const projectData = data ?? emptyProjectData();
   const meta: ProjectMeta = { id, name: name.trim() || 'Untitled', lastModified: now(), shapeCount: projectData.shapes.length };
   await db().write([...projectWriteOps(id, projectData), put('meta', id, meta)]);
   state.projects.unshift(meta);

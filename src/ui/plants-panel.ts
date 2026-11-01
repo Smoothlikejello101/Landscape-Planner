@@ -1,5 +1,5 @@
 import { crowdLevelsOf, crowdNoticeAfterSwap } from './crowd-notice';
-import { el, tapSaid, type Child } from '../dom';
+import { el, sheetCloseButton, tapSaid, type Child } from '../dom';
 import { saveHardy, saveYard, yardOf } from '../yard';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
@@ -56,10 +56,12 @@ function addNativeHereOption() {
   sel.insertBefore(o, sel.options[1] ?? null);
 }
 
+/** Opened from a plant's sheet to swap it, or from a circle's to link it. */
+const pickerFromSheet = () => !!state.pickerLinkId && state.selectedIds.length > 0;
 function closePicker() {
-  // (Opened from a plant's sheet to swap it, or from a circle's to link it: closed, back on that sheet, as picking a
-  // plant brings you back there. The UI review, 2026-11-01: it closed the sheet too.)
-  const fromSheet = !!state.pickerLinkId && state.selectedIds.length > 0;
+  // (Opened from a sheet: closed, back on that sheet, as picking a plant brings you back there. The UI review,
+  // 2026-11-01: it closed the sheet too.)
+  const fromSheet = pickerFromSheet();
   state.panel = fromSheet ? 'props' : null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; state.pickerForTree = false; render();
 }
 // (A tree among its forms: a shrub that grows into a tree, mimosa or wax myrtle, can be the tree in the yard.)
@@ -174,7 +176,7 @@ export function renderPlantsPanel() {
   const titleNode = el('div', { className: 'title' }, title);
   const header = el('div', { className: 'sheet-header' },
     titleNode,
-    (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', closePicker); return b; })()
+    sheetCloseButton(closePicker, pickerFromSheet() ? 'props' : null) // (← back to the plant's sheet: closePicker)
   );
 
   const body = el('div', { className: 'sheet-body' });

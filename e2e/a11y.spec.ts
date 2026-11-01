@@ -55,7 +55,7 @@ test('the same on the other sheets: plant details, adding, projects, export and 
   seen.details = await problems(page);
   await page.getByTestId('add-own-plant').click();
   seen.plantForm = await problems(page);
-  await page.locator('.sheet-header .iconbtn[aria-label=Close]').click(); // (back to the picker)
+  await page.getByRole('button', { name: 'Back to the plant list' }).click(); // (back to the picker)
   await expect(page.getByTestId('plant-search')).toBeVisible();
   await closeSheet(page);
   await page.getByTestId('add-btn').click();

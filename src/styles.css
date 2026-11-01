@@ -20,10 +20,15 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .app { height: 100vh; height: calc(100dvh - var(--kb, 0px)); width: 100vw; display: flex; flex-direction: column; background: #f5f5f4; overflow: hidden; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
 /* Top bar */
 .topbar { display: flex; align-items: center; padding: 6px 8px; background: #fff; border-bottom: 1px solid #e7e5e4; flex-shrink: 0; gap: 4px; min-height: 44px; }
-.project-btn { flex: 1; min-width: 0; min-height: var(--tap); display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-radius: 6px; }
-.project-btn:hover { background: #f5f5f4; }
-.project-btn .pname { font-weight: 600; font-size: calc(14px * var(--ts)); color: #292524; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.project-btn .pinfo { font-size: calc(11px * var(--ts)); color: #78716c; white-space: nowrap; flex-shrink: 0; }
+/* The plan's name and its ▾: a button that opens the plans, drawn as one, with a light outline and tint as the app's
+   other buttons (Jason, from the UI review, 2026-11-01: it read as a title). The name on its own line, whether it's
+   saved under it (src/ui/render.ts). */
+.project-btn { flex: 1; min-width: 0; min-height: var(--tap); display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: 2px 12px 2px 14px; border: 1px solid #e7e5e4; border-radius: 999px; background: #fafaf9; text-align: left; }
+.project-btn:hover { background: #f5f5f4; border-color: #d6d3d1; }
+.project-btn .pname-row { display: flex; align-items: center; gap: 2px; max-width: 100%; min-width: 0; }
+.project-btn .pchev { display: flex; color: #78716c; flex-shrink: 0; }
+.project-btn .pname { font-weight: 600; font-size: calc(14px * var(--ts)); line-height: 1.2; color: #292524; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.project-btn .pinfo { font-size: calc(11px * var(--ts)); line-height: 1.2; color: #78716c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .project-btn .save-state.bad { color: #b91c1c; font-weight: 600; }
 .iconbtn { width: var(--tap); height: var(--tap); display: flex; align-items: center; justify-content: center; border-radius: 6px; color: #57534e; flex-shrink: 0; position: relative; }
 .iconbtn:hover { background: #f5f5f4; }
@@ -32,6 +37,8 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .iconbtn.over-sheet { z-index: 21; }
 .iconbtn.over-sheet:hover { background: none; }
 .iconbtn.active { background: #fef3c7; color: #92400e; }
+/* (What Undo and Redo would do, as the pointer's tooltip: over the whole button. src/ui/render.ts) */
+.iconbtn .step-tip { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
 .iconbtn .dot { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; background: #dc2626; border-radius: 50%; }
 /* Canvas */
 .canvas-wrap { flex: 1; position: relative; overflow: hidden; touch-action: none; min-height: 0; }
@@ -287,6 +294,10 @@ a { color: inherit; }
 #update-banner button.later { background: transparent; color: #d6d3d1; font-weight: 500; }
 .menu-version { font-size: calc(11px * var(--ts)); color: #78716c; padding: 8px 14px 10px; border-top: 1px solid #e7e5e4; display: flex; align-items: center; gap: 6px; }
 .menu-version .brand-mark { width: calc(16px * var(--ts)); height: calc(16px * var(--ts)); flex: none; color: #2f5d3a; }
+/* "Check for updates" under the version: its own line, a finger's height to tap (src/ui/menu.ts). */
+.menu-version { flex-wrap: wrap; }
+.menu-version .update-check { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; min-height: 36px; }
+.menu-version .update-check .link-btn { font-size: calc(12px * var(--ts)); min-height: 36px; padding: 4px 0; }
 .storage-warning .link-btn { color: inherit; text-decoration: underline; font-weight: 600; font-size: inherit; }
 .fatal { max-width: 420px; margin: 15vh auto 0; padding: 24px; text-align: center; color: #292524; }
 .fatal h1 { font-size: calc(18px * var(--ts)); margin: 0 0 12px; }
@@ -857,6 +868,7 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .float-redo.shown { opacity: 1; transform: none; }
 .float-redo.still { transition: none; }
 .float-redo svg { width: 20px; height: 20px; }
+.float-redo .step-tip { display: flex; align-items: center; gap: 6px; align-self: stretch; margin: 0 -14px 0 -10px; padding: 0 14px 0 10px; }
 /* A day with no sun recorded yet: an empty bar that says what to do (src/ui/time-range.ts emptyTimeline). */
 .time-range.empty { display: block; width: 100%; height: 56px; padding: 0; border: 0; background: none; cursor: crosshair; touch-action: none; font: inherit; }
 .time-range.empty .tr-track { top: 6px; height: 24px; border-radius: 6px; background: repeating-linear-gradient(90deg, #f5f5f4 0 12px, #e7e5e4 12px 13px); border: 1px dashed #a8a29e; }

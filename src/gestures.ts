@@ -1,7 +1,7 @@
 import { bgCalibrationTap, bgCenterClient } from './background';
 import { DOUBLE_TAP_MS, DRAG_THRESHOLD_PX, MAX_ZOOM, MIN_ZOOM, PX_PER_FOOT_BASE } from './constants';
 import { canvasRect, lassoTouches, pxPerFoot, screenToFeet } from './geometry';
-import { flushHistoryDebounce, pushHistory } from './history';
+import { flushHistoryDebounce, pushHistory, stepNamed } from './history';
 import { zoomBy } from './mutations';
 import { movedWith } from './beds';
 import { isLocked } from './roles';
@@ -408,7 +408,8 @@ export function onCanvasPointerUp(e: PointerEvent) {
       if (g.moved) {
         // (A vine whose support moved out of its reach is a groundcover again, in the same step: src/vines.ts.)
         const freed = freeStrandedVines();
-        flushHistoryDebounce(); pushHistory(); save();
+        const moved = state.selectedIds.length > 1 && state.selectedIds.includes(g.id) ? state.selectedIds : [g.id];
+        flushHistoryDebounce(); pushHistory('move ' + stepNamed(state.shapes.filter((s) => moved.includes(s.id)))); save();
         if (freed.length) saidFreed(freed); else afterMove(g.ids);
       }
       else {

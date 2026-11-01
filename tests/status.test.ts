@@ -64,6 +64,8 @@ describe('setting status and phases', () => {
     setStatusForIds(['b'], 'gone');
     expect(state.selectedIds).toEqual(['a']); // gone shapes leave the view and the selection
     expect(state.historyIndex).toBe(2);
+    // Each step says what it did, for Undo and Redo on a computer (the UI review, 2026-11-01).
+    expect(state.history.map((h) => h.label)).toEqual(['set 2 plants to Planned', 'clear the status of a', 'set b to Gone']);
   });
   it('phases are added once, assigned, and removed cleanly', () => {
     state.shapes = [plant('a'), plant('b')];

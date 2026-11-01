@@ -58,7 +58,7 @@ export function placeTap(clientX: number, clientY: number) {
   lastPlaced = { t, x: clientX, y: clientY, id: p.id };
   const shape = plantShapeAt(p, screenToFeet(clientX, clientY));
   state.shapes.push(shape);
-  pushHistory();
+  pushHistory('place ' + p.common);
   state.placing.placed.push({ id: shape.id, snap: state.history[state.historyIndex] });
   noteRecentPlant(p.id); // what's actually placed, not just picked
   save();

@@ -5,14 +5,14 @@ import { I } from '../icons';
 import { paste } from '../mutations';
 import { pushHistory } from '../history';
 import { state } from '../state';
-import { createProject, deleteProject, getClipboard, getLastBackupAt, isPersisted, renameProject, storageIsDurable, switchProject } from '../storage';
+import { createProject, deleteProject, emptyProjectData, getClipboard, getLastBackupAt, isPersisted, renameProject, storageIsDurable, switchProject } from '../storage';
 import type { PanelName } from '../types';
-import { errMsg } from '../util';
+import { deepClone, errMsg } from '../util';
 import { render } from './render';
 import { accountSection } from './account-section';
 import { deleteNote } from '../sync/sync';
 import { toast } from './toast';
-import { askChoice, askText, tell } from './ask';
+import { askChoice, askTextAnd, tell } from './ask';
 
 function closeButton(onClick: () => void) {
   const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' });
@@ -165,10 +165,16 @@ export function renderProjectsPanel() {
 
   const newBtn = el('button', { className: 'btn primary', style: { margin: '16px' }, html: I.plus + '<span>New project</span>' });
   newBtn.addEventListener('click', async () => {
-    const name = await askText('Name for the new project', 'Untitled', { ok: 'Make it', label: 'Project name' });
-    if (name === null) return;
+    // (The plan open has a location: offered for the new one, ticked, most new plans being of the same garden. Jason,
+    // from the UI review, 2026-11-01.)
+    const here = state.location;
+    const said = await askTextAnd('Name for the new project', 'Untitled', {
+      ok: 'Make it', label: 'Project name', check: here ? { label: `Same garden (ZIP ${here.zip})?`, checked: true } : undefined,
+    });
+    if (said === null) return;
     // (Two plans of one name couldn't be told apart: "(2)", as an import does. Round 3, Sam.)
-    await openProject(await createProject(uniqueName(name, state.projects.map((p) => p.name))));
+    const name = uniqueName(said.text, state.projects.map((p) => p.name));
+    await openProject(await createProject(name, here && said.checked ? { ...emptyProjectData(), location: deepClone(here) } : undefined));
   });
 
   const sheet = el('div', { className: 'sheet' }, header, list, newBtn);
