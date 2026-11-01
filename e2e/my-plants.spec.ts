@@ -124,6 +124,24 @@ test('copy a catalog plant as your own cultivar', async ({ page }) => {
   await expect(page.locator('.sel-pill .name')).toHaveText("Heuchera 'Caramel'");
 });
 
+test('a plant copied from the catalog isn\'t offered as "now in the catalog" as the plant it came from (the UI review)', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('peony');
+  await page.locator('.proj-row', { hasText: 'Paeonia – Herbaceous Types' }).first().getByRole('button', { name: /Copy as my plant/ }).click();
+  await expect(page.getByTestId('pf-name')).toHaveValue('Paeonia – Herbaceous Types'); // (to change what differs)
+  await page.getByTestId('pf-save').click();
+  await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker');
+  const mine = page.locator('.proj-row', { hasText: 'Paeonia – Herbaceous Types' }).filter({ has: page.locator('.mine-badge') });
+  for (const reload of [false, true]) {
+    if (reload) { await page.waitForTimeout(600); await page.reload(); await page.locator('.tool-btn.plants').click(); } // (kept with the plant)
+    await page.getByTestId('plant-search').fill('Herbaceous');
+    await expect(mine).toHaveCount(1);
+    await expect(page.getByTestId('my-plants-fold')).toHaveText(/^My plants \(1\)$/);
+    await expect(page.getByTestId('now-in-catalog')).toHaveCount(0);
+  }
+});
+
 test('closing Add a plant or a copy with its × goes back to the picker, the search as it was (the UI review; Owen)', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();

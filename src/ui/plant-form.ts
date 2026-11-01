@@ -365,8 +365,11 @@ export function renderPlantForm() {
       ...(start ? { bloom: { start, end, ...(bloomColor.value.trim() ? { color: bloomColor.value.trim() } : {}) } } : {}),
       ...(flowers.length ? { flower_color: [...flowers] } : {}),
       ...(notes.value.trim() ? { notes: notes.value.trim() } : {}),
-      // (Kept as the person left them: switched to the catalog's, or not that one.)
-      ...(editing?.sameAs ? { sameAs: editing.sameAs } : editing?.notSame ? { notSame: editing.notSame } : {}),
+      // (Kept as the person left them: switched to the catalog's, or not that one. Made from a catalog plant, it's
+      // their own and not that one: never offered as "Now in the catalog" as the plant it was copied from. The UI
+      // review, 2026-11-01: a copy of Paeonia – Herbaceous Types was, at once.)
+      ...(editing?.sameAs ? { sameAs: editing.sameAs } : editing?.notSame ? { notSame: editing.notSame }
+        : startedFrom && !isMine(startedFrom) ? { notSame: startedFrom.id } : {}),
       ...(same.checked && species ? { species: species.id } : {}),
       ...(!sexField.hidden && (sexSel.value === 'male' || sexSel.value === 'female') ? { sex: sexSel.value } : {}),
     };
