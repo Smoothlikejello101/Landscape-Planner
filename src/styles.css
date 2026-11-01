@@ -20,10 +20,15 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .app { height: 100vh; height: calc(100dvh - var(--kb, 0px)); width: 100vw; display: flex; flex-direction: column; background: #f5f5f4; overflow: hidden; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
 /* Top bar */
 .topbar { display: flex; align-items: center; padding: 6px 8px; background: #fff; border-bottom: 1px solid #e7e5e4; flex-shrink: 0; gap: 4px; min-height: 44px; }
-.project-btn { flex: 1; min-width: 0; min-height: var(--tap); display: flex; align-items: center; gap: 4px; padding: 6px 8px; border-radius: 6px; }
-.project-btn:hover { background: #f5f5f4; }
-.project-btn .pname { font-weight: 600; font-size: calc(14px * var(--ts)); color: #292524; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.project-btn .pinfo { font-size: calc(11px * var(--ts)); color: #78716c; white-space: nowrap; flex-shrink: 0; }
+/* The plan's name and its ▾: a button that opens the plans, drawn as one, with a light outline and tint as the app's
+   other buttons (Jason, from the UI review, 2026-11-01: it read as a title). The name on its own line, whether it's
+   saved under it (src/ui/render.ts). */
+.project-btn { flex: 1; min-width: 0; min-height: var(--tap); display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding: 2px 12px 2px 14px; border: 1px solid #e7e5e4; border-radius: 999px; background: #fafaf9; text-align: left; }
+.project-btn:hover { background: #f5f5f4; border-color: #d6d3d1; }
+.project-btn .pname-row { display: flex; align-items: center; gap: 2px; max-width: 100%; min-width: 0; }
+.project-btn .pchev { display: flex; color: #78716c; flex-shrink: 0; }
+.project-btn .pname { font-weight: 600; font-size: calc(14px * var(--ts)); line-height: 1.2; color: #292524; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.project-btn .pinfo { font-size: calc(11px * var(--ts)); line-height: 1.2; color: #78716c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .project-btn .save-state.bad { color: #b91c1c; font-weight: 600; }
 .iconbtn { width: var(--tap); height: var(--tap); display: flex; align-items: center; justify-content: center; border-radius: 6px; color: #57534e; flex-shrink: 0; position: relative; }
 .iconbtn:hover { background: #f5f5f4; }

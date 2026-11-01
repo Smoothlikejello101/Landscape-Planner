@@ -67,6 +67,9 @@ export function renderMoreMenu() {
     items.push({ icon: I.download, label: 'Export image…', onClick: () => { state.panel = 'export'; state.menu = null; render(); } });
   }
   items.push({ divider: true });
+  // The plans, and backing them up: the pane the plan's name opens, from here too (Jason, from the UI review,
+  // 2026-11-01: people looked for backup in ⋮).
+  items.push({ icon: I.folder, label: 'Plans and backup\u2026', testid: 'menu-plans', onClick: () => { state.panel = 'projects'; state.menu = null; render(); } });
   items.push({
     icon: I.edit,
     label: 'Rename current project',

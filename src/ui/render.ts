@@ -140,9 +140,12 @@ export function render() {
   const topbar = el('div', { className: 'topbar' });
   const proj = currentProject();
   const projName = proj ? proj.name : 'Untitled';
+  // (The name and its ▾ on a line of their own, whether it's saved under them: at 360 px, beside them, it left the
+  // name a letter or two, none at all at Small text. The UI review, 2026-11-01, when it became a button to look at.)
   const projBtn = el('button', { className: 'project-btn' },
-    el('div', { className: 'pname' }, projName),
-    el('div', { html: I.chevronDown, style: { display: 'flex', color: '#78716c' } }),
+    el('div', { className: 'pname-row' },
+      el('div', { className: 'pname' }, projName),
+      el('div', { className: 'pchev', html: I.chevronDown })),
     // (At Medium and Large text, only whether it's saved, small: room for the name. The zoom shows while it changes.)
     el('div', { className: 'pinfo' }, ...(roomyText() ? [] : [el('span', { className: 'pcount' }, statusText()), ' \u00b7 ']),
       (() => { const s = saveStateWord(); return el('span', { className: 'save-state' + (s.bad ? ' bad' : ''), title: s.title, 'data-testid': 'save-state' }, s.word); })())
