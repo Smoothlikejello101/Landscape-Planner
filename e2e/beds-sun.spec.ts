@@ -53,7 +53,7 @@ test('a bed carries the plants inside it, unless that is turned off', async ({ p
   expect(Math.round((await plant.boundingBox())!.x - p2.x)).toBe(0); // plant stayed
 });
 
-test('deleting a bed with plants in it asks whether they go too; either way one Undo brings everything back (the UI review, 2026-11-01)', async ({ page }) => {
+test('deleting a bed with plants in it asks whether they go too, its locked ones as well; either way one Undo brings everything back (the UI review and Jason, 2026-11-01)', async ({ page }) => {
   await page.addInitScript(() => {
     if (sessionStorage.getItem('seeded')) return;
     sessionStorage.setItem('seeded', '1');
@@ -66,41 +66,61 @@ test('deleting a bed with plants in it asks whether they go too; either way one 
         { ...base, id: 'p3', type: 'circle', x: 5, y: 5, radius: 1, label: 'Three', role: 'plant', locked: true },
         { ...base, id: 'lawn', type: 'circle', x: -6, y: 2, radius: 1, label: 'On the lawn', role: 'plant' },
         { ...base, id: 'empty', type: 'rect', x: -8, y: 8, width: 4, height: 3, rotation: 0, label: 'Empty bed', role: 'bed' },
+        { ...base, id: 'back', type: 'rect', x: 0, y: 10, width: 6, height: 4, rotation: 0, label: 'Back bed', role: 'bed' },
+        { ...base, id: 'p4', type: 'circle', x: 3, y: 12, radius: 1, label: 'Four', role: 'plant' },
       ],
       zoom: 1, offsetX: -10, offsetY: -6,
     }));
   });
   await page.goto('./');
-  await expect.poll(() => shapeCount(page)).toBe(6);
+  await expect.poll(() => shapeCount(page)).toBe(8);
   const ask = page.locator('.ask-overlay [role=alertdialog]');
   const deleteBed = async (label: string) => {
     await openProps(page, label);
     await page.locator('.sheet .action-row button', { hasText: 'Delete' }).click();
   };
-  // It asks, in the app's own question: the bed only, or its plants too (the locked one stays either way).
+  // With a locked plant in it: the bed only, the bed and its unlocked plants, or everything (Jason, Nov 1: a bed can
+  // be deleted though it's locked, so its locked plants can go too). It asks in the app's own question.
   await deleteBed('Front bed');
-  await expect(ask.locator('.ask-message')).toHaveText('\u201cFront bed\u201d has 2 plants in it (and 1 locked, which stays).');
-  await expect(ask.locator('button')).toHaveText(['Delete the bed only (its 2 plants stay)', 'Delete the bed and its 2 plants', 'Cancel']);
+  await expect(ask.locator('.ask-message')).toHaveText('“Front bed” has 3 plants in it, 1 of them locked.');
+  await expect(ask.locator('button')).toHaveText(['Delete the bed only (its 3 plants stay)', 'Delete the bed and its 2 unlocked plants (the 1 locked plant stays)',
+    'Delete the bed and all 3 plants, the 1 locked plant too', 'Cancel']);
   await expect(ask.getByTestId('ask-cancel')).toBeFocused();
   await ask.getByTestId('ask-cancel').click();
-  await expect.poll(() => shapeCount(page)).toBe(6);
+  await expect.poll(() => shapeCount(page)).toBe(8);
   // The bed only: its plants stay where they are; the notice says so, and its Undo brings the bed back.
   await page.locator('.sheet .action-row button', { hasText: 'Delete' }).click();
   await ask.getByTestId('ask-bed-only').click();
-  await expect.poll(() => shapeCount(page)).toBe(5);
+  await expect.poll(() => shapeCount(page)).toBe(7);
   await expect(page.locator('#canvas-svg [data-shape-id=bed]')).toHaveCount(0);
-  await expect(page.locator('#toast-action')).toContainText('Deleted Front bed; its 2 plants stay');
+  await expect(page.locator('#toast-action')).toContainText('Deleted Front bed; its 3 plants stay');
   await page.locator('#toast-action').getByRole('button', { name: 'Undo' }).click();
-  await expect.poll(() => shapeCount(page)).toBe(6);
-  // The bed and its plants: one step, which the top bar's Undo brings back whole.
+  await expect.poll(() => shapeCount(page)).toBe(8);
+  // The bed and its unlocked plants: the locked one stays.
+  await deleteBed('Front bed');
+  await ask.getByTestId('ask-bed-unlocked').click();
+  await expect.poll(() => shapeCount(page)).toBe(5);
+  for (const id of ['bed', 'p1', 'p2']) await expect(page.locator(`#canvas-svg [data-shape-id=${id}]`)).toHaveCount(0);
+  await expect(page.locator('#canvas-svg [data-shape-id=p3]')).toHaveCount(1);
+  await expect(page.locator('#toast-action')).toContainText('Deleted Front bed and its 2 unlocked plants; the 1 locked plant stays');
+  await page.locator('button[title=Undo]').click();
+  await expect.poll(() => shapeCount(page)).toBe(8);
+  // Everything: the locked plant too, in one step, which the top bar's Undo brings back whole.
   await deleteBed('Front bed');
   await ask.getByTestId('ask-ok').click();
-  await expect.poll(() => shapeCount(page)).toBe(3);
-  for (const id of ['bed', 'p1', 'p2']) await expect(page.locator(`#canvas-svg [data-shape-id=${id}]`)).toHaveCount(0);
-  await expect(page.locator('#canvas-svg [data-shape-id=p3]')).toHaveCount(1); // (locked)
-  await expect(page.locator('#toast-action')).toContainText('Deleted Front bed and its 2 plants');
+  await expect.poll(() => shapeCount(page)).toBe(4);
+  for (const id of ['bed', 'p1', 'p2', 'p3']) await expect(page.locator(`#canvas-svg [data-shape-id=${id}]`)).toHaveCount(0);
+  await expect(page.locator('#toast-action')).toContainText('Deleted Front bed and its 3 plants');
   await page.locator('button[title=Undo]').click();
+  await expect.poll(() => shapeCount(page)).toBe(8);
+  await expect(page.locator('#canvas-svg [data-shape-id=p3]')).toHaveCount(1);
+  // No locked plants in it: the bed only, or the bed and its plants.
+  await deleteBed('Back bed');
+  await expect(ask.locator('.ask-message')).toHaveText('“Back bed” has 1 plant in it.');
+  await expect(ask.locator('button')).toHaveText(['Delete the bed only (its 1 plant stays)', 'Delete the bed and its 1 plant', 'Cancel']);
+  await ask.getByTestId('ask-ok').click();
   await expect.poll(() => shapeCount(page)).toBe(6);
+  await expect(page.locator('#toast-action')).toContainText('Deleted Back bed and its 1 plant');
   // A bed with no plants in it goes as before, nothing asked.
   await deleteBed('Empty bed');
   await expect(page.locator('#toast-action')).toContainText('Deleted Empty bed');
