@@ -137,10 +137,6 @@ async function deleteBedAsking(bed: Shape): Promise<void> {
   render();
 }
 /**
- * "Deleted 3 plants · Undo": every delete says what went, with an Undo of that step (while nothing has changed
- * since; after that, the top bar's Undo).
- */
-/**
  * Cut (Ctrl+X): what's selected goes to the clipboard and off the plan, with Undo; nothing asked, since Paste or Undo
  * brings it back. Locked shapes stay, and stay off the clipboard.
  */
@@ -155,11 +151,18 @@ export function cutSelected() {
   state.panel = null;
   undoNotice(`Cut ${going.length === 1 ? going[0].label || describeShapes(going) : describeShapes(going)}` + (kept ? `; ${kept} locked ${kept === 1 ? 'shape' : 'shapes'} kept` : ''));
 }
-export function undoNotice(said: string) {
+/**
+ * "Deleted 3 plants · Undo": every delete says what went, with an Undo of that step (while nothing has changed
+ * since; after that, the top bar's Undo). `takeBack`, for a change that isn't only a step to undo (warnings dismissed
+ * for a plant across the plan aren't in the undo history: src/warnings-list.ts setDismissed): it takes it back its own
+ * way, false if it has changed since.
+ */
+export function undoNotice(said: string, takeBack?: () => boolean) {
   const step = state.history[state.historyIndex];
   toastAction(said, [{ label: 'Undo', run: () => {
     flushHistoryDebounce();
-    if (state.history[state.historyIndex] !== step) { toast('It has changed since, so it was left as it is.'); return; }
-    undo(); render();
+    if (takeBack ? !takeBack() : state.history[state.historyIndex] !== step) { toast('It has changed since, so it was left as it is.'); return; }
+    if (!takeBack) undo();
+    render();
   } }], 8000);
 }
