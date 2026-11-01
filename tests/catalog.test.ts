@@ -10,7 +10,7 @@ describe('the decisions the build applies (scripts/catalog/decisions.json)', () 
   const decisions = JSON.parse(readFileSync(new URL('../scripts/catalog/decisions.json', import.meta.url), 'utf8'));
   const ids = new Set((shipped as CatalogFile).plants.map((r) => r.id));
   it('name plants the catalog has, forms it has, and who decided when', () => {
-    for (const kind of ['form', 'edible', 'nativeShown', 'genusPage', 'split', 'cultivar', 'kewSpecies', 'parent', 'group']) {
+    for (const kind of ['form', 'edible', 'nativeShown', 'genusPage', 'split', 'cultivar', 'rename', 'kewSpecies', 'parent', 'group']) {
       for (const [id, d] of Object.entries(decisions[kind] ?? {}) as [string, { decided?: string; by?: string }][]) {
         expect(ids.has(id), `${kind}: ${id}`).toBe(true);
         expect(d.decided, `${kind}: ${id}`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
@@ -28,12 +28,20 @@ describe('the decisions the build applies (scripts/catalog/decisions.json)', () 
     const byId = new Map((shipped as CatalogFile).plants.map((r) => [r.id, r]));
     const moved = (shipped as CatalogFile).meta.moved ?? {};
     for (const [id, d] of Object.entries(decisions.fold ?? {}) as [string, { into: string; decided: string; by: string }][]) {
-      expect([ids.has(id), ids.has(d.into), moved[id], d.decided, d.by], id).toEqual([false, true, d.into, '2026-10-27', 'Jason']);
+      expect([ids.has(id), ids.has(d.into), moved[id], d.by], id).toEqual([false, true, d.into, 'Jason']);
+      expect(d.decided, id).toMatch(/^2026-1[01]-\d{2}$/);
     }
     for (const [id, d] of Object.entries(decisions.cultivar ?? {}) as [string, { cultivar: string; common: string }][]) {
       expect(byId.get(id)!.common, id).toBe(d.common);
       expect(byId.get(id)!.botanical, id).toContain(d.cultivar);
     }
+    // A record renamed by the naming rule (a seed strain, Jason 2026-11-01): its names as decided, its old name kept.
+    for (const [id, d] of Object.entries(decisions.rename ?? {}) as [string, { common: string; botanical?: string }][]) {
+      const r = byId.get(id)!;
+      expect([r.common, r.botanical], id).toEqual([d.common, d.botanical ?? r.botanical]);
+    }
+    expect(byId.get('asclepias-tuberosa-clay-strain')!.synonyms).toEqual(["Butterfly weed 'for Clay'"]);
+    expect(byId.get('asparagus-officinalis-jersey-millennium')).not.toHaveProperty('synonyms'); // (no 'Jersey' or 'Millennium': Jason)
     for (const [id, d] of Object.entries(decisions.kewSpecies ?? {}) as [string, { species: string }][]) {
       const r = byId.get(id)!;
       expect(r.botanical?.startsWith(`${d.species} '`), id).toBe(true);
@@ -43,7 +51,7 @@ describe('the decisions the build applies (scripts/catalog/decisions.json)', () 
     // Rabbiteyes, followed to Kew: the species, and each cultivar under it, reading its own NC State page.
     expect(['vaccinium-virgatum-climax-premier-tifblue', 'vaccinium-virgatum-climax', 'vaccinium-corymbosum-premier'].map((id) => byId.get(id)?.parent)).toEqual(['vaccinium-virgatum', 'vaccinium-virgatum', 'vaccinium-virgatum']);
     expect(byId.get('vaccinium-corymbosum-premier')!.facts.height).toMatchObject({ v: { min: 6, max: 8 }, src: expect.arrayContaining(['ncsu']) });
-    // A group kept as one record reads its species' page for its size.
+    // Asparagus, named as its species (once a group kept as one record), reads its species' page for its size.
     expect(byId.get('asparagus-officinalis-jersey-millennium')!.facts.height).toMatchObject({ v: { min: 3, max: 5 }, src: expect.arrayContaining(['ncsu']) });
   });
 });
@@ -59,9 +67,9 @@ describe('the shipped catalog', () => {
     expect(plants).toHaveLength(records.length);
     // Every plant of the first list; the rest added from NC State's Plant Toolbox, each with the page it was found
     // on (scripts/catalog/added-plants.json: so it's never added twice).
-    // (820, less 7 folded into records of their own, and 23 cultivars split from its records of several:
+    // (820, less 8 folded into records of their own, and 23 cultivars split from its records of several:
     // decisions.json `split`, named by the record, 14 of them taking their species' size.)
-    expect(records.filter((r) => r.src?.includes('compendium'))).toHaveLength(836);
+    expect(records.filter((r) => r.src?.includes('compendium'))).toHaveLength(835);
     expect(records.filter((r) => r.src?.includes('compendium') && r.inherits).length).toBe(14);
     const pages = JSON.parse(readFileSync(new URL('../scripts/catalog/added-plants.json', import.meta.url), 'utf8')).pages;
     const added = records.filter((r) => !r.src?.includes('compendium'));
@@ -254,9 +262,9 @@ describe('records', () => {
     const strain = catalogWarnings({ meta, plants: [rec({ id: 's', common: 'Butterfly weed (clay strain)', botanical: 'Asclepias tuberosa (clay strain)', facts: { width: { min: 1, max: 2 } } })] });
     expect(strain).toEqual(['s: parentheses in its botanical name: a cultivar is quoted; a seed strain or ecotype is named "Common name (strain)"']);
   });
-  it('list every botanical name with parentheses in the shipped catalog: the clay strain, and the three left as they are', () => {
+  it('list no botanical name with parentheses in the shipped catalog: the earlier list\'s four renamed or folded (Jason, 2026-11-01)', () => {
     const listed = catalogWarnings(shipped).filter((w) => w.includes('parentheses in its botanical name')).map((w) => w.split(':')[0]);
-    expect(listed.sort()).toEqual(['asclepias-tuberosa-clay-strain', 'asparagus-officinalis-jersey-millennium', 'iris-aquatic-spp', 'vernonia-hybrid-mt-cuba']);
+    expect(listed).toEqual([]);
   });
 });
 

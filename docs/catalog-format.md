@@ -127,17 +127,30 @@ Quotes in a record's name are only for a named cultivar: "Hydrangea
 "Cultivar names"). A seed strain or an ecotype isn't a cultivar: it's named
 "Common name (strain)", "Butterfly weed (clay strain)", not "Butterfly weed
 'for Clay'" (Jason, from the UI review, 2026-11-01). A botanical name has no
-parentheses; `catalog:check` lists one that has (the earlier list's strains,
-groups and notes: "Asclepias tuberosa (clay strain)", "Iris (aquatic
-spp.)"), for a person to look at.
+parentheses; `catalog:check` lists one that has, for a person to look at.
+The earlier list had four, its way of writing a strain, a group or a note,
+and none is left (Jason, 2026-11-01): the clay strain renamed (below); "Iris
+(aquatic spp.)", several water irises, folded into Blue flag iris (`fold`);
+"Asparagus officinalis ('Jersey' / 'Millennium')" named as its species
+(`rename`); "Vernonia hybrid (Mt. Cuba)" named for its cultivar, "Vernonia
+'Prairie Princess'" (`cultivar`).
 
-Butterfly weed 'for Clay' keeps its quotes for now: the build reads a record
-as a cultivar, and its nursery pages as its own, by the quotes in its names
-(`recordCultivars` in scripts/catalog/ncsu-page.mjs, `cultivarOf` in
-reclaim.mjs). Renamed, the next build would stop reading Prairie Nursery's
-page for it and read NC State's page for the species as its own instead.
-Renaming it needs a decision that also tells the build what its sources call
-it.
+A strain is renamed by a decision (`rename` in scripts/catalog/decisions.json),
+its old name kept as a synonym: Butterfly weed 'for Clay' is "Butterfly weed
+(clay strain)", botanical "Asclepias tuberosa clay strain" (Jason,
+2026-11-01). Its botanical name keeps the strain, without parentheses, rather
+than being the species' alone: the app and the build take the record named
+"Asclepias tuberosa" for the species, so a plant of mine named so would be
+linked to the strain, and the wild records would give the species' counties
+and native status as the strain's own.
+
+The build reads a record as a cultivar, and a nursery's page as its own, by
+the quotes in its names (`recordCultivars` in scripts/catalog/ncsu-page.mjs,
+`cultivarOf` in reclaim.mjs). A renamed strain's decision says what its
+sources sell it as (`soldAs`: "for Clay", Prairie Nursery's Butterfly Weed for
+Clay), which the build reads as it reads a quoted cultivar. So its facts stay
+as they were: without it, the next build would read none of Prairie Nursery's
+page for it, and NC State's page for the species as its own.
 
 ## Facts
 

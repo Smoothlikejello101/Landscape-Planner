@@ -33,7 +33,7 @@ import { join } from 'node:path';
 import { cacheName, fetchSession, fileStore, runFetch, siteOf } from './fetch-lib.mjs';
 import { get } from './net.mjs';
 import { lockCatalogSrc, savedMeta, savedPage } from './pages.mjs';
-import { quotedCultivars } from './ncsu-page.mjs';
+import { quotedCultivars, soldAs } from './ncsu-page.mjs';
 import { TERMS_GUESSES, headline, isUseTerms, looksLikeTerms, mentionsTerms, plainText, siteKind, termsKey, termsLinks, termsPassages, termsVerdict, webClaims } from './web.mjs';
 
 const args = process.argv.slice(2);
@@ -80,7 +80,9 @@ const sample = JSON.parse(readFileSync(samplePath, 'utf8'));
 const picks = new Map(); // plant id → { plant, urls }
 for (const s of sample) {
   const rec = byId.get(s.id) ?? { botanical: s.botanical, common: s.common };
-  const cultivar = quotedCultivars(rec.botanical)[0] ?? quotedCultivars(rec.common)[0] ?? null;
+  // (A strain renamed out of quotes is searched by what its sources sell it as: "for Clay" Asclepias tuberosa, as
+  // before its rename. decisions.json `rename`, `soldAs`; Jason, 2026-11-01.)
+  const cultivar = quotedCultivars(rec.botanical)[0] ?? quotedCultivars(rec.common)[0] ?? soldAs(rec);
   const name = cultivar ? `"${cultivar}" ${s.species}` : rec.botanical && rec.botanical !== s.species ? `"${rec.common}" ${s.species}` : `"${s.species}"`;
   const urls = [];
   for (const q of queriesOf(name)) {
