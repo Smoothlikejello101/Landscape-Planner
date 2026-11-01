@@ -167,9 +167,13 @@ export function renderPlantsPanel() {
   const swapping = linking && [state.pickerLinkId!, ...state.pickerLinkAlso].every((id) => { const s = state.shapes.find((x) => x.id === id); return !!s?.plantId && !!plantsById[s.plantId]; });
   const forTree = !linking && state.pickerForTree;
   if (forTree) treeFiltersAside(); // (naming a tree in the yard: no shopping filters, src/plants.ts)
-  const title = swapping ? 'Swap for another plant' : linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker' + (PLANTS.length ? ' (' + countWord(PLANTS.filter((p) => !bannedHere(p)).length + activeMyPlants().length) + ')' : '');
+  const browsing = !swapping && !linking && !forTree && !state.placing;
+  const title = swapping ? 'Swap for another plant' : linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker';
+  // (The plain picker's count, of the plants it offers: written with the count line, from the same numbers. The UI
+  // review, 2026-11-01: drawn before the garden's state's law came in, it said 3,747 beside "of 3,745".)
+  const titleNode = el('div', { className: 'title' }, title);
   const header = el('div', { className: 'sheet-header' },
-    el('div', { className: 'title' }, title),
+    titleNode,
     (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', closePicker); return b; })()
   );
 
@@ -395,6 +399,7 @@ export function renderPlantsPanel() {
     const out = bannedLeftOut(plantFilter) ? banned : [];
     const foundBanned = hits.filter(bannedHere).length;
     const n = hits.length + mine.length - foundBanned, all = PLANTS.length + activeMyPlants().length - banned.length;
+    if (browsing) titleNode.textContent = 'Plant Picker' + (PLANTS.length ? ` (${countWord(all)})` : '');
     // (Nothing matched as typed, only close spellings: said so, not counted as matches (Lena, Oct 30).)
     // ("In this plan": the plan's kinds, not a share of the catalog (Dana, Oct 30: "6 of 3,725 plants match").)
     const found = hits.length + mine.length;

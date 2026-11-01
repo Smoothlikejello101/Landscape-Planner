@@ -163,6 +163,29 @@ test('the ZIP from the picker: its sheet shows the zone, and closing it goes bac
   await expect(page.locator('.sheet label', { hasText: 'Hardy in zone 8a' })).toBeVisible();
 });
 
+test('the picker\'s title counts the plants its count line counts, once the state\'s law is in too (the UI review)', async ({ page }) => {
+  // (Clark County, Arkansas: the real Arkansas file, held back till the picker is drawn.)
+  const table = { ...TABLE, zips: { '71923': ['8a', 0, 3, 5019] } };
+  await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(table) }));
+  let release = () => {};
+  const held = new Promise<void>((done) => { release = done; });
+  await page.route('**/wild/**', async (r) => { await held; await r.continue(); });
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  const title = page.locator('.sheet-header .title'), count = page.getByTestId('picker-count');
+  const offered = async () => (await count.textContent())!.match(/^(?:All ([\d,]+) plants|[\d,]+ of ([\d,]+) plants match)/)!.slice(1).find(Boolean);
+  await expect(count).toContainText(/^All [1-9][\d,]* plants/); // (the catalog in)
+  await expect(title).toHaveText(`Plant Picker (${await offered()})`);
+  await page.getByTestId('hardy-here').click();
+  await page.getByTestId('zip').fill('71923');
+  await page.getByTestId('zip-lookup').click();
+  await page.getByTestId('location-to-plants').click();
+  await expect(count).not.toContainText('banned');
+  release();
+  await expect(count).toContainText(/plants? banned in Arkansas shows? only when searched by name/);
+  await expect(title).toHaveText(`Plant Picker (${await offered()})`);
+});
+
 test('a plant recorded growing wild in the garden\'s county or next door says so, and counts as hardy there', async ({ page }) => {
   // (The ZIP table stood in for, with Clark County; the Arkansas records are the real ones.)
   const table = { ...TABLE, zips: { '71923': ['8a', 0, 3, 5019] } };
