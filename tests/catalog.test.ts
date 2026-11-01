@@ -41,6 +41,7 @@ describe('the decisions the build applies (scripts/catalog/decisions.json)', () 
       expect([r.common, r.botanical], id).toEqual([d.common, d.botanical ?? r.botanical]);
     }
     expect(byId.get('asclepias-tuberosa-clay-strain')!.synonyms).toEqual(["Butterfly weed 'for Clay'"]);
+    expect(byId.get('asparagus-officinalis-jersey-millennium')).not.toHaveProperty('synonyms'); // (no 'Jersey' or 'Millennium': Jason)
     for (const [id, d] of Object.entries(decisions.kewSpecies ?? {}) as [string, { species: string }][]) {
       const r = byId.get(id)!;
       expect(r.botanical?.startsWith(`${d.species} '`), id).toBe(true);
@@ -50,7 +51,7 @@ describe('the decisions the build applies (scripts/catalog/decisions.json)', () 
     // Rabbiteyes, followed to Kew: the species, and each cultivar under it, reading its own NC State page.
     expect(['vaccinium-virgatum-climax-premier-tifblue', 'vaccinium-virgatum-climax', 'vaccinium-corymbosum-premier'].map((id) => byId.get(id)?.parent)).toEqual(['vaccinium-virgatum', 'vaccinium-virgatum', 'vaccinium-virgatum']);
     expect(byId.get('vaccinium-corymbosum-premier')!.facts.height).toMatchObject({ v: { min: 6, max: 8 }, src: expect.arrayContaining(['ncsu']) });
-    // A group kept as one record reads its species' page for its size.
+    // Asparagus, named as its species (once a group kept as one record), reads its species' page for its size.
     expect(byId.get('asparagus-officinalis-jersey-millennium')!.facts.height).toMatchObject({ v: { min: 3, max: 5 }, src: expect.arrayContaining(['ncsu']) });
   });
 });
@@ -261,9 +262,9 @@ describe('records', () => {
     const strain = catalogWarnings({ meta, plants: [rec({ id: 's', common: 'Butterfly weed (clay strain)', botanical: 'Asclepias tuberosa (clay strain)', facts: { width: { min: 1, max: 2 } } })] });
     expect(strain).toEqual(['s: parentheses in its botanical name: a cultivar is quoted; a seed strain or ecotype is named "Common name (strain)"']);
   });
-  it('list every botanical name with parentheses in the shipped catalog: the two left as they are (the clay strain renamed, Water iris folded)', () => {
+  it('list every botanical name with parentheses in the shipped catalog: the one left as it is (the clay strain and asparagus renamed, Water iris folded)', () => {
     const listed = catalogWarnings(shipped).filter((w) => w.includes('parentheses in its botanical name')).map((w) => w.split(':')[0]);
-    expect(listed.sort()).toEqual(['asparagus-officinalis-jersey-millennium', 'vernonia-hybrid-mt-cuba']);
+    expect(listed.sort()).toEqual(['vernonia-hybrid-mt-cuba']);
   });
 });
 
