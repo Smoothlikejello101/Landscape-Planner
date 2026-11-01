@@ -32,7 +32,7 @@ import { renderMoreMenu, toggleSelectMode } from './menu';
 import { foldDetailGroups } from './plant-details';
 import { renderFeedbackSheet } from './feedback-sheet';
 import { renderExportModal, renderPreviewModal, renderResetModal } from './modals';
-import { pickerOpened, renderPlantsPanel } from './plants-panel';
+import { pickerClosed, pickerOpened, renderPlantsPanel } from './plants-panel';
 import { plantDot, shapeDot } from '../plant-looks';
 import { renderPrintPanel } from './print-panel';
 import { renderPlantForm } from './plant-form';
@@ -559,7 +559,8 @@ export function render() {
     if (zip) { zip.focus(); zip.setSelectionRange(zip.value.length, zip.value.length); }
   }
   // (The picker closed: its plants' detail groups fold again, Jason, 2026-10-29.)
-  if (shownPanel === 'plants' && state.panel !== 'plants') { foldDetailGroups(); partnersClosed(); }
+  // (And "Anyone you need to protect?", answered in it, goes under Poison & pets for next time: src/ui/plants-panel.ts.)
+  if (shownPanel === 'plants' && state.panel !== 'plants') { foldDetailGroups(); partnersClosed(); pickerClosed(); }
   if (state.panel !== 'projects' && state.panel !== 'rename') projectsClosed();
   if ((state.panel && state.panel !== shownPanel) || (state.menu && state.menu !== shownMenu)) {
     hideOldToast();

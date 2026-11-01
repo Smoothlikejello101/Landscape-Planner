@@ -737,6 +737,18 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .filter-set { border: 1px solid #d6d3d1; border-radius: 8px; background: #fafaf9; margin: 4px 0 8px; padding: 2px 10px 6px; min-width: 0; }
 .filter-set legend { font-size: calc(12px * var(--ts)); font-weight: 600; color: #44403c; padding: 0 4px; }
 .filter-set .hint { font-size: calc(11px * var(--ts)); }
+/* "Anyone you need to protect?" (Jason, Nov 1, from the UI review): first among the filters until it's answered or
+   dismissed, then at the head of Poison & pets. A title, one row of chips, a line of note: it fits a 360 px phone at
+   every text size, and leaves the list on screen. */
+.protect-line { position: relative; margin: 0 0 6px; }
+.protect-line.at-top { padding: 4px 8px 6px; border: 1px solid #99f6e4; border-radius: 10px; background: #f0fdfa; }
+.protect-title { font-size: calc(13px * var(--ts)); font-weight: 600; color: #134e4a; line-height: 1.3; }
+.protect-line.at-top .protect-title { padding: 4px 36px 0 2px; }
+.protect-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.protect-chip { padding: 4px 10px; }
+.protect-note { font-size: calc(11px * var(--ts)); color: #57534e; line-height: 1.35; padding: 0 2px; text-wrap: pretty; }
+.protect-x { position: absolute; top: 0; right: 0; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; color: #57534e; border-radius: 10px; }
+.protect-x:focus-visible { outline: 2px solid #0f766e; outline-offset: -2px; }
 .active-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
 .active-filters[hidden] { display: none; }
 .active-chip { display: inline-flex; align-items: center; gap: 2px; min-height: 32px; padding: 2px 4px 2px 10px; border-radius: 999px; border: 1px solid #bbf7d0; background: #f0fdf4; color: #166534; font-size: calc(12px * var(--ts)); cursor: pointer; }
