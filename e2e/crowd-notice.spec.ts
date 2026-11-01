@@ -106,9 +106,9 @@ test('a small plant crowded by a bigger one is too far under it: try out toward 
 test('flagged pairs can be left close after the fact: one plant from its properties, or all at once from Settings', async ({ page }) => {
   await openFresh(page);
   await startPlacing(page, 'Snowberry');
-  for (const x of [-6, -4, 2, 4]) await tapFromCenter(page, x, 0); // (two crowded pairs)
+  for (const [x, y] of [[-6, 0], [-4, 0], [2, 0], [4, 0], [-6, -6], [-4, -6]]) await tapFromCenter(page, x, y); // (three crowded pairs)
   await bar(page).getByRole('button', { name: 'Done' }).click();
-  await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(4);
+  await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(6);
   // One plant: its crowding line opens to Leave this close.
   await tapFromCenter(page, 0, 8);
   await tapFromCenter(page, -6, 0);
@@ -117,17 +117,22 @@ test('flagged pairs can be left close after the fact: one plant from its propert
   await page.getByTestId('leave-close').click();
   await expect(page.getByTestId('crowding')).toContainText('Left close on purpose: Snowberry');
   await closeSheet(page);
-  await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);
-  // The rest at once, from Settings; warnings stay on; Undo brings them back.
+  await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(4);
+  // The rest at once, from Settings (Leave all flagged now, since Nov 1 the crowding warnings' Dismiss all); warnings
+  // stay on; Undo brings them back.
   await openSettings(page);
   await openWarnings(page);
-  await page.getByTestId('leave-all-close').click();
-  await expect(page.locator('#toast-action')).toContainText('Left 1 pair close on purpose');
-  await expect(page.getByTestId('leave-all-close')).toHaveCount(0);
+  const now = page.getByTestId('warnings-now');
+  await now.locator(':scope > summary').click();
+  await now.getByRole('button', { name: 'Dismiss all 2' }).click();
+  await expect(page.locator('#toast-action')).toContainText('Dismissed 2 crowding warnings, the pairs left close on purpose. Plants placed from now on are still flagged.');
+  await expect(now.getByTestId('warnings-dismiss-all')).toHaveCount(0);
   await expect(page.getByTestId('crowd-warnings')).toBeChecked();
-  await expect(page.getByTestId('crowding-settings')).toContainText('2 pairs left close on purpose');
+  await expect(now.locator(':scope > summary')).toHaveText('In this plan now · 3 dismissed');
+  await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(0);
   await page.locator('#toast-action').getByRole('button', { name: 'Undo' }).click();
-  await expect(page.getByTestId('leave-all-close')).toHaveText('Leave all flagged now (1 pair)');
+  await expect(now.getByTestId('warnings-dismiss-all')).toHaveText('Dismiss all 2');
+  await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(4);
 });
 
 test('Crowding settings… opens Settings at its crowding switches; with warnings off, no notice', async ({ page }) => {

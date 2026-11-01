@@ -6,9 +6,8 @@
 // A notice's "Settings" opens here, at Warnings, its switch in view (openWarningsAt).
 
 import { crowdOptions } from '../crowd-here';
-import { BULB_PARTNER_MIN_HEIGHT, crowdLevels, crowdPairs } from '../crowding';
+import { BULB_PARTNER_MIN_HEIGHT, crowdLevels } from '../crowding';
 import { el, ts } from '../dom';
-import { pushHistory, undo } from '../history';
 import { I } from '../icons';
 import { LABEL_SIZES, labelSize, setLabelSize } from '../label-size';
 import { centerOnShape, setRoleView, setViewFilter } from '../mutations';
@@ -20,11 +19,12 @@ import { save } from '../storage';
 import { setSnapOn, setSquareOn, snapOn, squareOn } from '../tidy';
 import { setTextSize, textSize, TEXT_SIZES } from '../text-size';
 import { setCrowdWarnings, setFruitWarnings, setHardyWarnings, setPoisonWarnings, setShowCrowding, setZoomButtons } from '../view-settings';
-import { countSaid, planWarnings, WARNING_KINDS, type WarningRow } from '../warnings-list';
+import { acrossPlan, countSaid, KIND_WORDS, planWarnings, setDismissed, WARNING_KINDS, type WarningKind, type WarningRow } from '../warnings-list';
 import { household } from '../yard';
-import { leaveAllClose } from './crowd-notice';
+import { undoNotice } from './delete-selected';
+import { remindNoMore } from './fruit-notice';
 import { render } from './render';
-import { toastAction } from './toast';
+import { dismissAcross } from './role-sections';
 
 /** Folds kept open while the app is: Warnings (a notice's Settings opens it), its list, and each kind in the list. */
 let warningsOpen = false;
@@ -109,14 +109,14 @@ function drawingSection(): HTMLElement {
 
 /**
  * Crowding (decided with Jason, 2026-10-25): rings on the plan, amber where plants are close (their typical spreads
- * touch) and red where they're crowded; a notice as one is placed too close; the pairs left close on purpose.
- * A crowding notice's "Crowding settings…" opens here.
+ * touch) and red where they're crowded; a notice as one is placed too close (the pairs flagged, and those left close on
+ * purpose, are in "In this plan now"). A crowding notice's "Crowding settings…" opens here.
  */
 function crowdingSettings(): HTMLElement {
   const wrap = el('div', { 'data-testid': 'crowding-settings', className: 'crowding-settings' });
   const levels = [...crowdLevels(state.shapes.filter((x) => shownWith(x, state.viewFilter)), plantsById, crowdOptions()).values()];
-  // (Plants counted, said so: beside "Leave all flagged now (2 pairs)", "3 close" read as a count of the same thing.
-  // Round 3: Alex, Dana, Bea.)
+  // (Plants counted, said so: beside a count of pairs, "Leave all flagged now (2 pairs)" then, "3 close" read as a count
+  // of the same thing. Round 3: Alex, Dana, Bea.)
   const nClose = levels.filter((l) => l === 'close').length, nCrowded = levels.filter((l) => l === 'crowded').length;
   const show = el('input', { type: 'checkbox', 'data-testid': 'show-crowding' }) as HTMLInputElement;
   show.checked = state.showCrowding;
@@ -128,28 +128,9 @@ function crowdingSettings(): HTMLElement {
   warn.addEventListener('change', () => { setCrowdWarnings(warn.checked); render(); });
   wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, warn,
     el('span', {}, 'Warn me as I place a plant close to another')));
-  // Everything flagged now, left close at once (a plan drawn before the warnings: Jason, 2026-10-27).
-  const flagged = crowdPairs(state.shapes.filter((x) => shownWith(x, state.viewFilter)), plantsById, crowdOptions()).length;
-  if (flagged) {
-    const leave = el('button', { className: 'btn', 'data-testid': 'leave-all-close' }, `Leave all flagged now (${flagged} pair${flagged === 1 ? '' : 's'})`);
-    leave.addEventListener('click', () => {
-      const n = leaveAllClose();
-      render();
-      if (n) toastAction(`Left ${n} pair${n === 1 ? '' : 's'} close on purpose. Plants placed from now on are still flagged.`, [{ label: 'Undo', run: () => { undo(); render(); } }]);
-    });
-    wrap.appendChild(el('div', { className: 'check-row', style: { marginTop: '6px', gap: '10px' } }, leave));
-  }
-  // Pairs left close on purpose (Leave it), and a way to have them flagged again.
-  const pairs = state.shapes.reduce((n, s) => n + (s.type === 'circle' ? s.crowdOk?.length ?? 0 : 0), 0);
-  if (pairs) {
-    const again = el('button', { className: 'btn', 'data-testid': 'flag-all-again' }, 'Flag them again');
-    again.addEventListener('click', () => {
-      for (const s of state.shapes) if (s.type === 'circle') delete s.crowdOk;
-      pushHistory(); save(); render();
-    });
-    wrap.appendChild(el('div', { className: 'check-row', style: { marginTop: '6px', gap: '10px' } },
-      el('span', {}, `${pairs} pair${pairs === 1 ? '' : 's'} left close on purpose`), again));
-  }
+  // (Everything flagged now, left close at once (a plan drawn before the warnings: Jason, 2026-10-27), and the pairs left
+  // close flagged again: since Nov 1, the Crowding warnings' Dismiss all and Show all again in "In this plan now",
+  // above, one pair of buttons rather than two (the review of Settings → Warnings).)
   wrap.appendChild(el('div', { className: 'hint' },
     'Usual spacing is half of each plant\'s typical spread added together, less where one grows under a tree whose lower limbs can be taken up. ' +
     `Close is where their typical spreads touch; crowded, closer than three quarters of that. Spring bulbs under a deciduous plant ${BULB_PARTNER_MIN_HEIGHT} ft or taller don't count, except right at its base.`));
@@ -201,7 +182,12 @@ function warningsSection(): HTMLElement {
 /**
  * Every warning in the plan now (src/warnings-list.ts), folded with its count (Jason, Oct 31: "x active, y
  * dismissed"); more than a handful, folded again by kind. Active above dismissed. A tap on one selects its plants on
- * the plan; a dismissed one can be shown again.
+ * the plan; an active one can be dismissed, a dismissed one shown again, and a kind all at once (Jason, Nov 1).
+ *
+ * A kind's "Dismiss all 3" and "Show all 2 again" go under its rows (the review of Settings → Warnings, Nov 1): folded
+ * by kind, at the foot of its fold. In a handful, one list as Jason had it (not grouped by kind), with a line under it
+ * for each kind that has them. Either way, only where they'd do more than one row's own button does: a kind's one
+ * warning has its Dismiss or Show again right there, and "Dismiss all 1" would say nothing more.
  */
 function warningList(): HTMLElement {
   const rows = planWarnings();
@@ -213,6 +199,10 @@ function warningList(): HTMLElement {
   const activeFirst = (r: WarningRow[]) => [...r.filter((x) => !x.dismissed), ...r.filter((x) => x.dismissed)];
   if (rows.length <= HANDFUL) {
     for (const r of activeFirst(rows)) d.appendChild(warningRow(r));
+    for (const { kind, name } of WARNING_KINDS) {
+      const all = kindButtons(kind, rows.filter((r) => r.kind === kind));
+      if (all) d.appendChild(el('div', { className: 'warnings-all', 'data-testid': `warnings-all-${kind}` }, el('span', { className: 'warnings-all-name' }, `${name}:`), ...all));
+    }
     return d;
   }
   for (const { kind, name } of WARNING_KINDS) {
@@ -220,9 +210,40 @@ function warningList(): HTMLElement {
     if (!these.length) continue;
     const k = fold('warnings-kind', `warnings-kind-${kind}`, kindsOpen.has(kind), (v) => { if (v) kindsOpen.add(kind); else kindsOpen.delete(kind); }, '', name, el('span', { className: 'count' }, ` · ${countSaid(these)}`));
     for (const r of activeFirst(these)) k.appendChild(warningRow(r));
+    const all = kindButtons(kind, these);
+    if (all) k.appendChild(el('div', { className: 'warnings-all', 'data-testid': `warnings-all-${kind}`, role: 'group', 'aria-label': `All ${KIND_WORDS[kind]} warnings` }, ...all));
     d.appendChild(k);
   }
   return d;
+}
+
+/**
+ * A kind's "Dismiss all 3", with more than one active, and "Show all 2 again", with more than one dismissed: one step
+ * each, with a notice saying what it did and an Undo (Jason, Nov 1). Null with neither.
+ */
+function kindButtons(kind: WarningKind, these: WarningRow[]): HTMLElement[] | null {
+  const on = these.filter((r) => !r.dismissed && r.dismiss), off = these.filter((r) => r.dismissed && r.again);
+  const word = KIND_WORDS[kind];
+  const out: HTMLElement[] = [];
+  const button = (testid: string, text: string, rows: WarningRow[], dismissed: boolean) => {
+    const b = el('button', { className: 'link-btn', 'data-testid': testid }, text);
+    b.addEventListener('click', () => {
+      const { n, takeBack } = setDismissed(rows, dismissed);
+      render();
+      if (!n) return;
+      const many = `${n} ${word} warning${n === 1 ? '' : 's'}`;
+      // (What each kind's dismissal says: crowding, as Leave all flagged now did, that new plants are still flagged;
+      // across the plan, that the plants' copies added later are quiet too, as the pane says.)
+      undoNotice(!dismissed ? `Showing ${many} again`
+        : kind === 'crowding' ? `Dismissed ${many}, the pairs left close on purpose. Plants placed from now on are still flagged.`
+        : `Dismissed ${many}${acrossPlan(kind) ? ', for those plants added later too' : ''}`, takeBack);
+    });
+    out.push(b);
+  };
+  // (One vocabulary, Dismiss and Show again, so not Jason's "Reactivate all": the review of Settings → Warnings, Nov 1.)
+  if (on.length > 1) button('warnings-dismiss-all', `Dismiss all ${on.length}`, on, true);
+  if (off.length > 1) button('warnings-again-all', `Show all ${off.length} again`, off, false);
+  return out.length ? out : null;
 }
 
 /** Its plants selected and in view, shown if hidden or filtered out (as a Layers row does). */
@@ -244,16 +265,30 @@ export function showOnPlan(ids: string[]) {
 }
 
 function warningRow(r: WarningRow): HTMLElement {
+  // (A dismissed one says who for: this one, this pair, or every one of the plant in the plan. The review, Nov 1.)
+  const scope = r.dismissed ? `dismissed${r.scope ? ' ' + r.scope : ''}` : '';
   const words = el('div', { className: 'warning-words', role: 'button', tabIndex: 0, 'data-testid': 'warning-select',
-    'aria-label': `${r.name ? r.name + ': ' : ''}${r.said}${r.dismissed ? ' (dismissed)' : ''}. Select on the plan` },
-    ...(r.name ? [el('span', { className: 'warning-name' }, r.name + ':'), ' '] : []), el('span', { className: 'warning-said' }, r.said));
+    'aria-label': `${r.name ? r.name + ': ' : ''}${r.said}${scope ? ` (${scope})` : ''}. Select on the plan` },
+    ...(r.name ? [el('span', { className: 'warning-name' }, r.name + ':'), ' '] : []), el('span', { className: 'warning-said' }, r.said),
+    ...(scope ? [el('span', { className: 'warning-scope', 'data-testid': 'warning-scope' }, scope.charAt(0).toUpperCase() + scope.slice(1))] : []));
   words.addEventListener('click', () => showOnPlan(r.ids));
   words.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showOnPlan(r.ids); } });
   const row = el('div', { className: 'warning-row' + (r.dismissed ? ' dismissed' : ''), 'data-testid': 'warning-row', 'data-kind': r.kind, 'data-dismissed': String(r.dismissed) }, words);
-  if (r.again) {
+  if (r.dismissed && r.again) {
     const again = el('button', { className: 'link-btn', 'data-testid': 'warning-again' }, 'Show again');
-    again.addEventListener('click', () => { r.again!(); render(); });
+    again.addEventListener('click', () => { setDismissed([r], false); render(); });
     row.appendChild(again);
+  }
+  // Dismiss, where a dismissed one has Show again (Jason, Nov 1): as the plan's own dismissal for its kind, with what
+  // that says. Hardiness and poison, from the plant's pane; fruit partners, the notice's Don't remind me.
+  if (!r.dismissed && r.dismiss) {
+    const dismiss = el('button', { className: 'link-btn', 'data-testid': 'warning-dismiss' }, 'Dismiss');
+    dismiss.addEventListener('click', () => {
+      if (r.plantId && (r.kind === 'hardy' || r.kind === 'poison')) dismissAcross(r.kind, r.plantId, r.said);
+      else if (r.plantId && r.kind === 'fruit') remindNoMore(r.plantId, r.said);
+      else { setDismissed([r], true); render(); }
+    });
+    row.appendChild(dismiss);
   }
   return row;
 }

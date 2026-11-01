@@ -37,16 +37,22 @@ export function fruitNotice(shape: Shape, place: (p: Plant) => void) {
       state.panel = 'plants';
       render();
     } }] : []),
-    // (Dismissed for this plant across the plan, its new copies too, with a toast that says so: Jason, Oct 30.)
-    { label: "Don't remind me", run: () => {
-      dismissForPlan('fruit', id, line);
-      toastAction(`Fruit partner reminders off for ${p.common} in this plan, and any you add later.`, [
-        { label: 'Warn me for new ones', run: () => warnForNewOnes('fruit', id, line) },
-        { label: 'OK', run: () => {} },
-      ], 10000, 'dismiss-notice');
-    } },
+    { label: "Don't remind me", run: () => remindNoMore(id, line) },
     { label: 'Settings', run: () => openWarningsAt('fruit-warnings') },
   ], 12000, 'fruit-notice');
   const n = document.getElementById('toast-action');
   if (n) n.dataset.about = shape.id; // (gone with the plant: src/ui/toast.ts placeNotice)
+}
+
+/**
+ * Don't remind me: dismissed for this plant across the plan, its new copies too, with a toast that says so (Jason,
+ * Oct 30). Also a fruit-partner row's Dismiss in Settings → Warnings (Jason, Nov 1), whose list is redrawn with it.
+ */
+export function remindNoMore(id: string, line: string) {
+  dismissForPlan('fruit', id, line);
+  render();
+  toastAction(`Fruit partner reminders off for ${plantsById[id]?.common ?? 'this plant'} in this plan, and any you add later.`, [
+    { label: 'Warn me for new ones', run: () => { warnForNewOnes('fruit', id, line); render(); } },
+    { label: 'OK', run: () => {} },
+  ], 10000, 'dismiss-notice');
 }
