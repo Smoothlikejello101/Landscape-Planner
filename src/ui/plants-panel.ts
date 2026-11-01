@@ -7,7 +7,7 @@ import { toast } from './toast';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery, unsearchable } from '../search';
-import { seasonMonths, byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById, treeFiltersAside } from '../plants';
+import { seasonMonths, byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, planCounts, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById, treeFiltersAside } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { SPREAD_WAYS, spreadWays } from '../spread';
@@ -289,8 +289,10 @@ export function renderPlantsPanel() {
       facts.appendChild(el('span', { className: 'row-bloom', 'data-testid': 'row-bloom' },
         el('span', { className: 'row-bloom-icon', 'aria-hidden': 'true', html: FLOWER_GLYPH }), el('span', { className: 'sr-only' }, 'Blooms '), lines.bloom));
     }
+    // ("In this plan": how many of it, "× 4" (the UI review, 2026-11-01, decided "Build next").)
+    const inPlanN = plantFilter.inPlan ? planCounts().get(p.id) ?? 0 : 0;
     const info = el('div', { className: 'pinfo' },
-      el('div', { className: 'pname' }, headName(p)),
+      el('div', { className: 'pname' }, headName(p), inPlanN ? el('span', { className: 'in-plan-n', 'data-testid': 'in-plan-count' }, ` \u00d7\u00a0${inPlanN}`) : null),
       lines.names ? el('div', { className: 'pmeta', 'data-testid': 'row-names' }, lines.names) : null,
       facts.childNodes.length ? facts : null,
     );
@@ -448,8 +450,11 @@ export function renderPlantsPanel() {
     // (Nothing matched as typed, only close spellings: said so, not counted as matches (Lena, Oct 30).)
     // ("In this plan": the plan's kinds, not a share of the catalog (Dana, Oct 30: "6 of 3,725 plants match").)
     const found = hits.length + mine.length;
+    // ("In this plan": how many plants, and of how many kinds: "16 plants, 7 kinds in this plan". The UI review.)
+    const counts = plantFilter.inPlan ? planCounts() : null;
+    const inPlanPlants = counts ? [...hits, ...mine].reduce((n, p) => n + (counts.get(p.id) ?? 0), 0) : 0;
     countLine.textContent = (near ? `Nothing matches as typed${found ? ` \u00b7 ${countWord(found)} close spelling${found === 1 ? '' : 's'}` : ''}`
-      : plantFilter.inPlan ? (found ? `${countWord(found)} kind${found === 1 ? '' : 's'} of plant in this plan${q ? ` match \u201c${plantFilter.q.trim()}\u201d` : ''}` : q ? `No plant in this plan matches \u201c${plantFilter.q.trim()}\u201d` : 'No plants placed in this plan yet')
+      : plantFilter.inPlan ? (found ? `${countWord(inPlanPlants)} plant${inPlanPlants === 1 ? '' : 's'}, ${countWord(found)} kind${found === 1 ? '' : 's'} in this plan${q ? ` match \u201c${plantFilter.q.trim()}\u201d` : ''}` : q ? `No plant in this plan matches \u201c${plantFilter.q.trim()}\u201d` : 'No plants placed in this plan yet')
       : pickerCount(n, all, out.filter((p) => !forTree || isTree(p)).length, foundBanned, gardenStateName() ?? 'here')) +
       (swapping ? ' \u00b7 Pick the plant to swap in' : linking ? ' \u00b7 Link the plant this circle stands for' : forTree ? ' \u00b7 trees only' : tapSaid(' \u00b7 Place a plant, then tap the plan where it goes; tap a plant for its details'));
     if (mine.length) {

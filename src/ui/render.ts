@@ -39,6 +39,7 @@ import { renderPlantForm } from './plant-form';
 import { renderBloomPanel } from './bloom-view';
 import { openLocation, renderLocationPanel, zipEntry } from './location-panel';
 import type { GardenLocation } from '../climate';
+import { hasPlantsToList, openPlantList, renderPlantListPanel } from './plant-list-panel';
 import { fullRingRadius } from '../my-plants';
 import { filterActive, filterText } from '../status';
 import { toast } from './toast';
@@ -367,6 +368,13 @@ export function render() {
   // right edge landed on them instead, silently. Round 3: Lena, Grace and Owen.)
   if (!state.draw && !state.placing && !state.bgCalibrate) {
     zoomBtns.appendChild(yearButton());
+    // The Plant list, one tap from the plan, beside Through the year (Jason, Nov 1, from the UI review): once there's a
+    // plant to list. (In ⋮ too, by name.)
+    if (hasPlantsToList()) {
+      const list = el('button', { className: 'zoombtn', html: I.list, title: 'Plant list', 'aria-label': 'Plant list', 'data-testid': 'plant-list-open' });
+      list.addEventListener('click', () => { openPlantList(); render(); });
+      zoomBtns.appendChild(list);
+    }
     zoomBtns.appendChild(namesButton());
   }
   canvasWrap.appendChild(zoomBtns);
@@ -549,6 +557,7 @@ export function render() {
   else if (state.panel === 'feedback') panelNode = renderFeedbackSheet();
   else if (state.panel === 'settings') panelNode = renderSettingsPanel();
   else if (state.panel === 'whatsNew') panelNode = renderWhatsNewPanel();
+  else if (state.panel === 'plantList') panelNode = renderPlantListPanel();
   if (panelNode) {
     root.appendChild(panelNode);
     const sheet = scrolled ? panelNode.querySelector<HTMLElement>('.sheet') ?? (panelNode.classList.contains('sheet') ? panelNode : null) : null;
