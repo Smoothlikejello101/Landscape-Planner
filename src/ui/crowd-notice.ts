@@ -1,6 +1,6 @@
 // Crowding, as a plant is placed (decided with Jason, 2026-10-25): a notice saying which plant it's close to or
-// crowding, with Leave it (that pair isn't flagged again), Move it (take it back and tap again) and Settings (where the
-// notices can be turned off). Crowded: every time. Close: once each time plants are placed (the first close one).
+// crowding, with Dismiss (that pair isn't flagged again: "Leave it" until Nov 1, one vocabulary since), Move it (take it
+// back and tap again) and Settings (Warnings, at Crowding, where the notices can be turned off). Crowded: every time. Close: once each time plants are placed (the first close one).
 // One line, amber or red, that opens to say how far apart they are and why it matters (2026-10-27: it got in the way);
 // a plant crowded by one half again its size is "too far under" it, buried, and is best moved out toward its edge. A
 // spring bulb under a deciduous plant, which doesn't count (src/crowding.ts), gets no notice at all.
@@ -14,7 +14,7 @@ import { save } from '../storage';
 import type { Crowd } from '../crowding';
 import type { Shape } from '../types';
 import { render } from './render';
-import { openWarningsAt } from './settings-panel';
+import { openWarningsAt } from './warnings-sheet';
 import { toast, toastAction } from './toast';
 
 const TESTID = 'crowd-notice';
@@ -40,7 +40,7 @@ export function crowdNotice(shape: Shape, moveIt: () => void) {
   if (!crowded.length && state.placing) state.placing.warnedClose = true;
   const { line, detail } = crowdWords(shape, list[0], list.length - 1, !!crowded.length);
   toastAction(line, [
-    { label: 'Leave it', run: () => leaveClose(shape.id, list.map((c) => c.other.id)) },
+    { label: 'Dismiss', run: () => leaveClose(shape.id, list.map((c) => c.other.id)) },
     { label: 'Move it', run: () => { moveIt(); render(); toast('Tap where it should go.'); } },
     { label: 'Settings', run: openCrowdingSettings },
   ], 10000, TESTID, { detail, tone: crowded.length ? 'red' : 'amber' });
@@ -79,7 +79,7 @@ export function crowdNoticeAfterSwap(ids: string[], before: Map<string, Map<stri
     const list = crowded.length ? crowded : crowds;
     const { line, detail } = crowdWords(shape, list[0], list.length - 1, !!crowded.length);
     toastAction(line, [
-      { label: 'Leave it', run: () => leaveClose(shape.id, list.map((c) => c.other.id)) },
+      { label: 'Dismiss', run: () => leaveClose(shape.id, list.map((c) => c.other.id)) },
       { label: 'Undo', run: () => { undo(); render(); } },
       { label: 'Settings', run: openCrowdingSettings },
     ], 10000, TESTID, { detail, tone: crowded.length ? 'red' : 'amber' });
@@ -108,7 +108,7 @@ export function crowdWords(shape: Shape, c: Crowd, more: number, crowded: boolea
 }
 
 /**
- * Leave it: the plant and those named in the notice aren't flagged again. While placing, it goes with the step that
+ * Dismiss: the plant and those named in the notice aren't flagged again. While placing, it goes with the step that
  * placed the plant (an undo takes both back together); otherwise it's a step of its own.
  */
 export function leaveClose(id: string, others: string[]) {
@@ -122,9 +122,9 @@ export function leaveClose(id: string, others: string[]) {
   render();
 }
 
-// (Every pair flagged now, left close on purpose at once (Jason, 2026-10-27: a plan drawn before the warnings, red all
-// over): since Nov 1, the Crowding warnings' Dismiss all in Settings → Warnings, "In this plan now" (src/warnings-list.ts
-// setDismissed). The rings clear; the warnings stay on for what's placed from now on.)
+// (Every pair flagged now, dismissed at once (Jason, 2026-10-27: a plan drawn before the warnings, red all over): since
+// Nov 1, the Crowding warnings' Dismiss all in Warnings (src/warnings-list.ts setDismissed). The rings clear; the
+// warnings stay on for what's placed from now on.)
 
 /** Flag a plant's pairs again (each one it, or the other, was left close to). */
 export function flagAgain(id: string) {
@@ -142,5 +142,5 @@ export function flagAgain(id: string) {
   render();
 }
 
-/** Crowding settings…: the Layers panel, at its crowding section. */
-export function openCrowdingSettings() { openWarningsAt('crowding-settings'); }
+/** Settings, from the notice: Warnings, at Crowding. */
+export function openCrowdingSettings() { openWarningsAt('crowding'); }

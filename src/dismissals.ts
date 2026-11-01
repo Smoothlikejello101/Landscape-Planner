@@ -3,7 +3,7 @@
 // to warn again for new ones. Fruit-partner reminders too. Per plan: another plan, another yard, warns again. Each is
 // kept with what the warning said when it was dismissed, so it comes back if that changes (a new ZIP; someone new in
 // the yard). Sun and crowding stay a copy's own: they depend on where it stands. Shown again from the plant's pane or
-// Settings → Warnings, "In this plan now" (src/warnings-list.ts), where they can be dismissed too (Jason, Nov 1).
+// Warnings (src/warnings-list.ts, src/ui/warnings-sheet.ts), where they can be dismissed too (Jason, Nov 1).
 
 import { pushHistory } from './history';
 import { householdFlags, plantsById, type Plant } from './plants';
@@ -13,6 +13,13 @@ import type { DismissKind, Shape } from './types';
 
 /** What a plant's poison warning says, for who's in the yard now ("Poisonous to people; A problem for dogs"): its key. */
 export const poisonSaid = (p: Plant): string => householdFlags(p).map((f) => f.text).join('; ');
+/**
+ * The same warning in the words its details use, with its severity and parts: "Poisonous if eaten (high severity:
+ * leaves and seeds); a problem for dogs" (its details' banner; a row in Warnings: the review, Nov 1, every poison row
+ * read "Poisonous to people; A problem for dogs" whatever the severity).
+ */
+export const poisonLine = (p: Plant): string =>
+  householdFlags(p).map((f, i) => { const t = f.testid === 'row-poison' ? f.title ?? f.text : f.text; return i ? t.charAt(0).toLowerCase() + t.slice(1) : t; }).join('; ');
 
 /** Each kind as a person reads it ("Fig: hardiness"). */
 export const DISMISS_WORDS: Record<DismissKind, string> = { hardy: 'hardiness', poison: 'poison', fruit: 'fruit partner' };
@@ -40,7 +47,7 @@ export function showAgainForPlan(kind: DismissKind, plantId: string) {
   save();
 }
 /**
- * What showAgainForPlan changes, without its step or save (Settings → Warnings shows a kind's all again as one step:
+ * What showAgainForPlan changes, without its step or save (Warnings shows a kind's all again as one step:
  * Jason, Nov 1). Whether a copy changed.
  */
 export function clearForPlan(kind: DismissKind, plantId: string): boolean {

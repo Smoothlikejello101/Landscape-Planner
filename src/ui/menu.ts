@@ -16,6 +16,7 @@ import { showMeAround } from './intro-card';
 import { openWhatsNew } from './whats-new-panel';
 import { CHANNEL } from '../channel';
 import { openPrint } from './print-panel';
+import { openWarnings, warningsMenuLabel } from './warnings-sheet';
 import { openPlantList } from './plant-list-panel';
 import { checkForUpdate, onUpdateWaiting, updateNow, updateWaiting } from '../pwa';
 
@@ -47,6 +48,10 @@ export function renderMoreMenu() {
     });
   }
   items.push({ divider: true });
+  // Warnings, with how many to look at: a plan tool (Jason approved the mock-ups, Nov 1), not under Settings.
+  if (state.shapes.some((s) => s.role === 'plant')) {
+    items.push({ icon: I.warn, label: warningsMenuLabel(), testid: 'menu-warnings', onClick: () => openWarnings() });
+  }
   // (What to buy, what's planted: also a button on the plan, beside Through the year. Jason, Nov 1, from the UI review.)
   items.push({ icon: I.list, label: 'Plant list', testid: 'menu-plant-list', onClick: () => { openPlantList(); render(); } });
   items.push({
@@ -94,8 +99,8 @@ export function renderMoreMenu() {
     onClick: () => { state.panel = 'reset'; state.menu = null; render(); }
   });
   items.push({ divider: true });
-  // Every setting of this device in one sheet: text and label size, drawing, warnings (Jason, Oct 31, from round 3:
-  // Bea found them scattered between Layers and the foot of this menu).
+  // Every setting in one sheet: text and label size, drawing, and a way to Warnings (Jason, Oct 31, from round 3: Bea
+  // found them scattered between Layers and the foot of this menu).
   items.push({ icon: I.settings, label: 'Settings\u2026', testid: 'menu-settings', onClick: () => { state.panel = 'settings'; state.menu = null; render(); } });
   // The guided introduction, any time: from the start, or (left part way) pick up where they left (src/ui/intro-card.ts).
   items.push({

@@ -468,7 +468,7 @@ export function shapeGroup(s: Shape): SVGGElement {
         svgEl('text', { x: bx, y: by + 2, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 10, 'font-weight': 700, fill: '#fff' }, '!')));
     }
   }
-  // Too cold, or maybe too warm, where the garden is (Settings → Warnings; Jason, Oct 30): a badge low on the right, a
+  // Too cold, or maybe too warm, where the garden is (Warnings, at Hardiness; Jason, Oct 30): a badge low on the right, a
   // snowflake on blue or a sun on red. Not a tree already there, nor one coming out.
   const living = s.status !== 'gone' && s.status !== 'remove' && !(s.type === 'circle' && s.tree);
   const data = s.role === 'plant' && s.plantId ? plantsById[s.plantId] : undefined;
@@ -496,7 +496,8 @@ export function shapeGroup(s: Shape): SVGGElement {
   if (s.role === 'plant' && s.type === 'circle' && named && shownUtilities.length) {
     const issues = utilityIssues(s, shownUtilities, plantsById);
     if (utilityWarningShown(s, issues)) {
-      const r = vineDot ?? s.radius * ppf;
+      // (A tree's by its trunk, not out at its canopy's edge, where it sat on other plants' badges: the review, Nov 1.)
+      const r = vineDot ?? Math.min(s.radius * ppf, isTree(s, plantsById) ? 22 : Infinity);
       const bx = labelX - r * 0.7, by = labelY + r * 0.7;
       g.appendChild(svgEl('g', { 'data-role': 'utility-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },
         svgEl('path', { d: `M${bx},${by - 9.5}L${bx + 9.5},${by}L${bx},${by + 9.5}L${bx - 9.5},${by}Z`, fill: '#ea580c', stroke: '#fff', 'stroke-width': 1.5, 'stroke-linejoin': 'round' }),

@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { createRequire } from 'node:module';
-import { addPlainShape, closeSheet, openFresh, placeOnceAtCenter } from './helpers';
+import { addPlainShape, closeSheet, openFresh, openWarnings, placeOnceAtCenter } from './helpers';
 
 // What a screen reader needs (every control named) and what low vision needs (text dark enough), checked by
 // axe-core on the screens people use most. The plan itself (the drawing) is left out: its labels are drawn over
@@ -36,6 +36,11 @@ test('every control has a name, and text is dark enough, on the main screens', a
   await closeSheet(page);
   await page.locator('button[title=Layers]').click();
   seen.layers = await problems(page);
+  await closeSheet(page);
+  // Warnings, every kind opened (beside the plan on a computer).
+  await openWarnings(page, 'poison', 'utility', 'hardy', 'sun', 'crowding', 'fruit');
+  await page.getByTestId('warnings-how-crowding').click();
+  seen.warnings = await problems(page);
   await closeSheet(page);
   await page.locator('button[title=More]').click();
   seen.menu = await problems(page);

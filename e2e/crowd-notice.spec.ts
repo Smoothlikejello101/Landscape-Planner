@@ -1,8 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
-import { closeSheet, openFresh, openSections, openWarnings, shapeCount, tapFromCenter, openSettings } from './helpers';
+import { closeSheet, openFresh, openSections, openWarnings, shapeCount, tapFromCenter } from './helpers';
 
 // Crowding as plants are placed (decided with Jason, 2026-10-25): amber rings where plants are close, red where
-// they're crowded, on by default; a notice as one is placed too close, with Leave it, Move it and Settings; red every
+// they're crowded, on by default; a notice as one is placed too close, with Dismiss (Leave it until Nov 1), Move it and
+// Settings (Warnings, at Crowding, since Nov 1); red every
 // time, amber once a placing session. One line that opens to say how far and why (2026-10-27); a small plant crowded
 // by a bigger one is "too far under" it. Spring bulbs under a deciduous plant 3 ft or taller don't count, except right
 // at its base (2026-10-26), and get no notice.
@@ -50,29 +51,31 @@ test('placing too close: a notice says which plant and why; Move it takes it bac
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);
 });
 
-test('Leave it: that pair is left close, said so in its sheet, and can be flagged again', async ({ page }) => {
+test('Dismiss: that pair is dismissed, said so in its sheet, and can be shown again', async ({ page }) => {
   await openFresh(page);
   await startPlacing(page, 'Snowberry');
   await tapFromCenter(page, 0, 0);
   await tapFromCenter(page, 2, 0);
-  await notice(page).getByRole('button', { name: 'Leave it' }).click();
+  await expect(notice(page).getByRole('button')).toHaveText(['Crowding Snowberry', 'Dismiss', 'Move it', 'Settings', '✕']);
+  await notice(page).getByRole('button', { name: 'Dismiss' }).click();
   await expect(notice(page)).toHaveCount(0);
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(0);
   await bar(page).getByRole('button', { name: 'Done' }).click();
-  // The one placed second: its sheet says it's left close, with Flag again.
+  // The one placed second: its sheet says it's dismissed, with Show again.
   await tapFromCenter(page, 0, 8); // (nothing there: the two placed are let go)
   await tapFromCenter(page, 2.5, 0);
   await page.locator('.sel-pill button.edit').click();
   // (One quiet line, folded, that opens to who.)
-  await expect(page.getByTestId('left-close-line')).toHaveText('Left close to one neighbor on purpose');
+  await expect(page.getByTestId('left-close-line')).toHaveText('Crowding dismissed for one neighbor');
   await expect(page.getByTestId('flag-again')).toBeHidden();
   await page.getByTestId('left-close-line').click();
-  await expect(page.getByTestId('crowding')).toContainText('Left close on purpose: Snowberry');
+  await expect(page.getByTestId('crowding')).toContainText('Dismissed for this pair: Snowberry');
+  await expect(page.getByTestId('flag-again')).toHaveText('Show again');
   await page.getByTestId('flag-again').click();
   await expect(page.getByTestId('crowding')).toContainText('Planted closer than usual to one neighbor');
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);
-  // An undo takes the Flag again back.
+  // An undo takes the Show again back.
   await page.locator('button[title=Undo]').first().click();
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(0);
 });
@@ -103,46 +106,47 @@ test('a small plant crowded by a bigger one is too far under it: try out toward 
   await expect(page.getByTestId('crowding-detail')).toContainText('buried by it: try out toward its edge');
 });
 
-test('flagged pairs can be left close after the fact: one plant from its properties, or all at once from Settings', async ({ page }) => {
+test('flagged pairs can be dismissed after the fact: one plant from its properties, or all at once from Warnings', async ({ page }) => {
   await openFresh(page);
   await startPlacing(page, 'Snowberry');
   for (const [x, y] of [[-6, 0], [-4, 0], [2, 0], [4, 0], [-6, -6], [-4, -6]]) await tapFromCenter(page, x, y); // (three crowded pairs)
   await bar(page).getByRole('button', { name: 'Done' }).click();
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(6);
-  // One plant: its crowding line opens to Leave this close.
+  // One plant: its crowding line opens to Dismiss for this pair.
   await tapFromCenter(page, 0, 8);
   await tapFromCenter(page, -6, 0);
   await page.locator('.sel-pill button.edit').click();
   await page.getByTestId('crowding-line').click();
+  await expect(page.getByTestId('leave-close')).toHaveText('Dismiss for this pair');
   await page.getByTestId('leave-close').click();
-  await expect(page.getByTestId('crowding')).toContainText('Left close on purpose: Snowberry');
+  await expect(page.getByTestId('crowding')).toContainText('Dismissed for this pair: Snowberry');
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(4);
-  // The rest at once, from Settings (Leave all flagged now, since Nov 1 the crowding warnings' Dismiss all); warnings
+  // The rest at once, from Warnings (Leave all flagged now, since Nov 1 the crowding warnings' Dismiss all); warnings
   // stay on; Undo brings them back.
-  await openSettings(page);
-  await openWarnings(page);
-  const now = page.getByTestId('warnings-now');
-  await now.locator(':scope > summary').click();
-  await now.getByRole('button', { name: 'Dismiss all 2' }).click();
-  await expect(page.locator('#toast-action')).toContainText('Dismissed 2 crowding warnings, the pairs left close on purpose. Plants placed from now on are still flagged.');
-  await expect(now.getByTestId('warnings-dismiss-all')).toHaveCount(0);
+  await openWarnings(page, 'crowding');
+  const crowding = page.getByTestId('warnings-kind-crowding');
+  await crowding.getByRole('button', { name: 'Dismiss all 2' }).click();
+  await expect(page.locator('#toast-action')).toContainText('Dismissed 2 crowding warnings, for those pairs. Plants placed from now on are still flagged.');
+  await expect(crowding.getByTestId('warnings-dismiss-all')).toHaveCount(0);
   await expect(page.getByTestId('crowd-warnings')).toBeChecked();
-  await expect(now.locator(':scope > summary')).toHaveText('In this plan now · 3 dismissed');
+  await expect(page.getByTestId('warnings-kind-head-crowding')).toHaveAttribute('aria-label', 'Crowding, 3 dismissed');
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(0);
   await page.locator('#toast-action').getByRole('button', { name: 'Undo' }).click();
-  await expect(now.getByTestId('warnings-dismiss-all')).toHaveText('Dismiss all 2');
+  await expect(crowding.getByTestId('warnings-dismiss-all')).toHaveText('Dismiss all 2');
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(4);
 });
 
-test('Crowding settings… opens Settings at its crowding switches; with warnings off, no notice', async ({ page }) => {
+test('the notice\'s Settings opens Warnings at Crowding, its switches in view; with warnings off, no notice', async ({ page }) => {
   await openFresh(page);
   await startPlacing(page, 'Snowberry');
   await tapFromCenter(page, 0, 0);
   await tapFromCenter(page, 2, 0);
   await notice(page).getByRole('button', { name: 'Settings' }).click();
-  await expect(page.getByTestId('crowding-settings')).toBeVisible();
-  await expect(page.getByTestId('crowding-settings')).toContainText('(plants now: 0 close, 2 crowded)');
+  await expect(page.getByTestId('warnings-kind-head-crowding')).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByTestId('warnings-kind-crowding')).toHaveClass(/flash/);
+  await expect(page.getByTestId('crowd-warnings')).toBeInViewport();
+  await expect(page.getByTestId('warnings-kind-head-crowding')).toHaveAttribute('aria-label', 'Crowding, 1 to look at');
   await page.getByTestId('crowd-warnings').uncheck();
   await closeSheet(page);
   await tapFromCenter(page, 4, 0);
@@ -150,8 +154,7 @@ test('Crowding settings… opens Settings at its crowding switches; with warning
   await expect(notice(page)).toHaveCount(0);
   // Kept with the plan (Jason, Nov 1).
   await page.reload();
-  await openSettings(page);
-  await openWarnings(page);
+  await openWarnings(page, 'crowding');
   await expect(page.getByTestId('crowd-warnings')).not.toBeChecked();
   await expect(page.getByTestId('show-crowding')).toBeChecked();
 });

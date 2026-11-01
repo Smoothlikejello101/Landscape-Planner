@@ -7,7 +7,7 @@ import { dismissedForPlan } from '../dismissals';
 import { hardinessWarning, plantsById } from '../plants';
 import { state } from '../state';
 import type { Shape } from '../types';
-import { openWarningsAt } from './settings-panel';
+import { openWarningsAt } from './warnings-sheet';
 import { toastAction } from './toast';
 
 export function hardyNotice(shape: Shape, takeBack: () => void) {
@@ -18,9 +18,10 @@ export function hardyNotice(shape: Shape, takeBack: () => void) {
   if (!w || dismissedForPlan('hardy', p!.id, w.line)) return; // (dismissed for this plant across the plan)
   state.placing.warnedHardy = shape.plantId;
   toastAction(`${w.cold ? '\u2744' : '\u2600'} ${w.line}.`, [
-    { label: 'Leave it', run: () => {} },
+    // (No "Leave it": it only closed the notice, as its ✕ does, where the crowding notice's dismissed the pair. One
+    // vocabulary: the review of Settings → Warnings, Nov 1.)
     { label: 'Undo', run: takeBack },
-    { label: 'Settings', run: () => openWarningsAt('hardy-warnings') },
+    { label: 'Settings', run: () => openWarningsAt('hardy') },
   ], 10000, 'hardy-notice', { tone: 'amber' });
   const n = document.getElementById('toast-action');
   if (n) n.dataset.about = shape.id; // (gone with the plant: src/ui/toast.ts placeNotice)

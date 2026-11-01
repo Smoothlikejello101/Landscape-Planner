@@ -67,7 +67,7 @@ export function placeToast(node: HTMLElement) {
     return;
   }
   let top = Infinity;
-  for (const e of document.querySelectorAll('.sel-pill, .multi-bar, .intro-card')) {
+  for (const e of document.querySelectorAll('.sel-pill, .multi-bar, .walk-chip, .intro-card')) {
     const r = e.getBoundingClientRect();
     if (r.height > 0) top = Math.min(top, r.top);
   }
@@ -133,7 +133,8 @@ export function toastAction(message: string, actions: { label: string; run: () =
   const close = document.createElement('button');
   close.className = 'notice-close';
   close.textContent = '✕';
-  close.setAttribute('aria-label', 'Dismiss');
+  // ("Close": it only puts the notice away. Dismiss is what a warning's own button does: one vocabulary, Nov 1.)
+  close.setAttribute('aria-label', 'Close');
   close.dataset.testid = 'notice-close';
   close.addEventListener('click', () => node.remove());
   node.appendChild(close);
