@@ -15,7 +15,7 @@ const list = (code: string, plants: object[], classes: Record<string, string> = 
 describe('the regulated lists', () => {
   it('are well formed: each entry a species, variety or genus, of a class its list says, each list cited', () => {
     expect(problems(real)).toEqual([]);
-    expect(real.jurisdictions.map((j: { code: string }) => j.code)).toEqual(['US', 'AR', 'TX', 'MS', 'MO', 'OK', 'LA', 'TN', 'VA', 'GA', 'PA', 'KY', 'NC']);
+    expect(real.jurisdictions.map((j: { code: string }) => j.code)).toEqual(['US', 'AR', 'TX', 'MS', 'MO', 'OK', 'LA', 'TN', 'VA', 'GA', 'PA', 'KY', 'NC', 'OH', 'IN', 'IL']);
     expect(problems({ v: 1, jurisdictions: [list('XX', [{ name: 'Melia', class: 'noxious' }, { name: 'Melia azedarach', class: 'banned' },
       { genus: 'Cuscuta', except: ['Lythrum alatum'], class: 'noxious' }, { name: 'Melia azedarach', kew: 'Melia', class: 'noxious' },
       { name: 'Melia azedarach', accepted: 'Melia', also: ['x'], notKew: 'Ophiuros', class: 'noxious' }])] }))
@@ -219,6 +219,24 @@ describe('matching the lists to catalog plants', () => {
     expect(r.NC).toEqual({ 'beach-vitex': 'classB', 'water-lettuce': 'aquatic', 'blood-grass': 'classA' });
     const j = real.jurisdictions.find((x: { code: string }) => x.code === 'NC');
     expect([j.tiers.classA, j.tiers.classB, j.tiers.aquatic]).toEqual(['ban', 'ban', 'listed']);
+  });
+  it("match Ohio's, Indiana's and Illinois's: Indiana's Lythrum rule natives included, a ban that starts later a listing until then", () => {
+    const r = regulatedPlants(real, [
+      { id: 'winged-loosestrife', botanical: 'Lythrum alatum', binomial: 'Lythrum alatum' },
+      { id: 'callery-pear', botanical: 'Pyrus calleryana', binomial: 'Pyrus calleryana' },
+      { id: 'ribbon-grass', botanical: "Phalaris arundinacea 'Picta'", binomial: 'Phalaris arundinacea' },
+      { id: 'field-bindweed', botanical: 'Convolvulus arvensis', binomial: 'Convolvulus arvensis' },
+      { id: 'multiflora', botanical: 'Rosa multiflora', binomial: 'Rosa multiflora' },
+      { id: 'bamboo', botanical: 'Phyllostachys aureosulcata', binomial: 'Phyllostachys aureosulcata' },
+    ], {});
+    expect(r.IN).toEqual({ 'winged-loosestrife': 'lythrum', 'ribbon-grass': 'terrestrial', 'field-bindweed': 'terrestrial', multiflora: 'multiflora' });
+    expect(r.OH).toEqual({ 'callery-pear': 'invasive', 'ribbon-grass': 'invasive', 'field-bindweed': 'noxious', multiflora: 'invasive' }); // (not the bamboo: listed only once escaped)
+    expect(r.IL).toEqual({ 'callery-pear': 'exotic2028', multiflora: 'exotic' });
+    const tier = (code: string, cls: string) => real.jurisdictions.find((x: { code: string }) => x.code === code).tiers[cls];
+    expect([tier('OH', 'invasive'), tier('OH', 'noxious'), tier('IN', 'lythrum'), tier('IN', 'detrimental'), tier('IL', 'exotic'), tier('IL', 'exotic2028'), tier('IL', 'noxious')])
+      .toEqual(['ban', 'listed', 'ban', 'listed', 'ban', 'listed', 'listed']);
+    // (Indiana's shattercane is the weedy subspecies its statute prints: never grain sorghum.)
+    expect(regulatedPlants(real, [{ id: 'sorghum', botanical: 'Sorghum bicolor', binomial: 'Sorghum bicolor' }], {}).IN).toBeUndefined();
   });
 });
 
