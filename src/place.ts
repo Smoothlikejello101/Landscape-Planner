@@ -121,6 +121,8 @@ export function selectionJustPlaced(): boolean {
   if (justPlaced && state.selectedIds.join() !== justPlaced) justPlaced = '';
   return !!justPlaced;
 }
+/** The batch picked by a tap since (one plant placed, tapped): just selected now (src/gestures.ts handleShapeTap). */
+export function notJustPlaced() { justPlaced = ''; }
 
 // ---------- Recently placed plants (this device) ----------
 const RECENT_KEY = 'lp-recent-plants';
