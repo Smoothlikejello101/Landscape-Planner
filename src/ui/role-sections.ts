@@ -6,7 +6,7 @@ import { hardinessWarning, householdFlags, plantsById } from '../plants';
 import { household } from '../yard';
 import { state } from '../state';
 import { checkPlantSun, formatHours, formatTime, newSunInfo, sunDismissedFor, sunHours, sunLevel } from '../sun';
-import type { DismissKind, Shape, SunInfo } from '../types';
+import type { Shape, SunInfo } from '../types';
 import { render } from './render';
 import { toastAction } from './toast';
 import { copiesSaid, dismissedForPlan, dismissForPlan, poisonSaid, showAgainForPlan, warnForNewOnes } from '../dismissals';
@@ -71,9 +71,9 @@ export function plantSunBanner(s: Shape): HTMLElement | null {
 
 /**
  * Dismissed for the plant across the plan (its copies, and new ones), with a toast that says so and offers to warn again
- * for new ones (Jason, Oct 30).
+ * for new ones (Jason, Oct 30). Also a hardiness or poison row's Dismiss in Settings → Warnings (Jason, Nov 1).
  */
-function dismissAcross(kind: DismissKind, plantId: string, said: string) {
+export function dismissAcross(kind: 'hardy' | 'poison', plantId: string, said: string) {
   const who = copiesSaid(plantId);
   dismissForPlan(kind, plantId, said);
   render();

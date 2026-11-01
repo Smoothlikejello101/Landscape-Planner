@@ -129,6 +129,9 @@ test('⋮\'s Check for updates says when it\'s up to date, finds a later release
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.reload();
   await page.locator('button[title=More]').click();
+  // (This app is on its own address, so the tap guard is on here: a menu just opened takes no tap for 0.4 s,
+  // src/tap-guard.ts. Wait as a person would.)
+  await page.waitForTimeout(450);
   const line = page.getByTestId('update-check');
   await page.getByTestId('check-updates').click();
   await expect(line).toHaveText('You’re up to date.', { timeout: 15_000 });

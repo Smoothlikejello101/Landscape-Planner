@@ -55,6 +55,7 @@ import { isLocked } from '../roles';
 import { declineIntro, introActive, introAfterRender, introOffered, showMeAround } from './intro-card';
 import { focusAfterRender, focusBeforeRender } from './focus';
 import { startBgCalibration } from '../background';
+import { panelOpened } from '../tap-guard';
 
 // MAIN RENDER
 // ============================================================
@@ -578,6 +579,7 @@ export function render() {
   if (shownPanel === 'plants' && state.panel !== 'plants') { foldDetailGroups(); partnersClosed(); pickerClosed(); }
   if (state.panel !== 'projects' && state.panel !== 'rename') projectsClosed();
   if ((state.panel && state.panel !== shownPanel) || (state.menu && state.menu !== shownMenu)) {
+    panelOpened(); // (a tap on it a moment from now is the end of a double tap, not one meant for it: src/tap-guard.ts)
     hideOldToast();
     document.getElementById('zoom-flash')?.classList.remove('on'); // (the zoom badge too: it sat over ⋮'s Redo, round 3)
   }

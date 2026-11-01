@@ -1,15 +1,25 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, canvasBox, closeSheet, openFresh, shapeCount } from './helpers';
+import { canvasBox, closeSheet, openFresh, shapeCount } from './helpers';
 
 // Taps that land on what a tap just put there (src/tap-guard.ts; round 2 testing, Oct 30).
 // (The other tests run with the guard off: playwright.config.ts. Here it's on.)
 test.use({ storageState: { cookies: [], origins: [] } });
 
 const banner = (page: Page) => page.getByTestId('place-banner');
+// (A panel just opened takes no tap for 0.4 s, with the guard on: these wait, as a person would.)
+const settle = (page: Page) => page.waitForTimeout(450);
 async function placeButton(page: Page, name: string) {
   await page.locator('.tool-btn.plants').click();
+  await settle(page);
   await page.getByTestId('plant-search').fill(name);
   return page.locator('.sheet .proj-row', { hasText: name }).first().locator('[data-testid=plant-place]');
+}
+async function addKind(page: Page, kind: string, method?: string) {
+  await page.getByTestId('add-btn').click();
+  await settle(page);
+  await page.locator(`[data-testid=add-sheet] .kind-chip[data-kind=${kind}]`).first().click();
+  await expect(page.getByTestId('add-sheet')).toHaveCount(0);
+  if (method) await page.locator(`[data-testid=draw-bar] [data-method=${method}]`).click();
 }
 async function centerOf(sel: ReturnType<Page['locator']>) {
   const b = (await sel.boundingBox())!;
@@ -63,6 +73,7 @@ test.describe('on a phone', () => {
     const record = page.getByTestId('record-sun');
     await expect(record).toBeVisible();
     const at = await centerOf(record);
+    await settle(page);
     await closeSheet(page);
     await page.locator('button[title=Undo]').click();
     await expect.poll(() => shapeCount(page)).toBe(0);
@@ -74,4 +85,30 @@ test.describe('on a phone', () => {
     await expect(record).toBeVisible(); // (still to press: no sun recorded)
     await expect(page.getByTestId('sun-summary')).toHaveCount(0);
   });
+});
+
+test('a panel just opened takes no tap for a moment: the end of a double tap doesn\'t press what came up under it (Jason, Nov 1)', async ({ page }) => {
+  await openFresh(page);
+  await (await placeButton(page, 'Tennessee coneflower')).click();
+  await page.mouse.click(...Object.values(await centerOf(page.locator('#canvas-svg'))) as [number, number]);
+  await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
+  // Where the pane's Swap comes up: open it, look, close it.
+  await settle(page);
+  await page.locator('.sel-pill .edit').click();
+  const swap = page.getByTestId('swap-plant');
+  await expect(swap).toBeVisible();
+  const at = await centerOf(swap);
+  await settle(page);
+  await closeSheet(page);
+  await settle(page);
+  // The pane opened, and a tap at once where Swap comes up: dropped (Jason, double-tapping a plant already
+  // selected, landed on Swap every time).
+  await page.locator('.sel-pill .edit').click();
+  await page.mouse.click(at.x, at.y);
+  await expect(swap).toBeVisible();
+  await expect(page.getByTestId('swap-banner')).toHaveCount(0);
+  // A moment later it's a tap.
+  await settle(page);
+  await page.mouse.click(at.x, at.y);
+  await expect(page.getByTestId('swap-banner')).toContainText('swap it for');
 });
