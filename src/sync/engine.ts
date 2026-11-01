@@ -206,6 +206,20 @@ export const coreHash = (name: string, c: ProjectContent) => fingerprint(name, c
 /** A record's core fingerprint; one from before the parts that settle on their own had none, its plan neither part. */
 const coreOfRecord = (rec: SyncRecord) => rec.core ?? rec.hash;
 /**
+ * Whether a plan's core (`c`, named `name`) is as the record has it. A record without `core` holds the whole plan's
+ * fingerprint: one from a version before the parts (the plan had none, so that's its core), or one of this version's
+ * that an older version open on this device wrote back without its core and parts (it keeps a record's revision and
+ * hash only). Then the fingerprint is the core with the parts as they were, which are still this plan's, or the other
+ * side's (`other`), unless both changed them since: so a tick here and an edit there aren't taken for a conflict (the
+ * second review of the storage change, Nov 1).
+ */
+function coreAsRecorded(rec: SyncRecord, name: string, c: ProjectContent, other: ProjectContent): boolean {
+  const core = coreHash(name, c);
+  if (rec.core !== undefined || rec.hash === core) return coreOfRecord(rec) === core;
+  const bare = coreOf(c);
+  return rec.hash === planHash(name, { ...bare, ...partsOf(c) }) || rec.hash === planHash(name, { ...bare, ...partsOf(other) });
+}
+/**
  * Which photo content shows, and how it's placed: 'none', 'kept' (on one
  * device only), or "<photo fingerprint>@<placement fingerprint>". Undefined
  * when content says nothing about a photo (from a version of the app before
@@ -478,28 +492,6 @@ function onlyTakenFromDevice(p: LocalProject, rec: SyncRecord | undefined): bool
   if (!taken || (h === undefined && sw === undefined)) return false;
   return planHash(p.name, rest) === rec.hash;
 }
-/**
- * Parts this device had at its last sync (`was`, as the server had them) that its plan has since lost to values carried
- * over from the device, or to nothing: a version before them on this device saved the plan without them, and the
- * update filled them in again. Each comes back as it was; a change made here since (stamped with when) stays. Null when
- * nothing was lost.
- */
-function lostParts(mine: ProjectContent, was: ProjectContent): ProjectContent | null {
-  const out: ProjectContent = {};
-  // (Ticks are never taken away here, only set to 0: any missing were dropped.)
-  if (isObject(was.bought)) {
-    const here = isObject(mine.bought) ? mine.bought : {};
-    const missing = Object.keys(was.bought).filter((k) => !(k in here));
-    if (missing.length) out.bought = { ...here, ...Object.fromEntries(missing.map((k) => [k, (was.bought as Record<string, unknown>)[k]])) };
-  }
-  if (setInPlan(was.household) && !setInPlan(mine.household)) out.household = was.household;
-  if (isObject(was.switches)) {
-    const here = isObject(mine.switches) ? mine.switches : {};
-    const back = Object.keys(was.switches).filter((k) => setInPlan((was.switches as Record<string, unknown>)[k]) && !setInPlan(here[k]));
-    if (back.length) out.switches = { ...here, ...Object.fromEntries(back.map((k) => [k, (was.switches as Record<string, unknown>)[k]])) };
-  }
-  return Object.keys(out).length ? out : null;
-}
 const isEmpty = (c: ProjectContent) => Array.isArray(c.shapes) && c.shapes.length === 0 && (photoKey(c) ?? 'none') === 'none';
 /** After this many failures in a row, the trouble is likely the connection: end the pass. */
 const FAILS_IN_A_ROW = 3;
@@ -525,12 +517,17 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
       let answer = await remote.trash(id, rev);
       // Changed on the server since: by an edit there, it comes back here. Only by what another device carried over
       // when plans got their own (the yard and the warning switches it had, never set in the plan), it was still the plan
-      // deleted here: trashed after all, at the server's revision.
+      // deleted here: trashed after all, at the server's revision. Judged by the record it had as it was deleted, that
+      // deletion's (an older version can clear a tombstone and delete the plan again, leaving the first one's record).
       const was = answer === 'changed' ? local.deletedRecord?.(id) : undefined;
-      if (was) {
+      if (was && was.revision === rev) {
         const got = (await remote.fetch([id]))[id];
         const n = got ? local.normalize(got.name, got.content) : undefined;
-        if (got && n && (photoKey(n.content) ?? was.photo ?? 'none') === (was.photo ?? 'none') && coreHash(n.name, n.content) === coreOfRecord(was)
+        // (Only what this version can see: tidying it as stored here must leave it whole. A part of the plan, or of a
+        // shape, that only a later version knows is left out by that, so an edit to it there would go unseen, into the
+        // trash: then it comes back, as before. The second review of the storage change, Nov 1.)
+        const whole = !!got && !!n && got.name === n.name && canonical(planOf(got.content)) === canonical(planOf(n.content));
+        if (got && n && whole && (photoKey(n.content) ?? was.photo ?? 'none') === (was.photo ?? 'none') && coreHash(n.name, n.content) === coreOfRecord(was)
           && onlyCarriedOver(n.content, was.parts ?? {})) answer = await remote.trash(id, got.revision);
       }
       if (answer === 'paused') { report.paused = true; return; }
@@ -660,7 +657,9 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     const basePhoto = rec?.photo ?? 'none';
     const localPlan = coreHash(p.name, p.content), serverPlan = coreHash(n.name, n.content);
     const localPhoto = photoKey(p.content) ?? 'none', serverPhoto = photoKey(n.content);
-    const planHere = !rec || coreOfRecord(rec) !== localPlan, planThere = !rec || coreOfRecord(rec) !== serverPlan;
+    // (The other side's parts as each has them: the server's as it sent them, without this device's filled in.)
+    const sentHere = local.normalize(serverName, sent).content;
+    const planHere = !rec || !coreAsRecorded(rec, p.name, p.content, sentHere), planThere = !rec || !coreAsRecorded(rec, n.name, n.content, p.content);
     const photoHere = localPhoto !== basePhoto, photoThere = serverPhoto !== undefined && serverPhoto !== basePhoto;
     const photoClash = photoHere && photoThere && localPhoto !== serverPhoto;
     if ((planHere && planThere && localPlan !== serverPlan) || photoClash) {
@@ -727,11 +726,12 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
         // them recorded it, leaving them out of what it stored) goes the long way instead: fetched and settled, below, so
         // the yard, switches and ticks another device sent aren't replaced by what this one carried over.)
         if (changed) {
-          // Parts lost here since (a version before them saved the plan on this device): back as they were, then up.
-          const lost = rec.parts ? lostParts(p.content, rec.parts) : null;
+          // The parts settled with the server's as recorded, before going up: a change made here since is stamped later
+          // and stays; any part lost here since, or put back older (a version before them saving the plan on this device,
+          // an unsaved copy of it replayed late), comes back as the server has it.
+          const content = { ...p.content, ...settleParts(p.content, rec.parts ?? {}) };
           let q = p;
-          if (lost) {
-            const content = { ...p.content, ...lost };
+          if (planHash(p.name, content) !== planHash(p.name, p.content)) {
             if (!(await local.replace(p.id, p.name, content, p.token))) return; // (edited meanwhile: next time)
             q = { ...p, content, token: -1 };
           }

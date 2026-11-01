@@ -916,6 +916,86 @@ describe('a device that synced on the version before, then updates', () => {
   });
 });
 
+// The second review of the storage change (Nov 1): the fixes to the first, checked at their edges.
+describe('the parts with what this version can see, and older records', () => {
+  const none = { kids: false, dogs: '', cats: false, horses: false, answered: false };
+  const taken = (on: Record<string, boolean>) => Object.fromEntries(Object.entries(on).map(([k, v]) => [k, { on: v }]));
+  const all = { showCrowding: true, crowdWarnings: true, hardyWarnings: true, poisonWarnings: true, fruitWarnings: true };
+  /** This version, beside a later one: storing a plan leaves out what only the later one knows (a plan's notes, a shape's mood). */
+  class ThisVersion extends FakeDevice {
+    normalize(name: string, content: ProjectContent) {
+      const r = super.normalize(name, content);
+      delete r.content.notes;
+      if (Array.isArray(r.content.shapes)) r.content.shapes = r.content.shapes.map((x) => { if (x && typeof x === 'object') { const { mood: _m, ...rest } = x as Record<string, unknown>; return rest; } return x; });
+      return r;
+    }
+  }
+  it("a plan deleted here comes back for an edit there to a part only a later version knows, of the plan or of a shape: not into the trash", async () => {
+    for (const edit of ['plan', 'shape'] as const) {
+      const server = new FakeServer(), phone = new ThisVersion('phone'), laptop = new FakeDevice('laptop');
+      const id = phone.add('Old plan', [{ id: 'oak' }]);
+      await sync(phone, server); await sync(laptop, server);
+      // The laptop, on a later version, carried over what it had, and edited what this version can't see.
+      laptop.setPart(id, 'household', { ...none }); laptop.setPart(id, 'switches', taken(all));
+      if (edit === 'plan') laptop.setPart(id, 'notes', 'Gus dug here: replant in spring');
+      else laptop.edit(id, [{ id: 'oak', mood: 'thriving' }]);
+      await sync(laptop, server);
+      phone.del(id);
+      const r = await sync(phone, server);
+      expect({ edit, undeleted: r.undeleted, deleted: server.rows.get(id)!.deleted }).toEqual({ edit, undeleted: ['Old plan'], deleted: false });
+      const row = server.rows.get(id)!.content;
+      expect(edit === 'plan' ? row.notes : row.shapes).toEqual(edit === 'plan' ? 'Gus dug here: replant in spring' : [{ id: 'oak', mood: 'thriving' }]);
+    }
+  });
+  it("only the record of this deletion counts: an earlier deletion's, left by an older version, brings the plan back as before", async () => {
+    const server = new FakeServer(), phone = new FakeDevice('phone'), laptop = new FakeDevice('laptop');
+    const id = phone.add('Old plan', [1]);
+    await sync(phone, server); await sync(laptop, server);
+    laptop.setPart(id, 'household', { ...none }); laptop.setPart(id, 'switches', taken(all));
+    await sync(laptop, server);
+    phone.del(id);
+    phone.deleted[id] = { ...phone.deleted[id], revision: phone.tombs[id] - 1 }; // (the record of an earlier deletion)
+    const r = await sync(phone, server);
+    expect([r.undeleted, server.rows.get(id)!.deleted]).toEqual([['Old plan'], false]);
+  });
+  it("a record an older version on this device wrote back without its core and parts: a tick here and an edit there are both kept, with no copy", async () => {
+    const server = new FakeServer(), phone = new FakeDevice('phone'), laptop = new FakeDevice('laptop');
+    const id = phone.add('Back Yard', [1]);
+    phone.setPart(id, 'household', { ...none, answered: true, at: 5 });
+    await sync(phone, server); await sync(laptop, server);
+    laptop.recs[id] = { revision: laptop.recs[id].revision, hash: laptop.recs[id].hash }; // (an older tab kept only these)
+    laptop.setPart(id, 'bought', { aster: { n: 1, at: 50 } });
+    phone.edit(id, [1, 'new bed']); await sync(phone, server);
+    const r = await sync(laptop, server);
+    expect(r.conflicts).toEqual([]);
+    await sync(phone, server);
+    for (const d of [phone, laptop]) {
+      expect(d.shapes(id)).toEqual([1, 'new bed']);
+      expect(d.part(id, 'bought')).toEqual({ aster: { n: 1, at: 50 } });
+      expect(d.names()).toEqual(['Back Yard']);
+    }
+  });
+  it('a part put back older here (an unsaved copy replayed late) goes up settled: the newer one the server has stays', async () => {
+    const server = new FakeServer(), phone = new FakeDevice('phone'), laptop = new FakeDevice('laptop');
+    const id = laptop.add('Back Yard', [1]);
+    laptop.setPart(id, 'household', { ...none, kids: true, answered: true, at: 300 });
+    laptop.setPart(id, 'bought', { yaupon: { n: 2, at: 300 } });
+    await sync(laptop, server); await sync(phone, server);
+    phone.setPart(id, 'household', { ...none, dogs: 'hideToxic', answered: true, at: 500 });
+    phone.setPart(id, 'bought', { yaupon: { n: 0, at: 500 } });
+    await sync(phone, server); await sync(laptop, server);
+    laptop.setPart(id, 'household', { ...none, kids: true, answered: true, at: 300 });
+    laptop.setPart(id, 'bought', { yaupon: { n: 2, at: 300 }, aster: { n: 1, at: 600 } }); // (and a tick made since)
+    laptop.edit(id, [1, 'x']);
+    await sync(laptop, server); await sync(phone, server);
+    for (const c of [server.rows.get(id)!.content, laptop.projectsById.get(id)!.content, phone.projectsById.get(id)!.content]) {
+      expect(c.household).toEqual({ ...none, dogs: 'hideToxic', answered: true, at: 500 });
+      expect(c.bought).toEqual({ yaupon: { n: 0, at: 500 }, aster: { n: 1, at: 600 } });
+      expect(c.shapes).toEqual([1, 'x']);
+    }
+  });
+});
+
 describe('fingerprints', () => {
   it('ignore key order (the server may reorder keys)', () => {
     expect(canonical({ b: 1, a: [{ d: 2, c: 3 }] })).toBe('{"a":[{"c":3,"d":2}],"b":1}');

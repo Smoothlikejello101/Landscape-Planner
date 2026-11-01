@@ -982,6 +982,14 @@ describe('sync state on the device', () => {
     await initStorage(kv);
     expect(getSyncRecords()).toEqual({ [id]: { revision: 4, hash: 'a1:b', parts: { bought: parts.bought, switches: {} } }, none: { revision: 1, hash: 'x' } });
     expect([getSyncDeletedRecord(gone), getSyncDeletedRecord('stale')]).toEqual([{ revision: 2, hash: 'e3:f', parts }, undefined]);
+    // (An older version cleared that tombstone and deleted the plan again, later: the first deletion's record isn't this one's.)
+    await kv.write([put('kv', 'syncTombstones', { [gone]: 6 })]);
+    _resetStorageForTests();
+    await initStorage(kv);
+    expect([getSyncTombstones(), getSyncDeletedRecord(gone)]).toEqual([{ [gone]: 6 }, undefined]);
+    await kv.write([put('kv', 'syncTombstones', { [gone]: 2 }), put('kv', 'syncDeleted', { [gone]: { revision: 2, hash: 'e3:f', parts } })]);
+    _resetStorageForTests();
+    await initStorage(kv);
     await clearSyncTombstone(gone);
     expect([getSyncTombstones(), getSyncDeletedRecord(gone), await kv.get('kv', 'syncDeleted')]).toEqual([{}, undefined, {}]);
     await setSyncRecord('deleted-meanwhile', { revision: 3, hash: 'x' }); // (deleted while uploading: its record too)
