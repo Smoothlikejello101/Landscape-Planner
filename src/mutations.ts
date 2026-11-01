@@ -5,7 +5,7 @@ import { canvasRect, pxPerFoot, rotatedBoxBounds, shapeBBox, shapeCenter, unionB
 import { flushHistoryDebounce, pushHistory, pushHistoryDebounced } from './history';
 import { getSelected, singleSelected } from './selection';
 import { state } from './state';
-import { forgetCleared, getClipboard, keepCleared, migrateShape, save, setClipboard, type ClearedPlan } from './storage';
+import { forgetCleared, getClipboard, keepCleared, migrateShape, save, saveView, setClipboard, type ClearedPlan } from './storage';
 import { toast } from './ui/toast';
 import { defaultLook, isLocked, roleKey } from './roles';
 import { isUtilityKind, utilityLook } from './utility-kinds';
@@ -213,7 +213,7 @@ export function centerOnShape(id: string) {
   const c = shapeCenter(s);
   state.offsetX = c.x - state.canvasW / pxPerFoot() / 2;
   state.offsetY = c.y - state.canvasH / pxPerFoot() / 2;
-  save();
+  saveView();
 }
 /** Zoom by `factor`, keeping the point under (screenX, screenY) fixed (default: canvas center). */
 export function zoomBy(factor: number, anchorScreenX?: number, anchorScreenY?: number) {
@@ -227,7 +227,7 @@ export function zoomBy(factor: number, anchorScreenX?: number, anchorScreenY?: n
   state.offsetX = feetAtAnchor.x - ax / newPxPerFoot;
   state.offsetY = feetAtAnchor.y - ay / newPxPerFoot;
   state.zoom = newZoom;
-  save();
+  saveView(); // (a new view of the plan, not a change to it: src/storage.ts)
 }
 /**
  * The whole plan as shown: every shape in view, and the photo while it shows (feet). Null when nothing shows.
@@ -249,7 +249,7 @@ export function zoomToBounds(b: Bounds, marginPx = 28) {
   const ppf = PX_PER_FOOT_BASE * state.zoom;
   state.offsetX = (b.minX + b.maxX) / 2 - W / ppf / 2;
   state.offsetY = (b.minY + b.maxY) / 2 - H / ppf / 2;
-  save();
+  saveView();
 }
 /** Everything in view (the zoom buttons' Fit, Shift+1). False when there's nothing on the plan to fit. */
 export function zoomToFit(): boolean {

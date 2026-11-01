@@ -64,6 +64,12 @@ export function setSaveStateListener(fn: () => void) { onSaveState = fn; }
 let editSeq = 0;
 let savedSeq = 0;
 /**
+ * The same for changes to the plan itself, not counting where it's looked at from (zoom, pan, Fit: saveView): only
+ * these make it "last modified".
+ */
+let planSeq = 0;
+let savedPlanSeq = 0;
+/**
  * Synchronous safety copy of unsaved edits, written to localStorage when the
  * page hides. IndexedDB writes are asynchronous and browsers may abandon them
  * when a page unloads; this journal is replayed on the next start.
@@ -403,7 +409,7 @@ function metaFor(id: string): ProjectMeta | undefined {
 async function writeCurrent(): Promise<boolean> {
   const id = state.currentProjectId;
   if (!id || !kv) return true;
-  const seq = editSeq;
+  const seq = editSeq, plan = planSeq;
   const hadEdits = seq !== savedSeq; // (a flush with nothing new still writes; sync only hears of real edits)
   // Snapshot synchronously so later edits don't race with this write.
   const data = currentProjectData();
@@ -411,8 +417,8 @@ async function writeCurrent(): Promise<boolean> {
   const meta = metaFor(id);
   if (meta) {
     // (Only an edit makes it "last modified": opening a plan and leaving it moved it to the top of the list, under
-    // the finger, and a quick tap opened the wrong one. Sam, Oct 30.)
-    if (hadEdits) meta.lastModified = now();
+    // the finger, and a quick tap opened the wrong one. Sam, Oct 30. Nor does a zoom, pan or Fit: saveView.)
+    if (plan !== savedPlanSeq) meta.lastModified = now();
     meta.shapeCount = state.shapes.length;
     ops.push(put('meta', id, { ...meta }));
   }
@@ -420,6 +426,7 @@ async function writeCurrent(): Promise<boolean> {
     await kv.write(ops);
     for (const op of ops) if (op.store === 'images') committedImageKeys.add(op.key);
     savedSeq = Math.max(savedSeq, seq);
+    savedPlanSeq = Math.max(savedPlanSeq, plan);
     if (savedSeq === editSeq) onSaveState?.();
     if (savedSeq === editSeq && state.currentProjectId === id) clearJournal(id);
     setSaveFailing(false);
@@ -478,8 +485,20 @@ export function forgetCleared(id = state.currentProjectId): void {
   void kv?.write([del('kv', clearedKey(id))]).catch((e) => recordError(e, 'forget cleared'));
 }
 
-/** Schedule a save of the current project. */
+/** Schedule a save of the current project: an edit, which makes it "last modified". */
 export function save() {
+  planSeq++;
+  scheduleSave();
+}
+/**
+ * Schedule a save of where the plan is looked at from (zoom, pan, Fit): kept, so it opens where it was left, but not
+ * a change to the plan, so it isn't "last modified" by it (the UI review, 2026-11-01: Fit, tapped after the app
+ * updated, showed the plan "last modified" that minute before anything in it had changed).
+ */
+export function saveView() {
+  scheduleSave();
+}
+function scheduleSave() {
   // (Something new drawn on a cleared plan: what was cleared isn't offered back any more.)
   if (state.shapes.length && state.currentProjectId && cleared.get(state.currentProjectId)) forgetCleared();
   const was = editSeq === savedSeq;
@@ -508,6 +527,9 @@ function clearJournal(projectId: string) {
 export function writeJournalIfDirty() {
   const id = state.currentProjectId;
   if (!id || !hasUnsavedChanges() || !kv?.durable) return;
+  // (A new view alone isn't kept here: replayed, a journal makes its plan "last modified" when it was written. The
+  // write that's under way keeps it, unless the page dies first, and then only the zoom is lost.)
+  if (planSeq === savedPlanSeq) return;
   const bg = state.bgImage;
   const imageOnDisk = !!(bg?.imageId && committedImageKeys.has(imageKey(id, bg.imageId)));
   const journal = (withImage: boolean): Journal => ({
@@ -652,6 +674,7 @@ export async function switchProject(id: string): Promise<boolean> {
   storedImageKeys = new Set(data.bgImage?.imageId ? [imageKey(id, data.bgImage.imageId)] : []);
   committedImageKeys = new Set(storedImageKeys);
   savedSeq = editSeq;
+  savedPlanSeq = planSeq;
   try { await db().write([put('kv', 'current', id)]); } catch (e) { console.warn('could not remember open project', e); }
   void collectImageGarbage(id, storedImageKeys);
   return true;
@@ -1152,7 +1175,7 @@ function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
 /** Test hook: forget module state between tests. */
 export function _resetStorageForTests() {
   kv = null; clipboardCache = null; storedImageKeys = new Set(); committedImageKeys = new Set(); cleared.clear();
-  quotaWarned = false; lastBackupAt = null; myPlantsRaw = []; lastSizeMode = 'typical'; editSeq = 0; savedSeq = 0; saveFailing = false;
+  quotaWarned = false; lastBackupAt = null; myPlantsRaw = []; lastSizeMode = 'typical'; editSeq = 0; savedSeq = 0; planSeq = 0; savedPlanSeq = 0; saveFailing = false;
   lastFailureJournalAt = 0; unreplayed.clear(); syncRecords = {}; syncTombstones = {}; syncUserId = null; changeCounts.clear(); plantSync = { records: {}, edited: {} };
   saveChain = Promise.resolve(true);
   if (saveTimer) clearTimeout(saveTimer);
