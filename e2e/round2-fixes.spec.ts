@@ -137,5 +137,6 @@ test('"In this plan" lists every plant in the plan, saying which the filters wou
   await page.getByTestId('in-plan').click();
   await expect(page.locator('.plant-item', { hasText: 'Butterfly milkweed' })).toBeVisible();
   await expect(page.getByTestId('filtered-in-plan')).toContainText('Your filters would hide it: Not listed as poisonous to people');
-  await expect(page.locator('.sheet')).toContainText('1 kind of plant in this plan');
+  await expect(page.locator('.sheet')).toContainText('1 plant, 1 kind in this plan');
+  await expect(page.getByTestId('in-plan-count')).toHaveText(/^\s*×\s1$/);
 });

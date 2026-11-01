@@ -188,6 +188,25 @@ export async function shareText(filename: string, text: string): Promise<boolean
     throw e;
   }
 }
+/**
+ * Whether the system share sheet takes words, to paste into a note or a message (the Plant list's Share as text; a
+ * file, as shareText hands over, wouldn't paste).
+ */
+export function canShareWords(): boolean {
+  try {
+    return typeof navigator.share === 'function' && (typeof navigator.canShare !== 'function' || navigator.canShare({ text: 'x' }));
+  } catch { return false; }
+}
+/** Hand words to the system share sheet. False if the person canceled. */
+export async function shareWords(title: string, text: string): Promise<boolean> {
+  try {
+    await navigator.share({ title, text });
+    return true;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return false; // (canceled)
+    throw e;
+  }
+}
 /** Save a full backup and record when it happened: how many projects, the file, and whether it was downloaded or shared (null: canceled). */
 export async function backupAll(via: 'download' | 'share'): Promise<{ count: number; filename: string; via: 'download' | 'share' } | null> {
   const { filename, text, count } = await buildBackupFile();
