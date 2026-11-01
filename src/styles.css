@@ -288,6 +288,10 @@ a { color: inherit; }
 #update-banner button.later { background: transparent; color: #d6d3d1; font-weight: 500; }
 .menu-version { font-size: calc(11px * var(--ts)); color: #78716c; padding: 8px 14px 10px; border-top: 1px solid #e7e5e4; display: flex; align-items: center; gap: 6px; }
 .menu-version .brand-mark { width: calc(16px * var(--ts)); height: calc(16px * var(--ts)); flex: none; color: #2f5d3a; }
+/* "Check for updates" under the version: its own line, a finger's height to tap (src/ui/menu.ts). */
+.menu-version { flex-wrap: wrap; }
+.menu-version .update-check { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; min-height: 36px; }
+.menu-version .update-check .link-btn { font-size: calc(12px * var(--ts)); min-height: 36px; padding: 4px 0; }
 .storage-warning .link-btn { color: inherit; text-decoration: underline; font-weight: 600; font-size: inherit; }
 .fatal { max-width: 420px; margin: 15vh auto 0; padding: 24px; text-align: center; color: #292524; }
 .fatal h1 { font-size: calc(18px * var(--ts)); margin: 0 0 12px; }
