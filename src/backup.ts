@@ -102,6 +102,17 @@ export function buildEmergencyBackup(): { filename: string; text: string; count:
   return { filename: `fullgrown-recovery-${stamp()}.fullgrown.json`, text: JSON.stringify(file), count: projects.length };
 }
 
+/** The largest file Import takes: a backup's photos are downscaled JPEGs (about 2000 px), so a real one is far
+ *  smaller; a bigger file, read whole into memory, could freeze a phone. (Weekly security check, Nov 1: it read any
+ *  file at all. 100 MB, not the check's 50, leaves room for a backup of many plans with photos.) */
+export const MAX_IMPORT_BYTES = 100 * 1024 * 1024;
+/** What to say about a file too big to import, or null to go ahead. */
+export function importTooBig(bytes: number): string | null {
+  if (bytes <= MAX_IMPORT_BYTES) return null;
+  const mb = Math.ceil(bytes / (1024 * 1024));
+  return `That file is ${mb} MB, too big to be a FullGrown plan or backup (they're well under ${MAX_IMPORT_BYTES / (1024 * 1024)} MB). Pick the .json file you saved from FullGrown.`;
+}
+
 /** Parse a project or backup file. Throws an Error with a user-facing message. */
 export function parseImportFile(text: string): ExportedProject[] {
   let raw: unknown;

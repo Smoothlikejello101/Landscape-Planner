@@ -407,7 +407,9 @@ export function buildExportSVG(): { svg: string; widthPx: number; heightPx: numb
     const cxPx = (bg.cx - minX) * scale;
     const cyPx = (bg.cy - minY) * scale;
     const rot = bg.rotation ? ` transform="rotate(${bg.rotation} ${cxPx} ${cyPx})"` : '';
-    bgSvg = `<image x="${xPx}" y="${yPx}" width="${wFt*scale}" height="${hFt*scale}" opacity="${bg.opacity}" preserveAspectRatio="none" href="${bg.dataUrl}" xlink:href="${bg.dataUrl}"${rot}/>`;
+    // (The photo escaped, as print.ts does: a doctored plan file could carry markup after its data URL's start, and a
+    // downloaded .svg opened in a browser runs what it holds. Weekly security check, Nov 1.)
+    bgSvg = `<image x="${xPx}" y="${yPx}" width="${wFt*scale}" height="${hFt*scale}" opacity="${bg.opacity}" preserveAspectRatio="none" href="${escapeHtml(bg.dataUrl)}" xlink:href="${escapeHtml(bg.dataUrl)}"${rot}/>`;
   }
   // What Layers is leaving out, said on the picture: a picture of planned plants only shouldn't pass for the whole plan
   // (Priya, Oct 30).

@@ -1,4 +1,4 @@
-import { backupAll, backupSaid, buildProjectFile, canShareFiles, downloadText, importProjects, parseImportFile, parseImportPlants, uniqueName } from '../backup';
+import { backupAll, backupSaid, buildProjectFile, canShareFiles, downloadText, importProjects, importTooBig, parseImportFile, parseImportPlants, uniqueName } from '../backup';
 import { mergeMyPlants } from '../my-plants';
 import { el } from '../dom';
 import { I } from '../icons';
@@ -71,6 +71,8 @@ function backupSection(): HTMLElement {
     const f = fileInput.files?.[0];
     fileInput.value = '';
     if (!f) return;
+    const big = importTooBig(f.size);
+    if (big) { void tell(big); return; }
     try {
       const text = await f.text();
       const list = parseImportFile(text);

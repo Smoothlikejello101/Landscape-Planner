@@ -245,3 +245,26 @@ test('a failing save shows a warning without closing the keyboard', async ({ pag
   expect(await handle!.evaluate((n) => n.isConnected && document.activeElement === n)).toBe(true);
   await expect(label).toHaveValue('abc');
 });
+
+test('a plan file with markup hidden after its photo exports an SVG with that markup escaped, not live (weekly security check, Nov 1)', async ({ page }) => {
+  autoDialogs(page);
+  await openFresh(page);
+  const tail = '" onload="window.pwned=1"/><script>window.pwned=1</script><image href="';
+  const file = {
+    format: 'landscape-planner-project', version: 1, exportedAt: '2026-11-01T00:00:00Z',
+    project: { name: 'Doctored', lastModified: 1, data: {
+      shapes: [{ id: 'r1', type: 'rect', x: -5, y: -5, w: 10, h: 10, rotation: 0, label: 'Shed' }],
+      bgImage: { dataUrl: 'data:image/png;base64,iVBORw0KGgo=' + tail, naturalWidth: 100, naturalHeight: 100, ftPerPx: 0.1, cx: 0, cy: 0, rotation: 0, opacity: 0.6, visible: true },
+    } },
+  };
+  await page.locator('.project-btn').click();
+  await page.locator('[data-testid=import-file]').setInputFiles({ name: 'p.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(file)) });
+  await expect(page.locator('.project-btn .pname')).toHaveText('Doctored');
+  await openExport(page);
+  await page.locator('button', { hasText: 'Download SVG' }).click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('download-picture').click()]);
+  const svg = readFileSync((await download.path())!, 'utf8');
+  expect(svg).toContain('base64,iVBORw0KGgo=&quot; onload=&quot;');
+  expect(svg).not.toContain('<script');
+  expect(svg).not.toContain('onload="');
+});
