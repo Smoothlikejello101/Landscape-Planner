@@ -58,6 +58,7 @@ export const state: AppState = {
   hardyWarnings: true,
   poisonWarnings: true,
   fruitWarnings: true,
+  switchedAt: {},
   zoomButtons: true,
   showNames: true,
   plantForm: null,

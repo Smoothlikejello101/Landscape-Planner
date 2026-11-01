@@ -303,6 +303,18 @@ export type PlanBought = Record<string, { n: number; at: number }>;
  * the plan (ms). Absent: taken, when plans got their own, from what this device had (and not set since).
  */
 export interface PlanHousehold { kids: boolean; dogs: '' | 'hideToxic' | 'nonToxic'; cats: boolean; horses: boolean; answered: boolean; at?: number }
+/**
+ * Settings → Warnings' switches, kept with the plan since Nov 1 (Jason approved the Warnings mock-ups: "What's checked
+ * (and dismissed) goes with this plan, on all your devices"), by the app state's names: crowding rings on the plan, the
+ * crowding notice, hardiness, poison and fruit partners. (Sun's was the plan's already: `sunWarnings`.)
+ */
+export type WarningSwitch = 'showCrowding' | 'crowdWarnings' | 'hardyWarnings' | 'poisonWarnings' | 'fruitWarnings';
+/**
+ * A plan's warning switches, each on or off, with when it was last switched in the plan (ms), so two devices' switches
+ * settle one by one (src/sync/engine.ts settleSwitches). No `at`: taken, when plans got their own, from what this device
+ * had (and not switched since). One missing reads as this device has it (src/view-settings.ts).
+ */
+export type PlanSwitches = Partial<Record<WarningSwitch, { on: boolean; at?: number }>>;
 
 export interface ProjectData {
   shapes: Shape[];
@@ -318,6 +330,8 @@ export interface ProjectData {
   bought?: PlanBought;
   /** Who's in the yard (absent: a plan from before plans kept one; read as this device had it: src/yard.ts). */
   household?: PlanHousehold;
+  /** Settings → Warnings' switches (absent: a plan from before plans kept them; read as this device had them). */
+  switches?: PlanSwitches;
   /** Phases of the project, in order ("Fall 2026", "Spring 2027"). */
   phases?: string[];
   /** Where the garden is (from its ZIP): hardiness zone and frost dates. Null: cleared; absent: never set. */
@@ -486,16 +500,19 @@ export interface AppState {
   plantLooks: boolean;
   /** View: garden over time, the month (1–12) the plants are drawn in; null: in bloom (not saved). */
   month: number | null;
-  /** View: ring plants planted close (amber) or crowded (red) (not saved; on unless turned off on this device). */
+  // The open plan's warning switches (PlanSwitches; src/view-settings.ts), each on unless turned off.
+  /** Ring plants planted close (amber) or crowded (red) on the plan. */
   showCrowding: boolean;
-  /** A notice as a plant is placed close to another or crowding it (not saved; on unless turned off on this device). */
+  /** A notice as a plant is placed close to another or crowding it. */
   crowdWarnings: boolean;
-  /** Warnings for a plant too cold or too warm where the garden is: placing, and a badge on the plan (on this device). */
+  /** Warnings for a plant too cold or too warm where the garden is: placing, and a badge on the plan. */
   hardyWarnings: boolean;
-  /** Warnings for plants poisonous to the people and pets in the yard (src/yard.ts): rows, the plan, the plant (on this device). */
+  /** Warnings for plants poisonous to the people and pets in the yard (src/yard.ts): rows, the plan, the plant. */
   poisonWarnings: boolean;
-  /** A notice as a plant is placed that needs a partner to fruit, until the plan has one (src/fruit-partners.ts; on this device). */
+  /** A notice as a plant is placed that needs a partner to fruit, until the plan has one (src/fruit-partners.ts). */
   fruitWarnings: boolean;
+  /** When each of the open plan's warning switches was last switched in the plan (ms); absent: taken from this device. */
+  switchedAt: Partial<Record<WarningSwitch, number>>;
   /** The + and − zoom buttons shown (src/view-settings.ts): off on a phone unless turned on, on elsewhere. */
   zoomButtons: boolean;
   /**
