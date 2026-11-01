@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, canvasBox, drag, openFilters, openFresh, shapeCount, tapFromCenter } from './helpers';
+import { addKind, canvasBox, closeSheet, drag, openFilters, openFresh, openSections, shapeCount, tapFromCenter } from './helpers';
 
 // Placing plants: pick once, tap each spot, Done.
 
@@ -90,6 +90,21 @@ test('while placing, plants of the same kind show their full spread and crowding
   // turned off in Layers.
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);
   await expect(page.locator('#canvas-svg [data-role=full-ring]')).toHaveCount(0);
+});
+
+test("the dashed ring round a plant is said: in its sheet, its full size, and in Layers, what a full-size ring looks like (the UI review, 2026-11-01)", async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await pick(page, 'Buttonbush'); // (drawn at its typical spread, smaller than its full)
+  await tapFromCenter(page, 0, 0);
+  await bar(page).getByRole('button', { name: 'Done' }).click();
+  await expect(page.locator('#canvas-svg [data-role=full-ring]')).toHaveCount(1);
+  await page.locator('.sel-pill .edit').click();
+  await openSections(page);
+  await expect(page.getByTestId('plant-size-note')).toContainText(/Drawn at typical size \(change in Layers\); the dashed ring around it is its full size, [\d.]+ ft across\./);
+  await closeSheet(page);
+  await page.locator('button[title=Layers]').click();
+  await expect(page.getByTestId('full-ring-hint')).toContainText('A full-size ring is the dashed ring around a plant drawn smaller than it grows');
 });
 
 test('an existing tree: pick which, or draw an unknown one, by trunk and canopy edge', async ({ page }) => {

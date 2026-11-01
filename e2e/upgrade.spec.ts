@@ -99,6 +99,16 @@ test('a later release offers an Update button and switches only when tapped', as
   mode = 'next';
   await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())!.update());
   await expect(page.locator('#update-banner')).toBeVisible({ timeout: 15_000 });
+  // Under the top bar, the plan below it: it covers nothing, on a computer or a phone (the UI review, 2026-11-01: over
+  // the plan, it covered the Fit and Through-the-year buttons).
+  for (const size of [{ width: 1280, height: 720 }, { width: 412, height: 915 }]) {
+    await page.setViewportSize(size);
+    const banner = (await page.locator('#update-banner').boundingBox())!;
+    expect((await page.locator('.topbar').boundingBox())!.y + 1).toBeLessThanOrEqual(banner.y);
+    expect((await page.locator('#canvas-wrap').boundingBox())!.y + 1).toBeGreaterThanOrEqual(banner.y + banner.height);
+    const fit = (await page.locator('.zoombtns button').first().boundingBox())!;
+    expect(fit.y).toBeGreaterThanOrEqual(banner.y + banner.height);
+  }
   // Nothing changes until the user agrees.
   await page.locator('button[title=More]').click();
   await expect(page.locator('.menu-version')).not.toContainText('-next');

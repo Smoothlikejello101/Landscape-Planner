@@ -100,6 +100,8 @@ let floatRedoAt: { top: string; left: string } | null = null;
 let shownSelection = '';
 /** The menu open when the app last drew. */
 let shownMenu: typeof state.menu = null;
+/** The drawing, placing or adding of doors under way when the app last drew (each a new object as it starts). */
+let shownTool: object | null = null;
 export function render() {
   const root = document.getElementById('root')!;
   // (Typing in the picker's search when the whole app redraws: the cursor goes back where it was.)
@@ -111,6 +113,7 @@ export function render() {
   const scrolled = state.panel && state.panel === shownPanel && state.selectedIds.join() === shownSelection
     ? root.querySelector<HTMLElement>('.overlay .sheet')?.scrollTop ?? 0 : 0;
   focusBeforeRender(root); // (with a keyboard: what has focus, found again after: src/ui/focus.ts)
+  const updateBanner = document.getElementById('update-banner'); // (kept as it is, Updating… say: put back below)
   // Clear root
   while (root.firstChild) root.removeChild(root.firstChild);
   // (Checked on every redraw, so a selection changed and changed back by hand isn't "just placed" again.)
@@ -136,12 +139,17 @@ export function render() {
   projBtn.addEventListener('click', () => { state.panel = 'projects'; render(); });
   topbar.appendChild(projBtn);
 
+  // While a sheet is open, Undo and Redo are greyed, and sit above its dimming, so a tap on them is a tap on nothing (the
+  // UI review, 2026-11-01: under the dimming Undo looked live, and a tap on it only closed the sheet, the 11 plants just
+  // set to Planted left Planted, taken for undone). Greyed rather than working behind the sheet: Jason's choice. The
+  // sheet closed, they're back.
+  const sheetUp = !!state.panel;
   // Undo
-  const undoBtn = el('button', { className: 'iconbtn', html: I.undo, title: 'Undo' });
+  const undoBtn = el('button', { className: 'iconbtn' + (sheetUp ? ' over-sheet' : ''), html: I.undo, title: 'Undo' });
   // While placing, it takes back the last plant placed; while drawing, the last point: as the bar's Undo does.
   // (A notice's Undo is the same step: after either, it's gone.)
   // (And while adding doors and windows, the last one added.)
-  undoBtn.disabled = state.placing ? !state.placing.placed.length : state.draw ? !state.draw.points.length : state.featurePlace ? !state.featurePlace.added.length : !canUndo();
+  undoBtn.disabled = sheetUp || (state.placing ? !state.placing.placed.length : state.draw ? !state.draw.points.length : state.featurePlace ? !state.featurePlace.added.length : !canUndo());
   undoBtn.addEventListener('click', () => {
     dismissToastAction();
     if (state.placing) undoPlace(); else if (state.draw) undoDrawPoint(); else if (state.featurePlace) undoFeaturePlace(); else undo();
@@ -155,8 +163,8 @@ export function render() {
   let floatRedo: HTMLElement | null = null;
   if (!(canRedo() && roomyText())) floatRedoUp = false;
   if (!roomyText()) {
-    const redoBtn = el('button', { className: 'iconbtn', html: I.redo, title: 'Redo' });
-    redoBtn.disabled = !canRedo() || !!state.draw || !!state.placing || !!state.featurePlace;
+    const redoBtn = el('button', { className: 'iconbtn' + (sheetUp ? ' over-sheet' : ''), html: I.redo, title: 'Redo' });
+    redoBtn.disabled = sheetUp || !canRedo() || !!state.draw || !!state.placing || !!state.featurePlace;
     redoBtn.addEventListener('click', () => { dismissToastAction(); redo(); render(); });
     topbar.appendChild(redoBtn);
   } else if (canRedo() && !state.draw && !state.placing && !state.featurePlace && !state.panel && !state.menu) {
@@ -180,6 +188,8 @@ export function render() {
   topbar.appendChild(moreBtn);
 
   app.appendChild(topbar);
+  // (An update waiting: its banner under the top bar, the plan shortened by it, not covered: src/pwa.ts.)
+  if (updateBanner) app.appendChild(updateBanner);
   if (floatRedo) {
     // (Under Undo, wherever the bar puts it: measured once it's on the page. It slides out the first time only.)
     const btn = floatRedo;
@@ -538,6 +548,12 @@ export function render() {
     hideOldToast();
     document.getElementById('zoom-flash')?.classList.remove('on'); // (the zoom badge too: it sat over ⋮'s Redo, round 3)
   }
+  // A drawing or placing tool just started: a plain notice from before it goes too, off the plan where the next tap
+  // goes (the UI review, 2026-11-01: "Locked: it stays put…" sat on the house's front wall as the bed tool opened).
+  // A notice with buttons, an Undo say, is left be (a new drawing puts away only one about the last: startDraw).
+  const tool = state.draw ?? state.placing ?? state.featurePlace ?? null;
+  if (tool && tool !== shownTool) hideOldToast();
+  shownTool = tool;
   shownPanel = state.panel;
   shownMenu = state.menu;
   shownSelection = state.selectedIds.join();

@@ -80,6 +80,34 @@ test('a rectangle whose other side is typed: Enter makes it on a phone (testers,
   await expect(field(page, 'Length (ft)')).toHaveValue('6');
 });
 
+test('a house typed 50 by 30 ft at 360 × 640: its other side goes toward the middle of the plan, and the house is brought into view (the UI review, 2026-11-01)', async ({ page, isMobile }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await openFresh(page);
+  await addKind(page, 'building');
+  await tapFt(page, 1.5, 2.5); // (a corner near the top of the plan)
+  await typed(page).fill('50');
+  await typed(page).press('Enter');
+  // On a phone, nothing follows a pointer: the length typed, and what to do next, by the corner.
+  if (isMobile) await expect(page.locator('#canvas-svg [data-role=typed-note]')).toHaveText('50 ft: tap which way');
+  await tapFt(page, 11.5, 2.45); // (toward the right, a hair above the corner's line)
+  await expect(page.getByTestId('draw-bar')).toContainText('Other side');
+  await typed(page).fill('30');
+  await typed(page).press('Enter');
+  if (!isMobile) await tapFt(page, 8, 6); // (with a mouse, a click on its side)
+  await expect(page.getByTestId('draw-bar')).toHaveCount(0); // (made)
+  const plan = (await page.locator('#canvas-svg').boundingBox())!;
+  const house = (await page.locator('#canvas-svg rect[data-shape-id]').first().boundingBox())!;
+  expect(house.y).toBeGreaterThanOrEqual(plan.y);
+  expect(house.x).toBeGreaterThanOrEqual(plan.x);
+  expect(house.y + house.height).toBeLessThanOrEqual(plan.y + plan.height);
+  expect(house.x + house.width).toBeLessThanOrEqual(plan.x + plan.width);
+  // Down from its first side, not up: its top is the corner tapped (-8.5, -7.5 ft).
+  await page.locator('.sel-pill .edit').click(); await openSections(page);
+  await expect(field(page, 'Width (ft)')).toHaveValue('50');
+  await expect(field(page, 'Length (ft)')).toHaveValue('30');
+  await expect(field(page, 'Y position')).toHaveValue('-7.5');
+});
+
 test('Fit (and Shift+1) brings the whole plan into view', async ({ page }) => {
   await openFresh(page);
   await expect(page.getByTestId('zoom-fit')).toHaveCount(0); // (nothing to fit)

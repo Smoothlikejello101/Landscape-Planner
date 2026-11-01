@@ -28,6 +28,9 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .iconbtn { width: var(--tap); height: var(--tap); display: flex; align-items: center; justify-content: center; border-radius: 6px; color: #57534e; flex-shrink: 0; position: relative; }
 .iconbtn:hover { background: #f5f5f4; }
 .iconbtn:disabled { opacity: 0.3; cursor: not-allowed; }
+/* Undo and Redo while a sheet is open: greyed, above its dimming, so a tap on them isn't the dimming's (src/ui/render.ts). */
+.iconbtn.over-sheet { z-index: 21; }
+.iconbtn.over-sheet:hover { background: none; }
 .iconbtn.active { background: #fef3c7; color: #92400e; }
 .iconbtn .dot { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; background: #dc2626; border-radius: 50%; }
 /* Canvas */
@@ -274,7 +277,10 @@ a { color: inherit; }
 .account-section .status.warn, .backup-section .status.warn { color: #92400e; }
 .storage-warning { background: #fef2f2; border-bottom: 1px solid #fecaca; color: #991b1b; font-size: calc(12px * var(--ts)); padding: 6px 12px; text-align: center; flex-shrink: 0; }
 /* Update available */
-#update-banner { position: fixed; left: 8px; right: 8px; top: calc(52px + env(safe-area-inset-top)); z-index: 90; display: flex; align-items: center; gap: 8px; background: #1c1917; color: #fff; padding: 8px 8px 8px 14px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.25); font-size: calc(13px * var(--ts)); max-width: 480px; margin: 0 auto; }
+/* (A bar under the top bar, in the page's flow: the plan is shortened by it, nothing on it covered. The UI review,
+   2026-11-01: floating, it covered the Fit and Through-the-year buttons. On a wide screen its words and buttons keep
+   to the middle 480 px.) */
+#update-banner { flex-shrink: 0; display: flex; align-items: center; gap: 8px; background: #1c1917; color: #fff; padding: 6px max(8px, calc((100% - 480px) / 2)) 6px max(14px, calc((100% - 480px) / 2)); font-size: calc(13px * var(--ts)); }
 #update-banner span { flex: 1; }
 #update-banner button { background: #047857; color: #fff; border-radius: 6px; padding: 6px 12px; font-weight: 600; font-size: calc(13px * var(--ts)); }
 #update-banner button.later { background: transparent; color: #d6d3d1; font-weight: 500; }

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { autoDialogs, closeSheet, field, openFresh, shapeCount, openSections, placeOnceAtCenter, openExport } from './helpers';
+import { addKind, autoDialogs, clickRedo, closeSheet, field, openFresh, shapeCount, openSections, placeOnceAtCenter, openExport, tapFromCenter } from './helpers';
 
 async function addPlant(page: Page, name: string, x: number) {
   await page.locator('.tool-btn.plants').click();
@@ -104,6 +104,66 @@ test('set status for several plants at once', async ({ page }) => {
   await closeSheet(page);
   await expect(plantShapes(page).first()).toHaveAttribute('stroke-dasharray', '6 4');
   await expect(plantShapes(page).last()).toHaveAttribute('stroke-dasharray', '6 4');
+});
+
+/** Place two of a plant in one go (Done leaves them selected): the name it goes by. */
+async function placeTwo(page: Page, name: string, y = 0): Promise<string> {
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill(name);
+  await page.locator('.sheet .proj-row', { hasText: name }).first().locator('[data-testid=plant-place]').click();
+  const common = (await page.locator('.place-name').innerText()).trim();
+  await tapFromCenter(page, -3, y);
+  await tapFromCenter(page, 3, y);
+  await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
+  return common;
+}
+
+test("while a sheet is open, the top bar's Undo and Redo are greyed, and a tap there leaves the sheet as it is; closed, Undo takes the change back (the UI review, 2026-11-01)", async ({ page }) => {
+  await openFresh(page);
+  await placeTwo(page, 'Buttonbush');
+  await page.locator('.multi-bar button[title=Edit]').click(); await openSections(page);
+  const status = page.getByTestId('status-section');
+  await status.getByRole('radio', { name: 'Planted' }).click();
+  await expect(status.getByRole('radio', { name: 'Planted' })).toHaveAttribute('aria-checked', 'true');
+  const undo = page.locator('button[title=Undo]');
+  await expect(undo).toBeDisabled();
+  // (Above the dimming: a tap on it is a tap on nothing, never the dimming's, which closed the sheet, the change kept.)
+  const at = (await undo.boundingBox())!;
+  await page.mouse.click(at.x + at.width / 2, at.y + at.height / 2);
+  await expect(page.locator('.sheet')).toBeVisible();
+  await expect(status.getByRole('radio', { name: 'Planted' })).toHaveAttribute('aria-checked', 'true');
+  await closeSheet(page);
+  await expect(plantShapes(page).first()).not.toHaveAttribute('stroke-dasharray', '6 4'); // (planted: no planned edge)
+  await undo.click();
+  await expect(plantShapes(page).first()).toHaveAttribute('stroke-dasharray', '6 4'); // (planned again)
+  // Redo greyed (or, at Medium text and up, not floating) over a sheet too: Layers here.
+  await page.locator('button[title=Layers]').click();
+  await expect(undo).toBeDisabled();
+  await expect(page.locator('button[title=Redo]:enabled')).toHaveCount(0);
+  await closeSheet(page);
+  await clickRedo(page);
+  await expect(plantShapes(page).first()).not.toHaveAttribute('stroke-dasharray', '6 4');
+});
+
+test('several plants selected are named as plants, one kind by its name (the UI review, 2026-11-01: "11 shapes selected")', async ({ page }) => {
+  await openFresh(page);
+  const bush = await placeTwo(page, 'Buttonbush');
+  await page.locator('.multi-bar button[title=Edit]').click();
+  await expect(page.locator('.sheet-header .title')).toHaveText(`2 ${bush} selected`);
+  await expect(page.locator('.sheet .banner').first()).toContainText(`2 ${bush} selected.`);
+  await closeSheet(page);
+  await placeTwo(page, 'Little bluestem', 4);
+  await page.keyboard.press('Control+a');
+  await page.locator('.multi-bar button[title=Edit]').click();
+  await expect(page.locator('.sheet-header .title')).toHaveText('4 plants selected');
+  await closeSheet(page);
+  // With a bed among them: shapes.
+  await addKind(page, 'bed', 'rect');
+  for (const [x, y] of [[-8, 6], [8, 6], [8, 9]]) await tapFromCenter(page, x, y);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Control+a');
+  await page.locator('.multi-bar button[title=Edit]').click();
+  await expect(page.locator('.sheet-header .title')).toHaveText('5 shapes selected');
 });
 
 test('setting several at once asks before unmarking one marked to remove', async ({ page }) => {
