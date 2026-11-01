@@ -74,6 +74,7 @@ test('at the warm edge of a plant\'s range: shade, and water unless it wants lit
   await page.getByTestId('hardy-here').click(); // (no ZIP yet: asks for one)
   await page.getByTestId('zip').fill('71901');
   await page.getByTestId('zip-lookup').click();
+  await page.getByTestId('location-to-plants').click();
   await page.getByTestId('plant-search').fill('Red buckeye'); // rated through zone 8 (8b), moderate water
   await expect(page.locator('.sheet .proj-row', { hasText: 'Red buckeye' }).getByTestId('row-hardy')).toHaveText('Hardy here, at its warm edge');
   await page.getByTestId('plant-search').fill('Wild lupine'); // rated through zone 8 (8b), low water
@@ -96,12 +97,13 @@ test('"Hardy in your zone" with no ZIP asks for one, and comes back with only pl
   await page.getByTestId('hardy-here').click();
   await page.getByTestId('zip').fill('71923');
   await page.getByTestId('zip-lookup').click();
-  // Back in the picker, filtered, as it was.
+  // The zone and frost dates to read, then back in the picker, filtered, as it was.
+  await expect(page.getByTestId('location-result')).toContainText('Zone 8a');
+  await page.getByTestId('location-to-plants').click();
   await expect(page.getByTestId('plant-search')).toBeVisible();
   await expect(page.locator('.sheet label', { hasText: 'Hardy in zone 8a' }).locator('input')).toBeChecked();
   await expect(page.locator('.sheet select[aria-label=Form]')).toHaveValue('Shrub');
   await expect(page.getByTestId('active-chip')).toHaveText(['Shrub', 'White flowers']); // (the hardy box is its own, beside Filters)
-  await expect(page.locator('#toast')).toContainText('showing plants hardy there');
   await page.getByTestId('plant-search').fill('Speckled alder'); // rated for zones 2–6
   await expect(page.locator('.sheet .proj-row', { hasText: 'Speckled alder' })).toHaveCount(0);
   // Unticked, it's a plain filter again: no ZIP asked for.
@@ -119,6 +121,23 @@ test('closing the ZIP sheet opened from the picker goes back to the picker as it
   await page.locator('.sheet-header .iconbtn').click();
   await expect(page.getByTestId('plant-search')).toHaveValue('aster');
   await expect(page.getByTestId('hardy-here')).not.toBeChecked();
+});
+
+test('the ZIP from the picker: its sheet shows the zone, and closing it goes back to the picker, hardy plants only (the UI review)', async ({ page }) => {
+  await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TABLE) }));
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('aster');
+  await page.getByTestId('hardy-here').click();
+  await page.getByTestId('zip').fill('71923');
+  await page.getByTestId('zip').press('Enter');
+  // (Not straight back, a toast over the picker's title, where the × meant for this sheet closed the picker.)
+  await expect(page.getByTestId('location-result')).toContainText('Last spring frost: about Mar 24');
+  await expect(page.getByTestId('location-to-plants')).toHaveText('Show plants hardy in zone 8a');
+  await page.locator('.sheet-header .iconbtn[aria-label=Close]').click();
+  await expect(page.getByTestId('plant-search')).toHaveValue('aster');
+  await expect(page.getByTestId('hardy-here')).toBeChecked();
+  await expect(page.locator('.sheet label', { hasText: 'Hardy in zone 8a' })).toBeVisible();
 });
 
 test('a plant recorded growing wild in the garden\'s county or next door says so, and counts as hardy there', async ({ page }) => {
