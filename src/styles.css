@@ -127,9 +127,8 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 /* The plant picker keeps its height as its list changes, so nothing in it moves under the pointer. On a phone, half
    height, the plan in view above it; full height by its handle, or while its search's keyboard is up (below, and
    src/ui/picker-view.ts). */
-.sheet.picker-sheet { height: 50%; position: relative; z-index: 1; transition: height 0.18s ease-out; }
+.sheet.picker-sheet { height: 50%; position: relative; z-index: 1; }
 .sheet.picker-sheet.full { height: 85vh; height: calc(85dvh - var(--kb, 0px)); }
-.sheet.picker-sheet.dragging { transition: none; }
 .sheet { background: #fff; width: 100%; max-height: 85vh; max-height: calc(85dvh - var(--kb, 0px)); border-radius: 16px 16px 0 0; overflow-y: auto; box-shadow: 0 -4px 16px rgba(0,0,0,0.1); }
 .modal { background: #fff; border-radius: 8px; max-width: 400px; width: 100%; box-shadow: 0 4px 16px rgba(0,0,0,0.2); max-height: 90vh; max-height: calc(90dvh - var(--kb, 0px)); display: flex; flex-direction: column; overflow: hidden; }
 /* The plan in view while choosing plants (src/ui/picker-view.ts; Jason, Nov 2, from the bed review: "Half-height picker
@@ -144,13 +143,12 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .picker-handle:focus-visible { outline: 2px solid #059669; outline-offset: -2px; }
 .picker-grip { width: 40px; height: 5px; border-radius: 3px; background: #a8a29e; }
 .picker-sheet .picker-handle + .sheet-header { padding-top: 0; touch-action: none; }
-@media (prefers-reduced-motion: reduce) { .sheet.picker-sheet { transition: none; } }
 /* On a computer (900 px and wider, where Warnings goes beside the plan), a panel at the right, the plan's height from
    under the top bar, about 420 to 480 px wide; the plan beside it, the bar at its foot waiting as the top bar does. */
 :root { --picker-w: clamp(420px, 34vw, 480px); }
 @media (min-width: 900px) {
   .overlay.picker-overlay { align-items: stretch; justify-content: flex-end; padding-top: var(--plan-top, 0px); }
-  .overlay.picker-overlay > .sheet.picker-sheet { width: var(--picker-w); max-width: none; height: auto; max-height: none; border-radius: 0; border-left: 1px solid #e7e5e4; box-shadow: -4px 0 16px rgba(0,0,0,0.08); transition: none; }
+  .overlay.picker-overlay > .sheet.picker-sheet { width: var(--picker-w); max-width: none; height: auto; max-height: none; border-radius: 0; border-left: 1px solid #e7e5e4; box-shadow: -4px 0 16px rgba(0,0,0,0.08); }
   .picker-overlay::after { content: ''; position: absolute; left: 0; right: var(--picker-w); bottom: 0; height: var(--plan-foot, 0px); background: rgba(0,0,0,0.3); pointer-events: auto; }
   .picker-handle { display: none; }
   .picker-sheet .picker-handle + .sheet-header { padding-top: 12px; touch-action: auto; }

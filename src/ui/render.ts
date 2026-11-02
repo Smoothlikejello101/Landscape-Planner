@@ -63,7 +63,7 @@ import { startBgCalibration } from '../background';
 import { placeTraceCard, traceCard, traceChips, traceShown } from './trace-card';
 import { setTraceState } from '../yard-in';
 import { panelOpened } from '../tap-guard';
-import { placePicker, planLookOnly, showChosen } from './picker-view';
+import { pickerViewClosed, placePicker, planLookOnly, showChosen } from './picker-view';
 
 // MAIN RENDER
 // ============================================================
@@ -695,7 +695,7 @@ export function render() {
   }
   // (The picker closed: its plants' detail groups fold again, Jason, 2026-10-29.)
   // (And "Anyone you need to protect?", answered in it, goes under Poison & pets for next time: src/ui/plants-panel.ts.)
-  if (shownPanel === 'plants' && state.panel !== 'plants') { foldDetailGroups(); partnersClosed(); pickerClosed(); }
+  if (shownPanel === 'plants' && state.panel !== 'plants') { foldDetailGroups(); partnersClosed(); pickerClosed(); pickerViewClosed(); }
   // (The plants chosen to compare, and the comparison, go once the picker is left: kept only through the sheets it opens
   // that come back to it, Add or Copy as my plant, Compare and switch, the garden's ZIP. src/ui/compare-sheet.ts.)
   if (!state.panel || !['plants', 'plantForm', 'switchPlant', 'location'].includes(state.panel)) compareClosed();

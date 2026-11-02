@@ -544,7 +544,7 @@ test('typing a search folds the open filters, the results in view; Add as my pla
 // The picker bug hunt, Nov 1: typing on a 360 × 640 phone, Recent and "Anyone you need to protect?" stayed above the
 // results, one row of them in view at most, at Extra large none. They fold away while a search is typed, as the
 // filters do, and come back when it's cleared.
-test('typing a search folds Recent and "Anyone you need to protect?" away, results in view on a 360 × 640 phone; cleared, they\'re back (the picker bug hunt, Nov 1)', async ({ page }) => {
+test('typing a search folds Recent and "Anyone you need to protect?" away, results in view on a 360 × 640 phone; cleared, they\'re back (the picker bug hunt, Nov 1)', async ({ page, isMobile }) => {
   await page.setViewportSize({ width: 360, height: 640 });
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
@@ -571,7 +571,10 @@ test('typing a search folds Recent and "Anyone you need to protect?" away, resul
     const after = await first();
     expect(after.top, size).toBeLessThan(before.top - folds + 40);
     expect(after.top + 60, size).toBeLessThan(640);
-    if (size === 'medium') expect(after.bottom).toBeLessThanOrEqual(640);
+    // (Whole where the search's keyboard takes the picker to full height, a phone's. In a computer's window that narrow it
+    // stays at half height while typed in, the plan above it, and the first result shows only its top: Jason, Nov 2, the
+    // plan in view while choosing, src/ui/picker-view.ts.)
+    if (size === 'medium' && isMobile) expect(after.bottom).toBeLessThanOrEqual(640);
     // A word of need made a filter empties the box: still folded, the search going on.
     await search.fill('');
     await expect(recent).toBeVisible();
@@ -1167,8 +1170,9 @@ test('"Anyone you need to protect?" fits a 360 px phone at every text size: one 
     });
     expect(title.lines).toBe(1);
     expect(title.right).toBeLessThanOrEqual(x.x);
-    // The list still starts on the screen.
-    const first = (await page.getByTestId('plant-row').first().boundingBox())!;
-    expect(first.y).toBeLessThan(740);
+    // The list still starts on the screen, at full height. (The picker opens at half, the plan above it; its handle takes
+    // it to full: Jason, Nov 2, the plan in view while choosing, src/ui/picker-view.ts.)
+    await page.getByTestId('picker-handle').click();
+    await expect.poll(async () => (await page.getByTestId('plant-row').first().boundingBox())!.y).toBeLessThan(740);
   }
 });

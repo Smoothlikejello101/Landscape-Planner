@@ -30,7 +30,13 @@ let chosen: SheetSize = 'half';
 let searching = false, sawKeyboard = false, kbUp = false;
 /** The window's size when the search was focused, before its keyboard came up. */
 let restH = 0, restW = 0;
-const full = (): boolean => chosen === 'full' || (searching && (kbUp || !sawKeyboard));
+/**
+ * The search left for something in the picker (a row opened, Place, a filter) while it was full height: kept full, so
+ * what was pressed stays where it was rather than dropping with the picker's top, until the handle says otherwise or the
+ * picker closes. Left any other way (Enter, Back, the keyboard put away), it goes back to half.
+ */
+let heldFull = false;
+const full = (): boolean => chosen === 'full' || heldFull || (searching && (kbUp || !sawKeyboard));
 const isSearch = (t: EventTarget | null): boolean => t instanceof HTMLInputElement && t.dataset.testid === 'plant-search';
 
 /** The picker's sheet classes, as it's drawn. */
@@ -50,6 +56,7 @@ function apply() {
 }
 function choose(to: SheetSize) {
   chosen = to;
+  heldFull = false;
   // (Half while typing: the keyboard put away with the search left, or it would hold the picker at full height.)
   if (to === 'half' && searching && isSearch(document.activeElement)) (document.activeElement as HTMLElement).blur();
   apply();
@@ -81,10 +88,18 @@ function install() {
   if (installed) return;
   installed = true;
   document.addEventListener('focusin', (e) => { if (isSearch(e.target)) searchFocused(); });
-  document.addEventListener('focusout', (e) => { if (isSearch(e.target)) setTimeout(searchLeft, 0); });
+  document.addEventListener('focusout', (e) => {
+    if (!isSearch(e.target)) return;
+    const to = e.relatedTarget;
+    if (searching && full() && to instanceof Element && !isSearch(to) && to.closest('.picker-sheet')) heldFull = true;
+    setTimeout(searchLeft, 0);
+  });
   window.addEventListener('resize', windowChanged);
   window.visualViewport?.addEventListener('resize', windowChanged);
 }
+
+/** The picker closed (src/ui/render.ts): a height held by a press in it goes; the one chosen with the handle stays. */
+export function pickerViewClosed() { heldFull = false; }
 
 // ---------- The handle ----------
 /** Whether the picker was full height as the handle was pressed (the press itself can end a search). */
@@ -129,7 +144,6 @@ function holdPicker(e: PointerEvent, from: HTMLElement) {
     if (!moving && Math.abs(ev.clientY - startY) < 6) return;
     moving = true;
     h = Math.max(half, Math.min(fullH, startH - (ev.clientY - startY)));
-    sheet.classList.add('dragging');
     sheet.style.height = `${Math.round(h)}px`;
     ev.preventDefault();
   };
@@ -142,7 +156,6 @@ function holdPicker(e: PointerEvent, from: HTMLElement) {
     dragged = from.matches('[data-testid=picker-handle]'); // (its click, which follows, isn't a press)
     pressedFull = null;
     sheet.style.height = '';
-    sheet.classList.remove('dragging');
     choose(settleSheet(startH, h, half, fullH));
   };
   from.addEventListener('pointermove', move);

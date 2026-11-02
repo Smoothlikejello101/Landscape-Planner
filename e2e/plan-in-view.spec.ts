@@ -159,6 +159,25 @@ test.describe('on a phone', () => {
     await expect(search).not.toBeFocused();
     await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
     expect(await kept(page, '.picker-sheet')).toBe(true);
+    // Typing, then a row opened: the keyboard goes, but the picker stays full height, the row where it was pressed (not
+    // dropped with the picker's top); its handle takes it to half, and closed and opened again, it's half.
+    await search.tap();
+    await expect(sheet(page)).toHaveClass(/\bfull\b/);
+    const row = page.locator('.plant-item').first().getByTestId('plant-row');
+    const at = (await row.boundingBox())!.y;
+    await row.click();
+    await expect(row).toHaveAttribute('aria-expanded', 'true');
+    await expect(search).not.toBeFocused();
+    await expect(sheet(page)).toHaveClass(/\bfull\b/);
+    expect((await row.boundingBox())!.y).toBeCloseTo(at, 0);
+    await handle(page).click();
+    await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
+    await search.tap();
+    await row.click();
+    await expect(sheet(page)).toHaveClass(/\bfull\b/);
+    await closeSheet(page);
+    await openPicker(page);
+    await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
   });
 
   test('pinched and dragged with the picker open, the plan zooms and pans; the picker is left as it was', async ({ page }) => {
