@@ -544,7 +544,7 @@ test('typing a search folds the open filters, the results in view; Add as my pla
 // The picker bug hunt, Nov 1: typing on a 360 × 640 phone, Recent and "Anyone you need to protect?" stayed above the
 // results, one row of them in view at most, at Extra large none. They fold away while a search is typed, as the
 // filters do, and come back when it's cleared.
-test('typing a search folds Recent and "Anyone you need to protect?" away, results in view on a 360 × 640 phone; cleared, they\'re back (the picker bug hunt, Nov 1)', async ({ page, isMobile }) => {
+test('typing a search folds Recent and "Anyone you need to protect?" away, results in view on a 360 × 640 phone; cleared, they\'re back (the picker bug hunt, Nov 1)', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 640 });
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
@@ -571,10 +571,7 @@ test('typing a search folds Recent and "Anyone you need to protect?" away, resul
     const after = await first();
     expect(after.top, size).toBeLessThan(before.top - folds + 40);
     expect(after.top + 60, size).toBeLessThan(640);
-    // (Whole where the search's keyboard takes the picker to full height, a phone's. In a computer's window that narrow it
-    // stays at half height while typed in, the plan above it, and the first result shows only its top: Jason, Nov 2, the
-    // plan in view while choosing, src/ui/picker-view.ts.)
-    if (size === 'medium' && isMobile) expect(after.bottom).toBeLessThanOrEqual(640);
+    if (size === 'medium') expect(after.bottom).toBeLessThanOrEqual(640);
     // A word of need made a filter empties the box: still folded, the search going on.
     await search.fill('');
     await expect(recent).toBeVisible();

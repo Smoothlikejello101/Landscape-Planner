@@ -62,9 +62,14 @@ function choose(to: SheetSize) {
   apply();
 }
 
-// ---------- The keyboard ----------
-function searchFocused() {
-  if (hasKeyboard() || wideNow()) return; // (a computer's keyboard covers nothing; beside the plan it's full height)
+// ---------- The search and the keyboard ----------
+/**
+ * The search in use: full height until it's left. On a touch screen as it's focused, its keyboard about to come up over
+ * the picker. With a keyboard and a mouse (a computer's window that narrow), once something's typed in it: the cursor
+ * goes there as the picker opens, which leaves it at half height until then. Beside the plan, never: it's full height.
+ */
+function searchStarted(typed: boolean) {
+  if (wideNow() || (typed ? !hasKeyboard() : hasKeyboard())) return;
   if (!searching) { restH = window.innerHeight; restW = window.innerWidth; sawKeyboard = false; kbUp = false; }
   searching = true;
   apply();
@@ -77,7 +82,7 @@ function searchLeft() {
 }
 /** The window changed size while the search has focus: the keyboard came up, or went. CSS only. */
 function windowChanged() {
-  if (!searching) return;
+  if (!searching || hasKeyboard()) return; // (a computer's window made smaller is no keyboard)
   if (window.innerWidth !== restW) { restW = window.innerWidth; restH = window.innerHeight; return; } // (turned: begin again)
   kbUp = keyboardUp(restH, window.innerHeight, keyboardInset());
   if (kbUp) sawKeyboard = true;
@@ -87,7 +92,8 @@ let installed = false;
 function install() {
   if (installed) return;
   installed = true;
-  document.addEventListener('focusin', (e) => { if (isSearch(e.target)) searchFocused(); });
+  document.addEventListener('focusin', (e) => { if (isSearch(e.target)) searchStarted(false); });
+  document.addEventListener('input', (e) => { if (isSearch(e.target) && (e.target as HTMLInputElement).value) searchStarted(true); });
   document.addEventListener('focusout', (e) => {
     if (!isSearch(e.target)) return;
     const to = e.relatedTarget;

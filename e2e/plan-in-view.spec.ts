@@ -241,6 +241,23 @@ test.describe('on a computer', () => {
     await closeSheet(page);
   });
 
+  test('in a window narrower than 900 px, the half-height picker, the cursor in its search; typing takes it to full height, and a click on the plan back to half', async ({ page }) => {
+    await page.setViewportSize({ width: 800, height: 800 });
+    await openFresh(page);
+    await openPicker(page);
+    const search = page.getByTestId('plant-search');
+    await expect(search).toBeFocused();
+    await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
+    expect(Math.abs((await sheet(page).boundingBox())!.height - 400)).toBeLessThan(3);
+    await page.keyboard.type('aster');
+    await expect(sheet(page)).toHaveClass(/\bfull\b/);
+    const plan = await canvasBox(page);
+    await page.mouse.click(plan.x + 20, plan.y + 20);
+    await expect(search).not.toBeFocused();
+    await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
+    await expect(search).toHaveValue('aster');
+  });
+
   test('the plan beside the panel pans and zooms; the panel is left as it was; no key edits the plan behind it', async ({ page }) => {
     await page.setViewportSize({ width: 1366, height: 820 });
     await seed(page, { x: -3, y: -3 });
