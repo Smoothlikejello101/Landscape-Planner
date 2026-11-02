@@ -58,6 +58,11 @@ I don't release on my own, and never push to `release` directly.
 branched from `release`, sent as a pull request into `release` (tested, then deployed once merged), and then brought
 back into main by a pull request from `release`.
 
+**Never deploy a build whose database version is lower than the live one's** (`DB_VERSION` in src/db.ts; the live
+site's is at /db-version.txt): not a revert, a rollback, or a re-run of an older CI run. Every device that opened the
+newer version would find its plans refused. Fix forward instead: a fix on top, at the same version or higher. CI
+refuses such a deploy, and any but the branch's head (scripts/release/deploy-guard.sh; docs/storage.md).
+
 ## What's new
 
 `src/whats-new.json`, newest first, each release an `id` (counting up), a `date`, and its lines; and the lines waiting

@@ -30,6 +30,9 @@ jobs:
     # Pinned, like e2e's: move on purpose.
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    outputs:
+      # (The build's database version, src/db.ts DB_VERSION: checked against the live site's before `deploy`.)
+      db_version: ${{ steps.build.outputs.db_version }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -54,6 +57,7 @@ jobs:
       # (0.2.049 for #49), from the event, or from main's merge commit ("Merge pull request #49 …", or a
       # squash's "… (#49)"). Anything else keeps package.json's.
       - name: Build
+        id: build
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
@@ -64,6 +68,7 @@ jobs:
           fi
           echo "Version: ${APP_VERSION:-from package.json}"
           npm run build
+          echo "db_version=$(cat dist/db-version.txt)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         if: github.ref == 'refs/heads/release' && github.event_name != 'pull_request'
         with:
@@ -109,12 +114,26 @@ jobs:
     needs: [test, e2e]
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       pages: write
       id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          sparse-checkout: scripts/release
+      # Never the release branch's older commit (a re-run of an older run), nor a build with a lower database version than
+      # the live app's: every device that opened that one would find its plans refused (docs/storage.md).
+      - name: Deploy guard
+        env:
+          LIVE_URL: https://app.fullgrown.garden
+          BRANCH: release
+          SHA: ${{ github.sha }}
+          REPO_URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+          BUILD_DB_VERSION: ${{ needs.test.outputs.db_version }}
+        run: bash scripts/release/deploy-guard.sh
       - id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
 
@@ -146,6 +165,14 @@ jobs:
           node scripts/release/next-channel.mjs before
           npm run build
           node scripts/release/next-channel.mjs after
+      # Likewise for Next: only main's head, never a lower database version than the live Next's (docs/storage.md).
+      - name: Deploy guard
+        env:
+          LIVE_URL: https://next.fullgrown.garden
+          BRANCH: main
+          SHA: ${{ github.sha }}
+          REPO_URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+        run: BUILD_DB_VERSION="$(cat dist/db-version.txt)" bash scripts/release/deploy-guard.sh
       - name: Publish Next
         env:
           # A fine-grained token with write access to Smoothlikejello101/fullgrown-next's contents only.
