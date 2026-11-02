@@ -24,7 +24,7 @@ import { refreshAccountSection } from './ui/account-section';
 import { loadMyPlants } from './my-plants';
 import { reloadToNewest, setupServiceWorker } from './pwa';
 import { NewerVersionError, setOpenBlockedListener } from './db';
-import { buildEmergencyBackup, downloadText } from './backup';
+import { buildEmergencyBackup, buildRawCopyFile, downloadText } from './backup';
 import { notePageZoom } from './page-zoom';
 import { loadViewSettings } from './view-settings';
 import { applyTextSize } from './text-size';
@@ -43,7 +43,7 @@ import { tellWhatsNew } from './ui/whats-new-panel';
 import { introActive } from './ui/intro-card';
 import { installErrorLog } from './error-log';
 import { pxPerFoot } from './geometry';
-import { asking, dismissAsk, tell } from './ui/ask';
+import { ask, asking, dismissAsk, tell } from './ui/ask';
 import { installFocusKeeping } from './ui/focus';
 
 // The app's own errors, kept on this device for a support file (src/error-log.ts): from the start.
@@ -338,7 +338,25 @@ function showNewerVersion() {
   reload.addEventListener('click', () => { reload.disabled = true; reload.textContent = 'Reloading…'; void reloadToNewest(); });
   const again = document.createElement('p');
   again.textContent = 'If this comes back, close FullGrown everywhere on this device (every tab and window), then open it again.';
-  box.append(h, p, reload, again);
+  // (For when no version can open them: a raw copy of the database, never changed by making it. The review, Nov 1.)
+  const raw = document.createElement('button');
+  raw.className = 'secondary';
+  raw.textContent = 'Save a raw copy as a file';
+  raw.dataset.testid = 'newer-raw-copy';
+  const rawSaid = document.createElement('p');
+  rawSaid.textContent = 'A raw copy is everything stored on this device, exactly as it is, in one file: for help if the app can’t open your plans. It isn’t a backup the app can import.';
+  raw.addEventListener('click', async () => {
+    raw.disabled = true;
+    try {
+      const file = await buildRawCopyFile();
+      if (file) downloadText(file.filename, file.text);
+      else rawSaid.textContent = 'There’s nothing stored on this device to copy.';
+    } catch (e) {
+      console.error('raw copy failed', e);
+      rawSaid.textContent = 'The copy couldn’t be made. Close FullGrown everywhere on this device, then open it and try again.';
+    } finally { raw.disabled = false; }
+  });
+  box.append(h, p, reload, again, raw, rawSaid);
   root.replaceChildren(box);
 }
 /** Shown on the plan when a newer version opens the database in another tab or window; then reloaded into it. */
@@ -346,10 +364,15 @@ let appShown = false;
 setNewerVersionListener((lastWrite) => {
   // (Before the plan is shown, start() says so instead: showNewerVersion.)
   if (!appShown) return;
-  void tell('FullGrown was updated in another tab or window. This page will reload into the new version.', { ok: 'Reload', testid: 'newer-tab' })
+  void ask('FullGrown was updated in another tab or window. This page will reload into the new version.', { ok: 'Reload', noCancel: true, testid: 'newer-tab' })
     // (Its edits not saved yet were being written as it closed: a moment for that to finish.)
-    .then(() => Promise.race([lastWrite, new Promise((r) => setTimeout(r, 5000))]))
-    .then(() => reloadToNewest());
+    .then(async (pressed) => {
+      await Promise.race([lastWrite, new Promise((r) => setTimeout(r, 5000))]);
+      // Reload, pressed: into the newer version, a waiting one put in first (the person asked). Put away (Esc, Back, a
+      // tap beside it, another question over it): only reloaded, the update left to wait for its Update (CLAUDE.md;
+      // the review, Nov 1).
+      if (pressed) void reloadToNewest(); else location.reload();
+    });
 });
 /**
  * While this page's opening of the plans waits for another tab or window, open on an older version, to let go of them

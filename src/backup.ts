@@ -4,6 +4,7 @@ import type { ProjectData } from './types';
 import { myPlants, myPlantsUsedBy } from './my-plants';
 import { wirePlant } from './catalog';
 import { now, stamp } from './util';
+import { rawCopy } from './db';
 
 // Project files: a single project, or a backup of every project, as JSON.
 // Background images are embedded as data URLs so a file is self-contained.
@@ -66,6 +67,19 @@ export async function buildBackupFile(): Promise<{ filename: string; text: strin
   const projects = await allExportedProjects();
   const file: BackupFile = { format: BACKUP_FORMAT, version: FILE_VERSION, exportedAt: new Date().toISOString(), projects, myPlants: myPlants.map(wirePlant) }; // (forms any version reads: WIRE_FORMS)
   return { filename: `fullgrown-backup-${stamp()}.fullgrown.json`, text: JSON.stringify(file), count: projects.length };
+}
+
+/** A raw copy's format: not a backup Import reads, but everything the device stores, as it's stored. */
+export const RAW_COPY_FORMAT = 'fullgrown-raw-database';
+/**
+ * Every record of the app's database as stored, whatever its version, as a file (src/db.ts rawCopy): for a page that
+ * can't open the plans, a newer version having them (src/main.ts), to save them all the same. Null: none stored.
+ */
+export async function buildRawCopyFile(name?: string): Promise<{ filename: string; text: string } | null> {
+  const copy = await rawCopy(name);
+  if (!copy) return null;
+  const file = { format: RAW_COPY_FORMAT, savedAt: new Date().toISOString(), databaseVersion: copy.version, stores: copy.stores };
+  return { filename: `fullgrown-raw-copy-${stamp()}.json`, text: JSON.stringify(file) };
 }
 
 /**

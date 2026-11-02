@@ -206,6 +206,35 @@ function openOnce(name: string): Promise<KV> {
 }
 
 /**
+ * Every record of every store, as stored, whatever the database's version: for a page that can't open the plans (a
+ * newer version has them, src/main.ts) to save them as a file all the same. Opened with no version, so it's never
+ * upgraded or changed, and closed after (at once if another page needs it meanwhile). Null when there's no database.
+ */
+export async function rawCopy(name = DB_NAME): Promise<{ version: number; stores: Record<string, Record<string, unknown>> } | null> {
+  if (typeof indexedDB === 'undefined') return null;
+  const db = await new Promise<IDBDatabase | null>((resolve, reject) => {
+    const open = indexedDB.open(name);
+    // (None here: opening made an empty one. Not kept.)
+    open.onupgradeneeded = () => open.transaction?.abort();
+    open.onsuccess = () => resolve(open.result);
+    open.onerror = () => { if (open.error?.name === 'AbortError') resolve(null); else reject(open.error); };
+  });
+  if (!db) return null;
+  db.onversionchange = () => db.close();
+  try {
+    const stores: Record<string, Record<string, unknown>> = {};
+    for (const s of Array.from(db.objectStoreNames)) {
+      const os = db.transaction(s).objectStore(s);
+      const [keys, values] = await Promise.all([req(os.getAllKeys()), req(os.getAll())]);
+      stores[s] = Object.fromEntries(keys.map((k, i) => [String(k), values[i]]));
+    }
+    return { version: db.version, stores };
+  } finally {
+    db.close();
+  }
+}
+
+/**
  * Open the database, retrying once (Android occasionally fails a first open). Throws NewerVersionError, at once, when
  * a newer version of the app has opened it.
  */
