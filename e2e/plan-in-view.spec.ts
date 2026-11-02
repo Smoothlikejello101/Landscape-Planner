@@ -64,8 +64,10 @@ async function pinchOut(page: Page, at: { x: number; y: number }) {
 /** Where an element is on the page, once it's drawn (the plan is drawn again as the app starts). */
 async function boxOf(l: ReturnType<Page['locator']>) {
   await expect(l).toBeVisible();
-  await expect.poll(async () => !!(await l.boundingBox())).toBe(true);
-  return (await l.boundingBox())!;
+  let box: Awaited<ReturnType<typeof l.boundingBox>> = null;
+  // (Read once it's there, and that reading kept: the plan drawn again in between, as the catalog comes in, has none.)
+  await expect.poll(async () => (box = await l.boundingBox()) !== null).toBe(true);
+  return box!;
 }
 async function openPicker(page: Page) {
   await page.locator('.tool-btn.plants').click();
@@ -273,10 +275,10 @@ test.describe('on a computer', () => {
     const plan = await canvasBox(page);
     const before = await view(page), zoom = await zoomPct(page);
     // A drag that starts on the selected bed moves the plan, not the bed.
-    const bb = (await bed.boundingBox())!;
+    const bb = await boxOf(bed);
     await dragOn(page, false, { x: bb.x + 40, y: bb.y + 40 }, { x: bb.x + 140, y: bb.y + 90 });
     await expect.poll(async () => (await view(page))[0]).toBeLessThan(before[0]);
-    expect((await bed.boundingBox())!.x - bb.x).toBeCloseTo(100, 0);
+    expect((await boxOf(bed)).x - bb.x).toBeCloseTo(100, 0);
     // The wheel zooms.
     await page.locator('#canvas-svg').evaluate((svg, p) => {
       svg.dispatchEvent(new WheelEvent('wheel', { deltaY: -40, ctrlKey: true, clientX: p.x, clientY: p.y, bubbles: true, cancelable: true }));
@@ -306,9 +308,9 @@ test('a tap on the plan with the picker open picks, places and closes nothing: t
   await row.click();
   await mark(page, '.picker-sheet');
   // A tap on a plant, on the bed, on the empty plan.
-  const p1 = (await page.locator('#canvas-svg [data-shape-id=p1]').first().boundingBox())!;
+  const p1 = await boxOf(page.locator('#canvas-svg [data-shape-id=p1]').first());
   await tapAt(page, isMobile, p1.x + p1.width / 2, p1.y + p1.height / 2);
-  const bed = (await page.locator('#canvas-svg [data-shape-id=bed]').first().boundingBox())!;
+  const bed = await boxOf(page.locator('#canvas-svg [data-shape-id=bed]').first());
   await tapAt(page, isMobile, bed.x + 6, bed.y + 6);
   const plan = await canvasBox(page);
   await tapAt(page, isMobile, plan.x + 20, plan.y + 20);
@@ -350,7 +352,7 @@ test('opened with a bed selected, the plan pans to show it beside or above the p
   await openPicker(page);
   const s = (await sheet(page).boundingBox())!, plan = await canvasBox(page);
   await expect.poll(async () => {
-    const now = (await bed.boundingBox())!;
+    const now = await boxOf(bed);
     return isMobile ? now.y >= plan.y && now.y + now.height <= s.y : now.x >= plan.x && now.x + now.width <= s.x;
   }).toBe(true);
   expect(await zoomPct(page)).toBe(zoom);
@@ -362,21 +364,21 @@ test('opened with a bed selected, the plan pans to show it beside or above the p
   const plant = page.locator('#canvas-svg [data-shape-id=p2]').first();
   // (Out of the way first: on a phone low on the plan, on a computer at its right.)
   const pv = await view(page);
-  const p = (await plant.boundingBox())!;
+  const p = await boxOf(plant);
   await page.locator('.sel-pill .pill-close').click();
   // (Clear of the zoom buttons at the plan's right.)
   const farther = isMobile ? { x: p.x, y: plan.y + plan.height - 40 } : { x: plan.x + plan.width - 140, y: p.y };
   const grab = isMobile ? { x: plan.x + plan.width / 2, y: plan.y + 20 } : { x: plan.x + 20, y: plan.y + plan.height / 2 };
   await dragOn(page, isMobile, grab, { x: grab.x + (farther.x - p.x), y: grab.y + (farther.y - p.y) });
   await expect.poll(async () => (await view(page)).join()).not.toBe(pv.join());
-  const p2 = (await plant.boundingBox())!;
+  const p2 = await boxOf(plant);
   await tapAt(page, isMobile, p2.x + p2.width / 2, p2.y + p2.height / 2);
   await page.locator('.sel-pill .edit').click();
   await page.getByTestId('swap-plant').click();
   await expect(page.getByTestId('swap-banner')).toBeVisible();
   const s2 = (await sheet(page).boundingBox())!;
   await expect.poll(async () => {
-    const now = (await plant.boundingBox())!;
+    const now = await boxOf(plant);
     return isMobile ? now.y + now.height <= s2.y : now.x + now.width <= s2.x;
   }).toBe(true);
   expect(await zoomPct(page)).toBe(zoom);
