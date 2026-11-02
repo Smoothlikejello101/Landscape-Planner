@@ -133,6 +133,14 @@ function pick(p: Plant) {
 // (Its ×, Cancel or a tap beside it: back here, the search as it was. Round 3, Owen, for Edit; the UI review,
 // 2026-11-01, for Add and Copy: their × closed the whole picker, and the search with it.)
 function openForm(args: PlantFormArgs) { state.plantForm = { ...args, back: 'plants' }; state.panel = 'plantForm'; render(); }
+/**
+ * Help's "Add my own plant" (src/ui/help-sheet.ts): the picker's Add your own plant, as if from its foot: the form, its
+ * ← back to the picker, where My plants are; saved, placed on the plan.
+ */
+export function openOwnPlantForm() {
+  state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; state.pickerForTree = false;
+  openForm({ place: true });
+}
 
 const cap = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
 /**

@@ -12,6 +12,13 @@ const card = (page: Page) => page.getByTestId('intro-card');
 const step = (page: Page) => page.getByTestId('intro-step');
 const drawBar = (page: Page) => page.getByTestId('draw-bar');
 
+/** ⋮ → Help → Take the tour (it was ⋮ → Show me around: Jason, Nov 2). */
+async function takeTour(page: Page) {
+  await page.locator('button[title=More]').click();
+  await page.getByTestId('menu-help').click();
+  await page.getByTestId('help-tour').click();
+  await expect(page.getByTestId('help-sheet')).toHaveCount(0);
+}
 async function start(page: Page) {
   await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TABLE) }));
   autoDialogs(page);
@@ -55,7 +62,7 @@ async function bed(page: Page, go = true) {
   await drawBar(page).getByRole('button', { name: 'Done' }).click();
 }
 
-test('an empty plan offers it; "I\'ll explore" puts it away for good, and ⋮ still has it', async ({ page }) => {
+test('an empty plan offers it; "I\'ll explore" puts it away for good, and ⋮ → Help still has it', async ({ page }) => {
   await openFresh(page);
   await expect(page.getByTestId('intro-start')).toHaveText('New here? Show me around');
   await page.getByTestId('intro-decline').click();
@@ -64,8 +71,7 @@ test('an empty plan offers it; "I\'ll explore" puts it away for good, and ⋮ st
   await page.reload();
   await expect(page.locator('.project-btn .pname')).toBeVisible();
   await expect(page.getByTestId('intro-start')).toHaveCount(0);
-  await page.locator('button[title=More]').click();
-  await page.getByTestId('menu-intro').click();
+  await takeTour(page);
   await expect(step(page)).toHaveText('Step 1 of 8');
 });
 
@@ -297,7 +303,7 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await expect(page.locator('.sheet')).toContainText('No dog warnings');
 });
 
-test('Back and Skip; Exit keeps the step, and "Show me around" offers to pick up there or start over', async ({ page }) => {
+test('Back and Skip; Exit keeps the step, and Take the tour (⋮ → Help) offers to pick up there or start over', async ({ page }) => {
   await start(page);
   await page.getByTestId('intro-skip').click();
   await expect(step(page)).toHaveText('Step 2 of 8');
@@ -312,15 +318,15 @@ test('Back and Skip; Exit keeps the step, and "Show me around" offers to pick up
   await expect(card(page)).toHaveCount(0);
   await page.reload();
   await expect(page.locator('.project-btn .pname')).toBeVisible();
-  await expect(card(page)).toHaveCount(0); // (exited: it waits in ⋮)
-  await page.locator('button[title=More]').click();
-  await page.getByTestId('menu-intro').click();
+  await expect(card(page)).toHaveCount(0); // (exited: it waits in ⋮ → Help)
+  await takeTour(page);
+  await expect(card(page).locator('.intro-title')).toHaveText('Take the tour');
   await expect(page.getByTestId('intro-resume')).toHaveText('Pick up at step 4, A bed');
   await page.getByTestId('intro-resume').click();
   await expect(step(page)).toHaveText('Step 4 of 8');
   await page.getByTestId('intro-exit').click();
-  await page.locator('button[title=More]').click();
-  await page.getByTestId('menu-intro').click();
+  await expect(page.locator('#toast')).toContainText('Tour closed. To pick it up again: ⋮ → Help → Take the tour.');
+  await takeTour(page);
   await page.getByTestId('intro-over').click();
   await expect(step(page)).toHaveText('Step 1 of 8');
   // (Starting over on a plan with a ZIP: step 1 says so, and goes on.)

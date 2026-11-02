@@ -32,6 +32,7 @@ import { dismissToastAction, hideOldToast, placeNotice, planChanged, planRoomAcr
 import { renderMoreMenu, toggleSelectMode } from './menu';
 import { foldDetailGroups } from './plant-details';
 import { renderFeedbackSheet } from './feedback-sheet';
+import { renderHelpSheet } from './help-sheet';
 import { renderExportModal, renderPreviewModal, renderResetModal } from './modals';
 import { pickerClosed, pickerOpened, renderPlantsPanel } from './plants-panel';
 import { plantDot, shapeDot } from '../plant-looks';
@@ -462,7 +463,7 @@ export function render() {
         else if (onlyPlan) card.append(el('div', { className: 'first-line', 'data-testid': 'first-line' }, 'Plan your garden to scale, with plants that suit it.'));
         // Where the garden is, typed here; its zone once it's known. (Not under a sheet: the ZIP sheet has its own field.)
         if (!state.panel) card.append(state.location ? firstZone(state.location) : firstZip());
-        // New here: the guided introduction, offered once (it stays in ⋮ as "Show me around"). Not under a photo: whoever
+        // New here: the guided introduction, offered once (it stays in ⋮ → Help as "Take the tour"). Not under a photo: whoever
         // added one is past the beginning, and the card stays short, clear of the photo.
         if (introOffered() && !docked) {
           const go = el('button', { className: 'btn primary empty-intro-btn', 'data-testid': 'intro-start' }, 'New here? Show me around');
@@ -635,6 +636,7 @@ export function render() {
   else if (state.panel === 'whatsNew') panelNode = renderWhatsNewPanel();
   else if (state.panel === 'warnings') panelNode = renderWarningsSheet();
   else if (state.panel === 'plantList') panelNode = renderPlantListPanel();
+  else if (state.panel === 'help') panelNode = renderHelpSheet();
   warningsSideShown(root); // (the panel beside the plan, where it was scrolled to)
   if (panelNode) {
     root.appendChild(panelNode);
