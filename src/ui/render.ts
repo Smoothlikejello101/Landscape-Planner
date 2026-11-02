@@ -45,6 +45,7 @@ import { fullRingRadius } from '../my-plants';
 import { filterActive, filterText } from '../status';
 import { toast } from './toast';
 import { clearedNow, loadCleared } from '../storage';
+import { firstHidden, hideFirst } from '../first-hidden';
 import { bringBackCleared } from '../mutations';
 import { fileImport, projectsClosed, renderProjectsPanel, renderRenamePanel } from './projects-panel';
 import { moreOfSame, renderArrangePanel, renderPropsPanel, resetKindChange, sheetTitle } from './props-panel';
@@ -388,43 +389,68 @@ export function render() {
   // back in with a backup (Jason, Nov 1, from the UI review: a first look showed tools, not the job; the ZIP that
   // gives hardiness, frost dates and the state's plant laws was in ⋮; a backup from another device had no way in).
   if (state.shapes.length === 0 && !state.draw && !state.placing && !state.bgCalibrate && !state.bgEditMode && !introActive()) {
-    const hint = el('div', { className: 'empty-hint', 'data-testid': 'first-screen' });
     // Cleared with Clear all: what it took, offered back until something new is drawn, across reloads (Jason, Oct 30).
     if (state.currentProjectId) void loadCleared(state.currentProjectId, render);
     const was = clearedNow();
-    if (was) {
-      const n = was.shapes.length;
-      const back = el('button', { className: 'btn primary empty-intro-btn', 'data-testid': 'bring-back' },
-        `Bring back what Clear all took (${n} shape${n === 1 ? '' : 's'}${was.bgImage ? ' and the photo' : ''})`);
-      back.addEventListener('click', () => { bringBackCleared(was); render(); });
-      hint.append(el('div', { className: 'empty-intro' }, back));
+    // On a card, with its ✕ (Jason, Nov 1: its words were hard to read over a photo, and the ZIP box needed a way to
+    // be put away). Put away, it stays away for this plan, on this device; what Clear all took is still offered back.
+    const planId = state.currentProjectId;
+    const hidden = firstHidden(planId);
+    if (!hidden || was) {
+      // Once a photo is in, docked at the bottom, above the buttons it names, so the photo shows (Jason chose this of
+      // four mock-ups, Nov 1); on an empty grid, in the middle.
+      const docked = !!state.bgImage && state.bgImage.visible !== false;
+      const hint = el('div', { className: 'empty-hint' + (docked ? ' docked' : ''), 'data-testid': 'first-screen' });
+      const card = el('div', { className: 'first-card', 'data-testid': 'first-card' });
+      hint.appendChild(card);
+      if (was) {
+        const n = was.shapes.length;
+        const back = el('button', { className: 'btn primary empty-intro-btn', 'data-testid': 'bring-back' },
+          `Bring back what Clear all took (${n} shape${n === 1 ? '' : 's'}${was.bgImage ? ' and the photo' : ''})`);
+        back.addEventListener('click', () => { bringBackCleared(was); render(); });
+        card.append(el('div', { className: 'empty-intro' }, back));
+      }
+      if (!hidden) {
+        if (planId) {
+          const hide = el('button', { className: 'first-hide', 'data-testid': 'first-hide', 'aria-label': 'Hide this for this plan', title: 'Hide this for this plan', html: I.x });
+          hide.addEventListener('click', () => {
+            hideFirst(planId);
+            render();
+            toastAction('Hidden for this plan. The garden\u2019s ZIP is also under \u22ee \u2192 Garden location.',
+              [{ label: 'Undo', run: () => { hideFirst(planId, false); render(); } }], 8000, 'first-hidden-notice');
+          });
+          card.prepend(hide);
+        }
+        // (While it's the only plan on the device: a second plan, empty, needs no introducing.) With a photo, the
+        // next step instead: the photo is what an empty plan's words were leading to.
+        const onlyPlan = state.projects.length <= 1;
+        if (docked) card.append(el('div', { className: 'first-line', 'data-testid': 'first-line' }, 'Your photo is in. Next: trace the house over it with the buttons below.'));
+        else if (onlyPlan) card.append(el('div', { className: 'first-line', 'data-testid': 'first-line' }, 'Plan your garden to scale, with plants that suit it.'));
+        // Where the garden is, typed here; its zone once it's known. (Not under a sheet: the ZIP sheet has its own field.)
+        if (!state.panel) card.append(state.location ? firstZone(state.location) : firstZip());
+        // New here: the guided introduction, offered once (it stays in ⋮ as "Show me around"). Not under a photo: whoever
+        // added one is past the beginning, and the card stays short, clear of the photo.
+        if (introOffered() && !docked) {
+          const go = el('button', { className: 'btn primary empty-intro-btn', 'data-testid': 'intro-start' }, 'New here? Show me around');
+          go.addEventListener('click', () => { showMeAround(); render(); });
+          const no = el('button', { className: 'btn ghost empty-intro-no', 'data-testid': 'intro-decline' }, "I'll explore");
+          no.addEventListener('click', () => { declineIntro(); render(); });
+          card.append(el('div', { className: 'empty-intro' }, go, no));
+        }
+        // The easiest start is tracing over a photo of the yard from above, so offer it first.
+        if (!state.bgImage) {
+          const photo = el('button', { className: 'empty-photo-btn', 'data-testid': 'start-photo', html: I.image + '<span>Start from an aerial photo</span>' });
+          photo.addEventListener('click', () => { state.panel = 'bg'; render(); });
+          card.append(photo, el('div', { className: 'empty-sub' }, 'A satellite or drone photo of your yard to trace over.'), el('div', { className: 'empty-or' }, 'or'));
+        }
+        // (Drawing by hand starts in the opening view, about 17 ft across: pinch to see more. The yard's width once asked
+        // here only zoomed, and was dropped (Jason, Oct 29).) Docked, the line above already says where the buttons are.
+        if (!docked) card.append(el('div', { className: 'empty-tap' }, tapSaid('Tap a button below to add something.')));
+        card.append(el('div', { className: 'empty-grid' }, 'Grid lines are ', el('b', {}, '1 ft'), ' apart; bold lines every ', el('b', {}, '10 ft'), '.'));
+        if (onlyPlan) card.append(restoreLine());
+      }
+      canvasWrap.appendChild(hint);
     }
-    // (While it's the only plan on the device: a second plan, empty, needs no introducing.)
-    const onlyPlan = state.projects.length <= 1;
-    if (onlyPlan) hint.append(el('div', { className: 'first-line', 'data-testid': 'first-line' }, 'Plan your garden to scale, with plants that suit it.'));
-    // Where the garden is, typed here; its zone once it's known. (Not under a sheet: the ZIP sheet has its own field.)
-    if (!state.panel) hint.append(state.location ? firstZone(state.location) : firstZip());
-    // New here: the guided introduction, offered once (it stays in ⋮ as "Show me around").
-    if (introOffered()) {
-      const go = el('button', { className: 'btn primary empty-intro-btn', 'data-testid': 'intro-start' }, 'New here? Show me around');
-      go.addEventListener('click', () => { showMeAround(); render(); });
-      const no = el('button', { className: 'btn ghost empty-intro-no', 'data-testid': 'intro-decline' }, "I'll explore");
-      no.addEventListener('click', () => { declineIntro(); render(); });
-      hint.append(el('div', { className: 'empty-intro' }, go, no));
-    }
-    // The easiest start is tracing over a photo of the yard from above, so offer it first.
-    if (!state.bgImage) {
-      const photo = el('button', { className: 'empty-photo-btn', 'data-testid': 'start-photo', html: I.image + '<span>Start from an aerial photo</span>' });
-      photo.addEventListener('click', () => { state.panel = 'bg'; render(); });
-      hint.append(photo, el('div', { className: 'empty-sub' }, 'A satellite or drone photo of your yard to trace over.'), el('div', { className: 'empty-or' }, 'or'));
-    }
-    // (Drawing by hand starts in the opening view, about 17 ft across: pinch to see more. The yard's width once asked
-    // here only zoomed, and was dropped (Jason, Oct 29).)
-    hint.append(
-      el('div', { className: 'empty-tap' }, tapSaid('Tap a button below to add something.')),
-      el('div', { className: 'empty-grid' }, 'Grid lines are ', el('b', {}, '1 ft'), ' apart; bold lines every ', el('b', {}, '10 ft'), '.'));
-    if (onlyPlan) hint.append(restoreLine());
-    canvasWrap.appendChild(hint);
   }
 
   // Working through the warnings on a phone: "‹ Warnings · 3 of 12 ›", in place of the selection's own chip or bar.
@@ -809,9 +835,13 @@ function snapChip(s: TapSnap, unsnap: () => void): HTMLElement {
  */
 function firstZip(): HTMLElement {
   const { input, go, problem } = zipEntry('first');
+  // What happens to the ZIP, a press away, for anyone wary of giving it (Jason, Nov 1): the ZIP sheet says.
+  const privacy = el('button', { className: 'link-btn first-privacy', 'data-testid': 'zip-privacy' }, 'Privacy');
+  privacy.addEventListener('click', () => openLocation());
   return el('div', { className: 'first-zip', 'data-testid': 'first-zip-box' },
     el('div', { className: 'first-zip-row' }, input, go),
-    el('div', { className: 'first-zip-note' }, 'Your ZIP gives its hardiness zone, frost dates and your state’s plant laws.'),
+    // (Under the field that says ZIP code: short, so the card fits a small phone at large text.)
+    el('div', { className: 'first-zip-note' }, 'For its hardiness zone, frost dates and your state’s plant laws. ', privacy),
     problem);
 }
 /** The garden's zone, once its ZIP is in: the location sheet, for its frost dates or another ZIP. */
@@ -825,7 +855,7 @@ function restoreLine(): HTMLElement {
   const { input, choose } = fileImport('restore-file');
   const b = el('button', { className: 'link-btn', 'data-testid': 'restore-backup' }, 'Restore a backup');
   b.addEventListener('click', choose);
-  return el('div', { className: 'first-restore' }, 'Already have a plan? ', b, input);
+  return el('div', { className: 'first-restore' }, el('span', { className: 'restore-q' }, 'Already have a plan? '), b, input);
 }
 /**
  * A plan opened with its photo not to scale yet (calibrating it was left part way: Grace, Oct 30, after a reload): said

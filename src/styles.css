@@ -557,6 +557,22 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
    too, over the bar it means), so it all fits a 360 × 640 screen. */
 .empty-hint > * { flex-shrink: 0; }
 .first-line { max-width: 30em; margin-bottom: 8px; font-size: calc(14px * var(--ts)); font-weight: 600; line-height: 1.35; color: #44403c; }
+/* The first screen's card (Jason, Nov 1: its words were hard to read over a photo, and it needed a way to be put
+   away). In the middle of an empty grid; once a photo is in, docked at the bottom over the buttons it names, so the
+   photo shows. Presses go through it to the plan except on its own buttons and fields, as before it was a card. */
+.first-card { position: relative; pointer-events: none; display: flex; flex-direction: column; align-items: center; box-sizing: border-box; max-width: 30em; padding: 14px 20px 10px; border-radius: 16px; background: rgba(255, 255, 255, 0.96); box-shadow: 0 4px 18px rgba(28, 25, 23, 0.16); color: #57534e; }
+.first-card > * { flex-shrink: 0; }
+.first-card .first-line { padding: 0 calc(var(--tap) - 12px); color: #292524; }
+.first-card .empty-intro { margin-bottom: 8px; }
+.first-hide { pointer-events: auto; position: absolute; top: 2px; right: 2px; width: var(--tap); height: var(--tap); display: flex; align-items: center; justify-content: center; border-radius: 8px; color: #57534e; }
+.first-hide .icon { width: 18px; height: 18px; }
+.first-privacy { pointer-events: auto; font-size: inherit; min-height: 0; padding: 2px 2px; }
+.empty-hint.docked { justify-content: flex-end; padding: 8px; }
+.empty-hint.docked .first-card { width: 100%; max-width: 36em; align-items: flex-start; text-align: left; padding: 12px 16px 6px; }
+.empty-hint.docked .first-card .first-line { padding: 0 calc(var(--tap) - 8px) 0 0; }
+.empty-hint.docked .first-zip-row { margin: 0; justify-content: flex-start; }
+.empty-hint.docked .first-zip-note { margin-left: 0; }
+.empty-hint.docked .first-restore { margin-top: 0; }
 .first-zip { margin-bottom: 12px; }
 .first-zip-row { pointer-events: auto; display: flex; gap: 8px; justify-content: center; margin: 0 auto; }
 .first-zip-row input { width: 5.6em; padding: 4px; border: 1px solid #a8a29e; border-radius: 6px; background: #fff; text-align: center; color: #292524; }
@@ -564,13 +580,28 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .first-zip-row .btn { padding: 4px 12px; white-space: nowrap; }
 .first-zip-note { max-width: 24em; margin: 4px auto 0; font-size: calc(12px * var(--ts)); line-height: 1.4; }
 @media (max-width: 599px) {
-  .empty-hint { padding: 12px 16px; justify-content: safe center; line-height: 1.45; }
-  .empty-hint .first-line, .empty-hint .first-zip-row { max-width: 240px; }
+  .empty-hint { padding: 8px 62px 8px 8px; justify-content: safe center; line-height: 1.45; }
+  .empty-hint.docked { padding: 8px; justify-content: flex-end; }
+  .first-card { padding: 10px 10px 6px; }
+  /* (Clear of the ✕ on the right only: the line's room is tight on a phone.) */
+  .first-card .first-line { padding: 0 calc(var(--tap) - 14px) 0 0; }
 }
 html[data-text="large"] .empty-hint .empty-sub, html[data-text="xlarge"] .empty-hint .empty-sub,
 html[data-text="large"] .empty-hint .empty-or, html[data-text="xlarge"] .empty-hint .empty-or,
 html[data-text="large"] .empty-hint .empty-grid, html[data-text="xlarge"] .empty-hint .empty-grid,
 html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
+/* A short phone (360 × 640): the photo button's note and the "or" give way at every text size, and "Tap a button below"
+   above Medium, so the card fits. */
+@media (max-width: 599px) and (max-height: 700px) {
+  .empty-hint .empty-sub, .empty-hint .empty-or { display: none; }
+  html[data-text="large"] .empty-hint .empty-tap { display: none; }
+  .empty-hint:not(.docked) { padding-top: 4px; padding-bottom: 4px; }
+  .first-card { padding-top: 6px; padding-bottom: 2px; }
+  .first-card .first-line { margin-bottom: 4px; }
+  .first-card .first-zip { margin-bottom: 6px; }
+  .first-card .empty-intro { margin-bottom: 4px; }
+  html[data-text="xlarge"] .first-restore .restore-q { display: none; } /* ("Restore a backup" alone, on one line) */
+}
 .first-zip .status { pointer-events: auto; margin-top: 6px; text-align: left; }
 .empty-hint .first-zone { pointer-events: auto; margin: -8px 0 6px; font-size: calc(13px * var(--ts)); }
 .first-restore { margin-top: 4px; line-height: 1.3; }

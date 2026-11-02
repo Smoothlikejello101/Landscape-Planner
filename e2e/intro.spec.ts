@@ -83,7 +83,7 @@ test('the first screen says what FullGrown does, takes the ZIP right there, and 
   await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TABLE) }));
   await openFresh(page);
   await expect(page.getByTestId('first-line')).toHaveText('Plan your garden to scale, with plants that suit it.');
-  await expect(page.getByTestId('first-zip-box')).toContainText('Your ZIP gives its hardiness zone, frost dates and your state’s plant laws.');
+  await expect(page.getByTestId('first-zip-box')).toContainText('For its hardiness zone, frost dates and your state’s plant laws. Privacy');
   await expect(page.getByTestId('intro-start')).toHaveText('New here? Show me around'); // (the tour still offered)
   // Not focused by itself: on a phone its keyboard would come up unasked for, and with a keyboard the plan's own
   // keys would go into it.
@@ -257,4 +257,64 @@ test('Back and Skip; Exit keeps the step, and "Show me around" offers to pick up
   await expect(page.getByTestId('intro-text')).toHaveText("This plan's garden is at ZIP 71923. Change it if that's not where the garden is.");
   await page.getByTestId('intro-done').click();
   await expect(step(page)).toHaveText('Step 2 of 8');
+});
+
+test('the first screen is a card whose ✕ puts it away for this plan, with Undo; a new plan still has it; its ZIP note ends in Privacy (Jason, Nov 1)', async ({ page }) => {
+  await openFresh(page);
+  await expect(page.getByTestId('first-card')).toBeVisible();
+  // Privacy: what happens to the ZIP, in the ZIP sheet.
+  await page.getByTestId('zip-privacy').click();
+  const note = page.getByTestId('zip-privacy-note');
+  await expect(note).toContainText('Looking it up fetches only its first three digits');
+  await expect(note).toContainText('if you sign in to sync, in your account');
+  await closeSheet(page);
+  // ✕: gone, with Undo; gone again, and still gone after a reload.
+  await page.getByTestId('first-hide').click();
+  await expect(page.getByTestId('first-screen')).toHaveCount(0);
+  const notice = page.getByTestId('first-hidden-notice');
+  await expect(notice).toContainText('Hidden for this plan.');
+  await notice.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByTestId('first-card')).toBeVisible();
+  await page.getByTestId('first-hide').click();
+  await expect(page.getByTestId('first-screen')).toHaveCount(0);
+  await page.waitForTimeout(300);
+  await page.reload();
+  await expect(page.locator('.project-btn .pname')).toBeVisible();
+  await expect(page.getByTestId('first-screen')).toHaveCount(0);
+  // The garden's ZIP is still a menu away.
+  await page.locator('button[title=More]').click();
+  await expect(page.locator('.menu-item', { hasText: 'Garden location' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  // A new plan: its own first screen (no introduction: not the only plan).
+  await page.locator('.project-btn').click();
+  await page.getByRole('button', { name: /New project/ }).click();
+  await page.getByTestId('ask-input').fill('Front yard');
+  await page.getByTestId('ask-ok').click();
+  await expect(page.locator('.project-btn .pname')).toHaveText('Front yard');
+  await expect(page.getByTestId('first-card')).toBeVisible();
+  await expect(page.getByTestId('first-zip')).toBeVisible();
+});
+
+test('with a photo in, the first screen sits at the bottom over the buttons, its words on a card, the photo clear above it (Jason, Nov 1)', async ({ page }) => {
+  autoDialogs(page);
+  await openFresh(page);
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'background image' }).click();
+  await page.locator('.sheet input[type=file]').setInputFiles('public/icon-512.png');
+  await page.locator('.mode-banner button').click();
+  const hint = page.getByTestId('first-screen');
+  await expect(hint).toHaveClass(/docked/);
+  await expect(page.getByTestId('first-line')).toHaveText('Your photo is in. Next: trace the house over it with the buttons below.');
+  await expect(page.getByTestId('start-photo')).toHaveCount(0);
+  await expect(page.getByTestId('first-zip')).toBeVisible();
+  await expect(page.getByTestId('zip-privacy')).toBeVisible();
+  // Docked: its bottom by the plan's bottom edge, its top below the plan's middle.
+  const wrap = (await page.locator('#canvas-wrap').boundingBox())!;
+  const cardBox = (await page.getByTestId('first-card').boundingBox())!;
+  expect(wrap.y + wrap.height - (cardBox.y + cardBox.height)).toBeLessThanOrEqual(16);
+  expect(cardBox.y).toBeGreaterThan(wrap.y + wrap.height / 2);
+  // Put away, the photo is all there is.
+  await page.getByTestId('first-hide').click();
+  await expect(hint).toHaveCount(0);
+  await expect(page.locator('#canvas-svg image')).toHaveCount(1);
 });
