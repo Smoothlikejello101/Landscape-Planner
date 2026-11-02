@@ -43,6 +43,14 @@ interface ShapeBase {
   /** The poison warning this copy was dismissed for (what it said: it comes back if who's in the yard changes); src/dismissals.ts. */
   poisonDismissed?: string;
   /**
+   * A fruit-partner warning dismissed for this copy alone (its words, src/fruit-partners.ts fruitNeed): back if they
+   * change. Plans before Nov 1 have none (none dismissed). '' when shown again on purpose (Show again, Undo), so sync
+   * can tell it from a copy an older version sent without it: a version before Nov 1 drops it from every plan it
+   * saves or syncs, even over a newer dismissal; each device that has it keeps its own then (src/sync/engine.ts
+   * withFruitDismissals), and the server's copy is without it until one of those sends the plan again.
+   */
+  fruitDismissed?: string;
+  /**
    * What it was added as (src/kinds.ts KindKey: "path", "patio"…), kept when it's renamed; dropped when what it is
    * changes. Shapes from before Oct 30 have none: their kind is worked out (kindOfShape).
    */
@@ -257,6 +265,8 @@ export interface ProjectMeta {
   name: string;
   lastModified: number;
   shapeCount?: number;
+  /** A plan made from an older tab's unsaved changes, kept beside this one (src/storage.ts keepJournalApart). */
+  keptFrom?: string;
 }
 /** Plants drawn at the middle of their size range, or at full (maximum) size. */
 export type SizeMode = 'typical' | 'full';
@@ -359,6 +369,13 @@ export interface HistorySnapshot {
   photoElsewhere?: PhotoRef | null;
   /** What the step did, when it says ("delete Front bed"): src/history.ts. Never stored. */
   label?: string;
+  /**
+   * A step that narrowed a warning dismissed across the plan to the copies there then ("Just these 2": src/dismissals.ts
+   * warnForNewOnes): that dismissal, as it was kept. Undo puts it back, Redo takes it away again (the plan's dismissals
+   * are otherwise kept apart from the steps). `putBack`: the last Undo put it back (not so where one was made across
+   * the plan since), so Redo takes it away; never stored.
+   */
+  narrowed?: { kind: DismissKind; plantId: string; said: string; putBack?: boolean };
 }
 
 export interface Clipboard {

@@ -73,6 +73,7 @@ function applySnapshot(snap: HistorySnapshot) {
   const before = state.shapes;
   state.shapes = deepClone(snap.shapes);
   boughtKept(before);
+  fruitShownAgain(before);
   // "Keep this photo on this device only" isn't an undoable edit: the same photo keeps its setting.
   const keep = state.bgImage && snap.bgImage && state.bgImage.dataUrl === snap.bgImage.dataUrl ? state.bgImage.deviceOnly : snap.bgImage?.deviceOnly;
   state.bgImage = snap.bgImage ? { ...snap.bgImage } : null;
@@ -87,10 +88,13 @@ function applySnapshot(snap: HistorySnapshot) {
 export function undo() {
   flushHistoryDebounce();
   if (state.historyIndex <= 0) return;
+  const step = state.history[state.historyIndex];
   state.historyIndex--;
   state.linkOffer = null; // (the circles it named may have changed back)
   state.statusAsk = null; // (and the statuses it asked about)
   applySnapshot(state.history[state.historyIndex]);
+  // (Whether it was put back, for Redo: one made across the plan since stands, and Redo leaves it, words alike or not.)
+  if (step.narrowed) step.narrowed.putBack = narrowedBack(step.narrowed, true);
   save();
 }
 export function redo() {
@@ -99,8 +103,34 @@ export function redo() {
   state.historyIndex++;
   state.linkOffer = null;
   state.statusAsk = null;
-  applySnapshot(state.history[state.historyIndex]);
+  const step = state.history[state.historyIndex];
+  applySnapshot(step);
+  if (step.narrowed?.putBack) { narrowedBack(step.narrowed, false); step.narrowed.putBack = false; }
   save();
+}
+/**
+ * A step that narrowed a warning dismissed across the plan ("Just these 2": src/dismissals.ts warnForNewOnes), undone:
+ * that dismissal back (`back`), unless the plant has one across the plan again since; redone: gone again, if Undo put
+ * it back (its `putBack`: not one made since with the same words, the second review, Nov 1) and it's still that one.
+ * Whether it changed anything.
+ */
+function narrowedBack(n: NonNullable<HistorySnapshot['narrowed']>, back: boolean): boolean {
+  const m = { ...(state.dismissed?.[n.kind] ?? {}) };
+  if (back ? m[n.plantId] !== undefined : m[n.plantId] !== n.said) return false;
+  if (back) m[n.plantId] = n.said; else delete m[n.plantId];
+  const next = { ...(state.dismissed ?? {}) };
+  if (Object.keys(m).length) next[n.kind] = m; else delete next[n.kind];
+  state.dismissed = next; // (kept, even empty, once the plan has had any: so it syncs too, as in src/dismissals.ts)
+  return true;
+}
+/**
+ * A copy's own fruit-partner dismissal that Undo or Redo takes away is left '', shown again on purpose, as Show again
+ * leaves it: so sync doesn't fill it back from another device's copy (src/sync/engine.ts withFruitDismissals).
+ */
+function fruitShownAgain(before: Shape[]) {
+  const had = new Map(before.filter((s) => !!s.fruitDismissed).map((s) => [s.id, s.plantId]));
+  if (!had.size) return;
+  for (const s of state.shapes) if (s.fruitDismissed === undefined && had.has(s.id) && had.get(s.id) === s.plantId) s.fruitDismissed = '';
 }
 /**
  * Whether there's a step to undo: one taken, or one still being gathered (a run of arrow nudges, typing in a field),

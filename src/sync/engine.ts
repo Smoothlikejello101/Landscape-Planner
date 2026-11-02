@@ -185,8 +185,19 @@ export function planOf(c: ProjectContent): ProjectContent {
   const { photo: _p, ...rest } = c;
   return rest;
 }
+/**
+ * A plan as fingerprinted: a fruit-partner warning shown again on purpose (`fruitDismissed: ''`) reads as none. So a
+ * dismissal taken back before the plan synced (Undo, Show again) isn't taken for a change, which against another
+ * device's edit made a conflict copy (the second review, Nov 1); dismissed words to '' still differ, as words to none
+ * do, so a Show again still goes up. A plan without '' is fingerprinted exactly as before (the same object).
+ */
+function forHash(c: ProjectContent): ProjectContent {
+  const shown = (s: unknown) => !!s && typeof s === 'object' && (s as { fruitDismissed?: unknown }).fruitDismissed === '';
+  if (!Array.isArray(c.shapes) || !c.shapes.some(shown)) return c;
+  return { ...c, shapes: c.shapes.map((s) => { if (!shown(s)) return s; const { fruitDismissed: _f, ...rest } = s as Record<string, unknown>; return rest; }) };
+}
 /** Fingerprint of the name and plan (the photo apart). Records made before photos synced hold exactly this. */
-export const planHash = (name: string, c: ProjectContent) => fingerprint(name, planOf(c));
+export const planHash = (name: string, c: ProjectContent) => fingerprint(name, forHash(planOf(c)));
 /** Parts of a plan that settle on their own when two devices change them (settleParts), not a conflict. */
 const OWN_PARTS = ['bought', 'household', 'switches'] as const;
 /** The plan without its photo and the parts that settle on their own: what two devices changing is a conflict. */
@@ -201,8 +212,8 @@ function partsOf(c: ProjectContent): ProjectContent {
   for (const k of OWN_PARTS) if (c[k] !== undefined) out[k] = JSON.parse(JSON.stringify(c[k]));
   return out;
 }
-/** Fingerprint of the name and the plan's core (coreOf). */
-export const coreHash = (name: string, c: ProjectContent) => fingerprint(name, coreOf(c));
+/** Fingerprint of the name and the plan's core (coreOf), '' read as none (forHash). */
+export const coreHash = (name: string, c: ProjectContent) => fingerprint(name, forHash(coreOf(c)));
 /** A record's core fingerprint; one from before the parts that settle on their own had none, its plan neither part. */
 const coreOfRecord = (rec: SyncRecord) => rec.core ?? rec.hash;
 /**
@@ -261,7 +272,7 @@ export function withLocalParts(server: ProjectContent, mine: ProjectContent | un
   if (!mine) return server;
   let out = server;
   for (const k of NEWER_PARTS) if (!(k in server) && k in mine) out = { ...out, [k]: mine[k] };
-  return withChosenColors(withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine), mine);
+  return withFruitDismissals(withChosenColors(withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine), mine), mine);
 }
 /**
  * A shape's sub-features (doors, windows, gates: src/features.ts), which an older version leaves out of a shape it
@@ -309,6 +320,35 @@ function withUtilities(server: ProjectContent, mine: ProjectContent): ProjectCon
     if (typeof k.utilityDismissed === 'string' && k.utilityDismissed && !('utilityDismissed' in s)) out = { ...out, utilityDismissed: k.utilityDismissed };
     if (out !== s) filled = true;
     return out;
+  });
+  return filled ? { ...server, shapes } : server;
+}
+/**
+ * A plant's fruit-partner warning dismissed for it alone (fruitDismissed, Nov 1), which an older version drops from a
+ * shape it sends: kept from here when the server's copy of that shape, the same plant (its id and plantId), has none at
+ * all. Without it, a device on the release with an edit of its own sends the plan over a newer dismissal, its merge not
+ * seeing it (the review of the change, Nov 1), and every device then lost it. The server's copy goes without it until a
+ * device that has it sends the plan again.
+ *
+ * '' (shown again on purpose) is kept the same way: a device that showed it again says so again, as it next sends the
+ * plan, where the release dropped that too (the second review, Nov 1). Where the server has one, '' or words, it stands.
+ * What's left: a device offline through another device's Show again, with a device on the release sending the plan
+ * between, still has the words, which the server's copy no longer contradicts: it keeps them, and they come back for
+ * everyone if it sends the plan before the device that showed it again does. Only while one of the account's devices
+ * is still on the release (docs/storage.md).
+ */
+function withFruitDismissals(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
+  type Fruit = { id?: unknown; plantId?: unknown; fruitDismissed?: unknown };
+  const kept = new Map<unknown, Fruit>();
+  for (const s of mine.shapes as Fruit[]) if (s && typeof s.fruitDismissed === 'string' && typeof s.plantId === 'string') kept.set(s.id, s);
+  if (!kept.size) return server;
+  let filled = false;
+  const shapes = (server.shapes as Fruit[]).map((s) => {
+    const k = s && typeof s === 'object' ? kept.get(s.id) : undefined;
+    if (!k || s.plantId !== k.plantId || 'fruitDismissed' in s) return s;
+    filled = true;
+    return { ...s, fruitDismissed: k.fruitDismissed };
   });
   return filled ? { ...server, shapes } : server;
 }

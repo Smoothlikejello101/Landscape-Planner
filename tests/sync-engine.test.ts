@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { canonical, coreHash, fingerprint, planHash, settleBought, settleHousehold, settleSwitches, syncOnce, type Local, type LocalProject, type ProjectContent, type Remote, type SyncRecord } from '../src/sync/engine';
+import { canonical, coreHash, fingerprint, planHash, planOf, settleBought, settleHousehold, settleSwitches, syncOnce, withLocalParts, type Local, type LocalProject, type ProjectContent, type Remote, type SyncRecord } from '../src/sync/engine';
 import { FakeServer } from './fake-sync-server';
 import { keepBought, plantList } from '../src/plant-list';
 import type { PlanBought, Shape } from '../src/types';
+import { migrateShape } from '../src/storage';
+import { releaseMigrateShape } from './fixtures/release-migrate-shape';
 
 // The sync engine against a stand-in server (the same rules as
 // supabase/02-sync.sql) and stand-in devices: two devices editing offline,
@@ -1037,5 +1039,250 @@ describe('fingerprints', () => {
     expect(fingerprint('X', { shapes: [], phases: [] })).toBe(fingerprint('X', { phases: [], shapes: [] }));
     expect(fingerprint('X', { shapes: [1] })).not.toBe(fingerprint('X', { shapes: [2] }));
     expect(fingerprint('X', { shapes: [] })).not.toBe(fingerprint('Y', { shapes: [] }));
+  });
+});
+
+// A field the release doesn't know: a fruit-partner warning dismissed for one plant (fruitDismissed, Nov 1). Each device
+// reads shapes as its version's migrateShape does, downloads and its own plans alike (src/sync/local.ts tidy): this
+// version's, or the release's (tests/fixtures/release-migrate-shape.ts), which leaves the field out. A device on the
+// release sends plans without it, even over a newer dismissal; a device of this version keeps its own then
+// (src/sync/engine.ts withFruitDismissals), unless it was shown again on purpose (''). Nothing else is lost; nothing
+// goes round and round.
+describe("a field the release doesn't know, through a device or a tab on the release (fruitDismissed, Nov 1)", () => {
+  const said = "American holly 'Clarendon Spreading' is a female: it needs a male of its kind nearby to fruit";
+  const holly = (id: string, x: number, extra: object = {}) => ({ id, type: 'circle', x, y: 0, radius: 3, color: '#14532d', label: "American holly 'Clarendon Spreading'", opacity: 0.65, locked: false, role: 'plant', plantId: 'ilex-opaca-clarendon-spreading', ...extra });
+  const bed = (x: number) => ({ id: 'bed', type: 'rect', x, y: -5, width: 20, height: 10, rotation: 0, color: '#a16207', label: 'Front bed', opacity: 0.4, locked: false, role: 'bed' });
+  /** A device, or a tab, whose app reads shapes as `migrate` does; `sharing`: a tab on the same device (the same storage, its own records). */
+  class VersionDevice extends FakeDevice {
+    constructor(name: string, readonly migrate: (raw: unknown) => Shape | null, sharing?: FakeDevice) {
+      super(name);
+      if (sharing) this.projectsById = sharing.projectsById;
+    }
+    normalize(name: string, content: ProjectContent) {
+      const n = super.normalize(name, content);
+      return Array.isArray(n.content.shapes) ? { ...n, content: { ...n.content, shapes: n.content.shapes.map((x) => this.migrate(x)).filter((x) => x !== null) } } : n;
+    }
+    async projects() { return (await super.projects()).map((p) => ({ ...p, content: this.normalize(p.name, p.content).content })); }
+  }
+  /**
+   * A tab of this version with a plan open: sync reads that plan from the tab's memory, as the app does (src/storage.ts
+   * projectNow), which an old tab writing the storage they share doesn't change; an edit saves it to that storage.
+   */
+  class OpenTab extends VersionDevice {
+    open: LocalProject | null = null;
+    openPlan(id: string) { this.open = structuredClone(this.projectsById.get(id)!); }
+    edit(id: string, shapes: unknown[]) { super.edit(id, shapes); if (this.open?.id === id) this.open = structuredClone(this.projectsById.get(id)!); }
+    async projects() { return (await super.projects()).map((p) => (p.id === this.open?.id ? { ...p, content: this.normalize(p.name, this.open.content).content } : p)); }
+    async replace(id: string, name: string, content: ProjectContent, token: number, bytes?: string) {
+      const ok = await super.replace(id, name, content, token, bytes);
+      if (ok && this.open?.id === id) this.open = structuredClone(this.projectsById.get(id)!);
+      return ok;
+    }
+  }
+  const shapesOf = (d: FakeDevice, id: string) => d.projectsById.get(id)!.content.shapes as Shape[];
+  const onServer = (server: FakeServer, id: string) => server.rows.get(id)!.content.shapes as Shape[];
+  /** Each synced, a few times over: nothing moves. */
+  async function still(server: FakeServer, ...devices: FakeDevice[]) {
+    for (let i = 0; i < 3; i++) {
+      for (const d of devices) expect(await sync(d, server)).toMatchObject({ uploaded: 0, downloaded: 0, conflicts: [], restored: [], removed: [] });
+    }
+  }
+  /** The plan: two hollies (the first's own dismissal, `h1`), the bed moved to `bedX`, the second holly at `h2x`. */
+  const plan = (h1: object = {}, bedX = 0, h2x = 10) => [holly('h1', 0, h1), holly('h2', h2x), bed(bedX)];
+  const as = (migrate: (raw: unknown) => Shape | null, shapes: object[]) => shapes.map((x) => migrate(x));
+
+  it("kept from here only for the same plant (its id and plantId), when the server's copy has none at all; one there, '' or words, stands", () => {
+    const mine = { shapes: [holly('h1', 0, { fruitDismissed: said }), holly('h2', 10, { fruitDismissed: said }), bed(0)] };
+    const there = (h1: object, h2: object) => ({ shapes: [holly('h1', 0, h1), holly('h2', 10, h2), bed(4)] });
+    expect(withLocalParts(there({}, {}), mine)).toEqual(there({ fruitDismissed: said }, { fruitDismissed: said }));
+    // Shown again there (''), or swapped there for another plant: left as the server has it.
+    expect(withLocalParts(there({ fruitDismissed: '' }, { plantId: 'ilex-opaca' }), mine)).toEqual(there({ fruitDismissed: '' }, { plantId: 'ilex-opaca' }));
+    // Shown again here: '' kept too, where the server's has none (the second review, Nov 1); not over words there.
+    const shown = { shapes: [holly('h1', 0, { fruitDismissed: '' }), holly('h2', 10, { fruitDismissed: '' })] };
+    expect(withLocalParts(there({}, { fruitDismissed: said }), shown)).toEqual(there({ fruitDismissed: '' }, { fruitDismissed: said }));
+  });
+
+  it("fingerprinted, '' reads as none: a plan without it as before, to the character; words to '' a change, as words to none", () => {
+    const old = (name: string, c: ProjectContent) => fingerprint(name, planOf(c)); // (planHash before the second review)
+    const withParts = (h1: object) => ({ shapes: plan(h1), household: { kids: true }, photo: null });
+    for (const c of [withParts({}), withParts({ fruitDismissed: said }), { shapes: [] }, { shapes: [1, 2] }, {}]) {
+      expect(planHash('Back Yard', c)).toBe(old('Back Yard', c));
+      const { household: _h, ...core } = planOf(c);
+      expect(coreHash('Back Yard', c)).toBe(fingerprint('Back Yard', core));
+    }
+    const h = (h1: object) => [planHash('X', withParts(h1)), coreHash('X', withParts(h1))];
+    expect(h({ fruitDismissed: '' })).toEqual(h({}));
+    expect(h({ fruitDismissed: said })).not.toEqual(h({ fruitDismissed: '' }));
+    expect(h({ fruitDismissed: said })[0]).not.toBe(h({})[0]);
+    // (Only what's hashed: the shape itself keeps its '', and goes up with it.)
+    const c = withParts({ fruitDismissed: '' });
+    planHash('X', c);
+    expect((c.shapes[0] as { fruitDismissed?: string }).fruitDismissed).toBe('');
+  });
+
+  it("the review's RF7: dismissed for one and taken back before the plan synced, while another device edited it: no conflict copy, the edit taken", async () => {
+    const server = new FakeServer(), phone = new VersionDevice('phone', migrateShape), tablet = new VersionDevice('tablet', migrateShape);
+    const id = phone.add('Back Yard', plan());
+    await sync(phone, server); await sync(tablet, server);
+    phone.edit(id, plan({ fruitDismissed: said })); // (Dismiss for this one)
+    phone.edit(id, plan({ fruitDismissed: '' })); // (Undo, or Show again, before its sync)
+    tablet.edit(id, plan({}, 4));
+    expect(await sync(tablet, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 0, downloaded: 1, conflicts: [] });
+    expect(phone.names()).toEqual(['Back Yard']);
+    expect(shapesOf(phone, id)).toEqual(as(migrateShape, plan({ fruitDismissed: '' }, 4)));
+    await still(server, phone, tablet);
+    // A dismissal that had gone up, shown again: still a change, and the '' goes up.
+    phone.edit(id, plan({ fruitDismissed: said }, 4));
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 1 });
+    phone.edit(id, plan({ fruitDismissed: '' }, 4));
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 1 });
+    expect(onServer(server, id)[0].fruitDismissed).toBe('');
+    expect(await sync(tablet, server)).toMatchObject({ downloaded: 1 });
+    expect(shapesOf(tablet, id)[0].fruitDismissed).toBe('');
+    await still(server, phone, tablet);
+  });
+
+  it("a device that showed it again keeps its '' where the release dropped it, and sends it with its next edit; a device offline through it then takes the ''. If that one sends first, its words come back (the window left, docs/storage.md)", async () => {
+    for (const first of ['tablet', 'phone'] as const) {
+      const server = new FakeServer(), phone = new VersionDevice('phone', migrateShape), tablet = new VersionDevice('tablet', migrateShape), laptop = new VersionDevice('laptop', releaseMigrateShape);
+      const id = phone.add('Back Yard', plan({ fruitDismissed: said }));
+      await sync(phone, server); await sync(tablet, server); await sync(laptop, server);
+      // The phone goes offline. The tablet shows it again; the laptop (release) takes that and sends an edit, without it.
+      tablet.edit(id, plan({ fruitDismissed: '' }));
+      await sync(tablet, server);
+      await sync(laptop, server);
+      laptop.edit(id, as(releaseMigrateShape, plan({}, 4)));
+      await sync(laptop, server);
+      expect(onServer(server, id)[0]).not.toHaveProperty('fruitDismissed');
+      // The tablet takes the edit and keeps its '' (before the second review: nothing, as the release left it).
+      expect(await sync(tablet, server)).toMatchObject({ uploaded: 0, downloaded: 1 });
+      expect(shapesOf(tablet, id)[0].fruitDismissed).toBe('');
+      // The phone, back, has its words, which the server's copy no longer contradicts: kept.
+      await sync(phone, server);
+      expect(shapesOf(phone, id)[0].fruitDismissed).toBe(said);
+      // Whichever sends the plan first, with an edit, decides.
+      const [a, b] = first === 'tablet' ? [tablet, phone] : [phone, tablet];
+      a.edit(id, plan({ fruitDismissed: first === 'tablet' ? '' : said }, 4, 12));
+      expect(await sync(a, server)).toMatchObject({ uploaded: 1 });
+      expect(await sync(b, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+      expect([shapesOf(phone, id)[0].fruitDismissed, shapesOf(tablet, id)[0].fruitDismissed]).toEqual(first === 'tablet' ? ['', ''] : [said, said]);
+      await sync(laptop, server);
+      await still(server, phone, tablet, laptop);
+    }
+  });
+
+  it('another device on the release never sends anything for it alone; its own edit goes up without it, and the device that dismissed it keeps it, and sends it again', async () => {
+    const server = new FakeServer(), phone = new VersionDevice('phone', migrateShape), laptop = new VersionDevice('laptop', releaseMigrateShape);
+    const id = phone.add('Back Yard', plan());
+    await sync(phone, server); await sync(laptop, server);
+    // Dismissed for one holly on the phone: up, and down to the laptop, which reads it without the field.
+    phone.edit(id, plan({ fruitDismissed: said }));
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 0, downloaded: 1 });
+    expect(shapesOf(laptop, id)).toEqual(as(releaseMigrateShape, plan()));
+    await still(server, laptop, phone);
+    expect(onServer(server, id)[0].fruitDismissed).toBe(said); // (the laptop sent nothing back without it)
+    // The laptop moves the bed: its plan goes up without the field. The phone takes the bed moved and keeps its
+    // dismissal; no copy, no loop.
+    laptop.edit(id, as(releaseMigrateShape, plan({}, 4)));
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 1 });
+    expect(onServer(server, id)[0]).not.toHaveProperty('fruitDismissed');
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 0, downloaded: 1, conflicts: [] });
+    expect(shapesOf(phone, id)).toEqual(as(migrateShape, plan({ fruitDismissed: said }, 4)));
+    await still(server, phone, laptop);
+    // The phone's next edit sends it again; the laptop takes the edit, as it reads it.
+    phone.edit(id, plan({ fruitDismissed: said }, 4, 12));
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 1 });
+    expect(onServer(server, id)[0].fruitDismissed).toBe(said);
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 0, downloaded: 1 });
+    expect(shapesOf(laptop, id)).toEqual(as(releaseMigrateShape, plan({}, 4, 12)));
+    await still(server, phone, laptop);
+    expect([phone.names(), laptop.names()]).toEqual([['Back Yard'], ['Back Yard']]);
+  });
+
+  it("the review's R1: the release, with an edit of its own not yet synced, sends it over a newer dismissal; each device that had the dismissal keeps it", async () => {
+    const server = new FakeServer(), phone = new VersionDevice('phone', migrateShape), tablet = new VersionDevice('tablet', migrateShape), laptop = new VersionDevice('laptop', releaseMigrateShape);
+    const id = phone.add('Back Yard', plan());
+    await sync(phone, server); await sync(tablet, server); await sync(laptop, server);
+    laptop.edit(id, as(releaseMigrateShape, plan({}, 4))); // (offline: the bed moved)
+    phone.edit(id, plan({ fruitDismissed: said })); // (dismissed for one holly)
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(tablet, server)).toMatchObject({ downloaded: 1 });
+    // The release's merge can't see a change on the server (only the field), so it's taken as changed here only: up over it.
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 1, conflicts: [] });
+    expect(onServer(server, id)[0]).not.toHaveProperty('fruitDismissed');
+    // The phone and the tablet take the bed moved, and keep the dismissal.
+    for (const d of [phone, tablet]) {
+      expect(await sync(d, server)).toMatchObject({ uploaded: 0, downloaded: 1, conflicts: [] });
+      expect(shapesOf(d, id)).toEqual(as(migrateShape, plan({ fruitDismissed: said }, 4)));
+    }
+    await still(server, phone, tablet, laptop);
+    // Shown again on the tablet ('', on purpose): that goes everywhere, and isn't filled back from the phone's copy.
+    tablet.edit(id, plan({ fruitDismissed: '' }, 4));
+    expect(await sync(tablet, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 0, downloaded: 1 });
+    expect(shapesOf(phone, id)[0].fruitDismissed).toBe('');
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 0, downloaded: 1 }); // (the tablet's revision, as it reads it)
+    await still(server, phone, tablet, laptop);
+    expect([phone.names(), tablet.names(), laptop.names()]).toEqual([['Back Yard'], ['Back Yard'], ['Back Yard']]);
+  });
+
+  it('a tab on the release sharing the device\'s storage, the plan not open in the new tab: the old tab writes it back without the dismissal, the new tab sends that once, and it settles', async () => {
+    const server = new FakeServer(), tab = new VersionDevice('Windows PC', migrateShape), old = new VersionDevice('Windows PC', releaseMigrateShape, tab);
+    const id = tab.add('Back Yard', plan());
+    await sync(tab, server); await sync(old, server);
+    tab.edit(id, plan({ fruitDismissed: said }));
+    expect(await sync(tab, server)).toMatchObject({ uploaded: 1 });
+    // The old tab takes the server's plan into the storage they share, as it reads it; the new tab, reading it there
+    // (not open in it), sends that: only the dismissal lost.
+    expect(await sync(old, server)).toMatchObject({ uploaded: 0, downloaded: 1 });
+    expect(await sync(tab, server)).toMatchObject({ uploaded: 1, downloaded: 0 });
+    expect(await sync(old, server)).toMatchObject({ uploaded: 0, downloaded: 1 }); // (that revision, the same plan)
+    await still(server, old, tab);
+    expect(shapesOf(tab, id)).toEqual(as(releaseMigrateShape, plan()));
+    expect(onServer(server, id)).toEqual(as(releaseMigrateShape, plan()));
+    expect(tab.names()).toEqual(['Back Yard']);
+  });
+
+  it("the old tab sends the new tab's other edit first (the plan not open in the new tab): no copy; the bed moved kept", async () => {
+    const server = new FakeServer(), tab = new VersionDevice('Windows PC', migrateShape), old = new VersionDevice('Windows PC', releaseMigrateShape, tab);
+    const id = tab.add('Back Yard', plan());
+    await sync(tab, server); await sync(old, server);
+    // Dismissed and the bed moved, in the new tab; the old tab's pass comes first and sends the bed moved, without the field.
+    tab.edit(id, plan({ fruitDismissed: said }, 4));
+    expect(await sync(old, server)).toMatchObject({ uploaded: 1 });
+    // The new tab: the server's version is its own but for the field, which it keeps: no copy (before the review, a copy).
+    expect(await sync(tab, server)).toMatchObject({ uploaded: 1, conflicts: [] });
+    expect(onServer(server, id)[0].fruitDismissed).toBe(said);
+    for (let i = 0; i < 3; i++) { await sync(old, server); await sync(tab, server); }
+    await still(server, old, tab);
+    // (Then as above: the old tab wrote the storage they share without it, the plan not open in the new tab.)
+    expect(onServer(server, id)).toEqual(as(releaseMigrateShape, plan({}, 4)));
+    expect(tab.names()).toEqual(['Back Yard']);
+  });
+
+  it('a tab on the release, the plan open in the new tab: the dismissal stays there, goes up with its next edit, and no copy is made, whichever tab syncs first', async () => {
+    const server = new FakeServer(), tab = new OpenTab('Windows PC', migrateShape), old = new VersionDevice('Windows PC', releaseMigrateShape, tab);
+    const id = tab.add('Back Yard', plan());
+    tab.openPlan(id);
+    await sync(tab, server); await sync(old, server);
+    tab.edit(id, plan({ fruitDismissed: said }));
+    expect(await sync(tab, server)).toMatchObject({ uploaded: 1 });
+    // The old tab writes the server's plan into storage as it reads it; the new tab reads its own from memory: unchanged.
+    expect(await sync(old, server)).toMatchObject({ uploaded: 0, downloaded: 1 });
+    expect(await sync(tab, server)).toMatchObject({ uploaded: 0, downloaded: 0 });
+    expect(tab.open!.content.shapes as Shape[]).toEqual(as(migrateShape, plan({ fruitDismissed: said })));
+    // The new tab moves the bed (saved to storage, the dismissal with it), and the old tab's pass comes first: it sends
+    // the bed moved without the field. The new tab keeps it and sends it again: no copy.
+    tab.edit(id, plan({ fruitDismissed: said }, 4));
+    expect(await sync(old, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(tab, server)).toMatchObject({ uploaded: 1, conflicts: [] });
+    expect(onServer(server, id)).toEqual(as(migrateShape, plan({ fruitDismissed: said }, 4)));
+    expect(await sync(old, server)).toMatchObject({ uploaded: 0, downloaded: 1 });
+    await still(server, old, tab);
+    expect(tab.open!.content.shapes as Shape[]).toEqual(as(migrateShape, plan({ fruitDismissed: said }, 4)));
+    expect(onServer(server, id)[0].fruitDismissed).toBe(said);
+    expect(tab.names()).toEqual(['Back Yard']);
   });
 });

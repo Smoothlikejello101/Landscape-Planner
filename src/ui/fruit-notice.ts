@@ -4,7 +4,7 @@
 // Gentleman'"), the best two, alike (those its sources name first, then those hardy here), placed next as any plant
 // picked is; with more, "All 7…" opens the picker on them; Dismiss dismisses it for the plant across the plan.
 
-import { copiesSaid, dismissedForPlan, dismissForPlan } from '../dismissals';
+import { copiesSaid, dismissedForPlan, dismissForPlan, warnedCopies, warnForNewOnes } from '../dismissals';
 import { hardyHere } from '../crowd-here';
 import { fruitNeed } from '../fruit-partners';
 import { PLANTS, plantsById, showPartnersOf, type Plant } from '../plants';
@@ -25,8 +25,9 @@ export function fruitNotice(shape: Shape, place: (p: Plant) => void) {
   if (!p) return;
   const plan = state.shapes.flatMap((s) => (s.role === 'plant' && s.plantId && plantsById[s.plantId] ? [plantsById[s.plantId]] : []));
   const need = fruitNeed(p, plan, PLANTS, hardyHere);
-  // (Not reminded again for a plant dismissed across the plan: src/dismissals.ts.)
-  if (!need || dismissedForPlan('fruit', p.id, need.line)) return;
+  // (Not reminded again for a plant dismissed across the plan, nor for a copy dismissed on its own: src/dismissals.ts.
+  // A copy just placed has none of its own, so it's said for it after "Just these 2", as hardiness is.)
+  if (!need || dismissedForPlan('fruit', p.id, need.line) || shape.fruitDismissed === need.line) return;
   state.placing.warnedFruit = shape.plantId;
   const id = p.id, line = need.line;
   toastAction(`${line}.`, [
@@ -47,20 +48,29 @@ export function fruitNotice(shape: Shape, place: (p: Plant) => void) {
 
 /**
  * Dismiss ("Don't remind me" until Nov 1: one vocabulary): dismissed for this plant across the plan, its new copies too,
- * with a toast that says so (Jason, Oct 30). Also a fruit-partner row's Dismiss in Warnings (Jason, Nov 1), whose list
- * is redrawn with it.
+ * with a toast that says so (Jason, Oct 30). Also a fruit-partner row's Dismiss in Warnings, and "Dismiss for every …"
+ * in a plant's details (Jason, Nov 1), redrawn with it.
  *
- * Not "Just these 2", as hardiness and poison offer: a fruit-partner warning is the kind's, one row for all its copies,
- * and a plan keeps no fruit-partner dismissal copy by copy, so "just these" could only take the dismissal back, and the
- * warning came back as active (the warnings bug hunt, Nov 1). Undo instead, to take it back on purpose.
+ * Its toast offers what hardiness and poison offer, "Just this one" or "Just these 2": the copies the warning is about
+ * keep it, each its own (`fruitDismissed`), and new ones are warned for, as src/dismissals.ts warnForNewOnes does for
+ * those (Jason, Nov 1: until then a copy kept no fruit-partner dismissal of its own, so "Just this one" brought the
+ * warning back, the warnings bug hunt). That's a step: Undo at the top goes back to it dismissed across the plan, Redo
+ * to each its own again. Its Undo, kept from before, takes the dismissal back altogether: no step, the plan's
+ * dismissals being kept apart from its shapes. Either button does nothing once the plan's dismissals have changed since
+ * (another dismissed, or another device's version of the plan come in by sync), and says so.
  */
 export function remindNoMore(id: string, line: string) {
-  const who = copiesSaid(id);
+  const who = copiesSaid('fruit', id), n = warnedCopies('fruit', id).length;
   const before = state.dismissed;
   dismissForPlan('fruit', id, line);
   const after = state.dismissed;
   render();
   toastAction(`Fruit partner warning dismissed for ${who} in this plan, and any you add later.`, [
+    { label: n > 1 ? `Just these ${n}` : 'Just this one', run: () => {
+      if (state.dismissed !== after) { toast('It has changed since, so it was left as it is.'); return; }
+      warnForNewOnes('fruit', id, line);
+      render();
+    } },
     { label: 'Undo', run: () => {
       // (Only while nothing has changed it since: as the other dismissals' Undo, src/warnings-list.ts setDismissed.)
       if (state.dismissed !== after) { toast('It has changed since, so it was left as it is.'); return; }

@@ -8,10 +8,10 @@ import { remindNoMore } from './fruit-notice';
 import { household } from '../yard';
 import { state } from '../state';
 import { checkPlantSun, formatHours, formatTime, newSunInfo, sunDismissedFor, sunHours, sunLevel } from '../sun';
-import type { Shape, SunInfo } from '../types';
+import type { DismissKind, Shape, SunInfo } from '../types';
 import { render } from './render';
-import { toastAction } from './toast';
-import { copiesOf, copiesSaid, dismissedForPlan, dismissForPlan, poisonCovered, poisonSaid, showAgainForPlan, warnForNewOnes } from '../dismissals';
+import { toast, toastAction } from './toast';
+import { copiesSaid, DISMISS_FIELD, dismissedForPlan, dismissForPlan, poisonCovered, poisonSaid, showAgainForPlan, warnedCopies, warnForNewOnes } from '../dismissals';
 import { BULB_PARTNER_MIN_HEIGHT, crowdingOf, crowdRelation } from '../crowding';
 import { alreadyThere } from '../status';
 import { I } from '../icons';
@@ -75,29 +75,39 @@ export function plantSunBanner(s: Shape): HTMLElement | null {
 /**
  * Dismissed for the plant across the plan (its copies, and new ones), with a toast that says so and offers to keep it
  * to the copies there now (Jason, Oct 30). Also a hardiness or poison row's Dismiss in Warnings (Jason, Nov 1). "Just
- * these 2", not "Warn me for new ones" (the review, Nov 1: one vocabulary, and it was cut off at 412 px wide).
+ * these 2", not "Warn me for new ones" (the review, Nov 1: one vocabulary, and it was cut off at 412 px wide): the copies
+ * the warning is about (src/dismissals.ts warnedCopies), one step, which Undo takes back to dismissed across the plan.
  */
 export function dismissAcross(kind: 'hardy' | 'poison', plantId: string, said: string) {
-  const who = copiesSaid(plantId), n = copiesOf(plantId).length;
+  const who = copiesSaid(kind, plantId), n = warnedCopies(kind, plantId).length;
   dismissForPlan(kind, plantId, said);
+  const after = state.dismissed;
   render();
   toastAction(`${kind === 'hardy' ? 'Hardiness' : 'Poison'} warning dismissed for ${who} in this plan, and any you add later.`, [
-    { label: n > 1 ? `Just these ${n}` : 'Just this one', run: () => { warnForNewOnes(kind, plantId, said); render(); } },
+    { label: n > 1 ? `Just these ${n}` : 'Just this one', run: () => {
+      // (Not once the plan's dismissals have changed since: another dismissed, or another device's version of the plan
+      // come in by sync. The review of the change, Nov 1.)
+      if (state.dismissed !== after) { toast('It has changed since, so it was left as it is.'); return; }
+      warnForNewOnes(kind, plantId, said);
+      render();
+    } },
     { label: 'OK', run: () => {} },
   ], 10000, 'dismiss-notice');
 }
 /**
- * A hardiness or poison warning's buttons in a plant's details (the review, Nov 1: "Dismiss" beside "Dismiss for this
- * plant", neither saying who for): "Dismiss for this one" and "Dismiss for every Barbados aloe"; dismissed, "Show again",
- * for this one alone where only it was dismissed.
+ * A hardiness, poison or fruit-partner warning's buttons in a plant's details (the review, Nov 1: "Dismiss" beside
+ * "Dismiss for this plant", neither saying who for): "Dismiss for this one" and "Dismiss for every Barbados aloe";
+ * dismissed, "Show again", for this one alone where only it was dismissed. (Fruit partners since Nov 1, Jason: until
+ * then a copy kept no fruit-partner dismissal of its own.)
  */
-function plantDismissButtons(kind: 'hardy' | 'poison', plantId: string, key: string, across: boolean, mine: boolean): HTMLElement {
-  const field = kind === 'hardy' ? 'hardyDismissed' : 'poisonDismissed';
+function plantDismissButtons(kind: DismissKind, plantId: string, key: string, across: boolean, mine: boolean): HTMLElement {
+  const field = DISMISS_FIELD[kind];
   const row = el('div', { className: 'dismiss-row' });
   if (across || mine) {
     const again = el('button', { className: 'link-reset', 'data-testid': `${kind}-dismiss` }, 'Show again');
     again.addEventListener('click', () => {
-      if (across) { showAgainForPlan(kind, plantId); render(); } else updateSelected({ [field]: undefined });
+      // (A fruit-partner one is left '', shown again on purpose, so sync doesn't fill it back: src/dismissals.ts clearForPlan.)
+      if (across) { showAgainForPlan(kind, plantId); render(); } else updateSelected({ [field]: kind === 'fruit' ? '' : undefined });
     });
     row.appendChild(again);
     return row;
@@ -105,7 +115,7 @@ function plantDismissButtons(kind: 'hardy' | 'poison', plantId: string, key: str
   const one = el('button', { className: 'link-reset', 'data-testid': `${kind}-dismiss-one` }, 'Dismiss for this one');
   one.addEventListener('click', () => updateSelected({ [field]: key }));
   const every = el('button', { className: 'link-reset', 'data-testid': `${kind}-dismiss` }, `Dismiss for every ${plantsById[plantId]?.common ?? 'one'}`);
-  every.addEventListener('click', () => dismissAcross(kind, plantId, key));
+  every.addEventListener('click', () => (kind === 'fruit' ? remindNoMore(plantId, key) : dismissAcross(kind, plantId, key)));
   row.append(one, every);
   return row;
 }
@@ -149,9 +159,9 @@ export function plantPoisonBanner(s: Shape): HTMLElement | null {
 
 /**
  * A plant that needs a partner to fruit, as Warnings lists it (the warnings bug hunt, Nov 1: a holly's details never said
- * it needed a male, its poison warning alone shown): with Dismiss and Show again as Warnings has them. A fruit-partner
- * warning is the plant's, one for all its copies, so it's dismissed for every one in the plan, with the notice and its
- * Undo (src/ui/fruit-notice.ts remindNoMore).
+ * it needed a male, its poison warning alone shown): with the buttons hardiness and poison have, "Dismiss for this one"
+ * and "Dismiss for every …" (Jason, Nov 1), the second with its notice, "Just this one" and Undo
+ * (src/ui/fruit-notice.ts remindNoMore). No badge on the plan either way.
  */
 export function plantFruitBanner(s: Shape): HTMLElement | null {
   if (!state.fruitWarnings || !warnedFor(s)) return null;
@@ -161,13 +171,10 @@ export function plantFruitBanner(s: Shape): HTMLElement | null {
   const plan = state.shapes.flatMap((x) => (x.role === 'plant' && x.status !== 'gone' && x.plantId && plantsById[x.plantId] ? [plantsById[x.plantId]!] : []));
   const need = fruitNeed(p, plan, PLANTS, hardyHere);
   if (!need) return null;
-  const line = need.line, dismissed = dismissedForPlan('fruit', p.id, line);
-  const btn = el('button', { className: 'link-reset', 'data-testid': 'fruit-dismiss' }, dismissed ? 'Show again' : `Dismiss for every ${p.common}`);
-  btn.addEventListener('click', () => {
-    if (dismissed) { showAgainForPlan('fruit', p.id); render(); } else remindNoMore(p.id, line);
-  });
+  const line = need.line, across = dismissedForPlan('fruit', p.id, line), mine = !across && s.fruitDismissed === line, dismissed = across || mine;
+  const note = across ? ' Dismissed for every one in this plan.' : mine ? ' Dismissed for this one.' : '';
   return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'fruit-check' },
-    el('div', {}, `\u26a0 ${line}.${dismissed ? ' Dismissed for every one in this plan.' : ''}`), el('div', { className: 'dismiss-row' }, btn));
+    el('div', {}, `\u26a0 ${line}.${note}`), plantDismissButtons('fruit', p.id, line, across, mine));
 }
 
 function summaryText(info: SunInfo): string {

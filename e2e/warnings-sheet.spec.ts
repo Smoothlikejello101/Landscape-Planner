@@ -353,11 +353,12 @@ test('a plant\'s details show its fruit-partner warning, with Dismiss and Show a
   await details();
   const banner = page.getByTestId('fruit-check');
   await expect(banner).toContainText(/^⚠ Winterberry 'Winter Red' .*fruit/);
-  await expect(banner.getByRole('button')).toHaveText(["Dismiss for every Winterberry 'Winter Red'"]);
-  // Dismissed as from Warnings: for every one in the plan, with the notice and its Undo.
+  // (As hardiness and poison have them, since Nov 1: e2e/fruit-dismiss-one.spec.ts.)
+  await expect(banner.getByRole('button')).toHaveText(['Dismiss for this one', "Dismiss for every Winterberry 'Winter Red'"]);
+  // Dismissed as from Warnings: for every one in the plan, with the notice, its "Just this one" and its Undo.
   await banner.getByTestId('fruit-dismiss').click();
   await expect(page.getByTestId('dismiss-notice')).toContainText("Fruit partner warning dismissed for Winterberry 'Winter Red' in this plan, and any you add later.");
-  await expect(page.getByTestId('dismiss-notice').getByRole('button')).toHaveText(['Undo', 'OK', '✕']);
+  await expect(page.getByTestId('dismiss-notice').getByRole('button')).toHaveText(['Just this one', 'Undo', 'OK', '✕']);
   await expect(banner).toContainText('Dismissed for every one in this plan.');
   await expect(banner).toHaveClass(/muted/);
   await expect(banner.getByRole('button')).toHaveText(['Show again']);
@@ -371,7 +372,7 @@ test('a plant\'s details show its fruit-partner warning, with Dismiss and Show a
   // Shown again from its details: active in Warnings again.
   await details();
   await banner.getByTestId('fruit-dismiss').click();
-  await expect(banner.getByRole('button')).toHaveText(["Dismiss for every Winterberry 'Winter Red'"]);
+  await expect(banner.getByRole('button')).toHaveText(['Dismiss for this one', "Dismiss for every Winterberry 'Winter Red'"]);
   await closeSheet(page);
   await expect(button(page)).toHaveAttribute('aria-label', 'Warnings: 10 to look at');
 });
@@ -406,11 +407,14 @@ test('turned mid-walk, the plan zooms to the plant again, clear of the chip (the
   const chip = page.getByTestId('walk-chip');
   await expect(chip.getByTestId('walk-list')).toContainText('Northern red oak');
   const oak = page.locator('#canvas-svg [data-shape-id=oak]').first();
+  // (Polled, and false while a box isn't there yet: the walk zooms to its plant as the chip opens. CI on #207 caught
+  // the first look landing mid-zoom, the oak's box null.)
   const inView = async () => {
-    const plan = (await page.locator('#canvas-svg').boundingBox())!, b = (await oak.boundingBox())!, c = (await chip.boundingBox())!;
+    const plan = await page.locator('#canvas-svg').boundingBox(), b = await oak.boundingBox(), c = await chip.boundingBox();
+    if (!plan || !b || !c) return false;
     return b.x >= plan.x && b.x + b.width <= plan.x + plan.width && b.y >= plan.y && b.y + b.height <= c.y;
   };
-  expect(await inView()).toBe(true);
+  await expect.poll(inView).toBe(true);
   // Turned on its side, and back: the oak in view each time, above the chip, and the walk still on it.
   await page.setViewportSize({ width: 839, height: 412 });
   await expect.poll(inView).toBe(true);

@@ -2,6 +2,7 @@ import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { dbVersionFile } from './scripts/release/db-version';
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string };
 
@@ -21,6 +22,8 @@ export default defineConfig({
     __APP_CHANNEL__: JSON.stringify(process.env.APP_CHANNEL === 'next' ? 'next' : 'release'),
   },
   plugins: [
+    // (db-version.txt at the root: the database version, checked before each deploy, scripts/release/deploy-guard.sh.)
+    dbVersionFile(fileURLToPath(new URL('./src/db.ts', import.meta.url))),
     VitePWA({
       strategies: 'injectManifest',
       srcDir: 'src',
