@@ -23,13 +23,16 @@ export const DB_NAME = 'landscape-planner';
  * - 2 (Nov 1): no store or record changed by the upgrade. Release 3 (#190: each plan's bought, household and switches;
  *   sync records' core and parts) changed what's stored at 1, so an older page still open could save over it. From 2,
  *   each plan record and each journal carries the version that wrote it (src/storage.ts dbVersion).
+ * - 3 (Nov 2): no store or record changed by the upgrade. Plant shapes' fruitDismissed (a fruit-partner warning
+ *   dismissed for one plant), which a version-2 page would drop, saving or syncing a plan, and whose journals, written
+ *   without it, are kept apart from a plan saved at 3 rather than put over it (src/storage.ts replayJournals).
  *
  * onupgradeneeded only adds what's missing: it never deletes, clears or rewrites a store or a record. A change that
  * must rewrite records does it after the open, in one transaction (KV.changeAllOnce; src/storage.ts takeFromDevice).
  * Never lower it, and never deploy a build with a lower one (a rollback): every device that opened the newer one
  * would find its plans refused.
  */
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 /**
  * The database is at a higher version than this one's: a newer version of the app has opened it on this device. This

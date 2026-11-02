@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { DB_VERSION } from '../src/db';
 import { autoDialogs, canvasBox, closeSheet, drag, field, openFilters, openWarnings } from './helpers';
 
 /** Each plan's stored "last modified" time, by name. */
@@ -87,7 +88,7 @@ test('the previous version, run again after this one raised the database version
     const open = indexedDB.open('landscape-planner');
     open.onsuccess = () => { resolve(open.result.version); open.result.close(); };
   }));
-  expect(await version()).toBe(2);
+  expect(await version()).toBe(DB_VERSION);
 
   // The previous version again, as a tab from before Oct 11 would be.
   await page.goto('/legacy/index.html');
@@ -105,7 +106,7 @@ test('the previous version, run again after this one raised the database version
   await expect(page.locator('.project-btn .pname')).toHaveText('My Garden (from older version)');
   await expect(page.locator('#canvas-svg text', { hasText: 'Later oak' })).toHaveCount(1);
   await expect(page.locator('#canvas-svg text', { hasText: 'Old oak' })).toHaveCount(1);
-  expect(await version()).toBe(2);
+  expect(await version()).toBe(DB_VERSION);
 });
 
 /** Each plan's stored data, by name: the parts this test looks at. */

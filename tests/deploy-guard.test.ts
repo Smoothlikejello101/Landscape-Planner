@@ -67,6 +67,16 @@ describe('the deploy guard (scripts/release/deploy-guard.sh)', () => {
     expect(lower.said).toContain("this build's database version (2) is lower than the live site's (3)");
   });
 
+  it(`this build (database version ${DB_VERSION}: fruitDismissed, Nov 2) deploys over the live sites as they are (no db-version.txt yet), or at 2; never under a higher one`, async () => {
+    expect(DB_VERSION).toBe(3);
+    for (const l of [{ status: 404, body: 'not found' }, { status: 200, body: '2\n' }, { status: 200, body: '3\n' }]) {
+      live = l;
+      expect((await guard({ BUILD_DB_VERSION: String(DB_VERSION) })).deployed, l.body).toBe(true);
+    }
+    live = { status: 200, body: '4\n' };
+    expect((await guard({ BUILD_DB_VERSION: String(DB_VERSION) })).deployed).toBe(false);
+  });
+
   it("deploys where the live site has no db-version.txt yet (the first deploy with one); refuses where it can't be read, or makes no sense", async () => {
     live = { status: 404, body: 'not found' };
     const first = await guard();
