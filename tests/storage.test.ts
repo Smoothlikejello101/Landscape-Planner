@@ -991,6 +991,152 @@ describe('a fruit-partner warning dismissed for one plant (fruitDismissed, Nov 1
   });
 });
 
+// A bed's conditions (Plant this bed, Nov 2: the proposal's "What's stored, and the storage change"): the answers about a
+// bed, kept on the bed shape. On a bed only, each part checked: a word a later version adds is kept as it came (as a
+// utility's kind is); a part that isn't one is dropped and the rest kept, never the plan; {} (cleared on purpose) is
+// kept. An older version leaves the field out, as it does any field it doesn't know
+// (tests/fixtures/release-migrate-shape.ts is the release's migrateShape); a version-3 page is kept from saving over a
+// plan saved at 4 (src/db.ts DB_VERSION: below, "an older version never saves over a newer one").
+describe("a bed's conditions (conditions, Plant this bed, Nov 2)", () => {
+  const ALL = { sun: { most: 'Full', least: 'Part' }, soil: 'clay', moisture: 'average', drip: true };
+  const bed = (extra: Record<string, unknown> = {}) => ({
+    id: 'bed', type: 'rect', x: 0, y: 0, width: 12, height: 4, rotation: 15, color: '#a16207', label: 'Front bed', opacity: 0.4, locked: false, role: 'bed', ...extra,
+  });
+  /** The conditions a bed has, read as a stored plan's shapes are (and whether it has the field at all). */
+  const read = (conditions: unknown) => {
+    const s = sanitizeProjectData({ shapes: [bed({ conditions })] }).shapes[0];
+    return 'conditions' in s ? s.conditions : 'none';
+  };
+  /** Other shapes, as a plan has them, each given conditions too (only a bed keeps them). */
+  const others = (conditions?: unknown) => [
+    { id: 'aster', type: 'circle', x: 2, y: 2, radius: 1, color: '#7c3aed', label: 'Aromatic aster', opacity: 0.65, locked: false, role: 'plant', plantId: 'symphyotrichum-oblongifolium', sizeFrom: 'plant', status: 'planned', conditions },
+    { id: 'lawn', type: 'poly', x: 0, y: 10, points: [[0, 0], [20, 0], [20, 8], [0, 8]], rotation: 0, color: '#65a30d', label: 'Lawn', opacity: 0.3, locked: false, role: 'lawn', conditions },
+    { id: 'shade', type: 'oval', x: 0, y: 0, width: 10, height: 6, rotation: 0, color: '#facc15', label: 'Oak shade', opacity: 0.2, locked: false, role: 'shade', sun: { mode: 'hours', periods: [], hours: 3, dappled: true }, conditions },
+    { id: 'plain', type: 'rect', x: 30, y: 0, width: 4, height: 4, rotation: 0, color: '#78716c', label: 'Something', opacity: 0.5, locked: false, conditions },
+    { id: 'note', type: 'text', x: 3, y: 3, fontSize: 1.5, rotation: 0, color: '#000000', label: 'Septic lid here', opacity: 1, locked: false, conditions },
+  ];
+
+  it('is kept on a bed as answered: every word this version asks, Not sure an answer too, on a bed of any shape', () => {
+    expect(read(ALL)).toEqual(ALL);
+    for (const soil of ['clay', 'loam', 'sand', 'unsure']) expect(read({ soil })).toEqual({ soil });
+    for (const moisture of ['dry', 'average', 'wet', 'unsure']) expect(read({ moisture })).toEqual({ moisture });
+    for (const most of ['Full', 'Part', 'Shade']) for (const least of ['Full', 'Part', 'Shade']) expect(read({ sun: { most, least } })).toEqual({ sun: { most, least } });
+    expect(read({ sun: 'unsure', soil: 'unsure', moisture: 'unsure' })).toEqual({ sun: 'unsure', soil: 'unsure', moisture: 'unsure' });
+    expect(read({ drip: true, moisture: 'wet' })).toEqual({ drip: true, moisture: 'wet' });
+    const beds = [
+      bed({ id: 'r', conditions: ALL }), bed({ id: 'o', type: 'oval', conditions: ALL }), bed({ id: 't', type: 'triangle', rightAngle: 'tl', conditions: ALL }),
+      bed({ id: 'p', type: 'poly', points: [[0, 0], [8, 0], [4, 6]], conditions: ALL }), { ...bed({ id: 'c', conditions: ALL }), type: 'circle', radius: 5 },
+    ];
+    expect(sanitizeProjectData({ shapes: beds }).shapes.map((s) => [s.id, s.conditions])).toEqual(['r', 'o', 't', 'p', 'c'].map((id) => [id, ALL]));
+  });
+
+  it("a part that isn't one is dropped and the rest kept, never the plan; a question this version doesn't know, dropped", () => {
+    expect(read({ soil: 7, moisture: 'wet' })).toEqual({ moisture: 'wet' });
+    expect(read({ sun: { most: 'Full' }, soil: 'clay' })).toEqual({ soil: 'clay' }); // (a sun without both its ends)
+    expect(read({ sun: ['Full', 'Part'], moisture: 'dry' })).toEqual({ moisture: 'dry' });
+    expect(read({ sun: { most: 'Full', least: 3 }, drip: 'yes', soil: 'loam' })).toEqual({ soil: 'loam' });
+    expect(read({ drip: false, soil: 'x'.repeat(40), moisture: 'wet' })).toEqual({ moisture: 'wet' });
+    expect(read({ soil: '<b>clay</b>', moisture: 'very wet', sun: '', drip: 1, ph: 'acid' })).toBe('none');
+    expect(read({ ph: 'acid', soil: 'sand' })).toEqual({ soil: 'sand' });
+    expect(read({ sun: { most: 'Full', least: 'Part', hours: 5 } })).toEqual({ sun: { most: 'Full', least: 'Part' } });
+    // Not conditions at all: none. Nothing that could be kept: none too, not taken for cleared on purpose (so sync can
+    // still fill them back from a device that has them, src/sync/engine.ts withBedConditions).
+    for (const odd of ['clay', 7, null, true, [], ['clay'], { soil: 7 }, { drip: false }, { ph: 'acid' }]) expect(read(odd), JSON.stringify(odd)).toBe('none');
+    // Never the plan: every shape is there, as it was, whatever a bed's conditions hold.
+    const plan = sanitizeProjectData({ shapes: [bed({ conditions: { soil: { texture: 'clay' }, moisture: 'wet' } }), bed({ id: 'b2', conditions: 'clay' }), ...others()] });
+    expect(plan.shapes.map((s) => s.id)).toEqual(['bed', 'b2', 'aster', 'lawn', 'shade', 'plain', 'note']);
+    expect(plan.shapes[0].conditions).toEqual({ moisture: 'wet' });
+  });
+
+  it("a word a later version adds is kept as it came, as a utility's kind is; the release drops the field", () => {
+    const later = { sun: { most: 'Dappled', least: 'Shade' }, soil: 'silt', moisture: 'boggy', drip: true };
+    expect(read(later)).toEqual(later);
+    expect(read({ sun: 'varies' })).toEqual({ sun: 'varies' });
+    expect(sanitizeProjectData({ shapes: [bed({ conditions: later })] }).shapes.map(releaseMigrateShape)[0]).not.toHaveProperty('conditions');
+  });
+
+  it("{} is kept: cleared on purpose (so sync doesn't fill it back), not the same as none", () => {
+    expect(read({})).toEqual({});
+    expect(read(undefined)).toBe('none');
+    // (Read again, the same.)
+    const once = sanitizeProjectData({ shapes: [bed({ conditions: {} })] }).shapes;
+    expect(sanitizeProjectData({ shapes: JSON.parse(JSON.stringify(once)) }).shapes).toEqual(once);
+  });
+
+  it('only on a bed: a plant, a lawn, a sun area, a shape not yet anything, a note are left without it', () => {
+    const shapes = sanitizeProjectData({ shapes: [bed({ conditions: ALL }), ...others(ALL)] }).shapes;
+    expect(shapes[0].conditions).toEqual(ALL);
+    for (const s of shapes.slice(1)) expect('conditions' in s, s.id).toBe(false);
+    // (Everything else about them as before: read as the release reads them.)
+    expect(shapes.slice(1)).toEqual(others(ALL).map((s) => { const { conditions: _c, ...rest } = s; return rest; }).map(releaseMigrateShape));
+    // (Pasted as a stored plan's shapes are read: src/mutations.ts paste.)
+    expect(migrateShape(JSON.parse(JSON.stringify(bed({ conditions: ALL }))))).toMatchObject({ conditions: ALL });
+    expect(migrateShape(JSON.parse(JSON.stringify({ ...bed({ conditions: ALL }), role: 'lawn' })))).not.toHaveProperty('conditions');
+  });
+
+  it('is saved and opened again, in a backup file, in a support file, and in what sync sends, as it was; {} too', async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = sanitizeProjectData({ shapes: [bed({ conditions: ALL }), bed({ id: 'b2', conditions: {} }), bed({ id: 'b3' }), bed({ id: 'b4', conditions: { soil: 'silt' } }), ...others()] }).shapes;
+    save();
+    await flushSave();
+    const loaded = (await readProject(id))!.shapes;
+    expect(loaded).toEqual(state.shapes);
+    expect(loaded.slice(0, 4).map((s) => s.conditions)).toEqual([ALL, {}, undefined, { soil: 'silt' }]);
+    _resetStorageForTests();
+    await initStorage(kv);
+    expect(state.shapes.slice(0, 4).map((s) => s.conditions)).toEqual([ALL, {}, undefined, { soil: 'silt' }]);
+    const file = await buildBackupFile();
+    expect(parseImportFile(file.text)[0].data.shapes).toEqual(state.shapes);
+    const info = { myPlants: [], app: { version: 'test', built: 'now', catalog: null }, device: {}, storage: {}, sync: {}, settings: {}, localData: [], otherKeys: [], errors: [] };
+    const support = JSON.stringify(buildSupportFile({ ...info, projects: await allExportedProjects(), includeImages: false, now: new Date() }));
+    expect(parseImportFile(support)[0].data.shapes).toEqual(state.shapes);
+    const sent = syncedContent((await readProject(id))!);
+    expect((sent.shapes as { conditions?: unknown }[]).slice(0, 4).map((s) => s.conditions)).toEqual([ALL, {}, undefined, { soil: 'silt' }]);
+    // (What sync sends, read back as a download is, is the same: src/sync/local.ts tidy.)
+    expect(canonical(syncedContent(sanitizeProjectData(JSON.parse(JSON.stringify(sent)))))).toBe(canonical(sent));
+  });
+
+  it('a plan without it reads exactly as before, as the release reads it: nothing gained, nothing to convert', () => {
+    const before = [bed(), bed({ id: 'b2', carryPlants: false, status: 'planned', phase: 'Fall 2026' }), ...others()];
+    const now = sanitizeProjectData({ shapes: before }).shapes;
+    expect(now).toEqual(before.map(releaseMigrateShape));
+    for (const s of now) expect('conditions' in s).toBe(false);
+    // (What it syncs is as before too: no new field, so its fingerprint doesn't change with the update.)
+    expect(canonical(syncedContent(sanitizeProjectData({ shapes: before })))).toBe(canonical(syncedContent(sanitizeProjectData({ shapes: before.map(releaseMigrateShape) }))));
+  });
+
+  it("the release leaves it out and nothing else; this version reads the release's save as none, and read again it's the same", () => {
+    const mine = sanitizeProjectData({ shapes: [bed({ conditions: ALL }), bed({ id: 'b2', conditions: {} }), ...others()] }).shapes;
+    const read1 = JSON.parse(JSON.stringify(mine)).map(releaseMigrateShape);
+    expect(read1).toEqual(mine.map(({ conditions: _c, ...rest }) => rest));
+    expect(JSON.parse(JSON.stringify(read1)).map(releaseMigrateShape)).toEqual(read1);
+    const back = sanitizeProjectData({ shapes: JSON.parse(JSON.stringify(read1)) }).shapes;
+    expect(back).toEqual(read1);
+    expect(sanitizeProjectData({ shapes: JSON.parse(JSON.stringify(back)) }).shapes).toEqual(back);
+  });
+
+  it("a version from before Oct 11 run again: its edit comes in beside a plan whose bed's conditions were set here since, not over it", async () => {
+    localStorage.setItem('lp-projects', JSON.stringify([{ id: 'p1', name: 'Yard', lastModified: 1000 }]));
+    localStorage.setItem('lp-project-p1', JSON.stringify({ shapes: [bed({ role: undefined })] }));
+    const kv = await freshStorage();
+    // Made a bed and its conditions set here (an edit: later than the copy from that version).
+    laterBy(1000);
+    state.shapes = sanitizeProjectData({ shapes: [bed({ conditions: ALL })] }).shapes;
+    save(); await flushSave();
+    // That version runs once more and saves an edit to its own copy, which never had them.
+    const later = Date.now() + 60_000;
+    localStorage.setItem('lp-projects', JSON.stringify([{ id: 'p1', name: 'Yard', lastModified: later }]));
+    localStorage.setItem('lp-project-p1', JSON.stringify({ shapes: [bed({ role: undefined }), circle('after')] }));
+    _resetStorageForTests();
+    await initStorage(kv);
+    expect(state.projects.map((p) => p.name).sort()).toEqual(['Yard', 'Yard (from older version)']);
+    expect((await stored(kv, 'p1')).shapes).toEqual([expect.objectContaining({ id: 'bed', role: 'bed', conditions: ALL })]);
+    const copy = state.projects.find((p) => p.name === 'Yard (from older version)')!;
+    expect((await readProject(copy.id))!.shapes.map((s) => [s.label, 'conditions' in s])).toEqual([['Front bed', false], ['after', false]]);
+  });
+});
+
 describe('My plants with their own color', () => {
   it('keep a plain hex color across a restart, and drop anything else', async () => {
     const mp = await import('../src/my-plants'); // a namespace, so myPlants stays a live binding

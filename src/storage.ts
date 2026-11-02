@@ -7,7 +7,7 @@ import { cancelHistoryDebounce } from './history';
 import { DEFAULT_PRINT, state } from './state';
 import { isRole } from './roles';
 import { cleanPhaseName, filterActive, isStatus, MAX_PHASES } from './status';
-import type { BgImage, Clipboard, PathShape, PhotoRef, PlanBought, PlanDismissals, PlanHousehold, PlanSwitches, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, ShapeFilter, SunInfo, UtilityKind, WarningSwitch } from './types';
+import type { BedConditions, BgImage, Clipboard, PathShape, PhotoRef, PlanBought, PlanDismissals, PlanHousehold, PlanSwitches, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, ShapeFilter, SunAnswer, SunInfo, UtilityKind, WarningSwitch } from './types';
 import { setWorldPoints } from './geometry';
 import { now, uid } from './util';
 import { photoFingerprint } from './sync/photo';
@@ -148,6 +148,31 @@ function crowdOk(v: unknown): string[] | null {
   return ids.length ? ids : null;
 }
 
+/** A word as a bed's conditions keep one: those this version asks, or one a later version adds (kept as it came). */
+const conditionWord = (v: unknown): v is string => typeof v === 'string' && /^[A-Za-z][A-Za-z0-9-]{0,30}$/.test(v);
+const plainObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+/**
+ * A bed's conditions (src/types.ts BedConditions) as they're kept: each part checked on its own, the rest kept.
+ * - A word this version doesn't ask is kept as it came (one a later version adds, as a utility's kind is).
+ * - A part that isn't one is dropped: not a word, a sun without both its ends, `drip` other than true.
+ * - A question this version doesn't know (one a later version adds) is dropped, as any field it doesn't know is.
+ * - `{}`, cleared on purpose, is kept: sync doesn't fill it back (src/sync/engine.ts withBedConditions).
+ * Undefined, none: not an object; or one with parts, none of which could be kept. That's read as none, not as cleared
+ * on purpose, so sync may still fill it back from a device that has it.
+ */
+export function sanitizeBedConditions(raw: unknown): BedConditions | undefined {
+  if (!plainObject(raw)) return undefined;
+  const out: BedConditions = {};
+  const sun = raw.sun;
+  if (conditionWord(sun)) out.sun = sun as 'unsure';
+  else if (plainObject(sun) && conditionWord(sun.most) && conditionWord(sun.least)) out.sun = { most: sun.most as SunAnswer, least: sun.least as SunAnswer };
+  if (conditionWord(raw.soil)) out.soil = raw.soil as BedConditions['soil'];
+  if (conditionWord(raw.moisture)) out.moisture = raw.moisture as BedConditions['moisture'];
+  if (raw.drip === true) out.drip = true;
+  const hadParts = Object.values(raw).some((v) => v !== undefined);
+  return Object.keys(out).length || !hadParts ? out : undefined;
+}
+
 /** Fill defaults and drop anything that would break rendering. Returns null for unusable input. */
 export function migrateShape(raw: unknown): Shape | null {
   if (!raw || typeof raw !== 'object') return null;
@@ -163,6 +188,11 @@ export function migrateShape(raw: unknown): Shape | null {
     // Shapes placed from the plant picker are plants; others stay unassigned until tagged.
     ...(isRole(s.role) ? { role: s.role } : typeof s.plantId === 'string' ? { role: 'plant' as const } : {}),
     ...(s.carryPlants === false ? { carryPlants: false } : {}),
+    // (A bed's conditions, as answered (Nov 2): on a bed only, left out of anything else. Older plans have none, and
+    // versions before it drop it. {} is cleared on purpose: kept, so sync doesn't fill it back from this device's copy
+    // (src/sync/engine.ts withBedConditions), which it does when the server's has none, an older version having
+    // dropped it.)
+    ...(s.role === 'bed' && sanitizeBedConditions(s.conditions) ? { conditions: sanitizeBedConditions(s.conditions)! } : {}),
     ...(sanitizeSun(s.sun) ? { sun: sanitizeSun(s.sun)! } : {}),
     ...(typeof s.sunDismissed === 'string' && s.sunDismissed ? { sunDismissed: s.sunDismissed.slice(0, 300) } : {}),
     ...(typeof s.hardyDismissed === 'string' && s.hardyDismissed ? { hardyDismissed: s.hardyDismissed.slice(0, 300) } : {}),

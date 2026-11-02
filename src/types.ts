@@ -30,6 +30,19 @@ interface ShapeBase {
   role?: Role;
   /** Beds: plants inside move with the bed (default true). */
   carryPlants?: boolean;
+  /**
+   * Beds (role 'bed') only: its conditions, as answered, for Plant this bed (Nov 2). Only the answers: the sun worked
+   * out from the sun areas over a bed is never stored. Not answered is unset; 'unsure' is an answer (asked: Not sure).
+   * `{}` is cleared on purpose (every answer taken away, or taken by Undo), so sync can tell it from a copy an older
+   * version sent without the field, and doesn't fill it back. A word a later version adds is kept as it came,
+   * unchecked: a reader ignores one it doesn't know. Read and written as src/storage.ts sanitizeBedConditions has it.
+   *
+   * Plans before Nov 2 have none. A version before it (database version 3 and before) drops it from every plan it
+   * saves or syncs; on this device the database version keeps such a page from saving at all (src/db.ts), and through
+   * sync each device that has it keeps its own when the server's copy of that bed has none (src/sync/engine.ts
+   * withBedConditions). The bed stops being one (its role changed): the field goes with it, in the same step.
+   */
+  conditions?: BedConditions;
   /** Shade areas: observed direct sun. */
   sun?: SunInfo;
   /**
@@ -76,6 +89,22 @@ interface ShapeBase {
   goneOn?: string;
   /** A phase of the project this belongs to, e.g. "Fall 2026" (one of the project's phases). */
   phase?: string;
+}
+/** A bed's sun, answered where no sun area covers it: full sun (6 h and up), part shade (3 to 6 h), shade (under 3). */
+export type SunAnswer = 'Full' | 'Part' | 'Shade';
+/**
+ * A bed's conditions, as answered (ShapeBase `conditions`; docs/storage.md). Each question unset until answered.
+ * - sun: asked only where no sun area covers the bed: from most to least (the same for a bed that doesn't vary), or
+ *   Not sure;
+ * - soil: Clay, Loam, Sandy, or Not sure (Jason, Nov 2: all four asked);
+ * - moisture: Dry, Average, Wet, or Not sure;
+ * - drip: drip irrigated (any water need fits); unset when it isn't.
+ */
+export interface BedConditions {
+  sun?: { most: SunAnswer; least: SunAnswer } | 'unsure';
+  soil?: 'clay' | 'loam' | 'sand' | 'unsure';
+  moisture?: 'dry' | 'average' | 'wet' | 'unsure';
+  drip?: true;
 }
 /** Planned = not in the ground yet; gone = removed or died (kept as a record, hidden by default). */
 /**
