@@ -8,6 +8,7 @@ import { isMine } from '../my-plants';
 import { rootSpread, rootText, seedText } from '../spread';
 import { butterflyCaps } from '../search';
 import { zoneRange } from '../climate';
+import { insignificantForm } from '../seasons';
 import type { Provenance } from '../catalog';
 /** "1 kind", "12 kinds" (Priya, Alex, Oct 30: "1 kinds of caterpillars"). */
 const kinds = (n: number) => `${countWords(n)} kind${n === 1 ? '' : 's'}`;
@@ -129,7 +130,7 @@ const CLUSTER_WORDS: Record<string, string> = { solitary: 'borne singly', spadix
  */
 export function flowerFormText(f?: Plant['flower_form']): string {
   if (!f) return '';
-  if (f.inflorescence?.includes('insignificant') && !f.shape?.length) return 'Flowers not showy';
+  if (insignificantForm(f)) return 'Flowers not showy';
   const shape = orList((f.shape ?? []).map((x) => FLOWER_SHAPE_WORDS[x] ?? `${x}-shaped`));
   const petals = orList((f.petals ?? []).map((x) => PETAL_WORDS[x] ?? x));
   const size = orList((f.size ?? []).map(inches));

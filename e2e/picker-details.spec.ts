@@ -644,6 +644,20 @@ test('a row: its bloom months, and a small flower in its flowers\' color in a ci
   await expect(fern.getByTestId('row-dot')).toHaveAttribute('aria-label', /^[a-z ]+ leaves$/);
   await expect(fern.getByTestId('row-dot').getByTestId('spot-flower')).toHaveCount(0);
   await expect(fern.getByTestId('row-bloom')).toHaveCount(0);
+  // Flowering dogwood: tiny true flowers ("insignificant") in showy bracts (a shape, petals and a size), so a flower in
+  // its spot, its months, and Has flowers and White flowers keep it, as its details list white flowers (the bug hunt,
+  // Nov 1: a plain circle, left out by both).
+  await page.getByTestId('plant-search').fill('Flowering dogwood');
+  const dogwood = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Flowering dogwood$/ }) });
+  await expect(dogwood.getByTestId('row-dot')).toHaveAttribute('aria-label', 'white flowers, green leaves');
+  await expect(dogwood.getByTestId('row-bloom')).toBeVisible();
+  for (const need of ['flowers', 'white flowers']) {
+    await page.getByTestId('plant-search').fill(`${need} flowering dogwood`);
+    await page.getByTestId('plant-search').press('Enter');
+    await expect(page.getByTestId('active-chip')).toHaveText([need === 'flowers' ? 'Has flowers' : 'White flowers']);
+    await expect(dogwood).toBeVisible();
+    await page.getByTestId('reset-filters').click();
+  }
 });
 
 test('a row fits 360 px at every text size: its name, spot, months, Place and copy, nothing pushed off (Jason, Nov 1)', async ({ page }) => {
