@@ -206,7 +206,7 @@ test('the crowding notice: Nudge apart moves the plant just placed, Undo puts it
   await tapFromCenter(page, 0, 0);
   await tapFromCenter(page, 2, 0);
   const notice = page.getByTestId('crowd-notice');
-  await expect(notice.getByRole('button')).toHaveText(['Crowding Snowberry', 'Nudge apart', 'Dismiss', 'Move it', 'Settings', '✕']);
+  await expect(notice.getByRole('button')).toHaveText(['Crowding Snowberry', 'Nudge apart', 'Dismiss', 'Move it', '', '✕']);
   // Nothing cut short, by the place bar (on a phone 412 px wide, two rows of two).
   for (const b of await notice.locator('.notice-buttons button').all()) expect(await b.evaluate((e) => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
   await notice.getByRole('button', { name: 'Nudge apart' }).click();

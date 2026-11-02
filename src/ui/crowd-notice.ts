@@ -13,6 +13,7 @@ import { shownWith } from '../status';
 import { save } from '../storage';
 import type { Crowd } from '../crowding';
 import type { Shape } from '../types';
+import { I } from '../icons';
 import { render } from './render';
 import { nudgeNow } from './fix-problem';
 import { openWarningsAt } from './warnings-sheet';
@@ -45,7 +46,7 @@ export function crowdNotice(shape: Shape, moveIt: () => void) {
     { label: 'Nudge apart', run: () => { nudgeNow(shape, list[0].other, shape.id); } },
     { label: 'Dismiss', run: () => leaveClose(shape.id, list.map((c) => c.other.id)) },
     { label: 'Move it', run: () => { moveIt(); render(); toast('Tap where it should go.'); } },
-    { label: 'Settings', run: openCrowdingSettings },
+    { label: 'Settings', run: openCrowdingSettings, icon: I.settings },
   ], 10000, TESTID, { detail, tone: crowded.length ? 'red' : 'amber' });
   const n = document.getElementById('toast-action');
   if (n) n.dataset.about = shape.id; // (gone with the plant: src/ui/toast.ts placeNotice)
@@ -85,7 +86,7 @@ export function crowdNoticeAfterSwap(ids: string[], before: Map<string, Map<stri
       { label: 'Nudge apart', run: () => { nudgeNow(shape, list[0].other, shape.id); } },
       { label: 'Dismiss', run: () => leaveClose(shape.id, list.map((c) => c.other.id)) },
       { label: 'Undo', run: () => { undo(); render(); } },
-      { label: 'Settings', run: openCrowdingSettings },
+      { label: 'Settings', run: openCrowdingSettings, icon: I.settings },
     ], 10000, TESTID, { detail, tone: crowded.length ? 'red' : 'amber' });
     return;
   }
