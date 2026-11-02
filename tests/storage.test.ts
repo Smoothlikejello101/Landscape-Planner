@@ -898,14 +898,18 @@ describe('a fruit-partner warning dismissed for one plant (fruitDismissed, Nov 1
     { id: 'note', type: 'text', x: 3, y: 3, fontSize: 1.5, rotation: 0, color: '#000000', label: 'Septic lid here', opacity: 1, locked: false },
   ];
 
-  it('is kept with the shape as a hardiness or poison dismissal is: an odd one dropped, a long one cut to 300', () => {
+  it("is kept with the shape as a hardiness or poison dismissal is: an odd one dropped, a long one cut to 300; '' kept, shown again on purpose", () => {
     const d = sanitizeProjectData({ shapes: [
       holly({ id: 'a', fruitDismissed: said }), holly({ id: 'b', fruitDismissed: 7 }), holly({ id: 'c', fruitDismissed: '' }),
       holly({ id: 'd', fruitDismissed: { said } }), holly({ id: 'e', fruitDismissed: 'x'.repeat(400) }), holly({ id: 'f', fruitDismissed: null }),
     ] });
     expect(d.shapes[0]).toMatchObject({ fruitDismissed: said });
-    for (const s of d.shapes.slice(1, 4).concat(d.shapes[5])) expect('fruitDismissed' in s).toBe(false);
+    for (const s of [d.shapes[1], d.shapes[3], d.shapes[5]]) expect('fruitDismissed' in s).toBe(false);
     expect(d.shapes[4].fruitDismissed).toBe('x'.repeat(300)); // (as hardyDismissed and poisonDismissed are)
+    // ('' is a warning shown again on purpose, as a utility warning's is: kept, so sync doesn't fill it back from another
+    // device's copy, src/sync/engine.ts withFruitDismissals. The release drops it as it does the rest.)
+    expect(d.shapes[2].fruitDismissed).toBe('');
+    expect(releaseMigrateShape(d.shapes[2])).not.toHaveProperty('fruitDismissed');
     // (Pasted as a stored plan's shapes are read: src/mutations.ts paste.)
     expect(migrateShape(JSON.parse(JSON.stringify(holly({ fruitDismissed: said }))))).toMatchObject({ fruitDismissed: said });
   });
@@ -926,6 +930,18 @@ describe('a fruit-partner warning dismissed for one plant (fruitDismissed, Nov 1
     expect((sent.shapes as { fruitDismissed?: string }[])[0].fruitDismissed).toBe(said);
     // (What sync sends, read back as a download is, is the same: src/sync/local.ts tidy.)
     expect(canonical(syncedContent(sanitizeProjectData(JSON.parse(JSON.stringify(sent)))))).toBe(canonical(sent));
+  });
+
+  it("is in a support file (Send feedback) as in a backup, and comes back from it, '' too", async () => {
+    await freshStorage();
+    state.shapes = sanitizeProjectData({ shapes: [holly({ fruitDismissed: said }), holly({ id: 'h2', fruitDismissed: '' }), holly({ id: 'h3' })] }).shapes;
+    save();
+    await flushSave();
+    const info = { myPlants: [], app: { version: 'test', built: 'now', catalog: null }, device: {}, storage: {}, sync: {}, settings: {}, localData: [], otherKeys: [], errors: [] };
+    const text = JSON.stringify(buildSupportFile({ ...info, projects: await allExportedProjects(), includeImages: false, now: new Date() }));
+    const back = parseImportFile(text)[0].data.shapes;
+    expect(back.map((s) => s.fruitDismissed)).toEqual([said, '', undefined]);
+    expect(back).toEqual(state.shapes);
   });
 
   it('a plan without it reads exactly as before, as the release reads it: nothing dismissed, nothing to convert', () => {

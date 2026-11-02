@@ -10,8 +10,8 @@ import { state } from '../state';
 import { checkPlantSun, formatHours, formatTime, newSunInfo, sunDismissedFor, sunHours, sunLevel } from '../sun';
 import type { DismissKind, Shape, SunInfo } from '../types';
 import { render } from './render';
-import { toastAction } from './toast';
-import { copiesOf, copiesSaid, DISMISS_FIELD, dismissedForPlan, dismissForPlan, poisonCovered, poisonSaid, showAgainForPlan, warnForNewOnes } from '../dismissals';
+import { toast, toastAction } from './toast';
+import { copiesSaid, DISMISS_FIELD, dismissedForPlan, dismissForPlan, poisonCovered, poisonSaid, showAgainForPlan, warnedCopies, warnForNewOnes } from '../dismissals';
 import { BULB_PARTNER_MIN_HEIGHT, crowdingOf, crowdRelation } from '../crowding';
 import { alreadyThere } from '../status';
 import { I } from '../icons';
@@ -75,14 +75,22 @@ export function plantSunBanner(s: Shape): HTMLElement | null {
 /**
  * Dismissed for the plant across the plan (its copies, and new ones), with a toast that says so and offers to keep it
  * to the copies there now (Jason, Oct 30). Also a hardiness or poison row's Dismiss in Warnings (Jason, Nov 1). "Just
- * these 2", not "Warn me for new ones" (the review, Nov 1: one vocabulary, and it was cut off at 412 px wide).
+ * these 2", not "Warn me for new ones" (the review, Nov 1: one vocabulary, and it was cut off at 412 px wide): the copies
+ * the warning is about (src/dismissals.ts warnedCopies), one step, which Undo takes back to dismissed across the plan.
  */
 export function dismissAcross(kind: 'hardy' | 'poison', plantId: string, said: string) {
-  const who = copiesSaid(plantId), n = copiesOf(plantId).length;
+  const who = copiesSaid(kind, plantId), n = warnedCopies(kind, plantId).length;
   dismissForPlan(kind, plantId, said);
+  const after = state.dismissed;
   render();
   toastAction(`${kind === 'hardy' ? 'Hardiness' : 'Poison'} warning dismissed for ${who} in this plan, and any you add later.`, [
-    { label: n > 1 ? `Just these ${n}` : 'Just this one', run: () => { warnForNewOnes(kind, plantId, said); render(); } },
+    { label: n > 1 ? `Just these ${n}` : 'Just this one', run: () => {
+      // (Not once the plan's dismissals have changed since: another dismissed, or another device's version of the plan
+      // come in by sync. The review of the change, Nov 1.)
+      if (state.dismissed !== after) { toast('It has changed since, so it was left as it is.'); return; }
+      warnForNewOnes(kind, plantId, said);
+      render();
+    } },
     { label: 'OK', run: () => {} },
   ], 10000, 'dismiss-notice');
 }
@@ -98,7 +106,8 @@ function plantDismissButtons(kind: DismissKind, plantId: string, key: string, ac
   if (across || mine) {
     const again = el('button', { className: 'link-reset', 'data-testid': `${kind}-dismiss` }, 'Show again');
     again.addEventListener('click', () => {
-      if (across) { showAgainForPlan(kind, plantId); render(); } else updateSelected({ [field]: undefined });
+      // (A fruit-partner one is left '', shown again on purpose, so sync doesn't fill it back: src/dismissals.ts clearForPlan.)
+      if (across) { showAgainForPlan(kind, plantId); render(); } else updateSelected({ [field]: kind === 'fruit' ? '' : undefined });
     });
     row.appendChild(again);
     return row;

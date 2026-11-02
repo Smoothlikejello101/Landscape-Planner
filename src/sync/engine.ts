@@ -261,7 +261,7 @@ export function withLocalParts(server: ProjectContent, mine: ProjectContent | un
   if (!mine) return server;
   let out = server;
   for (const k of NEWER_PARTS) if (!(k in server) && k in mine) out = { ...out, [k]: mine[k] };
-  return withChosenColors(withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine), mine);
+  return withFruitDismissals(withChosenColors(withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine), mine), mine);
 }
 /**
  * A shape's sub-features (doors, windows, gates: src/features.ts), which an older version leaves out of a shape it
@@ -309,6 +309,28 @@ function withUtilities(server: ProjectContent, mine: ProjectContent): ProjectCon
     if (typeof k.utilityDismissed === 'string' && k.utilityDismissed && !('utilityDismissed' in s)) out = { ...out, utilityDismissed: k.utilityDismissed };
     if (out !== s) filled = true;
     return out;
+  });
+  return filled ? { ...server, shapes } : server;
+}
+/**
+ * A plant's fruit-partner warning dismissed for it alone (fruitDismissed, Nov 1), which an older version drops from a
+ * shape it sends: kept from here when the server's copy of that shape, the same plant (its id and plantId), has none at
+ * all ('' is one shown again on purpose, and stays so). Without it, a device on the release with an edit of its own
+ * sends the plan over a newer dismissal, its merge not seeing it (the review of the change, Nov 1), and every device
+ * then lost it. The server's copy goes without it until a device that has it sends the plan again.
+ */
+function withFruitDismissals(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
+  type Fruit = { id?: unknown; plantId?: unknown; fruitDismissed?: unknown };
+  const kept = new Map<unknown, Fruit>();
+  for (const s of mine.shapes as Fruit[]) if (s && typeof s.fruitDismissed === 'string' && s.fruitDismissed && typeof s.plantId === 'string') kept.set(s.id, s);
+  if (!kept.size) return server;
+  let filled = false;
+  const shapes = (server.shapes as Fruit[]).map((s) => {
+    const k = s && typeof s === 'object' ? kept.get(s.id) : undefined;
+    if (!k || s.plantId !== k.plantId || 'fruitDismissed' in s) return s;
+    filled = true;
+    return { ...s, fruitDismissed: k.fruitDismissed };
   });
   return filled ? { ...server, shapes } : server;
 }

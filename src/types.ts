@@ -44,7 +44,10 @@ interface ShapeBase {
   poisonDismissed?: string;
   /**
    * A fruit-partner warning dismissed for this copy alone (its words, src/fruit-partners.ts fruitNeed): back if they
-   * change. Plans before Nov 1 have none (none dismissed); a version before it drops it, and the warning shows again.
+   * change. Plans before Nov 1 have none (none dismissed). '' when shown again on purpose (Show again, Undo), so sync
+   * can tell it from a copy an older version sent without it: a version before Nov 1 drops it from every plan it
+   * saves or syncs, even over a newer dismissal; each device that has it keeps its own then (src/sync/engine.ts
+   * withFruitDismissals), and the server's copy is without it until one of those sends the plan again.
    */
   fruitDismissed?: string;
   /**
@@ -364,6 +367,12 @@ export interface HistorySnapshot {
   photoElsewhere?: PhotoRef | null;
   /** What the step did, when it says ("delete Front bed"): src/history.ts. Never stored. */
   label?: string;
+  /**
+   * A step that narrowed a warning dismissed across the plan to the copies there then ("Just these 2": src/dismissals.ts
+   * warnForNewOnes): that dismissal, as it was kept. Undo puts it back, Redo takes it away again (the plan's dismissals
+   * are otherwise kept apart from the steps).
+   */
+  narrowed?: { kind: DismissKind; plantId: string; said: string };
 }
 
 export interface Clipboard {

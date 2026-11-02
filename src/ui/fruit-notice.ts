@@ -4,7 +4,7 @@
 // Gentleman'"), the best two, alike (those its sources name first, then those hardy here), placed next as any plant
 // picked is; with more, "All 7…" opens the picker on them; Dismiss dismisses it for the plant across the plan.
 
-import { copiesOf, copiesSaid, dismissedForPlan, dismissForPlan, warnForNewOnes } from '../dismissals';
+import { copiesSaid, dismissedForPlan, dismissForPlan, warnedCopies, warnForNewOnes } from '../dismissals';
 import { hardyHere } from '../crowd-here';
 import { fruitNeed } from '../fruit-partners';
 import { PLANTS, plantsById, showPartnersOf, type Plant } from '../plants';
@@ -51,20 +51,26 @@ export function fruitNotice(shape: Shape, place: (p: Plant) => void) {
  * with a toast that says so (Jason, Oct 30). Also a fruit-partner row's Dismiss in Warnings, and "Dismiss for every …"
  * in a plant's details (Jason, Nov 1), redrawn with it.
  *
- * Its toast offers what hardiness and poison offer, "Just this one" or "Just these 2": the copies in the plan now keep
- * it, each its own (`fruitDismissed`), and new ones are warned for, as src/dismissals.ts warnForNewOnes does for those
- * (Jason, Nov 1: until then a copy kept no fruit-partner dismissal of its own, so "Just this one" brought the warning
- * back, the warnings bug hunt). That's a step: Undo at the top takes it back, as for hardiness and poison. And Undo,
- * kept from before, takes the dismissal back: no step, the plan's dismissals being kept apart from its shapes.
+ * Its toast offers what hardiness and poison offer, "Just this one" or "Just these 2": the copies the warning is about
+ * keep it, each its own (`fruitDismissed`), and new ones are warned for, as src/dismissals.ts warnForNewOnes does for
+ * those (Jason, Nov 1: until then a copy kept no fruit-partner dismissal of its own, so "Just this one" brought the
+ * warning back, the warnings bug hunt). That's a step: Undo at the top goes back to it dismissed across the plan, Redo
+ * to each its own again. Its Undo, kept from before, takes the dismissal back altogether: no step, the plan's
+ * dismissals being kept apart from its shapes. Either button does nothing once the plan's dismissals have changed since
+ * (another dismissed, or another device's version of the plan come in by sync), and says so.
  */
 export function remindNoMore(id: string, line: string) {
-  const who = copiesSaid(id), n = copiesOf(id).length;
+  const who = copiesSaid('fruit', id), n = warnedCopies('fruit', id).length;
   const before = state.dismissed;
   dismissForPlan('fruit', id, line);
   const after = state.dismissed;
   render();
   toastAction(`Fruit partner warning dismissed for ${who} in this plan, and any you add later.`, [
-    { label: n > 1 ? `Just these ${n}` : 'Just this one', run: () => { warnForNewOnes('fruit', id, line); render(); } },
+    { label: n > 1 ? `Just these ${n}` : 'Just this one', run: () => {
+      if (state.dismissed !== after) { toast('It has changed since, so it was left as it is.'); return; }
+      warnForNewOnes('fruit', id, line);
+      render();
+    } },
     { label: 'Undo', run: () => {
       // (Only while nothing has changed it since: as the other dismissals' Undo, src/warnings-list.ts setDismissed.)
       if (state.dismissed !== after) { toast('It has changed since, so it was left as it is.'); return; }

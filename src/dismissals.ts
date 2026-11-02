@@ -70,6 +70,14 @@ export function dismissedForPlan(kind: DismissKind, plantId: string | undefined,
 
 /** A plant's copies in the plan. */
 export const copiesOf = (plantId: string): Shape[] => state.shapes.filter((s) => s.role === 'plant' && s.plantId === plantId);
+/**
+ * The copies a plant's warning of this kind is about, as its badges and Warnings have them: not gone or coming out, not
+ * a tree already there, and for hardiness not one already in the ground before the plan (src/status.ts alreadyThere).
+ * Those a dismissal's "Just these 2" counts and keeps it for (the review of the change, Nov 1: it said 3, a gone one
+ * among them, where Warnings listed 2). Copies the Layers hide are among them: still the plan's, dismissed with the rest.
+ */
+export const warnedCopies = (kind: DismissKind, plantId: string): Shape[] =>
+  copiesOf(plantId).filter((s) => s.status !== 'gone' && s.status !== 'remove' && !(s.type === 'circle' && s.tree) && (kind !== 'hardy' || s.status !== 'existing'));
 
 /** Dismiss it for the plant across the plan: its copies and the ones added later. Saved. */
 export function dismissForPlan(kind: DismissKind, plantId: string, said: string) {
@@ -92,6 +100,13 @@ export function showAgainForPlan(kind: DismissKind, plantId: string) {
 export function clearForPlan(kind: DismissKind, plantId: string): boolean {
   dropPlanEntry(kind, plantId);
   const field = DISMISS_FIELD[kind];
+  // (A fruit-partner one is left '', shown again on purpose, so sync doesn't fill it back from another device's copy
+  // (src/sync/engine.ts withFruitDismissals); hardiness and poison aren't filled back, and go.)
+  if (kind === 'fruit') {
+    const copies = copiesOf(plantId).filter((s) => !!s.fruitDismissed);
+    for (const s of copies) s.fruitDismissed = '';
+    return copies.length > 0;
+  }
   const copies = copiesOf(plantId).filter((s) => s[field] !== undefined);
   for (const s of copies) delete s[field];
   return copies.length > 0;
@@ -99,13 +114,17 @@ export function clearForPlan(kind: DismissKind, plantId: string): boolean {
 
 /**
  * New copies warn again; those placed so far stay dismissed, each its own (a badge each, for hardiness and poison: a
- * fruit-partner warning has none). "Just these 2" on a dismissal's toast. One step, saved.
+ * fruit-partner warning has none). "Just these 2" on a dismissal's toast: the copies the warning is about (warnedCopies).
+ * One step, saved; it keeps the dismissal across the plan it took the place of, so Undo puts that back and Redo takes
+ * it away again (src/history.ts; the review of the change, Nov 1: Undo left nothing dismissed).
  */
 export function warnForNewOnes(kind: DismissKind, plantId: string, said: string) {
+  const was = state.dismissed?.[kind]?.[plantId];
   dropPlanEntry(kind, plantId);
   const field = DISMISS_FIELD[kind];
-  for (const s of copiesOf(plantId)) s[field] = said;
+  for (const s of warnedCopies(kind, plantId)) s[field] = said;
   pushHistory();
+  if (was !== undefined) state.history[state.historyIndex].narrowed = { kind, plantId, said: was };
   save();
 }
 
@@ -129,10 +148,11 @@ export function planDismissals(): { kind: DismissKind; plantId: string; name: st
 }
 
 /**
- * The plant's copies in the plan, by name, for the toast: "Fig", "both Fig", "all 3 Fig" (a plant's name as a nursery
- * says it, "3 Oleander": no guessed plural; not "all 2 of Oleander", the warnings bug hunt, Nov 1).
+ * The plant's copies its warning of this kind is about (warnedCopies), by name, for the toast: "Fig", "both Fig", "all 3
+ * Fig" (a plant's name as a nursery says it, "3 Oleander": no guessed plural; not "all 2 of Oleander", the warnings bug
+ * hunt, Nov 1).
  */
-export function copiesSaid(plantId: string): string {
-  const n = copiesOf(plantId).length, name = plantsById[plantId]?.common ?? 'this plant';
+export function copiesSaid(kind: DismissKind, plantId: string): string {
+  const n = warnedCopies(kind, plantId).length, name = plantsById[plantId]?.common ?? 'this plant';
   return n > 2 ? `all ${n} ${name}` : n === 2 ? `both ${name}` : name;
 }
