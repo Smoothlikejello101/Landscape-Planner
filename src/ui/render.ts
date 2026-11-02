@@ -450,6 +450,7 @@ export function render() {
         if (onlyPlan) card.append(restoreLine());
       }
       canvasWrap.appendChild(hint);
+      if (!docked) requestAnimationFrame(placeFirstCard);
     }
   }
 
@@ -833,6 +834,22 @@ function snapChip(s: TapSnap, unsnap: () => void): HTMLElement {
  * would come up over this screen unasked for, and with a keyboard the plan's one-key shortcuts (B for a bed) would go
  * into it. A tap or a click on it is the asking.
  */
+/**
+ * The first screen's card in the middle of the plan, unless there it would run under the side buttons (a small phone,
+ * or a long card): then beside them, its right edge clear of them. (Always beside, it sat off to the left on a phone
+ * with room to spare: Jason, Nov 1.) Measured after layout, and again when the window changes size (src/main.ts), so
+ * nothing is rebuilt (a ZIP being typed keeps its keyboard).
+ */
+export function placeFirstCard(): void {
+  const hint = document.querySelector<HTMLElement>('.empty-hint:not(.docked)');
+  const card = hint?.querySelector<HTMLElement>('.first-card');
+  const column = document.querySelector<HTMLElement>('#canvas-wrap .zoombtns');
+  if (!hint || !card) return;
+  hint.classList.remove('beside-column');
+  if (!column) return;
+  const c = card.getBoundingClientRect(), z = column.getBoundingClientRect();
+  if (z.width && c.right > z.left - 4 && c.top < z.bottom + 4 && c.bottom > z.top) hint.classList.add('beside-column');
+}
 function firstZip(): HTMLElement {
   const { input, go, problem } = zipEntry('first');
   // What happens to the ZIP, a press away, for anyone wary of giving it (Jason, Nov 1): the ZIP sheet says.

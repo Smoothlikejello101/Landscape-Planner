@@ -318,3 +318,24 @@ test('with a photo in, the first screen sits at the bottom over the buttons, its
   await expect(hint).toHaveCount(0);
   await expect(page.locator('#canvas-svg image')).toHaveCount(1);
 });
+
+test('on a phone with room, the first screen\'s card sits in the middle, clear of the side buttons (Jason, Nov 1: it sat off to the left)', async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 860 });
+  await page.addInitScript(() => localStorage.setItem('lp-zoom-buttons', 'off'));
+  await openFresh(page);
+  const card = page.getByTestId('first-card');
+  await expect(card).toBeVisible();
+  await expect(page.getByTestId('first-screen')).not.toHaveClass(/beside-column/);
+  const wrap = (await page.locator('#canvas-wrap').boundingBox())!;
+  const c = (await card.boundingBox())!;
+  const z = (await page.locator('.zoombtns').boundingBox())!;
+  expect(Math.abs((c.x - wrap.x) - (wrap.x + wrap.width - (c.x + c.width)))).toBeLessThanOrEqual(2);
+  expect(c.y).toBeGreaterThanOrEqual(z.y + z.height);
+  // Made too short for that, it moves beside the buttons, and back.
+  await page.setViewportSize({ width: 360, height: 640 });
+  await expect(page.getByTestId('first-screen')).toHaveClass(/beside-column/);
+  const c2 = (await card.boundingBox())!, z2 = (await page.locator('.zoombtns').boundingBox())!;
+  expect(c2.x + c2.width).toBeLessThanOrEqual(z2.x);
+  await page.setViewportSize({ width: 412, height: 860 });
+  await expect(page.getByTestId('first-screen')).not.toHaveClass(/beside-column/);
+});

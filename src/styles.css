@@ -568,6 +568,8 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .first-hide .icon { width: 18px; height: 18px; }
 .first-privacy { pointer-events: auto; font-size: inherit; min-height: 0; padding: 2px 2px; }
 .empty-hint.docked { justify-content: flex-end; padding: 8px; }
+/* (Beside the side buttons when in the middle it would run under them: src/ui/render.ts placeFirstCard.) */
+.empty-hint.beside-column { padding-right: 62px; }
 .empty-hint.docked .first-card { width: 100%; max-width: 36em; align-items: flex-start; text-align: left; padding: 12px 16px 6px; }
 .empty-hint.docked .first-card .first-line { padding: 0 calc(var(--tap) - 8px) 0 0; }
 .empty-hint.docked .first-zip-row { margin: 0; justify-content: flex-start; }
@@ -580,7 +582,7 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .first-zip-row .btn { padding: 4px 12px; white-space: nowrap; }
 .first-zip-note { max-width: 24em; margin: 4px auto 0; font-size: calc(12px * var(--ts)); line-height: 1.4; }
 @media (max-width: 599px) {
-  .empty-hint { padding: 8px 62px 8px 8px; justify-content: safe center; line-height: 1.45; }
+  .empty-hint { padding: 8px; justify-content: safe center; line-height: 1.45; }
   .empty-hint.docked { padding: 8px; justify-content: flex-end; }
   .first-card { padding: 10px 10px 6px; }
   /* (Clear of the ✕ on the right only: the line's room is tight on a phone.) */
