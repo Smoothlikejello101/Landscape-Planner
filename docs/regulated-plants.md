@@ -119,9 +119,11 @@ cite their own rule, apart from the list beside them.
 | ND | NDCC 4.1-47-02 with N.D. Admin. Code 7-06-01-02 (noxious weeds); NDCC 20.1-17-06 with N.D. Admin. Code 30-03-06 and the Game and Fish Department's aquatic nuisance species list | The Legislative Branch's code and rules (7-06-01-02 as amended 2019-07-01); the Department's list pages | 18 | Noxious weeds: not distributed, sold or offered for sale. Prohibited aquatic species: not possessed, bought, sold, propagated or transported but by permit. Regulated aquatic species: listed (the Department's list asks a special permit to possess one) |
 | SD | ARSD 12:51:03:01, 12:51:06:01 (nonnative plant quarantine); SDCL 41-13A-2 with ARSD 41:10:04:01 (aquatic invasive species); ARSD 12:62:03:01.06 with SDCL 38-22 (statewide noxious weeds) | The Legislature's codified laws and rules (41:10:04:01 amended 2025-10-27) | 37 | Nonnative plants: not brought in, transplanted, bought, sold or spread. Aquatic: not possessed, imported or transported. Noxious weeds: landowners control them (listed) |
 | RI | 250-RICR-40-10-2 (white pine blister rust; R.I. Gen. Laws §§ 2-17-11, 2-17-14) | The Secretary of State's code of regulations (effective 2022-01-04); the General Laws | 4 | Black currant: not possessed, planted, propagated or sold. Flowering currants: not planted. Every currant and gooseberry: brought in, moved or planted only by permit |
+| VT | Regulated Introduced Plant Species Rule (effective 2026-06-16; 6 V.S.A. ch. 84) with the Agency of Agriculture's Quarantine List, Tiers 1 to 3 | The Agency's adopted rule and its list page | 54 | Tier 1: not cultivated, sold, transported or possessed. Tiers 2 and 3: not sold or transported, cultivars and hybrids included, but by permit |
+| WY | W.S. 11-5-102 (designated noxious weeds, the Weed and Pest Council's list) and 11-9 (nursery stock); W.S. 23-4-202 with Game and Fish ch. 62 (aquatic invasive species, effective 2026-11-01) | The Legislature's statutes; the Council's list page; the Commission's rule | 35 | Designated weeds: districts and landowners control them, and nursery stock must be free of them (listed). Aquatic: not possessed, imported or transported but as the Commission allows |
 
 Arkansas to Tennessee read 2026-10-21, Virginia to Massachusetts 2026-10-31, Florida, Maryland, Minnesota and Colorado
-2026-11-01, Washington, Oregon, Idaho and Montana 2026-11-01, and Utah, Alaska, Connecticut, Iowa, Nevada, North Dakota, South Dakota and Rhode Island 2026-11-02, each from the government's own text, saved in `catalog-src/legal/` (not committed).
+2026-11-01, Washington, Oregon, Idaho and Montana 2026-11-01, and Utah, Alaska, Connecticut, Iowa, Nevada, North Dakota, South Dakota, Rhode Island, Vermont and Wyoming 2026-11-02, each from the government's own text, saved in `catalog-src/legal/` (not committed).
 Tennessee's PDF was saved by hand in a browser: the Secretary of State's file host turns away clients that
 aren't browsers, and we don't pretend to be one. Texas has one gap: the
 offense is Agriculture Code §71.152's, read from the Legislature's site; "in any live form" and "unless permitted" are the rule's,
@@ -160,8 +162,13 @@ site turns away (Kansas's statutes, Maine's Do Not Sell rule, 01-001 CMR ch. 273
 rules). New Mexico's list is drafted and waits on Jason's call: it's designated under the Noxious Weed Management
 Act, which puts no duty on landowners or sellers. New Hampshire's legal and agency sites refuse automated readers
 (an empty reply, or a 403): its entry waits for the pages Jason saves. South Dakota's laws were read through the
-Legislature's own document addresses (/api/), as Alabama's were: the site's pages are a JavaScript app. The rest of
-the states: not yet.
+Legislature's own document addresses (/api/), as Alabama's were: the site's pages are a JavaScript app. Wyoming's
+agriculture department site answers with a verification page: its designated weed list was read from the Weed and
+Pest Council's own page (the Council adopts the list jointly with the Board of Agriculture), and the Department's
+nursery rules wait for the pages Jason saves. The District of Columbia's invasive plant sale law (D.C. Code
+§ 8-1731.04) reaches only plants the Mayor lists by rule, and none was found; its one list in force, a street-tree
+space planting rule (24 DCMR § 199), shows its text only in a browser and waits for the pages Jason saves.
+
 
 **Read narrower than printed, or left out:**
 - **Seed-law lists.** Louisiana's noxious weed list (LAC 7:XIII.109), like most states' seed lists, limits weed
@@ -261,6 +268,8 @@ the states: not yet.
 - **North Dakota:** chapter 63-01.1, which the rule still names, was replaced by chapter 4.1-47 in 2009. Palmer amaranth was announced as added in 2019 but isn't in the codified rule, so it isn't entered. The aquatic nuisance species list is the Game and Fish director's, adopted under NDCC 20.1-17-01; its Class II (regulated) species are listed (amber): the statute's ban names only Class I, and the special permit for possessing a Class II species is in the Department's list document, not a rule. Left out: the algae didymo and starry stonewort, county and city lists, and the rule against bringing in submerged aquatic plants, which names none.
 - **South Dakota:** the nonnative plant quarantine (1992) is read as its text says, a ban on the plants themselves, though the National Plant Board's summary describes it as covering soil and equipment exposed to them. "Dodder (Cuscuta spp.)" is the genus, natives included, and *Phragmites australis* the whole species, as printed. The official text runs most names together ("Cirsiumarvensis"); they're entered with a space, misspellings with Kew's spelling. Left out: the algae, and the list counties choose local weeds from.
 - **Rhode Island:** its one plant rule in force is white pine blister rust's, on currants and gooseberries; the genus line takes in garden currants (alpine and red-flowering currant among them). *Ribes odoratum* is matched as Kew's *R. aureum* var. *villosum* too. Not in force, so left out: the aquatic plant law (§ 20-1-26), which waits on rules, and the 2026 Invasive Plant Management Act, from 2027 and only once rules exist. Also left out: the Invasive Species Council's advisory list.
+- **Vermont:** the Regulated Introduced Plant Species Rule (June 16, 2026) replaced the 2012 Noxious Weed Quarantine. The rule names no plants: the Secretary designates them on the Agency's Quarantine List, read as posted. Tiers 2 and 3 are banned for sale ("distribute" includes selling), not for growing what's already there. The tiers' definitions say they include federally regulated species, but only the posted list is entered (it has six of them). Left out: a hybrid written as its parents (*Myriophyllum heterophyllum* × *M. laxum*), the Watch List ("not regulated"), and the boat-and-trailer law (10 V.S.A. § 1454), which names no plant.
+- **Wyoming:** the designated weeds are listed: the Weed and Pest Control Act is about control, but the nursery law makes stock sold carry none of them ("apparently free of ... designated weeds"), which a reviewer could read as a ban on nurseries' sale, like Nevada's. Cheatgrass, voted onto the list by the Council in 2024, isn't entered: no record of the Board's decision was found. *Hydrilla* is printed "verticillate". Left out: county declared weed lists and the seed law.
 
 ## Matching
 
@@ -366,6 +375,8 @@ As of 2026-10-31:
 - **North Dakota:** wormwood (noxious).
 - **South Dakota:** field bindweed, St. John's wort and multiflora rose (nonnative plant quarantine); wormwood (noxious).
 - **Rhode Island:** alpine currant and red-flowering currant (permit only).
+- **Vermont:** parrot feather (Tier 1); American lotus, tree of heaven and Amur cork tree (Tier 2); Callery pear, Norway maple, Japanese barberry, burning bush, Japanese and Amur honeysuckle, autumn olive, black alder, glossy and common buckthorn, cypress spurge and multiflora rose (Tier 3).
+- **Wyoming:** field bindweed, Russian olive, St. John's wort and woad (designated).
 
 ## What the line doesn't say
 
