@@ -11,6 +11,7 @@
 import dated from './whats-new.json';
 import { withPending, type Release } from './whats-new-pending';
 import { CHANNEL, type Channel } from './channel';
+import { stamp } from './util';
 
 export type { Release };
 
@@ -61,10 +62,21 @@ export function newsAtStart(usedBefore: boolean, releases: Release[] = RELEASES)
 }
 
 /**
+ * The day this copy of the app was built, as the person's own calendar has it ("2026-11-01"), as the files they save
+ * are dated (src/util.ts stamp). The build keeps its time in UTC (vite.config.ts), which late in the evening in Arkansas
+ * is already tomorrow: ⋮'s version line said 2026-11-02 at 6:18 PM on Nov 1 (the bug hunt, Nov 1). A date with no time
+ * is shown as it is.
+ */
+export function builtOn(built = typeof __BUILD_TIME__ === 'string' ? __BUILD_TIME__ : ''): string {
+  const t = built.includes('T') ? new Date(built) : null;
+  return t && !Number.isNaN(t.getTime()) ? stamp(t) : built;
+}
+
+/**
  * "Oct 31, 2026"; the release not yet out: in Next, "Not released yet" (Jason, Oct 31: its changes are already running
  * there; what they await is the testers' app), in a release build, its build day.
  */
-export function releaseDate(date: string, channel: Channel = CHANNEL, built = typeof __BUILD_TIME__ === 'string' ? __BUILD_TIME__ : ''): string {
+export function releaseDate(date: string, channel: Channel = CHANNEL, built = builtOn()): string {
   if (date === 'next') {
     if (channel === 'next' || !built) return 'Not released yet';
     date = built;

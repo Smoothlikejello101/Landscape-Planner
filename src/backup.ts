@@ -3,7 +3,7 @@ import { createProject, currentProjectData, readProject, sanitizeProjectData, se
 import type { ProjectData } from './types';
 import { myPlants, myPlantsUsedBy } from './my-plants';
 import { wirePlant } from './catalog';
-import { now } from './util';
+import { now, stamp } from './util';
 
 // Project files: a single project, or a backup of every project, as JSON.
 // Background images are embedded as data URLs so a file is self-contained.
@@ -44,14 +44,8 @@ export function safeFileName(name: string): string {
   // (A run of dashes is one: "Grace - shady oak yard" came out "grace---shady-oak-yard". Round 3, Grace.)
   return (name.trim().replace(/[^a-z0-9-_ ]+/gi, '').replace(/\s+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'project').slice(0, 60);
 }
-/**
- * The date in a file's name, as the person's own calendar has it: in UTC, a backup and a picture made at 11:25 PM in
- * Arkansas were dated the next day, beside a PDF dated that day (the UI review, 2026-11-01). Every file the app
- * names (backups, plan files, the PDF, pictures, the support file) takes its date from here.
- */
-export function stamp(d = new Date()): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+/** The date in a file's name, as the person's own calendar has it (src/util.ts stamp). */
+export { stamp };
 
 export async function buildProjectFile(id: string): Promise<{ filename: string; text: string } | null> {
   const project = await exportedProject(id);

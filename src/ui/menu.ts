@@ -15,6 +15,7 @@ import { MARK_SMALL } from '../brand';
 import { showMeAround } from './intro-card';
 import { openWhatsNew } from './whats-new-panel';
 import { CHANNEL } from '../channel';
+import { builtOn } from '../whats-new';
 import { openPrint } from './print-panel';
 import { openWarnings, warningsMenuLabel } from './warnings-sheet';
 import { openPlantList } from './plant-list-panel';
@@ -128,7 +129,7 @@ export function renderMoreMenu() {
   // The mark leads the version line (it has no text, so the line still reads "Version …"); its own top border divides
   // it from the items (a divider here too made two lines: the bug hunt, Nov 1).
   const version = el('div', { className: 'menu-version', html: MARK_SMALL });
-  version.append(el('span', {}, `Version ${__APP_VERSION__}${CHANNEL === 'next' ? ' · Next (preview)' : ''} · ${__BUILD_TIME__}`), updateCheck());
+  version.append(el('span', {}, `Version ${__APP_VERSION__}${CHANNEL === 'next' ? ' · Next (preview)' : ''} · ${builtOn()}`), updateCheck());
   menu.appendChild(version);
   // (Up and down step through its items, as a menu's do; Home and End go to the ends.)
   menu.addEventListener('keydown', (e) => {
