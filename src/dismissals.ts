@@ -1,9 +1,10 @@
 // Warnings dismissed for a plant across the plan (Jason, Oct 30): hardiness and poison are the plant's, not where a copy
 // stands, so dismissing one dismisses its other copies and the ones added later, with a toast that says so and offers
-// to warn again for new ones. Fruit-partner reminders too. Per plan: another plan, another yard, warns again. Each is
-// kept with what the warning said when it was dismissed, so it comes back if that changes (a new ZIP; someone new in
-// the yard). Sun and crowding stay a copy's own: they depend on where it stands. Shown again from the plant's pane or
-// Warnings (src/warnings-list.ts, src/ui/warnings-sheet.ts), where they can be dismissed too (Jason, Nov 1).
+// to warn again for new ones. Fruit-partner reminders too (offering Undo instead: no copy keeps its own). Per plan:
+// another plan, another yard, warns again. Each is kept with what the warning said when it was dismissed, so it comes
+// back if that changes (a new ZIP; someone new in the yard). Sun and crowding stay a copy's own: they depend on where
+// it stands. Shown again from the plant's pane or Warnings (src/warnings-list.ts, src/ui/warnings-sheet.ts), where they
+// can be dismissed too (Jason, Nov 1).
 
 import { pushHistory } from './history';
 import { householdFlags, plantsById, type Plant } from './plants';
@@ -59,16 +60,14 @@ export function clearForPlan(kind: DismissKind, plantId: string): boolean {
 }
 
 /**
- * New copies warn again; those placed so far stay dismissed, each its own (hardiness and poison: a badge each), or, for
- * fruit partners (said only as one is placed), nothing more to do. Saved.
+ * New copies warn again; those placed so far stay dismissed, each its own (a badge each). Hardiness and poison only: a
+ * plan keeps no fruit-partner dismissal copy by copy (src/ui/fruit-notice.ts remindNoMore). Saved.
  */
-export function warnForNewOnes(kind: DismissKind, plantId: string, said: string) {
+export function warnForNewOnes(kind: 'hardy' | 'poison', plantId: string, said: string) {
   dropPlanEntry(kind, plantId);
-  const field = kind === 'hardy' ? 'hardyDismissed' : kind === 'poison' ? 'poisonDismissed' : null;
-  if (field) {
-    for (const s of copiesOf(plantId)) s[field] = said;
-    pushHistory();
-  }
+  const field = kind === 'hardy' ? 'hardyDismissed' : 'poisonDismissed';
+  for (const s of copiesOf(plantId)) s[field] = said;
+  pushHistory();
   save();
 }
 
@@ -91,8 +90,11 @@ export function planDismissals(): { kind: DismissKind; plantId: string; name: st
   return out.sort((a, b) => a.name.localeCompare(b.name) || a.kind.localeCompare(b.kind));
 }
 
-/** "all 3 figs" for the toast: the plant's copies in the plan, by name ("Fig" and "all 3 of Fig" avoid a guessed plural). */
+/**
+ * The plant's copies in the plan, by name, for the toast: "Fig", "both Fig", "all 3 Fig" (a plant's name as a nursery
+ * says it, "3 Oleander": no guessed plural; not "all 2 of Oleander", the warnings bug hunt, Nov 1).
+ */
 export function copiesSaid(plantId: string): string {
   const n = copiesOf(plantId).length, name = plantsById[plantId]?.common ?? 'this plant';
-  return n > 1 ? `all ${n} of ${name}` : name;
+  return n > 2 ? `all ${n} ${name}` : n === 2 ? `both ${name}` : name;
 }

@@ -9,7 +9,8 @@ import type { PlanBought, Shape } from './types';
 //
 // Bought means bought and not yet planted: plants of a kind planted on or after the day it was ticked use the tick up
 // (their planting date says so). So marking them planted keeps nothing more, Undo brings the tick back as it was, and
-// plants of that kind added later show as still to buy rather than as a stale tick.
+// plants of that kind added later show as still to buy rather than as a stale tick. Only ticking, planting and
+// un-planting change it: a planted plant deleted or swapped for another doesn't give its tick back (keepBought).
 
 export type ListGroup = 'buy' | 'planted' | 'existing';
 export interface ListRow {
@@ -50,10 +51,14 @@ export function dayOf(ms: number): string {
   const d = new Date(ms);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+/** Whether a plant is one of a kind's to buy (planned, or no status). */
+const toBuy = (s: Shape) => !s.status || s.status === 'planned';
+/** Whether a plant uses up its kind's tick made on `day` (YYYY-MM-DD): planted (or since moved on) on or after it. */
+const usesUp = (s: Shape, day: string) => !!s.plantedOn && !toBuy(s) && s.plantedOn >= day;
 /** How many of a kind's plants were planted on or after the day of `at`: each uses up one bought then. */
 function usedUp(at: number, kind: Shape[]): number {
   const day = dayOf(at);
-  return kind.filter((s) => !!s.plantedOn && !!s.status && s.status !== 'planned' && s.plantedOn >= day).length;
+  return kind.filter((s) => usesUp(s, day)).length;
 }
 /** How many of a kind are bought and not yet planted. */
 export function boughtNow(entry: { n: number; at: number } | undefined, kind: Shape[]): number {
@@ -63,6 +68,54 @@ export function boughtNow(entry: { n: number; at: number } | undefined, kind: Sh
 export function tickEntry(n: number, kind: Shape[], at: number): { n: number; at: number } {
   return { n: n + usedUp(at, kind), at };
 }
+/**
+ * What's bought, kept as it was across a change to the plan's plants (`before` to `after`: an undo step taken, Undo,
+ * Redo). Only ticking, planting and un-planting change it: a plant of a kind going in the ground uses up one bought,
+ * and one taken back out of it (Undo, or set back to Planned) gives it back. A planted plant that leaves its kind
+ * (deleted, swapped for another plant, renamed) takes no tick with it, and one that joins a kind (added, pasted, put
+ * back by Undo) brings none; nor does a planting date changed. (The list bug hunt, Nov 1: a planted Goldsturm deleted
+ * made one of the two not yet bought read as bought, its tick given back.)
+ *
+ * The plan keeps how many were bought and when (src/types.ts PlanBought), and its plants planted since use them up
+ * (boughtNow); so a kind whose plants used up more or fewer than that for those reasons has its count moved by as many.
+ * Its time moves a millisecond on, so the change reaches other devices (the later change to a kind wins: src/sync/
+ * engine.ts settleBought) and its day, which says which plantings use it up, stays. The same `bought` when nothing
+ * changed; else a new one.
+ */
+export function keepBought(bought: PlanBought | undefined, before: Shape[], after: Shape[], byId: Record<string, Plant | undefined>): PlanBought | undefined {
+  if (!bought) return bought;
+  const kinds = (shapes: Shape[]) => {
+    const out = new Map<string, Map<string, Shape>>();
+    for (const s of shapes) {
+      if (!isPlant(s)) continue;
+      const k = kindKey(s, byId);
+      if (!Object.hasOwn(bought, k)) continue;
+      let m = out.get(k);
+      if (!m) out.set(k, m = new Map());
+      m.set(s.id, s);
+    }
+    return out;
+  };
+  const was = kinds(before), now = kinds(after);
+  let out: PlanBought | undefined;
+  for (const [k, e] of Object.entries(bought)) {
+    const a = was.get(k) ?? new Map<string, Shape>(), b = now.get(k) ?? new Map<string, Shape>();
+    const day = dayOf(e.at);
+    // Planted since (one to buy before, using it up now), and taken back out (using it up before, one to buy now).
+    let planted = 0, unplanted = 0;
+    for (const [id, s] of b) { const p = a.get(id); if (p && usesUp(s, day) && !usesUp(p, day) && toBuy(p)) planted++; }
+    for (const [id, p] of a) { const s = b.get(id); if (s && usesUp(p, day) && !usesUp(s, day) && toBuy(s)) unplanted++; }
+    const usedBefore = [...a.values()].filter((s) => usesUp(s, day)).length, usedAfter = [...b.values()].filter((s) => usesUp(s, day)).length;
+    // (Bought and not yet planted, before the clamp at none: as it was, less those planted, more those taken back out.)
+    const want = e.n - usedBefore - planted + unplanted;
+    if (e.n - usedAfter === want) continue;
+    const at = e.at + 1;
+    out ??= { ...bought };
+    out[k] = { n: Math.max(0, want + usedUp(at, [...b.values()])), at };
+  }
+  return out ?? bought;
+}
+
 /** Every plant of a kind in the plan, whatever its status (its tick is measured against them). */
 export function plantsOfKind(shapes: Shape[], key: string, byId: Record<string, Plant | undefined>): Shape[] {
   return shapes.filter((s) => isPlant(s) && kindKey(s, byId) === key);
@@ -108,20 +161,40 @@ export function plantList(shapes: Shape[], byId: Record<string, Plant | undefine
   return { buy, planted: sorted('planted'), existing: sorted('existing') };
 }
 
-export interface ListTotals { toBuy: number; kinds: number; bought: number; planted: number; existing: number }
+/**
+ * The list's totals. To buy is what's left to buy: plants to go in, less those bought (the list bug hunt, Nov 1: "23
+ * plants to buy · 6 bought" counted the 6 bought as still to buy).
+ */
+export interface ListTotals {
+  /** Plants still to buy, and how many kinds they are. */
+  toBuy: number; kinds: number;
+  /** Bought, not yet planted. */
+  bought: number;
+  planted: number; existing: number;
+}
 const sum = (rows: ListRow[], f: (r: ListRow) => number) => rows.reduce((n, r) => n + f(r), 0);
+const boughtOf = (r: ListRow) => Math.min(r.bought, r.count);
 export function listTotals(l: PlantList): ListTotals {
   return {
-    toBuy: sum(l.buy, (r) => r.count), kinds: l.buy.length, bought: sum(l.buy, (r) => Math.min(r.bought, r.count)),
+    toBuy: sum(l.buy, (r) => r.count - boughtOf(r)), kinds: l.buy.filter((r) => r.count > boughtOf(r)).length, bought: sum(l.buy, boughtOf),
     planted: sum(l.planted, (r) => r.count), existing: sum(l.existing, (r) => r.count),
   };
 }
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-/** "16 plants to buy, 7 kinds · 10 bought"; "Nothing to buy" once all are planted or already there. */
+/**
+ * "16 plants to buy, 7 kinds · 6 bought, not yet planted"; "Nothing left to buy · 6 bought, not yet planted" once all
+ * are; "Nothing to buy" once all are planted or already there.
+ */
 export function totalsText(t: ListTotals): string {
-  if (!t.kinds) return t.planted || t.existing ? 'Nothing to buy' : '';
-  return `${plural(t.toBuy, 'plant')} to buy, ${plural(t.kinds, 'kind')}` + (t.bought ? ` · ${t.bought >= t.toBuy ? 'all bought' : `${t.bought} bought`}` : '');
+  const bought = t.bought ? ` · ${t.bought} bought, not yet planted` : '';
+  if (t.toBuy) return `${plural(t.toBuy, 'plant')} to buy, ${plural(t.kinds, 'kind')}${bought}`;
+  if (t.bought) return `Nothing left to buy${bought}`;
+  return t.planted || t.existing ? 'Nothing to buy' : '';
 }
+/** How many the To buy group's heading says, as the totals count them: "17", or "all bought". */
+export const buyCount = (t: ListTotals): string => (t.toBuy ? String(t.toBuy) : 'all bought');
+/** The To buy group's heading: "To buy (17)". */
+export const buyHead = (t: ListTotals): string => `To buy (${buyCount(t)})`;
 /** Where a row stands on buying: '' (none bought), "3 of 5 bought", or "Bought". */
 export function boughtText(r: ListRow): string {
   return r.bought >= r.count ? 'Bought' : r.bought ? `${r.bought} of ${r.count} bought` : '';
@@ -143,7 +216,7 @@ export function listText(l: PlantList, planName: string): string {
   const line = (mark: string, r: ListRow, after = '') => `${mark} ${r.name} × ${r.count}${after}` + [r.botanical, rowFacts(r)].filter(Boolean).map((x) => ` · ${x}`).join('');
   const out = [`${planName}: plant list`, totalsText(listTotals(l))];
   if (l.buy.length) {
-    out.push('', 'To buy');
+    out.push('', buyHead(listTotals(l)));
     for (const r of l.buy) out.push(line(r.bought >= r.count ? '☑' : '☐', r, r.bought && r.bought < r.count ? ` (${r.bought} bought)` : ''));
   }
   if (l.planted.length) {

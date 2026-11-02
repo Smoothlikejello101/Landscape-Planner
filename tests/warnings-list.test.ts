@@ -272,13 +272,20 @@ describe('what the checks can do', () => {
     // (Not a false all-clear: the button says it's the plants shown.)
     state.viewFilter = { status: 'planned', phase: '', showGone: false };
     state.hardyWarnings = false;
-    expect(buttonSaid(warningsSummary())).toMatch(/^Warnings: none found in the plants shown/);
+    expect(buttonSaid(warningsSummary())).toBe('Warnings: none in the plants shown (some plants hidden), 3 checks can’t run yet');
     state.viewFilter = { status: '', phase: '', showGone: false };
     state.roleViews = { plant: { hidden: true } };
     expect(hiddenFromChecks()?.said).toBe('Layers: Plants hidden');
     state.roleViews = { utility: { hidden: true } };
     state.shapes.push({ id: 'w', type: 'line', role: 'utility', utility: 'overhead', x: 200, y: 0, rotation: 0, points: [[0, 0], [10, 0]], color: '#ea580c', opacity: 1 } as Shape);
     expect(hiddenFromChecks()).toEqual({ plants: false, utilities: true, said: 'Layers: Utilities hidden' });
+    expect(buttonSaid(warningsSummary())).toBe('Warnings: none found (some utilities hidden), 2 checks can’t run yet');
+    state.viewFilter = { status: 'planned', phase: '', showGone: false };
+    expect(buttonSaid(warningsSummary())).toBe('Warnings: none in the plants shown (some plants and utilities hidden), 2 checks can’t run yet');
+    // Every check able to run: still not "all clear" while some are hidden.
+    state.household = { kids: true, dogs: '', cats: false, horses: false, answered: true };
+    state.shapes.push({ id: 'sun', type: 'rect', role: 'shade', x: 100, y: 0, width: 4, height: 4, rotation: 0, color: '#facc15', opacity: 0.3, label: '', locked: false, sun: { mode: 'hours', hours: 8, periods: [], dappled: false } } as Shape);
+    expect(buttonSaid(warningsSummary())).toBe('Warnings: none in the plants shown (some plants and utilities hidden)');
   });
 });
 
