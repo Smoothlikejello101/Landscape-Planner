@@ -11,7 +11,7 @@ import {
 import {
   currentProjectData, getSyncDeletedRecord, getSyncRecords, getSyncTombstones, getSyncUser, projectNow, setNewerVersionListener, storageIsDurable,
   supersededByNewer } from '../src/storage';
-import { renameProject } from '../src/storage';
+import { _setJournalLockWaitForTests, renameProject } from '../src/storage';
 import { buildRawCopyFile, RAW_COPY_FORMAT } from '../src/backup';
 import type { Shape } from '../src/types';
 import { allExportedProjects, buildBackupFile, importProjects, importSaid, parseImportFile, planContent, sameName, uniqueName } from '../src/backup';
@@ -1888,23 +1888,124 @@ describe('an older version never saves over a newer one (src/db.ts DB_VERSION)',
     expect(state.projects).toHaveLength(2);
   });
 
-  it("a page's own journal from before its own later save of the plan is only removed; another page's is kept apart", async () => {
+  it("a page's own journal with no more edits than its own later save of the plan is only removed; another page's, or one with more, is kept apart", async () => {
     const kv = await freshStorage();
     const id = state.currentProjectId!;
     state.shapes = shapesOf('saved', 'more'); save(); await flushSave();
     const rec = await stored(kv, id);
     const page = rec.savedByPage as string;
     expect(page).toMatch(/^[A-Za-z0-9]{8,}$/);
-    const older = (p: string) => JSON.stringify({ projectId: id, at: (rec.savedAt as number) - 1000, dbVersion: DB_VERSION, page: p, data: { ...currentProjectData(), shapes: [circle('saved')] } });
-    localStorage.setItem(`lp-journal:${id}@${page}`, older(page));
+    expect(typeof rec.savedSeq).toBe('number');
+    const older = (p: string, seq: number) => JSON.stringify({ projectId: id, at: (rec.savedAt as number) - 1000, dbVersion: DB_VERSION, page: p, seq, data: { ...currentProjectData(), shapes: [circle('saved')] } });
+    localStorage.setItem(`lp-journal:${id}@${page}`, older(page, rec.savedSeq as number));
     _resetStorageForTests();
     expect((await initStorage(kv)).keptApart).toBeUndefined();
     expect([journals(), state.projects.length]).toEqual(['', 1]);
-    localStorage.setItem(`lp-journal:${id}@elsewhere`, older('elsewhere'));
+    localStorage.setItem(`lp-journal:${id}@elsewhere`, older('elsewhere', 0));
     _resetStorageForTests();
     expect((await initStorage(kv)).keptApart).toEqual(['My Garden (from an older tab)']);
     expect(await keptLabels()).toEqual([['saved']]);
+    // (Its own page, with an edit more than the save had: kept too.)
+    localStorage.setItem(`lp-journal:${id}@${page}`, older(page, (rec.savedSeq as number) + 1).replace('"label":"saved"', '"label":"one more"'));
+    _resetStorageForTests();
+    expect((await initStorage(kv)).keptApart).toEqual(['My Garden (from an older tab) (2)']);
   });
+
+  // The second review (Nov 1).
+  it('two journals for one plan, from pages that never saw each other\'s edit: the newer goes in place and the older is kept apart, whichever localStorage lists first', async () => {
+    for (const first of ['older', 'newer'] as const) {
+      const name = 'test-' + ++dbCount;
+      (await dbAt(name, 1, RELEASE3)).close();
+      const base = RELEASE3.projects.p1;
+      const t = Date.now();
+      const older = ['lp-journal:p1', JSON.stringify({ projectId: 'p1', at: t + 1000, data: { ...base, shapes: [circle('oak'), BURIED, circle('release 3 edit')] } })];
+      const newer = ['lp-journal:p1@pageB', JSON.stringify({ projectId: 'p1', at: t + 2000, dbVersion: DB_VERSION, page: 'pageB', seq: 3, data: { ...base, shapes: [circle('oak'), BURIED, circle('newer edit')] } })];
+      for (const [k, v] of first === 'older' ? [older, newer] : [newer, older]) localStorage.setItem(k, v);
+      const listed = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)!).filter((k) => k.startsWith('lp-journal:'));
+      expect(listed[0]).toBe(first === 'older' ? 'lp-journal:p1' : 'lp-journal:p1@pageB');
+      _resetStorageForTests();
+      const { keptApart } = await initStorage(await openKV(name));
+      expect(keptApart).toEqual(['Back Yard (from an older tab)']);
+      expect(labels(state.shapes)).toEqual(['oak', 'buried line', 'newer edit']);
+      expect(await keptLabels()).toEqual([['oak', 'buried line', 'release 3 edit']]);
+      expect(journals()).toBe('');
+    }
+  });
+
+  it("a page's own journal is never dropped for its time: the clock set back after a save, or a save and an edit in the same millisecond", async () => {
+    // The clock set back a minute between the save and the edit's journal: the journal looks older than the save.
+    let kv = await freshStorage();
+    let id = state.currentProjectId!;
+    state.shapes = shapesOf('saved'); save(); await flushSave();
+    laterBy(-60_000);
+    state.shapes = shapesOf('saved', 'after the clock moved'); save(); writeJournalIfDirty();
+    vi.useRealTimers();
+    _resetStorageForTests();
+    await initStorage(kv);
+    expect([labels(state.shapes), await keptLabels()]).toEqual([['saved'], [['saved', 'after the clock moved']]]);
+    // The save and the edit's journal in one millisecond, then the plan renamed: the edit was after the save.
+    kv = await freshStorage();
+    id = state.currentProjectId!;
+    vi.useFakeTimers({ toFake: ['Date'] });
+    state.shapes = shapesOf('saved'); save(); await flushSave();
+    state.shapes = shapesOf('saved', 'same moment'); save(); writeJournalIfDirty();
+    vi.setSystemTime(Date.now() + 5);
+    await renameProject(id, 'Renamed');
+    vi.useRealTimers();
+    _resetStorageForTests();
+    expect((await initStorage(kv)).keptApart).toEqual(['Renamed (from an older tab)']);
+    expect(await keptLabels()).toEqual([['saved', 'same moment']]);
+  });
+
+  it('a release 3 tab left open with an unsaved edit, writing its journal again each time it is hidden, is kept apart once, not once a start', async () => {
+    const name = 'test-' + ++dbCount;
+    (await dbAt(name, 1, RELEASE3)).close();
+    _resetStorageForTests();
+    let kv = await openKV(name);
+    await initStorage(kv);
+    state.shapes = [...state.shapes, ...shapesOf('here')]; save(); await flushSave();
+    const r3 = (at: number, extra: string[]) => JSON.stringify({ projectId: 'p1', at, data: { ...RELEASE3.projects.p1, shapes: [circle('oak'), BURIED, ...extra.map(circle)] } });
+    localStorage.setItem('lp-journal:p1', r3(Date.now() - 1000, ['r3 late']));
+    _resetStorageForTests();
+    expect((await initStorage(kv)).keptApart).toEqual(['Back Yard (from an older tab)']);
+    // Hidden again: the same edit, written again later.
+    localStorage.setItem('lp-journal:p1', r3(Date.now() + 1000, ['r3 late']));
+    _resetStorageForTests();
+    kv = await openKV(name);
+    expect((await initStorage(kv)).keptApart).toBeUndefined();
+    expect(journals()).toBe('');
+    expect(await keptLabels()).toEqual([['oak', 'buried line', 'r3 late']]);
+    // One more edit there since: that's kept.
+    localStorage.setItem('lp-journal:p1', r3(Date.now() + 2000, ['r3 late', 'r3 later']));
+    _resetStorageForTests();
+    expect((await initStorage(kv)).keptApart).toEqual(['Back Yard (from an older tab) (2)']);
+  });
+
+  it("waits at most a moment for its turn at the journals (Web Locks), then goes on without it", async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    state.shapes = shapesOf('saved'); save(); await flushSave();
+    localStorage.setItem('lp-journal:' + id, JSON.stringify({ projectId: id, at: Date.now() + 1000, data: { ...currentProjectData(), shapes: shapesOf('saved', 'older tab') } }));
+    // (A page holding the turn that never lets go: frozen, say. The request ends only when its signal says so.)
+    const asked: AbortSignal[] = [];
+    const request = (_n: string, opts: { signal?: AbortSignal }) => new Promise((_resolve, reject) => {
+      asked.push(opts.signal!);
+      opts.signal!.addEventListener('abort', () => reject(new DOMException('gave up', 'AbortError')));
+    });
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } });
+    _setJournalLockWaitForTests(50);
+    try {
+      _resetStorageForTests();
+      const t = Date.now();
+      expect((await initStorage(kv)).keptApart).toEqual(['My Garden (from an older tab)']);
+      expect(asked).toHaveLength(1);
+      expect(Date.now() - t).toBeLessThan(2000);
+    } finally {
+      delete (navigator as unknown as { locks?: unknown }).locks;
+      _setJournalLockWaitForTests();
+    }
+  });
+
 
   it("two pages starting at once (a browser restoring its tabs) keep an older tab's journal apart once, with Web Locks or without", async () => {
     for (const withLocks of [false, true]) {
@@ -1918,7 +2019,10 @@ describe('an older version never saves over a newer one (src/db.ts DB_VERSION)',
       if (withLocks) {
         // (A stand-in for the browser's Web Locks: one holder at a time, in turn.)
         let tail: Promise<unknown> = Promise.resolve();
-        const request = (_name: string, cb: () => Promise<unknown>) => { locked++; const run = tail.then(cb); tail = run.catch(() => {}); return run; };
+        const request = (_name: string, ...rest: unknown[]) => {
+          const cb = rest[rest.length - 1] as () => Promise<unknown>;
+          locked++; const run = tail.then(cb); tail = run.catch(() => {}); return run;
+        };
         Object.defineProperty(navigator, 'locks', { configurable: true, value: { request } });
       }
       try {

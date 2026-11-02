@@ -38,12 +38,17 @@ interface StoredProject extends Omit<ProjectData, 'bgImage'> {
    * kept. A journal from an older one is never put over it (replayJournals). A journal put in place keeps its own.
    */
   dbVersion?: number;
-  /** The page that wrote it, and when (a journal put in place: its page and time); none from before they were kept. */
+  /**
+   * The page that wrote it, when, and that page's edit count then (`savedSeq`: a journal put in place, its own); none
+   * from before they were kept. A journal of that page's with no more edits than that holds nothing the plan hasn't
+   * (replayJournals: a count, not a time, so a clock set back can't make it look older).
+   */
   savedByPage?: string;
   savedAt?: number;
+  savedSeq?: number;
 }
-/** Who wrote a plan record, kept with it: this page and version, now, unless said (a journal put in place). */
-interface WriteStamp { dbVersion: number; page?: string; at: number }
+/** Who wrote a plan record, kept with it: this page and version, now, at its edit count, unless said (a journal put in place). */
+interface WriteStamp { dbVersion: number; page?: string; at: number; seq?: number }
 interface ImageRecord { dataUrl: string; createdAt?: number }
 
 const SAVE_DEBOUNCE_MS = 250;
@@ -103,9 +108,9 @@ function newPageId(): string { return (globalThis.crypto?.randomUUID?.() ?? uid(
 const journalKey = (projectId: string, page = PAGE) => `${JOURNAL_PREFIX}${projectId}@${page}`;
 /**
  * `dbVersion`: the database version of the app that wrote it (src/db.ts DB_VERSION); none: 1, from before it was kept.
- * `page`: the page that wrote it (none: an older version's, keyed by its plan alone).
+ * `page`: the page that wrote it (none: an older version's, keyed by its plan alone); `seq`, that page's edit count then.
  */
-interface Journal { projectId: string; at: number; dbVersion?: number; page?: string; data: ProjectData }
+interface Journal { projectId: string; at: number; dbVersion?: number; page?: string; seq?: number; data: ProjectData }
 
 /**
  * Set once a newer version of the app, in another tab or window, has taken the database (src/db.ts): this page saves
@@ -463,7 +468,7 @@ export function viewFilterOf(raw: unknown, phases: string[]): { viewFilter?: Sha
 
 // ---------- Writing ----------
 /** Ops that store `data` for project `id`, splitting the image bytes into their own record. */
-function projectWriteOps(id: string, data: ProjectData, knownImageKeys?: Set<string>, stamp: WriteStamp = { dbVersion: DB_VERSION, page: PAGE, at: now() }): WriteOp[] {
+function projectWriteOps(id: string, data: ProjectData, knownImageKeys?: Set<string>, stamp: WriteStamp = { dbVersion: DB_VERSION, page: PAGE, at: now(), seq: editSeq }): WriteOp[] {
   const ops: WriteOp[] = [];
   let storedBg: StoredBg | null = null;
   if (data.bgImage) {
@@ -488,6 +493,7 @@ function projectWriteOps(id: string, data: ProjectData, knownImageKeys?: Set<str
     ...(data.switches ? { switches: data.switches } : {}),
     ...(data.viewFilter ? { viewFilter: data.viewFilter } : {}),
     dbVersion: stamp.dbVersion, ...(stamp.page ? { savedByPage: stamp.page } : {}), savedAt: stamp.at,
+    ...(typeof stamp.seq === 'number' ? { savedSeq: stamp.seq } : {}),
   };
   ops.push(put('projects', id, stored));
   return ops;
@@ -507,7 +513,7 @@ async function writeCurrentKnowing(known: Set<string>): Promise<boolean> {
   const hadEdits = seq !== savedSeq; // (a flush with nothing new still writes; sync only hears of real edits)
   // Snapshot synchronously so later edits don't race with this write.
   const data = currentProjectData();
-  const ops = projectWriteOps(id, data, known);
+  const ops = projectWriteOps(id, data, known, { dbVersion: DB_VERSION, page: PAGE, at: now(), seq });
   const meta = metaFor(id);
   if (meta) {
     // (Only an edit makes it "last modified": opening a plan and leaving it moved it to the top of the list, under
@@ -628,7 +634,7 @@ export function writeJournalIfDirty() {
   const bg = state.bgImage;
   const imageOnDisk = !!(bg?.imageId && committedImageKeys.has(imageKey(id, bg.imageId)));
   const journal = (withImage: boolean): Journal => ({
-    projectId: id, at: now(), dbVersion: DB_VERSION, page: PAGE,
+    projectId: id, at: now(), dbVersion: DB_VERSION, page: PAGE, seq: editSeq,
     data: { ...currentProjectData(), bgImage: bg ? { ...bg, dataUrl: withImage ? bg.dataUrl : '' } : null },
   });
   try {
@@ -685,6 +691,10 @@ function contentKey(d: ProjectData, bg: Partial<BgImage> | StoredBg | null | und
 const OLDER_TAB_SUFFIX = ' (from an older tab)';
 /** Pages starting together (a browser restoring its tabs) go through the journals one at a time (Web Locks). */
 const JOURNAL_LOCK = 'fullgrown-journals';
+/** How long a page waits for that turn before going on without it (safe: a journal kept apart twice is one plan). */
+let JOURNAL_LOCK_WAIT_MS = 5000;
+/** Test hook: a shorter wait for the journals' turn (none: as the app has it). */
+export function _setJournalLockWaitForTests(ms = 5000) { JOURNAL_LOCK_WAIT_MS = ms; }
 /**
  * Apply journals left by pages that closed before their saves finished, one page at a time where the browser can say
  * so (Web Locks), each journal read again inside. For each:
@@ -699,14 +709,32 @@ const JOURNAL_LOCK = 'fullgrown-journals';
 async function replayJournals(k: KV): Promise<string[]> {
   if (!k.durable) return []; // can't apply them now; keep them for a session that can
   const locks = (globalThis.navigator as Navigator | undefined)?.locks;
-  if (locks?.request) {
-    try { return await locks.request(JOURNAL_LOCK, () => replayJournalsNow(k)); } catch (e) { console.warn('journals without a lock', e); }
+  if (locks?.request && typeof AbortController !== 'undefined') {
+    // (Not waited for long: a page holding it that's stuck, or frozen, mustn't stop this one starting.)
+    const waited = new AbortController();
+    const timer = setTimeout(() => waited.abort(), JOURNAL_LOCK_WAIT_MS);
+    let ran = false;
+    try {
+      return await locks.request(JOURNAL_LOCK, { signal: waited.signal }, () => { ran = true; clearTimeout(timer); return replayJournalsNow(k); });
+    } catch (e) {
+      clearTimeout(timer);
+      if (ran) throw e;
+      console.warn('journals without a lock', e);
+    }
   }
   return replayJournalsNow(k);
 }
+/** The journals there are, newest first (by when each was written: localStorage's own order is anything). */
+function journalKeysNewestFirst(): string[] {
+  const at = (key: string) => { try { return num((JSON.parse(localStorage.getItem(key) || 'null') as Journal | null)?.at, 0); } catch { return 0; } };
+  return journalKeys().map((key) => ({ key, at: at(key) })).sort((a, b) => b.at - a.at).map((x) => x.key);
+}
 async function replayJournalsNow(k: KV): Promise<string[]> {
   const keptApart: string[] = [];
-  for (const key of journalKeys()) {
+  // Newest first: of two journals for one plan from pages that never saw each other's edit, the newer is put in place
+  // and the older, now from before the plan's last change, kept apart. The other way round, the newer would have gone
+  // over the older, its edit lost (the second review, Nov 1).
+  for (const key of journalKeysNewestFirst()) {
     let j: Journal | null = null;
     try { j = JSON.parse(localStorage.getItem(key) || 'null'); } catch { j = null; }
     if (!j) continue; // (taken by another page meanwhile)
@@ -732,7 +760,9 @@ async function replayJournalsNow(k: KV): Promise<string[]> {
         if (rawBg && safeImageUrl(rawBg.dataUrl)) data.bgImage = migrateBgImage(rawBg);
         const stored = (storedNow ?? {}) as Record<string, unknown>;
         const same = !!storedNow && contentKey(data, rawBg) === contentKey(sanitizeProjectData({ ...stored, bgImage: null }), storedNow.bgImage);
-        const savedSinceByItsPage = typeof j.page === 'string' && storedNow?.savedByPage === j.page && num(storedNow?.savedAt, 0) >= at;
+        // (Its page saved the plan since, with at least the edits the journal had: by that page's own edit count.)
+        const savedSinceByItsPage = typeof j.page === 'string' && storedNow?.savedByPage === j.page
+          && typeof j.seq === 'number' && typeof storedNow.savedSeq === 'number' && storedNow.savedSeq >= j.seq;
         if (same || (at < meta.lastModified && savedSinceByItsPage)) {
           // Nothing it has that the plan hasn't.
         } else if (storedNow && (at < meta.lastModified || journalWouldLose(stored, raw, version))) {
@@ -741,7 +771,7 @@ async function replayJournalsNow(k: KV): Promise<string[]> {
         } else {
           // (Stamped as the journal's: its version and page wrote it. An older version's next journal for this plan, more
           // of the same edits, then goes in place too, not apart: the review, Nov 1.)
-          const ops = projectWriteOps(j.projectId, data, undefined, { dbVersion: version, page: j.page, at });
+          const ops = projectWriteOps(j.projectId, data, undefined, { dbVersion: version, page: j.page, at, ...(typeof j.seq === 'number' ? { seq: j.seq } : {}) });
           const record = ops.find((o) => o.store === 'projects')!.value as StoredProject;
           if (rawBg && !data.bgImage) {
             // The journal has no image bytes. Point at the stored image if it exists;
@@ -772,21 +802,29 @@ async function replayJournalsNow(k: KV): Promise<string[]> {
  * it's gone, the copy has none: the plan keeps its own). Its name; null if it was kept already.
  *
  * Its id comes from the journal (`key`, `at`): two pages keeping the same journal at once (no Web Locks) make one plan,
- * not two, and one kept already is left as it is.
+ * not two, and one kept already is left as it is. Nor is one made when a plan kept apart from the same plan already
+ * holds the same (`keptFrom`): a release 3 tab left open with an unsaved edit writes its journal again each time it's
+ * hidden, and each start would keep another copy of it (the second review, Nov 1).
  */
 async function keepJournalApart(k: KV, key: string, fromId: string, fromName: string, at: number, data: ProjectData, rawBg: Partial<BgImage> | null): Promise<string | null> {
   const id = 'kept' + fingerprint(key, { at }).replace(/[^A-Za-z0-9]/g, '');
   if (await k.get<ProjectMeta>('meta', id)) return null;
+  const metas = await k.getAll<ProjectMeta>('meta');
+  const content = contentKey(data, rawBg);
+  for (const m of metas.filter((x) => x.keptFrom === fromId)) {
+    const rec = await k.get<StoredProject>('projects', m.id);
+    if (rec && contentKey(sanitizeProjectData({ ...rec, bgImage: null }), rec.bgImage) === content) return null;
+  }
   if (rawBg && !data.bgImage && rawBg.imageId) {
     const img = await k.get<ImageRecord>('images', imageKey(fromId, rawBg.imageId));
     if (img && safeImageUrl(img.dataUrl)) data.bgImage = migrateBgImage({ ...rawBg, dataUrl: img.dataUrl });
   }
-  const taken = new Set((await k.getAll<ProjectMeta>('meta')).filter((m) => m.id !== id).map((m) => m.name));
+  const taken = new Set(metas.filter((m) => m.id !== id).map((m) => m.name));
   const base = fromName + OLDER_TAB_SUFFIX;
   let name = base;
   for (let i = 2; taken.has(name); i++) name = `${base} (${i})`;
   // (Its photo's bytes written under its own id: projectWriteOps, with no image keys known.)
-  await k.write([...projectWriteOps(id, data), put('meta', id, { id, name, lastModified: at, shapeCount: data.shapes.length } satisfies ProjectMeta)]);
+  await k.write([...projectWriteOps(id, data), put('meta', id, { id, name, lastModified: at, shapeCount: data.shapes.length, keptFrom: fromId } satisfies ProjectMeta)]);
   return name;
 }
 
