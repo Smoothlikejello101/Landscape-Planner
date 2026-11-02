@@ -273,12 +273,11 @@ a { color: inherit; }
 #toast-action.at-bottom > .notice-detail { order: 3; }
 #toast-action.at-bottom > .notice-buttons { order: 4; flex: 1 1 100%; flex-wrap: nowrap; margin-left: 0; }
 #toast-action.at-bottom > .notice-buttons button { flex: 1 1 0; min-width: 0; padding: 10px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Four by the place bar on a phone (Nudge apart, Dismiss, Move it, Settings: Jason's UI review, Nov 2): two rows of two,
-   none cut short. */
-@media (max-width: 599px) {
-  #toast-action.at-bottom > .notice-buttons:has(> button:nth-child(4)) { flex-wrap: wrap; }
-  #toast-action.at-bottom > .notice-buttons:has(> button:nth-child(4)) > button { flex: 1 1 calc(50% - 4px); }
-}
+/* An icon in place of a word (the crowding notice's Settings, since Nudge apart joined it: Jason's UI review, Nov 2): its
+   own width, and the words beside it as wide as they need, so the four keep to one row by the place bar (Bea, round 3). */
+#toast-action .notice-buttons button.notice-icon { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; padding: 10px; }
+#toast-action.at-bottom > .notice-buttons button.notice-icon { flex: 0 0 auto; }
+#toast-action.at-bottom > .notice-buttons:has(> .notice-icon) > button:not(.notice-icon) { flex: 1 1 auto; }
 #toast-action button.notice-close { background: transparent; color: #d6d3d1; font-weight: 400; font-size: calc(18px * var(--ts)); padding: 6px 10px; min-width: 44px; }
 /* The ✕ in the top right corner of every notice, wherever its words and buttons wrap (Jason, Oct 31: it came in at the
    lower right, moving with each notice, sometimes alone on a line of its own). */

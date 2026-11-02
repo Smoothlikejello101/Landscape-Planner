@@ -83,7 +83,7 @@ export function placeToast(node: HTMLElement) {
  * the wheel), so it never covers what the person came to do (the start's cards: src/ui/welcome-card.ts). A question
  * up over it (src/ui/ask.ts) isn't that: answered, it's still there.
  */
-export function toastAction(message: string, actions: { label: string; run: () => void; keep?: boolean; className?: string }[], ms = 10000, testid?: string,
+export function toastAction(message: string, actions: { label: string; run: () => void; keep?: boolean; className?: string; icon?: string }[], ms = 10000, testid?: string,
   opts: { detail?: string; tone?: 'amber' | 'red'; sub?: string; untilAction?: boolean } = {}) {
   toast('', 1); // (clears a plain toast)
   document.getElementById('toast-action')?.remove();
@@ -133,8 +133,11 @@ export function toastAction(message: string, actions: { label: string; run: () =
   buttons.className = 'notice-buttons';
   for (const a of actions) {
     const b = document.createElement('button');
-    b.textContent = tapSaid(a.label);
     if (a.className) b.className = a.className;
+    // (An icon in place of its word, named for screen readers and on hover: the crowding notice's Settings, so its
+    // four buttons keep to one row by the place bar.)
+    if (a.icon) { b.innerHTML = a.icon; b.setAttribute('aria-label', a.label); b.title = a.label; b.classList.add('notice-icon'); }
+    else b.textContent = tapSaid(a.label);
     b.addEventListener('click', () => { if (a.keep) b.remove(); else node.remove(); a.run(); });
     buttons.appendChild(b);
   }
