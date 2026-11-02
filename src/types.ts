@@ -551,8 +551,11 @@ export interface AppState {
   pickerLinkLocked: boolean;
   /** Picker opened from Add, Existing tree: pick the tree (or an unknown one), then draw its canopy. */
   pickerForTree: boolean;
-  /** Placing a plant by tapping: the plant in hand and what's been placed so far (not saved). */
-  placing: { plantId: string; placed: { id: string; snap: HistorySnapshot }[]; warnedClose?: boolean; warnedHardy?: string; warnedFruit?: string } | null;
+  /**
+   * Placing a plant by tapping: the plant in hand and what's been placed so far (not saved). `also`: the steps made on a
+   * plant since it was placed (a Nudge apart: src/ui/fix-problem.ts), taken back with it.
+   */
+  placing: { plantId: string; placed: { id: string; snap: HistorySnapshot; also?: HistorySnapshot[] }[]; warnedClose?: boolean; warnedHardy?: string; warnedFruit?: string } | null;
   bgEditMode: boolean;
   bgCalibrate: Calibration | null;
   draw: DrawState | null;

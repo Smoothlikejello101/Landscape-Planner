@@ -17,6 +17,7 @@ import { alreadyThere } from '../status';
 import { I } from '../icons';
 import { crowdOptions, hardyHere } from '../crowd-here';
 import { flagAgain, leaveClose } from './crowd-notice';
+import { nudgeNow, swapButton } from './fix-problem';
 import { shownWith } from '../status';
 import { sqFt } from '../util';
 import { emptyTimeline, timeRange } from './time-range';
@@ -68,8 +69,10 @@ export function plantSunBanner(s: Shape): HTMLElement | null {
     if (dismissed) updateSelected({ sunDismissed: undefined }); else updateSelected({ sunDismissed: check.message });
   });
   const note = dismissed ? ' (dismissed for this one: no badge on the plan)' : !state.sunWarnings ? ' (Sun is off in Warnings: no badges)' : '';
+  // (Swap, filtered for the sun where it's planted: Jason's UI review, Nov 2.)
   return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'sun-check' },
-    el('div', {}, '⚠ ' + check.message + note), el('div', { style: { marginTop: '4px' } }, btn));
+    el('div', {}, '⚠ ' + check.message + note),
+    el('div', { className: 'dismiss-row' }, btn, dismissed ? null : swapButton('sun', [s], 'Swap for one that takes this sun\u2026')));
 }
 
 /**
@@ -135,8 +138,10 @@ export function plantHardyBanner(s: Shape): HTMLElement | null {
   const across = dismissedForPlan('hardy', p!.id, w.line), mine = !across && s.hardyDismissed === w.line, dismissed = across || mine;
   const note = across ? ' (dismissed for every one in this plan: no badge)' : dismissed ? ' (dismissed for this one: no badge on the plan)'
     : !state.hardyWarnings ? ' (Hardiness is off in Warnings: no badges)' : '';
+  const buttons = plantDismissButtons('hardy', p!.id, w.line, across, mine);
+  if (!dismissed) buttons.appendChild(swapButton('hardy', [s], `Swap for one hardy in zone ${state.location!.zone}\u2026`));
   return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'hardy-check' },
-    el('div', {}, `${w.cold ? '\u2744' : '\u2600'} ${w.line}.${note}`), plantDismissButtons('hardy', p!.id, w.line, across, mine));
+    el('div', {}, `${w.cold ? '\u2744' : '\u2600'} ${w.line}.${note}`), buttons);
 }
 /** Poisonous to the people or pets in the yard (src/plants.ts householdFlags): said at the top of its pane. */
 export function plantPoisonBanner(s: Shape): HTMLElement | null {
@@ -152,9 +157,11 @@ export function plantPoisonBanner(s: Shape): HTMLElement | null {
   // (Still dismissed with fewer at risk than when it was: src/dismissals.ts poisonCovered.)
   const key = poisonSaid(p!), across = dismissedForPlan('poison', p!.id, key), mine = !across && poisonCovered(s.poisonDismissed, key), dismissed = across || mine;
   const note = across ? ' Dismissed for every one in this plan: no badge, though its details still say so.' : dismissed ? ' Dismissed for this one: no badge on the plan.' : '';
+  const buttons = plantDismissButtons('poison', p!.id, key, across, mine);
+  if (!dismissed) buttons.appendChild(swapButton('poison', [s], `Swap for one not flagged for ${whoSaid}\u2026`));
   return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'poison-check' },
     el('div', {}, `\u26a0 ${said}. You said ${whoSaid} are in the yard; its sources are under Plant \u2192 Safety (below).${note}`),
-    plantDismissButtons('poison', p!.id, key, across, mine));
+    buttons);
 }
 
 /**
@@ -338,9 +345,14 @@ export function crowdingNote(s: Shape): HTMLElement | null {
   if (crowded.length) body.append(el('div', {}, `Planted closer than usual to ${n(crowded.length)}:`), ...crowded.slice(0, 3).map(line));
   if (close.length) body.append(el('div', { style: crowded.length ? { marginTop: '4px' } : {} }, `Close to ${n(close.length)}: they may quickly grow into one another.`), ...close.slice(0, 3).map(line));
   // Dismissed after the fact, as the notice's Dismiss does as a plant is placed (Jason, 2026-10-27); Show again takes it back.
+  // Fixed from here (Jason's UI review, Nov 2): nudged clear of the nearest, this plant moving; or swapped for a smaller
+  // one, its own smaller forms first, the list filtered for the width that fits (src/ui/fix-problem.ts).
+  const first = crowds[0].other;
+  const nudge = el('button', { className: 'btn', 'data-testid': 'fix-nudge', style: { marginTop: '6px' } }, crowds.length === 1 ? 'Nudge apart' : `Nudge apart from ${first.label || 'a plant'}`);
+  nudge.addEventListener('click', () => { nudgeNow(s, first, s.id); });
   const leave = el('button', { className: 'btn', 'data-testid': 'leave-close', style: { marginTop: '6px' } }, crowds.length === 1 ? 'Dismiss for this pair' : `Dismiss for these ${crowds.length} pairs`);
   leave.addEventListener('click', () => leaveClose(s.id, crowds.map((c) => c.other.id)));
-  body.append(el('div', {}, leave));
+  body.append(el('div', { className: 'crowd-fixes' }, nudge, s.plantId && plantsById[s.plantId] ? swapButton('big', [s], 'Swap for a smaller plant\u2026', 'btn') : null, leave));
   if (left.length) body.append(flagAgainRow());
   body.append(el('div', { className: 'hint', style: { marginTop: '4px' } }, 'Usual spacing is half of each plant\'s typical spread added together, less where one grows under a tree whose lower limbs can be taken up (a third of its height, unless the tree says otherwise). ' +
     `Spring bulbs under a deciduous plant ${BULB_PARTNER_MIN_HEIGHT} ft or taller don't count, except right at its base. A little closeness can be fine, if you're after a quick, full look.`));

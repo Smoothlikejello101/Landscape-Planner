@@ -162,12 +162,12 @@ export function cutSelected() {
  * for a plant across the plan aren't in the undo history: src/warnings-list.ts setDismissed): it takes it back its own
  * way, false if it has changed since.
  */
-export function undoNotice(said: string, takeBack?: () => boolean) {
+export function undoNotice(said: string, takeBack?: () => boolean, testid?: string) {
   const step = state.history[state.historyIndex];
   toastAction(said, [{ label: 'Undo', run: () => {
     flushHistoryDebounce();
     if (takeBack ? !takeBack() : state.history[state.historyIndex] !== step) { toast('It has changed since, so it was left as it is.'); return; }
     if (!takeBack) undo();
     render();
-  } }], 8000);
+  } }], 8000, testid);
 }

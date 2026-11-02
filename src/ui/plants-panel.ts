@@ -1,4 +1,6 @@
 import { crowdLevelsOf, crowdNoticeAfterSwap } from './crowd-notice';
+import { swapFix, swapFixClosed, swapFixOn, type SwapFix } from './fix-problem';
+import { smallerForms, type SmallerForm } from '../fix-problem';
 import { el, hasKeyboard, sheetCloseButton, tapSaid, type Child } from '../dom';
 import { needNames as needNamesOf, readNeeds, type NameIndex, type NeedSet } from '../search-needs';
 import { FLOWER_CHOICES } from '../flower-colors';
@@ -7,7 +9,7 @@ import { toast } from './toast';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery, unsearchable } from '../search';
-import { seasonMonths, byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, planCounts, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById, treeFiltersAside } from '../plants';
+import { seasonMonths, byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, planCounts, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById, swapFiltersOn, treeFiltersAside } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { SPREAD_WAYS, spreadWays } from '../spread';
@@ -27,6 +29,14 @@ const dotColor = plantDot;
 /** The small flower before a row's bloom months, in the text's own color. */
 const FLOWER_GLYPH = '<svg viewBox="0 0 20 20" width="1em" height="1em" fill="currentColor"><circle cx="10" cy="5.6" r="3.4"/><circle cx="14.2" cy="8.6" r="3.4"/><circle cx="12.6" cy="13.6" r="3.4"/><circle cx="7.4" cy="13.6" r="3.4"/><circle cx="5.8" cy="8.6" r="3.4"/><circle cx="10" cy="10" r="2.2" fill="#fff"/></svg>';
 
+/** A Swap's smaller forms, worked out once while it's open (the list is rebuilt at each filter changed). */
+let smallMemo: { fix: SwapFix; plants: Plant[]; list: SmallerForm[] } | null = null;
+function smallerOf(fix: SwapFix): SmallerForm[] {
+  const p = fix.smaller ? plantsById[fix.smaller.plantId] : undefined;
+  if (!p || !fix.smaller) return [];
+  if (smallMemo?.fix !== fix || smallMemo.plants !== PLANTS) smallMemo = { fix, plants: PLANTS, list: smallerForms(p, PLANTS, fix.smaller.room) };
+  return smallMemo.list;
+}
 /** The open picker's list rebuild (in place: the search keeps the keyboard, opened rows stay open). */
 let refreshList: (() => void) | null = null;
 /**
@@ -53,7 +63,7 @@ let askingAtTop: boolean | null = null;
  */
 let typingFold = false;
 /** The picker closed (src/ui/render.ts): asked again or not by what's kept, the next time it opens. */
-export function pickerClosed() { askingAtTop = null; typingFold = false; }
+export function pickerClosed() { askingAtTop = null; typingFold = false; swapFixClosed(); }
 /** `fn` with these filters off, the filters as they were after. */
 function withFiltersOff<T>(keys: (keyof PlantFilter)[], fn: () => T): T {
   const was = keys.map((k) => [k, plantFilter[k]] as const);
@@ -143,6 +153,8 @@ export function openOwnPlantForm() {
 }
 
 const cap = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
+/** Feet as a row says them: 2.5, 3. */
+const fmtFt = (v: number) => (Math.round(v * 10) / 10).toString();
 /**
  * A plant's name with a place to wrap after each slash: "Bradford/" then "Callery pear" on the next line, not
  * "Bradford/Call" and "ery pear" beside a wide "Place (banned)" (the picker bug hunt, Nov 1, B11). Its words are as
@@ -203,6 +215,8 @@ const FILTER_NAMES: Partial<Record<keyof PlantFilter, (f: PlantFilter) => string
   edibleParts: (f) => `Edible ${joined(f.edibleParts, 'or')}`,
   inPlan: () => 'In this plan',
   partnersOf: (f) => `Partners for ${plantsById[f.partnersOf]?.common ?? 'a plant'}`,
+  // (Set only by a Swap from a sun warning, beside the spot's sun: src/ui/fix-problem.ts.)
+  afternoonSun: () => 'Takes hot afternoon sun',
 };
 /**
  * Whether the filters are open: one fold for them all, folded to start and left as the gardener left it (Jason,
@@ -295,7 +309,7 @@ export function renderPlantsPanel() {
    * A plant's row: tap it to open its details, or Place (Link, Pick) to use it.
    * Opening and closing change only this row, so the search box keeps the keyboard.
    */
-  function buildRow(p: Plant, shownIn = -1) {
+  function buildRow(p: Plant, shownIn = -1, form?: SmallerForm) {
     // Its names and forms; then size, sun and hardiness (a hardiness that doesn't fit here in amber); then its marks.
     const lines = rowLines(p);
     const facts = el('div', { className: 'pmeta', 'data-testid': 'row-facts' }, [lines.size, lines.sun].filter(Boolean).join(' \u00b7 '));
@@ -333,6 +347,12 @@ export function renderPlantsPanel() {
         const why = `Matches on ${joined(earlierFor.get(p.id) ?? [], 'and')} only by the earlier list (unverified)`;
         flags.push(el('span', { className: 'pflag check unverified-badge', 'data-testid': 'earlier-flag', title: why }, 'Earlier list only', el('span', { className: 'sr-only' }, ` (${why})`)));
       }
+    }
+    // (A smaller form of the plant being swapped: how wide it typically grows, and whether that fits where it's planted.)
+    if (form) {
+      const room = swapFix()?.smaller?.room;
+      flags.push(el('span', { className: `pflag ${form.fits ? 'fit' : 'warn'}`, 'data-testid': 'smaller-fit' },
+        form.fits ? `Typically ${fmtFt(form.width)} ft wide${room != null ? ': fits' : ''}` : `Typically ${fmtFt(form.width)} ft wide: wider than the ${fmtFt(room!)} ft there`));
     }
     const hidBy = hiddenInPlan.get(p.id);
     if (hidBy?.length) flags.push(el('span', { className: 'pflag warn', 'data-testid': 'filtered-in-plan' }, `Your filters would hide it: ${hidBy.join(', ')}`));
@@ -440,6 +460,9 @@ export function renderPlantsPanel() {
    * does. Not "Clear filters" or "Show them": those are for the search at hand.
    */
   function keepYard(key: keyof PlantFilter) {
+    // (A Swap opened from a warning: its filters are its own, put back as they were when it closes; taking one off
+    // shows more plants to swap in, and says nothing of who's in the yard. Jason's UI review, Nov 2.)
+    if (swapFiltersOn()) return;
     const k = yardKeyOf(key);
     if (k) { saveYard(yardOf(plantFilter), k); syncYard(); }
   }
@@ -481,6 +504,22 @@ export function renderPlantsPanel() {
       : plantFilter.inPlan ? (found ? `${countWord(inPlanPlants)} plant${inPlanPlants === 1 ? '' : 's'}, ${countWord(found)} kind${found === 1 ? '' : 's'} in this plan${q ? ` match \u201c${plantFilter.q.trim()}\u201d` : ''}` : q ? `No plant in this plan matches \u201c${plantFilter.q.trim()}\u201d` : 'No plants placed in this plan yet')
       : pickerCount(n, all, out.filter((p) => !forTree || isTree(p)).length, foundBanned, gardenStateName() ?? 'here')) +
       (swapping ? ' \u00b7 Pick the plant to swap in' : linking ? ' \u00b7 Link the plant this circle stands for' : forTree ? ' \u00b7 trees only' : tapSaid(' \u00b7 Place a plant, then tap the plan where it goes; tap a plant for its details'));
+    // Too big for its spot (a Swap from crowding, or from a plant wider than its bed): the smaller forms of the same
+    // plant first, smallest first, by their sources' sizes, each saying how wide it grows and whether that fits; then the
+    // usual list, without them (Jason's UI review, Nov 2: "Blue Jean Baby for Russian sage"; never "plants like this").
+    // Not while searching, or looking at "In this plan". The other filters count (who's in the yard), but not size.
+    const fix = swapping ? swapFix() : null;
+    const swappedOut = fix?.smaller ? plantsById[fix.smaller.plantId] : undefined;
+    const small = swappedOut && !q && !plantFilter.inPlan
+      ? smallerOf(fix!).filter((x) => !now?.has(x.plant.id) && plantMatches(x.plant, { ...plantFilter, width: '', height: '', q: '' }))
+      : [];
+    const smallIds = new Set(small.map((x) => x.plant.id));
+    if (smallIds.size) hits = hits.filter((p) => !smallIds.has(p.id));
+    if (swappedOut && small.length) {
+      listWrap.appendChild(el('div', { className: 'list-heading', 'data-testid': 'smaller-forms' }, `Smaller forms of ${swappedOut.common}`));
+      for (const x of small) listWrap.appendChild(buildRow(x.plant, -1, x));
+      if (!mine.length && hits.length) listWrap.appendChild(el('div', { className: 'list-heading', 'data-testid': 'other-plants' }, 'Other plants'));
+    }
     if (mine.length) {
       // My plants fold away (remembered on this device); a search always shows its matches, and "In this plan" its
       // plants (the bug hunt, Nov 1: with only plants of one's own placed, it said "2 plants, 2 kinds" over a folded
@@ -666,7 +705,7 @@ export function renderPlantsPanel() {
     if ((ceiling || across) && !plantFilter.inPlan) {
       const shown = new Set(hits.map((p) => p.id));
       const run = () => (aside ? withFiltersOff(aside.keys, () => filteredPlants(near)) : filteredPlants(near));
-      const taller = byTypicalHeight(run).filter((p) => !shown.has(p.id) && (!forTree || isTree(p)) && !now?.has(p.id));
+      const taller = byTypicalHeight(run).filter((p) => !shown.has(p.id) && (!forTree || isTree(p)) && !now?.has(p.id) && !smallIds.has(p.id));
       if (taller.length) {
         listWrap.appendChild(el('div', { className: 'list-divider', 'data-testid': 'taller-divider' },
           el('span', {}, ceiling && across ? `Typically up to ${ceiling} ft tall and ${across} ft wide, but they can grow larger`
@@ -945,7 +984,7 @@ export function renderPlantsPanel() {
     cb.addEventListener('change', () => {
       if (!state.location) { cb.checked = false; openLocation('plants'); return; }
       plantFilter.hardyHere = cb.checked;
-      saveHardy(cb.checked);
+      if (!swapFiltersOn()) saveHardy(cb.checked); // (a Swap's own, from a warning: not kept for the picker)
       source.hidden = !cb.checked;
       rebuildList();
     });
@@ -1133,6 +1172,9 @@ export function renderPlantsPanel() {
 
   // ---- What's on, above the list: a chip each, tap to take it off ----
   const activeRow = el('div', { className: 'active-filters', 'data-testid': 'active-filters' });
+  // (A Swap from a warning: why it's filtered, above its chips, while any of them is on. Jason's UI review, Nov 2.)
+  const swapWhy = swapping ? swapFix() : null;
+  const whyLine = swapWhy?.line ? el('div', { className: 'swap-why', 'data-testid': 'swap-why' }, swapWhy.line) : null;
   /** The chips, and the fold buttons' counts, as the filters now stand (with each list rebuild). */
   function syncActive() {
     const chips = activeChips();
@@ -1147,6 +1189,7 @@ export function renderPlantsPanel() {
       activeRow.appendChild(all);
     }
     activeRow.hidden = !chips.length;
+    if (whyLine && swapWhy) whyLine.hidden = Object.keys(swapWhy.set).length > 0 && !swapFixOn(swapWhy);
     // (Not Hardy: its own box beside the button says it's on.)
     const n = chips.filter((c) => c.key !== 'hardyHere').length;
     filtersLabel.textContent = 'Filters' + (n ? ` (${n} on)` : '');
@@ -1157,7 +1200,7 @@ export function renderPlantsPanel() {
   planToggle.addEventListener('click', () => { plantFilter.inPlan = !plantFilter.inPlan; planToggle.setAttribute('aria-pressed', String(plantFilter.inPlan)); rebuildList(); });
   const searchBar = el('div', { className: 'picker-search field' }, el('div', { className: 'search-row' }, el('div', { className: 'search-wrap' }, search, clearSearch), planToggle));
   // (One block, so its spacing is its own: the sheet spaces its parts widely. "Anyone you need to protect?" first.)
-  body.appendChild(el('div', { className: 'picker-filters' }, topLine, foldRow, hardy.source, all, activeRow));
+  body.appendChild(el('div', { className: 'picker-filters' }, topLine, foldRow, hardy.source, all, whyLine, activeRow));
   body.appendChild(countLine);
   body.appendChild(listWrap);
   rebuildList();

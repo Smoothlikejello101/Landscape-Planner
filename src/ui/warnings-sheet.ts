@@ -30,7 +30,7 @@ import { shapeBBox, unionBounds, canvasRect } from '../geometry';
 import { I } from '../icons';
 import { MAX_ZOOM, MIN_ZOOM, PX_PER_FOOT_BASE } from '../constants';
 import { setRoleView, setViewFilter } from '../mutations';
-import { catalogReady, onCatalogLoaded, plantFilter } from '../plants';
+import { catalogReady, onCatalogLoaded, plantFilter, plantsById } from '../plants';
 import { roleHidden, roleKey } from '../roles';
 import { state } from '../state';
 import { NO_FILTER, passesFilter } from '../status';
@@ -48,6 +48,9 @@ import { remindNoMore } from './fruit-notice';
 import { openLocation } from './location-panel';
 import { render } from './render';
 import { dismissAcross } from './role-sections';
+import { nudgeNow, swapFiltered, type SwapFor } from './fix-problem';
+import { moverOf } from '../fix-problem';
+import { alreadyThere } from '../status';
 import { toast } from './toast';
 
 // ---------- Kept while the app runs (not stored: the plan's own warnings are) ----------
@@ -491,7 +494,49 @@ function warningRow(r: WarningRow): HTMLElement {
     dismiss.addEventListener('click', () => dismissRow(r));
     row.appendChild(dismiss);
   }
+  const fixes = r.dismissed ? null : rowFixes(r);
+  if (fixes) { row.classList.add('has-fixes'); row.appendChild(fixes); }
   return row;
+}
+
+/** What a Swap from each kind says, and for a screen reader, which plant ("Swap Fig for one hardy here"). */
+const SWAP_SAID: Partial<Record<WarningKind, [SwapFor, string, string]>> = {
+  crowding: ['big', 'Swap for a smaller plant\u2026', 'for a smaller plant'],
+  sun: ['sun', 'Swap for one that takes this sun\u2026', 'for one that takes the sun where it\u2019s planted'],
+  hardy: ['hardy', 'Swap for one hardy here\u2026', 'for one hardy here'],
+  poison: ['poison', 'Swap for one not flagged\u2026', 'for one not flagged for who\u2019s in the yard'],
+};
+/**
+ * A row's fixes, on a line under it (Jason's UI review, Nov 2): a crowded pair, Nudge apart, the one selected or the
+ * newer moving; and Swap, opened already filtered by what failed (crowding, the newer one for a smaller plant, its own
+ * smaller forms first; sun, hardiness, poison, every copy the row is about). Utilities and fruit partners have none here.
+ */
+function rowFixes(r: WarningRow): HTMLElement | null {
+  const said = SWAP_SAID[r.kind];
+  if (!said) return null;
+  const shapes = r.ids.map((id) => state.shapes.find((s) => s.id === id)).filter((s) => !!s);
+  if (!shapes.length) return null;
+  const wrap = el('div', { className: 'wr-fixes', 'data-testid': 'warning-fixes' });
+  let swapping = shapes;
+  if (r.kind === 'crowding') {
+    const [a, b] = shapes;
+    if (!a || !b) return null;
+    const prefer = state.selectedIds.length === 1 && r.ids.includes(state.selectedIds[0]) ? state.selectedIds[0] : undefined;
+    const nudge = el('button', { className: 'wr-btn', 'data-testid': 'warning-nudge', 'aria-label': `Nudge apart: ${r.name}` }, 'Nudge apart');
+    nudge.addEventListener('click', () => { nudgeNow(a, b, prefer); });
+    wrap.appendChild(nudge);
+    // (The one Nudge apart would move; one already in the ground isn't swapped.)
+    const one = moverOf(a, b, state.shapes, prefer)?.[0] ?? [b, a].find((x) => !alreadyThere(x));
+    swapping = one ? [one] : [];
+  }
+  const [kind, text, why] = said;
+  if (swapping.length && swapping.every((x) => !!x.plantId && !!plantsById[x.plantId])) {
+    const who = swapping.length === 1 ? (plantsById[swapping[0].plantId!]?.common ?? 'it') : `these ${swapping.length}`;
+    const swap = el('button', { className: 'wr-btn', 'data-testid': `warning-swap`, 'aria-label': `Swap ${who} ${why}` }, text);
+    swap.addEventListener('click', () => swapFiltered(kind, swapping));
+    wrap.appendChild(swap);
+  }
+  return wrap.childNodes.length ? wrap : null;
 }
 
 // ---------- On the plan ----------
