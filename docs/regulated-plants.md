@@ -112,9 +112,11 @@ cite their own rule, apart from the list beside them.
 | ID | IDAPA 02.06.09 with Idaho Code 22-2407 and 22-1905 | The rules office's PDF; the Legislature's code | 79 | Brooms (*Cytisus*, *Genista*, *Spartium*, *Chamaecytisus*, the whole genera) and six invasive plants: prohibited. Early detection, control and containment lists: landowners control them (listed) |
 | MT | MCA 80-7-133, 7-22-2116; the Department of Agriculture's Montana Noxious Weed List (effective 2019-06-21) | The Department's list PDF and the Legislature's code; the rules (ARM 4.5.2) wait for pages Jason saves | 58 | Priority 1A to 2B: no nursery or landscaper may sell or distribute them, and landowners may not let them seed. Priority 3: not intentionally spread or sold |
 | UT | Utah Admin. Code R68-9 (Utah Code 4-17) | The Utah State Bulletin's printing of R68-9 as amended (effective 2024-06-28), checked against the Index of Changes through 2026; the Legislature's code | 59 | Every class: no one may sell, barter or give away its plants or seeds (R68-9-4(2)); Bermudagrass excepted in Washington County and as certified triploid hybrids |
+| AK | Exterior Quarantine of Aquatic Invasive Weeds (2014) and the Prunus padus and Prunus virginiana Quarantine (2025), both under 11 AAC 34.130 (AS 03.05.090) | The Division of Agriculture's signed orders (scans, read from the page images); the Legislature's statutes | 7 | Not imported, transported, bought, sold or distributed within the state, and wild plants not transplanted: elodea, Brazilian waterweed, hydrilla and Eurasian watermilfoil; European bird cherry and chokecherry |
+| CT | CGS § 22a-381d (as amended by P.A. 24-11 and P.A. 25-126); § 22a-381e | The General Assembly's statutes (2026 Supplement; § 22a-381e revised to 2025-01-01) | 97 | Not imported, moved, sold, bought, transplanted, cultivated or distributed (watercress sold to eat without its reproductive parts excepted). Callery pear from 2027-10-01, seven more from 2028-10-01 (Japanese barberry, burning bush, black locust among them) and Norway maple from 2030-10-01: listed until then. Running bamboo (*Phyllostachys*): not planted within 40 ft of a neighbor or a road (listed) |
 
 Arkansas to Tennessee read 2026-10-21, Virginia to Massachusetts 2026-10-31, Florida, Maryland, Minnesota and Colorado
-2026-11-01, Washington, Oregon, Idaho and Montana 2026-11-01 and Utah 2026-11-02, each from the government's own text, saved in `catalog-src/legal/` (not committed).
+2026-11-01, Washington, Oregon, Idaho and Montana 2026-11-01, and Utah, Alaska and Connecticut 2026-11-02, each from the government's own text, saved in `catalog-src/legal/` (not committed).
 Tennessee's PDF was saved by hand in a browser: the Secretary of State's file host turns away clients that
 aren't browsers, and we don't pretend to be one. Texas has one gap: the
 offense is Agriculture Code §71.152's, read from the Legislature's site; "in any live form" and "unless permitted" are the rule's,
@@ -134,7 +136,7 @@ legal-code sites are read anyway, only the pages named, with our own user agent 
 actual block. Indiana's code site shows its text only in a browser, and its data service refuses other readers: it
 was read in Jason's own Chrome (Claude in Chrome), each section's text copied from the page and checked against a
 SHA-256 hash the browser computed from it. Illinois's legislature site sends an incomplete certificate chain: the
-missing intermediate was fetched from its issuer (Sectigo), as browsers do, and every request verified against it.
+missing intermediate was fetched from its issuer (Sectigo), as browsers do, and every request verified against it; Connecticut's General Assembly site the same way (GoDaddy's intermediate).
 Pennsylvania's Bulletin notices (its sales phase-in dates) are still unread; its site's robots.txt names AI
 readers. Sites that refuse automated readers outright (a 403, a bot check) are never got around, by any tool: Jason
 saves those pages by hand, as he did Massachusetts's prohibited plant list and the Department's decisions,
@@ -145,7 +147,10 @@ does, and Jason's call (2026-10-31) was to show them as banned, the line saying 
 Wisconsin's legislature site drops every connection from here (its rule, NR 40, is unread). California's two legal
 sites (the Legislature's codes and Westlaw's regulations) turn away automated readers with a challenge page: its
 entry waits for the pages Jason saves. Colorado's agriculture department site (ag.colorado.gov) refuses automated
-readers too; nothing in its entry depends on it. The rest of the states: not yet.
+readers too; nothing in its entry depends on it. Arizona's rule (A.A.C. R3-4-245) is on sites that answer every
+automated reader with a challenge page: its entry waits for the pages Jason saves. Delaware's and Hawaii's entries are drafted
+and wait too: Delaware's regulations site shows its current rules only in a browser, and Hawaii's statutes are
+waiting on Jason's call about the Legislature's document host. The rest of the states: not yet.
 
 **Read narrower than printed, or left out:**
 - **Seed-law lists.** Louisiana's noxious weed list (LAC 7:XIII.109), like most states' seed lists, limits weed
@@ -238,6 +243,8 @@ readers too; nothing in its entry depends on it. The rest of the states: not yet
 - **Idaho:** its nursery-stock rule bars selling an article "containing noxious weed propagules"; read, as Arkansas's is, as a rule on nursery stock, so the three noxious weed lists are listed (amber), not banned. The broom genera are banned whole, as the rule says ("all subtaxa"). Left out: starry stonewort, an alga; "Cold Tolerant Eucalyptis", which names no species.
 - **Montana:** the names are the Department of Agriculture's published list, which the rules adopt; the rules' own pages (ARM 4.5.201 to 4.5.210) are on a site that shows text only in a browser, and wait for Jason's saved copies. Each synonym the list prints is its own entry. Left out: the Eurasian × northern watermilfoil hybrid, written by its parents.
 - **Utah:** "Convolvulus spp." under field bindweed is read as *C. arvensis*, the plant its common name names; "Phragmites australis ssp." names no subspecies, so it is entered as the species. Left out: the seed rule's list (R68-8) and county lists.
+- **Alaska:** its noxious weed list (11 AAC 34.020) is seed law, left out: it sits in the seed regulations, and every rule that applies it is about seed. The two quarantines are the Division of Agriculture director's signed orders under 11 AAC 34.130, which AS 03.05.090 makes it a misdemeanor to break; chokecherry's takes in its cultivars ('Canada Red'), since it excepts none. Left out: the aquatic pests quarantine, whose one plant (marimo balls) is an alga, and the potato quarantines.
+- **Connecticut:** names as printed: the whole of *Phragmites australis* (the native subspecies isn't excepted), and American lotus, false indigo, cup plant and black locust as species, with no exception for native stock. Common buckthorn, printed under (a) and again under (b)(4), is entered once, under (a). Watercress is kept: the law names it, excepting watercress sold to eat without its reproductive parts. The plants phased in (2027, 2028, 2030) are listed until their dates. Running bamboo is listed: the law limits where it's planted, not its sale. Left out: the Invasive Plants Council's list, which binds only state agencies' purchases, and pest quarantines on host plants. P.A. 26-129 (sterile cultivars) orders a report, and changes no list.
 
 ## Matching
 
@@ -336,6 +343,8 @@ As of 2026-10-31:
 - **Idaho:** the brooms, garden species included (Scotch broom, Warminster broom, *Genista lydia*, *G. pilosa*, dyer's greenweed, Spanish broom); viper's bugloss, woad and parrot feather (control); field bindweed (containment); Japanese blood grass (early detection).
 - **Montana:** Scotch broom and viper's bugloss (1B), woad (1A), common buckthorn (2A), St. John's wort and field bindweed (2B); Russian olive and parrot feather (Priority 3).
 - **Utah:** viper's bugloss, St. John's wort and parrot feather (1B), woad (2), field bindweed (3); Scotch broom, Russian olive, dame's rocket and Japanese blood grass (Class 4).
+- **Alaska:** chokecherry (quarantined).
+- **Connecticut:** American lotus, false indigo, cup plant, Chinese wisteria, Japanese and Amur honeysuckle, tree of heaven, autumn and Russian olive, sycamore maple, Japanese angelica tree, garden valerian, star of Bethlehem, dame's rocket, white poplar, common buckthorn, cypress spurge, parrot feather and others (prohibited); Callery pear (from 2027); Japanese barberry, burning bush, glossy buckthorn, black locust, Japanese silver grass and ribbon grass (from 2028); Norway maple (from 2030).
 
 ## What the line doesn't say
 
