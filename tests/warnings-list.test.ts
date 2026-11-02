@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { dismissedForPlan, dismissForPlan } from '../src/dismissals';
+import { dismissedForPlan, dismissForPlan, warnForNewOnes } from '../src/dismissals';
 import { pushHistory } from '../src/history';
 import { fitInCircle } from '../src/labels';
 import { plantsById, type Plant } from '../src/plants';
@@ -204,6 +204,36 @@ describe('dismissing warnings from the list', () => {
     // Nothing to do: no step.
     expect(setDismissed(of('sun'), false).n).toBe(0);
     expect(state.historyIndex).toBe(steps + 3);
+  });
+
+  it("a fruit partner's, like hardiness's: a copy dismissed on its own apart, said who for; narrowed to the copies there, a new one warns (Jason, Nov 1)", () => {
+    state.shapes.push(at('h2', holly.id, -50));
+    const line = of('fruit')[0].key!;
+    expect(of('fruit').map((r) => [r.name, r.ids.join(','), r.dismissed])).toEqual([["Holly 'Red' ×2", 'h,h2', false]]);
+    // One copy dismissed on its own (its details' "Dismiss for this one"): it apart, said "for this one"; the other active.
+    shape('h').fruitDismissed = line;
+    expect(of('fruit').map((r) => [r.ids.join(','), r.dismissed, r.scope])).toEqual([['h2', false, undefined], ['h', true, 'for this one']]);
+    expect(warningsSummary().active).toBe(of('crowding').length + of('sun').length + of('hardy').length + of('utility').length + 1);
+    // Both: "for these 2", none active; across the plan as well, "for every" (the plant's own, which covers new ones too).
+    shape('h2').fruitDismissed = line;
+    expect(of('fruit').map((r) => [r.ids.join(','), r.dismissed, r.scope])).toEqual([['h,h2', true, 'for these 2']]);
+    dismissForPlan('fruit', holly.id, line);
+    expect(of('fruit').map((r) => [r.ids.join(','), r.dismissed, r.scope])).toEqual([['h,h2', true, "for every Holly 'Red' in this plan"]]);
+    // Show again: the plant's, and each copy's.
+    of('fruit')[0].again!();
+    expect(of('fruit').map((r) => [r.ids.join(','), r.dismissed])).toEqual([['h,h2', false]]);
+    expect(['h', 'h2'].map((id) => shape(id).fruitDismissed)).toEqual(['', '']); // (shown again on purpose: src/dismissals.ts clearForPlan)
+    // Dismissed in words that have since changed (the catalog's facts): active again.
+    shape('h').fruitDismissed = line.replace('female', 'male');
+    expect(of('fruit').map((r) => [r.ids.join(','), r.dismissed])).toEqual([['h,h2', false]]);
+    // Narrowed ("Just these 2"): each copy there its own; one placed later is warned for.
+    dismissForPlan('fruit', holly.id, line);
+    warnForNewOnes('fruit', holly.id, line);
+    state.shapes.push(at('h3', holly.id, -60));
+    expect(of('fruit').map((r) => [r.ids.join(','), r.dismissed, r.scope])).toEqual([['h3', false, undefined], ['h,h2', true, 'for these 2']]);
+    // Switched off: none listed, dismissed or not.
+    state.fruitWarnings = false;
+    expect(of('fruit')).toEqual([]);
   });
 
   it('lists the kinds safety first: poison, utilities, hardiness, sun, crowding, fruit partners', () => {

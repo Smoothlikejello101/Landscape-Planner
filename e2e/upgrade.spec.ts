@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { DB_VERSION } from '../src/db';
 import { createServer, type Server } from 'node:http';
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -167,11 +168,11 @@ test('a page a newer version took the plans from reloads, when asked, into the v
   let loads = 0;
   page.on('load', () => { loads++; });
   // Another tab opens the plans at a higher version (a connection of its own, as another tab's would be).
-  await page.evaluate(() => new Promise<void>((resolve, reject) => {
-    const r = indexedDB.open('landscape-planner', 3);
+  await page.evaluate((newer) => new Promise<void>((resolve, reject) => {
+    const r = indexedDB.open('landscape-planner', newer);
     r.onsuccess = () => { r.result.close(); resolve(); };
     r.onerror = () => reject(r.error);
-  }));
+  }), DB_VERSION + 1);
   await expect(page.getByTestId('newer-tab')).toBeVisible();
   await page.waitForTimeout(2000);
   expect(loads).toBe(0);
@@ -198,11 +199,11 @@ test('the message put away only reloads the page: the version waiting to update 
   mode = 'next';
   await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())!.update());
   await expect(page.locator('#update-banner')).toBeVisible({ timeout: 15_000 });
-  await page.evaluate(() => new Promise<void>((resolve, reject) => {
-    const r = indexedDB.open('landscape-planner', 3);
+  await page.evaluate((newer) => new Promise<void>((resolve, reject) => {
+    const r = indexedDB.open('landscape-planner', newer);
     r.onsuccess = () => { r.result.close(); resolve(); };
     r.onerror = () => reject(r.error);
-  }));
+  }), DB_VERSION + 1);
   await expect(page.getByTestId('newer-tab')).toBeVisible();
   await Promise.all([page.waitForEvent('load'), page.keyboard.press('Escape')]);
   await expect(page.getByTestId('newer-version')).toBeVisible({ timeout: 15_000 });

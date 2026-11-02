@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { atRisk, copiesSaid, copyDismissed, dismissedForPlan, dismissForPlan, planDismissals, poisonCovered, showAgainForPlan, warnForNewOnes } from '../src/dismissals';
+import { atRisk, clearForPlan, copiesSaid, copyDismissed, dismissedForPlan, dismissForPlan, planDismissals, poisonCovered, showAgainForPlan, warnedCopies, warnForNewOnes } from '../src/dismissals';
 import { plantsById, type Plant } from '../src/plants';
 import { state } from '../src/state';
 import type { Shape } from '../src/types';
@@ -30,11 +30,11 @@ describe('a warning dismissed for a plant, across the plan', () => {
     plantsById['nerium-oleander'] = { id: 'nerium-oleander', common: 'Oleander' } as Plant;
     const ole = (id: string): Shape => ({ ...fig(id), plantId: 'nerium-oleander' });
     state.shapes = [ole('o1')];
-    expect(copiesSaid('nerium-oleander')).toBe('Oleander');
+    expect(copiesSaid('poison', 'nerium-oleander')).toBe('Oleander');
     state.shapes.push(ole('o2'));
-    expect(copiesSaid('nerium-oleander')).toBe('both Oleander');
+    expect(copiesSaid('poison', 'nerium-oleander')).toBe('both Oleander');
     state.shapes.push(ole('o3'), fig('c'));
-    expect(copiesSaid('nerium-oleander')).toBe('all 3 Oleander');
+    expect(copiesSaid('poison', 'nerium-oleander')).toBe('all 3 Oleander');
   });
   it('a poison warning stays dismissed with the same or fewer at risk, and comes back with someone new (Jason, Nov 1)', () => {
     dismissForPlan('poison', 'ficus-carica', 'Poisonous to people; A problem for dogs');
@@ -63,5 +63,40 @@ describe('a warning dismissed for a plant, across the plan', () => {
     showAgainForPlan('poison', 'ficus-carica');
     expect(dismissedForPlan('poison', 'ficus-carica', 'Poisonous to people')).toBe(false);
     expect(state.shapes.map((s) => s.poisonDismissed)).toEqual([undefined, undefined]);
+  });
+  it('a fruit-partner warning too (Jason, Nov 1): "Just these 2" keeps it to the copies there now, each its own, by its words', () => {
+    const line = "Fig 'Brown Turkey' needs a second, different variety nearby to fruit";
+    dismissForPlan('fruit', 'ficus-carica', line);
+    warnForNewOnes('fruit', 'ficus-carica', line);
+    expect(dismissedForPlan('fruit', 'ficus-carica', line)).toBe(false);
+    expect(state.dismissed).toEqual({}); // (kept, empty, so it syncs)
+    expect(state.shapes.map((s) => s.fruitDismissed)).toEqual([line, line]);
+    expect(state.shapes.map((s) => [s.hardyDismissed, s.poisonDismissed])).toEqual([[undefined, undefined], [undefined, undefined]]); // (only its own kind)
+    expect(copyDismissed('fruit', state.shapes[0], line)).toBe(true);
+    expect(copyDismissed('fruit', state.shapes[0], line + '; NC State suggests \'Celeste\'')).toBe(false); // (its words changed: back)
+    expect(copyDismissed('fruit', fig('new'), line)).toBe(false); // (one added later: warned for)
+    // Shown again for the plant: every copy's goes too, as hardiness's and poison's do; left '', shown again on purpose,
+    // so sync doesn't fill it back from another device (src/sync/engine.ts withFruitDismissals). '' is never dismissed.
+    expect(clearForPlan('fruit', 'ficus-carica')).toBe(true);
+    expect(state.shapes.map((s) => s.fruitDismissed)).toEqual(['', '']);
+    expect(copyDismissed('fruit', state.shapes[0], line)).toBe(false);
+    expect(clearForPlan('fruit', 'ficus-carica')).toBe(false); // (none left: no step)
+    // (Hardiness and poison aren't filled back by sync: theirs go, as before.)
+    state.shapes[0].hardyDismissed = said;
+    expect(clearForPlan('hardy', 'ficus-carica')).toBe(true);
+    expect('hardyDismissed' in state.shapes[0]).toBe(false);
+  });
+  it('"Just these 2" counts, and keeps it for, the copies the warning is about: not a gone one, one coming out, a tree; for hardiness, not one already there (the review, Nov 1)', () => {
+    const line = "Fig 'Brown Turkey' needs a second, different variety nearby to fruit";
+    state.shapes = [fig('a'), fig('b'), { ...fig('gone'), status: 'gone' } as Shape, { ...fig('out'), status: 'remove' } as Shape,
+      { ...fig('tree'), tree: true } as Shape, { ...fig('old'), status: 'existing' } as Shape];
+    plantsById['ficus-carica'] = { id: 'ficus-carica', common: 'Fig' } as Plant;
+    expect(warnedCopies('fruit', 'ficus-carica').map((s) => s.id)).toEqual(['a', 'b', 'old']);
+    expect(warnedCopies('poison', 'ficus-carica').map((s) => s.id)).toEqual(['a', 'b', 'old']);
+    expect(warnedCopies('hardy', 'ficus-carica').map((s) => s.id)).toEqual(['a', 'b']);
+    expect([copiesSaid('fruit', 'ficus-carica'), copiesSaid('hardy', 'ficus-carica')]).toEqual(['all 3 Fig', 'both Fig']);
+    dismissForPlan('fruit', 'ficus-carica', line);
+    warnForNewOnes('fruit', 'ficus-carica', line);
+    expect(Object.fromEntries(state.shapes.map((s) => [s.id, s.fruitDismissed]))).toEqual({ a: line, b: line, gone: undefined, out: undefined, tree: undefined, old: line });
   });
 });

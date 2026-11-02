@@ -1,5 +1,6 @@
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
+import { DB_VERSION } from '../src/db';
 import { addPlainShape, closeSheet, field, openFresh } from './helpers';
 
 // An older version of the app never saves over a newer one's plans (src/db.ts DB_VERSION; Nov 1: a buried line lost its
@@ -7,6 +8,8 @@ import { addPlainShape, closeSheet, field, openFresh } from './helpers';
 // same site standing in for another tab or window, which opens the database as a newer version (or an older one) would.
 
 const DB = 'landscape-planner';
+/** A newer version's database, pretended: one above this build's (src/db.ts DB_VERSION). */
+const NEWER = DB_VERSION + 1;
 
 /** A page of the site that isn't the app: another tab, opening the database its own way. */
 async function otherTab(context: BrowserContext): Promise<Page> {
@@ -80,10 +83,10 @@ test('a page open when a newer version opens the database keeps its last edit, s
 
   // A newer version opens the database in another tab: this page lets go at once.
   const other = await otherTab(context);
-  expect(await holdAt(other, 3)).toBe(false); // (never kept waiting)
+  expect(await holdAt(other, NEWER)).toBe(false); // (never kept waiting)
   await expect(page.getByTestId('newer-tab')).toContainText('FullGrown was updated in another tab or window. This page will reload into the new version.');
   const after = await dump(other);
-  expect(after.version).toBe(3);
+  expect(after.version).toBe(NEWER);
   const labels = Object.values(after.stores.projects).flatMap((p) => (p as { shapes: { label: string }[] }).shapes.map((s) => s.label));
   expect(labels).toContain('Drawn before the update');
   expect(await journals(other)).toEqual([]);
@@ -105,7 +108,7 @@ test('a page open when a newer version opens the database keeps its last edit, s
 
 test('a page opened after a newer version has the database says so, writes nothing, and reloads only when asked', async ({ page, context }) => {
   const other = await otherTab(context);
-  await holdAt(other, 3, RELEASE3);
+  await holdAt(other, NEWER, RELEASE3);
   await other.evaluate(() => { (window as unknown as { held: IDBDatabase }).held.close(); });
   const before = await dump(other);
   // (What's kept in localStorage, but for when this device last had the app on screen: src/hints.ts, noted as any page
@@ -129,7 +132,7 @@ test('a page opened after a newer version has the database says so, writes nothi
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('newer-raw-copy').click()]);
   expect(download.suggestedFilename()).toMatch(/^fullgrown-raw-copy-.+\.json$/);
   const copy = JSON.parse(readFileSync(await download.path(), 'utf8'));
-  expect(copy).toMatchObject({ format: 'fullgrown-raw-database', databaseVersion: 3 });
+  expect(copy).toMatchObject({ format: 'fullgrown-raw-database', databaseVersion: NEWER });
   expect(copy.stores).toEqual(JSON.parse(JSON.stringify(before.stores)));
   expect(await dump(other)).toEqual(before);
 
@@ -158,7 +161,7 @@ test("the update waits for an older tab still holding the database, says to clos
   await expect(page.locator('#open-blocked')).toHaveCount(0);
   await expect(page.locator('#canvas-svg text', { hasText: 'Old oak' })).toHaveCount(1);
   const after = await dump(other);
-  expect(after.version).toBe(2);
+  expect(after.version).toBe(DB_VERSION);
   for (const s of ['meta', 'projects', 'images']) expect(after.stores[s]).toEqual(before.stores[s]);
   expect(after.stores.kv).toMatchObject(before.stores.kv);
 });

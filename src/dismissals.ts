@@ -1,12 +1,14 @@
 // Warnings dismissed for a plant across the plan (Jason, Oct 30): hardiness and poison are the plant's, not where a copy
 // stands, so dismissing one dismisses its other copies and the ones added later, with a toast that says so and offers
-// to warn again for new ones. Fruit-partner reminders too (offering Undo instead: no copy keeps its own). Per plan:
-// another plan, another yard, warns again. Each is kept with what the warning said when it was dismissed, so it comes
-// back if that changes (a new ZIP; for poison, someone newly at risk in the yard, not fewer: poisonCovered). Sun and
-// crowding stay a copy's own: they depend on where it stands. Shown again from the plant's pane or Warnings
-// (src/warnings-list.ts, src/ui/warnings-sheet.ts), where they can be dismissed too (Jason, Nov 1).
+// to keep it to the copies there now ("Just these 2"). Fruit-partner warnings too, whose toast also has Undo; since
+// Nov 1 (Jason) a copy keeps its own fruit-partner dismissal as it does the others, so "Just this one" narrows it there
+// too (the warnings bug hunt: it brought the warning back). Per plan: another plan, another yard, warns again. Each is
+// kept with what the warning said when it was dismissed, so it comes back if that changes (a new ZIP; for poison,
+// someone newly at risk in the yard, not fewer: poisonCovered; for a fruit partner, what its catalog facts say it
+// needs). Sun and crowding stay a copy's own: they depend on where it stands. Shown again from the plant's pane or
+// Warnings (src/warnings-list.ts, src/ui/warnings-sheet.ts), where they can be dismissed too (Jason, Nov 1).
 
-import { pushHistory } from './history';
+import { flushHistoryDebounce, pushHistory } from './history';
 import { householdFlags, plantsById, type Plant } from './plants';
 import { state } from './state';
 import { save } from './storage';
@@ -52,9 +54,11 @@ export function poisonCovered(then: string | undefined, now: string): boolean {
   const was = atRisk(then);
   return [...atRisk(now)].every((who) => was.has(who));
 }
-/** Whether a copy's own dismissal of this kind (hardiness or poison) covers its warning saying `said` now. */
-export function copyDismissed(kind: 'hardy' | 'poison', s: Shape, said: string): boolean {
-  return kind === 'poison' ? poisonCovered(s.poisonDismissed, said) : s.hardyDismissed === said;
+/** Where a copy keeps its own dismissal of each kind (src/types.ts Shape). */
+export const DISMISS_FIELD = { hardy: 'hardyDismissed', poison: 'poisonDismissed', fruit: 'fruitDismissed' } as const satisfies Record<DismissKind, keyof Shape>;
+/** Whether a copy's own dismissal of this kind covers its warning saying `said` now (poison: with fewer at risk too). */
+export function copyDismissed(kind: DismissKind, s: Shape, said: string): boolean {
+  return kind === 'poison' ? poisonCovered(s.poisonDismissed, said) : s[DISMISS_FIELD[kind]] === said;
 }
 
 /** Whether this kind of warning, saying `said`, is dismissed for the plant across the plan. */
@@ -66,6 +70,14 @@ export function dismissedForPlan(kind: DismissKind, plantId: string | undefined,
 
 /** A plant's copies in the plan. */
 export const copiesOf = (plantId: string): Shape[] => state.shapes.filter((s) => s.role === 'plant' && s.plantId === plantId);
+/**
+ * The copies a plant's warning of this kind is about, as its badges and Warnings have them: not gone or coming out, not
+ * a tree already there, and for hardiness not one already in the ground before the plan (src/status.ts alreadyThere).
+ * Those a dismissal's "Just these 2" counts and keeps it for (the review of the change, Nov 1: it said 3, a gone one
+ * among them, where Warnings listed 2). Copies the Layers hide are among them: still the plan's, dismissed with the rest.
+ */
+export const warnedCopies = (kind: DismissKind, plantId: string): Shape[] =>
+  copiesOf(plantId).filter((s) => s.status !== 'gone' && s.status !== 'remove' && !(s.type === 'circle' && s.tree) && (kind !== 'hardy' || s.status !== 'existing'));
 
 /** Dismiss it for the plant across the plan: its copies and the ones added later. Saved. */
 export function dismissForPlan(kind: DismissKind, plantId: string, said: string) {
@@ -74,8 +86,8 @@ export function dismissForPlan(kind: DismissKind, plantId: string, said: string)
 }
 
 /**
- * Warn again for the plant: from now on, for every copy too (hardiness and poison are also dismissed copy by copy, by
- * "Warn me for new ones": those go as well). Saved.
+ * Warn again for the plant: from now on, for every copy too (each kind is also dismissed copy by copy, by "Just these
+ * 2" or a copy's "Dismiss for this one": those go as well). Saved.
  */
 export function showAgainForPlan(kind: DismissKind, plantId: string) {
   if (clearForPlan(kind, plantId)) pushHistory();
@@ -87,21 +99,34 @@ export function showAgainForPlan(kind: DismissKind, plantId: string) {
  */
 export function clearForPlan(kind: DismissKind, plantId: string): boolean {
   dropPlanEntry(kind, plantId);
-  const field = kind === 'hardy' ? 'hardyDismissed' : kind === 'poison' ? 'poisonDismissed' : null;
-  const copies = field ? copiesOf(plantId).filter((s) => s[field] !== undefined) : [];
-  for (const s of copies) delete s[field!];
+  const field = DISMISS_FIELD[kind];
+  // (A fruit-partner one is left '', shown again on purpose, so sync doesn't fill it back from another device's copy
+  // (src/sync/engine.ts withFruitDismissals); hardiness and poison aren't filled back, and go.)
+  if (kind === 'fruit') {
+    const copies = copiesOf(plantId).filter((s) => !!s.fruitDismissed);
+    for (const s of copies) s.fruitDismissed = '';
+    return copies.length > 0;
+  }
+  const copies = copiesOf(plantId).filter((s) => s[field] !== undefined);
+  for (const s of copies) delete s[field];
   return copies.length > 0;
 }
 
 /**
- * New copies warn again; those placed so far stay dismissed, each its own (a badge each). Hardiness and poison only: a
- * plan keeps no fruit-partner dismissal copy by copy (src/ui/fruit-notice.ts remindNoMore). Saved.
+ * New copies warn again; those placed so far stay dismissed, each its own (a badge each, for hardiness and poison: a
+ * fruit-partner warning has none). "Just these 2" on a dismissal's toast: the copies the warning is about (warnedCopies).
+ * One step, saved; it keeps the dismissal across the plan it took the place of, so Undo puts that back and Redo takes
+ * it away again (src/history.ts; the review of the change, Nov 1: Undo left nothing dismissed).
  */
-export function warnForNewOnes(kind: 'hardy' | 'poison', plantId: string, said: string) {
+export function warnForNewOnes(kind: DismissKind, plantId: string, said: string) {
+  // (An edit just before, still waiting to be its own step (a Show again in the plant's details), stays its own step.)
+  flushHistoryDebounce();
+  const was = state.dismissed?.[kind]?.[plantId];
   dropPlanEntry(kind, plantId);
-  const field = kind === 'hardy' ? 'hardyDismissed' : 'poisonDismissed';
-  for (const s of copiesOf(plantId)) s[field] = said;
+  const field = DISMISS_FIELD[kind];
+  for (const s of warnedCopies(kind, plantId)) s[field] = said;
   pushHistory();
+  if (was !== undefined) state.history[state.historyIndex].narrowed = { kind, plantId, said: was };
   save();
 }
 
@@ -125,10 +150,11 @@ export function planDismissals(): { kind: DismissKind; plantId: string; name: st
 }
 
 /**
- * The plant's copies in the plan, by name, for the toast: "Fig", "both Fig", "all 3 Fig" (a plant's name as a nursery
- * says it, "3 Oleander": no guessed plural; not "all 2 of Oleander", the warnings bug hunt, Nov 1).
+ * The plant's copies its warning of this kind is about (warnedCopies), by name, for the toast: "Fig", "both Fig", "all 3
+ * Fig" (a plant's name as a nursery says it, "3 Oleander": no guessed plural; not "all 2 of Oleander", the warnings bug
+ * hunt, Nov 1).
  */
-export function copiesSaid(plantId: string): string {
-  const n = copiesOf(plantId).length, name = plantsById[plantId]?.common ?? 'this plant';
+export function copiesSaid(kind: DismissKind, plantId: string): string {
+  const n = warnedCopies(kind, plantId).length, name = plantsById[plantId]?.common ?? 'this plant';
   return n > 2 ? `all ${n} ${name}` : n === 2 ? `both ${name}` : name;
 }

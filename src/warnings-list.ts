@@ -10,7 +10,8 @@
 //
 // Each can be dismissed, and each kind all at once, or shown all again (Jason, Nov 1). A row is dismissed as the plan
 // dismisses it: a crowded pair, that pair; sun and utilities, that copy where it stands; hardiness, poison and fruit
-// partners, the plant across the plan. A dismissed row says which of those it is. Each row reads as the plant's own
+// partners, the plant across the plan (or, after "Just these 2", the copies there then). A dismissed row says which of
+// those it is. Each row reads as the plant's own
 // details say it: its name first, then the problem (poison with its severity; sun naming the sun area).
 
 import { crowdOptions, hardyHere } from './crowd-here';
@@ -26,7 +27,7 @@ import { state } from './state';
 import { alreadyThere, passesFilter, shownWith, statusLabel } from './status';
 import { save } from './storage';
 import { checkPlantSun, sunAt, sunDismissedFor } from './sun';
-import type { Shape } from './types';
+import type { DismissKind, Shape } from './types';
 import { issuesKey, prepareUtilities, utilityIssues, utilityOf } from './utilities';
 import { household, yardSet } from './yard';
 
@@ -195,14 +196,15 @@ export function planWarnings(): WarningRow[] {
     rows.push(...off);
   }
 
-  // Hardiness and poison: the plant's (every copy), dismissed across the plan or copy by copy.
+  // Hardiness, poison and fruit partners: the plant's (every copy), dismissed across the plan or copy by copy. `warning`:
+  // what's kept when it's dismissed (key), and its words; null for none.
   const perPlant = byPlant(plants.filter((s) => !(s.type === 'circle' && s.tree)));
-  const plantRows = (kind: 'hardy' | 'poison', key: (p: Plant) => string, words: (p: Plant) => string, skip: (s: Shape) => boolean = () => false) => {
+  const plantRows = (kind: DismissKind, warning: (p: Plant) => { key: string; said: string } | null, skip: (s: Shape) => boolean = () => false) => {
     const off: WarningRow[] = [];
     for (const [id, copies] of perPlant) {
-      const line = key(plantsById[id]!);
-      if (!line) continue;
-      const said = unstop(words(plantsById[id]!));
+      const w = warning(plantsById[id]!);
+      if (!w) continue;
+      const line = w.key, said = w.said;
       const here = copies.filter((s) => !skip(s));
       const all = dismissedForPlan(kind, id, line);
       // (A poison warning stays dismissed with fewer at risk than when it was: src/dismissals.ts poisonCovered.)
@@ -213,11 +215,11 @@ export function planWarnings(): WarningRow[] {
     }
     rows.push(...off);
   };
-  const hardyLine = (p: Plant) => hardinessWarning(p)?.line ?? '';
-  if (state.hardyWarnings) plantRows('hardy', hardyLine, hardyLine, (s) => s.status === 'existing' || alreadyThere(s));
+  const hardy = (p: Plant) => { const line = hardinessWarning(p)?.line; return line ? { key: line, said: unstop(line) } : null; };
+  if (state.hardyWarnings) plantRows('hardy', hardy, (s) => s.status === 'existing' || alreadyThere(s));
   // (Poison in its details' words, its severity and parts: "Poisonous if eaten (high severity: leaves); a problem for
   // dogs". Kept dismissed by its flags, as before: src/dismissals.ts poisonSaid.)
-  if (state.poisonWarnings) plantRows('poison', poisonSaid, poisonLine);
+  if (state.poisonWarnings) plantRows('poison', (p) => { const key = poisonSaid(p); return key ? { key, said: unstop(poisonLine(p)) } : null; });
 
   // Utilities: a copy's own, by where it stands (no switch: a power line, a buried line, a septic field).
   const utils = prepareUtilities(shown.filter((s) => s.role === 'utility'));
@@ -234,18 +236,11 @@ export function planWarnings(): WarningRow[] {
     rows.push(...off);
   }
 
-  // Fruit partners: plants still without one (the whole plan counts as partners, as when placing).
+  // Fruit partners: plants still without one (the whole plan counts as partners, as when placing). The plant's, as
+  // hardiness and poison are: dismissed across the plan, or copy by copy (Jason, Nov 1).
   if (state.fruitWarnings) {
     const plan = state.shapes.flatMap((s) => (s.role === 'plant' && s.status !== 'gone' && plantOf(s) ? [plantOf(s)!] : []));
-    const off: WarningRow[] = [];
-    for (const [id, copies] of perPlant) {
-      const need = fruitNeed(plantsById[id]!, plan, PLANTS, hardyHere);
-      if (!need) continue;
-      const gone = dismissedForPlan('fruit', id, need.line);
-      (gone ? off : rows).push({ kind: 'fruit', ids: copies.map((s) => s.id), name: named(copies), said: afterName(unstop(need.line), plantsById[id]!.common), key: need.line, dismissed: gone, plantId: id,
-        ...(gone ? { scope: everyOne(id), again: () => clearForPlan('fruit', id) } : { dismiss: () => { dismissForPlan('fruit', id, need.line); return false; } }) });
-    }
-    rows.push(...off);
+    plantRows('fruit', (p) => { const need = fruitNeed(p, plan, PLANTS, hardyHere); return need ? { key: need.line, said: afterName(unstop(need.line), p.common) } : null; });
   }
   // (Kind by kind, safety first; within a kind, as found: active above dismissed.)
   return rows.map((r, i) => [r, i] as const).sort(([a, i], [b, j]) => ORDER.get(a.kind)! - ORDER.get(b.kind)! || i - j).map(([r]) => r);

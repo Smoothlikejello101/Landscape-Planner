@@ -43,13 +43,23 @@ Nov 1: release 3 changed what's stored (each plan's ticks, yard and switches; sy
 version 1, and a buried line lost its role and became a plain shape. Version 2 (Nov 1) changes no store or record; it
 was raised so older pages can't save over release 3's plans.
 
+The history (src/db.ts keeps it beside `DB_VERSION`):
+- 1 (Oct 11): the four stores.
+- 2 (Nov 1): no store or record changed. Raised for release 3's plans (each plan's ticks, yard and switches; sync
+  records' `core` and `parts`), and from it each plan record and journal carries the version that wrote it.
+- 3 (Nov 2): no store or record changed. Plant shapes' `fruitDismissed` (a fruit-partner warning dismissed for one
+  plant), which a version-2 page would drop, saving or syncing a plan. A version-2 page's journal, written without it,
+  is kept apart from a plan saved at 3, not put over it. (Sync has its own guard for versions before the field: a
+  device that has it keeps it when the server's copy has none, src/sync/engine.ts `withFruitDismissals`.)
+
 When raising it:
 1. Add a line to the history beside `DB_VERSION`: the version, the day, what changed.
 2. `onupgradeneeded` only adds stores that are missing. It never deletes, clears or rewrites a store or a record. A
    change that must rewrite records does it after the open, in one transaction (`KV.changeAllOnce`, as
    `takeFromDevice` does), so nothing another tab saves meanwhile is put back as it was read.
 3. Test the upgrade from the version before, with real data in it (tests/storage.test.ts: "the upgrade from 1 keeps
-   every store and record"), and the migration spec against e2e/fixtures/legacy-app.
+   every store and record", "the upgrade from 2 keeps every store and record"), and the migration spec against
+   e2e/fixtures/legacy-app.
 4. A storage change gets a pull request of its own (CLAUDE.md).
 
 **Never lower it, and never deploy a build with a lower one** (a rollback, a revert, a re-run of an older CI run):
@@ -90,6 +100,20 @@ The limit: localStorage holds about 5 MB for the site. While saves keep failing 
 leaves its own journal, and they stay until a start can write them in; after many such closes, a new journal may not
 fit, and then it isn't written (a journal too big with its photo's bytes is written without them first). The warning
 bar says the changes aren't saved all along.
+
+## `fruitDismissed` through sync, while a device is still on the release
+
+The release (and any version before Nov 1) sends plans without `fruitDismissed`, even over a newer one: its merge can't
+see it. So each device of this version keeps its own when the server's copy of that plant's shape has none at all:
+words (dismissed for that plant alone), or `''` (shown again on purpose: Show again, or Undo taking one away), which
+is never filled back from another device's words. A `''` reads as none in the plan's fingerprint, so a dismissal taken
+back before the plan synced isn't a change of its own (no conflict copy against another device's edit), while words
+to `''` still is, and goes up.
+
+The window left: a device offline through another device's Show again, with a device on the release sending the plan
+in between, still has the words, and the server's copy no longer says otherwise. It keeps them; if it sends the plan
+(any edit) before the device that showed it again does, the dismissal comes back for everyone; if that one sends
+first, its `''` goes up and the offline one takes it. Only while one of the account's devices is on the release.
 
 ## Two tabs on the same version
 
