@@ -54,3 +54,8 @@ Projects are stored in the browser's IndexedDB. Data from versions before
 0.2 (localStorage) is migrated automatically on first launch and the old
 copy is left in place. Use **Projects → Back up all projects** to save a
 file you can restore on any device.
+
+A change to what's stored that an older version would lose data saving over
+raises the database version (`DB_VERSION` in `src/db.ts`), so a tab left open
+on an older version can't save over the newer data: see
+[docs/storage.md](docs/storage.md).

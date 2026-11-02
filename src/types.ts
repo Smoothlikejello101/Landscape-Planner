@@ -265,6 +265,8 @@ export interface ProjectMeta {
   name: string;
   lastModified: number;
   shapeCount?: number;
+  /** A plan made from an older tab's unsaved changes, kept beside this one (src/storage.ts keepJournalApart). */
+  keptFrom?: string;
 }
 /** Plants drawn at the middle of their size range, or at full (maximum) size. */
 export type SizeMode = 'typical' | 'full';
