@@ -89,7 +89,12 @@ export function renderLocationPanel(): HTMLElement {
   const body = el('div', { className: 'sheet-body', 'data-testid': 'location' });
 
   const { input, go, problem: said } = zipEntry('sheet');
-  body.appendChild(el('div', { className: 'hint' }, 'The garden’s ZIP code gives its USDA hardiness zone and typical frost dates. Only its first three digits are fetched (a table from this app’s own site); the full ZIP isn’t sent anywhere.'));
+  body.appendChild(el('div', { className: 'hint' }, 'The garden’s ZIP code gives its USDA hardiness zone, typical frost dates and the state’s plant laws.'));
+  // What happens to it, for anyone wary of giving it (the first screen's Privacy opens this: Jason, Nov 1). Said as it
+  // is: it's kept with the plan, so it goes where the plan goes (to the account, signed in; into backups).
+  body.appendChild(el('div', { className: 'hint location-privacy', 'data-testid': 'zip-privacy-note' },
+    el('b', {}, 'Privacy. '),
+    'Looking it up fetches only its first three digits, from a table on this app’s own site. The ZIP is kept with this plan: on this device, in backups and plan files you save, and, if you sign in to sync, in your account with the rest of the plan. Once it’s set, you can remove it here.'));
   body.appendChild(el('div', { className: 'row-2', style: { alignItems: 'end' } }, el('div', { className: 'field' }, el('label', {}, 'ZIP code'), input), go));
   if (said) body.appendChild(said);
 

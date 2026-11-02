@@ -177,7 +177,7 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
     } : {
       // (How to leave a panel, said once, at the first one (Jason, Oct 29: "do I need to save somehow?"). Its ×, not
       // the plan: on a phone the panel covers all but a sliver of it (round 3: Ruth, Priya, Lena and Dana).)
-      text: `Your ZIP gives the garden's hardiness zone and frost dates. Only its first three digits leave your device. When you're done with a panel, close it with its ×: everything saves as you go.`,
+      text: `Your ZIP gives the garden's hardiness zone and frost dates. Looking it up sends only its first three digits. When you're done with a panel, close it with its ×: everything saves as you go.`,
       short: state.location?.zip ? 'Your zone and frost dates are below. Close this with its × to go on.' : 'Enter your ZIP, then Look up.',
       action: { label: 'Enter your ZIP', run: () => openLocation() },
     };
