@@ -1,4 +1,4 @@
-import { bedOf, isBed, isPlant } from './beds';
+import { bedOf, isPlant } from './beds';
 import { utilityLabel } from './utility-kinds';
 import { hiddenIds, paintOrder, seeThroughIds } from './canvas';
 import { escapeHtml } from './dom';
@@ -9,6 +9,7 @@ import { ROLES, roleKey, roleLabel } from './roles';
 import type { BgImage, Bounds, PaperSize, PrintSettings, RoleKey, Shape, ShapeFilter, SizeMode } from './types';
 import { NO_FILTER } from './status';
 import { fullRingRadius } from './my-plants';
+import { bedNames } from './print-area';
 
 // The printable plan: a to-scale drawing on a standard sheet, with a title
 // block, scale bar, north arrow, legend and a plant list grouped by bed.
@@ -27,10 +28,12 @@ export const PAPER: Record<PaperSize, { w: number; h: number; label: string }> =
 const MARGIN = 0.4;
 const GAP = 0.25;
 /**
- * Scales a ruler can check: feet per inch. Includes the architect's
- * 1/4" = 1' (4), 1/8" = 1' (8), 1/16" = 1' (16) and the engineer's 10, 20, 30...
+ * Scales a ruler can check: feet per inch, each a round number. Includes the architect's
+ * 1/4" = 1' (4), 1/8" = 1' (8), 1/16" = 1' (16) and the engineer's 10, 20, 30...; close enough together that the
+ * largest that fits fills most of the page (Jason, Nov 2, from the UI review: "scaled to fill the page"), down to
+ * 2 in = 1 ft (0.5) for one small bed.
  */
-export const NICE_SCALES = [1, 2, 4, 5, 8, 10, 16, 20, 30, 40, 50, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500];
+export const NICE_SCALES = [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 15, 16, 20, 25, 30, 40, 50, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500];
 
 export interface Box { x: number; y: number; w: number; h: number }
 export interface PrintLayout {
@@ -47,7 +50,7 @@ export interface PrintLayout {
   sideAt: 'right' | 'bottom';
 }
 
-function layoutFor(paper: PaperSize, orientation: 'portrait' | 'landscape', content: Bounds): PrintLayout {
+function layoutFor(paper: PaperSize, orientation: 'portrait' | 'landscape', content: Bounds, exact: boolean): PrintLayout {
   const p = PAPER[paper];
   const pageW = orientation === 'portrait' ? p.w : p.h;
   const pageH = orientation === 'portrait' ? p.h : p.w;
@@ -65,16 +68,25 @@ function layoutFor(paper: PaperSize, orientation: 'portrait' | 'landscape', cont
   const needed = Math.max(cw / plan.w, ch / plan.h);
   const ftPerIn = NICE_SCALES.find((s) => s >= needed - 1e-9) ?? Math.ceil(needed / 100) * 100;
   const cx = (content.minX + content.maxX) / 2, cy = (content.minY + content.maxY) / 2;
+  if (exact) {
+    // The drawing is the area itself, at its proportions, in the middle of the room for it.
+    const w = cw / ftPerIn, h = ch / ftPerIn;
+    plan = { x: plan.x + (plan.w - w) / 2, y: plan.y + (plan.h - h) / 2, w, h };
+  }
   const ww = plan.w * ftPerIn, wh = plan.h * ftPerIn;
   return {
     pageW, pageH, orientation, plan, ftPerIn, side, sideAt: orientation === 'landscape' ? 'right' : 'bottom',
     window: { minX: cx - ww / 2, maxX: cx + ww / 2, minY: cy - wh / 2, maxY: cy + wh / 2 },
   };
 }
-/** Fit `content` (feet) on the sheet at the largest standard scale. Auto picks the orientation that draws it bigger. */
-export function planLayout(paper: PaperSize, orientation: PrintSettings['orientation'], content: Bounds): PrintLayout {
-  if (orientation !== 'auto') return layoutFor(paper, orientation, content);
-  const land = layoutFor(paper, 'landscape', content), port = layoutFor(paper, 'portrait', content);
+/**
+ * Fit `content` (feet) on the sheet at the largest standard scale. Auto picks the orientation that draws it bigger.
+ * `exact`: the drawing shows `content` and no more (on screen, one bed: src/print-area.ts), rather than filling the
+ * sheet's drawing box with the yard around it (the whole plan).
+ */
+export function planLayout(paper: PaperSize, orientation: PrintSettings['orientation'], content: Bounds, exact = false): PrintLayout {
+  if (orientation !== 'auto') return layoutFor(paper, orientation, content, exact);
+  const land = layoutFor(paper, 'landscape', content, exact), port = layoutFor(paper, 'portrait', content, exact);
   return port.ftPerIn < land.ftPerIn ? port : land;
 }
 
@@ -87,6 +99,7 @@ export function scaleBarFeet(ftPerIn: number, targetIn = 2): number {
   return best;
 }
 export function scaleText(ftPerIn: number): string {
+  if (ftPerIn < 1) return `${Math.round(1 / ftPerIn)} in = 1 ft`;
   const arch: Record<number, string> = { 2: '1/2 in = 1 ft', 4: '1/4 in = 1 ft', 8: '1/8 in = 1 ft', 16: '1/16 in = 1 ft' };
   return `1 in = ${ftPerIn} ft` + (arch[ftPerIn] ? ` (${arch[ftPerIn]})` : '');
 }
@@ -107,21 +120,19 @@ export function printContent(shapes: Shape[], bg: BgImage | null, includeBackgro
 export interface ScheduleRow { label: string; botanical: string; count: number; key: number }
 export interface ScheduleGroup { bed: string; rows: ScheduleRow[]; total: number }
 /** Plants counted by name, grouped by the bed they sit in (beds by name, then plants in no bed). */
-export function plantSchedule(shapes: Shape[], plantsById: Record<string, Plant | undefined>, order: Shape[] = shapes): ScheduleGroup[] {
+/** `keyFrom`: the plants numbered (the whole sheet's), when only some of them are listed (src/print-area.ts). */
+export function plantSchedule(shapes: Shape[], plantsById: Record<string, Plant | undefined>, order: Shape[] = shapes, keyFrom: Shape[] = shapes): ScheduleGroup[] {
   const plants = shapes.filter(isPlant);
   if (!plants.length) return [];
   // (Grouped by every bed on the plan, the ones hidden in Layers too: with Bed hidden, all 19 plants were listed as
   // "Not in a bed". Round 3, Jordan. `order` is the whole plan.)
   const all = order.length >= shapes.length ? order : shapes;
-  const beds = all.filter(isBed);
-  const bedName = new Map<Shape, string>();
-  let unnamed = 0;
-  for (const b of beds) bedName.set(b, b.label.trim() || `Unnamed bed ${++unnamed}`);
+  const bedName = bedNames(all);
   const groups = new Map<string, Map<string, ScheduleRow>>();
   const NONE = 'Not in a bed';
   for (const p of plants) {
     const bed = bedOf(p, all);
-    const g = bed ? bedName.get(bed)! : NONE;
+    const g = bed ? bedName.get(bed.id)! : NONE;
     if (!groups.has(g)) groups.set(g, new Map());
     const label = p.label.trim() || 'Unlabeled plant';
     const rows = groups.get(g)!;
@@ -131,7 +142,7 @@ export function plantSchedule(shapes: Shape[], plantsById: Record<string, Plant 
   }
   const names = [...groups.keys()].filter((n) => n !== NONE).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   if (groups.has(NONE)) names.push(NONE);
-  const keys = plantKeys(plants, order);
+  const keys = plantKeys(keyFrom, order);
   return names.map((bed) => {
     const rows = [...groups.get(bed)!.values()];
     for (const r of rows) r.key = keys.get(r.label)!;
@@ -192,7 +203,12 @@ export function gridStep(ftPerIn: number): number {
   return [1, 2, 5, 10, 20, 50, 100, 200, 500].find((s) => s / ftPerIn >= 0.1) ?? 1000;
 }
 /** SVG of the yard window at `pxPerIn` (shapes, optional grid and background). */
-export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage | null, opts: Pick<PrintSettings, 'includeBackground' | 'includeGrid' | 'includePlantList'> & { includeFullRings?: boolean; order?: Shape[]; names?: boolean }, pxPerIn: number): { svg: string; w: number; h: number } {
+/**
+ * `keyFrom`: the plants numbered, if more than those drawn (all the sheet's, for one bed or the part of the plan on the
+ * screen: the same plant has the same number on each); `listed`: the plants given their number, if not every one drawn
+ * (one cut by the screen's edge, its middle off the sheet, isn't).
+ */
+export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage | null, opts: Pick<PrintSettings, 'includeBackground' | 'includeGrid' | 'includePlantList'> & { includeFullRings?: boolean; order?: Shape[]; names?: boolean; keyFrom?: Shape[]; listed?: Set<string> }, pxPerIn: number): { svg: string; w: number; h: number } {
   // (Names hidden, as on the screen: no names, lengths, sun hours or plant numbers. Jason, Oct 31.)
   const names = opts.names !== false;
   const { window: win, ftPerIn } = layout;
@@ -221,7 +237,8 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
     bgSvg = `<image x="${cx - (wFt * pxPerFt) / 2}" y="${cy - (hFt * pxPerFt) / 2}" width="${wFt * pxPerFt}" height="${hFt * pxPerFt}" opacity="${bg.opacity}" preserveAspectRatio="none" href="${escapeHtml(bg.dataUrl)}"${rot}/>`;
   }
   // Plants show their key number (see the plant list) rather than their name.
-  const keys = opts.includePlantList && names ? plantKeys(shapes, opts.order) : null;
+  const keys = opts.includePlantList && names ? plantKeys(opts.keyFrom ?? shapes, opts.order) : null;
+  const numbered = (s: Shape) => !opts.listed || opts.listed.has(s.id);
   const ring = (s: Shape) => {
     const r = opts.includeFullRings && s.type === 'circle' ? fullRingRadius(s) : null;
     return r ? `<circle cx="${(s.x - win.minX) * pxPerFt}" cy="${(s.y - win.minY) * pxPerFt}" r="${r * pxPerFt}" fill="none" stroke="${s.color}" stroke-width="${1.2 * k}" stroke-dasharray="${5 * k} ${4 * k}"/>` : '';
@@ -231,6 +248,7 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
     if (!keys || !isPlant(s)) return shapeToSvgString(s, win.minX, win.minY, pxPerFt, k);
     const key = keys.get(s.label.trim() || 'Unlabeled plant');
     let out = shapeToSvgString({ ...s, label: '' }, win.minX, win.minY, pxPerFt, k);
+    if (!numbered(s)) return out;
     const b = shapeBBox(s);
     const cx = ((b.minX + b.maxX) / 2 - win.minX) * pxPerFt, cy = ((b.minY + b.maxY) / 2 - win.minY) * pxPerFt;
     const fs = 11 * k;
@@ -240,7 +258,7 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
   // Plants hidden under a solid one: a pin over it, as on the plan, and its number beside the pin (round 3, Hank: four
   // of six daffodils were white dots the list and legend didn't explain; their numbers were under the catmint).
   const hidden = hiddenIds(shapes, NO_FILTER, thin);
-  const pins = hiddenRimsSvg(shapes, hidden, win.minX, win.minY, pxPerFt, k) + (keys ? shapes.filter((s) => hidden.has(s.id) && isPlant(s)).map((s) => {
+  const pins = hiddenRimsSvg(shapes, hidden, win.minX, win.minY, pxPerFt, k) + (keys ? shapes.filter((s) => hidden.has(s.id) && isPlant(s) && numbered(s)).map((s) => {
     const key = keys.get(s.label.trim() || 'Unlabeled plant');
     const cx = (s.x - win.minX) * pxPerFt + 6 * k, cy = (s.y - win.minY) * pxPerFt;
     return `<text x="${cx}" y="${cy}" dominant-baseline="central" font-size="${9 * k}" font-weight="700" fill="#0f172a" font-family="sans-serif" stroke="#ffffff" stroke-width="${2.5 * k}" paint-order="stroke" stroke-linejoin="round">${key}</text>`;

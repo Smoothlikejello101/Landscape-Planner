@@ -17,6 +17,7 @@ import { openWhatsNew } from './whats-new-panel';
 import { CHANNEL } from '../channel';
 import { builtOn } from '../whats-new';
 import { openPrint } from './print-panel';
+import { noteScreen } from '../print-area';
 import { openWarnings, warningsMenuLabel } from './warnings-sheet';
 import { openPlantList } from './plant-list-panel';
 import { checkForUpdate, onUpdateWaiting, updateNow, updateWaiting } from '../pwa';
@@ -73,7 +74,7 @@ export function renderMoreMenu() {
   if (state.shapes.length) {
     // (Its own item: people look for "print", not for it under Export.)
     items.push({ icon: I.print, label: 'Print or save as PDF…', onClick: () => { openPrint(); state.menu = null; render(); } });
-    items.push({ icon: I.download, label: 'Export image…', onClick: () => { state.panel = 'export'; state.menu = null; render(); } });
+    items.push({ icon: I.download, label: 'Export image…', onClick: () => { noteScreen(); state.panel = 'export'; state.menu = null; render(); } });
   }
   items.push({ divider: true });
   // The plans, and backing them up: the pane the plan's name opens, from here too (Jason, from the UI review,

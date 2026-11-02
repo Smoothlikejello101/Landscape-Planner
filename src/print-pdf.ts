@@ -8,6 +8,7 @@ import type { BgImage, PrintSettings, Shape, SizeMode, Status } from './types';
 import { filterText } from './status';
 import { shownCaption } from './export';
 import { state } from './state';
+import { areaWords, frameArea, WHOLE_PLAN, type PrintArea } from './print-area';
 
 // Writes the printable plan as a PDF (browser only). Layout and content come
 // from print.ts; this file only draws them.
@@ -56,14 +57,20 @@ function onPaper(hex: string, alpha: number): string {
  */
 export interface PrintView { names: boolean; month: number | null }
 
+/**
+ * `area`: the whole plan, the part of it on the screen, or one bed (src/print-area.ts), scaled to fill the page; its
+ * plant list lists only the plants in it, numbered as on the whole plan's sheet.
+ */
 export async function buildPlanPdf(
   settings: PrintSettings, projectName: string, shapes: Shape[], bg: BgImage | null, sizeMode: SizeMode = 'typical',
-  view: PrintView = { names: true, month: null },
+  view: PrintView = { names: true, month: null }, area: PrintArea = WHOLE_PLAN,
 ): Promise<PdfResult> {
   const filter = { status: settings.statusFilter, phase: settings.phaseFilter, showGone: false };
   const content = printContent(shapes, bg, settings.includeBackground, filter);
   if (!content.bounds) throw new Error('There is nothing on the plan to print yet.');
-  const layout = planLayout(settings.paper, settings.orientation, content.bounds);
+  const framed = frameArea(area, content.shapes, shapes, content.bounds);
+  if (!framed.bounds) throw new Error('That bed is no longer on the plan. Pick another.');
+  const layout = planLayout(settings.paper, settings.orientation, framed.bounds, framed.exact);
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ unit: 'in', format: [layout.pageW, layout.pageH], orientation: layout.orientation, compress: true });
   doc.setProperties({ title: pdfSafe(settings.title || projectName), creator: 'FullGrown' });
@@ -74,7 +81,11 @@ export async function buildPlanPdf(
   const wasMonth = state.month;
   state.month = view.month;
   let plan: ReturnType<typeof buildPlanSvg>;
-  try { plan = buildPlanSvg(layout, content.shapes, bg, { ...settings, order: shapes, names: view.names }, pxPerIn); }
+  try {
+    plan = buildPlanSvg(layout, framed.shapes, bg, {
+      ...settings, order: shapes, names: view.names, keyFrom: content.shapes, ...(framed.exact ? { listed: new Set(framed.plants.map((s) => s.id)) } : {}),
+    }, pxPerIn);
+  }
   finally { state.month = wasMonth; }
   const jpeg = await rasterize(plan.svg, plan.w, plan.h);
   const { x, y, w, h } = layout.plan;
@@ -87,28 +98,35 @@ export async function buildPlanPdf(
   const cols: Box[] = layout.sideAt === 'right'
     ? [side]
     : [{ x: side.x, y: side.y, w: side.w * 0.42, h: side.h }, { x: side.x + side.w * 0.42 + 0.25, y: side.y, w: side.w * 0.58 - 0.25, h: side.h }];
-  let cy = titleBlock(doc, cols[0], settings, projectName, layout, shownCaption(filter, view.month));
-  cy = legend(doc, cols[0], cy, legendEntries(content.shapes, sizeMode, settings.includeFullRings && sizeMode === 'typical'));
-  cy = statusLegend(doc, cols[0], cy, new Set(content.shapes.map((s) => s.status).filter((x): x is Status => !!x)));
-  const schedule = settings.includePlantList ? plantSchedule(content.shapes, plantsById, shapes) : [];
+  let cy = titleBlock(doc, cols[0], settings, projectName, layout, shownCaption(filter, view.month), areaWords(framed));
+  cy = legend(doc, cols[0], cy, legendEntries(framed.shapes, sizeMode, settings.includeFullRings && sizeMode === 'typical'));
+  cy = statusLegend(doc, cols[0], cy, new Set(framed.shapes.map((s) => s.status).filter((x): x is Status => !!x)));
+  const schedule = settings.includePlantList ? plantSchedule(framed.plants, plantsById, shapes, content.shapes) : [];
   let pages = 1;
   if (schedule.length) {
     const first: Box[] = layout.sideAt === 'right'
       ? [{ x: side.x, y: cy + 0.15, w: side.w, h: side.y + side.h - cy - 0.15 }]
       : [cols[1]];
-    pages = plantList(doc, schedule, first, layout, filterText(filter), view.names);
+    pages = plantList(doc, schedule, first, layout, [framed.name, filterText(filter)].filter(Boolean).join(' · '), view.names);
   }
   footer(doc, layout, 1, pages);
   return { blob: doc.output('blob'), pages, layout };
 }
 
-function titleBlock(doc: JsPDF, box: Box, s: PrintSettings, projectName: string, layout: PrintLayout, caption = ''): number {
+/** `area`: what of the plan the sheet shows, when not all of it ("Front bed: 7 plants"), said under the title. */
+function titleBlock(doc: JsPDF, box: Box, s: PrintSettings, projectName: string, layout: PrintLayout, caption = '', area = ''): number {
   let y = box.y;
   doc.setTextColor('#1c1917');
   doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
   const title = doc.splitTextToSize(pdfSafe(s.title.trim() || projectName), box.w) as string[];
   doc.text(title.slice(0, 2), box.x, y, { baseline: 'top' });
   y += pt(19) * Math.min(2, title.length);
+  if (area) {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+    const lines = doc.splitTextToSize(pdfSafe(area), box.w) as string[];
+    doc.text(lines.slice(0, 2), box.x, y + pt(1), { baseline: 'top' });
+    y += pt(1) + pt(13.5) * Math.min(2, lines.length);
+  }
   if (s.subtitle.trim()) {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
     const sub = doc.splitTextToSize(pdfSafe(s.subtitle.trim()), box.w) as string[];
