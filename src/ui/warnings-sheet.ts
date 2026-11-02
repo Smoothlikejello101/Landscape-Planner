@@ -89,14 +89,28 @@ function current() {
   return now;
 }
 /**
- * The catalog in: the button, and Warnings if it's open, said afresh in place, without the whole app redrawn (a field
- * being typed in keeps its keyboard: CLAUDE.md).
+ * The catalog in (or the plan changed in place: warningsChangedInPlace): the button, and Warnings if it's open, said
+ * afresh in place, without the whole app redrawn (a field being typed in keeps its keyboard: CLAUDE.md).
  */
 function catalogIn() {
+  if (typeof document === 'undefined') return;
   refreshWarnings();
   const btn = document.querySelector('[data-testid=warnings-btn]'), fresh = warningsButton();
   if (btn && fresh) btn.replaceWith(fresh);
   for (const old of document.querySelectorAll('.warnings-body')) old.replaceWith(body());
+}
+/**
+ * The plan changed with only the canvas redrawn (a field typed in, a slider dragged: src/mutations.ts
+ * updateSelectedSilent): the button's count, and Warnings beside the plan if it's open, said afresh in place, once a
+ * frame (the warnings bug hunt, Nov 1: a sun area's hours dragged from 12 h to 3 h left the count at 11 until its sheet
+ * closed). Never a render: the field being typed in, or the slider held, stays as it is (CLAUDE.md, keyboard safety).
+ */
+let inPlaceQueued = false;
+export function warningsChangedInPlace() {
+  if (inPlaceQueued) return;
+  inPlaceQueued = true;
+  const run = () => { inPlaceQueued = false; catalogIn(); };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run); else run();
 }
 /** The rows to look at, in the sheet's order: what the walk steps through. */
 const toLookAt = () => current().rows.filter((r) => !r.dismissed);

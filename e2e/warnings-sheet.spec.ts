@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { closeSheet, openKind, openSettings, openWarnings, shapeCount } from './helpers';
+import { closeSheet, openKind, openSections, openSettings, openWarnings, shapeCount } from './helpers';
 
 // Warnings as a plan tool of its own (Jason approved the mock-ups, Nov 1, from the review of Settings → Warnings): a
 // button among the plan's side buttons with its count; ⋮ "Warnings (12)…"; one row in Settings; a notice's Settings.
@@ -374,4 +374,26 @@ test('a plant\'s details show its fruit-partner warning, with Dismiss and Show a
   await expect(banner.getByRole('button')).toHaveText(["Dismiss for every Winterberry 'Winter Red'"]);
   await closeSheet(page);
   await expect(button(page)).toHaveAttribute('aria-label', 'Warnings: 10 to look at');
+});
+
+test('the count, and the badges, follow a sun area\'s hours as they\'re dragged, with its details still open (the warnings bug hunt, Nov 1)', async ({ page }) => {
+  await openPlan(page, EVERY, { dogs: true, zone: true });
+  await expect(button(page)).toHaveAttribute('aria-label', 'Warnings: 10 to look at');
+  await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(1); // (the turkey corn, in 8 h)
+  await page.locator('button[title=Layers]').click();
+  await page.locator('.layer-row', { hasText: 'Sunny strip' }).click();
+  await page.locator('.sel-pill button.edit').click();
+  await openSections(page);
+  const hours = page.locator('[data-testid=sun-section] input[type=range]');
+  await hours.evaluate((el) => { (el as HTMLElement).dataset.kept = 'yes'; });
+  await hours.fill('3'); // (part shade: what the turkey corn wants)
+  // While the details are still open: the count down by one, its badge gone, and the slider the same one, kept.
+  await expect(page.locator('.sheet')).toHaveCount(1);
+  await expect(button(page)).toHaveAttribute('aria-label', 'Warnings: 9 to look at');
+  await expect(button(page).getByTestId('warnings-count')).toHaveText('9');
+  await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(0);
+  await expect(hours).toHaveAttribute('data-kept', 'yes');
+  await hours.fill('12');
+  await expect(button(page)).toHaveAttribute('aria-label', 'Warnings: 10 to look at');
+  await expect(hours).toHaveAttribute('data-kept', 'yes');
 });
