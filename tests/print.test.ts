@@ -16,10 +16,11 @@ const plant = (id: string, label: string, x: number, y: number, plantId?: string
 
 describe('sheet layout', () => {
   it('picks the largest standard scale that fits', () => {
-    // 40 x 30 ft on landscape letter: the drawing area is about 7 x 7.7 in -> needs 5.7 ft/in -> 8.
+    // 40 x 30 ft on landscape letter: the drawing area is about 7 x 7.7 in -> needs 5.7 ft/in -> 6 (8 before the
+    // scales between were added, to fill the page: Jason, Nov 2).
     const l = planLayout('letter', 'landscape', { minX: 0, maxX: 40, minY: 0, maxY: 30 });
-    expect(l.ftPerIn).toBe(8);
-    expect(l.window.maxX - l.window.minX).toBeCloseTo(l.plan.w * 8);
+    expect(l.ftPerIn).toBe(6);
+    expect(l.window.maxX - l.window.minX).toBeCloseTo(l.plan.w * 6);
     expect((l.window.minX + l.window.maxX) / 2).toBeCloseTo(20); // centered
     expect(l.plan.x + l.plan.w).toBeLessThan(l.side.x);
   });

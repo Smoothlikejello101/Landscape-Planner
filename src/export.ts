@@ -9,7 +9,8 @@ import { isArbor, isTrellis, LATTICE_STEP, latticePath, SLAT_STEP, slatsPath } f
 import { currentProject } from './storage';
 import type { Bounds, CircleShape, Shape, ShapeFilter } from './types';
 import { render } from './ui/render';
-import { hiddenIds, labelRuns, paintOrder, seeThroughIds } from './canvas';
+import { gridSteps, hiddenIds, labelRuns, paintOrder, seeThroughIds } from './canvas';
+import { areaWords, frameArea, printArea, WHOLE_PLAN, type PrintArea } from './print-area';
 import { roleDef, roleKey, roleLabel, ROLES } from './roles';
 import { filterText } from './status';
 import { formatHours, shadeOpacity, sunHours } from './sun';
@@ -334,42 +335,57 @@ export function shownCaption(filter: Pick<ShapeFilter, 'status' | 'phase'>, mont
     month != null ? `As in ${MONTH_NAMES[month - 1]}` : ''];
   return parts.filter(Boolean).join(' \u00b7 ');
 }
-export function buildExportSVG(): { svg: string; widthPx: number; heightPx: number } | null {
+/** A picture of one bed: about this many px on its longer side (twice that in a PNG), never smaller than the plan at 100%. */
+export const BED_PICTURE_PX = 1200;
+/**
+ * The picture of the plan: the whole of it, or the area chosen for print (src/print-area.ts, "the picture follows"):
+ * the part of the plan on the screen, at the size it was shown there; one bed, its plants and a margin, made big.
+ */
+export function buildExportSVG(area: PrintArea = WHOLE_PLAN): { svg: string; widthPx: number; heightPx: number } | null {
   const bbox = computeAllBBox();
   if (!bbox) return null;
-  const pad = 2;
-  const minX = Math.floor(bbox.minX - pad);
-  const minY = Math.floor(bbox.minY - pad);
-  const maxX = Math.ceil(bbox.maxX + pad);
-  const maxY = Math.ceil(bbox.maxY + pad);
-  const scale = PX_PER_FOOT_BASE;
+  const framed = frameArea(area, paintOrder(state.shapes), state.shapes, bbox);
+  const b = framed.bounds;
+  if (!b) return null;
+  let minX: number, minY: number, maxX: number, maxY: number, scale: number;
+  if (!framed.exact) {
+    const pad = 2;
+    minX = Math.floor(b.minX - pad); minY = Math.floor(b.minY - pad);
+    maxX = Math.ceil(b.maxX + pad); maxY = Math.ceil(b.maxY + pad);
+    scale = PX_PER_FOOT_BASE;
+  } else {
+    ({ minX, minY, maxX, maxY } = b);
+    scale = area.kind === 'screen' && area.ppf > 0 ? area.ppf
+      : Math.max(PX_PER_FOOT_BASE, BED_PICTURE_PX / Math.max(1, maxX - minX, maxY - minY));
+  }
   const widthFt = maxX - minX;
   const heightFt = maxY - minY;
-  const widthPx = widthFt * scale;
-  const heightPx = heightFt * scale;
+  // (Whole px: a picture of the screen's part of the plan is the screen's size.)
+  const widthPx = Math.max(1, Math.round(widthFt * scale));
+  const heightPx = Math.max(1, Math.round(heightFt * scale));
+  // The grid as the plan has it at this many px a foot (every foot close in, labeled every 10; fewer zoomed far out).
+  const { minorEvery, majorEvery } = gridSteps(scale);
   let grid = '';
-  for (let fx = minX; fx <= maxX; fx++) {
+  for (let fx = Math.ceil(minX / minorEvery) * minorEvery; fx <= maxX; fx += minorEvery) {
     const px = (fx - minX) * scale;
-    const isMajor = fx % 10 === 0;
+    const isMajor = fx % majorEvery === 0;
     grid += `<line x1="${px}" y1="0" x2="${px}" y2="${heightPx}" stroke="${isMajor?GRID_MAJOR:GRID_MINOR}" stroke-width="${isMajor?1:0.5}"/>`;
   }
-  for (let fy = minY; fy <= maxY; fy++) {
+  for (let fy = Math.ceil(minY / minorEvery) * minorEvery; fy <= maxY; fy += minorEvery) {
     const py = (fy - minY) * scale;
-    const isMajor = fy % 10 === 0;
+    const isMajor = fy % majorEvery === 0;
     grid += `<line x1="0" y1="${py}" x2="${widthPx}" y2="${py}" stroke="${isMajor?GRID_MAJOR:GRID_MINOR}" stroke-width="${isMajor?1:0.5}"/>`;
   }
   let labels = '';
-  for (let fx = minX; fx <= maxX; fx++) {
-    if (fx % 10 !== 0) continue;
+  for (let fx = Math.ceil(minX / majorEvery) * majorEvery; fx <= maxX; fx += majorEvery) {
     const px = (fx - minX) * scale;
     labels += `<text x="${px+3}" y="12" font-size="10" fill="${AXIS_LABEL}" font-family="sans-serif">${fx}ft</text>`;
   }
-  for (let fy = minY; fy <= maxY; fy++) {
-    if (fy % 10 !== 0) continue;
+  for (let fy = Math.ceil(minY / majorEvery) * majorEvery; fy <= maxY; fy += majorEvery) {
     const py = (fy - minY) * scale;
     labels += `<text x="3" y="${py+12}" font-size="10" fill="${AXIS_LABEL}" font-family="sans-serif">${fy}ft</text>`;
   }
-  const sorted = paintOrder(state.shapes);
+  const sorted = framed.shapes;
   let shapesSvg = '';
   const thin = seeThroughIds(state.shapes);
   // (Names as the screen has them: Jordan hid them for a client's picture, and it printed every one. Round 3.)
@@ -378,7 +394,7 @@ export function buildExportSVG(): { svg: string; widthPx: number; heightPx: numb
     try { withSeeThrough(thin, () => { for (const s of sorted) shapesSvg += shapeToSvgString(s, minX, minY, scale); }); }
     finally { exportRuns = null; }
   }));
-  shapesSvg += hiddenRimsSvg(state.shapes, hiddenIds(state.shapes, state.viewFilter, thin), minX, minY, scale);
+  shapesSvg += hiddenRimsSvg(sorted, hiddenIds(framed.exact ? sorted : state.shapes, state.viewFilter, thin), minX, minY, scale);
   // (The beds', paths' and buildings' names over every shape, clear of each other and of the plants: areaNamesSvg.)
   shapesSvg += areaNamesSvg(names, plantCircles(sorted, minX, minY, scale), widthPx, heightPx);
   // Optional bg image, sits above grid, below shapes (matches on-screen order)
@@ -397,8 +413,8 @@ export function buildExportSVG(): { svg: string; widthPx: number; heightPx: numb
     bgSvg = `<image x="${xPx}" y="${yPx}" width="${wFt*scale}" height="${hFt*scale}" opacity="${bg.opacity}" preserveAspectRatio="none" href="${escapeHtml(bg.dataUrl)}" xlink:href="${escapeHtml(bg.dataUrl)}"${rot}/>`;
   }
   // What Layers is leaving out, said on the picture: a picture of planned plants only shouldn't pass for the whole plan
-  // (Priya, Oct 30).
-  const caption = exportCaption();
+  // (Priya, Oct 30). What of the plan it shows comes first, when it isn't all of it: "Front bed: 7 plants".
+  const caption = [areaWords(framed), exportCaption()].filter(Boolean).join(' \u00b7 ');
   const capSvg = caption
     ? `<g data-role="export-caption"><rect x="6" y="${heightPx - 30}" width="${Math.min(widthPx - 12, caption.length * 7 + 20)}" height="24" rx="4" fill="#ffffff" fill-opacity="0.92" stroke="#a8a29e"/>`
       + `<text x="16" y="${heightPx - 14}" font-size="12" fill="#292524" font-family="sans-serif">${escapeHtml(caption)}</text></g>`
@@ -438,7 +454,7 @@ export async function svgToPngDataUrl(svgString: string, widthPx: number, height
   });
 }
 export async function doExport(format: 'png' | 'svg') {
-  const result = buildExportSVG();
+  const result = buildExportSVG(printArea());
   if (!result) return;
   const { svg, widthPx, heightPx } = result;
   const proj = currentProject();
