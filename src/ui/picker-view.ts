@@ -184,6 +184,7 @@ export function placePicker() {
   const wrap = document.getElementById('canvas-wrap');
   if (!overlay || !wrap) return;
   const o = overlay.getBoundingClientRect(), w = wrap.getBoundingClientRect();
+  overlay.classList.toggle('beside', wideNow()); // (said for notices, to keep beside it: src/ui/toast.ts)
   overlay.style.setProperty('--plan-top', `${Math.max(0, Math.round(w.top - o.top))}px`);
   overlay.style.setProperty('--plan-foot', `${Math.max(0, Math.round(o.bottom - w.bottom))}px`);
 }
@@ -203,11 +204,13 @@ function planRoom(): Room | null {
   return { left: 0, top: 0, right: w.width, bottom: Math.min(w.height, top - w.top) };
 }
 /**
- * The picker just opened with something selected (a plant to swap, a bed): the plan moved to show it in the part left
- * in sight. True when the view changed (the plan is then to be drawn again). Nothing is put back when it closes.
+ * The picker just opened with a bed or plants selected, or for what it swaps or links: the plan moved to show them in
+ * the part left in sight. True when the view changed (the plan is then to be drawn again). Nothing is put back when it
+ * closes. (Not for a house or a path selected: the picker isn't about them.)
  */
 export function showChosen(): boolean {
-  const chosenShapes = state.shapes.filter((s) => state.selectedIds.includes(s.id));
+  const linking = !!state.pickerLinkId;
+  const chosenShapes = state.shapes.filter((s) => state.selectedIds.includes(s.id) && (linking || s.role === 'bed' || s.role === 'plant'));
   const b = unionBounds(chosenShapes.map(shapeBBox));
   const room = b ? planRoom() : null;
   if (!b || !room) return false;
