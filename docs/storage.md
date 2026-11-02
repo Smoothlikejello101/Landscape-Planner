@@ -2,8 +2,8 @@
 
 Plans live in the browser's IndexedDB, in the database `landscape-planner` (src/db.ts), in four stores: `meta`,
 `projects`, `images` and `kv` (src/storage.ts lists what's kept where). localStorage holds the unsaved-edit journals
-(`lp-journal:<plan id>`), this device's own settings, and the copy made by versions before Oct 11, which used it for
-plans.
+(`lp-journal:<plan id>@<page>`; release 3 and before, `lp-journal:<plan id>`), this device's own settings, and the copy
+made by versions before Oct 11, which used it for plans.
 
 ## The database version: the rule
 
@@ -14,14 +14,25 @@ new record an older version would read wrongly. When in doubt, raise it: it cost
 
 It guards because once a page opens the database at a higher version, no page of an older version can use it:
 
-- **A page open already** (another tab or window, on the phone or the computer) is told. Every version since Oct 11
-  closes the database and says "FullGrown was updated in another tab or window", then reloads when the person
-  agrees. From version 2 on, it writes its unsaved edits first (in before the newer version's upgrade, which waits for
-  it), then saves nothing more, not even a journal.
-- **A page that opens after** (a stale cached copy, a tab restored from long ago) is refused with a `VersionError`. It
-  says a newer version saved the plans, and offers Reload; it reads and writes nothing, and never falls back to memory.
-  Reload puts in a newer version the service worker has found or has waiting (the person asked for it), and never
-  happens by itself, so a page that still can't get one shows the message again rather than looping.
+- **A page open already** (another tab or window, on the phone or the computer) is told, and closes the database at
+  once: every version since Oct 11 does. What it says, and what it does first, depends on its version:
+  - version 2 on: it writes its unsaved edits first (in before the newer version's upgrade, which waits for it), then
+    saves nothing more, not even a journal, and says "FullGrown was updated in another tab or window. This page will
+    reload into the new version." Its Reload puts in a newer version the service worker has waiting (the person asked
+    for it); putting the message away (Esc, Back, a tap beside it, another question over it) only reloads the page;
+  - release 3 and before (Oct 11 to Nov 1): "The app was updated in another tab. This page will reload." (an alert
+    until Oct 30), then a reload. An edit still waiting for its save (a quarter second) isn't written to the database:
+    its failed save, or the page going, writes it to a journal (below).
+- **A page that opens after** (a stale cached copy, a tab restored from long ago) is refused with a `VersionError`:
+  - version 2 on: it says a newer version of FullGrown saved the plans on this device, and offers Reload; it reads and
+    writes nothing, and never falls back to memory. Reload puts in a newer version the service worker has found or has
+    waiting, and never happens by itself, so a page that still can't get one shows the message again rather than
+    looping. "Save a raw copy as a file" saves every record, as stored, without changing anything: for when no version
+    can open the plans (it isn't a backup Import reads);
+  - release 3 and before: they try again, then fall back to memory. On a device that has used IndexedDB (localStorage
+    keeps `lp-idb-in-use`), they stop with "Your projects couldn't be opened: the browser's storage didn't respond",
+    writing nothing. If localStorage was cleared but not IndexedDB, they run on memory with an empty "My Garden": the
+    plans look gone, and nothing done there is kept (nothing is written to IndexedDB or to journals).
 - **A page that can't answer** (frozen in the background, stopped in a debugger) holds the newer page's open. That page
   says to close FullGrown's other tabs or windows, and goes on once it's closed.
 
@@ -39,18 +50,34 @@ When raising it:
    every store and record"), and the migration spec against e2e/fixtures/legacy-app.
 4. A storage change gets a pull request of its own (CLAUDE.md).
 
-**Never lower it, and never deploy a build with a lower one** (a rollback): every device that opened the newer build
-would refuse to open its plans until a build at least that new is deployed again. Fix forward instead.
+**Never lower it, and never deploy a build with a lower one** (a rollback, a revert, a re-run of an older CI run):
+every device that opened the newer build would refuse to open its plans until a build at least that new is deployed
+again. Fix forward instead. CI enforces it (scripts/release/deploy-guard.sh, before `deploy` and `next`): each build
+publishes its version as `db-version.txt` at the site's root, and a deploy fails if the build's is lower than the live
+site's (a site without the file, the first deploy with one, is allowed; one that can't be read is not), or if the
+commit isn't the head of the branch being deployed.
 
 ## Journals (unsaved edits)
 
-When a page is hidden or closed with edits not yet saved, it writes them to localStorage, synchronously; the next start
-puts them in place (src/storage.ts `replayJournals`), unless the plan was saved after the journal. Each journal, and
-each plan record, carries the database version that wrote it (`dbVersion`; none means 1). A journal is never put over
-its plan when that would lose something: when it's from an older version than the one that last wrote the plan, or it
-lacks a part the stored plan has and every save keeps once set (location, dismissed warnings, the Plant list's ticks,
-who's in the yard, the warning switches). It's kept instead as a plan of its own, "<name> (from an older tab)", both
-left whole, and the app says so. A journal from a newer version than the running one is left alone.
+When a page is hidden or closed with edits not yet saved, it writes them to localStorage, synchronously, under its own
+key (`lp-journal:<plan>@<page>`, the page new each time the app opens), and clears only its own once the edits are
+saved: never another tab's, nor one an older version wrote (keyed by the plan alone), which may hold the only copy of an
+edit. Each journal, and each plan record, carries the database version and the page that wrote it (`dbVersion`, none
+meaning 1; `page` and `savedByPage`, `savedAt`).
+
+The next start goes through them (src/storage.ts `replayJournals`), one page at a time where the browser has Web
+Locks. For each:
+- the same as its plan as stored (what it holds, and which photo where): removed, nothing written;
+- written after the plan last changed: put in place, stamped with the journal's own version and page (so an older
+  tab's next journal, more of the same edits, goes in place too), unless that would lose something: when it's from an
+  older version than the one that last wrote the plan, or it lacks a part the stored plan has and every save keeps once
+  set (location, dismissed warnings, the Plant list's ticks, who's in the yard, the warning switches);
+- written before the plan last changed: removed only when the page that wrote it saved the plan after it (that save
+  holds everything the journal had); otherwise (an older version's, another page's, or the plan renamed or synced
+  since) never dropped.
+A journal not put in place is kept as a plan of its own, "<name> (from an older tab)", both left whole, and the app
+says so. Its id comes from the journal, so two pages starting together make one such plan, not two. A journal from a
+newer version than the running one is left alone.
 
 ## Two tabs on the same version
 
@@ -61,5 +88,7 @@ the page's copy apart (as journals are) or merge, when another page saved in bet
 ## Versions before Oct 11
 
 They kept plans in localStorage and never opened IndexedDB, so the database version doesn't stop them. Every start
-copies in what such a page saved since the last start (`migrateFromLocalStorage`): a plan changed on both sides is kept
-twice ("(from older version)"); one changed only by the old page replaces the IndexedDB copy.
+copies in what such a page saved since the last start (`migrateFromLocalStorage`). A plan changed on both sides is kept
+twice ("(from older version)"), and so is one whose stored copy has a part the older copy can't have (its ticks, yard,
+switches, dismissed warnings, location: on every device since release 3's first start, the yard and switches): the
+older copy put over it would take them away. Otherwise the older page's copy replaces the IndexedDB one.
