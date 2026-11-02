@@ -341,3 +341,37 @@ test('a plant\'s details: "Dismiss for this one" or "Dismiss for every Barbados 
   await closeSheet(page);
   await expect(badges).toHaveCount(2);
 });
+
+test('a plant\'s details show its fruit-partner warning, with Dismiss and Show again as Warnings has them (the warnings bug hunt, Nov 1)', async ({ page }) => {
+  await openPlan(page, EVERY, { dogs: true, zone: true });
+  await expect(button(page)).toHaveAttribute('aria-label', 'Warnings: 10 to look at');
+  const details = async () => {
+    await page.getByTestId('zoom-fit').click();
+    await page.locator('#canvas-svg [data-shape-id=wr]').first().click();
+    await page.locator('.sel-pill .edit').click();
+  };
+  await details();
+  const banner = page.getByTestId('fruit-check');
+  await expect(banner).toContainText(/^⚠ Winterberry 'Winter Red' .*fruit/);
+  await expect(banner.getByRole('button')).toHaveText(["Dismiss for every Winterberry 'Winter Red'"]);
+  // Dismissed as from Warnings: for every one in the plan, with the notice and its Undo.
+  await banner.getByTestId('fruit-dismiss').click();
+  await expect(page.getByTestId('dismiss-notice')).toContainText("Fruit partner warning dismissed for Winterberry 'Winter Red' in this plan, and any you add later.");
+  await expect(page.getByTestId('dismiss-notice').getByRole('button')).toHaveText(['Undo', 'OK', '✕']);
+  await expect(banner).toContainText('Dismissed for every one in this plan.');
+  await expect(banner).toHaveClass(/muted/);
+  await expect(banner.getByRole('button')).toHaveText(['Show again']);
+  await closeSheet(page);
+  await expect(button(page)).toHaveAttribute('aria-label', 'Warnings: 9 to look at');
+  await openWarnings(page, 'fruit');
+  const row = kind(page, 'fruit').getByTestId('warning-row').filter({ hasText: "Winterberry 'Winter Red'" });
+  await expect(row).toHaveAttribute('data-dismissed', 'true');
+  await expect(row.getByTestId('warning-scope')).toHaveText("Dismissed for every Winterberry 'Winter Red' in this plan");
+  if (!wide(page)) await closeSheet(page);
+  // Shown again from its details: active in Warnings again.
+  await details();
+  await banner.getByTestId('fruit-dismiss').click();
+  await expect(banner.getByRole('button')).toHaveText(["Dismiss for every Winterberry 'Winter Red'"]);
+  await closeSheet(page);
+  await expect(button(page)).toHaveAttribute('aria-label', 'Warnings: 10 to look at');
+});
