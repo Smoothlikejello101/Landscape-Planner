@@ -284,6 +284,11 @@ a { color: inherit; }
 #toast-action .notice-chev { width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg) translate(-2px, -2px); flex: none; opacity: 0.8; }
 #toast-action .notice-line[aria-expanded="true"] .notice-chev { transform: rotate(-135deg) translate(-2px, -2px); }
 #toast-action .notice-detail { flex: 1 1 100%; font-size: calc(13px * var(--ts)); color: #e7e5e4; line-height: 1.45; padding: 0 6px 4px 0; }
+/* A second, quieter line under the words (the start's card: when the plan last changed), and a quiet link of a button
+   (its Back up: src/ui/welcome-card.ts). */
+#toast-action.has-sub > span { font-weight: 600; }
+#toast-action .notice-sub { display: block; font-weight: 400; color: #d6d3d1; font-size: calc(13px * var(--ts)); margin-top: 2px; }
+#toast-action button.notice-quiet { background: transparent; color: #e7e5e4; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; padding: 10px 8px; }
 #toast-action.tone-amber { border-left: 6px solid #f59e0b; }
 #toast-action.tone-red { border-left: 6px solid #ef4444; }
 #toast-action.tone-amber .notice-line::before, #toast-action.tone-red .notice-line::before { content: ''; width: 10px; height: 10px; border-radius: 50%; flex: none; }

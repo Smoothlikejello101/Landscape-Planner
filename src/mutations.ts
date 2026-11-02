@@ -244,16 +244,23 @@ export function planBounds(): Bounds | null {
   if (bg?.visible) list.push(rotatedBoxBounds(bg.cx, bg.cy, bg.naturalWidth * bg.ftPerPx, bg.naturalHeight * bg.ftPerPx, bg.rotation));
   return unionBounds(list);
 }
-/** Zoom and move the view so `b` (feet) fills the plan, a margin all round; as close as the zoom allows. */
-export function zoomToBounds(b: Bounds, marginPx = 28) {
+/**
+ * Zoom and move the view so `b` (feet) fills the plan, a margin all round; as close as the zoom allows. `inset`: px at
+ * the plan's top and foot that something sits over (the start's card, the "Now trace" card), kept clear as well, when
+ * that leaves room enough.
+ */
+export function zoomToBounds(b: Bounds, marginPx = 28, inset: { top?: number; bottom?: number } = {}) {
   const rect = canvasRect();
   const W = rect.width || state.canvasW, H = rect.height || state.canvasH;
+  let top = Math.max(0, inset.top ?? 0), bottom = Math.max(0, inset.bottom ?? 0);
+  if (H - top - bottom < Math.max(120, H / 2)) top = bottom = 0; // (too little left: the whole height, as Fit does)
+  const room = H - top - bottom;
   const w = Math.max(b.maxX - b.minX, 1), h = Math.max(b.maxY - b.minY, 1);
-  const fit = Math.min((W - 2 * marginPx) / (w * PX_PER_FOOT_BASE), (H - 2 * marginPx) / (h * PX_PER_FOOT_BASE));
+  const fit = Math.min((W - 2 * marginPx) / (w * PX_PER_FOOT_BASE), (room - 2 * marginPx) / (h * PX_PER_FOOT_BASE));
   state.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, fit));
   const ppf = PX_PER_FOOT_BASE * state.zoom;
   state.offsetX = (b.minX + b.maxX) / 2 - W / ppf / 2;
-  state.offsetY = (b.minY + b.maxY) / 2 - H / ppf / 2;
+  state.offsetY = (b.minY + b.maxY) / 2 - (top + room / 2) / ppf;
   saveView();
 }
 /**

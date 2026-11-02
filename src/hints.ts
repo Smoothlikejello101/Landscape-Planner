@@ -18,6 +18,8 @@ function put(key: string, v: number): void {
 
 /** Whether the app has been open on this device before (a last visit kept): read before noteVisit at start. */
 export const visitedBefore = (): boolean => num(VISIT_KEY) > 0;
+/** When the app was last on screen here, opened, brought back or left (ms; 0: never): read before noteVisit at start. */
+export const lastVisitAt = (): number => num(VISIT_KEY);
 
 /** The app was opened, brought back or left. Opened after AWAY_DAYS or more away: the person is back. */
 export function noteVisit(now = Date.now()): void {
