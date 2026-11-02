@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addPlainShape, autoDialogs, closeSheet, field, openFilters, openFresh } from './helpers';
+import { addPlainShape, autoDialogs, closeSheet, field, openFilters, openFresh, placeOnceAtCenter } from './helpers';
 
 // Plant picker rows open to show a plant's details; Place uses it.
 
@@ -539,6 +539,61 @@ test('typing a search folds the open filters, the results in view; Add as my pla
   await expect(page.getByTestId('all-filters')).toBeHidden();
   await expect(page.locator('.plant-item').first()).toBeInViewport();
   if (isMobile) await expect(page.getByTestId('plant-search')).toBeFocused();
+});
+
+// The picker bug hunt, Nov 1: typing on a 360 × 640 phone, Recent and "Anyone you need to protect?" stayed above the
+// results, one row of them in view at most, at Extra large none. They fold away while a search is typed, as the
+// filters do, and come back when it's cleared.
+test('typing a search folds Recent and "Anyone you need to protect?" away, results in view on a 360 × 640 phone; cleared, they\'re back (the picker bug hunt, Nov 1)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Wild columbine');
+  await page.locator('.plant-item', { hasText: 'Wild columbine' }).first().getByTestId('plant-place').click();
+  await placeOnceAtCenter(page);
+  for (const size of ['medium', 'xlarge']) {
+    await page.evaluate((s) => localStorage.setItem('lp-text-size-2', s), size);
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-text', size);
+    await page.locator('.tool-btn.plants').click();
+    const recent = page.getByTestId('recent-field'), ask = page.getByTestId('protect-line').first();
+    const search = page.getByTestId('plant-search');
+    await search.fill('');
+    await expect(recent).toBeVisible();
+    await expect(ask).toBeVisible();
+    const first = () => page.locator('.plant-item > .proj-row').first().evaluate((r) => { const b = r.getBoundingClientRect(); return { top: b.top, bottom: b.bottom }; });
+    const folds = (await recent.boundingBox())!.height + (await ask.boundingBox())!.height;
+    const before = await first();
+    await search.pressSequentially('aster');
+    await expect(recent, size).toBeHidden();
+    await expect(ask, size).toBeHidden();
+    // The results up where those were: the first in view, whole at Medium (it was below the screen at Extra large).
+    const after = await first();
+    expect(after.top, size).toBeLessThan(before.top - folds + 40);
+    expect(after.top + 60, size).toBeLessThan(640);
+    if (size === 'medium') expect(after.bottom).toBeLessThanOrEqual(640);
+    // A word of need made a filter empties the box: still folded, the search going on.
+    await search.fill('');
+    await expect(recent).toBeVisible();
+    await search.pressSequentially('evergreen');
+    await search.press('Enter');
+    await expect(search).toHaveValue('');
+    await expect(page.getByTestId('active-chip').first()).toBeVisible();
+    await expect(recent).toBeHidden();
+    // Cleared by hand: back, by the ×, or by deleting what's typed.
+    await search.pressSequentially('aster');
+    await page.getByTestId('clear-search').click();
+    await expect(recent).toBeVisible();
+    await expect(ask).toBeVisible();
+    await search.pressSequentially('fern');
+    await expect(recent).toBeHidden();
+    for (let i = 0; i < 4; i++) await search.press('Backspace');
+    await expect(search).toHaveValue('');
+    await expect(recent).toBeVisible();
+    await expect(ask).toBeVisible();
+    await page.getByTestId('reset-filters').click();
+    await closeSheet(page);
+  }
 });
 
 test('words of need become filters: "shade flowers" is Part shade and Has flowers; a word of a plant\'s name stays the search (Jason, Nov 1)', async ({ page }) => {
