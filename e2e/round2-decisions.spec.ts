@@ -117,7 +117,7 @@ test('Warnings, one place for every kind, a switch for each; poison follows the 
   await openWarnings(page, 'poison', 'utility', 'hardy', 'sun', 'crowding', 'fruit');
   await expect(page.getByTestId('warnings-head')).toHaveText(/^1 to look at$/);
   for (const id of ['show-crowding', 'crowd-warnings', 'sun-warnings', 'hardy-warnings', 'poison-warnings', 'fruit-warnings']) await expect(page.getByTestId(id)).toBeChecked();
-  await expect(page.getByTestId('warnings-switch-poison')).toContainText('Plants poisonous to the kids in the yard');
+  await expect(page.getByTestId('warnings-switch-poison')).toContainText('Warn about plants poisonous to the kids in the yard');
   await expect(page.getByTestId('warnings-yard-kids')).toHaveAttribute('aria-pressed', 'true');
   await page.getByTestId('poison-warnings').uncheck();
   await expect(page.getByTestId('warnings-kind-head-poison')).toHaveAttribute('aria-label', 'Poison, Off');

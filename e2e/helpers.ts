@@ -204,3 +204,15 @@ export function tapping(text: string, exact = false): RegExp {
     `(?:${t}ap${end ?? ''}|${t === 'T' ? 'C' : 'c'}lick${end === 'ped' ? 'ed' : end === 'ping' ? 'ing' : end ?? ''})`);
   return new RegExp(exact ? `^${body}$` : body);
 }
+
+/**
+ * A shape's own element on the plan, found by its name: written in its group (a plant's), or, for a bed, a path, a
+ * building or a sun area, drawn over the plants and marked with the shape's id (data-name-of: src/canvas.ts
+ * liftAreaNames, since the after-release-3 fixes).
+ */
+export function shapeNamed(page: Page, label: string) {
+  const lit = label.includes('"') ? `'${label}'` : `"${label}"`;
+  const has = `contains(., ${lit})`;
+  return page.locator(`xpath=//*[@data-shape-group][.//*[local-name()="text"][${has}] or @data-shape-group = //*[@data-name-of][${has}]/@data-name-of]`)
+    .locator('[data-shape-id]');
+}

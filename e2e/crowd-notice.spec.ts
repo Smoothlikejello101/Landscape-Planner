@@ -27,7 +27,8 @@ test('placing too close: a notice says which plant and why; Move it takes it bac
   await expect(notice(page)).toHaveClass(/tone-red/);
   await expect(notice(page).getByTestId('notice-detail')).toBeHidden();
   await notice(page).getByTestId('notice-line').click();
-  await expect(notice(page).getByTestId('notice-detail')).toHaveText('Snowberry and Snowberry will grow into each other: 2 ft apart, where about 4.5 ft is usual for these two.');
+  // (Two of a kind: "Two Snowberry", not "Snowberry and Snowberry": Jason's notes after release 3.)
+  await expect(notice(page).getByTestId('notice-detail')).toHaveText('Two Snowberry will grow into each other: 2 ft apart, where about 4.5 ft is usual for these two.');
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);
   // Move it: that one goes, to be tapped again.
   await notice(page).getByRole('button', { name: 'Move it' }).click();
@@ -38,7 +39,7 @@ test('placing too close: a notice says which plant and why; Move it takes it bac
   await tapFromCenter(page, -2, 0);
   await expect(notice(page).getByTestId('notice-line')).toHaveText('Close to Snowberry');
   await expect(notice(page)).toHaveClass(/tone-amber/);
-  await expect(notice(page).getByTestId('notice-detail')).toHaveText('Snowberry and Snowberry may quickly grow into one another: 4 ft apart, where about 4.5 ft is usual for these two. A little of this can be fine, if you\'re after a quick, full look.');
+  await expect(notice(page).getByTestId('notice-detail')).toHaveText('Two Snowberry may quickly grow into each other: 4 ft apart, where about 4.5 ft is usual for these two. A little of this can be fine, if you\'re after a quick, full look.');
   await expect(page.locator('#canvas-svg [data-role=close]')).toHaveCount(2);
   // Another close one: no notice this time (once a placing session); a crowded one: again.
   await tapFromCenter(page, 2, 0);

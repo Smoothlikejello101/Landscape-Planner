@@ -11,7 +11,7 @@ import { boxSize, fmtFeet, resizedPoints, shapeArea, shapePerimeter } from '../g
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
 import { roleChips } from './role-picker';
-import { bedSection, crowdingNote, measureText, plantHardyBanner, plantPoisonBanner, plantSunBanner, shadeSunSection, sunListText, utilityBanner, utilitySection } from './role-sections';
+import { bedSection, crowdingNote, measureText, plantFruitBanner, plantHardyBanner, plantPoisonBanner, plantSunBanner, shadeSunSection, sunListText, utilityBanner, utilitySection } from './role-sections';
 import { isUtilityKind, utilityLabel, utilityLook } from '../utility-kinds';
 import { setRoleForIds, bringForward, bringToFront, copySelected, duplicateSelected, findNextSameTier, sendBackward, sendToBack, setLockedForIds, updateSelected, updateSelectedSilent } from '../mutations';
 import { getSelected, selectOnly, singleSelected } from '../selection';
@@ -205,7 +205,8 @@ export function renderPropsPanelSingle(s: Shape) {
   const sunCheck = plantSunBanner(s);
   if (sunCheck) body.appendChild(sunCheck);
   // (Too cold or too warm here; poisonous to who's in the yard: Jason, Oct 30.)
-  for (const b of [plantHardyBanner(s), plantPoisonBanner(s)]) if (b) body.appendChild(b);
+  // (And one needing a partner to fruit, as Warnings lists it: the warnings bug hunt, Nov 1.)
+  for (const b of [plantHardyBanner(s), plantPoisonBanner(s), plantFruitBanner(s)]) if (b) body.appendChild(b);
   // Crowding: refreshed in place as the position is typed (no re-render).
   const crowdBox = el('div', {});
   // (A plant too near a power line, a buried line or a septic field too: src/utilities.ts.)

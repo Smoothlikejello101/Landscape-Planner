@@ -15,7 +15,7 @@
 
 import { crowdOptions, hardyHere } from './crowd-here';
 import { crowdPairs, type CrowdLevel } from './crowding';
-import { clearForPlan, dismissedForPlan, dismissForPlan, poisonLine, poisonSaid } from './dismissals';
+import { clearForPlan, copyDismissed, dismissedForPlan, dismissForPlan, poisonLine, poisonSaid } from './dismissals';
 import { fruitNeed } from './fruit-partners';
 import { displayLabel, shapeCenter } from './geometry';
 import { flushHistoryDebounce, pushHistory, undo } from './history';
@@ -180,7 +180,7 @@ export function planWarnings(): WarningRow[] {
 
   // Hardiness and poison: the plant's (every copy), dismissed across the plan or copy by copy.
   const perPlant = byPlant(plants.filter((s) => !(s.type === 'circle' && s.tree)));
-  const plantRows = (kind: 'hardy' | 'poison', key: (p: Plant) => string, words: (p: Plant) => string, field: 'hardyDismissed' | 'poisonDismissed', skip: (s: Shape) => boolean = () => false) => {
+  const plantRows = (kind: 'hardy' | 'poison', key: (p: Plant) => string, words: (p: Plant) => string, skip: (s: Shape) => boolean = () => false) => {
     const off: WarningRow[] = [];
     for (const [id, copies] of perPlant) {
       const line = key(plantsById[id]!);
@@ -188,7 +188,8 @@ export function planWarnings(): WarningRow[] {
       const said = unstop(words(plantsById[id]!));
       const here = copies.filter((s) => !skip(s));
       const all = dismissedForPlan(kind, id, line);
-      const on = all ? [] : here.filter((s) => s[field] !== line), quiet = all ? here : here.filter((s) => s[field] === line);
+      // (A poison warning stays dismissed with fewer at risk than when it was: src/dismissals.ts poisonCovered.)
+      const on = all ? [] : here.filter((s) => !copyDismissed(kind, s, line)), quiet = all ? here : here.filter((s) => copyDismissed(kind, s, line));
       // (Dismissed, it's the plant across the plan, as from its pane: every copy, and the ones added later.)
       if (on.length) rows.push({ kind, ids: on.map((s) => s.id), name: named(on), said, key: line, dismissed: false, plantId: id, dismiss: () => { dismissForPlan(kind, id, line); return false; } });
       if (quiet.length) off.push({ kind, ids: quiet.map((s) => s.id), name: named(quiet), said, key: line, dismissed: true, scope: all ? everyOne(id) : quiet.length === 1 ? 'for this one' : `for these ${quiet.length}`, plantId: id, again: () => clearForPlan(kind, id) });
@@ -196,10 +197,10 @@ export function planWarnings(): WarningRow[] {
     rows.push(...off);
   };
   const hardyLine = (p: Plant) => hardinessWarning(p)?.line ?? '';
-  if (state.hardyWarnings) plantRows('hardy', hardyLine, hardyLine, 'hardyDismissed', (s) => s.status === 'existing' || alreadyThere(s));
+  if (state.hardyWarnings) plantRows('hardy', hardyLine, hardyLine, (s) => s.status === 'existing' || alreadyThere(s));
   // (Poison in its details' words, its severity and parts: "Poisonous if eaten (high severity: leaves); a problem for
   // dogs". Kept dismissed by its flags, as before: src/dismissals.ts poisonSaid.)
-  if (state.poisonWarnings) plantRows('poison', poisonSaid, poisonLine, 'poisonDismissed');
+  if (state.poisonWarnings) plantRows('poison', poisonSaid, poisonLine);
 
   // Utilities: a copy's own, by where it stands (no switch: a power line, a buried line, a septic field).
   const utils = prepareUtilities(shown.filter((s) => s.role === 'utility'));
@@ -273,9 +274,10 @@ export function countSaid(rows: WarningRow[]): string {
  * Why a kind that's on can't run yet, and so finds nothing (the review, Nov 1: Hardiness and Poison said "on" with no ZIP
  * or nobody chosen, with no way to fix it): the yard has nobody chosen in it (poison: Jason, "I'm there, I just don't
  * have poison warnings turned on", so it's said "Off until you choose kids or pets"), no ZIP (hardiness), no sun
- * recorded (sun), no utilities drawn.
+ * recorded (sun: Jason, "It's important info that's missing"). Not utilities with none drawn: a yard may have no
+ * utility lines at all, so nothing is missing (Jason's notes after release 3): its card says "None drawn", quietly.
  */
-export type CantRun = 'yard' | 'zip' | 'sun' | 'utilities';
+export type CantRun = 'yard' | 'zip' | 'sun';
 export interface KindState {
   kind: WarningKind;
   /** Switched on (Utilities have no switch: always). */
@@ -283,11 +285,13 @@ export interface KindState {
   /** On, but it can't run yet: what it needs first. */
   cantRun?: CantRun;
 }
+/** Whether the plan has any utility drawn (a line, buried or overhead, or a septic field), not gone. */
+export const utilitiesDrawn = (): boolean => state.shapes.some((s) => !!utilityOf(s) && s.status !== 'gone');
 /** Each kind's state, in the sheet's order. */
 export function kindStates(): KindState[] {
   const needs: Record<WarningKind, [boolean, CantRun | undefined]> = {
     poison: [state.poisonWarnings, yardSet(household()) ? undefined : 'yard'],
-    utility: [true, state.shapes.some((s) => !!utilityOf(s) && s.status !== 'gone') ? undefined : 'utilities'],
+    utility: [true, undefined],
     hardy: [state.hardyWarnings, state.location ? undefined : 'zip'],
     sun: [state.sunWarnings, state.shapes.some((s) => s.role === 'shade' && !!s.sun) ? undefined : 'sun'],
     crowding: [state.showCrowding || state.crowdWarnings, undefined],

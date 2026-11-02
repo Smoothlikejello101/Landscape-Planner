@@ -2,18 +2,20 @@ import { plantsInBed, plantSummary } from '../beds';
 import { el, ts } from '../dom';
 import { shapeArea, shapePerimeter } from '../geometry';
 import { updateSelected, updateSelectedSilent } from '../mutations';
-import { hardinessWarning, householdFlags, plantsById } from '../plants';
+import { hardinessWarning, householdFlags, PLANTS, plantsById } from '../plants';
+import { fruitNeed } from '../fruit-partners';
+import { remindNoMore } from './fruit-notice';
 import { household } from '../yard';
 import { state } from '../state';
 import { checkPlantSun, formatHours, formatTime, newSunInfo, sunDismissedFor, sunHours, sunLevel } from '../sun';
 import type { Shape, SunInfo } from '../types';
 import { render } from './render';
 import { toastAction } from './toast';
-import { copiesOf, copiesSaid, dismissedForPlan, dismissForPlan, poisonSaid, showAgainForPlan, warnForNewOnes } from '../dismissals';
+import { copiesOf, copiesSaid, dismissedForPlan, dismissForPlan, poisonCovered, poisonSaid, showAgainForPlan, warnForNewOnes } from '../dismissals';
 import { BULB_PARTNER_MIN_HEIGHT, crowdingOf, crowdRelation } from '../crowding';
 import { alreadyThere } from '../status';
 import { I } from '../icons';
-import { crowdOptions } from '../crowd-here';
+import { crowdOptions, hardyHere } from '../crowd-here';
 import { flagAgain, leaveClose } from './crowd-notice';
 import { shownWith } from '../status';
 import { sqFt } from '../util';
@@ -137,11 +139,35 @@ export function plantPoisonBanner(s: Shape): HTMLElement | null {
   const said = flags.map((f, i) => { const t = f.testid === 'row-poison' ? f.title ?? f.text : f.text; return i ? t.charAt(0).toLowerCase() + t.slice(1) : t; }).join('; ');
   const whoSaid = who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0];
   // (Dismissed, the badge goes, for every one in the plan: never what its details and the picker say. Jason, Oct 30.)
-  const key = poisonSaid(p!), across = dismissedForPlan('poison', p!.id, key), mine = !across && s.poisonDismissed === key, dismissed = across || mine;
+  // (Still dismissed with fewer at risk than when it was: src/dismissals.ts poisonCovered.)
+  const key = poisonSaid(p!), across = dismissedForPlan('poison', p!.id, key), mine = !across && poisonCovered(s.poisonDismissed, key), dismissed = across || mine;
   const note = across ? ' Dismissed for every one in this plan: no badge, though its details still say so.' : dismissed ? ' Dismissed for this one: no badge on the plan.' : '';
   return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'poison-check' },
     el('div', {}, `\u26a0 ${said}. You said ${whoSaid} are in the yard; its sources are under Plant \u2192 Safety (below).${note}`),
     plantDismissButtons('poison', p!.id, key, across, mine));
+}
+
+/**
+ * A plant that needs a partner to fruit, as Warnings lists it (the warnings bug hunt, Nov 1: a holly's details never said
+ * it needed a male, its poison warning alone shown): with Dismiss and Show again as Warnings has them. A fruit-partner
+ * warning is the plant's, one for all its copies, so it's dismissed for every one in the plan, with the notice and its
+ * Undo (src/ui/fruit-notice.ts remindNoMore).
+ */
+export function plantFruitBanner(s: Shape): HTMLElement | null {
+  if (!state.fruitWarnings || !warnedFor(s)) return null;
+  const p = plantsById[s.plantId!];
+  if (!p) return null;
+  // (Every plant in the plan counts as a partner, as in Warnings: src/warnings-list.ts.)
+  const plan = state.shapes.flatMap((x) => (x.role === 'plant' && x.status !== 'gone' && x.plantId && plantsById[x.plantId] ? [plantsById[x.plantId]!] : []));
+  const need = fruitNeed(p, plan, PLANTS, hardyHere);
+  if (!need) return null;
+  const line = need.line, dismissed = dismissedForPlan('fruit', p.id, line);
+  const btn = el('button', { className: 'link-reset', 'data-testid': 'fruit-dismiss' }, dismissed ? 'Show again' : `Dismiss for every ${p.common}`);
+  btn.addEventListener('click', () => {
+    if (dismissed) { showAgainForPlan('fruit', p.id); render(); } else remindNoMore(p.id, line);
+  });
+  return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'fruit-check' },
+    el('div', {}, `\u26a0 ${line}.${dismissed ? ' Dismissed for every one in this plan.' : ''}`), el('div', { className: 'dismiss-row' }, btn));
 }
 
 function summaryText(info: SunInfo): string {
