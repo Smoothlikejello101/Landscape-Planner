@@ -72,6 +72,11 @@ was read narrower than printed or left out, and why. Where a list's title names 
 give a class its own title, link and edition, so a plant's line cites the rule that names it: South Carolina's plant
 pests cite Clemson's State Plant Pest List, not the statute on prohibited aquatic plants that leads the list's title
 (the bug hunt, 2026-11-01: Callery pear's line cited "South Carolina prohibited aquatic plants (S.C. Cod…").
+Every list that combines rules gives each of its classes one (since 2026-11-01): Virginia's signage law, North
+Carolina's and Alabama's aquatic rules, Ohio's noxious weed rule, Indiana's detrimental plants statute, Illinois's
+noxious weed rule, West Virginia's multiflora rose law and black currant quarantine, Michigan's 2026 order and
+noxious weed act, New Jersey's and New York's black currant rules, and Massachusetts's water chestnut law each
+cite their own rule, apart from the list beside them.
 
 | Code | Rule | Read from | Entries | Effect |
 | --- | --- | --- | --- | --- |
@@ -98,9 +103,18 @@ pests cite Clemson's State Plant Pest List, not the statute on prohibited aquati
 | NY | 6 NYCRR Part 575; 6 NYCRR 192.1 | The Department of State's site, saved by hand | 75 | Prohibited: not sold, imported, bought, transported, introduced or propagated. Regulated: may be sold, but not introduced into the wild (no ban on sale). Black currant: not planted or sold, but rust-resistant cultivars |
 | MA | MDAR Prohibited Plant List; M.G.L. c. 128, §20A | The Department's list page and its 2025 and 2026 decisions, saved by hand from mass.gov; the Legislature's site | 148 | Prohibited: its "sale, import, trade, purchase, distribution, propagation, and related activities", cultivars, varieties and hybrids included. Newly added plants: existing stock may be sold through a phase-out (listed until it ends). Water chestnut: never planted or moved, by statute |
 | NC | 02 NCAC 48A .1702, .1703; 15A NCAC 02G .0602 | The North Carolina Register's printing of the rules (effective 2011-10-01); the environment department's copy of .0602 | 27, and the federal list's | Class A and B: no sale or distribution, nor moving into the state (A: nor within it). Class C: not into the state, nor sold outside a regulated area. Aquatic: the state may remove it from its waters (no ban on sale) |
+| FL | F.A.C. 5B-57.004, .007; 5B-64.011; F.S. 581.091, 369.25 | The Department of State's rules site (5B-57.007 effective 2020-09-28; 5B-64.011, 2008-06-30); the Legislature's statutes | 105 | Noxious weeds: not sold or distributed, nor introduced, multiplied, possessed, moved or released but under a permit. Prohibited aquatic plants: possessed only under a permit |
+| MD | COMAR 15.06.04 (Agriculture Article §9.5-302); COMAR 15.06.05 (§§9-401 to 9-406); COMAR 08.02.19 | The Department of Agriculture's list page; the Division of State Documents' COMAR (15.06.04 as amended effective 2026-07-20); the General Assembly's statutes | 43 | Prohibited invasive plants: not propagated, imported, sold, bought, transported or introduced but with the Secretary's approval; those listed in 2026 may be sold from existing stock until January or July 2027 (potted; 2028 in the ground), listed until then. Noxious weeds: not imported or transported in any form that can grow. Prohibited aquatic plants: not possessed or sold but under a permit; five others only not moved between watersheds (no ban on sale) |
+| MN | Minn. Stat. 18.771 (the noxious weed list); Minn. R. 6216.0250, .0260 | The Department of Agriculture's list page (updated January 2026); the Revisor's statutes and rules | 98 | Prohibited and restricted noxious weeds: not sold, propagated or transported but by permit. Specially regulated: Amur cork tree's male cultivars only; Amur, Norway and Tatarian maple sold with a label (no ban on sale); butterburs and rowan restricted from 2029 (listed until then). Prohibited aquatic plants: not possessed or sold; regulated ones: not released into the wild (no ban on sale) |
+| CO | 8 CCR 1206-2 (C.R.S. 35-5.5-104.5, -108); 8 CCR 1203-5, Part 9.0 (C.R.S. 35-26-105) | The Secretary of State's official rule PDFs (effective 2025-05-15; 2019-10-30); the legal services office's 2024 printing of title 35 | 161 | Lists A, B and C: not introduced, cultivated, sold or offered for sale. Prohibited nursery weeds: not sold as nursery stock |
+| WA | WAC 16-752-610, -620 (quarantine); WAC 16-750 with RCW 17.10.140 (noxious weed list) | The Legislature's code site (16-752-610 effective 2026-02-07), only the pages named, with Jason's OK for legal-code sites | 324 | Quarantine: not transported, bought, sold or distributed into or within the state but under a compliance agreement (English and Atlantic ivy whole, since 2025-08-09). Class A, B and C: landowners eradicate or control them (no ban on sale) |
+| OR | OAR 603-052-1200 | The Secretary of State's rules site (amended effective 2024-10-01); the Legislature's ORS 569 and 561 | 134 | "A" and "B" weeds: not brought in, transported, bought, sold or propagated but under the director's permit (English and Atlantic ivy, Armenian blackberry, dog rose, everlasting pea among them) |
+| ID | IDAPA 02.06.09 with Idaho Code 22-2407 and 22-1905 | The rules office's PDF; the Legislature's code | 79 | Brooms (*Cytisus*, *Genista*, *Spartium*, *Chamaecytisus*, the whole genera) and six invasive plants: prohibited. Early detection, control and containment lists: landowners control them (listed) |
+| MT | MCA 80-7-133, 7-22-2116; the Department of Agriculture's Montana Noxious Weed List (effective 2019-06-21) | The Department's list PDF and the Legislature's code; the rules (ARM 4.5.2) wait for pages Jason saves | 58 | Priority 1A to 2B: no nursery or landscaper may sell or distribute them, and landowners may not let them seed. Priority 3: not intentionally spread or sold |
+| UT | Utah Admin. Code R68-9 (Utah Code 4-17) | The Utah State Bulletin's printing of R68-9 as amended (effective 2024-06-28), checked against the Index of Changes through 2026; the Legislature's code | 59 | Every class: no one may sell, barter or give away its plants or seeds (R68-9-4(2)); Bermudagrass excepted in Washington County and as certified triploid hybrids |
 
-Arkansas to Tennessee read 2026-10-21, Virginia to Massachusetts 2026-10-31, each from the government's own text, saved
-in `catalog-src/legal/` (not committed).
+Arkansas to Tennessee read 2026-10-21, Virginia to Massachusetts 2026-10-31, Florida, Maryland, Minnesota and Colorado
+2026-11-01, Washington, Oregon, Idaho and Montana 2026-11-01 and Utah 2026-11-02, each from the government's own text, saved in `catalog-src/legal/` (not committed).
 Tennessee's PDF was saved by hand in a browser: the Secretary of State's file host turns away clients that
 aren't browsers, and we don't pretend to be one. Texas has one gap: the
 offense is Agriculture Code §71.152's, read from the Legislature's site; "in any live form" and "unless permitted" are the rule's,
@@ -128,8 +142,10 @@ Michigan's 2026 order, and New York's 6 NYCRR Part 575 and 192.1 (the Massachuse
 list forbids and its phase-out table, on 2026-11-01).
 South Carolina's plant pest rule doesn't itself say the plants can't be sold; Clemson, which keeps the list, says it
 does, and Jason's call (2026-10-31) was to show them as banned, the line saying it's the agency's reading.
-Wisconsin's legislature site drops every connection from here (its rule, NR 40, is unread). The rest of the
-states: not yet.
+Wisconsin's legislature site drops every connection from here (its rule, NR 40, is unread). California's two legal
+sites (the Legislature's codes and Westlaw's regulations) turn away automated readers with a challenge page: its
+entry waits for the pages Jason saves. Colorado's agriculture department site (ag.colorado.gov) refuses automated
+readers too; nothing in its entry depends on it. The rest of the states: not yet.
 
 **Read narrower than printed, or left out:**
 - **Seed-law lists.** Louisiana's noxious weed list (LAC 7:XIII.109), like most states' seed lists, limits weed
@@ -195,6 +211,33 @@ states: not yet.
   until then, the line giving the years.
 - **Kentucky:** the entries named only by a common name (multiflora rose, kudzu, poison hemlock, marestail, Amur
   honeysuckle, Japanese knotweed, common teasel, spotted knapweed, cutleaf teasel) are left out.
+- **Florida:** the Class I prohibited aquatic plants (5B-64.011(1)) are all on the noxious weed list, and entered
+  there once. The dodder, broomrape and *Salvinia* entries name the natives the rule spares. Chinese privet's line
+  names its exempt cultivars, 'Variegatum' and 'Sunshine'. Left out: the permit for planting a nonnative species
+  over large acreages, which names no plant; the native-plant protection rule (5B-40); pest quarantines; the seed
+  law; advisory lists.
+- **Maryland:** the rule says "a person may not acquire a new prohibited invasive plant" after its listing date; it
+  is read as part of the phase-out, during which existing stock may still be sold, so the plants listed in 2026 are
+  listed (amber) until their dates, each line giving them (a judgment call; read strictly, they'd be bans now).
+  Left out: "Shattercane (Sorghum biclor)", as in Pennsylvania; *Caulerpa taxifolia*, an alga. The Watch List isn't
+  posted anywhere official.
+- **Minnesota:** the list takes in "all hybrids, cultivars, and varieties unless specifically exempted". Japanese
+  barberry's line says which are restricted now (the wild type, var. *atropurpurea* and 24 named cultivars), which
+  may be sold through 2028, and which five are exempt. The federal aquatic weeds that 6216.0250 subp. 2a adopts are
+  entered as the state's. Left out: "Wild carrot/Queen Anne's Lace, Daucus carota", as in Michigan (the
+  all-varieties rule would take in the garden carrot); wild parsnip, as in Pennsylvania; starry stonewort and
+  *Caulerpa taxifolia*, algae; county noxious weeds.
+- **Colorado:** the sale ban (C.R.S. 35-5.5-104.5) covers all three lists, List C included: the Department added
+  Siberian elm and tree of heaven to List C "to prevent future sale" (a judgment call: if "in violation of this
+  article" limited the ban, List C would be listed). The nursery rule's older list (2019) is its own class, its
+  older names as printed. Wild caraway, wild proso millet and chicory are kept, though the species take in the
+  crops: the nursery rule names all three as plants that "shall not be sold as nursery stock". Left out: the
+  yellow × Dalmatian toadflax hybrid (named by its parents), pest quarantines, county lists.
+- **Washington:** "Hieracium spp. All nonnative species and hybrids" is entered as the 14 nonnative hawkweeds WAC 16-750-011 names, not the genus, which would take in the state's native ones. Butterfly bush's accepted sterile cultivars, giant reed's variegated ones and bulbing fennel are named as excepted in their lines. Phragmites is listed for its nonnative genotypes only. Left out: wild carrot, quarantined "except for subsp. sativus" (a species entry would take in the garden carrot); Class C's four named English ivy cultivars (the quarantine covers both ivies whole); hybrids written by their parents; the monitor list, which has no regulatory effect.
+- **Oregon:** its rule also takes in the federal list, except Japanese blood grass 'Red Baron' and water spinach. That isn't adopted as a class of Oregon's: the federal list's own line shows in every state, and an adopted class couldn't name the two exceptions. Butterfly bush's approved sterile varieties are named in its line. Left out: host-plant pest quarantines, the clover-seed rules of the broomrape quarantine, an alga, county lists.
+- **Idaho:** its nursery-stock rule bars selling an article "containing noxious weed propagules"; read, as Arkansas's is, as a rule on nursery stock, so the three noxious weed lists are listed (amber), not banned. The broom genera are banned whole, as the rule says ("all subtaxa"). Left out: starry stonewort, an alga; "Cold Tolerant Eucalyptis", which names no species.
+- **Montana:** the names are the Department of Agriculture's published list, which the rules adopt; the rules' own pages (ARM 4.5.201 to 4.5.210) are on a site that shows text only in a browser, and wait for Jason's saved copies. Each synonym the list prints is its own entry. Left out: the Eurasian × northern watermilfoil hybrid, written by its parents.
+- **Utah:** "Convolvulus spp." under field bindweed is read as *C. arvensis*, the plant its common name names; "Phragmites australis ssp." names no subspecies, so it is entered as the species. Left out: the seed rule's list (R68-8) and county lists.
 
 ## Matching
 
@@ -276,6 +319,23 @@ As of 2026-10-31:
 - **Massachusetts:** Norway and sycamore maple, Japanese barberry, burning bush, the honeysuckles, Scotch broom,
   dame's rocket, moneywort, Japanese black pine, ribbon grass and others; maiden grass (until the end of 2026),
   jetbead, black alder, sapphire berry, Japanese angelica tree and Callery pear while their phase-outs run.
+- **Florida:** Chinese privet (its exempt cultivars named), Japanese honeysuckle, coral ardisia, Chinese tallow,
+  beach vitex and Japanese blood grass; water lettuce, as a prohibited aquatic plant.
+- **Maryland:** Amur honeysuckle and wintercreeper; while their phase-outs run, Callery pear, nandina (its exempt
+  cultivars named), Chinese wisteria, Japanese angelica tree, Japanese barberry, Scotch broom, burning bush and
+  bee-bee tree (to January 2027), and English ivy, maiden grass, leatherleaf mahonia, fountain grass (*Cenchrus
+  alopecuroides*) and chocolate vine (to July 2027); parrot feather, not moved between watersheds.
+- **Minnesota:** Japanese honeysuckle and tree of heaven (to be eradicated); Callery pear, Amur honeysuckle,
+  autumn olive, black alder, Japanese barberry, burning bush, the buckthorns, black locust and multiflora rose
+  (restricted); Norway, Amur and Tatarian maple (sold with a label); Amur cork tree (male cultivars only); rowan
+  (from 2029); parrot feather, as a regulated aquatic plant.
+- **Colorado:** cypress spurge, dyer's woad and parrot feather (List A); wormwood, caraway, chufa, Russian olive,
+  dame's rocket and soapwort (List B); tree of heaven, field bindweed, St. John's wort and Siberian elm (List C).
+- **Washington:** English ivy, tree of heaven, Scotch broom, herb fennel (bulbing fennel excepted), Italian arum, jewelweed, false indigo, viper's bugloss, chufa and others (quarantined); Norway maple, English holly, baby's breath, pampas grass, Russian olive, wormwood, St. John's wort and field bindweed (Class C, listed).
+- **Oregon:** English ivy, tree of heaven, Scotch and Spanish broom, everlasting pea, yellow archangel, pheasant's eye, false indigo, viper's bugloss, chufa, St. John's wort and others ("B"); Ravenna grass ("A").
+- **Idaho:** the brooms, garden species included (Scotch broom, Warminster broom, *Genista lydia*, *G. pilosa*, dyer's greenweed, Spanish broom); viper's bugloss, woad and parrot feather (control); field bindweed (containment); Japanese blood grass (early detection).
+- **Montana:** Scotch broom and viper's bugloss (1B), woad (1A), common buckthorn (2A), St. John's wort and field bindweed (2B); Russian olive and parrot feather (Priority 3).
+- **Utah:** viper's bugloss, St. John's wort and parrot feather (1B), woad (2), field bindweed (3); Scotch broom, Russian olive, dame's rocket and Japanese blood grass (Class 4).
 
 ## What the line doesn't say
 
