@@ -189,12 +189,27 @@ export function planOf(c: ProjectContent): ProjectContent {
  * A plan as fingerprinted: a fruit-partner warning shown again on purpose (`fruitDismissed: ''`) reads as none. So a
  * dismissal taken back before the plan synced (Undo, Show again) isn't taken for a change, which against another
  * device's edit made a conflict copy (the second review, Nov 1); dismissed words to '' still differ, as words to none
- * do, so a Show again still goes up. A plan without '' is fingerprinted exactly as before (the same object).
+ * do, so a Show again still goes up. Likewise a bed's conditions cleared on purpose (`conditions: {}`, Nov 2): set to
+ * {} is a change, as set to none is; none to {} isn't. A plan with neither is fingerprinted exactly as before (the
+ * same object).
  */
 function forHash(c: ProjectContent): ProjectContent {
   const shown = (s: unknown) => !!s && typeof s === 'object' && (s as { fruitDismissed?: unknown }).fruitDismissed === '';
-  if (!Array.isArray(c.shapes) || !c.shapes.some(shown)) return c;
-  return { ...c, shapes: c.shapes.map((s) => { if (!shown(s)) return s; const { fruitDismissed: _f, ...rest } = s as Record<string, unknown>; return rest; }) };
+  const cleared = (s: unknown) => {
+    const k = !!s && typeof s === 'object' ? (s as { conditions?: unknown }).conditions : undefined;
+    return !!k && typeof k === 'object' && !Array.isArray(k) && Object.keys(k).length === 0;
+  };
+  if (!Array.isArray(c.shapes) || !c.shapes.some((s) => shown(s) || cleared(s))) return c;
+  return {
+    ...c,
+    shapes: c.shapes.map((s) => {
+      if (!shown(s) && !cleared(s)) return s;
+      const rest = { ...(s as Record<string, unknown>) };
+      if (shown(s)) delete rest.fruitDismissed;
+      if (cleared(s)) delete rest.conditions;
+      return rest;
+    }),
+  };
 }
 /** Fingerprint of the name and plan (the photo apart). Records made before photos synced hold exactly this. */
 export const planHash = (name: string, c: ProjectContent) => fingerprint(name, forHash(planOf(c)));
@@ -272,7 +287,34 @@ export function withLocalParts(server: ProjectContent, mine: ProjectContent | un
   if (!mine) return server;
   let out = server;
   for (const k of NEWER_PARTS) if (!(k in server) && k in mine) out = { ...out, [k]: mine[k] };
-  return withFruitDismissals(withChosenColors(withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine), mine), mine);
+  return withBedConditions(withFruitDismissals(withChosenColors(withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine), mine), mine), mine);
+}
+/**
+ * A bed's conditions (Nov 2: its soil, moisture, drip, and sun where no sun area covers it), which an older version
+ * drops from a shape it sends: kept from here when the server's copy of that shape, still a bed (its id and role), has
+ * none at all. Without it, a device on an older version with an edit of its own sends the plan over newer conditions,
+ * its merge not seeing them, and every device then loses them. The server's copy goes without them until a device that
+ * has them sends the plan again. {} (cleared on purpose) is kept the same way, so a device that cleared them says so
+ * again as it next sends the plan; where the server has some, {} or answers, they stand.
+ *
+ * What's left (as for fruitDismissed, docs/storage.md): a device offline through another device's change to a bed's
+ * conditions (set, changed or cleared), with a device on an older version sending the plan between, still has its own,
+ * which the server's copy no longer contradicts: it keeps them, and they go to everyone if it sends the plan before the
+ * device that made the change does. Only while one of the account's devices is on a version before Nov 2.
+ */
+function withBedConditions(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
+  type Bed = { id?: unknown; role?: unknown; conditions?: unknown };
+  const kept = new Map<unknown, unknown>();
+  for (const s of mine.shapes as Bed[]) if (s && s.role === 'bed' && isObject(s.conditions)) kept.set(s.id, s.conditions);
+  if (!kept.size) return server;
+  let filled = false;
+  const shapes = (server.shapes as Bed[]).map((s) => {
+    if (!s || typeof s !== 'object' || s.role !== 'bed' || 'conditions' in s || !kept.has(s.id)) return s;
+    filled = true;
+    return { ...s, conditions: JSON.parse(JSON.stringify(kept.get(s.id))) };
+  });
+  return filled ? { ...server, shapes } : server;
 }
 /**
  * A shape's sub-features (doors, windows, gates: src/features.ts), which an older version leaves out of a shape it
