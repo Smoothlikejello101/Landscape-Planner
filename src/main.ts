@@ -16,9 +16,9 @@ import { state } from './state';
 import { loadPlants, plantFilter } from './plants';
 import { applyYard, household, loadHardy } from './yard';
 import { loadWild } from './wild';
-import { initAccount, restoreCodeSent, setAccountListener } from './account';
+import { initAccount, restoreCodeSent, setAccountListener, storedSession } from './account';
 import { CHANNEL, signInAllowed } from './channel';
-import { onAccountChange, setSyncUi, startSyncTriggers } from './sync/sync';
+import { deviceName, onAccountChange, setSyncUi, startSyncTriggers, syncOnThisDevice } from './sync/sync';
 import { refreshAfterSync, screenBusy, showSyncResults } from './ui/sync-results';
 import { refreshAccountSection } from './ui/account-section';
 import { loadMyPlants } from './my-plants';
@@ -30,14 +30,16 @@ import { loadViewSettings } from './view-settings';
 import { applyTextSize } from './text-size';
 import { updateSaveWarning, updateSaveState } from './ui/save-warning';
 import {
-  flushSave, initStorage, refreshClipboard, requestPersistence, saveView, setHouseholdListener, setNewerVersionListener, setSaveStateListener,
-  setSaveStatusListener, StorageUnavailableError, supersededByNewer, writeJournalIfDirty,
+  currentProject, flushSave, getLastBackupAt, initStorage, refreshClipboard, requestPersistence, saveIsFailing, saveView, setHouseholdListener,
+  setNewerVersionListener, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, storageIsDurable, supersededByNewer, writeJournalIfDirty,
 } from './storage';
 import { flashZoom, placeFirstCard, render } from './ui/render';
 import { dismissToastAction, toast } from './ui/toast';
 import { closeYear, stepMonth } from './ui/year-bar';
 import { closeWarningsSide, warningsSideOpen } from './ui/warnings-sheet';
-import { noteVisit, visitedBefore } from './hints';
+import { lastVisitAt, noteVisit, visitedBefore } from './hints';
+import { arrive, backupDue, deviceWord, startCard } from './welcome';
+import { fitWholePlan, showSavedHere, showWelcomeBack } from './ui/welcome-card';
 import { newsAtStart } from './whats-new';
 import { tellWhatsNew } from './ui/whats-new-panel';
 import { introActive } from './ui/intro-card';
@@ -415,6 +417,9 @@ async function start() {
   // What's new since this device last opened the app (src/whats-new.ts): read before the visit is noted, which is how
   // a device used before the list existed is told from a new one.
   const news = newsAtStart(visitedBefore());
+  // (And how long it was away, whether this is a new version, which visit this is: src/welcome.ts. Read before the
+  // visit is noted too.)
+  const arrival = arrive(lastVisitAt(), __APP_VERSION__);
   noteVisit(); // (before the first render: a hint may be due again)
   // Next, the preview copy of the app, is marked so it's never taken for the real one (a stripe along the top).
   document.body.classList.toggle('channel-next', CHANNEL === 'next');
@@ -428,9 +433,22 @@ async function start() {
   setSaveStatusListener(updateSaveWarning);
   setSaveStateListener(updateSaveState);
   pushHistory(); // seed undo history with the loaded state
+  // Back after a gap or an update: the whole plan, and a small card; the second visit, once, "Saved on this phone"
+  // (src/welcome.ts has the order). Up before the first drawing, so the photo's "not to scale yet" waits for it to go.
+  const lastBackup = getLastBackupAt();
+  const { card, fit } = startCard(arrival, {
+    touring: introActive(), drawn: state.shapes.length > 0, backedUp: lastBackup != null,
+    syncing: signInAllowed() && storedSession() && syncOnThisDevice(), saving: storageIsDurable() && !saveIsFailing(),
+  });
+  if (card === 'welcome') {
+    const lastChange = Math.max(0, ...state.projects.map((p) => p.lastModified || 0));
+    showWelcomeBack({ updated: arrival.updated, news: news.reduce((n, r) => n + r.items.length, 0), lastChanged: currentProject()?.lastModified ?? 0, backup: backupDue(lastBackup, lastChange) });
+  } else if (card === 'saved') showSavedHere(deviceWord(deviceName(), navigator.maxTouchPoints));
   render();
-  // (Said once, after the first render; not over the guided introduction's card, though its list still marks them New.)
-  tellWhatsNew(news, !introActive());
+  if (fit && fitWholePlan()) render(); // (measured under the card, now it's in its place)
+  // (Said once, after the first render; not over the guided introduction's card, though its list still marks them New;
+  // nor beside the start's card, which says it after an update.)
+  tellWhatsNew(news, !introActive() && !card);
   const told = migrationError
     ? tell("Some projects from the previous version couldn't be copied (" + migrationError + "). They are still stored on this device; the app will try again next time it opens.")
     : Promise.resolve();

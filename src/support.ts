@@ -24,6 +24,9 @@ export const SETTING_KEYS = [
   'lp-recent-plants', 'lp-full-rings', 'lp-crowding', 'lp-crowd-warn', 'lp-warn-hardy', 'lp-warn-poison', 'lp-warn-fruit', 'lp-zoom-buttons', 'lp-plant-looks', 'lp-label-size', 'lp-filters-open', 'lp-my-plants-folded', 'lp-sync-device',
   'lp-zip-county', 'lp-zip-prompt-dismissed', 'lp-intro', 'lp-last-visit', 'lp-returned', 'lp-hint-full-size', 'lp-canopy-hint',
   'lp-hint-tap-under', 'lp-hint-drag-pans', 'lp-tap-guard', 'lp-whats-new', 'lp-first-hidden', 'lp-trace',
+  // (The start's cards, src/welcome.ts: the version last started, the visits counted, the second visit's card had. And
+  // 'lp-visit-counted', which is in sessionStorage, never here: listed so it's known.)
+  'lp-app-version', 'lp-visits', 'lp-saved-here', 'lp-visit-counted',
 ];
 /** Data, by name and size: exact keys, and prefixes (a project per key, an unsaved-edits journal per project). */
 export const DATA_KEYS = ['lp-projects', 'lp-clipboard', ERROR_LOG_KEY];

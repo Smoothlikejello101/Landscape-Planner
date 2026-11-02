@@ -78,10 +78,13 @@ export function placeToast(node: HTMLElement) {
  * A notice with buttons ("Squared the corners. Undo"), kept up long enough to reach: tapping a button runs it
  * and closes the notice (unless it's `keep`: turning a setting off leaves the Undo there). A new notice
  * replaces it. With `detail`, the message is one short line that opens to say more (Jason, 2026-10-27: a notice
- * mustn't get in the way); opened, it stays up while it's read. `tone` marks it amber or red.
+ * mustn't get in the way); opened, it stays up while it's read. `tone` marks it amber or red. `sub`: a second, quieter
+ * line under the message. `untilAction`: no time limit; it goes at the first thing done anywhere else (a press, a key,
+ * the wheel), so it never covers what the person came to do (the start's cards: src/ui/welcome-card.ts). A question
+ * up over it (src/ui/ask.ts) isn't that: answered, it's still there.
  */
 export function toastAction(message: string, actions: { label: string; run: () => void; keep?: boolean; className?: string }[], ms = 10000, testid?: string,
-  opts: { detail?: string; tone?: 'amber' | 'red' } = {}) {
+  opts: { detail?: string; tone?: 'amber' | 'red'; sub?: string; untilAction?: boolean } = {}) {
   toast('', 1); // (clears a plain toast)
   document.getElementById('toast-action')?.remove();
   const node = document.createElement('div');
@@ -117,6 +120,13 @@ export function toastAction(message: string, actions: { label: string; run: () =
   } else {
     const text = document.createElement('span');
     text.textContent = tapSaid(message);
+    if (opts.sub) {
+      node.classList.add('has-sub');
+      const sub = document.createElement('span');
+      sub.className = 'notice-sub';
+      sub.textContent = tapSaid(opts.sub);
+      text.appendChild(sub);
+    }
     node.appendChild(text);
   }
   const buttons = document.createElement('div');
@@ -142,8 +152,28 @@ export function toastAction(message: string, actions: { label: string; run: () =
   document.body.appendChild(node);
   placeNotice();
   requestAnimationFrame(placeNotice);
+  if (opts.untilAction) { goesAtFirstAction(node); return; }
   const tick = () => { if (!node.isConnected) return; const left = closeAt - Date.now(); if (left <= 0) node.remove(); else setTimeout(tick, left); };
   setTimeout(tick, ms);
+}
+/** Keys that move around the page or hold others, not an action: Tab reaches the notice's own buttons. */
+const NOT_ACTIONS = ['Tab', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock'];
+/**
+ * The notice goes at the first press, key or wheel anywhere but on it (or on a question asked over it). Only the notice
+ * is taken away, nothing redrawn: the press may be the start of a pinch or a drag on the plan.
+ */
+function goesAtFirstAction(node: HTMLElement) {
+  const kinds = ['pointerdown', 'keydown', 'wheel'] as const;
+  const stop = () => { for (const k of kinds) window.removeEventListener(k, away, true); };
+  function away(e: Event) {
+    if (!node.isConnected) { stop(); return; }
+    const t = e.target instanceof Element ? e.target : null;
+    if (t && (node.contains(t) || t.closest('.ask-overlay'))) return;
+    if (e instanceof KeyboardEvent && NOT_ACTIONS.includes(e.key)) return;
+    stop();
+    node.remove();
+  }
+  for (const k of kinds) window.addEventListener(k, away, true);
 }
 /**
  * Where a notice with buttons sits: at the top of the plan; with a sheet open, just above the sheet, so it never
