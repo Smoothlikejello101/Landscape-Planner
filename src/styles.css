@@ -1149,3 +1149,23 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .trace-tick { color: #047857; font-weight: 700; }
 .trace-hide { position: absolute; top: 4px; right: 4px; width: var(--tap); height: var(--tap); display: flex; align-items: center; justify-content: center; border-radius: 999px; color: #78716c; }
 .empty-hint.docked .first-card .trace-line { margin-bottom: 6px; }
+/* Help (⋮ → Help: src/ui/help-sheet.ts): Take the tour, then "How do I…", each question a fold opening to its answer
+   and a button that goes there, then Send feedback. */
+.help-tour { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #e7e5e4; }
+.help-tour .btn { flex-shrink: 0; padding: 10px 14px; }
+.help-tour p { margin: 0; font-size: calc(13px * var(--ts)); color: #57534e; line-height: 1.45; }
+.help-list { padding-bottom: 6px; }
+h3.help-how { margin: 0; padding-top: 14px; }
+.help-item + .help-item { border-top: 1px solid #f5f5f4; }
+.help-q { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; min-height: var(--tap); padding: 10px 16px; text-align: left; font-size: calc(15px * var(--ts)); color: #292524; line-height: 1.35; }
+.help-q:hover { background: #fafaf9; }
+.help-q .fold-chev { display: flex; color: #78716c; transition: transform 0.15s; }
+.help-q[aria-expanded=false] .fold-chev { transform: rotate(-90deg); }
+.help-a { padding: 0 16px 14px; display: flex; flex-direction: column; gap: 6px; }
+.help-a[hidden] { display: none; }
+.help-a p { margin: 0; font-size: calc(14px * var(--ts)); color: #44403c; line-height: 1.45; }
+.help-go { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+.help-go .btn { padding: 8px 12px; }
+.help-foot { display: flex; flex-direction: column; gap: 2px; padding: 8px 16px calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid #e7e5e4; }
+.help-foot .link-btn { padding: 8px 2px; }
+@media (prefers-reduced-motion: reduce) { .help-q .fold-chev { transition: none; } }

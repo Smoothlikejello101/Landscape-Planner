@@ -38,7 +38,7 @@ function formatDate(t: number | null): string {
 }
 
 function backupSection(): HTMLElement {
-  const section = el('div', { className: 'backup-section' }, el('div', { className: 'section-title' }, 'Backup'));
+  const section = el('div', { className: 'backup-section', 'data-testid': 'backup-section' }, el('div', { className: 'section-title' }, 'Backup'));
   if (!storageIsDurable()) {
     section.appendChild(el('div', { className: 'status warn' },
       "This browser isn't letting the app save, so changes are lost when it closes. Back up your projects to keep them."));
