@@ -72,8 +72,8 @@ test('projects made in the previous version migrate intact', async ({ page }) =>
 // Versions before Oct 11 kept plans in localStorage and never open IndexedDB, so the database's version (src/db.ts
 // DB_VERSION, raised to stop tabs left open on an older version) means nothing to them: one run again after this version
 // has raised it starts as it always did, with no wait and no error, and what it saves comes in at this version's next
-// start (docs/storage.md).
-test('the previous version, run again after this one raised the database version, starts as ever, and its edit comes in at the next start', async ({ page }) => {
+// start: beside the plan, which has the yard and warning switches the older copy can't have (docs/storage.md).
+test('the previous version, run again after this one raised the database version, starts as ever, and its edit comes in at the next start, beside the plan', async ({ page }) => {
   autoDialogs(page, 'Front Yard');
   await page.goto('/legacy/index.html');
   await expect(page.locator('.project-btn .pname')).toHaveText('My Garden');
@@ -97,6 +97,12 @@ test('the previous version, run again after this one raised the database version
   await closeSheet(page);
   await page.waitForTimeout(600);
   await page.goto('/');
+  await expect(page.locator('.project-btn .pname')).toHaveText('My Garden');
+  await expect(page.locator('#canvas-svg text', { hasText: 'Old oak' })).toHaveCount(1);
+  await expect(page.locator('#canvas-svg text', { hasText: 'Later oak' })).toHaveCount(0);
+  await page.locator('.project-btn').click();
+  await page.locator('.proj-row', { hasText: 'My Garden (from older version)' }).click();
+  await expect(page.locator('.project-btn .pname')).toHaveText('My Garden (from older version)');
   await expect(page.locator('#canvas-svg text', { hasText: 'Later oak' })).toHaveCount(1);
   await expect(page.locator('#canvas-svg text', { hasText: 'Old oak' })).toHaveCount(1);
   expect(await version()).toBe(2);

@@ -185,6 +185,32 @@ test('a page a newer version took the plans from reloads, when asked, into the v
   await expect(page.getByTestId('newer-version')).toBeVisible();
 });
 
+// The same message put away (Esc; Back, a tap beside it, or another question over it do the same) only reloads the
+// page: the version waiting to update isn't put in without the person's Update or Reload (CLAUDE.md; the review, Nov 1).
+test('the message put away only reloads the page: the version waiting to update still waits', async ({ page }) => {
+  const url = `http://localhost:${PORT}/`;
+  const scriptOf = (html: string) => /<script type="module"[^>]*src="([^"]+)"/.exec(html)![1];
+  mode = 'new';
+  await page.goto(url);
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.reload();
+  await expect(page.locator('.project-btn .pname')).toBeVisible();
+  mode = 'next';
+  await page.evaluate(async () => (await navigator.serviceWorker.getRegistration())!.update());
+  await expect(page.locator('#update-banner')).toBeVisible({ timeout: 15_000 });
+  await page.evaluate(() => new Promise<void>((resolve, reject) => {
+    const r = indexedDB.open('landscape-planner', 3);
+    r.onsuccess = () => { r.result.close(); resolve(); };
+    r.onerror = () => reject(r.error);
+  }));
+  await expect(page.getByTestId('newer-tab')).toBeVisible();
+  await Promise.all([page.waitForEvent('load'), page.keyboard.press('Escape')]);
+  await expect(page.getByTestId('newer-version')).toBeVisible({ timeout: 15_000 });
+  // The same version as before, the newer one still waiting.
+  expect(await page.evaluate(() => document.querySelector('script[type=module][src]')!.getAttribute('src'))).toBe(scriptOf(readFileSync('dist/index.html', 'utf8')));
+  expect(await page.evaluate(async () => !!(await navigator.serviceWorker.getRegistration())?.waiting)).toBe(true);
+});
+
 test("a later release brings the kept state records up to date as it installs, so it opens with them", async ({ page }) => {
   const url = `http://localhost:${PORT}/`;
   mode = 'new';

@@ -1,4 +1,5 @@
 import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 import { addPlainShape, closeSheet, field, openFresh } from './helpers';
 
 // An older version of the app never saves over a newer one's plans (src/db.ts DB_VERSION; Nov 1: a buried line lost its
@@ -122,6 +123,15 @@ test('a page opened after a newer version has the database says so, writes nothi
   expect(loads).toBe(1); // (it never reloads by itself)
   expect(await dump(other)).toEqual(before);
   expect(await localNow()).toBe(local);
+
+  // For when no version can open them: a raw copy of every record, as stored, saved as a file; nothing changed by it.
+  await expect(said).toContainText('A raw copy is everything stored on this device, exactly as it is, in one file');
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('newer-raw-copy').click()]);
+  expect(download.suggestedFilename()).toMatch(/^fullgrown-raw-copy-.+\.json$/);
+  const copy = JSON.parse(readFileSync(await download.path(), 'utf8'));
+  expect(copy).toMatchObject({ format: 'fullgrown-raw-database', databaseVersion: 3 });
+  expect(copy.stores).toEqual(JSON.parse(JSON.stringify(before.stores)));
+  expect(await dump(other)).toEqual(before);
 
   // Reload, asked for: the same again (no newer version can be had here), and still only once.
   await Promise.all([page.waitForEvent('load'), page.getByTestId('newer-reload').click()]);
