@@ -40,6 +40,39 @@ export async function updateNow() {
   await applyUpdate?.(true);
 }
 
+/**
+ * Reload into the newest version this device can get, when an older page has to give way to a newer one (src/main.ts:
+ * a newer version has the plans). A new version found, or installed and waiting, is put in first: the person asked
+ * for it with that page's Reload. Only ever on their tap, never by itself (CLAUDE.md), so a page that still can't get
+ * a newer version shows its message again rather than reloading over and over.
+ */
+export async function reloadToNewest(): Promise<void> {
+  try {
+    const sw = navigator.serviceWorker;
+    const reg = await withTimeout(sw?.getRegistration?.(), 3000);
+    if (sw && reg) {
+      // (The newer version is out: another page runs it. Fetched and installed now, if it isn't yet: a few seconds.)
+      await withTimeout(reg.update().catch(() => undefined), 10_000);
+      const installing = reg.installing;
+      if (installing) {
+        await withTimeout(new Promise<void>((done) => {
+          installing.addEventListener('statechange', () => { if (installing.state !== 'installing') done(); });
+        }), 30_000);
+      }
+      if (reg.waiting) {
+        const taken = new Promise<void>((done) => sw.addEventListener('controllerchange', () => done(), { once: true }));
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        await withTimeout(taken, 10_000);
+      }
+    }
+  } catch (e) { console.warn('could not look for a newer version', e); }
+  location.reload();
+}
+/** `p`, or undefined once `ms` have gone by. */
+function withTimeout<T>(p: Promise<T> | undefined, ms: number): Promise<T | undefined> {
+  return Promise.race([p ?? Promise.resolve(undefined), new Promise<undefined>((r) => setTimeout(() => r(undefined), ms))]);
+}
+
 function showUpdateBanner() {
   waiting = true;
   for (const fn of listeners) fn();
