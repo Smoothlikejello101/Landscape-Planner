@@ -118,6 +118,7 @@ test('the scale box sits clear of A and B, the plan moved if they were under it,
   await openFresh(page);
   await page.getByTestId('start-photo').click();
   await page.locator('.sheet input[type=file]').setInputFiles('public/icon-512.png');
+  await expect(page.locator('.mode-banner')).toContainText('Calibrating');
   // A and B near the top of the photo, where the box goes.
   const img = (await page.locator('#canvas-svg image').boundingBox())!;
   await page.mouse.click(img.x + img.width * 0.25, img.y + img.height * 0.05);

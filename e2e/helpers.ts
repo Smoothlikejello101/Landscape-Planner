@@ -131,11 +131,17 @@ export async function addKind(page: Page, kind: string, method?: string) {
   if (method) await page.locator(`[data-testid=draw-bar] [data-method=${method}]`).click();
 }
 
-/** Tap the plan `dx`, `dy` feet from the center of the view (at the current zoom). */
+/**
+ * Tap the plan `dx`, `dy` feet from the center of the view (at the current zoom). The center as the plan is laid out
+ * without a strip of words above it: while drawing or placing, the strip takes the plan's top and what's on the plan
+ * stays where it was (src/canvas.ts resizeCanvas), so a spot tapped while placing is the same spot after.
+ */
 export async function tapFromCenter(page: Page, dx: number, dy: number) {
   const box = await canvasBox(page);
+  const s = page.getByTestId('mode-strip');
+  const strip = (await s.count()) ? (await s.boundingBox())?.height ?? 0 : 0; // (none up: no wait for one)
   const ppf = 24 * (await zoomPct(page)) / 100;
-  await page.mouse.click(box.x + box.width / 2 + dx * ppf, box.y + box.height / 2 + dy * ppf);
+  await page.mouse.click(box.x + box.width / 2 + dx * ppf, box.y + (box.height - strip) / 2 + dy * ppf);
 }
 
 /**
