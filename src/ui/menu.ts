@@ -125,8 +125,8 @@ export function renderMoreMenu() {
     btn.addEventListener('click', it.onClick);
     menu.appendChild(btn);
   }
-  menu.appendChild(el('div', { className: 'menu-divider' }));
-  // The mark leads the version line (it has no text, so the line still reads "Version …").
+  // The mark leads the version line (it has no text, so the line still reads "Version …"); its own top border divides
+  // it from the items (a divider here too made two lines: the bug hunt, Nov 1).
   const version = el('div', { className: 'menu-version', html: MARK_SMALL });
   version.append(el('span', {}, `Version ${__APP_VERSION__}${CHANNEL === 'next' ? ' · Next (preview)' : ''} · ${__BUILD_TIME__}`), updateCheck());
   menu.appendChild(version);
@@ -140,7 +140,9 @@ export function renderMoreMenu() {
     const to = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : e.key === 'ArrowDown' ? (at + 1) % items.length : (at - 1 + items.length) % items.length;
     items[to].focus();
   });
-  const overlay = el('div', { className: 'overlay top' }, el('div', { style: { paddingRight: '8px', paddingTop: '4px' } }, menu));
+  // (In a box as tall as the room under the top bar, so the menu takes all of it before it scrolls: on a 1366 × 820
+  // screen it stopped at 80% of the height, "Check for updates" cut off above empty screen. The bug hunt, Nov 1.)
+  const overlay = el('div', { className: 'overlay top' }, el('div', { className: 'menu-wrap' }, menu));
   overlay.addEventListener('click', e => { if (e.target === overlay) { state.menu = null; render(); } });
   return overlay;
 }
