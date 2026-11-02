@@ -63,6 +63,7 @@ import { startBgCalibration } from '../background';
 import { placeTraceCard, traceCard, traceChips, traceShown } from './trace-card';
 import { setTraceState } from '../yard-in';
 import { panelOpened } from '../tap-guard';
+import { placePicker, planLookOnly, showChosen } from './picker-view';
 
 // MAIN RENDER
 // ============================================================
@@ -78,6 +79,15 @@ export function updateStatusReadout() {
   noteCounts();
   if (roomyText()) { flashZoom(); return; }
   const node = document.querySelector('.project-btn .pcount');
+  if (node) node.textContent = statusText();
+}
+/**
+ * The count and zoom said afresh, quietly: the view moved behind the plant picker (src/ui/picker-view.ts), by a pan
+ * that needs no word of the zoom; a pinch or a zoom button has shown it already.
+ */
+export function noteView() {
+  noteCounts();
+  const node = roomyText() ? null : document.querySelector('.project-btn .pcount');
   if (node) node.textContent = statusText();
 }
 /** The shape count and zoom on the plan's element too (read by the tests: the top bar may not show them). */
@@ -124,6 +134,13 @@ let shownMenu: typeof state.menu = null;
 let shownTool: object | null = null;
 /** The plan the app last drew (undefined before it first drew). */
 let shownPlan: string | null | undefined;
+/**
+ * The view changed by a button (zoom in or out): the whole app drawn again, or, behind the plant picker, only the plan,
+ * the picker as it is (src/ui/picker-view.ts).
+ */
+function viewChanged() {
+  if (planLookOnly()) { redrawCanvas(); noteView(); } else render();
+}
 export function render() {
   const root = document.getElementById('root')!;
   refreshWarnings(); // (the plan's warnings, worked out once for this drawing: src/ui/warnings-sheet.ts)
@@ -143,7 +160,10 @@ export function render() {
   // (Checked on every redraw, so a selection changed and changed back by hand isn't "just placed" again.)
   const justPlaced = selectionJustPlaced();
 
-  const app = el('div', { className: 'app' });
+  // (The plant picker open: the plan stays in view beside or above it, to look at: src/ui/picker-view.ts.)
+  const pickerUp = state.panel === 'plants';
+  const pickerOpening = pickerUp && shownPanel !== 'plants';
+  const app = el('div', { className: 'app' + (pickerUp ? ' picker-open' : '') });
   if (!storageIsDurable()) {
     app.appendChild(el('div', { className: 'storage-warning', role: 'alert' },
       "This browser isn't saving your work. Use Projects → Back up to keep it."));
@@ -255,7 +275,7 @@ export function render() {
   svg.addEventListener('click', () => { /* the plan takes its taps */ });
   // With a mouse, the shape being drawn follows the pointer to the next click.
   svg.addEventListener('pointermove', (e) => {
-    if (e.pointerType !== 'mouse') return;
+    if (e.pointerType !== 'mouse' || planLookOnly()) return; // (behind the picker, nothing follows the pointer)
     // (A drag pans the plan: the plant that followed the pointer is put away till it moves again, not left behind
     // where the plan took it. Tom, Oct 30.)
     if (e.buttons) { if (state.placing && hasPlaceHover()) { setPlaceHover(null); redrawHandles(); } return; }
@@ -383,16 +403,18 @@ export function render() {
   // Zoom buttons
   const zoomBtns = el('div', { className: 'zoombtns' });
   const zIn = el('button', { className: 'zoombtn', html: I.zoomIn, 'aria-label': 'Zoom in', title: 'Zoom in' });
-  zIn.addEventListener('click', () => { zoomBy(1.25); render(); flashZoom(); });
+  zIn.addEventListener('click', () => { zoomBy(1.25); viewChanged(); flashZoom(); });
   const zOut = el('button', { className: 'zoombtn', html: I.zoomOut, 'aria-label': 'Zoom out', title: 'Zoom out' });
-  zOut.addEventListener('click', () => { zoomBy(0.8); render(); flashZoom(); });
+  zOut.addEventListener('click', () => { zoomBy(0.8); viewChanged(); flashZoom(); });
   // (Off on a phone unless turned on in Settings: src/view-settings.ts. Kept while drawing, for whoever zooms with one
   // finger: they asked for them.)
   if (state.zoomButtons) { zoomBtns.appendChild(zIn); zoomBtns.appendChild(zOut); }
   // The rest, not while drawing, placing, adding doors, editing points or setting a photo's scale: they're for looking,
   // and a corner tapped near the plan's right edge landed on them instead (round 3: Lena, Grace and Owen). Fit too,
   // which took a corner's tap and zoomed the plan away mid-drawing (Jason, Nov 2, from the UI review).
-  if (!state.draw && !state.placing && !state.bgCalibrate && !state.featurePlace && !state.editPoints) {
+  // (Nor while the plant picker is open: the plan beside it is there to look at, and each of these opens something in the
+  // picker's place, or fits the whole plan to the screen, under the picker.)
+  if (!state.draw && !state.placing && !state.bgCalibrate && !state.featurePlace && !state.editPoints && !pickerUp) {
     // Everything in view (not on an empty plan with no photo: nothing to fit).
     if (planBounds()) {
       const zFit = el('button', { className: 'zoombtn', html: I.fit, 'aria-label': 'Fit the plan in view', title: 'Fit the plan in view (Shift+1)', 'data-testid': 'zoom-fit' });
@@ -419,7 +441,8 @@ export function render() {
   // gives hardiness, frost dates and the state's plant laws was in ⋮; a backup from another device had no way in).
   // (The first screen with its photo to scale holds "Now trace" itself; else it's a card of its own, below.)
   let tracing = false;
-  if (state.shapes.length === 0 && !state.draw && !state.placing && !state.bgCalibrate && !state.bgEditMode && !introActive()) {
+  // (Not under the plant picker: it's choosing plants already, and the card's buttons would close it.)
+  if (state.shapes.length === 0 && !state.draw && !state.placing && !state.bgCalibrate && !state.bgEditMode && !introActive() && !pickerUp) {
     // Cleared with Clear all: what it took, offered back until something new is drawn, across reloads (Jason, Oct 30).
     if (state.currentProjectId) void loadCleared(state.currentProjectId, render);
     const was = clearedNow();
@@ -583,6 +606,9 @@ export function render() {
     }
   }
 
+  // (Behind the plant picker, what sits over the plan (a filter's banner, "Now trace") waits: only the plan pans and
+  // zooms, and the zoom buttons. src/ui/picker-view.ts.)
+  if (pickerUp) for (const c of canvasWrap.children) if (c !== svg && c !== zoomBtns) (c as HTMLElement).inert = true;
   if (strip.childElementCount) app.appendChild(strip);
   // (On a computer, Warnings stays open beside the plan, and the plan makes room: src/ui/warnings-sheet.ts.)
   app.appendChild(el('div', { className: 'plan-row' }, canvasWrap, renderWarningsSide()));
@@ -700,6 +726,12 @@ export function render() {
   calibrationNotice();
   // Now that the SVG is in the DOM, size it and draw grid/shapes
   resizeCanvas();
+  // The plant picker: placed under the top bar, and, just opened with something selected (a plant to swap, a bed), the
+  // plan moved to show it beside or above the picker (src/ui/picker-view.ts).
+  if (pickerUp) {
+    placePicker();
+    if (pickerOpening && showChosen()) { redrawCanvas(); noteView(); }
+  }
   // (The Building tool just opened: where a house fits, the plan sized for drawing now. src/draw.ts.)
   if (openAtHouseScale()) { redrawCanvas(); updateStatusReadout(); }
   placeNotice(); // (a notice with buttons stays clear of an open sheet, and of the shape it's about, drawn now)

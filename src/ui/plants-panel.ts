@@ -25,6 +25,7 @@ import { plantDetails } from './plant-details';
 import { addCompareToggle, compareBar, compareMark, compareOver, pickerBeneath, refreshCompare, syncCompareMarks, type CompareHost } from './compare-sheet';
 import { bannedHere, escapeHere, escapeShort, gardenStateName, lawShort, loadWild, regulatedHere } from '../wild';
 import { plantDot, plantSpot } from '../plant-looks';
+import { dragsPicker, pickerHandle, pickerSheetClass } from './picker-view';
 
 const dotColor = plantDot;
 /** The small flower before a row's bloom months, in the text's own color. */
@@ -1224,7 +1225,9 @@ export function renderPlantsPanel() {
   // between a click and the next. Marcus, Diego, Tom, Oct 30.)
   // (The plants chosen to compare, in a bar at its foot.)
   const compare = compareBar(compareHost);
-  const sheet = el('div', { className: 'sheet picker-sheet' }, el('div', { className: 'sheet-top' }, header, searchBar), body, compare.el);
+  // (Half height on a phone, its handle at the top; a panel beside the plan on a computer: src/ui/picker-view.ts.)
+  dragsPicker(header);
+  const sheet = el('div', { className: pickerSheetClass() }, el('div', { className: 'sheet-top' }, pickerHandle(), header, searchBar), body, compare.el);
   // Typing: the start of the results in view, under the search (scrolling only; the keyboard stays). Back up to it from
   // far down the list; or down to it, past what's above it, where the first result is out of sight below (Jason, Nov
   // 1, from the UI review). The filters' chips, a word of need's among them, stay in view above it.
@@ -1236,8 +1239,10 @@ export function renderPlantsPanel() {
     if (y < top || (first && first.top + 32 > sheet.getBoundingClientRect().bottom)) sheet.scrollTop += y - top - 4;
   });
   const over = compareOver(compareHost);
-  const overlay = el('div', { className: 'overlay' }, sheet, over);
+  // (Over the plan without dimming it, and without taking its touches: the plan pans and zooms beside or above it, and
+  // a tap there closes nothing, so a stray one never loses the search. Its ✕, Back and Esc close it. Jason, Nov 2, from
+  // the bed review: src/ui/picker-view.ts.)
+  const overlay = el('div', { className: 'overlay picker-overlay', 'data-testid': 'picker' }, sheet, over);
   if (over) pickerBeneath(overlay, true); // (beneath the comparison, out of reach)
-  overlay.addEventListener('click', e => { if (e.target === overlay) closePicker(); });
   return overlay;
 }
