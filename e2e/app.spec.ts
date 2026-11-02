@@ -240,6 +240,25 @@ test.describe('projects and selection', () => {
     expect(await shapeCount(page)).toBe(1);
   });
 
+  // The general bug hunt, Nov 1: New project's name was a plain browser box (square black border), unlike every other field.
+  test('New project\'s name field looks like the app\'s other fields (the general bug hunt, Nov 1)', async ({ page }) => {
+    await openFresh(page);
+    const look = (l: ReturnType<Page['locator']>) => l.evaluate((e) => {
+      (e as HTMLElement).blur(); // (as it looks before it's focused: focused, both ring green)
+      const c = getComputedStyle(e);
+      return [c.borderTopColor, c.borderTopWidth, c.borderTopLeftRadius, c.paddingLeft, c.fontSize, c.backgroundColor].join(' ');
+    });
+    await page.locator('.project-btn').click();
+    await page.getByRole('button', { name: 'Rename My Garden' }).click();
+    const field = await look(page.locator('.modal .field input'));
+    await page.locator('.modal').getByRole('button', { name: 'Cancel' }).click();
+    await page.locator('button', { hasText: 'New project' }).click();
+    const named = page.getByTestId('ask-input');
+    await expect(named).toBeFocused();
+    expect(await look(named)).toBe(field);
+    expect(field).toContain('6px'); // (rounded, as the app's fields are)
+  });
+
   test('lasso selects several shapes and they move together', async ({ page }) => {
     await openFresh(page);
     await addShape(page, 'circle');
