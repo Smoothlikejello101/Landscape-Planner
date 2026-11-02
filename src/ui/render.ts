@@ -28,7 +28,7 @@ import { renderSettingsPanel } from './settings-panel';
 import { refreshWarnings, renderWarningsSheet, renderWarningsSide, walkChip, warningsButton, warningsSheetShown, warningsSideShown } from './warnings-sheet';
 import { renderWhatsNewPanel } from './whats-new-panel';
 import { snapOn } from '../tidy';
-import { dismissToastAction, hideOldToast, placeNotice, toastAction } from './toast';
+import { dismissToastAction, hideOldToast, placeNotice, planRoomAcross, toastAction } from './toast';
 import { renderMoreMenu, toggleSelectMode } from './menu';
 import { foldDetailGroups } from './plant-details';
 import { renderFeedbackSheet } from './feedback-sheet';
@@ -222,7 +222,11 @@ export function render() {
     app.appendChild(btn);
     requestAnimationFrame(() => {
       const r = undoBtn.getBoundingClientRect(), w = btn.getBoundingClientRect().width;
-      floatRedoAt = { top: `${Math.round(r.bottom + 6)}px`, left: `${Math.round(Math.min(window.innerWidth - w - 8, Math.max(8, r.left + r.width / 2 - w / 2)))}px` };
+      // (Never over the plan's side buttons, nor Warnings beside the plan, whose header sits under Undo on a computer:
+      // the warnings bug hunt, Nov 1. Then it's at the top of the plan, just left of the side buttons.)
+      const room = planRoomAcross();
+      const most = Math.min(window.innerWidth - w - 8, room ? room.x1 - w : Infinity);
+      floatRedoAt = { top: `${Math.round(r.bottom + 6)}px`, left: `${Math.round(Math.max(8, Math.min(most, r.left + r.width / 2 - w / 2)))}px` };
       btn.style.top = floatRedoAt.top;
       btn.style.left = floatRedoAt.left;
       btn.classList.add('shown');

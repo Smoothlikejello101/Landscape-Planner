@@ -419,3 +419,37 @@ test('turned mid-walk, the plan zooms to the plant again, clear of the chip (the
   await expect.poll(inView).toBe(true);
   await expect(chip.getByTestId('walk-list')).toContainText('Northern red oak');
 });
+
+test('notices and the floating Redo keep clear of the Warnings button, and of Warnings beside the plan (the warnings bug hunt, Nov 1)', async ({ page }) => {
+  await openPlan(page, EVERY, { dogs: true, zone: true });
+  type Box = { x: number; y: number; width: number; height: number };
+  const meet = (a: Box, b: Box) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+  const box = async (l: ReturnType<Page['locator']>) => (await l.boundingBox())!;
+  // A dismissal's notice, with its buttons.
+  await openWarnings(page, 'crowding');
+  await kind(page, 'crowding').getByTestId('warning-select').click();
+  await openWarnings(page, 'poison');
+  await kind(page, 'poison').getByTestId('warning-row').first().getByTestId('warning-dismiss').click();
+  const notice = page.getByTestId('dismiss-notice');
+  await expect(notice).toBeVisible();
+  if (!wide(page)) await closeSheet(page);
+  await expect(notice).toBeVisible();
+  await expect.poll(async () => meet(await box(notice), await box(button(page)))).toBe(false);
+  for (const b of await page.locator('.zoombtns > button').all()) expect(meet(await box(notice), await box(b))).toBe(false);
+  if (wide(page)) {
+    const side = page.getByTestId('warnings-side');
+    expect(meet(await box(notice), await box(side))).toBe(false); // (its header, "11 to look at" and all)
+  }
+  await notice.getByTestId('notice-close').click();
+  // The floating Redo, after an undo: under Undo, but never over the side buttons or Warnings beside the plan.
+  if (wide(page)) await openKind(page, 'crowding');
+  else await openWarnings(page, 'crowding');
+  await kind(page, 'crowding').getByTestId('warning-row').first().getByTestId('warning-dismiss').click();
+  if (!wide(page)) await closeSheet(page);
+  await page.locator('button[title=Undo]').click();
+  const redo = page.getByTestId('float-redo');
+  await expect(redo).toBeVisible();
+  await expect(redo).toHaveClass(/shown/);
+  expect(meet(await box(redo), await box(button(page)))).toBe(false);
+  if (wide(page)) expect(meet(await box(redo), await box(page.getByTestId('warnings-side')))).toBe(false);
+});
