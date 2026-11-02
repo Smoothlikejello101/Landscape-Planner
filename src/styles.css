@@ -555,6 +555,13 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .method-icon .m-text { font-size: calc(11px * var(--ts)); font-weight: 700; fill: #44403c; }
 .draw-width { display: flex; align-items: center; gap: 4px; font-size: calc(12px * var(--ts)); color: #57534e; flex-shrink: 0; }
 .draw-width input { width: 56px; min-height: 44px; padding: 0 6px; border: 1px solid #d6d3d1; border-radius: 6px; font-size: calc(15px * var(--ts)); }
+/* (A side's length, waiting for the first point: in its place, so the bar doesn't change when it's there. A rectangle's
+   two names take the room of the longer.) */
+.typed-length.waiting { opacity: 0.5; }
+.draw-width input:disabled { background: #f5f5f4; }
+.typed-name { display: inline-grid; }
+.typed-name > span { grid-area: 1 / 1; }
+.typed-name > .off { visibility: hidden; }
 .kind-row { display: flex; align-items: center; gap: 10px; }
 .kind-name { font-size: calc(15px * var(--ts)); font-weight: 600; color: #292524; }
 .link-btn { font-size: calc(14px * var(--ts)); color: #0f766e; text-decoration: underline; padding: 8px 4px; min-height: 44px; }
@@ -899,10 +906,16 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .feature-seg { display: flex; flex-wrap: wrap; gap: 4px; }
 .feature-seg button { flex: 0 0 auto; min-height: 36px; padding: 4px 10px; border: 1px solid #d6d3d1; border-radius: 999px; background: #fff; color: #44403c; font-size: calc(12px * var(--ts)); }
 .feature-seg button.on { background: #ccfbf1; border-color: #0f766e; color: #115e59; font-weight: 600; }
+/* (Each kind as wide as it is in bold, chosen or not: choosing Window moved the kinds after it under the next press.) */
+.feature-seg button { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; }
+.feature-seg button::after { content: attr(data-text); font-weight: 600; height: 0; overflow: hidden; visibility: hidden; }
 /* The door or gate just placed: its two flips, as buttons in the bar. */
 .feature-last { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: calc(13px * var(--ts)); color: #44403c; }
 .feature-last .feature-flips { width: auto; gap: 6px; }
 .feature-last .feature-flip { min-width: 48px; border: 1px solid #d6d3d1; background: #fff; }
+/* (Waiting for a door or gate: the same row, its buttons off, so the bar is the same with one placed or none.) */
+.feature-last.idle { color: #a8a29e; }
+.feature-last.idle .feature-flip:disabled { opacity: 0.45; cursor: default; }
 /* Go on to its doors and windows once it's drawn: a switch, in the drawing pictures' teal. */
 .then-features { display: flex; align-items: center; gap: 8px; align-self: flex-start; min-height: 40px; padding: 4px 12px 4px 6px; border: 1px solid #5eead4; border-radius: 999px; background: #f0fdfa; color: #115e59; font-size: calc(13px * var(--ts)); font-weight: 600; }
 .then-features[aria-checked="true"] { background: #ccfbf1; border-color: #0f766e; }

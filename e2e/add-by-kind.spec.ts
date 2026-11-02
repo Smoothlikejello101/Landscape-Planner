@@ -264,3 +264,39 @@ test('a path drawn as an outline stays a path with its name cleared, and an unna
   await page.locator('.sel-pill .edit').click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Path');
 });
+
+// The general bug hunt, Nov 1 (bug 2): the path's width row came up after its first point and shrank the plan, so the
+// next press landed on the bar instead, and points were lost. Every drawing bar keeps its height and its controls
+// where they are from the first press on, the plan's edge with them, at a phone's width and a computer's.
+test('drawing: the bar and its buttons stay put from the first press on, the plan keeping its room (the general bug hunt, Nov 1)', async ({ page }) => {
+  test.setTimeout(120_000);
+  const sizes = [{ width: 360, height: 640 }, page.viewportSize()!];
+  const cases: [string, string, number][] = [['path', 'path', 3], ['path', 'poly', 3], ['driveway', 'path', 3], ['building', 'rect', 2], ['building', 'poly', 3], ['bed', 'poly', 3], ['bed', 'rect', 2], ['fence', 'line', 3], ['patio', 'rect', 2]];
+  for (const size of sizes) {
+    await page.setViewportSize(size);
+    await openFresh(page);
+    for (const [kind, method, taps] of cases) {
+      const what = `${kind} as ${method} at ${size.width}`;
+      await addKind(page, kind, kind === 'fence' ? undefined : method); // (a fence is drawn one way: no choice to make)
+      const where = () => page.evaluate(() => {
+        const bar = document.querySelector('[data-testid=draw-bar]')!.getBoundingClientRect();
+        const plan = document.querySelector('#canvas-wrap')!.getBoundingClientRect();
+        const buttons = [...document.querySelectorAll<HTMLElement>('[data-testid=draw-bar] button')].filter((b) => b.offsetParent)
+          .map((b) => { const r = b.getBoundingClientRect(); return `${(b.textContent ?? '').trim() || b.dataset.testid}@${Math.round(r.x)},${Math.round(r.y)}`; });
+        return { bar: [Math.round(bar.top), Math.round(bar.height)], plan: Math.round(plan.bottom), buttons };
+      });
+      const start = await where();
+      const pts: [number, number][] = [[-4, -5], [4, -5], [4, -1], [-4, 0]];
+      for (let i = 0; i < taps; i++) {
+        await tapFromCenter(page, ...pts[i]);
+        const now = await where();
+        expect(now.bar, `${what}: the bar after press ${i + 1}`).toEqual(start.bar);
+        expect(now.plan, `${what}: the plan's edge after press ${i + 1}`).toBe(start.plan);
+        // (Each button there from the start where it was; Done may come on, a typed side's field may wake.)
+        for (const b of start.buttons) expect(now.buttons, `${what}: ${b} after press ${i + 1}`).toContain(b);
+      }
+      await page.getByTestId('draw-bar').getByRole('button', { name: 'Cancel' }).click();
+      await expect(page.getByTestId('draw-bar')).toHaveCount(0);
+    }
+  }
+});
