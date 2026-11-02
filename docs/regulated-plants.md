@@ -72,6 +72,11 @@ was read narrower than printed or left out, and why. Where a list's title names 
 give a class its own title, link and edition, so a plant's line cites the rule that names it: South Carolina's plant
 pests cite Clemson's State Plant Pest List, not the statute on prohibited aquatic plants that leads the list's title
 (the bug hunt, 2026-11-01: Callery pear's line cited "South Carolina prohibited aquatic plants (S.C. Cod…").
+Every list that combines rules gives each of its classes one (since 2026-11-01): Virginia's signage law, North
+Carolina's and Alabama's aquatic rules, Ohio's noxious weed rule, Indiana's detrimental plants statute, Illinois's
+noxious weed rule, West Virginia's multiflora rose law and black currant quarantine, Michigan's 2026 order and
+noxious weed act, New Jersey's and New York's black currant rules, and Massachusetts's water chestnut law each
+cite their own rule, apart from the list beside them.
 
 | Code | Rule | Read from | Entries | Effect |
 | --- | --- | --- | --- | --- |
