@@ -129,6 +129,12 @@ function pick(p: Plant) {
 function openForm(args: PlantFormArgs) { state.plantForm = { ...args, back: 'plants' }; state.panel = 'plantForm'; render(); }
 
 const cap = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
+/**
+ * A plant's name with a place to wrap after each slash: "Bradford/" then "Callery pear" on the next line, not
+ * "Bradford/Call" and "ery pear" beside a wide "Place (banned)" (the picker bug hunt, Nov 1, B11). Its words are as
+ * they were; a browser doesn't wrap after a slash on its own.
+ */
+const slashBreaks = (name: string): Child[] => name.split('/').flatMap((part, i) => (i ? ['/', el('wbr'), part] : [part]));
 /** The fewest cultivars a fold holds (Jason, 2026-10-26): fewer are rows of their own. */
 const MIN_FOLD = 4;
 const joined = (xs: string[], word: string) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} ${word} ${xs[xs.length - 1]}` : xs[0] ?? '');
@@ -293,7 +299,7 @@ export function renderPlantsPanel() {
     // ("In this plan": how many of it, "× 4" (the UI review, 2026-11-01, decided "Build next").)
     const inPlanN = plantFilter.inPlan ? planCounts().get(p.id) ?? 0 : 0;
     const info = el('div', { className: 'pinfo' },
-      el('div', { className: 'pname' }, headName(p), inPlanN ? el('span', { className: 'in-plan-n', 'data-testid': 'in-plan-count' }, ` \u00d7\u00a0${inPlanN}`) : null),
+      el('div', { className: 'pname' }, slashBreaks(headName(p)), inPlanN ? el('span', { className: 'in-plan-n', 'data-testid': 'in-plan-count' }, ` \u00d7\u00a0${inPlanN}`) : null),
       lines.names ? el('div', { className: 'pmeta', 'data-testid': 'row-names' }, lines.names) : null,
       facts.childNodes.length ? facts : null,
     );
@@ -358,6 +364,7 @@ export function renderPlantsPanel() {
       bad ? `${verb} (banned)` : verb);
     place.addEventListener('click', () => pick(p));
     head.appendChild(place);
+    if (bad) head.classList.add('banned-row'); // (on a phone, copy under the wide button: src/styles.css)
     // Mine: edit. Catalog: copy as my own (a cultivar of it, say).
     const mine = isMine(p);
     const side = el('button', {
@@ -565,7 +572,7 @@ export function renderPlantsPanel() {
         const toggle = el('button', { className: 'row-toggle group-head', 'aria-expanded': 'false', 'data-testid': 'group-head' },
           // (Its dot in the middle of where a plant's spot is, so the column lines up: 20 px and its space.)
           el('div', { style: { width: '14px', height: '14px', borderRadius: '50%', flex: 'none', background: plantColor(kids[0]), margin: '0 7px 0 3px' } }),
-          el('div', { className: 'pinfo' }, el('div', { className: 'pname' }, p.common), el('div', { className: 'pmeta', 'data-testid': 'group-count' }, `${p.botanical} \u00b7 ${count}`)),
+          el('div', { className: 'pinfo' }, el('div', { className: 'pname' }, slashBreaks(p.common)), el('div', { className: 'pmeta', 'data-testid': 'group-count' }, `${p.botanical} \u00b7 ${count}`)),
           el('span', { className: 'row-open' }, el('span', { className: 'fold-chev', html: I.chevronDown })));
         const item = el('div', { className: 'plant-item group-item' }, el('div', { className: 'proj-row', style: { alignItems: 'center' } }, toggle));
         listWrap.append(el('div', { className: 'cultivars group', 'data-testid': 'cultivar-group' }, item, foldBlock(p, g, kids, toggle, (filtering && narrowed) || sole)));

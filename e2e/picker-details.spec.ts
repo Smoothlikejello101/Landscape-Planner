@@ -713,6 +713,49 @@ test('a row fits 360 px at every text size: its name, spot, months, Place and co
   }
 });
 
+// The picker bug hunt, Nov 1 (B11): "Bradford/Callery pear" broke as "Bradford/Call" and "ery pear" beside the wide
+// "Place (banned)". A name wraps between its words, or after a slash; never in a word.
+test('a name wraps between words or after its slash, never mid-word, beside "Place (banned)" on a 360 px phone at every text size (the picker bug hunt, Nov 1)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await openFresh(page);
+  await page.getByTestId('first-zip').fill('29201');
+  await page.getByTestId('first-zip-lookup').click();
+  await expect(page.getByTestId('location-result')).toContainText('Zone');
+  await closeSheet(page);
+  for (const size of ['small', 'medium', 'large', 'xlarge']) {
+    await page.evaluate((s) => localStorage.setItem('lp-text-size-2', s), size);
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-text', size);
+    await page.locator('.tool-btn.plants').click();
+    await page.getByTestId('plant-search').fill('callery pear');
+    const row = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: 'Bradford/Callery pear' }) }).first();
+    await expect(row.getByTestId('plant-place')).toHaveText('Place (banned)');
+    const name = row.locator('.pname');
+    await expect(name).toHaveText('Bradford/Callery pear');
+    // Where each line starts: only after a space or a slash.
+    const midWord = await name.evaluate((e) => {
+      const walker = document.createTreeWalker(e, NodeFilter.SHOW_TEXT);
+      let prev: { ch: string; top: number } | null = null, gap = false;
+      const bad: string[] = [];
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const t = n.textContent ?? '';
+        for (let i = 0; i < t.length; i++) {
+          if (/\s/.test(t[i])) { gap = true; continue; }
+          const r = document.createRange(); r.setStart(n, i); r.setEnd(n, i + 1);
+          const top = r.getBoundingClientRect().top;
+          if (prev && top > prev.top + 2 && !gap && prev.ch !== '/') bad.push(prev.ch + t[i]);
+          prev = { ch: t[i], top }; gap = false;
+        }
+      }
+      return bad;
+    });
+    expect(midWord, size).toEqual([]);
+    const place = (await row.getByTestId('plant-place').boundingBox())!;
+    expect(place.x + place.width, size).toBeLessThanOrEqual(360);
+    await closeSheet(page);
+  }
+});
+
 test('what makes a plant\'s winter interest, each part with its source: showy bark, fruit into winter', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
