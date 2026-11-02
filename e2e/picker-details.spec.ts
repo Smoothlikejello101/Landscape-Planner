@@ -581,6 +581,27 @@ test('words of need become filters: "shade flowers" is Part shade and Has flower
     await expect(chips).toHaveCount(0);
   }
   await expect(page.locator('.plant-item .pname').first()).toContainText('Butterfly weed (clay strain)');
+  // Its old name, "Butterfly weed 'for Clay'", is another name, not its own: "clay" is Clay OK, and it's still found.
+  await search.fill('butterfly weed for clay');
+  await search.press('Enter');
+  await expect(chips).toHaveText(['Clay OK']);
+  await expect(page.locator('.plant-item .pname').first()).toContainText('Butterfly weed (clay strain)');
+  await page.getByTestId('reset-filters').click();
+  // "wet " and "shrubs ", typed, are filters on the space, as with Enter (the bug hunt, Nov 1: "wet" stayed a search,
+  // for Goldenclub's other name "Never Wet", and "shrubs" for Shrubby cinquefoil and the rest). The "soil" typed
+  // after "wet " goes too, its filter on.
+  await search.fill('');
+  await search.pressSequentially('native wet ');
+  await expect(search).toHaveValue('');
+  await expect(chips).toHaveText(['Native to North America', 'Takes wet soil']);
+  await search.pressSequentially('soil ');
+  await expect(search).toHaveValue('');
+  await expect(chips).toHaveText(['Native to North America', 'Takes wet soil']);
+  await page.getByTestId('reset-filters').click();
+  await search.pressSequentially('clay shrubs ');
+  await expect(search).toHaveValue('');
+  await expect(chips).toHaveText(['Shrub', 'Clay OK']);
+  await page.getByTestId('reset-filters').click();
   // Several at once, with the little words between them; native to North America with no ZIP yet.
   await page.getByTestId('plant-search').fill('native shrubs for wet clay soil ');
   await expect(page.getByTestId('plant-search')).toHaveValue('');

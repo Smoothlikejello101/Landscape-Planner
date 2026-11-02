@@ -8,9 +8,12 @@ import { searchText } from './search';
 // only of filters the picker has.
 //
 // A word that's part of a plant's name stays in the search: "Deer fern", "Native azaleas", "Evergreen wisteria", by
-// the catalog's names and other names and the gardener's own plants'. A word becomes a filter once it's finished:
-// another word after it, a space, or Enter. Until then it may still be the start of a name ("deer f…") or of a longer
-// need ("deer resistant"), and typing goes on undisturbed.
+// the plants' own common names, the catalog's and the gardener's (needNames). Not their other names: "Never Wet" and
+// "Wet Dog Wakerobin" kept "wet " a search (the bug hunt, Nov 1). A word becomes a filter once it's finished: another
+// word after it, a space, or Enter. Until then it may still be the start of a name ("deer f…") or of a longer need
+// ("dry shade"), and typing goes on undisturbed. After a space it waits only for a name that starts with that very
+// word ("Shrub lespedeza" for "shrub ", not "shrubs ") or a longer need that would set something else: "wet " is Takes
+// wet soil at once, and the "soil" or "feet" typed after it, its filter on, goes too.
 
 /** What a word of need sets: a filter's value, or a color added to the flower colors asked for. */
 export type NeedSet =
@@ -82,13 +85,15 @@ const holdsVocab = (w: string) => VOCAB.has(w) || NEED_VOCAB.some((v) => v.lengt
 /**
  * Plant names, as far as words of need are concerned: each run of up to five words of a name that holds one of the
  * table's words, joined (as keys, without spaces, so "Sweetshade" and "Sweet shade" are the same); and each such
- * name's first words, up to all but its last, as `leads` (a need's word that may be starting a name: "Deer fern").
+ * name's first words, up to all but its last, as `leads` (a need's word that may be starting a name: "Deer fern"), as
+ * written, not as keys: "shrubs" starts no name "Shrub lespedeza" does.
  */
 export interface NameIndex { runs: Set<string>; leads: Set<string>; sorted: string[] }
 export function nameIndex(names: Iterable<string>): NameIndex {
   const runs = new Set<string>(), leads = new Set<string>();
   for (const name of names) {
-    const ws = searchText(name).split(' ').filter(Boolean).map(wordKey);
+    const written = searchText(name).split(' ').filter(Boolean);
+    const ws = written.map(wordKey);
     const at = ws.flatMap((w, i) => (holdsVocab(w) ? [i] : []));
     if (!at.length) continue;
     for (const i of at) {
@@ -96,10 +101,12 @@ export function nameIndex(names: Iterable<string>): NameIndex {
         for (let e = i; e < Math.min(ws.length, s + 5); e++) runs.add(ws.slice(s, e + 1).join(''));
       }
     }
-    for (let e = 0; e < Math.min(ws.length - 1, 5); e++) leads.add(ws.slice(0, e + 1).join(''));
+    for (let e = 0; e < Math.min(ws.length - 1, 5); e++) leads.add(written.slice(0, e + 1).join(''));
   }
   return { runs, leads, sorted: [...runs].sort() };
 }
+/** The names words of need are kept for: plants' own common names, not their other names (see above). */
+export const needNames = (plants: Iterable<{ common: string }>): NameIndex => nameIndex([...plants].map((p) => p.common));
 /** Whether some run starts with `pre` (a word still being typed at its end). */
 function runStarts(ix: NameIndex, pre: string): boolean {
   let lo = 0, hi = ix.sorted.length;
@@ -111,12 +118,16 @@ function runStarts(ix: NameIndex, pre: string): boolean {
 export interface NeedReading { text: string; caret: number; sets: NeedSet[]; taken: string[] }
 interface Word { w: string; key: string; tok: number }
 
+/** Whether two needs set the same ("wet" and "wet soil": Takes wet soil). */
+const sameSets = (a: NeedSet[], b: NeedSet[]) => JSON.stringify(a) === JSON.stringify(b);
 /**
  * The words of need in a search, as typed so far: null where there are none to take. `final`: the search is done
  * (Enter), so its last word counts as finished. `can`: whether a need's filter can be set here (a form the catalog
- * has); one that can't stays a word of the search.
+ * has); one that can't stays a word of the search. `on`: whether a need's filter is on already: a word that only
+ * finishes a need whose filter is on ("soil" typed after "wet ", Takes wet soil set) goes from the search, setting
+ * nothing more.
  */
-export function readNeeds(text: string, names: NameIndex, o: { caret?: number; final?: boolean; can?: (s: NeedSet) => boolean } = {}): NeedReading | null {
+export function readNeeds(text: string, names: NameIndex, o: { caret?: number; final?: boolean; can?: (s: NeedSet) => boolean; on?: (s: NeedSet) => boolean } = {}): NeedReading | null {
   const toks = [...text.matchAll(/\S+/g)].map((m) => ({ start: m.index!, end: m.index! + m[0].length, text: m[0] }));
   const words: Word[] = toks.flatMap((t, tok) => searchText(t.text).split(' ').filter(Boolean).map((w) => ({ w, key: wordKey(w), tok })));
   if (!words.length) return null;
@@ -146,15 +157,25 @@ export function readNeeds(text: string, names: NameIndex, o: { caret?: number; f
     }
     return false;
   };
-  /** Whether, typing still, the words up to done[b) may be the start of a name or a longer need: wait for the next. */
-  const mayGoOn = (a: number, b: number, phrase: string[]): boolean => {
+  /**
+   * Whether, typing still, the words up to done[b) may be the start of a name or a longer need: wait for the next. With
+   * a word under way after them, a longer need it may be starting; with none yet (a space), only a longer need that
+   * would set something else ("dry", "dry shade"), not one that sets the same ("wet", "wet soil"), or a name that
+   * starts with these very words.
+   */
+  const mayGoOn = (a: number, b: number, phrase: string[], sets: NeedSet[]): boolean => {
     if (o.final || b < done.length) return false;
     const next = partial.map((x) => x.w);
-    if (PHRASES.some((p) => p.words.length > phrase.length && phrase.every((w, i) => p.words[i] === w) && (!next.length || p.words[phrase.length].startsWith(next[0])))) return true;
+    const longer = PHRASES.filter((p) => p.words.length > phrase.length && phrase.every((w, i) => p.words[i] === w));
+    if (longer.some((p) => (next.length ? p.words[phrase.length].startsWith(next[0]) : !sameSets(p.sets, sets)))) return true;
     if (next.length) return false; // (a word under way that starts no name with it: inName said so)
-    for (let s = Math.max(0, a - 3); s <= a; s++) if (names.leads.has(join(done.slice(s, b)))) return true;
+    for (let s = Math.max(0, a - 3); s <= a; s++) if (names.leads.has(done.slice(s, b).map((x) => x.w).join(''))) return true;
     return false;
   };
+  /** A word that only finishes a longer need whose filters are all on ("soil" of "wet soil"), not a need of its own. */
+  const finishesOn = (i: number): boolean => !!o.on && startsTok(i) && endsTok(i) && !PHRASES.some((p) => p.words.length === 1 && p.words[0] === done[i].w)
+    && PHRASES.some((p) => p.words.length > 1 && p.words[p.words.length - 1] === done[i].w && p.sets.every(o.on!) && (!o.can || p.sets.every(o.can)))
+    && !inName(i, i + 1);
   const drop = new Set<number>();
   const sets: NeedSet[] = [], taken: string[] = [];
   for (let i = 0; i < done.length;) {
@@ -165,17 +186,18 @@ export function readNeeds(text: string, names: NameIndex, o: { caret?: number; f
       const phrase = done.slice(i, i + n).map((x) => x.w);
       const p = PHRASES.find((x) => x.words.length === n && x.words.every((w, k) => w === phrase[k]));
       if (!p || (o.can && !p.sets.every(o.can))) continue;
-      if (inName(i, i + n) || mayGoOn(i, i + n, phrase)) break;
+      if (inName(i, i + n) || mayGoOn(i, i + n, phrase, p.sets)) break;
       for (let k = i; k < i + n; k++) drop.add(done[k].tok);
       sets.push(...p.sets);
       taken.push(text.slice(toks[done[i].tok].start, toks[done[i + n - 1].tok].end));
       took = n;
     }
+    if (!took && finishesOn(i)) drop.add(done[i].tok);
     i += took || 1;
   }
-  if (!sets.length) return null;
+  if (!sets.length && !drop.size) return null;
   // The little words joining them go too, unless they're part of a name.
-  for (let i = 0; i < done.length; i++) {
+  for (let i = 0; i < done.length && sets.length; i++) {
     const t = done[i].tok;
     if (drop.has(t) || !startsTok(i) || !endsTok(i) || !FILLER.includes(done[i].w)) continue;
     if (!inName(i, i + 1, drop)) drop.add(t);

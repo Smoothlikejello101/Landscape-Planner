@@ -1,6 +1,6 @@
 import { crowdLevelsOf, crowdNoticeAfterSwap } from './crowd-notice';
 import { el, hasKeyboard, sheetCloseButton, tapSaid, type Child } from '../dom';
-import { nameIndex, readNeeds, type NameIndex, type NeedSet } from '../search-needs';
+import { needNames as needNamesOf, readNeeds, type NameIndex, type NeedSet } from '../search-needs';
 import { FLOWER_CHOICES } from '../flower-colors';
 import { applyYard, askAtTop, askDismissed, dismissAsked, household, saveHardy, saveYard, toggleYard, yardKeyOf, yardOf, type Yard } from '../yard';
 import { toast } from './toast';
@@ -55,15 +55,16 @@ function withFiltersOff<T>(keys: (keyof PlantFilter)[], fn: () => T): T {
   try { return fn(); } finally { for (const [k, v] of was) Object.assign(plantFilter, { [k]: v }); }
 }
 /**
- * The plants' names, as words of need see them (src/search-needs.ts): the catalog's names and other names, and My
- * plants'. Made the first time it's wanted, and again for another catalog or a change in My plants.
+ * The plants' names, as words of need see them (src/search-needs.ts needNames): the catalog's common names and My
+ * plants', not their other names. Made the first time it's wanted, and again for another catalog or a change in My
+ * plants.
  */
 let needNames: { plants: Plant[]; mine: string; ix: NameIndex } | null = null;
 function namesForNeeds(): NameIndex {
   const mine = activeMyPlants();
   const said = mine.map((p) => p.common).join('\n');
   if (needNames?.plants !== PLANTS || needNames.mine !== said) {
-    needNames = { plants: PLANTS, mine: said, ix: nameIndex([...PLANTS, ...mine].flatMap((p) => [p.common, ...(p.synonyms ?? [])])) };
+    needNames = { plants: PLANTS, mine: said, ix: needNamesOf([...PLANTS, ...mine]) };
   }
   return needNames.ix;
 }
@@ -794,6 +795,7 @@ export function renderPlantsPanel() {
     const r = readNeeds(search.value, namesForNeeds(), {
       caret: search.selectionStart ?? undefined, final,
       can: (s) => s.key !== 'form' || forms.includes(s.value), // (a form the catalog has)
+      on: needOn, // ("soil" after "wet ", its filter set: gone too)
     });
     if (!r) return false;
     for (const s of r.sets) setNeed(s);
@@ -803,6 +805,12 @@ export function renderPlantsPanel() {
     clearSearch.hidden = !search.value;
     syncControls();
     return true;
+  }
+  /** Whether a need's filter is set as it would set it. */
+  function needOn(s: NeedSet): boolean {
+    if (s.key === 'flowerColors') return plantFilter.flowerColors.includes(s.add);
+    if (s.key === 'native') return plantFilter.native !== '';
+    return plantFilter[s.key] === s.value;
   }
   function setNeed(s: NeedSet) {
     if (s.key === 'flowerColors') { if (!plantFilter.flowerColors.includes(s.add)) plantFilter.flowerColors = [...plantFilter.flowerColors, s.add]; }

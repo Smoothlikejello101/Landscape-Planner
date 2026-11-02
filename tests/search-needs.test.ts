@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { FILLER, NEED_WORDS, nameIndex, readNeeds, wordKey, type NeedSet } from '../src/search-needs';
+import { FILLER, NEED_WORDS, nameIndex, needNames, readNeeds, wordKey, type NeedSet } from '../src/search-needs';
 import { FLOWER_CHOICES } from '../src/flower-colors';
 import { PLANT_FILTER_DEFAULTS } from '../src/plants';
 
@@ -77,6 +77,49 @@ describe('words of need in the picker\'s search', () => {
     expect(read('clay shrubs', { final: true })?.sets).toEqual([{ key: 'clayOk', value: true }, { key: 'form', value: 'Shrub' }]);
     // (Beside it only a little word: "for clay" is no name of its own, though "Butterfly weed 'for Clay'" holds it.)
     expect(read('shrubs for clay', { final: true })).toMatchObject({ text: '', sets: [{ key: 'form', value: 'Shrub' }, { key: 'clayOk', value: true }] });
+  });
+  it('"wet " and "shrubs " are filters on a space, as on Enter: not kept by other names, or by a name starting "Shrub" (the bug hunt, Nov 1)', () => {
+    const WET: NeedSet = { key: 'wetFeet', value: true }, SHRUB: NeedSet = { key: 'form', value: 'Shrub' }, CLAY: NeedSet = { key: 'clayOk', value: true };
+    // (The catalog's: other names "Never Wet", "Wet Dog Wakerobin" and "Shrub Althea"; "Shrub lespedeza" its own.)
+    const ix = needNames([
+      { common: 'Goldenclub', synonyms: ['Never Wet'] }, { common: 'Red trillium', synonyms: ['Wet Dog Wakerobin'] },
+      { common: 'Shrubby cinquefoil' }, { common: 'Shrub lespedeza' }, { common: 'Rose of Sharon', synonyms: ['Shrub Althea'] }, { common: 'Deer fern' },
+    ] as { common: string; synonyms?: string[] }[]);
+    for (const t of ['wet', 'shrubs', 'native wet', 'clay shrubs']) {
+      expect(readNeeds(`${t} `, ix), t).toMatchObject({ text: '', sets: readNeeds(t, ix, { final: true })!.sets });
+    }
+    expect(readNeeds('native wet ', ix)?.sets).toEqual([{ key: 'native', value: 'here' }, WET]);
+    expect(readNeeds('clay shrubs ', ix)?.sets).toEqual([CLAY, SHRUB]);
+    // A name of a plant's own that starts with that very word still holds it till the next: "shrub " may be Shrub
+    // lespedeza.
+    expect(readNeeds('shrub ', ix)).toBeNull();
+    expect(readNeeds('shrub lespedeza', ix, { final: true })).toBeNull();
+    // Another name isn't the plant's own: "never wet" is the need and a search for "never".
+    expect(readNeeds('never wet', ix, { final: true })).toMatchObject({ text: 'never', sets: [WET] });
+    // Still names, as before: Deer fern.
+    expect(readNeeds('deer ', ix)).toBeNull();
+    expect(readNeeds('deer fern', ix, { final: true })).toBeNull();
+  });
+  it('a longer need that sets the same holds no word back, one that sets more does; a word finishing a need that\'s on goes', () => {
+    const none = nameIndex([]);
+    expect(readNeeds('clay ', none)?.sets).toEqual([{ key: 'clayOk', value: true }]); // ("clay soil": the same)
+    expect(readNeeds('drought ', none)?.sets).toEqual([{ key: 'drought', value: true }]);
+    expect(readNeeds('deer ', none)?.sets).toEqual([{ key: 'deerResistant', value: true }]);
+    expect(readNeeds('dry ', none)).toBeNull(); // ("dry shade": Shade too)
+    expect(readNeeds('wet s', none)).toBeNull(); // ("wet s…": a word under way, maybe "soil", waits)
+    expect(readNeeds('wet soil ', none)).toMatchObject({ text: '', sets: [{ key: 'wetFeet', value: true }], taken: ['wet soil'] });
+    // "wet " taken, then "soil": with Takes wet soil on, it goes too, setting nothing more; with it off, it's searched.
+    const on = (s: NeedSet) => s.key === 'wetFeet' || s.key === 'deerResistant';
+    expect(readNeeds('soil ', none, { on })).toEqual({ text: '', caret: 0, sets: [], taken: [] });
+    expect(readNeeds('soil', none, { on, final: true })).toMatchObject({ text: '', sets: [] });
+    expect(readNeeds('soil', none, { on })).toBeNull(); // (still being typed)
+    expect(readNeeds('soil ', none)).toBeNull();
+    expect(readNeeds('soil ', none, { on: (s) => s.key === 'drought' })).toMatchObject({ text: '', sets: [] }); // ("dry soil")
+    expect(readNeeds('aster feet ', none, { on })).toMatchObject({ text: 'aster ', sets: [] });
+    expect(readNeeds('resistant shrubs ', none, { on })).toMatchObject({ text: '', sets: [{ key: 'form', value: 'Shrub' }] });
+    expect(readNeeds('feet ', none, { on: (s) => s.key === 'clayOk' })).toBeNull(); // (not the need that's on)
+    // Part of a name: kept.
+    expect(readNeeds('crow soil ', nameIndex(['Crow soil'] ), { on })).toBeNull();
   });
   it('several at once, with the little words that join them', () => {
     expect(read('native shrubs for shade ')).toMatchObject({ text: '', sets: [{ key: 'native', value: 'here' }, { key: 'form', value: 'Shrub' }, PART] });
