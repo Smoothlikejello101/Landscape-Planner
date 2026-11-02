@@ -458,8 +458,10 @@ export function renderPlantsPanel() {
       : pickerCount(n, all, out.filter((p) => !forTree || isTree(p)).length, foundBanned, gardenStateName() ?? 'here')) +
       (swapping ? ' \u00b7 Pick the plant to swap in' : linking ? ' \u00b7 Link the plant this circle stands for' : forTree ? ' \u00b7 trees only' : tapSaid(' \u00b7 Place a plant, then tap the plan where it goes; tap a plant for its details'));
     if (mine.length) {
-      // My plants fold away (remembered on this device); a search always shows its matches.
-      const searching = !!q;
+      // My plants fold away (remembered on this device); a search always shows its matches, and "In this plan" its
+      // plants (the bug hunt, Nov 1: with only plants of one's own placed, it said "2 plants, 2 kinds" over a folded
+      // heading and nothing else).
+      const searching = !!q || plantFilter.inPlan;
       const open = searching || !myPlantsFolded;
       const nowInCatalog = mine.filter((p) => catalogMatchFor(p)).length;
       const head = el('button', { className: 'list-heading fold', 'aria-expanded': String(open), 'data-testid': 'my-plants-fold' },
@@ -670,8 +672,9 @@ export function renderPlantsPanel() {
     if (hits.length === 0 && mine.length === 0) {
       // (In a plan with nothing placed, "In this plan" says so above: no "loosen a filter" with none on. Round 3, Sam.)
       if ((!why || more <= 0) && !(plantFilter.inPlan && !plantFilter.q.trim())) {
-        listWrap.appendChild(el('div', { className: 'hint', style: { padding: '8px 0' } },
-          'No matches. Add it as your own plant, or loosen a filter.'));
+        // ("…or loosen a filter" only with one on: the bug hunt, Nov 1, "sweet shade" with none.)
+        listWrap.appendChild(el('div', { className: 'hint', style: { padding: '8px 0' }, 'data-testid': 'no-matches' },
+          `No matches. Add it as your own plant${filtering ? ', or loosen a filter' : ''}.`));
       }
     }
     // Always offer to add a plant, below the results; right under the search when nothing matched as typed (close

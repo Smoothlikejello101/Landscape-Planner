@@ -432,6 +432,12 @@ test('the search clears in one tap, and a search the filters empty says which fi
   // Found by what it feeds, in words.
   await page.getByTestId('plant-search').fill('mourning cloak');
   await expect(page.getByTestId('host-match').first()).toContainText(/Its leaves feed the caterpillars of: .*mourning cloak/i);
+  // Nothing found: "or loosen a filter" only with one on (the bug hunt, Nov 1: said with none).
+  await page.getByTestId('plant-search').fill('qqxzv');
+  await expect(page.getByTestId('no-matches')).toHaveText('No matches. Add it as your own plant, or loosen a filter.');
+  await page.getByTestId('reset-filters').click();
+  await expect(page.getByTestId('active-chip')).toHaveCount(0);
+  await expect(page.getByTestId('no-matches')).toHaveText('No matches. Add it as your own plant.');
 });
 
 test('flower color: a cultivar or one-color species first, a species that comes in it among others below a divider', async ({ page }) => {
