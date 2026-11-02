@@ -1019,15 +1019,14 @@ test('"Anyone you need to protect?": Kids hides plants poisonous to people and i
 test('"Anyone you need to protect?" dismissed: under Poison & pets at once, a notice says so, and it stays there after a reload', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
-  // (A search kept from the last time: typed, it folds the question away (the picker bug hunt, Nov 1); kept, it's there.)
-  await page.getByTestId('plant-search').fill('aster');
-  await closeSheet(page);
-  await page.locator('.tool-btn.plants').click();
-  await expect(page.getByTestId('plant-search')).toHaveValue('aster');
+  // (Moved in place, the picker not drawn again: its search box the same one after. A search typed folds the question
+  // away, so it isn't dismissed while one is: the picker bug hunt, Nov 1.)
+  const search = page.getByTestId('plant-search');
+  await search.evaluate((e) => { (e as HTMLElement & { kept?: boolean }).kept = true; });
   await page.getByTestId('protect-dismiss').click();
   await expect(page.locator('#toast')).toHaveText("It's under Filters → Poison & pets.");
   await expect(protectAtTop(page)).toHaveCount(0);
-  await expect(page.getByTestId('plant-search')).toHaveValue('aster'); // (moved in place: the search as it was)
+  expect(await search.evaluate((e) => (e as HTMLElement & { kept?: boolean }).kept)).toBe(true);
   await openFilters(page);
   await expect(protectInGroup(page)).toBeVisible();
   // Who's in the yard is left as it was: no one, not answered. Dismissed on this device.
