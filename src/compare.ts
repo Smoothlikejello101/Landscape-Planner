@@ -159,7 +159,7 @@ const monthsSaid = (b: { start?: number; end?: number }) => (b.start ? `${MONTH_
 function bloomCell(p: Plant): Cell {
   const local = localBloom(p);
   if (local) {
-    return { text: `${monthsSaid(local)}, peak ${MONTH_NAMES[local.peak]}`, known: true, sure: {
+    return { text: monthsSaid(local) + (local.start !== local.end ? `, peak ${MONTH_NAMES[local.peak]}` : ''), known: true, sure: {
       text: [`${local.n.toLocaleString('en-US')} flowering records in ${local.stateName}${local.area === 'region' ? ' and nearby' : ''}`, local.species ? 'from its species' : ''].filter(Boolean).join(' · '),
       level: 'other', title: local.source } };
   }
@@ -184,14 +184,15 @@ function winterCell(p: Plant): Cell {
     : { text: winterText(p).replace(/, like its .*$/, ''), known: true, sure: { text: `Like ${w.n} relatives; not from a source${species}`, level: 'other' } };
 }
 /**
- * Native: to the garden's state, by Kew's checklist, where its records are in (a plant Kew doesn't list there: not
- * known); else to North America, by Kew, or by the earlier list.
+ * Native: to the garden's state, by Kew's checklist, where its records are in; a plant Kew doesn't list there is not
+ * known, never "not native" (Kew leaves states out: docs/wild-records.md). Else to North America, by Kew, or by the
+ * earlier list.
  */
 function nativeCell(p: Plant): Cell {
   const here = gardenStateName();
   if (here) {
     const n = nativeHere(p);
-    if (!n) return { text: NOT_KNOWN, known: false, sure: { text: `Kew doesn’t list it in ${here}`, level: 'other' } };
+    if (!n) return { text: NOT_KNOWN, known: false, sure: { text: `Kew doesn’t list it for ${here}, which isn’t the same as not native`, level: 'other' } };
     return { text: n.status === 'N' ? 'Yes' : 'No: introduced there', known: true, sure: { text: `Kew${n.species ? ' · from its species' : ''}`, level: 'other', title: n.source } };
   }
   if (p.native_na) return cell(p, 'Yes', p.prov?.native_na);

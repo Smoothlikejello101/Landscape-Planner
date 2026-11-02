@@ -1227,8 +1227,9 @@ h3.help-how { margin: 0; padding-top: 14px; }
 .compare-table tbody th[scope=row] { padding-left: 16px; font-size: calc(12px * var(--ts)); font-weight: 500; color: #57534e; }
 .compare-table thead .compare-names > .compare-corner { z-index: 3; box-shadow: 1px 1px 0 #e7e5e4; }
 .compare-table thead tr:last-child > * { border-bottom: 1px solid #d6d3d1; padding-top: 6px; }
-.compare-name { display: flex; align-items: flex-start; gap: 6px; font-weight: 600; color: #292524; }
-.compare-name .compare-spot { margin-top: 1px; }
+/* (The spot inline, so a long cultivar's name has the column's whole width: the pinned row is as tall as the longest.) */
+.compare-name { font-weight: 600; color: #292524; }
+.compare-name .compare-spot { vertical-align: -0.2em; margin-right: 5px; }
 .compare-bot { font-style: italic; font-size: calc(11px * var(--ts)); color: #57534e; }
 .compare-about .pflags { margin-top: 4px; }
 .compare-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin-top: 8px; }
