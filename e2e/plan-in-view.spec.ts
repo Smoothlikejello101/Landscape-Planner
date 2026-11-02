@@ -178,6 +178,13 @@ test.describe('on a phone', () => {
     await closeSheet(page);
     await openPicker(page);
     await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
+    // Closed while typed in (Esc from the search: its box goes with the focus in it): opened again, half height.
+    await search.tap();
+    await expect(sheet(page)).toHaveClass(/\bfull\b/);
+    await page.keyboard.press('Escape');
+    await expect(sheet(page)).toHaveCount(0);
+    await openPicker(page);
+    await expect(sheet(page)).not.toHaveClass(/\bfull\b/);
   });
 
   test('pinched and dragged with the picker open, the plan zooms and pans; the picker is left as it was', async ({ page }) => {

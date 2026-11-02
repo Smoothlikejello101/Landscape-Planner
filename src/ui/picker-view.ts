@@ -98,8 +98,12 @@ function install() {
   window.visualViewport?.addEventListener('resize', windowChanged);
 }
 
-/** The picker closed (src/ui/render.ts): a height held by a press in it goes; the one chosen with the handle stays. */
-export function pickerViewClosed() { heldFull = false; }
+/**
+ * The picker closed (src/ui/render.ts): a height held by a press in it goes, and so does its search (closed while typed
+ * in, Place pressed say, its box is gone without always saying it lost the focus); the height chosen with the handle
+ * stays.
+ */
+export function pickerViewClosed() { heldFull = false; searching = false; sawKeyboard = false; kbUp = false; }
 
 // ---------- The handle ----------
 /** Whether the picker was full height as the handle was pressed (the press itself can end a search). */
