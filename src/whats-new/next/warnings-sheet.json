@@ -2,6 +2,6 @@
   "Warnings has a place of its own, opened from the plan: the Warnings button at the top of the plan’s side buttons shows how many there are to look at (a gray check when none are found), and it’s also in ⋮ and in Settings. Each kind says what it checks, and one that can’t run yet (no ZIP, no kids or pets chosen, no sun area) says what it needs, with a button to set it.",
   "On a phone, choose a warning and the plan zooms to its plants, with “Warnings · 3 of 12” at the bottom to go to the next one, dismiss it, or go back to the list. On a computer, Warnings stays open beside the plan while you work through it.",
   "One word for it everywhere: Dismiss, and Show again. A plant’s details offer “Dismiss for this one” or “Dismiss for every” plant of its kind, and a dismissed warning says which. The hardiness notice’s Leave it is gone (its ✕ closes it), and the crowding notice’s Leave it is now Dismiss.",
-  "With Layers showing only some plants, Warnings says only those are checked, with Show all plants, instead of saying there’s nothing to look at.",
+  "With Layers showing only some plants, Warnings says only those are checked, with Show all plants, instead of saying there’s nothing to look at; its button then shows the warning sign in gray, not the all-clear check.",
   "Warnings read as a plant’s details do: poison with how severe it is, sun naming the sun area, a tree’s height in whole feet."
 ]

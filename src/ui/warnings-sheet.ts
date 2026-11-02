@@ -20,7 +20,8 @@
 // The button (Jason, Nov 1): amber with the count while there are some to look at; gray with a check mark when every
 // check ran and found none ("leave the all-clear grey rather than green, so it's not drawing attention just to tell
 // you that everything is fine"); gray with a check and a small gray count when none were found but some checks can't
-// run yet.
+// run yet; the warning sign in gray when none were found in the plants Layers shows, with some hidden (not the check:
+// the plants hidden aren't checked).
 
 import { BULB_PARTNER_MIN_HEIGHT } from '../crowding';
 import { el } from '../dom';
@@ -63,9 +64,10 @@ let flashKind: WarningKind | null = null;
 let flashRow: string | null = null;
 /**
  * The warning being looked at on the plan, a row at a time (the walk): its row, and the selection it made. Any other
- * selection ends it (a tap elsewhere, Esc, a plant picked), so the chip never outstays what it's about.
+ * selection ends it (a tap elsewhere, Esc, a plant picked), so the chip never outstays what it's about. `pressed`: a
+ * press on the plan has since landed on its plants (walkKeepsPress).
  */
-let walk: { key: string; dismissed: boolean; name: string; said: string; at: number; selected: string } | null = null;
+let walk: { key: string; dismissed: boolean; name: string; said: string; at: number; selected: string; pressed?: boolean } | null = null;
 
 /** Wide enough for the panel beside the plan (a computer, a tablet held sideways): the plan keeps 540 px or more. */
 const WIDE = '(min-width: 900px)';
@@ -140,14 +142,17 @@ export function warningsButton(): HTMLElement | null {
   }
   const w = current().summary;
   const amber = w.active > 0;
+  // (None found in what Layers shows, with some hidden: the warning sign in gray, never the all-clear check, which would
+  // say everything is fine though the plants hidden may have warnings. The warnings bug hunt, Nov 1.)
+  const hidden = !amber && !!w.hidden;
   const open = sideOpen && wideNow();
   const b = el('button', {
-    className: 'zoombtn warnings-btn' + (amber ? ' some' : ' none') + (open ? ' open' : ''), html: amber ? I.warn : I.allClear,
-    'aria-label': buttonSaid(w), title: buttonSaid(w), 'data-testid': 'warnings-btn', 'data-state': amber ? 'some' : w.cantRun ? 'cant-run' : w.hidden ? 'hidden' : 'clear',
+    className: 'zoombtn warnings-btn' + (amber ? ' some' : ' none') + (hidden ? ' hidden' : '') + (open ? ' open' : ''), html: amber || hidden ? I.warn : I.allClear,
+    'aria-label': buttonSaid(w), title: buttonSaid(w), 'data-testid': 'warnings-btn', 'data-state': amber ? 'some' : hidden ? 'hidden' : w.cantRun ? 'cant-run' : 'clear',
     ...(open ? { 'aria-pressed': 'true' } : {}),
   });
   if (amber) b.appendChild(el('span', { className: 'warnings-count', 'aria-hidden': 'true', 'data-testid': 'warnings-count' }, w.active > 99 ? '99+' : String(w.active)));
-  else if (w.cantRun) b.appendChild(el('span', { className: 'warnings-count gray', 'aria-hidden': 'true', 'data-testid': 'warnings-count' }, String(w.cantRun)));
+  else if (w.cantRun && !hidden) b.appendChild(el('span', { className: 'warnings-count gray', 'aria-hidden': 'true', 'data-testid': 'warnings-count' }, String(w.cantRun)));
   b.addEventListener('click', () => {
     if (open) { sideOpen = false; render(); return; }
     openWarnings();
@@ -515,6 +520,17 @@ function zoomTo(r: WarningRow) {
   saveView();
 }
 
+/**
+ * A press on the plan that lands on a plant the walk selected: the first since it chose them keeps them selected, and
+ * the walk goes on. They weren't picked by a press, so it isn't the second press that goes on down to what's under it
+ * (the warnings bug hunt, Nov 1: a press on the plant shown picked the bed or the sun area under it, and ended the
+ * walk). A later press goes on down as usual. Whether it was that first press (src/gestures.ts handleShapeTap).
+ */
+export function walkKeepsPress(id: string): boolean {
+  if (!walk || walk.pressed || state.selectedIds.join() !== walk.selected || !state.selectedIds.includes(id)) return false;
+  walk.pressed = true;
+  return true;
+}
 /** Whether the walk's chip is up (it takes the place of the selected shape's chip and the bar for several). */
 export function walkUp(): boolean {
   if (!walk) return false;
