@@ -15,7 +15,7 @@ const list = (code: string, plants: object[], classes: Record<string, string> = 
 describe('the regulated lists', () => {
   it('are well formed: each entry a species, variety or genus, of a class its list says, each list cited', () => {
     expect(problems(real)).toEqual([]);
-    expect(real.jurisdictions.map((j: { code: string }) => j.code)).toEqual(['US', 'AR', 'TX', 'MS', 'MO', 'OK', 'LA', 'TN', 'VA', 'GA', 'PA', 'KY', 'NC', 'OH', 'IN', 'IL', 'WV', 'AL', 'MI', 'NJ', 'SC', 'NY', 'MA']);
+    expect(real.jurisdictions.map((j: { code: string }) => j.code)).toEqual(['US', 'AR', 'TX', 'MS', 'MO', 'OK', 'LA', 'TN', 'VA', 'GA', 'PA', 'KY', 'NC', 'OH', 'IN', 'IL', 'WV', 'AL', 'MI', 'NJ', 'SC', 'NY', 'MA', 'FL', 'MD', 'MN', 'CO']);
     expect(problems({ v: 1, jurisdictions: [list('XX', [{ name: 'Melia', class: 'noxious' }, { name: 'Melia azedarach', class: 'banned' },
       { genus: 'Cuscuta', except: ['Lythrum alatum'], class: 'noxious' }, { name: 'Melia azedarach', kew: 'Melia', class: 'noxious' },
       { name: 'Melia azedarach', accepted: 'Melia', also: ['x'], notKew: 'Ophiuros', class: 'noxious' }])] }))
