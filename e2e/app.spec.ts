@@ -212,6 +212,34 @@ test.describe('projects and selection', () => {
     expect(await shapeCount(page)).toBe(1);
   });
 
+  // The general bug hunt, Nov 1: a backup's notice stayed up over the new, empty plan. Another plan opened, or a new one
+  // made: the last plan's notices go, its Undo with them.
+  test('a new plan, or another opened, puts away the last plan\'s notices (the general bug hunt, Nov 1)', async ({ page }) => {
+    autoDialogs(page, 'Back yard');
+    await openFresh(page);
+    await addShape(page, 'circle');
+    await closeSheet(page);
+    await page.locator('.project-btn').click();
+    await page.locator('.backup-section button', { hasText: 'Back up all projects' }).click();
+    await expect(page.locator('#toast')).toContainText('Backed up 1 project');
+    await page.waitForTimeout(500);
+    await page.locator('button', { hasText: 'New project' }).click();
+    await expect(page.locator('.project-btn .pname')).toHaveText('Back yard');
+    await expect(page.locator('#toast')).not.toHaveClass(/show/);
+    await expect(page.locator('#toast')).toHaveText('');
+    // An Undo left up from one plan doesn't follow into another.
+    await addShape(page, 'circle');
+    await closeSheet(page);
+    await page.locator('#canvas-svg [data-layer=shapes] circle').first().click();
+    await page.keyboard.press('Delete');
+    await expect(page.locator('#toast-action')).toContainText('Deleted');
+    await page.locator('.project-btn').click();
+    await page.locator('.proj-row', { hasText: 'My Garden' }).click();
+    await expect(page.locator('.project-btn .pname')).toHaveText('My Garden');
+    await expect(page.locator('#toast-action')).toHaveCount(0);
+    expect(await shapeCount(page)).toBe(1);
+  });
+
   test('lasso selects several shapes and they move together', async ({ page }) => {
     await openFresh(page);
     await addShape(page, 'circle');

@@ -28,7 +28,7 @@ import { renderSettingsPanel } from './settings-panel';
 import { refreshWarnings, renderWarningsSheet, renderWarningsSide, walkChip, warningsButton, warningsSheetShown, warningsSideShown } from './warnings-sheet';
 import { renderWhatsNewPanel } from './whats-new-panel';
 import { snapOn } from '../tidy';
-import { dismissToastAction, hideOldToast, placeNotice, toastAction } from './toast';
+import { dismissToastAction, hideOldToast, placeNotice, planChanged, toastAction } from './toast';
 import { renderMoreMenu, toggleSelectMode } from './menu';
 import { foldDetailGroups } from './plant-details';
 import { renderFeedbackSheet } from './feedback-sheet';
@@ -118,6 +118,8 @@ let shownSelection = '';
 let shownMenu: typeof state.menu = null;
 /** The drawing, placing or adding of doors under way when the app last drew (each a new object as it starts). */
 let shownTool: object | null = null;
+/** The plan the app last drew (undefined before it first drew). */
+let shownPlan: string | null | undefined;
 export function render() {
   const root = document.getElementById('root')!;
   refreshWarnings(); // (the plan's warnings, worked out once for this drawing: src/ui/warnings-sheet.ts)
@@ -638,6 +640,9 @@ export function render() {
   const tool = state.draw ?? state.placing ?? state.featurePlace ?? null;
   if (tool && tool !== shownTool) hideOldToast();
   shownTool = tool;
+  // Another plan: the last one's notices go (src/ui/toast.ts planChanged).
+  if (shownPlan !== undefined && shownPlan !== state.currentProjectId) planChanged();
+  shownPlan = state.currentProjectId;
   shownPanel = state.panel;
   shownMenu = state.menu;
   shownSelection = state.selectedIds.join();

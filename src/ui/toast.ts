@@ -223,3 +223,12 @@ function swipeAway(node: HTMLElement) {
 }
 /** Close a notice with buttons, if one is up (the next drawing starts, say). */
 export function dismissToastAction() { document.getElementById('toast-action')?.remove(); }
+/**
+ * Another plan opened, or a new one made: the last plan's notices put away (the general bug hunt, Nov 1: a backup's
+ * notice stayed up over the new, empty plan; an Undo left up would undo in the plan opened). A plain notice raised as
+ * it opened stays (the import that opened it says what came in).
+ */
+export function planChanged() {
+  hideOldToast();
+  dismissToastAction();
+}
