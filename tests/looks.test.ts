@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Plant } from '../src/plants';
 import { bandBlooms, bandLeaves, bloomKind, coverBlooms, flowerChoices, flowerColorOf, levelOf, lookOf, lookSvg, nearestFlower, ownBloomColors } from '../src/looks';
-import { LOOK_MAX_R, lookFor, lookMarkup, plannedEdge, plantSpot } from '../src/plant-looks';
+import { drawnColor, LOOK_MAX_R, lookFor, lookMarkup, plannedEdge, plantSpot } from '../src/plant-looks';
 import { plantsById } from '../src/plants';
 import type { CircleShape } from '../src/types';
 import { withLocalParts } from '../src/sync/engine';
@@ -241,5 +241,17 @@ describe("a picker row's spot: a flower in a circle of its leaves' color (Jason,
     expect(plantSpot(holly).said).toBe('green leaves');
     expect(lookOf(holly, '#000').pal.fl).toBeUndefined();
     expect(flowerChoices(holly).colors).toEqual([]);
+  });
+});
+
+// The picker bug hunt, Nov 1 (B10): a copied Eastern redcedar started in the brown every tree is listed in, while its
+// original is drawn dark green. A copy starts in the color its original is drawn in.
+describe('a plant\'s color as its picture draws it', () => {
+  it('a catalog plant\'s leaves, not its type\'s color: an evergreen tree dark green, a deciduous one green, a purple-leaved one purple', () => {
+    const cedar = plant({ id: 'juniperus-virginiana', form: 'Tree', foliage: 'evergreen', needles: true });
+    const maple = plant({ id: 'acer-platanoides', form: 'Tree', foliage: 'deciduous' });
+    const pansy = plant({ id: 'cercis-forest-pansy', form: 'Tree', leaf_color: ['purple/lavender'] });
+    expect([drawnColor(cedar), drawnColor(maple), drawnColor(pansy)]).toEqual(['#3f6b3a', '#6f9a4a', '#6e4a66']);
+    expect(drawnColor(cedar)).toBe(plantSpot(cedar).svg.match(/<circle [^>]*r="9.5" fill="([^"]+)"/)![1]); // (as its row's spot)
   });
 });

@@ -5,5 +5,6 @@
   "Bringing back a full backup skips the plans already here just as they are, and the notice says how many; a plan that’s changed since still comes in as a copy beside yours, so nothing is overwritten. Plans brought back from a file keep when they were last changed, instead of the time of the import.",
   "A notice about one plan, an Undo included, no longer stays up when you open another plan or make a new one.",
   "The printed plan’s plant list gives each plant’s botanical name whole, on the line under its name when it doesn’t fit beside it, instead of cutting it short.",
-  "A sheet just opened still lets you start typing at once: the cursor goes into the search or field you pressed, where before the words could be lost."
+  "A sheet just opened still lets you start typing at once: the cursor goes into the search or field you pressed, where before the words could be lost.",
+  "A plant you copy as your own starts in the color its original is drawn in on the plan, such as an evergreen’s dark green, instead of the brown every tree was given."
 ]
