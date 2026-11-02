@@ -2,7 +2,7 @@ import { canShareFiles, canShareWords, downloadBlob, safeFileName, shareBlob, sh
 import { el, hasKeyboard } from '../dom';
 import { I } from '../icons';
 import { markPlantedToday } from '../mutations';
-import { boughtText, listTotals, plantedText, plantList, plantsOfKind, rowFacts, tickEntry, totalsText, listText, type ListGroup, type ListRow } from '../plant-list';
+import { boughtText, buyCount, listTotals, plantedText, plantList, plantsOfKind, rowFacts, tickEntry, totalsText, listText, type ListGroup, type ListRow } from '../plant-list';
 import { plantsById } from '../plants';
 import { state } from '../state';
 import { currentProject, save } from '../storage';
@@ -92,8 +92,10 @@ export function renderPlantListPanel() {
       const n = rows.reduce((k, r) => k + r.count, 0);
       // (Nothing ticked yet: what the ticks are for, in a line.)
       const how = g === 'buy' && !totals.bought ? el('div', { className: 'hint pl-how', 'data-testid': 'pl-how' }, 'Tick each kind as you buy it. Mark planted then records the day it goes in.') : null;
+      // (To buy counts what's left to buy, as the totals do: not those bought already. The list bug hunt, Nov 1.)
+      const count = ` (${g === 'buy' ? buyCount(totals) : n})`;
       body.appendChild(el('section', { className: 'pl-group', 'data-testid': `pl-group-${g}`, 'aria-label': title },
-        el('div', { className: 'pl-head' }, title, el('span', { className: 'pl-head-n' }, ` (${n})`)), how,
+        el('div', { className: 'pl-head' }, title, el('span', { className: 'pl-head-n' }, count)), how,
         ...rows.map((r) => row(r, g))));
     }
   }
@@ -111,7 +113,10 @@ export function renderPlantListPanel() {
       try {
         await navigator.clipboard.writeText(words);
         toast('The list is copied: paste it into a note, an email or a message.', 6000);
-      } catch { void tell("Couldn't copy the list. Share or print it instead."); }
+      } catch {
+        // (Only what this screen offers: no Share here, and Print list only with some to buy. The list bug hunt, Nov 1.)
+        void tell(`Couldn't copy the list.${list.buy.length ? ' Use Print list instead.' : ''}`);
+      }
     });
     const buttons = el('div', { className: 'pl-foot-row' }, share);
     if (list.buy.length) {
