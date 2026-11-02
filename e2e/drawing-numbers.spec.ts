@@ -1,14 +1,15 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, canvasBox, field, openFresh, openSections, zoomPct } from './helpers';
+import { addKind, canvasBox, field, openFresh, openSections, zoomPct, planPoint } from './helpers';
 
 // Drawing numbers (src/draw-numbers.ts): the sides' lengths and the newest corner's angle while drawing and editing
 // points, a typed length for the next side, Fit, and the yard's width on an empty plan.
 
 // At the starting view (zoom 100%, 24 px per foot, view starting at -10 ft), canvas pixel 24*k is k-10 ft.
-const FT = 24;
 async function tapFt(page: Page, kx: number, ky: number) {
-  const box = (await page.locator('#canvas-svg').boundingBox())!;
-  await page.mouse.click(box.x + kx * FT, box.y + ky * FT);
+  // (In feet, kx − 10 and ky − 10, at the view as it is: a strip of words above the plan, or the Building tool opening
+  // where a house fits.)
+  const p = await planPoint(page, kx - 10, ky - 10);
+  await page.mouse.click(p.x, p.y);
 }
 const sides = (page: Page) => page.locator('#canvas-svg [data-role=side-length]');
 const angles = (page: Page) => page.locator('#canvas-svg [data-role=corner-angle]');
@@ -97,10 +98,11 @@ test('a house typed 50 by 30 ft at 360 × 640: its other side goes toward the mi
   await expect(page.getByTestId('draw-bar')).toHaveCount(0); // (made)
   const plan = (await page.locator('#canvas-svg').boundingBox())!;
   const house = (await page.locator('#canvas-svg rect[data-shape-id]').first().boundingBox())!;
-  expect(house.y).toBeGreaterThanOrEqual(plan.y);
-  expect(house.x).toBeGreaterThanOrEqual(plan.x);
-  expect(house.y + house.height).toBeLessThanOrEqual(plan.y + plan.height);
-  expect(house.x + house.width).toBeLessThanOrEqual(plan.x + plan.width);
+  // (In view, give or take its outline's stroke: opened where a house fits, it can end right at the plan's edge.)
+  expect(house.y).toBeGreaterThanOrEqual(plan.y - 1);
+  expect(house.x).toBeGreaterThanOrEqual(plan.x - 1);
+  expect(house.y + house.height).toBeLessThanOrEqual(plan.y + plan.height + 1);
+  expect(house.x + house.width).toBeLessThanOrEqual(plan.x + plan.width + 1);
   // Down from its first side, not up: its top is the corner tapped (-8.5, -7.5 ft).
   await page.locator('.sel-pill .edit').click(); await openSections(page);
   await expect(field(page, 'Width (ft)')).toHaveValue('50');

@@ -42,7 +42,7 @@ async function house(page: Page) {
   await page.getByTestId('intro-go').click();
   await expect(page.locator('.kind-chip[data-kind=building]').first()).toHaveClass(/intro-pulse/);
   await page.locator('.kind-chip[data-kind=building]').first().click();
-  await expect(card(page)).toHaveClass(/compact/); // (drawing: the plan's own banner says what to tap)
+  await expect(card(page)).toHaveCount(0); // (drawing: the strip above the plan says what to tap; the card steps aside)
   await tapFromCenter(page, -4, -6); await tapFromCenter(page, 4, -6); await tapFromCenter(page, 4, -2);
 }
 /** Step 4: a bed, an outline of four corners (`go`: the card's button opens the bed tool; false, it's open). */
@@ -247,7 +247,8 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   // Sun and shade: a circle of shade, sun recorded on it, the sheet closed.
   await page.getByTestId('intro-go').click();
   await drawBar(page).locator('[data-method=circle]').click();
-  await tapFromCenter(page, 3, 3); await tapFromCenter(page, 5, 3);
+  // (4 ft across: the house was drawn at the house's scale, and the view stays there; 2 ft read as one tap, twice.)
+  await tapFromCenter(page, 3, 3); await tapFromCenter(page, 7, 3);
   await expect(page.getByTestId('sun-empty')).toHaveClass(/intro-pulse/);
   await page.getByTestId('record-sun').click();
   await expect(step(page)).toHaveText('Step 5 of 8'); // (not until the sheet is closed)

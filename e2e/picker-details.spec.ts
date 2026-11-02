@@ -1022,6 +1022,9 @@ test('"Anyone you need to protect?" dismissed: under Poison & pets at once, a no
   // (Moved in place, the picker not drawn again: its search box the same one after. A search typed folds the question
   // away, so it isn't dismissed while one is: the picker bug hunt, Nov 1.)
   const search = page.getByTestId('plant-search');
+  // (Marked once the list is in: the picker is drawn again as the catalog comes in, and CI on #209 marked the box
+  // before that, so the mark went with it.)
+  await expect(page.locator('.plant-item').first()).toBeVisible();
   await search.evaluate((e) => { (e as HTMLElement & { kept?: boolean }).kept = true; });
   await page.getByTestId('protect-dismiss').click();
   await expect(page.locator('#toast')).toHaveText("It's under Filters → Poison & pets.");

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, closeSheet, openSections, setRole, tapFromCenter, zoomPct } from './helpers';
+import { addKind, closeSheet, openSections, setRole, tapFromCenter, zoomPct, zoomBackIn, middleOf } from './helpers';
 
 // Sub-features: doors and windows on a building, gates in a fence, steps off a deck, tapped onto their edges.
 
@@ -15,6 +15,10 @@ test('a building drawn, then its door and windows tapped onto its walls; moved, 
   for (const [x, y] of [[-6, -4], [6, -4], [0, 4]]) await tapFromCenter(page, x, y); // a 12 × 8 ft house
   // Straight on to its doors and windows.
   await expect(page.getByTestId('feature-banner')).toContainText(/(Tap|Click) a wall where the door goes/);
+  // (It opened where a whole house fits, and this one's 12 × 8 ft: asked if that's its real size. It is; and zoomed back
+  // in, for its doors and windows.)
+  await page.getByTestId('real-size').getByRole('button', { name: 'It’s right' }).click();
+  await zoomBackIn(page, await middleOf(page, '#canvas-svg [data-shape-id]'));
   // (Where the house is now: the bar below grew, so the plan's middle moved on screen.)
   const k0 = await ppf(page);
   const h = (await page.locator('#canvas-svg [data-shape-id]').first().boundingBox())!;

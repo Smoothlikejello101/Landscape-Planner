@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, closeSheet, openFresh, tapFromCenter } from './helpers';
+import { addKind, closeSheet, openFresh, tapFromCenter, zoomBackIn, middleOf } from './helpers';
 
 // Shapes stacked under a finger (Jason's testing notes, Oct 29): a second, separate tap picks the next one under it,
 // round the stack; a tree's trunk is over everything, so a tap on it always picks the tree; a press on a locked shape
@@ -51,6 +51,8 @@ test('a press on a locked house goes to the bed drawn on it: a tap picks the bed
   await openFresh(page);
   await addKind(page, 'building', 'rect');
   for (const [x, y] of [[-6, -4], [6, -4], [6, 3]]) await tapFromCenter(page, x, y);
+  // (The first building opened where a house fits: the bed in it is 4 ft across.)
+  await zoomBackIn(page, await middleOf(page, '#canvas-svg rect[data-shape-id]'));
   await addKind(page, 'bed', 'rect');
   for (const [x, y] of [[-2, -1.5], [2, -1.5], [2, 1.5]]) await tapFromCenter(page, x, y);
   // (Where they are now: the plan grows taller once the drawing bar goes. The bed is drawn first, under the house.)

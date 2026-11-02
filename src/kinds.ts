@@ -165,6 +165,29 @@ export function rectFromTaps(a: Point, b: Point, c: Point): { x: number; y: numb
   const { width, height, rotation } = levelBox(deg, len, Math.abs(d));
   return { x: r2(cx - width / 2), y: r2(cy - height / 2), width, height, rotation };
 }
+/** How near level or upright (degrees) a rectangle's first side is set level when it's finished (src/draw.ts finishDraw). */
+export const LEVEL_SNAP_DEG = 4;
+/**
+ * A rectangle's three taps turned about its first corner so its first side is level (or upright: a box turned 90° is
+ * the same box), when that side runs within LEVEL_SNAP_DEG of it: a driveway traced off a photo by eye came out 3°
+ * tilted (Jason, Nov 2). Or square to a wall its first or second tap landed on (`walls`: those walls' directions,
+ * radians), when the side runs that close to one: a bed along a turned house keeps to the house. `off`: how far it was
+ * turned (degrees); `along`: square to a wall that isn't level itself. Null when it's level (or along the wall)
+ * already, or farther off than that, so meant to be turned.
+ */
+export function levelTaps(pts: Point[], walls: number[] = []): { pts: Point[]; off: number; along: boolean } | null {
+  if (pts.length < 3) return null;
+  const [a, b] = pts;
+  if (Math.hypot(b.x - a.x, b.y - a.y) < MIN_SIZE) return null;
+  const side = Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI;
+  /** How far the side is from `dir` (degrees), within a quarter turn: -45 to 45. */
+  const offFrom = (dir: number) => { const d = (((side - dir) % 90) + 90) % 90; return d > 45 ? d - 90 : d; };
+  const along = walls.map((w) => offFrom(w * 180 / Math.PI)).find((d) => Math.abs(d) <= LEVEL_SNAP_DEG);
+  const off = along ?? offFrom(0);
+  if (Math.abs(off) < 0.05 || Math.abs(off) > LEVEL_SNAP_DEG) return null;
+  const turned = pts.map((p, i) => { if (i === 0) return p; const r = rotate(p.x - a.x, p.y - a.y, -off); return { x: a.x + r.x, y: a.y + r.y }; });
+  return { pts: turned, off, along: along != null && Math.abs(along - offFrom(0)) > 1e-9 };
+}
 /**
  * A box's turn kept within 45° either way, its sides swapped to match: a box turned 90° is the same box
  * unturned, its width and height swapped. So a bed started on its short end, tapped top to bottom, is stored

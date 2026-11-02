@@ -13,16 +13,16 @@ import { deleteSelectedAsking } from './delete-selected';
 import { clearSelection, getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { fmtFeet, screenToFeet } from '../geometry';
-import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishTypedRect, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, setTypedLength, shapeName, typedApplies, typedKind, typedLabel, startEditPoints, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
-import type { TapSnap } from '../types';
-import { redrawHandles } from '../canvas';
+import { measuredFeet, openAtHouseScale, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishTypedRect, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, setTypedLength, shapeName, typedApplies, typedKind, typedLabel, startEditPoints, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
+import type { SubFeatureKind, TapSnap } from '../types';
+import { redrawCanvas, redrawHandles } from '../canvas';
 import { parseTypedLength } from '../draw-numbers';
 import { kindDef, METHOD_LABELS, nextTapPrompt, type KindKey } from '../kinds';
 import { methodIcon, renderAddSheet, renderShortcutsPanel, withKey } from './add-sheet';
 import { finishPlacing, hasPlaceHover, placingPlant, selectionJustPlaced, setPlaceHover, undoPlace } from '../place';
 import { partnersClosed, plantColor } from '../plants';
 import { currentProject, storageIsDurable } from '../storage';
-import { renderBgDistanceModal, renderBgPanel } from './background-panel';
+import { keepScaleBoxClear, renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
 import { renderSettingsPanel } from './settings-panel';
 import { refreshWarnings, renderWarningsSheet, renderWarningsSide, walkChip, warningsButton, warningsSheetShown, warningsSideShown } from './warnings-sheet';
@@ -58,6 +58,8 @@ import { isLocked } from '../roles';
 import { declineIntro, introActive, introAfterRender, introOffered, showMeAround } from './intro-card';
 import { focusAfterRender, focusBeforeRender } from './focus';
 import { startBgCalibration } from '../background';
+import { placeTraceCard, traceCard, traceChips, traceShown } from './trace-card';
+import { setTraceState } from '../yard-in';
 import { panelOpened } from '../tap-guard';
 
 // MAIN RENDER
@@ -266,10 +268,23 @@ export function render() {
   });
   canvasWrap.appendChild(svg);
 
-  // Mode banner (when select mode is on)
+  // ===== MODE STRIP =====
+  // What a mode asks for (drawing, adding doors, placing, setting a photo's scale or moving it, selecting several), on a
+  // strip of its own above the plan, never over it: on the plan it hid the corner of the photo about to be traced
+  // (Jason, Nov 2, from the UI review: "keep the instruction pill out of the drawing area"). The plan doesn't move as
+  // it comes and goes (src/canvas.ts resizeCanvas), and it keeps one height through the mode, room made for its longest
+  // words, so the plan's edge doesn't move between taps either.
+  const strip = el('div', { className: 'mode-strip', 'data-testid': 'mode-strip' });
+  /** The banner's words, with room kept for the longest it says in this mode (`room`), as CSS, not text. */
+  const words = (text: string, room: string[] = []) => {
+    const longest = [text, ...room].reduce((a, b) => (b.length > a.length ? b : a));
+    return el('span', { className: 'strip-words', 'data-room': longest }, el('span', {}, text));
+  };
+
+  // Select mode
   if (state.selectMode) {
-    const banner = el('div', { className: 'mode-banner' });
-    banner.innerHTML = I.lasso + `<span>${tapSaid('Select mode — drag to lasso, tap to toggle')}</span>`;
+    const banner = el('div', { className: 'mode-banner', html: I.lasso });
+    banner.appendChild(words(tapSaid('Select mode — drag to lasso, tap to toggle')));
     const closeX = el('button', { className: 'banner-close', html: I.x, 'aria-label': 'Leave select mode' });
     closeX.addEventListener('click', () => {
       state.selectMode = false;
@@ -277,26 +292,25 @@ export function render() {
       render();
     });
     banner.appendChild(closeX);
-    canvasWrap.appendChild(banner);
+    strip.appendChild(banner);
   }
 
   // Background edit-mode banner
   if (state.bgEditMode && !state.bgCalibrate) {
-    const banner = el('div', { className: 'mode-banner' });
-    banner.innerHTML = I.move + '<span>Editing background — drag image to move, use ⟳ handle to rotate</span>';
+    const banner = el('div', { className: 'mode-banner', html: I.move });
+    banner.appendChild(words('Editing background — drag image to move, use ⟳ handle to rotate'));
     const doneBtn = el('button', { className: 'banner-close', html: I.x, 'aria-label': 'Done moving the background' });
     doneBtn.addEventListener('click', () => { state.bgEditMode = false; render(); });
     banner.appendChild(doneBtn);
-    canvasWrap.appendChild(banner);
+    strip.appendChild(banner);
   }
 
   // Calibration banner
   if (state.bgCalibrate) {
-    const banner = el('div', { className: 'mode-banner' });
-    const msg = state.bgCalibrate.step === 'point1' ? 'Tap the first known point on the image (A)'
-      : state.bgCalibrate.step === 'point2' ? 'Tap the second known point (B)'
-      : 'Enter the real distance between A and B';
-    banner.innerHTML = I.target + '<span>Calibrating — ' + tapSaid(msg) + '</span>';
+    const banner = el('div', { className: 'mode-banner', html: I.target });
+    const says = { point1: 'Tap the first known point on the image (A)', point2: 'Tap the second known point (B)', distance: 'Enter the real distance between A and B' };
+    const said = (m: string) => 'Calibrating — ' + tapSaid(m);
+    banner.appendChild(words(said(says[state.bgCalibrate.step]), Object.values(says).map(said)));
     const cancelBtn = el('button', { className: 'banner-close', html: I.x, 'aria-label': 'Cancel setting the scale' });
     cancelBtn.addEventListener('click', () => {
       state.bgCalibrate = null;
@@ -304,7 +318,7 @@ export function render() {
       render();
     });
     banner.appendChild(cancelBtn);
-    canvasWrap.appendChild(banner);
+    strip.appendChild(banner);
   }
 
   // Drawing / point-editing banner
@@ -312,27 +326,32 @@ export function render() {
   if (state.draw || state.editPoints) {
     const d = state.draw;
     const feet = measuredFeet();
+    const kept = (f: string) => `${f} ft — Keep adds it to the plan; tap again to measure again`;
+    // (Room for what every way of drawing it says, so switching Rectangle to Outline doesn't move the plan's edge.)
+    const kind = d && d.kind !== 'measure' ? kindDef(d.target ?? 'plain') : null;
+    const methods = d && d.kind !== 'measure' ? [...new Set([d.kind, ...(kind?.methods ?? [])])] : [];
+    const prompts = !d ? ['Point selected — drag it, or Delete point below', 'Drag a point to move it · tap + to add one']
+      : kind ? methods.flatMap((m) => [0, 1, 2, 3, 4].map((n) => `${kind.label}: ${nextTapPrompt(m, n)}`))
+      : ['Measuring — tap two points', 'Tap the other end', kept('000.0')];
     const msg = d
       ? d.kind === 'measure'
-        ? (feet != null ? `${fmtFeet(feet)} ft — Keep adds it to the plan; tap again to measure again`
-          : d.points.length ? 'Tap the other end' : 'Measuring — tap two points')
+        ? (feet != null ? kept(fmtFeet(feet)) : d.points.length ? prompts[1] : prompts[0])
         : `${kindDef(d.target ?? 'plain').label}: ${nextTapPrompt(d.kind, d.points.length)}`
-      : state.editPoints!.vertex != null ? 'Point selected — drag it, or Delete point below' : 'Drag a point to move it · tap + to add one';
-    const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'draw-banner' });
-    banner.innerHTML = I.draw + '<span></span>';
-    banner.querySelector('span')!.textContent = tapSaid(msg);
-    canvasWrap.appendChild(banner);
+      : state.editPoints!.vertex != null ? prompts[0] : prompts[1];
+    const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'draw-banner', html: I.draw });
+    banner.appendChild(words(tapSaid(msg), prompts.map((m) => tapSaid(m))));
+    strip.appendChild(banner);
   }
 
   // Adding doors, windows, gates or steps: where to tap.
   if (state.featurePlace && !featureHost()) finishFeaturePlace(); // (its shape gone: undone past it, or locked)
   if (state.featurePlace) {
-    const host = featureHost()!, what = SUB_FEATURES[state.featurePlace.kind].label.toLowerCase();
+    const host = featureHost()!;
     const where = host.role === 'boundary' ? 'the line' : host.role === 'building' ? 'a wall' : 'an edge';
-    const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'feature-banner' });
-    banner.innerHTML = I.draw + '<span></span>';
-    banner.querySelector('span')!.textContent = tapSaid(`Tap ${where} where the ${what} goes · ${state.featurePlace.added.length} added`);
-    canvasWrap.appendChild(banner);
+    const say = (k: SubFeatureKind, n: string) => tapSaid(`Tap ${where} where the ${SUB_FEATURES[k].label.toLowerCase()} goes · ${n} added`);
+    const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'feature-banner', html: I.draw });
+    banner.appendChild(words(say(state.featurePlace.kind, String(state.featurePlace.added.length)), kindsFor(host).map((k) => say(k, '00'))));
+    strip.appendChild(banner);
   }
 
   // Placing plants: which one, and how many so far.
@@ -341,10 +360,10 @@ export function render() {
   if (placing && state.placing) {
     // (This plant's, not every plant placed since Place was tapped: a switch starts the count over.)
     const n = state.placing.placed.filter((x) => state.shapes.find((s) => s.id === x.id)?.plantId === placing.id).length;
-    const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'place-banner' });
-    banner.innerHTML = I.leaf + '<span></span>';
-    banner.querySelector('span')!.textContent = `${tapSaid('Tap')} to place ${placing.common} · ${n} placed`;
-    canvasWrap.appendChild(banner);
+    const say = (k: string) => `${tapSaid('Tap')} to place ${placing.common} · ${k} placed`;
+    const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'place-banner', html: I.leaf });
+    banner.appendChild(words(say(String(n)), [say('000')]));
+    strip.appendChild(banner);
   }
 
   // Showing only some plants: say so, with a way back to everything.
@@ -365,17 +384,19 @@ export function render() {
   zIn.addEventListener('click', () => { zoomBy(1.25); render(); flashZoom(); });
   const zOut = el('button', { className: 'zoombtn', html: I.zoomOut, 'aria-label': 'Zoom out', title: 'Zoom out' });
   zOut.addEventListener('click', () => { zoomBy(0.8); render(); flashZoom(); });
-  // (Off on a phone unless turned on in Settings: src/view-settings.ts.)
+  // (Off on a phone unless turned on in Settings: src/view-settings.ts. Kept while drawing, for whoever zooms with one
+  // finger: they asked for them.)
   if (state.zoomButtons) { zoomBtns.appendChild(zIn); zoomBtns.appendChild(zOut); }
-  // Everything in view (not on an empty plan with no photo: nothing to fit).
-  if (planBounds()) {
-    const zFit = el('button', { className: 'zoombtn', html: I.fit, 'aria-label': 'Fit the plan in view', title: 'Fit the plan in view (Shift+1)', 'data-testid': 'zoom-fit' });
-    zFit.addEventListener('click', () => { zoomToFit(); render(); flashZoom(); });
-    zoomBtns.appendChild(zFit);
-  }
-  // (Not while drawing, placing or setting a photo's scale: they're for looking, and a corner tapped near the plan's
-  // right edge landed on them instead, silently. Round 3: Lena, Grace and Owen.)
-  if (!state.draw && !state.placing && !state.bgCalibrate) {
+  // The rest, not while drawing, placing, adding doors, editing points or setting a photo's scale: they're for looking,
+  // and a corner tapped near the plan's right edge landed on them instead (round 3: Lena, Grace and Owen). Fit too,
+  // which took a corner's tap and zoomed the plan away mid-drawing (Jason, Nov 2, from the UI review).
+  if (!state.draw && !state.placing && !state.bgCalibrate && !state.featurePlace && !state.editPoints) {
+    // Everything in view (not on an empty plan with no photo: nothing to fit).
+    if (planBounds()) {
+      const zFit = el('button', { className: 'zoombtn', html: I.fit, 'aria-label': 'Fit the plan in view', title: 'Fit the plan in view (Shift+1)', 'data-testid': 'zoom-fit' });
+      zFit.addEventListener('click', () => { zoomToFit(); render(); flashZoom(); });
+      zoomBtns.appendChild(zFit);
+    }
     zoomBtns.appendChild(yearButton());
     // The Plant list, one tap from the plan, beside Through the year (Jason, Nov 1, from the UI review): once there's a
     // plant to list. (In ⋮ too, by name.)
@@ -394,6 +415,8 @@ export function render() {
   // Empty hint, the first screen: what FullGrown does, where the garden is, the tour, a photo to start from, and a way
   // back in with a backup (Jason, Nov 1, from the UI review: a first look showed tools, not the job; the ZIP that
   // gives hardiness, frost dates and the state's plant laws was in ⋮; a backup from another device had no way in).
+  // (The first screen with its photo to scale holds "Now trace" itself; else it's a card of its own, below.)
+  let tracing = false;
   if (state.shapes.length === 0 && !state.draw && !state.placing && !state.bgCalibrate && !state.bgEditMode && !introActive()) {
     // Cleared with Clear all: what it took, offered back until something new is drawn, across reloads (Jason, Oct 30).
     if (state.currentProjectId) void loadCleared(state.currentProjectId, render);
@@ -406,6 +429,8 @@ export function render() {
       // Once a photo is in, docked at the bottom, above the buttons it names, so the photo shows (Jason chose this of
       // four mock-ups, Nov 1); on an empty grid, in the middle.
       const docked = !!state.bgImage && state.bgImage.visible !== false;
+      // (Its photo set to scale: "Now trace", with what to trace, is its line: src/ui/trace-card.ts.)
+      tracing = docked && !hidden && traceShown();
       const hint = el('div', { className: 'empty-hint' + (docked ? ' docked' : ''), 'data-testid': 'first-screen' });
       const card = el('div', { className: 'first-card', 'data-testid': 'first-card' });
       hint.appendChild(card);
@@ -419,18 +444,21 @@ export function render() {
       if (!hidden) {
         if (planId) {
           const hide = el('button', { className: 'first-hide', 'data-testid': 'first-hide', 'aria-label': 'Hide this for this plan', title: 'Hide this for this plan', html: I.x });
+          const traceToo = tracing; // (put away with it, and back with its Undo)
           hide.addEventListener('click', () => {
             hideFirst(planId);
+            if (traceToo) setTraceState(planId, 'off');
             render();
             toastAction('Hidden for this plan. The garden\u2019s ZIP is also under \u22ee \u2192 Garden location.',
-              [{ label: 'Undo', run: () => { hideFirst(planId, false); render(); } }], 8000, 'first-hidden-notice');
+              [{ label: 'Undo', run: () => { hideFirst(planId, false); if (traceToo) setTraceState(planId, 'on'); render(); } }], 8000, 'first-hidden-notice');
           });
           card.prepend(hide);
         }
         // (While it's the only plan on the device: a second plan, empty, needs no introducing.) With a photo, the
         // next step instead: the photo is what an empty plan's words were leading to.
         const onlyPlan = state.projects.length <= 1;
-        if (docked) card.append(el('div', { className: 'first-line', 'data-testid': 'first-line' }, 'Your photo is in. Next: trace the house over it with the buttons below.'));
+        if (tracing) card.append(traceChips());
+        else if (docked) card.append(el('div', { className: 'first-line', 'data-testid': 'first-line' }, 'Your photo is in. Next: trace the house over it with the buttons below.'));
         else if (onlyPlan) card.append(el('div', { className: 'first-line', 'data-testid': 'first-line' }, 'Plan your garden to scale, with plants that suit it.'));
         // Where the garden is, typed here; its zone once it's known. (Not under a sheet: the ZIP sheet has its own field.)
         if (!state.panel) card.append(state.location ? firstZone(state.location) : firstZip());
@@ -463,6 +491,9 @@ export function render() {
   // Working through the warnings on a phone: "‹ Warnings · 3 of 12 ›", in place of the selection's own chip or bar.
   const walking = walkChip();
   if (walking) canvasWrap.appendChild(walking);
+
+  // "Now trace" over the photo set to scale: House, Driveway, Trees, Lot line, Beds (src/ui/trace-card.ts).
+  if (!tracing && !walking && traceShown()) canvasWrap.appendChild(traceCard());
 
   // Multi-select action bar (floating, only when 2+ selected and no panel open)
   const drawing = !!state.draw || !!state.editPoints || !!state.placing || !!state.featurePlace;
@@ -550,6 +581,7 @@ export function render() {
     }
   }
 
+  if (strip.childElementCount) app.appendChild(strip);
   // (On a computer, Warnings stays open beside the plan, and the plan makes room: src/ui/warnings-sheet.ts.)
   app.appendChild(el('div', { className: 'plan-row' }, canvasWrap, renderWarningsSide()));
 
@@ -574,6 +606,7 @@ export function render() {
   app.appendChild(state.placing ? renderPlaceBar() : state.featurePlace ? renderFeatureBar() : drawing ? renderDrawBar() : state.month != null ? renderYearBar() : bottomBar);
 
   root.appendChild(app);
+  placeTraceCard(root); // (above a selected shape's chip, now it's laid out)
 
   // ===== PANELS / MODALS / MENU =====
   // The kind list opens fresh each time; a status question left open is dropped with the panel.
@@ -605,6 +638,8 @@ export function render() {
   warningsSideShown(root); // (the panel beside the plan, where it was scrolled to)
   if (panelNode) {
     root.appendChild(panelNode);
+    // (The scale box just opened: A and B moved clear of it, before the plan's drawn.)
+    if (state.panel === 'bgDistance' && shownPanel !== 'bgDistance') keepScaleBoxClear(panelNode);
     const sheet = scrolled ? panelNode.querySelector<HTMLElement>('.sheet') ?? (panelNode.classList.contains('sheet') ? panelNode : null) : null;
     if (sheet) sheet.scrollTop = scrolled;
     if (state.panel === 'warnings') warningsSheetShown(panelNode, shownPanel !== 'warnings');
@@ -656,10 +691,12 @@ export function render() {
   focusAfterRender(root);
   labelFields(root); // (each field's label names its control, for screen readers)
   syncPageZoom(); // (a page left zoomed in when the last sheet or menu closes: back to its size)
-  placeNotice(); // (a notice with buttons stays clear of an open sheet)
   calibrationNotice();
   // Now that the SVG is in the DOM, size it and draw grid/shapes
   resizeCanvas();
+  // (The Building tool just opened: where a house fits, the plan sized for drawing now. src/draw.ts.)
+  if (openAtHouseScale()) { redrawCanvas(); updateStatusReadout(); }
+  placeNotice(); // (a notice with buttons stays clear of an open sheet, and of the shape it's about, drawn now)
   maybeExplainFullSize();
 }
 

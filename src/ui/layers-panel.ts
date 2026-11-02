@@ -16,7 +16,7 @@ import { sunListText } from './role-sections';
 import { applySizeMode, plantsToResize } from '../my-plants';
 import { boxSize, shapePerimeter } from '../geometry';
 import { typeName } from '../util';
-import { updateBgImageSilent } from '../background';
+import { startBgCalibration, updateBgImageSilent } from '../background';
 import { ask } from './ask';
 import { sheetTitle } from './props-panel';
 import { settingsLink } from './settings-panel';
@@ -234,7 +234,16 @@ function backgroundSection(): HTMLElement {
   const more = el('button', { className: 'link-btn', 'data-testid': 'layers-bg-more' }, 'Adjust\u2026');
   more.disabled = busy;
   more.addEventListener('click', () => { state.panel = 'bg'; render(); });
-  wrap.appendChild(el('div', { className: 'role-row' + (bg.visible ? '' : ' hidden') }, eye, el('span', { className: 'name' }, 'Background image'), more));
+  // Not to scale yet: marked rough until its scale is set (Jason, Nov 2, from the UI review), with the way to set it.
+  // (What's kept with the photo since Oct 30, src/types.ts BgImage.uncalibrated: no new stored field.)
+  const rough = bg.uncalibrated ? el('span', { className: 'rough-flag', 'data-testid': 'layers-bg-rough' }, 'Rough scale') : null;
+  wrap.appendChild(el('div', { className: 'role-row' + (bg.visible ? '' : ' hidden') }, eye, el('span', { className: 'name' }, 'Background image', ...(rough ? [' ', rough] : [])), more));
+  if (rough) {
+    const set = el('button', { className: 'link-btn', 'data-testid': 'layers-bg-set-scale' }, 'Set its scale');
+    set.disabled = busy;
+    set.addEventListener('click', () => startBgCalibration());
+    wrap.appendChild(el('div', { className: 'hint rough-line' }, 'Its size on the plan is a guess until its scale is set: what\u2019s traced over it is too. ', set));
+  }
   // Opacity: redraws the plan only, so the slider keeps its place (and the keyboard, on a phone).
   const pct = el('span', { className: 'count' }, Math.round(bg.opacity * 100) + '%');
   const slider = el('input', { type: 'range', min: '0.05', max: '1', step: '0.05', value: String(bg.opacity), 'aria-label': 'Background image opacity', 'data-testid': 'layers-bg-opacity' });

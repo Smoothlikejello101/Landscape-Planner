@@ -1,4 +1,8 @@
-import { finishBgCalibration, handleBgImageFile, removeBgImage, setPhotoDeviceOnly, startBgCalibration, updateBgImage, updateBgImageSilent } from '../background';
+import { finishBgCalibration, fitPhoto, handleBgImageFile, imagePxToWorld, removeBgImage, setPhotoDeviceOnly, startBgCalibration, updateBgImage, updateBgImageSilent } from '../background';
+import { pxPerFoot } from '../geometry';
+import { zoomBy } from '../mutations';
+import type { Point } from '../types';
+import { clearOfBox } from '../yard-in';
 import { el, tapSaid, ts } from '../dom';
 import { I } from '../icons';
 import { account } from '../account';
@@ -6,7 +10,6 @@ import { state } from '../state';
 import { render } from './render';
 import { snapRot } from '../util';
 import { ask } from './ask';
-import { toast } from './toast';
 
 export function renderBgPanel() {
   const bg = state.bgImage;
@@ -26,8 +29,10 @@ export function renderBgPanel() {
       // After a fresh upload, auto-start calibration. Otherwise the image
       // will be at whatever arbitrary scale it defaulted to.
       startBgCalibration();
-      // (What to do next: the calibration's own banner says it too.)
-      toast('Photo added. Tap two points on it you know the distance between, then type that distance.', 8000);
+      fitPhoto(); // (the plan as tall as it is now, under the strip saying what to tap)
+      render();
+      // (What to do next: the strip above the plan says it. A notice saying it too sat over the photo, where the two
+      // points go: Jason, Nov 2, a notice never covers what the step is about.)
     }
     fileInput.value = ''; // allow re-picking the same file
   });
@@ -189,14 +194,19 @@ export function renderBgPanel() {
   return overlay;
 }
 
+/**
+ * How far apart A and B are: the box asking, at the top of the screen, the plan moved so the two points show below it
+ * (keepScaleBoxClear), where a phone's keyboard leaves them be; it sat over them, in the middle (Jason, Nov 2, from the
+ * UI review). With lengths people often know, to measure between.
+ */
 export function renderBgDistanceModal() {
-  const input = el('input', { type: 'number', step: 'any', min: '0.1', placeholder: 'e.g. 32' });
+  const input = el('input', { type: 'number', step: 'any', min: '0.1', inputMode: 'decimal', placeholder: 'e.g. 32', 'data-testid': 'scale-distance' });
   setTimeout(() => { input.focus(); input.select(); }, 60);
   const doIt = () => {
     const v = parseFloat(input.value);
     finishBgCalibration(v);
   };
-  const okBtn = el('button', { className: 'btn primary' }, 'Set scale');
+  const okBtn = el('button', { className: 'btn primary', 'data-testid': 'scale-set' }, 'Set scale');
   okBtn.addEventListener('click', doIt);
   input.addEventListener('keydown', e => { if (e.key === 'Enter') doIt(); });
   const cancelBtn = el('button', { className: 'btn ghost' }, 'Cancel');
@@ -205,21 +215,41 @@ export function renderBgDistanceModal() {
     state.panel = 'bg';
     render();
   });
-  const modal = el('div', { className: 'modal' },
+  // Lengths most people can find, to tap the ends of (Jason liked the idea, Nov 2).
+  const hints = el('div', { className: 'scale-hints', 'data-testid': 'scale-hints' },
+    el('div', { className: 'scale-hints-head' }, 'Lengths you may know:'),
+    el('ul', {},
+      el('li', {}, el('b', {}, 'Your house\u2019s front'), ': its length may be in the listing'),
+      el('li', {}, el('b', {}, 'A driveway\u2019s width'), ': a one-car driveway is about 10\u201312 ft'),
+      el('li', {}, el('b', {}, 'Your lot\u2019s sides'), ': on the county\u2019s GIS map, or the plat')));
+  const modal = el('div', { className: 'modal scale-box', 'data-testid': 'scale-box' },
     el('div', { className: 'sheet-header' },
-      el('div', { className: 'title' }, 'Real-world distance'),
+      el('div', { className: 'title' }, 'How far is A from B?'),
       (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', () => { state.bgCalibrate = null; state.panel = 'bg'; render(); }); return b; })()
     ),
     el('div', { className: 'sheet-body' },
-      el('div', { style: { fontSize: ts(13), color: '#57534e' } },
-        tapSaid('How far apart are the two points you just tapped, in feet? Enter the real distance between them.')),
-      el('div', { className: 'field' },
-        el('label', {}, 'Distance (ft)'),
-        input
-      ),
-      el('div', { style: { display: 'flex', gap: '8px', justifyContent: 'flex-end' } }, cancelBtn, okBtn)
+      el('div', { className: 'scale-row' },
+        el('div', { className: 'field' }, el('label', {}, 'Distance (ft)'), input),
+        el('div', { className: 'scale-buttons' }, cancelBtn, okBtn)),
+      hints
     )
   );
-  const overlay = el('div', { className: 'overlay center', style: { zIndex: 40 } }, modal);
-  return overlay;
+  // (Lightly dimmed: A, B and the line between them are what's being measured, so they stay clear to see.)
+  return el('div', { className: 'overlay scale-overlay', style: { zIndex: 40 } }, modal);
+}
+/**
+ * The scale box just opened: the plan moved, zoomed out only if it must, so A and B show clear of it, just below it
+ * (src/yard-in.ts clearOfBox). Run as it opens, before the plan is drawn (src/ui/render.ts).
+ */
+export function keepScaleBoxClear(overlay: HTMLElement): void {
+  const bg = state.bgImage, cal = state.bgCalibrate, wrap = document.getElementById('canvas-wrap');
+  const box = overlay.querySelector('.modal')?.getBoundingClientRect();
+  if (!bg || !cal?.p1 || !cal.p2 || !wrap || !box) return;
+  const plan = wrap.getBoundingClientRect(), ppf = pxPerFoot();
+  const onPage = (p: Point) => { const f = imagePxToWorld(bg, p); return { x: plan.left + (f.x - state.offsetX) * ppf, y: plan.top + (f.y - state.offsetY) * ppf }; };
+  const pts = [onPage(cal.p1), onPage(cal.p2)];
+  const move = clearOfBox(pts, box, { top: plan.top, bottom: plan.bottom });
+  if (!move) return;
+  if (move.zoom < 1) zoomBy(move.zoom, (pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2);
+  state.offsetY -= move.dy / pxPerFoot();
 }

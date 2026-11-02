@@ -1,7 +1,7 @@
 import { redrawCanvas } from './canvas';
 import { BG_HANDLE_RADIUS_PX, BG_JPEG_QUALITY, BG_MAX_IMAGE_DIM, BG_ROT_HANDLE_OFFSET_PX } from './constants';
 import { svgEl, type Attrs } from './dom';
-import { canvasRect, pxPerFoot, rotate, screenToFeet, viewCenterFeet } from './geometry';
+import { canvasRect, pxPerFoot, rotate, rotatedBoxBounds, screenToFeet, viewCenterFeet } from './geometry';
 import { flushHistoryDebounce, pushHistory, pushHistoryDebounced } from './history';
 import { state } from './state';
 import { save } from './storage';
@@ -10,6 +10,7 @@ import { calibrationSeen, render } from './ui/render';
 import { uid } from './util';
 import { ask, tell } from './ui/ask';
 import { zoomToBounds } from './mutations';
+import { offerTrace } from './yard-in';
 
 // Background image (satellite photo or survey) to trace over.
 // Stored per project as a downscaled JPEG data URL. Position is the image
@@ -118,7 +119,7 @@ export async function handleBgImageFile(file: File): Promise<boolean> {
     state.photoElsewhere = null; // this photo replaces one kept on another device
     pushHistory();
     // (The whole photo in view, to find the two points on: Dana and Grace saw only a blur of green and gray.)
-    zoomToBounds({ minX: c.x - (w * 0.1) / 2, maxX: c.x + (w * 0.1) / 2, minY: c.y - (h * 0.1) / 2, maxY: c.y + (h * 0.1) / 2 }, 12);
+    fitPhoto();
     calibrationSeen(); // (just added: no reminder this session; the calibration banner asks)
     save();
     return true;
@@ -126,6 +127,16 @@ export async function handleBgImageFile(file: File): Promise<boolean> {
     void tell('Could not load image: ' + (e instanceof Error ? e.message : String(e)));
     return false;
   }
+}
+/**
+ * The whole photo in view, a small margin round it. Again once setting its scale has begun, with the plan as tall as
+ * that leaves it (the strip saying what to tap takes the top of the screen: src/ui/render.ts).
+ */
+export function fitPhoto() {
+  const bg = state.bgImage;
+  if (!bg) return;
+  const { w, h } = bgSizeFt(bg);
+  zoomToBounds(rotatedBoxBounds(bg.cx, bg.cy, w, h, bg.rotation), 12);
 }
 export function removeBgImage() {
   if (!state.bgImage) return;
@@ -210,6 +221,7 @@ export function finishBgCalibration(distanceFt: number) {
   delete state.bgImage.uncalibrated; // (to scale now)
   pushHistory();
   save();
+  offerTrace(state.currentProjectId); // (next: "Now trace" the house, driveway and the rest over it: src/ui/trace-card.ts)
   state.bgCalibrate = null;
   state.panel = 'bg';
   render();
@@ -245,7 +257,7 @@ export function renderBgImageInto(svg: SVGElement) {
 }
 function calibrationMarker(svg: SVGElement, bg: BgImage, p: Point, letter: string) {
   const s = worldToCanvas(imagePxToWorld(bg, p));
-  svg.appendChild(svgEl('circle', { cx: s.x, cy: s.y, r: 10, fill: 'rgba(220,38,38,0.2)', stroke: '#dc2626', 'stroke-width': 2, 'pointer-events': 'none' }));
+  svg.appendChild(svgEl('circle', { cx: s.x, cy: s.y, r: 10, fill: 'rgba(220,38,38,0.2)', stroke: '#dc2626', 'stroke-width': 2, 'pointer-events': 'none', 'data-role': `scale-point-${letter.toLowerCase()}` }));
   svg.appendChild(svgEl('circle', { cx: s.x, cy: s.y, r: 3, fill: '#dc2626', 'pointer-events': 'none' }));
   svg.appendChild(svgEl('text', { x: s.x + 12, y: s.y - 8, 'font-size': 12, fill: '#dc2626', 'font-weight': 700, 'pointer-events': 'none', style: 'user-select:none;' }, letter));
   return s;
