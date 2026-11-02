@@ -1085,8 +1085,9 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .wr-btn { flex: none; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; font-size: calc(13px * var(--ts)); font-weight: 600; color: #44403c; white-space: nowrap; }
 .wr-btn:hover { background: #f5f5f4; }
 .wr-btn.again { border-color: #99f6e4; background: #f0fdfa; color: #115e59; }
-/* A kind's Dismiss all and Show all again, under a rule and a heading, the whole kind's, not the last row's (Jason). */
-.warnings-all { margin: 8px 12px 0 16px; padding: 8px 0 4px; border-top: 2px solid #e7e5e4; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+/* A kind's Dismiss all and Show all again, with a heading, above its rows and set off from them by a rule: the whole
+   kind's, not a row's (Jason, Nov 1; above the rows since the after-release-3 fixes). */
+.warnings-all { margin: 0 12px 4px 16px; padding: 0 0 8px; border-bottom: 2px solid #e7e5e4; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .warnings-all-head { flex: 1 1 100%; font-size: calc(11px * var(--ts)); font-weight: 700; color: #57534e; text-transform: uppercase; letter-spacing: 0.04em; }
 .warn-all-btn { min-height: 44px; padding: 0 16px; border-radius: 8px; border: 1px solid #d6d3d1; background: #fff; font-size: calc(13px * var(--ts)); font-weight: 600; color: #44403c; }
 .warn-all-btn.again { border-color: #99f6e4; background: #f0fdfa; color: #115e59; }

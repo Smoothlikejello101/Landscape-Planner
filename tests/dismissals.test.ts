@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { copiesSaid, dismissedForPlan, dismissForPlan, planDismissals, showAgainForPlan, warnForNewOnes } from '../src/dismissals';
+import { atRisk, copiesSaid, copyDismissed, dismissedForPlan, dismissForPlan, planDismissals, poisonCovered, showAgainForPlan, warnForNewOnes } from '../src/dismissals';
 import { plantsById, type Plant } from '../src/plants';
 import { state } from '../src/state';
 import type { Shape } from '../src/types';
@@ -35,6 +35,27 @@ describe('a warning dismissed for a plant, across the plan', () => {
     expect(copiesSaid('nerium-oleander')).toBe('both Oleander');
     state.shapes.push(ole('o3'), fig('c'));
     expect(copiesSaid('nerium-oleander')).toBe('all 3 Oleander');
+  });
+  it('a poison warning stays dismissed with the same or fewer at risk, and comes back with someone new (Jason, Nov 1)', () => {
+    dismissForPlan('poison', 'ficus-carica', 'Poisonous to people; A problem for dogs');
+    const still = (now: string) => dismissedForPlan('poison', 'ficus-carica', now);
+    expect(still('Poisonous to people; A problem for dogs')).toBe(true);
+    expect(still('A problem for dogs')).toBe(true); // (the kids gone from the yard)
+    expect(still('Poisonous to people')).toBe(true); // (the dog gone)
+    expect(still('A problem for dogs and cats')).toBe(false); // (cats added: newly at risk)
+    expect(still('Poisonous to people; A problem for dogs, cats and horses')).toBe(false);
+    // (What's kept is what it said when dismissed: unchanged.)
+    expect(state.dismissed).toEqual({ poison: { 'ficus-carica': 'Poisonous to people; A problem for dogs' } });
+    // A copy's own likewise; hardiness still by what it says, whole.
+    expect(poisonCovered('A problem for dogs, cats and horses', 'A problem for cats and horses')).toBe(true);
+    expect(poisonCovered('A problem for cats', 'Poisonous to people; A problem for cats')).toBe(false);
+    expect(poisonCovered(undefined, 'A problem for cats')).toBe(false);
+    expect([...atRisk('Poisonous to people; A problem for dogs, cats and horses')]).toEqual(['people', 'dogs', 'cats', 'horses']);
+    const copy = { ...fig('c'), poisonDismissed: 'Poisonous to people', hardyDismissed: said } as Shape;
+    expect(copyDismissed('poison', copy, 'Poisonous to people')).toBe(true);
+    expect(copyDismissed('poison', copy, 'A problem for dogs')).toBe(false);
+    expect(copyDismissed('hardy', copy, said)).toBe(true);
+    expect(copyDismissed('hardy', copy, 'Too cold for zone 6b')).toBe(false);
   });
   it('shown again: for the plant across the plan, and each copy', () => {
     dismissForPlan('poison', 'ficus-carica', 'Poisonous to people');

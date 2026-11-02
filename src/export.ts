@@ -14,12 +14,13 @@ import { roleDef, roleKey, roleLabel, ROLES } from './roles';
 import { filterText } from './status';
 import { formatHours, shadeOpacity, sunHours } from './sun';
 import { plantsById } from './plants';
-import { LABEL_LINE_HEIGHT, plantLabelFit, textWidth1 } from './labels';
+import { LABEL_LINE_HEIGHT, plantLabelFit } from './labels';
 import { isBed, isPlant } from './beds';
 import { canopyInnerRadius, canopyPoints, isTree, partsToSvg, trunkParts, trunkReachPx } from './trees';
 import { groundcoverRadius, supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
 import { bandBlooms, bandLeaves, colorIn, coverBlooms, levelOf } from './looks';
 import { lookFor, lookMarkup, lookMonthOf, lookShown, plannedEdge } from './plant-looks';
+import { placeAreaNames, type AreaName } from './area-names';
 import { tell } from './ui/ask';
 import { toast } from './ui/toast';
 
@@ -126,13 +127,9 @@ export function withSeeThrough<T>(ids: Set<string>, fn: () => T): T {
 function nameSvg(x: number, y: number, fs: number, label: string, extra: string, k: number): string {
   return `<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" fill="#0f172a" font-family="sans-serif" stroke="rgba(255,255,255,0.7)" stroke-width="${2 * k}" paint-order="stroke" stroke-linejoin="round"${extra}>${escapeHtml(label)}</text>`;
 }
-/**
- * The name of one of the yard's areas (a bed, the lawn, the house, a path) in a picture or printout, where its shape
- * puts it (page px, `fs` its size there), gathered to be placed over all the shapes (areaNamesSvg). `around`: its
- * shape's box; `fixed`: a path's or a turned name, which stays where it is; `gone`: faint, as its shape.
- */
-export interface AreaName { label: string; x: number; y: number; fs: number; angle: number; bed: boolean; size: number; fixed: boolean; gone: boolean; around: PxBox }
-type PxBox = { x0: number; y0: number; x1: number; y1: number };
+// (The name of one of the yard's areas (a bed, the lawn, the house, a path) in a picture or printout, where its shape
+// puts it, page px, gathered to be placed over all the shapes: src/area-names.ts, shared with the plan on the screen.)
+export type { AreaName, PxBox } from './area-names';
 /**
  * Names of areas gathered while a picture or printout is drawn, rather than drawn with each shape: there a bed's name
  * went under its plants, and "Driveway" and "Driveway flower bed" printed over each other (the UI review, 2026-11-01).
@@ -164,25 +161,13 @@ export function plantCircles(shapes: Shape[], originX: number, originY: number, 
  * the name left off is a smaller area's (a w × h px picture; `k` as for shapes).
  */
 export function areaNamesSvg(names: AreaName[], plants: { x: number; y: number; r: number }[], w: number, h: number, k = 1): string {
-  const meets = (a: PxBox, b: PxBox) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
-  const onPlant = (b: PxBox) => plants.some((c) => Math.hypot(Math.max(b.x0, Math.min(c.x, b.x1)) - c.x, Math.max(b.y0, Math.min(c.y, b.y1)) - c.y) < c.r);
-  const placed: PxBox[] = [];
   let out = '';
-  for (const n of [...names].sort((a, b) => Number(b.bed) - Number(a.bed) || b.size - a.size)) {
-    const tw = textWidth1(n.label) * n.fs, th = n.fs * 1.2, gap = 3 * k, rad = (n.angle * Math.PI) / 180;
-    const bw = Math.abs(tw * Math.cos(rad)) + Math.abs(th * Math.sin(rad)), bh = Math.abs(tw * Math.sin(rad)) + Math.abs(th * Math.cos(rad));
-    const { x0, y0, x1, y1 } = n.around, mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
-    const spots = [{ x: n.x, y: n.y }, ...(n.fixed ? [] : [
-      { x: mx, y: y0 - gap - bh / 2 }, { x: mx, y: y1 + gap + bh / 2 }, { x: x1 + gap + bw / 2, y: my }, { x: x0 - gap - bw / 2, y: my }])]
-      .map((p) => ({ ...p, box: { x0: p.x - bw / 2, x1: p.x + bw / 2, y0: p.y - bh / 2, y1: p.y + bh / 2 } }))
-      .filter((p, i) => i === 0 || (p.box.x0 >= 0 && p.box.y0 >= 0 && p.box.x1 <= w && p.box.y1 <= h)); // (moved: inside the picture)
-    const clear = spots.filter((p) => !placed.some((q) => meets(q, p.box)));
-    const at = clear.find((p) => !onPlant(p.box)) ?? clear[0];
-    if (!at) continue;
-    placed.push(at.box);
+  placeAreaNames(names, plants, { x0: 0, y0: 0, x1: w, y1: h }, k).forEach((at, i) => {
+    if (!at) return;
+    const n = names[i];
     const name = nameSvg(at.x, at.y, n.fs, n.label, n.angle ? ` transform="rotate(${n.angle} ${at.x} ${at.y})"` : '', k);
     out += n.gone ? `<g opacity="0.35">${name}</g>` : name;
-  }
+  });
   return out;
 }
 function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number, k: number): string {

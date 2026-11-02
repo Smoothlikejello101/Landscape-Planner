@@ -1,7 +1,7 @@
 import { renderBgHandles, renderBgImageInto } from './background';
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from './constants';
 import { svgEl, type Attrs } from './dom';
-import { alongLabel, boxLabelAngle, boxSize, shapeBBox, shapeCenter, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, worldPoints } from './geometry';
+import { alongLabel, boxLabelAngle, boxSize, shapeBBox, shapeCenter, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, unionBounds, worldPoints } from './geometry';
 import { renderPathOverlay } from './draw';
 import { fullRingRadius } from './my-plants';
 import { bandOf, crowdLevels, type CrowdLevel } from './crowding';
@@ -11,7 +11,7 @@ import { renderShapeHandles } from './handles';
 import { onFeaturePointerDown, onShapePointerDown } from './gestures';
 import { featureHitPart, featureParts, knownFeatures } from './features';
 import { catalogReady, hardinessWarning, plantsById } from './plants';
-import { dismissedForPlan, poisonSaid } from './dismissals';
+import { dismissedForPlan, poisonCovered, poisonSaid } from './dismissals';
 import { plantLabelFit, LABEL_LINE_HEIGHT, textWidth1, type FittedLabel } from './labels';
 import { labelScale } from './label-size';
 import { canopyInnerRadius, canopyPoints, isTree, trunkParts, trunkReachPx } from './trees';
@@ -26,6 +26,9 @@ import { isArbor, isTrellis, LATTICE_STEP, latticePath, SLAT_STEP, slatsPath } f
 import type { CircleShape, Point, Shape, ShapeFilter, TextShape } from './types';
 import { groundcoverRadius, supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
 import { pinRadius } from './pins';
+import { placeAreaNames, type AreaName } from './area-names';
+import { isBed, isPlant } from './beds';
+import { BADGE_HALF, BADGE_STEP, badgeBoxes, badgeCenters, placeBadges, type BadgeHolder, type BadgeKind, type BadgeSpot, type Box as BadgeBox, type Circle } from './badges';
 import { lookFor, lookMarkup, lookMonthOf, lookShown, plannedEdge } from './plant-looks';
 import { bandBlooms, bandLeaves, colorIn, coverBlooms, levelOf } from './looks';
 
@@ -166,7 +169,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   const lk = labelScale();
   let fitted: FittedLabel | null | undefined; // circles: the name fitted inside (null = doesn't fit)
   let overflow = false; // a plant's name written over its edge
-  let vineDot: number | null = null; // a climbing vine: its planting spot's radius (px), where its badges go
+  let vineDot: number | null = null; // a climbing vine: its planting spot's radius (px)
   let under: SVGElement | null = null; // a plant drawn as an illustration (src/looks.ts): under its rim
 
   const vine = s.type === 'circle' ? supportOf(s, state.shapes) : null;
@@ -259,7 +262,7 @@ export function shapeGroup(s: Shape): SVGGElement {
       : svgEl('circle', { ...common, cx, cy, r });
     // Plants drawn below full size: a dashed ring at full size when selected (or for all, from Layers).
     // While placing more of a plant, its full spread shows so the next one can be spaced by eye.
-    const showFull = (sel && state.selectedIds.length === 1) || state.showFullSize || (!!state.placing && s.plantId === state.placing.plantId);
+    const showFull = fullShown(s);
     const full = showFull ? fullRingRadius(s) : null;
     // Crowding: red where it's crowded; amber where it's close to another (their typical spreads touch).
     const level = crowded.get(s.id);
@@ -403,6 +406,13 @@ export function shapeGroup(s: Shape): SVGGElement {
   const sunText = s.role === 'shade' && s.sun && room('☀ ' + formatHours(sunHours(s.sun))) ? '☀ ' + formatHours(sunHours(s.sun)) : '';
   const run = s.type === 'circle' && overflow ? runLabels.get(s.id) : undefined;
   const label = run && named ? run.text : room(displayLabel(s)) ? displayLabel(s) : '';
+  // A bed's, a path's or a sun area's name (and its hours), with what's over it: in a group of its own, moved where the
+  // last full redraw put it, clear of the plants, and drawn over them (liftAreaNames). Over a plant all the same, a halo.
+  const area = isAreaNamed(s) ? areaShift.get(s.id) : undefined;
+  const nameG = isAreaNamed(s) ? svgEl('g', { 'data-role': 'area-name', 'data-name-of': s.id,
+    transform: area && (area.dx || area.dy) ? `translate(${Math.round(area.dx * 10) / 10} ${Math.round(area.dy * 10) / 10})` : null }) : null;
+  const into = nameG ?? g;
+  const areaHalo = area?.over ? { stroke: 'rgba(255,255,255,0.85)', 'stroke-width': 3, 'paint-order': 'stroke', 'stroke-linejoin': 'round' } : {};
   if (fitted && named) {
     // Wrapped and sized to fit inside the circle (or below a tree's trunk).
     const lh = fitted.fontSize * LABEL_LINE_HEIGHT;
@@ -420,21 +430,22 @@ export function shapeGroup(s: Shape): SVGGElement {
     // Not fitted (other shapes), or a plant's name over its edge (room for it, or selected): one line, with a halo.
     const halo = fitted === null || overflow;
     if (halo) fs = OVERFLOW_PX * lk;
-    g.appendChild(svgEl('text', {
+    into.appendChild(svgEl('text', {
       x: labelX, y: sunText ? labelY - fs * 0.6 : labelY, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
       'font-size': fs, fill: '#0f172a', 'pointer-events': 'none',
       style: 'user-select:none;font-weight:500;',
-      transform: rotTransform || null,
+      transform: rotTransform || null, ...areaHalo,
       ...(halo ? { 'data-role': 'plant-label', stroke: 'rgba(255,255,255,0.85)', 'stroke-width': 3, 'paint-order': 'stroke', 'stroke-linejoin': 'round' } : {}),
     }, label));
   }
   if (sunText) {
-    g.appendChild(svgEl('text', {
+    into.appendChild(svgEl('text', {
       x: labelX, y: label ? labelY + fs * 0.7 : labelY, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
       'font-size': Math.max(10 * lk, fs * 0.85), fill: '#1e293b', 'pointer-events': 'none', 'data-role': 'sun-label',
-      style: 'user-select:none;', transform: rotTransform || null,
+      style: 'user-select:none;', transform: rotTransform || null, ...areaHalo,
     }, sunText));
   }
+  if (nameG?.firstChild) g.appendChild(nameG);
   // To remove: a red cross over the shape. To move: a blue arrow badge (hidden with the names; the cross isn't a badge).
   if (s.status === 'remove' || (s.status === 'move' && named)) {
     const b = shapeBBox(s);
@@ -454,57 +465,142 @@ export function shapeGroup(s: Shape): SVGGElement {
         svgEl('path', { d: `M${bx - 4.5},${by}h9M${bx + 1.5},${by - 3}l3,3l-3,3M${bx - 1.5},${by - 3}l-3,3l3,3`, stroke: '#fff', 'stroke-width': 1.4, fill: 'none', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })));
     }
   }
-  // Plants whose spot doesn't match their sun needs get a small warning badge.
-  if (s.role === 'plant' && s.plantId && named) {
-    const check = checkPlantSun(s, plantsById[s.plantId], state.shapes);
-    if (sunWarningShown(check, s, state.sunWarnings)) {
-      const r = vineDot ?? (s.type === 'circle' ? s.radius * ppf : Math.min(boxSize(s).w, boxSize(s).h) * ppf / 2);
-      const bx = labelX + r * 0.7, by = labelY - r * 0.7;
-      // (A warning triangle, as Warnings calls it, ⚠: each badge its own shape, told apart without color. Jason, Oct 31,
-      // from round 3: Alex, colorblind, saw this and the hardiness badge as one. Circle: hardiness; square: poison;
-      // diamond: utilities.)
-      g.appendChild(svgEl('g', { 'data-role': 'sun-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },
-        svgEl('path', { d: `M${bx},${by - 9.5}L${bx + 9.5},${by + 7}L${bx - 9.5},${by + 7}Z`, fill: '#d97706', stroke: '#fff', 'stroke-width': 1.5, 'stroke-linejoin': 'round' }),
-        svgEl('text', { x: bx, y: by + 2, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 10, 'font-weight': 700, fill: '#fff' }, '!')));
-    }
-  }
-  // Too cold, or maybe too warm, where the garden is (Warnings, at Hardiness; Jason, Oct 30): a badge low on the right, a
-  // snowflake on blue or a sun on red. Not a tree already there, nor one coming out.
-  const living = s.status !== 'gone' && s.status !== 'remove' && !(s.type === 'circle' && s.tree);
-  const data = s.role === 'plant' && s.plantId ? plantsById[s.plantId] : undefined;
-  const hardy = data && named && living && s.status !== 'existing' && state.hardyWarnings ? hardinessWarning(data) : null;
-  if (hardy && s.hardyDismissed !== hardy.line && !dismissedForPlan('hardy', s.plantId, hardy.line)) {
-    const r = vineDot ?? (s.type === 'circle' ? s.radius * ppf : Math.min(boxSize(s).w, boxSize(s).h) * ppf / 2);
-    const bx = labelX + r * 0.7, by = labelY + r * 0.7;
-    g.appendChild(svgEl('g', { 'data-role': 'hardy-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },
-      svgEl('circle', { cx: bx, cy: by, r: 8, fill: hardy.cold ? '#2563eb' : '#dc2626', stroke: '#fff', 'stroke-width': 1.5 }),
-      svgEl('text', { x: bx, y: by + 0.5, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 10, 'font-weight': 700, fill: '#fff' }, hardy.cold ? '\u2744' : '\u2600')));
-  }
-  // Poisonous to the people or pets in the yard (src/yard.ts): a badge high on the left, a square (not a circle like
-  // the others: told apart without color).
-  // (Dismissed for this copy, or for the plant across the plan: src/dismissals.ts. Its details still say so.)
-  const poison = data && named && living ? poisonSaid(data) : '';
-  if (poison && s.poisonDismissed !== poison && !dismissedForPlan('poison', s.plantId, poison)) {
-    const r = vineDot ?? (s.type === 'circle' ? s.radius * ppf : Math.min(boxSize(s).w, boxSize(s).h) * ppf / 2);
-    const bx = labelX - r * 0.7, by = labelY - r * 0.7;
-    g.appendChild(svgEl('g', { 'data-role': 'poison-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },
-      svgEl('rect', { x: bx - 7.5, y: by - 7.5, width: 15, height: 15, rx: 3, fill: '#7c2d12', stroke: '#fff', 'stroke-width': 1.5 }),
-      svgEl('text', { x: bx, y: by + 0.5, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#fff' }, '!')));
-  }
-  // Plants too near a power line, a buried line or a septic field for what they are (src/utilities.ts): a badge in
-  // the power line's orange, low on the other side.
-  if (s.role === 'plant' && s.type === 'circle' && named && shownUtilities.length) {
-    const issues = utilityIssues(s, shownUtilities, plantsById);
-    if (utilityWarningShown(s, issues)) {
-      // (A tree's by its trunk, not out at its canopy's edge, where it sat on other plants' badges: the review, Nov 1.)
-      const r = vineDot ?? Math.min(s.radius * ppf, isTree(s, plantsById) ? 22 : Infinity);
-      const bx = labelX - r * 0.7, by = labelY + r * 0.7;
-      g.appendChild(svgEl('g', { 'data-role': 'utility-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },
-        svgEl('path', { d: `M${bx},${by - 9.5}L${bx + 9.5},${by}L${bx},${by + 9.5}L${bx - 9.5},${by}Z`, fill: '#ea580c', stroke: '#fff', 'stroke-width': 1.5, 'stroke-linejoin': 'round' }),
-        svgEl('text', { x: bx, y: by + 0.5, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#fff' }, '!')));
-    }
+  // Warnings: badges on the plant itself, stacked at a corner of its circle (src/badges.ts; Jason's notes after release
+  // 3: they sat by its name, and for a run of plants named once, between plants). Drawn over every plant, unless it's
+  // hidden under a solid one (liftBadges).
+  const badges = plantBadges(s);
+  if (badges.length) {
+    const h = badgeHolder(s, ppf, badges.length);
+    const known = badgeSpots.get(s.id);
+    // (Where the last full redraw put them, kept while it's dragged: a full redraw follows on release.)
+    const spot = known && known.n === badges.length ? known.spot : placeBadges(h);
+    const at = badgeCenters(h, spot);
+    g.appendChild(svgEl('g', { 'data-role': 'plant-badges', 'data-badges-of': s.id, 'data-corner': CORNER_NAMES[spot.corner], 'pointer-events': 'none' },
+      ...badges.map((b, i) => badgeEl(b, at[i].x, at[i].y, ppf))));
   }
   return g;
+}
+
+/** A warning badge on a plant: its kind, and for hardiness, too cold (a snowflake) or maybe too warm (a sun). */
+interface Badge { kind: BadgeKind; cold?: boolean }
+const CORNER_NAMES = ['top-right', 'top-left', 'bottom-right', 'bottom-left'] as const;
+/** A badge's scale: as drawn close in, smaller with the plan once zoomed out past 25% (badgeScale). */
+const badgeK = (ppf: number) => (ppf >= FAR_OUT_PPF ? 1 : Math.max(0.4, ppf / FAR_OUT_PPF));
+/** Whether a plant's dashed full-size ring is shown: selected alone, all of them from Layers, or placing more of it. */
+const fullShown = (s: Shape) => (isSelected(s.id) && state.selectedIds.length === 1) || state.showFullSize || (!!state.placing && s.plantId === state.placing.plantId);
+/**
+ * The warning badges a plant shows now, in the order they stack, safety first (src/badges.ts): poisonous to who's in the
+ * yard, too near a utility, too cold or too warm, the wrong sun. None with names and badges hidden, unless it's selected.
+ */
+function plantBadges(s: Shape): Badge[] {
+  if (s.role !== 'plant' || !(state.showNames || isSelected(s.id))) return [];
+  const data = s.plantId ? plantsById[s.plantId] : undefined;
+  // (Hardiness and poison: not a tree already there, nor one gone or coming out.)
+  const living = s.status !== 'gone' && s.status !== 'remove' && !(s.type === 'circle' && s.tree);
+  const out: Badge[] = [];
+  // Poisonous to the people or pets in the yard (src/yard.ts). (Dismissed for this copy, or for the plant across the
+  // plan: src/dismissals.ts, with fewer at risk than when it was too. Its details still say so.)
+  const poison = data && living ? poisonSaid(data) : '';
+  if (poison && !poisonCovered(s.poisonDismissed, poison) && !dismissedForPlan('poison', s.plantId, poison)) out.push({ kind: 'poison' });
+  // Too near a power line, a buried line or a septic field for what it is (src/utilities.ts).
+  if (s.type === 'circle' && shownUtilities.length && utilityWarningShown(s, utilityIssues(s, shownUtilities, plantsById))) out.push({ kind: 'utility' });
+  // Too cold, or maybe too warm, where the garden is (Warnings, at Hardiness; Jason, Oct 30): not one already there.
+  const hardy = data && living && s.status !== 'existing' && state.hardyWarnings ? hardinessWarning(data) : null;
+  if (hardy && s.hardyDismissed !== hardy.line && !dismissedForPlan('hardy', s.plantId, hardy.line)) out.push({ kind: 'hardy', cold: hardy.cold });
+  // Its spot doesn't match the sun it wants.
+  if (s.plantId && sunWarningShown(checkPlantSun(s, data, state.shapes), s, state.sunWarnings)) out.push({ kind: 'sun' });
+  return out;
+}
+/**
+ * What a plant's badges go on, in screen px (src/badges.ts): a climbing vine's spot; a tree's trunk, its crown being
+ * over other plants (where its utility badge sat on theirs: the review, Nov 1); else its circle as drawn, with its
+ * full-size ring if that's shown; or the middle of a plant drawn as some other shape.
+ */
+function badgeHolder(s: Shape, ppf: number, n: number): BadgeHolder {
+  const k = badgeK(ppf);
+  if (s.type === 'circle') {
+    const x = (s.x - state.offsetX) * ppf, y = (s.y - state.offsetY) * ppf;
+    if (supportOf(s, state.shapes)) return { x, y, r: Math.max(4, VINE_DOT_RADIUS * ppf), n, k, vine: true };
+    const r = drawnRadius(s) * ppf, full = fullShown(s) ? fullRingRadius(s) : null;
+    return { x, y, r: isTree(s, plantsById) ? Math.min(r, 22) : r, full: full ? full * ppf : null, n, k };
+  }
+  const c = shapeCenter(s), { w, h } = boxSize(s);
+  return { x: (c.x - state.offsetX) * ppf, y: (c.y - state.offsetY) * ppf, r: (Math.min(w, h) * ppf) / 2, n, k };
+}
+/** One badge, each kind its own shape, told apart without color (Jason, Oct 31, from round 3: Alex, colorblind). */
+function badgeEl(b: Badge, bx: number, by: number, ppf: number): SVGElement {
+  const t = badgeScale(ppf, bx, by);
+  const mark = (dy: number, size: number, text: string) => svgEl('text', { x: bx, y: by + dy, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': size, 'font-weight': 700, fill: '#fff' }, text);
+  // Sun: a warning triangle, as Warnings calls it, ⚠.
+  if (b.kind === 'sun') return svgEl('g', { 'data-role': 'sun-warning', transform: t },
+    svgEl('path', { d: `M${bx},${by - 9.5}L${bx + 9.5},${by + 7}L${bx - 9.5},${by + 7}Z`, fill: '#d97706', stroke: '#fff', 'stroke-width': 1.5, 'stroke-linejoin': 'round' }), mark(2, 10, '!'));
+  // Hardiness: a circle, a snowflake on blue or a sun on red.
+  if (b.kind === 'hardy') return svgEl('g', { 'data-role': 'hardy-warning', transform: t },
+    svgEl('circle', { cx: bx, cy: by, r: 8, fill: b.cold ? '#2563eb' : '#dc2626', stroke: '#fff', 'stroke-width': 1.5 }), mark(0.5, 10, b.cold ? '\u2744' : '\u2600'));
+  // Poison: a square.
+  if (b.kind === 'poison') return svgEl('g', { 'data-role': 'poison-warning', transform: t },
+    svgEl('rect', { x: bx - 7.5, y: by - 7.5, width: 15, height: 15, rx: 3, fill: '#7c2d12', stroke: '#fff', 'stroke-width': 1.5 }), mark(0.5, 11, '!'));
+  // Utilities: a diamond, in the power line's orange.
+  return svgEl('g', { 'data-role': 'utility-warning', transform: t },
+    svgEl('path', { d: `M${bx},${by - 9.5}L${bx + 9.5},${by}L${bx},${by + 9.5}L${bx - 9.5},${by}Z`, fill: '#ea580c', stroke: '#fff', 'stroke-width': 1.5, 'stroke-linejoin': 'round' }), mark(0.5, 11, '!'));
+}
+/** Each plant's badges' corner, worked out at the last full redraw (refreshBadgeLayout), with how many it had then. */
+let badgeSpots = new Map<string, { spot: BadgeSpot; n: number }>();
+/**
+ * Where each plant's badges go (src/badges.ts placeBadges), plant by plant in the order they're drawn: clear of the
+ * badges placed before, of its full-size ring, and of the plants around it, where it can be. Plants well off the screen,
+ * and those hidden under a solid one (their badges are under it too), are left at their first corner.
+ */
+function refreshBadgeLayout() {
+  badgeSpots = new Map();
+  const ppf = pxPerFoot(), k = badgeK(ppf);
+  const order = paintOrder(state.shapes);
+  // (The plants a badge would sit on: not those drawn see-through, as a canopy is, nor gone ones. By x, to search.)
+  const circles = order.filter((s): s is CircleShape => drawnBySize(s) && !seeThrough.has(s.id) && s.status !== 'gone')
+    .map((s) => ({ id: s.id, x: (s.x - state.offsetX) * ppf, y: (s.y - state.offsetY) * ppf, r: drawnRadius(s) * ppf }))
+    .sort((a, b) => a.x - b.x);
+  const maxR = circles.reduce((m, c) => Math.max(m, c.r), 0);
+  const margin = Math.max(state.canvasW, state.canvasH) / 2;
+  const placed: BadgeBox[] = [];
+  for (const s of order) {
+    if (s.role !== 'plant' || hidden.has(s.id)) continue;
+    const badges = plantBadges(s);
+    if (!badges.length) continue;
+    const h = badgeHolder(s, ppf, badges.length);
+    if (h.x < -margin || h.y < -margin || h.x > state.canvasW + margin || h.y > state.canvasH + margin) continue;
+    // Its neighbors within reach: not it, nor a plant under it, nor one it's under.
+    const own = s.type === 'circle' ? drawnRadius(s) * ppf : h.r;
+    const reach = Math.max(own, h.full ?? 0) + (badges.length * BADGE_STEP + 3 * BADGE_HALF) * k;
+    let lo = 0, hi = circles.length;
+    while (lo < hi) { const m = (lo + hi) >> 1; if (circles[m].x < h.x - reach - maxR) lo = m + 1; else hi = m; }
+    const near: Circle[] = [];
+    for (let i = lo; i < circles.length && circles[i].x <= h.x + reach + maxR; i++) {
+      const c = circles[i], d = Math.hypot(c.x - h.x, c.y - h.y);
+      if (c.id !== s.id && d >= own && d >= c.r && d - c.r <= reach) near.push(c);
+    }
+    // (And clear of its own "to move" badge, at its top left.)
+    const mine: BadgeBox[] = [];
+    if (s.status === 'move') {
+      const b = shapeBBox(s), mx = (b.minX - state.offsetX) * ppf + 2, my = (b.minY - state.offsetY) * ppf + 2, e = BADGE_HALF * k;
+      mine.push({ x0: mx - e, y0: my - e, x1: mx + e, y1: my + e });
+    }
+    const spot = placeBadges(h, [...placed, ...mine], near);
+    badgeSpots.set(s.id, { spot, n: badges.length });
+    placed.push(...badgeBoxes(h, spot));
+  }
+}
+/**
+ * The plants' badges over every plant, so a taller neighbor drawn later never covers them: moved, not copied, from each
+ * plant's group into one group over the plants. Not a plant's hidden under a solid one: its badges would sit on the plant
+ * over it, and read as that one's.
+ */
+function liftBadges(shapes: Element) {
+  let top = shapes.querySelector(':scope > g[data-role=badges-over]');
+  if (!top) top = svgEl('g', { 'data-role': 'badges-over', 'pointer-events': 'none' });
+  for (const b of shapes.querySelectorAll<SVGElement>(':scope > g[data-shape-group] > [data-role=plant-badges]')) {
+    if (!hidden.has(b.dataset.badgesOf!)) top.appendChild(b);
+  }
+  shapes.appendChild(top); // (last, then the hidden plants' marks and the trunks after it)
 }
 
 /** A text note: the text itself (with a light halo so it reads over anything) and an invisible box to tap. */
@@ -689,6 +785,51 @@ export function runLabelSpot(run: CircleShape[], w: number, h: number, ppf: numb
   const spots = [mid, ...near.map((s) => ({ x: s.x, y: s.y })), ...(column ? [...sides, ...ends] : [...ends, ...sides])];
   return spots.find((p) => !placed.some((q) => overlaps(q, boxAt(p, w, h, ppf)))) ?? null;
 }
+/**
+ * A shape whose name is one of the yard's areas' (a bed, a lawn, a path, a building, a sun area: any but a circle, a text
+ * note, or a boundary named along its line), placed clear of the plants as a printout places it (src/area-names.ts).
+ */
+const isAreaNamed = (s: Shape): boolean => s.type !== 'circle' && s.type !== 'text' && !(s.role === 'boundary' && (s.type === 'poly' || s.type === 'line'));
+/**
+ * An area's name and sun hours as shapeGroup draws them, on the screen (px): the middle of the two lines, their size, its
+ * turn; null when neither shows (names hidden; or, zoomed far out, wider than the shape).
+ */
+function areaNameAt(s: Shape, ppf: number, lk: number) {
+  const sel = isSelected(s.id);
+  if (!state.showNames && !sel) return null;
+  let x: number, y: number, fs: number, angle = 0;
+  if (s.type === 'poly' || s.type === 'line') {
+    const lp = pathLabelPoint(s), { w, h } = boxSize(s);
+    x = (lp.x - state.offsetX) * ppf; y = (lp.y - state.offsetY) * ppf;
+    fs = (s.type === 'line' ? 12 : Math.max(10, Math.min(14, Math.min(w, h) * ppf * 0.2))) * lk;
+    if (s.type === 'line' && !s.pathWidth) y -= 10 * lk; // (above a thin line)
+  } else if (s.type === 'rect' || s.type === 'oval' || s.type === 'triangle') {
+    const w = s.width * ppf, h = s.height * ppf;
+    x = (s.x - state.offsetX) * ppf + w / 2; y = (s.y - state.offsetY) * ppf + h / 2;
+    fs = Math.max(10, Math.min(14, Math.min(w, h) * 0.2)) * lk;
+    angle = boxLabelAngle(s.rotation || 0);
+  } else return null;
+  const b = shapeBBox(s);
+  const room = (text: string) => ppf >= FAR_OUT_PPF || sel || textWidth1(text) * fs <= Math.max(b.maxX - b.minX, b.maxY - b.minY) * ppf;
+  const hours = s.role === 'shade' && s.sun ? '\u2600 ' + formatHours(sunHours(s.sun)) : '';
+  const sun = hours && room(hours) ? hours : '', label = displayLabel(s) && room(displayLabel(s)) ? displayLabel(s) : '';
+  if (!label && !sun) return null;
+  const sfs = Math.max(10 * lk, fs * 0.85);
+  const top = label ? y - fs * (sun ? 1.2 : 0.6) : y - sfs * 0.6, bottom = sun ? (label ? y + fs * 0.7 : y) + sfs * 0.6 : y + fs * 0.6;
+  return { x, y: (top + bottom) / 2, w: Math.max(label ? textWidth1(label) * fs : 0, sun ? textWidth1(sun) * sfs : 0), h: bottom - top, fs, angle, label, sun };
+}
+/** Each area's name moved (px) from where its shape puts it, and whether it's over a plant there (refreshLabelLayout). */
+let areaShift = new Map<string, { dx: number; dy: number; over: boolean }>();
+/**
+ * The areas' names over every plant (a bed's under its plants was hidden: the general bug hunt, Nov 1), moved, not
+ * copied, from each shape's group into one group after them all.
+ */
+function liftAreaNames(shapes: Element) {
+  let top = shapes.querySelector(':scope > g[data-role=area-names]');
+  if (!top) top = svgEl('g', { 'data-role': 'area-names', 'pointer-events': 'none' });
+  for (const n of shapes.querySelectorAll(':scope > g[data-shape-group] > [data-role=area-name]')) top.appendChild(n);
+  shapes.appendChild(top);
+}
 function refreshLabelLayout() {
   const ppf = pxPerFoot(), lk = labelScale();
   overflowLabels = new Set();
@@ -699,11 +840,19 @@ function refreshLabelLayout() {
   hiddenShift = new Map();
   const hiddenFits: { s: CircleShape; box: Box }[] = [];
   const waiting: { s: CircleShape; box: Box }[] = [];
-  for (const s of paintOrder(state.shapes)) {
+  const areas: { s: Shape; at: NonNullable<ReturnType<typeof areaNameAt>> }[] = [];
+  const shown = paintOrder(state.shapes);
+  for (const s of shown) {
     // Names hidden: a name that isn't drawn keeps no room (a selected plant's shows beside it).
     if (!state.showNames && !state.selectedIds.includes(s.id)) continue;
     if (!isPlantCircle(s)) {
-      // Other shapes' names (a bed's, a path's) are there first: plant names stay off them.
+      // A bed's, a path's or a sun area's name: placed clear of the plants, below, before the plants' names.
+      if (isAreaNamed(s)) {
+        const at = areaNameAt(s, ppf, lk);
+        if (at) areas.push({ s, at });
+        continue;
+      }
+      // Other shapes' names (a round one's) are there first: plant names stay off them.
       const label = s.type === 'text' ? '' : displayLabel(s);
       if (!label) continue;
       const w = textWidth1(label) * 12 * lk, h = 14 * lk;
@@ -731,6 +880,30 @@ function refreshLabelLayout() {
       const w = textWidth1(displayLabel(s)) * OVERFLOW_PX * lk, h = OVERFLOW_PX * lk * LABEL_LINE_HEIGHT;
       waiting.push({ s, box: { x0: cx - w / 2, x1: cx + w / 2, y0: cy - h / 2, y1: cy + h / 2 } });
     }
+  }
+  // The areas' names: where their shapes put them, or, with a plant there, the first spot clear of the plants and of
+  // each other just above the shape, below it, to its right or to its left, as a printout places them (src/area-names.ts;
+  // the general bug hunt, Nov 1: plants hid "Bed" and all but an "n" of "Morning sun"). Kept, where none is clear: the
+  // screen can be zoomed in. On the screen, in px; the plant names' room is in px from the plan's origin.
+  areaShift = new Map();
+  if (areas.length) {
+    const ox = state.offsetX * ppf, oy = state.offsetY * ppf;
+    const plants = shown.filter((s): s is CircleShape => s.type === 'circle' && isPlant(s))
+      .map((s) => ({ x: s.x * ppf - ox, y: s.y * ppf - oy, r: drawnRadius(s) * ppf }));
+    const names: AreaName[] = areas.map(({ s, at }) => {
+      const b = shapeBBox(s);
+      return { label: at.label || at.sun, x: at.x, y: at.y, w: at.w, h: at.h, fs: at.fs, angle: at.angle, bed: isBed(s), size: (b.maxX - b.minX) * (b.maxY - b.minY),
+        fixed: !!at.angle || s.type === 'line', gone: s.status === 'gone', around: { x0: b.minX * ppf - ox, y0: b.minY * ppf - oy, x1: b.maxX * ppf - ox, y1: b.maxY * ppf - oy } };
+    });
+    // (A name moved stays within the plan, 2 ft round it as a picture has, not the screen: where it goes doesn't change
+    // as the plan is panned.)
+    const all = unionBounds(shown.map(shapeBBox))!;
+    const within = { x0: (all.minX - 2) * ppf - ox, y0: (all.minY - 2) * ppf - oy, x1: (all.maxX + 2) * ppf - ox, y1: (all.maxY + 2) * ppf - oy };
+    placeAreaNames(names, plants, within, 1, true).forEach((p, i) => {
+      if (!p) return;
+      areaShift.set(areas[i].s.id, { dx: p.x - names[i].x, dy: p.y - names[i].y, over: p.overPlant });
+      placed.push({ x0: p.box.x0 + ox, x1: p.box.x1 + ox, y0: p.box.y0 + oy, y1: p.box.y1 + oy });
+    });
   }
   // Hidden plants' names, drawn over the plant hiding them (liftHidden), where they're clear of the names in sight: at
   // their middle, or just below their outline, or above it; in a crowd, the outline alone.
@@ -812,6 +985,7 @@ export function redrawCanvas() {
   refreshHidden();
   refreshUtilities();
   refreshLabelLayout();
+  refreshBadgeLayout();
   const svg = canvasSvg();
   if (!svg) return;
   ensureLayers(svg);
@@ -828,6 +1002,8 @@ export function redrawCanvas() {
   renderGrid(grid);
   const shapes = layer(svg, 'shapes');
   for (const s of paintOrder(state.shapes)) shapes.appendChild(shapeGroup(s));
+  liftAreaNames(shapes);
+  liftBadges(shapes);
   liftHidden(shapes);
   liftTrunks(shapes);
   const mq = marqueeRect();
@@ -884,9 +1060,13 @@ export function redrawShapes(ids: string[]) {
     if (s && old) {
       shapes.querySelector(`:scope > g[data-role=trunks] > [data-trunk-of="${CSS.escape(id)}"]`)?.remove();
       shapes.querySelector(`:scope > g[data-role=hidden-over] > [data-label-of="${CSS.escape(id)}"]`)?.remove();
+      shapes.querySelector(`:scope > g[data-role=badges-over] > [data-badges-of="${CSS.escape(id)}"]`)?.remove();
+      shapes.querySelector(`:scope > g[data-role=area-names] > [data-name-of="${CSS.escape(id)}"]`)?.remove();
       old.replaceWith(shapeGroup(s));
     }
   }
+  liftAreaNames(shapes);
+  liftBadges(shapes);
   liftHidden(shapes);
   liftTrunks(shapes);
 }
@@ -996,6 +1176,14 @@ export function redrawHandles() {
  */
 /** The plan's width when last measured (none yet: the first measure moves nothing). */
 let measuredW: number | null = null;
+/**
+ * What's to be kept in view when the plan's width changes (a phone turned), set by what's showing it: the walk through
+ * Warnings keeps the plants it's on (src/ui/warnings-sheet.ts). Run once the plan has its new size, before it's drawn.
+ */
+let keepOnTurn: (() => void) | null = null;
+export function keepInViewOnTurn(fn: (() => void) | null) { keepOnTurn = fn; }
+/** When the width last changed: a phone turned may settle its height a moment later, which is the same turn. */
+let turnedAt = -Infinity;
 export function resizeCanvas() {
   const wrap = document.getElementById('canvas-wrap');
   const svg = canvasSvg();
@@ -1005,13 +1193,21 @@ export function resizeCanvas() {
   // A window made narrower or wider (a phone turned, a window resized) keeps what was in the middle in the middle,
   // across: the plan stayed pinned at its left edge, and the bed selected went off screen (Diego, Oct 30). Not
   // up and down: the keyboard opening shortens it, and the plan stays put for that.
-  if (measuredW != null && w !== measuredW) state.offsetX -= (w - measuredW) / 2 / pxPerFoot();
+  const turned = measuredW != null && w !== measuredW;
+  if (turned) state.offsetX -= (w - measuredW!) / 2 / pxPerFoot();
   measuredW = w;
+  const h = Math.max(100, Math.round(rect.height));
+  const settled = !turned && h !== state.canvasH && performance.now() - turnedAt < 1500;
   state.canvasW = w;
-  state.canvasH = Math.max(100, Math.round(rect.height));
+  state.canvasH = h;
   if (!typingNow()) restingH = state.canvasH;
   svg.setAttribute('width', String(state.canvasW));
   svg.setAttribute('height', String(state.canvasH));
+  // (Turned, and its height settling just after: what's kept in view is put back in view, the walk's plants clear of
+  // its chip. The warnings bug hunt, Nov 1: turned mid-walk, the chip covered the maple. Not the keyboard: it changes
+  // only the height.)
+  if (turned) turnedAt = performance.now();
+  if ((turned || settled) && keepOnTurn) keepOnTurn();
   redrawCanvas();
 }
 /** The plan's height when last measured with nothing being typed in: on a phone, as it is with its keyboard away. */

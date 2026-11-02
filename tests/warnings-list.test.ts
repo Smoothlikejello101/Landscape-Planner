@@ -215,6 +215,32 @@ describe('dismissing warnings from the list', () => {
     state.household = { kids: false, dogs: '', cats: false, horses: false, answered: false };
   });
 
+  it('a dismissed poison warning stays dismissed with fewer in the yard at risk, and comes back with someone newly at risk (the warnings bug hunt, Nov 1)', () => {
+    plantsById['wl-mayapple'] = { id: 'wl-mayapple', common: 'Mayapple', form: 'Perennial', width: { min: 1, max: 1.5, med: 1 }, poison: { severity: 'high', parts: ['leaves', 'roots'] }, problem_for: ['dogs', 'cats'] } as unknown as Plant;
+    plantsById['wl-foxglove'] = { id: 'wl-foxglove', common: 'Foxglove', form: 'Perennial', width: { min: 1, max: 1.5, med: 1 }, poison: { severity: 'high', parts: ['leaves'] }, problem_for: ['dogs', 'cats'] } as unknown as Plant;
+    state.shapes.push(at('may', 'wl-mayapple', -80, { radius: 0.5 }), at('fox1', 'wl-foxglove', -90, { radius: 0.5 }), at('fox2', 'wl-foxglove', -100, { radius: 0.5 }));
+    const yard = (kids: boolean, dogs: boolean, cats: boolean) => { state.household = { kids, dogs: dogs ? 'hideToxic' : '', cats, horses: false, answered: true }; };
+    const poison = () => of('poison').map((r) => [r.ids.join(','), r.dismissed]);
+    yard(true, true, false);
+    // The mayapple across the plan; one foxglove by itself.
+    setDismissed(of('poison').filter((r) => r.ids.includes('may')), true);
+    state.shapes.find((s) => s.id === 'fox1')!.poisonDismissed = of('poison').find((r) => r.ids.includes('fox1'))!.key;
+    expect(poison()).toEqual([['fox2', false], ['may', true], ['fox1', true]]);
+    // The kids out of the yard, then the dogs too, then both back: still dismissed, as fewer (or the same) are at risk.
+    yard(false, true, false);
+    expect(poison()).toEqual([['fox2', false], ['may', true], ['fox1', true]]);
+    yard(false, false, false);
+    expect(poison()).toEqual([]); // (nobody in the yard: nothing to warn of)
+    yard(true, true, false);
+    expect(poison()).toEqual([['fox2', false], ['may', true], ['fox1', true]]);
+    // Cats added: newly at risk, so both come back.
+    yard(true, true, true);
+    expect(poison()).toEqual([['may', false], ['fox1,fox2', false]]);
+    // What's kept is what it said when dismissed.
+    expect(state.dismissed?.poison).toEqual({ 'wl-mayapple': 'Poisonous to people; A problem for dogs' });
+    state.household = { kids: false, dogs: '', cats: false, horses: false, answered: false };
+  });
+
   it("says each as the plant's details do: name first, sun naming its area, poison with its severity, heights in whole feet", () => {
     state.household = { kids: true, dogs: 'hideToxic', cats: false, horses: false, answered: true };
     plantsById['wl-mayapple'] = { id: 'wl-mayapple', common: 'Mayapple', form: 'Perennial', width: { min: 1, max: 1.5, med: 1 }, poison: { severity: 'high', parts: ['leaves', 'roots'] }, problem_for: ['dogs'] } as unknown as Plant;
@@ -249,11 +275,12 @@ describe('what the checks can do', () => {
   afterEach(() => { state.shapes = []; state.location = null; state.roleViews = {}; state.viewFilter = { status: '', phase: '', showGone: false }; });
   const cant = () => Object.fromEntries(kindStates().map((k) => [k.kind, k.on ? k.cantRun ?? 'runs' : 'off']));
 
-  it('a new plan: poison until kids or pets are chosen, utilities until one is drawn, hardiness until a ZIP, sun until a sun area', () => {
+  it('a new plan: poison until kids or pets are chosen, hardiness until a ZIP, sun until a sun area; utilities with none drawn can run (Jason, after release 3)', () => {
     state.shapes = [at('x', tropical.id, 0)];
-    expect(cant()).toEqual({ poison: 'yard', utility: 'utilities', hardy: 'zip', sun: 'sun', crowding: 'runs', fruit: 'runs' });
-    expect(warningsSummary()).toMatchObject({ active: 0, dismissed: 0, cantRun: 4, hidden: null });
-    expect(buttonSaid(warningsSummary())).toBe('Warnings: none found, 4 checks can’t run yet');
+    // (A yard may have no utility lines at all: none drawn isn't a check that can't run.)
+    expect(cant()).toEqual({ poison: 'yard', utility: 'runs', hardy: 'zip', sun: 'sun', crowding: 'runs', fruit: 'runs' });
+    expect(warningsSummary()).toMatchObject({ active: 0, dismissed: 0, cantRun: 3, hidden: null });
+    expect(buttonSaid(warningsSummary())).toBe('Warnings: none found, 3 checks can’t run yet');
     // Each given what it needs.
     state.household = { kids: true, dogs: '', cats: false, horses: false, answered: true };
     state.location = { zip: '71923', zone: '8a' };
@@ -282,7 +309,7 @@ describe('what the checks can do', () => {
     // (Not a false all-clear: the button says it's the plants shown.)
     state.viewFilter = { status: 'planned', phase: '', showGone: false };
     state.hardyWarnings = false;
-    expect(buttonSaid(warningsSummary())).toBe('Warnings: none in the plants shown (some plants hidden), 3 checks can’t run yet');
+    expect(buttonSaid(warningsSummary())).toBe('Warnings: none in the plants shown (some plants hidden), 2 checks can’t run yet');
     state.viewFilter = { status: '', phase: '', showGone: false };
     state.roleViews = { plant: { hidden: true } };
     expect(hiddenFromChecks()?.said).toBe('Layers: Plants hidden');

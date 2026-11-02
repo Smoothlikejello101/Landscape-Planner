@@ -12,6 +12,7 @@ import { isUtilityKind, utilityLook } from './utility-kinds';
 import type { Bounds, Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapeFilter, ShapePatch, Status } from './types';
 import { cleanPhaseName, MAX_PHASES, shownWith, statusLabel, statusPatch, today } from './status';
 import { render } from './ui/render';
+import { warningsChangedInPlace } from './ui/warnings-sheet';
 import { deepClone, now, snap, uid } from './util';
 import { setRadius } from './trees';
 
@@ -49,6 +50,9 @@ export function updateSelectedSilent(patch: ShapePatch) {
   save();
   pushHistoryDebounced();
   redrawCanvas();
+  // (The plan's badges are redrawn with it; the Warnings button's count, and Warnings beside the plan, are said afresh
+  // in place, not with a render: a sun area's hours dragged, say. The warnings bug hunt, Nov 1.)
+  warningsChangedInPlace();
 }
 export function deleteShapesByIds(ids: string[]) {
   flushHistoryDebounce();

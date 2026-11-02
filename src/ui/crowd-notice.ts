@@ -95,16 +95,20 @@ export function crowdWords(shape: Shape, c: Crowd, more: number, crowded: boolea
   const name = nameOf(shape), other = nameOf(c.other);
   const also = more > 0 ? ` (+${more} more)` : '';
   const apart = `${f(c.distance)} ft apart, where about ${f(c.recommended)} ft is usual for these two`;
+  // Two of a kind: "Two Snowberry", not "Snowberry and Snowberry" (Jason's notes after release 3; a plant's name as a
+  // nursery says it, no guessed plural: src/dismissals.ts copiesSaid).
+  const same = name === other;
+  const both = same ? `Two ${name}` : `${name} and ${other}`;
   if (!crowded) {
     return {
       line: `Close to ${other}${c.bulb ? ', at its base' : ''}${also}`,
-      detail: `${name} and ${other} may quickly grow into one another: ${apart}. A little of this can be fine, if you're after a quick, full look.`,
+      detail: `${both} may quickly grow into ${same ? 'each other' : 'one another'}: ${apart}. A little of this can be fine, if you're after a quick, full look.`,
     };
   }
   const how = crowdRelation(shape, c.other, plantsById);
-  if (how === 'under') return { line: `Too far under ${other}${also}`, detail: `${name} will be buried by ${other}: ${apart}. Try moving it out toward the edge of ${other}.` };
-  if (how === 'over') return { line: `Too far over ${other}${also}`, detail: `${name} will bury ${other}: ${apart}. Try moving it farther away, so ${other} is out at its edge.` };
-  return { line: `Crowding ${other}${also}`, detail: `${name} and ${other} will grow into each other: ${apart}.` };
+  if (how === 'under') return { line: `Too far under ${other}${also}`, detail: same ? `This ${name} will be buried by the other: ${apart}. Try moving it out toward the other's edge.` : `${name} will be buried by ${other}: ${apart}. Try moving it out toward the edge of ${other}.` };
+  if (how === 'over') return { line: `Too far over ${other}${also}`, detail: same ? `This ${name} will bury the other: ${apart}. Try moving it farther away, so the other is out at its edge.` : `${name} will bury ${other}: ${apart}. Try moving it farther away, so ${other} is out at its edge.` };
+  return { line: `Crowding ${other}${also}`, detail: `${both} will grow into each other: ${apart}.` };
 }
 
 /**
