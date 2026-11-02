@@ -1177,7 +1177,8 @@ export function setClipboard(data: Clipboard) {
 }
 /** Pick up a clipboard written by another tab. */
 export async function refreshClipboard() {
-  if (kv) clipboardCache = (await kv.get<Clipboard>('kv', 'clipboard')) ?? clipboardCache;
+  // (Not once a newer version has the database: this page is about to reload, and can't read it.)
+  if (kv && !superseded) clipboardCache = (await kv.get<Clipboard>('kv', 'clipboard')) ?? clipboardCache;
 }
 
 // ---------- My plants (the user's own plant library, shared by all projects) ----------
