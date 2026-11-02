@@ -3,7 +3,8 @@ import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../src/ui/render', () => ({ render: () => {}, updateStatusReadout: () => {} }));
 import { dismissedForPlan, dismissForPlan, warnForNewOnes } from '../src/dismissals';
-import { cancelHistoryDebounce, pushHistory, redo, undo } from '../src/history';
+import { cancelHistoryDebounce, pushHistory, pushHistoryDebounced, redo, undo } from '../src/history';
+import { HISTORY_DEBOUNCE_MS } from '../src/constants';
 import { plantsById, type Plant } from '../src/plants';
 import { state } from '../src/state';
 import type { Shape } from '../src/types';
@@ -201,6 +202,34 @@ describe('a fruit-partner warning dismissed for one plant (Jason, Nov 1)', () =>
     expect(dismissedForPlan('poison', fig.id, 'Poisonous to people')).toBe(true);
   });
 
+  it('a Show again just before "Just these 2" stays its own step, and no later step comes from its timer (CI on #209)', () => {
+    vi.useFakeTimers();
+    try {
+      state.shapes = [at('h', -40), at('h2', 40)];
+      pushHistory();
+      for (const s of state.shapes) s.fruitDismissed = line;
+      pushHistory();
+      // A Show again on one copy, as a plant's details do it (updateSelected: a debounced step), then at once "Just these 2"
+      // from a plan-wide dismissal.
+      state.shapes[0].fruitDismissed = '';
+      pushHistoryDebounced();
+      state.shapes.forEach((s) => { delete s.fruitDismissed; });
+      dismissForPlan('fruit', holly.id, line);
+      const steps = state.history.length;
+      warnForNewOnes('fruit', holly.id, line);
+      vi.advanceTimersByTime(HISTORY_DEBOUNCE_MS * 2);
+      expect(state.history.length).toBe(steps + 2); // the Show again, then the narrowing: no third from the timer
+      undo();
+      expect(dismissedForPlan('fruit', holly.id, line)).toBe(true); // one Undo: back to dismissed for every holly
+      // And pushHistory with a step still waiting: the waiting one is in it, never pushed again later.
+      // (After the Undo, a new step drops the redo branch: counted from the step we're on.)
+      const now = state.historyIndex + 1;
+      pushHistoryDebounced();
+      pushHistory();
+      vi.advanceTimersByTime(HISTORY_DEBOUNCE_MS * 2);
+      expect(state.history.length).toBe(now + 1);
+    } finally { vi.useRealTimers(); }
+  });
   it('copied and pasted (paste(), as the app does it), a copy keeps its own, and one shown again its \'\'', () => {
     state.shapes = [{ ...at('h', -40), fruitDismissed: line } as Shape, { ...at('h2', -50), fruitDismissed: '' } as Shape];
     expect(copyShapes(state.shapes)).toBe(true);
