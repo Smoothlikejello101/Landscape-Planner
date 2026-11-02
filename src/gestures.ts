@@ -21,6 +21,7 @@ import { hintDue, hintShown } from './hints';
 import { kindDef, kindOfShape } from './kinds';
 import { plantsById } from './plants';
 import { hideToastSaying, toast } from './ui/toast';
+import { walkKeepsPress } from './ui/warnings-sheet';
 import { applyHandleDrag, handleDragChanged, handleDragLive, startHandleDrag } from './handles';
 import { featureSpot, nearestOnEdge } from './features';
 import { featureTap } from './feature-edit';
@@ -350,12 +351,15 @@ function handleShapeTap(shape: Shape, at?: { x: number; y: number }) {
   // 2026-11-01: the first tap on a plant just placed picked the sun area under it.)
   const placedNow = selectionJustPlaced();
   if (placedNow) notJustPlaced();
-  const sel = state.selectedIds.length === 1 && !placedNow ? stack.findIndex((s) => s.id === state.selectedIds[0]) : -1;
+  // (Nor were the plants a Warnings row chose: the first press on one keeps them, and the walk through the warnings goes
+  // on. The warnings bug hunt, Nov 1: it picked the bed or the sun area under the plant, and ended the walk.)
+  const walked = walkKeepsPress(shape.id);
+  const sel = state.selectedIds.length === 1 && !placedNow && !walked ? stack.findIndex((s) => s.id === state.selectedIds[0]) : -1;
   const pick = sel >= 0 ? stack[(sel + 1) % stack.length] : stack[0];
   // (Gone down the stack: "Tap again for … under it" is done with. Round 3, Grace: it stayed over what it named.)
   if (sel >= 0) hideToastSaying(/^(Tap|Click) again for /);
   cycledFrom = sel >= 0 && pick.id !== state.selectedIds[0] ? state.selectedIds[0] : null;
-  selectOnly(pick.id);
+  if (!walked) selectOnly(pick.id);
   tapTracker.id = pick.id; tapTracker.time = t;
   // (The first few times a tap lands on a stack, on this device: say so.)
   if (sel < 0 && stack.length > 1 && hintDue(STACK_HINT, 3)) {

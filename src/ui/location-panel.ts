@@ -16,12 +16,17 @@ import { loadWild } from '../wild';
 let returnTo: PanelName | null = null;
 export function openLocation(from: PanelName | null = null) {
   returnTo = from;
+  problems.sheet = '';
   state.panel = 'location';
   render();
 }
 
 let busy = false;
-let problem = '';
+/**
+ * What went wrong, for each of the two places a ZIP is typed: each says only its own (the bug hunt, Nov 1: the first
+ * screen's "A ZIP code is five digits." showed in this sheet, opened later from the tour, before anything was typed).
+ */
+const problems = { sheet: '', first: '' };
 /** Keep what's typed across a redraw of the sheet. */
 let typed = '';
 
@@ -31,7 +36,7 @@ export function setLocation(loc: GardenLocation | null) {
   void loadWild(); // (its county's wild records, for the picker)
 }
 
-function closePanel() { state.panel = returnTo; returnTo = null; problem = ''; typed = ''; render(); }
+function closePanel() { state.panel = returnTo; returnTo = null; problems.sheet = ''; typed = ''; render(); }
 
 /**
  * The ZIP field and its Look up, for this sheet and for the first screen of an empty plan (src/ui/render.ts: Jason,
@@ -52,7 +57,7 @@ export function zipEntry(where: 'sheet' | 'first'): { input: HTMLInputElement; g
     if (busy) return;
     const zip = input.value.trim();
     const plan = state.currentProjectId;
-    busy = true; problem = ''; render();
+    busy = true; problems[where] = ''; render();
     const r = await lookUpZip(zip);
     busy = false;
     // Answered for the plan it was asked for, while what asked is still showing: its sheet, or the first screen with
@@ -72,13 +77,14 @@ export function zipEntry(where: 'sheet' | 'first'): { input: HTMLInputElement; g
       // Asked from the first screen: the answer, and where it comes from, in this sheet.
       if (first) { openLocation(); return; }
     }
-    else problem = r.why === 'format' ? 'A ZIP code is five digits.'
+    else problems[where] = r.why === 'format' ? 'A ZIP code is five digits.'
       : r.why === 'unknown' ? 'That ZIP isn’t in the zone tables (they cover the 50 states and Puerto Rico).'
       : 'Couldn’t reach the zone tables. Looking up needs a connection; what you’ve looked up before stays with the plan.';
     render();
   };
   go.addEventListener('click', () => { void lookUp(); });
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); void lookUp(); } });
+  const problem = problems[where];
   return { input, go, problem: problem ? el('div', { className: 'status warn', 'data-testid': first ? 'first-zip-problem' : 'zip-problem' }, problem) : null };
 }
 

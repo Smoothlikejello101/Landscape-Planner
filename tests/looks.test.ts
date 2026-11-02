@@ -231,4 +231,15 @@ describe("a picker row's spot: a flower in a circle of its leaves' color (Jason,
     expect(plantSpot(plant({})).said).toBe('green leaves');
     expect(plantSpot(plant({ flower_color: ['red'], flower_form: { inflorescence: ['catkin'] } })).said).toBe('green leaves');
   });
+  it('flowers NC State calls insignificant, but with a shape, are showy, as its details say (the bug hunt, Nov 1: flowering dogwood)', () => {
+    // (A dogwood's true flowers are tiny; its bracts, cross-shaped, 3–6 in, are what's seen.)
+    const dogwood = plant({ flower_color: ['white', 'yellow', 'green', 'pink'], flower_form: { inflorescence: ['cyme', 'insignificant'], shape: ['cross'], petals: ['4-5'], size: ['3-6'] } });
+    expect(plantSpot(dogwood).said).toBe('white flowers, green leaves');
+    expect(flowerChoices(dogwood).colors).toEqual(['white', 'yellow', 'pink']);
+    // Insignificant and no shape: not showy, whatever colors they come in (a holly's).
+    const holly = plant({ flower_color: ['white', 'green'], flower_form: { inflorescence: ['insignificant'], size: ['<1'] } });
+    expect(plantSpot(holly).said).toBe('green leaves');
+    expect(lookOf(holly, '#000').pal.fl).toBeUndefined();
+    expect(flowerChoices(holly).colors).toEqual([]);
+  });
 });

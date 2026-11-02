@@ -72,7 +72,9 @@ test('a tick per kind is kept with the plan: after a reload, in its file, and th
   await yaupon.getByTestId('pl-tick').click();
   await expect(yaupon.getByTestId('pl-tick')).toHaveAttribute('aria-checked', 'true');
   await expect(yaupon.getByTestId('pl-bought')).toHaveText('Bought');
-  await expect(page.getByTestId('pl-totals')).toHaveText('12 plants to buy, 4 kinds · 2 bought');
+  // (What's left to buy: the two bought aren't counted as still to buy. The list bug hunt, Nov 1.)
+  await expect(page.getByTestId('pl-totals')).toHaveText('10 plants to buy, 3 kinds · 2 bought, not yet planted');
+  await expect(page.getByTestId('pl-group-buy').locator('.pl-head')).toHaveText('To buy (10)');
   await page.waitForTimeout(400);
   await page.reload();
   await page.getByTestId('plant-list-open').click();
@@ -109,7 +111,7 @@ test("Mark planted, once bought: the kind's plants go to Planted with today's da
   await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-count')).toHaveText(/^×\s5$/);
   await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-bought')).toHaveText('Bought'); // (the tick back as it was)
   await expect(row(page, 'planted', 'Wild columbine')).toHaveCount(0);
-  await expect(page.getByTestId('pl-totals')).toHaveText('12 plants to buy, 4 kinds · 5 bought');
+  await expect(page.getByTestId('pl-totals')).toHaveText('7 plants to buy, 3 kinds · 5 bought, not yet planted');
   // Done again, and the sheet closed: the plan's own Undo takes it back too.
   await row(page, 'buy', 'Wild columbine').getByTestId('pl-mark-planted').click();
   await list(page).locator('.sheet-header .iconbtn').click();
@@ -129,6 +131,54 @@ test("Mark planted, once bought: the kind's plants go to Planted with today's da
   await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-count')).toHaveText(/^×\s1$/);
   await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-tick')).toHaveAttribute('aria-checked', 'false');
   await expect(row(page, 'planted', 'Wild columbine').getByTestId('pl-count')).toHaveText(/^×\s5$/);
+});
+
+test('a planted plant deleted gives no tick back: the one placed since stays to buy, through Undo and Redo (the list bug hunt, Nov 1)', async ({ page }) => {
+  await openPlan(page);
+  await page.getByTestId('plant-list-open').click();
+  await row(page, 'buy', 'Wild columbine').getByTestId('pl-tick').click();
+  await row(page, 'buy', 'Wild columbine').getByTestId('pl-mark-planted').click();
+  await expect(row(page, 'planted', 'Wild columbine').getByTestId('pl-count')).toHaveText(/^×\s5$/);
+  await list(page).locator('.sheet-header .iconbtn').click();
+  // One more placed since: to buy, not bought.
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Wild columbine');
+  await page.locator('.sheet .proj-row', { hasText: 'Wild columbine' }).first().locator('[data-testid=plant-place]').click();
+  await placeOnceAtCenter(page);
+  await page.keyboard.press('Escape');
+  // A planted one deleted.
+  await page.getByTestId('zoom-fit').click();
+  await page.locator('#canvas-svg [data-shape-id=p1]').first().click();
+  await expect(page.locator('.sel-pill .name')).toHaveText('Wild columbine');
+  await page.keyboard.press('Delete');
+  const unbought = async () => {
+    await page.getByTestId('plant-list-open').click();
+    await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-count')).toHaveText(/^×\s1$/);
+    await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-tick')).toHaveAttribute('aria-checked', 'false');
+    await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-bought')).toHaveCount(0);
+    await expect(page.getByTestId('pl-totals')).toHaveText('8 plants to buy, 4 kinds');
+    await list(page).locator('.sheet-header .iconbtn').click();
+  };
+  await unbought();
+  await page.keyboard.press('Control+z');
+  await unbought();
+  await page.keyboard.press('Control+y');
+  await unbought();
+  await expect(page.locator('#canvas-svg [data-shape-id=p1]')).toHaveCount(0);
+});
+
+test('Copy as text that fails names only what the sheet offers: no Share (the list bug hunt, Nov 1)', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'share', { value: undefined, configurable: true });
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: async () => { throw new Error('blocked'); } }, configurable: true });
+  });
+  await openPlan(page);
+  await page.getByTestId('plant-list-open').click();
+  await expect(page.getByTestId('pl-share')).toHaveText('Copy as text');
+  await page.getByTestId('pl-share').click();
+  await expect(page.getByTestId('ask')).toContainText("Couldn't copy the list. Use Print list instead.");
+  await expect(page.getByTestId('ask')).not.toContainText('Share');
+  await expect(page.getByTestId('pl-print')).toBeVisible();
 });
 
 test('Share as text on a phone, Copy as text on a computer: the plan, its totals and a line a kind (Jason, Nov 1)', async ({ page }, info) => {
@@ -154,7 +204,7 @@ test('Share as text on a phone, Copy as text on a computer: the plan, its totals
   } else text = await (await page.waitForFunction(() => (window as unknown as { __copied?: string }).__copied)).jsonValue() as string;
   if (!phone) await expect(page.locator('#toast')).toContainText('The list is copied');
   const lines = text.split('\n');
-  expect(lines.slice(0, 4)).toEqual(['Front garden: plant list', '12 plants to buy, 4 kinds · 2 bought', '', 'To buy']);
+  expect(lines.slice(0, 4)).toEqual(['Front garden: plant list', '10 plants to buy, 3 kinds · 2 bought, not yet planted', '', 'To buy (10)']);
   expect(lines.find((l) => l.startsWith("☑ Yaupon 'Dwarf' × 2 · Ilex vomitoria 'Dwarf' · "))).toMatch(/ · Front bed$/);
   expect(lines.find((l) => l.startsWith('☐ Wild columbine × 5 · Aquilegia canadensis'))).toMatch(/Front bed, Side bed$/);
   expect(lines).toContain('Planted');

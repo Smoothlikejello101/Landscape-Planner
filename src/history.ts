@@ -1,4 +1,6 @@
 import { HISTORY_DEBOUNCE_MS, MAX_HISTORY } from './constants';
+import { keepBought } from './plant-list';
+import { plantsById } from './plants';
 import { state } from './state';
 import { save } from './storage';
 import type { HistorySnapshot, Shape } from './types';
@@ -19,6 +21,9 @@ let pendingLabel: string | undefined;
  * status, Clear all); the rest are a plain "Undo".
  */
 export function pushHistory(label?: string) {
+  // (What's bought stays as it was but for planting: a planted plant deleted gives no tick back. src/plant-list.ts.)
+  const before = state.history[state.historyIndex];
+  if (before) boughtKept(before.shapes);
   state.history = state.history.slice(0, state.historyIndex + 1); // drop redo branch
   state.history.push({
     shapes: deepClone(state.shapes),
@@ -54,8 +59,20 @@ export function stepNamed(shapes: Shape[]): string {
   if (one) return one.length > 30 ? one.slice(0, 29).trimEnd() + '\u2026' : one; // (a note's text can be long)
   return describeShapes(shapes).replace(/^1 /, 'a ');
 }
+/**
+ * The Plant list's ticks across a change from `before` to the plan's shapes now (a step, Undo, Redo): only planting
+ * and un-planting use them up or give them back (src/plant-list.ts keepBought). Saved, if they changed.
+ */
+function boughtKept(before: Shape[]) {
+  const next = keepBought(state.bought, before, state.shapes, plantsById);
+  if (next === state.bought) return;
+  state.bought = next;
+  save();
+}
 function applySnapshot(snap: HistorySnapshot) {
+  const before = state.shapes;
   state.shapes = deepClone(snap.shapes);
+  boughtKept(before);
   // "Keep this photo on this device only" isn't an undoable edit: the same photo keeps its setting.
   const keep = state.bgImage && snap.bgImage && state.bgImage.dataUrl === snap.bgImage.dataUrl ? state.bgImage.deviceOnly : snap.bgImage?.deviceOnly;
   state.bgImage = snap.bgImage ? { ...snap.bgImage } : null;

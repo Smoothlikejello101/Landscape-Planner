@@ -432,6 +432,12 @@ test('the search clears in one tap, and a search the filters empty says which fi
   // Found by what it feeds, in words.
   await page.getByTestId('plant-search').fill('mourning cloak');
   await expect(page.getByTestId('host-match').first()).toContainText(/Its leaves feed the caterpillars of: .*mourning cloak/i);
+  // Nothing found: "or loosen a filter" only with one on (the bug hunt, Nov 1: said with none).
+  await page.getByTestId('plant-search').fill('qqxzv');
+  await expect(page.getByTestId('no-matches')).toHaveText('No matches. Add it as your own plant, or loosen a filter.');
+  await page.getByTestId('reset-filters').click();
+  await expect(page.getByTestId('active-chip')).toHaveCount(0);
+  await expect(page.getByTestId('no-matches')).toHaveText('No matches. Add it as your own plant.');
 });
 
 test('flower color: a cultivar or one-color species first, a species that comes in it among others below a divider', async ({ page }) => {
@@ -519,9 +525,9 @@ test('typing a search folds the open filters, the results in view; Add as my pla
   await search.fill('holly');
   await expect(page.getByTestId('all-filters')).toBeHidden();
   await page.getByTestId('reset-filters').click();
-  // Nothing found: the link below the note that says so.
+  // Nothing found: the link below the note that says so (with no filter on, nothing about loosening one).
   await search.fill('Aunt Lou’s keeper');
-  await expect(page.locator('.sheet-body')).toContainText('No matches. Add it as your own plant, or loosen a filter.');
+  await expect(page.getByTestId('no-matches')).toHaveText('No matches. Add it as your own plant.');
   await expect(add).toHaveText('Add “Aunt Lou’s keeper” as my plant');
   // Switch plant, while placing: the same.
   await search.fill('Black-eyed Susan');
@@ -575,6 +581,27 @@ test('words of need become filters: "shade flowers" is Part shade and Has flower
     await expect(chips).toHaveCount(0);
   }
   await expect(page.locator('.plant-item .pname').first()).toContainText('Butterfly weed (clay strain)');
+  // Its old name, "Butterfly weed 'for Clay'", is another name, not its own: "clay" is Clay OK, and it's still found.
+  await search.fill('butterfly weed for clay');
+  await search.press('Enter');
+  await expect(chips).toHaveText(['Clay OK']);
+  await expect(page.locator('.plant-item .pname').first()).toContainText('Butterfly weed (clay strain)');
+  await page.getByTestId('reset-filters').click();
+  // "wet " and "shrubs ", typed, are filters on the space, as with Enter (the bug hunt, Nov 1: "wet" stayed a search,
+  // for Goldenclub's other name "Never Wet", and "shrubs" for Shrubby cinquefoil and the rest). The "soil" typed
+  // after "wet " goes too, its filter on.
+  await search.fill('');
+  await search.pressSequentially('native wet ');
+  await expect(search).toHaveValue('');
+  await expect(chips).toHaveText(['Native to North America', 'Takes wet soil']);
+  await search.pressSequentially('soil ');
+  await expect(search).toHaveValue('');
+  await expect(chips).toHaveText(['Native to North America', 'Takes wet soil']);
+  await page.getByTestId('reset-filters').click();
+  await search.pressSequentially('clay shrubs ');
+  await expect(search).toHaveValue('');
+  await expect(chips).toHaveText(['Shrub', 'Clay OK']);
+  await page.getByTestId('reset-filters').click();
   // Several at once, with the little words between them; native to North America with no ZIP yet.
   await page.getByTestId('plant-search').fill('native shrubs for wet clay soil ');
   await expect(page.getByTestId('plant-search')).toHaveValue('');
@@ -638,6 +665,20 @@ test('a row: its bloom months, and a small flower in its flowers\' color in a ci
   await expect(fern.getByTestId('row-dot')).toHaveAttribute('aria-label', /^[a-z ]+ leaves$/);
   await expect(fern.getByTestId('row-dot').getByTestId('spot-flower')).toHaveCount(0);
   await expect(fern.getByTestId('row-bloom')).toHaveCount(0);
+  // Flowering dogwood: tiny true flowers ("insignificant") in showy bracts (a shape, petals and a size), so a flower in
+  // its spot, its months, and Has flowers and White flowers keep it, as its details list white flowers (the bug hunt,
+  // Nov 1: a plain circle, left out by both).
+  await page.getByTestId('plant-search').fill('Flowering dogwood');
+  const dogwood = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Flowering dogwood$/ }) });
+  await expect(dogwood.getByTestId('row-dot')).toHaveAttribute('aria-label', 'white flowers, green leaves');
+  await expect(dogwood.getByTestId('row-bloom')).toBeVisible();
+  for (const need of ['flowers', 'white flowers']) {
+    await page.getByTestId('plant-search').fill(`${need} flowering dogwood`);
+    await page.getByTestId('plant-search').press('Enter');
+    await expect(page.getByTestId('active-chip')).toHaveText([need === 'flowers' ? 'Has flowers' : 'White flowers']);
+    await expect(dogwood).toBeVisible();
+    await page.getByTestId('reset-filters').click();
+  }
 });
 
 test('a row fits 360 px at every text size: its name, spot, months, Place and copy, nothing pushed off (Jason, Nov 1)', async ({ page }) => {

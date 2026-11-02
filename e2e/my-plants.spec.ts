@@ -106,6 +106,29 @@ test('add a plant from its tag, place it, and switch to full size', async ({ pag
   await expect(page.locator('.proj-row', { hasText: 'Limelight' }).filter({ has: page.locator('.mine-badge') })).toHaveCount(1);
 });
 
+test('"In this plan" with only plants of my own placed: My plants open, its plants shown (the bug hunt, Nov 1)', async ({ page }) => {
+  autoDialogs(page);
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Hedge cedar');
+  await page.getByTestId('add-own-plant').click();
+  await page.getByTestId('pf-spread').fill('4');
+  await page.getByTestId('pf-save').click();
+  await placeOnceAtCenter(page);
+  await page.locator('.tool-btn.plants').click();
+  const fold = page.getByTestId('my-plants-fold');
+  await expect(fold).toHaveAttribute('aria-expanded', 'false'); // (folded while browsing, as it starts)
+  await page.getByTestId('in-plan').click();
+  await expect(page.getByTestId('in-plan')).toHaveAttribute('aria-pressed', 'true');
+  // (It said "1 plant, 1 kind in this plan" over a folded heading, and nothing else.)
+  await expect(fold).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('.proj-row', { hasText: 'Hedge cedar' }).filter({ has: page.locator('.mine-badge') })).toBeVisible();
+  // Off again: folded, as it was left.
+  await page.getByTestId('in-plan').click();
+  await expect(fold).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.locator('.proj-row .mine-badge')).toHaveCount(0);
+});
+
 test('copy a catalog plant as your own cultivar', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();

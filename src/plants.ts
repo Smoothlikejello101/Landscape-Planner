@@ -17,7 +17,7 @@ import { shownWith } from './status';
 import { hardyEnough, zoneFit, zoneRange } from './climate';
 import { bannedHere, gardenStateName, hostsHere, localBloom, nativeHere, nativeText, wildHere, wildNearby } from './wild';
 import { bloomMonths } from './bloom';
-import { bloomWindow, showyFlowers } from './seasons';
+import { bloomWindow, catkins, showyFlowers } from './seasons';
 import { byMatch, matchPlant, readQuery, unsearchable } from './search';
 import { applyYard, household, type Yard } from './yard';
 import { noteRecentPlant } from './place';
@@ -331,15 +331,17 @@ export function filterOn(f: PlantFilter, k: keyof PlantFilter): boolean {
   return Array.isArray(v) ? v.length > 0 : v !== PLANT_FILTER_DEFAULTS[k];
 }
 // ---------- Flower colors ----------
-/** A plant's flower colors, the showy ones ("insignificant": not showy). */
-export const showyColors = (p: Plant): string[] => (p.flower_color ?? []).filter((c) => c !== 'insignificant');
 /**
- * Whether it has flowers worth the name (the picker's "Has flowers"): a showy color on record, and not catkins or
- * flowers its sources call insignificant, as a row's spot and its picture draw them (src/looks.ts). One with no
- * flower color on record is left out, as the flower colors leave it out.
+ * A plant's flower colors, where its flowers are showy (src/seasons.ts showyFlowers: not where its sources call them
+ * insignificant), as the flower color chips ask: "insignificant" isn't a color.
  */
-export const hasFlowers = (p: Plant): boolean =>
-  showyColors(p).length > 0 && !(p.flower_form?.inflorescence ?? []).some((x) => x === 'insignificant' || x === 'catkin');
+export const showyColors = (p: Plant): string[] => (showyFlowers(p) ? (p.flower_color ?? []).filter((c) => c !== 'insignificant') : []);
+/**
+ * Whether it has flowers worth the name (the picker's "Has flowers"): showy ones (showyFlowers) with a color on
+ * record, and not catkins, as a row's spot and its picture draw them (src/looks.ts). One with no flower color on
+ * record is left out, as the flower colors leave it out.
+ */
+export const hasFlowers = (p: Plant): boolean => showyColors(p).length > 0 && !catkins(p);
 /**
  * Whether its flower color says what you'll get (decided with Jason, 2026-10-25): a cultivar's record, or a species
  * listing one color (white and cream count as one). A species listing several comes in them, depending on the plant

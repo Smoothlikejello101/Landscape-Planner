@@ -331,6 +331,25 @@ test.describe('plants, background, export', () => {
     await expect(page.locator('.preview-img')).toHaveAttribute('src', /^data:image\/png;base64,/);
   });
 
+  test('the picture\'s preview shows all of it, scaled to fit, on a short screen too (the bug hunt, Nov 1)', async ({ page }) => {
+    await page.setViewportSize({ width: 1366, height: 600 });
+    await openFresh(page);
+    await addShape(page, 'circle');
+    await closeSheet(page);
+    for (const kind of ['PNG', 'SVG']) {
+      await openExport(page);
+      await page.locator('button', { hasText: `Download ${kind}` }).click();
+      const img = page.locator('.preview-img');
+      await expect.poll(() => img.evaluate((i: HTMLImageElement) => i.complete && i.naturalWidth > 0)).toBe(true);
+      // (It was centered in a box shorter than it: its top and bottom cut off, out of reach of scrolling.)
+      const [pic, box] = await page.evaluate(() => [document.querySelector('.preview-img')!, document.querySelector('.preview-wrap')!].map((e) => e.getBoundingClientRect().toJSON()));
+      expect(pic.top, kind).toBeGreaterThanOrEqual(box.top);
+      expect(pic.bottom, kind).toBeLessThanOrEqual(box.bottom);
+      expect(await page.locator('.preview-wrap').evaluate((w) => w.scrollHeight - w.clientHeight), kind).toBeLessThanOrEqual(1);
+      await page.locator('.modal').getByRole('button', { name: 'Done' }).click();
+    }
+  });
+
   test('the picture says Download, as the PDF does, and has Share… where the device can share a file (the UI review, 2026-11-01)', async ({ page }) => {
     // A device that can share files (unless told not to), keeping what it was handed.
     type Shared = { name: string; type: string; head: number[] };

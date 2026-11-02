@@ -153,6 +153,39 @@ test('the first screen fits a 360 × 640 phone at every text size, clear of the 
   }
 });
 
+test('at Extra large on a 360 × 640 phone, a two-line ZIP message keeps the card above the buttons, the rest a scroll away; its words still let presses through to the plan (the bug hunt, Nov 1)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await page.addInitScript(() => { localStorage.setItem('lp-zoom-buttons', 'off'); localStorage.setItem('lp-text-size-2', 'xlarge'); });
+  await page.route('**/climate/000.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...TABLE, zips: {} }) }));
+  await openFresh(page);
+  await expect(page.locator('html')).toHaveAttribute('data-text', 'xlarge');
+  await page.getByTestId('first-zip').fill('00000');
+  await page.getByTestId('first-zip-lookup').click();
+  await expect(page.getByTestId('first-zip-problem')).toHaveText('That ZIP isn’t in the zone tables (they cover the 50 states and Puerto Rico).');
+  const wrap = (await page.locator('#canvas-wrap').boundingBox())!;
+  const cardBox = page.getByTestId('first-card');
+  const inPlan = async (id: string) => {
+    const b = (await page.getByTestId(id).boundingBox())!;
+    return b.y >= wrap.y && b.y + b.height <= wrap.y + wrap.height;
+  };
+  // The card ends above the bottom bar (it ran under it, "Restore a backup" with it, at y 610).
+  const c = (await cardBox.boundingBox())!;
+  expect(c.y + c.height).toBeLessThanOrEqual(wrap.y + wrap.height);
+  // The card itself still takes no presses: on its words, a press is the plan's.
+  await expect(cardBox).toHaveCSS('pointer-events', 'none');
+  const line = (await page.getByTestId('first-line').boundingBox())!;
+  expect(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('#canvas-svg'), [line.x + line.width / 2, line.y + line.height / 2])).toBe(true);
+  // What didn't fit scrolls into view, from a button on the card, and takes a press there.
+  expect(await inPlan('restore-backup')).toBe(false);
+  const go = (await page.getByTestId('intro-start').boundingBox())!;
+  await page.mouse.move(go.x + go.width / 2, go.y + go.height / 2);
+  await page.mouse.wheel(0, 400);
+  await expect.poll(() => inPlan('restore-backup')).toBe(true);
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByTestId('restore-backup').click();
+  await chooser;
+});
+
 test('from an empty plan to a first plant: each step ends when it\'s done, the plant step names a shrub the yard allows, and the ring ends it', async ({ page, isMobile }) => {
   await start(page);
   await expect(card(page)).toHaveClass(isMobile ? /intro-card(?! corner)/ : /corner/);
@@ -317,4 +350,25 @@ test('with a photo in, the first screen sits at the bottom over the buttons, its
   await page.getByTestId('first-hide').click();
   await expect(hint).toHaveCount(0);
   await expect(page.locator('#canvas-svg image')).toHaveCount(1);
+});
+
+test('on a phone with room, the first screen\'s card sits in the middle, clear of the side buttons (Jason, Nov 1: it sat off to the left)', async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 860 });
+  await page.addInitScript(() => localStorage.setItem('lp-zoom-buttons', 'off'));
+  await openFresh(page);
+  const card = page.getByTestId('first-card');
+  await expect(card).toBeVisible();
+  await expect(page.getByTestId('first-screen')).not.toHaveClass(/beside-column/);
+  const wrap = (await page.locator('#canvas-wrap').boundingBox())!;
+  const c = (await card.boundingBox())!;
+  const z = (await page.locator('.zoombtns').boundingBox())!;
+  expect(Math.abs((c.x - wrap.x) - (wrap.x + wrap.width - (c.x + c.width)))).toBeLessThanOrEqual(2);
+  expect(c.y).toBeGreaterThanOrEqual(z.y + z.height);
+  // Made too short for that, it moves beside the buttons, and back.
+  await page.setViewportSize({ width: 360, height: 640 });
+  await expect(page.getByTestId('first-screen')).toHaveClass(/beside-column/);
+  const c2 = (await card.boundingBox())!, z2 = (await page.locator('.zoombtns').boundingBox())!;
+  expect(c2.x + c2.width).toBeLessThanOrEqual(z2.x);
+  await page.setViewportSize({ width: 412, height: 860 });
+  await expect(page.getByTestId('first-screen')).not.toHaveClass(/beside-column/);
 });

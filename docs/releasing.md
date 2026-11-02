@@ -31,6 +31,13 @@ Next (`src/channel.ts`, `APP_CHANNEL=next`) is the same app with:
 
 ## A release
 
+Before a big release (Jason, Nov 1): a **bug hunt**. Agent testers, each with an area of what changed since the last
+release and a device size, use a local build of main through a real browser (the harness: /home/claude/usability/
+bughunt in the workspace: a driver per tester, the change list from What's new, Jason's own open notes so they aren't
+reported twice) and report bugs first, anything else they run into after. I sort what they find into what must be
+fixed before the release and what can wait (the to-do list's Backlog), fix the first in a pull request, and say when
+it's ready. Testers never sign in or send anything.
+
 When Jason says "release":
 1. I check the release not yet out (the top one in `src/whats-new.json` dated `"next"`, with the lines waiting in
    `src/whats-new/next/`) covers every change people will notice since the last release, and open a pull request from

@@ -339,11 +339,16 @@ export function warningsSummary(rows: WarningRow[] = planWarnings()): WarningsSu
 export const cantRunSaid = (n: number): string => `${n} check${n === 1 ? '' : 's'} can’t run`;
 /**
  * What the Warnings button says to a screen reader: "Warnings: 12 to look at", "Warnings: all clear", "Warnings: none
- * found, 4 checks can't run yet"; and, with plants hidden, "none found in the plants shown".
+ * found, 4 checks can't run yet"; and, with Layers hiding some, "Warnings: none in the plants shown (some plants
+ * hidden)", never an all-clear (the warnings bug hunt, Nov 1).
  */
 export function buttonSaid(w: WarningsSummary): string {
   if (w.active) return `Warnings: ${w.active} to look at`;
-  const where = w.hidden ? ' in the plants shown' : '';
-  if (w.cantRun) return `Warnings: none found${where}, ${cantRunSaid(w.cantRun)} yet`;
-  return w.hidden ? `Warnings: none found${where}` : 'Warnings: all clear';
+  const cant = w.cantRun ? `, ${cantRunSaid(w.cantRun)} yet` : '';
+  if (w.hidden) {
+    const { plants, utilities } = w.hidden;
+    const what = plants && utilities ? 'plants and utilities' : plants ? 'plants' : 'utilities';
+    return `Warnings: ${plants ? 'none in the plants shown' : 'none found'} (some ${what} hidden)${cant}`;
+  }
+  return w.cantRun ? `Warnings: none found${cant}` : 'Warnings: all clear';
 }

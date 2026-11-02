@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { canonical, coreHash, fingerprint, planHash, settleBought, settleHousehold, settleSwitches, syncOnce, type Local, type LocalProject, type ProjectContent, type Remote, type SyncRecord } from '../src/sync/engine';
 import { FakeServer } from './fake-sync-server';
+import { keepBought, plantList } from '../src/plant-list';
+import type { PlanBought, Shape } from '../src/types';
 
 // The sync engine against a stand-in server (the same rules as
 // supabase/02-sync.sql) and stand-in devices: two devices editing offline,
@@ -635,6 +637,39 @@ describe("the Plant list's ticks on two devices", () => {
     await sync(phone, server);
     expect((await sync(laptop, server)).conflicts).toEqual([]);
     expect(laptop.part(id, 'bought')).toEqual({ yaupon: tick(2, 100), aster: tick(1, 120) });
+  });
+  // A planted plant deleted gives no tick back (the list bug hunt, Nov 1): its kind's count goes down with it, a moment
+  // later than the tick, so it reaches the other devices; Undo's count likewise.
+  it('a planted plant deleted on one device: the other device\'s list agrees, no tick given back; Undo there reaches it too', async () => {
+    const T = new Date(2026, 10, 1, 10).getTime();
+    const p = (id: string, extra: Partial<Shape> = {}) => ({ id, type: 'circle', role: 'plant', plantId: 'goldsturm', label: 'Goldsturm', x: 0, y: 0, radius: 1, color: '#000', opacity: 1, locked: false, ...extra } as Shape);
+    const planted = { status: 'planted', plantedOn: '2026-11-01' } as const;
+    const all = [p('a', planted), p('b', planted), p('c', planted), p('d'), p('e')];
+    const bought = (d: FakeDevice, id: string) => plantList(d.shapes(id) as Shape[], {}, d.part(id, 'bought') as PlanBought).buy[0].bought;
+    const server = new FakeServer(), phone = new FakeDevice('phone'), laptop = new FakeDevice('laptop');
+    const id = phone.add('Back Yard', all);
+    phone.setPart(id, 'bought', { goldsturm: tick(3, T) });
+    await sync(phone, server); await sync(laptop, server);
+    expect(bought(laptop, id)).toBe(0);
+    // The phone deletes a planted one; the laptop ticks another kind meanwhile.
+    const less = all.filter((s) => s.id !== 'a');
+    const after = keepBought(phone.part(id, 'bought') as PlanBought, all, less, {})!;
+    expect(after.goldsturm).toEqual(tick(2, T + 1));
+    phone.edit(id, less); phone.setPart(id, 'bought', after);
+    laptop.setPart(id, 'bought', { ...(laptop.part(id, 'bought') as object), aster: tick(1, T + 500) });
+    await sync(phone, server);
+    expect((await sync(laptop, server)).conflicts).toEqual([]);
+    await sync(phone, server);
+    for (const d of [phone, laptop]) {
+      expect(d.part(id, 'bought')).toEqual({ goldsturm: tick(2, T + 1), aster: tick(1, T + 500) });
+      expect(bought(d, id)).toBe(0); // (not "1 of 2 bought")
+    }
+    // Undo on the phone: the plant back, the count with it, later still, so it reaches the laptop too.
+    const back = keepBought(phone.part(id, 'bought') as PlanBought, less, all, {})!;
+    phone.edit(id, all); phone.setPart(id, 'bought', back);
+    await sync(phone, server); await sync(laptop, server);
+    expect(laptop.part(id, 'bought')).toEqual({ goldsturm: tick(3, T + 2), aster: tick(1, T + 500) });
+    expect(bought(laptop, id)).toBe(0);
   });
   it('settle the same either way round', () => {
     const a = { yaupon: tick(2, 100), aster: tick(3, 200), same: tick(1, 50) }, b = { yaupon: tick(4, 150), sedge: tick(5, 1), same: tick(2, 50), bad: { n: 'x' } };

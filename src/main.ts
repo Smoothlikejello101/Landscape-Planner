@@ -29,7 +29,7 @@ import { loadViewSettings } from './view-settings';
 import { applyTextSize } from './text-size';
 import { updateSaveWarning, updateSaveState } from './ui/save-warning';
 import { flushSave, initStorage, refreshClipboard, requestPersistence, saveView, setHouseholdListener, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
-import { flashZoom, render } from './ui/render';
+import { flashZoom, placeFirstCard, render } from './ui/render';
 import { dismissToastAction, toast } from './ui/toast';
 import { closeYear, stepMonth } from './ui/year-bar';
 import { closeWarningsSide, warningsSideOpen } from './ui/warnings-sheet';
@@ -57,10 +57,10 @@ installAppHeight();
 // IMPORTANT: window resize calls resizeCanvas ONLY, never render().
 // Android keyboard appearing fires a viewport resize; a full render()
 // destroys focused inputs.
-window.addEventListener('resize', () => { fitToWindow(); resizeCanvas(); });
+window.addEventListener('resize', () => { fitToWindow(); resizeCanvas(); placeFirstCard(); });
 // Same goes for visualViewport resize (covers iOS keyboard + zoom)
 if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', () => { fitToWindow(); resizeCanvas(); notePageZoom(); });
+  window.visualViewport.addEventListener('resize', () => { fitToWindow(); resizeCanvas(); placeFirstCard(); notePageZoom(); });
   // iOS pans the visual viewport (scroll, not resize) after its keyboard opens: re-measure (CSS only).
   window.visualViewport.addEventListener('scroll', () => { fitAboveKeyboard(); });
 }

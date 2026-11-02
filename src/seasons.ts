@@ -52,7 +52,7 @@ export interface MonthFlowers {
   colors: string[];
   /** The earlier list's color words, where the catalog has no flower colors ("White-pink"). */
   colorText?: string;
-  /** False where its only flower color is "insignificant". */
+  /** False where its sources call its flowers insignificant (showyFlowers). */
   showy: boolean;
   basis: Basis;
 }
@@ -116,8 +116,26 @@ export function bloomWindow(p: Plant, here: Here = {}): { months: number[]; basi
   }
   return fromSeasons.length ? { months: fromSeasons, basis: 'season', sure: [] } : { months: [], basis: 'unknown', sure: [] };
 }
-/** Whether its flowers are worth counting: not where its sources call them insignificant and nothing else. */
-export const showyFlowers = (p: Plant | undefined): boolean => { const w = p?.flower_color ?? []; return !(w.length && w.every((c) => c === 'insignificant')); };
+/**
+ * Whether NC State's flower form says its flowers aren't showy: "insignificant" for how they're borne, and no shape
+ * given. With a shape, what it describes is the showy part: a flowering dogwood's true flowers are tiny
+ * ("insignificant"), but its bracts are cross-shaped, 4 of them, 3–6 in across (the bug hunt, Nov 1: it was drawn
+ * and filtered as having no flowers, though its details list white ones). As a plant's details say it
+ * (src/ui/plant-details.ts flowerFormText).
+ */
+export const insignificantForm = (f: Plant['flower_form'] | undefined): boolean => !!f?.inflorescence?.includes('insignificant') && !f.shape?.length;
+/**
+ * Whether its flowers are worth counting: not where its sources call them insignificant and nothing else, as its only
+ * flower color, or as its flower form (insignificantForm). The one rule for whether it has showy flowers: a picker
+ * row's spot and bloom months, Has flowers and the flower colors (src/plants.ts), its picture (src/looks.ts), and the
+ * bloom calendar's and the month slider's counts.
+ */
+export const showyFlowers = (p: Plant | undefined): boolean => {
+  const w = p?.flower_color ?? [];
+  return !(w.length && w.every((c) => c === 'insignificant')) && !insignificantForm(p?.flower_form);
+};
+/** Flowers borne in catkins: not drawn as flowers, nor counted by Has flowers (a birch's, a willow's). */
+export const catkins = (p: Plant): boolean => (p.flower_form?.inflorescence ?? []).includes('catkin');
 /** Months start to end, wrapping the year's end (Nov–Jan). */
 export function monthRange(start: number, end: number): number[] {
   const out: number[] = [];
@@ -168,7 +186,7 @@ function deciduousIn(p: Plant, month: number, here: Here, colors: string[], v: {
 function flowersIn(p: Plant, month: number, here: Here): MonthFlowers {
   const words = p.flower_color ?? [];
   const colors = words.filter((c) => c !== 'insignificant');
-  const showy = !(words.length && !colors.length);
+  const showy = showyFlowers(p);
   const text = !words.length && p.bloom?.color ? { colorText: p.bloom.color } : {};
   const w = bloomWindow(p, here);
   if (w.basis === 'unknown') return { state: 'unknown', colors, ...text, showy, basis: 'unknown' };

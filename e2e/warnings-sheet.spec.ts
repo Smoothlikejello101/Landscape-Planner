@@ -154,8 +154,13 @@ test('the false all-clear: with Layers showing only some plants, Warnings says o
   await page.locator('button[title=Layers]').click();
   await page.getByTestId('filter-status').selectOption('planted');
   await closeSheet(page);
-  // Not "all clear": none found in the plants shown.
-  await expect(button(page)).toHaveAttribute('aria-label', /^Warnings: none found in the plants shown/);
+  // Not "all clear": none in the plants shown, some hidden. Gray, but the warning sign, not the all-clear check (the
+  // warnings bug hunt, Nov 1: the check, though the plants hidden had warnings), and no count.
+  await expect(button(page)).toHaveAttribute('aria-label', 'Warnings: none in the plants shown (some plants hidden), 3 checks can’t run yet');
+  await expect(button(page)).toHaveAttribute('data-state', 'hidden');
+  await expect(button(page).locator('svg path').first()).toHaveAttribute('d', /^M10\.3 3\.9/);
+  await expect(button(page).getByTestId('warnings-count')).toHaveCount(0);
+  await expect(button(page)).toHaveCSS('border-color', 'rgb(168, 162, 158)'); // (gray, not amber)
   await button(page).click();
   await expect(page.getByTestId('warnings-head')).toHaveText(/^Nothing to look at (yet )?in the plants shown/);
   await expect(page.getByTestId('warnings-hidden')).toContainText('Only the plants shown are checked (Layers: Planted).');
@@ -239,6 +244,33 @@ test('on a phone, a row zooms to its plants and leaves a chip: ‹ Warnings · 6
   await closeSheet(page);
   await page.keyboard.press('Escape');
   await expect(chip).toHaveCount(0);
+});
+
+test('during the walk, a press on the plant it shows keeps it selected, and the walk; a later press goes on to the sun area under it (the warnings bug hunt, Nov 1)', async ({ page }) => {
+  test.skip(page.viewportSize()!.width >= 900, 'a phone');
+  await openPlan(page, EVERY, { dogs: true, zone: true });
+  await openWarnings(page, 'sun');
+  await kind(page, 'sun').getByTestId('warning-select').click();
+  const chip = page.getByTestId('walk-chip');
+  await expect(chip.getByTestId('walk-list')).toContainText('Warnings · 7 of 10');
+  await expect(chip.getByTestId('walk-list')).toContainText('Turkey corn');
+  // (It stands in the sun area: before, this press went on down to it, and the walk ended.)
+  const corn = page.locator('#canvas-svg [data-shape-id=tc]').first();
+  await corn.click();
+  await expect(chip.getByTestId('walk-list')).toContainText('Warnings · 7 of 10');
+  await expect(chip.getByTestId('walk-list')).toContainText('Turkey corn');
+  await expect(page.locator('.sel-pill')).toHaveCount(0);
+  // Another press, a moment later (not a double): what's under it, as a press on anything selected does.
+  await page.waitForTimeout(500);
+  await corn.click();
+  await expect(chip).toHaveCount(0);
+  await expect(page.locator('.sel-pill .name')).toHaveText('Sunny strip');
+  // A walk to a pair: a press on one keeps both, and the walk.
+  await openWarnings(page, 'crowding');
+  await kind(page, 'crowding').getByTestId('warning-select').click();
+  await expect(chip.getByTestId('walk-list')).toContainText('2 Spicebush');
+  await page.locator('#canvas-svg [data-shape-id=s1]').first().click();
+  await expect(chip.getByTestId('walk-list')).toContainText('2 Spicebush');
 });
 
 test('on a computer, Warnings stays open beside the plan while its rows select plants', async ({ page }) => {

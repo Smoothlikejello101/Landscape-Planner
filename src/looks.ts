@@ -1,6 +1,6 @@
 import type { Plant } from './plants';
 import { formsOf } from './plants';
-import { summerLeafColors } from './seasons';
+import { catkins, showyFlowers, summerLeafColors } from './seasons';
 
 // How a plant is drawn on the plan (Jason, Oct 27–29: the canvas "Plant looks through the year", rounds 1–4): R5c,
 // version 3. Leaves set along curving branches (sprigs); in flower, blooms at the outer branch tips, built of the
@@ -160,7 +160,7 @@ export function flowerColorOf(common: string, listed: string[]): string | undefi
  */
 export function flowerChoices(p: Plant | undefined): { colors: string[]; usual?: string } {
   const listed = (p?.flower_color ?? []).filter((c) => c !== 'insignificant' && FLOWER_HEX[c] && !NOT_PETALS.has(c));
-  if (!p || !listed.length || (p.flower_form?.inflorescence ?? []).some((x) => x === 'insignificant' || x === 'catkin')) return { colors: [] };
+  if (!p || !listed.length || !showyFlowers(p) || catkins(p)) return { colors: [] };
   return { colors: listed, usual: flowerColorOf(p.common ?? '', p.flower_color!.filter((c) => c !== 'insignificant' && FLOWER_HEX[c])) };
 }
 /** A flower color as drawn ("purple": its hex); undefined for a word that isn't one. */
@@ -188,7 +188,7 @@ export function lookOf(p: Plant | undefined, shapeColor: string, chosen = false,
   // flowers to draw. Jason, Nov 1: a false cypress of his own, copied from Sawara cypress, was drawn in yellow flowers.)
   const picked = !sourced.length && !words.length && p?.id?.startsWith(MY_PREFIX) && p.color && p.bloom?.start != null ? [nearestFlower(p.color)] : [];
   const listed = (sourced.length ? sourced : words.length ? words : picked).filter((c) => c !== 'insignificant' && FLOWER_HEX[c]);
-  const insignificant = !!p && (!listed.length || (p.flower_form?.inflorescence ?? []).some((x) => x === 'insignificant' || x === 'catkin'));
+  const insignificant = !!p && (!listed.length || !showyFlowers(p) || catkins(p));
   // (A color its sources list, chosen for this one plant on the plan (Jason, Oct 30): a cultivar not in the catalog.)
   const color = p ? (flower && listed.includes(flower) ? flower : flowerColorOf(p.common ?? '', listed)) : undefined;
   const fl = !p || insignificant || !color ? undefined : FLOWER_HEX[color];

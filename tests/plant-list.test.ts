@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { markPlantedToday } from '../src/mutations';
-import { pushHistory, undo } from '../src/history';
-import { boughtText, dayOf, groupOf, kindKey, listText, listTotals, plantedText, plantList, plantsOfKind, tickEntry, totalsText } from '../src/plant-list';
+import { pushHistory, redo, undo } from '../src/history';
+import { boughtText, buyHead, dayOf, groupOf, keepBought, kindKey, listText, listTotals, plantedText, plantList, plantsOfKind, tickEntry, totalsText } from '../src/plant-list';
 import type { Plant } from '../src/plants';
 import { state } from '../src/state';
 import { today } from '../src/status';
@@ -60,10 +60,11 @@ describe('the rows: a kind each, grouped To buy · Planted · Existing', () => {
     const t = { toBuy: 16, kinds: 7, bought: 0, planted: 0, existing: 0 };
     expect(totalsText(t)).toBe('16 plants to buy, 7 kinds');
     expect(totalsText({ ...t, toBuy: 1, kinds: 1 })).toBe('1 plant to buy, 1 kind');
-    expect(totalsText({ ...t, bought: 10 })).toBe('16 plants to buy, 7 kinds · 10 bought');
-    expect(totalsText({ ...t, bought: 16 })).toBe('16 plants to buy, 7 kinds · all bought');
+    expect(totalsText({ ...t, bought: 10 })).toBe('16 plants to buy, 7 kinds · 10 bought, not yet planted');
+    expect(totalsText({ ...t, toBuy: 0, kinds: 0, bought: 16 })).toBe('Nothing left to buy · 16 bought, not yet planted');
     expect(totalsText({ ...t, toBuy: 0, kinds: 0, planted: 3 })).toBe('Nothing to buy');
     expect(totalsText({ ...t, toBuy: 0, kinds: 0 })).toBe('');
+    expect([buyHead(t), buyHead({ ...t, toBuy: 0, kinds: 0, bought: 16 })]).toEqual(['To buy (16)', 'To buy (all bought)']);
     expect(plantedText(['2026-10-30', '2026-10-30'])).toBe('Oct 30');
     expect(plantedText(['2026-10-28', '2026-11-02'])).toBe('Oct 28 to Nov 2');
   });
@@ -80,6 +81,10 @@ describe('what is bought: kept with the plan, bought and not yet planted', () =>
     expect(row(shapes, ticked)!.bought).toBe(3);
     expect(boughtText(row(shapes, ticked)!)).toBe('3 of 5 bought');
     expect(listTotals(plantList(shapes, byId, ticked)).bought).toBe(3);
+    // (What's left to buy, not counting those bought: the list bug hunt, Nov 1, "23 plants to buy · 6 bought".)
+    expect(listTotals(plantList([...shapes, plant(columbine.id)], byId, ticked))).toMatchObject({ toBuy: 3, kinds: 2, bought: 3 });
+    expect(totalsText(listTotals(plantList(shapes, byId, ticked)))).toBe('2 plants to buy, 1 kind · 3 bought, not yet planted');
+    expect(totalsText(listTotals(plantList(shapes.slice(0, 3), byId, ticked)))).toBe('Nothing left to buy · 3 bought, not yet planted');
     expect(row(shapes, { [yaupon.id]: tickEntry(0, shapes, NOV3) })!.bought).toBe(0);
   });
   it('planted on or after the day it was ticked uses it up: undone, it is back; more of the kind added later are still to buy', () => {
@@ -105,6 +110,125 @@ describe('what is bought: kept with the plan, bought and not yet planted', () =>
   });
 });
 
+// Bought means bought and not yet planted: a tick used up by planting stays used up whatever happens to the plant after
+// (the list bug hunt, Nov 1: a planted Goldsturm deleted made one of the two placed since read "1 of 2 bought").
+describe('what is bought, through the plan\'s changes: only planting uses a tick up, and only un-planting gives it back', () => {
+  const G = 'rudbeckia-fulgida-goldsturm';
+  const row = (key = G) => plantList(state.shapes, byId, state.bought).buy.find((r) => r.key === key);
+  const get = (id: string) => state.shapes.find((s) => s.id === id)!;
+  const del = (id: string) => { state.shapes = state.shapes.filter((s) => s.id !== id); pushHistory(`delete ${id}`); };
+  const tick = (key: string, n: number) => { state.bought = { ...(state.bought ?? {}), [key]: tickEntry(n, plantsOfKind(state.shapes, key, byId), Date.now()) }; };
+
+  it('a planted one deleted gives no tick back: the two placed since stay unbought, through Undo and Redo', () => {
+    const three = [plant(G), plant(G), plant(G)];
+    state.shapes = [...three];
+    pushHistory();
+    tick(G, 3);
+    markPlantedToday(three.map((s) => s.id));
+    expect(row()).toBeUndefined();
+    state.shapes.push(plant(G), plant(G));
+    pushHistory('add 2');
+    expect(row()).toMatchObject({ count: 2, bought: 0 });
+    del(three[0].id);
+    expect(row()).toMatchObject({ count: 2, bought: 0 });
+    undo();
+    expect(row()).toMatchObject({ count: 2, bought: 0 });
+    redo();
+    expect(row()).toMatchObject({ count: 2, bought: 0 });
+    // Undone back past Mark planted: the three bought, as they were ticked; done again, used up.
+    undo(); undo(); undo();
+    expect(row()).toMatchObject({ count: 3, bought: 3 });
+    redo();
+    expect(row()).toBeUndefined();
+    redo(); redo();
+    expect(row()).toMatchObject({ count: 2, bought: 0 });
+    // (Kept as the plan keeps it: how many and when, nothing new.)
+    expect(Object.keys(state.bought![G]).sort()).toEqual(['at', 'n']);
+  });
+
+  it('partly planted: one of those planted deleted leaves the rest bought as they were, Undo and Redo too', () => {
+    const five = [plant(G), plant(G), plant(G), plant(G), plant(G)];
+    state.shapes = [...five];
+    pushHistory();
+    tick(G, 5);
+    markPlantedToday(five.slice(0, 3).map((s) => s.id));
+    expect(row()).toMatchObject({ count: 2, bought: 2 });
+    del(five[0].id);
+    expect(row()!.bought).toBe(2);
+    undo();
+    expect(row()!.bought).toBe(2);
+    redo();
+    expect(row()!.bought).toBe(2);
+    // Mark planted undone: the three back, bought.
+    undo(); undo();
+    expect(row()).toMatchObject({ count: 5, bought: 5 });
+  });
+
+  it('a planted one swapped for another plant takes no tick with it, nor uses up the other plant\'s', () => {
+    const iris = 'iris-virginica', flag = 'iris-versicolor';
+    const irises = [plant(iris), plant(iris), plant(iris)], flags = [plant(flag)];
+    state.shapes = [...irises, ...flags];
+    pushHistory();
+    tick(iris, 3); tick(flag, 1);
+    markPlantedToday([irises[0].id, irises[1].id]);
+    expect([row(iris)!.bought, row(flag)!.bought]).toEqual([1, 1]);
+    // (Swapped as src/plants.ts linkShapesToPlant does: its plant, the same status and planting date.)
+    Object.assign(get(irises[0].id), { plantId: flag, label: flag });
+    pushHistory('swap');
+    expect([row(iris)!.bought, row(flag)!.bought]).toEqual([1, 1]);
+    undo();
+    expect([row(iris)!.bought, row(flag)!.bought]).toEqual([1, 1]);
+    redo();
+    expect([row(iris)!.bought, row(flag)!.bought]).toEqual([1, 1]);
+  });
+
+  it('un-planting by hand gives the tick back, as Undo does; a planting date changed, or a bought one not yet planted deleted, changes nothing', () => {
+    const three = [plant(G), plant(G), plant(G)];
+    state.shapes = [...three];
+    pushHistory();
+    tick(G, 3);
+    markPlantedToday(three.map((s) => s.id));
+    get(three[0].id).status = 'planned'; // (set back to Planned: statusPatch leaves its date)
+    pushHistory('set to Planned');
+    expect(row()).toMatchObject({ count: 1, bought: 1 });
+    get(three[1].id).plantedOn = '2026-01-01'; // (before the tick: still planted, still bought then)
+    pushHistory('date');
+    expect(row()).toMatchObject({ count: 1, bought: 1 });
+    const was = state.bought;
+    del(three[0].id); // (bought, not planted: still in hand)
+    expect(state.bought).toBe(was);
+    state.shapes.push(plant(G));
+    pushHistory('add');
+    expect(row()).toMatchObject({ count: 1, bought: 1 });
+  });
+
+  it('across days: ticked Nov 1, planted Nov 3, one deleted Nov 5; Undo back past the planting gives the ticks back', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 10, 1, 10));
+    const three = [plant(G), plant(G), plant(G)];
+    state.shapes = [...three];
+    pushHistory();
+    tick(G, 3);
+    vi.setSystemTime(new Date(2026, 10, 3, 10));
+    markPlantedToday(three.map((s) => s.id));
+    state.shapes.push(plant(G));
+    pushHistory('add');
+    vi.setSystemTime(new Date(2026, 10, 5, 10));
+    del(three[2].id);
+    expect(row()).toMatchObject({ count: 1, bought: 0 });
+    expect(dayOf(state.bought![G].at)).toBe('2026-11-01'); // (its day kept: the plantings on Nov 3 still use it up)
+    undo(); undo(); undo();
+    expect(row()).toMatchObject({ count: 3, bought: 3 });
+  });
+
+  it('keepBought: nothing ticked, or nothing planted moved, is the same ticks', () => {
+    const shapes = [plant(G, { status: 'planted', plantedOn: '2026-11-01' })];
+    expect(keepBought(undefined, shapes, [], byId)).toBeUndefined();
+    const bought = { other: { n: 2, at: 5 } };
+    expect(keepBought(bought, shapes, [], byId)).toBe(bought);
+  });
+});
+
 describe('Mark planted (Jason, Nov 1)', () => {
   it("sets the kind's planned plants to Planted with today's date, a date set before too, as one step Undo brings back", () => {
     const a = plant(yaupon.id), b = plant(yaupon.id, { plantedOn: '2025-04-01' }), c = plant(columbine.id);
@@ -127,9 +251,9 @@ describe('Share as text', () => {
     const bought = { [yaupon.id]: { n: 2, at: Date.now() }, [columbine.id]: { n: 1, at: Date.now() } };
     expect(listText(plantList(shapes, byId, bought), 'Back Yard')).toBe([
       'Back Yard: plant list',
-      '5 plants to buy, 2 kinds · 3 bought',
+      '2 plants to buy, 1 kind · 3 bought, not yet planted',
       '',
-      'To buy',
+      'To buy (2)',
       '☐ Wild columbine × 3 (1 bought) · Aquilegia canadensis · 1–2 ft tall · Not in a bed',
       "☑ Yaupon 'Nana' × 2 · Ilex vomitoria 'Nana' · 3–5 ft tall, 3–6 ft wide · Front bed",
       '',
