@@ -399,6 +399,7 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .check-banner .link-reset { color: inherit; }
 /* A crowded plant's fixes in its details: Nudge apart, Swap for a smaller plant…, Dismiss (Jason's UI review, Nov 2). */
 .crowd-fixes { display: flex; flex-wrap: wrap; gap: 0 8px; }
+.crowd-fixes > .btn { margin-top: 6px; }
 .unit-seg { flex-shrink: 0; }
 .size-row { display: flex; gap: 8px; align-items: center; }
 .size-row input { flex: 1; min-width: 0; }
