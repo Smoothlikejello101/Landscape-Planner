@@ -14,6 +14,7 @@
 // details say it: its name first, then the problem (poison with its severity; sun naming the sun area).
 
 import { crowdOptions, hardyHere } from './crowd-here';
+import { labelsText, ownLabel } from './plant-list';
 import { crowdPairs, type CrowdLevel } from './crowding';
 import { clearForPlan, dismissedForPlan, dismissForPlan, poisonLine, poisonSaid } from './dismissals';
 import { fruitNeed } from './fruit-partners';
@@ -78,8 +79,24 @@ export interface WarningRow {
 
 /** "Fig", or "Fig ×3" for copies. */
 const nameOf = (s: Shape): string => displayLabel(s) || (s.plantId && plantsById[s.plantId]?.common) || 'A plant';
-const named = (s: Shape[]): string => `${nameOf(s[0])}${s.length > 1 ? ` ×${s.length}` : ''}`;
 const plantOf = (s: Shape): Plant | undefined => (s.role === 'plant' && s.plantId ? plantsById[s.plantId] : undefined);
+/**
+ * A plant's copies by name: "Fig ×3"; with labels of their own, by their kind, the labels beside it, as the Plant list
+ * says it: "Rabbiteye blueberry 'Tifblue' ×3 · labeled Climax ×2, Premier ×1", or for one, "… · labeled Climax"
+ * (Jason's testing, Nov 1: copies labeled with their real cultivars; a row named by the first one's label alone).
+ */
+function named(s: Shape[]): string {
+  const p = plantOf(s[0]), many = s.length > 1 ? ` ×${s.length}` : '';
+  const labels: { label: string; count: number }[] = [];
+  for (const x of s) {
+    const own = ownLabel(x, plantsById);
+    if (!own) continue;
+    const l = labels.find((y) => y.label.toLowerCase() === own.toLowerCase());
+    if (l) l.count++; else labels.push({ label: own, count: 1 });
+  }
+  if (!p || !labels.length) return `${nameOf(s[0])}${many}`;
+  return `${p.common}${many} · ${s.length === 1 ? `labeled ${labels[0].label}` : labelsText({ labels: labels.sort((a, b) => a.label.localeCompare(b.label)) })}`;
+}
 /** A plant in the ground or going in: not gone, not coming out. */
 const living = (s: Shape) => s.status !== 'gone' && s.status !== 'remove';
 const leftClose = (a: Shape, b: Shape) => !!(a.type === 'circle' && a.crowdOk?.includes(b.id)) || !!(b.type === 'circle' && b.crowdOk?.includes(a.id));

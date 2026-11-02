@@ -459,9 +459,16 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .pl-count { flex: none; font-size: calc(15px * var(--ts)); font-weight: 700; color: #1c1917; font-variant-numeric: tabular-nums; }
 .pl-bot { font-size: calc(13px * var(--ts)); font-style: italic; color: #57534e; overflow-wrap: anywhere; }
 .pl-facts { font-size: calc(13px * var(--ts)); color: #57534e; line-height: 1.4; overflow-wrap: anywhere; }
-.pl-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 4px; }
+.pl-actions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .pl-state { font-size: calc(13px * var(--ts)); font-weight: 600; color: #15803d; }
 .pl-state.some { color: #b45309; }
+.pl-state.none { color: #57534e; font-weight: 500; }
+/* How many bought, between − and + (finger-sized, as the tick is). */
+.pl-stepper { display: flex; align-items: center; gap: 6px; }
+.pl-stepper .pl-state { min-width: 6.5em; text-align: center; font-variant-numeric: tabular-nums; }
+.pl-step { flex: none; width: 44px; height: 44px; border-radius: 8px; border: 1px solid #d6d3d1; background: #fff; color: #1c1917; font-size: calc(20px * var(--ts)); font-weight: 600; line-height: 1; display: flex; align-items: center; justify-content: center; }
+.pl-step:disabled { opacity: 0.35; }
+.pl-labels { font-weight: 400; color: #57534e; }
 .pl-mark { flex: none; padding: 6px 12px; font-size: calc(13px * var(--ts)); }
 .pl-row.bought .pl-title { color: #78716c; text-decoration: line-through; text-decoration-color: #a8a29e; }
 .pl-foot-row { display: flex; gap: 8px; }

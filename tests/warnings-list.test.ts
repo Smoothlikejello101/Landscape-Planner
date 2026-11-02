@@ -40,6 +40,16 @@ describe('the warnings in the plan now', () => {
     expect(planWarnings().filter((r) => r.kind === 'crowding' && !r.dismissed)).toHaveLength(2);
   });
 
+  it('copies labeled their own way are named by their kind, their labels beside it, as the Plant list says it (Jason\'s testing, Nov 1)', () => {
+    state.shapes = [at('x', tropical.id, 0, { label: 'Barbara Karst' }), at('y', tropical.id, 20, { label: 'Barbara Karst' }), at('z', tropical.id, 40, { label: 'Raspberry Ice' }), at('w', tropical.id, 60)];
+    expect(planWarnings().filter((r) => r.kind === 'hardy').map((r) => r.name)).toEqual(['Bougainvillea ×4 · labeled Barbara Karst ×2, Raspberry Ice ×1']);
+    state.shapes = [at('z', tropical.id, 40, { label: 'Raspberry Ice' })];
+    expect(planWarnings().filter((r) => r.kind === 'hardy').map((r) => r.name)).toEqual(['Bougainvillea · labeled Raspberry Ice']);
+    // (Labeled with its own name, or none of their own: as before.)
+    state.shapes = [at('x', tropical.id, 0, { label: 'bougainvillea' }), at('y', tropical.id, 20)];
+    expect(planWarnings().filter((r) => r.kind === 'hardy').map((r) => r.name)).toEqual(['bougainvillea ×2']);
+  });
+
   it('a pair left close that has since moved apart is no longer listed', () => {
     state.shapes = [at('c', shrub.id, 0, { crowdOk: ['d'] } as Partial<Shape>), at('d', shrub.id, 20)];
     expect(planWarnings().filter((r) => r.kind === 'crowding')).toEqual([]);

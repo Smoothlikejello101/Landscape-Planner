@@ -390,6 +390,24 @@ export function markPlantedToday(ids: string[]) {
   pushHistory(set.length ? `set ${stepNamed(set)} to Planted` : undefined);
   save();
 }
+/**
+ * Plants marked planted, not planted yet after all, from the Plant list (Jason's testing, Nov 1): back to Planned, their
+ * planting date gone (it wasn't one), as one step to undo. What they used up of their kind's tick comes back with them
+ * (src/plant-list.ts keepBought): bought, not yet planted.
+ */
+export function markNotPlanted(ids: string[]) {
+  flushHistoryDebounce();
+  const set = state.shapes.filter((s) => ids.includes(s.id) && s.status === 'planted');
+  for (const s of set) {
+    for (const [k, v] of Object.entries(statusPatch(s, 'planned'))) {
+      if (v === undefined) delete (s as unknown as Record<string, unknown>)[k];
+      else (s as unknown as Record<string, unknown>)[k] = v;
+    }
+    delete s.plantedOn;
+  }
+  pushHistory(set.length ? `set ${stepNamed(set)} to Planned` : undefined);
+  save();
+}
 export function setPhaseForIds(ids: string[], phase: string) {
   flushHistoryDebounce();
   for (const id of ids) {

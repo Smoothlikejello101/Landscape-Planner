@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { markPlantedToday } from '../src/mutations';
+import { markNotPlanted, markPlantedToday } from '../src/mutations';
 import { pushHistory, redo, undo } from '../src/history';
-import { boughtText, buyHead, dayOf, groupOf, keepBought, kindKey, listText, listTotals, plantedText, plantList, plantsOfKind, tickEntry, totalsText } from '../src/plant-list';
+import { boughtText, buyHead, dayOf, groupOf, keepBought, kindKey, labelsText, listText, listTotals, ownLabel, plantedText, plantList, plantsOfKind, tickEntry, totalsText } from '../src/plant-list';
 import type { Plant } from '../src/plants';
 import { state } from '../src/state';
 import { today } from '../src/status';
@@ -14,7 +14,8 @@ import type { Shape } from '../src/types';
 const base = { color: '#16a34a', opacity: 0.65, locked: false };
 let at = 0;
 const plant = (plantId: string | undefined, extra: Partial<Shape> = {}): Shape =>
-  ({ ...base, id: `p${++at}`, type: 'circle', x: 0, y: 0, radius: 1, role: 'plant', label: plantId ?? '', ...(plantId ? { plantId } : {}), ...extra } as Shape);
+  // (Labeled as placing it labels it: its plant's name.)
+  ({ ...base, id: `p${++at}`, type: 'circle', x: 0, y: 0, radius: 1, role: 'plant', label: plantId ? byId[plantId]?.common ?? plantId : '', ...(plantId ? { plantId } : {}), ...extra } as Shape);
 const bed = (label: string, x: number): Shape => ({ ...base, id: `bed-${label || x}`, type: 'rect', x, y: -5, width: 10, height: 10, rotation: 0, role: 'bed', label } as Shape);
 const yaupon = { id: 'ilex-vomitoria-nana', common: "Yaupon 'Nana'", botanical: "Ilex vomitoria 'Nana'", height: { min: 3, max: 5 }, width: { min: 3, max: 6 } } as unknown as Plant;
 const columbine = { id: 'aquilegia-canadensis', common: 'Wild columbine', botanical: 'Aquilegia canadensis', height: { min: 1, max: 2 } } as unknown as Plant;
@@ -226,6 +227,110 @@ describe('what is bought, through the plan\'s changes: only planting uses a tick
     expect(keepBought(undefined, shapes, [], byId)).toBeUndefined();
     const bought = { other: { n: 2, at: 5 } };
     expect(keepBought(bought, shapes, [], byId)).toBe(bought);
+  });
+});
+
+// Jason's testing, Nov 1: "Right now I can't buy only 1 of my blueberries." How many are bought, by − and +, kept as
+// the tick is: how many and when, nothing new.
+describe('some of a kind bought, by count', () => {
+  const B = 'vaccinium-tifblue';
+  const row = () => plantList(state.shapes, byId, state.bought).buy.find((r) => r.key === B);
+  const set = (n: number) => { state.bought = { ...(state.bought ?? {}), [B]: tickEntry(n, plantsOfKind(state.shapes, B, byId), Date.now()) }; };
+  it('1 of 2 bought: Mark planted plants the one; the other stays to buy, unbought; the plan keeps {n, at} as before', () => {
+    const two = [plant(B), plant(B)];
+    state.shapes = [...two];
+    pushHistory();
+    set(1);
+    expect(row()).toMatchObject({ count: 2, bought: 1 });
+    expect(boughtText(row()!)).toBe('1 of 2 bought');
+    expect(Object.keys(state.bought![B]).sort()).toEqual(['at', 'n']);
+    markPlantedToday(row()!.ids.slice(0, 1));
+    expect(row()).toMatchObject({ count: 1, bought: 0 });
+    // One more bought, the next day's count: the one planted today is counted, so the other reads bought.
+    set(1);
+    expect(row()).toMatchObject({ count: 1, bought: 1 });
+    expect(state.bought![B].n).toBe(2);
+    // Down to none: none bought, and the planted one stays planted.
+    set(0);
+    expect(row()).toMatchObject({ count: 1, bought: 0 });
+    expect(plantList(state.shapes, byId, state.bought).planted.map((r) => r.count)).toEqual([1]);
+  });
+});
+
+// Jason's testing, Nov 1: marked planted too soon, a row goes back to To buy ("Not planted yet"), bought as it was.
+describe('Not planted yet, from the Plant list', () => {
+  const G = 'rudbeckia-fulgida-goldsturm';
+  const row = (g: 'buy' | 'planted' = 'buy') => plantList(state.shapes, byId, state.bought)[g].find((r) => r.key === G);
+  it('back to Planned, its date gone, as one step; the ticks it used up come back (keepBought), and Undo plants them again', () => {
+    const three = [plant(G), plant(G), plant(G)];
+    state.shapes = [...three];
+    pushHistory();
+    state.bought = { [G]: tickEntry(3, plantsOfKind(state.shapes, G, byId), Date.now()) };
+    markPlantedToday(three.map((s) => s.id));
+    expect(row()).toBeUndefined();
+    const steps = state.history.length;
+    markNotPlanted(row('planted')!.ids);
+    expect(state.history).toHaveLength(steps + 1);
+    expect(state.history.at(-1)!.label).toBe('set 3 plants to Planned');
+    expect(state.shapes.map((s) => [s.status, s.plantedOn])).toEqual([['planned', undefined], ['planned', undefined], ['planned', undefined]]);
+    expect(row()).toMatchObject({ count: 3, bought: 3 });
+    expect(row('planted')).toBeUndefined();
+    undo();
+    expect(row()).toBeUndefined();
+    expect(row('planted')).toMatchObject({ count: 3 });
+    redo();
+    expect(row()).toMatchObject({ count: 3, bought: 3 });
+  });
+  it('planted before the tick, or with none: back unbought; the tick for the rest stays as it was', () => {
+    const old = plant(G, { status: 'planted', plantedOn: '2026-10-20' }), more = [plant(G), plant(G)];
+    state.shapes = [old, ...more];
+    pushHistory();
+    state.bought = { [G]: tickEntry(2, plantsOfKind(state.shapes, G, byId), Date.now()) };
+    expect(row()).toMatchObject({ count: 2, bought: 2 });
+    markNotPlanted([old.id]);
+    expect(row()).toMatchObject({ count: 3, bought: 2 });
+    // (keepBought on its own: the same ticks, nothing to give back.)
+    const before = state.history[state.history.length - 2].shapes;
+    expect(keepBought(state.bought, before, state.shapes, byId)).toBe(state.bought);
+    const none = plant(columbine.id, { status: 'planted', plantedOn: '2026-11-01' });
+    state.shapes.push(none);
+    pushHistory('add');
+    markNotPlanted([none.id]);
+    expect(plantList(state.shapes, byId, state.bought).buy.find((r) => r.key === columbine.id)).toMatchObject({ count: 1, bought: 0 });
+  });
+  it('only plants marked planted: one to buy or there already is left as it is', () => {
+    const a = plant(G), b = plant(G, { status: 'existing' });
+    state.shapes = [a, b];
+    pushHistory();
+    const steps = state.history.length;
+    markNotPlanted([a.id, b.id]);
+    expect(state.shapes.map((s) => s.status)).toEqual([undefined, 'existing']);
+    expect(state.history).toHaveLength(steps + 1); // (a step, saying nothing)
+  });
+});
+
+// Jason's testing, Nov 1: Tifblue blueberries labeled with their real cultivars, and a plain Tifblue row he couldn't
+// place. A row says its plants' own labels beside its kind's name.
+describe('a plant\'s own label beside its kind', () => {
+  const tifblue = { id: 'vaccinium-tifblue', common: "Rabbiteye blueberry 'Tifblue'", botanical: "Vaccinium virgatum 'Tifblue'" } as unknown as Plant;
+  const ids = { ...byId, [tifblue.id]: tifblue };
+  it('counts each label, by name, in its group; a label that is its kind\'s name (spaces, capitals) is none', () => {
+    const shapes = [
+      plant(tifblue.id, { label: 'Premier' }), plant(tifblue.id, { label: "Rabbiteye blueberry 'Tifblue'" }), plant(tifblue.id, { label: ' Climax ' }),
+      plant(tifblue.id, { label: "rabbiteye  blueberry 'tifblue'" }), plant(tifblue.id, { label: 'climax' }), plant(tifblue.id, { label: '' }),
+      plant(tifblue.id, { label: 'Premier', status: 'planted', plantedOn: '2026-10-30' }),
+      plant(undefined, { label: 'Tomato' }), plant('not-loaded', { label: 'Mystery' }),
+    ];
+    const l = plantList(shapes, ids, undefined);
+    const buy = l.buy.find((r) => r.key === tifblue.id)!;
+    expect(buy).toMatchObject({ name: "Rabbiteye blueberry 'Tifblue'", count: 6, labels: [{ label: 'Climax', count: 2 }, { label: 'Premier', count: 1 }] });
+    expect(labelsText(buy)).toBe('labeled Climax ×2, Premier ×1');
+    expect(labelsText(l.planted[0])).toBe('labeled Premier ×1');
+    // (Named by its label, a plant of no catalog plant has none; nor one whose catalog plant isn't here.)
+    expect(l.buy.filter((r) => r.key !== tifblue.id).map((r) => r.labels)).toEqual([[], []]);
+    expect([ownLabel({ plantId: tifblue.id, label: 'Climax' }, ids), ownLabel({ label: 'Climax' }, ids), ownLabel({ plantId: 'not-loaded', label: 'X' }, ids)]).toEqual(['Climax', '', '']);
+    expect(listText(plantList(shapes.slice(0, 6), ids, undefined), 'Back Yard').split('\n')[4])
+      .toBe("☐ Rabbiteye blueberry 'Tifblue' × 6 · labeled Climax ×2, Premier ×1 · Vaccinium virgatum 'Tifblue' · Not in a bed");
   });
 });
 

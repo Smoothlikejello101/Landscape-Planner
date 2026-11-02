@@ -29,6 +29,11 @@ export interface ListRow {
   bought: number;
   /** Planted: the first and last planting dates (YYYY-MM-DD), where known. */
   plantedOn?: [string, string];
+  /**
+   * Its plants' own labels, where they aren't the kind's name, with how many of each, by name (Jason's testing, Nov 1:
+   * Tifblue blueberries labeled with their real cultivars, and a plain Tifblue row he couldn't place). None: [].
+   */
+  labels: { label: string; count: number }[];
 }
 export interface PlantList { buy: ListRow[]; planted: ListRow[]; existing: ListRow[] }
 export const NO_BED = 'Not in a bed';
@@ -46,6 +51,19 @@ export function kindKey(s: Pick<Shape, 'plantId' | 'label'>, byId: Record<string
   const name = s.label.trim().toLowerCase().replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 100);
   return 'n:' + (name || 'unlabeled');
 }
+/** A name as it reads: its spaces trimmed and single. */
+const said = (t: string) => t.trim().replace(/\s+/g, ' ');
+/**
+ * A plant's own label, where it isn't its kind's name ("Climax" on a Tifblue blueberry, or the name a catalog plant had
+ * when it was placed), or ''. A plant of no catalog plant or of mine is its kind by its label: none.
+ */
+export function ownLabel(s: Pick<Shape, 'plantId' | 'label'>, byId: Record<string, Plant | undefined>): string {
+  const p = s.plantId ? byId[s.plantId] : undefined;
+  const label = said(s.label ?? '');
+  return p && label && label.toLowerCase() !== said(p.common).toLowerCase() ? label : '';
+}
+/** "labeled Climax ×2, Premier ×1", or '' (a row's plants all go by its kind's name). */
+export const labelsText = (r: Pick<ListRow, 'labels'>): string => (r.labels.length ? `labeled ${r.labels.map((l) => `${l.label} ×${l.count}`).join(', ')}` : '');
 /** The calendar day (YYYY-MM-DD, local) a time in ms falls on. */
 export function dayOf(ms: number): string {
   const d = new Date(ms);
@@ -140,11 +158,16 @@ export function plantList(shapes: Shape[], byId: Record<string, Plant | undefine
       const p = s.plantId ? byId[s.plantId] : undefined;
       const name = p?.common.trim() || s.label.trim() || 'Unlabeled plant';
       const bot = p?.botanical?.trim() ?? '';
-      row = { key, name, botanical: bot && bot !== name ? bot : '', size: p ? sizeLine(p) : '', beds: [], count: 0, ids: [], bought: 0 };
+      row = { key, name, botanical: bot && bot !== name ? bot : '', size: p ? sizeLine(p) : '', beds: [], count: 0, ids: [], bought: 0, labels: [] };
       groups[g].set(key, row);
     }
     row.count++;
     row.ids.push(s.id);
+    const own = ownLabel(s, byId);
+    if (own) {
+      const l = row.labels.find((x) => x.label.toLowerCase() === own.toLowerCase());
+      if (l) l.count++; else row.labels.push({ label: own, count: 1 });
+    }
     const bed = bedOf(s, shapes);
     const where = bed ? bedName.get(bed)! : NO_BED;
     if (!row.beds.includes(where)) row.beds.push(where);
@@ -154,8 +177,9 @@ export function plantList(shapes: Shape[], byId: Record<string, Plant | undefine
     }
   }
   const byName = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
-  const sorted = (g: ListGroup) => [...groups[g].values()].map((r) => ({ ...r, beds: [...r.beds.filter((b) => b !== NO_BED).sort(byName), ...r.beds.filter((b) => b === NO_BED)] }))
-    .sort((a, b) => byName(a.name, b.name));
+  const sorted = (g: ListGroup) => [...groups[g].values()].map((r) => ({
+    ...r, beds: [...r.beds.filter((b) => b !== NO_BED).sort(byName), ...r.beds.filter((b) => b === NO_BED)], labels: [...r.labels].sort((a, b) => byName(a.label, b.label)),
+  })).sort((a, b) => byName(a.name, b.name));
   const buy = sorted('buy');
   for (const r of buy) r.bought = boughtNow(bought?.[r.key], kinds.get(r.key) ?? []);
   return { buy, planted: sorted('planted'), existing: sorted('existing') };
@@ -210,10 +234,10 @@ export const rowFacts = (r: ListRow): string => [r.size, r.beds.join(', ')].filt
 
 /**
  * The list as text, to paste into a note or a message (Share as text): the plan's name and totals, then a line a kind,
- * a box to tick on each to buy.
+ * a box to tick on each to buy, its plants' own labels beside its name.
  */
 export function listText(l: PlantList, planName: string): string {
-  const line = (mark: string, r: ListRow, after = '') => `${mark} ${r.name} × ${r.count}${after}` + [r.botanical, rowFacts(r)].filter(Boolean).map((x) => ` · ${x}`).join('');
+  const line = (mark: string, r: ListRow, after = '') => `${mark} ${r.name} × ${r.count}${after}` + [labelsText(r), r.botanical, rowFacts(r)].filter(Boolean).map((x) => ` · ${x}`).join('');
   const out = [`${planName}: plant list`, totalsText(listTotals(l))];
   if (l.buy.length) {
     out.push('', buyHead(listTotals(l)));
