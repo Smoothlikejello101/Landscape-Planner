@@ -9,7 +9,7 @@
 // partners), each with its count and how many are dismissed, or why it can't run yet with a button to fix that; and
 // what goes with the plan. No badge key (Jason: the icons beside the kinds say it). A kind opened: its switch and what
 // it checks; its rows, name first, the problem as the plant's details say it, Dismiss or Show again at the right, a
-// dismissed one saying who for; under a rule and a heading, "Dismiss all 3" and "Show all 2 again" (#187, from
+// dismissed one saying who for; above them, with a heading, "Dismiss all 3" and "Show all 2 again" (#187, from
 // Settings); and "How this is worked out", its rule and sources.
 //
 // Working through it: on a computer it's a panel beside the plan that stays open while its rows select plants. On a
@@ -38,7 +38,7 @@ import { startKind } from '../draw';
 import { BURIED_CLEAR, CLEAR_OF_LINE, MEDIUM_TREE, NEAR_LINE, SMALL_TREE, utilityOf } from '../utilities';
 import { setCrowdWarnings, setFruitWarnings, setHardyWarnings, setPoisonWarnings, setShowCrowding } from '../view-settings';
 import {
-  acrossPlan, buttonSaid, cantRunSaid, KIND_WORDS, kindStates, planWarnings, setDismissed, WARNING_KINDS, warningsSummary,
+  acrossPlan, buttonSaid, cantRunSaid, KIND_WORDS, kindStates, planWarnings, setDismissed, utilitiesDrawn, WARNING_KINDS, warningsSummary,
   type CantRun, type KindState, type WarningKind, type WarningRow, type WarningsSummary,
 } from '../warnings-list';
 import { applyYard, household, saveYard, toggleYard, type Yard } from '../yard';
@@ -270,7 +270,6 @@ const CANT: Record<CantRun, { said: string; fix?: string }> = {
   yard: { said: 'Off until you choose kids or pets', fix: 'Choose' },
   zip: { said: 'Needs your ZIP', fix: 'Set location' },
   sun: { said: 'No sun areas yet', fix: 'Add a sun area' },
-  utilities: { said: 'None drawn. Checked once you draw a line or a septic field' },
 };
 function fix(st: KindState) {
   if (st.cantRun === 'yard') { kindsOpen.add('poison'); flashKind = 'poison'; render(); }
@@ -289,8 +288,9 @@ function kindFold(st: KindState, rows: WarningRow[]): HTMLElement {
   const kind = st.kind, name = NAMES[kind];
   const open = kindsOpen.has(kind);
   const on = rows.filter((r) => !r.dismissed), off = rows.filter((r) => r.dismissed);
-  // Its line under the name: why it can't run; off; or on with none.
-  const sub = !st.on ? 'Off' : st.cantRun ? CANT[st.cantRun].said : rows.length ? '' : 'On · none';
+  // Its line under the name: why it can't run; off; or on with none (utilities with none drawn: said so, quietly, as a
+  // yard may have none, not as a check that can't run).
+  const sub = !st.on ? 'Off' : st.cantRun ? CANT[st.cantRun].said : rows.length ? '' : kind === 'utility' && !utilitiesDrawn() ? 'None drawn' : 'On · none';
   const meta = el('span', { className: 'wk-meta' },
     on.length ? el('span', { className: 'wk-count', 'data-testid': 'kind-count' }, String(on.length)) : null,
     off.length ? el('span', { className: 'wk-off' }, `${on.length ? '· ' : ''}${off.length} dismissed`) : null);
@@ -313,16 +313,17 @@ function kindFold(st: KindState, rows: WarningRow[]): HTMLElement {
   const wrap = el('section', { className: 'warn-kind' + (open ? ' open' : ''), 'data-testid': `warnings-kind-${kind}`, 'data-state': !st.on ? 'off' : st.cantRun ? 'cant-run' : rows.length ? 'found' : 'none' }, head);
   if (!open) return wrap;
   wrap.appendChild(switchCard(kind));
+  const all = kindButtons(kind, rows);
+  // (With a heading, "All 3 hardiness warnings", so they don't read as a row's: Jason, Nov 1. Above the rows, not
+  // under them: Jason's notes after release 3.)
+  if (all) {
+    wrap.appendChild(el('div', { className: 'warnings-all', 'data-testid': `warnings-all-${kind}`, role: 'group', 'aria-label': `All ${rows.length} ${KIND_WORDS[kind]} warnings` },
+      el('span', { className: 'warnings-all-head', 'aria-hidden': 'true' }, `All ${rows.length} ${KIND_WORDS[kind]} warnings`), ...all));
+  }
   if (rows.length) {
     const list = el('div', { className: 'warn-rows' });
     for (const r of [...on, ...off]) list.appendChild(warningRow(r));
     wrap.appendChild(list);
-  }
-  const all = kindButtons(kind, rows);
-  // (Under a rule and a heading, "All 3 hardiness warnings", so they don't read as the last row's: Jason, Nov 1.)
-  if (all) {
-    wrap.appendChild(el('div', { className: 'warnings-all', 'data-testid': `warnings-all-${kind}`, role: 'group', 'aria-label': `All ${rows.length} ${KIND_WORDS[kind]} warnings` },
-      el('span', { className: 'warnings-all-head', 'aria-hidden': 'true' }, `All ${rows.length} ${KIND_WORDS[kind]} warnings`), ...all));
   }
   const hOpen = howOpen.has(kind);
   const how = el('button', { className: 'warn-how', 'aria-expanded': String(hOpen), 'data-testid': `warnings-how-${kind}` }, 'How this is worked out ', el('span', { 'aria-hidden': 'true' }, hOpen ? '▾' : '▸'));
@@ -368,7 +369,8 @@ function switchCard(kind: WarningKind): HTMLElement {
   };
   if (kind === 'poison') {
     const who = yardSaid();
-    lines.append(el('div', {}, who ? `Plants poisonous to the ${who} in the yard` : 'Plants poisonous to the kids or pets in the yard, once you choose them'));
+    // (Jason's words, after release 3: "Warn about plants poisonous to …".)
+    lines.append(el('div', {}, who ? `Warn about plants poisonous to the ${who} in the yard` : 'Warn about plants poisonous to the kids or pets in the yard, once you choose them'));
     card.appendChild(check('poison-warnings', state.poisonWarnings, setPoisonWarnings, 'Check poison'));
     card.appendChild(yardChips());
   } else if (kind === 'utility') {

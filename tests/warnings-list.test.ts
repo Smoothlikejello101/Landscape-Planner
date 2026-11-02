@@ -265,11 +265,12 @@ describe('what the checks can do', () => {
   afterEach(() => { state.shapes = []; state.location = null; state.roleViews = {}; state.viewFilter = { status: '', phase: '', showGone: false }; });
   const cant = () => Object.fromEntries(kindStates().map((k) => [k.kind, k.on ? k.cantRun ?? 'runs' : 'off']));
 
-  it('a new plan: poison until kids or pets are chosen, utilities until one is drawn, hardiness until a ZIP, sun until a sun area', () => {
+  it('a new plan: poison until kids or pets are chosen, hardiness until a ZIP, sun until a sun area; utilities with none drawn can run (Jason, after release 3)', () => {
     state.shapes = [at('x', tropical.id, 0)];
-    expect(cant()).toEqual({ poison: 'yard', utility: 'utilities', hardy: 'zip', sun: 'sun', crowding: 'runs', fruit: 'runs' });
-    expect(warningsSummary()).toMatchObject({ active: 0, dismissed: 0, cantRun: 4, hidden: null });
-    expect(buttonSaid(warningsSummary())).toBe('Warnings: none found, 4 checks can’t run yet');
+    // (A yard may have no utility lines at all: none drawn isn't a check that can't run.)
+    expect(cant()).toEqual({ poison: 'yard', utility: 'runs', hardy: 'zip', sun: 'sun', crowding: 'runs', fruit: 'runs' });
+    expect(warningsSummary()).toMatchObject({ active: 0, dismissed: 0, cantRun: 3, hidden: null });
+    expect(buttonSaid(warningsSummary())).toBe('Warnings: none found, 3 checks can’t run yet');
     // Each given what it needs.
     state.household = { kids: true, dogs: '', cats: false, horses: false, answered: true };
     state.location = { zip: '71923', zone: '8a' };
@@ -298,7 +299,7 @@ describe('what the checks can do', () => {
     // (Not a false all-clear: the button says it's the plants shown.)
     state.viewFilter = { status: 'planned', phase: '', showGone: false };
     state.hardyWarnings = false;
-    expect(buttonSaid(warningsSummary())).toBe('Warnings: none in the plants shown (some plants hidden), 3 checks can’t run yet');
+    expect(buttonSaid(warningsSummary())).toBe('Warnings: none in the plants shown (some plants hidden), 2 checks can’t run yet');
     state.viewFilter = { status: '', phase: '', showGone: false };
     state.roleViews = { plant: { hidden: true } };
     expect(hiddenFromChecks()?.said).toBe('Layers: Plants hidden');

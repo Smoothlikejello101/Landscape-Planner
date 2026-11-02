@@ -274,9 +274,10 @@ export function countSaid(rows: WarningRow[]): string {
  * Why a kind that's on can't run yet, and so finds nothing (the review, Nov 1: Hardiness and Poison said "on" with no ZIP
  * or nobody chosen, with no way to fix it): the yard has nobody chosen in it (poison: Jason, "I'm there, I just don't
  * have poison warnings turned on", so it's said "Off until you choose kids or pets"), no ZIP (hardiness), no sun
- * recorded (sun), no utilities drawn.
+ * recorded (sun: Jason, "It's important info that's missing"). Not utilities with none drawn: a yard may have no
+ * utility lines at all, so nothing is missing (Jason's notes after release 3): its card says "None drawn", quietly.
  */
-export type CantRun = 'yard' | 'zip' | 'sun' | 'utilities';
+export type CantRun = 'yard' | 'zip' | 'sun';
 export interface KindState {
   kind: WarningKind;
   /** Switched on (Utilities have no switch: always). */
@@ -284,11 +285,13 @@ export interface KindState {
   /** On, but it can't run yet: what it needs first. */
   cantRun?: CantRun;
 }
+/** Whether the plan has any utility drawn (a line, buried or overhead, or a septic field), not gone. */
+export const utilitiesDrawn = (): boolean => state.shapes.some((s) => !!utilityOf(s) && s.status !== 'gone');
 /** Each kind's state, in the sheet's order. */
 export function kindStates(): KindState[] {
   const needs: Record<WarningKind, [boolean, CantRun | undefined]> = {
     poison: [state.poisonWarnings, yardSet(household()) ? undefined : 'yard'],
-    utility: [true, state.shapes.some((s) => !!utilityOf(s) && s.status !== 'gone') ? undefined : 'utilities'],
+    utility: [true, undefined],
     hardy: [state.hardyWarnings, state.location ? undefined : 'zip'],
     sun: [state.sunWarnings, state.shapes.some((s) => s.role === 'shade' && !!s.sun) ? undefined : 'sun'],
     crowding: [state.showCrowding || state.crowdWarnings, undefined],
