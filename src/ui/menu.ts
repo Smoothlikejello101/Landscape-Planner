@@ -12,7 +12,7 @@ import { render } from './render';
 import { openLocation } from './location-panel';
 import { openFeedback } from './feedback-sheet';
 import { MARK_SMALL } from '../brand';
-import { showMeAround } from './intro-card';
+import { openHelp } from './help-sheet';
 import { openWhatsNew } from './whats-new-panel';
 import { CHANNEL } from '../channel';
 import { builtOn } from '../whats-new';
@@ -104,11 +104,9 @@ export function renderMoreMenu() {
   // Every setting in one sheet: text and label size, drawing, and a way to Warnings (Jason, Oct 31, from round 3: Bea
   // found them scattered between Layers and the foot of this menu).
   items.push({ icon: I.settings, label: 'Settings\u2026', testid: 'menu-settings', onClick: () => { state.panel = 'settings'; state.menu = null; render(); } });
-  // The guided introduction, any time: from the start, or (left part way) pick up where they left (src/ui/intro-card.ts).
-  items.push({
-    icon: I.help, label: 'Show me around', testid: 'menu-intro',
-    onClick: () => { state.menu = null; showMeAround(); render(); },
-  });
+  // Help: "How do I…", each with a way there, and the guided introduction, Take the tour (src/ui/help-sheet.ts; Jason,
+  // Nov 2, from the UI review: it was "Show me around", the tour alone).
+  items.push({ icon: I.help, label: 'Help', testid: 'menu-help', onClick: openHelp });
   // What changed in each update, newest first (src/whats-new.ts; Jason, Oct 31: for the beta's testers).
   items.push({ icon: I.news, label: 'What\u2019s new', testid: 'menu-whats-new', onClick: openWhatsNew });
   items.push({

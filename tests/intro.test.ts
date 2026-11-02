@@ -76,7 +76,7 @@ describe('the guided introduction: the order of the steps', () => {
     expect(prevStep('house', PHOTO)).toBe('photo');
     expect(prevStep('house', PHOTO, ['photo'])).toBe('turn');
   });
-  it('"Show me around" picks up at the step they left, or the first not done', () => {
+  it('Take the tour (⋮ → Help) picks up at the step they left, or the first not done', () => {
     expect(resumeStep(rec({ step: 'sun', done: ['zip', 'house', 'bed'], skipped: ['photo'] }), BLANK)).toBe('sun');
     expect(resumeStep(rec({ step: 'sun', done: ['zip', 'sun'] }), BLANK)).toBe('photo');
     expect(resumeStep(rec({ step: 'turn', done: ['zip'] }), BLANK)).toBe('photo'); // (the photo since removed)

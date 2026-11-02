@@ -65,7 +65,7 @@ export function snapshot(): Snapshot {
 /** Whether the empty plan offers it ("New here? Show me around"): not once it's been started, finished or declined. */
 export const introOffered = (): boolean => rec.status === 'never';
 export const introActive = (): boolean => rec.status === 'active';
-/** "I'll explore": not offered again (it stays in ⋮). */
+/** "I'll explore": not offered again (it stays in ⋮ → Help, Take the tour). */
 export function declineIntro(): void { rec.status = 'declined'; save(); }
 
 /** Begin at the first step (or `at`), fresh: what's done on the plan before it counts from here on. */
@@ -76,11 +76,11 @@ function begin(at: StepId | null): void {
   choosing = false;
   save();
 }
-/** Whether the card is asking "pick up or start over" (⋮ "Show me around" after an Exit). */
+/** Whether the card is asking "pick up or start over" (⋮ → Help → Take the tour after an Exit). */
 let choosing = false;
 /**
- * "Show me around" (⋮, or the empty plan's card). Left part way: asks whether to pick up where they left or start
- * over. Otherwise it starts from step 1.
+ * Take the tour (⋮ → Help), or the empty plan's "New here? Show me around". Left part way: asks whether to pick up
+ * where they left or start over. Otherwise it starts from step 1.
  */
 export function showMeAround(): void {
   // (Under way already, or left part way: pick up there, or start over.)
@@ -93,7 +93,7 @@ export function showMeAround(): void {
 function exit(): void { if (rec.status === 'active') rec.status = 'exited'; choosing = false; save(); }
 function finish(): void {
   rec.status = 'finished'; rec.step = null; choosing = false; save();
-  toast(`That's the tour. Add more plants, or open Add for paths, lawn, fences and the rest. "Show me around" is in ⋮.`, 9000);
+  toast('That\'s the tour. Add more plants, or open Add for paths, lawn, fences and the rest. To take it again: \u22ee \u2192 Help \u2192 Take the tour.', 9000);
 }
 /** Move on from the current step: done or skipped. */
 function advance(how: 'done' | 'skipped'): void {
@@ -424,7 +424,7 @@ function exitButton(): HTMLElement {
     exit();
     render();
     // (Where it's kept, said as it goes: Jason, Nov 2, from the UI review.)
-    toast('Tour closed. To pick it up again: \u22ee \u2192 Show me around.', 6000);
+    toast('Tour closed. To pick it up again: \u22ee \u2192 Help \u2192 Take the tour.', 6000);
   });
   return x;
 }
@@ -486,7 +486,7 @@ function resumeCard(): HTMLElement {
   const card = cardShell(false);
   const s = snapshot();
   const at = resumeStep(rec, s);
-  card.appendChild(el('div', { className: 'intro-head' }, el('span', { className: 'intro-title' }, 'Show me around'), exitButton()));
+  card.appendChild(el('div', { className: 'intro-head' }, el('span', { className: 'intro-title' }, 'Take the tour'), exitButton()));
   const actions = el('div', { className: 'intro-actions column' });
   if (at) {
     const pick = el('button', { className: 'btn primary', 'data-testid': 'intro-resume' }, `Pick up at step ${STEP_NUMBER[at]}, ${STEP_TITLE[at]}`);

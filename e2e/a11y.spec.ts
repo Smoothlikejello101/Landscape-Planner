@@ -44,7 +44,12 @@ test('every control has a name, and text is dark enough, on the main screens', a
   await closeSheet(page);
   await page.locator('button[title=More]').click();
   seen.menu = await problems(page);
-  await page.keyboard.press('Escape');
+  // Help, every answer opened (Jason, Nov 2: in place of Show me around).
+  await page.getByTestId('menu-help').click();
+  for (const q of await page.locator('.help-q').all()) await q.click();
+  await expect(page.locator('.help-a:visible')).toHaveCount(7);
+  seen.help = await problems(page);
+  await closeSheet(page);
   await addPlainShape(page, 'rect');
   seen.shape = await problems(page);
   const all = Object.entries(seen).flatMap(([screen, list]) => list.map((x) => `${screen}: ${x}`));
