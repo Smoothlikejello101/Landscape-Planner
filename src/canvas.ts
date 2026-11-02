@@ -1,7 +1,7 @@
 import { renderBgHandles, renderBgImageInto } from './background';
 import { AXIS_LABEL, BG_COLOR, GRID_MAJOR, GRID_MINOR, PX_PER_FOOT_BASE } from './constants';
 import { svgEl, type Attrs } from './dom';
-import { alongLabel, boxLabelAngle, boxSize, shapeBBox, shapeCenter, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, worldPoints } from './geometry';
+import { alongLabel, boxLabelAngle, boxSize, shapeBBox, shapeCenter, displayLabel, LINE_HEIGHT, pathLabelPoint, pxPerFoot, textLines, textSize, trianglePoints, unionBounds, worldPoints } from './geometry';
 import { renderPathOverlay } from './draw';
 import { fullRingRadius } from './my-plants';
 import { bandOf, crowdLevels, type CrowdLevel } from './crowding';
@@ -895,7 +895,11 @@ function refreshLabelLayout() {
       return { label: at.label || at.sun, x: at.x, y: at.y, w: at.w, h: at.h, fs: at.fs, angle: at.angle, bed: isBed(s), size: (b.maxX - b.minX) * (b.maxY - b.minY),
         fixed: !!at.angle || s.type === 'line', gone: s.status === 'gone', around: { x0: b.minX * ppf - ox, y0: b.minY * ppf - oy, x1: b.maxX * ppf - ox, y1: b.maxY * ppf - oy } };
     });
-    placeAreaNames(names, plants, { x0: 0, y0: 0, x1: state.canvasW, y1: state.canvasH }, 1, true).forEach((p, i) => {
+    // (A name moved stays within the plan, 2 ft round it as a picture has, not the screen: where it goes doesn't change
+    // as the plan is panned.)
+    const all = unionBounds(shown.map(shapeBBox))!;
+    const within = { x0: (all.minX - 2) * ppf - ox, y0: (all.minY - 2) * ppf - oy, x1: (all.maxX + 2) * ppf - ox, y1: (all.maxY + 2) * ppf - oy };
+    placeAreaNames(names, plants, within, 1, true).forEach((p, i) => {
       if (!p) return;
       areaShift.set(areas[i].s.id, { dx: p.x - names[i].x, dy: p.y - names[i].y, over: p.overPlant });
       placed.push({ x0: p.box.x0 + ox, x1: p.box.x1 + ox, y0: p.box.y0 + oy, y1: p.box.y1 + oy });
