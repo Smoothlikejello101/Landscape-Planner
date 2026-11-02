@@ -20,7 +20,7 @@ import { ZONE_SOURCE_SHORT } from '../climate';
 import { openLocation } from './location-panel';
 import { render } from './render';
 import { plantDetails } from './plant-details';
-import { addCompareToggle, compareBar, compareMark, compareOver, refreshCompare, syncCompareMarks, type CompareHost } from './compare-sheet';
+import { addCompareToggle, compareBar, compareMark, compareOver, pickerBeneath, refreshCompare, syncCompareMarks, type CompareHost } from './compare-sheet';
 import { bannedHere, escapeHere, escapeShort, gardenStateName, lawShort, loadWild, regulatedHere } from '../wild';
 import { plantDot, plantSpot } from '../plant-looks';
 
@@ -1192,7 +1192,9 @@ export function renderPlantsPanel() {
     const first = listWrap.firstElementChild?.getBoundingClientRect();
     if (y < top || (first && first.top + 32 > sheet.getBoundingClientRect().bottom)) sheet.scrollTop += y - top - 4;
   });
-  const overlay = el('div', { className: 'overlay' }, sheet, compareOver(compareHost));
+  const over = compareOver(compareHost);
+  const overlay = el('div', { className: 'overlay' }, sheet, over);
+  if (over) pickerBeneath(overlay, true); // (beneath the comparison, out of reach)
   overlay.addEventListener('click', e => { if (e.target === overlay) closePicker(); });
   return overlay;
 }

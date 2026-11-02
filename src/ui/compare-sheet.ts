@@ -107,7 +107,19 @@ export function openCompare(host: CompareHost) {
   current?.node.remove();
   current = { node: compareView(host), host };
   host.root.appendChild(current.node);
+  pickerBeneath(host.root, true);
   current.node.querySelector<HTMLElement>('.sheet-header button')?.focus();
+}
+/**
+ * The picker beneath the comparison: out of reach while it's open (inert: not focused, not read out, not pressed), so a
+ * screen reader or a keyboard meets the comparison's own Swap, not the row's beneath it.
+ */
+export function pickerBeneath(root: ParentNode, covered: boolean) {
+  const sheet = root.querySelector<HTMLElement>(':scope > .picker-sheet');
+  if (!sheet) return;
+  sheet.inert = covered;
+  // (Hidden as inert hides it, for a reader that doesn't know inert.)
+  if (covered) sheet.setAttribute('aria-hidden', 'true'); else sheet.removeAttribute('aria-hidden');
 }
 /** Back to the picker, in place; the choice kept. */
 export function closeCompare() {
@@ -116,6 +128,7 @@ export function closeCompare() {
   const root = current?.host.root;
   current?.node.remove();
   current = null;
+  if (root) pickerBeneath(root, false);
   root?.querySelector<HTMLElement>('[data-testid=compare-open]:not([hidden])')?.focus();
 }
 /** The comparison drawn again where it is (a plant removed, the garden's records in), scrolled as it was. */
