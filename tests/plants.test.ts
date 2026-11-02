@@ -106,6 +106,15 @@ describe('plant filters', () => {
     expect(plantMatches({ ...cone, flower_color: ['insignificant'] }, f({ flowers: true }))).toBe(false);
     expect(plantMatches({ ...cone, flower_form: { inflorescence: ['catkin'] } } as Plant, f({ flowers: true }))).toBe(false);
     expect(plantMatches({ id: 'f', common: 'Christmas fern' } as Plant, f({ flowers: true }))).toBe(false);
+    // One rule for showy, as its details say it (the bug hunt, Nov 1): "insignificant" in its flower form counts only
+    // with no shape given. A flowering dogwood's bracts have one: Has flowers, and White flowers; a holly's tiny flowers
+    // have none: neither, the color chips included.
+    const dogwood = { ...cone, common: 'Flowering dogwood', flower_color: ['white', 'pink'], flower_form: { inflorescence: ['cyme', 'insignificant'], shape: ['cross'], size: ['3-6'] } } as Plant;
+    expect(plantMatches(dogwood, f({ flowers: true }))).toBe(true);
+    expect(plantMatches(dogwood, f({ flowerColors: ['white'] }))).toBe(true);
+    const holly = { ...cone, common: 'Winterberry holly', flower_color: ['white', 'green'], flower_form: { inflorescence: ['insignificant'] } } as Plant;
+    expect(plantMatches(holly, f({ flowers: true }))).toBe(false);
+    expect(plantMatches(holly, f({ flowerColors: ['white'] }))).toBe(false);
     expect(filterOn(f({ flowers: true }), 'flowers')).toBe(true);
     expect(trueToColor(cone)).toBe(false);
     expect(trueToColor({ ...cone, common: "Coneflower 'Tomato Soup'" })).toBe(true);

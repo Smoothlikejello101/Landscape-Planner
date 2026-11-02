@@ -52,6 +52,30 @@ test('⋮\'s version line checks for updates: here, with no service worker, it s
   await expect(page.getByTestId('check-updates')).toBeVisible({ timeout: 8000 }); // (said for a moment)
 });
 
+test('⋮ uses the room it has: on a 1366 × 820 computer, Check for updates in view without scrolling; one line above the version (the bug hunt, Nov 1)', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 820 });
+  await openFresh(page);
+  await page.locator('button[title=More]').click();
+  const menu = page.locator('.menu');
+  await expect(page.getByTestId('check-updates')).toBeVisible();
+  // All of it shown: it stopped at 80% of the screen, Check for updates cut off above empty screen.
+  expect(await menu.evaluate((m) => m.scrollHeight - m.clientHeight)).toBeLessThanOrEqual(1);
+  const m = (await menu.boundingBox())!, check = (await page.getByTestId('check-updates').boundingBox())!;
+  expect(check.y + check.height).toBeLessThanOrEqual(m.y + m.height);
+  expect(m.y + m.height).toBeLessThanOrEqual(820);
+  // The version line's own border divides it from the items: no divider of its own above it as well.
+  expect(await page.locator('.menu-version').evaluate((v) => v.previousElementSibling?.className)).toBe('menu-item');
+  await page.keyboard.press('Escape');
+  // A screen too short for all of it: down to near its foot, the rest scrolled to.
+  await page.setViewportSize({ width: 1366, height: 480 });
+  await page.locator('button[title=More]').click();
+  const short = (await menu.boundingBox())!;
+  expect(short.y + short.height).toBeGreaterThan(480 - 16);
+  expect(short.y + short.height).toBeLessThanOrEqual(480);
+  await page.getByTestId('check-updates').scrollIntoViewIfNeeded();
+  await expect(page.getByTestId('check-updates')).toBeInViewport();
+});
+
 test('⋮\'s Check for updates: up to date for a moment; a new version found waits for Update now, which saves and switches (Jason, the UI review, 2026-11-01)', async ({ page }) => {
   test.setTimeout(60_000); // (Update now reloads the app within 10 s when no real worker takes over)
   // (The tests run with service workers blocked: one stood in for, whose check finds a new version once told to.)

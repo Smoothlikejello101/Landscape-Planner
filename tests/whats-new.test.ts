@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
-import { markSeen, newestRelease, newsAtStart, releaseDate, releasesSince, RELEASES, seenRelease, type Release } from '../src/whats-new';
+import { builtOn, markSeen, newestRelease, newsAtStart, releaseDate, releasesSince, RELEASES, seenRelease, type Release } from '../src/whats-new';
 
 // What's new: what changed in each update, said once after it (src/whats-new.ts).
 
@@ -48,5 +48,20 @@ describe("what's new", () => {
     expect(releaseDate('2027-01-02')).toBe('Jan 2, 2027');
     expect(releaseDate('next', 'next', '2026-11-02')).toBe('Not released yet');
     expect(releaseDate('next', 'release', '2026-11-02')).toBe('Nov 2, 2026');
+  });
+  it('gives the build\'s day by the person\'s own calendar, as files are dated: built at 00:17 UTC on Nov 2 is Nov 1 in Arkansas (the bug hunt, Nov 1)', () => {
+    const tz = process.env.TZ;
+    try {
+      process.env.TZ = 'America/Chicago';
+      expect(builtOn('2026-11-02T00:17:00.000Z')).toBe('2026-11-01');
+      expect(releaseDate('next', 'release', builtOn('2026-11-02T00:17:00.000Z'))).toBe('Nov 1, 2026');
+      process.env.TZ = 'Pacific/Auckland';
+      expect(builtOn('2026-11-01T12:30:00.000Z')).toBe('2026-11-02');
+    } finally {
+      if (tz === undefined) delete process.env.TZ; else process.env.TZ = tz;
+    }
+    // (A build's date alone, from before its time was kept, as it is; nothing, nothing.)
+    expect(builtOn('2026-10-29')).toBe('2026-10-29');
+    expect(builtOn('')).toBe('');
   });
 });

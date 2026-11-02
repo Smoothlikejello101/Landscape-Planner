@@ -159,6 +159,28 @@ test('a new plan offers the open plan\'s location, ticked: "Same garden (ZIP 719
   await expect(page.locator('.menu-item', { hasText: 'Garden location (zone 8a)' })).toBeVisible();
 });
 
+test('a ZIP message on the first screen stays there: the ZIP sheet opens without it, and keeps its own (the bug hunt, Nov 1)', async ({ page }) => {
+  await page.route('**/climate/100.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...TABLE, zips: {} }) }));
+  await openFresh(page);
+  await page.getByTestId('first-zip').fill('123');
+  await page.getByTestId('first-zip-lookup').click();
+  await expect(page.getByTestId('first-zip-problem')).toHaveText('A ZIP code is five digits.');
+  // The sheet, from ⋮ (or the tour's "Enter your ZIP"): nothing said till something's looked up there.
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Garden location' }).click();
+  await expect(page.getByTestId('location')).toBeVisible();
+  await expect(page.getByTestId('zip-problem')).toHaveCount(0);
+  await page.getByTestId('zip').fill('10001');
+  await page.getByTestId('zip-lookup').click();
+  await expect(page.getByTestId('zip-problem')).toContainText('isn’t in the zone tables');
+  // Closed and opened again: said afresh.
+  await page.locator('.sheet-header .iconbtn').click();
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Garden location' }).click();
+  await expect(page.getByTestId('location')).toBeVisible();
+  await expect(page.getByTestId('zip-problem')).toHaveCount(0);
+});
+
 test('closing the ZIP sheet opened from the picker goes back to the picker as it was, the filter left off', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
@@ -320,6 +342,29 @@ test('a plant the garden\'s state prohibits says so, with the rule', async ({ pa
   await expect(chinaberry.getByTestId('plant-place')).toHaveText('Place');
   // (USGS's register lists it, for the lower 48: said in its details, not acted on.)
   await expect(chinaberry.getByTestId('register-us')).toContainText('Listed as widespread invasive in the lower 48');
+});
+
+test('South Carolina\'s law on Callery pear cites the plant pest list that names it, not the aquatic plants statute (the bug hunt, Nov 1)', async ({ page }) => {
+  // (Richland County, South Carolina: the real South Carolina file.)
+  const table = { ...TABLE, zips: { '29201': ['8b', 0, 3, 45079] } };
+  await page.route('**/climate/292.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(table) }));
+  await openFresh(page);
+  await page.getByTestId('first-zip').fill('29201');
+  await page.getByTestId('first-zip-lookup').click();
+  await expect(page.getByTestId('location-result')).toContainText('Zone 8b');
+  await page.locator('.sheet-header .iconbtn').click();
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Callery pear');
+  const pear = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /Callery pear/ }) }).first();
+  await expect(pear.getByTestId('plant-place')).toHaveText('Place (banned)');
+  await pear.getByTestId('plant-row').click();
+  const law = pear.getByTestId('regulated-here');
+  await expect(law).toContainText('Plant pest in South Carolina: by its agency\'s reading');
+  const source = law.locator('.details-src');
+  await expect(source.locator('a')).toHaveText('South Carolina State Plant Pest List (S.C. Code Regs. 27-135)');
+  await expect(source.locator('a')).toHaveAttribute('href', /clemson\.edu\/.*pests-list\.html$/);
+  await expect(source).not.toContainText('aquatic');
+  await expect(source).not.toContainText('50-13-1415');
 });
 
 test('a plant not native here that is recorded growing wild here says so, with its counties', async ({ page }) => {

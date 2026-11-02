@@ -135,7 +135,8 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .ask-buttons { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
 .ask-buttons .btn { min-height: 44px; }
 .ask-buttons.stacked { flex-direction: column; align-items: stretch; }
-.menu { background: #fff; border-radius: 8px; max-width: calc(240px * var(--ts)); width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.18); max-height: 80vh; max-height: calc(80dvh - var(--kb, 0px)); overflow-y: auto; }
+.menu-wrap { display: flex; flex-direction: column; box-sizing: border-box; max-height: 100%; padding: 4px 8px 8px 0; }
+.menu { background: #fff; border-radius: 8px; max-width: calc(240px * var(--ts)); width: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.18); min-height: 0; overflow-y: auto; }
 .menu-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; font-size: calc(14px * var(--ts)); color: #292524; cursor: pointer; width: 100%; text-align: left; }
 .menu-item:hover { background: #f5f5f4; }
 .menu-item:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -214,8 +215,10 @@ details summary:hover { color: #44403c; }
 textarea { width: 100%; min-height: 120px; padding: 8px; border: 1px solid #d6d3d1; border-radius: 4px; font-family: ui-monospace, monospace; font-size: calc(11px * var(--ts)); resize: vertical; }
 input[type="color"] { width: 40px; height: 32px; border: 1px solid #d6d3d1; border-radius: 4px; cursor: pointer; padding: 2px; background: #fff; }
 input[type="range"] { width: 100%; }
-.preview-img { max-width: 100%; height: auto; display: block; margin: 0 auto; }
-.preview-wrap { border: 1px solid #e7e5e4; border-radius: 6px; padding: 8px; background: #fafaf9; max-height: 45vh; overflow: auto; display: flex; align-items: center; justify-content: center; }
+/* The whole picture, scaled to fit its box (the bug hunt, Nov 1: centered in a box shorter than it, its top and bottom
+   were cut off, out of reach of scrolling, though the file had them). (18px: the box's padding and border.) */
+.preview-img { max-width: 100%; max-height: calc(45vh - 18px); width: auto; height: auto; display: block; margin: 0 auto; }
+.preview-wrap { border: 1px solid #e7e5e4; border-radius: 6px; padding: 8px; background: #fafaf9; max-height: 45vh; overflow: auto; }
 .dl-link { display: block; padding: 10px; background: #047857; color: #fff; border-radius: 6px; text-align: center; font-size: calc(14px * var(--ts)); font-weight: 500; text-decoration: none; }
 .dl-link:hover { background: #047857; }
 a { color: inherit; }
@@ -562,6 +565,10 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
    photo shows. Presses go through it to the plan except on its own buttons and fields, as before it was a card. */
 .first-card { position: relative; pointer-events: none; display: flex; flex-direction: column; align-items: center; box-sizing: border-box; max-width: 30em; padding: 14px 20px 10px; border-radius: 16px; background: rgba(255, 255, 255, 0.96); box-shadow: 0 4px 18px rgba(28, 25, 23, 0.16); color: #57534e; }
 .first-card > * { flex-shrink: 0; }
+/* Never taller than the plan's room: what doesn't fit scrolls inside the card, its last line above the buttons (the bug
+   hunt, Nov 1: at Extra large a two-line ZIP message pushed "Restore a backup" under them). Scrolled from its buttons and
+   links, the parts that take presses; a press on its words still goes through to the plan. */
+.first-card { min-height: 0; max-height: 100%; overflow-y: auto; overscroll-behavior: contain; }
 .first-card .first-line { padding: 0 calc(var(--tap) - 12px); color: #292524; }
 .first-card .empty-intro { margin-bottom: 8px; }
 .first-hide { pointer-events: auto; position: absolute; top: 2px; right: 2px; width: var(--tap); height: var(--tap); display: flex; align-items: center; justify-content: center; border-radius: 8px; color: #57534e; }

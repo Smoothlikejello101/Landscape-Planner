@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Plant } from '../src/plants';
-import { bloomWindow, midDay, monthLook, monthOfDay, seasonMonths, summerLeafColors, yearLook, type Here } from '../src/seasons';
+import { bloomWindow, midDay, monthLook, monthOfDay, seasonMonths, showyFlowers, summerLeafColors, yearLook, type Here } from '../src/seasons';
 
 // What a plant shows in each month where the garden is (docs/seasons.md).
 
@@ -108,6 +108,14 @@ describe('flowers and fruit', () => {
   });
   it('leave out insignificant flowers, and use the earlier list\'s color words only where there are no colors', () => {
     expect(monthLook(plant({ bloom_season: ['spring'], flower_color: ['insignificant'] }), 4).flowers).toMatchObject({ colors: [], showy: false });
+    // (Insignificant by its flower form, with no shape given, as its details say "Flowers not showy": a holly's. With a
+    // shape, showy: a flowering dogwood's bracts. The bug hunt, Nov 1.)
+    const holly = plant({ bloom_season: ['spring'], flower_color: ['white', 'green'], flower_form: { inflorescence: ['insignificant'] } });
+    expect(monthLook(holly, 4).flowers).toMatchObject({ colors: ['white', 'green'], showy: false });
+    expect(showyFlowers(holly)).toBe(false);
+    const dogwood = plant({ bloom_season: ['spring'], flower_color: ['white'], flower_form: { inflorescence: ['cyme', 'insignificant'], shape: ['cross'] } });
+    expect(monthLook(dogwood, 4).flowers).toMatchObject({ showy: true });
+    expect(showyFlowers(dogwood)).toBe(true);
     expect(monthLook(plant({ bloom: { start: 4, end: 4, color: 'White-pink' } }), 4).flowers).toMatchObject({ colors: [], colorText: 'White-pink' });
   });
   it('show fruit in its seasons, in its colors', () => {

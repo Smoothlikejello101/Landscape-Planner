@@ -24,6 +24,11 @@ describe('the regulated lists', () => {
         'XX Melia azedarach: bad notKew', 'XX Melia azedarach: bad other names']);
     expect(problems({ v: 1, jurisdictions: [{ ...list('XX', []), url: 'http://example.gov' }] })).toEqual(['XX: url not https']);
     expect(problems({ v: 1, jurisdictions: [{ ...list('XX', []), tiers: { noxious: 'severe' } }] })).toEqual(['XX noxious: no tier (ban or listed)']);
+    // A class's own rule, where the list names two: a class it has, cited in full.
+    const own = { title: 'X noxious weeds (rule 1)', url: 'https://example.gov/1', edition: '2025' };
+    expect(problems({ v: 1, jurisdictions: [{ ...list('XX', []), sources: { noxious: own } }] })).toEqual([]);
+    expect(problems({ v: 1, jurisdictions: [{ ...list('XX', []), sources: { aquatic: own, noxious: { ...own, url: 'http://example.gov', edition: '' } } }] }))
+      .toEqual(['XX source for aquatic: not in its list\'s classes', 'XX source for noxious: no edition', 'XX source for noxious: url not https']);
     // A list that adopts another's plants: a list that has some of its own, into a class it has.
     expect(problems({ v: 1, jurisdictions: [list('US', []), { ...list('XX', []), adopts: { code: 'US', class: 'noxious' } }] })).toEqual([]);
     expect(problems({ v: 1, jurisdictions: [list('US', []), { ...list('XX', []), adopts: { code: 'ZZ', class: 'federal' } },
@@ -273,6 +278,14 @@ describe('matching the lists to catalog plants', () => {
     const j = (code: string) => real.jurisdictions.find((x: { code: string }) => x.code === code);
     expect([j('SC').tiers.pest, j('NY').tiers.prohibited, j('NY').tiers.regulated, j('MA').tiers.prohibited, j('MA').tiers.phaseout2026, j('MA').tiers.trapa]).toEqual(['ban', 'ban', 'listed', 'ban', 'listed', 'ban']);
     expect(j('SC').classes.pest).toMatch(/^Plant pest in South Carolina: by its agency's reading \(Clemson University's Department of Plant Industry/);
+    // Each class cited by the rule that names it (the bug hunt, Nov 1: Callery pear's line cited "South Carolina
+    // prohibited aquatic plants (S.C. Code…", the list's title, cut short, though Clemson's plant pest list names it).
+    const lines = stateRegulated(real, { SC: { 'callery-pear': 'pest', hydrilla: 'aquatic' } }, 'SC').rules;
+    expect(lines['SC:pest']).toMatchObject({ title: 'South Carolina State Plant Pest List (S.C. Code Regs. 27-135)', url: j('SC').url, read: '2026-10-31' });
+    expect(lines['SC:pest'].edition).toMatch(/^Clemson University Department of Plant Industry, State Plant Pest List.*effective March 27, 2026$/);
+    expect(lines['SC:aquatic']).toMatchObject({ title: 'South Carolina prohibited aquatic plants (S.C. Code §50-13-1415)', url: 'https://www.scstatehouse.gov/code/t50c013.php',
+      edition: 'S.C. Code §50-13-1415 (1983 Act No. 10; 1993 Act No. 181), South Carolina Code of Laws (unannotated)' });
+    expect(lines['SC:pest'].title + lines['SC:pest'].edition).not.toMatch(/aquatic|50-13/);
     expect(j('NY').classes.prohibitedBarberry).toMatch(/Crimson Cutie/);
     expect(j('MA').classes.phaseout2026).toMatch(/^Prohibited plant in Massachusetts after December 31, 2026: /);
     // (From the list page Jason saved, 2026-11-01: what the list forbids, and Callery pear's phase-out dates.)
