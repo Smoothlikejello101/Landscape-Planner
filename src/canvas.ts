@@ -996,6 +996,14 @@ export function redrawHandles() {
  */
 /** The plan's width when last measured (none yet: the first measure moves nothing). */
 let measuredW: number | null = null;
+/**
+ * What's to be kept in view when the plan's width changes (a phone turned), set by what's showing it: the walk through
+ * Warnings keeps the plants it's on (src/ui/warnings-sheet.ts). Run once the plan has its new size, before it's drawn.
+ */
+let keepOnTurn: (() => void) | null = null;
+export function keepInViewOnTurn(fn: (() => void) | null) { keepOnTurn = fn; }
+/** When the width last changed: a phone turned may settle its height a moment later, which is the same turn. */
+let turnedAt = -Infinity;
 export function resizeCanvas() {
   const wrap = document.getElementById('canvas-wrap');
   const svg = canvasSvg();
@@ -1005,13 +1013,21 @@ export function resizeCanvas() {
   // A window made narrower or wider (a phone turned, a window resized) keeps what was in the middle in the middle,
   // across: the plan stayed pinned at its left edge, and the bed selected went off screen (Diego, Oct 30). Not
   // up and down: the keyboard opening shortens it, and the plan stays put for that.
-  if (measuredW != null && w !== measuredW) state.offsetX -= (w - measuredW) / 2 / pxPerFoot();
+  const turned = measuredW != null && w !== measuredW;
+  if (turned) state.offsetX -= (w - measuredW!) / 2 / pxPerFoot();
   measuredW = w;
+  const h = Math.max(100, Math.round(rect.height));
+  const settled = !turned && h !== state.canvasH && performance.now() - turnedAt < 1500;
   state.canvasW = w;
-  state.canvasH = Math.max(100, Math.round(rect.height));
+  state.canvasH = h;
   if (!typingNow()) restingH = state.canvasH;
   svg.setAttribute('width', String(state.canvasW));
   svg.setAttribute('height', String(state.canvasH));
+  // (Turned, and its height settling just after: what's kept in view is put back in view, the walk's plants clear of
+  // its chip. The warnings bug hunt, Nov 1: turned mid-walk, the chip covered the maple. Not the keyboard: it changes
+  // only the height.)
+  if (turned) turnedAt = performance.now();
+  if ((turned || settled) && keepOnTurn) keepOnTurn();
   redrawCanvas();
 }
 /** The plan's height when last measured with nothing being typed in: on a phone, as it is with its keyboard away. */

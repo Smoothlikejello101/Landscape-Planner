@@ -23,6 +23,7 @@
 // run yet; the warning sign in gray when none were found in the plants Layers shows, with some hidden (not the check:
 // the plants hidden aren't checked).
 
+import { keepInViewOnTurn } from '../canvas';
 import { BULB_PARTNER_MIN_HEIGHT } from '../crowding';
 import { el } from '../dom';
 import { shapeBBox, unionBounds, canvasRect } from '../geometry';
@@ -509,6 +510,7 @@ function showRow(r: WarningRow) {
   state.selectedIds = shapes.map((s) => s.id);
   const list = toLookAt();
   walk = { key: keyOf(r), dismissed: r.dismissed, name: r.name, said: r.said, at: Math.max(0, list.findIndex((x) => keyOf(x) === keyOf(r))), selected: state.selectedIds.join() };
+  keepInViewOnTurn(walkTurned); // (its plants kept in view if the phone's turned)
   if (state.panel === 'warnings') state.panel = null;
   zoomTo(r);
   render();
@@ -534,6 +536,17 @@ function zoomTo(r: WarningRow) {
   state.offsetX = cx - (left + (W - left - right) / 2) / ppf;
   state.offsetY = cy - (top + (H - top - bottom) / 2) / ppf;
   saveView();
+}
+
+/**
+ * The phone turned mid-walk (or the window resized): the plants it's on zoomed to again, clear of the chip at the foot
+ * (the warnings bug hunt, Nov 1: turned to 839 × 412, the plan wasn't re-centered and the chip covered the maple).
+ * Only the view changes, and the canvas is redrawn by the resize (src/canvas.ts resizeCanvas): no render.
+ */
+function walkTurned() {
+  if (!walk || !walkUp()) return;
+  const row = findRow(walk.key, walk.dismissed);
+  if (row) zoomTo(row);
 }
 
 /**
