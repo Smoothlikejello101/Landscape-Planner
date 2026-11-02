@@ -39,7 +39,7 @@ test('dismissing a hardiness warning on one copy dismisses it for every copy and
   await openSections(page);
   await expect(page.getByTestId('hardy-check').getByRole('button')).toHaveText(['Dismiss for this one', 'Dismiss for every Barbados aloe']);
   await page.getByTestId('hardy-dismiss').click();
-  await expect(page.getByTestId('dismiss-notice')).toContainText('Hardiness warning dismissed for all 2 of Barbados aloe in this plan, and any you add later.');
+  await expect(page.getByTestId('dismiss-notice')).toContainText('Hardiness warning dismissed for both Barbados aloe in this plan, and any you add later.');
   await expect(page.getByTestId('dismiss-notice').getByRole('button')).toHaveText(['Just these 2', 'OK', '✕']);
   await expect(page.getByTestId('hardy-check')).toContainText('dismissed for every one in this plan');
   await expect(page.getByTestId('hardy-check').getByRole('button')).toHaveText(['Show again']);
@@ -150,11 +150,20 @@ test('Warnings: each kind\'s warning dismissed from its row, as the plan dismiss
   await expect(scopeOf('poison')).toHaveText('Dismissed for every Butterfly milkweed in this plan');
   await expect(badgesOf(page, 'poison')).toHaveCount(3);
   await putAway(page);
+  // (Fruit partners: no "Just this one", which brought the warning back as active, the plan keeping no fruit-partner
+  // dismissal copy by copy (the warnings bug hunt, Nov 1); Undo instead.)
   await kind(page, 'fruit').getByTestId('warning-dismiss').click();
   await expect(page.getByTestId('dismiss-notice')).toContainText("Fruit partner warning dismissed for Winterberry 'Winter Red' in this plan, and any you add later.");
+  await expect(page.getByTestId('dismiss-notice').getByRole('button')).toHaveText(['Undo', 'OK', '✕']);
   await expect(head(page, 'fruit')).toHaveAttribute('aria-label', 'Fruit partners, 1 dismissed');
   await expect(scopeOf('fruit')).toHaveText("Dismissed for every Winterberry 'Winter Red' in this plan");
-  await putAway(page);
+  await page.getByTestId('dismiss-notice').getByRole('button', { name: 'Undo' }).click();
+  await expect(head(page, 'fruit')).toHaveAttribute('aria-label', 'Fruit partners, 1 to look at');
+  await expect(page.getByTestId('warnings-btn')).toHaveAttribute('aria-label', 'Warnings: 6 to look at');
+  await kind(page, 'fruit').getByTestId('warning-dismiss').click();
+  await page.getByTestId('dismiss-notice').getByRole('button', { name: 'OK' }).click();
+  await expect(head(page, 'fruit')).toHaveAttribute('aria-label', 'Fruit partners, 1 dismissed');
+  await expect(scopeOf('fruit')).toHaveText("Dismissed for every Winterberry 'Winter Red' in this plan");
   await expect(page.getByTestId('warnings-head')).toHaveText('5 to look at · 6 dismissed');
   await expect(page.getByTestId('warnings-btn')).toHaveAttribute('aria-label', 'Warnings: 5 to look at');
 
