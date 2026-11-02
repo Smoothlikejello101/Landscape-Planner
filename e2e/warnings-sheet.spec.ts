@@ -323,7 +323,8 @@ test('a plant\'s details: "Dismiss for this one" or "Dismiss for every Barbados 
   await page.locator('#canvas-svg [data-shape-id=al]').first().click();
   await page.locator('.sel-pill .edit').click();
   const banner = page.getByTestId('hardy-check');
-  await expect(banner.getByRole('button')).toHaveText(['Dismiss for this one', 'Dismiss for every Barbados aloe']);
+  // (And Swap, filtered for plants hardy here: Jason's UI review, Nov 2.)
+  await expect(banner.getByRole('button')).toHaveText(['Dismiss for this one', 'Dismiss for every Barbados aloe', 'Swap for one hardy in zone 8a…']);
   await banner.getByRole('button', { name: 'Dismiss for this one' }).click();
   await expect(banner).toContainText('(dismissed for this one: no badge on the plan)');
   await expect(banner.getByRole('button')).toHaveText(['Show again']);

@@ -1,5 +1,5 @@
 // Crowding, as a plant is placed (decided with Jason, 2026-10-25): a notice saying which plant it's close to or
-// crowding, with Dismiss (that pair isn't flagged again: "Leave it" until Nov 1, one vocabulary since), Move it (take it
+// crowding, with Nudge apart (since Nov 2: src/ui/fix-problem.ts), Dismiss (that pair isn't flagged again: "Leave it" until Nov 1, one vocabulary since), Move it (take it
 // back and tap again) and Settings (Warnings, at Crowding, where the notices can be turned off). Crowded: every time. Close: once each time plants are placed (the first close one).
 // One line, amber or red, that opens to say how far apart they are and why it matters (2026-10-27: it got in the way);
 // a plant crowded by one half again its size is "too far under" it, buried, and is best moved out toward its edge. A
@@ -13,7 +13,9 @@ import { shownWith } from '../status';
 import { save } from '../storage';
 import type { Crowd } from '../crowding';
 import type { Shape } from '../types';
+import { I } from '../icons';
 import { render } from './render';
+import { nudgeNow } from './fix-problem';
 import { openWarningsAt } from './warnings-sheet';
 import { toast, toastAction } from './toast';
 
@@ -40,9 +42,11 @@ export function crowdNotice(shape: Shape, moveIt: () => void) {
   if (!crowded.length && state.placing) state.placing.warnedClose = true;
   const { line, detail } = crowdWords(shape, list[0], list.length - 1, !!crowded.length);
   toastAction(line, [
+    // (Just clear of the one it's closest to, the plant just placed moving: Jason's UI review, Nov 2.)
+    { label: 'Nudge apart', run: () => { nudgeNow(shape, list[0].other, shape.id); } },
     { label: 'Dismiss', run: () => leaveClose(shape.id, list.map((c) => c.other.id)) },
     { label: 'Move it', run: () => { moveIt(); render(); toast('Tap where it should go.'); } },
-    { label: 'Settings', run: openCrowdingSettings },
+    { label: 'Settings', run: openCrowdingSettings, icon: I.settings },
   ], 10000, TESTID, { detail, tone: crowded.length ? 'red' : 'amber' });
   const n = document.getElementById('toast-action');
   if (n) n.dataset.about = shape.id; // (gone with the plant: src/ui/toast.ts placeNotice)
@@ -79,9 +83,10 @@ export function crowdNoticeAfterSwap(ids: string[], before: Map<string, Map<stri
     const list = crowded.length ? crowded : crowds;
     const { line, detail } = crowdWords(shape, list[0], list.length - 1, !!crowded.length);
     toastAction(line, [
+      { label: 'Nudge apart', run: () => { nudgeNow(shape, list[0].other, shape.id); } },
       { label: 'Dismiss', run: () => leaveClose(shape.id, list.map((c) => c.other.id)) },
       { label: 'Undo', run: () => { undo(); render(); } },
-      { label: 'Settings', run: openCrowdingSettings },
+      { label: 'Settings', run: openCrowdingSettings, icon: I.settings },
     ], 10000, TESTID, { detail, tone: crowded.length ? 'red' : 'amber' });
     return;
   }

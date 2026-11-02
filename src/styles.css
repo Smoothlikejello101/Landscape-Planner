@@ -273,6 +273,11 @@ a { color: inherit; }
 #toast-action.at-bottom > .notice-detail { order: 3; }
 #toast-action.at-bottom > .notice-buttons { order: 4; flex: 1 1 100%; flex-wrap: nowrap; margin-left: 0; }
 #toast-action.at-bottom > .notice-buttons button { flex: 1 1 0; min-width: 0; padding: 10px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* An icon in place of a word (the crowding notice's Settings, since Nudge apart joined it: Jason's UI review, Nov 2): its
+   own width, and the words beside it as wide as they need, so the four keep to one row by the place bar (Bea, round 3). */
+#toast-action .notice-buttons button.notice-icon { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; padding: 10px; }
+#toast-action.at-bottom > .notice-buttons button.notice-icon { flex: 0 0 auto; }
+#toast-action.at-bottom > .notice-buttons:has(> .notice-icon) > button:not(.notice-icon) { flex: 1 1 auto; }
 #toast-action button.notice-close { background: transparent; color: #d6d3d1; font-weight: 400; font-size: calc(18px * var(--ts)); padding: 6px 10px; min-width: 44px; }
 /* The ✕ in the top right corner of every notice, wherever its words and buttons wrap (Jason, Oct 31: it came in at the
    lower right, moving with each notice, sometimes alone on a line of its own). */
@@ -391,6 +396,9 @@ body.channel-next::before { content: ''; position: fixed; top: 0; left: 0; right
 .check-banner.left-close { background: #f5f5f4; border: 1px solid #e7e5e4; color: #57534e; }
 .check-banner.left-close .crowd-line { font-weight: 500; }
 .check-banner .link-reset { color: inherit; }
+/* A crowded plant's fixes in its details: Nudge apart, Swap for a smaller plant…, Dismiss (Jason's UI review, Nov 2). */
+.crowd-fixes { display: flex; flex-wrap: wrap; gap: 0 8px; }
+.crowd-fixes > .btn { margin-top: 6px; }
 .unit-seg { flex-shrink: 0; }
 .size-row { display: flex; gap: 8px; align-items: center; }
 .size-row input { flex: 1; min-width: 0; }
@@ -766,6 +774,9 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .pflag.native { background: #ecfdf5; color: #047857; border-color: #a7f3d0; }
 .pflag.warn { background: #fffbeb; color: #92400e; border-color: #fde68a; }
 .pflag.bad { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.pflag.fit { background: #f0fdfa; color: #115e59; border-color: #99f6e4; }
+/* Swap opened from a warning: why the list is filtered (Jason's UI review, Nov 2). */
+.swap-why { font-size: calc(13px * var(--ts)); color: #115e59; background: #f0fdfa; border: 1px solid #99f6e4; border-radius: 8px; padding: 6px 10px; margin: 6px 0 2px; }
 .pflag.check { font-weight: 500; }
 .pmeta .hardy-no { color: #b45309; font-weight: 600; }
 /* The list's groups: what other sources say fits, and what fits only by the earlier list. */
@@ -1090,6 +1101,9 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .wr-btn { flex: none; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; font-size: calc(13px * var(--ts)); font-weight: 600; color: #44403c; white-space: nowrap; }
 .wr-btn:hover { background: #f5f5f4; }
 .wr-btn.again { border-color: #99f6e4; background: #f0fdfa; color: #115e59; }
+/* A row's fixes (Jason's UI review, Nov 2): Nudge apart and Swap…, on a line of their own under its words. */
+.warn-row.has-fixes { flex-wrap: wrap; }
+.wr-fixes { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: 6px 8px; padding: 0 0 6px; }
 /* A kind's Dismiss all and Show all again, with a heading, above its rows and set off from them by a rule: the whole
    kind's, not a row's (Jason, Nov 1; above the rows since the after-release-3 fixes). */
 .warnings-all { margin: 0 12px 4px 16px; padding: 0 0 8px; border-bottom: 2px solid #e7e5e4; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }

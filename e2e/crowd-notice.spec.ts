@@ -57,7 +57,7 @@ test('Dismiss: that pair is dismissed, said so in its sheet, and can be shown ag
   await startPlacing(page, 'Snowberry');
   await tapFromCenter(page, 0, 0);
   await tapFromCenter(page, 2, 0);
-  await expect(notice(page).getByRole('button')).toHaveText(['Crowding Snowberry', 'Dismiss', 'Move it', 'Settings', '✕']);
+  await expect(notice(page).getByRole('button')).toHaveText(['Crowding Snowberry', 'Nudge apart', 'Dismiss', 'Move it', '', '✕']);
   await notice(page).getByRole('button', { name: 'Dismiss' }).click();
   await expect(notice(page)).toHaveCount(0);
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(0);
