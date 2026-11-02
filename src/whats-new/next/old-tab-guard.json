@@ -1,0 +1,4 @@
+[
+  "If FullGrown is open in an older tab or window, it now stops and reloads instead of saving over your newer changes.",
+  "Changes left unsaved in an older tab or window are kept as a plan of their own, so they never replace newer ones."
+]
