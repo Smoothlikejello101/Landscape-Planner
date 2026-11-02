@@ -43,6 +43,11 @@ interface ShapeBase {
   /** The poison warning this copy was dismissed for (what it said: it comes back if who's in the yard changes); src/dismissals.ts. */
   poisonDismissed?: string;
   /**
+   * A fruit-partner warning dismissed for this copy alone (its words, src/fruit-partners.ts fruitNeed): back if they
+   * change. Plans before Nov 1 have none (none dismissed); a version before it drops it, and the warning shows again.
+   */
+  fruitDismissed?: string;
+  /**
    * What it was added as (src/kinds.ts KindKey: "path", "patio"…), kept when it's renamed; dropped when what it is
    * changes. Shapes from before Oct 30 have none: their kind is worked out (kindOfShape).
    */

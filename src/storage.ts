@@ -128,6 +128,9 @@ export function migrateShape(raw: unknown): Shape | null {
     ...(typeof s.sunDismissed === 'string' && s.sunDismissed ? { sunDismissed: s.sunDismissed.slice(0, 300) } : {}),
     ...(typeof s.hardyDismissed === 'string' && s.hardyDismissed ? { hardyDismissed: s.hardyDismissed.slice(0, 300) } : {}),
     ...(typeof s.poisonDismissed === 'string' && s.poisonDismissed ? { poisonDismissed: s.poisonDismissed.slice(0, 300) } : {}),
+    // (A fruit-partner warning dismissed for this copy alone; older plans have none, and older versions drop it: the
+    // warning shows again there, nothing else changes.)
+    ...(typeof s.fruitDismissed === 'string' && s.fruitDismissed ? { fruitDismissed: s.fruitDismissed.slice(0, 300) } : {}),
     // (What it was added as; older shapes have none. A word only: src/kinds.ts reads it, and ignores one it doesn't know.)
     ...(typeof s.kind === 'string' && /^[a-z]{2,12}$/.test(s.kind) ? { kind: s.kind } : {}),
     // (A utility's kind: a power line, a buried line, a septic field; kept on one made something else since, which is
