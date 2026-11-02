@@ -22,13 +22,17 @@ import { onAccountChange, setSyncUi, startSyncTriggers } from './sync/sync';
 import { refreshAfterSync, screenBusy, showSyncResults } from './ui/sync-results';
 import { refreshAccountSection } from './ui/account-section';
 import { loadMyPlants } from './my-plants';
-import { setupServiceWorker } from './pwa';
-import { buildEmergencyBackup, downloadText } from './backup';
+import { reloadToNewest, setupServiceWorker } from './pwa';
+import { NewerVersionError, setOpenBlockedListener } from './db';
+import { buildEmergencyBackup, buildRawCopyFile, downloadText } from './backup';
 import { notePageZoom } from './page-zoom';
 import { loadViewSettings } from './view-settings';
 import { applyTextSize } from './text-size';
 import { updateSaveWarning, updateSaveState } from './ui/save-warning';
-import { flushSave, initStorage, refreshClipboard, requestPersistence, saveView, setHouseholdListener, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
+import {
+  flushSave, initStorage, refreshClipboard, requestPersistence, saveView, setHouseholdListener, setNewerVersionListener, setSaveStateListener,
+  setSaveStatusListener, StorageUnavailableError, supersededByNewer, writeJournalIfDirty,
+} from './storage';
 import { flashZoom, placeFirstCard, render } from './ui/render';
 import { dismissToastAction, toast } from './ui/toast';
 import { closeYear, stepMonth } from './ui/year-bar';
@@ -39,7 +43,7 @@ import { tellWhatsNew } from './ui/whats-new-panel';
 import { introActive } from './ui/intro-card';
 import { installErrorLog } from './error-log';
 import { pxPerFoot } from './geometry';
-import { asking, dismissAsk, tell } from './ui/ask';
+import { ask, asking, dismissAsk, tell } from './ui/ask';
 import { installFocusKeeping } from './ui/focus';
 
 // The app's own errors, kept on this device for a support file (src/error-log.ts): from the start.
@@ -312,14 +316,102 @@ function showStorageError() {
   root.appendChild(box);
 }
 
+// ---- A newer version of the app has the plans (src/db.ts DB_VERSION) ----
+/**
+ * This page is an older version than the one that has the database: it stopped before opening the plans, and has
+ * written nothing. Its Reload gets the newer version (src/pwa.ts reloadToNewest), and only when pressed: one that
+ * still can't get it shows this again, never reloading by itself.
+ */
+function showNewerVersion() {
+  const root = document.getElementById('root')!;
+  document.getElementById('open-blocked')?.remove();
+  const box = document.createElement('div');
+  box.className = 'fatal';
+  box.dataset.testid = 'newer-version';
+  const h = document.createElement('h1');
+  h.textContent = 'FullGrown has been updated';
+  const p = document.createElement('p');
+  p.textContent = 'A newer version of FullGrown saved the plans on this device. This page is an older version, so it hasn’t opened them, and has changed nothing. Reload to get the newer version.';
+  const reload = document.createElement('button');
+  reload.textContent = 'Reload';
+  reload.dataset.testid = 'newer-reload';
+  reload.addEventListener('click', () => { reload.disabled = true; reload.textContent = 'Reloading…'; void reloadToNewest(); });
+  const again = document.createElement('p');
+  again.textContent = 'If this comes back, close FullGrown everywhere on this device (every tab and window), then open it again.';
+  // (For when no version can open them: a raw copy of the database, never changed by making it. The review, Nov 1.)
+  const raw = document.createElement('button');
+  raw.className = 'secondary';
+  raw.textContent = 'Save a raw copy as a file';
+  raw.dataset.testid = 'newer-raw-copy';
+  const rawSaid = document.createElement('p');
+  rawSaid.textContent = 'A raw copy is everything stored on this device, exactly as it is, in one file: for help if the app can’t open your plans. It isn’t a backup the app can import.';
+  raw.addEventListener('click', async () => {
+    raw.disabled = true;
+    try {
+      const file = await buildRawCopyFile();
+      if (file) downloadText(file.filename, file.text);
+      else rawSaid.textContent = 'There’s nothing stored on this device to copy.';
+    } catch (e) {
+      console.error('raw copy failed', e);
+      rawSaid.textContent = 'The copy couldn’t be made. Close FullGrown everywhere on this device, then open it and try again.';
+    } finally { raw.disabled = false; }
+  });
+  box.append(h, p, reload, again, raw, rawSaid);
+  root.replaceChildren(box);
+}
+/** Shown on the plan when a newer version opens the database in another tab or window; then reloaded into it. */
+let appShown = false;
+setNewerVersionListener((lastWrite) => {
+  // (Before the plan is shown, start() says so instead: showNewerVersion.)
+  if (!appShown) return;
+  void ask('FullGrown was updated in another tab or window. This page will reload into the new version.', { ok: 'Reload', noCancel: true, testid: 'newer-tab' })
+    // (Its edits not saved yet were being written as it closed: a moment for that to finish.)
+    .then(async (pressed) => {
+      await Promise.race([lastWrite, new Promise((r) => setTimeout(r, 5000))]);
+      // Reload, pressed: into the newer version, a waiting one put in first (the person asked). Put away (Esc, Back, a
+      // tap beside it, another question over it): only reloaded, the update left to wait for its Update (CLAUDE.md;
+      // the review, Nov 1).
+      if (pressed) void reloadToNewest(); else location.reload();
+    });
+});
+/**
+ * While this page's opening of the plans waits for another tab or window, open on an older version, to let go of them
+ * (src/db.ts setOpenBlockedListener). Said after a second (a page that lets go at once, as every version since Oct 11
+ * does, isn't worth a flash of it); gone once the wait is over, and the app goes on.
+ */
+let blockedTimer: ReturnType<typeof setTimeout> | null = null;
+setOpenBlockedListener((blocked) => {
+  if (blockedTimer) { clearTimeout(blockedTimer); blockedTimer = null; }
+  if (!blocked) { document.getElementById('open-blocked')?.remove(); return; }
+  blockedTimer = setTimeout(() => {
+    blockedTimer = null;
+    if (document.getElementById('open-blocked')) return;
+    const box = document.createElement('div');
+    box.className = 'fatal';
+    box.id = 'open-blocked';
+    box.setAttribute('role', 'status');
+    const h = document.createElement('h1');
+    h.textContent = 'Close FullGrown’s other tabs or windows';
+    const p = document.createElement('p');
+    p.textContent = 'FullGrown is open on an older version in another tab or window on this device. Close it to finish updating: this page goes on by itself once it’s closed.';
+    box.append(h, p);
+    document.getElementById('root')!.appendChild(box);
+  }, 1000);
+});
+
 async function start() {
   let migrationError: string | undefined;
+  let keptApart: string[] | undefined;
   try {
-    ({ migrationError } = await initStorage());
+    ({ migrationError, keptApart } = await initStorage());
   } catch (e) {
+    if (e instanceof NewerVersionError || supersededByNewer()) { showNewerVersion(); return; }
     if (e instanceof StorageUnavailableError) { showStorageError(); return; }
     throw e;
   }
+  // (Taken by a newer version, in another tab or window, while this page was opening the plans.)
+  if (supersededByNewer()) { showNewerVersion(); return; }
+  appShown = true;
   // What's new since this device last opened the app (src/whats-new.ts): read before the visit is noted, which is how
   // a device used before the list existed is told from a new one.
   const news = newsAtStart(visitedBefore());
@@ -339,8 +431,15 @@ async function start() {
   render();
   // (Said once, after the first render; not over the guided introduction's card, though its list still marks them New.)
   tellWhatsNew(news, !introActive());
-  if (migrationError) {
-    void tell("Some projects from the previous version couldn't be copied (" + migrationError + "). They are still stored on this device; the app will try again next time it opens.");
+  const told = migrationError
+    ? tell("Some projects from the previous version couldn't be copied (" + migrationError + "). They are still stored on this device; the app will try again next time it opens.")
+    : Promise.resolve();
+  // (Unsaved changes from a tab or window with an older copy of a plan, kept beside it rather than over it:
+  // src/storage.ts replayJournals. After the message above, if any: one question at a time.)
+  if (keptApart?.length) {
+    const names = keptApart.map((n) => `“${n}”`).join(', ');
+    const one = keptApart.length === 1;
+    void told.then(() => tell(`Changes left unsaved in another tab or window, made to an older copy of ${one ? 'a plan' : 'plans'}, are kept as ${one ? 'a plan of its own' : 'plans of their own'}: ${names}. Nothing newer was replaced. Compare, and delete what you don’t need.`, { testid: 'kept-apart' }));
   }
   void loadPlants();
   void loadWild(); // (the garden's county and its state's wild records, if it has a location)
