@@ -1,9 +1,10 @@
 // Warnings dismissed for a plant across the plan (Jason, Oct 30): hardiness and poison are the plant's, not where a copy
 // stands, so dismissing one dismisses its other copies and the ones added later, with a toast that says so and offers
-// to warn again for new ones. Fruit-partner reminders too. Per plan: another plan, another yard, warns again. Each is
-// kept with what the warning said when it was dismissed, so it comes back if that changes (a new ZIP; someone new in
-// the yard). Sun and crowding stay a copy's own: they depend on where it stands. Shown again from the plant's pane or
-// Warnings (src/warnings-list.ts, src/ui/warnings-sheet.ts), where they can be dismissed too (Jason, Nov 1).
+// to warn again for new ones. Fruit-partner reminders too (offering Undo instead: no copy keeps its own). Per plan:
+// another plan, another yard, warns again. Each is kept with what the warning said when it was dismissed, so it comes
+// back if that changes (a new ZIP; someone new in the yard). Sun and crowding stay a copy's own: they depend on where
+// it stands. Shown again from the plant's pane or Warnings (src/warnings-list.ts, src/ui/warnings-sheet.ts), where they
+// can be dismissed too (Jason, Nov 1).
 
 import { pushHistory } from './history';
 import { householdFlags, plantsById, type Plant } from './plants';
