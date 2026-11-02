@@ -26,6 +26,8 @@ import { isArbor, isTrellis, LATTICE_STEP, latticePath, SLAT_STEP, slatsPath } f
 import type { CircleShape, Point, Shape, ShapeFilter, TextShape } from './types';
 import { groundcoverRadius, supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
 import { pinRadius } from './pins';
+import { placeAreaNames, type AreaName } from './area-names';
+import { isBed, isPlant } from './beds';
 import { BADGE_HALF, BADGE_STEP, badgeBoxes, badgeCenters, placeBadges, type BadgeHolder, type BadgeKind, type BadgeSpot, type Box as BadgeBox, type Circle } from './badges';
 import { lookFor, lookMarkup, lookMonthOf, lookShown, plannedEdge } from './plant-looks';
 import { bandBlooms, bandLeaves, colorIn, coverBlooms, levelOf } from './looks';
@@ -404,6 +406,13 @@ export function shapeGroup(s: Shape): SVGGElement {
   const sunText = s.role === 'shade' && s.sun && room('☀ ' + formatHours(sunHours(s.sun))) ? '☀ ' + formatHours(sunHours(s.sun)) : '';
   const run = s.type === 'circle' && overflow ? runLabels.get(s.id) : undefined;
   const label = run && named ? run.text : room(displayLabel(s)) ? displayLabel(s) : '';
+  // A bed's, a path's or a sun area's name (and its hours), with what's over it: in a group of its own, moved where the
+  // last full redraw put it, clear of the plants, and drawn over them (liftAreaNames). Over a plant all the same, a halo.
+  const area = isAreaNamed(s) ? areaShift.get(s.id) : undefined;
+  const nameG = isAreaNamed(s) ? svgEl('g', { 'data-role': 'area-name', 'data-name-of': s.id,
+    transform: area && (area.dx || area.dy) ? `translate(${Math.round(area.dx * 10) / 10} ${Math.round(area.dy * 10) / 10})` : null }) : null;
+  const into = nameG ?? g;
+  const areaHalo = area?.over ? { stroke: 'rgba(255,255,255,0.85)', 'stroke-width': 3, 'paint-order': 'stroke', 'stroke-linejoin': 'round' } : {};
   if (fitted && named) {
     // Wrapped and sized to fit inside the circle (or below a tree's trunk).
     const lh = fitted.fontSize * LABEL_LINE_HEIGHT;
@@ -421,21 +430,22 @@ export function shapeGroup(s: Shape): SVGGElement {
     // Not fitted (other shapes), or a plant's name over its edge (room for it, or selected): one line, with a halo.
     const halo = fitted === null || overflow;
     if (halo) fs = OVERFLOW_PX * lk;
-    g.appendChild(svgEl('text', {
+    into.appendChild(svgEl('text', {
       x: labelX, y: sunText ? labelY - fs * 0.6 : labelY, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
       'font-size': fs, fill: '#0f172a', 'pointer-events': 'none',
       style: 'user-select:none;font-weight:500;',
-      transform: rotTransform || null,
+      transform: rotTransform || null, ...areaHalo,
       ...(halo ? { 'data-role': 'plant-label', stroke: 'rgba(255,255,255,0.85)', 'stroke-width': 3, 'paint-order': 'stroke', 'stroke-linejoin': 'round' } : {}),
     }, label));
   }
   if (sunText) {
-    g.appendChild(svgEl('text', {
+    into.appendChild(svgEl('text', {
       x: labelX, y: label ? labelY + fs * 0.7 : labelY, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
       'font-size': Math.max(10 * lk, fs * 0.85), fill: '#1e293b', 'pointer-events': 'none', 'data-role': 'sun-label',
-      style: 'user-select:none;', transform: rotTransform || null,
+      style: 'user-select:none;', transform: rotTransform || null, ...areaHalo,
     }, sunText));
   }
+  if (nameG?.firstChild) g.appendChild(nameG);
   // To remove: a red cross over the shape. To move: a blue arrow badge (hidden with the names; the cross isn't a badge).
   if (s.status === 'remove' || (s.status === 'move' && named)) {
     const b = shapeBBox(s);
@@ -775,6 +785,51 @@ export function runLabelSpot(run: CircleShape[], w: number, h: number, ppf: numb
   const spots = [mid, ...near.map((s) => ({ x: s.x, y: s.y })), ...(column ? [...sides, ...ends] : [...ends, ...sides])];
   return spots.find((p) => !placed.some((q) => overlaps(q, boxAt(p, w, h, ppf)))) ?? null;
 }
+/**
+ * A shape whose name is one of the yard's areas' (a bed, a lawn, a path, a building, a sun area: any but a circle, a text
+ * note, or a boundary named along its line), placed clear of the plants as a printout places it (src/area-names.ts).
+ */
+const isAreaNamed = (s: Shape): boolean => s.type !== 'circle' && s.type !== 'text' && !(s.role === 'boundary' && (s.type === 'poly' || s.type === 'line'));
+/**
+ * An area's name and sun hours as shapeGroup draws them, on the screen (px): the middle of the two lines, their size, its
+ * turn; null when neither shows (names hidden; or, zoomed far out, wider than the shape).
+ */
+function areaNameAt(s: Shape, ppf: number, lk: number) {
+  const sel = isSelected(s.id);
+  if (!state.showNames && !sel) return null;
+  let x: number, y: number, fs: number, angle = 0;
+  if (s.type === 'poly' || s.type === 'line') {
+    const lp = pathLabelPoint(s), { w, h } = boxSize(s);
+    x = (lp.x - state.offsetX) * ppf; y = (lp.y - state.offsetY) * ppf;
+    fs = (s.type === 'line' ? 12 : Math.max(10, Math.min(14, Math.min(w, h) * ppf * 0.2))) * lk;
+    if (s.type === 'line' && !s.pathWidth) y -= 10 * lk; // (above a thin line)
+  } else if (s.type === 'rect' || s.type === 'oval' || s.type === 'triangle') {
+    const w = s.width * ppf, h = s.height * ppf;
+    x = (s.x - state.offsetX) * ppf + w / 2; y = (s.y - state.offsetY) * ppf + h / 2;
+    fs = Math.max(10, Math.min(14, Math.min(w, h) * 0.2)) * lk;
+    angle = boxLabelAngle(s.rotation || 0);
+  } else return null;
+  const b = shapeBBox(s);
+  const room = (text: string) => ppf >= FAR_OUT_PPF || sel || textWidth1(text) * fs <= Math.max(b.maxX - b.minX, b.maxY - b.minY) * ppf;
+  const hours = s.role === 'shade' && s.sun ? '\u2600 ' + formatHours(sunHours(s.sun)) : '';
+  const sun = hours && room(hours) ? hours : '', label = displayLabel(s) && room(displayLabel(s)) ? displayLabel(s) : '';
+  if (!label && !sun) return null;
+  const sfs = Math.max(10 * lk, fs * 0.85);
+  const top = label ? y - fs * (sun ? 1.2 : 0.6) : y - sfs * 0.6, bottom = sun ? (label ? y + fs * 0.7 : y) + sfs * 0.6 : y + fs * 0.6;
+  return { x, y: (top + bottom) / 2, w: Math.max(label ? textWidth1(label) * fs : 0, sun ? textWidth1(sun) * sfs : 0), h: bottom - top, fs, angle, label, sun };
+}
+/** Each area's name moved (px) from where its shape puts it, and whether it's over a plant there (refreshLabelLayout). */
+let areaShift = new Map<string, { dx: number; dy: number; over: boolean }>();
+/**
+ * The areas' names over every plant (a bed's under its plants was hidden: the general bug hunt, Nov 1), moved, not
+ * copied, from each shape's group into one group after them all.
+ */
+function liftAreaNames(shapes: Element) {
+  let top = shapes.querySelector(':scope > g[data-role=area-names]');
+  if (!top) top = svgEl('g', { 'data-role': 'area-names', 'pointer-events': 'none' });
+  for (const n of shapes.querySelectorAll(':scope > g[data-shape-group] > [data-role=area-name]')) top.appendChild(n);
+  shapes.appendChild(top);
+}
 function refreshLabelLayout() {
   const ppf = pxPerFoot(), lk = labelScale();
   overflowLabels = new Set();
@@ -785,11 +840,19 @@ function refreshLabelLayout() {
   hiddenShift = new Map();
   const hiddenFits: { s: CircleShape; box: Box }[] = [];
   const waiting: { s: CircleShape; box: Box }[] = [];
-  for (const s of paintOrder(state.shapes)) {
+  const areas: { s: Shape; at: NonNullable<ReturnType<typeof areaNameAt>> }[] = [];
+  const shown = paintOrder(state.shapes);
+  for (const s of shown) {
     // Names hidden: a name that isn't drawn keeps no room (a selected plant's shows beside it).
     if (!state.showNames && !state.selectedIds.includes(s.id)) continue;
     if (!isPlantCircle(s)) {
-      // Other shapes' names (a bed's, a path's) are there first: plant names stay off them.
+      // A bed's, a path's or a sun area's name: placed clear of the plants, below, before the plants' names.
+      if (isAreaNamed(s)) {
+        const at = areaNameAt(s, ppf, lk);
+        if (at) areas.push({ s, at });
+        continue;
+      }
+      // Other shapes' names (a round one's) are there first: plant names stay off them.
       const label = s.type === 'text' ? '' : displayLabel(s);
       if (!label) continue;
       const w = textWidth1(label) * 12 * lk, h = 14 * lk;
@@ -817,6 +880,26 @@ function refreshLabelLayout() {
       const w = textWidth1(displayLabel(s)) * OVERFLOW_PX * lk, h = OVERFLOW_PX * lk * LABEL_LINE_HEIGHT;
       waiting.push({ s, box: { x0: cx - w / 2, x1: cx + w / 2, y0: cy - h / 2, y1: cy + h / 2 } });
     }
+  }
+  // The areas' names: where their shapes put them, or, with a plant there, the first spot clear of the plants and of
+  // each other just above the shape, below it, to its right or to its left, as a printout places them (src/area-names.ts;
+  // the general bug hunt, Nov 1: plants hid "Bed" and all but an "n" of "Morning sun"). Kept, where none is clear: the
+  // screen can be zoomed in. On the screen, in px; the plant names' room is in px from the plan's origin.
+  areaShift = new Map();
+  if (areas.length) {
+    const ox = state.offsetX * ppf, oy = state.offsetY * ppf;
+    const plants = shown.filter((s): s is CircleShape => s.type === 'circle' && isPlant(s))
+      .map((s) => ({ x: s.x * ppf - ox, y: s.y * ppf - oy, r: drawnRadius(s) * ppf }));
+    const names: AreaName[] = areas.map(({ s, at }) => {
+      const b = shapeBBox(s);
+      return { label: at.label || at.sun, x: at.x, y: at.y, w: at.w, h: at.h, fs: at.fs, angle: at.angle, bed: isBed(s), size: (b.maxX - b.minX) * (b.maxY - b.minY),
+        fixed: !!at.angle || s.type === 'line', gone: s.status === 'gone', around: { x0: b.minX * ppf - ox, y0: b.minY * ppf - oy, x1: b.maxX * ppf - ox, y1: b.maxY * ppf - oy } };
+    });
+    placeAreaNames(names, plants, { x0: 0, y0: 0, x1: state.canvasW, y1: state.canvasH }, 1, true).forEach((p, i) => {
+      if (!p) return;
+      areaShift.set(areas[i].s.id, { dx: p.x - names[i].x, dy: p.y - names[i].y, over: p.overPlant });
+      placed.push({ x0: p.box.x0 + ox, x1: p.box.x1 + ox, y0: p.box.y0 + oy, y1: p.box.y1 + oy });
+    });
   }
   // Hidden plants' names, drawn over the plant hiding them (liftHidden), where they're clear of the names in sight: at
   // their middle, or just below their outline, or above it; in a crowd, the outline alone.
@@ -915,6 +998,7 @@ export function redrawCanvas() {
   renderGrid(grid);
   const shapes = layer(svg, 'shapes');
   for (const s of paintOrder(state.shapes)) shapes.appendChild(shapeGroup(s));
+  liftAreaNames(shapes);
   liftBadges(shapes);
   liftHidden(shapes);
   liftTrunks(shapes);
@@ -973,9 +1057,11 @@ export function redrawShapes(ids: string[]) {
       shapes.querySelector(`:scope > g[data-role=trunks] > [data-trunk-of="${CSS.escape(id)}"]`)?.remove();
       shapes.querySelector(`:scope > g[data-role=hidden-over] > [data-label-of="${CSS.escape(id)}"]`)?.remove();
       shapes.querySelector(`:scope > g[data-role=badges-over] > [data-badges-of="${CSS.escape(id)}"]`)?.remove();
+      shapes.querySelector(`:scope > g[data-role=area-names] > [data-name-of="${CSS.escape(id)}"]`)?.remove();
       old.replaceWith(shapeGroup(s));
     }
   }
+  liftAreaNames(shapes);
   liftBadges(shapes);
   liftHidden(shapes);
   liftTrunks(shapes);
