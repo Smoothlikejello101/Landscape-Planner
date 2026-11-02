@@ -15,7 +15,8 @@ export default defineConfig({
   define: {
     // (APP_VERSION: set by the deploy from the pull request's number, 0.2.049 for #49; else package.json's.)
     __APP_VERSION__: JSON.stringify((process.env.APP_VERSION || pkg.version) + (process.env.VERSION_SUFFIX ?? '')),
-    __BUILD_TIME__: JSON.stringify(new Date().toISOString().slice(0, 10)),
+    // (The build's time, in UTC; the app shows its day by the person's own calendar: src/whats-new.ts builtOn.)
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
     // (APP_CHANNEL: "next" for the build of main at next.fullgrown.garden; else a release build: src/channel.ts.)
     __APP_CHANNEL__: JSON.stringify(process.env.APP_CHANNEL === 'next' ? 'next' : 'release'),
   },

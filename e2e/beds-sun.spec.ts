@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addPlainShape, closeSheet, drag, field, openFresh, openSections, openWarnings, placeOnceAtCenter, setRole, shapeCount, openSettings } from './helpers';
+import { addPlainShape, closeSheet, drag, field, openFresh, openSections, openWarnings, placeOnceAtCenter, setRole, shapeCount } from './helpers';
 
 async function addRect(page: Page, label: string, role: string, size?: [number, number]) {
   await addPlainShape(page, 'rect');
@@ -53,6 +53,81 @@ test('a bed carries the plants inside it, unless that is turned off', async ({ p
   expect(Math.round((await plant.boundingBox())!.x - p2.x)).toBe(0); // plant stayed
 });
 
+test('deleting a bed with plants in it asks whether they go too, its locked ones as well; either way one Undo brings everything back (the UI review and Jason, 2026-11-01)', async ({ page }) => {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    const base = { color: '#16a34a', opacity: 0.65 };
+    localStorage.setItem('landscape-planner-v1', JSON.stringify({
+      shapes: [
+        { ...base, id: 'bed', type: 'rect', x: 0, y: 0, width: 10, height: 6, rotation: 0, label: 'Front bed', role: 'bed' },
+        { ...base, id: 'p1', type: 'circle', x: 2, y: 2, radius: 1, label: 'One', role: 'plant' },
+        { ...base, id: 'p2', type: 'circle', x: 8, y: 2, radius: 1, label: 'Two', role: 'plant' },
+        { ...base, id: 'p3', type: 'circle', x: 5, y: 5, radius: 1, label: 'Three', role: 'plant', locked: true },
+        { ...base, id: 'lawn', type: 'circle', x: -6, y: 2, radius: 1, label: 'On the lawn', role: 'plant' },
+        { ...base, id: 'empty', type: 'rect', x: -8, y: 8, width: 4, height: 3, rotation: 0, label: 'Empty bed', role: 'bed' },
+        { ...base, id: 'back', type: 'rect', x: 0, y: 10, width: 6, height: 4, rotation: 0, label: 'Back bed', role: 'bed' },
+        { ...base, id: 'p4', type: 'circle', x: 3, y: 12, radius: 1, label: 'Four', role: 'plant' },
+      ],
+      zoom: 1, offsetX: -10, offsetY: -6,
+    }));
+  });
+  await page.goto('./');
+  await expect.poll(() => shapeCount(page)).toBe(8);
+  const ask = page.locator('.ask-overlay [role=alertdialog]');
+  const deleteBed = async (label: string) => {
+    await openProps(page, label);
+    await page.locator('.sheet .action-row button', { hasText: 'Delete' }).click();
+  };
+  // With a locked plant in it: the bed only, the bed and its unlocked plants, or everything (Jason, Nov 1: a bed can
+  // be deleted though it's locked, so its locked plants can go too). It asks in the app's own question.
+  await deleteBed('Front bed');
+  await expect(ask.locator('.ask-message')).toHaveText('“Front bed” has 3 plants in it, 1 of them locked.');
+  await expect(ask.locator('button')).toHaveText(['Delete the bed only (its 3 plants stay)', 'Delete the bed and its 2 unlocked plants (the 1 locked plant stays)',
+    'Delete the bed and all 3 plants, the 1 locked plant too', 'Cancel']);
+  await expect(ask.getByTestId('ask-cancel')).toBeFocused();
+  await ask.getByTestId('ask-cancel').click();
+  await expect.poll(() => shapeCount(page)).toBe(8);
+  // The bed only: its plants stay where they are; the notice says so, and its Undo brings the bed back.
+  await page.locator('.sheet .action-row button', { hasText: 'Delete' }).click();
+  await ask.getByTestId('ask-bed-only').click();
+  await expect.poll(() => shapeCount(page)).toBe(7);
+  await expect(page.locator('#canvas-svg [data-shape-id=bed]')).toHaveCount(0);
+  await expect(page.locator('#toast-action')).toContainText('Deleted Front bed; its 3 plants stay');
+  await page.locator('#toast-action').getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(() => shapeCount(page)).toBe(8);
+  // The bed and its unlocked plants: the locked one stays.
+  await deleteBed('Front bed');
+  await ask.getByTestId('ask-bed-unlocked').click();
+  await expect.poll(() => shapeCount(page)).toBe(5);
+  for (const id of ['bed', 'p1', 'p2']) await expect(page.locator(`#canvas-svg [data-shape-id=${id}]`)).toHaveCount(0);
+  await expect(page.locator('#canvas-svg [data-shape-id=p3]')).toHaveCount(1);
+  await expect(page.locator('#toast-action')).toContainText('Deleted Front bed and its 2 unlocked plants; the 1 locked plant stays');
+  await page.locator('button[title=Undo]').click();
+  await expect.poll(() => shapeCount(page)).toBe(8);
+  // Everything: the locked plant too, in one step, which the top bar's Undo brings back whole.
+  await deleteBed('Front bed');
+  await ask.getByTestId('ask-ok').click();
+  await expect.poll(() => shapeCount(page)).toBe(4);
+  for (const id of ['bed', 'p1', 'p2', 'p3']) await expect(page.locator(`#canvas-svg [data-shape-id=${id}]`)).toHaveCount(0);
+  await expect(page.locator('#toast-action')).toContainText('Deleted Front bed and its 3 plants');
+  await page.locator('button[title=Undo]').click();
+  await expect.poll(() => shapeCount(page)).toBe(8);
+  await expect(page.locator('#canvas-svg [data-shape-id=p3]')).toHaveCount(1);
+  // No locked plants in it: the bed only, or the bed and its plants.
+  await deleteBed('Back bed');
+  await expect(ask.locator('.ask-message')).toHaveText('“Back bed” has 1 plant in it.');
+  await expect(ask.locator('button')).toHaveText(['Delete the bed only (its 1 plant stays)', 'Delete the bed and its 1 plant', 'Cancel']);
+  await ask.getByTestId('ask-ok').click();
+  await expect.poll(() => shapeCount(page)).toBe(6);
+  await expect(page.locator('#toast-action')).toContainText('Deleted Back bed and its 1 plant');
+  // A bed with no plants in it goes as before, nothing asked.
+  await deleteBed('Empty bed');
+  await expect(page.locator('#toast-action')).toContainText('Deleted Empty bed');
+  await expect(ask).toHaveCount(0);
+  await expect.poll(() => shapeCount(page)).toBe(5);
+});
+
 test('shade sun can be recorded as times or hours, and is saved', async ({ page }) => {
   await openFresh(page);
   await addRect(page, 'Oak shade', 'Sun exposure', [8, 8]);
@@ -99,9 +174,11 @@ test('a plant in the wrong light gets a warning', async ({ page }) => {
   await expect(page.locator('[data-testid=sun-check]')).toContainText('prefers part shade'); // (as its details say it: round 3)
 
   // Dismiss it for this plant: the badge goes, the note stays in properties.
+  await expect(page.getByTestId('sun-dismiss')).toHaveText('Dismiss for this one');
   await page.getByTestId('sun-dismiss').click();
   await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(0);
-  await expect(page.locator('[data-testid=sun-check]')).toContainText('dismissed');
+  await expect(page.locator('[data-testid=sun-check]')).toContainText('dismissed for this one');
+  await expect(page.getByTestId('sun-dismiss')).toHaveText('Show again');
   await page.getByTestId('sun-dismiss').click(); // and back
   await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(1);
   await page.getByTestId('sun-dismiss').click();
@@ -115,10 +192,12 @@ test('a plant in the wrong light gets a warning', async ({ page }) => {
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(1);
 
-  // Or turn badges off for the whole plan.
-  await openSettings(page);
-  await openWarnings(page);
+  // Or turn badges off for the whole plan, in Warnings: Sun names the sun area in its row.
+  await openWarnings(page, 'sun');
+  await expect(page.getByTestId('warnings-kind-sun').getByTestId('warning-row')).toContainText('Gets about 7 h of sun in Sunny strip; it prefers part shade');
+  await expect(page.getByTestId('warnings-switch-sun')).toContainText('In the sun area you recorded');
   await page.getByTestId('sun-warnings').uncheck();
+  await expect(page.getByTestId('warnings-kind-head-sun')).toHaveAttribute('aria-label', 'Sun, Off');
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(0);
 });

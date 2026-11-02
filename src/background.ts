@@ -117,7 +117,7 @@ export async function handleBgImageFile(file: File): Promise<boolean> {
     };
     state.photoElsewhere = null; // this photo replaces one kept on another device
     pushHistory();
-    // (The whole photo in view, to find the two points on: Dana and Grace saw only a blur of green and grey.)
+    // (The whole photo in view, to find the two points on: Dana and Grace saw only a blur of green and gray.)
     zoomToBounds({ minX: c.x - (w * 0.1) / 2, maxX: c.x + (w * 0.1) / 2, minY: c.y - (h * 0.1) / 2, maxY: c.y + (h * 0.1) / 2 }, 12);
     calibrationSeen(); // (just added: no reminder this session; the calibration banner asks)
     save();

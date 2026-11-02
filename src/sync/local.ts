@@ -1,6 +1,7 @@
 import { state } from '../state';
 import {
-  clearSyncTombstone, createProject, currentProjectData, deleteProject, fillProjectPhoto, getPlantSync, getSyncRecords, hasUnsavedChanges, getSyncTombstones, notePhotoFingerprint, photoRefOf,
+  clearSyncTombstone, createProject, currentProjectData, deleteProject, fillProjectPhoto, getPlantSync, getSyncDeletedRecord, getSyncRecords, hasUnsavedChanges, getSyncTombstones,
+  notePhotoFingerprint, photoRefOf,
   placePhoto, projectChangeToken, projectNow, readProject, renameProject, replaceProjectContent, sanitizePhotoRef, sanitizeProjectData,
   setSyncRecord, switchProject, syncedContent,
 } from '../storage';
@@ -78,6 +79,7 @@ export function storageLocal(screenBusy: () => boolean, openChanged: () => Promi
     records: getSyncRecords,
     setRecord: setSyncRecord,
     tombstones: getSyncTombstones,
+    deletedRecord: getSyncDeletedRecord,
     clearTombstone: clearSyncTombstone,
     async replace(id, name, content, token, bytes, copied) {
       let ok = false;

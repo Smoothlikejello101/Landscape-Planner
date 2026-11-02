@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Plant } from '../src/plants';
 import { bandBlooms, bandLeaves, bloomKind, coverBlooms, flowerChoices, flowerColorOf, levelOf, lookOf, lookSvg, nearestFlower, ownBloomColors } from '../src/looks';
-import { LOOK_MAX_R, lookFor, lookMarkup, plannedEdge } from '../src/plant-looks';
+import { LOOK_MAX_R, lookFor, lookMarkup, plannedEdge, plantSpot } from '../src/plant-looks';
 import { plantsById } from '../src/plants';
 import type { CircleShape } from '../src/types';
 import { withLocalParts } from '../src/sync/engine';
@@ -99,12 +99,17 @@ describe('a plant drawn from its catalog facts', () => {
     const mine = { id: 'u-abc', common: "Strawberry 'Albion'", form: 'Perennial', bloom: { start: 3, end: 4, color: 'White' }, color: '#ff0000' } as Plant;
     expect(lookOf(mine, '#ff0000').pal.fl).toBe('#f7f4ec');
     expect(lookOf({ ...mine, bloom: { color: 'Pale lavender' } }, '#ff0000').pal.fl).toBe('#8a62c9');
-    // (No bloom color: the color picked for it on the plan, as the nearest flower color; none picked, no flowers.)
-    expect(lookOf({ ...mine, bloom: undefined }, '#ff0000').pal.fl).toBe('#d7263d');
-    expect(lookOf({ ...mine, bloom: undefined, color: '#ffff00' }, '#ffff00').pal.fl).toBe('#f2c230');
-    expect(lookOf({ ...mine, bloom: undefined, color: '#f6f5f4' }, '#f6f5f4').pal.fl).toBe('#f7f4ec');
-    expect(lookOf({ ...mine, bloom: undefined, color: '#ff00ff' }, '#ff00ff').pal.fl).toBe('#e0679f');
-    expect(lookOf({ ...mine, bloom: undefined, color: undefined }, '#16a34a').pal.fl).toBeUndefined();
+    // (Bloom months and no bloom color: the color picked for it on the plan, as the nearest flower color; none picked,
+    // no flowers.)
+    const months = { start: 3, end: 4 };
+    expect(lookOf({ ...mine, bloom: months }, '#ff0000').pal.fl).toBe('#d7263d');
+    expect(lookOf({ ...mine, bloom: months, color: '#ffff00' }, '#ffff00').pal.fl).toBe('#f2c230');
+    expect(lookOf({ ...mine, bloom: months, color: '#f6f5f4' }, '#f6f5f4').pal.fl).toBe('#f7f4ec');
+    expect(lookOf({ ...mine, bloom: months, color: '#ff00ff' }, '#ff00ff').pal.fl).toBe('#e0679f');
+    expect(lookOf({ ...mine, bloom: months, color: undefined }, '#16a34a').pal.fl).toBeUndefined();
+    // (No flower colors and no bloom months: no flowers at all, its plan color aside. Jason, Nov 1: a false cypress of
+    // his own was drawn in yellow flowers.)
+    expect(lookOf({ ...mine, bloom: undefined, color: '#ffff00' }, '#ffff00').pal.fl).toBeUndefined();
     // (A catalog plant: its sources' color; with none, the earlier list's words; never its plan color.)
     expect(lookOf(plant({ bloom: { start: 5, end: 10, color: 'Red' } }), '#000').pal.fl).toBe('#d7263d');
     expect(lookOf(plant({ bloom: { color: 'Hot pink fringe' } }), '#000').pal.fl).toBe('#e0679f');
@@ -206,5 +211,35 @@ describe('a plant in a month', () => {
   it('fruit where it shows, and a winter not known drawn faint', () => {
     expect(lookSvg(shrub, 40, 'a', 'close', { leaves: 'bare', bloom: 'no', fruit: '#b3202e' })).toContain('#b3202e');
     expect(lookSvg(shrub, 40, 'a', 'close', { leaves: 'unknown', bloom: 'no' })).toMatch(/^<g opacity="0.55">/);
+  });
+});
+
+describe("a picker row's spot: a flower in a circle of its leaves' color (Jason, Nov 1, from the UI review)", () => {
+  it('its flowers\' color as its picture draws them, in a circle of its leaves\', said in words', () => {
+    const s = plantSpot(plant({ flower_color: ['blue'], leaf_color: ['green'] }));
+    expect(s.said).toBe('blue flowers, green leaves');
+    expect(s.svg).toContain('<circle cx="10" cy="10" r="9.5" fill="#6f9a4a"');
+    expect(s.svg).toContain('<g fill="#5b7fd6"');
+    expect(count(s.svg, 'circle')).toBe(7); // (the leaf circle, five petals, the flower's center)
+    expect(plantSpot(plant({ flower_color: ['white'], leaf_color: ['purple'] })).said).toBe('white flowers, purple leaves');
+    expect(plantSpot(plant({ flower_color: ['pink'], leaf_color: ['variegated', 'green'] })).said).toBe('pink flowers, variegated green leaves');
+  });
+  it('no showy flowers, or none on record: the circle alone', () => {
+    const s = plantSpot(plant({ flower_color: ['insignificant'], leaf_color: ['silver'] }));
+    expect(s.said).toBe('silver leaves');
+    expect(count(s.svg, 'circle')).toBe(1);
+    expect(plantSpot(plant({})).said).toBe('green leaves');
+    expect(plantSpot(plant({ flower_color: ['red'], flower_form: { inflorescence: ['catkin'] } })).said).toBe('green leaves');
+  });
+  it('flowers NC State calls insignificant, but with a shape, are showy, as its details say (the bug hunt, Nov 1: flowering dogwood)', () => {
+    // (A dogwood's true flowers are tiny; its bracts, cross-shaped, 3–6 in, are what's seen.)
+    const dogwood = plant({ flower_color: ['white', 'yellow', 'green', 'pink'], flower_form: { inflorescence: ['cyme', 'insignificant'], shape: ['cross'], petals: ['4-5'], size: ['3-6'] } });
+    expect(plantSpot(dogwood).said).toBe('white flowers, green leaves');
+    expect(flowerChoices(dogwood).colors).toEqual(['white', 'yellow', 'pink']);
+    // Insignificant and no shape: not showy, whatever colors they come in (a holly's).
+    const holly = plant({ flower_color: ['white', 'green'], flower_form: { inflorescence: ['insignificant'], size: ['<1'] } });
+    expect(plantSpot(holly).said).toBe('green leaves');
+    expect(lookOf(holly, '#000').pal.fl).toBeUndefined();
+    expect(flowerChoices(holly).colors).toEqual([]);
   });
 });

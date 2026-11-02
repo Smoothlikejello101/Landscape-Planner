@@ -1,18 +1,20 @@
-import { backupAll, backupSaid, buildProjectFile, canShareFiles, downloadText, importProjects, parseImportFile, parseImportPlants, uniqueName } from '../backup';
+import { backupAll, backupSaid, buildProjectFile, canShareFiles, downloadText, importProjects, importTooBig, parseImportFile, parseImportPlants, uniqueName } from '../backup';
 import { mergeMyPlants } from '../my-plants';
 import { el } from '../dom';
 import { I } from '../icons';
 import { paste } from '../mutations';
 import { pushHistory } from '../history';
 import { state } from '../state';
-import { createProject, deleteProject, getClipboard, getLastBackupAt, isPersisted, renameProject, storageIsDurable, switchProject } from '../storage';
+import { createProject, deleteProject, emptyProjectData, getClipboard, getLastBackupAt, isPersisted, renameProject, storageIsDurable, switchProject } from '../storage';
 import type { PanelName } from '../types';
-import { errMsg } from '../util';
+import { deepClone, errMsg } from '../util';
 import { render } from './render';
 import { accountSection } from './account-section';
 import { deleteNote } from '../sync/sync';
 import { toast } from './toast';
-import { ask, askText, tell } from './ask';
+import { askChoice, askTextAnd, tell } from './ask';
+import { householdCopy, yardSet } from '../yard';
+import { allSwitchesOn, switchesCopy } from '../view-settings';
 
 function closeButton(onClick: () => void) {
   const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' });
@@ -64,11 +66,27 @@ function backupSection(): HTMLElement {
     section.appendChild(share);
   }
 
-  const fileInput = el('input', { type: 'file', accept: '.json,application/json', style: { display: 'none' }, 'data-testid': 'import-file' });
-  fileInput.addEventListener('change', async () => {
-    const f = fileInput.files?.[0];
-    fileInput.value = '';
+  const { input: fileInput, choose } = fileImport('import-file');
+  const imp = el('button', { className: 'btn ghost', html: I.upload + '<span>Import from file</span>' });
+  imp.addEventListener('click', choose);
+  section.appendChild(fileInput);
+  section.appendChild(imp);
+  return section;
+}
+
+/**
+ * Bringing back projects from a file, a backup or one plan's: Import from file here, and the first screen's "Restore a
+ * backup" (src/ui/render.ts: Jason, Nov 1, from the UI review). One project opens. Several stay listed here, and from
+ * the first screen this list opens on them, to choose from. The file input is the caller's to put on the page.
+ */
+export function fileImport(testid: string): { input: HTMLInputElement; choose: () => void } {
+  const input = el('input', { type: 'file', accept: '.json,application/json', style: { display: 'none' }, 'data-testid': testid }) as HTMLInputElement;
+  input.addEventListener('change', async () => {
+    const f = input.files?.[0];
+    input.value = '';
     if (!f) return;
+    const big = importTooBig(f.size);
+    if (big) { void tell(big); return; }
     try {
       const text = await f.text();
       const list = parseImportFile(text);
@@ -76,14 +94,10 @@ function backupSection(): HTMLElement {
       const ids = await importProjects(list);
       toast(`Imported ${ids.length} project${ids.length === 1 ? '' : 's'}` + (added ? ` and ${added} of your plants` : ''));
       if (ids.length === 1) await openProject(ids[0]);
-      else render();
+      else { if (ids.length && !state.panel) state.panel = 'projects'; render(); }
     } catch (e) { void tell(errMsg(e)); }
   });
-  const imp = el('button', { className: 'btn ghost', html: I.upload + '<span>Import from file</span>' });
-  imp.addEventListener('click', () => fileInput.click());
-  section.appendChild(fileInput);
-  section.appendChild(imp);
-  return section;
+  return { input, choose: () => input.click() };
 }
 
 /** The list's order as it opened, kept until it closes (src/ui/render.ts calls projectsClosed). */
@@ -133,10 +147,25 @@ export function renderProjectsPanel() {
       const delBtn = el('button', { className: 'iconbtn', html: I.trash, title: 'Delete', 'aria-label': 'Delete ' + p.name });
       delBtn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        if (await ask('Delete project \u201c' + p.name + '\u201d? ' + deleteNote(p.id), { ok: 'Delete', danger: true, testid: 'ask-delete-project' })) {
-          await deleteProject(p.id);
-          render();
+        // (A copy first, as a file, offered beside Delete: the UI review, 2026-11-01. Saved as the row's "Save as a
+        // file" saves it, and only then deleted.)
+        const choice = await askChoice<'copy' | 'delete'>('Delete project \u201c' + p.name + '\u201d? ' + deleteNote(p.id), [
+          { label: 'Save a copy first, then delete', value: 'copy', testid: 'ask-save-first' },
+          { label: 'Delete', value: 'delete', danger: true },
+        ], { danger: true, testid: 'ask-delete-project' });
+        if (!choice || !state.projects.some((x) => x.id === p.id)) return; // (Cancel, or deleted meanwhile by sync)
+        let saved = '';
+        if (choice === 'copy') {
+          try {
+            const file = await buildProjectFile(p.id);
+            if (!file) throw new Error('the project couldn\u2019t be read');
+            downloadText(file.filename, file.text);
+            saved = file.filename;
+          } catch (err) { void tell('Couldn\u2019t save the copy, so the project wasn\u2019t deleted: ' + errMsg(err)); return; }
         }
+        await deleteProject(p.id);
+        render();
+        if (saved) toast(`Saved ${saved} to your Downloads, then deleted \u201c${p.name}\u201d. To bring it back, open Projects and tap Import from file.`, 10000);
       });
       actions.appendChild(delBtn);
     }
@@ -150,10 +179,20 @@ export function renderProjectsPanel() {
 
   const newBtn = el('button', { className: 'btn primary', style: { margin: '16px' }, html: I.plus + '<span>New project</span>' });
   newBtn.addEventListener('click', async () => {
-    const name = await askText('Name for the new project', 'Untitled', { ok: 'Make it', label: 'Project name' });
-    if (name === null) return;
+    // (The plan open has a location: offered for the new one, ticked, most new plans being of the same garden. Jason,
+    // from the UI review, 2026-11-01. Who's in the yard goes with it, answered or not, and the warning switches, Sun's
+    // too (Jason, Nov 1); unticked, the new plan asks "Anyone you need to protect?", with every warning on. With no
+    // location, it's offered for the yard and the switches alone, once the yard's answered or a warning is off.)
+    const here = state.location, yard = state.household.answered || yardSet(state.household), switched = !allSwitchesOn() || !state.sunWarnings;
+    const said = await askTextAnd('Name for the new project', 'Untitled', {
+      ok: 'Make it', label: 'Project name', check: here || yard || switched ? { label: here ? `Same garden (ZIP ${here.zip})?` : 'Same garden?', checked: true } : undefined,
+    });
+    if (said === null) return;
     // (Two plans of one name couldn't be told apart: "(2)", as an import does. Round 3, Sam.)
-    await openProject(await createProject(uniqueName(name, state.projects.map((p) => p.name))));
+    const name = uniqueName(said.text, state.projects.map((p) => p.name));
+    const same = (here || yard || switched) && said.checked;
+    await openProject(await createProject(name, same
+      ? { ...emptyProjectData(), ...(here ? { location: deepClone(here) } : {}), household: householdCopy(), switches: switchesCopy(), sunWarnings: state.sunWarnings } : undefined));
   });
 
   const sheet = el('div', { className: 'sheet' }, header, list, newBtn);

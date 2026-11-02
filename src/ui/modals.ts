@@ -1,12 +1,17 @@
+import { canShareFiles, shareBlob } from '../backup';
 import { el, hasKeyboard, ts } from '../dom';
 import { copySvg, doExport } from '../export';
 import { I } from '../icons';
 import { resetCurrentProject } from '../mutations';
 import { state } from '../state';
 import { currentProject } from '../storage';
+import type { ExportPreview } from '../types';
+import { errMsg } from '../util';
+import { tell } from './ask';
 import { undoNotice } from './delete-selected';
 import { render } from './render';
 import { openPrint } from './print-panel';
+import { toast } from './toast';
 
 export function renderExportModal() {
   const printBtn = el('button', { className: 'btn primary', 'data-testid': 'printable-plan' }, 'Printable plan (PDF)…');
@@ -32,13 +37,35 @@ export function renderExportModal() {
   return overlay;
 }
 
+/** The picture as a file's contents: the SVG's text, or the PNG's bytes from its data: address. */
+function pictureBlob(p: ExportPreview, type: string): Blob {
+  if (p.format === 'svg') return new Blob([p.svgText], { type });
+  const bin = atob(p.dataUrl.slice(p.dataUrl.indexOf(',') + 1));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type });
+}
 export function renderPreviewModal() {
   const p = state.exportPreview;
   if (!p) return null;
   const img = el('img', { className: 'preview-img', src: p.dataUrl, alt: 'Export preview' });
   const previewWrap = el('div', { className: 'preview-wrap' }, img);
-  const dlLink = el('a', { className: 'dl-link', href: p.dataUrl, download: p.filename, target: '_blank', rel: 'noopener' }, 'Download / Open in new tab');
-  const buttons = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } }, dlLink);
+  // Download, and Share… where the phone can hand a picture to an app, as the PDF has them, in its words (the UI
+  // review, 2026-11-01: it said "Save to Photos", an iPhone's words, and had no Share).
+  const kind = p.format.toUpperCase();
+  const dlLink = el('a', { className: 'dl-link', style: { flex: '1', display: 'flex', alignItems: 'center', justifyContent: 'center' }, href: p.dataUrl, download: p.filename, target: '_blank', rel: 'noopener', 'data-testid': 'download-picture' }, `Download ${kind}`);
+  dlLink.addEventListener('click', () => toast(`Saved ${p.filename} to your Downloads`, 6000));
+  const row = el('div', { style: { display: 'flex', gap: '8px' } }, dlLink);
+  const type = p.format === 'svg' ? 'image/svg+xml' : 'image/png';
+  const canShare = canShareFiles(type, 'x.' + p.format);
+  if (canShare) {
+    const sh = el('button', { className: 'btn ghost', style: { flex: '1' }, 'data-testid': 'share-picture' }, 'Share…');
+    sh.addEventListener('click', async () => {
+      try { await shareBlob(p.filename, pictureBlob(p, type)); } catch (e) { void tell("Couldn't share: " + errMsg(e)); }
+    });
+    row.appendChild(sh);
+  }
+  const buttons = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } }, row);
   if (p.format === 'svg') {
     const copyBtn = el('button', { className: 'btn ghost' }, 'Copy SVG text to clipboard');
     copyBtn.addEventListener('click', copySvg);
@@ -50,8 +77,8 @@ export function renderPreviewModal() {
   const body = el('div', { className: 'sheet-body' },
     el('div', { style: { fontSize: ts(13), color: '#57534e', lineHeight: '1.5' } },
       // (The one that applies here: a laptop was told "On phone: long-press the image". Round 3, Jordan.)
-      hasKeyboard() ? 'Click the Download button, or right-click the image and choose "Save image as..."'
-        : 'Tap the Download button, or long-press the image and choose "Save to Photos" or "Download Image."'),
+      hasKeyboard() ? `Click Download ${kind}, or right-click the picture and choose “Save image as…”.`
+        : `Tap Download ${kind} to save it to your Downloads` + (canShare ? ', or Share… to send it to an app.' : '.')),
     previewWrap,
     buttons
   );

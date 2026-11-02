@@ -18,7 +18,7 @@ and when a plant was seen in flower.
   all iNaturalist research-grade (the identification confirmed by others; captive and cultivated plants are
   never research grade) annotated "Flowers", and herbarium specimens noted in flower ("fl", "flr", "fl-fr").
   Not living collections (a botanic garden's plants) or records marked cultivated or captive.
-- **Licences:** only records whose own licence allows commercial use with credit (CC0 and CC BY 4.0). CC BY-NC
+- **Licenses:** only records whose own license allows commercial use with credit (CC0 and CC BY 4.0). CC BY-NC
   records, most of iNaturalist's, are left out.
 - **What's kept:** counts by species, state, month and note, never a record, a photo or text.
 - **Credit:** GBIF builds the counts itself, as an SQL download with its own DOI, which is the citation

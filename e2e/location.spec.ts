@@ -74,6 +74,7 @@ test('at the warm edge of a plant\'s range: shade, and water unless it wants lit
   await page.getByTestId('hardy-here').click(); // (no ZIP yet: asks for one)
   await page.getByTestId('zip').fill('71901');
   await page.getByTestId('zip-lookup').click();
+  await page.getByTestId('location-to-plants').click();
   await page.getByTestId('plant-search').fill('Red buckeye'); // rated through zone 8 (8b), moderate water
   await expect(page.locator('.sheet .proj-row', { hasText: 'Red buckeye' }).getByTestId('row-hardy')).toHaveText('Hardy here, at its warm edge');
   await page.getByTestId('plant-search').fill('Wild lupine'); // rated through zone 8 (8b), low water
@@ -96,18 +97,88 @@ test('"Hardy in your zone" with no ZIP asks for one, and comes back with only pl
   await page.getByTestId('hardy-here').click();
   await page.getByTestId('zip').fill('71923');
   await page.getByTestId('zip-lookup').click();
-  // Back in the picker, filtered, as it was.
+  // The zone and frost dates to read, then back in the picker, filtered, as it was.
+  await expect(page.getByTestId('location-result')).toContainText('Zone 8a');
+  await page.getByTestId('location-to-plants').click();
   await expect(page.getByTestId('plant-search')).toBeVisible();
   await expect(page.locator('.sheet label', { hasText: 'Hardy in zone 8a' }).locator('input')).toBeChecked();
   await expect(page.locator('.sheet select[aria-label=Form]')).toHaveValue('Shrub');
   await expect(page.getByTestId('active-chip')).toHaveText(['Shrub', 'White flowers']); // (the hardy box is its own, beside Filters)
-  await expect(page.locator('#toast')).toContainText('showing plants hardy there');
   await page.getByTestId('plant-search').fill('Speckled alder'); // rated for zones 2–6
   await expect(page.locator('.sheet .proj-row', { hasText: 'Speckled alder' })).toHaveCount(0);
   // Unticked, it's a plain filter again: no ZIP asked for.
   await page.getByTestId('hardy-here').uncheck();
   await expect(page.getByTestId('hardy-here')).not.toBeChecked();
   await expect(page.getByTestId('active-chip')).toHaveText(['Shrub', 'White flowers']);
+});
+
+test('a new plan offers the open plan\'s location, ticked: "Same garden (ZIP 71923)?"; unticked, the new plan has none (Jason, the UI review, 2026-11-01)', async ({ page }) => {
+  await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TABLE) }));
+  await openFresh(page);
+  // No location yet: nothing offered.
+  await page.locator('.project-btn').click();
+  await page.getByRole('button', { name: /New project/ }).click();
+  await expect(page.getByTestId('ask-input')).toBeVisible();
+  await expect(page.getByTestId('ask-check')).toHaveCount(0);
+  await page.getByTestId('ask-cancel').click();
+  await page.locator('.sheet-header .iconbtn').click();
+  // With one: offered, ticked, and the new plan has it.
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Garden location' }).click();
+  await page.getByTestId('zip').fill('71923');
+  await page.getByTestId('zip-lookup').click();
+  await expect(page.getByTestId('location-result')).toContainText('Zone 8a');
+  await page.locator('.sheet-header .iconbtn').click();
+  await page.locator('.project-btn').click();
+  await page.getByRole('button', { name: /New project/ }).click();
+  const same = page.locator('.ask-overlay label', { hasText: 'Same garden (ZIP 71923)?' }).locator('input');
+  await expect(same).toBeChecked();
+  await page.getByTestId('ask-input').fill('Front yard');
+  await page.getByTestId('ask-ok').click();
+  await expect(page.locator('.project-btn .pname')).toHaveText('Front yard');
+  await page.locator('button[title=More]').click();
+  await expect(page.locator('.menu-item', { hasText: 'Garden location (zone 8a)' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  // Unticked: none.
+  await page.locator('.project-btn').click();
+  await page.getByRole('button', { name: /New project/ }).click();
+  await same.uncheck();
+  await page.getByTestId('ask-input').fill('Grandma’s');
+  await page.getByTestId('ask-ok').click();
+  await expect(page.locator('.project-btn .pname')).toHaveText('Grandma’s');
+  await page.locator('button[title=More]').click();
+  await expect(page.locator('.menu-item', { hasText: /^Garden location…$/ })).toBeVisible();
+  // Kept with the plan it was given to, across a reload.
+  await page.keyboard.press('Escape');
+  await page.locator('.project-btn').click();
+  await page.locator('.proj-row', { hasText: 'Front yard' }).first().click();
+  await expect(page.locator('.project-btn .pname')).toHaveText('Front yard');
+  await page.reload();
+  await expect(page.locator('.project-btn .pname')).toHaveText('Front yard');
+  await page.locator('button[title=More]').click();
+  await expect(page.locator('.menu-item', { hasText: 'Garden location (zone 8a)' })).toBeVisible();
+});
+
+test('a ZIP message on the first screen stays there: the ZIP sheet opens without it, and keeps its own (the bug hunt, Nov 1)', async ({ page }) => {
+  await page.route('**/climate/100.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...TABLE, zips: {} }) }));
+  await openFresh(page);
+  await page.getByTestId('first-zip').fill('123');
+  await page.getByTestId('first-zip-lookup').click();
+  await expect(page.getByTestId('first-zip-problem')).toHaveText('A ZIP code is five digits.');
+  // The sheet, from ⋮ (or the tour's "Enter your ZIP"): nothing said till something's looked up there.
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Garden location' }).click();
+  await expect(page.getByTestId('location')).toBeVisible();
+  await expect(page.getByTestId('zip-problem')).toHaveCount(0);
+  await page.getByTestId('zip').fill('10001');
+  await page.getByTestId('zip-lookup').click();
+  await expect(page.getByTestId('zip-problem')).toContainText('isn’t in the zone tables');
+  // Closed and opened again: said afresh.
+  await page.locator('.sheet-header .iconbtn').click();
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Garden location' }).click();
+  await expect(page.getByTestId('location')).toBeVisible();
+  await expect(page.getByTestId('zip-problem')).toHaveCount(0);
 });
 
 test('closing the ZIP sheet opened from the picker goes back to the picker as it was, the filter left off', async ({ page }) => {
@@ -119,6 +190,69 @@ test('closing the ZIP sheet opened from the picker goes back to the picker as it
   await page.locator('.sheet-header .iconbtn').click();
   await expect(page.getByTestId('plant-search')).toHaveValue('aster');
   await expect(page.getByTestId('hardy-here')).not.toBeChecked();
+});
+
+test('the ZIP sheet opens with the cursor in its field, with a keyboard; on a phone, no keyboard comes up unasked (the UI review)', async ({ page }, info) => {
+  await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TABLE) }));
+  await openFresh(page);
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Garden location' }).click();
+  const zip = page.getByTestId('zip');
+  await expect(zip).toBeVisible();
+  if (info.project.name === 'phone') {
+    await expect(zip).not.toBeFocused(); // (a tap on it brings the keyboard)
+    return;
+  }
+  await expect(zip).toBeFocused();
+  await page.keyboard.type('71923');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('location-result')).toContainText('Zone 8a');
+  await page.locator('.sheet-header .iconbtn[aria-label=Close]').click();
+  // Opened again, with its ZIP set (to read the frost dates, likely): not put in the field.
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Garden location' }).click();
+  await expect(page.getByTestId('location-result')).toBeVisible();
+  await expect(zip).not.toBeFocused();
+});
+
+test('the ZIP from the picker: its sheet shows the zone, and closing it goes back to the picker, hardy plants only (the UI review)', async ({ page }) => {
+  await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TABLE) }));
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('aster');
+  await page.getByTestId('hardy-here').click();
+  await page.getByTestId('zip').fill('71923');
+  await page.getByTestId('zip').press('Enter');
+  // (Not straight back, a toast over the picker's title, where the × meant for this sheet closed the picker.)
+  await expect(page.getByTestId('location-result')).toContainText('Last spring frost: about Mar 24');
+  await expect(page.getByTestId('location-to-plants')).toHaveText('Show plants hardy in zone 8a');
+  await page.locator('.sheet-header').getByRole('button', { name: 'Back to the plant list' }).click();
+  await expect(page.getByTestId('plant-search')).toHaveValue('aster');
+  await expect(page.getByTestId('hardy-here')).toBeChecked();
+  await expect(page.locator('.sheet label', { hasText: 'Hardy in zone 8a' })).toBeVisible();
+});
+
+test('the picker\'s title counts the plants its count line counts, once the state\'s law is in too (the UI review)', async ({ page }) => {
+  // (Clark County, Arkansas: the real Arkansas file, held back till the picker is drawn.)
+  const table = { ...TABLE, zips: { '71923': ['8a', 0, 3, 5019] } };
+  await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(table) }));
+  let release = () => {};
+  const held = new Promise<void>((done) => { release = done; });
+  await page.route('**/wild/**', async (r) => { await held; await r.continue(); });
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  const title = page.locator('.sheet-header .title'), count = page.getByTestId('picker-count');
+  const offered = async () => (await count.textContent())!.match(/^(?:All ([\d,]+) plants|[\d,]+ of ([\d,]+) plants match)/)!.slice(1).find(Boolean);
+  await expect(count).toContainText(/^All [1-9][\d,]* plants/); // (the catalog in)
+  await expect(title).toHaveText(`Plant Picker (${await offered()})`);
+  await page.getByTestId('hardy-here').click();
+  await page.getByTestId('zip').fill('71923');
+  await page.getByTestId('zip-lookup').click();
+  await page.getByTestId('location-to-plants').click();
+  await expect(count).not.toContainText('banned');
+  release();
+  await expect(count).toContainText(/plants? banned in Arkansas shows? only when searched by name/);
+  await expect(title).toHaveText(`Plant Picker (${await offered()})`);
 });
 
 test('a plant recorded growing wild in the garden\'s county or next door says so, and counts as hardy there', async ({ page }) => {
@@ -208,6 +342,29 @@ test('a plant the garden\'s state prohibits says so, with the rule', async ({ pa
   await expect(chinaberry.getByTestId('plant-place')).toHaveText('Place');
   // (USGS's register lists it, for the lower 48: said in its details, not acted on.)
   await expect(chinaberry.getByTestId('register-us')).toContainText('Listed as widespread invasive in the lower 48');
+});
+
+test('South Carolina\'s law on Callery pear cites the plant pest list that names it, not the aquatic plants statute (the bug hunt, Nov 1)', async ({ page }) => {
+  // (Richland County, South Carolina: the real South Carolina file.)
+  const table = { ...TABLE, zips: { '29201': ['8b', 0, 3, 45079] } };
+  await page.route('**/climate/292.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(table) }));
+  await openFresh(page);
+  await page.getByTestId('first-zip').fill('29201');
+  await page.getByTestId('first-zip-lookup').click();
+  await expect(page.getByTestId('location-result')).toContainText('Zone 8b');
+  await page.locator('.sheet-header .iconbtn').click();
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Callery pear');
+  const pear = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /Callery pear/ }) }).first();
+  await expect(pear.getByTestId('plant-place')).toHaveText('Place (banned)');
+  await pear.getByTestId('plant-row').click();
+  const law = pear.getByTestId('regulated-here');
+  await expect(law).toContainText('Plant pest in South Carolina: by its agency\'s reading');
+  const source = law.locator('.details-src');
+  await expect(source.locator('a')).toHaveText('South Carolina State Plant Pest List (S.C. Code Regs. 27-135)');
+  await expect(source.locator('a')).toHaveAttribute('href', /clemson\.edu\/.*pests-list\.html$/);
+  await expect(source).not.toContainText('aquatic');
+  await expect(source).not.toContainText('50-13-1415');
 });
 
 test('a plant not native here that is recorded growing wild here says so, with its counties', async ({ page }) => {

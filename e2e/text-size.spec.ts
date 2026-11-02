@@ -59,6 +59,34 @@ test('Settings sets Small, Large or Extra large, at once and on this device from
   expect(Math.min(more.width, more.height)).toBeGreaterThanOrEqual(48);
 });
 
+test('the plan\'s name reads as a button, its name with room at 360 px, Small to Extra large; ⋮ opens the same pane (Jason, the UI review, 2026-11-01)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await openFresh(page);
+  const btn = page.locator('.project-btn');
+  for (const size of ['small', 'medium', 'large', 'xlarge']) {
+    await page.evaluate((s) => localStorage.setItem('lp-text-size-2', s), size);
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-text', size);
+    // Outlined and tinted, as the app's other buttons; the ▾ beside the name.
+    const look = await btn.evaluate((e) => { const c = getComputedStyle(e); return { border: c.borderTopWidth, bg: c.backgroundColor }; });
+    expect(look.border).toBe('1px');
+    expect(look.bg).not.toBe('rgba(0, 0, 0, 0)');
+    await expect(btn.locator('.pname-row .pchev svg')).toBeVisible();
+    // The name has room (it had a letter or two at Extra large, none at Small); whether it's saved, under it.
+    const name = (await btn.locator('.pname').boundingBox())!;
+    expect(name.width).toBeGreaterThan(70);
+    if (size === 'small' || size === 'medium') expect(await btn.locator('.pname').evaluate((e) => e.scrollWidth <= e.clientWidth)).toBe(true);
+    expect((await btn.locator('.pinfo').boundingBox())!.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
+    // Clear of Undo.
+    expect((await btn.boundingBox())!.x + (await btn.boundingBox())!.width).toBeLessThanOrEqual((await page.locator('button[title=Undo]').boundingBox())!.x);
+  }
+  // ⋮ → Plans and backup…: the same pane.
+  await page.locator('button[title=More]').click();
+  await page.getByTestId('menu-plans').click();
+  await expect(page.locator('.sheet-header .title')).toHaveText('Projects (1)');
+  await expect(page.locator('.sheet').getByRole('button', { name: /Back up/ }).first()).toBeVisible();
+});
+
 test('a size chosen before there were four carries over: Large stays as big as it was, now Extra large', async ({ page }) => {
   await page.addInitScript(() => { if (!sessionStorage.getItem('set')) { localStorage.setItem('lp-text-size', 'large'); sessionStorage.setItem('set', '1'); } });
   await openFresh(page);

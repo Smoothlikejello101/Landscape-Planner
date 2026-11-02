@@ -171,7 +171,7 @@ test('measure two points, keep it as a dimension line', async ({ page }) => {
   await expect(page.locator('#canvas-svg text', { hasText: /^5 ft$/ })).toHaveCount(1);
   await expect(page.locator('#canvas-svg [data-role=dim-tick]')).toHaveCount(2);
 
-  // Labelling it keeps the length; turning the length off leaves just the label.
+  // Labeling it keeps the length; turning the length off leaves just the label.
   await page.locator('button[title=Layers]').click();
   await page.locator('.layer-row').first().click();
   await page.locator('.sel-pill button.edit').click(); await openSections(page);

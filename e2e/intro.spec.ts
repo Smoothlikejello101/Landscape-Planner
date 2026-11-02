@@ -22,9 +22,14 @@ async function start(page: Page) {
 /** Step 1: the ZIP, through the card's own button. */
 async function zip(page: Page) {
   await page.getByTestId('intro-go').click();
-  await expect(page.getByTestId('zip-lookup')).toHaveClass(/intro-pulse/);
+  // The field pulses till a ZIP is in it, then Look up (the UI review: Look up pulsing over an empty field read as
+  // the focus being there).
+  await expect(page.getByTestId('zip')).toHaveClass(/intro-pulse/);
+  await expect(page.getByTestId('zip-lookup')).not.toHaveClass(/intro-pulse/);
   await expect(card(page)).toHaveClass(/at-top/); // (clear of the sheet)
   await page.getByTestId('zip').fill('71923');
+  await expect(page.getByTestId('zip-lookup')).toHaveClass(/intro-pulse/);
+  await expect(page.getByTestId('zip')).not.toHaveClass(/intro-pulse/);
   await page.getByTestId('zip-lookup').click();
   // (The zone stays to be read: step 2 waits for the sheet to close (testers, Oct 30).)
   // (Closed with its ×: on a phone the sheet hides all but a sliver of the plan (round 3).)
@@ -40,9 +45,9 @@ async function house(page: Page) {
   await expect(card(page)).toHaveClass(/compact/); // (drawing: the plan's own banner says what to tap)
   await tapFromCenter(page, -4, -6); await tapFromCenter(page, 4, -6); await tapFromCenter(page, 4, -2);
 }
-/** Step 4: a bed, an outline of four corners. */
-async function bed(page: Page) {
-  await page.getByTestId('intro-go').click();
+/** Step 4: a bed, an outline of four corners (`go`: the card's button opens the bed tool; false, it's open). */
+async function bed(page: Page, go = true) {
+  if (go) await page.getByTestId('intro-go').click();
   await expect(drawBar(page)).toBeVisible();
   const outline = drawBar(page).locator('[data-method=poly]');
   if (await outline.count()) await outline.click();
@@ -64,6 +69,123 @@ test('an empty plan offers it; "I\'ll explore" puts it away for good, and ⋮ st
   await expect(step(page)).toHaveText('Step 1 of 8');
 });
 
+// The first screen (Jason, Nov 1, from the UI review): what FullGrown does, the garden's ZIP right there, the tour,
+// and a backup's way back in.
+const rect = (id: string, label: string) => ({ id, type: 'rect', x: 0, y: 0, width: 4, height: 3, rotation: 0, color: '#78716c', label, opacity: 0.65, locked: false });
+const backupFile = (names: string[]) => ({
+  name: 'fullgrown-backup.fullgrown.json', mimeType: 'application/json',
+  buffer: Buffer.from(JSON.stringify(names.length === 1
+    ? { format: 'landscape-planner-project', version: 1, project: { name: names[0], lastModified: 1, data: { shapes: [rect('a', 'Shed')] } } }
+    : { format: 'landscape-planner-backup', version: 1, projects: names.map((name, i) => ({ name, lastModified: i + 1, data: { shapes: [rect(`s${i}`, 'Shed')] } })) })),
+});
+
+test('the first screen says what FullGrown does, takes the ZIP right there, and restores a backup', async ({ page, isMobile }) => {
+  await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TABLE) }));
+  await openFresh(page);
+  await expect(page.getByTestId('first-line')).toHaveText('Plan your garden to scale, with plants that suit it.');
+  await expect(page.getByTestId('first-zip-box')).toContainText('For its hardiness zone, frost dates and your state’s plant laws. Privacy');
+  await expect(page.getByTestId('intro-start')).toHaveText('New here? Show me around'); // (the tour still offered)
+  // Not focused by itself: on a phone its keyboard would come up unasked for, and with a keyboard the plan's own
+  // keys would go into it.
+  await expect(page.getByTestId('first-zip')).not.toBeFocused();
+  await page.keyboard.press('b');
+  await expect(page.getByTestId('draw-bar')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('first-screen')).toBeVisible();
+  // A ZIP that isn't one: said there, the cursor kept in the field with a keyboard.
+  await page.getByTestId('first-zip').fill('719');
+  await page.getByTestId('first-zip').press('Enter');
+  await expect(page.getByTestId('first-zip-problem')).toHaveText('A ZIP code is five digits.');
+  if (!isMobile) await expect(page.getByTestId('first-zip')).toBeFocused();
+  // Looked up: the zone and frost dates, with their sources, in the location sheet; closed, the zone stays said.
+  await page.getByTestId('first-zip').fill('71923');
+  await page.getByTestId('first-zip-lookup').click();
+  await expect(page.getByTestId('location-result')).toContainText('Zone 8a');
+  await expect(page.getByTestId('location-sources')).toBeVisible();
+  await expect(page.getByTestId('zip')).toHaveCount(1); // (the sheet's field alone: the first screen's isn't under it)
+  await closeSheet(page);
+  await expect(page.getByTestId('first-zip')).toHaveCount(0);
+  await expect(page.getByTestId('first-zone')).toHaveText('Your garden: zone 8a, ZIP 71923');
+  await page.getByTestId('first-zone').click();
+  await expect(page.locator('.sheet-header .title')).toHaveText('Garden location');
+  await closeSheet(page);
+  // Already have a plan: a backup of two, listed in Projects to choose from.
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByTestId('restore-backup').click();
+  await (await chooser).setFiles(backupFile(['Front yard', 'Back yard']));
+  await expect(page.locator('.sheet-header .title')).toHaveText('Projects (3)');
+  await expect(page.locator('.proj-row', { hasText: 'Back yard' })).toBeVisible();
+  await closeSheet(page);
+  // Not the only plan now: the empty one still asks where it is, without introducing the app again.
+  await expect(page.getByTestId('first-zone')).toBeVisible();
+  await expect(page.getByTestId('first-line')).toHaveCount(0);
+  await expect(page.getByTestId('restore-backup')).toHaveCount(0);
+});
+
+test('restoring one plan\'s file from the first screen opens it', async ({ page }) => {
+  await openFresh(page);
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByTestId('restore-backup').click();
+  await (await chooser).setFiles(backupFile(['Side yard']));
+  await expect(page.locator('.project-btn .pname')).toHaveText('Side yard');
+  await expect.poll(() => shapeCount(page)).toBe(1);
+  await expect(page.getByTestId('first-screen')).toHaveCount(0);
+});
+
+test('the first screen fits a 360 × 640 phone at every text size, clear of the zoom buttons (Jason, Nov 1)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await page.addInitScript(() => localStorage.setItem('lp-zoom-buttons', 'off')); // (as a phone starts)
+  await openFresh(page);
+  for (const size of ['small', 'medium', 'large', 'xlarge']) {
+    await page.evaluate((s) => localStorage.setItem('lp-text-size-2', s), size);
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-text', size);
+    const canvas = (await page.locator('#canvas-wrap').boundingBox())!;
+    const column = (await page.locator('.zoombtns').boundingBox())!;
+    for (const id of ['first-line', 'first-zip', 'first-zip-lookup', 'intro-start', 'intro-decline', 'start-photo', 'restore-backup']) {
+      const b = (await page.getByTestId(id).boundingBox())!;
+      expect(b, `${id} at ${size}`).toBeTruthy();
+      expect(b.y, `${id} at ${size}`).toBeGreaterThanOrEqual(canvas.y);
+      expect(b.y + b.height, `${id} at ${size}`).toBeLessThanOrEqual(canvas.y + canvas.height);
+      const clear = b.x + b.width <= column.x || b.y >= column.y + column.height;
+      expect(clear, `${id} at ${size} clear of the zoom buttons`).toBe(true);
+    }
+  }
+});
+
+test('at Extra large on a 360 × 640 phone, a two-line ZIP message keeps the card above the buttons, the rest a scroll away; its words still let presses through to the plan (the bug hunt, Nov 1)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await page.addInitScript(() => { localStorage.setItem('lp-zoom-buttons', 'off'); localStorage.setItem('lp-text-size-2', 'xlarge'); });
+  await page.route('**/climate/000.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...TABLE, zips: {} }) }));
+  await openFresh(page);
+  await expect(page.locator('html')).toHaveAttribute('data-text', 'xlarge');
+  await page.getByTestId('first-zip').fill('00000');
+  await page.getByTestId('first-zip-lookup').click();
+  await expect(page.getByTestId('first-zip-problem')).toHaveText('That ZIP isn’t in the zone tables (they cover the 50 states and Puerto Rico).');
+  const wrap = (await page.locator('#canvas-wrap').boundingBox())!;
+  const cardBox = page.getByTestId('first-card');
+  const inPlan = async (id: string) => {
+    const b = (await page.getByTestId(id).boundingBox())!;
+    return b.y >= wrap.y && b.y + b.height <= wrap.y + wrap.height;
+  };
+  // The card ends above the bottom bar (it ran under it, "Restore a backup" with it, at y 610).
+  const c = (await cardBox.boundingBox())!;
+  expect(c.y + c.height).toBeLessThanOrEqual(wrap.y + wrap.height);
+  // The card itself still takes no presses: on its words, a press is the plan's.
+  await expect(cardBox).toHaveCSS('pointer-events', 'none');
+  const line = (await page.getByTestId('first-line').boundingBox())!;
+  expect(await page.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('#canvas-svg'), [line.x + line.width / 2, line.y + line.height / 2])).toBe(true);
+  // What didn't fit scrolls into view, from a button on the card, and takes a press there.
+  expect(await inPlan('restore-backup')).toBe(false);
+  const go = (await page.getByTestId('intro-start').boundingBox())!;
+  await page.mouse.move(go.x + go.width / 2, go.y + go.height / 2);
+  await page.mouse.wheel(0, 400);
+  await expect.poll(() => inPlan('restore-backup')).toBe(true);
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByTestId('restore-backup').click();
+  await chooser;
+});
+
 test('from an empty plan to a first plant: each step ends when it\'s done, the plant step names a shrub the yard allows, and the ring ends it', async ({ page, isMobile }) => {
   await start(page);
   await expect(card(page)).toHaveClass(isMobile ? /intro-card(?! corner)/ : /corner/);
@@ -78,7 +200,13 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await page.getByTestId('intro-lock-house').click();
   await expect(page.locator('#toast')).toContainText('Locked: it stays put.');
   await expect(page.getByTestId('intro-text')).not.toContainText('Lock your house');
-  await bed(page);
+  // Read, then the bed tool opened: the notice goes, off the house's front wall where the bed's corners go (the UI
+  // review, 2026-11-01).
+  await page.waitForTimeout(450);
+  await page.getByTestId('intro-go').click();
+  await expect(drawBar(page)).toBeVisible();
+  await expect(page.locator('#toast')).not.toHaveClass(/show/);
+  await bed(page, false);
   await expect(step(page)).toHaveText('Step 5 of 8'); // (no photo: no fading it)
   // Sun and shade: a circle of shade, sun recorded on it, the sheet closed.
   await page.getByTestId('intro-go').click();
@@ -123,7 +251,7 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await page.locator('.tool-btn.plants').click();
   await expect(page.locator('.sheet')).toContainText('Not listed as poisonous to people');
   await expect(page.locator('.sheet')).toContainText('No dog warnings');
-  // "Clear filters" is for the search at hand: the yard is still kept on this device.
+  // "Clear filters" is for the search at hand: the yard is still kept with the plan.
   await page.locator('.sheet').getByText('Clear filters').click();
   await expect(page.locator('.sheet')).not.toContainText('No dog warnings');
   await page.reload();
@@ -162,4 +290,85 @@ test('Back and Skip; Exit keeps the step, and "Show me around" offers to pick up
   await expect(page.getByTestId('intro-text')).toHaveText("This plan's garden is at ZIP 71923. Change it if that's not where the garden is.");
   await page.getByTestId('intro-done').click();
   await expect(step(page)).toHaveText('Step 2 of 8');
+});
+
+test('the first screen is a card whose ✕ puts it away for this plan, with Undo; a new plan still has it; its ZIP note ends in Privacy (Jason, Nov 1)', async ({ page }) => {
+  await openFresh(page);
+  await expect(page.getByTestId('first-card')).toBeVisible();
+  // Privacy: what happens to the ZIP, in the ZIP sheet.
+  await page.getByTestId('zip-privacy').click();
+  const note = page.getByTestId('zip-privacy-note');
+  await expect(note).toContainText('Looking it up fetches only its first three digits');
+  await expect(note).toContainText('if you sign in to sync, in your account');
+  await closeSheet(page);
+  // ✕: gone, with Undo; gone again, and still gone after a reload.
+  await page.getByTestId('first-hide').click();
+  await expect(page.getByTestId('first-screen')).toHaveCount(0);
+  const notice = page.getByTestId('first-hidden-notice');
+  await expect(notice).toContainText('Hidden for this plan.');
+  await notice.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.getByTestId('first-card')).toBeVisible();
+  await page.getByTestId('first-hide').click();
+  await expect(page.getByTestId('first-screen')).toHaveCount(0);
+  await page.waitForTimeout(300);
+  await page.reload();
+  await expect(page.locator('.project-btn .pname')).toBeVisible();
+  await expect(page.getByTestId('first-screen')).toHaveCount(0);
+  // The garden's ZIP is still a menu away.
+  await page.locator('button[title=More]').click();
+  await expect(page.locator('.menu-item', { hasText: 'Garden location' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  // A new plan: its own first screen (no introduction: not the only plan).
+  await page.locator('.project-btn').click();
+  await page.getByRole('button', { name: /New project/ }).click();
+  await page.getByTestId('ask-input').fill('Front yard');
+  await page.getByTestId('ask-ok').click();
+  await expect(page.locator('.project-btn .pname')).toHaveText('Front yard');
+  await expect(page.getByTestId('first-card')).toBeVisible();
+  await expect(page.getByTestId('first-zip')).toBeVisible();
+});
+
+test('with a photo in, the first screen sits at the bottom over the buttons, its words on a card, the photo clear above it (Jason, Nov 1)', async ({ page }) => {
+  autoDialogs(page);
+  await openFresh(page);
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'background image' }).click();
+  await page.locator('.sheet input[type=file]').setInputFiles('public/icon-512.png');
+  await page.locator('.mode-banner button').click();
+  const hint = page.getByTestId('first-screen');
+  await expect(hint).toHaveClass(/docked/);
+  await expect(page.getByTestId('first-line')).toHaveText('Your photo is in. Next: trace the house over it with the buttons below.');
+  await expect(page.getByTestId('start-photo')).toHaveCount(0);
+  await expect(page.getByTestId('first-zip')).toBeVisible();
+  await expect(page.getByTestId('zip-privacy')).toBeVisible();
+  // Docked: its bottom by the plan's bottom edge, its top below the plan's middle.
+  const wrap = (await page.locator('#canvas-wrap').boundingBox())!;
+  const cardBox = (await page.getByTestId('first-card').boundingBox())!;
+  expect(wrap.y + wrap.height - (cardBox.y + cardBox.height)).toBeLessThanOrEqual(16);
+  expect(cardBox.y).toBeGreaterThan(wrap.y + wrap.height / 2);
+  // Put away, the photo is all there is.
+  await page.getByTestId('first-hide').click();
+  await expect(hint).toHaveCount(0);
+  await expect(page.locator('#canvas-svg image')).toHaveCount(1);
+});
+
+test('on a phone with room, the first screen\'s card sits in the middle, clear of the side buttons (Jason, Nov 1: it sat off to the left)', async ({ page }) => {
+  await page.setViewportSize({ width: 412, height: 860 });
+  await page.addInitScript(() => localStorage.setItem('lp-zoom-buttons', 'off'));
+  await openFresh(page);
+  const card = page.getByTestId('first-card');
+  await expect(card).toBeVisible();
+  await expect(page.getByTestId('first-screen')).not.toHaveClass(/beside-column/);
+  const wrap = (await page.locator('#canvas-wrap').boundingBox())!;
+  const c = (await card.boundingBox())!;
+  const z = (await page.locator('.zoombtns').boundingBox())!;
+  expect(Math.abs((c.x - wrap.x) - (wrap.x + wrap.width - (c.x + c.width)))).toBeLessThanOrEqual(2);
+  expect(c.y).toBeGreaterThanOrEqual(z.y + z.height);
+  // Made too short for that, it moves beside the buttons, and back.
+  await page.setViewportSize({ width: 360, height: 640 });
+  await expect(page.getByTestId('first-screen')).toHaveClass(/beside-column/);
+  const c2 = (await card.boundingBox())!, z2 = (await page.locator('.zoombtns').boundingBox())!;
+  expect(c2.x + c2.width).toBeLessThanOrEqual(z2.x);
+  await page.setViewportSize({ width: 412, height: 860 });
+  await expect(page.getByTestId('first-screen')).not.toHaveClass(/beside-column/);
 });

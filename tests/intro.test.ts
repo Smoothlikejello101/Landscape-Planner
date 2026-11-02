@@ -4,7 +4,7 @@ import {
   NEW_RECORD, SHRUBS_TO_FIND, STEPS, UNSCALED, applies, nextStep, plantCardText, prevStep, resumeStep, shrubToFind, stepDone,
   type IntroRecord, type ShrubCheck, type Snapshot,
 } from '../src/intro';
-import { NO_YARD, applyYard, loadYard, saveYard, yardFilter, yardOf, yardSet } from '../src/yard';
+import { NO_YARD, applyYard, household, loadYard, saveYard, yardFilter, yardOf, yardSet } from '../src/yard';
 import { PLANT_FILTER_DEFAULTS } from '../src/plants';
 
 const BLANK: Snapshot = {
@@ -107,12 +107,13 @@ describe("the guided introduction: step 7's shrub and words", () => {
   });
 });
 
-describe("who's in the yard (kept on this device)", () => {
+describe("who's in the yard (kept with the plan since Nov 1; what the device kept before, read for plans from then)", () => {
   beforeEach(() => localStorage.clear());
-  it('none until answered; kept as answered; a bad record reads as none', () => {
-    expect(loadYard()).toEqual(NO_YARD);
+  it('none until answered; kept as answered, with the plan; what the device kept, a bad record reads as none', () => {
+    expect(household()).toMatchObject(NO_YARD);
     saveYard({ kids: true, dogs: 'hideToxic', cats: false, horses: true });
-    expect(loadYard()).toEqual({ kids: true, dogs: 'hideToxic', cats: false, horses: true });
+    expect(household()).toMatchObject({ kids: true, dogs: 'hideToxic', cats: false, horses: true, answered: true });
+    expect(loadYard()).toEqual(NO_YARD); // (no longer kept on the device)
     localStorage.setItem('lp-yard', '{"kids":1,"dogs":"wolves"}');
     expect(loadYard()).toEqual({ kids: true, dogs: '', cats: false, horses: false });
     localStorage.setItem('lp-yard', 'not json');

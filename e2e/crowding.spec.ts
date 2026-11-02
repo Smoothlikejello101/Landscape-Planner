@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { closeSheet, field, openFresh, openSections, openWarnings, placeOnceAtCenter, openSettings } from './helpers';
+import { closeSheet, field, openFresh, openSections, openWarnings, placeOnceAtCenter } from './helpers';
 
 async function addPlant(page: Page, name: string, x: number) {
   await page.locator('.tool-btn.plants').click();
@@ -20,15 +20,14 @@ test('plants planted too close are flagged, and ringed on the plan unless that\'
   await expect(page.getByTestId('crowding')).toContainText('0.5 ft apart');
   await closeSheet(page);
 
-  // Ringed by default (decided with Jason, 2026-10-25); Settings turns it off and on.
+  // Ringed by default (decided with Jason, 2026-10-25); Warnings turns it off and on (its Crowding opened stays so).
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);
-  await openSettings(page);
-  await openWarnings(page);
-  await expect(page.getByTestId('crowding-settings')).toContainText('(plants now: 0 close, 2 crowded)');
+  await openWarnings(page, 'crowding');
+  await expect(page.getByTestId('warnings-kind-crowding').getByTestId('warning-row')).toHaveText([/^2 Heuchera 'Autumn Bride', 0\.5 ft apartCrowded/]);
   await page.getByTestId('show-crowding').uncheck();
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(0);
-  await openSettings(page);
+  await openWarnings(page);
   await page.getByTestId('show-crowding').check();
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=crowded]')).toHaveCount(2);

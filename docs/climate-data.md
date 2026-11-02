@@ -13,7 +13,7 @@ keeps the answer. The files aren't part of the offline copy.
 | --- | --- | --- |
 | Hardiness zone by ZIP code | PRISM Group, Oregon State University: `phzm_{us,ak,hi,pr}_zipcode_2023.csv` from https://prism.oregonstate.edu/phzm (the data behind the 2023 USDA Plant Hardiness Zone Map) | "May be freely reproduced and distributed"; any description of the data must state the PRISM Group's name, URL and the date of access (https://prism.oregonstate.edu/terms/). The app shows it in full in the Garden location sheet, and in short under the plant picker's zone filter. Commercial use isn't addressed; questions go to prism-questions@nacse.org. |
 | Where each ZIP code area is | U.S. Census Bureau, 2024 Gazetteer, ZIP Code Tabulation Areas (`2024_Gaz_zcta_national.txt`) | U.S. government work, public domain |
-| Which county each ZIP code area is in | U.S. Census Bureau cartographic boundary files (1:10m counties), as packaged by `us-atlas` 3.0.1 (ISC licence; the data is public domain): the county that contains the ZIP area's center | U.S. government work, public domain |
+| Which county each ZIP code area is in | U.S. Census Bureau cartographic boundary files (1:10m counties), as packaged by `us-atlas` 3.0.1 (ISC license; the data is public domain): the county that contains the ZIP area's center | U.S. government work, public domain |
 | Frost dates | NOAA NCEI U.S. Climate Normals 1991–2020, annual/seasonal, by station (`us-climate-normals_1991-2020_v1.0.1_annualseasonal_multivariate_by-station_c20230404.tar.gz`) | U.S. government work, public domain |
 
 ## What the frost numbers are

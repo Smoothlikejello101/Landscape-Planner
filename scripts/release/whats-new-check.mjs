@@ -1,10 +1,17 @@
 // What's new, checked against what testers already have (docs/releasing.md):
-//   node scripts/release/whats-new-check.mjs <release branch's src/whats-new.json> [--pr]
+//   node scripts/release/whats-new-check.mjs [<the release branch's commit, e.g. origin/release>] [--pr]
+// The releases are read as the app builds them: src/whats-new.json's, with the lines waiting in src/whats-new/next/
+// (src/whats-new-pending.ts), here and at the release branch's commit.
 // - A release that's out (on the release branch) keeps its lines: a new line in it would never be shown to a device
 //   that has seen it. New lines go in the release not yet out (the top one, dated "next"; a new one if that's out).
 // - Only the top release may be dated "next".
 // - With --pr (a pull request into main): a release that's out has its date written in (it's no longer "next").
-import { existsSync, readFileSync } from 'node:fs';
+// - Each waiting file is a JSON list of lines, named like its branch.
+import { execFileSync } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { pendingProblems, withPending } from '../../src/whats-new-pending.ts';
+
+export const NEXT = 'src/whats-new/next';
 
 /** The problems, in words; none: []. `shipped`: the release branch's releases (null: it has none yet). */
 export function whatsNewProblems(current, shipped, { pr = false } = {}) {
@@ -21,18 +28,45 @@ export function whatsNewProblems(current, shipped, { pr = false } = {}) {
   for (const s of shipped ?? []) {
     const now = current.find((r) => r.id === s.id);
     if (!now) { out.push(`Release ${s.id} is out but missing here.`); continue; }
-    if (now.items.length > s.items.length) out.push(`Release ${s.id} is already out, so its new lines would never be shown: put them in release ${pending}, dated "next".`);
-    if (pr && now.date === 'next') out.push(`Release ${s.id} is out: write in the day it went out (the release PR's merge day) in place of "next".`);
+    if (now.items.length > s.items.length) out.push(`Release ${s.id} is already out, so its new lines would never be shown: put them in release ${pending}, dated "next" (lines waiting in ${NEXT}/ go there once release ${s.id}'s date is written in: scripts/release/whats-new-fold.mjs).`);
+    if (pr && now.date === 'next') out.push(`Release ${s.id} is out: write in the day it went out (the release PR's merge day) in place of "next": node scripts/release/whats-new-fold.mjs <that day>.`);
   }
   return out;
 }
 
+/** The releases as the app builds them, from src/whats-new.json and the waiting files' [name, lines]. */
+export function joined({ dated, pending }) {
+  const problems = pending.flatMap(([name, lines]) => pendingProblems(name, lines));
+  return { releases: withPending(dated, problems.length ? [] : pending), problems };
+}
+
+/** src/whats-new.json and the waiting files, in this working copy. */
+export function readHere(root = '.') {
+  const dir = `${root}/${NEXT}`;
+  const names = existsSync(dir) ? readdirSync(dir).filter((n) => n.endsWith('.json')) : [];
+  return {
+    dated: JSON.parse(readFileSync(`${root}/src/whats-new.json`, 'utf8')),
+    pending: names.map((n) => [n, JSON.parse(readFileSync(`${dir}/${n}`, 'utf8'))]),
+  };
+}
+
+/** The same at a git commit (the release branch's); null where it has no src/whats-new.json (no release yet). */
+export function readAt(ref) {
+  const git = (...args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  let dated;
+  try { dated = JSON.parse(git('show', `${ref}:src/whats-new.json`)); } catch { return null; }
+  const paths = git('ls-tree', '--name-only', ref, `${NEXT}/`).split('\n').filter((p) => p.endsWith('.json'));
+  return { dated, pending: paths.map((p) => [p.slice(p.lastIndexOf('/') + 1), JSON.parse(git('show', `${ref}:${p}`))]) };
+}
+
 if (process.argv[1]?.endsWith('whats-new-check.mjs')) {
-  const shippedPath = process.argv[2];
-  const current = JSON.parse(readFileSync('src/whats-new.json', 'utf8'));
-  const shipped = shippedPath && existsSync(shippedPath) && readFileSync(shippedPath, 'utf8').trim() ? JSON.parse(readFileSync(shippedPath, 'utf8')) : null;
-  const problems = whatsNewProblems(current, shipped, { pr: process.argv.includes('--pr') });
+  const ref = process.argv.slice(2).find((a) => !a.startsWith('--'));
+  const here = joined(readHere());
+  const atRelease = ref ? readAt(ref) : null;
+  const shipped = atRelease ? joined(atRelease).releases : null;
+  const problems = [...here.problems, ...whatsNewProblems(here.releases, shipped, { pr: process.argv.includes('--pr') })];
   for (const p of problems) console.error(`What's new: ${p}`);
   if (problems.length) process.exit(1);
-  console.log(`What's new: ${current.length} releases; ${shipped ? `${shipped.length} out` : 'none out yet'}; fine.`);
+  const waiting = readHere().pending.length;
+  console.log(`What's new: ${here.releases.length} releases (${waiting} file${waiting === 1 ? '' : 's'} waiting in ${NEXT}); ${shipped ? `${shipped.length} out` : 'none out yet'}; fine.`);
 }

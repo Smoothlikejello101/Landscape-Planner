@@ -237,7 +237,7 @@ the same rules as every other source (scripts/catalog/search.mjs).
    decided it. **A site is read only when that record says its terms allow
    it**; one not yet reviewed is left out of the run. For each new site the
    run fetches its home page and the terms pages it links (up to six, the
-   terms of use first, then legal, policies, licence and copyright pages; a
+   terms of use first, then legal, policies, license and copyright pages; a
    privacy policy alone isn't read as terms; never a platform's own such as reCAPTCHA's or a
    payment provider's), or the usual addresses (`/terms`,
    `/terms-of-use`, `/policies/terms-of-service`…) when none of the pages
@@ -294,7 +294,7 @@ the same rules as every other source (scripts/catalog/search.mjs).
    Garden, Garden.org and the other closed ones), is that source second-hand
    and isn't read. So is a page carrying a plant database sold to the sites
    that show it (GardenSoft's, rented by water utilities; NetPS Plant Finder,
-   by garden centres; Horticopia), until that database's own terms are read
+   by garden centers; Horticopia), until that database's own terms are read
    (2026-10-28). A shop is a page with a cart or a product marked up for
    search engines, not just prices (a blog's affiliate links); a person's
    own pages on a university site (`/~name/`) are a blog's. Bloom
@@ -711,7 +711,7 @@ against it.
    as large: the one with an authority, then the cautious one, then by
    name), or, where the value shown has no authority behind it and an
    authority's was outvoted, the authority's, so the app never hides that a
-   reference says otherwise. It's labelled with who says it: "Nurseries report: …" where
+   reference says otherwise. It's labeled with who says it: "Nurseries report: …" where
    they're all nurseries, else by name ("NC State lists: …"). The app shows
    it in the plant's details and its filters can let it count ("Include
    where sources differ"); a plant shown only because of it is marked !.
@@ -906,6 +906,11 @@ listed). The kinds the build applies:
   goes with each cultivar split from it, its note saying so.
 - **`cultivar`**: a record naming one cultivar beside its species ("Aucuba japonica ('Gold Dust')"), renamed for
   it ("Aucuba 'Gold Dust'") and put under its species, as a split's kept record is.
+- **`rename`**: a record renamed by the naming rule where no other kind fits (docs/catalog-format.md, "Names"): a
+  seed strain, "Butterfly weed (clay strain)" for Butterfly weed 'for Clay'; a record named as its species, Asparagus
+  officinalis for "Asparagus officinalis ('Jersey' / 'Millennium')" (Jason, 2026-11-01). Only its names change, its
+  old common name kept as a synonym. `soldAs`, the name its sources sell it under, is read as a quoted cultivar's is,
+  so their pages stay its own and its facts don't change.
 - **`kewSpecies`**: a cultivar NC State files under a species Kew keeps apart from its own, put under Kew's (below).
 - **`parent`**: a cultivar put under a species its own name doesn't give, where its page names it: 'Edward Goucher'
   glossy abelia, a cross of Abelia × grandiflora and A. schumannii that NC State names by the genus alone. It takes
@@ -913,8 +918,10 @@ listed). The kinds the build applies:
 - **`fold`**: a record whose plants all have records of their own ("Culinary sage & oregano"): it goes, and the
   catalog's `meta.moved` says which record its id stands for (`into`), so a plant placed from it shows that
   record's facts (docs/catalog-format.md).
-- **`group`**: a record kept for a group of cultivars ("Asparagus officinalis ('Jersey' / 'Millennium')"), read from
-  its species' NC State page as its own, its size included, where a cultivar's would be its own page's alone.
+- **`group`**: a record kept for a group of cultivars, read from its species' NC State page as its own, its size
+  included, where a cultivar's would be its own page's alone. None now: the one there was, "Asparagus officinalis
+  ('Jersey' / 'Millennium')", was named as its species instead (`rename`, Jason, 2026-11-01), which reads that page as
+  its own without one.
 - **`checkOnly`**: a source often far off the authorities ("A source that's often far off", above): it never
   decides, backs or shows as an alternate; a value only it gave is taken out (the report lists it under "Taken out:
   its source check-only"), and it leaves the catalog's list once nothing cites it. Where its size is far from the

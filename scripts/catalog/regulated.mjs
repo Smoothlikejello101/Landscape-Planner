@@ -50,6 +50,13 @@ export function problems(data) {
     // (Each class's tier: "ban", the rule forbids selling, planting or moving it; "listed", it lists the plant with
     // lighter duties: a nursery inspection, a landowner's duty to control it. The app shows a ban in red.)
     for (const c of Object.keys(j.classes ?? {})) if (!['ban', 'listed'].includes(j.tiers?.[c])) out.push(`${j.code} ${c}: no tier (ban or listed)`);
+    // (A class from a rule of its own, where the list's title names two: its own title, link and edition, so a plant's
+    // line cites the rule that names it. South Carolina's plant pests, not its prohibited aquatic plants.)
+    for (const [c, src] of Object.entries(j.sources ?? {})) {
+      if (!j.classes?.[c]) out.push(`${j.code} source for ${c}: not in its list's classes`);
+      for (const k of ['title', 'url', 'edition']) if (typeof src?.[k] !== 'string' || !src[k]) out.push(`${j.code} source for ${c}: no ${k}`);
+      if (!/^https:\/\//.test(src?.url ?? '')) out.push(`${j.code} source for ${c}: url not https`);
+    }
     if (j.adopts != null) {
       const from = data.jurisdictions.find((x) => x.code === j.adopts.code);
       if (!from || from === j || from.adopts) out.push(`${j.code}: adopts no list of plants of its own`);
@@ -152,10 +159,16 @@ export function unreviewed(data, kewAccepted) {
   }
   return [...out].sort();
 }
-/** A list's lines for a state file: { "AR:prohibited": { says, tier, title, url, edition, read } } for the classes used. */
+/**
+ * A list's lines for a state file: { "AR:prohibited": { says, tier, title, url, edition, read } } for the classes used,
+ * each cited by its class's own rule where the list gives one (`sources`), else by the list's.
+ */
 export function ruleLines(data, code, used) {
   const j = data.jurisdictions.find((x) => x.code === code);
-  return Object.fromEntries([...used].map((c) => [`${code}:${c}`, { says: j.classes[c], tier: j.tiers?.[c], title: j.title, url: j.url, edition: j.edition, read: j.read }]));
+  return Object.fromEntries([...used].map((c) => {
+    const src = j.sources?.[c] ?? j;
+    return [`${code}:${c}`, { says: j.classes[c], tier: j.tiers?.[c], title: src.title, url: src.url, edition: src.edition, read: j.read }];
+  }));
 }
 /**
  * A state's file's part: { regulated: { id: ["AR:prohibited", "US:noxious"] }, rules: { key: line }, genusWide:

@@ -112,13 +112,45 @@ placed from the old record keeps its id in the plan, and the app shows it with t
     a form where sources differ keeps both forms instead. A pair (the two
     zones, the two sun levels) takes its `alt` from sources that give both
     halves, on each half where it differs from the value shown. The app shows it in the plant's details,
-    labelled with who says it ("Nurseries report: …", "NC State lists:
+    labeled with who says it ("Nurseries report: …", "NC State lists:
     …"), and its filters let it count unless the user turns "Include where
     sources differ" off; a plant shown only because of it is marked.
 
 A fact that is `null` is known to be unknown: the sources were checked and
 none say (the app keeps that, without a value). A missing fact simply
 hasn't been looked up.
+
+## Names
+
+Quotes in a record's name are only for a named cultivar: "Hydrangea
+'Limelight'" (the order of the words: [catalog-build.md](catalog-build.md),
+"Cultivar names"). A seed strain or an ecotype isn't a cultivar: it's named
+"Common name (strain)", "Butterfly weed (clay strain)", not "Butterfly weed
+'for Clay'" (Jason, from the UI review, 2026-11-01). A botanical name has no
+parentheses; `catalog:check` lists one that has, for a person to look at.
+The earlier list had four, its way of writing a strain, a group or a note,
+and none is left (Jason, 2026-11-01): the clay strain renamed (below); "Iris
+(aquatic spp.)", several water irises, folded into Blue flag iris (`fold`);
+"Asparagus officinalis ('Jersey' / 'Millennium')" named as its species
+(`rename`); "Vernonia hybrid (Mt. Cuba)" named for its cultivar, "Vernonia
+'Prairie Princess'" (`cultivar`).
+
+A strain is renamed by a decision (`rename` in scripts/catalog/decisions.json),
+its old name kept as a synonym: Butterfly weed 'for Clay' is "Butterfly weed
+(clay strain)", botanical "Asclepias tuberosa clay strain" (Jason,
+2026-11-01). Its botanical name keeps the strain, without parentheses, rather
+than being the species' alone: the app and the build take the record named
+"Asclepias tuberosa" for the species, so a plant of mine named so would be
+linked to the strain, and the wild records would give the species' counties
+and native status as the strain's own.
+
+The build reads a record as a cultivar, and a nursery's page as its own, by
+the quotes in its names (`recordCultivars` in scripts/catalog/ncsu-page.mjs,
+`cultivarOf` in reclaim.mjs). A renamed strain's decision says what its
+sources sell it as (`soldAs`: "for Clay", Prairie Nursery's Butterfly Weed for
+Clay), which the build reads as it reads a quoted cultivar. So its facts stay
+as they were: without it, the next build would read none of Prairie Nursery's
+page for it, and NC State's page for the species as its own.
 
 ## Facts
 
@@ -184,4 +216,4 @@ a value of the wrong type or outside its enum.
 `npm run catalog:check` (scripts/catalog/check.ts) lists the softer problems
 for the audit to look at: sizes implausible for the form, zones backwards, a
 cultivar with no species in the catalog, a cultivar whose botanical name
-doesn't name it.
+doesn't name it, a botanical name with parentheses ("Names", above).

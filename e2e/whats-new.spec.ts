@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { openFresh } from './helpers';
+import { answerAsk, openFresh } from './helpers';
 
 // What's new (src/whats-new.ts): after an update, a notice says so once and opens the list; ⋮ → What's new any time
 // (Jason, Oct 31: before the beta invites go out).
@@ -40,4 +40,77 @@ test("a device used before the list existed hears of the newest release", async 
   await page.evaluate(() => localStorage.removeItem('lp-whats-new'));
   await page.reload();
   await expect(page.getByTestId('whats-new-notice')).toBeVisible();
+});
+
+test('⋮\'s version line checks for updates: here, with no service worker, it says there\'s nothing to check (Jason, the UI review, 2026-11-01)', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('button[title=More]').click();
+  const line = page.getByTestId('update-check');
+  await expect(page.locator('.menu-version')).toContainText(/^Version \S+ ·/); // (the version first, as before)
+  await page.getByTestId('check-updates').click();
+  await expect(line).toHaveText('Nothing to check here: the app opens at its newest version.');
+  await expect(page.getByTestId('check-updates')).toBeVisible({ timeout: 8000 }); // (said for a moment)
+});
+
+test('⋮ uses the room it has: on a 1366 × 820 computer, Check for updates in view without scrolling; one line above the version (the bug hunt, Nov 1)', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 820 });
+  await openFresh(page);
+  await page.locator('button[title=More]').click();
+  const menu = page.locator('.menu');
+  await expect(page.getByTestId('check-updates')).toBeVisible();
+  // All of it shown: it stopped at 80% of the screen, Check for updates cut off above empty screen.
+  expect(await menu.evaluate((m) => m.scrollHeight - m.clientHeight)).toBeLessThanOrEqual(1);
+  const m = (await menu.boundingBox())!, check = (await page.getByTestId('check-updates').boundingBox())!;
+  expect(check.y + check.height).toBeLessThanOrEqual(m.y + m.height);
+  expect(m.y + m.height).toBeLessThanOrEqual(820);
+  // The version line's own border divides it from the items: no divider of its own above it as well.
+  expect(await page.locator('.menu-version').evaluate((v) => v.previousElementSibling?.className)).toBe('menu-item');
+  await page.keyboard.press('Escape');
+  // A screen too short for all of it: down to near its foot, the rest scrolled to.
+  await page.setViewportSize({ width: 1366, height: 480 });
+  await page.locator('button[title=More]').click();
+  const short = (await menu.boundingBox())!;
+  expect(short.y + short.height).toBeGreaterThan(480 - 16);
+  expect(short.y + short.height).toBeLessThanOrEqual(480);
+  await page.getByTestId('check-updates').scrollIntoViewIfNeeded();
+  await expect(page.getByTestId('check-updates')).toBeInViewport();
+});
+
+test('⋮\'s Check for updates: up to date for a moment; a new version found waits for Update now, which saves and switches (Jason, the UI review, 2026-11-01)', async ({ page }) => {
+  test.setTimeout(60_000); // (Update now reloads the app within 10 s when no real worker takes over)
+  // (The tests run with service workers blocked: one stood in for, whose check finds a new version once told to.)
+  await page.addInitScript(() => {
+    const w = window as unknown as { __newVersion?: boolean; __checks?: number };
+    const reg = { waiting: null as object | null, installing: null, update: async () => { w.__checks = (w.__checks ?? 0) + 1; if (w.__newVersion) reg.waiting = {}; } };
+    const container = navigator.serviceWorker;
+    if (container) Object.defineProperty(container, 'getRegistration', { value: async () => reg });
+    else Object.defineProperty(Navigator.prototype, 'serviceWorker', { get: () => ({ getRegistration: async () => reg }) });
+  });
+  await openFresh(page);
+  await page.evaluate(() => { (window as unknown as { __page: number }).__page = 1; }); // (gone if the page reloads)
+  const marker = () => page.evaluate(() => (window as unknown as { __page?: number }).__page);
+  await page.locator('button[title=More]').click();
+  const line = page.getByTestId('update-check');
+  await page.getByTestId('check-updates').click();
+  await expect(line).toHaveText('You’re up to date.');
+  await expect(page.getByTestId('check-updates')).toBeVisible({ timeout: 8000 });
+  // A new version found: said, and nothing more till Update now.
+  await page.evaluate(() => { (window as unknown as { __newVersion: boolean }).__newVersion = true; });
+  await page.getByTestId('check-updates').click();
+  await expect(line).toContainText('A new version is ready.');
+  await page.waitForTimeout(5000);
+  expect(await marker()).toBe(1);
+  await expect(line).toContainText('A new version is ready.'); // (still there, unlike "up to date")
+  // Closed and opened again: still offered.
+  await page.keyboard.press('Escape');
+  await page.locator('button[title=More]').click();
+  await expect(page.getByTestId('update-now')).toBeVisible();
+  // Update now: a plan's last change saved first, then the app reloads (as the banner's Update does).
+  await page.keyboard.press('Escape');
+  await page.locator('.project-btn').click();
+  await page.getByRole('button', { name: /New project/ }).click();
+  await answerAsk(page, true, 'Saved first');
+  await page.locator('button[title=More]').click();
+  await Promise.all([page.waitForEvent('load', { timeout: 20_000 }), page.getByTestId('update-now').click()]);
+  await expect(page.locator('.project-btn .pname')).toHaveText('Saved first');
 });

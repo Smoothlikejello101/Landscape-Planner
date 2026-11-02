@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { copiesSaid, dismissedForPlan, dismissForPlan, planDismissals, showAgainForPlan, warnForNewOnes } from '../src/dismissals';
+import { plantsById, type Plant } from '../src/plants';
 import { state } from '../src/state';
 import type { Shape } from '../src/types';
 
@@ -16,7 +17,6 @@ describe('a warning dismissed for a plant, across the plan', () => {
     expect(dismissedForPlan('hardy', 'ficus-carica', said)).toBe(true);
     expect(dismissedForPlan('hardy', 'ficus-carica', 'Too cold for zone 6b')).toBe(false); // (a new ZIP: back)
     expect(dismissedForPlan('poison', 'ficus-carica', said)).toBe(false);
-    expect(copiesSaid('ficus-carica')).toMatch(/^all 2 of /);
     expect(planDismissals().map((d) => `${d.plantId} ${d.kind}`)).toEqual(['ficus-carica hardy']);
   });
   it('"Warn me for new ones": the copies placed so far keep it, each its own; new ones warn', () => {
@@ -25,6 +25,16 @@ describe('a warning dismissed for a plant, across the plan', () => {
     expect(dismissedForPlan('hardy', 'ficus-carica', said)).toBe(false);
     expect(state.shapes.map((s) => s.hardyDismissed)).toEqual([said, said]);
     expect(state.dismissed).toEqual({}); // (kept, empty, so it syncs)
+  });
+  it('says the copies as a nursery would: "Oleander", "both Oleander", "all 3 Oleander" (not "all 2 of Oleander": the warnings bug hunt, Nov 1)', () => {
+    plantsById['nerium-oleander'] = { id: 'nerium-oleander', common: 'Oleander' } as Plant;
+    const ole = (id: string): Shape => ({ ...fig(id), plantId: 'nerium-oleander' });
+    state.shapes = [ole('o1')];
+    expect(copiesSaid('nerium-oleander')).toBe('Oleander');
+    state.shapes.push(ole('o2'));
+    expect(copiesSaid('nerium-oleander')).toBe('both Oleander');
+    state.shapes.push(ole('o3'), fig('c'));
+    expect(copiesSaid('nerium-oleander')).toBe('all 3 Oleander');
   });
   it('shown again: for the plant across the plan, and each copy', () => {
     dismissForPlan('poison', 'ficus-carica', 'Poisonous to people');

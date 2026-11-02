@@ -6,7 +6,7 @@ import { saveStateWord } from './save-warning';
 import { resizeCanvas } from '../canvas';
 import { el, hasKeyboard, svgEl, tapSaid } from '../dom';
 import { onCanvasPointerDown, onWheel } from '../gestures';
-import { canRedo, canUndo, redo, undo } from '../history';
+import { canRedo, canUndo, redo, redoLabel, undo, undoLabel } from '../history';
 import { I } from '../icons';
 import { copySelected, planBounds, setViewFilter, updateSelectedSilent, zoomBy, zoomToFit } from '../mutations';
 import { deleteSelectedAsking } from './delete-selected';
@@ -25,6 +25,7 @@ import { currentProject, storageIsDurable } from '../storage';
 import { renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
 import { renderSettingsPanel } from './settings-panel';
+import { refreshWarnings, renderWarningsSheet, renderWarningsSide, walkChip, warningsButton, warningsSheetShown, warningsSideShown } from './warnings-sheet';
 import { renderWhatsNewPanel } from './whats-new-panel';
 import { snapOn } from '../tidy';
 import { dismissToastAction, hideOldToast, placeNotice, toastAction } from './toast';
@@ -32,18 +33,21 @@ import { renderMoreMenu, toggleSelectMode } from './menu';
 import { foldDetailGroups } from './plant-details';
 import { renderFeedbackSheet } from './feedback-sheet';
 import { renderExportModal, renderPreviewModal, renderResetModal } from './modals';
-import { pickerOpened, renderPlantsPanel } from './plants-panel';
+import { pickerClosed, pickerOpened, renderPlantsPanel } from './plants-panel';
 import { plantDot, shapeDot } from '../plant-looks';
 import { renderPrintPanel } from './print-panel';
 import { renderPlantForm } from './plant-form';
 import { renderBloomPanel } from './bloom-view';
-import { renderLocationPanel } from './location-panel';
+import { openLocation, renderLocationPanel, zipEntry } from './location-panel';
+import type { GardenLocation } from '../climate';
+import { hasPlantsToList, openPlantList, renderPlantListPanel } from './plant-list-panel';
 import { fullRingRadius } from '../my-plants';
 import { filterActive, filterText } from '../status';
 import { toast } from './toast';
 import { clearedNow, loadCleared } from '../storage';
+import { firstHidden, hideFirst } from '../first-hidden';
 import { bringBackCleared } from '../mutations';
-import { projectsClosed, renderProjectsPanel, renderRenamePanel } from './projects-panel';
+import { fileImport, projectsClosed, renderProjectsPanel, renderRenamePanel } from './projects-panel';
 import { moreOfSame, renderArrangePanel, renderPropsPanel, resetKindChange, sheetTitle } from './props-panel';
 import { hintDue, hintShown } from '../hints';
 import { featureHost, finishFeaturePlace, flipLastAdded, lastAdded, setFeatureKind, undoFeaturePlace } from '../feature-edit';
@@ -54,6 +58,7 @@ import { isLocked } from '../roles';
 import { declineIntro, introActive, introAfterRender, introOffered, showMeAround } from './intro-card';
 import { focusAfterRender, focusBeforeRender } from './focus';
 import { startBgCalibration } from '../background';
+import { panelOpened } from '../tap-guard';
 
 // MAIN RENDER
 // ============================================================
@@ -91,6 +96,17 @@ export function flashZoom() {
   zoomFlashTimer = setTimeout(() => node!.classList.remove('on'), 1200);
 }
 
+/**
+ * Undo and Redo say what they'd do, when the pointer is on them on a computer: "Undo: delete Front bed" (the UI review,
+ * 2026-11-01). The words are on a layer over the button's icon, so the button itself is still "Undo" (its name to a
+ * screen reader, and its title); a step that doesn't say leaves it a plain "Undo".
+ */
+function saysStep(btn: HTMLElement, word: string, label: string) {
+  if (!label) return;
+  const tip = el('span', { className: 'step-tip', title: `${word}: ${label}`, 'data-testid': `${word.toLowerCase()}-says` });
+  while (btn.firstChild) tip.appendChild(btn.firstChild);
+  btn.appendChild(tip);
+}
 /** The panel the last render showed (to tell a panel just opened from one redrawn). */
 let shownPanel: typeof state.panel = null;
 /** Whether the floating Redo was up at the last render (it slides out only as it first appears). */
@@ -100,16 +116,22 @@ let floatRedoAt: { top: string; left: string } | null = null;
 let shownSelection = '';
 /** The menu open when the app last drew. */
 let shownMenu: typeof state.menu = null;
+/** The drawing, placing or adding of doors under way when the app last drew (each a new object as it starts). */
+let shownTool: object | null = null;
 export function render() {
   const root = document.getElementById('root')!;
+  refreshWarnings(); // (the plan's warnings, worked out once for this drawing: src/ui/warnings-sheet.ts)
   // (Typing in the picker's search when the whole app redraws: the cursor goes back where it was.)
   const typing = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.testid === 'plant-search'
     ? document.activeElement.selectionStart : null;
+  const inZip = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.testid === 'zip';
+  const inFirstZip = document.activeElement instanceof HTMLInputElement && document.activeElement.dataset.testid === 'first-zip';
   // (A change made in an open sheet, a door's ⇄ say, redraws it: it stays where it was scrolled to, not back at the
   // top. Jason, 2026-10-28. A different sheet, or the same one for something else, opens at the top.)
   const scrolled = state.panel && state.panel === shownPanel && state.selectedIds.join() === shownSelection
     ? root.querySelector<HTMLElement>('.overlay .sheet')?.scrollTop ?? 0 : 0;
   focusBeforeRender(root); // (with a keyboard: what has focus, found again after: src/ui/focus.ts)
+  const updateBanner = document.getElementById('update-banner'); // (kept as it is, Updating… say: put back below)
   // Clear root
   while (root.firstChild) root.removeChild(root.firstChild);
   // (Checked on every redraw, so a selection changed and changed back by hand isn't "just placed" again.)
@@ -125,9 +147,12 @@ export function render() {
   const topbar = el('div', { className: 'topbar' });
   const proj = currentProject();
   const projName = proj ? proj.name : 'Untitled';
+  // (The name and its ▾ on a line of their own, whether it's saved under them: at 360 px, beside them, it left the
+  // name a letter or two, none at all at Small text. The UI review, 2026-11-01, when it became a button to look at.)
   const projBtn = el('button', { className: 'project-btn' },
-    el('div', { className: 'pname' }, projName),
-    el('div', { html: I.chevronDown, style: { display: 'flex', color: '#78716c' } }),
+    el('div', { className: 'pname-row' },
+      el('div', { className: 'pname' }, projName),
+      el('div', { className: 'pchev', html: I.chevronDown })),
     // (At Medium and Large text, only whether it's saved, small: room for the name. The zoom shows while it changes.)
     el('div', { className: 'pinfo' }, ...(roomyText() ? [] : [el('span', { className: 'pcount' }, statusText()), ' \u00b7 ']),
       (() => { const s = saveStateWord(); return el('span', { className: 'save-state' + (s.bad ? ' bad' : ''), title: s.title, 'data-testid': 'save-state' }, s.word); })())
@@ -135,12 +160,18 @@ export function render() {
   projBtn.addEventListener('click', () => { state.panel = 'projects'; render(); });
   topbar.appendChild(projBtn);
 
+  // While a sheet is open, Undo and Redo are grayed, and sit above its dimming, so a tap on them is a tap on nothing (the
+  // UI review, 2026-11-01: under the dimming Undo looked live, and a tap on it only closed the sheet, the 11 plants just
+  // set to Planted left Planted, taken for undone). Grayed rather than working behind the sheet: Jason's choice. The
+  // sheet closed, they're back.
+  const sheetUp = !!state.panel;
   // Undo
-  const undoBtn = el('button', { className: 'iconbtn', html: I.undo, title: 'Undo' });
+  const undoBtn = el('button', { className: 'iconbtn' + (sheetUp ? ' over-sheet' : ''), html: I.undo, title: 'Undo', 'aria-label': 'Undo' });
   // While placing, it takes back the last plant placed; while drawing, the last point: as the bar's Undo does.
   // (A notice's Undo is the same step: after either, it's gone.)
   // (And while adding doors and windows, the last one added.)
-  undoBtn.disabled = state.placing ? !state.placing.placed.length : state.draw ? !state.draw.points.length : state.featurePlace ? !state.featurePlace.added.length : !canUndo();
+  undoBtn.disabled = sheetUp || (state.placing ? !state.placing.placed.length : state.draw ? !state.draw.points.length : state.featurePlace ? !state.featurePlace.added.length : !canUndo());
+  if (!undoBtn.disabled && !state.placing && !state.draw && !state.featurePlace) saysStep(undoBtn, 'Undo', undoLabel());
   undoBtn.addEventListener('click', () => {
     dismissToastAction();
     if (state.placing) undoPlace(); else if (state.draw) undoDrawPoint(); else if (state.featurePlace) undoFeaturePlace(); else undo();
@@ -154,12 +185,14 @@ export function render() {
   let floatRedo: HTMLElement | null = null;
   if (!(canRedo() && roomyText())) floatRedoUp = false;
   if (!roomyText()) {
-    const redoBtn = el('button', { className: 'iconbtn', html: I.redo, title: 'Redo' });
-    redoBtn.disabled = !canRedo() || !!state.draw || !!state.placing || !!state.featurePlace;
+    const redoBtn = el('button', { className: 'iconbtn' + (sheetUp ? ' over-sheet' : ''), html: I.redo, title: 'Redo', 'aria-label': 'Redo' });
+    redoBtn.disabled = sheetUp || !canRedo() || !!state.draw || !!state.placing || !!state.featurePlace;
+    if (!redoBtn.disabled) saysStep(redoBtn, 'Redo', redoLabel());
     redoBtn.addEventListener('click', () => { dismissToastAction(); redo(); render(); });
     topbar.appendChild(redoBtn);
   } else if (canRedo() && !state.draw && !state.placing && !state.featurePlace && !state.panel && !state.menu) {
     floatRedo = el('button', { className: 'float-redo', html: I.redo + '<span>Redo</span>', title: 'Redo', 'data-testid': 'float-redo' });
+    saysStep(floatRedo, 'Redo', redoLabel());
     floatRedo.addEventListener('click', () => { dismissToastAction(); redo(); render(); });
   }
 
@@ -179,6 +212,8 @@ export function render() {
   topbar.appendChild(moreBtn);
 
   app.appendChild(topbar);
+  // (An update waiting: its banner under the top bar, the plan shortened by it, not covered: src/pwa.ts.)
+  if (updateBanner) app.appendChild(updateBanner);
   if (floatRedo) {
     // (Under Undo, wherever the bar puts it: measured once it's on the page. It slides out the first time only.)
     const btn = floatRedo;
@@ -336,48 +371,96 @@ export function render() {
   // right edge landed on them instead, silently. Round 3: Lena, Grace and Owen.)
   if (!state.draw && !state.placing && !state.bgCalibrate) {
     zoomBtns.appendChild(yearButton());
+    // The Plant list, one tap from the plan, beside Through the year (Jason, Nov 1, from the UI review): once there's a
+    // plant to list. (In ⋮ too, by name.)
+    if (hasPlantsToList()) {
+      const list = el('button', { className: 'zoombtn', html: I.list, title: 'Plant list', 'aria-label': 'Plant list', 'data-testid': 'plant-list-open' });
+      list.addEventListener('click', () => { openPlantList(); render(); });
+      zoomBtns.appendChild(list);
+    }
     zoomBtns.appendChild(namesButton());
+    // Warnings, first among them, with its count (Jason approved the mock-ups, Nov 1: a plan tool, not a setting).
+    const warn = warningsButton();
+    if (warn) zoomBtns.prepend(warn);
   }
   canvasWrap.appendChild(zoomBtns);
 
-  // Empty hint
+  // Empty hint, the first screen: what FullGrown does, where the garden is, the tour, a photo to start from, and a way
+  // back in with a backup (Jason, Nov 1, from the UI review: a first look showed tools, not the job; the ZIP that
+  // gives hardiness, frost dates and the state's plant laws was in ⋮; a backup from another device had no way in).
   if (state.shapes.length === 0 && !state.draw && !state.placing && !state.bgCalibrate && !state.bgEditMode && !introActive()) {
-    const hint = el('div', { className: 'empty-hint' });
     // Cleared with Clear all: what it took, offered back until something new is drawn, across reloads (Jason, Oct 30).
     if (state.currentProjectId) void loadCleared(state.currentProjectId, render);
     const was = clearedNow();
-    if (was) {
-      const n = was.shapes.length;
-      const back = el('button', { className: 'btn primary empty-intro-btn', 'data-testid': 'bring-back' },
-        `Bring back what Clear all took (${n} shape${n === 1 ? '' : 's'}${was.bgImage ? ' and the photo' : ''})`);
-      back.addEventListener('click', () => { bringBackCleared(was); render(); });
-      hint.append(el('div', { className: 'empty-intro' }, back));
+    // On a card, with its ✕ (Jason, Nov 1: its words were hard to read over a photo, and the ZIP box needed a way to
+    // be put away). Put away, it stays away for this plan, on this device; what Clear all took is still offered back.
+    const planId = state.currentProjectId;
+    const hidden = firstHidden(planId);
+    if (!hidden || was) {
+      // Once a photo is in, docked at the bottom, above the buttons it names, so the photo shows (Jason chose this of
+      // four mock-ups, Nov 1); on an empty grid, in the middle.
+      const docked = !!state.bgImage && state.bgImage.visible !== false;
+      const hint = el('div', { className: 'empty-hint' + (docked ? ' docked' : ''), 'data-testid': 'first-screen' });
+      const card = el('div', { className: 'first-card', 'data-testid': 'first-card' });
+      hint.appendChild(card);
+      if (was) {
+        const n = was.shapes.length;
+        const back = el('button', { className: 'btn primary empty-intro-btn', 'data-testid': 'bring-back' },
+          `Bring back what Clear all took (${n} shape${n === 1 ? '' : 's'}${was.bgImage ? ' and the photo' : ''})`);
+        back.addEventListener('click', () => { bringBackCleared(was); render(); });
+        card.append(el('div', { className: 'empty-intro' }, back));
+      }
+      if (!hidden) {
+        if (planId) {
+          const hide = el('button', { className: 'first-hide', 'data-testid': 'first-hide', 'aria-label': 'Hide this for this plan', title: 'Hide this for this plan', html: I.x });
+          hide.addEventListener('click', () => {
+            hideFirst(planId);
+            render();
+            toastAction('Hidden for this plan. The garden\u2019s ZIP is also under \u22ee \u2192 Garden location.',
+              [{ label: 'Undo', run: () => { hideFirst(planId, false); render(); } }], 8000, 'first-hidden-notice');
+          });
+          card.prepend(hide);
+        }
+        // (While it's the only plan on the device: a second plan, empty, needs no introducing.) With a photo, the
+        // next step instead: the photo is what an empty plan's words were leading to.
+        const onlyPlan = state.projects.length <= 1;
+        if (docked) card.append(el('div', { className: 'first-line', 'data-testid': 'first-line' }, 'Your photo is in. Next: trace the house over it with the buttons below.'));
+        else if (onlyPlan) card.append(el('div', { className: 'first-line', 'data-testid': 'first-line' }, 'Plan your garden to scale, with plants that suit it.'));
+        // Where the garden is, typed here; its zone once it's known. (Not under a sheet: the ZIP sheet has its own field.)
+        if (!state.panel) card.append(state.location ? firstZone(state.location) : firstZip());
+        // New here: the guided introduction, offered once (it stays in ⋮ as "Show me around"). Not under a photo: whoever
+        // added one is past the beginning, and the card stays short, clear of the photo.
+        if (introOffered() && !docked) {
+          const go = el('button', { className: 'btn primary empty-intro-btn', 'data-testid': 'intro-start' }, 'New here? Show me around');
+          go.addEventListener('click', () => { showMeAround(); render(); });
+          const no = el('button', { className: 'btn ghost empty-intro-no', 'data-testid': 'intro-decline' }, "I'll explore");
+          no.addEventListener('click', () => { declineIntro(); render(); });
+          card.append(el('div', { className: 'empty-intro' }, go, no));
+        }
+        // The easiest start is tracing over a photo of the yard from above, so offer it first.
+        if (!state.bgImage) {
+          const photo = el('button', { className: 'empty-photo-btn', 'data-testid': 'start-photo', html: I.image + '<span>Start from an aerial photo</span>' });
+          photo.addEventListener('click', () => { state.panel = 'bg'; render(); });
+          card.append(photo, el('div', { className: 'empty-sub' }, 'A satellite or drone photo of your yard to trace over.'), el('div', { className: 'empty-or' }, 'or'));
+        }
+        // (Drawing by hand starts in the opening view, about 17 ft across: pinch to see more. The yard's width once asked
+        // here only zoomed, and was dropped (Jason, Oct 29).) Docked, the line above already says where the buttons are.
+        if (!docked) card.append(el('div', { className: 'empty-tap' }, tapSaid('Tap a button below to add something.')));
+        card.append(el('div', { className: 'empty-grid' }, 'Grid lines are ', el('b', {}, '1 ft'), ' apart; bold lines every ', el('b', {}, '10 ft'), '.'));
+        if (onlyPlan) card.append(restoreLine());
+      }
+      canvasWrap.appendChild(hint);
+      if (!docked) requestAnimationFrame(placeFirstCard);
     }
-    // New here: the guided introduction, offered once (it stays in ⋮ as "Show me around").
-    if (introOffered()) {
-      const go = el('button', { className: 'btn primary empty-intro-btn', 'data-testid': 'intro-start' }, 'New here? Show me around');
-      go.addEventListener('click', () => { showMeAround(); render(); });
-      const no = el('button', { className: 'btn ghost empty-intro-no', 'data-testid': 'intro-decline' }, "I'll explore");
-      no.addEventListener('click', () => { declineIntro(); render(); });
-      hint.append(el('div', { className: 'empty-intro' }, go, no));
-    }
-    // The easiest start is tracing over a photo of the yard from above, so offer it first.
-    if (!state.bgImage) {
-      const photo = el('button', { className: 'empty-photo-btn', 'data-testid': 'start-photo', html: I.image + '<span>Start from an aerial photo</span>' });
-      photo.addEventListener('click', () => { state.panel = 'bg'; render(); });
-      hint.append(photo, el('div', { className: 'empty-sub' }, 'A satellite or drone photo of your yard to trace over.'), el('div', { className: 'empty-or' }, 'or'));
-    }
-    // (Drawing by hand starts in the opening view, about 17 ft across: pinch to see more. The yard's width once asked
-    // here only zoomed, and was dropped (Jason, Oct 29).)
-    hint.append(
-      el('div', {}, tapSaid('Tap a button below to add something.')),
-      el('div', {}, 'Grid lines are ', el('b', {}, '1 ft'), ' apart; bold lines every ', el('b', {}, '10 ft'), '.'));
-    canvasWrap.appendChild(hint);
   }
+
+  // Working through the warnings on a phone: "‹ Warnings · 3 of 12 ›", in place of the selection's own chip or bar.
+  const walking = walkChip();
+  if (walking) canvasWrap.appendChild(walking);
 
   // Multi-select action bar (floating, only when 2+ selected and no panel open)
   const drawing = !!state.draw || !!state.editPoints || !!state.placing || !!state.featurePlace;
-  if (state.selectedIds.length >= 2 && !state.panel && !drawing) {
+  if (state.selectedIds.length >= 2 && !state.panel && !drawing && !walking) {
     const bar = el('div', { className: 'multi-bar', 'data-testid': 'multi-bar' });
     const count = el('div', { className: 'count' }, state.selectedIds.length + (justPlaced ? ' just placed' : ' selected'));
     bar.appendChild(count);
@@ -427,7 +510,7 @@ export function render() {
   }
 
   // Single-select pill (only when exactly 1 selected, no panel open, no multi-bar)
-  if (state.selectedIds.length === 1 && !state.panel && !drawing) {
+  if (state.selectedIds.length === 1 && !state.panel && !drawing && !walking) {
     const s = singleSelected();
     if (s) {
       const pill = el('div', { className: 'sel-pill' });
@@ -461,7 +544,8 @@ export function render() {
     }
   }
 
-  app.appendChild(canvasWrap);
+  // (On a computer, Warnings stays open beside the plan, and the plan makes room: src/ui/warnings-sheet.ts.)
+  app.appendChild(el('div', { className: 'plan-row' }, canvasWrap, renderWarningsSide()));
 
   // ===== BOTTOM TOOLBAR =====
   // Named by what gets added, not by shape: the three most common things, and Add for the rest.
@@ -510,10 +594,14 @@ export function render() {
   else if (state.panel === 'feedback') panelNode = renderFeedbackSheet();
   else if (state.panel === 'settings') panelNode = renderSettingsPanel();
   else if (state.panel === 'whatsNew') panelNode = renderWhatsNewPanel();
+  else if (state.panel === 'warnings') panelNode = renderWarningsSheet();
+  else if (state.panel === 'plantList') panelNode = renderPlantListPanel();
+  warningsSideShown(root); // (the panel beside the plan, where it was scrolled to)
   if (panelNode) {
     root.appendChild(panelNode);
     const sheet = scrolled ? panelNode.querySelector<HTMLElement>('.sheet') ?? (panelNode.classList.contains('sheet') ? panelNode : null) : null;
     if (sheet) sheet.scrollTop = scrolled;
+    if (state.panel === 'warnings') warningsSheetShown(panelNode, shownPanel !== 'warnings');
   }
   // The picker just opened, with a keyboard: the cursor in its search, to start typing (not with a pop-up keyboard,
   // which would cover the list).
@@ -522,13 +610,34 @@ export function render() {
     const search = root.querySelector<HTMLInputElement>('[data-testid=plant-search]');
     if (search) { search.focus(); if (typing != null) search.setSelectionRange(typing, typing); }
   }
+  // The garden's location just opened with no ZIP yet, with a keyboard: the cursor in the ZIP field, to type it, and
+  // kept there through the sheet's redraws (the tour's, "Looking up…"). Not with a pop-up keyboard, which would come up
+  // over the sheet unasked for: a tap on the field brings it. (The UI review, 2026-11-01, and round 3's Alex and Tom:
+  // focus went to the sheet's ×, or nowhere, and typing was lost.)
+  if (state.panel === 'location' && hasKeyboard() && ((shownPanel !== 'location' && !state.location) || inZip)) {
+    const zip = root.querySelector<HTMLInputElement>('[data-testid=zip]');
+    if (zip) { zip.focus(); zip.setSelectionRange(zip.value.length, zip.value.length); }
+  }
+  // (The first screen's ZIP likewise, with a keyboard: "Looking up…", or a ZIP that isn't one, keeps the cursor there.)
+  if (inFirstZip && hasKeyboard()) {
+    const zip = root.querySelector<HTMLInputElement>('[data-testid=first-zip]');
+    if (zip) { zip.focus(); zip.setSelectionRange(zip.value.length, zip.value.length); }
+  }
   // (The picker closed: its plants' detail groups fold again, Jason, 2026-10-29.)
-  if (shownPanel === 'plants' && state.panel !== 'plants') { foldDetailGroups(); partnersClosed(); }
+  // (And "Anyone you need to protect?", answered in it, goes under Poison & pets for next time: src/ui/plants-panel.ts.)
+  if (shownPanel === 'plants' && state.panel !== 'plants') { foldDetailGroups(); partnersClosed(); pickerClosed(); }
   if (state.panel !== 'projects' && state.panel !== 'rename') projectsClosed();
   if ((state.panel && state.panel !== shownPanel) || (state.menu && state.menu !== shownMenu)) {
+    panelOpened(); // (a tap on it a moment from now is the end of a double tap, not one meant for it: src/tap-guard.ts)
     hideOldToast();
     document.getElementById('zoom-flash')?.classList.remove('on'); // (the zoom badge too: it sat over ⋮'s Redo, round 3)
   }
+  // A drawing or placing tool just started: a plain notice from before it goes too, off the plan where the next tap
+  // goes (the UI review, 2026-11-01: "Locked: it stays put…" sat on the house's front wall as the bed tool opened).
+  // A notice with buttons, an Undo say, is left be (a new drawing puts away only one about the last: startDraw).
+  const tool = state.draw ?? state.placing ?? state.featurePlace ?? null;
+  if (tool && tool !== shownTool) hideOldToast();
+  shownTool = tool;
   shownPanel = state.panel;
   shownMenu = state.menu;
   shownSelection = state.selectedIds.join();
@@ -719,7 +828,52 @@ function snapChip(s: TapSnap, unsnap: () => void): HTMLElement {
   chip.appendChild(b);
   return chip;
 }
-/** The first time a plant with a full-size ring is selected, say what the ring is (once per device; src/hints.ts). */
+/**
+ * The first screen's ZIP: the location sheet's own lookup (src/ui/location-panel.ts zipEntry), and what it gives. Never
+ * focused by itself, as the ZIP sheet's field isn't with a pop-up keyboard (render, above): on a phone the keyboard
+ * would come up over this screen unasked for, and with a keyboard the plan's one-key shortcuts (B for a bed) would go
+ * into it. A tap or a click on it is the asking.
+ */
+/**
+ * The first screen's card in the middle of the plan, unless there it would run under the side buttons (a small phone,
+ * or a long card): then beside them, its right edge clear of them. (Always beside, it sat off to the left on a phone
+ * with room to spare: Jason, Nov 1.) Measured after layout, and again when the window changes size (src/main.ts), so
+ * nothing is rebuilt (a ZIP being typed keeps its keyboard).
+ */
+export function placeFirstCard(): void {
+  const hint = document.querySelector<HTMLElement>('.empty-hint:not(.docked)');
+  const card = hint?.querySelector<HTMLElement>('.first-card');
+  const column = document.querySelector<HTMLElement>('#canvas-wrap .zoombtns');
+  if (!hint || !card) return;
+  hint.classList.remove('beside-column');
+  if (!column) return;
+  const c = card.getBoundingClientRect(), z = column.getBoundingClientRect();
+  if (z.width && c.right > z.left - 4 && c.top < z.bottom + 4 && c.bottom > z.top) hint.classList.add('beside-column');
+}
+function firstZip(): HTMLElement {
+  const { input, go, problem } = zipEntry('first');
+  // What happens to the ZIP, a press away, for anyone wary of giving it (Jason, Nov 1): the ZIP sheet says.
+  const privacy = el('button', { className: 'link-btn first-privacy', 'data-testid': 'zip-privacy' }, 'Privacy');
+  privacy.addEventListener('click', () => openLocation());
+  return el('div', { className: 'first-zip', 'data-testid': 'first-zip-box' },
+    el('div', { className: 'first-zip-row' }, input, go),
+    // (Under the field that says ZIP code: short, so the card fits a small phone at large text.)
+    el('div', { className: 'first-zip-note' }, 'For its hardiness zone, frost dates and your state’s plant laws. ', privacy),
+    problem);
+}
+/** The garden's zone, once its ZIP is in: the location sheet, for its frost dates or another ZIP. */
+function firstZone(loc: GardenLocation): HTMLElement {
+  const b = el('button', { className: 'link-btn first-zone', 'data-testid': 'first-zone' }, `Your garden: zone ${loc.zone}, ZIP ${loc.zip}`);
+  b.addEventListener('click', () => openLocation());
+  return b;
+}
+/** "Already have a plan? Restore a backup": Projects' Import from file, from here (src/ui/projects-panel.ts fileImport). */
+function restoreLine(): HTMLElement {
+  const { input, choose } = fileImport('restore-file');
+  const b = el('button', { className: 'link-btn', 'data-testid': 'restore-backup' }, 'Restore a backup');
+  b.addEventListener('click', choose);
+  return el('div', { className: 'first-restore' }, el('span', { className: 'restore-q' }, 'Already have a plan? '), b, input);
+}
 /**
  * A plan opened with its photo not to scale yet (calibrating it was left part way: Grace, Oct 30, after a reload): said
  * once, as the plan is first shown this session, with Calibrate. Not again that session, nor while calibrating.
@@ -735,6 +889,7 @@ function calibrationNotice() {
 }
 /** Not said for a photo just added: calibrating it starts at once. */
 export function calibrationSeen() { if (state.currentProjectId) calibrationSaid.add(state.currentProjectId); }
+/** The first time a plant with a full-size ring is selected, say what the ring is (once per device; src/hints.ts). */
 function maybeExplainFullSize() {
   const s = singleSelected();
   if (!s || state.panel || !fullRingRadius(s) || introActive()) return; // (the introduction's last step says it)
@@ -757,7 +912,8 @@ function namesButton(): HTMLElement {
   });
   b.addEventListener('click', () => {
     state.showNames = !state.showNames;
-    if (!state.showNames) toast('Names and badges hidden. Select a shape to see its own.');
+    // (Warning badges too, said: the review, Nov 1. Warnings still lists them.)
+    if (!state.showNames) toast('Names and badges hidden, warning badges too. Select a shape to see its own.');
     render();
   });
   return b;

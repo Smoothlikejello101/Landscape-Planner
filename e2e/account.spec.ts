@@ -167,7 +167,7 @@ test('signed in: the trial shows; signing out keeps the plans on this device', a
   await expect(again.getByTestId('signin-google')).toBeVisible();
 });
 
-test('deleting the account says what goes, offers a backup, and can be cancelled', async ({ page }) => {
+test('deleting the account says what goes, offers a backup, and can be canceled', async ({ page }) => {
   const seen = await fakeServer(page);
   await signedIn(page);
   await openFresh(page);

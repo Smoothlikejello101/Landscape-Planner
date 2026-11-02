@@ -16,6 +16,12 @@ export interface KV {
   keys(store: StoreName, prefix?: string): Promise<string[]>;
   /** Apply several puts/deletes, across stores, all-or-nothing. */
   write(ops: WriteOp[]): Promise<void>;
+  /**
+   * Once: unless kv/`flag` is set already, `change` each record of `store` (a new value, or undefined to leave it) and
+   * set the flag to `value`, in one transaction, so nothing written meanwhile (another tab) is put back as it was read.
+   * The flag's value if it was set already (and nothing changed), else undefined.
+   */
+  changeAllOnce(flag: string, value: unknown, store: StoreName, change: (v: unknown) => unknown): Promise<unknown>;
   /** True when data survives a reload. */
   readonly durable: boolean;
 }
@@ -61,6 +67,26 @@ class IdbKV implements KV {
     }
     await done(tx);
   }
+  async changeAllOnce(flag: string, value: unknown, store: StoreName, change: (v: unknown) => unknown) {
+    const tx = this.db.transaction([store, 'kv'], 'readwrite');
+    const finished = done(tx);
+    let was: unknown;
+    const flagged = tx.objectStore('kv').get(flag);
+    flagged.onsuccess = () => {
+      was = flagged.result;
+      if (was !== undefined) return;
+      const cursor = tx.objectStore(store).openCursor();
+      cursor.onsuccess = () => {
+        const c = cursor.result;
+        if (!c) { tx.objectStore('kv').put(value, flag); return; }
+        const next = change(c.value);
+        if (next !== undefined) c.update(next);
+        c.continue();
+      };
+    };
+    await finished;
+    return was;
+  }
 }
 
 export class MemoryKV implements KV {
@@ -77,6 +103,13 @@ export class MemoryKV implements KV {
       if (o.value === undefined) m.delete(o.key);
       else m.set(o.key, structuredClone(o.value));
     }
+  }
+  async changeAllOnce(flag: string, value: unknown, store: StoreName, change: (v: unknown) => unknown) {
+    const kv = this.data.get('kv')!, m = this.data.get(store)!;
+    if (kv.get(flag) !== undefined) return structuredClone(kv.get(flag));
+    for (const [k, v] of m) { const next = change(structuredClone(v)); if (next !== undefined) m.set(k, structuredClone(next)); }
+    kv.set(flag, structuredClone(value));
+    return undefined;
   }
 }
 

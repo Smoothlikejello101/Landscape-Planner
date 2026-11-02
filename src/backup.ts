@@ -3,7 +3,7 @@ import { createProject, currentProjectData, readProject, sanitizeProjectData, se
 import type { ProjectData } from './types';
 import { myPlants, myPlantsUsedBy } from './my-plants';
 import { wirePlant } from './catalog';
-import { now } from './util';
+import { now, stamp } from './util';
 
 // Project files: a single project, or a backup of every project, as JSON.
 // Background images are embedded as data URLs so a file is self-contained.
@@ -20,7 +20,15 @@ export interface BackupFile { format: typeof BACKUP_FORMAT; version: number; exp
 function forExport(data: ProjectData): ProjectData {
   const bgImage = data.bgImage ? { ...data.bgImage } : null;
   if (bgImage) delete bgImage.imageId; // storage detail; a new id is assigned on import
-  return { shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {}, print: data.print, sizeMode: data.sizeMode, sunWarnings: data.sunWarnings, ...(data.dismissed ? { dismissed: data.dismissed } : {}), phases: data.phases, location: data.location, bgImage };
+  // (The Plant list's ticks, who's in the yard and the warning switches go with the plan, Jason, Nov 1. A file from
+  // before has none of them: it opens with nothing ticked, and the yard and the switches as the device opening it had
+  // them: src/yard.ts householdFromDevice, src/view-settings.ts switchesFromDevice.)
+  return {
+    shapes: data.shapes, zoom: data.zoom, offsetX: data.offsetX, offsetY: data.offsetY, roleViews: data.roleViews ?? {}, print: data.print, sizeMode: data.sizeMode, sunWarnings: data.sunWarnings,
+    ...(data.dismissed ? { dismissed: data.dismissed } : {}), ...(data.bought ? { bought: data.bought } : {}), ...(data.household ? { household: data.household } : {}),
+    ...(data.switches ? { switches: data.switches } : {}),
+    phases: data.phases, location: data.location, bgImage,
+  };
 }
 async function exportedProject(id: string): Promise<ExportedProject | null> {
   const meta = state.projects.find((p) => p.id === id);
@@ -36,7 +44,8 @@ export function safeFileName(name: string): string {
   // (A run of dashes is one: "Grace - shady oak yard" came out "grace---shady-oak-yard". Round 3, Grace.)
   return (name.trim().replace(/[^a-z0-9-_ ]+/gi, '').replace(/\s+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '').toLowerCase() || 'project').slice(0, 60);
 }
-export function stamp() { return new Date().toISOString().slice(0, 10); }
+/** The date in a file's name, as the person's own calendar has it (src/util.ts stamp). */
+export { stamp };
 
 export async function buildProjectFile(id: string): Promise<{ filename: string; text: string } | null> {
   const project = await exportedProject(id);
@@ -85,6 +94,17 @@ export function buildEmergencyBackup(): { filename: string; text: string; count:
   if (!projects.length) return null;
   const file: BackupFile = { format: BACKUP_FORMAT, version: FILE_VERSION, exportedAt: new Date().toISOString(), projects };
   return { filename: `fullgrown-recovery-${stamp()}.fullgrown.json`, text: JSON.stringify(file), count: projects.length };
+}
+
+/** The largest file Import takes: a backup's photos are downscaled JPEGs (about 2000 px), so a real one is far
+ *  smaller; a bigger file, read whole into memory, could freeze a phone. (Weekly security check, Nov 1: it read any
+ *  file at all. 100 MB, not the check's 50, leaves room for a backup of many plans with photos.) */
+export const MAX_IMPORT_BYTES = 100 * 1024 * 1024;
+/** What to say about a file too big to import, or null to go ahead. */
+export function importTooBig(bytes: number): string | null {
+  if (bytes <= MAX_IMPORT_BYTES) return null;
+  const mb = Math.ceil(bytes / (1024 * 1024));
+  return `That file is ${mb} MB, too big to be a FullGrown plan or backup (they're well under ${MAX_IMPORT_BYTES / (1024 * 1024)} MB). Pick the .json file you saved from FullGrown.`;
 }
 
 /** Parse a project or backup file. Throws an Error with a user-facing message. */
@@ -156,7 +176,7 @@ export function canShareFiles(type = 'application/json', name = 'x.json'): boole
       navigator.canShare({ files: [new File(['{}'], name, { type })] });
   } catch { return false; }
 }
-/** Hand a file to the system share sheet. False if the user cancelled. */
+/** Hand a file to the system share sheet. False if the user canceled. */
 export async function shareBlob(filename: string, blob: Blob): Promise<boolean> {
   try {
     await navigator.share({ files: [new File([blob], filename, { type: blob.type })], title: filename });
@@ -171,11 +191,30 @@ export async function shareText(filename: string, text: string): Promise<boolean
     await navigator.share({ files: [new File([text], filename, { type: 'application/json' })], title: filename });
     return true;
   } catch (e) {
-    if (e instanceof DOMException && e.name === 'AbortError') return false; // user cancelled
+    if (e instanceof DOMException && e.name === 'AbortError') return false; // user canceled
     throw e;
   }
 }
-/** Save a full backup and record when it happened: how many projects, the file, and whether it was downloaded or shared (null: cancelled). */
+/**
+ * Whether the system share sheet takes words, to paste into a note or a message (the Plant list's Share as text; a
+ * file, as shareText hands over, wouldn't paste).
+ */
+export function canShareWords(): boolean {
+  try {
+    return typeof navigator.share === 'function' && (typeof navigator.canShare !== 'function' || navigator.canShare({ text: 'x' }));
+  } catch { return false; }
+}
+/** Hand words to the system share sheet. False if the person canceled. */
+export async function shareWords(title: string, text: string): Promise<boolean> {
+  try {
+    await navigator.share({ title, text });
+    return true;
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') return false; // (canceled)
+    throw e;
+  }
+}
+/** Save a full backup and record when it happened: how many projects, the file, and whether it was downloaded or shared (null: canceled). */
 export async function backupAll(via: 'download' | 'share'): Promise<{ count: number; filename: string; via: 'download' | 'share' } | null> {
   const { filename, text, count } = await buildBackupFile();
   let went = via;

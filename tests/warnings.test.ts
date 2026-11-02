@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
 import { byTypicalHeight, hardinessWarning, householdFlags, PLANT_FILTER_DEFAULTS, plantMatches, rowFlags, type Plant } from '../src/plants';
-import { NO_YARD } from '../src/yard';
+import { NO_YARD, saveYard } from '../src/yard';
 import { state } from '../src/state';
 
 // The warnings Jason chose from round 2 of testing (Oct 30): poison where the household has kids or pets, hardiness
@@ -30,6 +30,19 @@ describe('a household with kids or pets', () => {
     const skinOnly = { ...mulberry, poison_parents: { via: 'name', parents: [{ name: 'Morus alba', poison: null }, { name: 'Morus rubra', poison: { skin: true } }] } } as unknown as Plant;
     expect(householdFlags(skinOnly, { ...NO_YARD, kids: true })).toEqual([]);
     expect(householdFlags({ ...mulberry, poison_parents: undefined } as Plant, { ...NO_YARD, kids: true })).toEqual([]);
+  });
+  it('marks a skin irritant on its row whoever is in the yard; "Poisonous to people" only with kids (Jason, Nov 1: anyone walking past can brush one)', () => {
+    const mayapple = { id: 'may', common: 'Mayapple', form: 'Perennial', poison: { severity: 'high', parts: ['leaves', 'roots'], skin: true } } as unknown as Plant;
+    const yards = [NO_YARD, { ...NO_YARD, kids: true }, { ...NO_YARD, dogs: 'hideToxic' as const }, { ...NO_YARD, dogs: 'nonToxic' as const },
+      { ...NO_YARD, cats: true }, { ...NO_YARD, horses: true }, { kids: true, dogs: 'hideToxic' as const, cats: true, horses: true }];
+    try {
+      for (const y of yards) {
+        saveYard(y);
+        const marks = rowFlags(mayapple).map((f) => f.text);
+        expect(marks).toContain('Can irritate skin');
+        expect(marks.includes('Poisonous to people')).toBe(y.kids);
+      }
+    } finally { saveYard(NO_YARD); localStorage.clear(); }
   });
   it('says nothing with the warning turned off in Warnings', () => {
     state.poisonWarnings = false;

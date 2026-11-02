@@ -2,18 +2,22 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { openKV } from '../src/db';
+import { del, openKV, put } from '../src/db';
 import { state } from '../src/state';
 import { undo } from '../src/history';
 import { pushHistory } from '../src/history';
-import { _resetStorageForTests, createProject, deleteProject, flushSave, getSyncRecords, getSyncTombstones, getSyncUser, initStorage, readProject, renameProject, resetSyncState, save, switchProject } from '../src/storage';
-import { syncOnce, type Remote } from '../src/sync/engine';
+import {
+  _resetStorageForTests, createProject, deleteProject, flushSave, getSyncDeletedRecord, getSyncRecords, getSyncTombstones, getSyncUser, initStorage, readProject,
+  renameProject, resetSyncState, sanitizeProjectData, save, switchProject, syncedContent,
+} from '../src/storage';
+import { planHash, syncOnce, type Remote } from '../src/sync/engine';
 import { storageLocal, storagePlants } from '../src/sync/local';
 import { syncPlants } from '../src/sync/plants';
 import { photoFingerprint } from '../src/sync/photo';
 import { loadMyPlants, mergeMyPlants, myPlants, saveMyPlant, deleteMyPlant } from '../src/my-plants';
 import { FakePlantServer, FakeServer } from './fake-sync-server';
 import type { Shape } from '../src/types';
+import { setHardyWarnings } from '../src/view-settings';
 
 // Sync against this device's real storage (in a stand-in IndexedDB) and a stand-in server.
 
@@ -108,6 +112,10 @@ describe('sync with this device’s storage', () => {
     expect(got!.phases).toEqual(['Spring 2027']);
     expect(getSyncRecords()['far-away']).toMatchObject({ revision: 3 });
     await switchProject('far-away');
+    // (From a version before plans kept who's in the yard: it takes this device's, which goes up once, so another
+    // device that updates settles with it: src/yard.ts householdFromDevice. Then nothing moves.)
+    expect(await syncOnce(local(), server.remoteFor('phone'), 'phone')).toMatchObject({ uploaded: 1, downloaded: 0 });
+    expect(server.rows.get('far-away')!.content.household).toEqual({ kids: false, dogs: '', cats: false, horses: false, answered: false });
     expect(await syncOnce(local(), server.remoteFor('phone'), 'phone')).toMatchObject({ uploaded: 0, downloaded: 0 });
   });
 });
@@ -527,3 +535,183 @@ describe('a gone date and an older app version', () => {
     expect(state.shapes[0].goneOn).toBe('');
   });
 });
+
+// The Plant list's ticks and who's in the yard, through this device's storage (Jason, Nov 1): they settle with another
+// device's on their own, and what's settled stays settled after a restart.
+describe("the Plant list's ticks and the yard with this device's storage", () => {
+  it('ticks here and on another device settle with no copy, are stored, and after a restart nothing looks changed', async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.shapes = [bed('b1', 'A')]; save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    state.bought = { yaupon: { n: 2, at: 100 } }; save(); await flushSave();
+    const row = server.rows.get(id)!;
+    row.content = { ...row.content, shapes: [bed('b1', 'B')], bought: { aster: { n: 3, at: 110 } } }; row.revision++; row.updated_by = 'partner';
+    const r = await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    expect(r.conflicts).toEqual([]);
+    const both = { yaupon: { n: 2, at: 100 }, aster: { n: 3, at: 110 } };
+    expect(state.bought).toEqual(both);
+    expect(state.shapes.map((s) => s.label)).toEqual(['B']);
+    expect((await readProject(id))!.bought).toEqual(both);
+    expect(server.rows.get(id)!.content.bought).toEqual(both);
+    await restart();
+    expect(await syncOnce(local(), server.remoteFor('phone'), 'phone')).toMatchObject({ uploaded: 0, downloaded: 0 });
+  });
+  it("a plan synced before the update takes this device's yard, which goes up once; a second device that updates keeps its own too", async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    // (As the version before synced it: no yard in the plan, and none on the server.)
+    state.shapes = [bed('b1', 'A')]; save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    const row = server.rows.get(id)!;
+    delete row.content.household;
+    const { household: _h, ...plan } = (await readProject(id))!;
+    await createProjectFromBefore(id, plan);
+    localStorage.setItem('lp-yard', JSON.stringify({ kids: false, dogs: 'hideToxic', cats: false, horses: false }));
+    await restart(); // (the update)
+    expect(state.household).toEqual({ kids: false, dogs: 'hideToxic', cats: false, horses: false, answered: true });
+    // Meanwhile another device, also updated, sent the one it had.
+    row.content = { ...row.content, household: { kids: true, dogs: '', cats: false, horses: false, answered: true } }; row.revision++; row.updated_by = 'laptop';
+    expect((await syncOnce(local(), server.remoteFor('phone'), 'phone')).conflicts).toEqual([]);
+    const both = { kids: true, dogs: 'hideToxic', cats: false, horses: false, answered: true };
+    expect(state.household).toEqual(both);
+    expect(server.rows.get(id)!.content.household).toEqual(both);
+    expect(state.projects).toHaveLength(1);
+    await restart();
+    expect(await syncOnce(local(), server.remoteFor('phone'), 'phone')).toMatchObject({ uploaded: 0, downloaded: 0 });
+  });
+});
+
+// The warning switches through this device's storage (Jason, Nov 1): switched here and on another device, they settle
+// on their own, the open plan shows the result at once, and after a restart nothing looks changed.
+describe("the warning switches with this device's storage", () => {
+  it('switched here and on another device: no copy, the open plan shows both, stored, and nothing moves after a restart', async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.shapes = [bed('b1', 'A')]; save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    setHardyWarnings(false); await flushSave();
+    const row = server.rows.get(id)!;
+    const theirs = row.content.switches as Record<string, { on: boolean; at?: number }>;
+    row.content = { ...row.content, shapes: [bed('b1', 'B')], switches: { ...theirs, poisonWarnings: { on: false, at: Date.now() + 1000 } } }; row.revision++; row.updated_by = 'laptop';
+    const r = await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    expect(r.conflicts).toEqual([]);
+    expect([state.hardyWarnings, state.poisonWarnings, state.crowdWarnings]).toEqual([false, false, true]);
+    expect(state.shapes.map((x) => x.label)).toEqual(['B']);
+    const both = server.rows.get(id)!.content.switches as Record<string, { on: boolean }>;
+    expect([both.hardyWarnings.on, both.poisonWarnings.on, both.crowdWarnings.on]).toEqual([false, false, true]);
+    expect((await readProject(id))!.switches).toEqual(both);
+    await restart();
+    expect([state.hardyWarnings, state.poisonWarnings]).toEqual([false, false]);
+    expect(await syncOnce(local(), server.remoteFor('phone'), 'phone')).toMatchObject({ uploaded: 0, downloaded: 0 });
+    for (const k of ['hardyWarnings', 'poisonWarnings'] as const) state[k] = true;
+    state.switchedAt = {};
+  });
+});
+
+// Through this device's storage, the review of the storage change (Nov 1): a device that synced on the version before
+// and then updates settles with the parts the server has; another device's carried-over parts don't make a plan here
+// "modified just now", nor bring back one deleted here.
+describe('updating after syncing on the version before, with this device\'s storage', () => {
+  const dog = { kids: false, dogs: 'hideToxic', cats: false, horses: false, answered: true };
+  const switches = (crowding: boolean) => ({ showCrowding: { on: crowding }, crowdWarnings: { on: true }, hardyWarnings: { on: true }, poisonWarnings: { on: true }, fruitWarnings: { on: true } });
+  it("synced on the version before after the phone sent its yard, switches and ticks; updated: the phone's are kept, here and on the server", async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.shapes = [bed('b1', 'A')]; save(); await flushSave();
+    await syncOnce(local(), server.remoteFor('laptop'), 'laptop');
+    // The phone, updated first, sent the plan with what it had: a dog, crowding rings off, three yaupon bought.
+    const row = server.rows.get(id)!;
+    row.content = { ...row.content, household: dog, switches: switches(false), bought: { yaupon: { n: 3, at: 100 } } };
+    row.revision++; row.updated_by = 'phone';
+    // This laptop, still on the version before, took that revision: stored and recorded without the parts.
+    const kv = await openKV('sync-' + n);
+    const stored = (await kv.get<Record<string, unknown>>('projects', id))!;
+    for (const k of ['household', 'switches', 'bought']) delete stored[k];
+    const name = state.projects.find((p) => p.id === id)!.name;
+    const content = syncedContent(sanitizeProjectData(stored)) as Record<string, unknown>;
+    for (const k of ['household', 'switches', 'bought']) delete content[k];
+    await kv.write([put('projects', id, stored), put('kv', 'syncRecords', { [id]: { revision: row.revision, hash: planHash(name, content) } }), del('kv', 'tookFromDevice')]);
+    await restart(); // (the update: no one in this device's yard, every warning on)
+    expect([state.household.dogs, state.showCrowding, state.bought]).toEqual(['', true, undefined]);
+    expect((await syncOnce(local(), server.remoteFor('laptop'), 'laptop')).conflicts).toEqual([]);
+    for (const c of [server.rows.get(id)!.content, (await readProject(id)) as unknown as Record<string, unknown>]) {
+      expect(c.household).toEqual(dog);
+      expect((c.switches as Record<string, unknown>).showCrowding).toEqual({ on: false });
+      expect(c.bought).toEqual({ yaupon: { n: 3, at: 100 } });
+    }
+    expect([state.household.dogs, state.showCrowding]).toEqual(['hideToxic', false]); // (the open plan shows it)
+    await restart();
+    expect(await syncOnce(local(), server.remoteFor('laptop'), 'laptop')).toMatchObject({ uploaded: 0, downloaded: 0 });
+  });
+  it('another device\'s update, carrying over only its yard, leaves when each plan here was last modified; an edit there still changes it', async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.shapes = [bed('b1', 'A')]; save(); await flushSave();
+    const other = await createProject('Front');
+    await syncOnce(local(), server.remoteFor('laptop'), 'laptop');
+    const when = () => Object.fromEntries(state.projects.map((p) => [p.name, p.lastModified]));
+    const before = when();
+    await new Promise((r) => setTimeout(r, 20));
+    for (const pid of [id, other]) { const row = server.rows.get(pid)!; row.content = { ...row.content, household: dog }; row.revision++; row.updated_by = 'phone'; }
+    expect(await syncOnce(local(), server.remoteFor('laptop'), 'laptop')).toMatchObject({ downloaded: 2 });
+    expect(when()).toEqual(before);
+    expect(state.household).toEqual(dog); // (taken all the same)
+    const row = server.rows.get(other)!;
+    row.content = { ...row.content, shapes: [bed('b2', 'New bed')] }; row.revision++;
+    await syncOnce(local(), server.remoteFor('laptop'), 'laptop');
+    expect(when().Front).toBeGreaterThan(before.Front);
+  });
+  it('a plan deleted here comes back for an edit only a later version can see, of the plan or a shape, carried-over parts with it: not into the trash', async () => {
+    for (const edit of ['plan', 'shape'] as const) {
+      const server = new FakeServer(); await device();
+      const id = state.currentProjectId!;
+      state.shapes = [bed('b1', 'A')]; save(); await flushSave();
+      const keep = await createProject('Front');
+      await syncOnce(local(), server.remoteFor('phone'), 'phone');
+      await switchProject(keep);
+      await deleteProject(id);
+      const row = server.rows.get(id)!;
+      const shapes = row.content.shapes as Record<string, unknown>[];
+      row.content = { ...row.content, household: { ...dog, dogs: '', answered: false },
+        ...(edit === 'plan' ? { notes: 'Gus dug here: replant in spring' } : { shapes: [{ ...shapes[0], mood: 'thriving' }] }) };
+      row.revision++; row.updated_by = 'laptop';
+      const r = await syncOnce(local(), server.remoteFor('phone'), 'phone');
+      expect({ edit, undeleted: r.undeleted, deleted: server.rows.get(id)!.deleted }).toEqual({ edit, undeleted: ['My Garden'], deleted: false });
+      expect(edit === 'plan' ? server.rows.get(id)!.content.notes : (server.rows.get(id)!.content.shapes as Record<string, unknown>[])[0].mood)
+        .toBe(edit === 'plan' ? 'Gus dug here: replant in spring' : 'thriving');
+    }
+  });
+  it('a plan deleted here stays deleted when the other device only sent what it carried over; its record is kept with the tombstone, across a restart', async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.shapes = [bed('b1', 'A')]; save(); await flushSave();
+    const keep = await createProject('Front');
+    await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    await switchProject(keep);
+    await deleteProject(id);
+    expect(getSyncDeletedRecord(id)).toMatchObject({ revision: getSyncTombstones()[id], core: expect.any(String) });
+    await restart();
+    expect(getSyncDeletedRecord(id)).toMatchObject({ revision: getSyncTombstones()[id] });
+    // Meanwhile the laptop updated: the plan went up with what it carried over.
+    const row = server.rows.get(id)!;
+    row.content = { ...row.content, household: { ...dog, dogs: '', answered: false } }; row.revision++; row.updated_by = 'laptop';
+    const r = await syncOnce(local(), server.remoteFor('phone'), 'phone');
+    expect(r.undeleted).toEqual([]);
+    expect(server.rows.get(id)!.deleted).toBe(true);
+    expect(state.projects.map((p) => p.name)).toEqual(['Front']);
+    expect([getSyncTombstones()[id], getSyncDeletedRecord(id)]).toEqual([undefined, undefined]);
+  });
+});
+
+/**
+ * Store a plan as the version before wrote it (no yard or switches of its own), keeping its sync record, on a device
+ * whose next start is its first of this version (the update).
+ */
+async function createProjectFromBefore(id: string, data: Record<string, unknown>) {
+  const kv = await openKV('sync-' + n);
+  const stored: Record<string, unknown> = { ...data, bgImage: null, photoElsewhere: null };
+  delete stored.household;
+  delete stored.switches;
+  await kv.write([put('projects', id, stored), del('kv', 'tookFromDevice')]);
+}

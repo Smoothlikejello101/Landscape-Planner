@@ -468,7 +468,7 @@ export function shapeGroup(s: Shape): SVGGElement {
         svgEl('text', { x: bx, y: by + 2, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': 10, 'font-weight': 700, fill: '#fff' }, '!')));
     }
   }
-  // Too cold, or maybe too warm, where the garden is (Settings → Warnings; Jason, Oct 30): a badge low on the right, a
+  // Too cold, or maybe too warm, where the garden is (Warnings, at Hardiness; Jason, Oct 30): a badge low on the right, a
   // snowflake on blue or a sun on red. Not a tree already there, nor one coming out.
   const living = s.status !== 'gone' && s.status !== 'remove' && !(s.type === 'circle' && s.tree);
   const data = s.role === 'plant' && s.plantId ? plantsById[s.plantId] : undefined;
@@ -496,7 +496,8 @@ export function shapeGroup(s: Shape): SVGGElement {
   if (s.role === 'plant' && s.type === 'circle' && named && shownUtilities.length) {
     const issues = utilityIssues(s, shownUtilities, plantsById);
     if (utilityWarningShown(s, issues)) {
-      const r = vineDot ?? s.radius * ppf;
+      // (A tree's by its trunk, not out at its canopy's edge, where it sat on other plants' badges: the review, Nov 1.)
+      const r = vineDot ?? Math.min(s.radius * ppf, isTree(s, plantsById) ? 22 : Infinity);
       const bx = labelX - r * 0.7, by = labelY + r * 0.7;
       g.appendChild(svgEl('g', { 'data-role': 'utility-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },
         svgEl('path', { d: `M${bx},${by - 9.5}L${bx + 9.5},${by}L${bx},${by + 9.5}L${bx - 9.5},${by}Z`, fill: '#ea580c', stroke: '#fff', 'stroke-width': 1.5, 'stroke-linejoin': 'round' }),
@@ -907,8 +908,9 @@ function liftHidden(shapes: Element) {
     if (!s || s.type !== 'circle') continue;
     const cx = (s.x - state.offsetX) * ppf, cy = (s.y - state.offsetY) * ppf, r = Math.max(2, drawnRadius(s) * ppf - 1);
     const outlined = state.selectedIds.includes(id) || (hiddenBy.get(id) ?? []).some((c) => state.selectedIds.includes(c));
-    // (Its pin sized by the plant as drawn, none where it's a speck or the plan is zoomed far out: src/pins.ts.)
-    const pin = outlined ? null : pinRadius(r, state.zoom);
+    // (Its pin sized by the plant as drawn and the zoom; none where it's a speck, below 85%, or with names hidden:
+    // src/pins.ts.)
+    const pin = outlined ? null : pinRadius(r, state.zoom, state.showNames);
     if (outlined) rims.push(svgEl('g', { 'data-role': 'hidden-rim', 'data-rim-of': id, 'data-mark': 'outline' },
       svgEl('circle', { cx, cy, r, fill: 'none', stroke: 'rgba(255,255,255,0.75)', 'stroke-width': 3 }),
       svgEl('circle', { cx, cy, r, fill: 'none', stroke: '#292524', 'stroke-width': 1.5, 'stroke-dasharray': '2 3', 'stroke-linecap': 'round', opacity: 0.8 })));
@@ -1007,7 +1009,19 @@ export function resizeCanvas() {
   measuredW = w;
   state.canvasW = w;
   state.canvasH = Math.max(100, Math.round(rect.height));
+  if (!typingNow()) restingH = state.canvasH;
   svg.setAttribute('width', String(state.canvasW));
   svg.setAttribute('height', String(state.canvasH));
   redrawCanvas();
 }
+/** The plan's height when last measured with nothing being typed in: on a phone, as it is with its keyboard away. */
+let restingH = 0;
+const typingNow = () => {
+  const a = document.activeElement;
+  return a instanceof HTMLTextAreaElement || (a instanceof HTMLInputElement && !['range', 'checkbox', 'radio', 'button', 'submit', 'color', 'file'].includes(a.type));
+};
+/**
+ * The plan's height (px) once the phone's keyboard is put away: a small phone's keyboard can leave a sliver of plan
+ * above it, whose middle is no guide to where the plan's middle is (src/draw.ts finishTypedRect).
+ */
+export function restingCanvasH(): number { return Math.max(state.canvasH, restingH); }

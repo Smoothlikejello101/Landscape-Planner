@@ -233,6 +233,11 @@ export function withSpecies(mine: Plant, sp: Plant | undefined): Plant {
     if (pv) prov[key] = { ...pv, inherited: true };
   }
   if (!mine.form && sp.forms) out.forms = sp.forms;
+  // (How it looks through the year, where its own form doesn't say: evergreen or not, needles or leaves. A false
+  // cypress of one's own, copied from Sawara cypress, was drawn as a leafy shrub, bare in winter: Jason, Nov 1.)
+  if (mine.foliage == null && sp.foliage != null) out.foliage = sp.foliage;
+  if (mine.needles == null && sp.needles != null) out.needles = sp.needles;
+  if (mine.leaf_form == null && sp.leaf_form != null) out.leaf_form = sp.leaf_form;
   // (The earlier list's dog warning given for its species' other records.)
   if (sp.dogVia && out.dog == null) out.dogVia = sp.dogVia;
   if (Object.keys(prov).length) out.prov = prov;

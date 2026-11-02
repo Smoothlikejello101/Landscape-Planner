@@ -39,7 +39,7 @@ async function saveFile(via: 'download' | 'share') {
   const name = fileName(), text = JSON.stringify(buildSupportFile({ ...parts, includeImages: withImages, now: new Date() }));
   try {
     if (via === 'share') {
-      if (!(await shareText(name, text))) return; // (cancelled)
+      if (!(await shareText(name, text))) return; // (canceled)
     } else downloadText(name, text);
     saved = via === 'share' ? 'shared' : name;
     render();

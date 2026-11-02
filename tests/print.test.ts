@@ -94,6 +94,56 @@ describe('legend and text', () => {
   });
 });
 
+/** Where a name was drawn in an SVG, and the room it takes (at the tests' estimate of 0.55 of the size a letter). */
+function nameBox(svg: string, label: string): { x0: number; x1: number; y0: number; y1: number; at: number } {
+  const m = new RegExp(`<text x="([-\\d.e]+)" y="([-\\d.e]+)"[^>]*font-size="([\\d.e]+)"[^>]*>${label.replace(/'/g, '&#39;')}</text>`).exec(svg);
+  if (!m) throw new Error(`no ${label}`);
+  const x = +m[1], y = +m[2], fs = +m[3], w = label.length * 0.55 * fs, h = fs * 1.2;
+  return { x0: x - w / 2, x1: x + w / 2, y0: y - h / 2, y1: y + h / 2, at: m.index };
+}
+const meets = (a: { x0: number; x1: number; y0: number; y1: number }, b: typeof a) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+/** A circle's place in an SVG, by the order it's drawn in. */
+const circlesAt = (svg: string) => [...svg.matchAll(/<circle cx="([-\d.e]+)" cy="([-\d.e]+)" r="([\d.e]+)"/g)].map((m) => ({ x: +m[1], y: +m[2], r: +m[3], at: m.index }));
+
+describe("the areas' names (the UI review, 2026-11-01: Driveway over Driveway flower bed; bed names under plants)", () => {
+  // A driveway, a narrow bed of plants beside it, and a bed planted along its middle.
+  const drive = { ...bed('d', 'Driveway', 60, 28, 10, 27), role: 'path', color: '#a8a29e' } as Shape;
+  const beside = bed('db', 'Driveway flower bed', 71, 31, 5, 21);
+  const front = bed('fb', 'Front shrub bed', 20, 28, 38, 6);
+  const plants = [
+    ...Array.from({ length: 6 }, (_, i) => plant(`c${i}`, 'Wild columbine', 73.5, 33 + i * 3.4)),
+    ...[23, 30, 37, 44, 51].map((x, i) => ({ ...plant(`s${i}`, "Yaupon 'Dwarf'", x, 31), radius: 2 } as Shape)),
+  ];
+  // (On the whole lot, as Dana's printed, at 1 in = 16 ft or more: there the names are big beside the beds.)
+  const lot = { ...bed('lot', '', -10, -60, 112, 123), role: 'boundary', color: '#57534e' } as Shape;
+  const shapes = [lot, drive, beside, front, ...plants];
+  it('prints "Driveway" and the bed beside it clear of each other', () => {
+    const layout = planLayout('letter', 'landscape', printContent(shapes, null, false).bounds!);
+    expect(layout.ftPerIn).toBeGreaterThanOrEqual(16);
+    const svg = buildPlanSvg(layout, shapes, null, { includeBackground: false, includeGrid: false, includePlantList: true, order: shapes }, 100).svg;
+    expect(meets(nameBox(svg, 'Driveway'), nameBox(svg, 'Driveway flower bed'))).toBe(false);
+    expect(svg).toContain('>Front shrub bed<');
+  });
+  it('draws a bed\'s name over its plants, and clear of them where there\'s room, in a picture and on paper', () => {
+    state.viewFilter = { status: '', phase: '', showGone: false };
+    state.roleViews = {};
+    state.showNames = true;
+    state.shapes = shapes;
+    const picture = buildExportSVG()!.svg;
+    state.shapes = [];
+    const layout = planLayout('letter', 'auto', printContent(shapes, null, false).bounds!);
+    const paper = buildPlanSvg(layout, shapes, null, { includeBackground: false, includeGrid: false, includePlantList: true, order: shapes }, 100).svg;
+    for (const svg of [picture, paper]) {
+      const circles = circlesAt(svg);
+      for (const name of ['Front shrub bed', 'Driveway flower bed']) {
+        const b = nameBox(svg, name);
+        expect(circles.every((c) => c.at < b.at)).toBe(true); // (drawn after every plant)
+        expect(circles.some((c) => Math.hypot(Math.max(b.x0, Math.min(c.x, b.x1)) - c.x, Math.max(b.y0, Math.min(c.y, b.y1)) - c.y) < c.r)).toBe(false);
+      }
+    }
+  });
+});
+
 describe('as the screen shows it (Jason, Oct 31: print and pictures start from the screen)', () => {
   it('with names hidden, no names, lengths, sun hours or plant numbers; a note keeps its text', () => {
     state.roleViews = {};

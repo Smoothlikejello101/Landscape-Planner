@@ -33,6 +33,30 @@ export const lookFor = (s: CircleShape): Look => lookOf(s.plantId ? plantsById[s
 /** A plant's dot in lists and bars: its flowers' color as its picture draws them, else its own color. */
 export const plantDot = (p: Plant): string => lookOf(p, plantColor(p)).pal.fl ?? plantColor(p);
 /**
+ * A plant's spot on a picker row (Jason, Nov 1, from the UI review: "replace the color spot with a flower icon in the
+ * middle of a leaf-color circle"): a circle in its leaves' color with a small flower in its flowers' color, both as
+ * its picture draws them; a plant without showy flowers on record, the circle alone. `said`, for screen readers:
+ * "blue flowers, green leaves". Color says nothing here that words don't: the flowers' color is in its details too.
+ */
+export function plantSpot(p: Plant): { svg: string; said: string } {
+  const look = lookOf(p, plantColor(p));
+  const leaf = look.pal.base, fl = look.pal.fl, s = look.said;
+  const leaves = s ? `${s.variegated ? 'variegated ' : ''}${s.leaf} leaves` : 'its own color';
+  const said = s?.flower ? `${s.flower} flowers, ${leaves}` : leaves;
+  // (Five petals around a center, edged a shade darker so white flowers show on pale leaves; a gold center, brown in a
+  // yellow or orange flower.)
+  const petals = fl ? [0, 1, 2, 3, 4].map((k) => {
+    const a = (-90 + k * 72) * Math.PI / 180;
+    return `<circle cx="${(10 + Math.cos(a) * 3.4).toFixed(2)}" cy="${(10 + Math.sin(a) * 3.4).toFixed(2)}" r="2.7"/>`;
+  }).join('') : '';
+  const eye = s?.flower === 'yellow' || s?.flower === 'orange' ? '#7c2d12' : '#eab308';
+  const svg = `<svg viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">`
+    + `<circle cx="10" cy="10" r="9.5" fill="${leaf}" stroke="rgba(0,0,0,0.2)" stroke-width="1"/>`
+    + (fl ? `<g fill="${fl}" stroke="${shade(fl, 0.4)}" stroke-width="0.6" data-testid="spot-flower">${petals}</g><circle cx="10" cy="10" r="1.7" fill="${eye}"/>` : '')
+    + '</svg>';
+  return { svg, said };
+}
+/**
  * A placed shape's dot in the selection bar: a plant drawn as its picture, its picture's flowers (as the picker's dot:
  * round 3, Ruth saw every plant's dot purple, its shape's color); anything else, its own color.
  */

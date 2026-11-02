@@ -6,10 +6,13 @@ import { savedPage } from './pages.mjs';
 import { paragraphKey, sentenceKey, termsKey, webClaims, webParagraphs } from './web.mjs';
 import { siteOf } from './fetch-lib.mjs';
 import { sentences } from './prose.mjs';
-import { quotedCultivars } from './ncsu-page.mjs';
+import { quotedCultivars, soldAs } from './ncsu-page.mjs';
 
-/** The cultivar a record names ("Itea virginica 'Little Henry'" → Little Henry), or null. */
-export const cultivarOf = (rec) => quotedCultivars(rec?.botanical)[0] ?? quotedCultivars(rec?.common)[0] ?? null;
+/**
+ * The cultivar a record names ("Itea virginica 'Little Henry'" → Little Henry), or what a person recorded its
+ * sources sell it as (decisions.json `rename`: the clay strain is sold as Butterfly Weed for Clay); or null.
+ */
+export const cultivarOf = (rec) => quotedCultivars(rec?.botanical)[0] ?? quotedCultivars(rec?.common)[0] ?? soldAs(rec);
 
 /**
  * `searched`: { plant id: [claim, …] } as the search wrote them; `list`: the audit's plant list (list.mjs);

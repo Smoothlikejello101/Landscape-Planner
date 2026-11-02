@@ -14,6 +14,10 @@
 // genus, or a species), with the page ncsu-pages.json chooses for it, if any.
 //
 // `cultivar`: a record naming one cultivar beside its species ("Aucuba japonica ('Gold Dust')"), renamed for it.
+// `rename`: a record renamed by the naming rule where no other kind fits: a seed strain isn't a cultivar, so it's
+// "Butterfly weed (clay strain)", not "Butterfly weed 'for Clay'" (Jason, 2026-11-01). What its sources sell it as
+// (`soldAs`) is read as a cultivar's name is (ncsu-page.mjs `soldAs`), so their pages stay its own and its facts don't
+// change.
 // `kewSpecies`: a cultivar NC State files under a species Kew keeps apart from the one it is, moved to Kew's.
 // `parent`: a cultivar put under a species its own name doesn't give. `fold`: a record whose plants all have records
 // of their own: it goes, and the catalog says which record its id now stands for (`meta.moved`), so a plant placed
@@ -73,7 +77,7 @@ function renameFor(catalog, rec, keep, done) {
 }
 
 /**
- * Apply the decisions on names (`split`, `cultivar`, `kewSpecies`, `parent`, `fold`) to a catalog, in place.
+ * Apply the decisions on names (`split`, `cultivar`, `rename`, `kewSpecies`, `parent`, `fold`) to a catalog, in place.
  * `split`: record id → { keep: { cultivar, common }, others: [{ cultivar, common, page, species? } | { botanical,
  * common?, page }], species?: { common } }. `page`: the plant's own NC State page, or null for none. An entry's
  * `species`: the species record to make where the catalog has none. `commonFor(name)`: a species' common name from
@@ -140,6 +144,18 @@ export function applySplits(catalog, decisions, { commonFor = () => null, namesO
   for (const [id, d] of real(decisions?.cultivar)) {
     const rec = catalog.plants.find((r) => r.id === id);
     if (rec) renameFor(catalog, rec, d, done);
+  }
+  // A record renamed by the naming rule, its old name kept to find it by: only its names change. (Not put under its
+  // species: a strain has no `parent` until a person decides it should take its species' facts.)
+  for (const [id, d] of real(decisions?.rename)) {
+    const rec = catalog.plants.find((r) => r.id === id);
+    if (!rec || (rec.common === d.common && rec.botanical === (d.botanical ?? rec.botanical))) continue;
+    const was = rec.common;
+    rec.common = d.common;
+    if (d.botanical) rec.botanical = d.botanical;
+    keepOldName(rec, was, d.common);
+    namesFirst(rec);
+    done.push(`${id}: now ${d.common}, ${rec.botanical}`);
   }
   // A cultivar NC State files under a species Kew keeps apart from its own: under Kew's species.
   for (const [id, d] of real(decisions?.kewSpecies)) {

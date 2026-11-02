@@ -140,7 +140,8 @@ export function commonName({ botanical, commons, cultivar, trade, usdaCommon, gb
  * The NC State pages the catalog's records already read, as `newRecords` takes them (`used`): every record's
  * (`list`: the plant list), but a cultivar's (or a named group's) only where ncsu-pages.json names the page for it
  * by hand (`chosen`, record id → page). A cultivar reading its species' page doesn't make the species one of the
- * catalog's plants: Butterfly weed 'for Clay' reads Asclepias tuberosa's page, and the species is added beside it.
+ * catalog's plants: Butterfly weed (clay strain), sold as 'for Clay', reads Asclepias tuberosa's page, and the species is
+ * added beside it.
  */
 export function pagesInUse(catalog, list, chosen = {}) {
   const named = new Set(catalog.plants.filter((r) => r.parent || recordCultivars(r).length || tradeName(r.botanical)).map((r) => r.id));

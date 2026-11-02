@@ -29,7 +29,10 @@ test('a tall tree near a power line is flagged, says why, and can be dismissed',
   await expect(page.getByTestId('utility-detail')).toBeHidden();
   await page.getByTestId('utility-line').click();
   await expect(page.getByTestId('utility-detail')).toContainText('UF/IFAS Extension');
+  await expect(page.getByTestId('utility-dismiss')).toHaveText('Dismiss for this one');
   await page.getByTestId('utility-dismiss').click();
+  await expect(page.getByTestId('utility-line')).toContainText('(dismissed for this one: no badge on the plan)');
+  await expect(page.getByTestId('utility-dismiss')).toHaveText('Show again');
   await closeSheet(page);
   await expect(badges(page)).toHaveCount(0);
 });

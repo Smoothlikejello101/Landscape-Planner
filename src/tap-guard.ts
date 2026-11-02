@@ -8,8 +8,20 @@
 //    double-tapping Done opened the Add sheet that took its place (Sam). A second tap that comes quickly, at the same
 //    spot, on something other than what the first one pressed (it went, and something else is there now) is dropped,
 //    with its click. The same control drawn again (zoom in, +15°, the next month, a checkbox) takes every tap.
+// 3. A panel just opened. A sheet, menu or question that has just come up takes no tap for a moment: double-tapping a
+//    plant already selected, the pane came up under the finger and the second tap opened Swap in it, every time (Jason,
+//    Nov 1). Long enough for a quick double or triple tap; too short to hold up a person who has seen what came up.
 
 const QUICK_MS = 350, NEAR_PX = 32;
+/** How long a panel just opened takes no tap (3). */
+export const OPENED_MS = 400;
+/** What a panel, menu or question is drawn in. */
+const NEW_LAYER = '.overlay, .ask-overlay, .menu';
+let openedAt = -Infinity;
+/** A panel, menu or question just came up (src/ui/render.ts, src/ui/ask.ts): for a moment, a tap on it is dropped. */
+export function panelOpened(t = performance.now()) { openedAt = t; }
+/** Whether a press on a panel comes too soon after it came up. Pure, for the tests. */
+export const tooSoonAfterOpening = (opened: number, t: number): boolean => t >= opened && t - opened < OPENED_MS;
 const PLAN = '#canvas-svg';
 const CONTROL = 'button, a, input, select, textarea, label, summary, [role=button], [role=tab], [role=option], [role=checkbox]';
 
@@ -54,7 +66,8 @@ export function installTapGuard(win: Window = window) {
   const stop = (e: Event) => { e.preventDefault(); e.stopImmediatePropagation(); };
   win.addEventListener('pointerdown', (e) => {
     const now: Tap = { t: e.timeStamp, x: e.clientX, y: e.clientY, what: tapTarget(e.target), area: areaOf(e.target) };
-    if (isStrayTap(last, now)) { last = null; planPress = false; dropped = e.pointerId; stop(e); return; }
+    const onNew = e.target instanceof Element && !!e.target.closest(NEW_LAYER) && tooSoonAfterOpening(openedAt, e.timeStamp);
+    if (onNew || isStrayTap(last, now)) { last = null; planPress = false; dropped = e.pointerId; stop(e); return; }
     last = now;
     planPress = now.what === 'plan';
   }, true);

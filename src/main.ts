@@ -1,6 +1,7 @@
 import './styles.css';
 import { finishFeaturePlace, undoFeaturePlace } from './feature-edit';
 import { resizeCanvas } from './canvas';
+import { fitToWindow, installAppHeight } from './app-height';
 import { fitAboveKeyboard } from './keyboard';
 import { cancelGestures, onCanvasPointerMove, onCanvasPointerUp } from './gestures';
 import { installTapGuard } from './tap-guard';
@@ -13,7 +14,7 @@ import { kindForShortcut } from './kinds';
 import { finishPlacing, undoPlace } from './place';
 import { state } from './state';
 import { loadPlants, plantFilter } from './plants';
-import { applyYard, loadHardy, loadYard } from './yard';
+import { applyYard, household, loadHardy } from './yard';
 import { loadWild } from './wild';
 import { initAccount, restoreCodeSent, setAccountListener } from './account';
 import { CHANNEL, signInAllowed } from './channel';
@@ -27,10 +28,11 @@ import { notePageZoom } from './page-zoom';
 import { loadViewSettings } from './view-settings';
 import { applyTextSize } from './text-size';
 import { updateSaveWarning, updateSaveState } from './ui/save-warning';
-import { flushSave, initStorage, refreshClipboard, requestPersistence, save, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
-import { flashZoom, render } from './ui/render';
+import { flushSave, initStorage, refreshClipboard, requestPersistence, saveView, setHouseholdListener, setSaveStateListener, setSaveStatusListener, StorageUnavailableError, writeJournalIfDirty } from './storage';
+import { flashZoom, placeFirstCard, render } from './ui/render';
 import { dismissToastAction, toast } from './ui/toast';
 import { closeYear, stepMonth } from './ui/year-bar';
+import { closeWarningsSide, warningsSideOpen } from './ui/warnings-sheet';
 import { noteVisit, visitedBefore } from './hints';
 import { newsAtStart } from './whats-new';
 import { tellWhatsNew } from './ui/whats-new-panel';
@@ -46,16 +48,19 @@ installErrorLog();
 // The page at this device's text size, before anything is drawn (src/text-size.ts).
 applyTextSize();
 
+// The app's height, the window's own, measured now and again whenever it may have changed (src/app-height.ts).
+installAppHeight();
+
 // ============================================================
 // EVENT LISTENERS
 // ============================================================
 // IMPORTANT: window resize calls resizeCanvas ONLY, never render().
 // Android keyboard appearing fires a viewport resize; a full render()
 // destroys focused inputs.
-window.addEventListener('resize', () => { fitAboveKeyboard(); resizeCanvas(); });
+window.addEventListener('resize', () => { fitToWindow(); resizeCanvas(); placeFirstCard(); });
 // Same goes for visualViewport resize (covers iOS keyboard + zoom)
 if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', () => { fitAboveKeyboard(); resizeCanvas(); notePageZoom(); });
+  window.visualViewport.addEventListener('resize', () => { fitToWindow(); resizeCanvas(); placeFirstCard(); notePageZoom(); });
   // iOS pans the visual viewport (scroll, not resize) after its keyboard opens: re-measure (CSS only).
   window.visualViewport.addEventListener('scroll', () => { fitAboveKeyboard(); });
 }
@@ -107,7 +112,7 @@ function onArrow(e: KeyboardEvent, [ax, ay]: [number, number]) {
   const part = e.shiftKey ? 0.5 : 0.1, ppf = pxPerFoot();
   state.offsetX += ax * part * state.canvasW / ppf;
   state.offsetY += ay * part * state.canvasH / ppf;
-  save();
+  saveView();
   render();
 }
 /** A field that holds typing (text, a number, a choice being made), not a button, box or slider. */
@@ -126,6 +131,8 @@ function onKey(e: KeyboardEvent) {
     e.preventDefault(); state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; render(); return;
   }
   if (e.key === 'Escape' && state.menu && target?.closest?.('.menu')) { e.preventDefault(); state.menu = null; render(); return; }
+  // (Warnings beside the plan, on a computer: Esc from inside it closes it.)
+  if (e.key === 'Escape' && target?.closest?.('.warnings-side') && !state.panel) { e.preventDefault(); closeWarningsSide(); render(); return; }
   // In any other sheet, Esc closes it from a button, a checkbox or a slider: only typing would be lost (Alex, Tom,
   // Oct 30: Esc did nothing in Layers with a padlock focused, nor in a sun record with its slider focused).
   if (e.key === 'Escape' && target?.closest?.('.overlay') && !holdsTyping(target)) { e.preventDefault(); if (closeOne()) render(); return; }
@@ -142,8 +149,8 @@ function onKey(e: KeyboardEvent) {
   // with the slider focused, Esc left the month bar open).
   if (e.key === 'Escape' && target && tag === 'input' && !holdsTyping(target)) { e.preventDefault(); if (closeOne()) render(); return; }
   if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
-  // Keys pressed while a panel has focus (a chip, a menu) belong to the panel, never the plan.
-  if (target?.closest?.('.overlay, .menu')) return;
+  // Keys pressed while a panel has focus (a chip, a menu, Warnings beside the plan) belong to the panel, never the plan.
+  if (target?.closest?.('.overlay, .menu, .warnings-side')) return;
   // Ctrl or Cmd with + or − zooms the plan, not the page, whatever is going on (Jason, 2026-10-25). With a sheet's field
   // or button focused, the keys never get here: the page zooms, for reading.
   if ((e.ctrlKey || e.metaKey) && !e.altKey && ['=', '+', '-', '_'].includes(e.key)) {
@@ -241,6 +248,7 @@ function closeOne(): boolean {
   else if (state.selectedIds.length) clearSelection();
   // (Select several: Esc leaves it once nothing's selected, as its × does. Round 3: Tom, Alex.)
   else if (state.selectMode) state.selectMode = false;
+  else if (warningsSideOpen()) closeWarningsSide();
   else if (state.month != null) closeYear();
   else return false;
   return true;
@@ -319,8 +327,11 @@ async function start() {
   // Next, the preview copy of the app, is marked so it's never taken for the real one (a stripe along the top).
   document.body.classList.toggle('channel-next', CHANNEL === 'next');
   loadMyPlants();
-  loadViewSettings(); // (full-size rings and crowding outlines, as left on this device)
-  applyYard(plantFilter, loadYard()); // (kids and pets in the yard: the picker's filters for them, as left on this device)
+  loadViewSettings(); // (full-size rings, plant pictures and the zoom buttons, as left on this device; the warning switches came with the plan)
+  // (Kids and pets in the open plan's yard: the picker's filters for them, and again whenever another plan, or sync's
+  // copy of this one, is put in place.)
+  applyYard(plantFilter, household());
+  setHouseholdListener(() => applyYard(plantFilter, household()));
   plantFilter.hardyHere = loadHardy(); // (hardy in the garden's zone: as left on this device, on to start)
   setSaveStatusListener(updateSaveWarning);
   setSaveStateListener(updateSaveState);

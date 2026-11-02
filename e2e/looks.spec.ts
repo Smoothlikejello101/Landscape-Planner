@@ -81,7 +81,7 @@ test('a plant under a shorter, solid one: a pin and its name over it, outlined w
   await expect(over.locator('[data-role=hidden-rim][data-mark=outline]')).toHaveCount(1);
 });
 
-test("a hidden plant's pin shrinks as the plan zooms out, and goes below 30%; zoomed back in, it's back (Jason, Oct 31)", async ({ page }) => {
+test("a hidden plant's pin shrinks as the plan zooms out and goes below 85%, and goes with the names hidden; zoomed back in, it's back (Jason, Oct 31 and Nov 1)", async ({ page }) => {
   await openFresh(page);
   const place = async (name: string, dx: number) => {
     await page.locator('.tool-btn.plants').click();
@@ -94,24 +94,35 @@ test("a hidden plant's pin shrinks as the plan zooms out, and goes below 30%; zo
   await place('Creeping phlox', 0);
   await place('Mountain mint', 0.5);
   const pins = page.locator('#canvas-svg g[data-role=hidden-over] [data-role=hidden-rim][data-mark=pin]');
+  const zoomIn = page.getByRole('button', { name: 'Zoom in' }), zoomOut = page.getByRole('button', { name: 'Zoom out' });
+  // (Full size from 125% in.)
+  for (let i = 0; i < 20 && (await zoomPct(page)) < 125; i++) await zoomIn.click();
   await expect(pins).toHaveCount(1);
   const radius = async () => Number(await pins.locator('circle').first().getAttribute('r'));
   let last = await radius();
   expect(last).toBe(4.5);
-  const zoomOut = page.getByRole('button', { name: 'Zoom out' });
-  // (Smaller with each step out, until the plant's a speck or the plan's below 30%: then none.)
-  for (let i = 0; i < 20 && (await zoomPct(page)) >= 30; i++) {
+  // (Smaller with each step out, until the plan's below 85%: then none.)
+  let lastZoom = await zoomPct(page);
+  for (let i = 0; i < 20; i++) {
     await zoomOut.click();
     if (!(await pins.count())) break;
+    lastZoom = await zoomPct(page);
     const r = await radius();
     expect(r).toBeLessThanOrEqual(last);
     last = r;
   }
   expect(last).toBeLessThan(4.5); // (smaller before it went)
-  for (let i = 0; i < 20 && (await zoomPct(page)) >= 30; i++) await zoomOut.click();
+  expect(lastZoom).toBeGreaterThanOrEqual(85); // (the last with a pin)
+  expect(await zoomPct(page)).toBeLessThan(85);
   await expect(pins).toHaveCount(0);
   await expect(page.locator('#canvas-svg [data-role=pin-hit]')).toHaveCount(0);
-  for (let i = 0; i < 20 && (await zoomPct(page)) < 60; i++) await page.getByRole('button', { name: 'Zoom in' }).click();
+  for (let i = 0; i < 20 && (await zoomPct(page)) < 100; i++) await zoomIn.click();
+  await expect(pins).toHaveCount(1);
+  // Names and badges hidden: no pins, as no names; shown again, they're back.
+  await page.getByRole('button', { name: 'Hide names and badges' }).click();
+  await expect(pins).toHaveCount(0);
+  await expect(page.locator('#canvas-svg [data-role=pin-hit]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Hide names and badges' }).click();
   await expect(pins).toHaveCount(1);
 });
 

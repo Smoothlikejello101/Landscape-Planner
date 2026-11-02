@@ -165,16 +165,33 @@ export async function openFilters(page: Page) {
   if ((await b.getAttribute('aria-expanded')) !== 'true') await b.click();
 }
 
-/** ⋮ → Settings (text and label size, drawing, warnings: Jason, Oct 31). */
+/** ⋮ → Settings (text and label size, drawing, and a row to Warnings: Jason, Oct 31). */
 export async function openSettings(page: Page) {
   await page.locator('button[title=More]').click();
   await page.getByTestId('menu-settings').click();
 }
 
-/** Settings → Warnings, opened if it's folded (Settings already open). */
-export async function openWarnings(page: Page) {
-  const fold = page.getByTestId('warnings');
-  if ((await fold.getAttribute('open')) === null) await fold.locator(':scope > summary').click();
+/**
+ * Warnings, a sheet of its own since Nov 1 (beside the plan on a computer): from Settings' row if Settings is open, else
+ * the plan's Warnings button, else ⋮ → Settings → its row. Then `kinds` opened ('poison', 'utility', 'hardy', 'sun',
+ * 'crowding', 'fruit').
+ */
+export async function openWarnings(page: Page, ...kinds: string[]) {
+  const list = page.getByTestId('warnings');
+  if (!(await list.isVisible())) {
+    const row = page.getByTestId('settings-warnings'), btn = page.getByTestId('warnings-btn');
+    if (await row.isVisible()) await row.click();
+    else if (await btn.isVisible()) await btn.click();
+    else { await openSettings(page); await page.getByTestId('settings-warnings').click(); }
+    await expect(list).toBeVisible();
+  }
+  for (const k of kinds) await openKind(page, k);
+}
+/** A kind in Warnings, opened if it's folded (Warnings open). */
+export async function openKind(page: Page, kind: string) {
+  const head = page.getByTestId(`warnings-kind-head-${kind}`);
+  if ((await head.getAttribute('aria-expanded')) !== 'true') await head.click();
+  await expect(head).toHaveAttribute('aria-expanded', 'true');
 }
 
 /**

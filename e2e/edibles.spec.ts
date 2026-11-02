@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { closeSheet, openFilters, openFresh, openWarnings, shapeCount, tapFromCenter, openSettings } from './helpers';
+import { closeSheet, openFilters, openFresh, openWarnings, shapeCount, tapFromCenter } from './helpers';
 
 // Edibles and fruit partners (Jason, Oct 30): which part is edible, as chips under Edible; a notice as a plant is
 // placed that needs a partner to fruit, with the catalog's partners to add.
@@ -27,10 +27,10 @@ test('a female winterberry placed says it needs a male, and offers one to place;
   await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
   await expect.poll(() => shapeCount(page)).toBe(3);
   await expect(page.getByTestId('fruit-notice')).toHaveCount(0);
-  // The notices have a switch in Settings → Warnings.
-  await openSettings(page);
-  await openWarnings(page);
+  // The notices have a switch in Warnings, at Fruit partners, saying what it checks.
+  await openWarnings(page, 'fruit');
   await expect(page.getByTestId('fruit-warnings')).toBeChecked();
+  await expect(page.getByTestId('warnings-switch-fruit')).toContainText('Plants that need a partner to fruit');
 });
 
 test('a male holly offers two females alike, and "All 4…" opens the picker on every one (Jason, Oct 30)', async ({ page }) => {
@@ -64,6 +64,7 @@ test("the picker's Edible filter has chips for the part: fruit, leaves, flowers"
   await expect(page.getByTestId('active-chip')).toHaveText(['Edible leaves']);
   await page.getByTestId('plant-search').fill("Pawpaw 'Davis'");
   await expect(page.locator('.plant-item', { hasText: "Pawpaw 'Davis'" })).toHaveCount(0); // (its fruit, not its leaves)
+  await openFilters(page); // (the search folded them: Jason, Nov 1)
   await parts.locator('label', { hasText: 'Fruit' }).click();
   await expect(page.locator('.plant-item', { hasText: "Pawpaw 'Davis'" })).toHaveCount(1);
   // Edible unticked: the parts go with it.

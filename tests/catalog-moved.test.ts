@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { loadPlants, plantIdsInPlan, plantsById } from '../src/plants';
 import { state } from '../src/state';
@@ -18,5 +19,16 @@ describe('a plant placed from a record since folded into another', () => {
     expect(plantsById['sage-and-oregano'].common).toBe('Kitchen sage');
     state.shapes = [{ id: 's1', type: 'circle', x: 0, y: 0, r: 1, plantId: 'sage-and-oregano' } as unknown as CircleShape];
     expect([...plantIdsInPlan()]).toEqual(['salvia-officinalis']);
+  });
+  it('Water iris, folded into Blue flag iris (Jason, 2026-11-01): a plan\u2019s Water iris shows Blue flag iris, with its facts', async () => {
+    const file = JSON.parse(readFileSync('public/plants.json', 'utf8'));
+    expect(file.meta.moved['iris-aquatic-spp']).toBe('iris-virginica');
+    const was = globalThis.fetch;
+    globalThis.fetch = (async () => ({ json: async () => file })) as unknown as typeof fetch;
+    try { await loadPlants(); } finally { globalThis.fetch = was; }
+    expect(plantsById['iris-aquatic-spp']).toBe(plantsById['iris-virginica']);
+    expect([plantsById['iris-aquatic-spp'].common, plantsById['iris-aquatic-spp'].botanical]).toEqual(['Blue flag iris', 'Iris virginica']);
+    state.shapes = [{ id: 'w1', type: 'circle', x: 0, y: 0, r: 1, plantId: 'iris-aquatic-spp', label: 'Water iris' } as unknown as CircleShape];
+    expect([...plantIdsInPlan()]).toEqual(['iris-virginica']);
   });
 });

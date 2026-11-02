@@ -21,6 +21,7 @@ class FlakyKV implements KV {
   getAll<T>(s: any) { return this.inner.getAll<T>(s); }
   keys(s: any, p?: string) { return this.inner.keys(s, p); }
   write(ops: WriteOp[]) { if (this.failWhen?.(ops)) return Promise.reject(new DOMException('full', 'QuotaExceededError')); return this.inner.write(ops); }
+  changeAllOnce(...a: Parameters<KV['changeAllOnce']>) { return this.inner.changeAllOnce(...a); }
 }
 let n = 0;
 const kvs = new Map<string, FlakyKV>();

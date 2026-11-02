@@ -1,5 +1,4 @@
-import { el } from '../dom';
-import { I } from '../icons';
+import { el, sheetCloseButton } from '../dom';
 import {
   activeMyPlants, deleteMyPlant, formatSize, isDataSized, isMine, MY_FLOWER_COLORS, MY_WATER, newMyPlantId, parseSize, parseZones, placedUsing, rawMyPlant, recolorPlaced,
   renamePlaced, resizePlaced, saveMyPlant, speciesLinkFor, speciesRecordFor, sunLevels, sunRange, zonesText, type Range,
@@ -22,8 +21,11 @@ import { ask } from './ask';
 // the size hints update in place.
 //
 // A new plant can start from another, from the catalog or the person's own (asked for by Jason, 2026-10-25): its
-// size, sun, type, color and bloom are filled in, to change what differs. And a plant can be the same species as
-// a catalog plant: then it has what holds for the whole species (src/my-plants.ts, withSpecies).
+// size, sun, type and bloom are filled in, to change what differs. Started from one of the person's own, its name and
+// flower colors are too. Copied from a catalog plant, its name starts empty, no flower colors are ticked and its bloom color in words is empty: it's a
+// plant of the person's own (Grandma's peony, a cultivar the catalog hasn't), for them to name and say the colors of
+// (Jason, Nov 1, from the UI review). And a plant can be the same species as a catalog plant: then it has what holds
+// for the whole species (src/my-plants.ts, withSpecies).
 
 type SunLevel = 'Full' | 'Part' | 'Shade';
 
@@ -45,11 +47,14 @@ export function renderPlantForm() {
   const editing = args.editId ? own(args.editId) : undefined;
   const startedFrom = !editing && args.copyFromId ? own(args.copyFromId) : undefined;
   const source = editing ?? startedFrom;
+  // (Copied from the catalog: named, and its flowers' colors chosen, by the person. See the top of this file.)
+  const fromCatalog = !!startedFrom && !isMine(startedFrom);
   const body = el('div', { className: 'sheet-body' });
 
   if (startedFrom) {
-    body.appendChild(el('div', { className: 'banner', 'data-testid': 'pf-from-banner' }, `Starting from ${startedFrom.common}. Change what differs, such as the name or size`
-      + (isMine(startedFrom) ? '; yours stays as it is.' : '; the catalog entry stays as it is.')));
+    body.appendChild(el('div', { className: 'banner', 'data-testid': 'pf-from-banner' }, fromCatalog
+      ? `Starting from ${startedFrom.common}. Name it, and change what differs, such as the size; the catalog entry stays as it is.`
+      : `Starting from ${startedFrom.common}. Change what differs, such as the name or size; yours stays as it is.`));
   }
   // A new plant: start from another, found by name (its fields filled in; what's typed in the name stays).
   if (!editing) {
@@ -105,7 +110,8 @@ export function renderPlantForm() {
     body.appendChild(el('div', { className: 'field' }, node, input, hint));
     return { input, hint, need };
   };
-  const name = text('Name, required', editing?.common ?? (args.name || startedFrom?.common || ''), "e.g. Hydrangea 'Limelight'", 'pf-name');
+  const name = text('Name, required', editing?.common ?? (args.name || (fromCatalog ? '' : startedFrom?.common) || ''),
+    fromCatalog ? 'e.g. Grandma\u2019s peony' : "e.g. Hydrangea 'Limelight'", 'pf-name');
   const botanical = text('Botanical or cultivar name (optional)', editing ? editing.botanical ?? '' : args.botanical ?? source?.botanical ?? '', 'e.g. Hydrangea paniculata', 'pf-botanical');
 
   // The same species as a catalog plant: offered for the plant it started from (ticked), the one it's linked to
@@ -262,8 +268,9 @@ export function renderPlantForm() {
 
   // Its flowers' colors, as chips below its color on the plan (Jason, Oct 30), the first chosen the one drawn; kept
   // with or without bloom months. A plant from before them starts with its bloom color's words read as chips, one
-  // started from a catalog plant with that plant's colors. (Toggled in place: no re-render.)
-  const flowers: string[] = [...new Set((source?.flower_color?.length ? source.flower_color : ownBloomColors(source?.bloom?.color))
+  // started from another of the person's own with that plant's colors; one copied from a catalog plant with none
+  // ticked, for the person to say (Jason, Nov 1). (Toggled in place: no re-render.)
+  const flowers: string[] = fromCatalog ? [] : [...new Set((source?.flower_color?.length ? source.flower_color : ownBloomColors(source?.bloom?.color))
     .filter((c) => (MY_FLOWER_COLORS as readonly string[]).includes(c)))];
   const flowerRow = el('div', { className: 'color-chips wrap', role: 'group', 'aria-label': 'Flower color', 'data-testid': 'pf-flowers' });
   const flowerHint = el('div', { className: 'hint', 'data-testid': 'pf-flowers-hint' });
@@ -294,7 +301,9 @@ export function renderPlantForm() {
     return sel;
   };
   const bloomStart = monthSel(source?.bloom?.start), bloomEnd = monthSel(source?.bloom?.end);
-  const bloomColor = el('input', { type: 'text', value: source?.bloom?.color ?? '', placeholder: 'e.g. white aging to pink' }) as HTMLInputElement;
+  // (Copied from a catalog plant, its color in words starts empty too, like its chips: an unticked copy was drawn in
+  // the catalog plant's words. Jason, Nov 1.)
+  const bloomColor = el('input', { type: 'text', value: fromCatalog ? '' : source?.bloom?.color ?? '', placeholder: 'e.g. white aging to pink' }) as HTMLInputElement;
   const bloomHint = el('div', { className: 'hint', 'data-testid': 'pf-bloom-hint' });
   const notes = el('textarea', { rows: 3, placeholder: 'Where you bought it, care notes, what to watch for' }) as HTMLTextAreaElement;
   notes.value = typeof source?.notes === 'string' && editing ? source.notes : '';
@@ -365,8 +374,11 @@ export function renderPlantForm() {
       ...(start ? { bloom: { start, end, ...(bloomColor.value.trim() ? { color: bloomColor.value.trim() } : {}) } } : {}),
       ...(flowers.length ? { flower_color: [...flowers] } : {}),
       ...(notes.value.trim() ? { notes: notes.value.trim() } : {}),
-      // (Kept as the person left them: switched to the catalog's, or not that one.)
-      ...(editing?.sameAs ? { sameAs: editing.sameAs } : editing?.notSame ? { notSame: editing.notSame } : {}),
+      // (Kept as the person left them: switched to the catalog's, or not that one. Made from a catalog plant, it's
+      // their own and not that one: never offered as "Now in the catalog" as the plant it was copied from. The UI
+      // review, 2026-11-01: a copy of Paeonia – Herbaceous Types was, at once.)
+      ...(editing?.sameAs ? { sameAs: editing.sameAs } : editing?.notSame ? { notSame: editing.notSame }
+        : startedFrom && !isMine(startedFrom) ? { notSame: startedFrom.id } : {}),
       ...(same.checked && species ? { species: species.id } : {}),
       ...(!sexField.hidden && (sexSel.value === 'male' || sexSel.value === 'female') ? { sex: sexSel.value } : {}),
     };
@@ -437,7 +449,7 @@ export function renderPlantForm() {
 
   const header = el('div', { className: 'sheet-header' },
     el('div', { className: 'title' }, editing ? 'Edit my plant' : 'Add a plant'),
-    (() => { const b = el('button', { className: 'iconbtn', html: I.x, 'aria-label': 'Close' }); b.addEventListener('click', () => close(null)); return b; })());
+    sheetCloseButton(() => close(null), args.back)); // (← back where it was opened from: close)
   const sheet = el('div', { className: 'sheet' }, header, body);
   const overlay = el('div', { className: 'overlay' }, sheet);
   // (A tap beside the form, on a phone easily made by mistake, threw away all that was typed: asked first, once

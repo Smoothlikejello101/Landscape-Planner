@@ -6,7 +6,7 @@ import { agreesWithSeasons, bloomCounts, bloomDisagreements, bloomSpecies, bloom
 import { DOWNLOADS, matchedTaxon, matchUrl, phases, tsvRows } from '../scripts/catalog/gbif.mjs';
 import { loadWild, localBloom, resetWild, type WildFile } from '../src/wild';
 import { bloomMonths } from '../src/bloom';
-import { earlierOnly, plantMatches, PLANT_FILTER_DEFAULTS, type Plant } from '../src/plants';
+import { bloomSaid, earlierOnly, plantMatches, PLANT_FILTER_DEFAULTS, type Plant } from '../src/plants';
 import { plantDetails } from '../src/ui/plant-details';
 import { state } from '../src/state';
 
@@ -131,6 +131,19 @@ describe('bloom months in the app', () => {
     expect(row.textContent).toContain('252 flowering records in Arkansas · GBIF.org flowering records');
     expect(row.querySelector('[data-testid=bloom-months]')).toBeNull();
     expect(box.querySelector('[data-testid=flower-color]')!.firstChild!.textContent).toBe('Purple');
+  });
+  it('are on a picker row, short: the records\' months, else the catalog\'s where no season stands instead (Jason, Nov 1)', () => {
+    expect(bloomSaid({ id: 'coneflower', common: 'Purple coneflower', bloom: { start: 5, end: 7 }, bloom_season: ['summer'] } as Plant)).toBe('Jun–Aug');
+    expect(bloomSaid({ id: 'witch', common: 'Witch hazel' } as Plant)).toBe('Dec–Feb');
+    expect(bloomSaid({ id: 'x', common: 'Listed', bloom: { start: 4, end: 5 } } as Plant)).toBe('Apr–May');
+    expect(bloomSaid({ id: 'x', common: 'One month', bloom: { start: 6, end: 6 } } as Plant)).toBe('Jun');
+    expect(bloomSaid({ id: 'x', common: 'Always', bloom: { start: 1, end: 12 } } as Plant)).toBe('All year');
+    // A season isn't months: none on the row ("Blooming in" counts it by season, in its own fold).
+    expect(bloomSaid({ id: 'x', common: 'Seasonal', bloom: { start: 4, end: 5 }, bloom_season: ['spring'] } as Plant)).toBe('');
+    expect(bloomSaid({ id: 'u-x', common: 'Mine', bloom: { start: 6, end: 7 }, bloom_season: ['spring'] } as Plant)).toBe('Jun–Jul'); // (my own months)
+    // Flowers its sources call not showy, or no months at all: none.
+    expect(bloomSaid({ id: 'x', common: 'Oak', bloom: { start: 3, end: 4 }, flower_color: ['insignificant'] } as Plant)).toBe('');
+    expect(bloomSaid({ id: 'x', common: 'Fern' } as Plant)).toBe('');
   });
   it('drive "Blooming in…", a Dec–Feb bloom included in January', () => {
     const witch = { id: 'witch', common: 'Witch hazel' } as Plant;
