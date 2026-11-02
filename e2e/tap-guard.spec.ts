@@ -85,6 +85,31 @@ test.describe('on a phone', () => {
     await expect(record).toBeVisible(); // (still to press: no sun recorded)
     await expect(page.getByTestId('sun-summary')).toHaveCount(0);
   });
+
+  // The list bug hunt, Nov 1: a quick tap on the picker's search, dropped as too soon after it opened, and the typing
+  // that followed went nowhere. The cursor goes in all the same; any other control pressed that soon is still left be.
+  test('a tap on a text field in a panel just opened puts the cursor in it; the typing that follows goes in (the list bug hunt, Nov 1)', async ({ page }) => {
+    await openFresh(page);
+    await page.locator('.tool-btn.plants').click();
+    const search = page.getByTestId('plant-search'), inPlan = page.getByTestId('in-plan');
+    const [s, p] = [await centerOf(search), await centerOf(inPlan)];
+    await settle(page);
+    await closeSheet(page);
+    await settle(page);
+    // Opened, and its search tapped at once: the cursor's there, and the words typed go in.
+    await page.locator('.tool-btn.plants').click();
+    await page.touchscreen.tap(s.x, s.y);
+    await expect(search).toBeFocused();
+    await page.keyboard.type('aster');
+    await expect(search).toHaveValue('aster');
+    await settle(page);
+    await closeSheet(page);
+    await settle(page);
+    // Opened, and "In this plan" tapped at once: dropped, as before.
+    await page.locator('.tool-btn.plants').click();
+    await page.touchscreen.tap(p.x, p.y);
+    await expect(inPlan).toHaveAttribute('aria-pressed', 'false');
+  });
 });
 
 test('a panel just opened takes no tap for a moment: the end of a double tap doesn\'t press what came up under it (Jason, Nov 1)', async ({ page }) => {

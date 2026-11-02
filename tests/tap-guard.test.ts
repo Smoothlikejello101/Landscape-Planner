@@ -1,5 +1,6 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { isStrayTap, OPENED_MS, tooSoonAfterOpening, type Tap } from '../src/tap-guard';
+import { isStrayTap, OPENED_MS, tooSoonAfterOpening, typingField, type Tap } from '../src/tap-guard';
 
 // Taps that land on what a tap just put there (src/tap-guard.ts). The end-to-end tests are e2e/tap-guard.spec.ts.
 
@@ -23,5 +24,20 @@ describe('a quick second tap', () => {
     expect(isStrayTap(tap(0, 50, 'BUTTON|place||Place'), tap(200, 52, 'BUTTON|add||Add'))).toBe(true);
     expect(isStrayTap(tap(0, 50, 'BUTTON|zoom-in||+'), tap(200, 52, 'BUTTON|zoom-in||+'))).toBe(false);
     expect(isStrayTap(tap(0, 50, 'BUTTON|place||Place'), tap(400, 52, 'BUTTON|add||Add'))).toBe(false);
+  });
+});
+
+// The list bug hunt, Nov 1: typing that followed a tap on the picker's search, dropped as too soon after the picker
+// opened, went nowhere. A text field still takes the cursor; nothing else a dropped press would do is done.
+describe('a press dropped on a panel just opened', () => {
+  it('still focuses a text field it was on, one that takes typing; not a checkbox, a button, a slider or a disabled field', () => {
+    document.body.innerHTML = `<div class="overlay"><label id="l"><span id="s">Search</span><input id="text" type="text"></label>
+      <input id="search" type="search"><input id="num" type="number"><textarea id="ta"></textarea><input id="off" type="text" disabled>
+      <input id="ro" type="text" readonly><input id="box" type="checkbox"><input id="range" type="range"><input id="date" type="date">
+      <button id="b">Place</button></div>`;
+    const $ = (id: string) => document.getElementById(id);
+    expect(['text', 'search', 'num', 'ta'].map((id) => typingField($(id))?.id)).toEqual(['text', 'search', 'num', 'ta']);
+    expect(['off', 'ro', 'box', 'range', 'date', 'b', 's', 'l'].map((id) => typingField($(id)))).toEqual(Array(8).fill(null));
+    expect(typingField(null)).toBeNull();
   });
 });
