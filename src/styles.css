@@ -1174,3 +1174,80 @@ h3.help-how { margin: 0; padding-top: 14px; }
 .help-foot { display: flex; flex-direction: column; gap: 2px; padding: 8px 16px calc(16px + env(safe-area-inset-bottom)); border-top: 1px solid #e7e5e4; }
 .help-foot .link-btn { padding: 8px 2px; }
 @media (prefers-reduced-motion: reduce) { .help-q .fold-chev { transition: none; } }
+/* Compare two or three plants (src/ui/compare-sheet.ts; Jason, Nov 2, from the UI review). In the picker: Compare in a
+   plant's opened details, beside its botanical name; "Comparing" on a chosen plant's row; a bar at the picker's foot. */
+.details-compare { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; margin-bottom: 6px; }
+.details-compare .details-bot { flex: 1 1 10em; min-width: 0; margin-bottom: 0; }
+.compare-toggle { flex: none; display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 4px 12px 4px 10px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; font-size: calc(13px * var(--ts)); color: #44403c; }
+.compare-toggle-icon { display: flex; }
+.compare-toggle[aria-pressed=true] { background: #ecfdf5; border-color: #059669; color: #065f46; font-weight: 600; }
+.compare-toggle:disabled { opacity: 0.55; cursor: not-allowed; }
+.compare-toggle:focus-visible { outline: 2px solid #059669; outline-offset: 1px; }
+.compare-full { font-size: calc(12px * var(--ts)); color: #57534e; }
+.compare-full[hidden], .compare-mark[hidden] { display: none; }
+.pflag.compare { background: #f0fdfa; color: #115e59; border-color: #99f6e4; }
+/* (The bar at the foot, the list above it filling the sheet however short it is.) */
+.sheet.picker-sheet:has(> .compare-bar:not([hidden])) { display: flex; flex-direction: column; scroll-padding-bottom: 72px; }
+.sheet.picker-sheet:has(> .compare-bar:not([hidden])) > * { flex-shrink: 0; }
+.sheet.picker-sheet:has(> .compare-bar:not([hidden])) > .sheet-body { flex-grow: 1; }
+.compare-bar { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 8px 8px calc(8px + env(safe-area-inset-bottom)) 16px; background: #fff; border-top: 1px solid #e7e5e4; box-shadow: 0 -2px 8px rgba(0,0,0,0.06); }
+.compare-bar[hidden] { display: none; }
+.compare-bar-text { flex: 1; min-width: 0; }
+.compare-bar-names { font-size: calc(13px * var(--ts)); font-weight: 600; color: #292524; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.compare-bar-name .compare-spot { vertical-align: -0.15em; margin-right: 3px; }
+.compare-bar-status { font-size: calc(12px * var(--ts)); color: #57534e; }
+.compare-go { flex: none; min-height: 40px; padding: 6px 14px; }
+.compare-go[hidden] { display: none; }
+.compare-clear { flex: none; font-size: calc(13px * var(--ts)); }
+.compare-spot { display: inline-flex; flex: none; }
+.compare-spot svg { width: 100%; height: 100%; display: block; }
+/* The comparison, over the picker: its own scroller, both ways, so the plants' names stay at the top and the facts'
+   names at the left. A 412-wide phone shows two plants beside the facts' names, the third a scroll away; wider, all. */
+.overlay.compare-overlay { inset: 0; background: rgba(0,0,0,0.25); }
+.sheet.compare-sheet { display: flex; flex-direction: column; overflow: hidden; max-height: 92vh; max-height: calc(92dvh - var(--kb, 0px)); }
+.overlay:not(.center) > .sheet.compare-sheet { max-width: 820px; }
+.compare-sheet > .sheet-header { flex: none; position: static; }
+.compare-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; container-type: inline-size; padding-bottom: env(safe-area-inset-bottom); }
+.compare-note { position: sticky; left: 0; padding: 8px 16px; }
+.compare-sure-words { margin: 6px 0 2px; }
+.compare-sure-words[hidden] { display: none; }
+.compare-sure-words dt { display: inline; font-weight: 600; color: #44403c; margin-right: 0.3em; }
+.compare-sure-words dt::after { content: ':'; }
+.compare-sure-words dd { display: inline; margin: 0; }
+.compare-sure-words dd::after { content: ''; display: block; margin-bottom: 3px; }
+.compare-table { --label: calc(84px * var(--ts)); --shown: min(var(--n), 2); --col: min(calc(280px * var(--ts)), max(calc(116px * var(--ts)), calc((100cqw - var(--label)) / var(--shown))));
+  table-layout: fixed; border-collapse: separate; border-spacing: 0; width: calc(var(--label) + var(--n) * var(--col)); font-size: calc(13px * var(--ts)); color: #292524; line-height: 1.35; }
+@container (min-width: 560px) { .compare-table { --shown: var(--n); } }
+.compare-label-col { width: var(--label); }
+.compare-plant-col { width: var(--col); }
+.compare-table th, .compare-table td { padding: 8px 10px; vertical-align: top; text-align: left; border-bottom: 1px solid #f0efed; overflow-wrap: anywhere; background: #fff; }
+/* (The plants' names stay at the top; their botanical names and buttons, under them, scroll with the facts.) */
+.compare-table thead .compare-names > * { position: sticky; top: 0; z-index: 2; padding-bottom: 6px; box-shadow: 0 1px 0 #e7e5e4; }
+.compare-table tbody th[scope=row], .compare-table thead .compare-corner { position: sticky; left: 0; z-index: 1; box-shadow: 1px 0 0 #e7e5e4; }
+.compare-table tbody th[scope=row] { padding-left: 16px; font-size: calc(12px * var(--ts)); font-weight: 500; color: #57534e; }
+.compare-table thead .compare-names > .compare-corner { z-index: 3; box-shadow: 1px 1px 0 #e7e5e4; }
+.compare-table thead tr:last-child > * { border-bottom: 1px solid #d6d3d1; padding-top: 6px; }
+.compare-name { display: flex; align-items: flex-start; gap: 6px; font-weight: 600; color: #292524; }
+.compare-name .compare-spot { margin-top: 1px; }
+.compare-bot { font-style: italic; font-size: calc(11px * var(--ts)); color: #57534e; }
+.compare-about .pflags { margin-top: 4px; }
+.compare-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 10px; margin-top: 8px; }
+.compare-actions .place-btn { min-width: 0; }
+.compare-remove { font-size: calc(13px * var(--ts)); padding: 8px 2px; min-height: 40px; }
+.compare-value { font-weight: 500; }
+.compare-value.unknown { color: #6b6560; font-style: italic; font-weight: 400; }
+.compare-more { font-size: calc(12px * var(--ts)); color: #44403c; margin-top: 2px; }
+.compare-alt { font-size: calc(11px * var(--ts)); color: #a16207; margin-top: 2px; }
+/* How sure: quiet, under the value, in the details' words. */
+.compare-sure { font-size: calc(11px * var(--ts)); color: #6b6560; margin-top: 3px; }
+.compare-sure.sure-earlier, .compare-sure.sure-disputed { color: #92400e; }
+.compare-table td.tone-bad .compare-value { color: #b91c1c; font-weight: 600; }
+.compare-table td.tone-warn .compare-value { color: #92400e; font-weight: 600; }
+.compare-same-row td { padding: 0; background: #fafaf9; border-bottom: 1px solid #e7e5e4; }
+.compare-sticky { position: sticky; left: 0; display: inline-block; }
+.compare-same-head { display: flex; align-items: center; gap: 6px; min-height: var(--tap); padding: 0 16px; font-size: calc(13px * var(--ts)); font-weight: 600; color: #047857; }
+.compare-same-head .fold-chev { display: flex; transition: transform 0.15s; }
+.compare-same-head[aria-expanded=false] .fold-chev { transform: rotate(-90deg); }
+.compare-same-head:focus-visible { outline: 2px solid #059669; outline-offset: -2px; border-radius: 4px; }
+.compare-none { color: #57534e; padding: 12px 16px; }
+@media (prefers-reduced-motion: reduce) { .compare-same-head .fold-chev { transition: none; } }

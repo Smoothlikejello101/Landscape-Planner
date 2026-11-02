@@ -35,6 +35,7 @@ import { renderFeedbackSheet } from './feedback-sheet';
 import { renderHelpSheet } from './help-sheet';
 import { renderExportModal, renderPreviewModal, renderResetModal } from './modals';
 import { pickerClosed, pickerOpened, renderPlantsPanel } from './plants-panel';
+import { compareClosed } from './compare-sheet';
 import { plantDot, shapeDot } from '../plant-looks';
 import { renderPrintPanel } from './print-panel';
 import { renderPlantForm } from './plant-form';
@@ -669,6 +670,9 @@ export function render() {
   // (The picker closed: its plants' detail groups fold again, Jason, 2026-10-29.)
   // (And "Anyone you need to protect?", answered in it, goes under Poison & pets for next time: src/ui/plants-panel.ts.)
   if (shownPanel === 'plants' && state.panel !== 'plants') { foldDetailGroups(); partnersClosed(); pickerClosed(); }
+  // (The plants chosen to compare, and the comparison, go once the picker is left: kept only through the sheets it opens
+  // that come back to it, Add or Copy as my plant, Compare and switch, the garden's ZIP. src/ui/compare-sheet.ts.)
+  if (!state.panel || !['plants', 'plantForm', 'switchPlant', 'location'].includes(state.panel)) compareClosed();
   if (state.panel !== 'projects' && state.panel !== 'rename') projectsClosed();
   if ((state.panel && state.panel !== shownPanel) || (state.menu && state.menu !== shownMenu)) {
     panelOpened(); // (a tap on it a moment from now is the end of a double tap, not one meant for it: src/tap-guard.ts)

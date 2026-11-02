@@ -1006,7 +1006,7 @@ const capital = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
 /** A length as a row says it: "3 ft", "2.5 ft", "8 in". */
 const feetSaid = (x: number) => (x >= 1 ? `${+x.toFixed(1)} ft` : `${Math.round(x * 12)} in`);
 /** A size as its sources give it, a range where they give one: "3–4 ft", "8–12 in", "8 in–1.5 ft", "6 ft". */
-const sizeSaid = (r?: { min?: number; max?: number; med?: number }): string => {
+export const sizeSaid = (r?: { min?: number; max?: number; med?: number }): string => {
   if (!r) return '';
   if (r.min != null && r.max != null && r.min !== r.max) {
     const a = feetSaid(r.min), b = feetSaid(r.max);

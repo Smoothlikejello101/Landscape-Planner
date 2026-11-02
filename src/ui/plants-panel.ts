@@ -20,6 +20,7 @@ import { ZONE_SOURCE_SHORT } from '../climate';
 import { openLocation } from './location-panel';
 import { render } from './render';
 import { plantDetails } from './plant-details';
+import { addCompareToggle, compareBar, compareMark, compareOver, refreshCompare, syncCompareMarks, type CompareHost } from './compare-sheet';
 import { bannedHere, escapeHere, escapeShort, gardenStateName, lawShort, loadWild, regulatedHere } from '../wild';
 import { plantDot, plantSpot } from '../plant-looks';
 
@@ -75,7 +76,7 @@ function namesForNeeds(): NameIndex {
   return needNames.ix;
 }
 /** Once the garden's wild records are in, show them in the list. */
-function afterWild() { if (state.panel === 'plants') { addNativeHereOption(); refreshList?.(); } }
+function afterWild() { if (state.panel === 'plants') { addNativeHereOption(); refreshList?.(); refreshCompare(); } }
 /**
  * "Native to <state>" in the native-status filter, once the garden's state (with native status) is known: put in
  * place when the records arrive after the panel is drawn, without redrawing it (the search box may have focus).
@@ -291,6 +292,27 @@ export function renderPlantsPanel() {
    * for among others; 2 what fits by what other sources say; 3 what fits only by the earlier list's word.
    */
   const groupOf = (p: Plant) => (earlierFor.has(p.id) ? 3 : reportedOnly.has(p.id) ? 2 : comesIn.has(p.id) ? 1 : 0);
+  const verb = swapping ? 'Swap' : linking ? 'Link' : forTree ? 'Pick' : state.placing ? 'Switch' : 'Place';
+  /** A plant's Place (Swap, Link, Switch, Pick) button: on its row, and on its column in the comparison. */
+  function useButton(p: Plant): HTMLButtonElement {
+    // (A plant the law of the garden's state bans, found by name: the button says so, in red, as it's about to go on
+    // the plan. No notice afterwards, nor any on the ones already there: Jason, Oct 31, from round 3: Kim swapped one
+    // in unwarned. The law, not a national list: Jason, Oct 31.)
+    const bad = bannedHere(p) && verb !== 'Link';
+    const place = el('button', { className: 'btn place-btn' + (bad ? ' banned' : ''), 'data-testid': 'plant-place',
+      'aria-label': `${verb === 'Link' ? 'Link to' : verb === 'Switch' ? 'Switch to' : verb === 'Swap' ? 'Swap for' : verb} ${p.common}${bad ? ' (banned here)' : ''}` },
+      // (Short on the button, which shares the row with the name on a phone; the row's law line says where.)
+      bad ? `${verb} (banned)` : verb);
+    place.addEventListener('click', () => pick(p));
+    return place;
+  }
+  // Two or three plants to compare (src/ui/compare-sheet.ts): chosen in their details, held while browsing, compared
+  // over the picker. Changed in place, so the search keeps the keyboard.
+  const compareHost: CompareHost = {
+    get root() { return overlay; },
+    useButton,
+    changed: () => { syncCompareMarks(listWrap); compare.sync(); },
+  };
   /**
    * A plant's row: tap it to open its details, or Place (Link, Pick) to use it.
    * Opening and closing change only this row, so the search box keeps the keyboard.
@@ -337,6 +359,8 @@ export function renderPlantsPanel() {
     const hidBy = hiddenInPlan.get(p.id);
     if (hidBy?.length) flags.push(el('span', { className: 'pflag warn', 'data-testid': 'filtered-in-plan' }, `Your filters would hide it: ${hidBy.join(', ')}`));
     if (flags.length) info.appendChild(el('div', { className: 'pflags' }, ...flags));
+    // (Chosen to compare: said on its row while browsing.)
+    info.appendChild(compareMark(p));
     // Why it matched, where its name doesn't say: what it hosts, another name it goes by, my notes.
     const q = readQuery(plantFilter.q);
     if (q) {
@@ -369,18 +393,9 @@ export function renderPlantsPanel() {
     // Place and copy or edit sit beside it, not inside it.
     const toggle = el('button', { className: 'row-toggle', 'aria-expanded': 'false', 'data-testid': 'plant-row' }, info, dot, chev);
     const head = el('div', { className: 'proj-row', style: { alignItems: 'center' } }, toggle);
-    const verb = swapping ? 'Swap' : linking ? 'Link' : forTree ? 'Pick' : state.placing ? 'Switch' : 'Place';
-    // (A plant the law of the garden's state bans, found by name: the button says so, in red, as it's about to go on
-    // the plan. No notice afterwards, nor any on the ones already there: Jason, Oct 31, from round 3: Kim swapped one
-    // in unwarned. The law, not a national list: Jason, Oct 31.)
-    const bad = bannedHere(p) && verb !== 'Link';
-    const place = el('button', { className: 'btn place-btn' + (bad ? ' banned' : ''), 'data-testid': 'plant-place',
-      'aria-label': `${verb === 'Link' ? 'Link to' : verb === 'Switch' ? 'Switch to' : verb === 'Swap' ? 'Swap for' : verb} ${p.common}${bad ? ' (banned here)' : ''}` },
-      // (Short on the button, which shares the row with the name on a phone; the row's law line says where.)
-      bad ? `${verb} (banned)` : verb);
-    place.addEventListener('click', () => pick(p));
+    const place = useButton(p);
     head.appendChild(place);
-    if (bad) head.classList.add('banned-row'); // (on a phone, copy under the wide button: src/styles.css)
+    if (place.classList.contains('banned')) head.classList.add('banned-row'); // (on a phone, copy under the wide button: src/styles.css)
     // Mine: edit. Catalog: copy as my own (a cultivar of it, say).
     const mine = isMine(p);
     const side = el('button', {
@@ -406,7 +421,7 @@ export function renderPlantsPanel() {
     const setOpen = (open: boolean) => {
       toggle.setAttribute('aria-expanded', String(open));
       item.classList.toggle('open', open);
-      if (open) { opened.add(p.id); details ??= plantDetails(p, flagged); item.appendChild(details); }
+      if (open) { opened.add(p.id); details ??= plantDetails(p, flagged); addCompareToggle(details, p, compareHost); item.appendChild(details); }
       else { opened.delete(p.id); details?.remove(); }
     };
     toggle.addEventListener('click', () => setOpen(!opened.has(p.id)));
@@ -1164,7 +1179,9 @@ export function renderPlantsPanel() {
 
   // (Its full height whatever the list holds: a shorter list moved its top, and the search box and filters with it,
   // between a click and the next. Marcus, Diego, Tom, Oct 30.)
-  const sheet = el('div', { className: 'sheet picker-sheet' }, el('div', { className: 'sheet-top' }, header, searchBar), body);
+  // (The plants chosen to compare, in a bar at its foot.)
+  const compare = compareBar(compareHost);
+  const sheet = el('div', { className: 'sheet picker-sheet' }, el('div', { className: 'sheet-top' }, header, searchBar), body, compare.el);
   // Typing: the start of the results in view, under the search (scrolling only; the keyboard stays). Back up to it from
   // far down the list; or down to it, past what's above it, where the first result is out of sight below (Jason, Nov
   // 1, from the UI review). The filters' chips, a word of need's among them, stay in view above it.
@@ -1175,7 +1192,7 @@ export function renderPlantsPanel() {
     const first = listWrap.firstElementChild?.getBoundingClientRect();
     if (y < top || (first && first.top + 32 > sheet.getBoundingClientRect().bottom)) sheet.scrollTop += y - top - 4;
   });
-  const overlay = el('div', { className: 'overlay' }, sheet);
+  const overlay = el('div', { className: 'overlay' }, sheet, compareOver(compareHost));
   overlay.addEventListener('click', e => { if (e.target === overlay) closePicker(); });
   return overlay;
 }
