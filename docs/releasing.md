@@ -63,6 +63,12 @@ site's is at /db-version.txt): not a revert, a rollback, or a re-run of an older
 newer version would find its plans refused. Fix forward instead: a fix on top, at the same version or higher. CI
 refuses such a deploy, and any but the branch's head (scripts/release/deploy-guard.sh; docs/storage.md).
 
+**Never use "Re-run" on a CI run from before the deploy guard** (the old-tab-guard pull request, Nov 2026). A re-run
+uses the workflow file of the commit it ran for, and those have no guard: re-running an old run of `main` or `release`
+would deploy that old build, at database version 1, over version 2. To be sure even of a mistaken click, Jason can
+require approval for every deploy: Settings → Environments → github-pages → Required reviewers (the release deploy;
+Next publishes from the `next` job, which a re-run of an old `main` run would still do without asking).
+
 ## What's new
 
 `src/whats-new.json`, newest first, each release an `id` (counting up), a `date`, and its lines; and the lines waiting

@@ -109,9 +109,13 @@ describe("the build's db-version.txt", () => {
     expect(deploy.indexOf('deploy-guard.sh')).toBeGreaterThan(-1);
     expect(deploy.indexOf('deploy-guard.sh')).toBeLessThan(deploy.indexOf('actions/deploy-pages'));
     expect(deploy).toContain('BUILD_DB_VERSION: ${{ needs.test.outputs.db_version }}');
+    // (The guard's checkout keeps no token in its git config: the second review, Nov 1.)
+    expect(deploy).toMatch(/sparse-checkout: scripts\/release\n(\s+#.*\n)*\s+persist-credentials: false\n/);
     expect(next).toMatch(/LIVE_URL: https:\/\/next\.fullgrown\.garden\n\s+BRANCH: main\n/);
     expect(next.indexOf('deploy-guard.sh')).toBeGreaterThan(next.indexOf('npm run build'));
     expect(next.indexOf('deploy-guard.sh')).toBeLessThan(next.indexOf('git push'));
     expect(ci).toContain('echo "db_version=$(cat dist/db-version.txt)" >> "$GITHUB_OUTPUT"');
+    // (A re-run of a run from before the guard uses that commit's workflow, with no guard: said where releases are.)
+    expect(readFileSync('docs/releasing.md', 'utf8')).toContain('**Never use "Re-run" on a CI run from before the deploy guard**');
   });
 });

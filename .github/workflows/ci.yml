@@ -124,6 +124,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           sparse-checkout: scripts/release
+          # (Only the guard script is read: the token isn't left in the checkout's git config.)
+          persist-credentials: false
       # Never the release branch's older commit (a re-run of an older run), nor a build with a lower database version than
       # the live app's: every device that opened that one would find its plans refused (docs/storage.md).
       - name: Deploy guard

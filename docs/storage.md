@@ -32,7 +32,9 @@ It guards because once a page opens the database at a higher version, no page of
   - release 3 and before: they try again, then fall back to memory. On a device that has used IndexedDB (localStorage
     keeps `lp-idb-in-use`), they stop with "Your projects couldn't be opened: the browser's storage didn't respond",
     writing nothing. If localStorage was cleared but not IndexedDB, they run on memory with an empty "My Garden": the
-    plans look gone, and nothing done there is kept (nothing is written to IndexedDB or to journals).
+    plans look gone, and nothing done there is kept on the device (nothing is written to IndexedDB or to journals).
+    But signed in, with sync on, that page syncs: it sends its empty "My Garden" up to the account as a new plan, which
+    every device then gets. (It deletes nothing there: it knows no plans to delete.)
 - **A page that can't answer** (frozen in the background, stopped in a debugger) holds the newer page's open. That page
   says to close FullGrown's other tabs or windows, and goes on once it's closed.
 
@@ -63,21 +65,31 @@ When a page is hidden or closed with edits not yet saved, it writes them to loca
 key (`lp-journal:<plan>@<page>`, the page new each time the app opens), and clears only its own once the edits are
 saved: never another tab's, nor one an older version wrote (keyed by the plan alone), which may hold the only copy of an
 edit. Each journal, and each plan record, carries the database version and the page that wrote it (`dbVersion`, none
-meaning 1; `page` and `savedByPage`, `savedAt`).
+meaning 1; `page` and `savedByPage`), and that page's edit count then (`seq` and `savedSeq`: a count, not a time, so a
+clock set back can't make a journal look older than it is).
 
 The next start goes through them (src/storage.ts `replayJournals`), one page at a time where the browser has Web
-Locks. For each:
+Locks (waiting at most 5 seconds for its turn, then going on without), newest first, by when each was written. For
+each:
 - the same as its plan as stored (what it holds, and which photo where): removed, nothing written;
 - written after the plan last changed: put in place, stamped with the journal's own version and page (so an older
   tab's next journal, more of the same edits, goes in place too), unless that would lose something: when it's from an
   older version than the one that last wrote the plan, or it lacks a part the stored plan has and every save keeps once
   set (location, dismissed warnings, the Plant list's ticks, who's in the yard, the warning switches);
-- written before the plan last changed: removed only when the page that wrote it saved the plan after it (that save
-  holds everything the journal had); otherwise (an older version's, another page's, or the plan renamed or synced
-  since) never dropped.
+- written before the plan last changed: removed only when the page that wrote it saved the plan since with at least
+  as many edits (that save holds everything the journal had); otherwise (an older version's, another page's, or the
+  plan renamed or synced since) never dropped.
+Newest first, so of two journals for one plan from pages that never saw each other's edit, the newer is put in place
+and the older, now from before the plan's last change, is kept apart.
 A journal not put in place is kept as a plan of its own, "<name> (from an older tab)", both left whole, and the app
-says so. Its id comes from the journal, so two pages starting together make one such plan, not two. A journal from a
-newer version than the running one is left alone.
+says so. Its id comes from the journal, so two pages starting together make one such plan, not two; and none is made
+when a plan already kept apart from the same plan holds the same (a release 3 tab left open with an unsaved edit
+writes its journal again each time it's hidden). A journal from a newer version than the running one is left alone.
+
+The limit: localStorage holds about 5 MB for the site. While saves keep failing (a full disk), each page that closes
+leaves its own journal, and they stay until a start can write them in; after many such closes, a new journal may not
+fit, and then it isn't written (a journal too big with its photo's bytes is written without them first). The warning
+bar says the changes aren't saved all along.
 
 ## Two tabs on the same version
 
