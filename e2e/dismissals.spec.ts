@@ -37,7 +37,8 @@ test('dismissing a hardiness warning on one copy dismisses it for every copy and
   await tapFromCenter(page, -4, 0);
   await page.locator('.sel-pill .edit').click();
   await openSections(page);
-  await expect(page.getByTestId('hardy-check').getByRole('button')).toHaveText(['Dismiss for this one', 'Dismiss for every Barbados aloe']);
+  // (And Swap, filtered for plants hardy here: Jason's UI review, Nov 2.)
+  await expect(page.getByTestId('hardy-check').getByRole('button')).toHaveText(['Dismiss for this one', 'Dismiss for every Barbados aloe', 'Swap for one hardy in zone 8a…']);
   await page.getByTestId('hardy-dismiss').click();
   await expect(page.getByTestId('dismiss-notice')).toContainText('Hardiness warning dismissed for both Barbados aloe in this plan, and any you add later.');
   await expect(page.getByTestId('dismiss-notice').getByRole('button')).toHaveText(['Just these 2', 'OK', '✕']);
