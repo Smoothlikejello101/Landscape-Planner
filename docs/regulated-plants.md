@@ -114,9 +114,11 @@ cite their own rule, apart from the list beside them.
 | UT | Utah Admin. Code R68-9 (Utah Code 4-17) | The Utah State Bulletin's printing of R68-9 as amended (effective 2024-06-28), checked against the Index of Changes through 2026; the Legislature's code | 59 | Every class: no one may sell, barter or give away its plants or seeds (R68-9-4(2)); Bermudagrass excepted in Washington County and as certified triploid hybrids |
 | AK | Exterior Quarantine of Aquatic Invasive Weeds (2014) and the Prunus padus and Prunus virginiana Quarantine (2025), both under 11 AAC 34.130 (AS 03.05.090) | The Division of Agriculture's signed orders (scans, read from the page images); the Legislature's statutes | 7 | Not imported, transported, bought, sold or distributed within the state, and wild plants not transplanted: elodea, Brazilian waterweed, hydrilla and Eurasian watermilfoil; European bird cherry and chokecherry |
 | CT | CGS § 22a-381d (as amended by P.A. 24-11 and P.A. 25-126); § 22a-381e | The General Assembly's statutes (2026 Supplement; § 22a-381e revised to 2025-01-01) | 97 | Not imported, moved, sold, bought, transplanted, cultivated or distributed (watercress sold to eat without its reproductive parts excepted). Callery pear from 2027-10-01, seven more from 2028-10-01 (Japanese barberry, burning bush, black locust among them) and Norway maple from 2030-10-01: listed until then. Running bamboo (*Phyllostachys*): not planted within 40 ft of a neighbor or a road (listed) |
+| IA | Iowa Code § 317.25 (prohibited invasive plants) and §§ 317.1A, 317.10 (noxious weeds); IAC 571—90.2, 90.3 (aquatic invasive species, effective 2026-06-17), adopting the federal list's aquatic plants | The Legislature's Iowa Code 2026 and Administrative Code (2026-10-28) | 58 | Prohibited: not imported, sold, offered for sale or distributed (multiflora rose excepted as understock). Aquatic: not possessed, bought, sold, propagated or transported, cultivars included. Primary and secondary noxious weeds: owners destroy them as the county orders (listed) |
+| NV | NAC 555.010 (NRS 555.130, 555.150) | The Legislature's NAC chapter 555 (R152-17, effective 2018-08-30) and NRS chapter 555 | 55 | Categories A, B and C: eradicated from nursery dealers' premises (A and B also excluded from the state), and owners control them (listed: no section forbids sale in so many words) |
 
 Arkansas to Tennessee read 2026-10-21, Virginia to Massachusetts 2026-10-31, Florida, Maryland, Minnesota and Colorado
-2026-11-01, Washington, Oregon, Idaho and Montana 2026-11-01, and Utah, Alaska and Connecticut 2026-11-02, each from the government's own text, saved in `catalog-src/legal/` (not committed).
+2026-11-01, Washington, Oregon, Idaho and Montana 2026-11-01, and Utah, Alaska, Connecticut, Iowa and Nevada 2026-11-02, each from the government's own text, saved in `catalog-src/legal/` (not committed).
 Tennessee's PDF was saved by hand in a browser: the Secretary of State's file host turns away clients that
 aren't browsers, and we don't pretend to be one. Texas has one gap: the
 offense is Agriculture Code §71.152's, read from the Legislature's site; "in any live form" and "unless permitted" are the rule's,
@@ -150,7 +152,9 @@ entry waits for the pages Jason saves. Colorado's agriculture department site (a
 readers too; nothing in its entry depends on it. Arizona's rule (A.A.C. R3-4-245) is on sites that answer every
 automated reader with a challenge page: its entry waits for the pages Jason saves. Delaware's and Hawaii's entries are drafted
 and wait too: Delaware's regulations site shows its current rules only in a browser, and Hawaii's statutes are
-waiting on Jason's call about the Legislature's document host. The rest of the states: not yet.
+waiting on Jason's call about the Legislature's document host. Kansas, Maine and Nebraska are drafted and wait for pages a
+site turns away (Kansas's statutes, Maine's Do Not Sell rule, 01-001 CMR ch. 273) or shows only in a browser (Nebraska's
+rules). The rest of the states: not yet.
 
 **Read narrower than printed, or left out:**
 - **Seed-law lists.** Louisiana's noxious weed list (LAC 7:XIII.109), like most states' seed lists, limits weed
@@ -245,6 +249,8 @@ waiting on Jason's call about the Legislature's document host. The rest of the s
 - **Utah:** "Convolvulus spp." under field bindweed is read as *C. arvensis*, the plant its common name names; "Phragmites australis ssp." names no subspecies, so it is entered as the species. Left out: the seed rule's list (R68-8) and county lists.
 - **Alaska:** its noxious weed list (11 AAC 34.020) is seed law, left out: it sits in the seed regulations, and every rule that applies it is about seed. The two quarantines are the Division of Agriculture director's signed orders under 11 AAC 34.130, which AS 03.05.090 makes it a misdemeanor to break; chokecherry's takes in its cultivars ('Canada Red'), since it excepts none. Left out: the aquatic pests quarantine, whose one plant (marimo balls) is an alga, and the potato quarantines.
 - **Connecticut:** names as printed: the whole of *Phragmites australis* (the native subspecies isn't excepted), and American lotus, false indigo, cup plant and black locust as species, with no exception for native stock. Common buckthorn, printed under (a) and again under (b)(4), is entered once, under (a). Watercress is kept: the law names it, excepting watercress sold to eat without its reproductive parts. The plants phased in (2027, 2028, 2030) are listed until their dates. Running bamboo is listed: the law limits where it's planted, not its sale. Left out: the Invasive Plants Council's list, which binds only state agencies' purchases, and pest quarantines on host plants. P.A. 26-129 (sterile cultivars) orders a report, and changes no list.
+- **Iowa:** its noxious weed rules are 21—chapter 58. The multiflora rose ban excepts it "used for understock for either cultivated roses or ornamental shrubs in gardens", read as understock for either; § 317.1A's wording ("or as ornamental shrubs in gardens") could allow garden shrubs too: Jason's call. "All other species of thistles belonging in the genera of Cirsium and Carduus" takes in Iowa's native thistles, as printed. The aquatic rule adopts "the aquatic plants listed in 7 CFR Section 360.200", entered as § 360.200(a)'s, water spinach kept and Caulerpa (an alga) left out. Plants on two lists have an entry in each, the ban first. Left out: shattercane, wild carrot and wild sunflower (crops a species entry would take in), and 21—58.4's Class A and B labels (county priorities).
+- **Nevada:** every category is to be eradicated "from the premises of a dealer of nursery stock", but no section forbids selling, planting or growing one in so many words: listed, an open question (a reviewer could read it as a ban on nursery dealers' sales). "Green fountain grass (Pennisetum setaceum)" is the species, so cultivars sold under it, such as 'Rubrum', are taken in. Left out: weed control districts' own lists, and the voluntary weed-free certification.
 
 ## Matching
 
@@ -345,6 +351,8 @@ As of 2026-10-31:
 - **Utah:** viper's bugloss, St. John's wort and parrot feather (1B), woad (2), field bindweed (3); Scotch broom, Russian olive, dame's rocket and Japanese blood grass (Class 4).
 - **Alaska:** chokecherry (quarantined).
 - **Connecticut:** American lotus, false indigo, cup plant, Chinese wisteria, Japanese and Amur honeysuckle, tree of heaven, autumn and Russian olive, sycamore maple, Japanese angelica tree, garden valerian, star of Bethlehem, dame's rocket, white poplar, common buckthorn, cypress spurge, parrot feather and others (prohibited); Callery pear (from 2027); Japanese barberry, burning bush, glossy buckthorn, black locust, Japanese silver grass and ribbon grass (from 2028); Norway maple (from 2030).
+- **Iowa:** multiflora rose (prohibited but as understock); field bindweed, common buckthorn, tall and field thistle (primary noxious weeds); sheep sorrel (secondary).
+- **Nevada:** fountain grass, woad and St. John's wort (Category A); water hemlock (Category C).
 
 ## What the line doesn't say
 
