@@ -16,7 +16,8 @@ const kinds = (n: number) => `${countWords(n)} kind${n === 1 ? '' : 's'}`;
 const kindsOf = (n: number, what: string) => `${kinds(n)} of ${what}${n === 1 ? '' : 's'}`;
 import { dayOfYear, escapeHere, escapeText, hostsHere, localBloom, localLeafOut, nativeHere, narrowerThanSpecies, nativeText, REGISTER_WHERE, registerText, regulatedHere, wildHere, wildText } from '../wild';
 
-const SURE: Record<string, string> = {
+/** How sure a value is, in a few words (the catalog's `check`): the details' words, and the comparison's (src/compare.ts). */
+export const SURE: Record<string, string> = {
   agree: 'confirmed', confirmed: 'confirmed', single: 'one source', likely: 'nurseries agree', reported: 'one nursery', disputed: 'sources disagree',
 };
 const sourceName = (id: string) => PLANT_META?.sources?.[id]?.title ?? id;
@@ -326,20 +327,30 @@ const STRENGTH = ['agree', 'confirmed', 'single', 'likely', 'reported', 'dispute
 /** The two ends of a range, in words, for a range whose ends come from different sources. */
 const ENDS: Record<string, [string, string]> = { zone_min: ['cold limit', 'warm limit'], sun_most: ['most sun', 'least sun'] };
 /**
+ * Where a range came from (zones, sun: two facts), as rangeLine says it: one end's own where the other isn't known; the
+ * sources that gave both ends, as sure as the less sure end (fewer sources behind the whole range than behind either
+ * end: how sure, by those sources); or, where no source gave both, each end's own, the pair.
+ */
+export function rangeProvenance(facts: string[], prov: Record<string, Provenance> | undefined): Provenance | undefined | [Provenance, Provenance] {
+  const [a, b] = facts.map((f) => prov?.[f]);
+  if (!a || !b || a.unknown || b.unknown) return a && !a.unknown ? a : b;
+  const weaker = [a.check, b.check].sort((x, y) => STRENGTH.indexOf(x ?? 'disputed') - STRENGTH.indexOf(y ?? 'disputed'))[1];
+  const both = a.src.filter((s) => b.src.includes(s));
+  const ref = both.some((s) => PLANT_META?.sources?.[s]?.trust === 'reference');
+  const fewer = both.length < a.src.length || both.length < b.src.length;
+  const check = !fewer ? weaker : ref ? (both.length > 1 ? 'confirmed' : 'single') : both.length > 1 ? 'likely' : 'reported';
+  if (both.length) return { ...a, src: both, check, inherited: a.inherited || b.inherited };
+  return [a, b];
+}
+/**
  * Where a range came from (zones, sun: two facts): the sources that gave both ends, as sure as the less sure end.
  * Sources can decide each end apart (nurseries outnumbering NC State on one end only), so a source behind one
  * end isn't named for the range; where no source gave both, each end says its own.
  */
 function rangeLine(facts: string[], prov: Record<string, Provenance> | undefined): string {
-  const [a, b] = facts.map((f) => prov?.[f]);
-  if (!a || !b || a.unknown || b.unknown) return sourceLine(a && !a.unknown ? a : b);
-  const weaker = [a.check, b.check].sort((x, y) => STRENGTH.indexOf(x ?? 'disputed') - STRENGTH.indexOf(y ?? 'disputed'))[1];
-  const both = a.src.filter((s) => b.src.includes(s));
-  // (Fewer sources behind the whole range than behind either end: how sure, by those sources.)
-  const ref = both.some((s) => PLANT_META?.sources?.[s]?.trust === 'reference');
-  const fewer = both.length < a.src.length || both.length < b.src.length;
-  const check = !fewer ? weaker : ref ? (both.length > 1 ? 'confirmed' : 'single') : both.length > 1 ? 'likely' : 'reported';
-  if (both.length) return sourceLine({ ...a, src: both, check, inherited: a.inherited || b.inherited });
+  const r = rangeProvenance(facts, prov);
+  if (!Array.isArray(r)) return sourceLine(r);
+  const [a, b] = r;
   const [ea, eb] = ENDS[facts[0]] ?? [facts[0], facts[1]];
   const names = (pv: Provenance) => (pv.src.length === 1 && PLANT_META?.sources?.[pv.src[0]]?.trust === 'unverified' ? 'earlier list, unverified' : pv.src.map(sourceName).join(', '));
   const how = (pv: Provenance) => (pv.check && SURE[pv.check] ? ` (${SURE[pv.check]})` : '');
