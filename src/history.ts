@@ -21,6 +21,11 @@ let pendingLabel: string | undefined;
  * status, Clear all); the rest are a plain "Undo".
  */
 export function pushHistory(label?: string) {
+  // (A step still waiting to be pushed (a field typed in, a slider: pushHistoryDebounced) is in this one now: its timer
+  // mustn't push it again later, as a step Undo would undo with nothing to see. CI on #209 caught "Just these 2" undone
+  // by a second Undo only: a Show again 600 ms before had left its timer running. Callers that can, flush first:
+  // flushHistoryDebounce, so that edit stays a step of its own.)
+  if (historyTimer) { clearTimeout(historyTimer); historyTimer = null; }
   // (What's bought stays as it was but for planting: a planted plant deleted gives no tick back. src/plant-list.ts.)
   const before = state.history[state.historyIndex];
   if (before) boughtKept(before.shapes);
