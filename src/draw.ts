@@ -147,9 +147,11 @@ export function typedApplies(d: Pick<DrawState, 'kind' | 'points'>): boolean {
   if (d.kind === 'poly' || d.kind === 'line' || d.kind === 'path') return n >= 1;
   return d.kind === 'rect' && (n === 1 || n === 2);
 }
-/** What the typed side is called in the bar: a rectangle's first side, then its other; else the next side. */
+/** The drawing methods whose sides can be typed, at some point (typedApplies says when): the bar keeps their field. */
+export const typedKind = (kind: DrawState['kind']): boolean => kind === 'poly' || kind === 'line' || kind === 'path' || kind === 'rect';
+/** What the typed side is called in the bar: a rectangle's first side (before it, too), then its other; else the next side. */
 export function typedLabel(d: Pick<DrawState, 'kind' | 'points'>): string {
-  return d.kind === 'rect' ? (d.points.length === 1 ? 'This side' : 'Other side') : 'Next side';
+  return d.kind === 'rect' ? (d.points.length <= 1 ? 'This side' : 'Other side') : 'Next side';
 }
 /** The length typed for the next side (silently: the bar's field, typed without a re-render). */
 export function setTypedLength(v: number | null) {

@@ -186,6 +186,42 @@ test('at Extra large on a 360 × 640 phone, a two-line ZIP message keeps the car
   await chooser;
 });
 
+// The picker bug hunt, Nov 1 (B9): at Extra large the tour's titles read "Where's the g…" and "A photo from …", and with
+// the ZIP sheet open the step's own instruction was cut: "Close this with its × to go…".
+test('at Extra large on a 360 × 640 phone, the tour\'s titles and words are whole, at the foot of the plan and over a sheet (the picker bug hunt, Nov 1)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await page.addInitScript(() => { localStorage.setItem('lp-zoom-buttons', 'off'); localStorage.setItem('lp-text-size-2', 'xlarge'); });
+  await start(page);
+  await expect(page.locator('html')).toHaveAttribute('data-text', 'xlarge');
+  /** Whether all of it shows: nothing cut off to the side or below, nor an ellipsis in its place. */
+  const whole = async (l: ReturnType<Page['locator']>, what: string) => {
+    await expect(l, what).toBeVisible();
+    expect(await l.evaluate((e) => e.scrollWidth <= e.clientWidth + 1 && e.scrollHeight <= e.clientHeight + 1 && getComputedStyle(e).textOverflow !== 'ellipsis'), what).toBe(true);
+    const box = (await l.boundingBox())!, c = (await card(page).boundingBox())!;
+    expect(box.x + box.width, what).toBeLessThanOrEqual(c.x + c.width);
+  };
+  const title = card(page).locator('.intro-title'), text = page.getByTestId('intro-text');
+  await expect(title).toHaveText("Where's the garden?");
+  await whole(title, 'step 1 title');
+  await whole(text, 'step 1 words');
+  // Over the ZIP sheet, at the top, short.
+  await page.getByTestId('intro-go').click();
+  await expect(card(page)).toHaveClass(/at-top/);
+  await whole(title, 'step 1 title over the sheet');
+  await whole(text, 'step 1 words over the sheet');
+  await page.getByTestId('zip').fill('71923');
+  await page.getByTestId('zip-lookup').click();
+  await expect(text).toHaveText('Your zone and frost dates are below. Close this with its × to go on.');
+  await whole(text, 'step 1 words, looked up');
+  // The sheet keeps clear of the card.
+  const sheet = (await page.locator('.overlay .sheet').boundingBox())!, top = (await card(page).boundingBox())!;
+  expect(sheet.y).toBeGreaterThanOrEqual(top.y + top.height);
+  await closeSheet(page);
+  await expect(step(page)).toHaveText('Step 2 of 8');
+  await whole(title, 'step 2 title');
+  await whole(text, 'step 2 words');
+});
+
 test('from an empty plan to a first plant: each step ends when it\'s done, the plant step names a shrub the yard allows, and the ring ends it', async ({ page, isMobile }) => {
   await start(page);
   await expect(card(page)).toHaveClass(isMobile ? /intro-card(?! corner)/ : /corner/);

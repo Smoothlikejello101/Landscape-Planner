@@ -111,6 +111,53 @@ test('the warning switches go with the plan: a new one starts all on, "Same gard
   await ctx.close();
 });
 
+// The list bug hunt, Nov 1 (B2, B5; Jason's decision): a full backup brought back while its plans are still here made a
+// copy of each ("Side yard (2)"), and every plan read "last modified" at the moment of the import.
+test('a full backup brought back where its plans still are: the one deleted comes back as it was, the rest are said to be here already (the list bug hunt, Nov 1)', async ({ page }) => {
+  autoDialogs(page, 'Side yard');
+  await openFresh(page);
+  await addPlainShape(page, 'circle');
+  await field(page, 'Label').fill('Garden oak');
+  await closeSheet(page);
+  await page.locator('.project-btn').click();
+  await page.locator('button', { hasText: 'New project' }).click();
+  await expect(page.locator('.project-btn .pname')).toHaveText('Side yard');
+  await addPlainShape(page, 'rect');
+  await field(page, 'Label').fill('Fern bed');
+  await closeSheet(page);
+  // Zoomed after: how it's viewed isn't the plan.
+  await page.waitForTimeout(600);
+  await page.locator('.project-btn').click();
+  const meta = (name: string) => page.locator('.proj-row', { has: page.locator('.pname', { hasText: new RegExp(`^${name}( \\(current\\))?$`) }) }).locator('.pmeta');
+  const gardenWas = await meta('My Garden').innerText();
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('.backup-section button', { hasText: 'Back up all projects' }).click(),
+  ]);
+  const file = readFileSync((await download.path())!);
+  await closeSheet(page);
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+  // My Garden deleted, a moment later.
+  await page.waitForTimeout(1100);
+  await page.locator('.project-btn').click();
+  await page.locator('.proj-row', { hasText: 'My Garden' }).getByRole('button', { name: /^Delete/ }).click();
+  await expect(page.locator('.proj-row')).toHaveCount(1);
+  await page.locator('[data-testid=import-file]').setInputFiles({ name: 'backup.json', mimeType: 'application/json', buffer: file });
+  // Only My Garden comes back, and opens; Side yard, the same as here, is skipped, and the notice says so.
+  await expect(page.locator('#toast')).toHaveText('Imported 1 project; 1 already here, skipped');
+  await expect(page.locator('.project-btn .pname')).toHaveText('My Garden');
+  await expect(page.locator('#canvas-svg text', { hasText: 'Garden oak' })).toHaveCount(1);
+  await page.locator('.project-btn').click();
+  await expect(page.locator('.proj-row')).toHaveCount(2);
+  await expect(page.locator('.proj-row', { hasText: '(2)' })).toHaveCount(0);
+  // When it last changed, from the file: not the import.
+  await expect(meta('My Garden')).toHaveText(gardenWas);
+  // Again: both here, nothing new.
+  await page.locator('[data-testid=import-file]').setInputFiles({ name: 'backup.json', mimeType: 'application/json', buffer: file });
+  await expect(page.locator('#toast')).toHaveText('All 2 projects are already here, so none were imported');
+  await expect(page.locator('.proj-row')).toHaveCount(2);
+});
+
 test('a single project file imports and opens', async ({ page, browser }) => {
   await openFresh(page);
   await addPlainShape(page, 'oval');

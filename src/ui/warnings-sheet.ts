@@ -9,7 +9,7 @@
 // partners), each with its count and how many are dismissed, or why it can't run yet with a button to fix that; and
 // what goes with the plan. No badge key (Jason: the icons beside the kinds say it). A kind opened: its switch and what
 // it checks; its rows, name first, the problem as the plant's details say it, Dismiss or Show again at the right, a
-// dismissed one saying who for; under a rule and a heading, "Dismiss all 3" and "Show all 2 again" (#187, from
+// dismissed one saying who for; above them, with a heading, "Dismiss all 3" and "Show all 2 again" (#187, from
 // Settings); and "How this is worked out", its rule and sources.
 //
 // Working through it: on a computer it's a panel beside the plan that stays open while its rows select plants. On a
@@ -23,6 +23,7 @@
 // run yet; the warning sign in gray when none were found in the plants Layers shows, with some hidden (not the check:
 // the plants hidden aren't checked).
 
+import { keepInViewOnTurn } from '../canvas';
 import { BULB_PARTNER_MIN_HEIGHT } from '../crowding';
 import { el } from '../dom';
 import { shapeBBox, unionBounds, canvasRect } from '../geometry';
@@ -38,7 +39,7 @@ import { startKind } from '../draw';
 import { BURIED_CLEAR, CLEAR_OF_LINE, MEDIUM_TREE, NEAR_LINE, SMALL_TREE, utilityOf } from '../utilities';
 import { setCrowdWarnings, setFruitWarnings, setHardyWarnings, setPoisonWarnings, setShowCrowding } from '../view-settings';
 import {
-  acrossPlan, buttonSaid, cantRunSaid, KIND_WORDS, kindStates, planWarnings, setDismissed, WARNING_KINDS, warningsSummary,
+  acrossPlan, buttonSaid, cantRunSaid, KIND_WORDS, kindStates, planWarnings, setDismissed, utilitiesDrawn, WARNING_KINDS, warningsSummary,
   type CantRun, type KindState, type WarningKind, type WarningRow, type WarningsSummary,
 } from '../warnings-list';
 import { applyYard, household, saveYard, toggleYard, type Yard } from '../yard';
@@ -89,14 +90,28 @@ function current() {
   return now;
 }
 /**
- * The catalog in: the button, and Warnings if it's open, said afresh in place, without the whole app redrawn (a field
- * being typed in keeps its keyboard: CLAUDE.md).
+ * The catalog in (or the plan changed in place: warningsChangedInPlace): the button, and Warnings if it's open, said
+ * afresh in place, without the whole app redrawn (a field being typed in keeps its keyboard: CLAUDE.md).
  */
 function catalogIn() {
+  if (typeof document === 'undefined') return;
   refreshWarnings();
   const btn = document.querySelector('[data-testid=warnings-btn]'), fresh = warningsButton();
   if (btn && fresh) btn.replaceWith(fresh);
   for (const old of document.querySelectorAll('.warnings-body')) old.replaceWith(body());
+}
+/**
+ * The plan changed with only the canvas redrawn (a field typed in, a slider dragged: src/mutations.ts
+ * updateSelectedSilent): the button's count, and Warnings beside the plan if it's open, said afresh in place, once a
+ * frame (the warnings bug hunt, Nov 1: a sun area's hours dragged from 12 h to 3 h left the count at 11 until its sheet
+ * closed). Never a render: the field being typed in, or the slider held, stays as it is (CLAUDE.md, keyboard safety).
+ */
+let inPlaceQueued = false;
+export function warningsChangedInPlace() {
+  if (inPlaceQueued) return;
+  inPlaceQueued = true;
+  const run = () => { inPlaceQueued = false; catalogIn(); };
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(run); else run();
 }
 /** The rows to look at, in the sheet's order: what the walk steps through. */
 const toLookAt = () => current().rows.filter((r) => !r.dismissed);
@@ -270,7 +285,6 @@ const CANT: Record<CantRun, { said: string; fix?: string }> = {
   yard: { said: 'Off until you choose kids or pets', fix: 'Choose' },
   zip: { said: 'Needs your ZIP', fix: 'Set location' },
   sun: { said: 'No sun areas yet', fix: 'Add a sun area' },
-  utilities: { said: 'None drawn. Checked once you draw a line or a septic field' },
 };
 function fix(st: KindState) {
   if (st.cantRun === 'yard') { kindsOpen.add('poison'); flashKind = 'poison'; render(); }
@@ -289,8 +303,9 @@ function kindFold(st: KindState, rows: WarningRow[]): HTMLElement {
   const kind = st.kind, name = NAMES[kind];
   const open = kindsOpen.has(kind);
   const on = rows.filter((r) => !r.dismissed), off = rows.filter((r) => r.dismissed);
-  // Its line under the name: why it can't run; off; or on with none.
-  const sub = !st.on ? 'Off' : st.cantRun ? CANT[st.cantRun].said : rows.length ? '' : 'On · none';
+  // Its line under the name: why it can't run; off; or on with none (utilities with none drawn: said so, quietly, as a
+  // yard may have none, not as a check that can't run).
+  const sub = !st.on ? 'Off' : st.cantRun ? CANT[st.cantRun].said : rows.length ? '' : kind === 'utility' && !utilitiesDrawn() ? 'None drawn' : 'On · none';
   const meta = el('span', { className: 'wk-meta' },
     on.length ? el('span', { className: 'wk-count', 'data-testid': 'kind-count' }, String(on.length)) : null,
     off.length ? el('span', { className: 'wk-off' }, `${on.length ? '· ' : ''}${off.length} dismissed`) : null);
@@ -313,16 +328,17 @@ function kindFold(st: KindState, rows: WarningRow[]): HTMLElement {
   const wrap = el('section', { className: 'warn-kind' + (open ? ' open' : ''), 'data-testid': `warnings-kind-${kind}`, 'data-state': !st.on ? 'off' : st.cantRun ? 'cant-run' : rows.length ? 'found' : 'none' }, head);
   if (!open) return wrap;
   wrap.appendChild(switchCard(kind));
+  const all = kindButtons(kind, rows);
+  // (With a heading, "All 3 hardiness warnings", so they don't read as a row's: Jason, Nov 1. Above the rows, not
+  // under them: Jason's notes after release 3.)
+  if (all) {
+    wrap.appendChild(el('div', { className: 'warnings-all', 'data-testid': `warnings-all-${kind}`, role: 'group', 'aria-label': `All ${rows.length} ${KIND_WORDS[kind]} warnings` },
+      el('span', { className: 'warnings-all-head', 'aria-hidden': 'true' }, `All ${rows.length} ${KIND_WORDS[kind]} warnings`), ...all));
+  }
   if (rows.length) {
     const list = el('div', { className: 'warn-rows' });
     for (const r of [...on, ...off]) list.appendChild(warningRow(r));
     wrap.appendChild(list);
-  }
-  const all = kindButtons(kind, rows);
-  // (Under a rule and a heading, "All 3 hardiness warnings", so they don't read as the last row's: Jason, Nov 1.)
-  if (all) {
-    wrap.appendChild(el('div', { className: 'warnings-all', 'data-testid': `warnings-all-${kind}`, role: 'group', 'aria-label': `All ${rows.length} ${KIND_WORDS[kind]} warnings` },
-      el('span', { className: 'warnings-all-head', 'aria-hidden': 'true' }, `All ${rows.length} ${KIND_WORDS[kind]} warnings`), ...all));
   }
   const hOpen = howOpen.has(kind);
   const how = el('button', { className: 'warn-how', 'aria-expanded': String(hOpen), 'data-testid': `warnings-how-${kind}` }, 'How this is worked out ', el('span', { 'aria-hidden': 'true' }, hOpen ? '▾' : '▸'));
@@ -368,7 +384,8 @@ function switchCard(kind: WarningKind): HTMLElement {
   };
   if (kind === 'poison') {
     const who = yardSaid();
-    lines.append(el('div', {}, who ? `Plants poisonous to the ${who} in the yard` : 'Plants poisonous to the kids or pets in the yard, once you choose them'));
+    // (Jason's words, after release 3: "Warn about plants poisonous to …".)
+    lines.append(el('div', {}, who ? `Warn about plants poisonous to the ${who} in the yard` : 'Warn about plants poisonous to the kids or pets in the yard, once you choose them'));
     card.appendChild(check('poison-warnings', state.poisonWarnings, setPoisonWarnings, 'Check poison'));
     card.appendChild(yardChips());
   } else if (kind === 'utility') {
@@ -493,6 +510,7 @@ function showRow(r: WarningRow) {
   state.selectedIds = shapes.map((s) => s.id);
   const list = toLookAt();
   walk = { key: keyOf(r), dismissed: r.dismissed, name: r.name, said: r.said, at: Math.max(0, list.findIndex((x) => keyOf(x) === keyOf(r))), selected: state.selectedIds.join() };
+  keepInViewOnTurn(walkTurned); // (its plants kept in view if the phone's turned)
   if (state.panel === 'warnings') state.panel = null;
   zoomTo(r);
   render();
@@ -518,6 +536,17 @@ function zoomTo(r: WarningRow) {
   state.offsetX = cx - (left + (W - left - right) / 2) / ppf;
   state.offsetY = cy - (top + (H - top - bottom) / 2) / ppf;
   saveView();
+}
+
+/**
+ * The phone turned mid-walk (or the window resized): the plants it's on zoomed to again, clear of the chip at the foot
+ * (the warnings bug hunt, Nov 1: turned to 839 × 412, the plan wasn't re-centered and the chip covered the maple).
+ * Only the view changes, and the canvas is redrawn by the resize (src/canvas.ts resizeCanvas): no render.
+ */
+function walkTurned() {
+  if (!walk || !walkUp()) return;
+  const row = findRow(walk.key, walk.dismissed);
+  if (row) zoomTo(row);
 }
 
 /**

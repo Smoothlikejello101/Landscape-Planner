@@ -2,9 +2,9 @@
 // stands, so dismissing one dismisses its other copies and the ones added later, with a toast that says so and offers
 // to warn again for new ones. Fruit-partner reminders too (offering Undo instead: no copy keeps its own). Per plan:
 // another plan, another yard, warns again. Each is kept with what the warning said when it was dismissed, so it comes
-// back if that changes (a new ZIP; someone new in the yard). Sun and crowding stay a copy's own: they depend on where
-// it stands. Shown again from the plant's pane or Warnings (src/warnings-list.ts, src/ui/warnings-sheet.ts), where they
-// can be dismissed too (Jason, Nov 1).
+// back if that changes (a new ZIP; for poison, someone newly at risk in the yard, not fewer: poisonCovered). Sun and
+// crowding stay a copy's own: they depend on where it stands. Shown again from the plant's pane or Warnings
+// (src/warnings-list.ts, src/ui/warnings-sheet.ts), where they can be dismissed too (Jason, Nov 1).
 
 import { pushHistory } from './history';
 import { householdFlags, plantsById, type Plant } from './plants';
@@ -25,9 +25,43 @@ export const poisonLine = (p: Plant): string =>
 /** Each kind as a person reads it ("Fig: hardiness"). */
 export const DISMISS_WORDS: Record<DismissKind, string> = { hardy: 'hardiness', poison: 'poison', fruit: 'fruit partner' };
 
+/**
+ * Who a poison warning's key says is at risk (poisonSaid): "Poisonous to people; A problem for dogs and cats" is
+ * people, dogs and cats. A part it doesn't know stands for itself, whole.
+ */
+export function atRisk(said: string): Set<string> {
+  const out = new Set<string>();
+  for (const part of said.split('; ')) {
+    if (!part) continue;
+    const pets = /^A problem for (.+)$/.exec(part);
+    if (part === 'Poisonous to people') out.add('people');
+    else if (pets) for (const who of pets[1].split(/, | and /)) out.add(who);
+    else out.add(part);
+  }
+  return out;
+}
+/**
+ * Whether a poison warning dismissed when it said `then` is still dismissed now it says `now`: so long as nobody new is
+ * at risk. The same, or fewer (the kids gone from the yard, the dogs still there), keeps it dismissed; someone newly at
+ * risk (cats added) brings it back (Jason, Nov 1, from the warnings bug hunt: any change in who's in the yard brought
+ * every dismissed poison warning back). What's kept is what it said when dismissed, as before.
+ */
+export function poisonCovered(then: string | undefined, now: string): boolean {
+  if (!then) return false;
+  if (then === now) return true;
+  const was = atRisk(then);
+  return [...atRisk(now)].every((who) => was.has(who));
+}
+/** Whether a copy's own dismissal of this kind (hardiness or poison) covers its warning saying `said` now. */
+export function copyDismissed(kind: 'hardy' | 'poison', s: Shape, said: string): boolean {
+  return kind === 'poison' ? poisonCovered(s.poisonDismissed, said) : s.hardyDismissed === said;
+}
+
 /** Whether this kind of warning, saying `said`, is dismissed for the plant across the plan. */
 export function dismissedForPlan(kind: DismissKind, plantId: string | undefined, said: string): boolean {
-  return !!plantId && state.dismissed?.[kind]?.[plantId] === said;
+  const kept = plantId ? state.dismissed?.[kind]?.[plantId] : undefined;
+  if (kept === undefined) return false;
+  return kind === 'poison' ? poisonCovered(kept, said) : kept === said;
 }
 
 /** A plant's copies in the plan. */

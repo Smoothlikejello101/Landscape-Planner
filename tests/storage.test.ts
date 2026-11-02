@@ -12,8 +12,9 @@ import {
   currentProjectData, getSyncDeletedRecord, getSyncRecords, getSyncTombstones, getSyncUser, projectNow, setNewerVersionListener, storageIsDurable,
   supersededByNewer } from '../src/storage';
 import type { Shape } from '../src/types';
-import { allExportedProjects, buildBackupFile, importProjects, parseImportFile, uniqueName } from '../src/backup';
+import { allExportedProjects, buildBackupFile, importProjects, importSaid, parseImportFile, planContent, sameName, uniqueName } from '../src/backup';
 import { sanitizeMyPlant } from '../src/my-plants';
+import type { ProjectData } from '../src/types';
 import { buildSupportFile } from '../src/support';
 import { ERROR_LOG_KEY, readErrors, recordError } from '../src/error-log';
 import { NEW_RECORD, parseIntroRecord } from '../src/intro';
@@ -504,7 +505,7 @@ describe('backup files', () => {
 
     // Restore into a different, empty device
     await freshStorage();
-    const ids = await importProjects(parseImportFile(text));
+    const { ids } = await importProjects(parseImportFile(text));
     expect(ids).toHaveLength(2);
     const names = state.projects.map((p) => p.name).sort();
     expect(names).toEqual(['My Garden', 'My Garden (2)', 'Second']);
@@ -534,7 +535,7 @@ describe('backup files', () => {
     expect(state.bgImage?.dataUrl).toBe(IMG);
 
     await freshStorage();
-    const ids = await importProjects(parseImportFile(text));
+    const { ids } = await importProjects(parseImportFile(text));
     expect(ids).toHaveLength(2);
     const restored = await Promise.all(ids.map((id) => readProject(id)));
     expect(restored.map((d) => d?.shapes.length).sort()).toEqual([1, 2]);
@@ -559,6 +560,89 @@ describe('backup files', () => {
   it('picks non-colliding names', () => {
     expect(uniqueName('A', [])).toBe('A');
     expect(uniqueName('A', ['A', 'A (2)'])).toBe('A (3)');
+  });
+
+  // Jason, Nov 1, from the list bug hunt (B2, B5): a full backup brought back while its plans are still here made a copy
+  // of each, and every plan read "last modified" at the moment of the import.
+  const OCT20 = new Date(2026, 9, 20, 9).getTime(), OCT25 = new Date(2026, 9, 25, 9).getTime(), NOV1 = new Date(2026, 10, 1, 18).getTime();
+  const at = (t: number) => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(t); };
+  it('a full backup where its plans still are: one just like a plan here is skipped, one deleted comes back, one that differs comes in as a copy; each keeps when it last changed', async () => {
+    at(OCT20);
+    await freshStorage();
+    state.shapes = sanitizeProjectData({ shapes: [circle('oak')] }).shapes;
+    state.bgImage = { dataUrl: IMG, naturalWidth: 4, naturalHeight: 4, ftPerPx: 1, cx: 0, cy: 0, rotation: 30, opacity: 0.6, visible: true };
+    state.bought = { 'ilex-vomitoria': { n: 2, at: OCT20 } };
+    save();
+    await flushSave();
+    at(OCT25);
+    const side = await createProject('Side yard', sanitizeProjectData({ shapes: [circle('fern')], zoom: 2, bgImage: { dataUrl: IMG, naturalWidth: 4, naturalHeight: 4, ftPerPx: 1, cx: 0, cy: 0, rotation: 0, opacity: 0.5, visible: true } }));
+    const cabin = await createProject('Cabin', sanitizeProjectData({ shapes: [circle('pine'), circle('birch')] }));
+    const { text } = await buildBackupFile();
+    at(NOV1);
+    // Since the backup: the open plan zoomed and panned (not a change to it), and Cabin deleted.
+    state.zoom = 3; state.offsetX = 40; state.offsetY = -7;
+    await deleteProject(cabin);
+    // The file's Side yard zoomed and its photo's storage id other: still the same plan. Its My Garden's oak moved: not.
+    const file = JSON.parse(text);
+    const fileSide = file.projects.find((p: { name: string }) => p.name === 'Side yard');
+    Object.assign(fileSide.data, { zoom: 0.5, offsetX: 99 });
+    fileSide.data.bgImage.imageId = 'elsewhere';
+    const fileGarden = file.projects.find((p: { name: string }) => p.name === 'My Garden');
+    fileGarden.data.shapes[0].x += 5;
+    const { ids, skipped } = await importProjects(parseImportFile(JSON.stringify(file)));
+    expect(skipped).toBe(1);
+    expect(ids.map((id) => state.projects.find((p) => p.id === id)!.name).sort()).toEqual(['Cabin', 'My Garden (2)']);
+    expect(state.projects.map((p) => p.name).sort()).toEqual(['Cabin', 'My Garden', 'My Garden (2)', 'Side yard']);
+    expect(state.projects.find((p) => p.id === side)).toBeTruthy();
+    // When each last changed, from the file: not the import's time.
+    const meta = (name: string) => state.projects.find((p) => p.name === name)!;
+    expect(meta('Cabin').lastModified).toBe(OCT25);
+    expect(meta('My Garden (2)').lastModified).toBe(OCT20);
+    expect((await readProject(meta('Cabin').id))!.shapes.map((x) => x.label)).toEqual(['pine', 'birch']);
+    // Brought back again: all here now, nothing new.
+    expect(await importProjects(parseImportFile(JSON.stringify(file)))).toEqual({ ids: [], skipped: 3 });
+  });
+
+  it('the same plan is its name, give or take a "(2)", and its content as a file has it: not how it is viewed on a device', () => {
+    const bg = { dataUrl: IMG, naturalWidth: 4, naturalHeight: 4, ftPerPx: 1, cx: 0, cy: 0, rotation: 30, opacity: 0.6, visible: true };
+    const base = sanitizeProjectData({ shapes: [circle('oak'), circle('ash')], bgImage: bg, bought: { 'ilex-vomitoria': { n: 2, at: 5 } }, phases: ['Fall'] });
+    const same = planContent(base);
+    const with_ = (patch: Partial<ProjectData>) => planContent({ ...base, ...patch });
+    const shapes = (...labels: string[]) => sanitizeProjectData({ shapes: labels.map(circle) }).shapes;
+    // How it's viewed, and where its photo is kept: the same.
+    expect(with_({ zoom: 4, offsetX: 1, offsetY: 2, viewFilter: { status: 'planned', phase: '', showGone: false }, photoElsewhere: null })).toBe(same);
+    expect(with_({ bgImage: { ...bg, imageId: 'abc', fingerprint: 'f00', deviceOnly: true } })).toBe(same);
+    // (Its keys in another order, as another version might write them: the same.)
+    expect(planContent(sanitizeProjectData(JSON.parse(JSON.stringify({ phases: ['Fall'], bought: { 'ilex-vomitoria': { at: 5, n: 2 } }, bgImage: bg, shapes: [circle('oak'), circle('ash')] }))))).toBe(same);
+    // Its name, or a copy's: one name. Another name: another plan.
+    expect([sameName('Back yard', ' Back yard '), sameName('Back yard', 'Back yard (2)'), sameName('Back yard (3)', 'Back yard')]).toEqual([true, true, true]);
+    expect([sameName('Back yard', 'Front yard'), sameName('Back yard', 'Back yard 2'), sameName('Back yard', 'back yard')]).toEqual([false, false, false]);
+    // Anything else: another plan.
+    expect(with_({ shapes: shapes('oak') })).not.toBe(same);
+    expect(with_({ shapes: shapes('ash', 'oak') })).not.toBe(same); // (drawn in another order)
+    expect(with_({ bought: { 'ilex-vomitoria': { n: 1, at: 5 } } })).not.toBe(same);
+    expect(with_({ bgImage: { ...bg, opacity: 0.7 } })).not.toBe(same);
+    expect(with_({ bgImage: { ...bg, dataUrl: IMG + 'B' } })).not.toBe(same);
+    expect(with_({ bgImage: null })).not.toBe(same);
+    expect(with_({ phases: [] })).not.toBe(same);
+    expect(with_({ location: { zip: '71923', zone: '8a' } })).not.toBe(same);
+    expect(with_({ household: { kids: true, dogs: '', cats: false, horses: false, answered: true, at: 3 } })).not.toBe(same);
+  });
+
+  it('a file\'s "last modified": kept; none, or one from before FullGrown made plans, is the import\'s time; one ahead of the clock is now', () => {
+    at(NOV1);
+    const file = (lastModified: unknown) => JSON.stringify({ format: 'landscape-planner-project', version: 1, project: { name: 'P', lastModified, data: { shapes: [] } } });
+    expect(parseImportFile(file(OCT20))[0].lastModified).toBe(OCT20);
+    for (const v of [undefined, 1, 0, -5, 'yesterday', Number.NaN]) expect(parseImportFile(file(v))[0].lastModified).toBe(NOV1);
+    expect(parseImportFile(file(NOV1 + 86_400_000))[0].lastModified).toBe(NOV1);
+  });
+
+  it('says what came in, and what was here already', () => {
+    expect(importSaid(1, 0, 0)).toBe('Imported 1 project');
+    expect(importSaid(3, 0, 2)).toBe('Imported 3 projects and 2 of your plants');
+    expect(importSaid(1, 2, 0)).toBe('Imported 1 project; 2 already here, skipped');
+    expect(importSaid(0, 1, 0)).toBe('That project is already here, so none were imported');
+    expect(importSaid(0, 3, 1)).toBe('All 3 projects are already here, so none were imported; added 1 of your plants');
   });
 });
 
@@ -1152,12 +1236,12 @@ describe("the Plant list's ticks, kept with the plan (Jason, Nov 1)", () => {
     const { text } = await buildBackupFile();
     expect(JSON.parse(text).projects[0].data.bought).toEqual({ 'ilex-vomitoria': { n: 2, at: 10 } });
     await freshStorage();
-    const [id] = await importProjects(parseImportFile(text));
+    const { ids: [id] } = await importProjects(parseImportFile(text));
     expect((await readProject(id))!.bought).toEqual({ 'ilex-vomitoria': { n: 2, at: 10 } });
     // A backup made by the version before: the same file, with no ticks in it.
     const old = JSON.parse(text);
     delete old.projects[0].data.bought;
-    const [oldId] = await importProjects(parseImportFile(JSON.stringify(old)));
+    const { ids: [oldId] } = await importProjects(parseImportFile(JSON.stringify(old)));
     const restored = (await readProject(oldId))!;
     expect(restored.bought).toBeUndefined();
     expect(restored.shapes.map((x) => x.label)).toEqual(['one']);
@@ -1235,11 +1319,11 @@ describe("who's in the yard, kept with the plan (Jason, Nov 1)", () => {
     const { text } = await buildBackupFile();
     localStorage.setItem('lp-yard', JSON.stringify({ ...NO_YARD, cats: true })); // (the device it's restored on)
     await freshStorage();
-    const [id] = await importProjects(parseImportFile(text));
+    const { ids: [id] } = await importProjects(parseImportFile(text));
     expect((await readProject(id))!.household).toEqual({ ...dogsAndKids, answered: true, at: expect.any(Number) });
     const old = JSON.parse(text);
     delete old.projects[0].data.household;
-    const [oldId] = await importProjects(parseImportFile(JSON.stringify(old)));
+    const { ids: [oldId] } = await importProjects(parseImportFile(JSON.stringify(old)));
     expect((await readProject(oldId))!.household).toEqual({ ...NO_YARD, cats: true, answered: true });
     expect(sanitizeHousehold({ kids: 'yes', dogs: 'wolves', cats: true, horses: 1, answered: 'no', at: -3 })).toEqual({ ...NO_YARD, cats: true, answered: false });
     expect([sanitizeHousehold('kids'), sanitizeHousehold([true])]).toEqual([undefined, undefined]);
@@ -1435,12 +1519,12 @@ describe('the warning switches, kept with the plan (Jason, Nov 1)', () => {
     expect(JSON.parse(text).projects[0].data.switches.poisonWarnings).toEqual({ on: false, at: expect.any(Number) });
     localStorage.setItem('lp-crowd-warn', 'off'); // (the device it's restored on)
     await freshStorage();
-    const [id] = await importProjects(parseImportFile(text));
+    const { ids: [id] } = await importProjects(parseImportFile(text));
     await switchProject(id);
     expect(on()).toEqual([true, true, true, false, true]);
     const old = JSON.parse(text);
     delete old.projects[0].data.switches;
-    const [oldId] = await importProjects(parseImportFile(JSON.stringify(old)));
+    const { ids: [oldId] } = await importProjects(parseImportFile(JSON.stringify(old)));
     await switchProject(oldId);
     expect(on()).toEqual([true, false, true, true, true]);
     expect(sanitizeSwitches({ showCrowding: { on: false, at: 3 }, crowdWarnings: { on: 'no' }, hardyWarnings: { on: true, at: -1 }, sunWarnings: { on: false }, poisonWarnings: 7 }))

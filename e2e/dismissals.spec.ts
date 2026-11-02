@@ -106,12 +106,13 @@ test('Warnings: each kind\'s warning dismissed from its row, as the plan dismiss
   await expect(page.getByTestId('warnings-btn')).toHaveAttribute('aria-label', 'Warnings: 11 to look at');
   await expect(page.getByTestId('warnings-count')).toHaveText('11');
   await openWarnings(page, ...KINDS);
-  // Safety first; a kind with more than one has its Dismiss all under its rows, last in it but How this is worked out;
-  // one, only its row's.
+  // Safety first; a kind with more than one has its Dismiss all above its rows, just after its switch (Jason, after
+  // release 3: they were under the rows); one, only its row's.
   await expect(page.getByTestId('warnings-head')).toHaveText('11 to look at');
   await expect(page.locator('[data-testid^=warnings-kind-head-]')).toHaveText([/^Poison/, /^Utilities/, /^Hardiness/, /^Sun/, /^Crowding/, /^Fruit partners/]);
   await expect(all(page, 'crowding').getByRole('button')).toHaveText(['Dismiss all 3']);
-  await expect(kind(page, 'crowding').locator(':scope > *').nth(-2)).toHaveAttribute('data-testid', 'warnings-all-crowding');
+  await expect(kind(page, 'crowding').locator(':scope > *').nth(2)).toHaveAttribute('data-testid', 'warnings-all-crowding');
+  await expect(kind(page, 'crowding').locator(':scope > *').nth(3)).toHaveClass('warn-rows');
   await expect(all(page, 'crowding').locator('.warnings-all-head')).toHaveText('All 3 crowding warnings');
   await expect(all(page, 'poison').getByRole('button')).toHaveText(['Dismiss all 4']);
   for (const k of ['sun', 'hardy', 'utility', 'fruit']) await expect(all(page, k)).toHaveCount(0);

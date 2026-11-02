@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addPlainShape, autoDialogs, closeSheet, field, openFilters, openFresh } from './helpers';
+import { addPlainShape, autoDialogs, closeSheet, field, openFilters, openFresh, placeOnceAtCenter } from './helpers';
 
 // Plant picker rows open to show a plant's details; Place uses it.
 
@@ -541,6 +541,61 @@ test('typing a search folds the open filters, the results in view; Add as my pla
   if (isMobile) await expect(page.getByTestId('plant-search')).toBeFocused();
 });
 
+// The picker bug hunt, Nov 1: typing on a 360 × 640 phone, Recent and "Anyone you need to protect?" stayed above the
+// results, one row of them in view at most, at Extra large none. They fold away while a search is typed, as the
+// filters do, and come back when it's cleared.
+test('typing a search folds Recent and "Anyone you need to protect?" away, results in view on a 360 × 640 phone; cleared, they\'re back (the picker bug hunt, Nov 1)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Wild columbine');
+  await page.locator('.plant-item', { hasText: 'Wild columbine' }).first().getByTestId('plant-place').click();
+  await placeOnceAtCenter(page);
+  for (const size of ['medium', 'xlarge']) {
+    await page.evaluate((s) => localStorage.setItem('lp-text-size-2', s), size);
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-text', size);
+    await page.locator('.tool-btn.plants').click();
+    const recent = page.getByTestId('recent-field'), ask = page.getByTestId('protect-line').first();
+    const search = page.getByTestId('plant-search');
+    await search.fill('');
+    await expect(recent).toBeVisible();
+    await expect(ask).toBeVisible();
+    const first = () => page.locator('.plant-item > .proj-row').first().evaluate((r) => { const b = r.getBoundingClientRect(); return { top: b.top, bottom: b.bottom }; });
+    const folds = (await recent.boundingBox())!.height + (await ask.boundingBox())!.height;
+    const before = await first();
+    await search.pressSequentially('aster');
+    await expect(recent, size).toBeHidden();
+    await expect(ask, size).toBeHidden();
+    // The results up where those were: the first in view, whole at Medium (it was below the screen at Extra large).
+    const after = await first();
+    expect(after.top, size).toBeLessThan(before.top - folds + 40);
+    expect(after.top + 60, size).toBeLessThan(640);
+    if (size === 'medium') expect(after.bottom).toBeLessThanOrEqual(640);
+    // A word of need made a filter empties the box: still folded, the search going on.
+    await search.fill('');
+    await expect(recent).toBeVisible();
+    await search.pressSequentially('evergreen');
+    await search.press('Enter');
+    await expect(search).toHaveValue('');
+    await expect(page.getByTestId('active-chip').first()).toBeVisible();
+    await expect(recent).toBeHidden();
+    // Cleared by hand: back, by the ×, or by deleting what's typed.
+    await search.pressSequentially('aster');
+    await page.getByTestId('clear-search').click();
+    await expect(recent).toBeVisible();
+    await expect(ask).toBeVisible();
+    await search.pressSequentially('fern');
+    await expect(recent).toBeHidden();
+    for (let i = 0; i < 4; i++) await search.press('Backspace');
+    await expect(search).toHaveValue('');
+    await expect(recent).toBeVisible();
+    await expect(ask).toBeVisible();
+    await page.getByTestId('reset-filters').click();
+    await closeSheet(page);
+  }
+});
+
 test('words of need become filters: "shade flowers" is Part shade and Has flowers; a word of a plant\'s name stays the search (Jason, Nov 1)', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
@@ -709,6 +764,49 @@ test('a row fits 360 px at every text size: its name, spot, months, Place and co
     // The months and their flower kept together on one line.
     const bloom = await box(row.getByTestId('row-bloom'));
     expect(bloom.height, size).toBeLessThan(40);
+    await closeSheet(page);
+  }
+});
+
+// The picker bug hunt, Nov 1 (B11): "Bradford/Callery pear" broke as "Bradford/Call" and "ery pear" beside the wide
+// "Place (banned)". A name wraps between its words, or after a slash; never in a word.
+test('a name wraps between words or after its slash, never mid-word, beside "Place (banned)" on a 360 px phone at every text size (the picker bug hunt, Nov 1)', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 640 });
+  await openFresh(page);
+  await page.getByTestId('first-zip').fill('29201');
+  await page.getByTestId('first-zip-lookup').click();
+  await expect(page.getByTestId('location-result')).toContainText('Zone');
+  await closeSheet(page);
+  for (const size of ['small', 'medium', 'large', 'xlarge']) {
+    await page.evaluate((s) => localStorage.setItem('lp-text-size-2', s), size);
+    await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-text', size);
+    await page.locator('.tool-btn.plants').click();
+    await page.getByTestId('plant-search').fill('callery pear');
+    const row = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: 'Bradford/Callery pear' }) }).first();
+    await expect(row.getByTestId('plant-place')).toHaveText('Place (banned)');
+    const name = row.locator('.pname');
+    await expect(name).toHaveText('Bradford/Callery pear');
+    // Where each line starts: only after a space or a slash.
+    const midWord = await name.evaluate((e) => {
+      const walker = document.createTreeWalker(e, NodeFilter.SHOW_TEXT);
+      let prev: { ch: string; top: number } | null = null, gap = false;
+      const bad: string[] = [];
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const t = n.textContent ?? '';
+        for (let i = 0; i < t.length; i++) {
+          if (/\s/.test(t[i])) { gap = true; continue; }
+          const r = document.createRange(); r.setStart(n, i); r.setEnd(n, i + 1);
+          const top = r.getBoundingClientRect().top;
+          if (prev && top > prev.top + 2 && !gap && prev.ch !== '/') bad.push(prev.ch + t[i]);
+          prev = { ch: t[i], top }; gap = false;
+        }
+      }
+      return bad;
+    });
+    expect(midWord, size).toEqual([]);
+    const place = (await row.getByTestId('plant-place').boundingBox())!;
+    expect(place.x + place.width, size).toBeLessThanOrEqual(360);
     await closeSheet(page);
   }
 });
@@ -884,6 +982,9 @@ test('"Anyone you need to protect?": Kids hides plants poisonous to people and i
   await expect(mayapple.getByTestId('row-skin')).toHaveText('Can irritate skin');
   await page.getByTestId('filters-back').click();
   // In step with Poison & pets, both ways. Dogs is Poison & pets' first dog setting: no dog warnings.
+  // (Folded away while there's a search, back once it's cleared: the picker bug hunt, Nov 1.)
+  await expect(protectAtTop(page)).toBeHidden();
+  await page.getByTestId('clear-search').click();
   await expect(protectAtTop(page)).toBeVisible(); // (answered: it stays for now, to see what was set)
   await openFilters(page);
   await expect(page.getByRole('checkbox', { name: 'Not listed as poisonous to people' })).toBeChecked();
@@ -918,11 +1019,14 @@ test('"Anyone you need to protect?": Kids hides plants poisonous to people and i
 test('"Anyone you need to protect?" dismissed: under Poison & pets at once, a notice says so, and it stays there after a reload', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
-  await page.getByTestId('plant-search').fill('aster');
+  // (Moved in place, the picker not drawn again: its search box the same one after. A search typed folds the question
+  // away, so it isn't dismissed while one is: the picker bug hunt, Nov 1.)
+  const search = page.getByTestId('plant-search');
+  await search.evaluate((e) => { (e as HTMLElement & { kept?: boolean }).kept = true; });
   await page.getByTestId('protect-dismiss').click();
   await expect(page.locator('#toast')).toHaveText("It's under Filters → Poison & pets.");
   await expect(protectAtTop(page)).toHaveCount(0);
-  await expect(page.getByTestId('plant-search')).toHaveValue('aster'); // (moved in place: the search as it was)
+  expect(await search.evaluate((e) => (e as HTMLElement & { kept?: boolean }).kept)).toBe(true);
   await openFilters(page);
   await expect(protectInGroup(page)).toBeVisible();
   // Who's in the yard is left as it was: no one, not answered. Dismissed on this device.

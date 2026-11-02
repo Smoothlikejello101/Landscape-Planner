@@ -12,6 +12,7 @@ import { isUtilityKind, utilityLook } from './utility-kinds';
 import type { Bounds, Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapeFilter, ShapePatch, Status } from './types';
 import { cleanPhaseName, MAX_PHASES, shownWith, statusLabel, statusPatch, today } from './status';
 import { render } from './ui/render';
+import { warningsChangedInPlace } from './ui/warnings-sheet';
 import { deepClone, now, snap, uid } from './util';
 import { setRadius } from './trees';
 
@@ -49,6 +50,9 @@ export function updateSelectedSilent(patch: ShapePatch) {
   save();
   pushHistoryDebounced();
   redrawCanvas();
+  // (The plan's badges are redrawn with it; the Warnings button's count, and Warnings beside the plan, are said afresh
+  // in place, not with a render: a sun area's hours dragged, say. The warnings bug hunt, Nov 1.)
+  warningsChangedInPlace();
 }
 export function deleteShapesByIds(ids: string[]) {
   flushHistoryDebounce();
@@ -388,6 +392,24 @@ export function markPlantedToday(ids: string[]) {
     s.plantedOn = day;
   }
   pushHistory(set.length ? `set ${stepNamed(set)} to Planted` : undefined);
+  save();
+}
+/**
+ * Plants marked planted, not planted yet after all, from the Plant list (Jason's testing, Nov 1): back to Planned, their
+ * planting date gone (it wasn't one), as one step to undo. What they used up of their kind's tick comes back with them
+ * (src/plant-list.ts keepBought): bought, not yet planted.
+ */
+export function markNotPlanted(ids: string[]) {
+  flushHistoryDebounce();
+  const set = state.shapes.filter((s) => ids.includes(s.id) && s.status === 'planted');
+  for (const s of set) {
+    for (const [k, v] of Object.entries(statusPatch(s, 'planned'))) {
+      if (v === undefined) delete (s as unknown as Record<string, unknown>)[k];
+      else (s as unknown as Record<string, unknown>)[k] = v;
+    }
+    delete s.plantedOn;
+  }
+  pushHistory(set.length ? `set ${stepNamed(set)} to Planned` : undefined);
   save();
 }
 export function setPhaseForIds(ids: string[], phase: string) {

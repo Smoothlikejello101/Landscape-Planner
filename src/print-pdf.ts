@@ -228,7 +228,10 @@ function plantList(doc: JsPDF, groups: ScheduleGroup[], firstBoxes: Box[], layou
     items.push({ kind: 'group', text: g.bed, total: g.total });
     for (const r of g.rows) items.push({ kind: 'row', key: r.key, count: r.count, label: r.label, botanical: r.botanical });
   }
-  const lineH = (it: Item) => (it.kind === 'head' ? pt(12) : it.kind === 'note' ? pt(11) : it.kind === 'group' ? pt(14) : pt(11));
+  const NAME_X = 0.62;
+  /** A row's lines in this column, laid out as it's drawn (scheduleRow). */
+  const rowIn = (it: Extract<Item, { kind: 'row' }>) => scheduleRow(doc, it.label, it.botanical, box.w - NAME_X);
+  const lineH = (it: Item) => (it.kind === 'head' ? pt(12) : it.kind === 'note' ? pt(11) : it.kind === 'group' ? pt(14) : rowIn(it).lines * pt(11));
   let boxes = firstBoxes.slice();
   let box = boxes.shift()!;
   let y = box.y;
@@ -266,23 +269,47 @@ function plantList(doc: JsPDF, groups: ScheduleGroup[], firstBoxes: Box[], layou
       doc.setDrawColor('#d6d3d1'); doc.setLineWidth(pt(0.5));
       doc.line(box.x, y + pt(13), box.x + box.w, y + pt(13));
     } else {
-      // Key (as printed in the circles), then quantity, then the name.
+      // Key (as printed in the circles), then quantity, then the name, its botanical name after it or under it.
       doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
       if (numbered) doc.text(String(it.key), box.x + 0.2, y, { baseline: 'top', align: 'right' });
       doc.setFont('helvetica', 'normal');
       doc.text('×' + it.count, box.x + 0.28, y, { baseline: 'top' });
-      const nameX = box.x + 0.62, room = box.w - 0.62;
-      const name = fit(doc, it.label, room);
-      doc.text(name, nameX, y, { baseline: 'top' });
-      const used = doc.getTextWidth(name);
-      if (it.botanical && used + 0.4 < room) {
+      const nameX = box.x + NAME_X, r = rowIn(it);
+      doc.setFont('helvetica', 'normal'); // (measuring left it at the botanical name's italic)
+      r.name.forEach((line, i) => doc.text(line, nameX, y + i * pt(11), { baseline: 'top' }));
+      if (r.bot.length) {
         doc.setFont('helvetica', 'italic'); doc.setTextColor('#78716c');
-        doc.text(fit(doc, it.botanical, room - used - 0.1), nameX + used + 0.1, y, { baseline: 'top' });
+        const first = r.botAfter ? r.name.length - 1 : r.name.length;
+        r.bot.forEach((line, i) => doc.text(line, i === 0 && r.botAfter ? nameX + r.botAfter : nameX, y + (first + i) * pt(11), { baseline: 'top' }));
       }
     }
     y += lineH(it);
   }
   return pages;
+}
+/** The most lines a plant list row's name, or its botanical name, takes: a longer one is cut, with an ellipsis. */
+const ROW_LINES = 2;
+/**
+ * A plant list row in a column `room` inches wide (8 pt): its name, wrapped; its botanical name after it on the name's
+ * last line where it fits whole there (`botAfter`: inches in from the name's start), else on lines of its own under
+ * it. Cut only past two lines each. (The general bug hunt, Nov 1: "Ensete ventrico..." cut short on its one line, with
+ * the page mostly empty.) `lines`: how many it takes. The font is left at the name's: 8 pt, normal.
+ */
+export function scheduleRow(doc: JsPDF, label: string, botanical: string, room: number): { name: string[]; bot: string[]; botAfter: number; lines: number } {
+  const lines = (text: string) => {
+    const all = doc.splitTextToSize(pdfSafe(text), room) as string[];
+    return all.length <= ROW_LINES ? all : [...all.slice(0, ROW_LINES - 1), fit(doc, all.slice(ROW_LINES - 1).join(' '), room)];
+  };
+  doc.setFontSize(8);
+  doc.setFont('helvetica', 'normal');
+  const name = lines(label);
+  if (!botanical.trim()) return { name, bot: [], botAfter: 0, lines: name.length };
+  const after = doc.getTextWidth(name[name.length - 1] ?? '') + 0.1;
+  doc.setFont('helvetica', 'italic');
+  const beside = after + doc.getTextWidth(pdfSafe(botanical)) <= room;
+  const bot = beside ? [pdfSafe(botanical)] : lines(botanical);
+  doc.setFont('helvetica', 'normal');
+  return beside ? { name, bot, botAfter: after, lines: name.length } : { name, bot, botAfter: 0, lines: name.length + bot.length };
 }
 /** Text cut to fit `width` inches, with an ellipsis. */
 function fit(doc: JsPDF, text: string, width: number): string {

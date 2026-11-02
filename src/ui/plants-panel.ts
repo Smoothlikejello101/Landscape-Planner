@@ -46,8 +46,14 @@ export function pickerOpened() { keptSearch = !!plantFilter.q; }
  * dismissal moves it at once. Null with the picker closed.
  */
 let askingAtTop: boolean | null = null;
+/**
+ * Recent and "Anyone you need to protect?" folded away while a search is typed, as the filters fold, so its results are
+ * what's in view (the picker bug hunt, Nov 1: on a 360 × 640 phone they left one result row in sight, at Extra large
+ * none); back once the search is cleared, or the picker closes. Kept across a redraw while typing.
+ */
+let typingFold = false;
 /** The picker closed (src/ui/render.ts): asked again or not by what's kept, the next time it opens. */
-export function pickerClosed() { askingAtTop = null; }
+export function pickerClosed() { askingAtTop = null; typingFold = false; }
 /** `fn` with these filters off, the filters as they were after. */
 function withFiltersOff<T>(keys: (keyof PlantFilter)[], fn: () => T): T {
   const was = keys.map((k) => [k, plantFilter[k]] as const);
@@ -129,6 +135,12 @@ function pick(p: Plant) {
 function openForm(args: PlantFormArgs) { state.plantForm = { ...args, back: 'plants' }; state.panel = 'plantForm'; render(); }
 
 const cap = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
+/**
+ * A plant's name with a place to wrap after each slash: "Bradford/" then "Callery pear" on the next line, not
+ * "Bradford/Call" and "ery pear" beside a wide "Place (banned)" (the picker bug hunt, Nov 1, B11). Its words are as
+ * they were; a browser doesn't wrap after a slash on its own.
+ */
+const slashBreaks = (name: string): Child[] => name.split('/').flatMap((part, i) => (i ? ['/', el('wbr'), part] : [part]));
 /** The fewest cultivars a fold holds (Jason, 2026-10-26): fewer are rows of their own. */
 const MIN_FOLD = 4;
 const joined = (xs: string[], word: string) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} ${word} ${xs[xs.length - 1]}` : xs[0] ?? '');
@@ -228,6 +240,7 @@ export function renderPlantsPanel() {
   }
   // The plants placed most recently, one tap each.
   const recent = linking || forTree ? [] : recentPlants();
+  let recentField: HTMLElement | null = null;
   if (recent.length) {
     const row = el('div', { className: 'recent-plants', 'data-testid': 'recent-plants' });
     for (const p of recent) {
@@ -236,7 +249,8 @@ export function renderPlantsPanel() {
       chip.addEventListener('click', () => pick(p));
       row.appendChild(chip);
     }
-    body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Recent'), row));
+    recentField = el('div', { className: 'field', 'data-testid': 'recent-field', hidden: typingFold }, el('label', {}, 'Recent'), row);
+    body.appendChild(recentField);
   }
   if (PLANTS.some((p) => p.unverified || p.partlyChecked)) {
     // (One line, so the list starts high on a phone; the link tells the rest.)
@@ -293,7 +307,7 @@ export function renderPlantsPanel() {
     // ("In this plan": how many of it, "× 4" (the UI review, 2026-11-01, decided "Build next").)
     const inPlanN = plantFilter.inPlan ? planCounts().get(p.id) ?? 0 : 0;
     const info = el('div', { className: 'pinfo' },
-      el('div', { className: 'pname' }, headName(p), inPlanN ? el('span', { className: 'in-plan-n', 'data-testid': 'in-plan-count' }, ` \u00d7\u00a0${inPlanN}`) : null),
+      el('div', { className: 'pname' }, slashBreaks(headName(p)), inPlanN ? el('span', { className: 'in-plan-n', 'data-testid': 'in-plan-count' }, ` \u00d7\u00a0${inPlanN}`) : null),
       lines.names ? el('div', { className: 'pmeta', 'data-testid': 'row-names' }, lines.names) : null,
       facts.childNodes.length ? facts : null,
     );
@@ -358,6 +372,7 @@ export function renderPlantsPanel() {
       bad ? `${verb} (banned)` : verb);
     place.addEventListener('click', () => pick(p));
     head.appendChild(place);
+    if (bad) head.classList.add('banned-row'); // (on a phone, copy under the wide button: src/styles.css)
     // Mine: edit. Catalog: copy as my own (a cultivar of it, say).
     const mine = isMine(p);
     const side = el('button', {
@@ -565,7 +580,7 @@ export function renderPlantsPanel() {
         const toggle = el('button', { className: 'row-toggle group-head', 'aria-expanded': 'false', 'data-testid': 'group-head' },
           // (Its dot in the middle of where a plant's spot is, so the column lines up: 20 px and its space.)
           el('div', { style: { width: '14px', height: '14px', borderRadius: '50%', flex: 'none', background: plantColor(kids[0]), margin: '0 7px 0 3px' } }),
-          el('div', { className: 'pinfo' }, el('div', { className: 'pname' }, p.common), el('div', { className: 'pmeta', 'data-testid': 'group-count' }, `${p.botanical} \u00b7 ${count}`)),
+          el('div', { className: 'pinfo' }, el('div', { className: 'pname' }, slashBreaks(p.common)), el('div', { className: 'pmeta', 'data-testid': 'group-count' }, `${p.botanical} \u00b7 ${count}`)),
           el('span', { className: 'row-open' }, el('span', { className: 'fold-chev', html: I.chevronDown })));
         const item = el('div', { className: 'plant-item group-item' }, el('div', { className: 'proj-row', style: { alignItems: 'center' } }, toggle));
         listWrap.append(el('div', { className: 'cultivars group', 'data-testid': 'cultivar-group' }, item, foldBlock(p, g, kids, toggle, (filtering && narrowed) || sole)));
@@ -764,7 +779,7 @@ export function renderPlantsPanel() {
   // Clear (×): the search emptied in one tap, the keyboard kept (the list redraws, nothing else).
   const clearSearch = el('button', { className: 'search-clear', html: I.x, 'aria-label': 'Clear the search', 'data-testid': 'clear-search' });
   clearSearch.hidden = !plantFilter.q;
-  clearSearch.addEventListener('click', () => { search.value = ''; plantFilter.q = ''; clearSearch.hidden = true; rebuildList(); search.focus(); });
+  clearSearch.addEventListener('click', () => { search.value = ''; plantFilter.q = ''; clearSearch.hidden = true; foldTops(false); rebuildList(); search.focus(); });
   search.addEventListener('input', (e) => {
     keptSearch = false;
     const typed = !!search.value.trim();
@@ -772,6 +787,9 @@ export function renderPlantsPanel() {
     if (!(e as InputEvent).isComposing) takeNeeds(false);
     plantFilter.q = search.value; clearSearch.hidden = !search.value;
     if (typed) foldForSearch();
+    // (Words typed fold Recent and the question away; the search emptied by hand brings them back. Words of need made
+    // filters empty it too, while typing: those leave them folded.)
+    foldTops(typed);
     rebuildList();
   });
   // (A word finished by picking it from a phone keyboard's suggestions.)
@@ -817,6 +835,12 @@ export function renderPlantsPanel() {
     // (Native to the garden's state where its ZIP is known: Kew's checklist. Without, the earlier list's North America.)
     else if (s.key === 'native') plantFilter.native = gardenStateName() ? '@here' : '@na';
     else Object.assign(plantFilter, { [s.key]: s.value });
+  }
+  /** Recent and "Anyone you need to protect?" folded away, or back (typingFold). */
+  function foldTops(on: boolean) {
+    typingFold = on;
+    if (recentField) recentField.hidden = on;
+    if (topLine) topLine.hidden = on;
   }
   /**
    * Typing a search: open filters fold, so its results are what's in view (Jason, Nov 1, from the UI review: on a
@@ -1034,6 +1058,7 @@ export function renderPlantsPanel() {
   // (Not while naming a tree already in the yard: its filters start cleared, the yard's with them: treeFiltersAside.)
   const askTop = !forTree && (askingAtTop ??= askAtTop({ dismissed: askDismissed(), household: household() }));
   const topLine = askTop ? protectLine(true) : null;
+  if (topLine) topLine.hidden = typingFold;
   if (!askTop && !forTree) poison.hold(protectLine(false));
 
   // ---- Edible, and which part ----

@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addPlainShape, closeSheet, drag, field, openFresh, openSections, openWarnings, placeOnceAtCenter, setRole, shapeCount } from './helpers';
+import { addPlainShape, closeSheet, drag, field, openFresh, openSections, openWarnings, placeOnceAtCenter, setRole, shapeCount, shapeNamed } from './helpers';
 
 async function addRect(page: Page, label: string, role: string, size?: [number, number]) {
   await addPlainShape(page, 'rect');
@@ -17,8 +17,7 @@ async function addPlant(page: Page, name: string) {
   await page.locator('.sheet .proj-row', { hasText: name }).first().locator('[data-testid=plant-place]').click();
   await placeOnceAtCenter(page);
 }
-const shapeEl = (page: Page, label: string) =>
-  page.locator('[data-shape-group]', { has: page.locator('text', { hasText: label }) }).locator('[data-shape-id]');
+const shapeEl = (page: Page, label: string) => shapeNamed(page, label);
 async function openProps(page: Page, label: string) {
   await page.locator('button[title=Layers]').click();
   await page.locator('.layer-row', { hasText: label }).click();

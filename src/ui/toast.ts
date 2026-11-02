@@ -150,6 +150,19 @@ export function toastAction(message: string, actions: { label: string; run: () =
  * covers the sheet's own buttons (its close, say), and as high as the screen allows when the sheet is tall.
  * Run after every render (a sheet opening under a notice moves it).
  */
+/**
+ * The plan's room across (px) for a notice at its top: clear of its side buttons (Warnings, with its count, first among
+ * them), and of Warnings beside the plan on a computer, which is beside the plan, not on it (the warnings bug hunt, Nov
+ * 1: a placed plant's notice covered the Warnings button and its count on a phone; on a computer, a dismissal's covered
+ * the button and Warnings' own header). Null with no plan, or too little room to be worth it.
+ */
+export function planRoomAcross(): { x0: number; x1: number } | null {
+  const wrap = document.getElementById('canvas-wrap')?.getBoundingClientRect();
+  if (!wrap || !wrap.width) return null;
+  const side = document.querySelector('#canvas-wrap .zoombtns')?.getBoundingClientRect();
+  const x0 = Math.max(8, wrap.left + 8), x1 = Math.min(window.innerWidth - 8, (side && side.width ? side.left : wrap.right) - 8);
+  return x1 - x0 >= 200 ? { x0, x1 } : null;
+}
 export function placeNotice() {
   // A plain notice up when the screen changed (a sheet opened over where it was): placed again, at the top over a
   // sheet (round 2, Oct 30: "Tap again for the bed under it." sat on the plant's edit pane).
@@ -161,6 +174,8 @@ export function placeNotice() {
   // Undo took the plant back, and its Move it then had nothing to move).
   if (node.dataset.about && !state.shapes.some((x) => x.id === node.dataset.about)) { node.remove(); return; }
   node.style.top = '';
+  node.style.left = '';
+  node.style.maxWidth = '';
   const sheet = document.querySelector('.sheet');
   // (Placing: just above the place bar, by the thumb, its buttons in one row. At the top it covered the new plant and
   // the hint, a third of a small phone at large text. Jason, Oct 31, from round 3: Bea.)
@@ -170,6 +185,12 @@ export function placeNotice() {
     const h = node.getBoundingClientRect().height;
     node.style.top = `${Math.max(8, Math.round(bar.getBoundingClientRect().top - h - 8))}px`;
     return;
+  }
+  // At the top of the plan, in its room across: clear of the side buttons and of Warnings beside the plan.
+  const room = !sheet ? planRoomAcross() : null;
+  if (room) {
+    node.style.left = `${Math.round((room.x0 + room.x1) / 2)}px`;
+    node.style.maxWidth = `${Math.round(room.x1 - room.x0)}px`;
   }
   // (An update's banner under the top bar, src/pwa.ts: the notice just below it, not over its Update.)
   const update = !sheet ? document.getElementById('update-banner') : null;
@@ -223,3 +244,12 @@ function swipeAway(node: HTMLElement) {
 }
 /** Close a notice with buttons, if one is up (the next drawing starts, say). */
 export function dismissToastAction() { document.getElementById('toast-action')?.remove(); }
+/**
+ * Another plan opened, or a new one made: the last plan's notices put away (the general bug hunt, Nov 1: a backup's
+ * notice stayed up over the new, empty plan; an Undo left up would undo in the plan opened). A plain notice raised as
+ * it opened stays (the import that opened it says what came in).
+ */
+export function planChanged() {
+  hideOldToast();
+  dismissToastAction();
+}

@@ -365,3 +365,32 @@ test('a plant of mine: its flower colors as chips, kept without bloom months, th
   await page.getByRole('button', { name: 'Edit "Mystery rose" in My plants' }).click();
   await expect(page.getByTestId('pf-flowers').locator('.color-chip.on')).toHaveText(['White']);
 });
+
+// The picker bug hunt, Nov 1 (B10): a copied Eastern redcedar started in the brown every tree is listed in, its dot
+// brown in Recent and on the placing bar, while its original is drawn, and spotted, dark green.
+test('a copy of a catalog plant starts in the color its original is drawn in, not its type\'s (the picker bug hunt, Nov 1)', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Eastern redcedar');
+  const row = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Eastern redcedar/ }) }).first();
+  const leaves = await row.getByTestId('row-dot').locator('circle').first().getAttribute('fill');
+  expect(leaves).toMatch(/^#[0-9a-f]{6}$/);
+  await row.getByRole('button', { name: /Copy as my plant/ }).click();
+  await expect(page.getByTestId('pf-form')).toHaveValue('Tree');
+  await expect(page.getByTestId('pf-color')).toHaveValue(leaves!);
+  // Kept if the type changes: it's the original's, not the type's.
+  await page.getByTestId('pf-form').selectOption('Shrub');
+  await expect(page.getByTestId('pf-color')).toHaveValue(leaves!);
+  await page.getByTestId('pf-form').selectOption('Tree');
+  await page.getByTestId('pf-name').fill('Hedge cedar');
+  await page.getByTestId('pf-save').click();
+  // On the placing bar and in Recent, the same.
+  const bg = (l: ReturnType<Page['locator']>) => l.evaluate((e) => getComputedStyle(e).backgroundColor);
+  const rgb = (hex: string) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
+  await expect(page.getByTestId('place-bar')).toBeVisible();
+  expect(await bg(page.getByTestId('place-switch').locator('.sw-dot'))).toBe(rgb(leaves!));
+  await tapFromCenter(page, 0, 0);
+  await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
+  await page.locator('.tool-btn.plants').click();
+  expect(await bg(page.getByTestId('recent-plants').locator('.recent-plant', { hasText: 'Hedge cedar' }).locator('.sw-dot'))).toBe(rgb(leaves!));
+});

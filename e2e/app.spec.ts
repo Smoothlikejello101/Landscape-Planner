@@ -212,6 +212,53 @@ test.describe('projects and selection', () => {
     expect(await shapeCount(page)).toBe(1);
   });
 
+  // The general bug hunt, Nov 1: a backup's notice stayed up over the new, empty plan. Another plan opened, or a new one
+  // made: the last plan's notices go, its Undo with them.
+  test('a new plan, or another opened, puts away the last plan\'s notices (the general bug hunt, Nov 1)', async ({ page }) => {
+    autoDialogs(page, 'Back yard');
+    await openFresh(page);
+    await addShape(page, 'circle');
+    await closeSheet(page);
+    await page.locator('.project-btn').click();
+    await page.locator('.backup-section button', { hasText: 'Back up all projects' }).click();
+    await expect(page.locator('#toast')).toContainText('Backed up 1 project');
+    await page.waitForTimeout(500);
+    await page.locator('button', { hasText: 'New project' }).click();
+    await expect(page.locator('.project-btn .pname')).toHaveText('Back yard');
+    await expect(page.locator('#toast')).not.toHaveClass(/show/);
+    await expect(page.locator('#toast')).toHaveText('');
+    // An Undo left up from one plan doesn't follow into another.
+    await addShape(page, 'circle');
+    await closeSheet(page);
+    await page.locator('#canvas-svg [data-layer=shapes] circle').first().click();
+    await page.keyboard.press('Delete');
+    await expect(page.locator('#toast-action')).toContainText('Deleted');
+    await page.locator('.project-btn').click();
+    await page.locator('.proj-row', { hasText: 'My Garden' }).click();
+    await expect(page.locator('.project-btn .pname')).toHaveText('My Garden');
+    await expect(page.locator('#toast-action')).toHaveCount(0);
+    expect(await shapeCount(page)).toBe(1);
+  });
+
+  // The general bug hunt, Nov 1: New project's name was a plain browser box (square black border), unlike every other field.
+  test('New project\'s name field looks like the app\'s other fields (the general bug hunt, Nov 1)', async ({ page }) => {
+    await openFresh(page);
+    const look = (l: ReturnType<Page['locator']>) => l.evaluate((e) => {
+      (e as HTMLElement).blur(); // (as it looks before it's focused: focused, both ring green)
+      const c = getComputedStyle(e);
+      return [c.borderTopColor, c.borderTopWidth, c.borderTopLeftRadius, c.paddingLeft, c.fontSize, c.backgroundColor].join(' ');
+    });
+    await page.locator('.project-btn').click();
+    await page.getByRole('button', { name: 'Rename My Garden' }).click();
+    const field = await look(page.locator('.modal .field input'));
+    await page.locator('.modal').getByRole('button', { name: 'Cancel' }).click();
+    await page.locator('button', { hasText: 'New project' }).click();
+    const named = page.getByTestId('ask-input');
+    await expect(named).toBeFocused();
+    expect(await look(named)).toBe(field);
+    expect(field).toContain('6px'); // (rounded, as the app's fields are)
+  });
+
   test('lasso selects several shapes and they move together', async ({ page }) => {
     await openFresh(page);
     await addShape(page, 'circle');
