@@ -1158,7 +1158,7 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 h3.help-how { margin: 0; padding-top: 14px; }
 .help-item + .help-item { border-top: 1px solid #f5f5f4; }
 .help-q { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; min-height: var(--tap); padding: 10px 16px; text-align: left; font-size: calc(15px * var(--ts)); color: #292524; line-height: 1.35; }
-.help-q:hover { background: #fafaf9; }
+@media (hover: hover) { .help-q:hover { background: #fafaf9; } }
 .help-q .fold-chev { display: flex; color: #78716c; transition: transform 0.15s; }
 .help-q[aria-expanded=false] .fold-chev { transform: rotate(-90deg); }
 .help-a { padding: 0 16px 14px; display: flex; flex-direction: column; gap: 6px; }
