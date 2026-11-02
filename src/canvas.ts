@@ -11,7 +11,7 @@ import { renderShapeHandles } from './handles';
 import { onFeaturePointerDown, onShapePointerDown } from './gestures';
 import { featureHitPart, featureParts, knownFeatures } from './features';
 import { catalogReady, hardinessWarning, plantsById } from './plants';
-import { dismissedForPlan, poisonSaid } from './dismissals';
+import { dismissedForPlan, poisonCovered, poisonSaid } from './dismissals';
 import { plantLabelFit, LABEL_LINE_HEIGHT, textWidth1, type FittedLabel } from './labels';
 import { labelScale } from './label-size';
 import { canopyInnerRadius, canopyPoints, isTree, trunkParts, trunkReachPx } from './trees';
@@ -484,7 +484,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   // the others: told apart without color).
   // (Dismissed for this copy, or for the plant across the plan: src/dismissals.ts. Its details still say so.)
   const poison = data && named && living ? poisonSaid(data) : '';
-  if (poison && s.poisonDismissed !== poison && !dismissedForPlan('poison', s.plantId, poison)) {
+  if (poison && !poisonCovered(s.poisonDismissed, poison) && !dismissedForPlan('poison', s.plantId, poison)) {
     const r = vineDot ?? (s.type === 'circle' ? s.radius * ppf : Math.min(boxSize(s).w, boxSize(s).h) * ppf / 2);
     const bx = labelX - r * 0.7, by = labelY - r * 0.7;
     g.appendChild(svgEl('g', { 'data-role': 'poison-warning', 'pointer-events': 'none', transform: badgeScale(ppf, bx, by) },

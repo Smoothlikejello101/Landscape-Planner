@@ -205,6 +205,32 @@ describe('dismissing warnings from the list', () => {
     state.household = { kids: false, dogs: '', cats: false, horses: false, answered: false };
   });
 
+  it('a dismissed poison warning stays dismissed with fewer in the yard at risk, and comes back with someone newly at risk (the warnings bug hunt, Nov 1)', () => {
+    plantsById['wl-mayapple'] = { id: 'wl-mayapple', common: 'Mayapple', form: 'Perennial', width: { min: 1, max: 1.5, med: 1 }, poison: { severity: 'high', parts: ['leaves', 'roots'] }, problem_for: ['dogs', 'cats'] } as unknown as Plant;
+    plantsById['wl-foxglove'] = { id: 'wl-foxglove', common: 'Foxglove', form: 'Perennial', width: { min: 1, max: 1.5, med: 1 }, poison: { severity: 'high', parts: ['leaves'] }, problem_for: ['dogs', 'cats'] } as unknown as Plant;
+    state.shapes.push(at('may', 'wl-mayapple', -80, { radius: 0.5 }), at('fox1', 'wl-foxglove', -90, { radius: 0.5 }), at('fox2', 'wl-foxglove', -100, { radius: 0.5 }));
+    const yard = (kids: boolean, dogs: boolean, cats: boolean) => { state.household = { kids, dogs: dogs ? 'hideToxic' : '', cats, horses: false, answered: true }; };
+    const poison = () => of('poison').map((r) => [r.ids.join(','), r.dismissed]);
+    yard(true, true, false);
+    // The mayapple across the plan; one foxglove by itself.
+    setDismissed(of('poison').filter((r) => r.ids.includes('may')), true);
+    state.shapes.find((s) => s.id === 'fox1')!.poisonDismissed = of('poison').find((r) => r.ids.includes('fox1'))!.key;
+    expect(poison()).toEqual([['fox2', false], ['may', true], ['fox1', true]]);
+    // The kids out of the yard, then the dogs too, then both back: still dismissed, as fewer (or the same) are at risk.
+    yard(false, true, false);
+    expect(poison()).toEqual([['fox2', false], ['may', true], ['fox1', true]]);
+    yard(false, false, false);
+    expect(poison()).toEqual([]); // (nobody in the yard: nothing to warn of)
+    yard(true, true, false);
+    expect(poison()).toEqual([['fox2', false], ['may', true], ['fox1', true]]);
+    // Cats added: newly at risk, so both come back.
+    yard(true, true, true);
+    expect(poison()).toEqual([['may', false], ['fox1,fox2', false]]);
+    // What's kept is what it said when dismissed.
+    expect(state.dismissed?.poison).toEqual({ 'wl-mayapple': 'Poisonous to people; A problem for dogs' });
+    state.household = { kids: false, dogs: '', cats: false, horses: false, answered: false };
+  });
+
   it("says each as the plant's details do: name first, sun naming its area, poison with its severity, heights in whole feet", () => {
     state.household = { kids: true, dogs: 'hideToxic', cats: false, horses: false, answered: true };
     plantsById['wl-mayapple'] = { id: 'wl-mayapple', common: 'Mayapple', form: 'Perennial', width: { min: 1, max: 1.5, med: 1 }, poison: { severity: 'high', parts: ['leaves', 'roots'] }, problem_for: ['dogs'] } as unknown as Plant;

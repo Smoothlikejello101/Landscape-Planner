@@ -9,7 +9,7 @@ import { checkPlantSun, formatHours, formatTime, newSunInfo, sunDismissedFor, su
 import type { Shape, SunInfo } from '../types';
 import { render } from './render';
 import { toastAction } from './toast';
-import { copiesOf, copiesSaid, dismissedForPlan, dismissForPlan, poisonSaid, showAgainForPlan, warnForNewOnes } from '../dismissals';
+import { copiesOf, copiesSaid, dismissedForPlan, dismissForPlan, poisonCovered, poisonSaid, showAgainForPlan, warnForNewOnes } from '../dismissals';
 import { BULB_PARTNER_MIN_HEIGHT, crowdingOf, crowdRelation } from '../crowding';
 import { alreadyThere } from '../status';
 import { I } from '../icons';
@@ -137,7 +137,8 @@ export function plantPoisonBanner(s: Shape): HTMLElement | null {
   const said = flags.map((f, i) => { const t = f.testid === 'row-poison' ? f.title ?? f.text : f.text; return i ? t.charAt(0).toLowerCase() + t.slice(1) : t; }).join('; ');
   const whoSaid = who.length > 1 ? `${who.slice(0, -1).join(', ')} and ${who.at(-1)}` : who[0];
   // (Dismissed, the badge goes, for every one in the plan: never what its details and the picker say. Jason, Oct 30.)
-  const key = poisonSaid(p!), across = dismissedForPlan('poison', p!.id, key), mine = !across && s.poisonDismissed === key, dismissed = across || mine;
+  // (Still dismissed with fewer at risk than when it was: src/dismissals.ts poisonCovered.)
+  const key = poisonSaid(p!), across = dismissedForPlan('poison', p!.id, key), mine = !across && poisonCovered(s.poisonDismissed, key), dismissed = across || mine;
   const note = across ? ' Dismissed for every one in this plan: no badge, though its details still say so.' : dismissed ? ' Dismissed for this one: no badge on the plan.' : '';
   return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'poison-check' },
     el('div', {}, `\u26a0 ${said}. You said ${whoSaid} are in the yard; its sources are under Plant \u2192 Safety (below).${note}`),
