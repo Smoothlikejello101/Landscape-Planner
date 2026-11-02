@@ -93,7 +93,8 @@ export function undo() {
   state.linkOffer = null; // (the circles it named may have changed back)
   state.statusAsk = null; // (and the statuses it asked about)
   applySnapshot(state.history[state.historyIndex]);
-  if (step.narrowed) narrowedBack(step.narrowed, true);
+  // (Whether it was put back, for Redo: one made across the plan since stands, and Redo leaves it, words alike or not.)
+  if (step.narrowed) step.narrowed.putBack = narrowedBack(step.narrowed, true);
   save();
 }
 export function redo() {
@@ -104,21 +105,23 @@ export function redo() {
   state.statusAsk = null;
   const step = state.history[state.historyIndex];
   applySnapshot(step);
-  if (step.narrowed) narrowedBack(step.narrowed, false);
+  if (step.narrowed?.putBack) { narrowedBack(step.narrowed, false); step.narrowed.putBack = false; }
   save();
 }
 /**
  * A step that narrowed a warning dismissed across the plan ("Just these 2": src/dismissals.ts warnForNewOnes), undone:
- * that dismissal back (`back`), unless the plant has one across the plan again since; redone: gone again, if it's still
- * the one put back.
+ * that dismissal back (`back`), unless the plant has one across the plan again since; redone: gone again, if Undo put
+ * it back (its `putBack`: not one made since with the same words, the second review, Nov 1) and it's still that one.
+ * Whether it changed anything.
  */
-function narrowedBack(n: NonNullable<HistorySnapshot['narrowed']>, back: boolean) {
+function narrowedBack(n: NonNullable<HistorySnapshot['narrowed']>, back: boolean): boolean {
   const m = { ...(state.dismissed?.[n.kind] ?? {}) };
-  if (back ? m[n.plantId] !== undefined : m[n.plantId] !== n.said) return;
+  if (back ? m[n.plantId] !== undefined : m[n.plantId] !== n.said) return false;
   if (back) m[n.plantId] = n.said; else delete m[n.plantId];
   const next = { ...(state.dismissed ?? {}) };
   if (Object.keys(m).length) next[n.kind] = m; else delete next[n.kind];
   state.dismissed = next; // (kept, even empty, once the plan has had any: so it syncs too, as in src/dismissals.ts)
+  return true;
 }
 /**
  * A copy's own fruit-partner dismissal that Undo or Redo takes away is left '', shown again on purpose, as Show again

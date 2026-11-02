@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../src/ui/render', () => ({ render: () => {}, updateStatusReadout: () => {} }));
-import { dismissedForPlan } from '../src/dismissals';
+import { dismissedForPlan, dismissForPlan, warnForNewOnes } from '../src/dismissals';
 import { cancelHistoryDebounce, pushHistory, redo, undo } from '../src/history';
 import { plantsById, type Plant } from '../src/plants';
 import { state } from '../src/state';
@@ -208,5 +208,33 @@ describe('a fruit-partner warning dismissed for one plant (Jason, Nov 1)', () =>
     const pasted = state.shapes.slice(2);
     expect(pasted.map((s) => [s.id !== 'h' && s.id !== 'h2', s.fruitDismissed])).toEqual([[true, line], [true, '']]);
     expect(fruitRows()).toEqual([['h2,' + pasted[1].id, false, undefined], ['h,' + pasted[0].id, true, 'for these 2']]);
+  });
+
+  it('Redo after "Just these 2" leaves a dismissal made across the plan since, words alike or not; one its Undo put back, it takes away again (the second review, Nov 1)', () => {
+    state.shapes.push(at('h2', -50));
+    for (const kind of ['fruit', 'hardy', 'poison'] as const) {
+      for (const newer of [line, line + '; newer']) {
+        state.dismissed = {};
+        state.history = []; state.historyIndex = -1; pushHistory();
+        dismissForPlan(kind, holly.id, line);
+        warnForNewOnes(kind, holly.id, line); // ("Just these 2": a step)
+        dismissForPlan(kind, holly.id, newer); // ("Dismiss for every …" again since: no step)
+        undo();
+        expect(state.dismissed?.[kind]?.[holly.id], `${kind} ${newer}`).toBe(newer);
+        redo();
+        expect(state.dismissed?.[kind]?.[holly.id], `${kind} ${newer}`).toBe(newer); // (before: gone, with the same words)
+      }
+      // None since: Undo puts it back and Redo takes it away, as often as they're used.
+      state.dismissed = {};
+      state.history = []; state.historyIndex = -1; pushHistory();
+      dismissForPlan(kind, holly.id, line);
+      warnForNewOnes(kind, holly.id, line);
+      for (let i = 0; i < 2; i++) {
+        undo();
+        expect(state.dismissed?.[kind]?.[holly.id], kind).toBe(line);
+        redo();
+        expect(state.dismissed?.[kind]?.[holly.id], kind).toBeUndefined();
+      }
+    }
   });
 });

@@ -101,6 +101,20 @@ leaves its own journal, and they stay until a start can write them in; after man
 fit, and then it isn't written (a journal too big with its photo's bytes is written without them first). The warning
 bar says the changes aren't saved all along.
 
+## `fruitDismissed` through sync, while a device is still on the release
+
+The release (and any version before Nov 1) sends plans without `fruitDismissed`, even over a newer one: its merge can't
+see it. So each device of this version keeps its own when the server's copy of that plant's shape has none at all:
+words (dismissed for that plant alone), or `''` (shown again on purpose: Show again, or Undo taking one away), which
+is never filled back from another device's words. A `''` reads as none in the plan's fingerprint, so a dismissal taken
+back before the plan synced isn't a change of its own (no conflict copy against another device's edit), while words
+to `''` still is, and goes up.
+
+The window left: a device offline through another device's Show again, with a device on the release sending the plan
+in between, still has the words, and the server's copy no longer says otherwise. It keeps them; if it sends the plan
+(any edit) before the device that showed it again does, the dismissal comes back for everyone; if that one sends
+first, its `''` goes up and the offline one takes it. Only while one of the account's devices is on the release.
+
 ## Two tabs on the same version
 
 Both can edit the same plan, and the last save wins: there's no check that the plan changed since a page read it. A

@@ -372,9 +372,10 @@ export interface HistorySnapshot {
   /**
    * A step that narrowed a warning dismissed across the plan to the copies there then ("Just these 2": src/dismissals.ts
    * warnForNewOnes): that dismissal, as it was kept. Undo puts it back, Redo takes it away again (the plan's dismissals
-   * are otherwise kept apart from the steps).
+   * are otherwise kept apart from the steps). `putBack`: the last Undo put it back (not so where one was made across
+   * the plan since), so Redo takes it away; never stored.
    */
-  narrowed?: { kind: DismissKind; plantId: string; said: string };
+  narrowed?: { kind: DismissKind; plantId: string; said: string; putBack?: boolean };
 }
 
 export interface Clipboard {
