@@ -178,6 +178,44 @@ export function crowdingOf(s: Shape, shapes: Shape[], byId: Record<string, Plant
   }
   return out.sort((a, b) => a.distance / a.recommended - b.distance / b.recommended);
 }
+/**
+ * How far apart two plants' centers must be before they're no longer close, in feet (Nudge apart: Jason's UI review,
+ * Nov 2): the usual spacing for the height they share, which for two that share all of it is their typical spreads
+ * just touching; a spring bulb at the base of a plant it can grow under, out past its base. Null where they never
+ * crowd (no height shared, or either isn't a plant crowding counts), as pairLevel has it.
+ */
+export function apartAt(a: Shape, b: Shape, shapes: Shape[], byId: Record<string, Plant | undefined>, opts: CrowdOptions = {}): number | null {
+  const vines = climbingIn(shapes, byId);
+  const ra = typicalRadius(a, byId, vines), rb = typicalRadius(b, byId, vines);
+  if (ra == null || rb == null) return null;
+  const share = sharedHeight(bandOf(a, byId), bandOf(b, byId));
+  if (share <= 0) return null;
+  const hardy = opts.hardy ?? (() => true);
+  const pa = a.plantId ? byId[a.plantId] : undefined, pb = b.plantId ? byId[b.plantId] : undefined;
+  const under = springBulb(pa, hardy) && bulbPartner(b, byId) ? rb : springBulb(pb, hardy) && bulbPartner(a, byId) ? ra : null;
+  return under != null ? under * 2 * BULB_BASE : (ra + rb) * share;
+}
+/**
+ * The widest a plant standing where `s` stands could typically spread and be close to none of the plants near it, in
+ * feet, and the plant that sets that (Swap from crowding: a width that fits). Each neighbor counts at the height it
+ * shares with `s` now; one left close on purpose doesn't. Null with no plant near it that shares any height.
+ */
+export function roomAt(s: Shape, shapes: Shape[], byId: Record<string, Plant | undefined>): { width: number; by: Shape } | null {
+  if (s.type !== 'circle') return null;
+  const vines = climbingIn(shapes, byId);
+  const band = bandOf(s, byId);
+  let best: { width: number; by: Shape } | null = null;
+  for (const o of shapes) {
+    if (o.id === s.id || o.type !== 'circle' || leftClose(s, o)) continue;
+    const ro = typicalRadius(o, byId, vines);
+    if (ro == null) continue;
+    const share = sharedHeight(band, bandOf(o, byId));
+    if (share <= 0) continue;
+    const width = 2 * (Math.hypot(o.x - s.x, o.y - s.y) / share - ro);
+    if (!best || width < best.width) best = { width, by: o };
+  }
+  return best;
+}
 /** How much bigger one plant must be than another, typically, to bury it: half again as tall (or, heights unknown, wide). */
 export const BURIES = 1.5;
 /**

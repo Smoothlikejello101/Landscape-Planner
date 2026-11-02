@@ -21,6 +21,7 @@ import type { CircleShape, Corner, RoleKey, Shape } from '../types';
 import { formatSize, fullRingRadius, isMine, MY_PREFIX, plantRadius, plantSpread, type Range } from '../my-plants';
 import { canLinkToPlant, formsOf, linkShapesToPlant, plantColor, plantFilter, plantsById, rowLines, unlinkedWithLabel, type Plant } from '../plants';
 import { plantDetails } from './plant-details';
+import { bedFitNote } from './fix-problem';
 import { toast } from './toast';
 import { deleteSelectedAsking, describeShapes } from './delete-selected';
 import { zoneFit, zoneRange } from '../climate';
@@ -210,7 +211,8 @@ export function renderPropsPanelSingle(s: Shape) {
   // Crowding: refreshed in place as the position is typed (no re-render).
   const crowdBox = el('div', {});
   // (A plant too near a power line, a buried line or a septic field too: src/utilities.ts.)
-  const refreshCrowd = () => { crowdBox.replaceChildren(...[utilityBanner(s), crowdingNote(s)].filter((x): x is HTMLElement => !!x)); };
+  // (And one wider than its bed, with Swap for a smaller plant: src/ui/fix-problem.ts.)
+  const refreshCrowd = () => { crowdBox.replaceChildren(...[utilityBanner(s), crowdingNote(s), bedFitNote(s)].filter((x): x is HTMLElement => !!x)); };
   refreshCrowd();
   body.appendChild(crowdBox);
   // The label (for a text note, the text itself; it can run to several lines)

@@ -291,6 +291,11 @@ export const PLANT_FILTER_DEFAULTS = {
    * the fruit-partner notice's "All 7…" (Jason, Oct 30). Empty: any.
    */
   partnersOf: '',
+  /**
+   * Takes hot afternoon sun: rated for full sun, so 2 hours or more of sun between 1 and 6 pm doesn't scorch it
+   * (src/sun.ts checkPlantSun). Set only by a Swap opened from a sun warning, beside the spot's sun (Jason, Nov 2).
+   */
+  afternoonSun: false,
   /** Let what other sources say count where it differs from the value shown (a match only by it is flagged). */
   withReported: true,
 };
@@ -316,13 +321,32 @@ export function treeFiltersAside() {
   beforeAside = structuredClone(plantFilter);
   Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { q: plantFilter.q });
 }
+/** Whether the picker's filters are a Swap's from a warning (swapFiltersAside), till it closes. */
+let swapAside = false;
+export const swapFiltersOn = (): boolean => swapAside && beforeAside !== null;
 /**
- * The picker closed (src/ui/render.ts): opened on a plant's partners, or for a tree, its filters as they were before.
- * Left on, the partners filter hid every plant the next search looked for ("Nothing matches": round 3, Owen).
+ * Swap opened from a warning (Jason's UI review, Nov 2: "Swap opened already filtered by the rule that failed"): the
+ * picker's filters set aside, as for "Which tree?", and `set` on, with who's in the yard (their safety filters, as the
+ * picker always has them) and Hardy in zone as the gardener keeps it; no search. Back as they were once it closes
+ * (partnersClosed), so none of it is left in the picker's own filters, and nothing set in it is kept on this device
+ * (src/ui/plants-panel.ts: neither "Hardy in zone" nor who's in the yard, for a filter taken off).
+ */
+export function swapFiltersAside(set: Partial<PlantFilter>) {
+  beforeAside ??= structuredClone(plantFilter);
+  swapAside = true;
+  Object.assign(plantFilter, PLANT_FILTER_DEFAULTS, { hardyHere: beforeAside.hardyHere });
+  applyYard(plantFilter, household());
+  Object.assign(plantFilter, set);
+}
+/**
+ * The picker closed (src/ui/render.ts): opened on a plant's partners, for a tree, or to swap from a warning, its
+ * filters as they were before. Left on, the partners filter hid every plant the next search looked for ("Nothing
+ * matches": round 3, Owen).
  */
 export function partnersClosed() {
   if (beforeAside) Object.assign(plantFilter, beforeAside);
   beforeAside = null;
+  swapAside = false;
   applyYard(plantFilter, household()); // (who's in the yard as the plan has it now: set while naming a tree, it's kept)
 }
 /** Whether a filter is on (set to something other than its default; a list filter, with anything in it). */
@@ -491,6 +515,7 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (f.form && !formsOf(p).includes(f.form)) return false;
   if (f.water && p.water !== f.water) return false;
   if (f.sun && !plantTakesSun(p, f.sun)) return false;
+  if (f.afternoonSun && p.sun_most !== 'Full') return false;
   // ("@here": native to the garden's state, by Kew's checklist; until its state is known, no filter. "@na": native to
   // North America, the earlier list's word, its regional and local-ecotype natives included.)
   if (f.native === '@here') { if (gardenStateName()) { const n = nativeHere(p); if (!n || n.status === 'I') return false; } }
@@ -620,7 +645,7 @@ export function planCounts(): Map<string, number> {
  * authorities only.
  */
 const FILTER_FACTS: [keyof PlantFilter, string[], string][] = [
-  ['sun', ['sun_most', 'sun_least'], 'sun'], ['hardyHere', ['zone_min', 'zone_max'], 'hardiness zones'], ['water', ['water'], 'water'],
+  ['sun', ['sun_most', 'sun_least'], 'sun'], ['afternoonSun', ['sun_most', 'sun_least'], 'sun'], ['hardyHere', ['zone_min', 'zone_max'], 'hardiness zones'], ['water', ['water'], 'water'],
   ['deerResistant', ['deer'], 'deer resistance'], ['height', ['height'], 'height'], ['width', ['width'], 'width'], ['bloomMonth', ['bloom'], 'bloom time'],
   ['form', ['form'], 'form'],
 ];
@@ -663,7 +688,7 @@ export const reportedOnly = new Map<string, string[]>();
  * own words, nor poison to people (always sourced), the search or "In this plan".
  */
 const FILTER_READS: [keyof PlantFilter, (p: Plant, f: PlantFilter) => string[], string][] = [
-  ['form', () => ['form'], 'form'], ['sun', () => ['sun_most', 'sun_least'], 'sun'], ['water', () => ['water'], 'water'],
+  ['form', () => ['form'], 'form'], ['sun', () => ['sun_most', 'sun_least'], 'sun'], ['afternoonSun', () => ['sun_most'], 'sun'], ['water', () => ['water'], 'water'],
   // (Months where the garden is come from flowering records; a native filter for the garden's state, from Kew's checklist.)
   ['bloomMonth', (p, f) => (bloomMatch(p, f.bloomMonth) === 'earlier' ? ['bloom'] : []), 'bloom time'], ['native', (_p, f) => (f.native === '@here' ? [] : ['native']), 'native status'],
   ['deerResistant', () => ['deer'], 'deer resistance'], ['spread', () => ['self_seed', 'habit'], 'how it spreads'], ['height', () => ['height'], 'height'],

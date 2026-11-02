@@ -91,9 +91,10 @@ export function undoPlace() {
   state.shapes = state.shapes.filter((s) => s.id !== last.id);
   state.selectedIds = state.selectedIds.filter((id) => id !== last.id);
   for (const snap of state.history) snap.shapes = snap.shapes.filter((s) => s.id !== last.id);
-  // The step that placed it is now the same as the one before it: drop it.
-  const i = state.history.indexOf(last.snap);
-  if (i > 0) {
+  // The step that placed it is now the same as the one before it: drop it, and any made on it since (a Nudge apart).
+  for (const step of [...(last.also ?? []), last.snap]) {
+    const i = state.history.indexOf(step);
+    if (i <= 0) continue;
     state.history.splice(i, 1);
     if (i <= state.historyIndex) state.historyIndex--;
   }
