@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, canvasBox, closeSheet, drag, openFilters, openFresh, openSections, shapeCount, tapFromCenter } from './helpers';
+import { addKind, canvasBox, closeSheet, drag, openFilters, openFresh, openSections, planMiddle, planPoint, shapeCount, tapFromCenter } from './helpers';
 
 // Placing plants: pick once, tap each spot, Done.
 
@@ -54,6 +54,9 @@ test('recent plants are one tap; the plant in hand can be switched; Place more f
   await bar(page).getByRole('button', { name: 'Done' }).click();
   expect(await shapeCount(page)).toBe(2);
 
+  // (Where they were placed, in feet: the picker, opened with the two just placed still selected, moves the plan on a
+  // phone to show them above it. Jason, Nov 2, the plan in view while choosing.)
+  const mid = await planMiddle(page);
   await page.locator('.tool-btn.plants').click();
   const recent = page.getByTestId('recent-plants').locator('.recent-plant');
   await expect(recent).toHaveCount(2);
@@ -63,7 +66,8 @@ test('recent plants are one tap; the plant in hand can be switched; Place more f
   await bar(page).getByRole('button', { name: 'Done' }).click();
 
   // A placed plant offers more of the same, from its pill and from its properties (instead of Duplicate).
-  await tapFromCenter(page, 4, 0); // the Black-eyed Susan
+  const susan = await planPoint(page, mid.x + 4, mid.y);
+  await page.mouse.click(susan.x, susan.y); // the Black-eyed Susan
   await expect(page.locator('.sel-pill .name')).toContainText('Black-eyed Susan');
   await page.locator('.sel-pill .edit').click();
   const actions = page.locator('.sheet .action-row');

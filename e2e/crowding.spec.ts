@@ -1,11 +1,19 @@
 import { test, expect, type Page } from '@playwright/test';
-import { closeSheet, field, openFresh, openSections, openWarnings, placeOnceAtCenter } from './helpers';
+import { closeSheet, field, openFresh, openSections, openWarnings, placeOnceAt, planMiddle } from './helpers';
 
+/**
+ * The middle of the plan as it was when the test placed its first plant (feet): each plant goes there, its X set after.
+ * The picker, opened with the last plant still selected, moves the plan to show it beside or above the picker (Jason,
+ * Nov 2, the plan in view while choosing).
+ */
+let origin: { x: number; y: number } | null = null;
+test.beforeEach(() => { origin = null; });
 async function addPlant(page: Page, name: string, x: number) {
+  const at = origin ??= await planMiddle(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill(name);
   await page.locator('.sheet .proj-row', { hasText: name }).first().locator('[data-testid=plant-place]').click();
-  await placeOnceAtCenter(page);
+  await placeOnceAt(page, at);
   await page.locator('.sel-pill button.edit').click(); await openSections(page);
   await field(page, 'X position').fill(String(x));
 }

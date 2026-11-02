@@ -1,38 +1,50 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, closeSheet, openFresh, tapFromCenter, zoomBackIn, middleOf } from './helpers';
+import { addKind, closeSheet, openFresh, planFeet, planMiddle, planPoint, tapFromCenter, zoomBackIn, middleOf } from './helpers';
 
 // Shapes stacked under a finger (Jason's testing notes, Oct 29): a second, separate tap picks the next one under it,
 // round the stack; a tree's trunk is over everything, so a tap on it always picks the tree; a press on a locked shape
 // goes to what's on it.
 
 const name = (page: Page) => page.locator('.sel-pill .name');
+/**
+ * A plant placed `dx`, `dy` ft from the middle of the plan as it was before the picker opened: opened with something
+ * selected (the bed just drawn, the plant just placed), the picker moves the plan on a phone to show it above it (Jason,
+ * Nov 2, the plan in view while choosing).
+ */
 async function place(page: Page, plant: string, dx: number, dy: number) {
+  const mid = await planMiddle(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill(plant);
   await page.locator('.sheet .proj-row', { hasText: plant }).first().locator('[data-testid=plant-place]').click();
-  await tapFromCenter(page, dx, dy);
+  const p = await planPoint(page, mid.x + dx, mid.y + dy);
+  await page.mouse.click(p.x, p.y);
   await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
 }
-/** A separate tap: past a double tap's time. */
-const slowTap = async (page: Page, dx: number, dy: number) => { await page.waitForTimeout(450); await tapFromCenter(page, dx, dy); };
+/** A separate tap (past a double tap's time) at a spot on the plan (feet): it may have moved since (place, above). */
+const slowTap = async (page: Page, at: { x: number; y: number }) => {
+  await page.waitForTimeout(450);
+  const p = await planPoint(page, at.x, at.y);
+  await page.mouse.click(p.x, p.y);
+};
 
 test('a second tap picks what\'s under it, round the stack, said the first time; a double tap opens the one selected', async ({ page }) => {
   await openFresh(page);
+  const mid = await planMiddle(page);
   await addKind(page, 'bed', 'rect');
   for (const [x, y] of [[-6, -4], [6, -4], [6, 4]]) await tapFromCenter(page, x, y);
   await place(page, 'Buttonbush', 0, 0);
   await page.keyboard.press('Escape');
-  await slowTap(page, 0, 0);
+  await slowTap(page, mid);
   await expect(name(page)).toHaveText('Buttonbush');
   await expect(page.locator('#toast')).toContainText(/(Tap|Click) again for the bed under it\./);
-  await slowTap(page, 0, 0);
+  await slowTap(page, mid);
   await expect(name(page)).toHaveText('Bed');
-  await slowTap(page, 0, 0);
+  await slowTap(page, mid);
   await expect(name(page)).toHaveText('Buttonbush');
   // A double tap on it: its own pane, not the bed's.
   await page.waitForTimeout(450);
-  const box = (await page.locator('#canvas-svg').boundingBox())!;
-  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2);
+  const it = await planPoint(page, mid.x, mid.y);
+  await page.mouse.dblclick(it.x, it.y);
   await expect(page.locator('.sheet .title')).toContainText('Buttonbush');
 });
 
@@ -96,10 +108,13 @@ test('a sun area over a bed is the last a tap picks: the plant, then the bed, th
   await closeSheet(page); // (its sun record: the sheet a new sun area opens)
   await expect(page.locator('#canvas-svg polygon[data-shape-id]')).toHaveCount(1);
   const middle = (await bed.boundingBox())!;
-  const at = { x: middle.x + middle.width / 2, y: middle.y + middle.height / 2 };
+  // (The bed's middle as a spot on the plan: the picker, opened with the sun area just drawn still selected, moves the
+  // plan on a phone to show it above it. Jason, Nov 2, the plan in view while choosing.)
+  const spot = await planFeet(page, { x: middle.x + middle.width / 2, y: middle.y + middle.height / 2 });
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Buttonbush');
   await page.locator('.sheet .proj-row', { hasText: 'Buttonbush' }).first().locator('[data-testid=plant-place]').click();
+  const at = await planPoint(page, spot.x, spot.y);
   await page.mouse.click(at.x, at.y);
   await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
   const tap = async (p: { x: number; y: number }) => { await page.waitForTimeout(450); await page.mouse.click(p.x, p.y); };

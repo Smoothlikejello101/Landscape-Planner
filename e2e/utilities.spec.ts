@@ -1,16 +1,30 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, closeSheet, openFresh, openSections, tapFromCenter } from './helpers';
+import { addKind, closeSheet, openFresh, openSections, planMiddle, planPoint, tapFromCenter } from './helpers';
 
 // Utilities (sub-features part 2, decided with Jason, 2026-10-25): an overhead power line checks how tall the trees
 // near it grow; a buried line, trees and shrubs within 10 ft; a septic field, trees and shrubs nearer it than they
 // grow tall, and edibles on it (src/utilities.ts).
 
 const badges = (page: Page) => page.locator('#canvas-svg [data-role=utility-warning]');
+/**
+ * The middle of the plan as it was when the test first placed a plant (feet): placing and tapping go by it, since the
+ * picker, opened with a plant just placed still selected, moves the plan on a phone to show it above it (Jason, Nov 2,
+ * the plan in view while choosing).
+ */
+let origin: { x: number; y: number } | null = null;
+test.beforeEach(() => { origin = null; });
+/** A tap `x`, `y` ft from that middle. */
+async function tapSpot(page: Page, x: number, y: number) {
+  origin ??= await planMiddle(page);
+  const p = await planPoint(page, origin.x + x, origin.y + y);
+  await page.mouse.click(p.x, p.y);
+}
 async function place(page: Page, name: string, x: number, y: number) {
+  origin ??= await planMiddle(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill(name);
   await page.locator('.sheet .proj-row', { hasText: name }).first().locator('[data-testid=plant-place]').click();
-  await tapFromCenter(page, x, y);
+  await tapSpot(page, x, y);
   await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
 }
 
@@ -23,7 +37,7 @@ test('a tall tree near a power line is flagged, says why, and can be dismissed',
   // A northern red oak (60 ft) 6 ft from it.
   await place(page, 'Northern red oak', 0, 1);
   await expect(badges(page)).toHaveCount(1);
-  await tapFromCenter(page, 0, 1);
+  await tapSpot(page, 0, 1);
   await page.locator('.sel-pill button.edit').click();
   await expect(page.getByTestId('utility-line')).toHaveText(/Grows to 60 ft, [67](\.5)? ft from a power line/); // (where the tap lands, snapped)
   await expect(page.getByTestId('utility-detail')).toBeHidden();
@@ -64,7 +78,7 @@ test('a septic field: a shrub on it is flagged; a perennial is not', async ({ pa
   await expect(badges(page)).toHaveCount(1);
   await place(page, 'Butterfly milkweed', 3, 0);
   await expect(badges(page)).toHaveCount(1);
-  await tapFromCenter(page, -3, 0);
+  await tapSpot(page, -3, 0);
   await page.locator('.sel-pill button.edit').click();
   await expect(page.getByTestId('utility-line')).toHaveText(/On the septic field/);
 });

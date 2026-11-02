@@ -194,6 +194,29 @@ export async function placeOnceAtCenter(page: Page) {
   await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
 }
 
+/**
+ * The middle of the plan as it's shown now, in feet: a spot on the garden to place a plant at later (placeOnceAt), though
+ * the plan has moved since. (On a phone, the plant picker opened with a bed selected moves the plan to show the bed above
+ * it: Jason, Nov 2, src/ui/picker-view.ts.)
+ */
+export async function planMiddle(page: Page) {
+  const box = await canvasBox(page);
+  return planFeet(page, { x: box.x + box.width / 2, y: box.y + box.height / 2 });
+}
+/** The spot on the plan (feet) at a point on the page, at the view it's drawn at: planPoint the other way. */
+export async function planFeet(page: Page, p: { x: number; y: number }) {
+  const box = await canvasBox(page);
+  const [ox, oy, zoom] = (await page.locator('#canvas-svg').getAttribute('data-view'))!.split(' ').map(Number);
+  return { x: ox + (p.x - box.x) / (24 * zoom), y: oy + (p.y - box.y) / (24 * zoom) };
+}
+/** After picking a plant: one placed at a spot on the plan (feet: planMiddle), then Done. */
+export async function placeOnceAt(page: Page, at: { x: number; y: number }) {
+  await expect(page.getByTestId('place-bar')).toBeVisible();
+  const p = await planPoint(page, at.x, at.y);
+  await page.mouse.click(p.x, p.y);
+  await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
+}
+
 /** Open the plant picker's filters (one fold for them all, folded to start), if they're shut. */
 export async function openFilters(page: Page) {
   const b = page.getByTestId('filters');
