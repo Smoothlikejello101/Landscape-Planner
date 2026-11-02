@@ -836,17 +836,17 @@ export function renderPlantsPanel() {
     else if (s.key === 'native') plantFilter.native = gardenStateName() ? '@here' : '@na';
     else Object.assign(plantFilter, { [s.key]: s.value });
   }
-  /**
-   * Typing a search: open filters fold, so its results are what's in view (Jason, Nov 1, from the UI review: on a
-   * phone they took the screen while the list changed out of sight). Kept folded, as a fold closed by hand is; the
-   * filters' chips stay above the list.
-   */
   /** Recent and "Anyone you need to protect?" folded away, or back (typingFold). */
   function foldTops(on: boolean) {
     typingFold = on;
     if (recentField) recentField.hidden = on;
     if (topLine) topLine.hidden = on;
   }
+  /**
+   * Typing a search: open filters fold, so its results are what's in view (Jason, Nov 1, from the UI review: on a
+   * phone they took the screen while the list changed out of sight). Kept folded, as a fold closed by hand is; the
+   * filters' chips stay above the list.
+   */
   function foldForSearch() {
     if (!filtersOpen) return;
     setFiltersOpen(false);
