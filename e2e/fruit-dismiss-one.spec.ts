@@ -123,4 +123,19 @@ test("a plant's details: Dismiss for this one, as hardiness and poison have it; 
   await expect(rows(page)).toHaveCount(1);
   await expect(rows(page).getByTestId('warning-scope')).toHaveText('Dismissed for these 2');
   await expect(button(page)).not.toHaveAttribute('aria-label', /to look at/);
+  // Undo at the top goes back to just before: dismissed for every holly (the review, Nov 1: it left nothing dismissed).
+  // Redo: these 2 again. Still dismissed after a reload.
+  if (!wide(page)) await closeSheet(page);
+  await page.locator('button[title=Undo]').click();
+  await openWarnings(page, 'fruit');
+  await expect(rows(page).getByTestId('warning-scope')).toHaveText(`Dismissed for every ${HOLLY} in this plan`);
+  await expect(button(page)).not.toHaveAttribute('aria-label', /to look at/);
+  if (!wide(page)) await closeSheet(page);
+  await page.getByTestId('float-redo').click();
+  await openWarnings(page, 'fruit');
+  await expect(rows(page).getByTestId('warning-scope')).toHaveText('Dismissed for these 2');
+  await page.reload();
+  await expect.poll(() => shapeCount(page)).toBe(2);
+  await openWarnings(page, 'fruit');
+  await expect(rows(page).getByTestId('warning-scope')).toHaveText('Dismissed for these 2');
 });
