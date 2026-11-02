@@ -982,6 +982,9 @@ test('"Anyone you need to protect?": Kids hides plants poisonous to people and i
   await expect(mayapple.getByTestId('row-skin')).toHaveText('Can irritate skin');
   await page.getByTestId('filters-back').click();
   // In step with Poison & pets, both ways. Dogs is Poison & pets' first dog setting: no dog warnings.
+  // (Folded away while there's a search, back once it's cleared: the picker bug hunt, Nov 1.)
+  await expect(protectAtTop(page)).toBeHidden();
+  await page.getByTestId('clear-search').click();
   await expect(protectAtTop(page)).toBeVisible(); // (answered: it stays for now, to see what was set)
   await openFilters(page);
   await expect(page.getByRole('checkbox', { name: 'Not listed as poisonous to people' })).toBeChecked();
@@ -1016,7 +1019,11 @@ test('"Anyone you need to protect?": Kids hides plants poisonous to people and i
 test('"Anyone you need to protect?" dismissed: under Poison & pets at once, a notice says so, and it stays there after a reload', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
+  // (A search kept from the last time: typed, it folds the question away (the picker bug hunt, Nov 1); kept, it's there.)
   await page.getByTestId('plant-search').fill('aster');
+  await closeSheet(page);
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.getByTestId('plant-search')).toHaveValue('aster');
   await page.getByTestId('protect-dismiss').click();
   await expect(page.locator('#toast')).toHaveText("It's under Filters → Poison & pets.");
   await expect(protectAtTop(page)).toHaveCount(0);
