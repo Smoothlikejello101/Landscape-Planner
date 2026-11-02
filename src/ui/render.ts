@@ -13,7 +13,7 @@ import { deleteSelectedAsking } from './delete-selected';
 import { clearSelection, getSelected, singleSelected } from '../selection';
 import { state } from '../state';
 import { fmtFeet, screenToFeet } from '../geometry';
-import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishTypedRect, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, setTypedLength, shapeName, typedApplies, typedLabel, startEditPoints, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
+import { measuredFeet, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishTypedRect, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, setTypedLength, shapeName, typedApplies, typedKind, typedLabel, startEditPoints, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
 import type { TapSnap } from '../types';
 import { redrawHandles } from '../canvas';
 import { parseTypedLength } from '../draw-numbers';
@@ -28,7 +28,7 @@ import { renderSettingsPanel } from './settings-panel';
 import { refreshWarnings, renderWarningsSheet, renderWarningsSide, walkChip, warningsButton, warningsSheetShown, warningsSideShown } from './warnings-sheet';
 import { renderWhatsNewPanel } from './whats-new-panel';
 import { snapOn } from '../tidy';
-import { dismissToastAction, hideOldToast, placeNotice, planRoomAcross, toastAction } from './toast';
+import { dismissToastAction, hideOldToast, placeNotice, planChanged, planRoomAcross, toastAction } from './toast';
 import { renderMoreMenu, toggleSelectMode } from './menu';
 import { foldDetailGroups } from './plant-details';
 import { renderFeedbackSheet } from './feedback-sheet';
@@ -118,6 +118,8 @@ let shownSelection = '';
 let shownMenu: typeof state.menu = null;
 /** The drawing, placing or adding of doors under way when the app last drew (each a new object as it starts). */
 let shownTool: object | null = null;
+/** The plan the app last drew (undefined before it first drew). */
+let shownPlan: string | null | undefined;
 export function render() {
   const root = document.getElementById('root')!;
   refreshWarnings(); // (the plan's warnings, worked out once for this drawing: src/ui/warnings-sheet.ts)
@@ -642,6 +644,9 @@ export function render() {
   const tool = state.draw ?? state.placing ?? state.featurePlace ?? null;
   if (tool && tool !== shownTool) hideOldToast();
   shownTool = tool;
+  // Another plan: the last one's notices go (src/ui/toast.ts planChanged).
+  if (shownPlan !== undefined && shownPlan !== state.currentProjectId) planChanged();
+  shownPlan = state.currentProjectId;
   shownPanel = state.panel;
   shownMenu = state.menu;
   shownSelection = state.selectedIds.join();
@@ -685,18 +690,28 @@ function renderFeatureBar(): HTMLElement {
     const seg = el('div', { className: 'feature-seg', role: 'group', 'aria-label': 'What to add' });
     for (const k of kinds) {
       const on = fp.kind === k;
-      const b = el('button', { className: on ? 'on' : '', 'aria-pressed': String(on), 'data-feature': k }, SUB_FEATURES[k].label);
+      // (`data-text`: its bold width kept, so choosing it moves none beside it: src/styles.css.)
+      const b = el('button', { className: on ? 'on' : '', 'aria-pressed': String(on), 'data-feature': k, 'data-text': SUB_FEATURES[k].label }, SUB_FEATURES[k].label);
       b.addEventListener('click', () => { setFeatureKind(k); render(); });
       seg.appendChild(b);
     }
     col.appendChild(seg);
   }
-  // The door or gate just placed: which way it opens, set here and now (its properties have the same).
+  // The door or gate just placed: which way it opens, set here and now (its properties have the same). Its row is
+  // there from the start, waiting, where the shape takes doors or gates: coming up after the first, it pushed the kinds
+  // up under the next press, and a window placed then took it away again (the general bug hunt, Nov 1: three doors
+  // for a door and two windows).
   const last = lastAdded();
+  const opens = kinds.find((k) => swings({ id: '', kind: k, edge: 0, at: 0 }));
   if (last && swings(last)) {
     const [hinge, swing] = flipButtons(last, 'bar', (which) => { flipLastAdded(which); render(); });
     col.appendChild(el('div', { className: 'feature-last', 'data-testid': 'feature-last' },
       el('span', {}, `${SUB_FEATURES[last.kind].label} just placed:`), el('span', { className: 'feature-flips' }, hinge, swing)));
+  } else if (opens) {
+    const [hinge, swing] = flipButtons({ id: '', kind: opens, edge: 0, at: 0 }, 'bar-idle', () => {});
+    hinge.disabled = true; swing.disabled = true;
+    col.appendChild(el('div', { className: 'feature-last idle', 'data-testid': 'feature-last-idle' },
+      el('span', {}, `${SUB_FEATURES[opens].label}, once placed:`), el('span', { className: 'feature-flips' }, hinge, swing)));
   }
   const row = el('div', { className: 'draw-bar-row' });
   const undoB = el('button', { className: 'draw-btn' }, 'Undo');
@@ -769,9 +784,13 @@ function renderDrawBar(): HTMLElement {
       col.appendChild(sw);
     }
     // A length for the next side (a prototype, Jason to try): typed without re-rendering (keyboard safety), the
-    // next tap gives only its direction. The plan shows where it can go.
-    if (typedApplies(d)) {
-      const t = el('input', { type: 'text', inputMode: 'decimal', enterKeyHint: 'done', autocomplete: 'off', value: d.typed != null ? String(d.typed) : '', placeholder: '–', 'aria-label': `${typedLabel(d)} in feet`, 'data-testid': 'typed-length' }) as HTMLInputElement;
+    // next tap gives only its direction. The plan shows where it can go. In its place from the start, waiting for a
+    // first point: coming up after it, it moved the bar's buttons, and a path's grew the bar, so the next press landed
+    // on something else (the general bug hunt, Nov 1).
+    if (typedKind(d.kind)) {
+      const live = typedApplies(d);
+      const t = el('input', { type: 'text', inputMode: 'decimal', enterKeyHint: 'done', autocomplete: 'off', value: live && d.typed != null ? String(d.typed) : '', placeholder: '–', 'aria-label': `${typedLabel(d)} in feet`, 'data-testid': 'typed-length' }) as HTMLInputElement;
+      t.disabled = !live;
       t.addEventListener('input', () => { setTypedLength(parseTypedLength(t.value)); redrawHandles(); });
       // (Enter or Done puts the keyboard away, so the plan is there to tap; a rectangle's other side, typed, is made then,
       // on the side the mouse was on, or facing the middle of the screen: src/draw.ts finishTypedRect.)
@@ -784,7 +803,11 @@ function renderDrawBar(): HTMLElement {
         t.blur();
         if (!hasKeyboard() && finishTypedRect()) render();
       });
-      const typed = el('label', { className: 'draw-width typed-length' }, el('span', {}, typedLabel(d)), t, el('span', {}, 'ft'));
+      // (A rectangle's "This side", then "Other side": room kept for the longer, so nothing beside it moves.)
+      const said = d.kind === 'rect'
+        ? el('span', { className: 'typed-name' }, ...['This side', 'Other side'].map((w) => el('span', w === typedLabel(d) ? {} : { className: 'off', 'aria-hidden': 'true' }, w)))
+        : el('span', {}, typedLabel(d));
+      const typed = el('label', { className: 'draw-width typed-length' + (live ? '' : ' waiting') }, said, t, el('span', {}, 'ft'));
       if (d.kind === 'path') {
         // (Beside a path's width the row would push Done off a narrow phone: the two fields get a row of their own.)
         const fields = el('div', { className: 'draw-bar-row draw-fields' });

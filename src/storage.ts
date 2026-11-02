@@ -769,10 +769,13 @@ async function collectImageGarbage(projectId: string, keep: Set<string>) {
 export function emptyProjectData(): ProjectData {
   return { ...sanitizeProjectData({}), sizeMode: lastSizeMode, household: { kids: false, dogs: '', cats: false, horses: false, answered: false, at: now() }, switches: switchesAllOn() };
 }
-/** Create a project (empty, or from given data). Does not open it. `id`: one the server already knows (sync). */
-export async function createProject(name: string, data?: ProjectData, id = uid()): Promise<string> {
+/**
+ * Create a project (empty, or from given data). Does not open it. `id`: one the server already knows (sync).
+ * `lastModified`: when the plan itself last changed, for one brought back from a file (src/backup.ts); now otherwise.
+ */
+export async function createProject(name: string, data?: ProjectData, id = uid(), lastModified = now()): Promise<string> {
   const projectData = data ?? emptyProjectData();
-  const meta: ProjectMeta = { id, name: name.trim() || 'Untitled', lastModified: now(), shapeCount: projectData.shapes.length };
+  const meta: ProjectMeta = { id, name: name.trim() || 'Untitled', lastModified, shapeCount: projectData.shapes.length };
   await db().write([...projectWriteOps(id, projectData), put('meta', id, meta)]);
   state.projects.unshift(meta);
   afterProjectsChange?.();

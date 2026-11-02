@@ -17,7 +17,7 @@ const typed = (page: Page) => page.getByTestId('typed-length');
 test("while drawing an outline: each side's length and the newest corner's angle; a typed side is exactly that long", async ({ page }) => {
   await openFresh(page);
   await addKind(page, 'bed', 'poly');
-  await expect(typed(page)).toHaveCount(0); // (no side to type until there's a first point)
+  await expect(typed(page)).toBeDisabled(); // (no side to type until there's a first point: its place kept)
   await tapFt(page, 2, 2);
   await tapFt(page, 12, 2);
   await expect(sides(page)).toHaveText(['10 ft']);

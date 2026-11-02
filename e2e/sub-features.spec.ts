@@ -122,6 +122,54 @@ test('a gate in a fence, added from its properties; a plain bed takes none', asy
   await expect(page.getByTestId('section-features')).toHaveCount(0);
 });
 
+// The general bug hunt, Nov 1 (bug 2): the "Door just placed" row came up after the first door and pushed the kinds up
+// under the next press: three doors for a door and two windows. The row is there from the start, waiting, and the bar
+// keeps its height and its buttons where they are, a door placed or a window, at a phone's width and a computer's.
+for (const small of [true, false]) test(`adding doors and windows: the bar and its buttons stay put, a door placed or a window${small ? ', on a 360 × 640 phone' : ''} (the general bug hunt, Nov 1)`, async ({ page }) => {
+  const size = small ? { width: 360, height: 640 } : page.viewportSize()!;
+  await page.setViewportSize(size);
+  await openFresh(page);
+  await addKind(page, 'building', 'rect');
+  await page.getByTestId('then-features').click();
+  for (const [x, y] of [[-5, -4], [5, -4], [0, -1]]) await tapFromCenter(page, x, y); // (a 10 × 3 ft shed: room on a small phone)
+  await expect(page.getByTestId('feature-bar')).toBeVisible();
+  await expect(page.getByTestId('feature-last-idle')).toHaveText(/^Door, once placed:/);
+  await expect(page.getByTestId('bar-idle-swing')).toBeDisabled();
+  const where = () => page.evaluate(() => {
+    const bar = document.querySelector('[data-testid=feature-bar]')!.getBoundingClientRect();
+    const plan = document.querySelector('#canvas-wrap')!.getBoundingClientRect();
+    const kinds = [...document.querySelectorAll<HTMLElement>('[data-testid=feature-bar] [data-feature]')].map((b) => { const r = b.getBoundingClientRect(); return `${b.dataset.feature}@${Math.round(r.x)},${Math.round(r.y)}`; });
+    const buttons = ['Undo', 'Done'].map((t) => { const b = [...document.querySelectorAll<HTMLElement>('[data-testid=feature-bar] button')].find((x) => x.textContent?.trim() === t)!.getBoundingClientRect(); return `${t}@${Math.round(b.x)},${Math.round(b.y)}`; });
+    return { bar: [Math.round(bar.top), Math.round(bar.height)], plan: Math.round(plan.bottom), kinds, buttons };
+  });
+  const start = await where();
+  const h = (await page.locator('#canvas-svg [data-shape-id]').first().boundingBox())!;
+  await page.mouse.click(h.x + h.width * 0.25, h.y + 1); // a door on the top wall
+  await expect(page.getByTestId('feature-last')).toContainText('Door just placed');
+  await expect(page.getByTestId('feature-last-idle')).toHaveCount(0);
+  expect(await where(), `${size.width}: a door placed`).toEqual(start);
+  // The next press where Window was: a window.
+  await page.locator('[data-testid=feature-bar] [data-feature=window]').click();
+  await page.mouse.click(h.x + h.width * 0.75, h.y + 1);
+  await expect(page.locator('#canvas-svg [data-feature=window]')).toHaveCount(1);
+  await expect(page.getByTestId('feature-last-idle')).toBeVisible();
+  expect(await where(), `${size.width}: a window placed`).toEqual(start);
+  await page.getByTestId('feature-bar').getByRole('button', { name: 'Done' }).click();
+  await expect(page.locator('#canvas-svg [data-feature=door]')).toHaveCount(1);
+  // A fence's gate: the same.
+  await openFresh(page);
+  await addKind(page, 'fence');
+  await page.getByTestId('then-features').click();
+  for (const [x, y] of [[-5, -2], [5, -2]]) await tapFromCenter(page, x, y);
+  await page.getByTestId('draw-bar').getByRole('button', { name: 'Done' }).click();
+  await expect(page.getByTestId('feature-last-idle')).toHaveText(/^Gate, once placed:/);
+  const bar = async () => (await page.getByTestId('feature-bar').boundingBox())!;
+  const before = await bar();
+  await tapFromCenter(page, 0, -2);
+  await expect(page.getByTestId('feature-last')).toContainText('Gate just placed');
+  expect(await bar()).toEqual(before);
+});
+
 async function openFresh(page: Page) {
   await page.goto('./');
   await expect(page.locator('.project-btn .pname')).toBeVisible();

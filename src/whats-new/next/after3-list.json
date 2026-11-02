@@ -1,0 +1,13 @@
+[
+  "In the Plant list, − and + beside a kind say how many of it you’ve bought (“Bought 1 of 2”), for when you buy only some; the tick still marks them all bought. Mark planted then plants as many as are bought.",
+  "A row in the Plant list that’s been marked planted too soon goes back to To buy with Not planted yet, still bought, with Undo.",
+  "Plants you’ve labeled your own way, such as Tifblue blueberries labeled with their cultivars, show those labels beside their kind’s name in the Plant list (“labeled Climax ×2, Premier ×1”), in the list you copy, share or print, and in Warnings.",
+  "Bringing back a full backup skips the plans already here just as they are, and the notice says how many; a plan that’s changed since still comes in as a copy beside yours, so nothing is overwritten. Plans brought back from a file keep when they were last changed, instead of the time of the import.",
+  "A notice about one plan, an Undo included, no longer stays up when you open another plan or make a new one.",
+  "The printed plan’s plant list gives each plant’s botanical name whole, on the line under its name when it doesn’t fit beside it, instead of cutting it short.",
+  "A sheet just opened still lets you start typing at once: the cursor goes into the search or field you pressed, where before the words could be lost.",
+  "A plant you copy as your own starts in the color its original is drawn in on the plan, such as an evergreen’s dark green, instead of the brown every tree was given.",
+  "Typing a search in the plant picker also folds away Recent and “Anyone you need to protect?”, so the results are in view on a small phone; they come back when you clear the search.",
+  "While drawing, and while adding doors and windows, the bar at the bottom keeps its buttons where they are from the first point on, so the next press lands where you meant: a side’s length (and a path’s width) and the row for the door or gate just placed are there from the start, waiting.",
+  "Smaller fixes: the guided tour’s titles and steps are no longer cut short at Extra large text; a name like “Bradford/Callery pear” wraps between its words beside “Place (banned)”; the boxes in Settings are all one size; and New project’s name box looks like the app’s other fields."
+]

@@ -11,6 +11,8 @@
 // 3. A panel just opened. A sheet, menu or question that has just come up takes no tap for a moment: double-tapping a
 //    plant already selected, the pane came up under the finger and the second tap opened Swap in it, every time (Jason,
 //    Nov 1). Long enough for a quick double or triple tap; too short to hold up a person who has seen what came up.
+//    A press on a text field there still puts the cursor in it, which does no harm: typing that follows a quick tap on
+//    the picker's search went nowhere (the list bug hunt, Nov 1). Nothing else it would have done is done.
 
 const QUICK_MS = 350, NEAR_PX = 32;
 /** How long a panel just opened takes no tap (3). */
@@ -25,6 +27,17 @@ export const tooSoonAfterOpening = (opened: number, t: number): boolean => t >= 
 const PLAN = '#canvas-svg';
 const CONTROL = 'button, a, input, select, textarea, label, summary, [role=button], [role=tab], [role=option], [role=checkbox]';
 
+/** The kinds of input that take typing. */
+const TYPED = new Set(['text', 'search', 'number', 'email', 'tel', 'url', 'password']);
+/**
+ * The text field a press was on, that takes typing (not disabled or read-only), or null: a press dropped as too soon
+ * after its panel opened still focuses it (3).
+ */
+export function typingField(target: EventTarget | null): HTMLInputElement | HTMLTextAreaElement | null {
+  const f = target instanceof Element ? target.closest('input, textarea') : null;
+  if (!(f instanceof HTMLInputElement || f instanceof HTMLTextAreaElement) || f.disabled || f.readOnly) return null;
+  return f instanceof HTMLTextAreaElement || TYPED.has(f.type) ? f : null;
+}
 /** What a tap pressed, told apart as a person would: the plan, or a control by its name, or neither. */
 export function tapTarget(target: EventTarget | null): string {
   const el = target instanceof Element ? target : null;
@@ -67,7 +80,12 @@ export function installTapGuard(win: Window = window) {
   win.addEventListener('pointerdown', (e) => {
     const now: Tap = { t: e.timeStamp, x: e.clientX, y: e.clientY, what: tapTarget(e.target), area: areaOf(e.target) };
     const onNew = e.target instanceof Element && !!e.target.closest(NEW_LAYER) && tooSoonAfterOpening(openedAt, e.timeStamp);
-    if (onNew || isStrayTap(last, now)) { last = null; planPress = false; dropped = e.pointerId; stop(e); return; }
+    if (onNew || isStrayTap(last, now)) {
+      last = null; planPress = false; dropped = e.pointerId; stop(e);
+      // (A text field in a panel just opened: the cursor in it all the same, so what's typed next goes in.)
+      if (onNew) typingField(e.target)?.focus();
+      return;
+    }
     last = now;
     planPress = now.what === 'plan';
   }, true);

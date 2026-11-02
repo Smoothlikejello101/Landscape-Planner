@@ -6,6 +6,7 @@ import {
 import { FORM_COLORS, linkFromPicker, MONTH_NAMES, PLANTS, plantColor, plantColors, plantsById, speciesOf, type Plant } from '../plants';
 import { byMatch, matchPlant, readQuery } from '../search';
 import { flowerHex, ownBloomColors } from '../looks';
+import { drawnColor } from '../plant-looks';
 import { state } from '../state';
 import type { Shape } from '../types';
 import { finishPlacing, startPlacing, switchPlacingPlant } from '../place';
@@ -259,8 +260,10 @@ export function renderPlantForm() {
     if (source?.form === f) o.selected = true;
     form.appendChild(o);
   }
-  const color = el('input', { type: 'color', value: plantColor(source), 'data-testid': 'pf-color', 'aria-label': 'Color on the plan', title: 'Color on the plan' }) as HTMLInputElement;
-  let colorPicked = !!source?.color;
+  // (Copied from a catalog plant: the color its original is drawn in, its leaves', not its type's. Kept, as a color
+  // picked is, if the type changes. The picker bug hunt, Nov 1.)
+  const color = el('input', { type: 'color', value: fromCatalog ? drawnColor(startedFrom) : plantColor(source), 'data-testid': 'pf-color', 'aria-label': 'Color on the plan', title: 'Color on the plan' }) as HTMLInputElement;
+  let colorPicked = !!source?.color || fromCatalog;
   color.addEventListener('input', () => { colorPicked = true; });
   form.addEventListener('change', () => { if (!colorPicked) color.value = plantColor({ id: '', common: '', form: form.value || undefined }); });
   body.appendChild(el('div', { className: 'field' }, el('label', {}, 'Type and color on the plan'),

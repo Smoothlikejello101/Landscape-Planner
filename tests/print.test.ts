@@ -4,6 +4,7 @@ import {
 } from '../src/print';
 import type { Plant } from '../src/plants';
 import { buildExportSVG, exportCaption, shapeToSvgString } from '../src/export';
+import { scheduleRow } from '../src/print-pdf';
 import { state } from '../src/state';
 import type { Shape } from '../src/types';
 
@@ -205,5 +206,33 @@ describe('the exported picture', () => {
     // (A round one too: round 3, Tom's "East lawn" printed without its hours.)
     const round = { id: 'c', type: 'circle', x: 20, y: 20, radius: 13, color: '#64748b', opacity: 0.3, locked: false, label: 'East lawn', role: 'shade', sun: { mode: 'hours', hours: 6 } } as Shape;
     expect(shapeToSvgString(round, 0, 0, 10)).toContain('East lawn · ☀ 6 h');
+  });
+});
+
+// The general bug hunt, Nov 1 (bug 7): the plan's PDF cut a botanical name short on its row ("Abyssinian banana
+// 'Maurelii' Ensete ventrico...") with the page mostly empty below it.
+describe('the PDF plan\'s plant list rows', () => {
+  it('a botanical name too long to follow its plant\'s name goes whole on the line under it; only a very long one is cut, past two lines', async () => {
+    const { jsPDF } = await import('jspdf');
+    const doc = new jsPDF({ unit: 'in', format: 'letter' });
+    const room = 2.4;
+    const banana = scheduleRow(doc, "Abyssinian banana 'Maurelii'", 'Ensete ventricosum', room);
+    expect(banana).toMatchObject({ name: ["Abyssinian banana 'Maurelii'"], bot: ['Ensete ventricosum'], botAfter: 0, lines: 2 });
+    expect(doc.getFont().fontStyle).toBe('normal'); // (left as the name is drawn: not the botanical name's italic)
+    // Short enough: after the name, on its line.
+    const cone = scheduleRow(doc, 'Coneflower', 'Echinacea purpurea', room);
+    expect(cone).toMatchObject({ name: ['Coneflower'], bot: ['Echinacea purpurea'], lines: 1 });
+    expect(cone.botAfter).toBeGreaterThan(0);
+    // None: the name alone.
+    expect(scheduleRow(doc, 'Old oak', '', room)).toMatchObject({ name: ['Old oak'], bot: [], lines: 1 });
+    // Long ones wrap, two lines each at most, nothing cut that fits in two.
+    const long = scheduleRow(doc, "Rabbiteye blueberry 'Tifblue' from the old farm", "Vaccinium virgatum 'Tifblue'", 1.5);
+    expect(long.name.length).toBe(2);
+    expect(long.bot.join(' ')).toBe("Vaccinium virgatum 'Tifblue'");
+    expect(long.lines).toBe(2 + long.bot.length);
+    const huge = scheduleRow(doc, 'Plant', 'Abcdefghij klmnopqrst uvwxyzabcd efghijklmn opqrstuvwx yzabcdefgh ijklmnopqr', 1);
+    expect(huge.bot).toHaveLength(2);
+    expect(huge.bot[1]).toMatch(/\.\.\.$/);
+    for (const line of [...banana.name, ...banana.bot, ...long.name, ...long.bot]) expect(line).not.toMatch(/\.\.\.$/);
   });
 });

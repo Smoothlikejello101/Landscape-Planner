@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { inflateSync } from 'node:zlib';
 import { openFresh, placeOnceAtCenter } from './helpers';
 
 // The Plant list (Jason, Nov 1, from the UI review: no way to get a shopping list out of the app, and recording what
@@ -71,7 +72,7 @@ test('a tick per kind is kept with the plan: after a reload, in its file, and th
   const yaupon = row(page, 'buy', "Yaupon 'Dwarf'");
   await yaupon.getByTestId('pl-tick').click();
   await expect(yaupon.getByTestId('pl-tick')).toHaveAttribute('aria-checked', 'true');
-  await expect(yaupon.getByTestId('pl-bought')).toHaveText('Bought');
+  await expect(yaupon.getByTestId('pl-bought')).toHaveText('Bought 2 of 2');
   // (What's left to buy: the two bought aren't counted as still to buy. The list bug hunt, Nov 1.)
   await expect(page.getByTestId('pl-totals')).toHaveText('10 plants to buy, 3 kinds · 2 bought, not yet planted');
   await expect(page.getByTestId('pl-group-buy').locator('.pl-head')).toHaveText('To buy (10)');
@@ -98,7 +99,7 @@ test("Mark planted, once bought: the kind's plants go to Planted with today's da
   await page.getByTestId('plant-list-open').click();
   // Nothing bought yet: no Mark planted, and a line says what the ticks are for.
   await expect(page.getByTestId('pl-mark-planted')).toHaveCount(0);
-  await expect(page.getByTestId('pl-how')).toHaveText('Tick each kind as you buy it. Mark planted then records the day it goes in.');
+  await expect(page.getByTestId('pl-how')).toHaveText('Tick each kind as you buy it, or count them with − and +. Mark planted then records the day they go in.');
   await row(page, 'buy', 'Wild columbine').getByTestId('pl-tick').click();
   await expect(page.getByTestId('pl-how')).toHaveCount(0);
   await row(page, 'buy', 'Wild columbine').getByTestId('pl-mark-planted').click();
@@ -109,7 +110,7 @@ test("Mark planted, once bought: the kind's plants go to Planted with today's da
   await expect(page.locator('#toast-action')).toContainText('Wild columbine: 5 planted today.');
   await page.locator('#toast-action').getByRole('button', { name: 'Undo' }).click();
   await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-count')).toHaveText(/^×\s5$/);
-  await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-bought')).toHaveText('Bought'); // (the tick back as it was)
+  await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-bought')).toHaveText('Bought 5 of 5'); // (the tick back as it was)
   await expect(row(page, 'planted', 'Wild columbine')).toHaveCount(0);
   await expect(page.getByTestId('pl-totals')).toHaveText('7 plants to buy, 3 kinds · 5 bought, not yet planted');
   // Done again, and the sheet closed: the plan's own Undo takes it back too.
@@ -117,7 +118,7 @@ test("Mark planted, once bought: the kind's plants go to Planted with today's da
   await list(page).locator('.sheet-header .iconbtn').click();
   await page.locator('button[title=Undo]').click();
   await page.getByTestId('plant-list-open').click();
-  await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-bought')).toHaveText('Bought');
+  await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-bought')).toHaveText('Bought 5 of 5');
   await list(page).locator('.sheet-header .iconbtn').click();
   // One more placed since it was ticked: 5 of 6 bought, and Mark 5 planted leaves one to buy.
   await page.locator('.tool-btn.plants').click();
@@ -125,7 +126,7 @@ test("Mark planted, once bought: the kind's plants go to Planted with today's da
   await page.locator('.sheet .proj-row', { hasText: 'Wild columbine' }).first().locator('[data-testid=plant-place]').click();
   await placeOnceAtCenter(page);
   await page.getByTestId('plant-list-open').click();
-  await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-bought')).toHaveText('5 of 6 bought');
+  await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-bought')).toHaveText('Bought 5 of 6');
   await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-tick')).toHaveAttribute('aria-checked', 'mixed');
   await row(page, 'buy', 'Wild columbine').getByTestId('pl-mark-planted').filter({ hasText: 'Mark 5 planted' }).click();
   await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-count')).toHaveText(/^×\s1$/);
@@ -249,7 +250,13 @@ test('the Plant list reads on a 360 × 640 phone and on a computer: nothing cut 
       expect(count.x).toBeGreaterThanOrEqual(name.x + name.width - 1); // (right of the name)
       expect(count.x + count.width).toBeLessThanOrEqual(box.x + box.width);
       // (Names whole: wrapped, never cut.)
-      expect(await r.getByTestId('pl-name').evaluate((e) => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
+      expect(await r.locator('.pl-title').evaluate((e) => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
+      // (− and + finger-sized, as the tick is, inside the row.)
+      for (const b of await r.locator('.pl-step').all()) {
+        const s = (await b.boundingBox())!;
+        expect(Math.min(s.width, s.height)).toBeGreaterThanOrEqual(44);
+        expect(s.x + s.width).toBeLessThanOrEqual(box.x + box.width);
+      }
     }
     // The counts line up, down a column.
     const xs = await sheet.locator('[data-group=buy] [data-testid=pl-count]').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().right)));
@@ -280,4 +287,121 @@ test('"In this plan" counts the plan\'s plants, "× 5" a row, and the bloom cale
   await expect(boxwood).toBeVisible();
   // Whole: no part of it cut off, ×2 with it.
   expect(await boxwood.evaluate((e) => e.scrollWidth <= e.clientWidth + 1 && e.textContent!.includes("Boxwood 'Green Velvet' ×2"))).toBe(true);
+});
+
+// Jason's testing, Nov 1: "Right now I can't buy only 1 of my blueberries." How many are bought, by − and +; the tick
+// stays for all of them, and the plan keeps the count as it kept the tick.
+test('some of a kind bought: "Bought 1 of 2" with − and +, Mark planted plants that many; the tick is still all (Jason\'s testing, Nov 1)', async ({ page }) => {
+  await openPlan(page);
+  await page.getByTestId('plant-list-open').click();
+  const yaupon = row(page, 'buy', "Yaupon 'Dwarf'");
+  await expect(yaupon.getByTestId('pl-bought')).toHaveText('Bought 0 of 2');
+  await expect(yaupon.getByTestId('pl-less')).toBeDisabled();
+  await expect(yaupon.getByTestId('pl-mark-planted')).toHaveCount(0);
+  await yaupon.getByTestId('pl-more').click();
+  await expect(yaupon.getByTestId('pl-bought')).toHaveText('Bought 1 of 2');
+  await expect(yaupon.getByTestId('pl-tick')).toHaveAttribute('aria-checked', 'mixed');
+  await expect(page.getByTestId('pl-totals')).toHaveText('11 plants to buy, 4 kinds · 1 bought, not yet planted');
+  await yaupon.getByTestId('pl-more').click();
+  await expect(yaupon.getByTestId('pl-bought')).toHaveText('Bought 2 of 2');
+  await expect(yaupon.getByTestId('pl-more')).toBeDisabled();
+  await expect(yaupon.getByTestId('pl-tick')).toHaveAttribute('aria-checked', 'true');
+  await yaupon.getByTestId('pl-less').click();
+  await expect(yaupon.getByTestId('pl-bought')).toHaveText('Bought 1 of 2');
+  // Kept with the plan as the tick is: how many, and when.
+  await page.waitForTimeout(400);
+  await page.reload();
+  await page.getByTestId('plant-list-open').click();
+  await expect(yaupon.getByTestId('pl-bought')).toHaveText('Bought 1 of 2');
+  await list(page).locator('.sheet-header .iconbtn').click();
+  await page.locator('.project-btn').click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.locator('.proj-row', { hasText: 'Front garden' }).getByRole('button', { name: /^Save Front garden/ }).click()]);
+  const saved = JSON.parse(await (await download.createReadStream()).toArray().then((b) => Buffer.concat(b).toString('utf8')));
+  expect(saved.project.data.bought).toEqual({ 'ilex-vomitoria-dwarf': { n: 1, at: expect.any(Number) } });
+  await page.locator('.sheet-header .iconbtn').click();
+  // Mark planted plants the one bought; the other is still to buy, unbought.
+  await page.getByTestId('plant-list-open').click();
+  await yaupon.getByTestId('pl-mark-planted').filter({ hasText: 'Mark 1 planted' }).click();
+  await expect(row(page, 'planted', "Yaupon 'Dwarf'").getByTestId('pl-count')).toHaveText(/^×\s1$/);
+  await expect(yaupon.getByTestId('pl-count')).toHaveText(/^×\s1$/);
+  await expect(yaupon.getByTestId('pl-tick')).toHaveAttribute('aria-checked', 'false');
+  // The tick is still all of them: one tick, and it's bought.
+  await yaupon.getByTestId('pl-tick').click();
+  await expect(yaupon.getByTestId('pl-bought')).toHaveText('Bought');
+  await row(page, 'buy', 'Wild columbine').getByTestId('pl-tick').click();
+  await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-bought')).toHaveText('Bought 5 of 5');
+});
+
+// Jason's testing, Nov 1: marked planted too soon, a row goes back to To buy, bought as it was, with Undo.
+test('Not planted yet: a planted row back to To buy, bought as it was, with Undo (Jason\'s testing, Nov 1)', async ({ page }) => {
+  await openPlan(page);
+  await page.getByTestId('plant-list-open').click();
+  // Planted without a tick (Oct 30): back to buy, not bought.
+  await row(page, 'planted', 'Butterfly milkweed').getByTestId('pl-unplant').click();
+  await expect(row(page, 'planted', 'Butterfly milkweed')).toHaveCount(0);
+  await expect(row(page, 'buy', 'Butterfly milkweed').getByTestId('pl-bought')).toHaveText('Bought 0 of 3');
+  await expect(page.locator('#toast-action')).toContainText('Butterfly milkweed: 3 back to To buy, not planted yet.');
+  await page.locator('#toast-action').getByRole('button', { name: 'Undo' }).click();
+  await expect(row(page, 'planted', 'Butterfly milkweed').getByTestId('pl-planted-on')).toHaveText('Planted Oct 30');
+  await expect(row(page, 'buy', 'Butterfly milkweed')).toHaveCount(0);
+  // Ticked, then planted, then not after all: back to buy, all bought; Undo plants them again; the plan's Redo too.
+  await row(page, 'buy', 'Wild columbine').getByTestId('pl-tick').click();
+  await row(page, 'buy', 'Wild columbine').getByTestId('pl-mark-planted').click();
+  await expect(page.getByTestId('pl-totals')).toHaveText('7 plants to buy, 3 kinds');
+  await row(page, 'planted', 'Wild columbine').getByTestId('pl-unplant').click();
+  await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-bought')).toHaveText('Bought 5 of 5');
+  await expect(page.getByTestId('pl-totals')).toHaveText('7 plants to buy, 3 kinds · 5 bought, not yet planted');
+  await page.locator('#toast-action').getByRole('button', { name: 'Undo' }).click();
+  await expect(row(page, 'planted', 'Wild columbine').getByTestId('pl-count')).toHaveText(/^×\s5$/);
+  await expect(page.getByTestId('pl-totals')).toHaveText('7 plants to buy, 3 kinds');
+  await list(page).locator('.sheet-header .iconbtn').click();
+  await page.keyboard.press('Control+y');
+  await page.getByTestId('plant-list-open').click();
+  await expect(row(page, 'buy', 'Wild columbine').getByTestId('pl-bought')).toHaveText('Bought 5 of 5');
+});
+
+/** The words a PDF draws, its compressed streams opened. */
+function pdfWords(pdf: Buffer): string {
+  const text = pdf.toString('latin1');
+  const out: string[] = [];
+  for (const m of text.matchAll(/stream\r?\n/g)) {
+    const start = m.index! + m[0].length, end = text.indexOf('endstream', start);
+    try { out.push(inflateSync(pdf.subarray(start, end)).toString('latin1')); } catch { out.push(text.slice(start, end)); }
+  }
+  return out.join('\n');
+}
+
+// Jason's testing, Nov 1: Tifblue blueberries labeled with their real cultivars, and a plain Tifblue row he couldn't
+// place. Each row says its plants' own labels beside its kind's name; so do Share as text and the printed list.
+test('a plant\'s own label beside its kind\'s name: in the row, in the text, and on the printed list (Jason\'s testing, Nov 1)', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'share', { value: undefined, configurable: true });
+    const w = window as unknown as { __copied?: string };
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: async (t: string) => { w.__copied = t; } }, configurable: true });
+  });
+  const B = 'vaccinium-virgatum-climax-premier-tifblue', T = "Rabbiteye blueberry 'Tifblue'";
+  const berries = [plant(B, 'Climax', 2, 3), plant(B, 'Premier', 6, 3), plant(B, T, 10, 3), plant(B, 'Climax', 14, 3), plant(B, 'Premier', 2, 7, { status: 'planted', plantedOn: '2026-10-30' })];
+  await openFresh(page);
+  await page.locator('.project-btn').click();
+  const f = { format: 'landscape-planner-project', version: 1, project: { name: 'Berries', lastModified: 1, data: { shapes: [bed('front', 'Front bed', 0), ...berries] } } };
+  await page.locator('[data-testid=import-file]').setInputFiles({ name: 'b.fullgrown.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(f)) });
+  await expect(page.locator('.project-btn .pname')).toHaveText('Berries');
+  await page.getByTestId('plant-list-open').click();
+  const buy = row(page, 'buy', T);
+  await expect(buy.getByTestId('pl-count')).toHaveText(/^×\s4$/);
+  await expect(buy.getByTestId('pl-labels')).toHaveText(' · labeled Climax ×2, Premier ×1');
+  await expect(buy.locator('.pl-title')).toHaveText(`${T} · labeled Climax ×2, Premier ×1`);
+  await expect(row(page, 'planted', T).getByTestId('pl-labels')).toHaveText(' · labeled Premier ×1');
+  // The name's line stays whole beside its count on a phone.
+  expect(await buy.locator('.pl-title').evaluate((e) => e.scrollWidth <= e.clientWidth + 1)).toBe(true);
+  await page.getByTestId('pl-share').click();
+  const text = await (await page.waitForFunction(() => (window as unknown as { __copied?: string }).__copied)).jsonValue() as string;
+  const lines = text.split('\n');
+  expect(lines.find((l) => l.startsWith(`☐ ${T} × 4 · labeled Climax ×2, Premier ×1 · Vaccinium virgatum 'Tifblue' · `))).toMatch(/ · Front bed$/);
+  expect(lines.find((l) => l.startsWith(`• ${T} × 1 (Oct 30) · labeled Premier ×1 · `))).toBeTruthy();
+  await page.getByTestId('pl-print').click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('pl-download-pdf').click()]);
+  const words = pdfWords(Buffer.concat(await (await download.createReadStream()).toArray()));
+  expect(words).toContain('labeled Climax');
+  expect(words).toContain('Premier');
 });
