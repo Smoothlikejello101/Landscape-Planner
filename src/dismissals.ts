@@ -8,7 +8,7 @@
 // needs). Sun and crowding stay a copy's own: they depend on where it stands. Shown again from the plant's pane or
 // Warnings (src/warnings-list.ts, src/ui/warnings-sheet.ts), where they can be dismissed too (Jason, Nov 1).
 
-import { pushHistory } from './history';
+import { flushHistoryDebounce, pushHistory } from './history';
 import { householdFlags, plantsById, type Plant } from './plants';
 import { state } from './state';
 import { save } from './storage';
@@ -119,6 +119,8 @@ export function clearForPlan(kind: DismissKind, plantId: string): boolean {
  * it away again (src/history.ts; the review of the change, Nov 1: Undo left nothing dismissed).
  */
 export function warnForNewOnes(kind: DismissKind, plantId: string, said: string) {
+  // (An edit just before, still waiting to be its own step (a Show again in the plant's details), stays its own step.)
+  flushHistoryDebounce();
   const was = state.dismissed?.[kind]?.[plantId];
   dropPlanEntry(kind, plantId);
   const field = DISMISS_FIELD[kind];
