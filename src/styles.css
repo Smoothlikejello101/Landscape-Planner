@@ -1113,3 +1113,39 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 /* A warning's buttons in a plant's details: "Dismiss for this one", "Dismiss for every Fig". */
 .dismiss-row { display: flex; flex-wrap: wrap; gap: 0 16px; margin-top: 2px; }
 .dismiss-row .link-reset { min-height: 44px; }
+
+/* Getting the yard in (Jason's UI review, Nov 2). What a mode asks for, on a strip of its own above the plan, never
+   over it (src/ui/render.ts): the banners' look, laid out in the page. Its words keep room for the longest they say in
+   the mode (data-room, drawn unseen in the same place), so the strip is one height through it. */
+.mode-strip { flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; background: #f5f5f4; border-bottom: 1px solid #e7e5e4; }
+.mode-strip .mode-banner { position: static; max-width: none; box-shadow: none; border-radius: 12px; min-height: 32px; box-sizing: border-box; }
+.mode-strip .mode-banner > svg { flex-shrink: 0; }
+.strip-words { display: grid; flex: 1; min-width: 0; line-height: 1.35; }
+.strip-words > span, .strip-words::after { grid-area: 1 / 1; overflow-wrap: break-word; }
+.strip-words::after { content: attr(data-room); visibility: hidden; }
+/* A photo not to scale yet, in Layers: "Rough scale", and the way to set it. */
+.rough-flag { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; font-size: calc(11px * var(--ts)); font-weight: 700; white-space: nowrap; vertical-align: 1px; }
+.rough-line { padding: 0 16px 6px; color: #78350f; }
+.rough-line .link-btn { font-size: inherit; min-height: 44px; padding: 0 2px; }
+/* The scale box (src/ui/background-panel.ts): at the top, the plan only lightly dimmed, A and B shown below it. */
+.overlay.scale-overlay { align-items: flex-start; padding: 8px; background: rgba(0,0,0,0.12); }
+.intro-top .overlay.scale-overlay { padding-top: var(--intro-h, 8px); }
+.scale-box .sheet-body { padding: 12px 16px; }
+.scale-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; }
+.scale-row .field { flex: 1 1 8em; margin-bottom: 0; }
+.scale-buttons { display: flex; gap: 8px; margin-left: auto; }
+.scale-hints { margin-top: 12px; padding-top: 8px; border-top: 1px solid #e7e5e4; font-size: calc(12px * var(--ts)); color: #57534e; line-height: 1.4; }
+.scale-hints-head { font-weight: 600; color: #44403c; }
+.scale-hints ul { margin: 4px 0 0; padding-left: 18px; }
+.scale-hints b { color: #292524; font-weight: 600; }
+/* "Now trace" (src/ui/trace-card.ts): what to trace over the photo once it's to scale, each a press from its tool. On
+   its own at the foot of the plan, or as the first screen's line in the card docked under the photo. */
+.trace-card { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 6; max-width: 36em; margin: 0 auto; box-sizing: border-box; padding: 10px 12px 12px; border-radius: 16px; background: rgba(255, 255, 255, 0.97); box-shadow: 0 4px 18px rgba(28, 25, 23, 0.18); color: #292524; }
+.trace-line { pointer-events: auto; align-self: stretch; }
+.trace-head { font-weight: 600; font-size: calc(14px * var(--ts)); padding-right: calc(var(--tap) - 8px); margin-bottom: 8px; color: #292524; }
+.trace-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.trace-chip { display: inline-flex; align-items: center; gap: 4px; min-height: var(--tap); padding: 6px 14px; border-radius: 999px; border: 1px solid #0f766e; background: #f0fdfa; color: #115e59; font-size: calc(14px * var(--ts)); font-weight: 600; }
+.trace-chip.done { border-color: #d6d3d1; background: #fff; color: #57534e; font-weight: 500; }
+.trace-tick { color: #047857; font-weight: 700; }
+.trace-hide { position: absolute; top: 4px; right: 4px; width: var(--tap); height: var(--tap); display: flex; align-items: center; justify-content: center; border-radius: 999px; color: #78716c; }
+.empty-hint.docked .first-card .trace-line { margin-bottom: 6px; }

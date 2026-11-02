@@ -8,7 +8,9 @@ import { state } from '../state';
 import { el, hasKeyboard } from '../dom';
 import { I } from '../icons';
 import { startKind } from '../draw';
-import { shapeCenter } from '../geometry';
+import { pxPerFoot, rotatedBoxBounds, shapeBBox, shapeCenter } from '../geometry';
+import { resizeCanvas } from '../canvas';
+import { MIN_ZOOM, PX_PER_FOOT_BASE } from '../constants';
 import { hintShown } from '../hints';
 import { PLANT_FILTER_DEFAULTS, plantFilter, plantMatches, plantsById, plantTakesSun } from '../plants';
 import { hardyEnough, zoneFit } from '../climate';
@@ -25,7 +27,7 @@ import { toast } from './toast';
 import { flushHistoryDebounce, pushHistory } from '../history';
 import { save as savePlan } from '../storage';
 import { fullRingRadius } from '../my-plants';
-import type { Shape } from '../types';
+import type { Bounds, Shape } from '../types';
 import type { SunLevel } from '../sun';
 import { render } from './render';
 
@@ -331,9 +333,14 @@ function drawIntro(root: HTMLElement): void {
     if (rec.step && rec.base && !reading && stepDone(rec.step, rec.base, snapshot())) advance('done');
     if (rec.status !== 'active' || !rec.step) return;
   }
+  // While drawing, placing, adding doors or setting the scale, the strip above the plan says what to tap, and the card
+  // steps aside altogether, off the plan where the taps go (Jason, Nov 2: a card never covers what the step is about).
+  // It's back when that's done.
+  if (!choosing && snapshot().busy) return;
   const card = choosing ? resumeCard() : stepCard();
   root.appendChild(card);
   placeCard(card);
+  if (!choosing && rec.step) keepSubjectClear(rec.step, card);
   const step = rec.step;
   const sel = step && !choosing ? pulseTarget(step) : null;
   const target = sel ? root.querySelector<HTMLElement>(sel) : null;
@@ -365,13 +372,60 @@ function placeCard(card: HTMLElement): void {
   }
   card.style.bottom = `${Math.max(8, Math.round(window.innerHeight - top + 8))}px`;
 }
+/**
+ * What the step is about, on the plan (feet): the photo it turns, fades or traces the house over; the house the bed
+ * step offers to lock; the bed a plant's to go in; the plant whose ring it explains. None for the rest.
+ */
+function subject(step: StepId): { key: string; at: Bounds } | null {
+  const bg = state.bgImage;
+  const shape = (s: Shape | null) => (s ? { key: s.id, at: shapeBBox(s) } : null);
+  switch (step) {
+    case 'turn': case 'fade': case 'house': return bg?.visible ? { key: 'photo', at: rotatedBoxBounds(bg.cx, bg.cy, bg.naturalWidth * bg.ftPerPx, bg.naturalHeight * bg.ftPerPx, bg.rotation) } : null;
+    case 'bed': return shape(newestHouse());
+    case 'plant': return shape(newestBed());
+    case 'ring': return shape(newestPlant());
+    default: return null;
+  }
+}
+/** The step and subject last kept clear of the card: once each, so the plan can be moved after as the person likes. */
+let keptClear = '';
+/**
+ * The card never covers what the step is about (Jason, Nov 2, from the UI review): where the subject would be under the
+ * card, the plan is moved so it shows in the room above the card, zoomed out (never in) if it must be to fit. Once per
+ * step and subject.
+ */
+function keepSubjectClear(step: StepId, card: HTMLElement): void {
+  const sub = card.classList.contains('at-top') ? null : subject(step);
+  const key = sub ? `${step}:${sub.key}` : '';
+  if (!sub || key === keptClear) return;
+  keptClear = key;
+  resizeCanvas(); // (the plan as laid out now: a strip of words above it may have just gone)
+  const wrap = document.getElementById('canvas-wrap')?.getBoundingClientRect(), c = card.getBoundingClientRect();
+  if (!wrap || !c.height) return;
+  const m = 16, room = { left: wrap.left + m, top: wrap.top + m, right: wrap.right - m, bottom: Math.min(wrap.bottom, c.top) - m };
+  const b = sub.at, ppf = pxPerFoot();
+  const x = (f: number) => wrap.left + (f - state.offsetX) * ppf, y = (f: number) => wrap.top + (f - state.offsetY) * ppf;
+  if (x(b.minX) >= room.left && x(b.maxX) <= room.right && y(b.minY) >= room.top && y(b.maxY) <= room.bottom) return;
+  const w = room.right - room.left, h = room.bottom - room.top;
+  if (w < 40 || h < 40) return;
+  const fit = Math.min(w / (Math.max(b.maxX - b.minX, 1) * PX_PER_FOOT_BASE), h / (Math.max(b.maxY - b.minY, 1) * PX_PER_FOOT_BASE));
+  state.zoom = Math.max(MIN_ZOOM, Math.min(state.zoom, fit));
+  const p = pxPerFoot();
+  state.offsetX = (b.minX + b.maxX) / 2 - (room.left + w / 2 - wrap.left) / p;
+  state.offsetY = (b.minY + b.maxY) / 2 - (room.top + h / 2 - wrap.top) / p;
+}
 function cardShell(compact: boolean): HTMLElement {
   const where = state.panel ? ' at-top' : hasKeyboard() ? ' corner' : '';
   return el('section', { className: 'intro-card' + where + (compact || state.panel ? ' compact' : ''), 'data-testid': 'intro-card', 'aria-label': 'Guided introduction' });
 }
 function exitButton(): HTMLElement {
   const x = el('button', { className: 'intro-exit', html: I.x, 'aria-label': 'Exit the introduction', title: 'Exit (your progress is kept)', 'data-testid': 'intro-exit' });
-  x.addEventListener('click', () => { exit(); render(); });
+  x.addEventListener('click', () => {
+    exit();
+    render();
+    // (Where it's kept, said as it goes: Jason, Nov 2, from the UI review.)
+    toast('Tour closed. To pick it up again: \u22ee \u2192 Show me around.', 6000);
+  });
   return x;
 }
 
@@ -379,12 +433,12 @@ function stepCard(): HTMLElement {
   const step = rec.step!;
   const s = snapshot();
   const card = cardShell(s.busy || s.bgEditMode);
+  // (With a sheet open, its × is the one the card's words mean ("close it with its ×"): the card shows no × of its own
+  // then, so there's one on the screen. Jason, Nov 2, from the UI review: step 1 showed two.)
   const head = el('div', { className: 'intro-head' },
     el('span', { className: 'intro-num', 'data-testid': 'intro-step' }, `Step ${STEP_NUMBER[step]} of 8`),
-    el('span', { className: 'intro-title' }, STEP_TITLE[step]), exitButton());
+    el('span', { className: 'intro-title' }, STEP_TITLE[step]), ...(state.panel ? [] : [exitButton()]));
   card.appendChild(head);
-  // While drawing, placing or setting the scale, the plan's own banner says what to tap: the card keeps out of the way.
-  if (s.busy) return card;
   const c = stepContent(step);
   // A sheet open: what to do in it, in a line, clear of the sheet (its own buttons do the step; a pulse shows which).
   card.appendChild(el('p', { className: 'intro-text', 'data-testid': 'intro-text' }, state.panel ? c.short ?? c.text : c.text));

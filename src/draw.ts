@@ -4,7 +4,9 @@ import { startFeaturePlace } from './feature-edit';
 import { hasKeyboard, svgEl, tapSaid } from './dom';
 import { bakeRotation, canvasRect, fmtFeet, outlineOf, pathPoints, pxPerFoot, rotate, screenToFeet, setWorldPoints, shapeBBox } from './geometry';
 import { restingCanvasH } from './canvas';
-import { bringIntoView } from './mutations';
+import { bringIntoView, zoomBy } from './mutations';
+import { houseScaleZoom } from './yard-in';
+import { askRealSize } from './ui/real-size';
 import { flushHistoryDebounce, pushHistory, stepNamed, undo } from './history';
 import { gesture, state } from './state';
 import { save } from './storage';
@@ -77,6 +79,23 @@ export function startKind(key: KindKey) {
   }
   if (key === 'measure') { startDraw('measure'); return; }
   startDraw(methodFor(key), key);
+  if (key === 'building') houseScaleDue = state.draw;
+}
+/**
+ * The Building tool opens where a house fits, for the plan's first building (src/yard-in.ts houseScaleZoom): from the
+ * opening view, about 17 ft across a phone, houses came out shed-sized (Jason, Nov 2, from the UI review). Done once
+ * the page is laid out for drawing (render's last step), so it fits the plan as tall as the drawing bar leaves it.
+ */
+let houseScaleDue: object | null = null;
+export function openAtHouseScale(): boolean {
+  const due = houseScaleDue && houseScaleDue === state.draw;
+  houseScaleDue = null;
+  if (!due) return false;
+  const zoom = houseScaleZoom({ w: state.canvasW, h: state.canvasH, zoom: state.zoom },
+    { buildings: state.shapes.filter((s) => s.role === 'building').length, photoShown: !!state.bgImage?.visible });
+  if (zoom == null) return false;
+  zoomBy(zoom / state.zoom);
+  return true;
 }
 /** The method a kind starts in: the one last used for it, else its default. */
 function methodFor(key: KindKey): Method {
@@ -322,6 +341,8 @@ export function finishDraw(): Shape | null {
   // 2026-11-01: a house typed 50 by 30 ft at 360 \u00d7 640 was found only with Fit).
   if (d.exact?.some(Boolean)) bringIntoView(shapeBBox(made), restingCanvasH());
   save();
+  // The plan's only building, smaller than a house: "Is that the real size?" (src/ui/real-size.ts).
+  askRealSize(made);
   return made;
 }
 /** The shape a snap landed on, by name: "House", or "another shape". */

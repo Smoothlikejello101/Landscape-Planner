@@ -989,6 +989,8 @@ export function redrawCanvas() {
   const svg = canvasSvg();
   if (!svg) return;
   ensureLayers(svg);
+  // (The view it's drawn at, the plan's top left in feet and the zoom, for the tests: e2e/helpers.ts planPoint.)
+  svg.setAttribute('data-view', `${state.offsetX} ${state.offsetY} ${state.zoom}`);
   const w = state.canvasW, h = state.canvasH;
   layer(svg, 'base').replaceChildren(svgEl('rect', { 'data-role': 'grid', x: 0, y: 0, width: w, height: h, fill: BG_COLOR }));
   for (const name of SCENE_LAYERS) {
@@ -1176,6 +1178,8 @@ export function redrawHandles() {
  */
 /** The plan's width when last measured (none yet: the first measure moves nothing). */
 let measuredW: number | null = null;
+/** Where the plan's top edge was when last measured (page px; none yet: the first measure moves nothing). */
+let measuredTop: number | null = null;
 /**
  * What's to be kept in view when the plan's width changes (a phone turned), set by what's showing it: the walk through
  * Warnings keeps the plants it's on (src/ui/warnings-sheet.ts). Run once the plan has its new size, before it's drawn.
@@ -1196,6 +1200,17 @@ export function resizeCanvas() {
   const turned = measuredW != null && w !== measuredW;
   if (turned) state.offsetX -= (w - measuredW!) / 2 / pxPerFoot();
   measuredW = w;
+  // The plan's top edge moved (the strip saying what a mode asks for came or went above it, src/ui/render.ts; an
+  // update's banner): what's on it stays where it was on the screen, rather than jumping by the strip's height as a
+  // drawing starts.
+  const top = rect.top;
+  // (By a whole 4096th of a foot, a step that adds and takes away exactly: the strip coming and going leaves the view
+  // as it was, not a hair off.)
+  if (measuredTop != null && Math.abs(top - measuredTop) > 0.01 && !turned) {
+    const shift = (top - measuredTop) / pxPerFoot();
+    state.offsetY += Math.sign(shift) * Math.round(Math.abs(shift) * 4096) / 4096;
+  }
+  measuredTop = top;
   const h = Math.max(100, Math.round(rect.height));
   const settled = !turned && h !== state.canvasH && performance.now() - turnedAt < 1500;
   state.canvasW = w;

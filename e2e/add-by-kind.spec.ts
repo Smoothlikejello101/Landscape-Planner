@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, closeSheet, field, openFresh, shapeCount, openSections, tapFromCenter, tapping } from './helpers';
+import { addKind, closeSheet, field, openFresh, shapeCount, openSections, tapFromCenter, tapping, planPoint } from './helpers';
 
 // Adding things by what they are: the bottom bar, the Add sheet, and drawing
 // each kind by tapping.
@@ -8,8 +8,9 @@ import { addKind, closeSheet, field, openFresh, shapeCount, openSections, tapFro
 // canvas pixel 24*k is k-10 ft.
 const FT = 24;
 async function tapFt(page: Page, kx: number, ky: number) {
-  const box = (await page.locator('#canvas-svg').boundingBox())!;
-  await page.mouse.click(box.x + kx * FT, box.y + ky * FT);
+  // (In feet, at the view as it is: a strip of words above the plan, or the Building tool opening where a house fits.)
+  const p = await planPoint(page, kx - 10, ky - 10);
+  await page.mouse.click(p.x, p.y);
 }
 const bar = (page: Page) => page.getByTestId('draw-bar');
 const banner = (page: Page) => page.getByTestId('draw-banner');
@@ -48,9 +49,9 @@ test('a building from three taps: tilted to follow the first side, labeled House
   await expect(page.locator('#canvas-svg rect[data-shape-id]')).toHaveAttribute('transform', /rotate\(-36\.9 /);
   await closeSheet(page);
 
-  // The second building in a plan isn't the house.
+  // The second building in a plan isn't the house. (Big enough to tap at the house's scale, the view the first opened at.)
   await addKind(page, 'building');
-  await tapFt(page, 1, 12); await tapFt(page, 5, 12); await tapFt(page, 5, 15);
+  await tapFt(page, 1, 12); await tapFt(page, 9, 12); await tapFt(page, 9, 18);
   await expect(page.locator('.sel-pill .name')).toHaveText('Building');
   // ...and Building now shows under Recent.
   await page.getByTestId('add-btn').click();
@@ -199,8 +200,8 @@ test.describe('with a keyboard', () => {
     await page.keyboard.press('b');
     await expect(banner(page)).toHaveText(tapping('Bed: Tap each corner', true));
     await tapFt(page, 2, 2); await tapFt(page, 8, 2); await tapFt(page, 8, 8);
-    const box = (await page.locator('#canvas-svg').boundingBox())!;
-    await page.mouse.move(box.x + 2 * FT, box.y + 9 * FT);
+    const hover = await planPoint(page, -8, -1);
+    await page.mouse.move(hover.x, hover.y);
     await expect(page.locator('#canvas-svg [data-role=draw-hover]')).toHaveCount(1);
     await page.keyboard.press('Enter');
     expect(await shapeCount(page)).toBe(1);

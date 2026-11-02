@@ -67,7 +67,7 @@ export function placeToast(node: HTMLElement) {
     return;
   }
   let top = Infinity;
-  for (const e of document.querySelectorAll('.sel-pill, .multi-bar, .walk-chip, .intro-card')) {
+  for (const e of document.querySelectorAll('.sel-pill, .multi-bar, .walk-chip, .intro-card, .trace-card')) {
     const r = e.getBoundingClientRect();
     if (r.height > 0) top = Math.min(top, r.top);
   }
@@ -194,11 +194,29 @@ export function placeNotice() {
   }
   // (An update's banner under the top bar, src/pwa.ts: the notice just below it, not over its Update.)
   const update = !sheet ? document.getElementById('update-banner') : null;
-  if (update?.closest('.app')) { node.style.top = `${Math.round(update.getBoundingClientRect().bottom + 8)}px`; return; }
-  if (!sheet) return;
+  if (update?.closest('.app')) node.style.top = `${Math.round(update.getBoundingClientRect().bottom + 8)}px`;
+  if (!sheet) { keepOffItsShape(node); return; }
   const sheetTop = sheet.getBoundingClientRect().top;
   const h = node.getBoundingClientRect().height;
   node.style.top = `${Math.max(8, Math.round(sheetTop - h - 8))}px`;
+}
+/**
+ * A notice about a shape (a building asked about its size, a plant placed too close) never covers it (Jason, Nov 2,
+ * from the UI review): at the top of the plan it would, it goes to the foot of the plan instead, above what's there.
+ */
+function keepOffItsShape(node: HTMLElement) {
+  const id = node.dataset.about;
+  const drawn = id && /^[\w-]+$/.test(id) ? document.querySelectorAll(`#canvas-svg [data-shape-id="${id}"]`) : [];
+  if (!drawn.length) return;
+  const n = node.getBoundingClientRect();
+  const covers = [...drawn].some((e) => { const r = e.getBoundingClientRect(); return r.left < n.right && n.left < r.right && r.top < n.bottom && n.top < r.bottom; });
+  if (!covers) return;
+  let foot = document.getElementById('canvas-wrap')?.getBoundingClientRect().bottom ?? window.innerHeight;
+  for (const e of document.querySelectorAll('#canvas-wrap .sel-pill, #canvas-wrap .multi-bar, #canvas-wrap .trace-card, .intro-card')) {
+    const r = e.getBoundingClientRect();
+    if (r.height) foot = Math.min(foot, r.top);
+  }
+  node.style.top = `${Math.max(8, Math.round(foot - n.height - 8))}px`;
 }
 /** How far a notice is swiped before it goes on its own (px), or how fast (px a millisecond). */
 const SWIPE_AWAY = 80, SWIPE_FLICK = 0.5;

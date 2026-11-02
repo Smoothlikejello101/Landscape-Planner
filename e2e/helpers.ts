@@ -81,6 +81,35 @@ export async function canvasBox(page: Page) {
   return box;
 }
 
+/**
+ * Back in near the starting view's zoom (100%), about what's at `at` (page px; the plan's middle by default), as a
+ * pinch or Ctrl and the wheel there does: after a plan's first building, which opens where a house fits (src/draw.ts
+ * openAtHouseScale), for a test of small things drawn by it.
+ */
+export async function zoomBackIn(page: Page, at?: { x: number; y: number }) {
+  const box = await canvasBox(page);
+  const p = at ?? { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  while ((await zoomPct(page)) < 90) {
+    await page.locator('#canvas-svg').evaluate((svg, q) => {
+      svg.dispatchEvent(new WheelEvent('wheel', { deltaY: -20, ctrlKey: true, clientX: q.x, clientY: q.y, bubbles: true, cancelable: true }));
+    }, p);
+  }
+  // (Drawn again once the wheel's settled: src/gestures.ts onWheel.)
+  await expect.poll(async () => Number((await page.locator('#canvas-svg').getAttribute('data-view'))!.split(' ')[2])).toBeGreaterThanOrEqual(0.9);
+}
+/** The middle of a shape as drawn (page px). */
+export async function middleOf(page: Page, selector: string) {
+  const b = (await page.locator(selector).first().boundingBox())!;
+  return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+}
+
+/** Where a point on the plan (feet) is on the page, at the view it's drawn at (src/canvas.ts redrawCanvas). */
+export async function planPoint(page: Page, x: number, y: number) {
+  const box = await canvasBox(page);
+  const [ox, oy, zoom] = (await page.locator('#canvas-svg').getAttribute('data-view'))!.split(' ').map(Number);
+  return { x: box.x + (x - ox) * 24 * zoom, y: box.y + (y - oy) * 24 * zoom };
+}
+
 /** Fields in the open properties sheet, by label text. */
 export function field(page: Page, label: string) {
   return page.locator('.sheet .field').filter({ has: page.locator('label', { hasText: label }) }).locator('input').first();
