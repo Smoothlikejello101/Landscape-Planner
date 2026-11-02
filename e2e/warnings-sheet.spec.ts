@@ -406,11 +406,14 @@ test('turned mid-walk, the plan zooms to the plant again, clear of the chip (the
   const chip = page.getByTestId('walk-chip');
   await expect(chip.getByTestId('walk-list')).toContainText('Northern red oak');
   const oak = page.locator('#canvas-svg [data-shape-id=oak]').first();
+  // (Polled, and false while a box isn't there yet: the walk zooms to its plant as the chip opens. CI on #207 caught
+  // the first look landing mid-zoom, the oak's box null.)
   const inView = async () => {
-    const plan = (await page.locator('#canvas-svg').boundingBox())!, b = (await oak.boundingBox())!, c = (await chip.boundingBox())!;
+    const plan = await page.locator('#canvas-svg').boundingBox(), b = await oak.boundingBox(), c = await chip.boundingBox();
+    if (!plan || !b || !c) return false;
     return b.x >= plan.x && b.x + b.width <= plan.x + plan.width && b.y >= plan.y && b.y + b.height <= c.y;
   };
-  expect(await inView()).toBe(true);
+  await expect.poll(inView).toBe(true);
   // Turned on its side, and back: the oak in view each time, above the chip, and the walk still on it.
   await page.setViewportSize({ width: 839, height: 412 });
   await expect.poll(inView).toBe(true);
