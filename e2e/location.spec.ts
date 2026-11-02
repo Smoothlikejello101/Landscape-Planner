@@ -344,6 +344,29 @@ test('a plant the garden\'s state prohibits says so, with the rule', async ({ pa
   await expect(chinaberry.getByTestId('register-us')).toContainText('Listed as widespread invasive in the lower 48');
 });
 
+test('South Carolina\'s law on Callery pear cites the plant pest list that names it, not the aquatic plants statute (the bug hunt, Nov 1)', async ({ page }) => {
+  // (Richland County, South Carolina: the real South Carolina file.)
+  const table = { ...TABLE, zips: { '29201': ['8b', 0, 3, 45079] } };
+  await page.route('**/climate/292.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(table) }));
+  await openFresh(page);
+  await page.getByTestId('first-zip').fill('29201');
+  await page.getByTestId('first-zip-lookup').click();
+  await expect(page.getByTestId('location-result')).toContainText('Zone 8b');
+  await page.locator('.sheet-header .iconbtn').click();
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Callery pear');
+  const pear = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /Callery pear/ }) }).first();
+  await expect(pear.getByTestId('plant-place')).toHaveText('Place (banned)');
+  await pear.getByTestId('plant-row').click();
+  const law = pear.getByTestId('regulated-here');
+  await expect(law).toContainText('Plant pest in South Carolina: by its agency\'s reading');
+  const source = law.locator('.details-src');
+  await expect(source.locator('a')).toHaveText('South Carolina State Plant Pest List (S.C. Code Regs. 27-135)');
+  await expect(source.locator('a')).toHaveAttribute('href', /clemson\.edu\/.*pests-list\.html$/);
+  await expect(source).not.toContainText('aquatic');
+  await expect(source).not.toContainText('50-13-1415');
+});
+
 test('a plant not native here that is recorded growing wild here says so, with its counties', async ({ page }) => {
   // (Clark County, Arkansas: the real Arkansas file. Chinese privet: introduced by Kew's checklist, recorded wild across the state.)
   const table = { ...TABLE, zips: { '71923': ['8a', 0, 3, 5019] } };

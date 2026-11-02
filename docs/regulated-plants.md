@@ -68,7 +68,10 @@ None yet for bracted plantain (Arkansas): no allowed source found gives a weed o
 read and the date. Every name is the rule's own; where Kew's checklist differs an entry says so (`kew`: Kew's
 spelling, *Echinochloa crusgalli* as *E. crus-galli*; `accepted`: Kew's accepted name, checked by hand). Each
 list's `classes` holds what the rule says of the plants in each class, worded from the rule; `notes` says what
-was read narrower than printed or left out, and why.
+was read narrower than printed or left out, and why. Where a list's title names more than one rule, `sources` can
+give a class its own title, link and edition, so a plant's line cites the rule that names it: South Carolina's plant
+pests cite Clemson's State Plant Pest List, not the statute on prohibited aquatic plants that leads the list's title
+(the bug hunt, 2026-11-01: Callery pear's line cited "South Carolina prohibited aquatic plants (S.C. Cod…").
 
 | Code | Rule | Read from | Entries | Effect |
 | --- | --- | --- | --- | --- |

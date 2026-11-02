@@ -1089,6 +1089,10 @@
    "url": "https://www.clemson.edu/public/regulatory/plant-industry/invasive/plant-pest-information/pests-list.html",
    "edition": "Clemson University Department of Plant Industry, State Plant Pest List, the official listing under S.C. Code Regs. 27-135 (as amended effective June 26, 2015), undated web page; S.C. Code of Regulations chapter 27 (South Carolina Legislature, unannotated), current through State Register Volume 50, Issue 3, effective March 27, 2026; S.C. Code §50-13-1415 (1983 Act No. 10; 1993 Act No. 181), South Carolina Code of Laws (unannotated)",
    "statuteUrl": "https://www.scstatehouse.gov/code/t50c013.php",
+   "sources": {
+    "pest": {"title": "South Carolina State Plant Pest List (S.C. Code Regs. 27-135)", "url": "https://www.clemson.edu/public/regulatory/plant-industry/invasive/plant-pest-information/pests-list.html", "edition": "Clemson University Department of Plant Industry, State Plant Pest List, the official listing under S.C. Code Regs. 27-135 (as amended effective June 26, 2015), undated web page; S.C. Code of Regulations chapter 27 (South Carolina Legislature, unannotated), current through State Register Volume 50, Issue 3, effective March 27, 2026"},
+    "aquatic": {"title": "South Carolina prohibited aquatic plants (S.C. Code §50-13-1415)", "url": "https://www.scstatehouse.gov/code/t50c013.php", "edition": "S.C. Code §50-13-1415 (1983 Act No. 10; 1993 Act No. 181), South Carolina Code of Laws (unannotated)"}
+   },
    "read": "2026-10-31",
    "classes": {"aquatic": "Prohibited aquatic plant in South Carolina: no one may possess, sell, offer for sale or import it, bring it into the state, or release or place it into any of the state's waters, but under a special import permit for research (S.C. Code §50-13-1415)", "pest": "Plant pest in South Carolina: by its agency's reading (Clemson University's Department of Plant Industry, which keeps the list), it may not be sold or moved within the state; the rule's own text says nursery stock must be free of plant pests (S.C. Code Regs. 27-135, 27-161; Clemson University, July 14, 2021)"},
    "tiers": {"aquatic": "ban", "pest": "ban"},
