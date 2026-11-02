@@ -51,6 +51,9 @@ The history (src/db.ts keeps it beside `DB_VERSION`):
   plant), which a version-2 page would drop, saving or syncing a plan. A version-2 page's journal, written without it,
   is kept apart from a plan saved at 3, not put over it. (Sync has its own guard for versions before the field: a
   device that has it keeps it when the server's copy has none, src/sync/engine.ts `withFruitDismissals`.)
+- 4 (Nov 2): no store or record changed. Beds' `conditions` (Plant this bed: soil, moisture, drip, and sun where no
+  sun area covers the bed), which a version-3 page would drop, saving or syncing a plan. A version-3 page's journal,
+  written without them, is kept apart from a plan saved at 4, not put over it. (Sync: `withBedConditions`, below.)
 
 When raising it:
 1. Add a line to the history beside `DB_VERSION`: the version, the day, what changed.
@@ -58,8 +61,9 @@ When raising it:
    change that must rewrite records does it after the open, in one transaction (`KV.changeAllOnce`, as
    `takeFromDevice` does), so nothing another tab saves meanwhile is put back as it was read.
 3. Test the upgrade from the version before, with real data in it (tests/storage.test.ts: "the upgrade from 1 keeps
-   every store and record", "the upgrade from 2 keeps every store and record"), and the migration spec against
-   e2e/fixtures/legacy-app.
+   every store and record", "the upgrade from 2 keeps every store and record", "the upgrade from 3 keeps every store
+   and record"), the page of the version before told (tests/fixtures/db-v2.ts, db-v3.ts: that version's src/db.ts,
+   verbatim), and the migration spec against e2e/fixtures/legacy-app.
 4. A storage change gets a pull request of its own (CLAUDE.md).
 
 **Never lower it, and never deploy a build with a lower one** (a rollback, a revert, a re-run of an older CI run):

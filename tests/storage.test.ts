@@ -4,6 +4,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DB_NAME, DB_VERSION, MemoryKV, NewerVersionError, openKV, put, setOpenBlockedListener } from '../src/db';
 import { NewerVersionError as NewerVersionErrorV2, openKV as openKVv2, put as putV2 } from './fixtures/db-v2';
+import { NewerVersionError as NewerVersionErrorV3, openKV as openKVv3, put as putV3 } from './fixtures/db-v3';
 import { state } from '../src/state';
 import {
   _resetStorageForTests, clearedNow, createProject, deleteProject, emptyProjectData, flushSave, getClipboard, initStorage, keepCleared, loadCleared,
@@ -1886,7 +1887,7 @@ describe('an older version never saves over a newer one (src/db.ts DB_VERSION)',
   afterEach(() => { setNewerVersionListener(() => {}); setOpenBlockedListener(null); });
 
   it('the upgrade from 1 keeps every store and record as release 3 left them, and the plans open as they were', async () => {
-    expect(DB_VERSION).toBe(3);
+    expect(DB_VERSION).toBe(4);
     const name = 'test-' + ++dbCount;
     const old = await dbAt(name, 1, RELEASE3);
     const before = await dump(old);
@@ -1949,7 +1950,7 @@ describe('an older version never saves over a newer one (src/db.ts DB_VERSION)',
     _resetStorageForTests();
     const kv = await openKV(name);
     const raw = await rawOpen(name);
-    expect(raw.version).toBe(3);
+    expect(raw.version).toBe(DB_VERSION);
     expect(await dump(raw)).toEqual(before); // (the upgrade itself changes nothing)
     const { keptApart } = await initStorage(kv);
     expect(keptApart).toBeUndefined();
@@ -1971,7 +1972,7 @@ describe('an older version never saves over a newer one (src/db.ts DB_VERSION)',
     expect(household()).toEqual({ ...NO_YARD, dogs: 'hideToxic', answered: true, at: 7 });
     // Saved from now on, at this version.
     state.shapes = [...state.shapes, ...shapesOf('new')]; save(); await flushSave();
-    expect((await stored(kv, 'p1')).dbVersion).toBe(3);
+    expect((await stored(kv, 'p1')).dbVersion).toBe(DB_VERSION);
     raw.close();
   });
 
@@ -1985,7 +1986,7 @@ describe('an older version never saves over a newer one (src/db.ts DB_VERSION)',
     state.shapes = sanitizeProjectData({ shapes: [holly({ fruitDismissed: said })] }).shapes;
     save(); await flushSave();
     const mine = await stored(kv, id);
-    expect(mine.dbVersion).toBe(3);
+    expect(mine.dbVersion).toBe(DB_VERSION);
     // The version-2 tab closes later, leaving its journal as that version writes one: the same parts (yard, switches),
     // so only its version tells it from this version's.
     localStorage.setItem(...v2Journal(id, 'v2page', Date.now() + 1000, 3, older as unknown as Record<string, unknown>));
@@ -2025,7 +2026,115 @@ describe('an older version never saves over a newer one (src/db.ts DB_VERSION)',
     raw.close();
     await expect(openKVv2(name)).rejects.toBeInstanceOf(NewerVersionErrorV2);
     const again = await rawOpen(name);
-    expect([again.version, await dump(again)]).toEqual([3, before]);
+    expect([again.version, await dump(again)]).toEqual([DB_VERSION, before]);
+    again.close();
+  });
+
+  // A device as a version-3 page (fruit-dismiss-one, Nov 2) leaves it: as version 2 does, stamped 3, and a plant with its
+  // own fruit-partner dismissal (the field version 3 added) beside a bed, which has no conditions yet.
+  const SAID = 'Holly is a female: it needs a male of its kind nearby to fruit';
+  const v3Shapes = [circle('oak'), BURIED, { ...circle('holly'), role: 'plant', plantId: 'ilex-opaca', fruitDismissed: SAID }, { id: 'bed', type: 'rect', x: 0, y: 0, width: 12, height: 4, rotation: 0, color: '#a16207', label: 'Front bed', opacity: 0.4, locked: false, role: 'bed' }];
+  const V3 = {
+    meta: { ...V2.meta, p1: { ...RELEASE3.meta.p1, shapeCount: 4 } },
+    projects: {
+      p1: { ...V2.projects.p1, shapes: v3Shapes, dbVersion: 3 },
+      p2: { ...V2.projects.p2, dbVersion: 3 },
+      kept1: { ...V2.projects.kept1, dbVersion: 3 },
+    },
+    images: RELEASE3.images,
+    kv: RELEASE3.kv,
+  };
+  const v3Journal = (id: string, page: string, at: number, seq: number, data: Record<string, unknown>) =>
+    [`lp-journal:${id}@${page}`, JSON.stringify({ projectId: id, at, dbVersion: 3, page, seq, data })] as const;
+
+  it('the upgrade from 3 keeps every store and record as a version-3 page left them (its stamps, a plant\'s own dismissal, a bed), and its journals are replayed as before', async () => {
+    expect(DB_VERSION).toBe(4);
+    const name = 'test-' + ++dbCount;
+    const old = await dbAt(name, 3, V3);
+    const before = await dump(old);
+    old.close();
+    // Its journals: one its page saved since (nothing new), one of another page's for p2 (written after p2 last changed:
+    // in place, a version-3 journal over a plan a version-3 page saved), one already kept apart as kept1.
+    localStorage.setItem(...v3Journal('p1', 'pageA', 990, 3, { ...V3.projects.p1, shapes: v3Shapes.slice(0, 3) }));
+    const late = { ...V3.projects.p2, shapes: shapesOf('late in a version-3 tab') };
+    localStorage.setItem(...v3Journal('p2', 'pageC', Date.now(), 7, late));
+    localStorage.setItem(...v3Journal('p1', 'pageB', 940, 2, keptData));
+    _resetStorageForTests();
+    const kv = await openKV(name);
+    const raw = await rawOpen(name);
+    expect(raw.version).toBe(4);
+    expect(await dump(raw)).toEqual(before); // (the upgrade itself changes nothing)
+    const { keptApart } = await initStorage(kv);
+    expect(keptApart).toBeUndefined();
+    expect(journals()).toBe('');
+    const after = await dump(raw);
+    for (const s of STORES) {
+      const { p2: _was, ...rest } = before[s];
+      const { p2: _now, ...restNow } = after[s];
+      expect(restNow, s).toEqual(rest);
+    }
+    expect(after.projects.p2).toMatchObject({ dbVersion: 3, savedByPage: 'pageC', savedSeq: 7, shapes: late.shapes });
+    // The plans open as they were: the holly's own dismissal kept, the bed with nothing gained.
+    expect(state.projects.map((p) => p.name).sort()).toEqual(['Back Yard', 'Back Yard (from an older tab)', 'Front']);
+    expect([state.currentProjectId, labels(state.shapes)]).toEqual(['p1', ['oak', 'buried line', 'holly', 'Front bed']]);
+    expect(state.shapes[2].fruitDismissed).toBe(SAID);
+    expect(state.shapes[3]).toMatchObject({ role: 'bed' });
+    expect('conditions' in state.shapes[3]).toBe(false);
+    // Saved from now on, at this version.
+    state.shapes = [...state.shapes, ...shapesOf('new')]; save(); await flushSave();
+    expect((await stored(kv, 'p1')).dbVersion).toBe(4);
+    raw.close();
+  });
+
+  it("a version-3 page's journal, without a bed's conditions, over a plan saved here with them, is kept apart, not put over it", async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    const ALL = { sun: 'unsure', soil: 'clay', moisture: 'average', drip: true };
+    const bed = (extra: Record<string, unknown> = {}) => ({ id: 'bed', type: 'rect', x: 0, y: 0, width: 12, height: 4, rotation: 0, color: '#a16207', label: 'Front bed', opacity: 0.4, locked: false, role: 'bed', ...extra });
+    // A version-3 tab read the plan (no field) and moved the bed; then this version set its conditions, and saved.
+    const older = { ...currentProjectData(), shapes: sanitizeProjectData({ shapes: [bed({ x: 9 })] }).shapes };
+    state.shapes = sanitizeProjectData({ shapes: [bed({ conditions: ALL })] }).shapes;
+    save(); await flushSave();
+    const mine = await stored(kv, id);
+    expect(mine.dbVersion).toBe(4);
+    // The version-3 tab closes later, leaving its journal as that version writes one: the same parts, so only its version
+    // tells it from this version's (at 3, it went in place: the field lost).
+    localStorage.setItem(...v3Journal(id, 'v3page', Date.now() + 1000, 3, older as unknown as Record<string, unknown>));
+    _resetStorageForTests();
+    const { keptApart } = await initStorage(kv);
+    expect(keptApart).toEqual(['My Garden (from an older tab)']);
+    expect(await stored(kv, id)).toEqual(mine);
+    expect(state.shapes[0]).toMatchObject({ x: 0, conditions: ALL });
+    const copy = state.projects.find((p) => p.name === keptApart![0])!;
+    expect((await readProject(copy.id))!.shapes).toEqual(older.shapes); // (its edit whole, beside)
+    expect(journals()).toBe('');
+  });
+
+  it('a version-3 page (its database layer as it is: tests/fixtures/db-v3.ts) is told: one open lets go for this version, its last write first; one opened after is refused, nothing read or written', async () => {
+    const name = 'test-' + ++dbCount;
+    const v3 = await openKVv3(name);
+    await v3.write([putV3('meta', 'p1', V3.meta.p1), putV3('projects', 'p1', V3.projects.p1)]);
+    const heard: string[] = [];
+    let lastWrite: Promise<void> | undefined;
+    v3.onNewerVersion!(() => { heard.push('last'); lastWrite = v3.write([putV3('projects', 'p1', { ...V3.projects.p1, shapes: [...v3Shapes, circle('not yet saved')] })]); }, () => heard.push('closed'));
+    // This version opens the plans: the version-3 page closes them at once, its last write in first.
+    _resetStorageForTests();
+    let blocked = false;
+    setOpenBlockedListener((b) => { if (b) blocked = true; });
+    const kv = await openKV(name);
+    await lastWrite;
+    expect([heard, blocked]).toEqual([['last', 'closed'], false]);
+    await expect(v3.get('meta', 'p1')).rejects.toBeInstanceOf(NewerVersionErrorV3);
+    await initStorage(kv);
+    expect(labels(state.shapes)).toEqual(['oak', 'buried line', 'holly', 'Front bed', 'not yet saved']);
+    await flushSave();
+    // A version-3 page opened after (a stale cached copy, or Next not yet updated): refused at once, every record as it was.
+    const raw = await rawOpen(name);
+    const before = await dump(raw);
+    raw.close();
+    await expect(openKVv3(name)).rejects.toBeInstanceOf(NewerVersionErrorV3);
+    const again = await rawOpen(name);
+    expect([again.version, await dump(again)]).toEqual([4, before]);
     again.close();
   });
 
