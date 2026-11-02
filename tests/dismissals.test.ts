@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { atRisk, copiesSaid, copyDismissed, dismissedForPlan, dismissForPlan, planDismissals, poisonCovered, showAgainForPlan, warnForNewOnes } from '../src/dismissals';
+import { atRisk, clearForPlan, copiesSaid, copyDismissed, dismissedForPlan, dismissForPlan, planDismissals, poisonCovered, showAgainForPlan, warnForNewOnes } from '../src/dismissals';
 import { plantsById, type Plant } from '../src/plants';
 import { state } from '../src/state';
 import type { Shape } from '../src/types';
@@ -63,5 +63,21 @@ describe('a warning dismissed for a plant, across the plan', () => {
     showAgainForPlan('poison', 'ficus-carica');
     expect(dismissedForPlan('poison', 'ficus-carica', 'Poisonous to people')).toBe(false);
     expect(state.shapes.map((s) => s.poisonDismissed)).toEqual([undefined, undefined]);
+  });
+  it('a fruit-partner warning too (Jason, Nov 1): "Just these 2" keeps it to the copies there now, each its own, by its words', () => {
+    const line = "Fig 'Brown Turkey' needs a second, different variety nearby to fruit";
+    dismissForPlan('fruit', 'ficus-carica', line);
+    warnForNewOnes('fruit', 'ficus-carica', line);
+    expect(dismissedForPlan('fruit', 'ficus-carica', line)).toBe(false);
+    expect(state.dismissed).toEqual({}); // (kept, empty, so it syncs)
+    expect(state.shapes.map((s) => s.fruitDismissed)).toEqual([line, line]);
+    expect(state.shapes.map((s) => [s.hardyDismissed, s.poisonDismissed])).toEqual([[undefined, undefined], [undefined, undefined]]); // (only its own kind)
+    expect(copyDismissed('fruit', state.shapes[0], line)).toBe(true);
+    expect(copyDismissed('fruit', state.shapes[0], line + '; NC State suggests \'Celeste\'')).toBe(false); // (its words changed: back)
+    expect(copyDismissed('fruit', fig('new'), line)).toBe(false); // (one added later: warned for)
+    // Shown again for the plant: every copy's goes too, as hardiness's and poison's do.
+    expect(clearForPlan('fruit', 'ficus-carica')).toBe(true);
+    expect(state.shapes.map((s) => 'fruitDismissed' in s)).toEqual([false, false]);
+    expect(clearForPlan('fruit', 'ficus-carica')).toBe(false); // (none left: no step)
   });
 });

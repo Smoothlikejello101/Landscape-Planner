@@ -353,11 +353,12 @@ test('a plant\'s details show its fruit-partner warning, with Dismiss and Show a
   await details();
   const banner = page.getByTestId('fruit-check');
   await expect(banner).toContainText(/^⚠ Winterberry 'Winter Red' .*fruit/);
-  await expect(banner.getByRole('button')).toHaveText(["Dismiss for every Winterberry 'Winter Red'"]);
-  // Dismissed as from Warnings: for every one in the plan, with the notice and its Undo.
+  // (As hardiness and poison have them, since Nov 1: e2e/fruit-dismiss-one.spec.ts.)
+  await expect(banner.getByRole('button')).toHaveText(['Dismiss for this one', "Dismiss for every Winterberry 'Winter Red'"]);
+  // Dismissed as from Warnings: for every one in the plan, with the notice, its "Just this one" and its Undo.
   await banner.getByTestId('fruit-dismiss').click();
   await expect(page.getByTestId('dismiss-notice')).toContainText("Fruit partner warning dismissed for Winterberry 'Winter Red' in this plan, and any you add later.");
-  await expect(page.getByTestId('dismiss-notice').getByRole('button')).toHaveText(['Undo', 'OK', '✕']);
+  await expect(page.getByTestId('dismiss-notice').getByRole('button')).toHaveText(['Just this one', 'Undo', 'OK', '✕']);
   await expect(banner).toContainText('Dismissed for every one in this plan.');
   await expect(banner).toHaveClass(/muted/);
   await expect(banner.getByRole('button')).toHaveText(['Show again']);
@@ -371,7 +372,7 @@ test('a plant\'s details show its fruit-partner warning, with Dismiss and Show a
   // Shown again from its details: active in Warnings again.
   await details();
   await banner.getByTestId('fruit-dismiss').click();
-  await expect(banner.getByRole('button')).toHaveText(["Dismiss for every Winterberry 'Winter Red'"]);
+  await expect(banner.getByRole('button')).toHaveText(['Dismiss for this one', "Dismiss for every Winterberry 'Winter Red'"]);
   await closeSheet(page);
   await expect(button(page)).toHaveAttribute('aria-label', 'Warnings: 10 to look at');
 });

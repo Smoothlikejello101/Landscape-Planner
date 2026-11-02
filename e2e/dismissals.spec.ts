@@ -151,11 +151,11 @@ test('Warnings: each kind\'s warning dismissed from its row, as the plan dismiss
   await expect(scopeOf('poison')).toHaveText('Dismissed for every Butterfly milkweed in this plan');
   await expect(badgesOf(page, 'poison')).toHaveCount(3);
   await putAway(page);
-  // (Fruit partners: no "Just this one", which brought the warning back as active, the plan keeping no fruit-partner
-  // dismissal copy by copy (the warnings bug hunt, Nov 1); Undo instead.)
+  // (Fruit partners: "Just this one" as hardiness and poison have it, since a copy keeps its own (Jason, Nov 1: it
+  // brought the warning back, the warnings bug hunt), and Undo, kept: e2e/fruit-dismiss-one.spec.ts.)
   await kind(page, 'fruit').getByTestId('warning-dismiss').click();
   await expect(page.getByTestId('dismiss-notice')).toContainText("Fruit partner warning dismissed for Winterberry 'Winter Red' in this plan, and any you add later.");
-  await expect(page.getByTestId('dismiss-notice').getByRole('button')).toHaveText(['Undo', 'OK', '✕']);
+  await expect(page.getByTestId('dismiss-notice').getByRole('button')).toHaveText(['Just this one', 'Undo', 'OK', '✕']);
   await expect(head(page, 'fruit')).toHaveAttribute('aria-label', 'Fruit partners, 1 dismissed');
   await expect(scopeOf('fruit')).toHaveText("Dismissed for every Winterberry 'Winter Red' in this plan");
   await page.getByTestId('dismiss-notice').getByRole('button', { name: 'Undo' }).click();
