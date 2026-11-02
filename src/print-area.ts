@@ -1,5 +1,5 @@
 import { bedOf, isBed, isPlant } from './beds';
-import { canvasRect, pxPerFoot, shapeBBox, shapeCenter, unionBounds } from './geometry';
+import { canvasRect, pointInShape, pxPerFoot, shapeBBox, shapeCenter, unionBounds } from './geometry';
 import { state } from './state';
 import type { Bounds, Shape } from './types';
 
@@ -73,7 +73,8 @@ export function frameArea(area: PrintArea, shown: Shape[], all: Shape[], whole: 
     if (!bed) return { bounds: null, shapes: [], plants: [], name: '', exact: true };
     const box = shapeBBox(bed);
     const plants = shown.filter((s) => isPlant(s) && bedOf(s, all) === bed);
-    const inside = shown.filter((s) => !isPlant(s) && !isBed(s) && holds(box, shapeBBox(s)));
+    // (What lies within it: in its box, its middle in the bed itself, so not what sits in the crook of an L-shaped one.)
+    const inside = shown.filter((s) => !isPlant(s) && !isBed(s) && holds(box, shapeBBox(s)) && pointInShape(bed, shapeCenter(s)));
     const keep = new Set([bed, ...plants, ...inside]);
     const b = unionBounds([box, ...plants.map(shapeBBox)])!;
     const m = bedMargin(b);

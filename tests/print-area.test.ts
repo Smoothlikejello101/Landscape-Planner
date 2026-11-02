@@ -50,6 +50,11 @@ describe('framing the area chosen', () => {
     expect(wide.bounds!.maxX).toBe(16 + 1);
     // A bed that's gone (another plan open): nothing to frame.
     expect(frameArea(area({ kind: 'bed', bedId: 'nope' }), shown, shapes, whole).bounds).toBeNull();
+    // In a round bed: a birdbath in it, not one in the corner of its box.
+    const round = { ...base, id: 'r', type: 'circle', x: 0, y: 0, radius: 5, role: 'bed', label: 'Round bed', color: '#92400e' } as Shape;
+    const bath = (id: string, x: number, y: number) => ({ ...bed(id, 'Birdbath', x, y, 1, 1), role: 'structure' } as Shape);
+    const yard = [round, bath('in', -0.5, -0.5), bath('corner', 3.9, 3.9)];
+    expect(ids(frameArea(area({ kind: 'bed', bedId: 'r' }), yard, yard, null).shapes)).toEqual(['in', 'r']);
     // A long bed's margin grows with it.
     expect(bedMargin({ minX: 0, maxX: 60, minY: 0, maxY: 5 })).toBe(3);
   });
