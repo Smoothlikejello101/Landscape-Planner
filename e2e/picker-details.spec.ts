@@ -525,9 +525,9 @@ test('typing a search folds the open filters, the results in view; Add as my pla
   await search.fill('holly');
   await expect(page.getByTestId('all-filters')).toBeHidden();
   await page.getByTestId('reset-filters').click();
-  // Nothing found: the link below the note that says so.
+  // Nothing found: the link below the note that says so (with no filter on, nothing about loosening one).
   await search.fill('Aunt Lou’s keeper');
-  await expect(page.locator('.sheet-body')).toContainText('No matches. Add it as your own plant, or loosen a filter.');
+  await expect(page.getByTestId('no-matches')).toHaveText('No matches. Add it as your own plant.');
   await expect(add).toHaveText('Add “Aunt Lou’s keeper” as my plant');
   // Switch plant, while placing: the same.
   await search.fill('Black-eyed Susan');

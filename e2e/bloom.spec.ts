@@ -78,13 +78,15 @@ test('plants with no bloom months are listed by name, saying why; one of mine ge
 
 test('catalog plants with a season and no months count by the season, said so; with no ZIP, the calendar offers one and comes back', async ({ page }) => {
   await openFresh(page);
-  await addPlant(page, 'Boxwood', 30);
+  // (Red chokeberry: spring by its sources, no months. Not boxwood, whose flowers NC State calls insignificant, with
+  // no shape given: not counted at all, as the bug hunt's showy rule has it, Nov 1.)
+  await addPlant(page, 'Red chokeberry', 30);
   await page.locator('.iconbtn[title=More]').click();
   await page.locator('.menu-item', { hasText: 'Bloom calendar' }).click();
   // (As the month slider has it: in bloom March to May, drawn faint, and counted apart, "+1": Jason, Oct 31.)
   await expect(page.getByTestId('bloom-none')).toHaveCount(0);
   await expect(page.locator('.bloom-cell.on.by-season')).toHaveCount(3);
-  await expect(page.getByTestId('bloom-by-season')).toContainText(/Boxwood.*: spring/);
+  await expect(page.getByTestId('bloom-by-season')).toContainText(/Red chokeberry.*: spring/);
   await expect(page.locator('.bloom-count[data-month="4"]')).toHaveText('+1');
   await page.getByTestId('bloom-zip').click();
   await page.locator('.sheet-header .iconbtn').click();
@@ -92,8 +94,9 @@ test('catalog plants with a season and no months count by the season, said so; w
 });
 
 test("a bed's In bloom counts stay in their own months, on a computer and on a phone (the UI review, 2026-11-01)", async ({ page }) => {
-  // A bed of 12 Golden Alexanders (months known) and 12 boxwood (by season only): a spring month counts "12" and "+12".
-  const plants = [['zizia-aurea', 'Golden Alexanders'], ['buxus-green-velvet-microphylla-types', "Boxwood 'Green Velvet'"]].flatMap(([plantId, label], row) =>
+  // A bed of 12 Golden Alexanders (months known) and 12 red chokeberries (by season only): a spring month counts "12"
+  // and "+12".
+  const plants = [['zizia-aurea', 'Golden Alexanders'], ['aronia-arbutifolia', 'Red chokeberry']].flatMap(([plantId, label], row) =>
     Array.from({ length: 12 }, (_, i) => ({
       id: `${plantId}-${i}`, type: 'circle', x: 1.5 + i * 2.5, y: 2 + row * 3, radius: 1, color: '#16a34a', label, opacity: 0.65, locked: false, role: 'plant', plantId,
     })));
