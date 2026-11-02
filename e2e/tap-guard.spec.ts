@@ -22,6 +22,8 @@ async function addKind(page: Page, kind: string, method?: string) {
   if (method) await page.locator(`[data-testid=draw-bar] [data-method=${method}]`).click();
 }
 async function centerOf(sel: ReturnType<Page['locator']>) {
+  // (boundingBox doesn't wait: a panel just opened may not have drawn it yet. CI, Nov 2: null on a phone.)
+  await sel.waitFor({ state: 'visible' });
   const b = (await sel.boundingBox())!;
   return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
 }
