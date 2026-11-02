@@ -8,7 +8,7 @@ import { bringIntoView } from './mutations';
 import { flushHistoryDebounce, pushHistory, stepNamed, undo } from './history';
 import { gesture, state } from './state';
 import { save } from './storage';
-import { buildShape, CANOPY_MIN_TAPS, isKindKey, kindDef, tapAccepted, TAPS_TO_FINISH, type KindKey, type Method } from './kinds';
+import { buildShape, CANOPY_MIN_TAPS, isKindKey, kindDef, levelTaps, tapAccepted, TAPS_TO_FINISH, type KindKey, type Method } from './kinds';
 import type { DrawState, PathShape, Point, Shape, TapSnap } from './types';
 import { plantColor, plantFilter, plantsById } from './plants';
 import { snap, uid } from './util';
@@ -250,20 +250,28 @@ export function finishDraw(): Shape | null {
   const method = d.kind;
   const snaps = d.snaps ?? [];
   const others = (id: string) => state.shapes.filter((x) => x.id !== id);
-  // What the dots show is what's made. Two things change it after, each its own step (the notice's Undo is the
+  // What the dots show is what's made. Three things change it after, each its own step (the notice's Undo is the
   // toolbar's: one step back), and each said:
   // - an outline with nearly square corners, squared (not a property line, which is surveyed, or a plant);
+  // - a rectangle whose first side is within a few degrees of level, set level (or square to the wall it was drawn
+  //   along), turned about its first corner: a driveway traced by eye came out 3° tilted (Jason, Nov 2);
   // - a shape that finishes on its last tap, made before that tap's dot was shown: if it landed on another
   //   shape, made first as on the grid, then as landed.
-  let seen = d.points, tidied: Point[] | null = null, said = '';
+  let seen = d.points, tidied: Point[] | null = null, said = '', how: 'square' | 'level' | 'snap' = 'snap';
+  const level = squareOn() && method === 'rect' ? levelTaps(seen, [0, 1].flatMap((i) => snaps[i]?.angles ?? [])) : null;
   if (squareOn() && method === 'poly' && kind.role !== 'boundary' && kind.role !== 'plant') {
     // (A point put down at a typed length stays where it is, as a snapped one does.)
     const sq = squareUp(seen, maxSquareMove(seen), seen.map((_, i) => !!snaps[i] || !!d.exact?.[i]), wallDirection(seen, snaps));
     if (sq) {
-      tidied = sq;
+      tidied = sq; how = 'square';
       const moved = Math.max(...sq.map((q, i) => Math.hypot(q.x - seen[i].x, q.y - seen[i].y)));
       said = `Squared the corners (moved up to ${fmtFeet(Math.max(0.1, Math.round(moved * 10) / 10))} ft).`;
     }
+  } else if (level) {
+    tidied = level.pts; how = 'level';
+    const deg = Math.max(1, Math.round(Math.abs(level.off)));
+    const wall = snaps[0] ?? snaps[1];
+    said = level.along && wall ? `Set it square to ${shapeName(wall.shapeId)} (it was ${deg}° off).` : `Set it level (it was ${deg}° off).`;
   } else if (finishesItself(method) && snapMoved(snaps.at(-1), seen.at(-1))) {
     const last = snaps.at(-1)!;
     const onGrid = [...seen.slice(0, -1), last.alt];
@@ -293,17 +301,19 @@ export function finishDraw(): Shape | null {
     finishNew(after, d);
     const i = state.shapes.findIndex((x) => x.id === shape.id);
     state.shapes[i] = { ...after, label: shape.label } as Shape;
-    pushHistory(said.startsWith('Squared') ? 'square the corners' : 'move the last point');
+    pushHistory(how === 'square' ? 'square the corners' : how === 'level' ? 'set it level' : 'move the last point');
     const step = state.history[state.historyIndex];
-    const isSquare = method === 'poly';
     toastAction(said, [
       { label: 'Undo', run: () => {
         flushHistoryDebounce();
         if (state.history[state.historyIndex] !== step) { toast('It has changed since, so it was left as it is.'); return; }
         undo(); render();
       } },
-      isSquare
+      // (Squaring and leveling are one setting: tidying the corners of what's drawn by hand.)
+      how === 'square'
         ? { label: 'Stop squaring', keep: true, run: () => { setSquareOn(false); toast('Squaring is off: turn it back on in \u22ee \u2192 Settings.', 4000); } }
+        : how === 'level'
+        ? { label: 'Stop leveling', keep: true, run: () => { setSquareOn(false); toast('Squaring and leveling are off: turn them back on in \u22ee \u2192 Settings.', 4000); } }
         : { label: 'Stop snapping', keep: true, run: () => { setSnapOn(false); toast('Snapping is off: turn it back on in \u22ee \u2192 Settings.', 4000); } },
     ], 10000);
   }
