@@ -63,6 +63,10 @@ test('projects made in the previous version migrate intact', async ({ page }) =>
   await expect(page.locator('#canvas-svg text', { hasText: 'Old bed' })).toHaveCount(1);
   await expect(page.locator('#canvas-svg rect[data-shape-id]')).toHaveAttribute('transform', /rotate\(15 /);
   await expect(page.locator('#canvas-svg image')).toHaveCount(1);
+  // Beds' conditions (Plant this bed, database version 4) are answers people give: a plan from before gains none.
+  for (const [name, plan] of Object.entries(await storedPlans(page))) {
+    for (const s of plan.shapes as Record<string, unknown>[]) expect(s, `${name}: ${String(s.label)}`).not.toHaveProperty('conditions');
+  }
 
   // Data now lives in IndexedDB: a reload must not re-run the migration.
   await page.reload();

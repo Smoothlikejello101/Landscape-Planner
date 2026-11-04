@@ -145,6 +145,39 @@ test('a page opened after a newer version has the database says so, writes nothi
   expect(await localNow()).toBe(local);
 });
 
+// A bed's conditions (Plant this bed) came with database version 4; a version-3 page drops them. Its unsaved edits, a
+// journal written without them, are kept as a plan of their own, never put over a plan saved at 4 (src/storage.ts
+// replayJournals): the bed keeps its answers.
+test('a version-3 page’s unsaved edits to a plan saved at 4 are kept apart: the bed keeps its conditions', async ({ page, context }) => {
+  const CONDITIONS = { soil: 'clay', moisture: 'wet', drip: true };
+  const bed = { id: 'bed1', type: 'rect', x: 4, y: 4, width: 8, height: 4, rotation: 0, color: '#a16207', label: 'Front bed', opacity: 0.5, locked: false, role: 'bed' };
+  const plan = RELEASE3.projects.p1 as Record<string, unknown>;
+  const SAVED_AT_4: Records = {
+    ...RELEASE3,
+    projects: { p1: { ...plan, shapes: [circle('oak', 'Old oak'), { ...bed, conditions: CONDITIONS }], dbVersion: DB_VERSION, savedByPage: 'page-new', savedAt: 1000, savedSeq: 3 } },
+  };
+  const other = await otherTab(context);
+  await holdAt(other, DB_VERSION, SAVED_AT_4);
+  await other.evaluate(() => { (window as unknown as { held: IDBDatabase }).held.close(); });
+  // The version-3 page's journal: later than the plan's last save, its bed without them, and an edit of its own.
+  const journal = { projectId: 'p1', at: 2000, dbVersion: 3, page: 'page-v3', seq: 7, data: { ...plan, shapes: [circle('oak', 'Old oak'), bed, circle('new', 'Drawn in the older tab')] } };
+  await other.evaluate((j) => { localStorage.setItem(`lp-journal:p1@${j.page}`, JSON.stringify(j)); }, journal);
+
+  await page.goto('./');
+  await expect(page.locator('.project-btn .pname')).toHaveText('Back Yard');
+  await expect(page.getByTestId('kept-apart')).toContainText('“Back Yard (from an older tab)”');
+  await expect(page.getByTestId('kept-apart')).toContainText('Nothing newer was replaced.');
+  const after = await dump(other);
+  const byName = Object.fromEntries(Object.entries(after.stores.meta).map(([id, m]) => [(m as { name: string }).name, after.stores.projects[id] as { shapes: Record<string, unknown>[] }]));
+  expect(Object.keys(byName).sort()).toEqual(['Back Yard', 'Back Yard (from an older tab)']);
+  expect(byName['Back Yard'].shapes.find((s) => s.id === 'bed1')).toMatchObject({ role: 'bed', conditions: CONDITIONS });
+  expect(byName['Back Yard'].shapes.map((s) => s.label)).not.toContain('Drawn in the older tab');
+  const apart = byName['Back Yard (from an older tab)'].shapes;
+  expect(apart.map((s) => s.label)).toContain('Drawn in the older tab');
+  expect(apart.find((s) => s.label === 'Front bed')).not.toHaveProperty('conditions');
+  expect(await journals(other)).toEqual([]);
+});
+
 test("the update waits for an older tab still holding the database, says to close it, and goes on once it's closed, every record as it was", async ({ page, context }) => {
   // An older version's tab that can't answer (frozen in the background, say): it holds release 3's database open.
   const other = await otherTab(context);
