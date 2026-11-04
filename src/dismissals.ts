@@ -102,7 +102,7 @@ export function clearForPlan(kind: DismissKind, plantId: string): boolean {
   dropPlanEntry(kind, plantId);
   const field = DISMISS_FIELD[kind];
   // (A fruit-partner one is left '', shown again on purpose, so sync doesn't fill it back from another device's copy
-  // (src/sync/engine.ts withFruitDismissals), where another device could have had it from this one (src/marks.ts
+  // (src/sync/engine.ts withFruitDismissals), where the server's copy had it as this device last synced (src/marks.ts
   // mayMark); otherwise it goes, as it was. Hardiness and poison aren't filled back, and go.)
   if (kind === 'fruit') {
     const copies = copiesOf(plantId).filter((s) => !!s.fruitDismissed);

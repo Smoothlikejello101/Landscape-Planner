@@ -1062,7 +1062,7 @@ export async function renameProject(id: string, name: string) {
  * Plant list's ticks, who's in the yard and the warning switches too, and `parts`, those
  * three as the server had them (both absent from before them).
  */
-export interface SyncRecord { revision: number; hash: string; photo?: string; held?: 'room' | 'refused'; core?: string; parts?: Record<string, unknown> }
+export interface SyncRecord { revision: number; hash: string; photo?: string; held?: 'room' | 'refused'; core?: string; parts?: Record<string, unknown>; marks?: { conditions?: string[]; fruit?: string[] } }
 let syncRecords: Record<string, SyncRecord> = {};
 /** Synced projects deleted here, still to be moved to the server's trash: id → revision. */
 let syncTombstones: Record<string, number> = {};
@@ -1621,12 +1621,20 @@ function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
         if (parts) out[k].parts = parts;
         if (typeof r.photo === 'string' && /^(none|kept|[0-9a-f]{64}@[0-9a-z]+:[0-9a-z]+)$/.test(r.photo)) out[k].photo = r.photo;
         if (r.held === 'room' || r.held === 'refused') out[k].held = r.held;
+        // (Where a mark of something taken away may go, src/marks.ts: shape ids, plain words, as many as a plan has.)
+        const ids = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && /^[\w:.-]{1,120}$/.test(x)).slice(0, 20000) : []);
+        const marks = r.marks && typeof r.marks === 'object' ? { conditions: ids(r.marks.conditions), fruit: ids(r.marks.fruit) } : null;
+        if (marks && (marks.conditions.length || marks.fruit.length)) {
+          out[k].marks = { ...(marks.conditions.length ? { conditions: marks.conditions } : {}), ...(marks.fruit.length ? { fruit: marks.fruit } : {}) };
+        }
         else if ((r.held as unknown) === true) out[k].held = 'room'; // (an early test build stored true)
       }
     }
   }
   return out;
 }
+/** Test hook: the sync records as they'd be kept (in memory only). */
+export function _setSyncRecordsForTests(records: Record<string, SyncRecord>) { syncRecords = { ...records }; }
 /** Test hook: forget module state between tests. */
 export function _resetStorageForTests() {
   kv = null; clipboardCache = null; storedImageKeys = new Set(); committedImageKeys = new Set(); cleared.clear();

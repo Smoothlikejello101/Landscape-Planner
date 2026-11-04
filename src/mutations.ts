@@ -329,7 +329,7 @@ export function bringBackCleared(c: ClearedPlan) {
  * questions on the bed are kept as they are. Read as a stored plan's are (src/storage.ts sanitizeBedConditions).
  *
  * Nothing answered clears them: kept as {}, cleared on purpose, so sync doesn't fill them back from another device's
- * copy (src/sync/engine.ts withBedConditions), where another device could have had them from this one (src/marks.ts
+ * copy (src/sync/engine.ts withBedConditions), where the server's copy had them as this device last synced (src/marks.ts
  * mayMark); otherwise none, as they were (a {} there would take away, everywhere, answers another device has that
  * this one never got: the review, Nov 4). A bed with none is left without. False, and no step, when it isn't a bed here
  * or nothing changes.

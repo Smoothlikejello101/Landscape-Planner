@@ -1375,6 +1375,35 @@ describe("a bed's conditions through a device or a tab on an older version (cond
     expect((c.shapes[0] as { conditions?: object }).conditions).toEqual({});
   });
 
+  it("each record says which beds had them on the server, as this device last sent or took the plan: where a {} may go here (src/marks.ts)", async () => {
+    const server = new FakeServer(), phone = new VersionDevice('phone', migrateShape), laptop = older(), tablet = new VersionDevice('tablet', migrateShape);
+    const id = phone.add('Back Yard', plan());
+    await sync(phone, server); await sync(laptop, server);
+    expect(phone.recs[id].marks).toBeUndefined();
+    phone.edit(id, [...plan(ALL), { ...aster(9), id: 'a2', fruitDismissed: '' }]);
+    await sync(phone, server);
+    expect(phone.recs[id].marks).toEqual({ conditions: ['b1'], fruit: ['a2'] }); // (sent: the server has them)
+    // The laptop's edit goes up without them; the phone takes it and keeps its own answers, but its record says the
+    // server's copy has none: a clear there leaves none, never a {} over answers it can't know another device has.
+    await sync(laptop, server);
+    laptop.edit(id, as(releaseMigrateShape, [...plan(undefined, 4), { ...aster(9), id: 'a2' }]));
+    await sync(laptop, server);
+    expect(onServer(server, id).map((x) => [x.id, 'conditions' in x, 'fruitDismissed' in x])).toEqual([['b1', false, false], ['b2', false, false], ['a1', false, false], ['a2', false, false]]);
+    expect(await sync(phone, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+    expect(front(shapesOf(phone, id)).conditions).toEqual(ALL);
+    expect(phone.recs[id].marks).toBeUndefined();
+    // A device signing in takes the server's copy: none.
+    await sync(tablet, server);
+    expect(tablet.recs[id].marks).toBeUndefined();
+    // The phone's next edit sends them again (and its own '' too): marked again.
+    phone.edit(id, [...plan(ALL, 4, 6), { ...aster(9), id: 'a2', fruitDismissed: '' }]);
+    await sync(phone, server);
+    expect(phone.recs[id].marks).toEqual({ conditions: ['b1'], fruit: ['a2'] });
+    // A download of a copy with them: marked on the taking device too.
+    await sync(tablet, server);
+    expect(tablet.recs[id].marks).toEqual({ conditions: ['b1'], fruit: ['a2'] });
+  });
+
   it('another device on an older version never sends anything for them alone; its own edit goes up without them, and the device that set them keeps them, and sends them again', async () => {
     const server = new FakeServer(), phone = new VersionDevice('phone', migrateShape), laptop = older();
     const id = phone.add('Back Yard', plan());

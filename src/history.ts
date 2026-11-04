@@ -133,8 +133,8 @@ function narrowedBack(n: NonNullable<HistorySnapshot['narrowed']>, back: boolean
 /**
  * A copy's own fruit-partner dismissal that Undo or Redo takes away is left '', shown again on purpose, as Show again
  * leaves it: so sync doesn't fill it back from another device's copy (src/sync/engine.ts withFruitDismissals). Only
- * where another device could have had it from this one (src/marks.ts mayMark): one dismissed here for the first time,
- * never sent, and undone has none again.
+ * where the server's copy had it as this device last synced (src/marks.ts mayMark): one dismissed here and never sent,
+ * then undone, has none again.
  */
 function fruitShownAgain(before: Shape[]) {
   const had = new Map(before.filter((s) => !!s.fruitDismissed).map((s) => [s.id, s.plantId]));
@@ -147,8 +147,8 @@ function fruitShownAgain(before: Shape[]) {
  * A bed's conditions that Undo or Redo takes away (the step that set them undone, say) are left {}, cleared on purpose,
  * as clearing them leaves them: so sync doesn't fill them back from another device's copy (src/sync/engine.ts
  * withBedConditions). Only on a bed still a bed: one that stops being one has none (src/mutations.ts setRoleForIds).
- * And only where another device could have had them from this one (src/marks.ts mayMark): answers set here for the
- * first time, never sent, and undone are none again, not {}.
+ * And only where the server's copy had them as this device last synced (src/marks.ts mayMark): answers set here and
+ * never sent, then undone, are none again, not {}.
  */
 function conditionsCleared(before: Shape[]) {
   const had = new Set(before.filter((s) => s.role === 'bed' && s.conditions !== undefined).map((s) => s.id));

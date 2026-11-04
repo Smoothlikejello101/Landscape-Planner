@@ -7,9 +7,7 @@ import { openKV } from '../src/db';
 import { cancelHistoryDebounce, pushHistory, redo, undo, undoLabel } from '../src/history';
 import { copyShapes, duplicateShapesByIds, paste, setBedConditions, setRoleForIds } from '../src/mutations';
 import { state } from '../src/state';
-import { _resetMarksForTests, noteSyncedCopy } from '../src/marks';
-import { storageLocal } from '../src/sync/local';
-import { _resetStorageForTests, flushSave, initStorage, readProject, sanitizeProjectData } from '../src/storage';
+import { _resetStorageForTests, _setSyncRecordsForTests, flushSave, initStorage, readProject, sanitizeProjectData } from '../src/storage';
 import type { BedAnswers, Shape } from '../src/types';
 
 // A bed's conditions, as Plant this bed will set them (Nov 2: the storage part, no UI yet): setBedConditions, one undo
@@ -32,7 +30,6 @@ beforeEach(async () => {
   state.selectedIds = [];
   state.history = []; state.historyIndex = -1;
   pushHistory();
-  _resetMarksForTests();
 });
 afterEach(() => { cancelHistoryDebounce(); state.shapes = []; state.history = []; state.historyIndex = -1; });
 
@@ -58,9 +55,10 @@ describe("a bed's conditions, set (setBedConditions)", () => {
     expect((await saved('bed'))!.conditions).toEqual(ALL);
   });
 
-  it('Undo leaves {}, cleared on purpose (so sync won\'t fill them back), on a bed that had answers in the first step, the plan as opened', async () => {
+  it('Undo leaves {}, cleared on purpose (so sync won\'t fill them back), on a bed whose answers the server\'s copy has, as this device last sent or took it', async () => {
     state.shapes = sanitizeProjectData({ shapes: [bed('bed', { conditions: ALL }), lawn] }).shapes as Shape[];
     state.history = []; state.historyIndex = -1;
+    _setSyncRecordsForTests({ [state.currentProjectId!]: { revision: 1, hash: 'x', marks: { conditions: ['bed'] } } });
     pushHistory(); // (as opened: answered)
     delete shape('bed').conditions; pushHistory(); // (taken away, as an older version's copy would have them)
     shape('bed').conditions = { soil: 'loam' }; pushHistory();
@@ -114,28 +112,22 @@ describe("a bed's conditions, set (setBedConditions)", () => {
     expect((await saved('bed'))!.conditions).toBeUndefined();
     expect(setBedConditions('bed', {})).toBe(false);
     expect(state.historyIndex).toBe(2);
-    // Sent through sync since (another device could have them now): cleared, {} on purpose, so sync won't fill them back.
+    // Sent through sync since (the server's copy has them: its record says so): cleared, {} on purpose, so sync won't
+    // fill them back.
     expect(setBedConditions('bed', ALL)).toBe(true);
-    noteSyncedCopy(state.currentProjectId!, { shapes: [{ id: 'bed', role: 'bed', conditions: ALL }] });
+    _setSyncRecordsForTests({ [state.currentProjectId!]: { revision: 1, hash: 'x', marks: { conditions: ['bed'] } } });
     expect(setBedConditions('bed', {})).toBe(true);
     expect(shape('bed').conditions).toEqual({});
     expect((await saved('bed'))!.conditions).toEqual({});
     expect(setBedConditions('bed', {})).toBe(false);
   });
 
-  it('the app notes what sync sends or takes (src/sync/local.ts): a bed whose answers went up is cleared to {} on purpose', async () => {
-    expect(setBedConditions('bed', ALL)).toBe(true);
-    const local = storageLocal(() => false, () => {});
-    await local.setRecord(state.currentProjectId!, { revision: 1, hash: 'x' }, { shapes: [{ id: 'bed', role: 'bed', conditions: ALL }] });
-    expect(setBedConditions('bed', {})).toBe(true);
-    expect(shape('bed').conditions).toEqual({});
-  });
-
-  it('as the plan was opened with them (its first undo step): cleared, {} on purpose', () => {
+  it("opened with them, but the server's copy as last sent or taken had none (set here offline, say, then the app restarted): cleared, none", () => {
     state.shapes = sanitizeProjectData({ shapes: [bed('bed', { conditions: ALL }), lawn] }).shapes as Shape[];
     state.history = []; state.historyIndex = -1; pushHistory();
+    _setSyncRecordsForTests({ [state.currentProjectId!]: { revision: 3, hash: 'x' } });
     expect(setBedConditions('bed', {})).toBe(true);
-    expect(shape('bed').conditions).toEqual({});
+    expect(shape('bed').conditions).toBeUndefined();
   });
 
   it('not a bed, or no such shape: nothing', () => {

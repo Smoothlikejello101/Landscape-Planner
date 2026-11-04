@@ -1273,6 +1273,18 @@ describe('synced background photos', () => {
     _resetStorageForTests(); await initStorage(kv);
     expect(getSyncRecords()).toEqual({ [a]: { revision: 2, hash: 'h', photo: `${FP}@abc:1x` }, [b]: { revision: 1, hash: 'h' }, old: { revision: 1, hash: 'h' } });
   });
+
+  it('sync records keep which shapes had a bed\'s conditions or a fruit dismissal on the server (where a mark may go: src/marks.ts), across a restart; anything else dropped', async () => {
+    const { getSyncRecords, createProject } = await import('../src/storage');
+    const kv = await freshStorage();
+    const a = await createProject('A'), b = await createProject('B');
+    await kv.write([put('kv', 'syncRecords', {
+      [a]: { revision: 2, hash: 'h', marks: { conditions: ['bed1', 7, '<b>', 'x'.repeat(200)], fruit: ['p:1'] } },
+      [b]: { revision: 1, hash: 'h', marks: { conditions: 'bed1', fruit: [] } },
+    })]);
+    _resetStorageForTests(); await initStorage(kv);
+    expect(getSyncRecords()).toEqual({ [a]: { revision: 2, hash: 'h', marks: { conditions: ['bed1'], fruit: ['p:1'] } }, [b]: { revision: 1, hash: 'h' } });
+  });
 });
 
 describe('a plan’s garden location', () => {

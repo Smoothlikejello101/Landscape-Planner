@@ -55,6 +55,13 @@ export interface SyncRecord {
    * so what the server has of them isn't known here (an upload settles with the server first).
    */
   parts?: ProjectContent;
+  /**
+   * The shapes, by id, that had a bed's conditions or a fruit-partner dismissal in the server's copy this record
+   * describes (Nov 4): where a mark of something taken away ({} or '') may go on this device, since another device can
+   * have that field (src/marks.ts mayMark). Absent: none had either (and in every record from before it: release 3
+   * never had the fields, and Next doesn't sync).
+   */
+  marks?: { conditions?: string[]; fruit?: string[] };
 }
 export interface ServerProject { id: string; name: string; revision: number; updated_by: string | null; updated_at: string; deleted_at: string | null }
 export type PushResult =
@@ -69,8 +76,7 @@ export interface Local {
   /** Every project here, as it is now (the open one saved first). */
   projects(): Promise<LocalProject[]>;
   records(): Record<string, SyncRecord>;
-  /** `content`: the copy just sent or taken, as the record describes it (none when the record is cleared). */
-  setRecord(id: string, rec: SyncRecord | null, content?: ProjectContent): Promise<void>;
+  setRecord(id: string, rec: SyncRecord | null): Promise<void>;
   /** Synced projects deleted here, to move to the server's trash: id → the revision deleted. */
   tombstones(): Record<string, number>;
   /**
@@ -285,8 +291,28 @@ const recordFor = (name: string, c: ProjectContent, revision: number): SyncRecor
   const rec: SyncRecord = { revision, hash: planHash(name, c), core: coreHash(name, c) };
   const parts = partsOf(c);
   if (Object.keys(parts).length) rec.parts = parts;
+  const marks = marksOf(c);
+  if (marks) rec.marks = marks;
   return photo === undefined ? rec : { ...rec, photo };
 };
+/**
+ * The shapes of a copy of a plan with a bed's conditions or a fruit-partner dismissal (marks included), by id: a
+ * record's `marks`. Only from the server's copy (what another device can take): a download's record describes the copy
+ * as kept here, with this device's own parts filled in, so it takes them from the server's copy itself.
+ */
+export function marksOf(c: ProjectContent): SyncRecord['marks'] {
+  if (!Array.isArray(c.shapes)) return undefined;
+  const conditions: string[] = [], fruit: string[] = [];
+  for (const s of c.shapes) {
+    if (!s || typeof s !== 'object') continue;
+    const o = s as { id?: unknown; role?: unknown; conditions?: unknown; fruitDismissed?: unknown };
+    if (typeof o.id !== 'string') continue;
+    if (o.role === 'bed' && o.conditions !== undefined) conditions.push(o.id);
+    if (o.fruitDismissed !== undefined) fruit.push(o.id);
+  }
+  if (!conditions.length && !fruit.length) return undefined;
+  return { ...(conditions.length ? { conditions } : {}), ...(fruit.length ? { fruit } : {}) };
+}
 /** Size in bytes of a data URL's contents. */
 const byteSize = (dataUrl: string) => { const b64 = dataUrl.slice(dataUrl.indexOf(',') + 1); return Math.floor((b64.length * 3) / 4) - (b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0); };
 
@@ -709,7 +735,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     switch (res.status) {
       case 'ok':
         // (Recorded as this device has it, so a photo kept here isn't sent again until there's room.)
-        await local.setRecord(p.id, held ? { ...recordFor(p.name, p.content, res.revision), held } : recordFor(p.name, p.content, res.revision), p.content);
+        await local.setRecord(p.id, held ? { ...recordFor(p.name, p.content, res.revision), held } : recordFor(p.name, p.content, res.revision));
         report.uploaded++;
         return true;
       case 'conflict':
@@ -733,7 +759,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     }
     const n = local.normalize(serverName, asOnServer);
     // What the server has (anything else here goes up next time), still holding this device's photo if the original kept it.
-    await local.setRecord(p.id, recordAfter(n.name, n.content, serverRev, records[p.id], photoKey(serverContent)), n.content);
+    await local.setRecord(p.id, recordAfter(n.name, n.content, serverRev, records[p.id], photoKey(serverContent)));
     report.conflicts.push({ name: serverName, copyName: copyLabel, otherDevice: by });
     const copied: LocalProject = { id: copy.id, name: copyLabel, content: p.content, token: copy.token };
     if (!report.paused && !report.full) await upload(copied, null);
@@ -788,7 +814,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     const samePlan = merged.name === raw.name && planHash(merged.name, merged.content) === planHash(raw.name, raw.content);
     const mergedPhoto = photoKey(merged.content) ?? 'none', rawPhoto = photoKey(raw.content) ?? 'none';
     if (samePlan && (mergedPhoto === rawPhoto || (rawPhoto === 'kept' && rec?.held && mergedPhoto === rec.photo))) {
-      await local.setRecord(p.id, recordAfter(raw.name, raw.content, serverRev, rec, mergedPhoto), raw.content); // the server has it (or the held photo stands)
+      await local.setRecord(p.id, recordAfter(raw.name, raw.content, serverRev, rec, mergedPhoto)); // the server has it (or the held photo stands)
     } else await upload(merged, serverRev);
   };
 
@@ -863,8 +889,11 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
           if (!ok) return;
           filled.add(id);
           const n = local.normalize(g.name, content);
-          const taken = local.normalize(g.name, whole).content;
-          await local.setRecord(id, recordAfter(n.name, taken, g.revision, rec, rec?.photo), taken);
+          // (Its marks from the server's copy, not this device's own parts filled in: src/marks.ts.)
+          const r = recordAfter(n.name, local.normalize(g.name, whole).content, g.revision, rec, rec?.photo);
+          const marks = marksOf(g.content);
+          if (marks) r.marks = marks; else delete r.marks;
+          await local.setRecord(id, r);
           report.downloaded++;
           if (undeleted.has(id)) report.undeleted.push(n.name);
         });

@@ -111,8 +111,8 @@ function plantDismissButtons(kind: DismissKind, plantId: string, key: string, ac
   if (across || mine) {
     const again = el('button', { className: 'link-reset', 'data-testid': `${kind}-dismiss` }, 'Show again');
     again.addEventListener('click', () => {
-      // (A fruit-partner one is left '', shown again on purpose, so sync doesn't fill it back, where another device
-      // could have had it from this one: src/dismissals.ts clearForPlan, src/marks.ts mayMark.)
+      // (A fruit-partner one is left '', shown again on purpose, so sync doesn't fill it back, where the server's copy
+      // had it as this device last synced: src/dismissals.ts clearForPlan, src/marks.ts mayMark.)
       const one = singleSelected();
       if (across) { showAgainForPlan(kind, plantId); render(); } else updateSelected({ [field]: kind === 'fruit' && one && mayMark('fruit', one.id) ? '' : undefined });
     });

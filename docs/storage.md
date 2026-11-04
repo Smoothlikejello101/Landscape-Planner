@@ -53,7 +53,8 @@ The history (src/db.ts keeps it beside `DB_VERSION`):
   device that has it keeps it when the server's copy has none, src/sync/engine.ts `withFruitDismissals`.)
 - 4 (Nov 2): no store or record changed. Beds' `conditions` (Plant this bed: soil, moisture, drip, and sun where no
   sun area covers the bed), which a version-3 page would drop, saving or syncing a plan. A version-3 page's journal,
-  written without them, is kept apart from a plan saved at 4, not put over it. (Sync: `withBedConditions`, below.)
+  written without them, is kept apart from a plan saved at 4, not put over it. (Sync: `withBedConditions`, below.) Sync
+  records gain `marks` (Nov 4: where a cleared mark may go, below), which no page before it writes or reads.
 
 When raising it:
 1. Add a line to the history beside `DB_VERSION`: the version, the day, what changed.
@@ -112,9 +113,9 @@ see it. So each device of this version keeps its own when the server's copy of t
 words (dismissed for that plant alone), or `''` (shown again on purpose: Show again, or Undo taking one away), which
 is never filled back from another device's words. A `''` reads as none in the plan's fingerprint, so a dismissal taken
 back before the plan synced isn't a change of its own (no conflict copy against another device's edit), while words
-to `''` still is, and goes up. Since Nov 4, `''` goes only where another device could have had the dismissal from this
-one: the copy had one as the plan was opened, or in a copy sync sent or took (src/marks.ts `mayMark`, the same rule as
-a bed's `{}`, below). Dismissed here and taken away before it was ever sent, it goes, as it was.
+to `''` still is, and goes up. Since Nov 4, `''` goes only where the server's copy had a dismissal on that copy when
+this device last sent or took the plan (src/marks.ts `mayMark`, the same rule as a bed's `{}`, below). Dismissed here
+and taken away before it was ever sent, it goes, as it was.
 
 The window left: a device offline through another device's Show again, with a device on the release sending the plan
 in between, still has the words, and the server's copy no longer says otherwise. It keeps them; if it sends the plan
@@ -135,13 +136,16 @@ a journal against its plan, an imported plan against one already here: src/sync/
 How they travel within a plan:
 - **Duplicate** copies them with the bed; **Copy and Paste** carry them (pasted as a stored plan's shapes are read).
 - **Where `{}` goes** (src/marks.ts `mayMark`): taking answers away (clearing them, or Undo or Redo) leaves `{}` only
-  on a bed another device could have had them for from this one: it had them as the plan was opened here (the first
-  undo step), or in a copy of the plan sync sent or took since the app started (noted as each sync record is written,
-  src/sync/local.ts). Anywhere else (set here and taken away before they were ever sent) they're none again, as they
-  were: a `{}` would go up with the next edit and take away, everywhere, answers another device has that this one never
-  got, an older version having dropped them on the way. Where it does go, the clear reaches every device, as it should.
-  (The independent review, Nov 4, in two rounds: first through Undo, then through clearing.) A fruit-partner dismissal
-  taken away follows the same rule (`''`).
+  on a bed whose answers the server's copy had when this device last sent or took the plan. Each sync record keeps
+  those beds' ids (its `marks`, src/sync/engine.ts `marksOf`, from the server's copy only, not this device's own parts
+  filled in), so it holds across restarts and goes with the records when the account changes. Anywhere else (set here
+  and taken away before they were ever sent, a plan that doesn't sync) they're none again, as they were: a `{}` would go
+  up with the next edit and take away, everywhere, answers another device has that this one never got, an older version
+  having dropped them on the way. Where it does go, the clear reaches every device, as it should. Saying no only ever
+  lets answers come back from another device's copy, never erases them: an upload whose answer was lost (a dropped
+  connection) isn't recorded, so a clear right after leaves none and the answers come back once from the server. (The
+  independent review, Nov 4, in three rounds: through Undo, through clearing, and across a restart.) A fruit-partner
+  dismissal taken away follows the same rule (`''`).
 - **Undo or Redo** taking them away leaves `{}` by that rule (src/history.ts `conditionsCleared`).
 - A bed **made something else** loses them, in that step; a shape **made a bed** starts with `{}` (src/mutations.ts
   `setRoleForIds`), so conditions it had as a bed before, still on a device offline through both changes, aren't

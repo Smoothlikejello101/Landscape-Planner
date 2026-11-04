@@ -7,7 +7,7 @@ import { cancelHistoryDebounce, pushHistory, pushHistoryDebounced, redo, undo } 
 import { HISTORY_DEBOUNCE_MS } from '../src/constants';
 import { plantsById, type Plant } from '../src/plants';
 import { state } from '../src/state';
-import { noteSyncedCopy } from '../src/marks';
+import { _setSyncRecordsForTests } from '../src/storage';
 import type { Shape } from '../src/types';
 import { fruitNotice, remindNoMore } from '../src/ui/fruit-notice';
 import { dismissAcross, plantFruitBanner } from '../src/ui/role-sections';
@@ -139,9 +139,10 @@ describe('a fruit-partner warning dismissed for one plant (Jason, Nov 1)', () =>
     press(plantFruitBanner(shape('h')), 'Dismiss for this one');
     const was = state.currentProjectId;
     state.currentProjectId = was ?? 'synced-plan';
-    noteSyncedCopy(state.currentProjectId, { shapes: [{ ...shape('h') }] });
+    _setSyncRecordsForTests({ [state.currentProjectId]: { revision: 1, hash: 'x', marks: { fruit: ['h'] } } });
     press(plantFruitBanner(shape('h')), 'Show again');
     state.currentProjectId = was;
+    _setSyncRecordsForTests({});
     expect(shape('h').fruitDismissed).toBe('');
     expect(buttons(plantFruitBanner(shape('h')))).toEqual(['Dismiss for this one', "Dismiss for every Holly 'Red'"]);
     expect(fruitRows()).toEqual([['h,h2', false, undefined]]);
@@ -278,7 +279,10 @@ describe('a fruit-partner warning dismissed for one plant (Jason, Nov 1)', () =>
       }
     }
   });
-  it("Undo leaves '' (shown again on purpose) on a copy that had its own dismissal in the first step, the plan as opened", () => {
+  it("Undo leaves '' (shown again on purpose) on a copy whose dismissal the server's copy has, as this device last sent or took it", () => {
+    const was = state.currentProjectId;
+    state.currentProjectId = was ?? 'synced-plan';
+    _setSyncRecordsForTests({ [state.currentProjectId]: { revision: 1, hash: 'x', marks: { fruit: ['h'] } } });
     state.shapes = [{ ...at('h', -40), fruitDismissed: line }];
     state.history = []; state.historyIndex = -1;
     pushHistory(); // (as opened: dismissed for this one)
@@ -288,5 +292,7 @@ describe('a fruit-partner warning dismissed for one plant (Jason, Nov 1)', () =>
     expect(shape('h').fruitDismissed).toBe('');
     redo();
     expect(shape('h').fruitDismissed).toBe(line);
+    state.currentProjectId = was;
+    _setSyncRecordsForTests({});
   });
 });

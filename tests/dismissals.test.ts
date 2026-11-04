@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { atRisk, clearForPlan, copiesSaid, copyDismissed, dismissedForPlan, dismissForPlan, planDismissals, poisonCovered, showAgainForPlan, warnedCopies, warnForNewOnes } from '../src/dismissals';
 import { plantsById, type Plant } from '../src/plants';
 import { state } from '../src/state';
-import { noteSyncedCopy } from '../src/marks';
+import { _setSyncRecordsForTests } from '../src/storage';
 import type { Shape } from '../src/types';
 
 // Warnings dismissed for a plant across the plan (Jason, Oct 30): its copies and the ones added later, kept with what
@@ -82,9 +82,10 @@ describe('a warning dismissed for a plant, across the plan', () => {
     // review of the bed conditions, Nov 4). '' is never dismissed.
     const was = state.currentProjectId;
     state.currentProjectId = was ?? 'synced-plan';
-    noteSyncedCopy(state.currentProjectId, { shapes: [{ ...state.shapes[0] }] });
+    _setSyncRecordsForTests({ [state.currentProjectId]: { revision: 1, hash: 'x', marks: { fruit: [state.shapes[0].id] } } });
     expect(clearForPlan('fruit', 'ficus-carica')).toBe(true);
     state.currentProjectId = was;
+    _setSyncRecordsForTests({});
     expect(state.shapes.map((s) => s.fruitDismissed)).toEqual(['', undefined]);
     expect(copyDismissed('fruit', state.shapes[0], line)).toBe(false);
     expect(clearForPlan('fruit', 'ficus-carica')).toBe(false); // (none left: no step)

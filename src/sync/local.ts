@@ -8,7 +8,6 @@ import {
 import type { BgImage, PhotoRef, ProjectData } from '../types';
 import type { Local, LocalProject, ProjectContent } from './engine';
 import { photoFingerprint } from './photo';
-import { noteSyncedCopy } from '../marks';
 import { applyPlantChanges, myPlants, newMyPlantId, plantHash, sanitizeMyPlant } from '../my-plants';
 import type { LocalPlants } from './plants';
 
@@ -78,8 +77,7 @@ export function storageLocal(screenBusy: () => boolean, openChanged: () => Promi
       return out;
     },
     records: getSyncRecords,
-    // (What a copy sent or taken carries is noted, for where a mark of something taken away may go: src/marks.ts.)
-    setRecord: async (id, rec, content) => { if (rec && content) noteSyncedCopy(id, content); await setSyncRecord(id, rec); },
+    setRecord: setSyncRecord,
     tombstones: getSyncTombstones,
     deletedRecord: getSyncDeletedRecord,
     clearTombstone: clearSyncTombstone,

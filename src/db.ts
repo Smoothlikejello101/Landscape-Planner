@@ -28,7 +28,8 @@ export const DB_NAME = 'landscape-planner';
  *   without it, are kept apart from a plan saved at 3 rather than put over it (src/storage.ts replayJournals).
  * - 4 (Nov 2): no store or record changed by the upgrade. Beds' conditions (Plant this bed: soil, moisture, drip, sun
  *   where no sun area covers the bed), which a version-3 page would drop, saving or syncing a plan, and whose journals,
- *   written without them, are kept apart from a plan saved at 4 rather than put over it.
+ *   written without them, are kept apart from a plan saved at 4 rather than put over it. Sync records gain `marks`
+ *   (Nov 4: src/marks.ts), which no page before it writes or reads.
  *
  * onupgradeneeded only adds what's missing: it never deletes, clears or rewrites a store or a record. A change that
  * must rewrite records does it after the open, in one transaction (KV.changeAllOnce; src/storage.ts takeFromDevice).
