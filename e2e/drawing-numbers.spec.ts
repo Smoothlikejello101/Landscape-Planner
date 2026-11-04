@@ -177,3 +177,38 @@ test('Edit points: undoing an added point leaves the points and numbers drawn (n
   await expect(sides(page)).toHaveCount(4);
   expect(errors).toEqual([]);
 });
+
+test('a finger on a point: its angle and its two sides read out at least 80 px above the finger from the press, and they don\'t jump as the drag starts; at the top, beside it (Jason, Nov 4)', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'a finger: touch on a phone (a mouse keeps the angle in the corner, as before)');
+  await openFresh(page);
+  await addKind(page, 'bed', 'poly');
+  for (const [x, y] of [[2, 3], [11, 3], [11, 9], [2, 9], [2, 3]]) await tapFt(page, x, y); // (its top 72 px down the plan, under the strip of words while drawing)
+  await page.getByTestId('pill-edit-points').click();
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type: string, p?: { x: number; y: number }) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: p ? [{ x: p.x, y: p.y }] : [] });
+  const box = async (l: ReturnType<Page['locator']>) => (await l.boundingBox())!;
+  const corner = async (i: number) => { const b = await box(page.locator(`#canvas-svg [data-role=vertex][data-index="${i}"]`)); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
+  // The bottom right corner, pressed: before it moves, the readouts are up above the finger, in a row.
+  const f = await corner(2);
+  await touch('touchStart', f);
+  await expect(angles(page)).toHaveText(['90°']);
+  const a0 = await box(angles(page));
+  expect(a0.y + a0.height).toBeLessThanOrEqual(f.y - 79);
+  const row = page.locator('#canvas-svg [data-role=side-length]').filter({ has: page.locator('text') });
+  const ys = await Promise.all((await row.all()).map(async (l) => Math.round((await box(l)).y)));
+  expect(ys.filter((y) => Math.abs(y - a0.y) < 1).length).toBe(2); // (its two sides beside it: 9 ft and 6 ft)
+  // A hair (no drag yet), then a drag: the readout keeps its place over the finger.
+  for (const d of [2, 40]) {
+    const at = { x: f.x + d, y: f.y + d / 2 };
+    await touch('touchMove', at);
+    await expect.poll(async () => Math.round(((await box(angles(page))).y + (await box(angles(page))).height) - at.y)).toBe(Math.round(a0.y + a0.height - f.y));
+  }
+  await touch('touchEnd');
+  // A top corner, with no room above it: beside the finger, level with it.
+  const t = await corner(1);
+  await touch('touchStart', t);
+  const a1 = await box(angles(page));
+  expect(Math.abs(a1.y + a1.height / 2 - t.y)).toBeLessThan(3);
+  expect(Math.abs(a1.x + a1.width / 2 - t.x)).toBeGreaterThanOrEqual(80);
+  await touch('touchEnd');
+});

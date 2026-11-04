@@ -792,9 +792,10 @@ function numberPill(g: SVGElement, at: Point, text: string, role: string) {
  * Each side's length (world points), `gap` px clear of it on the side away from the middle; sides too short on
  * screen go without.
  */
-function sideLabels(g: SVGElement, pts: Point[], closed: boolean, gap: number, minPx = SIDE_LABEL_MIN_PX) {
+function sideLabels(g: SVGElement, pts: Point[], closed: boolean, gap: number, minPx = SIDE_LABEL_MIN_PX, skip?: Set<number>) {
   const sc = pts.map(toScreen), mid = middleOf(sc), n = pts.length;
   for (let i = 0; i < (closed ? n : n - 1); i++) {
+    if (skip?.has(i)) continue;
     const a = pts[i], b = pts[(i + 1) % n];
     // (By the part of the side on screen: none, no label; a long one keeps its label where it can be seen.)
     const seen = clipToBox(sc[i], sc[(i + 1) % n], state.canvasW, state.canvasH);
@@ -855,8 +856,54 @@ function typedGuide(g: SVGElement, d: DrawState) {
 /** Editing points: each side's length, and the angle at the selected point. */
 function editNumbers(g: SVGElement, s: PathShape, sel: number | null) {
   const pts = pathPoints(s), n = pts.length, closed = s.type === 'poly';
-  sideLabels(g, pts, closed, 12, 64); // (12 px: clear of the + on the side's middle)
+  const finger = sel != null && sel < n ? fingerOn(s, sel) : null;
+  // (A finger on a corner: its two sides' lengths go with its angle, clear of the finger: cornerByFinger.)
+  const sides = finger ? new Set([closed || sel! > 0 ? (sel! + n - 1) % n : -1, closed || sel! < n - 1 ? sel! : -1]) : undefined;
+  sideLabels(g, pts, closed, 12, 64, sides); // (12 px: clear of the + on the side's middle)
+  if (finger) { cornerByFinger(g, pts, sel!, closed, finger); return; }
   if (sel == null || sel >= n || n < 3 || (!closed && (sel === 0 || sel === n - 1))) return; // (an undo can leave the selected point gone)
   cornerLabel(g, pts[(sel + n - 1) % n], pts[sel], pts[(sel + 1) % n], gesture.current?.type === 'drag-vertex' ? 80 : 30);
+}
+/**
+ * On touch, how far above the finger (px) a pressed corner's numbers sit, at the least: past a fingertip and the
+ * thumb's pad (Jason, Nov 4: "It felt like it would be under my finger, I'd pick up that finger and set it down in the
+ * same spot, and the angle would move so I could see it"). Along the corner's bisector, 80 px still went under the
+ * thumb when the corner opened downward.
+ */
+export const FINGER_CLEAR = 80;
+/** Where the finger pressing point `i` of `s` is (canvas px), from the press to the lift; null with a mouse, or none. */
+function fingerOn(s: PathShape, i: number): Point | null {
+  const g = gesture.current;
+  if (pointerKind === 'mouse' || g?.type !== 'drag-vertex' || g.id !== s.id || g.index !== i) return null;
+  const r = canvasRect();
+  return { x: g.atX - r.left, y: g.atY - r.top };
+}
+/**
+ * A finger on point `i`: its angle, between the lengths of its two sides (the one going left first), in a row centred
+ * over the finger, its lower edge FINGER_CLEAR above it; with no room above, a column beside it, FINGER_CLEAR clear, on
+ * the side with room. Tied to the finger, not the point, so nothing jumps as the drag starts and the point catches up.
+ */
+function cornerByFinger(g: SVGElement, pts: Point[], i: number, closed: boolean, f: Point) {
+  const n = pts.length, ib = (i + n - 1) % n, ia = (i + 1) % n;
+  const before = closed || i > 0 ? pts[ib] : null, after = closed || i < n - 1 ? pts[ia] : null, at = pts[i];
+  const side = (q: Point | null) => (q ? { text: lengthText(Math.hypot(q.x - at.x, q.y - at.y)), role: 'side-length', x: toScreen(q).x } : null);
+  const deg = before && after && n >= 3 ? cornerAngle(before, at, after) : null;
+  const angle = deg != null ? { text: `${deg}°`, role: 'corner-angle', x: toScreen(at).x } : null;
+  const [l, r] = [side(before), side(after)].sort((a, b) => (a?.x ?? 0) - (b?.x ?? 0));
+  const items = [l, angle, r].filter((x): x is NonNullable<typeof x> => !!x);
+  if (!items.length) return;
+  const GAP = 6, widths = items.map((x) => pillWidth(x.text));
+  const rowY = f.y - FINGER_CLEAR - PILL_H / 2;
+  if (rowY - PILL_H / 2 >= 4) {
+    const total = widths.reduce((t, w) => t + w, 0) + GAP * (items.length - 1);
+    let x = Math.max(4, Math.min(state.canvasW - 4 - total, f.x - total / 2));
+    items.forEach((it, k) => { numberPill(g, { x: x + widths[k] / 2, y: rowY }, it.text, it.role); x += widths[k] + GAP; });
+    return;
+  }
+  // (No room above: beside the finger, the angle level with it, the sides above and below it.)
+  const wide = Math.max(...widths), right = f.x + FINGER_CLEAR + wide <= state.canvasW - 4;
+  const cx = right ? f.x + FINGER_CLEAR + wide / 2 : f.x - FINGER_CLEAR - wide / 2;
+  const ys = items.length === 3 ? [-1, 0, 1] : items.length === 2 ? [-0.5, 0.5] : [0];
+  items.forEach((it, k) => numberPill(g, { x: cx, y: Math.max(PILL_H / 2 + 2, f.y + ys[k] * (PILL_H + 4)) }, it.text, it.role));
 }
 const samePoint = (a: Point, b: Point) => a.x === b.x && a.y === b.y;

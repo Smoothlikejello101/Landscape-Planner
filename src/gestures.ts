@@ -134,7 +134,11 @@ export function onCanvasPointerDown(e: PointerEvent) {
     }
     delete state.editPoints.snap; // (a new drag: the last one's Unsnap goes)
     delete state.editPoints.square;
-    gesture.current = { type: 'drag-vertex', id: edited.id, index, startX: clientX, startY: clientY, moved: false, inserted };
+    // (The point pressed is the one whose angle and sides are read out, from the press: with a finger, they move clear of
+    // it at once, not when the drag starts. Jason, Nov 4: "it would be under my finger".)
+    state.editPoints.vertex = index;
+    gesture.current = { type: 'drag-vertex', id: edited.id, index, startX: clientX, startY: clientY, atX: clientX, atY: clientY, moved: false, inserted };
+    if (e.pointerType !== 'mouse') redrawHandles();
     return;
   }
   if (handle) return;
@@ -251,11 +255,12 @@ export function onCanvasPointerMove(e: PointerEvent) {
       movedPastThreshold(g, e);
       const s = editedShape();
       if (!s) { gesture.current = null; return; }
+      g.atX = clientX; g.atY = clientY;
       if (g.moved || g.inserted) {
         moveVertex(s, g.index, screenToFeet(clientX, clientY));
         redrawShapes([s.id]);
         redrawHandles();
-      }
+      } else if (e.pointerType !== 'mouse') redrawHandles(); // (the numbers follow the finger before the drag starts too)
       e.preventDefault();
       return;
     }
