@@ -195,6 +195,19 @@ export function renderBgPanel() {
 }
 
 /**
+ * Lengths most people can find, to tap the ends of (Jason liked the idea, Nov 2): on the strip above the plan while A
+ * and B are tapped (Jason, Nov 4: "the 'lengths you might know' hint comes too late. They need it while they're
+ * picking points"), in a line or two, and `short` in the box asking how far apart they are.
+ */
+export function lengthsYouMayKnow(short = false): HTMLElement {
+  return short
+    ? el('div', { className: 'scale-hints', 'data-testid': 'scale-hints' }, el('b', {}, 'Lengths you may know: '),
+      'the house\u2019s front, a one-car driveway\u2019s width (10\u201312 ft), the lot\u2019s sides.')
+    : el('div', { className: 'cal-hints', 'data-testid': 'cal-hints' }, el('b', {}, 'Lengths you may know: '),
+      'your house\u2019s front (its listing) \u00b7 a one-car driveway, 10\u201312 ft wide \u00b7 your lot\u2019s sides (county GIS map, plat)');
+}
+
+/**
  * How far apart A and B are: the box asking, at the top of the screen, the plan moved so the two points show below it
  * (keepScaleBoxClear), where a phone's keyboard leaves them be; it sat over them, in the middle (Jason, Nov 2, from the
  * UI review). With lengths people often know, to measure between.
@@ -215,13 +228,8 @@ export function renderBgDistanceModal() {
     state.panel = 'bg';
     render();
   });
-  // Lengths most people can find, to tap the ends of (Jason liked the idea, Nov 2).
-  const hints = el('div', { className: 'scale-hints', 'data-testid': 'scale-hints' },
-    el('div', { className: 'scale-hints-head' }, 'Lengths you may know:'),
-    el('ul', {},
-      el('li', {}, el('b', {}, 'Your house\u2019s front'), ': its length may be in the listing'),
-      el('li', {}, el('b', {}, 'A driveway\u2019s width'), ': a one-car driveway is about 10\u201312 ft'),
-      el('li', {}, el('b', {}, 'Your lot\u2019s sides'), ': on the county\u2019s GIS map, or the plat')));
+  // (Lengths you may know, in short: the strip above the plan has said them while A and B were tapped.)
+  const hints = lengthsYouMayKnow(true);
   const modal = el('div', { className: 'modal scale-box', 'data-testid': 'scale-box' },
     el('div', { className: 'sheet-header' },
       el('div', { className: 'title' }, 'How far is A from B?'),

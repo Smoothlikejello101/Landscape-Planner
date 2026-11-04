@@ -85,5 +85,5 @@ export function helpAnswers(d: HelpDevice): HelpAnswer[] {
   ];
 }
 
-/** The tour, in a line under its button. */
-export const TOUR_LINE = 'Eight short steps on this plan, from where the garden is to a first plant in a bed. Leave any time: it keeps your place.';
+/** Guided start, in a line under its button. */
+export const GUIDED_START_LINE = 'Eight short steps on this plan, from where the garden is to a first plant in a bed. Leave any time: it keeps your place.';

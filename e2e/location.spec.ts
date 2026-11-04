@@ -28,7 +28,9 @@ test('a ZIP gives the zone and frost dates; the plant picker can show only plant
   await expect(result).toContainText('Zone 8a');
   await expect(result).toContainText('Last spring frost: about Mar 24');
   await expect(result).toContainText('First fall frost: about Nov 6');
-  await expect(result).toContainText('Arkadelphia 2 N, AR, 3 miles away');
+  // The station by name, not how far it is (Jason, Nov 4: where in the ZIP the garden is isn't known).
+  await expect(result).toContainText('Frost dates are from the weather station at Arkadelphia 2 N, AR. Low spots');
+  await expect(result).not.toContainText('miles');
   await expect(page.getByTestId('location')).toContainText('PRISM Group, Oregon State University, https://prism.oregonstate.edu, accessed 2026-10-17');
   await page.locator('.sheet-header .iconbtn').click();
   // Kept with the plan, across a reload.

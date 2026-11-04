@@ -8,7 +8,7 @@ import { LEVEL_SNAP_DEG, levelTaps, rectFromTaps } from '../src/kinds';
 import { undo } from '../src/history';
 import { state } from '../src/state';
 import { setSnapOn, setSquareOn } from '../src/tidy';
-import { allTraced, asksRealSize, clearOfBox, HOUSE_VIEW_FT, houseScaleZoom, SMALL_BUILDING_SQFT, TRACE_ITEMS, traced } from '../src/yard-in';
+import { allTraced, asksRealSize, clearOfBox, clearOfStrip, HOUSE_VIEW_FT, houseScaleZoom, SMALL_BUILDING_SQFT, TRACE_ITEMS, traced } from '../src/yard-in';
 import type { BoxShape, Point, Shape } from '../src/types';
 
 const FT = 24; // (screen px per foot at zoom 1, the canvas at the window's corner)
@@ -183,5 +183,26 @@ describe('the scale box keeps clear of A and B (item 3)', () => {
     const mid = 600, half = 500 * m.zoom;
     expect(mid - half + m.dy).toBeCloseTo(324);
     expect(mid + half + m.dy).toBeCloseTo(780 - 24);
+  });
+});
+
+describe('setting the scale, the strip with lengths you may know keeps clear of the photo that was in view (Jason, Nov 4)', () => {
+  // (A 360 × 640 phone: the plan from 57 to 580 before the strip, from 181 after it.)
+  const before = { left: 0, top: 57, right: 360, bottom: 580 }, after = { ...before, top: 181 };
+  it('nothing to do when the photo was already clear of where the strip came', () => {
+    expect(clearOfStrip({ left: 20, top: 200, right: 340, bottom: 520 }, before, after)).toBeNull();
+    expect(clearOfStrip({ left: 400, top: 60, right: 700, bottom: 300 }, before, after)).toBeNull(); // (out of view)
+  });
+  it('a photo whose top was under it moves down below it, at the same zoom where there\'s room', () => {
+    const m = clearOfStrip({ left: 20, top: 100, right: 340, bottom: 300 }, before, after)!;
+    expect(m.zoom).toBe(1);
+    expect(100 + m.dy).toBe(181);
+  });
+  it('a photo filling the plan: what was in view, top to bottom, still is, zoomed out about its middle', () => {
+    const m = clearOfStrip({ left: -500, top: -500, right: 900, bottom: 1200 }, before, after)!;
+    expect(m.zoom).toBeCloseTo((580 - 181) / (580 - 57));
+    const half = ((580 - 57) / 2) * m.zoom;
+    expect(m.y - half + m.dy).toBeCloseTo(181);
+    expect(m.y + half + m.dy).toBeCloseTo(580);
   });
 });

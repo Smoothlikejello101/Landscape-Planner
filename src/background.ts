@@ -9,8 +9,8 @@ import type { BgImage, Point } from './types';
 import { calibrationSeen, render } from './ui/render';
 import { uid } from './util';
 import { ask, tell } from './ui/ask';
-import { zoomToBounds } from './mutations';
-import { offerTrace } from './yard-in';
+import { zoomBy, zoomToBounds } from './mutations';
+import { clearOfStrip, offerTrace } from './yard-in';
 
 // Background image (satellite photo or survey) to trace over.
 // Stored per project as a downscaled JPEG data URL. Position is the image
@@ -181,11 +181,32 @@ export function updateBgImageSilent(patch: Partial<BgImage>) {
 
 // ---------- Calibration flow ----------
 export function startBgCalibration() {
-  if (!state.bgImage) return;
+  const bg = state.bgImage;
+  if (!bg) return;
+  // (The photo as it's in view now, before the strip saying what to tap comes above the plan: kept in view below it.)
+  const before = planBox(), photo = before ? photoOnPage(bg, before) : null;
   state.bgCalibrate = { step: 'point1', p1: null, p2: null };
   state.panel = null;
   state.bgEditMode = false; // calibration taps must not be read as drags
   render();
+  // The strip takes the plan's top, with lengths you may know in it (Jason, Nov 4: they need them while picking the
+  // points): the part of the photo that was in view isn't left under it, where A might be tapped.
+  const after = planBox();
+  const move = before && photo && after ? clearOfStrip(photo, before, after) : null;
+  if (!move) return;
+  if (move.zoom < 1) zoomBy(move.zoom, move.x, move.y);
+  state.offsetY -= move.dy / pxPerFoot();
+  render();
+}
+/** The plan's box on the page, while it's laid out. */
+function planBox(): { left: number; top: number; right: number; bottom: number } | null {
+  const r = document.getElementById('canvas-wrap')?.getBoundingClientRect();
+  return r && r.height > 0 ? { left: r.left, top: r.top, right: r.right, bottom: r.bottom } : null;
+}
+/** The photo's bounds on the page (the plan's box at `plan`). */
+function photoOnPage(bg: BgImage, plan: { left: number; top: number }) {
+  const { w, h } = bgSizeFt(bg), b = rotatedBoxBounds(bg.cx, bg.cy, w, h, bg.rotation), ppf = pxPerFoot();
+  return { left: plan.left + (b.minX - state.offsetX) * ppf, top: plan.top + (b.minY - state.offsetY) * ppf, right: plan.left + (b.maxX - state.offsetX) * ppf, bottom: plan.top + (b.maxY - state.offsetY) * ppf };
 }
 export function cancelBgCalibration() {
   state.bgCalibrate = null;
