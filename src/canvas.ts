@@ -436,6 +436,9 @@ export function shapeGroup(s: Shape): SVGGElement {
       style: 'user-select:none;font-weight:500;',
       transform: rotTransform || null, ...areaHalo,
       ...(halo ? { 'data-role': 'plant-label', stroke: 'rgba(255,255,255,0.85)', 'stroke-width': 3, 'paint-order': 'stroke', 'stroke-linejoin': 'round' } : {}),
+      // (A plant's name over its edge, or a run's: drawn over every plant, never under one drawn after it (liftPlantNames).
+      // A hidden plant's goes over the one hiding it instead: liftHidden.)
+      ...(halo && isPlantCircle(s) && !hidden.has(s.id) ? { 'data-name-of': s.id, ...(run ? { 'data-run': String(run.text) } : {}) } : {}),
     }, label));
   }
   if (sunText) {
@@ -769,12 +772,13 @@ export interface LabelBox { x0: number; x1: number; y0: number; y1: number }
 const overlaps = (a: LabelBox, b: LabelBox) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
 const boxAt = (p: Point, w: number, h: number, ppf: number): LabelBox => ({ x0: p.x * ppf - w / 2, x1: p.x * ppf + w / 2, y0: p.y * ppf - h / 2, y1: p.y * ppf + h / 2 });
 /**
- * Where a run's name goes (feet), a name `w` × `h` px at `ppf`: the first spot clear of the names already placed. Its
- * middle; then on each of its plants, the nearest the middle first; then beside the plant at its middle, across the
- * run first (a column's name to its left or right, a row's above or below). Null: nowhere clear. (Jason, Oct 30: a
+ * Where a run's name goes (feet), a name `w` × `h` px at `ppf`: the first spot clear of the names already placed, and of
+ * `plants` (other plants' circles, feet: those drawn over the run, Jason, Nov 4). Its middle; then on each of its plants,
+ * the nearest the middle first; then beside the plant at its middle, across the run first (a column's name to its left or
+ * right, a row's above or below). Null: nowhere clear. (Jason, Oct 30: a
  * 1.5 ft bed's name, at the middle of the column of liriope planted along it, left all twelve unnamed.)
  */
-export function runLabelSpot(run: CircleShape[], w: number, h: number, ppf: number, placed: LabelBox[]): Point | null {
+export function runLabelSpot(run: CircleShape[], w: number, h: number, ppf: number, placed: LabelBox[], plants: { x: number; y: number; r: number }[] = []): Point | null {
   const mid = { x: run.reduce((n, s) => n + s.x, 0) / run.length, y: run.reduce((n, s) => n + s.y, 0) / run.length };
   const near = [...run].sort((a, b) => Math.hypot(a.x - mid.x, a.y - mid.y) - Math.hypot(b.x - mid.x, b.y - mid.y));
   const c = near[0];
@@ -783,8 +787,16 @@ export function runLabelSpot(run: CircleShape[], w: number, h: number, ppf: numb
   const dx = c.radius + (w / 2 + 4) / ppf, dy = c.radius + (h / 2 + 2) / ppf;
   const sides = [{ x: c.x - dx, y: c.y }, { x: c.x + dx, y: c.y }], ends = [{ x: c.x, y: c.y - dy }, { x: c.x, y: c.y + dy }];
   const spots = [mid, ...near.map((s) => ({ x: s.x, y: s.y })), ...(column ? [...sides, ...ends] : [...ends, ...sides])];
-  return spots.find((p) => !placed.some((q) => overlaps(q, boxAt(p, w, h, ppf)))) ?? null;
+  // (Clear of other plants too, not over one or under it: Jason, Nov 4. A rim grazed is fine.)
+  const onPlant = (b: LabelBox) => plants.some((c) => {
+    const cx = c.x * ppf, cy = c.y * ppf, r = c.r * ppf * RUN_CLEAR;
+    const nx = Math.max(b.x0, Math.min(b.x1, cx)), ny = Math.max(b.y0, Math.min(b.y1, cy));
+    return Math.hypot(nx - cx, ny - cy) < r;
+  });
+  return spots.find((p) => { const b = boxAt(p, w, h, ppf); return !placed.some((q) => overlaps(q, b)) && !onPlant(b); }) ?? null;
 }
+/** How much of another plant's circle a run's name keeps off: all but its outer tenth. */
+const RUN_CLEAR = 0.9;
 /**
  * A shape whose name is one of the yard's areas' (a bed, a lawn, a path, a building, a sun area: any but a circle, a text
  * note, or a boundary named along its line), placed clear of the plants as a printout places it (src/area-names.ts).
@@ -824,6 +836,17 @@ let areaShift = new Map<string, { dx: number; dy: number; over: boolean }>();
  * The areas' names over every plant (a bed's under its plants was hidden: the general bug hunt, Nov 1), moved, not
  * copied, from each shape's group into one group after them all.
  */
+/**
+ * Plants' names written over their edges, and runs' names ("Echinacea 'White Angel' ×5"), over every plant: in their
+ * plant's group, a taller plant drawn after it covered them (Jason, Nov 4, with a screenshot: a run's name under the
+ * plants beside it). Moved, not copied, into one group after the plants, under the areas' names.
+ */
+function liftPlantNames(shapes: Element) {
+  let top = shapes.querySelector(':scope > g[data-role=plant-names]');
+  if (!top) top = svgEl('g', { 'data-role': 'plant-names', 'pointer-events': 'none' });
+  for (const n of shapes.querySelectorAll(':scope > g[data-shape-group] > text[data-name-of]')) top.appendChild(n);
+  shapes.appendChild(top);
+}
 function liftAreaNames(shapes: Element) {
   let top = shapes.querySelector(':scope > g[data-role=area-names]');
   if (!top) top = svgEl('g', { 'data-role': 'area-names', 'pointer-events': 'none' });
@@ -922,10 +945,18 @@ function refreshLabelLayout() {
   // Runs of the same plant: one name each, first (a run is named where a lone plant might not be): at its middle, or
   // the nearest spot clear of other names (runLabelSpot). Nowhere clear, its plants are named as lone ones are.
   const inRun = new Set<string>();
+  // (A run's name keeps off the plants drawn over its own, not under them: Jason, Nov 4. Not a canopy drawn see-through
+  // over the run's middle, which the run is under and its name can't keep off; nor a plant hidden under a solid one.)
+  const drawnAt = new Map(shown.map((s, i) => [s.id, i]));
+  const plantCircles = shown.filter((s): s is CircleShape => isPlantCircle(s) && !hidden.has(s.id));
   for (const run of labelRuns(waiting.map((w) => w.s))) {
     const text = `${displayLabel(run[0])} \u00d7${run.length}`;
     const w = textWidth1(text) * OVERFLOW_PX * lk, h = OVERFLOW_PX * lk * LABEL_LINE_HEIGHT;
-    const at = runLabelSpot(run, w, h, ppf, placed);
+    const mine = new Set(run.map((s) => s.id)), from = Math.min(...run.map((s) => drawnAt.get(s.id) ?? Infinity));
+    const mx = run.reduce((t, s) => t + s.x, 0) / run.length, my = run.reduce((t, s) => t + s.y, 0) / run.length;
+    const over = plantCircles.filter((o) => !mine.has(o.id) && (drawnAt.get(o.id) ?? -1) > from
+      && !(seeThrough.has(o.id) && Math.hypot(o.x - mx, o.y - my) < drawnRadius(o))).map((o) => ({ x: o.x, y: o.y, r: drawnRadius(o) }));
+    const at = runLabelSpot(run, w, h, ppf, placed, over);
     if (!at) continue;
     for (const s of run) inRun.add(s.id);
     placed.push(boxAt(at, w, h, ppf));
@@ -1004,6 +1035,7 @@ export function redrawCanvas() {
   renderGrid(grid);
   const shapes = layer(svg, 'shapes');
   for (const s of paintOrder(state.shapes)) shapes.appendChild(shapeGroup(s));
+  liftPlantNames(shapes);
   liftAreaNames(shapes);
   liftBadges(shapes);
   liftHidden(shapes);
@@ -1064,9 +1096,11 @@ export function redrawShapes(ids: string[]) {
       shapes.querySelector(`:scope > g[data-role=hidden-over] > [data-label-of="${CSS.escape(id)}"]`)?.remove();
       shapes.querySelector(`:scope > g[data-role=badges-over] > [data-badges-of="${CSS.escape(id)}"]`)?.remove();
       shapes.querySelector(`:scope > g[data-role=area-names] > [data-name-of="${CSS.escape(id)}"]`)?.remove();
+      shapes.querySelector(`:scope > g[data-role=plant-names] > [data-name-of="${CSS.escape(id)}"]`)?.remove();
       old.replaceWith(shapeGroup(s));
     }
   }
+  liftPlantNames(shapes);
   liftAreaNames(shapes);
   liftBadges(shapes);
   liftHidden(shapes);

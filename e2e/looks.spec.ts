@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test';
-import { openFresh, tapFromCenter, zoomPct } from './helpers';
+import { test, expect, type Page } from '@playwright/test';
+import { openFresh, shapeCount, tapFromCenter, zoomPct } from './helpers';
 
 // Plants drawn as pictures (src/looks.ts; Jason, Oct 27–29: R5c, every plant in bloom), or as plain circles from
 // Layers, on this device.
@@ -164,4 +164,33 @@ test('a run of the same small plant is named once, at its middle (Jason, Oct 30:
   const labels = page.locator('#canvas-svg [data-role=plant-label]');
   await expect(labels.filter({ hasText: 'Creeping phlox' })).toHaveCount(1);
   await expect(labels.filter({ hasText: 'Creeping phlox' })).toHaveText('Creeping phlox ×6');
+});
+
+// A plan put in place before the app opens: its shapes, at a zoom and view (as e2e/badges.spec.ts does).
+const base = { color: '#16a34a', opacity: 0.65, locked: false };
+const plant = (id: string, plantId: string, label: string, x: number, y: number, radius: number) => ({ ...base, id, type: 'circle', role: 'plant', plantId, label, x, y, radius });
+async function openPlan(page: Page, shapes: object[], view: { zoom: number; offsetX: number; offsetY: number }) {
+  await page.addInitScript(([shapes, view]) => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    localStorage.setItem('landscape-planner-v1', JSON.stringify({ shapes, ...view }));
+  }, [shapes, view] as const);
+  await page.goto('./');
+  await expect.poll(() => shapeCount(page)).toBe(shapes.length);
+}
+const ROW = [1, 2.5, 4, 5.5, 7].map((x, i) => plant(`c${i + 1}`, 'lobelia-cardinalis', 'Cardinal flower', x, 0, 0.75));
+
+test("a run's name is never under the plants beside it: drawn over every plant, and kept off a taller one (Jason, Nov 4)", async ({ page }) => {
+  // (A buttonbush, taller, just below the row and right of its middle: drawn after the cardinal flowers, it covered
+  // their name.)
+  await openPlan(page, [...ROW, plant('bb', 'cephalanthus-occidentalis', 'Buttonbush', 6.5, 1.6, 2)], { zoom: 1, offsetX: -4, offsetY: -6 });
+  const name = page.locator('#canvas-svg [data-role=plant-label]', { hasText: 'Cardinal flower ×5' });
+  await expect(name).toHaveCount(1);
+  // Over every plant: in the names' group after them all.
+  await expect(page.locator('#canvas-svg g[data-role=plant-names] [data-role=plant-label]', { hasText: 'Cardinal flower ×5' })).toHaveCount(1);
+  // Off the buttonbush (all but its rim), on the row nearer its other end.
+  const label = (await name.boundingBox())!, bush = (await page.locator('#canvas-svg [data-shape-id=bb]').boundingBox())!;
+  const c = { x: bush.x + bush.width / 2, y: bush.y + bush.height / 2 }, r = bush.width / 2;
+  const nx = Math.max(label.x, Math.min(label.x + label.width, c.x)), ny = Math.max(label.y, Math.min(label.y + label.height, c.y));
+  expect(Math.hypot(nx - c.x, ny - c.y)).toBeGreaterThanOrEqual(0.85 * r);
 });

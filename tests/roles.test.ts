@@ -85,6 +85,21 @@ describe('drawing order', () => {
     // (Nowhere clear: none.)
     expect(runLabelSpot(column, w, h, ppf, [{ x0: -1e4, x1: 1e4, y0: -1e4, y1: 1e4 }])).toBeNull();
   });
+  it("keeps a run's name off the plants drawn over it, not only off names (Jason, Nov 4: it sat under them)", () => {
+    const c = (id: string, x: number) => ({ id, type: 'circle', x, y: 0, radius: 0.75, color: '#16a34a', label: 'Cardinal flower', opacity: 0.65, locked: false, role: 'plant' } as CircleShape);
+    const row = [1, 2.5, 4, 5.5, 7].map((x, i) => c('c' + i, x));
+    const ppf = 24, w = 115, h = 14;
+    expect(runLabelSpot(row, w, h, ppf, [])).toEqual({ x: 4, y: 0 });
+    // A buttonbush just below the row's middle: its name above the row, clear of it.
+    const bush = { x: 4, y: 1.8, r: 2 };
+    const at = runLabelSpot(row, w, h, ppf, [], [bush])!;
+    expect(at.x).toBe(4);
+    expect(at.y).toBeLessThan(-0.75);
+    // (Grazing its rim is fine: a tenth of it.)
+    expect(runLabelSpot(row, w, h, ppf, [], [{ x: 4, y: 2.18, r: 2 }])).toEqual({ x: 4, y: 0 });
+    // Plants all round: nowhere clear, none (its plants named one by one, as lone plants are, or not at all).
+    expect(runLabelSpot(row, w, h, ppf, [], [{ x: 4, y: 0, r: 8 }])).toBeNull();
+  });
   it('leaves hidden roles out', () => {
     state.shapes = [sh('a', { role: 'shade' }), sh('b', { role: 'bed' })];
     state.roleViews = { shade: { hidden: true } };
