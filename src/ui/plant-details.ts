@@ -596,7 +596,11 @@ export function plantDetails(p: Plant, flagged: string[] | undefined, opts: { ha
     box.appendChild(el('div', { className: 'details-flag', 'data-testid': 'reported-flag' },
       `Shown because of what other sources say for its ${flagged.join(' and ')}; the value shown first says otherwise (below).`));
   }
-  if (p.botanical) box.appendChild(el('div', { className: 'details-bot' }, p.botanical));
+  // Its botanical name, and a way to see what it looks like: a web image search for it, in a new tab (Jason, Nov 4, from
+  // Sam: "Wishes there were photos of the plants"; images in the app would mean licensing them).
+  const photos = el('a', { className: 'details-photos', href: photoSearchUrl(p), target: '_blank', rel: 'noopener noreferrer', 'data-testid': 'see-photos',
+    'aria-label': `See photos of ${p.common} (a web image search, in a new tab)` }, 'See photos', el('span', { 'aria-hidden': 'true', className: 'details-photos-arrow' }, ' \u2197'));
+  box.appendChild(el('div', { className: 'details-bot' }, p.botanical ? el('span', { className: 'details-bot-name' }, p.botanical) : null, photos));
   /** Each row drawn, by its label (placed below: at a glance, or in its group). */
   const drawn = new Map<string, HTMLElement[]>();
   const put = (label: string, dd: HTMLElement) => drawn.set(label, [el('dt', {}, label), dd]);
@@ -734,6 +738,19 @@ export function plantDetails(p: Plant, flagged: string[] | undefined, opts: { ha
   return box;
 }
 
+/**
+ * A web image search for the plant (Google Images), by its botanical name and its common name, the cultivar with them
+ * ("Rudbeckia fulgida 'Goldsturm' Black-Eyed Susan"): its cultivar once, notes in brackets left out ("(Species)").
+ * Only the name goes: a plain link, opened in a new tab without saying where it came from.
+ */
+export function photoSearchUrl(p: Pick<Plant, 'common' | 'botanical'>): string {
+  const bot = (p.botanical ?? '').replace(/\s*\([^)]*\)/g, '').trim();
+  let common = (p.common ?? '').replace(/\s*\([^)]*\)/g, '').trim();
+  const cultivar = /['\u2018\u201c"][^'\u2019\u201d"]+['\u2019\u201d"]/.exec(common)?.[0];
+  if (cultivar && bot.replace(/[\u2018\u2019]/g, "'").includes(cultivar.replace(/[\u2018\u2019]/g, "'"))) common = common.replace(cultivar, '').replace(/\s+/g, ' ').trim();
+  const q = [bot, common].filter(Boolean).join(' ');
+  return `https://www.google.com/search?tbm=isch&q=${encodeURIComponent(q)}`;
+}
 /** A source's short name in a citation cut to a line ("NC State" for NC State Extension Gardener Plant Toolbox). */
 const CITE_SHORT: Record<string, string> = { ncsu: 'NC State', usda: 'USDA', arkatlas: 'Arkansas atlas', mnwild: 'Minnesota Wildflowers', riis: 'USGS US-RIIS' };
 /** A citation with each source it names by its short name. */

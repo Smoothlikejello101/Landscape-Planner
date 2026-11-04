@@ -194,3 +194,15 @@ test.describe('on an iPhone', () => {
     await expect(card).toHaveCount(0);
   });
 });
+
+test('See photos: a plant\'s details link to a web image search for it, in a new tab', async ({ page }) => {
+  await page.goto('./');
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Buttonbush');
+  await page.locator('[data-testid=plant-row]', { hasText: 'Buttonbush' }).first().click();
+  const link = page.getByTestId('plant-details').first().getByTestId('see-photos');
+  await expect(link).toHaveText('See photos ↗');
+  await expect(link).toHaveAttribute('target', '_blank');
+  await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  expect(new URL((await link.getAttribute('href'))!).searchParams.get('q')).toBe('Cephalanthus occidentalis Buttonbush');
+});
