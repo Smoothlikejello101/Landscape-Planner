@@ -25,9 +25,15 @@ describe('the guided introduction: when a step is done', () => {
     expect(stepDone('photo', BLANK, at({ scale: 0.04 }))).toBe(true);
     expect(stepDone('photo', BLANK, at({ scale: 0.04, busy: true }))).toBe(false); // (still setting it)
   });
-  it('turning it: turned, and out of moving the photo', () => {
+  it('turning it: turned, and out of moving the photo (not with the photo gone)', () => {
     expect(stepDone('turn', PHOTO, at({ scale: 0.05, rotation: 12, bgEditMode: true }))).toBe(false);
     expect(stepDone('turn', PHOTO, at({ scale: 0.05, rotation: 12 }))).toBe(true);
+    expect(stepDone('turn', at({ scale: 0.05, rotation: 12 }), BLANK)).toBe(false);
+  });
+  it('locking the house (3b): the newest building locked (Jason, Nov 4: from its own panel)', () => {
+    expect(stepDone('lock', at({ buildings: 1, houseLocked: false }), at({ buildings: 1, houseLocked: false }))).toBe(false);
+    expect(stepDone('lock', at({ buildings: 1, houseLocked: false }), at({ buildings: 1, houseLocked: true }))).toBe(true);
+    expect(stepDone('lock', at({ buildings: 1, houseLocked: false }), at({ buildings: 1, houseLocked: true, busy: true }))).toBe(false);
   });
   it('the house, the bed and the plant: one more than when the step began', () => {
     expect(stepDone('house', at({ buildings: 1 }), at({ buildings: 1 }))).toBe(false);
@@ -63,6 +69,18 @@ describe('the guided introduction: the order of the steps', () => {
     expect(nextStep('photo', rec({ done: ['photo'] }), PHOTO)).toBe('turn');
     expect(nextStep('bed', rec(), BLANK)).toBe('sun');
     expect(nextStep('bed', rec(), PHOTO)).toBe('fade');
+  });
+  it('"Lock the house" (3b) only while the newest building is unlocked: none drawn, or locked already, it\'s passed by', () => {
+    const drawn = at({ buildings: 1, houseLocked: false });
+    expect(applies('lock', BLANK)).toBe(false);
+    expect(applies('lock', drawn)).toBe(true);
+    expect(applies('lock', at({ buildings: 1, houseLocked: true }))).toBe(false);
+    expect(nextStep('house', rec(), drawn)).toBe('lock');
+    expect(nextStep('house', rec(), at({ buildings: 1, houseLocked: true }))).toBe('bed');
+    expect(nextStep('house', rec(), BLANK)).toBe('bed');
+    expect(prevStep('bed', drawn)).toBe('lock');
+    expect(prevStep('bed', at({ buildings: 1, houseLocked: true }))).toBe('house');
+    expect(STEPS.indexOf('lock')).toBe(STEPS.indexOf('house') + 1);
   });
   it('goes on past what is done or skipped, and ends after the ring', () => {
     expect(nextStep(null, rec(), BLANK)).toBe('zip');

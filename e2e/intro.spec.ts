@@ -251,18 +251,40 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await page.getByTestId('intro-skip').click();
   await expect(step(page)).toHaveText('Step 3 of 8'); // (no photo: no turning it)
   await house(page);
+  // Locking the house just drawn, a step of its own (3b, not counted in the eight), taught from its panel (Jason,
+  // Nov 4; it was a chip on the bed's card that locked it for them).
+  await expect(step(page)).toHaveText('Step 3b of 8');
+  await expect(card(page).locator('.intro-title')).toHaveText('Lock the house');
+  await expect(page.getByTestId('intro-text')).toContainText('Lock your house, so it stays put while you draw around it:');
+  await expect(page.getByTestId('intro-go')).toHaveCount(0); // (nothing done for them: they open it and lock it)
+  // Not selected: the house itself pulses, on the plan.
+  if (await page.getByTestId('pill-deselect').count()) await page.getByTestId('pill-deselect').click();
+  const houseShape = page.locator('#canvas-svg [data-shape-group]').first();
+  await expect(houseShape).toHaveClass(/shape-pulse/);
+  // Selected: Edit pulses; opened, the toggle at the top of its panel.
+  const h = (await page.locator('#canvas-svg [data-shape-id]').first().boundingBox())!;
+  await page.mouse.click(h.x + h.width / 2, h.y + h.height / 2);
+  await expect(page.locator('.sel-pill .edit')).toHaveClass(/intro-pulse/);
+  await expect(page.locator('#canvas-svg .shape-pulse')).toHaveCount(0);
+  await page.locator('.sel-pill .edit').click();
+  const toggle = page.getByTestId('lock-toggle');
+  await expect(toggle).toHaveText('Unlocked');
+  await expect(toggle).toHaveClass(/intro-pulse/);
+  await expect(page.getByTestId('intro-text')).toHaveText(isMobile ? 'Tap Unlocked at the top, so it reads Locked.' : 'Click Unlocked at the top, so it reads Locked.');
+  await toggle.click();
+  await expect(toggle).toHaveText('Locked');
+  // (The panel's note says what its button says: "Locked", pressed to unlock. It said "Tap Unlock above".)
+  await expect(page.locator('.sheet .banner').first()).toContainText(isMobile ? 'To move it, tap Locked above to unlock it.' : 'To move it, click Locked above to unlock it.');
+  // Done: on to the bed, which says what's next over the panel.
   await expect(step(page)).toHaveText('Step 4 of 8');
-  // Locking taught on the house just drawn (Oct 29).
-  await expect(page.getByTestId('intro-text')).toContainText('Lock your house, so it stays put while you draw around it.');
-  await page.getByTestId('intro-lock-house').click();
-  await expect(page.locator('#toast')).toContainText('Locked: it stays put.');
-  await expect(page.getByTestId('intro-text')).not.toContainText('Lock your house');
-  // Read, then the bed tool opened: the notice goes, off the house's front wall where the bed's corners go (the UI
-  // review, 2026-11-01).
-  await page.waitForTimeout(450);
+  await expect(page.getByTestId('intro-text')).toHaveText('Locked: it stays put. Close this with its ×, then draw a bed.');
+  await closeSheet(page);
+  await expect(page.getByTestId('intro-text')).toContainText("Now a bed, where you'd like plants.");
+  await expect(page.getByTestId('intro-text')).not.toContainText('Lock');
+  // (The house's lock isn't kept with the tour's record: it's read as the steps go.)
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('lp-intro') ?? '{}').base)).not.toHaveProperty('houseLocked');
   await page.getByTestId('intro-go').click();
   await expect(drawBar(page)).toBeVisible();
-  await expect(page.locator('#toast')).not.toHaveClass(/show/);
   await bed(page, false);
   await expect(step(page)).toHaveText('Step 5 of 8'); // (no photo: no fading it)
   // Sun and shade: a circle of shade, sun recorded on it, the sheet closed.
@@ -328,6 +350,13 @@ test('Back and Skip; Exit keeps the step, and Guided start (⋮ → Help) offers
   await zip(page);
   await page.getByTestId('intro-skip').click();
   await house(page);
+  // Lock the house (3b): skipped, the house left unlocked; Back from the bed comes back to it.
+  await expect(step(page)).toHaveText('Step 3b of 8');
+  await page.getByTestId('intro-skip').click();
+  await expect(step(page)).toHaveText('Step 4 of 8');
+  await page.getByTestId('intro-back').click();
+  await expect(step(page)).toHaveText('Step 3b of 8');
+  await page.getByTestId('intro-skip').click();
   await expect(step(page)).toHaveText('Step 4 of 8');
   await page.getByTestId('intro-exit').click();
   await expect(card(page)).toHaveCount(0);

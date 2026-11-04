@@ -9,7 +9,7 @@ import { el, hasKeyboard } from '../dom';
 import { I } from '../icons';
 import { startKind } from '../draw';
 import { pxPerFoot, rotatedBoxBounds, shapeBBox, shapeCenter } from '../geometry';
-import { resizeCanvas } from '../canvas';
+import { pulseShape, resizeCanvas } from '../canvas';
 import { MIN_ZOOM, PX_PER_FOOT_BASE } from '../constants';
 import { hintShown } from '../hints';
 import { PLANT_FILTER_DEFAULTS, plantFilter, plantMatches, plantsById, plantTakesSun } from '../plants';
@@ -24,9 +24,8 @@ import {
 import { openLocation } from './location-panel';
 import { updateBgImage } from '../background';
 import { toast } from './toast';
-import { flushHistoryDebounce, pushHistory } from '../history';
-import { save as savePlan } from '../storage';
 import { fullRingRadius } from '../my-plants';
+import { isLocked } from '../roles';
 import type { Bounds, Shape } from '../types';
 import type { SunLevel } from '../sun';
 import { render } from './render';
@@ -37,7 +36,10 @@ function load(): IntroRecord {
 }
 let rec: IntroRecord = load();
 function save(): void {
-  try { localStorage.setItem(KEY, JSON.stringify(rec)); } catch { /* no storage: it lasts this visit */ }
+  // (The house's lock is read live, as the steps go: not kept with the record.)
+  const base = rec.base ? { ...rec.base } : null;
+  if (base) delete base.houseLocked;
+  try { localStorage.setItem(KEY, JSON.stringify({ ...rec, base })); } catch { /* no storage: it lasts this visit */ }
 }
 /** The card's choice of words where a mouse clicks what a finger taps. */
 /** Step 4b's "Fade it": the photo's opacity. */
@@ -59,6 +61,7 @@ export function snapshot(): Snapshot {
     busy: !!(state.draw || state.placing || state.bgCalibrate || state.featurePlace || state.editPoints),
     panel: state.panel ?? null,
     bgEditMode: !!state.bgEditMode,
+    houseLocked: (() => { const h = newestHouse(); return h ? isLocked(h) : null; })(),
   };
 }
 
@@ -143,21 +146,11 @@ function noteHints(step: StepId): void {
 
 /** The bed the plant step talks about: the newest one. */
 const newestBed = () => [...state.shapes].reverse().find((s) => s.role === 'bed') ?? null;
-/** The house the bed step offers to lock, and the plant the ring step talks about: the newest of each. */
-const newestHouse = () => [...state.shapes].reverse().find((s) => s.role === 'building') ?? null;
+/** The house step 3b locks, and the plant the ring step talks about: the newest of each. */
+function newestHouse() { return [...state.shapes].reverse().find((s) => s.role === 'building') ?? null; }
 const newestPlant = () => [...state.shapes].reverse().find((s) => s.type === 'circle' && s.role === 'plant') ?? null;
-/** The bed step's button: lock the house, and say how it unlocks. */
-function lockHouse(house: Shape): HTMLElement {
-  const b = el('button', { className: 'intro-chip', 'data-testid': 'intro-lock-house', html: `${I.lock}<span>Lock the house</span>` });
-  b.addEventListener('click', () => {
-    flushHistoryDebounce();
-    house.locked = true;
-    pushHistory(); savePlan();
-    toast('Locked: it stays put. To move it again, open it and tap Locked at the top.', 6000);
-    render();
-  });
-  return el('div', { className: 'intro-chips' }, b);
-}
+/** Whether the house is what's selected, alone. */
+const houseSelected = (h: Shape | null) => !!h && state.selectedIds.length === 1 && state.selectedIds[0] === h.id;
 /** The sun recorded over the middle of that bed, if any. */
 function bedSun(): SunLevel | null {
   const bed = newestBed();
@@ -218,17 +211,19 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
       short: `${Tap()} Building, then draw your house.`,
       action: { label: 'Add a building', run: () => { state.panel = 'add'; } },
     };
-    case 'bed': {
-      // (Locking taught here, on the house just drawn (Jason, Oct 29): locked, it stays put, and a press on it goes to
-      // what's drawn on it.)
-      const house = newestHouse();
-      const lock = house && !house.locked;
-      return {
-        text: `${lock ? 'Lock your house, so it stays put while you draw around it. ' : ''}Now a bed, where you'd like plants. ${Tap()} around its edge.${hasKeyboard() ? ' (B starts one.)' : ''}`,
-        action: { label: 'Draw a bed', run: () => startKind('bed') },
-        ...(lock ? { extra: lockHouse(house) } : {}),
-      };
-    }
+    case 'lock': return {
+      // (Taught from the house's own panel, where it's undone too (Jason, Nov 4: "should it teach them to open the edit
+      // pane and lock from there rather than doing it for them?"). It was a chip on the bed's card that locked it.)
+      // Locked, it stays put, and a press on it goes to what's drawn on it (Oct 29).
+      text: `Lock your house, so it stays put while you draw around it: ${tap()} it, then Edit, then Unlocked at the top of its panel. ${Tap()} it there again to move it.`,
+      short: `${Tap()} Unlocked at the top, so it reads Locked.`,
+    };
+    case 'bed': return {
+      text: `Now a bed, where you'd like plants. ${Tap()} around its edge.${hasKeyboard() ? ' (B starts one.)' : ''}`,
+      // (Just locked in its panel, step 3b: what to do next, over it.)
+      short: state.panel === 'props' && houseSelected(newestHouse()) ? 'Locked: it stays put. Close this with its \u00d7, then draw a bed.' : undefined,
+      action: { label: 'Draw a bed', run: () => startKind('bed') },
+    };
     case 'fade': return {
       text: 'Photo making it busy? Fade it, or hide it. Background image in ⋮ brings it back any time.',
       short: 'Slide Opacity to suit, or Hide image. Then close this with its ×.',
@@ -317,6 +312,8 @@ function pulseTarget(step: StepId): string | null {
     case 'photo': return p === 'bg' && !state.bgImage ? '[data-testid=bg-choose]' : null;
     case 'turn': return p === 'bg' ? '[data-testid=bg-edit]' : null;
     case 'house': return p === 'add' ? '.kind-chip[data-kind=building]' : null;
+    // (The house, on the plan, till it's selected (introAfterRender pulses it there); then Edit; then the toggle.)
+    case 'lock': return !houseSelected(newestHouse()) ? null : p === 'props' ? '[data-testid=lock-toggle]' : p ? null : '.sel-pill .edit';
     case 'bed': return !p && !state.draw ? '.tool-btn.bed' : null;
     case 'fade': return p === 'bg' ? '[data-testid=bg-opacity]' : null;
     case 'sun': return p === 'add' ? '.kind-chip[data-kind=sun]' : p === 'props' ? '[data-testid=sun-empty]' : null;
@@ -331,6 +328,7 @@ function pulseTarget(step: StepId): string | null {
  */
 export function introAfterRender(root: HTMLElement): void {
   document.documentElement.classList.remove('intro-top');
+  pulseShape(null); // (a shape on the plan pulses only while a step points to it: drawIntro)
   // (Never in the way of the plan: anything amiss here leaves the introduction "left part way", to pick up from ⋮.)
   try { drawIntro(root); } catch (e) { console.error('guided introduction', e); recordError(e, 'guided introduction'); choosing = false; exit(); }
 }
@@ -357,13 +355,14 @@ function drawIntro(root: HTMLElement): void {
   if (rec.status !== 'active' && !choosing) return;
   if (state.menu) return; // (⋮ open: the card would sit over its last rows)
   if (!choosing) {
-    // (A photo's own step with the photo gone: on to the next, not counted as done.)
-    if (rec.step && !applies(rec.step, snapshot(), rec.done)) { rec.step = nextStep(rec.step, rec, snapshot()); rec.base = snapshot(); if (!rec.step) { finish(); return; } save(); }
     // (The ZIP looked up: its zone and frost dates stay to be read; the next step waits for the panel to close (testers,
     // Oct 30: step 2 came up over it, asking for a photo with no way to give one).)
     const reading = rec.step === 'zip' && state.panel === 'location';
+    // (Done first: the house just locked in step 3b is done, though "Lock the house" no longer applies to it.)
     if (rec.step && rec.base && !reading && stepDone(rec.step, rec.base, snapshot())) advance('done');
     if (rec.status !== 'active' || !rec.step) return;
+    // (A photo's own step with the photo gone, or the house locked some other way: on to the next, not counted as done.)
+    if (!applies(rec.step, snapshot(), rec.done)) { rec.step = nextStep(rec.step, rec, snapshot()); rec.base = snapshot(); if (!rec.step) { finish(); return; } save(); }
   }
   // While drawing, placing, adding doors or setting the scale, the strip above the plan says what to tap, and the card
   // steps aside altogether, off the plan where the taps go (Jason, Nov 2: a card never covers what the step is about).
@@ -374,6 +373,8 @@ function drawIntro(root: HTMLElement): void {
   placeCard(card);
   if (!choosing && rec.step) keepSubjectClear(rec.step, card);
   const step = rec.step;
+  // (Step 3b: the house itself pulses, on the plan, till it's selected.)
+  if (step === 'lock' && !choosing && !state.panel) { const h = newestHouse(); if (h && !houseSelected(h)) pulseShape(h.id); }
   const sel = step && !choosing ? pulseTarget(step) : null;
   const target = sel ? root.querySelector<HTMLElement>(sel) : null;
   target?.classList.add('intro-pulse');
@@ -405,15 +406,15 @@ function placeCard(card: HTMLElement): void {
   card.style.bottom = `${Math.max(8, Math.round(window.innerHeight - top + 8))}px`;
 }
 /**
- * What the step is about, on the plan (feet): the photo it turns, fades or traces the house over; the house the bed
- * step offers to lock; the bed a plant's to go in; the plant whose ring it explains. None for the rest.
+ * What the step is about, on the plan (feet): the photo it turns, fades or traces the house over; the house to lock,
+ * and to draw a bed by; the bed a plant's to go in; the plant whose ring it explains. None for the rest.
  */
 function subject(step: StepId): { key: string; at: Bounds } | null {
   const bg = state.bgImage;
   const shape = (s: Shape | null) => (s ? { key: s.id, at: shapeBBox(s) } : null);
   switch (step) {
     case 'turn': case 'fade': case 'house': return bg?.visible ? { key: 'photo', at: rotatedBoxBounds(bg.cx, bg.cy, bg.naturalWidth * bg.ftPerPx, bg.naturalHeight * bg.ftPerPx, bg.rotation) } : null;
-    case 'bed': return shape(newestHouse());
+    case 'lock': case 'bed': return shape(newestHouse());
     case 'plant': return shape(newestBed());
     case 'ring': return shape(newestPlant());
     default: return null;

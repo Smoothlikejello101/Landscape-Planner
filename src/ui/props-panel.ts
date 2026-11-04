@@ -198,7 +198,8 @@ export function renderPropsPanelSingle(s: Shape) {
   // Always in view: warnings, the name, and what it is.
   if (s.locked) {
     body.appendChild(el('div', { className: 'banner' },
-      tapSaid("This shape is locked: it can't be dragged, and dragging on it pans the plan. Tap Unlock above to move it.")));
+      // (As the toggle above reads: "Locked", pressed to unlock. It said "Tap Unlock above": Jason, Nov 4.)
+      tapSaid("This shape is locked: it can't be dragged, and dragging on it pans the plan. To move it, tap Locked above to unlock it.")));
   } else if (roleLocked(s)) {
     body.appendChild(el('div', { className: 'banner' },
       `All ${roleLabel(roleKey(s)).toLowerCase()} shapes are locked. Unlock them in the Layers panel to move this one.`));
@@ -879,7 +880,7 @@ export function renderPropsPanel() {
   const headerRight = el('div', { style: { display: 'flex', gap: '4px', alignItems: 'center' } });
   if (single) {
     const lockBtn = el('button', {
-      className: 'lockbtn ' + (single.locked ? 'on' : 'off'),
+      className: 'lockbtn ' + (single.locked ? 'on' : 'off'), 'data-testid': 'lock-toggle',
       html: (single.locked ? I.lock : I.unlock) + '<span style="margin-left:6px">' + (single.locked ? 'Locked' : 'Unlocked') + '</span>'
     });
     lockBtn.addEventListener('click', () => updateSelected({ locked: !single.locked }));

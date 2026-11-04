@@ -7,13 +7,17 @@
 
 import type { SunLevel } from './sun';
 
-export type StepId = 'zip' | 'photo' | 'turn' | 'house' | 'bed' | 'fade' | 'sun' | 'who' | 'plant' | 'ring';
-/** In order. "turn" and "fade" are the photo's own steps (2b, 4b): only with a photo. */
-export const STEPS: StepId[] = ['zip', 'photo', 'turn', 'house', 'bed', 'fade', 'sun', 'who', 'plant', 'ring'];
-/** The step's number as the card says it: eight main steps, two of them with a "b". */
-export const STEP_NUMBER: Record<StepId, string> = { zip: '1', photo: '2', turn: '2b', house: '3', bed: '4', fade: '4b', sun: '5', who: '6', plant: '7', ring: '8' };
+export type StepId = 'zip' | 'photo' | 'turn' | 'house' | 'lock' | 'bed' | 'fade' | 'sun' | 'who' | 'plant' | 'ring';
+/**
+ * In order. "turn" and "fade" are the photo's own steps (2b, 4b): only with a photo. "lock" (3b) only while the house
+ * just drawn is unlocked (Jason, Nov 4: locking it is a step of its own, taught from its panel, not done for them on
+ * the bed's card).
+ */
+export const STEPS: StepId[] = ['zip', 'photo', 'turn', 'house', 'lock', 'bed', 'fade', 'sun', 'who', 'plant', 'ring'];
+/** The step's number as the card says it: eight main steps, three of them with a "b". */
+export const STEP_NUMBER: Record<StepId, string> = { zip: '1', photo: '2', turn: '2b', house: '3', lock: '3b', bed: '4', fade: '4b', sun: '5', who: '6', plant: '7', ring: '8' };
 export const STEP_TITLE: Record<StepId, string> = {
-  zip: "Where's the garden?", photo: 'A photo from above', turn: 'Turn it square', house: 'Your house', bed: 'A bed',
+  zip: "Where's the garden?", photo: 'A photo from above', turn: 'Turn it square', house: 'Your house', lock: 'Lock the house', bed: 'A bed',
   fade: 'Fade the photo', sun: 'Sun and shade', who: "Who's in your yard?", plant: 'Find a plant', ring: 'The ring',
 };
 
@@ -33,6 +37,8 @@ export interface Snapshot {
   /** The sheet open, if any. */
   panel: string | null;
   bgEditMode: boolean;
+  /** The newest building locked (null: none). Read live as the steps go; not kept with the record. */
+  houseLocked?: boolean | null;
 }
 /** A photo's scale before it's set (src/background.ts handleBgImageFile). */
 export const UNSCALED = 0.1;
@@ -88,6 +94,7 @@ export function parseIntroRecord(raw: string | null): IntroRecord {
 export function applies(step: StepId, s: Snapshot, done: readonly StepId[] = []): boolean {
   if (step === 'turn') return s.scale != null && done.includes('photo');
   if (step === 'fade') return s.scale != null;
+  if (step === 'lock') return s.houseLocked === false;
   return true;
 }
 
@@ -101,10 +108,12 @@ export function stepDone(step: StepId, base: Snapshot, now: Snapshot): boolean {
   switch (step) {
     case 'zip': return !!now.zip && now.zip !== base.zip;
     case 'photo': return now.scale != null && now.scale !== UNSCALED && now.scale !== base.scale;
-    case 'turn': return now.rotation !== base.rotation && !now.bgEditMode;
+    case 'turn': return now.scale != null && now.rotation !== base.rotation && !now.bgEditMode;
     case 'house': return now.buildings > base.buildings;
+    // (The newest house locked, from its panel's toggle: Jason, Nov 4.)
+    case 'lock': return now.houseLocked === true;
     case 'bed': return now.beds > base.beds;
-    case 'fade': return (now.opacity < base.opacity || (!now.visible && base.visible)) && now.panel !== 'bg';
+    case 'fade': return now.scale != null && (now.opacity < base.opacity || (!now.visible && base.visible)) && now.panel !== 'bg';
     // (Once the sun's recorded and the sheet closed: the times are set in the sheet.)
     case 'sun': return now.sunAreas > base.sunAreas && now.panel !== 'props';
     case 'plant': return now.plants > base.plants;

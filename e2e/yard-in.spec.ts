@@ -289,9 +289,9 @@ test('the tour: one × with a sheet open; leaving says where to pick it up; the 
   await page.locator('.kind-chip[data-kind=building]').first().click();
   await expect(drawBanner(page)).toContainText('Building');
   await expect(tourCard(page)).toHaveCount(0);
-  // Drawn low on the plan, where step 4's card goes: the plan moves it clear, above the card.
+  // Drawn low on the plan, where step 3b's card goes: the plan moves it clear, above the card.
   await tapFromCenter(page, -12, 22); await tapFromCenter(page, 12, 22); await tapFromCenter(page, 12, 34);
-  await expect(page.getByTestId('intro-step')).toHaveText('Step 4 of 8');
+  await expect(page.getByTestId('intro-step')).toHaveText('Step 3b of 8'); // (Lock the house: about the house too)
   const house = (await page.locator('#canvas-svg [data-shape-id]').first().boundingBox())!;
   const card = (await tourCard(page).boundingBox())!;
   expect(overlap(house, card)).toBe(false);
