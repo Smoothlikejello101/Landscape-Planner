@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { apartAt, crowdingOf, roomAt } from '../src/crowding';
-import { bedWidth, moverOf, nudgeApart, sameSpecies, smallerForms, sourcedWidth, widerThanBed } from '../src/fix-problem';
+import { bedWidth, moverOf, nudgeApart, nudgeTargets, sameSpecies, smallerForms, sourcedWidth, widerThanBed } from '../src/fix-problem';
 import { bedOf } from '../src/beds';
 import type { Plant } from '../src/plants';
 import type { CircleShape, Shape } from '../src/types';
@@ -66,40 +66,48 @@ describe('Nudge apart', () => {
     const far = p('far', 16, { plantId: 'bigShrub', radius: 10 });
     expect(nudgeApart(oak, far, [oak, far], byId)).toMatchObject({ ok: false, why: 'apart' });
   });
-  it('stays inside its bed: room in the bed, it moves; none, it says so and nothing moves', () => {
+  it('stays inside its bed: room in the bed, it moves; straight out leaves it, another way; none, it says so and nothing moves', () => {
     const roomy = bed('Front bed', -5, -5, 20, 10);
     const a = p('a', 0), b = p('b', 2);
     const ok = nudgeApart(a, b, [roomy, a, b], byId);
     expect(ok.ok).toBe(true);
     const moved = after([roomy, a, b], ok);
     expect(bedOf(at(b, moved), moved)?.id).toBe('Front bed');
-    // A bed whose edge is 3 ft from b: the 4 ft it needs takes it out of the bed.
+    // A bed whose edge is 1 ft from b (x = 3): the 4 ft it needs straight out takes it out of the bed. Since Nov 4 (Jason:
+    // "no room" only when no way works), it goes another way, the least it can: up or down, still in the bed.
     const tight = bed('Narrow bed', -5, -5, 8, 10);
-    const no = nudgeApart(a, b, [tight, a, b], byId);
+    const round = nudgeApart(a, b, [tight, a, b], byId);
+    expect(round.ok).toBe(true);
+    const there = after([tight, a, b], round);
+    expect(bedOf(at(b, there), there)?.id).toBe('Narrow bed');
+    expect(crowdingOf(at(b, there), there, byId, { close: true })).toEqual([]);
+    if (round.ok) expect(round.by).toBeLessThan(4); // (not round to the far side)
+    // A bed 5 ft square around them: nowhere in it 4 ft from a. Said, and nothing moves.
+    const box = bed('Box', -2.5, -2.5, 5, 5);
+    const no = nudgeApart(a, p('b', 1), [box, a, p('b', 1)], byId);
     expect(no).toMatchObject({ ok: false, why: 'bed' });
-    if (!no.ok) expect(no.bed?.id).toBe('Narrow bed');
-    // Not in a bed, it isn't pushed into one either.
-    const beside = bed('Next bed', 1, -5, 10, 10);
+    if (!no.ok) expect(no.bed?.id).toBe('Box');
+    // Not in a bed, it isn't pushed into one either: beds all round.
     const c = p('c', 0), d = p('d', -2);
-    expect(nudgeApart(c, d, [beside, c, d], byId, { prefer: 'c' })).toMatchObject({ ok: false, why: 'bed' });
+    const ring = [bed('E', 1, -10, 10, 20), bed('W', -15, -10, 12, 20), bed('N', -3, -10, 4, 8.5), bed('S', -3, 1.5, 4, 8.5)];
+    expect(nudgeApart(c, d, [...ring, c, d], byId, { prefer: 'c' })).toMatchObject({ ok: false, why: 'bed' });
   });
-  it('never into a third plant: none it wasn’t close to, and none closer than it was', () => {
-    // b would land at 4, 1 ft from c at 5: crowding c, which it wasn't close to before.
+  it('never into a third plant: none it wasn’t close to, and none closer than it was; blocked straight out, round it', () => {
+    // b would land at 4, 1 ft from c at 5.5: crowding c, which it wasn't close to before. It goes round c instead.
     const a = p('a', 0), b = p('b', 2), c = p('c', 5.5, { plantId: 'small', radius: 1 });
-    const into = nudgeApart(a, b, [a, b, c], byId);
+    const round = nudgeApart(a, b, [a, b, c], byId);
+    expect(round.ok).toBe(true);
+    const there = after([a, b, c], round);
+    expect(crowdingOf(at(b, there), there, byId, { close: true })).toEqual([]);
+    // Small plants all round, 5.5 ft from a: wherever b clears a, it crowds one of them. Said, and nothing moves.
+    const ring = Array.from({ length: 12 }, (_, k) => p('r' + k, 5.5 * Math.cos((k * Math.PI) / 6), { y: 5.5 * Math.sin((k * Math.PI) / 6), plantId: 'small', radius: 1 }));
+    const into = nudgeApart(a, b, [a, b, ...ring], byId);
     expect(into).toMatchObject({ ok: false, why: 'plant' });
-    if (!into.ok) expect(into.third?.id).toBe('c');
-    // c already close to b, and the nudge goes toward it: still no.
-    const c2 = p('c2', 4.5, { plantId: 'small', radius: 1 });
-    expect(crowdingOf(b, [a, b, c2], byId, { close: true }).map((x) => x.other.id)).toContain('c2');
-    expect(nudgeApart(a, b, [a, b, c2], byId)).toMatchObject({ ok: false, why: 'plant' });
-    // c close to b but behind it (the nudge goes away from it): fine.
-    const c3 = p('c3', 0.5, { y: 2.5, plantId: 'small', radius: 1 });
-    const away = nudgeApart(c3, b, [c3, b], byId, { prefer: 'b' });
-    expect(away.ok).toBe(true);
-    // A pair left close on purpose counts too: not pushed into it.
-    const d = p('d', 5.5, { plantId: 'small', radius: 1, crowdOk: ['b'] });
-    expect(nudgeApart(a, b, [a, b, d], byId)).toMatchObject({ ok: false, why: 'plant' });
+    if (!into.ok) expect(into.third?.id).toBe('r0'); // (the one in its way straight out)
+    // A pair left close on purpose counts too: not pushed into it, nor closer.
+    const d = p('d', 4.5, { plantId: 'small', radius: 1, crowdOk: ['b'] });
+    const r2 = nudgeApart(a, b, [a, b, d], byId);
+    if (r2.ok) expect(Math.hypot(r2.to.x - d.x, r2.to.y - d.y)).toBeGreaterThanOrEqual(2.5 - 1e-9);
   });
   it('a locked plant, or one already in the ground, stays: the other moves; neither can, and it says so', () => {
     const a = p('a', 0), b = p('b', 2, { locked: true });
@@ -119,6 +127,59 @@ describe('Nudge apart', () => {
     const c = p('c', 5, { plantId: 'small', radius: 1 });
     const w = nudgeApart(a, b, [a, b, c], byId);
     expect(w.ok && w.to.x).toBeLessThanOrEqual(-4);
+  });
+  // Jason, Nov 4 (his note on #214): "If I place in a triangle shape, the third one says 'no room' rather than nudging
+  // away from both plants at once."
+  it('Jason’s triangle: the third plant, crowding both, moves away from both at once, straight between them', () => {
+    const a = p('a', 0), b = p('b', 4.5), c = p('c', 2.25, { y: 1 });
+    // (Before, away from the first alone, along their line, it went nearer the second: "No room".)
+    const dc = Math.hypot(2.25, 1), straight = { x: (2.25 / dc) * 4.01, y: (1 / dc) * 4.01 };
+    expect(Math.hypot(straight.x - 4.5, straight.y)).toBeLessThan(dc);
+    const r = nudgeApart(c, [a, b], [a, b, c], byId);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.mover.id).toBe('c');
+    expect(r.others.map((o) => o.id)).toEqual(['a', 'b']);
+    expect(r.to.x).toBeCloseTo(2.25, 9); // (their pushes cancel across: straight up, away from both)
+    expect(r.to.y).toBeGreaterThan(1);
+    const there = after([a, b, c], r);
+    expect(crowdingOf(at(c, there), there, byId, { close: true })).toEqual([]);
+    // Just clear of both: 4 ft and a hair from each.
+    expect(Math.hypot(r.to.x, r.to.y)).toBeCloseTo(4.01, 6);
+    expect(r.by).toBeCloseTo(Math.sqrt(4.01 ** 2 - 2.25 ** 2) - 1, 6);
+  });
+  it('several, pushing unevenly: the deeper overlap pushes harder; the move is the least that clears them all', () => {
+    const a = p('a', 0), b = p('b', 3.5, { y: -2 }), c = p('c', 1.5, { y: 0.5 });
+    const r = nudgeApart(c, [a, b], [a, b, c], byId);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const there = after([a, b, c], r);
+    expect(crowdingOf(at(c, there), there, byId, { close: true })).toEqual([]);
+    // (No direction a degree either side of it clears both with less.)
+    const d = (q: { x: number; y: number }, o: Shape) => Math.hypot(q.x - o.x, q.y - o.y);
+    const ang = Math.atan2(r.to.y - 0.5, r.to.x - 1.5);
+    for (const da of [-Math.PI / 180, Math.PI / 180]) {
+      const u = { x: Math.cos(ang + da), y: Math.sin(ang + da) };
+      const s = Math.max(...[a, b].map((o) => { let lo = 0, hi = 20; for (let k = 0; k < 60; k++) { const m = (lo + hi) / 2; if (d({ x: 1.5 + u.x * m, y: 0.5 + u.y * m }, o) >= 4.01) hi = m; else lo = m; } return hi; }));
+      expect(s).toBeGreaterThanOrEqual(r.by - 1e-6);
+    }
+  });
+  it('one between two, on a line (their pushes cancel): out sideways, round the compass', () => {
+    const a = p('a', -2), b = p('b', 2), c = p('c', 0);
+    const r = nudgeApart(c, [a, b], [a, b, c], byId);
+    expect(r.ok && Math.abs(r.to.x)).toBeLessThan(1e-9);
+    if (r.ok) expect(Math.abs(r.to.y)).toBeCloseTo(Math.sqrt(4.01 ** 2 - 4), 6);
+  });
+  it('no way clears them all: "no room", and nothing moves', () => {
+    const ring = Array.from({ length: 6 }, (_, k) => p('r' + k, 3 * Math.cos((k * Math.PI) / 3), { y: 3 * Math.sin((k * Math.PI) / 3) }));
+    const box = bed('Box', -4, -4, 8, 8), c = p('c', 0, { y: 0.2 });
+    const r = nudgeApart(c, ring, [box, ...ring, c], byId, { all: [box, ...ring, c] });
+    expect(r.ok).toBe(false);
+  });
+  it('lists every plant it is close to or crowding, the one named first', () => {
+    const a = p('a', 0), b = p('b', 4.5), c = p('c', 2.25, { y: 1 }), far = p('far', 20);
+    expect(nudgeTargets(c, [a, b, c, far], byId).map((s) => s.id).sort()).toEqual(['a', 'b']);
+    expect(nudgeTargets(c, [a, b, c, far], byId, {}, b).map((s) => s.id)).toEqual(['b', 'a']);
   });
 });
 

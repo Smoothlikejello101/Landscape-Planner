@@ -28,7 +28,7 @@ import { renderSettingsPanel } from './settings-panel';
 import { refreshWarnings, renderWarningsSheet, renderWarningsSide, walkChip, warningsButton, warningsSheetShown, warningsSideShown } from './warnings-sheet';
 import { renderWhatsNewPanel } from './whats-new-panel';
 import { snapOn } from '../tidy';
-import { dismissToastAction, hideOldToast, placeNotice, planChanged, planRoomAcross, toastAction } from './toast';
+import { dismissToastAction, hideOldToast, noticeUp, placeNotice, planChanged, planRoomAcross, toastAction } from './toast';
 import { renderMoreMenu, toggleSelectMode } from './menu';
 import { foldDetailGroups } from './plant-details';
 import { renderFeedbackSheet } from './feedback-sheet';
@@ -225,8 +225,12 @@ export function render() {
     floatRedo.addEventListener('click', () => { dismissToastAction(); redo(); render(); });
   }
 
-  // Layers
-  const layersBtn = el('button', { className: 'iconbtn', html: I.layers, title: 'Layers' });
+  // Layers. While the plan's photo isn't to scale yet, a dot on it, said to screen readers too (Jason, his note on #209,
+  // Nov 4: "Can we add a little notification badge if the image is uncalibrated?"): Layers marks it and sets its scale.
+  const unscaled = !!state.bgImage?.uncalibrated && !state.bgCalibrate;
+  const layersBtn = el('button', { className: 'iconbtn', html: I.layers, title: 'Layers', 'data-testid': 'layers-btn',
+    'aria-label': unscaled ? 'Layers: the photo isn\u2019t to scale yet' : 'Layers' });
+  if (unscaled) layersBtn.appendChild(el('span', { className: 'scale-dot', 'data-testid': 'layers-scale-dot', 'aria-hidden': 'true' }));
   layersBtn.addEventListener('click', () => { state.panel = 'layers'; render(); });
   topbar.appendChild(layersBtn);
 
@@ -1030,10 +1034,19 @@ function restoreLine(): HTMLElement {
  * once, as the plan is first shown this session, with Calibrate. Not again that session, nor while calibrating.
  */
 const calibrationSaid = new Set<string>();
+/** When each plan's notice came due this session (ms): first shown with its photo. */
+const calibrationDue = new Map<string, number>();
+/** The start's cards and What's new: about the same thing, the app opening on the plan, and said first (src/main.ts). */
+const START_NOTICES = ['welcome-back', 'saved-here', 'whats-new-notice'];
 function calibrationNotice() {
   const id = state.currentProjectId;
   if (!id || calibrationSaid.has(id) || !state.bgImage) return;
-  if (state.bgCalibrate || state.panel || introActive() || document.getElementById('toast-action')) return;
+  if (!calibrationDue.has(id)) calibrationDue.set(id, Date.now());
+  if (state.bgCalibrate || state.panel || introActive()) return;
+  // (A notice up: one from before the plan was shown is older, and gives way, as any older notice does to a new one
+  // (Jason, Nov 4). The start's cards wait for nothing, and one raised since is newer: this waits for them to go.)
+  const up = noticeUp();
+  if (up && (START_NOTICES.includes(up.testid ?? '') || up.at >= calibrationDue.get(id)!)) return;
   calibrationSaid.add(id);
   if (!state.bgImage.uncalibrated) return;
   toastAction('The photo isn\u2019t to scale yet: its size on the plan is a guess.', [{ label: 'Calibrate', run: () => startBgCalibration() }], 12000, 'calibrate-notice', { tone: 'amber' });

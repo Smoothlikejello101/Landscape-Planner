@@ -194,3 +194,62 @@ test('a notice can be put away without its buttons: ✕, or a swipe sideways; a 
   await page.mouse.move(x, y); await page.mouse.down(); await page.mouse.move(x + 160, y, { steps: 8 }); await page.mouse.up();
   await expect(notice(page)).toHaveCount(0);
 });
+
+// Jason, Nov 4: "The crowding notice and nudge option isn't shown if the 'nudged apart ... Undo' is on the screen. The undo
+// notice should be auto-dismissed and the new one shown, and we probably ought to look at where else similar things are
+// happening." A notice for something new replaces an older one; only one about the same plant keeps its order.
+const ZIPS = {
+  v: 1, accessed: '2026-10-17',
+  zips: { '71923': ['8a', 0, 3] },
+  stations: [{ name: 'Arkadelphia 2 N, AR', chance: 100, spring: '03-24', springLate: '04-08', fall: '11-06', fallEarly: '10-24' }],
+};
+test('a new plant\'s notice replaces "Nudged… Undo": crowded, close (said again after a nudge), too cold, a fruit partner; its own crowding still first (Jason, Nov 4)', async ({ page }) => {
+  await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(ZIPS) }));
+  await openFresh(page);
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Garden location' }).click();
+  await page.getByTestId('zip').fill('71923');
+  await page.getByTestId('zip-lookup').click();
+  await expect(page.getByTestId('location-result')).toContainText('8a');
+  await closeSheet(page);
+  const nudged = page.getByTestId('nudge-notice');
+  // Close (amber), nudged: the next close one is said all the same, over "Nudged… Undo".
+  await startPlacing(page, 'Snowberry');
+  await tapFromCenter(page, -2, -4);
+  const first = (await page.locator('#canvas-svg circle[data-shape-id]').first().getAttribute('data-shape-id'))!;
+  await tapFromCenter(page, 2, -4); // (4 ft: close)
+  await expect(notice(page)).toHaveClass(/tone-amber/);
+  await notice(page).getByRole('button', { name: 'Nudge apart' }).click();
+  await expect(nudged).toBeVisible();
+  await tapFromCenter(page, -6, -4); // (4 ft from the first: close)
+  await expect(notice(page).getByTestId('notice-line')).toHaveText('Close to Snowberry');
+  await expect(nudged).toHaveCount(0);
+  // Crowded, nudged; another crowded: its notice in place of the Undo.
+  await notice(page).getByRole('button', { name: 'Nudge apart' }).click();
+  await expect(nudged).toBeVisible();
+  await tapFromCenter(page, -2, -2); // (2 ft below the first: crowded)
+  await expect(notice(page).getByTestId('notice-line')).toHaveText('Crowding Snowberry');
+  await notice(page).getByRole('button', { name: 'Nudge apart' }).click();
+  await expect(nudged).toBeVisible();
+  await bar(page).getByRole('button', { name: 'Done' }).click();
+  // Too cold, placed clear of everything while "Nudged… Undo" is up: said.
+  await expect(nudged).toBeVisible();
+  await startPlacing(page, 'Barbados aloe');
+  await tapFromCenter(page, 6, 6);
+  await expect(page.getByTestId('hardy-notice')).toContainText('Too cold for zone 8a');
+  await bar(page).getByRole('button', { name: 'Done' }).click();
+  // A fruit partner's notice over an older one: said.
+  await page.getByTestId('hardy-notice').getByRole('button', { name: 'Undo' }).click(); // (deleted, with its own notice)
+  await startPlacing(page, "'Winter Red'");
+  await tapFromCenter(page, 6, 6);
+  await expect(page.getByTestId('fruit-notice')).toContainText("'Winter Red' is a female");
+  await page.getByTestId('fruit-notice').getByTestId('notice-close').click();
+  await bar(page).getByRole('button', { name: 'Done' }).click();
+  await page.keyboard.press('Escape'); // (nothing selected: the picker opens on the plan where it is)
+  // Too cold and crowding one already there: its crowding is said, first, as before.
+  await startPlacing(page, 'Barbados aloe');
+  const on = (await page.locator(`#canvas-svg [data-shape-id="${first}"]`).boundingBox())!; // (the plan may have moved to show what was selected)
+  await page.mouse.click(on.x + on.width / 2, on.y + on.height / 2);
+  await expect(notice(page)).toBeVisible();
+  await expect(page.getByTestId('hardy-notice')).toHaveCount(0);
+});

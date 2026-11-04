@@ -17,8 +17,8 @@ export function askRealSize(shape: Shape): void {
   if (!asksRealSize(shape, state.shapes)) return;
   const size = shape.type === 'rect' ? `${fmtFeet(shape.width)} × ${fmtFeet(shape.height)} ft` : `${Math.round(shapeArea(shape))} sq ft`;
   // (Traced over a photo not yet to scale: the photo's the likelier thing to fix.)
-  const rough = !!state.bgImage?.visible && !!state.bgImage.uncalibrated;
-  const again = rough
+  const unscaled = !!state.bgImage?.visible && !!state.bgImage.uncalibrated;
+  const again = unscaled
     ? { label: 'Set the photo’s scale', run: () => { startBgCalibration(); } }
     : { label: 'Draw it again', run: () => {
       if (!state.shapes.some((s) => s.id === shape.id)) return;
@@ -31,7 +31,7 @@ export function askRealSize(shape: Shape): void {
       startKind('building'); // (where a house fits, the plan's first building again: src/draw.ts)
       render();
     } };
-  toastAction(`Is that the real size? At ${size}, it’s small for a house${rough ? ', and the photo isn’t to scale yet' : ''}.`,
+  toastAction(`Is that the real size? At ${size}, it’s small for a house${unscaled ? ', and the photo isn’t to scale yet' : ''}.`,
     [again, { label: 'It’s right', run: () => {} }], 15000, 'real-size');
   const n = document.getElementById('toast-action');
   if (n) n.dataset.about = shape.id; // (gone with the building; kept clear of it: src/ui/toast.ts placeNotice)

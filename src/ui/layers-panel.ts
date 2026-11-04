@@ -234,15 +234,16 @@ function backgroundSection(): HTMLElement {
   const more = el('button', { className: 'link-btn', 'data-testid': 'layers-bg-more' }, 'Adjust\u2026');
   more.disabled = busy;
   more.addEventListener('click', () => { state.panel = 'bg'; render(); });
-  // Not to scale yet: marked rough until its scale is set (Jason, Nov 2, from the UI review), with the way to set it.
-  // (What's kept with the photo since Oct 30, src/types.ts BgImage.uncalibrated: no new stored field.)
-  const rough = bg.uncalibrated ? el('span', { className: 'rough-flag', 'data-testid': 'layers-bg-rough' }, 'Rough scale') : null;
-  wrap.appendChild(el('div', { className: 'role-row' + (bg.visible ? '' : ' hidden') }, eye, el('span', { className: 'name' }, 'Background image', ...(rough ? [' ', rough] : [])), more));
-  if (rough) {
+  // Not to scale yet: marked so until its scale is set (Jason, Nov 2, from the UI review), with the way to set it. Said as
+  // the background sheet says it: "Rough scale" until Jason's note on #209, Nov 4: "uncalibrated isn't rough, it's just
+  // uncalibrated". (What's kept with the photo since Oct 30, src/types.ts BgImage.uncalibrated: no new stored field.)
+  const unscaled = bg.uncalibrated ? el('span', { className: 'scale-flag', 'data-testid': 'layers-bg-not-to-scale' }, 'Not to scale yet') : null;
+  wrap.appendChild(el('div', { className: 'role-row' + (bg.visible ? '' : ' hidden') }, eye, el('span', { className: 'name' }, 'Background image', ...(unscaled ? [' ', unscaled] : [])), more));
+  if (unscaled) {
     const set = el('button', { className: 'link-btn', 'data-testid': 'layers-bg-set-scale' }, 'Set its scale');
     set.disabled = busy;
     set.addEventListener('click', () => startBgCalibration());
-    wrap.appendChild(el('div', { className: 'hint rough-line' }, 'Its size on the plan is a guess until its scale is set: what\u2019s traced over it is too. ', set));
+    wrap.appendChild(el('div', { className: 'hint scale-line' }, 'Its size on the plan is a guess until its scale is set: what\u2019s traced over it is too. ', set));
   }
   // Opacity: redraws the plan only, so the slider keeps its place (and the keyboard, on a phone).
   const pct = el('span', { className: 'count' }, Math.round(bg.opacity * 100) + '%');

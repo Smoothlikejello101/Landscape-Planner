@@ -81,7 +81,8 @@ export function placeToast(node: HTMLElement) {
 /**
  * A notice with buttons ("Squared the corners. Undo"), kept up long enough to reach: tapping a button runs it
  * and closes the notice (unless it's `keep`: turning a setting off leaves the Undo there). A new notice
- * replaces it. With `detail`, the message is one short line that opens to say more (Jason, 2026-10-27: a notice
+ * replaces it: one for something new always does, and only notices about the same placement or action keep an order
+ * of their own (noticeAbout). With `detail`, the message is one short line that opens to say more (Jason, 2026-10-27: a notice
  * mustn't get in the way); opened, it stays up while it's read. `tone` marks it amber or red. `sub`: a second, quieter
  * line under the message. `untilAction`: no time limit; it goes at the first thing done anywhere else (a press, a key,
  * the wheel), so it never covers what the person came to do (the start's cards: src/ui/welcome-card.ts). A question
@@ -93,6 +94,7 @@ export function toastAction(message: string, actions: { label: string; run: () =
   document.getElementById('toast-action')?.remove();
   const node = document.createElement('div');
   node.id = 'toast-action';
+  raisedAt.set(node, Date.now());
   if (testid) node.dataset.testid = testid;
   if (opts.tone) node.classList.add(`tone-${opts.tone}`);
   node.setAttribute('role', 'status');
@@ -163,6 +165,23 @@ export function toastAction(message: string, actions: { label: string; run: () =
   const tick = () => { if (!node.isConnected) return; const left = closeAt - Date.now(); if (left <= 0) node.remove(); else setTimeout(tick, left); };
   setTimeout(tick, ms);
 }
+/** When each notice with buttons went up (ms). */
+const raisedAt = new WeakMap<Element, number>();
+/**
+ * The notice with buttons that's up, if any: its kind (testid), the shape it's about (`about`, set by the notices about a
+ * plant or a building), and when it went up (ms).
+ */
+export function noticeUp(): { testid?: string; about?: string; at: number } | null {
+  const n = document.getElementById('toast-action');
+  return n ? { testid: n.dataset.testid, about: n.dataset.about, at: raisedAt.get(n) ?? 0 } : null;
+}
+/**
+ * Whether a notice that's up is about this shape: the same placement, whose notice said first keeps its place (a
+ * plant placed too close: its crowding notice before its hardiness one). A notice about anything else is older, and a
+ * new one replaces it (Jason, Nov 4: a crowding notice didn't show while "Nudged… Undo" for the last plant was up, and
+ * the hardiness and fruit-partner notices skipped whenever any notice was up).
+ */
+export const noticeAbout = (id: string): boolean => noticeUp()?.about === id;
 /** Keys that move around the page or hold others, not an action: Tab reaches the notice's own buttons. */
 const NOT_ACTIONS = ['Tab', 'Shift', 'Control', 'Alt', 'Meta', 'CapsLock'];
 /**

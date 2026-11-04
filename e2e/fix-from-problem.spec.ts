@@ -226,3 +226,19 @@ test('the crowding notice: Nudge apart moves the plant just placed, Undo puts it
   await page.locator('button[title=Undo]').first().click();
   expect(await shapeCount(page)).toBe(1);
 });
+
+test('Jason\'s triangle (his note on #214): the third plant, crowding both, is nudged away from both at once, not "no room"', async ({ page }) => {
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('plant-search').fill('Snowberry');
+  await page.locator('.sheet .proj-row', { hasText: 'Snowberry' }).first().locator('[data-testid=plant-place]').click();
+  await tapFromCenter(page, -2.5, 0);
+  await tapFromCenter(page, 2.5, 0); // (5 ft apart: clear of each other)
+  await tapFromCenter(page, 0, 1.5); // (2.9 ft from each: crowding both)
+  const notice = page.getByTestId('crowd-notice');
+  await expect(notice.getByTestId('notice-line')).toHaveText('Crowding Snowberry (+1 more)');
+  await notice.getByRole('button', { name: 'Nudge apart' }).click();
+  await expect(page.getByTestId('nudge-notice')).toContainText(/^Nudged one Snowberry \d+(\.\d)? ft away from the other two\./);
+  await expect(page.locator('#canvas-svg [data-role=crowded], #canvas-svg [data-role=close]')).toHaveCount(0);
+  await expect(page.locator('#toast')).not.toContainText('No room');
+});
