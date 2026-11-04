@@ -155,3 +155,83 @@ test('a bed no sun area touches is asked its sun, and Not sure is kept as an ans
   await page.getByTestId('conditions-plant').click();
   await expect(pressed(page)).toHaveText('Bed, 16 × 8 ft');
 });
+
+/** The plan, its Front bed answered: clay, average moisture. */
+const ANSWERED = SHAPES.map((s) => (s.id === 'bed' ? { ...s, conditions: { soil: 'clay', moisture: 'average' } } : s));
+const chips = (page: Page) => page.getByTestId('bed-box').getByTestId('bed-cond');
+const count = (page: Page) => page.getByTestId('picker-count');
+const search = (page: Page) => page.getByTestId('plant-search');
+const rowNamed = (page: Page, name: string) => page.locator('.picker-sheet .plant-item', { has: page.locator('.pname', { hasText: name }) }).first();
+
+test('For a bed, its conditions filter the list as a layer of their own: the box, the count, "Set by", and the person\'s own filters untouched', async ({ page }) => {
+  await seed(page, ANSWERED);
+  // The person's own filters first, Anywhere: Shade, and Drought tolerant.
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('filters').click();
+  await page.getByRole('combobox', { name: 'Sun' }).selectOption('Shade');
+  await page.locator('.filter-check', { hasText: 'Drought tolerant' }).locator('input').check();
+  const mine = page.getByTestId('active-filters').getByTestId('active-chip');
+  await expect(mine).toHaveText(['Shade', 'Drought tolerant']);
+  const anywhereCount = await count(page).innerText();
+  // For Front bed: its box, its count; the person's own set aside, the bed's "Set by".
+  await forRow(page).getByTestId('for-bed').first().click();
+  await expect(page.getByTestId('bed-box')).toContainText('Front bed’s conditions');
+  await expect(chips(page)).toHaveText(['Takes part shade to full sun', 'Clay OK', 'Water needs: low or moderate']);
+  await expect(page.getByTestId('bed-box-note')).toHaveText('Sun from the 2 sun areas over it (3.5 to 7 h). Only plants whose facts fit are listed; nothing is ranked.');
+  await expect(count(page)).toHaveText(tapping(' plants fit Front bed · Place a plant, then tap inside the bed; tap a plant for its details'));
+  await expect(count(page)).toHaveText(/^[\d,]+ of [\d,]+ plants fit Front bed/);
+  await expect(page.getByTestId('active-filters')).toBeHidden();
+  await expect(page.getByTestId('filters')).toHaveText(/^Filters$/);
+  await expect(page.getByRole('combobox', { name: 'Sun' })).toBeDisabled();
+  await expect(page.getByRole('combobox', { name: 'Sun' }).locator('option:checked')).toHaveText('Set by Front bed');
+  await expect(page.getByRole('combobox', { name: 'Water needs' }).locator('option:checked')).toHaveText('Set by Front bed');
+  await expect(page.getByTestId('set-by-note')).toHaveText('Sun, Water needs, Drought tolerant, Takes wet soil and Clay OK are set by Front bed while you plant it. Yours are kept for Anywhere.');
+  const drought = page.locator('.filter-check', { hasText: 'Drought tolerant' });
+  await expect(drought.locator('input')).toBeDisabled();
+  await expect(drought.locator('input')).not.toBeChecked(); // (the bed's: average, not dry)
+  await expect(drought.getByTestId('set-by')).toHaveText('Set by Front bed');
+  await expect(page.locator('.filter-check', { hasText: 'Clay OK' }).locator('input')).toBeChecked();
+  // Hardy in zone and the rest still add to it.
+  await expect(page.getByTestId('hardy-here')).toBeEnabled();
+  // Back to Anywhere: the person's own filters as they were left.
+  await forRow(page).getByTestId('for-anywhere').click();
+  await expect(mine).toHaveText(['Shade', 'Drought tolerant']);
+  await expect(page.getByRole('combobox', { name: 'Sun' })).toHaveValue('Shade');
+  await expect(drought.locator('input')).toBeChecked();
+  await expect(drought.locator('input')).toBeEnabled();
+  await expect(count(page)).toHaveText(anywhereCount);
+  await expect(page.getByTestId('set-by-note')).toBeHidden();
+});
+
+test('For a clay bed: what no source rates for clay is listed below a divider; a part taken off with × and put back; Edit and back', async ({ page }) => {
+  await seed(page, ANSWERED);
+  await tapPlan(page, 9, 1.5);
+  await page.getByTestId('pill-plant-bed').click();
+  await search(page).fill('Silverleaf hydrangea');
+  await expect(page.getByTestId('no-clay-divider')).toContainText('No source we\'ve read says how these do in clay');
+  await expect(page.locator('[data-testid=no-clay-divider] ~ .plant-item .pname', { hasText: 'Silverleaf hydrangea' })).toBeVisible();
+  // Nothing hidden silently: what the bed hid of a search, by name, and a way to see them.
+  await search(page).fill('cardinal flower');
+  await expect(page.getByTestId('hidden-by')).toHaveText('1 plant matches “cardinal flower”, hidden by Front bed: Moisture. Show them');
+  await page.getByTestId('show-hidden').click();
+  await expect(rowNamed(page, 'Cardinal flower')).toBeVisible();
+  await expect(page.getByTestId('set-aside')).toContainText('Showing what Front bed\'s conditions hid for “cardinal flower” (Moisture)');
+  await page.getByTestId('clear-search').click();
+  // Clay taken off for now: no divider, and its chip to put back; the bed itself unchanged.
+  await search(page).fill('Silverleaf hydrangea');
+  await page.getByTestId('bed-box').getByRole('button', { name: 'Take off for now: Clay OK' }).click();
+  await expect(page.getByTestId('no-clay-divider')).toHaveCount(0);
+  await expect(page.getByTestId('bed-cond-off')).toHaveText('Clay OK');
+  await expect(chips(page)).toHaveText(['Takes part shade to full sun', 'Water needs: low or moderate']);
+  await page.getByTestId('bed-cond-off').click();
+  await expect(page.getByTestId('no-clay-divider')).toBeVisible();
+  // Edit: the bed's conditions as a sheet; back to the picker For it, the search as it was.
+  await page.getByTestId('bed-edit').click();
+  await expect(page.getByTestId('conditions-sheet')).toBeVisible();
+  await expect(page.locator('.sheet-header .title')).toHaveText('Front bed: conditions');
+  await page.getByTestId('cond-moisture-wet').click();
+  await page.getByTestId('conditions-back').click();
+  await expect(pressed(page)).toHaveText('Front bed');
+  await expect(search(page)).toHaveValue('Silverleaf hydrangea');
+  await expect(chips(page)).toHaveText(['Takes part shade to full sun', 'Clay OK', 'Takes wet soil']);
+});

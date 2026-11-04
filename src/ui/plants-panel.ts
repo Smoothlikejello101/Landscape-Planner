@@ -9,7 +9,7 @@ import { toast } from './toast';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery, unsearchable } from '../search';
-import { seasonMonths, byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, planCounts, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById, swapFiltersOn, treeFiltersAside } from '../plants';
+import { seasonMonths, byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, noClayRating, sunRangeSaid, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, planCounts, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById, swapFiltersOn, treeFiltersAside } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { SPREAD_WAYS, spreadWays } from '../spread';
@@ -26,7 +26,8 @@ import { addCompareToggle, compareBar, compareMark, compareOver, pickerBeneath, 
 import { bannedHere, escapeHere, escapeShort, gardenStateName, lawShort, loadWild, regulatedHere } from '../wild';
 import { plantDot, plantSpot } from '../plant-looks';
 import { dragsPicker, pickerHandle, pickerSheetClass, showShapes } from './picker-view';
-import { forHint, forRow } from './plant-for';
+import { bedBox, forHint, forRow } from './plant-for';
+import { bedLayer, PART_NAME, PART_OF, setPartOff, SET_BY_BED, withFilters, type BedLayer, type BedPart } from '../bed-plant';
 import { redrawCanvas } from '../canvas';
 import { noteView } from './render';
 import type { Shape } from '../types';
@@ -180,7 +181,7 @@ const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'Jul
 const bloomName = (v: string) => (/^\d+$/.test(v) ? MONTHS[Number(v)] : v);
 const SUN_NAMES: Record<string, string> = { Full: 'Full sun', Part: 'Part shade', Shade: 'Shade' };
 /** Water needs, in order (the catalog's words; "Wetland" said plainly). */
-const WATER: [string, string, string][] = [['Low', 'Low (drought tolerant)', 'low'], ['Moderate', 'Moderate', 'moderate'], ['High', 'High', 'high'], ['Wetland', 'Wet soil or standing water', 'wet']];
+const WATER: [string, string, string][] = [['Low', 'Low (drought tolerant)', 'low'], ['Moderate', 'Moderate', 'moderate'], ['Low,Moderate', 'Low or moderate', 'low or moderate'], ['High', 'High', 'high'], ['Wetland', 'Wet soil or standing water', 'wet']];
 const GROWTH: [string, string][] = [['slow', 'Slow'], ['medium', 'Medium'], ['fast', 'Fast']];
 const SPREADS: Record<string, string> = { stays: 'Stays put', runs: 'Spreads by runners or underground', aggressive: 'Spreads aggressively by runners or underground', seed: 'Self-sows freely' };
 /** The leaf colors offered (flower colors: src/flower-colors.ts). Leaf color includes green (Jason, 2026-10-25). */
@@ -228,6 +229,8 @@ const FILTER_NAMES: Partial<Record<keyof PlantFilter, (f: PlantFilter) => string
   partnersOf: (f) => `Partners for ${plantsById[f.partnersOf]?.common ?? 'a plant'}`,
   // (Set only by a Swap from a sun warning, beside the spot's sun: src/ui/fix-problem.ts.)
   afternoonSun: () => 'Takes hot afternoon sun',
+  // (Set only by a bed the picker plants for: src/bed-plant.ts. Named by the bed where they hide a search's plants.)
+  sunRange: (f) => `Takes ${sunRangeSaid(f.sunRange)}`, clayBed: () => 'Clay OK',
 };
 /**
  * Whether the filters are open: one fold for them all, folded to start and left as the gardener left it (Jason,
@@ -261,6 +264,11 @@ export function renderPlantsPanel() {
   const body = el('div', { className: 'sheet-body' });
   // ---- For: Anywhere, a bed, or Pick on the plan (src/ui/plant-for.ts). Chosen in place: the search keeps its keyboard.
   const forBar = showsFor ? forRow((bed) => forChanged(bed)) : null;
+  /**
+   * The bed planted for, as a layer over the filters (src/bed-plant.ts): its conditions filter the list, the person's
+   * own Sun, Water needs, Drought tolerant, Takes wet soil and Clay OK set aside meanwhile, untouched. Null: anywhere.
+   */
+  let layer: BedLayer | null = showsFor ? bedLayer() : null;
   /** Under it, at the list's top: what a bed would do (For anywhere), or the bed's box (For a bed). */
   const forTop = el('div', { className: 'for-top', 'data-testid': 'for-top' });
   if (showsFor) body.appendChild(forTop);
@@ -271,11 +279,30 @@ export function renderPlantsPanel() {
     if (bed) showShapes([bed]);
     redrawCanvas(); noteView();
   }
-  /** What's under the For row, as the bed now planted for has it. */
+  /** What's under the For row, and the filters the bed sets, as the bed now planted for has them. */
   function syncFor() {
     if (!showsFor) return;
-    forTop.replaceChildren(...[forHint()].filter((x): x is HTMLElement => !!x));
+    layer = bedLayer();
+    forTop.replaceChildren(...[layer ? bedBox(layer, partToggled, editConditions) : forHint()].filter((x): x is HTMLElement => !!x));
+    // (For a bed, its box takes the place of Recent and the note on checking: the list starts high on a phone.)
+    if (recentField) recentField.hidden = typingFold || !!layer;
+    if (checkingNote) checkingNote.hidden = !!layer;
+    syncSetBy();
   }
+  /** A part of the bed's conditions taken off with its ×, or put back: for now, never on the bed. */
+  function partToggled(part: BedPart, off: boolean) {
+    setPartOff(part, off);
+    syncFor();
+    rebuildList();
+    forTop.querySelector<HTMLElement>(off ? '[data-testid=bed-cond-off]' : '[data-testid=bed-cond]')?.focus({ preventScroll: true });
+  }
+  /** The box's Edit: the bed's conditions, then back here For it. */
+  function editConditions() { state.panel = 'bedConditions'; render(); }
+  /** Whether the bed planted for sets this filter now (shown "Set by Front bed", the person's own set aside). */
+  const setByBed = (k: keyof PlantFilter): boolean => !!layer && SET_BY_BED.includes(k);
+  /** The controls of the filters a bed sets, as For now has them. */
+  const setBySyncers: (() => void)[] = [];
+  function syncSetBy() { for (const f of setBySyncers) f(); }
   const linkCount = 1 + state.pickerLinkAlso.length;
   if (swapping) body.appendChild(el('div', { className: 'banner', 'data-testid': 'swap-banner' }, linkCount > 1
     ? `Pick the plant to swap these ${linkCount} for. They keep their places, status and notes, and take its name, size and color.`
@@ -304,13 +331,15 @@ export function renderPlantsPanel() {
     recentField = el('div', { className: 'field', 'data-testid': 'recent-field', hidden: typingFold }, el('label', {}, 'Recent'), row);
     body.appendChild(recentField);
   }
+  let checkingNote: HTMLElement | null = null;
   if (PLANTS.some((p) => p.unverified || p.partlyChecked)) {
     // (One line, so the list starts high on a phone; the link tells the rest.)
     const full = el('div', { id: 'unverified-more', hidden: true },
       'Plants are being checked against published references. Unverified: all its details are from an earlier list with no sources. Partly checked: some are sourced; open it to see which (the rest say "earlier list"). Treat unchecked details as a rough guide.');
     const more = el('button', { className: 'link-btn inline', 'aria-expanded': 'false', 'aria-controls': 'unverified-more', 'data-testid': 'unverified-more' }, 'What that means');
     more.addEventListener('click', () => { full.hidden = !full.hidden; more.setAttribute('aria-expanded', String(!full.hidden)); more.textContent = full.hidden ? 'What that means' : 'Less'; });
-    body.appendChild(el('div', { className: 'hint checking-note', 'data-testid': 'unverified-note' }, 'Not every detail is checked yet. ', more, full));
+    checkingNote = el('div', { className: 'hint checking-note', 'data-testid': 'unverified-note' }, 'Not every detail is checked yet. ', more, full);
+    body.appendChild(checkingNote);
   }
   if (!PLANTS.length) {
     body.appendChild(el('div', { className: 'hint' }, 'The plant catalog is still loading (or could not load). Your own plants work either way.'));
@@ -334,9 +363,10 @@ export function renderPlantsPanel() {
   const hiddenInPlan = new Map<string, string[]>();
   /**
    * The group a plant in the last list is in: 0 what its sources say fits; 1 a species that comes in a color asked
-   * for among others; 2 what fits by what other sources say; 3 what fits only by the earlier list's word.
+   * for among others; 2 what fits by what other sources say; 3 what fits only by the earlier list's word; 4, for a
+   * clay bed, what no source rates for clay (Jason, Nov 2, answer D: below a divider).
    */
-  const groupOf = (p: Plant) => (earlierFor.has(p.id) ? 3 : reportedOnly.has(p.id) ? 2 : comesIn.has(p.id) ? 1 : 0);
+  const groupOf = (p: Plant) => (noClayRating.has(p.id) ? 4 : earlierFor.has(p.id) ? 3 : reportedOnly.has(p.id) ? 2 : comesIn.has(p.id) ? 1 : 0);
   const verb = swapping ? 'Swap' : linking ? 'Link' : forTree ? 'Pick' : state.placing ? 'Switch' : 'Place';
   /** A plant's Place (Swap, Link, Switch, Pick) button: on its row, and on its column in the comparison. */
   function useButton(p: Plant): HTMLButtonElement {
@@ -400,6 +430,7 @@ export function renderPlantsPanel() {
         const why = `Matches on ${joined(earlierFor.get(p.id) ?? [], 'and')} only by the earlier list (unverified)`;
         flags.push(el('span', { className: 'pflag check unverified-badge', 'data-testid': 'earlier-flag', title: why }, 'Earlier list only', el('span', { className: 'sr-only' }, ` (${why})`)));
       }
+      if (own === 4) flags.push(el('span', { className: 'pflag check', 'data-testid': 'no-clay-flag' }, 'No clay rating'));
     }
     // (A smaller form of the plant being swapped: how wide it typically grows, and whether that fits where it's planted.)
     if (form) {
@@ -512,7 +543,12 @@ export function renderPlantsPanel() {
     const k = yardKeyOf(key);
     if (k) { saveYard(yardOf(plantFilter), k); syncYard(); }
   }
+  /** The list drawn again, with the bed's layer over the filters while one is planted for (src/bed-plant.ts). */
   function rebuildList() {
+    if (layer) withFilters(layer.keys, buildList); else buildList();
+    syncActive();
+  }
+  function buildList() {
     while (listWrap.firstChild) listWrap.removeChild(listWrap.firstChild);
     // Near spellings only when nothing searched matches closer, before any filter (search.ts); a plant of mine
     // found by its notes counts as a match.
@@ -539,6 +575,8 @@ export function renderPlantsPanel() {
     const out = bannedLeftOut(plantFilter) ? banned : [];
     const foundBanned = hits.filter(bannedHere).length;
     const n = hits.length + mine.length - foundBanned, all = PLANTS.length + activeMyPlants().length - banned.length;
+    // (For a bed: those no source rates for clay aren't counted as fitting it; their divider says how many.)
+    const unratedN = hits.filter((p) => noClayRating.has(p.id)).length;
     if (browsing) titleNode.textContent = 'Plant Picker' + (PLANTS.length ? ` (${countWord(all)})` : '');
     // (Nothing matched as typed, only close spellings: said so, not counted as matches (Lena, Oct 30).)
     // ("In this plan": the plan's kinds, not a share of the catalog (Dana, Oct 30: "6 of 3,725 plants match").)
@@ -548,8 +586,9 @@ export function renderPlantsPanel() {
     const inPlanPlants = counts ? [...hits, ...mine].reduce((n, p) => n + (counts.get(p.id) ?? 0), 0) : 0;
     countLine.textContent = (near ? `Nothing matches as typed${found ? ` \u00b7 ${countWord(found)} close spelling${found === 1 ? '' : 's'}` : ''}`
       : plantFilter.inPlan ? (found ? `${countWord(inPlanPlants)} plant${inPlanPlants === 1 ? '' : 's'}, ${countWord(found)} kind${found === 1 ? '' : 's'} in this plan${q ? ` match \u201c${plantFilter.q.trim()}\u201d` : ''}` : q ? `No plant in this plan matches \u201c${plantFilter.q.trim()}\u201d` : 'No plants placed in this plan yet')
-      : pickerCount(n, all, out.filter((p) => !forTree || isTree(p)).length, foundBanned, gardenStateName() ?? 'here')) +
-      (swapping ? ' \u00b7 Pick the plant to swap in' : linking ? ' \u00b7 Link the plant this circle stands for' : forTree ? ' \u00b7 trees only' : tapSaid(' \u00b7 Place a plant, then tap the plan where it goes; tap a plant for its details'));
+      : pickerCount(n - unratedN, all, out.filter((p) => !forTree || isTree(p)).length, foundBanned, gardenStateName() ?? 'here', layer?.filtering ? layer.name : undefined)) +
+      (swapping ? ' \u00b7 Pick the plant to swap in' : linking ? ' \u00b7 Link the plant this circle stands for' : forTree ? ' \u00b7 trees only'
+        : tapSaid(layer ? ' \u00b7 Place a plant, then tap inside the bed; tap a plant for its details' : ' \u00b7 Place a plant, then tap the plan where it goes; tap a plant for its details'));
     // Too big for its spot (a Swap from crowding, or from a plant wider than its bed): the smaller forms of the same
     // plant first, smallest first, by their sources' sizes, each saying how wide it grows and whether that fits; then the
     // usual list, without them (Jason's UI review, Nov 2: "Blue Jean Baby for Russian sage"; never "plants like this").
@@ -598,9 +637,9 @@ export function renderPlantsPanel() {
     // Blooming in a month: the plants with months for it, in those groups, first; the ones it counts only by their
     // season after them all, in a fold that says why (Jason, Nov 1, from the UI review). Their rows say what their group
     // would have (buildRow), as a species shown above its divider does.
-    const groups = [0, 1, 2, 3].map((g) => hits.filter((p) => groupOf(p) === g && !bySeason.has(p.id)));
+    const groups = [0, 1, 2, 3, 4].map((g) => hits.filter((p) => groupOf(p) === g && !bySeason.has(p.id)));
     const bySeasonOnly = hits.filter((p) => bySeason.has(p.id));
-    const filtering = activeChips().length > 0 || plantFilter.inPlan || (plantFilter.hardyHere && !!state.location);
+    const filtering = activeChips().length > 0 || plantFilter.inPlan || (plantFilter.hardyHere && !!state.location) || !!layer?.filtering;
     const hitIds = new Set(hits.map((p) => p.id));
     const at = new Map(hits.map((p, i) => [p.id, i]));
     const folded = new Map<string, Plant[]>(); // (a fold's head, a species or a group: its cultivars the list has, in its order)
@@ -635,7 +674,7 @@ export function renderPlantsPanel() {
       return foldMemo.get(head.id)!;
     };
     const placed = new Set<string>();
-    const [sourced, species, others, earlier, seasonal] = [...groups, bySeasonOnly].map((g) => {
+    const [sourced, species, others, earlier, unrated, seasonal] = [...groups, bySeasonOnly].map((g) => {
       const out = g.flatMap((p) => {
         const head = foldHeadOf(p);
         const row = head && !alone.has(p.id) && foldFor(head)?.kids.includes(p) ? head : p;
@@ -648,7 +687,7 @@ export function renderPlantsPanel() {
     });
     // (The only thing found, a fold: open, unless it was closed by hand.)
     const shownMine = mine.length && (!!q || !myPlantsFolded) ? mine.length : 0;
-    const above = sourced.length + species.length + others.length + earlier.length + shownMine;
+    const above = sourced.length + species.length + others.length + earlier.length + unrated.length + shownMine;
     const sole = above + seasonal.length === 1;
     /** The fold's line, and its cultivars under it when open. `say`: what the line says; `toggle`: the button. */
     const foldBlock = (head: Plant, g: number, kids: Plant[], toggle: HTMLElement, open: boolean) => {
@@ -739,6 +778,12 @@ export function renderPlantsPanel() {
         el('span', {}, `These match on ${on.length > 1 ? `${on.slice(0, -1).join(', ')} and ${on[on.length - 1]}` : on[0]} only by the earlier list (unverified). No source we've read says so yet.`)));
       rows(earlier, 3);
     }
+    // For a clay bed, what no source rates for clay, below a divider (Jason, Nov 2, answer D): listed, not hidden.
+    if (unrated.length) {
+      listWrap.appendChild(el('div', { className: 'list-divider earlier', 'data-testid': 'no-clay-divider' },
+        el('span', {}, `No source we've read says how these do in clay (${countWord(unratedN)})`)));
+      rows(unrated, 4);
+    }
     if (seasonal.length) {
       // (Folded, unless nothing is above it, or it was opened by hand for this month.)
       const month = plantFilter.bloomMonth, m = bloomName(month), season = SEASONS.find((s) => seasonMonths(s).includes(Number(month))) ?? '';
@@ -787,13 +832,15 @@ export function renderPlantsPanel() {
       const back = el('button', { className: 'link-btn', 'data-testid': 'filters-back' }, 'Filter them again');
       back.addEventListener('click', () => { setAside = null; rebuildList(); });
       listWrap.insertBefore(el('div', { className: 'hint', style: { padding: '8px 0' }, 'data-testid': 'set-aside' },
-        `Showing what your filters hid for \u201c${plantFilter.q.trim()}\u201d (${aside.names.join(', ')}). They're still on for your next search. `, back), listWrap.firstChild);
+        layer && aside.keys.every(setByBed)
+          ? `Showing what ${layer.name}'s conditions hid for \u201c${plantFilter.q.trim()}\u201d (${hidSaid(aside.keys, aside.names).replace(/^[^:]*: /, '')}). They're still on for your next search. `
+          : `Showing what your filters hid for \u201c${plantFilter.q.trim()}\u201d (${aside.names.join(', ')}). They're still on for your next search. `, back), listWrap.firstChild);
     }
     if (why && more > 0) {
       const show = el('button', { className: 'link-btn', 'data-testid': 'show-hidden' }, 'Show them');
       show.addEventListener('click', () => { setAside = { q: searchKey(), keys: why.keys, names: why.names }; rebuildList(); });
       const note = el('div', { className: 'hint', style: { padding: '8px 0' }, 'data-testid': 'hidden-by' },
-        `${hits.length ? `${countWord(more)} more` : countWord(more)} plant${more === 1 ? ' matches' : 's match'} \u201c${plantFilter.q.trim()}\u201d, hidden by your filters: ${why.names.join(', ')}. `, show);
+        `${hits.length ? `${countWord(more)} more` : countWord(more)} plant${more === 1 ? ' matches' : 's match'} \u201c${plantFilter.q.trim()}\u201d, hidden by ${hidSaid(why.keys, why.names)}. `, show);
       if (hits.length || mine.length) listWrap.insertBefore(note, listWrap.firstChild); else listWrap.appendChild(note);
     }
     if (hits.length === 0 && mine.length === 0) {
@@ -812,7 +859,6 @@ export function renderPlantsPanel() {
         `Nothing matches \u201c${plantFilter.q.trim()}\u201d as typed. Close spellings:`), listWrap.firstChild);
       listWrap.insertBefore(addLink(), listWrap.firstChild);
     } else listWrap.appendChild(addLink());
-    syncActive();
   }
 
   /**
@@ -828,9 +874,18 @@ export function renderPlantsPanel() {
     const names: string[] = [], keys: (keyof PlantFilter)[] = [];
     for (const [k, name] of Object.entries(FILTER_NAMES) as [keyof PlantFilter, (f: PlantFilter) => string][]) {
       if (!filterOn(plantFilter, k)) continue;
-      if (found.some((p) => reportedMatch(p, { ...base, [k]: plantFilter[k] }, inPlan) === null)) { names.push(name(plantFilter)); keys.push(k); }
+      if (found.some((p) => reportedMatch(p, { ...base, [k]: plantFilter[k] }, inPlan) === null)) { names.push(nameOf(k, name)); keys.push(k); }
     }
     return names.length ? { n: found.length, names: oneEdible(keys, names), keys } : null;
+  }
+  /** A filter by name, as "hidden by" says it: one the bed planted for sets, by the bed and its part ("Front bed: Clay"). */
+  function nameOf(k: keyof PlantFilter, name: (f: PlantFilter) => string): string {
+    return layer && setByBed(k) ? `${layer.name}: ${PART_NAME[PART_OF[k]!]}` : name(plantFilter);
+  }
+  /** Who hid them: "your filters: Sun: Shade", or, the bed's alone, "Front bed: Clay" (Jason, Nov 2: nothing hidden silently). */
+  function hidSaid(keys: (keyof PlantFilter)[], names: string[]): string {
+    if (layer && keys.length && keys.every(setByBed)) return `${layer.name}: ${[...new Set(keys.map((k) => PART_NAME[PART_OF[k]!]))].join(', ')}`;
+    return `your filters: ${names.join(', ')}`;
   }
   /** "Edible fruit" says Edible already: one name for the two (round 3: "…, Edible, Edible fruit"). */
   function oneEdible(keys: (keyof PlantFilter)[], names: string[]): string[] {
@@ -845,7 +900,7 @@ export function renderPlantsPanel() {
     const inPlan = plantIdsInPlan();
     const base: PlantFilter = { ...PLANT_FILTER_DEFAULTS, q: plantFilter.q, withReported: plantFilter.withReported };
     const hiding = keys.filter((k) => reportedMatch(p, { ...base, [k]: plantFilter[k] }, inPlan) === null);
-    return oneEdible(hiding, hiding.map((k) => FILTER_NAMES[k]!(plantFilter)));
+    return oneEdible(hiding, hiding.map((k) => nameOf(k, FILTER_NAMES[k]!)));
   }
   /** How many more plants the list would show with what other sources say counted (while it's hidden). */
   function othersHidden(): number {
@@ -873,6 +928,8 @@ export function renderPlantsPanel() {
     for (const [k, name] of Object.entries(FILTER_NAMES) as [keyof PlantFilter, (f: PlantFilter) => string][]) {
       // (Not "In this plan", beside the search, nor "Hardy in zone N", beside Filters: each shows as its own box.)
       if (k === 'inPlan' || k === 'hardyHere' || !filterOn(plantFilter, k)) continue;
+      // (Nor a filter the bed planted for sets: its box shows those, the person's own set aside meanwhile.)
+      if (setByBed(k) || k === 'sunRange' || k === 'clayBed') continue;
       if (k === 'native' && plantFilter.native === '@here' && !gardenStateName()) continue;
       // ("Edible fruit" says Edible already.)
       if (k === 'edible' && plantFilter.edibleParts.length) continue;
@@ -950,7 +1007,7 @@ export function renderPlantsPanel() {
   /** Recent and "Anyone you need to protect?" folded away, or back (typingFold). */
   function foldTops(on: boolean) {
     typingFold = on;
-    if (recentField) recentField.hidden = on;
+    if (recentField) recentField.hidden = on || !!layer;
     if (topLine) topLine.hidden = on;
   }
   /**
@@ -978,7 +1035,7 @@ export function renderPlantsPanel() {
   type Opt = [value: string, text: string];
   /** Each control, set again from the filters as they now are: a word of need in the search set one (takeNeeds). */
   const syncers: (() => void)[] = [];
-  const syncControls = () => { for (const f of syncers) f(); };
+  const syncControls = () => { for (const f of syncers) f(); syncSetBy(); };
   /**
    * A dropdown, its first option the unset one ("Any form"). `name` says what it filters, for screen readers; set, it
    * names itself where its value alone wouldn't ("Water needs: low"): `selected` words the chosen option.
@@ -999,6 +1056,18 @@ export function renderPlantsPanel() {
     relabel();
     sel.addEventListener('change', () => { plantFilter[key] = sel.value; relabel(); rebuildList(); });
     syncers.push(() => { sel.value = String(plantFilter[key]); relabel(); });
+    // (Set by the bed planted for: "Sun: set by Front bed", the person's own kept as it was, for Anywhere again.)
+    if (SET_BY_BED.includes(key)) {
+      const by = el('option', { value: '@bed', 'data-testid': 'set-by' });
+      by.hidden = true;
+      sel.appendChild(by);
+      setBySyncers.push(() => {
+        const on = setByBed(key);
+        sel.disabled = on; by.hidden = !on;
+        sel.title = on ? `${o.name}: set by ${layer!.name}` : '';
+        if (on) { by.textContent = `Set by ${layer!.name}`; sel.value = '@bed'; } else { sel.value = String(plantFilter[key]); relabel(); }
+      });
+    }
     return el('div', { className: 'field', style: { flex: '1', minWidth: '0' } }, sel);
   }
   function mkCheck(label: Child, key: BoolKey, testid?: string) {
@@ -1007,7 +1076,17 @@ export function renderPlantsPanel() {
     cb.checked = !!plantFilter[key];
     syncers.push(() => { cb.checked = !!plantFilter[key]; });
     cb.addEventListener('change', () => { plantFilter[key] = cb.checked; keepYard(key); rebuildList(); });
-    return el('label', { className: 'filter-check' }, cb, label);
+    // (Set by the bed planted for: ticked as the bed has it, "Set by Front bed", the person's own kept as it was.)
+    const by = el('span', { className: 'hint set-by', 'data-testid': 'set-by', hidden: true });
+    if (SET_BY_BED.includes(key)) {
+      setBySyncers.push(() => {
+        const on = setByBed(key);
+        cb.disabled = on; by.hidden = !on;
+        by.textContent = on ? `Set by ${layer!.name}` : '';
+        cb.checked = on ? !!(layer!.keys[key] || (key === 'clayOk' && layer!.keys.clayBed)) : !!plantFilter[key];
+      });
+    }
+    return el('label', { className: 'filter-check' + (SET_BY_BED.includes(key) ? ' bed-set' : '') }, cb, label, by);
   }
   /** One value of a list filter, ticked or not: a plant with any value ticked passes. */
   function listToggle(key: ListKey, value: string, label: Child, className: string) {
@@ -1055,15 +1134,23 @@ export function renderPlantsPanel() {
     return { box: el('label', { className: 'filter-check hardy-check' }, cb, loc ? `Hardy in zone ${loc.zone}` : 'Hardy in your zone',
       loc ? null : el('span', { className: 'hint' }, '(asks for your ZIP)')), source };
   })();
+  // (For a bed: what its Sun and Water needs say, and that the person's own come back with Anywhere.)
+  const setByNote = el('div', { className: 'hint set-by-note', 'data-testid': 'set-by-note', hidden: true });
+  setBySyncers.push(() => {
+    setByNote.hidden = !layer;
+    setByNote.textContent = layer ? `Sun, Water needs, Drought tolerant, Takes wet soil and Clay OK are set by ${layer.name} while you plant it. Yours are kept for Anywhere.` : '';
+  });
   const primary = el('div', { className: 'filter-main' },
     row(mkSelect('form', 'Any form', (enums.form || []).map((f): Opt => [f, f]), { name: 'Form' }),
         mkSelect('sun', 'Any sun', [['Full', 'Full sun'], ['Part', 'Part shade'], ['Shade', 'Shade']], { name: 'Sun' })),
-    row(mkSelect('water', 'Water needs', WATER.filter(([v]) => !enums.water || enums.water.includes(v)).map(([v, t]): Opt => [v, t]),
+    // (Low or moderate, "any of": a bed's Average, Jason's answer 7, and the person's own to choose.)
+    row(mkSelect('water', 'Water needs', WATER.filter(([v]) => !enums.water || v.split(',').every((w) => enums.water.includes(w))).map(([v, t]): Opt => [v, t]),
           { name: 'Water needs', selected: (v) => `Water needs: ${WATER.find(([w]) => w === v)?.[2] ?? v}` }),
         mkSelect('bloomMonth', 'Blooming in…', [
           { group: 'Season', options: SEASONS.map((x): Opt => [x, cap(x)]) },
           { group: 'Month', options: MONTHS.slice(1).map((m, i): Opt => [String(i + 1), m]) },
         ], { name: 'Blooming in', selected: (v, t) => `Blooming in ${/^\d+$/.test(v) ? t : v}` })),
+    setByNote,
     colorChips('flowerColors', FLOWER_CHOICES, 'Flower color', 'flower-colors'));
 
   // ---- POISON & PETS ----
