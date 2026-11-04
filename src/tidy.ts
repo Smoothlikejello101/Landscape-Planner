@@ -110,75 +110,248 @@ export function snapToShapes(p: Point, targets: ReturnType<typeof snapTargets>, 
 const round = (v: number) => Math.round(v * 1000) / 1000 + 0;
 
 // ---------- Squaring up ----------
-/** How far (degrees) from square a corner may be and still be squared. */
-export const SQUARE_TOL = 10;
+/**
+ * How far (degrees) from square a corner, or from the outline's two square directions a wall, may be and still be
+ * squared. 10 until Jason's notes, Nov 4: "Squaring corners on an outline building probably needs to be more
+ * aggressive… hard to accidentally build a trapezoid or a rhombus": a corner tapped by a fingertip at house scale is
+ * often 12° out.
+ */
+export const SQUARE_TOL = 15;
+/**
+ * A wall at least this far (degrees) from both square directions is meant to be angled (a bay window's walls, at 45°;
+ * a corner cut off): kept as drawn while the rest is squared. Between SQUARE_TOL and this, it's neither plainly square
+ * nor plainly angled (a curving bed's sides): the outline is left as drawn.
+ */
+export const ANGLED_MIN = 25;
 /** How far (degrees) from the grid an outline may be turned and still be lined up with it. */
 export const GRID_TOL = 3;
 const deg = (r: number) => (r * 180) / Math.PI;
+/** Turns (radians) folded into (-180°, 180°], in degrees. */
+const turnDeg = (r: number) => { const t = deg(r); return ((t % 360) + 540) % 360 - 180; };
 /**
- * An outline (closed) with every corner within SQUARE_TOL of square (90° or 270°: an L-shaped house too),
- * squared: each edge made exactly parallel to one of two square directions (the outline's own, from its
- * edges weighted by length; the grid's if within GRID_TOL), at its average offset, corners where they meet.
- * Null if any corner isn't nearly square, or squaring would move a point more than `maxMove` feet. Points
- * in `fixed` (snapped onto another shape) stay put where they can: the outline's direction is taken from an
- * edge that runs between two of them, when there is one.
+ * Each edge of a closed outline against the square directions `theta` and a quarter turn from it: along which
+ * (`alongU`: theta's), how far off it (degrees, signed), and so whether it's to be squared (within SQUARE_TOL) or is
+ * meant to be angled (ANGLED_MIN or more). `ambiguous`: one is neither.
+ */
+function edgesAgainst(pts: Point[], theta: number) {
+  const n = pts.length;
+  const edges = Array.from({ length: n }, (_, i) => {
+    const a = pts[i], b = pts[(i + 1) % n];
+    const angle = Math.atan2(b.y - a.y, b.x - a.x), len = Math.hypot(b.x - a.x, b.y - a.y);
+    const k = Math.round((angle - theta) / (Math.PI / 2));
+    const off = deg(angle - theta - (k * Math.PI) / 2);
+    return { angle, len, alongU: ((k % 2) + 2) % 2 === 0, off, square: Math.abs(off) <= SQUARE_TOL, angled: Math.abs(off) >= ANGLED_MIN };
+  });
+  return { edges, ambiguous: edges.some((e) => !e.square && !e.angled) };
+}
+/** The direction (radians, in a quarter turn) the edges run, weighted by length; `only` limits it to some of them. */
+function squareDirection(pts: Point[], only?: (i: number) => boolean): number | null {
+  const n = pts.length;
+  let sx = 0, sy = 0;
+  for (let i = 0; i < n; i++) {
+    if (only && !only(i)) continue;
+    const a = pts[i], b = pts[(i + 1) % n], len = Math.hypot(b.x - a.x, b.y - a.y), t = Math.atan2(b.y - a.y, b.x - a.x);
+    sx += len * Math.cos(4 * t); sy += len * Math.sin(4 * t);
+  }
+  return Math.hypot(sx, sy) < 1e-9 ? null : Math.atan2(sy, sx) / 4;
+}
+/**
+ * An outline's square directions: those of its walls that are nearly square (a bay's angled walls left out); `only`,
+ * of some of its walls (by the index of the point each starts at).
+ */
+export function outlineDirection(pts: Point[], only: (i: number) => boolean = () => true): number | null {
+  let theta = squareDirection(pts, only);
+  if (theta == null) return null;
+  // (Again from only the walls within SQUARE_TOL of it, twice: a bay's 45° walls pull the first guess off.)
+  for (let k = 0; k < 2; k++) {
+    const { edges } = edgesAgainst(pts, theta);
+    const again = squareDirection(pts, (i) => only(i) && edges[i].square);
+    if (again == null) break;
+    theta = again;
+  }
+  const toGrid = deg(theta) - Math.round(deg(theta) / 90) * 90;
+  return Math.abs(toGrid) <= GRID_TOL ? (Math.round(deg(theta) / 90) * 90 * Math.PI) / 180 : theta;
+}
+/** Walls going the same way this near one line (feet) are put on it: a T's shoulders, the wall either side of a bay. */
+export const IN_LINE_FT = 0.75;
+/** At least this share of an outline's length must be walls to square (the rest angled) for it to be squared. */
+const SQUARE_SHARE = 0.6;
+/**
+ * An outline (closed) mostly of nearly square walls (an L- or T-shaped house too, one with a bay window, a bed with a
+ * corner cut), squared: each wall within SQUARE_TOL of one of two square directions (the outline's own, from those walls
+ * weighted by length; the grid's if within GRID_TOL) made exactly parallel to it, at its average offset (walls in line
+ * with each other, a point partway along a wall, on one line), corners where they meet. A wall meant to be angled
+ * (ANGLED_MIN or more off both: a bay's) keeps its direction, its ends sliding along it to meet the squared walls.
+ * Null if a wall is neither (a curving bed), a corner between squared walls isn't within SQUARE_TOL of square, less
+ * than SQUARE_SHARE of its length is to be squared, fewer than two corners are square, or squaring would move a point
+ * more than `maxMove` feet. Points in `fixed` (snapped onto another shape) stay put where they can: the outline's
+ * direction is taken from an edge that runs between two of them, when there is one.
  */
 export function squareUp(pts: Point[], maxMove = Infinity, fixed: boolean[] = [], direction?: number): Point[] | null {
   const n = pts.length;
-  if (n < 4 || n % 2) return null; // (a squared outline has an even number of corners)
-  const edgeAngle = (i: number) => Math.atan2(pts[(i + 1) % n].y - pts[i].y, pts[(i + 1) % n].x - pts[i].x);
-  for (let i = 0; i < n; i++) {
-    let turn = deg(edgeAngle(i) - edgeAngle((i + n - 1) % n));
-    turn = ((turn % 360) + 540) % 360 - 180; // (-180, 180]
-    if (Math.abs(Math.abs(turn) - 90) > SQUARE_TOL) return null;
-  }
+  if (n < 4) return null;
   // The outline's direction: `direction` where given (an edge lying along another shape's: the caller
-  // checks it is), else the length-weighted mean of its edges' directions folded into a quarter turn.
-  let theta: number;
-  if (direction != null) theta = direction;
-  else {
-    let sx = 0, sy = 0;
-    for (let i = 0; i < n; i++) {
-      const a = edgeAngle(i), len = Math.hypot(pts[(i + 1) % n].x - pts[i].x, pts[(i + 1) % n].y - pts[i].y);
-      sx += len * Math.cos(4 * a); sy += len * Math.sin(4 * a);
-    }
-    theta = Math.atan2(sy, sx) / 4;
-    const toGrid = deg(theta) - Math.round(deg(theta) / 90) * 90;
-    if (Math.abs(toGrid) <= GRID_TOL) theta = (Math.round(deg(theta) / 90) * 90 * Math.PI) / 180;
+  // checks it is), else its nearly square walls', folded into a quarter turn.
+  const theta = direction ?? outlineDirection(pts);
+  if (theta == null) return null;
+  const { edges, ambiguous } = edgesAgainst(pts, theta);
+  if (ambiguous) return null;
+  const total = edges.reduce((t, e) => t + e.len, 0);
+  if (edges.reduce((t, e) => t + (e.square ? e.len : 0), 0) < SQUARE_SHARE * total) return null;
+  // Corners between two walls to square: square (or straight on, a point partway along a wall), never doubling back.
+  let squareCorners = 0;
+  for (let i = 0; i < n; i++) {
+    const prev = edges[(i + n - 1) % n], next = edges[i];
+    if (!prev.square || !next.square) continue;
+    const turn = turnDeg(next.angle - prev.angle);
+    if (prev.alongU !== next.alongU) { if (Math.abs(Math.abs(turn) - 90) > SQUARE_TOL) return null; squareCorners++; }
+    else if (Math.abs(turn) > SQUARE_TOL) return null;
   }
+  if (squareCorners < 2) return null;
   const c = Math.cos(theta), s = Math.sin(theta);
   const local = pts.map((p) => ({ u: p.x * c + p.y * s, v: -p.x * s + p.y * c }));
-  // Each edge runs along u (its v constant) or along v (its u constant); its line sits at its ends' average,
-  // or at a fixed end's when one is fixed.
-  const lines = Array.from({ length: n }, (_, i) => {
+  // Walls to square in line with each other (a point partway along one) are one line: each run of them, from its
+  // first. Its line sits at its points' average, or at its fixed points' (which must agree: two on other shapes but
+  // not in line, squaring would pull one off what it landed on).
+  const runOf = new Array<number>(n).fill(-1);
+  const continues = (i: number) => edges[i].square && edges[(i + n - 1) % n].square && edges[(i + n - 1) % n].alongU === edges[i].alongU;
+  const start = edges.findIndex((e, i) => e.square && !continues(i));
+  if (start < 0 && edges.some((e) => e.square)) return null; // (every wall in one line: no outline)
+  const runs: { alongU: boolean; at: number }[] = [];
+  for (let k = 0; k < n && start >= 0; k++) {
+    const i = (start + k) % n;
+    if (!edges[i].square) continue;
+    if (!continues(i)) runs.push({ alongU: edges[i].alongU, at: 0 });
+    runOf[i] = runs.length - 1;
+  }
+  // Each run's points, and which way its walls go along their line (two walls going the same way, in line, are one
+  // wall broken by something between: the shoulders of a T, the wall either side of a bay).
+  const runPts = runs.map((_, r) => { const e = new Set<number>(); for (let i = 0; i < n; i++) if (runOf[i] === r) { e.add(i); e.add((i + 1) % n); } return [...e]; });
+  const runWay = runs.map((run, r) => {
+    const i = runOf.indexOf(r), a = local[i], b = local[(i + 1) % n];
+    return Math.sign(run.alongU ? b.u - a.u : b.v - a.v);
+  });
+  const coordOf = (alongU: boolean, j: number) => (alongU ? local[j].v : local[j].u);
+  /** A line's offset from its points: their average, or the fixed ones' (which must agree). Null where they don't. */
+  const lineAt = (alongU: boolean, idx: number[]) => {
+    const held = idx.filter((j) => fixed[j]), by = held.length ? held : idx;
+    if (held.length > 1 && Math.max(...held.map((j) => coordOf(alongU, j))) - Math.min(...held.map((j) => coordOf(alongU, j))) > 0.01) return null;
+    return by.reduce((t, j) => t + coordOf(alongU, j), 0) / by.length;
+  };
+  for (let r = 0; r < runs.length; r++) {
+    const at = lineAt(runs[r].alongU, runPts[r]);
+    if (at == null) return null;
+    runs[r].at = at;
+  }
+  // Each corner where its two lines meet: two squared walls, where their lines cross (or, in line, the point put on
+  // the line); a squared wall and an angled one, where the squared line crosses the angled wall as drawn; two angled
+  // walls, as drawn.
+  const angledAt = (i: number, line: { alongU: boolean; at: number }) => {
     const a = local[i], b = local[(i + 1) % n];
-    const alongU = Math.abs(b.u - a.u) >= Math.abs(b.v - a.v);
-    const fa = fixed[i], fb = fixed[(i + 1) % n];
-    const pick = (x: number, y: number) => (fa && !fb ? x : fb && !fa ? y : (x + y) / 2);
-    // (Both ends on other shapes but not in line: squaring would pull one off what it landed on.)
-    const off = fa && fb && (alongU ? Math.abs(a.v - b.v) : Math.abs(a.u - b.u)) > 0.01;
-    return { alongU, off, at: alongU ? pick(a.v, b.v) : pick(a.u, b.u) };
-  });
-  if (lines.some((l) => l.off)) return null;
-  // Consecutive edges must alternate directions (it's square everywhere).
-  for (let i = 0; i < n; i++) if (lines[i].alongU === lines[(i + 1) % n].alongU) return null;
-  const out = Array.from({ length: n }, (_, i) => {
-    const prev = lines[(i + n - 1) % n], next = lines[i];
-    const u = prev.alongU ? next.at : prev.at, v = prev.alongU ? prev.at : next.at;
-    return { x: round(u * c - v * s), y: round(u * s + v * c) };
-  });
-  for (let i = 0; i < n; i++) if (Math.hypot(out[i].x - pts[i].x, out[i].y - pts[i].y) > maxMove) return null;
-  // Still the same outline: every edge there (a tenth of a foot or more), every corner turning the same way
-  // (a small step squared mustn't turn inside out).
+    return line.alongU
+      ? { u: a.u + ((line.at - a.v) * (b.u - a.u)) / (b.v - a.v), v: line.at }
+      : { u: line.at, v: a.v + ((line.at - a.u) * (b.v - a.v)) / (b.u - a.u) };
+  };
   const turnSign = (q: Point[], i: number) => {
     const a = q[(i + n - 1) % n], b = q[i], c = q[(i + 1) % n];
     return Math.sign((b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x));
   };
-  for (let i = 0; i < n; i++) {
-    if (Math.hypot(out[(i + 1) % n].x - out[i].x, out[(i + 1) % n].y - out[i].y) < 0.1) return null;
-    if (turnSign(out, i) !== turnSign(pts, i)) return null;
+  const place = (lines: { alongU: boolean; at: number }[]): Point[] | null => {
+    const out = Array.from({ length: n }, (_, i) => {
+      const ip = (i + n - 1) % n, prev = runOf[ip] >= 0 ? lines[runOf[ip]] : null, next = runOf[i] >= 0 ? lines[runOf[i]] : null;
+      let q: { u: number; v: number };
+      if (prev && next && runOf[ip] !== runOf[i]) q = prev.alongU ? { u: next.at, v: prev.at } : { u: prev.at, v: next.at };
+      else if (prev && next) q = prev.alongU ? { u: local[i].u, v: prev.at } : { u: prev.at, v: local[i].v };
+      else if (prev) q = angledAt(i, prev);
+      else if (next) q = angledAt(ip, next);
+      else q = local[i];
+      return { x: round(q.u * c - q.v * s), y: round(q.u * s + q.v * c) };
+    });
+    for (let i = 0; i < n; i++) if (Math.hypot(out[i].x - pts[i].x, out[i].y - pts[i].y) > maxMove) return null;
+    // Still the same outline: every edge there (a tenth of a foot or more), every corner turning the same way
+    // (a small step squared mustn't turn inside out).
+    for (let i = 0; i < n; i++) {
+      if (Math.hypot(out[(i + 1) % n].x - out[i].x, out[(i + 1) % n].y - out[i].y) < 0.1) return null;
+      const ip = (i + n - 1) % n, straight = runOf[ip] >= 0 && runOf[ip] === runOf[i]; // (a point partway along a wall)
+      if (!straight && turnSign(out, i) !== turnSign(pts, i)) return null;
+    }
+    return out;
+  };
+  // Walls going the same way within IN_LINE_FT of one line, put on it; where that won't do (it would close a step to
+  // nothing, or pull a fixed point off), each on its own line.
+  const merged = runs.map((r) => ({ ...r }));
+  for (const alongU of [true, false]) for (const way of [1, -1]) {
+    const group = runs.map((_, r) => r).filter((r) => runs[r].alongU === alongU && runWay[r] === way).sort((a, b) => runs[a].at - runs[b].at);
+    for (let k = 0; k < group.length;) {
+      let m = k + 1;
+      while (m < group.length && runs[group[m]].at - runs[group[k]].at <= IN_LINE_FT) m++;
+      const these = group.slice(k, m), at = these.length > 1 ? lineAt(alongU, these.flatMap((r) => runPts[r])) : null;
+      if (at != null) for (const r of these) merged[r].at = at;
+      k = m;
+    }
   }
+  const out = place(merged) ?? place(runs);
+  if (!out) return null;
   // Nothing to do: it was square already.
   if (out.every((p, i) => Math.hypot(p.x - pts[i].x, p.y - pts[i].y) < 0.01)) return null;
   return out;
+}
+
+// ---------- A dragged corner sticks square ----------
+/**
+ * How near (degrees) a dragged corner's walls must come to the outline's square directions to stick there (Jason,
+ * Nov 4: "make it easy to build that, and hard to accidentally build a trapezoid or a rhombus"). A few degrees: the
+ * finger moved on past it puts the corner anywhere.
+ */
+export const STICK_DEG = 4;
+/** Which of a dragged corner's two walls stuck: the one from the point before it, the one to the point after it. */
+export type StuckWall = 'before' | 'after';
+/**
+ * Where corner `i` of a closed outline, dragged toward `f` (feet), sticks: where a wall from it runs within STICK_DEG
+ * of the outline's square directions (taken from its other walls, as squaring takes them), on that line, its length
+ * a whole number of `step`s; where both walls do, where the two lines cross (its corners square, its walls parallel to
+ * the others). Null when neither does, or the outline's other walls aren't plainly square or angled (a curving bed):
+ * the corner goes where it's put.
+ */
+export function squareStick(pts: Point[], i: number, f: Point, step = 0.5): { p: Point; walls: StuckWall[] } | null {
+  const n = pts.length;
+  if (n < 4 || i < 0 || i >= n) return null;
+  const ib = (i + n - 1) % n, P = pts[ib], N = pts[(i + 1) % n];
+  const others = (j: number) => j !== i && j !== ib;
+  const theta = outlineDirection(pts, others);
+  if (theta == null) return null;
+  const { edges } = edgesAgainst(pts, theta);
+  if (edges.some((e, j) => others(j) && !e.square && !e.angled) || !edges.some((e, j) => others(j) && e.square)) return null;
+  // Each wall, from its far end toward the finger: the square direction it's within STICK_DEG of, if any.
+  const near = (from: Point, to: Point) => {
+    if (Math.hypot(to.x - from.x, to.y - from.y) < 1e-6) return null;
+    const a = Math.atan2(to.y - from.y, to.x - from.x), k = Math.round((a - theta) / (Math.PI / 2));
+    const t = theta + (k * Math.PI) / 2;
+    return Math.abs(deg(a - t)) <= STICK_DEG ? { d: { x: Math.cos(t), y: Math.sin(t) }, k } : null;
+  };
+  const before = near(P, f), after = near(N, f);
+  if (!before && !after) return null;
+  const along = (from: Point, d: Point) => {
+    const t = Math.round(((f.x - from.x) * d.x + (f.y - from.y) * d.y) / step) * step;
+    return { x: round(from.x + t * d.x), y: round(from.y + t * d.y) };
+  };
+  if (before && after && (before.k - after.k) % 2 !== 0) {
+    // Where the line from the point before crosses the line from the point after.
+    const d1 = before.d, d2 = after.d, den = d1.x * d2.y - d1.y * d2.x;
+    const s = ((N.x - P.x) * d2.y - (N.y - P.y) * d2.x) / den;
+    return { p: { x: round(P.x + s * d1.x), y: round(P.y + s * d1.y) }, walls: ['before', 'after'] };
+  }
+  if (before && after) {
+    // (In line with both its neighbors, which are in line with each other: along that line.)
+    const offLine = Math.abs((N.x - P.x) * before.d.y - (N.y - P.y) * before.d.x);
+    if (offLine < 0.01) return { p: along(P, before.d), walls: ['before', 'after'] };
+  }
+  // (One wall near square: on its line. Both, but the same way and not in line: the one the finger's nearer.)
+  const chosen: StuckWall = before && after ? closer(P, N, f, before.d, after.d) : before ? 'before' : 'after';
+  return chosen === 'before' ? { p: along(P, before!.d), walls: ['before'] } : { p: along(N, after!.d), walls: ['after'] };
+}
+/** Of two lines a finger is near (from `a` along `da`, from `b` along `db`), the one it's nearer. */
+function closer(a: Point, b: Point, f: Point, da: Point, db: Point): StuckWall {
+  const off = (o: Point, d: Point) => Math.abs((f.x - o.x) * d.y - (f.y - o.y) * d.x);
+  return off(a, da) <= off(b, db) ? 'before' : 'after';
 }

@@ -133,6 +133,7 @@ export function onCanvasPointerDown(e: PointerEvent) {
       redrawHandles();
     }
     delete state.editPoints.snap; // (a new drag: the last one's Unsnap goes)
+    delete state.editPoints.square;
     gesture.current = { type: 'drag-vertex', id: edited.id, index, startX: clientX, startY: clientY, moved: false, inserted };
     return;
   }
@@ -453,7 +454,7 @@ export function onCanvasPointerUp(e: PointerEvent) {
     }
     case 'drag-vertex':
       if (g.moved || g.inserted) { flushHistoryDebounce(); pushHistory(); save(); }
-      if (state.editPoints) state.editPoints.vertex = g.index;
+      if (state.editPoints) { state.editPoints.vertex = g.index; delete state.editPoints.square; }
       render();
       return;
     case 'pan':

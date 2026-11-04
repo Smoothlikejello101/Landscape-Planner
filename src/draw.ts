@@ -14,7 +14,7 @@ import { buildShape, CANOPY_MIN_TAPS, isKindKey, kindDef, levelTaps, tapAccepted
 import type { DrawState, PathShape, Point, Shape, TapSnap } from './types';
 import { plantColor, plantFilter, plantsById } from './plants';
 import { snap, uid } from './util';
-import { SNAP_MAX_FT, SNAP_PX, SNAP_PX_MOUSE, setSnapOn, setSquareOn, snapOn, snapTargets, snapToShapes, squareOn, squareUp } from './tidy';
+import { SNAP_MAX_FT, SNAP_PX, SNAP_PX_MOUSE, setSnapOn, setSquareOn, snapOn, snapTargets, snapToShapes, squareOn, squareStick, squareUp } from './tidy';
 import { dismissToastAction, toast, toastAction } from './ui/toast';
 import { angleSpot, clipToBox, cornerAngle, lengthText, middleOf, SIDE_LABEL_MIN_PX, sideLabelSpot, typedFarSide, typedPoint } from './draw-numbers';
 import { render } from './ui/render';
@@ -278,7 +278,7 @@ export function finishDraw(): Shape | null {
   //   shape, made first as on the grid, then as landed.
   let seen = d.points, tidied: Point[] | null = null, said = '', how: 'square' | 'level' | 'snap' = 'snap';
   const level = squareOn() && method === 'rect' ? levelTaps(seen, [0, 1].flatMap((i) => snaps[i]?.angles ?? [])) : null;
-  if (squareOn() && method === 'poly' && kind.role !== 'boundary' && kind.role !== 'plant') {
+  if (method === 'poly' && squares(kind)) {
     // (A point put down at a typed length stays where it is, as a snapped one does.)
     const sq = squareUp(seen, maxSquareMove(seen), seen.map((_, i) => !!snaps[i] || !!d.exact?.[i]), wallDirection(seen, snaps));
     if (sq) {
@@ -348,14 +348,18 @@ export function finishDraw(): Shape | null {
 /** The shape a snap landed on, by name: "House", or "another shape". */
 export function shapeName(id: string): string { return state.shapes.find((x) => x.id === id)?.label || 'another shape'; }
 /**
- * How far squaring may move a point: a foot and a half at most, and a tenth of the outline's shortest edge (a
- * small bed isn't reshaped), but always a half-foot grid step (a tap's usual error).
+ * How far squaring may move a point: 3 ft at most, and a quarter of the outline's shortest edge (a small bed isn't
+ * reshaped), but always three quarters of a foot (a fingertip's miss, a grid step on). A foot and a half, a tenth of
+ * the shortest edge and half a foot until Jason's notes, Nov 4: a house tapped at house scale, its corners a foot or
+ * two out, was left a trapezoid.
  */
-function maxSquareMove(pts: Point[]): number {
+export function maxSquareMove(pts: Point[]): number {
   const n = pts.length;
   const shortest = Math.min(...pts.map((p, i) => Math.hypot(pts[(i + 1) % n].x - p.x, pts[(i + 1) % n].y - p.y)));
-  return Math.min(1.5, Math.max(0.5, shortest / 10));
+  return Math.min(3, Math.max(0.75, shortest / 4));
 }
+/** Whether an outline squares (when finished, and its corners stick square as they're dragged): not a property line, which is surveyed, or a plant. */
+const squares = (s: { role?: string }) => squareOn() && s.role !== 'boundary' && s.role !== 'plant';
 /**
  * The direction to square an outline to: a wall it was drawn against. Where a corner landed on another shape and
  * an edge of the outline from it runs within 5° of that shape's edge there (or square to it), that shape's
@@ -515,8 +519,14 @@ export function moveVertex(s: PathShape, i: number, world: Point) {
   // It's lit while dragging, and the bar offers Unsnap after.)
   const method: DrawKind = s.type === 'poly' ? 'poly' : s.pathWidth ? 'path' : 'line';
   const { p, snapped } = landing(world, method, s.id, s.role === 'plant');
-  pts[i] = p;
-  if (state.editPoints) { if (snapMoved(snapped, p)) state.editPoints.snap = { ...snapped, index: i, at: p }; else delete state.editPoints.snap; }
+  // (Not onto another shape: an outline's corner sticks where its walls are square with its others, within a few
+  // degrees, said by a mark at each square corner while it's held there: Jason, Nov 4. Squaring off, it doesn't.)
+  const stick = !snapped && s.type === 'poly' && squares(s) ? squareStick(pts, i, world) : null;
+  pts[i] = stick ? stick.p : p;
+  if (state.editPoints) {
+    if (snapMoved(snapped, p)) state.editPoints.snap = { ...snapped, index: i, at: p }; else delete state.editPoints.snap;
+    if (stick) state.editPoints.square = { index: i, walls: stick.walls }; else delete state.editPoints.square;
+  }
   setWorldPoints(s, pts);
 }
 /** The selected point's snap, if it was dragged onto another shape and is still there (not undone since). */
@@ -644,6 +654,8 @@ export function renderPathOverlay(g: SVGElement) {
   // A point dragged onto another shape: the shape's edge or corner lit.
   const snapped = state.editPoints.snap;
   if (snapped) snapTarget(g, snapped);
+  // A corner held square while it's dragged: its wall lit faintly, a square mark at each corner now square.
+  squareCue(g, s);
   // The sides' lengths (clear of the + on each side's middle), and the angle at the selected point.
   editNumbers(g, s, sel);
   pathPoints(s).forEach((p, i) => {
@@ -664,6 +676,30 @@ function snapTarget(g: SVGElement, s: TapSnap, faint = false) {
   const ghost = { 'data-role': 'snap-target', 'pointer-events': 'none' };
   if (s.to === 'edge') g.appendChild(svgEl('line', { ...ghost, x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: SNAP_INK, 'stroke-width': 6, 'stroke-opacity': faint ? 0.3 : 0.6, 'stroke-linecap': 'round' }));
   else g.appendChild(svgEl('rect', { ...ghost, x: a.x - 9, y: a.y - 9, width: 18, height: 18, rx: 3, fill: 'none', stroke: SNAP_INK, 'stroke-width': 2.5, 'stroke-opacity': faint ? 0.5 : 1 }));
+}
+/**
+ * While a corner is dragged and stuck square (moveVertex): the wall or walls it's held by, lit faintly, and a small
+ * square mark inside each of its three corners that's now square, the drafting sign for one. Quiet: no words.
+ */
+function squareCue(g: SVGElement, s: PathShape) {
+  const held = state.editPoints?.square, drag = gesture.current;
+  if (!held || drag?.type !== 'drag-vertex' || drag.index !== held.index || drag.id !== s.id) return;
+  const pts = pathPoints(s), n = pts.length, i = held.index;
+  if (i >= n) return;
+  const at = (j: number) => toScreen(pts[((j % n) + n) % n]);
+  for (const w of held.walls) {
+    const [a, b] = w === 'before' ? [at(i - 1), at(i)] : [at(i), at(i + 1)];
+    g.appendChild(svgEl('line', { 'data-role': 'square-wall', x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: INK, 'stroke-width': 6, 'stroke-opacity': 0.25, 'stroke-linecap': 'round', 'pointer-events': 'none' }));
+  }
+  for (const j of [i - 1, i, i + 1]) {
+    const p = at(j - 1), c = at(j), q = at(j + 1);
+    const deg = cornerAngle(p, c, q);
+    const lp = Math.hypot(p.x - c.x, p.y - c.y), lq = Math.hypot(q.x - c.x, q.y - c.y);
+    if (deg !== 90 || lp < 24 || lq < 24) continue;
+    const k = 9, u = { x: ((p.x - c.x) / lp) * k, y: ((p.y - c.y) / lp) * k }, v = { x: ((q.x - c.x) / lq) * k, y: ((q.y - c.y) / lq) * k };
+    g.appendChild(svgEl('path', { 'data-role': 'square-mark', 'data-at': ((j % n) + n) % n, d: `M${c.x + u.x},${c.y + u.y}L${c.x + u.x + v.x},${c.y + u.y + v.y}L${c.x + v.x},${c.y + v.y}`,
+      fill: 'none', stroke: INK, 'stroke-width': 1.5, 'stroke-opacity': 0.8, 'pointer-events': 'none' }));
+  }
 }
 /** A tapped point that landed on another shape: ringed in the snap's color. */
 const snapDot = (c: Point) => svgEl('circle', { 'data-role': 'draw-point', 'data-snapped': 'true', cx: c.x, cy: c.y, r: 6, fill: '#fff', stroke: SNAP_INK, 'stroke-width': 3, 'pointer-events': 'none' });

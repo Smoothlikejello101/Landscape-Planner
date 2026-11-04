@@ -503,7 +503,11 @@ export interface DrawState {
  */
 export interface TapSnap { to: 'corner' | 'edge'; shapeId: string; seg: [Point, Point]; angles: number[]; alt: Point }
 /** Editing the points of one outline/line; `vertex` is the selected point; `snap`, a point dragged onto another shape. */
-export interface EditPoints { id: string; vertex: number | null; snap?: TapSnap & { index: number; at: Point } }
+export interface EditPoints {
+  id: string; vertex: number | null; snap?: TapSnap & { index: number; at: Point };
+  /** A dragged corner stuck square (src/tidy.ts squareStick): which, and which of its walls. While dragging only. */
+  square?: { index: number; walls: ('before' | 'after')[] };
+}
 
 export interface AppState {
   projects: ProjectMeta[];
