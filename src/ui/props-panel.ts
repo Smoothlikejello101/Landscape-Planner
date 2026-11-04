@@ -39,6 +39,7 @@ import { startPlacing } from '../place';
 import { bedBloomSection } from './bloom-view';
 import { featuresSection, featuresSummary, featuresTitle, hasFeaturesSection } from './feature-section';
 import { snapRot, sqFt, typeName } from '../util';
+import { inSentence, labelShown } from '../names';
 
 // ============================================================
 // PANELS
@@ -583,7 +584,7 @@ export function moreOfSame(selected: Shape[], drawn: boolean): MoreOfSame | null
   if (p) return { title: `Place more ${p.common}`, short: selected.length === 1 ? 'Place another' : 'Place more', start: () => startPlacing(p), tree: false };
   if (!drawn || selected.length !== 1) return null;
   const kind = kindOfShape(selected[0]);
-  const what = kind === 'plain' ? typeName(selected[0].type) : kind ? kindDef(kind).label.toLowerCase() : '';
+  const what = kind === 'plain' ? typeName(selected[0].type) : kind ? inSentence(kindDef(kind).label) : '';
   return kind ? { title: `Add another: ${kindDef(kind).label}`, short: `Another ${what}`, start: () => startKind(kind), tree: false } : null;
 }
 /** A tree's trunk: in proportion to the canopy unless set by hand; a shaped canopy can be made round again. */
@@ -864,7 +865,7 @@ export function renderPropsPanelMulti(selected: Shape[]) {
  */
 export function sheetTitle(s: Shape): string {
   if (s.type === 'text') return 'Note';
-  if (s.label.trim()) return s.label.trim();
+  if (s.label.trim()) return labelShown(s).trim();
   if (s.type === 'line' && s.pathWidth) return 'Path';
   const k = kindOfShape(s);
   if (k && k !== 'plain') return kindDef(k).label;

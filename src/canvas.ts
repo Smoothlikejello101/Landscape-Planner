@@ -33,6 +33,7 @@ import { drawnOutline } from './geometry';
 import { BADGE_HALF, BADGE_STEP, badgeBoxes, badgeCenters, placeBadges, type BadgeHolder, type BadgeKind, type BadgeSpot, type Box as BadgeBox, type Circle } from './badges';
 import { lookFor, lookMarkup, lookMonthOf, lookShown, plannedEdge } from './plant-looks';
 import { bandBlooms, bandLeaves, colorIn, coverBlooms, levelOf } from './looks';
+import { sameSaid } from './names';
 
 // Canvas drawing. Everything here writes only into the <svg>, never into
 // panel DOM, so it is safe to call while an input has keyboard focus.
@@ -525,7 +526,7 @@ function plantBadges(s: Shape): Badge[] {
   if (s.type === 'circle' && shownUtilities.length && utilityWarningShown(s, utilityIssues(s, shownUtilities, plantsById))) out.push({ kind: 'utility' });
   // Too cold, or maybe too warm, where the garden is (Warnings, at Hardiness; Jason, Oct 30): not one already there.
   const hardy = data && living && s.status !== 'existing' && state.hardyWarnings ? hardinessWarning(data) : null;
-  if (hardy && s.hardyDismissed !== hardy.line && !dismissedForPlan('hardy', s.plantId, hardy.line)) out.push({ kind: 'hardy', cold: hardy.cold });
+  if (hardy && !sameSaid(s.hardyDismissed, hardy.line) && !dismissedForPlan('hardy', s.plantId, hardy.line)) out.push({ kind: 'hardy', cold: hardy.cold });
   // Its spot doesn't match the sun it wants.
   if (s.plantId && sunWarningShown(checkPlantSun(s, data, state.shapes), s, state.sunWarnings)) out.push({ kind: 'sun' });
   return out;

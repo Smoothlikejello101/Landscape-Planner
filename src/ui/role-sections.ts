@@ -26,6 +26,7 @@ import { issuesKey, prepareUtilities, utilityIssues, utilityNote } from '../util
 import { UTILITY_COLORS, UTILITY_KINDS, isUtilityKind, utilityLook } from '../utility-kinds';
 import { singleSelected } from '../selection';
 import { mayMark } from '../marks';
+import { labelShown, sameSaid } from '../names';
 
 // Parts of the properties panel that depend on a shape's role.
 
@@ -139,7 +140,7 @@ export function plantHardyBanner(s: Shape): HTMLElement | null {
   if (!w) return null;
   // (Dismissed for the plant across the plan, its other copies and new ones: Jason, Oct 30. Or, after "Warn me for new
   // ones", for this copy alone.)
-  const across = dismissedForPlan('hardy', p!.id, w.line), mine = !across && s.hardyDismissed === w.line, dismissed = across || mine;
+  const across = dismissedForPlan('hardy', p!.id, w.line), mine = !across && sameSaid(s.hardyDismissed, w.line), dismissed = across || mine;
   const note = across ? ' (dismissed for every one in this plan: no badge)' : dismissed ? ' (dismissed for this one: no badge on the plan)'
     : !state.hardyWarnings ? ' (Hardiness is off in Warnings: no badges)' : '';
   const buttons = plantDismissButtons('hardy', p!.id, w.line, across, mine);
@@ -182,7 +183,7 @@ export function plantFruitBanner(s: Shape): HTMLElement | null {
   const plan = state.shapes.flatMap((x) => (x.role === 'plant' && x.status !== 'gone' && x.plantId && plantsById[x.plantId] ? [plantsById[x.plantId]!] : []));
   const need = fruitNeed(p, plan, PLANTS, hardyHere);
   if (!need) return null;
-  const line = need.line, across = dismissedForPlan('fruit', p.id, line), mine = !across && s.fruitDismissed === line, dismissed = across || mine;
+  const line = need.line, across = dismissedForPlan('fruit', p.id, line), mine = !across && sameSaid(s.fruitDismissed, line), dismissed = across || mine;
   const note = across ? ' Dismissed for every one in this plan.' : mine ? ' Dismissed for this one.' : '';
   return el('div', { className: 'check-banner warn' + (dismissed ? ' muted' : ''), 'data-testid': 'fruit-check' },
     el('div', {}, `\u26a0 ${line}.${note}`), plantDismissButtons('fruit', p.id, line, across, mine));
@@ -314,7 +315,7 @@ export function crowdingNote(s: Shape): HTMLElement | null {
   const flagAgainRow = () => {
     const again = el('button', { className: 'btn', 'data-testid': 'flag-again', style: { marginLeft: '8px' } }, 'Show again');
     again.addEventListener('click', () => flagAgain(s.id));
-    return el('div', { style: { marginTop: crowds.length ? '4px' : '0' } }, `Dismissed for ${left.length === 1 ? 'this pair' : 'these pairs'}: ${left.map((c) => c.other.label || 'a plant').join(', ')}`, again);
+    return el('div', { style: { marginTop: crowds.length ? '4px' : '0' } }, `Dismissed for ${left.length === 1 ? 'this pair' : 'these pairs'}: ${left.map((c) => labelShown(c.other) || 'a plant').join(', ')}`, again);
   };
   // (Only pairs left close on purpose: one quiet line, folded to start, that opens to who, with Flag again: Jason,
   // 2026-10-27.)

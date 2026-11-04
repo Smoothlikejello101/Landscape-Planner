@@ -20,6 +20,7 @@ import { startBgCalibration, updateBgImageSilent } from '../background';
 import { ask } from './ask';
 import { sheetTitle } from './props-panel';
 import { settingsLink } from './settings-panel';
+import { labelShown } from '../names';
 
 const fmtFt = (v: number) => String(Math.round(v * 10) / 10);
 
@@ -98,10 +99,10 @@ export function renderLayersPanel() {
       }
       // (A button to a keyboard and a screen reader: Enter selects it, as a tap on the row does. Alex, Oct 30: only the
       // padlocks could be reached with Tab.)
-      const name = s.label || 'unlabeled ' + typeName(s.type);
+      const name = labelShown(s) || 'unlabeled ' + typeName(s.type);
       const info = el('div', { className: 'layer-info', role: 'button', tabIndex: 0, 'aria-label': `Select ${name}`, 'data-testid': 'layer-select' },
         s.label
-          ? el('div', { className: 'layer-label' }, s.label)
+          ? el('div', { className: 'layer-label' }, labelShown(s))
           : el('div', { className: 'layer-label empty' }, sheetTitle(s)),
         el('div', { className: 'layer-meta' },
           el('span', { className: 'layer-role' }, roleLabel(roleKey(s)) + (roleHidden(s) ? ' · hidden' : '')), meta)
@@ -110,7 +111,7 @@ export function renderLayersPanel() {
         className: 'layer-lock ' + (s.locked ? 'on' : ''),
         html: s.locked ? I.lock : I.unlock,
         title: s.locked ? 'Unlock' : 'Lock',
-        'aria-label': (s.locked ? 'Unlock ' : 'Lock ') + (s.label || 'unlabeled ' + typeName(s.type)),
+        'aria-label': (s.locked ? 'Unlock ' : 'Lock ') + name,
         'aria-pressed': s.locked ? 'true' : 'false',
       });
       lockBtn.addEventListener('click', (e) => {

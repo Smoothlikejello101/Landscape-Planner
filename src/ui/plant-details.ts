@@ -5,6 +5,7 @@ import { el } from '../dom';
 import type { Plant, PoisonParent } from '../plants';
 import { MONTH_NAMES, PLANT_META, formsOf, oldDogWarning, ownCopies, parentRated, tenderWoody, zoneNote } from '../plants';
 import { isMine } from '../my-plants';
+import { titleCase } from '../names';
 import { rootSpread, rootText, seedText } from '../spread';
 import { butterflyCaps } from '../search';
 import { zoneRange } from '../climate';
@@ -113,7 +114,7 @@ export function poisonRow(p: Plant): string {
  * irritate skin." A parent not rated, or listing none, is said too.
  */
 export function parentsPoisonText(pp: NonNullable<Plant['poison_parents']>): string {
-  const name = (x: PoisonParent) => (x.common ? `${x.common} (${x.name})` : x.name);
+  const name = (x: PoisonParent) => (x.common ? `${titleCase(x.common, x.name)} (${x.name})` : x.name);
   const rated = pp.parents.filter((x) => x.poison), n = rated.length, all = n === pp.parents.length;
   const count = all ? (n === 2 ? 'Both parents are' : `All ${n} parents are`) : n === 1 ? '1 parent is' : `${n} parents are`;
   const each = pp.parents.map((x) => `${name(x)}: ${x.poison ? poisonText(x.poison) : x.poison === null ? 'none listed' : 'not rated'}.`);

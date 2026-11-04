@@ -14,6 +14,7 @@ import type { Shape } from '../types';
 import { openWarningsAt } from './warnings-sheet';
 import { render } from './render';
 import { noticeAbout, toast, toastAction } from './toast';
+import { sameSaid } from '../names';
 
 /** A plant offered by its cultivar's name where it has one ("'Southern Gentleman'"), else its name. */
 const offerName = (p: Plant) => /['‘][^'’]+['’]/.exec(p.common)?.[0] ?? p.common;
@@ -29,7 +30,7 @@ export function fruitNotice(shape: Shape, place: (p: Plant) => void) {
   const need = fruitNeed(p, plan, PLANTS, hardyHere);
   // (Not reminded again for a plant dismissed across the plan, nor for a copy dismissed on its own: src/dismissals.ts.
   // A copy just placed has none of its own, so it's said for it after "Just these 2", as hardiness is.)
-  if (!need || dismissedForPlan('fruit', p.id, need.line) || shape.fruitDismissed === need.line) return;
+  if (!need || dismissedForPlan('fruit', p.id, need.line) || sameSaid(shape.fruitDismissed, need.line)) return;
   state.placing.warnedFruit = shape.plantId;
   const id = p.id, line = need.line;
   toastAction(`${line}.`, [

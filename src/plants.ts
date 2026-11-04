@@ -20,6 +20,7 @@ import { bloomMonths } from './bloom';
 import { bloomWindow, catkins, showyFlowers } from './seasons';
 import { byMatch, matchPlant, readQuery, unsearchable } from './search';
 import { applyYard, household, type Yard } from './yard';
+import { setCatalogNames, setWrittenName, titleCase } from './names';
 import { noteRecentPlant } from './place';
 
 /**
@@ -464,10 +465,19 @@ export function loadPlants(): Promise<void> {
       PLANTS = (old.plants || []).map((p) => (p.form ? { ...p, form: currentForm(p.form) } : p));
       PLANT_META = old.meta || null;
     }
+    // The catalog's names in Title Case, as the app shows them (src/names.ts; Jason, Nov 4). In memory only: the file is
+    // as its sources write it, and a plan's labels as they were placed.
+    for (const p of PLANTS) {
+      setWrittenName(p.id, p.common);
+      p.common = titleCase(p.common, p.botanical);
+      if (p.short) p.short = titleCase(p.short, p.botanical);
+    }
     shareDogWarnings(PLANTS);
     for (const p of PLANTS) plantsById[p.id] = p;
     // (A plant placed from a record since folded into another shows that one's facts.)
     for (const [from, to] of Object.entries(movedIds)) if (!plantsById[from] && plantsById[to]) plantsById[from] = plantsById[to];
+    // (A placed plant's label shown by its catalog name where it is that name: src/names.ts labelShown.)
+    setCatalogNames((id) => (id.startsWith('u-') ? undefined : plantsById[id]?.common));
     catalogSettled = true;
     for (const fn of catalogHooks) fn();
     applyAliases(); // (plants of mine switched to these)

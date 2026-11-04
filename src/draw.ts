@@ -20,6 +20,7 @@ import { dismissToastAction, toast, toastAction } from './ui/toast';
 import { angleSpot, clipToBox, cornerAngle, lengthText, middleOf, SIDE_LABEL_MIN_PX, sideLabelSpot, typedFarSide, typedPoint } from './draw-numbers';
 import { render } from './ui/render';
 import { offerToVines } from './ui/vine-offers';
+import { labelShown } from './names';
 
 // Freeform outlines (closed) and lines (open).
 //
@@ -349,7 +350,7 @@ export function finishDraw(): Shape | null {
   return made;
 }
 /** The shape a snap landed on, by name: "House", or "another shape". */
-export function shapeName(id: string): string { return state.shapes.find((x) => x.id === id)?.label || 'another shape'; }
+export function shapeName(id: string): string { const s = state.shapes.find((x) => x.id === id); return (s && labelShown(s)) || 'another shape'; }
 /**
  * How far squaring may move a point: 3 ft at most, and a quarter of the outline's shortest edge (a small bed isn't
  * reshaped), but always three quarters of a foot (a fingertip's miss, a grid step on). A foot and a half, a tenth of

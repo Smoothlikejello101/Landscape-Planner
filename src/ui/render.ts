@@ -67,6 +67,7 @@ import { pickerViewClosed, placePicker, planLookOnly, showChosen } from './picke
 import { bedName, inBed, pickingBed, plantingFor, plantingSettled } from '../bed-plant';
 import { PICK_SAID, stopPickingBed } from './plant-for';
 import { renderBedConditionsPanel } from './bed-conditions';
+import { inSentence, labelShown } from '../names';
 
 // MAIN RENDER
 // ============================================================
@@ -379,7 +380,7 @@ export function render() {
   if (state.featurePlace) {
     const host = featureHost()!;
     const where = host.role === 'boundary' ? 'the line' : host.role === 'building' ? 'a wall' : 'an edge';
-    const say = (k: SubFeatureKind, n: string) => tapSaid(`Tap ${where} where the ${SUB_FEATURES[k].label.toLowerCase()} goes · ${n} added`);
+    const say = (k: SubFeatureKind, n: string) => tapSaid(`Tap ${where} where the ${inSentence(SUB_FEATURES[k].label)} goes · ${n} added`);
     const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'feature-banner', html: I.draw });
     banner.appendChild(words(say(state.featurePlace.kind, String(state.featurePlace.added.length)), kindsFor(host).map((k) => say(k, '00'))));
     strip.appendChild(banner);
@@ -612,7 +613,7 @@ export function render() {
       const pill = el('div', { className: 'sel-pill' });
       pill.appendChild(el('div', { className: 'sw', style: { background: shapeDot(s) } }));
       // (Unnamed: what it is, "Path", not how it was drawn. Jason, Oct 30.)
-      pill.appendChild(el('div', { className: 'name' }, s.label || sheetTitle(s)));
+      pill.appendChild(el('div', { className: 'name' }, labelShown(s) || sheetTitle(s)));
       const editBtn = el('button', { className: 'edit' });
       editBtn.innerHTML = I.edit + '<span>Edit</span>';
       editBtn.addEventListener('click', () => { state.panel = 'props'; render(); });
