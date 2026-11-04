@@ -48,7 +48,7 @@ import { remindNoMore } from './fruit-notice';
 import { openLocation } from './location-panel';
 import { render } from './render';
 import { dismissAcross } from './role-sections';
-import { nudgeNow, swapFiltered, type SwapFor } from './fix-problem';
+import { nudgePair, swapFiltered, type SwapFor } from './fix-problem';
 import { moverOf } from '../fix-problem';
 import { alreadyThere } from '../status';
 import { toast } from './toast';
@@ -523,7 +523,8 @@ function rowFixes(r: WarningRow): HTMLElement | null {
     if (!a || !b) return null;
     const prefer = state.selectedIds.length === 1 && r.ids.includes(state.selectedIds[0]) ? state.selectedIds[0] : undefined;
     const nudge = el('button', { className: 'wr-btn', 'data-testid': 'warning-nudge', 'aria-label': `Nudge apart: ${r.name}` }, 'Nudge apart');
-    nudge.addEventListener('click', () => { nudgeNow(a, b, prefer); });
+    // (The one that moves goes away from every plant it's close to, not this pair's other alone: Jason, Nov 4.)
+    nudge.addEventListener('click', () => { nudgePair(a, b, prefer); });
     wrap.appendChild(nudge);
     // (The one Nudge apart would move; one already in the ground isn't swapped.)
     const one = moverOf(a, b, state.shapes, prefer)?.[0] ?? [b, a].find((x) => !alreadyThere(x));

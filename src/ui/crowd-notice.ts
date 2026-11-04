@@ -15,7 +15,7 @@ import type { Crowd } from '../crowding';
 import type { Shape } from '../types';
 import { I } from '../icons';
 import { render } from './render';
-import { nudgeNow } from './fix-problem';
+import { nudgeList, nudgeNow } from './fix-problem';
 import { openWarningsAt } from './warnings-sheet';
 import { toast, toastAction } from './toast';
 
@@ -45,8 +45,9 @@ export function crowdNotice(shape: Shape, moveIt: () => void) {
   // go. Jason, Nov 4: after a Nudge apart, the next plant placed close got no notice, "Nudged… Undo" up in its place.)
   const mindsSpacing = () => { if (state.placing) state.placing.warnedClose = false; };
   toastAction(line, [
-    // (Just clear of the one it's closest to, the plant just placed moving: Jason's UI review, Nov 2.)
-    { label: 'Nudge apart', run: () => { mindsSpacing(); nudgeNow(shape, list[0].other, shape.id); } },
+    // (Just clear, the plant just placed moving: Jason's UI review, Nov 2; of every plant it's close to, the one named
+    // first, since Nov 4: Jason, from three placed in a triangle.)
+    { label: 'Nudge apart', run: () => { mindsSpacing(); nudgeNow(shape, nudgeList(shape, list[0].other), shape.id); } },
     { label: 'Dismiss', run: () => leaveClose(shape.id, list.map((c) => c.other.id)) },
     { label: 'Move it', run: () => { mindsSpacing(); moveIt(); render(); toast('Tap where it should go.'); } },
     { label: 'Settings', run: openCrowdingSettings, icon: I.settings },
@@ -86,7 +87,7 @@ export function crowdNoticeAfterSwap(ids: string[], before: Map<string, Map<stri
     const list = crowded.length ? crowded : crowds;
     const { line, detail } = crowdWords(shape, list[0], list.length - 1, !!crowded.length);
     toastAction(line, [
-      { label: 'Nudge apart', run: () => { nudgeNow(shape, list[0].other, shape.id); } },
+      { label: 'Nudge apart', run: () => { nudgeNow(shape, nudgeList(shape, list[0].other), shape.id); } },
       { label: 'Dismiss', run: () => leaveClose(shape.id, list.map((c) => c.other.id)) },
       { label: 'Undo', run: () => { undo(); render(); } },
       { label: 'Settings', run: openCrowdingSettings, icon: I.settings },

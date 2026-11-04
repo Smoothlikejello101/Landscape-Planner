@@ -20,11 +20,12 @@ import type { Point, Shape } from './types';
 const PAST = 0.01;
 /**
  * What Nudge apart did, or why it didn't: `apart`, they aren't close; `fixed`, neither can move (locked, or already in
- * the ground); `bed`, the way out leaves its bed (or goes into one); `plant`, it would crowd a third plant (`third`).
+ * the ground); `bed`, every way out leaves its bed (or goes into one); `plant`, every way out would crowd a third plant
+ * (`third`), or bring it closer to one. `others`: every plant it was moved away from (`other`, the first).
  */
 export type Nudge =
-  | { ok: true; mover: Shape; other: Shape; from: Point; to: Point; by: number }
-  | { ok: false; why: 'apart' | 'fixed' | 'bed' | 'plant'; mover?: Shape; other?: Shape; bed?: Shape | null; third?: Shape };
+  | { ok: true; mover: Shape; other: Shape; others: Shape[]; from: Point; to: Point; by: number }
+  | { ok: false; why: 'apart' | 'fixed' | 'bed' | 'plant'; mover?: Shape; other?: Shape; others?: Shape[]; bed?: Shape | null; third?: Shape };
 
 /** Whether a plant can be nudged: a circle, not locked, not a tree or plant already in the ground. */
 export const canNudge = (s: Shape): boolean => s.type === 'circle' && !isLocked(s) && !alreadyThere(s);
@@ -43,46 +44,104 @@ export function moverOf(a: Shape, b: Shape, shapes: Shape[], prefer?: string): [
   return null;
 }
 
-/** Directions to try where two plants share a center: along neither's line, so east first, then round the compass. */
-const COMPASS: Point[] = [0, 180, 90, 270, 45, 135, 225, 315].map((d) => ({ x: Math.cos((d * Math.PI) / 180), y: Math.sin((d * Math.PI) / 180) }));
+/** Directions to try where the pushes cancel (two on one spot, one between two): east first, then round the compass. */
+const COMPASS = [0, 180, 90, 270, 45, 135, 225, 315];
+/** How far either side of the plants' push (degrees) the first directions tried go, a degree apart. */
+const NEAR_PUSH = 60;
+const unitAt = (deg: number): Point => ({ x: Math.cos((deg * Math.PI) / 180), y: Math.sin((deg * Math.PI) / 180) });
 
 /**
- * Nudge apart (Jason, Nov 2): the newer, or the selected, of two plants that may grow into each other moves away from
- * the other along the line between them, just far enough that they're no longer close: their typical-size circles
- * touching, for two that share all their height (the usual spacing the warning gives, less under a tree's raised
- * crown). It stays in its bed, by where its center is, as a bed counts its plants (src/beds.ts), and isn't pushed into
- * a third plant: none it wasn't close to before, and none closer than it was. No room: said why, and nothing moves.
+ * The plants a plant is close to or crowding, closest first (not those it was left close to on purpose): what Nudge
+ * apart moves it away from, `first` leading (the one a notice or a warning named).
+ */
+export function nudgeTargets(s: Shape, shapes: Shape[], byId: Record<string, Plant | undefined>, opts: CrowdOptions = {}, first?: Shape): Shape[] {
+  const near = crowdingOf(s, shapes, byId, { ...opts, close: true }).map((c) => c.other);
+  return first ? [first, ...near.filter((o) => o.id !== first.id)] : near;
+}
+
+/**
+ * Nudge apart (Jason, Nov 2): a plant moved just far enough that it's no longer close to the others: their typical-size
+ * circles touching, for two that share all their height (the usual spacing the warning gives, less under a tree's raised
+ * crown). It stays in its bed, by where its center is, as a bed counts its plants (src/beds.ts), and isn't pushed into a
+ * third plant: none it wasn't close to before, and none closer than it was.
+ *
+ * `b`, one plant: of the two, the newer, or `prefer`, moves (moverOf), away from the other. Several (Jason, Nov 4, his
+ * note on #214: "If I place in a triangle shape, the third one says 'no room' rather than nudging away from both plants
+ * at once. Maybe this: If crowding more than one plant, move away from all of them, weighted by how close to the center
+ * the nudged plant was, with vectors cancelling out"): `a` moves away from all of them (unless it can't move: then the
+ * first moves away from it). Where it goes: the smallest move that clears all of them, in the directions near the way
+ * they push it first (each pushing straight away from itself, as hard as it's overlapped, opposite pushes cancelling),
+ * then, where that way's blocked or they cancel, all round. No room: said why (the first way tried), and nothing moves.
  *
  * `shapes`: what crowding checks (those shown); `all`: every shape, for its bed (a bed in a hidden layer still holds it).
  */
-export function nudgeApart(a: Shape, b: Shape, shapes: Shape[], byId: Record<string, Plant | undefined>,
+export function nudgeApart(a: Shape, b: Shape | Shape[], shapes: Shape[], byId: Record<string, Plant | undefined>,
   opts: CrowdOptions & { prefer?: string; all?: Shape[] } = {}): Nudge {
-  const pair = moverOf(a, b, shapes, opts.prefer);
+  const list = Array.isArray(b) ? b.filter((o) => o.id !== a.id) : [b];
+  if (!list.length) return { ok: false, why: 'apart' };
+  if (list.length > 1 && canNudge(a)) return nudgeFrom(a, list, shapes, byId, opts);
+  const pair = moverOf(a, list[0], shapes, list.length > 1 ? a.id : opts.prefer);
   if (!pair) return { ok: false, why: 'fixed' };
-  const [mover, other] = pair;
+  return nudgeFrom(pair[0], [pair[1]], shapes, byId, opts);
+}
+function nudgeFrom(mover: Shape, from: Shape[], shapes: Shape[], byId: Record<string, Plant | undefined>,
+  opts: CrowdOptions & { all?: Shape[] }): Nudge {
+  const other = from[0];
   if (mover.type !== 'circle') return { ok: false, why: 'fixed' };
-  const need = apartAt(mover, other, shapes, byId, opts);
-  const d = Math.hypot(mover.x - other.x, mover.y - other.y);
-  if (need == null || d >= need) return { ok: false, why: 'apart', mover, other };
+  const p0 = { x: mover.x, y: mover.y };
+  // Those it's closer to than their spacing: each a circle (R) it must leave, and its push (straight away, by `depth`).
+  const targets = from.flatMap((o) => {
+    const need = apartAt(mover, o, shapes, byId, opts);
+    const v = { x: p0.x - o.x, y: p0.y - o.y }, d = Math.hypot(v.x, v.y);
+    return need != null && d < need ? [{ o, R: need + PAST, v, d, depth: need - d }] : [];
+  });
+  if (!targets.length) return { ok: false, why: 'apart', mover, other, others: from };
   const all = opts.all ?? shapes;
   const bed = bedOf(mover, all);
   const check = { ...opts, close: true, includeLeft: true };
   const before = new Map(crowdingOf(mover, shapes, byId, check).map((c) => [c.other.id, c.distance]));
-  const ways = d > 1e-6 ? [{ x: (mover.x - other.x) / d, y: (mover.y - other.y) / d }] : COMPASS;
+  const clearing = new Set(targets.map((t) => t.o.id));
+  // How far along `u` until it's clear of every one (each, the far side of its circle along the line).
+  const exit = (u: Point) => Math.max(...targets.map((t) => {
+    const vu = t.v.x * u.x + t.v.y * u.y;
+    return -vu + Math.sqrt(Math.max(0, vu * vu - t.d * t.d + t.R * t.R));
+  }));
   let first: Nudge | null = null;
-  for (const u of ways) {
-    const to = { x: other.x + u.x * (need + PAST), y: other.y + u.y * (need + PAST) };
+  const tried = new Set<string>();
+  const attempt = (u: Point): Nudge | null => {
+    const s = exit(u);
+    const to = { x: p0.x + u.x * s, y: p0.y + u.y * s };
+    const key = `${Math.round(to.x * 1e4)},${Math.round(to.y * 1e4)}`;
+    if (tried.has(key)) return null;
+    tried.add(key);
     const moved = { ...mover, x: to.x, y: to.y };
-    const swap = (list: Shape[]) => list.map((s) => (s.id === mover.id ? moved : s));
+    const swap = (list: Shape[]) => list.map((x) => (x.id === mover.id ? moved : x));
     const bedNow = bedOf(moved, swap(all));
-    if ((bedNow?.id ?? null) !== (bed?.id ?? null)) { first ??= { ok: false, why: 'bed', mover, other, bed: bed ?? bedNow }; continue; }
+    if ((bedNow?.id ?? null) !== (bed?.id ?? null)) { first ??= { ok: false, why: 'bed', mover, other, others: from, bed: bed ?? bedNow }; return null; }
     const into = crowdingOf(moved, swap(shapes), byId, check).find((c) => {
       const was = before.get(c.other.id);
-      return c.other.id === other.id || was == null || c.distance < was - 1e-9;
+      return clearing.has(c.other.id) || was == null || c.distance < was - 1e-9;
     });
-    if (into) { first ??= { ok: false, why: 'plant', mover, other, third: into.other }; continue; }
-    return { ok: true, mover, other, from: { x: mover.x, y: mover.y }, to, by: Math.hypot(to.x - mover.x, to.y - mover.y) };
+    if (into) { first ??= { ok: false, why: 'plant', mover, other, others: from, third: into.other }; return null; }
+    return { ok: true, mover, other, others: from, from: p0, to, by: Math.hypot(to.x - p0.x, to.y - p0.y) };
+  };
+  /** The directions, smallest move first (to a ten-thousandth of a foot), then in the order given. */
+  const bySize = (ways: Point[]) => ways.map((u, k) => ({ u, k, s: Math.round(exit(u) * 1e4) })).sort((x, y) => x.s - y.s || x.k - y.k).map((x) => x.u);
+  // The way they push it: each straight away from itself, as hard as it's overlapped; opposite pushes cancel.
+  let wx = 0, wy = 0, total = 0;
+  for (const t of targets) { total += t.depth; if (t.d > 1e-9) { wx += (t.depth * t.v.x) / t.d; wy += (t.depth * t.v.y) / t.d; } }
+  const w = Math.hypot(wx, wy), cancels = w < 0.1 * total;
+  const ways: Point[] = [];
+  if (!cancels) {
+    const u0 = { x: wx / w, y: wy / w }, a0 = (Math.atan2(u0.y, u0.x) * 180) / Math.PI;
+    // (The push itself exactly, then a degree at a time either side of it.)
+    const near = [u0, ...Array.from({ length: NEAR_PUSH * 2 }, (_, k) => unitAt(a0 + (k % 2 ? 1 : -1) * Math.ceil((k + 1) / 2)))];
+    for (const u of bySize(near)) { const r = attempt(u); if (r) return r; }
+    ways.push(...Array.from({ length: 360 }, (_, k) => unitAt(a0 + k)));
+  } else {
+    ways.push(...COMPASS.map(unitAt), ...Array.from({ length: 360 }, (_, k) => unitAt(k)));
   }
+  for (const u of bySize(ways)) { const r = attempt(u); if (r) return r; }
   return first!;
 }
 
