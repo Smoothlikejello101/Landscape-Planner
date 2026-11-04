@@ -79,7 +79,7 @@ test('statuses fit the thing: a house is Existing, not Planted', async ({ page }
   // Sun exposure has no status at all.
   await addKind(page, 'sun', 'circle');
   await tapFt(page, 6, 12); await tapFt(page, 12, 12); // (6 ft across: at the house's scale, two taps, not one tapped twice)
-  await expect(page.locator('.sheet-header .title')).toHaveText('Sun exposure');
+  await expect(page.locator('.sheet-header .title')).toHaveText('Sun Exposure');
   await expect(head(page, 'status')).toHaveCount(0);
   await expect(page.getByTestId('section-sun')).toHaveClass(/open/); // opens on its sun record
 });

@@ -5,6 +5,7 @@ import { kindDef } from '../src/kinds';
 import { sunDismissedFor } from '../src/sun';
 import type { Plant } from '../src/plants';
 import type { Shape } from '../src/types';
+import { matchPlant, readQuery } from '../src/search';
 
 // Names of things in Title Case (Jason, Nov 4, from the beta testers: "why are some of the plants capitalized & some
 // aren't?"; "I lean title case for everything").
@@ -84,5 +85,18 @@ describe('warnings dismissed before the names changed case', () => {
     const s = { sunDismissed: 'Black-eyed susan gets about 3 h of sun here; it prefers full sun.' } as Shape;
     expect(sunDismissedFor({ ok: false, message: 'Black-Eyed Susan gets about 3 h of sun here; it prefers full sun.' } as Parameters<typeof sunDismissedFor>[0], s)).toBe(true);
     expect(sunDismissedFor({ ok: false, message: 'Black-Eyed Susan gets only about 9 h of sun here; it wants shade.' } as Parameters<typeof sunDismissedFor>[0], s)).toBe(false);
+  });
+});
+
+describe('search and sorting, whatever the case', () => {
+  it('finds a Title Case name by any case typed, as before', () => {
+    const p = { id: 'r', common: titleCase("Black-eyed Susan 'Goldsturm'", "Rudbeckia fulgida 'Goldsturm'"), botanical: "Rudbeckia fulgida 'Goldsturm'" } as Plant;
+    for (const typed of ['black-eyed susan', 'BLACK EYED', 'goldsturm', 'Black-Eyed Susan']) expect(matchPlant(p, readQuery(typed)!, false)).not.toBeNull();
+  });
+  it('sorts as before: the names in the same order in Title Case as in sentence case', () => {
+    const names = ['Lily of the valley', 'Lilac', 'Black-eyed Susan', 'blue flag iris', 'Bee balm'];
+    const before = [...names].sort((a, b) => a.localeCompare(b));
+    const after = names.map((n) => titleCase(n)).sort((a, b) => a.localeCompare(b));
+    expect(after).toEqual(before.map((n) => titleCase(n)));
   });
 });

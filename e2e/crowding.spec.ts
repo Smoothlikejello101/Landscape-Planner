@@ -56,7 +56,7 @@ test('plants crowd a tree only as much as they reach into its crown, a third of 
   await closeSheet(page);
   await addPlant(page, 'Eastern redbud', 9); // 25 ft: its top 5 ft in the oak's crown
   await expect(page.getByTestId('crowding')).toContainText('Planted closer than usual to one neighbor');
-  await expect(page.getByTestId('crowding')).toContainText('Northern red oak: 9 ft apart, about 13.9 ft is usual, as one grows partly under the other');
+  await expect(page.getByTestId('crowding')).toContainText('Northern Red Oak: 9 ft apart, about 13.9 ft is usual, as one grows partly under the other');
 });
 
 test('a tree can be given its own lowest branches and height; an evergreen screen keeps its branches to the ground', async ({ page }) => {
@@ -74,7 +74,7 @@ test('a tree can be given its own lowest branches and height; an evergreen scree
   await page.getByTestId('lowest-branch').fill('0'); // never limbed up: branches to the ground
   await closeSheet(page);
   await addPlant(page, 'Spicebush', 4);
-  await expect(page.getByTestId('crowding')).toContainText('Northern red oak: 4 ft apart');
+  await expect(page.getByTestId('crowding')).toContainText('Northern Red Oak: 4 ft apart');
   await closeSheet(page);
   // Green Giant arborvitae: NC State lists it as a dense evergreen screen.
   await addPlant(page, "Arborvitae 'Green Giant'", 60);

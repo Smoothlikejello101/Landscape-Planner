@@ -291,7 +291,7 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await expect(page.getByTestId('intro-text')).toHaveText('Is it a shady spot? Sunny? Draw an area and show how much sun it gets.');
   await expect(page.getByTestId('intro-go')).toHaveText('Draw an area');
   await page.getByTestId('add-btn').click(); // (from Add, the card says which, in short)
-  await expect(page.getByTestId('intro-text')).toHaveText(isMobile ? 'Tap Sun exposure, then draw the area.' : 'Click Sun exposure, then draw the area.');
+  await expect(page.getByTestId('intro-text')).toHaveText(isMobile ? 'Tap Sun Exposure, then draw the area.' : 'Click Sun Exposure, then draw the area.');
   await closeSheet(page);
   await page.getByTestId('intro-go').click();
   await drawBar(page).locator('[data-method=circle]').click();
@@ -316,8 +316,8 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await expect(text).not.toContainText('hydrangea');
   await page.getByTestId('intro-go').click();
   await expect(page.getByTestId('hardy-here')).toBeChecked();
-  await expect(page.locator('.sheet')).toContainText('Not listed as poisonous to people');
-  await expect(page.locator('.sheet')).toContainText('No dog warnings');
+  await expect(page.locator('.sheet')).toContainText('No plants toxic to people');
+  await expect(page.locator('.sheet')).toContainText('No plants toxic to dogs');
   // The search and Filters pulse together (Jason, Nov 4); Filters opened, neither does.
   await expect(page.getByTestId('plant-search')).toHaveClass(/intro-pulse/);
   await expect(page.getByTestId('filters')).toHaveClass(/intro-pulse/);
@@ -358,15 +358,15 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await expect(page.locator('.project-btn .pname')).toBeVisible();
   await expect(card(page)).toHaveCount(0);
   await page.locator('.tool-btn.plants').click();
-  await expect(page.locator('.sheet')).toContainText('Not listed as poisonous to people');
-  await expect(page.locator('.sheet')).toContainText('No dog warnings');
+  await expect(page.locator('.sheet')).toContainText('No plants toxic to people');
+  await expect(page.locator('.sheet')).toContainText('No plants toxic to dogs');
   // "Clear filters" is for the search at hand: the yard is still kept with the plan.
   await page.locator('.sheet').getByText('Clear filters').click();
-  await expect(page.locator('.sheet')).not.toContainText('No dog warnings');
+  await expect(page.locator('.sheet')).not.toContainText('No plants toxic to dogs');
   await page.reload();
   await expect(page.locator('.project-btn .pname')).toBeVisible();
   await page.locator('.tool-btn.plants').click();
-  await expect(page.locator('.sheet')).toContainText('No dog warnings');
+  await expect(page.locator('.sheet')).toContainText('No plants toxic to dogs');
 });
 
 test('step 7 pulses the search and Filters together; a search typed, neither pulses (Jason, Nov 4)', async ({ page }) => {

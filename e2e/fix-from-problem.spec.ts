@@ -96,7 +96,7 @@ test('Warnings: Swap from a sun, hardiness or poison row opens filtered for what
   await expect(page.getByTestId('swap-banner')).toContainText('swap it for');
   await expect(swapWhy(page)).toHaveText('Filtered for full sun, the sun where it’s planted');
   await expect(chips(page).filter({ hasText: 'Full sun' })).toHaveCount(1);
-  await expect(chips(page).filter({ hasText: 'No dog warnings' })).toHaveCount(1); // (who's in the yard, as the picker always has it)
+  await expect(chips(page).filter({ hasText: 'No plants toxic to dogs' })).toHaveCount(1); // (who's in the yard, as the picker always has it)
   await expect(page.getByTestId('plant-search')).toHaveValue('');
   // Taken off, as any filter is; the line goes with it.
   await chips(page).filter({ hasText: 'Full sun' }).click();
@@ -135,14 +135,14 @@ test('Warnings: Swap from a sun, hardiness or poison row opens filtered for what
   await openWarnings(page, 'poison');
   await kind(page, 'poison').getByTestId('warning-row').filter({ hasText: 'Butterfly milkweed' }).getByTestId('warning-swap').click();
   await expect(swapWhy(page)).toHaveText('Filtered for the dogs in the yard');
-  await chips(page).filter({ hasText: 'No dog warnings' }).click();
+  await chips(page).filter({ hasText: 'No plants toxic to dogs' }).click();
   await expect(chips(page)).toHaveCount(0);
   await page.locator('.sheet-header').getByRole('button', { name: 'Back to properties' }).click();
   await expect(page.getByTestId('poison-check')).toContainText('You said dogs are in the yard');
   await closeSheet(page);
   await page.keyboard.press('Escape');
   await page.locator('.tool-btn.plants').click();
-  await expect(chips(page).filter({ hasText: 'No dog warnings' })).toHaveCount(1);
+  await expect(chips(page).filter({ hasText: 'No plants toxic to dogs' })).toHaveCount(1);
 });
 
 test('a plant\'s details: crowded Russian Sage swaps for a smaller form of itself first, filtered for the width that fits', async ({ page }) => {
@@ -153,16 +153,16 @@ test('a plant\'s details: crowded Russian Sage swaps for a smaller form of itsel
   await expect(page.getByTestId('crowding-detail').getByRole('button')).toHaveText(['Nudge apart', 'Swap for a smaller plant…', 'Dismiss for this pair']);
   await page.getByTestId('fix-swap-big').click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Swap for another plant');
-  await expect(swapWhy(page)).toHaveText('Filtered for plants up to 2.5 ft wide, the room it has beside New England aster');
+  await expect(swapWhy(page)).toHaveText('Filtered for plants up to 2.5 ft wide, the room it has beside New England Aster');
   await expect(chips(page)).toHaveText(['Width: up to 2.5 ft']);
   // Its own smaller forms first, by their sources' sizes; then the rest.
   await expect(page.getByTestId('smaller-forms')).toHaveText('Smaller forms of Russian Sage');
   const firstRow = page.locator('.sheet .plant-item').first();
-  await expect(firstRow.locator('.pname')).toHaveText("Russian sage 'Denim 'n Lace'");
+  await expect(firstRow.locator('.pname')).toHaveText("Russian Sage 'Denim 'n Lace'");
   await expect(firstRow.getByTestId('smaller-fit')).toHaveText('Typically 2.5 ft wide: fits');
   await expect(page.getByTestId('other-plants')).toBeVisible();
   await firstRow.getByTestId('plant-place').click();
-  await expect(page.locator('#toast')).toContainText("Swapped for Russian sage 'Denim 'n Lace'.");
+  await expect(page.locator('#toast')).toContainText("Swapped for Russian Sage 'Denim 'n Lace'.");
   await expect(page.getByTestId('crowding')).toHaveCount(0); // (no longer close)
   await closeSheet(page);
   // The picker on its own: no width left on.
@@ -182,7 +182,7 @@ test('a plant\'s details: Nudge apart moves this one, with Undo; wider than its 
   await details(page, 'rs');
   await page.getByTestId('crowding-line').click();
   await page.getByTestId('fix-nudge').click();
-  await expect(page.getByTestId('nudge-notice')).toContainText('Nudged Russian Sage 0.5 ft away from New England aster.');
+  await expect(page.getByTestId('nudge-notice')).toContainText('Nudged Russian Sage 0.5 ft away from New England Aster.');
   await expect(page.getByTestId('crowding')).toHaveCount(0);
   await closeSheet(page);
   expect((await centerOf(page, 'as')).x).toBeCloseTo(as0.x, 0);

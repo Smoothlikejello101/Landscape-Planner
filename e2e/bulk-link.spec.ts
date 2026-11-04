@@ -40,7 +40,7 @@ test('link one circle, then every other circle with its label in one tap', async
   await page.locator('.proj-row', { hasText: 'Wild bergamot' }).first().locator('[data-testid=plant-place]').click();
   await expect(page.getByTestId('link-offer')).toContainText('2 other circles are labeled “Bergamot”');
   await page.getByTestId('link-offer-yes').click();
-  await expect(page.locator('#toast')).toContainText('2 more circles linked to Wild bergamot');
+  await expect(page.locator('#toast')).toContainText('2 more circles linked to Wild Bergamot');
   await expect(page.getByTestId('link-offer')).toHaveCount(0);
   await expect(page.locator('#canvas-svg text', { hasText: 'Wild bergamot' })).toHaveCount(4);
   await expect(page.locator('#canvas-svg text', { hasText: /^Bergamot$/ })).toHaveCount(1); // (the pond)
@@ -61,7 +61,7 @@ test('select several circles and link them all to one plant', async ({ page }) =
   await expect(page.getByTestId('plant-search')).toHaveValue(''); // (their labels differ)
   await page.getByTestId('plant-search').fill('Wild bergamot');
   await page.locator('.proj-row', { hasText: 'Wild bergamot' }).first().locator('[data-testid=plant-place]').click();
-  await expect(page.locator('#toast')).toContainText('2 circles linked to Wild bergamot');
+  await expect(page.locator('#toast')).toContainText('2 circles linked to Wild Bergamot');
   await expect(page.locator('#canvas-svg text', { hasText: 'Wild bergamot' })).toHaveCount(2);
 });
 
@@ -117,7 +117,7 @@ test('Link all leaves locked circles alone unless asked to include them', async 
   await page.getByTestId('link-all-locked').click();
   await page.getByTestId('plant-search').fill('Wild bergamot');
   await page.locator('.proj-row', { hasText: 'Wild bergamot' }).first().locator('[data-testid=plant-place]').click();
-  await expect(page.locator('#toast')).toContainText('3 circles linked to Wild bergamot');
+  await expect(page.locator('#toast')).toContainText('3 circles linked to Wild Bergamot');
   await expect(page.locator('#canvas-svg text', { hasText: 'Wild bergamot' })).toHaveCount(3);
 });
 

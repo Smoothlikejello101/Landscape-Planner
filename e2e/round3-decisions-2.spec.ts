@@ -54,7 +54,7 @@ test("a plant USGS's register lists as invasive says so in its details, and that
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Chinese privet');
-  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinese privet$/ }) });
+  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinese Privet$/ }) });
   // (No ZIP, so no state's law: a plain Place. The red one follows the law: tests/location.spec.ts.)
   await expect(item.getByTestId('plant-place')).toHaveText('Place');
   await item.getByTestId('plant-row').click();

@@ -56,7 +56,7 @@ test('a tree\'s trunk is over a groundcover patch around it: a tap on it picks t
   const trunk = (await page.locator('#canvas-svg [data-role=trunk-hit]').boundingBox())!;
   await page.waitForTimeout(450);
   await page.mouse.click(trunk.x + trunk.width / 2, trunk.y + trunk.height / 2);
-  await expect(name(page)).toHaveText('Eastern redbud');
+  await expect(name(page)).toHaveText('Eastern Redbud');
 });
 
 test('a press on a locked house goes to the bed drawn on it: a tap picks the bed, a drag moves it', async ({ page }) => {
@@ -124,7 +124,7 @@ test('a sun area over a bed is the last a tap picks: the plant, then the bed, th
   await tap(at);
   await expect(name(page)).toHaveText('Bed');
   await tap(at);
-  await expect(name(page)).toHaveText('Sun exposure');
+  await expect(name(page)).toHaveText('Sun Exposure');
   // Beside the plant, on the bed: the bed first, the sun area next.
   const m = (await bed.boundingBox())!;
   const beside = { x: m.x + m.width * 0.1, y: m.y + m.height * 0.85 };
@@ -133,7 +133,7 @@ test('a sun area over a bed is the last a tap picks: the plant, then the bed, th
   await expect(name(page)).toHaveText('Bed');
   await expect(page.locator('#toast')).toContainText(/(Tap|Click) again for the sun exposure under it\./);
   await tap(beside);
-  await expect(name(page)).toHaveText('Sun exposure');
+  await expect(name(page)).toHaveText('Sun Exposure');
   // With the bed selected, a drag there moves the bed, its plant with it; the sun area stays.
   await page.keyboard.press('Escape');
   await tap(beside);

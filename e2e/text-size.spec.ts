@@ -98,7 +98,7 @@ test('a plant\'s details: one column, each fact on its label\'s line, its source
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('butterfly milkweed');
-  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly milkweed$/ }) }).first();
+  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly Milkweed$/ }) }).first();
   await item.getByTestId('plant-row').click();
   const details = item.getByTestId('plant-details');
   const dt = details.locator('dt', { hasText: /^Size$/ });

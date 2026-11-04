@@ -106,9 +106,9 @@ test('Warnings, one place for every kind, a switch for each; poison follows the 
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('');
   await openFilters(page);
-  await page.getByRole('checkbox', { name: 'Not listed as poisonous to people' }).check();
+  await page.getByRole('checkbox', { name: 'Hide plants toxic to people' }).check();
   await page.getByTestId('in-plan').click();
-  await expect(page.locator('.plant-item', { hasText: 'Butterfly milkweed' }).first().getByTestId('row-poison')).toHaveText('Poisonous to people');
+  await expect(page.locator('.plant-item', { hasText: 'Butterfly Milkweed' }).first().getByTestId('row-poison')).toHaveText('Toxic to people');
   await closeSheet(page);
   await expect(page.locator('#canvas-svg [data-role=poison-warning]')).toHaveCount(1);
   // (Settings keeps one row to it; the header counts warnings, not switches: the review, Nov 1.)
@@ -117,7 +117,7 @@ test('Warnings, one place for every kind, a switch for each; poison follows the 
   await openWarnings(page, 'poison', 'utility', 'hardy', 'sun', 'crowding', 'fruit');
   await expect(page.getByTestId('warnings-head')).toHaveText(/^1 to look at$/);
   for (const id of ['show-crowding', 'crowd-warnings', 'sun-warnings', 'hardy-warnings', 'poison-warnings', 'fruit-warnings']) await expect(page.getByTestId(id)).toBeChecked();
-  await expect(page.getByTestId('warnings-switch-poison')).toContainText('Warn about plants poisonous to the kids in the yard');
+  await expect(page.getByTestId('warnings-switch-poison')).toContainText('Warn about plants toxic to the kids in the yard');
   await expect(page.getByTestId('warnings-yard-kids')).toHaveAttribute('aria-pressed', 'true');
   await page.getByTestId('poison-warnings').uncheck();
   await expect(page.getByTestId('warnings-kind-head-poison')).toHaveAttribute('aria-label', 'Poison, Off');

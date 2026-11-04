@@ -89,10 +89,10 @@ test('a small plant crowded by a bigger one is too far under it: try out toward 
   await page.getByTestId('plant-search').fill("Heuchera 'Autumn Bride'");
   await page.locator('.sheet .proj-row', { hasText: 'Autumn Bride' }).first().locator('[data-testid=plant-place]').click();
   await tapFromCenter(page, 0.5, 0);
-  await expect(notice(page).getByTestId('notice-line')).toHaveText('Too far under Sweet Joe Pye weed');
+  await expect(notice(page).getByTestId('notice-line')).toHaveText('Too far under Sweet Joe Pye Weed');
   await notice(page).getByTestId('notice-line').click();
-  await expect(notice(page).getByTestId('notice-detail')).toContainText("Heuchera 'Autumn Bride' will be buried by Sweet Joe Pye weed: 0.5 ft apart");
-  await expect(notice(page).getByTestId('notice-detail')).toContainText('Try moving it out toward the edge of Sweet Joe Pye weed.');
+  await expect(notice(page).getByTestId('notice-detail')).toContainText("Heuchera 'Autumn Bride' will be buried by Sweet Joe Pye Weed: 0.5 ft apart");
+  await expect(notice(page).getByTestId('notice-detail')).toContainText('Try moving it out toward the edge of Sweet Joe Pye Weed.');
   // In its properties: one line, opened to say so.
   await bar(page).getByRole('button', { name: 'Done' }).click();
   await tapFromCenter(page, 0, 8); // (nothing there: the two placed are let go)
@@ -103,7 +103,7 @@ test('a small plant crowded by a bigger one is too far under it: try out toward 
   await expect(page.getByTestId('crowding-line')).toHaveText('⚠ Planted closer than usual to one neighbor');
   await expect(page.getByTestId('crowding-detail')).toBeHidden();
   await page.getByTestId('crowding-line').click();
-  await expect(page.getByTestId('crowding-detail')).toContainText('Sweet Joe Pye weed: 0.5 ft apart');
+  await expect(page.getByTestId('crowding-detail')).toContainText('Sweet Joe Pye Weed: 0.5 ft apart');
   await expect(page.getByTestId('crowding-detail')).toContainText('buried by it: try out toward its edge');
 });
 
@@ -173,7 +173,7 @@ test('a spring bulb under a deciduous plant 3 ft or taller is not crowding it, e
   await expect(page.locator('#canvas-svg [data-role=close], #canvas-svg [data-role=crowded]')).toHaveCount(0);
   // Right at its base: close.
   await tapFromCenter(page, -0.4, 0);
-  await expect(notice(page).getByTestId('notice-line')).toHaveText('Close to Sweet Joe Pye weed, at its base');
+  await expect(notice(page).getByTestId('notice-line')).toHaveText('Close to Sweet Joe Pye Weed, at its base');
 });
 
 test('a notice can be put away without its buttons: ✕, or a swipe sideways; a short swipe slides it back', async ({ page }) => {

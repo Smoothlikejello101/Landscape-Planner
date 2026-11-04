@@ -14,11 +14,11 @@ test('pick a plant once, tap each spot, Undo the last, Done leaves the batch sel
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await pick(page, 'Tennessee coneflower');
-  await expect(banner(page)).toHaveText(/^(Tap|Click) to place Tennessee coneflower · 0 placed$/);
-  await expect(bar(page).getByTestId('place-switch')).toContainText('Tennessee coneflower');
+  await expect(banner(page)).toHaveText(/^(Tap|Click) to place Tennessee Coneflower · 0 placed$/);
+  await expect(bar(page).getByTestId('place-switch')).toContainText('Tennessee Coneflower');
   await expect(page.locator('.bottom-toolbar .tool-btn')).toHaveCount(0);
   for (const x of [-4, -1, 2]) await tapFromCenter(page, x, 0);
-  await expect(banner(page)).toHaveText(/^(Tap|Click) to place Tennessee coneflower · 3 placed$/);
+  await expect(banner(page)).toHaveText(/^(Tap|Click) to place Tennessee Coneflower · 3 placed$/);
   expect(await shapeCount(page)).toBe(3);
   await bar(page).getByRole('button', { name: 'Undo' }).click();
   expect(await shapeCount(page)).toBe(2);
@@ -48,9 +48,9 @@ test('recent plants are one tap; the plant in hand can be switched; Place more f
   await bar(page).getByTestId('place-switch').click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Switch plant');
   await pick(page, 'Black-eyed Susan');
-  await expect(banner(page)).toHaveText(/(Tap|Click) to place Black-eyed Susan.* · 0 placed/); // (its own count: the coneflower's isn't carried over)
+  await expect(banner(page)).toHaveText(/(Tap|Click) to place Black-Eyed Susan.* · 0 placed/); // (its own count: the coneflower's isn't carried over)
   await tapFromCenter(page, 4, 0);
-  await expect(banner(page)).toHaveText(/(Tap|Click) to place Black-eyed Susan.* · 1 placed/);
+  await expect(banner(page)).toHaveText(/(Tap|Click) to place Black-Eyed Susan.* · 1 placed/);
   await bar(page).getByRole('button', { name: 'Done' }).click();
   expect(await shapeCount(page)).toBe(2);
 
@@ -60,24 +60,24 @@ test('recent plants are one tap; the plant in hand can be switched; Place more f
   await page.locator('.tool-btn.plants').click();
   const recent = page.getByTestId('recent-plants').locator('.recent-plant');
   await expect(recent).toHaveCount(2);
-  await expect(recent.first()).toContainText('Black-eyed Susan'); // newest first
+  await expect(recent.first()).toContainText('Black-Eyed Susan'); // newest first
   await recent.nth(1).click();
-  await expect(banner(page)).toContainText('Tennessee coneflower');
+  await expect(banner(page)).toContainText('Tennessee Coneflower');
   await bar(page).getByRole('button', { name: 'Done' }).click();
 
   // A placed plant offers more of the same, from its pill and from its properties (instead of Duplicate).
   const susan = await planPoint(page, mid.x + 4, mid.y);
   await page.mouse.click(susan.x, susan.y); // the Black-eyed Susan
-  await expect(page.locator('.sel-pill .name')).toContainText('Black-eyed Susan');
+  await expect(page.locator('.sel-pill .name')).toContainText('Black-Eyed Susan');
   await page.locator('.sel-pill .edit').click();
   const actions = page.locator('.sheet .action-row');
   await expect(actions.getByRole('button', { name: 'Duplicate' })).toHaveCount(0);
   await actions.getByTestId('place-more').click();
-  await expect(banner(page)).toContainText('Black-eyed Susan');
+  await expect(banner(page)).toContainText('Black-Eyed Susan');
   await tapFromCenter(page, 4, 4);
   await bar(page).getByRole('button', { name: 'Done' }).click(); // the new one stays selected
   await page.getByTestId('pill-place-more').click();
-  await expect(banner(page)).toContainText('Black-eyed Susan');
+  await expect(banner(page)).toContainText('Black-Eyed Susan');
 });
 
 test('while placing, plants of the same kind show their full spread and crowding, for spacing', async ({ page }) => {
@@ -126,7 +126,7 @@ test('an existing tree: pick which, or draw an unknown one, by trunk and canopy 
   await tapFromCenter(page, 5, 0);
   await expect(page.locator('.sel-pill .name')).toHaveText(name);
   await page.locator('.sel-pill .edit').click();
-  await expect(page.locator('.sheet [data-section=size]')).toContainText('10 ft spread');
+  await expect(page.locator('.sheet [data-section=size]')).toContainText('10 ft wide when grown');
   await expect(page.locator('.sheet [data-section=status]')).toContainText('Existing'); // it's already there (Jason, Oct 31)
   await page.locator('.sheet-header button.iconbtn').last().click();
 
@@ -182,6 +182,6 @@ test.describe('with a keyboard and mouse', () => {
     await expect(banner(page)).toContainText('1 placed');
     await page.keyboard.press('Enter');
     await expect(bar(page)).toHaveCount(0);
-    await expect(page.locator('.sel-pill .name')).toHaveText('Tennessee coneflower');
+    await expect(page.locator('.sel-pill .name')).toHaveText('Tennessee Coneflower');
   });
 });

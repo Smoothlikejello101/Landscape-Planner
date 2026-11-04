@@ -78,7 +78,7 @@ test('at the warm edge of a plant\'s range: shade, and water unless it wants lit
   await page.getByTestId('zip-lookup').click();
   await page.getByTestId('location-to-plants').click();
   await page.getByTestId('plant-search').fill('Red buckeye'); // rated through zone 8 (8b), moderate water
-  await expect(page.locator('.sheet .proj-row', { hasText: 'Red buckeye' }).getByTestId('row-hardy')).toHaveText('Hardy here, at its warm edge');
+  await expect(page.locator('.sheet .proj-row', { hasText: 'Red Buckeye' }).getByTestId('row-hardy')).toHaveText('Hardy here, at its warm edge');
   await page.getByTestId('plant-search').fill('Wild lupine'); // rated through zone 8 (8b), low water
   const lead = page.locator('.sheet .proj-row', { hasText: 'Wild lupine' });
   await expect(lead.getByTestId('row-hardy')).toHaveText('Hardy here, at its warm edge');
@@ -272,7 +272,7 @@ test('a plant recorded growing wild in the garden\'s county or next door says so
   await page.locator('.sheet label', { hasText: 'Hardy in zone 8a' }).locator('input').check();
   // Chinquapin oak: rated to zone 7 by NC State, but recorded wild in Clark County (the Arkansas atlas).
   await page.getByTestId('plant-search').fill('Chinquapin oak');
-  const oak = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinquapin oak$/ }) });
+  const oak = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinquapin Oak$/ }) });
   await expect(oak.getByTestId('row-hardy')).toHaveText('May be too warm here; recorded wild nearby');
   await oak.getByTestId('plant-row').click();
   await expect(oak.getByTestId('wild-here')).toContainText('Recorded growing wild in Clark County');
@@ -312,7 +312,7 @@ test('a plant the garden\'s state prohibits says so, with the rule', async ({ pa
   await expect(plant.getByTestId('row-law')).toHaveText('Prohibited in Arkansas, though native to Arkansas'); // (in its row, before it's opened)
   // Found by name: its button says so, in red (Kim; Jason, Oct 31: the law of the gardener's own state).
   await expect(plant.getByTestId('plant-place')).toHaveText('Place (banned)');
-  await expect(plant.getByTestId('plant-place')).toHaveAttribute('aria-label', 'Place Winged loosestrife (banned here)');
+  await expect(plant.getByTestId('plant-place')).toHaveAttribute('aria-label', 'Place Winged Loosestrife (banned here)');
   await expect(plant.getByTestId('plant-place')).toHaveClass(/banned/);
   await expect(page.getByTestId('picker-count')).toContainText(/and 1 plant banned in Arkansas found by name/);
   await plant.getByTestId('plant-row').click();
@@ -357,7 +357,7 @@ test('South Carolina\'s law on Callery pear cites the plant pest list that names
   await page.locator('.sheet-header .iconbtn').click();
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Callery pear');
-  const pear = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /Callery pear/ }) }).first();
+  const pear = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /Callery Pear/ }) }).first();
   await expect(pear.getByTestId('plant-place')).toHaveText('Place (banned)');
   await pear.getByTestId('plant-row').click();
   const law = pear.getByTestId('regulated-here');
@@ -382,19 +382,19 @@ test('a plant not native here that is recorded growing wild here says so, with i
   await page.locator('.sheet-header .iconbtn').click();
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Chinese privet');
-  const privet = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinese privet$/ }) });
+  const privet = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinese Privet$/ }) });
   await expect(privet.getByTestId('row-escape')).toHaveText(/^Not native; recorded wild in \d+ of 75 Arkansas counties$/);
   await privet.getByTestId('plant-row').click();
   await expect(privet.getByTestId('native-here')).toContainText(/Not native to Arkansas; recorded growing wild in \d+ of its 75 counties/);
   // A native, recorded wild nearby: no such line.
   await page.getByTestId('plant-search').fill('Chinquapin oak');
-  const oak = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinquapin oak$/ }) });
+  const oak = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinquapin Oak$/ }) });
   await expect(oak.getByTestId('plant-row')).toBeVisible();
   await expect(oak.getByTestId('row-escape')).toHaveCount(0);
   // Introduced, recorded nowhere wild in the state: introduced, said plainly; no row line.
   await page.getByTestId('plant-search').fill('Sasanqua');
   // (The species, not a cultivar of it: 'Our Linda' says its species is introduced.)
-  const camellia = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Sasanqua camellia(?! ')/ }) }).first();
+  const camellia = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Sasanqua Camellia(?! ')/ }) }).first();
   await expect(camellia.getByTestId('plant-row')).toBeVisible();
   await expect(camellia.getByTestId('row-escape')).toHaveCount(0);
   await camellia.getByTestId('plant-row').click();

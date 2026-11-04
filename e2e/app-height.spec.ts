@@ -57,7 +57,7 @@ test('a citation deep in a plant\'s details, brought into view, scrolls the pick
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('Chinquapin oak');
-  const oak = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinquapin oak$/ }) });
+  const oak = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Chinquapin Oak$/ }) });
   await oak.getByTestId('plant-row').click();
   await expect(oak.locator('.details-src').first()).toBeVisible();
   // (The last citation, the furthest down, and a long one's hidden full text, on a phone where it's cut to a line: as
