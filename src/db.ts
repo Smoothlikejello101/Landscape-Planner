@@ -30,13 +30,17 @@ export const DB_NAME = 'landscape-planner';
  *   where no sun area covers the bed), which a version-3 page would drop, saving or syncing a plan, and whose journals,
  *   written without them, are kept apart from a plan saved at 4 rather than put over it. Sync records gain `marks`
  *   (Nov 4: src/marks.ts), which no page before it writes or reads.
+ * - 5 (Nov 4): no store or record changed by the upgrade. A photo's rough scale (BgImage roughScale: its scale set
+ *   from a length said to be a rough guess) and the sides of a shape typed as numbers (a rectangle's, an outline's or
+ *   a line's `measured`), which a version-4 page would drop, saving or syncing a plan, and whose journals, written
+ *   without them, are kept apart from a plan saved at 5 rather than put over it.
  *
  * onupgradeneeded only adds what's missing: it never deletes, clears or rewrites a store or a record. A change that
  * must rewrite records does it after the open, in one transaction (KV.changeAllOnce; src/storage.ts takeFromDevice).
  * Never lower it, and never deploy a build with a lower one (a rollback): every device that opened the newer one
  * would find its plans refused.
  */
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 
 /**
  * The database is at a higher version than this one's: a newer version of the app has opened it on this device. This

@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { canonical, coreHash, fingerprint, planHash, planOf, settleBought, settleHousehold, settleSwitches, syncOnce, withLocalParts, type Local, type LocalProject, type ProjectContent, type Remote, type SyncRecord } from '../src/sync/engine';
+import { canonical, coreHash, fingerprint, photoKey, planHash, planOf, settleBought, settleHousehold, settleSwitches, syncOnce, withLocalParts, type Local, type LocalProject, type ProjectContent, type Remote, type SyncRecord } from '../src/sync/engine';
 import { FakeServer } from './fake-sync-server';
 import { keepBought, plantList } from '../src/plant-list';
 import type { PlanBought, Shape } from '../src/types';
-import { migrateShape } from '../src/storage';
+import { migrateShape, sanitizePhotoRef } from '../src/storage';
 import { releaseMigrateShape } from './fixtures/release-migrate-shape';
+import { releaseSanitizePhotoRef } from './fixtures/release-photo';
 
 // The sync engine against a stand-in server (the same rules as
 // supabase/02-sync.sql) and stand-in devices: two devices editing offline,
@@ -1573,5 +1574,166 @@ describe("a bed's conditions through a device or a tab on an older version (cond
     await still(server, old, tab);
     expect(tab.open!.content.shapes as Shape[]).toEqual(as(migrateShape, plan(ALL, 4)));
     expect(tab.names()).toEqual(['Back Yard']);
+  });
+});
+
+describe("a photo's rough scale and the sides typed as numbers, through a device on an older version (Nov 4)", () => {
+  const FP = 'c'.repeat(64);
+  const M = [{ side: 0, ft: 30 }, { side: 2, ft: 30 }];
+  const FENCE_M = [{ side: 1, ft: 25 }];
+  const house = (x = 0, extra: object = {}) => ({ id: 'h1', type: 'rect', x, y: 0, width: 30, height: 20, rotation: 0, color: '#78716c', label: 'House', opacity: 0.8, locked: false, role: 'building', ...extra });
+  const fence = (points: number[][] = [[0, 0], [40, 0], [40, 25]], extra: object = {}) => ({ id: 'f1', type: 'line', x: 0, y: 30, points, rotation: 0, color: '#57534e', label: 'Fence', opacity: 1, locked: false, role: 'boundary', ...extra });
+  const oak = (x = 50) => ({ id: 'o1', type: 'circle', x, y: 10, radius: 8, color: '#166534', label: 'Old oak', opacity: 0.5, locked: false });
+  const photo = (extra: object = {}) => ({ fingerprint: FP, naturalWidth: 400, naturalHeight: 300, ftPerPx: 0.25, cx: 0, cy: 0, rotation: 0, opacity: 0.6, visible: true, ...extra });
+  /** A device whose app reads shapes and its photo as `migrate` and `photoRef` do (this version's, or the release's). */
+  class Device extends FakeDevice {
+    constructor(name: string, readonly migrate: (raw: unknown) => Shape | null, readonly photoRef: (raw: unknown) => unknown) { super(name, true); }
+    normalize(name: string, content: ProjectContent) {
+      const n = super.normalize(name, content);
+      const c = { ...n.content };
+      if (Array.isArray(c.shapes)) c.shapes = c.shapes.map((x) => this.migrate(x)).filter((x) => x !== null);
+      if ('photo' in c) c.photo = this.photoRef(c.photo);
+      return { ...n, content: c };
+    }
+    async projects() { return (await super.projects()).map((p) => ({ ...p, content: this.normalize(p.name, p.content).content })); }
+    /** A plan with its photo here (the bytes on this device), placed as `ph` says. */
+    addWithPhoto(name: string, shapes: unknown[], ph: object) {
+      const id = this.add(name, shapes);
+      const p = this.projectsById.get(id)!;
+      p.content = { ...p.content, photo: ph };
+      this.photos.set(id, FP);
+      return id;
+    }
+    /** How the photo sits changed here (moved, its scale set again). */
+    setPlacement(id: string, ph: object) { const p = this.projectsById.get(id)!; p.content = { ...p.content, photo: ph }; p.token++; }
+  }
+  const newer = (name: string) => new Device(name, migrateShape, sanitizePhotoRef);
+  const release = (name: string) => new Device(name, releaseMigrateShape, releaseSanitizePhotoRef);
+  const shapesOf = (d: FakeDevice, id: string) => d.projectsById.get(id)!.content.shapes as Shape[];
+  const photoOf = (d: FakeDevice, id: string) => d.projectsById.get(id)!.content.photo as Record<string, unknown>;
+  const onServer = (server: FakeServer, id: string) => server.rows.get(id)!.content as { shapes: Shape[]; photo: Record<string, unknown> };
+  const measuredOf = (shapes: Shape[]) => shapes.map((s) => (s as { measured?: unknown }).measured);
+  async function still(server: FakeServer, ...devices: FakeDevice[]) {
+    for (let i = 0; i < 3; i++) {
+      for (const d of devices) expect(await sync(d, server)).toMatchObject({ uploaded: 0, downloaded: 0, conflicts: [], restored: [], removed: [] });
+    }
+  }
+
+  it("kept from here only where the server's copy says nothing of them: a shape exactly as it is here, side for side (moved or turned only); the same photo at the same scale", () => {
+    const mine = { shapes: [house(0, { measured: M }), fence(undefined, { measured: FENCE_M }), oak()], photo: photo({ roughScale: true }) };
+    // An older version's copy: neither field; the house moved and turned, the photo moved and made fainter.
+    const there = { shapes: [house(5, { rotation: 30 }), fence(), oak(52)], photo: photo({ cx: 3, opacity: 0.4 }) };
+    const filled = withLocalParts(there, mine);
+    expect(filled).toEqual({ shapes: [house(5, { rotation: 30, measured: M }), fence(undefined, { measured: FENCE_M }), oak(52)], photo: photo({ cx: 3, opacity: 0.4, roughScale: true }) });
+    ((filled.shapes as { measured: { ft: number }[] }[])[0].measured[0]).ft = 1; // (its own copy)
+    expect((mine.shapes[0] as unknown as { measured: { ft: number }[] }).measured[0].ft).toBe(30);
+    // Reshaped there in any way: nothing kept, so no number lands on a side another device changed.
+    const reshaped = { shapes: [house(0, { width: 31 }), fence([[0, 0], [40, 0], [40, 26]]), { ...house(0), type: 'poly', points: [[0, 0], [30, 0], [30, 20], [0, 20]] }] };
+    expect(withLocalParts(reshaped, { shapes: [house(0, { measured: M }), fence(undefined, { measured: FENCE_M }), { ...house(0), id: 'x' }] })).toEqual(reshaped);
+    expect(withLocalParts({ shapes: [{ ...house(0), type: 'poly', points: [[0, 0], [30, 0], [30, 20], [0, 20]] }] }, mine).shapes).toEqual([{ ...house(0), type: 'poly', points: [[0, 0], [30, 0], [30, 20], [0, 20]] }]);
+    // Some there: they stand.
+    expect((withLocalParts({ shapes: [house(0, { measured: [{ side: 1, ft: 20 }] })] }, mine).shapes as Shape[])[0]).toMatchObject({ measured: [{ side: 1, ft: 20 }] });
+    // The photo: another scale there, "not to scale yet", rough already, another photo, kept elsewhere, none: as there.
+    for (const ph of [photo({ ftPerPx: 0.3 }), photo({ uncalibrated: true }), photo({ roughScale: true, cx: 9 }), photo({ fingerprint: 'd'.repeat(64) }), { deviceOnly: true }, null]) {
+      expect(withLocalParts({ shapes: [], photo: ph }, mine).photo, JSON.stringify(ph)).toEqual(ph);
+    }
+    // Nothing here to keep: as the server has it (the same object).
+    const plain = { shapes: [house(), fence()], photo: photo() };
+    expect(withLocalParts(plain, { shapes: [house(), fence()], photo: photo() })).toBe(plain);
+    // Fingerprinted as before: a plan without them, to the character. With them, the same: this version changes them
+    // only with the sides themselves, and an older version's copy, without them, isn't a change there.
+    expect(planHash('X', plain)).toBe(fingerprint('X', planOf(plain)));
+    const bare = { shapes: [house(), fence(), oak()], photo: photo() };
+    expect([planHash('X', mine), coreHash('X', mine), photoKey(mine)]).toEqual([planHash('X', bare), coreHash('X', bare), photoKey(bare)]);
+    expect(mine.shapes[0]).toHaveProperty('measured'); // (only what's hashed: the plan keeps them)
+    expect(photoKey({ photo: photo({ roughScale: true }) })).toBe(photoKey({ photo: photo() }));
+    expect(photoKey({ photo: photo({ ftPerPx: 0.3 }) })).not.toBe(photoKey({ photo: photo() }));
+  });
+
+  it('between two devices of this version they go across; reshaped on one, the side is forgotten on both; the scale set again without the box ticked, the rough scale too', async () => {
+    const server = new FakeServer(), phone = newer('phone'), tablet = newer('tablet');
+    const id = phone.addWithPhoto('Back Yard', [house(0, { measured: M }), fence(undefined, { measured: FENCE_M })], photo({ roughScale: true }));
+    await sync(phone, server); await sync(tablet, server);
+    expect(measuredOf(shapesOf(tablet, id))).toEqual([M, FENCE_M]);
+    expect(photoOf(tablet, id)).toMatchObject({ roughScale: true });
+    await still(server, phone, tablet);
+    // The tablet widens the house (its typed width forgotten there) and sets the scale again, measured.
+    tablet.edit(id, [house(0, { width: 32 }), fence(undefined, { measured: FENCE_M })]);
+    tablet.setPlacement(id, photo({ ftPerPx: 0.26 }));
+    expect(await sync(tablet, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(phone, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+    expect(measuredOf(shapesOf(phone, id))).toEqual([undefined, FENCE_M]);
+    expect(photoOf(phone, id)).toEqual(photo({ ftPerPx: 0.26 }));
+    await still(server, phone, tablet);
+  });
+
+  it('a device on the release takes the plan without them and sends nothing for that; its own edit goes up without them, and the device that has them keeps them, and sends them again', async () => {
+    const server = new FakeServer(), phone = newer('phone'), laptop = release('laptop');
+    const id = phone.addWithPhoto('Back Yard', [house(0, { measured: M }), fence(undefined, { measured: FENCE_M }), oak()], photo({ roughScale: true }));
+    await sync(phone, server);
+    expect(await sync(laptop, server)).toMatchObject({ downloaded: 1 });
+    expect(measuredOf(shapesOf(laptop, id))).toEqual([undefined, undefined, undefined]);
+    expect(photoOf(laptop, id)).toEqual(photo());
+    await still(server, laptop, phone);
+    expect(measuredOf(onServer(server, id).shapes)).toEqual([M, FENCE_M, undefined]); // (it sent nothing back without them)
+    // The laptop moves the house and the oak, and the photo: all of it goes up without the fields.
+    laptop.edit(id, [releaseMigrateShape(house(6)), releaseMigrateShape(fence()), releaseMigrateShape(oak(55))]);
+    laptop.setPlacement(id, photo({ cx: 4 }));
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 1 });
+    expect(measuredOf(onServer(server, id).shapes)).toEqual([undefined, undefined, undefined]);
+    expect(onServer(server, id).photo).not.toHaveProperty('roughScale');
+    // The phone takes the moves and keeps both: the house and fence are side for side as they were, the photo at its scale.
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 0, downloaded: 1, conflicts: [] });
+    expect(shapesOf(phone, id)).toEqual([house(6, { measured: M }), fence(undefined, { measured: FENCE_M }), oak(55)].map(migrateShape));
+    expect(photoOf(phone, id)).toEqual(photo({ cx: 4, roughScale: true }));
+    await still(server, phone, laptop);
+    // The phone's next edit sends them again; the laptop takes the edit, as it reads it.
+    phone.edit(id, [house(6, { measured: M }), fence(undefined, { measured: FENCE_M }), oak(57)].map(migrateShape));
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 1 });
+    expect(measuredOf(onServer(server, id).shapes)).toEqual([M, FENCE_M, undefined]);
+    expect(onServer(server, id).photo).toMatchObject({ roughScale: true, cx: 4 });
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 0, downloaded: 1 });
+    await still(server, phone, laptop);
+    // The laptop reshapes the house and sets the scale again (it has no box to tick): the phone keeps neither.
+    laptop.edit(id, [releaseMigrateShape(house(6, { width: 33 })), releaseMigrateShape(fence()), releaseMigrateShape(oak(57))]);
+    laptop.setPlacement(id, photo({ cx: 4, ftPerPx: 0.27 }));
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(phone, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+    expect(measuredOf(shapesOf(phone, id))).toEqual([undefined, FENCE_M, undefined]);
+    expect(photoOf(phone, id)).toEqual(photo({ cx: 4, ftPerPx: 0.27 }));
+    await still(server, phone, laptop);
+    expect([phone.names(), laptop.names()]).toEqual([['Back Yard'], ['Back Yard']]);
+  });
+
+  it("a typed shape reshaped here while the release ticked a plant bought, or moved the photo: no copy; the reshape goes up, the other sides typed kept", async () => {
+    const server = new FakeServer(), phone = newer('phone'), laptop = release('laptop');
+    const id = phone.addWithPhoto('Back Yard', [house(0, { measured: M }), fence(undefined, { measured: FENCE_M })], photo());
+    await sync(phone, server); await sync(laptop, server);
+    laptop.setPart(id, 'bought', { 'pl:1': { n: 1, at: 5 } });
+    laptop.setPlacement(id, photo({ cx: 2 }));
+    phone.edit(id, [house(0, { width: 34 }), fence(undefined, { measured: FENCE_M })].map(migrateShape)); // (its typed width forgotten)
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 1, conflicts: [] });
+    expect(onServer(server, id)).toMatchObject({ shapes: [house(0, { width: 34 }), fence(undefined, { measured: FENCE_M })], photo: photo({ cx: 2 }), bought: { 'pl:1': { n: 1, at: 5 } } });
+    expect(measuredOf(onServer(server, id).shapes)).toEqual([undefined, FENCE_M]);
+    expect(await sync(laptop, server)).toMatchObject({ downloaded: 1 });
+    await still(server, phone, laptop);
+    expect(phone.names()).toEqual(['Back Yard']);
+  });
+
+  it("the photo's scale set again here, roughly, while the release moved the house: no copy; the plan from there, the photo from here, both fields kept", async () => {
+    const server = new FakeServer(), phone = newer('phone'), laptop = release('laptop');
+    const id = phone.addWithPhoto('Back Yard', [house(0, { measured: M })], photo({ roughScale: true }));
+    await sync(phone, server); await sync(laptop, server);
+    laptop.edit(id, [releaseMigrateShape(house(8))]);
+    phone.setPlacement(id, photo({ ftPerPx: 0.2, roughScale: true }));
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 1 });
+    expect(await sync(phone, server)).toMatchObject({ uploaded: 1, conflicts: [] });
+    expect(shapesOf(phone, id)).toEqual([migrateShape(house(8, { measured: M }))]);
+    expect(onServer(server, id)).toMatchObject({ shapes: [house(8, { measured: M })], photo: photo({ ftPerPx: 0.2, roughScale: true }) });
+    expect(await sync(laptop, server)).toMatchObject({ downloaded: 1 });
+    expect(photoOf(laptop, id)).toEqual(photo({ ftPerPx: 0.2 }));
+    await still(server, phone, laptop);
+    expect(phone.names()).toEqual(['Back Yard']);
   });
 });

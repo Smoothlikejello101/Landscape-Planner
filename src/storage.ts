@@ -9,6 +9,7 @@ import { isRole } from './roles';
 import { cleanPhaseName, filterActive, isStatus, MAX_PHASES } from './status';
 import type { BedConditions, BgImage, Clipboard, PathShape, PhotoRef, PlanBought, PlanDismissals, PlanHousehold, PlanSwitches, PrintSettings, SizeMode, ProjectData, ProjectMeta, RoleViews, Shape, ShapeFilter, SunInfo, UtilityKind, WarningSwitch } from './types';
 import { setWorldPoints } from './geometry';
+import { sanitizeMeasured, sideCount } from './measured';
 import { now, uid } from './util';
 import { photoFingerprint } from './sync/photo';
 import { canonical, coreHash, fingerprint, withoutClearedMarks } from './sync/engine';
@@ -274,7 +275,11 @@ export function migrateShape(raw: unknown): Shape | null {
     }
     case 'rect':
     case 'oval':
-      return { ...base, type: s.type, width: size(s.width, 4), height: size(s.height, 3), rotation: num(s.rotation, 0), ...featured };
+      return {
+        ...base, type: s.type, width: size(s.width, 4), height: size(s.height, 3), rotation: num(s.rotation, 0), ...featured,
+        // (Sides typed as numbers, Nov 4: a rectangle's only; older shapes have none, and versions before it drop them.)
+        ...(s.type === 'rect' && sanitizeMeasured(s.measured, 4) ? { measured: sanitizeMeasured(s.measured, 4)! } : {}),
+      };
     case 'triangle': {
       const ra = s.rightAngle;
       return {
@@ -292,12 +297,17 @@ export function migrateShape(raw: unknown): Shape | null {
         }
       }
       if (pts.length < MIN_POINTS[s.type]) return null;
+      // (Sides typed as numbers, Nov 4, by their place in the points: only while every point came through, so a point
+      // dropped here, or one past the most kept, can't put a number on another side. Older shapes have none.)
+      const whole = Array.isArray(s.points) && pts.length === s.points.length;
+      const measured = whole ? sanitizeMeasured(s.measured, sideCount({ type: s.type, points: pts })) : undefined;
       const shape = {
         ...base, type: s.type, points: [], rotation: num(s.rotation, 0),
         ...(s.type === 'line' && s.showLength === true ? { showLength: true } : {}),
         // Paths: a width in feet (a quarter foot to 50 ft); anything else draws as a thin line.
         ...(s.type === 'line' && typeof s.pathWidth === 'number' && s.pathWidth >= 0.25 && s.pathWidth <= 50 ? { pathWidth: s.pathWidth } : {}),
         ...featured,
+        ...(measured ? { measured } : {}),
       } as PathShape;
       setWorldPoints(shape, pts); // re-normalize, whatever the file said
       return shape;
@@ -323,6 +333,9 @@ export function migrateBgImage(raw: Partial<BgImage>): BgImage {
     ...(raw.deviceOnly === true ? { deviceOnly: true } : {}),
     // (Not to scale yet; older photos have no word on it, and are taken as calibrated.)
     ...(raw.uncalibrated === true ? { uncalibrated: true as const } : {}),
+    // (Its scale set from a rough guess, Nov 4; older photos have none. Never with "not to scale yet": a scale not set
+    // isn't rough, and that one says more.)
+    ...(raw.roughScale === true && raw.uncalibrated !== true ? { roughScale: true as const } : {}),
   };
 }
 const isFingerprint = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f]{64}$/.test(v);
@@ -338,8 +351,8 @@ export function sanitizePhotoRef(raw: unknown): PhotoRef | null {
 /** How a background photo is synced: its fingerprint and placement (`fingerprint` known), or kept here. */
 export function photoRefOf(bg: BgImage, fingerprint: string): PhotoRef {
   if (bg.deviceOnly) return { deviceOnly: true };
-  const { naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible, uncalibrated } = migrateBgImage(bg);
-  return { fingerprint, naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible, ...(uncalibrated ? { uncalibrated } : {}) };
+  const { naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible, uncalibrated, roughScale } = migrateBgImage(bg);
+  return { fingerprint, naturalWidth, naturalHeight, ftPerPx, cx, cy, rotation, opacity, visible, ...(uncalibrated ? { uncalibrated } : {}), ...(roughScale ? { roughScale } : {}) };
 }
 const MINUTES_PER_DAY = 24 * 60;
 /** Validate observed-sun data; null if unusable. */
@@ -1269,7 +1282,10 @@ export function placePhoto(base: ProjectData, baseFp: string | null, ref: PhotoR
   if ('deviceOnly' in ref) return base.bgImage?.deviceOnly ? { bgImage: base.bgImage, photoElsewhere: null } : { bgImage: null, photoElsewhere: ref };
   const { fingerprint, ...placed } = ref;
   if (base.bgImage && baseFp === fingerprint) {
-    const { deviceOnly: _o, ...bg } = base.bgImage;
+    // (How it sits is the incoming one's, whole: its "not to scale yet" and its rough scale too, where it says neither.
+    // Kept from here, a scale set on another device stayed "not to scale yet" here, and went back up so with this
+    // device's next edit, for every device: found Nov 4, with the rough scale, which would have done the same.)
+    const { deviceOnly: _o, uncalibrated: _u, roughScale: _r, ...bg } = base.bgImage;
     return { bgImage: { ...bg, ...placed, fingerprint }, photoElsewhere: null };
   }
   if (bytes) return { bgImage: migrateBgImage({ ...placed, dataUrl: bytes, imageId: uid(), fingerprint }), photoElsewhere: null };

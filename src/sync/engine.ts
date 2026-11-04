@@ -201,8 +201,24 @@ export function planOf(c: ProjectContent): ProjectContent {
  * same object).
  */
 function forHash(c: ProjectContent): ProjectContent {
-  const shapes = Array.isArray(c.shapes) ? withoutClearedMarks(c.shapes) : null;
+  if (!Array.isArray(c.shapes)) return c;
+  const cleared = withoutClearedMarks(c.shapes);
+  const shapes = withoutMeasured(cleared ?? c.shapes) ?? cleared;
   return shapes ? { ...c, shapes } : c;
+}
+/**
+ * The shapes with their sides typed as numbers (`measured`, Nov 4: src/measured.ts) left out, for the fingerprints;
+ * null when none has them. This version changes them only with the shape's sides (typing a rectangle's Width, drawing
+ * it, reshaping it), which the fingerprint sees anyway; an older version drops them from every plan it sends. Seen,
+ * a device on the release ticking a plant bought, or moving the photo, would read on this device as a change to the
+ * plan there, and a copy of it would be made if this device had reshaped a shape since. (Withdrawn from the plan by
+ * an older version, they're kept from here: withMeasuredSides. Typed again as the same length, they go up with the
+ * next edit.)
+ */
+function withoutMeasured<T>(shapes: readonly T[]): T[] | null {
+  const has = (s: unknown) => !!s && typeof s === 'object' && 'measured' in s;
+  if (!shapes.some(has)) return null;
+  return shapes.map((s) => { if (!has(s)) return s; const { measured: _m, ...rest } = s as Record<string, unknown>; return rest as T; });
 }
 
 // ---------- Marks of something taken away on purpose ----------
@@ -277,7 +293,10 @@ export function photoKey(c: ProjectContent): string | undefined {
   if (!ph) return 'none';
   if (ph.deviceOnly === true) return 'kept';
   if (typeof ph.fingerprint !== 'string') return 'none';
-  const { fingerprint: fp, ...placement } = ph as Record<string, unknown>;
+  // (A rough scale, Nov 4, left out: it's set and cleared only with the scale, which is here; the release drops it from
+  // the photo it sends with any edit of its own, which would read as the photo changed there, a copy made against a
+  // scale set again here. Kept from here meanwhile: withRoughScale. A photo without one is fingerprinted as before.)
+  const { fingerprint: fp, roughScale: _r, ...placement } = ph as Record<string, unknown>;
   return `${fp}@${fingerprint('', placement)}`;
 }
 /** The fingerprint of the photo content shows (none if it shows none, or keeps it on one device). */
@@ -327,7 +346,47 @@ export function withLocalParts(server: ProjectContent, mine: ProjectContent | un
   if (!mine) return server;
   let out = server;
   for (const k of NEWER_PARTS) if (!(k in server) && k in mine) out = { ...out, [k]: mine[k] };
-  return withBedConditions(withFruitDismissals(withChosenColors(withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine), mine), mine), mine);
+  return withRoughScale(withMeasuredSides(withBedConditions(withFruitDismissals(withChosenColors(withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine), mine), mine), mine), mine), mine);
+}
+/**
+ * The sides of a shape typed as numbers (`measured`, Nov 4: src/measured.ts), which an older version drops from every
+ * shape it sends: kept from here when the server's copy of that shape has none at all and is exactly the shape it is
+ * here, side for side (the same kind of shape, a rectangle the same size, an outline or line the same points): moved
+ * or turned, it's still each side's length. Reshaped there in any way, nothing is kept, so a number never lands on a
+ * side another device changed (the honest rule: docs/storage.md). Where the server has some, they stand. Nothing marks
+ * them taken away on purpose: this version takes a side away only when its length changes, which this tells.
+ */
+function withMeasuredSides(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
+  type Sided = { id?: unknown; type?: unknown; width?: unknown; height?: unknown; points?: unknown; measured?: unknown };
+  const kept = new Map<unknown, Sided>();
+  for (const s of mine.shapes as Sided[]) if (s && Array.isArray(s.measured) && s.measured.length) kept.set(s.id, s);
+  if (!kept.size) return server;
+  const sameSides = (a: Sided, b: Sided) => a.type === b.type && (a.type === 'rect'
+    ? a.width === b.width && a.height === b.height
+    : (a.type === 'poly' || a.type === 'line') && Array.isArray(a.points) && canonical(a.points) === canonical(b.points));
+  let filled = false;
+  const shapes = (server.shapes as Sided[]).map((s) => {
+    const k = s && typeof s === 'object' ? kept.get(s.id) : undefined;
+    if (!k || 'measured' in s || !sameSides(s, k)) return s;
+    filled = true;
+    return { ...s, measured: JSON.parse(JSON.stringify(k.measured)) };
+  });
+  return filled ? { ...server, shapes } : server;
+}
+/**
+ * A photo's rough scale (`roughScale`, Nov 4), which an older version drops from the photo it sends: kept from here
+ * when the server's copy is the same photo (its fingerprint) at exactly the same scale and says neither that it's rough
+ * nor that it isn't to scale yet. Only setting the scale sets or clears it, and setting it again gives another scale,
+ * so the same scale without it is an older version's copy (moved, turned, made fainter, or the plan edited). Where the
+ * server's has it, or another scale, it stands.
+ */
+function withRoughScale(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  type Placed = { fingerprint?: unknown; ftPerPx?: unknown; uncalibrated?: unknown; roughScale?: unknown };
+  const there = server.photo as Placed | null | undefined, here = mine.photo as Placed | null | undefined;
+  if (!isObject(there) || !isObject(here) || here.roughScale !== true || 'roughScale' in there || 'uncalibrated' in there) return server;
+  if (typeof there.fingerprint !== 'string' || there.fingerprint !== here.fingerprint || typeof there.ftPerPx !== 'number' || there.ftPerPx !== here.ftPerPx) return server;
+  return { ...server, photo: { ...there, roughScale: true } };
 }
 /**
  * A bed's conditions (Nov 2: its soil, moisture, drip, and sun where no sun area covers it), which an older version
