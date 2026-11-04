@@ -143,7 +143,10 @@ How they travel within a plan:
   up with the next edit and take away, everywhere, answers another device has that this one never got, an older version
   having dropped them on the way. Where it does go, the clear reaches every device, as it should. Saying no only ever
   lets answers come back from another device's copy, never erases them: an upload whose answer was lost (a dropped
-  connection) isn't recorded, so a clear right after leaves none and the answers come back once from the server. (The
+  connection) isn't recorded, so a clear right after leaves none and the answers come back once from the server. So
+  does an edit from a device on release 3 between this device's send and its clear: the server's copy it then takes
+  has none, so the clear leaves none, and another device of this version brings the answers back with its next edit;
+  a second clear sticks. (The
   independent review, Nov 4, in three rounds: through Undo, through clearing, and across a restart.) A fruit-partner
   dismissal taken away follows the same rule (`''`).
 - **Undo or Redo** taking them away leaves `{}` by that rule (src/history.ts `conditionsCleared`).

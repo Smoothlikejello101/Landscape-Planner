@@ -1621,13 +1621,13 @@ function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
         if (parts) out[k].parts = parts;
         if (typeof r.photo === 'string' && /^(none|kept|[0-9a-f]{64}@[0-9a-z]+:[0-9a-z]+)$/.test(r.photo)) out[k].photo = r.photo;
         if (r.held === 'room' || r.held === 'refused') out[k].held = r.held;
+        else if ((r.held as unknown) === true) out[k].held = 'room'; // (an early test build stored true)
         // (Where a mark of something taken away may go, src/marks.ts: shape ids, plain words, as many as a plan has.)
         const ids = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && /^[\w:.-]{1,120}$/.test(x)).slice(0, 20000) : []);
         const marks = r.marks && typeof r.marks === 'object' ? { conditions: ids(r.marks.conditions), fruit: ids(r.marks.fruit) } : null;
         if (marks && (marks.conditions.length || marks.fruit.length)) {
           out[k].marks = { ...(marks.conditions.length ? { conditions: marks.conditions } : {}), ...(marks.fruit.length ? { fruit: marks.fruit } : {}) };
         }
-        else if ((r.held as unknown) === true) out[k].held = 'room'; // (an early test build stored true)
       }
     }
   }
