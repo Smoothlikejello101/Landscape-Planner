@@ -1,3 +1,4 @@
+import { withoutClearedMarks } from './sync/engine';
 import { state } from './state';
 import { createProject, currentProjectData, readProject, sanitizeProjectData, setLastBackupAt } from './storage';
 import type { ProjectData } from './types';
@@ -190,6 +191,8 @@ export function planContent(data: ProjectData): string {
   const d = sanitizeProjectData(JSON.parse(JSON.stringify(forExport(data)))) as Partial<ProjectData>;
   delete d.zoom; delete d.offsetX; delete d.offsetY; delete d.viewFilter; delete d.photoElsewhere;
   if (d.bgImage) { const bg = { ...d.bgImage }; delete bg.imageId; delete bg.fingerprint; delete bg.deviceOnly; d.bgImage = bg; }
+  // (A bed's conditions cleared on purpose, {}, and a fruit warning shown again, '', read as none, as sync has them.)
+  if (d.shapes) d.shapes = withoutClearedMarks(d.shapes) ?? d.shapes;
   return JSON.stringify(ordered(d));
 }
 /**

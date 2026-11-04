@@ -5,11 +5,13 @@ import { canvasRect, pxPerFoot, rotatedBoxBounds, shapeBBox, shapeCenter, unionB
 import { flushHistoryDebounce, pushHistory, pushHistoryDebounced, stepNamed } from './history';
 import { getSelected, singleSelected } from './selection';
 import { state } from './state';
-import { forgetCleared, getClipboard, keepCleared, migrateShape, sanitizeBedConditions, save, saveView, setClipboard, type ClearedPlan } from './storage';
+import { forgetCleared, getClipboard, keepCleared, laterQuestionsOf, migrateShape, sanitizeBedConditions, save, saveView, setClipboard, type ClearedPlan } from './storage';
+import { canonical } from './sync/engine';
+import { mayMark } from './marks';
 import { toast } from './ui/toast';
 import { defaultLook, isLocked, roleKey } from './roles';
 import { isUtilityKind, utilityLook } from './utility-kinds';
-import type { BedConditions, Bounds, Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapeFilter, ShapePatch, Status } from './types';
+import type { BedAnswers, Bounds, Clipboard, Point, Role, RoleKey, RoleView, Shape, ShapeFilter, ShapePatch, Status } from './types';
 import { cleanPhaseName, MAX_PHASES, shownWith, statusLabel, statusPatch, today } from './status';
 import { render } from './ui/render';
 import { warningsChangedInPlace } from './ui/warnings-sheet';
@@ -322,30 +324,42 @@ export function bringBackCleared(c: ClearedPlan) {
 
 // ---- A bed's conditions ----
 /**
- * A bed's conditions, as answered (Plant this bed, Nov 2; src/types.ts BedConditions): one undo step, saved. Read as a
- * stored plan's are (src/storage.ts sanitizeBedConditions): a word a later version adds is kept, a part that isn't one
- * dropped; nothing it could keep is refused, never taken for clearing them. Nothing answered (`{}`) clears them on
- * purpose, kept as {} so sync doesn't fill them back (src/sync/engine.ts withBedConditions); a bed with none is left
- * without (a {} there would take away, everywhere, answers another device has that this one never got). False, and no
- * step, when it isn't a bed here or nothing changes.
+ * A bed's conditions, as answered (Plant this bed, Nov 2; src/types.ts BedConditions): one undo step, saved. Given as
+ * this version asks them (BedAnswers), the whole set: a question left out or false is no answer. A later version's
+ * questions on the bed are kept as they are. Read as a stored plan's are (src/storage.ts sanitizeBedConditions).
+ *
+ * Nothing answered clears them: kept as {}, cleared on purpose, so sync doesn't fill them back from another device's
+ * copy (src/sync/engine.ts withBedConditions), where the server's copy had them as this device last synced (src/marks.ts
+ * mayMark); otherwise none, as they were (a {} there would take away, everywhere, answers another device has that
+ * this one never got: the review, Nov 4). A bed with none is left without. False, and no step, when it isn't a bed here
+ * or nothing changes.
  *
  * How they travel: Duplicate copies them with the bed; Copy and Paste carry them (pasted as a stored plan's shapes are
- * read); Undo or Redo taking them away leaves {} (src/history.ts conditionsCleared); a bed made something else loses
- * them, in that step (setRoleForIds).
+ * read); Undo or Redo taking them away leaves {} by the same rule (src/history.ts conditionsCleared); a bed made
+ * something else loses them, in that step (setRoleForIds).
  */
-export function setBedConditions(bedId: string, conditions: BedConditions): boolean {
+export function setBedConditions(bedId: string, answers: BedAnswers): boolean {
   const s = state.shapes.find((sh) => sh.id === bedId);
-  if (!s || s.role !== 'bed') return false;
-  const next = sanitizeBedConditions(conditions);
+  if (!s || s.role !== 'bed' || !answers || typeof answers !== 'object' || Array.isArray(answers)) return false;
+  const given = Object.fromEntries(Object.entries((answers ?? {}) as Record<string, unknown>).filter(([k, v]) => ASKED_HERE.has(k) && v !== false && v !== null && v !== undefined));
+  const next = sanitizeBedConditions({ ...laterQuestionsOf(s.conditions), ...given });
   if (!next) return false;
   const was = s.conditions === undefined ? undefined : sanitizeBedConditions(s.conditions) ?? {};
-  if (was === undefined ? !Object.keys(next).length : JSON.stringify(was) === JSON.stringify(next)) return false;
-  flushHistoryDebounce();
-  s.conditions = next;
+  const cleared = !Object.keys(next).length;
+  if (was === undefined ? cleared : canonical(was) === canonical(next)) return false;
+  if (cleared && !mayMark('conditions', s.id)) {
+    flushHistoryDebounce();
+    delete s.conditions;
+  } else {
+    flushHistoryDebounce();
+    s.conditions = next;
+  }
   pushHistory(`set the conditions of ${stepNamed([s])}`);
   save();
   return true;
 }
+/** The questions setBedConditions takes (src/types.ts BedAnswers). */
+const ASKED_HERE = new Set(['sun', 'soil', 'moisture', 'drip']);
 
 // ---- Roles ----
 /**

@@ -53,7 +53,8 @@ The history (src/db.ts keeps it beside `DB_VERSION`):
   device that has it keeps it when the server's copy has none, src/sync/engine.ts `withFruitDismissals`.)
 - 4 (Nov 2): no store or record changed. Beds' `conditions` (Plant this bed: soil, moisture, drip, and sun where no
   sun area covers the bed), which a version-3 page would drop, saving or syncing a plan. A version-3 page's journal,
-  written without them, is kept apart from a plan saved at 4, not put over it. (Sync: `withBedConditions`, below.)
+  written without them, is kept apart from a plan saved at 4, not put over it. (Sync: `withBedConditions`, below.) Sync
+  records gain `marks` (Nov 4: where a cleared mark may go, below), which no page before it writes or reads.
 
 When raising it:
 1. Add a line to the history beside `DB_VERSION`: the version, the day, what changed.
@@ -112,7 +113,9 @@ see it. So each device of this version keeps its own when the server's copy of t
 words (dismissed for that plant alone), or `''` (shown again on purpose: Show again, or Undo taking one away), which
 is never filled back from another device's words. A `''` reads as none in the plan's fingerprint, so a dismissal taken
 back before the plan synced isn't a change of its own (no conflict copy against another device's edit), while words
-to `''` still is, and goes up.
+to `''` still is, and goes up. Since Nov 4, `''` goes only where the server's copy had a dismissal on that copy when
+this device last sent or took the plan (src/marks.ts `mayMark`, the same rule as a bed's `{}`, below). Dismissed here
+and taken away before it was ever sent, it goes, as it was.
 
 The window left: a device offline through another device's Show again, with a device on the release sending the plan
 in between, still has the words, and the server's copy no longer says otherwise. It keeps them; if it sends the plan
@@ -124,33 +127,60 @@ first, its `''` goes up and the offline one takes it. Only while one of the acco
 A bed's conditions (Plant this bed, Nov 2: src/types.ts `BedConditions`) are stored on the bed shape, answers only:
 its soil, its moisture, drip irrigated, and its sun where no sun area covers it (the sun worked out from sun areas is
 never stored). `migrateShape` keeps them on a bed only, each part checked: a word a later version adds is kept as it
-came; a part that isn't one is dropped and the rest kept, never the plan; a question it doesn't know is dropped, as any
-field it doesn't know is. `{}` is cleared on purpose, kept, and fingerprinted as none, as a `''` dismissal is.
+came, and so is a question a later version adds whose answer is a word or true (dropped, it would be lost for everyone
+the next time this device sent the plan); a part that isn't one is dropped and the rest kept, never the plan. `{}` is
+cleared on purpose, kept, and read as none wherever two copies are compared for what they hold (the sync fingerprints,
+a journal against its plan, an imported plan against one already here: src/sync/engine.ts `withoutClearedMarks`), as a
+`''` dismissal is.
 
 How they travel within a plan:
 - **Duplicate** copies them with the bed; **Copy and Paste** carry them (pasted as a stored plan's shapes are read).
-- **Undo or Redo** taking them away leaves `{}` (src/history.ts `conditionsCleared`), so another device's copy isn't
-  filled back in.
+- **Where `{}` goes** (src/marks.ts `mayMark`): taking answers away (clearing them, or Undo or Redo) leaves `{}` only
+  on a bed whose answers the server's copy had when this device last sent or took the plan. Each sync record keeps
+  those beds' ids (its `marks`, src/sync/engine.ts `marksOf`, from the server's copy only, not this device's own parts
+  filled in), so it holds across restarts and goes with the records when the account changes. Anywhere else (set here
+  and taken away before they were ever sent, a plan that doesn't sync) they're none again, as they were: a `{}` would go
+  up with the next edit and take away, everywhere, answers another device has that this one never got, an older version
+  having dropped them on the way. Where it does go, the clear reaches every device, as it should. Saying no only ever
+  lets answers come back from another device's copy, never erases them: an upload whose answer was lost (a dropped
+  connection) isn't recorded, so a clear right after leaves none and the answers come back once from the server. So
+  does an edit from a device on release 3 between this device's send and its clear: the server's copy it then takes
+  has none, so the clear leaves none, and another device of this version brings the answers back with its next edit;
+  a second clear sticks. (The
+  independent review, Nov 4, in three rounds: through Undo, through clearing, and across a restart.) A fruit-partner
+  dismissal taken away follows the same rule (`''`).
+- **Undo or Redo** taking them away leaves `{}` by that rule (src/history.ts `conditionsCleared`).
 - A bed **made something else** loses them, in that step; a shape **made a bed** starts with `{}` (src/mutations.ts
   `setRoleForIds`), so conditions it had as a bed before, still on a device offline through both changes, aren't
   filled back in.
-- `setBedConditions` (src/mutations.ts) sets them as one step: nothing answered on a bed with some clears them to
-  `{}`; on a bed with none it does nothing (a `{}` there would take away, everywhere, answers another device has that
-  this one never got, an older version having dropped them on the way).
+- `setBedConditions` (src/mutations.ts) sets this version's answers as one step, the whole set of them (a question
+  left out, false or null is no answer: drip unticked), keeping a later version's questions on the bed as they are.
+  Nothing answered clears them, by the rule above; on a bed with none it does nothing. It takes only the questions this
+  version asks (`BedAnswers`), so a typo isn't kept as a later version's question.
+- **A rule for later versions:** a question they add must have a word or true as its answer, or a sync guard of its
+  own (like `withBedConditions`). This version keeps those and drops anything else, and its next upload would then lose
+  it everywhere. The same goes for a new form of an answer this version asks (a sun with hours, soil as a list).
 
-Versions before Nov 2 drop them: on this device the database version stops such a page (version 3 and before) saving
-over a plan saved at 4, and its journals are kept apart. Through sync, each device of this version keeps its own when
-the server's copy of that bed (its id, still a bed) has no `conditions` at all (src/sync/engine.ts
-`withBedConditions`), `{}` included, so a device that cleared them says so again with its next edit. The server's copy
-goes without them until a device that has them sends the plan again.
+Versions of database version 3 and before (release 3 is at 1, Next at 3 until this change) drop them: on this device the
+database version stops such a page saving over a plan saved at 4, and its journals are kept apart. Through sync, each
+device of this version keeps its own when the server's copy of that bed (its id, still a bed) has no `conditions` at all
+(src/sync/engine.ts `withBedConditions`), `{}` included, so a device that cleared them says so again with its next edit.
+The server's copy goes without them until a device that has them sends the plan again: until then they're only on the
+devices of this version that had them, and a device reset or signed out meanwhile takes its copy with it.
 
-The window left, as for `fruitDismissed` and wider: a device offline through another device's change to a bed's
-conditions (set, changed or cleared), with a device on an older version sending the plan in between, still has its
-own, which the server's copy no longer contradicts. It keeps them, and whichever of the two sends the plan first (any
-edit) decides for everyone: the offline one's older answers can replace the newer ones. Only while one of the account's
-devices is on a version before Nov 2. A device of this version that never had them (it took the plan only after an
-older version had sent it without them) shows none until a device that has them sends the plan again; answers set on
-it in the meantime go up and stand.
+The windows left, as for `fruitDismissed` and wider, all only while one of the account's devices is on database version
+3 or before and syncs: Next never signs in, so in practice a device still on release 3 (database version 1), until it
+updates:
+- A device offline through another device's change to a bed's conditions (set, changed or cleared), with a device on an
+  older version sending the plan in between, still has its own, which the server's copy no longer contradicts. It keeps
+  them, and whichever of the two sends the plan first (any edit) decides for everyone: the offline one's older answers
+  can replace the newer ones.
+- A device on an older version turns the bed into something else and back (a bed, then lawn, then a bed). A device of
+  this version that missed both changes still has the answers, sees a bed with none on the server, and keeps them; its
+  next edit brings them back for everyone. (The `{}` a shape made a bed starts with covers this only when a device of
+  this version makes the change.)
+- A device of this version that never had them (it took the plan only after an older version had sent it without them)
+  shows none until a device that has them sends the plan again; answers set on it in the meantime go up and stand.
 
 ## Two tabs on the same version
 
