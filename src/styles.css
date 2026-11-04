@@ -854,6 +854,11 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .for-row { display: flex; align-items: center; gap: 8px; padding: 6px 0 6px 16px; border-bottom: 1px solid #e7e5e4; background: #fff; min-width: 0; }
 .for-label { flex: none; font-size: calc(13px * var(--ts)); font-weight: 600; color: #57534e; }
 .for-none { font-size: calc(13px * var(--ts)); color: #57534e; padding-right: 16px; }
+.sheet-body > .for-row { padding: 0 0 8px; border: 0; }
+.sheet-body > .for-row[hidden] { display: none; }
+@media (max-height: 760px) {
+  html[data-text="large"] .sheet-body > .for-row.no-beds, html[data-text="xlarge"] .sheet-body > .for-row.no-beds { display: none; }
+}
 .for-chips { display: flex; gap: 6px; overflow-x: auto; flex: 1; min-width: 0; padding: 2px 16px 2px 0; scrollbar-width: thin; }
 .for-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 4px 12px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; font-size: calc(13px * var(--ts)); color: #292524; white-space: nowrap; cursor: pointer; }
 .for-chip.on { background: #ecfdf5; border-color: #059669; color: #065f46; font-weight: 600; }

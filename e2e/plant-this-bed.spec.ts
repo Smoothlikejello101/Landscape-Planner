@@ -89,6 +89,12 @@ test('a plan with no beds: For Anywhere, and how to get a bed; not in Which tree
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
   await expect(forRow(page)).toHaveText('For:Anywhere · Draw a bed to plant for it');
+  // (Nothing to choose: it heads the list, folded away while a search is typed, as Recent is.)
+  await expect(page.locator('.sheet-top [data-testid=plant-for]')).toHaveCount(0);
+  await search(page).fill('aster');
+  await expect(forRow(page)).toBeHidden();
+  await page.getByTestId('clear-search').click();
+  await expect(forRow(page)).toBeVisible();
   await page.locator('.picker-sheet .sheet-header button.iconbtn').last().click();
   await addKind(page, 'tree');
   await expect(picker(page)).toBeVisible();

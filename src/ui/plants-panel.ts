@@ -27,7 +27,7 @@ import { bannedHere, escapeHere, escapeShort, gardenStateName, lawShort, loadWil
 import { plantDot, plantSpot } from '../plant-looks';
 import { dragsPicker, pickerHandle, pickerSheetClass, showShapes } from './picker-view';
 import { bedBox, forHint, forRow } from './plant-for';
-import { bedLayer, PART_NAME, PART_OF, setPartOff, SET_BY_BED, withFilters, type BedLayer, type BedPart } from '../bed-plant';
+import { bedLayer, bedsToPlant, PART_NAME, PART_OF, setPartOff, SET_BY_BED, withFilters, type BedLayer, type BedPart } from '../bed-plant';
 import { redrawCanvas } from '../canvas';
 import { noteView } from './render';
 import type { Shape } from '../types';
@@ -266,6 +266,12 @@ export function renderPlantsPanel() {
   const body = el('div', { className: 'sheet-body' });
   // ---- For: Anywhere, a bed, or Pick on the plan (src/ui/plant-for.ts). Chosen in place: the search keeps its keyboard.
   const forBar = showsFor ? forRow((bed) => forChanged(bed)) : null;
+  // (In view while the list scrolls, over the search, once the plan has a bed to choose. With none, "For: Anywhere · Draw
+  // a bed to plant for it" heads the list instead, folded away while a search is typed, as Recent is, and left off a short
+  // screen at Large and Extra large text (src/styles.css): nothing to choose, and the list keeps its room on a small
+  // phone, as the picker bug hunt asked, Nov 1.)
+  const forSticky = forBar && bedsToPlant(state.shapes).length ? forBar : null;
+  if (forBar && !forSticky) forBar.hidden = typingFold;
   /**
    * The bed planted for, as a layer over the filters (src/bed-plant.ts): its conditions filter the list, the person's
    * own Sun, Water needs, Drought tolerant, Takes wet soil and Clay OK set aside meanwhile, untouched. Null: anywhere.
@@ -273,6 +279,7 @@ export function renderPlantsPanel() {
   let layer: BedLayer | null = showsFor ? bedLayer() : null;
   /** Under it, at the list's top: what a bed would do (For anywhere), or the bed's box (For a bed). */
   const forTop = el('div', { className: 'for-top', 'data-testid': 'for-top' });
+  if (forBar && !forSticky) body.appendChild(forBar);
   if (showsFor) body.appendChild(forTop);
   function forChanged(bed: Shape | null) {
     syncFor();
@@ -1014,6 +1021,7 @@ export function renderPlantsPanel() {
   function foldTops(on: boolean) {
     typingFold = on;
     if (recentField) recentField.hidden = on || !!layer;
+    if (forBar && !forSticky) forBar.hidden = on;
     if (topLine) topLine.hidden = on;
   }
   /**
@@ -1062,7 +1070,7 @@ export function renderPlantsPanel() {
     relabel();
     sel.addEventListener('change', () => { plantFilter[key] = sel.value; relabel(); rebuildList(); });
     syncers.push(() => { sel.value = String(plantFilter[key]); relabel(); });
-    // (Set by the bed planted for: "Sun: set by Front bed", the person's own kept as it was, for Anywhere again.)
+    // (Set by the bed planted for: "Set by Front bed", the person's own kept as it was, for Anywhere again.)
     if (SET_BY_BED.includes(key)) {
       const by = el('option', { value: '@bed', 'data-testid': 'set-by' });
       by.hidden = true;
@@ -1369,7 +1377,7 @@ export function renderPlantsPanel() {
   const compare = compareBar(compareHost);
   // (Half height on a phone, its handle at the top; a panel beside the plan on a computer: src/ui/picker-view.ts.)
   dragsPicker(header);
-  const sheet = el('div', { className: pickerSheetClass() }, el('div', { className: 'sheet-top' }, pickerHandle(), header, forBar, searchBar), body, compare.el);
+  const sheet = el('div', { className: pickerSheetClass() }, el('div', { className: 'sheet-top' }, pickerHandle(), header, forSticky, searchBar), body, compare.el);
   // Typing: the start of the results in view, under the search (scrolling only; the keyboard stays). Back up to it from
   // far down the list; or down to it, past what's above it, where the first result is out of sight below (Jason, Nov
   // 1, from the UI review). The filters' chips, a word of need's among them, stay in view above it.

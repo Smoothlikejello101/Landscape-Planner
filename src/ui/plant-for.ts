@@ -21,7 +21,7 @@ export function forRow(chosen: (bed: Shape | null) => void): HTMLElement {
   const beds = bedsToPlant(state.shapes);
   const now = plantingFor();
   if (!beds.length) {
-    return el('div', { className: 'for-row', 'data-testid': 'plant-for' },
+    return el('div', { className: 'for-row no-beds', 'data-testid': 'plant-for' },
       el('span', { className: 'for-label' }, 'For:'), el('span', { className: 'for-none' }, 'Anywhere · Draw a bed to plant for it'));
   }
   const chips: HTMLButtonElement[] = [];
@@ -85,7 +85,8 @@ export function boxNote(l: BedLayer): string {
   } else if (l.rules.sun) parts.push('Sun as you said it: no sun area covers the bed.');
   if (l.rules.soil === 'loam' || l.rules.soil === 'sand') parts.push(`${l.rules.soil === 'loam' ? 'Loam' : 'Sandy'} soil doesn’t filter yet: the plant facts don’t have it.`);
   if (l.rules.drip && (l.rules.moisture === 'dry' || l.rules.moisture === 'average')) parts.push('Drip irrigated: any water need fits.');
-  parts.push('Only plants whose facts fit are listed; nothing is ranked.');
+  // (Answered Not sure, or loam: nothing filters, and it says so.)
+  parts.push(l.chips.length ? 'Only plants whose facts fit are listed; nothing is ranked.' : 'Nothing set filters the list: every plant is listed.');
   return parts.join(' ');
 }
 /** Whether a bed has nothing answered and no sun worked out: the box asks for its conditions. */
