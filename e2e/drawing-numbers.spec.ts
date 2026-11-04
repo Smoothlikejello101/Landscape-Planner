@@ -185,7 +185,7 @@ test('a finger on a point: its angle and its two sides read out at least 80 px a
   for (const [x, y] of [[2, 3], [11, 3], [11, 9], [2, 9], [2, 3]]) await tapFt(page, x, y); // (its top 72 px down the plan, under the strip of words while drawing)
   await page.getByTestId('pill-edit-points').click();
   const cdp = await page.context().newCDPSession(page);
-  const touch = (type: string, p?: { x: number; y: number }) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: p ? [{ x: p.x, y: p.y }] : [] });
+  const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', p?: { x: number; y: number }) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: p ? [{ x: p.x, y: p.y }] : [] });
   const box = async (l: ReturnType<Page['locator']>) => (await l.boundingBox())!;
   const corner = async (i: number) => { const b = await box(page.locator(`#canvas-svg [data-role=vertex][data-index="${i}"]`)); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; };
   // The bottom right corner, pressed: before it moves, the readouts are up above the finger, in a row.
