@@ -336,7 +336,13 @@ function pulseTarget(step: StepId): string | null {
     case 'bed': return !p && !state.draw ? '.tool-btn.bed' : null;
     case 'fade': return p === 'bg' ? '[data-testid=bg-opacity]' : null;
     case 'sun': return p === 'add' ? '.kind-chip[data-kind=sun]' : p === 'props' ? '[data-testid=sun-empty]' : null;
-    case 'plant': return p === 'plants' ? '[data-testid=plant-search]' : null;
+    // (The search and Filters together, till something's typed or Filters is opened: Jason, Nov 4, "should we pulse
+    // filters as well? At the very least if they open filters we should stop pulsing search.")
+    case 'plant': {
+      if (p !== 'plants') return null;
+      const open = document.querySelector('[data-testid=filters]')?.getAttribute('aria-expanded') === 'true';
+      return plantFilter.q.trim() || open ? null : '[data-testid=plant-search], [data-testid=filters]';
+    }
     default: return null;
   }
 }
@@ -395,13 +401,20 @@ function drawIntro(root: HTMLElement): void {
   // (Step 3b: the house itself pulses, on the plan, till it's selected.)
   if (step === 'lock' && !choosing && !state.panel) { const h = newestHouse(); if (h && !houseSelected(h)) pulseShape(h.id); }
   const sel = step && !choosing ? pulseTarget(step) : null;
-  const target = sel ? root.querySelector<HTMLElement>(sel) : null;
-  target?.classList.add('intro-pulse');
+  const targets = sel ? [...root.querySelectorAll<HTMLElement>(sel)] : [];
+  for (const t of targets) t.classList.add('intro-pulse');
+  const target = targets[0];
   // (The ZIP typed: the pulse moves on to Look up there and then, without a redraw, which typing never makes.)
   if (target?.dataset.testid === 'zip') target.addEventListener('input', () => {
     target.classList.toggle('intro-pulse', !zipTyped());
     root.querySelector('[data-testid=zip-lookup]')?.classList.toggle('intro-pulse', zipTyped());
   });
+  // (Step 7: a search typed, or Filters opened, and neither pulses, there and then: neither redraws the page.)
+  if (step === 'plant' && targets.length) {
+    const stop = () => { for (const t of targets) t.classList.remove('intro-pulse'); };
+    root.querySelector('[data-testid=plant-search]')?.addEventListener('input', stop);
+    root.querySelector('[data-testid=filters]')?.addEventListener('click', stop);
+  }
 }
 
 /**

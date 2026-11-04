@@ -5,5 +5,6 @@
   "The guided introduction is now called Guided start, in Help and on a blank plan. A blank plan always offers it, even after “I’ll explore”, until it’s under way on that plan.",
   "Guided start teaches locking your house as a step of its own, from the house’s panel: open the house, then switch Unlocked at the top to Locked. The note in a locked shape’s panel now names that same Locked button to unlock it.",
   "Guided start’s sun step now asks: “Is it a shady spot? Sunny? Draw an area and show how much sun it gets.”",
-  "Guided start’s “Who’s in your yard?” has “None of these”: it records that there’s no one to protect, so the plant picker keeps that question under Filters instead of asking it first."
+  "Guided start’s “Who’s in your yard?” has “None of these”: it records that there’s no one to protect, so the plant picker keeps that question under Filters instead of asking it first.",
+  "In Guided start’s “Find a plant”, the search box and Filters both glow to show where to start, and both stop once you type a search or open Filters."
 ]

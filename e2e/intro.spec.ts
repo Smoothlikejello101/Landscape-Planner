@@ -318,7 +318,14 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await expect(page.getByTestId('hardy-here')).toBeChecked();
   await expect(page.locator('.sheet')).toContainText('Not listed as poisonous to people');
   await expect(page.locator('.sheet')).toContainText('No dog warnings');
+  // The search and Filters pulse together (Jason, Nov 4); Filters opened, neither does.
   await expect(page.getByTestId('plant-search')).toHaveClass(/intro-pulse/);
+  await expect(page.getByTestId('filters')).toHaveClass(/intro-pulse/);
+  await page.getByTestId('filters').click();
+  await expect(page.getByTestId('filters')).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.getByTestId('plant-search')).not.toHaveClass(/intro-pulse/);
+  await expect(page.getByTestId('filters')).not.toHaveClass(/intro-pulse/);
+  await page.getByTestId('filters').click(); // (folded again)
   await page.getByTestId('plant-search').fill('Forsythia');
   await page.locator('.sheet .proj-row').first().getByTestId('plant-place').click();
   await tapFromCenter(page, -2, 3);
@@ -344,6 +351,24 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await expect(page.locator('.project-btn .pname')).toBeVisible();
   await page.locator('.tool-btn.plants').click();
   await expect(page.locator('.sheet')).toContainText('No dog warnings');
+});
+
+test('step 7 pulses the search and Filters together; a search typed, neither pulses (Jason, Nov 4)', async ({ page }) => {
+  await start(page);
+  for (const n of ['1', '2', '3', '4', '5', '6']) {
+    await expect(step(page)).toHaveText(`Step ${n} of 8`);
+    await page.getByTestId('intro-skip').click();
+  }
+  await expect(step(page)).toHaveText('Step 7 of 8');
+  await page.getByTestId('intro-go').click();
+  const search = page.getByTestId('plant-search'), filters = page.getByTestId('filters');
+  await expect(search).toHaveClass(/intro-pulse/);
+  await expect(filters).toHaveClass(/intro-pulse/);
+  await expect(filters).toHaveAttribute('aria-expanded', 'false');
+  await search.pressSequentially('Fo');
+  await expect(search).not.toHaveClass(/intro-pulse/);
+  await expect(filters).not.toHaveClass(/intro-pulse/);
+  await expect(search).toBeFocused(); // (typing redraws nothing: the keyboard stays up)
 });
 
 test('Back and Skip; Exit keeps the step, and Guided start (⋮ → Help) offers to pick up there or start over', async ({ page }) => {
