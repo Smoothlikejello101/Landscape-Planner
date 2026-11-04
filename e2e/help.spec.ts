@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { openFresh, placeOnceAtCenter } from './helpers';
 
 // Help (Jason, Nov 2, from the UI review: "'Show me around' becomes Help: 'How do I…' print, get a plant list, back
-// up, undo, add my own plant, take the tour"). ⋮ → Help: Take the tour; "How do I…", each answer a few lines and a
+// up, undo, add my own plant, take the tour"). ⋮ → Help: Guided start (Nov 4: "Take the tour" renamed); "How do I…", each answer a few lines and a
 // button that goes there; Send feedback; the privacy policy and terms (src/ui/help-sheet.ts, src/help.ts).
 
 const QUESTIONS = [
@@ -51,7 +51,7 @@ test('⋮ has Help where Show me around was; it lists "How do I…", folded, the
   await expect(page.getByTestId('menu-help')).toHaveText('Help');
   await page.getByTestId('menu-help').click();
   await expect(sheetTitle(page)).toHaveText('Help');
-  await expect(page.getByTestId('help-tour')).toHaveText('Take the tour');
+  await expect(page.getByTestId('help-tour')).toHaveText('Guided start'); // (its name everywhere: Jason, Nov 4)
   await expect(page.locator('#help-how')).toHaveText('How do I…');
   await expect(page.locator('.help-q')).toHaveText(QUESTIONS);
   // Folded to start: a question opens to its answer, and closes again, in place.
@@ -84,9 +84,9 @@ test('⋮ has Help where Show me around was; it lists "How do I…", folded, the
   await expect(help(page)).toHaveCount(0);
 });
 
-test('Take the tour starts the guided tour, as Show me around did', async ({ page }) => {
+test('Guided start starts the guided introduction, as Show me around did', async ({ page }) => {
   await openFresh(page);
-  await page.getByTestId('intro-decline').click(); // ("I'll explore": the tour waits in Help)
+  await page.getByTestId('intro-decline').click(); // ("I'll explore": it waits in Help)
   await openHelp(page);
   await page.getByTestId('help-tour').click();
   await expect(help(page)).toHaveCount(0);

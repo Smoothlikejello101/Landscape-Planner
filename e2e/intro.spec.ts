@@ -12,7 +12,7 @@ const card = (page: Page) => page.getByTestId('intro-card');
 const step = (page: Page) => page.getByTestId('intro-step');
 const drawBar = (page: Page) => page.getByTestId('draw-bar');
 
-/** ⋮ → Help → Take the tour (it was ⋮ → Show me around: Jason, Nov 2). */
+/** ⋮ → Help → Guided start (it was ⋮ → Show me around: Jason, Nov 2; Take the tour till Nov 4). */
 async function takeTour(page: Page) {
   await page.locator('button[title=More]').click();
   await page.getByTestId('menu-help').click();
@@ -62,17 +62,28 @@ async function bed(page: Page, go = true) {
   await drawBar(page).getByRole('button', { name: 'Done' }).click();
 }
 
-test('an empty plan offers it; "I\'ll explore" puts it away for good, and ⋮ → Help still has it', async ({ page }) => {
+test('an empty plan offers Guided start; after "I\'ll explore" it\'s small, in its place, while the plan is blank and it isn\'t under way; ⋮ → Help has it too (Jason, Nov 4)', async ({ page }) => {
   await openFresh(page);
-  await expect(page.getByTestId('intro-start')).toHaveText('New here? Show me around');
+  await expect(page.getByTestId('intro-start')).toHaveText('New here? Guided start');
+  await expect(page.getByTestId('guided-start')).toHaveCount(0); // (one offer at a time)
   await page.getByTestId('intro-decline').click();
   await expect(page.getByTestId('intro-start')).toHaveCount(0);
+  await expect(page.getByTestId('guided-start')).toHaveText('Guided start');
   await expect(page.getByTestId('start-photo')).toBeVisible(); // (the rest of the empty plan's card stays)
   await page.reload();
   await expect(page.locator('.project-btn .pname')).toBeVisible();
   await expect(page.getByTestId('intro-start')).toHaveCount(0);
-  await takeTour(page);
+  await expect(page.getByTestId('guided-start')).toBeVisible();
+  // Started from there: under way, the blank plan's card steps aside for its own.
+  await page.getByTestId('guided-start').click();
   await expect(step(page)).toHaveText('Step 1 of 8');
+  await expect(page.getByTestId('first-screen')).toHaveCount(0);
+  // Closed part way: offered small again (to pick up, or start over).
+  await page.getByTestId('intro-exit').click();
+  await expect(page.locator('#toast')).toContainText('Guided start closed. To pick it up again: ⋮ → Help → Guided start.');
+  await expect(page.getByTestId('guided-start')).toBeVisible();
+  await takeTour(page);
+  await expect(step(page)).toHaveText('Step 1 of 8'); // (left at step 1: nothing to pick up, so it starts)
 });
 
 // The first screen (Jason, Nov 1, from the UI review): what FullGrown does, the garden's ZIP right there, the tour,
@@ -90,7 +101,7 @@ test('the first screen says what FullGrown does, takes the ZIP right there, and 
   await openFresh(page);
   await expect(page.getByTestId('first-line')).toHaveText('Plan your garden to scale, with plants that suit it.');
   await expect(page.getByTestId('first-zip-box')).toContainText('For its hardiness zone, frost dates and your state’s plant laws. Privacy');
-  await expect(page.getByTestId('intro-start')).toHaveText('New here? Show me around'); // (the tour still offered)
+  await expect(page.getByTestId('intro-start')).toHaveText('New here? Guided start'); // (Guided start still offered)
   // Not focused by itself: on a phone its keyboard would come up unasked for, and with a keyboard the plan's own
   // keys would go into it.
   await expect(page.getByTestId('first-zip')).not.toBeFocused();
@@ -138,23 +149,27 @@ test('restoring one plan\'s file from the first screen opens it', async ({ page 
   await expect(page.getByTestId('first-screen')).toHaveCount(0);
 });
 
-test('the first screen fits a 360 × 640 phone at every text size, clear of the zoom buttons (Jason, Nov 1)', async ({ page }) => {
+test('the first screen fits a 360 × 640 phone at every text size, clear of the zoom buttons (Jason, Nov 1), with Guided start offered at its top or small (Nov 4)', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 640 });
   await page.addInitScript(() => localStorage.setItem('lp-zoom-buttons', 'off')); // (as a phone starts)
   await openFresh(page);
-  for (const size of ['small', 'medium', 'large', 'xlarge']) {
-    await page.evaluate((s) => localStorage.setItem('lp-text-size-2', s), size);
-    await page.reload();
-    await expect(page.locator('html')).toHaveAttribute('data-text', size);
-    const canvas = (await page.locator('#canvas-wrap').boundingBox())!;
-    const column = (await page.locator('.zoombtns').boundingBox())!;
-    for (const id of ['first-line', 'first-zip', 'first-zip-lookup', 'intro-start', 'intro-decline', 'start-photo', 'restore-backup']) {
-      const b = (await page.getByTestId(id).boundingBox())!;
-      expect(b, `${id} at ${size}`).toBeTruthy();
-      expect(b.y, `${id} at ${size}`).toBeGreaterThanOrEqual(canvas.y);
-      expect(b.y + b.height, `${id} at ${size}`).toBeLessThanOrEqual(canvas.y + canvas.height);
-      const clear = b.x + b.width <= column.x || b.y >= column.y + column.height;
-      expect(clear, `${id} at ${size} clear of the zoom buttons`).toBe(true);
+  const offers = [['intro-start', 'intro-decline'], ['guided-start']];
+  for (const offer of offers) {
+    if (offer[0] === 'guided-start') await page.getByTestId('intro-decline').click(); // ("I'll explore": small from now on)
+    for (const size of ['small', 'medium', 'large', 'xlarge']) {
+      await page.evaluate((s) => localStorage.setItem('lp-text-size-2', s), size);
+      await page.reload();
+      await expect(page.locator('html')).toHaveAttribute('data-text', size);
+      const canvas = (await page.locator('#canvas-wrap').boundingBox())!;
+      const column = (await page.locator('.zoombtns').boundingBox())!;
+      for (const id of ['first-line', 'first-zip', 'first-zip-lookup', ...offer, 'start-photo', 'restore-backup']) {
+        const b = (await page.getByTestId(id).boundingBox())!;
+        expect(b, `${id} at ${size}`).toBeTruthy();
+        expect(b.y, `${id} at ${size}`).toBeGreaterThanOrEqual(canvas.y);
+        expect(b.y + b.height, `${id} at ${size}`).toBeLessThanOrEqual(canvas.y + canvas.height);
+        const clear = b.x + b.width <= column.x || b.y >= column.y + column.height;
+        expect(clear, `${id} at ${size} clear of the zoom buttons`).toBe(true);
+      }
     }
   }
 });
@@ -285,7 +300,7 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await expect(page.locator('#toast', { hasText: 'dashed ring is full size' })).toHaveCount(0); // (the card says it: no hint too)
   await page.getByTestId('intro-done').click();
   await expect(card(page)).toHaveCount(0);
-  await expect(page.locator('#toast')).toContainText("That's the tour");
+  await expect(page.locator('#toast')).toContainText("That's the end of the guided start. Add more plants, or open Add for paths, lawn, fences and the rest. To go through it again: ⋮ → Help → Guided start.");
   expect(await shapeCount(page)).toBe(4);
   // Finished: not offered again, and kids and dogs are still in the picker's filters after a reload.
   await page.reload();
@@ -303,7 +318,7 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await expect(page.locator('.sheet')).toContainText('No dog warnings');
 });
 
-test('Back and Skip; Exit keeps the step, and Take the tour (⋮ → Help) offers to pick up there or start over', async ({ page }) => {
+test('Back and Skip; Exit keeps the step, and Guided start (⋮ → Help) offers to pick up there or start over', async ({ page }) => {
   await start(page);
   await page.getByTestId('intro-skip').click();
   await expect(step(page)).toHaveText('Step 2 of 8');
@@ -320,12 +335,12 @@ test('Back and Skip; Exit keeps the step, and Take the tour (⋮ → Help) offer
   await expect(page.locator('.project-btn .pname')).toBeVisible();
   await expect(card(page)).toHaveCount(0); // (exited: it waits in ⋮ → Help)
   await takeTour(page);
-  await expect(card(page).locator('.intro-title')).toHaveText('Take the tour');
+  await expect(card(page).locator('.intro-title')).toHaveText('Guided start');
   await expect(page.getByTestId('intro-resume')).toHaveText('Pick up at step 4, A bed');
   await page.getByTestId('intro-resume').click();
   await expect(step(page)).toHaveText('Step 4 of 8');
   await page.getByTestId('intro-exit').click();
-  await expect(page.locator('#toast')).toContainText('Tour closed. To pick it up again: ⋮ → Help → Take the tour.');
+  await expect(page.locator('#toast')).toContainText('Guided start closed. To pick it up again: ⋮ → Help → Guided start.');
   await takeTour(page);
   await page.getByTestId('intro-over').click();
   await expect(step(page)).toHaveText('Step 1 of 8');

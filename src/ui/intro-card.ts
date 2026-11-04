@@ -62,7 +62,7 @@ export function snapshot(): Snapshot {
   };
 }
 
-/** Whether the empty plan offers it ("New here? Show me around"): not once it's been started, finished or declined. */
+/** Whether the empty plan offers it at the top of its card ("New here? Guided start"): not once it's been started, finished or declined. */
 export const introOffered = (): boolean => rec.status === 'never';
 /**
  * The plan it's under way on (Jason, Nov 4: it stays with the plan it was started on; another plan opened, its card
@@ -71,9 +71,18 @@ export const introOffered = (): boolean => rec.status === 'never';
 const onThisPlan = (): boolean => rec.project == null || rec.project === state.currentProjectId;
 /** Under way on the open plan: its card is up (or steps aside while drawing). On another plan, it waits there. */
 export const introActive = (): boolean => rec.status === 'active' && onThisPlan();
-/** "I'll explore": not offered again (it stays in ⋮ → Help, Take the tour). */
+/**
+ * "I'll explore": not offered at the top of the card again. It stays in ⋮ → Help, and a blank plan's card still has
+ * it, small (guidedStartSmall).
+ */
 export function declineIntro(): void { rec.status = 'declined'; save(); }
 
+/**
+ * Whether a blank plan's card offers Guided start small (Jason, Nov 4: "we should add 'take the tour' to the canvas of a
+ * blank plan"): whenever it isn't offered at the top and isn't under way here, after "I'll explore", an Exit or the end
+ * too (it went for good after "I'll explore"). Not while the card asks "pick up or start over".
+ */
+export const guidedStartSmall = (): boolean => !introOffered() && !introActive() && !choosing;
 /** Begin at the first step (or `at`), fresh: what's done on the plan before it counts from here on. */
 function begin(at: StepId | null): void {
   const s = snapshot();
@@ -82,11 +91,11 @@ function begin(at: StepId | null): void {
   choosing = false;
   save();
 }
-/** Whether the card is asking "pick up or start over" (⋮ → Help → Take the tour after an Exit). */
+/** Whether the card is asking "pick up or start over" (⋮ → Help → Guided start after an Exit). */
 let choosing = false;
 /**
- * Take the tour (⋮ → Help), or the empty plan's "New here? Show me around". Left part way: asks whether to pick up
- * where they left or start over. Otherwise it starts from step 1.
+ * Guided start (⋮ → Help, or a blank plan's card: "New here? Guided start", or the small one). Left part way: asks
+ * whether to pick up where they left or start over. Otherwise it starts from step 1.
  */
 export function showMeAround(): void {
   // (Under way already, or left part way: pick up there, or start over.)
@@ -99,7 +108,7 @@ export function showMeAround(): void {
 function exit(): void { if (rec.status === 'active') rec.status = 'exited'; choosing = false; wasHere = false; save(); }
 function finish(): void {
   rec.status = 'finished'; rec.step = null; choosing = false; save();
-  toast('That\'s the tour. Add more plants, or open Add for paths, lawn, fences and the rest. To take it again: \u22ee \u2192 Help \u2192 Take the tour.', 9000);
+  toast('That\'s the end of the guided start. Add more plants, or open Add for paths, lawn, fences and the rest. To go through it again: \u22ee \u2192 Help \u2192 Guided start.', 9000);
 }
 /** Move on from the current step: done or skipped. */
 function advance(how: 'done' | 'skipped'): void {
@@ -439,15 +448,15 @@ function keepSubjectClear(step: StepId, card: HTMLElement): void {
 }
 function cardShell(compact: boolean): HTMLElement {
   const where = state.panel ? ' at-top' : hasKeyboard() ? ' corner' : '';
-  return el('section', { className: 'intro-card' + where + (compact || state.panel ? ' compact' : ''), 'data-testid': 'intro-card', 'aria-label': 'Guided introduction' });
+  return el('section', { className: 'intro-card' + where + (compact || state.panel ? ' compact' : ''), 'data-testid': 'intro-card', 'aria-label': 'Guided start' });
 }
 function exitButton(): HTMLElement {
-  const x = el('button', { className: 'intro-exit', html: I.x, 'aria-label': 'Exit the introduction', title: 'Exit (your progress is kept)', 'data-testid': 'intro-exit' });
+  const x = el('button', { className: 'intro-exit', html: I.x, 'aria-label': 'Exit Guided start', title: 'Exit (your place is kept)', 'data-testid': 'intro-exit' });
   x.addEventListener('click', () => {
     exit();
     render();
     // (Where it's kept, said as it goes: Jason, Nov 2, from the UI review.)
-    toast('Tour closed. To pick it up again: \u22ee \u2192 Help \u2192 Take the tour.', 6000);
+    toast('Guided start closed. To pick it up again: \u22ee \u2192 Help \u2192 Guided start.', 6000);
   });
   return x;
 }
@@ -509,7 +518,7 @@ function resumeCard(): HTMLElement {
   const card = cardShell(false);
   const s = snapshot();
   const at = resumeStep(rec, s);
-  card.appendChild(el('div', { className: 'intro-head' }, el('span', { className: 'intro-title' }, 'Take the tour'), exitButton()));
+  card.appendChild(el('div', { className: 'intro-head' }, el('span', { className: 'intro-title' }, 'Guided start'), exitButton()));
   const actions = el('div', { className: 'intro-actions column' });
   if (at) {
     const pick = el('button', { className: 'btn primary', 'data-testid': 'intro-resume' }, `Pick up at step ${STEP_NUMBER[at]}, ${STEP_TITLE[at]}`);

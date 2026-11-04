@@ -299,7 +299,7 @@ test('the tour: one × with a sheet open; leaving says where to pick it up; the 
   // Leaving the tour says where it waits.
   await page.getByTestId('intro-exit').click();
   await expect(tourCard(page)).toHaveCount(0);
-  await expect(page.locator('#toast')).toContainText('Tour closed. To pick it up again: ⋮ → Help → Take the tour.');
+  await expect(page.locator('#toast')).toContainText('Guided start closed. To pick it up again: ⋮ → Help → Guided start.');
 });
 
 test('setting a photo\'s scale, no notice covers the photo; a notice about a building keeps off it (item 7)', async ({ page }) => {

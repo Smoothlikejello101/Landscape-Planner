@@ -257,7 +257,7 @@ test('the order: an update’s card first, the second visit’s on the next; an 
   await expect(welcome(third)).toHaveCount(0);
   // The guided introduction under way: its card alone, after a gap and an update.
   await third.locator('button[title=More]').click();
-  await third.getByTestId('menu-help').click(); // (⋮ → Help → Take the tour, since #211)
+  await third.getByTestId('menu-help').click(); // (⋮ → Help → Guided start, since #211)
   await third.getByTestId('help-tour').click();
   await expect(third.getByTestId('intro-card')).toBeVisible();
   await third.evaluate(() => { localStorage.setItem('lp-app-version', '0.0.1'); localStorage.setItem('lp-whats-new', '0'); });

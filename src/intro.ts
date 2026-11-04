@@ -123,7 +123,7 @@ export function prevStep(from: StepId, s: Snapshot, done: readonly StepId[] = []
   for (const st of STEPS.slice(0, STEPS.indexOf(from)).reverse()) if (applies(st, s, done)) return st;
   return null;
 }
-/** Where Take the tour (⋮ → Help) picks up: the step they left, or the first not done. */
+/** Where Guided start (⋮ → Help) picks up: the step they left, or the first not done. */
 export function resumeStep(rec: IntroRecord, s: Snapshot): StepId | null {
   if (rec.step && applies(rec.step, s, rec.done) && !rec.done.includes(rec.step)) return rec.step;
   return nextStep(null, rec, s);
