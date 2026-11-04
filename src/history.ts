@@ -8,6 +8,7 @@ import { deepClone } from './util';
 import { mayMark } from './marks';
 import { describeShapes } from './ui/delete-selected';
 import { labelShown } from './names';
+import { forgetChangedSides } from './measured';
 
 // Undo/redo: in-memory snapshots of shapes + background image, per project.
 // The background's dataUrl string is shared between snapshots (strings are
@@ -28,6 +29,9 @@ export function pushHistory(label?: string) {
   // by a second Undo only: a Show again 600 ms before had left its timer running. Callers that can, flush first:
   // flushHistoryDebounce, so that edit stays a step of its own.)
   if (historyTimer) { clearTimeout(historyTimer); historyTimer = null; }
+  // (A side typed as a number that this step left at another length is forgotten, for good: src/measured.ts. Saved
+  // with the step's own save.)
+  for (const s of state.shapes) forgetChangedSides(s);
   // (What's bought stays as it was but for planting: a planted plant deleted gives no tick back. src/plant-list.ts.)
   const before = state.history[state.historyIndex];
   if (before) boughtKept(before.shapes);
