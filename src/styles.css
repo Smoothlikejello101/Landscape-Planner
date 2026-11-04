@@ -1260,7 +1260,8 @@ select:disabled { color: #0f766e; background: #f0fdfa; opacity: 1; }
 .strip-words { display: grid; flex: 1; min-width: 0; line-height: 1.35; }
 .strip-words > span, .strip-words::after { grid-area: 1 / 1; overflow-wrap: break-word; }
 .strip-words::after { content: attr(data-room); visibility: hidden; }
-/* A photo not to scale yet, in Layers: "Not to scale yet" ("Rough scale" until Nov 4), and the way to set it. */
+/* A photo not to scale yet, in Layers: "Not to scale yet", and the way to set it; "Rough scale", its scale set from a
+   rough guess (Nov 4), and the way to set it again. */
 .scale-flag { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; font-size: calc(11px * var(--ts)); font-weight: 700; white-space: nowrap; vertical-align: 1px; }
 .scale-line { padding: 0 16px 6px; color: #78350f; }
 .scale-line .link-btn { font-size: inherit; min-height: 44px; padding: 0 2px; }
@@ -1271,6 +1272,11 @@ select:disabled { color: #0f766e; background: #f0fdfa; opacity: 1; }
 .scale-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; }
 .scale-row .field { flex: 1 1 8em; margin-bottom: 0; }
 .scale-buttons { display: flex; gap: 8px; margin-left: auto; }
+/* "This length is a rough guess" (Nov 4): a row of its own under the length, its hint under it. */
+.scale-rough { margin-top: 8px; }
+.scale-rough .check-row { min-height: 40px; }
+.scale-rough .check-row input { width: 20px; height: 20px; margin: 0; flex: none; }
+.scale-rough .hint { margin: 0 0 0 28px; }
 .scale-hints { margin-top: 10px; padding-top: 8px; border-top: 1px solid #e7e5e4; font-size: calc(12px * var(--ts)); color: #57534e; line-height: 1.4; }
 .scale-hints b, .cal-hints b { color: #292524; font-weight: 600; }
 /* The same, on the strip above the plan while A and B are tapped: a line or two, under the banner's words. */

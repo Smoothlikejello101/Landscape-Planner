@@ -239,12 +239,19 @@ function backgroundSection(): HTMLElement {
   // the background sheet says it: "Rough scale" until Jason's note on #209, Nov 4: "uncalibrated isn't rough, it's just
   // uncalibrated". (What's kept with the photo since Oct 30, src/types.ts BgImage.uncalibrated: no new stored field.)
   const unscaled = bg.uncalibrated ? el('span', { className: 'scale-flag', 'data-testid': 'layers-bg-not-to-scale' }, 'Not to scale yet') : null;
-  wrap.appendChild(el('div', { className: 'role-row' + (bg.visible ? '' : ' hidden') }, eye, el('span', { className: 'name' }, 'Background image', ...(unscaled ? [' ', unscaled] : [])), more));
-  if (unscaled) {
-    const set = el('button', { className: 'link-btn', 'data-testid': 'layers-bg-set-scale' }, 'Set its scale');
+  // Its scale set from a length said to be a rough guess (the checkbox setting it: Jason on #209, Nov 4, "so they get a
+  // reminder about it later"): marked as one not to scale is, with the way to set it again. Never both: a scale not set
+  // yet isn't rough (src/types.ts BgImage.roughScale).
+  const rough = !unscaled && bg.roughScale ? el('span', { className: 'scale-flag', 'data-testid': 'layers-bg-rough' }, 'Rough scale') : null;
+  const flag = unscaled ?? rough;
+  wrap.appendChild(el('div', { className: 'role-row' + (bg.visible ? '' : ' hidden') }, eye, el('span', { className: 'name' }, 'Background image', ...(flag ? [' ', flag] : [])), more));
+  if (flag) {
+    const set = el('button', { className: 'link-btn', 'data-testid': 'layers-bg-set-scale' }, unscaled ? 'Set its scale' : 'Set its scale again');
     set.disabled = busy;
     set.addEventListener('click', () => startBgCalibration());
-    wrap.appendChild(el('div', { className: 'hint scale-line' }, 'Its size on the plan is a guess until its scale is set: what\u2019s traced over it is too. ', set));
+    wrap.appendChild(el('div', { className: 'hint scale-line' }, unscaled
+      ? 'Its size on the plan is a guess until its scale is set: what\u2019s traced over it is too. '
+      : 'Its scale was set from a length you guessed. ', set));
   }
   // Opacity: redraws the plan only, so the slider keeps its place (and the keyboard, on a phone).
   const pct = el('span', { className: 'count' }, Math.round(bg.opacity * 100) + '%');

@@ -228,10 +228,12 @@ export function render() {
 
   // Layers. While the plan's photo isn't to scale yet, a dot on it, said to screen readers too (Jason, his note on #209,
   // Nov 4: "Can we add a little notification badge if the image is uncalibrated?"): Layers marks it and sets its scale.
+  // The same dot for a photo whose scale was set from a rough guess (its box's checkbox: BgImage.roughScale).
   const unscaled = !!state.bgImage?.uncalibrated && !state.bgCalibrate;
+  const roughScale = !!state.bgImage?.roughScale && !state.bgImage.uncalibrated && !state.bgCalibrate;
   const layersBtn = el('button', { className: 'iconbtn', html: I.layers, title: 'Layers', 'data-testid': 'layers-btn',
-    'aria-label': unscaled ? 'Layers: the photo isn\u2019t to scale yet' : 'Layers' });
-  if (unscaled) layersBtn.appendChild(el('span', { className: 'scale-dot', 'data-testid': 'layers-scale-dot', 'aria-hidden': 'true' }));
+    'aria-label': unscaled ? 'Layers: the photo isn\u2019t to scale yet' : roughScale ? 'Layers: the photo\u2019s scale is a rough guess' : 'Layers' });
+  if (unscaled || roughScale) layersBtn.appendChild(el('span', { className: 'scale-dot', 'data-testid': 'layers-scale-dot', 'aria-hidden': 'true' }));
   layersBtn.addEventListener('click', () => { state.panel = 'layers'; render(); });
   topbar.appendChild(layersBtn);
 
