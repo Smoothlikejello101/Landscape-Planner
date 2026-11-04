@@ -25,7 +25,11 @@ import { plantDetails } from './plant-details';
 import { addCompareToggle, compareBar, compareMark, compareOver, pickerBeneath, refreshCompare, syncCompareMarks, type CompareHost } from './compare-sheet';
 import { bannedHere, escapeHere, escapeShort, gardenStateName, lawShort, loadWild, regulatedHere } from '../wild';
 import { plantDot, plantSpot } from '../plant-looks';
-import { dragsPicker, pickerHandle, pickerSheetClass } from './picker-view';
+import { dragsPicker, pickerHandle, pickerSheetClass, showShapes } from './picker-view';
+import { forHint, forRow } from './plant-for';
+import { redrawCanvas } from '../canvas';
+import { noteView } from './render';
+import type { Shape } from '../types';
 
 const dotColor = plantDot;
 /** The small flower before a row's bloom months, in the text's own color. */
@@ -243,6 +247,8 @@ export function renderPlantsPanel() {
   const forTree = !linking && state.pickerForTree;
   if (forTree) treeFiltersAside(); // (naming a tree in the yard: no shopping filters, src/plants.ts)
   const browsing = !swapping && !linking && !forTree && !state.placing;
+  // Plant this bed (Jason, Nov 2): which bed it's For, a row of its own at the top; not in Swap, Link or Which tree.
+  const showsFor = !swapping && !linking && !forTree;
   const title = swapping ? 'Swap for another plant' : linking ? 'Link to a plant' : forTree ? 'Which tree?' : state.placing ? 'Switch plant' : 'Plant Picker';
   // (The plain picker's count, of the plants it offers: written with the count line, from the same numbers. The UI
   // review, 2026-11-01: drawn before the garden's state's law came in, it said 3,747 beside "of 3,745".)
@@ -253,6 +259,23 @@ export function renderPlantsPanel() {
   );
 
   const body = el('div', { className: 'sheet-body' });
+  // ---- For: Anywhere, a bed, or Pick on the plan (src/ui/plant-for.ts). Chosen in place: the search keeps its keyboard.
+  const forBar = showsFor ? forRow((bed) => forChanged(bed)) : null;
+  /** Under it, at the list's top: what a bed would do (For anywhere), or the bed's box (For a bed). */
+  const forTop = el('div', { className: 'for-top', 'data-testid': 'for-top' });
+  if (showsFor) body.appendChild(forTop);
+  function forChanged(bed: Shape | null) {
+    syncFor();
+    rebuildList();
+    // (The bed in view beside or above the picker, and drawn outlined; the plan alone drawn again.)
+    if (bed) showShapes([bed]);
+    redrawCanvas(); noteView();
+  }
+  /** What's under the For row, as the bed now planted for has it. */
+  function syncFor() {
+    if (!showsFor) return;
+    forTop.replaceChildren(...[forHint()].filter((x): x is HTMLElement => !!x));
+  }
   const linkCount = 1 + state.pickerLinkAlso.length;
   if (swapping) body.appendChild(el('div', { className: 'banner', 'data-testid': 'swap-banner' }, linkCount > 1
     ? `Pick the plant to swap these ${linkCount} for. They keep their places, status and notes, and take its name, size and color.`
@@ -1244,6 +1267,7 @@ export function renderPlantsPanel() {
   body.appendChild(el('div', { className: 'picker-filters' }, topLine, foldRow, hardy.source, all, whyLine, activeRow));
   body.appendChild(countLine);
   body.appendChild(listWrap);
+  syncFor();
   rebuildList();
 
   // (Its full height whatever the list holds: a shorter list moved its top, and the search box and filters with it,
@@ -1252,7 +1276,7 @@ export function renderPlantsPanel() {
   const compare = compareBar(compareHost);
   // (Half height on a phone, its handle at the top; a panel beside the plan on a computer: src/ui/picker-view.ts.)
   dragsPicker(header);
-  const sheet = el('div', { className: pickerSheetClass() }, el('div', { className: 'sheet-top' }, pickerHandle(), header, searchBar), body, compare.el);
+  const sheet = el('div', { className: pickerSheetClass() }, el('div', { className: 'sheet-top' }, pickerHandle(), header, forBar, searchBar), body, compare.el);
   // Typing: the start of the results in view, under the search (scrolling only; the keyboard stays). Back up to it from
   // far down the list; or down to it, past what's above it, where the first result is out of sight below (Jason, Nov
   // 1, from the UI review). The filters' chips, a word of need's among them, stay in view above it.

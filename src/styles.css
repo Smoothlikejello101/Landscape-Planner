@@ -849,6 +849,32 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .search-row .search-wrap { flex: 1; min-width: 0; }
 .plan-toggle { flex: none; min-height: 40px; padding: 6px 12px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; font-size: calc(13px * var(--ts)); color: #44403c; white-space: nowrap; cursor: pointer; }
 .plan-toggle[aria-pressed=true] { background: #ecfdf5; border-color: #059669; color: #065f46; font-weight: 600; }
+/* Plant this bed (Jason, Nov 2): For, a row of its own over the search, in view while the list scrolls; its chips
+   scroll sideways with many beds. Then the bed's box at the list's top (src/ui/plant-for.ts). */
+.for-row { display: flex; align-items: center; gap: 8px; padding: 6px 0 6px 16px; border-bottom: 1px solid #e7e5e4; background: #fff; min-width: 0; }
+.for-label { flex: none; font-size: calc(13px * var(--ts)); font-weight: 600; color: #57534e; }
+.for-none { font-size: calc(13px * var(--ts)); color: #57534e; padding-right: 16px; }
+.for-chips { display: flex; gap: 6px; overflow-x: auto; flex: 1; min-width: 0; padding: 2px 16px 2px 0; scrollbar-width: thin; }
+.for-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 4px 12px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; font-size: calc(13px * var(--ts)); color: #292524; white-space: nowrap; cursor: pointer; }
+.for-chip.on { background: #ecfdf5; border-color: #059669; color: #065f46; font-weight: 600; }
+.for-chip:focus-visible { outline: 2px solid #059669; outline-offset: 1px; }
+.for-chip .sw-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.25); flex: none; }
+.for-pick { color: #0f766e; border-style: dashed; }
+.for-pick-icon { display: flex; }
+.for-pick-icon .icon { width: 16px; height: 16px; }
+.for-top:empty { display: none; }
+.for-hint { margin: 0 0 8px; }
+.bed-box { border: 1px solid #99f6e4; border-radius: 10px; background: #f0fdfa; padding: 8px 10px 8px; margin: 0 0 10px; }
+.bed-box-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.bed-box-title { font-size: calc(14px * var(--ts)); font-weight: 600; color: #134e4a; }
+.bed-box-head .link-btn { flex: none; font-size: calc(13px * var(--ts)); min-height: 32px; padding: 4px; }
+.bed-box-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
+.bed-chip { display: inline-flex; align-items: center; gap: 2px; min-height: 36px; padding: 2px 4px 2px 12px; border-radius: 999px; border: 1px solid #5eead4; background: #fff; color: #115e59; font-size: calc(13px * var(--ts)); cursor: pointer; }
+.bed-chip .chip-x { display: flex; width: calc(22px * var(--ts)); height: calc(22px * var(--ts)); align-items: center; justify-content: center; }
+.bed-chip .chip-x .icon { width: calc(14px * var(--ts)); height: calc(14px * var(--ts)); }
+.bed-chip.off { padding: 2px 12px 2px 6px; border-style: dashed; border-color: #a8a29e; color: #57534e; background: transparent; text-decoration: line-through; }
+.bed-chip:focus-visible { outline: 2px solid #059669; outline-offset: 1px; }
+.bed-box-note { font-size: calc(12px * var(--ts)); color: #44403c; line-height: 1.4; }
 /* The picker's filters (decided with Jason, 2026-10-25). */
 .checking-note { padding: 2px 0; }
 .checking-note .link-btn.inline { font-size: calc(12px * var(--ts)); min-height: 0; padding: 0; }
@@ -906,6 +932,7 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .flag-question { display: block; margin-top: 8px; font-size: calc(13px * var(--ts)); }
 /* (With the pinned search, a field scrolled into view isn't hidden behind it.) */
 .sheet:has(.sheet-top) { scroll-padding-top: 130px; }
+.sheet:has(.sheet-top .for-row) { scroll-padding-top: 180px; }
 .role-row.bg-opacity .name { flex: none; }
 .role-row.bg-opacity input[type="range"] { flex: 1; min-width: 0; }
 

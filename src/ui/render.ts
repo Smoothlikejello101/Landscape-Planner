@@ -64,6 +64,8 @@ import { placeTraceCard, traceCard, traceChips, traceShown } from './trace-card'
 import { setTraceState } from '../yard-in';
 import { panelOpened } from '../tap-guard';
 import { pickerViewClosed, placePicker, planLookOnly, showChosen } from './picker-view';
+import { pickingBed, plantingSettled } from '../bed-plant';
+import { PICK_SAID, stopPickingBed } from './plant-for';
 
 // MAIN RENDER
 // ============================================================
@@ -390,6 +392,13 @@ export function render() {
     strip.appendChild(banner);
   }
 
+  // Picking a bed for the picker on the plan (Plant this bed's Pick on the plan): one tap on a bed, then back.
+  if (pickingBed()) {
+    const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'pick-bed-banner', html: I.target });
+    banner.appendChild(words(tapSaid(PICK_SAID)));
+    strip.appendChild(banner);
+  }
+
   // Showing only some plants: say so, with a way back to everything.
   if (filterActive(state.viewFilter) && !state.draw && !state.editPoints && !state.bgCalibrate && !state.placing) {
     const f = state.viewFilter;
@@ -581,7 +590,7 @@ export function render() {
   }
 
   // Single-select pill (only when exactly 1 selected, no panel open, no multi-bar)
-  if (state.selectedIds.length === 1 && !state.panel && !drawing && !walking) {
+  if (state.selectedIds.length === 1 && !state.panel && !drawing && !walking && !pickingBed()) {
     const s = singleSelected();
     if (s) {
       const pill = el('div', { className: 'sel-pill' });
@@ -599,8 +608,15 @@ export function render() {
         pts.addEventListener('click', () => { startEditPoints(s.id); render(); });
         pill.appendChild(pts);
       }
-      // Another of the same: a plant placed, a tree or anything else drawn.
-      const more = moreOfSame([s], true);
+      // Another of the same: a plant placed, a tree or anything else drawn. A bed: Plant this bed, in its place (Jason,
+      // Nov 2, answer 1: the Bed button already starts another), the picker For it (src/bed-plant.ts).
+      const more = s.role === 'bed' ? null : moreOfSame([s], true);
+      if (s.role === 'bed') {
+        const b = el('button', { className: 'pill-more pill-plant-bed', 'data-testid': 'pill-plant-bed', title: 'Plant this bed: plants that fit its conditions' });
+        b.innerHTML = I.leaf + '<span>Plant this bed</span>';
+        b.addEventListener('click', () => { startKind('plant'); render(); }); // (For the bed selected: src/draw.ts)
+        pill.appendChild(b);
+      }
       if (more) {
         const b = el('button', { className: 'pill-more', 'data-testid': 'pill-place-more', title: more.title, 'aria-label': more.title });
         b.innerHTML = I.plus + '<span></span>'; b.querySelector('span')!.textContent = more.short;
@@ -640,7 +656,7 @@ export function render() {
   addBtn.addEventListener('click', () => { state.panel = 'add'; render(); });
   bottomBar.appendChild(addBtn);
   // (Through the year, the month's controls take the bar's place: src/ui/year-bar.ts.)
-  app.appendChild(state.placing ? renderPlaceBar() : state.featurePlace ? renderFeatureBar() : drawing ? renderDrawBar() : state.month != null ? renderYearBar() : bottomBar);
+  app.appendChild(pickingBed() ? renderPickBedBar() : state.placing ? renderPlaceBar() : state.featurePlace ? renderFeatureBar() : drawing ? renderDrawBar() : state.month != null ? renderYearBar() : bottomBar);
 
   root.appendChild(app);
   placeTraceCard(root); // (above a selected shape's chip, now it's laid out)
@@ -705,9 +721,11 @@ export function render() {
   // (The picker closed: its plants' detail groups fold again, Jason, 2026-10-29.)
   // (And "Anyone you need to protect?", answered in it, goes under Poison & pets for next time: src/ui/plants-panel.ts.)
   if (shownPanel === 'plants' && state.panel !== 'plants') { foldDetailGroups(); partnersClosed(); pickerClosed(); pickerViewClosed(); }
+  // (For a bed no longer, once nothing plants for it: src/bed-plant.ts.)
+  plantingSettled();
   // (The plants chosen to compare, and the comparison, go once the picker is left: kept only through the sheets it opens
   // that come back to it, Add or Copy as my plant, Compare and switch, the garden's ZIP. src/ui/compare-sheet.ts.)
-  if (!state.panel || !['plants', 'plantForm', 'switchPlant', 'location'].includes(state.panel)) compareClosed();
+  if (!state.panel || !['plants', 'plantForm', 'switchPlant', 'location', 'bedConditions'].includes(state.panel)) compareClosed();
   if (state.panel !== 'projects' && state.panel !== 'rename') projectsClosed();
   if ((state.panel && state.panel !== shownPanel) || (state.menu && state.menu !== shownMenu)) {
     panelOpened(); // (a tap on it a moment from now is the end of a double tap, not one meant for it: src/tap-guard.ts)
@@ -745,6 +763,15 @@ export function render() {
   if (openAtHouseScale()) { redrawCanvas(); updateStatusReadout(); }
   placeNotice(); // (a notice with buttons stays clear of an open sheet, and of the shape it's about, drawn now)
   maybeExplainFullSize();
+}
+
+/** Bottom bar while picking a bed for the picker: back to it as it was. */
+function renderPickBedBar(): HTMLElement {
+  const bar = el('div', { className: 'bottom-toolbar draw-bar', 'data-testid': 'pick-bed-bar' });
+  const back = el('button', { className: 'draw-btn', 'data-testid': 'pick-bed-cancel' }, 'Cancel');
+  back.addEventListener('click', () => { stopPickingBed(); render(); });
+  bar.append(back);
+  return bar;
 }
 
 /** Bottom bar while placing plants: the plant in hand (tap to switch), Undo, Done. */

@@ -13,6 +13,8 @@
 // All of it by CSS classes and the plan's own redraw, never a render(): the search keeps its keyboard (CLAUDE.md). The
 // half or full choice is kept for the session only, never stored.
 
+import { pickingBed, plantingFor } from '../bed-plant';
+import type { Shape } from '../types';
 import { el, hasKeyboard } from '../dom';
 import { shapeBBox, unionBounds } from '../geometry';
 import { keyboardInset } from '../keyboard';
@@ -21,8 +23,11 @@ import { state } from '../state';
 import { saveView } from '../storage';
 import { wideNow } from './warnings-sheet';
 
-/** The plan behind the plant picker: there to look at, panned and zoomed, nothing on it picked, moved or placed. */
-export const planLookOnly = (): boolean => state.panel === 'plants';
+/**
+ * The plan behind the plant picker: there to look at, panned and zoomed, nothing on it picked, moved or placed. So too
+ * while a bed is picked on it for the picker (Plant this bed's Pick on the plan): a tap picks the bed, nothing else.
+ */
+export const planLookOnly = (): boolean => state.panel === 'plants' || pickingBed();
 
 /** Half or full height on a phone, as last chosen with the handle (this session only). */
 let chosen: SheetSize = 'half';
@@ -210,7 +215,12 @@ function planRoom(): Room | null {
  */
 export function showChosen(): boolean {
   const linking = !!state.pickerLinkId;
-  const chosenShapes = state.shapes.filter((s) => state.selectedIds.includes(s.id) && (linking || s.role === 'bed' || s.role === 'plant'));
+  // (For a bed (Plant this bed): that bed, whatever's selected.)
+  const bed = linking || state.pickerForTree ? null : plantingFor();
+  return showShapes(bed ? [bed] : state.shapes.filter((s) => state.selectedIds.includes(s.id) && (linking || s.role === 'bed' || s.role === 'plant')));
+}
+/** The plan moved to show these in the part left in sight beside or above the picker (showChosen). */
+export function showShapes(chosenShapes: Shape[]): boolean {
   const b = unionBounds(chosenShapes.map(shapeBBox));
   const room = b ? planRoom() : null;
   if (!b || !room) return false;

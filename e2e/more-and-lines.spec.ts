@@ -38,12 +38,11 @@ test('More draws another of the same tree, or another of a drawn thing', async (
   await expect(page.locator('.sheet .action-row').getByTestId('place-more')).toHaveText('Draw another');
   await page.locator('.sheet-header .iconbtn').last().click();
 
-  // A bed: More starts drawing another bed.
-  await page.locator('.tool-btn.bed').click();
-  await page.locator('[data-testid=draw-bar] [data-method=rect]').click();
+  // A patio: More starts drawing another patio. (A bed's chip has Plant this bed instead: Jason, Nov 2, answer 1.)
+  await addKind(page, 'patio', 'rect');
   await tapFromCenter(page, -6, 6); await tapFromCenter(page, 0, 6); await tapFromCenter(page, 0, 8);
   await page.getByTestId('pill-place-more').click();
-  await expect(drawBanner(page)).toContainText('Bed:');
+  await expect(drawBanner(page)).toContainText('Patio or deck:');
 });
 
 test('a property line can stay open, and is named along itself', async ({ page }) => {

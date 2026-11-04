@@ -239,7 +239,21 @@ const NA_NATIVE = ['N. American native', 'Regional native', 'Local ecotype possi
 /** A list filter's empty default: frozen, so a filter is only ever changed by a new list, never in place. */
 const NONE = Object.freeze([]) as unknown as string[];
 export const PLANT_FILTER_DEFAULTS = {
-  q: '', form: '', water: '', sun: '',
+  q: '', form: '',
+  /** Water needs: '' any; one of the catalog's values, or several, any of them, with commas ('Low,Moderate'). */
+  water: '',
+  sun: '',
+  /**
+   * The sun across a bed, as its sunniest and shadiest ('Full-Part'): a plant whose own sun range takes in some of it
+   * passes (Jason, Nov 2, answer A: "some"). Set only by a bed the picker plants for (src/bed-plant.ts), never the
+   * person's own.
+   */
+  sunRange: '',
+  /**
+   * A clay bed: plants rated Clay OK, and plants no source rates for clay (listed below a divider: noClayRating; Jason,
+   * Nov 2, answer D); not one rated otherwise. Set only by a bed the picker plants for; the person's own is `clayOk`.
+   */
+  clayBed: false,
   /** Blooming in: a month ('1' to '12') or a season ('spring', 'summer', 'fall', 'winter'): src/plants.ts bloomMatch. */
   bloomMonth: '',
   /** '' any; '@here' native to the garden's state (Kew's checklist); '@na' native to North America (the earlier list's word). */
@@ -413,6 +427,25 @@ export function plantTakesSun(p: Plant, level: string): boolean {
   if (most == null || least == null) return false;
   return most <= want && want <= least;
 }
+/** A bed's sun as `sunRange` keeps it ('Full-Part': its sunniest, then its shadiest), read; null for none. */
+export function sunRangeOf(v: string): [SunLevel, SunLevel] | null {
+  const [a, b] = v.split('-') as SunLevel[];
+  return a in SUN_RANK && b in SUN_RANK && SUN_RANK[a] <= SUN_RANK[b] ? [a, b] : null;
+}
+/**
+ * How a plant's sun range meets a bed's (`range`, 'Full-Part'): all of it; only its sunny end, or its shady end; only
+ * the part-shade middle of a bed from full sun to shade; or none of it (null, as for a plant with no sun on record).
+ */
+export function sunFit(p: Pick<Plant, 'sun_most' | 'sun_least'>, range: string): 'all' | 'sunny' | 'shady' | 'middle' | null {
+  const r = sunRangeOf(range);
+  if (!r || !p.sun_most || !p.sun_least) return null;
+  const bm = SUN_RANK[r[0]], bl = SUN_RANK[r[1]], pm = SUN_RANK[p.sun_most], pl = SUN_RANK[p.sun_least];
+  if (pm == null || pl == null || pl < bm || pm > bl) return null;
+  if (pm <= bm && pl >= bl) return 'all';
+  return pm <= bm ? 'sunny' : pl >= bl ? 'shady' : 'middle';
+}
+/** The water needs a filter takes (one, or any of several: 'Low,Moderate'). */
+export const waterWanted = (v: string): string[] => v.split(',').filter(Boolean);
 
 /** Load the plant index (served next to index.html). */
 export function loadPlants(): Promise<void> {
@@ -458,10 +491,12 @@ export const countWord = (n: number): string => n.toLocaleString('en-US');
  * state's law bans, left out, turn up when searched for (so the gap never reads as a filter left on). `where`: the
  * state's name.
  */
-export function pickerCount(shown: number, offered: number, bannedOut: number, bannedShown = 0, where = 'here'): string {
+export function pickerCount(shown: number, offered: number, bannedOut: number, bannedShown = 0, where = 'here', fit?: string): string {
   // (Out of the plants offered, the title's number, always: a search adds the banned ones it finds by name beside it,
   // not to the total (testers, Oct 30: "3,725" in the title, "of 3,747" once they searched).)
-  const head = shown === offered ? `All ${countWord(offered)} plants` : `${countWord(shown)} of ${countWord(offered)} plants match`;
+  // (For a bed whose conditions filter the list, `fit`: "1,147 of 3,745 plants fit Front bed".)
+  const head = fit ? `${shown === offered ? 'All ' : `${countWord(shown)} of `}${countWord(offered)} plants fit ${fit}`
+    : shown === offered ? `All ${countWord(offered)} plants` : `${countWord(shown)} of ${countWord(offered)} plants match`;
   const banned = where === 'here' ? 'banned here' : `banned in ${where}`;
   const found = bannedShown ? `, and ${countWord(bannedShown)} plant${bannedShown === 1 ? '' : 's'} ${banned} found by name` : '';
   return head + found + (bannedOut ? ` \u00b7 ${countWord(bannedOut)} plant${bannedOut === 1 ? '' : 's'} ${banned} ${bannedOut === 1 ? 'shows' : 'show'} only when searched by name` : '');
@@ -513,8 +548,11 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   }
   if (f.partnersOf && !partnersOfSet(f.partnersOf).has(p.id)) return false;
   if (f.form && !formsOf(p).includes(f.form)) return false;
-  if (f.water && p.water !== f.water) return false;
+  if (f.water && !waterWanted(f.water).includes(p.water ?? '')) return false;
   if (f.sun && !plantTakesSun(p, f.sun)) return false;
+  // (A bed's sun: some of it, Jason's answer A. A bed's clay: rated Clay OK, or not rated at all, answer D.)
+  if (f.sunRange && !sunFit(p, f.sunRange)) return false;
+  if (f.clayBed && p.clay_ok === false) return false;
   if (f.afternoonSun && p.sun_most !== 'Full') return false;
   // ("@here": native to the garden's state, by Kew's checklist; until its state is known, no filter. "@na": native to
   // North America, the earlier list's word, its regional and local-ecotype natives included.)
@@ -645,7 +683,7 @@ export function planCounts(): Map<string, number> {
  * authorities only.
  */
 const FILTER_FACTS: [keyof PlantFilter, string[], string][] = [
-  ['sun', ['sun_most', 'sun_least'], 'sun'], ['afternoonSun', ['sun_most', 'sun_least'], 'sun'], ['hardyHere', ['zone_min', 'zone_max'], 'hardiness zones'], ['water', ['water'], 'water'],
+  ['sun', ['sun_most', 'sun_least'], 'sun'], ['sunRange', ['sun_most', 'sun_least'], 'sun'], ['afternoonSun', ['sun_most', 'sun_least'], 'sun'], ['hardyHere', ['zone_min', 'zone_max'], 'hardiness zones'], ['water', ['water'], 'water'],
   ['deerResistant', ['deer'], 'deer resistance'], ['height', ['height'], 'height'], ['width', ['width'], 'width'], ['bloomMonth', ['bloom'], 'bloom time'],
   ['form', ['form'], 'form'],
 ];
@@ -688,12 +726,12 @@ export const reportedOnly = new Map<string, string[]>();
  * own words, nor poison to people (always sourced), the search or "In this plan".
  */
 const FILTER_READS: [keyof PlantFilter, (p: Plant, f: PlantFilter) => string[], string][] = [
-  ['form', () => ['form'], 'form'], ['sun', () => ['sun_most', 'sun_least'], 'sun'], ['afternoonSun', () => ['sun_most'], 'sun'], ['water', () => ['water'], 'water'],
+  ['form', () => ['form'], 'form'], ['sun', () => ['sun_most', 'sun_least'], 'sun'], ['sunRange', () => ['sun_most', 'sun_least'], 'sun'], ['afternoonSun', () => ['sun_most'], 'sun'], ['water', () => ['water'], 'water'],
   // (Months where the garden is come from flowering records; a native filter for the garden's state, from Kew's checklist.)
   ['bloomMonth', (p, f) => (bloomMatch(p, f.bloomMonth) === 'earlier' ? ['bloom'] : []), 'bloom time'], ['native', (_p, f) => (f.native === '@here' ? [] : ['native']), 'native status'],
   ['deerResistant', () => ['deer'], 'deer resistance'], ['spread', () => ['self_seed', 'habit'], 'how it spreads'], ['height', () => ['height'], 'height'],
   ['width', () => ['width'], 'width'],
-  ['wetFeet', () => ['wet_feet'], 'wet feet'], ['clayOk', () => ['clay_ok'], 'clay'],
+  ['wetFeet', () => ['wet_feet'], 'wet feet'], ['clayOk', () => ['clay_ok'], 'clay'], ['clayBed', () => ['clay_ok'], 'clay'],
   ['hostOnly', (p) => (hostPlant(p) === 'earlier' ? ['host'] : []), 'host plant'], ['fallColor', () => ['fall_color'], 'fall color'], ['evergreen', () => ['foliage'], 'evergreen'],
   ['winterInterest', () => ['winter_interest'], 'winter interest'], ['edible', () => ['edible'], 'edible'],
   ['hardyHere', () => ['zone_min', 'zone_max'], 'hardiness zones'],
@@ -824,11 +862,24 @@ export const earlierFor = new Map<string, string[]>();
 export const comesIn = new Map<string, string[]>();
 /** Plants in the last list that bloom in the month asked for by their season, not by months ("by season"). */
 export const bySeason = new Set<string>();
+/** Plants in the last list for a clay bed (`clayBed`) that no source rates for clay: listed below a divider. */
+export const noClayRating = new Set<string>();
+/**
+ * A bed's sun as `sunRange` keeps it, in words, shadiest first as its hours go, low to high: "part shade to full sun",
+ * "full sun". Empty for none.
+ */
+export function sunRangeSaid(v: string): string {
+  const r = sunRangeOf(v);
+  if (!r) return '';
+  return r[0] === r[1] ? SUN_SAID[r[0]] : `${SUN_SAID[r[1]]} to ${SUN_SAID[r[0]]}`;
+}
 /** What filters the other sources' values helped with: as the divider says it ("take shade", "are hardy here"). */
 export function reportedPhrase(labels: Iterable<string>, f: PlantFilter): string {
   const FORMS: Record<string, string> = { Tree: 'trees', Shrub: 'shrubs', Perennial: 'perennials', 'Grass/Sedge': 'grasses or sedges', Vine: 'vines', Bulb: 'bulbs', Fern: 'ferns', Annual: 'annuals', 'Aquatic/Emergent': 'water plants', Cactus: 'cacti or succulents' };
   const say: Record<string, string> = {
-    sun: `take ${SUN_SAID[f.sun] ?? f.sun.toLowerCase()}`, 'hardiness zones': 'are hardy here', water: `fit \u201cWater: ${f.water}\u201d`,
+    // (A bed's sun: the bed's, in its words, "take part shade to full sun".)
+    sun: `take ${f.sunRange ? sunRangeSaid(f.sunRange) : SUN_SAID[f.sun] ?? f.sun.toLowerCase()}`, 'hardiness zones': 'are hardy here',
+    water: `fit \u201cWater: ${waterWanted(f.water).join(' or ')}\u201d`,
     'deer resistance': 'are deer resistant', height: 'fit the height range', width: 'fit the width range', 'bloom time': `bloom in ${bloomWhen(f.bloomMonth)}`,
     form: `are ${FORMS[f.form] ?? f.form.toLowerCase()}`,
   };
@@ -846,7 +897,7 @@ export function filteredPlants(near = true): Plant[] {
   // (The search first, so the filters, and any near spellings, are worked out only for plants it found.)
   const found = q ? PLANTS.flatMap((plant) => { const hit = matchPlant(plant, q, near); return hit ? [{ plant, hit }] : []; })
     : PLANTS.map((plant) => ({ plant, hit: { rank: 0, order: 0 } }));
-  earlierFor.clear(); comesIn.clear(); bySeason.clear();
+  earlierFor.clear(); comesIn.clear(); bySeason.clear(); noClayRating.clear();
   const month = /^\d+$/.test(plantFilter.bloomMonth);
   const out = found.filter(({ plant }) => {
     const m = reportedMatch(plant, plantFilter, inPlan);
@@ -856,6 +907,8 @@ export function filteredPlants(near = true): Plant[] {
       // (A species that comes in several colors, one of them asked for; a month met only by its season.)
       if (plantFilter.flowerColors.length && !trueToColor(plant)) comesIn.set(plant.id, showyColors(plant).filter((c) => plantFilter.flowerColors.includes(c)));
       if (month && bloomMatch(plant, plantFilter.bloomMonth) === 'season') bySeason.add(plant.id);
+      // (A clay bed: one no source rates for clay, below its divider.)
+      if (plantFilter.clayBed && plant.clay_ok == null) noClayRating.add(plant.id);
     }
     return m !== null;
   });
