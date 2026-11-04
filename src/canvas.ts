@@ -123,10 +123,10 @@ export function gridSteps(ppf: number): { minorEvery: number; majorEvery: number
 }
 
 let lookClips = 0;
-/** A shape and its label, wrapped in a group so it can be redrawn alone. */
 /** A shape the guided start points to (src/ui/intro-card.ts): its edge pulses, through every redraw, till it's cleared. */
 let pulsing: string | null = null;
 export function pulseShape(id: string | null) { pulsing = id; }
+/** A shape and its label, wrapped in a group so it can be redrawn alone. */
 export function shapeGroup(s: Shape): SVGGElement {
   const ppf = pxPerFoot();
   const sel = isSelected(s.id);

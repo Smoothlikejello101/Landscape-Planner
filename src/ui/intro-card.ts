@@ -221,12 +221,13 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
       // pane and lock from there rather than doing it for them?"). It was a chip on the bed's card that locked it.)
       // Locked, it stays put, and a press on it goes to what's drawn on it (Oct 29).
       text: `Lock your house, so it stays put while you draw around it: ${tap()} it, then Edit, then Unlocked at the top of its panel. ${Tap()} it there again to move it.`,
-      short: `${Tap()} Unlocked at the top, so it reads Locked.`,
+      // (Over its panel; over another sheet, the whole of it.)
+      short: state.panel === 'props' ? `${Tap()} Unlocked at the top, so it reads Locked.` : undefined,
     };
     case 'bed': return {
       text: `Now a bed, where you'd like plants. ${Tap()} around its edge.${hasKeyboard() ? ' (B starts one.)' : ''}`,
       // (Just locked in its panel, step 3b: what to do next, over it.)
-      short: state.panel === 'props' && houseSelected(newestHouse()) ? 'Locked: it stays put. Close this with its \u00d7, then draw a bed.' : undefined,
+      short: state.panel === 'props' && houseSelected(newestHouse()) && newestHouse()?.locked ? 'Locked: it stays put. Close this with its \u00d7, then draw a bed.' : undefined,
       action: { label: 'Draw a bed', run: () => startKind('bed') },
     };
     case 'fade': return {

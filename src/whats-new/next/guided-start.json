@@ -1,8 +1,8 @@
 [
   "Garden location names the weather station its frost dates come from without saying how many miles away it is, since a ZIP alone doesn’t say where in it the garden is.",
+  "The step-by-step introduction (“New here? Show me around”) is now called Guided start, in Help and on a blank plan. A blank plan always offers it, even after “I’ll explore”, until it’s under way on that plan.",
   "Guided start stays with the plan it was started on: open another plan and it waits there, saying so once, and it’s back at the same step when you return to that plan.",
   "Setting a photo’s scale, lengths you may know (your house’s front, a one-car driveway’s width, your lot’s sides) are on the strip above the plan while you pick the two points, not only after; the plan makes room so the photo you were looking at isn’t hidden under it.",
-  "The guided introduction is now called Guided start, in Help and on a blank plan. A blank plan always offers it, even after “I’ll explore”, until it’s under way on that plan.",
   "Guided start teaches locking your house as a step of its own, from the house’s panel: open the house, then switch Unlocked at the top to Locked. The note in a locked shape’s panel now names that same Locked button to unlock it.",
   "Guided start’s sun step now asks: “Is it a shady spot? Sunny? Draw an area and show how much sun it gets.”",
   "Guided start’s “Who’s in your yard?” has “None of these”: it records that there’s no one to protect, so the plant picker keeps that question under Filters instead of asking it first.",
