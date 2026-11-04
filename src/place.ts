@@ -87,6 +87,7 @@ export function placeTap(clientX: number, clientY: number) {
 export function undoPlace() {
   const last = state.placing?.placed.pop();
   if (!last) return;
+  lastPlaced.t = -1e9; // (taken back: a tap there again at once places it again, not a double tap on one that's gone)
   flushHistoryDebounce();
   state.shapes = state.shapes.filter((s) => s.id !== last.id);
   state.selectedIds = state.selectedIds.filter((id) => id !== last.id);

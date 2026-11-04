@@ -12,7 +12,7 @@ import { copySelected, planBounds, setViewFilter, updateSelectedSilent, zoomBy, 
 import { deleteSelectedAsking } from './delete-selected';
 import { clearSelection, getSelected, singleSelected } from '../selection';
 import { state } from '../state';
-import { fmtFeet, screenToFeet } from '../geometry';
+import { fmtFeet, screenToFeet, shapeCenter } from '../geometry';
 import { measuredFeet, openAtHouseScale, canDeleteVertex, canFinishDraw, cancelDraw, deleteSelectedVertex, drawPathWidth, editedShape, finishDraw, finishEditPoints, finishTypedRect, finishesItself, lastSnap, setDrawHover, setDrawKind, setDrawPathWidth, setTypedLength, shapeName, typedApplies, typedKind, typedLabel, startEditPoints, startKind, undoDrawPoint, unsnapLast, unsnapVertex, vertexSnap } from '../draw';
 import type { SubFeatureKind, TapSnap } from '../types';
 import { redrawCanvas, redrawHandles } from '../canvas';
@@ -64,7 +64,7 @@ import { placeTraceCard, traceCard, traceChips, traceShown } from './trace-card'
 import { setTraceState } from '../yard-in';
 import { panelOpened } from '../tap-guard';
 import { pickerViewClosed, placePicker, planLookOnly, showChosen } from './picker-view';
-import { pickingBed, plantingSettled } from '../bed-plant';
+import { bedName, inBed, pickingBed, plantingFor, plantingSettled } from '../bed-plant';
 import { PICK_SAID, stopPickingBed } from './plant-for';
 import { renderBedConditionsPanel } from './bed-conditions';
 
@@ -387,9 +387,20 @@ export function render() {
   if (placing && state.placing) {
     // (This plant's, not every plant placed since Place was tapped: a switch starts the count over.)
     const n = state.placing.placed.filter((x) => state.shapes.find((s) => s.id === x.id)?.plantId === placing.id).length;
-    const say = (k: string) => `${tapSaid('Tap')} to place ${placing.common} · ${k} placed`;
-    const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'place-banner', html: I.leaf });
-    banner.appendChild(words(say(String(n)), [say('000')]));
+    // (For a bed (Plant this bed): in it; one just placed outside it, said, with Undo, and ringed red on the plan. Placed
+    // all the same: Jason, Nov 2, answer C/8.)
+    const bed = plantingFor();
+    const last = state.placing.placed.at(-1), lastShape = last ? state.shapes.find((s) => s.id === last.id) : undefined;
+    const outside = !!bed && !!lastShape && !inBed(bed, shapeCenter(lastShape));
+    const say = (k: string) => `${tapSaid('Tap')} to place ${placing.common}${bed ? ` in ${bedName(bed)}` : ''} · ${k} placed`;
+    const out = (k: string) => `Placed outside ${bed ? bedName(bed) : ''} · ${k} placed`;
+    const banner = el('div', { className: 'mode-banner draw-banner' + (outside ? ' outside-bed' : ''), 'data-testid': 'place-banner', html: I.leaf });
+    banner.appendChild(words(outside ? out(String(n)) : say(String(n)), bed ? [say('000'), out('000') + '  Undo'] : [say('000')]));
+    if (outside) {
+      const undoOut = el('button', { className: 'banner-undo', 'data-testid': 'place-outside-undo' }, 'Undo');
+      undoOut.addEventListener('click', () => { undoPlace(); render(); });
+      banner.appendChild(undoOut);
+    }
     strip.appendChild(banner);
   }
 

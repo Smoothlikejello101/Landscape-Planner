@@ -240,3 +240,49 @@ test('For a clay bed: what no source rates for clay is listed below a divider; a
   await expect(search(page)).toHaveValue('Silverleaf hydrangea');
   await expect(chips(page)).toHaveText(['Takes part shade to full sun', 'Clay OK', 'Takes wet soil']);
 });
+
+test('placing For a bed: the bed outlined, the rest washed red; one placed outside it is placed, ringed red, with Undo', async ({ page }) => {
+  await seed(page, ANSWERED);
+  await tapPlan(page, 9, 1.5);
+  await page.getByTestId('pill-plant-bed').click();
+  // (The bed outlined on the plan while the picker is For it.)
+  await expect(page.locator('#canvas-svg [data-role=bed-outline]')).toHaveAttribute('data-bed', 'bed');
+  await search(page).fill('Arkansas bluestar');
+  await rowNamed(page, 'Arkansas bluestar').getByTestId('plant-place').click();
+  const banner = page.getByTestId('place-banner');
+  await expect(banner).toHaveText(tapping('Tap to place Arkansas bluestar in Front bed · 0 placed'));
+  await expect(page.locator('#canvas-svg [data-role=bed-outline]')).toHaveCount(1);
+  await expect(page.locator('#canvas-svg [data-role=bed-wash]')).toHaveCount(1);
+  const shapes = await shapeCount(page);
+  await tapPlan(page, 9, 2); // inside
+  await expect(banner).toHaveText(tapping('Tap to place Arkansas bluestar in Front bed · 1 placed'));
+  await expect(page.locator('#canvas-svg [data-role=outside-bed]')).toHaveCount(0);
+  await tapPlan(page, 8, 8); // outside (below it): placed all the same, ringed, said with Undo
+  await expect.poll(() => shapeCount(page)).toBe(shapes + 2);
+  await expect(banner).toHaveText('Placed outside Front bed · 2 placedUndo');
+  await expect(page.locator('#canvas-svg [data-role=outside-bed]')).toHaveCount(1);
+  await banner.getByTestId('place-outside-undo').click();
+  await expect.poll(() => shapeCount(page)).toBe(shapes + 1);
+  await expect(page.locator('#canvas-svg [data-role=outside-bed]')).toHaveCount(0);
+  await expect(banner).toHaveText(tapping('Tap to place Arkansas bluestar in Front bed · 1 placed'));
+  await tapPlan(page, 8, 8); // (again at once, where the one undone was: placed)
+  await tapPlan(page, 6, 2); // (another inside: the one outside stays ringed, the banner as before)
+  await expect(page.locator('#canvas-svg [data-role=outside-bed]')).toHaveCount(1);
+  await expect(banner).toHaveText(tapping('Tap to place Arkansas bluestar in Front bed · 3 placed'));
+  // Switching plants keeps it For the bed; a full-sun plant placed in the bed's shady end gets the sun badge.
+  await page.getByTestId('place-switch').click();
+  await expect(pressed(page)).toHaveText('Front bed');
+  await search(page).fill('Narrow-leaved coneflower');
+  await expect(rowNamed(page, 'Narrow-leaved coneflower').getByTestId('sun-end')).toHaveText('Sunny end only');
+  await rowNamed(page, 'Narrow-leaved coneflower').getByTestId('plant-place').click();
+  await tapPlan(page, 2, 4.5); // (in the bed, under the oak: 3.5 h)
+  await expect.poll(() => shapeCount(page)).toBe(shapes + 4);
+  await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(1);
+  // Done: For the bed no more, the outline, wash and rings gone.
+  await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
+  await expect(page.locator('#canvas-svg [data-role=bed-outline]')).toHaveCount(0);
+  await expect(page.locator('#canvas-svg [data-role=bed-wash]')).toHaveCount(0);
+  await expect(page.locator('#canvas-svg [data-role=outside-bed]')).toHaveCount(0);
+  await page.locator('.tool-btn.plants').click();
+  await expect(pressed(page)).toHaveText('Anywhere');
+});
