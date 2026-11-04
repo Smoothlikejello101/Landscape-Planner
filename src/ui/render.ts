@@ -22,7 +22,7 @@ import { methodIcon, renderAddSheet, renderShortcutsPanel, withKey } from './add
 import { finishPlacing, hasPlaceHover, placingPlant, selectionJustPlaced, setPlaceHover, undoPlace } from '../place';
 import { partnersClosed, plantColor } from '../plants';
 import { currentProject, storageIsDurable } from '../storage';
-import { keepScaleBoxClear, renderBgDistanceModal, renderBgPanel } from './background-panel';
+import { keepScaleBoxClear, lengthsYouMayKnow, renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
 import { renderSettingsPanel } from './settings-panel';
 import { refreshWarnings, renderWarningsSheet, renderWarningsSide, walkChip, warningsButton, warningsSheetShown, warningsSideShown } from './warnings-sheet';
@@ -341,6 +341,8 @@ export function render() {
     });
     banner.appendChild(cancelBtn);
     strip.appendChild(banner);
+    // (Lengths you may know, to pick A and B by: under the words, the whole time, so the strip keeps its height.)
+    strip.appendChild(lengthsYouMayKnow());
   }
 
   // Drawing / point-editing banner

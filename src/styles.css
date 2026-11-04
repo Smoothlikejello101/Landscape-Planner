@@ -1180,10 +1180,10 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .scale-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; }
 .scale-row .field { flex: 1 1 8em; margin-bottom: 0; }
 .scale-buttons { display: flex; gap: 8px; margin-left: auto; }
-.scale-hints { margin-top: 12px; padding-top: 8px; border-top: 1px solid #e7e5e4; font-size: calc(12px * var(--ts)); color: #57534e; line-height: 1.4; }
-.scale-hints-head { font-weight: 600; color: #44403c; }
-.scale-hints ul { margin: 4px 0 0; padding-left: 18px; }
-.scale-hints b { color: #292524; font-weight: 600; }
+.scale-hints { margin-top: 10px; padding-top: 8px; border-top: 1px solid #e7e5e4; font-size: calc(12px * var(--ts)); color: #57534e; line-height: 1.4; }
+.scale-hints b, .cal-hints b { color: #292524; font-weight: 600; }
+/* The same, on the strip above the plan while A and B are tapped: a line or two, under the banner's words. */
+.cal-hints { padding: 0 6px; font-size: calc(12px * var(--ts)); color: #57534e; line-height: 1.35; }
 /* "Now trace" (src/ui/trace-card.ts): what to trace over the photo once it's to scale, each a press from its tool. On
    its own at the foot of the plan, or as the first screen's line in the card docked under the photo. */
 .trace-card { position: absolute; left: 8px; right: 8px; bottom: 8px; z-index: 6; max-width: 36em; margin: 0 auto; box-sizing: border-box; padding: 10px 12px 12px; border-radius: 16px; background: rgba(255, 255, 255, 0.97); box-shadow: 0 4px 18px rgba(28, 25, 23, 0.18); color: #292524; }

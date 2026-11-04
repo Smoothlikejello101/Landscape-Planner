@@ -71,6 +71,21 @@ export function clearOfBox(pts: { x: number; y: number }[], box: Box, room: { to
 }
 
 /**
+ * Setting a photo's scale began, and the strip saying what to tap (with lengths you may know) came above the plan,
+ * taking its top (src/canvas.ts resizeCanvas leaves what's on the plan where it was on the screen): how to move the
+ * plan so the part of the photo that was in view (`photo`, page px, in the plan's box as it was, `before`) is still in
+ * view, below the strip (the plan's box now, `after`), where the two points go. Null when it is already. As the scale
+ * box keeps clear of A and B (clearOfBox): moved down, zoomed out only if it must, about (x, y).
+ */
+export function clearOfStrip(photo: Box, before: Box, after: Box): { zoom: number; dy: number; x: number; y: number } | null {
+  const seen = { left: Math.max(photo.left, before.left), top: Math.max(photo.top, before.top), right: Math.min(photo.right, before.right), bottom: Math.min(photo.bottom, before.bottom) };
+  if (seen.right <= seen.left || seen.bottom <= seen.top || seen.top >= after.top - 0.5) return null;
+  const span = seen.bottom - seen.top, fits = Math.max(1, after.bottom - after.top);
+  const zoom = span > fits ? fits / span : 1, y = (seen.top + seen.bottom) / 2;
+  return { zoom, dy: after.top - (y - (span * zoom) / 2), x: (seen.left + seen.right) / 2, y };
+}
+
+/**
  * Whether this plan's "Now trace" banner is up (`on`: offered once its photo was set to scale), or put away for good
  * (`off`: dismissed, or everything on it traced): "it shouldn't come back on its own once dismissed or finished"
  * (Jason). A note on this device, as the first screen's ✕ is (src/first-hidden.ts), not part of the plan.
