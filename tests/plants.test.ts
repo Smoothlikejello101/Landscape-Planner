@@ -476,7 +476,7 @@ describe('a picker row', () => {
     const sources = { compendium: { title: 'Earlier list', trust: 'unverified' as const }, ncsu: { title: 'NC State', trust: 'reference' as const } };
     const p = { ...heuchera, deer: 'Resistant', wet_feet: true, prov: { deer: { src: ['compendium'] }, sun_most: { src: ['ncsu'] }, sun_least: { src: ['ncsu'] }, wet_feet: { src: ['compendium'] } } } as Plant;
     expect(earlierOnly(p, f({ sun: 'Shade' }), sources)).toEqual([]);
-    expect(earlierOnly(p, f({ sun: 'Shade', deerResistant: true, wetFeet: true }), sources)).toEqual(['deer resistance', 'wet feet']);
+    expect(earlierOnly(p, f({ sun: 'Shade', deerResistant: true, wetFeet: true }), sources)).toEqual(['deer resistance', 'wet soil']);
     // (A plant of mine is its own word.)
     expect(earlierOnly(heuchera, f({ wetFeet: true }), sources)).toEqual([]);
   });

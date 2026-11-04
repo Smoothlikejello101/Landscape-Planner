@@ -101,10 +101,10 @@ function section(key: string, title: string, summary: Node, content: Node[], ope
 const fmt1 = (n: number) => String(Math.round(n * 10) / 10);
 /** Plants and trees are sized by spread (what a nursery tag says); other circles by diameter. */
 const bySpread = (s: CircleShape) => s.role === 'plant';
-/** "10 × 4 ft · 40 sq ft", "4 ft spread", "8 ft across · 50 sq ft", "16 ft long · 3 ft wide". */
+/** "10 × 4 ft · 40 sq ft", "4 ft wide when grown", "8 ft across · 50 sq ft", "16 ft long · 3 ft wide". */
 function sizeSummary(s: Shape): string {
   if (s.type === 'text') return `${fmt1(s.fontSize)} ft text`;
-  if (s.type === 'circle') return bySpread(s) ? `${fmt1(s.radius * 2)} ft spread` : `${fmt1(s.radius * 2)} ft across · ${sqFt(shapeArea(s))} sq ft`;
+  if (s.type === 'circle') return bySpread(s) ? `${fmt1(s.radius * 2)} ft wide when grown` : `${fmt1(s.radius * 2)} ft across · ${sqFt(shapeArea(s))} sq ft`;
   if (s.type === 'line') return `${fmt1(shapePerimeter(s))} ft long` + (s.pathWidth ? ` · ${fmt1(s.pathWidth)} ft wide` : '');
   const { w, h } = boxSize(s);
   const area = s.role === 'boundary' ? '' : ` · ${sqFt(shapeArea(s))} sq ft`;
@@ -299,13 +299,14 @@ export function renderPropsPanelSingle(s: Shape) {
     dInput.addEventListener('change', () => {
       const d = parseFloat(dInput.value.replace(',', '.'));
       if (d >= 0.2 && d <= MAX_SPREAD) return;
-      saidOutOfRange(dInput.value, 0.2, MAX_SPREAD, bySpread(s) ? 'A spread' : 'A diameter');
+      saidOutOfRange(dInput.value, 0.2, MAX_SPREAD, bySpread(s) ? 'A width' : 'A diameter');
       if (s.radius !== before.radius) { updateSelectedSilent({ radius: before.radius, sizeFrom: before.sizeFrom }); refreshMeasure(); }
       dInput.value = String(round1(s.radius * 2));
     });
-    const what = bySpread(s) ? (s.canopy ? 'Spread, widest (ft)' : 'Spread (ft)') : 'Diameter (ft)';
+    // (A plant's width when grown, in plain words (Kayla, Nov 4: "What is mature spread?"), with the word a tag uses.)
+    const what = bySpread(s) ? (s.canopy ? 'Width when grown, widest (ft)' : 'Width when grown (ft)') : 'Diameter (ft)';
     sizeParts.push(el('div', { className: 'field' }, el('label', {}, what), dInput,
-      bySpread(s) ? el('div', { className: 'hint' }, 'How wide it\'s drawn, across. Plant tags call this its spread.') : '', bySpread(s) ? '' : measure));
+      bySpread(s) ? el('div', { className: 'hint' }, 'How wide it\'s drawn, across. Plant tags may call this its spread.') : '', bySpread(s) ? '' : measure));
     // (A linked plant: how it's drawn, by its plant's spread or by hand, and the way back to its plant's size.)
     sizeParts.push(...plantSizeParts(s));
     // Trees drawn before trunks existed (or a plant of my own that's a tree): say so here. Only for what could be a
@@ -642,7 +643,7 @@ function makeRoundField(s: CircleShape): HTMLElement {
   const round = el('button', { className: 'btn ghost', 'data-testid': 'make-round' }, 'Make the canopy round');
   round.disabled = isLocked(s);
   round.addEventListener('click', () => updateSelected({ canopy: undefined }));
-  return el('div', { className: 'field' }, round, el('div', { className: 'hint' }, 'Drops the drawn outline, keeping the widest spread.'));
+  return el('div', { className: 'field' }, round, el('div', { className: 'hint' }, 'Drops the drawn outline, keeping its widest width.'));
 }
 
 /** For circles: which plant this is (size range, reset, edit), or a way to make it one. */
@@ -670,13 +671,13 @@ function plantSizeParts(s: CircleShape): Node[] {
   // (Drawn smaller than it grows: the dashed ring around it said, here where a person looks first. The UI review,
   // 2026-11-01: rings round 8 of 11 perennials, from Layers' "full-size rings on every plant", explained nowhere seen.)
   const ring = fullRingRadius(s);
-  const sizes = `Its spread: ${formatSize(p.width as Range | undefined) || 'unknown'}. ` + (s.sizeFrom === 'manual'
+  const sizes = `Its width when grown: ${formatSize(p.width as Range | undefined) || 'unknown'}. ` + (s.sizeFrom === 'manual'
     ? 'Drawn at the size it was given' + (s.tree ? ' (a tree as it is now)' : '') + (ring ? '; the dashed ring, when it\u2019s selected, is its full size.' : '.')
     : `Drawn at ${state.sizeMode === 'full' ? 'full' : 'typical'} size (change in Layers)` + (ring ? `; the dashed ring around it is its full size, ${fmt1(ring * 2)} ft across.` : '.'));
   const out: Node[] = [el('div', { className: 'hint', 'data-testid': 'plant-size-note', style: { marginTop: '6px', marginBottom: '10px' } }, sizes)];
   const target = plantRadius(p, state.sizeMode);
   if (s.radius !== target) {
-    const reset = el('button', { className: 'btn ghost', 'data-testid': 'reset-size', style: { marginTop: '6px' } }, `Reset to plant size (${fmt1(target * 2)} ft spread)`);
+    const reset = el('button', { className: 'btn ghost', 'data-testid': 'reset-size', style: { marginTop: '6px' } }, `Reset to plant size (${fmt1(target * 2)} ft wide)`);
     reset.addEventListener('click', () => updateSelected({ radius: target, sizeFrom: 'plant' }));
     out.push(reset);
   }

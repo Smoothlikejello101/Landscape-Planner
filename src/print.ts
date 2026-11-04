@@ -173,8 +173,9 @@ export function plantKeys(plants: Shape[], order: Shape[] = plants): Map<string,
 export interface LegendEntry { key: RoleKey; label: string; color: string; outline: boolean; solid?: boolean }
 /** One entry per role on the plan, in the usual role order, colored like most of its shapes. */
 export function legendEntries(shapes: Shape[], sizeMode: SizeMode = 'typical', rings = false): LegendEntry[] {
-  const plantLabel = sizeMode === 'full' ? 'Plants (circles show full spread)'
-    : rings ? 'Plants (circles: typical spread; dashed: full spread)' : 'Plants (circles show typical spread)';
+  // (Their width when grown, in plain words: Kayla, Nov 4, "What is mature spread?")
+  const plantLabel = sizeMode === 'full' ? 'Plants (circles show the widest they grow)'
+    : rings ? 'Plants (circles: typical width when grown; dashed: the widest)' : 'Plants (circles show typical width when grown)';
   const out: LegendEntry[] = [];
   const keys: RoleKey[] = [...ROLES.map((r) => r.key), 'unassigned'];
   for (const k of keys) {

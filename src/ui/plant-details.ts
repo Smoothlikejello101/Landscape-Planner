@@ -125,7 +125,10 @@ const inches = (x: string) => (x.startsWith('<') ? `under ${x.slice(1)} in` : x.
 const FLOWER_SHAPE_WORDS: Record<string, string> = { tubular: 'tubular', lipped: 'lipped', irregular: 'irregular', radial: 'radial' };
 const PETAL_WORDS: Record<string, string> = { '2-3': '2–3 petals', '4-5': '4–5 petals', '6': '6 petals', '7-20': '7–20 petals', '20+': 'over 20 petals', bracts: 'showy bracts',
   fused: 'fused petals', sepals: 'colored sepals', tepals: 'tepals', asymmetrical: 'uneven petals' };
-const CLUSTER_WORDS: Record<string, string> = { solitary: 'borne singly', spadix: 'on a spadix', insignificant: '' };
+// (A botanist's words in plain ones, the term after where it helps to know it (Kayla, Nov 4: "What if I'm a new
+// gardener?"): "in branched clusters (panicles)".)
+const CLUSTER_WORDS: Record<string, string> = { solitary: 'borne singly', spadix: 'on a fleshy spike (spadix)', insignificant: '', raceme: 'along a stem (racemes)',
+  panicle: 'in branched clusters (panicles)', umbel: 'in umbrella-shaped clusters (umbels)' };
 /**
  * What its flowers look like, in a line (NC State's fields), a part to each step: "Cup-shaped · 4–5 petals · 1–3 in · in
  * panicles". A plant whose flowers NC State calls insignificant says so.
@@ -141,13 +144,21 @@ export function flowerFormText(f?: Plant['flower_form']): string {
 }
 const MARGIN_WORDS: Record<string, string> = { entire: 'smooth-edged', serrate: 'toothed', dentate: 'toothed', denticulate: 'finely toothed', 'doubly serrate': 'double-toothed',
   'doubly dentate': 'double-toothed', crenate: 'scalloped', crenulate: 'finely scalloped', 'doubly crenate': 'scalloped', lobed: 'lobed', undulate: 'wavy-edged', sinuate: 'wavy-edged' };
-/** What its leaves look like, in a line (NC State's fields): "Simple · elliptical, obovate or ovate · toothed · alternate · 3–6 in". */
+/** NC State's leaf words in plain ones (Kayla, Nov 4: "What if I'm a new gardener?"): its kind, shape and how it sits. */
+const LEAF_TYPE_WORDS: Record<string, string> = { simple: 'single leaves', compound: 'compound (made of leaflets)' };
+const LEAF_SHAPE_WORDS: Record<string, string> = { ovate: 'egg-shaped', obovate: 'egg-shaped (wide end out)', lanceolate: 'lance-shaped', oblanceolate: 'lance-shaped (wide end out)',
+  elliptical: 'oval', linear: 'long and narrow', cordate: 'heart-shaped', subcordate: 'nearly heart-shaped', orbicular: 'round', spatulate: 'spoon-shaped', deltoid: 'triangular',
+  reniform: 'kidney-shaped', acicular: 'needle-like', filiform: 'threadlike', subulate: 'awl-shaped', cuneate: 'wedge-shaped', rhomboidal: 'diamond-shaped', obtuse: 'blunt-tipped',
+  peltate: 'shield-shaped', auriculate: 'eared at the base', pinnatifid: 'deeply cut, like a feather', pinnatisect: 'cut to the middle, like a feather',
+  palmatifid: 'deeply cut, like a hand', palmasect: 'cut almost to the base, like a hand' };
+const ARRANGEMENT_WORDS: Record<string, string> = { alternate: 'one at a time along the stem', opposite: 'in pairs along the stem', whorled: 'in rings around the stem', rosulate: 'in a rosette' };
+/** What its leaves look like, in a line (NC State's fields): "Single leaves · oval, egg-shaped · toothed · in pairs along the stem · 3–6 in". */
 export function leafFormText(l?: Plant['leaf_form']): string {
   if (!l) return '';
-  const type = orList(l.type ?? []);
-  const shape = orList((l.shape ?? []).slice(0, 3));
+  const type = orList((l.type ?? []).map((x) => LEAF_TYPE_WORDS[x] ?? x));
+  const shape = orList([...new Set((l.shape ?? []).slice(0, 3).map((x) => LEAF_SHAPE_WORDS[x] ?? x))]);
   const margin = orList([...new Set((l.margin ?? []).map((x) => MARGIN_WORDS[x] ?? x))]);
-  const arr = orList((l.arrangement ?? []).filter((x) => x !== 'complex'));
+  const arr = orList((l.arrangement ?? []).filter((x) => x !== 'complex').map((x) => ARRANGEMENT_WORDS[x] ?? x));
   const len = orList((l.length ?? []).map(inches));
   return cap([type, shape, margin, arr, len].filter(Boolean).join(' · '));
 }
@@ -296,7 +307,7 @@ function rows(p: Plant): Row[] {
     ['Toxic to people', poisonRow(p), parentRated(p) ? ['poison_parents'] : ['poison']],
     ['Edible', edibleText(p), ['edible', 'edible_parts']],
     // (Read from its description: separate sexes, a partner needed or helping, or on its own; a cultivar's sex.)
-    ['Fruit set', fruitSetText(p), ['fruit_set', 'sex', 'partners']],
+    ['Fruiting', fruitSetText(p), ['fruit_set', 'sex', 'partners']],
     ['Thorns', yes(p.thorns), ['thorns']],
     // (As its source lists them: NC State's take in the seasons and the undersides.)
     ['Leaf colors', leafText(p.leaf_color), ['leaf_color']],
@@ -309,7 +320,7 @@ function rows(p: Plant): Row[] {
     ['Fall color', fallText(p), ['fall_color', 'fall_colors']],
     ['Growth rate', p.growth_rate ? cap(p.growth_rate) : '', ['growth_rate']],
     ['Takes clay', yes(p.clay_ok), ['clay_ok']],
-    ['Takes wet feet', yes(p.wet_feet), ['wet_feet']],
+    ['Takes wet soil', yes(p.wet_feet), ['wet_feet']],
     ['Takes dry shade', yes(p.dry_shade), ['dry_shade']],
     // (By seed, and underground or by runners: two facts, one question, "will it spread?"; drawn by spreadRow.)
     ['How it spreads', '', ['self_seed', 'habit']],
@@ -318,9 +329,9 @@ function rows(p: Plant): Row[] {
     ['Taproot (hard to move)', yes(p.taproot), ['taproot']],
     ['Humidity', p.humidity === 'humid' ? 'Likes humid summers' : p.humidity === 'dry' ? 'Likes dry air' : p.humidity === 'either' ? 'Either' : '', ['humidity']],
     // (A habit that speaks to spreading is under "How it spreads"; one that doesn't, a vine's twining, stays here.)
-    ['Habit', rootSpread(p.habit) && rootSpread(p.habit) !== 'shape' ? '' : p.habit ?? '', ['habit']],
+    ['How it grows', rootSpread(p.habit) && rootSpread(p.habit) !== 'shape' ? '' : p.habit ?? '', ['habit']],
     ['Trunk', p.trunk ? `${p.trunk} in across` : '', ['trunk']],
-    ['Nativar', p.nativar ? 'A cultivar of a native species' : '', ['nativar']],
+    ['Bred from a native', p.nativar ? 'A cultivar of a native species (a "nativar")' : '', ['nativar']],
   ];
 }
 /** How sure, strongest first: the weaker of two halves of a range is how sure the range is. */
@@ -499,10 +510,10 @@ function sourceLine(prov: Provenance | undefined): string {
 const GLANCE = ['Form', 'Size', 'Hardiness', 'Sun', 'Water', 'Bloom'];
 export const DETAIL_GROUPS: { id: string; title: string; labels: string[] }[] = [
   { id: 'looks', title: 'Flowers and leaves', labels: ['Flower color', 'Leaf colors', 'Leafs out', 'Fall color', 'In winter', 'Bark'] },
-  { id: 'wildlife', title: 'Wildlife', labels: ['Native', 'Nectar for pollinators', 'For birds', 'Attracts', 'Caterpillar host', 'Nativar'] },
+  { id: 'wildlife', title: 'Wildlife', labels: ['Native', 'Nectar for pollinators', 'For birds', 'Attracts', 'Caterpillar host', 'Bred from a native'] },
   { id: 'safety', title: 'Safety', labels: ['Toxic to people', 'Toxicity', 'Edible', 'Thorns'] },
-  { id: 'growing', title: 'Growing', labels: ['Spacing', 'Fruit set', 'Deer', 'Tolerates', 'Growth rate', 'Takes clay', 'Takes wet feet', 'Takes dry shade', 'How it spreads', 'Maintenance',
-    'Taproot (hard to move)', 'Humidity', 'Habit', 'Trunk'] },
+  { id: 'growing', title: 'Growing', labels: ['Spacing', 'Fruiting', 'Deer', 'Tolerates', 'Growth rate', 'Takes clay', 'Takes wet soil', 'Takes dry shade', 'How it spreads', 'Maintenance',
+    'Taproot (hard to move)', 'Humidity', 'How it grows', 'Trunk'] },
 ];
 /** The groups opened while the picker is open (Jason: they stay open until it closes, then fold again). */
 const openGroups = new Set<string>();
@@ -550,7 +561,7 @@ export function groupSummary(id: string, p: Plant): string {
     if (p.thorns) parts.push('thorns');
   } else if (id === 'growing') {
     if (p.deer) parts.push(p.deer === 'Resistant' ? 'deer resistant' : lower(deerWords(p.deer).split(':')[0]));
-    const takes = [...(p.tolerates ?? []).filter((x) => x !== 'deer'), p.clay_ok && 'clay', p.wet_feet && 'wet feet', p.dry_shade && 'dry shade'].filter(Boolean) as string[];
+    const takes = [...new Set([...(p.tolerates ?? []).filter((x) => x !== 'deer'), p.clay_ok && 'clay', p.wet_feet && 'wet soil', p.dry_shade && 'dry shade'].filter(Boolean) as string[])];
     if (takes.length) parts.push(`takes ${takes.join(', ')}`);
     if (p.growth_rate) parts.push(`${p.growth_rate} growth`);
     if (p.maintenance_level) parts.push(`${p.maintenance_level} upkeep`);

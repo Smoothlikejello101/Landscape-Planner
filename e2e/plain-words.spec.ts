@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { addKind, planPoint, shapeCount } from './helpers';
+import { addKind, openSections, planPoint, shapeCount, tapFromCenter } from './helpers';
 
 // Plainer words, quieter sources (the first beta testers, Sam and Kayla, and Jason's notes, Nov 2–4: "too technical and
 // too wordy").
@@ -100,4 +100,25 @@ test('poison, one way everywhere: "Hide plants toxic to …", what each hides, a
   await expect(page.getByTestId('dogs-note')).toContainText('not yet rated still show');
   await expect(page.getByTestId('active-chip')).toHaveText(['No plants toxic to dogs', 'No plants toxic to cats']);
   await expect(box).not.toContainText(/problem for|poisonous/i);
+});
+
+test('"width when grown", not "mature spread": the picker\'s size filters, a placed plant\'s size, its details\' plain row names', async ({ page }) => {
+  await page.goto('./');
+  await page.locator('.tool-btn.plants').click();
+  await page.getByTestId('filters').click();
+  await expect(page.locator('#more-filters')).toContainText('Height when grown');
+  await expect(page.locator('#more-filters')).toContainText('Width when grown');
+  await expect(page.locator('#more-filters')).not.toContainText(/mature/i);
+  await page.getByTestId('filters').click();
+  await page.getByTestId('plant-search').fill('Buttonbush');
+  await page.locator('.sheet .proj-row', { hasText: 'Buttonbush' }).first().locator('[data-testid=plant-place]').click();
+  await tapFromCenter(page, 0, 0);
+  await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
+  await tapFromCenter(page, 0, 0);
+  await page.locator('.sel-pill .edit').click();
+  await openSections(page);
+  await expect(page.locator('.sheet .field label', { hasText: /^Width when grown \(ft\)$/ })).toBeVisible();
+  await expect(page.getByTestId('plant-size-note')).toContainText('Its width when grown:');
+  await expect(page.getByTestId('about-plant')).toContainText('Takes wet soil');
+  await expect(page.locator('.sheet')).not.toContainText(/mature|Spread \(ft\)|ft spread|wet feet/i);
 });

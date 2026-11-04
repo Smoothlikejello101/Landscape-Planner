@@ -1294,7 +1294,8 @@ export function renderPlantsPanel() {
   });
 
   // ---- THE REST ----
-  // (Mature height and width: the readout follows a handle as it moves; the list changes when it's let go.)
+  // (Height and width when grown ("mature": Kayla, Nov 4, "What is mature spread?"): the readout follows a handle as it
+  // moves; the list changes when it's let go.)
   const heightReadout = el('span', { 'data-testid': 'height-readout' }, heightLabel(plantFilter.height));
   const widthReadout = el('span', { 'data-testid': 'width-readout' }, sizeLabel(plantFilter.width, 'width'));
   const here = gardenStateName();
@@ -1312,10 +1313,10 @@ export function renderPlantsPanel() {
     checks(mkCheck('Has flowers', 'flowers'), mkCheck('Fall color', 'fallColor'), mkCheck('Evergreen', 'evergreen'), mkCheck('Winter interest', 'winterInterest')),
     row(mkSelect('growth', 'Any growth rate', GROWTH, { name: 'Growth rate', selected: (_v, t) => `Growth rate: ${t}` })),
     el('div', { className: 'field', style: { marginTop: '8px' } },
-      el('div', { className: 'hint', style: { display: 'flex', justifyContent: 'space-between' } }, el('span', {}, 'Mature height'), heightReadout),
+      el('div', { className: 'hint', style: { display: 'flex', justifyContent: 'space-between' } }, el('span', {}, 'Height when grown'), heightReadout),
       heightRange(plantFilter.height, (v) => { heightReadout.textContent = heightLabel(v); }, (v) => { plantFilter.height = v; heightReadout.textContent = heightLabel(v); rebuildList(); })),
     el('div', { className: 'field', style: { marginTop: '8px' } },
-      el('div', { className: 'hint', style: { display: 'flex', justifyContent: 'space-between' } }, el('span', {}, 'Mature width'), widthReadout),
+      el('div', { className: 'hint', style: { display: 'flex', justifyContent: 'space-between' } }, el('span', {}, 'Width when grown'), widthReadout),
       heightRange(plantFilter.width, (v) => { widthReadout.textContent = sizeLabel(v, 'width'); }, (v) => { plantFilter.width = v; widthReadout.textContent = sizeLabel(v, 'width'); rebuildList(); }, 'width')),
     groupHead('Site & care'),
     checks(mkCheck('Low maintenance', 'lowMaintenance'), mkCheck('Drought tolerant', 'drought'), mkCheck('Takes wet soil', 'wetFeet'),

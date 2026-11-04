@@ -65,7 +65,7 @@ export function helpAnswers(d: HelpDevice): HelpAnswer[] {
       id: 'own-plant', q: 'Add my own plant',
       lines: [
         'In the plant picker (Plant, at the bottom of the screen), search for it; below the list, Add your own plant.',
-        'It needs a name and its spread; start from a similar plant to fill in the rest. It’s kept under My plants in the picker, for all your plans.',
+        'It needs a name and its width when grown; start from a similar plant to fill in the rest. It’s kept under My plants in the picker, for all your plans.',
       ],
     },
     {

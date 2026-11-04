@@ -213,7 +213,7 @@ export function renderPlantForm() {
     ? state.shapes.find((s) => s.id === state.pickerLinkId) : undefined;
   const fromData = !!linking && (isDataSized as (s: Shape) => boolean)(linking); // (a plain yes or no: no narrowing)
   const drawn = linking?.type === 'circle' && !linking.canopy && !linking.tree && !fromData ? Math.round(linking.radius * 4) / 2 : undefined;
-  const spread = sizeField('Spread (width), required', (source?.width as Range | undefined) ?? (drawn ? { min: drawn, max: drawn, med: drawn } : undefined),
+  const spread = sizeField('Width when grown, required', (source?.width as Range | undefined) ?? (drawn ? { min: drawn, max: drawn, med: drawn } : undefined),
     'e.g. 6-8', 'pf-spread', true, drawn ? String(drawn) : '');
   const height = sizeField('Height (optional)', source?.height as Range | undefined, 'e.g. 3-4', 'pf-height', false);
 

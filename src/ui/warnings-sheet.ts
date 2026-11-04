@@ -357,7 +357,7 @@ const RULES: Record<WarningKind, () => string> = {
   utility: () => `Trees and shrubs, by how tall they typically grow and how far they stand from each utility. Within ${NEAR_LINE} ft of an overhead power line a tree should top out at ${SMALL_TREE} ft or less; ${NEAR_LINE} to ${CLEAR_OF_LINE} ft away, under ${MEDIUM_TREE} ft; taller trees ${CLEAR_OF_LINE} ft or more away (UF/IFAS Extension). Trees and shrubs stay ${BURIED_CLEAR} ft from a buried line (Entergy keeps that much clear of its underground lines); call 811 before you dig. A tree or shrub should stand at least as far from a septic field as it grows tall (UGA Extension). A tree drawn without a height isn't checked.`,
   hardy: () => 'Each plant’s hardiness zones, from its sources, against your ZIP’s zone on the 2023 USDA Plant Hardiness Zone Map (the PRISM Group, Oregon State University). Rated only for warmer zones: too cold. Rated only for colder zones: it may be too warm. Annuals, and plants already in the ground, aren’t checked.',
   sun: () => 'A plant inside a sun area you recorded is checked against the sun it wants: full sun is 6 hours or more of direct sun, part shade 3 to 6, shade under 3; filtered light counts as part shade at most. A plant that wants some shade is flagged too with 2 hours or more of sun between 1 and 6 pm. Plants outside your sun areas aren’t checked.',
-  crowding: () => 'Usual spacing is half of each plant’s typical spread added together, less where one grows under a tree whose lower limbs can be taken up. Close is where their typical spreads touch; crowded, closer than three quarters of that. ' +
+  crowding: () => 'Usual spacing is half of each plant’s typical width when grown added together, less where one grows under a tree whose lower limbs can be taken up. Close is where they’d touch at those widths; crowded, closer than three quarters of that. ' +
     `Spring bulbs under a deciduous plant ${BULB_PARTNER_MIN_HEIGHT} ft or taller don’t count, except right at its base.`,
   fruit: () => 'From each plant’s sources: some come as male and female plants, and a female needs a male of its kind nearby to fruit; others need, or do better with, a second variety. Every plant in the plan counts as a partner. As you place one, a notice offers partners to add.',
 };
@@ -408,7 +408,7 @@ function switchCard(kind: WarningKind): HTMLElement {
     card.appendChild(check('sun-warnings', state.sunWarnings, (v) => { state.sunWarnings = v; save(); }, 'Check sun'));
   } else if (kind === 'crowding') {
     card.classList.add('ws-stack');
-    card.append(check('show-crowding', state.showCrowding, setShowCrowding, '', 'Plants closer than their spread allows: rings on the plan, amber where close, red where crowded'),
+    card.append(check('show-crowding', state.showCrowding, setShowCrowding, '', 'Plants closer than their width when grown allows: rings on the plan, amber where close, red where crowded'),
       check('crowd-warnings', state.crowdWarnings, setCrowdWarnings, '', 'Tell me as I place a plant close to another'));
     card.removeChild(lines);
   } else {

@@ -361,7 +361,7 @@ export function crowdingNote(s: Shape): HTMLElement | null {
   leave.addEventListener('click', () => leaveClose(s.id, crowds.map((c) => c.other.id)));
   body.append(el('div', { className: 'crowd-fixes' }, nudge, s.plantId && plantsById[s.plantId] ? swapButton('big', [s], 'Swap for a smaller plant\u2026', 'btn') : null, leave));
   if (left.length) body.append(flagAgainRow());
-  body.append(el('div', { className: 'hint', style: { marginTop: '4px' } }, 'Usual spacing is half of each plant\'s typical spread added together, less where one grows under a tree whose lower limbs can be taken up (a third of its height, unless the tree says otherwise). ' +
+  body.append(el('div', { className: 'hint', style: { marginTop: '4px' } }, 'Usual spacing is half of each plant\'s typical width when grown added together, less where one grows under a tree whose lower limbs can be taken up (a third of its height, unless the tree says otherwise). ' +
     `Spring bulbs under a deciduous plant ${BULB_PARTNER_MIN_HEIGHT} ft or taller don't count, except right at its base. A little closeness can be fine, if you're after a quick, full look.`));
   box.append(toggle, body);
   return box;
