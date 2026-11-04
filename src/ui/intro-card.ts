@@ -16,7 +16,7 @@ import { PLANT_FILTER_DEFAULTS, plantFilter, plantMatches, plantsById, plantTake
 import { hardyEnough, zoneFit } from '../climate';
 import { nativeHere, regulatedHere } from '../wild';
 import { sunAt, sunLevel } from '../sun';
-import { applyYard, noteAsked, saveHardy, saveYard, toggleYard, yardFilter, yardOf, type Yard } from '../yard';
+import { NO_YARD, applyYard, household, noteAsked, saveHardy, saveYard, toggleYard, yardFilter, yardOf, yardSet, type Yard } from '../yard';
 import {
   NEW_RECORD, STEP_NUMBER, STEP_TITLE, UNSCALED, applies, nextStep, parseIntroRecord, plantCardText, prevStep, resumeStep, shrubToFind,
   stepDone, type IntroRecord, type Snapshot, type StepId,
@@ -276,28 +276,45 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
 }
 /**
  * Step 6's choices: each a toggle that sets the picker's filter for it at once and keeps it with the plan
- * (src/yard.ts); read from the filters each time, so a change made in Filters meanwhile shows.
+ * (src/yard.ts); read from the filters each time, so a change made in Filters meanwhile shows. And "None of these"
+ * (Jason, Nov 4: "there should be a way to say 'none of the above'"): the four off, and the question answered for the
+ * plan, so the picker keeps "Anyone you need to protect?" under its Filters fold and the warnings know no one's at
+ * risk. It shows chosen while the plan's answer is no one; one of the four chosen, it isn't.
  */
 function whoChips(): HTMLElement {
   const row = el('div', { className: 'intro-chips', role: 'group', 'aria-label': "Who's in your yard" });
   const chips: [keyof Yard, string][] = [['kids', 'Kids'], ['dogs', 'Dogs'], ['cats', 'Cats'], ['horses', 'Horses']];
   const isOn = (k: keyof Yard) => { const y = yardOf(plantFilter); return k === 'dogs' ? y.dogs !== '' : !!y[k]; };
+  const noOne = () => { const h = household(); return h.answered && !yardSet(h); };
+  const shown: [HTMLElement, () => boolean][] = [];
+  const show = () => {
+    for (const [b, on] of shown) { b.classList.toggle('on', on()); b.setAttribute('aria-pressed', String(on())); }
+    note.hidden = !isOn('dogs');
+  };
   for (const [k, label] of chips) {
-    const b = el('button', { className: 'intro-chip' + (isOn(k) ? ' on' : ''), 'aria-pressed': String(isOn(k)), 'data-testid': `intro-${k}` }, label);
+    const b = el('button', { className: 'intro-chip', 'data-testid': `intro-${k}` }, label);
     b.addEventListener('click', () => {
       // (Dogs back on: as it was set before, "only plants rated safe" kept if that's what it was. The picker's "Anyone
       // you need to protect?" does the same: src/yard.ts toggleYard.)
       const y = toggleYard(yardOf(plantFilter), k);
       applyYard(plantFilter, y);
       saveYard(y, k);
-      b.classList.toggle('on', isOn(k)); b.setAttribute('aria-pressed', String(isOn(k)));
-      note.hidden = !isOn('dogs');
+      show();
     });
+    shown.push([b, () => isOn(k)]);
     row.appendChild(b);
   }
+  const none = el('button', { className: 'intro-chip', 'data-testid': 'intro-none' }, 'None of these');
+  none.addEventListener('click', () => {
+    applyYard(plantFilter, NO_YARD);
+    saveYard({ ...NO_YARD }); // (all four off, answered: src/yard.ts)
+    show();
+  });
+  shown.push([none, noOne]);
+  row.appendChild(none);
   // (Dogs: no dog warnings; a plant not yet rated still shows, which isn't the same as safe. Decided Oct 28.)
   const note = el('div', { className: 'intro-note', 'data-testid': 'intro-dogs-note' }, "Dogs: plants with a warning for dogs are hidden; plants not yet rated still show.");
-  note.hidden = !isOn('dogs');
+  show();
   return el('div', {}, row, note);
 }
 

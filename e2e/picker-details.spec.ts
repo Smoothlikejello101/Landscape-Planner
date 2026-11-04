@@ -1066,6 +1066,50 @@ test('"Anyone you need to protect?" isn\'t asked first on a device that answered
   expect(await deviceKept(page)).toEqual([null, null]);
 });
 
+test('step 6\'s "None of these": the four off and the question answered for the plan, so the picker asks it under Filters; one of the four unselects it (Jason, Nov 4)', async ({ page }) => {
+  autoDialogs(page);
+  await openFresh(page);
+  await page.getByTestId('intro-start').click();
+  for (let n = 1; n <= 5; n++) {
+    await expect(page.getByTestId('intro-step')).toHaveText(`Step ${n} of 8`);
+    await page.getByTestId('intro-skip').click();
+  }
+  await expect(page.getByTestId('intro-step')).toHaveText('Step 6 of 8');
+  const none = page.getByTestId('intro-none');
+  await expect(none).toHaveText('None of these');
+  await expect(none).toHaveAttribute('aria-pressed', 'false'); // (not answered yet)
+  await page.getByTestId('intro-kids').click();
+  await none.click();
+  await expect(none).toHaveAttribute('aria-pressed', 'true');
+  for (const k of ['kids', 'dogs', 'cats', 'horses']) await expect(page.getByTestId(`intro-${k}`)).toHaveAttribute('aria-pressed', 'false');
+  await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, answered: true });
+  // One of the four: no longer "none".
+  await page.getByTestId('intro-dogs').click();
+  await expect(none).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('intro-dogs-note')).toBeVisible();
+  await none.click();
+  await expect(page.getByTestId('intro-dogs')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('intro-dogs-note')).toBeHidden();
+  await expect(none).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, answered: true });
+  // Answered for the plan by the chip itself (left before Next): the picker asks it under Filters, not first.
+  await page.getByTestId('intro-exit').click();
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.getByTestId('picker-count')).toBeVisible();
+  await expect(protectAtTop(page)).toHaveCount(0);
+  await openFilters(page);
+  await expect(protectInGroup(page)).toBeVisible();
+  for (const k of ['kids', 'dogs', 'cats', 'horses']) await expect(page.getByTestId(`protect-${k}`)).toHaveAttribute('aria-pressed', 'false');
+  // Taken up again from Help: shown chosen, the plan's answer being no one.
+  await closeSheet(page);
+  await page.locator('button[title=More]').click();
+  await page.getByTestId('menu-help').click();
+  await page.getByTestId('help-tour').click();
+  await page.getByTestId('intro-resume').click();
+  await expect(page.getByTestId('intro-step')).toHaveText('Step 6 of 8');
+  await expect(page.getByTestId('intro-none')).toHaveAttribute('aria-pressed', 'true');
+});
+
 // One of the four set after Clear filters (the filters are for the search at hand; the yard stays) changes that one
 // alone: Cats ticked after clearing kids' and the dog's filters keeps the kids and the dog in the yard (the review of the
 // storage change, Nov 1: taken whole from the filters, the yard lost them, on every device).
