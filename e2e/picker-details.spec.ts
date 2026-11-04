@@ -33,6 +33,62 @@ test('a plant row opens to its details, and stays open while the list changes', 
   await expect(page.getByTestId('place-bar')).toHaveCount(0);
 });
 
+test('with ten or more sure matches, the less-sure groups fold into one line that says how many and opens them; fewer, or a search, and they show as before (Jason, Nov 4)', async ({ page }) => {
+  const sure = (i: number, form = 'Perennial') => ({ id: `sure-${i}`, common: `Sure plant ${String(i).padStart(2, '0')}`, botanical: `Surea plantus ${i}`, src: ['ncsu'], audited: '2026-10-18', facts: { form, sun_most: 'Full', sun_least: 'Part' } });
+  const catalog = {
+    meta: {
+      format: 'lp-catalog', version: 2, zones: 'half', title: 'Test catalog', updated: '2026-10-18',
+      sources: { ncsu: { title: 'NC State Extension', trust: 'reference' }, shop: { title: 'A nursery', trust: 'nursery' }, compendium: { title: 'Earlier list', trust: 'unverified' } },
+      enums: { form: ['Perennial', 'Shrub'] },
+    },
+    plants: [
+      ...Array.from({ length: 9 }, (_, i) => sure(i + 1)), sure(10, 'Shrub'),
+      { id: 'heuchera-villosa', common: 'Hairy alumroot', botanical: 'Heuchera villosa', src: ['ncsu'], audited: '2026-10-18',
+        facts: { form: 'Perennial', sun_most: { v: 'Part', src: ['ncsu'], check: 'single', alt: { v: 'Full', src: ['shop'], check: 'reported' } }, sun_least: { v: 'Shade', src: ['ncsu'], check: 'single' } } },
+      { id: 'old', common: 'Old-list aster', src: ['compendium'], audited: null, facts: { form: 'Perennial', sun_most: 'Full', sun_least: 'Part' } },
+    ],
+  };
+  await page.route('**/plants.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(catalog) }));
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await openFilters(page);
+  await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any sun' }) }).selectOption('Full');
+  const order = () => page.locator('.list-divider, .plant-item .pname').evaluateAll((els) => els.map((e) => (e.classList.contains('list-divider') ? '|' + e.getAttribute('data-testid') : e.textContent)));
+  const sureNames = Array.from({ length: 10 }, (_, i) => `Sure plant ${String(i + 1).padStart(2, '0')}`);
+  // Ten sure: the other two fold into one line, last, saying how many and why.
+  await expect.poll(order).toEqual([...sureNames, '|less-sure']);
+  const line = page.getByTestId('less-sure');
+  await expect(line).toHaveText('Show 2 more that other sources or the earlier list say fit');
+  await expect(line).toHaveAttribute('aria-expanded', 'false');
+  // Opened: the two groups, as worded before, with Hide these.
+  await line.click();
+  await expect.poll(order).toEqual([...sureNames, '|others-divider', 'Hairy alumroot', '|earlier-divider', 'Old-list aster']);
+  await expect(page.getByTestId('others-divider')).toContainText('Other sources say these take full sun too');
+  await expect(page.getByTestId('hide-others')).toBeVisible();
+  // Nine sure (Perennials only): no line, the groups shown as before.
+  await closeSheet(page);
+  await page.locator('.tool-btn.plants').click();
+  await openFilters(page);
+  await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any sun' }) }).selectOption('Full');
+  await expect.poll(order).toEqual([...sureNames, '|less-sure']); // (opened by hand last time: folded again, a new look)
+  await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any form' }) }).selectOption('Perennial');
+  await expect.poll(order).toEqual([...sureNames.slice(0, 9), '|others-divider', 'Hairy alumroot', '|earlier-divider', 'Old-list aster']);
+  // Other sources' put away with Hide these, then ten sure again: the line says only the other one.
+  await page.getByTestId('hide-others').click();
+  await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any form' }) }).selectOption('');
+  await expect(line).toHaveText('Show 1 more that only the earlier list (unverified) says fit');
+  await expect(page.getByTestId('others-hidden')).toContainText('1 more fit by what other sources say.');
+  await page.getByTestId('show-others').click();
+  await expect(line).toHaveText('Show 2 more that other sources or the earlier list say fit');
+  // A search by name finds every plant as before: with ten sure matches too, nothing folded.
+  await page.getByTestId('plant-search').fill('plant');
+  await expect(page.locator('.plant-item', { hasText: 'Sure plant 10' })).toHaveCount(1);
+  await page.getByTestId('plant-search').fill('a');
+  await expect(line).toHaveCount(0);
+  await expect(page.locator('.plant-item', { hasText: 'Hairy alumroot' })).toHaveCount(1);
+  await expect(page.locator('.plant-item', { hasText: 'Old-list aster' })).toHaveCount(1);
+});
+
 test('a plant shown only because of what other sources say is marked, and says so, naming who', async ({ page }) => {
   const catalog = {
     meta: {
