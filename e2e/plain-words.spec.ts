@@ -122,3 +122,75 @@ test('"width when grown", not "mature spread": the picker\'s size filters, a pla
   await expect(page.getByTestId('about-plant')).toContainText('Takes wet soil');
   await expect(page.locator('.sheet')).not.toContainText(/mature|Spread \(ft\)|ft spread|wet feet/i);
 });
+
+/** A second visit on this device (the first was yesterday): when the install card may show. */
+async function secondVisit(page: Page) {
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('visit-seeded')) return;
+    sessionStorage.setItem('visit-seeded', '1');
+    const y = new Date(Date.now() - 86_400_000);
+    const day = `${y.getFullYear()}-${String(y.getMonth() + 1).padStart(2, '0')}-${String(y.getDate()).padStart(2, '0')}`;
+    localStorage.setItem('lp-visits', JSON.stringify({ n: 1, day }));
+  });
+}
+/** Chrome's offer to install, as it makes it (its beforeinstallprompt), noting when it's asked. */
+async function browserOffersInstall(page: Page) {
+  await page.evaluate(() => {
+    const e = new Event('beforeinstallprompt', { cancelable: true }) as Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> };
+    e.prompt = async () => { (window as unknown as { __asked: boolean }).__asked = true; };
+    e.userChoice = Promise.resolve({ outcome: 'accepted' });
+    window.dispatchEvent(e);
+  });
+}
+
+test('install, explained: once, on a phone’s browser, from the second visit; Install asks the browser; never again; in Help too', async ({ page, isMobile }) => {
+  // The first open of a brand-new device: no card, though the browser offers it.
+  await page.goto('./');
+  await expect(page.locator('.project-btn .pname')).toBeVisible();
+  await browserOffersInstall(page);
+  await page.waitForTimeout(300);
+  await expect(page.getByTestId('install-card')).toHaveCount(0);
+  // Help has it any time, with the browser's Install where it's offered.
+  await page.locator('button[title=More]').click();
+  await page.locator('.menu-item', { hasText: 'Help' }).click();
+  await page.getByTestId('help-q-install').click();
+  await expect(page.getByTestId('help-a-install')).toContainText('Installed, FullGrown gets its own icon on your home screen, opens full screen like an app, and works without a signal.');
+  await expect(page.getByTestId('help-a-install')).toContainText('On an iPhone, in Safari: Share (the square with an arrow), then Add to Home Screen.');
+  await expect(page.getByTestId('help-go-install')).toBeVisible();
+  // A later visit, on a phone: the card, with Install. (Not on a computer.)
+  const later = await page.context().newPage();
+  await secondVisit(later);
+  await later.goto('./');
+  await expect(later.locator('.project-btn .pname')).toBeVisible();
+  await browserOffersInstall(later);
+  const card = later.getByTestId('install-card');
+  if (!isMobile) { await later.waitForTimeout(300); await expect(card).toHaveCount(0); return; }
+  await expect(card).toContainText('Install FullGrown on this phone?');
+  await expect(card).toContainText('It gets its own icon on your home screen, opens full screen like an app, and works without a signal.');
+  await card.getByRole('button', { name: 'Install' }).click();
+  await expect.poll(() => later.evaluate(() => (window as unknown as { __asked?: boolean }).__asked)).toBe(true);
+  await expect(card).toHaveCount(0);
+  // Never again.
+  await later.reload();
+  await expect(later.locator('.project-btn .pname')).toBeVisible();
+  await browserOffersInstall(later);
+  await later.waitForTimeout(300);
+  await expect(card).toHaveCount(0);
+});
+
+test.describe('on an iPhone', () => {
+  test.use({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1' });
+  test('the card gives the two steps, Share then Add to Home Screen; put away, never again', async ({ page }) => {
+    await secondVisit(page);
+    await page.goto('./');
+    const card = page.getByTestId('install-card');
+    await expect(card).toContainText('Add FullGrown to your home screen?');
+    await expect(card).toContainText('To add it: Share (the square with an arrow), then Add to Home Screen.');
+    await card.getByTestId('notice-close').click();
+    await expect(card).toHaveCount(0);
+    await page.reload();
+    await expect(page.locator('.project-btn .pname')).toBeVisible();
+    await page.waitForTimeout(300);
+    await expect(card).toHaveCount(0);
+  });
+});

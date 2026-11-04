@@ -40,6 +40,7 @@ import { closeWarningsSide, warningsSideOpen } from './ui/warnings-sheet';
 import { lastVisitAt, noteVisit, visitedBefore } from './hints';
 import { arrive, backupDue, deviceWord, startCard } from './welcome';
 import { fitWholePlan, showSavedHere, showWelcomeBack } from './ui/welcome-card';
+import { listenForInstall, offerInstall } from './ui/install-card';
 import { newsAtStart } from './whats-new';
 import { tellWhatsNew } from './ui/whats-new-panel';
 import { introActive } from './ui/intro-card';
@@ -419,6 +420,8 @@ setOpenBlockedListener((blocked) => {
 });
 
 async function start() {
+  // (The browser's offer to install, when it makes one: src/install.ts.)
+  listenForInstall();
   let migrationError: string | undefined;
   let keptApart: string[] | undefined;
   try {
@@ -466,6 +469,9 @@ async function start() {
   // (Said once, after the first render; not over the guided introduction's card, though its list still marks them New;
   // nor beside the start's card, which says it after an update.)
   tellWhatsNew(news, !introActive() && !card);
+  // Once, on a phone's browser where the app isn't installed, from the second visit: what installing means and how
+  // (src/install.ts has when). Not beside another start card, nor over Guided start.
+  offerInstall({ visit: arrival.visit, otherCard: !!card || news.length > 0 });
   const told = migrationError
     ? tell("Some projects from the previous version couldn't be copied (" + migrationError + "). They are still stored on this device; the app will try again next time it opens.")
     : Promise.resolve();

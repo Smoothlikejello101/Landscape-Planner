@@ -8,6 +8,8 @@
 // the device can share a file; sign-in where the app has it (not on Next). No "tap" or "click": the answers say where
 // a thing is and what it's called, which reads the same on a phone and a computer.
 
+import { ANDROID_STEPS, INSTALL_MEANS, IPHONE_STEPS } from './install';
+
 export interface HelpDevice {
   /** A keyboard and a mouse or trackpad (src/dom.ts hasKeyboard). */
   keyboard: boolean;
@@ -21,9 +23,11 @@ export interface HelpDevice {
   shareFiles: boolean;
   /** Sign-in and sync are offered (not on Next: src/channel.ts). */
   signIn: boolean;
+  /** Running installed, from its own icon (src/ui/install-card.ts runningInstalled). */
+  installed?: boolean;
 }
 
-export type HelpId = 'print' | 'list' | 'backup' | 'undo' | 'own-plant' | 'location' | 'protect';
+export type HelpId = 'print' | 'list' | 'backup' | 'undo' | 'own-plant' | 'location' | 'protect' | 'install';
 export interface HelpAnswer { id: HelpId; q: string; lines: string[] }
 
 /** The "How do I…" list, in its order, worded for `d`. */
@@ -80,6 +84,14 @@ export function helpAnswers(d: HelpDevice): HelpAnswer[] {
       lines: [
         'Say who’s in the yard: Kids, Dogs, Cats or Horses. The plant picker asks “Anyone you need to protect?” (once answered, it’s under Filters → Poison & pets), and Warnings → Poison has the same choice.',
         'Plants toxic to them are then hidden in the picker, and any already on the plan are flagged in Warnings. It’s kept with the plan.',
+      ],
+    },
+    // (Jason, Nov 4, from the beta testers: Kayla "didn't know what it meant to install it on her home screen".)
+    {
+      id: 'install', q: 'Install the app on my phone',
+      lines: [
+        `Installed, FullGrown ${INSTALL_MEANS.replace(/^It /, '')}`,
+        d.installed ? 'It’s installed: you’re using it now.' : `On an iPhone, in Safari: ${IPHONE_STEPS} On Android, in Chrome: ${ANDROID_STEPS}`,
       ],
     },
   ];

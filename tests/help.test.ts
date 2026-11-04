@@ -9,10 +9,10 @@ const MAC: HelpDevice = { ...PC, mac: true };
 const said = (d: HelpDevice, id: HelpId) => helpAnswers(d).find((a) => a.id === id)!.lines.join(' ');
 
 describe('Help: "How do I…"', () => {
-  it('asks the seven questions, in order, each answered in two or three lines', () => {
+  it('asks the eight questions, in order, each answered in two or three lines', () => {
     for (const d of [PHONE, PC, MAC, { ...PHONE, roomy: false, signIn: false, shareFiles: false }]) {
       const list = helpAnswers(d);
-      expect(list.map((a) => a.id)).toEqual(['print', 'list', 'backup', 'undo', 'own-plant', 'location', 'protect']);
+      expect(list.map((a) => a.id)).toEqual(['print', 'list', 'backup', 'undo', 'own-plant', 'location', 'protect', 'install']); // (install: Nov 4)
       for (const a of list) {
         expect(a.lines.length).toBeGreaterThanOrEqual(2);
         expect(a.lines.length).toBeLessThanOrEqual(3);

@@ -21,6 +21,7 @@ import { openOwnPlantForm } from './plants-panel';
 import { openPrint } from './print-panel';
 import { render } from './render';
 import { openWarnings } from './warnings-sheet';
+import { installOffered, promptInstall, runningInstalled } from './install-card';
 
 /** The questions opened. */
 const opened = new Set<HelpId>();
@@ -40,6 +41,7 @@ export function helpDevice(): HelpDevice {
     shareWords: canShareWords() && !keyboard,
     shareFiles: canShareFiles(),
     signIn: signInAllowed(),
+    installed: runningInstalled(),
   };
 }
 
@@ -92,6 +94,9 @@ function buttonsFor(id: HelpId): HTMLElement[] {
         ...(state.shapes.some((s) => s.role === 'plant')
           ? [go(I.warn, 'Warnings', 'help-go-warnings', () => { state.panel = null; openWarnings('poison'); })] : []),
       ];
+    case 'install':
+      // (Where the browser offers it (Chrome on Android): its install, from here.)
+      return installOffered() ? [go(I.download, 'Install', 'help-go-install', () => { state.panel = null; render(); void promptInstall(); })] : [];
   }
 }
 
