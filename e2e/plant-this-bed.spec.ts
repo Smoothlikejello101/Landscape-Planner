@@ -210,6 +210,11 @@ test('For a clay bed: what no source rates for clay is listed below a divider; a
   await search(page).fill('Silverleaf hydrangea');
   await expect(page.getByTestId('no-clay-divider')).toContainText('No source we\'ve read says how these do in clay');
   await expect(page.locator('[data-testid=no-clay-divider] ~ .plant-item .pname', { hasText: 'Silverleaf hydrangea' })).toBeVisible();
+  // A plant that takes only part of the bed's sun says where.
+  await search(page).fill('Narrow-leaved coneflower');
+  await expect(rowNamed(page, 'Narrow-leaved coneflower').getByTestId('sun-end')).toHaveText('Sunny end only');
+  await search(page).fill('Climbing hydrangea');
+  await expect(rowNamed(page, 'Climbing hydrangea').getByTestId('sun-end')).toHaveText('Shady end only');
   // Nothing hidden silently: what the bed hid of a search, by name, and a way to see them.
   await search(page).fill('cardinal flower');
   await expect(page.getByTestId('hidden-by')).toHaveText('1 plant matches “cardinal flower”, hidden by Front bed: Moisture. Show them');

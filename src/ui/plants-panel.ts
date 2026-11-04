@@ -9,7 +9,7 @@ import { toast } from './toast';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery, unsearchable } from '../search';
-import { seasonMonths, byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, noClayRating, sunRangeSaid, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, planCounts, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById, swapFiltersOn, treeFiltersAside } from '../plants';
+import { seasonMonths, byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, noClayRating, sunFit, sunRangeSaid, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, planCounts, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById, swapFiltersOn, treeFiltersAside } from '../plants';
 import { recentPlants, startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { SPREAD_WAYS, spreadWays } from '../spread';
@@ -160,6 +160,8 @@ export function openOwnPlantForm() {
 }
 
 const cap = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);
+/** Where in a bed a plant that takes only some of its sun fits (src/plants.ts sunFit). */
+const SUN_END: Record<'sunny' | 'shady' | 'middle', string> = { sunny: 'Sunny end only', shady: 'Shady end only', middle: 'Part-shade middle only' };
 /** Feet as a row says them: 2.5, 3. */
 const fmtFt = (v: number) => (Math.round(v * 10) / 10).toString();
 /**
@@ -432,6 +434,10 @@ export function renderPlantsPanel() {
       }
       if (own === 4) flags.push(el('span', { className: 'pflag check', 'data-testid': 'no-clay-flag' }, 'No clay rating'));
     }
+    // For a bed whose sun varies, a plant that takes only part of it says where (Jason, Nov 2, answer A: "some"); the
+    // sun badge on the plan still catches one placed at the wrong end.
+    const end = layer?.keys.sunRange ? sunFit(p, layer.keys.sunRange) : null;
+    if (end && end !== 'all') flags.push(el('span', { className: 'pflag warn sun-end', 'data-testid': 'sun-end' }, SUN_END[end]));
     // (A smaller form of the plant being swapped: how wide it typically grows, and whether that fits where it's planted.)
     if (form) {
       const room = swapFix()?.smaller?.room;
