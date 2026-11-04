@@ -177,6 +177,8 @@ async function openPlan(page: Page, shapes: object[], view: { zoom: number; offs
   }, [shapes, view] as const);
   await page.goto('./');
   await expect.poll(() => shapeCount(page)).toBe(shapes.length);
+  // (The catalog in, and the plan drawn again with it: as e2e/badges.spec.ts waits.)
+  await expect(page.getByTestId('warnings-btn')).not.toHaveAttribute('data-state', 'checking');
 }
 const ROW = [1, 2.5, 4, 5.5, 7].map((x, i) => plant(`c${i + 1}`, 'lobelia-cardinalis', 'Cardinal flower', x, 0, 0.75));
 
@@ -188,11 +190,15 @@ test("a run's name is never under the plants beside it: drawn over every plant, 
   await expect(name).toHaveCount(1);
   // Over every plant: in the names' group after them all.
   await expect(page.locator('#canvas-svg g[data-role=plant-names] [data-role=plant-label]', { hasText: 'Cardinal flower ×5' })).toHaveCount(1);
-  // Off the buttonbush (all but its rim), on the row nearer its other end.
-  const label = (await name.boundingBox())!, bush = (await page.locator('#canvas-svg [data-shape-id=bb]').boundingBox())!;
-  const c = { x: bush.x + bush.width / 2, y: bush.y + bush.height / 2 }, r = bush.width / 2;
-  const nx = Math.max(label.x, Math.min(label.x + label.width, c.x)), ny = Math.max(label.y, Math.min(label.y + label.height, c.y));
-  expect(Math.hypot(nx - c.x, ny - c.y)).toBeGreaterThanOrEqual(0.85 * r);
+  // Off the buttonbush (all but its rim), on the row nearer its other end. (Measured once both are there: the plan is
+  // drawn again as the catalog comes in.)
+  await expect.poll(async () => {
+    const label = await name.boundingBox(), bush = await page.locator('#canvas-svg [data-shape-id=bb]').boundingBox();
+    if (!label || !bush) return -1;
+    const c = { x: bush.x + bush.width / 2, y: bush.y + bush.height / 2 }, r = bush.width / 2;
+    const nx = Math.max(label.x, Math.min(label.x + label.width, c.x)), ny = Math.max(label.y, Math.min(label.y + label.height, c.y));
+    return Math.hypot(nx - c.x, ny - c.y) / r; // (its share of the bush's radius from its middle)
+  }).toBeGreaterThanOrEqual(0.85);
 });
 
 test("zoomed out past 20%, plants' names and runs' names aren't drawn, but a selected plant's is; a bed keeps its name (Jason, Nov 4)", async ({ page }) => {
