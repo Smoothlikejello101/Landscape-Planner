@@ -1,6 +1,6 @@
 // A partner for fruit, said as a plant is placed (Jason, Oct 30): male and female plants, a second variety needed or
-// helping (src/fruit-partners.ts). Once a go for each plant, and not over another notice (crowding and hardiness are
-// said first), until the plan has its partner. Its buttons offer the catalog's plants that would be one ("Add 'Southern
+// helping (src/fruit-partners.ts). Once a go for each plant, and not over another notice about the same plant (crowding
+// and hardiness are said first), until the plan has its partner. Its buttons offer the catalog's plants that would be one ("Add 'Southern
 // Gentleman'"), the best two, alike (those its sources name first, then those hardy here), placed next as any plant
 // picked is; with more, "All 7…" opens the picker on them; Dismiss dismisses it for the plant across the plan.
 
@@ -13,14 +13,16 @@ import { save } from '../storage';
 import type { Shape } from '../types';
 import { openWarningsAt } from './warnings-sheet';
 import { render } from './render';
-import { toast, toastAction } from './toast';
+import { noticeAbout, toast, toastAction } from './toast';
 
 /** A plant offered by its cultivar's name where it has one ("'Southern Gentleman'"), else its name. */
 const offerName = (p: Plant) => /['‘][^'’]+['’]/.exec(p.common)?.[0] ?? p.common;
 
 export function fruitNotice(shape: Shape, place: (p: Plant) => void) {
   if (!state.fruitWarnings || !state.placing || shape.role !== 'plant' || !shape.plantId) return;
-  if (state.placing.warnedFruit === shape.plantId || document.getElementById('toast-action')) return;
+  // (Not over a notice about this same plant, said first: crowding, hardiness, a vine's offer. Over an older one about
+  // anything else: Jason, Nov 4.)
+  if (state.placing.warnedFruit === shape.plantId || noticeAbout(shape.id)) return;
   const p = plantsById[shape.plantId];
   if (!p) return;
   const plan = state.shapes.flatMap((s) => (s.role === 'plant' && s.plantId && plantsById[s.plantId] ? [plantsById[s.plantId]] : []));

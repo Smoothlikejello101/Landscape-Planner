@@ -41,11 +41,14 @@ export function crowdNotice(shape: Shape, moveIt: () => void) {
   if (!list.length || (!crowded.length && state.placing?.warnedClose)) return;
   if (!crowded.length && state.placing) state.placing.warnedClose = true;
   const { line, detail } = crowdWords(shape, list[0], list.length - 1, !!crowded.length);
+  // (Nudge apart or Move it says the spacing matters: the next close one is said too, though close ones are said once a
+  // go. Jason, Nov 4: after a Nudge apart, the next plant placed close got no notice, "Nudged… Undo" up in its place.)
+  const mindsSpacing = () => { if (state.placing) state.placing.warnedClose = false; };
   toastAction(line, [
     // (Just clear of the one it's closest to, the plant just placed moving: Jason's UI review, Nov 2.)
-    { label: 'Nudge apart', run: () => { nudgeNow(shape, list[0].other, shape.id); } },
+    { label: 'Nudge apart', run: () => { mindsSpacing(); nudgeNow(shape, list[0].other, shape.id); } },
     { label: 'Dismiss', run: () => leaveClose(shape.id, list.map((c) => c.other.id)) },
-    { label: 'Move it', run: () => { moveIt(); render(); toast('Tap where it should go.'); } },
+    { label: 'Move it', run: () => { mindsSpacing(); moveIt(); render(); toast('Tap where it should go.'); } },
     { label: 'Settings', run: openCrowdingSettings, icon: I.settings },
   ], 10000, TESTID, { detail, tone: crowded.length ? 'red' : 'amber' });
   const n = document.getElementById('toast-action');

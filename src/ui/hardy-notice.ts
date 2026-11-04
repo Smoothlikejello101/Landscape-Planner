@@ -1,6 +1,7 @@
 // Too cold, or maybe too warm, where the garden is: said as a plant is placed (Jason, Oct 30, from round 2: Lena
 // placed a fig marked "Too cold here" and nothing said so; "too hot and too cold should get warnings by default").
-// Once a go for each plant, and not over a crowding notice, which is said first (src/ui/crowd-notice.ts). Its badge
+// Once a go for each plant, and not over a crowding notice for the same plant, which is said first (src/ui/crowd-notice.ts);
+// over an older notice about anything else, as a new notice is (Jason, Nov 4). Its badge
 // stays on the plan (src/canvas.ts), and its pane says so, with Dismiss (src/ui/role-sections.ts).
 
 import { dismissedForPlan } from '../dismissals';
@@ -8,11 +9,13 @@ import { hardinessWarning, plantsById } from '../plants';
 import { state } from '../state';
 import type { Shape } from '../types';
 import { openWarningsAt } from './warnings-sheet';
-import { toastAction } from './toast';
+import { noticeAbout, toastAction } from './toast';
 
 export function hardyNotice(shape: Shape, takeBack: () => void) {
   if (!state.hardyWarnings || !state.placing || shape.role !== 'plant' || !shape.plantId) return;
-  if (state.placing.warnedHardy === shape.plantId || document.getElementById('toast-action')) return;
+  // (Not over a notice about this same plant, said first: its crowding, or a vine's offer of support. Any other is
+  // older, and this replaces it: Jason, Nov 4.)
+  if (state.placing.warnedHardy === shape.plantId || noticeAbout(shape.id)) return;
   const p = plantsById[shape.plantId];
   const w = p ? hardinessWarning(p) : null;
   if (!w || dismissedForPlan('hardy', p!.id, w.line)) return; // (dismissed for this plant across the plan)
