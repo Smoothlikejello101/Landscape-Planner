@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { atRisk, clearForPlan, copiesSaid, copyDismissed, dismissedForPlan, dismissForPlan, planDismissals, poisonCovered, showAgainForPlan, warnedCopies, warnForNewOnes } from '../src/dismissals';
 import { plantsById, type Plant } from '../src/plants';
 import { state } from '../src/state';
+import { noteSyncedCopy } from '../src/marks';
 import type { Shape } from '../src/types';
 
 // Warnings dismissed for a plant across the plan (Jason, Oct 30): its copies and the ones added later, kept with what
@@ -75,10 +76,16 @@ describe('a warning dismissed for a plant, across the plan', () => {
     expect(copyDismissed('fruit', state.shapes[0], line)).toBe(true);
     expect(copyDismissed('fruit', state.shapes[0], line + '; NC State suggests \'Celeste\'')).toBe(false); // (its words changed: back)
     expect(copyDismissed('fruit', fig('new'), line)).toBe(false); // (one added later: warned for)
-    // Shown again for the plant: every copy's goes too, as hardiness's and poison's do; left '', shown again on purpose,
-    // so sync doesn't fill it back from another device (src/sync/engine.ts withFruitDismissals). '' is never dismissed.
+    // Shown again for the plant: every copy's goes too, as hardiness's and poison's do. Where another device could have
+    // had it from this one (sync carried it: src/marks.ts mayMark) it's left '', shown again on purpose, so sync doesn't
+    // fill it back (src/sync/engine.ts withFruitDismissals); dismissed here and never sent, it goes, as it was (the
+    // review of the bed conditions, Nov 4). '' is never dismissed.
+    const was = state.currentProjectId;
+    state.currentProjectId = was ?? 'synced-plan';
+    noteSyncedCopy(state.currentProjectId, { shapes: [{ ...state.shapes[0] }] });
     expect(clearForPlan('fruit', 'ficus-carica')).toBe(true);
-    expect(state.shapes.map((s) => s.fruitDismissed)).toEqual(['', '']);
+    state.currentProjectId = was;
+    expect(state.shapes.map((s) => s.fruitDismissed)).toEqual(['', undefined]);
     expect(copyDismissed('fruit', state.shapes[0], line)).toBe(false);
     expect(clearForPlan('fruit', 'ficus-carica')).toBe(false); // (none left: no step)
     // (Hardiness and poison aren't filled back by sync: theirs go, as before.)

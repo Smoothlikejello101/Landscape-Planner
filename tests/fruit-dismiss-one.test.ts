@@ -7,6 +7,7 @@ import { cancelHistoryDebounce, pushHistory, pushHistoryDebounced, redo, undo } 
 import { HISTORY_DEBOUNCE_MS } from '../src/constants';
 import { plantsById, type Plant } from '../src/plants';
 import { state } from '../src/state';
+import { noteSyncedCopy } from '../src/marks';
 import type { Shape } from '../src/types';
 import { fruitNotice, remindNoMore } from '../src/ui/fruit-notice';
 import { dismissAcross, plantFruitBanner } from '../src/ui/role-sections';
@@ -132,7 +133,15 @@ describe('a fruit-partner warning dismissed for one plant (Jason, Nov 1)', () =>
     expect(fruitRows()).toEqual([['h,h2', false, undefined]]);
     redo();
     expect(shape('h').fruitDismissed).toBe(line);
+    // (Show again: dismissed here and never sent, it goes, as it was; once sync has carried it, '' on purpose.)
     press(plantFruitBanner(shape('h')), 'Show again');
+    expect(shape('h').fruitDismissed).toBeUndefined();
+    press(plantFruitBanner(shape('h')), 'Dismiss for this one');
+    const was = state.currentProjectId;
+    state.currentProjectId = was ?? 'synced-plan';
+    noteSyncedCopy(state.currentProjectId, { shapes: [{ ...shape('h') }] });
+    press(plantFruitBanner(shape('h')), 'Show again');
+    state.currentProjectId = was;
     expect(shape('h').fruitDismissed).toBe('');
     expect(buttons(plantFruitBanner(shape('h')))).toEqual(['Dismiss for this one', "Dismiss for every Holly 'Red'"]);
     expect(fruitRows()).toEqual([['h,h2', false, undefined]]);
@@ -142,7 +151,7 @@ describe('a fruit-partner warning dismissed for one plant (Jason, Nov 1)', () =>
     expect(buttons(notice())).toEqual(['Just these 2', 'Undo', 'OK', '✕']);
     expect(plantFruitBanner(shape('h'))!.textContent).toContain('Dismissed for every one in this plan.');
     press(plantFruitBanner(shape('h')), 'Show again');
-    expect([dismissedForPlan('fruit', holly.id, line), shape('h2').fruitDismissed]).toEqual([false, '']);
+    expect([dismissedForPlan('fruit', holly.id, line), shape('h2').fruitDismissed]).toEqual([false, undefined]); // (never sent: goes)
   });
 
   it('the notice as a plant is placed: not for a copy dismissed on its own, as for one dismissed across the plan', () => {

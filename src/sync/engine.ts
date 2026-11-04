@@ -69,7 +69,8 @@ export interface Local {
   /** Every project here, as it is now (the open one saved first). */
   projects(): Promise<LocalProject[]>;
   records(): Record<string, SyncRecord>;
-  setRecord(id: string, rec: SyncRecord | null): Promise<void>;
+  /** `content`: the copy just sent or taken, as the record describes it (none when the record is cleared). */
+  setRecord(id: string, rec: SyncRecord | null, content?: ProjectContent): Promise<void>;
   /** Synced projects deleted here, to move to the server's trash: id → the revision deleted. */
   tombstones(): Record<string, number>;
   /**
@@ -708,7 +709,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     switch (res.status) {
       case 'ok':
         // (Recorded as this device has it, so a photo kept here isn't sent again until there's room.)
-        await local.setRecord(p.id, held ? { ...recordFor(p.name, p.content, res.revision), held } : recordFor(p.name, p.content, res.revision));
+        await local.setRecord(p.id, held ? { ...recordFor(p.name, p.content, res.revision), held } : recordFor(p.name, p.content, res.revision), p.content);
         report.uploaded++;
         return true;
       case 'conflict':
@@ -732,7 +733,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     }
     const n = local.normalize(serverName, asOnServer);
     // What the server has (anything else here goes up next time), still holding this device's photo if the original kept it.
-    await local.setRecord(p.id, recordAfter(n.name, n.content, serverRev, records[p.id], photoKey(serverContent)));
+    await local.setRecord(p.id, recordAfter(n.name, n.content, serverRev, records[p.id], photoKey(serverContent)), n.content);
     report.conflicts.push({ name: serverName, copyName: copyLabel, otherDevice: by });
     const copied: LocalProject = { id: copy.id, name: copyLabel, content: p.content, token: copy.token };
     if (!report.paused && !report.full) await upload(copied, null);
@@ -787,7 +788,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     const samePlan = merged.name === raw.name && planHash(merged.name, merged.content) === planHash(raw.name, raw.content);
     const mergedPhoto = photoKey(merged.content) ?? 'none', rawPhoto = photoKey(raw.content) ?? 'none';
     if (samePlan && (mergedPhoto === rawPhoto || (rawPhoto === 'kept' && rec?.held && mergedPhoto === rec.photo))) {
-      await local.setRecord(p.id, recordAfter(raw.name, raw.content, serverRev, rec, mergedPhoto)); // the server has it (or the held photo stands)
+      await local.setRecord(p.id, recordAfter(raw.name, raw.content, serverRev, rec, mergedPhoto), raw.content); // the server has it (or the held photo stands)
     } else await upload(merged, serverRev);
   };
 
@@ -862,7 +863,8 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
           if (!ok) return;
           filled.add(id);
           const n = local.normalize(g.name, content);
-          await local.setRecord(id, recordAfter(n.name, local.normalize(g.name, whole).content, g.revision, rec, rec?.photo));
+          const taken = local.normalize(g.name, whole).content;
+          await local.setRecord(id, recordAfter(n.name, taken, g.revision, rec, rec?.photo), taken);
           report.downloaded++;
           if (undeleted.has(id)) report.undeleted.push(n.name);
         });

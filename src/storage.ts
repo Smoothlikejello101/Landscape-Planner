@@ -153,6 +153,10 @@ const conditionWord = (v: unknown): v is string => typeof v === 'string' && /^[A
 const plainObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
 /** The questions this version asks of a bed (src/types.ts BedConditions). */
 const ASKED = new Set(['sun', 'soil', 'moisture', 'drip']);
+/** A bed's answers to questions a later version asks, as kept: setting this version's leaves them as they are. */
+export function laterQuestionsOf(c: BedConditions | undefined): BedConditions {
+  return Object.fromEntries(Object.entries(c ?? {}).filter(([k]) => !ASKED.has(k)));
+}
 /** A question's name as a later version might add one: a word, no markup, nothing an object has of its own. */
 const laterQuestion = (k: string): boolean => /^[a-z][A-Za-z0-9]{0,30}$/.test(k) && !(k in Object.prototype);
 /** How many questions a later version may add that are kept (more than a bed could be asked: anything past is noise). */

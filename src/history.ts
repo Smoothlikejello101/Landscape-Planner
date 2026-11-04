@@ -5,6 +5,7 @@ import { state } from './state';
 import { save } from './storage';
 import type { HistorySnapshot, Shape } from './types';
 import { deepClone } from './util';
+import { mayMark } from './marks';
 import { describeShapes } from './ui/delete-selected';
 
 // Undo/redo: in-memory snapshots of shapes + background image, per project.
@@ -131,40 +132,30 @@ function narrowedBack(n: NonNullable<HistorySnapshot['narrowed']>, back: boolean
 }
 /**
  * A copy's own fruit-partner dismissal that Undo or Redo takes away is left '', shown again on purpose, as Show again
- * leaves it: so sync doesn't fill it back from another device's copy (src/sync/engine.ts withFruitDismissals). Only on
- * a copy that had one in the first step (inFirstStep): one dismissed here for the first time and undone has none again.
+ * leaves it: so sync doesn't fill it back from another device's copy (src/sync/engine.ts withFruitDismissals). Only
+ * where another device could have had it from this one (src/marks.ts mayMark): one dismissed here for the first time,
+ * never sent, and undone has none again.
  */
 function fruitShownAgain(before: Shape[]) {
   const had = new Map(before.filter((s) => !!s.fruitDismissed).map((s) => [s.id, s.plantId]));
   if (!had.size) return;
   for (const s of state.shapes) {
-    if (s.fruitDismissed === undefined && had.has(s.id) && had.get(s.id) === s.plantId && inFirstStep(s.id, (f) => f.fruitDismissed !== undefined)) s.fruitDismissed = '';
+    if (s.fruitDismissed === undefined && had.has(s.id) && had.get(s.id) === s.plantId && mayMark('fruit', s.id)) s.fruitDismissed = '';
   }
 }
 /**
  * A bed's conditions that Undo or Redo takes away (the step that set them undone, say) are left {}, cleared on purpose,
  * as clearing them leaves them: so sync doesn't fill them back from another device's copy (src/sync/engine.ts
  * withBedConditions). Only on a bed still a bed: one that stops being one has none (src/mutations.ts setRoleForIds).
- * And only on a bed that had them in the first step (inFirstStep): answers set here for the first time and undone are
- * none again, not {}.
+ * And only where another device could have had them from this one (src/marks.ts mayMark): answers set here for the
+ * first time, never sent, and undone are none again, not {}.
  */
 function conditionsCleared(before: Shape[]) {
   const had = new Set(before.filter((s) => s.role === 'bed' && s.conditions !== undefined).map((s) => s.id));
   if (!had.size) return;
   for (const s of state.shapes) {
-    if (s.role === 'bed' && s.conditions === undefined && had.has(s.id) && inFirstStep(s.id, (f) => f.role === 'bed' && f.conditions !== undefined)) s.conditions = {};
+    if (s.role === 'bed' && s.conditions === undefined && had.has(s.id) && mayMark('conditions', s.id)) s.conditions = {};
   }
-}
-/**
- * Whether the shape had it in the first of this plan's undo steps: as the plan was opened (or replaced by sync), or as
- * far back as the steps go. Undo leaves a mark of something taken away on purpose ({}, '') only on what had it there.
- * One this device set for the first time and Undo took back goes back to none, as it was: a mark there would go up
- * with the next edit and take away, on every device, answers or a dismissal another device has that this one never
- * got, an older version having dropped them on the way (the review of the bed conditions, Nov 4). What this costs:
- * one set, sent, then undone here comes back from another device's copy, rather than being lost everywhere.
- */
-function inFirstStep(id: string, has: (s: Shape) => boolean): boolean {
-  return !!state.history[0]?.shapes.some((s) => s.id === id && has(s));
 }
 /**
  * Whether there's a step to undo: one taken, or one still being gathered (a run of arrow nudges, typing in a field),

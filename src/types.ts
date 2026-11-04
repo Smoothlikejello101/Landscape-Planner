@@ -38,7 +38,7 @@ interface ShapeBase {
    * came, unchecked: a reader passes over one it doesn't know. Read and written as src/storage.ts
    * sanitizeBedConditions has it.
    *
-   * Plans before Nov 2 have none. A version before it (database version 3 and before) drops it from every plan it
+   * Plans before Nov 2 have none. A version without it (database version 3 and before) drops it from every plan it
    * saves or syncs; on this device the database version keeps such a page from saving at all (src/db.ts), and through
    * sync each device that has it keeps its own when the server's copy of that bed has none (src/sync/engine.ts
    * withBedConditions). The bed stops being one (its role changed): the field goes with it, in the same step.
@@ -113,7 +113,22 @@ export interface BedConditions {
   soil?: 'clay' | 'loam' | 'sand' | 'unsure' | LaterWord;
   moisture?: 'dry' | 'average' | 'wet' | 'unsure' | LaterWord;
   drip?: true;
+  /**
+   * A question a later version asks. A rule for those versions: its answer must be a word or true, or its question
+   * needs a sync guard of its own like withBedConditions; anything else, this version drops, and with its next upload
+   * every device loses it. The same goes for a new form of an answer this version asks (a sun with hours, say).
+   */
   [later: string]: { most: string; least: string } | string | true | undefined;
+}
+/**
+ * A bed's conditions as this version sets them (setBedConditions): the questions it asks, and only those, so a typo
+ * doesn't pass for a later version's question. Drip false is no answer, as unset is.
+ */
+export interface BedAnswers {
+  sun?: { most: SunAnswer; least: SunAnswer } | 'unsure';
+  soil?: 'clay' | 'loam' | 'sand' | 'unsure';
+  moisture?: 'dry' | 'average' | 'wet' | 'unsure';
+  drip?: boolean;
 }
 /** Planned = not in the ground yet; gone = removed or died (kept as a record, hidden by default). */
 /**
