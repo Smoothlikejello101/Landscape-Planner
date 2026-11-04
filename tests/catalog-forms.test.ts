@@ -95,9 +95,9 @@ describe('edible parts and fruit set, in a plant\'s details (Jason, Oct 30)', ()
   it('says which parts are edible, and the poison note beside them', () => {
     expect(edibleText({ edible: true, edible_parts: ['fruit', 'flowers'] })).toBe('Fruit, flowers');
     expect(edibleText({ edible: true })).toBe('Yes');
-    expect(edibleText({ edible: true, edible_parts: ['fruit'], poison: { severity: 'low', parts: ['seeds'] } })).toBe('Fruit, though it\'s also listed as poisonous to people (above)');
+    expect(edibleText({ edible: true, edible_parts: ['fruit'], poison: { severity: 'low', parts: ['seeds'] } })).toBe('Fruit, though it\'s also listed as toxic to people (above)');
     expect(edibleText({ edible: true, edible_parts: ['fruit'], poison_parents: { via: 'name', parents: [{ name: 'Morus rubra', poison: { severity: 'low' } }] } }))
-      .toBe('Fruit, though a parent is listed as poisonous to people (above)'); // (a hybrid none rates: Jason, Oct 30)
+      .toBe('Fruit, though a parent is listed as toxic to people (above)'); // (a hybrid none rates: Jason, Oct 30)
     expect(edibleText({})).toBe('');
   });
   it('says what it takes to fruit, a cultivar\'s sex first', () => {

@@ -79,7 +79,7 @@ export function helpAnswers(d: HelpDevice): HelpAnswer[] {
       id: 'protect', q: 'Mark what’s dangerous to my kids or pets',
       lines: [
         'Say who’s in the yard: Kids, Dogs, Cats or Horses. The plant picker asks “Anyone you need to protect?” (once answered, it’s under Filters → Poison & pets), and Warnings → Poison has the same choice.',
-        'Plants listed as poisonous to them are then left out of the picker, and any already on the plan are flagged in Warnings. It’s kept with the plan.',
+        'Plants toxic to them are then hidden in the picker, and any already on the plan are flagged in Warnings. It’s kept with the plan.',
       ],
     },
   ];

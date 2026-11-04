@@ -52,6 +52,10 @@ describe('a warning dismissed for a plant, across the plan', () => {
     expect(poisonCovered('A problem for cats', 'Poisonous to people; A problem for cats')).toBe(false);
     expect(poisonCovered(undefined, 'A problem for cats')).toBe(false);
     expect([...atRisk('Poisonous to people; A problem for dogs, cats and horses')]).toEqual(['people', 'dogs', 'cats', 'horses']);
+    // (Said "Toxic to" since Nov 4: a warning dismissed in the old words is still dismissed in the new, and the other way.)
+    expect([...atRisk('Toxic to people; Toxic to dogs, cats and horses')]).toEqual(['people', 'dogs', 'cats', 'horses']);
+    expect(poisonCovered('Poisonous to people; A problem for dogs', 'Toxic to people; Toxic to dogs')).toBe(true);
+    expect(poisonCovered('Poisonous to people; A problem for dogs', 'Toxic to dogs and cats')).toBe(false);
     const copy = { ...fig('c'), poisonDismissed: 'Poisonous to people', hardyDismissed: said } as Shape;
     expect(copyDismissed('poison', copy, 'Poisonous to people')).toBe(true);
     expect(copyDismissed('poison', copy, 'A problem for dogs')).toBe(false);

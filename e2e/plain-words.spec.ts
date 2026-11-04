@@ -78,3 +78,26 @@ test('the ZIP sheet: the ZIP and what it’s for first; how it’s used and the 
   await expect(page.getByTestId('zip-privacy-note')).toBeVisible();
   await expect(page.getByTestId('location-sources')).toBeHidden();
 });
+
+test('poison, one way everywhere: "Hide plants toxic to …", what each hides, according to NC State; the protect question says what it does', async ({ page }) => {
+  await page.goto('./');
+  await page.locator('.tool-btn.plants').click();
+  // "Anyone you need to protect?": what choosing does, without the skin irritant note.
+  const note = page.getByTestId('protect-note');
+  await expect(note).toHaveText('We’ll hide plants that are toxic to them.');
+  await page.getByTestId('protect-cats').click();
+  await expect(page.getByTestId('active-chip')).toHaveText(['No plants toxic to cats']);
+  await page.getByTestId('filters').click();
+  const box = page.getByTestId('animal-toxicity');
+  for (const who of ['people', 'cats', 'horses']) await expect(box.locator('label', { hasText: `Hide plants toxic to ${who}` })).toBeVisible();
+  // People: only plants NC State rates are kept; cats and horses: only those it lists as toxic go.
+  await expect(page.getByTestId('people-note')).toHaveText("According to NC State. Plants it hasn't rated are hidden too.");
+  await expect(page.getByTestId('pets-note')).toHaveText('According to NC State. Plants not yet rated still show.');
+  // Dogs: the three-way choice keeps its meaning, in the same words.
+  await expect(box.locator('[role=radiogroup] label')).toHaveText(['Show all', 'Hide plants toxic to dogs', /^Show only plants rated safe for dogs/]);
+  await page.getByTestId('dogs-hideToxic').check();
+  await expect(page.getByTestId('dogs-note')).toContainText('plants toxic to dogs, according to NC State or an earlier list');
+  await expect(page.getByTestId('dogs-note')).toContainText('not yet rated still show');
+  await expect(page.getByTestId('active-chip')).toHaveText(['No plants toxic to dogs', 'No plants toxic to cats']);
+  await expect(box).not.toContainText(/problem for|poisonous/i);
+});

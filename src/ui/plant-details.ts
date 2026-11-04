@@ -57,8 +57,8 @@ const yes = (v: unknown) => (v === true ? 'Yes' : v === false ? 'No' : '');
 export function edibleText(p: Pick<Plant, 'edible' | 'edible_parts' | 'poison' | 'poison_parents'>): string {
   if (p.edible !== true) return yes(p.edible);
   const what = p.edible_parts?.length ? cap(p.edible_parts.join(', ')) : 'Yes';
-  if (p.poison) return `${what}, though it's also listed as poisonous to people (above)`;
-  return parentRated(p) ? `${what}, though a parent is listed as poisonous to people (above)` : what;
+  if (p.poison) return `${what}, though it's also listed as toxic to people (above)`;
+  return parentRated(p) ? `${what}, though a parent is listed as toxic to people (above)` : what;
 }
 /**
  * What it takes to fruit (Jason, Oct 30: partner plants), with a cultivar's own sex where its page says: "A female:
@@ -293,7 +293,7 @@ function rows(p: Plant): Row[] {
     // (Drawn by toxRow: never left out for a catalog plant, since no line about pets reads as safe.)
     ['Toxicity', '', ['tox', 'dog']],
     // (Beside Edible: a plant can be both, its fruit eaten and its seeds poisonous.)
-    ['Poisonous to people', poisonRow(p), parentRated(p) ? ['poison_parents'] : ['poison']],
+    ['Toxic to people', poisonRow(p), parentRated(p) ? ['poison_parents'] : ['poison']],
     ['Edible', edibleText(p), ['edible', 'edible_parts']],
     // (Read from its description: separate sexes, a partner needed or helping, or on its own; a cultivar's sex.)
     ['Fruit set', fruitSetText(p), ['fruit_set', 'sex', 'partners']],
@@ -448,7 +448,7 @@ export function toxRow(p: Plant): { value: string; line: string } | null {
   const earlier = p.tox?.dog ? '' : p.dog && p.dog !== 'Unverified' ? `dogs: ${p.dog}` : '';
   if (nc) {
     const also = !nc.includes('dogs') && earlier ? earlier : '';
-    return { value: `A problem for ${andList(nc)}` + (also ? `; ${also}` : ''), line: sourceLine(p.prov?.problem_for) + (also ? ' · dogs: earlier list, unverified' : '') };
+    return { value: `Toxic to ${andList(nc)}` + (also ? `; ${also}` : ''), line: sourceLine(p.prov?.problem_for) + (also ? ' · dogs: earlier list, unverified' : '') };
   }
   const warnsHere = p.tox?.dog === 'toxic' || !!oldDogWarning(p);
   if (p.dogVia && !warnsHere) {
@@ -458,7 +458,7 @@ export function toxRow(p: Plant): { value: string; line: string } | null {
   if (own) return { value: own, line: sourceLine(p.prov?.tox ?? p.prov?.dog) };
   if (isMine(p) && !p.parent) return null; // (one of mine linked to its species: said as for the catalog's)
   // (NC State's page read, and it lists no animal: said so, and that it isn't the same as safe.)
-  if (p.prov?.poison?.src.includes('ncsu')) return { value: 'Not listed as a problem for dogs, cats or horses', line: 'Source: NC State · a plant not listed isn\u2019t necessarily safe' };
+  if (p.prov?.poison?.src.includes('ncsu')) return { value: 'Not listed as toxic to dogs, cats or horses', line: 'Source: NC State · a plant not listed isn\u2019t necessarily safe' };
   return { value: 'Not rated for pets', line: 'No source we\u2019ve read rates it for dogs, cats or horses' };
 }
 /**
@@ -500,7 +500,7 @@ const GLANCE = ['Form', 'Size', 'Hardiness', 'Sun', 'Water', 'Bloom'];
 export const DETAIL_GROUPS: { id: string; title: string; labels: string[] }[] = [
   { id: 'looks', title: 'Flowers and leaves', labels: ['Flower color', 'Leaf colors', 'Leafs out', 'Fall color', 'In winter', 'Bark'] },
   { id: 'wildlife', title: 'Wildlife', labels: ['Native', 'Nectar for pollinators', 'For birds', 'Attracts', 'Caterpillar host', 'Nativar'] },
-  { id: 'safety', title: 'Safety', labels: ['Poisonous to people', 'Toxicity', 'Edible', 'Thorns'] },
+  { id: 'safety', title: 'Safety', labels: ['Toxic to people', 'Toxicity', 'Edible', 'Thorns'] },
   { id: 'growing', title: 'Growing', labels: ['Spacing', 'Fruit set', 'Deer', 'Tolerates', 'Growth rate', 'Takes clay', 'Takes wet feet', 'Takes dry shade', 'How it spreads', 'Maintenance',
     'Taproot (hard to move)', 'Humidity', 'Habit', 'Trunk'] },
 ];
@@ -514,9 +514,9 @@ export function foldDetailGroups() { openGroups.clear(); }
  */
 export function safetyWarnings(p: Plant): string[] {
   const w: string[] = [];
-  if (p.poison) w.push(`Poisonous to people${p.poison.severity ? ` (${p.poison.severity} severity)` : ''}${p.poison.skin ? '; can irritate skin' : ''}`);
-  else if (parentRated(p)) w.push('A parent is poisonous to people');
-  if (p.problem_for?.length) w.push(`a problem for ${andList(['dogs', 'cats', 'horses'].filter((a) => p.problem_for!.includes(a)))}`);
+  if (p.poison) w.push(`Toxic to people${p.poison.severity ? ` (${p.poison.severity} severity)` : ''}${p.poison.skin ? '; can irritate skin' : ''}`);
+  else if (parentRated(p)) w.push('A parent is toxic to people');
+  if (p.problem_for?.length) w.push(`toxic to ${andList(['dogs', 'cats', 'horses'].filter((a) => p.problem_for!.includes(a)))}`);
   else if (p.tox?.dog === 'toxic') w.push('toxic to dogs');
   else if (oldDogWarning(p)) w.push(`dogs: ${oldDogWarning(p)!.toLowerCase()} (earlier list)`);
   return w;
@@ -543,9 +543,9 @@ export function groupSummary(id: string, p: Plant): string {
   } else if (id === 'safety') {
     const warn = safetyWarnings(p);
     if (warn.length) return cap(warn.join(' · '));
-    if (p.prov?.poison?.unknown || p.poison === null) parts.push('not listed as poisonous to people');
+    if (p.prov?.poison?.unknown || p.poison === null) parts.push('not listed as toxic to people');
     const t = toxRow(p);
-    if (t) parts.push(t.value.startsWith('Not listed') ? 'not listed as a problem for pets' : t.value.startsWith('Not rated') ? 'not rated for pets' : t.value.toLowerCase().replace(/\bgi\b/g, 'GI') + (/^Source: earlier list/.test(t.line) ? ' (earlier list)' : ''));
+    if (t) parts.push(t.value.startsWith('Not listed') ? 'not listed as toxic to pets' : t.value.startsWith('Not rated') ? 'not rated for pets' : t.value.toLowerCase().replace(/\bgi\b/g, 'GI') + (/^Source: earlier list/.test(t.line) ? ' (earlier list)' : ''));
     if (p.edible === true) parts.push('edible');
     if (p.thorns) parts.push('thorns');
   } else if (id === 'growing') {

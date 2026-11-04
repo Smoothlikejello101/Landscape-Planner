@@ -353,7 +353,7 @@ function kindFold(st: KindState, rows: WarningRow[]): HTMLElement {
 
 /** A kind's rule, and where it comes from. */
 const RULES: Record<WarningKind, () => string> = {
-  poison: () => 'A plant is flagged when its sources rate it poisonous to people if eaten (NC State Extension: how severe, and which parts) and kids are in the yard, or list it as a problem for the dogs, cats or horses there (NC State Extension, the ASPCA). Its details give the sources, under Plant → Safety. Plants that can irritate skin are marked in the plant list for everyone instead: anyone can brush them.',
+  poison: () => 'A plant is flagged when its sources rate it toxic to people if eaten (according to NC State Extension: how severe, and which parts) and kids are in the yard, or toxic to the dogs, cats or horses there (according to NC State Extension and the ASPCA). Its details give the sources, under Plant → Safety. Plants that can irritate skin are marked in the plant list for everyone instead: anyone can brush them.',
   utility: () => `Trees and shrubs, by how tall they typically grow and how far they stand from each utility. Within ${NEAR_LINE} ft of an overhead power line a tree should top out at ${SMALL_TREE} ft or less; ${NEAR_LINE} to ${CLEAR_OF_LINE} ft away, under ${MEDIUM_TREE} ft; taller trees ${CLEAR_OF_LINE} ft or more away (UF/IFAS Extension). Trees and shrubs stay ${BURIED_CLEAR} ft from a buried line (Entergy keeps that much clear of its underground lines); call 811 before you dig. A tree or shrub should stand at least as far from a septic field as it grows tall (UGA Extension). A tree drawn without a height isn't checked.`,
   hardy: () => 'Each plant’s hardiness zones, from its sources, against your ZIP’s zone on the 2023 USDA Plant Hardiness Zone Map (the PRISM Group, Oregon State University). Rated only for warmer zones: too cold. Rated only for colder zones: it may be too warm. Annuals, and plants already in the ground, aren’t checked.',
   sun: () => 'A plant inside a sun area you recorded is checked against the sun it wants: full sun is 6 hours or more of direct sun, part shade 3 to 6, shade under 3; filtered light counts as part shade at most. A plant that wants some shade is flagged too with 2 hours or more of sun between 1 and 6 pm. Plants outside your sun areas aren’t checked.',
@@ -388,7 +388,7 @@ function switchCard(kind: WarningKind): HTMLElement {
   if (kind === 'poison') {
     const who = yardSaid();
     // (Jason's words, after release 3: "Warn about plants poisonous to …".)
-    lines.append(el('div', {}, who ? `Warn about plants poisonous to the ${who} in the yard` : 'Warn about plants poisonous to the kids or pets in the yard, once you choose them'));
+    lines.append(el('div', {}, who ? `Warn about plants toxic to the ${who} in the yard` : 'Warn about plants toxic to the kids or pets in the yard, once you choose them'));
     card.appendChild(check('poison-warnings', state.poisonWarnings, setPoisonWarnings, 'Check poison'));
     card.appendChild(yardChips());
   } else if (kind === 'utility') {

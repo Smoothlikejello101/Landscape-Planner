@@ -16,7 +16,7 @@ import { mayMark } from './marks';
 import type { DismissKind, Shape } from './types';
 import { sameSaid } from './names';
 
-/** What a plant's poison warning says, for who's in the yard now ("Poisonous to people; A problem for dogs"): its key. */
+/** What a plant's poison warning says, for who's in the yard now ("Toxic to people; Toxic to dogs"): its key. */
 export const poisonSaid = (p: Plant): string => householdFlags(p).map((f) => f.text).join('; ');
 /**
  * The same warning in the words its details use, with its severity and parts: "Poisonous if eaten (high severity:
@@ -37,8 +37,10 @@ export function atRisk(said: string): Set<string> {
   const out = new Set<string>();
   for (const part of said.split('; ')) {
     if (!part) continue;
-    const pets = /^A problem for (.+)$/.exec(part);
-    if (part === 'Poisonous to people') out.add('people');
+    // (Said "Poisonous to people; A problem for dogs" till Nov 4, "Toxic to people; Toxic to dogs" since: a warning
+    // dismissed then is still covered now.)
+    const pets = /^(?:A problem for|Toxic to) (.+)$/i.exec(part);
+    if (/^(?:Poisonous|Toxic) to people$/i.test(part)) out.add('people');
     else if (pets) for (const who of pets[1].split(/, | and /)) out.add(who);
     else out.add(part);
   }

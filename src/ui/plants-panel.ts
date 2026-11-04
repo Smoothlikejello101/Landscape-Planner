@@ -197,10 +197,12 @@ const SWATCHES: Record<string, string> = {
 };
 type ListKey = 'flowerColors' | 'leafColors' | 'attracts' | 'spread' | 'edibleParts';
 /**
- * "Anyone you need to protect?"'s note: a plant that can irritate skin is marked on its row whoever's in the yard, since
- * anyone walking past can brush it; poison only matters to someone who'd put the plant in their mouth (Jason, Nov 1).
+ * "Anyone you need to protect?"'s note: what choosing does, plainly (Jason, Nov 4, from the beta testers: "The skin
+ * irritant note is very confusing"; "something like 'we'll filter out plants that are toxic for them' and not bother
+ * with the skin irritant note"). A plant that can irritate skin is still marked on its row whoever's in the yard
+ * (Jason, Nov 1: anyone walking past can brush it); that isn't explained here.
  */
-const PROTECT_NOTE = "Skin irritants are marked for all: anyone can brush them. Poison if eaten goes by who's in the yard.";
+const PROTECT_NOTE = 'We’ll hide plants that are toxic to them.';
 /** The parts a plant can be edible for, as chips under Edible (Jason, Oct 30). */
 const EDIBLE_PART_CHOICES: [string, string][] = [['fruit', 'Fruit'], ['leaves', 'Leaves'], ['flowers', 'Flowers']];
 /** One value of a list filter, as its chip says it ("Red flowers", "Attracts bees"). */
@@ -217,8 +219,9 @@ const FILTER_NAMES: Partial<Record<keyof PlantFilter, (f: PlantFilter) => string
   bloomMonth: (f) => `Blooming in ${bloomName(f.bloomMonth)}`, flowerColors: (f) => `${cap(joined(f.flowerColors, 'or'))} flowers`,
   flowers: () => 'Has flowers',
   hardyHere: () => (state.location ? `Hardy in zone ${state.location.zone}` : 'Hardy in your zone'),
-  noPoison: () => 'Not listed as poisonous to people', dogs: (f) => (f.dogs === 'hideToxic' ? 'No dog warnings' : 'Rated safe for dogs'),
-  cats: () => 'No cat warnings', horses: () => 'No horse warnings',
+  // (One way for all four, as their controls say it: Jason, Nov 4, "I'm partial to 'hide plants toxic to …'".)
+  noPoison: () => 'No plants toxic to people', dogs: (f) => (f.dogs === 'hideToxic' ? 'No plants toxic to dogs' : 'Only plants rated safe for dogs'),
+  cats: () => 'No plants toxic to cats', horses: () => 'No plants toxic to horses',
   attracts: (f) => `Attracts ${joined(f.attracts, 'or')}`, hostOnly: () => 'Feeds caterpillars',
   native: (f) => (f.native === '@here' ? `Native to ${gardenStateName() ?? 'your state'}` : 'Native to North America'),
   leafColors: (f) => `${cap(joined(f.leafColors, 'or'))} leaves`, fallColor: () => 'Fall color', evergreen: () => 'Evergreen', winterInterest: () => 'Winter interest',
@@ -1170,19 +1173,19 @@ export function renderPlantsPanel() {
   // ---- POISON & PETS ----
   const poison = (() => {
     const DOGS: [DogFilter, string][] = [
-      ['', 'Any'],
+      ['', 'Show all'],
       ['hideToxic', 'Hide plants toxic to dogs'],
       // Says unverified while it goes by the earlier list for any plant (until each has a sourced rating: docs/catalog-sources.md).
-      ['nonToxic', PLANTS.some((p) => !p.tox?.dog) ? 'Only plants rated safe for dogs (unverified)' : 'Only plants rated safe for dogs'],
+      ['nonToxic', PLANTS.some((p) => !p.tox?.dog) ? 'Show only plants rated safe for dogs (unverified)' : 'Show only plants rated safe for dogs'],
     ];
     // (What the choice does, in numbers: how many it hides, and how many aren't rated at all.)
     const nToxic = PLANTS.filter(toxicToDogs).length, nSafe = PLANTS.filter(nonToxicToDogs).length;
     const nUnrated = PLANTS.length - nToxic - nSafe;
     const note = el('div', { className: 'hint', 'data-testid': 'dogs-note' });
     const sayNote = () => {
-      note.textContent = plantFilter.dogs === 'hideToxic' ? `Hides the ${countWord(nToxic)} plants with a warning for dogs; keeps the ${countWord(nUnrated)} not yet rated.`
-        : plantFilter.dogs === 'nonToxic' ? `Only the ${countWord(nSafe)} plants rated non-toxic to dogs, by an earlier list with no sources; leaves out the ${countWord(nUnrated)} not yet rated.`
-        : `Every plant, whatever it does to dogs. NC State or the earlier list warns for ${countWord(nToxic)}; ${countWord(nUnrated)} have no rating, which isn't the same as safe.`;
+      note.textContent = plantFilter.dogs === 'hideToxic' ? `Hides the ${countWord(nToxic)} plants toxic to dogs, according to NC State or an earlier list. The ${countWord(nUnrated)} not yet rated still show.`
+        : plantFilter.dogs === 'nonToxic' ? `Only the ${countWord(nSafe)} plants rated safe for dogs, according to an earlier list with no sources. The ${countWord(nUnrated)} not yet rated are hidden.`
+        : `According to NC State or an earlier list, ${countWord(nToxic)} plants are toxic to dogs; ${countWord(nUnrated)} aren't rated yet, which isn't the same as safe.`;
     };
     sayNote();
     const group = el('div', { role: 'radiogroup', 'aria-label': 'Dogs', className: 'animal-rows' });
@@ -1194,19 +1197,20 @@ export function renderPlantsPanel() {
       radios.push(r);
       group.appendChild(el('label', { className: 'check-row' }, r, el('span', {}, text)));
     }
-    // (Only plants whose NC State page was read and lists no poison: one it doesn't rate isn't called safe.)
-    const kids = mkCheck('Not listed as poisonous to people', 'noPoison');
-    const cats = mkCheck('Hide plants that are a problem for cats', 'cats');
-    const horses = mkCheck('Hide plants that are a problem for horses', 'horses');
+    // (Only plants whose NC State page was read and lists no poison: one it doesn't rate isn't called safe, so it's hidden
+    // too, and said so. Cats and horses: only those NC State lists as toxic are hidden; one it doesn't rate stays.)
+    const kids = mkCheck('Hide plants toxic to people', 'noPoison');
+    const cats = mkCheck('Hide plants toxic to cats', 'cats');
+    const horses = mkCheck('Hide plants toxic to horses', 'horses');
     const head = groupHead('Poison & pets');
     const box = el('div', { id: 'poison-filters', 'data-testid': 'animal-toxicity' }, head,
       kids,
-      el('div', { className: 'hint' }, "By NC State: a plant it doesn't rate is left out too."),
+      el('div', { className: 'hint', 'data-testid': 'people-note' }, "According to NC State. Plants it hasn't rated are hidden too."),
       el('div', { className: 'animal-name' }, 'Dogs'), group, note,
       el('div', { className: 'animal-name' }, 'Cats and horses'),
       cats,
       horses,
-      el('div', { className: 'hint' }, "NC State's warnings. A plant it doesn't list stays, which isn't the same as safe."));
+      el('div', { className: 'hint', 'data-testid': 'pets-note' }, 'According to NC State. Plants not yet rated still show.'));
     const tick = (label: HTMLElement, on: boolean) => { label.querySelector('input')!.checked = on; };
     return {
       box,

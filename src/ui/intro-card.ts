@@ -244,7 +244,7 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
       short: state.panel === 'add' ? `${Tap()} Sun exposure, then draw the area.` : `Drag across the hours it gets sun, then close this with its ×.`,
       action: { label: 'Draw an area', run: () => startKind('sun') },
     };
-    case 'who': return { text: "Kids, dogs, cats, horses? We'll hide plants that are a problem for them. Change it any time in Filters.", extra: whoChips(), done: 'Next' };
+    case 'who': return { text: "Kids, dogs, cats, horses? We'll hide plants that are toxic to them. Change it any time in Filters.", extra: whoChips(), done: 'Next' };
     case 'plant': {
       const bed = !!newestBed(), zip = !!state.location?.zip, sun = bedSun();
       const shrub = zip ? shrubForGarden() : null;

@@ -432,11 +432,11 @@ describe('plant filters', () => {
     const flagged: Plant = { id: 'ff', common: 'Flagged', dog: 'Safe', problem_for: ['dogs', 'cats'], prov: { problem_for: { src: ['ncsu'], check: 'single' } } };
     expect(toxicToDogs(flagged)).toBe(true);
     expect(nonToxicToDogs(flagged)).toBe(false);
-    expect(toxRow(flagged)!.value).toBe('A problem for dogs and cats');
+    expect(toxRow(flagged)!.value).toBe('Toxic to dogs and cats');
     const catsOnly: Plant = { id: 'fc', common: 'Cats only', dog: 'Mild GI', problem_for: ['cats'], prov: { problem_for: { src: ['ncsu'], check: 'single' } } };
-    expect(toxRow(catsOnly)!.value).toBe('A problem for cats; dogs: Mild GI');
+    expect(toxRow(catsOnly)!.value).toBe('Toxic to cats; dogs: Mild GI');
     const readNone: Plant = { id: 'rn', common: 'Read', prov: { poison: { src: ['ncsu'], unknown: true } } };
-    expect(toxRow(readNone)!.value).toBe('Not listed as a problem for dogs, cats or horses');
+    expect(toxRow(readNone)!.value).toBe('Not listed as toxic to dogs, cats or horses');
     expect(toxRow({ id: 'u-1', common: 'Mine' })).toBeNull(); // (a plant of mine: the person's own notes)
     // The species' own record's warning is the one given, where it has one.
     const a: Plant = { id: 'a', common: "Oakleaf 'Alice'", botanical: "Hydrangea quercifolia 'Alice'", dog: 'Mild GI' };

@@ -185,7 +185,7 @@ describe('the people and pets in the yard', () => {
   it('with no one said, one Pets row; poison to people always, in its source’s words', () => {
     const rows = compareRows([P('kalmia-latifolia'), P('itea-virginica')]);
     expect(rows.map((r) => r.key)).toContain('pets');
-    expect(texts(row(rows, 'pets'))).toEqual(['A problem for dogs, cats and horses', 'Not listed as a problem for dogs, cats or horses']);
+    expect(texts(row(rows, 'pets'))).toEqual(['Toxic to dogs, cats and horses', 'Not listed as toxic to dogs, cats or horses']);
     expect(sures(row(rows, 'pets'))[1]).toBe('NC State · a plant not listed isn’t necessarily safe');
     expect(row(rows, 'poison').cells[0]).toMatchObject({ text: 'Leaves and flowers, high severity', sure: { text: 'NC State · one source' } });
     // (No one to protect: no warning color for poison if eaten.)
@@ -198,7 +198,7 @@ describe('the people and pets in the yard', () => {
     expect(rows.map((r) => r.key)).not.toContain('pets');
     expect(rows.map((r) => r.key)).not.toContain('cats');
     expect(row(rows, 'poison').cells[0].tone).toBe('bad');
-    expect(row(rows, 'dogs').cells[0]).toMatchObject({ text: 'A problem for dogs', tone: 'bad', sure: { text: 'NC State · one source' } });
+    expect(row(rows, 'dogs').cells[0]).toMatchObject({ text: 'Toxic to dogs', tone: 'bad', sure: { text: 'NC State · one source' } });
     expect(row(rows, 'dogs').cells[1]).toMatchObject({ text: 'Not listed', sure: { text: 'NC State · not listed isn’t the same as safe' } });
     expect(row(rows, 'dogs').cells[1].tone).toBeUndefined();
   });
