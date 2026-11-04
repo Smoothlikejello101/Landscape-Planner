@@ -64,7 +64,13 @@ export function snapshot(): Snapshot {
 
 /** Whether the empty plan offers it ("New here? Show me around"): not once it's been started, finished or declined. */
 export const introOffered = (): boolean => rec.status === 'never';
-export const introActive = (): boolean => rec.status === 'active';
+/**
+ * The plan it's under way on (Jason, Nov 4: it stays with the plan it was started on; another plan opened, its card
+ * waits there). A record from before it kept its plan goes with the plan open now.
+ */
+const onThisPlan = (): boolean => rec.project == null || rec.project === state.currentProjectId;
+/** Under way on the open plan: its card is up (or steps aside while drawing). On another plan, it waits there. */
+export const introActive = (): boolean => rec.status === 'active' && onThisPlan();
 /** "I'll explore": not offered again (it stays in ⋮ → Help, Take the tour). */
 export function declineIntro(): void { rec.status = 'declined'; save(); }
 
@@ -90,7 +96,7 @@ export function showMeAround(): void {
   if (at && at !== 'zip') { choosing = true; rec.status = 'exited'; save(); return; }
   begin(null);
 }
-function exit(): void { if (rec.status === 'active') rec.status = 'exited'; choosing = false; save(); }
+function exit(): void { if (rec.status === 'active') rec.status = 'exited'; choosing = false; wasHere = false; save(); }
 function finish(): void {
   rec.status = 'finished'; rec.step = null; choosing = false; save();
   toast('That\'s the tour. Add more plants, or open Add for paths, lawn, fences and the rest. To take it again: \u22ee \u2192 Help \u2192 Take the tour.', 9000);
@@ -319,12 +325,29 @@ export function introAfterRender(root: HTMLElement): void {
   // (Never in the way of the plan: anything amiss here leaves the introduction "left part way", to pick up from ⋮.)
   try { drawIntro(root); } catch (e) { console.error('guided introduction', e); recordError(e, 'guided introduction'); choosing = false; exit(); }
 }
+/** Whether the card was last drawn on its own plan: leaving it from there says where it waits, once. */
+let wasHere = false;
+/**
+ * Under way on another plan than the one open (Jason, Nov 4: "switching plans while taking the tour keeps the tour
+ * going on the new plan, which probably isn't what we want"): its card isn't shown here, and nothing done here counts
+ * toward its step; it's there again, at its step, on its own plan. Leaving that plan says so once, as it goes. Its plan
+ * deleted, it's left part way, to pick up from ⋮ → Help on this one (pick up here, or start over).
+ */
+function waitsElsewhere(): boolean {
+  if (rec.status !== 'active' || choosing) return false;
+  if (rec.project == null && state.currentProjectId) { rec.project = state.currentProjectId; save(); }
+  if (onThisPlan()) { wasHere = true; return false; }
+  const its = state.projects.find((p) => p.id === rec.project);
+  if (!its) { if (state.projects.length) exit(); wasHere = false; return true; }
+  if (wasHere) toast(`Guided start waits on \u201c${its.name}\u201d. Switch back to it to go on.`, 7000);
+  wasHere = false;
+  return true;
+}
 function drawIntro(root: HTMLElement): void {
+  if (waitsElsewhere()) return;
   if (rec.status !== 'active' && !choosing) return;
   if (state.menu) return; // (⋮ open: the card would sit over its last rows)
   if (!choosing) {
-    // (Another plan opened part way: the step counts from what that one has, not from the other's.)
-    if (rec.project !== state.currentProjectId) { rec.project = state.currentProjectId; rec.base = snapshot(); save(); }
     // (A photo's own step with the photo gone: on to the next, not counted as done.)
     if (rec.step && !applies(rec.step, snapshot(), rec.done)) { rec.step = nextStep(rec.step, rec, snapshot()); rec.base = snapshot(); if (!rec.step) { finish(); return; } save(); }
     // (The ZIP looked up: its zone and frost dates stay to be read; the next step waits for the panel to close (testers,

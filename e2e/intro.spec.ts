@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { autoDialogs, closeSheet, openFresh, shapeCount, tapFromCenter } from './helpers';
+import { addKind, autoDialogs, closeSheet, openFresh, shapeCount, tapFromCenter } from './helpers';
 
 // The guided introduction (src/intro.ts, src/ui/intro-card.ts): offered on an empty plan, eight short steps that each
 // end when they're done, Skip, Back and Exit on the way, kept per device.
@@ -19,9 +19,9 @@ async function takeTour(page: Page) {
   await page.getByTestId('help-tour').click();
   await expect(page.getByTestId('help-sheet')).toHaveCount(0);
 }
-async function start(page: Page) {
+async function start(page: Page, answerAll = true) {
   await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(TABLE) }));
-  autoDialogs(page);
+  if (answerAll) autoDialogs(page);
   await openFresh(page);
   await page.getByTestId('intro-start').click();
   await expect(step(page)).toHaveText('Step 1 of 8');
@@ -333,6 +333,53 @@ test('Back and Skip; Exit keeps the step, and Take the tour (⋮ → Help) offer
   await expect(page.getByTestId('intro-text')).toHaveText("This plan's garden is at ZIP 71923. Change it if that's not where the garden is.");
   await page.getByTestId('intro-done').click();
   await expect(step(page)).toHaveText('Step 2 of 8');
+});
+
+/** Projects → New project, named (the open plan's garden offered for it, ticked, as it comes). */
+async function newPlan(page: Page, name: string) {
+  await page.locator('.project-btn').click();
+  await page.getByRole('button', { name: /New project/ }).click();
+  await page.getByTestId('ask-input').fill(name);
+  await page.getByTestId('ask-ok').click();
+  await expect(page.locator('.project-btn .pname')).toHaveText(name);
+}
+async function openPlan(page: Page, name: string) {
+  await page.locator('.project-btn').click();
+  await page.locator('.proj-row', { hasText: name }).click();
+  await expect(page.locator('.project-btn .pname')).toHaveText(name);
+}
+
+test('the guided start stays with the plan it\'s on: another plan opened, its card waits there, said once; back, it\'s at its step (Jason, Nov 4)', async ({ page }) => {
+  await start(page, false); // (New project's name typed here)
+  await zip(page);
+  await page.getByTestId('intro-skip').click();
+  await expect(step(page)).toHaveText('Step 3 of 8');
+  // Another plan: no card on it, and a notice says where it waits.
+  await newPlan(page, 'Side yard');
+  await expect(card(page)).toHaveCount(0);
+  await expect(page.locator('#toast')).toHaveText('Guided start waits on “My Garden”. Switch back to it to go on.');
+  await expect(page.getByTestId('first-screen')).toBeVisible(); // (the empty plan's own card, as on any empty plan)
+  // A house drawn here doesn't count toward step 3 there, and the notice isn't said again as the plan redraws.
+  await addKind(page, 'building');
+  await tapFromCenter(page, -4, -6); await tapFromCenter(page, 4, -6); await tapFromCenter(page, 4, -2);
+  await expect.poll(() => shapeCount(page)).toBe(1);
+  await expect(card(page)).toHaveCount(0);
+  await expect(page.locator('#toast', { hasText: 'Guided start waits' })).toHaveCount(0);
+  // Back on its plan: there, at its step.
+  await openPlan(page, 'My Garden');
+  await expect(step(page)).toHaveText('Step 3 of 8');
+  await expect(page.locator('#toast', { hasText: 'Guided start waits' })).toHaveCount(0);
+  // Started from Help on the other plan: pick up at its step here, or start over (as before).
+  await openPlan(page, 'Side yard');
+  await expect(page.locator('#toast')).toHaveText('Guided start waits on “My Garden”. Switch back to it to go on.');
+  await takeTour(page);
+  await expect(page.getByTestId('intro-resume')).toHaveText('Pick up at step 3, Your house');
+  await page.getByTestId('intro-resume').click();
+  await expect(step(page)).toHaveText('Step 3 of 8');
+  // Now it's this plan's: the first one has no card, and says it waits on this one.
+  await openPlan(page, 'My Garden');
+  await expect(card(page)).toHaveCount(0);
+  await expect(page.locator('#toast')).toHaveText('Guided start waits on “Side yard”. Switch back to it to go on.');
 });
 
 test('the first screen is a card whose ✕ puts it away for this plan, with Undo; a new plan still has it; its ZIP note ends in Privacy (Jason, Nov 1)', async ({ page }) => {
