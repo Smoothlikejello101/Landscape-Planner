@@ -194,3 +194,23 @@ test("a run's name is never under the plants beside it: drawn over every plant, 
   const nx = Math.max(label.x, Math.min(label.x + label.width, c.x)), ny = Math.max(label.y, Math.min(label.y + label.height, c.y));
   expect(Math.hypot(nx - c.x, ny - c.y)).toBeGreaterThanOrEqual(0.85 * r);
 });
+
+test("zoomed out past 20%, plants' names and runs' names aren't drawn, but a selected plant's is; a bed keeps its name (Jason, Nov 4)", async ({ page }) => {
+  const bed = { ...base, id: 'bed', type: 'rect', role: 'bed', label: 'Front bed', x: -10, y: -10, width: 40, height: 20, rotation: 0, color: '#a16207' };
+  const oak = plant('oak', 'quercus-alba', 'White oak', 60, 0, 30);
+  await openPlan(page, [bed, ...ROW, plant('bb', 'cephalanthus-occidentalis', 'Buttonbush', 12, 0, 4), oak], { zoom: 0.15, offsetX: -40, offsetY: -60 });
+  const names = page.locator('#canvas-svg [data-role=plant-label]');
+  await expect(page.locator('#canvas-svg text', { hasText: 'Front bed' })).toHaveCount(1);
+  await expect(names).toHaveCount(0); // (the oak's would fit inside it; none, all the same)
+  // A plant tapped: its name shows.
+  const bush = (await page.locator('#canvas-svg [data-shape-id=bb]').boundingBox())!;
+  await page.mouse.click(bush.x + bush.width / 2, bush.y + bush.height / 2);
+  await expect(page.locator('.sel-pill .name')).toHaveText('Buttonbush');
+  await expect(page.locator('#canvas-svg text', { hasText: 'Buttonbush' })).toHaveCount(1);
+  await expect(names.filter({ hasText: 'Cardinal flower' })).toHaveCount(0);
+  // Zoomed in to 20% and past: back.
+  await page.keyboard.press('Escape');
+  for (let i = 0; i < 3 && (await zoomPct(page)) < 20; i++) await page.getByRole('button', { name: 'Zoom in' }).click();
+  expect(await zoomPct(page)).toBeGreaterThanOrEqual(20);
+  await expect(page.locator('#canvas-svg text', { hasText: 'White oak' })).toHaveCount(1);
+});

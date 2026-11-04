@@ -102,6 +102,15 @@ export function renderGrid(g: SVGElement) {
 /** Pixels a foot below which the plan is zoomed out past 25% (the farthest out before 5% was). */
 export const FAR_OUT_PPF = 6;
 /**
+ * The zoom below which plants' names (and runs' names) aren't drawn on the plan, but a selected plant's: Jason, Nov 4:
+ * "Plant labels should probably stop showing up at some point when you zoom out enough. At 5% I've got a label twice the
+ * size of the house over a series of green dots." 20%, where a whole yard 100 ft across fits a phone: its plants dots of
+ * a few pixels, their names 11 px tall over them. The yard's areas keep their names (FAR_OUT_PPF).
+ */
+export const PLANT_NAMES_MIN_ZOOM = 0.2;
+/** Whether plants' names are drawn at `ppf` px a foot: names on, and not zoomed out past PLANT_NAMES_MIN_ZOOM. */
+export const plantNamesShown = (ppf: number): boolean => state.showNames && ppf >= PX_PER_FOOT_BASE * PLANT_NAMES_MIN_ZOOM - 1e-9;
+/**
  * The band (px) a thin line takes taps in: 18 px, but no wider than 3 ft once zoomed out past 25% (at 5%,
  * 18 px is 15 ft of yard: a pan starting near a fence would drag the fence), and never under 6 px.
  */
@@ -394,7 +403,9 @@ export function shapeGroup(s: Shape): SVGGElement {
     }
   }
   // Names hidden (beside the zoom buttons): no names, lengths, sun hours or badges, but a selected shape's own.
-  const named = state.showNames || sel;
+  // (Zoomed out past 20%, no plant's name, but a selected one's: plantNamesShown. Its badges as ever.)
+  const named = (isPlantCircle(s) ? plantNamesShown(ppf) : state.showNames) || sel;
+  const badged = state.showNames || sel;
   // Zoomed out past 25%, a name (or sun hours) wider than its shape is left off, unless the shape is selected:
   // a whole yard's names would pile up over beds a few pixels across.
   const room = (text: string) => {
@@ -450,7 +461,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   }
   if (nameG?.firstChild) g.appendChild(nameG);
   // To remove: a red cross over the shape. To move: a blue arrow badge (hidden with the names; the cross isn't a badge).
-  if (s.status === 'remove' || (s.status === 'move' && named)) {
+  if (s.status === 'remove' || (s.status === 'move' && badged)) {
     const b = shapeBBox(s);
     const x1 = (b.minX - state.offsetX) * ppf, x2 = (b.maxX - state.offsetX) * ppf;
     const y1 = (b.minY - state.offsetY) * ppf, y2 = (b.maxY - state.offsetY) * ppf;
@@ -865,9 +876,11 @@ function refreshLabelLayout() {
   const waiting: { s: CircleShape; box: Box }[] = [];
   const areas: { s: Shape; at: NonNullable<ReturnType<typeof areaNameAt>> }[] = [];
   const shown = paintOrder(state.shapes);
+  const plantNames = plantNamesShown(ppf);
   for (const s of shown) {
-    // Names hidden: a name that isn't drawn keeps no room (a selected plant's shows beside it).
-    if (!state.showNames && !state.selectedIds.includes(s.id)) continue;
+    // Names hidden: a name that isn't drawn keeps no room (a selected plant's shows beside it). Plants' too, zoomed out
+    // past 20% (plantNamesShown).
+    if (!(isPlantCircle(s) ? plantNames : state.showNames) && !state.selectedIds.includes(s.id)) continue;
     if (!isPlantCircle(s)) {
       // A bed's, a path's or a sun area's name: placed clear of the plants, below, before the plants' names.
       if (isAreaNamed(s)) {

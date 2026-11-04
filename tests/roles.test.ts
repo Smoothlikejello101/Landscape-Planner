@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { drawnHeight, hiddenCovers, hiddenIds, labelRuns, paintOrder, runLabelSpot, seeThroughIds } from '../src/canvas';
+import { drawnHeight, hiddenCovers, hiddenIds, labelRuns, paintOrder, PLANT_NAMES_MIN_ZOOM, plantNamesShown, runLabelSpot, seeThroughIds } from '../src/canvas';
 import { plantsById, type Plant } from '../src/plants';
 import { setRoleForIds, setRoleView } from '../src/mutations';
 import { defaultLook, isLocked } from '../src/roles';
@@ -99,6 +99,16 @@ describe('drawing order', () => {
     expect(runLabelSpot(row, w, h, ppf, [], [{ x: 4, y: 2.18, r: 2 }])).toEqual({ x: 4, y: 0 });
     // Plants all round: nowhere clear, none (its plants named one by one, as lone plants are, or not at all).
     expect(runLabelSpot(row, w, h, ppf, [], [{ x: 4, y: 0, r: 8 }])).toBeNull();
+  });
+  it("draws no plant's name zoomed out past 20% (Jason, Nov 4: at 5% a name twice the size of the house)", () => {
+    expect(PLANT_NAMES_MIN_ZOOM).toBe(0.2);
+    state.showNames = true;
+    expect(plantNamesShown(24 * 0.2)).toBe(true);
+    expect(plantNamesShown(24 * 0.19)).toBe(false);
+    expect(plantNamesShown(24 * 0.05)).toBe(false);
+    state.showNames = false;
+    expect(plantNamesShown(24)).toBe(false);
+    state.showNames = true;
   });
   it('leaves hidden roles out', () => {
     state.shapes = [sh('a', { role: 'shade' }), sh('b', { role: 'bed' })];
