@@ -15,6 +15,8 @@ describe('Title Case for names', () => {
     expect(titleCase('Black-eyed susan')).toBe('Black-Eyed Susan');
     expect(titleCase('Purple coneflower')).toBe('Purple Coneflower');
     expect(titleCase("Kalm's St. John's wort")).toBe("Kalm's St. John's Wort");
+    expect(titleCase("Wild four o'clock")).toBe("Wild Four O'Clock");
+    expect(titleCase("Burro's-tail")).toBe("Burro's-Tail");
     expect(titleCase('Bradford/Callery pear')).toBe('Bradford/Callery Pear');
     expect(titleCase('Peach / nectarine')).toBe('Peach / Nectarine');
     expect(titleCase('Japanese-oak')).toBe('Japanese-Oak');

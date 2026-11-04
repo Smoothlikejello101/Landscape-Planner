@@ -21,7 +21,7 @@ const bare = (w: string) => w.replace(/^[^\p{L}\p{N}×]+|[^\p{L}\p{N}.×]+$/gu, 
 
 /**
  * A name in Title Case: each word capitalized, after a hyphen or slash too ("Black-Eyed Susan", "Bradford/Callery
- * Pear"), but not after an apostrophe ("St. John's Wort"); a, an, and, as, at, but, by, for, in, nor, of, on, or, the,
+ * Pear"), not after an apostrophe ("St. John's Wort") except an O' ("Four O'Clock"); a, an, and, as, at, but, by, for, in, nor, of, on, or, the,
  * to and with kept small unless first or last ("Rose of Sharon"). Left as they are: a quoted cultivar name ("'Lady in
  * Red'"), a word with a capital inside it ("McKana's") or all in capitals ("RED ROCKET"), and any word of the plant's
  * botanical name, when it's given ("Hemionitis rotundifolia", "(subsp. multicaule)"); an "x" or "×" of a hybrid.
@@ -65,6 +65,8 @@ export function titleCase(name: string, botanical?: string): string {
     // (A small word as written: "Rose The Countryman", a rose's own name, keeps its The.)
     const small = SMALL.has(bare(p.text)) && p !== first && p !== last;
     if (!allCaps && !inner && !small) out = p.text.replace(/\p{L}/u, (c) => c.toUpperCase());
+    // (An O' word is two: "Four O'Clock", as it's written in titles.)
+    if (!allCaps && !inner) out = out.replace(/^(\W*O['’])(\p{Ll})/u, (_m, o: string, c: string) => o + c.toUpperCase());
     done.set(`${p.t}:${p.i}`, out);
   }
   return tokens.map((tok, t) => {
