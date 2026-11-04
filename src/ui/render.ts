@@ -1010,7 +1010,7 @@ function firstZip(): HTMLElement {
   const { input, go, problem } = zipEntry('first');
   // What happens to the ZIP, a press away, for anyone wary of giving it (Jason, Nov 1): the ZIP sheet says.
   const privacy = el('button', { className: 'link-btn first-privacy', 'data-testid': 'zip-privacy' }, 'Privacy');
-  privacy.addEventListener('click', () => openLocation());
+  privacy.addEventListener('click', () => openLocation(null, { privacy: true })); // (how it's used, open)
   return el('div', { className: 'first-zip', 'data-testid': 'first-zip-box' },
     el('div', { className: 'first-zip-row' }, input, go),
     // (Under the field that says ZIP code: short, so the card fits a small phone at large text.)

@@ -118,7 +118,7 @@ test('the first screen says what FullGrown does, takes the ZIP right there, and 
   await page.getByTestId('first-zip').fill('71923');
   await page.getByTestId('first-zip-lookup').click();
   await expect(page.getByTestId('location-result')).toContainText('Zone 8a');
-  await expect(page.getByTestId('location-sources')).toBeVisible();
+  await expect(page.getByTestId('location-sources-fold-head')).toBeVisible(); // (the sources, a line that opens: Nov 4)
   await expect(page.getByTestId('zip')).toHaveCount(1); // (the sheet's field alone: the first screen's isn't under it)
   await closeSheet(page);
   await expect(page.getByTestId('first-zip')).toHaveCount(0);

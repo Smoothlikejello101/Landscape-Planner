@@ -731,7 +731,15 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .account-section .trash-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: calc(13px * var(--ts)); }
 .account-section .trash-row .link-btn { min-height: 36px; padding: 4px; }
 /* Garden location */
-.location-sources { font-size: calc(12px * var(--ts)); color: #44403c; line-height: 1.5; border-top: 1px solid #e7e5e4; padding-top: 8px; }
+.location-sources { font-size: calc(12px * var(--ts)); color: #57534e; line-height: 1.5; }
+/* The ZIP sheet's folds, under the lookup: how the ZIP is used, and the sources, each a quiet line that opens. */
+.location-folds { border-top: 1px solid #e7e5e4; padding-top: 4px; display: grid; }
+.sheet-fold-head { display: flex; align-items: center; gap: 6px; width: 100%; min-height: var(--tap); padding: 0; background: none; border: 0; text-align: left; font: inherit; font-size: calc(13px * var(--ts)); color: #57534e; cursor: pointer; }
+.sheet-fold-head .fold-chev { display: flex; width: 16px; height: 16px; flex: none; transition: transform 0.15s; }
+.sheet-fold-head .fold-chev svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; }
+.sheet-fold-head[aria-expanded=true] .fold-chev { transform: rotate(90deg); }
+.sheet-fold-head:focus-visible { outline: 2px solid #0f766e; outline-offset: 1px; border-radius: 4px; }
+.sheet-fold-body { padding: 0 0 8px 22px; }
 .location-card { border: 1px solid #d6d3d1; border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; font-size: calc(14px * var(--ts)); line-height: 1.45; background: #fafaf9; }
 .location-zone { font-size: calc(20px * var(--ts)); }
 .sheet-body .status.warn { font-size: calc(13px * var(--ts)); color: #92400e; line-height: 1.45; }
