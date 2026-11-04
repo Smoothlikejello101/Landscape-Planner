@@ -194,23 +194,36 @@ export function planOf(c: ProjectContent): ProjectContent {
  * same object).
  */
 function forHash(c: ProjectContent): ProjectContent {
-  const shown = (s: unknown) => !!s && typeof s === 'object' && (s as { fruitDismissed?: unknown }).fruitDismissed === '';
-  const cleared = (s: unknown) => {
-    const k = !!s && typeof s === 'object' ? (s as { conditions?: unknown }).conditions : undefined;
-    return !!k && typeof k === 'object' && !Array.isArray(k) && Object.keys(k).length === 0;
-  };
-  if (!Array.isArray(c.shapes) || !c.shapes.some((s) => shown(s) || cleared(s))) return c;
-  return {
-    ...c,
-    shapes: c.shapes.map((s) => {
-      if (!shown(s) && !cleared(s)) return s;
-      const rest = { ...(s as Record<string, unknown>) };
-      if (shown(s)) delete rest.fruitDismissed;
-      if (cleared(s)) delete rest.conditions;
-      return rest;
-    }),
-  };
+  const shapes = Array.isArray(c.shapes) ? withoutClearedMarks(c.shapes) : null;
+  return shapes ? { ...c, shapes } : c;
 }
+
+// ---------- Marks of something taken away on purpose ----------
+// Kept on a shape so sync can tell them from a copy an older version sent without the field (docs/storage.md): a
+// fruit-partner warning shown again (`fruitDismissed: ''`) and a bed's conditions cleared (`conditions: {}`). Where two
+// copies of a plan are compared for what they hold (the fingerprints here, a journal against its plan in
+// src/storage.ts, an imported plan against one already here in src/backup.ts), each reads as none.
+/** Whether a shape carries either mark. */
+function marked(s: unknown): boolean {
+  if (!s || typeof s !== 'object') return false;
+  const o = s as { fruitDismissed?: unknown; conditions?: unknown };
+  const k = o.conditions;
+  return o.fruitDismissed === '' || (!!k && typeof k === 'object' && !Array.isArray(k) && Object.keys(k).length === 0);
+}
+
+/** The shapes with those marks read as none; null when none has one (so a caller can keep its object as it was). */
+export function withoutClearedMarks<T>(shapes: readonly T[]): T[] | null {
+  if (!shapes.some(marked)) return null;
+  return shapes.map((s) => {
+    if (!marked(s)) return s;
+    const rest = { ...(s as Record<string, unknown>) };
+    if (rest.fruitDismissed === '') delete rest.fruitDismissed;
+    const k = rest.conditions;
+    if (!!k && typeof k === 'object' && !Array.isArray(k) && Object.keys(k).length === 0) delete rest.conditions;
+    return rest as T;
+  });
+}
+
 /** Fingerprint of the name and plan (the photo apart). Records made before photos synced hold exactly this. */
 export const planHash = (name: string, c: ProjectContent) => fingerprint(name, forHash(planOf(c)));
 /** Parts of a plan that settle on their own when two devices change them (settleParts), not a conflict. */
@@ -300,7 +313,8 @@ export function withLocalParts(server: ProjectContent, mine: ProjectContent | un
  * What's left (as for fruitDismissed, docs/storage.md): a device offline through another device's change to a bed's
  * conditions (set, changed or cleared), with a device on an older version sending the plan between, still has its own,
  * which the server's copy no longer contradicts: it keeps them, and they go to everyone if it sends the plan before the
- * device that made the change does. Only while one of the account's devices is on a version before Nov 2.
+ * device that made the change does. Only while one of the account's devices is on database version 3 or before
+ * (docs/storage.md has the other windows).
  */
 function withBedConditions(server: ProjectContent, mine: ProjectContent): ProjectContent {
   if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;

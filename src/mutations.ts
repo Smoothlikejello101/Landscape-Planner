@@ -336,7 +336,10 @@ export function bringBackCleared(c: ClearedPlan) {
 export function setBedConditions(bedId: string, conditions: BedConditions): boolean {
   const s = state.shapes.find((sh) => sh.id === bedId);
   if (!s || s.role !== 'bed') return false;
-  const next = sanitizeBedConditions(conditions);
+  // (A question set to false or null is no answer, as unset is: drip unticked. Not so in a stored plan, where a part
+  // that isn't one makes the rest none if nothing else could be kept.)
+  const given = Object.fromEntries(Object.entries((conditions ?? {}) as Record<string, unknown>).filter(([, v]) => v !== false && v !== null && v !== undefined));
+  const next = sanitizeBedConditions(given);
   if (!next) return false;
   const was = s.conditions === undefined ? undefined : sanitizeBedConditions(s.conditions) ?? {};
   if (was === undefined ? !Object.keys(next).length : JSON.stringify(was) === JSON.stringify(next)) return false;

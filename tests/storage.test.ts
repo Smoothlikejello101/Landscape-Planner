@@ -636,6 +636,14 @@ describe('backup files', () => {
     expect(with_({ bgImage: { ...bg, imageId: 'abc', fingerprint: 'f00', deviceOnly: true } })).toBe(same);
     // (Its keys in another order, as another version might write them: the same.)
     expect(planContent(sanitizeProjectData(JSON.parse(JSON.stringify({ phases: ['Fall'], bought: { 'ilex-vomitoria': { at: 5, n: 2 } }, bgImage: bg, shapes: [circle('oak'), circle('ash')] }))))).toBe(same);
+    // A bed's conditions cleared on purpose ({}) and a fruit warning shown again ('') are none, as sync reads them
+    // (the review, Nov 4): no "(2)" for a plan that differs only by one. Answers or a dismissal: another plan.
+    const marked = (extra: Record<string, unknown>) => planContent({ ...base, shapes: sanitizeProjectData({ shapes: [{ ...circle('oak'), ...extra }, circle('ash')] }).shapes });
+    expect(marked({ fruitDismissed: '' })).toBe(same);
+    expect(marked({ fruitDismissed: 'Oak needs a partner' })).not.toBe(same);
+    const bedOf = (conditions?: Record<string, unknown>) => planContent({ ...base, shapes: sanitizeProjectData({ shapes: [{ id: 'b', type: 'rect', x: 0, y: 0, width: 8, height: 4, rotation: 0, color: '#a16207', label: 'Bed', opacity: 0.4, locked: false, role: 'bed', ...(conditions ? { conditions } : {}) }] }).shapes });
+    expect(bedOf({})).toBe(bedOf());
+    expect(bedOf({ soil: 'clay' })).not.toBe(bedOf());
     // Its name, or a copy's: one name. Another name: another plan.
     expect([sameName('Back yard', ' Back yard '), sameName('Back yard', 'Back yard (2)'), sameName('Back yard (3)', 'Back yard')]).toEqual([true, true, true]);
     expect([sameName('Back yard', 'Front yard'), sameName('Back yard', 'Back yard 2'), sameName('Back yard', 'back yard')]).toEqual([false, false, false]);
@@ -1031,18 +1039,25 @@ describe("a bed's conditions (conditions, Plant this bed, Nov 2)", () => {
     expect(sanitizeProjectData({ shapes: beds }).shapes.map((s) => [s.id, s.conditions])).toEqual(['r', 'o', 't', 'p', 'c'].map((id) => [id, ALL]));
   });
 
-  it("a part that isn't one is dropped and the rest kept, never the plan; a question this version doesn't know, dropped", () => {
+  it("a part that isn't one is dropped and the rest kept, never the plan; a question a later version adds, kept as it came", () => {
     expect(read({ soil: 7, moisture: 'wet' })).toEqual({ moisture: 'wet' });
     expect(read({ sun: { most: 'Full' }, soil: 'clay' })).toEqual({ soil: 'clay' }); // (a sun without both its ends)
     expect(read({ sun: ['Full', 'Part'], moisture: 'dry' })).toEqual({ moisture: 'dry' });
     expect(read({ sun: { most: 'Full', least: 3 }, drip: 'yes', soil: 'loam' })).toEqual({ soil: 'loam' });
     expect(read({ drip: false, soil: 'x'.repeat(40), moisture: 'wet' })).toEqual({ moisture: 'wet' });
-    expect(read({ soil: '<b>clay</b>', moisture: 'very wet', sun: '', drip: 1, ph: 'acid' })).toBe('none');
-    expect(read({ ph: 'acid', soil: 'sand' })).toEqual({ soil: 'sand' });
+    expect(read({ soil: '<b>clay</b>', moisture: 'very wet', sun: '', drip: 1, ph: 'acid' })).toEqual({ ph: 'acid' });
+    expect(read({ soil: '<b>clay</b>', moisture: 'very wet', sun: '', drip: 1 })).toBe('none');
+    // (A later version's question: kept when its answer is a word or true, so this device's next upload doesn't lose
+    // it for everyone (the review, Nov 4); not one whose name or answer isn't plain, nor past twelve of them.)
+    expect(read({ ph: 'acid', soil: 'sand' })).toEqual({ soil: 'sand', ph: 'acid' });
+    expect(read({ mulched: true, soil: 'sand' })).toEqual({ soil: 'sand', mulched: true });
+    expect(read({ ph: 7, Shade: 'x', 'pH-level': 'acid', constructor: 'x', toString: 'x', __proto__x: 'y', soil: 'sand' })).toEqual({ soil: 'sand' });
+    const many = Object.fromEntries(Array.from({ length: 20 }, (_, i) => [`q${i}`, 'yes']));
+    expect(Object.keys(read({ ...many, soil: 'sand' }) as object)).toHaveLength(13);
     expect(read({ sun: { most: 'Full', least: 'Part', hours: 5 } })).toEqual({ sun: { most: 'Full', least: 'Part' } });
     // Not conditions at all: none. Nothing that could be kept: none too, not taken for cleared on purpose (so sync can
     // still fill them back from a device that has them, src/sync/engine.ts withBedConditions).
-    for (const odd of ['clay', 7, null, true, [], ['clay'], { soil: 7 }, { drip: false }, { ph: 'acid' }]) expect(read(odd), JSON.stringify(odd)).toBe('none');
+    for (const odd of ['clay', 7, null, true, [], ['clay'], { soil: 7 }, { drip: false }, { ph: 7 }]) expect(read(odd), JSON.stringify(odd)).toBe('none');
     // Never the plan: every shape is there, as it was, whatever a bed's conditions hold.
     const plan = sanitizeProjectData({ shapes: [bed({ conditions: { soil: { texture: 'clay' }, moisture: 'wet' } }), bed({ id: 'b2', conditions: 'clay' }), ...others()] });
     expect(plan.shapes.map((s) => s.id)).toEqual(['bed', 'b2', 'aster', 'lawn', 'shade', 'plain', 'note']);
@@ -1974,6 +1989,25 @@ describe('an older version never saves over a newer one (src/db.ts DB_VERSION)',
     state.shapes = [...state.shapes, ...shapesOf('new')]; save(); await flushSave();
     expect((await stored(kv, 'p1')).dbVersion).toBe(DB_VERSION);
     raw.close();
+  });
+
+  it("a journal that differs from its plan only by a bed's conditions cleared on purpose ({}) or a warning shown again (''), against none, is nothing new: the plan stays as it is", async () => {
+    const kv = await freshStorage();
+    const id = state.currentProjectId!;
+    const bedShape = (extra: Record<string, unknown> = {}) => ({ id: 'b', type: 'rect', x: 0, y: 0, width: 8, height: 4, rotation: 0, color: '#a16207', label: 'Bed', opacity: 0.4, locked: false, role: 'bed', ...extra });
+    const holly = (extra: Record<string, unknown> = {}) => ({ id: 'h', type: 'circle', x: 5, y: 5, radius: 3, color: '#14532d', label: 'Holly', opacity: 0.65, locked: false, role: 'plant', plantId: 'ilex-opaca', ...extra });
+    state.shapes = sanitizeProjectData({ shapes: [bedShape({ conditions: {} }), holly({ fruitDismissed: '' })] }).shapes;
+    save(); await flushSave();
+    const mine = await stored(kv, id);
+    // Another page of this version, its copy without the marks, written after the plan last changed.
+    const theirs = { ...currentProjectData(), shapes: sanitizeProjectData({ shapes: [bedShape(), holly()] }).shapes };
+    localStorage.setItem(`lp-journal:${id}@otherpage`, JSON.stringify({ projectId: id, at: Date.now() + 1000, dbVersion: DB_VERSION, page: 'otherpage', seq: 2, data: theirs }));
+    _resetStorageForTests();
+    const { keptApart } = await initStorage(kv);
+    expect(keptApart).toBeUndefined();
+    expect(await stored(kv, id)).toEqual(mine);
+    expect(state.shapes.map((s) => [s.conditions, s.fruitDismissed])).toEqual([[{}, undefined], [undefined, '']]);
+    expect(journals()).toBe('');
   });
 
   it("a version-2 page's journal, without fruitDismissed, over a plan saved here with it, is kept apart, not put over it (the review's M3)", async () => {
