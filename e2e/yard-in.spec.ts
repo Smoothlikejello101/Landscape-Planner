@@ -137,14 +137,17 @@ test('the scale box sits clear of A and B, the plan moved if they were under it,
   await expect(page.getByTestId('scale-distance')).toBeFocused();
 });
 
-test('a photo not to scale is marked rough in Layers until its scale is set (item 4)', async ({ page }) => {
+test('a photo not to scale is marked so in Layers, and by a dot on the Layers button, until its scale is set (item 4; Jason\'s note on #209, Nov 4)', async ({ page }) => {
   autoDialogs(page);
   await openFresh(page);
   await page.getByTestId('start-photo').click();
   await page.locator('.sheet input[type=file]').setInputFiles('public/icon-512.png');
   await page.locator('.mode-banner button').click(); // (its scale not set)
+  // ("Not to scale yet", as the background sheet says it: not "Rough scale". A dot on Layers, named for screen readers.)
+  await expect(page.getByTestId('layers-scale-dot')).toBeVisible();
+  await expect(page.getByTestId('layers-btn')).toHaveAttribute('aria-label', 'Layers: the photo isn’t to scale yet');
   await page.locator('button[title=Layers]').click();
-  await expect(page.getByTestId('layers-bg-rough')).toHaveText('Rough scale');
+  await expect(page.getByTestId('layers-bg-not-to-scale')).toHaveText('Not to scale yet');
   await expect(page.getByTestId('layers-bg')).toContainText('Its size on the plan is a guess until its scale is set');
   await page.getByTestId('layers-bg-set-scale').click();
   await expect(page.locator('.mode-banner')).toContainText('Calibrating');
@@ -154,9 +157,11 @@ test('a photo not to scale is marked rough in Layers until its scale is set (ite
   await page.getByTestId('scale-distance').fill('40');
   await page.getByTestId('scale-set').click();
   await closeSheet(page);
+  await expect(page.getByTestId('layers-scale-dot')).toHaveCount(0);
+  await expect(page.getByTestId('layers-btn')).toHaveAttribute('aria-label', 'Layers');
   await page.locator('button[title=Layers]').click();
   await expect(page.getByTestId('layers-bg')).toBeVisible();
-  await expect(page.getByTestId('layers-bg-rough')).toHaveCount(0);
+  await expect(page.getByTestId('layers-bg-not-to-scale')).toHaveCount(0);
 });
 
 test('once the photo is to scale, "Now trace" lists what to trace, each starting its tool; put away, it stays away (item 2)', async ({ page }) => {

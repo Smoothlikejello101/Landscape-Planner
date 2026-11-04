@@ -42,6 +42,9 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 /* (What Undo and Redo would do, as the pointer's tooltip: over the whole button. src/ui/render.ts) */
 .iconbtn .step-tip { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
 .iconbtn .dot { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; background: #dc2626; border-radius: 50%; }
+/* Layers, while the plan's photo isn't to scale yet: a small amber dot, as its flag in Layers is amber (Jason, his note on
+   #209, Nov 4). Ringed in the bar's white, so it reads over the icon. */
+.iconbtn .scale-dot { position: absolute; top: 7px; right: 7px; width: 9px; height: 9px; background: #d97706; border: 2px solid #fff; border-radius: 50%; box-sizing: content-box; pointer-events: none; }
 /* Canvas */
 .canvas-wrap { flex: 1; position: relative; overflow: hidden; touch-action: none; min-height: 0; }
 .canvas-wrap > svg { position: absolute; inset: 0; touch-action: none; display: block; }
@@ -1169,10 +1172,10 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .strip-words { display: grid; flex: 1; min-width: 0; line-height: 1.35; }
 .strip-words > span, .strip-words::after { grid-area: 1 / 1; overflow-wrap: break-word; }
 .strip-words::after { content: attr(data-room); visibility: hidden; }
-/* A photo not to scale yet, in Layers: "Rough scale", and the way to set it. */
-.rough-flag { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; font-size: calc(11px * var(--ts)); font-weight: 700; white-space: nowrap; vertical-align: 1px; }
-.rough-line { padding: 0 16px 6px; color: #78350f; }
-.rough-line .link-btn { font-size: inherit; min-height: 44px; padding: 0 2px; }
+/* A photo not to scale yet, in Layers: "Not to scale yet" ("Rough scale" until Nov 4), and the way to set it. */
+.scale-flag { display: inline-block; margin-left: 4px; padding: 1px 8px; border-radius: 999px; background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; font-size: calc(11px * var(--ts)); font-weight: 700; white-space: nowrap; vertical-align: 1px; }
+.scale-line { padding: 0 16px 6px; color: #78350f; }
+.scale-line .link-btn { font-size: inherit; min-height: 44px; padding: 0 2px; }
 /* The scale box (src/ui/background-panel.ts): at the top, the plan only lightly dimmed, A and B shown below it. */
 .overlay.scale-overlay { align-items: flex-start; padding: 8px; background: rgba(0,0,0,0.12); }
 .intro-top .overlay.scale-overlay { padding-top: var(--intro-h, 8px); }
