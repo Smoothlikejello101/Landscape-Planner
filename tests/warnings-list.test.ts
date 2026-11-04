@@ -222,7 +222,9 @@ describe('dismissing warnings from the list', () => {
     // Show again: the plant's, and each copy's.
     of('fruit')[0].again!();
     expect(of('fruit').map((r) => [r.ids.join(','), r.dismissed])).toEqual([['h,h2', false]]);
-    expect(['h', 'h2'].map((id) => shape(id).fruitDismissed)).toEqual(['', '']); // (shown again on purpose: src/dismissals.ts clearForPlan)
+    // (Dismissed here and never sent: they go, as they were. Once sync has carried one, it's '', shown again on purpose:
+    // src/dismissals.ts clearForPlan, src/marks.ts mayMark.)
+    expect(['h', 'h2'].map((id) => shape(id).fruitDismissed)).toEqual([undefined, undefined]);
     // Dismissed in words that have since changed (the catalog's facts): active again.
     shape('h').fruitDismissed = line.replace('female', 'male');
     expect(of('fruit').map((r) => [r.ids.join(','), r.dismissed])).toEqual([['h,h2', false]]);

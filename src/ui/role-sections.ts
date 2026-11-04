@@ -24,6 +24,8 @@ import { emptyTimeline, timeRange } from './time-range';
 import { isLocked } from '../roles';
 import { issuesKey, prepareUtilities, utilityIssues, utilityNote } from '../utilities';
 import { UTILITY_COLORS, UTILITY_KINDS, isUtilityKind, utilityLook } from '../utility-kinds';
+import { singleSelected } from '../selection';
+import { mayMark } from '../marks';
 
 // Parts of the properties panel that depend on a shape's role.
 
@@ -109,8 +111,10 @@ function plantDismissButtons(kind: DismissKind, plantId: string, key: string, ac
   if (across || mine) {
     const again = el('button', { className: 'link-reset', 'data-testid': `${kind}-dismiss` }, 'Show again');
     again.addEventListener('click', () => {
-      // (A fruit-partner one is left '', shown again on purpose, so sync doesn't fill it back: src/dismissals.ts clearForPlan.)
-      if (across) { showAgainForPlan(kind, plantId); render(); } else updateSelected({ [field]: kind === 'fruit' ? '' : undefined });
+      // (A fruit-partner one is left '', shown again on purpose, so sync doesn't fill it back, where the server's copy
+      // had it as this device last synced: src/dismissals.ts clearForPlan, src/marks.ts mayMark.)
+      const one = singleSelected();
+      if (across) { showAgainForPlan(kind, plantId); render(); } else updateSelected({ [field]: kind === 'fruit' && one && mayMark('fruit', one.id) ? '' : undefined });
     });
     row.appendChild(again);
     return row;

@@ -12,6 +12,7 @@ import { flushHistoryDebounce, pushHistory } from './history';
 import { householdFlags, plantsById, type Plant } from './plants';
 import { state } from './state';
 import { save } from './storage';
+import { mayMark } from './marks';
 import type { DismissKind, Shape } from './types';
 
 /** What a plant's poison warning says, for who's in the yard now ("Poisonous to people; A problem for dogs"): its key. */
@@ -101,10 +102,11 @@ export function clearForPlan(kind: DismissKind, plantId: string): boolean {
   dropPlanEntry(kind, plantId);
   const field = DISMISS_FIELD[kind];
   // (A fruit-partner one is left '', shown again on purpose, so sync doesn't fill it back from another device's copy
-  // (src/sync/engine.ts withFruitDismissals); hardiness and poison aren't filled back, and go.)
+  // (src/sync/engine.ts withFruitDismissals), where the server's copy had it as this device last synced (src/marks.ts
+  // mayMark); otherwise it goes, as it was. Hardiness and poison aren't filled back, and go.)
   if (kind === 'fruit') {
     const copies = copiesOf(plantId).filter((s) => !!s.fruitDismissed);
-    for (const s of copies) s.fruitDismissed = '';
+    for (const s of copies) { if (mayMark('fruit', s.id)) s.fruitDismissed = ''; else delete s.fruitDismissed; }
     return copies.length > 0;
   }
   const copies = copiesOf(plantId).filter((s) => s[field] !== undefined);
