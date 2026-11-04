@@ -94,3 +94,64 @@ test('a plan with no beds: For Anywhere, and how to get a bed; not in Which tree
   await expect(picker(page)).toBeVisible();
   await expect(forRow(page)).toHaveCount(0);
 });
+
+/** The bed's panel (Edit on its chip), its Conditions section open. */
+async function openConditions(page: Page, x: number, y: number) {
+  await tapPlan(page, x, y);
+  await page.locator('.sel-pill .edit').click();
+  const head = page.locator('.sheet [data-section=conditions]');
+  if ((await head.getAttribute('aria-expanded')) !== 'true') await head.click();
+  return page.getByTestId('bed-conditions');
+}
+
+test('a bed\'s Conditions: its sun worked out from the sun areas over it; soil and moisture asked, each answered in place', async ({ page }) => {
+  await seed(page);
+  const c = await openConditions(page, 9, 1.5);
+  await expect(c.getByTestId('cond-sun')).toContainText('3.5 to 7 h of direct sun');
+  await expect(c.getByTestId('cond-sun')).toContainText('Part shade to full sun: the shade varies across the bed');
+  await expect(c.getByTestId('cond-sun-from')).toHaveText('From the 2 sun areas over it: Under the oak, 3.5 h; Front yard, 7 h (seen Jun 14). All of the bed is covered.');
+  await expect(c.getByTestId('cond-sun-asked')).toHaveCount(0); // (worked out, not asked)
+  await expect(page.locator('.sheet [data-section=conditions] .prop-summary')).toHaveText('3.5 to 7 h sun');
+  // (Answered in place: the bed's name, being typed, keeps its box, and so its keyboard.)
+  const name = page.locator('.sheet .field', { hasText: 'Label' }).locator('input');
+  await name.evaluate((e) => { (e as HTMLElement).dataset.kept = '1'; });
+  await c.getByTestId('cond-soil-clay').click();
+  await c.getByTestId('cond-moisture-average').click();
+  await expect(c.getByTestId('cond-soil-clay')).toHaveAttribute('aria-pressed', 'true');
+  await expect(name).toHaveAttribute('data-kept', '1');
+  await expect(c.getByTestId('cond-moisture-says')).toHaveText('Average hides plants with high water needs, and those that need wet soil or standing water.');
+  await expect(c.getByTestId('conditions-sum')).toHaveText('When you plant this bed, the picker lists only plants that fit: Takes part shade to full sun · Clay OK · Water needs: low or moderate. Nothing is ranked.');
+  await expect(page.locator('.sheet [data-section=conditions] .prop-summary')).toHaveText('3.5 to 7 h sun · Clay · Average');
+  await c.getByTestId('cond-drip').check();
+  await expect(c.getByTestId('cond-moisture-says')).toHaveText('Average and drip irrigated: any water need fits.');
+  await expect(c.getByTestId('conditions-sum')).toHaveText('When you plant this bed, the picker lists only plants that fit: Takes part shade to full sun · Clay OK. Nothing is ranked.');
+  // (Each answer an undo step of its own, named.)
+  await page.locator('.sheet-header button.iconbtn').last().click();
+  await expect(page.getByTestId('undo-says')).toHaveAttribute('title', 'Undo: set the conditions of Front bed');
+  // Kept: open again, as answered.
+  await page.locator('.sel-pill .edit').click();
+  await expect(page.getByTestId('bed-conditions').getByTestId('cond-soil-clay')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByTestId('bed-conditions').getByTestId('cond-drip')).toBeChecked();
+});
+
+test('a bed no sun area touches is asked its sun, and Not sure is kept as an answer', async ({ page }) => {
+  await seed(page);
+  const c = await openConditions(page, 6, -10);
+  await expect(c.getByTestId('cond-sun')).toHaveCount(0);
+  await expect(c.getByTestId('cond-sun-asked')).toContainText('No sun area covers this bed');
+  await c.getByTestId('cond-sun-most-Part').click();
+  // (The same for a bed that doesn't vary, until its shadiest part is said.)
+  await expect(c.getByTestId('cond-sun-least-Part')).toHaveAttribute('aria-pressed', 'true');
+  await c.getByTestId('cond-sun-least-Shade').click();
+  await expect(c.getByTestId('conditions-sum')).toContainText('Takes shade to part shade');
+  await expect(page.locator('.sheet [data-section=conditions] .prop-summary')).toHaveText('Shade to part shade');
+  await c.getByTestId('cond-soil-unsure').click();
+  await c.getByTestId('cond-moisture-wet').click();
+  await expect(c.getByTestId('conditions-sum')).toHaveText('When you plant this bed, the picker lists only plants that fit: Takes shade to part shade · Takes wet soil. Not sure leaves one out. Nothing is ranked.');
+  await c.getByTestId('cond-sun-unsure').click();
+  await expect(c.getByTestId('cond-sun-unsure')).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.locator('.sheet [data-section=conditions] .prop-summary')).toHaveText('Sun not sure · Soil not sure · Wet');
+  // Plant this bed, from the section: the picker For it.
+  await page.getByTestId('conditions-plant').click();
+  await expect(pressed(page)).toHaveText('Bed, 16 × 8 ft');
+});

@@ -28,6 +28,7 @@ import { zoneFit, zoneRange } from '../climate';
 import { isTree, trunkDiameter } from '../trees';
 import { treeBranches } from '../crowding';
 import { MAX_TREE_HEIGHT, MAX_TRUNK, MIN_TRUNK } from '../constants';
+import { conditionsSection, conditionsSummary } from './bed-conditions';
 import { statusSection, statusSummary } from './status-section';
 import { drawnBySize } from '../canvas';
 import { flowerChoices, flowerHex } from '../looks';
@@ -247,6 +248,9 @@ export function renderPropsPanelSingle(s: Shape) {
   if (s.role === 'bed') {
     const n = plantsInBed(s, state.shapes).filter((p) => p.status !== 'gone').length;
     body.appendChild(section('bed', 'Plants in this bed', document.createTextNode(n ? `${n} plant${n === 1 ? '' : 's'}` : 'None yet'), [bedSection(s), bedBloomSection(s)]));
+    // Its sun, soil and moisture, for Plant this bed (Jason, Nov 2): src/ui/bed-conditions.ts.
+    const condSum = document.createTextNode(conditionsSummary(s));
+    body.appendChild(section('conditions', 'Conditions', condSum, conditionsSection(s, condSum)));
   }
   if (s.type === 'circle' && (s.plantId || !s.role || s.role === 'plant' || s.role === 'other')) {
     const p = s.plantId ? plantsById[s.plantId] : undefined;

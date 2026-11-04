@@ -875,6 +875,26 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .bed-chip.off { padding: 2px 12px 2px 6px; border-style: dashed; border-color: #a8a29e; color: #57534e; background: transparent; text-decoration: line-through; }
 .bed-chip:focus-visible { outline: 2px solid #059669; outline-offset: 1px; }
 .bed-box-note { font-size: calc(12px * var(--ts)); color: #44403c; line-height: 1.4; }
+/* A bed's conditions (src/ui/bed-conditions.ts): sun worked out, or asked; soil and moisture asked; what it lists. */
+.bed-conditions { display: flex; flex-direction: column; gap: 6px; }
+.cond-label { font-size: calc(13px * var(--ts)); font-weight: 600; color: #44403c; margin-top: 8px; }
+.cond-label:first-child { margin-top: 0; }
+.cond-sub { font-size: calc(12px * var(--ts)); color: #57534e; }
+.cond-seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); border: 1px solid #d6d3d1; border-radius: 8px; overflow: hidden; }
+.cond-seg button { min-height: 44px; padding: 4px 6px; background: #fff; color: #292524; font-size: calc(14px * var(--ts)); border-left: 1px solid #d6d3d1; }
+.cond-seg button:first-child { border-left: 0; }
+.cond-seg button.on { background: #1c1917; color: #fff; font-weight: 600; }
+.cond-seg button:focus-visible { outline: 2px solid #059669; outline-offset: -2px; }
+.cond-unsure { align-self: flex-start; min-height: 40px; padding: 4px 14px; border: 1px solid #d6d3d1; border-radius: 999px; background: #fff; color: #292524; font-size: calc(13px * var(--ts)); }
+.cond-unsure.on { background: #1c1917; color: #fff; border-color: #1c1917; font-weight: 600; }
+.cond-sun { border: 1px solid #d6d3d1; border-radius: 10px; background: #fafaf9; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; font-size: calc(13px * var(--ts)); color: #292524; }
+.cond-sun-hours { font-size: calc(15px * var(--ts)); font-weight: 600; }
+.sun-bar { position: relative; height: 10px; border-radius: 999px; margin-top: 6px; background: linear-gradient(90deg, #d6d3d1, #e7e5e4 40%, #fef3c7); }
+.sun-bar-on { position: absolute; top: 0; bottom: 0; border-radius: 999px; background: #0f766e; }
+.sun-bar-marks { display: flex; justify-content: space-between; font-size: calc(11px * var(--ts)); color: #78716c; }
+.cond-drip { margin-top: 2px; min-height: 40px; }
+.cond-sum { margin-top: 8px; border: 1px solid #99f6e4; border-radius: 10px; background: #f0fdfa; padding: 8px 10px; font-size: calc(13px * var(--ts)); color: #134e4a; line-height: 1.4; }
+.cond-plant { margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; }
 /* The picker's filters (decided with Jason, 2026-10-25). */
 .checking-note { padding: 2px 0; }
 .checking-note .link-btn.inline { font-size: calc(12px * var(--ts)); min-height: 0; padding: 0; }

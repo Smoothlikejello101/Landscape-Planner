@@ -66,6 +66,7 @@ import { panelOpened } from '../tap-guard';
 import { pickerViewClosed, placePicker, planLookOnly, showChosen } from './picker-view';
 import { pickingBed, plantingSettled } from '../bed-plant';
 import { PICK_SAID, stopPickingBed } from './plant-for';
+import { renderBedConditionsPanel } from './bed-conditions';
 
 // MAIN RENDER
 // ============================================================
@@ -689,6 +690,7 @@ export function render() {
   else if (state.panel === 'warnings') panelNode = renderWarningsSheet();
   else if (state.panel === 'plantList') panelNode = renderPlantListPanel();
   else if (state.panel === 'help') panelNode = renderHelpSheet();
+  else if (state.panel === 'bedConditions') panelNode = renderBedConditionsPanel();
   warningsSideShown(root); // (the panel beside the plan, where it was scrolled to)
   if (panelNode) {
     root.appendChild(panelNode);
