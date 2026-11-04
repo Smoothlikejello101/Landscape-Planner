@@ -149,15 +149,18 @@ describe('typed while drawing (the bar\'s length for the next side)', () => {
     tap(30, 0); tap(30, 6); tap(20, 6); tap(20, 0);
     expect('measured' in made()).toBe(false);
   });
-  it('a house squared after: its typed sides stay as typed', () => {
+  it('a house squared after: its typed side stays as typed, the corners tapped by eye moved square', () => {
     startDraw('poly', 'building');
     tap(0, 0);
     typed(30, 30.5, 0);
-    tap(30.5, 20); // (a corner tapped half a foot out)
-    typed(30, 0.2, 20.1);
+    tap(30.5, 20); tap(0.5, 20.5); // (two corners tapped half a foot out)
     tap(0, 0);
+    expect(document.getElementById('toast-action')?.textContent).toContain('Squared the corners');
     const s = made() as PathShape;
-    expect(sides(s)).toEqual([[0, 30], [2, 30]]);
+    const [, , c, d] = pathPoints(s);
+    expect(pathPoints(s).map((p) => Math.round(p.x * 100) / 100)).toEqual([0, 30, 30, 0]); // (square: its far side level)
+    expect(Math.abs(c.y - d.y)).toBeLessThan(0.01);
+    expect(sides(s)).toEqual([[0, 30]]);
   });
   it('the side that closes an outline, typed: kept as long as it came out that long; a typed side by the first point that came out otherwise, not', () => {
     startDraw('poly', 'bed');
