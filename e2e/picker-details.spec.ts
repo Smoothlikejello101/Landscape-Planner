@@ -1167,8 +1167,9 @@ test('"Anyone you need to protect?" fits a 360 px phone at every text size: one 
     });
     expect(title.lines).toBe(1);
     expect(title.right).toBeLessThanOrEqual(x.x);
-    // The list still starts on the screen.
-    const first = (await page.getByTestId('plant-row').first().boundingBox())!;
-    expect(first.y).toBeLessThan(740);
+    // The list still starts on the screen, at full height. (The picker opens at half, the plan above it; its handle takes
+    // it to full: Jason, Nov 2, the plan in view while choosing, src/ui/picker-view.ts.)
+    await page.getByTestId('picker-handle').click();
+    await expect.poll(async () => (await page.getByTestId('plant-row').first().boundingBox())!.y).toBeLessThan(740);
   }
 });

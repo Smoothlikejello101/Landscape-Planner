@@ -450,7 +450,8 @@ export interface Marquee { x1: number; y1: number; x2: number; y2: number }
 
 export type Gesture =
   | { type: 'pinch'; startDist: number; startZoom: number; centerScreen: Point; centerFeetAtStart: Point }
-  | { type: 'pan'; startX: number; startY: number; startOffset: Point; moved: boolean; tapShapeId?: string; overShape?: boolean }
+  // (`look`: the plan behind the plant picker, which only pans: a tap there does nothing. src/ui/picker-view.ts.)
+  | { type: 'pan'; startX: number; startY: number; startOffset: Point; moved: boolean; tapShapeId?: string; overShape?: boolean; look?: boolean }
   // (`add`: Shift, Ctrl or Cmd held: a tap toggles one shape and a box adds what it touches; the rest stays selected.)
   | { type: 'marquee'; startX: number; startY: number; startFeet: Point; currentFeet: Point; moved: boolean; tapShapeId?: string; add?: boolean }
   | {

@@ -13,10 +13,12 @@ test('the top bar says the plan is saved; a delete says what went, with an Undo'
   await page.locator('.sheet').getByRole('button', { name: /Delete/ }).first().click();
   const notice = page.locator('#toast-action');
   await expect(notice).toContainText('Deleted');
-  // (A sheet opened under it: the notice moves above the sheet, clear of its buttons.)
+  // (A sheet opened under it: the notice moves clear of the sheet, of its buttons. Above a phone's; beside a computer's
+  // plant picker, a panel at the right from under the top bar, the plan in view left of it: Jason, Nov 2.)
   await page.locator('.tool-btn.plants').click();
   const n = (await notice.boundingBox())!, sheet = (await page.locator('.sheet').boundingBox())!;
-  expect(n.y + n.height).toBeLessThanOrEqual(sheet.y);
+  if (sheet.x > 0) expect(n.x + n.width).toBeLessThanOrEqual(sheet.x);
+  else expect(n.y + n.height).toBeLessThanOrEqual(sheet.y);
   await closeSheet(page);
   await notice.getByRole('button', { name: 'Undo' }).click();
   await expect.poll(() => shapeCount(page)).toBe(1);

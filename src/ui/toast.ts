@@ -59,6 +59,10 @@ export function hideToastSaying(re: RegExp) {
 export function placeToast(node: HTMLElement) {
   node.style.top = '';
   node.style.bottom = '';
+  node.style.left = '';
+  // (Beside the plant picker's panel, on a computer: over the plan left of it, not across the panel.)
+  const side = besidePanel();
+  if (side) { const w = document.getElementById('canvas-wrap')?.getBoundingClientRect(); if (w) node.style.left = `${Math.round((w.left + side.left) / 2)}px`; }
   if (document.querySelector('.sheet')) {
     // (Under the guided introduction's card, which sits at the top while a sheet is open.)
     const card = document.querySelector('.intro-card.at-top')?.getBoundingClientRect();
@@ -189,6 +193,13 @@ function goesAtFirstAction(node: HTMLElement) {
  * 1: a placed plant's notice covered the Warnings button and its count on a phone; on a computer, a dismissal's covered
  * the button and Warnings' own header). Null with no plan, or too little room to be worth it.
  */
+/**
+ * The plant picker's panel beside the plan, on a computer (src/ui/picker-view.ts marks its layer), where it is: the plan
+ * is in view beside it, so a notice goes where it would with no sheet open, in the plan's room left of it.
+ */
+function besidePanel(): DOMRect | null {
+  return document.querySelector('.picker-overlay.beside > .picker-sheet')?.getBoundingClientRect() ?? null;
+}
 export function planRoomAcross(): { x0: number; x1: number } | null {
   const wrap = document.getElementById('canvas-wrap')?.getBoundingClientRect();
   if (!wrap || !wrap.width) return null;
@@ -209,7 +220,15 @@ export function placeNotice() {
   node.style.top = '';
   node.style.left = '';
   node.style.maxWidth = '';
-  const sheet = document.querySelector('.sheet');
+  // (Beside the plant picker's panel, on a computer, the plan's in view: as with no sheet open, left of the panel.)
+  const side = besidePanel();
+  const sheet = side ? null : document.querySelector('.sheet');
+  const across = () => {
+    const r = planRoomAcross();
+    if (!r || !side) return r;
+    const x1 = Math.min(r.x1, side.left - 8);
+    return x1 - r.x0 >= 200 ? { x0: r.x0, x1 } : null;
+  };
   // (Placing: just above the place bar, by the thumb, its buttons in one row. At the top it covered the new plant and
   // the hint, a third of a small phone at large text. Jason, Oct 31, from round 3: Bea.)
   const bar = !sheet && state.placing ? document.querySelector<HTMLElement>('[data-testid=place-bar]') : null;
@@ -217,10 +236,12 @@ export function placeNotice() {
   if (bar) {
     const h = node.getBoundingClientRect().height;
     node.style.top = `${Math.max(8, Math.round(bar.getBoundingClientRect().top - h - 8))}px`;
+    const room = side ? across() : null;
+    if (room) { node.style.left = `${Math.round((room.x0 + room.x1) / 2)}px`; node.style.maxWidth = `${Math.round(room.x1 - room.x0)}px`; }
     return;
   }
   // At the top of the plan, in its room across: clear of the side buttons and of Warnings beside the plan.
-  const room = !sheet ? planRoomAcross() : null;
+  const room = !sheet ? across() : null;
   if (room) {
     node.style.left = `${Math.round((room.x0 + room.x1) / 2)}px`;
     node.style.maxWidth = `${Math.round(room.x1 - room.x0)}px`;
