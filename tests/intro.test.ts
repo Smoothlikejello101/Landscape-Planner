@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  NEW_RECORD, SHRUBS_TO_FIND, STEPS, UNSCALED, applies, nextStep, plantCardText, prevStep, resumeStep, shrubToFind, stepDone,
+  NEW_RECORD, SHRUBS_TO_FIND, STEPS, UNSCALED, applies, nextStep, plantCardText, prevStep, resumeStep, ringCardText, shrubToFind, stepDone,
   type IntroRecord, type ShrubCheck, type Snapshot,
 } from '../src/intro';
 import { NO_YARD, applyYard, household, loadYard, saveYard, yardFilter, yardOf, yardSet } from '../src/yard';
@@ -122,6 +122,24 @@ describe("the guided introduction: step 7's shrub and words", () => {
     expect(plantCardText({ bed: true, zip: true, sun: null, shrub, tap: 'tap' })).toContain("Try an oakleaf hydrangea: it's hardy here. Find it");
     expect(plantCardText({ bed: false, zip: false, sun: null, shrub: null, tap: 'click' })).toBe(
       'Find something to plant: search for a plant you know, or try the filters. Click Place, then click on the plan.');
+  });
+});
+
+describe("step 8's words: select a plant first; then both its circles, plainly (Jason, Nov 4)", () => {
+  it('none selected: select one, the one just placed after step 7', () => {
+    expect(ringCardText({ looking: 'unselected', justPlaced: true, tap: 'tap' })).toBe('Tap the plant you just placed to see its ring.');
+    expect(ringCardText({ looking: 'unselected', tap: 'click' })).toBe('Click a plant to see its ring.');
+  });
+  it('a planned plant: its own edge is dashed too, and said so; the outer ring is the size it can reach', () => {
+    expect(ringCardText({ looking: 'plant', planned: true, ring: true, tap: 'tap' })).toBe(
+      "Its circle is its typical size, dashed because it's planned, not planted yet. The outer dashed ring is the size it can reach. Give it room: plant two closer than usual and the app tells you.");
+    expect(ringCardText({ looking: 'plant', planned: false, ring: true, tap: 'tap' })).toBe(
+      'Its circle is its typical size. The outer dashed ring is the size it can reach. Give it room: plant two closer than usual and the app tells you.');
+  });
+  it('one size from its sources: no ring, its circle the size it can reach; no plant at all: in general', () => {
+    expect(ringCardText({ looking: 'plant', planned: true, ring: false, tap: 'tap' })).toBe(
+      "Its circle is the size it can reach (its sources give one size), dashed because it's planned, not planted yet. Give it room: when circles overlap, the app tells you.");
+    expect(ringCardText({ looking: 'nothing', tap: 'tap' })).toContain("A plant's circle is its typical size; selected, a dashed ring shows the size it can reach.");
   });
 });
 

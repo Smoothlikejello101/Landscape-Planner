@@ -179,6 +179,21 @@ export function shrubToFind(check: ShrubCheck): { id: string; name: string } | n
 }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+/**
+ * What step 8's card says (Jason, Nov 4). Plants on the plan, none selected: select one first, since the ring shows
+ * only on the plant selected ("the plant you just placed", after step 7). One selected: both its circles, plainly. A
+ * plant just placed is planned, not planted, so its own edge is dashed too: said, or it's two dashed circles and words
+ * about one. One whose sources give one size has no ring: its circle is the size it can reach. No plants: in general.
+ */
+export function ringCardText(o: { looking: 'nothing' | 'unselected' | 'plant'; justPlaced?: boolean; planned?: boolean; ring?: boolean; tap: string }): string {
+  if (o.looking === 'nothing') return "A plant's circle is its typical size; selected, a dashed ring shows the size it can reach. Give plants room: plant two closer than usual and the app tells you.";
+  if (o.looking === 'unselected') return `${cap(o.tap)} ${o.justPlaced ? 'the plant you just placed' : 'a plant'} to see its ring.`;
+  const dashed = o.planned ? ", dashed because it's planned, not planted yet" : '';
+  return o.ring
+    ? `Its circle is its typical size${dashed}. The outer dashed ring is the size it can reach. Give it room: plant two closer than usual and the app tells you.`
+    : `Its circle is the size it can reach (its sources give one size)${dashed}. Give it room: when circles overlap, the app tells you.`;
+}
 /** What step 7's card says, by what the earlier steps set (Jason, Oct 28: it changes if they skipped the ZIP, the bed or the sun). */
 export function plantCardText(o: { bed: boolean; zip: boolean; sun: SunLevel | null; shrub: { name: string } | null; tap: string }): string {
   const where = o.bed ? 'in the bed' : 'on the plan';

@@ -331,7 +331,23 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await tapFromCenter(page, -2, 3);
   await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
   await expect(step(page)).toHaveText('Step 8 of 8');
-  await expect(page.getByTestId('intro-text')).toContainText('The dashed ring is how big it gets full-grown');
+  // The ring (Jason, Nov 4): none selected, select one first, the plant just placed pulsing; selected, both its circles
+  // in plain words (just placed, it's planned, not planted: its own edge is dashed as well as the ring).
+  const said = page.getByTestId('intro-text');
+  const both = "Its circle is its typical size, dashed because it's planned, not planted yet. The outer dashed ring is the size it can reach. Give it room: plant two closer than usual and the app tells you.";
+  if (await page.getByTestId('pill-deselect').count()) {
+    await expect(said).toHaveText(both); // (still selected from placing it)
+    await page.getByTestId('pill-deselect').click();
+  }
+  await expect(said).toHaveText(isMobile ? 'Tap the plant you just placed to see its ring.' : 'Click the plant you just placed to see its ring.');
+  const pulsing = page.locator('#canvas-svg .shape-pulse');
+  await expect(pulsing).toHaveCount(1);
+  await expect(page.locator('#canvas-svg [data-role=full-ring]')).toHaveCount(0);
+  const plant = (await pulsing.locator('circle').first().boundingBox())!;
+  await page.mouse.click(plant.x + plant.width / 2, plant.y + plant.height / 2);
+  await expect(said).toHaveText(both);
+  await expect(pulsing).toHaveCount(0);
+  await expect(page.locator('#canvas-svg [data-role=full-ring]')).toHaveCount(1);
   await expect(page.locator('#toast', { hasText: 'dashed ring is full size' })).toHaveCount(0); // (the card says it: no hint too)
   await page.getByTestId('intro-done').click();
   await expect(card(page)).toHaveCount(0);

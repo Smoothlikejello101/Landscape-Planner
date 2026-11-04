@@ -18,7 +18,7 @@ import { nativeHere, regulatedHere } from '../wild';
 import { sunAt, sunLevel } from '../sun';
 import { NO_YARD, applyYard, household, noteAsked, saveHardy, saveYard, toggleYard, yardFilter, yardOf, yardSet, type Yard } from '../yard';
 import {
-  NEW_RECORD, STEP_NUMBER, STEP_TITLE, UNSCALED, applies, nextStep, parseIntroRecord, plantCardText, prevStep, resumeStep, shrubToFind,
+  NEW_RECORD, STEP_NUMBER, STEP_TITLE, UNSCALED, applies, nextStep, parseIntroRecord, plantCardText, prevStep, resumeStep, ringCardText, shrubToFind,
   stepDone, type IntroRecord, type Snapshot, type StepId,
 } from '../intro';
 import { openLocation } from './location-panel';
@@ -149,6 +149,11 @@ const newestBed = () => [...state.shapes].reverse().find((s) => s.role === 'bed'
 /** The house step 3b locks, and the plant the ring step talks about: the newest of each. */
 function newestHouse() { return [...state.shapes].reverse().find((s) => s.role === 'building') ?? null; }
 const newestPlant = () => [...state.shapes].reverse().find((s) => s.type === 'circle' && s.role === 'plant') ?? null;
+/** The plant selected, alone, if one is: the one whose ring step 8 explains. */
+const selectedPlant = () => {
+  const s = state.selectedIds.length === 1 ? state.shapes.find((x) => x.id === state.selectedIds[0]) : null;
+  return s && s.type === 'circle' && s.role === 'plant' ? s : null;
+};
 /** Whether the house is what's selected, alone. */
 const houseSelected = (h: Shape | null) => !!h && state.selectedIds.length === 1 && state.selectedIds[0] === h.id;
 /** The sun recorded over the middle of that bed, if any. */
@@ -258,17 +263,14 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
       };
     }
     case 'ring': {
-      // (Not every plant has a ring (Jason, Oct 29): one whose sources give one size, or a plan showing full sizes.)
-      const placed = newestPlant();
-      const ring = !!placed && fullRingRadius(placed) != null;
+      // (The ring shows on the plant selected, or on all with full sizes shown (Layers): none selected, select one first.
+      // Jason, Nov 4. Not every plant has a ring (Oct 29): one whose sources give one size. No plant at all, the step
+      // before skipped: said of plants in general, not of an "it" that isn't there. Round 3, Diego.)
+      const looking = selectedPlant() ?? (state.showFullSize ? newestPlant() : null);
       return {
-        // (No plant placed, the step before skipped: said of plants in general, not of an "it" that isn't there.
-        // Round 3, Diego.)
-        text: !placed
-          ? "A plant's circle is its typical size, with a dashed ring for how big it gets full-grown (one whose sources give one size has just its circle). Give plants room: plant two closer than usual and the app tells you."
-          : ring
-          ? 'The circle is its typical size. The dashed ring is how big it gets full-grown. Give it room: plant two closer than usual and the app tells you.'
-          : 'Its circle is how big it gets full-grown. (A plant whose size has a range shows its typical size, with a dashed ring for full-grown.) Give it room: when circles overlap, the app tells you.',
+        text: ringCardText(looking
+          ? { looking: 'plant', planned: looking.status === 'planned', ring: fullRingRadius(looking) != null, tap: tap() }
+          : { looking: newestPlant() ? 'unselected' : 'nothing', justPlaced: rec.done.includes('plant'), tap: tap() }),
         done: 'Got it',
       };
     }
@@ -398,8 +400,9 @@ function drawIntro(root: HTMLElement): void {
   placeCard(card);
   if (!choosing && rec.step) keepSubjectClear(rec.step, card);
   const step = rec.step;
-  // (Step 3b: the house itself pulses, on the plan, till it's selected.)
+  // (Step 3b: the house itself pulses, on the plan, till it's selected. Step 8: the plant placed last, till a plant is.)
   if (step === 'lock' && !choosing && !state.panel) { const h = newestHouse(); if (h && !houseSelected(h)) pulseShape(h.id); }
+  if (step === 'ring' && !choosing && !state.panel && !selectedPlant() && !state.showFullSize) { const p = newestPlant(); if (p) pulseShape(p.id); }
   const sel = step && !choosing ? pulseTarget(step) : null;
   const targets = sel ? [...root.querySelectorAll<HTMLElement>(sel)] : [];
   for (const t of targets) t.classList.add('intro-pulse');
@@ -448,7 +451,13 @@ function subject(step: StepId): { key: string; at: Bounds } | null {
     case 'turn': case 'fade': case 'house': return bg?.visible ? { key: 'photo', at: rotatedBoxBounds(bg.cx, bg.cy, bg.naturalWidth * bg.ftPerPx, bg.naturalHeight * bg.ftPerPx, bg.rotation) } : null;
     case 'lock': case 'bed': return shape(newestHouse());
     case 'plant': return shape(newestBed());
-    case 'ring': return shape(newestPlant());
+    case 'ring': {
+      // (The plant to select, or selected: with its ring, and again once it's selected, the card moving up over its chip.)
+      const p = selectedPlant() ?? newestPlant();
+      if (!p || p.type !== 'circle') return null;
+      const r = fullRingRadius(p) ?? p.radius;
+      return { key: `${p.id}${selectedPlant() ? ':selected' : ''}`, at: { minX: p.x - r, minY: p.y - r, maxX: p.x + r, maxY: p.y + r } };
+    }
     default: return null;
   }
 }

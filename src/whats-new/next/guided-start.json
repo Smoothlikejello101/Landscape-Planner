@@ -6,5 +6,6 @@
   "Guided start teaches locking your house as a step of its own, from the house’s panel: open the house, then switch Unlocked at the top to Locked. The note in a locked shape’s panel now names that same Locked button to unlock it.",
   "Guided start’s sun step now asks: “Is it a shady spot? Sunny? Draw an area and show how much sun it gets.”",
   "Guided start’s “Who’s in your yard?” has “None of these”: it records that there’s no one to protect, so the plant picker keeps that question under Filters instead of asking it first.",
-  "In Guided start’s “Find a plant”, the search box and Filters both glow to show where to start, and both stop once you type a search or open Filters."
+  "In Guided start’s “Find a plant”, the search box and Filters both glow to show where to start, and both stop once you type a search or open Filters.",
+  "Guided start’s last step, the ring, first asks you to select a plant when none is (the ring shows only on the plant selected), and then explains both dashed circles: a planned plant’s own edge is dashed because it isn’t planted yet, and the outer ring is the size it can reach."
 ]
