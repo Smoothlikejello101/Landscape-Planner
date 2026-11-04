@@ -765,7 +765,14 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .details-list dt { display: inline; color: #78716c; margin-right: 0.35em; }
 .details-list dd { display: inline; margin: 0; overflow-wrap: anywhere; }
 .details-list dd::after { content: ''; display: block; margin-bottom: 8px; }
+/* The fact first (Jason, Nov 4: "the facts still don't stand out enough to my eye"): its value darker and a little
+   heavier; its source after it, quieter, "Source: NC State", in the lightest gray that still reads (4.5 to 1). */
+/* (No more specific than a class, so a law's red, an introduced plant's orange and "Not known" keep theirs.) */
+.details-list :where(dd) { color: #1c1917; font-weight: 500; }
+.details-list dd :is(.details-src, .details-alt, .details-form, .details-where, .details-law-native) { font-weight: 400; }
+.details-list :where(dd.details-unknown) { font-weight: 400; }
 .details-src, .details-alt { display: block; font-size: calc(11px * var(--ts)); color: #6b6560; }
+.details-src { font-size: calc(10.5px * var(--ts)); color: #78716c; margin-top: 1px; }
 .details-form { display: block; font-size: calc(12px * var(--ts)); color: #57534e; margin-top: 1px; } /* (what its flowers or leaves look like, under their colors) */
 /* A citation longer than a line: one line, "…", opened with a tap (src/ui/plant-details.ts clipCitations). */
 .details-src.one-line, .details-src.clipped[aria-expanded="false"] { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

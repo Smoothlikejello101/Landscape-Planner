@@ -205,7 +205,7 @@ describe('plant filters', () => {
     // (A source's foliage, where there is one, is what's said.)
     expect(winterText({ ...heuchera, foliage: 'evergreen', winter_leaves: rel('deciduous', 5) })).toBe('Evergreen: keeps its leaves');
     const parts = (p: Plant) => winterParts(p).map(([text, line]) => [text, line]);
-    expect(parts({ ...heuchera, winter_leaves: { leaves: 'deciduous', basis: 'records', n: 23 } })).toEqual([['Dies back in winter', 'USA-NPN observers recorded it bare: 23 plant-years']]);
+    expect(parts({ ...heuchera, winter_leaves: { leaves: 'deciduous', basis: 'records', n: 23 } })).toEqual([['Dies back in winter', 'Source: USA-NPN observers, who recorded it bare: 23 plant-years']]);
     expect(parts({ ...heuchera, winter_leaves: rel('deciduous', 5) })[0][1]).toBe('Not from a source: other species of its genus, as their sources give them');
   });
   it('says what makes its winter interest: showy bark, fruit into winter, colored stems where it\'s listed for winter, winter flowers', () => {
@@ -424,7 +424,7 @@ describe('plant filters', () => {
     expect(other.dogVia).toBeUndefined(); // (another species)
     expect(nonToxicToDogs(safe)).toBe(false); // (a warning beats the earlier list's "Safe" for one record)
     expect(toxicToDogs(sp)).toBe(true);
-    expect(toxRow(sp)).toEqual({ value: 'dogs: Toxic - rarely eaten', line: "earlier list, unverified · given for Butterfly weed 'for Clay', the same species" });
+    expect(toxRow(sp)).toEqual({ value: 'dogs: Toxic - rarely eaten', line: "Source: earlier list, unverified · given for Butterfly weed 'for Clay', the same species" });
     expect(toxRow(safe)!.line).toContain('the earlier list calls this one safe');
     expect(toxRow(other)).toEqual({ value: 'Not rated for pets', line: 'No source we\u2019ve read rates it for dogs, cats or horses' });
     // NC State's "Problem for Dogs" (cats, horses): a warning, ahead of the earlier list's word; an NC State page that

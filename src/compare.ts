@@ -236,8 +236,9 @@ function petCell(p: Plant, pet: Pet): Cell {
 function petsCell(p: Plant): Cell {
   const t = toxRow(p);
   if (!t || t.value.startsWith('Not rated')) return notKnown();
-  const line = cap(shortSources(t.line));
-  return { text: cap(t.value), known: true, sure: line ? { text: line, level: /^earlier list/.test(line) ? 'earlier' : 'other' } : null };
+  // (Its source as the comparison says them, without the details' "Source:".)
+  const line = cap(shortSources(t.line.replace(/^Sources?: /, '')));
+  return { text: cap(t.value), known: true, sure: line ? { text: line, level: /^Earlier list/.test(line) ? 'earlier' : 'other' } : null };
 }
 /** Butterflies' common names, with field-guide capitals, the binomial left to the details: "Monarch, Gray Hairstreak". */
 const commonNames = (names: string[]) => names.map((n) => butterflyCaps(n.replace(/\s*\([^)]*\)\s*$/, '')));

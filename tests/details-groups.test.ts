@@ -30,7 +30,7 @@ describe("a plant's details, folded", () => {
     const top = box.querySelector('.details-list')!;
     expect([...top.querySelectorAll(':scope > dt')].map((d) => d.textContent)).toEqual(['Form', 'Size', 'Sun', 'Water']);
     expect(box.querySelector('[data-testid=size-row]')!.textContent).toMatch(/^15–30 ft tall, 15–20 ft wide/);
-    expect(box.querySelector('[data-testid=size-row] .details-src')!.textContent).toMatch(/^height: .*; spread: /);
+    expect(box.querySelector('[data-testid=size-row] .details-src')!.textContent).toMatch(/^Sources: .* for the height; .* for the width/);
     const heads = [...box.querySelectorAll<HTMLButtonElement>('.details-group-head')];
     expect(heads.map((h) => h.dataset.testid)).toEqual(['group-looks', 'group-wildlife', 'group-safety', 'group-growing']);
     expect(heads.every((h) => h.getAttribute('aria-expanded') === 'false')).toBe(true);
