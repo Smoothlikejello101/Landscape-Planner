@@ -287,12 +287,18 @@ test('from an empty plan to a first plant: each step ends when it\'s done, the p
   await expect(drawBar(page)).toBeVisible();
   await bed(page, false);
   await expect(step(page)).toHaveText('Step 5 of 8'); // (no photo: no fading it)
-  // Sun and shade: a circle of shade, sun recorded on it, the sheet closed.
+  // Sun and shade: a circle of shade, sun recorded on it, the sheet closed. (Its words in Jason's, Nov 4.)
+  await expect(page.getByTestId('intro-text')).toHaveText('Is it a shady spot? Sunny? Draw an area and show how much sun it gets.');
+  await expect(page.getByTestId('intro-go')).toHaveText('Draw an area');
+  await page.getByTestId('add-btn').click(); // (from Add, the card says which, in short)
+  await expect(page.getByTestId('intro-text')).toHaveText(isMobile ? 'Tap Sun exposure, then draw the area.' : 'Click Sun exposure, then draw the area.');
+  await closeSheet(page);
   await page.getByTestId('intro-go').click();
   await drawBar(page).locator('[data-method=circle]').click();
   // (4 ft across: the house was drawn at the house's scale, and the view stays there; 2 ft read as one tap, twice.)
   await tapFromCenter(page, 3, 3); await tapFromCenter(page, 7, 3);
   await expect(page.getByTestId('sun-empty')).toHaveClass(/intro-pulse/);
+  await expect(page.getByTestId('intro-text')).toHaveText('Drag across the hours it gets sun, then close this with its ×.');
   await page.getByTestId('record-sun').click();
   await expect(step(page)).toHaveText('Step 5 of 8'); // (not until the sheet is closed)
   await closeSheet(page);
