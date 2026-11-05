@@ -26,6 +26,8 @@
 //   known by a fingerprint of its bytes). A project whose photo can't be
 //   fetched yet arrives without it and gets it at a later pass.
 
+import { MEASURED_TOL } from '../measured';
+
 export interface ProjectContent { [key: string]: unknown }
 /**
  * A project as sync read it. `token` marks the moment: sync changes or
@@ -350,29 +352,56 @@ export function withLocalParts(server: ProjectContent, mine: ProjectContent | un
 }
 /**
  * The sides of a shape typed as numbers (`measured`, Nov 4: src/measured.ts), which an older version drops from every
- * shape it sends: kept from here when the server's copy of that shape has none at all and is exactly the shape it is
- * here, side for side (the same kind of shape, a rectangle the same size, an outline or line the same points): moved
- * or turned, it's still each side's length. Reshaped there in any way, nothing is kept, so a number never lands on a
- * side another device changed (the honest rule: docs/storage.md). Where the server has some, they stand. Nothing marks
- * them taken away on purpose: this version takes a side away only when its length changes, which this tells.
+ * shape it sends, side by side: the server's copy's own entries stand, and one here for a side they don't name is kept
+ * only where that side is provably the same side, and still the length typed (within MEASURED_TOL): a rectangle with
+ * that dimension the same (its Width for sides 0 and 2, its Length for 1 and 3), or an outline or a line with as many
+ * points and both ends of that side exactly where they are here. Moved or turned there, each side is the same; a point
+ * added or taken out there (the sides perhaps renumbered), none is kept, so a number never lands on another side, nor
+ * on a side another device changed (the honest rule: docs/storage.md). So a typed Length here stays beside a Width
+ * typed on another device that never had it (the review's R4: an older version had sent the plan without them).
+ * Nothing marks them taken away on purpose: this version takes a side away only when its length changes, which this
+ * tells.
  */
 function withMeasuredSides(server: ProjectContent, mine: ProjectContent): ProjectContent {
   if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
-  type Sided = { id?: unknown; type?: unknown; width?: unknown; height?: unknown; points?: unknown; measured?: unknown };
   const kept = new Map<unknown, Sided>();
   for (const s of mine.shapes as Sided[]) if (s && Array.isArray(s.measured) && s.measured.length) kept.set(s.id, s);
   if (!kept.size) return server;
-  const sameSides = (a: Sided, b: Sided) => a.type === b.type && (a.type === 'rect'
-    ? a.width === b.width && a.height === b.height
-    : (a.type === 'poly' || a.type === 'line') && Array.isArray(a.points) && canonical(a.points) === canonical(b.points));
   let filled = false;
   const shapes = (server.shapes as Sided[]).map((s) => {
     const k = s && typeof s === 'object' ? kept.get(s.id) : undefined;
-    if (!k || 'measured' in s || !sameSides(s, k)) return s;
+    if (!k) return s;
+    const theirs: unknown[] = Array.isArray(s.measured) ? s.measured : [];
+    const named = new Set(theirs.map((m) => (m && typeof m === 'object' ? (m as { side?: unknown }).side : undefined)));
+    const add = (k.measured as { side?: unknown; ft?: unknown }[]).filter((m) => m && !named.has(m.side) && sameSide(s, k, m));
+    if (!add.length) return s;
     filled = true;
-    return { ...s, measured: JSON.parse(JSON.stringify(k.measured)) };
+    return { ...s, measured: [...JSON.parse(JSON.stringify(theirs)), ...add.map((m) => ({ side: m.side, ft: m.ft }))] };
   });
   return filled ? { ...server, shapes } : server;
+}
+type Sided = { id?: unknown; type?: unknown; width?: unknown; height?: unknown; points?: unknown; measured?: unknown };
+/**
+ * Whether side `m.side` of the server's copy (`there`) is provably that side here (`here`), and the length typed: see
+ * withMeasuredSides.
+ */
+function sameSide(there: Sided, here: Sided, m: { side?: unknown; ft?: unknown }): boolean {
+  const i = m.side, ft = m.ft;
+  if (typeof i !== 'number' || !Number.isInteger(i) || i < 0 || typeof ft !== 'number' || there.type !== here.type) return false;
+  const near = (len: number) => Math.abs(len - ft) <= MEASURED_TOL + 1e-9;
+  if (there.type === 'rect') {
+    const dim = i % 2 === 0 ? 'width' : 'height', len = there[dim];
+    return i < 4 && typeof len === 'number' && len === here[dim] && near(len);
+  }
+  if (there.type !== 'poly' && there.type !== 'line') return false;
+  const a = there.points, b = here.points;
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  const n = a.length, j = (i + 1) % n;
+  if (i >= (there.type === 'poly' ? n : n - 1)) return false;
+  const at = (p: unknown): [number, number] | null => (Array.isArray(p) && typeof p[0] === 'number' && typeof p[1] === 'number' ? [p[0], p[1]] : null);
+  const p = at(a[i]), q = at(a[j]), p2 = at(b[i]), q2 = at(b[j]);
+  if (!p || !q || !p2 || !q2 || p[0] !== p2[0] || p[1] !== p2[1] || q[0] !== q2[0] || q[1] !== q2[1]) return false;
+  return near(Math.hypot(q[0] - p[0], q[1] - p[1]));
 }
 /**
  * A photo's rough scale (`roughScale`, Nov 4), which an older version drops from the photo it sends: kept from here
