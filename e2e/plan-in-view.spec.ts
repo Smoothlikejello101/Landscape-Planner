@@ -82,6 +82,9 @@ test.describe('on a phone', () => {
     await openFresh(page);
     await openPicker(page);
     const vh = page.viewportSize()!.height;
+    // (The sheet can still be arriving: CI once measured it before it was there, Nov 4.)
+    await expect(sheet(page)).toBeVisible();
+    await expect.poll(async () => Math.abs(((await sheet(page).boundingBox())?.height ?? 0) - vh * 0.6)).toBeLessThan(3);
     let box = (await sheet(page).boundingBox())!;
     expect(Math.abs(box.height - vh * 0.6)).toBeLessThan(3);
     expect(box.y + box.height).toBeCloseTo(vh, 0);
