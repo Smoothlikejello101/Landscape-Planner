@@ -1290,6 +1290,26 @@ describe('synced background photos', () => {
     _resetStorageForTests(); await initStorage(kv);
     expect(getSyncRecords()).toEqual({ [a]: { revision: 2, hash: 'h', marks: { conditions: ['bed1'], fruit: ['p:1'] } }, [b]: { revision: 1, hash: 'h' }, c: { revision: 1, hash: 'h', held: 'room', marks: { fruit: ['p:2'] } } });
   });
+
+  it("sync records keep the core's fingerprint without beds' conditions (`bare`, Nov 5) beside the core, across a restart, a deleted plan's too; anything else dropped; records from before it read as they were", async () => {
+    const { getSyncRecords, getSyncDeletedRecord, setSyncRecord, createProject, deleteProject } = await import('../src/storage');
+    const kv = await freshStorage();
+    const a = await createProject('A'), gone = await createProject('Gone');
+    await setSyncRecord(a, { revision: 3, hash: 'h1:a', core: 'c2:b', bare: 'b3:c', marks: { conditions: ['bed1'] } });
+    await setSyncRecord(gone, { revision: 2, hash: 'h4:d', core: 'c5:e', bare: 'b6:f' });
+    await deleteProject(gone);
+    _resetStorageForTests(); await initStorage(kv);
+    expect(getSyncRecords()).toEqual({ [a]: { revision: 3, hash: 'h1:a', core: 'c2:b', bare: 'b3:c', marks: { conditions: ['bed1'] } } });
+    expect(getSyncDeletedRecord(gone)).toEqual({ revision: 2, hash: 'h4:d', core: 'c5:e', bare: 'b6:f' });
+    await kv.write([put('kv', 'syncRecords', {
+      odd: { revision: 1, hash: 'h', core: 'c1:a', bare: '<b>' },
+      noCore: { revision: 1, hash: 'h', bare: 'b1:a' }, // (only beside the core it was made with)
+      oddCore: { revision: 1, hash: 'h', core: 'not one!', bare: 'b1:a' },
+      old: { revision: 4, hash: 'h', core: 'c1:a' }, // (from before it: compared as before, src/sync/engine.ts)
+    })]);
+    _resetStorageForTests(); await initStorage(kv);
+    expect(getSyncRecords()).toEqual({ odd: { revision: 1, hash: 'h', core: 'c1:a' }, noCore: { revision: 1, hash: 'h' }, oddCore: { revision: 1, hash: 'h' }, old: { revision: 4, hash: 'h', core: 'c1:a' } });
+  });
 });
 
 describe('a plan’s garden location', () => {

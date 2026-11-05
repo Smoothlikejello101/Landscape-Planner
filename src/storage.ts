@@ -1078,9 +1078,9 @@ export async function renameProject(id: string, name: string) {
  * ('none', 'kept' on one device, or the photo's fingerprint; absent if unknown,
  * as for projects synced before photos did); `core`, the fingerprint without the
  * Plant list's ticks, who's in the yard and the warning switches too, and `parts`, those
- * three as the server had them (both absent from before them).
+ * three as the server had them (both absent from before them); `marks` and `bare`: src/sync/engine.ts SyncRecord.
  */
-export interface SyncRecord { revision: number; hash: string; photo?: string; held?: 'room' | 'refused'; core?: string; parts?: Record<string, unknown>; marks?: { conditions?: string[]; fruit?: string[] } }
+export interface SyncRecord { revision: number; hash: string; photo?: string; held?: 'room' | 'refused'; core?: string; parts?: Record<string, unknown>; marks?: { conditions?: string[]; fruit?: string[] }; bare?: string }
 let syncRecords: Record<string, SyncRecord> = {};
 /** Synced projects deleted here, still to be moved to the server's trash: id → revision. */
 let syncTombstones: Record<string, number> = {};
@@ -1649,6 +1649,9 @@ function sanitizeSyncRecords(raw: unknown): Record<string, SyncRecord> {
         // (The plan's fingerprint without the parts that settle on their own, src/sync/engine.ts coreHash; records from
         // before have none.)
         if (typeof r.core === 'string' && /^[0-9a-z]+:[0-9a-z]+$/.test(r.core)) out[k].core = r.core;
+        // (That fingerprint with every bed's conditions left out, made with it, src/sync/engine.ts SyncRecord.bare: only
+        // beside it. Records from before it have none, and are compared as before.)
+        if (out[k].core && typeof r.bare === 'string' && /^[0-9a-z]+:[0-9a-z]+$/.test(r.bare)) out[k].bare = r.bare;
         // (The ticks, yard and switches as the server had them then, src/sync/engine.ts SyncRecord.parts.)
         const parts = sanitizeRecordParts(r.parts);
         if (parts) out[k].parts = parts;
