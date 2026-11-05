@@ -1414,9 +1414,15 @@ function renderHandles(g: SVGGElement) {
   renderShapeHandles(g);
 }
 /**
- * Plant this bed (Jason, Nov 2, answer C/8): placing For a bed, the bed outlined and the rest of the plan washed faint
- * red, and each plant placed outside it this go ringed red (placed all the same, never blocked; Undo on the banner:
- * src/ui/render.ts). The picker open For a bed: the outline alone, to see which it is.
+ * Placing For a bed, the plan outside the bed dimmed: a neutral veil, gray, that darkens without tinting, so the bed
+ * reads as the bright, clear part of the plan. Until Nov 4 a faint red wash: a bed is reddish brown by default, so the
+ * bed and the rest looked alike, "the only thing that reads as different is the green ring" (Jason, Nov 4, his note 2).
+ */
+export const BED_VEIL = { color: '#1c1917', opacity: 0.32 };
+/**
+ * Plant this bed (Jason, Nov 2, answer C/8): placing For a bed, the bed outlined and the rest of the plan dimmed
+ * (BED_VEIL), and each plant placed outside it this go ringed red (placed all the same, never blocked; Undo on the
+ * banner: src/ui/render.ts). The picker open For a bed: the outline alone, to see which it is.
  */
 function renderBedFocus(g: SVGGElement) {
   const bed = plantingFor();
@@ -1427,10 +1433,10 @@ function renderBedFocus(g: SVGGElement) {
   const px = (p: Point) => `${Math.round((p.x - state.offsetX) * ppf * 10) / 10},${Math.round((p.y - state.offsetY) * ppf * 10) / 10}`;
   const pts = o.pts.map(px);
   if (state.placing) {
-    // (Past the plan's edges by its size each way, so a pan's preview never shows where the wash ends.)
+    // (Past the plan's edges by its size each way, so a pan's preview never shows where the veil ends.)
     const w = state.canvasW, h = state.canvasH;
-    g.appendChild(svgEl('path', { 'data-role': 'bed-wash', d: `M${-w},${-h}H${2 * w}V${2 * h}H${-w}Z M${pts.join(' L')}Z`, 'fill-rule': 'evenodd',
-      fill: '#dc2626', 'fill-opacity': 0.1, 'pointer-events': 'none' }));
+    g.appendChild(svgEl('path', { 'data-role': 'bed-veil', d: `M${-w},${-h}H${2 * w}V${2 * h}H${-w}Z M${pts.join(' L')}Z`, 'fill-rule': 'evenodd',
+      fill: BED_VEIL.color, 'fill-opacity': BED_VEIL.opacity, 'pointer-events': 'none' }));
   }
   g.appendChild(svgEl('polygon', { points: pts.join(' '), fill: 'none', stroke: '#0f766e', 'stroke-opacity': 0.3, 'stroke-width': 9, 'stroke-linejoin': 'round', 'pointer-events': 'none' }));
   g.appendChild(svgEl('polygon', { 'data-role': 'bed-outline', 'data-bed': bed.id, points: pts.join(' '), fill: 'none', stroke: '#0f766e', 'stroke-width': 3, 'stroke-linejoin': 'round', 'pointer-events': 'none' }));
