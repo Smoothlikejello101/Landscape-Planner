@@ -142,19 +142,20 @@ export function resumeStep(rec: IntroRecord, s: Snapshot): StepId | null {
 /**
  * The flowering shrubs step 7 names for them to find, most familiar first (Jason's to change; the doc's last section).
  * Its zones and sun are the catalog's sourced facts (NC State). Roses aren't on it (unverified zones and sun);
- * crapemyrtle is more tree than shrub. `name` is what the card calls it, which the search finds.
+ * crapemyrtle is more tree than shrub. `name` is what the card calls it, which the search finds (in Title Case, as the
+ * picker names it: src/names.ts).
  */
 export const SHRUBS_TO_FIND: { id: string; name: string }[] = [
-  { id: 'hydrangea-macrophylla', name: 'a French hydrangea' },
-  { id: 'hydrangea-quercifolia', name: 'an oakleaf hydrangea' },
-  { id: 'syringa-vulgaris', name: 'a common lilac' },
-  { id: 'forsythia-x-intermedia', name: 'a forsythia' },
-  { id: 'gardenia-jasminoides', name: 'a gardenia' },
-  { id: 'camellia-japonica', name: 'a Japanese camellia' },
-  { id: 'weigela-florida', name: 'a weigela' },
-  { id: 'hydrangea-paniculata', name: 'a panicled hydrangea' },
-  { id: 'kalmia-latifolia', name: 'a mountain laurel' },
-  { id: 'calycanthus-floridus', name: 'an eastern sweetshrub' },
+  { id: 'hydrangea-macrophylla', name: 'a French Hydrangea' },
+  { id: 'hydrangea-quercifolia', name: 'an Oakleaf Hydrangea' },
+  { id: 'syringa-vulgaris', name: 'a Common Lilac' },
+  { id: 'forsythia-x-intermedia', name: 'a Forsythia' },
+  { id: 'gardenia-jasminoides', name: 'a Gardenia' },
+  { id: 'camellia-japonica', name: 'a Japanese Camellia' },
+  { id: 'weigela-florida', name: 'a Weigela' },
+  { id: 'hydrangea-paniculata', name: 'a Panicled Hydrangea' },
+  { id: 'kalmia-latifolia', name: 'a Mountain Laurel' },
+  { id: 'calycanthus-floridus', name: 'an Eastern Sweetshrub' },
 ];
 export interface ShrubCheck {
   /** Hardy in their zone (null: no ZIP, so none is named). */

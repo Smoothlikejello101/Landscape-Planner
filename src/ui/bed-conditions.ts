@@ -110,7 +110,7 @@ export function conditionsBody(bedId: string, changed?: () => void): HTMLElement
       const least = (v: SunAnswer) => set(bed, { sun: { most: ans && RANK[ans.most] <= RANK[v] ? ans.most : v, least: v } });
       const unsure = el('button', { className: 'cond-unsure' + (c.sun === 'unsure' ? ' on' : ''), 'aria-pressed': String(c.sun === 'unsure'), 'data-testid': 'cond-sun-unsure' }, 'Not sure');
       unsure.addEventListener('click', () => { if (c.sun !== 'unsure') set(bed, { sun: 'unsure' }); });
-      out.push(el('div', { className: 'hint', 'data-testid': 'cond-sun-asked' }, 'No sun area covers this bed, so say what it gets: full sun is 6 h or more of direct sun, part shade 3 to 6 h, shade less than 3. A sun area drawn over it (Add → Sun exposure) works it out instead.'),
+      out.push(el('div', { className: 'hint', 'data-testid': 'cond-sun-asked' }, 'No sun area covers this bed, so say what it gets: full sun is 6 h or more of direct sun, part shade 3 to 6 h, shade less than 3. A sun area drawn over it (Add → Sun Exposure) works it out instead.'),
         el('div', { className: 'cond-sub' }, 'Sunniest part'), choices('Sunniest part', 'sun-most', SUN_CHOICES, ans?.most, most),
         el('div', { className: 'cond-sub' }, 'Shadiest part'), choices('Shadiest part', 'sun-least', SUN_CHOICES, ans?.least, least),
         unsure);

@@ -14,6 +14,7 @@ import type { CircleShape } from '../types';
 import { showyFlowers } from '../seasons';
 import { render } from './render';
 import { showOnPlan } from './settings-panel';
+import { labelShown } from '../names';
 
 export const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 /** This month, 1–12. */
@@ -53,7 +54,7 @@ export function inBloom(month: number): { name: string; n: number; around: boole
     if (s.type !== 'circle' || s.role !== 'plant' || !s.plantId || s.status === 'gone') continue;
     const m = lookMonthOf(s as CircleShape, month);
     if (!m || m.bloom === 'no' || !showyFlowers(plantsById[s.plantId])) continue;
-    const name = s.label || plantsById[s.plantId]?.common || 'A plant';
+    const name = labelShown(s) || plantsById[s.plantId]?.common || 'A plant';
     const row = out.get(name) ?? out.set(name, { name, n: 0, around: true, ids: [] }).get(name)!;
     row.n++;
     row.ids.push(s.id);

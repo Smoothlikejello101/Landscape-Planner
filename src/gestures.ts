@@ -31,6 +31,7 @@ import { isTree } from './trees';
 import { planLookOnly } from './ui/picker-view';
 import { bedAt, pickingBed } from './bed-plant';
 import { pickBedAt } from './ui/plant-for';
+import { inSentence, sameName } from './names';
 
 // Pointer gestures on the canvas: pan, pinch-zoom, marquee selection, shape
 // drag, background move/rotate, calibration taps.
@@ -327,10 +328,16 @@ export function shapesAt(clientX: number, clientY: number): Shape[] {
   }
   return ids.map((id) => state.shapes.find((s) => s.id === id)).filter((s): s is Shape => !!s);
 }
-/** A shape as a notice names it: "the fence", "the front bed", "the carolina jessamine". */
+/**
+ * A shape as a notice names it: "the fence", "the front bed", "the Carolina Jessamine" (a plant's catalog name, in
+ * Title Case as everywhere: src/names.ts), "the property line" (a kind's name, in a sentence's words).
+ */
 function theName(s: Shape): string {
   const kind = kindOfShape(s);
-  const name = (s.type === 'circle' && s.plantId && plantsById[s.plantId]?.common) || s.label.trim() || (kind ? kindDef(kind).label : 'shape');
+  const plant = s.type === 'circle' && s.plantId ? plantsById[s.plantId]?.common : undefined;
+  if (plant) return `the ${plant}`;
+  const name = s.label.trim() || (kind ? kindDef(kind).label : 'shape');
+  if (!s.label.trim() || (kind && sameName(name, kindDef(kind).startLabel([])))) return `the ${inSentence(name)}`;
   return `the ${name.charAt(0).toLowerCase()}${name.slice(1)}`;
 }
 const STACK_HINT = 'lp-hint-tap-under';

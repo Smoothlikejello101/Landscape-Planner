@@ -45,7 +45,7 @@ test('track planted and planned plants by phase, view and print one phase', asyn
 
   // Layers: show only fall's plants; the banner says so and clears it.
   await page.locator('button[title=Layers]').click();
-  await expect(page.locator('.layer-row', { hasText: 'Little bluestem' })).toContainText('Planned · Fall 2026');
+  await expect(page.locator('.layer-row', { hasText: 'Little Bluestem' })).toContainText('Planned · Fall 2026');
   await page.getByTestId('filter-phase').selectOption('Fall 2026');
   await closeSheet(page);
   await expect(plantShapes(page)).toHaveCount(1);
@@ -193,13 +193,13 @@ test('setting several at once asks before unmarking one marked to remove', async
   const rows = async (cone: string, blue: string) => {
     await page.locator('button[title=Layers]').click();
     await expect(page.locator('.layer-row', { hasText: 'Coneflower' })).toContainText(cone);
-    await expect(page.locator('.layer-row', { hasText: 'Little bluestem' })).toContainText(blue);
+    await expect(page.locator('.layer-row', { hasText: 'Little Bluestem' })).toContainText(blue);
     await closeSheet(page);
   };
 
   // Planted, for both: it asks first, and nothing changes yet.
   await status.getByRole('radio', { name: 'Planted' }).click();
-  await expect(question).toContainText('1 of these is marked To remove: Little bluestem');
+  await expect(question).toContainText('1 of these is marked To remove: Little Bluestem');
   await expect(question).toContainText('Set it to Planted too?');
   await expect(page.getByTestId('flag-only')).toBeFocused();
   await page.getByTestId('flag-cancel').click();

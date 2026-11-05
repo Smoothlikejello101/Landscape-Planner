@@ -269,7 +269,7 @@ describe('dismissing warnings from the list', () => {
     yard(true, true, true);
     expect(poison()).toEqual([['may', false], ['fox1,fox2', false]]);
     // What's kept is what it said when dismissed.
-    expect(state.dismissed?.poison).toEqual({ 'wl-mayapple': 'Poisonous to people; A problem for dogs' });
+    expect(state.dismissed?.poison).toEqual({ 'wl-mayapple': 'Toxic to people; Toxic to dogs' });
     state.household = { kids: false, dogs: '', cats: false, horses: false, answered: false };
   });
 
@@ -280,7 +280,7 @@ describe('dismissing warnings from the list', () => {
     (state.shapes.find((s) => s.id === 'sunny') as Shape).label = 'Sunny strip';
     state.shapes.push(at('may', 'wl-mayapple', -80, { radius: 0.5 }));
     const [poison] = of('poison');
-    expect([poison.name, poison.said, poison.key]).toEqual(['Mayapple', 'Poisonous if eaten (high severity: leaves and roots); a problem for dogs', 'Poisonous to people; A problem for dogs']);
+    expect([poison.name, poison.said, poison.key]).toEqual(['Mayapple', 'Toxic if eaten (high severity: leaves and roots); toxic to dogs', 'Toxic to people; Toxic to dogs']);
     expect(of('sun').map((r) => [r.name, r.said])).toEqual([
       ['Wild ginger', 'Gets about 8 h of sun in Sunny strip; it prefers part shade to shade'], ['Wild ginger', 'Gets about 8 h of sun in Sunny strip; it prefers part shade to shade']]);
     expect(of('utility').map((r) => [r.name, r.said])).toEqual([['White oak', 'Grows to 54 ft, 10 ft from a power line']]);

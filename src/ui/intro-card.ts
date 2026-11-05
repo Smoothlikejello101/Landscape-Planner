@@ -241,10 +241,10 @@ function stepContent(step: StepId): { text: string; short?: string; action?: { l
       // (In Jason's words, Nov 4: "Step 5 reads funny. Maybe something like 'Is it a shady spot? Sunny? Draw an area and
       // indicate how much sun it gets.'")
       text: 'Is it a shady spot? Sunny? Draw an area and show how much sun it gets.',
-      short: state.panel === 'add' ? `${Tap()} Sun exposure, then draw the area.` : `Drag across the hours it gets sun, then close this with its ×.`,
+      short: state.panel === 'add' ? `${Tap()} Sun Exposure, then draw the area.` : `Drag across the hours it gets sun, then close this with its ×.`,
       action: { label: 'Draw an area', run: () => startKind('sun') },
     };
-    case 'who': return { text: "Kids, dogs, cats, horses? We'll hide plants that are a problem for them. Change it any time in Filters.", extra: whoChips(), done: 'Next' };
+    case 'who': return { text: "Kids, dogs, cats, horses? We'll hide plants that are toxic to them. Change it any time in Filters.", extra: whoChips(), done: 'Next' };
     case 'plant': {
       const bed = !!newestBed(), zip = !!state.location?.zip, sun = bedSun();
       const shrub = zip ? shrubForGarden() : null;

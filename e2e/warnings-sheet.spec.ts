@@ -69,14 +69,14 @@ test('the button: none found with checks that can\'t run, all clear in gray, som
   await expect(page.getByTestId('warnings-yard')).toBeVisible();
   await page.getByTestId('warnings-yard-kids').click();
   await expect(page.getByTestId('warnings-yard-kids')).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByTestId('warnings-switch-poison')).toContainText('Warn about plants poisonous to the kids in the yard');
+  await expect(page.getByTestId('warnings-switch-poison')).toContainText('Warn about plants toxic to the kids in the yard');
   await expect(head(page, 'poison')).toHaveAttribute('aria-label', 'Poison, On · none');
   await expect(page.getByTestId('warnings-head')).toHaveText('Nothing to look at yet · 2 checks can’t run');
   // (Kept with the plan, as the picker's own chips keep it.)
   await closeSheet(page);
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('filters').click();
-  await expect(page.getByRole('checkbox', { name: 'Not listed as poisonous to people' })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Hide plants toxic to people' })).toBeChecked();
   await closeSheet(page);
   await expect(button(page)).toHaveAttribute('aria-label', 'Warnings: none found, 2 checks can’t run yet');
 });
@@ -148,7 +148,7 @@ test('a check that can\'t run says why, with its fix: the ZIP, a sun area', asyn
   await expect(head(page, 'hardy')).toHaveAttribute('aria-label', 'Hardiness, 1 to look at');
   // Add a sun area: Warnings makes way on a phone, and a sun exposure area is drawn.
   await page.getByTestId('warnings-fix-sun').click();
-  await expect(page.getByTestId('draw-banner')).toContainText('Sun exposure');
+  await expect(page.getByTestId('draw-banner')).toContainText('Sun Exposure');
 });
 
 test('the false all-clear: with Layers showing only some plants, Warnings says only those are checked, and shows them all', async ({ page }) => {
@@ -179,8 +179,8 @@ test('Dismiss and Show again on a row, Dismiss all and Show all again under a ki
   // Poison as its details say it; the dismissed one says who for.
   const rows = kind(page, 'poison').getByTestId('warning-row');
   await expect(rows).toHaveCount(4);
-  await expect(rows.filter({ hasText: 'Barbados aloe ×2' }).getByTestId('warning-select')).toHaveAttribute('aria-label', /^Barbados aloe ×2: .*\. Show on the plan$/);
-  await expect(page.getByTestId('warnings-switch-poison')).toContainText('Warn about plants poisonous to the dogs in the yard');
+  await expect(rows.filter({ hasText: 'Barbados aloe ×2' }).getByTestId('warning-select')).toHaveAttribute('aria-label', /^Barbados Aloe ×2: .*\. Show on the plan$/);
+  await expect(page.getByTestId('warnings-switch-poison')).toContainText('Warn about plants toxic to the dogs in the yard');
   await rows.first().getByTestId('warning-dismiss').click();
   await page.locator('#toast-action').getByTestId('notice-close').click();
   await expect(head(page, 'poison')).toHaveAttribute('aria-label', 'Poison, 3 to look at, 1 dismissed');
@@ -201,7 +201,7 @@ test('Dismiss and Show again on a row, Dismiss all and Show all again under a ki
   await expect(head(page, 'poison')).toHaveAttribute('aria-label', 'Poison, 4 to look at');
   // Utilities: counted, with its rule (no switch: always checked); heights in whole feet.
   await expect(page.getByTestId('warnings-switch-utility')).toContainText('1 drawn on this plan · always checked');
-  await expect(kind(page, 'utility').getByTestId('warning-select')).toHaveText(/^Northern red oakGrows to \d+ ft, [\d.]+ ft from a power line ›$/);
+  await expect(kind(page, 'utility').getByTestId('warning-select')).toHaveText(/^Northern Red OakGrows to \d+ ft, [\d.]+ ft from a power line ›$/);
   await page.getByTestId('warnings-how-utility').click();
   await expect(page.getByTestId('warnings-rule-utility')).toContainText('UF/IFAS Extension');
   await expect(page.getByTestId('warnings-rule-utility')).toContainText('UGA Extension');
@@ -216,7 +216,7 @@ test('on a phone, a row zooms to its plants and leaves a chip: ‹ Warnings · 6
   await expect(page.locator('.sheet')).toHaveCount(0);
   const chip = page.getByTestId('walk-chip');
   await expect(chip.getByTestId('walk-list')).toContainText('Warnings · 6 of 10');
-  await expect(chip.getByTestId('walk-list')).toContainText('Barbados aloe ×2: too cold for zone 8a');
+  await expect(chip.getByTestId('walk-list')).toContainText('Barbados Aloe ×2: too cold for zone 8a');
   await expect(page.locator('.sel-pill, .multi-bar')).toHaveCount(0); // (the chip in their place)
   // Both aloes on screen, above the chip, filling a good part of it (zoomed to them, not just centered).
   const plan = (await page.locator('#canvas-svg').boundingBox())!;
@@ -229,15 +229,15 @@ test('on a phone, a row zooms to its plants and leaves a chip: ‹ Warnings · 6
   // › and ‹ step through them; ‹ from the first goes round to the last.
   await chip.getByTestId('walk-next').click();
   await expect(chip.getByTestId('walk-list')).toContainText('Warnings · 7 of 10');
-  await expect(chip.getByTestId('walk-list')).toContainText('Turkey corn');
+  await expect(chip.getByTestId('walk-list')).toContainText('Turkey Corn');
   await chip.getByTestId('walk-prev').click();
   await chip.getByTestId('walk-prev').click();
   await expect(chip.getByTestId('walk-list')).toContainText('Warnings · 5 of 10');
-  await expect(chip.getByTestId('walk-list')).toContainText('Northern red oak');
+  await expect(chip.getByTestId('walk-list')).toContainText('Northern Red Oak');
   // Dismiss: the next takes its place, one fewer to look at.
   await chip.getByTestId('walk-dismiss').click();
   await expect(chip.getByTestId('walk-list')).toContainText('Warnings · 5 of 9');
-  await expect(chip.getByTestId('walk-list')).toContainText('Barbados aloe ×2');
+  await expect(chip.getByTestId('walk-list')).toContainText('Barbados Aloe ×2');
   await expect(button(page)).toHaveAttribute('aria-label', 'Warnings: 9 to look at');
   // Back to the list: where it was, that row in view.
   await chip.getByTestId('walk-list').click();
@@ -261,12 +261,12 @@ test('during the walk, a press on the plant it shows keeps it selected, and the 
   await kind(page, 'sun').getByTestId('warning-select').click();
   const chip = page.getByTestId('walk-chip');
   await expect(chip.getByTestId('walk-list')).toContainText('Warnings · 7 of 10');
-  await expect(chip.getByTestId('walk-list')).toContainText('Turkey corn');
+  await expect(chip.getByTestId('walk-list')).toContainText('Turkey Corn');
   // (It stands in the sun area: before, this press went on down to it, and the walk ended.)
   const corn = page.locator('#canvas-svg [data-shape-id=tc]').first();
   await corn.click();
   await expect(chip.getByTestId('walk-list')).toContainText('Warnings · 7 of 10');
-  await expect(chip.getByTestId('walk-list')).toContainText('Turkey corn');
+  await expect(chip.getByTestId('walk-list')).toContainText('Turkey Corn');
   await expect(page.locator('.sel-pill')).toHaveCount(0);
   // Another press, a moment later (not a double): what's under it, as a press on anything selected does.
   await page.waitForTimeout(500);
@@ -324,7 +324,7 @@ test('a plant\'s details: "Dismiss for this one" or "Dismiss for every Barbados 
   await page.locator('.sel-pill .edit').click();
   const banner = page.getByTestId('hardy-check');
   // (And Swap, filtered for plants hardy here: Jason's UI review, Nov 2.)
-  await expect(banner.getByRole('button')).toHaveText(['Dismiss for this one', 'Dismiss for every Barbados aloe', 'Swap for one hardy in zone 8a…']);
+  await expect(banner.getByRole('button')).toHaveText(['Dismiss for this one', 'Dismiss for every Barbados Aloe', 'Swap for one hardy in zone 8a…']);
   await banner.getByRole('button', { name: 'Dismiss for this one' }).click();
   await expect(banner).toContainText('(dismissed for this one: no badge on the plan)');
   await expect(banner.getByRole('button')).toHaveText(['Show again']);
@@ -338,7 +338,7 @@ test('a plant\'s details: "Dismiss for this one" or "Dismiss for every Barbados 
   // Shown again from the list: that one alone.
   await rows.last().getByTestId('warning-again').click();
   await expect(rows).toHaveCount(1);
-  await expect(rows.first().getByTestId('warning-select')).toContainText('Barbados aloe ×2');
+  await expect(rows.first().getByTestId('warning-select')).toContainText('Barbados Aloe ×2');
   await closeSheet(page);
   await expect(badges).toHaveCount(2);
 });
@@ -406,7 +406,7 @@ test('turned mid-walk, the plan zooms to the plant again, clear of the chip (the
   await openWarnings(page, 'utility');
   await kind(page, 'utility').getByTestId('warning-select').click();
   const chip = page.getByTestId('walk-chip');
-  await expect(chip.getByTestId('walk-list')).toContainText('Northern red oak');
+  await expect(chip.getByTestId('walk-list')).toContainText('Northern Red Oak');
   const oak = page.locator('#canvas-svg [data-shape-id=oak]').first();
   // (Polled, and false while a box isn't there yet: the walk zooms to its plant as the chip opens. CI on #207 caught
   // the first look landing mid-zoom, the oak's box null.)
@@ -419,10 +419,10 @@ test('turned mid-walk, the plan zooms to the plant again, clear of the chip (the
   // Turned on its side, and back: the oak in view each time, above the chip, and the walk still on it.
   await page.setViewportSize({ width: 839, height: 412 });
   await expect.poll(inView).toBe(true);
-  await expect(chip.getByTestId('walk-list')).toContainText('Northern red oak');
+  await expect(chip.getByTestId('walk-list')).toContainText('Northern Red Oak');
   await page.setViewportSize({ width: 412, height: 839 });
   await expect.poll(inView).toBe(true);
-  await expect(chip.getByTestId('walk-list')).toContainText('Northern red oak');
+  await expect(chip.getByTestId('walk-list')).toContainText('Northern Red Oak');
 });
 
 test('notices and the floating Redo keep clear of the Warnings button, and of Warnings beside the plan (the warnings bug hunt, Nov 1)', async ({ page }) => {

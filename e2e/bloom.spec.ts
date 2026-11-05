@@ -86,7 +86,7 @@ test('catalog plants with a season and no months count by the season, said so; w
   // (As the month slider has it: in bloom March to May, drawn faint, and counted apart, "+1": Jason, Oct 31.)
   await expect(page.getByTestId('bloom-none')).toHaveCount(0);
   await expect(page.locator('.bloom-cell.on.by-season')).toHaveCount(3);
-  await expect(page.getByTestId('bloom-by-season')).toContainText(/Red chokeberry.*: spring/);
+  await expect(page.getByTestId('bloom-by-season')).toContainText(/Red Chokeberry.*: spring/);
   await expect(page.locator('.bloom-count[data-month="4"]')).toHaveText('+1');
   await page.getByTestId('bloom-zip').click();
   await page.locator('.sheet-header .iconbtn').click();

@@ -11,8 +11,8 @@ const LAST = HEIGHT_STOPS.length - 1;
 /** Which size: its words, for the readout, the handles and the tests. */
 export type SizeKind = 'height' | 'width';
 const WORDS: Record<SizeKind, { any: string; more: string; small: string; large: string; name: string }> = {
-  height: { any: 'Any height', more: 'taller', small: 'shortest', large: 'tallest', name: 'Mature height' },
-  width: { any: 'Any width', more: 'wider', small: 'narrowest', large: 'widest', name: 'Mature width' },
+  height: { any: 'Any height', more: 'taller', small: 'shortest', large: 'tallest', name: 'Height when grown' },
+  width: { any: 'Any width', more: 'wider', small: 'narrowest', large: 'widest', name: 'Width when grown' },
 };
 
 /** The filter's value: "lo-hi" in feet, either end empty when open ("-10", "20-"); "" for any size. */

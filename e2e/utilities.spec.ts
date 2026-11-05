@@ -33,7 +33,7 @@ test('a tall tree near a power line is flagged, says why, and can be dismissed',
   await addKind(page, 'powerline');
   for (const [x, y] of [[-6, -5], [6, -5]]) await tapFromCenter(page, x, y);
   await page.getByTestId('draw-bar').getByRole('button', { name: 'Done' }).click();
-  await expect(page.locator('.sel-pill .name')).toHaveText('Power line');
+  await expect(page.locator('.sel-pill .name')).toHaveText('Power Line');
   // A northern red oak (60 ft) 6 ft from it.
   await place(page, 'Northern red oak', 0, 1);
   await expect(badges(page)).toHaveCount(1);
@@ -73,7 +73,7 @@ test('a septic field: a shrub on it is flagged; a perennial is not', async ({ pa
   await openFresh(page);
   await addKind(page, 'septic');
   for (const [x, y] of [[-6, -4], [6, -4], [0, 4]]) await tapFromCenter(page, x, y); // (12 × 8 ft)
-  await expect(page.locator('.sel-pill .name')).toHaveText('Septic field');
+  await expect(page.locator('.sel-pill .name')).toHaveText('Septic Field');
   await place(page, 'Spicebush', -3, 0);
   await expect(badges(page)).toHaveCount(1);
   await place(page, 'Butterfly milkweed', 3, 0);

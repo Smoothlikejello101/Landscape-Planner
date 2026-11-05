@@ -67,6 +67,7 @@ import { pickerViewClosed, placePicker, planLookOnly, showChosen } from './picke
 import { bedName, inBed, pickingBed, plantingFor, plantingSettled } from '../bed-plant';
 import { PICK_SAID, stopPickingBed } from './plant-for';
 import { renderBedConditionsPanel } from './bed-conditions';
+import { inSentence, labelShown } from '../names';
 
 // MAIN RENDER
 // ============================================================
@@ -379,7 +380,7 @@ export function render() {
   if (state.featurePlace) {
     const host = featureHost()!;
     const where = host.role === 'boundary' ? 'the line' : host.role === 'building' ? 'a wall' : 'an edge';
-    const say = (k: SubFeatureKind, n: string) => tapSaid(`Tap ${where} where the ${SUB_FEATURES[k].label.toLowerCase()} goes · ${n} added`);
+    const say = (k: SubFeatureKind, n: string) => tapSaid(`Tap ${where} where the ${inSentence(SUB_FEATURES[k].label)} goes · ${n} added`);
     const banner = el('div', { className: 'mode-banner draw-banner', 'data-testid': 'feature-banner', html: I.draw });
     banner.appendChild(words(say(state.featurePlace.kind, String(state.featurePlace.added.length)), kindsFor(host).map((k) => say(k, '00'))));
     strip.appendChild(banner);
@@ -612,7 +613,7 @@ export function render() {
       const pill = el('div', { className: 'sel-pill' });
       pill.appendChild(el('div', { className: 'sw', style: { background: shapeDot(s) } }));
       // (Unnamed: what it is, "Path", not how it was drawn. Jason, Oct 30.)
-      pill.appendChild(el('div', { className: 'name' }, s.label || sheetTitle(s)));
+      pill.appendChild(el('div', { className: 'name' }, labelShown(s) || sheetTitle(s)));
       const editBtn = el('button', { className: 'edit' });
       editBtn.innerHTML = I.edit + '<span>Edit</span>';
       editBtn.addEventListener('click', () => { state.panel = 'props'; render(); });
@@ -1009,7 +1010,7 @@ function firstZip(): HTMLElement {
   const { input, go, problem } = zipEntry('first');
   // What happens to the ZIP, a press away, for anyone wary of giving it (Jason, Nov 1): the ZIP sheet says.
   const privacy = el('button', { className: 'link-btn first-privacy', 'data-testid': 'zip-privacy' }, 'Privacy');
-  privacy.addEventListener('click', () => openLocation());
+  privacy.addEventListener('click', () => openLocation(null, { privacy: true })); // (how it's used, open)
   return el('div', { className: 'first-zip', 'data-testid': 'first-zip-box' },
     el('div', { className: 'first-zip-row' }, input, go),
     // (Under the field that says ZIP code: short, so the card fits a small phone at large text.)

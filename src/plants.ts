@@ -20,6 +20,7 @@ import { bloomMonths } from './bloom';
 import { bloomWindow, catkins, showyFlowers } from './seasons';
 import { byMatch, matchPlant, readQuery, unsearchable } from './search';
 import { applyYard, household, type Yard } from './yard';
+import { setCatalogNames, setWrittenName, titleCase } from './names';
 import { noteRecentPlant } from './place';
 
 /**
@@ -464,10 +465,19 @@ export function loadPlants(): Promise<void> {
       PLANTS = (old.plants || []).map((p) => (p.form ? { ...p, form: currentForm(p.form) } : p));
       PLANT_META = old.meta || null;
     }
+    // The catalog's names in Title Case, as the app shows them (src/names.ts; Jason, Nov 4). In memory only: the file is
+    // as its sources write it, and a plan's labels as they were placed.
+    for (const p of PLANTS) {
+      setWrittenName(p.id, p.common);
+      p.common = titleCase(p.common, p.botanical);
+      if (p.short) p.short = titleCase(p.short, p.botanical);
+    }
     shareDogWarnings(PLANTS);
     for (const p of PLANTS) plantsById[p.id] = p;
     // (A plant placed from a record since folded into another shows that one's facts.)
     for (const [from, to] of Object.entries(movedIds)) if (!plantsById[from] && plantsById[to]) plantsById[from] = plantsById[to];
+    // (A placed plant's label shown by its catalog name where it is that name: src/names.ts labelShown.)
+    setCatalogNames((id) => (id.startsWith('u-') ? undefined : plantsById[id]?.common));
     catalogSettled = true;
     for (const fn of catalogHooks) fn();
     applyAliases(); // (plants of mine switched to these)
@@ -731,7 +741,7 @@ const FILTER_READS: [keyof PlantFilter, (p: Plant, f: PlantFilter) => string[], 
   ['bloomMonth', (p, f) => (bloomMatch(p, f.bloomMonth) === 'earlier' ? ['bloom'] : []), 'bloom time'], ['native', (_p, f) => (f.native === '@here' ? [] : ['native']), 'native status'],
   ['deerResistant', () => ['deer'], 'deer resistance'], ['spread', () => ['self_seed', 'habit'], 'how it spreads'], ['height', () => ['height'], 'height'],
   ['width', () => ['width'], 'width'],
-  ['wetFeet', () => ['wet_feet'], 'wet feet'], ['clayOk', () => ['clay_ok'], 'clay'], ['clayBed', () => ['clay_ok'], 'clay'],
+  ['wetFeet', () => ['wet_feet'], 'wet soil'], ['clayOk', () => ['clay_ok'], 'clay'], ['clayBed', () => ['clay_ok'], 'clay'],
   ['hostOnly', (p) => (hostPlant(p) === 'earlier' ? ['host'] : []), 'host plant'], ['fallColor', () => ['fall_color'], 'fall color'], ['evergreen', () => ['foliage'], 'evergreen'],
   ['winterInterest', () => ['winter_interest'], 'winter interest'], ['edible', () => ['edible'], 'edible'],
   ['hardyHere', () => ['zone_min', 'zone_max'], 'hardiness zones'],
@@ -1189,10 +1199,10 @@ export function householdFlags(p: Plant, y: Yard = household()): RowFlag[] {
   if (y.kids && poisonousToPeople(p)) {
     const r = poisonRating(p)!;
     const how = [r.severity ? `${r.severity} severity` : '', r.parts?.length ? andList(r.parts.map((x) => x.toLowerCase())) : ''].filter(Boolean).join(': ');
-    out.push({ text: 'Poisonous to people', kind: 'bad', title: `${p.poison ? 'Poisonous' : 'Not rated itself; a parent is poisonous'} if eaten${how ? ` (${how})` : ''}`, testid: 'row-poison' });
+    out.push({ text: 'Toxic to people', kind: 'bad', title: `${p.poison ? 'Toxic' : 'Not rated itself; a parent is toxic'} if eaten${how ? ` (${how})` : ''}`, testid: 'row-poison' });
   }
   const pets = [y.dogs !== '' && toxicToDogs(p) ? 'dogs' : '', y.cats && p.problem_for?.includes('cats') ? 'cats' : '', y.horses && p.problem_for?.includes('horses') ? 'horses' : ''].filter(Boolean);
-  if (pets.length) out.push({ text: `A problem for ${andList(pets)}`, kind: 'bad', testid: 'row-pets' });
+  if (pets.length) out.push({ text: `Toxic to ${andList(pets)}`, kind: 'bad', testid: 'row-pets' });
   return out;
 }
 /** A short mark on a row: native here, or something to know before choosing it. */
@@ -1210,7 +1220,7 @@ export function rowFlags(p: Plant): RowFlag[] {
   // Marcus, all three sessions; Ruth, Hank.)
   if (n?.status === 'N') out.push({ text: `${n.state} native${n.species ? ' species' : ''}`, kind: 'native', title: `${nativeText(n, p.common)} (${n.source})`, testid: 'row-native' });
   out.push(...householdFlags(p));
-  if (poisonRating(p)?.skin) out.push({ text: 'Can irritate skin', kind: 'warn', title: `NC State lists ${p.poison ? 'it' : 'a parent'} as causing contact dermatitis`, testid: 'row-skin' });
+  if (poisonRating(p)?.skin) out.push({ text: 'Can irritate skin', kind: 'warn', title: `According to NC State, ${p.poison ? 'it' : 'a parent'} can irritate skin (contact dermatitis)`, testid: 'row-skin' });
   if (p.unverified) out.push({ text: 'Unverified', kind: 'check', title: "From an earlier list with no sources; it's being checked", testid: 'unverified-badge' });
   else if (p.partlyChecked) out.push({ text: 'Partly checked', kind: 'check', title: 'Some details are checked against sources; those marked "earlier list" in its details are not yet', testid: 'partly-badge' });
   return out;

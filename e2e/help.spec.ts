@@ -7,7 +7,7 @@ import { openFresh, placeOnceAtCenter } from './helpers';
 
 const QUESTIONS = [
   'Print my plan, or one bed', 'Get a plant list', 'Back up my plans, and restore them on another device', 'Undo, and redo',
-  'Add my own plant', 'Set my garden’s location', 'Mark what’s dangerous to my kids or pets',
+  'Add my own plant', 'Set my garden’s location', 'Mark what’s dangerous to my kids or pets', 'Install the app on my phone',
 ];
 const base = { opacity: 0.65, locked: false };
 const shapes = [
@@ -103,7 +103,7 @@ test('each answer\'s button goes to its place: Print, the Plant list, backup, Wa
   // The Plant list.
   await go(page, 'list', 'help-go-list');
   await expect(page.getByTestId('plant-list')).toBeVisible();
-  await expect(page.getByTestId('pl-group-buy')).toContainText('Wild columbine');
+  await expect(page.getByTestId('pl-group-buy')).toContainText('Wild Columbine');
   await shut(page);
   // Plans and backup, at Backup.
   await go(page, 'backup', 'help-go-backup');

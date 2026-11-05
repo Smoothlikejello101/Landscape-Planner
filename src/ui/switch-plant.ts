@@ -46,7 +46,7 @@ export function renderSwitchPanel(): HTMLElement | null {
   // (Catalog sizes can lack an end: written as the plant form writes them, from what's there.)
   const size = (r: Plant['width']) => (r ? formatSize({ min: r.min ?? r.med ?? r.max ?? 0, max: r.max ?? r.med ?? r.min ?? 0, med: r.med ?? 0 }) : '');
   const rows: [string, string, string][] = [
-    ['Spread', size(mine.width), size(target.width)],
+    ['Width when grown', size(mine.width), size(target.width)],
     ['Height', size(mine.height), size(target.height)],
     ['Sun', sunText(mine), sunText(target)],
   ];

@@ -13,9 +13,9 @@ const rose = { id: 'r', common: 'Rose', form: 'Shrub', poison: { symptoms: 'Thor
 describe('a household with kids or pets', () => {
   afterEach(() => { state.poisonWarnings = true; });
   it('flags plants poisonous to people where there are kids, and a problem for the animals it has', () => {
-    expect(householdFlags(milkweed, { ...NO_YARD, kids: true }).map((f) => f.text)).toEqual(['Poisonous to people']);
-    expect(householdFlags(milkweed, { ...NO_YARD, kids: true })[0].title).toBe('Poisonous if eaten (Low severity: leaves and sap/juice)');
-    expect(householdFlags(milkweed, { ...NO_YARD, dogs: 'hideToxic', cats: true }).map((f) => f.text)).toEqual(['A problem for dogs and cats']);
+    expect(householdFlags(milkweed, { ...NO_YARD, kids: true }).map((f) => f.text)).toEqual(['Toxic to people']);
+    expect(householdFlags(milkweed, { ...NO_YARD, kids: true })[0].title).toBe('Toxic if eaten (Low severity: leaves and sap/juice)');
+    expect(householdFlags(milkweed, { ...NO_YARD, dogs: 'hideToxic', cats: true }).map((f) => f.text)).toEqual(['Toxic to dogs and cats']);
     expect(householdFlags(milkweed, NO_YARD)).toEqual([]);
     expect(householdFlags(rose, { ...NO_YARD, kids: true })).toEqual([]); // (thorns: no parts, no severity)
   });
@@ -24,8 +24,8 @@ describe('a household with kids or pets', () => {
       { name: 'Morus alba', poison: { severity: 'low', parts: ['fruits', 'leaves', 'sap', 'stems'] } },
       { name: 'Morus rubra', id: 'morus-rubra', common: 'Red mulberry', poison: { severity: 'low', parts: ['sap'], skin: true } }] } } as unknown as Plant;
     const kids = householdFlags(mulberry, { ...NO_YARD, kids: true });
-    expect(kids.map((f) => [f.text, f.title])).toEqual([['Poisonous to people', 'Not rated itself; a parent is poisonous if eaten (low severity: fruits, leaves, sap and stems)']]);
-    expect(rowFlags(mulberry).find((f) => f.testid === 'row-skin')?.title).toBe('NC State lists a parent as causing contact dermatitis');
+    expect(kids.map((f) => [f.text, f.title])).toEqual([['Toxic to people', 'Not rated itself; a parent is toxic if eaten (low severity: fruits, leaves, sap and stems)']]);
+    expect(rowFlags(mulberry).find((f) => f.testid === 'row-skin')?.title).toBe('According to NC State, a parent can irritate skin (contact dermatitis)');
     // (A parent rated only for the skin: no flag for eating it; one listing none, or not rated: nothing.)
     const skinOnly = { ...mulberry, poison_parents: { via: 'name', parents: [{ name: 'Morus alba', poison: null }, { name: 'Morus rubra', poison: { skin: true } }] } } as unknown as Plant;
     expect(householdFlags(skinOnly, { ...NO_YARD, kids: true })).toEqual([]);
@@ -40,7 +40,7 @@ describe('a household with kids or pets', () => {
         saveYard(y);
         const marks = rowFlags(mayapple).map((f) => f.text);
         expect(marks).toContain('Can irritate skin');
-        expect(marks.includes('Poisonous to people')).toBe(y.kids);
+        expect(marks.includes('Toxic to people')).toBe(y.kids);
       }
     } finally { saveYard(NO_YARD); localStorage.clear(); }
   });

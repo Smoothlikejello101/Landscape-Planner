@@ -10,6 +10,7 @@ import { toast, toastAction } from './toast';
 import { ask, askChoice } from './ask';
 import { isTree } from '../trees';
 import { isBed, plantsInBed } from '../beds';
+import { labelShown } from '../names';
 
 /** "6 plants, 1 boundary": what a set of shapes is, by role. */
 const NAMES: Record<RoleKey | 'tree', [string, string]> = {
@@ -64,7 +65,7 @@ export async function deleteSelectedAsking(): Promise<void> {
     }
     deleteShapesByIds([selected[0].id]);
     state.panel = null;
-    undoNotice(`Deleted ${selected[0].label || describeShapes(selected)}`);
+    undoNotice(`Deleted ${labelShown(selected[0]) || describeShapes(selected)}`);
     render();
     return;
   }
@@ -154,7 +155,7 @@ export function cutSelected() {
   copyShapes(going);
   deleteShapesByIds(going.map((s) => s.id));
   state.panel = null;
-  undoNotice(`Cut ${going.length === 1 ? going[0].label || describeShapes(going) : describeShapes(going)}` + (kept ? `; ${kept} locked ${kept === 1 ? 'shape' : 'shapes'} kept` : ''));
+  undoNotice(`Cut ${going.length === 1 ? labelShown(going[0]) || describeShapes(going) : describeShapes(going)}` + (kept ? `; ${kept} locked ${kept === 1 ? 'shape' : 'shapes'} kept` : ''));
 }
 /**
  * "Deleted 3 plants · Undo": every delete says what went, with an Undo of that step (while nothing has changed

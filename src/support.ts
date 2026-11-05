@@ -27,6 +27,8 @@ export const SETTING_KEYS = [
   // (The start's cards, src/welcome.ts: the version last started, the visits counted, the second visit's card had. And
   // 'lp-visit-counted', which is in sessionStorage, never here: listed so it's known.)
   'lp-app-version', 'lp-visits', 'lp-saved-here', 'lp-visit-counted',
+  // (The install card, src/install.ts: had its turn on this device, or the app installed.)
+  'lp-install-card',
 ];
 /** Data, by name and size: exact keys, and prefixes (a project per key, an unsaved-edits journal per project). */
 export const DATA_KEYS = ['lp-projects', 'lp-clipboard', ERROR_LOG_KEY];

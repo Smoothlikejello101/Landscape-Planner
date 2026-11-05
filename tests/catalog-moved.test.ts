@@ -16,7 +16,7 @@ describe('a plant placed from a record since folded into another', () => {
     globalThis.fetch = (async () => ({ json: async () => file })) as unknown as typeof fetch;
     try { await loadPlants(); } finally { globalThis.fetch = was; }
     expect(plantsById['sage-and-oregano']).toBe(plantsById['salvia-officinalis']);
-    expect(plantsById['sage-and-oregano'].common).toBe('Kitchen sage');
+    expect(plantsById['sage-and-oregano'].common).toBe('Kitchen Sage'); // (in Title Case, as shown: src/names.ts)
     state.shapes = [{ id: 's1', type: 'circle', x: 0, y: 0, r: 1, plantId: 'sage-and-oregano' } as unknown as CircleShape];
     expect([...plantIdsInPlan()]).toEqual(['salvia-officinalis']);
   });
@@ -27,7 +27,7 @@ describe('a plant placed from a record since folded into another', () => {
     globalThis.fetch = (async () => ({ json: async () => file })) as unknown as typeof fetch;
     try { await loadPlants(); } finally { globalThis.fetch = was; }
     expect(plantsById['iris-aquatic-spp']).toBe(plantsById['iris-virginica']);
-    expect([plantsById['iris-aquatic-spp'].common, plantsById['iris-aquatic-spp'].botanical]).toEqual(['Blue flag iris', 'Iris virginica']);
+    expect([plantsById['iris-aquatic-spp'].common, plantsById['iris-aquatic-spp'].botanical]).toEqual(['Blue Flag Iris', 'Iris virginica']);
     state.shapes = [{ id: 'w1', type: 'circle', x: 0, y: 0, r: 1, plantId: 'iris-aquatic-spp', label: 'Water iris' } as unknown as CircleShape];
     expect([...plantIdsInPlan()]).toEqual(['iris-virginica']);
   });

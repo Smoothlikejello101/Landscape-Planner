@@ -24,7 +24,7 @@ test('a vine placed by a fence is offered it; climbing, it\'s drawn along the fe
   const ppf = 24 * (await zoomPct(page)) / 100;
   await page.mouse.click(line.x + line.width / 2, line.y + line.height / 2 + ppf);
   const offer = page.getByTestId('vine-offer');
-  await expect(offer).toContainText('Carolina jessamine could climb the fence.');
+  await expect(offer).toContainText('Carolina Jessamine could climb the fence.');
   await offer.getByRole('button', { name: 'Climb it' }).click();
   await done(page);
   await expect(band(page)).toHaveCount(1);
@@ -40,9 +40,9 @@ test('a vine placed by a fence is offered it; climbing, it\'s drawn along the fe
   // The fence's pane says what grows on it, a tap from the vine.
   await page.getByTestId('select-support').click();
   await expect(page.locator('.sheet .title')).toContainText('Fence');
-  await expect(page.getByTestId('vines-on-it')).toContainText('Carolina jessamine grows on it');
+  await expect(page.getByTestId('vines-on-it')).toContainText('Carolina Jessamine grows on it');
   await page.getByTestId('vines-on-it').getByRole('button', { name: 'Select' }).click();
-  await expect(page.locator('.sheet .title')).toContainText('Carolina jessamine');
+  await expect(page.locator('.sheet .title')).toContainText('Carolina Jessamine');
   // Set to nothing: a patch on the ground again.
   await page.getByTestId('climbs-on').selectOption({ index: 0 });
   await closeSheet(page);
@@ -59,7 +59,7 @@ test('a vine is offered what it could climb every time it\'s moved near it, unle
   const ppf = 24 * (await zoomPct(page)) / 100;
   await page.mouse.click(line.x + line.width / 2, line.y + line.height / 2 + ppf); // (a foot below the fence)
   const offer = page.getByTestId('vine-offer');
-  await expect(offer).toContainText('Carolina jessamine could climb the fence.');
+  await expect(offer).toContainText('Carolina Jessamine could climb the fence.');
   await done(page);
   await page.keyboard.press('Escape');
   const vine = page.locator('#canvas-svg circle[data-shape-id]').first();
@@ -69,13 +69,13 @@ test('a vine is offered what it could climb every time it\'s moved near it, unle
   await expect(offer).toHaveCount(0);
   let c = await center();
   await drag(page, c, { x: c.x + ppf, y: c.y });
-  await expect(offer).toContainText('Carolina jessamine could climb the fence.');
+  await expect(offer).toContainText('Carolina Jessamine could climb the fence.');
   await offer.getByTestId('notice-close').click();
   // Set to grow as a groundcover: moved again, no offer.
   c = await center();
   await page.waitForTimeout(450);
   await page.mouse.click(c.x, c.y);
-  await expect(page.locator('.sel-pill .name')).toHaveText('Carolina jessamine');
+  await expect(page.locator('.sel-pill .name')).toHaveText('Carolina Jessamine');
   await page.locator('.sel-pill button.edit').click();
   await page.getByTestId('groundcover').check();
   await closeSheet(page);
@@ -99,7 +99,7 @@ test('a tree placed by a vine is offered to it; the vine moved out of its reach 
   await startPlacing(page, 'Eastern redbud');
   await tapSpot(0, 0);
   const offer = page.getByTestId('vine-offer');
-  await expect(offer).toContainText('Carolina jessamine could climb the eastern redbud.');
+  await expect(offer).toContainText('Carolina Jessamine could climb the Eastern Redbud.');
   await offer.getByRole('button', { name: 'Climb it' }).click();
   await done(page);
   await expect(band(page)).toHaveCount(1);
@@ -108,7 +108,7 @@ test('a tree placed by a vine is offered to it; the vine moved out of its reach 
   await page.getByRole('button', { name: 'Zoom out' }).click();
   await drag(page, await spot(2, 0), await spot(2, 18));
   const freed = page.getByTestId('vine-freed');
-  await expect(freed).toContainText('Carolina jessamine is out of reach of what it climbed: now a groundcover.');
+  await expect(freed).toContainText('Carolina Jessamine is out of reach of what it climbed: now a groundcover.');
   await expect(band(page)).toHaveCount(0);
   await freed.getByRole('button', { name: 'Undo' }).click();
   await expect(band(page)).toHaveCount(1);
@@ -128,7 +128,7 @@ test('an arbor drawn, a vine placed by it is offered it and covers it; a trellis
   const ppf = 24 * (await zoomPct(page)) / 100;
   await page.mouse.click(box.x + box.width / 2, box.y + box.height + ppf);
   const offer = page.getByTestId('vine-offer');
-  await expect(offer).toContainText('Carolina jessamine could climb the arbor.');
+  await expect(offer).toContainText('Carolina Jessamine could climb the arbor.');
   await offer.getByRole('button', { name: 'Climb it' }).click();
   await done(page);
   // Over its top: the cover is the arbor's own size (the vine's 25 ft spread covers all 8 ft of it).

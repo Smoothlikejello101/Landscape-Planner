@@ -17,7 +17,7 @@ const shapePath = (page: Page) => page.locator('#canvas-svg polygon[data-shape-i
 
 async function drawL(page: Page) {
   await addKind(page, 'plain', 'poly');
-  await expect(page.getByTestId('draw-banner')).toContainText(tapping('Plain shape: Tap each corner'));
+  await expect(page.getByTestId('draw-banner')).toContainText(tapping('Plain Shape: Tap each corner'));
   for (const [x, y] of [[2, 2], [12, 2], [12, 6], [6, 6], [6, 12], [2, 12]]) await tapFt(page, x, y);
   await expect(drawPoints(page)).toHaveCount(6);
   await expect(page.getByTestId('draw-banner')).toContainText('first point');
@@ -91,13 +91,13 @@ test('a property line drawn as an outline can be picked again by tapping near it
   await addKind(page, 'property', 'poly');
   for (const [x, y] of [[2, 2], [12, 2], [12, 10], [2, 10]]) await tapFt(page, x, y);
   await bar(page).getByRole('button', { name: 'Done' }).click();
-  await expect(page.locator('.sel-pill .name')).toHaveText('Property line');
+  await expect(page.locator('.sel-pill .name')).toHaveText('Property Line');
   // Deselect (inside it is the yard: a tap there picks nothing), then tap a few pixels off its dashed edge.
   await tapFt(page, 7, 6);
   await expect(page.locator('.sel-pill')).toHaveCount(0);
   await page.waitForTimeout(400);
   await tapFt(page, 7, 10 + 5 / FT);
-  await expect(page.locator('.sel-pill .name')).toHaveText('Property line');
+  await expect(page.locator('.sel-pill .name')).toHaveText('Property Line');
 });
 
 test('edit points: drag, add with +, delete, undo', async ({ page }) => {

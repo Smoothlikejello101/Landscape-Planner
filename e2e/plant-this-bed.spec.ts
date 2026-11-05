@@ -218,9 +218,9 @@ test('For a clay bed: what no source rates for clay is listed below a divider; a
   await expect(page.locator('[data-testid=no-clay-divider] ~ .plant-item .pname', { hasText: 'Silverleaf hydrangea' })).toBeVisible();
   // A plant that takes only part of the bed's sun says where.
   await search(page).fill('Narrow-leaved coneflower');
-  await expect(rowNamed(page, 'Narrow-leaved coneflower').getByTestId('sun-end')).toHaveText('Sunny end only');
+  await expect(rowNamed(page, 'Narrow-Leaved Coneflower').getByTestId('sun-end')).toHaveText('Sunny end only');
   await search(page).fill('Climbing hydrangea');
-  await expect(rowNamed(page, 'Climbing hydrangea').getByTestId('sun-end')).toHaveText('Shady end only');
+  await expect(rowNamed(page, 'Climbing Hydrangea').getByTestId('sun-end')).toHaveText('Shady end only');
   // Nothing hidden silently: what the bed hid of a search, by name, and a way to see them.
   await search(page).fill('cardinal flower');
   await expect(page.getByTestId('hidden-by')).toHaveText('1 plant matches “cardinal flower”, hidden by Front bed: Moisture. Show them');
@@ -256,12 +256,12 @@ test('placing For a bed: the bed outlined, the rest washed red; one placed outsi
   await search(page).fill('Arkansas bluestar');
   await rowNamed(page, 'Arkansas bluestar').getByTestId('plant-place').click();
   const banner = page.getByTestId('place-banner');
-  await expect(banner).toHaveText(tapping('Tap to place Arkansas bluestar in Front bed · 0 placed'));
+  await expect(banner).toHaveText(tapping('Tap to place Arkansas Bluestar in Front bed · 0 placed'));
   await expect(page.locator('#canvas-svg [data-role=bed-outline]')).toHaveCount(1);
   await expect(page.locator('#canvas-svg [data-role=bed-wash]')).toHaveCount(1);
   const shapes = await shapeCount(page);
   await tapPlan(page, 9, 2); // inside
-  await expect(banner).toHaveText(tapping('Tap to place Arkansas bluestar in Front bed · 1 placed'));
+  await expect(banner).toHaveText(tapping('Tap to place Arkansas Bluestar in Front bed · 1 placed'));
   await expect(page.locator('#canvas-svg [data-role=outside-bed]')).toHaveCount(0);
   await tapPlan(page, 8, 8); // outside (below it): placed all the same, ringed, said with Undo
   await expect.poll(() => shapeCount(page)).toBe(shapes + 2);
@@ -270,16 +270,16 @@ test('placing For a bed: the bed outlined, the rest washed red; one placed outsi
   await banner.getByTestId('place-outside-undo').click();
   await expect.poll(() => shapeCount(page)).toBe(shapes + 1);
   await expect(page.locator('#canvas-svg [data-role=outside-bed]')).toHaveCount(0);
-  await expect(banner).toHaveText(tapping('Tap to place Arkansas bluestar in Front bed · 1 placed'));
+  await expect(banner).toHaveText(tapping('Tap to place Arkansas Bluestar in Front bed · 1 placed'));
   await tapPlan(page, 8, 8); // (again at once, where the one undone was: placed)
   await tapPlan(page, 6, 2); // (another inside: the one outside stays ringed, the banner as before)
   await expect(page.locator('#canvas-svg [data-role=outside-bed]')).toHaveCount(1);
-  await expect(banner).toHaveText(tapping('Tap to place Arkansas bluestar in Front bed · 3 placed'));
+  await expect(banner).toHaveText(tapping('Tap to place Arkansas Bluestar in Front bed · 3 placed'));
   // Switching plants keeps it For the bed; a full-sun plant placed in the bed's shady end gets the sun badge.
   await page.getByTestId('place-switch').click();
   await expect(pressed(page)).toHaveText('Front bed');
   await search(page).fill('Narrow-leaved coneflower');
-  await expect(rowNamed(page, 'Narrow-leaved coneflower').getByTestId('sun-end')).toHaveText('Sunny end only');
+  await expect(rowNamed(page, 'Narrow-Leaved Coneflower').getByTestId('sun-end')).toHaveText('Sunny end only');
   await rowNamed(page, 'Narrow-leaved coneflower').getByTestId('plant-place').click();
   await tapPlan(page, 2, 4.5); // (in the bed, under the oak: 3.5 h)
   await expect.poll(() => shapeCount(page)).toBe(shapes + 4);

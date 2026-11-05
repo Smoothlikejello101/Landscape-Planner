@@ -29,7 +29,7 @@ test('the selection pill deselects; a plant selects all of it on view, and swaps
   await page.locator('.sel-pill button.edit').click();
   await expect(page.getByTestId('select-all-same')).toHaveText('Select all 3');
   await page.getByTestId('select-all-same').click();
-  await expect(page.locator('#toast')).toContainText('All 3 Turkey corn selected.');
+  await expect(page.locator('#toast')).toContainText('All 3 Turkey Corn selected.');
   await expect(page.locator('.multi-bar .count')).toHaveText('3 selected');
 
   // Swap all three: the picker says what it's for; they keep their places.
@@ -57,8 +57,8 @@ test('the selection pill deselects; a plant selects all of it on view, and swaps
   await expect(page.getByTestId('swap-banner')).toContainText('swap it for');
   await page.getByTestId('plant-search').fill('Turkey corn');
   await page.locator('.sheet .proj-row', { hasText: 'Turkey corn' }).first().getByTestId('plant-place').click();
-  await expect(page.locator('#toast')).toContainText('Swapped for Turkey corn.');
-  await expect(page.locator('.sheet .title')).toContainText('Turkey corn');
+  await expect(page.locator('#toast')).toContainText('Swapped for Turkey Corn.');
+  await expect(page.locator('.sheet .title')).toContainText('Turkey Corn');
 });
 
 test('closing the swap picker goes back to the plant\'s sheet; the plant swapped in comes first in Recent (the UI review)', async ({ page }) => {
@@ -72,7 +72,7 @@ test('closing the swap picker goes back to the plant\'s sheet; the plant swapped
   await page.locator('.sheet-header').getByRole('button', { name: 'Back to properties' }).click();
   // Its sheet, as it was before Swap: nothing swapped.
   await expect(page.getByTestId('swap-plant')).toBeVisible();
-  await expect(page.locator('.sheet .title')).toContainText('Turkey corn');
+  await expect(page.locator('.sheet .title')).toContainText('Turkey Corn');
   // Swapped, the plant swapped in is the newest in Recent.
   await page.getByTestId('swap-plant').click();
   await page.getByTestId('plant-search').fill('Buttonbush');

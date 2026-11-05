@@ -47,7 +47,7 @@ test('every control has a name, and text is dark enough, on the main screens', a
   // Help, every answer opened (Jason, Nov 2: in place of Show me around).
   await page.getByTestId('menu-help').click();
   for (const q of await page.locator('.help-q').all()) await q.click();
-  await expect(page.locator('.help-a:visible')).toHaveCount(7);
+  await expect(page.locator('.help-a:visible')).toHaveCount(8); // (Install the app: Nov 4)
   seen.help = await problems(page);
   await closeSheet(page);
   await addPlainShape(page, 'rect');

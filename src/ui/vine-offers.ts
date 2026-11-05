@@ -10,12 +10,20 @@ import type { CircleShape, Shape } from '../types';
 import { offerFor, strandedVines, vinesFor, type Support } from '../vines';
 import { render } from './render';
 import { toastAction } from './toast';
+import { KINDS } from '../kinds';
+import { inSentence } from '../names';
 
 const nameOf = (s: Shape) => (s.type === 'circle' && s.plantId ? plantsById[s.plantId]?.common ?? s.label : s.label) || '';
-/** What a support is called in a notice: "the red maple", "the fence", "the house", "the arbor". */
+/** A new shape's starting labels, the names of kinds ("Fence", "Property Line"): said in a sentence in lowercase. */
+let kindNames: Set<string> | null = null; // (worked out when first asked: the kinds may not be loaded as this module is)
+const isKindName = (n: string) => (kindNames ??= new Set([...KINDS.map((k) => k.startLabel([])), 'Building'].filter(Boolean).map((x) => x.toLowerCase()))).has(n.toLowerCase());
+/** What a support is called in a notice: "the Red Maple", "the fence", "the house", "the property line". */
 export function supportName(sup: Pick<Support, 'shape' | 'kind'>): string {
   const name = nameOf(sup.shape);
-  // (Its first letter only: "the red maple 'October Glory'".)
+  // (A plant's name as the catalog has it, in Title Case (src/names.ts): "the Red Maple 'October Glory'". A kind's
+  // starting label, in a sentence's words: "the property line". Else its first letter only, as typed.)
+  if (name && sup.shape.plantId && plantsById[sup.shape.plantId]?.common === name) return `the ${name}`;
+  if (name && isKindName(name)) return `the ${inSentence(name)}`;
   if (name) return `the ${name.charAt(0).toLowerCase()}${name.slice(1)}`;
   return sup.kind === 'tree' ? 'the tree' : sup.kind === 'shrub' ? 'the shrub' : sup.kind === 'arbor' ? 'the arbor'
     : sup.shape.role === 'building' ? 'the building' : sup.shape.role === 'structure' ? 'the trellis' : 'the line';

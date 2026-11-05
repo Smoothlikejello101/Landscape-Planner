@@ -19,23 +19,23 @@ export const ROLES: RoleDef[] = [
   { key: 'plant', label: 'Plant', color: '#16a34a', opacity: 0.65 },
   { key: 'bed', label: 'Bed', color: '#92400e', opacity: 0.3 },
   { key: 'lawn', label: 'Lawn', color: '#84cc16', opacity: 0.3 },
-  { key: 'path', label: 'Path / hardscape', color: '#a8a29e', opacity: 0.7 },
+  { key: 'path', label: 'Path / Hardscape', color: '#a8a29e', opacity: 0.7 },
   { key: 'water', label: 'Water', color: '#0ea5e9', opacity: 0.5 },
-  { key: 'shade', label: 'Sun exposure', color: '#334155', opacity: 0.3 },
+  { key: 'shade', label: 'Sun Exposure', color: '#334155', opacity: 0.3 },
   { key: 'building', label: 'Building', color: '#57534e', opacity: 0.8 },
   { key: 'boundary', label: 'Boundary', color: '#44403c', opacity: 1, outline: true },
   // (A trellis, drawn as a line with its lattice; an arbor or pergola, an area with its slats: what vines climb.)
-  { key: 'structure', label: 'Garden structure', color: '#8b5a2b', opacity: 0.25 },
+  { key: 'structure', label: 'Garden Structure', color: '#8b5a2b', opacity: 0.25 },
   // (Power lines, buried lines and septic fields: src/utilities.ts. Each kind starts in its own color: src/kinds.ts.)
   { key: 'utility', label: 'Utility', color: '#ea580c', opacity: 1 },
-  { key: 'other', label: 'Note / other', color: '#94a3b8', opacity: 0.6 },
+  { key: 'other', label: 'Note / Other', color: '#94a3b8', opacity: 0.6 },
 ];
 const BY_KEY = Object.fromEntries(ROLES.map((r) => [r.key, r])) as Record<Role, RoleDef>;
 export const ROLE_KEYS = ROLES.map((r) => r.key);
 
 export function roleDef(role: Role): RoleDef { return BY_KEY[role]; }
 export function roleKey(s: Shape): RoleKey { return s.role ?? 'unassigned'; }
-export function roleLabel(k: RoleKey): string { return k === 'unassigned' ? 'Plain shape' : BY_KEY[k].label; }
+export function roleLabel(k: RoleKey): string { return k === 'unassigned' ? 'Plain Shape' : BY_KEY[k].label; }
 export function isRole(v: unknown): v is Role { return typeof v === 'string' && v in BY_KEY; }
 
 /**

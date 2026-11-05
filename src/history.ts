@@ -7,6 +7,7 @@ import type { HistorySnapshot, Shape } from './types';
 import { deepClone } from './util';
 import { mayMark } from './marks';
 import { describeShapes } from './ui/delete-selected';
+import { labelShown } from './names';
 
 // Undo/redo: in-memory snapshots of shapes + background image, per project.
 // The background's dataUrl string is shared between snapshots (strings are
@@ -61,7 +62,7 @@ export function cancelHistoryDebounce() {
 }
 /** What a step did it to, for its label: one shape by its name ("Front bed"), several by what they are ("3 plants"). */
 export function stepNamed(shapes: Shape[]): string {
-  const one = shapes.length === 1 ? shapes[0].label?.trim().replace(/\s+/g, ' ') : '';
+  const one = shapes.length === 1 ? labelShown(shapes[0]).trim().replace(/\s+/g, ' ') : '';
   if (one) return one.length > 30 ? one.slice(0, 29).trimEnd() + '\u2026' : one; // (a note's text can be long)
   return describeShapes(shapes).replace(/^1 /, 'a ');
 }

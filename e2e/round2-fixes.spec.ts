@@ -133,10 +133,10 @@ test('"In this plan" lists every plant in the plan, saying which the filters wou
   await page.locator('.tool-btn.plants').click();
   await page.getByTestId('plant-search').fill('');
   await openFilters(page);
-  await page.getByRole('checkbox', { name: 'Not listed as poisonous to people' }).check();
+  await page.getByRole('checkbox', { name: 'Hide plants toxic to people' }).check();
   await page.getByTestId('in-plan').click();
   await expect(page.locator('.plant-item', { hasText: 'Butterfly milkweed' })).toBeVisible();
-  await expect(page.getByTestId('filtered-in-plan')).toContainText('Your filters would hide it: Not listed as poisonous to people');
+  await expect(page.getByTestId('filtered-in-plan')).toContainText('Your filters would hide it: No plants toxic to people');
   await expect(page.locator('.sheet')).toContainText('1 plant, 1 kind in this plan');
   await expect(page.getByTestId('in-plan-count')).toHaveText(/^\s*×\s1$/);
 });

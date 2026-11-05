@@ -4,6 +4,7 @@ import type { CircleShape, Shape } from './types';
 import { lookOf } from './looks';
 import { bloomWindow, showyFlowers } from './seasons';
 import { localBloom } from './wild';
+import { labelShown } from './names';
 
 // When things bloom: month-by-month, per bed and for the whole plan, so gaps
 // in color show up (task C6). Uses bloom months from the catalog and from
@@ -80,7 +81,7 @@ export function bloomSummary(plants: Shape[], plantsById: Record<string, Plant |
   const missing = new Map<string, NoBloomRow>();
   for (const p of plants) {
     if (!isPlant(p) || p.status === 'gone') continue;
-    const label = p.label.trim() || 'Unlabeled plant';
+    const label = labelShown(p).trim() || 'Unlabeled plant';
     const data = p.plantId ? plantsById[p.plantId] : undefined;
     // (Its months as the month slider has them (src/seasons.ts bloomWindow): by records near the garden, its listed
     // months, or its season, which beats the earlier list's unverified months; those by season alone faint. Dana,

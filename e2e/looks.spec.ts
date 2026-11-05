@@ -69,14 +69,14 @@ test('a plant under a shorter, solid one: a pin and its name over it, outlined w
   await expect(page.locator('#canvas-svg [data-see-through=true]')).toHaveCount(0);
   const over = page.locator('#canvas-svg g[data-role=hidden-over]');
   await expect(over.locator('[data-role=hidden-rim][data-mark=pin]')).toHaveCount(1);
-  await expect(over.locator('text')).toContainText('Creeping phlox');
+  await expect(over.locator('text')).toContainText('Creeping Phlox');
   await page.waitForTimeout(450); // (not a double tap)
   await tapFromCenter(page, 0, 0);
-  await expect(page.locator('.sel-pill .name')).toHaveText('Creeping phlox');
+  await expect(page.locator('.sel-pill .name')).toHaveText('Creeping Phlox');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(450);
   await tapFromCenter(page, 1.5, 0);
-  await expect(page.locator('.sel-pill .name')).toHaveText('Mountain mint');
+  await expect(page.locator('.sel-pill .name')).toHaveText('Mountain Mint');
   // (The mint selected: the phlox under it outlined, to see how far it reaches.)
   await expect(over.locator('[data-role=hidden-rim][data-mark=outline]')).toHaveCount(1);
 });
@@ -146,7 +146,7 @@ test('the tallest plant is drawn on top, see-through as a canopy over a plant gr
   await page.keyboard.press('Escape');
   await page.waitForTimeout(450); // (not a double tap)
   await tapFromCenter(page, 0, 0);
-  await expect(page.locator('.sel-pill .name')).toHaveText('Creeping phlox');
+  await expect(page.locator('.sel-pill .name')).toHaveText('Creeping Phlox');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(450);
   await tapFromCenter(page, 3, 0);
@@ -163,7 +163,7 @@ test('a run of the same small plant is named once, at its middle (Jason, Oct 30:
   await page.keyboard.press('Escape');
   const labels = page.locator('#canvas-svg [data-role=plant-label]');
   await expect(labels.filter({ hasText: 'Creeping phlox' })).toHaveCount(1);
-  await expect(labels.filter({ hasText: 'Creeping phlox' })).toHaveText('Creeping phlox ×6');
+  await expect(labels.filter({ hasText: 'Creeping Phlox' })).toHaveText('Creeping Phlox ×6');
 });
 
 // A plan put in place before the app opens: its shapes, at a zoom and view (as e2e/badges.spec.ts does).

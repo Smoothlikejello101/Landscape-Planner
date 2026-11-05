@@ -112,9 +112,9 @@ test('an existing tree: the trunk, then the canopy edge; spread by hand, trunk i
   await addKind(page, 'tree');
   await page.getByTestId('unknown-tree').click();
   await expect(bar(page).locator('[data-method]')).toHaveText(['Round canopy', 'Shaped canopy']);
-  await expect(banner(page)).toHaveText(tapping('Existing tree: Tap the trunk', true));
+  await expect(banner(page)).toHaveText(tapping('Existing Tree: Tap the trunk', true));
   await tapFt(page, 10, 10);
-  await expect(banner(page)).toHaveText(tapping('Existing tree: Tap the edge of the canopy', true));
+  await expect(banner(page)).toHaveText(tapping('Existing Tree: Tap the edge of the canopy', true));
   await tapFt(page, 10, 18);
   await expect(page.locator('.sel-pill .name')).toHaveText('Tree');
   // Drawn with its trunk: 16 ft spread → 0.75 ft trunk (a twentieth, to the quarter foot).
@@ -122,12 +122,12 @@ test('an existing tree: the trunk, then the canopy edge; spread by hand, trunk i
   await expect(trunk).toHaveAttribute('r', String(0.375 * FT));
   await expect(page.locator('#canvas-svg [data-role=trunk-spokes]')).toHaveCount(1);
   await page.locator('.sel-pill .edit').click(); await openSections(page);
-  await expect(field(page, 'Spread (ft)')).toHaveValue('16');
+  await expect(field(page, 'Width when grown (ft)')).toHaveValue('16');
   await expect(page.getByTestId('trunk-size')).toHaveAttribute('placeholder', '0.75');
   await page.getByTestId('trunk-size').fill('2');
   await expect(page.getByTestId('trunk-size')).toBeFocused(); // typing never rebuilds the sheet
   await expect(trunk).toHaveAttribute('r', String(1 * FT));
-  await field(page, 'Spread (ft)').fill('20');
+  await field(page, 'Width when grown (ft)').fill('20');
   await expect(trunk).toHaveAttribute('r', String(1 * FT)); // set by hand: stays
   // Not a tree after all (or a tree drawn before trunks): one switch.
   await page.getByTestId('is-tree').locator('input').uncheck();
@@ -142,7 +142,7 @@ test('a tree pruned into a shape: the trunk, then its outline', async ({ page })
   await page.getByTestId('unknown-tree').click();
   await bar(page).locator('[data-method=canopy]').click();
   await tapFt(page, 10, 10); // trunk
-  await expect(banner(page)).toHaveText(tapping('Existing tree: Tap around the edge of the canopy', true));
+  await expect(banner(page)).toHaveText(tapping('Existing Tree: Tap around the edge of the canopy', true));
   await tapFt(page, 6, 8); await tapFt(page, 14, 8); await tapFt(page, 14, 13); await tapFt(page, 6, 13);
   await tapFt(page, 6, 8); // back on the first edge point: done
   await expect(bar(page)).toHaveCount(0);
@@ -151,8 +151,8 @@ test('a tree pruned into a shape: the trunk, then its outline', async ({ page })
   await expect(page.locator('#canvas-svg [data-role=trunk]')).toHaveCount(1);
   await page.locator('.sel-pill .edit').click(); await openSections(page);
   // Its widest reach from the trunk: 5 ft (to the far corners) → 10 ft.
-  await expect(field(page, 'Spread, widest (ft)')).toHaveValue('10');
-  await field(page, 'Spread, widest (ft)').fill('20'); // grows about the trunk
+  await expect(field(page, 'Width when grown, widest (ft)')).toHaveValue('10');
+  await field(page, 'Width when grown, widest (ft)').fill('20'); // grows about the trunk
   await expect(outline).toHaveAttribute('points', `${2 * FT},${6 * FT} ${18 * FT},${6 * FT} ${18 * FT},${16 * FT} ${2 * FT},${16 * FT}`);
   await closeSheet(page);
   await page.locator('.sel-pill .edit').click();
@@ -168,8 +168,8 @@ test('sun exposure and notes open their properties; others stay closed', async (
   await openFresh(page);
   await addKind(page, 'sun', 'circle');
   await tapFt(page, 10, 10); await tapFt(page, 14, 10);
-  await expect(page.locator('.sheet-header .title')).toHaveText('Sun exposure');
-  await expect(page.getByTestId('what-it-is')).toContainText('Sun exposure');
+  await expect(page.locator('.sheet-header .title')).toHaveText('Sun Exposure');
+  await expect(page.getByTestId('what-it-is')).toContainText('Sun Exposure');
   await closeSheet(page);
   await addKind(page, 'note');
   await tapFt(page, 4, 4);

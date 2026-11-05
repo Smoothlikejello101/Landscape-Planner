@@ -390,12 +390,12 @@ test('Compare\'s table over the picker as before, and its ← back to the picker
   const search = page.getByTestId('plant-search');
   await search.fill('Butterfly milkweed');
   if (isMobile) await search.press('Enter');
-  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly milkweed$/ }) }).first();
+  const item = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Butterfly Milkweed$/ }) }).first();
   await item.getByTestId('plant-row').click();
   await item.getByTestId('compare-toggle').click();
   await search.fill('Wild columbine');
   if (isMobile) await search.press('Enter');
-  const second = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Wild columbine$/ }) }).first();
+  const second = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Wild Columbine$/ }) }).first();
   await second.getByTestId('plant-row').click();
   await second.getByTestId('compare-toggle').click();
   const before = (await sheet(page).boundingBox())!;

@@ -14,12 +14,34 @@ import { loadWild } from '../wild';
 
 /** The sheet it was opened from (the plant picker's "Hardy in your zone"): back there when done. */
 let returnTo: PanelName | null = null;
-export function openLocation(from: PanelName | null = null) {
+/**
+ * Its two folds, open or not while it's up: how the ZIP is used (open when it was opened to say so: the first screen's
+ * Privacy), and the sources.
+ */
+const folds = { privacy: false, sources: false };
+export function openLocation(from: PanelName | null = null, opts: { privacy?: boolean } = {}) {
   returnTo = from;
   problems.sheet = '';
+  folds.privacy = !!opts.privacy;
+  folds.sources = false;
   state.panel = 'location';
   render();
 }
+/**
+ * A line that opens to what it folds away (a fold kept open or shut across a redraw of the sheet, by `key`).
+ */
+function fold(key: keyof typeof folds, head: string, testid: string, ...body: HTMLElement[]): HTMLElement {
+  const inner = el('div', { className: 'sheet-fold-body', id: `${testid}-body`, hidden: !folds[key] }, ...body);
+  const b = el('button', { type: 'button', className: 'sheet-fold-head', 'aria-expanded': String(folds[key]), 'aria-controls': `${testid}-body`, 'data-testid': `${testid}-head` },
+    el('span', { className: 'fold-chev', html: CHEVRON }), el('span', {}, head));
+  b.addEventListener('click', () => {
+    folds[key] = !folds[key];
+    inner.hidden = !folds[key];
+    b.setAttribute('aria-expanded', String(folds[key]));
+  });
+  return el('div', { className: 'sheet-fold', 'data-testid': testid }, b, inner);
+}
+const CHEVRON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
 
 let busy = false;
 /**
@@ -95,12 +117,10 @@ export function renderLocationPanel(): HTMLElement {
   const body = el('div', { className: 'sheet-body', 'data-testid': 'location' });
 
   const { input, go, problem: said } = zipEntry('sheet');
+  // The ZIP and what it's for first; how it's used and the sources under the lookup, folded (Jason, Nov 4, from the
+  // beta testers: "it doesn't need to be 4 lines (twice as long as the explanation of what we actually use it for)
+  // above the zip look-up box. Move it underneath and collapse it").
   body.appendChild(el('div', { className: 'hint' }, 'The garden’s ZIP code gives its USDA hardiness zone, typical frost dates and the state’s plant laws.'));
-  // What happens to it, for anyone wary of giving it (the first screen's Privacy opens this: Jason, Nov 1). Said as it
-  // is: it's kept with the plan, so it goes where the plan goes (to the account, signed in; into backups).
-  body.appendChild(el('div', { className: 'hint location-privacy', 'data-testid': 'zip-privacy-note' },
-    el('b', {}, 'Privacy. '),
-    'Looking it up fetches only its first three digits, from a table on this app’s own site. The ZIP is kept with this plan: on this device, in backups and plan files you save, and, if you sign in to sync, in your account with the rest of the plan. Once it’s set, you can remove it here.'));
   body.appendChild(el('div', { className: 'row-2', style: { alignItems: 'end' } }, el('div', { className: 'field' }, el('label', {}, 'ZIP code'), input), go));
   if (said) body.appendChild(said);
 
@@ -145,10 +165,15 @@ export function renderLocationPanel(): HTMLElement {
     clear.addEventListener('click', () => { setLocation(null); typed = ''; render(); });
     body.appendChild(clear);
   }
-  // The sources, as their terms ask: name, address and when the data was taken.
-  body.appendChild(el('div', { className: 'location-sources', 'data-testid': 'location-sources' },
-    el('b', {}, 'Sources. '),
-    `Zones: ${ZONE_SOURCE}, accessed ${loc?.accessed ?? CLIMATE_ACCESSED}. Frost dates: ${FROST_SOURCE}. ZIP areas: U.S. Census Bureau Gazetteer.`));
+  // What happens to it, for anyone wary of giving it (the first screen's Privacy opens this, open: Jason, Nov 1 and 4).
+  // Said as it is: it's kept with the plan, so it goes where the plan goes (to the account, signed in; into backups).
+  const folded = el('div', { className: 'location-folds' },
+    fold('privacy', 'How your ZIP is used', 'zip-privacy', el('div', { className: 'hint location-privacy', 'data-testid': 'zip-privacy-note' },
+      'Looking it up fetches only its first three digits, from a table on this app’s own site. The ZIP is kept with this plan: on this device, in backups and plan files you save, and, if you sign in to sync, in your account with the rest of the plan. Once it’s set, you can remove it here.')),
+    // The sources, as their terms ask (name, address and when the data was taken), a line that opens to them.
+    fold('sources', 'Sources: USDA, NOAA, U.S. Census Bureau', 'location-sources-fold', el('div', { className: 'location-sources', 'data-testid': 'location-sources' },
+      `Zones: ${ZONE_SOURCE}, accessed ${loc?.accessed ?? CLIMATE_ACCESSED}. Frost dates: ${FROST_SOURCE}. ZIP areas: U.S. Census Bureau Gazetteer.`)));
+  body.appendChild(folded);
 
   const sheet = el('div', { className: 'sheet' }, header, body);
   const overlay = el('div', { className: 'overlay' }, sheet);
