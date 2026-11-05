@@ -893,8 +893,12 @@ const boxAt = (p: Point, w: number, h: number, ppf: number): LabelBox => ({ x0: 
  * Where a run's name goes (feet), a name `w` × `h` px at `ppf`: the first spot clear of the names already placed, and of
  * `plants` (other plants' circles, feet: those drawn over the run, Jason, Nov 4). Its middle; then on each of its plants,
  * the nearest the middle first; then beside the plant at its middle, across the run first (a column's name to its left or
- * right, a row's above or below). Null: nowhere clear. (Jason, Oct 30: a
- * 1.5 ft bed's name, at the middle of the column of liriope planted along it, left all twelve unnamed.)
+ * right, a row's above or below); then just past the run's two ends. (Jason, Oct 30: a 1.5 ft bed's name, at the middle
+ * of the column of liriope planted along it, left all twelve unnamed.)
+ * None clear of the plants too: the first clear of the names alone, over a plant (drawn over it, with its halo). Zoomed
+ * out, the name is longer in feet while the plants stay put, and every spot reached into some plant (two pears' crowns
+ * beside Jason's liriope, from 60%): the run's plants were then named one by one, a stack of "Creeping liriope" (Jason,
+ * Nov 4, his note 4). Null: no spot clear of the names.
  */
 export function runLabelSpot(run: CircleShape[], w: number, h: number, ppf: number, placed: LabelBox[], plants: { x: number; y: number; r: number }[] = []): Point | null {
   const mid = { x: run.reduce((n, s) => n + s.x, 0) / run.length, y: run.reduce((n, s) => n + s.y, 0) / run.length };
@@ -904,14 +908,19 @@ export function runLabelSpot(run: CircleShape[], w: number, h: number, ppf: numb
   const column = Math.max(...ys) - Math.min(...ys) > Math.max(...xs) - Math.min(...xs);
   const dx = c.radius + (w / 2 + 4) / ppf, dy = c.radius + (h / 2 + 2) / ppf;
   const sides = [{ x: c.x - dx, y: c.y }, { x: c.x + dx, y: c.y }], ends = [{ x: c.x, y: c.y - dy }, { x: c.x, y: c.y + dy }];
-  const spots = [mid, ...near.map((s) => ({ x: s.x, y: s.y })), ...(column ? [...sides, ...ends] : [...ends, ...sides])];
+  // (Past its ends: above its top plant and below its bottom one, a column's; left of a row's first, right of its last.)
+  const first = run.reduce((a, s) => (column ? s.y < a.y : s.x < a.x) ? s : a), last = run.reduce((a, s) => (column ? s.y > a.y : s.x > a.x) ? s : a);
+  const past = column ? [{ x: first.x, y: first.y - first.radius - (h / 2 + 2) / ppf }, { x: last.x, y: last.y + last.radius + (h / 2 + 2) / ppf }]
+    : [{ x: first.x - first.radius - (w / 2 + 4) / ppf, y: first.y }, { x: last.x + last.radius + (w / 2 + 4) / ppf, y: last.y }];
+  const spots = [mid, ...near.map((s) => ({ x: s.x, y: s.y })), ...(column ? [...sides, ...ends] : [...ends, ...sides]), ...past];
   // (Clear of other plants too, not over one or under it: Jason, Nov 4. A rim grazed is fine.)
   const onPlant = (b: LabelBox) => plants.some((c) => {
     const cx = c.x * ppf, cy = c.y * ppf, r = c.r * ppf * RUN_CLEAR;
     const nx = Math.max(b.x0, Math.min(b.x1, cx)), ny = Math.max(b.y0, Math.min(b.y1, cy));
     return Math.hypot(nx - cx, ny - cy) < r;
   });
-  return spots.find((p) => { const b = boxAt(p, w, h, ppf); return !placed.some((q) => overlaps(q, b)) && !onPlant(b); }) ?? null;
+  const clear = spots.filter((p) => { const b = boxAt(p, w, h, ppf); return !placed.some((q) => overlaps(q, b)); });
+  return clear.find((p) => !onPlant(boxAt(p, w, h, ppf))) ?? clear[0] ?? null;
 }
 /** How much of another plant's circle a run's name keeps off: all but its outer tenth. */
 const RUN_CLEAR = 0.9;
@@ -1070,7 +1079,9 @@ function refreshLabelLayout() {
   hiddenFits.sort((a, b) => Number(selectedNow(b.s)) - Number(selectedNow(a.s)));
   for (const { s, box } of hiddenFits) if (!tryHidden(s, box)) hiddenUnnamed.add(s.id);
   // Runs of the same plant: one name each, first (a run is named where a lone plant might not be): at its middle, or
-  // the nearest spot clear of other names (runLabelSpot). Nowhere clear, its plants are named as lone ones are.
+  // the nearest spot clear of other names (runLabelSpot). Nowhere clear, none, till zoomed in: never its plants named
+  // one by one, a stack of the same name (Jason, Nov 4, his note 4: back below 54%, where no spot was clear of the
+  // plants around and the run fell back to that). Down to where plants' names go (plantNamesShown).
   const inRun = new Set<string>();
   // (A run's name keeps off the plants drawn over its own, not under them: Jason, Nov 4. Not a canopy drawn see-through
   // over the run's middle, which the run is under and its name can't keep off; nor a plant hidden under a solid one.)
@@ -1084,8 +1095,8 @@ function refreshLabelLayout() {
     const over = plantCircles.filter((o) => !mine.has(o.id) && (drawnAt.get(o.id) ?? -1) > from
       && !(seeThrough.has(o.id) && Math.hypot(o.x - mx, o.y - my) < drawnRadius(o))).map((o) => ({ x: o.x, y: o.y, r: drawnRadius(o) }));
     const at = runLabelSpot(run, w, h, ppf, placed, over);
-    if (!at) continue;
     for (const s of run) inRun.add(s.id);
+    if (!at) continue;
     placed.push(boxAt(at, w, h, ppf));
     // (Drawn with the plant nearest its spot, which every redraw of the run's plants keeps in step.)
     const anchor = run.reduce((best, s) => (Math.hypot(s.x - at.x, s.y - at.y) < Math.hypot(best.x - at.x, best.y - at.y) ? s : best));
