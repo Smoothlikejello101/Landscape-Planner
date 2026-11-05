@@ -263,6 +263,8 @@ function winterRow(p: Plant): HTMLElement | null {
   }
   return dd;
 }
+/** The soils it grows in, as NC State lists their textures: "Clay, loam or sand"; "Loam". Empty for none. */
+export const soilText = (t?: string[]): string => cap(orList(t ?? []));
 /** "Yes: gold, red"; "No"; or, with colors and no yes or no, the colors. */
 export const fallText = (p: Plant): string => {
   const colors = p.fall_colors?.length ? p.fall_colors.join(', ') : '';
@@ -319,6 +321,8 @@ function rows(p: Plant): Row[] {
     ['Bark', barkText(p), ['bark', 'bark_color']],
     ['Fall color', fallText(p), ['fall_color', 'fall_colors']],
     ['Growth rate', p.growth_rate ? cap(p.growth_rate) : '', ['growth_rate']],
+    // (The soil textures NC State lists it for: "Clay, loam or sand". Beside it, Takes clay as before.)
+    ['Soil', soilText(p.soil_texture), ['soil_texture']],
     ['Takes clay', yes(p.clay_ok), ['clay_ok']],
     ['Takes wet soil', yes(p.wet_feet), ['wet_feet']],
     ['Takes dry shade', yes(p.dry_shade), ['dry_shade']],
@@ -512,7 +516,7 @@ export const DETAIL_GROUPS: { id: string; title: string; labels: string[] }[] = 
   { id: 'looks', title: 'Flowers and leaves', labels: ['Flower color', 'Leaf colors', 'Leafs out', 'Fall color', 'In winter', 'Bark'] },
   { id: 'wildlife', title: 'Wildlife', labels: ['Native', 'Nectar for pollinators', 'For birds', 'Attracts', 'Caterpillar host', 'Bred from a native'] },
   { id: 'safety', title: 'Safety', labels: ['Toxic to people', 'Toxicity', 'Edible', 'Thorns'] },
-  { id: 'growing', title: 'Growing', labels: ['Spacing', 'Fruiting', 'Deer', 'Tolerates', 'Growth rate', 'Takes clay', 'Takes wet soil', 'Takes dry shade', 'How it spreads', 'Maintenance',
+  { id: 'growing', title: 'Growing', labels: ['Spacing', 'Fruiting', 'Deer', 'Tolerates', 'Growth rate', 'Soil', 'Takes clay', 'Takes wet soil', 'Takes dry shade', 'How it spreads', 'Maintenance',
     'Taproot (hard to move)', 'Humidity', 'How it grows', 'Trunk'] },
 ];
 /** The groups opened while the picker is open (Jason: they stay open until it closes, then fold again). */

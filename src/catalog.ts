@@ -113,7 +113,7 @@ export interface Provenance {
  */
 export const INHERITED = new Set([
   'form', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'humidity', 'tox', 'poison', 'dog', 'thorns', 'foliage', 'winter_leaves', 'needles',
-  'poison_parents', 'native', 'native_na', 'botanical_synonyms', 'host', 'hosts', 'host_genus', 'nectar', 'bird', 'deer', 'edible', 'edible_parts', 'fruit_set', 'clay_ok', 'wet_feet', 'dry_shade', 'taproot', 'wild_us', 'bloom_season',
+  'poison_parents', 'native', 'native_na', 'botanical_synonyms', 'host', 'hosts', 'host_genus', 'nectar', 'bird', 'deer', 'edible', 'edible_parts', 'fruit_set', 'clay_ok', 'soil_texture', 'wet_feet', 'dry_shade', 'taproot', 'wild_us', 'bloom_season',
   'tolerates', 'problem_for', 'maintenance_level', 'bark', 'fruit_season', 'leaf_form', 'texture', 'climbs_by',
 ]);
 
@@ -226,6 +226,8 @@ export const LEAF_FORM = {
 } as const;
 /** How fine its leaves look from a distance; the plant's shape (NC State's "Habit/Form"). */
 export const TEXTURES = ['fine', 'medium', 'coarse'];
+/** The soil textures it grows in, NC State's "Soil Texture" (scripts/catalog/claims.mjs soilTextures), in this order. */
+export const SOIL_TEXTURES = ['clay', 'loam', 'sand'];
 export const HABIT_FORMS = ['erect', 'spreading', 'rounded', 'dense', 'clumping', 'multi-stemmed', 'mounding', 'arching', 'creeping', 'climbing', 'pyramidal', 'open',
   'horizontal', 'oval', 'prostrate', 'ascending', 'vase', 'columnar', 'cascading', 'broad', 'multi-trunked', 'irregular', 'weeping', 'conical'];
 /** How a vine climbs (NC State's "Climbing Method"). */
@@ -309,6 +311,8 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
     && Number.isInteger(v.species) && (v.species as number) > 0,
   edible: (v) => typeof v === 'boolean', fall_color: (v) => typeof v === 'boolean', winter_interest: (v) => typeof v === 'boolean',
   clay_ok: (v) => typeof v === 'boolean', wet_feet: (v) => typeof v === 'boolean', dry_shade: (v) => typeof v === 'boolean',
+  // The soil textures it grows in (NC State's "Soil Texture"): clay, loam, sand, each once.
+  soil_texture: wordsOf(SOIL_TEXTURES),
   taproot: (v) => typeof v === 'boolean',
   // A plant's degree in USGS's register of introduced plants reproducing in the wild in the lower 48, in its own terms
   // (US-RIIS: scripts/catalog/riis.mjs). Stated in its details; never a reason to hide it (that's the state's law).
@@ -441,6 +445,11 @@ export function catalogWarnings(file: CatalogFile): string[] {
     // what the naming rules put otherwise, docs/catalog-format.md "Names". Worded the same for each, so the review
     // lists them together. Jason, from the UI review, 2026-11-01.)
     if (/[()]/.test(r.botanical ?? '')) out.push(`${r.id}: parentheses in its botanical name: a cultivar is quoted; a seed strain or ecotype is named "Common name (strain)"`);
+    // (Clay OK only by the earlier list, where NC State's soil textures leave clay out: the two side by side in its
+    // details would disagree. For a person to look at; Clay OK stays as it is meanwhile.)
+    const soil = v('soil_texture') as string[] | undefined, clay = factOf(r, 'clay_ok');
+    if (Array.isArray(soil) && soil.length && !soil.includes('clay') && clay?.v === true && clay.prov.src.length > 0
+      && clay.prov.src.every((s) => file.meta.sources[s]?.trust === 'unverified')) out.push(`${r.id}: Clay OK only by the earlier list, and NC State's soil textures leave out clay`);
     if (!v('width') && !(r.inherits?.includes('width') && r.parent && byIdW.get(r.parent) && factOf(byIdW.get(r.parent)!, 'width'))) out.push(`${r.id}: no spread`);
   }
   return out;

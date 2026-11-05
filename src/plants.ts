@@ -127,6 +127,8 @@ export interface Plant {
   fruit_color?: string[];
   fruit_season?: string[];
   clay_ok?: boolean;
+  /** The soil textures it grows in, as NC State lists them: clay, loam, sand (src/catalog.ts SOIL_TEXTURES). */
+  soil_texture?: string[];
   wet_feet?: boolean;
   dry_shade?: boolean;
   taproot?: boolean;
@@ -255,6 +257,12 @@ export const PLANT_FILTER_DEFAULTS = {
    * Nov 2, answer D); not one rated otherwise. Set only by a bed the picker plants for; the person's own is `clayOk`.
    */
   clayBed: false,
+  /**
+   * A loam or sandy bed ('loam', 'sand'): plants NC State rates for that soil texture, and plants no source rates for
+   * soil texture (below a divider, as for clay: noSoilRating); not one rated only for other textures (Jason, Nov 4). Set
+   * only by a bed the picker plants for.
+   */
+  soilBed: '' as '' | 'loam' | 'sand',
   /** Blooming in: a month ('1' to '12') or a season ('spring', 'summer', 'fall', 'winter'): src/plants.ts bloomMatch. */
   bloomMonth: '',
   /** '' any; '@here' native to the garden's state (Kew's checklist); '@na' native to North America (the earlier list's word). */
@@ -563,6 +571,8 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   // (A bed's sun: some of it, Jason's answer A. A bed's clay: rated Clay OK, or not rated at all, answer D.)
   if (f.sunRange && !sunFit(p, f.sunRange)) return false;
   if (f.clayBed && p.clay_ok === false) return false;
+  // (A loam or sandy bed: rated for it, or not rated for soil texture at all; not one rated only for other textures.)
+  if (f.soilBed && p.soil_texture?.length && !p.soil_texture.includes(f.soilBed)) return false;
   if (f.afternoonSun && p.sun_most !== 'Full') return false;
   // ("@here": native to the garden's state, by Kew's checklist; until its state is known, no filter. "@na": native to
   // North America, the earlier list's word, its regional and local-ecotype natives included.)
@@ -741,7 +751,7 @@ const FILTER_READS: [keyof PlantFilter, (p: Plant, f: PlantFilter) => string[], 
   ['bloomMonth', (p, f) => (bloomMatch(p, f.bloomMonth) === 'earlier' ? ['bloom'] : []), 'bloom time'], ['native', (_p, f) => (f.native === '@here' ? [] : ['native']), 'native status'],
   ['deerResistant', () => ['deer'], 'deer resistance'], ['spread', () => ['self_seed', 'habit'], 'how it spreads'], ['height', () => ['height'], 'height'],
   ['width', () => ['width'], 'width'],
-  ['wetFeet', () => ['wet_feet'], 'wet soil'], ['clayOk', () => ['clay_ok'], 'clay'], ['clayBed', () => ['clay_ok'], 'clay'],
+  ['wetFeet', () => ['wet_feet'], 'wet soil'], ['clayOk', () => ['clay_ok'], 'clay'], ['clayBed', () => ['clay_ok'], 'clay'], ['soilBed', () => ['soil_texture'], 'soil'],
   ['hostOnly', (p) => (hostPlant(p) === 'earlier' ? ['host'] : []), 'host plant'], ['fallColor', () => ['fall_color'], 'fall color'], ['evergreen', () => ['foliage'], 'evergreen'],
   ['winterInterest', () => ['winter_interest'], 'winter interest'], ['edible', () => ['edible'], 'edible'],
   ['hardyHere', () => ['zone_min', 'zone_max'], 'hardiness zones'],
@@ -872,8 +882,11 @@ export const earlierFor = new Map<string, string[]>();
 export const comesIn = new Map<string, string[]>();
 /** Plants in the last list that bloom in the month asked for by their season, not by months ("by season"). */
 export const bySeason = new Set<string>();
-/** Plants in the last list for a clay bed (`clayBed`) that no source rates for clay: listed below a divider. */
-export const noClayRating = new Set<string>();
+/**
+ * Plants in the last list for a bed's soil that no source rates for it, listed below a divider: for a clay bed
+ * (`clayBed`), those not rated for clay; for a loam or sandy one (`soilBed`), those with no soil texture rated.
+ */
+export const noSoilRating = new Set<string>();
 /**
  * A bed's sun as `sunRange` keeps it, in words, shadiest first as its hours go, low to high: "part shade to full sun",
  * "full sun". Empty for none.
@@ -907,7 +920,7 @@ export function filteredPlants(near = true): Plant[] {
   // (The search first, so the filters, and any near spellings, are worked out only for plants it found.)
   const found = q ? PLANTS.flatMap((plant) => { const hit = matchPlant(plant, q, near); return hit ? [{ plant, hit }] : []; })
     : PLANTS.map((plant) => ({ plant, hit: { rank: 0, order: 0 } }));
-  earlierFor.clear(); comesIn.clear(); bySeason.clear(); noClayRating.clear();
+  earlierFor.clear(); comesIn.clear(); bySeason.clear(); noSoilRating.clear();
   const month = /^\d+$/.test(plantFilter.bloomMonth);
   const out = found.filter(({ plant }) => {
     const m = reportedMatch(plant, plantFilter, inPlan);
@@ -917,8 +930,9 @@ export function filteredPlants(near = true): Plant[] {
       // (A species that comes in several colors, one of them asked for; a month met only by its season.)
       if (plantFilter.flowerColors.length && !trueToColor(plant)) comesIn.set(plant.id, showyColors(plant).filter((c) => plantFilter.flowerColors.includes(c)));
       if (month && bloomMatch(plant, plantFilter.bloomMonth) === 'season') bySeason.add(plant.id);
-      // (A clay bed: one no source rates for clay, below its divider.)
-      if (plantFilter.clayBed && plant.clay_ok == null) noClayRating.add(plant.id);
+      // (A clay bed: one no source rates for clay, below its divider; a loam or sandy bed: one with no soil texture rated.)
+      if (plantFilter.clayBed && plant.clay_ok == null) noSoilRating.add(plant.id);
+      if (plantFilter.soilBed && !plant.soil_texture?.length) noSoilRating.add(plant.id);
     }
     return m !== null;
   });

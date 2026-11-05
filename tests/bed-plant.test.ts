@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { bedAt, bedChips, bedFilter, bedName, bedRules, bedsToPlant, spotsIn, sunOverBed, withFilters, type BedRules } from '../src/bed-plant';
-import { filteredPlants, noClayRating, pickerCount, PLANT_FILTER_DEFAULTS, plantFilter, plantMatches, reportedMatch, reportedPhrase, sunFit, sunRangeOf, sunRangeSaid, waterWanted, type Plant, type PlantFilter } from '../src/plants';
+import { bedAt, bedChips, bedFilter, bedName, bedRules, bedsToPlant, partName, spotsIn, sunOverBed, withFilters, type BedRules } from '../src/bed-plant';
+import { filteredPlants, noSoilRating, pickerCount, PLANT_FILTER_DEFAULTS, plantFilter, plantMatches, reportedMatch, reportedPhrase, sunFit, sunRangeOf, sunRangeSaid, waterWanted, type Plant, type PlantFilter } from '../src/plants';
 import type { Shape, SunInfo } from '../src/types';
 
 // Plant this bed (Jason, Nov 2, his answers to the proposal): what a bed's conditions filter on, exactly as the brief
@@ -64,16 +64,61 @@ describe('a bed\'s soil: clay', () => {
     plants.PLANTS.splice(0, plants.PLANTS.length, ok, unrated, poor);
     const out = withFilters(bedFilter(rules({ soil: 'clay' })), () => filteredPlants());
     expect(out.map((p) => p.common)).toEqual(['Aster', 'Oakleaf hydrangea']);
-    expect([...noClayRating]).toEqual(['Oakleaf hydrangea']);
+    expect([...noSoilRating]).toEqual(['Oakleaf hydrangea']);
     // (The person's own filters as they were after.)
     expect(plantFilter.clayBed).toBe(false);
     plants.PLANTS.splice(0, plants.PLANTS.length);
   });
-  it('loam, sandy and Not sure filter nothing (the catalog keeps no loam or sand fact yet)', () => {
-    for (const soil of ['loam', 'sand', 'unsure'] as const) {
-      expect([ok, unrated, poor].every((p) => fits(p, rules({ soil })))).toBe(true);
-      expect(bedChips(rules({ soil }))).toEqual([]);
-    }
+  it('Not sure filters nothing', () => {
+    expect([ok, unrated, poor].every((p) => fits(p, rules({ soil: 'unsure' })))).toBe(true);
+    expect(bedChips(rules({ soil: 'unsure' }))).toEqual([]);
+    expect(bedFilter(rules({ soil: 'unsure' }))).toMatchObject({ clayBed: false, soilBed: '' });
+  });
+  it('clay goes by Clay OK alone, as before, whatever soil textures a plant is rated for', () => {
+    const loamOnly = plant({ common: 'Bluestem', soil_texture: ['loam', 'sand'] });
+    expect(fits(loamOnly, rules({ soil: 'clay' }))).toBe(true); // (no Clay OK rating: below the divider, as before)
+    expect(fits(plant({ common: 'Lavender', clay_ok: false, soil_texture: ['clay'] }), rules({ soil: 'clay' }))).toBe(false);
+    expect(bedFilter(rules({ soil: 'clay' })).soilBed).toBe('');
+  });
+});
+
+describe('a bed\'s soil: loam and sandy, by the soil textures NC State rates (Jason, Nov 4)', () => {
+  const all = plant({ common: 'Redbud', soil_texture: ['clay', 'loam', 'sand'] });
+  const loamy = plant({ common: 'Bee balm', soil_texture: ['loam'] });
+  const sandy = plant({ common: 'Prickly pear', soil_texture: ['sand'] });
+  const clayOnly = plant({ common: 'Swamp milkweed', soil_texture: ['clay'], clay_ok: true });
+  const unrated = plant({ common: 'Oakleaf hydrangea' });
+  const four = [all, loamy, sandy, clayOnly, unrated];
+  const pass = (soil: 'loam' | 'sand') => four.filter((p) => fits(p, rules({ soil }))).map((p) => p.common);
+  it('lists plants rated for that texture, and those rated for none; not one rated only for others', () => {
+    expect(pass('loam')).toEqual(['Redbud', 'Bee balm', 'Oakleaf hydrangea']);
+    expect(pass('sand')).toEqual(['Redbud', 'Prickly pear', 'Oakleaf hydrangea']);
+    expect(bedFilter(rules({ soil: 'loam' }))).toMatchObject({ soilBed: 'loam', clayBed: false, clayOk: false });
+    expect(bedFilter(rules({ soil: 'sand' }))).toMatchObject({ soilBed: 'sand', clayBed: false });
+  });
+  it('marks those rated for no texture for the divider, in the list the picker draws, and puts the filters back', async () => {
+    const plants = await import('../src/plants');
+    plants.PLANTS.splice(0, plants.PLANTS.length, ...four);
+    const out = withFilters(bedFilter(rules({ soil: 'sand' })), () => filteredPlants());
+    expect(out.map((p) => p.common)).toEqual(['Oakleaf hydrangea', 'Prickly pear', 'Redbud']);
+    expect([...noSoilRating]).toEqual(['Oakleaf hydrangea']);
+    expect(plantFilter.soilBed).toBe('');
+    // (Anywhere again: no divider.)
+    filteredPlants();
+    expect(noSoilRating.size).toBe(0);
+    plants.PLANTS.splice(0, plants.PLANTS.length);
+  });
+  it('a soil taken off for now (its ×) filters nothing', () => {
+    expect(bedFilter(rules({ soil: 'loam' }), new Set(['soil']))).toMatchObject({ soilBed: '', clayBed: false });
+    expect(four.every((p) => plantMatches(p, f(bedFilter(rules({ soil: 'sand' }), new Set(['soil'])))))).toBe(true);
+  });
+  it('says each in a chip, and by name where it hid a search\'s plants', () => {
+    expect(bedChips(rules({ soil: 'loam' })).map((c) => c.text)).toEqual(['Loam OK']);
+    expect(bedChips(rules({ soil: 'sand', moisture: 'dry' })).map((c) => c.text)).toEqual(['Sandy soil OK', 'Drought tolerant']);
+    expect(partName('soil', rules({ soil: 'loam' }))).toBe('Loam');
+    expect(partName('soil', rules({ soil: 'sand' }))).toBe('Sandy soil');
+    expect(partName('soil', rules({ soil: 'clay' }))).toBe('Clay');
+    expect(partName('moisture', rules({ soil: 'sand' }))).toBe('Moisture');
   });
 });
 
@@ -125,7 +170,7 @@ describe('a bed\'s layer over the person\'s filters', () => {
   });
   it('a part taken off (its × in the picker) filters nothing', () => {
     const r = rules({ sun: ['Full', 'Part'], soil: 'clay', moisture: 'dry' });
-    expect(bedFilter(r, new Set(['soil', 'moisture']))).toMatchObject({ sunRange: 'Full-Part', clayBed: false, drought: false });
+    expect(bedFilter(r, new Set(['soil', 'moisture']))).toMatchObject({ sunRange: 'Full-Part', clayBed: false, soilBed: '', drought: false });
     expect(bedFilter(r, new Set(['sun']))).toMatchObject({ sunRange: '', clayBed: true, drought: true });
   });
   it('puts the filters back as they were after, even when what it ran throws', () => {

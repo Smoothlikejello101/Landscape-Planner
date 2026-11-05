@@ -172,6 +172,7 @@ page for it, and NC State's page for the species as its own.
 | `flower_form` | what its flowers look like, as NC State's fields give them (a plant's own page for a cultivar): `{ inflorescence?, shape?, petals?, size? }`, each a list of the catalog's words for NC State's (src/catalog.ts `FLOWER_FORM`): how they're borne (raceme, panicle, cyme, solitary, head, spike, umbel, corymb, catkin, spadix, insignificant), their shape (tubular, cup, star, bell…), their petals (`4-5`, `7-20`, `20+`, bracts, fused…) and their size in inches (`<1`, `1-3`, `3-6`, `>6`). For drawing each plant's flowers its own way (Jason, 2026-10-29). Not for a plant with no flowers (a conifer's cones) |
 | `leaf_form` | what its leaves look like, as NC State's fields give them: `{ type?, shape?, arrangement?, margin?, length? }` (src/catalog.ts `LEAF_FORM`): simple, compound, needles, sheath or fronds; its shapes (ovate, lanceolate, linear…); alternate, opposite, rosulate or whorled; its edge (entire, serrate, lobed…); its length in inches. A cultivar takes its species' |
 | `texture` | how fine its leaves look from a distance: `fine`, `medium`, `coarse` (NC State's "Texture"). A cultivar takes its species' |
+| `soil_texture` | the soils it grows in, as NC State's "Soil Texture" lists them, each once, in this order: `clay`, `loam`, `sand` ("Loam (Silt)" is `loam`). "High Organic Matter" and "Shallow Rocky" aren't kept: they say what's in the soil or how deep it is, not which of the three it is, so a plant whose field names only those has none (docs/catalog-sources.md). A bed's Loam and Sandy filter by it, as Clay does by `clay_ok`, which stays as it was (Jason, 2026-11-04). A cultivar takes its species' |
 | `habit_form` | its shape, as NC State's "Habit/Form" lists it: erect, spreading, rounded, mounding, arching, weeping, columnar, vase… (src/catalog.ts `HABIT_FORMS`). A cultivar's from a page for it |
 | `climbs_by` | how a vine climbs, NC State's "Climbing Method": `twining`, `tendrils`, `clinging`, `scrambler`. For drawing a vine on what it climbs (Jason, 2026-10-29). A cultivar takes its species' |
 | `thorns` | true for thorns, spines or prickles: NC State's stem "Appendage" (Prickles, Spines, Thorns) or its "Spines/Thorns" problem. Never on a plant named thornless (honeylocust var. inermis): that goes to the review |
@@ -216,4 +217,6 @@ a value of the wrong type or outside its enum.
 `npm run catalog:check` (scripts/catalog/check.ts) lists the softer problems
 for the audit to look at: sizes implausible for the form, zones backwards, a
 cultivar with no species in the catalog, a cultivar whose botanical name
-doesn't name it, a botanical name with parentheses ("Names", above).
+doesn't name it, a botanical name with parentheses ("Names", above), and
+Clay OK only by the earlier list where NC State's soil textures leave out
+clay (the two would disagree in its details).
