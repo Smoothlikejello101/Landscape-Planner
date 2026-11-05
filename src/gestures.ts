@@ -114,8 +114,12 @@ export function onCanvasPointerDown(e: PointerEvent) {
   // A handle on the selected shape: resize it, or turn it.
   const shapeHandle = target.closest?.('[data-role="shape-resize"],[data-role="shape-rotate"]') as SVGElement | null;
   if (shapeHandle) {
+    // (A step still being gathered, typing in a field a moment ago, is in first: the drag notes where history is after
+    // it. Noted before, the step went in under the drag, which took it for an Undo and ended at once: a handle pressed
+    // within 0.6 s of typing did nothing.)
+    flushHistoryDebounce();
     const g = startHandleDrag(shapeHandle.dataset.handle as HandleKind, screenToFeet(e.clientX, e.clientY), e.clientX, e.clientY, state.shapes);
-    if (g) { flushHistoryDebounce(); gesture.current = g; }
+    if (g) gesture.current = g;
     return;
   }
   if (!isCanvas && !isBgBody && !isBgRot && !handle) return;

@@ -59,6 +59,36 @@ test('resize a bed by its corner, turn it by its knob, and undo each', async ({ 
   await expect(field(page, 'Width (ft)')).toHaveValue('8');
 });
 
+test('a corner pressed straight after typing a width drags it (it did nothing for 0.6 s: the typing\'s step went in under the drag)', async ({ page }) => {
+  await openFresh(page);
+  await addKind(page, 'bed', 'rect');
+  for (const [x, y] of [[-4, -3], [4, -3], [0, 2]]) await tapFromCenter(page, x, y); // an 8 × 5 ft bed
+  const k = await ppf(page);
+  await editSelected(page);
+  await field(page, 'Width (ft)').fill('9');
+  // At once, while the typing's undo step is still being gathered (src/history.ts pushHistoryDebounced): 2 ft right.
+  const typedAt = Date.now();
+  await closeSheet(page);
+  const br = await middleOf(page, 'br');
+  await page.mouse.move(br.x, br.y);
+  await page.mouse.down();
+  expect(Date.now() - typedAt).toBeLessThan(600); // (else this proves nothing: the step would be in already)
+  await page.mouse.move(br.x + 2 * k, br.y, { steps: 6 });
+  await expect(page.locator('#canvas-svg [data-role=handle-readout]')).toHaveText('11 × 5 ft');
+  await page.mouse.up();
+  await editSelected(page);
+  await expect(field(page, 'Width (ft)')).toHaveValue('11');
+  await closeSheet(page);
+  // Two steps, the drag and the typing, each undone in turn.
+  await page.locator('button[title=Undo]').click();
+  await editSelected(page);
+  await expect(field(page, 'Width (ft)')).toHaveValue('9');
+  await closeSheet(page);
+  await page.locator('button[title=Undo]').click();
+  await editSelected(page);
+  await expect(field(page, 'Width (ft)')).toHaveValue('8');
+});
+
 test("a circle's edge sizes it; a plant or a locked shape shows no handles", async ({ page }) => {
   await openFresh(page);
   await addPlainShape(page, 'circle'); // 4 ft across
