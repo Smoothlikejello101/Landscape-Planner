@@ -446,6 +446,26 @@ function pickNotThere(here: ProjectContent, there: ProjectContent): boolean {
   return isObject(here.print) && 'under' in here.print && isObject(there.print) && !('under' in there.print);
 }
 /**
+ * Whether `here` has a mark of something taken away on purpose, a bed's conditions cleared ({}) or a fruit-partner
+ * warning shown again (''), where `there`'s copy of that shape says nothing of that field at all. The fingerprints read
+ * either as none, but a server's copy without the field isn't one that has the mark: a device still holding the answers
+ * or the dismissal, from before an older version dropped them, would fill its own back in (withBedConditions,
+ * withFruitDismissals) and send it with its next edit, over the mark, everywhere (found Nov 5, as pickNotThere: the
+ * review's R1).
+ */
+function markNotThere(here: ProjectContent, there: ProjectContent): boolean {
+  if (!Array.isArray(here.shapes) || !Array.isArray(there.shapes)) return false;
+  type Marked = { id?: unknown; role?: unknown; conditions?: unknown; fruitDismissed?: unknown };
+  const theirs = new Map<unknown, Marked>();
+  for (const s of there.shapes as Marked[]) if (s && typeof s === 'object') theirs.set(s.id, s);
+  return (here.shapes as Marked[]).some((s) => {
+    const t = s && typeof s === 'object' ? theirs.get(s.id) : undefined;
+    if (!t) return false;
+    const cleared = s.role === 'bed' && isObject(s.conditions) && Object.keys(s.conditions).length === 0 && !('conditions' in t);
+    return cleared || (s.fruitDismissed === '' && !('fruitDismissed' in t));
+  });
+}
+/**
  * The sides of a shape typed as numbers (`measured`, Nov 4: src/measured.ts), which an older version drops from every
  * shape it sends, side by side: the server's copy's own entries stand, and one here for a side they don't name is kept
  * only where that side is provably the same side, and still the length typed (within MEASURED_TOL): a rectangle with
@@ -1002,7 +1022,7 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     // Whether the server already has the result: judged by what it sent, not with this device's parts filled in.
     const raw = local.normalize(serverName, sent);
     const samePlan = merged.name === raw.name && planHash(merged.name, merged.content) === planHash(raw.name, raw.content)
-      && !pickNotThere(merged.content, raw.content);
+      && !pickNotThere(merged.content, raw.content) && !markNotThere(merged.content, raw.content);
     const mergedPhoto = photoKey(merged.content) ?? 'none', rawPhoto = photoKey(raw.content) ?? 'none';
     if (samePlan && (mergedPhoto === rawPhoto || (rawPhoto === 'kept' && rec?.held && mergedPhoto === rec.photo))) {
       await local.setRecord(p.id, recordAfter(raw.name, raw.content, serverRev, rec, mergedPhoto)); // the server has it (or the held photo stands)

@@ -2209,6 +2209,48 @@ describe("a bed's conditions changed here while the release edits the plan: no n
     }
   });
 
+  it("a clear here ({}), alone, over a copy the release sent without them, not yet taken here, goes up and stands: a device that still had the answers takes it, and nothing sends them back (found Nov 5)", async () => {
+    const tablet = new Dev('tablet', false);
+    const { server, phone, laptop, id } = await start(ALL, { c2: null }, tablet);
+    releaseEdits(laptop, id);
+    await syncDev(laptop, server);
+    // The phone, before taking that, clears the front bed's answers (its only change; marked: src/marks.ts), and syncs.
+    setPlan(phone, id, plan({}, { c2: null }));
+    expect(await syncDev(phone, server)).toMatchObject({ uploaded: 1, conflicts: [] });
+    expect(onServer(server, id)).toMatchObject({ shapes: phone.read({ shapes: plan({}, { c2: null }) }).shapes, bought: TICK, photo: photo({ cx: 4 }) });
+    // The tablet, which had the answers, takes the clear; its next edit sends it, not the answers.
+    expect(await syncDev(tablet, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+    expect(conditions(contentOf(tablet, id))).toEqual([{}, undefined]);
+    setPlan(tablet, id, plan({}, { c2: null, ax: 9 }));
+    expect(await syncDev(tablet, server)).toMatchObject({ uploaded: 1 });
+    expect(await syncDev(phone, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+    expect(conditions(contentOf(phone, id))).toEqual([{}, undefined]);
+    await syncDev(laptop, server);
+    await settled(server, phone, tablet, laptop);
+    expect([phone.projectsById.size, tablet.projectsById.size, laptop.projectsById.size]).toEqual([1, 1, 1]);
+  });
+
+  it("likewise a fruit-partner warning shown again here (''), alone, over a copy the release sent without it: it goes up, and a device that still had the dismissal takes it (found Nov 5)", async () => {
+    const oak = (x = 50) => ({ id: 'o1', type: 'circle', x, y: 10, radius: 8, color: '#166534', label: 'Old oak', opacity: 0.5, locked: false });
+    const shapes = (dismissed: string, oakX = 50) => [{ ...aster(2), fruitDismissed: dismissed }, oak(oakX)];
+    const dismissal = (c: ProjectContent) => (c.shapes as Shape[])[0].fruitDismissed;
+    const server = new FakeServer(), phone = new Dev('phone', false), laptop = new Dev('laptop', true), tablet = new Dev('tablet', false);
+    const id = phone.add('Back Yard', shapes('Needs a partner'), null);
+    for (const d of [phone, laptop, tablet]) await syncDev(d, server);
+    laptop.edit(id, (c) => ({ ...c, bought: TICK }));
+    await syncDev(laptop, server);
+    setPlan(phone, id, shapes('')); // (Show again: its only change)
+    expect(await syncDev(phone, server)).toMatchObject({ uploaded: 1, conflicts: [] });
+    expect([dismissal(onServer(server, id)), onServer(server, id).bought]).toEqual(['', TICK]);
+    expect(await syncDev(tablet, server)).toMatchObject({ downloaded: 1 });
+    tablet.edit(id, (c) => ({ ...c, shapes: [(c.shapes as Shape[])[0], oak(44)] }));
+    expect(await syncDev(tablet, server)).toMatchObject({ uploaded: 1 });
+    await syncDev(phone, server);
+    expect([dismissal(contentOf(phone, id)), dismissal(contentOf(tablet, id))]).toEqual(['', '']);
+    await syncDev(laptop, server);
+    await settled(server, phone, tablet, laptop);
+  });
+
   it('a record from before the fix (no `bare`): compared as before, a copy; both kept', async () => {
     const { server, phone, laptop, id } = await start(ALL);
     expect(phone.recs[id]).toHaveProperty('bare');
