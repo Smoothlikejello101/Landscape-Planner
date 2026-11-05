@@ -7,10 +7,11 @@ import { IDBFactory } from 'fake-indexeddb';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { openKV } from '../src/db';
 import { state } from '../src/state';
-import { _resetStorageForTests, flushSave, initStorage, migrateBgImage, migrateShape, readProject, sanitizePhotoRef, sanitizeProjectData, save, writeJournalIfDirty } from '../src/storage';
+import { _resetStorageForTests, createProject, flushSave, initStorage, migrateBgImage, migrateShape, readProject, sanitizePhotoRef, sanitizeProjectData, save, switchProject, writeJournalIfDirty } from '../src/storage';
 import { photoKey, planHash, syncOnce, withLocalParts } from '../src/sync/engine';
 import { storageLocal } from '../src/sync/local';
 import { FakeServer } from './fake-sync-server';
+import { Dev, sync } from './release-device';
 import type { Shape } from '../src/types';
 import { afterPointInserted, afterPointRemoved, forgetChangedSides, measuredSides, setTypedSides } from '../src/measured';
 
@@ -103,6 +104,66 @@ describe('through this device\'s storage and sync', () => {
     await pass(server);
     expect(typed(state.shapes[0])).toEqual([{ side: 0, ft: 30 }, { side: 1, ft: 20 }, { side: 2, ft: 30 }, { side: 3, ft: 20 }]); // (side by side: kept)
     expect(state.bgImage).toMatchObject({ cx: 7, roughScale: true });
+  });
+});
+
+describe('a download that brings sides typed or a rough scale is a change to the plan here (the review\'s J1)', () => {
+  const oak = (x = 50): Shape => ({ id: 'o1', type: 'circle', x, y: 10, radius: 8, color: '#166534', label: 'Old oak', opacity: 0.5, locked: false } as Shape);
+  it('its "last modified" moves on, so an older tab\'s unsaved edit, from before it, is kept apart, not put over it', async () => {
+    const server = new FakeServer(); await device();
+    const home = state.currentProjectId!;
+    const id = await createProject('Back Yard');
+    await switchProject(id);
+    state.shapes = [house(), oak()]; state.bought = { 'pl:1': { n: 1, at: 1 } }; save(); await flushSave();
+    await pass(server);
+    await switchProject(home);
+    // Another tab of this version had Back Yard open, moved the oak, and died before saving: its journal.
+    const stored = (await readProject(id))!;
+    const at = Date.now() + 5;
+    localStorage.setItem(`lp-journal:${id}@pageP`, JSON.stringify({ projectId: id, at, dbVersion: 5, page: 'pageP', seq: 9, data: { ...stored, shapes: [house(), oak(52)] } }));
+    await new Promise((r) => setTimeout(r, 20));
+    // Another device of this version: the house's sides typed, and a plant ticked.
+    uploadThere(server, id, (c) => ({ ...c, shapes: [house({ measured: ALL }), oak()], bought: { 'pl:1': { n: 2, at: 50 } } }), 'tablet');
+    expect(await pass(server)).toMatchObject({ downloaded: 1 });
+    expect(typed((await readProject(id))!.shapes[0])).toEqual(ALL);
+    expect(state.projects.find((p) => p.id === id)!.lastModified).toBeGreaterThan(at);
+    await restart();
+    expect(state.projects.map((p) => p.name).sort()).toEqual(['Back Yard', 'Back Yard (from an older tab)', 'My Garden']);
+    const after = (await readProject(id))!;
+    expect([typed(after.shapes[0]), after.shapes[1].x]).toEqual([ALL, 50]);
+    const apart = state.projects.find((p) => p.name === 'Back Yard (from an older tab)')!;
+    expect((await readProject(apart.id))!.shapes[1].x).toBe(52); // (its edit, whole, beside)
+    await pass(server);
+    expect((server.rows.get(id)!.content.shapes as Record<string, unknown>[])[0]).toMatchObject({ measured: ALL });
+  });
+
+  it("the same for a rough scale alone; and a release device's tick, its plan without them (both kept here), isn't one: nothing goes up, no back and forth", async () => {
+    const server = new FakeServer(); await device();
+    const id = state.currentProjectId!;
+    state.shapes = [house({ measured: ALL })]; state.bgImage = bg(); save(); await flushSave();
+    await pass(server);
+    const modified = () => state.projects.find((p) => p.id === id)!.lastModified;
+    let was = modified();
+    await new Promise((r) => setTimeout(r, 5));
+    uploadThere(server, id, (c) => ({ ...c, photo: { ...(c.photo as object), roughScale: true } }), 'tablet');
+    expect(await pass(server)).toMatchObject({ downloaded: 1, uploaded: 0 });
+    expect(state.bgImage).toMatchObject({ roughScale: true });
+    expect(modified()).toBeGreaterThan(was);
+    // A device on the release, with its own engine: it takes the plan, ticks a plant, and sends it without both fields.
+    const laptop = new Dev('laptop', true);
+    expect(await sync(laptop, server)).toMatchObject({ downloaded: 1 });
+    laptop.edit(id, (c) => ({ ...c, bought: { 'pl:1': { n: 1, at: 5 } } }));
+    expect(await sync(laptop, server)).toMatchObject({ uploaded: 1 });
+    was = modified();
+    await new Promise((r) => setTimeout(r, 5));
+    expect(await pass(server)).toMatchObject({ downloaded: 1, uploaded: 0, conflicts: [] });
+    expect([typed(state.shapes[0]), state.bgImage?.roughScale, state.bought]).toEqual([ALL, true, { 'pl:1': { n: 1, at: 5 } }]);
+    expect(modified()).toBe(was); // (only the tick came)
+    for (let i = 0; i < 3; i++) {
+      expect(await pass(server)).toMatchObject({ uploaded: 0, downloaded: 0, conflicts: [] });
+      expect(await sync(laptop, server)).toMatchObject({ uploaded: 0, downloaded: 0, conflicts: [] });
+    }
+    expect(state.projects.map((p) => p.name)).toEqual(['My Garden']);
   });
 });
 
