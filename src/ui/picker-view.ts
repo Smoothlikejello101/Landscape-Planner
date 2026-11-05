@@ -3,15 +3,18 @@
 // couldn't be seen.
 //
 // Narrower than 900 px (a phone, a tablet held upright; the width at which Warnings goes beside the plan:
-// src/ui/warnings-sheet.ts), the picker opens at half height, the top of the plan above it, not dimmed. Its handle,
-// pressed or dragged, takes it to full height and back; while its search is typed in, it's full height for as long as
-// the keyboard is up. 900 px and wider (a computer), it's a panel at the right, the plan's height, the plan beside it.
-// Either way the plan pans and zooms, and a tap on it picks or places nothing (src/gestures.ts planLookOnly), so a stray
-// touch never loses the picker's search, filters or opened rows. Opened with something selected (Swap, a bed), the plan
-// pans to show it in the part left in sight, zooming out only if it doesn't fit there; closed, the view stays as it is.
+// src/ui/warnings-sheet.ts), the picker opens at rest, 60% of the screen (half until Jason's notes of Nov 4), the top of
+// the plan above it, not dimmed. Its handle, pressed or dragged, takes it to full height and back; swiped down from
+// rest, it closes (Jason, Nov 4, note 3); while its search is typed in, it's full height for as long as the keyboard is
+// up. 900 px and wider (a computer), it's a panel at the right, the plan's height, the plan beside it. Either way the
+// plan pans and zooms, and nothing on it is picked, moved or placed (src/gestures.ts planLookOnly); a tap on it closes
+// the picker, as a tap on the plan closes a panel everywhere else (Jason, Nov 4, note 3: "It breaks with the way panels
+// work everywhere else otherwise"), and a drag still only pans ("I do very much like the ability to scroll around the
+// plan with the picker open"). Opened with something selected (Swap, a bed), the plan pans to show it in the part left
+// in sight, zooming out only if it doesn't fit there; closed, the view stays as it is.
 //
-// All of it by CSS classes and the plan's own redraw, never a render(): the search keeps its keyboard (CLAUDE.md). The
-// half or full choice is kept for the session only, never stored.
+// All of it by CSS classes and the plan's own redraw, never a render() but on closing: the search keeps its keyboard
+// (CLAUDE.md). The rest or full choice is kept for the session only, never stored.
 
 import { pickingBed, plantingFor } from '../bed-plant';
 import type { Shape } from '../types';
@@ -23,6 +26,7 @@ import { state } from '../state';
 import { saveView } from '../storage';
 import { wideNow } from './warnings-sheet';
 import { rescaleShown } from './rescale-card';
+import { render } from './render';
 
 /**
  * The plan behind the plant picker: there to look at, panned and zoomed, nothing on it picked, moved or placed. So too
@@ -31,8 +35,8 @@ import { rescaleShown } from './rescale-card';
  */
 export const planLookOnly = (): boolean => state.panel === 'plants' || pickingBed() || rescaleShown();
 
-/** Half or full height on a phone, as last chosen with the handle (this session only). */
-let chosen: SheetSize = 'half';
+/** At rest or full height on a phone, as last chosen with the handle (this session only). */
+let chosen: SheetSize = 'rest';
 /** The search focused on a touch screen: full height while its keyboard is up (`kbUp`, once it's been seen). */
 let searching = false, sawKeyboard = false, kbUp = false;
 /** The window's size when the search was focused, before its keyboard came up. */
@@ -40,7 +44,7 @@ let restH = 0, restW = 0;
 /**
  * The search left for something in the picker (a row opened, Place, a filter) while it was full height: kept full, so
  * what was pressed stays where it was rather than dropping with the picker's top, until the handle says otherwise or the
- * picker closes. Left any other way (Enter, Back, the keyboard put away), it goes back to half.
+ * picker closes. Left any other way (Enter, Back, the keyboard put away), it goes back to rest.
  */
 let heldFull = false;
 const full = (): boolean => chosen === 'full' || heldFull || (searching && (kbUp || !sawKeyboard));
@@ -50,7 +54,7 @@ const isSearch = (t: EventTarget | null): boolean => t instanceof HTMLInputEleme
 export const pickerSheetClass = (): string => 'sheet picker-sheet' + (full() ? ' full' : '');
 
 /** The handle's words: what pressing it does. */
-const handleSaid = (isFull: boolean) => (isFull ? 'Half height: more of the plan in view' : 'Full height: more of the list in view');
+const handleSaid = (isFull: boolean) => (isFull ? 'Shorter: more of the plan in view' : 'Full height: more of the list in view');
 
 /** The picker's height and its handle as they now should be, in place. */
 function apply() {
@@ -64,8 +68,8 @@ function apply() {
 function choose(to: SheetSize) {
   chosen = to;
   heldFull = false;
-  // (Half while typing: the keyboard put away with the search left, or it would hold the picker at full height.)
-  if (to === 'half' && searching && isSearch(document.activeElement)) (document.activeElement as HTMLElement).blur();
+  // (At rest while typing: the keyboard put away with the search left, or it would hold the picker at full height.)
+  if (to === 'rest' && searching && isSearch(document.activeElement)) (document.activeElement as HTMLElement).blur();
   apply();
 }
 
@@ -73,7 +77,7 @@ function choose(to: SheetSize) {
 /**
  * The search in use: full height until it's left. On a touch screen as it's focused, its keyboard about to come up over
  * the picker. With a keyboard and a mouse (a computer's window that narrow), once something's typed in it: the cursor
- * goes there as the picker opens, which leaves it at half height until then. Beside the plan, never: it's full height.
+ * goes there as the picker opens, which leaves it at rest until then. Beside the plan, never: it's full height.
  */
 function searchStarted(typed: boolean) {
   if (wideNow() || (typed ? !hasKeyboard() : hasKeyboard())) return;
@@ -118,14 +122,37 @@ function install() {
  */
 export function pickerViewClosed() { heldFull = false; searching = false; sawKeyboard = false; kbUp = false; }
 
+// ---------- Closing it ----------
+/** Opened from a plant's sheet to swap it, or from a circle's to link it. */
+export const pickerFromSheet = (): boolean => !!state.pickerLinkId && state.selectedIds.length > 0;
+/**
+ * The picker closed: by its ✕, swiped down by its handle, or a tap on the plan. Opened from a sheet: closed, back on that
+ * sheet, as picking a plant brings you back there (the UI review, 2026-11-01: it closed the sheet too).
+ */
+export function closePicker() {
+  const fromSheet = pickerFromSheet();
+  state.panel = fromSheet ? 'props' : null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; state.pickerForTree = false;
+  render();
+}
+/**
+ * A tap on the plan behind the picker (src/gestures.ts: a press let go where it was pressed, not a drag, which pans):
+ * the picker closes, nothing on the plan picked or placed. True if it did (the picker was open).
+ */
+export function planTapped(): boolean {
+  if (state.panel !== 'plants') return false;
+  closePicker();
+  return true;
+}
+
 // ---------- The handle ----------
 /** Whether the picker was full height as the handle was pressed (the press itself can end a search). */
 let pressedFull: boolean | null = null;
 /** A drag just ended on the handle: its click isn't a press. */
 let dragged = false;
 /**
- * The grab handle at the picker's top (a phone's; none beside the plan): pressed, full height or back to half; dragged,
- * wherever it's let go (settleSheet). Closing stays the ✕, Back and Esc.
+ * The grab handle at the picker's top (a phone's; none beside the plan): pressed, full height or back to rest; dragged,
+ * wherever it's let go (settleSheet), swiped down from rest, closed. Closing also by the ✕, Back, Esc and a tap on the
+ * plan.
  */
 export function pickerHandle(): HTMLButtonElement {
   install();
@@ -137,22 +164,28 @@ export function pickerHandle(): HTMLButtonElement {
     const was = pressedFull ?? full();
     pressedFull = null;
     if (dragged) { dragged = false; return; }
-    choose(was ? 'half' : 'full');
+    choose(was ? 'rest' : 'full');
   });
   return b;
 }
-/** The picker's header, past its buttons: a drag there moves it as the handle's does (more to take hold of). */
+/**
+ * The picker's header, past what's pressed or typed in it (its ✕, the search, the For row's chips, which scroll
+ * sideways): a drag there moves it as the handle's does (more to take hold of).
+ */
 export function dragsPicker(header: HTMLElement) {
-  header.addEventListener('pointerdown', (e) => { if (!(e.target as Element).closest('button')) holdPicker(e, header); });
+  header.addEventListener('pointerdown', (e) => { if (!(e.target as Element).closest('button, input, a, .for-chips')) holdPicker(e, header); });
 }
-/** A press on the handle or header: followed as it's dragged, the picker's height with it; settled where it's let go. */
+/**
+ * A press on the handle or header: followed as it's dragged, the picker's height with it, down past its height at rest
+ * too; settled where it's let go, or closed.
+ */
 function holdPicker(e: PointerEvent, from: HTMLElement) {
   dragged = false;
   pressedFull = full();
   if (wideNow() || (e.pointerType === 'mouse' && e.button !== 0)) return;
   const sheet = from.closest<HTMLElement>('.picker-sheet'), overlay = sheet?.parentElement;
   if (!sheet || !overlay) return;
-  const { half, full: fullH } = sheetHeights(overlay.getBoundingClientRect().height, keyboardInset());
+  const { rest, full: fullH } = sheetHeights(overlay.getBoundingClientRect().height, keyboardInset());
   const startY = e.clientY, startH = sheet.getBoundingClientRect().height;
   let h = startH, moving = false;
   try { from.setPointerCapture(e.pointerId); } catch { /* followed while it's over the handle */ }
@@ -160,7 +193,7 @@ function holdPicker(e: PointerEvent, from: HTMLElement) {
     if (ev.pointerId !== e.pointerId) return;
     if (!moving && Math.abs(ev.clientY - startY) < 6) return;
     moving = true;
-    h = Math.max(half, Math.min(fullH, startH - (ev.clientY - startY)));
+    h = Math.max(0, Math.min(fullH, startH - (ev.clientY - startY)));
     sheet.style.height = `${Math.round(h)}px`;
     ev.preventDefault();
   };
@@ -172,8 +205,11 @@ function holdPicker(e: PointerEvent, from: HTMLElement) {
     if (!moving) return;
     dragged = from.matches('[data-testid=picker-handle]'); // (its click, which follows, isn't a press)
     pressedFull = null;
+    const to = settleSheet(startH, h, rest, fullH);
+    // (Closed: drawn without it, the height it was dragged to going with it.)
+    if (to === 'closed' && ev.type === 'pointerup') { dragged = false; closePicker(); return; }
     sheet.style.height = '';
-    choose(settleSheet(startH, h, half, fullH));
+    choose(to === 'closed' ? 'rest' : to);
   };
   from.addEventListener('pointermove', move);
   from.addEventListener('pointerup', up);
@@ -197,7 +233,7 @@ export function placePicker() {
 }
 /**
  * The part of the plan in sight beside or above the picker (px from the plan's top left): left of the panel on a
- * computer; above the picker at half height on a phone, whatever its height now (the half is where it settles back).
+ * computer; above the picker at rest on a phone, whatever its height now (at rest is where it settles back).
  */
 function planRoom(): Room | null {
   const wrap = document.getElementById('canvas-wrap');
@@ -207,7 +243,7 @@ function planRoom(): Room | null {
   const w = wrap.getBoundingClientRect();
   if (wideNow()) return { left: 0, top: 0, right: Math.min(w.width, sheet.getBoundingClientRect().left - w.left), bottom: w.height };
   const o = overlay.getBoundingClientRect();
-  const top = o.bottom - sheetHeights(o.height, keyboardInset()).half;
+  const top = o.bottom - sheetHeights(o.height, keyboardInset()).rest;
   return { left: 0, top: 0, right: w.width, bottom: Math.min(w.height, top - w.top) };
 }
 /**

@@ -61,7 +61,7 @@ test('the selection pill deselects; a plant selects all of it on view, and swaps
   await expect(page.locator('.sheet .title')).toContainText('Turkey Corn');
 });
 
-test('closing the swap picker goes back to the plant\'s sheet; the plant swapped in comes first in Recent (the UI review)', async ({ page }) => {
+test('closing the swap picker goes back to the plant\'s sheet; the plant swapped in is in "In this plan" (the UI review; Recent went Nov 4)', async ({ page }) => {
   await openFresh(page);
   await pickToPlace(page, 'Turkey corn');
   await tapFromCenter(page, 0, 0);
@@ -73,14 +73,16 @@ test('closing the swap picker goes back to the plant\'s sheet; the plant swapped
   // Its sheet, as it was before Swap: nothing swapped.
   await expect(page.getByTestId('swap-plant')).toBeVisible();
   await expect(page.locator('.sheet .title')).toContainText('Turkey Corn');
-  // Swapped, the plant swapped in is the newest in Recent.
+  // Swapped, the plant swapped in is the plan's, the one swapped out not.
   await page.getByTestId('swap-plant').click();
   await page.getByTestId('plant-search').fill('Buttonbush');
   await page.locator('.sheet .proj-row', { hasText: 'Buttonbush' }).first().getByTestId('plant-place').click();
   await expect(page.locator('#toast, [data-testid=crowd-notice]').filter({ hasText: 'Buttonbush' })).toHaveCount(1);
   await page.locator('.sheet .iconbtn[aria-label=Close]').click();
   await page.locator('.tool-btn.plants').click();
-  await expect(page.getByTestId('recent-plants').locator('.recent-plant').first()).toContainText('Buttonbush');
+  await expect(page.getByTestId('recent-plants')).toHaveCount(0);
+  await page.getByTestId('in-plan').click();
+  await expect(page.locator('.picker-sheet .plant-item .pname')).toHaveText([/^Buttonbush/]);
 });
 
 test('a sheet opened from another has ← where its × was, saying where it goes back to; opened on its own, × (the UI review, 2026-11-01)', async ({ page }) => {

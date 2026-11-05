@@ -154,7 +154,7 @@ test('a plant copied, or added, in Switch plant is the plant in hand once saved;
   await tapFromCenter(page, 0, 0);
   // Copied.
   await bar.getByTestId('place-switch').click();
-  await expect(page.locator('.sheet-header .title')).toHaveText('Switch plant');
+  await expect(page.locator('.picker-sheet [data-testid=plant-place]').first()).toHaveText(/^Switch/); // (Switch plant: no title row since Nov 4)
   await page.getByTestId('plant-search').fill('Sawara-cypress');
   await page.locator('.proj-row', { hasText: 'Sawara-cypress' }).first().getByRole('button', { name: /Copy as my plant/ }).click();
   await page.getByTestId('pf-name').fill('False cypress');
@@ -234,7 +234,7 @@ test('closing Add a plant or a copy with its × goes back to the picker, the sea
   await page.getByTestId('add-own-plant').click();
   await expect(page.locator('.sheet-header .title')).toHaveText('Add a plant');
   await page.locator('.sheet-header').getByRole('button', { name: 'Back to the plant list' }).click();
-  await expect(page.locator('.sheet-header .title')).toContainText('Plant Picker');
+  await expect(page.getByTestId('picker')).toBeVisible();
   await expect(page.getByTestId('plant-search')).toHaveValue('Aunt Lou’s keeper');
   await expect(page.getByTestId('add-own-plant')).toBeVisible();
   // A copy of a catalog plant, likewise.
@@ -367,7 +367,7 @@ test('a plant of mine: its flower colors as chips, kept without bloom months, th
 });
 
 // The picker bug hunt, Nov 1 (B10): a copied Eastern redcedar started in the brown every tree is listed in, its dot
-// brown in Recent and on the placing bar, while its original is drawn, and spotted, dark green.
+// brown in Recent (since gone, Nov 4) and on the placing bar, while its original is drawn, and spotted, dark green.
 test('a copy of a catalog plant starts in the color its original is drawn in, not its type\'s (the picker bug hunt, Nov 1)', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
@@ -384,7 +384,7 @@ test('a copy of a catalog plant starts in the color its original is drawn in, no
   await page.getByTestId('pf-form').selectOption('Tree');
   await page.getByTestId('pf-name').fill('Hedge cedar');
   await page.getByTestId('pf-save').click();
-  // On the placing bar and in Recent, the same.
+  // On the placing bar, the same; and its spot in the picker's My plants.
   const bg = (l: ReturnType<Page['locator']>) => l.evaluate((e) => getComputedStyle(e).backgroundColor);
   const rgb = (hex: string) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
   await expect(page.getByTestId('place-bar')).toBeVisible();
@@ -392,5 +392,7 @@ test('a copy of a catalog plant starts in the color its original is drawn in, no
   await tapFromCenter(page, 0, 0);
   await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
   await page.locator('.tool-btn.plants').click();
-  expect(await bg(page.getByTestId('recent-plants').locator('.recent-plant', { hasText: 'Hedge cedar' }).locator('.sw-dot'))).toBe(rgb(leaves!));
+  await page.getByTestId('plant-search').fill('Hedge cedar');
+  const mine = page.locator('.plant-item').filter({ has: page.locator('.pname', { hasText: /^Hedge cedar/i }) }).first();
+  await expect(mine.getByTestId('row-dot').locator('circle').first()).toHaveAttribute('fill', leaves!);
 });

@@ -127,10 +127,10 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 /* (On a wide screen a sheet keeps to a readable width, so what's at its right edge, Place or a readout, stays near
    what's at its left.) */
 .overlay:not(.center) > .sheet { max-width: 640px; }
-/* The plant picker keeps its height as its list changes, so nothing in it moves under the pointer. On a phone, half
-   height, the plan in view above it; full height by its handle, or while its search's keyboard is up (below, and
-   src/ui/picker-view.ts). */
-.sheet.picker-sheet { height: 50%; position: relative; z-index: 1; }
+/* The plant picker keeps its height as its list changes, so nothing in it moves under the pointer. On a phone, 60% of
+   the screen at rest (half until Jason's notes of Nov 4), the plan in view above it; full height by its handle, or while
+   its search's keyboard is up (below, and src/ui/picker-view.ts). */
+.sheet.picker-sheet { height: 60%; position: relative; z-index: 1; }
 .sheet.picker-sheet.full { height: 85vh; height: calc(85dvh - var(--kb, 0px)); }
 .sheet { background: #fff; width: 100%; max-height: 85vh; max-height: calc(85dvh - var(--kb, 0px)); border-radius: 16px 16px 0 0; overflow-y: auto; box-shadow: 0 -4px 16px rgba(0,0,0,0.1); }
 .modal { background: #fff; border-radius: 8px; max-width: 400px; width: 100%; box-shadow: 0 4px 16px rgba(0,0,0,0.2); max-height: 90vh; max-height: calc(90dvh - var(--kb, 0px)); display: flex; flex-direction: column; overflow: hidden; }
@@ -141,12 +141,22 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
 .overlay.picker-overlay { background: none; pointer-events: none; }
 .picker-overlay > .sheet, .picker-overlay > .compare-overlay { pointer-events: auto; }
 .picker-overlay::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: var(--plan-top, 0px); background: rgba(0,0,0,0.3); pointer-events: auto; }
-/* Its handle, on a phone: pressed, full height or half; dragged, where it's let go. The header drags it too. */
+/* Its handle, on a phone: pressed, full height or at rest; dragged, where it's let go; swiped down, closed. The header
+   drags it too, past what's pressed or typed in it. */
 .picker-handle { display: flex; align-items: center; justify-content: center; width: 100%; height: 24px; touch-action: none; cursor: grab; border-radius: 16px 16px 0 0; }
 .picker-handle:focus-visible { outline: 2px solid #059669; outline-offset: -2px; }
 .picker-grip { width: 40px; height: 5px; border-radius: 3px; background: #a8a29e; }
 .picker-sheet .picker-handle + .sheet-header { padding-top: 0; touch-action: none; }
-/* On a computer (900 px and wider, where Warnings goes beside the plan), a panel at the right, the plan's height from
+/* The picker's top row, with no title (Jason, Nov 4, note 1): the For row, or the search where there's no bed to
+   choose, beside the ✕. */
+.sheet-header.picker-head { padding: 0 6px 0 0; gap: 0; }
+.picker-head > .for-row, .picker-head > .picker-search { flex: 1; min-width: 0; border-bottom: 0; }
+.picker-head > .for-row { padding-top: 2px; }
+.picker-head > .picker-search { padding-top: 2px; padding-right: 6px; }
+.picker-head > .for-row .for-chips { padding-right: 6px; }
+.picker-sheet > .sheet-top > .picker-search { padding-top: 8px; }
+/* (Its parts closer together than a sheet's, so the list starts higher.) */
+.picker-sheet > .sheet-body { padding-top: 10px; gap: 10px; }/* On a computer (900 px and wider, where Warnings goes beside the plan), a panel at the right, the plan's height from
    under the top bar, about 420 to 480 px wide; the plan beside it, the bar at its foot waiting as the top bar does. */
 :root { --picker-w: clamp(420px, 34vw, 480px); }
 @media (min-width: 900px) {
@@ -155,6 +165,7 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
   .picker-overlay::after { content: ''; position: absolute; left: 0; right: var(--picker-w); bottom: 0; height: var(--plan-foot, 0px); background: rgba(0,0,0,0.3); pointer-events: auto; }
   .picker-handle { display: none; }
   .picker-sheet .picker-handle + .sheet-header { padding-top: 12px; touch-action: auto; }
+  .picker-sheet .picker-handle + .sheet-header.picker-head { padding-top: 6px; }
   /* (The zoom buttons beside the panel, not under it.) */
   .app.picker-open .zoombtns { right: calc(var(--picker-w) + 8px); }
 }
@@ -716,8 +727,6 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .place-bar .place-plant { flex: 2; display: flex; align-items: center; gap: 6px; padding: 0 10px; min-width: 0; }
 .place-bar .place-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-weight: 600; }
 
-.recent-plants { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
-.recent-plant { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 12px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; font-size: calc(13px * var(--ts)); color: #292524; white-space: nowrap; }
 .form-color-row { display: flex; gap: 8px; align-items: center; }
 .form-color-row select { flex: 1; min-width: 0; }
 .form-color-row input[type=color] { width: 48px; height: 40px; padding: 2px; border: 1px solid #d6d3d1; border-radius: 6px; background: #fff; flex-shrink: 0; }
@@ -777,8 +786,11 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .plant-details .details-bot { color: #57534e; margin-bottom: 6px; }
 .plant-details .details-bot-name { font-style: italic; margin-right: 10px; }
 /* "See photos": a plain link to a web image search, in a new tab (src/ui/plant-details.ts photoSearchUrl). */
-.details-photos { display: inline-block; color: #0f766e; font-weight: 500; text-underline-offset: 3px; padding: 4px 0; white-space: nowrap; }
-.details-photos-arrow { text-decoration: none; display: inline-block; }
+/* (On a line of its own, with a picture's icon: Jason, Nov 4, note 9, it got lost beside the botanical name and Compare.) */
+.details-photos-line { margin: -2px 0 6px; }
+.details-photos { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; color: #0f766e; font-weight: 500; text-decoration: none; padding: 2px 0; white-space: nowrap; }
+.details-photos-text { text-decoration: underline; text-underline-offset: 3px; }
+.details-photos-icon { display: flex; }
 .plant-details .details-flag { background: #fef9c3; border: 1px solid #fde047; border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; color: #422006; }
 /* One column (Jason, 2026-10-25): the fact on its label's line ("Height 1–2 ft", the label lighter), its source on
    a smaller line of its own below. A fact in parts gives each its own line under the label. */
@@ -796,11 +808,15 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .details-src { font-size: calc(10.5px * var(--ts)); color: #78716c; margin-top: 1px; }
 .details-form { display: block; font-size: calc(12px * var(--ts)); color: #57534e; margin-top: 1px; } /* (what its flowers or leaves look like, under their colors) */
 /* A citation longer than a line: one line, "…", opened with a tap (src/ui/plant-details.ts clipCitations). */
-.details-src.one-line, .details-src.clipped[aria-expanded="false"] { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.details-src.one-line, .details-src.clipped { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* (Its whole in a little pane, as a Source's is (src/ui/source-pane.ts): the line keeps its place.) */
 .details-src.clipped { cursor: pointer; position: relative; }
-.details-src.clipped[data-short][aria-expanded="false"]::before { content: attr(data-short); }
-.details-src.clipped[data-short][aria-expanded="false"] .cite-full { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.details-src.clipped[data-short]::before { content: attr(data-short); }
+.details-src.clipped[data-short] .cite-full { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .details-src.clipped:focus-visible { outline: 2px solid #0f766e; outline-offset: 1px; }
+.src-pop.open > .details-src.clipped { color: #0f766e; }
+/* A fact from the earlier list, with no source: marked on it (Jason, Nov 4, note 1). */
+.unverified-chip { display: inline-block; margin-left: 2px; padding: 0 6px; border: 1px solid #fde68a; border-radius: 999px; background: #fffbeb; color: #92400e; font-size: calc(10px * var(--ts)); font-weight: 600; font-style: normal; line-height: 16px; vertical-align: 1px; white-space: nowrap; }
 .details-part { display: block; }
 /* (What a line doesn't say, under it: plain, not in the line's color.) */
 .details-where { color: #44403c; }
@@ -880,16 +896,10 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .search-row .search-wrap { flex: 1; min-width: 0; }
 .plan-toggle { flex: none; min-height: 40px; padding: 6px 12px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; font-size: calc(13px * var(--ts)); color: #44403c; white-space: nowrap; cursor: pointer; }
 .plan-toggle[aria-pressed=true] { background: #ecfdf5; border-color: #059669; color: #065f46; font-weight: 600; }
-/* Plant this bed (Jason, Nov 2): For, a row of its own over the search, in view while the list scrolls; its chips
-   scroll sideways with many beds. Then the bed's box at the list's top (src/ui/plant-for.ts). */
+/* Plant this bed (Jason, Nov 2): For, at the picker's top beside its ✕, over the search, in view while the list
+   scrolls; its chips scroll sideways with many beds. Then the bed's box at the list's top (src/ui/plant-for.ts). */
 .for-row { display: flex; align-items: center; gap: 8px; padding: 6px 0 6px 16px; border-bottom: 1px solid #e7e5e4; background: #fff; min-width: 0; }
 .for-label { flex: none; font-size: calc(13px * var(--ts)); font-weight: 600; color: #57534e; }
-.for-none { font-size: calc(13px * var(--ts)); color: #57534e; padding-right: 16px; }
-.sheet-body > .for-row { padding: 0 0 8px; border: 0; }
-.sheet-body > .for-row[hidden] { display: none; }
-@media (max-height: 760px) {
-  html[data-text="large"] .sheet-body > .for-row.no-beds, html[data-text="xlarge"] .sheet-body > .for-row.no-beds { display: none; }
-}
 .for-chips { display: flex; gap: 6px; overflow-x: auto; flex: 1; min-width: 0; padding: 2px 16px 2px 0; scrollbar-width: thin; }
 .for-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 4px 12px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; font-size: calc(13px * var(--ts)); color: #292524; white-space: nowrap; cursor: pointer; }
 .for-chip.on { background: #ecfdf5; border-color: #059669; color: #065f46; font-weight: 600; }
@@ -899,7 +909,6 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .for-pick-icon { display: flex; }
 .for-pick-icon .icon { width: 16px; height: 16px; }
 .for-top:empty { display: none; }
-.for-hint { margin: 0 0 8px; }
 .bed-box { border: 1px solid #99f6e4; border-radius: 10px; background: #f0fdfa; padding: 8px 10px 8px; margin: 0 0 10px; }
 .bed-box-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .bed-box-title { font-size: calc(14px * var(--ts)); font-weight: 600; color: #134e4a; }
@@ -938,14 +947,25 @@ select:disabled { color: #0f766e; background: #f0fdfa; opacity: 1; }
 .cond-sum { margin-top: 8px; border: 1px solid #99f6e4; border-radius: 10px; background: #f0fdfa; padding: 8px 10px; font-size: calc(13px * var(--ts)); color: #134e4a; line-height: 1.4; }
 .cond-plant { margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; }
 /* The picker's filters (decided with Jason, 2026-10-25). */
-.checking-note { padding: 2px 0; }
-.checking-note .link-btn.inline { font-size: calc(12px * var(--ts)); min-height: 0; padding: 0; }
-.checking-note [id] { margin-top: 4px; }
 .filter-check { display: flex; align-items: center; gap: 6px; font-size: calc(13px * var(--ts)); min-height: 32px; padding: 2px 0; cursor: pointer; }
 .filter-check .hint { font-size: calc(12px * var(--ts)); }
 .filter-checks { display: flex; flex-wrap: wrap; gap: 0 16px; margin: 2px 0; }
-.zone-source { font-size: calc(11px * var(--ts)); }
-.color-chips { display: flex; align-items: center; gap: 6px; overflow-x: auto; margin-top: 8px; padding: 2px 0 4px; scrollbar-width: thin; }
+/* A source, out of the way until it's asked for (src/ui/source-pane.ts; Jason, Nov 4, note 1): a small "Source" that
+   opens a little pane under it with the citation in full. The pane closes on a press outside it, or Escape. */
+.src-pop { position: relative; }
+span.src-pop { display: inline-block; }
+.src-pop[hidden] { display: none; }
+.src-btn { position: relative; flex: none; display: inline-flex; align-items: center; min-height: 28px; padding: 2px 6px; border-radius: 6px; font-size: calc(12px * var(--ts)); color: #0f766e; text-decoration: underline dotted; text-underline-offset: 3px; white-space: nowrap; }
+/* (Its tap target taller than it's drawn, the 44 px a finger needs, without pushing its row apart.) */
+.src-btn::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; height: var(--tap); transform: translateY(-50%); }
+.src-btn:focus-visible { outline: 2px solid #059669; outline-offset: 1px; }
+.src-pop.open > .src-btn { background: #f0fdfa; }
+.src-pane { position: absolute; z-index: 5; top: 100%; left: 0; margin-top: 4px; width: max-content; max-width: min(300px, calc(100vw - 32px)); padding: 8px 10px; border: 1px solid #d6d3d1; border-radius: 8px; background: #fff; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.14); font-size: calc(12px * var(--ts)); font-weight: 400; font-style: normal; color: #44403c; line-height: 1.45; white-space: normal; overflow-wrap: anywhere; text-align: left; cursor: auto; }
+.src-pane[hidden] { display: none; }
+.src-pane a { color: #0f766e; }
+.fold-row > .src-pop { flex: none; margin-left: -4px; }
+.fold-row > .src-pop > .src-btn { padding: 2px 4px; }
+.fold-row > .src-pop .src-pane { left: auto; right: 0; }.color-chips { display: flex; align-items: center; gap: 6px; overflow-x: auto; margin-top: 8px; padding: 2px 0 4px; scrollbar-width: thin; }
 .color-chips[hidden] { display: none; }
 /* Chips that wrap onto more lines instead of scrolling (a plant's flower colors in its form). */
 .color-chips.wrap { flex-wrap: wrap; overflow-x: visible; }
@@ -956,10 +976,10 @@ select:disabled { color: #0f766e; background: #f0fdfa; opacity: 1; }
 .color-chip:has(input:focus-visible), button.color-chip:focus-visible { outline: 2px solid #059669; outline-offset: 1px; }
 .color-chip .swatch { flex: none; width: calc(14px * var(--ts)); height: calc(14px * var(--ts)); border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.2); }
 /* The filters' one fold: its button, then "Hardy in zone 8a" beside it (src/ui/plants-panel.ts). */
-.fold-row { display: flex; align-items: center; gap: 12px; margin: 0 0 4px; }
+.fold-row { display: flex; align-items: center; gap: 10px; margin: 0 0 4px; }
 .fold-btn { flex: 0 0 auto; min-width: 0; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: calc(13px * var(--ts)); padding: 6px 12px; min-height: 40px; white-space: nowrap; }
 .fold-btn .fold-icon { display: flex; }
-.fold-row .hardy-check { flex: 1; min-width: 0; margin: 0; }
+.fold-row .hardy-check { flex: 0 1 auto; min-width: 0; margin: 0; }
 .fold-btn .fold-chev { display: flex; transition: transform 0.15s; }
 .fold-btn[aria-expanded=false] .fold-chev { transform: rotate(-90deg); }
 .fold-btn[aria-expanded=true] { background: #e7e5e4; }

@@ -200,7 +200,10 @@ test('when a plant blooms and its flowers\' color, each with its source; the ear
   const phlox = await open('Garden Phlox');
   await expect(phlox('Bloom').getByTestId('bloom-season')).toHaveText('Summer');
   await expect(phlox('Bloom')).toContainText('Sources: NC State, USDA');
-  await expect(phlox('Bloom').getByTestId('bloom-months')).toHaveText('Jul–Sep');
+  // (From the earlier list: marked on it, Jason, Nov 4.)
+  await expect(phlox('Bloom').getByTestId('bloom-months')).toHaveText('Jul–Sep Unverified');
+  await expect(phlox('Bloom').getByTestId('bloom-months').getByTestId('unverified-chip')).toHaveText('Unverified');
+  await expect(phlox('Bloom').getByTestId('bloom-season').getByTestId('unverified-chip')).toHaveCount(0);
   await expect(phlox('Bloom')).toContainText('earlier list, unverified');
   await expect(phlox('Flower color')).toContainText('Pink, white, purple');
   await expect(phlox('Flower color').locator('.details-src')).toHaveText('Source: NC State');
@@ -520,10 +523,10 @@ test('flower color: a cultivar or one-color species first, a species that comes 
 test('the filters say what they\'re set to: a dropdown names itself, a month met by season is marked, More filters counts what\'s on', async ({ page }) => {
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
-  // The checking note: one line, the rest a tap away.
-  await expect(page.getByTestId('unverified-note')).toContainText('Not every detail is checked yet.');
-  await page.getByTestId('unverified-more').click();
-  await expect(page.getByTestId('unverified-note')).toContainText('Unverified: all its details are from an earlier list');
+  // No note on checking over the list: a plant's details mark what isn't checked (Jason, Nov 4, note 1).
+  await expect(page.getByTestId('picker-count')).toBeVisible();
+  await expect(page.getByTestId('unverified-note')).toHaveCount(0);
+  await expect(page.getByTestId('picker')).not.toContainText('Not every detail is checked');
   await openFilters(page);
   const water = page.locator('.sheet select[aria-label="Water needs"]');
   await water.selectOption('Low');
@@ -589,7 +592,8 @@ test('typing a search folds the open filters, the results in view; Add as my pla
   await search.fill('Black-eyed Susan');
   await page.locator('.plant-item', { hasText: 'Black-eyed Susan' }).first().getByTestId('plant-place').click();
   await page.getByTestId('place-switch').click();
-  await expect(page.locator('.sheet-header .title')).toHaveText('Switch plant');
+  // (Switch plant: the picker itself while placing, its rows' buttons saying Switch; no title row, Jason, Nov 4.)
+  await expect(page.locator('.picker-sheet [data-testid=plant-place]').first()).toHaveText(/^Switch/);
   await openFilters(page);
   await page.getByTestId('plant-search').fill('coneflower');
   await expect(page.getByTestId('all-filters')).toBeHidden();
@@ -598,9 +602,10 @@ test('typing a search folds the open filters, the results in view; Add as my pla
 });
 
 // The picker bug hunt, Nov 1: typing on a 360 × 640 phone, Recent and "Anyone you need to protect?" stayed above the
-// results, one row of them in view at most, at Extra large none. They fold away while a search is typed, as the
-// filters do, and come back when it's cleared.
-test('typing a search folds Recent and "Anyone you need to protect?" away, results in view on a 360 × 640 phone; cleared, they\'re back (the picker bug hunt, Nov 1)', async ({ page }) => {
+// results, one row of them in view at most, at Extra large none. The question folds away while a search is typed, as
+// the filters do, and comes back when it's cleared. (Recent went with Jason's notes of Nov 4: "In this plan" finds the
+// plants placed.)
+test('typing a search folds "Anyone you need to protect?" away, results in view on a 360 × 640 phone; cleared, it\'s back; no Recent (the picker bug hunt, Nov 1; Jason, Nov 4)', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 640 });
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
@@ -612,40 +617,39 @@ test('typing a search folds Recent and "Anyone you need to protect?" away, resul
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('data-text', size);
     await page.locator('.tool-btn.plants').click();
-    const recent = page.getByTestId('recent-field'), ask = page.getByTestId('protect-line').first();
+    const ask = page.getByTestId('protect-line').first();
     const search = page.getByTestId('plant-search');
     await search.fill('');
-    await expect(recent).toBeVisible();
     await expect(ask).toBeVisible();
+    // (A plant placed, and no Recent.)
+    await expect(page.getByTestId('recent-field')).toHaveCount(0);
+    await expect(page.getByTestId('recent-plants')).toHaveCount(0);
     const first = () => page.locator('.plant-item > .proj-row').first().evaluate((r) => { const b = r.getBoundingClientRect(); return { top: b.top, bottom: b.bottom }; });
-    const folds = (await recent.boundingBox())!.height + (await ask.boundingBox())!.height;
+    const folds = (await ask.boundingBox())!.height;
     const before = await first();
     await search.pressSequentially('aster');
-    await expect(recent, size).toBeHidden();
     await expect(ask, size).toBeHidden();
-    // The results up where those were: the first in view, whole at Medium (it was below the screen at Extra large).
+    // The results up where it was: the first in view, whole at Medium (it was below the screen at Extra large).
     const after = await first();
     expect(after.top, size).toBeLessThan(before.top - folds + 40);
     expect(after.top + 60, size).toBeLessThan(640);
     if (size === 'medium') expect(after.bottom).toBeLessThanOrEqual(640);
     // A word of need made a filter empties the box: still folded, the search going on.
     await search.fill('');
-    await expect(recent).toBeVisible();
+    await expect(ask).toBeVisible();
     await search.pressSequentially('evergreen');
     await search.press('Enter');
     await expect(search).toHaveValue('');
     await expect(page.getByTestId('active-chip').first()).toBeVisible();
-    await expect(recent).toBeHidden();
+    await expect(ask).toBeHidden();
     // Cleared by hand: back, by the ×, or by deleting what's typed.
     await search.pressSequentially('aster');
     await page.getByTestId('clear-search').click();
-    await expect(recent).toBeVisible();
     await expect(ask).toBeVisible();
     await search.pressSequentially('fern');
-    await expect(recent).toBeHidden();
+    await expect(ask).toBeHidden();
     for (let i = 0; i < 4; i++) await search.press('Backspace');
     await expect(search).toHaveValue('');
-    await expect(recent).toBeVisible();
     await expect(ask).toBeVisible();
     await page.getByTestId('reset-filters').click();
     await closeSheet(page);

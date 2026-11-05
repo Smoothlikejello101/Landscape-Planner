@@ -1,13 +1,17 @@
 // Keeping the plan in view while choosing plants (Jason, Nov 2, from the bed review's S3: "Half-height picker on a
-// phone, a side panel on a computer"). The parts that are only arithmetic, kept apart for the tests: the view that
-// brings what's selected into the part of the plan the picker leaves showing, where a dragged handle leaves the
-// picker, and whether a phone's keyboard is up. The page itself: src/ui/picker-view.ts.
+// phone, a side panel on a computer"; 60% since his notes of Nov 4). The parts that are only arithmetic, kept apart for
+// the tests: the view that brings what's selected into the part of the plan the picker leaves showing, where a dragged
+// handle leaves the picker, and whether a phone's keyboard is up. The page itself: src/ui/picker-view.ts.
 
 import { MAX_ZOOM, MIN_ZOOM, PX_PER_FOOT_BASE } from './constants';
 import type { Bounds } from './types';
 
-/** A phone's picker at half height: the share of the screen under the top bar's top that it takes. */
-export const HALF = 0.5;
+/**
+ * A phone's picker at rest, as it opens: the share of the layer it's on that it takes. Half until Jason's notes of Nov 4
+ * (1: "We could bump it to 60% of the screen, rather than half. The plan is just there as a reference and quick
+ * zoom-in-and-check tool").
+ */
+export const REST = 0.6;
 /** And at full height: as the picker always was (styles.css, 85dvh less the keyboard). */
 export const FULL = 0.85;
 
@@ -52,25 +56,28 @@ export function sameView(a: View, b: View): boolean {
   return Math.abs(a.zoom - b.zoom) < 1e-9 && Math.abs(a.offsetX - b.offsetX) < 1e-9 && Math.abs(a.offsetY - b.offsetY) < 1e-9;
 }
 
-export type SheetSize = 'half' | 'full';
+/** A phone's picker at rest (60%) or full height. */
+export type SheetSize = 'rest' | 'full';
 /** How far (px) a drag of the handle goes before it counts as one way or the other, wherever it's let go. */
 export const SETTLE_PX = 40;
 /**
- * Where a phone's picker settles when its handle is let go, dragged from `startH` px tall to `endH`: up by SETTLE_PX
- * or more, full height; down as far, half; less than that, whichever it's nearer. Never closed by a drag: its ✕,
- * Back or Esc close it, as before.
+ * Where a phone's picker settles when its handle is let go, dragged from `startH` px tall to `endH`: below its height
+ * at rest by SETTLE_PX or more, closed (Jason, Nov 4, note 3: "Since there's a handle there, I should be able to swipe
+ * the half-height picker panel down to close it"); otherwise up by SETTLE_PX or more, full height; down as far, at
+ * rest; less than that, whichever it's nearer.
  */
-export function settleSheet(startH: number, endH: number, halfH: number, fullH: number): SheetSize {
+export function settleSheet(startH: number, endH: number, restH: number, fullH: number): SheetSize | 'closed' {
+  if (endH <= restH - SETTLE_PX) return 'closed';
   const dy = endH - startH;
   if (dy >= SETTLE_PX) return 'full';
-  if (dy <= -SETTLE_PX) return 'half';
-  return endH > (halfH + fullH) / 2 ? 'full' : 'half';
+  if (dy <= -SETTLE_PX) return 'rest';
+  return endH > (restH + fullH) / 2 ? 'full' : 'rest';
 }
 
-/** The heights (px) of a phone's picker at half and full, in an overlay `overlayH` px tall over a keyboard `kb` px tall. */
-export function sheetHeights(overlayH: number, kb: number): { half: number; full: number } {
-  const half = Math.round(overlayH * HALF);
-  return { half, full: Math.max(half, Math.round(FULL * (overlayH + kb) - kb)) };
+/** The heights (px) of a phone's picker at rest and full, in an overlay `overlayH` px tall over a keyboard `kb` px tall. */
+export function sheetHeights(overlayH: number, kb: number): { rest: number; full: number } {
+  const rest = Math.round(overlayH * REST);
+  return { rest, full: Math.max(rest, Math.round(FULL * (overlayH + kb) - kb)) };
 }
 
 /** How much shorter (px) the window gets before it's taken for a phone's keyboard, not a toolbar coming and going. */

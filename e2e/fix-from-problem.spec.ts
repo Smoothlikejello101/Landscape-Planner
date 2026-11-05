@@ -108,7 +108,8 @@ test('Warnings: Swap from a sun, hardiness or poison row opens filtered for what
   await closeSheet(page);
   await page.keyboard.press('Escape');
   await page.locator('.tool-btn.plants').click();
-  await expect(title(page)).toContainText('Plant Picker');
+  await expect(page.getByTestId('picker')).toBeVisible();
+  await expect(title(page)).toHaveCount(0); // (the picker on its own: no title row, Jason, Nov 4)
   await expect(swapWhy(page)).toHaveCount(0);
   await expect(chips(page).filter({ hasText: 'Full sun' })).toHaveCount(0);
   await expect(page.getByTestId('hardy-here')).toBeChecked(); // (as this device keeps it)

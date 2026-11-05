@@ -234,7 +234,7 @@ test('the ZIP from the picker: its sheet shows the zone, and closing it goes bac
   await expect(page.locator('.sheet label', { hasText: 'Hardy in zone 8a' })).toBeVisible();
 });
 
-test('the picker\'s title counts the plants its count line counts, once the state\'s law is in too (the UI review)', async ({ page }) => {
+test('the picker\'s count is on its count line alone (no title row since Jason\'s notes of Nov 4), counting what\'s offered once the state\'s law is in too (the UI review)', async ({ page }) => {
   // (Clark County, Arkansas: the real Arkansas file, held back till the picker is drawn.)
   const table = { ...TABLE, zips: { '71923': ['8a', 0, 3, 5019] } };
   await page.route('**/climate/719.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(table) }));
@@ -243,10 +243,11 @@ test('the picker\'s title counts the plants its count line counts, once the stat
   await page.route('**/wild/**', async (r) => { await held; await r.continue(); });
   await openFresh(page);
   await page.locator('.tool-btn.plants').click();
-  const title = page.locator('.sheet-header .title'), count = page.getByTestId('picker-count');
-  const offered = async () => (await count.textContent())!.match(/^(?:All ([\d,]+) plants|[\d,]+ of ([\d,]+) plants match)/)!.slice(1).find(Boolean);
+  const title = page.locator('.picker-sheet .sheet-header .title'), count = page.getByTestId('picker-count');
+  const offered = async () => Number((await count.textContent())!.match(/^(?:All ([\d,]+) plants|[\d,]+ of ([\d,]+) plants match)/)!.slice(1).find(Boolean)!.replace(/,/g, ''));
   await expect(count).toContainText(/^All [1-9][\d,]* plants/); // (the catalog in)
-  await expect(title).toHaveText(`Plant Picker (${await offered()})`);
+  await expect(title).toHaveCount(0);
+  const all = await offered();
   await page.getByTestId('hardy-here').click();
   await page.getByTestId('zip').fill('71923');
   await page.getByTestId('zip-lookup').click();
@@ -254,7 +255,10 @@ test('the picker\'s title counts the plants its count line counts, once the stat
   await expect(count).not.toContainText('banned');
   release();
   await expect(count).toContainText(/plants? banned in Arkansas shows? only when searched by name/);
-  await expect(title).toHaveText(`Plant Picker (${await offered()})`);
+  // (Those banned left out of what's offered, and said so.)
+  const banned = Number((await count.textContent())!.match(/(\d+) plants? banned in Arkansas/)![1]);
+  expect(await offered()).toBe(all - banned);
+  await expect(title).toHaveCount(0);
 });
 
 test('a plant recorded growing wild in the garden\'s county or next door says so, and counts as hardy there', async ({ page }) => {
@@ -278,13 +282,24 @@ test('a plant recorded growing wild in the garden\'s county or next door says so
   await expect(oak.getByTestId('wild-here')).toContainText('Recorded growing wild in Clark County');
   await expect(oak.getByTestId('wild-here')).toContainText('Atlas of the Vascular Plants of Arkansas');
   await expect(oak.getByTestId('native-here')).toContainText('Native to Arkansas');
-  // A citation longer than a line: cut to one, and opened in full with a tap.
+  // A citation longer than a line: cut to one, and opened in full with a tap, in a little pane as a Source is (Jason,
+  // Nov 4), the line keeping its place; a tap outside closes it.
   const cite = oak.locator('.details-src.clipped').first();
   await expect(cite).toHaveAttribute('aria-expanded', 'false');
-  const shut = (await cite.boundingBox())!.height;
+  const shut = (await cite.boundingBox())!;
+  const below = oak.getByTestId('wild-here');
+  const belowAt = (await below.boundingBox())!.y;
   await cite.click();
   await expect(cite).toHaveAttribute('aria-expanded', 'true');
-  expect((await cite.boundingBox())!.height).toBeGreaterThan(shut * 1.5);
+  const pane = page.locator(`#${await cite.getAttribute('aria-controls')}`);
+  await expect(pane).toHaveAttribute('data-testid', 'cite-pane');
+  await expect(pane).toBeVisible();
+  await expect(pane).toHaveText((await cite.getAttribute('title'))!); // (the whole of it)
+  expect((await cite.boundingBox())!.height).toBeCloseTo(shut.height, 0);
+  expect((await below.boundingBox())!.y).toBeCloseTo(belowAt, 0);
+  await page.getByTestId('picker-count').click();
+  await expect(pane).toBeHidden();
+  await expect(cite).toHaveAttribute('aria-expanded', 'false');
   await expect(oak.getByTestId('wild-here')).toBeVisible(); // (the plant stays open)
   // The native-status filter offers the garden's state (Kew's checklist).
   await expect(page.getByTestId('native-filter').locator('option[value="@here"]')).toHaveText('Native to Arkansas');
