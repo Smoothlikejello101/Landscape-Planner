@@ -1084,7 +1084,7 @@ export function linkFromPicker(p: Plant) {
   const swapping = ids.every((id) => { const s = state.shapes.find((x) => x.id === id); return !!s?.plantId && !!plantsById[s.plantId]; });
   const n = linkShapesToPlant(ids, p);
   state.selectedIds = ids;
-  if (swapping) { state.linkOffer = null; toast(`${n === 1 ? 'Swapped' : `${n} swapped`} for ${p.common}.`); return; }
+  if (swapping) { state.linkOffer = null; toast(`${n === 1 ? 'Swapped' : `${n} swapped`} for ${p.common}.`, 3000, { keep: true }); return; }
   if (several) { state.linkOffer = null; toast(`${n} circle${n === 1 ? '' : 's'} linked to ${p.common}.`); return; }
   const same = unlinkedWithLabel(label, ids), locked = unlinkedWithLabel(label, ids, { locked: true });
   state.linkOffer = same.length || locked.length ? { fromId: ids[0], plantId: p.id, label: label!.trim(), ids: same, locked } : null;

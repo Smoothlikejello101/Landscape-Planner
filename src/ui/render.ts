@@ -28,7 +28,7 @@ import { renderSettingsPanel } from './settings-panel';
 import { refreshWarnings, renderWarningsSheet, renderWarningsSide, walkChip, warningsButton, warningsSheetShown, warningsSideShown } from './warnings-sheet';
 import { renderWhatsNewPanel } from './whats-new-panel';
 import { snapOn } from '../tidy';
-import { dismissToastAction, hideOldToast, noticeUp, placeNotice, planChanged, planRoomAcross, toastAction, toastShowing } from './toast';
+import { dismissToastAction, hideOldToast, noticeUp, placeNotice, planChanged, planRoomAcross, toastAction, keptToastUp } from './toast';
 import { renderMoreMenu, toggleSelectMode } from './menu';
 import { foldDetailGroups } from './plant-details';
 import { renderFeedbackSheet } from './feedback-sheet';
@@ -1063,8 +1063,8 @@ export function calibrationSeen() { if (state.currentProjectId) calibrationSaid.
 function maybeExplainFullSize() {
   const s = singleSelected();
   if (!s || state.panel || !fullRingRadius(s) || introActive()) return; // (the introduction's last step says it)
-  // (Not over a notice that's up, such as "Swapped for …" as a swap's sheet closes: said at a later selection instead.)
-  if (toastShowing()) return;
+  // (Not over a notice kept up, "Swapped for …" as a swap's sheet closes: said at a later selection instead.)
+  if (keptToastUp()) return;
   const KEY = 'lp-hint-full-size';
   if (!hintDue(KEY, 1)) return;
   hintShown(KEY);
