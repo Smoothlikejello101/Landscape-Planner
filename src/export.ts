@@ -444,7 +444,10 @@ export function buildExportSVG(area: PrintArea = WHOLE_PLAN): { svg: string; wid
   const { names } = gatherAreaNames(() => withNames(state.showNames, () => {
     exportRuns = runsOf(sorted, scale);
     try {
-      withSeeThrough(paper.thin, () => withWindows(windowCircles(sorted, paper.windows), () => { for (const s of sorted) shapesSvg += shapeToSvgString(s, minX, minY, scale); }));
+      // (A plant numbered under a taller one: no name under it, its bits showing at the edges; the key has it.)
+      withSeeThrough(paper.thin, () => withWindows(windowCircles(sorted, paper.windows), () => {
+        for (const s of sorted) shapesSvg += shapeToSvgString(dots?.numbers.has(s.id) ? ({ ...s, label: '' } as Shape) : s, minX, minY, scale);
+      }));
     } finally { exportRuns = null; }
   }));
   shapesSvg += hiddenRimsSvg(sorted, paper.hidden, minX, minY, scale, 1, dots?.numbers);
@@ -491,7 +494,7 @@ export function dotKeyBand(rows: { key: number; label: string }[], w: number, to
   const pad = 10, fs = 12, lh = 22, gap = 16, head = 'Under taller plants:';
   const text = (x: number, y: number, s: string, extra = '') => `<text x="${x}" y="${y}" dominant-baseline="central" font-size="${fs}" fill="#292524" font-family="sans-serif"${extra}>${escapeHtml(s)}</text>`;
   let body = text(pad, top + pad + lh / 2, head, ' font-weight="700"');
-  let x = pad + textWidth1(head) * fs + 10, line = 0;
+  let x = pad + textWidth1(head) * fs * 1.1 + 10, line = 0; // (bold: a tenth wider than measured)
   for (const r of rows) {
     const rad = dotRadius(r.key), width = 2 * rad + 5 + textWidth1(r.label) * fs;
     if (x + width > w - pad && x > pad) { line++; x = pad; }

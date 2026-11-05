@@ -284,7 +284,15 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
   const under = opts.under ?? 'windows';
   const paper = paperUnder(shapes, NO_FILTER, under, opts.seeThroughFrom ?? null);
   const windows = windowCircles(shapes, paper.windows);
+  // Plants hidden under a solid one: a pin over it, as on the plan; numbered, a numbered dot, its number in it (round 3,
+  // Hank: four of six daffodils were white dots the list and legend didn't explain; their numbers were under the
+  // catmint). Numbered with the sheet's plant numbers where it has them; as on the screen, with names, numbered among
+  // themselves, with a key (dotKey). Numbered, its name isn't drawn under the plant over it: bits of it showed at the
+  // edges ("Cro", Jason's crocuses under his viburnum); the key has it.
+  const hiddenPlants = shapes.filter((s) => paper.hidden.has(s.id) && isPlant(s) && numbered(s));
+  const dots = names && (keys || under === 'screen') ? dotKey(hiddenPlants, plantsById, keys, opts.order ?? shapes) : null;
   const { out: body, names: areas } = gatherAreaNames(() => withNames(names, () => withSeeThrough(paper.thin, () => withWindows(windows, () => shapes.map((s) => ring(s) + (() => {
+    if (dots?.numbers.has(s.id)) return shapeToSvgString({ ...s, label: '' }, win.minX, win.minY, pxPerFt, k); // (its dot has its number)
     if (!keys || !isPlant(s)) return shapeToSvgString(s, win.minX, win.minY, pxPerFt, k);
     const key = keys.get(labelShown(s).trim() || 'Unlabeled plant');
     let out = shapeToSvgString({ ...s, label: '' }, win.minX, win.minY, pxPerFt, k);
@@ -295,12 +303,6 @@ export function buildPlanSvg(layout: PrintLayout, shapes: Shape[], bg: BgImage |
     out += `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${fs}" font-weight="700" fill="#0f172a" font-family="sans-serif" stroke="#ffffff" stroke-width="${2.5 * k}" paint-order="stroke" stroke-linejoin="round">${key}</text>`;
     return out;
   })()).join('')))));
-  // Plants hidden under a solid one: a pin over it, as on the plan; numbered, a numbered dot, its number in it (round 3,
-  // Hank: four of six daffodils were white dots the list and legend didn't explain; their numbers were under the
-  // catmint). Numbered with the sheet's plant numbers where it has them; as on the screen, with names, numbered among
-  // themselves, with a key (dotKey).
-  const hiddenPlants = shapes.filter((s) => paper.hidden.has(s.id) && isPlant(s) && numbered(s));
-  const dots = names && (keys || under === 'screen') ? dotKey(hiddenPlants, plantsById, keys, opts.order ?? shapes) : null;
   const pins = hiddenRimsSvg(shapes, paper.hidden, win.minX, win.minY, pxPerFt, k, dots?.numbers);
   // The beds', paths' and buildings' names last, clear of each other and of the plants (src/export.ts areaNamesSvg):
   // "Driveway" printed over "Driveway flower bed", beside it (the UI review, 2026-11-01).

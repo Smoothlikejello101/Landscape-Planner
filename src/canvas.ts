@@ -812,7 +812,7 @@ const OVERFLOW_PX = 11;
  * gets every other name, rather than a pile of overlapping text.
  */
 let overflowLabels = new Set<string>();
-/** Plants hidden under a solid one whose name isn't clear of the names in sight: their outline alone (liftHidden). */
+/** Plants hidden under a solid one whose name isn't clear of the names in sight: their pin alone (liftHidden). */
 let hiddenUnnamed = new Set<string>();
 /** Hidden plants' names moved beside their pin (px) to be clear of the names in sight (liftHidden). */
 let hiddenShift = new Map<string, { dx: number; dy: number }>();

@@ -169,6 +169,10 @@ describe('the printed drawing and the picture', () => {
     expect(under.marks).toBe(2);
     expect(under.dots!.inList).toBe(false);
     expect(under.dots!.rows.map((r) => [r.key, r.label])).toEqual([[1, 'Crocus'], [2, 'Wild ginger']]);
+    // (Their names left off, under the plants over them: the key has them. The aster at the viburnum's edge keeps its.)
+    expect(svg).not.toMatch(/>Wild ginger</);
+    expect(svg.match(/>Crocus</g)).toHaveLength(2); // (the gone one's and the one under the oak, seen through)
+    expect(svg).toMatch(/>Aster</);
     // (Names hidden: plain pins, no numbers, no key.)
     const plain = buildPlanSvg(layout(), SHAPES, null, { ...opts, under: 'screen', names: false }, 100);
     expect(plain.svg).not.toContain('numbered-dot');
