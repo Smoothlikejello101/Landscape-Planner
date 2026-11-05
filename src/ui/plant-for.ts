@@ -68,7 +68,7 @@ export const PICK_SAID = 'Tap the bed to plant for';
 export function hoursSaid(a: number, b: number): string {
   return formatHours(a) === formatHours(b) ? formatHours(a) : `${formatHours(a).replace(/ h$/, '')} to ${formatHours(b)}`;
 }
-/** What the box says under its chips: where its sun comes from, what doesn't filter yet, and that nothing is ranked. */
+/** What the box says under its chips: where its sun comes from, drip irrigation, and that nothing is ranked. */
 export function boxNote(l: BedLayer): string {
   const parts: string[] = [];
   const s = l.sun;
@@ -76,9 +76,8 @@ export function boxNote(l: BedLayer): string {
     const from = s.areas.length === 1 ? 'the sun area over it' : `the ${s.areas.length} sun areas over it`;
     parts.push(`Sun from ${from} (${hoursSaid(s.minH, s.maxH)})${s.covered < 1 ? '; part of the bed has none recorded' : ''}.`);
   } else if (l.rules.sun) parts.push('Sun as you said it: no sun area covers the bed.');
-  if (l.rules.soil === 'loam' || l.rules.soil === 'sand') parts.push(`${l.rules.soil === 'loam' ? 'Loam' : 'Sandy'} soil doesn’t filter yet: the plant facts don’t have it.`);
   if (l.rules.drip && (l.rules.moisture === 'dry' || l.rules.moisture === 'average')) parts.push('Drip irrigated: any water need fits.');
-  // (Answered Not sure, or loam: nothing filters, and it says so.)
+  // (Answered Not sure: nothing filters, and it says so.)
   parts.push(l.chips.length ? 'Only plants whose facts fit are listed; nothing is ranked.' : 'Nothing set filters the list: every plant is listed.');
   return parts.join(' ');
 }

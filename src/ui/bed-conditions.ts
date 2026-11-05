@@ -118,7 +118,7 @@ export function conditionsBody(bedId: string, changed?: () => void): HTMLElement
     // ---- Soil ----
     const soil = (['clay', 'loam', 'sand', 'unsure'] as const).find((v) => v === c.soil);
     out.push(el('div', { className: 'cond-label' }, 'Soil'), choices('Soil', 'soil', SOIL_CHOICES, soil, (v) => set(bed, { soil: v })),
-      el('div', { className: 'hint' }, 'Clay lists plants rated Clay OK, then those no source rates for clay, below them. Loam and sandy don’t filter yet: the plant facts don’t have them.'));
+      el('div', { className: 'hint', 'data-testid': 'cond-soil-says' }, 'Clay, Loam and Sandy each list the plants rated for that soil, then those no source rates for it, below them.'));
     // ---- Moisture, and drip ----
     const moisture = (['dry', 'average', 'wet', 'unsure'] as const).find((v) => v === c.moisture);
     const drip = c.drip === true;

@@ -283,6 +283,77 @@ test('For a clay bed: what no source rates for clay is listed below a divider; a
   await expect(chips(page)).toHaveText(['Takes part shade to full sun', 'Clay OK', 'Takes wet soil']);
 });
 
+/**
+ * A catalog with soil textures as the build writes them (NC State's "Soil Texture": Jason, Nov 4), every plant taking
+ * the Front bed's sun: rated for all three; for loam only; for sand only; for clay only; and for none.
+ */
+const SOIL_CATALOG = (() => {
+  const plant = (id: string, common: string, facts: Record<string, unknown>) => ({ id, common, src: ['ncsu'], audited: '2026-11-04',
+    facts: { form: 'Perennial', sun_most: 'Full', sun_least: 'Part', ...facts } });
+  const soil = (v: string[]) => ({ v, src: ['ncsu'], check: 'single' });
+  const clayOk = { v: true, src: ['ncsu'], check: 'single' };
+  return {
+    meta: { format: 'lp-catalog', version: 2, zones: 'half', title: 'Test catalog', updated: '2026-11-04',
+      sources: { ncsu: { title: 'NC State Extension Gardener Plant Toolbox', trust: 'reference' } }, enums: { form: ['Perennial'] } },
+    plants: [
+      plant('redbud', 'Redbud', { soil_texture: soil(['clay', 'loam', 'sand']), clay_ok: clayOk }),
+      plant('bergamot', 'Wild bergamot', { soil_texture: soil(['loam']) }),
+      plant('prickly-pear', 'Prickly pear', { soil_texture: soil(['sand']) }),
+      plant('swamp-milkweed', 'Swamp milkweed', { soil_texture: soil(['clay']), clay_ok: clayOk }),
+      plant('alumroot', 'Hairy alumroot', {}),
+    ],
+  };
+})();
+/** The list as drawn: names, and each divider by its test id. */
+const listOrder = (page: Page) => page.locator('.picker-sheet .list-divider, .picker-sheet .plant-item .pname')
+  .evaluateAll((els) => els.map((e) => (e.classList.contains('list-divider') ? '|' + e.getAttribute('data-testid') : e.textContent)));
+
+test('For a loam or sandy bed: plants rated for it, those rated for no texture below a divider, none rated only for others; a plant\'s Soil row (Jason, Nov 4)', async ({ page }) => {
+  await page.route('**/plants.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(SOIL_CATALOG) }));
+  await seed(page, SHAPES.map((s) => (s.id === 'bed' ? { ...s, conditions: { soil: 'loam' } } : s)));
+  await tapPlan(page, 9, 1.5);
+  await page.getByTestId('pill-plant-bed').click();
+  await expect(chips(page)).toHaveText(['Takes part shade to full sun', 'Loam OK']);
+  await expect(page.getByTestId('bed-box-note')).not.toContainText('doesn’t filter');
+  // Loam: rated for loam; no rating below; sand only and clay only left out. The count is of those rated.
+  await expect.poll(() => listOrder(page)).toEqual(['Redbud', 'Wild Bergamot', '|no-loam-divider', 'Hairy Alumroot']);
+  await expect(page.getByTestId('no-loam-divider')).toHaveText('No source we\'ve read says how these do in loam (1)');
+  await expect(count(page)).toHaveText(/^2 of 5 plants fit Front bed/);
+  // Nothing hidden silently: what the bed's soil hid of a search, by name.
+  await search(page).fill('prickly pear');
+  await expect(page.getByTestId('hidden-by')).toHaveText('1 plant matches “prickly pear”, hidden by Front bed: Loam. Show them');
+  await page.getByTestId('clear-search').click();
+  // Taken off for now: every plant, no divider; put back.
+  await page.getByTestId('bed-box').getByRole('button', { name: 'Take off for now: Loam OK' }).click();
+  await expect.poll(() => listOrder(page)).toEqual(['Hairy Alumroot', 'Prickly Pear', 'Redbud', 'Swamp Milkweed', 'Wild Bergamot']);
+  await page.getByTestId('bed-cond-off').click();
+  await expect(page.getByTestId('no-loam-divider')).toBeVisible();
+  // Sandy, from Edit: rated for sand first.
+  await page.getByTestId('bed-edit').click();
+  await expect(page.getByTestId('cond-soil-says')).toHaveText('Clay, Loam and Sandy each list the plants rated for that soil, then those no source rates for it, below them.');
+  await page.getByTestId('cond-soil-sand').click();
+  await expect(page.getByTestId('conditions-sum')).toContainText('Sandy soil OK');
+  await page.getByTestId('conditions-back').click();
+  await expect(chips(page)).toHaveText(['Takes part shade to full sun', 'Sandy soil OK']);
+  await expect.poll(() => listOrder(page)).toEqual(['Prickly Pear', 'Redbud', '|no-sand-divider', 'Hairy Alumroot']);
+  await expect(page.getByTestId('no-sand-divider')).toHaveText('No source we\'ve read says how these do in sandy soil (1)');
+  // Clay as before, by Clay OK: those with no clay rating below its divider, whatever textures they're rated for.
+  await page.getByTestId('bed-edit').click();
+  await page.getByTestId('cond-soil-clay').click();
+  await page.getByTestId('conditions-back').click();
+  await expect(chips(page)).toHaveText(['Takes part shade to full sun', 'Clay OK']);
+  await expect.poll(() => listOrder(page)).toEqual(['Redbud', 'Swamp Milkweed', '|no-clay-divider', 'Hairy Alumroot', 'Prickly Pear', 'Wild Bergamot']);
+  // A plant's details: its Soil, with its source in front, quietly; none where it has no rating.
+  await rowNamed(page, 'Redbud').getByTestId('plant-row').click();
+  const details = rowNamed(page, 'Redbud').getByTestId('plant-details');
+  await details.getByTestId('group-growing').click();
+  const soilRow = details.locator('dt', { hasText: /^Soil$/ }).locator('xpath=following-sibling::dd[1]');
+  await expect(soilRow).toContainText('Clay, loam or sand');
+  await expect(soilRow.locator('.details-src')).toHaveText('Source: NC State');
+  await rowNamed(page, 'Hairy alumroot').getByTestId('plant-row').click();
+  await expect(rowNamed(page, 'Hairy alumroot').getByTestId('plant-details').locator('dt', { hasText: /^Soil$/ })).toHaveCount(0);
+});
+
 test('placing For a bed: the bed outlined, the rest dimmed; one placed outside it is placed, ringed red, with Undo', async ({ page }) => {
   await seed(page, ANSWERED);
   // (Inside the Front bed, clear of the oak's shade, as the plan rests.)

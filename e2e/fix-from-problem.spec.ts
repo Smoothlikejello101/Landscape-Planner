@@ -147,8 +147,8 @@ test('Warnings: Swap from a sun, hardiness or poison row opens filtered for what
 });
 
 test('a plant\'s details: crowded Russian Sage swaps for a smaller form of itself first, filtered for the width that fits', async ({ page }) => {
-  // Russian Sage (3 ft typical spread) 2.3 ft from a New England aster (2 ft): close. 2.6 ft fits there.
-  await openPlan(page, [plant('rs', 'salvia-yangii-2', 'Russian Sage', 0, 0, 1.5), plant('as', 'symphyotrichum-novae-angliae', 'New England aster', 2.3, 0)]);
+  // Russian Sage (3 ft typical spread) 2.4 ft from a New England aster (2 ft): close. 2.8 ft fits there.
+  await openPlan(page, [plant('rs', 'salvia-yangii-2', 'Russian Sage', 0, 0, 1.5), plant('as', 'symphyotrichum-novae-angliae', 'New England aster', 2.4, 0)]);
   await details(page, 'rs');
   await page.getByTestId('crowding-line').click();
   await expect(page.getByTestId('crowding-detail').getByRole('button')).toHaveText(['Nudge apart', 'Swap for a smaller plant…', 'Dismiss for this pair']);
@@ -160,7 +160,7 @@ test('a plant\'s details: crowded Russian Sage swaps for a smaller form of itsel
   await expect(page.getByTestId('smaller-forms')).toHaveText('Smaller forms of Russian Sage');
   const firstRow = page.locator('.sheet .plant-item').first();
   await expect(firstRow.locator('.pname')).toHaveText("Russian Sage 'Denim 'n Lace'");
-  await expect(firstRow.getByTestId('smaller-fit')).toHaveText('Typically 2.5 ft wide: fits');
+  await expect(firstRow.getByTestId('smaller-fit')).toHaveText('Typically 2.8 ft wide: fits');
   await expect(page.getByTestId('other-plants')).toBeVisible();
   await firstRow.getByTestId('plant-place').click();
   await expect(page.locator('#toast')).toContainText("Swapped for Russian Sage 'Denim 'n Lace'.");
@@ -196,7 +196,7 @@ test('a plant\'s details: Nudge apart moves this one, with Undo; wider than its 
   await expect(page.getByTestId('bed-fit')).toContainText('Wider than Side strip: it typically spreads 3 ft, and the bed is 2 ft across at its widest.');
   await page.getByTestId('bed-fit').getByTestId('fix-swap-big').click();
   await expect(swapWhy(page)).toHaveText('Filtered for plants up to 2 ft wide, the width of Side strip');
-  await expect(page.locator('.sheet .plant-item').first().getByTestId('smaller-fit')).toHaveText('Typically 2.5 ft wide: wider than the 2 ft there');
+  await expect(page.locator('.sheet .plant-item').first().getByTestId('smaller-fit')).toHaveText('Typically 2.8 ft wide: wider than the 2 ft there');
 });
 
 test('the crowding notice: Nudge apart moves the plant just placed, Undo puts it back; the place bar\'s Undo takes back both', async ({ page }) => {

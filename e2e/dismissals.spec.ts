@@ -71,7 +71,7 @@ test('dismissing a hardiness warning on one copy dismisses it for every copy and
 const base = { color: '#16a34a', opacity: 0.65, locked: false };
 const plant = (id: string, plantId: string, label: string, x: number, y: number, radius = 1) => ({ ...base, id, type: 'circle', role: 'plant', plantId, label, x, y, radius });
 const sunny = { ...base, id: 'sunny', type: 'rect', role: 'shade', label: 'Sunny strip', x: 20, y: -5, width: 10, height: 10, rotation: 0, sun: { mode: 'hours', hours: 8, periods: [[540, 780]], dappled: false } };
-/** Two spicebushes 2 ft apart: crowded. */
+/** Two spicebushes 2 ft apart: crowded. Pairs go 12 ft apart, clear of each other (a spicebush typically spreads 10.5 ft). */
 const pair = (n: number, y: number) => [plant(`s${n}a`, 'lindera-benzoin', 'Spicebush', 0, y), plant(`s${n}b`, 'lindera-benzoin', 'Spicebush', 2, y)];
 async function openPlan(page: Page, shapes: object[], where: { dogs?: boolean; zone?: boolean } = {}) {
   await page.addInitScript(([shapes, where]) => {
@@ -95,7 +95,7 @@ const KINDS = ['poison', 'utility', 'hardy', 'sun', 'crowding', 'fruit'];
 
 test('Warnings: each kind\'s warning dismissed from its row, as the plan dismisses it, saying who for, and a kind all at once, with an Undo (Jason, Nov 1)', async ({ page }) => {
   await openPlan(page, [
-    ...pair(1, 0), ...pair(2, 10), ...pair(3, 20),
+    ...pair(1, 0), ...pair(2, 12), ...pair(3, 24),
     sunny, plant('tc', 'dicentra-eximia', 'Turkey corn', 25, 0, 0.5),
     plant('al', 'aloe-vera', 'Barbados aloe', 40, 0),
     plant('mw', 'asclepias-tuberosa', 'Butterfly milkweed', 40, 15),
@@ -209,7 +209,7 @@ test('Warnings: each kind\'s warning dismissed from its row, as the plan dismiss
 });
 
 test('Warnings: a kind\'s Dismiss all or Show all again only where it does more than one row\'s own (Jason, Nov 1)', async ({ page }) => {
-  await openPlan(page, [...pair(1, 0), ...pair(2, 10), sunny, plant('tc', 'dicentra-eximia', 'Turkey corn', 22, 0, 0.5), plant('tc2', 'dicentra-eximia', 'Turkey corn', 27, 0, 0.5)]);
+  await openPlan(page, [...pair(1, 0), ...pair(2, 12), sunny, plant('tc', 'dicentra-eximia', 'Turkey corn', 22, 0, 0.5), plant('tc2', 'dicentra-eximia', 'Turkey corn', 27, 0, 0.5)]);
   await openWarnings(page, 'sun', 'crowding');
   await expect(page.getByTestId('warnings-head')).toHaveText('4 to look at');
   const rows = kind(page, 'sun').getByTestId('warning-row');

@@ -9,7 +9,7 @@ import { toast } from './toast';
 import { I } from '../icons';
 import type { DogFilter, Plant, PlantFilter } from '../plants';
 import { byMatch, hostMatchText, inNotes, matchPlant, nearShows, readQuery, unsearchable } from '../search';
-import { seasonMonths, byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, noClayRating, sunFit, sunRangeSaid, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, planCounts, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById, swapFiltersOn, treeFiltersAside } from '../plants';
+import { seasonMonths, byTypicalHeight, formsOf, matchedBy, reportedOnly, earlierFor, comesIn, bySeason, noSoilRating, sunFit, sunRangeSaid, filterOn, SEASONS, reportedPhrase, rowFlags, rowLines, planCounts, plantColor, PLANTS, PLANT_FILTER_DEFAULTS, PLANT_META, filteredPlants, linkFromPicker, plantFilter, plantIdsInPlan, plantMatches, countWord, bannedLeftOut, pickerCount, toxicToDogs, nonToxicToDogs, reportedMatch, cultivarsOf, foldHeadOf, headName, isGroupHead, plantsById, swapFiltersOn, treeFiltersAside } from '../plants';
 import { startPlacing, switchPlacingPlant } from '../place';
 import { startTreeDraw } from '../draw';
 import { SPREAD_WAYS, spreadWays } from '../spread';
@@ -28,7 +28,7 @@ import { plantSpot } from '../plant-looks';
 import { closePicker, dragsPicker, pickerFromSheet, pickerHandle, pickerSheetClass, showShapes } from './picker-view';
 import { bedBox, forRow } from './plant-for';
 import { sourceButton } from './source-pane';
-import { bedLayer, PART_NAME, PART_OF, setPartOff, SET_BY_BED, withFilters, type BedLayer, type BedPart } from '../bed-plant';
+import { bedLayer, partName, PART_OF, setPartOff, SET_BY_BED, withFilters, type BedLayer, type BedPart } from '../bed-plant';
 import { redrawCanvas } from '../canvas';
 import { noteView } from './render';
 import type { Shape } from '../types';
@@ -227,7 +227,7 @@ const FILTER_NAMES: Partial<Record<keyof PlantFilter, (f: PlantFilter) => string
   // (Set only by a Swap from a sun warning, beside the spot's sun: src/ui/fix-problem.ts.)
   afternoonSun: () => 'Takes hot afternoon sun',
   // (Set only by a bed the picker plants for: src/bed-plant.ts. Named by the bed where they hide a search's plants.)
-  sunRange: (f) => `Takes ${sunRangeSaid(f.sunRange)}`, clayBed: () => 'Clay OK',
+  sunRange: (f) => `Takes ${sunRangeSaid(f.sunRange)}`, clayBed: () => 'Clay OK', soilBed: (f) => (f.soilBed === 'sand' ? 'Sandy soil OK' : 'Loam OK'),
 };
 /**
  * Whether the filters are open: one fold for them all, folded to start and left as the gardener left it (Jason,
@@ -292,6 +292,8 @@ export function renderPlantsPanel() {
   }
   /** The box's Edit: the bed's conditions, then back here For it. */
   function editConditions() { state.panel = 'bedConditions'; render(); }
+  /** The soil the bed planted for lists the unrated below a divider for: its loam or sand, else clay. */
+  const soilOn = (): 'clay' | 'loam' | 'sand' => layer?.keys.soilBed || 'clay';
   /** Whether the bed planted for sets this filter now (shown "Set by Front bed", the person's own set aside). */
   const setByBed = (k: keyof PlantFilter): boolean => !!layer && SET_BY_BED.includes(k);
   /** The controls of the filters a bed sets, as For now has them. */
@@ -338,9 +340,10 @@ export function renderPlantsPanel() {
   /**
    * The group a plant in the last list is in: 0 what its sources say fits; 1 a species that comes in a color asked
    * for among others; 2 what fits by what other sources say; 3 what fits only by the earlier list's word; 4, for a
-   * clay bed, what no source rates for clay (Jason, Nov 2, answer D: below a divider).
+   * clay bed, what no source rates for clay (Jason, Nov 2, answer D: below a divider); for a loam or sandy bed, what no
+   * source rates for soil texture (Jason, Nov 4).
    */
-  const groupOf = (p: Plant) => (noClayRating.has(p.id) ? 4 : earlierFor.has(p.id) ? 3 : reportedOnly.has(p.id) ? 2 : comesIn.has(p.id) ? 1 : 0);
+  const groupOf = (p: Plant) => (noSoilRating.has(p.id) ? 4 : earlierFor.has(p.id) ? 3 : reportedOnly.has(p.id) ? 2 : comesIn.has(p.id) ? 1 : 0);
   const verb = swapping ? 'Swap' : linking ? 'Link' : forTree ? 'Pick' : state.placing ? 'Switch' : 'Place';
   /** A plant's Place (Swap, Link, Switch, Pick) button: on its row, and on its column in the comparison. */
   function useButton(p: Plant): HTMLButtonElement {
@@ -404,7 +407,7 @@ export function renderPlantsPanel() {
         const why = `Matches on ${joined(earlierFor.get(p.id) ?? [], 'and')} only by the earlier list (unverified)`;
         flags.push(el('span', { className: 'pflag check unverified-badge', 'data-testid': 'earlier-flag', title: why }, 'Earlier list only', el('span', { className: 'sr-only' }, ` (${why})`)));
       }
-      if (own === 4) flags.push(el('span', { className: 'pflag check', 'data-testid': 'no-clay-flag' }, 'No clay rating'));
+      if (own === 4) flags.push(el('span', { className: 'pflag check', 'data-testid': `no-${soilOn()}-flag` }, `No ${soilOn()} rating`));
     }
     // For a bed whose sun varies, a plant that takes only part of it says where (Jason, Nov 2, answer A: "some"); the
     // sun badge on the plan still catches one placed at the wrong end.
@@ -554,7 +557,7 @@ export function renderPlantsPanel() {
     const foundBanned = hits.filter(bannedHere).length;
     const n = hits.length + mine.length - foundBanned, all = PLANTS.length + activeMyPlants().length - banned.length;
     // (For a bed: those no source rates for clay aren't counted as fitting it; their divider says how many.)
-    const unratedN = hits.filter((p) => noClayRating.has(p.id)).length;
+    const unratedN = hits.filter((p) => noSoilRating.has(p.id)).length;
     // (Nothing matched as typed, only close spellings: said so, not counted as matches (Lena, Oct 30).)
     // ("In this plan": the plan's kinds, not a share of the catalog (Dana, Oct 30: "6 of 3,725 plants match").)
     const found = hits.length + mine.length;
@@ -756,10 +759,12 @@ export function renderPlantsPanel() {
         el('span', {}, `These match on ${on.length > 1 ? `${on.slice(0, -1).join(', ')} and ${on[on.length - 1]}` : on[0]} only by the earlier list (unverified). No source we've read says so yet.`)));
       rows(earlier, 3);
     }
-    // For a clay bed, what no source rates for clay, below a divider (Jason, Nov 2, answer D): listed, not hidden.
+    // For a clay bed, what no source rates for clay, below a divider (Jason, Nov 2, answer D): listed, not hidden. For a
+    // loam or sandy bed, what no source rates for soil texture, the same way (Jason, Nov 4).
     if (unrated.length) {
-      listWrap.appendChild(el('div', { className: 'list-divider earlier', 'data-testid': 'no-clay-divider' },
-        el('span', {}, `No source we've read says how these do in clay (${countWord(unratedN)})`)));
+      const soil = soilOn();
+      listWrap.appendChild(el('div', { className: 'list-divider earlier', 'data-testid': `no-${soil}-divider` },
+        el('span', {}, `No source we've read says how these do in ${soil === 'sand' ? 'sandy soil' : soil} (${countWord(unratedN)})`)));
       rows(unrated, 4);
     }
     if (seasonal.length) {
@@ -858,11 +863,11 @@ export function renderPlantsPanel() {
   }
   /** A filter by name, as "hidden by" says it: one the bed planted for sets, by the bed and its part ("Front bed: Clay"). */
   function nameOf(k: keyof PlantFilter, name: (f: PlantFilter) => string): string {
-    return layer && setByBed(k) ? `${layer.name}: ${PART_NAME[PART_OF[k]!]}` : name(plantFilter);
+    return layer && setByBed(k) ? `${layer.name}: ${partName(PART_OF[k]!, layer.rules)}` : name(plantFilter);
   }
   /** Who hid them: "your filters: Sun: Shade", or, the bed's alone, "Front bed: Clay" (Jason, Nov 2: nothing hidden silently). */
   function hidSaid(keys: (keyof PlantFilter)[], names: string[]): string {
-    if (layer && keys.length && keys.every(setByBed)) return `${layer.name}: ${[...new Set(keys.map((k) => PART_NAME[PART_OF[k]!]))].join(', ')}`;
+    if (layer && keys.length && keys.every(setByBed)) return `${layer.name}: ${[...new Set(keys.map((k) => partName(PART_OF[k]!, layer!.rules)))].join(', ')}`;
     return `your filters: ${names.join(', ')}`;
   }
   /** "Edible fruit" says Edible already: one name for the two (round 3: "…, Edible, Edible fruit"). */
@@ -907,7 +912,7 @@ export function renderPlantsPanel() {
       // (Not "In this plan", beside the search, nor "Hardy in zone N", beside Filters: each shows as its own box.)
       if (k === 'inPlan' || k === 'hardyHere' || !filterOn(plantFilter, k)) continue;
       // (Nor a filter the bed planted for sets: its box shows those, the person's own set aside meanwhile.)
-      if (setByBed(k) || k === 'sunRange' || k === 'clayBed') continue;
+      if (setByBed(k) || k === 'sunRange' || k === 'clayBed' || k === 'soilBed') continue;
       if (k === 'native' && plantFilter.native === '@here' && !gardenStateName()) continue;
       // ("Edible fruit" says Edible already.)
       if (k === 'edible' && plantFilter.edibleParts.length) continue;
