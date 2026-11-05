@@ -165,7 +165,7 @@ test('a plant\'s details: crowded Russian Sage swaps for a smaller form of itsel
   await firstRow.getByTestId('plant-place').click();
   await expect(page.locator('#toast')).toContainText("Swapped for Russian Sage 'Denim 'n Lace'.");
   await expect(page.getByTestId('crowding')).toHaveCount(0); // (no longer close)
-  await closeSheet(page);
+  await expect(page.locator('.sheet')).toHaveCount(0); // (swapped: the sheet closes. Jason, Nov 5)
   // The picker on its own: no width left on.
   await page.keyboard.press('Escape');
   await page.locator('.tool-btn.plants').click();

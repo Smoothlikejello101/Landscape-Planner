@@ -29,6 +29,9 @@ export function toast(message: string, ms = 3000) {
   timer = setTimeout(() => { n.classList.remove('show'); timer = setTimeout(() => { if (!n.classList.contains('show')) n.textContent = ''; }, 400); }, ms);
 }
 
+/** A plain notice is up (its words still showing). */
+export const toastShowing = (): boolean => !!document.getElementById('toast')?.classList.contains('show');
+
 /**
  * A plain notice raised before what just opened (a sheet, the ⋮ menu): put away, not left over its title or its rows
  * (round 3: the tour's last notice sat on the Add sheet and the menu for Ruth, Lena, Grace and Bea). One raised as it
