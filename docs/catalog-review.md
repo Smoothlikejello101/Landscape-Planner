@@ -1,15 +1,14 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 272 to decide, 2011 sites whose terms are unsettled, 1119 catalog checks; 3743 of 3746 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 276 to decide, 2011 sites whose terms are unsettled, 1016 catalog checks; 3743 of 3746 records audited.
 
-- [Sources disagree (157)](#sources-disagree-157)
+- [Sources disagree (161)](#sources-disagree-161)
 - [Cultivar: tree or shrub? (6)](#cultivar-tree-or-shrub-6)
 - [Held back as implausible (3)](#held-back-as-implausible-3)
 - [A value its source no longer gives (54)](#a-value-its-source-no-longer-gives-54)
 - [Sizes whose sources are far apart (34)](#sizes-whose-sources-are-far-apart-34)
 - [Sources often far from the authorities (1)](#sources-often-far-from-the-authorities-1)
-- [Read from text, but a second reading differs (464)](#read-from-text-but-a-second-reading-differs-464)
-- [Read from text, waiting for a second reading (114)](#read-from-text-waiting-for-a-second-reading-114)
+- [Read from text, but a second reading differs (475)](#read-from-text-but-a-second-reading-differs-475)
 - [Values the catalog can't take (1)](#values-the-catalog-cant-take-1)
 - [Kew names to check (10)](#kew-names-to-check-10)
 - [Bloom months held back (4)](#bloom-months-held-back-4)
@@ -17,7 +16,7 @@ Written by `npm run catalog:build` (docs/catalog-build.md): what the build left 
 - [Sites whose terms are unsettled (2011)](#sites-whose-terms-are-unsettled-2011)
 - [Catalog checks (541)](#catalog-checks-541)
 
-## Sources disagree (157)
+## Sources disagree (161)
 
 The audit's sources give different values, so the catalog keeps the value it had, marked unverified. Zones are on the half-zone scale (7 is 7a, 7.5 is 7b); sizes are in feet. There's no place to record a decision on these yet: they stay listed until there is.
 
@@ -29,6 +28,7 @@ The audit's sources give different values, so the catalog keeps the value it had
 | Arrowhead (duck potato) (`sagittaria-latifolia`) | self-sowing | ncsu: Prolific · illinoiswildflowers.info: Unrated; pondinformer.com says Unrated | Prolific |
 | Partridge pea (`chamaecrista-fasciculata`) | spacing | keystonewildflowers.com: 0.5–1 · outsidepride.com: 3–3 | – |
 | Sideoats grama (`bouteloua-curtipendula`) | spreading | newmoonnursery.com: Slow-spreading rhizome · prairienursery.com: Clumping | Clumping |
+| Carolina jessamine (`gelsemium-sempervirens`) | leaves in winter | ncsu, rachelsnativeplants.com: semi-evergreen · clemson.edu: evergreen; westernstarnurseries.com says evergreen | semi-evergreen |
 | Pagoda dogwood (`cornus-alternifolia`) | spacing | prairienursery.com: 15–20 · wildcherryfarm.com: 6–12 | 15–20 |
 | Illinois rose (`rosa-setigera`) | spacing | prairienursery.com: 3–5 · solaseeds.com: 1.5–1.5 | 3–5 |
 | Coralberry (`symphoricarpos-orbiculatus`) | spreading | davisla.wordpress.com: Suckering · plantnative.org: Spreading rhizome | Suckering |
@@ -107,6 +107,7 @@ The audit's sources give different values, so the catalog keeps the value it had
 | Allegheny serviceberry (`amelanchier-laevis`) | spacing | bluestemnatives.com: 5–10 · prairienursery.com: 15–20 | 5–10 |
 | Pineapple (`ananas-comosus`) | most sun | chicagobotanic.org says Full; each decided on its own, most sun Part and least sun Full make no range | Part |
 | Pineapple (`ananas-comosus`) | least sun | ncsu says Part; each decided on its own, most sun Part and least sun Full make no range (USDA: shade tolerance low) | Part |
+| Dill (`anethum-graveolens`) | self-sowing | ncsu, gardenershq.com: Unrated · wisc.edu: Prolific | Unrated |
 | Barroomplant (`aspidistra-elatior`) | spreading | ncsu: Spreading rhizome · uada.edu: Slow-spreading rhizome | Spreading rhizome |
 | Barroomplant (`aspidistra-elatior`) | leaves in winter | ncsu: evergreen · uada.edu: semi-evergreen | evergreen |
 | Japanese cherry birch (`betula-grossa`) | flower_color | ncsu: Gold/Yellow, Insignificant · chicagobotanic.org: Green | yellow, insignificant |
@@ -132,6 +133,7 @@ The audit's sources give different values, so the catalog keeps the value it had
 | Manyflower marshpennywort (`hydrocotyle-umbellata`) | flower_color | ncsu: White · chicagobotanic.org: Green | white |
 | Common goldstar (`hypoxis-hirsuta`) | spacing | keystonewildflowers.com: 0.33–0.5 · blazingstargardens.com: 1–1 | 0.33–0.5 |
 | Winterberry (`ilex-verticillata-x-serrata`) | spreading | ncsu, leavesforwildlife.com: Suckering · clemson.edu: Suckering thicket | Suckering |
+| Virginia sweetspire (`itea-virginica-2`) | spreading | ncsu: Suckering colonizer · clemson.edu: Suckering; rachelsnativeplants.com says Suckering | Suckering colonizer |
 | Yellow Archangel (`lamium-galeobdolon`) | leaves in winter | ncsu: evergreen · wisc.edu: semi-evergreen | evergreen |
 | European larch (`larix-decidua`) | leaves in winter | ncsu: semi-evergreen · chicagobotanic.org: deciduous; treesandshrubsonline.org says deciduous; davisla.wordpress.com says deciduous | semi-evergreen |
 | Lion's ear (`leonotis-leonurus`) | self-sowing | ncsu: Unrated · ufl.edu: Modest | Unrated |
@@ -141,6 +143,7 @@ The audit's sources give different values, so the catalog keeps the value it had
 | Marvel of Peru (`mirabilis-jalapa`) | self-sowing | ncsu: Prolific · wisc.edu: Unrated | Prolific |
 | Pacific Island silvergrass (`miscanthus-floridulus`) | flower_color | ncsu: Cream/Tan, Red/Burgundy · chicagobotanic.org: Pink | cream, red |
 | South American tobacco (`nicotiana-sylvestris`) | self-sowing | ncsu, rainyside.com: Unrated · wisc.edu: Prolific; mooseyscountrygarden.com says Prolific | Unrated |
+| Devil in the bush (`nigella-damascena`) | self-sowing | ncsu, illinoiswildflowers.info: Unrated · wisc.edu: Prolific | Unrated |
 | Olive (`olea-europaea`) | bloom_season | ncsu, gardenershq.com: summer · arizona.edu: spring | summer |
 | Star of Bethlehem (`ornithogalum-umbellatum`) | self-sowing | ncsu: Unrated · chicagobotanic.org: Prolific | Unrated |
 | Wonga-wonga-vine (`pandorea-pandorana`) | flower_color | ncsu: Gold/Yellow, Purple/Lavender · botanicgardens.sa.gov.au: Cream, Pink | yellow, purple |
@@ -173,7 +176,7 @@ The audit's sources give different values, so the catalog keeps the value it had
 | Hinoki false cypress 'Crippsii' (`chamaecyparis-obtusa-crippsii`) | spacing | oldhousetrees.com: 6–8 · baysidegardencenter.com: 3–3 | – |
 | Switch Grass 'Cloud Nine' (`panicum-virgatum-cloud-nine`) | flower_color | ncsu: Pink · chicagobotanic.org: Yellow | pink |
 | Salix udensis 'Sekka' (`salix-udensis-sekka`) | flower_color | ncsu: Gold/Yellow, Gray/Silver · chicagobotanic.org: Pink | yellow, silver |
-| Viburnum 'Eskimo' (`viburnum-utile-eskimo`) | leaves in winter | ncsu: semi-evergreen · uky.edu: deciduous | semi-evergreen |
+| Viburnum 'Eskimo' (`viburnum-utile-eskimo`) | leaves in winter | ncsu: semi-evergreen · uky.edu: deciduous; naturehills.com says deciduous | semi-evergreen |
 | Burkwood Viburnum 'Conoy' (`viburnum-x-burkwoodii-conoy`) | leaves in winter | ncsu: semi-evergreen · uada.edu: evergreen | semi-evergreen |
 | Oldfashioned weigela 'Sunset' (`weigela-florida-sunset`) | flower_color | ncsu: Red/Burgundy · chicagobotanic.org: Pink; kiefernursery.com says Pink | red |
 | Dwarf pillow sedge (`carex-firma`) | spreading | ncsu: Slow-spreading rhizome · illinois.edu: Mat-forming | – |
@@ -314,7 +317,7 @@ Sources whose sizes are 3 times or more from every authority's for the same plan
 | --- | --- | --- | --- |
 | arizona.edu | 22 | 3 (14%) | Bismarck Palm (`bismarckia-nobilis`), Be-still tree (`cascabela-thevetia`), White poplar (`populus-alba`) |
 
-## Read from text, but a second reading differs (464)
+## Read from text, but a second reading differs (475)
 
 A value the rules read from a page's text, which a second reading of the same text (blind to the first) read differently, and not just in degree. It isn't written. The catalog keeps what it had, except a value an earlier build read from that text: that's taken out, unsettled (NC State's deer field, where its text lowered it, stands as the field gives it). Nothing to decide yet: a page can be read again, or a person can look.
 
@@ -423,6 +426,8 @@ A value the rules read from a page's text, which a second reading of the same te
 | Holly 'Nellie R. Stevens' (`ilex-x-nellie-r-stevens`) | fruit set | separate | better | ncsu | nothing |
 | Indian hawthorn (`rhaphiolepis-indica`) | deer | Candy | Resistant | monsteraholic.com | Occasional |
 | Crape myrtle 'Natchez' (`lagerstroemia-natchez-muskogee-tonto`) | spreading | Suckering | nothing | evergreentrees.com.au | Clumping (the earlier list) |
+| Ginkgo 'Princeton Sentry' (`ginkgo-biloba-princeton-sentry`) | deer | Resistant | nothing | naturehills.com | Resistant |
+| Bald cypress (`taxodium-distichum`) | spreading | Clumping | nothing | clemson.edu | Clumping (the earlier list) |
 | Lenten rose (`helleborus-x-hybridus`) | leaves in winter | semi-evergreen | evergreen | wisc.edu | evergreen |
 | Ornamental allium 'Purple Sensation' (`allium-purple-sensation`) | self-sowing | Unrated | nothing | colorblends.com | nothing |
 | Tree of heaven (`ailanthus-altissima`) | leaves in winter | semi-evergreen | deciduous | treesandshrubsonline.org | deciduous |
@@ -459,6 +464,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Pipevine (`aristolochia-macrophylla`) | first flower color | yellow | green | ncsu | nothing |
 | Woolly dutchman's pipe (`aristolochia-tomentosa`) | leaves in winter | semi-evergreen | nothing | butterflygardenstogo.com | deciduous |
 | Absinthium (`artemisia-absinthium`) | leaves in winter | evergreen | nothing | gardeningchannel.com | nothing |
+| Bride's feathers (`aruncus-dioicus`) | self-sowing | Prolific | nothing | wisc.edu | nothing |
 | Red milkweed (`asclepias-rubra`) | first flower color | purple | pink | ncsu | nothing |
 | Walking fern (`asplenium-rhizophyllum`) | spreading | Clumping | nothing | ncsu | nothing |
 | Bottle-palm (`beaucarnea-recurvata`) | spreading | Clumping | nothing | llifle.com | nothing |
@@ -561,6 +567,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Waterspider bog orchid (`habenaria-repens`) | spreading | Mat-forming | nothing | toptropicals.com | Runner (stolons) |
 | Haworthia retusa (`haworthia-retusa`) | spreading | Suckering | Clumping | llifle.com | nothing |
 | Haworthiopsis tessellata (`haworthiopsis-tessellata`) | spreading | Runner (stolons) | Clumping | ncsu | nothing |
+| Willowleaf sunflower (`helianthus-salicifolius`) | spreading | Clumping | Slow-spreading rhizome | davisla.wordpress.com | Spreading rhizome |
 | Hemionitis seticaulis (`hemionitis-seticaulis`) | spreading | Spreading rhizome | nothing | ncsu | nothing |
 | Hibiscus hamabo (`hibiscus-hamabo`) | leaves in winter | semi-evergreen | nothing | gchouston.org | semi-evergreen |
 | Anti-febrile Dichroa (Chinese Quinine) (`hydrangea-febrifuga`) | leaves in winter | semi-evergreen | evergreen | treesandshrubsonline.org | evergreen |
@@ -575,6 +582,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Winterberry (`ilex-verticillata-x-serrata`) | deer | Resistant | Occasional | fellabees.com | Resistant |
 | Butterfly-flower (`iris-japonica`) | spreading | Clumping | Slow-spreading rhizome | davisla.wordpress.com | Spreading rhizome |
 | Isotoma (`isotoma-fluviatilis`) | spreading | Mat-forming | Runner (stolons) | ncsu | nothing |
+| Virginia sweetspire (`itea-virginica-2`) | leaves in winter | deciduous | semi-evergreen | clemson.edu | semi-evergreen |
 | European meadow rush (`juncus-inflexus`) | leaves in winter | evergreen | semi-evergreen | k-state.edu | semi-evergreen |
 | Chinese juniper (`juniperus-chinensis`) | leaves in winter | semi-evergreen | evergreen | conifers.org | evergreen |
 | Shore juniper (`juniperus-conferta`) | spreading | Mat-forming | nothing | uada.edu | Mat-forming |
@@ -583,6 +591,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Mountain laurel (`kalmia-latifolia`) | leaves in winter | semi-evergreen | evergreen | harvesttotable.com | evergreen |
 | Castor aralia (`kalopanax-septemlobus`) | leaves in winter | semi-evergreen | deciduous | harvesttotable.com | deciduous |
 | Japanese rose (`kerria-japonica`) | leaves in winter | semi-evergreen | deciduous | harvesttotable.com | deciduous |
+| Golden chain tree (`laburnum-anagyroides`) | deer | Resistant | nothing | harvesttotable.com | nothing |
 | Crapemyrtle (`lagerstroemia-indica`) | leaves in winter | semi-evergreen | nothing | gardenershq.com | deciduous |
 | Yellow Archangel (`lamium-galeobdolon`) | spreading | Clumping | Mat-forming | wisc.edu | Runner (stolons), maybe aggressive |
 | Spotted henbit (`lamium-maculatum`) | leaves in winter | evergreen | semi-evergreen | gardeningchannel.com | semi-evergreen |
@@ -688,6 +697,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Butcher's-broom (`ruscus-aculeatus`) | fruit set | separate | better | ncsu | nothing |
 | Fountainbush (`russelia-equisetiformis`) | leaves in winter | evergreen | semi-evergreen | ruthbancroftgarden.org | deciduous |
 | White willow (`salix-alba`) | leaves in winter | deciduous | nothing | treesandshrubsonline.org | deciduous |
+| Weeping willow (`salix-babylonica`) | leaves in winter | deciduous | nothing | treesandshrubsonline.org | deciduous |
 | Silver sage (`salvia-argentea`) | self-sowing | Modest | nothing | nvknurseries.com | Unrated |
 | Arrowleaf Sage (`salvia-sagittata`) | leaves in winter | semi-evergreen | evergreen | scottarboretum.org | evergreen |
 | Arrowleaf Sage (`salvia-sagittata`) | deer | Resistant | nothing | scottarboretum.org | Resistant |
@@ -709,6 +719,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | American evergreen (`syngonium-podophyllum`) | leaves in winter | evergreen | nothing | plantophiles.com | nothing |
 | Common lilac (`syringa-vulgaris`) | spreading | Suckering | nothing | waverlyfarm.com | Suckering colonizer |
 | Syringa × hyacinthiflora (`syringa-x-hyacinthiflora`) | first flower color | purple | nothing | ncsu | nothing |
+| Pond Cypress (`taxodium-distichum-var-imbricarium`) | spreading | Clumping | nothing | clemson.edu | nothing |
 | Canada yew (`taxus-canadensis`) | leaves in winter | semi-evergreen | evergreen | plantnative.org | evergreen |
 | Cape Honeysuckle (`tecomaria-capensis`) | first flower color | orange | yellow | ncsu | nothing |
 | Rice-paper plant (`tetrapanax-papyrifer`) | spreading | Suckering | Spreading rhizome | ncsu | nothing |
@@ -740,6 +751,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Cape Mallow 'Slightly Strawberry' (`anisodontea-capensis-slightly-strawberry`) | leaves in winter | evergreen | semi-evergreen | ncsu | nothing |
 | Birch 'Royal Frost' (`betula-royal-frost`) | leaves in winter | evergreen | deciduous | thompsons-plants.co.uk | deciduous |
 | Common box 'Aureovariegata' (`buxus-sempervirens-aureovariegata`) | leaves in winter | semi-evergreen | evergreen | mrmaple.com | evergreen |
+| Feather Reed Grass 'Karl Foerster' (`calamagrostis-x-acutiflora-karl-foerster`) | leaves in winter | evergreen | deciduous | naturehills.com | nothing |
 | Pecan 'Gloria Grande' (`carya-illinoinensis-gloria-grande`) | fruit set | better | partner | ncsu | nothing |
 | Pecan 'Kiowa' (`carya-illinoinensis-kiowa`) | fruit set | better | partner | ncsu | nothing |
 | Pecan 'Sumner' (`carya-illinoinensis-sumner`) | fruit set | better | partner | ncsu | nothing |
@@ -756,6 +768,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Rose-of-sharon 'Blue Bird' (`hibiscus-syriacus-blue-bird`) | first flower color | purple | blue | ncsu | nothing |
 | Hydrangea 'Glowing Embers' (`hydrangea-macrophylla-glowing-embers`) | first flower color | pink | red | ncsu | nothing |
 | English holly 'Argentea Marginata' (`ilex-aquifolium-argentea-marginata`) | leaves in winter | evergreen | nothing | frankpmatthews.com | evergreen |
+| Japanese holly 'Sky Pencil' (`ilex-crenata-sky-pencil`) | leaves in winter | semi-evergreen | evergreen | naturehills.com | evergreen |
 | Dwarf 'Stokes' (`ilex-crenata-stokes`) | leaves in winter | evergreen | nothing | denolf.com | evergreen |
 | Holly 'Whoa Nellie' (`ilex-whoa-nellie`) | fruit set | separate | better | ncsu | nothing |
 | Chinese juniper 'Robusta Green' (`juniperus-chinensis-robusta-green`) | spreading | Clumping | nothing | backyardgardener.com | nothing |
@@ -765,6 +778,7 @@ A value the rules read from a page's text, which a second reading of the same te
 | Apple 'Fuji' (`malus-domestica-fuji`) | first flower color | white | pink | ncsu | nothing |
 | Eulalia 'Goliath' (`miscanthus-sinensis-goliath`) | self-sowing | Modest | Sterile | ncsu | nothing |
 | Paeonia – Herbaceous Types (`paeonia-herbaceous-types`) | first flower color | white | nothing | ncsu | nothing |
+| Blue Switch Grass 'Heavy Metal' (`panicum-virgatum-heavy-metal`) | spreading | Clumping | Spreading rhizome | davisla.wordpress.com | Clumping |
 | Serbian spruce 'Nana' (`picea-omorika-nana`) | leaves in winter | semi-evergreen | evergreen | whisperingcraneinstitute.com | evergreen |
 | Oriental Spruce 'Skylands' (`picea-orientalis-skylands`) | deer | Resistant | nothing | rainyside.com | nothing |
 | Spruce 'Fat Albert' (`picea-pungens-fat-albert`) | leaves in winter | semi-evergreen | nothing | pinelanenursery.com | evergreen |
@@ -784,52 +798,6 @@ A value the rules read from a page's text, which a second reading of the same te
 | Plymouth rose gentian (`sabatia-kennedyana`) | leaves in winter | deciduous | nothing | mellowmarshfarm.com | evergreen |
 | Plymouth rose gentian (`sabatia-kennedyana`) | spreading | Spreading rhizome | nothing | aquascapesunlimited.com | Runner (stolons) |
 | Canadian white violet (`viola-canadensis`) | first flower color | purple | white | ncsu | nothing |
-
-## Read from text, waiting for a second reading (114)
-
-Values the rules read from a page's text whose page hasn't had its second reading (its text is new, or changed): not written until it has. The build lists the pages in catalog-src/build/second-reading-tasks.json.
-
-- Witherod viburnum 'Winterthur' (`viburnum-nudum`)
-- Rose 'Julia Child' (floribunda) (`rosa-julia-child`)
-- Russian sage 'Denim 'n Lace' (`salvia-yangii`)
-- Fringe tree (`chionanthus-virginicus`)
-- Carolina jessamine (`gelsemium-sempervirens`)
-- Strawberry bush (`euonymus-americanus`)
-- Red osier dogwood (`cornus-sericea`)
-- American hazelnut (`corylus-americana`)
-- Indian tobacco (`lobelia-inflata`)
-- Common carrion flower (`smilax-lasioneura`)
-- Red maple (`acer-rubrum`)
-- Robin's plantain (`erigeron-pulchellus`)
-- Broad beech fern (`phegopteris-hexagonoptera`)
-- Hardy kiwi (`actinidia-arguta`)
-- Loquat (`eriobotrya-japonica`)
-- Distylium 'Vintage Jade' (`distylium-hybrids-vintage-jade-cinnamon-girl`)
-- Ginkgo 'Princeton Sentry' (`ginkgo-biloba-princeton-sentry`)
-- Bald cypress (`taxodium-distichum`)
-- Catmint 'Cat's Meow' (`nepeta-cat-s-meow-walker-s-low`)
-- Lavender 'Phenomenal' (`lavandula-x-intermedia-phenomenal`)
-- Canna 'Australia' (`canna-australia-species-types`)
-- Liriope 'Big Blue' (`liriope-muscari-big-blue`)
-- Mimosa / silk tree (`albizia-julibrissin`)
-- Fernleaf yarrow (`achillea-filipendulina`)
-- Threadleaf giant hyssop (`agastache-rupestris`)
-- Dill (`anethum-graveolens`)
-- Bride's feathers (`aruncus-dioicus`)
-- Sweet birch (`betula-lenta`)
-- Caraway (`carum-carvi`)
-- Swamp leather flower (`clematis-crispa`)
-- Lobed tickseed (`coreopsis-auriculata`)
-- Ghost Dogwood (`cornus-wilsoniana`)
-- Garden cosmos (`cosmos-bipinnatus`)
-- Creeping cotoneaster (`cotoneaster-adpressus`)
-- Daphne genkwa (`daphne-genkwa`)
-- Redneck rhody (`daphniphyllum-macropodum`)
-- Eastern teaberry (`gaultheria-procumbens`)
-- Kentucky coffeetree (`gymnocladus-dioicus`)
-- Willowleaf sunflower (`helianthus-salicifolius`)
-- Virginia sweetspire (`itea-virginica-2`)
-- …
 
 ## Values the catalog can't take (1)
 
