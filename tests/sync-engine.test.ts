@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { canonical, coreHash, fingerprint, photoKey, planHash, planOf, settleBought, settleHousehold, settleSwitches, syncOnce, withLocalParts, type Local, type LocalProject, type ProjectContent, type Remote, type SyncRecord } from '../src/sync/engine';
 import { FakeServer } from './fake-sync-server';
 import { keepBought, plantList } from '../src/plant-list';
-import type { PlanBought, Shape } from '../src/types';
+import type { PlanBought, PrintSettings, PrintUnder, Shape } from '../src/types';
 import { migrateShape, sanitizePhotoRef } from '../src/storage';
 import { releaseMigrateShape } from './fixtures/release-migrate-shape';
 import { releaseSanitizePhotoRef } from './fixtures/release-photo';
+import { releaseSanitizePrint } from './fixtures/release-print';
+import { Dev, FP, sync as syncDev } from './release-device';
+import { DEFAULT_PRINT } from '../src/state';
 
 // The sync engine against a stand-in server (the same rules as
 // supabase/02-sync.sql) and stand-in devices: two devices editing offline,
@@ -1763,5 +1766,266 @@ describe("a photo's rough scale and the sides typed as numbers, through a device
     expect(photoOf(laptop, id)).toEqual(photo({ ftPerPx: 0.2 }));
     await still(server, phone, laptop);
     expect(phone.names()).toEqual(['Back Yard']);
+  });
+});
+
+// The print choice for the plants under taller ones (`print.under`, Nov 4, database version 6), between two devices of
+// this version, and through a device on the release, run with the release's own engine and its own reading of print
+// settings (tests/release-device.ts: it drops the field, and nothing else). docs/storage.md.
+describe('the print choice for the plants under taller ones (print.under, Nov 4)', () => {
+  const house = (x = 0) => ({ id: 'h1', type: 'rect', x, y: 0, width: 30, height: 20, rotation: 0, color: '#78716c', label: 'House', opacity: 0.8, locked: false, role: 'building' });
+  const oak = (x = 50) => ({ id: 'o1', type: 'circle', x, y: 10, radius: 8, color: '#166534', label: 'Old oak', opacity: 0.5, locked: false });
+  const photo = (extra: object = {}) => ({ fingerprint: FP, naturalWidth: 400, naturalHeight: 300, ftPerPx: 0.25, cx: 0, cy: 0, rotation: 0, opacity: 0.6, visible: true, ...extra });
+  /** Print settings: as a plan has them, with `under` picked or not. */
+  const P = (under?: PrintUnder, extra: Partial<PrintSettings> = {}): PrintSettings => ({ ...DEFAULT_PRINT, ...extra, ...(under ? { under } : {}) });
+  /** A plan on `d`: the house and the oak, its print settings `print`. */
+  const addPlan = (d: Dev, print: PrintSettings, withPhoto = false) => {
+    const id = d.add('Back Yard', [house(), oak()], withPhoto ? photo() : null);
+    d.edit(id, (c) => ({ ...c, print }));
+    return id;
+  };
+  const picked = (d: Dev, id: string) => (d.projectsById.get(id)!.content.print as PrintSettings).under;
+  const onServer = (s: FakeServer, id: string) => s.rows.get(id)!.content;
+  const pickOn = (d: Dev, id: string, under: PrintUnder) => d.edit(id, (c) => ({ ...c, print: { ...(c.print as PrintSettings), under } }));
+  const moveOak = (d: Dev, id: string, x: number) => d.edit(id, (c) => ({ ...c, shapes: [(c.shapes as Shape[])[0], oak(x)] }));
+  const oakX = (d: Dev, id: string) => (d.projectsById.get(id)!.content.shapes as Shape[])[1].x;
+  async function settled(server: FakeServer, ...devices: Dev[]) {
+    for (let i = 0; i < 3; i++) for (const d of devices) expect(await syncDev(d, server)).toMatchObject({ uploaded: 0, downloaded: 0, conflicts: [] });
+  }
+
+  it('fingerprinted: a plan without it exactly as before; As on screen is a change; Show through picked reads as none picked', () => {
+    const c = (print: object) => ({ shapes: [house(), oak()], photo: null, household: { kids: true }, print });
+    for (const x of [c(P()), c(P(undefined, { paper: 'a4', title: 'Front' })), { shapes: [] }, {}]) {
+      expect(planHash('Back Yard', x)).toBe(fingerprint('Back Yard', planOf(x)));
+      const { household: _h, ...core } = planOf(x);
+      expect(coreHash('Back Yard', x)).toBe(fingerprint('Back Yard', core));
+    }
+    const h = (print: object) => [planHash('X', c(print)), coreHash('X', c(print))];
+    expect(h(P('windows'))).toEqual(h(P()));
+    expect(h(P('screen'))[0]).not.toBe(h(P())[0]);
+    expect(h(P('screen'))[1]).not.toBe(h(P())[1]);
+    // (Only what's hashed: the plan keeps its pick, and sends it.)
+    const kept = c(P('windows'));
+    planHash('X', kept);
+    expect((kept.print as PrintSettings).under).toBe('windows');
+    // As the release reads a plan with it: none, and nothing else changed.
+    expect(releaseSanitizePrint(P('screen', { paper: 'a3', northDeg: 30 }))).toEqual(P(undefined, { paper: 'a3', northDeg: 30 }));
+  });
+
+  it("kept from here when the server's print settings say nothing of it at all; one there, either, stands", () => {
+    const mine = { shapes: [], print: P('screen') };
+    expect(withLocalParts({ shapes: [], print: P(undefined, { paper: 'a4' }) }, mine)).toEqual({ shapes: [], print: P('screen', { paper: 'a4' }) });
+    expect(withLocalParts({ shapes: [], print: P('windows') }, mine)).toEqual({ shapes: [], print: P('windows') });
+    expect(withLocalParts({ shapes: [], print: P('windows') }, { shapes: [], print: P() })).toEqual({ shapes: [], print: P('windows') });
+    expect(withLocalParts({ shapes: [], print: P() }, { shapes: [], print: P('windows') })).toEqual({ shapes: [], print: P('windows') });
+    // (Its own copy: nothing shared with this device's plan.)
+    const filled = withLocalParts({ shapes: [], print: P() }, mine);
+    (filled.print as PrintSettings).under = 'windows';
+    expect(mine.print.under).toBe('screen');
+    // None here: as the server has it (the same object).
+    const plain = { shapes: [], print: P() };
+    expect(withLocalParts(plain, { shapes: [], print: P() })).toBe(plain);
+  });
+
+  it('two devices of this version: picked on one, it goes up by itself and the other takes it; As on screen back to Show through goes too, and nothing fills As on screen back', async () => {
+    const server = new FakeServer(), phone = new Dev('phone', false), tablet = new Dev('tablet', false);
+    const id = addPlan(phone, P());
+    await syncDev(phone, server); await syncDev(tablet, server);
+    pickOn(phone, id, 'screen');
+    expect(await syncDev(phone, server)).toMatchObject({ uploaded: 1 });
+    expect(await syncDev(tablet, server)).toMatchObject({ downloaded: 1, uploaded: 0 });
+    expect(picked(tablet, id)).toBe('screen');
+    await settled(server, phone, tablet);
+    pickOn(tablet, id, 'windows');
+    expect(await syncDev(tablet, server)).toMatchObject({ uploaded: 1 });
+    expect((onServer(server, id).print as PrintSettings).under).toBe('windows');
+    expect(await syncDev(phone, server)).toMatchObject({ downloaded: 1, uploaded: 0, conflicts: [] });
+    expect([picked(phone, id), picked(tablet, id)]).toEqual(['windows', 'windows']);
+    await settled(server, phone, tablet);
+  });
+
+  it('As on screen and back to Show through before the plan synced, while another device moved the oak: no copy, the move taken', async () => {
+    const server = new FakeServer(), phone = new Dev('phone', false), tablet = new Dev('tablet', false);
+    const id = addPlan(phone, P());
+    await syncDev(phone, server); await syncDev(tablet, server);
+    pickOn(phone, id, 'screen');
+    pickOn(phone, id, 'windows');
+    moveOak(tablet, id, 44);
+    expect(await syncDev(tablet, server)).toMatchObject({ uploaded: 1 });
+    expect(await syncDev(phone, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+    expect([phone.projectsById.size, oakX(phone, id), picked(phone, id)]).toEqual([1, 44, 'windows']);
+    await settled(server, phone, tablet);
+  });
+
+  it('the release takes a plan with it picked and sends nothing back for it alone, pass after pass', async () => {
+    const server = new FakeServer(), phone = new Dev('phone', false), laptop = new Dev('laptop', true);
+    const id = addPlan(phone, P('screen', { paper: 'tabloid' }));
+    expect(await syncDev(phone, server)).toMatchObject({ uploaded: 1 });
+    expect(await syncDev(laptop, server)).toMatchObject({ downloaded: 1 });
+    expect(laptop.projectsById.get(id)!.content.print).toEqual(P(undefined, { paper: 'tabloid' })); // (the rest as it was)
+    await settled(server, laptop, phone);
+    expect((onServer(server, id).print as PrintSettings).under).toBe('screen');
+  });
+
+  it('the release ticks a plant and moves the photo while the phone picks (or changes) the choice and moves the oak: no copy anywhere; the pick and the move go up; it settles', async () => {
+    for (const [from, to] of [[undefined, 'screen'], ['screen', 'windows'], ['windows', 'screen']] as const) {
+      const server = new FakeServer(), phone = new Dev('phone', false), laptop = new Dev('laptop', true);
+      const id = addPlan(phone, P(from), true);
+      await syncDev(phone, server); await syncDev(laptop, server);
+      laptop.edit(id, (c) => ({ ...c, bought: { 'pl:1': { n: 1, at: 5 } }, photo: photo({ cx: 4 }) }));
+      pickOn(phone, id, to);
+      moveOak(phone, id, 60);
+      expect(await syncDev(laptop, server)).toMatchObject({ uploaded: 1 });
+      expect('under' in (onServer(server, id).print as object)).toBe(false); // (the release's copy: none)
+      expect(await syncDev(phone, server), `${from} to ${to}`).toMatchObject({ uploaded: 1, conflicts: [] });
+      expect(onServer(server, id)).toMatchObject({ print: P(to), bought: { 'pl:1': { n: 1, at: 5 } }, photo: photo({ cx: 4 }) });
+      expect(await syncDev(laptop, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+      expect(oakX(laptop, id)).toBe(60);
+      await settled(server, phone, laptop);
+      expect([phone.projectsById.size, laptop.projectsById.size, picked(phone, id)]).toEqual([1, 1, to]);
+    }
+  });
+
+  it('the release, with an edit of its own not yet synced, sends it over a newer pick: each device of this version that had it keeps it, and its next edit sends it again', async () => {
+    const server = new FakeServer(), phone = new Dev('phone', false), tablet = new Dev('tablet', false), laptop = new Dev('laptop', true);
+    const id = addPlan(phone, P());
+    await syncDev(phone, server); await syncDev(tablet, server); await syncDev(laptop, server);
+    moveOak(laptop, id, 44); // (offline)
+    pickOn(phone, id, 'screen');
+    expect(await syncDev(phone, server)).toMatchObject({ uploaded: 1 });
+    expect(await syncDev(tablet, server)).toMatchObject({ downloaded: 1 });
+    // The release's merge can't see a change on the server (only the field), so it's taken as changed there only: up over it.
+    expect(await syncDev(laptop, server)).toMatchObject({ uploaded: 1, conflicts: [] });
+    expect('under' in (onServer(server, id).print as object)).toBe(false);
+    for (const d of [phone, tablet]) {
+      expect(await syncDev(d, server)).toMatchObject({ uploaded: 0, downloaded: 1, conflicts: [] });
+      expect([oakX(d, id), picked(d, id)]).toEqual([44, 'screen']);
+    }
+    await settled(server, phone, tablet, laptop);
+    // The phone's next edit sends it again; the tablet takes the edit, still As on screen.
+    moveOak(phone, id, 46);
+    expect(await syncDev(phone, server)).toMatchObject({ uploaded: 1 });
+    expect((onServer(server, id).print as PrintSettings).under).toBe('screen');
+    await syncDev(tablet, server); await syncDev(laptop, server);
+    await settled(server, phone, tablet, laptop);
+    expect([picked(tablet, id), oakX(laptop, id)]).toEqual(['screen', 46]);
+    expect([phone.projectsById.size, tablet.projectsById.size, laptop.projectsById.size]).toEqual([1, 1, 1]);
+  });
+
+  it("the window left (docs/storage.md): a device offline through another's change, with the release sending the plan between, keeps its own; whichever sends the plan first decides", async () => {
+    for (const first of ['tablet', 'phone'] as const) {
+      const server = new FakeServer(), phone = new Dev('phone', false), tablet = new Dev('tablet', false), laptop = new Dev('laptop', true);
+      const id = addPlan(phone, P('screen'));
+      await syncDev(phone, server); await syncDev(tablet, server); await syncDev(laptop, server);
+      // The phone goes offline. The tablet picks Show through; the release takes that and sends a tick, without it.
+      pickOn(tablet, id, 'windows');
+      await syncDev(tablet, server);
+      await syncDev(laptop, server);
+      laptop.edit(id, (c) => ({ ...c, bought: { 'pl:1': { n: 1, at: 5 } } }));
+      await syncDev(laptop, server);
+      expect('under' in (onServer(server, id).print as object)).toBe(false);
+      expect(await syncDev(tablet, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+      expect(picked(tablet, id)).toBe('windows');
+      // The phone, back, has its own, which the server's copy no longer contradicts: kept.
+      expect(await syncDev(phone, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+      expect(picked(phone, id)).toBe('screen');
+      const [a, b] = first === 'tablet' ? [tablet, phone] : [phone, tablet];
+      moveOak(a, id, 60);
+      expect(await syncDev(a, server)).toMatchObject({ uploaded: 1 });
+      expect(await syncDev(b, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+      const won = first === 'tablet' ? 'windows' : 'screen';
+      expect([picked(phone, id), picked(tablet, id)], `${first} first`).toEqual([won, won]);
+      await syncDev(laptop, server);
+      await settled(server, phone, tablet, laptop);
+    }
+  });
+
+  it("the review's R1: Show through picked here over a copy the release sent without it, not yet taken here, goes up and stands: a device that still had As on screen takes it, and nothing sends As on screen back; no copy anywhere", async () => {
+    const server = new FakeServer(), phone = new Dev('phone', false), tablet = new Dev('tablet', false), laptop = new Dev('laptop', true);
+    const id = addPlan(phone, P('screen'));
+    await syncDev(phone, server); await syncDev(tablet, server); await syncDev(laptop, server);
+    // The release ticks a plant: the server's copy has no choice now.
+    laptop.edit(id, (c) => ({ ...c, bought: { 'pl:1': { n: 1, at: 5 } } }));
+    expect(await syncDev(laptop, server)).toMatchObject({ uploaded: 1 });
+    // The phone, before taking that, picks Show through (its only change), and syncs: the pick goes up, with the tick.
+    pickOn(phone, id, 'windows');
+    expect(await syncDev(phone, server)).toMatchObject({ uploaded: 1, conflicts: [] });
+    expect(onServer(server, id)).toMatchObject({ print: P('windows'), bought: { 'pl:1': { n: 1, at: 5 } } });
+    // The tablet takes it, and its next edit sends it, not its As on screen.
+    expect(await syncDev(tablet, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+    expect(picked(tablet, id)).toBe('windows');
+    moveOak(tablet, id, 44);
+    expect(await syncDev(tablet, server)).toMatchObject({ uploaded: 1 });
+    expect(await syncDev(phone, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+    expect([picked(phone, id), oakX(phone, id)]).toEqual(['windows', 44]);
+    await syncDev(laptop, server);
+    await settled(server, phone, tablet, laptop);
+    expect([phone.projectsById.size, tablet.projectsById.size, laptop.projectsById.size]).toEqual([1, 1, 1]);
+  });
+
+  it("the review's R2: after a real conflict (both moved something), another edit there before this device's next pass makes no second copy: this device's choice, kept in the original, isn't a change of its own", async () => {
+    // Between two devices of this version: the phone picks As on screen and moves the house; the tablet, never picked,
+    // moves the oak.
+    {
+      const server = new FakeServer(), phone = new Dev('phone', false), tablet = new Dev('tablet', false);
+      const id = addPlan(phone, P());
+      await syncDev(phone, server); await syncDev(tablet, server);
+      phone.edit(id, (c) => ({ ...c, print: P('screen'), shapes: [house(5), (c.shapes as Shape[])[1]] }));
+      moveOak(tablet, id, 44);
+      await syncDev(tablet, server);
+      expect((await syncDev(phone, server)).conflicts).toHaveLength(1);
+      await syncDev(tablet, server);
+      moveOak(tablet, id, 40);
+      await syncDev(tablet, server);
+      expect(await syncDev(phone, server)).toMatchObject({ conflicts: [] });
+      expect([phone.projectsById.size, oakX(phone, id)]).toEqual([2, 40]);
+      const copy = [...phone.projectsById.values()].find((x) => x.id !== id)!;
+      expect(copy.content).toMatchObject({ print: P('screen') });
+      expect((copy.content.shapes as Shape[])[0].x).toBe(5); // (the phone's own version, whole, beside)
+      await settled(server, phone, tablet);
+      expect(tablet.projectsById.size).toBe(2);
+    }
+    // Through the release: whatever the phone had (and kept), the laptop moves the oak twice.
+    for (const under of [undefined, 'screen', 'windows'] as const) {
+      const server = new FakeServer(), phone = new Dev('phone', false), laptop = new Dev('laptop', true);
+      const id = addPlan(phone, P(under));
+      await syncDev(phone, server); await syncDev(laptop, server);
+      moveOak(laptop, id, 44);
+      phone.edit(id, (c) => ({ ...c, shapes: [house(5), (c.shapes as Shape[])[1]] }));
+      await syncDev(laptop, server);
+      expect((await syncDev(phone, server)).conflicts, under).toHaveLength(1);
+      await syncDev(laptop, server);
+      moveOak(laptop, id, 40);
+      await syncDev(laptop, server);
+      expect(await syncDev(phone, server), under).toMatchObject({ conflicts: [] });
+      expect([phone.projectsById.size, oakX(phone, id), picked(phone, id)], under).toEqual([2, 40, under]);
+      await settled(server, phone, laptop);
+    }
+  });
+
+  it('a device of this version that took the plan only after the release sent it without it prints Show through until one that has it sends it again; picked on it meanwhile, that goes up and stands', async () => {
+    const server = new FakeServer(), phone = new Dev('phone', false), tablet = new Dev('tablet', false), laptop = new Dev('laptop', true);
+    const id = addPlan(phone, P('windows', { paper: 'a4' }));
+    await syncDev(phone, server);
+    pickOn(phone, id, 'screen');
+    await syncDev(phone, server); await syncDev(laptop, server);
+    moveOak(laptop, id, 44);
+    await syncDev(laptop, server);
+    expect(await syncDev(tablet, server)).toMatchObject({ downloaded: 1 });
+    expect(picked(tablet, id)).toBeUndefined();
+    // Its edit to something else goes up without it; the phone keeps its own.
+    tablet.edit(id, (c) => ({ ...c, shapes: [house(2), (c.shapes as Shape[])[1]] }));
+    expect(await syncDev(tablet, server)).toMatchObject({ uploaded: 1 });
+    expect(await syncDev(phone, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+    expect(picked(phone, id)).toBe('screen');
+    // Picked on the tablet (As on screen, synced, then Show through): each goes up, and stands on the phone.
+    pickOn(tablet, id, 'screen');
+    expect(await syncDev(tablet, server)).toMatchObject({ uploaded: 1 });
+    pickOn(tablet, id, 'windows');
+    expect(await syncDev(tablet, server)).toMatchObject({ uploaded: 1 });
+    expect(await syncDev(phone, server)).toMatchObject({ downloaded: 1, conflicts: [] });
+    expect(picked(phone, id)).toBe('windows');
+    await syncDev(laptop, server);
+    await settled(server, phone, tablet, laptop);
   });
 });

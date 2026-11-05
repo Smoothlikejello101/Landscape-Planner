@@ -6,6 +6,7 @@ import { myPlants, myPlantsUsedBy } from './my-plants';
 import { wirePlant } from './catalog';
 import { now, stamp } from './util';
 import { rawCopy } from './db';
+import { underOf } from './view-settings';
 
 // Project files: a single project, or a backup of every project, as JSON.
 // Background images are embedded as data URLs so a file is self-contained.
@@ -193,6 +194,8 @@ export function planContent(data: ProjectData): string {
   if (d.bgImage) { const bg = { ...d.bgImage }; delete bg.imageId; delete bg.fingerprint; delete bg.deviceOnly; d.bgImage = bg; }
   // (A bed's conditions cleared on purpose, {}, and a fruit warning shown again, '', read as none, as sync has them.)
   if (d.shapes) d.shapes = withoutClearedMarks(d.shapes) ?? d.shapes;
+  // (The plants under taller ones as this device prints them: Show through picked, or none picked, the same.)
+  if (d.print) d.print = { ...d.print, under: underOf(d.print) };
   return JSON.stringify(ordered(d));
 }
 /**

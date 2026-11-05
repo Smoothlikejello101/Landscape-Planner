@@ -39,7 +39,7 @@ describe('drawing order', () => {
     expect(drawnHeight(state.shapes[0] as CircleShape)).toBe(12);
     expect(drawnHeight(state.shapes[4] as CircleShape)).toBe(6); // (3 ft radius, no height: its spread)
   });
-  it('draws a plant 5 ft or taller see-through, every copy alike; under a shorter, solid one, a plant whose middle it covers is outlined over it (Jason, Oct 30)', () => {
+  it('draws every plant solid, tall ones too, and pins what a plant covers the middle of; with Layers\' "See through tall plants", 5 ft or taller see-through, as from Oct 30 (Jason, Nov 4)', () => {
     const c = (id: string, x: number, radius: number, extra: Partial<Shape> = {}) => ({ id, type: 'circle', x, y: 0, radius, color: '#16a34a', label: id, opacity: 0.65, locked: false, role: 'plant', ...extra } as Shape);
     plantsById['t-hazel'] = { id: 't-hazel', common: 'Witch hazel', form: 'Shrub', height: { min: 10, max: 15, med: 12 } } as Plant;
     plantsById['t-mint'] = { id: 't-mint', common: 'Mountain mint', form: 'Perennial', height: { min: 3, max: 4, med: 3.5 } } as Plant;
@@ -52,11 +52,19 @@ describe('drawing order', () => {
       c('wide', 80, 3), // (no height known: its spread, 6 ft, stands in)
       c('mint3', 100, 1.25, mint), c('mint4', 100.5, 1.25, mint), // (a mass planting: a mint under a mint isn't marked)
     ];
-    expect([...seeThroughIds(state.shapes)].sort()).toEqual(['hazel', 'hazel2', 'wide']);
-    // (Under a canopy, seen through it; under the solid mint, marked; a gone plant counts for nothing, nor one under its
-    // own kind.)
-    expect([...hiddenIds(state.shapes)].sort()).toEqual(['underMint']);
-    expect(hiddenCovers(state.shapes).get('underMint')).toEqual(['mint']);
+    // (Solid, as the plan rests, Layers' switch off: the witch hazel like the mint, the ginger under it pinned.)
+    expect([...seeThroughIds(state.shapes, state.viewFilter, null)]).toEqual([]);
+    expect([...hiddenIds(state.shapes, state.viewFilter, new Set())].sort()).toEqual(['underHazel', 'underMint']);
+    expect(hiddenCovers(state.shapes, state.viewFilter, new Set()).get('underHazel')).toEqual(['hazel']);
+    // (The switch on, from 5 ft: as from Oct 30 to Nov 4. Under a canopy, seen through it; under the solid mint, marked;
+    // a gone plant counts for nothing, nor one under its own kind.)
+    const thin = seeThroughIds(state.shapes, state.viewFilter, 5);
+    expect([...thin].sort()).toEqual(['hazel', 'hazel2', 'wide']);
+    expect([...hiddenIds(state.shapes, state.viewFilter, thin)].sort()).toEqual(['underMint']);
+    expect(hiddenCovers(state.shapes, state.viewFilter, thin).get('underMint')).toEqual(['mint']);
+    // (From 10 ft, the witch hazel, 12 ft, alone; the 6 ft stand-in solid. From 3 ft, the mints too.)
+    expect([...seeThroughIds(state.shapes, state.viewFilter, 10)].sort()).toEqual(['hazel', 'hazel2']);
+    expect([...seeThroughIds(state.shapes, state.viewFilter, 3)].sort()).toEqual(['hazel', 'hazel2', 'mint', 'mint2', 'mint3', 'mint4', 'wide']);
   });
   it('names a run of the same plant once: twelve liriope in a column are one run; a gap, another name or two alone are not (Jason, Oct 30)', () => {
     const c = (id: string, label: string, x: number, y: number) => ({ id, type: 'circle', x, y, radius: 0.75, color: '#16a34a', label, opacity: 0.65, locked: false, role: 'plant' } as CircleShape);
@@ -97,8 +105,40 @@ describe('drawing order', () => {
     expect(at.y).toBeLessThan(-0.75);
     // (Grazing its rim is fine: a tenth of it.)
     expect(runLabelSpot(row, w, h, ppf, [], [{ x: 4, y: 2.18, r: 2 }])).toEqual({ x: 4, y: 0 });
-    // Plants all round: nowhere clear, none (its plants named one by one, as lone plants are, or not at all).
-    expect(runLabelSpot(row, w, h, ppf, [], [{ x: 4, y: 0, r: 8 }])).toBeNull();
+    // Plants all round: none clear of them, the first spot clear of the names, over a plant (its middle here), never
+    // none: none was its plants named one by one (Jason, Nov 4, his note 4: a stack of "Creeping liriope").
+    expect(runLabelSpot(row, w, h, ppf, [], [{ x: 4, y: 0, r: 8 }])).toEqual({ x: 4, y: 0 });
+    // (A name at its middle too: the plant next to it.)
+    expect(runLabelSpot(row, w, h, ppf, [{ x0: 4 * ppf - 5, x1: 4 * ppf + 5, y0: -5, y1: 5 }], [{ x: 4, y: 0, r: 8 }])).toEqual({ x: 1, y: 0 });
+  });
+  it("names Jason's liriope once at every zoom down to where plants' names go: a pear's crown beside it no longer splits it into a stack (his note 4)", () => {
+    // (His plan, Nov 1: twelve creeping liriope 1.5 ft apart down the 1.5 ft Carport bed, two Callery pears' 25 ft crowns
+    // to their west, drawn over them, the run's middle in neither.)
+    const c = (id: string, y: number) => ({ id, type: 'circle', x: 1, y, radius: 0.75, color: '#16a34a', label: 'Creeping liriope', opacity: 0.65, locked: false, role: 'plant' } as CircleShape);
+    const column = Array.from({ length: 12 }, (_, i) => c('l' + i, -27.5 + i * 1.5));
+    const pears = [{ x: -12, y: -11.5, r: 12.5 }, { x: -12, y: -28, r: 12.5 }];
+    const w = 102, h = 12.65; // ("Creeping Liriope ×12" at 11 px: the same px at every zoom)
+    // (And, as it was drawn till now, the Carport bed's name, 36 px, moved clear of the plants to the bed's right, at
+    // its middle: on the run's middle and the two plants either side of it.)
+    const carport = (ppf: number) => ({ x0: 1.5 * ppf + 3, x1: 1.5 * ppf + 39, y0: -19.25 * ppf - 6, y1: -19.25 * ppf + 6 });
+    for (const zoom of [0.7, 0.6, 0.54, 0.4, 0.3, 0.2]) {
+      const ppf = 24 * zoom;
+      // Where nothing's clear of the crowns (60% and 54%, as Jason saw it), on the column all the same, never none: none
+      // was its twelve plants named one by one.
+      const at = runLabelSpot(column, w, h, ppf, [carport(ppf)], pears);
+      expect(at, `at ${zoom * 100}%`).not.toBeNull();
+      expect(at!.x).toBe(1);
+    }
+  });
+  it("tries past a run's ends last: above a column's top plant, below its bottom one", () => {
+    const c = (id: string, y: number) => ({ id, type: 'circle', x: 0, y, radius: 0.75, color: '#16a34a', label: 'Phlox', opacity: 0.65, locked: false, role: 'plant' } as CircleShape);
+    const column = [0, 1.5, 3, 4.5].map((y, i) => c('p' + i, y));
+    const ppf = 24, w = 60, h = 13;
+    // (Every spot on or beside the column taken by a name, all but the strip above its top plant.)
+    const taken = [{ x0: -1e4, x1: 1e4, y0: -0.8 * ppf, y1: 1e4 }];
+    const at = runLabelSpot(column, w, h, ppf, taken)!;
+    expect(at.x).toBe(0);
+    expect(at.y * ppf + h / 2).toBeLessThanOrEqual(-0.8 * ppf);
   });
   it("draws no plant's name zoomed out past 20% (Jason, Nov 4: at 5% a name twice the size of the house)", () => {
     expect(PLANT_NAMES_MIN_ZOOM).toBe(0.2);

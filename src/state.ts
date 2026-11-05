@@ -60,6 +60,8 @@ export const state: AppState = {
   fruitWarnings: true,
   switchedAt: {},
   zoomButtons: true,
+  seeThroughTall: false,
+  seeThroughFrom: 5,
   showNames: true,
   plantForm: null,
   pickerLinkId: null,

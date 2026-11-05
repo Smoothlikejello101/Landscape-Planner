@@ -9,13 +9,15 @@ import { isArbor, isTrellis, LATTICE_STEP, latticePath, SLAT_STEP, slatsPath } f
 import { currentProject } from './storage';
 import type { Bounds, CircleShape, Shape, ShapeFilter } from './types';
 import { render } from './ui/render';
-import { gridSteps, hiddenIds, labelRuns, paintOrder, seeThroughIds } from './canvas';
+import { gridSteps, labelRuns, paintOrder, paperUnder, seeThroughFrom } from './canvas';
+import { dotKey } from './print';
 import { areaWords, frameArea, printArea, WHOLE_PLAN, type PrintArea } from './print-area';
+import { printUnder } from './view-settings';
 import { roleDef, roleKey, roleLabel, ROLES } from './roles';
 import { filterText } from './status';
-import { formatHours, shadeOpacity, sunHours } from './sun';
+import { formatHours, sunHours, sunRecorded, sunWash } from './sun';
 import { plantsById } from './plants';
-import { LABEL_LINE_HEIGHT, plantLabelFit } from './labels';
+import { LABEL_LINE_HEIGHT, plantLabelFit, textWidth1 } from './labels';
 import { isBed, isPlant } from './beds';
 import { canopyInnerRadius, canopyPoints, isTree, partsToSvg, trunkParts, trunkReachPx } from './trees';
 import { groundcoverRadius, supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIUS } from './vines';
@@ -108,13 +110,23 @@ function runsOf(shapes: Shape[], scale: number): Map<string, { text: string; x: 
 }
 /**
  * Plants hidden under a solid one (src/canvas.ts hiddenIds): a pin at its middle over the plants, as on the plan, in
- * the page's units (`scale` px a foot, `k` for strokes).
+ * the page's units (`scale` px a foot, `k` for strokes). One given a number (`numbers`: src/print.ts dotKey), a numbered
+ * dot instead: its number, white, in a dark dot, told apart from the numbers printed in the plants' circles.
  */
-export function hiddenRimsSvg(shapes: Shape[], ids: Set<string>, originX: number, originY: number, scale: number, k = 1): string {
+export function hiddenRimsSvg(shapes: Shape[], ids: Set<string>, originX: number, originY: number, scale: number, k = 1, numbers?: Map<string, number>): string {
   return shapes.filter((s): s is CircleShape => s.type === 'circle' && ids.has(s.id)).map((s) => {
-    const cx = (s.x - originX) * scale, cy = (s.y - originY) * scale;
+    const cx = (s.x - originX) * scale, cy = (s.y - originY) * scale, n = numbers?.get(s.id);
+    if (n != null) return numberedDotSvg(cx, cy, n, k);
     return `<circle cx="${cx}" cy="${cy}" r="${4.5 * k}" fill="#ffffff" opacity="0.9"/><circle cx="${cx}" cy="${cy}" r="${2.6 * k}" fill="#292524"/>`;
   }).join('');
+}
+/** A numbered dot's radius (px at k = 1): room for its number's digits. */
+export const dotRadius = (n: number): number => (n >= 100 ? 8 : n >= 10 ? 6.8 : 5.8);
+/** A plant under a taller one, numbered (hiddenRimsSvg): a dark dot ringed white, its number in it. */
+export function numberedDotSvg(cx: number, cy: number, n: number, k = 1): string {
+  const r = Math.round(dotRadius(n) * k * 10) / 10;
+  return `<g data-role="numbered-dot" data-n="${n}"><circle cx="${cx}" cy="${cy}" r="${r}" fill="#292524" stroke="#ffffff" stroke-width="${1.5 * k}"/>`
+    + `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-size="${8 * k}" font-weight="700" fill="#ffffff" font-family="sans-serif">${n}</text></g>`;
 }
 /** Plants drawn see-through in what's being exported (as on the plan: src/canvas.ts seeThroughIds). */
 let exportThin = new Set<string>();
@@ -123,6 +135,39 @@ export function withSeeThrough<T>(ids: Set<string>, fn: () => T): T {
   const was = exportThin;
   exportThin = ids;
   try { return fn(); } finally { exportThin = was; }
+}
+/** A window's circle (feet): a plant under a tall one (src/canvas.ts windowsOver). */
+export interface WindowCircle { x: number; y: number; r: number }
+/** Each tall plant's windows in what's being exported (src/canvas.ts windowsOver): the plants under it, as circles. */
+let exportWindows = new Map<string, WindowCircle[]>();
+/** `fn` with these tall plants drawn with windows over the plants under them (a printout or picture, "C"). */
+export function withWindows<T>(windows: Map<string, WindowCircle[]>, fn: () => T): T {
+  const was = exportWindows;
+  exportWindows = windows;
+  try { return fn(); } finally { exportWindows = was; }
+}
+/** The windows (src/canvas.ts windowsOver, by id) as circles in feet: the plants under each tall one, as drawn. */
+export function windowCircles(shapes: Shape[], windows: Map<string, string[]>): Map<string, WindowCircle[]> {
+  const byId = new Map(shapes.map((s) => [s.id, s]));
+  const out = new Map<string, WindowCircle[]>();
+  for (const [id, under] of windows) {
+    out.set(id, under.map((u) => byId.get(u)).filter((s): s is CircleShape => s?.type === 'circle')
+      .map((s) => ({ x: s.x, y: s.y, r: groundcoverRadius(s) ?? s.radius })));
+  }
+  return out;
+}
+/**
+ * How much of a tall plant shows over a window: a mask's gray, about a third, as the options page's picture had it (C,
+ * Nov 4). Its picture and its edge both, so the plant under it reads through.
+ */
+export const WINDOW_GRAY = '#5a5a5a';
+let windowMasks = 0;
+/** A tall plant's body (`body`, page px) with its windows cut (page px from feet: `originX`, `originY`, `scale`). */
+function windowed(body: string, windows: WindowCircle[], originX: number, originY: number, scale: number, around: { x: number; y: number; r: number }): string {
+  const id = `tall-window-${++windowMasks}`, e = around.r * 1.2 + 4;
+  const holes = windows.map((w) => `<circle cx="${(w.x - originX) * scale}" cy="${(w.y - originY) * scale}" r="${w.r * scale}" fill="${WINDOW_GRAY}"/>`).join('');
+  return `<mask id="${id}" data-role="tall-window" maskUnits="userSpaceOnUse" x="${around.x - e}" y="${around.y - e}" width="${2 * e}" height="${2 * e}">`
+    + `<rect x="${around.x - e}" y="${around.y - e}" width="${2 * e}" height="${2 * e}" fill="#ffffff"/>${holes}</mask><g mask="url(#${id})">${body}</g>`;
 }
 /** A name in a picture or printout: `fs` its size in the page's px, `k` for the halo. */
 function nameSvg(x: number, y: number, fs: number, label: string, extra: string, k: number): string {
@@ -176,7 +221,11 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
   const dashed = (s.role ? !!roleDef(s.role).outline : false) || (s.role === 'utility' && s.utility === 'buried');
   const outline = dashed || s.type === 'line';
   const planned = s.status === 'planned' && !outline;
-  const baseOpacity = outline ? 0 : s.role === 'shade' && s.sun ? shadeOpacity(s.sun) : s.opacity ?? 0.65;
+  // (A sun area with hours recorded: in the ramp's wash for them, as on the plan (src/sun.ts). The hatch over beds' parts
+  // with no sun recorded is the screen's only: Jason, Nov 4, "3) no".)
+  const wash = sunRecorded(s) ? sunWash(s.sun!) : null;
+  if (wash) s = { ...s, color: wash.color };
+  const baseOpacity = outline ? 0 : wash ? wash.opacity : s.opacity ?? 0.65;
   const opacity = planned ? baseOpacity * 0.5 : baseOpacity;
   // (Locked: a padlock badge, not a dashed edge, which read as planned or selected: Lena, Oct 30. shapeToSvgString.)
   const dash = dashed ? ` stroke-dasharray="${8 * k} ${4 * k}"` : planned ? ` stroke-dasharray="${6 * k} ${4 * k}"` : '';
@@ -230,6 +279,9 @@ function shapeBodySvg(s: Shape, originX: number, originY: number, scale: number,
     out += s.canopy
       ? `<polygon points="${canopyPoints(s, (x, y) => [(x - originX) * scale, (y - originY) * scale])}" ${paint} stroke-linejoin="round"/>`
       : `<circle cx="${cx}" cy="${cy}" r="${r}" ${paint}/>`;
+    // (A tall plant on paper: solid, with a window over each plant under it, src/canvas.ts windowsOver. Jason, Nov 4: C.)
+    const windows = exportWindows.get(s.id);
+    if (windows?.length) out = windowed(out, windows, originX, originY, scale, { x: cx, y: cy, r: Math.max(r, s.radius * scale) * 1.3 });
     if (ground != null && ground < s.radius - 0.05) out += `<circle cx="${cx}" cy="${cy}" r="${s.radius * scale}" fill="none" stroke="${s.color}" stroke-opacity="0.45" stroke-width="${1.5 * k}" stroke-dasharray="${k} ${6 * k}" stroke-linecap="round"/>`;
     const tree = isTree(s);
     if (tree) out += partsToSvg(trunkParts(s, cx, cy, scale, false, k));
@@ -387,14 +439,24 @@ export function buildExportSVG(area: PrintArea = WHOLE_PLAN): { svg: string; wid
   }
   const sorted = framed.shapes;
   let shapesSvg = '';
-  const thin = seeThroughIds(state.shapes);
+  // (The plants under taller ones as Print has them, the picture following: windows over them, or as on the screen,
+  // numbered dots with a key under the drawing. Jason, Nov 4.)
+  const under = printUnder();
+  const paper = paperUnder(framed.exact ? sorted : state.shapes, state.viewFilter, under, seeThroughFrom());
+  const listed = new Set(framed.plants.map((s) => s.id));
+  const dots = under === 'screen' && state.showNames
+    ? dotKey(sorted.filter((s) => paper.hidden.has(s.id) && listed.has(s.id)), plantsById, null, state.shapes) : null;
   // (Names as the screen has them: Jordan hid them for a client's picture, and it printed every one. Round 3.)
   const { names } = gatherAreaNames(() => withNames(state.showNames, () => {
     exportRuns = runsOf(sorted, scale);
-    try { withSeeThrough(thin, () => { for (const s of sorted) shapesSvg += shapeToSvgString(s, minX, minY, scale); }); }
-    finally { exportRuns = null; }
+    try {
+      // (A plant numbered under a taller one: no name under it, its bits showing at the edges; the key has it.)
+      withSeeThrough(paper.thin, () => withWindows(windowCircles(sorted, paper.windows), () => {
+        for (const s of sorted) shapesSvg += shapeToSvgString(dots?.numbers.has(s.id) ? ({ ...s, label: '' } as Shape) : s, minX, minY, scale);
+      }));
+    } finally { exportRuns = null; }
   }));
-  shapesSvg += hiddenRimsSvg(sorted, hiddenIds(framed.exact ? sorted : state.shapes, state.viewFilter, thin), minX, minY, scale);
+  shapesSvg += hiddenRimsSvg(sorted, paper.hidden, minX, minY, scale, 1, dots?.numbers);
   // (The beds', paths' and buildings' names over every shape, clear of each other and of the plants: areaNamesSvg.)
   shapesSvg += areaNamesSvg(names, plantCircles(sorted, minX, minY, scale), widthPx, heightPx);
   // Optional bg image, sits above grid, below shapes (matches on-screen order)
@@ -419,12 +481,35 @@ export function buildExportSVG(area: PrintArea = WHOLE_PLAN): { svg: string; wid
     ? `<g data-role="export-caption"><rect x="6" y="${heightPx - 30}" width="${Math.min(widthPx - 12, caption.length * 7 + 20)}" height="24" rx="4" fill="#ffffff" fill-opacity="0.92" stroke="#a8a29e"/>`
       + `<text x="16" y="${heightPx - 14}" font-size="12" fill="#292524" font-family="sans-serif">${escapeHtml(caption)}</text></g>`
     : '';
+  // The numbered dots' key, in a band under the drawing: never over the plan.
+  const key = dotKeyBand(dots?.rows ?? [], widthPx, heightPx);
+  const totalH = heightPx + key.h;
   const svg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${widthPx}" height="${heightPx}" viewBox="0 0 ${widthPx} ${heightPx}">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${widthPx}" height="${totalH}" viewBox="0 0 ${widthPx} ${totalH}">
 <rect x="0" y="0" width="${widthPx}" height="${heightPx}" fill="${BG_COLOR}"/>
-${grid}${bgSvg}${labels}${shapesSvg}${capSvg}
+${grid}${bgSvg}${labels}${shapesSvg}${capSvg}${key.svg}
 </svg>`;
-  return { svg, widthPx, heightPx };
+  return { svg, widthPx, heightPx: totalH };
+}
+/**
+ * The key to a picture's numbered dots (src/print.ts dotKey), in a band `w` px wide from `top` (px): "Under taller
+ * plants:", then each number's dot and its plant's name, wrapped to the width. Nothing without any.
+ */
+export function dotKeyBand(rows: { key: number; label: string }[], w: number, top: number): { svg: string; h: number } {
+  if (!rows.length) return { svg: '', h: 0 };
+  const pad = 10, fs = 12, lh = 22, gap = 16, head = 'Under taller plants:';
+  const text = (x: number, y: number, s: string, extra = '') => `<text x="${x}" y="${y}" dominant-baseline="central" font-size="${fs}" fill="#292524" font-family="sans-serif"${extra}>${escapeHtml(s)}</text>`;
+  let body = text(pad, top + pad + lh / 2, head, ' font-weight="700"');
+  let x = pad + textWidth1(head) * fs * 1.1 + 10, line = 0; // (bold: a tenth wider than measured)
+  for (const r of rows) {
+    const rad = dotRadius(r.key), width = 2 * rad + 5 + textWidth1(r.label) * fs;
+    if (x + width > w - pad && x > pad) { line++; x = pad; }
+    const cy = top + pad + line * lh + lh / 2;
+    body += numberedDotSvg(x + rad, cy, r.key) + text(x + 2 * rad + 5, cy, r.label);
+    x += width + gap;
+  }
+  const h = 2 * pad + (line + 1) * lh;
+  return { svg: `<g data-role="dot-key"><rect x="0" y="${top}" width="${w}" height="${h}" fill="#ffffff"/><line x1="0" y1="${top}" x2="${w}" y2="${top}" stroke="#a8a29e"/>${body}</g>`, h };
 }
 export async function svgToPngDataUrl(svgString: string, widthPx: number, heightPx: number, scale: number): Promise<string> {
   return new Promise((resolve, reject) => {

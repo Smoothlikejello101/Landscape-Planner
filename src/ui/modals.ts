@@ -4,6 +4,8 @@ import { computeAllBBox, copySvg, doExport } from '../export';
 import { paintOrder } from '../canvas';
 import { areaWords, frameArea, printArea } from '../print-area';
 import { areaPicker } from './area-picker';
+import { underPicker } from './under-picker';
+import { isPlant } from '../beds';
 import { I } from '../icons';
 import { resetCurrentProject } from '../mutations';
 import { state } from '../state';
@@ -39,6 +41,8 @@ export function renderExportModal() {
     el('div', { className: 'sheet-body' },
       el('div', { style: { fontSize: ts(14), color: '#57534e' } }, 'The printable plan is a to-scale sheet with a title, scale bar, north arrow, legend and plant list. PNG and SVG are just the drawing.'),
       picker,
+      // (The plants under taller ones as Print draws them: the same choice, the plan's. Jason, Nov 4.)
+      state.shapes.some(isPlant) ? underPicker(() => render()) : null,
       el('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } }, printBtn, pngBtn, svgBtn, cancelBtn)
     )
   );

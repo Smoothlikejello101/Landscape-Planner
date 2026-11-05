@@ -32,6 +32,26 @@ async function tapPlan(page: Page, x: number, y: number) {
   await page.mouse.click(p.x, p.y);
 }
 const picker = (page: Page) => page.getByTestId('picker');
+/** The plan's plain ground, #ede0c8 (src/constants.ts BG_COLOR), as [r, g, b]. */
+const GROUND = [0xed, 0xe0, 0xc8];
+/** The average color in a 6 px square (CSS px) around a point of the plan (feet), as drawn: [r, g, b]. */
+async function colorAt(page: Page, x: number, y: number): Promise<number[]> {
+  const p = await planPoint(page, x, y);
+  const png = await page.screenshot({ clip: { x: Math.round(p.x) - 3, y: Math.round(p.y) - 3, width: 6, height: 6 }, scale: 'css' });
+  return page.evaluate(async (b64) => {
+    const img = new Image();
+    img.src = 'data:image/png;base64,' + b64;
+    await img.decode();
+    const c = document.createElement('canvas');
+    c.width = img.width; c.height = img.height;
+    const g = c.getContext('2d')!;
+    g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    const sum = [0, 0, 0];
+    for (let i = 0; i < d.length; i += 4) for (let k = 0; k < 3; k++) sum[k] += d[i + k];
+    return sum.map((v) => v / (d.length / 4));
+  }, png.toString('base64'));
+}
 const forRow = (page: Page) => page.getByTestId('plant-for');
 const pressed = (page: Page) => forRow(page).locator('[aria-pressed=true]');
 
@@ -263,8 +283,10 @@ test('For a clay bed: what no source rates for clay is listed below a divider; a
   await expect(chips(page)).toHaveText(['Takes part shade to full sun', 'Clay OK', 'Takes wet soil']);
 });
 
-test('placing For a bed: the bed outlined, the rest washed red; one placed outside it is placed, ringed red, with Undo', async ({ page }) => {
+test('placing For a bed: the bed outlined, the rest dimmed; one placed outside it is placed, ringed red, with Undo', async ({ page }) => {
   await seed(page, ANSWERED);
+  // (Inside the Front bed, clear of the oak's shade, as the plan rests.)
+  const inBed = await colorAt(page, 10.5, 4.5);
   await tapPlan(page, 9, 1.5);
   await page.getByTestId('pill-plant-bed').click();
   // (The bed outlined on the plan while the picker is For it.)
@@ -274,7 +296,25 @@ test('placing For a bed: the bed outlined, the rest washed red; one placed outsi
   const banner = page.getByTestId('place-banner');
   await expect(banner).toHaveText(tapping('Tap to place Arkansas Bluestar in Front bed · 0 placed'));
   await expect(page.locator('#canvas-svg [data-role=bed-outline]')).toHaveCount(1);
-  await expect(page.locator('#canvas-svg [data-role=bed-wash]')).toHaveCount(1);
+  await expect(page.locator('#canvas-svg [data-role=bed-veil]')).toHaveCount(1);
+  // Outside the bed, dimmed and not tinted (Jason, Nov 4, his note 2: a red wash over his reddish brown beds left only
+  // the ring to tell the bed by): darker by about a third, its red, green and blue in the same proportions. Inside, as
+  // it was: the bright, clear part of the plan.
+  // (Plain ground in view, between grid lines: between the beds; on a phone, where the plan moved to show the bed, below
+  // the yard.)
+  const box = (await page.locator('#canvas-svg').boundingBox())!;
+  let spot: [number, number] | null = null;
+  for (const [x, y] of [[8.5, -3.5], [8.5, 23.5]] as [number, number][]) {
+    const p = await planPoint(page, x, y);
+    if (p.x > box.x + 20 && p.x < box.x + box.width - 20 && p.y > box.y + 20 && p.y < box.y + box.height - 20) { spot = [x, y]; break; }
+  }
+  expect(spot).not.toBeNull();
+  const dimmed = await colorAt(page, ...spot!);
+  expect(dimmed[0] + dimmed[1] + dimmed[2]).toBeLessThan(0.8 * (GROUND[0] + GROUND[1] + GROUND[2]));
+  expect(Math.abs(dimmed[0] / dimmed[1] - GROUND[0] / GROUND[1])).toBeLessThan(0.02);
+  expect(Math.abs(dimmed[1] / dimmed[2] - GROUND[1] / GROUND[2])).toBeLessThan(0.03);
+  const bright = await colorAt(page, 10.5, 4.5);
+  for (let k = 0; k < 3; k++) expect(Math.abs(bright[k] - inBed[k])).toBeLessThan(4);
   const shapes = await shapeCount(page);
   await tapPlan(page, 9, 2); // inside
   await expect(banner).toHaveText(tapping('Tap to place Arkansas Bluestar in Front bed · 1 placed'));
@@ -300,10 +340,10 @@ test('placing For a bed: the bed outlined, the rest washed red; one placed outsi
   await tapPlan(page, 2, 4.5); // (in the bed, under the oak: 3.5 h)
   await expect.poll(() => shapeCount(page)).toBe(shapes + 4);
   await expect(page.locator('#canvas-svg [data-role=sun-warning]')).toHaveCount(1);
-  // Done: For the bed no more, the outline, wash and rings gone.
+  // Done: For the bed no more, the outline, veil and rings gone.
   await page.getByTestId('place-bar').getByRole('button', { name: 'Done' }).click();
   await expect(page.locator('#canvas-svg [data-role=bed-outline]')).toHaveCount(0);
-  await expect(page.locator('#canvas-svg [data-role=bed-wash]')).toHaveCount(0);
+  await expect(page.locator('#canvas-svg [data-role=bed-veil]')).toHaveCount(0);
   await expect(page.locator('#canvas-svg [data-role=outside-bed]')).toHaveCount(0);
   await page.locator('.tool-btn.plants').click();
   await expect(pressed(page)).toHaveText('Anywhere');
