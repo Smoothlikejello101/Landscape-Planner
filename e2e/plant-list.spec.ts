@@ -193,6 +193,9 @@ test('Share as text on a phone, Copy as text on a computer: the plan, its totals
   });
   await openPlan(page);
   await page.getByTestId('plant-list-open').click();
+  // (The catalog in first: the text names each kind's botanical name, which a slow start can share without. A flake
+  // seen once on a loaded machine, Nov 4.)
+  await expect(row(page, 'buy', "Yaupon 'Dwarf'").getByTestId('pl-bot')).toHaveText("Ilex vomitoria 'Dwarf'");
   await row(page, 'buy', "Yaupon 'Dwarf'").getByTestId('pl-tick').click();
   const phone = info.project.name === 'phone';
   await expect(page.getByTestId('pl-share')).toHaveText(phone ? 'Share as text' : 'Copy as text');

@@ -48,6 +48,7 @@ import { pxPerFoot } from './geometry';
 import { ask, asking, dismissAsk, tell } from './ui/ask';
 import { installFocusKeeping } from './ui/focus';
 import { closeCompare, compareShown } from './ui/compare-sheet';
+import { placePicker } from './ui/picker-view';
 
 // The app's own errors, kept on this device for a support file (src/error-log.ts): from the start.
 installErrorLog();
@@ -64,10 +65,11 @@ installAppHeight();
 // IMPORTANT: window resize calls resizeCanvas ONLY, never render().
 // Android keyboard appearing fires a viewport resize; a full render()
 // destroys focused inputs.
-window.addEventListener('resize', () => { fitToWindow(); resizeCanvas(); placeFirstCard(); });
+// (The plant picker's place under the top bar, measured again: CSS only, src/ui/picker-view.ts.)
+window.addEventListener('resize', () => { fitToWindow(); resizeCanvas(); placeFirstCard(); placePicker(); });
 // Same goes for visualViewport resize (covers iOS keyboard + zoom)
 if (window.visualViewport) {
-  window.visualViewport.addEventListener('resize', () => { fitToWindow(); resizeCanvas(); placeFirstCard(); notePageZoom(); });
+  window.visualViewport.addEventListener('resize', () => { fitToWindow(); resizeCanvas(); placeFirstCard(); placePicker(); notePageZoom(); });
   // iOS pans the visual viewport (scroll, not resize) after its keyboard opens: re-measure (CSS only).
   window.visualViewport.addEventListener('scroll', () => { fitAboveKeyboard(); });
 }
@@ -160,6 +162,10 @@ function onKey(e: KeyboardEvent) {
   if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
   // Keys pressed while a panel has focus (a chip, a menu, Warnings beside the plan) belong to the panel, never the plan.
   if (target?.closest?.('.overlay, .menu, .warnings-side')) return;
+  // The plant picker open, its plan beside or above it there to look at (src/ui/picker-view.ts): a click on the plan
+  // leaves the focus on the page, and still no key edits the plan (Delete took the plant being swapped), starts a tool
+  // or redraws the picker. Esc closes it, as from inside it (closeOne, below); Ctrl and + zoom the page, as in a sheet.
+  if (state.panel === 'plants' && e.key !== 'Escape') return;
   // Ctrl or Cmd with + or − zooms the plan, not the page, whatever is going on (Jason, 2026-10-25). With a sheet's field
   // or button focused, the keys never get here: the page zooms, for reading.
   if ((e.ctrlKey || e.metaKey) && !e.altKey && ['=', '+', '-', '_'].includes(e.key)) {
