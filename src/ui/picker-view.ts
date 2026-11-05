@@ -21,6 +21,7 @@ import type { Shape } from '../types';
 import { el, hasKeyboard } from '../dom';
 import { shapeBBox, unionBounds } from '../geometry';
 import { keyboardInset } from '../keyboard';
+import { restHeight } from '../app-height';
 import { keyboardUp, sameView, settleSheet, sheetHeights, viewToShow, type Room, type SheetSize } from '../plan-in-view';
 import { state } from '../state';
 import { saveView } from '../storage';
@@ -185,7 +186,7 @@ function holdPicker(e: PointerEvent, from: HTMLElement) {
   if (wideNow() || (e.pointerType === 'mouse' && e.button !== 0)) return;
   const sheet = from.closest<HTMLElement>('.picker-sheet'), overlay = sheet?.parentElement;
   if (!sheet || !overlay) return;
-  const { rest, full: fullH } = sheetHeights(overlay.getBoundingClientRect().height, keyboardInset());
+  const { rest, full: fullH } = sheetHeights(overlay.getBoundingClientRect().height, keyboardInset(), restHeight());
   const startY = e.clientY, startH = sheet.getBoundingClientRect().height;
   let h = startH, moving = false;
   try { from.setPointerCapture(e.pointerId); } catch { /* followed while it's over the handle */ }

@@ -131,8 +131,13 @@ button { cursor: pointer; border: none; background: none; padding: 0; color: inh
    the screen at rest (half until Jason's notes of Nov 4), the plan in view above it; full height by its handle, or while
    its search's keyboard is up (below, and src/ui/picker-view.ts). */
 .sheet.picker-sheet { height: 60%; position: relative; z-index: 1; }
-.sheet.picker-sheet.full { height: 85vh; height: calc(85dvh - var(--kb, 0px)); }
-.sheet { background: #fff; width: 100%; max-height: 85vh; max-height: calc(85dvh - var(--kb, 0px)); border-radius: 16px 16px 0 0; overflow-y: auto; box-shadow: 0 -4px 16px rgba(0,0,0,0.1); }
+/* A sheet at its tallest, and the picker at full height, start 15% of the window's height with no keyboard up
+   (--rest-h, src/app-height.ts) below the window's top, keyboard or not: the keyboard takes its room from their foot,
+   and their top, and the field being typed in, stay where they are as it comes and goes (Jason, Nov 5: a sheet 85% of
+   the window's height jumped with every keyboard change, the spelling menu left over the word; src/keyboard.ts). The
+   picker's handle reckons with the same height (src/plan-in-view.ts sheetHeights). */
+.sheet.picker-sheet.full { height: 85vh; height: calc(85dvh - var(--kb, 0px)); height: calc(var(--app-h, 100dvh) - var(--kb, 0px) - 0.15 * var(--rest-h, 100dvh)); }
+.sheet { background: #fff; width: 100%; max-height: 85vh; max-height: calc(85dvh - var(--kb, 0px)); max-height: calc(var(--app-h, 100dvh) - var(--kb, 0px) - 0.15 * var(--rest-h, 100dvh)); border-radius: 16px 16px 0 0; overflow-y: auto; box-shadow: 0 -4px 16px rgba(0,0,0,0.1); }
 .modal { background: #fff; border-radius: 8px; max-width: 400px; width: 100%; box-shadow: 0 4px 16px rgba(0,0,0,0.2); max-height: 90vh; max-height: calc(90dvh - var(--kb, 0px)); display: flex; flex-direction: column; overflow: hidden; }
 /* The plan in view while choosing plants (src/ui/picker-view.ts; Jason, Nov 2, from the bed review: "Half-height picker
    on a phone, a side panel on a computer"). The picker is over the plan without dimming it or taking its touches: the
@@ -1113,7 +1118,7 @@ span.src-pop { display: inline-block; }
 @keyframes shape-pulse { 0%, 100% { stroke-opacity: 1; } 50% { stroke-opacity: 0.3; } }
 @media (prefers-reduced-motion: reduce) { #canvas-svg .shape-pulse > [data-shape-id]:not([data-role]) { animation: none; } }
 /* (While the card sits at the top, a sheet leaves room for it: --intro-h is the card's foot, set by the card.) */
-.intro-top .overlay:not(.center) > .sheet { max-height: min(calc(85dvh - var(--kb, 0px)), calc(100% - var(--intro-h, 0px))); }
+.intro-top .overlay:not(.center) > .sheet { max-height: min(calc(var(--app-h, 100dvh) - var(--kb, 0px) - 0.15 * var(--rest-h, 100dvh)), calc(100% - var(--intro-h, 0px))); }
 .intro-top .overlay.center { padding-top: var(--intro-h, 12px); }
 
 /* A plant's details, folded into groups (Jason, 2026-10-29: src/ui/plant-details.ts DETAIL_GROUPS) */

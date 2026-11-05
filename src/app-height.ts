@@ -1,5 +1,6 @@
 import { recordError } from './error-log';
-import { fitAboveKeyboard } from './keyboard';
+import { hasKeyboard } from './dom';
+import { fitAboveKeyboard, keepFieldInView, restingHeight } from './keyboard';
 
 // The app's height, measured by the window itself. The app fills the window (styles.css, .app): by CSS, 100dvh less
 // the keyboard (src/keyboard.ts). Android Chrome has been seen to lay the installed app out taller than its screen
@@ -12,17 +13,26 @@ import { fitAboveKeyboard } from './keyboard';
 // every box above it, the page too, and a page scrolled most of a screen down showed nothing at all, the bar at the
 // bottom at its top (the UI review, 2026-11-01, on a phone). Its cause there, a hidden span that made the page
 // taller than the screen, is fixed in styles.css (the overlays clip what they hold); this is for any other. CSS and scrolling only: nothing re-renders, so a field
-// being typed in keeps its focus (CLAUDE.md, keyboard safety).
+// being typed in keeps its focus (CLAUDE.md, keyboard safety). The window's height with no keyboard up is kept too,
+// --rest-h, which places a sheet's top, so the keyboard coming and going never moves a sheet (src/keyboard.ts).
 
 let lastHeight = 0;
 let noted = false;
+/**
+ * The window's height with no keyboard up, at its width, as --rest-h: a sheet's top is placed by it (styles.css, .sheet),
+ * so the keyboard coming and going never moves a sheet (src/keyboard.ts restingHeight has the rule; Jason, Nov 5).
+ */
+let rest = { h: 0, w: 0 };
+/** The window's height with no keyboard up (px), as a sheet's top is placed by it. */
+export const restHeight = (): number => rest.h || Math.round(window.innerHeight);
 
 /**
  * The app's height set from the window's, and the page (the document, its body, the app's root) scrolled back to
  * its top if it had moved. `check`: a timed look, not an event's: a change found then is one the browser made
- * without saying so.
+ * without saying so. `fieldLeft`: a field was just left, its keyboard maybe still on its way down. And a field being
+ * typed in kept in sight as the room above the keyboard shrinks (src/keyboard.ts).
  */
-export function fitToWindow(check = false): void {
+export function fitToWindow(check = false, fieldLeft = false): void {
   // (Which boxes had scrolled is read first: fitted to the window, a box no longer overflows, and its scroll is gone.)
   const moved = typing() || zoomed() ? [] : pageBoxes().filter((b) => b.scrollTop !== 0 || b.scrollLeft !== 0);
   if (moved.length && !scrollNoted) {
@@ -34,9 +44,13 @@ export function fitToWindow(check = false): void {
     note(h, check);
     document.documentElement.style.setProperty('--app-h', h + 'px');
     lastHeight = h;
+    const w = Math.round(window.innerWidth);
+    rest = { h: restingHeight(rest, h, w, { typing: typing(), fieldLeft, mouse: hasKeyboard() }), w };
+    document.documentElement.style.setProperty('--rest-h', rest.h + 'px');
   }
   fitAboveKeyboard();
   for (const box of moved) box.scrollTo(0, 0);
+  keepFieldInView();
 }
 
 let scrollNoted = false;
@@ -94,5 +108,5 @@ export function installAppHeight(): void {
     const t = e.target;
     if (t === document || (t instanceof Element && pageBoxes().includes(t))) fitToWindow();
   }, true);
-  document.addEventListener('focusout', () => setTimeout(() => fitToWindow(), 0));
+  document.addEventListener('focusout', () => setTimeout(() => fitToWindow(false, true), 0));
 }
