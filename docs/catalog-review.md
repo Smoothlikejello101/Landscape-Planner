@@ -1,6 +1,6 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 300 to decide, 2011 sites whose terms are unsettled, 1002 catalog checks; 3743 of 3746 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 307 to decide, 2011 sites whose terms are unsettled, 1002 catalog checks; 3743 of 3746 records audited.
 
 - [Sources disagree (156)](#sources-disagree-156)
 - [Cultivar: tree or shrub? (6)](#cultivar-tree-or-shrub-6)
@@ -10,7 +10,7 @@ Written by `npm run catalog:build` (docs/catalog-build.md): what the build left 
 - [Sources often far from the authorities (2)](#sources-often-far-from-the-authorities-2)
 - [Read from text, but a second reading differs (461)](#read-from-text-but-a-second-reading-differs-461)
 - [Values the catalog can't take (1)](#values-the-catalog-cant-take-1)
-- [Kew names to check (23)](#kew-names-to-check-23)
+- [Kew names to check (30)](#kew-names-to-check-30)
 - [Bloom months held back (4)](#bloom-months-held-back-4)
 - [A page under another name (2)](#a-page-under-another-name-2)
 - [Sites whose terms are unsettled (2011)](#sites-whose-terms-are-unsettled-2011)
@@ -804,7 +804,7 @@ A source's value doesn't fit the catalog's format.
 | --- | --- | --- |
 | Switchgrass 'Shenandoah' (`panicum-virgatum-shenandoah`) | flower_color | value the catalog can't take: ["Burgundy","Rose"] |
 
-## Kew names to check (23)
+## Kew names to check (30)
 
 Names Kew's World Checklist could read two ways, taken as the accepted name (check each is the plant meant, and record it in scripts/catalog/decisions.json, `kewNames`); and law-list names Kew accepts under another, or doesn't match at all (set the entry's `accepted` in scripts/catalog/regulated-plants.json).
 
@@ -814,23 +814,30 @@ Names Kew's World Checklist could read two ways, taken as the accepted name (che
 - Commelina communis: an accepted name that is also an older homonym's synonym
 - Dryopteris affinis: an accepted name that is also an older homonym's synonym
 - Iberis sempervirens: an accepted name that is also an older homonym's synonym
+- Lagascea mollis: an accepted name that is also an older homonym's synonym
 - Lysimachia quadrifolia: an accepted name that is also an older homonym's synonym
 - Malus hupehensis: an accepted name that is also an older homonym's synonym
 - Pinus thunbergii: an accepted name that is also an older homonym's synonym
 - Populus heterophylla: an accepted name that is also an older homonym's synonym
 - Quercus lyrata: an accepted name that is also an older homonym's synonym
 - Rosa virginiana: an accepted name that is also an older homonym's synonym
+- Senecio linearifolius: an accepted name that is also an older homonym's synonym
+- Solanum cardiophyllum: an accepted name that is also an older homonym's synonym
+- Solanum dimidiatum: an accepted name that is also an older homonym's synonym
 - Solanum laxum: an accepted name that is also an older homonym's synonym
 - Solanum rostratum: an accepted name that is also an older homonym's synonym
 - Viola blanda: an accepted name that is also an older homonym's synonym
 - Acer ginnala: a law list's name Kew doesn't match to one accepted species
-- Alyssum corsicum: a law list's name Kew doesn't match to one accepted species
 - Carduus cinereus: a law list's name Kew doesn't match to one accepted species
-- Centaurea maculosa: a law list's name Kew doesn't match to one accepted species
+- Celastrus loeseneri: a law list's name Kew doesn't match to one accepted species
+- Cereus uruguayanus: a law list's name Kew doesn't match to one accepted species
+- Dichrostachys nutans: a law list's name Kew doesn't match to one accepted species
 - Hieracium praealtum: a law list's name Kew doesn't match to one accepted species
 - Ipomoea fistulosa: a law list's name Kew doesn't match to one accepted species
-- Polygonum caespitosum: a law list's name Kew doesn't match to one accepted species
+- Passiflora mollissima: a law list's name Kew doesn't match to one accepted species
+- Sorghum almum: a law list's name Kew doesn't match to one accepted species
 - Trapa bicornis: a law list's name Kew doesn't match to one accepted species
+- Typha gracilis: a law list's name Kew doesn't match to one accepted species
 
 ## Bloom months held back (4)
 
