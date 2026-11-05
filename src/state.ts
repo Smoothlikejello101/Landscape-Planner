@@ -62,7 +62,6 @@ export const state: AppState = {
   zoomButtons: true,
   seeThroughTall: false,
   seeThroughFrom: 5,
-  printUnder: 'windows',
   showNames: true,
   plantForm: null,
   pickerLinkId: null,

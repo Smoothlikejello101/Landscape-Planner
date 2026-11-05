@@ -14,6 +14,7 @@ import { tell } from './ask';
 import { areaPicker } from './area-picker';
 import { areaWords, frameArea, noteScreen, printArea, type PrintArea } from '../print-area';
 import { underPicker } from './under-picker';
+import { printUnder } from '../view-settings';
 import { isPlant } from '../beds';
 import { seeThroughFrom } from '../canvas';
 
@@ -61,7 +62,7 @@ export function fromScreenText(): string {
  * "Ready" (round 3, Tom: plants hidden, and Download gave the PDF with them).
  */
 const printedFrom = () => JSON.stringify([state.currentProjectId, state.shapes, state.roleViews, state.viewFilter, state.sizeMode, printNames, printMonth, printArea(), state.bgImage?.dataUrl?.length ?? 0, state.bgImage?.opacity, state.bgImage?.visible, state.bgImage?.cx, state.bgImage?.cy, state.bgImage?.rotation, state.bgImage?.ftPerPx,
-  state.printUnder, seeThroughFrom()]);
+  printUnder(), seeThroughFrom()]);
 let busy = false;
 
 function set(patch: Partial<PrintSettings>, rerender: boolean) {
@@ -164,8 +165,8 @@ export function renderPrintPanel() {
     ...(state.sizeMode === 'typical' && state.shapes.some((s) => s.plantId)
       ? [check('Full-size rings around plants', p.includeFullRings, (v) => set({ includeFullRings: v }, true))] : []),
     check(hasBg ? 'Background photo (uses more ink)' : 'Background photo (none shown)', p.includeBackground && hasBg, (v) => set({ includeBackground: v }, true), !hasBg)));
-  // The plants under taller ones: shown through them, or as on the screen (Jason, Nov 4). On this device; the picture
-  // follows.
+  // The plants under taller ones: shown through them, or as on the screen (Jason, Nov 4). The plan's, with its other
+  // print settings; the picture follows.
   if (state.shapes.some(isPlant)) body.appendChild(underPicker(() => { result = null; render(); }));
 
   // North arrow
@@ -190,7 +191,7 @@ export function renderPrintPanel() {
     busy = true; result = null; render();
     try {
       const { buildPlanPdf } = await import('../print-pdf');
-      const r = await buildPlanPdf(state.print, projectName, state.shapes, state.bgImage, state.sizeMode, { names: printNames, month: printMonth, under: state.printUnder, seeThroughFrom: seeThroughFrom() }, printArea());
+      const r = await buildPlanPdf(state.print, projectName, state.shapes, state.bgImage, state.sizeMode, { names: printNames, month: printMonth, under: printUnder(), seeThroughFrom: seeThroughFrom() }, printArea());
       result = { blob: r.blob, pages: r.pages, filename: pdfName(state.print.title.trim() || projectName, stamp()), of: printedFrom() };
     } catch (e) {
       void tell("Couldn't make the PDF: " + errMsg(e));

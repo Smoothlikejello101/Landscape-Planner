@@ -4,7 +4,7 @@ import { buildExportSVG } from '../src/export';
 import { plantsById, type Plant } from '../src/plants';
 import { buildPlanSvg, dotKey, planLayout, printContent } from '../src/print';
 import { underLegendText } from '../src/print-pdf';
-import { state } from '../src/state';
+import { DEFAULT_PRINT, state } from '../src/state';
 import type { Shape, ShapeFilter } from '../src/types';
 
 // Tall plants (Jason, Nov 4, answering the options page: "1) D 2) C by default, but with a printing option for same as on
@@ -45,9 +45,9 @@ beforeEach(() => {
   state.showNames = true;
   state.seeThroughTall = false;
   state.seeThroughFrom = 5;
-  state.printUnder = 'windows';
+  state.print = { ...DEFAULT_PRINT };
 });
-afterEach(() => { for (const id of Object.keys(kinds)) delete plantsById[id]; state.shapes = []; state.printUnder = 'windows'; });
+afterEach(() => { for (const id of Object.keys(kinds)) delete plantsById[id]; state.shapes = []; state.print = { ...DEFAULT_PRINT }; });
 
 describe('on the screen (D): every plant solid, what\'s under one seen through on demand', () => {
   it('draws only trees see-through as the plan rests; Layers\' switch adds every plant from its height', () => {
@@ -183,7 +183,7 @@ describe('the printed drawing and the picture', () => {
     const windows = buildExportSVG()!;
     expect(windows.svg).toContain('data-role="tall-window"');
     expect(windows.svg).not.toContain('data-role="dot-key"');
-    state.printUnder = 'screen';
+    state.print = { ...state.print, under: 'screen' }; // (the plan's, picked in Export)
     const screen = buildExportSVG()!;
     expect(screen.svg).not.toContain('tall-window');
     expect(screen.svg.match(/data-role="numbered-dot"/g)).toHaveLength(4); // (two on the plan, two in the key)

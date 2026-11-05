@@ -67,19 +67,19 @@ describe('the deploy guard (scripts/release/deploy-guard.sh)', () => {
     expect(lower.said).toContain("this build's database version (2) is lower than the live site's (3)");
   });
 
-  it(`this build (database version ${DB_VERSION}: a photo's rough scale and sides typed as numbers, Nov 4) deploys over the live sites as they are (no db-version.txt yet), or at 2, 3 or 4; never under a higher one`, async () => {
-    expect(DB_VERSION).toBe(5);
-    for (const l of [{ status: 404, body: 'not found' }, { status: 200, body: '2\n' }, { status: 200, body: '3\n' }, { status: 200, body: '4\n' }, { status: 200, body: '5\n' }]) {
+  it(`this build (database version ${DB_VERSION}: a plan's print choice for the plants under taller ones, Nov 4) deploys over the live sites as they are (no db-version.txt yet), or at 2 to 5; never under a higher one`, async () => {
+    expect(DB_VERSION).toBe(6);
+    for (const l of [{ status: 404, body: 'not found' }, { status: 200, body: '2\n' }, { status: 200, body: '3\n' }, { status: 200, body: '4\n' }, { status: 200, body: '5\n' }, { status: 200, body: '6\n' }]) {
       live = l;
       expect((await guard({ BUILD_DB_VERSION: String(DB_VERSION) })).deployed, l.body).toBe(true);
     }
-    live = { status: 200, body: '6\n' };
+    live = { status: 200, body: '7\n' };
     expect((await guard({ BUILD_DB_VERSION: String(DB_VERSION) })).deployed).toBe(false);
-    // (A revert of this change, a build at 4, is refused once a site has 5: fix forward. docs/releasing.md)
-    live = { status: 200, body: '5\n' };
-    const reverted = await guard({ BUILD_DB_VERSION: '4' });
+    // (A revert of this change, a build at 5, is refused once a site has 6: fix forward. docs/releasing.md)
+    live = { status: 200, body: '6\n' };
+    const reverted = await guard({ BUILD_DB_VERSION: '5' });
     expect(reverted.deployed).toBe(false);
-    expect(reverted.said).toContain("this build's database version (4) is lower than the live site's (5)");
+    expect(reverted.said).toContain("this build's database version (5) is lower than the live site's (6)");
   });
 
   it("deploys where the live site has no db-version.txt yet (the first deploy with one); refuses where it can't be read, or makes no sense", async () => {
