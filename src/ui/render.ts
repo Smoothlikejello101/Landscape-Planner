@@ -22,7 +22,7 @@ import { methodIcon, renderAddSheet, renderShortcutsPanel, withKey } from './add
 import { finishPlacing, hasPlaceHover, placingPlant, selectionJustPlaced, setPlaceHover, undoPlace } from '../place';
 import { partnersClosed, plantColor } from '../plants';
 import { currentProject, storageIsDurable } from '../storage';
-import { keepScaleBoxClear, renderBgDistanceModal, renderBgPanel } from './background-panel';
+import { keepScaleBoxClear, lengthsYouMayKnow, renderBgDistanceModal, renderBgPanel } from './background-panel';
 import { renderLayersPanel } from './layers-panel';
 import { renderSettingsPanel } from './settings-panel';
 import { refreshWarnings, renderWarningsSheet, renderWarningsSide, walkChip, warningsButton, warningsSheetShown, warningsSideShown } from './warnings-sheet';
@@ -57,7 +57,7 @@ import { drawFeatureKinds, kindsFor, kindsPhrase, SUB_FEATURES, swings } from '.
 import { flipButtons } from './feature-section';
 import { roomyText } from '../text-size';
 import { isLocked } from '../roles';
-import { declineIntro, introActive, introAfterRender, introOffered, showMeAround } from './intro-card';
+import { declineIntro, guidedStartSmall, introActive, introAfterRender, introOffered, showMeAround } from './intro-card';
 import { focusAfterRender, focusBeforeRender } from './focus';
 import { startBgCalibration } from '../background';
 import { placeTraceCard, traceCard, traceChips, traceShown } from './trace-card';
@@ -341,6 +341,8 @@ export function render() {
     });
     banner.appendChild(cancelBtn);
     strip.appendChild(banner);
+    // (Lengths you may know, to pick A and B by: under the words, the whole time, so the strip keeps its height.)
+    strip.appendChild(lengthsYouMayKnow());
   }
 
   // Drawing / point-editing banner
@@ -487,14 +489,21 @@ export function render() {
         else if (onlyPlan) card.append(el('div', { className: 'first-line', 'data-testid': 'first-line' }, 'Plan your garden to scale, with plants that suit it.'));
         // Where the garden is, typed here; its zone once it's known. (Not under a sheet: the ZIP sheet has its own field.)
         if (!state.panel) card.append(state.location ? firstZone(state.location) : firstZip());
-        // New here: the guided introduction, offered once (it stays in ⋮ → Help as "Take the tour"). Not under a photo: whoever
-        // added one is past the beginning, and the card stays short, clear of the photo.
+        // New here: the guided introduction, Guided start (Jason, Nov 4: its name everywhere), offered at the top of the
+        // card till it's begun or declined; after that, small, in its place, whenever it isn't under way on this plan
+        // (Jason, Nov 4: "we should add 'take the tour' to the canvas of a blank plan"; it went for good with "I'll
+        // explore"). It's in ⋮ → Help too. Not under a photo: whoever added one is past the beginning, and the card stays
+        // short, clear of the photo.
         if (introOffered() && !docked) {
-          const go = el('button', { className: 'btn primary empty-intro-btn', 'data-testid': 'intro-start' }, 'New here? Show me around');
+          const go = el('button', { className: 'btn primary empty-intro-btn', 'data-testid': 'intro-start' }, 'New here? Guided start');
           go.addEventListener('click', () => { showMeAround(); render(); });
           const no = el('button', { className: 'btn ghost empty-intro-no', 'data-testid': 'intro-decline' }, "I'll explore");
           no.addEventListener('click', () => { declineIntro(); render(); });
           card.append(el('div', { className: 'empty-intro' }, go, no));
+        } else if (guidedStartSmall() && !docked) {
+          const go = el('button', { className: 'first-guided', 'data-testid': 'guided-start', html: `${I.help}<span>Guided start</span>` });
+          go.addEventListener('click', () => { showMeAround(); render(); });
+          card.append(go);
         }
         // The easiest start is tracing over a photo of the yard from above, so offer it first.
         if (!state.bgImage) {

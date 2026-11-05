@@ -5,6 +5,6 @@
   "A photo whose scale hasn’t been set is marked “Rough scale” in Layers until it is, with a way to set it there.",
   "While drawing, placing plants or setting a photo’s scale, what to do next is on a strip above the plan instead of over it, and the buttons down the side of the plan, Fit among them, are put away, so a corner by the edge lands where you meant. The + and − zoom buttons stay, if you’ve turned them on.",
   "A rectangle drawn within 4° of level or upright is set straight when it’s finished, as a nearly square outline is squared, and says so, with Undo. Drawn along a turned house, it lines up with the house instead.",
-  "The guided tour steps aside while you draw, keeps what a step is about in view above its card, and shows one ✕ when a panel is open. Closing it says where to pick it up again: ⋮ → Help → Take the tour.",
+  "Guided start steps aside while you draw, keeps what a step is about in view above its card, and shows one ✕ when a panel is open. Closing it says where to pick it up again: ⋮ → Help → Guided start.",
   "A notice about a shape, such as “Is that the real size?”, no longer covers the shape: it moves to the foot of the plan."
 ]

@@ -165,6 +165,11 @@ const fmtFt = (v: number) => (Math.round(v * 10) / 10).toString();
 const slashBreaks = (name: string): Child[] => name.split('/').flatMap((part, i) => (i ? ['/', el('wbr'), part] : [part]));
 /** The fewest cultivars a fold holds (Jason, 2026-10-26): fewer are rows of their own. */
 const MIN_FOLD = 4;
+/**
+ * Sure matches enough to fill the picker's pane: past it, the less-sure groups (what fits by what other sources say,
+ * and only by the earlier list's word) fold into one line that opens them (Jason, Nov 4).
+ */
+export const SURE_ENOUGH = 10;
 const joined = (xs: string[], word: string) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} ${word} ${xs[xs.length - 1]}` : xs[0] ?? '');
 const MONTHS = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 /** "Blooming in June", "Blooming in spring". */
@@ -300,6 +305,8 @@ export function renderPlantsPanel() {
   const foldOpen = new Map<string, boolean>();
   // The by-season fold of "Blooming in" a month, opened or closed by hand (kept likewise, by month).
   const seasonOpen = new Map<string, boolean>();
+  /** The less-sure groups, folded into a line with enough sure matches, opened by hand (kept while the picker's open). */
+  let lessSureOpen = false;
   /** In "In this plan", the plants the filters would hide, and which filters. */
   const hiddenInPlan = new Map<string, string[]>();
   /**
@@ -670,7 +677,25 @@ export function renderPlantsPanel() {
         el('span', {}, `Also comes in ${joined(colors, 'or')}, depending on the plant you buy`)));
       rows(species, 1);
     }
-    if (others.length) {
+    // The less-sure groups only when the sure ones are too few to fill the pane; past that, one line says how many
+    // more might fit, and opens them (Jason, Nov 4: "It feels odd to show some plants that fit the filters, then cut
+    // them off, only to show some more plants we're less sure match the filters they've already used"). Not while
+    // searching by name, which finds every plant as before, nor in "In this plan".
+    const lessSure = others.length + earlier.length;
+    const lessSureFolded = lessSure > 0 && !q && !plantFilter.inPlan && !lessSureOpen && sourced.length + species.length >= SURE_ENOUGH;
+    if (lessSureFolded) {
+      const say = others.length && earlier.length ? 'other sources or the earlier list say fit' : others.length ? 'other sources say fit' : 'only the earlier list (unverified) says fit';
+      const open = el('button', { className: 'list-divider season-fold less-sure-fold', 'aria-expanded': 'false', 'data-testid': 'less-sure' },
+        el('span', { className: 'fold-chev', html: I.chevronDown }), el('span', {}, `Show ${countWord(lessSure)} more that ${say}`));
+      open.addEventListener('click', () => {
+        lessSureOpen = true;
+        rebuildList();
+        // (The place kept, for a keyboard or a screen reader: the first group opened.)
+        listWrap.querySelector<HTMLElement>('[data-testid=hide-others], [data-testid=earlier-divider] + .plant-item [data-testid=plant-row]')?.focus({ preventScroll: true });
+      });
+      listWrap.appendChild(open);
+    }
+    if (others.length && !lessSureFolded) {
       const hide = el('button', { className: 'link-btn', 'data-testid': 'hide-others' }, 'Hide these');
       hide.addEventListener('click', () => { plantFilter.withReported = false; if (reportedCheck) reportedCheck.checked = false; rebuildList(); });
       listWrap.appendChild(el('div', { className: 'list-divider', 'data-testid': 'others-divider' },
@@ -685,7 +710,7 @@ export function renderPlantsPanel() {
       listWrap.appendChild(el('div', { className: 'hint list-note', 'data-testid': 'others-hidden' },
         `${countWord(hiddenOthers)} more fit by what other sources say. `, show));
     }
-    if (earlier.length) {
+    if (earlier.length && !lessSureFolded) {
       const on = [...new Set(earlier.flatMap((p) => earlierFor.get(p.id) ?? []))];
       listWrap.appendChild(el('div', { className: 'list-divider earlier', 'data-testid': 'earlier-divider' },
         el('span', {}, `These match on ${on.length > 1 ? `${on.slice(0, -1).join(', ')} and ${on[on.length - 1]}` : on[0]} only by the earlier list (unverified). No source we've read says so yet.`)));

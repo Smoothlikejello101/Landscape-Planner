@@ -110,7 +110,9 @@ export function renderLocationPanel(): HTMLElement {
       el('div', { className: 'hint' }, `ZIP ${loc.zip}`));
     if (loc.frost) {
       const f = loc.frost;
-      const where = `the weather station at ${f.station}, ${f.miles} ${f.miles === 1 ? 'mile' : 'miles'} away`;
+      // (Not how far away it is: from a ZIP, where in it the garden is isn't known (Jason, Nov 4: "what does it mean for
+      // a weather station to be 'x miles away'?").)
+      const where = `the weather station at ${f.station}`;
       const tenths = Math.round(f.chance / 10);
       if (f.yearRound) {
         card.append(el('div', {}, 'Frost can come in any month here.'), el('div', { className: 'hint' }, `From ${where}.`));

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  NEW_RECORD, SHRUBS_TO_FIND, STEPS, UNSCALED, applies, nextStep, plantCardText, prevStep, resumeStep, shrubToFind, stepDone,
+  NEW_RECORD, SHRUBS_TO_FIND, STEPS, UNSCALED, applies, nextStep, plantCardText, prevStep, resumeStep, ringCardText, shrubToFind, stepDone,
   type IntroRecord, type ShrubCheck, type Snapshot,
 } from '../src/intro';
 import { NO_YARD, applyYard, household, loadYard, saveYard, yardFilter, yardOf, yardSet } from '../src/yard';
@@ -25,9 +25,15 @@ describe('the guided introduction: when a step is done', () => {
     expect(stepDone('photo', BLANK, at({ scale: 0.04 }))).toBe(true);
     expect(stepDone('photo', BLANK, at({ scale: 0.04, busy: true }))).toBe(false); // (still setting it)
   });
-  it('turning it: turned, and out of moving the photo', () => {
+  it('turning it: turned, and out of moving the photo (not with the photo gone)', () => {
     expect(stepDone('turn', PHOTO, at({ scale: 0.05, rotation: 12, bgEditMode: true }))).toBe(false);
     expect(stepDone('turn', PHOTO, at({ scale: 0.05, rotation: 12 }))).toBe(true);
+    expect(stepDone('turn', at({ scale: 0.05, rotation: 12 }), BLANK)).toBe(false);
+  });
+  it('locking the house (3b): the newest building locked (Jason, Nov 4: from its own panel)', () => {
+    expect(stepDone('lock', at({ buildings: 1, houseLocked: false }), at({ buildings: 1, houseLocked: false }))).toBe(false);
+    expect(stepDone('lock', at({ buildings: 1, houseLocked: false }), at({ buildings: 1, houseLocked: true }))).toBe(true);
+    expect(stepDone('lock', at({ buildings: 1, houseLocked: false }), at({ buildings: 1, houseLocked: true, busy: true }))).toBe(false);
   });
   it('the house, the bed and the plant: one more than when the step began', () => {
     expect(stepDone('house', at({ buildings: 1 }), at({ buildings: 1 }))).toBe(false);
@@ -64,6 +70,18 @@ describe('the guided introduction: the order of the steps', () => {
     expect(nextStep('bed', rec(), BLANK)).toBe('sun');
     expect(nextStep('bed', rec(), PHOTO)).toBe('fade');
   });
+  it('"Lock the house" (3b) only while the newest building is unlocked: none drawn, or locked already, it\'s passed by', () => {
+    const drawn = at({ buildings: 1, houseLocked: false });
+    expect(applies('lock', BLANK)).toBe(false);
+    expect(applies('lock', drawn)).toBe(true);
+    expect(applies('lock', at({ buildings: 1, houseLocked: true }))).toBe(false);
+    expect(nextStep('house', rec(), drawn)).toBe('lock');
+    expect(nextStep('house', rec(), at({ buildings: 1, houseLocked: true }))).toBe('bed');
+    expect(nextStep('house', rec(), BLANK)).toBe('bed');
+    expect(prevStep('bed', drawn)).toBe('lock');
+    expect(prevStep('bed', at({ buildings: 1, houseLocked: true }))).toBe('house');
+    expect(STEPS.indexOf('lock')).toBe(STEPS.indexOf('house') + 1);
+  });
   it('goes on past what is done or skipped, and ends after the ring', () => {
     expect(nextStep(null, rec(), BLANK)).toBe('zip');
     expect(nextStep(null, rec({ done: ['zip'], skipped: ['photo'] }), BLANK)).toBe('house');
@@ -76,7 +94,7 @@ describe('the guided introduction: the order of the steps', () => {
     expect(prevStep('house', PHOTO)).toBe('photo');
     expect(prevStep('house', PHOTO, ['photo'])).toBe('turn');
   });
-  it('Take the tour (⋮ → Help) picks up at the step they left, or the first not done', () => {
+  it('Guided start (⋮ → Help) picks up at the step they left, or the first not done', () => {
     expect(resumeStep(rec({ step: 'sun', done: ['zip', 'house', 'bed'], skipped: ['photo'] }), BLANK)).toBe('sun');
     expect(resumeStep(rec({ step: 'sun', done: ['zip', 'sun'] }), BLANK)).toBe('photo');
     expect(resumeStep(rec({ step: 'turn', done: ['zip'] }), BLANK)).toBe('photo'); // (the photo since removed)
@@ -104,6 +122,24 @@ describe("the guided introduction: step 7's shrub and words", () => {
     expect(plantCardText({ bed: true, zip: true, sun: null, shrub, tap: 'tap' })).toContain("Try an oakleaf hydrangea: it's hardy here. Find it");
     expect(plantCardText({ bed: false, zip: false, sun: null, shrub: null, tap: 'click' })).toBe(
       'Find something to plant: search for a plant you know, or try the filters. Click Place, then click on the plan.');
+  });
+});
+
+describe("step 8's words: select a plant first; then both its circles, plainly (Jason, Nov 4)", () => {
+  it('none selected: select one, the one just placed after step 7', () => {
+    expect(ringCardText({ looking: 'unselected', justPlaced: true, tap: 'tap' })).toBe('Tap the plant you just placed to see its ring.');
+    expect(ringCardText({ looking: 'unselected', tap: 'click' })).toBe('Click a plant to see its ring.');
+  });
+  it('a planned plant: its own edge is dashed too, and said so; the outer ring is the size it can reach', () => {
+    expect(ringCardText({ looking: 'plant', planned: true, ring: true, tap: 'tap' })).toBe(
+      "Its circle is its typical size, dashed because it's planned, not planted yet. The outer dashed ring is the size it can reach. Give it room: plant two closer than usual and the app tells you.");
+    expect(ringCardText({ looking: 'plant', planned: false, ring: true, tap: 'tap' })).toBe(
+      'Its circle is its typical size. The outer dashed ring is the size it can reach. Give it room: plant two closer than usual and the app tells you.');
+  });
+  it('one size from its sources: no ring, its circle the size it can reach; no plant at all: in general', () => {
+    expect(ringCardText({ looking: 'plant', planned: true, ring: false, tap: 'tap' })).toBe(
+      "Its circle is the size it can reach (its sources give one size), dashed because it's planned, not planted yet. Give it room: when circles overlap, the app tells you.");
+    expect(ringCardText({ looking: 'nothing', tap: 'tap' })).toContain("A plant's circle is its typical size; selected, a dashed ring shows the size it can reach.");
   });
 });
 

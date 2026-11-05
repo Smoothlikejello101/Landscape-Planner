@@ -33,6 +33,62 @@ test('a plant row opens to its details, and stays open while the list changes', 
   await expect(page.getByTestId('place-bar')).toHaveCount(0);
 });
 
+test('with ten or more sure matches, the less-sure groups fold into one line that says how many and opens them; fewer, or a search, and they show as before (Jason, Nov 4)', async ({ page }) => {
+  const sure = (i: number, form = 'Perennial') => ({ id: `sure-${i}`, common: `Sure plant ${String(i).padStart(2, '0')}`, botanical: `Surea plantus ${i}`, src: ['ncsu'], audited: '2026-10-18', facts: { form, sun_most: 'Full', sun_least: 'Part' } });
+  const catalog = {
+    meta: {
+      format: 'lp-catalog', version: 2, zones: 'half', title: 'Test catalog', updated: '2026-10-18',
+      sources: { ncsu: { title: 'NC State Extension', trust: 'reference' }, shop: { title: 'A nursery', trust: 'nursery' }, compendium: { title: 'Earlier list', trust: 'unverified' } },
+      enums: { form: ['Perennial', 'Shrub'] },
+    },
+    plants: [
+      ...Array.from({ length: 9 }, (_, i) => sure(i + 1)), sure(10, 'Shrub'),
+      { id: 'heuchera-villosa', common: 'Hairy alumroot', botanical: 'Heuchera villosa', src: ['ncsu'], audited: '2026-10-18',
+        facts: { form: 'Perennial', sun_most: { v: 'Part', src: ['ncsu'], check: 'single', alt: { v: 'Full', src: ['shop'], check: 'reported' } }, sun_least: { v: 'Shade', src: ['ncsu'], check: 'single' } } },
+      { id: 'old', common: 'Old-list aster', src: ['compendium'], audited: null, facts: { form: 'Perennial', sun_most: 'Full', sun_least: 'Part' } },
+    ],
+  };
+  await page.route('**/plants.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(catalog) }));
+  await openFresh(page);
+  await page.locator('.tool-btn.plants').click();
+  await openFilters(page);
+  await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any sun' }) }).selectOption('Full');
+  const order = () => page.locator('.list-divider, .plant-item .pname').evaluateAll((els) => els.map((e) => (e.classList.contains('list-divider') ? '|' + e.getAttribute('data-testid') : e.textContent)));
+  const sureNames = Array.from({ length: 10 }, (_, i) => `Sure plant ${String(i + 1).padStart(2, '0')}`);
+  // Ten sure: the other two fold into one line, last, saying how many and why.
+  await expect.poll(order).toEqual([...sureNames, '|less-sure']);
+  const line = page.getByTestId('less-sure');
+  await expect(line).toHaveText('Show 2 more that other sources or the earlier list say fit');
+  await expect(line).toHaveAttribute('aria-expanded', 'false');
+  // Opened: the two groups, as worded before, with Hide these.
+  await line.click();
+  await expect.poll(order).toEqual([...sureNames, '|others-divider', 'Hairy alumroot', '|earlier-divider', 'Old-list aster']);
+  await expect(page.getByTestId('others-divider')).toContainText('Other sources say these take full sun too');
+  await expect(page.getByTestId('hide-others')).toBeVisible();
+  // Nine sure (Perennials only): no line, the groups shown as before.
+  await closeSheet(page);
+  await page.locator('.tool-btn.plants').click();
+  await openFilters(page);
+  await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any sun' }) }).selectOption('Full');
+  await expect.poll(order).toEqual([...sureNames, '|less-sure']); // (opened by hand last time: folded again, a new look)
+  await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any form' }) }).selectOption('Perennial');
+  await expect.poll(order).toEqual([...sureNames.slice(0, 9), '|others-divider', 'Hairy alumroot', '|earlier-divider', 'Old-list aster']);
+  // Other sources' put away with Hide these, then ten sure again: the line says only the other one.
+  await page.getByTestId('hide-others').click();
+  await page.locator('.sheet select').filter({ has: page.locator('option', { hasText: 'Any form' }) }).selectOption('');
+  await expect(line).toHaveText('Show 1 more that only the earlier list (unverified) says fit');
+  await expect(page.getByTestId('others-hidden')).toContainText('1 more fit by what other sources say.');
+  await page.getByTestId('show-others').click();
+  await expect(line).toHaveText('Show 2 more that other sources or the earlier list say fit');
+  // A search by name finds every plant as before: with ten sure matches too, nothing folded.
+  await page.getByTestId('plant-search').fill('plant');
+  await expect(page.locator('.plant-item', { hasText: 'Sure plant 10' })).toHaveCount(1);
+  await page.getByTestId('plant-search').fill('a');
+  await expect(line).toHaveCount(0);
+  await expect(page.locator('.plant-item', { hasText: 'Hairy alumroot' })).toHaveCount(1);
+  await expect(page.locator('.plant-item', { hasText: 'Old-list aster' })).toHaveCount(1);
+});
+
 test('a plant shown only because of what other sources say is marked, and says so, naming who', async ({ page }) => {
   const catalog = {
     meta: {
@@ -1064,6 +1120,50 @@ test('"Anyone you need to protect?" isn\'t asked first on a device that answered
   for (const k of ['kids', 'dogs', 'cats', 'horses']) await expect(page.getByTestId(`protect-${k}`)).toHaveAttribute('aria-pressed', 'false');
   expect(await planHousehold(page)).toEqual({ ...NONE, answered: true });
   expect(await deviceKept(page)).toEqual([null, null]);
+});
+
+test('step 6\'s "None of these": the four off and the question answered for the plan, so the picker asks it under Filters; one of the four unselects it (Jason, Nov 4)', async ({ page }) => {
+  autoDialogs(page);
+  await openFresh(page);
+  await page.getByTestId('intro-start').click();
+  for (let n = 1; n <= 5; n++) {
+    await expect(page.getByTestId('intro-step')).toHaveText(`Step ${n} of 8`);
+    await page.getByTestId('intro-skip').click();
+  }
+  await expect(page.getByTestId('intro-step')).toHaveText('Step 6 of 8');
+  const none = page.getByTestId('intro-none');
+  await expect(none).toHaveText('None of these');
+  await expect(none).toHaveAttribute('aria-pressed', 'false'); // (not answered yet)
+  await page.getByTestId('intro-kids').click();
+  await none.click();
+  await expect(none).toHaveAttribute('aria-pressed', 'true');
+  for (const k of ['kids', 'dogs', 'cats', 'horses']) await expect(page.getByTestId(`intro-${k}`)).toHaveAttribute('aria-pressed', 'false');
+  await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, answered: true });
+  // One of the four: no longer "none".
+  await page.getByTestId('intro-dogs').click();
+  await expect(none).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('intro-dogs-note')).toBeVisible();
+  await none.click();
+  await expect(page.getByTestId('intro-dogs')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByTestId('intro-dogs-note')).toBeHidden();
+  await expect(none).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => planHousehold(page)).toEqual({ ...NONE, answered: true });
+  // Answered for the plan by the chip itself (left before Next): the picker asks it under Filters, not first.
+  await page.getByTestId('intro-exit').click();
+  await page.locator('.tool-btn.plants').click();
+  await expect(page.getByTestId('picker-count')).toBeVisible();
+  await expect(protectAtTop(page)).toHaveCount(0);
+  await openFilters(page);
+  await expect(protectInGroup(page)).toBeVisible();
+  for (const k of ['kids', 'dogs', 'cats', 'horses']) await expect(page.getByTestId(`protect-${k}`)).toHaveAttribute('aria-pressed', 'false');
+  // Taken up again from Help: shown chosen, the plan's answer being no one.
+  await closeSheet(page);
+  await page.locator('button[title=More]').click();
+  await page.getByTestId('menu-help').click();
+  await page.getByTestId('help-tour').click();
+  await page.getByTestId('intro-resume').click();
+  await expect(page.getByTestId('intro-step')).toHaveText('Step 6 of 8');
+  await expect(page.getByTestId('intro-none')).toHaveAttribute('aria-pressed', 'true');
 });
 
 // One of the four set after Clear filters (the filters are for the search at hand; the yard stays) changes that one

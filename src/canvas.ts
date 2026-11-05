@@ -123,6 +123,9 @@ export function gridSteps(ppf: number): { minorEvery: number; majorEvery: number
 }
 
 let lookClips = 0;
+/** A shape the guided start points to (src/ui/intro-card.ts): its edge pulses, through every redraw, till it's cleared. */
+let pulsing: string | null = null;
+export function pulseShape(id: string | null) { pulsing = id; }
 /** A shape and its label, wrapped in a group so it can be redrawn alone. */
 export function shapeGroup(s: Shape): SVGGElement {
   const ppf = pxPerFoot();
@@ -363,7 +366,7 @@ export function shapeGroup(s: Shape): SVGGElement {
   }
   const target = hitEl ?? shapeEl;
   target.addEventListener('pointerdown', (e) => onShapePointerDown(e as PointerEvent, s));
-  const g = svgEl('g', { 'data-shape-group': s.id }, ...(under ? [under] : []), shapeEl);
+  const g = svgEl('g', { 'data-shape-group': s.id, class: s.id === pulsing ? 'shape-pulse' : null }, ...(under ? [under] : []), shapeEl);
   if (hitEl) g.appendChild(hitEl);
   if (ring) g.appendChild(ring);
   for (const x of g0) g.appendChild(x);
