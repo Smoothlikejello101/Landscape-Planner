@@ -62,7 +62,10 @@ The history (src/db.ts keeps it beside `DB_VERSION`):
 - 6 (Nov 4): no store or record changed. A plan's print choice for the plants under taller ones (`print.under`, until
   then kept per device), which a version-5 page would drop, saving or syncing a plan. A version-5 page's journal,
   written without it, is kept apart from a plan saved at 6, not put over it (checked: at 5 it went in place, the choice
-  lost). (Sync: `withPrintUnder`, below.)
+  lost). (Sync: `withPrintUnder`, below.) Sync records gain `bare` (Nov 5: the core's fingerprint without beds'
+  conditions, below), not raised for: a page from before it drops it (every version reads records through its own
+  `sanitizeSyncRecords`, which keeps only the fields it knows, and writes all of them back that way), and a record
+  without it is compared as before, a needless copy at worst; no plan, and nothing anyone did, is lost with it.
 
 When raising it:
 1. Add a line to the history beside `DB_VERSION`: the version, the day, what changed.
@@ -176,6 +179,23 @@ device of this version keeps its own when the server's copy of that bed (its id,
 (src/sync/engine.ts `withBedConditions`), `{}` included, so a device that cleared them says so again with its next edit.
 The server's copy goes without them until a device that has them sends the plan again: until then they're only on the
 devices of this version that had them, and a device reset or signed out meanwhile takes its copy with it.
+
+**No conflict copy from them** (Nov 5; #230 found it, building the print choice). Filled in from here, they're this
+device's conditions as they are now: changed here since the plan last synced, the server's copy read as changed there,
+and with any other edit here a copy was made, though the device on the older version had only ticked a plant or moved
+the photo. So each sync record also keeps the core's fingerprint with every bed's conditions left out (`bare`, made with
+`core` from the same copy: src/sync/engine.ts `bareHash`), and where the server's copy has no conditions at all, on any
+shape, it's compared without them too (`asRecordedButConditions`; with the print choice as recorded as well, which the
+same versions drop). Equal, it isn't a change there: this device's version goes up, with the tick or the photo from
+there. It can't take a real change there for none: every other part of the plan's core must be exactly as recorded, and
+the copy says nothing of conditions. A version that drops them can't have changed them; a device of this version sends
+every bed's it has, so a copy from it with none at all came from a device with none on any bed: one that took the plan
+after an older version dropped them (nothing to take away), or one that took them away where its record said the server
+had none (no `{}`, above). That last is the first window below: the copy made before held this device's conditions,
+filled in, in the original as in the copy, so neither kept that device's change. A copy with some conditions, any
+change to the rest of the core there, or a record without `bare` (from before it, or written by an older version, which
+drops it) is compared as before: a copy at worst, never an edit lost. Tested with the release's own engine
+(tests/sync-engine.test.ts, "no needless copy").
 
 The windows left, as for `fruitDismissed` and wider, all only while one of the account's devices is on database version
 3 or before and syncs: Next never signs in, so in practice a device still on release 3 (database version 1), until it
@@ -368,9 +388,8 @@ signs in):
   changed there, and a copy would be made against any other edit of the plan here. So the merge also checks the
   server's copy as this device's record has it with the choice put back as it was, none or As on screen
   (`asRecordedButUnder`): only the field dropped, and nothing else in the plan changed there, isn't a change there
-  (tested: without it, a copy). Found on the way, and not changed here: a bed's conditions (`withBedConditions`) have
-  that flaw still. A bed's conditions changed here with any other edit of the plan, while a device on the release ticks
-  a plant, makes a conflict copy (both kept, nothing lost).
+  (tested: without it, a copy). Found on the way: a bed's conditions (`withBedConditions`) had that flaw, fixed Nov 5
+  by the record's `bare` (`asRecordedButConditions`: a bed's conditions, below).
 - **A Show through pick goes up, over a copy without one** (the review's R1). Merging, this device takes the server's
   copy as already having its result only if that copy has the choice too, where this device's has one
   (`pickNotThere`); the fingerprints alone read Show through picked as none. So a pick made here over a copy the release
@@ -382,7 +401,8 @@ signs in):
   there first made a second copy, with no device on the release needed. That fill can be this device's own pick from the
   conflicting edit, which then shows in the original here too, and goes up with this device's next edit of it. (The copy
   beside it has this device's version whole.) Found with it, and not changed here: a bed's conditions filled in after a
-  conflict make that second copy still (both kept, nothing lost).
+  conflict make that second copy still (both kept, nothing lost) when the next edit there changes the plan's core; since
+  Nov 5 a release device's tick or photo move there doesn't (`bare`, below).
 
 The windows left, both only while one of the account's devices is on the release and syncs:
 - A device offline through another device's pick, with the release sending the plan in between, still has its own,

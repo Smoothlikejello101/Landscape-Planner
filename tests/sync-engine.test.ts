@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canonical, coreHash, fingerprint, photoKey, planHash, planOf, settleBought, settleHousehold, settleSwitches, syncOnce, withLocalParts, type Local, type LocalProject, type ProjectContent, type Remote, type SyncRecord } from '../src/sync/engine';
+import { bareHash, canonical, coreHash, fingerprint, photoKey, planHash, planOf, settleBought, settleHousehold, settleSwitches, syncOnce, withLocalParts, type Local, type LocalProject, type ProjectContent, type Remote, type SyncRecord } from '../src/sync/engine';
 import { FakeServer } from './fake-sync-server';
 import { keepBought, plantList } from '../src/plant-list';
 import type { PlanBought, PrintSettings, PrintUnder, Shape } from '../src/types';
@@ -2027,5 +2027,219 @@ describe('the print choice for the plants under taller ones (print.under, Nov 4)
     expect(picked(phone, id)).toBe('windows');
     await syncDev(laptop, server);
     await settled(server, phone, tablet, laptop);
+  });
+});
+
+// A bed's conditions changed here while a device on the release (its own engine: tests/release-device.ts) edits the
+// plan, sending it without any bed's conditions (Nov 5). Filled in from here (withBedConditions) they are this device's
+// conditions as they are now, so the server's copy read as changed there, against the record, and with another edit
+// here a copy was made (#230 found it, building the print choice: docs/storage.md). The record's `bare` (the core's
+// fingerprint with every bed's conditions left out) compares a copy that has none at all without them.
+describe("a bed's conditions changed here while the release edits the plan: no needless copy (Nov 5)", () => {
+  const ALL = { sun: { most: 'Full', least: 'Part' }, soil: 'clay', moisture: 'average', drip: true };
+  const SAND = { soil: 'sand', moisture: 'dry' };
+  const LOAM = { soil: 'loam', moisture: 'average' };
+  const bed = (id: string, x: number, c?: object) => ({ id, type: 'rect', x, y: -5, width: 20, height: 10, rotation: 0, color: '#a16207', label: id === 'b1' ? 'Front bed' : 'Back bed', opacity: 0.4, locked: false, role: 'bed', ...(c === undefined ? {} : { conditions: c }) });
+  const aster = (x: number) => ({ id: 'a1', type: 'circle', x, y: 0, radius: 1, color: '#7c3aed', label: 'Aromatic aster', opacity: 0.65, locked: false, role: 'plant', plantId: 'symphyotrichum-oblongifolium' });
+  const photo = (extra: object = {}) => ({ fingerprint: FP, naturalWidth: 400, naturalHeight: 300, ftPerPx: 0.25, cx: 0, cy: 0, rotation: 0, opacity: 0.6, visible: true, ...extra });
+  /** The plan: the front bed (its conditions `c`, at `bx`), the back bed (its conditions `c2`, null for none; at `b2x`), the aster at `ax`. */
+  const plan = (c: object | undefined, { bx = 0, b2x = 40, ax = 2, c2 = LOAM as object | null } = {}) => [bed('b1', bx, c), bed('b2', b2x, c2 ?? undefined), aster(ax)];
+  const TICK = { 'pl:1': { n: 1, at: 5 } };
+  const setPlan = (d: Dev, id: string, shapes: object[]) => d.edit(id, (c) => ({ ...c, shapes }));
+  /** The release ticks a plant and moves the photo: edits that merge with anything, sent without any bed's conditions. */
+  const releaseEdits = (d: Dev, id: string) => d.edit(id, (c) => ({ ...c, bought: TICK, photo: photo({ cx: 4 }) }));
+  const contentOf = (d: Dev, id: string) => d.projectsById.get(id)!.content;
+  const onServer = (s: FakeServer, id: string) => s.rows.get(id)!.content;
+  /** The beds' conditions, front then back. */
+  const conditions = (c: ProjectContent) => (c.shapes as Shape[]).filter((s) => s.role === 'bed').map((s) => s.conditions);
+  const copyOf = (d: Dev, id: string) => [...d.projectsById.values()].find((p) => p.id !== id);
+  async function settled(server: FakeServer, ...devices: Dev[]) {
+    for (let i = 0; i < 3; i++) for (const d of devices) expect(await syncDev(d, server)).toMatchObject({ uploaded: 0, downloaded: 0, conflicts: [] });
+  }
+  /** The phone (this version) with the plan, its front bed's conditions `from`, synced; the laptop (the release) and `others` have it too. */
+  async function start(from: object | undefined, opts: { c2?: object | null } = {}, ...others: Dev[]) {
+    const server = new FakeServer(), phone = new Dev('phone', false), laptop = new Dev('laptop', true);
+    const id = phone.add('Back Yard', plan(from, opts), photo());
+    for (const d of [phone, laptop, ...others]) await syncDev(d, server);
+    return { server, phone, laptop, id };
+  }
+  /** Each change here to the front bed's conditions: set, changed, cleared. */
+  const CHANGES = [[undefined, ALL], [ALL, SAND], [ALL, {}]] as const;
+
+  it("the record keeps the core's fingerprint without any bed's conditions too (`bare`); a plan without them, the same as its core", async () => {
+    const c = (front?: object, back: object | null = LOAM) => ({ shapes: plan(front, { c2: back }), household: { kids: true }, photo: null });
+    expect(bareHash('X', c(undefined, null))).toBe(coreHash('X', c(undefined, null)));
+    expect(bareHash('X', { shapes: [] })).toBe(coreHash('X', { shapes: [] }));
+    for (const [front, back] of [[ALL, LOAM], [{}, null], [SAND, {}]] as const) {
+      expect(bareHash('X', c(front, back))).toBe(coreHash('X', c(undefined, null)));
+    }
+    expect(bareHash('X', c(ALL))).not.toBe(coreHash('X', c(ALL)));
+    expect(bareHash('Y', c(ALL))).not.toBe(bareHash('X', c(ALL))); // (the name, as in the core)
+    expect(bareHash('X', { ...c(ALL), shapes: plan(ALL, { ax: 6 }) })).not.toBe(bareHash('X', c(ALL)));
+    // (Only what's hashed: the plan keeps its conditions.)
+    const kept = c(ALL);
+    bareHash('X', kept);
+    expect(conditions(kept)).toEqual([ALL, LOAM]);
+    // Sent, taken: each record has it, made with its core.
+    const { server, phone, laptop, id } = await start(ALL);
+    expect(phone.recs[id]).toMatchObject({ core: coreHash('Back Yard', contentOf(phone, id)), bare: bareHash('Back Yard', contentOf(phone, id)) });
+    const tablet = new Dev('tablet', false);
+    await syncDev(tablet, server);
+    expect(tablet.recs[id]).toMatchObject({ core: coreHash('Back Yard', contentOf(tablet, id)), bare: bareHash('Back Yard', contentOf(tablet, id)) });
+    expect(laptop.recs[id]).not.toHaveProperty('bare'); // (the release's own record: as it was)
+  });
+
+  it("a record made by taking the release's copy (this device's conditions filled in), then conditions changed here with the aster moved, while the release moves the photo: no copy", async () => {
+    const { server, phone, laptop, id } = await start(ALL);
+    releaseEdits(laptop, id);
+    await syncDev(laptop, server);
+    expect(await syncDev(phone, server)).toMatchObject({ downloaded: 1, uploaded: 0 }); // (taken, its own kept: nothing sent)
+    expect(conditions(contentOf(phone, id))).toEqual([ALL, LOAM]);
+    laptop.edit(id, (c) => ({ ...c, photo: photo({ cx: 8 }) }));
+    await syncDev(laptop, server);
+    setPlan(phone, id, plan(SAND, { ax: 6 }));
+    expect(await syncDev(phone, server)).toMatchObject({ uploaded: 1, conflicts: [] });
+    expect(onServer(server, id)).toMatchObject({ shapes: phone.read({ shapes: plan(SAND, { ax: 6 }) }).shapes, bought: TICK, photo: photo({ cx: 8 }) });
+    await syncDev(laptop, server);
+    await settled(server, phone, laptop);
+    expect([phone.projectsById.size, laptop.projectsById.size]).toEqual([1, 1]);
+  });
+
+  it('the flaw, reproduced: the front bed\'s conditions changed here, alone or with the aster moved, while the release ticks a plant and moves the photo: no copy; all of it goes up; it settles', async () => {
+    for (const [from, to] of CHANGES) {
+      for (const moved of [false, true]) {
+        const what = `${JSON.stringify(from)} to ${JSON.stringify(to)}${moved ? ', the aster moved' : ''}`;
+        const { server, phone, laptop, id } = await start(from);
+        releaseEdits(laptop, id);
+        expect(await syncDev(laptop, server)).toMatchObject({ uploaded: 1 });
+        expect(conditions(onServer(server, id))).toEqual([undefined, undefined]); // (the release's copy: none)
+        setPlan(phone, id, plan(to, { ax: moved ? 6 : 2 }));
+        const report = await syncDev(phone, server);
+        expect(report.conflicts.map((c) => c.copyName.replace(/, .*/, '')), what).toEqual([]);
+        expect(report, what).toMatchObject({ uploaded: 1 });
+        const want = { shapes: phone.read({ shapes: plan(to, { ax: moved ? 6 : 2 }) }).shapes, bought: TICK, photo: photo({ cx: 4 }) };
+        expect(contentOf(phone, id), what).toMatchObject(want);
+        expect(onServer(server, id), what).toMatchObject(want);
+        expect(await syncDev(laptop, server), what).toMatchObject({ downloaded: 1, conflicts: [] });
+        await settled(server, phone, laptop);
+        expect([phone.projectsById.size, laptop.projectsById.size], what).toEqual([1, 1]);
+      }
+    }
+  });
+
+  it('with the print choice for the plants under taller ones picked (or changed) here too, the release dropping both: no copy; both go up', async () => {
+    const P = (under?: PrintUnder): PrintSettings => ({ ...DEFAULT_PRINT, ...(under ? { under } : {}) });
+    for (const [from, to] of [[undefined, 'screen'], ['screen', 'windows'], ['windows', 'screen']] as const) {
+      const server = new FakeServer(), phone = new Dev('phone', false), laptop = new Dev('laptop', true);
+      const id = phone.add('Back Yard', plan(ALL), photo());
+      phone.edit(id, (c) => ({ ...c, print: P(from) }));
+      await syncDev(phone, server); await syncDev(laptop, server);
+      releaseEdits(laptop, id);
+      await syncDev(laptop, server);
+      expect('under' in (onServer(server, id).print as object)).toBe(false); // (the release's copy: neither)
+      phone.edit(id, (c) => ({ ...c, shapes: plan(SAND, { ax: 6 }), print: P(to) }));
+      expect(await syncDev(phone, server), `${from} to ${to}`).toMatchObject({ uploaded: 1, conflicts: [] });
+      expect(onServer(server, id)).toMatchObject({ shapes: phone.read({ shapes: plan(SAND, { ax: 6 }) }).shapes, print: P(to), bought: TICK });
+      await syncDev(laptop, server);
+      await settled(server, phone, laptop);
+      expect([phone.projectsById.size, laptop.projectsById.size]).toEqual([1, 1]);
+    }
+  });
+
+  it('still a copy where the release changed something else in the core: the same bed moved, or the other bed; both kept, nothing lost', async () => {
+    for (const there of [{ bx: 4 }, { b2x: 44 }]) {
+      for (const moved of [false, true]) {
+        const what = `${JSON.stringify(there)}${moved ? ', the aster moved here' : ''}`;
+        const { server, phone, laptop, id } = await start(ALL);
+        setPlan(laptop, id, plan(undefined, there));
+        await syncDev(laptop, server);
+        setPlan(phone, id, plan(SAND, { ax: moved ? 6 : 2 }));
+        expect((await syncDev(phone, server)).conflicts, what).toHaveLength(1);
+        // The original: the release's edit, this device's conditions kept (filled in); the copy: this device's version.
+        expect(contentOf(phone, id).shapes, what).toEqual(phone.read({ shapes: plan(SAND, there) }).shapes);
+        expect(copyOf(phone, id)!.content.shapes, what).toEqual(phone.read({ shapes: plan(SAND, { ax: moved ? 6 : 2 }) }).shapes);
+      }
+    }
+  });
+
+  it('still a copy where a device of this version changed a bed\'s conditions there (set, changed or cleared), with another edit here', async () => {
+    for (const [bedThere, theirs] of [['b1', LOAM], ['b1', {}], ['b2', {}], ['b2', ALL]] as const) {
+      const what = `${bedThere} to ${JSON.stringify(theirs)} there`;
+      const tablet = new Dev('tablet', false);
+      const { server, phone, id } = await start(ALL, { c2: LOAM }, tablet);
+      setPlan(tablet, id, bedThere === 'b1' ? plan(theirs) : plan(ALL, { c2: theirs }));
+      expect(await syncDev(tablet, server), what).toMatchObject({ uploaded: 1 });
+      setPlan(phone, id, plan(SAND, { ax: 6 }));
+      expect((await syncDev(phone, server)).conflicts, what).toHaveLength(1);
+      expect(conditions(contentOf(phone, id)), what).toEqual(bedThere === 'b1' ? [theirs, LOAM] : [ALL, theirs]);
+      expect(conditions(copyOf(phone, id)!.content), what).toEqual([SAND, LOAM]);
+    }
+  });
+
+  it('two devices of this version, as before: a tick and the photo moved there, conditions changed and the aster moved here: no copy; the back bed moved there: a copy', async () => {
+    for (const there of ['tick', 'move'] as const) {
+      const tablet = new Dev('tablet', false);
+      const { server, phone, id } = await start(ALL, { c2: LOAM }, tablet);
+      if (there === 'tick') releaseEdits(tablet, id); else setPlan(tablet, id, plan(ALL, { b2x: 44 }));
+      expect(await syncDev(tablet, server)).toMatchObject({ uploaded: 1 });
+      setPlan(phone, id, plan(SAND, { ax: 6 }));
+      expect((await syncDev(phone, server)).conflicts, there).toHaveLength(there === 'tick' ? 0 : 1);
+      await syncDev(tablet, server);
+      await settled(server, phone, tablet);
+      expect(conditions(contentOf(tablet, id)), there).toEqual(there === 'tick' ? [SAND, LOAM] : [ALL, LOAM]);
+    }
+  });
+
+  it("after a real copy (the back bed moved there, conditions changed and the aster moved here), the release's tick before this device's next pass makes no second copy; a second move there still does (docs/storage.md: both kept)", async () => {
+    for (const next of ['tick', 'move'] as const) {
+      const { server, phone, laptop, id } = await start(ALL);
+      setPlan(laptop, id, plan(undefined, { b2x: 44 }));
+      await syncDev(laptop, server);
+      setPlan(phone, id, plan(SAND, { ax: 6 }));
+      expect((await syncDev(phone, server)).conflicts).toHaveLength(1);
+      await syncDev(laptop, server);
+      if (next === 'tick') laptop.edit(id, (c) => ({ ...c, bought: TICK })); else setPlan(laptop, id, plan(undefined, { b2x: 48 }));
+      await syncDev(laptop, server);
+      // The original holds this device's conditions, filled in, which its record (the server's copy) hasn't.
+      expect((await syncDev(phone, server)).conflicts, next).toHaveLength(next === 'tick' ? 0 : 1);
+      expect(phone.projectsById.size, next).toBe(next === 'tick' ? 2 : 3);
+      expect(conditions(contentOf(phone, id)), next).toEqual([SAND, LOAM]);
+      await syncDev(phone, server); await syncDev(laptop, server);
+      await settled(server, phone, laptop);
+    }
+  });
+
+  it('a record from before the fix (no `bare`): compared as before, a copy; both kept', async () => {
+    const { server, phone, laptop, id } = await start(ALL);
+    expect(phone.recs[id]).toHaveProperty('bare');
+    delete (phone.recs[id] as { bare?: string }).bare;
+    releaseEdits(laptop, id);
+    await syncDev(laptop, server);
+    setPlan(phone, id, plan(SAND, { ax: 6 }));
+    expect((await syncDev(phone, server)).conflicts).toHaveLength(1);
+    expect([conditions(contentOf(phone, id)), conditions(copyOf(phone, id)!.content)]).toEqual([[SAND, LOAM], [SAND, LOAM]]);
+    // (The original's conditions, filled in, go up at the next pass: docs/storage.md, after a conflict.)
+    expect(await syncDev(phone, server)).toMatchObject({ uploaded: 1, conflicts: [] });
+    await syncDev(laptop, server);
+    await settled(server, phone, laptop);
+  });
+
+  it("the window left (docs/storage.md), the same with or without the copy: a device of this version changed them and the release sent the plan between; this device's own change goes up over it, as its original did", async () => {
+    for (const before of [false, true]) {
+      const tablet = new Dev('tablet', false);
+      const { server, phone, laptop, id } = await start(ALL, { c2: LOAM }, tablet);
+      if (before) delete (phone.recs[id] as { bare?: string }).bare; // (as before the fix)
+      setPlan(tablet, id, plan(LOAM));
+      await syncDev(tablet, server);
+      await syncDev(laptop, server);
+      releaseEdits(laptop, id);
+      await syncDev(laptop, server);
+      setPlan(phone, id, plan(SAND, { ax: 6 }));
+      expect((await syncDev(phone, server)).conflicts).toHaveLength(before ? 1 : 0);
+      await syncDev(phone, server); await syncDev(tablet, server); await syncDev(laptop, server);
+      await settled(server, phone, tablet, laptop);
+      // Before, too, neither the original nor the copy had the tablet's LOAM: this device's SAND was filled into both.
+      for (const d of [phone, tablet]) for (const p of d.projectsById.values()) expect(conditions(p.content)[0], `${before}`).toEqual(SAND);
+    }
   });
 });

@@ -64,6 +64,14 @@ export interface SyncRecord {
    * never had the fields, and Next doesn't sync).
    */
   marks?: { conditions?: string[]; fruit?: string[] };
+  /**
+   * The core's fingerprint with every bed's conditions left out (bareHash, Nov 5), made with `core` from the same copy:
+   * a server's copy with no conditions at all (an older version's, which drops them from every bed) is compared by it,
+   * so conditions filled in from here aren't taken for a change there (asRecordedButConditions). Absent in a record from
+   * before it, and in any an older version wrote (it keeps only the fields it knows): such a copy is compared as before,
+   * a needless copy at worst.
+   */
+  bare?: string;
 }
 export interface ServerProject { id: string; name: string; revision: number; updated_by: string | null; updated_at: string; deleted_at: string | null }
 export type PushResult =
@@ -279,6 +287,17 @@ function partsOf(c: ProjectContent): ProjectContent {
 export const coreHash = (name: string, c: ProjectContent) => fingerprint(name, forHash(coreOf(c)));
 /** A record's core fingerprint; one from before the parts that settle on their own had none, its plan neither part. */
 const coreOfRecord = (rec: SyncRecord) => rec.core ?? rec.hash;
+/** Whether a shape has a bed's conditions, answers or {} (any shape: reading keeps them on a bed only). */
+const hasConditions = (s: unknown) => !!s && typeof s === 'object' && 'conditions' in s;
+/**
+ * The core's fingerprint (coreHash) with every bed's conditions left out, answers and {} alike: a record's `bare`. A plan
+ * with none has the same as its core.
+ */
+export function bareHash(name: string, c: ProjectContent): string {
+  if (!Array.isArray(c.shapes) || !c.shapes.some(hasConditions)) return coreHash(name, c);
+  const shapes = c.shapes.map((s) => { if (!hasConditions(s)) return s; const { conditions: _k, ...rest } = s as Record<string, unknown>; return rest; });
+  return coreHash(name, { ...c, shapes });
+}
 /**
  * Whether a plan's core (`c`, named `name`) is as the record has it. A record without `core` holds the whole plan's
  * fingerprint: one from a version before the parts (the plan had none, so that's its core), or one of this version's
@@ -319,7 +338,7 @@ export function photoFp(c: ProjectContent): string | undefined {
 /** The record for content as the server has it at `revision`. */
 const recordFor = (name: string, c: ProjectContent, revision: number): SyncRecord => {
   const photo = photoKey(c);
-  const rec: SyncRecord = { revision, hash: planHash(name, c), core: coreHash(name, c) };
+  const rec: SyncRecord = { revision, hash: planHash(name, c), core: coreHash(name, c), bare: bareHash(name, c) };
   const parts = partsOf(c);
   if (Object.keys(parts).length) rec.parts = parts;
   const marks = marksOf(c);
@@ -379,12 +398,43 @@ function withPrintUnder(server: ProjectContent, mine: ProjectContent): ProjectCo
  * at all: an older version's copy, with that field dropped and nothing else in the plan's core changed there (a tick,
  * the photo moved, or no edit of its own). Filled from here, the choice picked again here would read as changed there,
  * and a copy would be made against any other edit of the plan here (as for a bed's conditions: found Nov 4, building
- * this). Tried as recorded: none picked (or Show through: the same), or As on screen.
+ * this; asRecordedButConditions, Nov 5). Tried as recorded: none picked (or Show through: the same), or As on screen.
  */
 function asRecordedButUnder(rec: SyncRecord, name: string, server: ProjectContent, sent: ProjectContent, mine: ProjectContent): boolean {
-  if (!isObject(sent.print) || 'under' in sent.print || !isObject(server.print)) return false;
+  return underAsRecorded(server, sent).some((c) => coreAsRecorded(rec, name, c, mine));
+}
+/**
+ * The server's copy (`server`, as read here) with each print choice for the plants under taller ones it may have had as
+ * recorded, where the copy as sent (`sent`) says nothing of it at all (asRecordedButUnder): none picked (or Show through:
+ * the same), and As on screen. None where it says something of it.
+ */
+function underAsRecorded(server: ProjectContent, sent: ProjectContent): ProjectContent[] {
+  if (!isObject(sent.print) || 'under' in sent.print || !isObject(server.print)) return [];
   const { under: _u, ...rest } = server.print;
-  return [rest, { ...rest, under: 'screen' }].some((print) => coreAsRecorded(rec, name, { ...server, print }, mine));
+  return [rest, { ...rest, under: 'screen' }].map((print) => ({ ...server, print }));
+}
+/**
+ * Whether the server's copy (`server`, as read here, this device's parts filled in) is the plan as this device's record
+ * has it but for beds' conditions, of which the copy as sent (`sent`) has none at all, on any shape: an older version's
+ * copy (the release, an older tab), which drops them from every bed, with nothing else in the plan's core changed there
+ * (a tick, the photo moved, or no edit of its own). Filled in from here (withBedConditions), they are this device's
+ * conditions as they are now: changed here since the record, the server's copy read as changed there, and a copy was
+ * made against any other edit of the plan here (found Nov 4, building asRecordedButUnder). So the record's core without
+ * them (`bare`) is compared with the copy's, as read here, without them; with the print choice for the plants under
+ * taller ones as recorded too, where the copy dropped that as well (the same versions drop both).
+ *
+ * Why this can't take a real change there for none: every other part of the core (the name, every other field of every
+ * shape, the print settings) must be exactly as recorded, and the copy says nothing of conditions. A version that drops
+ * them can't have changed them; a device of this version sends every bed's it has, so a copy from it with none at all is
+ * one from a device that had none on any bed: one that took the plan after an older version dropped them (nothing to
+ * take away), or one that took them away where its record said the server's copy had none (src/marks.ts mayMark: no
+ * {}). That last is the window docs/storage.md keeps: a copy made for it held this device's conditions, filled in, in the
+ * original as in the copy, so neither kept that device's change. A record without `bare` (from before it, or written by
+ * an older version) isn't compared this way.
+ */
+function asRecordedButConditions(rec: SyncRecord, name: string, server: ProjectContent, sent: ProjectContent): boolean {
+  if (rec.core === undefined || rec.bare === undefined || !Array.isArray(sent.shapes) || sent.shapes.some(hasConditions)) return false;
+  return [server, ...underAsRecorded(server, sent)].some((c) => bareHash(name, c) === rec.bare);
 }
 /**
  * Whether `here` has a print choice for the plants under taller ones that `there`'s print settings say nothing of at
@@ -468,7 +518,8 @@ function withRoughScale(server: ProjectContent, mine: ProjectContent): ProjectCo
  * none at all. Without it, a device on an older version with an edit of its own sends the plan over newer conditions,
  * its merge not seeing them, and every device then loses them. The server's copy goes without them until a device that
  * has them sends the plan again. {} (cleared on purpose) is kept the same way, so a device that cleared them says so
- * again as it next sends the plan; where the server has some, {} or answers, they stand.
+ * again as it next sends the plan; where the server has some, {} or answers, they stand. (Filled in from here into a
+ * copy with none at all, they aren't taken for a change there: asRecordedButConditions.)
  *
  * What's left (as for fruitDismissed, docs/storage.md): a device offline through another device's change to a bed's
  * conditions (set, changed or cleared), with a device on an older version sending the plan between, still has its own,
@@ -920,7 +971,8 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
     // (The other side's parts as each has them: the server's as it sent them, without this device's filled in.)
     const sentHere = local.normalize(serverName, sent).content;
     const planHere = !rec || !coreAsRecorded(rec, p.name, p.content, sentHere);
-    const planThere = !rec || !(coreAsRecorded(rec, n.name, n.content, p.content) || asRecordedButUnder(rec, n.name, n.content, sent, p.content));
+    const planThere = !rec || !(coreAsRecorded(rec, n.name, n.content, p.content) || asRecordedButUnder(rec, n.name, n.content, sent, p.content)
+      || asRecordedButConditions(rec, n.name, n.content, sent));
     const photoHere = localPhoto !== basePhoto, photoThere = serverPhoto !== undefined && serverPhoto !== basePhoto;
     const photoClash = photoHere && photoThere && localPhoto !== serverPhoto;
     if ((planHere && planThere && localPlan !== serverPlan) || photoClash) {

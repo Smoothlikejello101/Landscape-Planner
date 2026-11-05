@@ -37,7 +37,9 @@ export const DB_NAME = 'landscape-planner';
  * - 6 (Nov 4): no store or record changed by the upgrade. A plan's print choice for the plants under taller ones
  *   (PrintSettings `under`: Show through or As on screen, chosen in Print or Export; until now kept per device), which
  *   a version-5 page would drop, saving or syncing a plan, and whose journals, written without it, are kept apart from
- *   a plan saved at 6 rather than put over it.
+ *   a plan saved at 6 rather than put over it. Sync records gain `bare` (Nov 5: src/sync/engine.ts SyncRecord), not
+ *   raised for: a page from before it drops it (every version keeps only the record fields it knows), and a record
+ *   without it is compared as before, a needless conflict copy at worst; nothing anyone did is lost with it.
  *
  * onupgradeneeded only adds what's missing: it never deletes, clears or rewrites a store or a record. A change that
  * must rewrite records does it after the open, in one transaction (KV.changeAllOnce; src/storage.ts takeFromDevice).
