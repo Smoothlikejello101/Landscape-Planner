@@ -49,6 +49,15 @@ describe('placing plants by tapping', () => {
     expect(state.shapes).toHaveLength(2);
     finishPlacing();
   });
+  it('a tap at once where the one just taken back with Undo was places it again (Plant this bed\'s "Placed outside", Undo)', () => {
+    startPlacing(cone);
+    tapFt(2, 3);
+    undoPlace();
+    tapFt(2, 3);
+    expect(state.shapes).toHaveLength(1);
+    expect(state.placing!.placed).toHaveLength(1);
+    finishPlacing();
+  });
   it('takes back the last one with Undo', () => {
     startPlacing(cone);
     tapFt(2, 3); tapFt(4, 3);

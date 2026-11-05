@@ -28,6 +28,8 @@ import { groundcoverRadius, supportOf, vineBand, VINE_BAND_WIDTH, VINE_DOT_RADIU
 import { pinRadius } from './pins';
 import { placeAreaNames, type AreaName } from './area-names';
 import { isBed, isPlant } from './beds';
+import { inBed, plantingFor } from './bed-plant';
+import { drawnOutline } from './geometry';
 import { BADGE_HALF, BADGE_STEP, badgeBoxes, badgeCenters, placeBadges, type BadgeHolder, type BadgeKind, type BadgeSpot, type Box as BadgeBox, type Circle } from './badges';
 import { lookFor, lookMarkup, lookMonthOf, lookShown, plannedEdge } from './plant-looks';
 import { bandBlooms, bandLeaves, colorIn, coverBlooms, levelOf } from './looks';
@@ -1208,8 +1210,38 @@ export function redrawBackground() {
 function renderHandles(g: SVGGElement) {
   renderBgHandles(g);
   renderPathOverlay(g);
+  renderBedFocus(g);
   renderPlaceOverlay(g);
   renderShapeHandles(g);
+}
+/**
+ * Plant this bed (Jason, Nov 2, answer C/8): placing For a bed, the bed outlined and the rest of the plan washed faint
+ * red, and each plant placed outside it this go ringed red (placed all the same, never blocked; Undo on the banner:
+ * src/ui/render.ts). The picker open For a bed: the outline alone, to see which it is.
+ */
+function renderBedFocus(g: SVGGElement) {
+  const bed = plantingFor();
+  if (!bed || !(state.placing || state.panel === 'plants')) return;
+  const o = drawnOutline(bed);
+  if (!o) return;
+  const ppf = pxPerFoot();
+  const px = (p: Point) => `${Math.round((p.x - state.offsetX) * ppf * 10) / 10},${Math.round((p.y - state.offsetY) * ppf * 10) / 10}`;
+  const pts = o.pts.map(px);
+  if (state.placing) {
+    // (Past the plan's edges by its size each way, so a pan's preview never shows where the wash ends.)
+    const w = state.canvasW, h = state.canvasH;
+    g.appendChild(svgEl('path', { 'data-role': 'bed-wash', d: `M${-w},${-h}H${2 * w}V${2 * h}H${-w}Z M${pts.join(' L')}Z`, 'fill-rule': 'evenodd',
+      fill: '#dc2626', 'fill-opacity': 0.1, 'pointer-events': 'none' }));
+  }
+  g.appendChild(svgEl('polygon', { points: pts.join(' '), fill: 'none', stroke: '#0f766e', 'stroke-opacity': 0.3, 'stroke-width': 9, 'stroke-linejoin': 'round', 'pointer-events': 'none' }));
+  g.appendChild(svgEl('polygon', { 'data-role': 'bed-outline', 'data-bed': bed.id, points: pts.join(' '), fill: 'none', stroke: '#0f766e', 'stroke-width': 3, 'stroke-linejoin': 'round', 'pointer-events': 'none' }));
+  if (!state.placing) return;
+  for (const { id } of state.placing.placed) {
+    const s = state.shapes.find((x) => x.id === id);
+    if (!s || s.type !== 'circle' || inBed(bed, shapeCenter(s))) continue;
+    g.appendChild(svgEl('circle', { 'data-role': 'outside-bed', 'data-outside': s.id, cx: (s.x - state.offsetX) * ppf, cy: (s.y - state.offsetY) * ppf,
+      r: Math.max(6, drawnRadius(s) * ppf) + 5, fill: 'none', stroke: '#dc2626', 'stroke-width': 3, 'pointer-events': 'none' }));
+  }
 }
 /** Redraw only the handles layer (drawing in progress, point handles). */
 export function redrawHandles() {

@@ -13,6 +13,7 @@ import { save } from './storage';
 import { buildShape, CANOPY_MIN_TAPS, isKindKey, kindDef, levelTaps, tapAccepted, TAPS_TO_FINISH, type KindKey, type Method } from './kinds';
 import type { DrawState, PathShape, Point, Shape, TapSnap } from './types';
 import { plantColor, plantFilter, plantsById } from './plants';
+import { planForSelection, setPlantingFor } from './bed-plant';
 import { snap, uid } from './util';
 import { SNAP_MAX_FT, SNAP_PX, SNAP_PX_MOUSE, setSnapOn, setSquareOn, snapOn, snapTargets, snapToShapes, squareOn, squareStick, squareUp } from './tidy';
 import { dismissToastAction, toast, toastAction } from './ui/toast';
@@ -74,6 +75,8 @@ export function startKind(key: KindKey) {
     // A fresh pick starts with an empty search. (Switching plants while placing keeps it:
     // the next of several plants for the same purpose, say monarch hosts, is likely another match.)
     plantFilter.q = '';
+    // For the bed selected, if a bed alone is (Plant this bed; the Plant button, Jason's answer 9), else anywhere.
+    if (key === 'plant') planForSelection(); else setPlantingFor(null);
     state.panel = 'plants';
     return;
   }

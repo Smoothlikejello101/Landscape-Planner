@@ -49,6 +49,8 @@ import { ask, asking, dismissAsk, tell } from './ui/ask';
 import { installFocusKeeping } from './ui/focus';
 import { closeCompare, compareShown } from './ui/compare-sheet';
 import { placePicker } from './ui/picker-view';
+import { pickingBed } from './bed-plant';
+import { stopPickingBed } from './ui/plant-for';
 
 // The app's own errors, kept on this device for a support file (src/error-log.ts): from the start.
 installErrorLog();
@@ -111,7 +113,7 @@ const ARROWS: Record<string, [number, number]> = { ArrowLeft: [-1, 0], ArrowRigh
  */
 function onArrow(e: KeyboardEvent, [ax, ay]: [number, number]) {
   e.preventDefault();
-  const busy = state.placing || state.draw || state.editPoints || state.bgEditMode || state.bgCalibrate || state.featurePlace;
+  const busy = state.placing || state.draw || state.editPoints || state.bgEditMode || state.bgCalibrate || state.featurePlace || pickingBed();
   if (state.selectedIds.length && !busy) {
     const step = e.shiftKey ? 5 : 0.5;
     if (!nudgeSelected(ax * step, ay * step)) toast(state.selectedIds.length === 1 ? 'It’s locked: unlock it to move it.' : 'They’re all locked: unlock them to move them.');
@@ -166,6 +168,8 @@ function onKey(e: KeyboardEvent) {
   // leaves the focus on the page, and still no key edits the plan (Delete took the plant being swapped), starts a tool
   // or redraws the picker. Esc closes it, as from inside it (closeOne, below); Ctrl and + zoom the page, as in a sheet.
   if (state.panel === 'plants' && e.key !== 'Escape') return;
+  // (Picking a bed on the plan for the picker: a tap on a bed, or Esc; the arrows pan. Nothing else edits the plan.)
+  if (pickingBed() && e.key !== 'Escape' && !ARROWS[e.key]) return;
   // Ctrl or Cmd with + or − zooms the plan, not the page, whatever is going on (Jason, 2026-10-25). With a sheet's field
   // or button focused, the keys never get here: the page zooms, for reading.
   if ((e.ctrlKey || e.metaKey) && !e.altKey && ['=', '+', '-', '_'].includes(e.key)) {
@@ -251,7 +255,10 @@ function onKey(e: KeyboardEvent) {
  * What Esc does, and the phone's back button. False when nothing was open.
  */
 function closeOne(): boolean {
-  if (state.panel) { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; }
+  // (Picking a bed on the plan for the picker, and a bed's conditions opened from it: back to the picker.)
+  if (pickingBed()) stopPickingBed();
+  else if (state.panel === 'bedConditions') state.panel = 'plants';
+  else if (state.panel) { state.panel = null; state.pickerLinkId = null; state.pickerLinkAlso = []; state.pickerLinkLocked = false; }
   else if (state.placing) finishPlacing();
   else if (state.featurePlace) finishFeaturePlace();
   else if (state.menu) state.menu = null;

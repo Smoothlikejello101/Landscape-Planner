@@ -442,7 +442,9 @@ export interface Bounds { minX: number; maxX: number; minY: number; maxY: number
 
 export type PanelName =
   | 'props' | 'arrange' | 'layers' | 'projects' | 'rename' | 'export'
-  | 'preview' | 'reset' | 'plants' | 'bg' | 'bgDistance' | 'print' | 'plantForm' | 'bloom' | 'add' | 'shortcuts' | 'location' | 'switchPlant' | 'feedback' | 'settings' | 'whatsNew' | 'warnings' | 'plantList' | 'help';
+  | 'preview' | 'reset' | 'plants' | 'bg' | 'bgDistance' | 'print' | 'plantForm' | 'bloom' | 'add' | 'shortcuts' | 'location' | 'switchPlant' | 'feedback' | 'settings' | 'whatsNew' | 'warnings' | 'plantList' | 'help'
+  /** A bed's conditions, from the picker's bed box (Plant this bed: src/ui/bed-conditions.ts). */
+  | 'bedConditions';
 /** What the plant form is doing: a new plant (maybe from a search or a copy), or editing one of yours. */
 /**
  * `name`, `botanical`: typed already (kept when starting from a plant). `back`: the panel to go back to when the form is

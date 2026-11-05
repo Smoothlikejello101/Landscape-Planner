@@ -852,6 +852,63 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .search-row .search-wrap { flex: 1; min-width: 0; }
 .plan-toggle { flex: none; min-height: 40px; padding: 6px 12px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; font-size: calc(13px * var(--ts)); color: #44403c; white-space: nowrap; cursor: pointer; }
 .plan-toggle[aria-pressed=true] { background: #ecfdf5; border-color: #059669; color: #065f46; font-weight: 600; }
+/* Plant this bed (Jason, Nov 2): For, a row of its own over the search, in view while the list scrolls; its chips
+   scroll sideways with many beds. Then the bed's box at the list's top (src/ui/plant-for.ts). */
+.for-row { display: flex; align-items: center; gap: 8px; padding: 6px 0 6px 16px; border-bottom: 1px solid #e7e5e4; background: #fff; min-width: 0; }
+.for-label { flex: none; font-size: calc(13px * var(--ts)); font-weight: 600; color: #57534e; }
+.for-none { font-size: calc(13px * var(--ts)); color: #57534e; padding-right: 16px; }
+.sheet-body > .for-row { padding: 0 0 8px; border: 0; }
+.sheet-body > .for-row[hidden] { display: none; }
+@media (max-height: 760px) {
+  html[data-text="large"] .sheet-body > .for-row.no-beds, html[data-text="xlarge"] .sheet-body > .for-row.no-beds { display: none; }
+}
+.for-chips { display: flex; gap: 6px; overflow-x: auto; flex: 1; min-width: 0; padding: 2px 16px 2px 0; scrollbar-width: thin; }
+.for-chip { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 4px 12px; border-radius: 999px; border: 1px solid #d6d3d1; background: #fff; font-size: calc(13px * var(--ts)); color: #292524; white-space: nowrap; cursor: pointer; }
+.for-chip.on { background: #ecfdf5; border-color: #059669; color: #065f46; font-weight: 600; }
+.for-chip:focus-visible { outline: 2px solid #059669; outline-offset: 1px; }
+.for-chip .sw-dot { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.25); flex: none; }
+.for-pick { color: #0f766e; border-style: dashed; }
+.for-pick-icon { display: flex; }
+.for-pick-icon .icon { width: 16px; height: 16px; }
+.for-top:empty { display: none; }
+.for-hint { margin: 0 0 8px; }
+.bed-box { border: 1px solid #99f6e4; border-radius: 10px; background: #f0fdfa; padding: 8px 10px 8px; margin: 0 0 10px; }
+.bed-box-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.bed-box-title { font-size: calc(14px * var(--ts)); font-weight: 600; color: #134e4a; }
+.bed-box-head .link-btn { flex: none; font-size: calc(13px * var(--ts)); min-height: 32px; padding: 4px; }
+.bed-box-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
+.bed-chip { display: inline-flex; align-items: center; gap: 2px; min-height: 36px; padding: 2px 4px 2px 12px; border-radius: 999px; border: 1px solid #5eead4; background: #fff; color: #115e59; font-size: calc(13px * var(--ts)); cursor: pointer; }
+.bed-chip .chip-x { display: flex; width: calc(22px * var(--ts)); height: calc(22px * var(--ts)); align-items: center; justify-content: center; }
+.bed-chip .chip-x .icon { width: calc(14px * var(--ts)); height: calc(14px * var(--ts)); }
+.bed-chip.off { padding: 2px 12px 2px 6px; border-style: dashed; border-color: #a8a29e; color: #57534e; background: transparent; text-decoration: line-through; }
+.bed-chip:focus-visible { outline: 2px solid #059669; outline-offset: 1px; }
+.bed-box-note { font-size: calc(12px * var(--ts)); color: #44403c; line-height: 1.4; }
+/* A filter the bed planted for sets: its control greyed, "Set by Front bed" beside it. */
+.filter-check .set-by { margin-left: 2px; font-size: calc(11px * var(--ts)); color: #0f766e; }
+.set-by-note { margin: 6px 0 0; color: #0f766e; }
+.set-by-note[hidden] { display: none; }
+.filter-check.bed-set:has(input:disabled) { color: #57534e; cursor: default; }
+select:disabled { color: #0f766e; background: #f0fdfa; opacity: 1; }
+/* A bed's conditions (src/ui/bed-conditions.ts): sun worked out, or asked; soil and moisture asked; what it lists. */
+.bed-conditions { display: flex; flex-direction: column; gap: 6px; }
+.cond-label { font-size: calc(13px * var(--ts)); font-weight: 600; color: #44403c; margin-top: 8px; }
+.cond-label:first-child { margin-top: 0; }
+.cond-sub { font-size: calc(12px * var(--ts)); color: #57534e; }
+.cond-seg { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); border: 1px solid #d6d3d1; border-radius: 8px; overflow: hidden; }
+.cond-seg button { min-height: 44px; padding: 4px 6px; background: #fff; color: #292524; font-size: calc(14px * var(--ts)); border-left: 1px solid #d6d3d1; }
+.cond-seg button:first-child { border-left: 0; }
+.cond-seg button.on { background: #1c1917; color: #fff; font-weight: 600; }
+.cond-seg button:focus-visible { outline: 2px solid #059669; outline-offset: -2px; }
+.cond-unsure { align-self: flex-start; min-height: 40px; padding: 4px 14px; border: 1px solid #d6d3d1; border-radius: 999px; background: #fff; color: #292524; font-size: calc(13px * var(--ts)); }
+.cond-unsure.on { background: #1c1917; color: #fff; border-color: #1c1917; font-weight: 600; }
+.cond-sun { border: 1px solid #d6d3d1; border-radius: 10px; background: #fafaf9; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; font-size: calc(13px * var(--ts)); color: #292524; }
+.cond-sun-hours { font-size: calc(15px * var(--ts)); font-weight: 600; }
+.sun-bar { position: relative; height: 10px; border-radius: 999px; margin-top: 6px; background: linear-gradient(90deg, #d6d3d1, #e7e5e4 40%, #fef3c7); }
+.sun-bar-on { position: absolute; top: 0; bottom: 0; border-radius: 999px; background: #0f766e; }
+.sun-bar-marks { display: flex; justify-content: space-between; font-size: calc(11px * var(--ts)); color: #78716c; }
+.cond-drip { margin-top: 2px; min-height: 40px; }
+.cond-sum { margin-top: 8px; border: 1px solid #99f6e4; border-radius: 10px; background: #f0fdfa; padding: 8px 10px; font-size: calc(13px * var(--ts)); color: #134e4a; line-height: 1.4; }
+.cond-plant { margin-top: 10px; display: inline-flex; align-items: center; gap: 6px; }
 /* The picker's filters (decided with Jason, 2026-10-25). */
 .checking-note { padding: 2px 0; }
 .checking-note .link-btn.inline { font-size: calc(12px * var(--ts)); min-height: 0; padding: 0; }
@@ -909,6 +966,7 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .flag-question { display: block; margin-top: 8px; font-size: calc(13px * var(--ts)); }
 /* (With the pinned search, a field scrolled into view isn't hidden behind it.) */
 .sheet:has(.sheet-top) { scroll-padding-top: 130px; }
+.sheet:has(.sheet-top .for-row) { scroll-padding-top: 180px; }
 .role-row.bg-opacity .name { flex: none; }
 .role-row.bg-opacity input[type="range"] { flex: 1; min-width: 0; }
 
@@ -1177,6 +1235,9 @@ html[data-text="xlarge"] .empty-hint .empty-tap { display: none; }
 .mode-strip { flex-shrink: 0; display: flex; flex-direction: column; gap: 4px; padding: 6px 8px; background: #f5f5f4; border-bottom: 1px solid #e7e5e4; }
 .mode-strip .mode-banner { position: static; max-width: none; box-shadow: none; border-radius: 12px; min-height: 32px; box-sizing: border-box; }
 .mode-strip .mode-banner > svg { flex-shrink: 0; }
+/* Placing For a bed (Plant this bed): one just placed outside it, said in red, with Undo (ringed red on the plan). */
+.mode-strip .mode-banner.outside-bed { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+.mode-banner .banner-undo { pointer-events: auto; flex: none; margin: -6px -8px -6px auto; min-height: 36px; padding: 2px 14px; border-radius: 999px; border: 1px solid #fca5a5; background: #fff; color: #991b1b; font-weight: 600; font-size: calc(13px * var(--ts)); }
 .strip-words { display: grid; flex: 1; min-width: 0; line-height: 1.35; }
 .strip-words > span, .strip-words::after { grid-area: 1 / 1; overflow-wrap: break-word; }
 .strip-words::after { content: attr(data-room); visibility: hidden; }

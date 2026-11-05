@@ -29,6 +29,8 @@ import { deepClone } from './util';
 import type { HandleKind } from './handle-math';
 import { isTree } from './trees';
 import { planLookOnly } from './ui/picker-view';
+import { bedAt, pickingBed } from './bed-plant';
+import { pickBedAt } from './ui/plant-for';
 
 // Pointer gestures on the canvas: pan, pinch-zoom, marquee selection, shape
 // drag, background move/rotate, calibration taps.
@@ -467,7 +469,11 @@ export function onCanvasPointerUp(e: PointerEvent) {
         // (Behind the picker: a drag moved the view, the plan alone drawn again. A tap is nothing at all, the view put
         // back from the hair it followed the finger.)
         if (g.moved) { saveView(); forgetLastTap(); viewSettled(); }
-        else { state.offsetX = g.startOffset.x; state.offsetY = g.startOffset.y; previewView(); }
+        else {
+          state.offsetX = g.startOffset.x; state.offsetY = g.startOffset.y; previewView();
+          // (Picking a bed for the picker: a tap on one is For it, back in the picker. src/ui/plant-for.ts.)
+          if (pickingBed()) { pickBedAt(screenToFeet(g.startX, g.startY), (p) => bedAt(p, state.shapes.filter((s) => shownWith(s, state.viewFilter)))); render(); }
+        }
         return;
       }
       if (g.moved) {
