@@ -32,7 +32,7 @@ import { inBed, plantingFor } from './bed-plant';
 import { drawnOutline } from './geometry';
 import { BADGE_HALF, BADGE_STEP, badgeBoxes, badgeCenters, placeBadges, type BadgeHolder, type BadgeKind, type BadgeSpot, type Box as BadgeBox, type Circle } from './badges';
 import { lookFor, lookMarkup, lookMonthOf, lookShown, plannedEdge } from './plant-looks';
-import { bandBlooms, bandLeaves, colorIn, coverBlooms, levelOf } from './looks';
+import { bandBlooms, bandLeaves, colorIn, coverBlooms, levelOf, mix } from './looks';
 import { sameSaid } from './names';
 import { renderRescaleWas, rescalePreview } from './ui/rescale-card';
 
@@ -431,20 +431,24 @@ export function shapeGroup(s: Shape): SVGGElement {
   const sunText = s.role === 'shade' && s.sun && room('☀ ' + formatHours(sunHours(s.sun))) ? '☀ ' + formatHours(sunHours(s.sun)) : '';
   const run = s.type === 'circle' && overflow ? runLabels.get(s.id) : undefined;
   const label = run && named ? run.text : room(displayLabel(s)) ? displayLabel(s) : '';
-  // A bed's, a path's or a sun area's name (and its hours), with what's over it: in a group of its own, moved where the
+  // A bed's name with plants shown: low, in its own color, under the plants, where its shape puts it (quietBedName).
+  const quiet = quietBedName(s);
+  // A path's or a sun area's name (and its hours), and a bed's with plants hidden: in a group of its own, moved where the
   // last full redraw put it, clear of the plants, and drawn over them (liftAreaNames). Over a plant all the same, a halo.
-  const area = isAreaNamed(s) ? areaShift.get(s.id) : undefined;
-  const nameG = isAreaNamed(s) ? svgEl('g', { 'data-role': 'area-name', 'data-name-of': s.id,
+  const lifted = isAreaNamed(s) && !quiet;
+  const area = lifted ? areaShift.get(s.id) : undefined;
+  const nameG = lifted ? svgEl('g', { 'data-role': 'area-name', 'data-name-of': s.id,
     transform: area && (area.dx || area.dy) ? `translate(${Math.round(area.dx * 10) / 10} ${Math.round(area.dy * 10) / 10})` : null }) : null;
   const into = nameG ?? g;
   const areaHalo = area?.over ? { stroke: 'rgba(255,255,255,0.85)', 'stroke-width': 3, 'paint-order': 'stroke', 'stroke-linejoin': 'round' } : {};
+  const ink = quiet ? { fill: quietInk(s.color), 'fill-opacity': QUIET_OPACITY, 'data-quiet': 'true' } : { fill: '#0f172a' };
   if (fitted && named) {
     // Wrapped and sized to fit inside the circle (or below a tree's trunk).
     const lh = fitted.fontSize * LABEL_LINE_HEIGHT;
     const text = svgEl('text', {
-      'data-role': 'plant-label', x: labelX, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': fitted.fontSize, fill: '#0f172a',
-      stroke: under ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.55)', 'stroke-width': 2.5, 'paint-order': 'stroke', 'stroke-linejoin': 'round',
-      'pointer-events': 'none', style: 'user-select:none;font-weight:500;',
+      'data-role': 'plant-label', x: labelX, 'text-anchor': 'middle', 'dominant-baseline': 'middle', 'font-size': fitted.fontSize, ...ink,
+      ...(quiet ? {} : { stroke: under ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.55)', 'stroke-width': 2.5, 'paint-order': 'stroke', 'stroke-linejoin': 'round' }),
+      'pointer-events': 'none', style: `user-select:none;font-weight:${quiet ? 400 : 500};`,
     });
     fitted.lines.forEach((line, i) => {
       // A trailing space keeps the words apart in the text's content (screen readers, search); it isn't drawn.
@@ -457,8 +461,8 @@ export function shapeGroup(s: Shape): SVGGElement {
     if (halo) fs = OVERFLOW_PX * lk;
     into.appendChild(svgEl('text', {
       x: labelX, y: sunText ? labelY - fs * 0.6 : labelY, 'text-anchor': 'middle', 'dominant-baseline': 'middle',
-      'font-size': fs, fill: '#0f172a', 'pointer-events': 'none',
-      style: 'user-select:none;font-weight:500;',
+      'font-size': fs, ...ink, 'pointer-events': 'none',
+      style: `user-select:none;font-weight:${quiet ? 400 : 500};`,
       transform: rotTransform || null, ...areaHalo,
       ...(halo ? { 'data-role': 'plant-label', stroke: 'rgba(255,255,255,0.85)', 'stroke-width': 3, 'paint-order': 'stroke', 'stroke-linejoin': 'round' } : {}),
       // (A plant's name over its edge, or a run's: drawn over every plant, never under one drawn after it (liftPlantNames).
@@ -930,6 +934,19 @@ const RUN_CLEAR = 0.9;
  */
 const isAreaNamed = (s: Shape): boolean => s.type !== 'circle' && s.type !== 'text' && !(s.role === 'boundary' && (s.type === 'poly' || s.type === 'line'));
 /**
+ * Whether a bed's name is drawn quiet: low-contrast, in its bed's own group, under its plants, where its shape puts it;
+ * while plants are shown (Jason, Nov 4, his note 5: "Bed names have gotten a lot more prominent in a way I don't like.
+ * I'm happy to have bed names be low-contrast and get buried under plants unless plants are hidden"). They'd grown
+ * prominent with the general bug hunt's fix (Nov 1, PR #204): every area's name lifted over all the plants and moved
+ * clear of them, out beside its bed, in near-black, with a white halo where it still met a plant. With the Plants layer
+ * hidden (Layers), a bed's name is drawn as the other areas' are: over everything, dark.
+ */
+export const quietBedName = (s: Shape): boolean => isBed(s) && !state.roleViews.plant?.hidden;
+/** A quiet bed name's opacity (quietInk). */
+export const QUIET_OPACITY = 0.7;
+/** A quiet bed name's color: a darker shade of its bed's own (half way to near-black), drawn at QUIET_OPACITY. */
+export const quietInk = (color: string): string => mix(/^#[0-9a-f]{6}$/i.test(color) ? color : '#78716c', '#1c1917', 0.45);
+/**
  * An area's name and sun hours as shapeGroup draws them, on the screen (px): the middle of the two lines, their size, its
  * turn; null when neither shows (names hidden; or, zoomed far out, wider than the shape).
  */
@@ -998,8 +1015,10 @@ function refreshLabelLayout() {
     // past 20% (plantNamesShown).
     if (!(isPlantCircle(s) ? plantNames : state.showNames) && !state.selectedIds.includes(s.id)) continue;
     if (!isPlantCircle(s)) {
-      // A bed's, a path's or a sun area's name: placed clear of the plants, below, before the plants' names.
+      // A bed's, a path's or a sun area's name: placed clear of the plants, below, before the plants' names. Not a bed's
+      // drawn quiet, under its plants: their names go over it as they go (quietBedName).
       if (isAreaNamed(s)) {
+        if (quietBedName(s)) continue;
         const at = areaNameAt(s, ppf, lk);
         if (at) areas.push({ s, at });
         continue;
