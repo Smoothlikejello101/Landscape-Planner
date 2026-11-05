@@ -29,8 +29,9 @@ export const SETTING_KEYS = [
   'lp-app-version', 'lp-visits', 'lp-saved-here', 'lp-visit-counted',
   // (The install card, src/install.ts: had its turn on this device, or the app installed.)
   'lp-install-card',
-  // (Tall plants, src/view-settings.ts: Layers' "See through tall plants" and its height; how paper and pictures draw
-  // the plants under taller ones.)
+  // (Tall plants, src/view-settings.ts: Layers' "See through tall plants" and its height; and how paper and pictures drew
+  // the plants under taller ones on this device before plans kept it, Nov 4: no longer written, read only as where a plan
+  // that has never had it picked starts.)
   'lp-see-through', 'lp-see-through-from', 'lp-print-under',
 ];
 /** Data, by name and size: exact keys, and prefixes (a project per key, an unsaved-edits journal per project). */

@@ -59,6 +59,10 @@ The history (src/db.ts keeps it beside `DB_VERSION`):
   numbers (`measured`), which a version-4 page would drop, saving or syncing a plan. A version-4 page's journal, written
   without them, is kept apart from a plan saved at 5, not put over it (checked: at 4 it went in place, both lost).
   (Sync: `withRoughScale` and `withMeasuredSides`, below.)
+- 6 (Nov 4): no store or record changed. A plan's print choice for the plants under taller ones (`print.under`, until
+  then kept per device), which a version-5 page would drop, saving or syncing a plan. A version-5 page's journal,
+  written without it, is kept apart from a plan saved at 6, not put over it (checked: at 5 it went in place, the choice
+  lost). (Sync: `withPrintUnder`, below.)
 
 When raising it:
 1. Add a line to the history beside `DB_VERSION`: the version, the day, what changed.
@@ -67,9 +71,9 @@ When raising it:
    `takeFromDevice` does), so nothing another tab saves meanwhile is put back as it was read.
 3. Test the upgrade from the version before, with real data in it (tests/storage.test.ts: "the upgrade from 1 keeps
    every store and record", "the upgrade from 2 keeps every store and record", "the upgrade from 3 keeps every store
-   and record", "the upgrade from 4 keeps every store and record"), the page of the version before told
-   (tests/fixtures/db-v2.ts, db-v3.ts, db-v4.ts: that version's src/db.ts, verbatim), and the migration spec against
-   e2e/fixtures/legacy-app.
+   and record", "the upgrade from 4 keeps every store and record", "the upgrade from 5 keeps every store and record"),
+   the page of the version before told (tests/fixtures/db-v2.ts, db-v3.ts, db-v4.ts, db-v5.ts: that version's
+   src/db.ts, verbatim), and the migration spec against e2e/fixtures/legacy-app.
 4. A storage change gets a pull request of its own (CLAUDE.md).
 
 **Never lower it, and never deploy a build with a lower one** (a rollback, a revert, a re-run of an older CI run):
@@ -296,6 +300,99 @@ The windows left, both between devices of this version (no release device needed
 - A side typed again at the length it already has changes nothing the fingerprints see, so it waits for this device's
   next edit to go up. If another device's edit comes down first, it's kept side by side (above), unless the server's
   copy names that side too: then the server's stands.
+
+## A plan's print choice for the plants under taller ones (database version 6, Nov 4)
+
+Print and Export's "Plants under taller ones: Show through / As on screen" (#228) was kept per device, in localStorage
+`lp-print-under`; since Nov 4 it's kept with the plan, beside its other print settings (Jason: "Add the storage to keep
+this print option to the plan"). Nothing in a plan from before has it, and nothing is worked out for one: opening a plan
+from before writes nothing new into it, and a plan without it reads, saves and syncs exactly as before (the same
+fingerprints).
+
+### What's stored
+
+- **`PrintSettings.under?: 'windows' | 'screen'`** (src/types.ts), in the plan's `print`: Show through (each taller
+  plant faded where it covers a shorter one) or As on screen (solid, the plants under them numbered dots with a key).
+  Read as src/storage.ts `sanitizePrint` has it: either word kept; anything else is none, and the rest of the print
+  settings kept, never the plan.
+- **Absent: never picked in this plan.** It prints Show through, the default, except on a device that had As on screen
+  before plans kept it (below). Nothing is written for it until someone picks one in Print or Export
+  (src/view-settings.ts `setPrintUnder`, an edit of the plan); picking the one already shown does nothing. Once picked,
+  Show through too, it's kept as picked (`'windows'`), so sync can tell it from a copy an older version sent without it.
+- It goes wherever the print settings go: the plan record, the journal, backups and plan files, the support file, and
+  sync's content. (Print settings aren't in Undo steps, and nor is it.)
+
+### The device's earlier choice (`lp-print-under`)
+
+Devices that ran #228's build (Next, from its merge to this change's) may hold it. A plan never picked starts from it on
+that device: src/view-settings.ts `underFromThisDevice`, read once as the app starts (the first time it's asked for, and
+again at `loadViewSettings`). Only `'screen'` changes anything (anything else is Show through, as before). It's never
+written to the plan for that, not even when the plan is saved for another edit (the plan's print settings keep none);
+picking one in Print or Export writes the plan's. Nothing writes the device's key any more: it stays as #228 left it,
+read only for this, and stays listed in src/support.ts. So on such a device, every plan never picked (one made since, or
+come from a file or another device, too) prints As on screen there until one is picked for it; anywhere else, Show
+through.
+
+### Compared
+
+- **The sync fingerprints** (src/sync/engine.ts `forHash`) read Show through picked as none picked: they print the same.
+  So As on screen and back before the plan synced isn't a change of its own (no conflict copy against another device's
+  edit), while As on screen to Show through still is, and goes up. Unlike database version 5's fields, a pick is in the
+  fingerprints: it changes nothing else they see, so left out it would never go up by itself, and another device's next
+  edit would put the server's copy over it.
+- **A journal against its plan, an imported plan against one already here** (src/storage.ts `contentKey`,
+  src/backup.ts `planContent`) compare it as this device prints it (src/view-settings.ts `underOf`): Show through
+  picked and none picked are the same, except on a device that had As on screen before, where they aren't. The sync
+  fingerprints don't read the device's earlier choice. That's safe while `lp-print-under` is only on Next, which never
+  signs in. **#228 and this change must go out to testers in the same release.** If #228 reached them alone, a synced
+  device that had As on screen could hold back a Show through picked there, as none picked, until its next real edit.
+- **A download** that changes what's stored for it, picked or not, is a change to the plan (its "last modified":
+  src/storage.ts replaceProjectContent), as for sides typed.
+
+### Older versions, and sync
+
+What a version without it does (read from the release's code, `origin/release` at bdeb911, and Next's before this
+change, `origin/main` at f563063: the same function; tested with it: tests/fixtures/release-print.ts, verbatim): its
+`sanitizePrint` builds the print settings from the fields it knows, so it **drops this choice, and nothing else**; it
+doesn't refuse the plan, or its print settings. On this device, the database version stops a version-5 page saving at
+all (one open is told and lets go, its unsaved edits written first; one opened later is refused), and a journal of one,
+written without it, is kept apart from a plan saved at 6, both whole. (Rarely: a version-5 page told of the newer version
+writes nothing more, not even a journal, and one it wrote before is replayed at the newer version's first start, against
+the plan as that page left it, so it goes in place as before.) Through sync (a device still on the release: Next never
+signs in):
+- It takes a plan with it and sends nothing back for that alone (its record is of the copy as it keeps it).
+- Its own edit (anything: a tick, the photo moved) sends the plan without it. Each device of this version keeps its own
+  where the server's copy's print settings say nothing of it at all (src/sync/engine.ts `withPrintUnder`); where they
+  have one, it stands. The server's copy goes without it until a device that has it sends the plan again (any edit).
+- **No conflict copy from it.** Kept from here, the choice picked again here would make the server's copy read as
+  changed there, and a copy would be made against any other edit of the plan here. So the merge also checks the
+  server's copy as this device's record has it with the choice put back as it was, none or As on screen
+  (`asRecordedButUnder`): only the field dropped, and nothing else in the plan changed there, isn't a change there
+  (tested: without it, a copy). Found on the way, and not changed here: a bed's conditions (`withBedConditions`) have
+  that flaw still. A bed's conditions changed here with any other edit of the plan, while a device on the release ticks
+  a plant, makes a conflict copy (both kept, nothing lost).
+- **A Show through pick goes up, over a copy without one** (the review's R1). Merging, this device takes the server's
+  copy as already having its result only if that copy has the choice too, where this device's has one
+  (`pickNotThere`); the fingerprints alone read Show through picked as none. So a pick made here over a copy the release
+  sent without it is sent, with the release's edit settled in, rather than left for a device still holding As on screen
+  to send that back over it. (No copy: the release's edit isn't a change to the plan there, above.)
+- **No second copy after a real one** (the review's R2). After a conflict, the original takes the server's copy with
+  this device's choice filled in where that copy says nothing of it, and its record says so, as a download's does
+  (`conflict`). Recorded as the server sent it, the fill read as a change made here at the next pass, and another edit
+  there first made a second copy, with no device on the release needed. That fill can be this device's own pick from the
+  conflicting edit, which then shows in the original here too, and goes up with this device's next edit of it. (The copy
+  beside it has this device's version whole.) Found with it, and not changed here: a bed's conditions filled in after a
+  conflict make that second copy still (both kept, nothing lost).
+
+The windows left, both only while one of the account's devices is on the release and syncs:
+- A device offline through another device's pick, with the release sending the plan in between, still has its own,
+  which the server's copy no longer contradicts. It keeps it, and whichever of the two sends the plan first (any edit)
+  decides for everyone.
+- A device of this version that took the plan only after the release sent it without the choice prints Show through
+  until a device that has it sends the plan again; picked on it meanwhile, its pick goes up and stands.
+
+A rule for later versions: a third way of drawing them would be dropped by this version (anything but the two words is
+none), and its next upload would lose it everywhere; it needs a guard of its own.
 
 ## Two tabs on the same version
 

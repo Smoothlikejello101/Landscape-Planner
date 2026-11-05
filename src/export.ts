@@ -12,6 +12,7 @@ import { render } from './ui/render';
 import { gridSteps, labelRuns, paintOrder, paperUnder, seeThroughFrom } from './canvas';
 import { dotKey } from './print';
 import { areaWords, frameArea, printArea, WHOLE_PLAN, type PrintArea } from './print-area';
+import { printUnder } from './view-settings';
 import { roleDef, roleKey, roleLabel, ROLES } from './roles';
 import { filterText } from './status';
 import { formatHours, shadeOpacity, sunHours } from './sun';
@@ -436,9 +437,10 @@ export function buildExportSVG(area: PrintArea = WHOLE_PLAN): { svg: string; wid
   let shapesSvg = '';
   // (The plants under taller ones as Print has them, the picture following: windows over them, or as on the screen,
   // numbered dots with a key under the drawing. Jason, Nov 4.)
-  const paper = paperUnder(framed.exact ? sorted : state.shapes, state.viewFilter, state.printUnder, seeThroughFrom());
+  const under = printUnder();
+  const paper = paperUnder(framed.exact ? sorted : state.shapes, state.viewFilter, under, seeThroughFrom());
   const listed = new Set(framed.plants.map((s) => s.id));
-  const dots = state.printUnder === 'screen' && state.showNames
+  const dots = under === 'screen' && state.showNames
     ? dotKey(sorted.filter((s) => paper.hidden.has(s.id) && listed.has(s.id)), plantsById, null, state.shapes) : null;
   // (Names as the screen has them: Jordan hid them for a client's picture, and it printed every one. Round 3.)
   const { names } = gatherAreaNames(() => withNames(state.showNames, () => {

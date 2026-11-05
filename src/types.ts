@@ -350,7 +350,11 @@ export interface ProjectMeta {
 /** Plants drawn at the middle of their size range, or at full (maximum) size. */
 export type SizeMode = 'typical' | 'full';
 export type PaperSize = 'letter' | 'tabloid' | 'a4' | 'a3';
-/** How paper and pictures draw the plants under taller ones (AppState.printUnder): not part of PrintSettings, per device. */
+/**
+ * How paper and pictures draw the plants under taller ones (src/print.ts): 'windows', each taller plant faded where it
+ * covers one (Show through); 'screen', as on the screen, solid, the plants under them numbered dots with a key (As on
+ * screen). A plan's, chosen in Print or Export: PrintSettings `under`.
+ */
 export type PrintUnder = 'windows' | 'screen';
 /** Printable-plan options, remembered per project. */
 export interface PrintSettings {
@@ -371,6 +375,14 @@ export interface PrintSettings {
   statusFilter: '' | Status;
   /** Only plants in this phase ('' = all). */
   phaseFilter: string;
+  /**
+   * The plants under taller ones, as chosen in Print or Export (Nov 4, database version 6: until then kept per device,
+   * in localStorage `lp-print-under`). Absent: never chosen in this plan, so Show through, or where this device chose As
+   * on screen before plans kept it, that (src/view-settings.ts printUnder); nothing is written for it until someone
+   * picks one. Once picked it's kept, Show through too, so sync can tell it from a copy an older version sent without
+   * it (src/sync/engine.ts withPrintUnder). Read as src/storage.ts sanitizePrint has it: 'windows' or 'screen', else none.
+   */
+  under?: PrintUnder;
 }
 /** Everything stored for one project. */
 /**
@@ -635,11 +647,8 @@ export interface AppState {
   seeThroughTall: boolean;
   /** The height (ft) "See through tall plants" goes from: one of SEE_THROUGH_HEIGHTS. */
   seeThroughFrom: number;
-  /**
-   * On paper and in pictures, the plants under taller ones (src/print.ts, per device): 'windows', each taller plant
-   * faded where it covers one; 'screen', as on the screen, solid, the plants under them numbered dots with a key.
-   */
-  printUnder: PrintUnder;
+  // (On paper and in pictures, the plants under taller ones: the open plan's, `print.under`; src/view-settings.ts
+  // printUnder.)
   /**
    * View: names on the plan, with line lengths, sun hours and the badges on plants (not saved). Off, the plan shows
    * its shapes alone, to step back and see it whole; a selected shape still shows its own.
