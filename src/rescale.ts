@@ -1,40 +1,45 @@
 import { bedOf, carriesPlants } from './beds';
-import { drawnOutline, pathSize, rotate, setWorldPoints, shapeArea, shapeBBox, shapeCenter, textSize, worldPoints } from './geometry';
+import { drawnOutline, pathSize, rotate, setWorldPoints, shapeBBox, shapeCenter, textSize, worldPoints } from './geometry';
 import { measuredSides } from './measured';
-import type { BgImage, CircleShape, PathShape, Point, Role, Shape } from './types';
+import type { BgImage, CircleShape, LineShape, PathShape, Point, Role, Shape } from './types';
 
-// Rescale with the photo (Jason's answers to the design, Nov 2): when a photo's scale is set again after a plan was
-// drawn over it, where each thing on the plan goes if the person chooses to move the plan with the photo. These are
-// the rules, with no page in them: src/ui/rescale-card.ts asks, shows them, and makes the move (one ordinary step).
+// Rescale with the photo (Jason's answers to the design, Nov 2, and his rule for planned things, Nov 4): when a
+// photo's scale is set again after a plan was drawn over it, where each thing on the plan goes if the person chooses to
+// move the plan with the photo. These are the rules, with no page in them: src/ui/rescale-card.ts asks, shows them,
+// and makes the move (one ordinary step).
 //
 // - Things already there (the house, lot lines, fences, the driveway, lawn, utilities, sun areas, old trees, anything
 //   marked Existing) follow the photo: their place and size, as traced. Doors and gates keep their share of the way
 //   along their wall and their widths (they're kept that way on the shape); notes keep their text size. One unticked
 //   on the card (kept as measured: one with sides typed as numbers starts unticked) keeps its size and shape, its
 //   middle where it was over the photo.
-// - A planned thing touching two things already there, across from each other, keeps its length the other way and
-//   takes the width between them, so it touches both (the side bed between the house and the driveway).
-// - A planned thing within BESIDE_FT of something already there runs with it (answer 1): its depth out from that thing
-//   and its distance from it kept, its length along it in step with it (a bed drawn the length of the house still runs
-//   its length).
-// - A planned thing touching another planned thing moves with it, so touching edges stay touching.
-// - A path drawn as a line keeps its width; each end that touches something stays on it, the points between keeping
-//   their share of the way.
-// - A planned thing with nothing within BESIDE_FT keeps its size and shape, its middle where it was over the photo.
-// - Plants never change size (the circle is the plant's spread): in a bed, their place in it; elsewhere, like any
-//   planned thing. An existing tree's canopy follows the photo when it was drawn to it, and keeps its size when it's
-//   the catalog's (answer 4: so does any plant marked Existing).
+// - A planned thing over the photo (a bed, path, patio, structure, pond) follows it both ways, so it keeps its shape
+//   (Jason, Nov 4: "Follow in both directions unless typed"). An 8.5 by 30 ft bed along the house, traced on a photo
+//   that comes out 0.42 times as large, is 3.6 by 12.6 ft against the house as it is now. (This replaces answer 1's
+//   "runs with it", keeping its depth out from what it's beside: that left the bed 8.5 by 12.6, "a completely
+//   different shape".)
+// - Its sides typed as numbers (src/measured.ts) keep their lengths, and the rest follows: that bed with its 30 ft
+//   typed is 3.6 by 30. A box keeps a typed side's length both sides of it (a box drawn as one, or an outline of four
+//   square corners); any other outline with a side typed keeps its whole size, the one way it stays closed; a line
+//   keeps each side typed.
+// - Touching edges stay touching. Two things that both go as the photo does still touch; against something that
+//   doesn't (a thing kept as measured, one off the photo, a planned thing with a side typed), a planned thing is kept
+//   against it: its size as above, the place where they touch going with that thing.
+// - A path drawn as a line: each end that touches something stays on it, the points between keeping their share of
+//   the way; its width follows the photo too.
+// - Plants never change size (the circle is the plant's spread): in a bed, their place in it; elsewhere, their middle
+//   follows the photo, or goes with what they touch that didn't. An existing tree's canopy follows the photo when it
+//   was drawn to it, and keeps its size when it's the catalog's (answer 4: so does any plant marked Existing).
 // - Locked and hidden things move by the same rules: locking only stops a drag by hand.
-// Only what sits over the photo (where it was) is a tracing; what's off it stays, and planned things beside it with it.
+// Only what sits over the photo (where it was) is a tracing; what's off it stays, unless it's planned and touches
+// something that moved: then it goes with that, at its own size.
 
-/** "Beside" something: within this many feet of it (Jason's answer 5: "6ft sounds right as a starting place"). */
-export const BESIDE_FT = 6;
 /** Touching: edges this close (feet), as traced by eye, or overlapping. */
 export const TOUCH_FT = 0.5;
 /** The question is asked only when something would move farther than this (feet): 3 inches. */
 export const ASK_FT = 0.25;
-/** Two walls are across from each other when they face each other within about 37°. */
-const ACROSS = -0.8;
+/** An outline's corner is square when its sides' directions are within about 1° of square. */
+const SQUARE_COS = 0.02;
 
 /** How a photo sits on the plan: what the rules need of it. */
 export type Placement = Pick<BgImage, 'cx' | 'cy' | 'rotation' | 'ftPerPx' | 'naturalWidth' | 'naturalHeight'>;
@@ -175,14 +180,6 @@ function segSeg(a: Point, b: Point, c: Point, d: Point): number {
   }
   return Math.min(pointSeg(a, c, d), pointSeg(b, c, d), pointSeg(c, a, b), pointSeg(d, a, b));
 }
-/** Edge to edge (feet), bands counted; 0 where they cross or one lies inside the other's outline. */
-function gap(s: Shape, t: Shape): number {
-  const a = outline(s), b = outline(t);
-  let d = Infinity;
-  for (const [p, q] of segments(a)) for (const [r, w] of segments(b)) d = Math.min(d, segSeg(p, q, r, w));
-  if (d > 0 && ((b.closed && a.pts.length && pointInPoly(b.pts, a.pts[0])) || (a.closed && b.pts.length && pointInPoly(a.pts, b.pts[0])))) d = 0;
-  return Math.max(0, d - band(s) - band(t));
-}
 function pointInPoly(poly: Point[], p: Point): boolean {
   let inside = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -196,8 +193,11 @@ const near = (a: Shape, b: Shape, ft: number) => {
   return !(p.maxX + ft < q.minX || q.maxX + ft < p.minX || p.maxY + ft < q.minY || q.maxY + ft < p.minY);
 };
 
-// ---------- What a planned thing is beside ----------
-/** Something already there, as it was and as it goes (its outline's points in the same order both ways). */
+// ---------- What a planned thing touches ----------
+/**
+ * Something a planned thing can be against, as it was and as it goes (its outline's points in the same order both
+ * ways): a thing already there, or a planned thing already put.
+ */
 interface Anchor { s: Shape; was: { pts: Point[]; closed: boolean }; now: { pts: Point[]; closed: boolean }; band: number; band2: number }
 /** Where a planned thing meets one of them: which edge, how near, how much of it runs along the edge, which side. */
 interface Contact { a: Anchor; seg: number; d: number; overlap: number; side: number }
@@ -228,34 +228,83 @@ function edgeOf(c: Contact) {
   const u = unit(sub(B, A)), u2 = unit(sub(B2, A2));
   return { A, B, A2, B2, u, u2, off: along({ x: 0, y: 0 }, perp(u), c.side * a.band), off2: along({ x: 0, y: 0 }, perp(u2), c.side * a.band2) };
 }
-/** Running with an edge: along it, in step with it; out from it, as far as it was. */
-function runsWith(c: Contact): Frame {
-  const e = edgeOf(c);
-  const su = len(sub(e.B2, e.A2)) / len(sub(e.B, e.A));
-  return { o: add(e.A, e.off), o2: add(e.A2, e.off2), u: e.u, u2: e.u2, su, sn: 1 };
-}
 const add = (a: Point, b: Point): Point => ({ x: a.x + b.x, y: a.y + b.y });
-/** Between two walls across from each other: the width between them taken, so it touches both; along, as it was. */
-function between(c1: Contact, c2: Contact, s: Shape): Frame {
-  const ctr = shapeCenter(s);
-  const at = (c: Contact) => {
-    const e = edgeOf(c), ab = sub(e.B, e.A), t = Math.max(0, Math.min(1, dot(sub(ctr, e.A), ab) / dot(ab, ab)));
-    return { e, was: add(along(e.A, ab, t), e.off), now: add(along(e.A2, sub(e.B2, e.A2), t), e.off2) };
-  };
-  const w1 = at(c1), w2 = at(c2);
-  const D = dot(sub(w2.was, w1.was), perp(w1.e.u)), D2 = dot(sub(w2.now, w1.now), perp(w1.e.u2));
-  return { o: w1.was, o2: w1.now, u: w1.e.u, u2: w1.e.u2, su: 1, sn: Math.abs(D) > 0.05 && D2 / D > 0 ? D2 / D : 1 };
+/**
+ * Where a planned thing touches an edge, as it was and as it goes: the point of the edge (its band's edge, on the
+ * thing's side) nearest `p`, the thing's middle, and where that point of the edge goes.
+ */
+function touchAt(c: Contact, p: Point): { was: Point; now: Point } {
+  const e = edgeOf(c), ab = sub(e.B, e.A), t = Math.max(0, Math.min(1, dot(sub(p, e.A), ab) / dot(ab, ab)));
+  return { was: add(along(e.A, ab, t), e.off), now: add(along(e.A2, sub(e.B2, e.A2), t), e.off2) };
 }
-/** The way out from an edge toward the shape. */
-const facing = (c: Contact) => { const e = edgeOf(c); return along({ x: 0, y: 0 }, perp(e.u), c.side); };
+
+// ---------- Sides typed as numbers ----------
+/** Its sides typed as numbers that are still that long (src/measured.ts), by number. */
+const typedOf = (s: Shape) => new Set(measuredSides(s).map((m) => m.side));
+/**
+ * A box's first side's way, for what's typed of it: a box drawn as one, or an outline of four square corners (its
+ * side 0 and 2 one way, 1 and 3 the other). None for anything else.
+ */
+function boxWay(s: Shape): Point | null {
+  if (s.type === 'rect') return rotate(1, 0, s.rotation || 0);
+  if (s.type !== 'poly') return null;
+  const p = worldPoints(s);
+  if (p.length !== 4) return null;
+  for (let i = 0; i < 4; i++) {
+    const a = unit(sub(p[(i + 1) % 4], p[i])), b = unit(sub(p[(i + 2) % 4], p[(i + 1) % 4]));
+    if (Math.abs(dot(a, b)) > SQUARE_COS) return null;
+  }
+  return unit(sub(p[1], p[0]));
+}
+/**
+ * How a planned thing goes: the point `at` of it (where it touches something, or its middle) where `at` goes, turned
+ * `turn` degrees as the photo is, `k` times its size both ways but for its sides typed as numbers. A box keeps a typed
+ * side's length (and the side across from it); an outline that isn't a box keeps its whole size with any side typed.
+ * (A line's typed sides: lineThrough.)
+ */
+function frameFor(s: Shape, at: { was: Point; now: Point }, k: number, turn: number, typed: ReadonlySet<number>): Frame {
+  const way = s.type === 'line' ? null : boxWay(s), u = way ?? RIGHT;
+  let su = k, sn = k;
+  if (typed.size && s.type !== 'line') {
+    if (way) { if (typed.has(0) || typed.has(2)) su = 1; if (typed.has(1) || typed.has(3)) sn = 1; }
+    else su = sn = 1;
+  }
+  return { o: at.was, o2: at.now, u, u2: rotate(u.x, u.y, turn), su, sn };
+}
+/**
+ * A line with sides typed as numbers, put through: each side turned `turn` degrees, a typed one at its length, the rest
+ * `k` times theirs; the point of it nearest `at.was` where `at` goes (as far off it as it was). Its band, `k` times.
+ */
+function lineThrough(s: LineShape, at: { was: Point; now: Point }, k: number, turn: number, typed: ReadonlySet<number>): LineShape {
+  const p = worldPoints(s), q: Point[] = [{ x: 0, y: 0 }];
+  for (let i = 0; i + 1 < p.length; i++) {
+    const d = rotate(p[i + 1].x - p[i].x, p[i + 1].y - p[i].y, turn), g = typed.has(i) ? 1 : k;
+    q.push({ x: q[i].x + d.x * g, y: q[i].y + d.y * g });
+  }
+  let near = { j: 0, t: 0, d: Infinity };
+  for (let j = 0; j + 1 < p.length; j++) {
+    const ab = sub(p[j + 1], p[j]), l2 = dot(ab, ab), t = l2 ? Math.max(0, Math.min(1, dot(sub(at.was, p[j]), ab) / l2)) : 0;
+    const d = len(sub(at.was, along(p[j], ab, t)));
+    if (d < near.d) near = { j, t, d };
+  }
+  const j = Math.min(near.j, p.length - 1), j2 = Math.min(j + 1, p.length - 1);
+  const was = along(p[j], sub(p[j2], p[j]), near.t), now = along(q[j], sub(q[j2], q[j]), near.t);
+  const off = rotate(was.x - at.was.x, was.y - at.was.y, turn), shift = sub(add(at.now, off), now);
+  const t = JSON.parse(JSON.stringify(s)) as LineShape;
+  t.rotation = 0;
+  setWorldPoints(t, q.map((v) => add(v, shift)));
+  if (t.pathWidth) t.pathWidth = r3(t.pathWidth * k);
+  return t;
+}
 
 // ---------- A shape put through a map ----------
 const turned = (rot: number, turn: number) => (turn ? r3(normalDeg((rot || 0) + turn)) : rot);
 /**
- * The shape put where `f` puts it. `keepSize`: its size and shape as they are (a plant, a thing kept as measured, an
- * island), only its middle moved and its turn. Otherwise a map that scales evenly scales it; one that scales only one
- * way stretches a box along its sides as they lie, and an outline or line point by point. A circle can't stretch one
- * way: it keeps its size then. `widthToo`: a path's or driveway's band scales with it (one already there).
+ * The shape put where `f` puts it. `keepSize`: its size and shape as they are (a plant, a thing kept as measured), only
+ * its middle moved and its turn. Otherwise a map that scales evenly scales it; one that scales only one way (a box with
+ * a side typed: along its own sides) stretches a box along its sides as they lie, and an outline or line point by
+ * point. A circle can't stretch one way: it keeps its size then. `widthToo`: a path's or driveway's band scales with
+ * it, as the map scales evenly.
  */
 export function placeThrough(s: Shape, f: Frame, keepSize: boolean, widthToo = false): Shape {
   const t = JSON.parse(JSON.stringify(s)) as Shape;
@@ -304,8 +353,14 @@ export function placeThrough(s: Shape, f: Frame, keepSize: boolean, widthToo = f
 }
 
 // ---------- The rules ----------
-/** Why a shape goes where it does. `by`: the ids it goes by. */
-export interface Why { how: 'follows' | 'measured' | 'between' | 'runs' | 'with' | 'island' | 'bed' | 'path' | 'stays'; by?: string[] }
+/**
+ * Why a shape goes where it does. `by`: the ids it goes by. follows: as the photo does (a planned thing, its shape
+ * kept); measured: a thing already there kept as measured; against: a planned thing's size following the photo, kept
+ * against something that didn't; typed: its sides typed as numbers kept, the rest following (against what it touches,
+ * if anything); with: at its own size, with what it touches (a plant, or a planned thing off the photo); bed: a plant,
+ * its place in its bed; path: a path drawn as a line, its ends on what they touch; stays: off the photo.
+ */
+export interface Why { how: 'follows' | 'measured' | 'against' | 'typed' | 'with' | 'bed' | 'path' | 'stays'; by?: string[] }
 export interface Placed { shape: Shape; why: Why }
 const isPathLine = (s: Shape) => s.type === 'line' && s.role === 'path';
 
@@ -328,31 +383,48 @@ export function rescalePlan(shapes: Shape[], from: Placement, to: Placement, opt
     else if (sizeFollows(s, opts) && kept.has(s.id)) { const f = rigidAt(shapeCenter(s), T); done(s, f, placeThrough(s, f, true), { how: 'measured' }); }
     else done(s, T, placeThrough(s, T, !sizeFollows(s, opts), true), { how: 'follows' });
   }
-  const anchors: Anchor[] = shapes.filter(goesBy).map((s) => {
+  // What planned things can be against: things already there (not the ground, a note, a plain shape or something
+  // gone), and planned things as they're put (not a plant, nor a path drawn as a line).
+  const anchors = new Map<string, Anchor>();
+  const against = (s: Shape) => {
     const now = out.get(s.id)!.shape;
-    return { s, was: outline(s), now: outline(now), band: band(s), band2: band(now) };
-  });
-  /** Where a planned thing meets the things already there near it, the nearest edge of each. */
-  const contacts = (s: Shape): Contact[] => {
-    const o = outline(s);
-    return anchors.filter((a) => near(s, a.s, BESIDE_FT)).map((a) => contactWith(s, o, a)).filter((c): c is Contact => !!c && c.d <= BESIDE_FT);
+    anchors.set(s.id, { s, was: outline(s), now: outline(now), band: band(s), band2: band(now) });
   };
-  /** By what's already there: between two across from each other, or running with the nearest. Whether it was. */
-  const byWhatsThere = (s: Shape): boolean => {
-    const cs = contacts(s);
-    if (!cs.length) return false;
-    const keep = s.role === 'plant' || s.type === 'circle';
-    const touching = cs.filter((c) => c.d <= TOUCH_FT);
-    let pair: [Contact, Contact] | null = null, most = ACROSS;
-    for (let i = 0; i < touching.length; i++) for (let j = i + 1; j < touching.length; j++) {
-      const d = dot(facing(touching[i]), facing(touching[j]));
-      if (d <= most) { most = d; pair = better(touching[j], touching[i]) ? [touching[j], touching[i]] : [touching[i], touching[j]]; }
+  for (const s of shapes) if (goesBy(s)) against(s);
+  /** What a planned thing touches, of what's put so far: the nearest edge of each. */
+  const touching = (s: Shape): Contact[] => {
+    const o = outline(s), cs: Contact[] = [];
+    for (const a of anchors.values()) {
+      if (a.s.id === s.id || !near(s, a.s, TOUCH_FT)) continue;
+      const c = contactWith(s, o, a);
+      if (c && c.d <= TOUCH_FT) cs.push(c);
     }
-    if (pair) { const f = between(pair[0], pair[1], s); done(s, f, placeThrough(s, f, keep), { how: 'between', by: [pair[0].a.s.id, pair[1].a.s.id] }); return true; }
-    const best = cs.reduce((x, y) => (better(y, x) ? y : x));
-    const f = runsWith(best);
-    done(s, f, placeThrough(s, f, keep), { how: 'runs', by: [best.a.s.id] });
-    return true;
+    return cs;
+  };
+  /**
+   * Something it touches that didn't go as it would on its own: over the photo, as the photo did (kept as measured,
+   * off the photo, or a planned thing with a side typed or against one of those); off the photo, nowhere (it moved).
+   */
+  const odd = (s: Shape, c: Contact) => (over.has(s.id) ? frames.get(c.a.s.id) !== T : frames.get(c.a.s.id) !== STAY);
+  const turn = turnOf(T);
+  /**
+   * A planned thing put: over the photo, as the photo goes, its shape kept but for its sides typed, against what it
+   * touches that didn't go as the photo did (or, typed, against the nearest thing it touches); off the photo, where it
+   * is, or with what it touches that moved, at its size.
+   */
+  const put = (s: Shape, cs = touching(s)) => {
+    const isOver = over.has(s.id), typed = isOver ? typedOf(s) : new Set<number>(), odds = cs.filter((c) => odd(s, c));
+    if (!odds.length && !typed.size) {
+      if (isOver) done(s, T, placeThrough(s, T, false, true), { how: 'follows' });
+      else done(s, STAY, s, { how: 'stays' });
+      return;
+    }
+    const pool = odds.length ? odds : cs, c = pool.length ? pool.reduce((x, y) => (better(y, x) ? y : x)) : null;
+    const ctr = shapeCenter(s), at = c ? touchAt(c, ctr) : { was: ctr, now: mapPoint(T, ctr) }, k = isOver ? T.su : 1;
+    const f = frameFor(s, at, k, turn, typed);
+    const shape = s.type === 'line' && typed.size ? lineThrough(s, at, k, turn, typed) : placeThrough(s, f, false, true);
+    const by = c ? { by: [c.a.s.id] } : {};
+    done(s, f, shape, { how: typed.size ? 'typed' : isOver ? 'against' : 'with', ...by });
   };
 
   const planned = shapes.filter((s) => partOf(s) === 'planned');
@@ -362,35 +434,34 @@ export function rescalePlan(shapes: Shape[], from: Placement, to: Placement, opt
     const bed = bedOf(s, shapes);
     if (bed && carriesPlants(bed)) bedOfPlant.set(s.id, bed.id);
   }
-  const free = planned.filter((s) => !bedOfPlant.has(s.id) && !isPathLine(s));
-  for (const s of free) byWhatsThere(s);
-  // Touching another planned thing: with it (the same map, so where they touch, they still do). A plant goes with
-  // anything planned; anything else, not with a plant. Then, of what's left, the largest keeps its size and its middle's
-  // place over the photo, and what touches it goes with it, and so on.
-  const plannedFrame = (s: Shape): { id: string; f: Frame } | null => {
-    for (const t of planned) {
-      const f = frames.get(t.id);
-      if (!f || t.id === s.id || isPathLine(t) || bedOfPlant.has(t.id) || (t.role === 'plant' && s.role !== 'plant')) continue;
-      if (near(s, t, TOUCH_FT) && gap(s, t) <= TOUCH_FT) return { id: t.id, f };
-    }
-    return null;
-  };
-  let rest = free.filter((s) => !frames.has(s.id));
-  while (rest.length) {
+  const solid = planned.filter((s) => s.role !== 'plant' && !isPathLine(s));
+  const putAll = (which: (s: Shape) => boolean, when: (s: Shape, cs: Contact[]) => boolean) => {
     for (let grew = true; grew;) {
       grew = false;
-      for (const s of rest) {
-        if (frames.has(s.id)) continue;
-        const w = plannedFrame(s);
-        if (w) { done(s, w.f, placeThrough(s, w.f, s.role === 'plant' || s.type === 'circle'), { how: 'with', by: [w.id] }); grew = true; }
+      for (const s of solid) {
+        if (frames.has(s.id) || !which(s)) continue;
+        const cs = touching(s);
+        if (when(s, cs)) { put(s, cs); against(s); grew = true; }
       }
-      rest = rest.filter((s) => !frames.has(s.id));
     }
-    if (!rest.length) break;
-    const s = rest.reduce((a, b) => (sizeOf(b) > sizeOf(a) ? b : a));
-    const f = over.has(s.id) ? rigidAt(shapeCenter(s), T) : STAY;
-    done(s, f, f === STAY ? s : placeThrough(s, f, true), { how: over.has(s.id) ? 'island' : 'stays' });
-    rest = rest.filter((x) => x !== s);
+  };
+  // Over the photo: first what can't simply go as the photo does (a side typed, or against something that didn't),
+  // then what's against those, and so on; then the rest, as the photo goes. Off it: what touches something that moved,
+  // with it, and so on; the rest stays.
+  putAll((s) => over.has(s.id), (s, cs) => typedOf(s).size > 0 || cs.some((c) => odd(s, c)));
+  putAll((s) => over.has(s.id), () => true);
+  putAll(() => true, (s, cs) => cs.some((c) => odd(s, c)));
+  putAll(() => true, () => true);
+  // Plants not in a bed, their size kept: their middle as the photo goes, or with what they touch that didn't (not a
+  // plant); off the photo, where they are, or with what they touch that moved.
+  for (const s of planned) {
+    if (s.role !== 'plant' || bedOfPlant.has(s.id)) continue;
+    const cs = touching(s).filter((c) => c.a.s.role !== 'plant' && odd(s, c));
+    if (cs.length) {
+      const c = cs.reduce((x, y) => (better(y, x) ? y : x)), f = frames.get(c.a.s.id)!;
+      done(s, f, f === STAY ? s : placeThrough(s, f, true), { how: 'with', by: [c.a.s.id] });
+    } else if (over.has(s.id)) done(s, T, placeThrough(s, T, true), { how: 'follows' });
+    else done(s, STAY, s, { how: 'stays' });
   }
   // Plants in a bed: their place in it.
   for (const [id, bed] of bedOfPlant) {
@@ -398,30 +469,31 @@ export function rescalePlan(shapes: Shape[], from: Placement, to: Placement, opt
     done(s, f, f === STAY ? s : placeThrough(s, f, true), { how: 'bed', by: [bed] });
   }
   // Paths drawn as lines: each end that touches something stays on it; the points between keep their share of the way.
-  for (const s of planned.filter(isPathLine)) {
-    const pts = worldPoints(s as PathShape), ends = [pts[0], pts[pts.length - 1]];
+  // Their width follows the photo (over it); a side typed keeps its length, from the first end that's on something.
+  for (const s of planned.filter(isPathLine) as LineShape[]) {
+    const pts = worldPoints(s), ends = [pts[0], pts[pts.length - 1]];
     const on = ends.map((e) => endOn(e, s, shapes, frames));
-    if (!on[0] && !on[1]) {
-      if (byWhatsThere(s)) continue;
-      const f = over.has(s.id) ? rigidAt(shapeCenter(s), T) : STAY;
-      done(s, f, f === STAY ? s : placeThrough(s, f, true), { how: over.has(s.id) ? 'island' : 'stays' });
-      continue;
-    }
+    if (!on[0] && !on[1]) { put(s); continue; }
+    const k = over.has(s.id) ? T.su : 1, typed = over.has(s.id) ? typedOf(s) : new Set<number>();
     let f: Frame;
     if (on[0] && on[1] && len(sub(ends[1], ends[0])) > 1e-6) {
       const a = mapPoint(on[0].f, ends[0]), b = mapPoint(on[1].f, ends[1]);
-      const k = len(sub(b, a)) / len(sub(ends[1], ends[0]));
-      f = { o: ends[0], o2: a, u: unit(sub(ends[1], ends[0])), u2: unit(sub(b, a)), su: k, sn: k };
+      const g = len(sub(b, a)) / len(sub(ends[1], ends[0]));
+      f = { o: ends[0], o2: a, u: unit(sub(ends[1], ends[0])), u2: unit(sub(b, a)), su: g, sn: g };
     } else {
-      const i = on[0] ? 0 : 1, by = on[i]!;
-      f = rigidAt(ends[i], by.f);
+      const i = on[0] ? 0 : 1;
+      f = { o: ends[i], o2: mapPoint(on[i]!.f, ends[i]), u: RIGHT, u2: rotate(1, 0, turn), su: k, sn: k };
     }
-    done(s, f, placeThrough(s, f, false), { how: 'path', by: on.map((x) => x?.id ?? '') });
+    let shape: LineShape;
+    if (typed.size) shape = lineThrough(s, { was: f.o, now: f.o2 }, k, turn, typed);
+    else {
+      shape = placeThrough(s, f, false) as LineShape;
+      if (shape.pathWidth) shape.pathWidth = r3(shape.pathWidth * k);
+    }
+    done(s, f, shape, { how: 'path', by: on.map((x) => x?.id ?? '') });
   }
   return out;
 }
-/** How big a thing is, for which of a cluster keeps its place: its area, or a line's reach. */
-const sizeOf = (s: Shape) => { const b = shapeBBox(s); return shapeArea(s) || (b.maxX - b.minX) * (b.maxY - b.minY) * 1e-3; };
 /** What a path's end touches (the nearest, within TOUCH_FT or inside it), and its map: not a plant, nor the ground. */
 function endOn(e: Point, path: Shape, shapes: Shape[], frames: Map<string, Frame>): { id: string; f: Frame } | null {
   let best: { id: string; f: Frame; d: number } | null = null;

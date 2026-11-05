@@ -141,7 +141,7 @@ test('the scale set again over a traced plan: the card shows the plan moved, das
   const house = await storedShape<RectShape>(page, 'house'), bed = await storedShape<RectShape>(page, 'back-bed');
   expect(house.width).toBeCloseTo(old(40) * k, 2);
   expect(house.x).toBeCloseTo(old(-24) * k, 2);
-  expect(bed.height).toBe(5); // (against the house at its depth, the house's length)
+  expect(bed.height).toBeCloseTo(5 * k, 2); // (its shape kept: its depth follows the photo with its length, the house's)
   expect(bed.y + bed.height).toBeCloseTo(house.y, 2);
   expect(bed.width).toBeCloseTo(house.width, 2);
   expect((await storedShape<CircleShape>(page, 'p0')).radius).toBe(1.25);
