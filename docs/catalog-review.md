@@ -1,6 +1,6 @@
 # Catalog review
 
-Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 387 to decide, 2011 sites whose terms are unsettled, 1002 catalog checks; 3743 of 3746 records audited.
+Written by `npm run catalog:build` (docs/catalog-build.md): what the build left for a person to decide, fetch or tidy, most useful first. Don't edit it: the next build writes it again. 307 to decide, 2011 sites whose terms are unsettled, 1002 catalog checks; 3743 of 3746 records audited.
 
 - [Sources disagree (156)](#sources-disagree-156)
 - [Cultivar: tree or shrub? (6)](#cultivar-tree-or-shrub-6)
@@ -10,7 +10,7 @@ Written by `npm run catalog:build` (docs/catalog-build.md): what the build left 
 - [Sources often far from the authorities (2)](#sources-often-far-from-the-authorities-2)
 - [Read from text, but a second reading differs (461)](#read-from-text-but-a-second-reading-differs-461)
 - [Values the catalog can't take (1)](#values-the-catalog-cant-take-1)
-- [Kew names to check (110)](#kew-names-to-check-110)
+- [Kew names to check (30)](#kew-names-to-check-30)
 - [Bloom months held back (4)](#bloom-months-held-back-4)
 - [A page under another name (2)](#a-page-under-another-name-2)
 - [Sites whose terms are unsettled (2011)](#sites-whose-terms-are-unsettled-2011)
@@ -804,7 +804,7 @@ A source's value doesn't fit the catalog's format.
 | --- | --- | --- |
 | Switchgrass 'Shenandoah' (`panicum-virgatum-shenandoah`) | flower_color | value the catalog can't take: ["Burgundy","Rose"] |
 
-## Kew names to check (110)
+## Kew names to check (30)
 
 Names Kew's World Checklist could read two ways, taken as the accepted name (check each is the plant meant, and record it in scripts/catalog/decisions.json, `kewNames`); and law-list names Kew accepts under another, or doesn't match at all (set the entry's `accepted` in scripts/catalog/regulated-plants.json).
 
@@ -827,94 +827,14 @@ Names Kew's World Checklist could read two ways, taken as the accepted name (che
 - Solanum laxum: an accepted name that is also an older homonym's synonym
 - Solanum rostratum: an accepted name that is also an older homonym's synonym
 - Viola blanda: an accepted name that is also an older homonym's synonym
-- Achnatherum brachychaetum: Kew's accepted name is Amelichloa brachychaeta, the list's Achnatherum brachychaetum
-- Achyranthes japonica: Kew's accepted name is Achyranthes bidentata, the list's Achyranthes japonica
-- Acroptilon repans: Kew's accepted name is Rhaponticum repens, the list's Acroptilon repens
-- Acroptilon repens: Kew's accepted name is Rhaponticum repens, the list's Acroptilon repens
-- Aegilops ovata: Kew's accepted name is Aegilops neglecta, the list's Aegilops ovata
-- Andropogon bicornis: Kew's accepted name is Anatherum bicorne, the list's Andropogon bicornis
-- Andropogon virginicus: Kew's accepted name is Anatherum virginicum, the list's Andropogon virginicus
-- Brassica nigra: Kew's accepted name is Mutarda nigra, the list's Brassica nigra
-- Brassica tournefortii: Kew's accepted name is Coincya tournefortii, the list's Brassica tournefortii
-- Cardaria chalepensis: Kew's accepted name is Lepidium chalepense, the list's Cardaria chalepensis
-- Cardaria draba: Kew's accepted name is Lepidium draba, the list's Cardaria draba
-- Cardaria pubescens: Kew's accepted name is Lepidium appelianum, the list's Cardaria pubescens
-- Carthamus baeticus: Kew's accepted name is Carthamus creticus, the list's Carthamus baeticus
-- Carthamus lanatus: Kew's accepted name is Phonus lanatus, the list's Carthamus lanatus
-- Cenchrus incertus: Kew's accepted name is Cenchrus spinifex, the list's Cenchrus incertus
-- Centaurea pratensis: Kew's accepted name is Centaurea jacea, the list's Centaurea pratensis
-- Centaurea repens: Kew's accepted name is Rhaponticum repens, the list's Centaurea repens
-- Centaurea squarrosa: Kew's accepted name is Centaurea besseriana, the list's Centaurea squarrosa
-- Coronopus squamatus: Kew's accepted name is Lepidium coronopus, the list's Coronopus squamatus
-- Cynanchum louiseae: Kew's accepted name is Vincetoxicum nigrum, the list's Cynanchum louiseae
-- Cynanchum rossicum: Kew's accepted name is Vincetoxicum rossicum, the list's Cynanchum rossicum
-- Cytisus monspessulanus: Kew's accepted name is Genista monspessulana, the list's Cytisus monspessulanus
-- Dipsacus sylvestris: Kew's accepted name is Dipsacus fullonum, the list's Dipsacus sylvestris
-- Egeria densa: Kew's accepted name is Elodea densa, the list's Egeria densa
-- Egeria najas: Kew's accepted name is Elodea najas, the list's Egeria najas
-- Eichhornia azurea: Kew's accepted name is Pontederia azurea, the list's Eichhornia azurea
-- Eichhornia crassipes: Kew's accepted name is Pontederia crassipes, the list's Eichhornia crassipes
-- Elytrigia repens: Kew's accepted name is Elymus repens, the list's Elytrigia repens
-- Emex spinosa: Kew's accepted name is Rumex spinosus, the list's Emex spinosa
-- Eriocereus martinii: Kew's accepted name is Harrisia martinii, the list's Eriocereus martinii
-- Fallopia japonica: Kew's accepted name is Reynoutria japonica, the list's Fallopia japonica
-- Fallopia sachalinensis: Kew's accepted name is Reynoutria sachalinensis, the list's Fallopia sachalinensis
-- Ficaria verna: Kew's accepted name is Ranunculus ficaria, the list's Ficaria verna
-- Gaura drummondii: Kew's accepted name is Oenothera hispida, the list's Gaura drummondii
-- Gaura sinuata: Kew's accepted name is Oenothera sinuosa, the list's Gaura sinuata
-- Halimodendron halodendron: Kew's accepted name is Caragana halodendron, the list's Halimodendron halodendron
-- Humulus japonicus: Kew's accepted name is Humulus scandens, the list's Humulus japonicus
-- Hyptis pectinata: Kew's accepted name is Mesosphaerum pectinatum, the list's Hyptis pectinata
-- Hyptis suaveolens: Kew's accepted name is Mesosphaerum suaveolens, the list's Hyptis suaveolens
-- Kochia scoparia: Kew's accepted name is Bassia scoparia, the list's Kochia scoparia
-- Leptochloa chinensis: Kew's accepted name is Dinebra chinensis, the list's Leptochloa chinensis
-- Limnobium laevigatum: Kew's accepted name is Hydrocharis laevigata, the list's Limnobium laevigatum
-- Limnobium spongia: Kew's accepted name is Hydrocharis spongia, the list's Limnobium spongia
-- Matricaria perforata: Kew's accepted name is Tripleurospermum inodorum, the list's Matricaria perforata
-- Mercurialis ambigua: Kew's accepted name is Mercurialis annua, the list's Mercurialis ambigua
-- Myosoton aquaticum: Kew's accepted name is Stellaria aquatica, the list's Myosoton aquaticum
-- Oenothera xenogaura: Kew's accepted name is Oenothera hispida, the list's Oenothera xenogaura
-- Panicum antidotale: Kew's accepted name is Janochloa antidotalis, the list's Panicum antidotale
-- Passiflora pulchella: Kew's accepted name is Passiflora bicornis, the list's Passiflora pulchella
-- Pennisetum clandestinum: Kew's accepted name is Cenchrus clandestinus, the list's Pennisetum clandestinum
-- Pennisetum setaceum: Kew's accepted name is Cenchrus setaceus, the list's Pennisetum setaceum
-- Persicaria wallichii: Kew's accepted name is Koenigia polystachya, the list's Persicaria wallichii
-- Photinia villosa: Kew's accepted name is Pourthiaea villosa, the list's Photinia villosa
-- Polygonum cuspidatum: Kew's accepted name is Reynoutria japonica, the list's Polygonum cuspidatum
-- Polygonum perfoliatum: Kew's accepted name is Persicaria perfoliata, the list's Polygonum perfoliatum
-- Polygonum sachalinense: Kew's accepted name is Reynoutria sachalinensis, the list's Polygonum sachalinense
-- Prosopis juliflora: Kew's accepted name is Neltuma juliflora, the list's Prosopis juliflora
-- Prosopis strombulifera: Kew's accepted name is Strombocarpa strombulifera, the list's Prosopis strombulifera
-- Pueraria phaseoloides: Kew's accepted name is Neustanthus phaseoloides, the list's Pueraria phaseoloides
-- Rhamnus frangula: Kew's accepted name is Frangula alnus, the list's Rhamnus frangula
-- Rubrivena polystachya: Kew's accepted name is Koenigia polystachya, the list's Rubrivena polystachya
-- Saccharum ravennae: Kew's accepted name is Tripidium ravennae, the list's Saccharum ravennae
-- Sagittaria japonica: Kew's accepted name is Sagittaria trifolia, the list's Sagittaria japonica
-- Salsola damascena: Kew's accepted name is Caroxylon villosum, the list's Salsola damascena
-- Salsola vermiculata: Kew's accepted name is Caroxylon vermiculatum, the list's Salsola vermiculata
-- Salvinia herzogii: Kew's accepted name is Salvinia biloba, the list's Salvinia herzogii
-- Schoenoplectus mucronatus: Kew's accepted name is Schoenoplectiella mucronata, the list's Schoenoplectus mucronatus
-- Senecio jacobaea: Kew's accepted name is Jacobaea vulgaris, the list's Senecio jacobaea
-- Sinapis arvensis: Kew's accepted name is Mutarda arvensis, the list's Sinapis arvensis
-- Spartina alterniflora: Kew's accepted name is Sporobolus alterniflorus, the list's Spartina alterniflora
-- Spartina anglica: Kew's accepted name is Sporobolus anglicus, the list's Spartina anglica
-- Spartina densiflora: Kew's accepted name is Sporobolus montevidensis, the list's Spartina densiflora
-- Spartina patens: Kew's accepted name is Sporobolus pumilus, the list's Spartina patens
-- Stipa brachychaeta: Kew's accepted name is Amelichloa brachychaeta, the list's Stipa brachychaeta
-- Stipa trichotoma: Kew's accepted name is Nassella trichotoma, the list's Stipa trichotoma
 - Acer ginnala: a law list's name Kew doesn't match to one accepted species
-- Alyssum corsicum: a law list's name Kew doesn't match to one accepted species
-- Ambrosia grayii: a law list's name Kew doesn't match to one accepted species
-- Cardaria appellanum: a law list's name Kew doesn't match to one accepted species
 - Carduus cinereus: a law list's name Kew doesn't match to one accepted species
 - Celastrus loeseneri: a law list's name Kew doesn't match to one accepted species
-- Centaurea maculosa: a law list's name Kew doesn't match to one accepted species
 - Cereus uruguayanus: a law list's name Kew doesn't match to one accepted species
 - Dichrostachys nutans: a law list's name Kew doesn't match to one accepted species
 - Hieracium praealtum: a law list's name Kew doesn't match to one accepted species
 - Ipomoea fistulosa: a law list's name Kew doesn't match to one accepted species
 - Passiflora mollissima: a law list's name Kew doesn't match to one accepted species
-- Polygonum caespitosum: a law list's name Kew doesn't match to one accepted species
 - Sorghum almum: a law list's name Kew doesn't match to one accepted species
 - Trapa bicornis: a law list's name Kew doesn't match to one accepted species
 - Typha gracilis: a law list's name Kew doesn't match to one accepted species

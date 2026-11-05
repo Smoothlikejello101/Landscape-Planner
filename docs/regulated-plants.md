@@ -303,6 +303,13 @@ space planting rule (24 DCMR § 199), shows its text only in a browser and waits
   polystachion*, which Kew types on a native grass (*Setaria parviflora*: `accepted: false`, matched by its
   printed names only), and Arkansas's itchgrass, *Rottboellia exaltata* L.f., which Kew's lookup sends to
   *Ophiuros exaltatus* (`notKew`); it's *R. cochinchinensis*.
+- **A name Kew keeps only as a subspecies or variety**, or doesn't place, is matched by its printed names only,
+  since `accepted` holds a species: Amur maple (*Acer ginnala*, Kew's *A. tataricum* subsp. *ginnala*) as Minnesota,
+  Vermont and Maine print it, which the catalog's *Acer tataricum* subsp. *ginnala* record doesn't reach (Wisconsin's
+  entry, printed as the subspecies, does). The Kew review of 2026-11-05 left eleven such names: *Acer ginnala*,
+  *Carduus cinereus*, *Celastrus loeseneri*, *Cereus uruguayanus*, *Dichrostachys nutans*, *Hieracium praealtum*,
+  *Ipomoea fistulosa*, *Passiflora mollissima*, *Sorghum almum* (Kew has only *S.* × *almum*), *Trapa bicornis* and
+  *Typha gracilis*.
 - **A listed species takes in its varieties and cultivars**: Japanese blood grass ('Red Baron') is *Imperata
   cylindrica*, which Arkansas names. A cultivar with a species record in the catalog takes that record's line.
 - **A listed variety takes in only that variety**, by its name or its `also` names: kudzu is *Pueraria montana*
@@ -395,6 +402,15 @@ As of 2026-10-31:
 - **Rhode Island:** alpine currant and red-flowering currant (permit only).
 - **Vermont:** parrot feather (Tier 1); American lotus, tree of heaven and Amur cork tree (Tier 2); Callery pear, Norway maple, Japanese barberry, burning bush, Japanese and Amur honeysuckle, autumn olive, black alder, glossy and common buckthorn, cypress spurge and multiflora rose (Tier 3).
 - **Wyoming:** field bindweed, Russian olive, St. John's wort and woad (designated).
+- **Arizona:** dyer's woad (Class A); Russian olive and Siberian elm (Class B); tree of heaven, field bindweed, grannyvine (*Ipomoea tricolor*), crimson fountain grass (*Cenchrus setaceus*) and kochia (*Bassia scoparia*, the catalog's "burningbush", not *Euonymus alatus*) (Class C).
+- **California:** tree of heaven, field bindweed, yellow nutsedge, Scotch and Spanish broom, St. John's wort, dyer's woad, nimblewill and Ravenna grass (noxious, not sold as nursery stock).
+- **District of Columbia:** periwinkle, English ivy, Chinese privet, Japanese and Amur honeysuckle, Chinese wisteria, autumn olive, Japanese barberry, burning bush, wintercreeper, dame's rocket, star of Bethlehem, stinging nettle, linden viburnum, Japanese spiraea (three of its cultivars) and chocolate vine (not in tree spaces).
+- **Hawaii:** broomsedge, crimson fountain grass, field bindweed, yellow nutsedge, Scotch and Spanish broom, Pacific Island silvergrass, princess flower (*Tibouchina*) and Japanese blood grass (noxious); water lettuce.
+- **Kansas:** Amur honeysuckle and field bindweed (Category C).
+- **Maine:** among 27 not to be sold: Callery pear, Norway maple, Japanese barberry, burning bush, black locust, cup plant, false indigo, the honeysuckles, autumn and Russian olive, glossy buckthorn, Amur cork tree, white poplar, European mountain ash, oriental photinia, garden valerian, dame's rocket and variegated reed mannagrass and ribbon grass; parrot feather and swollen bladderwort (aquatic); rugosa rose (sold only labeled); alpine and red-flowering currant (in the counties named).
+- **New Hampshire:** Norway maple, Japanese barberry, burning bush, the honeysuckles, glossy and common buckthorn, black alder, tree of heaven, dame's rocket, creeping Jenny, multiflora rose and variegated reed mannagrass (prohibited); winged loosestrife (*Lythrum alatum*, a native the aquatic rule names), true forget-me-not, parrot feather and water lettuce (aquatic).
+- **New Mexico:** dyer's woad and Ravenna grass (Class A); tree of heaven, Russian olive, Siberian elm and parrot feather (Class C).
+- **Wisconsin:** Japanese honeysuckle, Chinese wisteria, Scotch broom, sawtooth oak, chocolate vine, sacred lotus, parrot feather and water lettuce (prohibited); Amur honeysuckle, seaside goldenrod, lyme grass and variegated reed mannagrass (prohibited but in named counties); tree of heaven, autumn and Russian olive, wormwood, cypress spurge, dame's rocket, the forget-me-nots, white poplar, common buckthorn, bristly locust, narrowleaf cattail and garden valerian (restricted), and, with the cultivars each excepts, Amur maple, black alder, black locust, Japanese barberry, burning bush, glossy buckthorn, creeping Jenny, Amur cork tree and Siberian elm; multiflora rose.
 
 ## What the line doesn't say
 
