@@ -20,7 +20,7 @@ import { mnLight, ncsuForms, ncsuSun } from './map.mjs';
 export const TIER = {
   tox_people: 'safety', poison: 'safety', tox_pets: 'safety', invasive: 'safety', native_ar: 'safety', native_us: 'safety',
   zone_min: 'survival', zone_max: 'survival', sun_most: 'survival', sun_least: 'survival', water: 'survival',
-  height: 'survival', width: 'survival', spacing: 'survival', clay_ok: 'survival', soil_texture: 'survival', wet_feet: 'survival', deer: 'survival',
+  height: 'survival', width: 'survival', spacing: 'survival', clay_ok: 'survival', soil_texture: 'survival', soil_also: 'description', wet_feet: 'survival', deer: 'survival',
   form: 'description', bloom_season: 'description', bloom_months: 'description', flower_color: 'description',
   fall_color: 'description', host: 'description', host_genus: 'description', edible: 'description', low_branched: 'description',
   attracts: 'description', tolerates: 'description', maintenance_level: 'description', thorns: 'description', winter_interest: 'description',
@@ -313,6 +313,8 @@ export function ncsuClaims(f) {
   // The soil textures it lists, in the catalog's words (soilTextures): for a bed's Loam and Sandy (Jason, Nov 4). Its
   // field, never its description. (Clay OK above stays as it was.)
   add('soil_texture', soilTextures(f['Soil Texture']));
+  // Its field's other two soils, shown beside them, never a filter (Jason, Nov 5: soilAlso).
+  add('soil_also', soilAlso(f['Soil Texture']));
   const nd = new Set(f['Soil Drainage'] ?? []);
   if (['Occasionally Wet', 'Frequent Standing Water', 'Occasional Flooding'].some((d) => nd.has(d)) || (f['Resistance To Challenges'] ?? []).includes('Wet Soil')) add('wet_feet', true);
   const hosts = f['Larval hosts'] ?? [];
@@ -385,6 +387,17 @@ const SOIL_WORDS = { clay: 'clay', 'clay (heavy)': 'clay', loam: 'loam', 'loam (
 export const soilTextures = (values) => {
   const got = new Set((values ?? []).map((v) => SOIL_WORDS[String(v).trim().toLowerCase().replace(/\s+/g, ' ')]).filter(Boolean));
   return SOIL_TEXTURES.filter((t) => got.has(t));
+};
+/**
+ * The two other soils NC State's "Soil Texture" field can name (Jason, Nov 5: shown in a plant's Soil row, not a bed's
+ * filter): "High Organic Matter" is `organic`, "Shallow Rocky" is `rocky`. Each once, in this order.
+ */
+export const SOIL_ALSO = ['organic', 'rocky'];
+const SOIL_ALSO_WORDS = { 'high organic matter': 'organic', 'shallow rocky': 'rocky' };
+/** NC State's other soils, in the catalog's words, once, in the catalog's order (organic, rocky). */
+export const soilAlso = (values) => {
+  const got = new Set((values ?? []).map((v) => SOIL_ALSO_WORDS[String(v).trim().toLowerCase().replace(/\s+/g, ' ')]).filter(Boolean));
+  return SOIL_ALSO.filter((t) => got.has(t));
 };
 /** How a vine climbs, NC State's words: twining stems, tendrils, clinging (rootlets or pads), scrambling. */
 export const CLIMBING = ['twining', 'tendrils', 'clinging', 'scrambler'];

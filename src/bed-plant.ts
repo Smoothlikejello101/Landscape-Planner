@@ -5,7 +5,8 @@
 // The bed's conditions are a layer of their own over the person's filters (answer B's note): Sun, Water needs, Drought
 // tolerant, Takes wet soil and Clay OK are the bed's while it's planted for; the person's own are set aside, untouched,
 // and are as they were with Anywhere again. Everything else (Hardy in zone, who's in the yard, the search) adds to it.
-// Loam and Sandy filter by the soil textures NC State rates a plant for, as Clay does by Clay OK (Jason, Nov 4).
+// Loam and Sandy filter by the soil textures NC State rates a plant for (Jason, Nov 4); Clay by Clay OK or those textures,
+// a plant NC State rates only for other soils left out as for them (Jason, Nov 5).
 //
 // Here: which bed the picker is For (never stored), the sun across a bed from its sun areas (worked out each time,
 // never stored), and what a bed's conditions filter on. The picker's row and box: src/ui/plant-for.ts; the questions:
@@ -170,9 +171,9 @@ export const PART_OF: Partial<Record<keyof PlantFilter, BedPart>> = {
  * What a bed's conditions filter on (Jason's answers, Nov 2), as the picker's filters: every filter the bed sets,
  * the ones it doesn't use cleared, so the person's own aren't counted while it's planted for. `off`: parts taken off.
  * - Sun: plants whose sun range takes in some of the bed's (answer A).
- * - Clay: rated Clay OK; one no source rates, below a divider (answer D). Loam and sandy, the same way by the soil
- *   textures NC State rates it for (Jason, Nov 4): rated for that one first; one rated for none, below a divider; one
- *   rated only for others, left out. Not sure: nothing.
+ * - Clay, loam and sandy: plants rated for that soil first; one rated for none, below a divider (answer D); one rated
+ *   only for others, left out (Jason, Nov 4 for loam and sandy, by the soil textures NC State rates; Nov 5 for clay,
+ *   by Clay OK or those textures: src/plants.ts clayRating). Not sure: nothing.
  * - Dry: drought tolerant. Average: water needs low or moderate, so High and Wetland are left out (answer 7). Wet:
  *   takes wet soil. Not sure: nothing.
  * - Drip irrigated lifts only the limits that keep out thirstier plants (answer 6): dry or average with drip, any

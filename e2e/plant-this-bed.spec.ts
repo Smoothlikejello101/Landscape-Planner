@@ -337,12 +337,12 @@ test('For a loam or sandy bed: plants rated for it, those rated for no texture b
   await expect(chips(page)).toHaveText(['Takes part shade to full sun', 'Sandy soil OK']);
   await expect.poll(() => listOrder(page)).toEqual(['Prickly Pear', 'Redbud', '|no-sand-divider', 'Hairy Alumroot']);
   await expect(page.getByTestId('no-sand-divider')).toHaveText('No source we\'ve read says how these do in sandy soil (1)');
-  // Clay as before, by Clay OK: those with no clay rating below its divider, whatever textures they're rated for.
+  // Clay the same way (Jason, Nov 5): rated for clay first, no rating below its divider, rated only for others left out.
   await page.getByTestId('bed-edit').click();
   await page.getByTestId('cond-soil-clay').click();
   await page.getByTestId('conditions-back').click();
   await expect(chips(page)).toHaveText(['Takes part shade to full sun', 'Clay OK']);
-  await expect.poll(() => listOrder(page)).toEqual(['Redbud', 'Swamp Milkweed', '|no-clay-divider', 'Hairy Alumroot', 'Prickly Pear', 'Wild Bergamot']);
+  await expect.poll(() => listOrder(page)).toEqual(['Redbud', 'Swamp Milkweed', '|no-clay-divider', 'Hairy Alumroot']);
   // A plant's details: its Soil, with its source in front, quietly; none where it has no rating.
   await rowNamed(page, 'Redbud').getByTestId('plant-row').click();
   const details = rowNamed(page, 'Redbud').getByTestId('plant-details');

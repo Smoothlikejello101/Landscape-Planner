@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { bedAt, bedChips, bedFilter, bedName, bedRules, bedsToPlant, partName, spotsIn, sunOverBed, withFilters, type BedRules } from '../src/bed-plant';
-import { filteredPlants, noSoilRating, pickerCount, PLANT_FILTER_DEFAULTS, plantFilter, plantMatches, reportedMatch, reportedPhrase, sunFit, sunRangeOf, sunRangeSaid, waterWanted, type Plant, type PlantFilter } from '../src/plants';
+import { clayRating, filteredPlants, noSoilRating, pickerCount, PLANT_FILTER_DEFAULTS, plantFilter, plantMatches, reportedMatch, reportedPhrase, sunFit, sunRangeOf, sunRangeSaid, waterWanted, type Plant, type PlantFilter } from '../src/plants';
 import type { Shape, SunInfo } from '../src/types';
 
 // Plant this bed (Jason, Nov 2, his answers to the proposal): what a bed's conditions filter on, exactly as the brief
@@ -74,11 +74,22 @@ describe('a bed\'s soil: clay', () => {
     expect(bedChips(rules({ soil: 'unsure' }))).toEqual([]);
     expect(bedFilter(rules({ soil: 'unsure' }))).toMatchObject({ clayBed: false, soilBed: '' });
   });
-  it('clay goes by Clay OK alone, as before, whatever soil textures a plant is rated for', () => {
+  it('clay as loam and sandy (Jason, Nov 5): a plant NC State rates only for other soils is left out', () => {
     const loamOnly = plant({ common: 'Bluestem', soil_texture: ['loam', 'sand'] });
-    expect(fits(loamOnly, rules({ soil: 'clay' }))).toBe(true); // (no Clay OK rating: below the divider, as before)
+    expect(fits(loamOnly, rules({ soil: 'clay' }))).toBe(false);
+    expect(fits(plant({ common: 'Redbud', soil_texture: ['clay', 'loam'] }), rules({ soil: 'clay' }))).toBe(true);
     expect(fits(plant({ common: 'Lavender', clay_ok: false, soil_texture: ['clay'] }), rules({ soil: 'clay' }))).toBe(false);
     expect(bedFilter(rules({ soil: 'clay' })).soilBed).toBe('');
+  });
+  it('clay: Clay OK by the earlier list alone gives way to NC State\'s soil textures; Clay OK from a source stands', () => {
+    const META = { sources: { compendium: { title: 'First compendium', trust: 'unverified' }, ncsu: { title: 'NC State', trust: 'reference' } } };
+    const earlier = { src: ['compendium'] }, sourced = { src: ['ncsu'] };
+    const byEarlier = plant({ common: 'Coneflower', clay_ok: true, soil_texture: ['loam'], prov: { clay_ok: earlier } } as Partial<Plant>);
+    const bySource = plant({ common: 'Aster', clay_ok: true, soil_texture: ['loam'], prov: { clay_ok: sourced } } as Partial<Plant>);
+    const noTexture = plant({ common: 'Phlox', clay_ok: true, prov: { clay_ok: earlier } } as Partial<Plant>);
+    expect([byEarlier, bySource, noTexture].map((p) => clayRating(p, META.sources as never))).toEqual(['no', 'yes', 'yes']);
+    expect(clayRating(plant({ common: 'Hosta' }))).toBe('none');
+    expect(clayRating(plant({ common: 'Swamp milkweed', soil_texture: ['clay'] }))).toBe('yes');
   });
 });
 
