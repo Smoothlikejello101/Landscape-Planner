@@ -206,13 +206,13 @@ describe('squaring, said after, with Undo one step back', () => {
     expect(Math.abs(ang - (t + Math.PI / 2))).toBeLessThan(0.001);
     expect(wallDirection([a, { x: a.x + 5, y: a.y }, { x: a.x + 5, y: a.y + 6 }, { x: a.x, y: a.y + 6 }], [{ to: 'edge', shapeId: 'h', seg: [a, a], angles: [t + Math.PI / 2], alt: a }, null, null, null])).toBeCloseTo(t + Math.PI / 2);
   });
-  it("doesn't reshape a small bed much: a tenth of its shortest side, a grid step at least", () => {
+  it("doesn't reshape a bed much: a quarter of its shortest side, 3/4 ft at least (Jason, Nov 4: more than before)", () => {
     startDraw('poly', 'bed');
-    tap(40, 5); tap(43, 5); tap(43, 9.5); tap(40.5, 9.4); tap(40, 5); // (its 0.5 ft lean fine; not more)
+    tap(40, 5); tap(43, 5); tap(43, 9.5); tap(40.8, 9.4); tap(40, 5); // (its 0.8 ft lean, 10°, fine now)
     expect(notice()?.textContent).toContain('Squared');
     startDraw('poly', 'bed');
-    tap(50, 5); tap(53, 5); tap(53, 9.5); tap(50.8, 9.4); tap(50, 5);
-    expect(notice()).toBeNull(); // (0.8 ft off: more than it may move, left as drawn)
+    tap(50, 5); tap(54, 5); tap(56.5, 25); tap(50, 25); tap(50, 5);
+    expect(notice()).toBeNull(); // (a 4 by 20 ft bed whose long side leans 2.5 ft: 1.25 ft each way, more than its 1 ft)
   });
   it('turned off, leaves the outline as drawn', () => {
     setSquareOn(false);
@@ -229,5 +229,38 @@ describe('squaring, said after, with Undo one step back', () => {
     startDraw('poly', 'bed');
     tap(40, 5); tap(46, 5); tap(46, 12.5); tap(40, 12); tap(40, 5);
     expect(notice()).toBeNull();
+  });
+});
+
+describe('a dragged corner sticks square (Jason, Nov 4)', () => {
+  const bed = () => ({ id: 'bed', type: 'poly', x: 0, y: 0, points: [[40, 5], [52, 5], [52, 13], [40, 13]], rotation: 0, label: 'Bed', role: 'bed', color: '#0f0', opacity: 1, locked: false } as unknown as Shape);
+  it('sticks where its walls are square with the others, and says which while it is held; past it, the grid', () => {
+    state.shapes.push(bed());
+    startEditPoints('bed');
+    const s = state.shapes[1] as PathShape;
+    moveVertex(s, 2, { x: 52.3, y: 13.2 });
+    expect(outline('bed')[2]).toEqual({ x: 52, y: 13 });
+    expect(state.editPoints!.square).toEqual({ index: 2, walls: ['before', 'after'] });
+    // (Along its wall from the corner before it, 3.5 ft longer: one wall held.)
+    moveVertex(s, 2, { x: 52.4, y: 16.6 });
+    expect(outline('bed')[2]).toEqual({ x: 52, y: 16.5 });
+    expect(state.editPoints!.square?.walls).toEqual(['before']);
+    moveVertex(s, 2, { x: 54.2, y: 16.3 }); // (past it: on the grid)
+    expect(outline('bed')[2]).toEqual({ x: 54, y: 16.5 });
+    expect(state.editPoints!.square).toBeUndefined();
+  });
+  it('squaring off: no stick, the grid', () => {
+    setSquareOn(false);
+    state.shapes.push(bed());
+    startEditPoints('bed');
+    moveVertex(state.shapes[1] as PathShape, 2, { x: 52.3, y: 13.2 });
+    expect(outline('bed')[2]).toEqual({ x: 52.5, y: 13 });
+    expect(state.editPoints!.square).toBeUndefined();
+  });
+  it('a property line, which is surveyed, never sticks', () => {
+    state.shapes.push({ ...bed(), role: 'boundary' } as Shape);
+    startEditPoints('bed');
+    moveVertex(state.shapes[1] as PathShape, 2, { x: 52.3, y: 13.2 });
+    expect(outline('bed')[2]).toEqual({ x: 52.5, y: 13 });
   });
 });

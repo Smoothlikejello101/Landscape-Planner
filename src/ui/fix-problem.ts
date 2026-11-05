@@ -7,7 +7,7 @@
 
 import { crowdOptions } from '../crowd-here';
 import { roomAt } from '../crowding';
-import { bedWidth, nudgeApart, widerThanBed, type Nudge } from '../fix-problem';
+import { bedWidth, moverOf, nudgeApart, nudgeTargets, widerThanBed, type Nudge } from '../fix-problem';
 import { setCenter, shapeCenter } from '../geometry';
 import { flushHistoryDebounce, pushHistory, stepNamed } from '../history';
 import { bedOf } from '../beds';
@@ -29,24 +29,54 @@ const nameOf = (s: Shape) => (s.plantId && plantsById[s.plantId]?.common) || s.l
 const shown = () => state.shapes.filter((x) => shownWith(x, state.viewFilter));
 
 // ---------- Nudge apart ----------
+const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+const inWords = (k: number) => NUMBER_WORDS[k] ?? String(k);
+/** "A", "A and B", "A, B and C"; past three, "A, B and 2 more". */
+function listed(items: string[]): string {
+  if (items.length > 3) return `${items.slice(0, 2).join(', ')} and ${items.length - 2} more`;
+  return items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items.at(-1)}` : items[0] ?? '';
+}
+/**
+ * The plants a plant was nudged away from, in words: "Aster", "Aster and Sedge", "the other" (one of its own kind),
+ * "the other two", "another Snowberry and Aster", "two Aster" (no guessed plural, as "Two Snowberry" in the crowding
+ * notice: a plant's name as a nursery says it).
+ */
+export function awaySaid(m: Shape, others: Shape[]): string {
+  const name = nameOf(m), same = others.filter((o) => nameOf(o) === name).length;
+  const rest = new Map<string, number>();
+  for (const o of others) if (nameOf(o) !== name) rest.set(nameOf(o), (rest.get(nameOf(o)) ?? 0) + 1);
+  const restSaid = [...rest].map(([n, k]) => (k === 1 ? n : `${inWords(k)} ${n}`));
+  const sameSaid = !same ? [] : !rest.size ? [same === 1 ? 'the other' : `the other ${inWords(same)}`] : [same === 1 ? `another ${name}` : `${inWords(same)} other ${name}`];
+  return listed([...sameSaid, ...restSaid]);
+}
 /** What Nudge apart says when it can't: why, so nothing is left to guess. */
 export function nudgeRefused(r: Extract<Nudge, { ok: false }>): string {
   if (r.why === 'apart') return 'They’re far enough apart already.';
   if (r.why === 'fixed') return 'Neither can be nudged: each is locked, or already in the ground.';
-  const m = r.mover!, o = r.other!;
-  const away = nameOf(m) === nameOf(o) ? `${nameOf(m)} away from the other` : `${nameOf(m)} away from ${nameOf(o)}`;
+  const m = r.mover!;
+  const away = `${nameOf(m)} away from ${awaySaid(m, r.others ?? [r.other!])}`;
   if (r.why === 'bed') {
     const bed = r.bed?.label?.trim() || 'its bed';
     return bedOf(m, state.shapes) ? `No room to nudge ${away} without leaving ${bed}.` : `No room to nudge ${away} without going into ${r.bed?.label?.trim() || 'a bed'}.`;
   }
   return `No room to nudge ${away}: it would crowd ${nameOf(r.third!)}.`;
 }
+/** Every plant `s` is close to or crowding (not those dismissed), `first` leading: what its Nudge apart moves it from. */
+export const nudgeList = (s: Shape, first?: Shape): Shape[] => nudgeTargets(s, shown(), plantsById, crowdOptions(), first);
 /**
- * Nudge apart, now: the newer of the two (or `prefer`, the one selected or just placed) moved just clear of the other,
- * one step, with a notice and its Undo. While placing, the step goes with the plant's placing: an Undo on the place bar
- * takes back the plant, its nudge with it (src/place.ts undoPlace). Whether it moved.
+ * A crowded pair's Nudge apart (Warnings): the one of the two that moves (the one selected, else the newer), away from
+ * every plant it's close to, the other first (Jason, Nov 4).
  */
-export function nudgeNow(a: Shape, b: Shape, prefer?: string): boolean {
+export function nudgePair(a: Shape, b: Shape, prefer?: string): boolean {
+  const pair = moverOf(a, b, state.shapes, prefer);
+  return pair ? nudgeNow(pair[0], nudgeList(pair[0], pair[1]), pair[0].id) : nudgeNow(a, b, prefer);
+}
+/**
+ * Nudge apart, now: `a` moved clear of `b` (several: of them all, `a` moving; one: the newer of the two, or `prefer`,
+ * the one selected or just placed), one step, with a notice and its Undo. While placing, the step goes with the plant's
+ * placing: an Undo on the place bar takes back the plant, its nudge with it (src/place.ts undoPlace). Whether it moved.
+ */
+export function nudgeNow(a: Shape, b: Shape | Shape[], prefer?: string): boolean {
   const r = nudgeApart(a, b, shown(), plantsById, { ...crowdOptions(), prefer, all: state.shapes });
   if (!r.ok) { toast(nudgeRefused(r), 6000); return false; }
   const m = state.shapes.find((x) => x.id === r.mover.id);
@@ -58,8 +88,8 @@ export function nudgeNow(a: Shape, b: Shape, prefer?: string): boolean {
   if (placed) (placed.also ??= []).push(state.history[state.historyIndex]);
   save();
   render();
-  const same = nameOf(m) === nameOf(r.other);
-  undoNotice(same ? `Nudged one ${nameOf(m)} ${f1(r.by)} ft away from the other.` : `Nudged ${nameOf(m)} ${f1(r.by)} ft away from ${nameOf(r.other)}.`, undefined, 'nudge-notice');
+  const one = r.others.some((o) => nameOf(o) === nameOf(m));
+  undoNotice(`Nudged ${one ? 'one ' : ''}${nameOf(m)} ${f1(r.by)} ft away from ${awaySaid(m, r.others)}.`, undefined, 'nudge-notice');
   const n = document.getElementById('toast-action');
   if (n) n.dataset.about = m.id; // (gone with the plant; kept off it: src/ui/toast.ts)
   return true;

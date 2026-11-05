@@ -486,7 +486,8 @@ export type Gesture =
   | { type: 'bg-drag'; startX: number; startY: number; grabOffset: Point; startCenter: Point; moved: boolean }
   | { type: 'bg-rot'; startAngle: number; startRotation: number; angleAt: (x: number, y: number) => number }
   | { type: 'bg-calibrate-tap'; startX: number; startY: number; startOffset: Point; moved: boolean }
-  | { type: 'drag-vertex'; id: string; index: number; startX: number; startY: number; moved: boolean; inserted: boolean }
+  /** `atX`, `atY`: where the pointer is now (client px), for the numbers kept clear of a finger (src/draw.ts). */
+  | { type: 'drag-vertex'; id: string; index: number; startX: number; startY: number; atX: number; atY: number; moved: boolean; inserted: boolean }
   // A sub-feature dragged along its shape's edges (src/features.ts): `start`, the shape's sub-features as it began.
   // A sub-feature dragged along its shape's edges: `grab`, where on it it was pressed (feet from its middle);
   // `historyAt`, the undo step it began on (an Undo mid-drag ends it).
@@ -527,7 +528,11 @@ export interface DrawState {
  */
 export interface TapSnap { to: 'corner' | 'edge'; shapeId: string; seg: [Point, Point]; angles: number[]; alt: Point }
 /** Editing the points of one outline/line; `vertex` is the selected point; `snap`, a point dragged onto another shape. */
-export interface EditPoints { id: string; vertex: number | null; snap?: TapSnap & { index: number; at: Point } }
+export interface EditPoints {
+  id: string; vertex: number | null; snap?: TapSnap & { index: number; at: Point };
+  /** A dragged corner stuck square (src/tidy.ts squareStick): which, and which of its walls. While dragging only. */
+  square?: { index: number; walls: ('before' | 'after')[] };
+}
 
 export interface AppState {
   projects: ProjectMeta[];

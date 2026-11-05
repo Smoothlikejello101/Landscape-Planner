@@ -20,7 +20,8 @@ export function supportName(sup: Pick<Support, 'shape' | 'kind'>): string {
   return sup.kind === 'tree' ? 'the tree' : sup.kind === 'shrub' ? 'the shrub' : sup.kind === 'arbor' ? 'the arbor'
     : sup.shape.role === 'building' ? 'the building' : sup.shape.role === 'structure' ? 'the trellis' : 'the line';
 }
-function offer(fresh: CircleShape[], sup: Support) {
+/** `about`: the shape just placed, drawn or moved that brought it up (a notice about the same placement waits for it). */
+function offer(fresh: CircleShape[], sup: Support, about: string) {
   if (!fresh.length) return;
   const who = fresh.length === 1 ? nameOf(fresh[0]) || 'This vine' : `${fresh.length} vines`;
   toastAction(`${who} could climb ${supportName(sup)}.`, [{
@@ -31,19 +32,21 @@ function offer(fresh: CircleShape[], sup: Support) {
       pushHistory(); save(); render();
     },
   }], 10000, 'vine-offer');
+  const n = document.getElementById('toast-action');
+  if (n) n.dataset.about = about; // (gone with it; kept off it: src/ui/toast.ts placeNotice)
 }
 /** A vine just placed or moved: the support near enough to mean it, offered. */
 export function offerSupport(v: Shape) {
   if (v.type !== 'circle') return;
   const sup = offerFor(v, state.shapes);
-  if (sup) offer([v], sup);
+  if (sup) offer([v], sup, v.id);
 }
 /** A tree, a fence or a building just placed, drawn or moved: offered to the vines it's near. */
 export function offerToVines(t: Shape) {
   const vines = vinesFor(t, state.shapes);
   if (!vines.length) return;
   const sup = offerFor(vines[0], state.shapes);
-  if (sup) offer(vines, sup);
+  if (sup) offer(vines, sup, t.id);
 }
 /**
  * Before a move is kept: the vines whose support moved out of their reach go back to a groundcover, in the same

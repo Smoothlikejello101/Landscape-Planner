@@ -288,3 +288,25 @@ test('a corner tapped right on a building\'s corner stays on it when the rest is
   await expect(field(page, 'Width (ft)')).toHaveValue('4');
   await expect(field(page, 'Length (ft)')).toHaveValue('4');
 });
+
+test('squaring, more readily (Jason, Nov 4): an L whose short wall was tapped 14° out comes out square; a corner dragged near square sticks there, marked, until let go', async ({ page }) => {
+  await openFresh(page);
+  await addKind(page, 'bed', 'poly');
+  for (const [x, y] of [[2, 2], [14, 2], [14, 6], [8, 7.5], [8, 12], [2, 12], [2, 2]]) await tapFt(page, x, y);
+  await expect(page.locator('#toast-action')).toContainText('Squared the corners (moved up to 0.8 ft).');
+  await page.getByTestId('pill-edit-points').click();
+  const vertex = page.locator('#canvas-svg [data-role=vertex][data-index="2"]');
+  const from = await middleOf(page, '#canvas-svg [data-role=vertex][data-index="2"]');
+  const to = await at(page, 14.3, 9.2); // (2.4° off the wall from the corner before it)
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(to.x, to.y, { steps: 6 });
+  // Held on the line of its wall: the wall lit faintly, the corner before it marked square.
+  await expect(page.locator('#canvas-svg [data-role=square-wall]')).toHaveCount(1);
+  await expect(page.locator('#canvas-svg [data-role=square-mark][data-at="1"]')).toHaveCount(1);
+  const held = (await vertex.boundingBox())!, wall = (await page.locator('#canvas-svg [data-role=vertex][data-index="1"]').boundingBox())!;
+  expect(Math.abs(held.x - wall.x)).toBeLessThan(0.5); // (straight above the corner before it, not under the pointer)
+  await page.mouse.up();
+  await expect(page.locator('#canvas-svg [data-role=square-mark], #canvas-svg [data-role=square-wall]')).toHaveCount(0);
+  await expect(page.locator('#canvas-svg [data-role=side-length]').nth(1)).toHaveText('7 ft');
+});

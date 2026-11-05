@@ -71,7 +71,7 @@ function drawingSection(): HTMLElement {
     wrap.appendChild(el('label', { className: 'check-row' }, box, el('span', {}, text)));
   };
   check('snap-drawing', snapOn(), setSnapOn, 'Snap to nearby edges and corners');
-  check('square-drawing', squareOn(), setSquareOn, 'Square nearly-square outlines, level nearly-level rectangles');
+  check('square-drawing', squareOn(), setSquareOn, 'Square nearly-square outlines and corners as you move them, level nearly-level rectangles');
   // The + and − buttons: off on a phone to start (a pinch zooms), for zooming with one finger (src/view-settings.ts).
   check('zoom-buttons', state.zoomButtons, (v) => { setZoomButtons(v); render(); }, 'Zoom buttons (+ and −), to zoom with one finger');
   wrap.appendChild(el('div', { className: 'hint' },

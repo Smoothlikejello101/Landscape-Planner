@@ -17,7 +17,7 @@ import { alreadyThere } from '../status';
 import { I } from '../icons';
 import { crowdOptions, hardyHere } from '../crowd-here';
 import { flagAgain, leaveClose } from './crowd-notice';
-import { nudgeNow, swapButton } from './fix-problem';
+import { nudgeList, nudgeNow, swapButton } from './fix-problem';
 import { shownWith } from '../status';
 import { sqFt } from '../util';
 import { emptyTimeline, timeRange } from './time-range';
@@ -351,9 +351,11 @@ export function crowdingNote(s: Shape): HTMLElement | null {
   // Dismissed after the fact, as the notice's Dismiss does as a plant is placed (Jason, 2026-10-27); Show again takes it back.
   // Fixed from here (Jason's UI review, Nov 2): nudged clear of the nearest, this plant moving; or swapped for a smaller
   // one, its own smaller forms first, the list filtered for the width that fits (src/ui/fix-problem.ts).
+  // (Away from all of them at once, since Nov 4: Jason, from three placed in a triangle. It was "Nudge apart from" the
+  // nearest.)
   const first = crowds[0].other;
-  const nudge = el('button', { className: 'btn', 'data-testid': 'fix-nudge', style: { marginTop: '6px' } }, crowds.length === 1 ? 'Nudge apart' : `Nudge apart from ${first.label || 'a plant'}`);
-  nudge.addEventListener('click', () => { nudgeNow(s, first, s.id); });
+  const nudge = el('button', { className: 'btn', 'data-testid': 'fix-nudge', style: { marginTop: '6px' } }, 'Nudge apart');
+  nudge.addEventListener('click', () => { nudgeNow(s, nudgeList(s, first), s.id); });
   const leave = el('button', { className: 'btn', 'data-testid': 'leave-close', style: { marginTop: '6px' } }, crowds.length === 1 ? 'Dismiss for this pair' : `Dismiss for these ${crowds.length} pairs`);
   leave.addEventListener('click', () => leaveClose(s.id, crowds.map((c) => c.other.id)));
   body.append(el('div', { className: 'crowd-fixes' }, nudge, s.plantId && plantsById[s.plantId] ? swapButton('big', [s], 'Swap for a smaller plant\u2026', 'btn') : null, leave));
