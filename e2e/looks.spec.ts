@@ -126,7 +126,7 @@ test("a hidden plant's pin shrinks as the plan zooms out and goes below 85%, and
   await expect(pins).toHaveCount(1);
 });
 
-test('the tallest plant is drawn on top, see-through as a canopy over a plant growing under it (Jason, Oct 30)', async ({ page }) => {
+test('the tallest plant is drawn on top, solid (Jason, Oct 30; Nov 4), the plant growing under it pinned and seen through it while selected', async ({ page }) => {
   await openFresh(page);
   const place = async (name: string, dx: number) => {
     await page.locator('.tool-btn.plants').click();
@@ -141,13 +141,18 @@ test('the tallest plant is drawn on top, see-through as a canopy over a plant gr
   const groups = page.locator('#canvas-svg [data-shape-group]');
   const names = await groups.evaluateAll((gs) => gs.map((g) => g.querySelector('text')?.textContent ?? ''));
   expect(names.findIndex((n) => /Buttonbush/.test(n))).toBeGreaterThan(names.findIndex((n) => /phlox/i.test(n)));
-  await expect(page.locator('#canvas-svg [data-role=plant-look][data-see-through=true]')).toHaveCount(1);
-  // A tap on the phlox, through the shrub, picks the phlox; elsewhere on the shrub, the shrub.
+  // (Solid, like any other plant: Jason, Nov 4. The phlox under it pinned.)
+  await expect(page.locator('#canvas-svg [data-role=plant-look][data-see-through=true]')).toHaveCount(0);
+  await expect(page.locator('#canvas-svg g[data-role=hidden-over] [data-role=hidden-rim]')).toHaveCount(1);
+  // A tap on the phlox, through the shrub, picks the phlox, and the shrub is seen through while it's picked; elsewhere
+  // on the shrub, the shrub.
   await page.keyboard.press('Escape');
   await page.waitForTimeout(450); // (not a double tap)
   await tapFromCenter(page, 0, 0);
   await expect(page.locator('.sel-pill .name')).toHaveText('Creeping Phlox');
+  await expect(page.locator('#canvas-svg [data-role=plant-look][data-see-through=true]')).toHaveCount(1);
   await page.keyboard.press('Escape');
+  await expect(page.locator('#canvas-svg [data-role=plant-look][data-see-through=true]')).toHaveCount(0);
   await page.waitForTimeout(450);
   await tapFromCenter(page, 3, 0);
   await expect(page.locator('.sel-pill .name')).toHaveText('Buttonbush');

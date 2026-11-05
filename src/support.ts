@@ -29,6 +29,9 @@ export const SETTING_KEYS = [
   'lp-app-version', 'lp-visits', 'lp-saved-here', 'lp-visit-counted',
   // (The install card, src/install.ts: had its turn on this device, or the app installed.)
   'lp-install-card',
+  // (Tall plants, src/view-settings.ts: Layers' "See through tall plants" and its height; how paper and pictures draw
+  // the plants under taller ones.)
+  'lp-see-through', 'lp-see-through-from', 'lp-print-under',
 ];
 /** Data, by name and size: exact keys, and prefixes (a project per key, an unsaved-edits journal per project). */
 export const DATA_KEYS = ['lp-projects', 'lp-clipboard', ERROR_LOG_KEY];

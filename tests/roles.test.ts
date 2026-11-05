@@ -39,7 +39,7 @@ describe('drawing order', () => {
     expect(drawnHeight(state.shapes[0] as CircleShape)).toBe(12);
     expect(drawnHeight(state.shapes[4] as CircleShape)).toBe(6); // (3 ft radius, no height: its spread)
   });
-  it('draws a plant 5 ft or taller see-through, every copy alike; under a shorter, solid one, a plant whose middle it covers is outlined over it (Jason, Oct 30)', () => {
+  it('draws every plant solid, tall ones too, and pins what a plant covers the middle of; with Layers\' "See through tall plants", 5 ft or taller see-through, as from Oct 30 (Jason, Nov 4)', () => {
     const c = (id: string, x: number, radius: number, extra: Partial<Shape> = {}) => ({ id, type: 'circle', x, y: 0, radius, color: '#16a34a', label: id, opacity: 0.65, locked: false, role: 'plant', ...extra } as Shape);
     plantsById['t-hazel'] = { id: 't-hazel', common: 'Witch hazel', form: 'Shrub', height: { min: 10, max: 15, med: 12 } } as Plant;
     plantsById['t-mint'] = { id: 't-mint', common: 'Mountain mint', form: 'Perennial', height: { min: 3, max: 4, med: 3.5 } } as Plant;
@@ -52,11 +52,19 @@ describe('drawing order', () => {
       c('wide', 80, 3), // (no height known: its spread, 6 ft, stands in)
       c('mint3', 100, 1.25, mint), c('mint4', 100.5, 1.25, mint), // (a mass planting: a mint under a mint isn't marked)
     ];
-    expect([...seeThroughIds(state.shapes)].sort()).toEqual(['hazel', 'hazel2', 'wide']);
-    // (Under a canopy, seen through it; under the solid mint, marked; a gone plant counts for nothing, nor one under its
-    // own kind.)
-    expect([...hiddenIds(state.shapes)].sort()).toEqual(['underMint']);
-    expect(hiddenCovers(state.shapes).get('underMint')).toEqual(['mint']);
+    // (Solid, as the plan rests, Layers' switch off: the witch hazel like the mint, the ginger under it pinned.)
+    expect([...seeThroughIds(state.shapes, state.viewFilter, null)]).toEqual([]);
+    expect([...hiddenIds(state.shapes, state.viewFilter, new Set())].sort()).toEqual(['underHazel', 'underMint']);
+    expect(hiddenCovers(state.shapes, state.viewFilter, new Set()).get('underHazel')).toEqual(['hazel']);
+    // (The switch on, from 5 ft: as from Oct 30 to Nov 4. Under a canopy, seen through it; under the solid mint, marked;
+    // a gone plant counts for nothing, nor one under its own kind.)
+    const thin = seeThroughIds(state.shapes, state.viewFilter, 5);
+    expect([...thin].sort()).toEqual(['hazel', 'hazel2', 'wide']);
+    expect([...hiddenIds(state.shapes, state.viewFilter, thin)].sort()).toEqual(['underMint']);
+    expect(hiddenCovers(state.shapes, state.viewFilter, thin).get('underMint')).toEqual(['mint']);
+    // (From 10 ft, the witch hazel, 12 ft, alone; the 6 ft stand-in solid. From 3 ft, the mints too.)
+    expect([...seeThroughIds(state.shapes, state.viewFilter, 10)].sort()).toEqual(['hazel', 'hazel2']);
+    expect([...seeThroughIds(state.shapes, state.viewFilter, 3)].sort()).toEqual(['hazel', 'hazel2', 'mint', 'mint2', 'mint3', 'mint4', 'wide']);
   });
   it('names a run of the same plant once: twelve liriope in a column are one run; a gap, another name or two alone are not (Jason, Oct 30)', () => {
     const c = (id: string, label: string, x: number, y: number) => ({ id, type: 'circle', x, y, radius: 0.75, color: '#16a34a', label, opacity: 0.65, locked: false, role: 'plant' } as CircleShape);
