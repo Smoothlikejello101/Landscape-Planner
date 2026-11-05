@@ -1,14 +1,15 @@
 import { test, expect, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
-import { openExport, shapeCount } from './helpers';
+import { closeSheet, field, openExport, shapeCount } from './helpers';
 
 // Tall plants (Jason, Nov 4, answering the options page: "1) D 2) C by default, but with a printing option for same as
 // on screen with numbered dots. 3) yes, maybe with a few height options as long as it doesn't confuse the layers page too
 // much"). On the screen every plant is solid, tall ones like any other; a plant under one is pinned, and selecting it
 // makes what covers it see-through until it's let go. Layers can see through every tall plant at once, from a height.
 // On paper and in pictures, a tall plant is faded only where it covers a shorter one, or, chosen in Print, drawn as on
-// the screen with the plants under it numbered dots and a key.
+// the screen with the plants under it numbered dots and a key: a choice kept with the plan since Nov 4 (Jason: "Add the
+// storage to keep this print option to the plan"), as its other print settings are.
 
 const base = { color: '#16a34a', opacity: 0.65, locked: false };
 const plant = (id: string, plantId: string, label: string, x: number, y: number, radius: number) => ({ ...base, id, type: 'circle', role: 'plant', plantId, label, x, y, radius });
@@ -150,7 +151,7 @@ async function openPrint(page: Page) {
 }
 const pickUnder = (page: Page, name: string) => page.getByTestId('print-under').getByRole('button', { name });
 
-test('print: windows over the plants under tall ones to start; "As on screen" prints numbered dots with a key, kept on this device; the picture follows', async ({ page }) => {
+test('print: windows over the plants under tall ones to start; "As on screen" prints numbered dots with a key, kept with the plan; the picture follows', async ({ page }) => {
   await openPlan(page);
   await openPrint(page);
   await expect(pickUnder(page, 'Show through')).toHaveAttribute('aria-pressed', 'true');
@@ -175,7 +176,7 @@ test('print: windows over the plants under tall ones to start; "As on screen" pr
   const listed = await makePdf(page);
   expect(listed).not.toContain('Plants under taller ones');
   expect(listed).toContain('Plant under a taller one, numbered as in the plant list');
-  // Kept on this device, and the picture follows: numbered dots, and their key under the drawing.
+  // Kept with the plan, and the picture follows: numbered dots, and their key under the drawing.
   await page.reload();
   await expect.poll(() => shapeCount(page)).toBe(BED.length);
   await openExport(page);
@@ -192,4 +193,115 @@ test('print: windows over the plants under tall ones to start; "As on screen" pr
   const shown = await page.locator('details textarea').inputValue();
   expect(shown).toContain('data-role="tall-window"');
   expect(shown).not.toContain('Under taller plants:');
+});
+
+/**
+ * Plans put in place before the app opens (as a version before Oct 11 kept them: copied in at the first start), the first
+ * one open; `device`: this device's own choice for the plants under taller ones, as #228 kept it (Nov 4, on Next).
+ */
+async function openPlans(page: Page, plans: { id: string; name: string; shapes: object[] }[], device?: string) {
+  await page.addInitScript(({ plans, device }) => {
+    if (sessionStorage.getItem('seeded')) return;
+    sessionStorage.setItem('seeded', '1');
+    localStorage.setItem('lp-projects', JSON.stringify(plans.map((p, i) => ({ id: p.id, name: p.name, lastModified: 1000 - i }))));
+    for (const p of plans) localStorage.setItem('lp-project-' + p.id, JSON.stringify({ shapes: p.shapes, zoom: 1.25, offsetX: -6, offsetY: -8 }));
+    localStorage.setItem('lp-current', plans[0].id);
+    if (device) localStorage.setItem('lp-print-under', device);
+  }, { plans, device: device ?? null });
+  await page.goto('./');
+  await expect(page.locator('.project-btn .pname')).toHaveText(plans[0].name);
+  await expect.poll(() => shapeCount(page)).toBe(plans[0].shapes.length);
+  await expect(page.getByTestId('warnings-btn')).not.toHaveAttribute('data-state', 'checking');
+}
+const TWO = [{ id: 'p1', name: 'Back Yard', shapes: BED }, { id: 'p2', name: 'Front', shapes: BED }];
+/** Each plan's print settings as stored, by name. */
+const storedPrint = (page: Page) => page.evaluate(() => new Promise<Record<string, Record<string, unknown>>>((resolve) => {
+  const open = indexedDB.open('landscape-planner');
+  open.onsuccess = () => {
+    const db = open.result, tx = db.transaction(['meta', 'projects']);
+    const metas = tx.objectStore('meta').getAll(), plans = tx.objectStore('projects').getAll(), ids = tx.objectStore('projects').getAllKeys();
+    tx.oncomplete = () => {
+      const byId = Object.fromEntries((ids.result as string[]).map((k, i) => [k, (plans.result[i] as { print: Record<string, unknown> }).print]));
+      resolve(Object.fromEntries((metas.result as { id: string; name: string }[]).map((m) => [m.name, byId[m.id]])));
+      db.close();
+    };
+  };
+}));
+const storedUnder = async (page: Page) => Object.fromEntries(Object.entries(await storedPrint(page)).map(([n, p]) => [n, 'under' in p ? p.under : 'none']));
+const deviceKey = (page: Page) => page.evaluate(() => localStorage.getItem('lp-print-under'));
+async function switchTo(page: Page, name: string) {
+  await page.locator('.project-btn').click();
+  await page.locator('.proj-row', { hasText: name }).click();
+  await expect(page.locator('.project-btn .pname')).toHaveText(name);
+  await expect.poll(() => shapeCount(page)).toBe(BED.length);
+}
+const noPlantList = (page: Page) => page.locator('.check-row', { hasText: 'Plant list, grouped by bed' }).locator('input').uncheck();
+
+test('the choice is kept with the plan: after a reload and switching plans, each plan its own; a plan never picked prints "Show through"; nothing kept on the device', async ({ page }) => {
+  await openPlans(page, TWO);
+  await openPrint(page);
+  await expect(pickUnder(page, 'Show through')).toHaveAttribute('aria-pressed', 'true');
+  await page.waitForTimeout(600); // (Print opened, nothing picked: nothing written for it)
+  expect(await storedUnder(page)).toEqual({ 'Back Yard': 'none', Front: 'none' });
+  await pickUnder(page, 'As on screen').click();
+  await expect.poll(() => storedUnder(page)).toEqual({ 'Back Yard': 'screen', Front: 'none' });
+  expect(await deviceKey(page)).toBeNull();
+  await closeSheet(page);
+  // The other plan, never picked: Show through, and it prints so.
+  await switchTo(page, 'Front');
+  await openPrint(page);
+  await expect(pickUnder(page, 'Show through')).toHaveAttribute('aria-pressed', 'true');
+  await noPlantList(page);
+  const front = await makePdf(page);
+  expect(front).not.toContain('Plants under taller ones');
+  expect(front).not.toContain('Plant under a taller one');
+  await closeSheet(page);
+  await switchTo(page, 'Back Yard');
+  await openPrint(page);
+  await expect(pickUnder(page, 'As on screen')).toHaveAttribute('aria-pressed', 'true');
+  await closeSheet(page);
+  // After a reload, each its own still, in Print and in Export.
+  await page.reload();
+  await expect.poll(() => shapeCount(page)).toBe(BED.length);
+  await openExport(page);
+  await expect(pickUnder(page, 'As on screen')).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await switchTo(page, 'Front');
+  await openPrint(page);
+  await expect(pickUnder(page, 'Show through')).toHaveAttribute('aria-pressed', 'true');
+  // Show through picked, after As on screen: kept as picked.
+  await pickUnder(page, 'As on screen').click();
+  await pickUnder(page, 'Show through').click();
+  await expect.poll(() => storedUnder(page)).toEqual({ 'Back Yard': 'screen', Front: 'windows' });
+  expect(await deviceKey(page)).toBeNull();
+});
+
+test("a plan never picked starts from this device's earlier choice (as #228 kept it), and nothing is written to the plan for it; picked, it's the plan's, and the device's is never written", async ({ page }) => {
+  await openPlans(page, TWO, 'screen');
+  await openPrint(page);
+  await expect(pickUnder(page, 'As on screen')).toHaveAttribute('aria-pressed', 'true');
+  await noPlantList(page);
+  expect(await makePdf(page)).toContain('Plants under taller ones (1)');
+  // Another print setting changed, and saved: still none picked in the plan.
+  await field(page, 'Title').fill('Back yard plan');
+  await expect.poll(async () => (await storedPrint(page))['Back Yard'].title).toBe('Back yard plan');
+  expect(await storedUnder(page)).toEqual({ 'Back Yard': 'none', Front: 'none' });
+  // Picked: the plan's, Show through too; the device's as it was.
+  await pickUnder(page, 'Show through').click();
+  await expect.poll(() => storedUnder(page)).toEqual({ 'Back Yard': 'windows', Front: 'none' });
+  expect(await makePdf(page)).not.toContain('Plants under taller ones');
+  expect(await deviceKey(page)).toBe('screen');
+  await closeSheet(page);
+  await page.reload();
+  await expect.poll(() => shapeCount(page)).toBe(BED.length);
+  await openPrint(page);
+  await expect(pickUnder(page, 'Show through')).toHaveAttribute('aria-pressed', 'true');
+  await closeSheet(page);
+  // The other plan, never picked, still starts from the device's.
+  await switchTo(page, 'Front');
+  await openExport(page);
+  await expect(pickUnder(page, 'As on screen')).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  expect(await storedUnder(page)).toEqual({ 'Back Yard': 'windows', Front: 'none' });
+  expect(await deviceKey(page)).toBe('screen');
 });

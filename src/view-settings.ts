@@ -2,7 +2,11 @@
 //
 // Kept on this device across reloads (not saved with the plan): full-size rings on every plant; plants drawn as
 // illustrations (src/looks.ts) or as plain circles (drawn unless turned off), set in Layers; the zoom buttons; tall
-// plants seen through, from a height, set in Layers; how paper and pictures draw the plants under taller ones.
+// plants seen through, from a height, set in Layers.
+//
+// Kept with the plan since Nov 4, with its other print settings (Jason: "Add the storage to keep this print option to
+// the plan"): how paper and pictures draw the plants under taller ones (printUnder, below). A plan that has never had
+// it chosen starts from what this device had before.
 //
 // Kept with the plan since Nov 1 (Jason approved the Warnings mock-ups: "What's checked (and dismissed) goes with this
 // plan, on all your devices"): Settings → Warnings' switches. Plants close to others ringed amber and crowded ones red,
@@ -13,7 +17,7 @@
 // change with the update; the keys are only read for that now, and left in place for an older version of the app.
 import { state } from './state';
 import { save } from './storage';
-import type { PlanSwitches, PrintUnder, WarningSwitch } from './types';
+import type { PlanSwitches, PrintSettings, PrintUnder, WarningSwitch } from './types';
 import { now } from './util';
 
 const FULL_RINGS = 'lp-full-rings', LOOKS = 'lp-plant-looks';
@@ -38,20 +42,42 @@ const write = (key: string, on: boolean) => { try { localStorage.setItem(key, on
 
 /**
  * Tall plants (Jason, Nov 4, answering the options page: "D" on the screen, "C" on paper, and a Layers switch "maybe with
- * a few height options"): Layers' "See through tall plants", off unless turned on, and the height it goes from; and
- * how paper and pictures draw the plants under taller ones, windows unless changed in Print. Kept on this device, as the
- * switches beside them in Layers are (the plan's print settings would be a change to what's stored with it).
+ * a few height options"): Layers' "See through tall plants", off unless turned on, and the height it goes from. Kept on
+ * this device, as the switches beside them in Layers are.
  */
-const SEE_THROUGH = 'lp-see-through', SEE_THROUGH_FROM = 'lp-see-through-from', PRINT_UNDER = 'lp-print-under';
+const SEE_THROUGH = 'lp-see-through', SEE_THROUGH_FROM = 'lp-see-through-from';
 /** The heights (ft) "See through tall plants" can go from: 5, as every plant that tall was drawn until Nov 4. */
 export const SEE_THROUGH_HEIGHTS = [3, 5, 10] as const;
 export const SEE_THROUGH_DEFAULT = 5;
 const readHeight = (): number => {
   try { const v = Number(localStorage.getItem(SEE_THROUGH_FROM)); return (SEE_THROUGH_HEIGHTS as readonly number[]).includes(v) ? v : SEE_THROUGH_DEFAULT; } catch { return SEE_THROUGH_DEFAULT; }
 };
+
+/**
+ * How paper and pictures draw the plants under taller ones (Jason, Nov 4: "C by default, but with a printing option for
+ * same as on screen with numbered dots"): the open plan's, PrintSettings `under`, Show through unless picked in Print or
+ * Export, and kept with the plan since Nov 4 (database version 6). Before that, on Next (#228), it was kept on this device
+ * instead, in 'lp-print-under': a plan that has never had one picked starts from what this device had there,
+ * read once as the app starts (underFromThisDevice). Nothing is written to the plan for that, not even when it's saved
+ * for another edit: only picking one in Print or Export writes the plan's (setPrintUnder). And nothing writes the
+ * device's any more: it stays as #228 left it, read only for this (src/support.ts lists it).
+ */
+const PRINT_UNDER = 'lp-print-under';
 const readUnder = (): PrintUnder => {
   try { return localStorage.getItem(PRINT_UNDER) === 'screen' ? 'screen' : 'windows'; } catch { return 'windows'; }
 };
+let underHere: PrintUnder | undefined;
+/** Where a plan that has never had it picked starts, on this device: As on screen where this device had chosen it before. */
+export function underFromThisDevice(): PrintUnder { return (underHere ??= readUnder()); }
+/** How print settings draw the plants under taller ones on this device: as picked for the plan, or where it starts. */
+export const underOf = (p: Pick<PrintSettings, 'under'> | null | undefined): PrintUnder => p?.under ?? underFromThisDevice();
+/** The open plan's, for Print and Export. */
+export const printUnder = (): PrintUnder => underOf(state.print);
+/** Picked in Print or Export: the open plan's, an edit of the plan, saved with it (Show through too, once picked). */
+export function setPrintUnder(v: PrintUnder) {
+  state.print = { ...state.print, under: v };
+  save();
+}
 
 /** At start: this device's own settings, as they were left. (The warning switches come with the plan opened.) */
 export function loadViewSettings() {
@@ -60,7 +86,7 @@ export function loadViewSettings() {
   state.zoomButtons = read(ZOOM_BTNS, !touchOnly());
   state.seeThroughTall = read(SEE_THROUGH, false);
   state.seeThroughFrom = readHeight();
-  state.printUnder = readUnder();
+  underHere = readUnder();
 }
 export function setShowFullSize(on: boolean) { state.showFullSize = on; write(FULL_RINGS, on); }
 export function setPlantLooks(on: boolean) { state.plantLooks = on; write(LOOKS, on); }
@@ -71,11 +97,6 @@ export function setSeeThroughFrom(ft: number) {
   state.seeThroughFrom = ft;
   try { localStorage.setItem(SEE_THROUGH_FROM, String(ft)); } catch { /* this session only */ }
 }
-export function setPrintUnder(v: PrintUnder) {
-  state.printUnder = v;
-  try { localStorage.setItem(PRINT_UNDER, v); } catch { /* this session only */ }
-}
-
 /**
  * A plan from before plans kept the warning switches: as this device had them (on, where never turned off). No `at`:
  * never switched in the plan, so another device's, switched there or taken the same way, settles with it.

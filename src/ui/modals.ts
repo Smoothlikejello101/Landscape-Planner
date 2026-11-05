@@ -41,7 +41,7 @@ export function renderExportModal() {
     el('div', { className: 'sheet-body' },
       el('div', { style: { fontSize: ts(14), color: '#57534e' } }, 'The printable plan is a to-scale sheet with a title, scale bar, north arrow, legend and plant list. PNG and SVG are just the drawing.'),
       picker,
-      // (The plants under taller ones as Print draws them: the same choice, on this device. Jason, Nov 4.)
+      // (The plants under taller ones as Print draws them: the same choice, the plan's. Jason, Nov 4.)
       state.shapes.some(isPlant) ? underPicker(() => render()) : null,
       el('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px' } }, printBtn, pngBtn, svgBtn, cancelBtn)
     )

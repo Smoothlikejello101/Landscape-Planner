@@ -191,7 +191,7 @@ test('a version-4 page’s unsaved edits to a plan saved at 5 are kept apart: th
     projects: { p1: { ...plan, shapes: [circle('oak', 'Old oak'), { ...house, measured: TYPED }], bgImage: { ...bg, roughScale: true }, dbVersion: DB_VERSION, savedByPage: 'page-new', savedAt: 1000, savedSeq: 3 } },
     images: { 'p1/img1': { dataUrl: PNG, createdAt: 1 } },
   };
-  expect(DB_VERSION).toBe(5);
+  expect(DB_VERSION).toBeGreaterThanOrEqual(5);
   const other = await otherTab(context);
   await holdAt(other, DB_VERSION, SAVED_AT_5);
   await other.evaluate(() => { (window as unknown as { held: IDBDatabase }).held.close(); });
@@ -215,6 +215,38 @@ test('a version-4 page’s unsaved edits to a plan saved at 5 are kept apart: th
   expect(apart.shapes.find((s) => s.label === 'House')).toMatchObject({ x: 9 });
   expect(apart.shapes.find((s) => s.label === 'House')).not.toHaveProperty('measured');
   expect(apart.bgImage).not.toHaveProperty('roughScale');
+  expect(await journals(other)).toEqual([]);
+});
+
+// A plan's print choice for the plants under taller ones came with database version 6; a version-5 page drops it. Its
+// unsaved edits, a journal written without it, are kept as a plan of their own, never put over a plan saved at 6.
+test('a version-5 page’s unsaved edits to a plan saved at 6 are kept apart: the plan keeps its print choice', async ({ page, context }) => {
+  const plan = RELEASE3.projects.p1 as Record<string, unknown>;
+  const PRINT = { paper: 'tabloid', orientation: 'auto', title: 'Back Yard plan', subtitle: '', includeBackground: false, includeGrid: true, includePlantList: true, includeFullRings: false, northDeg: 0, statusFilter: '', phaseFilter: '' };
+  const SAVED_AT_6: Records = {
+    ...RELEASE3,
+    projects: { p1: { ...plan, print: { ...PRINT, under: 'screen' }, dbVersion: DB_VERSION, savedByPage: 'page-new', savedAt: 1000, savedSeq: 3 } },
+  };
+  expect(DB_VERSION).toBe(6);
+  const other = await otherTab(context);
+  await holdAt(other, DB_VERSION, SAVED_AT_6);
+  await other.evaluate(() => { (window as unknown as { held: IDBDatabase }).held.close(); });
+  // The version-5 page's journal: later than the plan's last save, its print settings without the choice, and a circle
+  // of its own.
+  const journal = { projectId: 'p1', at: 2000, dbVersion: 5, page: 'page-v5', seq: 7, data: { ...plan, print: PRINT, shapes: [...(plan.shapes as object[]), circle('new', 'Drawn in the older tab')] } };
+  await other.evaluate((j) => { localStorage.setItem(`lp-journal:p1@${j.page}`, JSON.stringify(j)); }, journal);
+
+  await page.goto('./');
+  await expect(page.locator('.project-btn .pname')).toHaveText('Back Yard');
+  await expect(page.getByTestId('kept-apart')).toContainText('“Back Yard (from an older tab)”');
+  const after = await dump(other);
+  const byName = Object.fromEntries(Object.entries(after.stores.meta).map(([id, m]) => [(m as { name: string }).name, after.stores.projects[id] as { shapes: Record<string, unknown>[]; print: Record<string, unknown> }]));
+  expect(Object.keys(byName).sort()).toEqual(['Back Yard', 'Back Yard (from an older tab)']);
+  expect(byName['Back Yard'].print).toEqual({ ...PRINT, under: 'screen' });
+  expect(byName['Back Yard'].shapes.map((s) => s.label)).not.toContain('Drawn in the older tab');
+  const apart = byName['Back Yard (from an older tab)'];
+  expect(apart.shapes.map((s) => s.label)).toContain('Drawn in the older tab');
+  expect(apart.print).toEqual(PRINT);
   expect(await journals(other)).toEqual([]);
 });
 

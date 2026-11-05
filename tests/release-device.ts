@@ -1,13 +1,14 @@
 // A device for sync tests, of this version or still on the release (tests/sync-release.test.ts,
-// tests/photo-storage.test.ts): `release`, it reads shapes and photos as the release does, lays a synced placement of
+// tests/photo-storage.test.ts): `release`, it reads shapes, photos and print settings as the release does, lays a synced placement of
 // the same photo over its own (the release's placePhoto), and syncs with the release's own engine
 // (tests/fixtures/release-engine.ts).
 import { syncOnce, type Local, type LocalProject, type ProjectContent, type SyncRecord } from '../src/sync/engine';
 import { syncOnce as releaseSyncOnce } from './fixtures/release-engine';
 import type { FakeServer } from './fake-sync-server';
-import { migrateShape, sanitizePhotoRef } from '../src/storage';
+import { migrateShape, sanitizePhotoRef, sanitizePrint } from '../src/storage';
 import { releaseMigrateShape } from './fixtures/release-migrate-shape';
 import { releaseSanitizePhotoRef } from './fixtures/release-photo';
+import { releaseSanitizePrint } from './fixtures/release-print';
 
 let nextId = 0;
 export const FP = 'c'.repeat(64);
@@ -25,6 +26,7 @@ export class Dev implements Local {
     const mig = this.release ? releaseMigrateShape : migrateShape;
     if (Array.isArray(out.shapes)) out.shapes = out.shapes.map((x) => mig(x)).filter((x) => x !== null);
     if ('photo' in out) out.photo = (this.release ? releaseSanitizePhotoRef : sanitizePhotoRef)(out.photo);
+    if ('print' in out) out.print = (this.release ? releaseSanitizePrint : sanitizePrint)(out.print);
     return out;
   }
   add(name: string, shapes: unknown[], photo: object | null) {
