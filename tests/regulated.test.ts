@@ -308,3 +308,18 @@ describe('what the matcher is given', () => {
     ]);
   });
 });
+
+describe('an accepted subspecies or variety (Jason, Nov 5: Amur maple)', () => {
+  it('is allowed, and takes in only that one, by the catalog\'s own name', () => {
+    const list = (plants: object[]) => ({ v: 1, jurisdictions: [{ code: 'XX', title: 't', url: 'https://example.gov', edition: 'e', read: '2026-11-05', classes: { ban: 'b' }, tiers: { ban: 'ban' }, plants }] });
+    const data = list([{ name: 'Acer ginnala', accepted: 'Acer tataricum subsp. ginnala', class: 'ban' }]);
+    expect(problems(data)).toEqual([]);
+    expect(problems(list([{ name: 'Acer ginnala', accepted: 'Acer tataricum ginnala', class: 'ban' }]))).toEqual(['XX Acer ginnala: bad accepted name']);
+    const plants = [
+      { id: 'amur', botanical: 'Acer tataricum subsp. ginnala', binomial: 'Acer tataricum' },
+      { id: 'amur-flame', botanical: "Acer tataricum subsp. ginnala 'Flame'", binomial: 'Acer tataricum' },
+      { id: 'tatarian', botanical: 'Acer tataricum', binomial: 'Acer tataricum' },
+    ];
+    expect(regulatedPlants(data, plants, { amur: 'Acer tataricum', 'amur-flame': 'Acer tataricum', tatarian: 'Acer tataricum' })).toEqual({ XX: { amur: 'ban', 'amur-flame': 'ban' } });
+  });
+});

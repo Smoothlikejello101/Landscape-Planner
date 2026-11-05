@@ -128,6 +128,8 @@ export interface Plant {
   clay_ok?: boolean;
   /** The soil textures it grows in, as NC State lists them: clay, loam, sand (src/catalog.ts SOIL_TEXTURES). */
   soil_texture?: string[];
+  /** Its other soils in NC State's field: organic (high organic matter), rocky (shallow rocky). Shown, never a filter. */
+  soil_also?: string[];
   wet_feet?: boolean;
   dry_shade?: boolean;
   taproot?: boolean;
@@ -252,8 +254,9 @@ export const PLANT_FILTER_DEFAULTS = {
    */
   sunRange: '',
   /**
-   * A clay bed: plants rated Clay OK, and plants no source rates for clay (listed below a divider: noClayRating; Jason,
-   * Nov 2, answer D); not one rated otherwise. Set only by a bed the picker plants for; the person's own is `clayOk`.
+   * A clay bed: plants rated for clay, and plants no source rates for clay (listed below a divider: noSoilRating; Jason,
+   * Nov 2, answer D); not one rated otherwise, nor one NC State rates only for other soils (Jason, Nov 5: clayRating).
+   * Set only by a bed the picker plants for; the person's own is `clayOk`.
    */
   clayBed: false,
   /**
@@ -567,9 +570,10 @@ export function plantMatches(p: Plant, f: PlantFilter, inPlan?: Set<string>): bo
   if (f.form && !formsOf(p).includes(f.form)) return false;
   if (f.water && !waterWanted(f.water).includes(p.water ?? '')) return false;
   if (f.sun && !plantTakesSun(p, f.sun)) return false;
-  // (A bed's sun: some of it, Jason's answer A. A bed's clay: rated Clay OK, or not rated at all, answer D.)
+  // (A bed's sun: some of it, Jason's answer A. A bed's clay: rated for clay, or not rated at all, answer D; not one
+  // rated only for other soils, as loam and sandy (Jason, Nov 5): clayRating.)
   if (f.sunRange && !sunFit(p, f.sunRange)) return false;
-  if (f.clayBed && p.clay_ok === false) return false;
+  if (f.clayBed && clayRating(p) === 'no') return false;
   // (A loam or sandy bed: rated for it, or not rated for soil texture at all; not one rated only for other textures.)
   if (f.soilBed && p.soil_texture?.length && !p.soil_texture.includes(f.soilBed)) return false;
   if (f.afternoonSun && p.sun_most !== 'Full') return false;
@@ -750,7 +754,7 @@ const FILTER_READS: [keyof PlantFilter, (p: Plant, f: PlantFilter) => string[], 
   ['bloomMonth', (p, f) => (bloomMatch(p, f.bloomMonth) === 'earlier' ? ['bloom'] : []), 'bloom time'], ['native', (_p, f) => (f.native === '@here' ? [] : ['native']), 'native status'],
   ['deerResistant', () => ['deer'], 'deer resistance'], ['spread', () => ['self_seed', 'habit'], 'how it spreads'], ['height', () => ['height'], 'height'],
   ['width', () => ['width'], 'width'],
-  ['wetFeet', () => ['wet_feet'], 'wet soil'], ['clayOk', () => ['clay_ok'], 'clay'], ['clayBed', () => ['clay_ok'], 'clay'], ['soilBed', () => ['soil_texture'], 'soil'],
+  ['wetFeet', () => ['wet_feet'], 'wet soil'], ['clayOk', () => ['clay_ok'], 'clay'], ['clayBed', (p) => (p.soil_texture?.includes('clay') ? ['soil_texture'] : ['clay_ok']), 'clay'], ['soilBed', () => ['soil_texture'], 'soil'],
   ['hostOnly', (p) => (hostPlant(p) === 'earlier' ? ['host'] : []), 'host plant'], ['fallColor', () => ['fall_color'], 'fall color'], ['evergreen', () => ['foliage'], 'evergreen'],
   ['winterInterest', () => ['winter_interest'], 'winter interest'], ['edible', () => ['edible'], 'edible'],
   ['hardyHere', () => ['zone_min', 'zone_max'], 'hardiness zones'],
@@ -758,6 +762,19 @@ const FILTER_READS: [keyof PlantFilter, (p: Plant, f: PlantFilter) => string[], 
 /** Whether a value rests only on the earlier list: its every source is the unsourced compendium. */
 export function earlierListOnly(pv: Provenance | undefined, sources = PLANT_META?.sources): boolean {
   return !!pv && !pv.unknown && pv.src.length > 0 && pv.src.every((s) => sources?.[s]?.trust === 'unverified');
+}
+/**
+ * A clay bed's reading of a plant (Jason, Nov 5: clay as loam and sandy, which go by NC State's soil textures): 'yes',
+ * rated for clay (Clay OK, or its soil textures name clay); 'no', rated against it (Clay OK no, or soil textures that
+ * name others but not clay, where nothing but the earlier list says Clay OK: NC State's sourced rating wins); 'none',
+ * not rated (listed below the divider). A source besides the earlier list that says Clay OK stands.
+ */
+export function clayRating(p: Plant, sources = PLANT_META?.sources): 'yes' | 'no' | 'none' {
+  if (p.clay_ok === false) return 'no';
+  const textures = p.soil_texture ?? [];
+  if (textures.includes('clay')) return 'yes';
+  if (textures.length) return p.clay_ok === true && !earlierListOnly(p.prov?.clay_ok, sources) ? 'yes' : 'no';
+  return p.clay_ok === true ? 'yes' : 'none';
 }
 /**
  * The filters a catalog plant passes only on the earlier list's word (what the filter reads has no source but that
@@ -930,7 +947,7 @@ export function filteredPlants(near = true): Plant[] {
       if (plantFilter.flowerColors.length && !trueToColor(plant)) comesIn.set(plant.id, showyColors(plant).filter((c) => plantFilter.flowerColors.includes(c)));
       if (month && bloomMatch(plant, plantFilter.bloomMonth) === 'season') bySeason.add(plant.id);
       // (A clay bed: one no source rates for clay, below its divider; a loam or sandy bed: one with no soil texture rated.)
-      if (plantFilter.clayBed && plant.clay_ok == null) noSoilRating.add(plant.id);
+      if (plantFilter.clayBed && clayRating(plant) === 'none') noSoilRating.add(plant.id);
       if (plantFilter.soilBed && !plant.soil_texture?.length) noSoilRating.add(plant.id);
     }
     return m !== null;

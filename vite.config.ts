@@ -35,9 +35,9 @@ export default defineConfig({
         // The ZIP code tables are fetched one at a time when a ZIP is looked up (the plan keeps the answer);
         // the wild records by state when the garden's in or next to that state (kept by src/sw.ts once fetched).
         globIgnores: ['climate/**', 'wild/*/[0-9][0-9].json'],
-        // plants.json is ~3.7 MB with the plants added from NC State (~270 KB gzipped over the wire); a build
-        // fails, rather than leave it out of the offline copy, once it outgrows this.
-        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
+        // plants.json is ~8.5 MB (~670 KB gzipped over the wire) since Nov 5, 2026 (it was ~3.7 MB when this was set at
+        // 8 MiB); a build fails, rather than leave it out of the offline copy, once it outgrows this.
+        maximumFileSizeToCacheInBytes: 12 * 1024 * 1024,
       },
       devOptions: { enabled: false },
     }),

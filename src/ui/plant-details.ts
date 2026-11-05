@@ -275,7 +275,13 @@ function putParts(dd: HTMLElement, parts: [text: Child, src: string, testid?: st
   return dd;
 }
 /** The soils it grows in, as NC State lists their textures: "Clay, loam or sand"; "Loam". Empty for none. */
-export const soilText = (t?: string[]): string => cap(orList(t ?? []));
+const SOIL_ALSO_SAID: Record<string, string> = { organic: 'high organic matter', rocky: 'shallow rocky soil' };
+/** "Clay or loam"; with NC State's other soils, "Clay or loam; also high organic matter and shallow rocky soil". */
+export const soilText = (t?: string[], also?: string[]): string => {
+  const more = (also ?? []).map((x) => SOIL_ALSO_SAID[x]).filter(Boolean).join(' and ');
+  const main = orList(t ?? []);
+  return main && more ? `${cap(main)}; also ${more}` : cap(main || more);
+};
 /** "Yes: gold, red"; "No"; or, with colors and no yes or no, the colors. */
 export const fallText = (p: Plant): string => {
   const colors = p.fall_colors?.length ? p.fall_colors.join(', ') : '';
@@ -333,7 +339,7 @@ function rows(p: Plant): Row[] {
     ['Fall color', fallText(p), ['fall_color', 'fall_colors']],
     ['Growth rate', p.growth_rate ? cap(p.growth_rate) : '', ['growth_rate']],
     // (The soil textures NC State lists it for: "Clay, loam or sand". Beside it, Takes clay as before.)
-    ['Soil', soilText(p.soil_texture), ['soil_texture']],
+    ['Soil', soilText(p.soil_texture, p.soil_also), p.soil_also?.length ? ['soil_texture', 'soil_also'] : ['soil_texture']],
     ['Takes clay', yes(p.clay_ok), ['clay_ok']],
     ['Takes wet soil', yes(p.wet_feet), ['wet_feet']],
     ['Takes dry shade', yes(p.dry_shade), ['dry_shade']],

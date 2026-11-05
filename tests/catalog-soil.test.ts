@@ -190,3 +190,27 @@ describe.skipIf(!SAVED)('on saved NC State pages (read-only)', () => {
     expect(claimsOf('salvia-greggii')).toEqual({ field: ['High Organic Matter', 'Shallow Rocky'], soil: undefined, clay: undefined });
   });
 });
+
+// NC State's other two soils (Jason, Nov 5: "Show 'High Organic Matter' and 'Shallow Rocky' in a plant's Soil row"):
+// kept beside the textures as `soil_also`, shown, never a filter.
+describe("the field's other soils: high organic matter and shallow rocky, shown in the Soil row", () => {
+  it('maps the two, each once, in order; nothing else', async () => {
+    // @ts-expect-error (plain JavaScript build script)
+    const { soilAlso } = await import('../scripts/catalog/claims.mjs');
+    expect(soilAlso(['Shallow Rocky', 'High Organic Matter', 'Clay', 'Shallow Rocky'])).toEqual(['organic', 'rocky']);
+    expect(soilAlso(['Loam (Silt)', 'Peat'])).toEqual([]);
+    expect(soilAlso(undefined)).toEqual([]);
+  });
+  it("reads them into NC State's claim, beside the textures (oleander's field names all five)", () => {
+    const also = (f: Record<string, string[]>) => (ncsuClaims(f) as Claim[]).find((c) => c.fact === 'soil_also');
+    expect(also(ncsuFields(fixture('ncsu-nerium.html')))).toEqual({ fact: 'soil_also', v: ['organic', 'rocky'], src: 'ncsu', kind: 'authority' });
+    expect(also(ncsuFields(page({ 'Soil Texture': ['High Organic Matter'] })))?.v).toEqual(['organic']);
+    expect(also(ncsuFields(page({ 'Soil Texture': ['Loam (Silt)'] })))).toBeUndefined();
+  });
+  it('the Soil row says them after the textures, or alone', () => {
+    expect(soilText(['clay', 'loam'], ['organic', 'rocky'])).toBe('Clay or loam; also high organic matter and shallow rocky soil');
+    expect(soilText([], ['rocky'])).toBe('Shallow rocky soil');
+    expect(soilText(['sand'])).toBe('Sand');
+    expect(soilText(undefined, undefined)).toBe('');
+  });
+});

@@ -249,9 +249,11 @@ test('For a clay bed: what no source rates for clay is listed below a divider; a
   await seed(page, ANSWERED);
   await tapPlan(page, 9, 1.5);
   await page.getByTestId('pill-plant-bed').click();
-  await search(page).fill('Silverleaf hydrangea');
+  // (No source rates it for clay or any soil texture. Silverleaf hydrangea was the example until Nov 5: NC State rates
+  // it for loam only, so a clay bed now leaves it out, as a loam or sandy bed would one rated only for other soils.)
+  await search(page).fill('Japanese hydrangea vine');
   await expect(page.getByTestId('no-clay-divider')).toContainText('No source we\'ve read says how these do in clay');
-  await expect(page.locator('[data-testid=no-clay-divider] ~ .plant-item .pname', { hasText: 'Silverleaf hydrangea' })).toBeVisible();
+  await expect(page.locator('[data-testid=no-clay-divider] ~ .plant-item .pname', { hasText: 'Japanese hydrangea vine' }).first()).toBeVisible();
   // A plant that takes only part of the bed's sun says where.
   await search(page).fill('Narrow-leaved coneflower');
   await expect(rowNamed(page, 'Narrow-Leaved Coneflower').getByTestId('sun-end')).toHaveText('Sunny end only');
@@ -265,7 +267,7 @@ test('For a clay bed: what no source rates for clay is listed below a divider; a
   await expect(page.getByTestId('set-aside')).toContainText('Showing what Front bed\'s conditions hid for “cardinal flower” (Moisture)');
   await page.getByTestId('clear-search').click();
   // Clay taken off for now: no divider, and its chip to put back; the bed itself unchanged.
-  await search(page).fill('Silverleaf hydrangea');
+  await search(page).fill('Japanese hydrangea vine');
   await page.getByTestId('bed-box').getByRole('button', { name: 'Take off for now: Clay OK' }).click();
   await expect(page.getByTestId('no-clay-divider')).toHaveCount(0);
   await expect(page.getByTestId('bed-cond-off')).toHaveText('Clay OK');
@@ -279,7 +281,7 @@ test('For a clay bed: what no source rates for clay is listed below a divider; a
   await page.getByTestId('cond-moisture-wet').click();
   await page.getByTestId('conditions-back').click();
   await expect(pressed(page)).toHaveText('Front bed');
-  await expect(search(page)).toHaveValue('Silverleaf hydrangea');
+  await expect(search(page)).toHaveValue('Japanese hydrangea vine');
   await expect(chips(page)).toHaveText(['Takes part shade to full sun', 'Clay OK', 'Takes wet soil']);
 });
 
@@ -337,12 +339,12 @@ test('For a loam or sandy bed: plants rated for it, those rated for no texture b
   await expect(chips(page)).toHaveText(['Takes part shade to full sun', 'Sandy soil OK']);
   await expect.poll(() => listOrder(page)).toEqual(['Prickly Pear', 'Redbud', '|no-sand-divider', 'Hairy Alumroot']);
   await expect(page.getByTestId('no-sand-divider')).toHaveText('No source we\'ve read says how these do in sandy soil (1)');
-  // Clay as before, by Clay OK: those with no clay rating below its divider, whatever textures they're rated for.
+  // Clay the same way (Jason, Nov 5): rated for clay first, no rating below its divider, rated only for others left out.
   await page.getByTestId('bed-edit').click();
   await page.getByTestId('cond-soil-clay').click();
   await page.getByTestId('conditions-back').click();
   await expect(chips(page)).toHaveText(['Takes part shade to full sun', 'Clay OK']);
-  await expect.poll(() => listOrder(page)).toEqual(['Redbud', 'Swamp Milkweed', '|no-clay-divider', 'Hairy Alumroot', 'Prickly Pear', 'Wild Bergamot']);
+  await expect.poll(() => listOrder(page)).toEqual(['Redbud', 'Swamp Milkweed', '|no-clay-divider', 'Hairy Alumroot']);
   // A plant's details: its Soil, with its source in front, quietly; none where it has no rating.
   await rowNamed(page, 'Redbud').getByTestId('plant-row').click();
   const details = rowNamed(page, 'Redbud').getByTestId('plant-details');

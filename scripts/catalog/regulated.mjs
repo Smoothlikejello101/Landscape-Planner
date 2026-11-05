@@ -13,7 +13,8 @@ const HYBRID = /^[A-Z][a-zë-]+ × [a-zë-]+$/;
  * The lists, checked: every entry a species, a variety or subspecies, or a genus, with a class its list says.
  * An entry's `kew`: its name as Kew's checklist spells it, where the rule spells it otherwise (crusgalli,
  * crus-galli). `accepted`: Kew's accepted name for it, where Kew files it under another, checked by hand
- * (Sapium sebiferum, Triadica sebifera); false where Kew's would be wrong (it types Pennisetum polystachion on
+ * (Sapium sebiferum, Triadica sebifera), or a subspecies or variety where Kew keeps it only as one (Amur maple, Acer
+ * ginnala: Acer tataricum subsp. ginnala, matched by that name, as a listed variety is); false where Kew's would be wrong (it types Pennisetum polystachion on
  * a native grass): matched by its printed names only. `notKew`: Kew's accepted name for the printed name, checked
  * and not this plant (Arkansas's Rottboellia exaltata is itchgrass, not Kew's Ophiuros exaltatus). `also`: other names it's printed or sold under (kudzu,
  * Pueraria lobata).
@@ -67,7 +68,9 @@ export function problems(data) {
       if (!j.classes?.[p.class]) out.push(`${j.code} ${what}: class "${p.class}" not in its list's classes`);
       if (p.name ? !(SPECIES.test(p.name) || INFRA.test(p.name) || HYBRID.test(p.name)) || p.genus : !/^[A-Z][a-z]+$/.test(p.genus ?? '')) out.push(`${j.code} ${what}: not a species, variety, subspecies or genus`);
       if (p.kew != null && !(p.name && SPECIES.test(p.kew))) out.push(`${j.code} ${what}: bad Kew spelling`);
-      if (p.accepted != null && !(p.name && (p.accepted === false || SPECIES.test(p.accepted)))) out.push(`${j.code} ${what}: bad accepted name`);
+      // (A subspecies or variety too, where Kew keeps the printed name only as one: Amur maple, Acer ginnala, is Kew's Acer
+      // tataricum subsp. ginnala. Jason, 2026-11-05.)
+      if (p.accepted != null && !(p.name && (p.accepted === false || SPECIES.test(p.accepted) || INFRA.test(p.accepted)))) out.push(`${j.code} ${what}: bad accepted name`);
       if (p.notKew != null && !(p.name && SPECIES.test(p.notKew) && p.accepted)) out.push(`${j.code} ${what}: bad notKew`);
       if (p.also != null && !(p.name && Array.isArray(p.also) && p.also.every((a) => SPECIES.test(a) || INFRA.test(a)))) out.push(`${j.code} ${what}: bad other names`);
       // (A background note: one documented fact about the plants, from a source, shown where a native is listed.)
@@ -134,6 +137,8 @@ export function regulatedPlants(data, plants, accepted, genusWide = {}, backgrou
         if (e.genus) return genera.has(e.genus) && ![...(e.except ?? []), ...(e.exceptAlso ?? [])].some((x) => names.has(x));
         if (HYBRID.test(e.name)) return own === e.name || own.startsWith(`${e.name} `);
         if (INFRA.test(e.name)) return [e.name, ...(e.also ?? [])].some((n) => own === n || own.startsWith(`${n} `) || (SPECIES.test(n) && names.has(n)));
+        // (An accepted subspecies or variety takes in only that one, by the catalog's own name, as a listed variety does.)
+        if (e.accepted && INFRA.test(e.accepted)) return own === e.accepted || own.startsWith(`${e.accepted} `);
         return entryNames(e).some((n) => names.has(n));
       });
       if (hit) mine[p.id] = hit.class;

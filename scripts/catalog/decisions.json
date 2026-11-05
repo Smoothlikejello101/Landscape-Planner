@@ -51,13 +51,32 @@
   "lantana-camara-miss-huff-hardy": {"decided": "2026-10-23", "by": "Jason", "note": "Kew has it native only in Puerto Rico; when the catalog's North America-wide native status comes from Kew, the territories stay out of North America"}
  },
  "kewNames": {
+  "Actaea podocarpa": {"author": "DC.", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "DC., mountain bugbane; not A. podocarpa Schltdl. (A. cimicifuga)"},
+  "Anchusa azurea": {"author": "Mill.", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "Mill., Italian bugloss; not A. azurea Schur (A. ochroleuca)"},
   "Aquilegia canadensis": {"author": "L.", "decided": "2026-10-23", "by": "Jason", "note": "L., wild columbine; not A. canadensis Hook. (western columbine)"},
+  "Betula lenta": {"author": "L.", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "L., sweet birch; not B. lenta Du Roi (B. pubescens)"},
   "Bouteloua gracilis": {"author": "(Kunth) Lag. ex Griffiths", "decided": "2026-10-23", "by": "Jason", "note": "(Kunth) Lag. ex Griffiths, blue grama; not B. gracilis Vasey (needle grama)"},
   "Carex gracillima": {"author": "Schwein.", "decided": "2026-10-23", "by": "Jason", "note": "Schwein.; not C. gracillima Steud. & Hochst. (C. ferruginea, the Alps)"},
   "Castilleja coccinea": {"author": "(L.) Spreng.", "decided": "2026-10-23", "by": "Jason", "note": "(L.) Spreng.; not C. coccinea Douglas (C. parviflora)"},
+  "Commelina communis": {"author": "L.", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "L., Asiatic dayflower; not C. communis Walter, Roxb. or F.Muell. (C. diffusa, C. obliqua, C. cyanea)"},
   "Conopholis americana": {"author": "(L.) Wallr.", "decided": "2026-10-23", "by": "Jason", "note": "(L.) Wallr., bear corn; not C. americana Endl. (C. alpina)"},
+  "Dryopteris affinis": {"author": "(Lowe) Fraser-Jenk.", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "(Lowe) Fraser-Jenk., golden-scale male fern; not D. affinis (Newman) Kinahan (D. caucasica)"},
+  "Iberis sempervirens": {"author": "L.", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "L., evergreen candytuft; not I. sempervirens Burm.f. (Clypeola jonthlaspi)"},
+  "Lagascea mollis": {"author": "Cav.", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "Cav., as Hawaii's noxious weed list means it; not L. mollis Sch.Bip. (L. decipiens var. decipiens)"},
   "Ludwigia alternifolia": {"author": "L.", "decided": "2026-10-23", "by": "Jason", "note": "L., seedbox; not L. alternifolia Walter (L. virgata)"},
-  "Scirpus microcarpus": {"author": "J.Presl & C.Presl", "decided": "2026-10-23", "by": "Jason", "note": "J.Presl & C.Presl; not S. microcarpus (Torr.) Kuntze (Eleocharis microcarpa)"}
+  "Lysimachia quadrifolia": {"author": "L.", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "L., whorled loosestrife; not L. quadrifolia Mill. (L. punctata)"},
+  "Malus hupehensis": {"author": "(Pamp.) Rehder", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "(Pamp.) Rehder, Chinese crab apple; not M. hupehensis Koidz. (M. toringo)"},
+  "Pinus thunbergii": {"author": "Parl.", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "Parl., Japanese black pine (the catalog's, and Massachusetts's list's); not P. thunbergii Lamb. (Picea polita)"},
+  "Populus heterophylla": {"author": "L.", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "L., swamp cottonwood; not P. heterophylla Du Roi or K.Koch (P. deltoides subsp. monilifera, P. balsamifera)"},
+  "Quercus lyrata": {"author": "Walter", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "Walter, overcup oak; not Q. lyrata Spreng. (Q. lobata)"},
+  "Rosa virginiana": {"author": "Mill.", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "Mill., Virginia rose; not R. virginiana Herrm. (R. spinosissima)"},
+  "Scirpus microcarpus": {"author": "J.Presl & C.Presl", "decided": "2026-10-23", "by": "Jason", "note": "J.Presl & C.Presl; not S. microcarpus (Torr.) Kuntze (Eleocharis microcarpa)"},
+  "Senecio linearifolius": {"author": "A.Rich.", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "A.Rich., as California's noxious weed list means it; not S. linearifolius Colla (S. chilensis var. chilensis)"},
+  "Solanum cardiophyllum": {"author": "Lindl.", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "Lindl., as California's noxious weed list means it; not S. cardiophyllum Dunal"},
+  "Solanum dimidiatum": {"author": "Raf.", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "Raf., as California's noxious weed list means it; not S. dimidiatum Sendtn. (S. leucopogon)"},
+  "Solanum laxum": {"author": "Spreng.", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "Spreng., potato vine; not S. laxum Dunal or Royle (S. megalochiton, S. dulcamara)"},
+  "Solanum rostratum": {"author": "Dunal", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "Dunal, buffalobur, as Washington's list means it; not S. rostratum L'Hér. ex Dunal (S. angustifolium)"},
+  "Viola blanda": {"author": "Willd.", "decided": "2026-11-05", "by": "Jason (Claude's check)", "note": "Willd., sweet white violet; not V. blanda Salisb. (V. cornuta)"}
  },
  "genusPage": {
   "narcissus-tete-a-tete": {"decided": "2026-10-23", "by": "Jason", "note": "NC State's Narcissus page: bulb, zones 4a-8b, full sun to part shade, low water, takes clay, deer resistant"},

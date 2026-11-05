@@ -113,7 +113,7 @@ export interface Provenance {
  */
 export const INHERITED = new Set([
   'form', 'zone_min', 'zone_max', 'sun_most', 'sun_least', 'water', 'humidity', 'tox', 'poison', 'dog', 'thorns', 'foliage', 'winter_leaves', 'needles',
-  'poison_parents', 'native', 'native_na', 'botanical_synonyms', 'host', 'hosts', 'host_genus', 'nectar', 'bird', 'deer', 'edible', 'edible_parts', 'fruit_set', 'clay_ok', 'soil_texture', 'wet_feet', 'dry_shade', 'taproot', 'wild_us', 'bloom_season',
+  'poison_parents', 'native', 'native_na', 'botanical_synonyms', 'host', 'hosts', 'host_genus', 'nectar', 'bird', 'deer', 'edible', 'edible_parts', 'fruit_set', 'clay_ok', 'soil_texture', 'soil_also', 'wet_feet', 'dry_shade', 'taproot', 'wild_us', 'bloom_season',
   'tolerates', 'problem_for', 'maintenance_level', 'bark', 'fruit_season', 'leaf_form', 'texture', 'climbs_by',
 ]);
 
@@ -228,6 +228,8 @@ export const LEAF_FORM = {
 export const TEXTURES = ['fine', 'medium', 'coarse'];
 /** The soil textures it grows in, NC State's "Soil Texture" (scripts/catalog/claims.mjs soilTextures), in this order. */
 export const SOIL_TEXTURES = ['clay', 'loam', 'sand'];
+/** The field's other two soils (scripts/catalog/claims.mjs soilAlso): high organic matter, shallow rocky. */
+export const SOIL_ALSO = ['organic', 'rocky'];
 export const HABIT_FORMS = ['erect', 'spreading', 'rounded', 'dense', 'clumping', 'multi-stemmed', 'mounding', 'arching', 'creeping', 'climbing', 'pyramidal', 'open',
   'horizontal', 'oval', 'prostrate', 'ascending', 'vase', 'columnar', 'cascading', 'broad', 'multi-trunked', 'irregular', 'weeping', 'conical'];
 /** How a vine climbs (NC State's "Climbing Method"). */
@@ -313,6 +315,8 @@ const FACT_TYPES: Record<string, (v: unknown, enums: Record<string, string[]>) =
   clay_ok: (v) => typeof v === 'boolean', wet_feet: (v) => typeof v === 'boolean', dry_shade: (v) => typeof v === 'boolean',
   // The soil textures it grows in (NC State's "Soil Texture"): clay, loam, sand, each once.
   soil_texture: wordsOf(SOIL_TEXTURES),
+  // Its other soils in that field (Jason, Nov 5): high organic matter, shallow rocky; shown, never a filter.
+  soil_also: wordsOf(SOIL_ALSO),
   taproot: (v) => typeof v === 'boolean',
   // A plant's degree in USGS's register of introduced plants reproducing in the wild in the lower 48, in its own terms
   // (US-RIIS: scripts/catalog/riis.mjs). Stated in its details; never a reason to hide it (that's the state's law).
