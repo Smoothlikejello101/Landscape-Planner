@@ -55,6 +55,13 @@ export interface SyncRecord {
    * so what the server has of them isn't known here (an upload settles with the server first).
    */
   parts?: ProjectContent;
+  /**
+   * The shapes, by id, that had a bed's conditions or a fruit-partner dismissal in the server's copy this record
+   * describes (Nov 4): where a mark of something taken away ({} or '') may go on this device, since another device can
+   * have that field (src/marks.ts mayMark). Absent: none had either (and in every record from before it: release 3
+   * never had the fields, and Next doesn't sync).
+   */
+  marks?: { conditions?: string[]; fruit?: string[] };
 }
 export interface ServerProject { id: string; name: string; revision: number; updated_by: string | null; updated_at: string; deleted_at: string | null }
 export type PushResult =
@@ -189,13 +196,41 @@ export function planOf(c: ProjectContent): ProjectContent {
  * A plan as fingerprinted: a fruit-partner warning shown again on purpose (`fruitDismissed: ''`) reads as none. So a
  * dismissal taken back before the plan synced (Undo, Show again) isn't taken for a change, which against another
  * device's edit made a conflict copy (the second review, Nov 1); dismissed words to '' still differ, as words to none
- * do, so a Show again still goes up. A plan without '' is fingerprinted exactly as before (the same object).
+ * do, so a Show again still goes up. Likewise a bed's conditions cleared on purpose (`conditions: {}`, Nov 2): set to
+ * {} is a change, as set to none is; none to {} isn't. A plan with neither is fingerprinted exactly as before (the
+ * same object).
  */
 function forHash(c: ProjectContent): ProjectContent {
-  const shown = (s: unknown) => !!s && typeof s === 'object' && (s as { fruitDismissed?: unknown }).fruitDismissed === '';
-  if (!Array.isArray(c.shapes) || !c.shapes.some(shown)) return c;
-  return { ...c, shapes: c.shapes.map((s) => { if (!shown(s)) return s; const { fruitDismissed: _f, ...rest } = s as Record<string, unknown>; return rest; }) };
+  const shapes = Array.isArray(c.shapes) ? withoutClearedMarks(c.shapes) : null;
+  return shapes ? { ...c, shapes } : c;
 }
+
+// ---------- Marks of something taken away on purpose ----------
+// Kept on a shape so sync can tell them from a copy an older version sent without the field (docs/storage.md): a
+// fruit-partner warning shown again (`fruitDismissed: ''`) and a bed's conditions cleared (`conditions: {}`). Where two
+// copies of a plan are compared for what they hold (the fingerprints here, a journal against its plan in
+// src/storage.ts, an imported plan against one already here in src/backup.ts), each reads as none.
+/** Whether a shape carries either mark. */
+function marked(s: unknown): boolean {
+  if (!s || typeof s !== 'object') return false;
+  const o = s as { fruitDismissed?: unknown; conditions?: unknown };
+  const k = o.conditions;
+  return o.fruitDismissed === '' || (!!k && typeof k === 'object' && !Array.isArray(k) && Object.keys(k).length === 0);
+}
+
+/** The shapes with those marks read as none; null when none has one (so a caller can keep its object as it was). */
+export function withoutClearedMarks<T>(shapes: readonly T[]): T[] | null {
+  if (!shapes.some(marked)) return null;
+  return shapes.map((s) => {
+    if (!marked(s)) return s;
+    const rest = { ...(s as Record<string, unknown>) };
+    if (rest.fruitDismissed === '') delete rest.fruitDismissed;
+    const k = rest.conditions;
+    if (!!k && typeof k === 'object' && !Array.isArray(k) && Object.keys(k).length === 0) delete rest.conditions;
+    return rest as T;
+  });
+}
+
 /** Fingerprint of the name and plan (the photo apart). Records made before photos synced hold exactly this. */
 export const planHash = (name: string, c: ProjectContent) => fingerprint(name, forHash(planOf(c)));
 /** Parts of a plan that settle on their own when two devices change them (settleParts), not a conflict. */
@@ -256,8 +291,28 @@ const recordFor = (name: string, c: ProjectContent, revision: number): SyncRecor
   const rec: SyncRecord = { revision, hash: planHash(name, c), core: coreHash(name, c) };
   const parts = partsOf(c);
   if (Object.keys(parts).length) rec.parts = parts;
+  const marks = marksOf(c);
+  if (marks) rec.marks = marks;
   return photo === undefined ? rec : { ...rec, photo };
 };
+/**
+ * The shapes of a copy of a plan with a bed's conditions or a fruit-partner dismissal (marks included), by id: a
+ * record's `marks`. Only from the server's copy (what another device can take): a download's record describes the copy
+ * as kept here, with this device's own parts filled in, so it takes them from the server's copy itself.
+ */
+export function marksOf(c: ProjectContent): SyncRecord['marks'] {
+  if (!Array.isArray(c.shapes)) return undefined;
+  const conditions: string[] = [], fruit: string[] = [];
+  for (const s of c.shapes) {
+    if (!s || typeof s !== 'object') continue;
+    const o = s as { id?: unknown; role?: unknown; conditions?: unknown; fruitDismissed?: unknown };
+    if (typeof o.id !== 'string') continue;
+    if (o.role === 'bed' && o.conditions !== undefined) conditions.push(o.id);
+    if (o.fruitDismissed !== undefined) fruit.push(o.id);
+  }
+  if (!conditions.length && !fruit.length) return undefined;
+  return { ...(conditions.length ? { conditions } : {}), ...(fruit.length ? { fruit } : {}) };
+}
 /** Size in bytes of a data URL's contents. */
 const byteSize = (dataUrl: string) => { const b64 = dataUrl.slice(dataUrl.indexOf(',') + 1); return Math.floor((b64.length * 3) / 4) - (b64.endsWith('==') ? 2 : b64.endsWith('=') ? 1 : 0); };
 
@@ -272,7 +327,35 @@ export function withLocalParts(server: ProjectContent, mine: ProjectContent | un
   if (!mine) return server;
   let out = server;
   for (const k of NEWER_PARTS) if (!(k in server) && k in mine) out = { ...out, [k]: mine[k] };
-  return withFruitDismissals(withChosenColors(withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine), mine), mine);
+  return withBedConditions(withFruitDismissals(withChosenColors(withStructures(withVineSupports(withUtilities(withSubFeatures(withGoneDates(out, mine), mine), mine), mine), mine), mine), mine), mine);
+}
+/**
+ * A bed's conditions (Nov 2: its soil, moisture, drip, and sun where no sun area covers it), which an older version
+ * drops from a shape it sends: kept from here when the server's copy of that shape, still a bed (its id and role), has
+ * none at all. Without it, a device on an older version with an edit of its own sends the plan over newer conditions,
+ * its merge not seeing them, and every device then loses them. The server's copy goes without them until a device that
+ * has them sends the plan again. {} (cleared on purpose) is kept the same way, so a device that cleared them says so
+ * again as it next sends the plan; where the server has some, {} or answers, they stand.
+ *
+ * What's left (as for fruitDismissed, docs/storage.md): a device offline through another device's change to a bed's
+ * conditions (set, changed or cleared), with a device on an older version sending the plan between, still has its own,
+ * which the server's copy no longer contradicts: it keeps them, and they go to everyone if it sends the plan before the
+ * device that made the change does. Only while one of the account's devices is on database version 3 or before
+ * (docs/storage.md has the other windows).
+ */
+function withBedConditions(server: ProjectContent, mine: ProjectContent): ProjectContent {
+  if (!Array.isArray(server.shapes) || !Array.isArray(mine.shapes)) return server;
+  type Bed = { id?: unknown; role?: unknown; conditions?: unknown };
+  const kept = new Map<unknown, unknown>();
+  for (const s of mine.shapes as Bed[]) if (s && s.role === 'bed' && isObject(s.conditions)) kept.set(s.id, s.conditions);
+  if (!kept.size) return server;
+  let filled = false;
+  const shapes = (server.shapes as Bed[]).map((s) => {
+    if (!s || typeof s !== 'object' || s.role !== 'bed' || 'conditions' in s || !kept.has(s.id)) return s;
+    filled = true;
+    return { ...s, conditions: JSON.parse(JSON.stringify(kept.get(s.id))) };
+  });
+  return filled ? { ...server, shapes } : server;
 }
 /**
  * A shape's sub-features (doors, windows, gates: src/features.ts), which an older version leaves out of a shape it
@@ -806,7 +889,11 @@ export async function syncOnce(local: Local, remote: Remote, device: string): Pr
           if (!ok) return;
           filled.add(id);
           const n = local.normalize(g.name, content);
-          await local.setRecord(id, recordAfter(n.name, local.normalize(g.name, whole).content, g.revision, rec, rec?.photo));
+          // (Its marks from the server's copy, not this device's own parts filled in: src/marks.ts.)
+          const r = recordAfter(n.name, local.normalize(g.name, whole).content, g.revision, rec, rec?.photo);
+          const marks = marksOf(g.content);
+          if (marks) r.marks = marks; else delete r.marks;
+          await local.setRecord(id, r);
           report.downloaded++;
           if (undeleted.has(id)) report.undeleted.push(n.name);
         });

@@ -7,6 +7,7 @@ import { cancelHistoryDebounce, pushHistory, pushHistoryDebounced, redo, undo } 
 import { HISTORY_DEBOUNCE_MS } from '../src/constants';
 import { plantsById, type Plant } from '../src/plants';
 import { state } from '../src/state';
+import { _setSyncRecordsForTests } from '../src/storage';
 import type { Shape } from '../src/types';
 import { fruitNotice, remindNoMore } from '../src/ui/fruit-notice';
 import { dismissAcross, plantFruitBanner } from '../src/ui/role-sections';
@@ -62,11 +63,13 @@ describe('a fruit-partner warning dismissed for one plant (Jason, Nov 1)', () =>
     expect(fruitRows()).toEqual([['h', true, 'for this one']]); // (still dismissed: the count stays down)
     expect(state.historyIndex).toBe(steps + 1);
     // Undo at the top: back to just before it, dismissed for every one in the plan (the review, Nov 1: it left nothing
-    // dismissed); the copy's own left '', shown again on purpose, so sync doesn't fill it back. Redo: this one again.
+    // dismissed). The copy's own goes back to none, as it was when the plan was opened (its first undo step): a ''
+    // there would take away, on every device, a dismissal another device has that this one never got (the review of
+    // the bed conditions, Nov 4: src/history.ts inFirstStep). Redo: this one again.
     undo();
     expect(state.historyIndex).toBe(steps);
     expect(dismissedForPlan('fruit', holly.id, line)).toBe(true);
-    expect(shape('h').fruitDismissed).toBe('');
+    expect(shape('h').fruitDismissed).toBeUndefined();
     expect(fruitRows()).toEqual([['h', true, "for every Holly 'Red' in this plan"]]);
     redo();
     expect(dismissedForPlan('fruit', holly.id, line)).toBe(false);
@@ -122,14 +125,24 @@ describe('a fruit-partner warning dismissed for one plant (Jason, Nov 1)', () =>
     expect(buttons(banner)).toEqual(['Show again']);
     expect(buttons(plantFruitBanner(shape('h2')))).toEqual(['Dismiss for this one', "Dismiss for every Holly 'Red'"]); // (the other: its own)
     expect(fruitRows()).toEqual([['h2', false, undefined], ['h', true, 'for this one']]);
-    // Undo, Redo; then Show again, for it alone. Taken away either way, it's left '', shown again on purpose, so sync
-    // doesn't fill it back from another device's copy (src/sync/engine.ts withFruitDismissals).
+    // Undo, Redo; then Show again, for it alone. Undo takes it back to none, as it was in the first step; Show again
+    // leaves '', shown again on purpose, so sync doesn't fill it back from another device's copy (src/sync/engine.ts
+    // withFruitDismissals).
     undo();
-    expect(shape('h').fruitDismissed).toBe('');
+    expect(shape('h').fruitDismissed).toBeUndefined();
     expect(fruitRows()).toEqual([['h,h2', false, undefined]]);
     redo();
     expect(shape('h').fruitDismissed).toBe(line);
+    // (Show again: dismissed here and never sent, it goes, as it was; once sync has carried it, '' on purpose.)
     press(plantFruitBanner(shape('h')), 'Show again');
+    expect(shape('h').fruitDismissed).toBeUndefined();
+    press(plantFruitBanner(shape('h')), 'Dismiss for this one');
+    const was = state.currentProjectId;
+    state.currentProjectId = was ?? 'synced-plan';
+    _setSyncRecordsForTests({ [state.currentProjectId]: { revision: 1, hash: 'x', marks: { fruit: ['h'] } } });
+    press(plantFruitBanner(shape('h')), 'Show again');
+    state.currentProjectId = was;
+    _setSyncRecordsForTests({});
     expect(shape('h').fruitDismissed).toBe('');
     expect(buttons(plantFruitBanner(shape('h')))).toEqual(['Dismiss for this one', "Dismiss for every Holly 'Red'"]);
     expect(fruitRows()).toEqual([['h,h2', false, undefined]]);
@@ -139,7 +152,7 @@ describe('a fruit-partner warning dismissed for one plant (Jason, Nov 1)', () =>
     expect(buttons(notice())).toEqual(['Just these 2', 'Undo', 'OK', '✕']);
     expect(plantFruitBanner(shape('h'))!.textContent).toContain('Dismissed for every one in this plan.');
     press(plantFruitBanner(shape('h')), 'Show again');
-    expect([dismissedForPlan('fruit', holly.id, line), shape('h2').fruitDismissed]).toEqual([false, '']);
+    expect([dismissedForPlan('fruit', holly.id, line), shape('h2').fruitDismissed]).toEqual([false, undefined]); // (never sent: goes)
   });
 
   it('the notice as a plant is placed: not for a copy dismissed on its own, as for one dismissed across the plan', () => {
@@ -265,5 +278,21 @@ describe('a fruit-partner warning dismissed for one plant (Jason, Nov 1)', () =>
         expect(state.dismissed?.[kind]?.[holly.id], kind).toBeUndefined();
       }
     }
+  });
+  it("Undo leaves '' (shown again on purpose) on a copy whose dismissal the server's copy has, as this device last sent or took it", () => {
+    const was = state.currentProjectId;
+    state.currentProjectId = was ?? 'synced-plan';
+    _setSyncRecordsForTests({ [state.currentProjectId]: { revision: 1, hash: 'x', marks: { fruit: ['h'] } } });
+    state.shapes = [{ ...at('h', -40), fruitDismissed: line }];
+    state.history = []; state.historyIndex = -1;
+    pushHistory(); // (as opened: dismissed for this one)
+    delete shape('h').fruitDismissed; pushHistory(); // (taken away)
+    shape('h').fruitDismissed = line; pushHistory(); // (dismissed again)
+    undo();
+    expect(shape('h').fruitDismissed).toBe('');
+    redo();
+    expect(shape('h').fruitDismissed).toBe(line);
+    state.currentProjectId = was;
+    _setSyncRecordsForTests({});
   });
 });

@@ -5,6 +5,7 @@ import { state } from './state';
 import { save } from './storage';
 import type { HistorySnapshot, Shape } from './types';
 import { deepClone } from './util';
+import { mayMark } from './marks';
 import { describeShapes } from './ui/delete-selected';
 
 // Undo/redo: in-memory snapshots of shapes + background image, per project.
@@ -79,6 +80,7 @@ function applySnapshot(snap: HistorySnapshot) {
   state.shapes = deepClone(snap.shapes);
   boughtKept(before);
   fruitShownAgain(before);
+  conditionsCleared(before);
   // "Keep this photo on this device only" isn't an undoable edit: the same photo keeps its setting.
   const keep = state.bgImage && snap.bgImage && state.bgImage.dataUrl === snap.bgImage.dataUrl ? state.bgImage.deviceOnly : snap.bgImage?.deviceOnly;
   state.bgImage = snap.bgImage ? { ...snap.bgImage } : null;
@@ -130,12 +132,30 @@ function narrowedBack(n: NonNullable<HistorySnapshot['narrowed']>, back: boolean
 }
 /**
  * A copy's own fruit-partner dismissal that Undo or Redo takes away is left '', shown again on purpose, as Show again
- * leaves it: so sync doesn't fill it back from another device's copy (src/sync/engine.ts withFruitDismissals).
+ * leaves it: so sync doesn't fill it back from another device's copy (src/sync/engine.ts withFruitDismissals). Only
+ * where the server's copy had it as this device last synced (src/marks.ts mayMark): one dismissed here and never sent,
+ * then undone, has none again.
  */
 function fruitShownAgain(before: Shape[]) {
   const had = new Map(before.filter((s) => !!s.fruitDismissed).map((s) => [s.id, s.plantId]));
   if (!had.size) return;
-  for (const s of state.shapes) if (s.fruitDismissed === undefined && had.has(s.id) && had.get(s.id) === s.plantId) s.fruitDismissed = '';
+  for (const s of state.shapes) {
+    if (s.fruitDismissed === undefined && had.has(s.id) && had.get(s.id) === s.plantId && mayMark('fruit', s.id)) s.fruitDismissed = '';
+  }
+}
+/**
+ * A bed's conditions that Undo or Redo takes away (the step that set them undone, say) are left {}, cleared on purpose,
+ * as clearing them leaves them: so sync doesn't fill them back from another device's copy (src/sync/engine.ts
+ * withBedConditions). Only on a bed still a bed: one that stops being one has none (src/mutations.ts setRoleForIds).
+ * And only where the server's copy had them as this device last synced (src/marks.ts mayMark): answers set here and
+ * never sent, then undone, are none again, not {}.
+ */
+function conditionsCleared(before: Shape[]) {
+  const had = new Set(before.filter((s) => s.role === 'bed' && s.conditions !== undefined).map((s) => s.id));
+  if (!had.size) return;
+  for (const s of state.shapes) {
+    if (s.role === 'bed' && s.conditions === undefined && had.has(s.id) && mayMark('conditions', s.id)) s.conditions = {};
+  }
 }
 /**
  * Whether there's a step to undo: one taken, or one still being gathered (a run of arrow nudges, typing in a field),
