@@ -1,7 +1,8 @@
 // How the plan is shown, and its warning switches.
 //
 // Kept on this device across reloads (not saved with the plan): full-size rings on every plant; plants drawn as
-// illustrations (src/looks.ts) or as plain circles (drawn unless turned off), set in Layers; the zoom buttons.
+// illustrations (src/looks.ts) or as plain circles (drawn unless turned off), set in Layers; the zoom buttons; tall
+// plants seen through, from a height, set in Layers; how paper and pictures draw the plants under taller ones.
 //
 // Kept with the plan since Nov 1 (Jason approved the Warnings mock-ups: "What's checked (and dismissed) goes with this
 // plan, on all your devices"): Settings → Warnings' switches. Plants close to others ringed amber and crowded ones red,
@@ -12,7 +13,7 @@
 // change with the update; the keys are only read for that now, and left in place for an older version of the app.
 import { state } from './state';
 import { save } from './storage';
-import type { PlanSwitches, WarningSwitch } from './types';
+import type { PlanSwitches, PrintUnder, WarningSwitch } from './types';
 import { now } from './util';
 
 const FULL_RINGS = 'lp-full-rings', LOOKS = 'lp-plant-looks';
@@ -35,15 +36,45 @@ const read = (key: string, fallback: boolean): boolean => {
 };
 const write = (key: string, on: boolean) => { try { localStorage.setItem(key, on ? 'on' : 'off'); } catch { /* this session only */ } };
 
+/**
+ * Tall plants (Jason, Nov 4, answering the options page: "D" on the screen, "C" on paper, and a Layers switch "maybe with
+ * a few height options"): Layers' "See through tall plants", off unless turned on, and the height it goes from; and
+ * how paper and pictures draw the plants under taller ones, windows unless changed in Print. Kept on this device, as the
+ * switches beside them in Layers are (the plan's print settings would be a change to what's stored with it).
+ */
+const SEE_THROUGH = 'lp-see-through', SEE_THROUGH_FROM = 'lp-see-through-from', PRINT_UNDER = 'lp-print-under';
+/** The heights (ft) "See through tall plants" can go from: 5, as every plant that tall was drawn until Nov 4. */
+export const SEE_THROUGH_HEIGHTS = [3, 5, 10] as const;
+export const SEE_THROUGH_DEFAULT = 5;
+const readHeight = (): number => {
+  try { const v = Number(localStorage.getItem(SEE_THROUGH_FROM)); return (SEE_THROUGH_HEIGHTS as readonly number[]).includes(v) ? v : SEE_THROUGH_DEFAULT; } catch { return SEE_THROUGH_DEFAULT; }
+};
+const readUnder = (): PrintUnder => {
+  try { return localStorage.getItem(PRINT_UNDER) === 'screen' ? 'screen' : 'windows'; } catch { return 'windows'; }
+};
+
 /** At start: this device's own settings, as they were left. (The warning switches come with the plan opened.) */
 export function loadViewSettings() {
   state.showFullSize = read(FULL_RINGS, false);
   state.plantLooks = read(LOOKS, true);
   state.zoomButtons = read(ZOOM_BTNS, !touchOnly());
+  state.seeThroughTall = read(SEE_THROUGH, false);
+  state.seeThroughFrom = readHeight();
+  state.printUnder = readUnder();
 }
 export function setShowFullSize(on: boolean) { state.showFullSize = on; write(FULL_RINGS, on); }
 export function setPlantLooks(on: boolean) { state.plantLooks = on; write(LOOKS, on); }
 export function setZoomButtons(on: boolean) { state.zoomButtons = on; write(ZOOM_BTNS, on); }
+export function setSeeThroughTall(on: boolean) { state.seeThroughTall = on; write(SEE_THROUGH, on); }
+export function setSeeThroughFrom(ft: number) {
+  if (!(SEE_THROUGH_HEIGHTS as readonly number[]).includes(ft)) return;
+  state.seeThroughFrom = ft;
+  try { localStorage.setItem(SEE_THROUGH_FROM, String(ft)); } catch { /* this session only */ }
+}
+export function setPrintUnder(v: PrintUnder) {
+  state.printUnder = v;
+  try { localStorage.setItem(PRINT_UNDER, v); } catch { /* this session only */ }
+}
 
 /**
  * A plan from before plans kept the warning switches: as this device had them (on, where never turned off). No `at`:

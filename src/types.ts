@@ -350,6 +350,8 @@ export interface ProjectMeta {
 /** Plants drawn at the middle of their size range, or at full (maximum) size. */
 export type SizeMode = 'typical' | 'full';
 export type PaperSize = 'letter' | 'tabloid' | 'a4' | 'a3';
+/** How paper and pictures draw the plants under taller ones (AppState.printUnder): not part of PrintSettings, per device. */
+export type PrintUnder = 'windows' | 'screen';
 /** Printable-plan options, remembered per project. */
 export interface PrintSettings {
   paper: PaperSize;
@@ -626,6 +628,18 @@ export interface AppState {
   switchedAt: Partial<Record<WarningSwitch, number>>;
   /** The + and − zoom buttons shown (src/view-settings.ts): off on a phone unless turned on, on elsewhere. */
   zoomButtons: boolean;
+  /**
+   * Layers' "See through tall plants" (src/view-settings.ts, per device): every plant `seeThroughFrom` ft or taller
+   * drawn see-through on the plan, as all of them 5 ft or taller were until Nov 4. Off: solid (src/canvas.ts).
+   */
+  seeThroughTall: boolean;
+  /** The height (ft) "See through tall plants" goes from: one of SEE_THROUGH_HEIGHTS. */
+  seeThroughFrom: number;
+  /**
+   * On paper and in pictures, the plants under taller ones (src/print.ts, per device): 'windows', each taller plant
+   * faded where it covers one; 'screen', as on the screen, solid, the plants under them numbered dots with a key.
+   */
+  printUnder: PrintUnder;
   /**
    * View: names on the plan, with line lengths, sun hours and the badges on plants (not saved). Off, the plan shows
    * its shapes alone, to step back and see it whole; a selected shape still shows its own.

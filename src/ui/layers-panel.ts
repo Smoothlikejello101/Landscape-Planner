@@ -1,5 +1,5 @@
 import { lookShown, shapeDot } from '../plant-looks';
-import { setPlantLooks, setShowFullSize } from '../view-settings';
+import { SEE_THROUGH_HEIGHTS, setPlantLooks, setSeeThroughFrom, setSeeThroughTall, setShowFullSize } from '../view-settings';
 import { el, svgEl, ts } from '../dom';
 import { flushHistoryDebounce, pushHistory } from '../history';
 import { I } from '../icons';
@@ -215,6 +215,24 @@ function plantSizeSection(): HTMLElement {
   looks.addEventListener('change', () => { setPlantLooks(looks.checked); render(); });
   wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, looks,
     el('span', {}, 'Draw plants as pictures, in bloom (off: plain colored circles)')));
+  // Tall plants seen through, every one from a height, to look over a bed at once (Jason, Nov 4: "yes, maybe with a few
+  // height options as long as it doesn't confuse the layers page too much"): off unless turned on, the heights only
+  // while it's on. On this device. (Off, every plant is solid; a plant under a taller one, selected, sees through it.)
+  const tall = el('input', { type: 'checkbox', 'data-testid': 'see-through-tall' }) as HTMLInputElement;
+  tall.checked = state.seeThroughTall;
+  tall.addEventListener('change', () => { setSeeThroughTall(tall.checked); render(); });
+  wrap.appendChild(el('label', { className: 'check-row', style: { marginTop: '6px' } }, tall, el('span', {}, 'See through tall plants')));
+  if (state.seeThroughTall) {
+    const heights = el('div', { className: 'seg', role: 'group', 'aria-label': 'See through plants this tall or taller', 'data-testid': 'see-through-from' });
+    for (const ft of SEE_THROUGH_HEIGHTS) {
+      const b = el('button', { className: state.seeThroughFrom === ft ? 'sel' : '', 'aria-pressed': String(state.seeThroughFrom === ft) }, `${ft} ft`);
+      b.addEventListener('click', () => { if (state.seeThroughFrom !== ft) { setSeeThroughFrom(ft); render(); } });
+      heights.appendChild(b);
+    }
+    // (Under the switch, in line with its words.)
+    wrap.appendChild(el('div', { className: 'see-through-from', style: { display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', margin: '6px 0 0 21px' } },
+      el('span', { style: { fontSize: ts(13), color: '#57534e' } }, 'As tall as'), heights, el('span', { style: { fontSize: ts(13), color: '#57534e' } }, 'or taller')));
+  }
   return wrap;
 }
 
